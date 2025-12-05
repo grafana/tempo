@@ -52,7 +52,7 @@ type Interface interface {
 	MetricsGeneratorCollectionInterval(userID string) time.Duration
 	MetricsGeneratorDisableCollection(userID string) bool
 	MetricsGeneratorGenerateNativeHistograms(userID string) histograms.HistogramMethod
-	MetricsGenerationTraceIDLabelName(userID string) string
+	MetricsGeneratorTraceIDLabelName(userID string) string
 	MetricsGeneratorRemoteWriteHeaders(userID string) map[string]string
 	MetricsGeneratorForwarderQueueSize(userID string) int
 	MetricsGeneratorForwarderWorkers(userID string) int

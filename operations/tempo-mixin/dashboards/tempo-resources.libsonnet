@@ -157,7 +157,7 @@ dashboard_utils {
           $.containerMemoryWorkingSetPanel('Memory (workingset)', $._config.jobs.live_store),
         )
         .addPanel(
-          $.goHeapInUsePanel('Memory (go heap inuse)', $.jobMatcher($._config.jobs.live_store)),
+          $.goHeapInUsePanel('Memory (go heap inuse)', $.jobMatcher('live-store-.*')),
         )
       ),
   },

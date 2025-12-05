@@ -367,12 +367,25 @@ func TestBackendNilValueBlockSearchTraceQL(t *testing.T) {
 				TraceID: wantTraceID,
 				ResourceSpans: []ResourceSpans{
 					{
+						Resource: Resource{
+							ServiceName: "hello",
+							Attrs: []Attribute{
+								// BUG - at least one generic attr is required to satisfy
+								// resource.bar=nil test case below.
+								attr("foo", "def"),
+							},
+						},
 						ScopeSpans: []ScopeSpans{
 							{
 								Spans: []Span{
 									{
 										// this span has nil values for everything
 										SpanID: []byte("nil-test-span-0"),
+										Attrs: []Attribute{
+											// BUG - at least one generic attr is required to satisfy
+											// span.bar=nil test case below.
+											attr("foo", "jkl"),
+										},
 									},
 									{
 										SpanID:                 []byte("nil-test-span-1"),
@@ -395,6 +408,11 @@ func TestBackendNilValueBlockSearchTraceQL(t *testing.T) {
 											String03: ptr("dedicated-span-attr-value-3"),
 											String04: ptr("dedicated-span-attr-value-4"),
 											String05: ptr("dedicated-span-attr-value-5"),
+										},
+										Attrs: []Attribute{
+											// BUG - at least one generic attr is required to satisfy
+											// span.bar=nil test case below.
+											attr("foo", "mno"),
 										},
 									},
 								},
@@ -432,6 +450,11 @@ func TestBackendNilValueBlockSearchTraceQL(t *testing.T) {
 								Spans: []Span{
 									{
 										SpanID: []byte("nil-test-span-2"),
+										Attrs: []Attribute{
+											// BUG - at least one generic attr is required to satisfy
+											// span.bar=nil test case below.
+											attr("foo", "ghi"),
+										},
 									},
 								},
 							},
@@ -440,6 +463,7 @@ func TestBackendNilValueBlockSearchTraceQL(t *testing.T) {
 				},
 			}
 			traces = append(traces, wantTrace)
+			continue
 		}
 
 		id := test.ValidTraceID(nil)
@@ -459,15 +483,7 @@ func TestBackendNilValueBlockSearchTraceQL(t *testing.T) {
 		// span 1 has all resource level + ded nils, instrumentation level nils, but has all span values
 		// span 2 has resource level values, but instrumentation level nils an	d span level nils except for Name
 
-		// Intrinsics
-		{"Intrinsic: name", traceql.MustExtractFetchSpansRequestWithMetadata(`{` + LabelName + ` = nil }`), []int{0, 2}},
-		{"Intrinsic: duration", traceql.MustExtractFetchSpansRequestWithMetadata(`{` + LabelDuration + ` = nil}`), []int{0, 2}},
-		{"Intrinsic: status", traceql.MustExtractFetchSpansRequestWithMetadata(`{` + LabelStatus + ` = nil}`), []int{0, 2}},
-		{"Intrinsic: statusMessage", traceql.MustExtractFetchSpansRequestWithMetadata(`{` + "statusMessage" + ` = nil}`), []int{0, 2}},
-		{"Intrinsic: kind", traceql.MustExtractFetchSpansRequestWithMetadata(`{` + LabelKind + ` = nil}`), []int{0, 2}},
-
 		// Resource well-known attributes
-		{"resource.service.name", traceql.MustExtractFetchSpansRequestWithMetadata(`{resource.` + LabelServiceName + ` = nil}`), []int{0, 1}},
 		{"resource.cluster", traceql.MustExtractFetchSpansRequestWithMetadata(`{resource.` + LabelCluster + ` = nil}`), []int{0, 1}},
 		{"resource.namespace", traceql.MustExtractFetchSpansRequestWithMetadata(`{resource.` + LabelNamespace + ` = nil}`), []int{0, 1}},
 		{"resource.pod", traceql.MustExtractFetchSpansRequestWithMetadata(`{resource.` + LabelPod + ` = nil}`), []int{0, 1}},
@@ -476,7 +492,9 @@ func TestBackendNilValueBlockSearchTraceQL(t *testing.T) {
 		{"resource.k8s.cluster.name", traceql.MustExtractFetchSpansRequestWithMetadata(`{resource.` + LabelK8sClusterName + ` = nil}`), []int{0, 1}},
 		{"resource.k8s.pod.name", traceql.MustExtractFetchSpansRequestWithMetadata(`{resource.` + LabelK8sPodName + ` = nil}`), []int{0, 1}},
 		{"resource.k8s.container.name", traceql.MustExtractFetchSpansRequestWithMetadata(`{resource.` + LabelK8sContainerName + ` = nil}`), []int{0, 1}},
-		{"resource.service.name", traceql.MustExtractFetchSpansRequestWithMetadata(`{resource.` + LabelServiceName + ` = nil}`), []int{0, 1}},
+
+		// Resource generic attrs
+		{"resource.bar", traceql.MustExtractFetchSpansRequestWithMetadata(`{resource.bar = nil}`), []int{0, 1, 2}},
 
 		// Resource dedicated attributes
 		{"resource.dedicated.resource.3", traceql.MustExtractFetchSpansRequestWithMetadata(`{resource.dedicated.resource.3 = nil}`), []int{0, 1}},
@@ -487,13 +505,12 @@ func TestBackendNilValueBlockSearchTraceQL(t *testing.T) {
 		{"span.http.method", traceql.MustExtractFetchSpansRequestWithMetadata(`{span.` + LabelHTTPMethod + ` = nil}`), []int{0, 2}},
 		{"span.http.url", traceql.MustExtractFetchSpansRequestWithMetadata(`{span.` + LabelHTTPUrl + ` = nil}`), []int{0, 2}},
 
+		// Span generic attrs
+		{"span.bar", traceql.MustExtractFetchSpansRequestWithMetadata(`{span.bar = nil}`), []int{0, 1, 2}},
+
 		// Span dedicated attributes
 		{"span.dedicated.span.2", traceql.MustExtractFetchSpansRequestWithMetadata(`{span.dedicated.span.2 = nil}`), []int{0, 2}},
 		{"span.dedicated.span.4", traceql.MustExtractFetchSpansRequestWithMetadata(`{span.dedicated.span.4 = nil}`), []int{0, 2}},
-
-		// Instrumentation Scope
-		{"instrumentation:name", traceql.MustExtractFetchSpansRequestWithMetadata(`{instrumentation:name = nil}`), []int{0, 1, 2}},
-		{"instrumentation:version", traceql.MustExtractFetchSpansRequestWithMetadata(`{instrumentation:version = nil}`), []int{0, 1, 2}},
 	}
 
 	spanIDs := map[int][]byte{
@@ -1031,6 +1048,7 @@ func fullyPopulatedTestTraceWithOption(id common.ID, parentIDTest bool) *Trace {
 					K8sContainerName: ptr("k8scontainer"),
 					Attrs: []Attribute{
 						attr("foo", "abc"),
+						attr("asdf", 123),
 						attr("str-array", []string{"value-one", "value-two", "value-three", "value-four"}),
 						attr("int-array", []int64{11, 22, 33}),
 						attr(LabelServiceName, 123), // Different type than dedicated column

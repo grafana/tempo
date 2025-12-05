@@ -137,6 +137,7 @@ func TestFieldsAreCleared(t *testing.T) {
 				},
 			},
 			ScopeSpans: []ScopeSpans{{
+				SpanCount: 1,
 				Spans: []Span{{
 					StatusCode:     2,
 					ParentID:       -1,
@@ -360,6 +361,7 @@ func TestTraceToParquet(t *testing.T) {
 								attr("scope.string.array", []string{"one", "two"}),
 							},
 						},
+						SpanCount: 1,
 						Spans: []Span{{
 							Name:           "span-a",
 							SpanID:         []byte{0xFF, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01},
@@ -448,6 +450,7 @@ func TestTraceToParquet(t *testing.T) {
 						Attrs:       []Attribute{},
 					},
 					ScopeSpans: []ScopeSpans{{
+						SpanCount: 3,
 						Spans: []Span{
 							{
 								Name:           "span-a",
@@ -565,6 +568,7 @@ func TestTraceToParquet(t *testing.T) {
 						Attrs:       []Attribute{},
 					},
 					ScopeSpans: []ScopeSpans{{
+						SpanCount: 3,
 						Spans: []Span{
 							{
 								Name:           "span-a",
@@ -598,6 +602,7 @@ func TestTraceToParquet(t *testing.T) {
 						Attrs:       []Attribute{},
 					},
 					ScopeSpans: []ScopeSpans{{
+						SpanCount: 2,
 						Spans: []Span{
 							{
 								Name:           "span-d",
@@ -685,6 +690,7 @@ func TestTraceToParquet(t *testing.T) {
 						Attrs:       []Attribute{},
 					},
 					ScopeSpans: []ScopeSpans{{
+						SpanCount: 2,
 						Spans: []Span{
 							{
 								Name:              "span-with-link",
@@ -988,7 +994,7 @@ func traceEqual(t *testing.T, expected, actual *Trace, messages ...interface{}) 
 	sortAttributes(actual)
 
 	if !cmp.Equal(expected, actual, cmpopts.EquateEmpty()) {
-		t.Log(cmp.Diff(expected, actual))
+		t.Log(cmp.Diff(expected, actual, cmpopts.EquateEmpty()))
 		assert.Fail(t, "expected and actual are not equal", messages...)
 	}
 }

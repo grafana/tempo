@@ -93,6 +93,20 @@ func TestFetchTagNames(t *testing.T) {
 			expectedSpanValues:     []string{"generic-01-01", "generic-01-02", "span-same", "generic-02-01"},
 			expectedResourceValues: []string{"generic-01", "resource-same", "generic-02"},
 		},
+		// span level nil attr
+		{
+			name:                   "span attr = nil",
+			query:                  "{span.generic-01-01=nil }",
+			expectedSpanValues:     []string{"generic-01-02", "span-same", "generic-02-01"},
+			expectedResourceValues: []string{"generic-01", "resource-same", "generic-02"},
+		},
+		// resource level nil attr
+		{
+			name:                   "resource attr = nil",
+			query:                  "{resource.generic-01=nil }",
+			expectedSpanValues:     []string{"span-same", "generic-02-01"},
+			expectedResourceValues: []string{"resource-same", "generic-02"},
+		},
 	}
 
 	strPtr := func(s string) *string { return &s }
@@ -484,6 +498,18 @@ func TestFetchTagValues(t *testing.T) {
 			expectedValues: []tempopb.TagValue{
 				{Type: "keyword", Value: "error"},
 			},
+		},
+		{
+			name:           "span attr nil with zero match",
+			tag:            "span.bar",
+			query:          "{span.foo=nil}",
+			expectedValues: []tempopb.TagValue{},
+		},
+		{
+			name:           "resource attr nil with one match",
+			tag:            "resource.foo",
+			query:          "{resource.asdf=nil}",
+			expectedValues: []tempopb.TagValue{stringTagValue("abc2")},
 		},
 	}
 

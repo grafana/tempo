@@ -16,6 +16,7 @@ type runtimeConfigValidator struct {
 
 var _ overrides.Validator = (*runtimeConfigValidator)(nil)
 
+// newRuntimeConfigValidator validates runtime overrides
 func newRuntimeConfigValidator(cfg *Config) overrides.Validator {
 	return &runtimeConfigValidator{
 		cfg: cfg,
@@ -36,6 +37,28 @@ func (r *runtimeConfigValidator) Validate(config *overrides.Overrides) error {
 		}
 	}
 
+	if config.MetricsGenerator.NativeHistogramBucketFactor != 0 {
+		if err := validation.ValidateNativeHistogramBucketFactor(config.MetricsGenerator.NativeHistogramBucketFactor); err != nil {
+			return err
+		}
+	}
+
+	if config.CostAttribution.Dimensions != nil {
+		if err := validation.ValidateCostAttributionDimensions(config.CostAttribution.Dimensions); err != nil {
+			return err
+		}
+	}
+
+	serviceBuckets := config.MetricsGenerator.Processor.ServiceGraphs.HistogramBuckets
+	if err := validation.ValidateHistogramBuckets(serviceBuckets, "metrics_generator.processor.service_graphs.histogram_buckets"); err != nil {
+		return err
+	}
+
+	spanBuckets := config.MetricsGenerator.Processor.SpanMetrics.HistogramBuckets
+	if err := validation.ValidateHistogramBuckets(spanBuckets, "metrics_generator.processor.span_metrics.histogram_buckets"); err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -47,6 +70,7 @@ type overridesValidator struct {
 
 var _ api.Validator = (*overridesValidator)(nil)
 
+// newOverridesValidator validates user-configurable overrides
 func newOverridesValidator(cfg *Config) api.Validator {
 	validForwarders := map[string]struct{}{}
 	for _, f := range cfg.Distributor.Forwarders {
@@ -60,6 +84,7 @@ func newOverridesValidator(cfg *Config) api.Validator {
 	}
 }
 
+// Validate validates user-configurable overrides
 func (v *overridesValidator) Validate(limits *client.Limits) error {
 	if forwarders, ok := limits.GetForwarders(); ok {
 		for _, f := range forwarders {
@@ -87,6 +112,88 @@ func (v *overridesValidator) Validate(limits *client.Limits) error {
 
 	if collectionInterval, ok := limits.GetMetricsGenerator().GetCollectionInterval(); ok {
 		if err := validation.ValidateCollectionInterval(collectionInterval); err != nil {
+			return err
+		}
+	}
+
+	if traceIDLabelName, ok := limits.GetMetricsGenerator().GetTraceIDLabelName(); ok {
+		if err := validation.ValidateTraceIDLabelName(traceIDLabelName); err != nil {
+			return err
+		}
+	}
+
+	if ingestionSlack, ok := limits.GetMetricsGenerator().GetIngestionSlack(); ok {
+		if err := validation.ValidateIngestionTimeRangeSlack(ingestionSlack); err != nil {
+			return err
+		}
+	}
+
+	if factor, ok := limits.GetMetricsGenerator().GetNativeHistogramBucketFactor(); ok {
+		if err := validation.ValidateNativeHistogramBucketFactor(factor); err != nil {
+			return err
+		}
+	}
+
+	if buckets, ok := limits.GetMetricsGenerator().GetProcessor().GetServiceGraphs().GetHistogramBuckets(); ok {
+		if err := validation.ValidateHistogramBuckets(buckets, "metrics_generator.processor.service_graphs.histogram_buckets"); err != nil {
+			return err
+		}
+	}
+
+	if buckets, ok := limits.GetMetricsGenerator().GetProcessor().GetSpanMetrics().GetHistogramBuckets(); ok {
+		if err := validation.ValidateHistogramBuckets(buckets, "metrics_generator.processor.span_metrics.histogram_buckets"); err != nil {
+			return err
+		}
+	}
+
+	if dims, ok := limits.GetCostAttribution().GetDimensions(); ok {
+		if err := validation.ValidateCostAttributionDimensions(dims); err != nil {
+			return err
+		}
+	}
+
+	if intrinsicDimensions, ok := limits.GetMetricsGenerator().GetProcessor().GetSpanMetrics().GetIntrinsicDimensions(); ok {
+		if err := validation.ValidateIntrinsicDimensions(intrinsicDimensions); err != nil {
+			return err
+		}
+	}
+
+	if histogramMode, ok := limits.GetMetricsGenerator().GetGenerateNativeHistograms(); ok {
+		if err := validation.ValidateHistogramMode(string(histogramMode)); err != nil {
+			return err
+		}
+	}
+
+	if metricName, ok := limits.GetMetricsGenerator().GetProcessor().GetHostInfo().GetMetricName(); ok {
+		if err := validation.ValidateHostInfoMetricName(metricName); err != nil {
+			return err
+		}
+	}
+
+	if dimensionMappings, ok := limits.GetMetricsGenerator().GetProcessor().GetSpanMetrics().GetDimensionMappings(); ok {
+		if err := validation.ValidateDimensionMappings(dimensionMappings); err != nil {
+			return err
+		}
+	}
+
+	if dimensions, ok := limits.GetMetricsGenerator().GetProcessor().GetServiceGraphs().GetDimensions(); ok {
+		if err := validation.ValidateServiceGraphsDimensions(dimensions); err != nil {
+			return err
+		}
+	}
+
+	spanMetrics := limits.GetMetricsGenerator().GetProcessor().GetSpanMetrics()
+	dimensions, _ := spanMetrics.GetDimensions()
+	intrinsicDims, _ := spanMetrics.GetIntrinsicDimensions()
+	dimMappings, _ := spanMetrics.GetDimensionMappings()
+	if dimensions != nil || intrinsicDims != nil || dimMappings != nil {
+		var enabledIntrinsicDims []string
+		for dim, enabled := range intrinsicDims {
+			if enabled {
+				enabledIntrinsicDims = append(enabledIntrinsicDims, dim)
+			}
+		}
+		if err := validation.ValidateDimensions(dimensions, enabledIntrinsicDims, dimMappings, validation.SanitizeLabelName); err != nil {
 			return err
 		}
 	}

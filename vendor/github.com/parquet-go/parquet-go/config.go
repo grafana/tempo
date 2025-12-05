@@ -215,7 +215,7 @@ func (c *ReaderConfig) Validate() error {
 type WriterConfig struct {
 	CreatedBy            string
 	ColumnPageBuffers    BufferPool
-	ColumnIndexSizeLimit int
+	ColumnIndexSizeLimit func(path []string) int
 	PageBufferSize       int
 	WriteBufferSize      int
 	DataPageVersion      int
@@ -238,7 +238,7 @@ func DefaultWriterConfig() *WriterConfig {
 	return &WriterConfig{
 		CreatedBy:            defaultCreatedBy(),
 		ColumnPageBuffers:    &defaultColumnBufferPool,
-		ColumnIndexSizeLimit: DefaultColumnIndexSizeLimit,
+		ColumnIndexSizeLimit: func(path []string) int { return DefaultColumnIndexSizeLimit },
 		PageBufferSize:       DefaultPageBufferSize,
 		WriteBufferSize:      DefaultWriteBufferSize,
 		DataPageVersion:      DefaultDataPageVersion,
@@ -290,7 +290,7 @@ func (c *WriterConfig) ConfigureWriter(config *WriterConfig) {
 	*config = WriterConfig{
 		CreatedBy:            coalesceString(c.CreatedBy, config.CreatedBy),
 		ColumnPageBuffers:    coalesceBufferPool(c.ColumnPageBuffers, config.ColumnPageBuffers),
-		ColumnIndexSizeLimit: coalesceInt(c.ColumnIndexSizeLimit, config.ColumnIndexSizeLimit),
+		ColumnIndexSizeLimit: coalesceColumnIndexLimit(c.ColumnIndexSizeLimit, config.ColumnIndexSizeLimit),
 		PageBufferSize:       coalesceInt(c.PageBufferSize, config.PageBufferSize),
 		WriteBufferSize:      coalesceInt(c.WriteBufferSize, config.WriteBufferSize),
 		DataPageVersion:      coalesceInt(c.DataPageVersion, config.DataPageVersion),
@@ -298,10 +298,10 @@ func (c *WriterConfig) ConfigureWriter(config *WriterConfig) {
 		MaxRowsPerRowGroup:   coalesceInt64(c.MaxRowsPerRowGroup, config.MaxRowsPerRowGroup),
 		KeyValueMetadata:     keyValueMetadata,
 		Schema:               coalesceSchema(c.Schema, config.Schema),
-		BloomFilters:         coalesceBloomFilters(c.BloomFilters, config.BloomFilters),
+		BloomFilters:         coalesceSlices(c.BloomFilters, config.BloomFilters),
 		Compression:          coalesceCompression(c.Compression, config.Compression),
 		Sorting:              coalesceSortingConfig(c.Sorting, config.Sorting),
-		SkipPageBounds:       coalesceSkipPageBounds(c.SkipPageBounds, config.SkipPageBounds),
+		SkipPageBounds:       coalesceSlices(c.SkipPageBounds, config.SkipPageBounds),
 		Encodings:            encodings,
 		SchemaConfig:         coalesceSchemaConfig(c.SchemaConfig, config.SchemaConfig),
 	}
@@ -312,7 +312,6 @@ func (c *WriterConfig) Validate() error {
 	const baseName = "parquet.(*WriterConfig)."
 	return errorInvalidConfiguration(
 		validateNotNil(baseName+"ColumnPageBuffers", c.ColumnPageBuffers),
-		validatePositiveInt(baseName+"ColumnIndexSizeLimit", c.ColumnIndexSizeLimit),
 		validatePositiveInt(baseName+"PageBufferSize", c.PageBufferSize),
 		validateOneOfInt(baseName+"DataPageVersion", c.DataPageVersion, 1, 2),
 		c.Sorting.Validate(),
@@ -606,11 +605,12 @@ func ColumnPageBuffers(buffers BufferPool) WriterOption {
 }
 
 // ColumnIndexSizeLimit creates a configuration option to customize the size
-// limit of page boundaries recorded in column indexes.
+// limit of page boundaries recorded in column indexes. The result of the provided
+// function must be larger then 0.
 //
-// Defaults to 16.
-func ColumnIndexSizeLimit(sizeLimit int) WriterOption {
-	return writerOption(func(config *WriterConfig) { config.ColumnIndexSizeLimit = sizeLimit })
+// Defaults to the function that returns 16 for all paths.
+func ColumnIndexSizeLimit(f func(path []string) int) WriterOption {
+	return writerOption(func(config *WriterConfig) { config.ColumnIndexSizeLimit = f })
 }
 
 // DataPageVersion creates a configuration option which configures the version of
@@ -896,11 +896,18 @@ func coalesceString(s1, s2 string) string {
 	return s2
 }
 
-func coalesceBytes(b1, b2 []byte) []byte {
-	if b1 != nil {
-		return b1
+func coalesceSlices[T any](s1, s2 []T) []T {
+	if s1 != nil {
+		return s1
 	}
-	return b2
+	return s2
+}
+
+func coalesceColumnIndexLimit(f1, f2 func([]string) int) func([]string) int {
+	if f1 != nil {
+		return f1
+	}
+	return f2
 }
 
 func coalesceBufferPool(p1, p2 BufferPool) BufferPool {
@@ -917,33 +924,12 @@ func coalesceSchema(s1, s2 *Schema) *Schema {
 	return s2
 }
 
-func coalesceSortingColumns(s1, s2 []SortingColumn) []SortingColumn {
-	if s1 != nil {
-		return s1
-	}
-	return s2
-}
-
 func coalesceSortingConfig(c1, c2 SortingConfig) SortingConfig {
 	return SortingConfig{
 		SortingBuffers:     coalesceBufferPool(c1.SortingBuffers, c2.SortingBuffers),
-		SortingColumns:     coalesceSortingColumns(c1.SortingColumns, c2.SortingColumns),
+		SortingColumns:     coalesceSlices(c1.SortingColumns, c2.SortingColumns),
 		DropDuplicatedRows: c1.DropDuplicatedRows,
 	}
-}
-
-func coalesceBloomFilters(f1, f2 []BloomFilterColumn) []BloomFilterColumn {
-	if f1 != nil {
-		return f1
-	}
-	return f2
-}
-
-func coalesceSkipPageBounds(b1, b2 [][]string) [][]string {
-	if b1 != nil {
-		return b1
-	}
-	return b2
 }
 
 func coalesceCompression(c1, c2 compress.Codec) compress.Codec {

@@ -717,18 +717,20 @@ var FormatOptionsDefault = FormatOptions{
 
 // HTMLOptions defines the global options to control HTML rendering.
 type HTMLOptions struct {
-	CSSClass    string // CSS class to set on the overall <table> tag
-	EmptyColumn string // string to replace "" columns with (entire content being "")
-	EscapeText  bool   // escape text into HTML-safe content?
-	Newline     string // string to replace "\n" characters with
+	ConvertColorsToSpans bool   // convert ANSI escape sequences to HTML <span> tags with CSS classes? EscapeText will be true if this is true.
+	CSSClass             string // CSS class to set on the overall <table> tag
+	EmptyColumn          string // string to replace "" columns with (entire content being "")
+	EscapeText           bool   // escape text into HTML-safe content?
+	Newline              string // string to replace "\n" characters with
 }
 
 // DefaultHTMLOptions defines sensible HTML rendering defaults.
 var DefaultHTMLOptions = HTMLOptions{
-	CSSClass:    DefaultHTMLCSSClass,
-	EmptyColumn: "&nbsp;",
-	EscapeText:  true,
-	Newline:     "<br/>",
+	ConvertColorsToSpans: true,
+	CSSClass:             DefaultHTMLCSSClass,
+	EmptyColumn:          "&nbsp;",
+	EscapeText:           true,
+	Newline:              "<br/>",
 }
 
 // Options defines the global options that determine how the Table is

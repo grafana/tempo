@@ -11,7 +11,11 @@ import (
 	"time"
 
 	"github.com/cespare/xxhash/v2"
+	"github.com/go-kit/log"
+	"github.com/go-kit/log/level"
+	tempo_log "github.com/grafana/tempo/pkg/util/log"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/prometheus/prometheus/util/strutil"
 
@@ -24,6 +28,16 @@ const (
 	missingLabel  = "__missing__"
 	overflowLabel = "__overflow__"
 )
+
+const (
+	reasonBadLabelsInCollect = "invalid_labels_in_collect"
+)
+
+var usageTrackerErrors = promauto.NewCounterVec(prometheus.CounterOpts{
+	Namespace: "tempo",
+	Name:      "distributor_usage_tracker_errors_total",
+	Help:      "The total number of errors in the usage tracker",
+}, []string{"tenant", "reason"})
 
 type (
 	tenantLabelsFunc func(string) map[string]string
@@ -94,7 +108,7 @@ func (t *tenantUsage) GetBuffersForDimensions(dimensions map[string]string) ([]m
 	for k, v := range dimensions {
 		// parse the dimensions key to get the attribute name and the scope
 		// and build the keys for the lookup
-		attr, scope := parseDimensionKey(k)
+		attr, scope := ParseDimensionKey(k)
 		dimensionsScope[k] = scope
 		dimensionsAttr[k] = attr
 
@@ -197,9 +211,12 @@ type Tracker struct {
 	maxFn    tenantMaxFunc
 	reg      *prometheus.Registry
 	cfg      PerTrackerConfig
+	logger   *tempo_log.RateLimitedLogger
 }
 
-func NewTracker(cfg PerTrackerConfig, name string, labelsFn tenantLabelsFunc, maxFn tenantMaxFunc) (*Tracker, error) {
+func NewTracker(cfg PerTrackerConfig, name string, labelsFn tenantLabelsFunc, maxFn tenantMaxFunc, logger log.Logger) (*Tracker, error) {
+	// wrapped into error because we only log errors in the usage tracker with this logger
+	logger = level.Error(log.With(logger, "component", "usage-tracker"))
 	u := &Tracker{
 		cfg:      cfg,
 		name:     name,
@@ -207,6 +224,8 @@ func NewTracker(cfg PerTrackerConfig, name string, labelsFn tenantLabelsFunc, ma
 		labelsFn: labelsFn,
 		maxFn:    maxFn,
 		reg:      prometheus.NewRegistry(),
+		// rate limit logger to avoid log spam
+		logger: tempo_log.NewRateLimitedLogger(1, logger),
 	}
 
 	err := u.reg.Register(u)
@@ -384,17 +403,26 @@ func (u *Tracker) Handler() http.Handler {
 }
 
 func (u *Tracker) Describe(chan<- *prometheus.Desc) {
-	// This runs on startup when registering the tracker. Therefore
-	// we will have nothing to describe, but it's also not required.
+	// This runs on startup when registering the tracker.
+	// Therefore, we will have nothing to describe, but it's also not required.
 }
 
 func (u *Tracker) Collect(ch chan<- prometheus.Metric) {
 	u.mtx.Lock()
 	defer u.mtx.Unlock()
 
-	for _, t := range u.tenants {
+	for tenantID, t := range u.tenants {
 		for _, b := range t.series {
-			ch <- prometheus.MustNewConstMetric(b.descr, prometheus.CounterValue, float64(b.bytes), b.labels...)
+			metric, err := prometheus.NewConstMetric(b.descr, prometheus.CounterValue, float64(b.bytes), b.labels...)
+			// we have invalid config that's causing an error when registering a metric, log it and move on to next series
+			if err != nil {
+				// this will be logged for every invalid metric, for each scrape of `/usage_metrics`
+				// so we use a rate limited logger to avoid log span and perf overhead of logging
+				u.logger.Log("msg", "failed to collect usage tracker metric", "tenantID", tenantID, "err", err)
+				usageTrackerErrors.WithLabelValues(tenantID, reasonBadLabelsInCollect).Inc()
+				continue // move to next series because we don't have a metric due to error
+			}
+			ch <- metric
 		}
 	}
 }
@@ -463,12 +491,12 @@ func protoLengthMath(x int) (n int) {
 	return 1 + (bits.Len64(uint64(x)|1)+6)/7
 }
 
-// parseAttribute take the dimensions key, and gives the scope and the attribute with scope trimmed
+// ParseDimensionKey take the dimensions key, and gives the scope and the attribute with scope trimmed
 //
 // we are not using traceql.ParseIdentifier because it needs `.` for unscoped attributes
 // and errors out for string without `.` or the scope prefix, also it supports other scopes that we don't support
 // in cost attribution config
-func parseDimensionKey(key string) (attribute string, scope Scope) {
+func ParseDimensionKey(key string) (attribute string, scope Scope) {
 	switch {
 	case strings.HasPrefix(key, "resource."):
 		return strings.TrimPrefix(key, "resource."), ScopeResource

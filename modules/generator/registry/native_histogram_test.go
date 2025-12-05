@@ -27,7 +27,7 @@ func Test_ObserveWithExemplar_duplicate(t *testing.T) {
 
 	h := newNativeHistogram("my_histogram", []float64{0.1, 0.2}, lifecycler, "trace_id", HistogramModeBoth, nil, testTenant, &mockOverrides{}, 15*time.Minute)
 
-	lv := newLabelValueCombo([]string{"label"}, []string{"value-1"})
+	lv := buildTestLabels([]string{"label"}, []string{"value-1"})
 
 	h.ObserveWithExemplar(lv, 1.0, "trace-1", 1.0)
 	h.ObserveWithExemplar(lv, 1.1, "trace-1", 1.0)
@@ -39,10 +39,10 @@ func Test_ObserveWithExemplar_duplicate(t *testing.T) {
 func Test_Histograms(t *testing.T) {
 	// A single observations has a label value combo, a value, and a multiplier.
 	type observations []struct {
-		labelValueCombo *LabelValueCombo
-		value           float64
-		multiplier      float64
-		traceID         string
+		lbls       labels.Labels
+		value      float64
+		multiplier float64
+		traceID    string
 	}
 
 	// A single collection has a few observations, and some expectations.  This
@@ -71,10 +71,10 @@ func Test_Histograms(t *testing.T) {
 				{
 					observations: observations{
 						{
-							labelValueCombo: newLabelValueCombo([]string{"label"}, []string{"value-1"}),
-							value:           1.0,
-							multiplier:      1.0,
-							traceID:         "trace-1",
+							lbls:       buildTestLabels([]string{"label"}, []string{"value-1"}),
+							value:      1.0,
+							multiplier: 1.0,
+							traceID:    "trace-1",
 						},
 					},
 					expectedSamples: []sample{
@@ -105,16 +105,16 @@ func Test_Histograms(t *testing.T) {
 				{
 					observations: observations{
 						{
-							labelValueCombo: newLabelValueCombo([]string{"label"}, []string{"value-1"}),
-							value:           1.0,
-							multiplier:      1.0,
-							traceID:         "trace-1",
+							lbls:       buildTestLabels([]string{"label"}, []string{"value-1"}),
+							value:      1.0,
+							multiplier: 1.0,
+							traceID:    "trace-1",
 						},
 						{
-							labelValueCombo: newLabelValueCombo([]string{"label"}, []string{"value-2"}),
-							value:           1.5,
-							multiplier:      1.0,
-							traceID:         "trace-2",
+							lbls:       buildTestLabels([]string{"label"}, []string{"value-2"}),
+							value:      1.5,
+							multiplier: 1.0,
+							traceID:    "trace-2",
 						},
 					},
 					expectedSamples: []sample{
@@ -159,16 +159,16 @@ func Test_Histograms(t *testing.T) {
 				{
 					observations: observations{
 						{
-							labelValueCombo: newLabelValueCombo([]string{"label"}, []string{"value-1"}),
-							value:           1.0,
-							multiplier:      1.0,
-							traceID:         "trace-1",
+							lbls:       buildTestLabels([]string{"label"}, []string{"value-1"}),
+							value:      1.0,
+							multiplier: 1.0,
+							traceID:    "trace-1",
 						},
 						{
-							labelValueCombo: newLabelValueCombo([]string{"label"}, []string{"value-2"}),
-							value:           1.5,
-							multiplier:      1.0,
-							traceID:         "trace-2",
+							lbls:       buildTestLabels([]string{"label"}, []string{"value-2"}),
+							value:      1.5,
+							multiplier: 1.0,
+							traceID:    "trace-2",
 						},
 					},
 					expectedSamples: []sample{
@@ -207,16 +207,16 @@ func Test_Histograms(t *testing.T) {
 				{
 					observations: observations{
 						{
-							labelValueCombo: newLabelValueCombo([]string{"label"}, []string{"value-2"}),
-							value:           2.5,
-							multiplier:      1.0,
-							traceID:         "trace-2",
+							lbls:       buildTestLabels([]string{"label"}, []string{"value-2"}),
+							value:      2.5,
+							multiplier: 1.0,
+							traceID:    "trace-2",
 						},
 						{
-							labelValueCombo: newLabelValueCombo([]string{"label"}, []string{"value-3"}),
-							value:           3.0,
-							multiplier:      1.0,
-							traceID:         "trace-3",
+							lbls:       buildTestLabels([]string{"label"}, []string{"value-3"}),
+							value:      3.0,
+							multiplier: 1.0,
+							traceID:    "trace-3",
 						},
 					},
 					expectedSamples: []sample{
@@ -262,16 +262,16 @@ func Test_Histograms(t *testing.T) {
 				{
 					observations: observations{
 						{
-							labelValueCombo: newLabelValueCombo([]string{"label"}, []string{"value-1"}),
-							value:           1.5,
-							multiplier:      20.0,
-							traceID:         "trace-1",
+							lbls:       buildTestLabels([]string{"label"}, []string{"value-1"}),
+							value:      1.5,
+							multiplier: 20.0,
+							traceID:    "trace-1",
 						},
 						{
-							labelValueCombo: newLabelValueCombo([]string{"label"}, []string{"value-2"}),
-							value:           3.0,
-							multiplier:      13,
-							traceID:         "trace-2",
+							lbls:       buildTestLabels([]string{"label"}, []string{"value-2"}),
+							value:      3.0,
+							multiplier: 13,
+							traceID:    "trace-2",
 						},
 					},
 					expectedSamples: []sample{
@@ -317,16 +317,16 @@ func Test_Histograms(t *testing.T) {
 				{
 					observations: observations{
 						{
-							labelValueCombo: newLabelValueCombo([]string{"label"}, []string{"value-1"}),
-							value:           1.0,
-							multiplier:      1.0,
-							traceID:         "trace-1",
+							lbls:       buildTestLabels([]string{"label"}, []string{"value-1"}),
+							value:      1.0,
+							multiplier: 1.0,
+							traceID:    "trace-1",
 						},
 						{
-							labelValueCombo: newLabelValueCombo([]string{"label"}, []string{"value-2"}),
-							value:           1.5,
-							multiplier:      1.0,
-							traceID:         "trace-2",
+							lbls:       buildTestLabels([]string{"label"}, []string{"value-2"}),
+							value:      1.5,
+							multiplier: 1.0,
+							traceID:    "trace-2",
 						},
 					},
 					expectedSamples: []sample{
@@ -365,16 +365,16 @@ func Test_Histograms(t *testing.T) {
 				{
 					observations: observations{
 						{
-							labelValueCombo: newLabelValueCombo([]string{"label"}, []string{"value-2"}),
-							value:           2.5,
-							multiplier:      1.0,
-							traceID:         "trace-2",
+							lbls:       buildTestLabels([]string{"label"}, []string{"value-2"}),
+							value:      2.5,
+							multiplier: 1.0,
+							traceID:    "trace-2",
 						},
 						{
-							labelValueCombo: newLabelValueCombo([]string{"label"}, []string{"value-3"}),
-							value:           3.0,
-							multiplier:      1.0,
-							traceID:         "trace-3",
+							lbls:       buildTestLabels([]string{"label"}, []string{"value-3"}),
+							value:      3.0,
+							multiplier: 1.0,
+							traceID:    "trace-3",
 						},
 					},
 					expectedSamples: []sample{
@@ -414,22 +414,22 @@ func Test_Histograms(t *testing.T) {
 				{
 					observations: observations{
 						{
-							labelValueCombo: newLabelValueCombo([]string{"label"}, []string{"value-2"}),
-							value:           2.5,
-							multiplier:      20.0,
-							traceID:         "trace-2.2",
+							lbls:       buildTestLabels([]string{"label"}, []string{"value-2"}),
+							value:      2.5,
+							multiplier: 20.0,
+							traceID:    "trace-2.2",
 						},
 						{
-							labelValueCombo: newLabelValueCombo([]string{"label"}, []string{"value-3"}),
-							value:           3.0,
-							multiplier:      13.5,
-							traceID:         "trace-3",
+							lbls:       buildTestLabels([]string{"label"}, []string{"value-3"}),
+							value:      3.0,
+							multiplier: 13.5,
+							traceID:    "trace-3",
 						},
 						{
-							labelValueCombo: newLabelValueCombo([]string{"label"}, []string{"value-3"}),
-							value:           1.0,
-							multiplier:      7.5,
-							traceID:         "trace-3.3",
+							lbls:       buildTestLabels([]string{"label"}, []string{"value-3"}),
+							value:      1.0,
+							multiplier: 7.5,
+							traceID:    "trace-3.3",
 						},
 					},
 					expectedSamples: []sample{
@@ -476,7 +476,7 @@ func Test_Histograms(t *testing.T) {
 		for _, c := range collections {
 			appender := &capturingAppender{}
 			for _, obs := range c.observations {
-				h.ObserveWithExemplar(obs.labelValueCombo, obs.value, obs.traceID, obs.multiplier)
+				h.ObserveWithExemplar(obs.lbls, obs.value, obs.traceID, obs.multiplier)
 			}
 
 			expected := expectedSeriesLen(c.expectedSamples)
@@ -630,9 +630,9 @@ func Test_NativeOnlyExemplars(t *testing.T) {
 		h := newNativeHistogram("test_native_histogram", buckets, noopLimiter, "trace_id", HistogramModeNative, nil, testTenant, overrides, 15*time.Minute)
 
 		// Add some observations with exemplars
-		lvc := newLabelValueCombo([]string{"service"}, []string{"test-service"})
-		h.ObserveWithExemplar(lvc, 1.5, "trace-123", 1.0)
-		h.ObserveWithExemplar(lvc, 0.5, "trace-456", 1.0)
+		lbls := buildTestLabels([]string{"service"}, []string{"test-service"})
+		h.ObserveWithExemplar(lbls, 1.5, "trace-123", 1.0)
+		h.ObserveWithExemplar(lbls, 0.5, "trace-456", 1.0)
 
 		// Collect metrics
 		appender := &capturingAppender{}
@@ -675,9 +675,9 @@ func Test_NativeOnlyExemplars(t *testing.T) {
 		h := newNativeHistogram("test_native_only", []float64{}, noopLimiter, "trace_id", HistogramModeNative, nil, testTenant, overrides, 15*time.Minute)
 
 		// Add some observations with exemplars
-		lvc := newLabelValueCombo([]string{"service"}, []string{"native-only-xyz"})
-		h.ObserveWithExemplar(lvc, 1.5, "trace-native-123", 1.0)
-		h.ObserveWithExemplar(lvc, 0.5, "trace-native-456", 1.0)
+		lbls := buildTestLabels([]string{"service"}, []string{"native-only-xyz"})
+		h.ObserveWithExemplar(lbls, 1.5, "trace-native-123", 1.0)
+		h.ObserveWithExemplar(lbls, 0.5, "trace-native-456", 1.0)
 
 		// Collect metrics
 		appender := &capturingAppender{}
@@ -710,8 +710,8 @@ func Test_nativeHistogram_demandTracking(t *testing.T) {
 
 	// Add some histogram series
 	for i := 0; i < 20; i++ {
-		lvc := newLabelValueCombo([]string{"label"}, []string{fmt.Sprintf("value-%d", i)})
-		h.ObserveWithExemplar(lvc, 1.5, "", 1.0)
+		lbls := buildTestLabels([]string{"label"}, []string{fmt.Sprintf("value-%d", i)})
+		h.ObserveWithExemplar(lbls, 1.5, "", 1.0)
 	}
 
 	// In BOTH mode: sum, count, 3 buckets (classic) + 1 native = 6 series per histogram
@@ -755,8 +755,8 @@ func Test_nativeHistogram_demandVsActiveSeries(t *testing.T) {
 
 	// Add some histogram series
 	for i := 0; i < 10; i++ {
-		lvc := newLabelValueCombo([]string{"label"}, []string{fmt.Sprintf("value-%d", i)})
-		h.ObserveWithExemplar(lvc, 1.5, "", 1.0)
+		lbls := buildTestLabels([]string{"label"}, []string{fmt.Sprintf("value-%d", i)})
+		h.ObserveWithExemplar(lbls, 1.5, "", 1.0)
 	}
 
 	expectedActive := 10 * int(h.activeSeriesPerHistogramSerie())
@@ -767,8 +767,8 @@ func Test_nativeHistogram_demandVsActiveSeries(t *testing.T) {
 
 	// Try to add more series (they should be rejected)
 	for i := 10; i < 20; i++ {
-		lvc := newLabelValueCombo([]string{"label"}, []string{fmt.Sprintf("value-%d", i)})
-		h.ObserveWithExemplar(lvc, 1.5, "", 1.0)
+		lbls := buildTestLabels([]string{"label"}, []string{fmt.Sprintf("value-%d", i)})
+		h.ObserveWithExemplar(lbls, 1.5, "", 1.0)
 	}
 
 	// Active series should not have increased
@@ -800,19 +800,19 @@ func Test_nativeHistogram_onUpdate(t *testing.T) {
 		h := newNativeHistogram("my_histogram", []float64{1.0, 2.0}, lifecycler, "", HistogramModeBoth, nil, testTenant, &mockOverrides{}, 15*time.Minute)
 
 		// Add initial series (first observation triggers both OnAdd and OnUpdate)
-		h.ObserveWithExemplar(newLabelValueCombo([]string{"label"}, []string{"value-1"}), 1.0, "", 1.0)
-		h.ObserveWithExemplar(newLabelValueCombo([]string{"label"}, []string{"value-2"}), 1.5, "", 1.0)
+		h.ObserveWithExemplar(buildTestLabels([]string{"label"}, []string{"value-1"}), 1.0, "", 1.0)
+		h.ObserveWithExemplar(buildTestLabels([]string{"label"}, []string{"value-2"}), 1.5, "", 1.0)
 
 		initialUpdates := seriesUpdated
 		assert.Equal(t, 2, initialUpdates, "First observations should trigger OnUpdate")
 
 		// Update existing series
-		h.ObserveWithExemplar(newLabelValueCombo([]string{"label"}, []string{"value-1"}), 1.5, "", 1.0)
+		h.ObserveWithExemplar(buildTestLabels([]string{"label"}, []string{"value-1"}), 1.5, "", 1.0)
 		assert.Equal(t, initialUpdates+1, seriesUpdated)
 
 		// Update both series
-		h.ObserveWithExemplar(newLabelValueCombo([]string{"label"}, []string{"value-1"}), 2.0, "", 1.0)
-		h.ObserveWithExemplar(newLabelValueCombo([]string{"label"}, []string{"value-2"}), 2.5, "", 1.0)
+		h.ObserveWithExemplar(buildTestLabels([]string{"label"}, []string{"value-1"}), 2.0, "", 1.0)
+		h.ObserveWithExemplar(buildTestLabels([]string{"label"}, []string{"value-2"}), 2.5, "", 1.0)
 		assert.Equal(t, initialUpdates+3, seriesUpdated)
 	})
 
@@ -834,19 +834,19 @@ func Test_nativeHistogram_onUpdate(t *testing.T) {
 		h := newNativeHistogram("my_histogram", []float64{1.0, 2.0}, lifecycler, "", HistogramModeNative, nil, testTenant, &mockOverrides{}, 15*time.Minute)
 
 		// Add initial series (first observation triggers both OnAdd and OnUpdate)
-		h.ObserveWithExemplar(newLabelValueCombo([]string{"label"}, []string{"value-1"}), 1.0, "", 1.0)
+		h.ObserveWithExemplar(buildTestLabels([]string{"label"}, []string{"value-1"}), 1.0, "", 1.0)
 
 		initialUpdates := seriesUpdated
 		assert.Equal(t, 1, initialUpdates, "First observation should trigger OnUpdate")
 
 		// Update existing series multiple times
-		h.ObserveWithExemplar(newLabelValueCombo([]string{"label"}, []string{"value-1"}), 1.5, "", 1.0)
+		h.ObserveWithExemplar(buildTestLabels([]string{"label"}, []string{"value-1"}), 1.5, "", 1.0)
 		assert.Equal(t, initialUpdates+1, seriesUpdated)
 
-		h.ObserveWithExemplar(newLabelValueCombo([]string{"label"}, []string{"value-1"}), 2.0, "", 1.0)
+		h.ObserveWithExemplar(buildTestLabels([]string{"label"}, []string{"value-1"}), 2.0, "", 1.0)
 		assert.Equal(t, initialUpdates+2, seriesUpdated)
 
-		h.ObserveWithExemplar(newLabelValueCombo([]string{"label"}, []string{"value-1"}), 2.5, "", 1.0)
+		h.ObserveWithExemplar(buildTestLabels([]string{"label"}, []string{"value-1"}), 2.5, "", 1.0)
 		assert.Equal(t, initialUpdates+3, seriesUpdated)
 	})
 
@@ -868,16 +868,16 @@ func Test_nativeHistogram_onUpdate(t *testing.T) {
 		h := newNativeHistogram("my_histogram", []float64{1.0, 2.0}, lifecycler, "", HistogramModeClassic, nil, testTenant, &mockOverrides{}, 15*time.Minute)
 
 		// Add initial series (first observation triggers both OnAdd and OnUpdate)
-		h.ObserveWithExemplar(newLabelValueCombo([]string{"label"}, []string{"value-1"}), 1.0, "", 1.0)
+		h.ObserveWithExemplar(buildTestLabels([]string{"label"}, []string{"value-1"}), 1.0, "", 1.0)
 
 		initialUpdates := seriesUpdated
 		assert.Equal(t, 1, initialUpdates, "First observation should trigger OnUpdate")
 
 		// Update existing series
-		h.ObserveWithExemplar(newLabelValueCombo([]string{"label"}, []string{"value-1"}), 1.5, "", 1.0)
+		h.ObserveWithExemplar(buildTestLabels([]string{"label"}, []string{"value-1"}), 1.5, "", 1.0)
 		assert.Equal(t, initialUpdates+1, seriesUpdated)
 
-		h.ObserveWithExemplar(newLabelValueCombo([]string{"label"}, []string{"value-1"}), 2.0, "", 1.0)
+		h.ObserveWithExemplar(buildTestLabels([]string{"label"}, []string{"value-1"}), 2.0, "", 1.0)
 		assert.Equal(t, initialUpdates+2, seriesUpdated)
 	})
 }

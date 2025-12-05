@@ -59,7 +59,7 @@ var (
 		Namespace: "tempo",
 		Name:      "metrics_generator_spans_discarded_total",
 		Help:      "The total number of discarded spans received per tenant",
-	}, []string{"tenant", "reason"})
+	}, []string{"tenant", "reason", "processor"})
 	metricSkippedProcessorPushes = promauto.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "tempo",
 		Name:      "metrics_generator_metrics_generation_skipped_processor_pushes_total",
@@ -331,14 +331,15 @@ func (i *instance) addProcessor(processorName string, cfg ProcessorConfig) error
 	var err error
 	switch processorName {
 	case processor.SpanMetricsName:
-		filteredSpansCounter := metricSpansDiscarded.WithLabelValues(i.instanceID, reasonSpanMetricsFiltered)
-		invalidUTF8Counter := metricSpansDiscarded.WithLabelValues(i.instanceID, reasonInvalidUTF8)
+		filteredSpansCounter := metricSpansDiscarded.WithLabelValues(i.instanceID, reasonSpanMetricsFiltered, processor.SpanMetricsName)
+		invalidUTF8Counter := metricSpansDiscarded.WithLabelValues(i.instanceID, reasonInvalidUTF8, processor.SpanMetricsName)
 		newProcessor, err = spanmetrics.New(cfg.SpanMetrics, i.registry, filteredSpansCounter, invalidUTF8Counter)
 		if err != nil {
 			return err
 		}
 	case processor.ServiceGraphsName:
-		newProcessor = servicegraphs.New(cfg.ServiceGraphs, i.instanceID, i.registry, i.logger)
+		invalidUTF8Counter := metricSpansDiscarded.WithLabelValues(i.instanceID, reasonInvalidUTF8, processor.ServiceGraphsName)
+		newProcessor = servicegraphs.New(cfg.ServiceGraphs, i.instanceID, i.registry, i.logger, invalidUTF8Counter)
 	case processor.LocalBlocksName:
 		p, err := localblocks.New(cfg.LocalBlocks, i.instanceID, i.traceWAL, i.writer, i.overrides)
 		if err != nil {
@@ -357,7 +358,8 @@ func (i *instance) addProcessor(processorName string, cfg ProcessorConfig) error
 			}
 		}
 	case processor.HostInfoName:
-		newProcessor, err = hostinfo.New(cfg.HostInfo, i.registry, i.logger)
+		invalidUTF8Counter := metricSpansDiscarded.WithLabelValues(i.instanceID, reasonInvalidUTF8, processor.HostInfoName)
+		newProcessor, err = hostinfo.New(cfg.HostInfo, i.registry, i.logger, invalidUTF8Counter)
 		if err != nil {
 			return err
 		}
@@ -581,7 +583,7 @@ func (i *instance) QueryRange(ctx context.Context, req *tempopb.QueryRangeReques
 func (i *instance) updatePushMetrics(bytesIngested int, spanCount int, expiredSpanCount int) {
 	metricBytesIngested.WithLabelValues(i.instanceID).Add(float64(bytesIngested))
 	metricSpansIngested.WithLabelValues(i.instanceID).Add(float64(spanCount))
-	metricSpansDiscarded.WithLabelValues(i.instanceID, reasonOutsideTimeRangeSlack).Add(float64(expiredSpanCount))
+	metricSpansDiscarded.WithLabelValues(i.instanceID, reasonOutsideTimeRangeSlack, "all").Add(float64(expiredSpanCount))
 }
 
 // shutdown stops the instance and flushes any remaining data. After shutdown

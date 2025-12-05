@@ -114,8 +114,8 @@ func newNativeHistogram(name string, buckets []float64, lifecycler Limiter, trac
 	}
 }
 
-func (h *nativeHistogram) ObserveWithExemplar(labelValueCombo *LabelValueCombo, value float64, traceID string, multiplier float64) {
-	hash := labelValueCombo.getHash()
+func (h *nativeHistogram) ObserveWithExemplar(lbls labels.Labels, value float64, traceID string, multiplier float64) {
+	hash := lbls.Hash()
 
 	h.seriesDemand.Insert(hash)
 
@@ -132,10 +132,10 @@ func (h *nativeHistogram) ObserveWithExemplar(labelValueCombo *LabelValueCombo, 
 		return
 	}
 
-	h.series[hash] = h.newSeries(labelValueCombo, value, traceID, multiplier)
+	h.series[hash] = h.newSeries(lbls, value, traceID, multiplier)
 }
 
-func (h *nativeHistogram) newSeries(labelValueCombo *LabelValueCombo, value float64, traceID string, multiplier float64) *nativeHistogramSeries {
+func (h *nativeHistogram) newSeries(lbls labels.Labels, value float64, traceID string, multiplier float64) *nativeHistogramSeries {
 	// Configure histogram based on mode
 	//
 	// Native-only mode sets buckets to nil, and uses the histogram.Exemplars slice as the native exemplar format.
@@ -175,9 +175,9 @@ func (h *nativeHistogram) newSeries(labelValueCombo *LabelValueCombo, value floa
 		overridesHash: hsh,
 	}
 
-	h.updateSeries(labelValueCombo.getHash(), newSeries, value, traceID, multiplier)
+	h.updateSeries(lbls.Hash(), newSeries, value, traceID, multiplier)
 
-	lb := newSeriesLabelsBuilder(labelValueCombo, h.externalLabels)
+	lb := newSeriesLabelsBuilder(lbls, h.externalLabels)
 
 	lb.Set(labels.MetricName, h.metricName)
 
@@ -445,7 +445,7 @@ func (h *nativeHistogram) classicHistograms(appender storage.Appender, timeMs in
 		if s.isNew() {
 			endOfLastMinuteMs := getEndOfLastMinuteMs(timeMs)
 			_, appendErr := appender.Append(0, s.lb.Labels(), endOfLastMinuteMs, 0)
-			if appendErr != nil {
+			if err != nil && !isOutOfOrderError(err) {
 				return appendErr
 			}
 		}
@@ -475,7 +475,7 @@ func (h *nativeHistogram) classicHistograms(appender storage.Appender, timeMs in
 		if s.isNew() {
 			endOfLastMinuteMs := getEndOfLastMinuteMs(timeMs)
 			_, err = appender.Append(0, s.lb.Labels(), endOfLastMinuteMs, 0)
-			if err != nil {
+			if err != nil && !isOutOfOrderError(err) {
 				return err
 			}
 		}

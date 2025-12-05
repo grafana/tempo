@@ -54,15 +54,15 @@ func TestRebatchTrace(t *testing.T) {
 				{
 					Resource: r1,
 					ScopeSpans: []ScopeSpans{
-						{Scope: s1, Spans: []Span{spans[0]}},
-						{Scope: s1, Spans: []Span{spans[1]}},
+						{Scope: s1, Spans: []Span{spans[0]}, SpanCount: 1},
+						{Scope: s1, Spans: []Span{spans[1]}, SpanCount: 1},
 					},
 				},
 				{
 					Resource: r1,
 					ScopeSpans: []ScopeSpans{
-						{Scope: s1, Spans: []Span{spans[2]}},
-						{Scope: s1, Spans: []Span{spans[3]}},
+						{Scope: s1, Spans: []Span{spans[2]}, SpanCount: 1},
+						{Scope: s1, Spans: []Span{spans[3]}, SpanCount: 1},
 					},
 				},
 			}},
@@ -70,7 +70,7 @@ func TestRebatchTrace(t *testing.T) {
 				{
 					Resource: r1,
 					ScopeSpans: []ScopeSpans{
-						{Scope: s1, Spans: []Span{spans[0], spans[1], spans[2], spans[3]}},
+						{Scope: s1, Spans: []Span{spans[0], spans[1], spans[2], spans[3]}, SpanCount: 4},
 					},
 				},
 			}},
@@ -81,16 +81,16 @@ func TestRebatchTrace(t *testing.T) {
 				{
 					Resource: r2,
 					ScopeSpans: []ScopeSpans{
-						{Scope: s1, Spans: []Span{spans[0]}},
-						{Scope: s1, Spans: []Span{spans[1]}},
-						{Scope: s2, Spans: []Span{spans[2]}},
+						{Scope: s1, Spans: []Span{spans[0]}, SpanCount: 1},
+						{Scope: s1, Spans: []Span{spans[1]}, SpanCount: 1},
+						{Scope: s2, Spans: []Span{spans[2]}, SpanCount: 1},
 					},
 				},
 				{
 					Resource: r2,
 					ScopeSpans: []ScopeSpans{
-						{Scope: s1, Spans: []Span{spans[3]}},
-						{Scope: s2, Spans: []Span{spans[4]}},
+						{Scope: s1, Spans: []Span{spans[3]}, SpanCount: 1},
+						{Scope: s2, Spans: []Span{spans[4]}, SpanCount: 1},
 					},
 				},
 			}},
@@ -98,8 +98,8 @@ func TestRebatchTrace(t *testing.T) {
 				{
 					Resource: r2,
 					ScopeSpans: []ScopeSpans{
-						{Scope: s1, Spans: []Span{spans[0], spans[1], spans[3]}},
-						{Scope: s2, Spans: []Span{spans[2], spans[4]}},
+						{Scope: s1, Spans: []Span{spans[0], spans[1], spans[3]}, SpanCount: 3},
+						{Scope: s2, Spans: []Span{spans[2], spans[4]}, SpanCount: 2},
 					},
 				},
 			}},
@@ -110,15 +110,15 @@ func TestRebatchTrace(t *testing.T) {
 				{
 					Resource: r1,
 					ScopeSpans: []ScopeSpans{
-						{Scope: s3, Spans: []Span{spans[1]}}, // intentionally out of order
-						{Scope: s3, Spans: []Span{spans[0]}},
+						{Scope: s3, Spans: []Span{spans[1]}, SpanCount: 1}, // intentionally out of order
+						{Scope: s3, Spans: []Span{spans[0]}, SpanCount: 1},
 					},
 				},
 				{
 					Resource: r4,
 					ScopeSpans: []ScopeSpans{
-						{Scope: s3, Spans: []Span{spans[3]}}, // intentionally out of order
-						{Scope: s3, Spans: []Span{spans[2]}},
+						{Scope: s3, Spans: []Span{spans[3]}, SpanCount: 1}, // intentionally out of order
+						{Scope: s3, Spans: []Span{spans[2]}, SpanCount: 1},
 					},
 				},
 			}},
@@ -126,13 +126,13 @@ func TestRebatchTrace(t *testing.T) {
 				{
 					Resource: r1,
 					ScopeSpans: []ScopeSpans{
-						{Scope: s3, Spans: []Span{spans[1], spans[0]}},
+						{Scope: s3, Spans: []Span{spans[1], spans[0]}, SpanCount: 2},
 					},
 				},
 				{
 					Resource: r4,
 					ScopeSpans: []ScopeSpans{
-						{Scope: s3, Spans: []Span{spans[3], spans[2]}},
+						{Scope: s3, Spans: []Span{spans[3], spans[2]}, SpanCount: 2},
 					},
 				},
 			}},
@@ -143,16 +143,16 @@ func TestRebatchTrace(t *testing.T) {
 				{
 					Resource: r1,
 					ScopeSpans: []ScopeSpans{
-						{Scope: s1, Spans: []Span{spans[0]}},
-						{Scope: s2, Spans: []Span{spans[1], spans[2]}},
+						{Scope: s1, Spans: []Span{spans[0]}, SpanCount: 1},
+						{Scope: s2, Spans: []Span{spans[1], spans[2]}, SpanCount: 2},
 					},
 				},
 				{
 					Resource: r3,
 					ScopeSpans: []ScopeSpans{
-						{Scope: s1, Spans: []Span{spans[3]}},
-						{Scope: s2, Spans: []Span{spans[5], spans[4]}},
-						{Scope: s3, Spans: []Span{spans[6]}},
+						{Scope: s1, Spans: []Span{spans[3]}, SpanCount: 1},
+						{Scope: s2, Spans: []Span{spans[5], spans[4]}, SpanCount: 2},
+						{Scope: s3, Spans: []Span{spans[6]}, SpanCount: 1},
 					},
 				},
 			}},
@@ -160,16 +160,16 @@ func TestRebatchTrace(t *testing.T) {
 				{
 					Resource: r1,
 					ScopeSpans: []ScopeSpans{
-						{Scope: s1, Spans: []Span{spans[0]}},
-						{Scope: s2, Spans: []Span{spans[1], spans[2]}},
+						{Scope: s1, Spans: []Span{spans[0]}, SpanCount: 1},
+						{Scope: s2, Spans: []Span{spans[1], spans[2]}, SpanCount: 2},
 					},
 				},
 				{
 					Resource: r3,
 					ScopeSpans: []ScopeSpans{
-						{Scope: s1, Spans: []Span{spans[3]}},
-						{Scope: s2, Spans: []Span{spans[5], spans[4]}},
-						{Scope: s3, Spans: []Span{spans[6]}},
+						{Scope: s1, Spans: []Span{spans[3]}, SpanCount: 1},
+						{Scope: s2, Spans: []Span{spans[5], spans[4]}, SpanCount: 2},
+						{Scope: s3, Spans: []Span{spans[6]}, SpanCount: 1},
 					},
 				},
 			}},

@@ -3,6 +3,7 @@ package parquet
 import (
 	"fmt"
 	"io"
+	"math/big"
 	"slices"
 
 	"github.com/parquet-go/bitpack/unsafecast"
@@ -80,11 +81,51 @@ func (col *int96ColumnBuffer) WriteValues(values []Value) (int, error) {
 	return len(values), nil
 }
 
-func (col *int96ColumnBuffer) writeValues(rows sparse.Array, _ columnLevels) {
+func (col *int96ColumnBuffer) writeValues(_ columnLevels, rows sparse.Array) {
 	for i := range rows.Len() {
 		p := rows.Index(i)
 		col.values = append(col.values, *(*deprecated.Int96)(p))
 	}
+}
+
+func (col *int96ColumnBuffer) writeBoolean(levels columnLevels, value bool) {
+	if value {
+		col.writeInt96(levels, deprecated.Int96{1, 0, 0})
+	} else {
+		col.writeInt96(levels, deprecated.Int96{0, 0, 0})
+	}
+}
+
+func (col *int96ColumnBuffer) writeInt32(levels columnLevels, value int32) {
+	col.writeInt96(levels, deprecated.Int32ToInt96(value))
+}
+
+func (col *int96ColumnBuffer) writeInt64(levels columnLevels, value int64) {
+	col.writeInt96(levels, deprecated.Int64ToInt96(value))
+}
+
+func (col *int96ColumnBuffer) writeInt96(_ columnLevels, value deprecated.Int96) {
+	col.values = append(col.values, value)
+}
+
+func (col *int96ColumnBuffer) writeFloat(levels columnLevels, value float32) {
+	col.writeInt96(levels, deprecated.Int64ToInt96(int64(value)))
+}
+
+func (col *int96ColumnBuffer) writeDouble(levels columnLevels, value float64) {
+	col.writeInt96(levels, deprecated.Int64ToInt96(int64(value)))
+}
+
+func (col *int96ColumnBuffer) writeByteArray(levels columnLevels, value []byte) {
+	v, ok := new(big.Int).SetString(string(value), 10)
+	if !ok || v == nil {
+		panic("invalid byte array for int96: cannot parse")
+	}
+	col.writeInt96(levels, deprecated.Int64ToInt96(v.Int64()))
+}
+
+func (col *int96ColumnBuffer) writeNull(_ columnLevels) {
+	panic("cannot write null to int96 column")
 }
 
 func (col *int96ColumnBuffer) ReadValuesAt(values []Value, offset int64) (n int, err error) {

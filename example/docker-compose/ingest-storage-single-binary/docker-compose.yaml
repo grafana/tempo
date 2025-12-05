@@ -1,0 +1,108 @@
+services:
+  # Tempo runs as user 10001, and docker compose creates the volume as root.
+  # As such, we need to chown the volume in order for Tempo to start correctly.
+  init:
+    image: busybox:latest
+    user: root
+    entrypoint:
+      - "chown"
+      - "10001:10001"
+      - "/var/tempo"
+    volumes:
+      - ./tempo-data:/var/tempo
+
+  tempo:
+    image: &tempoImage grafana/tempo:latest
+    depends_on:
+      - kafka
+    command: "-target=all-3.0 -config.file=/etc/tempo.yaml"
+    restart: always
+    volumes:
+      - ./tempo.yaml:/etc/tempo.yaml
+      - ./tempo-data:/var/tempo
+    ports:
+      - "3200:3200"   # tempo
+    
+  # Uncomment the following lines to enable tracing
+  #    environment:
+  #      - OTEL_EXPORTER_OTLP_ENDPOINT=http://alloy:4318
+
+  minio:
+    image: minio/minio:latest
+    environment:
+      - MINIO_ACCESS_KEY=tempo
+      - MINIO_SECRET_KEY=supersecret
+    ports:
+      - "9001:9001"
+    entrypoint:
+      - sh
+      - -euc
+      - mkdir -p /data/tempo && minio server /data --console-address ':9001'
+
+  k6-tracing:
+    image: ghcr.io/grafana/xk6-client-tracing:v0.0.9
+    environment:
+      - ENDPOINT=tempo:4317
+    restart: always
+    depends_on:
+      - tempo
+
+  prometheus:
+    image: prom/prometheus:latest
+    command:
+      - --config.file=/etc/prometheus.yaml
+      - --web.enable-remote-write-receiver
+      - --enable-feature=exemplar-storage
+      - --enable-feature=native-histograms
+    volumes:
+      - ./prometheus.yaml:/etc/prometheus.yaml
+    ports:
+      - "9090:9090"
+
+  grafana:
+    image: grafana/grafana:12.2.1@sha256:35c41e0fd0295f5d0ee5db7e780cf33506abfaf47686196f825364889dee878b
+    volumes:
+      - ../shared/grafana-datasources.yaml:/etc/grafana/provisioning/datasources/datasources.yaml
+    environment:
+      - GF_AUTH_ANONYMOUS_ENABLED=true
+      - GF_AUTH_ANONYMOUS_ORG_ROLE=Admin
+      - GF_AUTH_DISABLE_LOGIN_FORM=true
+      - GF_FEATURE_TOGGLES_ENABLE=traceqlEditor metricsSummary
+    ports:
+      - "3000:3000"
+
+  "kafka":
+    "image": "confluentinc/cp-kafka:latest"
+    "environment":
+      - "CLUSTER_ID=zH1GDqcNTzGMDCXm5VZQdg"
+      - "KAFKA_BROKER_ID=1"
+      - "KAFKA_NUM_PARTITIONS=100"
+      - "KAFKA_PROCESS_ROLES=broker,controller"
+      - "KAFKA_LISTENERS=PLAINTEXT://:9092,CONTROLLER://:9093,PLAINTEXT_HOST://:29092"
+      - "KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://kafka:9092,PLAINTEXT_HOST://localhost:29092"
+      - "KAFKA_LISTENER_SECURITY_PROTOCOL_MAP=PLAINTEXT:PLAINTEXT,CONTROLLER:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT"
+      - "KAFKA_INTER_BROKER_LISTENER_NAME=PLAINTEXT"
+      - "KAFKA_CONTROLLER_LISTENER_NAMES=CONTROLLER"
+      - "KAFKA_CONTROLLER_QUORUM_VOTERS=1@kafka:9093"
+      - "KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR=1"
+      - "KAFKA_LOG_RETENTION_CHECK_INTERVAL_MS=10000"
+      - "KAFKA_LOG4J_ROOT_LOGLEVEL=WARN"
+    "healthcheck":
+      "interval": "1s"
+      "retries": 30
+      "start_period": "1s"
+      "test": "nc -z localhost 9092 || exit -1"
+      "timeout": "1s"
+    "ports":
+      - "29092:29092"
+
+  "redpanda-console":
+    "image": "docker.redpanda.com/redpandadata/console:v2.7.0@sha256:6ee7ed1203a7d4fd4181765929b28cb2450296402d82cd4d1c491c2d5191f45d"
+    "environment":
+      - "CONFIG_FILEPATH=/etc/redpanda/redpanda-console-config.yaml"
+    volumes:
+      - "../shared/redpanda-console.yaml:/etc/redpanda/redpanda-console-config.yaml"
+    "ports":
+      - "8080:8080"
+    "depends_on":
+      - "kafka"

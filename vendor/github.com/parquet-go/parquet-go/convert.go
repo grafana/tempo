@@ -363,6 +363,9 @@ func isDirectLevelMapping(levels []byte) bool {
 // ConvertRowGroup constructs a wrapper of the given row group which applies
 // the given schema conversion to its rows.
 func ConvertRowGroup(rowGroup RowGroup, conv Conversion) RowGroup {
+	if EqualNodes(rowGroup.Schema(), conv.Schema()) {
+		return rowGroup
+	}
 	schema := conv.Schema()
 	numRows := rowGroup.NumRows()
 	rowGroupColumns := rowGroup.ColumnChunks()
@@ -743,9 +746,14 @@ func (p *convertedPage) Release() {
 	Release(p.page)
 }
 
+func (p *convertedPage) ReleaseAndDetachValues() {
+	releaseAndDetachValues(p.page)
+}
+
 var (
 	_ retainable = (*convertedPage)(nil)
 	_ releasable = (*convertedPage)(nil)
+	_ detachable = (*convertedPage)(nil)
 )
 
 // convertedValueReader wraps a ValueReader to rewrite columnIndex in values.

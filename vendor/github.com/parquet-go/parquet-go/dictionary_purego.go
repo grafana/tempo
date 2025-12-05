@@ -194,7 +194,7 @@ func (d *be128Dictionary) bounds(indexes []int32) (min, max *[16]byte) {
 			n = len(values)
 		}
 		j := i + n
-		d.lookupPointer(indexes[i:j:j], makeArrayBE128(values[:n:n]))
+		d.lookupPointer(indexes[i:j:j], makeArrayFromSlice(values[:n:n]))
 
 		for _, value := range values[:n:n] {
 			switch {

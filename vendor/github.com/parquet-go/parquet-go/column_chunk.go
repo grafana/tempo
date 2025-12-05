@@ -85,11 +85,16 @@ type columnChunkValueReader struct {
 	pages  Pages
 	page   Page
 	values ValueReader
+	detach bool
 }
 
 func (r *columnChunkValueReader) clear() {
 	if r.page != nil {
-		Release(r.page)
+		if r.detach {
+			releaseAndDetachValues(r.page)
+		} else {
+			Release(r.page)
+		}
 		r.page = nil
 		r.values = nil
 	}

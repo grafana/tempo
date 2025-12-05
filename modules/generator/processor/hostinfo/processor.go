@@ -4,6 +4,8 @@ import (
 	"context"
 
 	"github.com/go-kit/log"
+	"github.com/prometheus/client_golang/prometheus"
+
 	"github.com/grafana/tempo/modules/generator/processor"
 	"github.com/grafana/tempo/modules/generator/registry"
 	"github.com/grafana/tempo/pkg/tempopb"
@@ -20,10 +22,10 @@ type Processor struct {
 	Cfg    Config
 	logger log.Logger
 
-	gauge      registry.Gauge
-	registry   registry.Registry
-	metricName string
-	labels     []string
+	gauge              registry.Gauge
+	registry           registry.Registry
+	metricName         string
+	invalidUTF8Counter prometheus.Counter
 }
 
 func (p *Processor) Name() string {
@@ -48,34 +50,32 @@ func (p *Processor) findHostIdentifier(resourceSpans *v1.ResourceSpans) (string,
 }
 
 func (p *Processor) PushSpans(_ context.Context, req *tempopb.PushSpansRequest) {
-	values := make([]string, 2)
 	for i := range req.Batches {
 		resourceSpans := req.Batches[i]
 		if hostID, hostSource := p.findHostIdentifier(resourceSpans); hostID != "" && hostSource != "" {
-			values[0] = hostID
-			values[1] = hostSource
-			labelValues := p.registry.NewLabelValueCombo(
-				p.labels,
-				values,
-			)
-			p.gauge.Set(labelValues, 1)
+			builder := p.registry.NewLabelBuilder()
+			builder.Add(hostIdentifierAttr, hostID)
+			builder.Add(hostSourceAttr, hostSource)
+			labels, validUTF8 := builder.CloseAndBuildLabels()
+			if !validUTF8 {
+				p.invalidUTF8Counter.Inc()
+				continue
+			}
+			p.gauge.Set(labels, 1)
 		}
 	}
 }
 
 func (p *Processor) Shutdown(_ context.Context) {}
 
-func New(cfg Config, reg registry.Registry, logger log.Logger) (*Processor, error) {
-	labels := make([]string, 2)
-	labels[0] = hostIdentifierAttr
-	labels[1] = hostSourceAttr
+func New(cfg Config, reg registry.Registry, logger log.Logger, invalidUTF8Counter prometheus.Counter) (*Processor, error) {
 	p := &Processor{
-		Cfg:        cfg,
-		logger:     logger,
-		registry:   reg,
-		metricName: cfg.MetricName,
-		gauge:      reg.NewGauge(cfg.MetricName),
-		labels:     labels,
+		Cfg:                cfg,
+		logger:             logger,
+		registry:           reg,
+		metricName:         cfg.MetricName,
+		gauge:              reg.NewGauge(cfg.MetricName),
+		invalidUTF8Counter: invalidUTF8Counter,
 	}
 	return p, nil
 }
