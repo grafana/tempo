@@ -10,6 +10,7 @@ members = [
     "crates/storage",
     "crates/tests",
     "crates/traceql",
+    "crates/vparquet4",
 ]
 
 [workspace.package]
