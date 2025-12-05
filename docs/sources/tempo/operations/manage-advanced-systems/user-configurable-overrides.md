@@ -58,6 +58,9 @@ into a single list.
 ```yaml
 [forwarders: <list of strings>]
 
+cost_attribution:
+  [dimensions: <map string to string>]
+
 metrics_generator:
 
   [processors: <list of strings>]
@@ -67,6 +70,8 @@ metrics_generator:
   [disable_collection: <bool> | default = false]
   [generate_native_histograms: <classic|native|both> | default = classic]
   [native_histogram_max_bucket_number: <int> | default = 100]
+  [native_histogram_bucket_factor: <float> | default = 1.1]
+  [native_histogram_min_reset_duration: <duration> | default = 15m]
 
   processor:
 
@@ -76,10 +81,12 @@ metrics_generator:
       [peer_attributes: <list of string>]
       [enable_client_server_prefix: <bool>]
       [enable_messaging_system_latency_histogram: <bool>]
+      [enable_virtual_node_label: <bool>]
 
     span_metrics:
       [histogram_buckets: <list of float>]
       [dimensions: <list of string>]
+      [dimension_mappings: <list of mappings {name: <string>, source_labels: <list of string>, join: <string>}>]
       [intrinsic_dimensions: <map string to bool>]
       [filter_policies: [
         [
@@ -93,7 +100,6 @@ metrics_generator:
       [enable_target_info: <bool>]
       [target_info_excluded_dimensions: <list of string>]
       [enable_instance_label: <bool>]
-      [enable_virtual_node_label: <string>]
 
     host_info:
       [host_identifiers: <list of string>]

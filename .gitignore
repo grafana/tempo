@@ -4,6 +4,7 @@
 .claude
 *.test
 *.out
+.coverage/
 *.pprof
 /.envrc
 /bin
@@ -26,3 +27,4 @@ integration/e2e/**/e2e_integration_test[0-9]*
 gh-token.txt
 .cache
 /target
+operations/jsonnet/microservices/vendor/

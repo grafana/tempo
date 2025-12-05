@@ -5,10 +5,13 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/grafana/tempo/modules/distributor/usage"
 	"github.com/grafana/tempo/modules/generator/processor"
 	"github.com/grafana/tempo/modules/generator/registry"
 	"github.com/grafana/tempo/pkg/sharedconfig"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/model"
+	"github.com/prometheus/prometheus/util/strutil"
 )
 
 var SupportedProcessors = []string{
@@ -23,11 +26,17 @@ var SupportedProcessors = []string{
 
 var SupportedIntrinsicDimensions = []string{processor.DimService, processor.DimSpanName, processor.DimSpanKind, processor.DimStatusCode, processor.DimStatusMessage}
 
+var SupportedIntrinsicDimensionsSet map[string]struct{}
+
 var SupportedProcessorsSet map[string]struct{}
 
 var SupportedHistogramModesSet map[string]struct{}
 
 func init() {
+	SupportedIntrinsicDimensionsSet = make(map[string]struct{})
+	for _, dim := range SupportedIntrinsicDimensions {
+		SupportedIntrinsicDimensionsSet[dim] = struct{}{}
+	}
 	SupportedProcessorsSet = make(map[string]struct{})
 	for _, p := range SupportedProcessors {
 		SupportedProcessorsSet[p] = struct{}{}
@@ -81,20 +90,28 @@ func ValidateHostInfoMetricName(metricName string) error {
 }
 
 func ValidateDimensions(dimensions []string, intrinsicDimensions []string, dimensionMappings []sharedconfig.DimensionMappings, sanitizeFn SanitizeFn) error {
-	var labels []string
-	labels = append(labels, intrinsicDimensions...)
+	seen := make(map[string]string) // sanitized label -> original source
+
+	for _, d := range intrinsicDimensions {
+		seen[d] = fmt.Sprintf("intrinsic dimension %q", d)
+	}
+
 	for _, d := range dimensions {
-		labels = append(labels, SanitizeLabelNameWithCollisions(d, SupportedIntrinsicDimensions, sanitizeFn))
+		sanitized := SanitizeLabelNameWithCollisions(d, SupportedIntrinsicDimensionsSet, sanitizeFn)
+		if source, exists := seen[sanitized]; exists {
+			return fmt.Errorf("dimension %q produces label %q which collides with %s", d, sanitized, source)
+		}
+		seen[sanitized] = fmt.Sprintf("dimension %q", d)
 	}
 
 	for _, m := range dimensionMappings {
-		labels = append(labels, SanitizeLabelNameWithCollisions(m.Name, SupportedIntrinsicDimensions, sanitizeFn))
+		sanitized := SanitizeLabelNameWithCollisions(m.Name, SupportedIntrinsicDimensionsSet, sanitizeFn)
+		if source, exists := seen[sanitized]; exists {
+			return fmt.Errorf("dimension_mapping %q produces label %q which collides with %s", m.Name, sanitized, source)
+		}
+		seen[sanitized] = fmt.Sprintf("dimension_mapping %q", m.Name)
 	}
 
-	err := ValidateUTF8LabelValues(labels)
-	if err != nil {
-		return err
-	}
 	return nil
 }
 
@@ -102,5 +119,89 @@ func ValidateTraceIDLabelName(traceIDLabelName string) error {
 	if traceIDLabelName != SanitizeLabelName(traceIDLabelName) {
 		return fmt.Errorf("trace_id_label_name \"%s\" is not a valid Prometheus label name", traceIDLabelName)
 	}
+	return nil
+}
+
+func ValidateHistogramBuckets(buckets []float64, field string) error {
+	for i, bucket := range buckets {
+		if i > 0 && bucket <= buckets[i-1] {
+			return fmt.Errorf("%s must be strictly increasing: bucket[%d]=%g is <= bucket[%d]=%g", field, i, bucket, i-1, buckets[i-1])
+		}
+	}
+	return nil
+}
+
+func ValidateNativeHistogramBucketFactor(factor float64) error {
+	if factor <= 1 {
+		return fmt.Errorf("metrics_generator.native_histogram_bucket_factor must be greater than 1")
+	}
+	return nil
+}
+
+func ValidateCostAttributionDimensions(dimensions map[string]string) error {
+	seenLabels := make(map[string]string)
+
+	// map is with key=tempo attribute, value=prometheus labelName
+	for k, v := range dimensions {
+		// build labelName in the similar way as usage.GetBuffersForDimensions
+		attr, _ := usage.ParseDimensionKey(k) // extract attr so validate the duplicates with scope prefix
+		labelName := v
+		if labelName == "" {
+			labelName = attr // The dimension is using default mapping, we map it to attribute
+		}
+		labelName = strutil.SanitizeFullLabelName(labelName) // sanitize label name
+
+		// check for duplicate prometheus label names.
+		// when we have duplicate labelNames, we randomly pick one so validate and don't allow duplicates.
+		if originalKey, exists := seenLabels[labelName]; exists {
+			return fmt.Errorf("cost_attribution.dimensions has duplicate label name: '%s', both '%s' and '%s' map to it", labelName, originalKey, k)
+		}
+		seenLabels[labelName] = k // put k as value so we can show configured keys in the error
+
+		// creating a desc do the complete labelName validation
+		desc := prometheus.NewDesc("test_desc", "test desc created for validation", []string{labelName}, nil)
+		// try to create a metric and see if there are any error, we use same method in usage.Collect
+		_, err := prometheus.NewConstMetric(desc, prometheus.CounterValue, float64(1), labelName)
+		if err != nil {
+			return fmt.Errorf("cost_attribution.dimensions config has invalid label name: '%s'", labelName)
+		}
+	}
+
+	// no errors, we are good.
+	return nil
+}
+
+func ValidateIntrinsicDimensions(intrinsicDimensions map[string]bool) error {
+	for dim := range intrinsicDimensions {
+		if _, ok := SupportedIntrinsicDimensionsSet[dim]; !ok {
+			return fmt.Errorf("intrinsic dimension \"%s\" is not supported, valid values: %v", dim, SupportedIntrinsicDimensions)
+		}
+	}
+	return nil
+}
+
+func ValidateDimensionMappings(dimensionMappings []sharedconfig.DimensionMappings) error {
+	for _, m := range dimensionMappings {
+		if m.Name == "" {
+			return errors.New("dimension_mappings: name cannot be empty")
+		}
+		if len(m.SourceLabel) == 0 {
+			return fmt.Errorf("dimension_mappings: source_labels cannot be empty for mapping with name %q", m.Name)
+		}
+	}
+	return nil
+}
+
+func ValidateServiceGraphsDimensions(dimensions []string) error {
+	seen := make(map[string]string) // sanitized label -> original dimension
+
+	for _, d := range dimensions {
+		sanitized := SanitizeLabelName(d)
+		if source, exists := seen[sanitized]; exists {
+			return fmt.Errorf("dimension %q produces label %q which collides with dimension %q", d, sanitized, source)
+		}
+		seen[sanitized] = d
+	}
+
 	return nil
 }

@@ -21,7 +21,6 @@ services:
       - ./tempo.yaml:/etc/tempo.yaml
     ports:
       - "3200"   # tempo
-  # Uncomment the following lines to enable tracing
     environment:
       - OTEL_EXPORTER_OTLP_ENDPOINT=http://alloy:4318
 
@@ -36,7 +35,6 @@ services:
     ports:
       - "3201:3200"   # tempo
     hostname: live-store-zone-a-0
-  # Uncomment the following lines to enable tracing
     environment:
       - OTEL_EXPORTER_OTLP_ENDPOINT=http://alloy:4318
 
@@ -51,7 +49,6 @@ services:
     ports:
       - "3200"   # tempo
     hostname: live-store-zone-a-1
-  # Uncomment the following lines to enable tracing
     environment:
       - OTEL_EXPORTER_OTLP_ENDPOINT=http://alloy:4318
 
@@ -66,7 +63,6 @@ services:
     ports:
       - "3200"   # tempo
     hostname: live-store-zone-b-0
-  # Uncomment the following lines to enable tracing
     environment:
       - OTEL_EXPORTER_OTLP_ENDPOINT=http://alloy:4318
 
@@ -81,7 +77,6 @@ services:
     ports:
       - "3200"   # tempo
     hostname: live-store-zone-b-1
-  # Uncomment the following lines to enable tracing
     environment:
       - OTEL_EXPORTER_OTLP_ENDPOINT=http://alloy:4318
 
@@ -105,20 +100,7 @@ services:
       - ./tempo.yaml:/etc/tempo.yaml
     ports:
       - "3200"   # tempo
-  # Uncomment the following lines to enable tracing
     environment:
-      - OTEL_EXPORTER_OTLP_ENDPOINT=http://alloy:4318
-
-  querier:
-    build:
-      context: ../../..
-      dockerfile: crates/querier/Dockerfile
-    restart: always
-    ports:
-      - "3200"
-    # Uncomment the following lines to enable tracing
-    environment:
-      - RUST_LOG=debug
       - OTEL_EXPORTER_OTLP_ENDPOINT=http://alloy:4318
 
   compactor:
@@ -131,7 +113,6 @@ services:
       - ./tempo.yaml:/etc/tempo.yaml
     ports:
       - "3200"   # tempo
-  # Uncomment the following lines to enable tracing
     environment:
       - OTEL_EXPORTER_OTLP_ENDPOINT=http://alloy:4318
 
@@ -146,7 +127,6 @@ services:
       - ./tempo.yaml:/etc/tempo.yaml
     ports:
       - "3200"   # tempo
-  # Uncomment the following lines to enable tracing
     environment:
       - OTEL_EXPORTER_OTLP_ENDPOINT=http://alloy:4318
 
@@ -161,7 +141,6 @@ services:
       - ./tempo.yaml:/etc/tempo.yaml
     ports:
       - "3200"   # tempo
-  # Uncomment the following lines to enable tracing
     environment:
       - OTEL_EXPORTER_OTLP_ENDPOINT=http://alloy:4318
 
@@ -176,7 +155,6 @@ services:
       - ./tempo.yaml:/etc/tempo.yaml
     ports:
       - "3200"   # tempo
-  # Uncomment the following lines to enable tracing
     environment:
       - OTEL_EXPORTER_OTLP_ENDPOINT=http://alloy:4318
 
@@ -191,7 +169,6 @@ services:
       - ./tempo.yaml:/etc/tempo.yaml
     ports:
         - "3200"   # tempo
-  # Uncomment the following lines to enable tracing
     environment:
       - OTEL_EXPORTER_OTLP_ENDPOINT=http://alloy:4318
 
@@ -228,7 +205,7 @@ services:
       - "9090:9090"
 
   grafana:
-    image: grafana/grafana:latest
+    image: grafana/grafana:12.3.0@sha256:70d9599b186ce287be0d2c5ba9a78acb2e86c1a68c9c41449454d0fc3eeb84e8
     volumes:
       - ../distributed/grafana-datasources.yaml:/etc/grafana/provisioning/datasources/datasources.yaml
     environment:
@@ -284,9 +261,9 @@ services:
       - /etc/alloy/config.alloy
       - --storage.path=/var/lib/alloy/data
       - --server.http.listen-addr=0.0.0.0:12345
+    environment:
+      - ALLOY_OTLP_UPSTREAM=distributor:4317
     ports:
       - "12345:12345"
-      - "4317"
-      - "4318"
     depends_on:
       - distributor

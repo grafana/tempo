@@ -764,10 +764,8 @@ func (f *FilePages) init(c *FileColumnChunk, reader io.ReaderAt) {
 	f.rbuf, f.rbufpool = getBufioReader(&f.section, f.bufferSize)
 	f.decoder.Reset(f.protocol.NewReader(f.rbuf))
 	f.index = 0
-	if f.lastPage != nil {
-		Release(f.lastPage)
-		f.lastPage = nil
-	}
+	Release(f.lastPage)
+	f.lastPage = nil
 	f.lastPageIndex = -1
 	f.serveLastPage = false
 }
@@ -944,7 +942,7 @@ func (f *FilePages) readDictionary() error {
 	return f.readDictionaryPage(header, page)
 }
 
-func (f *FilePages) readDictionaryPage(header *format.PageHeader, page *buffer) error {
+func (f *FilePages) readDictionaryPage(header *format.PageHeader, page *buffer[byte]) error {
 	if header.DictionaryPageHeader == nil {
 		return ErrMissingPageHeader
 	}
@@ -956,7 +954,7 @@ func (f *FilePages) readDictionaryPage(header *format.PageHeader, page *buffer) 
 	return nil
 }
 
-func (f *FilePages) readDataPageV1(header *format.PageHeader, page *buffer) (Page, error) {
+func (f *FilePages) readDataPageV1(header *format.PageHeader, page *buffer[byte]) (Page, error) {
 	if header.DataPageHeader == nil {
 		return nil, ErrMissingPageHeader
 	}
@@ -968,7 +966,7 @@ func (f *FilePages) readDataPageV1(header *format.PageHeader, page *buffer) (Pag
 	return f.chunk.column.decodeDataPageV1(DataPageHeaderV1{header.DataPageHeader}, page, f.dictionary, header.UncompressedPageSize)
 }
 
-func (f *FilePages) readDataPageV2(header *format.PageHeader, page *buffer) (Page, error) {
+func (f *FilePages) readDataPageV2(header *format.PageHeader, page *buffer[byte]) (Page, error) {
 	if header.DataPageHeaderV2 == nil {
 		return nil, ErrMissingPageHeader
 	}
@@ -983,7 +981,7 @@ func (f *FilePages) readDataPageV2(header *format.PageHeader, page *buffer) (Pag
 	return f.chunk.column.decodeDataPageV2(DataPageHeaderV2{header.DataPageHeaderV2}, page, f.dictionary, header.UncompressedPageSize)
 }
 
-func (f *FilePages) readPage(header *format.PageHeader, reader *bufio.Reader) (*buffer, error) {
+func (f *FilePages) readPage(header *format.PageHeader, reader *bufio.Reader) (*buffer[byte], error) {
 	page := buffers.get(int(header.CompressedPageSize))
 	defer page.unref()
 
@@ -1098,10 +1096,8 @@ func (f *FilePages) Close() error {
 	f.dataOffset = 0
 	f.dictOffset = 0
 	f.index = 0
-	if f.lastPage != nil {
-		Release(f.lastPage)
-		f.lastPage = nil
-	}
+	Release(f.lastPage)
+	f.lastPage = nil
 	f.lastPageIndex = -1
 	f.serveLastPage = false
 	f.skip = 0

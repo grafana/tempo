@@ -6,6 +6,7 @@ import (
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/modules/overrides/histograms"
 	"github.com/grafana/tempo/modules/overrides/userconfigurable/client"
+	"github.com/grafana/tempo/pkg/sharedconfig"
 	"github.com/grafana/tempo/pkg/spanfilter/config"
 )
 
@@ -14,13 +15,15 @@ func limitsFromOverrides(overrides overrides.Interface, userID string) *client.L
 	return &client.Limits{
 		Forwarders: strArrPtr(overrides.Forwarders(userID)),
 		MetricsGenerator: client.LimitsMetricsGenerator{
-			Processors:                     overrides.MetricsGeneratorProcessors(userID),
-			DisableCollection:              boolPtr(overrides.MetricsGeneratorDisableCollection(userID)),
-			CollectionInterval:             timePtr(overrides.MetricsGeneratorCollectionInterval(userID)),
-			TraceIDLabelName:               strPtr(overrides.MetricsGeneratorTraceIDLabelName(userID)),
-			IngestionSlack:                 timePtr(overrides.MetricsGeneratorIngestionSlack(userID)),
-			GenerateNativeHistograms:       histogramModePtr(overrides.MetricsGeneratorGenerateNativeHistograms(userID)),
-			NativeHistogramMaxBucketNumber: uint32Ptr(overrides.MetricsGeneratorNativeHistogramMaxBucketNumber(userID)),
+			Processors:                      overrides.MetricsGeneratorProcessors(userID),
+			DisableCollection:               boolPtr(overrides.MetricsGeneratorDisableCollection(userID)),
+			CollectionInterval:              timePtr(overrides.MetricsGeneratorCollectionInterval(userID)),
+			TraceIDLabelName:                strPtr(overrides.MetricsGeneratorTraceIDLabelName(userID)),
+			IngestionSlack:                  timePtr(overrides.MetricsGeneratorIngestionSlack(userID)),
+			GenerateNativeHistograms:        histogramModePtr(overrides.MetricsGeneratorGenerateNativeHistograms(userID)),
+			NativeHistogramMaxBucketNumber:  uint32Ptr(overrides.MetricsGeneratorNativeHistogramMaxBucketNumber(userID)),
+			NativeHistogramBucketFactor:     floatPtr(overrides.MetricsGeneratorNativeHistogramBucketFactor(userID)),
+			NativeHistogramMinResetDuration: timePtr(overrides.MetricsGeneratorNativeHistogramMinResetDuration(userID)),
 			Processor: client.LimitsMetricsGeneratorProcessor{
 				ServiceGraphs: client.LimitsMetricsGeneratorProcessorServiceGraphs{
 					Dimensions:               strArrPtr(overrides.MetricsGeneratorProcessorServiceGraphsDimensions(userID)),
@@ -29,7 +32,9 @@ func limitsFromOverrides(overrides overrides.Interface, userID string) *client.L
 					HistogramBuckets:         floatArrPtr(overrides.MetricsGeneratorProcessorServiceGraphsHistogramBuckets(userID)),
 				},
 				SpanMetrics: client.LimitsMetricsGeneratorProcessorSpanMetrics{
-					Dimensions: strArrPtr(overrides.MetricsGeneratorProcessorSpanMetricsDimensions(userID)),
+					Dimensions:          strArrPtr(overrides.MetricsGeneratorProcessorSpanMetricsDimensions(userID)),
+					IntrinsicDimensions: mapBoolPtr(overrides.MetricsGeneratorProcessorSpanMetricsIntrinsicDimensions(userID)),
+					DimensionMappings:   dimensionMappingsPtr(overrides.MetricsGeneratorProcessorSpanMetricsDimensionMappings(userID)),
 					EnableTargetInfo: func() *bool {
 						val, _ := overrides.MetricsGeneratorProcessorSpanMetricsEnableTargetInfo(userID)
 						return boolPtr(val)
@@ -69,6 +74,21 @@ func strArrPtr(s []string) *[]string {
 
 func floatArrPtr(f []float64) *[]float64 {
 	return &f
+}
+
+func floatPtr(f float64) *float64 {
+	return &f
+}
+
+func mapBoolPtr(m map[string]bool) *map[string]bool {
+	return &m
+}
+
+func dimensionMappingsPtr(m []sharedconfig.DimensionMappings) *[]sharedconfig.DimensionMappings {
+	if len(m) == 0 {
+		return nil
+	}
+	return &m
 }
 
 func filterPoliciesPtr(p []config.FilterPolicy) *[]config.FilterPolicy {

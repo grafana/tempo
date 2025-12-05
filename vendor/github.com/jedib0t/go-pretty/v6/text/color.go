@@ -27,7 +27,11 @@ func areColorsOnInTheEnv() bool {
 	if os.Getenv("FORCE_COLOR") == "1" {
 		return true
 	}
-	return os.Getenv("NO_COLOR") == "" || os.Getenv("NO_COLOR") == "0"
+	if os.Getenv("NO_COLOR") == "" || os.Getenv("NO_COLOR") == "0" {
+		return os.Getenv("TERM") != "dumb"
+	}
+
+	return false
 }
 
 // The logic here is inspired from github.com/fatih/color; the following is
@@ -103,6 +107,14 @@ const (
 	BgHiWhite
 )
 
+// CSSClasses returns the CSS class names for the color.
+func (c Color) CSSClasses() string {
+	if class, ok := colorCSSClassMap[c]; ok {
+		return class
+	}
+	return ""
+}
+
 // EscapeSeq returns the ANSI escape sequence for the color.
 func (c Color) EscapeSeq() string {
 	return EscapeStart + strconv.Itoa(int(c)) + EscapeStop
@@ -110,11 +122,11 @@ func (c Color) EscapeSeq() string {
 
 // HTMLProperty returns the "class" attribute for the color.
 func (c Color) HTMLProperty() string {
-	out := ""
-	if class, ok := colorCSSClassMap[c]; ok {
-		out = fmt.Sprintf("class=\"%s\"", class)
+	classes := c.CSSClasses()
+	if classes == "" {
+		return ""
 	}
-	return out
+	return fmt.Sprintf("class=\"%s\"", classes)
 }
 
 // Sprint colorizes and prints the given string(s).
@@ -133,6 +145,24 @@ type Colors []Color
 
 // colorsSeqMap caches the escape sequence for a set of colors
 var colorsSeqMap = sync.Map{}
+
+// CSSClasses returns the CSS class names for the colors.
+func (c Colors) CSSClasses() string {
+	if len(c) == 0 {
+		return ""
+	}
+
+	var classes []string
+	for _, color := range c {
+		if class, ok := colorCSSClassMap[color]; ok {
+			classes = append(classes, class)
+		}
+	}
+	if len(classes) > 1 {
+		sort.Strings(classes)
+	}
+	return strings.Join(classes, " ")
+}
 
 // EscapeSeq returns the ANSI escape sequence for the colors set.
 func (c Colors) EscapeSeq() string {
@@ -155,20 +185,11 @@ func (c Colors) EscapeSeq() string {
 
 // HTMLProperty returns the "class" attribute for the colors.
 func (c Colors) HTMLProperty() string {
-	if len(c) == 0 {
+	classes := c.CSSClasses()
+	if classes == "" {
 		return ""
 	}
-
-	var classes []string
-	for _, color := range c {
-		if class, ok := colorCSSClassMap[color]; ok {
-			classes = append(classes, class)
-		}
-	}
-	if len(classes) > 1 {
-		sort.Strings(classes)
-	}
-	return fmt.Sprintf("class=\"%s\"", strings.Join(classes, " "))
+	return fmt.Sprintf("class=\"%s\"", classes)
 }
 
 // Sprint colorizes and prints the given string(s).

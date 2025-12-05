@@ -65,6 +65,7 @@ const (
 	HeaderContentType      = "Content-Type"
 	HeaderAcceptProtobuf   = "application/protobuf"
 	HeaderAcceptJSON       = "application/json"
+	HeaderAcceptLLM        = "application/vnd.grafana.llm"
 	HeaderRecentDataTarget = "Recent-Data-Target"
 
 	PathPrefixQuerier   = "/querier"
@@ -108,15 +109,25 @@ type MarshallingFormat string
 const (
 	MarshallingFormatProtobuf MarshallingFormat = HeaderAcceptProtobuf
 	MarshallingFormatJSON     MarshallingFormat = HeaderAcceptJSON
+	MarshallingFormatLLM      MarshallingFormat = HeaderAcceptLLM
 )
 
 // MarshalingFormatFromAcceptHeader extracts the marshaling format from the Accept header
 // It properly handles multiple media types and quality values
 func MarshalingFormatFromAcceptHeader(header http.Header) MarshallingFormat {
-	// Check if protobuf is requested (handles multiple values, quality params, etc.)
-	if strings.Contains(header.Get(HeaderAccept), HeaderAcceptProtobuf) {
-		return MarshallingFormatProtobuf
+	allMarshallingFormats := []MarshallingFormat{MarshallingFormatProtobuf, MarshallingFormatJSON, MarshallingFormatLLM}
+	acceptHeader := header.Get(HeaderAccept)
+	if acceptHeader == "" {
+		return MarshallingFormatJSON
 	}
+
+	// Check if a specific/supported marshalling format is requested
+	for _, format := range allMarshallingFormats {
+		if strings.Contains(acceptHeader, string(format)) {
+			return format
+		}
+	}
+
 	// Default to JSON
 	return MarshallingFormatJSON
 }
@@ -143,6 +154,12 @@ func ParseTraceID(r *http.Request) ([]byte, error) {
 
 // ParseSearchRequest takes an http.Request and decodes query params to create a tempopb.SearchRequest
 func ParseSearchRequest(r *http.Request) (*tempopb.SearchRequest, error) {
+	return ParseSearchRequestWithDefault(r, defaultSpansPerSpanSet)
+}
+
+// ParseSearchRequestWithDefault takes an http.Request and decodes query params to create a tempopb.SearchRequest
+// using the provided default value for SpansPerSpanSet when not specified in the request
+func ParseSearchRequestWithDefault(r *http.Request, defaultSpansPerSpanSet uint32) (*tempopb.SearchRequest, error) {
 	req := &tempopb.SearchRequest{
 		Tags:            map[string]string{},
 		SpansPerSpanSet: defaultSpansPerSpanSet,
@@ -254,8 +271,8 @@ func ParseSearchRequest(r *http.Request) (*tempopb.SearchRequest, error) {
 		if err != nil {
 			return nil, fmt.Errorf("invalid spss: %w", err)
 		}
-		if spansPerSpanSet <= 0 {
-			return nil, errors.New("invalid spss: must be a positive number")
+		if spansPerSpanSet < 0 {
+			return nil, errors.New("invalid spss: must be a non-negative number")
 		}
 		req.SpansPerSpanSet = uint32(spansPerSpanSet)
 	}
@@ -743,9 +760,8 @@ func BuildSearchRequest(req *http.Request, searchReq *tempopb.SearchRequest) (*h
 	if searchReq.MinDurationMs != 0 {
 		qb.addParam(urlParamMinDuration, strconv.FormatUint(uint64(searchReq.MinDurationMs), 10)+"ms")
 	}
-	if searchReq.SpansPerSpanSet != 0 {
-		qb.addParam(urlParamSpansPerSpanSet, strconv.FormatUint(uint64(searchReq.SpansPerSpanSet), 10))
-	}
+	// Always add spans_per_span_set parameter even if 0 (which means unlimited)
+	qb.addParam(urlParamSpansPerSpanSet, strconv.FormatUint(uint64(searchReq.SpansPerSpanSet), 10))
 
 	if len(searchReq.Query) > 0 {
 		qb.addParam(urlParamQuery, searchReq.Query)

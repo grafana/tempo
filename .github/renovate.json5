@@ -5,12 +5,13 @@
   ],
   timezone: 'UTC',
   schedule: [
-    'before 4am on monday',
+    'at any time',
   ],
-  prConcurrentLimit: 20,
+  prConcurrentLimit: 10,
   ignoreDeps: [],
   separateMajorMinor: true,
-  separateMultipleMajor: true,
+  labels: ['dependencies', 'renovate'],
+  minimumReleaseAge: '7 days',
   packageRules: [
     {
       description: 'Group all GitHub Actions updates',
@@ -69,7 +70,7 @@
     },
     {
       description: 'Automerge patch updates',
-      matchUpdateTypes: ['patch'],
+      matchUpdateTypes: ['digest', 'patch', 'minor'],
       automergeStrategy: 'squash',
       automergeType: 'pr',
       automerge: true,

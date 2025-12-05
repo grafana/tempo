@@ -104,6 +104,26 @@ func TestFetchTagNames(t *testing.T) {
 			expectedLinkValues:            []string{"link-generic-01-01", "link-generic-02-01"},
 			expectedInstrumentationValues: []string{"scope-attr-str-1", "scope-attr-str-2"},
 		},
+		// span level nil attr
+		{
+			name:                          "span attr = nil",
+			query:                         "{span.generic-01-01=nil }",
+			expectedSpanValues:            []string{"generic-01-02", "span-same", "generic-02-01"},
+			expectedResourceValues:        []string{"generic-01", "resource-same", "generic-02"},
+			expectedEventValues:           []string{"event-generic-02-01"},
+			expectedLinkValues:            []string{"link-generic-02-01"},
+			expectedInstrumentationValues: []string{"scope-attr-str-1", "scope-attr-str-2"},
+		},
+		// resource level nil attr
+		{
+			name:                          "resource attr = nil",
+			query:                         "{resource.generic-01=nil }",
+			expectedSpanValues:            []string{"span-same", "generic-02-01"},
+			expectedResourceValues:        []string{"resource-same", "generic-02"},
+			expectedEventValues:           []string{"event-generic-02-01"},
+			expectedLinkValues:            []string{"link-generic-02-01"},
+			expectedInstrumentationValues: []string{"scope-attr-str-2"},
+		},
 	}
 
 	tr := &Trace{
@@ -132,6 +152,7 @@ func TestFetchTagNames(t *testing.T) {
 								attr("scope-attr-str-1", "scope-attr-1"),
 							},
 						},
+						SpanCount: 2,
 						Spans: []Span{
 							{
 								SpanID:        []byte("0101"),
@@ -197,6 +218,7 @@ func TestFetchTagNames(t *testing.T) {
 								attr("scope-attr-str-2", "scope-attr-2"),
 							},
 						},
+						SpanCount: 1,
 						Spans: []Span{
 							{
 								SpanID:        []byte("0201"),
@@ -577,6 +599,18 @@ func TestFetchTagValues(t *testing.T) {
 			expectedValues: []tempopb.TagValue{
 				stringTagValue("child-of"),
 			},
+		},
+		{
+			name:           "span attr nil with zero match",
+			tag:            "span.bar",
+			query:          "{span.foo=nil}",
+			expectedValues: []tempopb.TagValue{},
+		},
+		{
+			name:           "resource attr nil with one match",
+			tag:            "resource.foo",
+			query:          "{resource.asdf=nil}",
+			expectedValues: []tempopb.TagValue{stringTagValue("abc2")},
 		},
 	}
 

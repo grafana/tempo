@@ -88,11 +88,12 @@ storage:
       path: /var/tempo/blocks
 
 overrides:
+  per_tenant_override_config: /etc/overrides.yaml
   defaults:
     cost_attribution:
       dimensions:
-        service.name: "" # unscoped matches both resource and span attributes
-        span.http.target: "service_route" # span scoped attribute, also remapped to custom label in metrics.
+        service.name: "svc_name" # unscoped matches both resource and span attributes
+        span.http.target: "name" # span scoped attribute, also remapped to custom label in metrics.
     metrics_generator:
       processors: [service-graphs, span-metrics, local-blocks] # enables metrics generator
       generate_native_histograms: both

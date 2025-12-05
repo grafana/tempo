@@ -491,6 +491,20 @@ func fieldByName(node Node, name string) Field {
 	return nil
 }
 
+// findByPath navigates the node tree to find the node at the given path.
+// Returns nil if the path doesn't exist.
+// The path is a sequence of field names to traverse.
+func findByPath(node Node, path []string) Node {
+	for _, name := range path {
+		field := fieldByName(node, name)
+		if field == nil {
+			return nil
+		}
+		node = field
+	}
+	return node
+}
+
 // EqualNodes returns true if node1 and node2 are equal.
 //
 // Nodes that are not of the same repetition type (optional, required, repeated)

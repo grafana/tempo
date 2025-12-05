@@ -344,8 +344,8 @@ func (rw *readerWriter) CloseAppend(ctx context.Context, tracker backend.AppendT
 }
 
 func (rw *readerWriter) Delete(ctx context.Context, name string, keypath backend.KeyPath, _ *backend.CacheInfo) error {
-	filename := backend.ObjectFileName(keypath, name)
-	return rw.core.RemoveObject(ctx, rw.cfg.Bucket, filename, minio.RemoveObjectOptions{})
+	keypath = backend.KeyPathWithPrefix(keypath, rw.cfg.Prefix)
+	return rw.core.RemoveObject(ctx, rw.cfg.Bucket, backend.ObjectFileName(keypath, name), minio.RemoveObjectOptions{})
 }
 
 // List implements backend.Reader
@@ -519,7 +519,7 @@ func (rw *readerWriter) Find(ctx context.Context, keypath backend.KeyPath, f bac
 			if len(res.Contents) > 0 {
 				for _, c := range res.Contents {
 					opts := backend.FindMatch{
-						Key:      c.Key,
+						Key:      strings.TrimPrefix(c.Key, rw.cfg.Prefix),
 						Modified: c.LastModified,
 					}
 					f(opts)
@@ -596,6 +596,8 @@ func (rw *readerWriter) DeleteVersioned(ctx context.Context, name string, keypat
 	// another process writes to the same object in between ReadVersioned and Delete its changes will
 	// be overwritten.
 	// TODO use rw.hedgedCore.GetObject, don't download the full object
+	keypath = backend.KeyPathWithPrefix(keypath, rw.cfg.Prefix)
+
 	_, currentVersion, err := rw.ReadVersioned(ctx, name, keypath)
 	if err != nil && !errors.Is(err, backend.ErrDoesNotExist) {
 		return err

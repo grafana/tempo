@@ -174,6 +174,7 @@ func (rw *readerWriter) CloseAppend(_ context.Context, tracker backend.AppendTra
 }
 
 func (rw *readerWriter) Delete(ctx context.Context, name string, keypath backend.KeyPath, _ *backend.CacheInfo) error {
+	keypath = backend.KeyPathWithPrefix(keypath, rw.cfg.Prefix)
 	return readError(rw.bucket.Object(backend.ObjectFileName(keypath, name)).Delete(ctx))
 }
 
@@ -349,7 +350,7 @@ func (rw *readerWriter) Find(ctx context.Context, keypath backend.KeyPath, f bac
 		}
 
 		opts := backend.FindMatch{
-			Key:      attrs.Name,
+			Key:      strings.TrimPrefix(attrs.Name, rw.cfg.Prefix),
 			Modified: attrs.Updated,
 		}
 		f(opts)
@@ -423,6 +424,7 @@ func (rw *readerWriter) WriteVersioned(ctx context.Context, name string, keypath
 }
 
 func (rw *readerWriter) DeleteVersioned(ctx context.Context, name string, keypath backend.KeyPath, version backend.Version) error {
+	keypath = backend.KeyPathWithPrefix(keypath, rw.cfg.Prefix)
 	o := rw.bucket.Object(backend.ObjectFileName(keypath, name))
 
 	preconditions, err := createPreconditions(version)
