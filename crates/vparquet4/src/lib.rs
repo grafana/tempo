@@ -36,8 +36,10 @@
 //! # }
 //! ```
 
+pub mod domain;
 pub mod error;
 pub mod filter;
+pub mod iter;
 pub mod projection;
 pub mod reader;
 pub mod schema;
@@ -48,6 +50,15 @@ pub use filter::{RowGroupFilter, RowGroupFilterTrait, RowGroupStats};
 pub use projection::{ProjectionBuilder, ProjectionMode};
 pub use reader::{ReaderConfig, VParquet4ReaderTrait};
 pub use reader::sync_reader::VParquet4Reader;
+
+// Re-export iterator types
+pub use iter::{SpanIterator, SpanWithContext, Trace, TraceIterator};
+
+// Re-export OTLP domain types
+pub use domain::{
+    convert, AnyValue, InstrumentationScope, KeyValue, Resource, ResourceSpans, ScopeSpans, Span,
+    Status, TracesData,
+};
 
 #[cfg(feature = "async")]
 pub use reader::async_reader::AsyncVParquet4Reader;

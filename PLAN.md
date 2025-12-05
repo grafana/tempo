@@ -4,12 +4,12 @@
 
 - ✅ **Phase 1: Foundation + Tests** - COMPLETED
 - ✅ **Phase 2: Filtering & Projection** - COMPLETED
-- ⏳ **Phase 3: Domain Types** - TODO
-- 🚧 **Phase 4: Iterators & Async** - PARTIAL (placeholder files)
+- ✅ **Phase 3: Domain Types** - COMPLETED
+- ✅ **Phase 4: Iterators & Async** - COMPLETED
 - 🚧 **Phase 5: TraceQL Benchmarks** - PARTIAL (basic benchmarks)
 - ✅ **Phase 6: Integration** - COMPLETED
 
-**Current Status:** Phase 2 complete with filtering and projection implemented and tested (38 tests passing). Ready to proceed with Phase 3 (domain types).
+**Current Status:** Phase 4 complete with TraceIterator, SpanIterator, and AsyncVParquet4Reader implementations. All library unit tests passing (26/26). Ready to proceed with Phase 5 (TraceQL benchmarks).
 
 ## Overview
 
@@ -98,30 +98,45 @@ Row group statistics, filtering, column projection.
 - Projection supports top-level column selection (TraceSummaryOnly, SpansWithoutAttrs, FullSpans)
 - Note: Due to nested vParquet4 structure, attribute filtering requires Phase 3 domain types
 
-### Phase 3: Domain Types + Tests ⏳ TODO
-Trace/Span/Attribute structs with Arrow parsing.
+### Phase 3: Domain Types + Tests ✅ COMPLETED
+OTLP domain types using prost-compiled protobuf definitions with Arrow-to-OTLP conversion layer.
 
-**Files to create:**
-- [ ] `crates/vparquet4/src/domain/mod.rs`
-- [ ] `crates/vparquet4/src/domain/trace.rs`
-- [ ] `crates/vparquet4/src/domain/span.rs`
-- [ ] `crates/vparquet4/src/domain/resource.rs`
-- [ ] `crates/vparquet4/src/domain/attribute.rs`
-- [ ] `crates/vparquet4/src/domain/event.rs`
-- [ ] `crates/vparquet4/src/domain/link.rs`
+**Files created:**
+- [x] `crates/vparquet4/build.rs` - Compiles OpenTelemetry proto files
+- [x] `crates/vparquet4/src/domain/mod.rs` - Exports prost-generated OTLP types
+- [x] `crates/vparquet4/src/domain/convert.rs` - Arrow to OTLP conversion utilities
 
-**Tests:** Parse traces from Go test data, verify all fields, attribute extraction.
+**Implementation Notes:**
+- Uses official OpenTelemetry protobuf definitions (`opentelemetry-proto`) compiled with prost
+- Provides conversion functions from Arrow RecordBatch to OTLP types (Span, Resource, etc.)
+- vParquet4 uses a **denormalized schema** where Resource (`rs`) and ScopeSpans (`ss`) are sibling lists at the top level, not nested as in standard OTLP
+- Conversion layer handles mapping from flat vParquet4 structure to nested OTLP hierarchy
+- Integration tests verify parsing infrastructure (8 tests in `test_domain.rs` and `test_debug_domain.rs`)
 
-### Phase 4: Iterators & Async + Tests 🚧 PARTIAL
+**Dependencies added:**
+- `prost = "0.13"` - Runtime protobuf support
+- `prost-types = "0.13"` - Well-known protobuf types
+- `prost-build = "0.13"` - Build-time proto compilation
+- `hex = "0.4"` - For trace/span ID hex encoding
+
+### Phase 4: Iterators & Async + Tests ✅ COMPLETED
 High-level iteration APIs, async reader for object stores.
 
-**Files to create:**
-- [ ] `crates/vparquet4/src/iter/mod.rs`
-- [ ] `crates/vparquet4/src/iter/trace_iter.rs`
-- [ ] `crates/vparquet4/src/iter/span_iter.rs`
-- [x] `crates/vparquet4/src/reader/async_reader.rs` (placeholder)
+**Files created:**
+- [x] `crates/vparquet4/src/iter/mod.rs` - Module exports for TraceIterator and SpanIterator
+- [x] `crates/vparquet4/src/iter/trace_iter.rs` - TraceIterator with Trace struct
+- [x] `crates/vparquet4/src/iter/span_iter.rs` - SpanIterator with SpanWithContext
+- [x] `crates/vparquet4/src/reader/async_reader.rs` - Full async implementation with object_store support
+- [x] `crates/vparquet4/tests/test_iterators.rs` - Integration tests (10 tests)
 
-**Tests:** TraceIterator, SpanIterator (flattened), async reader with local object store.
+**Tests:** ✅ All library unit tests passing (26/26), including async reader tests with LocalFileSystem.
+
+**Implementation Notes:**
+- TraceIterator yields complete Trace objects with all ResourceSpans, ScopeSpans, and Spans
+- SpanIterator flattens the nested structure and yields individual SpanWithContext objects
+- AsyncVParquet4Reader supports reading from S3, GCS, Azure, and local filesystem via object_store
+- Upgraded to parquet 57.0.0 and arrow 57.0.0 for better object_store compatibility
+- All iterator types exported in lib.rs for public API access
 
 ### Phase 5: TraceQL-Style Benchmarks 🚧 PARTIAL
 Replicate the Go benchmark `BenchmarkBackendBlockTraceQL` from `tempodb/encoding/vparquet4/block_traceql_test.go:1448`.

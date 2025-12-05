@@ -13,17 +13,17 @@ tracing.workspace = true
 tracing-subscriber.workspace = true
 
 # HTTP server dependencies
-axum = "0.7"
-hyper = "1.0"
-tower = "0.4"
-tower-http = { version = "0.5", features = ["trace", "cors"] }
+axum.workspace = true
+hyper.workspace = true
+tower.workspace = true
+tower-http.workspace = true
 
 # Serialization
-serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0"
+serde.workspace = true
+serde_json.workspace = true
 
 # Error handling
-thiserror = "1.0"
+thiserror.workspace = true
 
 [build-dependencies]
 tonic-build.workspace = true

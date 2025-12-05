@@ -29,7 +29,10 @@ provider = { path = "crates/provider" }
 
 # External dependencies
 anyhow = "1.0"
+arrow = "57.0.0"
 async-trait = "0.1"
+axum = "0.7"
+bytes = "1.0"
 chrono = "0.4"
 clap = { version = "4.5", features = ["derive"] }
 comfy-table = "7.1"
@@ -40,18 +43,27 @@ datafusion-datasource = "51.0.0"
 datafusion-physical-plan = "51.0.0"
 dirs = "6.0.0"
 flate2 = "1.1"
+futures = "0.3.31"
 futures-util = "0.3"
+hex = "0.4"
 humansize = "2.1"
+hyper = "1.0"
 object_store = { version = "0.12", features = ["http", "aws"] }
-parquet = { version = "54.3.1", features = ["async"] }
+parquet = { version = "57.0.0", features = ["async", "object_store"] }
 prost = "0.13"
+prost-build = "0.13"
 prost-types = "0.13"
 rustyline = "17.0.2"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
+test_each_file = "0.3"
+thiserror = "1.0"
 tokio = { version = "1", features = ["macros", "rt-multi-thread", "signal", "full"] }
+tokio-test = "0.4"
 tonic = "0.12"
 tonic-build = "0.12"
+tower = "0.4"
+tower-http = { version = "0.5", features = ["trace", "cors"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 url = "2.5"

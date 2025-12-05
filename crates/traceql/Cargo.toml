@@ -9,4 +9,4 @@ datafusion = { workspace = true }
 tracing = { workspace = true }
 
 [dev-dependencies]
-test_each_file = "0.3"
+test_each_file.workspace = true

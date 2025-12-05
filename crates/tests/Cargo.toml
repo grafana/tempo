@@ -13,11 +13,11 @@ anyhow = { workspace = true }
 datafusion = { workspace = true }
 object_store = { workspace = true }
 tokio = { workspace = true }
-futures = "0.3.31"
+futures.workspace = true
 
 [dev-dependencies]
 criterion = { workspace = true }
-test_each_file = "0.3"
+test_each_file.workspace = true
 
 [[bench]]
 name = "traceql_queries"

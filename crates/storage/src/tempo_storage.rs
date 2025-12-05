@@ -116,7 +116,7 @@ impl TempoStorage {
 
                     Ok(DiscoveredBlock {
                         path: parquet_path,
-                        size: parquet_size,
+                        size: parquet_size as u64,
                         start_time: block_meta.start_time,
                         end_time: block_meta.end_time,
                     })

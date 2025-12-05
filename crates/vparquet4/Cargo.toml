@@ -6,8 +6,8 @@ license.workspace = true
 
 [dependencies]
 # Parquet and Arrow for reading vParquet4 files
-parquet = { workspace = true }
-arrow = "54.0.0"
+parquet = { workspace = true, features = ["object_store"] }
+arrow.workspace = true
 
 # Async I/O support
 object_store = { workspace = true }
@@ -17,13 +17,21 @@ futures-util = { workspace = true }
 
 # Error handling and utilities
 anyhow = { workspace = true }
-thiserror = "1.0"
-bytes = "1.0"
+thiserror.workspace = true
+bytes.workspace = true
 tracing = { workspace = true }
+hex.workspace = true
+
+# Protocol buffers for OTLP types
+prost.workspace = true
+prost-types.workspace = true
+
+[build-dependencies]
+prost-build.workspace = true
 
 [dev-dependencies]
 criterion = { workspace = true }
-tokio-test = "0.4"
+tokio-test.workspace = true
 
 [features]
 default = ["async"]
