@@ -23,6 +23,7 @@ import (
 	"github.com/grafana/tempo/tempodb/encoding/vparquet2"
 	"github.com/grafana/tempo/tempodb/encoding/vparquet3"
 	"github.com/grafana/tempo/tempodb/encoding/vparquet4"
+	"github.com/grafana/tempo/tempodb/encoding/vparquet5"
 )
 
 type attributePaths struct {
@@ -97,6 +98,33 @@ func pathsForVersion(v string) attributePaths {
 				isArrayPath: vparquet4.FieldEventAttrIsArray,
 			},
 		}
+	case vparquet5.VersionString:
+		return attributePaths{
+			span: scopeAttributePath{
+				defLevel:           vparquet5.DefinitionLevelResourceSpansILSSpanAttrs,
+				keyPath:            vparquet5.FieldSpanAttrKey,
+				valPath:            vparquet5.FieldSpanAttrVal,
+				isArrayPath:        vparquet5.FieldSpanAttrIsArray,
+				dedicatedColScope:  backend.DedicatedColumnScopeSpan,
+				dedicatedColsPaths: vparquet5.DedicatedResourceColumnPaths[backend.DedicatedColumnScopeSpan][backend.DedicatedColumnTypeString],
+			},
+			res: scopeAttributePath{
+				defLevel:           vparquet5.DefinitionLevelResourceAttrs,
+				keyPath:            vparquet5.FieldResourceAttrKey,
+				valPath:            vparquet5.FieldResourceAttrVal,
+				isArrayPath:        vparquet5.FieldResourceAttrIsArray,
+				dedicatedColScope:  backend.DedicatedColumnScopeResource,
+				dedicatedColsPaths: vparquet5.DedicatedResourceColumnPaths[backend.DedicatedColumnScopeResource][backend.DedicatedColumnTypeString],
+			},
+			event: scopeAttributePath{
+				defLevel:           vparquet5.DefinitionLevelResourceSpansILSSpanEventAttrs,
+				keyPath:            vparquet5.FieldEventAttrKey,
+				valPath:            vparquet5.FieldEventAttrVal,
+				isArrayPath:        vparquet5.FieldEventAttrIsArray,
+				dedicatedColScope:  backend.DedicatedColumnScopeEvent,
+				dedicatedColsPaths: vparquet5.DedicatedResourceColumnPaths[backend.DedicatedColumnScopeEvent][backend.DedicatedColumnTypeString],
+			},
+		}
 	default:
 		panic("unsupported version")
 	}
@@ -168,6 +196,8 @@ func processBlock(r backend.Reader, tenantID, blockID string, maxStartTime, minS
 		reader = vparquet3.NewBackendReaderAt(context.Background(), r, vparquet3.DataFileName, meta)
 	case vparquet4.VersionString:
 		reader = vparquet4.NewBackendReaderAt(context.Background(), r, vparquet4.DataFileName, meta)
+	case vparquet5.VersionString:
+		reader = vparquet5.NewBackendReaderAt(context.Background(), r, vparquet5.DataFileName, meta)
 	default:
 		fmt.Println("Unsupported block version:", meta.Version)
 		return nil, nil
