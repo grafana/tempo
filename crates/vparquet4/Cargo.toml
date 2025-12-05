@@ -40,3 +40,7 @@ async = []
 [[bench]]
 name = "read_benchmark"
 harness = false
+
+[[bench]]
+name = "traceql_benchmark"
+harness = false
