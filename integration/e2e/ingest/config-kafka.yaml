@@ -1,9 +1,13 @@
-target: all
+target: all-3.0
 stream_over_http_enabled: true
+partition_ring_live_store: true
 
 server:
   http_listen_port: 3200
   log_level: info
+
+querier:
+  query_live_store: true
 
 query_frontend:
   rf1_after: "2025-01-01T00:00:00Z"
@@ -13,6 +17,8 @@ query_frontend:
     query_ingesters_until: 30s
 
 distributor:
+  ingester_write_path_enabled: false
+  kafka_write_path_enabled: true
   receivers:
     jaeger:
       protocols:

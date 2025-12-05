@@ -66,6 +66,7 @@ endif
 GOTEST_OPT?= -race -timeout 25m -count=1 -v
 GOTEST_OPT_WITH_COVERAGE = $(GOTEST_OPT) -cover
 GOTEST=gotestsum --format=testname --
+COVERAGE_DIR?= .coverage
 LINT=golangci-lint
 
 UNAME := $(shell uname -s)
@@ -112,29 +113,34 @@ benchmark: tools ## Run benchmarks
 	$(GOTEST) -bench=. -run=notests $(ALL_PKGS)
 
 # Not used in CI, tests are split in pkg, tempodb, tempodb-wal and others in CI jobs
-.PHONY: test-with-cover 
+.PHONY: test-with-cover
 test-with-cover: tools ## Run tests with code coverage
-	$(GOTEST) $(GOTEST_OPT_WITH_COVERAGE) $(ALL_PKGS)
+	mkdir -p $(COVERAGE_DIR)
+	$(GOTEST) $(GOTEST_OPT) -coverprofile=$(COVERAGE_DIR)/all.out $(ALL_PKGS)
 
 # tests in pkg
-.PHONY: test-with-cover-pkg 
+.PHONY: test-with-cover-pkg
 test-with-cover-pkg: tools  ##  Run Tempo packages' tests with code coverage
-	$(GOTEST) $(GOTEST_OPT_WITH_COVERAGE) $(shell go list $(sort $(dir $(shell find . -name '*.go' -path './pkg*/*' -type f | sort))))
+	mkdir -p $(COVERAGE_DIR)
+	$(GOTEST) $(GOTEST_OPT) -coverprofile=$(COVERAGE_DIR)/pkg.out $(shell go list $(sort $(dir $(shell find . -name '*.go' -path './pkg*/*' -type f | sort))))
 
 # tests in tempodb (excluding tempodb/wal)
 .PHONY: test-with-cover-tempodb
 test-with-cover-tempodb: tools ## Run tempodb tests with code coverage
-	GOMEMLIMIT=6GiB $(GOTEST) $(GOTEST_OPT_WITH_COVERAGE) $(shell go list $(sort $(dir $(shell find . -name '*.go'  -not -path './tempodb/wal*/*' -path './tempodb*/*' -type f | sort))))
+	mkdir -p $(COVERAGE_DIR)
+	GOMEMLIMIT=6GiB $(GOTEST) $(GOTEST_OPT) -coverprofile=$(COVERAGE_DIR)/tempodb.out $(shell go list $(sort $(dir $(shell find . -name '*.go'  -not -path './tempodb/wal*/*' -path './tempodb*/*' -type f | sort))))
 
 # tests in tempodb/wal
 .PHONY: test-with-cover-tempodb-wal
 test-with-cover-tempodb-wal: tools  ## Test tempodb/wal with code coverage
-	$(GOTEST) $(GOTEST_OPT_WITH_COVERAGE) $(shell go list $(sort $(dir $(shell find . -name '*.go' -path './tempodb/wal*/*' -type f | sort))))
+	mkdir -p $(COVERAGE_DIR)
+	$(GOTEST) $(GOTEST_OPT) -coverprofile=$(COVERAGE_DIR)/tempodb-wal.out $(shell go list $(sort $(dir $(shell find . -name '*.go' -path './tempodb/wal*/*' -type f | sort))))
 
 # all other tests (excluding pkg & tempodb)
 .PHONY: test-with-cover-others
 test-with-cover-others: tools ## Run other tests with code coverage
-	$(GOTEST) $(GOTEST_OPT_WITH_COVERAGE) $(shell go list $(sort $(dir $(OTHERS_SRC))))
+	mkdir -p $(COVERAGE_DIR)
+	$(GOTEST) $(GOTEST_OPT) -coverprofile=$(COVERAGE_DIR)/others.out $(shell go list $(sort $(dir $(OTHERS_SRC))))
 
 # runs e2e tests in the top level integration/e2e directory
 .PHONY: test-e2e
@@ -192,6 +198,12 @@ ifneq ($(base),)
 else
 	$(LINT_CMD) $(LINT) run --config .golangci.yml
 endif
+
+##@ Code Coverage
+
+.PHONY: coverage-clean
+coverage-clean: ## Clean coverage files
+	rm -rf $(COVERAGE_DIR)
 
 ##@ Docker Images
 
@@ -304,9 +316,9 @@ gen-proto:  ## Generate proto files
 gen-traceql: ## Generate traceql 
 	docker run --rm -v${PWD}:/src/loki ${LOKI_BUILD_IMAGE} gen-traceql-local
 
-.PHONY: gen-traceql-local 
+.PHONY: gen-traceql-local
 gen-traceql-local: ## Generate traceq local
-	goyacc -o pkg/traceql/expr.y.go pkg/traceql/expr.y && rm y.output
+	goyacc -l -o pkg/traceql/expr.y.go pkg/traceql/expr.y && rm -f y.output
 
 
 ##@ Gen Parquet-Query
@@ -359,10 +371,10 @@ generate-manifest:  ## Generate manifest.md file
 ##@ jsonnet
 .PHONY: jsonnet jsonnet-check jsonnet-test
 jsonnet: tools-image ## Generate jsonnet
-	$(TOOLS_CMD) make -C operations/jsonnet-compiled/util gen
+	$(TOOLS_CMD) make -C operations/jsonnet-compiled gen
 
 jsonnet-check: tools-image ## Check jsonnet
-	$(TOOLS_CMD) make -C operations/jsonnet-compiled/util check
+	$(TOOLS_CMD) make -C operations/jsonnet-compiled check
 
 jsonnet-test: tools-image ## Test jsonnet
 	$(TOOLS_CMD) make -C operations/jsonnet/microservices test

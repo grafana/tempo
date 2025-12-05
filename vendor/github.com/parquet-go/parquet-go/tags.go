@@ -2,9 +2,7 @@ package parquet
 
 import "reflect"
 
-var (
-	noTags = parquetTags{}
-)
+var noTags = parquetTags{}
 
 // parquetTags represents the superset of all the parquet struct tags that can be used
 // to configure a field.
