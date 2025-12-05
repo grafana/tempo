@@ -41,12 +41,20 @@ In this example, the search reduces traces to those spans where:
 Queries select sets of spans and filter them through a pipeline of aggregators and conditions.
 If, for a given trace, this pipeline produces a spanset then it's included in the results of the query.
 
-Refer to [TraceQL metrics queries](https://grafana.com/docs/tempo/<TEMPO_VERSION>/traceql/metrics-queries/) for examples of TraceQL metrics queries.
+Refer to [TraceQL metrics queries](https://grafana.com/docs/tempo/<TEMPO_VERSION>/metrics-from-traces/metrics-queries/) for examples of TraceQL metrics queries.
 
 ## Examples
 
 The following examples illustrate some commonly used queries.
 You can use these examples as a starting point for your own queries.
+
+Query construction tips:
+
+- Start broad, then filter: Begin with `{ }` to see all traces, then add conditions
+- Use intrinsics for efficiency: `trace:duration`, `trace:rootService` are faster than aggregations
+- Combine conditions with `&&`: Multiple conditions on the same span are joined with `AND`
+- Use pipeline operators: `|` for aggregations and transformations
+- Group for metrics: Use `by(field)` to create time-series breakdowns
 
 ### Find traces of a specific operation
 
@@ -147,7 +155,7 @@ Find if `productcatalogservice` and `frontend` are siblings.
 
 ### Other examples
 
-Find the services where the http status is 200, and list the service name the span belongs to along with returned traces.
+Find the services where the HTTP status is `200`, and list the service name the span belongs to along with returned traces.
 
 ```
 { span.http.status_code = 200 } | select(resource.service.name)
@@ -165,10 +173,28 @@ Find any trace where any span has an `http.method` attribute set to `GET` as wel
 { span.http.method = "GET" && status = ok } && { span.http.method = "DELETE" && status != ok }
 ```
 
-Find any trace with a `deployment.environment` attribute that matches the regex `prod-.*` and `http.status_code` attribute set to `200`:
+Find any trace with a `deployment.environment` attribute that matches the regular expression `prod-.*` and `http.status_code` attribute set to `200`:
 
 ```
 { resource.deployment.environment =~ "prod-.*" && span.http.status_code = 200 }
+```
+
+Find traces that took longer than 5 seconds:
+
+```
+{ trace:duration > 5s }
+```
+
+Find services with many fast spans, indicating potential over-instrumentation:
+
+```
+{ span:duration < 5ms } | count_over_time() by(resource.service.name) | topk(10)
+```
+
+Find large, slow traces from production:
+
+```
+{ resource.deployment.environment = "production" && trace:duration > 2s } | count() > 30
 ```
 
 ## Select spans
@@ -613,7 +639,7 @@ With `most_recent=true`, Tempo performs a deeper search across data shards, reta
 
 You can specify the time window to break a search up into when doing a most recent TraceQL search using `most_recent_shards:` in the `query_frontend` configuration block.
 The default value is 200.
-Refer to the [Tempo configuration reference](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/#query-frontend/) for more information.
+Refer to the [Tempo configuration reference](/docs/tempo/<TEMPO_VERSION>/configuration/#query-frontend/) for more information.
 
 ### Search impact using `most_recent`
 
