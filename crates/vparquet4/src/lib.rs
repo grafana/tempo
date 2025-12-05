@@ -37,11 +37,15 @@
 //! ```
 
 pub mod error;
+pub mod filter;
+pub mod projection;
 pub mod reader;
 pub mod schema;
 
 // Re-export commonly used types
 pub use error::{Result, VParquet4Error};
+pub use filter::{RowGroupFilter, RowGroupFilterTrait, RowGroupStats};
+pub use projection::{ProjectionBuilder, ProjectionMode};
 pub use reader::{ReaderConfig, VParquet4ReaderTrait};
 pub use reader::sync_reader::VParquet4Reader;
 

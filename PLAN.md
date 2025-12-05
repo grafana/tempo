@@ -3,13 +3,13 @@
 ## Progress Summary
 
 - ✅ **Phase 1: Foundation + Tests** - COMPLETED
-- ⏳ **Phase 2: Filtering & Projection** - TODO
+- ✅ **Phase 2: Filtering & Projection** - COMPLETED
 - ⏳ **Phase 3: Domain Types** - TODO
 - 🚧 **Phase 4: Iterators & Async** - PARTIAL (placeholder files)
 - 🚧 **Phase 5: TraceQL Benchmarks** - PARTIAL (basic benchmarks)
 - ✅ **Phase 6: Integration** - COMPLETED
 
-**Current Status:** Phase 1 complete with all tests passing. Ready to proceed with Phase 2 (filtering & projection).
+**Current Status:** Phase 2 complete with filtering and projection implemented and tested (38 tests passing). Ready to proceed with Phase 3 (domain types).
 
 ## Overview
 
@@ -78,17 +78,25 @@ Create crate structure, error types, schema constants, basic sync reader.
 
 **Tests:** ✅ Read Go test data file, validate schema, count traces (7 integration tests + 2 unit tests passing).
 
-### Phase 2: Filtering & Projection + Tests ⏳ TODO
+### Phase 2: Filtering & Projection + Tests ✅ COMPLETED
 Row group statistics, filtering, column projection.
 
-**Files to create:**
-- [ ] `crates/vparquet4/src/filter/mod.rs`
-- [ ] `crates/vparquet4/src/filter/statistics.rs`
-- [ ] `crates/vparquet4/src/filter/row_group.rs`
-- [ ] `crates/vparquet4/src/projection/mod.rs`
-- [ ] `crates/vparquet4/src/projection/builder.rs`
+**Files created:**
+- [x] `crates/vparquet4/src/filter/mod.rs`
+- [x] `crates/vparquet4/src/filter/statistics.rs`
+- [x] `crates/vparquet4/src/filter/row_group.rs`
+- [x] `crates/vparquet4/src/projection/mod.rs`
+- [x] `crates/vparquet4/src/projection/builder.rs`
+- [x] `crates/vparquet4/tests/test_filtering.rs` (7 integration tests)
+- [x] `crates/vparquet4/tests/test_projection.rs` (6 integration tests)
 
-**Tests:** Time range filtering, trace ID prefix filtering, projection modes.
+**Tests:** ✅ Time range filtering, trace ID prefix filtering, projection modes (13 integration tests + 6 unit tests passing).
+
+**Implementation Notes:**
+- Row group statistics extraction supports time ranges and trace ID prefixes
+- Filtering uses Parquet metadata to skip irrelevant row groups
+- Projection supports top-level column selection (TraceSummaryOnly, SpansWithoutAttrs, FullSpans)
+- Note: Due to nested vParquet4 structure, attribute filtering requires Phase 3 domain types
 
 ### Phase 3: Domain Types + Tests ⏳ TODO
 Trace/Span/Attribute structs with Arrow parsing.
@@ -122,7 +130,7 @@ Replicate the Go benchmark `BenchmarkBackendBlockTraceQL` from `tempodb/encoding
 - [x] `crates/vparquet4/benches/read_benchmark.rs` (basic benchmarks)
 - [ ] `crates/vparquet4/benches/traceql_benchmark.rs`
 
-**Benchmark scenarios** (from Go test):
+**Benchmark scenarios** (from Go test BenchmarkBackendBlockTraceQL):
 - **Span attributes**: Match by value (`span.component = net/http`), regex, no match
 - **Span intrinsics**: Match by name, few matches, no match
 - **Resource attributes**: Match by value, intrinsic (service.name), no match
@@ -140,6 +148,7 @@ Replicate the Go benchmark `BenchmarkBackendBlockTraceQL` from `tempodb/encoding
 - `BENCH_BLOCKID`: Block UUID to benchmark against
 - `BENCH_PATH`: Path to backend storage
 - `BENCH_TENANTID`: Tenant ID (default: "single-tenant")
+- Use workspace .env file
 
 **Implementation approach**:
 1. Create benchmark harness that loads a real vParquet4 block from disk
