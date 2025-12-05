@@ -9,11 +9,11 @@ type BoundedWaitGroup struct {
 }
 
 // New creates a BoundedWaitGroup with the given concurrency.
-func New(cap uint) BoundedWaitGroup {
-	if cap == 0 {
+func New(capacity uint) BoundedWaitGroup {
+	if capacity == 0 {
 		panic("BoundedWaitGroup capacity must be greater than zero or else it will block forever.")
 	}
-	return BoundedWaitGroup{ch: make(chan struct{}, cap)}
+	return BoundedWaitGroup{ch: make(chan struct{}, capacity)}
 }
 
 // Add the number of items to the group. Blocks until there is capacity.

@@ -63,14 +63,16 @@ func TestCutIdleDueToIdleTime(t *testing.T) {
 
 	rootTime := time.Unix(0, 0)
 
-	lt.PushWithTimestampAndLimits(rootTime, id, tr.ResourceSpans[0], 0, 0)
+	err := lt.PushWithTimestampAndLimits(rootTime, id, tr.ResourceSpans[0], 0, 0)
+	require.NoError(t, err)
 
 	// cut at 500 ms, should cut nothing
 	cutTraces := lt.CutIdle(rootTime.Add(500*time.Millisecond), false)
 	require.Equal(t, 0, len(cutTraces))
 
 	// push at 1 second
-	lt.PushWithTimestampAndLimits(rootTime.Add(1000*time.Millisecond), id, tr.ResourceSpans[0], 0, 0)
+	err = lt.PushWithTimestampAndLimits(rootTime.Add(1000*time.Millisecond), id, tr.ResourceSpans[0], 0, 0)
+	require.NoError(t, err)
 
 	// cut at 1.5 seconds, should cut nothing
 	cutTraces = lt.CutIdle(rootTime.Add(1500*time.Millisecond), false)
@@ -92,14 +94,16 @@ func TestCutIdleDueToLiveTime(t *testing.T) {
 
 	rootTime := time.Unix(0, 0)
 
-	lt.PushWithTimestampAndLimits(rootTime, id, tr.ResourceSpans[0], 0, 0)
+	err := lt.PushWithTimestampAndLimits(rootTime, id, tr.ResourceSpans[0], 0, 0)
+	require.NoError(t, err)
 
 	// cut at 500 ms, should cut nothing
 	cutTraces := lt.CutIdle(rootTime.Add(500*time.Millisecond), false)
 	require.Equal(t, 0, len(cutTraces))
 
 	// push at 1 second
-	lt.PushWithTimestampAndLimits(rootTime.Add(1000*time.Millisecond), id, tr.ResourceSpans[0], 0, 0)
+	err = lt.PushWithTimestampAndLimits(rootTime.Add(1000*time.Millisecond), id, tr.ResourceSpans[0], 0, 0)
+	require.NoError(t, err)
 
 	// cut at 1.5 seconds, should cut the trace b/c it's been live for 1.5 seconds!
 	cutTraces = lt.CutIdle(rootTime.Add(1500*time.Millisecond), false)
@@ -126,7 +130,7 @@ func TestMaxTraceSizeExceededWithAccumulation(t *testing.T) {
 		maxTraceSize = uint64(500)
 	)
 
-	lt := New[*v1.ResourceSpans](func(_ *v1.ResourceSpans) uint64 { return batchSize }, time.Hour, time.Hour, testTenantID)
+	lt := New(func(_ *v1.ResourceSpans) uint64 { return batchSize }, time.Hour, time.Hour, testTenantID)
 
 	id := test.ValidTraceID(nil)
 	tr := test.MakeTrace(1, id)
@@ -147,7 +151,7 @@ func TestMaxTraceSizeExceededWithAccumulation(t *testing.T) {
 }
 
 func BenchmarkLiveTracesWrite(b *testing.B) {
-	lt := New[*v1.ResourceSpans](func(rs *v1.ResourceSpans) uint64 { return uint64(rs.Size()) }, 0, 0, testTenantID)
+	lt := New(func(rs *v1.ResourceSpans) uint64 { return uint64(rs.Size()) }, 0, 0, testTenantID)
 
 	var traces []*tempopb.Trace
 	for i := 0; i < 100_000; i++ {
@@ -164,7 +168,7 @@ func BenchmarkLiveTracesWrite(b *testing.B) {
 }
 
 func BenchmarkLiveTracesRead(b *testing.B) {
-	lt := New[*v1.ResourceSpans](func(rs *v1.ResourceSpans) uint64 { return uint64(rs.Size()) }, 0, 0, testTenantID)
+	lt := New(func(rs *v1.ResourceSpans) uint64 { return uint64(rs.Size()) }, 0, 0, testTenantID)
 
 	for i := 0; i < 100_000; i++ {
 		tr := test.MakeTrace(1, nil)

@@ -33,7 +33,7 @@ func (r *PreallocBytes) Unmarshal(dAtA []byte) error {
 // MarshalTo implements proto.Marshaller.
 // returned int is not used
 func (r *PreallocBytes) MarshalTo(dAtA []byte) (int, error) {
-	copy(dAtA[:], r.Slice[:])
+	copy(dAtA, r.Slice)
 	return len(r.Slice), nil
 }
 

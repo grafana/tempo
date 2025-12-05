@@ -726,7 +726,7 @@ func parseSecondsOrDuration(value string) (time.Duration, error) {
 		return time.Duration(ts), nil
 	}
 	if d, err := time.ParseDuration(value); err == nil {
-		return time.Duration(d), nil
+		return d, nil
 	}
 	return 0, fmt.Errorf("cannot parse %q to a valid duration", value)
 }
@@ -853,13 +853,14 @@ func ValidateAndSanitizeRequest(r *http.Request) (string, string, string, int64,
 	var blockEnd string
 	var rf1After time.Time
 
-	if len(q) == 0 || q == QueryModeAll {
+	switch {
+	case len(q) == 0 || q == QueryModeAll:
 		queryMode = QueryModeAll
-	} else if q == QueryModeIngesters {
+	case q == QueryModeIngesters:
 		queryMode = QueryModeIngesters
-	} else if q == QueryModeBlocks {
+	case q == QueryModeBlocks:
 		queryMode = QueryModeBlocks
-	} else {
+	default:
 		return "", "", "", 0, 0, time.Time{}, fmt.Errorf("invalid value for mode %s", q)
 	}
 

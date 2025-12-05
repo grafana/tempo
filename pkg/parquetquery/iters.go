@@ -288,12 +288,12 @@ var syncIteratorPool = sync.Pool{
 	},
 }
 
-func syncIteratorPoolGet(capacity, len int) []pq.Value {
+func syncIteratorPoolGet(capacity, length int) []pq.Value {
 	res := syncIteratorPool.Get().([]pq.Value)
 	if cap(res) < capacity {
 		res = make([]pq.Value, capacity)
 	}
-	res = res[:len]
+	res = res[:length]
 	return res
 }
 
@@ -569,14 +569,14 @@ func (c *SyncIterator) popRowGroup() (pq.RowGroup, RowNumber, RowNumber) {
 	}
 
 	rg := c.rgs[0]
-	min := c.rgsMin[0]
-	max := c.rgsMax[0]
+	minRN := c.rgsMin[0]
+	maxRN := c.rgsMax[0]
 
 	c.rgs = c.rgs[1:]
 	c.rgsMin = c.rgsMin[1:]
 	c.rgsMax = c.rgsMax[1:]
 
-	return rg, min, max
+	return rg, minRN, maxRN
 }
 
 // seekRowGroup skips ahead to the row group that could contain the value at the
@@ -589,12 +589,12 @@ func (c *SyncIterator) seekRowGroup(seekTo RowNumber, definitionLevel int) (done
 
 	for c.currRowGroup == nil {
 
-		rg, min, max := c.popRowGroup()
+		rg, minRN, maxRN := c.popRowGroup()
 		if rg == nil {
 			return true
 		}
 
-		if CompareRowNumbers(definitionLevel, seekTo, max) != -1 {
+		if CompareRowNumbers(definitionLevel, seekTo, maxRN) != -1 {
 			continue
 		}
 
@@ -605,7 +605,7 @@ func (c *SyncIterator) seekRowGroup(seekTo RowNumber, definitionLevel int) (done
 		}
 
 		// This row group matches both row number and filter.
-		c.setRowGroup(rg, min, max, cc)
+		c.setRowGroup(rg, minRN, maxRN, cc)
 	}
 
 	return c.currRowGroup == nil
@@ -751,7 +751,7 @@ func (c *SyncIterator) seekWithinPage(to RowNumber, definitionLevel int) {
 func (c *SyncIterator) next() (RowNumber, *pq.Value, error) {
 	for {
 		if c.currRowGroup == nil {
-			rg, min, max := c.popRowGroup()
+			rg, minRN, maxRN := c.popRowGroup()
 			if rg == nil {
 				return EmptyRowNumber(), nil, nil
 			}
@@ -762,7 +762,7 @@ func (c *SyncIterator) next() (RowNumber, *pq.Value, error) {
 				continue
 			}
 
-			c.setRowGroup(rg, min, max, cc)
+			c.setRowGroup(rg, minRN, maxRN, cc)
 		}
 
 		if c.currPage == nil {
@@ -1612,10 +1612,6 @@ func (a *KeyValueGroupPredicate) KeepGroup(group *IteratorResult) bool {
 		}
 	}
 	return true
-}
-
-func panicWhenInvalidDefinitionLevel(definitionLevel int) {
-	panic(fmt.Sprintf("definition level out of bound: should be [0:7] but got %d", definitionLevel))
 }
 
 /*func printGroup(g *iteratorResult) {
