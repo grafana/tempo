@@ -7,10 +7,12 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/grafana/e2e"
 	e2edb "github.com/grafana/e2e/db"
 	"github.com/grafana/tempo/cmd/tempo/app"
+	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/pkg/httpclient"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/backend/azure"
@@ -20,19 +22,26 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
+const (
+	ServiceDistributor      = "distributor"
+	ServiceQueryFrontend    = "query-frontend"
+	ServiceQuerier          = "querier"
+	ServiceMetricsGenerator = "metrics-generator"
+	ServiceLiveStoreZoneA   = "live-store-zone-a-0"
+	ServiceLiveStoreZoneB   = "live-store-zone-b-0"
+	ServiceBlockBuilder     = "block-builder-0"
+)
+
 // TempoHarness contains all the services and clients needed to run integration tests
 // with the new Tempo architecture (Kafka + LiveStore).
 type TempoHarness struct {
-	// Services - jpe - double check we need all fields
-	Kafka            e2e.Service
-	Backend          e2e.Service        // Object storage backend (Minio/GCS/Azure/Local)
-	LiveStores       []*e2e.HTTPService // Live store instances (paired: zone-a, zone-b)
-	Distributor      *e2e.HTTPService
-	QueryFrontend    *e2e.HTTPService
-	Querier          *e2e.HTTPService
-	BlockBuilders    []*e2e.HTTPService // Optional: block builder instances
-	MetricsGenerator *e2e.HTTPService   // Optional: metrics generator
-	Prometheus       *e2e.HTTPService   // Optional: prometheus for metrics generator
+	// Infrastructure services
+	Kafka      e2e.Service      // Kafka service
+	Backend    e2e.Service      // Object storage backend (Minio/GCS/Azure/Local)
+	Prometheus *e2e.HTTPService // Optional: prometheus for metrics generator
+
+	// Tempo services - use constants above to access services by name
+	Services map[string]*e2e.HTTPService
 
 	// Clients
 	HTTPClient     *httpclient.Client    // HTTP client for Tempo API
@@ -43,6 +52,9 @@ type TempoHarness struct {
 	DistributorOTLPEndpoint   string // OTLP gRPC endpoint (port 4317) // jpe - do we need these if we have the HTTP clients above?
 	QueryFrontendHTTPEndpoint string // HTTP endpoint (port 3200)
 	QueryFrontendGRPCEndpoint string // gRPC endpoint (port 3200)
+
+	// Overrides file path for dynamic updates
+	overridesPath string
 }
 
 // TestHarnessConfig provides configuration options for the test harness
@@ -52,15 +64,11 @@ type TestHarnessConfig struct {
 	// If empty, only config-base.yaml will be used
 	ConfigOverlay string
 
-	// LiveStorePairs is the number of live store pairs to start (default: 1)
-	// Each pair consists of one zone-a and one zone-b instance
-	// For example, LiveStorePairs=2 starts: live-store-zone-a-0, live-store-zone-b-0, live-store-zone-a-1, live-store-zone-b-1
-	LiveStorePairs int // jpe - remove and always start 1 pair?
+	// jpe -
+	// bitmask? worker/scheduler? maybe provide different "layers" as an enum: RecentDataQuerying, BackendQuerying, BackendWork, MetricsGenerator?
 
-	// BlockBuilderCount is the number of block builder instances to start (default: 0)
-	BlockBuilderCount int // jpe - remove and always start 1?
-
-	// jpe - worker/scheduler? maybe provide different "layers" as an enum: RecentDataQuerying, BackendQuerying, BackendWork?
+	// LiveStoreFastFlushDuration configures the flush check period and max block duration to the provided duration which will force traces to be flushed more aggressively to complete blocks
+	LiveStoreFastFlush time.Duration // jpe - better to just put in the overlay?
 
 	// EnableMetricsGenerator starts a metrics generator and Prometheus instance
 	EnableMetricsGenerator bool
@@ -105,12 +113,9 @@ type TestHarnessConfig struct {
 func WithTempoHarness(t *testing.T, s *e2e.Scenario, config TestHarnessConfig, testFunc func(*TempoHarness)) {
 	t.Helper()
 
-	// Apply defaults
-	if config.LiveStorePairs == 0 {
-		config.LiveStorePairs = 1
+	harness := &TempoHarness{
+		Services: map[string]*e2e.HTTPService{},
 	}
-
-	harness := &TempoHarness{}
 
 	// Load base config into map
 	baseConfigPath := "../util/config-base.yaml"
@@ -132,6 +137,18 @@ func WithTempoHarness(t *testing.T, s *e2e.Scenario, config TestHarnessConfig, t
 
 		// Merge overlay onto base
 		baseMap = mergeMaps(baseMap, overlayMap)
+	}
+
+	// Create empty overrides file
+	overridesPath := s.SharedDir() + "/overrides.yaml"
+	err = os.WriteFile(overridesPath, []byte("overrides: {}\n"), 0644)
+	require.NoError(t, err, "failed to write initial overrides file")
+	harness.overridesPath = overridesPath
+
+	// make modifications if necessary
+	if config.LiveStoreFastFlush > 0 {
+		baseMap["live_store"].(map[any]any)["flush_check_period"] = config.LiveStoreFastFlush.String()
+		baseMap["live_store"].(map[any]any)["max_block_duration"] = config.LiveStoreFastFlush.String()
 	}
 
 	// Write the merged config to the shared directory
@@ -158,92 +175,65 @@ func WithTempoHarness(t *testing.T, s *e2e.Scenario, config TestHarnessConfig, t
 	harness.Kafka = e2edb.NewKafka()
 	require.NoError(t, s.StartAndWaitReady(harness.Kafka), "failed to start Kafka")
 
-	// Start LiveStore instances in pairs (zone-a and zone-b)
-	// Each pair consists of: live-store-zone-a-<n>, live-store-zone-b-<n>
-	totalLiveStores := config.LiveStorePairs * 2
-	liveStores := make([]*e2e.HTTPService, totalLiveStores)
+	// Livestores
+	liveStoreZoneA := NewNamedTempoLiveStore(
+		"live-store-zone-a",
+		0,
+		config.ExtraLiveStoreArgs...,
+	)
+	harness.Services[ServiceLiveStoreZoneA] = liveStoreZoneA
+	require.NoError(t, s.StartAndWaitReady(liveStoreZoneA), "failed to start live store zone a")
 
-	for pair := 0; pair < config.LiveStorePairs; pair++ {
-		// Zone A
-		liveStores[pair*2] = NewNamedTempoLiveStore(
-			"live-store-zone-a",
-			pair,
-			config.ExtraLiveStoreArgs...,
-		)
-		// Zone B
-		liveStores[pair*2+1] = NewNamedTempoLiveStore(
-			"live-store-zone-b",
-			pair,
-			config.ExtraLiveStoreArgs...,
-		)
-	}
-
-	// Convert to e2e.Service slice for StartAndWaitReady
-	liveStoreServices := make([]e2e.Service, len(liveStores))
-	for i, ls := range liveStores {
-		liveStoreServices[i] = ls
-	}
-
-	require.NoError(t, s.StartAndWaitReady(liveStoreServices...), "failed to start live stores")
-
-	// Store all live stores in harness
-	harness.LiveStores = liveStores
+	liveStoreZoneB := NewNamedTempoLiveStore(
+		"live-store-zone-b",
+		0,
+		config.ExtraLiveStoreArgs...,
+	)
+	harness.Services[ServiceLiveStoreZoneB] = liveStoreZoneB
+	require.NoError(t, s.StartAndWaitReady(liveStoreZoneB), "failed to start live store zone b")
 
 	// Wait for live stores to join the partition ring
 	matchers := []*labels.Matcher{
 		{Type: labels.MatchEqual, Name: "state", Value: "Active"},
 		{Type: labels.MatchEqual, Name: "name", Value: "livestore-partitions"},
 	}
-	require.NoError(t, harness.LiveStores[0].WaitSumMetricsWithOptions(
-		e2e.Equals(float64(config.LiveStorePairs)),
+	require.NoError(t, liveStoreZoneA.WaitSumMetricsWithOptions(
+		e2e.Equals(float64(1)),
 		[]string{"tempo_partition_ring_partitions"},
 		e2e.WithLabelMatchers(matchers...),
 	), "live stores failed to join partition ring")
 
 	// Start Distributor
-	harness.Distributor = NewTempoDistributor()
-	require.NoError(t, s.StartAndWaitReady(harness.Distributor), "failed to start distributor")
+	harness.Services[ServiceDistributor] = NewTempoDistributor()
+	require.NoError(t, s.StartAndWaitReady(harness.Services[ServiceDistributor]), "failed to start distributor")
 
-	// Start Block Builders (if requested)
-	if config.BlockBuilderCount > 0 {
-		blockBuilders := make([]*e2e.HTTPService, config.BlockBuilderCount)
-		for i := 0; i < config.BlockBuilderCount; i++ {
-			blockBuilders[i] = NewTempoBlockBuilder(i, config.ExtraBlockBuilderArgs...)
-		}
+	// Start Block Builder
+	blockBuilder := NewTempoBlockBuilder(0, config.ExtraBlockBuilderArgs...)
+	harness.Services[ServiceBlockBuilder] = blockBuilder
 
-		// Convert to e2e.Service slice for StartAndWaitReady
-		blockBuilderServices := make([]e2e.Service, len(blockBuilders))
-		for i, bb := range blockBuilders {
-			blockBuilderServices[i] = bb
-		}
-
-		require.NoError(t, s.StartAndWaitReady(blockBuilderServices...), "failed to start block builders")
-
-		// Store all block builders in harness
-		harness.BlockBuilders = blockBuilders
-	}
+	require.NoError(t, s.StartAndWaitReady(blockBuilder), "failed to start block builders")
 
 	// Start Metrics Generator and Prometheus (if requested)
 	if config.EnableMetricsGenerator {
-		harness.MetricsGenerator = NewTempoMetricsGenerator()
+		harness.Services[ServiceMetricsGenerator] = NewTempoMetricsGenerator()
 		harness.Prometheus = NewPrometheus()
-		require.NoError(t, s.StartAndWaitReady(harness.MetricsGenerator, harness.Prometheus), "failed to start metrics generator and prometheus")
+		require.NoError(t, s.StartAndWaitReady(harness.Services[ServiceMetricsGenerator], harness.Prometheus), "failed to start metrics generator and prometheus")
 	}
 
 	// Start Query Frontend and Querier
-	harness.QueryFrontend = NewTempoQueryFrontend()
-	harness.Querier = NewTempoQuerier()
-	require.NoError(t, s.StartAndWaitReady(harness.QueryFrontend, harness.Querier), "failed to start query frontend and querier")
+	harness.Services[ServiceQueryFrontend] = NewTempoQueryFrontend()
+	harness.Services[ServiceQuerier] = NewTempoQuerier()
+	require.NoError(t, s.StartAndWaitReady(harness.Services[ServiceQueryFrontend], harness.Services[ServiceQuerier]), "failed to start query frontend and querier")
 
 	// Set endpoints jpe - do we need both http and grpc endpoints here?
-	harness.QueryFrontendHTTPEndpoint = harness.QueryFrontend.Endpoint(3200)
-	harness.QueryFrontendGRPCEndpoint = harness.QueryFrontend.Endpoint(3200)
+	harness.QueryFrontendHTTPEndpoint = harness.Services[ServiceQueryFrontend].Endpoint(3200)
+	harness.QueryFrontendGRPCEndpoint = harness.Services[ServiceQueryFrontend].Endpoint(3200)
 
 	// Create HTTP client
 	harness.HTTPClient = httpclient.New("http://"+harness.QueryFrontendHTTPEndpoint, "")
 
 	// Set distributor endpoints
-	harness.DistributorOTLPEndpoint = harness.Distributor.Endpoint(4317)
+	harness.DistributorOTLPEndpoint = harness.Services[ServiceDistributor].Endpoint(4317)
 
 	// Create Jaeger to OTLP exporter - jpe - do we need both of these?
 	harness.JaegerExporter, err = NewJaegerToOTLPExporter(harness.DistributorOTLPEndpoint)
@@ -409,4 +399,43 @@ func newGCS(port int) *e2e.HTTPService {
 	s.SetBackoff(TempoBackoff())
 
 	return s
+}
+
+// UpdateOverrides updates the tenant overrides file with the provided configuration.
+// The overrides parameter should be a map where keys are tenant IDs and values are
+// override configurations for that tenant.
+//
+// Example usage:
+//
+//	h.UpdateOverrides(map[string]*overrides.Overrides{
+//		"tenant-1": {
+//			Ingestion: overrides.IngestionOverrides{
+//				RateLimitBytes: 1000000,
+//			},
+//		},
+//	})
+//
+// Tempo will automatically reload the overrides based on the per_tenant_override_period
+// configured in config-base.yaml.
+func (h *TempoHarness) UpdateOverrides(tenantOverrides map[string]*overrides.Overrides) error {
+	overridesConfig := struct {
+		Overrides map[string]*overrides.Overrides `yaml:"overrides"`
+	}{
+		Overrides: tenantOverrides,
+	}
+
+	data, err := yaml.Marshal(overridesConfig)
+	if err != nil {
+		return fmt.Errorf("failed to marshal overrides: %w", err)
+	}
+
+	err = os.WriteFile(h.overridesPath, data, 0644)
+	if err != nil {
+		return fmt.Errorf("failed to write overrides file: %w", err)
+	}
+
+	// overrides reload every 1 second. wait 5 to make sure it gets loaded - jpe - metric for determinism?
+	time.Sleep(5 * time.Second)
+
+	return nil
 }

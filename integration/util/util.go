@@ -137,7 +137,7 @@ func NewTempoDistributor(extraArgs ...string) *e2e.HTTPService { // jpe -m make 
 	return NewNamedTempoDistributor("distributor", extraArgs...)
 }
 
-func NewNamedTempoDistributor(name string, extraArgs ...string) *e2e.HTTPService {
+func NewNamedTempoDistributor(name string, extraArgs ...string) *e2e.HTTPService { // jpe - remove "Tempo" from all funcs
 	args := []string{"-config.file=" + filepath.Join(e2e.ContainerSharedDir, "config.yaml"), "-target=distributor"}
 	args = buildArgsWithExtra(args, extraArgs)
 
@@ -149,6 +149,7 @@ func NewNamedTempoDistributor(name string, extraArgs ...string) *e2e.HTTPService
 		3200,
 		14250,
 		4317, // otlp grpc
+		4318, // otlp http
 	)
 
 	s.SetBackoff(TempoBackoff())

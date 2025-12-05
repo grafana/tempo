@@ -1,6 +1,7 @@
 package ingest
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
@@ -32,10 +33,11 @@ func TestLiveStoreWithHarness(t *testing.T) {
 		require.NoError(t, err)
 
 		// Test metrics
-		require.NoError(t, h.Distributor.WaitSumMetrics(e2e.Equals(util.SpanCount(expected)), "tempo_distributor_spans_received_total"))
+		require.NoError(t, h.Services[util.ServiceDistributor].WaitSumMetrics(e2e.Equals(util.SpanCount(expected)), "tempo_distributor_spans_received_total"))
 
 		// Wait for trace to be processed by live store (check first live store in zone-a)
-		require.NoError(t, h.LiveStores[0].WaitSumMetrics(e2e.Between(1, 25), "tempo_live_store_records_processed_total"))
+		liveStore := h.Services[fmt.Sprintf("%s-%d", util.ServiceLiveStoreZoneAPrefix, 0)]
+		require.NoError(t, liveStore.WaitSumMetrics(e2e.Between(1, 25), "tempo_live_store_records_processed_total"))
 	})
 }
 
@@ -125,11 +127,19 @@ func TestWithCustomLiveStoreConfig(t *testing.T) {
 		info := tempoUtil.NewTraceInfo(time.Now(), "")
 		require.NoError(t, info.EmitAllBatches(h.JaegerExporter))
 
-		// Verify we have 4 live stores
-		require.Equal(t, 4, len(h.LiveStores))
+		// Verify we have 4 live stores (2 pairs * 2 zones)
+		liveStoreCount := 0
+		for key := range h.Services {
+			if key[:len(util.ServiceLiveStoreZoneAPrefix)] == util.ServiceLiveStoreZoneAPrefix ||
+				key[:len(util.ServiceLiveStoreZoneBPrefix)] == util.ServiceLiveStoreZoneBPrefix {
+				liveStoreCount++
+			}
+		}
+		require.Equal(t, 4, liveStoreCount)
 
 		// Verify trace was processed by first live store
-		require.NoError(t, h.LiveStores[0].WaitSumMetrics(e2e.Equals(1), "tempo_live_store_traces_created_total"))
+		liveStore := h.Services[fmt.Sprintf("%s-%d", util.ServiceLiveStoreZoneAPrefix, 0)]
+		require.NoError(t, liveStore.WaitSumMetrics(e2e.Equals(1), "tempo_live_store_traces_created_total"))
 	})
 }
 
@@ -151,10 +161,11 @@ func TestWithBlockBuilders(t *testing.T) {
 		require.NoError(t, err)
 
 		// Test distributor metrics
-		require.NoError(t, h.Distributor.WaitSumMetrics(e2e.Equals(util.SpanCount(expected)), "tempo_distributor_spans_received_total"))
+		require.NoError(t, h.Services[util.ServiceDistributor].WaitSumMetrics(e2e.Equals(util.SpanCount(expected)), "tempo_distributor_spans_received_total"))
 
 		// Wait for block builder to flush block (check first block builder)
-		require.NoError(t, h.BlockBuilders[0].WaitSumMetricsWithOptions(
+		blockBuilder := h.Services[fmt.Sprintf("%s-%d", util.ServiceBlockBuilderPrefix, 0)]
+		require.NoError(t, blockBuilder.WaitSumMetricsWithOptions(
 			e2e.Equals(1),
 			[]string{"tempo_block_builder_flushed_blocks"},
 			e2e.WaitMissingMetrics,
@@ -177,7 +188,7 @@ func TestWithMetricsGenerator(t *testing.T) {
 		require.NoError(t, info.EmitAllBatches(h.JaegerExporter))
 
 		// Verify metrics generator received spans
-		require.NoError(t, h.MetricsGenerator.WaitSumMetrics(
+		require.NoError(t, h.Services[util.ServiceMetricsGenerator].WaitSumMetrics(
 			e2e.Greater(0),
 			"tempo_metrics_generator_spans_received_total",
 		))

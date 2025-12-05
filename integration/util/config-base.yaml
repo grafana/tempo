@@ -5,6 +5,10 @@ server:
   http_listen_port: 3200
   log_level: info
 
+overrides:
+  per_tenant_override_config: /shared/overrides.yaml
+  per_tenant_override_period: 1s
+
 query_frontend:
   query_end_cutoff: -5m # jpe - why?
   rf1_after: "2025-01-01T00:00:00Z"
@@ -16,7 +20,9 @@ distributor:
     otlp:
       protocols:
         grpc:
-          endpoint: "0.0.0.0:4317" # jpe - update for tempo single binary?
+          endpoint: "0.0.0.0:4317"
+        http:
+          endpoint: "0.0.0.0:4318"
 
 live_store:
   partition_ring:

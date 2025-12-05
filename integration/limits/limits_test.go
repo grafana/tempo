@@ -8,12 +8,11 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"strings"
 	"testing"
 	"time"
 
 	"github.com/grafana/dskit/user"
-	util2 "github.com/grafana/tempo/integration/util"
+	"github.com/grafana/tempo/modules/overrides"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -26,7 +25,6 @@ import (
 	"google.golang.org/genproto/googleapis/rpc/errdetails"
 
 	"github.com/grafana/tempo/integration/util"
-	"github.com/grafana/tempo/pkg/httpclient"
 	"github.com/grafana/tempo/pkg/model/trace"
 	"github.com/grafana/tempo/pkg/tempopb"
 	tempoUtil "github.com/grafana/tempo/pkg/util"
@@ -36,20 +34,19 @@ import (
 )
 
 const (
-	configLimits             = "config-limits.yaml"
-	configLimitsQuery        = "config-limits-query.yaml"
-	configLimitsPartialError = "config-limits-partial-success.yaml"
-	configLimits429          = "config-limits-429.yaml"
+	configIngestPartialSucess = "config-ingest-partial-success.yaml"
+	configQueryRate           = "config-query-rate.yaml"
+	configIngest              = "config-ingest.yaml"
 )
 
-func TestLimits(t *testing.T) {
+func TestIngestionLimits(t *testing.T) {
 	s, err := e2e.NewScenario("tempo_e2e")
 	require.NoError(t, err)
 	defer s.Close()
 
-	util2.WithTempoHarness(t, s, util2.TestHarnessConfig{
-		ConfigOverlay: "config-limits-overlay.yaml",
-	}, func(h *util2.TempoHarness) {
+	util.WithTempoHarness(t, s, util.TestHarnessConfig{
+		ConfigOverlay: configIngest,
+	}, func(h *util.TempoHarness) {
 		// should fail b/c the trace is too large. each batch should be ~70 bytes
 		batch := util.MakeThriftBatchWithSpanCount(2)
 		require.NoError(t, h.JaegerExporter.EmitBatch(context.Background(), batch), "max trace size")
@@ -78,20 +75,24 @@ func TestLimits(t *testing.T) {
 		}
 		require.True(t, foundRetryInfo)
 
-		// test limit metrics - check on distributor
-		err = h.LiveStores[0].WaitSumMetricsWithOptions(e2e.Equals(2),
+		// test limit metrics
+		liveStore := h.Services[util.ServiceLiveStoreZoneA]
+		err = liveStore.WaitSumMetricsWithOptions(e2e.Equals(2),
 			[]string{"tempo_discarded_spans_total"},
 			e2e.WithLabelMatchers(labels.MustNewMatcher(labels.MatchEqual, "reason", "trace_too_large")),
+			e2e.WaitMissingMetrics,
 		)
 		require.NoError(t, err)
-		err = h.LiveStores[0].WaitSumMetricsWithOptions(e2e.Equals(1),
+		err = liveStore.WaitSumMetricsWithOptions(e2e.Equals(1),
 			[]string{"tempo_discarded_spans_total"},
 			e2e.WithLabelMatchers(labels.MustNewMatcher(labels.MatchEqual, "reason", "live_traces_exceeded")),
+			e2e.WaitMissingMetrics,
 		)
 		require.NoError(t, err)
-		err = h.Distributor.WaitSumMetricsWithOptions(e2e.Equals(10),
+		err = h.Services[util.ServiceDistributor].WaitSumMetricsWithOptions(e2e.Equals(10),
 			[]string{"tempo_discarded_spans_total"},
 			e2e.WithLabelMatchers(labels.MustNewMatcher(labels.MatchEqual, "reason", "rate_limited")),
+			e2e.WaitMissingMetrics,
 		)
 		require.NoError(t, err)
 	})
@@ -102,35 +103,35 @@ func TestOTLPLimits(t *testing.T) {
 	require.NoError(t, err)
 	defer s.Close()
 
-	require.NoError(t, util2.CopyFileToSharedDir(s, configLimits, "config.yaml"))
-	tempo := util2.NewTempoAllInOne()
-	require.NoError(t, s.StartAndWaitReady(tempo))
+	util.WithTempoHarness(t, s, util.TestHarnessConfig{
+		ConfigOverlay: configIngest,
+	}, func(h *util.TempoHarness) {
+		protoSpans := test.MakeProtoSpans(100)
 
-	protoSpans := test.MakeProtoSpans(100)
+		// gRPC
+		grpcClient := otlptracegrpc.NewClient(
+			otlptracegrpc.WithEndpoint(h.Services[util.ServiceDistributor].Endpoint(4317)),
+			otlptracegrpc.WithInsecure(),
+			otlptracegrpc.WithRetry(otlptracegrpc.RetryConfig{Enabled: false}),
+		)
+		require.NoError(t, grpcClient.Start(context.Background()))
 
-	// gRPC
-	grpcClient := otlptracegrpc.NewClient(
-		otlptracegrpc.WithEndpoint(tempo.Endpoint(4317)),
-		otlptracegrpc.WithInsecure(),
-		otlptracegrpc.WithRetry(otlptracegrpc.RetryConfig{Enabled: false}),
-	)
-	require.NoError(t, grpcClient.Start(context.Background()))
+		grpcErr := grpcClient.UploadTraces(context.Background(), protoSpans)
+		assert.Error(t, grpcErr)
+		require.Equal(t, codes.ResourceExhausted, status.Code(grpcErr))
 
-	grpcErr := grpcClient.UploadTraces(context.Background(), protoSpans)
-	assert.Error(t, grpcErr)
-	require.Equal(t, codes.ResourceExhausted, status.Code(grpcErr))
+		// HTTP
+		httpClient := otlptracehttp.NewClient(
+			otlptracehttp.WithEndpoint(h.Services[util.ServiceDistributor].Endpoint(4318)),
+			otlptracehttp.WithInsecure(),
+			otlptracehttp.WithRetry(otlptracehttp.RetryConfig{Enabled: false}),
+		)
+		require.NoError(t, httpClient.Start(context.Background()))
 
-	// HTTP
-	httpClient := otlptracehttp.NewClient(
-		otlptracehttp.WithEndpoint(tempo.Endpoint(4318)),
-		otlptracehttp.WithInsecure(),
-		otlptracehttp.WithRetry(otlptracehttp.RetryConfig{Enabled: false}),
-	)
-	require.NoError(t, httpClient.Start(context.Background()))
-
-	httpErr := httpClient.UploadTraces(context.Background(), protoSpans)
-	assert.Error(t, httpErr)
-	require.Contains(t, httpErr.Error(), "retry-able request failure")
+		httpErr := httpClient.UploadTraces(context.Background(), protoSpans)
+		assert.Error(t, httpErr)
+		require.Contains(t, httpErr.Error(), "retry-able request failure")
+	})
 }
 
 func TestOTLPLimitsVanillaClient(t *testing.T) {
@@ -138,61 +139,61 @@ func TestOTLPLimitsVanillaClient(t *testing.T) {
 	require.NoError(t, err)
 	defer s.Close()
 
-	require.NoError(t, util2.CopyFileToSharedDir(s, configLimits, "config.yaml"))
-	tempo := util2.NewTempoAllInOne()
-	require.NoError(t, s.StartAndWaitReady(tempo))
+	util.WithTempoHarness(t, s, util.TestHarnessConfig{
+		ConfigOverlay: configIngest,
+	}, func(h *util.TempoHarness) {
+		trace := test.MakeTrace(10, []byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10})
 
-	trace := test.MakeTrace(10, []byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10})
+		testCases := []struct {
+			name    string
+			payload func() []byte
+			headers map[string]string
+		}{
+			// TODO There is an issue when sending the payload in json format. The server returns a 200 instead of a 429.
+			// {
+			// 	"JSON format",
+			// 	func() []byte {
+			// 		b := &bytes.Buffer{}
+			// 		err := (&jsonpb.Marshaler{}).Marshal(b, trace)
+			// 		require.NoError(t, err)
+			// 		return b.Bytes()
+			// 	},
+			// 	map[string]string{
+			// 		"Content-Type": "application/json",
+			// 	},
+			// },
+			{
+				"Proto format",
+				func() []byte {
+					b, err := trace.Marshal()
+					require.NoError(t, err)
+					return b
+				},
+				map[string]string{
+					"Content-Type": "application/x-protobuf",
+				},
+			},
+		}
 
-	testCases := []struct {
-		name    string
-		payload func() []byte
-		headers map[string]string
-	}{
-		// TODO There is an issue when sending the payload in json format. The server returns a 200 instead of a 429.
-		// {
-		// 	"JSON format",
-		// 	func() []byte {
-		// 		b := &bytes.Buffer{}
-		// 		err := (&jsonpb.Marshaler{}).Marshal(b, trace)
-		// 		require.NoError(t, err)
-		// 		return b.Bytes()
-		// 	},
-		// 	map[string]string{
-		// 		"Content-Type": "application/json",
-		// 	},
-		// },
-		{
-			"Proto format",
-			func() []byte {
-				b, err := trace.Marshal()
+		for _, tc := range testCases {
+			t.Run(tc.name, func(t *testing.T) {
+				req, err := http.NewRequest(http.MethodPost, "http://"+h.Services[util.ServiceDistributor].Endpoint(4318)+"/v1/traces", bytes.NewReader(tc.payload()))
 				require.NoError(t, err)
-				return b
-			},
-			map[string]string{
-				"Content-Type": "application/x-protobuf",
-			},
-		},
-	}
+				for k, v := range tc.headers {
+					req.Header.Set(k, v)
+				}
 
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			req, err := http.NewRequest(http.MethodPost, "http://"+tempo.Endpoint(4318)+"/v1/traces", bytes.NewReader(tc.payload()))
-			require.NoError(t, err)
-			for k, v := range tc.headers {
-				req.Header.Set(k, v)
-			}
+				resp, err := http.DefaultClient.Do(req)
+				require.NoError(t, err)
+				defer func() { _ = resp.Body.Close() }()
+				bodyBytes, err := io.ReadAll(resp.Body)
+				require.NoError(t, err)
+				fmt.Println(string(bodyBytes))
 
-			resp, err := http.DefaultClient.Do(req)
-			require.NoError(t, err)
-			defer func() { _ = resp.Body.Close() }()
-			bodyBytes, err := io.ReadAll(resp.Body)
-			require.NoError(t, err)
-			fmt.Println(string(bodyBytes))
-
-			assert.Equal(t, http.StatusTooManyRequests, resp.StatusCode)
-		})
-	}
+				assert.Equal(t, http.StatusTooManyRequests, resp.StatusCode)
+			})
+		}
+	})
 }
 
 func TestQueryLimits(t *testing.T) {
@@ -200,131 +201,122 @@ func TestQueryLimits(t *testing.T) {
 	require.NoError(t, err)
 	defer s.Close()
 
-	require.NoError(t, util2.CopyFileToSharedDir(s, configLimitsQuery, "config.yaml"))
-	tempo := util2.NewTempoAllInOne()
-	require.NoError(t, s.StartAndWaitReady(tempo))
+	util.WithTempoHarness(t, s, util.TestHarnessConfig{
+		LiveStoreFastFlush: 5 * time.Second,
+	}, func(h *util.TempoHarness) {
+		batch := util.MakeThriftBatchWithSpanCount(5)
+		require.NoError(t, h.JaegerExporter.EmitBatch(context.Background(), batch))
 
-	// Get port for the otlp receiver endpoint
-	c, err := util2.NewJaegerToOTLPExporter(tempo.Endpoint(4317))
-	require.NoError(t, err)
-	require.NotNil(t, c)
+		// retroactively make the trace too large so it will fail on querying
+		h.UpdateOverrides(map[string]*overrides.Overrides{
+			"single-tenant": {
+				Global: overrides.GlobalOverrides{
+					MaxBytesPerTrace: 1,
+				},
+			},
+		})
 
-	// make a trace with 10 spans and push them one at a time, flush in between each one to force different blocks
-	batch := util.MakeThriftBatchWithSpanCount(5)
-	allSpans := batch.Spans
-	for i := range batch.Spans {
-		batch.Spans = allSpans[i : i+1]
-		require.NoError(t, c.EmitBatch(context.Background(), batch))
-		util.CallFlush(t, tempo)
-		// this push along with the double flush is required to forget the too large trace
-		require.NoError(t, c.EmitBatch(context.Background(), util.MakeThriftBatchWithSpanCount(1)))
-		util.CallFlush(t, tempo)
-		time.Sleep(2 * time.Second) // trace idle and flush time are both 1ms
-	}
+		// calc trace id
+		traceID := [16]byte{}
+		binary.BigEndian.PutUint64(traceID[:8], uint64(batch.Spans[0].TraceIdHigh))
+		binary.BigEndian.PutUint64(traceID[8:], uint64(batch.Spans[0].TraceIdLow))
 
-	// calc trace id
-	traceID := [16]byte{}
-	binary.BigEndian.PutUint64(traceID[:8], uint64(batch.Spans[0].TraceIdHigh))
-	binary.BigEndian.PutUint64(traceID[8:], uint64(batch.Spans[0].TraceIdLow))
+		// now try to query it back. this should fail b/c the trace is too large
+		client := h.HTTPClient
 
-	// now try to query it back. this should fail b/c the trace is too large
-	client := httpclient.New("http://"+tempo.Endpoint(3200), tempoUtil.FakeTenantID)
-	querierClient := httpclient.New("http://"+tempo.Endpoint(3200)+"/querier", tempoUtil.FakeTenantID)
+		// wait for live store to ingest traces
+		liveStore := h.Services[util.ServiceLiveStoreZoneA]
+		err = liveStore.WaitSumMetricsWithOptions(e2e.Greater(0),
+			[]string{"tempo_live_store_traces_created_total"},
+			e2e.WaitMissingMetrics,
+		)
+		require.NoError(t, err)
 
-	require.Eventually(t, func() bool {
 		_, err = client.QueryTrace(tempoUtil.TraceIDToHexString(traceID[:]))
-		if err == nil {
-			return false
-		}
-		return strings.Contains(err.Error(), trace.ErrTraceTooLarge.Error())
-	}, time.Minute, time.Second)
+		require.ErrorContains(t, err, trace.ErrTraceTooLarge.Error())
+		require.ErrorContains(t, err, "failed with response: 422") // confirm frontend returns 422
 
-	require.ErrorContains(t, err, "failed with response: 422") // confirm frontend returns 422
+		// wait for live store to complete the block
+		err = liveStore.WaitSumMetricsWithOptions(e2e.Greater(0),
+			[]string{"tempo_live_store_blocks_completed_total"},
+			e2e.WaitMissingMetrics,
+		)
+		require.NoError(t, err)
 
-	_, err = querierClient.QueryTrace(tempoUtil.TraceIDToHexString(traceID[:]))
-	require.ErrorContains(t, err, trace.ErrTraceTooLarge.Error())
-	require.ErrorContains(t, err, "failed with response: 422")
-
-	// complete block timeout  is 10 seconds
-	time.Sleep(15 * time.Second)
-	_, err = client.QueryTrace(tempoUtil.TraceIDToHexString(traceID[:]))
-	require.ErrorContains(t, err, trace.ErrTraceTooLarge.Error())
-	require.ErrorContains(t, err, "failed with response: 422") // confirm frontend returns 422
-
-	_, err = querierClient.QueryTrace(tempoUtil.TraceIDToHexString(traceID[:]))
-	require.ErrorContains(t, err, trace.ErrTraceTooLarge.Error())
-	require.ErrorContains(t, err, "failed with response: 422") // confirm querier returns 422
+		_, err = client.QueryTrace(tempoUtil.TraceIDToHexString(traceID[:]))
+		require.ErrorContains(t, err, trace.ErrTraceTooLarge.Error())
+		require.ErrorContains(t, err, "failed with response: 422") // confirm frontend returns 422
+	})
 }
 
 func TestLimitsPartialSuccess(t *testing.T) {
 	s, err := e2e.NewScenario("tempo_e2e")
 	require.NoError(t, err)
 	defer s.Close()
-	require.NoError(t, util2.CopyFileToSharedDir(s, configLimitsPartialError, "config.yaml"))
-	tempo := util2.NewTempoAllInOne()
-	require.NoError(t, s.StartAndWaitReady(tempo))
 
-	// otel grpc exporter
-	exporter, err := util2.NewOtelGRPCExporter(tempo.Endpoint(4317))
-	require.NoError(t, err)
-
-	// make request
-	traceIDs := make([][]byte, 6)
-	for index := range traceIDs {
-		traceID := make([]byte, 16)
-		_, err = crand.Read(traceID)
-		require.NoError(t, err)
-		traceIDs[index] = traceID
-	}
-
-	// 3 traces with trace_too_large and 3 with no error
-	spanCountsByTrace := []int{1, 4, 1, 5, 6, 1}
-	req := test.MakeReqWithMultipleTraceWithSpanCount(spanCountsByTrace, traceIDs)
-
-	b, err := req.Marshal()
-	require.NoError(t, err)
-
-	// unmarshal into otlp proto
-	traces, err := (&ptrace.ProtoUnmarshaler{}).UnmarshalTraces(b)
-	require.NoError(t, err)
-	require.NotNil(t, traces)
-
-	ctx := user.InjectOrgID(context.Background(), tempoUtil.FakeTenantID)
-	ctx, err = user.InjectIntoGRPCRequest(ctx)
-	require.NoError(t, err)
-
-	// send traces to tempo
-	// partial success = no error
-	err = exporter.ConsumeTraces(ctx, traces)
-	require.NoError(t, err)
-
-	// shutdown to ensure traces are flushed
-	require.NoError(t, exporter.Shutdown(context.Background()))
-
-	// query for the one trace that didn't trigger an error
-	client := httpclient.New("http://"+tempo.Endpoint(3200), tempoUtil.FakeTenantID)
-	for i, count := range spanCountsByTrace {
-		if count == 1 {
-			result, err := client.QueryTrace(tempoUtil.TraceIDToHexString(traceIDs[i]))
+	util.WithTempoHarness(t, s, util.TestHarnessConfig{
+		ConfigOverlay: configIngestPartialSucess,
+	}, func(h *util.TempoHarness) {
+		// make request
+		traceIDs := make([][]byte, 6)
+		for index := range traceIDs {
+			traceID := make([]byte, 16)
+			_, err = crand.Read(traceID)
 			require.NoError(t, err)
-			assert.Equal(t, 1, len(result.ResourceSpans))
+			traceIDs[index] = traceID
 		}
-	}
 
-	// test metrics
-	// 3 traces with trace_too_large each with 4+5+6 spans
-	err = tempo.WaitSumMetricsWithOptions(e2e.Equals(15),
-		[]string{"tempo_discarded_spans_total"},
-		e2e.WithLabelMatchers(labels.MustNewMatcher(labels.MatchEqual, "reason", "trace_too_large")),
-	)
-	require.NoError(t, err)
+		// 3 traces with trace_too_large and 3 with no error
+		spanCountsByTrace := []int{1, 4, 1, 5, 6, 1}
+		req := test.MakeReqWithMultipleTraceWithSpanCount(spanCountsByTrace, traceIDs)
 
-	// this metric should never exist
-	err = tempo.WaitSumMetricsWithOptions(e2e.Equals(0),
-		[]string{"tempo_discarded_spans_total"},
-		e2e.WithLabelMatchers(labels.MustNewMatcher(labels.MatchEqual, "reason", "unknown_error")),
-	)
-	require.NoError(t, err)
+		b, err := req.Marshal()
+		require.NoError(t, err)
+
+		// unmarshal into otlp proto
+		traces, err := (&ptrace.ProtoUnmarshaler{}).UnmarshalTraces(b)
+		require.NoError(t, err)
+		require.NotNil(t, traces)
+
+		ctx := user.InjectOrgID(context.Background(), tempoUtil.FakeTenantID)
+		ctx, err = user.InjectIntoGRPCRequest(ctx)
+		require.NoError(t, err)
+
+		// send traces to tempo
+		// partial success = no error
+		err = h.OTLPExporter.ConsumeTraces(ctx, traces)
+		require.NoError(t, err)
+
+		// shutdown to ensure traces are flushed
+		require.NoError(t, h.OTLPExporter.Shutdown(context.Background()))
+
+		// wait for live store to ingest traces
+		liveStore := h.Services[util.ServiceLiveStoreZoneA]
+		err = liveStore.WaitSumMetricsWithOptions(e2e.Greater(0),
+			[]string{"tempo_live_store_traces_created_total"},
+			e2e.WaitMissingMetrics,
+		)
+		require.NoError(t, err)
+
+		// query for the traces that didn't trigger an error
+		client := h.HTTPClient
+		for i, count := range spanCountsByTrace {
+			if count == 1 {
+				result, err := client.QueryTrace(tempoUtil.TraceIDToHexString(traceIDs[i]))
+				require.NoError(t, err)
+				assert.Equal(t, 1, len(result.ResourceSpans))
+			}
+		}
+
+		// test metrics
+		// 3 traces with trace_too_large each with 4+5+6 spans
+		err = liveStore.WaitSumMetricsWithOptions(e2e.Equals(15),
+			[]string{"tempo_discarded_spans_total"},
+			e2e.WithLabelMatchers(labels.MustNewMatcher(labels.MatchEqual, "reason", "trace_too_large")),
+			e2e.WaitMissingMetrics,
+		)
+		require.NoError(t, err)
+	})
 }
 
 func TestQueryRateLimits(t *testing.T) {
@@ -332,59 +324,49 @@ func TestQueryRateLimits(t *testing.T) {
 	require.NoError(t, err)
 	defer s.Close()
 
-	require.NoError(t, util2.CopyFileToSharedDir(s, configLimits429, "config.yaml"))
-	tempo := util2.NewTempoAllInOne()
-	require.NoError(t, s.StartAndWaitReady(tempo))
+	util.WithTempoHarness(t, s, util.TestHarnessConfig{
+		ConfigOverlay: configQueryRate,
+	}, func(h *util.TempoHarness) {
+		// todo: do we even need to push a trace?
+		batch := util.MakeThriftBatchWithSpanCount(5)
+		require.NoError(t, h.JaegerExporter.EmitBatch(context.Background(), batch))
 
-	// Get port for the otlp receiver endpoint
-	c, err := util2.NewJaegerToOTLPExporter(tempo.Endpoint(4317))
-	require.NoError(t, err)
-	require.NotNil(t, c)
+		// now try to query it back. this should fail b/c the frontend queue doesn't have room
+		client := h.HTTPClient
 
-	// make a trace with 10 spans and push them one at a time, flush in between each one to force different blocks
-	batch := util.MakeThriftBatchWithSpanCount(5)
-	allSpans := batch.Spans
-	for i := range batch.Spans {
-		batch.Spans = allSpans[i : i+1]
-		require.NoError(t, c.EmitBatch(context.Background(), batch))
-		util.CallFlush(t, tempo)
-		time.Sleep(2 * time.Second) // trace idle and flush time are both 1ms
-	}
-	// now try to query it back. this should fail b/c the frontend queue doesn't have room
-	client := httpclient.New("http://"+tempo.Endpoint(3200), tempoUtil.FakeTenantID)
+		// 429 HTTP Trace ID Lookup
+		traceID := []byte{0x01, 0x02}
+		_, err = client.QueryTrace(tempoUtil.TraceIDToHexString(traceID))
+		require.ErrorContains(t, err, "job queue full")
+		require.ErrorContains(t, err, "failed with response: 429")
 
-	// 429 HTTP Trace ID Lookup
-	traceID := []byte{0x01, 0x02}
-	_, err = client.QueryTrace(tempoUtil.TraceIDToHexString(traceID))
-	require.ErrorContains(t, err, "job queue full")
-	require.ErrorContains(t, err, "failed with response: 429")
+		start := time.Now().Add(-1 * time.Hour).Unix()
+		end := time.Now().Add(1 * time.Hour).Unix()
 
-	start := time.Now().Add(-1 * time.Hour).Unix()
-	end := time.Now().Add(1 * time.Hour).Unix()
+		// 429 HTTP Search
+		_, err = client.SearchTraceQLWithRange("{}", start, end)
+		require.ErrorContains(t, err, "job queue full")
+		require.ErrorContains(t, err, "failed with response: 429")
 
-	// 429 HTTP Search
-	_, err = client.SearchTraceQLWithRange("{}", start, end)
-	require.ErrorContains(t, err, "job queue full")
-	require.ErrorContains(t, err, "failed with response: 429")
+		// 429 GRPC Search
+		grpcClient, err := util.NewSearchGRPCClient(context.Background(), h.Services[util.ServiceQueryFrontend].Endpoint(3200))
+		require.NoError(t, err)
 
-	// 429 GRPC Search
-	grpcClient, err := util2.NewSearchGRPCClient(context.Background(), tempo.Endpoint(3200))
-	require.NoError(t, err)
+		resp, err := grpcClient.Search(context.Background(), &tempopb.SearchRequest{
+			Query: "{}",
+			Start: uint32(start),
+			End:   uint32(end),
+		})
+		require.NoError(t, err)
 
-	resp, err := grpcClient.Search(context.Background(), &tempopb.SearchRequest{
-		Query: "{}",
-		Start: uint32(start),
-		End:   uint32(end),
-	})
-	require.NoError(t, err)
-
-	// loop until we get io.EOF or an error
-	for {
-		_, err = resp.Recv()
-		if err != nil {
-			break
+		// loop until we get io.EOF or an error
+		for {
+			_, err = resp.Recv()
+			if err != nil {
+				break
+			}
 		}
-	}
-	require.ErrorContains(t, err, "job queue full")
-	require.ErrorContains(t, err, "code = ResourceExhausted")
+		require.ErrorContains(t, err, "job queue full")
+		require.ErrorContains(t, err, "code = ResourceExhausted")
+	})
 }
