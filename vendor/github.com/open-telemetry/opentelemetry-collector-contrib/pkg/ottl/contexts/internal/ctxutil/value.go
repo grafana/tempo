@@ -59,9 +59,21 @@ func SetValue(value pcommon.Value, val any) error {
 			err = SetValue(pval, a)
 		}
 	case pcommon.Slice:
-		v.CopyTo(value.SetEmptySlice())
+		var dest pcommon.Slice
+		if value.Type() == pcommon.ValueTypeSlice {
+			dest = value.Slice()
+		} else {
+			dest = value.SetEmptySlice()
+		}
+		v.CopyTo(dest)
 	case pcommon.Map:
-		v.CopyTo(value.SetEmptyMap())
+		var dest pcommon.Map
+		if value.Type() == pcommon.ValueTypeMap {
+			dest = value.Map()
+		} else {
+			dest = value.SetEmptyMap()
+		}
+		v.CopyTo(dest)
 	case map[string]any:
 		err = value.FromRaw(v)
 	}

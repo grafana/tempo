@@ -5,11 +5,8 @@ package kafka // import "github.com/open-telemetry/opentelemetry-collector-contr
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"hash/fnv"
-	"io"
-	"net"
 	"strings"
 	"time"
 
@@ -61,6 +58,7 @@ func NewFranzSyncProducer(ctx context.Context, clientCfg configkafka.ClientConfi
 		// the legacy compatibility sarama hashing to avoid hashing to different
 		// partitions in case partitioning is enabled.
 		kgo.RecordPartitioner(newSaramaCompatPartitioner()),
+		kgo.ProducerLinger(cfg.Linger),
 	)...)
 	if err != nil {
 		return nil, err
@@ -244,11 +242,6 @@ func commonOpts(ctx context.Context, clientCfg configkafka.ClientConfig,
 		if tlsCfg != nil {
 			opts = append(opts, kgo.DialTLSConfig(tlsCfg))
 		}
-	} else {
-		// Add a hook that gives a hint that TLS is not configured
-		// in case we try to connect to a TLS-only broker.
-		var hook kgo.HookBrokerConnect = hookBrokerConnectPlaintext{logger: logger}
-		opts = append(opts, kgo.WithHooks(hook))
 	}
 	// Configure authentication
 	if clientCfg.Authentication.PlainText != nil {
@@ -376,25 +369,4 @@ func saramaHashFn(b []byte) uint32 {
 	h.Reset()
 	h.Write(b)
 	return h.Sum32()
-}
-
-type hookBrokerConnectPlaintext struct {
-	logger *zap.Logger
-}
-
-func (h hookBrokerConnectPlaintext) OnBrokerConnect(
-	meta kgo.BrokerMetadata, _ time.Duration, conn net.Conn, err error,
-) {
-	if conn == nil {
-		// Could not make a network connection, this is not related to TLS.
-		return
-	}
-	if errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) {
-		h.logger.Warn(
-			"failed to connect to broker, it may require TLS but TLS is not configured",
-			zap.String("host", meta.Host),
-			zap.Error(err),
-		)
-		return
-	}
 }
