@@ -470,6 +470,9 @@ metrics_generator:
             # Enables additional labels for services and virtual nodes.
             [enable_virtual_node_label: <bool> | default = false]
 
+            # List of attribute names used to identify the database name from span attributes. If it isn't set, the order is peer.service -> server.address -> network.peer.address -> db.name
+            [database_name_attributes: <list of string> | default = ["db.namespace","db.name","db.system"]]
+
         span_metrics:
 
             # Buckets for the latency histogram in seconds.

@@ -11,16 +11,15 @@ import (
 
 	"github.com/go-kit/log"
 	"github.com/gogo/protobuf/jsonpb"
+	"github.com/grafana/tempo/modules/generator/registry"
+	"github.com/grafana/tempo/pkg/tempopb"
+	"github.com/grafana/tempo/pkg/util/test"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/prometheus/model/labels"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	semconv "go.opentelemetry.io/otel/semconv/v1.25.0"
 	semconvnew "go.opentelemetry.io/otel/semconv/v1.34.0"
-
-	"github.com/grafana/tempo/modules/generator/registry"
-	"github.com/grafana/tempo/pkg/tempopb"
-	"github.com/grafana/tempo/pkg/util/test"
 )
 
 // NOTE: This is a way to know if the contents of the semconv package have changed.
@@ -541,6 +540,36 @@ func TestServiceGraphs_prefixDimensionsAndEnableExtraLabels(t *testing.T) {
 
 	assert.Equal(t, 1.0, testRegistry.Query(`traces_service_graph_request_total`, dbSystemSystemLabels))
 	assert.Equal(t, 0.0, testRegistry.Query(`traces_service_graph_request_failed_total`, dbSystemSystemLabels))
+}
+
+func TestServiceGraphs_DatabaseNameAttributes(t *testing.T) {
+	testRegistry := registry.NewTestRegistry()
+
+	cfg := Config{}
+	cfg.RegisterFlagsAndApplyDefaults("", nil)
+
+	cfg.HistogramBuckets = []float64{0.04}
+	cfg.Dimensions = []string{"beast", "god"}
+	cfg.DatabaseNameAttributes = []string{"db.system"}
+
+	p := New(cfg, "test", testRegistry, log.NewNopLogger(), prometheus.NewCounter(prometheus.CounterOpts{}))
+	defer p.Shutdown(context.Background())
+
+	request, err := loadTestData("testdata/trace-with-queue-database.json")
+	require.NoError(t, err)
+
+	p.PushSpans(context.Background(), request)
+
+	// The server label should be set to the value of db.system
+	labels := labels.FromMap(map[string]string{
+		"client":          "mythical-server",
+		"server":          "postgresql",
+		"connection_type": "database",
+		"beast":           "",
+		"god":             "",
+	})
+	print(testRegistry.Query(`traces_service_graph_request_total`, labels))
+	assert.Equal(t, 1.0, testRegistry.Query(`traces_service_graph_request_total`, labels))
 }
 
 func BenchmarkServiceGraphs(b *testing.B) {

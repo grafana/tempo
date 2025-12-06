@@ -14,7 +14,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"go.opentelemetry.io/otel/attribute"
 	semconv "go.opentelemetry.io/otel/semconv/v1.25.0"
-	semconvnew "go.opentelemetry.io/otel/semconv/v1.34.0"
 
 	gen "github.com/grafana/tempo/modules/generator/processor"
 	"github.com/grafana/tempo/modules/generator/processor/servicegraphs/store"
@@ -276,19 +275,11 @@ func (p *Processor) upsertDatabaseRequest(e *store.Edge, resourceAttr []*v1_comm
 	)
 
 	// Check for db.name or db.namespace first.  The dbName is set initially to maintain backwards compatbility.
-	if name, ok := processor_util.FindAttributeValue(string(semconv.DBNameKey), resourceAttr, span.Attributes); ok {
-		dbName = name
-		isDatabase = true
-	}
-	if name, ok := processor_util.FindAttributeValue(string(semconvnew.DBNamespaceKey), span.Attributes); ok {
-		dbName = name
-		isDatabase = true
-	}
-
-	// Check for db.system only if we don't have db.name above
-	if !isDatabase {
-		if _, ok := processor_util.FindAttributeValue(string(semconv.DBSystemKey), resourceAttr, span.Attributes); ok {
+	for _, attrName := range p.Cfg.DatabaseNameAttributes {
+		if name, ok := processor_util.FindAttributeValue(attrName, resourceAttr, span.Attributes); ok {
+			dbName = name
 			isDatabase = true
+			break
 		}
 	}
 
@@ -298,8 +289,6 @@ func (p *Processor) upsertDatabaseRequest(e *store.Edge, resourceAttr []*v1_comm
 	}
 	e.ConnectionType = store.Database
 	e.ServerLatencySec = spanDurationSec(span)
-
-	// Set the service name by order of precedence
 
 	// Check for peer.service
 	if name, ok := processor_util.FindAttributeValue(string(semconv.PeerServiceKey), resourceAttr, span.Attributes); ok {

@@ -641,6 +641,7 @@ metrics_generator:
                 - db.system
             span_multiplier_key: ""
             enable_virtual_node_label: false
+            database_name_attributes: []
         span_metrics:
             histogram_buckets:
                 - 0.002
