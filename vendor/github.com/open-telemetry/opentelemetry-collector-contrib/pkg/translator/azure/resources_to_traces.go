@@ -8,7 +8,7 @@ import (
 	"encoding/hex"
 	"net/url"
 
-	jsoniter "github.com/json-iterator/go"
+	json "github.com/goccy/go-json"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	conventions "go.opentelemetry.io/otel/semconv/v1.13.0"
@@ -71,7 +71,7 @@ func (r TracesUnmarshaler) UnmarshalTraces(buf []byte) (ptrace.Traces, error) {
 	t := ptrace.NewTraces()
 
 	var azureTraces azureTracesRecords
-	decoder := jsoniter.NewDecoder(bytes.NewReader(buf))
+	decoder := json.NewDecoder(bytes.NewReader(buf))
 	err := decoder.Decode(&azureTraces)
 	if err != nil {
 		return t, err
