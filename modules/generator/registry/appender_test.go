@@ -52,6 +52,7 @@ func (n noopAppender) AppendHistogramCTZeroSample(_ storage.SeriesRef, _ labels.
 
 type capturingAppender struct {
 	samples      []sample
+	histograms   []histogramSample
 	exemplars    []exemplarSample
 	isCommitted  bool
 	isRolledback bool
@@ -66,6 +67,12 @@ type sample struct {
 type exemplarSample struct {
 	l labels.Labels
 	e exemplar.Exemplar
+}
+
+type histogramSample struct {
+	l labels.Labels
+	t int64
+	h *prom_histogram.Histogram
 }
 
 func newSample(lbls map[string]string, t int64, v float64) sample {
@@ -108,7 +115,10 @@ func (c *capturingAppender) AppendExemplar(ref storage.SeriesRef, l labels.Label
 	return ref, nil
 }
 
-func (c *capturingAppender) AppendHistogram(ref storage.SeriesRef, _ labels.Labels, _ int64, _ *prom_histogram.Histogram, _ *prom_histogram.FloatHistogram) (storage.SeriesRef, error) {
+func (c *capturingAppender) AppendHistogram(ref storage.SeriesRef, l labels.Labels, t int64, h *prom_histogram.Histogram, _ *prom_histogram.FloatHistogram) (storage.SeriesRef, error) {
+	if h != nil {
+		c.histograms = append(c.histograms, histogramSample{l, t, h.Copy()})
+	}
 	return ref, nil
 }
 
