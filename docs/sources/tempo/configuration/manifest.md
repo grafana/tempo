@@ -829,6 +829,7 @@ ingest:
 block_builder:
     instance_id: hostname
     assigned_partitions: {}
+    partitions_per_instance: 0
     consume_cycle_duration: 5m0s
     max_consuming_bytes: 5000000000
     block:
