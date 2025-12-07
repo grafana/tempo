@@ -721,7 +721,7 @@ func SpanCount(a *tempopb.Trace) float64 {
 	return float64(count)
 }
 
-func NewPrometheus() *e2e.HTTPService {
+func NewPrometheus() *e2e.HTTPService { // jpe what can be made private?
 	return e2e.NewHTTPService(
 		"prometheus",
 		prometheusImage,

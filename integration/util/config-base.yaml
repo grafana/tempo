@@ -8,6 +8,9 @@ server:
 overrides:
   per_tenant_override_config: /shared/overrides.yaml
   per_tenant_override_period: 1s
+  defaults:
+    metrics_generator:
+      processors: [service-graphs, span-metrics]
 
 query_frontend:
   query_end_cutoff: -5m # jpe - why?

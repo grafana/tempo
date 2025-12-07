@@ -118,7 +118,7 @@ func WithTempoHarness(t *testing.T, s *e2e.Scenario, config TestHarnessConfig, t
 	}
 
 	// Load base config into map
-	baseConfigPath := "../util/config-base.yaml"
+	baseConfigPath := "../util/config-base.yaml" // jpe - path?
 	baseBuff, err := os.ReadFile(baseConfigPath)
 	require.NoError(t, err, "failed to read base config file")
 

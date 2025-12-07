@@ -17,13 +17,12 @@ import (
 	io_prometheus_client "github.com/prometheus/client_model/go"
 	"github.com/prometheus/common/expfmt"
 	"github.com/prometheus/common/model"
-	"github.com/prometheus/prometheus/model/labels"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 const (
-	configMetricsGenerator                = "config-metrics-generator.yaml"
+	configMetricsGenerator                = "config-metrics-generator.yaml" // jpe - config name cleanup
 	configMetricsGeneratorTargetInfo      = "config-metrics-generator-targetinfo.yaml"
 	configMetricsGeneratorMessagingSystem = "config-metrics-generator-messaging-system.yaml"
 )
@@ -33,359 +32,327 @@ func TestMetricsGenerator(t *testing.T) {
 	require.NoError(t, err)
 	defer s.Close()
 
-	require.NoError(t, util.CopyFileToSharedDir(s, configMetricsGenerator, "config.yaml"))
-	tempoDistributor := util.NewTempoDistributor()
-	tempoIngester := util.NewTempoIngester(1)
-	tempoMetricsGenerator := util.NewTempoMetricsGenerator()
-	prometheus := util.NewPrometheus()
-	require.NoError(t, s.StartAndWaitReady(tempoDistributor, tempoIngester, tempoMetricsGenerator, prometheus))
+	util.WithTempoHarness(t, s, util.TestHarnessConfig{
+		ConfigOverlay:          configMetricsGenerator,
+		EnableMetricsGenerator: true,
+	}, func(h *util.TempoHarness) {
+		// Send two spans that have a client-server relationship
+		r := rand.New(rand.NewSource(time.Now().UnixMilli()))
+		traceIDLow := r.Int63()
+		traceIDHigh := r.Int63()
+		parentSpanID := r.Int63()
 
-	// Wait until ingester and metrics-generator are active
-	isServiceActiveMatcher := func(service string) []*labels.Matcher {
-		return []*labels.Matcher{
-			labels.MustNewMatcher(labels.MatchEqual, "name", service),
-			labels.MustNewMatcher(labels.MatchEqual, "state", "ACTIVE"),
-		}
-	}
-	require.NoError(t, tempoDistributor.WaitSumMetricsWithOptions(e2e.Equals(1), []string{`tempo_ring_members`}, e2e.WithLabelMatchers(isServiceActiveMatcher("ingester")...), e2e.WaitMissingMetrics))
-	require.NoError(t, tempoDistributor.WaitSumMetricsWithOptions(e2e.Equals(1), []string{`tempo_ring_members`}, e2e.WithLabelMatchers(isServiceActiveMatcher("metrics-generator")...), e2e.WaitMissingMetrics))
-
-	// Get port for the Jaeger gRPC receiver endpoint
-	c, err := util.NewJaegerToOTLPExporter(tempoDistributor.Endpoint(4317))
-	require.NoError(t, err)
-	require.NotNil(t, c)
-
-	// Send two spans that have a client-server relationship
-	r := rand.New(rand.NewSource(time.Now().UnixMilli()))
-	traceIDLow := r.Int63()
-	traceIDHigh := r.Int63()
-	parentSpanID := r.Int63()
-
-	err = c.EmitBatch(context.Background(), &thrift.Batch{
-		Process: &thrift.Process{ServiceName: "lb"},
-		Spans: []*thrift.Span{
-			{
-				TraceIdLow:    traceIDLow,
-				TraceIdHigh:   traceIDHigh,
-				SpanId:        parentSpanID,
-				ParentSpanId:  0,
-				OperationName: "lb-get",
-				StartTime:     time.Now().UnixMicro(),
-				Duration:      int64(2 * time.Second / time.Microsecond),
-				Tags:          []*thrift.Tag{{Key: "span.kind", VStr: stringPtr("client")}},
+		err := h.JaegerExporter.EmitBatch(context.Background(), &thrift.Batch{
+			Process: &thrift.Process{ServiceName: "lb"},
+			Spans: []*thrift.Span{
+				{
+					TraceIdLow:    traceIDLow,
+					TraceIdHigh:   traceIDHigh,
+					SpanId:        parentSpanID,
+					ParentSpanId:  0,
+					OperationName: "lb-get",
+					StartTime:     time.Now().UnixMicro(),
+					Duration:      int64(2 * time.Second / time.Microsecond),
+					Tags:          []*thrift.Tag{{Key: "span.kind", VStr: stringPtr("client")}},
+				},
 			},
-		},
-	})
-	require.NoError(t, err)
-
-	err = c.EmitBatch(context.Background(), &thrift.Batch{
-		Process: &thrift.Process{ServiceName: "app"},
-		Spans: []*thrift.Span{
-			{
-				TraceIdLow:    traceIDLow,
-				TraceIdHigh:   traceIDHigh,
-				SpanId:        r.Int63(),
-				ParentSpanId:  parentSpanID,
-				OperationName: "app-handle",
-				StartTime:     time.Now().UnixMicro(),
-				Duration:      int64(1 * time.Second / time.Microsecond),
-				Tags:          []*thrift.Tag{{Key: "span.kind", VStr: stringPtr("server")}},
-			},
-		},
-	})
-	require.NoError(t, err)
-
-	// also send one with 5 minutes old timestamp
-	err = c.EmitBatch(context.Background(), &thrift.Batch{
-		Process: &thrift.Process{ServiceName: "app"},
-		Spans: []*thrift.Span{
-			{
-				TraceIdLow:    traceIDLow,
-				TraceIdHigh:   traceIDHigh,
-				SpanId:        r.Int63(),
-				ParentSpanId:  parentSpanID,
-				OperationName: "app-handle",
-				StartTime:     time.Now().Add(-5 * time.Minute).UnixMicro(),
-				Duration:      int64(1 * time.Second / time.Microsecond),
-				Tags:          []*thrift.Tag{{Key: "span.kind", VStr: stringPtr("server")}},
-			},
-		},
-	})
-	require.NoError(t, err)
-
-	// also send one with timestamp 10 days in the future
-	err = c.EmitBatch(context.Background(), &thrift.Batch{
-		Process: &thrift.Process{ServiceName: "app"},
-		Spans: []*thrift.Span{
-			{
-				TraceIdLow:    traceIDLow,
-				TraceIdHigh:   traceIDHigh,
-				SpanId:        r.Int63(),
-				ParentSpanId:  parentSpanID,
-				OperationName: "app-handle",
-				StartTime:     time.Now().Add(10 * 24 * time.Hour).UnixMicro(),
-				Duration:      int64(1 * time.Second / time.Microsecond),
-				Tags:          []*thrift.Tag{{Key: "span.kind", VStr: stringPtr("server")}},
-			},
-		},
-	})
-	require.NoError(t, err)
-
-	// also send one with an invalid label value
-	err = c.EmitBatch(context.Background(), &thrift.Batch{
-		Process: &thrift.Process{ServiceName: "app"},
-		Spans: []*thrift.Span{
-			{
-				TraceIdLow:    traceIDLow,
-				TraceIdHigh:   traceIDHigh,
-				SpanId:        r.Int63(),
-				ParentSpanId:  parentSpanID,
-				OperationName: "\xff\xff",
-				StartTime:     time.Now().UnixMicro(),
-				Duration:      int64(2 * time.Second / time.Microsecond),
-				Tags:          []*thrift.Tag{{Key: "span.kind", VStr: stringPtr("server")}},
-			},
-		},
-	})
-	require.NoError(t, err)
-
-	// Fetch metrics from Prometheus once they are received
-	var metricFamilies map[string]*io_prometheus_client.MetricFamily
-	for {
-		metricFamilies, err = extractMetricsFromPrometheus(prometheus, `{__name__=~"traces_.+"}`)
+		})
 		require.NoError(t, err)
-		if len(metricFamilies) > 0 {
-			break
+
+		err = h.JaegerExporter.EmitBatch(context.Background(), &thrift.Batch{
+			Process: &thrift.Process{ServiceName: "app"},
+			Spans: []*thrift.Span{
+				{
+					TraceIdLow:    traceIDLow,
+					TraceIdHigh:   traceIDHigh,
+					SpanId:        r.Int63(),
+					ParentSpanId:  parentSpanID,
+					OperationName: "app-handle",
+					StartTime:     time.Now().UnixMicro(),
+					Duration:      int64(1 * time.Second / time.Microsecond),
+					Tags:          []*thrift.Tag{{Key: "span.kind", VStr: stringPtr("server")}},
+				},
+			},
+		})
+		require.NoError(t, err)
+
+		// also send one with 5 minutes old timestamp
+		err = h.JaegerExporter.EmitBatch(context.Background(), &thrift.Batch{
+			Process: &thrift.Process{ServiceName: "app"},
+			Spans: []*thrift.Span{
+				{
+					TraceIdLow:    traceIDLow,
+					TraceIdHigh:   traceIDHigh,
+					SpanId:        r.Int63(),
+					ParentSpanId:  parentSpanID,
+					OperationName: "app-handle",
+					StartTime:     time.Now().Add(-5 * time.Minute).UnixMicro(),
+					Duration:      int64(1 * time.Second / time.Microsecond),
+					Tags:          []*thrift.Tag{{Key: "span.kind", VStr: stringPtr("server")}},
+				},
+			},
+		})
+		require.NoError(t, err)
+
+		// also send one with timestamp 10 days in the future
+		err = h.JaegerExporter.EmitBatch(context.Background(), &thrift.Batch{
+			Process: &thrift.Process{ServiceName: "app"},
+			Spans: []*thrift.Span{
+				{
+					TraceIdLow:    traceIDLow,
+					TraceIdHigh:   traceIDHigh,
+					SpanId:        r.Int63(),
+					ParentSpanId:  parentSpanID,
+					OperationName: "app-handle",
+					StartTime:     time.Now().Add(10 * 24 * time.Hour).UnixMicro(),
+					Duration:      int64(1 * time.Second / time.Microsecond),
+					Tags:          []*thrift.Tag{{Key: "span.kind", VStr: stringPtr("server")}},
+				},
+			},
+		})
+		require.NoError(t, err)
+
+		// also send one with an invalid label value
+		err = h.JaegerExporter.EmitBatch(context.Background(), &thrift.Batch{
+			Process: &thrift.Process{ServiceName: "app"},
+			Spans: []*thrift.Span{
+				{
+					TraceIdLow:    traceIDLow,
+					TraceIdHigh:   traceIDHigh,
+					SpanId:        r.Int63(),
+					ParentSpanId:  parentSpanID,
+					OperationName: "\xff\xff",
+					StartTime:     time.Now().UnixMicro(),
+					Duration:      int64(2 * time.Second / time.Microsecond),
+					Tags:          []*thrift.Tag{{Key: "span.kind", VStr: stringPtr("server")}},
+				},
+			},
+		})
+		require.NoError(t, err)
+
+		// Fetch metrics from Prometheus once they are received
+		var metricFamilies map[string]*io_prometheus_client.MetricFamily
+		for {
+			metricFamilies, err = extractMetricsFromPrometheus(h.Prometheus, `{__name__=~"traces_.+"}`)
+			require.NoError(t, err)
+			if len(metricFamilies) > 0 {
+				break
+			}
+			time.Sleep(time.Second)
 		}
-		time.Sleep(time.Second)
-	}
 
-	// Print collected metrics for easier debugging
-	fmt.Println()
-	for key, family := range metricFamilies {
-		fmt.Println(key)
-		for _, metric := range family.Metric {
-			fmt.Println(metric)
+		// Print collected metrics for easier debugging
+		fmt.Println()
+		for key, family := range metricFamilies {
+			fmt.Println(key)
+			for _, metric := range family.Metric {
+				fmt.Println(metric)
+			}
 		}
-	}
-	fmt.Println()
+		fmt.Println()
 
-	// Service graphs
-	lbls := []string{"client", "lb", "server", "app"}
-	assert.Equal(t, 1.0, sumValues(metricFamilies, "traces_service_graph_request_total", lbls))
+		// Service graphs
+		lbls := []string{"client", "lb", "server", "app"}
+		assert.Equal(t, 1.0, sumValues(metricFamilies, "traces_service_graph_request_total", lbls))
 
-	assert.Equal(t, 0.0, sumValues(metricFamilies, "traces_service_graph_request_client_seconds_bucket", append(lbls, "le", "1")))
-	assert.Equal(t, 1.0, sumValues(metricFamilies, "traces_service_graph_request_client_seconds_bucket", append(lbls, "le", "2")))
-	assert.Equal(t, 1.0, sumValues(metricFamilies, "traces_service_graph_request_client_seconds_bucket", append(lbls, "le", "+Inf")))
-	assert.Equal(t, 1.0, sumValues(metricFamilies, "traces_service_graph_request_client_seconds_count", lbls))
-	assert.Equal(t, 2.0, sumValues(metricFamilies, "traces_service_graph_request_client_seconds_sum", lbls))
+		assert.Equal(t, 0.0, sumValues(metricFamilies, "traces_service_graph_request_client_seconds_bucket", append(lbls, "le", "1")))
+		assert.Equal(t, 1.0, sumValues(metricFamilies, "traces_service_graph_request_client_seconds_bucket", append(lbls, "le", "2")))
+		assert.Equal(t, 1.0, sumValues(metricFamilies, "traces_service_graph_request_client_seconds_bucket", append(lbls, "le", "+Inf")))
+		assert.Equal(t, 1.0, sumValues(metricFamilies, "traces_service_graph_request_client_seconds_count", lbls))
+		assert.Equal(t, 2.0, sumValues(metricFamilies, "traces_service_graph_request_client_seconds_sum", lbls))
 
-	assert.Equal(t, 1.0, sumValues(metricFamilies, "traces_service_graph_request_server_seconds_bucket", append(lbls, "le", "1")))
-	assert.Equal(t, 1.0, sumValues(metricFamilies, "traces_service_graph_request_server_seconds_bucket", append(lbls, "le", "2")))
-	assert.Equal(t, 1.0, sumValues(metricFamilies, "traces_service_graph_request_server_seconds_bucket", append(lbls, "le", "+Inf")))
-	assert.Equal(t, 1.0, sumValues(metricFamilies, "traces_service_graph_request_server_seconds_count", lbls))
-	assert.Equal(t, 1.0, sumValues(metricFamilies, "traces_service_graph_request_server_seconds_sum", lbls))
+		assert.Equal(t, 1.0, sumValues(metricFamilies, "traces_service_graph_request_server_seconds_bucket", append(lbls, "le", "1")))
+		assert.Equal(t, 1.0, sumValues(metricFamilies, "traces_service_graph_request_server_seconds_bucket", append(lbls, "le", "2")))
+		assert.Equal(t, 1.0, sumValues(metricFamilies, "traces_service_graph_request_server_seconds_bucket", append(lbls, "le", "+Inf")))
+		assert.Equal(t, 1.0, sumValues(metricFamilies, "traces_service_graph_request_server_seconds_count", lbls))
+		assert.Equal(t, 1.0, sumValues(metricFamilies, "traces_service_graph_request_server_seconds_sum", lbls))
 
-	assert.Equal(t, 0.0, sumValues(metricFamilies, "traces_service_graph_request_failed_total", nil))
-	assert.Equal(t, 0.0, sumValues(metricFamilies, "traces_service_graph_unpaired_spans_total", nil))
-	assert.Equal(t, 0.0, sumValues(metricFamilies, "traces_service_graph_dropped_spans_total", nil))
+		assert.Equal(t, 0.0, sumValues(metricFamilies, "traces_service_graph_request_failed_total", nil))
+		assert.Equal(t, 0.0, sumValues(metricFamilies, "traces_service_graph_unpaired_spans_total", nil))
+		assert.Equal(t, 0.0, sumValues(metricFamilies, "traces_service_graph_dropped_spans_total", nil))
 
-	// Span metrics
-	lbls = []string{"service", "lb", "span_name", "lb-get", "span_kind", "SPAN_KIND_CLIENT", "status_code", "STATUS_CODE_UNSET"}
-	assert.Equal(t, 1.0, sumValues(metricFamilies, "traces_spanmetrics_calls_total", lbls))
-	assert.NotEqual(t, 0, sumValues(metricFamilies, "traces_spanmetrics_size_total", lbls))
-	assert.Equal(t, 0.0, sumValues(metricFamilies, "traces_spanmetrics_latency_bucket", append(lbls, "le", "1")))
-	assert.Equal(t, 1.0, sumValues(metricFamilies, "traces_spanmetrics_latency_bucket", append(lbls, "le", "2")))
-	assert.Equal(t, 1.0, sumValues(metricFamilies, "traces_spanmetrics_latency_bucket", append(lbls, "le", "+Inf")))
-	assert.Equal(t, 1.0, sumValues(metricFamilies, "traces_spanmetrics_latency_count", lbls))
-	assert.Equal(t, 2.0, sumValues(metricFamilies, "traces_spanmetrics_latency_sum", lbls))
+		// Span metrics
+		lbls = []string{"service", "lb", "span_name", "lb-get", "span_kind", "SPAN_KIND_CLIENT", "status_code", "STATUS_CODE_UNSET"}
+		assert.Equal(t, 1.0, sumValues(metricFamilies, "traces_spanmetrics_calls_total", lbls))
+		assert.NotEqual(t, 0, sumValues(metricFamilies, "traces_spanmetrics_size_total", lbls))
+		assert.Equal(t, 0.0, sumValues(metricFamilies, "traces_spanmetrics_latency_bucket", append(lbls, "le", "1")))
+		assert.Equal(t, 1.0, sumValues(metricFamilies, "traces_spanmetrics_latency_bucket", append(lbls, "le", "2")))
+		assert.Equal(t, 1.0, sumValues(metricFamilies, "traces_spanmetrics_latency_bucket", append(lbls, "le", "+Inf")))
+		assert.Equal(t, 1.0, sumValues(metricFamilies, "traces_spanmetrics_latency_count", lbls))
+		assert.Equal(t, 2.0, sumValues(metricFamilies, "traces_spanmetrics_latency_sum", lbls))
 
-	lbls = []string{"service", "app", "span_name", "app-handle", "span_kind", "SPAN_KIND_SERVER", "status_code", "STATUS_CODE_UNSET"}
-	assert.Equal(t, 1.0, sumValues(metricFamilies, "traces_spanmetrics_calls_total", lbls))
-	assert.NotEqual(t, 0, sumValues(metricFamilies, "traces_spanmetrics_size_total", lbls))
-	assert.Equal(t, 1.0, sumValues(metricFamilies, "traces_spanmetrics_latency_bucket", append(lbls, "le", "1")))
-	assert.Equal(t, 1.0, sumValues(metricFamilies, "traces_spanmetrics_latency_bucket", append(lbls, "le", "2")))
-	assert.Equal(t, 1.0, sumValues(metricFamilies, "traces_spanmetrics_latency_bucket", append(lbls, "le", "+Inf")))
-	assert.Equal(t, 1.0, sumValues(metricFamilies, "traces_spanmetrics_latency_count", lbls))
-	assert.Equal(t, 1.0, sumValues(metricFamilies, "traces_spanmetrics_latency_sum", lbls))
+		lbls = []string{"service", "app", "span_name", "app-handle", "span_kind", "SPAN_KIND_SERVER", "status_code", "STATUS_CODE_UNSET"}
+		assert.Equal(t, 1.0, sumValues(metricFamilies, "traces_spanmetrics_calls_total", lbls))
+		assert.NotEqual(t, 0, sumValues(metricFamilies, "traces_spanmetrics_size_total", lbls))
+		assert.Equal(t, 1.0, sumValues(metricFamilies, "traces_spanmetrics_latency_bucket", append(lbls, "le", "1")))
+		assert.Equal(t, 1.0, sumValues(metricFamilies, "traces_spanmetrics_latency_bucket", append(lbls, "le", "2")))
+		assert.Equal(t, 1.0, sumValues(metricFamilies, "traces_spanmetrics_latency_bucket", append(lbls, "le", "+Inf")))
+		assert.Equal(t, 1.0, sumValues(metricFamilies, "traces_spanmetrics_latency_count", lbls))
+		assert.Equal(t, 1.0, sumValues(metricFamilies, "traces_spanmetrics_latency_sum", lbls))
 
-	// Verify metrics
-	assert.NoError(t, tempoMetricsGenerator.WaitSumMetrics(e2e.Equals(5), "tempo_metrics_generator_spans_received_total"))
-	assert.NoError(t, tempoMetricsGenerator.WaitSumMetrics(e2e.Equals(3), "tempo_metrics_generator_spans_discarded_total"))
-	assert.NoError(t, tempoMetricsGenerator.WaitSumMetrics(e2e.Equals(25), "tempo_metrics_generator_registry_active_series"))
-	assert.NoError(t, tempoMetricsGenerator.WaitSumMetrics(e2e.Equals(1000), "tempo_metrics_generator_registry_max_active_series"))
-	assert.NoError(t, tempoMetricsGenerator.WaitSumMetrics(e2e.Equals(25), "tempo_metrics_generator_registry_series_added_total"))
+		// Verify metrics
+		metricsGenerator := h.Services[util.ServiceMetricsGenerator]
+		assert.NoError(t, metricsGenerator.WaitSumMetrics(e2e.Equals(5), "tempo_metrics_generator_spans_received_total"))
+		assert.NoError(t, metricsGenerator.WaitSumMetrics(e2e.Equals(3), "tempo_metrics_generator_spans_discarded_total"))
+		assert.NoError(t, metricsGenerator.WaitSumMetrics(e2e.Equals(25), "tempo_metrics_generator_registry_active_series"))
+		assert.NoError(t, metricsGenerator.WaitSumMetrics(e2e.Equals(1000), "tempo_metrics_generator_registry_max_active_series"))
+		assert.NoError(t, metricsGenerator.WaitSumMetrics(e2e.Equals(25), "tempo_metrics_generator_registry_series_added_total"))
+	})
 }
 
-func TestMetricsGeneratorTargetInfoEnabled(t *testing.T) {
+func TestMetricsGeneratorTargetInfoEnabled(t *testing.T) { // jpe - doesn't actually test target info?
 	s, err := e2e.NewScenario("tempo_e2e")
 	require.NoError(t, err)
 	defer s.Close()
 
-	require.NoError(t, util.CopyFileToSharedDir(s, configMetricsGeneratorTargetInfo, "config.yaml"))
-	tempoDistributor := util.NewTempoDistributor()
-	tempoIngester := util.NewTempoIngester(1)
-	tempoMetricsGenerator := util.NewTempoMetricsGenerator()
-	prometheus := util.NewPrometheus()
-	require.NoError(t, s.StartAndWaitReady(tempoDistributor, tempoIngester, tempoMetricsGenerator, prometheus))
+	util.WithTempoHarness(t, s, util.TestHarnessConfig{
+		ConfigOverlay:          configMetricsGeneratorTargetInfo,
+		EnableMetricsGenerator: true,
+	}, func(h *util.TempoHarness) {
+		// Send two spans that have a client-server relationship
+		r := rand.New(rand.NewSource(time.Now().UnixMilli()))
+		traceIDLow := r.Int63()
+		traceIDHigh := r.Int63()
+		parentSpanID := r.Int63()
 
-	// Wait until ingester and metrics-generator are active
-	isServiceActiveMatcher := func(service string) []*labels.Matcher {
-		return []*labels.Matcher{
-			labels.MustNewMatcher(labels.MatchEqual, "name", service),
-			labels.MustNewMatcher(labels.MatchEqual, "state", "ACTIVE"),
-		}
-	}
-	require.NoError(t, tempoDistributor.WaitSumMetricsWithOptions(e2e.Equals(1), []string{`tempo_ring_members`}, e2e.WithLabelMatchers(isServiceActiveMatcher("ingester")...), e2e.WaitMissingMetrics))
-	require.NoError(t, tempoDistributor.WaitSumMetricsWithOptions(e2e.Equals(1), []string{`tempo_ring_members`}, e2e.WithLabelMatchers(isServiceActiveMatcher("metrics-generator")...), e2e.WaitMissingMetrics))
-
-	// Get port for the Jaeger gRPC receiver endpoint
-	c, err := util.NewJaegerToOTLPExporter(tempoDistributor.Endpoint(4317))
-	require.NoError(t, err)
-	require.NotNil(t, c)
-
-	// Send two spans that have a client-server relationship
-	r := rand.New(rand.NewSource(time.Now().UnixMilli()))
-	traceIDLow := r.Int63()
-	traceIDHigh := r.Int63()
-	parentSpanID := r.Int63()
-
-	err = c.EmitBatch(context.Background(), &thrift.Batch{
-		Process: &thrift.Process{ServiceName: "lb"},
-		Spans: []*thrift.Span{
-			{
-				TraceIdLow:    traceIDLow,
-				TraceIdHigh:   traceIDHigh,
-				SpanId:        parentSpanID,
-				ParentSpanId:  0,
-				OperationName: "lb-get",
-				StartTime:     time.Now().UnixMicro(),
-				Duration:      int64(2 * time.Second / time.Microsecond),
-				Tags:          []*thrift.Tag{{Key: "span.kind", VStr: stringPtr("client")}},
+		err := h.JaegerExporter.EmitBatch(context.Background(), &thrift.Batch{
+			Process: &thrift.Process{ServiceName: "lb"},
+			Spans: []*thrift.Span{
+				{
+					TraceIdLow:    traceIDLow,
+					TraceIdHigh:   traceIDHigh,
+					SpanId:        parentSpanID,
+					ParentSpanId:  0,
+					OperationName: "lb-get",
+					StartTime:     time.Now().UnixMicro(),
+					Duration:      int64(2 * time.Second / time.Microsecond),
+					Tags:          []*thrift.Tag{{Key: "span.kind", VStr: stringPtr("client")}},
+				},
 			},
-		},
-	})
-	require.NoError(t, err)
-
-	err = c.EmitBatch(context.Background(), &thrift.Batch{
-		Process: &thrift.Process{ServiceName: "app"},
-		Spans: []*thrift.Span{
-			{
-				TraceIdLow:    traceIDLow,
-				TraceIdHigh:   traceIDHigh,
-				SpanId:        r.Int63(),
-				ParentSpanId:  parentSpanID,
-				OperationName: "app-handle",
-				StartTime:     time.Now().UnixMicro(),
-				Duration:      int64(1 * time.Second / time.Microsecond),
-				Tags:          []*thrift.Tag{{Key: "span.kind", VStr: stringPtr("server")}},
-			},
-		},
-	})
-	require.NoError(t, err)
-
-	// also send one with 5 minutes old timestamp
-	err = c.EmitBatch(context.Background(), &thrift.Batch{
-		Process: &thrift.Process{ServiceName: "app"},
-		Spans: []*thrift.Span{
-			{
-				TraceIdLow:    traceIDLow,
-				TraceIdHigh:   traceIDHigh,
-				SpanId:        r.Int63(),
-				ParentSpanId:  parentSpanID,
-				OperationName: "app-handle",
-				StartTime:     time.Now().Add(-5 * time.Minute).UnixMicro(),
-				Duration:      int64(1 * time.Second / time.Microsecond),
-				Tags:          []*thrift.Tag{{Key: "span.kind", VStr: stringPtr("server")}},
-			},
-		},
-	})
-	require.NoError(t, err)
-
-	// also send one with timestamp 10 days in the future
-	err = c.EmitBatch(context.Background(), &thrift.Batch{
-		Process: &thrift.Process{ServiceName: "app"},
-		Spans: []*thrift.Span{
-			{
-				TraceIdLow:    traceIDLow,
-				TraceIdHigh:   traceIDHigh,
-				SpanId:        r.Int63(),
-				ParentSpanId:  parentSpanID,
-				OperationName: "app-handle",
-				StartTime:     time.Now().Add(10 * 24 * time.Hour).UnixMicro(),
-				Duration:      int64(1 * time.Second / time.Microsecond),
-				Tags:          []*thrift.Tag{{Key: "span.kind", VStr: stringPtr("server")}},
-			},
-		},
-	})
-	require.NoError(t, err)
-
-	// Fetch metrics from Prometheus once they are received
-	var metricFamilies map[string]*io_prometheus_client.MetricFamily
-	for {
-		metricFamilies, err = extractMetricsFromPrometheus(prometheus, `{__name__=~"traces_.+"}`)
+		})
 		require.NoError(t, err)
-		if len(metricFamilies) > 0 {
-			break
+
+		err = h.JaegerExporter.EmitBatch(context.Background(), &thrift.Batch{
+			Process: &thrift.Process{ServiceName: "app"},
+			Spans: []*thrift.Span{
+				{
+					TraceIdLow:    traceIDLow,
+					TraceIdHigh:   traceIDHigh,
+					SpanId:        r.Int63(),
+					ParentSpanId:  parentSpanID,
+					OperationName: "app-handle",
+					StartTime:     time.Now().UnixMicro(),
+					Duration:      int64(1 * time.Second / time.Microsecond),
+					Tags:          []*thrift.Tag{{Key: "span.kind", VStr: stringPtr("server")}},
+				},
+			},
+		})
+		require.NoError(t, err)
+
+		// also send one with 5 minutes old timestamp
+		err = h.JaegerExporter.EmitBatch(context.Background(), &thrift.Batch{
+			Process: &thrift.Process{ServiceName: "app"},
+			Spans: []*thrift.Span{
+				{
+					TraceIdLow:    traceIDLow,
+					TraceIdHigh:   traceIDHigh,
+					SpanId:        r.Int63(),
+					ParentSpanId:  parentSpanID,
+					OperationName: "app-handle",
+					StartTime:     time.Now().Add(-5 * time.Minute).UnixMicro(),
+					Duration:      int64(1 * time.Second / time.Microsecond),
+					Tags:          []*thrift.Tag{{Key: "span.kind", VStr: stringPtr("server")}},
+				},
+			},
+		})
+		require.NoError(t, err)
+
+		// also send one with timestamp 10 days in the future
+		err = h.JaegerExporter.EmitBatch(context.Background(), &thrift.Batch{
+			Process: &thrift.Process{ServiceName: "app"},
+			Spans: []*thrift.Span{
+				{
+					TraceIdLow:    traceIDLow,
+					TraceIdHigh:   traceIDHigh,
+					SpanId:        r.Int63(),
+					ParentSpanId:  parentSpanID,
+					OperationName: "app-handle",
+					StartTime:     time.Now().Add(10 * 24 * time.Hour).UnixMicro(),
+					Duration:      int64(1 * time.Second / time.Microsecond),
+					Tags:          []*thrift.Tag{{Key: "span.kind", VStr: stringPtr("server")}},
+				},
+			},
+		})
+		require.NoError(t, err)
+
+		// Fetch metrics from Prometheus once they are received
+		var metricFamilies map[string]*io_prometheus_client.MetricFamily
+		for {
+			metricFamilies, err = extractMetricsFromPrometheus(h.Prometheus, `{__name__=~"traces_.+"}`)
+			require.NoError(t, err)
+			if len(metricFamilies) > 0 {
+				break
+			}
+			time.Sleep(time.Second)
 		}
-		time.Sleep(time.Second)
-	}
 
-	// Print collected metrics for easier debugging
-	fmt.Println()
-	for key, family := range metricFamilies {
-		fmt.Println(key)
-		for _, metric := range family.Metric {
-			fmt.Println(metric)
+		// Print collected metrics for easier debugging
+		fmt.Println()
+		for key, family := range metricFamilies {
+			fmt.Println(key)
+			for _, metric := range family.Metric {
+				fmt.Println(metric)
+			}
 		}
-	}
-	fmt.Println()
+		fmt.Println()
 
-	// Service graphs
-	lbls := []string{"client", "lb", "server", "app"}
-	assert.Equal(t, 1.0, sumValues(metricFamilies, "traces_service_graph_request_total", lbls))
+		// Service graphs
+		lbls := []string{"client", "lb", "server", "app"}
+		assert.Equal(t, 1.0, sumValues(metricFamilies, "traces_service_graph_request_total", lbls))
 
-	assert.Equal(t, 0.0, sumValues(metricFamilies, "traces_service_graph_request_client_seconds_bucket", append(lbls, "le", "1")))
-	assert.Equal(t, 1.0, sumValues(metricFamilies, "traces_service_graph_request_client_seconds_bucket", append(lbls, "le", "2")))
-	assert.Equal(t, 1.0, sumValues(metricFamilies, "traces_service_graph_request_client_seconds_bucket", append(lbls, "le", "+Inf")))
-	assert.Equal(t, 1.0, sumValues(metricFamilies, "traces_service_graph_request_client_seconds_count", lbls))
-	assert.Equal(t, 2.0, sumValues(metricFamilies, "traces_service_graph_request_client_seconds_sum", lbls))
+		assert.Equal(t, 0.0, sumValues(metricFamilies, "traces_service_graph_request_client_seconds_bucket", append(lbls, "le", "1")))
+		assert.Equal(t, 1.0, sumValues(metricFamilies, "traces_service_graph_request_client_seconds_bucket", append(lbls, "le", "2")))
+		assert.Equal(t, 1.0, sumValues(metricFamilies, "traces_service_graph_request_client_seconds_bucket", append(lbls, "le", "+Inf")))
+		assert.Equal(t, 1.0, sumValues(metricFamilies, "traces_service_graph_request_client_seconds_count", lbls))
+		assert.Equal(t, 2.0, sumValues(metricFamilies, "traces_service_graph_request_client_seconds_sum", lbls))
 
-	assert.Equal(t, 1.0, sumValues(metricFamilies, "traces_service_graph_request_server_seconds_bucket", append(lbls, "le", "1")))
-	assert.Equal(t, 1.0, sumValues(metricFamilies, "traces_service_graph_request_server_seconds_bucket", append(lbls, "le", "2")))
-	assert.Equal(t, 1.0, sumValues(metricFamilies, "traces_service_graph_request_server_seconds_bucket", append(lbls, "le", "+Inf")))
-	assert.Equal(t, 1.0, sumValues(metricFamilies, "traces_service_graph_request_server_seconds_count", lbls))
-	assert.Equal(t, 1.0, sumValues(metricFamilies, "traces_service_graph_request_server_seconds_sum", lbls))
+		assert.Equal(t, 1.0, sumValues(metricFamilies, "traces_service_graph_request_server_seconds_bucket", append(lbls, "le", "1")))
+		assert.Equal(t, 1.0, sumValues(metricFamilies, "traces_service_graph_request_server_seconds_bucket", append(lbls, "le", "2")))
+		assert.Equal(t, 1.0, sumValues(metricFamilies, "traces_service_graph_request_server_seconds_bucket", append(lbls, "le", "+Inf")))
+		assert.Equal(t, 1.0, sumValues(metricFamilies, "traces_service_graph_request_server_seconds_count", lbls))
+		assert.Equal(t, 1.0, sumValues(metricFamilies, "traces_service_graph_request_server_seconds_sum", lbls))
 
-	assert.Equal(t, 0.0, sumValues(metricFamilies, "traces_service_graph_request_failed_total", nil))
-	assert.Equal(t, 0.0, sumValues(metricFamilies, "traces_service_graph_unpaired_spans_total", nil))
-	assert.Equal(t, 0.0, sumValues(metricFamilies, "traces_service_graph_dropped_spans_total", nil))
+		assert.Equal(t, 0.0, sumValues(metricFamilies, "traces_service_graph_request_failed_total", nil))
+		assert.Equal(t, 0.0, sumValues(metricFamilies, "traces_service_graph_unpaired_spans_total", nil))
+		assert.Equal(t, 0.0, sumValues(metricFamilies, "traces_service_graph_dropped_spans_total", nil))
 
-	// Span metrics
-	lbls = []string{"service", "lb", "span_name", "lb-get", "span_kind", "SPAN_KIND_CLIENT", "status_code", "STATUS_CODE_UNSET", "job", "lb"}
-	assert.Equal(t, 1.0, sumValues(metricFamilies, "traces_spanmetrics_calls_total", lbls))
-	assert.NotEqual(t, 0, sumValues(metricFamilies, "traces_spanmetrics_size_total", lbls))
-	assert.Equal(t, 0.0, sumValues(metricFamilies, "traces_spanmetrics_latency_bucket", append(lbls, "le", "1")))
-	assert.Equal(t, 1.0, sumValues(metricFamilies, "traces_spanmetrics_latency_bucket", append(lbls, "le", "2")))
-	assert.Equal(t, 1.0, sumValues(metricFamilies, "traces_spanmetrics_latency_bucket", append(lbls, "le", "+Inf")))
-	assert.Equal(t, 1.0, sumValues(metricFamilies, "traces_spanmetrics_latency_count", lbls))
-	assert.Equal(t, 2.0, sumValues(metricFamilies, "traces_spanmetrics_latency_sum", lbls))
+		// Span metrics
+		lbls = []string{"service", "lb", "span_name", "lb-get", "span_kind", "SPAN_KIND_CLIENT", "status_code", "STATUS_CODE_UNSET", "job", "lb"}
+		assert.Equal(t, 1.0, sumValues(metricFamilies, "traces_spanmetrics_calls_total", lbls))
+		assert.NotEqual(t, 0, sumValues(metricFamilies, "traces_spanmetrics_size_total", lbls))
+		assert.Equal(t, 0.0, sumValues(metricFamilies, "traces_spanmetrics_latency_bucket", append(lbls, "le", "1")))
+		assert.Equal(t, 1.0, sumValues(metricFamilies, "traces_spanmetrics_latency_bucket", append(lbls, "le", "2")))
+		assert.Equal(t, 1.0, sumValues(metricFamilies, "traces_spanmetrics_latency_bucket", append(lbls, "le", "+Inf")))
+		assert.Equal(t, 1.0, sumValues(metricFamilies, "traces_spanmetrics_latency_count", lbls))
+		assert.Equal(t, 2.0, sumValues(metricFamilies, "traces_spanmetrics_latency_sum", lbls))
 
-	lbls = []string{"service", "app", "span_name", "app-handle", "span_kind", "SPAN_KIND_SERVER", "status_code", "STATUS_CODE_UNSET", "job", "app"}
-	assert.Equal(t, 1.0, sumValues(metricFamilies, "traces_spanmetrics_calls_total", lbls))
-	assert.NotEqual(t, 0, sumValues(metricFamilies, "traces_spanmetrics_size_total", lbls))
-	assert.Equal(t, 1.0, sumValues(metricFamilies, "traces_spanmetrics_latency_bucket", append(lbls, "le", "1")))
-	assert.Equal(t, 1.0, sumValues(metricFamilies, "traces_spanmetrics_latency_bucket", append(lbls, "le", "2")))
-	assert.Equal(t, 1.0, sumValues(metricFamilies, "traces_spanmetrics_latency_bucket", append(lbls, "le", "+Inf")))
-	assert.Equal(t, 1.0, sumValues(metricFamilies, "traces_spanmetrics_latency_count", lbls))
-	assert.Equal(t, 1.0, sumValues(metricFamilies, "traces_spanmetrics_latency_sum", lbls))
+		lbls = []string{"service", "app", "span_name", "app-handle", "span_kind", "SPAN_KIND_SERVER", "status_code", "STATUS_CODE_UNSET", "job", "app"}
+		assert.Equal(t, 1.0, sumValues(metricFamilies, "traces_spanmetrics_calls_total", lbls))
+		assert.NotEqual(t, 0, sumValues(metricFamilies, "traces_spanmetrics_size_total", lbls))
+		assert.Equal(t, 1.0, sumValues(metricFamilies, "traces_spanmetrics_latency_bucket", append(lbls, "le", "1")))
+		assert.Equal(t, 1.0, sumValues(metricFamilies, "traces_spanmetrics_latency_bucket", append(lbls, "le", "2")))
+		assert.Equal(t, 1.0, sumValues(metricFamilies, "traces_spanmetrics_latency_bucket", append(lbls, "le", "+Inf")))
+		assert.Equal(t, 1.0, sumValues(metricFamilies, "traces_spanmetrics_latency_count", lbls))
+		assert.Equal(t, 1.0, sumValues(metricFamilies, "traces_spanmetrics_latency_sum", lbls))
 
-	// Verify metrics
-	assert.NoError(t, tempoMetricsGenerator.WaitSumMetrics(e2e.Equals(4), "tempo_metrics_generator_spans_received_total"))
-	assert.NoError(t, tempoMetricsGenerator.WaitSumMetrics(e2e.Equals(2), "tempo_metrics_generator_spans_discarded_total"))
-	assert.NoError(t, tempoMetricsGenerator.WaitSumMetrics(e2e.Equals(25), "tempo_metrics_generator_registry_active_series"))
-	assert.NoError(t, tempoMetricsGenerator.WaitSumMetrics(e2e.Equals(1000), "tempo_metrics_generator_registry_max_active_series"))
-	assert.NoError(t, tempoMetricsGenerator.WaitSumMetrics(e2e.Equals(25), "tempo_metrics_generator_registry_series_added_total"))
+		// Verify metrics
+		metricsGenerator := h.Services[util.ServiceMetricsGenerator]
+		assert.NoError(t, metricsGenerator.WaitSumMetrics(e2e.Equals(4), "tempo_metrics_generator_spans_received_total"))
+		assert.NoError(t, metricsGenerator.WaitSumMetrics(e2e.Equals(2), "tempo_metrics_generator_spans_discarded_total"))
+		assert.NoError(t, metricsGenerator.WaitSumMetrics(e2e.Equals(25), "tempo_metrics_generator_registry_active_series"))
+		assert.NoError(t, metricsGenerator.WaitSumMetrics(e2e.Equals(1000), "tempo_metrics_generator_registry_max_active_series"))
+		assert.NoError(t, metricsGenerator.WaitSumMetrics(e2e.Equals(25), "tempo_metrics_generator_registry_series_added_total"))
+	})
 }
 
 func TestMetricsGeneratorMessagingSystemLatencyHistogramEnabled(t *testing.T) {
@@ -394,100 +361,85 @@ func TestMetricsGeneratorMessagingSystemLatencyHistogramEnabled(t *testing.T) {
 	defer s.Close()
 
 	// Use a config that enables the messaging system latency histogram
-	require.NoError(t, util.CopyFileToSharedDir(s, configMetricsGeneratorMessagingSystem, "config.yaml"))
-	tempoDistributor := util.NewTempoDistributor()
-	tempoIngester := util.NewTempoIngester(1)
-	tempoMetricsGenerator := util.NewTempoMetricsGenerator()
-	prometheus := util.NewPrometheus()
-	require.NoError(t, s.StartAndWaitReady(tempoDistributor, tempoIngester, tempoMetricsGenerator, prometheus))
+	util.WithTempoHarness(t, s, util.TestHarnessConfig{
+		ConfigOverlay:          configMetricsGeneratorMessagingSystem,
+		EnableMetricsGenerator: true,
+	}, func(h *util.TempoHarness) {
+		// Send a pair of spans with a messaging system relationship (producer -> consumer)
+		// ignore the gosec linter because we are using a random number generator to create trace IDs
+		// and span IDs, which is not a security risk in this context.
+		// #nosec G404 -- nosemgrep: math-random-used
+		r := rand.New(rand.NewSource(time.Now().UnixMilli()))
+		traceIDLow := r.Int63()
+		traceIDHigh := r.Int63()
+		parentSpanID := r.Int63()
 
-	isServiceActiveMatcher := func(service string) []*labels.Matcher {
-		return []*labels.Matcher{
-			labels.MustNewMatcher(labels.MatchEqual, "name", service),
-			labels.MustNewMatcher(labels.MatchEqual, "state", "ACTIVE"),
-		}
-	}
-	require.NoError(t, tempoDistributor.WaitSumMetricsWithOptions(e2e.Equals(1), []string{"tempo_ring_members"}, e2e.WithLabelMatchers(isServiceActiveMatcher("ingester")...), e2e.WaitMissingMetrics))
-	require.NoError(t, tempoDistributor.WaitSumMetricsWithOptions(e2e.Equals(1), []string{"tempo_ring_members"}, e2e.WithLabelMatchers(isServiceActiveMatcher("metrics-generator")...), e2e.WaitMissingMetrics))
+		// Set explicit times to ensure producer ends before consumer starts
+		now := time.Now()
+		producerStart := now
+		producerDuration := 2 * time.Second
+		producerEnd := producerStart.Add(producerDuration)
+		consumerStart := producerEnd.Add(1 * time.Second) // ensure consumer starts after producer ends
+		consumerDuration := 2 * time.Second
 
-	c, err := util.NewJaegerToOTLPExporter(tempoDistributor.Endpoint(4317))
-	require.NoError(t, err)
-	require.NotNil(t, c)
-
-	// Send a pair of spans with a messaging system relationship (producer -> consumer)
-	// ignore the gosec linter because we are using a random number generator to create trace IDs
-	// and span IDs, which is not a security risk in this context.
-	// #nosec G404 -- nosemgrep: math-random-used
-	r := rand.New(rand.NewSource(time.Now().UnixMilli()))
-	traceIDLow := r.Int63()
-	traceIDHigh := r.Int63()
-	parentSpanID := r.Int63()
-
-	// Set explicit times to ensure producer ends before consumer starts
-	now := time.Now()
-	producerStart := now
-	producerDuration := 2 * time.Second
-	producerEnd := producerStart.Add(producerDuration)
-	consumerStart := producerEnd.Add(1 * time.Second) // ensure consumer starts after producer ends
-	consumerDuration := 2 * time.Second
-
-	// Producer span
-	err = c.EmitBatch(context.Background(), &thrift.Batch{
-		Process: &thrift.Process{ServiceName: "producer"},
-		Spans: []*thrift.Span{
-			{
-				TraceIdLow:    traceIDLow,
-				TraceIdHigh:   traceIDHigh,
-				SpanId:        parentSpanID,
-				ParentSpanId:  0,
-				OperationName: "produce-message",
-				StartTime:     producerStart.UnixMicro(),
-				Duration:      int64(producerDuration / time.Microsecond),
-				Tags: []*thrift.Tag{
-					{Key: "span.kind", VStr: stringPtr("producer")},
-					{Key: "messaging.system", VStr: stringPtr("kafka")},
+		// Producer span
+		err := h.JaegerExporter.EmitBatch(context.Background(), &thrift.Batch{
+			Process: &thrift.Process{ServiceName: "producer"},
+			Spans: []*thrift.Span{
+				{
+					TraceIdLow:    traceIDLow,
+					TraceIdHigh:   traceIDHigh,
+					SpanId:        parentSpanID,
+					ParentSpanId:  0,
+					OperationName: "produce-message",
+					StartTime:     producerStart.UnixMicro(),
+					Duration:      int64(producerDuration / time.Microsecond),
+					Tags: []*thrift.Tag{
+						{Key: "span.kind", VStr: stringPtr("producer")},
+						{Key: "messaging.system", VStr: stringPtr("kafka")},
+					},
 				},
 			},
-		},
-	})
-	require.NoError(t, err)
-
-	// Consumer span
-	err = c.EmitBatch(context.Background(), &thrift.Batch{
-		Process: &thrift.Process{ServiceName: "consumer"},
-		Spans: []*thrift.Span{
-			{
-				TraceIdLow:    traceIDLow,
-				TraceIdHigh:   traceIDHigh,
-				SpanId:        r.Int63(),
-				ParentSpanId:  parentSpanID,
-				OperationName: "consume-message",
-				StartTime:     consumerStart.UnixMicro(),
-				Duration:      int64(consumerDuration / time.Microsecond),
-				Tags: []*thrift.Tag{
-					{Key: "span.kind", VStr: stringPtr("consumer")},
-					{Key: "messaging.system", VStr: stringPtr("kafka")},
-				},
-			},
-		},
-	})
-	require.NoError(t, err)
-
-	// Wait for the metric to be produced
-	var metricFamilies map[string]*io_prometheus_client.MetricFamily
-	for {
-		metricFamilies, err = extractMetricsFromPrometheus(prometheus, `{__name__=~"traces_.+"}`)
+		})
 		require.NoError(t, err)
-		if _, ok := metricFamilies["traces_service_graph_request_messaging_system_seconds_bucket"]; ok {
-			break
-		}
-		time.Sleep(30 * time.Second)
-	}
 
-	// Check that the metric exists and has a non-zero count
-	lbls := []string{"client", "producer", "server", "consumer", "connection_type", "messaging_system"}
-	assert.NotEqual(t, 0.0, sumValues(metricFamilies, "traces_service_graph_request_messaging_system_seconds_count", lbls))
-	assert.NotEqual(t, 0.0, sumValues(metricFamilies, "traces_service_graph_request_messaging_system_seconds_sum", lbls))
+		// Consumer span
+		err = h.JaegerExporter.EmitBatch(context.Background(), &thrift.Batch{
+			Process: &thrift.Process{ServiceName: "consumer"},
+			Spans: []*thrift.Span{
+				{
+					TraceIdLow:    traceIDLow,
+					TraceIdHigh:   traceIDHigh,
+					SpanId:        r.Int63(),
+					ParentSpanId:  parentSpanID,
+					OperationName: "consume-message",
+					StartTime:     consumerStart.UnixMicro(),
+					Duration:      int64(consumerDuration / time.Microsecond),
+					Tags: []*thrift.Tag{
+						{Key: "span.kind", VStr: stringPtr("consumer")},
+						{Key: "messaging.system", VStr: stringPtr("kafka")},
+					},
+				},
+			},
+		})
+		require.NoError(t, err)
+
+		// Wait for the metric to be produced
+		var metricFamilies map[string]*io_prometheus_client.MetricFamily
+		for {
+			metricFamilies, err = extractMetricsFromPrometheus(h.Prometheus, `{__name__=~"traces_.+"}`)
+			require.NoError(t, err)
+			if _, ok := metricFamilies["traces_service_graph_request_messaging_system_seconds_bucket"]; ok {
+				break
+			}
+			time.Sleep(30 * time.Second)
+		}
+
+		// Check that the metric exists and has a non-zero count
+		lbls := []string{"client", "producer", "server", "consumer", "connection_type", "messaging_system"}
+		assert.NotEqual(t, 0.0, sumValues(metricFamilies, "traces_service_graph_request_messaging_system_seconds_count", lbls))
+		assert.NotEqual(t, 0.0, sumValues(metricFamilies, "traces_service_graph_request_messaging_system_seconds_sum", lbls))
+	})
 }
 
 // extractMetricsFromPrometheus extracts metrics stored in Prometheus using the /federate endpoint.
