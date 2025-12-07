@@ -40,11 +40,7 @@ const (
 )
 
 func TestIngestionLimits(t *testing.T) {
-	s, err := e2e.NewScenario("tempo_e2e")
-	require.NoError(t, err)
-	defer s.Close()
-
-	util.WithTempoHarness(t, s, util.TestHarnessConfig{
+	util.WithTempoHarness(t, util.TestHarnessConfig{
 		ConfigOverlay: configIngest,
 	}, func(h *util.TempoHarness) {
 		// should fail b/c the trace is too large. each batch should be ~70 bytes
@@ -99,11 +95,7 @@ func TestIngestionLimits(t *testing.T) {
 }
 
 func TestOTLPLimits(t *testing.T) {
-	s, err := e2e.NewScenario("tempo_e2e")
-	require.NoError(t, err)
-	defer s.Close()
-
-	util.WithTempoHarness(t, s, util.TestHarnessConfig{
+	util.WithTempoHarness(t, util.TestHarnessConfig{
 		ConfigOverlay: configIngest,
 	}, func(h *util.TempoHarness) {
 		protoSpans := test.MakeProtoSpans(100)
@@ -135,11 +127,7 @@ func TestOTLPLimits(t *testing.T) {
 }
 
 func TestOTLPLimitsVanillaClient(t *testing.T) {
-	s, err := e2e.NewScenario("tempo_e2e")
-	require.NoError(t, err)
-	defer s.Close()
-
-	util.WithTempoHarness(t, s, util.TestHarnessConfig{
+	util.WithTempoHarness(t, util.TestHarnessConfig{
 		ConfigOverlay: configIngest,
 	}, func(h *util.TempoHarness) {
 		trace := test.MakeTrace(10, []byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10})
@@ -197,13 +185,7 @@ func TestOTLPLimitsVanillaClient(t *testing.T) {
 }
 
 func TestQueryLimits(t *testing.T) {
-	s, err := e2e.NewScenario("tempo_e2e")
-	require.NoError(t, err)
-	defer s.Close()
-
-	util.WithTempoHarness(t, s, util.TestHarnessConfig{
-		LiveStoreFastFlush: 5 * time.Second,
-	}, func(h *util.TempoHarness) {
+	util.WithTempoHarness(t, util.TestHarnessConfig{}, func(h *util.TempoHarness) {
 		batch := util.MakeThriftBatchWithSpanCount(5)
 		require.NoError(t, h.JaegerExporter.EmitBatch(context.Background(), batch))
 
@@ -226,7 +208,7 @@ func TestQueryLimits(t *testing.T) {
 
 		// wait for live store to ingest traces
 		liveStore := h.Services[util.ServiceLiveStoreZoneA]
-		err = liveStore.WaitSumMetricsWithOptions(e2e.Greater(0),
+		err := liveStore.WaitSumMetricsWithOptions(e2e.Greater(0),
 			[]string{"tempo_live_store_traces_created_total"},
 			e2e.WaitMissingMetrics,
 		)
@@ -250,18 +232,14 @@ func TestQueryLimits(t *testing.T) {
 }
 
 func TestLimitsPartialSuccess(t *testing.T) {
-	s, err := e2e.NewScenario("tempo_e2e")
-	require.NoError(t, err)
-	defer s.Close()
-
-	util.WithTempoHarness(t, s, util.TestHarnessConfig{
+	util.WithTempoHarness(t, util.TestHarnessConfig{
 		ConfigOverlay: configIngestPartialSucess,
 	}, func(h *util.TempoHarness) {
 		// make request
 		traceIDs := make([][]byte, 6)
 		for index := range traceIDs {
 			traceID := make([]byte, 16)
-			_, err = crand.Read(traceID)
+			_, err := crand.Read(traceID)
 			require.NoError(t, err)
 			traceIDs[index] = traceID
 		}
@@ -320,11 +298,7 @@ func TestLimitsPartialSuccess(t *testing.T) {
 }
 
 func TestQueryRateLimits(t *testing.T) {
-	s, err := e2e.NewScenario("tempo_e2e")
-	require.NoError(t, err)
-	defer s.Close()
-
-	util.WithTempoHarness(t, s, util.TestHarnessConfig{
+	util.WithTempoHarness(t, util.TestHarnessConfig{
 		ConfigOverlay: configQueryRate,
 	}, func(h *util.TempoHarness) {
 		// todo: do we even need to push a trace?
@@ -336,7 +310,7 @@ func TestQueryRateLimits(t *testing.T) {
 
 		// 429 HTTP Trace ID Lookup
 		traceID := []byte{0x01, 0x02}
-		_, err = client.QueryTrace(tempoUtil.TraceIDToHexString(traceID))
+		_, err := client.QueryTrace(tempoUtil.TraceIDToHexString(traceID))
 		require.ErrorContains(t, err, "job queue full")
 		require.ErrorContains(t, err, "failed with response: 429")
 

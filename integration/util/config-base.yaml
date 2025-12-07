@@ -1,3 +1,12 @@
+#
+# base config for e2e tests. any field in this config can be overridden by passing in a 
+# ConfigOverlay to the e2e test framework.
+#
+# Note: A lot of this is boilerplate, but there a few settings that exist to hasten 
+# the normal Tempo processes for the sake of e2e tests. See all comments marked "timings"
+# below.
+#
+
 stream_over_http_enabled: true
 partition_ring_live_store: true
 
@@ -7,7 +16,7 @@ server:
 
 overrides:
   per_tenant_override_config: /shared/overrides.yaml
-  per_tenant_override_period: 1s
+  per_tenant_override_period: 1s # timings: check for updated overrides every second
   defaults:
     metrics_generator:
       processors: [service-graphs, span-metrics]
@@ -28,6 +37,10 @@ distributor:
           endpoint: "0.0.0.0:4318"
 
 live_store:
+  max_trace_live: 5s # timings: the max amount of time a trace can be in the live map
+  max_trace_idle: 1s # timings: the max amount of time a trace can be idle in the live map
+  flush_check_period: 5s # timings: check for traces to flush and wal blocks to complete every 5s
+  max_block_duration: 5s # timings: complete any wal file that's older than 5s. 10s is the max age of a wal file
   partition_ring:
     kvstore:
       store: memberlist
@@ -41,7 +54,7 @@ storage:
     pool:
       max_workers: 10
       queue_depth: 100
-    blocklist_poll: 1s
+    blocklist_poll: 2s # timings: check for updated blocklists every 2s
 
 memberlist:
   abort_if_cluster_join_fails: false
@@ -63,3 +76,12 @@ querier:
   frontend_worker:
     frontend_address: query-frontend:9095
   query_live_store: true
+
+metrics_generator:
+  registry:
+    collection_interval: 1s # timings: collect and send metrics every second
+  storage:
+    path: /var/tempo
+    remote_write:
+      - url: http://prometheus:9090/api/v1/write 
+        send_exemplars: true

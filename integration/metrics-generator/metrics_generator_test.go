@@ -22,17 +22,13 @@ import (
 )
 
 const (
-	configMetricsGenerator                = "config-metrics-generator.yaml" // jpe - config name cleanup
-	configMetricsGeneratorTargetInfo      = "config-metrics-generator-targetinfo.yaml"
-	configMetricsGeneratorMessagingSystem = "config-metrics-generator-messaging-system.yaml"
+	configMetricsGenerator                = "config-remote-write.yaml"
+	configMetricsGeneratorTargetInfo      = "config-targetinfo.yaml"
+	configMetricsGeneratorMessagingSystem = "config-messaging-system.yaml"
 )
 
-func TestMetricsGenerator(t *testing.T) {
-	s, err := e2e.NewScenario("tempo_e2e")
-	require.NoError(t, err)
-	defer s.Close()
-
-	util.WithTempoHarness(t, s, util.TestHarnessConfig{
+func TestMetricsGeneratorRemoteWrite(t *testing.T) {
+	util.WithTempoHarness(t, util.TestHarnessConfig{
 		ConfigOverlay:          configMetricsGenerator,
 		EnableMetricsGenerator: true,
 	}, func(h *util.TempoHarness) {
@@ -200,12 +196,8 @@ func TestMetricsGenerator(t *testing.T) {
 	})
 }
 
-func TestMetricsGeneratorTargetInfoEnabled(t *testing.T) { // jpe - doesn't actually test target info?
-	s, err := e2e.NewScenario("tempo_e2e")
-	require.NoError(t, err)
-	defer s.Close()
-
-	util.WithTempoHarness(t, s, util.TestHarnessConfig{
+func TestMetricsGeneratorTargetInfoEnabled(t *testing.T) {
+	util.WithTempoHarness(t, util.TestHarnessConfig{
 		ConfigOverlay:          configMetricsGeneratorTargetInfo,
 		EnableMetricsGenerator: true,
 	}, func(h *util.TempoHarness) {
@@ -216,7 +208,9 @@ func TestMetricsGeneratorTargetInfoEnabled(t *testing.T) { // jpe - doesn't actu
 		parentSpanID := r.Int63()
 
 		err := h.JaegerExporter.EmitBatch(context.Background(), &thrift.Batch{
-			Process: &thrift.Process{ServiceName: "lb"},
+			Process: &thrift.Process{ServiceName: "lb",
+				Tags: []*thrift.Tag{{Key: "target_info", VStr: stringPtr("lb")}},
+			},
 			Spans: []*thrift.Span{
 				{
 					TraceIdLow:    traceIDLow,
@@ -233,7 +227,9 @@ func TestMetricsGeneratorTargetInfoEnabled(t *testing.T) { // jpe - doesn't actu
 		require.NoError(t, err)
 
 		err = h.JaegerExporter.EmitBatch(context.Background(), &thrift.Batch{
-			Process: &thrift.Process{ServiceName: "app"},
+			Process: &thrift.Process{ServiceName: "app",
+				Tags: []*thrift.Tag{{Key: "target_info", VStr: stringPtr("app")}},
+			},
 			Spans: []*thrift.Span{
 				{
 					TraceIdLow:    traceIDLow,
@@ -242,42 +238,6 @@ func TestMetricsGeneratorTargetInfoEnabled(t *testing.T) { // jpe - doesn't actu
 					ParentSpanId:  parentSpanID,
 					OperationName: "app-handle",
 					StartTime:     time.Now().UnixMicro(),
-					Duration:      int64(1 * time.Second / time.Microsecond),
-					Tags:          []*thrift.Tag{{Key: "span.kind", VStr: stringPtr("server")}},
-				},
-			},
-		})
-		require.NoError(t, err)
-
-		// also send one with 5 minutes old timestamp
-		err = h.JaegerExporter.EmitBatch(context.Background(), &thrift.Batch{
-			Process: &thrift.Process{ServiceName: "app"},
-			Spans: []*thrift.Span{
-				{
-					TraceIdLow:    traceIDLow,
-					TraceIdHigh:   traceIDHigh,
-					SpanId:        r.Int63(),
-					ParentSpanId:  parentSpanID,
-					OperationName: "app-handle",
-					StartTime:     time.Now().Add(-5 * time.Minute).UnixMicro(),
-					Duration:      int64(1 * time.Second / time.Microsecond),
-					Tags:          []*thrift.Tag{{Key: "span.kind", VStr: stringPtr("server")}},
-				},
-			},
-		})
-		require.NoError(t, err)
-
-		// also send one with timestamp 10 days in the future
-		err = h.JaegerExporter.EmitBatch(context.Background(), &thrift.Batch{
-			Process: &thrift.Process{ServiceName: "app"},
-			Spans: []*thrift.Span{
-				{
-					TraceIdLow:    traceIDLow,
-					TraceIdHigh:   traceIDHigh,
-					SpanId:        r.Int63(),
-					ParentSpanId:  parentSpanID,
-					OperationName: "app-handle",
-					StartTime:     time.Now().Add(10 * 24 * time.Hour).UnixMicro(),
 					Duration:      int64(1 * time.Second / time.Microsecond),
 					Tags:          []*thrift.Tag{{Key: "span.kind", VStr: stringPtr("server")}},
 				},
@@ -306,62 +266,14 @@ func TestMetricsGeneratorTargetInfoEnabled(t *testing.T) { // jpe - doesn't actu
 		}
 		fmt.Println()
 
-		// Service graphs
-		lbls := []string{"client", "lb", "server", "app"}
-		assert.Equal(t, 1.0, sumValues(metricFamilies, "traces_service_graph_request_total", lbls))
-
-		assert.Equal(t, 0.0, sumValues(metricFamilies, "traces_service_graph_request_client_seconds_bucket", append(lbls, "le", "1")))
-		assert.Equal(t, 1.0, sumValues(metricFamilies, "traces_service_graph_request_client_seconds_bucket", append(lbls, "le", "2")))
-		assert.Equal(t, 1.0, sumValues(metricFamilies, "traces_service_graph_request_client_seconds_bucket", append(lbls, "le", "+Inf")))
-		assert.Equal(t, 1.0, sumValues(metricFamilies, "traces_service_graph_request_client_seconds_count", lbls))
-		assert.Equal(t, 2.0, sumValues(metricFamilies, "traces_service_graph_request_client_seconds_sum", lbls))
-
-		assert.Equal(t, 1.0, sumValues(metricFamilies, "traces_service_graph_request_server_seconds_bucket", append(lbls, "le", "1")))
-		assert.Equal(t, 1.0, sumValues(metricFamilies, "traces_service_graph_request_server_seconds_bucket", append(lbls, "le", "2")))
-		assert.Equal(t, 1.0, sumValues(metricFamilies, "traces_service_graph_request_server_seconds_bucket", append(lbls, "le", "+Inf")))
-		assert.Equal(t, 1.0, sumValues(metricFamilies, "traces_service_graph_request_server_seconds_count", lbls))
-		assert.Equal(t, 1.0, sumValues(metricFamilies, "traces_service_graph_request_server_seconds_sum", lbls))
-
-		assert.Equal(t, 0.0, sumValues(metricFamilies, "traces_service_graph_request_failed_total", nil))
-		assert.Equal(t, 0.0, sumValues(metricFamilies, "traces_service_graph_unpaired_spans_total", nil))
-		assert.Equal(t, 0.0, sumValues(metricFamilies, "traces_service_graph_dropped_spans_total", nil))
-
-		// Span metrics
-		lbls = []string{"service", "lb", "span_name", "lb-get", "span_kind", "SPAN_KIND_CLIENT", "status_code", "STATUS_CODE_UNSET", "job", "lb"}
-		assert.Equal(t, 1.0, sumValues(metricFamilies, "traces_spanmetrics_calls_total", lbls))
-		assert.NotEqual(t, 0, sumValues(metricFamilies, "traces_spanmetrics_size_total", lbls))
-		assert.Equal(t, 0.0, sumValues(metricFamilies, "traces_spanmetrics_latency_bucket", append(lbls, "le", "1")))
-		assert.Equal(t, 1.0, sumValues(metricFamilies, "traces_spanmetrics_latency_bucket", append(lbls, "le", "2")))
-		assert.Equal(t, 1.0, sumValues(metricFamilies, "traces_spanmetrics_latency_bucket", append(lbls, "le", "+Inf")))
-		assert.Equal(t, 1.0, sumValues(metricFamilies, "traces_spanmetrics_latency_count", lbls))
-		assert.Equal(t, 2.0, sumValues(metricFamilies, "traces_spanmetrics_latency_sum", lbls))
-
-		lbls = []string{"service", "app", "span_name", "app-handle", "span_kind", "SPAN_KIND_SERVER", "status_code", "STATUS_CODE_UNSET", "job", "app"}
-		assert.Equal(t, 1.0, sumValues(metricFamilies, "traces_spanmetrics_calls_total", lbls))
-		assert.NotEqual(t, 0, sumValues(metricFamilies, "traces_spanmetrics_size_total", lbls))
-		assert.Equal(t, 1.0, sumValues(metricFamilies, "traces_spanmetrics_latency_bucket", append(lbls, "le", "1")))
-		assert.Equal(t, 1.0, sumValues(metricFamilies, "traces_spanmetrics_latency_bucket", append(lbls, "le", "2")))
-		assert.Equal(t, 1.0, sumValues(metricFamilies, "traces_spanmetrics_latency_bucket", append(lbls, "le", "+Inf")))
-		assert.Equal(t, 1.0, sumValues(metricFamilies, "traces_spanmetrics_latency_count", lbls))
-		assert.Equal(t, 1.0, sumValues(metricFamilies, "traces_spanmetrics_latency_sum", lbls))
-
-		// Verify metrics
-		metricsGenerator := h.Services[util.ServiceMetricsGenerator]
-		assert.NoError(t, metricsGenerator.WaitSumMetrics(e2e.Equals(4), "tempo_metrics_generator_spans_received_total"))
-		assert.NoError(t, metricsGenerator.WaitSumMetrics(e2e.Equals(2), "tempo_metrics_generator_spans_discarded_total"))
-		assert.NoError(t, metricsGenerator.WaitSumMetrics(e2e.Equals(25), "tempo_metrics_generator_registry_active_series"))
-		assert.NoError(t, metricsGenerator.WaitSumMetrics(e2e.Equals(1000), "tempo_metrics_generator_registry_max_active_series"))
-		assert.NoError(t, metricsGenerator.WaitSumMetrics(e2e.Equals(25), "tempo_metrics_generator_registry_series_added_total"))
+		assert.Equal(t, 1.0, sumValues(metricFamilies, "traces_target_info", []string{"job", "app", "target_info", "app", "instance", ""}))
+		assert.Equal(t, 1.0, sumValues(metricFamilies, "traces_target_info", []string{"job", "lb", "target_info", "lb", "instance", ""}))
 	})
 }
 
 func TestMetricsGeneratorMessagingSystemLatencyHistogramEnabled(t *testing.T) {
-	s, err := e2e.NewScenario("tempo_e2e")
-	require.NoError(t, err)
-	defer s.Close()
-
 	// Use a config that enables the messaging system latency histogram
-	util.WithTempoHarness(t, s, util.TestHarnessConfig{
+	util.WithTempoHarness(t, util.TestHarnessConfig{
 		ConfigOverlay:          configMetricsGeneratorMessagingSystem,
 		EnableMetricsGenerator: true,
 	}, func(h *util.TempoHarness) {

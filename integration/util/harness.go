@@ -65,10 +65,10 @@ type TestHarnessConfig struct {
 	ConfigOverlay string
 
 	// jpe -
-	// bitmask? worker/scheduler? maybe provide different "layers" as an enum: RecentDataQuerying, BackendQuerying, BackendWork, MetricsGenerator?
-
-	// LiveStoreFastFlushDuration configures the flush check period and max block duration to the provided duration which will force traces to be flushed more aggressively to complete blocks
-	LiveStoreFastFlush time.Duration // jpe - better to just put in the overlay?
+	// Modules: bitmask? worker/scheduler? maybe provide different "layers" as an enum: RecentDataQuerying, BackendQuerying, BackendWork, MetricsGenerator?
+	// if backend work is needed run once for each backend type?
+	// Mode: SingleBinary | Distributed - default to both
+	// disable kafka logs by default. bool to reenable?
 
 	// EnableMetricsGenerator starts a metrics generator and Prometheus instance
 	EnableMetricsGenerator bool
@@ -110,8 +110,21 @@ type TestHarnessConfig struct {
 //			require.NoError(t, err)
 //		})
 //	}
-func WithTempoHarness(t *testing.T, s *e2e.Scenario, config TestHarnessConfig, testFunc func(*TempoHarness)) {
+func WithTempoHarness(t *testing.T, config TestHarnessConfig, testFunc func(*TempoHarness)) {
 	t.Helper()
+
+	// max docker name length is 63. otherwise dns fails silently
+	// max test name length is 40 to leave room prefix and suffix. the full container name will be e2e_<test name>_<service name>
+	//  this means that if two tests have the same first 40 characters in their names they will conflict!!
+	maxNameLen := 40
+	name := t.Name()[len("Test"):] // strip "Test" prefix
+	if len(name) > maxNameLen {
+		name = name[:maxNameLen]
+	}
+
+	s, err := e2e.NewScenario("e2e_" + name)
+	require.NoError(t, err)
+	defer s.Close()
 
 	harness := &TempoHarness{
 		Services: map[string]*e2e.HTTPService{},
@@ -144,12 +157,6 @@ func WithTempoHarness(t *testing.T, s *e2e.Scenario, config TestHarnessConfig, t
 	err = os.WriteFile(overridesPath, []byte("overrides: {}\n"), 0644)
 	require.NoError(t, err, "failed to write initial overrides file")
 	harness.overridesPath = overridesPath
-
-	// make modifications if necessary
-	if config.LiveStoreFastFlush > 0 {
-		baseMap["live_store"].(map[any]any)["flush_check_period"] = config.LiveStoreFastFlush.String()
-		baseMap["live_store"].(map[any]any)["max_block_duration"] = config.LiveStoreFastFlush.String()
-	}
 
 	// Write the merged config to the shared directory
 	mergedConfigBytes, err := yaml.Marshal(baseMap)
