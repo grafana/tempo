@@ -3191,6 +3191,9 @@ dependencies = [
  "num",
  "num-bigint",
  "object_store",
+ "parquet-variant",
+ "parquet-variant-compute",
+ "parquet-variant-json",
  "paste",
  "seq-macro",
  "simdutf8",
@@ -3236,6 +3239,48 @@ dependencies = [
  "tokio",
  "twox-hash",
  "zstd",
+]
+
+[[package]]
+name = "parquet-variant"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a56bf96fdaf5f9392b447cf1e60bfe4b72149ab3309aa3855c02813cc89ad93f"
+dependencies = [
+ "arrow-schema 56.2.0",
+ "chrono",
+ "half",
+ "indexmap 2.12.1",
+ "simdutf8",
+ "uuid",
+]
+
+[[package]]
+name = "parquet-variant-compute"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bc7ce683368c9f2672379c12e35b5cd664e81964e234d891b4073a8355015ce7"
+dependencies = [
+ "arrow 56.2.0",
+ "arrow-schema 56.2.0",
+ "chrono",
+ "half",
+ "parquet-variant",
+ "parquet-variant-json",
+]
+
+[[package]]
+name = "parquet-variant-json"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "af8bde078e883e197efe49d315bfa0ecf8f68879d32a2abf34eb09f40ea88f21"
+dependencies = [
+ "arrow-schema 56.2.0",
+ "base64",
+ "chrono",
+ "parquet-variant",
+ "serde_json",
+ "uuid",
 ]
 
 [[package]]
@@ -4852,6 +4897,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "ustr"
+version = "1.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "18b19e258aa08450f93369cf56dd78063586adf19e92a75b338a800f799a0208"
+dependencies = [
+ "ahash",
+ "byteorder",
+ "lazy_static",
+ "parking_lot",
+]
+
+[[package]]
 name = "utf8_iter"
 version = "1.0.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4895,6 +4952,7 @@ dependencies = [
  "criterion",
  "parquet 56.2.0",
  "thiserror",
+ "ustr",
 ]
 
 [[package]]

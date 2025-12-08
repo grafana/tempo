@@ -49,7 +49,7 @@ hex = "0.4"
 humansize = "2.1"
 hyper = "1.8"
 object_store = { version = "0.12", features = ["http", "aws"] }
-parquet = { version = "56.0.0", features = ["async", "object_store"] }
+parquet = { version = "56.0.0", features = ["async", "object_store", "experimental"] }
 prost = "0.13"
 prost-build = "0.13"
 prost-types = "0.13"
@@ -67,6 +67,7 @@ tower-http = { version = "0.5", features = ["trace", "cors"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 url = "2.5"
+ustr = "1.0"
 
 [profile.release]
 opt-level = 3

@@ -8,10 +8,15 @@ parquet = { workspace = true }
 arrow = { workspace = true }
 bytes = { workspace = true }
 thiserror = { workspace = true }
+ustr = { workspace = true }
 
 [dev-dependencies]
 criterion = { workspace = true, features = ["html_reports"] }
 
 [[bench]]
 name = "spanAttIntrinsicMatch"
+harness = false
+
+[[bench]]
+name = "parquetOperations"
 harness = false
