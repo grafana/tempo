@@ -69,3 +69,12 @@ pub mod definition_levels {
     pub const SCOPE_SPANS: i16 = 2;
     pub const SPAN: i16 = 3;
 }
+
+/// Result of filtering a row group
+#[derive(Debug, Clone, Copy)]
+pub enum FilterResult {
+    Passed,
+    SkippedByStatistics,
+    SkippedByBloomFilter,
+    SkippedByDictionary,
+}

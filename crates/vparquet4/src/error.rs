@@ -16,6 +16,9 @@ pub enum Error {
     #[error("Arrow error: {0}")]
     Arrow(#[from] arrow::error::ArrowError),
 
+    #[error("Task join error: {0}")]
+    TaskJoin(#[from] tokio::task::JoinError),
+
     #[error("Schema error: {0}")]
     SchemaError(String),
 

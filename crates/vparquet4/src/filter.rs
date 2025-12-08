@@ -1,5 +1,6 @@
 /// Filter conditions for querying vparquet4 files
 
+use std::collections::HashSet;
 use std::fmt;
 
 use arrow::array::{Array, BooleanArray, ListArray, RecordBatch, StringArray, StructArray};
@@ -8,8 +9,16 @@ use parquet::arrow::arrow_reader::ArrowPredicate;
 use parquet::arrow::ProjectionMask;
 use parquet::file::metadata::RowGroupMetaData;
 use parquet::schema::types::SchemaDescriptor;
+use parquet::data_type::ByteArray;
 
 use crate::schema::field_paths;
+
+/// Cached dictionary for row group column
+#[derive(Debug, Clone)]
+pub struct CachedDictionary {
+    pub values: Vec<ByteArray>,
+    pub value_set: HashSet<Vec<u8>>,
+}
 
 /// A filter condition for querying spans
 #[derive(Debug, Clone)]
@@ -54,6 +63,15 @@ impl SpanFilter {
                     }
                 }
                 true
+            }
+        }
+    }
+
+    /// Check if dictionary contains matching value
+    pub fn matches_dictionary(&self, dict: &CachedDictionary) -> bool {
+        match self {
+            SpanFilter::NameEquals(expected) => {
+                dict.value_set.contains(expected.as_bytes())
             }
         }
     }

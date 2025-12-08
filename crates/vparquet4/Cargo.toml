@@ -9,9 +9,15 @@ arrow = { workspace = true }
 bytes = { workspace = true }
 thiserror = { workspace = true }
 ustr = { workspace = true }
+tokio = { workspace = true }
+futures = { workspace = true }
+futures-util = { workspace = true }
+async-stream = "0.3"
+num_cpus = "1.16"
 
 [dev-dependencies]
 criterion = { workspace = true, features = ["html_reports"] }
+tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }
 
 [[bench]]
 name = "tempo_compare"
@@ -19,4 +25,8 @@ harness = false
 
 [[bench]]
 name = "parquet_operations"
+harness = false
+
+[[bench]]
+name = "async_reader"
 harness = false
