@@ -41,7 +41,7 @@ func (w *indexWriter) Write(records []Record) ([]byte, error) {
 			pageRecords = records[:recordsPerPage]
 			records = records[recordsPerPage:]
 		} else {
-			pageRecords = records[:]
+			pageRecords = records
 			records = []Record{}
 		}
 

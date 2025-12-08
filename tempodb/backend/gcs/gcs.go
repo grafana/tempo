@@ -183,7 +183,7 @@ func (rw *readerWriter) List(ctx context.Context, keypath backend.KeyPath) ([]st
 	keypath = backend.KeyPathWithPrefix(keypath, rw.cfg.Prefix)
 	prefix := path.Join(keypath...)
 	if len(prefix) > 0 {
-		prefix = prefix + "/"
+		prefix += "/"
 	}
 	iter := rw.bucket.Objects(ctx, &storage.Query{
 		Prefix:    prefix,
@@ -219,8 +219,8 @@ func (rw *readerWriter) ListBlocks(ctx context.Context, tenant string) ([]uuid.U
 		bb                = blockboundary.CreateBlockBoundaries(rw.cfg.ListBlocksConcurrency)
 		errChan           = make(chan error, len(bb))
 		keypath           = backend.KeyPathWithPrefix(backend.KeyPath{tenant}, rw.cfg.Prefix)
-		min               uuid.UUID
-		max               uuid.UUID
+		minID             uuid.UUID
+		maxID             uuid.UUID
 		blockIDs          = make([]uuid.UUID, 0, 1000)
 		compactedBlockIDs = make([]uuid.UUID, 0, 1000)
 	)
@@ -231,8 +231,8 @@ func (rw *readerWriter) ListBlocks(ctx context.Context, tenant string) ([]uuid.U
 	}
 
 	for i := 0; i < len(bb)-1; i++ {
-		min = uuid.UUID(bb[i])
-		max = uuid.UUID(bb[i+1])
+		minID = uuid.UUID(bb[i])
+		maxID = uuid.UUID(bb[i+1])
 
 		wg.Add(1)
 		go func(min, max uuid.UUID) {
@@ -309,7 +309,7 @@ func (rw *readerWriter) ListBlocks(ctx context.Context, tenant string) ([]uuid.U
 				}
 				mtx.Unlock()
 			}
-		}(min, max)
+		}(minID, maxID)
 	}
 	wg.Wait()
 	close(errChan)
@@ -331,7 +331,7 @@ func (rw *readerWriter) Find(ctx context.Context, keypath backend.KeyPath, f bac
 	keypath = backend.KeyPathWithPrefix(keypath, rw.cfg.Prefix)
 	prefix := path.Join(keypath...)
 	if len(prefix) > 0 {
-		prefix = prefix + "/"
+		prefix += "/"
 	}
 
 	iter := rw.bucket.Objects(ctx, &storage.Query{
