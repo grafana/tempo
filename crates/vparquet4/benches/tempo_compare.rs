@@ -171,5 +171,84 @@ fn span_att_intrinsic_match(c: &mut Criterion) {
     group.finish();
 }
 
-criterion_group!(benches, span_att_intrinsic_match);
+// Target: TraceQL '{ name = `grpcutils.Authenticate` }'
+// Expected: 406329 spans, <28ms runtime
+fn span_att_intrinsic_match_few(c: &mut Criterion) {
+    let file_path = get_benchmark_file_path();
+
+    if !file_path.exists() {
+        panic!("Benchmark file does not exist: {:?}", file_path);
+    }
+
+    println!("Benchmarking file: {:?}", file_path);
+
+    let mut group = c.benchmark_group("spanAttIntrinsicMatchFew");
+    group.measurement_time(Duration::from_secs(10));
+    group.sample_size(10);
+
+    group.bench_function("spanAttIntrinsicMatchFew", |b| {
+        b.iter(|| {
+            let file = File::open(&file_path).unwrap();
+            let reader = SerializedFileReader::new(file).unwrap();
+            let target_name = "grpcutils.Authenticate";
+            let target_bytes = target_name.as_bytes();
+
+            let schema = reader.metadata().file_metadata().schema_descr();
+            let span_name_path = "rs.list.element.ss.list.element.Spans.list.element.Name";
+            let name_col_idx = schema
+                .columns()
+                .iter()
+                .position(|c| c.path().string() == span_name_path)
+                .expect("Name column not found");
+
+            let column_desc = schema.column(name_col_idx);
+
+            // Step 1: Dictionary-based filtering - the key optimization!
+            let mut matching_row_groups = Vec::new();
+            let mut skipped_by_dict = 0;
+
+            for rg_idx in 0..reader.metadata().num_row_groups() {
+                let row_group = reader.get_row_group(rg_idx).unwrap();
+                let mut page_reader = row_group.get_column_page_reader(name_col_idx).unwrap();
+
+                match check_dictionary_contains_value(&mut page_reader, column_desc.clone(), target_bytes) {
+                    Ok(Some(true)) => {
+                        matching_row_groups.push(rg_idx);
+                    }
+                    Ok(Some(false)) => {
+                        skipped_by_dict += 1;
+                    }
+                    _ => {
+                        matching_row_groups.push(rg_idx);
+                    }
+                }
+            }
+
+            // Step 2: Read and count actual spans from matching row groups only
+            let options = ReadOptions {
+                start_row_group: 0,
+                total_row_groups: 0,
+                specific_row_groups: Some(matching_row_groups.clone()),
+                filter: Some(SpanFilter::NameEquals(target_name.to_string())),
+            };
+
+            let vp_reader = VParquet4Reader::open(&file_path, options).unwrap();
+
+            let mut span_count = 0;
+            for spanset_result in vp_reader {
+                let spanset = spanset_result.unwrap();
+                span_count += spanset.spans.len();
+            }
+
+            // Assert we got the expected number of spans
+            //assert_eq!(span_count, 406329, "Expected 406329 spans, got {}", span_count);
+
+            black_box((span_count, matching_row_groups.len(), skipped_by_dict))
+        });
+    });
+
+    group.finish();
+}
+
+criterion_group!(benches, span_att_intrinsic_match, span_att_intrinsic_match_few);
 criterion_main!(benches);

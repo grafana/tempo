@@ -23,6 +23,8 @@ pub struct ReadOptions {
     pub start_row_group: usize,
     /// Number of row groups to read (0 = all remaining)
     pub total_row_groups: usize,
+    /// Specific row groups to read (if set, overrides start_row_group and total_row_groups)
+    pub specific_row_groups: Option<Vec<usize>>,
     /// Filter to apply to spans
     pub filter: Option<SpanFilter>,
 }
@@ -32,6 +34,7 @@ impl Default for ReadOptions {
         Self {
             start_row_group: 0,
             total_row_groups: 0,
+            specific_row_groups: None,
             filter: None,
         }
     }
@@ -84,31 +87,36 @@ impl VParquet4Reader {
         let schema = builder.parquet_schema();
         let num_row_groups = metadata.num_row_groups();
 
-        // Determine row group range
-        let start = options.start_row_group;
-        let total = if options.total_row_groups == 0 {
-            num_row_groups - start
+        // Step 1: Determine which row groups to read
+        let row_groups: Vec<usize> = if let Some(specific) = options.specific_row_groups {
+            // Use specific row groups if provided (e.g., from dictionary-based filtering)
+            specific
         } else {
-            options.total_row_groups.min(num_row_groups - start)
+            // Otherwise use range-based selection with statistics filtering
+            let start = options.start_row_group;
+            let total = if options.total_row_groups == 0 {
+                num_row_groups - start
+            } else {
+                options.total_row_groups.min(num_row_groups - start)
+            };
+
+            if start >= num_row_groups {
+                return Err(Error::InvalidRowGroup(format!(
+                    "start_row_group {} >= total row groups {}",
+                    start, num_row_groups
+                )));
+            }
+
+            (start..start + total)
+                .filter(|&idx| {
+                    options
+                        .filter
+                        .as_ref()
+                        .map(|f| f.keep_row_group(metadata.row_group(idx), &schema))
+                        .unwrap_or(true)
+                })
+                .collect()
         };
-
-        if start >= num_row_groups {
-            return Err(Error::InvalidRowGroup(format!(
-                "start_row_group {} >= total row groups {}",
-                start, num_row_groups
-            )));
-        }
-
-        // Step 1: Filter row groups based on statistics
-        let row_groups: Vec<usize> = (start..start + total)
-            .filter(|&idx| {
-                options
-                    .filter
-                    .as_ref()
-                    .map(|f| f.keep_row_group(metadata.row_group(idx), &schema))
-                    .unwrap_or(true)
-            })
-            .collect();
 
         // Step 2: Calculate projection to only read spanset fields (skip Resource/Trace fields)
         let projection = get_spanset_projection(&schema);
