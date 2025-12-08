@@ -21,6 +21,7 @@ import (
 
 	"github.com/grafana/dskit/backoff"
 	"github.com/grafana/e2e"
+	"github.com/jaegertracing/jaeger-idl/proto-gen/api_v2"
 	thrift "github.com/jaegertracing/jaeger-idl/thrift-gen/jaeger"
 	"github.com/jaegertracing/jaeger-idl/thrift-gen/zipkincore"
 	"github.com/stretchr/testify/assert"
@@ -30,8 +31,10 @@ import (
 	"go.opentelemetry.io/collector/config/configgrpc"
 	"go.opentelemetry.io/collector/config/configopaque"
 	"go.opentelemetry.io/collector/config/configtls"
+	"go.opentelemetry.io/collector/consumer"
 	"go.opentelemetry.io/collector/exporter"
 	"go.opentelemetry.io/collector/exporter/otlpexporter"
+	"go.opentelemetry.io/collector/pdata/ptrace"
 	mnoop "go.opentelemetry.io/otel/metric/noop"
 	tnoop "go.opentelemetry.io/otel/trace/noop"
 	"go.uber.org/zap"
@@ -147,9 +150,10 @@ func NewNamedTempoDistributor(name string, extraArgs ...string) *e2e.HTTPService
 		e2e.NewCommandWithoutEntrypoint("/tempo", args...),
 		e2e.NewHTTPReadinessProbe(3200, "/ready", 200, 299),
 		3200,
-		14250,
-		4317, // otlp grpc
-		4318, // otlp http
+		14250, // jaeger grpc ingest
+		4317,  // otlp grpc
+		4318,  // otlp http
+		9411,  // zipkin ingest
 	)
 
 	s.SetBackoff(TempoBackoff())
@@ -627,7 +631,7 @@ func MakeThriftBatchWithSpanCountAttributeAndName(n int, name, resourceValue, sp
 	}
 }
 
-func CallFlush(t *testing.T, ingester *e2e.HTTPService) {
+func CallFlush(t *testing.T, ingester *e2e.HTTPService) { // jpe - remove and any below that make sense
 	fmt.Printf("Calling /flush on %s\n", ingester.Name())
 	res, err := e2e.DoGet("http://" + ingester.Endpoint(3200) + "/flush")
 	require.NoError(t, err)
@@ -759,4 +763,54 @@ func (c *JaegerToOTLPExporter) EmitBatch(ctx context.Context, b *thrift.Batch) e
 
 func (c *JaegerToOTLPExporter) EmitZipkinBatch(_ context.Context, _ []*zipkincore.Span) error {
 	return errors.New("EmitZipkinBatch via OTLP not implemented")
+}
+
+// JaegerGRPCExporter wraps a gRPC client that sends traces to the Jaeger gRPC receiver (port 14250)
+type JaegerGRPCExporter struct {
+	client    *grpc.ClientConn
+	collector api_v2.CollectorServiceClient
+}
+
+// NewJaegerGRPCExporter creates a new Jaeger gRPC exporter that sends traces to the Jaeger gRPC receiver
+func NewJaegerGRPCExporter(endpoint string) (*JaegerGRPCExporter, error) {
+	conn, err := grpc.NewClient(endpoint, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	if err != nil {
+		return nil, err
+	}
+
+	return &JaegerGRPCExporter{
+		client:    conn,
+		collector: api_v2.NewCollectorServiceClient(conn),
+	}, nil
+}
+
+// Start implements component.Component
+func (e *JaegerGRPCExporter) Start(ctx context.Context, host component.Host) error {
+	return nil
+}
+
+// Shutdown implements component.Component
+func (e *JaegerGRPCExporter) Shutdown(ctx context.Context) error {
+	return e.client.Close()
+}
+
+// ConsumeTraces converts OTLP traces to Jaeger format and sends them via gRPC
+func (e *JaegerGRPCExporter) ConsumeTraces(ctx context.Context, traces ptrace.Traces) error {
+	batches := jaeger.ProtoFromTraces(traces)
+
+	for _, batch := range batches {
+		_, err := e.collector.PostSpans(ctx, &api_v2.PostSpansRequest{
+			Batch: *batch,
+		})
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// Capabilities implements consumer.Traces
+func (e *JaegerGRPCExporter) Capabilities() consumer.Capabilities {
+	return consumer.Capabilities{MutatesData: false}
 }

@@ -35,6 +35,12 @@ distributor:
           endpoint: "0.0.0.0:4317"
         http:
           endpoint: "0.0.0.0:4318"
+    zipkin:
+      endpoint: "0.0.0.0:9411"
+    jaeger:
+      protocols:
+        grpc:
+          endpoint: "0.0.0.0:14250"
 
 live_store:
   max_trace_live: 5s # timings: the max amount of time a trace can be in the live map
