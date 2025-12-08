@@ -14,9 +14,9 @@ ustr = { workspace = true }
 criterion = { workspace = true, features = ["html_reports"] }
 
 [[bench]]
-name = "spanAttIntrinsicMatch"
+name = "block_traceql_manual"
 harness = false
 
 [[bench]]
-name = "parquetOperations"
+name = "parquet_operations"
 harness = false
