@@ -197,16 +197,33 @@ impl VParquet4Reader {
             // Stage 1: Filter row groups (statistics + dictionary, uses cached data)
             let filtered_indices = filter_row_groups(&cache, &options.filter);
 
-            // Stage 2: Read filtered row groups with controlled concurrency
+            // Stage 2: Read filtered row groups with true parallel concurrency
             let mut stream = futures::stream::iter(filtered_indices)
-                .chunks(options.batch_size)
-                .flat_map(|batch| {
+                .map(move |rg_idx| {
                     let path = path.clone();
                     let cache = Arc::clone(&cache);
                     let filter = options.filter.clone();
-                    let parallelism = options.parallelism;
 
-                    read_row_group_batch(path, cache, batch, filter, parallelism)
+                    tokio::task::spawn_blocking(move || {
+                        read_single_row_group(&path, &cache, rg_idx, &filter)
+                    })
+                })
+                .buffer_unordered(options.parallelism)
+                .map(|result| {
+                    // Flatten JoinError
+                    match result {
+                        Ok(inner) => inner,
+                        Err(e) => Err(Error::TaskJoin(e)),
+                    }
+                })
+                .flat_map(|result| {
+                    // Flatten Vec<Spanset> into individual spansets
+                    match result {
+                        Ok(spansets) => {
+                            futures::stream::iter(spansets.into_iter().map(Ok).collect::<Vec<_>>())
+                        }
+                        Err(e) => futures::stream::iter(vec![Err(e)]),
+                    }
                 });
 
             while let Some(result) = stream.next().await {
@@ -306,43 +323,6 @@ fn filter_row_groups(cache: &FileCache, filter: &Option<SpanFilter>) -> Vec<usiz
         })
         .map(|rg| rg.index)
         .collect()
-}
-
-/// Stage 2: Read a batch of row groups with concurrent tasks
-fn read_row_group_batch(
-    path: PathBuf,
-    cache: Arc<FileCache>,
-    row_group_indices: Vec<usize>,
-    filter: Option<SpanFilter>,
-    parallelism: usize,
-) -> impl Stream<Item = Result<Spanset>> {
-    futures::stream::iter(row_group_indices)
-        .map(move |rg_idx| {
-            let path = path.clone();
-            let cache = Arc::clone(&cache);
-            let filter = filter.clone();
-
-            tokio::task::spawn_blocking(move || {
-                read_single_row_group(&path, &cache, rg_idx, &filter)
-            })
-        })
-        .buffer_unordered(parallelism)
-        .map(|result| {
-            // Flatten JoinError first
-            match result {
-                Ok(inner) => inner,
-                Err(e) => Err(Error::TaskJoin(e)),
-            }
-        })
-        .flat_map(|result| {
-            // Then flatten Vec<Spanset> into individual spansets
-            match result {
-                Ok(spansets) => {
-                    futures::stream::iter(spansets.into_iter().map(Ok).collect::<Vec<_>>())
-                }
-                Err(e) => futures::stream::iter(vec![Err(e)]),
-            }
-        })
 }
 
 /// Read a single row group and extract Spansets

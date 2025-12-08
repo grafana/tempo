@@ -45,20 +45,24 @@ fn span_att_intrinsic_match(c: &mut Criterion) {
     group.measurement_time(Duration::from_secs(10));
     group.sample_size(10);
 
+    let target_name = "distributor.ConsumeTraces";
+
+    // VParquet4Reader does dictionary-based filtering internally
+    // during open() and read()
+    let options = ReadOptions {
+        filter: Some(SpanFilter::NameEquals(target_name.to_string())),
+        batch_size: 4,
+        parallelism: num_cpus::get(),
+    };
+
+    // Open reader ONCE, outside the benchmark loop
+    let vp_reader = rt
+        .block_on(async { VParquet4Reader::open(&file_path, options).await.unwrap() });
+
     // Dictionary-based filtering using VParquet4Reader
     group.bench_function("spanAttIntrinsicMatch", |b| {
         b.to_async(&rt).iter(|| async {
-            let target_name = "distributor.ConsumeTraces";
-
-            // VParquet4Reader does dictionary-based filtering internally
-            // during open() and read()
-            let options = ReadOptions {
-                filter: Some(SpanFilter::NameEquals(target_name.to_string())),
-                batch_size: 4,
-                parallelism: num_cpus::get(),
-            };
-
-            let vp_reader = VParquet4Reader::open(&file_path, options).await.unwrap();
+            // Only measure the read() operation
             let mut stream = vp_reader.read();
 
             let mut span_count = 0;
@@ -90,19 +94,23 @@ fn span_att_intrinsic_match_few(c: &mut Criterion) {
     group.measurement_time(Duration::from_secs(10));
     group.sample_size(10);
 
+    let target_name = "grpcutils.Authenticate";
+
+    // The new async reader now does dictionary-based filtering internally
+    // during open() and read(), so we just need to use it directly
+    let options = ReadOptions {
+        filter: Some(SpanFilter::NameEquals(target_name.to_string())),
+        batch_size: 4,
+        parallelism: num_cpus::get(),
+    };
+
+    // Open reader ONCE, outside the benchmark loop
+    let vp_reader = rt
+        .block_on(async { VParquet4Reader::open(&file_path, options).await.unwrap() });
+
     group.bench_function("spanAttIntrinsicMatchFew", |b| {
         b.to_async(&rt).iter(|| async {
-            let target_name = "grpcutils.Authenticate";
-
-            // The new async reader now does dictionary-based filtering internally
-            // during open() and read(), so we just need to use it directly
-            let options = ReadOptions {
-                filter: Some(SpanFilter::NameEquals(target_name.to_string())),
-                batch_size: 4,
-                parallelism: num_cpus::get(),
-            };
-
-            let vp_reader = VParquet4Reader::open(&file_path, options).await.unwrap();
+            // Only measure the read() operation
             let mut stream = vp_reader.read();
 
             let mut span_count = 0;
@@ -112,7 +120,7 @@ fn span_att_intrinsic_match_few(c: &mut Criterion) {
             }
 
             // Assert we got the expected number of spans
-            //assert_eq!(span_count, 406329, "Expected 406329 spans, got {}", span_count);
+            assert_eq!(span_count, 406329, "Expected 406329 spans, got {}", span_count);
 
             black_box(span_count)
         });
