@@ -26,6 +26,7 @@ fn get_benchmark_file_path() -> PathBuf {
 }
 
 // Target to beat
+// tempodb/encoding/vparquet4/block_traceql_test.go:L1448
 // BenchmarkBackendBlockTraceQL/spanAttIntrinsicMatch-14            	      44	  28327922 ns/op	1880.30 MB/s	        53.26 MB_io/op	         0 spans/op
 fn span_att_intrinsic_match(c: &mut Criterion) {
     let file_path = get_benchmark_file_path();
