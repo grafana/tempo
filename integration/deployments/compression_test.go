@@ -1,4 +1,4 @@
-package api
+package deployments
 
 import (
 	"compress/gzip"
@@ -16,33 +16,22 @@ import (
 	tempoUtil "github.com/grafana/tempo/pkg/util"
 )
 
-const (
-	configCompression = "../deployments/config-all-in-one-local.yaml"
-)
-
 func TestCompression(t *testing.T) {
-	s, err := e2e.NewScenario("tempo_e2e")
-	require.NoError(t, err)
-	defer s.Close()
+	util.WithTempoHarness(t, util.TestHarnessConfig{}, func(h *util.TempoHarness) {
+		// Send a trace
+		info := tempoUtil.NewTraceInfo(time.Now(), "")
+		require.NoError(t, info.EmitAllBatches(h.JaegerExporter))
 
-	require.NoError(t, util.CopyFileToSharedDir(s, configCompression, "config.yaml"))
-	tempo := util.NewTempoAllInOne()
-	require.NoError(t, s.StartAndWaitReady(tempo))
+		liveStoreA := h.Services[util.ServiceLiveStoreZoneA]
+		require.NoError(t, liveStoreA.WaitSumMetricsWithOptions(e2e.Equals(1), []string{"tempo_live_store_traces_created_total"}, e2e.WaitMissingMetrics))
 
-	// Get port for the Jaeger gRPC receiver endpoint
-	c, err := util.NewJaegerToOTLPExporter(tempo.Endpoint(4317))
-	require.NoError(t, err)
-	require.NotNil(t, c)
+		// Create client with compression
+		util.QueryAndAssertTrace(t, h.HTTPClient, info)
 
-	info := tempoUtil.NewTraceInfo(time.Now(), "")
-	require.NoError(t, info.EmitAllBatches(c))
-
-	apiClient := httpclient.New("http://"+tempo.Endpoint(tempoPort), "")
-
-	apiClientWithCompression := httpclient.NewWithCompression("http://"+tempo.Endpoint(tempoPort), "")
-
-	util.QueryAndAssertTrace(t, apiClient, info)
-	queryAndAssertTraceCompression(t, apiClientWithCompression, info)
+		// Query and assert trace with compression
+		apiClientWithCompression := httpclient.NewWithCompression("http://"+h.QueryFrontendHTTPEndpoint, "")
+		queryAndAssertTraceCompression(t, apiClientWithCompression, info)
+	})
 }
 
 func queryAndAssertTraceCompression(t *testing.T, client *httpclient.Client, info *tempoUtil.TraceInfo) {
@@ -61,7 +50,7 @@ func queryAndAssertTraceCompression(t *testing.T, client *httpclient.Client, inf
 	// Make the call directly so we have a chance to inspect the response header and manually un-gzip it ourselves to confirm the content.
 	request, err := http.NewRequest("GET", client.BaseURL+httpclient.QueryTraceEndpoint+"/"+info.HexID(), nil)
 	require.NoError(t, err)
-	request.Header.Add("Accept-Encoding", "gzip")
+	request.Header.Add("Accept-Encoding", "gzip-foob")
 
 	res, err := client.Do(request)
 	require.NoError(t, err)

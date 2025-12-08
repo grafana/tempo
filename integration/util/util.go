@@ -473,7 +473,7 @@ func NewSearchGRPCClientWithCredentials(ctx context.Context, endpoint string, cr
 	return tempopb.NewStreamingQuerierClient(clientConn), nil
 }
 
-func SearchAndAssertTrace(t *testing.T, client *httpclient.Client, info *tempoUtil.TraceInfo) {
+func SearchAndAssertTrace(t *testing.T, client *httpclient.Client, info *tempoUtil.TraceInfo) { // jpe - remove, we don't support search in 3.0
 	expected, err := info.ConstructTraceFromEpoch()
 	require.NoError(t, err)
 

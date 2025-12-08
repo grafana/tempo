@@ -1,12 +1,15 @@
 package util
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"os"
+	"regexp"
 	"strconv"
 	"strings"
 	"testing"
+	"text/template"
 	"time"
 
 	"github.com/grafana/e2e"
@@ -44,9 +47,11 @@ type TempoHarness struct {
 	Services map[string]*e2e.HTTPService
 
 	// Clients
-	HTTPClient     *httpclient.Client    // HTTP client for Tempo API
+	HTTPClient     *httpclient.Client    // HTTP client for Tempo API jpe - gRPC client as well?
 	JaegerExporter *JaegerToOTLPExporter // Client for sending traces via OTLP // jpe - do we need both jaeger and otlp exporter? do we just need a function to send traces?
 	OTLPExporter   exporter.Traces       // Direct OTLP exporter
+
+	TestScenario *e2e.Scenario
 
 	// Endpoints
 	DistributorOTLPEndpoint   string // OTLP gRPC endpoint (port 4317) // jpe - do we need these if we have the HTTP clients above?
@@ -63,6 +68,15 @@ type TestHarnessConfig struct {
 	// This allows tests to only specify the differences from the default config
 	// If empty, only config-base.yaml will be used
 	ConfigOverlay string
+
+	// ConfigTemplateData provides template variables to expand in the ConfigOverlay
+	// Template variables should use Go template syntax: {{ .VariableName }}
+	ConfigTemplateData map[string]any
+
+	// ConfigTemplateFunc is called before starting services to populate ConfigTemplateData
+	// It receives the scenario and can start any prerequisite services (like etcd, consul)
+	// and populate template variables with their connection information
+	ConfigTemplateFunc func(*e2e.Scenario, map[string]any) error // jpe - add notes this can be used to start any other services as well? rethink template func. does it need scenario? better to start services otherwise?
 
 	// jpe -
 	// Modules: bitmask? worker/scheduler? maybe provide different "layers" as an enum: RecentDataQuerying, BackendQuerying, BackendWork, MetricsGenerator?
@@ -113,6 +127,9 @@ type TestHarnessConfig struct {
 func WithTempoHarness(t *testing.T, config TestHarnessConfig, testFunc func(*TempoHarness)) {
 	t.Helper()
 
+	// jpe - break this ginormous function into smaller pieces?
+	// naming, config wrangling, etc.
+
 	// max docker name length is 63. otherwise dns fails silently
 	// max test name length is 40 to leave room prefix and suffix. the full container name will be e2e_<test name>_<service name>
 	//  this means that if two tests have the same first 40 characters in their names they will conflict!!
@@ -121,13 +138,29 @@ func WithTempoHarness(t *testing.T, config TestHarnessConfig, testFunc func(*Tem
 	if len(name) > maxNameLen {
 		name = name[:maxNameLen]
 	}
+	// docker only allows a-zA-Z0-9_.- in a service name. replace everything else with _
+	re := regexp.MustCompile(`[^a-zA-Z0-9_.-]`)
+	name = re.ReplaceAllString(name, "_")
 
 	s, err := e2e.NewScenario("e2e_" + name)
 	require.NoError(t, err)
 	defer s.Close()
 
 	harness := &TempoHarness{
-		Services: map[string]*e2e.HTTPService{},
+		Services:     map[string]*e2e.HTTPService{},
+		TestScenario: s,
+	}
+
+	// Initialize template data if needed
+	if config.ConfigTemplateData == nil {
+		config.ConfigTemplateData = make(map[string]any)
+	}
+
+	// Call ConfigTemplateFunc if provided to populate template data
+	// This can start prerequisite services like etcd, consul, etc.
+	if config.ConfigTemplateFunc != nil {
+		err := config.ConfigTemplateFunc(s, config.ConfigTemplateData)
+		require.NoError(t, err, "failed to execute config template function")
 	}
 
 	// Load base config into map
@@ -143,6 +176,18 @@ func WithTempoHarness(t *testing.T, config TestHarnessConfig, testFunc func(*Tem
 	if config.ConfigOverlay != "" {
 		overlayBuff, err := os.ReadFile(config.ConfigOverlay)
 		require.NoError(t, err, "failed to read config overlay file")
+
+		// Apply template rendering if template data is provided
+		if len(config.ConfigTemplateData) > 0 {
+			tmpl, err := template.New("config").Parse(string(overlayBuff))
+			require.NoError(t, err, "failed to parse config overlay template")
+
+			var renderedBuff bytes.Buffer
+			err = tmpl.Execute(&renderedBuff, config.ConfigTemplateData)
+			require.NoError(t, err, "failed to execute config overlay template")
+
+			overlayBuff = renderedBuff.Bytes()
+		}
 
 		var overlayMap map[any]any
 		err = yaml.Unmarshal(overlayBuff, &overlayMap)
@@ -178,7 +223,7 @@ func WithTempoHarness(t *testing.T, config TestHarnessConfig, testFunc func(*Tem
 		require.NoError(t, backendErr, "failed to start backend")
 	}
 
-	// Start Kafka
+	// Start Kafka - jpe - 14:13:41 Error response from daemon: removal of container ae43fe6613da is already in progress ??
 	harness.Kafka = e2edb.NewKafka()
 	require.NoError(t, s.StartAndWaitReady(harness.Kafka), "failed to start Kafka")
 

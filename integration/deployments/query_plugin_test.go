@@ -1,4 +1,4 @@
-package api
+package deployments
 
 import (
 	"context"
@@ -19,107 +19,57 @@ import (
 )
 
 func TestSearchUsingJaegerPlugin(t *testing.T) {
-	t.Parallel()
+	util.WithTempoHarness(t, util.TestHarnessConfig{}, func(h *util.TempoHarness) {
+		util.CopyFileToSharedDir(h.TestScenario, "config-tempo-query.yaml", "config-tempo-query.yaml")
 
-	s, err := e2e.NewScenario("tempo_query_plugin_e2e")
-	require.NoError(t, err)
-	defer s.Close()
+		// Start tempo-query and jaeger-query services
+		tempoQuery := util.NewTempoQuery()
+		jaegerQuery := util.NewJaegerQuery()
 
-	require.NoError(t, util.CopyFileToSharedDir(s, "config-plugin-test.yaml", "config.yaml"))
-	require.NoError(t, util.CopyFileToSharedDir(s, "config-tempo-query.yaml", "config-tempo-query.yaml"))
+		err := h.TestScenario.StartAndWaitReady(tempoQuery, jaegerQuery)
+		require.NoError(t, err)
 
-	tempo := util.NewTempoAllInOne()
-	tempoQuery := util.NewTempoQuery()
-	jaegerQuery := util.NewJaegerQuery()
+		batch := makeThriftBatchWithSpanCountForServiceAndOp(2, "execute", "backend")
+		require.NoError(t, h.JaegerExporter.EmitBatch(context.Background(), batch))
 
-	require.NoError(t, s.StartAndWaitReady(tempo))
-	require.NoError(t, s.StartAndWaitReady(tempoQuery))
-	require.NoError(t, s.StartAndWaitReady(jaegerQuery))
+		batch = makeThriftBatchWithSpanCountForServiceAndOp(2, "request", "frontend")
+		require.NoError(t, h.JaegerExporter.EmitBatch(context.Background(), batch))
 
-	jaegerClient, err := util.NewJaegerToOTLPExporter(tempo.Endpoint(4317))
-	require.NoError(t, err)
-	require.NotNil(t, jaegerClient)
+		// wait for the 2 traces to be written to the live stores
+		liveStoreA := h.Services[util.ServiceLiveStoreZoneA]
+		require.NoError(t, liveStoreA.WaitSumMetricsWithOptions(e2e.Equals(2), []string{"tempo_live_store_traces_created_total"}, e2e.WaitMissingMetrics))
 
-	batch := makeThriftBatchWithSpanCountForServiceAndOp(2, "execute", "backend")
-	require.NoError(t, jaegerClient.EmitBatch(context.Background(), batch))
+		callJaegerQuerySearchServicesAssert(t, jaegerQuery, servicesOrOpJaegerQueryResponse{
+			Data: []string{
+				"frontend",
+				"backend",
+			},
+			Total: 2,
+		})
 
-	batch = makeThriftBatchWithSpanCountForServiceAndOp(2, "request", "frontend")
-	require.NoError(t, jaegerClient.EmitBatch(context.Background(), batch))
+		callJaegerQuerySearchOperationAssert(t, jaegerQuery, "frontend", servicesOrOpJaegerQueryResponse{
+			Data: []string{
+				"execute",
+				"request",
+			},
+			Total: 2,
+		})
 
-	// wait for the 2 traces to be written to the WAL
-	require.NoError(t, tempo.WaitSumMetricsWithOptions(e2e.Equals(2), []string{"tempo_ingester_traces_created_total"}, e2e.WaitMissingMetrics))
+		callJaegerQuerySearchOperationAssert(t, jaegerQuery, "backend", servicesOrOpJaegerQueryResponse{
+			Data: []string{
+				"execute",
+				"request",
+			},
+			Total: 2,
+		})
 
-	callJaegerQuerySearchServicesAssert(t, tempo, jaegerQuery, servicesOrOpJaegerQueryResponse{
-		Data: []string{
-			"frontend",
-			"backend",
-		},
-		Total: 2,
-	})
-
-	callJaegerQuerySearchOperationAssert(t, jaegerQuery, "frontend", servicesOrOpJaegerQueryResponse{
-		Data: []string{
-			"execute",
-			"request",
-		},
-		Total: 2,
-	})
-
-	callJaegerQuerySearchOperationAssert(t, jaegerQuery, "backend", servicesOrOpJaegerQueryResponse{
-		Data: []string{
-			"execute",
-			"request",
-		},
-		Total: 2,
-	})
-
-	callJaegerQuerySearchTraceAssert(t, jaegerQuery, "request", "frontend")
-	callJaegerQuerySearchTraceAssert(t, jaegerQuery, "execute", "backend")
-}
-
-func TestSearchUsingBackendTagsService(t *testing.T) {
-	t.Parallel()
-
-	s, err := e2e.NewScenario("tempo_query_plugin_backend_e2e")
-	require.NoError(t, err)
-	defer s.Close()
-
-	require.NoError(t, util.CopyFileToSharedDir(s, "config-plugin-test.yaml", "config.yaml"))
-	require.NoError(t, util.CopyFileToSharedDir(s, "config-tempo-query.yaml", "config-tempo-query.yaml"))
-
-	tempo := util.NewTempoAllInOne()
-	tempoQuery := util.NewTempoQuery()
-	jaegerQuery := util.NewJaegerQuery()
-
-	require.NoError(t, s.StartAndWaitReady(tempo))
-	require.NoError(t, s.StartAndWaitReady(tempoQuery))
-	require.NoError(t, s.StartAndWaitReady(jaegerQuery))
-
-	jaegerClient, err := util.NewJaegerToOTLPExporter(tempo.Endpoint(4317))
-	require.NoError(t, err)
-	require.NotNil(t, jaegerClient)
-
-	batch := makeThriftBatchWithSpanCountForServiceAndOp(2, "execute", "backend")
-	require.NoError(t, jaegerClient.EmitBatch(context.Background(), batch))
-
-	batch = makeThriftBatchWithSpanCountForServiceAndOp(2, "request", "frontend")
-	require.NoError(t, jaegerClient.EmitBatch(context.Background(), batch))
-
-	// wait for the 2 traces to be written to the WAL
-	require.NoError(t, tempo.WaitSumMetricsWithOptions(e2e.Equals(2), []string{"tempo_ingester_traces_created_total"}, e2e.WaitMissingMetrics))
-
-	callJaegerQuerySearchServicesAssert(t, tempo, jaegerQuery, servicesOrOpJaegerQueryResponse{
-		Data: []string{
-			"frontend",
-			"backend",
-		},
-		Total: 2,
+		callJaegerQuerySearchTraceAssert(t, jaegerQuery, "request", "frontend")
+		callJaegerQuerySearchTraceAssert(t, jaegerQuery, "execute", "backend")
 	})
 }
 
-func callJaegerQuerySearchServicesAssert(t *testing.T, tempo, svc *e2e.HTTPService, expected servicesOrOpJaegerQueryResponse) {
+func callJaegerQuerySearchServicesAssert(t *testing.T, svc *e2e.HTTPService, expected servicesOrOpJaegerQueryResponse) {
 	assert.Eventually(t, func() bool {
-		util.CallFlush(t, tempo)
 		// search for tag values
 		req, err := http.NewRequest(http.MethodGet, "http://"+svc.Endpoint(16686)+"/api/services", nil)
 		require.NoError(t, err)

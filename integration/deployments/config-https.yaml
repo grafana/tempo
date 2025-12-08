@@ -1,12 +1,6 @@
-target: all
+target: all-3.0
 stream_over_http_enabled: true
-
-query_frontend:
-  query_end_cutoff: -1m # Include all recent data
-  search:
-    ingester_shards: 1
-  metrics:
-    max_response_series: 3
+partition_ring_live_store: true
 
 server:
   http_listen_port: 3200
@@ -28,54 +22,40 @@ internal_server:
   http_listen_port: 3201
 
 distributor:
+  ingester_write_path_enabled: false
+  kafka_write_path_enabled: true
   receivers:
-    jaeger:
-      protocols:
-        grpc:
-          endpoint: "tempo:14250"
     otlp:
       protocols:
         grpc:
-          endpoint: "tempo:4317"
+          endpoint: "0.0.0.0:4317"
 
-ingester:
-  lifecycler:
-    address: 127.0.0.1
-    ring:
-      kvstore:
-        store: inmemory
-      replication_factor: 1
-    final_sleep: 0s
-  trace_idle_period: 1ms
-  max_block_duration: 1h
-  complete_block_timeout: 1h
-  flush_check_period: 1ms
+ingest:
+  enabled: true
+  kafka:
+    address: kafka:9092
+    topic: tempo-ingest
+
+live_store: # jpe - lots of copying from config-base.yaml how do we share this?
+  max_trace_live: 5s # timings: the max amount of time a trace can be in the live map
+  max_trace_idle: 1s # timings: the max amount of time a trace can be idle in the live map
+  flush_check_period: 5s # timings: check for traces to flush and wal blocks to complete every 5s
+  max_block_duration: 5s # timings: complete any wal file that's older than 5s. 10s is the max age of a wal file
 
 storage:
   trace:
-    backend: gcs
-    gcs:
-      bucket_name: tempo
-      endpoint: https://tempo_e2e-gcs:4443/storage/v1/
-      insecure: true
-    pool:
-      max_workers: 10
-      queue_depth: 1000
+    backend: local
+    local:
+      path: /var/tempo/backend
 
-overrides:
-  user_configurable_overrides:
-    enabled: true
-    poll_interval: 10s
-    client:
-      backend: gcs
-      # fsouza/fake-gcs-server does not support versioning
-      confirm_versioning: false
-      gcs:
-        bucket_name: tempo
-        endpoint: https://tempo_e2e-gcs:4443/storage/v1/
-        insecure: true
+live_store_client:
+  grpc_client_config:
+    tls_enabled: true
+    tls_insecure_skip_verify: true
+    tls_cipher_suites: TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384
+    tls_min_version: VersionTLS12
 
-ingester_client:
+backend_scheduler_client:
   grpc_client_config:
     tls_enabled: true
     tls_insecure_skip_verify: true
@@ -83,6 +63,7 @@ ingester_client:
     tls_min_version: VersionTLS12
 
 querier:
+  query_live_store: true
   frontend_worker:
     grpc_client_config:
       tls_enabled: true
