@@ -1,29 +1,29 @@
 [package]
 name = "tempo-querier"
-version.workspace = true
-edition.workspace = true
-license.workspace = true
+version= { workspace = true }
+edition= { workspace = true }
+license= { workspace = true }
 
 [dependencies]
-tonic.workspace = true
-prost.workspace = true
-prost-types.workspace = true
-tokio.workspace = true
-tracing.workspace = true
-tracing-subscriber.workspace = true
+tonic= { workspace = true }
+prost= { workspace = true }
+prost-types= { workspace = true }
+tokio= { workspace = true }
+tracing= { workspace = true }
+tracing-subscriber= { workspace = true }
 
 # HTTP server dependencies
-axum.workspace = true
-hyper.workspace = true
-tower.workspace = true
-tower-http.workspace = true
+axum= { workspace = true }
+hyper= { workspace = true }
+tower= { workspace = true }
+tower-http= { workspace = true }
 
 # Serialization
-serde.workspace = true
-serde_json.workspace = true
+serde= { workspace = true }
+serde_json= { workspace = true }
 
 # Error handling
-thiserror.workspace = true
+thiserror= { workspace = true }
 
 [build-dependencies]
-tonic-build.workspace = true
+tonic-build= { workspace = true }

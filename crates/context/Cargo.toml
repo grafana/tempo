@@ -1,7 +1,7 @@
 [package]
 name = "context"
-version.workspace = true
-edition.workspace = true
+version= { workspace = true }
+edition= { workspace = true }
 
 [dependencies]
 config = { workspace = true }

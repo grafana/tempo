@@ -8,14 +8,14 @@ name = "bench"
 path = "src/main.rs"
 
 [dependencies]
-anyhow.workspace = true
-clap.workspace = true
-tokio.workspace = true
-datafusion.workspace = true
-object_store.workspace = true
-futures-util.workspace = true
+anyhow= { workspace = true }
+clap= { workspace = true }
+tokio= { workspace = true }
+datafusion= { workspace = true }
+object_store= { workspace = true }
+futures-util= { workspace = true }
 
 # Local dependencies
-context.workspace = true
-storage.workspace = true
-traceql.workspace = true
+context= { workspace = true }
+storage= { workspace = true }
+traceql= { workspace = true }

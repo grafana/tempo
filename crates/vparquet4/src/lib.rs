@@ -1,64 +1,39 @@
-//! # vParquet4 - High-Performance Rust Reader for Tempo vParquet4 Format
+//! # vparquet4
 //!
-//! This crate provides a standalone, high-performance reader for Tempo's vParquet4
-//! trace format. It offers both low-level Parquet access and high-level domain APIs
-//! for working with distributed traces.
+//! A standalone Rust library for reading Tempo vparquet4 files.
 //!
-//! ## Features
-//!
-//! - **Read-only access**: Efficient reading of vParquet4 trace files
-//! - **Standalone**: No DataFusion dependency
-//! - **Column pruning**: Read only the columns you need via projection
-//! - **Row group filtering**: Skip irrelevant row groups based on statistics
-//! - **Zero-copy**: Reuse Arrow RecordBatch where possible
-//! - **Async I/O**: Non-blocking reads from object stores (with `async` feature)
+//! This crate provides efficient reading of vparquet4 parquet files with support for:
+//! - Row group selection for parallel processing
+//! - Filtering spans by name (with potential for more filter types)
+//! - Lazy iteration over spansets (groups of matching spans per trace)
 //!
 //! ## Example
 //!
-//! ```rust,no_run
-//! use vparquet4::{VParquet4Reader, ReaderConfig, VParquet4ReaderTrait};
+//! ```no_run
+//! use vparquet4::{VParquet4Reader, ReadOptions, SpanFilter};
 //!
-//! # fn main() -> Result<(), Box<dyn std::error::Error>> {
-//! // Open a vParquet4 file
-//! let mut reader = VParquet4Reader::open(
-//!     "path/to/data.parquet",
-//!     ReaderConfig::default()
-//! )?;
+//! let options = ReadOptions {
+//!     start_row_group: 0,
+//!     total_row_groups: 0, // 0 = read all
+//!     filter: Some(SpanFilter::NameEquals("distributor.ConsumeTraces".to_string())),
+//! };
 //!
-//! // Read all row groups
-//! println!("Total rows: {}", reader.num_rows());
-//! println!("Row groups: {}", reader.num_row_groups());
+//! let reader = VParquet4Reader::open("data.parquet", options).unwrap();
 //!
-//! // Read a specific row group
-//! let batch = reader.read_row_group(0)?;
-//! println!("Batch has {} rows", batch.num_rows());
-//! # Ok(())
-//! # }
+//! for result in reader {
+//!     let spanset = result.unwrap();
+//!     println!("Trace {} has {} matching spans",
+//!              hex::encode(&spanset.trace_id),
+//!              spanset.spans.len());
+//! }
 //! ```
 
-pub mod domain;
 pub mod error;
 pub mod filter;
-pub mod iter;
-pub mod projection;
 pub mod reader;
 pub mod schema;
 
-// Re-export commonly used types
-pub use error::{Result, VParquet4Error};
-pub use filter::{RowGroupFilter, RowGroupFilterTrait, RowGroupStats};
-pub use projection::{ProjectionBuilder, ProjectionMode};
-pub use reader::{ReaderConfig, VParquet4ReaderTrait};
-pub use reader::sync_reader::VParquet4Reader;
-
-// Re-export iterator types
-pub use iter::{SpanIterator, SpanWithContext, Trace, TraceIterator};
-
-// Re-export OTLP domain types
-pub use domain::{
-    convert, AnyValue, InstrumentationScope, KeyValue, Resource, ResourceSpans, ScopeSpans, Span,
-    Status, TracesData,
-};
-
-#[cfg(feature = "async")]
-pub use reader::async_reader::AsyncVParquet4Reader;
+pub use error::{Error, Result};
+pub use filter::SpanFilter;
+pub use reader::{ReadOptions, VParquet4Reader};
+pub use schema::{Span, Spanset};
