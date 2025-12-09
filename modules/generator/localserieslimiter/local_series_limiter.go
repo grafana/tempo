@@ -60,12 +60,15 @@ type LocalSeriesLimiter struct {
 	metricMaxActiveSeries    prometheus.Gauge
 	metricTotalSeriesAdded   prometheus.Counter
 	metricTotalSeriesRemoved prometheus.Counter
+
+	overflowEntity     labels.Labels
+	overflowEntityHash uint64
 }
 
 var _ registry.Limiter = (*LocalSeriesLimiter)(nil)
 
 func New(maxSeriesFunc func(tenant string) uint32, tenant string, limitLogger *tempo_log.RateLimitedLogger) *LocalSeriesLimiter {
-	return &LocalSeriesLimiter{
+	l := &LocalSeriesLimiter{
 		tenant:                   tenant,
 		maxSeriesFunc:            maxSeriesFunc,
 		limitLogger:              limitLogger,
@@ -74,26 +77,36 @@ func New(maxSeriesFunc func(tenant string) uint32, tenant string, limitLogger *t
 		metricMaxActiveSeries:    metrics.maxActiveSeries.WithLabelValues(tenant),
 		metricTotalSeriesAdded:   metrics.totalSeriesAdded.WithLabelValues(tenant),
 		metricTotalSeriesRemoved: metrics.totalSeriesRemoved.WithLabelValues(tenant),
+
+		overflowEntity: labels.FromStrings("metric_overflow", "true"),
 	}
+	l.overflowEntityHash = l.overflowEntity.Hash()
+
+	return l
 }
 
-func (l *LocalSeriesLimiter) SanitizeLabels(lbls labels.Labels) labels.Labels {
-	return lbls
-}
-
-func (l *LocalSeriesLimiter) OnAdd(_ uint64, seriesCount uint32) bool {
+func (l *LocalSeriesLimiter) OnAdd(hash uint64, seriesCount uint32, lbls labels.Labels) (labels.Labels, uint64) {
 	maxSeries := l.maxSeriesFunc(l.tenant)
-	if maxSeries != 0 && l.activeSeries.Load()+seriesCount > maxSeries {
+
+	if hash == l.overflowEntityHash {
+		// The overflow entity is always accepted.
+		return l.overflowEntity, l.overflowEntityHash
+	}
+
+	overLimit := maxSeries != 0 && l.activeSeries.Load()+seriesCount > maxSeries
+	if overLimit {
+		// We're at the limit, return overflow labels
 		l.metricTotalSeriesLimited.Add(float64(seriesCount))
 		l.limitLogger.Log("msg", "reached max active series", "active_series", l.activeSeries.Load(), "max_active_series", maxSeries)
-		return false
+		return l.overflowEntity, l.overflowEntityHash
 	}
 
+	// We're under the limit, add the new series
 	l.activeSeries.Add(seriesCount)
 	l.metricActiveSeries.Set(float64(l.activeSeries.Load()))
 	l.metricMaxActiveSeries.Set(float64(maxSeries))
-	l.metricTotalSeriesAdded.Add(float64(seriesCount))
-	return true
+	l.metricTotalSeriesAdded.Add(float64(1))
+	return lbls, hash
 }
 
 func (l *LocalSeriesLimiter) OnUpdate(uint64, uint32) {

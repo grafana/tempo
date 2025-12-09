@@ -82,66 +82,44 @@ func New(maxEntityFunc func(tenant string) uint32, tenant string, limitLogger *t
 		metricTotalEntitiesAdded:   metrics.totalEntitiesAdded.WithLabelValues(tenant),
 		metricTotalEntitiesRemoved: metrics.totalEntitiesRemoved.WithLabelValues(tenant),
 
-		// The overflow entity implements the otel metric sdk spec for cardinality control.
-		// See https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/metrics/sdk.md#cardinality-limits
-		overflowEntity: labels.FromStrings("otel_metric_overflow", "true"),
+		overflowEntity: labels.FromStrings("metric_overflow", "true"),
 	}
 	l.overflowEntityHash = l.overflowEntity.Hash()
 
 	return l
 }
 
-func (l *LocalEntityLimiter) SanitizeLabels(lbls labels.Labels) labels.Labels {
-	l.mtx.Lock()
-	defer l.mtx.Unlock()
-
-	hash := lbls.Hash()
-	_, ok := l.entityActiveSeries[hash]
-	if ok {
-		// If we've already accepted this entity, return the original labelset.
-		return lbls
-	}
-
-	maxEntities := l.maxEntityFunc(l.tenant)
-	if maxEntities != 0 && uint32(len(l.entityActiveSeries))+1 >= maxEntities {
-		// Since we will never reject an entity in OnAdd, we need to capture our telemetry here.
-		l.limitLogger.Log("msg", "reached max active entities", "active_entities", len(l.entityActiveSeries), "max_active_entities", maxEntities)
-		l.metricTotalEntitiesLimited.Add(float64(1))
-		return l.overflowEntity
-	}
-
-	return lbls
-}
-
-func (l *LocalEntityLimiter) OnAdd(labelHash uint64, seriesCount uint32) bool {
+func (l *LocalEntityLimiter) OnAdd(labelHash uint64, seriesCount uint32, lbls labels.Labels) (labels.Labels, uint64) {
 	l.mtx.Lock()
 	defer l.mtx.Unlock()
 
 	if labelHash == l.overflowEntityHash {
 		// The overflow entity is always accepted.
-		return true
+		return l.overflowEntity, l.overflowEntityHash
 	}
 
 	activeSeries, ok := l.entityActiveSeries[labelHash]
 	if ok {
+		// If we've already accepted this entity, return the original labelset.
 		activeSeries += seriesCount
 		l.entityActiveSeries[labelHash] = activeSeries
-		return true
+		return lbls, labelHash
 	}
 
 	maxEntities := l.maxEntityFunc(l.tenant)
 	if maxEntities != 0 && uint32(len(l.entityActiveSeries))+1 > maxEntities {
+		// We're at the limit, return overflow labels
 		l.limitLogger.Log("msg", "reached max active entities", "active_entities", len(l.entityActiveSeries), "max_active_entities", maxEntities)
 		l.metricTotalEntitiesLimited.Add(float64(1))
-		return false
+		return l.overflowEntity, l.overflowEntityHash
 	}
 
+	// We're under the limit, add the new entity
 	l.entityActiveSeries[labelHash] = seriesCount
-
 	l.metricActiveEntities.Set(float64(len(l.entityActiveSeries)))
 	l.metricMaxActiveEntities.Set(float64(maxEntities))
 	l.metricTotalEntitiesAdded.Add(float64(1))
-	return true
+	return lbls, labelHash
 }
 
 func (l *LocalEntityLimiter) OnUpdate(uint64, uint32) {

@@ -32,11 +32,11 @@ func (p *safeBuilderPool) Put(builder *labels.Builder) {
 
 var builderPool = newSafeBuilderPool()
 
-type LabelTransformer func(lbls labels.Labels) labels.Labels
+type demandTracker func(hash uint64)
 
 type labelBuilder struct {
-	builder     *labels.Builder
-	transformer LabelTransformer
+	builder       *labels.Builder
+	demandTracker demandTracker
 
 	maxLabelNameLength  int
 	maxLabelValueLength int
@@ -44,13 +44,13 @@ type labelBuilder struct {
 
 var _ LabelBuilder = (*labelBuilder)(nil)
 
-func NewLabelBuilder(maxLabelNameLength int, maxLabelValueLength int, transformer LabelTransformer) LabelBuilder {
+func NewLabelBuilder(maxLabelNameLength int, maxLabelValueLength int, demandTracker demandTracker) LabelBuilder {
 	builder := builderPool.Get()
 	return &labelBuilder{
 		builder:             builder,
 		maxLabelNameLength:  maxLabelNameLength,
 		maxLabelValueLength: maxLabelValueLength,
-		transformer:         transformer,
+		demandTracker:       demandTracker,
 	}
 }
 
@@ -65,7 +65,8 @@ func (b *labelBuilder) Add(name, value string) {
 }
 
 func (b *labelBuilder) CloseAndBuildLabels() (labels.Labels, bool) {
-	labels := b.transformer(b.builder.Labels())
+	labels := b.builder.Labels()
+	b.demandTracker(labels.Hash())
 	// it's no longer safe to use the builder after this point, so we drop our
 	// reference to it. this may cause a nil panic if the builder is used after
 	// this point, but it's better than memory corruption.

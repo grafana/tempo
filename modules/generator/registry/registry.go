@@ -83,15 +83,10 @@ var _ Registry = (*ManagedRegistry)(nil)
 
 // Limiter is used to limit the memory consumption of the registry.
 type Limiter interface {
-	// SanitizeLabels is called for set of labels before it is used in a series.
-	// This gives the limiter a chance to transform labels to reduce
-	// cardinality. For example, a limiter could combine measurements across
-	// multiple series by aggregating them into a single series. It returns the
-	// sanitized labels or the original if no transformation was applied.
-	SanitizeLabels(lbls labels.Labels) labels.Labels
-	// OnAdd is called when a new entity is created. It returns true if the entity can be created, false otherwise.
-	// LabelHash is a hash of all non-constant labels.
-	OnAdd(labelHash uint64, seriesCount uint32) bool
+	// OnAdd is called when a new entity is created. It accepts the labels and returns
+	// the labels to use (either original or transformed to reduce cardinality) along with the hash.
+	// OnAdd never fails - it always returns valid labels. LabelHash is a hash of all non-constant labels.
+	OnAdd(labelHash uint64, seriesCount uint32, lbls labels.Labels) (labels.Labels, uint64)
 	// OnUpdate is called when an entity is updated.
 	// LabelHash is a hash of all non-constant labels.
 	OnUpdate(labelHash uint64, seriesCount uint32)
@@ -144,17 +139,12 @@ func New(cfg *Config, overrides Overrides, tenant string, appendable storage.App
 }
 
 func (r *ManagedRegistry) NewLabelBuilder() LabelBuilder {
-	return NewLabelBuilder(r.cfg.MaxLabelNameLength, r.cfg.MaxLabelValueLength, r.SanitizeLabels)
+	return NewLabelBuilder(r.cfg.MaxLabelNameLength, r.cfg.MaxLabelValueLength, r.entityDemand.Insert)
 }
 
-func (r *ManagedRegistry) SanitizeLabels(lbls labels.Labels) labels.Labels {
-	r.entityDemand.Insert(lbls.Hash())
-	return r.limiter.SanitizeLabels(lbls)
-}
-
-func (r *ManagedRegistry) OnAdd(labelHash uint64, seriesCount uint32) bool {
+func (r *ManagedRegistry) OnAdd(labelHash uint64, seriesCount uint32, lbls labels.Labels) (labels.Labels, uint64) {
 	r.entityDemand.Insert(labelHash)
-	return r.limiter.OnAdd(labelHash, seriesCount)
+	return r.limiter.OnAdd(labelHash, seriesCount, lbls)
 }
 
 func (r *ManagedRegistry) OnUpdate(labelHash uint64, seriesCount uint32) {

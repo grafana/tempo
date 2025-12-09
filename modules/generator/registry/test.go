@@ -39,7 +39,7 @@ func (t *TestRegistry) NewGauge(name string) Gauge {
 }
 
 func (t *TestRegistry) NewLabelBuilder() LabelBuilder {
-	return NewLabelBuilder(0, 0, func(lbls labels.Labels) labels.Labels { return lbls })
+	return NewLabelBuilder(0, 0, func(hash uint64) {})
 }
 
 func (t *TestRegistry) NewHistogram(name string, buckets []float64, histogramOverrides HistogramMode) Histogram {

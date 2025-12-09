@@ -122,16 +122,11 @@ func (h *nativeHistogram) ObserveWithExemplar(lbls labels.Labels, value float64,
 	h.seriesMtx.Lock()
 	defer h.seriesMtx.Unlock()
 
-	s, ok := h.series[hash]
-	if ok {
+	s, lbls, hash := resolveSeries(h.series, hash, lbls, h.lifecycler, h.activeSeriesPerHistogramSerie())
+	if s != nil {
 		h.updateSeries(hash, s, value, traceID, multiplier)
 		return
 	}
-
-	if !h.lifecycler.OnAdd(hash, h.activeSeriesPerHistogramSerie()) {
-		return
-	}
-
 	h.series[hash] = h.newSeries(lbls, value, traceID, multiplier)
 }
 
