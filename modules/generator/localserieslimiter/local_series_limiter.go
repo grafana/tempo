@@ -78,10 +78,9 @@ func New(maxSeriesFunc func(tenant string) uint32, tenant string, limitLogger *t
 		metricTotalSeriesAdded:   metrics.totalSeriesAdded.WithLabelValues(tenant),
 		metricTotalSeriesRemoved: metrics.totalSeriesRemoved.WithLabelValues(tenant),
 
-		overflowEntity: labels.FromStrings("metric_overflow", "true"),
+		overflowEntity:     registry.OverflowEntity,
+		overflowEntityHash: registry.OverflowEntity.Hash(),
 	}
-	l.overflowEntityHash = l.overflowEntity.Hash()
-
 	return l
 }
 

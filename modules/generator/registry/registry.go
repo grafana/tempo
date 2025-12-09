@@ -81,6 +81,8 @@ const removeStaleSeriesInterval = 5 * time.Minute
 
 var _ Registry = (*ManagedRegistry)(nil)
 
+var OverflowEntity = labels.FromStrings("metric_overflow", "true")
+
 // Limiter is used to limit the memory consumption of the registry.
 type Limiter interface {
 	// OnAdd is called when a new entity is created. It accepts the labels and returns
