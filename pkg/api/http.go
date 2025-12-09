@@ -154,6 +154,12 @@ func ParseTraceID(r *http.Request) ([]byte, error) {
 
 // ParseSearchRequest takes an http.Request and decodes query params to create a tempopb.SearchRequest
 func ParseSearchRequest(r *http.Request) (*tempopb.SearchRequest, error) {
+	return ParseSearchRequestWithDefault(r, defaultSpansPerSpanSet)
+}
+
+// ParseSearchRequestWithDefault takes an http.Request and decodes query params to create a tempopb.SearchRequest
+// using the provided default value for SpansPerSpanSet when not specified in the request
+func ParseSearchRequestWithDefault(r *http.Request, defaultSpansPerSpanSet uint32) (*tempopb.SearchRequest, error) {
 	req := &tempopb.SearchRequest{
 		Tags:            map[string]string{},
 		SpansPerSpanSet: defaultSpansPerSpanSet,
@@ -265,8 +271,8 @@ func ParseSearchRequest(r *http.Request) (*tempopb.SearchRequest, error) {
 		if err != nil {
 			return nil, fmt.Errorf("invalid spss: %w", err)
 		}
-		if spansPerSpanSet <= 0 {
-			return nil, errors.New("invalid spss: must be a positive number")
+		if spansPerSpanSet < 0 {
+			return nil, errors.New("invalid spss: must be a non-negative number")
 		}
 		req.SpansPerSpanSet = uint32(spansPerSpanSet)
 	}
@@ -720,7 +726,7 @@ func parseSecondsOrDuration(value string) (time.Duration, error) {
 		return time.Duration(ts), nil
 	}
 	if d, err := time.ParseDuration(value); err == nil {
-		return time.Duration(d), nil
+		return d, nil
 	}
 	return 0, fmt.Errorf("cannot parse %q to a valid duration", value)
 }
@@ -754,9 +760,8 @@ func BuildSearchRequest(req *http.Request, searchReq *tempopb.SearchRequest) (*h
 	if searchReq.MinDurationMs != 0 {
 		qb.addParam(urlParamMinDuration, strconv.FormatUint(uint64(searchReq.MinDurationMs), 10)+"ms")
 	}
-	if searchReq.SpansPerSpanSet != 0 {
-		qb.addParam(urlParamSpansPerSpanSet, strconv.FormatUint(uint64(searchReq.SpansPerSpanSet), 10))
-	}
+	// Always add spans_per_span_set parameter even if 0 (which means unlimited)
+	qb.addParam(urlParamSpansPerSpanSet, strconv.FormatUint(uint64(searchReq.SpansPerSpanSet), 10))
 
 	if len(searchReq.Query) > 0 {
 		qb.addParam(urlParamQuery, searchReq.Query)
@@ -848,13 +853,14 @@ func ValidateAndSanitizeRequest(r *http.Request) (string, string, string, int64,
 	var blockEnd string
 	var rf1After time.Time
 
-	if len(q) == 0 || q == QueryModeAll {
+	switch {
+	case len(q) == 0 || q == QueryModeAll:
 		queryMode = QueryModeAll
-	} else if q == QueryModeIngesters {
+	case q == QueryModeIngesters:
 		queryMode = QueryModeIngesters
-	} else if q == QueryModeBlocks {
+	case q == QueryModeBlocks:
 		queryMode = QueryModeBlocks
-	} else {
+	default:
 		return "", "", "", 0, 0, time.Time{}, fmt.Errorf("invalid value for mode %s", q)
 	}
 

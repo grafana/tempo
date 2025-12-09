@@ -1,3 +1,6 @@
+# Note: this compose file describes obsolete deployment architecture
+# See example/docker-compose/ingest-storage/docker-compose.yaml for newer version
+
 services:
   distributor:
     image: &tempoImage grafana/tempo:latest
@@ -8,9 +11,8 @@ services:
     ports:
       - "3200" # tempo
       - "4317:4317"
-  # Uncomment the following lines to enable tracing
-  #    environment:
-  #      - OTEL_EXPORTER_OTLP_ENDPOINT=http://alloy:4318
+    environment:
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://alloy:4318
 
   ingester-0:
     image: *tempoImage
@@ -20,9 +22,8 @@ services:
       - ./tempo-distributed.yaml:/etc/tempo.yaml
     ports:
       - "3200" # tempo
-  # Uncomment the following lines to enable tracing
-  #    environment:
-  #      - OTEL_EXPORTER_OTLP_ENDPOINT=http://alloy:4318
+    environment:
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://alloy:4318
 
   ingester-1:
     image: *tempoImage
@@ -32,9 +33,8 @@ services:
       - ./tempo-distributed.yaml:/etc/tempo.yaml
     ports:
       - "3200" # tempo
-  # Uncomment the following lines to enable tracing
-  #    environment:
-  #      - OTEL_EXPORTER_OTLP_ENDPOINT=http://alloy:4318
+    environment:
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://alloy:4318
 
   ingester-2:
     image: *tempoImage
@@ -44,9 +44,8 @@ services:
       - ./tempo-distributed.yaml:/etc/tempo.yaml
     ports:
       - "3200" # tempo
-  # Uncomment the following lines to enable tracing
-  #    environment:
-  #      - OTEL_EXPORTER_OTLP_ENDPOINT=http://alloy:4318
+    environment:
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://alloy:4318
 
   query-frontend:
     image: *tempoImage
@@ -56,9 +55,8 @@ services:
       - ./tempo-distributed.yaml:/etc/tempo.yaml
     ports:
       - "3200:3200" # tempo
-  # Uncomment the following lines to enable tracing
-  #    environment:
-  #      - OTEL_EXPORTER_OTLP_ENDPOINT=http://alloy:4318
+    environment:
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://alloy:4318
 
   querier:
     image: *tempoImage
@@ -68,9 +66,8 @@ services:
       - ./tempo-distributed.yaml:/etc/tempo.yaml
     ports:
       - "3200" # tempo
-  # Uncomment the following lines to enable tracing
-  #    environment:
-  #      - OTEL_EXPORTER_OTLP_ENDPOINT=http://alloy:4318
+    environment:
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://alloy:4318
 
   compactor:
     image: *tempoImage
@@ -80,9 +77,8 @@ services:
       - ./tempo-distributed.yaml:/etc/tempo.yaml
     ports:
       - "3200" # tempo
-  # Uncomment the following lines to enable tracing
-  #    environment:
-  #      - OTEL_EXPORTER_OTLP_ENDPOINT=http://alloy:4318
+    environment:
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://alloy:4318
 
   metrics-generator:
     image: *tempoImage
@@ -92,9 +88,8 @@ services:
       - ./tempo-distributed.yaml:/etc/tempo.yaml
     ports:
       - "3200" # tempo
-  # Uncomment the following lines to enable tracing
-  #    environment:
-  #      - OTEL_EXPORTER_OTLP_ENDPOINT=http://alloy:4318
+    environment:
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://alloy:4318
 
   minio:
     image: minio/minio:latest
@@ -131,7 +126,7 @@ services:
       - "9090:9090"
 
   grafana:
-    image: grafana/grafana:11.6.7@sha256:41c78d437d7c8e81812aca8b03559e4fca39b43e670a5d9bae44915875faae41
+    image: grafana/grafana:12.3.0@sha256:70d9599b186ce287be0d2c5ba9a78acb2e86c1a68c9c41449454d0fc3eeb84e8
     volumes:
       - ./grafana-datasources.yaml:/etc/grafana/provisioning/datasources/datasources.yaml
     environment:
@@ -141,16 +136,19 @@ services:
       - GF_FEATURE_TOGGLES_ENABLE=traceqlEditor
     ports:
       - "3000:3000"
-# Uncomment the following lines to enable tracing
-# alloy:
-#   image: grafana/alloy:v1.3.1
-#   volumes:
-#     - ../shared/config.alloy:/etc/alloy/config.alloy
-#   command:
-#     - run
-#     - /etc/alloy/config.alloy
-#     - --storage.path=/var/lib/alloy/data
-#     - --server.http.listen-addr=0.0.0.0:12345
-#   ports:
-#     - "12345:12345"
-#     - "4319:4319"
+
+  alloy:
+    image: grafana/alloy:v1.12.0@sha256:85e4a706181741dd735d9a69bea81f9e03e16d5349bff46dd9640379f143c007
+    volumes:
+      - ../shared/config.alloy:/etc/alloy/config.alloy
+    command:
+      - run
+      - /etc/alloy/config.alloy
+      - --storage.path=/var/lib/alloy/data
+      - --server.http.listen-addr=0.0.0.0:12345
+    environment:
+      - ALLOY_OTLP_UPSTREAM=distributor:4317
+    ports:
+      - "12345:12345"
+    depends_on:
+      - distributor

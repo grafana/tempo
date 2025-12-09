@@ -2,23 +2,30 @@
   $schema: 'https://docs.renovatebot.com/renovate-schema.json',
   extends: [
     'config:best-practices',
+    ':semanticCommits',
   ],
-  timezone: 'UTC',
   schedule: [
-    'before 4am on monday',
+    'at any time',
   ],
-  prConcurrentLimit: 20,
+  prConcurrentLimit: 10,
   ignoreDeps: [],
   separateMajorMinor: true,
-  separateMultipleMajor: true,
+  automergeStrategy: 'squash',
+  automergeType: 'pr',
+  automerge: true,
+  platformAutomerge: true,
+  addLabels: [
+    'dependencies',
+    'renovate',
+    '{{manager}}',
+    '{{updateType}}'
+  ],
+  minimumReleaseAge: '7 days',
+  postUpdateOptions: [
+    'gomodTidy',
+    'gomodVendor',
+  ],
   packageRules: [
-    {
-      description: 'Group all GitHub Actions updates',
-      matchManagers: [
-        'github-actions',
-      ],
-      groupName: 'github-actions',
-    },
     {
       description: 'Group OpenTelemetry OTEL updates',
       matchManagers: [
@@ -66,15 +73,6 @@
         'dockerfile',
       ],
       groupName: 'docker',
-    },
-    {
-      description: 'Automerge patch updates',
-      matchUpdateTypes: ['digest', 'patch', 'minor'],
-      automergeStrategy: 'squash',
-      automergeType: 'pr',
-      automerge: true,
-      minimumReleaseAge: '7 days',
-      platformAutomerge: false
     },
   ],
 }

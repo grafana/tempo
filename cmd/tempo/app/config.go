@@ -194,7 +194,7 @@ func (c *Config) CheckConfig() []ConfigWarning {
 		warnings = append(warnings, warnLogDiscardedTraces)
 	}
 
-	if c.StorageConfig.Trace.Backend == backend.Local && c.Target != SingleBinary {
+	if c.StorageConfig.Trace.Backend == backend.Local && !IsSingleBinary(c.Target) {
 		warnings = append(warnings, warnStorageTraceBackendLocal)
 	}
 

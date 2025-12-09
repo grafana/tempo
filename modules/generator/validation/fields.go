@@ -90,20 +90,28 @@ func ValidateHostInfoMetricName(metricName string) error {
 }
 
 func ValidateDimensions(dimensions []string, intrinsicDimensions []string, dimensionMappings []sharedconfig.DimensionMappings, sanitizeFn SanitizeFn) error {
-	var labels []string
-	labels = append(labels, intrinsicDimensions...)
+	seen := make(map[string]string) // sanitized label -> original source
+
+	for _, d := range intrinsicDimensions {
+		seen[d] = fmt.Sprintf("intrinsic dimension %q", d)
+	}
+
 	for _, d := range dimensions {
-		labels = append(labels, SanitizeLabelNameWithCollisions(d, SupportedIntrinsicDimensionsSet, sanitizeFn))
+		sanitized := SanitizeLabelNameWithCollisions(d, SupportedIntrinsicDimensionsSet, sanitizeFn)
+		if source, exists := seen[sanitized]; exists {
+			return fmt.Errorf("dimension %q produces label %q which collides with %s", d, sanitized, source)
+		}
+		seen[sanitized] = fmt.Sprintf("dimension %q", d)
 	}
 
 	for _, m := range dimensionMappings {
-		labels = append(labels, SanitizeLabelNameWithCollisions(m.Name, SupportedIntrinsicDimensionsSet, sanitizeFn))
+		sanitized := SanitizeLabelNameWithCollisions(m.Name, SupportedIntrinsicDimensionsSet, sanitizeFn)
+		if source, exists := seen[sanitized]; exists {
+			return fmt.Errorf("dimension_mapping %q produces label %q which collides with %s", m.Name, sanitized, source)
+		}
+		seen[sanitized] = fmt.Sprintf("dimension_mapping %q", m.Name)
 	}
 
-	err := ValidateUTF8LabelValues(labels)
-	if err != nil {
-		return err
-	}
 	return nil
 }
 
@@ -169,5 +177,31 @@ func ValidateIntrinsicDimensions(intrinsicDimensions map[string]bool) error {
 			return fmt.Errorf("intrinsic dimension \"%s\" is not supported, valid values: %v", dim, SupportedIntrinsicDimensions)
 		}
 	}
+	return nil
+}
+
+func ValidateDimensionMappings(dimensionMappings []sharedconfig.DimensionMappings) error {
+	for _, m := range dimensionMappings {
+		if m.Name == "" {
+			return errors.New("dimension_mappings: name cannot be empty")
+		}
+		if len(m.SourceLabel) == 0 {
+			return fmt.Errorf("dimension_mappings: source_labels cannot be empty for mapping with name %q", m.Name)
+		}
+	}
+	return nil
+}
+
+func ValidateServiceGraphsDimensions(dimensions []string) error {
+	seen := make(map[string]string) // sanitized label -> original dimension
+
+	for _, d := range dimensions {
+		sanitized := SanitizeLabelName(d)
+		if source, exists := seen[sanitized]; exists {
+			return fmt.Errorf("dimension %q produces label %q which collides with dimension %q", d, sanitized, source)
+		}
+		seen[sanitized] = d
+	}
+
 	return nil
 }

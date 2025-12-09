@@ -137,7 +137,10 @@ func (c *counter) collectMetrics(appender storage.Appender, timeMs int64) error 
 			// different aggregation interval to avoid be downsampled.
 			endOfLastMinuteMs := getEndOfLastMinuteMs(timeMs)
 			_, err := appender.Append(0, s.labels, endOfLastMinuteMs, 0)
-			if err != nil {
+			// Out-of-order errors occur when a series is deleted from our registry due to staleness cleanup,
+			// but still exists in Prometheus's TSDB. When the series reappears, we attempt to add the initial 0
+			// but Prometheus already has more recent data. We ignore this error and continue with the current value.
+			if err != nil && !isOutOfOrderError(err) {
 				return err
 			}
 			s.registerSeenSeries()

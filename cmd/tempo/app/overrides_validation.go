@@ -84,6 +84,7 @@ func newOverridesValidator(cfg *Config) api.Validator {
 	}
 }
 
+// Validate validates user-configurable overrides
 func (v *overridesValidator) Validate(limits *client.Limits) error {
 	if forwarders, ok := limits.GetForwarders(); ok {
 		for _, f := range forwarders {
@@ -153,6 +154,46 @@ func (v *overridesValidator) Validate(limits *client.Limits) error {
 
 	if intrinsicDimensions, ok := limits.GetMetricsGenerator().GetProcessor().GetSpanMetrics().GetIntrinsicDimensions(); ok {
 		if err := validation.ValidateIntrinsicDimensions(intrinsicDimensions); err != nil {
+			return err
+		}
+	}
+
+	if histogramMode, ok := limits.GetMetricsGenerator().GetGenerateNativeHistograms(); ok {
+		if err := validation.ValidateHistogramMode(string(histogramMode)); err != nil {
+			return err
+		}
+	}
+
+	if metricName, ok := limits.GetMetricsGenerator().GetProcessor().GetHostInfo().GetMetricName(); ok {
+		if err := validation.ValidateHostInfoMetricName(metricName); err != nil {
+			return err
+		}
+	}
+
+	if dimensionMappings, ok := limits.GetMetricsGenerator().GetProcessor().GetSpanMetrics().GetDimensionMappings(); ok {
+		if err := validation.ValidateDimensionMappings(dimensionMappings); err != nil {
+			return err
+		}
+	}
+
+	if dimensions, ok := limits.GetMetricsGenerator().GetProcessor().GetServiceGraphs().GetDimensions(); ok {
+		if err := validation.ValidateServiceGraphsDimensions(dimensions); err != nil {
+			return err
+		}
+	}
+
+	spanMetrics := limits.GetMetricsGenerator().GetProcessor().GetSpanMetrics()
+	dimensions, _ := spanMetrics.GetDimensions()
+	intrinsicDims, _ := spanMetrics.GetIntrinsicDimensions()
+	dimMappings, _ := spanMetrics.GetDimensionMappings()
+	if dimensions != nil || intrinsicDims != nil || dimMappings != nil {
+		var enabledIntrinsicDims []string
+		for dim, enabled := range intrinsicDims {
+			if enabled {
+				enabledIntrinsicDims = append(enabledIntrinsicDims, dim)
+			}
+		}
+		if err := validation.ValidateDimensions(dimensions, enabledIntrinsicDims, dimMappings, validation.SanitizeLabelName); err != nil {
 			return err
 		}
 	}

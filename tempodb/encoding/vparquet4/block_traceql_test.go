@@ -19,7 +19,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/grafana/tempo/pkg/parquetquery"
-	pq "github.com/grafana/tempo/pkg/parquetquery"
 	"github.com/grafana/tempo/pkg/tempopb"
 	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 	"github.com/grafana/tempo/pkg/traceql"
@@ -367,12 +366,25 @@ func TestBackendNilValueBlockSearchTraceQL(t *testing.T) {
 				TraceID: wantTraceID,
 				ResourceSpans: []ResourceSpans{
 					{
+						Resource: Resource{
+							ServiceName: "hello",
+							Attrs: []Attribute{
+								// BUG - at least one generic attr is required to satisfy
+								// resource.bar=nil test case below.
+								attr("foo", "def"),
+							},
+						},
 						ScopeSpans: []ScopeSpans{
 							{
 								Spans: []Span{
 									{
 										// this span has nil values for everything
 										SpanID: []byte("nil-test-span-0"),
+										Attrs: []Attribute{
+											// BUG - at least one generic attr is required to satisfy
+											// span.bar=nil test case below.
+											attr("foo", "jkl"),
+										},
 									},
 									{
 										SpanID:                 []byte("nil-test-span-1"),
@@ -395,6 +407,11 @@ func TestBackendNilValueBlockSearchTraceQL(t *testing.T) {
 											String03: ptr("dedicated-span-attr-value-3"),
 											String04: ptr("dedicated-span-attr-value-4"),
 											String05: ptr("dedicated-span-attr-value-5"),
+										},
+										Attrs: []Attribute{
+											// BUG - at least one generic attr is required to satisfy
+											// span.bar=nil test case below.
+											attr("foo", "mno"),
 										},
 									},
 								},
@@ -432,6 +449,11 @@ func TestBackendNilValueBlockSearchTraceQL(t *testing.T) {
 								Spans: []Span{
 									{
 										SpanID: []byte("nil-test-span-2"),
+										Attrs: []Attribute{
+											// BUG - at least one generic attr is required to satisfy
+											// span.bar=nil test case below.
+											attr("foo", "ghi"),
+										},
 									},
 								},
 							},
@@ -440,6 +462,7 @@ func TestBackendNilValueBlockSearchTraceQL(t *testing.T) {
 				},
 			}
 			traces = append(traces, wantTrace)
+			continue
 		}
 
 		id := test.ValidTraceID(nil)
@@ -459,15 +482,7 @@ func TestBackendNilValueBlockSearchTraceQL(t *testing.T) {
 		// span 1 has all resource level + ded nils, instrumentation level nils, but has all span values
 		// span 2 has resource level values, but instrumentation level nils an	d span level nils except for Name
 
-		// Intrinsics
-		{"Intrinsic: name", traceql.MustExtractFetchSpansRequestWithMetadata(`{` + LabelName + ` = nil }`), []int{0, 2}},
-		{"Intrinsic: duration", traceql.MustExtractFetchSpansRequestWithMetadata(`{` + LabelDuration + ` = nil}`), []int{0, 2}},
-		{"Intrinsic: status", traceql.MustExtractFetchSpansRequestWithMetadata(`{` + LabelStatus + ` = nil}`), []int{0, 2}},
-		{"Intrinsic: statusMessage", traceql.MustExtractFetchSpansRequestWithMetadata(`{` + "statusMessage" + ` = nil}`), []int{0, 2}},
-		{"Intrinsic: kind", traceql.MustExtractFetchSpansRequestWithMetadata(`{` + LabelKind + ` = nil}`), []int{0, 2}},
-
 		// Resource well-known attributes
-		{"resource.service.name", traceql.MustExtractFetchSpansRequestWithMetadata(`{resource.` + LabelServiceName + ` = nil}`), []int{0, 1}},
 		{"resource.cluster", traceql.MustExtractFetchSpansRequestWithMetadata(`{resource.` + LabelCluster + ` = nil}`), []int{0, 1}},
 		{"resource.namespace", traceql.MustExtractFetchSpansRequestWithMetadata(`{resource.` + LabelNamespace + ` = nil}`), []int{0, 1}},
 		{"resource.pod", traceql.MustExtractFetchSpansRequestWithMetadata(`{resource.` + LabelPod + ` = nil}`), []int{0, 1}},
@@ -476,7 +491,9 @@ func TestBackendNilValueBlockSearchTraceQL(t *testing.T) {
 		{"resource.k8s.cluster.name", traceql.MustExtractFetchSpansRequestWithMetadata(`{resource.` + LabelK8sClusterName + ` = nil}`), []int{0, 1}},
 		{"resource.k8s.pod.name", traceql.MustExtractFetchSpansRequestWithMetadata(`{resource.` + LabelK8sPodName + ` = nil}`), []int{0, 1}},
 		{"resource.k8s.container.name", traceql.MustExtractFetchSpansRequestWithMetadata(`{resource.` + LabelK8sContainerName + ` = nil}`), []int{0, 1}},
-		{"resource.service.name", traceql.MustExtractFetchSpansRequestWithMetadata(`{resource.` + LabelServiceName + ` = nil}`), []int{0, 1}},
+
+		// Resource generic attrs
+		{"resource.bar", traceql.MustExtractFetchSpansRequestWithMetadata(`{resource.bar = nil}`), []int{0, 1, 2}},
 
 		// Resource dedicated attributes
 		{"resource.dedicated.resource.3", traceql.MustExtractFetchSpansRequestWithMetadata(`{resource.dedicated.resource.3 = nil}`), []int{0, 1}},
@@ -487,13 +504,12 @@ func TestBackendNilValueBlockSearchTraceQL(t *testing.T) {
 		{"span.http.method", traceql.MustExtractFetchSpansRequestWithMetadata(`{span.` + LabelHTTPMethod + ` = nil}`), []int{0, 2}},
 		{"span.http.url", traceql.MustExtractFetchSpansRequestWithMetadata(`{span.` + LabelHTTPUrl + ` = nil}`), []int{0, 2}},
 
+		// Span generic attrs
+		{"span.bar", traceql.MustExtractFetchSpansRequestWithMetadata(`{span.bar = nil}`), []int{0, 1, 2}},
+
 		// Span dedicated attributes
 		{"span.dedicated.span.2", traceql.MustExtractFetchSpansRequestWithMetadata(`{span.dedicated.span.2 = nil}`), []int{0, 2}},
 		{"span.dedicated.span.4", traceql.MustExtractFetchSpansRequestWithMetadata(`{span.dedicated.span.4 = nil}`), []int{0, 2}},
-
-		// Instrumentation Scope
-		{"instrumentation:name", traceql.MustExtractFetchSpansRequestWithMetadata(`{instrumentation:name = nil}`), []int{0, 1, 2}},
-		{"instrumentation:version", traceql.MustExtractFetchSpansRequestWithMetadata(`{instrumentation:version = nil}`), []int{0, 1, 2}},
 	}
 
 	spanIDs := map[int][]byte{
@@ -1558,7 +1574,7 @@ func BenchmarkIterators(b *testing.B) {
 
 	var instrPred *parquetquery.InstrumentedPredicate
 	makeIterInternal := makeIterFunc(ctx, rgs, pf)
-	makeIter := func(columnName string, predicate pq.Predicate, selectAs string) pq.Iterator {
+	makeIter := func(columnName string, predicate parquetquery.Predicate, selectAs string) parquetquery.Iterator {
 		instrPred = &parquetquery.InstrumentedPredicate{
 			Pred: predicate,
 		}
@@ -1568,20 +1584,7 @@ func BenchmarkIterators(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		err := error(nil)
-
 		iter := makeIter(columnPathSpanAttrKey, parquetquery.NewSubstringPredicate("e"), "foo")
-
-		//parquetquery.NewUnionIterator(DefinitionLevelResourceSpansILSSpanAttrs, []parquetquery.Iterator{
-		// makeIter(columnPathSpanHTTPStatusCode, parquetquery.NewIntEqualPredicate(500), "http_status"),
-		// makeIter(columnPathSpanName, parquetquery.NewStringEqualPredicate([]byte("foo")), "name"),
-		// makeIter(columnPathSpanStatusCode, parquetquery.NewIntEqualPredicate(2), "status"),
-		// makeIter(columnPathSpanAttrDouble, parquetquery.NewFloatEqualPredicate(500), "double"),
-		//makeIter(columnPathSpanAttrInt, parquetquery.NewIntEqualPredicate(500), "int"),
-		//}, nil)
-		require.NoError(b, err)
-		// fmt.Println(iter.String())
-
 		count := 0
 		for {
 			res, err := iter.Next()
@@ -2065,8 +2068,10 @@ func TestDescendantOf(t *testing.T) {
 			t.Run(tc.name+"-disconnected", func(t *testing.T) {
 				s := &span{}
 
-				lhs := append(tc.lhs, allDisconnected...)
-				rhs := append(tc.rhs, allDisconnected...)
+				lhs := tc.lhs
+				rhs := tc.rhs
+				lhs = append(lhs, allDisconnected...)
+				rhs = append(rhs, allDisconnected...)
 
 				actual := s.DescendantOf(lhs, rhs, tc.falseForAll, tc.invert, tc.union, nil)
 				require.Equal(t, tc.expected, actual)
@@ -2272,8 +2277,10 @@ func TestChildOf(t *testing.T) {
 			t.Run(tc.name+"-disconnected", func(t *testing.T) {
 				s := &span{}
 
-				lhs := append(tc.lhs, allDisconnected...)
-				rhs := append(tc.rhs, allDisconnected...)
+				lhs := tc.lhs
+				rhs := tc.rhs
+				lhs = append(lhs, allDisconnected...)
+				rhs = append(rhs, allDisconnected...)
 
 				actual := s.ChildOf(lhs, rhs, tc.falseForAll, tc.invert, tc.union, nil)
 				require.Equal(t, tc.expected, actual)
@@ -2394,7 +2401,8 @@ func TestSiblingOf(t *testing.T) {
 			t.Run(tc.name+"-disconnected-lhs", func(t *testing.T) {
 				s := &span{}
 
-				lhs := append(tc.lhs, allDisconnected...)
+				lhs := tc.lhs
+				lhs = append(lhs, allDisconnected...)
 
 				actual := s.SiblingOf(lhs, tc.rhs, tc.falseForAll, tc.union, nil)
 				require.Equal(t, tc.expected, actual)
@@ -2403,7 +2411,8 @@ func TestSiblingOf(t *testing.T) {
 			t.Run(tc.name+"-disconnected-rhs", func(t *testing.T) {
 				s := &span{}
 
-				rhs := append(tc.rhs, allDisconnected...)
+				rhs := tc.rhs
+				rhs = append(rhs, allDisconnected...)
 
 				actual := s.SiblingOf(tc.lhs, rhs, tc.falseForAll, tc.union, nil)
 				require.Equal(t, tc.expected, actual)
@@ -2607,16 +2616,16 @@ func shuffleSpans(spans []traceql.Span) {
 	})
 }
 
-func randomTree(N int) []traceql.Span {
-	nodes := make([]traceql.Span, 0, N)
+func randomTree(count int) []traceql.Span {
+	nodes := make([]traceql.Span, 0, count)
 
 	// Helper function to recursively generate nodes
 	var generateNodes func(parent int) int
 	generateNodes = func(parent int) int {
 		left := parent
-		for N > 0 {
+		for count > 0 {
 			// make sibling
-			N--
+			count--
 			left++
 			right := left + 1
 			nodes = append(nodes, &span{
@@ -2635,7 +2644,7 @@ func randomTree(N int) []traceql.Span {
 			}
 
 			// descend and make children
-			N--
+			count--
 			right = generateNodes(left)
 			nodes = append(nodes, &span{
 				nestedSetLeft:   int32(left),

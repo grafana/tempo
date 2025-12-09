@@ -135,7 +135,7 @@ func testCompactionRoundtrip(t *testing.T, targetBlockVersion string) {
 	dec := model.MustNewSegmentDecoder(model.CurrentEncoding)
 
 	allReqs := make([]*tempopb.Trace, 0, blockCount*recordCount)
-	allIds := make([]common.ID, 0, blockCount*recordCount)
+	allIDs := make([]common.ID, 0, blockCount*recordCount)
 
 	for i := 0; i < blockCount; i++ {
 		blockID := backend.NewUUID()
@@ -150,7 +150,7 @@ func testCompactionRoundtrip(t *testing.T, targetBlockVersion string) {
 			writeTraceToWal(t, head, dec, id, req, 0, 0)
 
 			allReqs = append(allReqs, req)
-			allIds = append(allIds, id)
+			allIDs = append(allIDs, id)
 		}
 
 		_, err = w.CompleteBlock(ctx, head)
@@ -198,7 +198,7 @@ func testCompactionRoundtrip(t *testing.T, targetBlockVersion string) {
 	require.Equal(t, blockCount*recordCount, records)
 
 	// now see if we can find our ids
-	for i, id := range allIds {
+	for i, id := range allIDs {
 		t.Run(fmt.Sprintf("trace-%d", i), func(t *testing.T) {
 			trs, failedBlocks, err := rw.Find(context.Background(), testTenantID, id, BlockIDMin, BlockIDMax, 0, 0, common.DefaultSearchOptions())
 			require.NoError(t, err)
@@ -293,7 +293,7 @@ func testSameIDCompaction(t *testing.T, targetBlockVersion string) {
 
 	// make a bunch of sharded requests
 	allReqs := make([][][]byte, 0, recordCount)
-	allIds := make([][]byte, 0, recordCount)
+	allIDs := make([][]byte, 0, recordCount)
 	sharded := 0
 	for i := 0; i < recordCount; i++ {
 		id := test.ValidTraceID(nil)
@@ -314,7 +314,7 @@ func testSameIDCompaction(t *testing.T, targetBlockVersion string) {
 			sharded++
 		}
 		allReqs = append(allReqs, reqs)
-		allIds = append(allIds, id)
+		allIDs = append(allIDs, id)
 	}
 
 	// and write them to different blocks
@@ -326,7 +326,7 @@ func testSameIDCompaction(t *testing.T, targetBlockVersion string) {
 
 		for j := 0; j < recordCount; j++ {
 			req := allReqs[j]
-			id := allIds[j]
+			id := allIDs[j]
 
 			if i < len(req) {
 				err = head.Append(id, req[i], 0, 0, true)
@@ -362,7 +362,7 @@ func testSameIDCompaction(t *testing.T, targetBlockVersion string) {
 	rw.blocklist.ApplyPollResults(blocklist.PerTenant{testTenantID: metas}, blocklist.PerTenantCompacted{})
 
 	// search for all ids
-	for i, id := range allIds {
+	for i, id := range allIDs {
 		trs, failedBlocks, err := rw.Find(context.Background(), testTenantID, id, BlockIDMin, BlockIDMax, 0, 0, common.DefaultSearchOptions())
 		require.NoError(t, err)
 		require.Nil(t, failedBlocks)

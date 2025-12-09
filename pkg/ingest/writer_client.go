@@ -129,8 +129,7 @@ func commonKafkaClientOptions(cfg KafkaConfig, metrics *kprom.Metrics, logger lo
 		kgo.WithLogger(newLogger(logger)),
 
 		kgo.RetryTimeoutFn(func(key int16) time.Duration {
-			switch key {
-			case ((*kmsg.ListOffsetsRequest)(nil)).Key():
+			if key == ((*kmsg.ListOffsetsRequest)(nil)).Key() {
 				return cfg.LastProducedOffsetRetryTimeout
 			}
 

@@ -153,6 +153,8 @@ func (rw *Azure) CloseAppend(context.Context, backend.AppendTracker) error {
 }
 
 func (rw *Azure) Delete(ctx context.Context, name string, keypath backend.KeyPath, _ *backend.CacheInfo) error {
+	keypath = backend.KeyPathWithPrefix(keypath, rw.cfg.Prefix)
+
 	blobClient, err := getBlobClient(ctx, rw.cfg, backend.ObjectFileName(keypath, name))
 	if err != nil {
 		return fmt.Errorf("cannot get Azure blob client, name: %s: %w", backend.ObjectFileName(keypath, name), err)
@@ -172,7 +174,7 @@ func (rw *Azure) List(ctx context.Context, keypath backend.KeyPath) ([]string, e
 	prefix := path.Join(keypath...)
 
 	if len(prefix) > 0 {
-		prefix = prefix + dir
+		prefix += dir
 	}
 
 	pager := rw.containerClient.NewListBlobsHierarchyPager(dir, &container.ListBlobsHierarchyOptions{
@@ -265,7 +267,7 @@ func (rw *Azure) Find(ctx context.Context, keypath backend.KeyPath, f backend.Fi
 
 	prefix := path.Join(keypath...)
 	if len(prefix) > 0 {
-		prefix = prefix + dir
+		prefix += dir
 	}
 
 	pager := rw.containerClient.NewListBlobsFlatPager(&container.ListBlobsFlatOptions{
@@ -286,7 +288,7 @@ func (rw *Azure) Find(ctx context.Context, keypath backend.KeyPath, f backend.Fi
 
 			o = strings.TrimSuffix(*b.Name, dir)
 			opts := backend.FindMatch{
-				Key:      o,
+				Key:      strings.TrimPrefix(o, rw.cfg.Prefix),
 				Modified: *b.Properties.LastModified,
 			}
 			f(opts)
@@ -363,6 +365,8 @@ func (rw *Azure) WriteVersioned(ctx context.Context, name string, keypath backen
 }
 
 func (rw *Azure) DeleteVersioned(ctx context.Context, name string, keypath backend.KeyPath, version backend.Version) error {
+	keypath = backend.KeyPathWithPrefix(keypath, rw.cfg.Prefix)
+
 	// TODO use conditional if-match API
 	_, currentVersion, err := rw.ReadVersioned(ctx, name, keypath)
 	if err != nil && !errors.Is(err, backend.ErrDoesNotExist) {

@@ -6,5 +6,5 @@ import (
 )
 
 func TabOut(s fmt.Stringer) string {
-	return strings.Replace(s.String(), "\n", "\n\t", -1)
+	return strings.ReplaceAll(s.String(), "\n", "\n\t")
 }

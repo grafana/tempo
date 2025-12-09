@@ -156,11 +156,15 @@ func New(cfg Config, overridesService overrides.Interface, logger log.Logger, re
 		}
 	}
 
-	// TODO: It's probably easier to just use the ID directly
-	//  https://raintank-corp.slack.com/archives/C05CAA0ULUF/p1752847274420489
-	s.cfg.IngestConfig.Kafka.ConsumerGroup, err = ingest.LiveStoreConsumerGroupID(cfg.Ring.InstanceID)
-	if err != nil {
-		return nil, fmt.Errorf("calculating livestore consumer group ID: %w", err)
+	if singlePartition {
+		s.cfg.IngestConfig.Kafka.ConsumerGroup = "live-store-zone-a"
+	} else {
+		// TODO: It's probably easier to just use the ID directly
+		//  https://raintank-corp.slack.com/archives/C05CAA0ULUF/p1752847274420489
+		s.cfg.IngestConfig.Kafka.ConsumerGroup, err = ingest.LiveStoreConsumerGroupID(cfg.Ring.InstanceID)
+		if err != nil {
+			return nil, fmt.Errorf("calculating livestore consumer group ID: %w", err)
+		}
 	}
 
 	// setup partition ring

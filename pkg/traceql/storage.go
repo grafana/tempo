@@ -34,15 +34,8 @@ func SearchMetaConditions() []Condition {
 }
 
 func ExemplarMetaConditions(cb func() bool) []Condition {
-	// TODO: Configurable? Each column is very expensive to store.
-	// TODO: Build predicate that quits early if we have enough exemplars.
 	return []Condition{
 		{Attribute: NewIntrinsic(IntrinsicTraceID), Op: OpNone, CallBack: cb},
-		//{NewIntrinsic(IntrinsicSpanID), OpNone, nil},
-		//{NewIntrinsic(IntrinsicTraceDuration), OpNone, nil},
-		//{NewIntrinsic(IntrinsicTraceStartTime), OpNone, nil},
-		//{NewIntrinsic(IntrinsicTraceRootService), OpNone, nil},
-		//{NewIntrinsic(IntrinsicTraceRootSpan), OpNone, nil},
 	}
 }
 

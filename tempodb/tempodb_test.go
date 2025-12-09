@@ -825,7 +825,7 @@ func TestCreateLegacyCache(t *testing.T) {
 					},
 				},
 			},
-			expectedErr: errors.New("no legacy cache configured, but cache_control is enabled. Please use the new top level cache configuration."),
+			expectedErr: errors.New("no legacy cache configured, but cache_control is enabled. Please use the new top level cache configuration"),
 		},
 		{
 			name: "memcached + cache control",

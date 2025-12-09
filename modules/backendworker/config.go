@@ -20,7 +20,6 @@ type Config struct {
 	Backoff                 backoff.Config          `yaml:"backoff"`
 	Compactor               tempodb.CompactorConfig `yaml:"compaction"`
 	OverrideRingKey         string                  `yaml:"override_ring_key"`
-	Poll                    bool                    `yaml:"-"`
 	Ring                    RingConfig              `yaml:"ring,omitempty"`
 	FinishOnShutdownTimeout time.Duration           `yaml:"finish_on_shutdown_timeout"`
 }

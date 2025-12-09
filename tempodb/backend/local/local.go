@@ -119,7 +119,7 @@ func (rw *Backend) CloseAppend(ctx context.Context, tracker backend.AppendTracke
 		return nil
 	}
 
-	var dst *os.File = tracker.(*os.File)
+	dst := tracker.(*os.File)
 	return dst.Close()
 }
 
@@ -159,7 +159,7 @@ func (rw *Backend) List(ctx context.Context, keypath backend.KeyPath) ([]string,
 func (rw *Backend) ListBlocks(_ context.Context, tenant string) (metas []uuid.UUID, compactedMetas []uuid.UUID, err error) {
 	rootPath := rw.rootPath(backend.KeyPath{tenant})
 	fff := os.DirFS(rootPath)
-	err = fs.WalkDir(fff, ".", func(path string, d fs.DirEntry, err error) error {
+	err = fs.WalkDir(fff, ".", func(path string, _ fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}

@@ -156,7 +156,7 @@ func (cfg *CompactorConfig) RegisterFlagsAndApplyDefaults(prefix string, f *flag
 
 func (cfg *CompactorConfig) validate() error {
 	if cfg.MaxCompactionRange == 0 {
-		return errors.New("Compaction window can't be 0")
+		return errors.New("compaction window can't be 0")
 	}
 
 	return nil
