@@ -14,17 +14,17 @@
   automergeType: 'pr',
   automerge: true,
   platformAutomerge: true,
-  addLabels: [
+  addLabels: [2
     'dependencies',
     'renovate',
     '{{manager}}',
     '{{updateType}}'
   ],
   minimumReleaseAge: '7 days',
-  postUpdateOptions: {
-    "gomodTidy",
-    "gomodVendor",
-  }
+  postUpdateOptions: [
+    'gomodTidy',
+    'gomodVendor',
+  ]
   packageRules: [
     {
       description: 'Group OpenTelemetry OTEL updates',
