@@ -243,7 +243,7 @@ func TestValidateCompactorConfig(t *testing.T) {
 		MaxCompactionRange: 0,
 	}
 
-	expected := errors.New("Compaction window can't be 0")
+	expected := errors.New("compaction window can't be 0")
 	actual := compactorConfig.validate()
 
 	require.Equal(t, expected, actual)
