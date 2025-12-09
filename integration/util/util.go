@@ -114,7 +114,7 @@ func NewTempoAllInOneDebug(extraArgs ...string) *e2e.HTTPService {
 }
 
 func NewTempoAllInOneWithReadinessProbe(rp e2e.ReadinessProbe, extraArgs ...string) *e2e.HTTPService { // jpe - get single binary working? and then add tests?
-	args := []string{"-config.file=" + filepath.Join(e2e.ContainerSharedDir, "config.yaml")}
+	args := []string{"-config.file=" + filepath.Join(e2e.ContainerSharedDir, "config.yaml"), "-target=all-3.0"}
 	args = buildArgsWithExtra(args, extraArgs)
 
 	s := e2e.NewHTTPService(

@@ -50,7 +50,7 @@ func queryAndAssertTraceCompression(t *testing.T, client *httpclient.Client, inf
 	// Make the call directly so we have a chance to inspect the response header and manually un-gzip it ourselves to confirm the content.
 	request, err := http.NewRequest("GET", client.BaseURL+httpclient.QueryTraceEndpoint+"/"+info.HexID(), nil)
 	require.NoError(t, err)
-	request.Header.Add("Accept-Encoding", "gzip-foob")
+	request.Header.Add("Accept-Encoding", "gzip")
 
 	res, err := client.Do(request)
 	require.NoError(t, err)

@@ -33,6 +33,17 @@ const (
 	ServiceLiveStoreZoneA   = "live-store-zone-a-0"
 	ServiceLiveStoreZoneB   = "live-store-zone-b-0"
 	ServiceBlockBuilder     = "block-builder-0"
+	ServiceTempo            = "tempo" // Single binary deployment
+)
+
+// DeploymentMode specifies whether to run Tempo as a single binary or microservices
+type DeploymentMode int
+
+const (
+	// DeploymentModeMicroservices runs Tempo as separate microservices (default)
+	DeploymentModeMicroservices DeploymentMode = iota
+	// DeploymentModeSingleBinary runs Tempo as a single all-in-one binary
+	DeploymentModeSingleBinary
 )
 
 // TempoHarness contains all the services and clients needed to run integration tests
@@ -78,6 +89,10 @@ type TestHarnessConfig struct {
 	// and populate template variables with their connection information
 	ConfigTemplateFunc func(*e2e.Scenario, map[string]any) error // jpe - add notes this can be used to start any other services as well? rethink template func. does it need scenario? better to start services otherwise?
 
+	// DeploymentMode specifies whether to run as single binary or microservices
+	// Defaults to DeploymentModeMicroservices
+	DeploymentMode DeploymentMode
+
 	// jpe -
 	// Modules: bitmask? worker/scheduler? maybe provide different "layers" as an enum: RecentDataQuerying, BackendQuerying, BackendWork, MetricsGenerator?
 	// if backend work is needed run once for each backend type?
@@ -85,18 +100,17 @@ type TestHarnessConfig struct {
 	// disable kafka logs by default. bool to reenable?
 
 	// EnableMetricsGenerator starts a metrics generator and Prometheus instance
+	// Only applies to microservices mode
 	EnableMetricsGenerator bool
-
-	// ExtraLiveStoreArgs are additional arguments to pass to live store instances - jpe - do we need the extra args here and below?
-	ExtraLiveStoreArgs []string
-
-	// ExtraBlockBuilderArgs are additional arguments to pass to block builder instances
-	ExtraBlockBuilderArgs []string
 }
 
-// WithTempoHarness sets up the new Tempo architecture and waits for everything to be ready.
+// WithTempoHarness sets up Tempo and waits for everything to be ready.
 //
-// Components started:
+// Deployment Modes:
+// - DeploymentModeMicroservices (default): Runs Tempo as separate microservices
+// - DeploymentModeSingleBinary: Runs Tempo as a single all-in-one binary
+//
+// Components started (microservices mode):
 // - Object storage backend (S3/Azure/GCS - auto-detected from config, local backend is skipped)
 // - Kafka
 // - LiveStore instances (in zone-a/zone-b pairs, default 1 pair = 2 instances)
@@ -105,15 +119,17 @@ type TestHarnessConfig struct {
 // - Metrics Generator + Prometheus (optional)
 // - Query Frontend + Querier (always started)
 //
+// Components started (single binary mode):
+// - Object storage backend (S3/Azure/GCS - auto-detected from config, local backend is skipped)
+// - Kafka
+// - Tempo (single binary with all components)
+//
 // Example usage:
 //
 //	func TestMyFeature(t *testing.T) {
-//		s, err := e2e.NewScenario("tempo_e2e")
-//		require.NoError(t, err)
-//		defer s.Close()
-//
-//		util.WithTempoHarness(t, s, util.TestHarnessConfig{
-//			ConfigOverlay: "config-s3.yaml", // Optional: overlay config on top of config-base.yaml
+//		util.WithTempoHarness(t, util.TestHarnessConfig{
+//			ConfigOverlay: "config-s3.yaml",
+//			DeploymentMode: util.DeploymentModeMicroservices, // or DeploymentModeSingleBinary
 //		}, func(h *util.TempoHarness) {
 //			// Send traces
 //			info := tempoUtil.NewTraceInfo(time.Now(), "")
@@ -127,21 +143,8 @@ type TestHarnessConfig struct {
 func WithTempoHarness(t *testing.T, config TestHarnessConfig, testFunc func(*TempoHarness)) {
 	t.Helper()
 
-	// jpe - break this ginormous function into smaller pieces?
-	// naming, config wrangling, etc.
-
-	// max docker name length is 63. otherwise dns fails silently
-	// max test name length is 40 to leave room prefix and suffix. the full container name will be e2e_<test name>_<service name>
-	//  this means that if two tests have the same first 40 characters in their names they will conflict!!
-	maxNameLen := 40
-	name := t.Name()[len("Test"):] // strip "Test" prefix
-	if len(name) > maxNameLen {
-		name = name[:maxNameLen]
-	}
-	// docker only allows a-zA-Z0-9_.- in a service name. replace everything else with _
-	re := regexp.MustCompile(`[^a-zA-Z0-9_.-]`)
-	name = re.ReplaceAllString(name, "_")
-
+	// Create scenario with normalized test name
+	name := normalizeTestName(t.Name())
 	s, err := e2e.NewScenario("e2e_" + name)
 	require.NoError(t, err)
 	defer s.Close()
@@ -151,13 +154,69 @@ func WithTempoHarness(t *testing.T, config TestHarnessConfig, testFunc func(*Tem
 		TestScenario: s,
 	}
 
+	// Setup config and infrastructure
+	cfg := setupConfig(t, s, &config, harness)
+
+	// Start object storage backend if not using local filesystem
+	if cfg.StorageConfig.Trace.Backend != backend.Local {
+		harness.Backend, err = startBackend(t, s, cfg)
+		require.NoError(t, err, "failed to start backend")
+	}
+
+	// Start Kafka  jpe - 14:13:41 Error response from daemon: removal of container ae43fe6613da is already in progress ??
+	harness.Kafka = e2edb.NewKafka()
+	require.NoError(t, s.StartAndWaitReady(harness.Kafka), "failed to start Kafka")
+
+	// Start Tempo services based on deployment mode
+	if config.DeploymentMode == DeploymentModeSingleBinary {
+		require.NoError(t, startSingleBinary(t, s, harness, config), "failed to start single binary")
+	} else {
+		// Default to microservices mode
+		require.NoError(t, startMicroservices(t, s, harness, config), "failed to start microservices")
+	}
+
+	// Create HTTP client
+	harness.HTTPClient = httpclient.New("http://"+harness.QueryFrontendHTTPEndpoint, "")
+
+	// Create Jaeger to OTLP exporter - jpe - do we need both of these?
+	harness.JaegerExporter, err = NewJaegerToOTLPExporter(harness.DistributorOTLPEndpoint)
+	require.NoError(t, err, "failed to create Jaeger to OTLP exporter")
+	require.NotNil(t, harness.JaegerExporter)
+
+	// Create OTLP exporter (jpe - do we need both of these?)
+	harness.OTLPExporter, err = NewOtelGRPCExporter(harness.DistributorOTLPEndpoint)
+	require.NoError(t, err, "failed to create OTLP exporter")
+	require.NotNil(t, harness.OTLPExporter)
+
+	// Run the test function
+	testFunc(harness)
+}
+
+// normalizeTestName creates a valid Docker service name from a test name
+func normalizeTestName(testName string) string {
+	// max docker name length is 63. otherwise dns fails silently
+	// max test name length is 40 to leave room prefix and suffix. the full container name will be e2e_<test name>_<service name>
+	// this means that if two tests have the same first 40 characters in their names they will conflict!!
+	maxNameLen := 40
+	name := testName[len("Test"):] // strip "Test" prefix
+	if len(name) > maxNameLen {
+		name = name[:maxNameLen]
+	}
+	// docker only allows a-zA-Z0-9_.- in a service name. replace everything else with _
+	re := regexp.MustCompile(`[^a-zA-Z0-9_.-]`)
+	return re.ReplaceAllString(name, "_")
+}
+
+// setupConfig loads and merges config files, creates the overrides file, and validates the config
+func setupConfig(t *testing.T, s *e2e.Scenario, config *TestHarnessConfig, harness *TempoHarness) app.Config {
+	t.Helper()
+
 	// Initialize template data if needed
 	if config.ConfigTemplateData == nil {
 		config.ConfigTemplateData = make(map[string]any)
 	}
 
 	// Call ConfigTemplateFunc if provided to populate template data
-	// This can start prerequisite services like etcd, consul, etc.
 	if config.ConfigTemplateFunc != nil {
 		err := config.ConfigTemplateFunc(s, config.ConfigTemplateData)
 		require.NoError(t, err, "failed to execute config template function")
@@ -215,90 +274,7 @@ func WithTempoHarness(t *testing.T, config TestHarnessConfig, testFunc func(*Tem
 	err = yaml.UnmarshalStrict(mergedConfigBytes, &cfg)
 	require.NoError(t, err, "failed to unmarshal merged config into app.Config")
 
-	// Start object storage backend if not using local filesystem
-	// Local backend doesn't require an external service
-	if cfg.StorageConfig.Trace.Backend != backend.Local {
-		var backendErr error
-		harness.Backend, backendErr = startBackend(t, s, cfg)
-		require.NoError(t, backendErr, "failed to start backend")
-	}
-
-	// Start Kafka - jpe - 14:13:41 Error response from daemon: removal of container ae43fe6613da is already in progress ??
-	harness.Kafka = e2edb.NewKafka()
-	require.NoError(t, s.StartAndWaitReady(harness.Kafka), "failed to start Kafka")
-
-	// Livestores
-	liveStoreZoneA := NewNamedTempoLiveStore(
-		"live-store-zone-a",
-		0,
-		config.ExtraLiveStoreArgs...,
-	)
-	harness.Services[ServiceLiveStoreZoneA] = liveStoreZoneA
-	require.NoError(t, s.StartAndWaitReady(liveStoreZoneA), "failed to start live store zone a")
-
-	liveStoreZoneB := NewNamedTempoLiveStore(
-		"live-store-zone-b",
-		0,
-		config.ExtraLiveStoreArgs...,
-	)
-	harness.Services[ServiceLiveStoreZoneB] = liveStoreZoneB
-	require.NoError(t, s.StartAndWaitReady(liveStoreZoneB), "failed to start live store zone b")
-
-	// Wait for live stores to join the partition ring
-	matchers := []*labels.Matcher{
-		{Type: labels.MatchEqual, Name: "state", Value: "Active"},
-		{Type: labels.MatchEqual, Name: "name", Value: "livestore-partitions"},
-	}
-	require.NoError(t, liveStoreZoneA.WaitSumMetricsWithOptions(
-		e2e.Equals(float64(1)),
-		[]string{"tempo_partition_ring_partitions"},
-		e2e.WithLabelMatchers(matchers...),
-	), "live stores failed to join partition ring")
-
-	// Start Distributor
-	harness.Services[ServiceDistributor] = NewTempoDistributor()
-	require.NoError(t, s.StartAndWaitReady(harness.Services[ServiceDistributor]), "failed to start distributor")
-
-	// Start Block Builder
-	blockBuilder := NewTempoBlockBuilder(0, config.ExtraBlockBuilderArgs...)
-	harness.Services[ServiceBlockBuilder] = blockBuilder
-
-	require.NoError(t, s.StartAndWaitReady(blockBuilder), "failed to start block builders")
-
-	// Start Metrics Generator and Prometheus (if requested)
-	if config.EnableMetricsGenerator {
-		harness.Services[ServiceMetricsGenerator] = NewTempoMetricsGenerator()
-		harness.Prometheus = NewPrometheus()
-		require.NoError(t, s.StartAndWaitReady(harness.Services[ServiceMetricsGenerator], harness.Prometheus), "failed to start metrics generator and prometheus")
-	}
-
-	// Start Query Frontend and Querier
-	harness.Services[ServiceQueryFrontend] = NewTempoQueryFrontend()
-	harness.Services[ServiceQuerier] = NewTempoQuerier()
-	require.NoError(t, s.StartAndWaitReady(harness.Services[ServiceQueryFrontend], harness.Services[ServiceQuerier]), "failed to start query frontend and querier")
-
-	// Set endpoints jpe - do we need both http and grpc endpoints here?
-	harness.QueryFrontendHTTPEndpoint = harness.Services[ServiceQueryFrontend].Endpoint(3200)
-	harness.QueryFrontendGRPCEndpoint = harness.Services[ServiceQueryFrontend].Endpoint(3200)
-
-	// Create HTTP client
-	harness.HTTPClient = httpclient.New("http://"+harness.QueryFrontendHTTPEndpoint, "")
-
-	// Set distributor endpoints
-	harness.DistributorOTLPEndpoint = harness.Services[ServiceDistributor].Endpoint(4317)
-
-	// Create Jaeger to OTLP exporter - jpe - do we need both of these?
-	harness.JaegerExporter, err = NewJaegerToOTLPExporter(harness.DistributorOTLPEndpoint)
-	require.NoError(t, err, "failed to create Jaeger to OTLP exporter")
-	require.NotNil(t, harness.JaegerExporter)
-
-	// Create OTLP exporter (jpe - do we need both of these?)
-	harness.OTLPExporter, err = NewOtelGRPCExporter(harness.DistributorOTLPEndpoint)
-	require.NoError(t, err, "failed to create OTLP exporter")
-	require.NotNil(t, harness.OTLPExporter)
-
-	// Run the test function
-	testFunc(harness)
+	return cfg
 }
 
 // startBackend starts the appropriate object storage backend based on the config
@@ -488,6 +464,115 @@ func (h *TempoHarness) UpdateOverrides(tenantOverrides map[string]*overrides.Ove
 
 	// overrides reload every 1 second. wait 5 to make sure it gets loaded - jpe - metric for determinism?
 	time.Sleep(5 * time.Second)
+
+	return nil
+}
+
+// startMicroservices starts all Tempo microservices and waits for them to be ready
+func startMicroservices(t *testing.T, s *e2e.Scenario, harness *TempoHarness, config TestHarnessConfig) error {
+	t.Helper()
+
+	// Start LiveStores
+	liveStoreZoneA := NewNamedTempoLiveStore(
+		"live-store-zone-a",
+		0,
+	)
+	harness.Services[ServiceLiveStoreZoneA] = liveStoreZoneA
+	if err := s.StartAndWaitReady(liveStoreZoneA); err != nil {
+		return fmt.Errorf("failed to start live store zone a: %w", err)
+	}
+
+	liveStoreZoneB := NewNamedTempoLiveStore(
+		"live-store-zone-b",
+		0,
+	)
+	harness.Services[ServiceLiveStoreZoneB] = liveStoreZoneB
+	if err := s.StartAndWaitReady(liveStoreZoneB); err != nil {
+		return fmt.Errorf("failed to start live store zone b: %w", err)
+	}
+
+	// Wait for live stores to join the partition ring
+	matchers := []*labels.Matcher{
+		{Type: labels.MatchEqual, Name: "state", Value: "Active"},
+		{Type: labels.MatchEqual, Name: "name", Value: "livestore-partitions"},
+	}
+	if err := liveStoreZoneA.WaitSumMetricsWithOptions(
+		e2e.Equals(float64(1)),
+		[]string{"tempo_partition_ring_partitions"},
+		e2e.WithLabelMatchers(matchers...),
+	); err != nil {
+		return fmt.Errorf("live stores failed to join partition ring: %w", err)
+	}
+
+	// Start Distributor
+	harness.Services[ServiceDistributor] = NewTempoDistributor()
+	if err := s.StartAndWaitReady(harness.Services[ServiceDistributor]); err != nil {
+		return fmt.Errorf("failed to start distributor: %w", err)
+	}
+
+	// Start Block Builder
+	blockBuilder := NewTempoBlockBuilder(0)
+	harness.Services[ServiceBlockBuilder] = blockBuilder
+	if err := s.StartAndWaitReady(blockBuilder); err != nil {
+		return fmt.Errorf("failed to start block builder: %w", err)
+	}
+
+	// Start Metrics Generator and Prometheus (if requested)
+	if config.EnableMetricsGenerator {
+		harness.Services[ServiceMetricsGenerator] = NewTempoMetricsGenerator()
+		harness.Prometheus = NewPrometheus()
+		if err := s.StartAndWaitReady(harness.Services[ServiceMetricsGenerator], harness.Prometheus); err != nil {
+			return fmt.Errorf("failed to start metrics generator and prometheus: %w", err)
+		}
+	}
+
+	// Start Query Frontend and Querier
+	harness.Services[ServiceQueryFrontend] = NewTempoQueryFrontend()
+	harness.Services[ServiceQuerier] = NewTempoQuerier()
+	if err := s.StartAndWaitReady(harness.Services[ServiceQueryFrontend], harness.Services[ServiceQuerier]); err != nil {
+		return fmt.Errorf("failed to start query frontend and querier: %w", err)
+	}
+
+	// Set endpoints
+	harness.QueryFrontendHTTPEndpoint = harness.Services[ServiceQueryFrontend].Endpoint(3200)
+	harness.QueryFrontendGRPCEndpoint = harness.Services[ServiceQueryFrontend].Endpoint(3200)
+	harness.DistributorOTLPEndpoint = harness.Services[ServiceDistributor].Endpoint(4317)
+
+	return nil
+}
+
+// startSingleBinary starts Tempo as a single all-in-one binary and waits for it to be ready
+func startSingleBinary(t *testing.T, s *e2e.Scenario, harness *TempoHarness, config TestHarnessConfig) error {
+	t.Helper()
+
+	// Create single binary service with custom readiness probe
+	// Using port 3201 for readiness to avoid conflicts with main HTTP port
+	tempo := NewTempoAllInOneWithReadinessProbe(
+		e2e.NewHTTPReadinessProbe(3200, "/ready", 200, 299),
+	)
+	harness.Services[ServiceTempo] = tempo
+
+	if err := s.StartAndWaitReady(tempo); err != nil {
+		return fmt.Errorf("failed to start tempo single binary: %w", err)
+	}
+
+	// Wait for partition ring to be ready (same as microservices mode)
+	matchers := []*labels.Matcher{
+		{Type: labels.MatchEqual, Name: "state", Value: "Active"},
+		{Type: labels.MatchEqual, Name: "name", Value: "livestore-partitions"},
+	}
+	if err := tempo.WaitSumMetricsWithOptions(
+		e2e.Equals(float64(1)),
+		[]string{"tempo_partition_ring_partitions"},
+		e2e.WithLabelMatchers(matchers...),
+	); err != nil {
+		return fmt.Errorf("partition ring failed to become ready: %w", err)
+	}
+
+	// Set endpoints (all pointing to the same service)
+	harness.QueryFrontendHTTPEndpoint = tempo.Endpoint(3200)
+	harness.QueryFrontendGRPCEndpoint = tempo.Endpoint(3200)
+	harness.DistributorOTLPEndpoint = tempo.Endpoint(4317)
 
 	return nil
 }
