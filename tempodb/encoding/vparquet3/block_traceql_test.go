@@ -1107,20 +1107,15 @@ func BenchmarkBackendBlockGetMetrics(b *testing.B) {
 		query   string
 		groupby string
 	}{
-		//{"{ resource.service.name = `gme-ingester` }", "resource.cluster"},
 		{"{}", "name"},
 	}
 
 	ctx := context.TODO()
 	tenantID := "1"
-	// blockID := uuid.MustParse("00000c2f-8133-4a60-a62a-7748bd146938")
-	// blockID := uuid.MustParse("06ebd383-8d4e-4289-b0e9-cf2197d611d5")
 	blockID := uuid.MustParse("00145f38-6058-4e57-b1ba-334db8edce23")
 
 	r, _, _, err := local.New(&local.Config{
 		Path: path.Join("/Users/joe/testblock/"),
-		// Path: path.Join("/Users/marty/src/tmp"),
-		//		Path: path.Join("/Users/mapno/workspace/testblock"),
 	})
 	require.NoError(b, err)
 
@@ -1478,8 +1473,10 @@ func TestDescendantOf(t *testing.T) {
 			t.Run(tc.name+"-disconnected", func(t *testing.T) {
 				s := &span{}
 
-				lhs := append(tc.lhs, allDisconnected...)
-				rhs := append(tc.rhs, allDisconnected...)
+				lhs := tc.lhs
+				rhs := tc.rhs
+				lhs = append(lhs, allDisconnected...)
+				rhs = append(rhs, allDisconnected...)
 
 				actual := s.DescendantOf(lhs, rhs, tc.falseForAll, tc.invert, tc.union, nil)
 				require.Equal(t, tc.expected, actual)
@@ -1685,8 +1682,10 @@ func TestChildOf(t *testing.T) {
 			t.Run(tc.name+"-disconnected", func(t *testing.T) {
 				s := &span{}
 
-				lhs := append(tc.lhs, allDisconnected...)
-				rhs := append(tc.rhs, allDisconnected...)
+				lhs := tc.lhs
+				rhs := tc.rhs
+				lhs = append(lhs, allDisconnected...)
+				rhs = append(rhs, allDisconnected...)
 
 				actual := s.ChildOf(lhs, rhs, tc.falseForAll, tc.invert, tc.union, nil)
 				require.Equal(t, tc.expected, actual)
@@ -1807,7 +1806,8 @@ func TestSiblingOf(t *testing.T) {
 			t.Run(tc.name+"-disconnected-lhs", func(t *testing.T) {
 				s := &span{}
 
-				lhs := append(tc.lhs, allDisconnected...)
+				lhs := tc.lhs
+				lhs = append(lhs, allDisconnected...)
 
 				actual := s.SiblingOf(lhs, tc.rhs, tc.falseForAll, tc.union, nil)
 				require.Equal(t, tc.expected, actual)
@@ -1816,7 +1816,8 @@ func TestSiblingOf(t *testing.T) {
 			t.Run(tc.name+"-disconnected-rhs", func(t *testing.T) {
 				s := &span{}
 
-				rhs := append(tc.rhs, allDisconnected...)
+				rhs := tc.rhs
+				rhs = append(rhs, allDisconnected...)
 
 				actual := s.SiblingOf(tc.lhs, rhs, tc.falseForAll, tc.union, nil)
 				require.Equal(t, tc.expected, actual)
@@ -2020,16 +2021,16 @@ func shuffleSpans(spans []traceql.Span) {
 	})
 }
 
-func randomTree(N int) []traceql.Span {
-	nodes := make([]traceql.Span, 0, N)
+func randomTree(count int) []traceql.Span {
+	nodes := make([]traceql.Span, 0, count)
 
 	// Helper function to recursively generate nodes
 	var generateNodes func(parent int) int
 	generateNodes = func(parent int) int {
 		left := parent
-		for N > 0 {
+		for count > 0 {
 			// make sibling
-			N--
+			count--
 			left++
 			right := left + 1
 			nodes = append(nodes, &span{
@@ -2048,7 +2049,7 @@ func randomTree(N int) []traceql.Span {
 			}
 
 			// descend and make children
-			N--
+			count--
 			right = generateNodes(left)
 			nodes = append(nodes, &span{
 				nestedSetLeft:   int32(left),

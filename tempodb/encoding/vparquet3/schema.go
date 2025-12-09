@@ -514,25 +514,26 @@ func parquetToProtoAttrs(parquetAttrs []Attribute) []*v1.KeyValue {
 	for _, attr := range parquetAttrs {
 		protoVal := &v1.AnyValue{}
 
-		if attr.Value != nil {
+		switch {
+		case attr.Value != nil:
 			protoVal.Value = &v1.AnyValue_StringValue{
 				StringValue: *attr.Value,
 			}
-		} else if attr.ValueInt != nil {
+		case attr.ValueInt != nil:
 			protoVal.Value = &v1.AnyValue_IntValue{
 				IntValue: *attr.ValueInt,
 			}
-		} else if attr.ValueDouble != nil {
+		case attr.ValueDouble != nil:
 			protoVal.Value = &v1.AnyValue_DoubleValue{
 				DoubleValue: *attr.ValueDouble,
 			}
-		} else if attr.ValueBool != nil {
+		case attr.ValueBool != nil:
 			protoVal.Value = &v1.AnyValue_BoolValue{
 				BoolValue: *attr.ValueBool,
 			}
-		} else if attr.ValueArray != "" {
+		case attr.ValueArray != "":
 			_ = jsonpb.Unmarshal(bytes.NewBufferString(attr.ValueArray), protoVal)
-		} else if attr.ValueKVList != "" {
+		case attr.ValueKVList != "":
 			_ = jsonpb.Unmarshal(bytes.NewBufferString(attr.ValueKVList), protoVal)
 		}
 

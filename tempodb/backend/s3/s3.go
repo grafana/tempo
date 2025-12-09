@@ -355,7 +355,7 @@ func (rw *readerWriter) List(_ context.Context, keypath backend.KeyPath) ([]stri
 	var objects []string
 
 	if len(prefix) > 0 {
-		prefix = prefix + "/"
+		prefix += "/"
 	}
 
 	nextMarker := ""
@@ -387,37 +387,35 @@ func (rw *readerWriter) ListBlocks(
 	ctx, span := tracer.Start(ctx, "readerWriter.ListBlocks")
 	defer span.End()
 
-	blockIDs := make([]uuid.UUID, 0, 1000)
-	compactedBlockIDs := make([]uuid.UUID, 0, 1000)
+	var (
+		wg                = sync.WaitGroup{}
+		mtx               = sync.Mutex{}
+		bb                = blockboundary.CreateBlockBoundaries(rw.cfg.ListBlocksConcurrency)
+		errChan           = make(chan error, len(bb))
+		keypath           = backend.KeyPathWithPrefix(backend.KeyPath{tenant}, rw.cfg.Prefix)
+		minID             uuid.UUID
+		maxID             uuid.UUID
+		blockIDs          = make([]uuid.UUID, 0, 1000)
+		compactedBlockIDs = make([]uuid.UUID, 0, 1000)
+	)
 
-	keypath := backend.KeyPathWithPrefix(backend.KeyPath{tenant}, rw.cfg.Prefix)
 	prefix := path.Join(keypath...)
 	if len(prefix) > 0 {
 		prefix += "/"
 	}
 
-	bb := blockboundary.CreateBlockBoundaries(rw.cfg.ListBlocksConcurrency)
-
-	errChan := make(chan error, len(bb))
-	wg := sync.WaitGroup{}
-	mtx := sync.Mutex{}
-
-	var min uuid.UUID
-	var max uuid.UUID
-
 	for i := 0; i < len(bb)-1; i++ {
-
-		min = uuid.UUID(bb[i])
-		max = uuid.UUID(bb[i+1])
+		minID = uuid.UUID(bb[i])
+		maxID = uuid.UUID(bb[i+1])
 
 		wg.Add(1)
-		go func(min, max uuid.UUID) {
+		go func(minUUID, maxUUID uuid.UUID) {
 			defer wg.Done()
 
 			var (
 				err        error
 				res        minio.ListBucketV2Result
-				startAfter = prefix + min.String()
+				startAfter = prefix + minUUID.String()
 			)
 
 			for res.IsTruncated = true; res.IsTruncated; {
@@ -450,13 +448,13 @@ func (rw *readerWriter) ListBlocks(
 						continue
 					}
 
-					if bytes.Compare(id[:], min[:]) < 0 {
+					if bytes.Compare(id[:], minUUID[:]) < 0 {
 						errChan <- fmt.Errorf("block UUID below shard minimum")
 						return
 					}
 
-					if max != backend.GlobalMaxBlockID {
-						if bytes.Compare(id[:], max[:]) >= 0 {
+					if maxUUID != backend.GlobalMaxBlockID {
+						if bytes.Compare(id[:], maxUUID[:]) >= 0 {
 							return
 						}
 					}
@@ -471,7 +469,7 @@ func (rw *readerWriter) ListBlocks(
 					mtx.Unlock()
 				}
 			}
-		}(min, max)
+		}(minID, maxID)
 	}
 	wg.Wait()
 	close(errChan)
@@ -496,7 +494,7 @@ func (rw *readerWriter) Find(ctx context.Context, keypath backend.KeyPath, f bac
 	prefix := path.Join(keypath...)
 
 	if len(prefix) > 0 {
-		prefix = prefix + "/"
+		prefix += "/"
 	}
 
 	nextToken := ""
@@ -796,18 +794,18 @@ func buildSSEConfig(cfg *Config) (encrypt.ServerSide, error) {
 	case SSEKMS:
 		if cfg.SSE.KMSKeyID == "" {
 			return nil, errors.New("KMSKeyID is missing")
-		} else {
-			encryptionCtx, err := parseKMSEncryptionContext(cfg.SSE.KMSEncryptionContext)
-			if err != nil {
-				return nil, err
-			}
-			if encryptionCtx == nil {
-				// To overcome a limitation in Minio which checks interface{} == nil.
-
-				return encrypt.NewSSEKMS(cfg.SSE.KMSKeyID, nil)
-			}
-			return encrypt.NewSSEKMS(cfg.SSE.KMSKeyID, encryptionCtx)
 		}
+
+		encryptionCtx, err := parseKMSEncryptionContext(cfg.SSE.KMSEncryptionContext)
+		if err != nil {
+			return nil, err
+		}
+		if encryptionCtx == nil {
+			// To overcome a limitation in Minio which checks interface{} == nil.
+			return encrypt.NewSSEKMS(cfg.SSE.KMSKeyID, nil)
+		}
+		return encrypt.NewSSEKMS(cfg.SSE.KMSKeyID, encryptionCtx)
+
 	case SSES3:
 		return encrypt.NewSSE(), nil
 	case SSEC:

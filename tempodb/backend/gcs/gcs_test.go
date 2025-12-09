@@ -179,7 +179,7 @@ func TestRetry_MarkBlockCompacted(t *testing.T) {
 }
 
 func fakeServer(t *testing.T, returnIn time.Duration, counter *int32) *httptest.Server {
-	server := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		time.Sleep(returnIn)
 
 		atomic.AddInt32(counter, 1)
@@ -210,9 +210,8 @@ func fakeServerWithObjectAttributes(t *testing.T, o *raw.Object) *httptest.Serve
 				require.NoError(t, err)
 				defer part.Close()
 
-				switch part.Header.Get("Content-Type") {
-				case "application/json":
-					err = json.NewDecoder(r.Body).Decode(&o)
+				if part.Header.Get("Content-Type") == "application/json" {
+					err = json.NewDecoder(part).Decode(&o)
 					require.NoError(t, err)
 				}
 			}

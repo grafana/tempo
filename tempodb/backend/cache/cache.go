@@ -111,8 +111,7 @@ func (r *readerWriter) ReadRange(ctx context.Context, name string, keypath backe
 	var k string
 	cache := r.cacheFor(cacheInfo)
 	if cache != nil {
-		keyGen := append(keypath, name, strconv.Itoa(int(offset)), strconv.Itoa(len(buffer)))
-		k = strings.Join(keyGen, ":")
+		k = strings.Join(append(keypath, name, strconv.Itoa(int(offset)), strconv.Itoa(len(buffer))), ":")
 		b, found := cache.FetchKey(ctx, k)
 		if found {
 			copy(buffer, b)

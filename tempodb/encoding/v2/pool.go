@@ -88,7 +88,7 @@ func getReaderPool(enc backend.Encoding) (ReaderPool, error) {
 	case backend.EncS2:
 		return &S2, nil
 	default:
-		return nil, fmt.Errorf("Unknown pool encoding %d", enc)
+		return nil, fmt.Errorf("unknown pool encoding %d", enc)
 	}
 }
 
