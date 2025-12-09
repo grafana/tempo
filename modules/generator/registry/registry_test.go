@@ -49,7 +49,7 @@ func (m *mockLimiter) OnDelete(labelHash uint64, seriesCount uint32) {
 }
 
 func buildTestLabels(names []string, values []string) labels.Labels {
-	builder := NewLabelBuilder(0, 0, func(hash uint64) {})
+	builder := NewLabelBuilder(0, 0)
 	for i := range names {
 		builder.Add(names[i], values[i])
 	}
