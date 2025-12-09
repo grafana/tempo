@@ -29,8 +29,8 @@ const (
 
 func TestMetricsGeneratorRemoteWrite(t *testing.T) {
 	util.WithTempoHarness(t, util.TestHarnessConfig{
-		ConfigOverlay:          configMetricsGenerator,
-		EnableMetricsGenerator: true,
+		ConfigOverlay: configMetricsGenerator,
+		Components:    util.ComponentsMetricsGenerator | util.ComponentRecentDataQuerying,
 	}, func(h *util.TempoHarness) {
 		// Send two spans that have a client-server relationship
 		r := rand.New(rand.NewSource(time.Now().UnixMilli()))
@@ -198,8 +198,8 @@ func TestMetricsGeneratorRemoteWrite(t *testing.T) {
 
 func TestMetricsGeneratorTargetInfoEnabled(t *testing.T) {
 	util.WithTempoHarness(t, util.TestHarnessConfig{
-		ConfigOverlay:          configMetricsGeneratorTargetInfo,
-		EnableMetricsGenerator: true,
+		ConfigOverlay: configMetricsGeneratorTargetInfo,
+		Components:    util.ComponentsMetricsGenerator | util.ComponentRecentDataQuerying,
 	}, func(h *util.TempoHarness) {
 		// Send two spans that have a client-server relationship
 		r := rand.New(rand.NewSource(time.Now().UnixMilli()))
@@ -274,8 +274,8 @@ func TestMetricsGeneratorTargetInfoEnabled(t *testing.T) {
 func TestMetricsGeneratorMessagingSystemLatencyHistogramEnabled(t *testing.T) {
 	// Use a config that enables the messaging system latency histogram
 	util.WithTempoHarness(t, util.TestHarnessConfig{
-		ConfigOverlay:          configMetricsGeneratorMessagingSystem,
-		EnableMetricsGenerator: true,
+		ConfigOverlay: configMetricsGeneratorMessagingSystem,
+		Components:    util.ComponentsMetricsGenerator | util.ComponentRecentDataQuerying,
 	}, func(h *util.TempoHarness) {
 		// Send a pair of spans with a messaging system relationship (producer -> consumer)
 		// ignore the gosec linter because we are using a random number generator to create trace IDs

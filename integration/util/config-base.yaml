@@ -50,13 +50,13 @@ live_store:
   partition_ring:
     kvstore:
       store: memberlist
-    delete_inactive_partition_after: 1s
+    delete_inactive_partition_after: 1s # jpe - gru?
 
 storage:
   trace:
     backend: local
     local:
-      path: /var/tempo/backend
+      path: /shared/var/tempo/backend # jpe - move all paths to /shared for visibility?
     pool:
       max_workers: 10
       queue_depth: 100
@@ -70,7 +70,10 @@ memberlist:
     - live-store-zone-b-0:7946
 
 block_builder:
-  consume_cycle_duration: 1m
+  consume_cycle_duration: 10s # timings: how often to check and flush a new block? jpe - review - watching tempo_block_builder_flushed_blocks sometimes fails. see encodings test for example
+  assigned_partitions:
+    block-builder-0:
+    - 0
 
 ingest:
   enabled: true
@@ -87,7 +90,16 @@ metrics_generator:
   registry:
     collection_interval: 1s # timings: collect and send metrics every second
   storage:
-    path: /var/tempo
+    path: /shared/var/tempo
     remote_write:
       - url: http://prometheus:9090/api/v1/write 
         send_exemplars: true
+
+backend_scheduler:
+  provider:
+    compaction:
+      min_cycle_interval: 50ms # timings: jpe research
+      measure_interval: 1s # timings: jpe research
+backend_worker:
+  backend_scheduler_addr: backend-scheduler:9095
+  finish_on_shutdown_timeout: 1s # timings: jpe research

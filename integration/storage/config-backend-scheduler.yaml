@@ -1,0 +1,3 @@
+storage:
+  trace:
+    blocklist_poll_stale_tenant_index: 1s # force components to always fall back to polling

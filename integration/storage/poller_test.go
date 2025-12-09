@@ -17,9 +17,7 @@ import (
 	"github.com/grafana/tempo/integration/util"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"gopkg.in/yaml.v2"
 
-	"github.com/grafana/tempo/cmd/tempo/app"
 	"github.com/grafana/tempo/pkg/blockboundary"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/backend/azure"
@@ -30,10 +28,6 @@ import (
 )
 
 const (
-	configS3      = "config-s3.yaml"
-	configAzurite = "config-azurite.yaml"
-	configGCS     = "config-gcs.yaml"
-
 	tenant = "test"
 )
 
@@ -47,24 +41,6 @@ func (ownsEverythingSharder) Owns(_ string) bool {
 }
 
 func TestPollerOwnership(t *testing.T) {
-	testCompactorOwnershipBackends := []struct {
-		name       string
-		configFile string
-	}{
-		{
-			name:       "s3",
-			configFile: configS3,
-		},
-		{
-			name:       "azure",
-			configFile: configAzurite,
-		},
-		{
-			name:       "gcs",
-			configFile: configGCS,
-		},
-	}
-
 	storageBackendTestPermutations := []struct {
 		name   string
 		prefix string
@@ -87,36 +63,15 @@ func TestPollerOwnership(t *testing.T) {
 	}
 
 	logger := log.NewLogfmtLogger(os.Stdout)
-	var hhh *e2e.HTTPService
-	t.Parallel()
-	for _, tc := range testCompactorOwnershipBackends {
-		for _, pc := range storageBackendTestPermutations {
-			t.Run(tc.name+"-"+pc.name, func(t *testing.T) {
-				s, err := e2e.NewScenario("tempo-integration")
-				require.NoError(t, err)
-				defer s.Close()
 
-				// set up the backend
-				cfg := app.Config{}
-				buff, err := os.ReadFile(tc.configFile)
+	for _, pc := range storageBackendTestPermutations {
+		t.Run(pc.name, func(t *testing.T) {
+			util.WithTempoHarness(t, util.TestHarnessConfig{
+				Components: util.ComponentsObjectStorage,
+			}, func(h *util.TempoHarness) {
+				// Get the config to determine backend type and settings
+				cfg, err := h.GetConfig()
 				require.NoError(t, err)
-				err = yaml.UnmarshalStrict(buff, &cfg)
-				require.NoError(t, err)
-				hhh, err = util.NewBackend(s, cfg)
-				require.NoError(t, err)
-
-				err = hhh.WaitReady()
-				require.NoError(t, err)
-
-				err = hhh.Ready()
-				require.NoError(t, err)
-
-				// Give some time for startup
-				time.Sleep(1 * time.Second)
-
-				t.Logf("backend: %s", hhh.Endpoint(hhh.HTTPPort()))
-
-				require.NoError(t, util.CopyFileToSharedDir(s, tc.configFile, "config.yaml"))
 
 				var rr backend.RawReader
 				var ww backend.RawWriter
@@ -124,24 +79,25 @@ func TestPollerOwnership(t *testing.T) {
 
 				listBlockConcurrency := 10
 
-				e := hhh.Endpoint(hhh.HTTPPort())
-				switch tc.name {
-				case "s3":
+				// Get backend endpoint from the harness
+				httpService, ok := h.Backend.(*e2e.HTTPService)
+				require.True(t, ok, "backend should be an HTTPService")
+				e := httpService.Endpoint(httpService.HTTPPort())
+
+				switch cfg.StorageConfig.Trace.Backend {
+				case backend.S3:
 					cfg.StorageConfig.Trace.S3.ListBlocksConcurrency = listBlockConcurrency
 					cfg.StorageConfig.Trace.S3.Endpoint = e
 					cfg.StorageConfig.Trace.S3.Prefix = pc.prefix
-					cfg.Overrides.UserConfigurableOverridesConfig.Client.S3.Endpoint = e
 					rr, ww, cc, err = s3.New(cfg.StorageConfig.Trace.S3)
-				case "gcs":
+				case backend.GCS:
 					cfg.StorageConfig.Trace.GCS.ListBlocksConcurrency = listBlockConcurrency
 					cfg.StorageConfig.Trace.GCS.Endpoint = e
 					cfg.StorageConfig.Trace.GCS.Prefix = pc.prefix
-					cfg.Overrides.UserConfigurableOverridesConfig.Client.GCS.Endpoint = e
 					rr, ww, cc, err = gcs.New(cfg.StorageConfig.Trace.GCS)
-				case "azure":
+				case backend.Azure:
 					cfg.StorageConfig.Trace.Azure.Endpoint = e
 					cfg.StorageConfig.Trace.Azure.Prefix = pc.prefix
-					cfg.Overrides.UserConfigurableOverridesConfig.Client.Azure.Endpoint = e
 					rr, ww, cc, err = azure.New(cfg.StorageConfig.Trace.Azure)
 				}
 				require.NoError(t, err)
@@ -182,8 +138,6 @@ func TestPollerOwnership(t *testing.T) {
 				l := blocklist.New()
 				mm, cm, err := blocklistPoller.Do(ctx, l)
 				require.NoError(t, err)
-				// t.Logf("mm: %v", mm)
-				// t.Logf("cm: %v", cm)
 
 				l.ApplyPollResults(mm, cm)
 
@@ -199,36 +153,17 @@ func TestPollerOwnership(t *testing.T) {
 
 					assert.Equal(t, expected, actual)
 					assert.Equal(t, len(expected), len(metas))
-					// t.Logf("actual: %v", actual)
 
 					for _, e := range expected {
 						assert.True(t, found(e, metas))
 					}
 				}
 			})
-		}
+		})
 	}
 }
 
 func TestTenantDeletion(t *testing.T) {
-	testCompactorOwnershipBackends := []struct {
-		name       string
-		configFile string
-	}{
-		{
-			name:       "s3",
-			configFile: configS3,
-		},
-		{
-			name:       "azure",
-			configFile: configAzurite,
-		},
-		{
-			name:       "gcs",
-			configFile: configGCS,
-		},
-	}
-
 	storageBackendTestPermutations := []struct {
 		name   string
 		prefix string
@@ -251,36 +186,15 @@ func TestTenantDeletion(t *testing.T) {
 	}
 
 	logger := log.NewLogfmtLogger(os.Stdout)
-	var hhh *e2e.HTTPService
-	t.Parallel()
-	for _, tc := range testCompactorOwnershipBackends {
-		for _, pc := range storageBackendTestPermutations {
-			t.Run(tc.name+"-"+pc.name, func(t *testing.T) {
-				s, err := e2e.NewScenario("tempo-poller-integration")
-				require.NoError(t, err)
-				defer s.Close()
 
-				// set up the backend
-				cfg := app.Config{}
-				buff, err := os.ReadFile(tc.configFile)
+	for _, pc := range storageBackendTestPermutations {
+		t.Run(pc.name, func(t *testing.T) {
+			util.WithTempoHarness(t, util.TestHarnessConfig{
+				Components: util.ComponentsObjectStorage,
+			}, func(h *util.TempoHarness) {
+				// Get the config to determine backend type and settings
+				cfg, err := h.GetConfig()
 				require.NoError(t, err)
-				err = yaml.UnmarshalStrict(buff, &cfg)
-				require.NoError(t, err)
-				hhh, err = util.NewBackend(s, cfg)
-				require.NoError(t, err)
-
-				err = hhh.WaitReady()
-				require.NoError(t, err)
-
-				err = hhh.Ready()
-				require.NoError(t, err)
-
-				// Give some time for startup
-				time.Sleep(1 * time.Second)
-
-				t.Logf("backend: %s", hhh.Endpoint(hhh.HTTPPort()))
-
-				require.NoError(t, util.CopyFileToSharedDir(s, tc.configFile, "config.yaml"))
 
 				var rr backend.RawReader
 				var ww backend.RawWriter
@@ -290,22 +204,23 @@ func TestTenantDeletion(t *testing.T) {
 				ctx, cancel := context.WithCancel(context.Background())
 				defer cancel()
 
-				e := hhh.Endpoint(hhh.HTTPPort())
-				switch tc.name {
-				case "s3":
+				// Get backend endpoint from the harness
+				httpService, ok := h.Backend.(*e2e.HTTPService)
+				require.True(t, ok, "backend should be an HTTPService")
+				e := httpService.Endpoint(httpService.HTTPPort())
+
+				switch cfg.StorageConfig.Trace.Backend {
+				case backend.S3:
 					cfg.StorageConfig.Trace.S3.Endpoint = e
 					cfg.StorageConfig.Trace.S3.ListBlocksConcurrency = listBlockConcurrency
 					cfg.StorageConfig.Trace.S3.Prefix = pc.prefix
-					cfg.Overrides.UserConfigurableOverridesConfig.Client.S3.Endpoint = e
 					rr, ww, cc, err = s3.New(cfg.StorageConfig.Trace.S3)
-				case "gcs":
-					cfg.Overrides.UserConfigurableOverridesConfig.Client.GCS.Endpoint = e
+				case backend.GCS:
 					cfg.StorageConfig.Trace.GCS.Endpoint = e
 					cfg.StorageConfig.Trace.GCS.ListBlocksConcurrency = listBlockConcurrency
 					cfg.StorageConfig.Trace.GCS.Prefix = pc.prefix
 					rr, ww, cc, err = gcs.New(cfg.StorageConfig.Trace.GCS)
-				case "azure":
-					cfg.Overrides.UserConfigurableOverridesConfig.Client.Azure.Endpoint = e
+				case backend.Azure:
 					cfg.StorageConfig.Trace.Azure.Endpoint = e
 					cfg.StorageConfig.Trace.Azure.Prefix = pc.prefix
 					rr, ww, cc, err = azure.New(cfg.StorageConfig.Trace.Azure)
@@ -364,11 +279,10 @@ func TestTenantDeletion(t *testing.T) {
 				require.NoError(t, err)
 
 				tennants, err = r.Tenants(ctx)
-				// t.Logf("tennants: %v", tennants)
 				require.NoError(t, err)
 				require.Equal(t, 0, len(tennants))
 			})
-		}
+		})
 	}
 }
 

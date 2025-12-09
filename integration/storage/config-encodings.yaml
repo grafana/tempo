@@ -1,0 +1,9 @@
+storage:
+  trace:
+    block:
+      version: "{{.Version}}"
+      parquet_dedicated_columns:
+        - { scope: resource, name: vulture-process-0, type: string }
+        - { scope: resource, name: vulture-process-1, type: string }
+        - { scope: span, name: vulture-0, type: string }
+        - { scope: span, name: vulture-1, type: string }

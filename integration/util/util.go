@@ -498,7 +498,7 @@ func SearchAndAssertTrace(t *testing.T, client *httpclient.Client, info *tempoUt
 	require.True(t, traceIDInResults(t, info.HexID(), resp))
 }
 
-func SearchTraceQLAndAssertTrace(t *testing.T, client *httpclient.Client, info *tempoUtil.TraceInfo) {
+func SearchTraceQLAndAssertTrace(t *testing.T, client *httpclient.Client, info *tempoUtil.TraceInfo) { // jpe - so many of these stupid things. consolidate! delete!
 	expected, err := info.ConstructTraceFromEpoch()
 	require.NoError(t, err)
 
@@ -506,6 +506,19 @@ func SearchTraceQLAndAssertTrace(t *testing.T, client *httpclient.Client, info *
 	query := fmt.Sprintf(`{ .%s = "%s"}`, attr.GetKey(), attr.GetValue().GetStringValue())
 
 	resp, err := client.SearchTraceQL(query)
+	require.NoError(t, err)
+
+	require.True(t, traceIDInResults(t, info.HexID(), resp))
+}
+
+func SearchTraceQLAndAssertTraceWithRange(t *testing.T, client *httpclient.Client, info *tempoUtil.TraceInfo, start, end int64) {
+	expected, err := info.ConstructTraceFromEpoch()
+	require.NoError(t, err)
+
+	attr := tempoUtil.RandomAttrFromTrace(expected)
+	query := fmt.Sprintf(`{ .%s = "%s"}`, attr.GetKey(), attr.GetValue().GetStringValue())
+
+	resp, err := client.SearchTraceQLWithRange(query, start, end)
 	require.NoError(t, err)
 
 	require.True(t, traceIDInResults(t, info.HexID(), resp))

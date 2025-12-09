@@ -1,0 +1,8 @@
+storage:
+  trace:
+    backend: gcs
+    #confirm_versioning: false
+    gcs:
+      bucket_name: tempo
+      endpoint: https://gcs:4443/storage/v1/
+      insecure: true

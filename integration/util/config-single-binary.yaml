@@ -1,0 +1,10 @@
+#
+# this file is overlayed on top of config-base.yaml when running in single binary mode
+#
+
+querier:
+  frontend_worker:
+    frontend_address: tempo:9095
+
+backend_worker:
+  backend_scheduler_addr: tempo:9095
