@@ -1475,7 +1475,6 @@ func TestDescendantOf(t *testing.T) {
 
 				lhs := tc.lhs
 				rhs := tc.rhs
-
 				lhs = append(lhs, allDisconnected...)
 				rhs = append(rhs, allDisconnected...)
 
@@ -1683,8 +1682,10 @@ func TestChildOf(t *testing.T) {
 			t.Run(tc.name+"-disconnected", func(t *testing.T) {
 				s := &span{}
 
-				lhs := append(tc.lhs, allDisconnected...)
-				rhs := append(tc.rhs, allDisconnected...)
+				lhs := tc.lhs
+				rhs := tc.rhs
+				lhs = append(lhs, allDisconnected...)
+				rhs = append(rhs, allDisconnected...)
 
 				actual := s.ChildOf(lhs, rhs, tc.falseForAll, tc.invert, tc.union, nil)
 				require.Equal(t, tc.expected, actual)
@@ -1805,7 +1806,8 @@ func TestSiblingOf(t *testing.T) {
 			t.Run(tc.name+"-disconnected-lhs", func(t *testing.T) {
 				s := &span{}
 
-				lhs := append(tc.lhs, allDisconnected...)
+				lhs := tc.lhs
+				lhs = append(lhs, allDisconnected...)
 
 				actual := s.SiblingOf(lhs, tc.rhs, tc.falseForAll, tc.union, nil)
 				require.Equal(t, tc.expected, actual)
@@ -1814,7 +1816,8 @@ func TestSiblingOf(t *testing.T) {
 			t.Run(tc.name+"-disconnected-rhs", func(t *testing.T) {
 				s := &span{}
 
-				rhs := append(tc.rhs, allDisconnected...)
+				rhs := tc.rhs
+				rhs = append(rhs, allDisconnected...)
 
 				actual := s.SiblingOf(tc.lhs, rhs, tc.falseForAll, tc.union, nil)
 				require.Equal(t, tc.expected, actual)

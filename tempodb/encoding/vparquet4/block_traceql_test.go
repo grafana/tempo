@@ -19,7 +19,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/grafana/tempo/pkg/parquetquery"
-	pq "github.com/grafana/tempo/pkg/parquetquery"
 	"github.com/grafana/tempo/pkg/tempopb"
 	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 	"github.com/grafana/tempo/pkg/traceql"
@@ -1575,7 +1574,7 @@ func BenchmarkIterators(b *testing.B) {
 
 	var instrPred *parquetquery.InstrumentedPredicate
 	makeIterInternal := makeIterFunc(ctx, rgs, pf)
-	makeIter := func(columnName string, predicate pq.Predicate, selectAs string) pq.Iterator {
+	makeIter := func(columnName string, predicate parquetquery.Predicate, selectAs string) parquetquery.Iterator {
 		instrPred = &parquetquery.InstrumentedPredicate{
 			Pred: predicate,
 		}
@@ -2069,8 +2068,10 @@ func TestDescendantOf(t *testing.T) {
 			t.Run(tc.name+"-disconnected", func(t *testing.T) {
 				s := &span{}
 
-				lhs := append(tc.lhs, allDisconnected...)
-				rhs := append(tc.rhs, allDisconnected...)
+				lhs := tc.lhs
+				rhs := tc.rhs
+				lhs = append(lhs, allDisconnected...)
+				rhs = append(rhs, allDisconnected...)
 
 				actual := s.DescendantOf(lhs, rhs, tc.falseForAll, tc.invert, tc.union, nil)
 				require.Equal(t, tc.expected, actual)
@@ -2278,7 +2279,6 @@ func TestChildOf(t *testing.T) {
 
 				lhs := tc.lhs
 				rhs := tc.rhs
-
 				lhs = append(lhs, allDisconnected...)
 				rhs = append(rhs, allDisconnected...)
 
@@ -2401,7 +2401,8 @@ func TestSiblingOf(t *testing.T) {
 			t.Run(tc.name+"-disconnected-lhs", func(t *testing.T) {
 				s := &span{}
 
-				lhs := append(tc.lhs, allDisconnected...)
+				lhs := tc.lhs
+				lhs = append(lhs, allDisconnected...)
 
 				actual := s.SiblingOf(lhs, tc.rhs, tc.falseForAll, tc.union, nil)
 				require.Equal(t, tc.expected, actual)
@@ -2410,7 +2411,8 @@ func TestSiblingOf(t *testing.T) {
 			t.Run(tc.name+"-disconnected-rhs", func(t *testing.T) {
 				s := &span{}
 
-				rhs := append(tc.rhs, allDisconnected...)
+				rhs := tc.rhs
+				rhs = append(rhs, allDisconnected...)
 
 				actual := s.SiblingOf(tc.lhs, rhs, tc.falseForAll, tc.union, nil)
 				require.Equal(t, tc.expected, actual)

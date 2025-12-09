@@ -409,13 +409,13 @@ func (rw *readerWriter) ListBlocks(
 		maxID = uuid.UUID(bb[i+1])
 
 		wg.Add(1)
-		go func(min, max uuid.UUID) {
+		go func(minUUID, maxUUID uuid.UUID) {
 			defer wg.Done()
 
 			var (
 				err        error
 				res        minio.ListBucketV2Result
-				startAfter = prefix + min.String()
+				startAfter = prefix + minUUID.String()
 			)
 
 			for res.IsTruncated = true; res.IsTruncated; {
@@ -448,13 +448,13 @@ func (rw *readerWriter) ListBlocks(
 						continue
 					}
 
-					if bytes.Compare(id[:], min[:]) < 0 {
+					if bytes.Compare(id[:], minUUID[:]) < 0 {
 						errChan <- fmt.Errorf("block UUID below shard minimum")
 						return
 					}
 
-					if max != backend.GlobalMaxBlockID {
-						if bytes.Compare(id[:], max[:]) >= 0 {
+					if maxUUID != backend.GlobalMaxBlockID {
+						if bytes.Compare(id[:], maxUUID[:]) >= 0 {
 							return
 						}
 					}

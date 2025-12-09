@@ -16,7 +16,6 @@ import (
 
 	"github.com/grafana/tempo/pkg/cache"
 	"github.com/grafana/tempo/pkg/parquetquery"
-	pq "github.com/grafana/tempo/pkg/parquetquery"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/tempodb/backend"
@@ -139,7 +138,7 @@ func (b *backendBlock) FindTraceByID(ctx context.Context, traceID common.ID, opt
 
 func findTraceByID(ctx context.Context, traceID common.ID, meta *backend.BlockMeta, pf *parquet.File, rowGroup int) (*tempopb.TraceByIDResponse, error) {
 	// traceID column index
-	colIndex, _, maxDef := pq.GetColumnIndexByPath(pf, TraceIDColumnName)
+	colIndex, _, maxDef := parquetquery.GetColumnIndexByPath(pf, TraceIDColumnName)
 	if colIndex == -1 {
 		return nil, fmt.Errorf("unable to get index for column: %s", TraceIDColumnName)
 	}
@@ -162,10 +161,10 @@ func findTraceByID(ctx context.Context, traceID common.ID, meta *backend.BlockMe
 		// Gets the minimum trace ID within the row group. Since the column is sorted
 		// ascending we just read the first value from the first page.
 		getRowGroupMin := func(rgIdx int) (common.ID, error) {
-			min := rowGroupMins[rgIdx]
-			if len(min) > 0 {
+			minID := rowGroupMins[rgIdx]
+			if len(minID) > 0 {
 				// Already loaded
-				return min, nil
+				return minID, nil
 			}
 
 			pages := pf.RowGroups()[rgIdx].ColumnChunks()[colIndex].Pages()
@@ -187,30 +186,30 @@ func findTraceByID(ctx context.Context, traceID common.ID, meta *backend.BlockMe
 
 			// Clone ensures that the byte array is disconnected
 			// from the underlying i/o buffers.
-			min = buf[0].Clone().ByteArray()
-			rowGroupMins[rgIdx] = min
-			return min, nil
+			minID = buf[0].Clone().ByteArray()
+			rowGroupMins[rgIdx] = minID
+			return minID, nil
 		}
 
 		rowGroup, err = binarySearch(numRowGroups, func(rgIdx int) (int, error) {
-			min, err := getRowGroupMin(rgIdx)
+			minID, err := getRowGroupMin(rgIdx)
 			if err != nil {
 				return 0, err
 			}
 
-			if check := bytes.Compare(traceID, min); check <= 0 {
+			if check := bytes.Compare(traceID, minID); check <= 0 {
 				// Trace is before or in this group
 				return check, nil
 			}
 
-			max, err := getRowGroupMin(rgIdx + 1)
+			maxID, err := getRowGroupMin(rgIdx + 1)
 			if err != nil {
 				return 0, err
 			}
 
 			// This is actually the min of the next group, so check is exclusive not inclusive like min
 			// Except for the last group, it is inclusive
-			check := bytes.Compare(traceID, max)
+			check := bytes.Compare(traceID, maxID)
 			if check > 0 || (check == 0 && rgIdx < (numRowGroups-1)) {
 				// Trace is after this group
 				return 1, nil

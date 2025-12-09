@@ -235,7 +235,7 @@ func (rw *readerWriter) ListBlocks(ctx context.Context, tenant string) ([]uuid.U
 		maxID = uuid.UUID(bb[i+1])
 
 		wg.Add(1)
-		go func(min, max uuid.UUID) {
+		go func(minUUID, maxUUID uuid.UUID) {
 			defer wg.Done()
 
 			var (
@@ -243,7 +243,7 @@ func (rw *readerWriter) ListBlocks(ctx context.Context, tenant string) ([]uuid.U
 					Prefix:      prefix,
 					Delimiter:   "",
 					Versions:    false,
-					StartOffset: prefix + min.String(),
+					StartOffset: prefix + minUUID.String(),
 				}
 				parts []string
 				id    uuid.UUID
@@ -251,8 +251,8 @@ func (rw *readerWriter) ListBlocks(ctx context.Context, tenant string) ([]uuid.U
 
 			// If max is global max, then we don't want to set an end offset to
 			// ensure we reach the end.  EndOffset is exclusive.
-			if max != backend.GlobalMaxBlockID {
-				query.EndOffset = prefix + max.String()
+			if maxUUID != backend.GlobalMaxBlockID {
+				query.EndOffset = prefix + maxUUID.String()
 			}
 
 			iter := rw.bucket.Objects(ctx, query)
@@ -289,13 +289,13 @@ func (rw *readerWriter) ListBlocks(ctx context.Context, tenant string) ([]uuid.U
 					continue
 				}
 
-				if bytes.Compare(id[:], min[:]) < 0 {
+				if bytes.Compare(id[:], minUUID[:]) < 0 {
 					errChan <- fmt.Errorf("block UUID below shard minimum")
 					return
 				}
 
-				if max != backend.GlobalMaxBlockID {
-					if bytes.Compare(id[:], max[:]) >= 0 {
+				if maxUUID != backend.GlobalMaxBlockID {
+					if bytes.Compare(id[:], maxUUID[:]) >= 0 {
 						return
 					}
 				}

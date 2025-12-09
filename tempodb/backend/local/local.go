@@ -119,7 +119,7 @@ func (rw *Backend) CloseAppend(ctx context.Context, tracker backend.AppendTracke
 		return nil
 	}
 
-	var dst *os.File = tracker.(*os.File)
+	dst := tracker.(*os.File)
 	return dst.Close()
 }
 

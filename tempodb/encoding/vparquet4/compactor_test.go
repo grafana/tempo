@@ -196,7 +196,7 @@ func TestCompact(t *testing.T) {
 		BlockConfig:     blockConfig,
 		OutputBlocks:    1,
 		FlushSizeBytes:  30_000_000,
-		ObjectsCombined: func(compactionLevel, objects int) {},
+		ObjectsCombined: func(_, _ int) {},
 	})
 
 	dedicatedColumns := backend.DedicatedColumns{

@@ -368,28 +368,6 @@ func (b *walBlock) Validate(context.Context) error {
 	return util.ErrUnsupported
 }
 
-func (b *walBlock) adjustTimeRangeForSlack(start, end uint32) (uint32, uint32) {
-	now := time.Now()
-	startOfRange := uint32(now.Add(-b.ingestionSlack).Unix())
-	endOfRange := uint32(now.Add(b.ingestionSlack).Unix())
-
-	warn := false
-	if start < startOfRange {
-		warn = true
-		start = uint32(now.Unix())
-	}
-	if end > endOfRange || end < start {
-		warn = true
-		end = uint32(now.Unix())
-	}
-
-	if warn {
-		dataquality.WarnOutsideIngestionSlack(b.meta.TenantID)
-	}
-
-	return start, end
-}
-
 func (b *walBlock) filepathOf(page int) string {
 	filename := fmt.Sprintf("%010d", page)
 	filename = filepath.Join(b.walPath(), filename)
