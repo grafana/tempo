@@ -2,7 +2,6 @@
   $schema: 'https://docs.renovatebot.com/renovate-schema.json',
   extends: [
     'config:best-practices',
-    ':automergeAll',
     ':semanticCommits',
   ],
   schedule: [
@@ -14,7 +13,7 @@
   automergeStrategy: 'squash',
   automergeType: 'pr',
   automerge: true,
-  platformAutomerge: true
+  platformAutomerge: true,
   addLabels: [
     'dependencies',
     'renovate',
