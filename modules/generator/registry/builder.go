@@ -32,8 +32,6 @@ func (p *safeBuilderPool) Put(builder *labels.Builder) {
 
 var builderPool = newSafeBuilderPool()
 
-type demandTracker func(hash uint64)
-
 type labelBuilder struct {
 	builder *labels.Builder
 
