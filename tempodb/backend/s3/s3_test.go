@@ -735,7 +735,8 @@ func metadataMockedHandler(t *testing.T) http.HandlerFunc {
 	require.NoError(t, err)
 
 	return func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.String() == "/" {
+		switch r.URL.String() {
+		case "/":
 			err := r.ParseForm()
 			require.NoError(t, err)
 
@@ -767,7 +768,7 @@ func metadataMockedHandler(t *testing.T) http.HandlerFunc {
 
 			err1 := xml.NewEncoder(w).Encode(assumeResponse)
 			require.NoError(t, err1)
-		} else if r.URL.String() == "/latest/api/token" {
+		case "/latest/api/token":
 			// Check for X-aws-ec2-metadata-token-ttl-seconds request header
 			if r.Header.Get("X-aws-ec2-metadata-token-ttl-seconds") == "" {
 				w.WriteHeader(400)
@@ -786,11 +787,11 @@ func metadataMockedHandler(t *testing.T) http.HandlerFunc {
 			if _, err := w.Write([]byte(token)); err != nil {
 				require.NoError(t, err)
 			}
-		} else if r.URL.String() == "/latest/meta-data/iam/security-credentials/" {
+		case "/latest/meta-data/iam/security-credentials/":
 			if _, err := w.Write([]byte("role-name\n")); err != nil {
 				require.NoError(t, err)
 			}
-		} else if r.URL.String() == "/latest/meta-data/iam/security-credentials/role-name" {
+		case "/latest/meta-data/iam/security-credentials/role-name":
 			creds := ec2RoleCredRespBody{
 				LastUpdated:     timeNow(),
 				Expiration:      timeNow().Add(1 * time.Hour),

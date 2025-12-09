@@ -19,7 +19,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/grafana/tempo/pkg/parquetquery"
-	pq "github.com/grafana/tempo/pkg/parquetquery"
 	"github.com/grafana/tempo/pkg/tempopb"
 	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 	"github.com/grafana/tempo/pkg/traceql"
@@ -1576,7 +1575,7 @@ func BenchmarkIterators(b *testing.B) {
 
 	var instrPred *parquetquery.InstrumentedPredicate
 	makeIterInternal := makeIterFunc(ctx, rgs, pf)
-	makeIter := func(columnName string, predicate pq.Predicate, selectAs string) pq.Iterator {
+	makeIter := func(columnName string, predicate parquetquery.Predicate, selectAs string) parquetquery.Iterator {
 		instrPred = &parquetquery.InstrumentedPredicate{
 			Pred: predicate,
 		}
@@ -1586,20 +1585,7 @@ func BenchmarkIterators(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		err := error(nil)
-
 		iter := makeIter(columnPathSpanAttrKey, parquetquery.NewSubstringPredicate("e"), "foo")
-
-		//parquetquery.NewUnionIterator(DefinitionLevelResourceSpansILSSpanAttrs, []parquetquery.Iterator{
-		// makeIter(columnPathSpanHTTPStatusCode, parquetquery.NewIntEqualPredicate(500), "http_status"),
-		// makeIter(columnPathSpanName, parquetquery.NewStringEqualPredicate([]byte("foo")), "name"),
-		// makeIter(columnPathSpanStatusCode, parquetquery.NewIntEqualPredicate(2), "status"),
-		// makeIter(columnPathSpanAttrDouble, parquetquery.NewFloatEqualPredicate(500), "double"),
-		//makeIter(columnPathSpanAttrInt, parquetquery.NewIntEqualPredicate(500), "int"),
-		//}, nil)
-		require.NoError(b, err)
-		// fmt.Println(iter.String())
-
 		count := 0
 		for {
 			res, err := iter.Next()
@@ -2083,8 +2069,10 @@ func TestDescendantOf(t *testing.T) {
 			t.Run(tc.name+"-disconnected", func(t *testing.T) {
 				s := &span{}
 
-				lhs := append(tc.lhs, allDisconnected...)
-				rhs := append(tc.rhs, allDisconnected...)
+				lhs := tc.lhs
+				rhs := tc.rhs
+				lhs = append(lhs, allDisconnected...)
+				rhs = append(rhs, allDisconnected...)
 
 				actual := s.DescendantOf(lhs, rhs, tc.falseForAll, tc.invert, tc.union, nil)
 				require.Equal(t, tc.expected, actual)
@@ -2290,8 +2278,10 @@ func TestChildOf(t *testing.T) {
 			t.Run(tc.name+"-disconnected", func(t *testing.T) {
 				s := &span{}
 
-				lhs := append(tc.lhs, allDisconnected...)
-				rhs := append(tc.rhs, allDisconnected...)
+				lhs := tc.lhs
+				rhs := tc.rhs
+				lhs = append(lhs, allDisconnected...)
+				rhs = append(rhs, allDisconnected...)
 
 				actual := s.ChildOf(lhs, rhs, tc.falseForAll, tc.invert, tc.union, nil)
 				require.Equal(t, tc.expected, actual)
@@ -2412,7 +2402,8 @@ func TestSiblingOf(t *testing.T) {
 			t.Run(tc.name+"-disconnected-lhs", func(t *testing.T) {
 				s := &span{}
 
-				lhs := append(tc.lhs, allDisconnected...)
+				lhs := tc.lhs
+				lhs = append(lhs, allDisconnected...)
 
 				actual := s.SiblingOf(lhs, tc.rhs, tc.falseForAll, tc.union, nil)
 				require.Equal(t, tc.expected, actual)
@@ -2421,7 +2412,8 @@ func TestSiblingOf(t *testing.T) {
 			t.Run(tc.name+"-disconnected-rhs", func(t *testing.T) {
 				s := &span{}
 
-				rhs := append(tc.rhs, allDisconnected...)
+				rhs := tc.rhs
+				rhs = append(rhs, allDisconnected...)
 
 				actual := s.SiblingOf(tc.lhs, rhs, tc.falseForAll, tc.union, nil)
 				require.Equal(t, tc.expected, actual)
@@ -2625,16 +2617,16 @@ func shuffleSpans(spans []traceql.Span) {
 	})
 }
 
-func randomTree(N int) []traceql.Span {
-	nodes := make([]traceql.Span, 0, N)
+func randomTree(count int) []traceql.Span {
+	nodes := make([]traceql.Span, 0, count)
 
 	// Helper function to recursively generate nodes
 	var generateNodes func(parent int) int
 	generateNodes = func(parent int) int {
 		left := parent
-		for N > 0 {
+		for count > 0 {
 			// make sibling
-			N--
+			count--
 			left++
 			right := left + 1
 			nodes = append(nodes, &span{
@@ -2653,7 +2645,7 @@ func randomTree(N int) []traceql.Span {
 			}
 
 			// descend and make children
-			N--
+			count--
 			right = generateNodes(left)
 			nodes = append(nodes, &span{
 				nestedSetLeft:   int32(left),

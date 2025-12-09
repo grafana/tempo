@@ -305,8 +305,7 @@ func createDistinctEventIterator(
 
 	for _, cond := range conditions {
 		// Intrinsic?
-		switch cond.Attribute.Intrinsic {
-		case traceql.IntrinsicEventName:
+		if cond.Attribute.Intrinsic == traceql.IntrinsicEventName {
 			pred, err := createStringPredicate(cond.Op, cond.Operands)
 			if err != nil {
 				return nil, err
@@ -1174,11 +1173,10 @@ func (d distinctValueCollector) KeepGroup(result *parquetquery.IteratorResult) b
 }
 
 func mapEventAttr(e entry) traceql.Static {
-	switch e.Key {
-	case columnPathEventName:
+	if e.Key == columnPathEventName {
 		return traceql.NewStaticString(unsafeToString(e.Value.ByteArray()))
 	}
-	return traceql.Static{}
+	return traceql.NewStaticNil()
 }
 
 func mapLinkAttr(_ entry) traceql.Static {

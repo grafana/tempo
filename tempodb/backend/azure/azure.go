@@ -174,7 +174,7 @@ func (rw *Azure) List(ctx context.Context, keypath backend.KeyPath) ([]string, e
 	prefix := path.Join(keypath...)
 
 	if len(prefix) > 0 {
-		prefix = prefix + dir
+		prefix += dir
 	}
 
 	pager := rw.containerClient.NewListBlobsHierarchyPager(dir, &container.ListBlobsHierarchyOptions{
@@ -267,7 +267,7 @@ func (rw *Azure) Find(ctx context.Context, keypath backend.KeyPath, f backend.Fi
 
 	prefix := path.Join(keypath...)
 	if len(prefix) > 0 {
-		prefix = prefix + dir
+		prefix += dir
 	}
 
 	pager := rw.containerClient.NewListBlobsFlatPager(&container.ListBlobsFlatOptions{
