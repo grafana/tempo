@@ -16,7 +16,7 @@ import (
 func Test_histogram(t *testing.T) {
 	var seriesAdded int
 	lifecycler := &mockLimiter{
-		onAddFunc: func(hash uint64, count uint32, lbls labels.Labels) (labels.Labels, uint64) {
+		onAddFunc: func(hash uint64, _ uint32, lbls labels.Labels) (labels.Labels, uint64) {
 			seriesAdded++
 			return lbls, hash
 		},
@@ -480,7 +480,7 @@ func Test_histogram_demandVsActiveSeries(t *testing.T) {
 	overflowLabels := labels.FromStrings("metric_overflow", "true")
 	overflowHash := overflowLabels.Hash()
 	lifecycler := &mockLimiter{
-		onAddFunc: func(hash uint64, count uint32, lbls labels.Labels) (labels.Labels, uint64) {
+		onAddFunc: func(hash uint64, _ uint32, lbls labels.Labels) (labels.Labels, uint64) {
 			if !limitReached {
 				return lbls, hash
 			}

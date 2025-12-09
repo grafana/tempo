@@ -748,7 +748,7 @@ func Test_nativeHistogram_demandVsActiveSeries(t *testing.T) {
 	overflowLabels := labels.FromStrings("metric_overflow", "true")
 	overflowHash := overflowLabels.Hash()
 	lifecycler := &mockLimiter{
-		onAddFunc: func(hash uint64, count uint32, lbls labels.Labels) (labels.Labels, uint64) {
+		onAddFunc: func(hash uint64, _ uint32, lbls labels.Labels) (labels.Labels, uint64) {
 			if !limitReached {
 				return lbls, hash
 			}

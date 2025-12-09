@@ -238,7 +238,7 @@ func TestManagedRegistry_limited(t *testing.T) {
 	overflowLabels := labels.FromStrings("metric_overflow", "true")
 	overflowHash := overflowLabels.Hash()
 	limiter := &mockLimiter{
-		onAddFunc: func(hash uint64, count uint32, lbls labels.Labels) (labels.Labels, uint64) {
+		onAddFunc: func(hash uint64, _ uint32, lbls labels.Labels) (labels.Labels, uint64) {
 			if !atLimit {
 				return lbls, hash
 			}
@@ -277,7 +277,7 @@ func TestManagedRegistry_maxEntities(t *testing.T) {
 	overflowLabels := labels.FromStrings("metric_overflow", "true")
 	overflowHash := overflowLabels.Hash()
 	limiter := &mockLimiter{
-		onAddFunc: func(hash uint64, count uint32, lbls labels.Labels) (labels.Labels, uint64) {
+		onAddFunc: func(hash uint64, _ uint32, lbls labels.Labels) (labels.Labels, uint64) {
 			if !atLimit {
 				return lbls, hash
 			}
@@ -568,7 +568,7 @@ func TestManagedRegistry_demandExceedsMax(t *testing.T) {
 	overflowLabels := labels.FromStrings("metric_overflow", "true")
 	overflowHash := overflowLabels.Hash()
 	rejectLimiter := &mockLimiter{
-		onAddFunc: func(hash uint64, count uint32, lbls labels.Labels) (labels.Labels, uint64) {
+		onAddFunc: func(_ uint64, _ uint32, _ labels.Labels) (labels.Labels, uint64) {
 			return overflowLabels, overflowHash
 		},
 	}
@@ -698,7 +698,7 @@ func TestManagedRegistry_entityDemandExceedsMax(t *testing.T) {
 	overflowLabels := labels.FromStrings("metric_overflow", "true")
 	overflowHash := overflowLabels.Hash()
 	rejectLimiter := &mockLimiter{
-		onAddFunc: func(hash uint64, count uint32, lbls labels.Labels) (labels.Labels, uint64) {
+		onAddFunc: func(_ uint64, _ uint32, _ labels.Labels) (labels.Labels, uint64) {
 			return overflowLabels, overflowHash
 		},
 	}

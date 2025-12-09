@@ -15,7 +15,7 @@ import (
 func Test_counter(t *testing.T) {
 	var seriesAdded int
 	lifecycler := &mockLimiter{
-		onAddFunc: func(hash uint64, count uint32, lbls labels.Labels) (labels.Labels, uint64) {
+		onAddFunc: func(hash uint64, _ uint32, lbls labels.Labels) (labels.Labels, uint64) {
 			seriesAdded++
 			return lbls, hash
 		},
@@ -58,7 +58,7 @@ func Test_counter(t *testing.T) {
 func TestCounterDifferentLabels(t *testing.T) {
 	var seriesAdded int
 	lifecycler := &mockLimiter{
-		onAddFunc: func(hash uint64, count uint32, lbls labels.Labels) (labels.Labels, uint64) {
+		onAddFunc: func(hash uint64, _ uint32, lbls labels.Labels) (labels.Labels, uint64) {
 			seriesAdded++
 			return lbls, hash
 		},
@@ -324,7 +324,7 @@ func Test_counter_demandVsActiveSeries(t *testing.T) {
 	overflowLabels := labels.FromStrings("metric_overflow", "true")
 	overflowHash := overflowLabels.Hash()
 	lifecycler := &mockLimiter{
-		onAddFunc: func(hash uint64, count uint32, lbls labels.Labels) (labels.Labels, uint64) {
+		onAddFunc: func(hash uint64, _ uint32, lbls labels.Labels) (labels.Labels, uint64) {
 			if !limitReached {
 				return lbls, hash
 			}
@@ -385,7 +385,7 @@ func Test_counter_demandDecay(t *testing.T) {
 func Test_counter_onUpdate(t *testing.T) {
 	var seriesUpdated int
 	lifecycler := &mockLimiter{
-		onAddFunc: func(hash uint64, count uint32, lbls labels.Labels) (labels.Labels, uint64) {
+		onAddFunc: func(hash uint64, _ uint32, lbls labels.Labels) (labels.Labels, uint64) {
 			return lbls, hash
 		},
 		onUpdateFunc: func(_ uint64, count uint32) {
