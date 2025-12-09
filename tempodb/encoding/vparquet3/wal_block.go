@@ -133,11 +133,10 @@ func openWALBlock(filename, path string, ingestionSlack, _ time.Duration) (commo
 			}
 
 			for _, e := range match.Entries {
-				switch e.Key {
-				case columnPathTraceID:
+				if e.Key == columnPathTraceID {
 					traceID := e.Value.ByteArray()
 					b.meta.ObjectAdded(0, 0)
-					page.ids.Set(traceID, int64(match.RowNumber[0])) // Save rownumber for the trace ID
+					page.ids.Set(traceID, int64(match.RowNumber[0])) // Save row number for the trace ID
 				}
 			}
 		}
@@ -367,28 +366,6 @@ func (b *walBlock) IngestionSlack() time.Duration {
 
 func (b *walBlock) Validate(context.Context) error {
 	return util.ErrUnsupported
-}
-
-func (b *walBlock) adjustTimeRangeForSlack(start, end uint32) (uint32, uint32) {
-	now := time.Now()
-	startOfRange := uint32(now.Add(-b.ingestionSlack).Unix())
-	endOfRange := uint32(now.Add(b.ingestionSlack).Unix())
-
-	warn := false
-	if start < startOfRange {
-		warn = true
-		start = uint32(now.Unix())
-	}
-	if end > endOfRange || end < start {
-		warn = true
-		end = uint32(now.Unix())
-	}
-
-	if warn {
-		dataquality.WarnOutsideIngestionSlack(b.meta.TenantID)
-	}
-
-	return start, end
 }
 
 func (b *walBlock) filepathOf(page int) string {

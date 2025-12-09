@@ -24,7 +24,7 @@ func TestResults(t *testing.T) {
 	opts := goleak.IgnoreCurrent()
 
 	ret := []byte{0x01, 0x02}
-	fn := func(ctx context.Context, payload interface{}) (interface{}, error) {
+	fn := func(_ context.Context, payload interface{}) (interface{}, error) {
 		i := payload.(int)
 
 		if i == 3 {
@@ -54,7 +54,7 @@ func TestNoResults(t *testing.T) {
 	})
 	opts := goleak.IgnoreCurrent()
 
-	fn := func(ctx context.Context, payload interface{}) (interface{}, error) {
+	fn := func(_ context.Context, _ interface{}) (interface{}, error) {
 		return nil, nil
 	}
 	payloads := []interface{}{1, 2, 3, 4, 5}
@@ -79,7 +79,7 @@ func TestMultipleHits(t *testing.T) {
 	opts := goleak.IgnoreCurrent()
 
 	ret := []byte{0x01, 0x02}
-	fn := func(ctx context.Context, payload interface{}) (interface{}, error) {
+	fn := func(_ context.Context, _ interface{}) (interface{}, error) {
 		return ret, nil
 	}
 	payloads := []interface{}{1, 2, 3, 4, 5}
@@ -107,7 +107,7 @@ func TestError(t *testing.T) {
 	opts := goleak.IgnoreCurrent()
 
 	ret := fmt.Errorf("blerg")
-	fn := func(ctx context.Context, payload interface{}) (interface{}, error) {
+	fn := func(_ context.Context, payload interface{}) (interface{}, error) {
 		i := payload.(int)
 
 		if i == 3 {
@@ -137,7 +137,7 @@ func TestMultipleErrors(t *testing.T) {
 	opts := goleak.IgnoreCurrent()
 
 	ret := fmt.Errorf("blerg")
-	fn := func(ctx context.Context, payload interface{}) (interface{}, error) {
+	fn := func(_ context.Context, _ interface{}) (interface{}, error) {
 		return nil, ret
 	}
 	payloads := []interface{}{1, 2, 3, 4, 5}
@@ -166,7 +166,7 @@ func TestTooManyJobs(t *testing.T) {
 	})
 	opts := goleak.IgnoreCurrent()
 
-	fn := func(ctx context.Context, payload interface{}) (interface{}, error) {
+	fn := func(_ context.Context, _ interface{}) (interface{}, error) {
 		return nil, nil
 	}
 	payloads := []interface{}{1, 2, 3, 4, 5}
@@ -191,7 +191,7 @@ func TestOneWorker(t *testing.T) {
 	opts := goleak.IgnoreCurrent()
 
 	ret := []byte{0x01, 0x02, 0x03}
-	fn := func(ctx context.Context, payload interface{}) (interface{}, error) {
+	fn := func(_ context.Context, payload interface{}) (interface{}, error) {
 		i := payload.(int)
 
 		if i == 3 {
@@ -227,7 +227,7 @@ func TestGoingHam(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			ret := []byte{0x01, 0x03, 0x04}
-			fn := func(ctx context.Context, payload interface{}) (interface{}, error) {
+			fn := func(_ context.Context, payload interface{}) (interface{}, error) {
 				i := payload.(int)
 
 				time.Sleep(time.Duration(rand.Uint32()%100) * time.Millisecond)
@@ -268,7 +268,7 @@ func TestOverloadingASmallPool(t *testing.T) {
 	for i := 0; i < 50; i++ {
 		wg.Add(1)
 		go func() {
-			fn := func(ctx context.Context, payload interface{}) (interface{}, error) {
+			fn := func(_ context.Context, _ interface{}) (interface{}, error) {
 				time.Sleep(time.Duration(rand.Uint32()%100) * time.Millisecond)
 				return nil, nil
 			}
@@ -294,7 +294,7 @@ func TestShutdown(t *testing.T) {
 	})
 
 	ret := []byte{0x01, 0x03, 0x04}
-	fn := func(ctx context.Context, payload interface{}) (interface{}, error) {
+	fn := func(_ context.Context, payload interface{}) (interface{}, error) {
 		i := payload.(int)
 
 		if i == 3 {
@@ -324,7 +324,7 @@ func TestDataEncodings(t *testing.T) {
 	opts := goleak.IgnoreCurrent()
 
 	ret := []byte{0x01, 0x02}
-	fn := func(ctx context.Context, payload interface{}) (interface{}, error) {
+	fn := func(_ context.Context, _ interface{}) (interface{}, error) {
 		return ret, nil
 	}
 	payloads := []interface{}{1, 2, 3, 4, 5}

@@ -179,7 +179,7 @@ func TestRetry_MarkBlockCompacted(t *testing.T) {
 }
 
 func fakeServer(t *testing.T, returnIn time.Duration, counter *int32) *httptest.Server {
-	server := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		time.Sleep(returnIn)
 
 		atomic.AddInt32(counter, 1)
@@ -210,9 +210,8 @@ func fakeServerWithObjectAttributes(t *testing.T, o *raw.Object) *httptest.Serve
 				require.NoError(t, err)
 				defer part.Close()
 
-				switch part.Header.Get("Content-Type") {
-				case "application/json":
-					err = json.NewDecoder(r.Body).Decode(&o)
+				if part.Header.Get("Content-Type") == "application/json" {
+					err = json.NewDecoder(part).Decode(&o)
 					require.NoError(t, err)
 				}
 			}
@@ -294,6 +293,76 @@ func TestObjectWithPrefix(t *testing.T) {
 
 			ctx := context.Background()
 			err = w.Write(ctx, tc.objectName, tc.keyPath, bytes.NewReader([]byte{}), 0, nil)
+			assert.NoError(t, err)
+		})
+	}
+}
+
+func TestDelete(t *testing.T) {
+	tests := []struct {
+		name        string
+		prefix      string
+		objectName  string
+		keyPath     backend.KeyPath
+		httpHandler func(t *testing.T) http.HandlerFunc
+	}{
+		{
+			name:       "without prefix",
+			prefix:     "",
+			objectName: "object",
+			keyPath:    backend.KeyPath{"test"},
+			httpHandler: func(t *testing.T) http.HandlerFunc {
+				return func(w http.ResponseWriter, r *http.Request) {
+					if r.Method == "GET" {
+						_, _ = w.Write([]byte(`
+						{
+							"location": "US",
+							"storageClass": "STANDARD"
+						}
+						`))
+						return
+					}
+					assert.Equal(t, "/b/blerg/o/test/object", r.URL.Path)
+					_, _ = w.Write([]byte(`{}`))
+				}
+			},
+		},
+		{
+			name:       "with prefix",
+			prefix:     "test_storage",
+			objectName: "object",
+			keyPath:    backend.KeyPath{"test"},
+			httpHandler: func(t *testing.T) http.HandlerFunc {
+				return func(w http.ResponseWriter, r *http.Request) {
+					if r.Method == "GET" {
+						_, _ = w.Write([]byte(`
+						{
+							"location": "US",
+							"storageClass": "STANDARD"
+						}
+						`))
+						return
+					}
+					assert.Equal(t, "/b/blerg/o/test_storage/test/object", r.URL.Path)
+					_, _ = w.Write([]byte(`{}`))
+				}
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			server := testServer(t, tc.httpHandler(t))
+			_, w, _, err := New(&Config{
+				BucketName: "blerg",
+				Endpoint:   server.URL,
+				Insecure:   true,
+				Prefix:     tc.prefix,
+			})
+			require.NoError(t, err)
+
+			ctx := context.Background()
+			err = w.Delete(ctx, tc.objectName, tc.keyPath, nil)
 			assert.NoError(t, err)
 		})
 	}

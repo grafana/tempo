@@ -231,7 +231,7 @@ func (k *averageSeries) getAvgSeries() TimeSeries {
 }
 
 func (k *averageSeries) getCountSeries() TimeSeries {
-	countLabels := append(k.labels, Label{internalLabelMetaType, NewStaticString(internalMetaTypeCount)})
+	countLabels := k.labels.Add(Label{internalLabelMetaType, NewStaticString(internalMetaTypeCount)})
 	ts := TimeSeries{
 		Labels: countLabels,
 		Values: make([]float64, len(k.values)),

@@ -2643,7 +2643,7 @@ func BenchmarkSumOverTime(b *testing.B) {
 	for range totalSpans {
 		s := time.Duration(randInt(1, 3)) * time.Second
 		v := randFloat(minimum, maximun)
-		in = append(in2, newMockSpan(nil).WithStartTime(uint64(s)).WithSpanString("foo", "bar").WithSpanFloat("kafka.lag", v).WithDuration(100))
+		in = append(in, newMockSpan(nil).WithStartTime(uint64(s)).WithSpanString("foo", "bar").WithSpanFloat("kafka.lag", v).WithDuration(100))
 		s = time.Duration(randInt(1, 3)) * time.Second
 		v = randFloat(minimum, maximun)
 		in2 = append(in2, newMockSpan(nil).WithStartTime(uint64(s)).WithSpanString("foo", "bar").WithSpanFloat("kafka.lag", v).WithDuration(100))

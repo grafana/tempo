@@ -12,13 +12,13 @@ import (
 )
 
 type MetadataCombiner interface {
-	AddMetadata(new *tempopb.TraceSearchMetadata) bool
+	AddMetadata(*tempopb.TraceSearchMetadata) bool
 	IsCompleteFor(ts uint32) bool
 
 	Metadata() []*tempopb.TraceSearchMetadata
 	MetadataAfter(ts uint32) []*tempopb.TraceSearchMetadata
 
-	addSpanset(new *Spanset)
+	addSpanset(*Spanset)
 }
 
 const TimestampNever = uint32(math.MaxUint32)
@@ -45,10 +45,10 @@ func newAnyCombiner(limit int) *anyCombiner {
 
 // addSpanset adds a new spanset to the combiner. It only performs the asTraceSearchMetadata
 // conversion if the spanset will be added
-func (c *anyCombiner) addSpanset(new *Spanset) {
+func (c *anyCombiner) addSpanset(ss *Spanset) {
 	// if it's already in the list, then we should add it
-	if _, ok := c.trs[util.TraceIDToHexString(new.TraceID)]; ok {
-		c.AddMetadata(asTraceSearchMetadata(new))
+	if _, ok := c.trs[util.TraceIDToHexString(ss.TraceID)]; ok {
+		c.AddMetadata(asTraceSearchMetadata(ss))
 		return
 	}
 
@@ -57,14 +57,14 @@ func (c *anyCombiner) addSpanset(new *Spanset) {
 		return
 	}
 
-	c.AddMetadata(asTraceSearchMetadata(new))
+	c.AddMetadata(asTraceSearchMetadata(ss))
 }
 
 // AddMetadata adds the new metadata to the map. if it already exists
 // use CombineSearchResults to combine the two
-func (c *anyCombiner) AddMetadata(new *tempopb.TraceSearchMetadata) bool {
-	if existing, ok := c.trs[new.TraceID]; ok {
-		combineSearchResults(existing, new)
+func (c *anyCombiner) AddMetadata(meta *tempopb.TraceSearchMetadata) bool {
+	if existing, ok := c.trs[meta.TraceID]; ok {
+		combineSearchResults(existing, meta)
 		return true
 	}
 
@@ -73,7 +73,7 @@ func (c *anyCombiner) AddMetadata(new *tempopb.TraceSearchMetadata) bool {
 		return false
 	}
 
-	c.trs[new.TraceID] = new
+	c.trs[meta.TraceID] = meta
 	return true
 }
 
@@ -122,23 +122,23 @@ func newMostRecentCombiner(limit int) *mostRecentCombiner {
 
 // addSpanset adds a new spanset to the combiner. It only performs the asTraceSearchMetadata
 // conversion if the spanset will be added
-func (c *mostRecentCombiner) addSpanset(new *Spanset) {
+func (c *mostRecentCombiner) addSpanset(ss *Spanset) {
 	// if we're not configured to keep most recent then just add it
 	if c.keepMostRecent == 0 || c.Count() < c.keepMostRecent {
-		c.AddMetadata(asTraceSearchMetadata(new))
+		c.AddMetadata(asTraceSearchMetadata(ss))
 		return
 	}
 
 	// else let's see if it's worth converting this to a metadata and adding it
 	// if it's already in the list, then we should add it
-	if _, ok := c.trs[util.TraceIDToHexString(new.TraceID)]; ok {
-		c.AddMetadata(asTraceSearchMetadata(new))
+	if _, ok := c.trs[util.TraceIDToHexString(ss.TraceID)]; ok {
+		c.AddMetadata(asTraceSearchMetadata(ss))
 		return
 	}
 
 	// if it's within range
-	if c.OldestTimestampNanos() <= new.StartTimeUnixNanos {
-		c.AddMetadata(asTraceSearchMetadata(new))
+	if c.OldestTimestampNanos() <= ss.StartTimeUnixNanos {
+		c.AddMetadata(asTraceSearchMetadata(ss))
 		return
 	}
 
@@ -147,15 +147,15 @@ func (c *mostRecentCombiner) addSpanset(new *Spanset) {
 
 // AddMetadata adds the new metadata to the map. if it already exists
 // use CombineSearchResults to combine the two
-func (c *mostRecentCombiner) AddMetadata(new *tempopb.TraceSearchMetadata) bool {
-	if existing, ok := c.trs[new.TraceID]; ok {
-		combineSearchResults(existing, new)
+func (c *mostRecentCombiner) AddMetadata(meta *tempopb.TraceSearchMetadata) bool {
+	if existing, ok := c.trs[meta.TraceID]; ok {
+		combineSearchResults(existing, meta)
 		return true
 	}
 
 	if c.Count() == c.keepMostRecent && c.keepMostRecent > 0 {
 		// if this is older than the oldest element, bail
-		if c.OldestTimestampNanos() > new.StartTimeUnixNano {
+		if c.OldestTimestampNanos() > meta.StartTimeUnixNano {
 			return false
 		}
 
@@ -166,14 +166,14 @@ func (c *mostRecentCombiner) AddMetadata(new *tempopb.TraceSearchMetadata) bool 
 	}
 
 	// insert new in the right spot
-	c.trs[new.TraceID] = new
-	idx, _ := slices.BinarySearchFunc(c.trsSorted, new, func(a, b *tempopb.TraceSearchMetadata) int {
+	c.trs[meta.TraceID] = meta
+	idx, _ := slices.BinarySearchFunc(c.trsSorted, meta, func(a, b *tempopb.TraceSearchMetadata) int {
 		if a.StartTimeUnixNano > b.StartTimeUnixNano {
 			return -1
 		}
 		return 1
 	})
-	c.trsSorted = slices.Insert(c.trsSorted, idx, new)
+	c.trsSorted = slices.Insert(c.trsSorted, idx, meta)
 	return true
 }
 
@@ -295,14 +295,14 @@ func combineSearchResults(existing *tempopb.TraceSearchMetadata, incoming *tempo
 // combineSpansets "combines" spansets. This isn't actually possible so it just
 // choose the spanset that has the highest "Matched" number as it is hopefully
 // more representative of the spanset
-func combineSpansets(existing *tempopb.SpanSet, new *tempopb.SpanSet) {
-	if existing.Matched >= new.Matched {
+func combineSpansets(existing *tempopb.SpanSet, incoming *tempopb.SpanSet) {
+	if existing.Matched >= incoming.Matched {
 		return
 	}
 
-	existing.Matched = new.Matched
-	existing.Attributes = new.Attributes
-	existing.Spans = new.Spans
+	existing.Matched = incoming.Matched
+	existing.Attributes = incoming.Attributes
+	existing.Spans = incoming.Spans
 }
 
 func spansetID(ss *tempopb.SpanSet) string {
@@ -316,10 +316,6 @@ func spansetID(ss *tempopb.SpanSet) string {
 	}
 
 	return id
-}
-
-type tsRange struct {
-	minTS, maxTS uint64
 }
 
 type QueryRangeCombiner struct {

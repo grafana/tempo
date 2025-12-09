@@ -471,6 +471,77 @@ func TestObjectWithPrefix(t *testing.T) {
 	}
 }
 
+func TestDelete(t *testing.T) {
+	tests := []struct {
+		name        string
+		prefix      string
+		objectName  string
+		keyPath     backend.KeyPath
+		httpHandler func(t *testing.T) http.HandlerFunc
+	}{
+		{
+			name:       "without prefix",
+			prefix:     "",
+			objectName: "object",
+			keyPath:    backend.KeyPath{"test"},
+			httpHandler: func(t *testing.T) http.HandlerFunc {
+				return func(w http.ResponseWriter, r *http.Request) {
+					if r.Method == getMethod {
+						assert.Equal(t, r.URL.Query().Get("prefix"), "")
+
+						_, _ = w.Write([]byte(`<?xml version="1.0" encoding="UTF-8"?>
+						<ListBucketResult>
+						</ListBucketResult>`))
+						return
+					}
+					assert.Equal(t, "/blerg/test/object", r.URL.String())
+					w.WriteHeader(http.StatusNoContent)
+				}
+			},
+		},
+		{
+			name:       "with prefix",
+			prefix:     "test_storage",
+			objectName: "object",
+			keyPath:    backend.KeyPath{"test"},
+			httpHandler: func(t *testing.T) http.HandlerFunc {
+				return func(w http.ResponseWriter, r *http.Request) {
+					if r.Method == getMethod {
+						assert.Equal(t, r.URL.Query().Get("prefix"), "test_storage")
+
+						_, _ = w.Write([]byte(`<?xml version="1.0" encoding="UTF-8"?>
+						<ListBucketResult>
+						</ListBucketResult>`))
+						return
+					}
+					assert.Equal(t, "/blerg/test_storage/test/object", r.URL.String())
+					w.WriteHeader(http.StatusNoContent)
+				}
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			server := testServer(t, tc.httpHandler(t))
+			_, w, _, err := New(&Config{
+				Region:    "blerg",
+				AccessKey: "test",
+				SecretKey: flagext.SecretWithValue("test"),
+				Bucket:    "blerg",
+				Prefix:    tc.prefix,
+				Insecure:  true,
+				Endpoint:  server.URL[7:],
+			})
+			require.NoError(t, err)
+
+			ctx := context.Background()
+			err = w.Delete(ctx, tc.objectName, tc.keyPath, nil)
+			assert.NoError(t, err)
+		})
+	}
+}
+
 func TestListBlocksWithPrefix(t *testing.T) {
 	tests := []struct {
 		name              string
@@ -664,7 +735,8 @@ func metadataMockedHandler(t *testing.T) http.HandlerFunc {
 	require.NoError(t, err)
 
 	return func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.String() == "/" {
+		switch r.URL.String() {
+		case "/":
 			err := r.ParseForm()
 			require.NoError(t, err)
 
@@ -696,7 +768,7 @@ func metadataMockedHandler(t *testing.T) http.HandlerFunc {
 
 			err1 := xml.NewEncoder(w).Encode(assumeResponse)
 			require.NoError(t, err1)
-		} else if r.URL.String() == "/latest/api/token" {
+		case "/latest/api/token":
 			// Check for X-aws-ec2-metadata-token-ttl-seconds request header
 			if r.Header.Get("X-aws-ec2-metadata-token-ttl-seconds") == "" {
 				w.WriteHeader(400)
@@ -715,11 +787,11 @@ func metadataMockedHandler(t *testing.T) http.HandlerFunc {
 			if _, err := w.Write([]byte(token)); err != nil {
 				require.NoError(t, err)
 			}
-		} else if r.URL.String() == "/latest/meta-data/iam/security-credentials/" {
+		case "/latest/meta-data/iam/security-credentials/":
 			if _, err := w.Write([]byte("role-name\n")); err != nil {
 				require.NoError(t, err)
 			}
-		} else if r.URL.String() == "/latest/meta-data/iam/security-credentials/role-name" {
+		case "/latest/meta-data/iam/security-credentials/role-name":
 			creds := ec2RoleCredRespBody{
 				LastUpdated:     timeNow(),
 				Expiration:      timeNow().Add(1 * time.Hour),

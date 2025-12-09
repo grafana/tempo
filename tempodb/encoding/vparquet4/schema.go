@@ -625,23 +625,22 @@ func parquetToProtoAttrs(parquetAttrs []Attribute) []*v1.KeyValue {
 		var protoVal v1.AnyValue
 
 		if !attr.IsArray {
-			if len(attr.Value) > 0 {
+			switch {
+			case len(attr.Value) > 0:
 				protoVal.Value = &v1.AnyValue_StringValue{StringValue: attr.Value[0]}
-			} else if len(attr.ValueInt) > 0 {
+			case len(attr.ValueInt) > 0:
 				protoVal.Value = &v1.AnyValue_IntValue{IntValue: attr.ValueInt[0]}
-			} else if len(attr.ValueDouble) > 0 {
+			case len(attr.ValueDouble) > 0:
 				protoVal.Value = &v1.AnyValue_DoubleValue{DoubleValue: attr.ValueDouble[0]}
-			} else if len(attr.ValueBool) > 0 {
+			case len(attr.ValueBool) > 0:
 				protoVal.Value = &v1.AnyValue_BoolValue{BoolValue: attr.ValueBool[0]}
-			} else if attr.ValueUnsupported != nil {
+			case attr.ValueUnsupported != nil:
 				_ = jsonpb.Unmarshal(bytes.NewBufferString(*attr.ValueUnsupported), &protoVal)
-			} else {
-				continue
 			}
 		} else {
-			if len(attr.Value) > 0 {
+			switch {
+			case len(attr.Value) > 0:
 				values := make([]*v1.AnyValue, len(attr.Value))
-
 				anyValues := make([]v1.AnyValue, len(values))
 				strValues := make([]v1.AnyValue_StringValue, len(values))
 				for i, v := range attr.Value {
@@ -650,11 +649,10 @@ func parquetToProtoAttrs(parquetAttrs []Attribute) []*v1.KeyValue {
 					values[i] = &anyValues[i]
 					values[i].Value = s
 				}
-
 				protoVal.Value = &v1.AnyValue_ArrayValue{ArrayValue: &v1.ArrayValue{Values: values}}
-			} else if len(attr.ValueInt) > 0 {
-				values := make([]*v1.AnyValue, len(attr.ValueInt))
 
+			case len(attr.ValueInt) > 0:
+				values := make([]*v1.AnyValue, len(attr.ValueInt))
 				anyValues := make([]v1.AnyValue, len(values))
 				intValues := make([]v1.AnyValue_IntValue, len(values))
 				for i, v := range attr.ValueInt {
@@ -663,11 +661,10 @@ func parquetToProtoAttrs(parquetAttrs []Attribute) []*v1.KeyValue {
 					values[i] = &anyValues[i]
 					values[i].Value = n
 				}
-
 				protoVal.Value = &v1.AnyValue_ArrayValue{ArrayValue: &v1.ArrayValue{Values: values}}
-			} else if len(attr.ValueDouble) > 0 {
-				values := make([]*v1.AnyValue, len(attr.ValueDouble))
 
+			case len(attr.ValueDouble) > 0:
+				values := make([]*v1.AnyValue, len(attr.ValueDouble))
 				anyValues := make([]v1.AnyValue, len(values))
 				doubleValues := make([]v1.AnyValue_DoubleValue, len(values))
 				for i, v := range attr.ValueDouble {
@@ -676,11 +673,10 @@ func parquetToProtoAttrs(parquetAttrs []Attribute) []*v1.KeyValue {
 					values[i] = &anyValues[i]
 					values[i].Value = n
 				}
-
 				protoVal.Value = &v1.AnyValue_ArrayValue{ArrayValue: &v1.ArrayValue{Values: values}}
-			} else if len(attr.ValueBool) > 0 {
-				values := make([]*v1.AnyValue, len(attr.ValueBool))
 
+			case len(attr.ValueBool) > 0:
+				values := make([]*v1.AnyValue, len(attr.ValueBool))
 				anyValues := make([]v1.AnyValue, len(values))
 				boolValues := make([]v1.AnyValue_BoolValue, len(values))
 				for i, v := range attr.ValueBool {
@@ -689,9 +685,9 @@ func parquetToProtoAttrs(parquetAttrs []Attribute) []*v1.KeyValue {
 					values[i] = &anyValues[i]
 					values[i].Value = n
 				}
-
 				protoVal.Value = &v1.AnyValue_ArrayValue{ArrayValue: &v1.ArrayValue{Values: values}}
-			} else {
+
+			default:
 				protoVal.Value = &v1.AnyValue_ArrayValue{ArrayValue: &v1.ArrayValue{Values: []*v1.AnyValue{}}}
 			}
 		}

@@ -54,8 +54,8 @@ func TestCreateBlockBoundaries(t *testing.T) {
 				}
 			}
 
-			max := uint64(0)
-			min := uint64(math.MaxUint64)
+			maxDist := uint64(0)
+			minDist := uint64(math.MaxUint64)
 
 			// test that the boundaries are in order
 			for i := 1; i < len(bb); i++ {
@@ -64,16 +64,16 @@ func TestCreateBlockBoundaries(t *testing.T) {
 				prev := binary.BigEndian.Uint64(bb[i-1][:8])
 				cur := binary.BigEndian.Uint64(bb[i][:8])
 				dist := cur - prev
-				if dist > max {
-					max = dist
+				if dist > maxDist {
+					maxDist = dist
 				}
-				if dist < min {
-					min = dist
+				if dist < minDist {
+					minDist = dist
 				}
 			}
 
 			// confirm that max - min <= 1. this means are boundaries are as fair as possible
-			require.LessOrEqual(t, max-min, uint64(1))
+			require.LessOrEqual(t, maxDist-minDist, uint64(1))
 		})
 	}
 }

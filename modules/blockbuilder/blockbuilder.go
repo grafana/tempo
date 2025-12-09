@@ -177,12 +177,10 @@ func New(
 func (b *BlockBuilder) starting(ctx context.Context) (err error) {
 	level.Info(b.logger).Log("msg", "block builder starting")
 	topic := b.cfg.IngestStorageConfig.Kafka.Topic
-	b.enc = encoding.DefaultEncoding()
-	if version := b.cfg.BlockConfig.BlockCfg.Version; version != "" {
-		b.enc, err = encoding.FromVersion(version)
-		if err != nil {
-			return fmt.Errorf("failed to create encoding: %w", err)
-		}
+
+	b.enc, err = encoding.FromVersionForWrites(b.cfg.BlockConfig.BlockCfg.Version)
+	if err != nil {
+		return fmt.Errorf("failed to create encoding: %w", err)
 	}
 
 	b.wal, err = wal.New(&b.cfg.WAL)
@@ -222,6 +220,9 @@ func (b *BlockBuilder) running(ctx context.Context) error {
 	defer close(b.consumeStopped)
 	for {
 		// Create a detached context for consume
+		// This is so that when the parent context is canceled and the block builder is stopping,
+		// we still finish the current consumption and flush of blocks. That is preferred than
+		// to starting over after a restart.
 		consumeCtx, cancel := context.WithCancel(context.Background())
 
 		waitTime, err := b.consume(consumeCtx)
@@ -231,6 +232,16 @@ func (b *BlockBuilder) running(ctx context.Context) error {
 			level.Error(b.logger).Log("msg", "consumeCycle failed", "err", err)
 		}
 
+		// Always check for cancellation before going to next cycle.
+		// There are cases like when the queue is lagged, that waitTime could be zero.
+		// In this case it's non-deterministic which select statement will be executed below,
+		// so we do a specific check here first.
+		if ctx.Err() != nil {
+			// Parent context canceled, return
+			return nil
+		}
+
+		// Now wait for next cycle or cancellation.
 		select {
 		case <-time.After(waitTime): // Continue with next cycle
 		case <-ctx.Done():

@@ -15,7 +15,7 @@ type ColumnChunkHelper struct {
 // for this column chunk or an error occurs, return nil.
 func (h *ColumnChunkHelper) Dictionary() parquet.Dictionary {
 	if h.pages == nil {
-		h.pages = h.ColumnChunk.Pages()
+		h.pages = h.Pages()
 	}
 
 	if h.firstPage == nil {
@@ -45,7 +45,7 @@ func (h *ColumnChunkHelper) NextPage() (parquet.Page, error) {
 	}
 
 	if h.pages == nil {
-		h.pages = h.ColumnChunk.Pages()
+		h.pages = h.Pages()
 	}
 
 	return h.pages.ReadPage()

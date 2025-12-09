@@ -87,6 +87,23 @@ func FromVersion(v string) (VersionedEncoding, error) {
 	}
 }
 
+// FromVersionForWrites returns a versioned encoding for the provided string, but only for
+// encodings that are supported for creating new blocks.  Deprecated or readonly encodings will return an error.
+func FromVersionForWrites(v string) (VersionedEncoding, error) {
+	switch v {
+	case v2.VersionString:
+		return v2.Encoding{}, nil
+	case vparquet3.VersionString:
+		return vparquet3.Encoding{}, nil
+	case vparquet4.VersionString:
+		return vparquet4.Encoding{}, nil
+	case vparquet5.VersionString:
+		return vparquet5.Encoding{}, nil
+	default:
+		return nil, fmt.Errorf("%s is not a valid block version for creating blocks", v)
+	}
+}
+
 // DefaultEncoding for newly written blocks.
 func DefaultEncoding() VersionedEncoding {
 	return vparquet4.Encoding{}

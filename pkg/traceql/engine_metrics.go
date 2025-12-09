@@ -14,7 +14,6 @@ import (
 
 	"github.com/grafana/tempo/pkg/tempopb"
 	commonv1proto "github.com/grafana/tempo/pkg/tempopb/common/v1"
-	v1 "github.com/grafana/tempo/pkg/tempopb/common/v1"
 	"github.com/grafana/tempo/pkg/util"
 	"github.com/prometheus/prometheus/model/labels"
 )
@@ -187,7 +186,7 @@ type Label struct {
 
 type Labels []Label
 
-func LabelsFromProto(ls []v1.KeyValue) Labels {
+func LabelsFromProto(ls []commonv1proto.KeyValue) Labels {
 	out := make(Labels, 0, len(ls))
 	for _, l := range ls {
 		out = append(out, Label{Name: l.Key, Value: StaticFromAnyValue(l.Value)})
@@ -268,6 +267,14 @@ func (ls Labels) MapKey() SeriesMapKey {
 		key[i] = SeriesMapLabel{Name: ls[i].Name, Value: ls[i].Value.MapKey()}
 	}
 	return key
+}
+
+// Add returns a copy of the labels with the given label added to the end.
+func (ls Labels) Add(label Label) Labels {
+	cp := make(Labels, len(ls)+1)
+	copy(cp, ls)
+	cp[len(cp)-1] = label
+	return cp
 }
 
 type Exemplar struct {
@@ -1400,12 +1407,11 @@ const (
 )
 
 type SimpleAggregator struct {
-	ss               SeriesSet
-	exemplarBuckets  bucketSet
-	intervalMapper   IntervalMapper
-	aggregationFunc  func(existingValue float64, newValue float64) float64
-	start, end, step uint64
-	initWithNaN      bool
+	ss              SeriesSet
+	exemplarBuckets bucketSet
+	intervalMapper  IntervalMapper
+	aggregationFunc func(existingValue float64, newValue float64) float64
+	initWithNaN     bool
 }
 
 func NewSimpleCombiner(req *tempopb.QueryRangeRequest, op SimpleAggregationOp, exemplars uint32) *SimpleAggregator {

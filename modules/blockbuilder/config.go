@@ -64,6 +64,10 @@ func (c *Config) AssignedPartitions() []int32 {
 }
 
 func (c *Config) Validate() error {
+	if _, err := encoding.FromVersionForWrites(c.BlockConfig.BlockCfg.Version); err != nil {
+		return fmt.Errorf("block version validation failed: %w", err)
+	}
+
 	if c.BlockConfig.BlockCfg.Version != c.WAL.Version {
 		c.WAL.Version = c.BlockConfig.BlockCfg.Version
 	}
