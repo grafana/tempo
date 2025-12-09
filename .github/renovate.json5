@@ -24,7 +24,7 @@
   postUpdateOptions: [
     'gomodTidy',
     'gomodVendor',
-  ]
+  ],
   packageRules: [
     {
       description: 'Group OpenTelemetry OTEL updates',
