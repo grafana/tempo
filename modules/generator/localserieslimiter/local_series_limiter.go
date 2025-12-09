@@ -104,7 +104,7 @@ func (l *LocalSeriesLimiter) OnAdd(hash uint64, seriesCount uint32, lbls labels.
 	l.activeSeries.Add(seriesCount)
 	l.metricActiveSeries.Set(float64(l.activeSeries.Load()))
 	l.metricMaxActiveSeries.Set(float64(maxSeries))
-	l.metricTotalSeriesAdded.Add(float64(1))
+	l.metricTotalSeriesAdded.Add(float64(seriesCount))
 	return lbls, hash
 }
 

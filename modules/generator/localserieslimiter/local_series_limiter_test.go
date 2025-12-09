@@ -46,8 +46,8 @@ func TestLocalSeriesLimiter_Metrics(t *testing.T) {
 	testLabels := labels.FromStrings("test", "value")
 	hash := testLabels.Hash()
 
-	for range 10 {
-		returnedLabels, _ := limiter.OnAdd(hash, 1, testLabels)
+	for range 5 {
+		returnedLabels, _ := limiter.OnAdd(hash, 2, testLabels)
 		require.Equal(t, testLabels, returnedLabels, "series should be accepted")
 	}
 
