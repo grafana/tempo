@@ -14,7 +14,7 @@
   automergeType: 'pr',
   automerge: true,
   platformAutomerge: true,
-  addLabels: [2
+  addLabels: [
     'dependencies',
     'renovate',
     '{{manager}}',
