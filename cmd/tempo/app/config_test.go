@@ -4,6 +4,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grafana/tempo/modules/blockbuilder"
 	"github.com/grafana/tempo/modules/frontend"
 	"github.com/grafana/tempo/tempodb/backend/s3"
 	"github.com/stretchr/testify/assert"
@@ -62,6 +63,12 @@ func TestConfig_CheckConfig(t *testing.T) {
 						ConcurrentShards: 200,
 					},
 				},
+				BlockBuilder: blockbuilder.Config{
+					PartitionsPerInstance: 20,
+					AssignedPartitionsMap: map[string][]int32{
+						"foo-0": {0},
+					},
+				},
 			},
 			expect: []ConfigWarning{
 				warnCompleteBlockTimeout,
@@ -76,6 +83,7 @@ func TestConfig_CheckConfig(t *testing.T) {
 				warnConfiguredLegacyCache,
 				warnTraceByIDConcurrentShards,
 				warnBackendSchedulerPruneAgeLessThanBlocklistPoll,
+				warnPartitionAssigmentCollision,
 			},
 		},
 		{
