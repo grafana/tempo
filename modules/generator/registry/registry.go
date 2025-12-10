@@ -10,6 +10,7 @@ import (
 	"github.com/go-kit/log/level"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
+	"github.com/prometheus/prometheus/model/labels"
 	"github.com/prometheus/prometheus/storage"
 
 	tempo_log "github.com/grafana/tempo/pkg/util/log"
@@ -80,11 +81,14 @@ const removeStaleSeriesInterval = 5 * time.Minute
 
 var _ Registry = (*ManagedRegistry)(nil)
 
+var OverflowEntity = labels.FromStrings("metric_overflow", "true")
+
 // Limiter is used to limit the memory consumption of the registry.
 type Limiter interface {
-	// OnAdd is called when a new entity is created. It returns true if the entity can be created, false otherwise.
-	// LabelHash is a hash of all non-constant labels.
-	OnAdd(labelHash uint64, seriesCount uint32) bool
+	// OnAdd is called when a new entity is created. It accepts the labels and returns
+	// the labels to use (either original or transformed to reduce cardinality) along with the hash.
+	// OnAdd never fails - it always returns valid labels. LabelHash is a hash of all non-constant labels.
+	OnAdd(labelHash uint64, seriesCount uint32, lbls labels.Labels) (labels.Labels, uint64)
 	// OnUpdate is called when an entity is updated.
 	// LabelHash is a hash of all non-constant labels.
 	OnUpdate(labelHash uint64, seriesCount uint32)
@@ -140,9 +144,9 @@ func (r *ManagedRegistry) NewLabelBuilder() LabelBuilder {
 	return NewLabelBuilder(r.cfg.MaxLabelNameLength, r.cfg.MaxLabelValueLength)
 }
 
-func (r *ManagedRegistry) OnAdd(labelHash uint64, seriesCount uint32) bool {
+func (r *ManagedRegistry) OnAdd(labelHash uint64, seriesCount uint32, lbls labels.Labels) (labels.Labels, uint64) {
 	r.entityDemand.Insert(labelHash)
-	return r.limiter.OnAdd(labelHash, seriesCount)
+	return r.limiter.OnAdd(labelHash, seriesCount, lbls)
 }
 
 func (r *ManagedRegistry) OnUpdate(labelHash uint64, seriesCount uint32) {

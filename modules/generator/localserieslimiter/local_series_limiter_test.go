@@ -8,6 +8,7 @@ import (
 	tempo_log "github.com/grafana/tempo/pkg/util/log"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/testutil"
+	"github.com/prometheus/prometheus/model/labels"
 	"github.com/stretchr/testify/require"
 )
 
@@ -16,16 +17,22 @@ func TestLocalSeriesLimiter(t *testing.T) {
 	limiter := New(func(string) uint32 {
 		return 10
 	}, "test", limitLogger)
+	overflowLabels := labels.FromStrings("metric_overflow", "true")
+	testLabels := labels.FromStrings("test", "value")
+	hash := testLabels.Hash()
 
 	for range 10 {
-		require.True(t, limiter.OnAdd(0, 1))
+		returnedLabels, _ := limiter.OnAdd(hash, 1, testLabels)
+		require.Equal(t, testLabels, returnedLabels, "series should be accepted")
 	}
 
-	require.False(t, limiter.OnAdd(0, 1))
+	returnedLabels, _ := limiter.OnAdd(hash, 1, testLabels)
+	require.Equal(t, overflowLabels, returnedLabels, "series should be rejected at limit")
 
-	limiter.OnDelete(0, 1)
+	limiter.OnDelete(hash, 1)
 
-	require.True(t, limiter.OnAdd(0, 1))
+	returnedLabels, _ = limiter.OnAdd(hash, 1, testLabels)
+	require.Equal(t, testLabels, returnedLabels, "series should be accepted after delete")
 }
 
 func TestLocalSeriesLimiter_Metrics(t *testing.T) {
@@ -35,16 +42,22 @@ func TestLocalSeriesLimiter_Metrics(t *testing.T) {
 	limiter := New(func(string) uint32 {
 		return 10
 	}, "test", limitLogger)
+	overflowLabels := labels.FromStrings("metric_overflow", "true")
+	testLabels := labels.FromStrings("test", "value")
+	hash := testLabels.Hash()
 
-	for range 10 {
-		require.True(t, limiter.OnAdd(0, 1))
+	for range 5 {
+		returnedLabels, _ := limiter.OnAdd(hash, 2, testLabels)
+		require.Equal(t, testLabels, returnedLabels, "series should be accepted")
 	}
 
-	require.False(t, limiter.OnAdd(0, 1))
+	returnedLabels, _ := limiter.OnAdd(hash, 1, testLabels)
+	require.Equal(t, overflowLabels, returnedLabels, "series should be rejected at limit")
 
-	limiter.OnDelete(0, 1)
+	limiter.OnDelete(hash, 1)
 
-	require.True(t, limiter.OnAdd(0, 1))
+	returnedLabels, _ = limiter.OnAdd(hash, 1, testLabels)
+	require.Equal(t, testLabels, returnedLabels, "series should be accepted after delete")
 
 	err := testutil.CollectAndCompare(reg, strings.NewReader(`
 		# HELP tempo_metrics_generator_registry_series_limited_total The total amount of series not created because of limits per tenant

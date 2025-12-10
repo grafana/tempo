@@ -87,15 +87,12 @@ func (g *gauge) updateSeries(lbls labels.Labels, value float64, operation string
 	g.seriesMtx.Lock()
 	defer g.seriesMtx.Unlock()
 
-	if existing, ok := g.series[hash]; ok {
+	s, lbls, hash = resolveSeries(g.series, hash, lbls, g.lifecycler, 1)
+	if s != nil {
 		if !updateIfAlreadyExist {
 			return
 		}
-		g.updateSeriesValue(hash, existing, value, operation)
-		return
-	}
-
-	if !g.lifecycler.OnAdd(hash, 1) {
+		g.updateSeriesValue(hash, s, value, operation)
 		return
 	}
 

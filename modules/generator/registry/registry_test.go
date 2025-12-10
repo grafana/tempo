@@ -18,7 +18,7 @@ import (
 )
 
 type mockLimiter struct {
-	onAddFunc    func(labelHash uint64, seriesCount uint32) bool
+	onAddFunc    func(labelHash uint64, seriesCount uint32, lbls labels.Labels) (labels.Labels, uint64)
 	onUpdateFunc func(labelHash uint64, seriesCount uint32)
 	onDeleteFunc func(labelHash uint64, seriesCount uint32)
 }
@@ -27,11 +27,11 @@ var noopLimiter Limiter = &mockLimiter{}
 
 var _ Limiter = (*mockLimiter)(nil)
 
-func (m *mockLimiter) OnAdd(labelHash uint64, seriesCount uint32) bool {
+func (m *mockLimiter) OnAdd(labelHash uint64, seriesCount uint32, lbls labels.Labels) (labels.Labels, uint64) {
 	if m.onAddFunc == nil {
-		return true
+		return lbls, labelHash
 	}
-	return m.onAddFunc(labelHash, seriesCount)
+	return m.onAddFunc(labelHash, seriesCount, lbls)
 }
 
 func (m *mockLimiter) OnUpdate(labelHash uint64, seriesCount uint32) {
@@ -235,9 +235,14 @@ func TestManagedRegistry_limited(t *testing.T) {
 
 	overrides := &mockOverrides{}
 	atLimit := false
+	overflowLabels := labels.FromStrings("metric_overflow", "true")
+	overflowHash := overflowLabels.Hash()
 	limiter := &mockLimiter{
-		onAddFunc: func(uint64, uint32) bool {
-			return !atLimit
+		onAddFunc: func(hash uint64, _ uint32, lbls labels.Labels) (labels.Labels, uint64) {
+			if !atLimit {
+				return lbls, hash
+			}
+			return overflowLabels, overflowHash
 		},
 	}
 	registry := New(&Config{}, overrides, "test", appender, log.NewNopLogger(), limiter)
@@ -248,14 +253,19 @@ func TestManagedRegistry_limited(t *testing.T) {
 
 	counter1.Inc(buildTestLabels([]string{"label"}, []string{"value-1"}), 1.0)
 	atLimit = true
-	// these series should be discarded
+	// these series should be mapped to overflow
 	counter1.Inc(buildTestLabels([]string{"label"}, []string{"value-2"}), 1.0)
 	counter2.Inc(labels.New(), 1.0)
 
-	assert.Equal(t, uint32(1), registry.activeSeries())
+	// 1 accepted series + 2 overflow series (one per metric) = 3 total
+	assert.Equal(t, uint32(3), registry.activeSeries())
 	expectedSamples := []sample{
 		newSample(map[string]string{"__name__": "metric_1", "label": "value-1", "__metrics_gen_instance": mustGetHostname()}, 0, 0),
 		newSample(map[string]string{"__name__": "metric_1", "label": "value-1", "__metrics_gen_instance": mustGetHostname()}, 0, 1),
+		newSample(map[string]string{"__name__": "metric_1", "metric_overflow": "true", "__metrics_gen_instance": mustGetHostname()}, 0, 0),
+		newSample(map[string]string{"__name__": "metric_1", "metric_overflow": "true", "__metrics_gen_instance": mustGetHostname()}, 0, 1),
+		newSample(map[string]string{"__name__": "metric_2", "metric_overflow": "true", "__metrics_gen_instance": mustGetHostname()}, 0, 0),
+		newSample(map[string]string{"__name__": "metric_2", "metric_overflow": "true", "__metrics_gen_instance": mustGetHostname()}, 0, 1),
 	}
 	collectRegistryMetricsAndAssert(t, registry, appender, expectedSamples)
 }
@@ -264,9 +274,14 @@ func TestManagedRegistry_maxEntities(t *testing.T) {
 	appender := &capturingAppender{}
 
 	atLimit := false
+	overflowLabels := labels.FromStrings("metric_overflow", "true")
+	overflowHash := overflowLabels.Hash()
 	limiter := &mockLimiter{
-		onAddFunc: func(uint64, uint32) bool {
-			return !atLimit
+		onAddFunc: func(hash uint64, _ uint32, lbls labels.Labels) (labels.Labels, uint64) {
+			if !atLimit {
+				return lbls, hash
+			}
+			return overflowLabels, overflowHash
 		},
 	}
 	overrides := &mockOverrides{}
@@ -284,15 +299,15 @@ func TestManagedRegistry_maxEntities(t *testing.T) {
 	counter1.Inc(entity2, 1.0)
 	counter2.Inc(entity2, 1.0)
 
-	// At this point, we will have only series for entity1
-	assert.Equal(t, uint32(2), registry.activeSeries())
+	// At this point, we have series for entity1 (2 series) + overflow series (2 series, one per metric) = 4 total
+	assert.Equal(t, uint32(4), registry.activeSeries())
 
-	// The specific series which are discarded is not guaranteed, but it should be consistent within a single entity.
+	// The specific series which are mapped to overflow is not guaranteed, but it should be consistent within a single entity.
 	entityCount := collectRegistryMetricsAndCountEntities(registry, appender)
 
-	// After collection, the series should be removed
-	assert.Equal(t, 1, entityCount)
-	assert.Equal(t, uint32(2), registry.activeSeries())
+	// After collection, we have entity1 (1 entity, shared across metrics) + overflow (1 entity, shared across metrics) = 2 entities
+	assert.Equal(t, 2, entityCount)
+	assert.Equal(t, uint32(4), registry.activeSeries())
 }
 
 func TestManagedRegistry_disableCollection(t *testing.T) {
@@ -550,9 +565,11 @@ func TestManagedRegistry_demandExceedsMax(t *testing.T) {
 	cfg := &Config{
 		StaleDuration: 15 * time.Minute,
 	}
+	overflowLabels := labels.FromStrings("metric_overflow", "true")
+	overflowHash := overflowLabels.Hash()
 	rejectLimiter := &mockLimiter{
-		onAddFunc: func(uint64, uint32) bool {
-			return false
+		onAddFunc: func(_ uint64, _ uint32, _ labels.Labels) (labels.Labels, uint64) {
+			return overflowLabels, overflowHash
 		},
 	}
 	overrides := &mockOverrides{
@@ -572,9 +589,9 @@ func TestManagedRegistry_demandExceedsMax(t *testing.T) {
 	// Collect metrics
 	registry.CollectMetrics(context.Background())
 
-	// Active series should be capped at max
+	// Active series should be 1 overflow series (all rejected series map to the same overflow)
 	activeSeries := registry.activeSeries()
-	assert.Equal(t, uint32(0), activeSeries)
+	assert.Equal(t, uint32(1), activeSeries)
 
 	// Demand tracking should show all attempted series (including rejected ones)
 	var totalDemand int
@@ -678,9 +695,11 @@ func TestManagedRegistry_entityDemandExceedsMax(t *testing.T) {
 	cfg := &Config{
 		StaleDuration: 15 * time.Minute,
 	}
+	overflowLabels := labels.FromStrings("metric_overflow", "true")
+	overflowHash := overflowLabels.Hash()
 	rejectLimiter := &mockLimiter{
-		onAddFunc: func(uint64, uint32) bool {
-			return false
+		onAddFunc: func(_ uint64, _ uint32, _ labels.Labels) (labels.Labels, uint64) {
+			return overflowLabels, overflowHash
 		},
 	}
 	registry := New(cfg, &mockOverrides{}, "test", appender, log.NewNopLogger(), rejectLimiter)
@@ -697,9 +716,9 @@ func TestManagedRegistry_entityDemandExceedsMax(t *testing.T) {
 	// Collect metrics
 	registry.CollectMetrics(context.Background())
 
-	// Active series should be 0 since all were rejected
+	// Active series should be 1 overflow series (all rejected series map to the same overflow)
 	activeSeries := registry.activeSeries()
-	assert.Equal(t, uint32(0), activeSeries)
+	assert.Equal(t, uint32(1), activeSeries)
 
 	// Entity demand tracking should NOT show attempted entities since OnUpdate is only called for accepted entities
 	entityDemand := registry.entityDemand.Estimate()

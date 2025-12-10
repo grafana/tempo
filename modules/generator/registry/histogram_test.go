@@ -16,9 +16,9 @@ import (
 func Test_histogram(t *testing.T) {
 	var seriesAdded int
 	lifecycler := &mockLimiter{
-		onAddFunc: func(uint64, uint32) bool {
+		onAddFunc: func(hash uint64, _ uint32, lbls labels.Labels) (labels.Labels, uint64) {
 			seriesAdded++
-			return true
+			return lbls, hash
 		},
 	}
 
@@ -154,10 +154,15 @@ func Test_histogram(t *testing.T) {
 
 func Test_histogram_cantAdd(t *testing.T) {
 	canAdd := false
+	overflowLabels := labels.FromStrings("metric_overflow", "true")
+	overflowHash := overflowLabels.Hash()
 	lifecycler := &mockLimiter{
-		onAddFunc: func(_ uint64, count uint32) bool {
+		onAddFunc: func(_ uint64, count uint32, lbls labels.Labels) (labels.Labels, uint64) {
 			assert.Equal(t, uint32(5), count)
-			return canAdd
+			if canAdd {
+				return lbls, lbls.Hash()
+			}
+			return overflowLabels, overflowHash
 		},
 	}
 
@@ -211,8 +216,17 @@ func Test_histogram_cantAdd(t *testing.T) {
 		newSample(map[string]string{"__name__": "my_histogram_bucket", "label": "value-2", "le": "1"}, collectionTimeMs, 0),
 		newSample(map[string]string{"__name__": "my_histogram_bucket", "label": "value-2", "le": "2"}, collectionTimeMs, 1),
 		newSample(map[string]string{"__name__": "my_histogram_bucket", "label": "value-2", "le": "+Inf"}, collectionTimeMs, 2),
+		newSample(map[string]string{"__name__": "my_histogram_count", "metric_overflow": "true"}, endOfLastMinuteMs, 0),
+		newSample(map[string]string{"__name__": "my_histogram_count", "metric_overflow": "true"}, collectionTimeMs, 1),
+		newSample(map[string]string{"__name__": "my_histogram_sum", "metric_overflow": "true"}, collectionTimeMs, 3),
+		newSample(map[string]string{"__name__": "my_histogram_bucket", "metric_overflow": "true", "le": "1"}, endOfLastMinuteMs, 0),
+		newSample(map[string]string{"__name__": "my_histogram_bucket", "metric_overflow": "true", "le": "1"}, collectionTimeMs, 0),
+		newSample(map[string]string{"__name__": "my_histogram_bucket", "metric_overflow": "true", "le": "2"}, endOfLastMinuteMs, 0),
+		newSample(map[string]string{"__name__": "my_histogram_bucket", "metric_overflow": "true", "le": "2"}, collectionTimeMs, 0),
+		newSample(map[string]string{"__name__": "my_histogram_bucket", "metric_overflow": "true", "le": "+Inf"}, endOfLastMinuteMs, 0),
+		newSample(map[string]string{"__name__": "my_histogram_bucket", "metric_overflow": "true", "le": "+Inf"}, collectionTimeMs, 1),
 	}
-	collectMetricAndAssert(t, h, collectionTimeMs, 10, expectedSamples, nil)
+	collectMetricAndAssert(t, h, collectionTimeMs, 15, expectedSamples, nil)
 }
 
 func Test_histogram_removeStaleSeries(t *testing.T) {
@@ -463,9 +477,14 @@ func Test_histogram_activeSeriesPerHistogramSerie(t *testing.T) {
 
 func Test_histogram_demandVsActiveSeries(t *testing.T) {
 	limitReached := false
+	overflowLabels := labels.FromStrings("metric_overflow", "true")
+	overflowHash := overflowLabels.Hash()
 	lifecycler := &mockLimiter{
-		onAddFunc: func(uint64, uint32) bool {
-			return !limitReached
+		onAddFunc: func(hash uint64, _ uint32, lbls labels.Labels) (labels.Labels, uint64) {
+			if !limitReached {
+				return lbls, hash
+			}
+			return overflowLabels, overflowHash
 		},
 	}
 
@@ -483,14 +502,15 @@ func Test_histogram_demandVsActiveSeries(t *testing.T) {
 	// Hit the limit
 	limitReached = true
 
-	// Try to add more series (they should be rejected)
+	// Try to add more series (they should be mapped to overflow)
 	for i := 10; i < 20; i++ {
 		lbls := buildTestLabels([]string{"label"}, []string{fmt.Sprintf("value-%d", i)})
 		h.ObserveWithExemplar(lbls, 1.5, "", 1.0)
 	}
 
-	// Active series should not have increased
-	assert.Equal(t, expectedActive, h.countActiveSeries())
+	// Active series should have increased by 1 overflow series (5 series for classic histogram)
+	expectedOverflowSeries := int(h.activeSeriesPerHistogramSerie())
+	assert.Equal(t, expectedActive+expectedOverflowSeries, h.countActiveSeries())
 
 	// But demand should show all attempted series
 	demand := h.countSeriesDemand()

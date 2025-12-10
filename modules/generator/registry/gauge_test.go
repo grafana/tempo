@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/prometheus/prometheus/model/labels"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/atomic"
 )
@@ -14,9 +15,9 @@ import (
 func Test_gaugeInc(t *testing.T) {
 	var seriesAdded int
 	lifecycler := &mockLimiter{
-		onAddFunc: func(uint64, uint32) bool {
+		onAddFunc: func(hash uint64, _ uint32, lbls labels.Labels) (labels.Labels, uint64) {
 			seriesAdded++
-			return true
+			return lbls, hash
 		},
 	}
 
@@ -51,9 +52,9 @@ func Test_gaugeInc(t *testing.T) {
 func TestGaugeDifferentLabels(t *testing.T) {
 	var seriesAdded int
 	lifecycler := &mockLimiter{
-		onAddFunc: func(uint64, uint32) bool {
+		onAddFunc: func(hash uint64, _ uint32, lbls labels.Labels) (labels.Labels, uint64) {
 			seriesAdded++
-			return true
+			return lbls, hash
 		},
 	}
 
@@ -75,9 +76,9 @@ func TestGaugeDifferentLabels(t *testing.T) {
 func Test_gaugeSet(t *testing.T) {
 	var seriesAdded int
 	lifecycler := &mockLimiter{
-		onAddFunc: func(uint64, uint32) bool {
+		onAddFunc: func(hash uint64, _ uint32, lbls labels.Labels) (labels.Labels, uint64) {
 			seriesAdded++
-			return true
+			return lbls, hash
 		},
 	}
 
@@ -111,10 +112,15 @@ func Test_gaugeSet(t *testing.T) {
 
 func Test_gauge_cantAdd(t *testing.T) {
 	canAdd := false
+	overflowLabels := labels.FromStrings("metric_overflow", "true")
+	overflowHash := overflowLabels.Hash()
 	lifecycler := &mockLimiter{
-		onAddFunc: func(_ uint64, count uint32) bool {
+		onAddFunc: func(_ uint64, count uint32, lbls labels.Labels) (labels.Labels, uint64) {
 			assert.Equal(t, uint32(1), count)
-			return canAdd
+			if canAdd {
+				return lbls, lbls.Hash()
+			}
+			return overflowLabels, overflowHash
 		},
 	}
 
@@ -133,7 +139,7 @@ func Test_gauge_cantAdd(t *testing.T) {
 	}
 	collectMetricAndAssert(t, c, collectionTimeMs, 2, expectedSamples, nil)
 
-	// block new series - existing series can still be updated
+	// block new series - existing series can still be updated, new series map to overflow
 	canAdd = false
 
 	c.Inc(buildTestLabels([]string{"label"}, []string{"value-2"}), 2.0)
@@ -143,8 +149,9 @@ func Test_gauge_cantAdd(t *testing.T) {
 	expectedSamples = []sample{
 		newSample(map[string]string{"__name__": "my_gauge", "label": "value-1"}, collectionTimeMs, 1),
 		newSample(map[string]string{"__name__": "my_gauge", "label": "value-2"}, collectionTimeMs, 4),
+		newSample(map[string]string{"__name__": "my_gauge", "metric_overflow": "true"}, collectionTimeMs, 3),
 	}
-	collectMetricAndAssert(t, c, collectionTimeMs, 2, expectedSamples, nil)
+	collectMetricAndAssert(t, c, collectionTimeMs, 3, expectedSamples, nil)
 }
 
 func Test_gauge_removeStaleSeries(t *testing.T) {
@@ -309,10 +316,15 @@ func Test_gauge_demandTracking(t *testing.T) {
 
 func Test_gauge_demandVsActiveSeries(t *testing.T) {
 	limitReached := false
+	overflowLabels := labels.FromStrings("metric_overflow", "true")
+	overflowHash := overflowLabels.Hash()
 
 	lifecycler := &mockLimiter{
-		onAddFunc: func(uint64, uint32) bool {
-			return !limitReached
+		onAddFunc: func(hash uint64, _ uint32, lbls labels.Labels) (labels.Labels, uint64) {
+			if !limitReached {
+				return lbls, hash
+			}
+			return overflowLabels, overflowHash
 		},
 	}
 	g := newGauge("my_gauge", lifecycler, map[string]string{}, 15*time.Minute)
@@ -328,14 +340,14 @@ func Test_gauge_demandVsActiveSeries(t *testing.T) {
 	// Hit the limit
 	limitReached = true
 
-	// Try to add more series (they should be rejected)
+	// Try to add more series (they should be mapped to overflow)
 	for i := 30; i < 60; i++ {
 		lbls := buildTestLabels([]string{"label"}, []string{fmt.Sprintf("value-%d", i)})
 		g.Set(lbls, float64(i))
 	}
 
-	// Active series should still be 30
-	assert.Equal(t, 30, g.countActiveSeries())
+	// Active series should be 30 accepted + 1 overflow = 31 total
+	assert.Equal(t, 31, g.countActiveSeries())
 
 	// But demand should show all attempted series
 	demand := g.countSeriesDemand()
@@ -369,8 +381,8 @@ func Test_gauge_demandDecay(t *testing.T) {
 func Test_gauge_onUpdate(t *testing.T) {
 	var seriesUpdated int
 	lifecycler := &mockLimiter{
-		onAddFunc: func(uint64, uint32) bool {
-			return true
+		onAddFunc: func(hash uint64, _ uint32, lbls labels.Labels) (labels.Labels, uint64) {
+			return lbls, hash
 		},
 		onUpdateFunc: func(_ uint64, count uint32) {
 			assert.Equal(t, uint32(1), count)

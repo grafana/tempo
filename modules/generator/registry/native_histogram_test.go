@@ -19,9 +19,9 @@ var testTenant = "test-tenant"
 func Test_ObserveWithExemplar_duplicate(t *testing.T) {
 	var seriesAdded int
 	lifecycler := &mockLimiter{
-		onAddFunc: func(_ uint64, count uint32) bool {
+		onAddFunc: func(_ uint64, count uint32, lbls labels.Labels) (labels.Labels, uint64) {
 			seriesAdded += int(count)
-			return true
+			return lbls, lbls.Hash()
 		},
 	}
 
@@ -37,7 +37,7 @@ func Test_ObserveWithExemplar_duplicate(t *testing.T) {
 }
 
 func Test_Histograms(t *testing.T) {
-	// A single observations has a label value combo, a value, and a multiplier.
+	// A single observation has a labelset, a value, and a multiplier.
 	type observations []struct {
 		lbls       labels.Labels
 		value      float64
@@ -745,9 +745,14 @@ func Test_nativeHistogram_activeSeriesPerHistogramSerie(t *testing.T) {
 
 func Test_nativeHistogram_demandVsActiveSeries(t *testing.T) {
 	limitReached := false
+	overflowLabels := labels.FromStrings("metric_overflow", "true")
+	overflowHash := overflowLabels.Hash()
 	lifecycler := &mockLimiter{
-		onAddFunc: func(uint64, uint32) bool {
-			return !limitReached
+		onAddFunc: func(hash uint64, _ uint32, lbls labels.Labels) (labels.Labels, uint64) {
+			if !limitReached {
+				return lbls, hash
+			}
+			return overflowLabels, overflowHash
 		},
 	}
 
@@ -765,14 +770,15 @@ func Test_nativeHistogram_demandVsActiveSeries(t *testing.T) {
 	// Hit the limit
 	limitReached = true
 
-	// Try to add more series (they should be rejected)
+	// Try to add more series (they should be mapped to overflow)
 	for i := 10; i < 20; i++ {
 		lbls := buildTestLabels([]string{"label"}, []string{fmt.Sprintf("value-%d", i)})
 		h.ObserveWithExemplar(lbls, 1.5, "", 1.0)
 	}
 
-	// Active series should not have increased
-	assert.Equal(t, expectedActive, h.countActiveSeries())
+	// Active series should have increased by 1 overflow series (1 series for native histogram)
+	expectedOverflowSeries := int(h.activeSeriesPerHistogramSerie())
+	assert.Equal(t, expectedActive+expectedOverflowSeries, h.countActiveSeries())
 
 	// But demand should show all attempted series
 	demand := h.countSeriesDemand()
@@ -786,12 +792,13 @@ func Test_nativeHistogram_onUpdate(t *testing.T) {
 	t.Run("both_mode", func(t *testing.T) {
 		var seriesUpdated int
 		lifecycler := &mockLimiter{
-			onAddFunc: func(_ uint64, count uint32) bool {
+			onAddFunc: func(_ uint64, count uint32, lbls labels.Labels) (labels.Labels, uint64) {
 				// BOTH mode with 2 buckets: sum, count, bucket1, bucket2, +Inf, native = 6
 				assert.Equal(t, uint32(6), count)
-				return true
+				return lbls, lbls.Hash()
 			},
 			onUpdateFunc: func(_ uint64, count uint32) {
+				// BOTH mode with 2 buckets: sum, count, bucket1, bucket2, +Inf, native = 6
 				assert.Equal(t, uint32(6), count)
 				seriesUpdated++
 			},
@@ -820,10 +827,10 @@ func Test_nativeHistogram_onUpdate(t *testing.T) {
 	t.Run("native_mode", func(t *testing.T) {
 		var seriesUpdated int
 		lifecycler := &mockLimiter{
-			onAddFunc: func(_ uint64, count uint32) bool {
+			onAddFunc: func(_ uint64, count uint32, lbls labels.Labels) (labels.Labels, uint64) {
 				// NATIVE mode: only 1 native histogram series
 				assert.Equal(t, uint32(1), count)
-				return true
+				return lbls, lbls.Hash()
 			},
 			onUpdateFunc: func(_ uint64, count uint32) {
 				assert.Equal(t, uint32(1), count)
@@ -854,12 +861,13 @@ func Test_nativeHistogram_onUpdate(t *testing.T) {
 	t.Run("classic_mode", func(t *testing.T) {
 		var seriesUpdated int
 		lifecycler := &mockLimiter{
-			onAddFunc: func(_ uint64, count uint32) bool {
+			onAddFunc: func(_ uint64, count uint32, lbls labels.Labels) (labels.Labels, uint64) {
 				// CLASSIC mode with 2 buckets: sum, count, bucket1, bucket2, +Inf = 5
 				assert.Equal(t, uint32(5), count)
-				return true
+				return lbls, lbls.Hash()
 			},
 			onUpdateFunc: func(_ uint64, count uint32) {
+				// CLASSIC mode with 2 buckets: sum, count, bucket1, bucket2, +Inf = 5
 				assert.Equal(t, uint32(5), count)
 				seriesUpdated++
 			},

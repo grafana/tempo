@@ -33,7 +33,8 @@ func (p *safeBuilderPool) Put(builder *labels.Builder) {
 var builderPool = newSafeBuilderPool()
 
 type labelBuilder struct {
-	builder             *labels.Builder
+	builder *labels.Builder
+
 	maxLabelNameLength  int
 	maxLabelValueLength int
 }
