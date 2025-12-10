@@ -2433,11 +2433,11 @@ gopkg.in/yaml.v2
 # gopkg.in/yaml.v3 v3.0.1
 ## explicit
 gopkg.in/yaml.v3
-# k8s.io/apimachinery v0.34.2
+# k8s.io/apimachinery v0.34.3
 ## explicit; go 1.24.0
 k8s.io/apimachinery/pkg/util/runtime
 k8s.io/apimachinery/pkg/util/sets
-# k8s.io/client-go v0.34.1 => k8s.io/client-go v0.34.2
+# k8s.io/client-go v0.34.1 => k8s.io/client-go v0.34.3
 ## explicit; go 1.24.0
 k8s.io/client-go/tools/metrics
 k8s.io/client-go/util/workqueue
@@ -2453,6 +2453,6 @@ k8s.io/klog/v2/internal/sloghandler
 # k8s.io/utils v0.0.0-20250604170112-4c0f3b243397
 ## explicit; go 1.18
 k8s.io/utils/clock
-# k8s.io/api => k8s.io/api v0.34.2
-# k8s.io/client-go => k8s.io/client-go v0.34.2
+# k8s.io/api => k8s.io/api v0.34.3
+# k8s.io/client-go => k8s.io/client-go v0.34.3
 # github.com/hashicorp/memberlist => github.com/grafana/memberlist v0.3.1-0.20251024160842-5cd332c2849a
