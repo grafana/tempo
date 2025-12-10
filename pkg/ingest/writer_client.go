@@ -104,7 +104,6 @@ func commonKafkaClientOptions(cfg KafkaConfig, metrics *kprom.Metrics, logger lo
 		kgo.ClientID(cfg.ClientID),
 		kgo.SeedBrokers(cfg.Address),
 		kgo.DialTimeout(cfg.DialTimeout),
-		kgo.DisableClientMetrics(),
 
 		// A cluster metadata update is a request sent to a broker and getting back the map of partitions and
 		// the leader broker for each partition. The cluster metadata can be updated (a) periodically or
@@ -137,6 +136,11 @@ func commonKafkaClientOptions(cfg KafkaConfig, metrics *kprom.Metrics, logger lo
 			// 30s is the default timeout in the Kafka client.
 			return 30 * time.Second
 		}),
+	}
+
+	// Disable client metrics unless explicitly enabled to reduce noise.
+	if !cfg.EnableKafkaTelemetry {
+		opts = append(opts, kgo.DisableClientMetrics())
 	}
 
 	if cfg.AutoCreateTopicEnabled {

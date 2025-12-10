@@ -86,6 +86,8 @@ type KafkaConfig struct {
 	TargetConsumerLagAtStartup time.Duration `yaml:"target_consumer_lag_at_startup"`
 	MaxConsumerLagAtStartup    time.Duration `yaml:"max_consumer_lag_at_startup"`
 
+	EnableKafkaTelemetry bool `yaml:"enable_kafka_telemetry"`
+
 	ConsumerGroupLagMetricUpdateInterval time.Duration `yaml:"consumer_group_lag_metric_update_interval"`
 
 	// The fetch backoff config to use in the concurrent fetchers (when enabled). This setting
@@ -121,6 +123,8 @@ func (cfg *KafkaConfig) RegisterFlagsWithPrefix(prefix string, f *flag.FlagSet) 
 	consumerLagUsage := fmt.Sprintf("Set both -%s and -%s to 0 to disable waiting for maximum consumer lag being honored at startup.", prefix+".target-consumer-lag-at-startup", prefix+".max-consumer-lag-at-startup")
 	f.DurationVar(&cfg.TargetConsumerLagAtStartup, prefix+".target-consumer-lag-at-startup", 2*time.Second, "The best-effort maximum lag a consumer tries to achieve at startup. "+consumerLagUsage)
 	f.DurationVar(&cfg.MaxConsumerLagAtStartup, prefix+".max-consumer-lag-at-startup", 15*time.Second, "The guaranteed maximum lag before a consumer is considered to have caught up reading from a partition at startup, becomes ACTIVE in the hash ring and passes the readiness check. "+consumerLagUsage)
+
+	f.BoolVar(&cfg.EnableKafkaTelemetry, prefix+".enable-kafka-telemetry", false, "Enable Kafka client internal metrics. When disabled, it reduces the noise of Kafka client internal metrics.")
 
 	f.DurationVar(&cfg.ConsumerGroupLagMetricUpdateInterval, prefix+".consumer_group_lag_metric_update_interval", 1*time.Minute, "How often the lag metric is updated. Set to 0 to disable metric calculation and export ")
 }
