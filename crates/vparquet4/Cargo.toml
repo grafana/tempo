@@ -12,8 +12,8 @@ ustr = { workspace = true }
 tokio = { workspace = true }
 futures = { workspace = true }
 futures-util = { workspace = true }
-async-stream = "0.3"
-num_cpus = "1.16"
+async-stream = { workspace = true }
+num_cpus = { workspace = true }
 
 [dev-dependencies]
 criterion = { workspace = true, features = ["html_reports"] }

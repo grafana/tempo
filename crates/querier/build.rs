@@ -50,5 +50,23 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             ],
         )?;
 
+    // Compile httpgrpc and frontend protos for worker functionality
+    // Reference the existing proto files directly
+    // Compile them together so cross-references work correctly
+    tonic_build::configure()
+        .build_server(false)
+        .build_client(true)
+        .compile_protos(
+            &[
+                "../../vendor/github.com/grafana/dskit/httpgrpc/httpgrpc.proto",
+                "../../modules/frontend/v1/frontendv1pb/frontend.proto",
+            ],
+            &[
+                "../../vendor",
+                "../../vendor/github.com/gogo/protobuf",
+                "../../modules/frontend/v1/frontendv1pb",
+            ],
+        )?;
+
     Ok(())
 }

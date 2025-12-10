@@ -25,5 +25,23 @@ serde_json= { workspace = true }
 # Error handling
 thiserror= { workspace = true }
 
+# Async/Futures
+futures= { workspace = true }
+tokio-stream= "0.1"
+
+# Backoff for retries
+backoff= { workspace = true }
+
+# HTTP types for conversion
+http= { workspace = true }
+http-body-util= { workspace = true }
+bytes= { workspace = true }
+
+# Hostname for worker ID
+hostname= { workspace = true }
+
+# Metrics
+prometheus= "0.13"
+
 [build-dependencies]
 tonic-build= { workspace = true }

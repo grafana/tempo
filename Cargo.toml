@@ -68,6 +68,12 @@ tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 url = "2.5"
 ustr = "1.0"
+async-stream = "0.3"
+backoff = "0.4"
+hostname = "0.4"
+http = "1.0"
+http-body-util = "0.1"
+num_cpus = "1.16"
 
 [profile.release]
 opt-level = 3
