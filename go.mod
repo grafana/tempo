@@ -121,7 +121,7 @@ require (
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp v1.38.0
 	go.opentelemetry.io/proto/otlp v1.9.0
 	golang.org/x/net v0.47.0
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20251124214823-79d6a2a48846
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20251202230838-ff82c1b0f217
 )
 
 require (
