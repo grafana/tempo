@@ -315,7 +315,18 @@ type attributeSummary struct {
 	dedicated       map[string]struct{}
 }
 
-func (a attributeSummary) add(other attributeSummary) {
+func (a *attributeSummary) add(other attributeSummary) {
+	// Initialize if needed
+	if a.attributes == nil {
+		a.attributes = make(map[string]*attribute)
+	}
+	if a.arrayAttributes == nil {
+		a.arrayAttributes = make(map[string]*attribute)
+	}
+	if a.dedicated == nil {
+		a.dedicated = make(map[string]struct{})
+	}
+
 	for k, v := range other.attributes {
 		existing, ok := a.attributes[k]
 		if !ok {
