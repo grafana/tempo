@@ -39,7 +39,7 @@ func (c *Config) RegisterFlags(*flag.FlagSet) {
 }
 
 func (c *Config) Validate() error {
-	if _, err := encoding.FromVersion(c.Version); err != nil {
+	if _, err := encoding.FromVersionForWrites(c.Version); err != nil {
 		return fmt.Errorf("failed to validate block version %s: %w", c.Version, err)
 	}
 
@@ -146,7 +146,7 @@ func (w *WAL) RescanBlocks(additionalStartSlack time.Duration, log log.Logger) (
 }
 
 func (w *WAL) NewBlock(meta *backend.BlockMeta, dataEncoding string) (common.WALBlock, error) {
-	v, err := encoding.FromVersion(w.c.Version)
+	v, err := encoding.FromVersionForWrites(w.c.Version)
 	if err != nil {
 		return nil, err
 	}

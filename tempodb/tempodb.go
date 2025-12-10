@@ -250,7 +250,7 @@ func (rw *readerWriter) CompleteBlock(ctx context.Context, block common.WALBlock
 // new block will have the same ID as the input block.
 func (rw *readerWriter) CompleteBlockWithBackend(ctx context.Context, block common.WALBlock, r backend.Reader, w backend.Writer) (common.BackendBlock, error) {
 	// The destination block format:
-	vers, err := encoding.FromVersion(rw.cfg.Block.Version)
+	vers, err := encoding.FromVersionForWrites(rw.cfg.Block.Version)
 	if err != nil {
 		return nil, err
 	}

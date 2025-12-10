@@ -22,7 +22,11 @@ func (v Encoding) NewCompactor(opts common.CompactionOptions) common.Compactor {
 }
 
 func (v Encoding) CompactionSupported() bool {
-	return true
+	return false
+}
+
+func (v Encoding) WritesSupported() bool {
+	return false
 }
 
 func (v Encoding) OpenBlock(meta *backend.BlockMeta, r backend.Reader) (common.BackendBlock, error) {
