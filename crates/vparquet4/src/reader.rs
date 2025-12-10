@@ -1,5 +1,4 @@
 /// Async Parquet reader for vparquet4 files
-
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::pin::Pin;
@@ -45,8 +44,8 @@ pub struct FileCache {
 #[derive(Debug, Clone)]
 pub struct ReadOptions {
     pub filter: Option<SpanFilter>,
-    pub batch_size: usize,   // Row groups per batch
-    pub parallelism: usize,  // Concurrent tasks
+    pub batch_size: usize,  // Row groups per batch
+    pub parallelism: usize, // Concurrent tasks
 }
 
 impl Default for ReadOptions {
@@ -435,8 +434,7 @@ fn extract_spansets_from_batch(
             for rs_idx in rs_offset..rs_offset + rs_length {
                 let ss_offset = ss_array.value_offsets()[rs_idx] as usize;
                 let ss_length = (ss_array.value_offsets()[rs_idx + 1]
-                    - ss_array.value_offsets()[rs_idx])
-                    as usize;
+                    - ss_array.value_offsets()[rs_idx]) as usize;
 
                 if ss_length == 0 {
                     continue;
@@ -452,7 +450,9 @@ fn extract_spansets_from_batch(
                 let spans_array = ss_values
                     .column_by_name("Spans")
                     .and_then(|col| col.as_any().downcast_ref::<ListArray>())
-                    .ok_or_else(|| Error::SchemaError("Spans column not found or wrong type".into()))?;
+                    .ok_or_else(|| {
+                        Error::SchemaError("Spans column not found or wrong type".into())
+                    })?;
 
                 // Iterate through each ScopeSpans
                 for ss_idx in ss_offset..ss_offset + ss_length {
@@ -465,14 +465,11 @@ fn extract_spansets_from_batch(
                         continue;
                     }
 
-                    let spans_values =
-                        spans_array
-                            .values()
-                            .as_any()
-                            .downcast_ref::<StructArray>()
-                            .ok_or_else(|| {
-                                Error::SchemaError("Spans values not a struct".into())
-                            })?;
+                    let spans_values = spans_array
+                        .values()
+                        .as_any()
+                        .downcast_ref::<StructArray>()
+                        .ok_or_else(|| Error::SchemaError("Spans values not a struct".into()))?;
 
                     // Extract span fields
                     let span_ids = spans_values
@@ -513,16 +510,12 @@ fn extract_spansets_from_batch(
                     let names = spans_values
                         .column_by_name("Name")
                         .and_then(|col| col.as_any().downcast_ref::<StringArray>())
-                        .ok_or_else(|| {
-                            Error::SchemaError("Name not found or wrong type".into())
-                        })?;
+                        .ok_or_else(|| Error::SchemaError("Name not found or wrong type".into()))?;
 
                     let kinds = spans_values
                         .column_by_name("Kind")
                         .and_then(|col| col.as_any().downcast_ref::<Int64Array>())
-                        .ok_or_else(|| {
-                            Error::SchemaError("Kind not found or wrong type".into())
-                        })?;
+                        .ok_or_else(|| Error::SchemaError("Kind not found or wrong type".into()))?;
 
                     let start_times = spans_values
                         .column_by_name("StartTimeUnixNano")

@@ -47,9 +47,9 @@ impl WorkerConfig {
         }
 
         if let Ok(parallelism) = env::var("QUERIER_PARALLELISM") {
-            config.parallelism = parallelism
-                .parse()
-                .map_err(|e| crate::error::QuerierError::Config(format!("Invalid parallelism: {}", e)))?;
+            config.parallelism = parallelism.parse().map_err(|e| {
+                crate::error::QuerierError::Config(format!("Invalid parallelism: {}", e))
+            })?;
         }
 
         if let Ok(id) = env::var("QUERIER_ID") {
@@ -57,15 +57,15 @@ impl WorkerConfig {
         }
 
         if let Ok(size) = env::var("MAX_RECV_MSG_SIZE") {
-            config.max_recv_msg_size = size
-                .parse()
-                .map_err(|e| crate::error::QuerierError::Config(format!("Invalid max_recv_msg_size: {}", e)))?;
+            config.max_recv_msg_size = size.parse().map_err(|e| {
+                crate::error::QuerierError::Config(format!("Invalid max_recv_msg_size: {}", e))
+            })?;
         }
 
         if let Ok(size) = env::var("MAX_SEND_MSG_SIZE") {
-            config.max_send_msg_size = size
-                .parse()
-                .map_err(|e| crate::error::QuerierError::Config(format!("Invalid max_send_msg_size: {}", e)))?;
+            config.max_send_msg_size = size.parse().map_err(|e| {
+                crate::error::QuerierError::Config(format!("Invalid max_send_msg_size: {}", e))
+            })?;
         }
 
         Ok(config)

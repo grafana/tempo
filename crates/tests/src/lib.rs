@@ -1,12 +1,14 @@
 use context::create_block_context;
 use datafusion::execution::context::SessionContext;
 use provider::{create_flattened_view, register_local_tempo_table, register_udfs};
-use storage::BlockInfo;
 use std::path::PathBuf;
 use std::sync::Arc;
+use storage::BlockInfo;
 
 /// Setup DataFusion context with a local Tempo parquet file
-pub async fn setup_context_with_file(file_path: impl Into<String>) -> anyhow::Result<SessionContext> {
+pub async fn setup_context_with_file(
+    file_path: impl Into<String>,
+) -> anyhow::Result<SessionContext> {
     let ctx = SessionContext::new();
 
     // Register UDFs
@@ -64,7 +66,9 @@ pub async fn setup_context_with_block(
         .join("tempodb/encoding/vparquet4/test-data");
 
     // Create a local filesystem object store
-    let store = Arc::new(object_store::local::LocalFileSystem::new_with_prefix(base_path)?);
+    let store = Arc::new(object_store::local::LocalFileSystem::new_with_prefix(
+        base_path,
+    )?);
 
     // Create BlockInfo
     let block_info = BlockInfo::new(block_id_str, tenant_id_str);
@@ -89,7 +93,8 @@ pub fn get_traceql_query_files() -> anyhow::Result<Vec<(String, PathBuf)>> {
         let path = entry.path();
 
         if path.extension().and_then(|s| s.to_str()) == Some("tql") {
-            let name = path.file_stem()
+            let name = path
+                .file_stem()
                 .and_then(|s| s.to_str())
                 .unwrap_or("unknown")
                 .to_string();

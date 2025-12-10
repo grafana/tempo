@@ -1,15 +1,15 @@
-use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
-use std::sync::Arc;
-use std::time::Duration;
-use tests::execute_query;
-use tokio::runtime::Runtime;
-use traceql::traceql_to_sql_string;
 use anyhow;
-use context::{create_block_context, collect_plan_metrics};
-use storage::BlockInfo;
+use context::{collect_plan_metrics, create_block_context};
+use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
 use datafusion::execution::context::SessionContext;
 use datafusion::physical_plan::execute_stream;
 use futures::StreamExt;
+use std::sync::Arc;
+use std::time::Duration;
+use storage::BlockInfo;
+use tests::execute_query;
+use tokio::runtime::Runtime;
+use traceql::traceql_to_sql_string;
 
 /// Metrics collected from query execution
 #[derive(Debug, Clone)]
@@ -26,7 +26,8 @@ impl QueryMetrics {
         if self.elapsed_nanos == 0 {
             return 0.0;
         }
-        let bytes_per_sec = (self.bytes_scanned as f64) / (self.elapsed_nanos as f64 / 1_000_000_000.0);
+        let bytes_per_sec =
+            (self.bytes_scanned as f64) / (self.elapsed_nanos as f64 / 1_000_000_000.0);
         bytes_per_sec / (1024.0 * 1024.0)
     }
 
@@ -40,9 +41,9 @@ impl QueryMetrics {
 /// Execute a SQL query and return metrics using collect_plan_metrics from context
 /// Bypasses DataFrame to avoid performance overhead: SQL -> LogicalPlan -> PhysicalPlan -> Execute
 async fn execute(ctx: &SessionContext, sql: &str) -> anyhow::Result<QueryMetrics> {
-    use std::time::Instant;
     use datafusion::sql::parser::DFParser;
     use datafusion::sql::sqlparser::dialect::GenericDialect;
+    use std::time::Instant;
 
     let start = Instant::now();
 
@@ -225,7 +226,9 @@ fn get_bench_block_info() -> anyhow::Result<(Arc<dyn object_store::ObjectStore>,
     let tenant_id = std::env::var("BENCH_TENANTID").unwrap_or_else(|_| "1".to_string());
 
     // Create a local filesystem object store
-    let store = Arc::new(object_store::local::LocalFileSystem::new_with_prefix(bench_path)?);
+    let store = Arc::new(object_store::local::LocalFileSystem::new_with_prefix(
+        bench_path,
+    )?);
 
     // Create BlockInfo
     let block_info = BlockInfo::new(block_id, tenant_id);
@@ -243,9 +246,9 @@ fn bench_traceql_queries(c: &mut Criterion) {
     });
 
     let ctx = rt.block_on(async {
-        create_block_context(object_store, block_info).await.unwrap_or_else(|e| {
-            panic!("Failed to setup context: {}", e)
-        })
+        create_block_context(object_store, block_info)
+            .await
+            .unwrap_or_else(|e| panic!("Failed to setup context: {}", e))
     });
 
     let mut group = c.benchmark_group("traceql");
@@ -261,9 +264,12 @@ fn bench_traceql_queries(c: &mut Criterion) {
             Ok(sql) => {
                 eprintln!("\n{}: {}", case.name, sql);
                 sql
-            },
+            }
             Err(e) => {
-                eprintln!("Skipping {}: Failed to convert TraceQL to SQL: {}", case.name, e);
+                eprintln!(
+                    "Skipping {}: Failed to convert TraceQL to SQL: {}",
+                    case.name, e
+                );
                 continue;
             }
         };
@@ -272,9 +278,8 @@ fn bench_traceql_queries(c: &mut Criterion) {
             BenchmarkId::new("query", case.name),
             &sql,
             |b, sql_query| {
-                b.to_async(&rt).iter(|| async {
-                    execute_query(&ctx, sql_query).await.unwrap()
-                });
+                b.to_async(&rt)
+                    .iter(|| async { execute_query(&ctx, sql_query).await.unwrap() });
             },
         );
     }
@@ -295,9 +300,9 @@ fn bench_with_metrics(c: &mut Criterion) {
     });
 
     let ctx = Arc::new(rt.block_on(async {
-        create_block_context(object_store, block_info).await.unwrap_or_else(|e| {
-            panic!("Failed to setup context: {}", e)
-        })
+        create_block_context(object_store, block_info)
+            .await
+            .unwrap_or_else(|e| panic!("Failed to setup context: {}", e))
     }));
 
     let mut group = c.benchmark_group("traceql_detailed");
@@ -320,9 +325,7 @@ fn bench_with_metrics(c: &mut Criterion) {
         let ctx_clone = ctx.clone();
 
         // Set throughput based on a warmup run
-        let warmup_metrics = rt.block_on(async {
-            execute(&ctx, &sql).await.unwrap()
-        });
+        let warmup_metrics = rt.block_on(async { execute(&ctx, &sql).await.unwrap() });
 
         if warmup_metrics.bytes_scanned > 0 {
             group.throughput(Throughput::Bytes(warmup_metrics.bytes_scanned as u64));

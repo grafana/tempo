@@ -1,10 +1,9 @@
-use config::S3Config;
-use storage::{create_object_store, DiscoveredBlock, TempoStorage};
 use async_trait::async_trait;
+use config::S3Config;
 use datafusion::arrow::datatypes::{DataType, Field, Schema, SchemaRef};
 use datafusion::catalog::Session;
-use datafusion::datasource::file_format::FileFormat;
 use datafusion::datasource::file_format::parquet::ParquetFormat;
+use datafusion::datasource::file_format::FileFormat;
 use datafusion::datasource::listing::ListingTableUrl;
 use datafusion::datasource::physical_plan::FileScanConfigBuilder;
 use datafusion::datasource::{TableProvider, TableType};
@@ -15,6 +14,7 @@ use datafusion::physical_plan::ExecutionPlan;
 use datafusion_datasource::PartitionedFile;
 use std::any::Any;
 use std::sync::Arc;
+use storage::{create_object_store, DiscoveredBlock, TempoStorage};
 use tracing::{info, warn};
 
 /// Convert a schema to use Binary instead of Utf8 for string fields

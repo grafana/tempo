@@ -164,8 +164,15 @@ async fn main() -> Result<()> {
     // Print results
     println!("\nQuery Results:");
     println!("  Rows returned:  {}", metrics.rows_returned);
-    println!("  Bytes scanned:  {} ({:.2} MB)", metrics.bytes_scanned, metrics.mb_io_per_op());
-    println!("  Elapsed time:   {:.2} ms", metrics.elapsed_nanos as f64 / 1_000_000.0);
+    println!(
+        "  Bytes scanned:  {} ({:.2} MB)",
+        metrics.bytes_scanned,
+        metrics.mb_io_per_op()
+    );
+    println!(
+        "  Elapsed time:   {:.2} ms",
+        metrics.elapsed_nanos as f64 / 1_000_000.0
+    );
     println!("  Throughput:     {:.2} MB/s", metrics.throughput_mbps());
 
     Ok(())

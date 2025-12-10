@@ -27,7 +27,7 @@ thiserror= { workspace = true }
 
 # Async/Futures
 futures= { workspace = true }
-tokio-stream= "0.1"
+tokio-stream= { workspace = true }
 
 # Backoff for retries
 backoff= { workspace = true }
@@ -41,7 +41,7 @@ bytes= { workspace = true }
 hostname= { workspace = true }
 
 # Metrics
-prometheus= "0.13"
+prometheus= { workspace = true }
 
 [build-dependencies]
 tonic-build= { workspace = true }

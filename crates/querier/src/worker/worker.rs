@@ -92,7 +92,10 @@ impl QuerierWorker {
 
     /// Shutdown all managers gracefully
     async fn shutdown(&mut self) -> Result<()> {
-        tracing::info!(manager_count = self.managers.len(), "Shutting down managers");
+        tracing::info!(
+            manager_count = self.managers.len(),
+            "Shutting down managers"
+        );
 
         let mut errors = Vec::new();
 
@@ -141,9 +144,7 @@ mod tests {
         let mut worker = QuerierWorker::new(config);
 
         // Create a timeout task to prevent the test from hanging
-        let run_task = tokio::spawn(async move {
-            worker.run().await
-        });
+        let run_task = tokio::spawn(async move { worker.run().await });
 
         // Wait a bit for validation to occur
         tokio::time::sleep(std::time::Duration::from_millis(100)).await;

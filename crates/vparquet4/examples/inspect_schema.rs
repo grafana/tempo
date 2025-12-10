@@ -1,7 +1,7 @@
+use parquet::arrow::arrow_reader::ParquetRecordBatchReaderBuilder;
 use std::env;
 use std::fs::File;
 use std::path::PathBuf;
-use parquet::arrow::arrow_reader::ParquetRecordBatchReaderBuilder;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let block_id = env::var("BENCH_BLOCKID")?;
@@ -50,35 +50,76 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         if let Some(struct_array) = values.as_any().downcast_ref::<StructArray>() {
                             println!("  RS struct fields:");
                             for (j, field) in struct_array.fields().iter().enumerate() {
-                                println!("    Field {}: {} ({})", j, field.name(), field.data_type());
+                                println!(
+                                    "    Field {}: {} ({})",
+                                    j,
+                                    field.name(),
+                                    field.data_type()
+                                );
 
                                 if field.name() == "ss" {
                                     // Look at ScopeSpans structure
                                     let ss_column = struct_array.column(j);
                                     println!("      SS array type: {:?}", ss_column.data_type());
 
-                                    if let Some(ss_list) = ss_column.as_any().downcast_ref::<ListArray>() {
+                                    if let Some(ss_list) =
+                                        ss_column.as_any().downcast_ref::<ListArray>()
+                                    {
                                         let ss_values = ss_list.values();
-                                        println!("      SS values type: {:?}", ss_values.data_type());
+                                        println!(
+                                            "      SS values type: {:?}",
+                                            ss_values.data_type()
+                                        );
 
-                                        if let Some(ss_struct) = ss_values.as_any().downcast_ref::<StructArray>() {
+                                        if let Some(ss_struct) =
+                                            ss_values.as_any().downcast_ref::<StructArray>()
+                                        {
                                             println!("      SS struct fields:");
-                                            for (k, field) in ss_struct.fields().iter().enumerate() {
-                                                println!("        Field {}: {} ({})", k, field.name(), field.data_type());
+                                            for (k, field) in ss_struct.fields().iter().enumerate()
+                                            {
+                                                println!(
+                                                    "        Field {}: {} ({})",
+                                                    k,
+                                                    field.name(),
+                                                    field.data_type()
+                                                );
 
                                                 if field.name() == "Spans" {
                                                     // Look at Spans structure
                                                     let spans_column = ss_struct.column(k);
-                                                    println!("          Spans array type: {:?}", spans_column.data_type());
+                                                    println!(
+                                                        "          Spans array type: {:?}",
+                                                        spans_column.data_type()
+                                                    );
 
-                                                    if let Some(spans_list) = spans_column.as_any().downcast_ref::<ListArray>() {
+                                                    if let Some(spans_list) = spans_column
+                                                        .as_any()
+                                                        .downcast_ref::<ListArray>(
+                                                    ) {
                                                         let spans_values = spans_list.values();
-                                                        println!("          Spans values type: {:?}", spans_values.data_type());
+                                                        println!(
+                                                            "          Spans values type: {:?}",
+                                                            spans_values.data_type()
+                                                        );
 
-                                                        if let Some(spans_struct) = spans_values.as_any().downcast_ref::<StructArray>() {
-                                                            println!("          Span struct fields:");
-                                                            for (l, field) in spans_struct.fields().iter().enumerate() {
-                                                                println!("            Field {}: {} ({})", l, field.name(), field.data_type());
+                                                        if let Some(spans_struct) = spans_values
+                                                            .as_any()
+                                                            .downcast_ref::<StructArray>()
+                                                        {
+                                                            println!(
+                                                                "          Span struct fields:"
+                                                            );
+                                                            for (l, field) in spans_struct
+                                                                .fields()
+                                                                .iter()
+                                                                .enumerate()
+                                                            {
+                                                                println!(
+                                                                    "            Field {}: {} ({})",
+                                                                    l,
+                                                                    field.name(),
+                                                                    field.data_type()
+                                                                );
                                                             }
                                                         }
                                                     }

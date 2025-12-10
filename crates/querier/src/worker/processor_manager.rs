@@ -134,7 +134,10 @@ impl ProcessorManager {
         }
 
         if failed_tasks > 0 {
-            tracing::warn!(failed_tasks = failed_tasks, "Some tasks failed during shutdown");
+            tracing::warn!(
+                failed_tasks = failed_tasks,
+                "Some tasks failed during shutdown"
+            );
         }
 
         tracing::info!("Processor manager stopped");

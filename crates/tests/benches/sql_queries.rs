@@ -1,13 +1,13 @@
-use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
-use std::sync::Arc;
-use std::time::Duration;
-use tokio::runtime::Runtime;
 use anyhow;
-use context::{create_block_context, collect_plan_metrics};
-use storage::BlockInfo;
+use context::{collect_plan_metrics, create_block_context};
+use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
 use datafusion::execution::context::SessionContext;
 use datafusion::physical_plan::execute_stream;
 use futures::StreamExt;
+use std::sync::Arc;
+use std::time::Duration;
+use storage::BlockInfo;
+use tokio::runtime::Runtime;
 
 /// Metrics collected from query execution
 #[derive(Debug, Clone)]
@@ -24,7 +24,8 @@ impl QueryMetrics {
         if self.elapsed_nanos == 0 {
             return 0.0;
         }
-        let bytes_per_sec = (self.bytes_scanned as f64) / (self.elapsed_nanos as f64 / 1_000_000_000.0);
+        let bytes_per_sec =
+            (self.bytes_scanned as f64) / (self.elapsed_nanos as f64 / 1_000_000_000.0);
         bytes_per_sec / (1024.0 * 1024.0)
     }
 
@@ -38,9 +39,9 @@ impl QueryMetrics {
 /// Execute a SQL query and return metrics using collect_plan_metrics from context
 /// Bypasses DataFrame to avoid performance overhead: SQL -> LogicalPlan -> PhysicalPlan -> Execute
 async fn execute(ctx: &SessionContext, sql: &str) -> anyhow::Result<QueryMetrics> {
-    use std::time::Instant;
     use datafusion::sql::parser::DFParser;
     use datafusion::sql::sqlparser::dialect::GenericDialect;
+    use std::time::Instant;
 
     let start = Instant::now();
 
@@ -117,17 +118,50 @@ fn get_test_cases() -> Vec<BenchCase> {
         //BenchCase { name: "struct", sql: include_str!("queries/struct.sql") },
         //BenchCase { name: "traceOrMatch", sql: include_str!("queries/traceOrMatch.sql") },
         //BenchCase { name: "traceOrNoMatch", sql: include_str!("queries/traceOrNoMatch.sql") },
-        BenchCase { name: "||", sql: include_str!("queries/pipeOr.sql") },
-        BenchCase { name: "complex", sql: include_str!("queries/complex.sql") },
-        BenchCase { name: "count", sql: include_str!("queries/count.sql") },
-        BenchCase { name: "rate", sql: include_str!("queries/rate.sql") },
-        BenchCase { name: "resourceAttIntrinsicMatch", sql: include_str!("queries/resourceAttIntrinsicMatch.sql") },
-        BenchCase { name: "resourceAttIntrinsicNoMatch", sql: include_str!("queries/resourceAttIntrinsicNoMatch.sql") },
-        BenchCase { name: "resourceAttValMatch", sql: include_str!("queries/resourceAttValMatch.sql") },
-        BenchCase { name: "select", sql: include_str!("queries/select.sql") },
-        BenchCase { name: "spanAttIntrinsicMatch", sql: include_str!("queries/spanAttIntrinsicMatch.sql") },
-        BenchCase { name: "spanAttValNoMatch", sql: include_str!("queries/spanAttValNoMatch.sql") },
-        BenchCase { name: "traceOrMatchFew", sql: include_str!("queries/traceOrMatchFew.sql") },
+        BenchCase {
+            name: "||",
+            sql: include_str!("queries/pipeOr.sql"),
+        },
+        BenchCase {
+            name: "complex",
+            sql: include_str!("queries/complex.sql"),
+        },
+        BenchCase {
+            name: "count",
+            sql: include_str!("queries/count.sql"),
+        },
+        BenchCase {
+            name: "rate",
+            sql: include_str!("queries/rate.sql"),
+        },
+        BenchCase {
+            name: "resourceAttIntrinsicMatch",
+            sql: include_str!("queries/resourceAttIntrinsicMatch.sql"),
+        },
+        BenchCase {
+            name: "resourceAttIntrinsicNoMatch",
+            sql: include_str!("queries/resourceAttIntrinsicNoMatch.sql"),
+        },
+        BenchCase {
+            name: "resourceAttValMatch",
+            sql: include_str!("queries/resourceAttValMatch.sql"),
+        },
+        BenchCase {
+            name: "select",
+            sql: include_str!("queries/select.sql"),
+        },
+        BenchCase {
+            name: "spanAttIntrinsicMatch",
+            sql: include_str!("queries/spanAttIntrinsicMatch.sql"),
+        },
+        BenchCase {
+            name: "spanAttValNoMatch",
+            sql: include_str!("queries/spanAttValNoMatch.sql"),
+        },
+        BenchCase {
+            name: "traceOrMatchFew",
+            sql: include_str!("queries/traceOrMatchFew.sql"),
+        },
     ]
 }
 
@@ -155,7 +189,9 @@ fn get_bench_block_info() -> anyhow::Result<(Arc<dyn object_store::ObjectStore>,
     let tenant_id = std::env::var("BENCH_TENANTID").unwrap_or_else(|_| "1".to_string());
 
     // Create a local filesystem object store
-    let store = Arc::new(object_store::local::LocalFileSystem::new_with_prefix(bench_path)?);
+    let store = Arc::new(object_store::local::LocalFileSystem::new_with_prefix(
+        bench_path,
+    )?);
 
     // Create BlockInfo
     let block_info = BlockInfo::new(block_id, tenant_id);
@@ -175,9 +211,9 @@ fn bench_sql_queries(c: &mut Criterion) {
     });
 
     let ctx = Arc::new(rt.block_on(async {
-        create_block_context(object_store, block_info).await.unwrap_or_else(|e| {
-            panic!("Failed to setup context: {}", e)
-        })
+        create_block_context(object_store, block_info)
+            .await
+            .unwrap_or_else(|e| panic!("Failed to setup context: {}", e))
     }));
 
     let mut group = c.benchmark_group("sql");
@@ -197,9 +233,7 @@ fn bench_sql_queries(c: &mut Criterion) {
         let ctx_clone = ctx.clone();
 
         // Set throughput based on a warmup run
-        let warmup_metrics = rt.block_on(async {
-            execute(&ctx, case.sql).await.unwrap()
-        });
+        let warmup_metrics = rt.block_on(async { execute(&ctx, case.sql).await.unwrap() });
 
         if warmup_metrics.bytes_scanned > 0 {
             group.throughput(Throughput::Bytes(warmup_metrics.bytes_scanned as u64));

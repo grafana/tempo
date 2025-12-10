@@ -61,7 +61,9 @@ pub fn traceql_to_sql(query: &TraceQLQuery) -> Result<String, ConversionError> {
     }
 
     // Handle pipeline operations (skip select as it's handled above)
-    let non_select_ops: Vec<_> = query.pipeline.iter()
+    let non_select_ops: Vec<_> = query
+        .pipeline
+        .iter()
         .filter(|op| !matches!(op, PipelineOp::Select { .. }))
         .collect();
 
@@ -95,7 +97,11 @@ pub fn traceql_to_sql(query: &TraceQLQuery) -> Result<String, ConversionError> {
                 Some(PipelineOp::Sum { .. }) => "sum",
                 Some(PipelineOp::Min { .. }) => "min",
                 Some(PipelineOp::Max { .. }) => "max",
-                _ => return Err(ConversionError::Unsupported("No aggregation pipeline operation".to_string())),
+                _ => {
+                    return Err(ConversionError::Unsupported(
+                        "No aggregation pipeline operation".to_string(),
+                    ))
+                }
             };
             write!(&mut sql, "{} {} ", agg_column, having.op)?;
             write_value(&mut sql, &having.value)?;
@@ -182,9 +188,7 @@ fn write_filter_expr(
 }
 
 /// Analyzes a filter expression and classifies predicates by hierarchy level
-fn classify_filter_expression(
-    expr: &Option<Expr>,
-) -> Result<ClassifiedFilters, ConversionError> {
+fn classify_filter_expression(expr: &Option<Expr>) -> Result<ClassifiedFilters, ConversionError> {
     let mut classified = ClassifiedFilters::new();
 
     if let Some(expr) = expr {
@@ -263,10 +267,7 @@ fn classify_expr_recursive(
 }
 
 /// Writes SQL path for a resource-scoped field in the nested structure
-fn write_resource_field_path(
-    sql: &mut String,
-    field_name: &str,
-) -> Result<(), ConversionError> {
+fn write_resource_field_path(sql: &mut String, field_name: &str) -> Result<(), ConversionError> {
     // Check dedicated resource columns first
     let dedicated_column = match field_name {
         "service.name" => Some("resource.\"Resource\".\"ServiceName\""),
@@ -294,10 +295,7 @@ fn write_resource_field_path(
 }
 
 /// Writes SQL path for a span-scoped field in the nested structure
-fn write_span_field_path(
-    sql: &mut String,
-    field_name: &str,
-) -> Result<(), ConversionError> {
+fn write_span_field_path(sql: &mut String, field_name: &str) -> Result<(), ConversionError> {
     // Check dedicated span columns first
     let dedicated_column = match field_name {
         "http.method" => Some("span.\"HttpMethod\""),
@@ -331,9 +329,12 @@ fn write_span_intrinsic_path(
         "spanID" => "span.\"SpanID\"",
         "parentSpanID" => "span.\"ParentSpanID\"",
         "traceID" => "\"TraceID\"", // Available at all levels
-        _ => return Err(ConversionError::Unsupported(
-            format!("Unsupported span intrinsic: {}", intrinsic_name)
-        )),
+        _ => {
+            return Err(ConversionError::Unsupported(format!(
+                "Unsupported span intrinsic: {}",
+                intrinsic_name
+            )))
+        }
     };
 
     sql.push_str(column);
@@ -341,10 +342,7 @@ fn write_span_intrinsic_path(
 }
 
 /// Writes SQL path for a trace-level field (used in trace WHERE clause)
-fn write_trace_field_path(
-    sql: &mut String,
-    intrinsic_name: &str,
-) -> Result<(), ConversionError> {
+fn write_trace_field_path(sql: &mut String, intrinsic_name: &str) -> Result<(), ConversionError> {
     let column = match intrinsic_name {
         "traceID" => "t.\"TraceID\"",
         "startTime" => "t.\"StartTimeUnixNano\"",
@@ -352,9 +350,12 @@ fn write_trace_field_path(
         "duration" => "t.\"DurationNano\"",
         "rootServiceName" => "t.\"RootServiceName\"",
         "rootName" => "t.\"RootSpanName\"",
-        _ => return Err(ConversionError::Unsupported(
-            format!("Unsupported trace intrinsic: {}", intrinsic_name)
-        )),
+        _ => {
+            return Err(ConversionError::Unsupported(format!(
+                "Unsupported trace intrinsic: {}",
+                intrinsic_name
+            )))
+        }
     };
 
     sql.push_str(column);
@@ -371,16 +372,22 @@ fn write_comparison_with_context(
 ) -> Result<(), ConversionError> {
     // Determine if this is a list attribute
     let is_list_attr = match field.scope {
-        FieldScope::Span => {
-            !matches!(field.name.as_str(),
-                "http.method" | "http.url" | "http.status_code" | "http.response_code")
-        }
-        FieldScope::Resource => {
-            !matches!(field.name.as_str(),
-                "service.name" | "cluster" | "namespace" | "pod" | "container" |
-                "k8s.cluster.name" | "k8s.namespace.name" | "k8s.pod.name" | "k8s.container.name"
-            )
-        }
+        FieldScope::Span => !matches!(
+            field.name.as_str(),
+            "http.method" | "http.url" | "http.status_code" | "http.response_code"
+        ),
+        FieldScope::Resource => !matches!(
+            field.name.as_str(),
+            "service.name"
+                | "cluster"
+                | "namespace"
+                | "pod"
+                | "container"
+                | "k8s.cluster.name"
+                | "k8s.namespace.name"
+                | "k8s.pod.name"
+                | "k8s.container.name"
+        ),
         FieldScope::Unscoped => true,
         FieldScope::Intrinsic => false,
     };
@@ -393,12 +400,10 @@ fn write_comparison_with_context(
         FieldScope::Span | FieldScope::Unscoped => {
             write_span_field_path(sql, &field.name)?;
         }
-        FieldScope::Intrinsic => {
-            match context {
-                FieldContext::Trace => write_trace_field_path(sql, &field.name)?,
-                _ => write_span_intrinsic_path(sql, &field.name)?,
-            }
-        }
+        FieldScope::Intrinsic => match context {
+            FieldContext::Trace => write_trace_field_path(sql, &field.name)?,
+            _ => write_span_intrinsic_path(sql, &field.name)?,
+        },
     }
 
     // Write operator and value with appropriate handling for list attributes
@@ -545,10 +550,7 @@ fn write_final_projection(
 }
 
 /// Write a projection field with appropriate path
-fn write_projection_field(
-    sql: &mut String,
-    field: &FieldRef,
-) -> Result<(), ConversionError> {
+fn write_projection_field(sql: &mut String, field: &FieldRef) -> Result<(), ConversionError> {
     match field.scope {
         FieldScope::Resource => {
             write_resource_field_path(sql, &field.name)?;
@@ -689,7 +691,10 @@ fn field_to_sql(field: &FieldRef, table_prefix: &str) -> Result<String, Conversi
                 _ => {
                     // Generic attribute access via map
                     // Use map_extract to get the list for this key
-                    Ok(format!("flatten(map_extract({}\"Attrs\", '{}'))", table_prefix, field.name))
+                    Ok(format!(
+                        "flatten(map_extract({}\"Attrs\", '{}'))",
+                        table_prefix, field.name
+                    ))
                 }
             }
         }
@@ -708,7 +713,10 @@ fn field_to_sql(field: &FieldRef, table_prefix: &str) -> Result<String, Conversi
                 _ => {
                     // Generic resource attribute access via ResourceAttrs map
                     // Use map_extract to get the list for this key
-                    Ok(format!("flatten(map_extract({}\"ResourceAttrs\", '{}'))", table_prefix, field.name))
+                    Ok(format!(
+                        "flatten(map_extract({}\"ResourceAttrs\", '{}'))",
+                        table_prefix, field.name
+                    ))
                 }
             }
         }
@@ -746,7 +754,10 @@ fn field_to_sql(field: &FieldRef, table_prefix: &str) -> Result<String, Conversi
         FieldScope::Unscoped => {
             // Unscoped field .* - try both span and resource attributes
             // For now, just try as span attribute using same logic as scoped span attributes
-            Ok(format!("flatten(map_extract({}\"Attrs\", '{}'))", table_prefix, field.name))
+            Ok(format!(
+                "flatten(map_extract({}\"Attrs\", '{}'))",
+                table_prefix, field.name
+            ))
         }
     }
 }

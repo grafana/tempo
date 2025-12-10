@@ -2,7 +2,6 @@
 ///
 /// This module defines the schema structure for vparquet4 files, matching the Go implementation
 /// in tempodb/encoding/vparquet4/schema.go
-
 use bytes::Bytes;
 
 /// Represents a trace-level record in the parquet file
@@ -51,15 +50,21 @@ pub mod field_paths {
 
     // Span fields - nested under rs.list.element.ss.list.element.Spans.list.element
     pub const SPAN_ID: &str = "rs.list.element.ss.list.element.Spans.list.element.SpanID";
-    pub const SPAN_PARENT_SPAN_ID: &str = "rs.list.element.ss.list.element.Spans.list.element.ParentSpanID";
+    pub const SPAN_PARENT_SPAN_ID: &str =
+        "rs.list.element.ss.list.element.Spans.list.element.ParentSpanID";
     pub const SPAN_PARENT_ID: &str = "rs.list.element.ss.list.element.Spans.list.element.ParentID";
-    pub const SPAN_NESTED_SET_LEFT: &str = "rs.list.element.ss.list.element.Spans.list.element.NestedSetLeft";
-    pub const SPAN_NESTED_SET_RIGHT: &str = "rs.list.element.ss.list.element.Spans.list.element.NestedSetRight";
+    pub const SPAN_NESTED_SET_LEFT: &str =
+        "rs.list.element.ss.list.element.Spans.list.element.NestedSetLeft";
+    pub const SPAN_NESTED_SET_RIGHT: &str =
+        "rs.list.element.ss.list.element.Spans.list.element.NestedSetRight";
     pub const SPAN_NAME: &str = "rs.list.element.ss.list.element.Spans.list.element.Name";
     pub const SPAN_KIND: &str = "rs.list.element.ss.list.element.Spans.list.element.Kind";
-    pub const SPAN_START_TIME_UNIX_NANO: &str = "rs.list.element.ss.list.element.Spans.list.element.StartTimeUnixNano";
-    pub const SPAN_DURATION_NANO: &str = "rs.list.element.ss.list.element.Spans.list.element.DurationNano";
-    pub const SPAN_STATUS_CODE: &str = "rs.list.element.ss.list.element.Spans.list.element.StatusCode";
+    pub const SPAN_START_TIME_UNIX_NANO: &str =
+        "rs.list.element.ss.list.element.Spans.list.element.StartTimeUnixNano";
+    pub const SPAN_DURATION_NANO: &str =
+        "rs.list.element.ss.list.element.Spans.list.element.DurationNano";
+    pub const SPAN_STATUS_CODE: &str =
+        "rs.list.element.ss.list.element.Spans.list.element.StatusCode";
 }
 
 /// Definition levels in the parquet schema hierarchy

@@ -1,7 +1,7 @@
 use chrono::{DateTime, Duration, Utc};
 use datafusion::error::{DataFusionError, Result};
-use object_store::ObjectStore;
 use object_store::path::Path as ObjectPath;
+use object_store::ObjectStore;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tracing::{debug, info, warn};

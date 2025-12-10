@@ -1,8 +1,8 @@
 use config::S3Config;
 use datafusion::error::{DataFusionError, Result};
+use object_store::aws::AmazonS3Builder;
 use object_store::ClientOptions;
 use object_store::ObjectStore;
-use object_store::aws::AmazonS3Builder;
 use std::sync::Arc;
 use std::time::Duration;
 

@@ -19,40 +19,31 @@ pub fn tempo_trace_schema() -> Schema {
     Schema::new(vec![
         // TraceID is Binary (16 bytes) for maintaining sort order in Parquet files
         Field::new("TraceID", DataType::Binary, false),
-
         // TraceIDText is Utf8 hex string for human readability/debugging
         Field::new("TraceIDText", DataType::Utf8, false),
-
         // Timestamp fields (nanoseconds since Unix epoch)
         Field::new("StartTimeUnixNano", DataType::UInt64, false),
         Field::new("EndTimeUnixNano", DataType::UInt64, false),
         Field::new("DurationNano", DataType::UInt64, false),
-
         // Root-level trace metadata
         Field::new("RootServiceName", DataType::Utf8, false),
         Field::new("RootSpanName", DataType::Utf8, false),
-
         // ServiceStats is a map[string]ServiceStats in Go
         // Represented as List of Struct(key, stats)
         Field::new(
             "ServiceStats",
-            DataType::List(Arc::new(Field::new(
-                "item",
-                service_stats_struct(),
-                true,
-            ))),
+            DataType::List(Arc::new(Field::new("item", service_stats_struct(), true))),
             false,
         ),
-
         // ResourceSpans is the main nested data structure
         Field::new(
             "ResourceSpans",
             DataType::List(Arc::new(Field::new(
                 "item",
                 resource_spans_struct(),
-                true,  // Allow null items in the list
+                true, // Allow null items in the list
             ))),
-            true,  // Allow null list
+            true, // Allow null list
         ),
     ])
 }
@@ -70,15 +61,15 @@ fn service_stats_struct() -> DataType {
 /// Reference: schema.go lines 230-233
 fn resource_spans_struct() -> DataType {
     DataType::Struct(Fields::from(vec![
-        Field::new("Resource", resource_struct(), true),  // Allow null resource
+        Field::new("Resource", resource_struct(), true), // Allow null resource
         Field::new(
             "ScopeSpans",
             DataType::List(Arc::new(Field::new(
                 "item",
                 scope_spans_struct(),
-                true,  // Allow null items in the list
+                true, // Allow null items in the list
             ))),
-            true,  // Allow null list
+            true, // Allow null list
         ),
     ]))
 }
@@ -97,23 +88,16 @@ fn resource_struct() -> DataType {
         Field::new("K8sNamespaceName", DataType::Utf8, true),
         Field::new("K8sPodName", DataType::Utf8, true),
         Field::new("K8sContainerName", DataType::Utf8, true),
-
         // Generic attributes list
         Field::new(
             "Attrs",
-            DataType::List(Arc::new(Field::new(
-                "item",
-                attribute_struct(),
-                true,
-            ))),
-            true,  // Allow null list
+            DataType::List(Arc::new(Field::new("item", attribute_struct(), true))),
+            true, // Allow null list
         ),
-
         // Dropped attributes count from OTLP
-        Field::new("DroppedAttributesCount", DataType::UInt32, true),  // Allow null
-
+        Field::new("DroppedAttributesCount", DataType::UInt32, true), // Allow null
         // Dedicated attributes storage (String01-String10)
-        Field::new("DedicatedAttributes", dedicated_attributes_struct(), true),  // Allow null
+        Field::new("DedicatedAttributes", dedicated_attributes_struct(), true), // Allow null
     ]))
 }
 
@@ -121,15 +105,15 @@ fn resource_struct() -> DataType {
 /// Reference: schema.go lines 206-209
 fn scope_spans_struct() -> DataType {
     DataType::Struct(Fields::from(vec![
-        Field::new("Scope", instrumentation_scope_struct(), true),  // Allow null scope
+        Field::new("Scope", instrumentation_scope_struct(), true), // Allow null scope
         Field::new(
             "Spans",
             DataType::List(Arc::new(Field::new(
                 "item",
                 span_struct(),
-                true,  // Allow null items in the list
+                true, // Allow null items in the list
             ))),
-            true,  // Allow null list
+            true, // Allow null list
         ),
     ]))
 }
@@ -138,18 +122,14 @@ fn scope_spans_struct() -> DataType {
 /// Reference: schema.go lines 195-203
 fn instrumentation_scope_struct() -> DataType {
     DataType::Struct(Fields::from(vec![
-        Field::new("Name", DataType::Utf8, true),  // Allow null
-        Field::new("Version", DataType::Utf8, true),  // Allow null
+        Field::new("Name", DataType::Utf8, true),    // Allow null
+        Field::new("Version", DataType::Utf8, true), // Allow null
         Field::new(
             "Attrs",
-            DataType::List(Arc::new(Field::new(
-                "item",
-                attribute_struct(),
-                true,
-            ))),
-            true,  // Allow null list
+            DataType::List(Arc::new(Field::new("item", attribute_struct(), true))),
+            true, // Allow null list
         ),
-        Field::new("DroppedAttributesCount", DataType::UInt32, true),  // Allow null
+        Field::new("DroppedAttributesCount", DataType::UInt32, true), // Allow null
     ]))
 }
 
@@ -160,70 +140,48 @@ fn span_struct() -> DataType {
         // SpanID is Binary (8 bytes) to save space - half the size of string representation
         Field::new("SpanID", DataType::Binary, false),
         Field::new("ParentSpanID", DataType::Binary, false),
-
         // Parent reference and nested set model for tree structure
         Field::new("ParentID", DataType::Int64, false),
         Field::new("NestedSetLeft", DataType::Int64, false),
         Field::new("NestedSetRight", DataType::Int64, false),
-
         // Span metadata
         Field::new("Name", DataType::Utf8, false),
         Field::new("Kind", DataType::Int32, false),
         Field::new("TraceState", DataType::Utf8, false),
-
         // Timestamps
         Field::new("StartTimeUnixNano", DataType::UInt64, false),
         Field::new("DurationNano", DataType::UInt64, false),
-
         // Status
         Field::new("StatusCode", DataType::Int32, false),
         Field::new("StatusMessage", DataType::Utf8, false),
-
         // Dedicated HTTP attribute columns for common access patterns
         Field::new("HttpMethod", DataType::Utf8, true),
         Field::new("HttpUrl", DataType::Utf8, true),
         Field::new("HttpStatusCode", DataType::Int64, true),
-
         // Generic attributes
         Field::new(
             "Attrs",
-            DataType::List(Arc::new(Field::new(
-                "item",
-                attribute_struct(),
-                true,
-            ))),
-            true,  // Allow null list
+            DataType::List(Arc::new(Field::new("item", attribute_struct(), true))),
+            true, // Allow null list
         ),
-
         // Events (logs associated with span)
         Field::new(
             "Events",
-            DataType::List(Arc::new(Field::new(
-                "item",
-                event_struct(),
-                true,
-            ))),
-            true,  // Allow null list
+            DataType::List(Arc::new(Field::new("item", event_struct(), true))),
+            true, // Allow null list
         ),
-
         // Links to other spans
         Field::new(
             "Links",
-            DataType::List(Arc::new(Field::new(
-                "item",
-                link_struct(),
-                true,
-            ))),
-            true,  // Allow null list
+            DataType::List(Arc::new(Field::new("item", link_struct(), true))),
+            true, // Allow null list
         ),
-
         // OTLP metadata
-        Field::new("DroppedAttributesCount", DataType::UInt32, true),  // Allow null
-        Field::new("DroppedEventsCount", DataType::UInt32, true),  // Allow null
-        Field::new("DroppedLinksCount", DataType::UInt32, true),  // Allow null
-
+        Field::new("DroppedAttributesCount", DataType::UInt32, true), // Allow null
+        Field::new("DroppedEventsCount", DataType::UInt32, true),     // Allow null
+        Field::new("DroppedLinksCount", DataType::UInt32, true),      // Allow null
         // Dedicated attributes storage (String01-String10)
-        Field::new("DedicatedAttributes", dedicated_attributes_struct(), true),  // Allow null
+        Field::new("DedicatedAttributes", dedicated_attributes_struct(), true), // Allow null
     ]))
 }
 
@@ -235,10 +193,8 @@ fn span_struct() -> DataType {
 fn attribute_struct() -> DataType {
     DataType::Struct(Fields::from(vec![
         Field::new("Key", DataType::Utf8, false),
-
         // Flag indicating if the attribute is an array
         Field::new("IsArray", DataType::Boolean, false),
-
         // Different value type columns - each attribute uses only one
         // Lists allow multi-valued attributes
         Field::new(
@@ -261,7 +217,6 @@ fn attribute_struct() -> DataType {
             DataType::List(Arc::new(Field::new("item", DataType::Boolean, true))),
             true,
         ),
-
         // Unsupported types are JSON-serialized as Utf8 (see schema.go lines 335-338)
         Field::new("ValueUnsupported", DataType::Utf8, true),
     ]))
@@ -271,18 +226,14 @@ fn attribute_struct() -> DataType {
 /// Reference: schema.go lines 147-152
 fn event_struct() -> DataType {
     DataType::Struct(Fields::from(vec![
-        Field::new("Name", DataType::Utf8, true),  // Allow null
-        Field::new("TimeSinceStartNano", DataType::UInt64, true),  // Allow null
+        Field::new("Name", DataType::Utf8, true), // Allow null
+        Field::new("TimeSinceStartNano", DataType::UInt64, true), // Allow null
         Field::new(
             "Attrs",
-            DataType::List(Arc::new(Field::new(
-                "item",
-                attribute_struct(),
-                true,
-            ))),
-            true,  // Allow null list
+            DataType::List(Arc::new(Field::new("item", attribute_struct(), true))),
+            true, // Allow null list
         ),
-        Field::new("DroppedAttributesCount", DataType::UInt32, true),  // Allow null
+        Field::new("DroppedAttributesCount", DataType::UInt32, true), // Allow null
     ]))
 }
 
@@ -291,19 +242,15 @@ fn event_struct() -> DataType {
 fn link_struct() -> DataType {
     DataType::Struct(Fields::from(vec![
         // TraceID and SpanID are Binary for consistency with root trace IDs
-        Field::new("TraceID", DataType::Binary, true),  // Allow null
+        Field::new("TraceID", DataType::Binary, true), // Allow null
         Field::new("SpanID", DataType::Binary, true),  // Allow null
-        Field::new("TraceState", DataType::Utf8, true),  // Allow null
+        Field::new("TraceState", DataType::Utf8, true), // Allow null
         Field::new(
             "Attrs",
-            DataType::List(Arc::new(Field::new(
-                "item",
-                attribute_struct(),
-                true,
-            ))),
-            true,  // Allow null list
+            DataType::List(Arc::new(Field::new("item", attribute_struct(), true))),
+            true, // Allow null list
         ),
-        Field::new("DroppedAttributesCount", DataType::UInt32, true),  // Allow null
+        Field::new("DroppedAttributesCount", DataType::UInt32, true), // Allow null
     ]))
 }
 
@@ -363,6 +310,9 @@ mod tests {
         // SpanID within span should also be Binary
         // (This is nested deep, so we just verify the top-level structure exists)
         let resource_spans_field = schema.field_with_name("ResourceSpans").unwrap();
-        assert!(matches!(resource_spans_field.data_type(), DataType::List(_)));
+        assert!(matches!(
+            resource_spans_field.data_type(),
+            DataType::List(_)
+        ));
     }
 }

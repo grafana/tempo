@@ -1,8 +1,8 @@
 use anyhow::{Context, Result};
 use clap::Parser;
 use context::{create_context, execute_query};
-use rustyline::DefaultEditor;
 use rustyline::error::ReadlineError;
+use rustyline::DefaultEditor;
 use std::path::PathBuf;
 use tracing::error;
 

@@ -1,4 +1,4 @@
-use comfy_table::{Cell, ContentArrangement, Table, presets::UTF8_FULL};
+use comfy_table::{presets::UTF8_FULL, Cell, ContentArrangement, Table};
 use datafusion::arrow::array::Array;
 use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::error::Result;

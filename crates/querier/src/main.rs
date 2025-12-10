@@ -1,5 +1,5 @@
 // Import from lib
-use tempo_querier::{http, WorkerConfig, QuerierWorker};
+use tempo_querier::{http, QuerierWorker, WorkerConfig};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {

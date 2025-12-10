@@ -1,14 +1,16 @@
 use std::{env, fs::File, path::PathBuf, sync::Arc};
 
-use criterion::{black_box, criterion_group, criterion_main, Criterion};
-use parquet::arrow::arrow_reader::{ArrowPredicateFn, ArrowReaderMetadata, ParquetRecordBatchReaderBuilder, RowFilter};
-use parquet::arrow::ProjectionMask;
 use arrow::array::{BooleanArray, ListArray, StringArray, StructArray};
 use arrow::compute::kernels::cmp;
-use parquet::file::reader::{FileReader, SerializedFileReader};
+use criterion::{black_box, criterion_group, criterion_main, Criterion};
+use parquet::arrow::arrow_reader::{
+    ArrowPredicateFn, ArrowReaderMetadata, ParquetRecordBatchReaderBuilder, RowFilter,
+};
+use parquet::arrow::ProjectionMask;
 use parquet::basic::Encoding;
 use parquet::column::page::PageReader;
 use parquet::data_type::ByteArray;
+use parquet::file::reader::{FileReader, SerializedFileReader};
 use parquet::schema::types::ColumnDescriptor;
 
 fn get_benchmark_file_path() -> PathBuf {
@@ -120,7 +122,8 @@ fn parquet_operations(c: &mut Criterion) {
     c.bench_function("metadata", |b| {
         b.iter(|| {
             let file = File::open(&file_path).unwrap();
-            let builder = ParquetRecordBatchReaderBuilder::new_with_metadata(file, metadata.clone());
+            let builder =
+                ParquetRecordBatchReaderBuilder::new_with_metadata(file, metadata.clone());
             let metadata = builder.metadata().clone();
             black_box(metadata);
         });
@@ -129,7 +132,8 @@ fn parquet_operations(c: &mut Criterion) {
     c.bench_function("schema", |b| {
         b.iter(|| {
             let file = File::open(&file_path).unwrap();
-            let builder = ParquetRecordBatchReaderBuilder::new_with_metadata(file, metadata.clone());
+            let builder =
+                ParquetRecordBatchReaderBuilder::new_with_metadata(file, metadata.clone());
             let schema = builder.schema();
             black_box(schema);
         });
@@ -138,7 +142,8 @@ fn parquet_operations(c: &mut Criterion) {
     c.bench_function("readSpanName", |b| {
         b.iter(|| {
             let file = File::open(&file_path).unwrap();
-            let builder = ParquetRecordBatchReaderBuilder::new_with_metadata(file, metadata.clone());
+            let builder =
+                ParquetRecordBatchReaderBuilder::new_with_metadata(file, metadata.clone());
 
             // Create ProjectionMask to only read the span.name column
             let schema = builder.parquet_schema();
@@ -150,10 +155,7 @@ fn parquet_operations(c: &mut Criterion) {
                 .expect("span name column not found");
 
             let projection = ProjectionMask::leaves(schema, vec![name_idx]);
-            let mut reader = builder
-                                                            .with_projection(projection)
-                                                            .build()
-                                                            .unwrap();
+            let mut reader = builder.with_projection(projection).build().unwrap();
 
             while let Some(Ok(batch)) = reader.next() {
                 black_box(batch);
@@ -164,7 +166,8 @@ fn parquet_operations(c: &mut Criterion) {
     c.bench_function("createMask", |b| {
         b.iter(|| {
             let file = File::open(&file_path).unwrap();
-            let builder = ParquetRecordBatchReaderBuilder::new_with_metadata(file, metadata.clone());
+            let builder =
+                ParquetRecordBatchReaderBuilder::new_with_metadata(file, metadata.clone());
 
             // Create ProjectionMask to only read the span.name column
             let schema = builder.parquet_schema();
@@ -212,7 +215,8 @@ fn parquet_operations(c: &mut Criterion) {
     c.bench_function("useRowFilter", |b| {
         b.iter(|| {
             let file = File::open(&file_path).unwrap();
-            let builder = ParquetRecordBatchReaderBuilder::new_with_metadata(file, metadata.clone());
+            let builder =
+                ParquetRecordBatchReaderBuilder::new_with_metadata(file, metadata.clone());
 
             // Create ProjectionMask to only read the span.name column
             let schema = builder.parquet_schema();
@@ -225,84 +229,131 @@ fn parquet_operations(c: &mut Criterion) {
             let projection = ProjectionMask::leaves(schema, vec![name_idx]);
             let projection2 = ProjectionMask::leaves(schema, vec![name_idx]);
 
-            let predicate = ArrowPredicateFn::new(
-                projection,
-                |batch|{
-                    // The predicate receives a projected batch with only the name column
-                    // But the column structure still follows the nested schema
-                    // Navigate: rs -> element (struct) -> ss -> element (struct) -> Spans -> element (struct) -> Name
-                    let rs_column = batch.column_by_name("rs")
-                        .ok_or_else(|| arrow::error::ArrowError::ComputeError("rs column not found".to_string()))?;
-                    let rs_list = rs_column.as_any().downcast_ref::<ListArray>()
-                        .ok_or_else(|| arrow::error::ArrowError::ComputeError("Failed to downcast rs to ListArray".to_string()))?;
-                    let rs_values = rs_list.values();
-                    let rs_struct = rs_values.as_any().downcast_ref::<StructArray>()
-                        .ok_or_else(|| arrow::error::ArrowError::ComputeError("Failed to downcast rs values to StructArray".to_string()))?;
+            let predicate = ArrowPredicateFn::new(projection, |batch| {
+                // The predicate receives a projected batch with only the name column
+                // But the column structure still follows the nested schema
+                // Navigate: rs -> element (struct) -> ss -> element (struct) -> Spans -> element (struct) -> Name
+                let rs_column = batch.column_by_name("rs").ok_or_else(|| {
+                    arrow::error::ArrowError::ComputeError("rs column not found".to_string())
+                })?;
+                let rs_list = rs_column
+                    .as_any()
+                    .downcast_ref::<ListArray>()
+                    .ok_or_else(|| {
+                        arrow::error::ArrowError::ComputeError(
+                            "Failed to downcast rs to ListArray".to_string(),
+                        )
+                    })?;
+                let rs_values = rs_list.values();
+                let rs_struct = rs_values
+                    .as_any()
+                    .downcast_ref::<StructArray>()
+                    .ok_or_else(|| {
+                        arrow::error::ArrowError::ComputeError(
+                            "Failed to downcast rs values to StructArray".to_string(),
+                        )
+                    })?;
 
-                    // Get the "ss" field from rs struct
-                    let ss_column = rs_struct.column_by_name("ss")
-                        .ok_or_else(|| arrow::error::ArrowError::ComputeError("ss column not found".to_string()))?;
-                    let ss_list = ss_column.as_any().downcast_ref::<ListArray>()
-                        .ok_or_else(|| arrow::error::ArrowError::ComputeError("Failed to downcast ss to ListArray".to_string()))?;
-                    let ss_values = ss_list.values();
-                    let ss_struct = ss_values.as_any().downcast_ref::<StructArray>()
-                        .ok_or_else(|| arrow::error::ArrowError::ComputeError("Failed to downcast ss values to StructArray".to_string()))?;
+                // Get the "ss" field from rs struct
+                let ss_column = rs_struct.column_by_name("ss").ok_or_else(|| {
+                    arrow::error::ArrowError::ComputeError("ss column not found".to_string())
+                })?;
+                let ss_list = ss_column
+                    .as_any()
+                    .downcast_ref::<ListArray>()
+                    .ok_or_else(|| {
+                        arrow::error::ArrowError::ComputeError(
+                            "Failed to downcast ss to ListArray".to_string(),
+                        )
+                    })?;
+                let ss_values = ss_list.values();
+                let ss_struct = ss_values
+                    .as_any()
+                    .downcast_ref::<StructArray>()
+                    .ok_or_else(|| {
+                        arrow::error::ArrowError::ComputeError(
+                            "Failed to downcast ss values to StructArray".to_string(),
+                        )
+                    })?;
 
-                    // Get the "Spans" field from ss struct
-                    let spans_column = ss_struct.column_by_name("Spans")
-                        .ok_or_else(|| arrow::error::ArrowError::ComputeError("Spans column not found".to_string()))?;
-                    let spans_list = spans_column.as_any().downcast_ref::<ListArray>()
-                        .ok_or_else(|| arrow::error::ArrowError::ComputeError("Failed to downcast Spans to ListArray".to_string()))?;
-                    let spans_values = spans_list.values();
-                    let spans_struct = spans_values.as_any().downcast_ref::<StructArray>()
-                        .ok_or_else(|| arrow::error::ArrowError::ComputeError("Failed to downcast Spans values to StructArray".to_string()))?;
+                // Get the "Spans" field from ss struct
+                let spans_column = ss_struct.column_by_name("Spans").ok_or_else(|| {
+                    arrow::error::ArrowError::ComputeError("Spans column not found".to_string())
+                })?;
+                let spans_list = spans_column
+                    .as_any()
+                    .downcast_ref::<ListArray>()
+                    .ok_or_else(|| {
+                        arrow::error::ArrowError::ComputeError(
+                            "Failed to downcast Spans to ListArray".to_string(),
+                        )
+                    })?;
+                let spans_values = spans_list.values();
+                let spans_struct = spans_values
+                    .as_any()
+                    .downcast_ref::<StructArray>()
+                    .ok_or_else(|| {
+                        arrow::error::ArrowError::ComputeError(
+                            "Failed to downcast Spans values to StructArray".to_string(),
+                        )
+                    })?;
 
-                    // Get the "Name" field from spans struct
-                    let name_column = spans_struct.column_by_name("Name")
-                        .ok_or_else(|| arrow::error::ArrowError::ComputeError("Name column not found".to_string()))?;
-                    let name_array = name_column.as_any().downcast_ref::<StringArray>()
-                        .ok_or_else(|| arrow::error::ArrowError::ComputeError("Failed to downcast Name to StringArray".to_string()))?;
+                // Get the "Name" field from spans struct
+                let name_column = spans_struct.column_by_name("Name").ok_or_else(|| {
+                    arrow::error::ArrowError::ComputeError("Name column not found".to_string())
+                })?;
+                let name_array = name_column
+                    .as_any()
+                    .downcast_ref::<StringArray>()
+                    .ok_or_else(|| {
+                        arrow::error::ArrowError::ComputeError(
+                            "Failed to downcast Name to StringArray".to_string(),
+                        )
+                    })?;
 
-                    // Compare all span names to the target
-                    let scalar = StringArray::new_scalar("distributor.ConsumeTraces");
-                    let span_matches = cmp::eq(name_array, &scalar)?;
+                // Compare all span names to the target
+                let scalar = StringArray::new_scalar("distributor.ConsumeTraces");
+                let span_matches = cmp::eq(name_array, &scalar)?;
 
-                    // Now aggregate to row level: for each row, check if ANY of its spans match
-                    // We need to traverse back through the list offsets to map spans to rows
-                    let num_rows = batch.num_rows();
-                    let mut row_matches = vec![false; num_rows];
+                // Now aggregate to row level: for each row, check if ANY of its spans match
+                // We need to traverse back through the list offsets to map spans to rows
+                let num_rows = batch.num_rows();
+                let mut row_matches = vec![false; num_rows];
 
-                    for row_idx in 0..num_rows {
-                        // Get rs list range for this row
-                        let rs_start = rs_list.value_offsets()[row_idx] as usize;
-                        let rs_end = rs_list.value_offsets()[row_idx + 1] as usize;
+                for row_idx in 0..num_rows {
+                    // Get rs list range for this row
+                    let rs_start = rs_list.value_offsets()[row_idx] as usize;
+                    let rs_end = rs_list.value_offsets()[row_idx + 1] as usize;
 
-                        for rs_elem_idx in rs_start..rs_end {
-                            // Get ss list range for this rs element
-                            let ss_start = ss_list.value_offsets()[rs_elem_idx] as usize;
-                            let ss_end = ss_list.value_offsets()[rs_elem_idx + 1] as usize;
+                    for rs_elem_idx in rs_start..rs_end {
+                        // Get ss list range for this rs element
+                        let ss_start = ss_list.value_offsets()[rs_elem_idx] as usize;
+                        let ss_end = ss_list.value_offsets()[rs_elem_idx + 1] as usize;
 
-                            for ss_elem_idx in ss_start..ss_end {
-                                // Get Spans list range for this ss element
-                                let spans_start = spans_list.value_offsets()[ss_elem_idx] as usize;
-                                let spans_end = spans_list.value_offsets()[ss_elem_idx + 1] as usize;
+                        for ss_elem_idx in ss_start..ss_end {
+                            // Get Spans list range for this ss element
+                            let spans_start = spans_list.value_offsets()[ss_elem_idx] as usize;
+                            let spans_end = spans_list.value_offsets()[ss_elem_idx + 1] as usize;
 
-                                // Check if any span in this range matches
-                                for span_idx in spans_start..spans_end {
-                                    if span_matches.value(span_idx) {
-                                        row_matches[row_idx] = true;
-                                        break;
-                                    }
+                            // Check if any span in this range matches
+                            for span_idx in spans_start..spans_end {
+                                if span_matches.value(span_idx) {
+                                    row_matches[row_idx] = true;
+                                    break;
                                 }
-                                if row_matches[row_idx] { break; }
                             }
-                            if row_matches[row_idx] { break; }
+                            if row_matches[row_idx] {
+                                break;
+                            }
+                        }
+                        if row_matches[row_idx] {
+                            break;
                         }
                     }
-
-                    Ok(BooleanArray::from(row_matches))
                 }
-            );
+
+                Ok(BooleanArray::from(row_matches))
+            });
             let filter = RowFilter::new(vec![Box::new(predicate)]);
 
             let mut reader = builder
@@ -322,7 +373,8 @@ fn parquet_operations(c: &mut Criterion) {
     c.bench_function("readAndFilter", |b| {
         b.iter(|| {
             let file = File::open(&file_path).unwrap();
-            let builder = ParquetRecordBatchReaderBuilder::new_with_metadata(file, metadata.clone());
+            let builder =
+                ParquetRecordBatchReaderBuilder::new_with_metadata(file, metadata.clone());
 
             let schema = builder.parquet_schema();
             let span_name_path = "rs.list.element.ss.list.element.Spans.list.element.Name";
@@ -393,7 +445,11 @@ fn parquet_operations(c: &mut Criterion) {
                 let row_group = reader.get_row_group(rg_idx).unwrap();
                 let mut page_reader = row_group.get_column_page_reader(name_col_idx).unwrap();
 
-                match check_dictionary_contains_value(&mut page_reader, column_desc.clone(), target_bytes) {
+                match check_dictionary_contains_value(
+                    &mut page_reader,
+                    column_desc.clone(),
+                    target_bytes,
+                ) {
                     Ok(Some(true)) => {
                         // Target found in dictionary - might exist in this row group
                         matching_row_groups.push(rg_idx);
@@ -524,7 +580,8 @@ fn parquet_operations(c: &mut Criterion) {
             // Step 2: Read only the matching row groups with Arrow reader
             if !matching_row_groups.is_empty() {
                 let file = File::open(&file_path).unwrap();
-                let builder = ParquetRecordBatchReaderBuilder::new_with_metadata(file, metadata.clone());
+                let builder =
+                    ParquetRecordBatchReaderBuilder::new_with_metadata(file, metadata.clone());
 
                 let schema = builder.parquet_schema();
                 let name_idx = schema

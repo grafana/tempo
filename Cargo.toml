@@ -74,6 +74,8 @@ hostname = "0.4"
 http = "1.0"
 http-body-util = "0.1"
 num_cpus = "1.16"
+prometheus = "0.13"
+tokio-stream = "0.1"
 
 [profile.release]
 opt-level = 3

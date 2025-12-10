@@ -1,6 +1,6 @@
 use datafusion::arrow::array::{
     Array, ArrayRef, BooleanArray, Float64Array, Int64Array, ListArray, ListBuilder, MapArray,
-    StringArray, StringBuilder, StructArray, StringViewArray,
+    StringArray, StringBuilder, StringViewArray, StructArray,
 };
 use datafusion::arrow::buffer::OffsetBuffer;
 use datafusion::arrow::datatypes::{DataType, Field};
@@ -147,7 +147,9 @@ fn attrs_to_map_impl(args: &[ColumnarValue]) -> Result<ColumnarValue> {
                 total_values += value_list.len();
             }
 
-            let values = map.entry(key).or_insert_with(|| Vec::with_capacity(total_values));
+            let values = map
+                .entry(key)
+                .or_insert_with(|| Vec::with_capacity(total_values));
 
             // Collect string values
             if !value_array.is_null(i) {
@@ -346,7 +348,7 @@ fn create_map_from_hashmap(
 
 /// Create and register the attrs_to_map UDF
 pub fn create_attrs_to_map_udf() -> ScalarUDF {
-    use datafusion::logical_expr::{ScalarFunctionImplementation, create_udf};
+    use datafusion::logical_expr::{create_udf, ScalarFunctionImplementation};
 
     let func: ScalarFunctionImplementation = Arc::new(attrs_to_map);
 
@@ -577,16 +579,20 @@ fn attrs_contain_string_impl(args: &[ColumnarValue]) -> Result<ColumnarValue> {
         let value_double_idx = fields
             .iter()
             .position(|f| f.name() == "ValueDouble")
-            .ok_or_else(|| {
-                DataFusionError::Execution("ValueDouble field not found".to_string())
-            })?;
+            .ok_or_else(|| DataFusionError::Execution("ValueDouble field not found".to_string()))?;
 
         let value_bool_idx = fields
             .iter()
             .position(|f| f.name() == "ValueBool")
             .ok_or_else(|| DataFusionError::Execution("ValueBool field not found".to_string()))?;
 
-        (key_idx, value_idx, value_int_idx, value_double_idx, value_bool_idx)
+        (
+            key_idx,
+            value_idx,
+            value_int_idx,
+            value_double_idx,
+            value_bool_idx,
+        )
     } else {
         // Empty array, return early
         return Ok(ColumnarValue::Array(
@@ -856,8 +862,7 @@ pub fn register_udfs(ctx: &SessionContext) {
 mod tests {
     use super::*;
     use datafusion::arrow::array::{
-        BinaryViewBuilder, BooleanBuilder, Float64Builder, Int64Builder, ListBuilder,
-        StructBuilder,
+        BinaryViewBuilder, BooleanBuilder, Float64Builder, Int64Builder, ListBuilder, StructBuilder,
     };
     use datafusion::arrow::datatypes::Fields;
     use datafusion::scalar::ScalarValue;
@@ -966,11 +971,7 @@ mod tests {
         let offsets = vec![0, struct_array.len() as i32];
         let offset_buffer = OffsetBuffer::new(offsets.into());
 
-        let field = Arc::new(Field::new(
-            "item",
-            struct_array.data_type().clone(),
-            true,
-        ));
+        let field = Arc::new(Field::new("item", struct_array.data_type().clone(), true));
 
         Arc::new(ListArray::try_new(field, offset_buffer, Arc::new(struct_array), None).unwrap())
     }
@@ -991,7 +992,10 @@ mod tests {
         let result = attrs_contain_string(&[ColumnarValue::Array(attrs), key, value]).unwrap();
 
         if let ColumnarValue::Array(result_array) = result {
-            let bool_array = result_array.as_any().downcast_ref::<BooleanArray>().unwrap();
+            let bool_array = result_array
+                .as_any()
+                .downcast_ref::<BooleanArray>()
+                .unwrap();
             assert_eq!(bool_array.len(), 1);
             assert_eq!(bool_array.value(0), true);
         } else {
@@ -1015,7 +1019,10 @@ mod tests {
         let result = attrs_contain_string(&[ColumnarValue::Array(attrs), key, value]).unwrap();
 
         if let ColumnarValue::Array(result_array) = result {
-            let bool_array = result_array.as_any().downcast_ref::<BooleanArray>().unwrap();
+            let bool_array = result_array
+                .as_any()
+                .downcast_ref::<BooleanArray>()
+                .unwrap();
             assert_eq!(bool_array.len(), 1);
             assert_eq!(bool_array.value(0), true);
         } else {
@@ -1039,7 +1046,10 @@ mod tests {
         let result = attrs_contain_string(&[ColumnarValue::Array(attrs), key, value]).unwrap();
 
         if let ColumnarValue::Array(result_array) = result {
-            let bool_array = result_array.as_any().downcast_ref::<BooleanArray>().unwrap();
+            let bool_array = result_array
+                .as_any()
+                .downcast_ref::<BooleanArray>()
+                .unwrap();
             assert_eq!(bool_array.len(), 1);
             assert_eq!(bool_array.value(0), true);
         } else {
@@ -1063,7 +1073,10 @@ mod tests {
         let result = attrs_contain_string(&[ColumnarValue::Array(attrs), key, value]).unwrap();
 
         if let ColumnarValue::Array(result_array) = result {
-            let bool_array = result_array.as_any().downcast_ref::<BooleanArray>().unwrap();
+            let bool_array = result_array
+                .as_any()
+                .downcast_ref::<BooleanArray>()
+                .unwrap();
             assert_eq!(bool_array.len(), 1);
             assert_eq!(bool_array.value(0), true);
         } else {
@@ -1087,7 +1100,10 @@ mod tests {
         let result = attrs_contain_string(&[ColumnarValue::Array(attrs), key, value]).unwrap();
 
         if let ColumnarValue::Array(result_array) = result {
-            let bool_array = result_array.as_any().downcast_ref::<BooleanArray>().unwrap();
+            let bool_array = result_array
+                .as_any()
+                .downcast_ref::<BooleanArray>()
+                .unwrap();
             assert_eq!(bool_array.len(), 1);
             assert_eq!(bool_array.value(0), false);
         } else {
@@ -1111,7 +1127,10 @@ mod tests {
         let result = attrs_contain_string(&[ColumnarValue::Array(attrs), key, value]).unwrap();
 
         if let ColumnarValue::Array(result_array) = result {
-            let bool_array = result_array.as_any().downcast_ref::<BooleanArray>().unwrap();
+            let bool_array = result_array
+                .as_any()
+                .downcast_ref::<BooleanArray>()
+                .unwrap();
             assert_eq!(bool_array.len(), 1);
             assert_eq!(bool_array.value(0), false);
         } else {
@@ -1157,7 +1176,10 @@ mod tests {
         let result = attrs_contain_string(&[ColumnarValue::Array(null_attrs), key, value]).unwrap();
 
         if let ColumnarValue::Array(result_array) = result {
-            let bool_array = result_array.as_any().downcast_ref::<BooleanArray>().unwrap();
+            let bool_array = result_array
+                .as_any()
+                .downcast_ref::<BooleanArray>()
+                .unwrap();
             assert_eq!(bool_array.len(), 1);
             assert_eq!(bool_array.value(0), false);
         } else {
@@ -1181,7 +1203,10 @@ mod tests {
         let result = attrs_contain_string(&[ColumnarValue::Array(attrs), key, value]).unwrap();
 
         if let ColumnarValue::Array(result_array) = result {
-            let bool_array = result_array.as_any().downcast_ref::<BooleanArray>().unwrap();
+            let bool_array = result_array
+                .as_any()
+                .downcast_ref::<BooleanArray>()
+                .unwrap();
             assert_eq!(bool_array.len(), 1);
             assert_eq!(bool_array.value(0), true);
         } else {

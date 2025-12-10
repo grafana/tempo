@@ -86,7 +86,9 @@ fn generate_synthetic_attrs(
                 3 if use_bool => {
                     // Bool values
                     for val_idx in 0..values_per_attr {
-                        all_value_bool_list_builder.values().append_value(val_idx % 2 == 0);
+                        all_value_bool_list_builder
+                            .values()
+                            .append_value(val_idx % 2 == 0);
                     }
                     all_value_list_builder.append(false);
                     all_value_int_list_builder.append(false);
@@ -143,7 +145,8 @@ fn generate_synthetic_attrs(
             true,
         )),
         Arc::new(Field::new("ValueUnsupported", DataType::BinaryView, true)),
-    ].into();
+    ]
+    .into();
 
     let struct_array = StructArray::new(
         struct_fields,
@@ -322,14 +325,8 @@ fn bench_attrs_to_map_scalability(c: &mut Criterion) {
     let values_per_attr = 1;
 
     for num_rows in row_counts {
-        let attrs_array = generate_synthetic_attrs(
-            num_rows,
-            attrs_per_row,
-            values_per_attr,
-            true,
-            true,
-            true,
-        );
+        let attrs_array =
+            generate_synthetic_attrs(num_rows, attrs_per_row, values_per_attr, true, true, true);
 
         group.throughput(Throughput::Elements((num_rows * attrs_per_row) as u64));
 
@@ -358,14 +355,8 @@ fn bench_attrs_to_map_attr_count(c: &mut Criterion) {
     let values_per_attr = 1;
 
     for attrs_per_row in attr_counts {
-        let attrs_array = generate_synthetic_attrs(
-            num_rows,
-            attrs_per_row,
-            values_per_attr,
-            true,
-            true,
-            true,
-        );
+        let attrs_array =
+            generate_synthetic_attrs(num_rows, attrs_per_row, values_per_attr, true, true, true);
 
         group.throughput(Throughput::Elements((num_rows * attrs_per_row) as u64));
 
@@ -391,24 +382,17 @@ fn bench_attrs_contain_string(c: &mut Criterion) {
 
     // Different scenarios for searching
     let scenarios = vec![
-        ("hit_first", 0, true),      // Key/value at first position
-        ("hit_middle", 10, true),    // Key/value in middle
-        ("hit_last", 19, true),      // Key/value at last position
-        ("miss", 0, false),          // Key exists but value doesn't match
+        ("hit_first", 0, true),   // Key/value at first position
+        ("hit_middle", 10, true), // Key/value in middle
+        ("hit_last", 19, true),   // Key/value at last position
+        ("miss", 0, false),       // Key exists but value doesn't match
     ];
 
     for (scenario_name, target_attr_idx, should_match) in scenarios {
         let num_rows = 1000;
         let attrs_per_row = 20;
 
-        let attrs_array = generate_synthetic_attrs(
-            num_rows,
-            attrs_per_row,
-            1,
-            true,
-            true,
-            true,
-        );
+        let attrs_array = generate_synthetic_attrs(num_rows, attrs_per_row, 1, true, true, true);
 
         let key = ColumnarValue::Scalar(ScalarValue::Utf8(Some(format!(
             "attr_{}_row_0",
@@ -426,11 +410,7 @@ fn bench_attrs_contain_string(c: &mut Criterion) {
             BenchmarkId::new("scenario", scenario_name),
             &(attrs_array, key, value),
             |b, (attrs, k, v)| {
-                let args = vec![
-                    ColumnarValue::Array(attrs.clone()),
-                    k.clone(),
-                    v.clone(),
-                ];
+                let args = vec![ColumnarValue::Array(attrs.clone()), k.clone(), v.clone()];
                 b.iter(|| {
                     let result = attrs_contain_string(black_box(&args));
                     black_box(result)
@@ -458,19 +438,10 @@ fn bench_attrs_contain_string_types(c: &mut Criterion) {
     ];
 
     for (type_name, attr_idx, expected_value) in type_scenarios {
-        let attrs_array = generate_synthetic_attrs(
-            num_rows,
-            attrs_per_row,
-            1,
-            true,
-            true,
-            true,
-        );
+        let attrs_array = generate_synthetic_attrs(num_rows, attrs_per_row, 1, true, true, true);
 
-        let key = ColumnarValue::Scalar(ScalarValue::Utf8(Some(format!(
-            "attr_{}_row_0",
-            attr_idx
-        ))));
+        let key =
+            ColumnarValue::Scalar(ScalarValue::Utf8(Some(format!("attr_{}_row_0", attr_idx))));
         let value = ColumnarValue::Scalar(ScalarValue::Utf8(Some(expected_value.to_string())));
 
         group.throughput(Throughput::Elements(num_rows as u64));
@@ -479,11 +450,7 @@ fn bench_attrs_contain_string_types(c: &mut Criterion) {
             BenchmarkId::new("type", type_name),
             &(attrs_array, key, value),
             |b, (attrs, k, v)| {
-                let args = vec![
-                    ColumnarValue::Array(attrs.clone()),
-                    k.clone(),
-                    v.clone(),
-                ];
+                let args = vec![ColumnarValue::Array(attrs.clone()), k.clone(), v.clone()];
                 b.iter(|| {
                     let result = attrs_contain_string(black_box(&args));
                     black_box(result)
@@ -503,14 +470,7 @@ fn bench_attrs_contain_string_scalability(c: &mut Criterion) {
     let attrs_per_row = 15;
 
     for num_rows in row_counts {
-        let attrs_array = generate_synthetic_attrs(
-            num_rows,
-            attrs_per_row,
-            1,
-            true,
-            true,
-            true,
-        );
+        let attrs_array = generate_synthetic_attrs(num_rows, attrs_per_row, 1, true, true, true);
 
         let key = ColumnarValue::Scalar(ScalarValue::Utf8(Some("attr_5_row_0".to_string())));
         let value = ColumnarValue::Scalar(ScalarValue::Utf8(Some("value_0".to_string())));
@@ -521,11 +481,7 @@ fn bench_attrs_contain_string_scalability(c: &mut Criterion) {
             BenchmarkId::from_parameter(num_rows),
             &(attrs_array, key, value),
             |b, (attrs, k, v)| {
-                let args = vec![
-                    ColumnarValue::Array(attrs.clone()),
-                    k.clone(),
-                    v.clone(),
-                ];
+                let args = vec![ColumnarValue::Array(attrs.clone()), k.clone(), v.clone()];
                 b.iter(|| {
                     let result = attrs_contain_string(black_box(&args));
                     black_box(result)
@@ -545,14 +501,7 @@ fn bench_attrs_contain_string_attr_count(c: &mut Criterion) {
     let attr_counts = vec![5, 10, 20, 50, 100];
 
     for attrs_per_row in attr_counts {
-        let attrs_array = generate_synthetic_attrs(
-            num_rows,
-            attrs_per_row,
-            1,
-            true,
-            true,
-            true,
-        );
+        let attrs_array = generate_synthetic_attrs(num_rows, attrs_per_row, 1, true, true, true);
 
         // Search for an attribute in the middle
         let target_attr = attrs_per_row / 2;
@@ -568,11 +517,7 @@ fn bench_attrs_contain_string_attr_count(c: &mut Criterion) {
             BenchmarkId::from_parameter(attrs_per_row),
             &(attrs_array, key, value),
             |b, (attrs, k, v)| {
-                let args = vec![
-                    ColumnarValue::Array(attrs.clone()),
-                    k.clone(),
-                    v.clone(),
-                ];
+                let args = vec![ColumnarValue::Array(attrs.clone()), k.clone(), v.clone()];
                 b.iter(|| {
                     let result = attrs_contain_string(black_box(&args));
                     black_box(result)
@@ -593,19 +538,14 @@ fn bench_attrs_contain_string_multi_values(c: &mut Criterion) {
     let value_counts = vec![1, 3, 5, 10, 20];
 
     for values_per_attr in value_counts {
-        let attrs_array = generate_synthetic_attrs(
-            num_rows,
-            attrs_per_row,
-            values_per_attr,
-            true,
-            true,
-            true,
-        );
+        let attrs_array =
+            generate_synthetic_attrs(num_rows, attrs_per_row, values_per_attr, true, true, true);
 
         let key = ColumnarValue::Scalar(ScalarValue::Utf8(Some("attr_5_row_0".to_string())));
         // Search for a value in the middle of the value list
         let target_value = values_per_attr / 2;
-        let value = ColumnarValue::Scalar(ScalarValue::Utf8(Some(format!("value_{}", target_value))));
+        let value =
+            ColumnarValue::Scalar(ScalarValue::Utf8(Some(format!("value_{}", target_value))));
 
         group.throughput(Throughput::Elements(num_rows as u64));
 
@@ -613,11 +553,7 @@ fn bench_attrs_contain_string_multi_values(c: &mut Criterion) {
             BenchmarkId::from_parameter(values_per_attr),
             &(attrs_array, key, value),
             |b, (attrs, k, v)| {
-                let args = vec![
-                    ColumnarValue::Array(attrs.clone()),
-                    k.clone(),
-                    v.clone(),
-                ];
+                let args = vec![ColumnarValue::Array(attrs.clone()), k.clone(), v.clone()];
                 b.iter(|| {
                     let result = attrs_contain_string(black_box(&args));
                     black_box(result)

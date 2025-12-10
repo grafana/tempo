@@ -1,5 +1,4 @@
 /// Error types for vparquet4 reader
-
 use std::io;
 use thiserror::Error;
 

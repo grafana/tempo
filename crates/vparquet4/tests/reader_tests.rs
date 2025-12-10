@@ -74,10 +74,7 @@ async fn test_filter_by_span_name() {
         let spanset = result.unwrap();
         // All spans in the spanset should match the filter
         for span in &spanset.spans {
-            assert_eq!(
-                span.name, span_name,
-                "All spans should match the filter"
-            );
+            assert_eq!(span.name, span_name, "All spans should match the filter");
             found_matching = true;
         }
     }
@@ -140,12 +137,14 @@ async fn test_parallel_processing() {
             ..Default::default()
         };
 
-        let reader = VParquet4Reader::open(&test_file(), options)
-            .await
-            .unwrap();
+        let reader = VParquet4Reader::open(&test_file(), options).await.unwrap();
 
         let count: usize = reader.read().count().await;
-        assert!(count > 0, "Should read spansets with parallelism={}", parallelism);
+        assert!(
+            count > 0,
+            "Should read spansets with parallelism={}",
+            parallelism
+        );
     }
 }
 
@@ -179,11 +178,13 @@ async fn test_batch_size_variations() {
             ..Default::default()
         };
 
-        let reader = VParquet4Reader::open(&test_file(), options)
-            .await
-            .unwrap();
+        let reader = VParquet4Reader::open(&test_file(), options).await.unwrap();
 
         let count: usize = reader.read().count().await;
-        assert!(count > 0, "Should read spansets with batch_size={}", batch_size);
+        assert!(
+            count > 0,
+            "Should read spansets with batch_size={}",
+            batch_size
+        );
     }
 }

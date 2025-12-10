@@ -215,7 +215,9 @@ pub async fn create_block_context(
 
     // Register the parquet file as the "traces" table
     let full_path = format!("tempo://bucket/{}", parquet_path);
-    let options = ParquetReadOptions::default().parquet_pruning(true).skip_metadata(false);
+    let options = ParquetReadOptions::default()
+        .parquet_pruning(true)
+        .skip_metadata(false);
 
     //let schema = tempo_trace_schema();
     //options.schema = Some(&schema);

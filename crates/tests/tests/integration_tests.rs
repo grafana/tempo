@@ -70,7 +70,10 @@ async fn test_basic_queries() {
     let test_cases = vec![
         ("name_match", "{ name = `distributor.ConsumeTraces` }"),
         ("status_match", "{ status = ok }"),
-        ("simple_and", "{ name = `distributor.ConsumeTraces` && status = ok }"),
+        (
+            "simple_and",
+            "{ name = `distributor.ConsumeTraces` && status = ok }",
+        ),
     ];
 
     for (name, traceql) in test_cases {

@@ -56,8 +56,8 @@ fn span_att_intrinsic_match(c: &mut Criterion) {
     };
 
     // Open reader ONCE, outside the benchmark loop
-    let vp_reader = rt
-        .block_on(async { VParquet4Reader::open(&file_path, options).await.unwrap() });
+    let vp_reader =
+        rt.block_on(async { VParquet4Reader::open(&file_path, options).await.unwrap() });
 
     // Dictionary-based filtering using VParquet4Reader
     group.bench_function("spanAttIntrinsicMatch", |b| {
@@ -105,8 +105,8 @@ fn span_att_intrinsic_match_few(c: &mut Criterion) {
     };
 
     // Open reader ONCE, outside the benchmark loop
-    let vp_reader = rt
-        .block_on(async { VParquet4Reader::open(&file_path, options).await.unwrap() });
+    let vp_reader =
+        rt.block_on(async { VParquet4Reader::open(&file_path, options).await.unwrap() });
 
     group.bench_function("spanAttIntrinsicMatchFew", |b| {
         b.to_async(&rt).iter(|| async {
@@ -120,7 +120,11 @@ fn span_att_intrinsic_match_few(c: &mut Criterion) {
             }
 
             // Assert we got the expected number of spans
-            assert_eq!(span_count, 406329, "Expected 406329 spans, got {}", span_count);
+            assert_eq!(
+                span_count, 406329,
+                "Expected 406329 spans, got {}",
+                span_count
+            );
 
             black_box(span_count)
         });
@@ -129,5 +133,9 @@ fn span_att_intrinsic_match_few(c: &mut Criterion) {
     group.finish();
 }
 
-criterion_group!(benches, span_att_intrinsic_match, span_att_intrinsic_match_few);
+criterion_group!(
+    benches,
+    span_att_intrinsic_match,
+    span_att_intrinsic_match_few
+);
 criterion_main!(benches);

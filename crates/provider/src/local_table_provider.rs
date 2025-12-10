@@ -51,7 +51,10 @@ impl LocalTempoTableProvider {
         })?;
         let file_size = metadata.len();
 
-        info!("Loading Parquet file from: {} (size: {} bytes)", file_path, file_size);
+        info!(
+            "Loading Parquet file from: {} (size: {} bytes)",
+            file_path, file_size
+        );
 
         // Use the Tempo trace schema from storage crate
         let schema = Arc::new(tempo_trace_schema());
@@ -70,7 +73,6 @@ impl LocalTempoTableProvider {
             file_size,
         })
     }
-
 }
 
 #[async_trait]
@@ -102,9 +104,12 @@ impl TableProvider for LocalTempoTableProvider {
         let file_source = self.file_format.file_source();
 
         // Build file scan config using the builder pattern
-        let mut config_builder =
-            FileScanConfigBuilder::new(self.table_url.object_store(), self.schema.clone(), file_source)
-                .with_file(partitioned_file);
+        let mut config_builder = FileScanConfigBuilder::new(
+            self.table_url.object_store(),
+            self.schema.clone(),
+            file_source,
+        )
+        .with_file(partitioned_file);
 
         if let Some(proj) = projection {
             config_builder = config_builder.with_projection_indices(Some(proj.clone()));
@@ -135,11 +140,9 @@ mod tests {
 
     #[tokio::test]
     async fn test_try_new_missing_file() {
-        let result = LocalTempoTableProvider::try_new("/nonexistent/file.parquet".to_string()).await;
+        let result =
+            LocalTempoTableProvider::try_new("/nonexistent/file.parquet".to_string()).await;
         assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .to_string()
-            .contains("not found"));
+        assert!(result.unwrap_err().to_string().contains("not found"));
     }
 }

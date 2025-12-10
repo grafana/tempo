@@ -55,7 +55,9 @@ impl FrontendProcessor {
 
             match client.process(outbound_stream).await {
                 Ok(response) => {
-                    tracing::info!("Successfully connected to query-frontend, starting stream processing");
+                    tracing::info!(
+                        "Successfully connected to query-frontend, starting stream processing"
+                    );
 
                     // Reset backoff on successful connection
                     backoff.reset();
@@ -63,7 +65,10 @@ impl FrontendProcessor {
                     let inbound_stream = response.into_inner();
 
                     // Process the stream
-                    match self.process_stream(outbound_tx, inbound_stream, &mut shutdown_rx).await {
+                    match self
+                        .process_stream(outbound_tx, inbound_stream, &mut shutdown_rx)
+                        .await
+                    {
                         Ok(()) => {
                             tracing::info!("Stream processing completed normally");
                             return Ok(());
@@ -145,8 +150,9 @@ impl FrontendProcessor {
         msg: FrontendToClient,
         response_tx: &tokio::sync::mpsc::Sender<ClientToFrontend>,
     ) -> Result<()> {
-        let msg_type = Type::try_from(msg.r#type)
-            .map_err(|_| QuerierError::StreamProcessing(format!("Invalid message type: {}", msg.r#type)))?;
+        let msg_type = Type::try_from(msg.r#type).map_err(|_| {
+            QuerierError::StreamProcessing(format!("Invalid message type: {}", msg.r#type))
+        })?;
 
         match msg_type {
             Type::GetId => {
@@ -186,10 +192,9 @@ impl FrontendProcessor {
             http_response_batch: vec![],
         };
 
-        response_tx
-            .send(response)
-            .await
-            .map_err(|e| QuerierError::StreamProcessing(format!("Failed to send GET_ID response: {}", e)))?;
+        response_tx.send(response).await.map_err(|e| {
+            QuerierError::StreamProcessing(format!("Failed to send GET_ID response: {}", e))
+        })?;
 
         Ok(())
     }
@@ -217,10 +222,9 @@ impl FrontendProcessor {
             http_response_batch: vec![],
         };
 
-        response_tx
-            .send(client_response)
-            .await
-            .map_err(|e| QuerierError::StreamProcessing(format!("Failed to send HTTP response: {}", e)))?;
+        response_tx.send(client_response).await.map_err(|e| {
+            QuerierError::StreamProcessing(format!("Failed to send HTTP response: {}", e))
+        })?;
 
         Ok(())
     }
@@ -247,10 +251,9 @@ impl FrontendProcessor {
             http_response_batch: responses,
         };
 
-        response_tx
-            .send(client_response)
-            .await
-            .map_err(|e| QuerierError::StreamProcessing(format!("Failed to send batch response: {}", e)))?;
+        response_tx.send(client_response).await.map_err(|e| {
+            QuerierError::StreamProcessing(format!("Failed to send batch response: {}", e))
+        })?;
 
         Ok(())
     }

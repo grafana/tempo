@@ -1,5 +1,4 @@
 /// Filter conditions for querying vparquet4 files
-
 use std::collections::HashSet;
 use std::fmt;
 
@@ -7,9 +6,9 @@ use arrow::array::{Array, BooleanArray, ListArray, RecordBatch, StringArray, Str
 use arrow::error::ArrowError;
 use parquet::arrow::arrow_reader::ArrowPredicate;
 use parquet::arrow::ProjectionMask;
+use parquet::data_type::ByteArray;
 use parquet::file::metadata::RowGroupMetaData;
 use parquet::schema::types::SchemaDescriptor;
-use parquet::data_type::ByteArray;
 
 use crate::schema::field_paths;
 
@@ -70,9 +69,7 @@ impl SpanFilter {
     /// Check if dictionary contains matching value
     pub fn matches_dictionary(&self, dict: &CachedDictionary) -> bool {
         match self {
-            SpanFilter::NameEquals(expected) => {
-                dict.value_set.contains(expected.as_bytes())
-            }
+            SpanFilter::NameEquals(expected) => dict.value_set.contains(expected.as_bytes()),
         }
     }
 }
@@ -169,7 +166,8 @@ fn has_matching_span_name(rs: &ListArray, row: usize, expected: &str) -> bool {
     // Iterate through each ResourceSpans
     for rs_idx in rs_offset..rs_offset + rs_length {
         let ss_offset = ss_array.value_offsets()[rs_idx] as usize;
-        let ss_length = (ss_array.value_offsets()[rs_idx + 1] - ss_array.value_offsets()[rs_idx]) as usize;
+        let ss_length =
+            (ss_array.value_offsets()[rs_idx + 1] - ss_array.value_offsets()[rs_idx]) as usize;
 
         if ss_length == 0 {
             continue;
@@ -192,8 +190,8 @@ fn has_matching_span_name(rs: &ListArray, row: usize, expected: &str) -> bool {
         // Iterate through each ScopeSpans
         for ss_idx in ss_offset..ss_offset + ss_length {
             let spans_offset = spans_array.value_offsets()[ss_idx] as usize;
-            let spans_length =
-                (spans_array.value_offsets()[ss_idx + 1] - spans_array.value_offsets()[ss_idx]) as usize;
+            let spans_length = (spans_array.value_offsets()[ss_idx + 1]
+                - spans_array.value_offsets()[ss_idx]) as usize;
 
             if spans_length == 0 {
                 continue;
