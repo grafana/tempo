@@ -469,9 +469,9 @@ fn write_inline_spans_view_with_pushdown(
     if !filters.trace_filters.is_empty() {
         sql.push_str("  WHERE ");
         sql.push_str(&filters.trace_filters.join(" AND "));
-        sql.push_str("\n");
+        sql.push('\n');
     }
-    sql.push_str(")");
+    sql.push(')');
 
     // Conditionally add resource filtering CTE
     let resource_source = if !filters.resource_filters.is_empty() {
@@ -489,13 +489,13 @@ fn write_inline_spans_view_with_pushdown(
     sql.push_str(",\nunnest_scopespans AS (\n");
     sql.push_str("  SELECT \"TraceID\", resource, UNNEST(resource.ss) as scopespans\n");
     sql.push_str(&format!("  FROM {}\n", resource_source));
-    sql.push_str(")");
+    sql.push(')');
 
     // Unnest Spans
     sql.push_str(",\nunnest_spans AS (\n");
     sql.push_str("  SELECT \"TraceID\", resource, UNNEST(scopespans.\"Spans\") as span\n");
     sql.push_str("  FROM unnest_scopespans\n");
-    sql.push_str(")");
+    sql.push(')');
 
     // Add span-level filtering in a separate CTE if needed
     let source_cte = if !filters.span_filters.is_empty() {
@@ -606,9 +606,9 @@ fn write_structural_query(
     if !child_classified.trace_filters.is_empty() {
         sql.push_str("  WHERE ");
         sql.push_str(&child_classified.trace_filters.join(" AND "));
-        sql.push_str("\n");
+        sql.push('\n');
     }
-    sql.push_str(")");
+    sql.push(')');
 
     let child_resource_source = if !child_classified.resource_filters.is_empty() {
         sql.push_str(",\nchild_filtered_resources AS (\n");
@@ -624,12 +624,12 @@ fn write_structural_query(
     sql.push_str(",\nchild_unnest_scopespans AS (\n");
     sql.push_str("  SELECT \"TraceID\", resource, UNNEST(resource.ss) as scopespans\n");
     sql.push_str(&format!("  FROM {}\n", child_resource_source));
-    sql.push_str(")");
+    sql.push(')');
 
     sql.push_str(",\nchild_unnest_spans AS (\n");
     sql.push_str("  SELECT \"TraceID\", resource, UNNEST(scopespans.\"Spans\") as span\n");
     sql.push_str("  FROM child_unnest_scopespans\n");
-    sql.push_str(")");
+    sql.push(')');
 
     // Add span-level filtering for child spans if needed
     let child_source = if !child_classified.span_filters.is_empty() {
@@ -649,7 +649,7 @@ fn write_structural_query(
     sql.push_str("span.\"Name\", ");
     sql.push_str("span.\"NestedSetLeft\", ");
     sql.push_str("span.\"NestedSetRight\" ");
-    write!(sql, "FROM {}\n", child_source)?;
+    writeln!(sql, "FROM {}", child_source)?;
     sql.push_str(")\n");
 
     // Join parent and child on nested set relationships

@@ -5,6 +5,7 @@ use std::path::Path;
 
 /// Main application configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Default)]
 pub struct Config {
     /// S3 storage configuration
     #[serde(default)]
@@ -134,14 +135,6 @@ impl Default for DataFusionConfig {
     }
 }
 
-impl Default for Config {
-    fn default() -> Self {
-        Self {
-            s3: S3Config::default(),
-            datafusion: DataFusionConfig::default(),
-        }
-    }
-}
 
 impl Config {
     /// Load Config with layered configuration priority:

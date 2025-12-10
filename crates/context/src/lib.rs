@@ -9,7 +9,6 @@ use provider::{create_flattened_view, display, register_tempo_table, register_ud
 use std::collections::HashMap;
 use std::sync::Arc;
 use storage::BlockInfo;
-use traceql;
 use tracing::{debug, info};
 
 /// Create a new DataFusion session context
