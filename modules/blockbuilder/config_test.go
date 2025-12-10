@@ -26,6 +26,7 @@ func TestConfig_validate(t *testing.T) {
 			cfg: func() Config {
 				cfg := Config{}
 				cfg.RegisterFlagsAndApplyDefaults("", flag.NewFlagSet("", flag.ContinueOnError))
+				cfg.PartitionsPerInstance = 2
 				return cfg
 			}(),
 			expectedErr: nil,
