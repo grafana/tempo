@@ -10,7 +10,7 @@ import (
 
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
-	"github.com/uber-go/atomic"
+	"go.uber.org/atomic"
 
 	"github.com/grafana/tempo/pkg/model"
 	"github.com/grafana/tempo/tempodb/encoding/common"
