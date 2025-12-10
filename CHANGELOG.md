@@ -13,6 +13,7 @@
 * [CHANGE] Added a single binary 3.0 mode `--target=all-3.0` to begin testing single binary 3.0 and updating integration tests. [#6021](https://github.com/grafana/tempo/pull/6021) (@joe-elliott)
   This will be removed in 3.0 and become the standard single binary mode.
 * [CHANGE] Upgrade Tempo to go 1.25.4 [#5939](https://github.com/grafana/tempo/pull/5939) [#6001](https://github.com/grafana/tempo/pull/6001) (@ruslan-mikhailov)
+* [CHANGE] Disabled Kafka KIP-714 telemetry by default, added `enable_kafka_telemetry` config flag to opt-in [#6046](https://github.com/grafana/tempo/pull/6046)
 * [FEATURE] Add `tempo_metrics_generator_registry_active_series_demand_estimate` that estimates metrics-generator active series demand even when the active series limit is reached [#5710](https://github.com/grafana/tempo/pull/5710) (@carles-grafana)
 * [FEATURE] Added validation mode and tests for tempo-vulture [#5605](https://github.com/grafana/tempo/pull/5605) (@davidham)
 * [FEATURE] New block encoding vParquet5-preview3 replacing well-known attributes with dedicated column defaults. This format is in development and breaking changes are expected before final release. [#5696](https://github.com/grafana/tempo/pull/5696) (@stoewer)
@@ -66,7 +67,6 @@
 * [BUGFIX] Fix GetTrace() in tempo-query. [#5864](https://github.com/grafana/tempo/pull/5864) (@andreasgerstmayr)
 * [BUGFIX] Fix unsupported nonexistence nil operator for tags lookup. Fixed issue where some tag values/names were not returned due to distinctAttrCollector optimization [#5967](https://github.com/grafana/tempo/pull/5967) (@ie-pham) (@joe-elliott)
 * [BUGFIX] Fix delete implementation for s3/gcs/azure backends to account for prefix. [#6011](https://github.com/grafana/tempo/pull/6011) (@kaustubhkurve)
-* [BUGFIX] Fix excessive log messages when used with Kafka servers not supporting client metrics [#6046](https://github.com/grafana/tempo/pull/6046)
 
 # v2.9.0
 
