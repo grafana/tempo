@@ -3615,13 +3615,16 @@ name = "provider"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "async-stream",
  "async-trait",
+ "bytes",
  "chrono",
  "comfy-table",
  "config 0.1.0",
  "criterion",
  "datafusion",
  "datafusion-datasource",
+ "futures",
  "humansize",
  "parquet 56.2.0",
  "storage",
@@ -3629,6 +3632,7 @@ dependencies = [
  "traceql",
  "tracing",
  "url",
+ "vparquet4",
 ]
 
 [[package]]

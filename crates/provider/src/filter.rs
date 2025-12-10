@@ -3,6 +3,7 @@ use datafusion::logical_expr::{Expr, Operator};
 use datafusion::scalar::ScalarValue;
 use storage::DiscoveredBlock;
 use tracing::{debug, warn};
+use vparquet4::SpanFilter;
 
 /// The column name for the start time in nanoseconds
 pub const START_TIME_COLUMN: &str = "StartTimeUnixNano";
@@ -212,6 +213,70 @@ pub fn extract_time_ranges(filters: &[Expr]) -> TimeRange {
 
     debug!("Final combined time range: {:?}", combined_range);
     combined_range
+}
+
+/// Convert DataFusion filter expression to VParquet4 SpanFilter
+/// Returns None if the expression cannot be pushed down to VParquet4Reader
+pub fn expr_to_span_filter(expr: &Expr) -> Option<SpanFilter> {
+    match expr {
+        Expr::BinaryExpr(binary_expr) => {
+            let left = &binary_expr.left;
+            let right = &binary_expr.right;
+            let op = &binary_expr.op;
+
+            // Handle: name = 'literal'
+            if matches!(op, Operator::Eq) {
+                if let (Expr::Column(col), Expr::Literal(ScalarValue::Utf8(Some(value)), _)) =
+                    (left.as_ref(), right.as_ref())
+                {
+                    if col.name.eq_ignore_ascii_case("name") {
+                        debug!(
+                            "Converting filter to SpanFilter::NameEquals: {}",
+                            value
+                        );
+                        return Some(SpanFilter::NameEquals(value.clone()));
+                    }
+                }
+
+                // Handle reversed: 'literal' = name
+                if let (Expr::Literal(ScalarValue::Utf8(Some(value)), _), Expr::Column(col)) =
+                    (left.as_ref(), right.as_ref())
+                {
+                    if col.name.eq_ignore_ascii_case("name") {
+                        debug!(
+                            "Converting filter to SpanFilter::NameEquals (reversed): {}",
+                            value
+                        );
+                        return Some(SpanFilter::NameEquals(value.clone()));
+                    }
+                }
+            }
+
+            None
+        }
+        _ => None,
+    }
+}
+
+/// Extract all pushable filters from a list of expressions
+/// Currently returns the first supported filter found
+/// Future: combine multiple filters with SpanFilter::And
+pub fn extract_span_filters(filters: &[Expr]) -> Option<SpanFilter> {
+    debug!(
+        "Extracting span filters from {} filter expression(s)",
+        filters.len()
+    );
+
+    for (i, filter) in filters.iter().enumerate() {
+        debug!("Checking filter {}: {:?}", i, filter);
+        if let Some(sf) = expr_to_span_filter(filter) {
+            debug!("Found pushable filter: {:?}", sf);
+            return Some(sf);
+        }
+    }
+
+    debug!("No pushable filters found");
+    None
 }
 
 #[cfg(test)]
@@ -446,5 +511,86 @@ mod tests {
         // Unbounded range - should overlap
         let range = TimeRange::unbounded();
         assert!(range.overlaps_with_block(&block));
+    }
+
+    #[test]
+    fn test_expr_to_span_filter_name_equals() {
+        let expr = col("name").eq(lit("test_span"));
+        let filter = expr_to_span_filter(&expr);
+        assert!(matches!(
+            filter,
+            Some(SpanFilter::NameEquals(s)) if s == "test_span"
+        ));
+    }
+
+    #[test]
+    fn test_expr_to_span_filter_name_equals_reversed() {
+        let expr = lit("test_span").eq(col("name"));
+        let filter = expr_to_span_filter(&expr);
+        assert!(matches!(
+            filter,
+            Some(SpanFilter::NameEquals(s)) if s == "test_span"
+        ));
+    }
+
+    #[test]
+    fn test_expr_to_span_filter_case_insensitive() {
+        let expr = col("NAME").eq(lit("test_span"));
+        let filter = expr_to_span_filter(&expr);
+        assert!(matches!(
+            filter,
+            Some(SpanFilter::NameEquals(s)) if s == "test_span"
+        ));
+    }
+
+    #[test]
+    fn test_expr_to_span_filter_unsupported_column() {
+        let expr = col("status_code").eq(lit(1i64));
+        let filter = expr_to_span_filter(&expr);
+        assert!(filter.is_none());
+    }
+
+    #[test]
+    fn test_expr_to_span_filter_unsupported_operator() {
+        let expr = col("name").gt(lit("test"));
+        let filter = expr_to_span_filter(&expr);
+        assert!(filter.is_none());
+    }
+
+    #[test]
+    fn test_extract_span_filters_single_filter() {
+        let filters = vec![col("name").eq(lit("test"))];
+        let result = extract_span_filters(&filters);
+        assert!(matches!(
+            result,
+            Some(SpanFilter::NameEquals(s)) if s == "test"
+        ));
+    }
+
+    #[test]
+    fn test_extract_span_filters_multiple_filters() {
+        let filters = vec![
+            col("status_code").eq(lit(1i64)), // unsupported
+            col("name").eq(lit("test")),       // supported
+        ];
+        let result = extract_span_filters(&filters);
+        assert!(matches!(
+            result,
+            Some(SpanFilter::NameEquals(s)) if s == "test"
+        ));
+    }
+
+    #[test]
+    fn test_extract_span_filters_no_supported_filters() {
+        let filters = vec![col("status_code").eq(lit(1i64))];
+        let result = extract_span_filters(&filters);
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn test_extract_span_filters_empty() {
+        let filters: Vec<Expr> = vec![];
+        let result = extract_span_filters(&filters);
+        assert!(result.is_none());
     }
 }
