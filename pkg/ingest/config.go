@@ -124,7 +124,7 @@ func (cfg *KafkaConfig) RegisterFlagsWithPrefix(prefix string, f *flag.FlagSet) 
 	f.DurationVar(&cfg.TargetConsumerLagAtStartup, prefix+".target-consumer-lag-at-startup", 2*time.Second, "The best-effort maximum lag a consumer tries to achieve at startup. "+consumerLagUsage)
 	f.DurationVar(&cfg.MaxConsumerLagAtStartup, prefix+".max-consumer-lag-at-startup", 15*time.Second, "The guaranteed maximum lag before a consumer is considered to have caught up reading from a partition at startup, becomes ACTIVE in the hash ring and passes the readiness check. "+consumerLagUsage)
 
-	f.BoolVar(&cfg.EnableKafkaTelemetry, prefix+".enable-kafka-telemetry", false, "Enable Kafka client internal metrics. When disabled, it reduces the noise of Kafka client internal metrics.")
+	f.BoolVar(&cfg.EnableKafkaTelemetry, prefix+".enable-kafka-telemetry", false, "Enable KIP-714 Kafka client metrics. Disabled by default to avoid noise when using other Kafka-compatible brokers")
 
 	f.DurationVar(&cfg.ConsumerGroupLagMetricUpdateInterval, prefix+".consumer_group_lag_metric_update_interval", 1*time.Minute, "How often the lag metric is updated. Set to 0 to disable metric calculation and export ")
 }
