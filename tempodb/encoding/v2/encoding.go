@@ -27,6 +27,10 @@ func (v Encoding) CompactionSupported() bool {
 	return true
 }
 
+func (v Encoding) WritesSupported() bool {
+	return true
+}
+
 func (v Encoding) OpenBlock(meta *backend.BlockMeta, r backend.Reader) (common.BackendBlock, error) {
 	return NewBackendBlock(meta, r)
 }

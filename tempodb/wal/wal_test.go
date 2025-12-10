@@ -26,14 +26,10 @@ import (
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/grafana/tempo/tempodb/encoding/common"
-	"github.com/grafana/tempo/tempodb/encoding/vparquet2"
 )
 
 func TestAppendBlockStartEnd(t *testing.T) {
-	for _, e := range encoding.AllEncodings() {
-		if e.Version() == vparquet2.VersionString {
-			continue // vParquet2 is deprecated
-		}
+	for _, e := range encoding.AllEncodingsForWrites() {
 		t.Run(e.Version(), func(t *testing.T) {
 			testAppendBlockStartEnd(t, e)
 		})
@@ -91,10 +87,7 @@ func testAppendBlockStartEnd(t *testing.T, e encoding.VersionedEncoding) {
 }
 
 func TestIngestionSlack(t *testing.T) {
-	for _, e := range encoding.AllEncodings() {
-		if e.Version() == vparquet2.VersionString {
-			continue // vParquet2 is deprecated
-		}
+	for _, e := range encoding.AllEncodingsForWrites() {
 		t.Run(e.Version(), func(t *testing.T) {
 			testIngestionSlack(t, e)
 		})
@@ -144,10 +137,7 @@ func testIngestionSlack(t *testing.T, e encoding.VersionedEncoding) {
 }
 
 func TestFindByTraceID(t *testing.T) {
-	for _, e := range encoding.AllEncodings() {
-		if e.Version() == vparquet2.VersionString {
-			continue // vParquet2 is deprecated
-		}
+	for _, e := range encoding.AllEncodingsForWrites() {
 		t.Run(e.Version(), func(t *testing.T) {
 			t.Parallel()
 			testFindByTraceID(t, e)
@@ -178,10 +168,7 @@ func testFindByTraceID(t *testing.T, e encoding.VersionedEncoding) {
 }
 
 func TestIterator(t *testing.T) {
-	for _, e := range encoding.AllEncodings() {
-		if e.Version() == vparquet2.VersionString {
-			continue // vParquet2 is deprecated
-		}
+	for _, e := range encoding.AllEncodingsForWrites() {
 		t.Run(e.Version(), func(t *testing.T) {
 			t.Parallel()
 			testIterator(t, e)
@@ -225,10 +212,7 @@ func testIterator(t *testing.T, e encoding.VersionedEncoding) {
 }
 
 func TestSearch(t *testing.T) {
-	for _, e := range encoding.AllEncodings() {
-		if e.Version() == vparquet2.VersionString {
-			continue // vParquet2 is deprecated
-		}
+	for _, e := range encoding.AllEncodingsForWrites() {
 		t.Run(e.Version(), func(t *testing.T) {
 			t.Parallel()
 			testSearch(t, e)
@@ -266,10 +250,7 @@ func testSearch(t *testing.T, e encoding.VersionedEncoding) {
 }
 
 func TestFetch(t *testing.T) {
-	for _, e := range encoding.AllEncodings() {
-		if e.Version() == vparquet2.VersionString {
-			continue // vParquet2 is deprecated
-		}
+	for _, e := range encoding.AllEncodingsForWrites() {
 		t.Run(e.Version(), func(t *testing.T) {
 			t.Parallel()
 			testFetch(t, e)
@@ -340,11 +321,10 @@ func TestInvalidFilesAndFoldersAreHandled(t *testing.T) {
 	})
 	require.NoError(t, err, "unexpected error creating temp wal")
 
+	writeableEncodings := encoding.AllEncodingsForWrites()
+
 	// create all valid blocks
-	for _, e := range encoding.AllEncodings() {
-		if e.Version() == vparquet2.VersionString {
-			continue // vParquet2 is deprecated
-		}
+	for _, e := range writeableEncodings {
 		meta := backend.NewBlockMeta("fake", uuid.New(), e.Version(), backend.EncNone, "")
 		block, err := wal.NewBlock(meta, model.CurrentEncoding)
 		require.NoError(t, err)
@@ -376,8 +356,7 @@ func TestInvalidFilesAndFoldersAreHandled(t *testing.T) {
 
 	blocks, err := wal.RescanBlocks(0, log.NewNopLogger())
 	require.NoError(t, err, "unexpected error getting blocks")
-	// todo: once vParquet2 is removed this can be changed to equal the number of encodings
-	require.Len(t, blocks, len(encoding.AllEncodings())-1) // valid blocks created above
+	require.Len(t, blocks, len(writeableEncodings)) // valid blocks created above
 
 	// empty file should have been removed
 	require.NoFileExists(t, filepath.Join(tempDir, "fe0b83eb-a86b-4b6c-9a74-dc272cd5700e:blerg:v2:gzip"))
@@ -457,11 +436,8 @@ func runWALTestWithAppendMode(t testing.TB, encoding string, appendTrace bool, r
 }
 
 func BenchmarkAppendFlush(b *testing.B) {
-	for _, enc := range encoding.AllEncodings() {
+	for _, enc := range encoding.AllEncodingsForWrites() {
 		version := enc.Version()
-		if version == vparquet2.VersionString {
-			continue // vParquet2 is deprecated
-		}
 		b.Run(version, func(b *testing.B) {
 			b.Run("Append", func(b *testing.B) {
 				runWALBenchmarkWithAppendMode(b, version, b.N, false, nil)
@@ -474,11 +450,8 @@ func BenchmarkAppendFlush(b *testing.B) {
 }
 
 func BenchmarkFindTraceByID(b *testing.B) {
-	for _, enc := range encoding.AllEncodings() {
+	for _, enc := range encoding.AllEncodingsForWrites() {
 		version := enc.Version()
-		if version == vparquet2.VersionString {
-			continue // vParquet2 is deprecated
-		}
 		b.Run(version, func(b *testing.B) {
 			runWALBenchmark(b, version, 1, func(ids [][]byte, objs []*tempopb.Trace, block common.WALBlock) {
 				ctx := context.Background()
@@ -495,11 +468,8 @@ func BenchmarkFindTraceByID(b *testing.B) {
 }
 
 func BenchmarkFindUnknownTraceID(b *testing.B) {
-	for _, enc := range encoding.AllEncodings() {
+	for _, enc := range encoding.AllEncodingsForWrites() {
 		version := enc.Version()
-		if version == vparquet2.VersionString {
-			continue // vParquet2 is deprecated
-		}
 		b.Run(version, func(b *testing.B) {
 			runWALBenchmark(b, version, 1, func(_ [][]byte, _ []*tempopb.Trace, block common.WALBlock) {
 				for i := 0; i < b.N; i++ {
@@ -512,11 +482,8 @@ func BenchmarkFindUnknownTraceID(b *testing.B) {
 }
 
 func BenchmarkSearch(b *testing.B) {
-	for _, enc := range encoding.AllEncodings() {
+	for _, enc := range encoding.AllEncodingsForWrites() {
 		version := enc.Version()
-		if version == vparquet2.VersionString {
-			continue // vParquet2 is deprecated
-		}
 		b.Run(version, func(b *testing.B) {
 			runWALBenchmark(b, version, 1, func(ids [][]byte, objs []*tempopb.Trace, block common.WALBlock) {
 				ctx := context.Background()

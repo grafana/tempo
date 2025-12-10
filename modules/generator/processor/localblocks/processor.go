@@ -88,7 +88,7 @@ func New(cfg Config, tenant string, wal *wal.WAL, writer tempodb.Writer, overrid
 
 	enc := encoding.DefaultEncoding()
 	if cfg.Block.Version != "" {
-		enc, err = encoding.FromVersion(cfg.Block.Version)
+		enc, err = encoding.FromVersionForWrites(cfg.Block.Version)
 		if err != nil {
 			return nil, err
 		}

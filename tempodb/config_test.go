@@ -152,18 +152,7 @@ func TestDeprecatedVersions(t *testing.T) {
 					Version:              "vParquet4",
 				},
 			},
-			expectedConfig: &Config{
-				WAL: &wal.Config{
-					Version: vparquet2.VersionString,
-				},
-				Block: &common.BlockConfig{
-					IndexDownsampleBytes: 1,
-					IndexPageSizeBytes:   1,
-					BloomFP:              0.01,
-					BloomShardSizeBytes:  1,
-					Version:              "vParquet4",
-				},
-			},
+			err: "wal config validation failed: failed to validate block version vParquet2: vParquet2 is not a valid block version for creating blocks",
 		},
 		// block version is deprecaded and Wal is empty
 		{
@@ -177,7 +166,7 @@ func TestDeprecatedVersions(t *testing.T) {
 					Version:              vparquet2.VersionString,
 				},
 			},
-			err: fmt.Errorf(common.DeprecatedError, "vParquet2", "vParquet3").Error(),
+			err: "wal config validation failed: failed to validate block version vParquet2: vParquet2 is not a valid block version for creating blocks",
 		},
 		// block version is deprecated version of encoding
 		{
@@ -209,18 +198,7 @@ func TestDeprecatedVersions(t *testing.T) {
 					Version:              v2.VersionString,
 				},
 			},
-			expectedConfig: &Config{
-				WAL: &wal.Config{
-					Version: vparquet2.VersionString,
-				},
-				Block: &common.BlockConfig{
-					IndexDownsampleBytes: 1,
-					IndexPageSizeBytes:   1,
-					BloomFP:              0.01,
-					BloomShardSizeBytes:  1,
-					Version:              v2.VersionString,
-				},
-			},
+			err: "wal config validation failed: failed to validate block version vParquet2: vParquet2 is not a valid block version for creating blocks",
 		},
 	}
 

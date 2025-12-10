@@ -190,7 +190,7 @@ func validateConfig(cfg *Config) error {
 		return fmt.Errorf("block config validation failed: %w", err)
 	}
 
-	_, err = encoding.FromVersion(cfg.Block.Version)
+	_, err = encoding.FromVersionForWrites(cfg.Block.Version)
 	if err != nil {
 		return fmt.Errorf("block version validation failed: %w", err)
 	}

@@ -28,7 +28,6 @@ import (
 	"github.com/grafana/tempo/tempodb/blockselector"
 	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/grafana/tempo/tempodb/encoding/common"
-	"github.com/grafana/tempo/tempodb/encoding/vparquet2"
 	"github.com/grafana/tempo/tempodb/pool"
 	"github.com/grafana/tempo/tempodb/wal"
 )
@@ -73,11 +72,8 @@ func (m *mockOverrides) MaxCompactionRangeForTenant(_ string) time.Duration {
 }
 
 func TestCompactionRoundtrip(t *testing.T) {
-	for _, enc := range encoding.AllEncodings() {
+	for _, enc := range encoding.AllEncodingsForWrites() {
 		version := enc.Version()
-		if version == vparquet2.VersionString {
-			continue // vParquet2 is deprecated
-		}
 		t.Run(version, func(t *testing.T) {
 			t.Parallel()
 			testCompactionRoundtrip(t, version)
@@ -230,13 +226,9 @@ func testCompactionRoundtrip(t *testing.T, targetBlockVersion string) {
 }
 
 func TestSameIDCompaction(t *testing.T) {
-	for _, enc := range encoding.AllEncodings() {
-		version := enc.Version()
-		if version == vparquet2.VersionString {
-			continue // vParquet2 is deprecated
-		}
-		t.Run(version, func(t *testing.T) {
-			testSameIDCompaction(t, version)
+	for _, enc := range encoding.AllEncodingsForWrites() {
+		t.Run(enc.Version(), func(t *testing.T) {
+			testSameIDCompaction(t, enc.Version())
 		})
 	}
 }
@@ -597,14 +589,10 @@ func TestCompactionIteratesThroughTenants(t *testing.T) {
 }
 
 func TestCompactionHonorsBlockStartEndTimes(t *testing.T) {
-	for _, enc := range encoding.AllEncodings() {
-		version := enc.Version()
-		if version == vparquet2.VersionString {
-			continue // vParquet2 is deprecated
-		}
-		t.Run(version, func(t *testing.T) {
+	for _, enc := range encoding.AllEncodingsForWrites() {
+		t.Run(enc.Version(), func(t *testing.T) {
 			t.Parallel()
-			testCompactionHonorsBlockStartEndTimes(t, version)
+			testCompactionHonorsBlockStartEndTimes(t, enc.Version())
 		})
 	}
 }
@@ -677,14 +665,10 @@ func testCompactionHonorsBlockStartEndTimes(t *testing.T, targetBlockVersion str
 }
 
 func TestCompactionDropsTraces(t *testing.T) {
-	for _, enc := range encoding.AllEncodings() {
-		version := enc.Version()
-		if version == vparquet2.VersionString {
-			continue // vParquet2 is deprecated
-		}
-		t.Run(version, func(t *testing.T) {
+	for _, enc := range encoding.AllEncodingsForWrites() {
+		t.Run(enc.Version(), func(t *testing.T) {
 			t.Parallel()
-			testCompactionDropsTraces(t, version)
+			testCompactionDropsTraces(t, enc.Version())
 		})
 	}
 }
@@ -826,14 +810,10 @@ func TestDoForAtLeast(t *testing.T) {
 }
 
 func TestCompactWithConfig(t *testing.T) {
-	for _, enc := range encoding.AllEncodings() {
-		version := enc.Version()
-		if version == vparquet2.VersionString {
-			continue // vParquet2 is deprecated
-		}
-		t.Run(version, func(t *testing.T) {
+	for _, enc := range encoding.AllEncodingsForWrites() {
+		t.Run(enc.Version(), func(t *testing.T) {
 			t.Parallel()
-			testCompactWithConfig(t, version)
+			testCompactWithConfig(t, enc.Version())
 		})
 	}
 }
@@ -949,13 +929,9 @@ func makeTraceID(i int, j int) []byte {
 }
 
 func BenchmarkCompaction(b *testing.B) {
-	for _, enc := range encoding.AllEncodings() {
-		version := enc.Version()
-		if version == vparquet2.VersionString {
-			continue // vParquet2 is deprecated
-		}
-		b.Run(version, func(b *testing.B) {
-			benchmarkCompaction(b, version)
+	for _, enc := range encoding.AllEncodingsForWrites() {
+		b.Run(enc.Version(), func(b *testing.B) {
+			benchmarkCompaction(b, enc.Version())
 		})
 	}
 }

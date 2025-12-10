@@ -8,7 +8,6 @@ import (
 
 	util2 "github.com/grafana/tempo/integration/util"
 	v2 "github.com/grafana/tempo/tempodb/encoding/v2"
-	"github.com/grafana/tempo/tempodb/encoding/vparquet2"
 
 	"github.com/grafana/e2e"
 	"github.com/stretchr/testify/require"
@@ -29,10 +28,7 @@ const (
 func TestEncodings(t *testing.T) {
 	const repeatedSearchCount = 10
 
-	for _, enc := range encoding.AllEncodings() {
-		if enc.Version() == vparquet2.VersionString {
-			continue // vParquet2 is deprecated
-		}
+	for _, enc := range encoding.AllEncodingsForWrites() {
 		t.Run(enc.Version(), func(t *testing.T) {
 			s, err := e2e.NewScenario("tempo_e2e")
 			require.NoError(t, err)

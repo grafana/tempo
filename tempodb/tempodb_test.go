@@ -17,7 +17,6 @@ import (
 	"github.com/golang/protobuf/proto" //nolint:all
 	"github.com/google/uuid"
 	v2 "github.com/grafana/tempo/tempodb/encoding/v2"
-	"github.com/grafana/tempo/tempodb/encoding/vparquet2"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -575,14 +574,8 @@ func TestSearchCompactedBlocks(t *testing.T) {
 }
 
 func TestCompleteBlock(t *testing.T) {
-	for _, from := range encoding.AllEncodings() {
-		if from.Version() == vparquet2.VersionString {
-			continue // vParquet2 is deprecated
-		}
-		for _, to := range encoding.AllEncodings() {
-			if from.Version() == vparquet2.VersionString {
-				continue // vParquet2 is deprecated
-			}
+	for _, from := range encoding.AllEncodingsForWrites() {
+		for _, to := range encoding.AllEncodingsForWrites() {
 			t.Run(fmt.Sprintf("%s->%s", from.Version(), to.Version()), func(t *testing.T) {
 				t.Parallel()
 				testCompleteBlock(t, from.Version(), to.Version())
@@ -644,11 +637,8 @@ func testCompleteBlock(t *testing.T, from, to string) {
 }
 
 func TestCompleteBlockHonorsStartStopTimes(t *testing.T) {
-	for _, enc := range encoding.AllEncodings() {
+	for _, enc := range encoding.AllEncodingsForWrites() {
 		version := enc.Version()
-		if version == vparquet2.VersionString {
-			continue // vParquet2 is deprecated
-		}
 		t.Run(version, func(t *testing.T) {
 			testCompleteBlockHonorsStartStopTimes(t, version)
 		})
@@ -718,10 +708,7 @@ func writeTraceToWal(t require.TestingT, b common.WALBlock, dec model.SegmentDec
 }
 
 func BenchmarkCompleteBlock(b *testing.B) {
-	for _, enc := range encoding.AllEncodings() {
-		if enc.Version() == vparquet2.VersionString {
-			continue // vParquet2 is deprecated
-		}
+	for _, enc := range encoding.AllEncodingsForWrites() {
 		b.Run(enc.Version(), func(b *testing.B) {
 			benchmarkCompleteBlock(b, enc)
 		})
