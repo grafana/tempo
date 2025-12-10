@@ -86,7 +86,7 @@ type KafkaConfig struct {
 	TargetConsumerLagAtStartup time.Duration `yaml:"target_consumer_lag_at_startup"`
 	MaxConsumerLagAtStartup    time.Duration `yaml:"max_consumer_lag_at_startup"`
 
-	EnableKafkaTelemetry bool `yaml:"enable_kafka_telemetry"`
+	DisableKafkaTelemetry bool `yaml:"disable_kafka_telemetry"`
 
 	ConsumerGroupLagMetricUpdateInterval time.Duration `yaml:"consumer_group_lag_metric_update_interval"`
 
@@ -124,7 +124,7 @@ func (cfg *KafkaConfig) RegisterFlagsWithPrefix(prefix string, f *flag.FlagSet) 
 	f.DurationVar(&cfg.TargetConsumerLagAtStartup, prefix+".target-consumer-lag-at-startup", 2*time.Second, "The best-effort maximum lag a consumer tries to achieve at startup. "+consumerLagUsage)
 	f.DurationVar(&cfg.MaxConsumerLagAtStartup, prefix+".max-consumer-lag-at-startup", 15*time.Second, "The guaranteed maximum lag before a consumer is considered to have caught up reading from a partition at startup, becomes ACTIVE in the hash ring and passes the readiness check. "+consumerLagUsage)
 
-	f.BoolVar(&cfg.EnableKafkaTelemetry, prefix+".enable-kafka-telemetry", true, "Enable KIP-714 Kafka client metrics. Enabled by default")
+	f.BoolVar(&cfg.DisableKafkaTelemetry, prefix+".disable-kafka-telemetry", false, "Disable KIP-714 Kafka client metrics")
 
 	f.DurationVar(&cfg.ConsumerGroupLagMetricUpdateInterval, prefix+".consumer_group_lag_metric_update_interval", 1*time.Minute, "How often the lag metric is updated. Set to 0 to disable metric calculation and export ")
 }

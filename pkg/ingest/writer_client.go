@@ -138,8 +138,8 @@ func commonKafkaClientOptions(cfg KafkaConfig, metrics *kprom.Metrics, logger lo
 		}),
 	}
 
-	// Disable client metrics unless explicitly enabled to reduce noise.
-	if !cfg.EnableKafkaTelemetry {
+	// Disable client metrics if explicitly disabled to reduce noise.
+	if cfg.DisableKafkaTelemetry {
 		opts = append(opts, kgo.DisableClientMetrics())
 	}
 

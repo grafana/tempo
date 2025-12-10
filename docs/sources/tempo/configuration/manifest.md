@@ -231,7 +231,7 @@ distributor:
         producer_max_buffered_bytes: 0
         target_consumer_lag_at_startup: 0s
         max_consumer_lag_at_startup: 0s
-        enable_kafka_telemetry: true
+        disable_kafka_telemetry: false
         consumer_group_lag_metric_update_interval: 0s
     extend_writes: true
     retry_after_on_resource_exhausted: 0s
@@ -826,7 +826,7 @@ ingest:
         producer_max_buffered_bytes: 1073741824
         target_consumer_lag_at_startup: 2s
         max_consumer_lag_at_startup: 15s
-        enable_kafka_telemetry: true
+        disable_kafka_telemetry: false
         consumer_group_lag_metric_update_interval: 1m0s
 block_builder:
     instance_id: hostname
