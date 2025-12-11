@@ -410,24 +410,24 @@ Arguments:
 ```bash
 tempo-cli parquet convert data.parquet out.parquet
 ```
-## Parquet convert 2 to 3 command
-Converts a vParquet2 file (actual data.parquet) to a vParquet3 block with an optional list of dedicated attribute columns.
-This utility command is useful when testing the impact of different combinations of dedicated columns. Currently,
-all listed columns are assumed to be at the span scope.
+## Parquet convert A to B command
+Converts a vParquet file (actual data.parquet) of format A to a block of newer format B with an optional list of dedicated attribute columns.
+Actual supported versions for A and B vary by Tempo release.  This utility command is useful when testing the impact of different combinations
+of dedicated columns. Currently, all listed columns are assumed to be at the span scope.
 
 ```bash
-tempo-cli parquet convert-2-to-3 <in file> <out path> <list of dedicated columns>
+tempo-cli parquet convert-3-to-4 <in file> <out path> <list of dedicated columns>
 ```
 
 Arguments:
-- `in file` Filename of an existing vParquet2 file containing Tempo trace data
+- `in file` Filename of an existing vParquet file containing Tempo trace data
 - `out path` Path to write the vParquet3 block to.
 - `list of dedicated columns` Additional params indicating which columns to make dedicated. Max 10. Dedicated columns
   should be named using TraceQL syntax with scope. i.e. `span.db.statement` or `resource.namespace`.
 
 **Example:**
 ```bash
-tempo-cli parquet convert-2-to-3 data.parquet ./out db.statement db.name
+tempo-cli parquet convert-3-to-4 data.parquet ./out db.statement db.name
 ```
 
 
