@@ -563,7 +563,7 @@ func printSummary(scope string, maxAttr int, summary attributeSummary, simple bo
 	if simple {
 		fmt.Printf("%s attributes: ", scope)
 		for _, a := range attrList {
-			fmt.Printf("\"%s.%s\" ", scope, a.name)
+			fmt.Printf("\"%s\", ", a.name)
 		}
 		fmt.Println("")
 		return nil
