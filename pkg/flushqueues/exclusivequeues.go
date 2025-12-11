@@ -4,7 +4,7 @@ import (
 	"sync"
 
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/uber-go/atomic"
+	"go.uber.org/atomic"
 )
 
 type ExclusiveQueues[T Op] struct {
