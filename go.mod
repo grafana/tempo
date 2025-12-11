@@ -84,7 +84,7 @@ require (
 	github.com/grpc-ecosystem/go-grpc-middleware v1.4.0
 	github.com/hashicorp/golang-lru/v2 v2.0.7
 	github.com/jaegertracing/jaeger-idl v0.6.0
-	github.com/mark3labs/mcp-go v0.43.0
+	github.com/mark3labs/mcp-go v0.43.2
 	github.com/open-telemetry/opentelemetry-collector-contrib/exporter/zipkinexporter v0.138.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl v0.138.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/processor/filterprocessor v0.138.0
