@@ -60,6 +60,8 @@ const (
 	ComponentsBackendWork
 	// ComponentsObjectStorage runs the test 3 times, once for each backend (S3, Azure, GCS)
 	ComponentsObjectStorage
+	// ComponentsObjectStorageS3Only
+	ComponentsObjectStorageS3Only
 	// ComponentRecentDataQuerying starts up components required for recent data querying: distributor, live store, query frontend, querier. This is default if nothing is specified.
 	ComponentRecentDataQuerying
 )
@@ -156,16 +158,24 @@ type TestHarnessConfig struct {
 //	}
 func WithTempoHarness(t *testing.T, config TestHarnessConfig, testFunc func(*TempoHarness)) {
 	t.Helper()
+	t.Parallel()
 
 	// // If ComponentsTestAllBackends is set, run the test 3 times (once per backend)
 	if config.Components&ComponentsObjectStorage != 0 {
 		for _, b := range []string{backend.S3, backend.GCS, backend.Azure} { // jpe - restore backend.Azure. TestBackendScheduler hangs on azure?
 			t.Run(b, func(t *testing.T) {
-
 				// Run the test with the backend-specific config
 				runTempoHarness(t, config, b, testFunc)
 			})
 		}
+		return
+	}
+
+	if config.Components&ComponentsObjectStorageS3Only != 0 {
+		t.Run(backend.S3, func(t *testing.T) {
+			// Run the test with the backend-specific config
+			runTempoHarness(t, config, backend.S3, testFunc)
+		})
 		return
 	}
 

@@ -18,6 +18,7 @@ import (
 	"github.com/grafana/tempo/integration/util"
 	"github.com/grafana/tempo/pkg/search"
 	"github.com/grafana/tempo/pkg/tempopb"
+	tempoUtil "github.com/grafana/tempo/pkg/util"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -25,61 +26,88 @@ import (
 
 const (
 	configAllInOneLocal = "../deployments/config-all-in-one-local.yaml"
-	spanX               = "span.x"
-	resourceX           = "resource.xx"
 
 	tempoPort = 3200
 
-	queryableTimeout    = 5 * time.Second        // timeout for waiting for traces to be queryable
-	queryableCheckEvery = 100 * time.Millisecond // check every 100ms for traces to be queryable
-
-	// Wait to block flushed to backend, 5 seconds is the complete_block_timeout configuration on all in one, we add
-	// 1s for security.
 	blockFlushTimeout = 6 * time.Second
 )
 
-func TestSearchTagsV2(t *testing.T) {
-	s, err := e2e.NewScenario("tempo_e2e")
-	require.NoError(t, err)
-	defer s.Close()
+type batchTmpl struct {
+	spanCount                  int
+	name                       string
+	resourceAttVal, spanAttVal string
+	resourceAttr, SpanAttr     string
+}
 
-	require.NoError(t, util.CopyFileToSharedDir(s, configAllInOneLocal, "config.yaml"))
-	tempo := util.NewTempoAllInOne()
-	require.NoError(t, s.StartAndWaitReady(tempo))
+func TestTagEndpoints(t *testing.T) {
+	util.WithTempoHarness(t, util.TestHarnessConfig{
+		Components: util.ComponentRecentDataQuerying | util.ComponentsBackendQuerying | util.ComponentsObjectStorage,
+	}, func(h *util.TempoHarness) {
 
-	jaegerClient, err := util.NewJaegerToOTLPExporter(tempo.Endpoint(4317))
-	require.NoError(t, err)
-	require.NotNil(t, jaegerClient)
-
-	type batchTmpl struct {
-		spanCount                  int
-		name                       string
-		resourceAttVal, spanAttVal string
-		resourceAttr, SpanAttr     string
-	}
-
-	firstBatch := batchTmpl{spanCount: 2, name: "foo", resourceAttVal: "bar", spanAttVal: "bar", resourceAttr: "firstRes", SpanAttr: "firstSpan"}
-	secondBatch := batchTmpl{spanCount: 2, name: "baz", resourceAttVal: "qux", spanAttVal: "qux", resourceAttr: "secondRes", SpanAttr: "secondSpan"}
-
-	batch := util.MakeThriftBatchWithSpanCountAttributeAndName(firstBatch.spanCount, firstBatch.name, firstBatch.resourceAttVal, firstBatch.spanAttVal, firstBatch.resourceAttr, firstBatch.SpanAttr)
-	require.NoError(t, jaegerClient.EmitBatch(context.Background(), batch))
-
-	batch = util.MakeThriftBatchWithSpanCountAttributeAndName(secondBatch.spanCount, secondBatch.name, secondBatch.resourceAttVal, secondBatch.spanAttVal, secondBatch.resourceAttr, secondBatch.SpanAttr)
-	require.NoError(t, jaegerClient.EmitBatch(context.Background(), batch))
-
-	// Wait for the traces to be written to the WAL and searchable
-	require.Eventually(t, func() bool {
-		ok, err := isQueryable(tempo.Endpoint(tempoPort))
-		if err != nil {
-			return false
+		batches := []batchTmpl{
+			{spanCount: 2, name: "foo", resourceAttr: "firstRes", resourceAttVal: "bar", SpanAttr: "firstSpan", spanAttVal: "bar"},
+			{spanCount: 2, name: "baz", resourceAttr: "secondRes", resourceAttVal: "qux", SpanAttr: "secondSpan", spanAttVal: "qux"},
+			{spanCount: 2, name: "foo", resourceAttr: "twoRes", resourceAttVal: "bar", SpanAttr: "twoSpan", spanAttVal: "bar"},
+			{spanCount: 2, name: "baz", resourceAttr: "twoRes", resourceAttVal: "qux", SpanAttr: "twoSpan", spanAttVal: "qux"},
 		}
-		return ok
-	}, queryableTimeout, queryableCheckEvery, "traces were not queryable within timeout")
 
-	// wait for the 2 traces to be written to the WAL
-	require.NoError(t, tempo.WaitSumMetricsWithOptions(e2e.Equals(2), []string{"tempo_ingester_traces_created_total"}, e2e.WaitMissingMetrics))
+		for _, b := range batches {
+			batch := util.MakeThriftBatchWithSpanCountAttributeAndName(b.spanCount, b.name, b.resourceAttVal, b.spanAttVal, b.resourceAttr, b.SpanAttr)
+			require.NoError(t, h.JaegerExporter.EmitBatch(context.Background(), batch))
+		}
 
-	testCases := []struct {
+		// wait for the 2 traces to be written to the WAL
+		liveStoreZoneA := h.Services[util.ServiceLiveStoreZoneA]
+		require.NoError(t, liveStoreZoneA.WaitSumMetricsWithOptions(e2e.Equals(4), []string{"tempo_live_store_traces_created_total"}, e2e.WaitMissingMetrics))
+
+		tagsTestCases := buildSearchTagsV2TestCases(batches)
+		tagValuesTestCases := buildSearchTagValuesV2TestCases(batches)
+
+		queryFrontend := h.Services[util.ServiceQueryFrontend]
+		for _, tc := range tagsTestCases {
+			t.Run("tags_wal_"+tc.name, func(t *testing.T) {
+				callSearchTagsV2AndAssert(t, queryFrontend, tc.scope, tc.query, tc.expected, 0, 0)
+			})
+		}
+
+		for _, tc := range tagValuesTestCases {
+			t.Run("values_wal_"+tc.name, func(t *testing.T) {
+				callSearchTagValuesV2AndAssert(t, queryFrontend, tc.tagName, tc.query, tc.expected, 0, 0)
+			})
+		}
+
+		// wait for 4 objects to be written to the backend
+		require.NoError(t, queryFrontend.WaitSumMetricsWithOptions(e2e.Equals(4), []string{"tempodb_backend_objects_total"}, e2e.WaitMissingMetrics)) // jpe - use as the gate for restarting for backend reads
+
+		frontend := h.Services[util.ServiceQueryFrontend]
+		require.NoError(t, h.RestartServiceWithConfigOverlay(t, frontend, "../util/config-query-backend.yaml"))
+
+		// Assert tags on storage backend
+		now := time.Now()
+		start := now.Add(-2 * time.Hour)
+		end := now.Add(2 * time.Hour)
+
+		for _, tc := range tagsTestCases {
+			t.Run("tags_backend_"+tc.name, func(t *testing.T) {
+				callSearchTagsV2AndAssert(t, queryFrontend, tc.scope, tc.query, tc.expected, start.Unix(), end.Unix())
+			})
+		}
+
+		for _, tc := range tagValuesTestCases {
+			t.Run("values_backend_"+tc.name, func(t *testing.T) {
+				callSearchTagValuesV2AndAssert(t, queryFrontend, tc.tagName, tc.query, tc.expected, start.Unix(), end.Unix())
+			})
+		}
+	})
+}
+
+func buildSearchTagsV2TestCases(batches []batchTmpl) []struct {
+	name     string
+	query    string
+	scope    string
+	expected searchTagsV2Response
+} {
+	return []struct {
 		name     string
 		query    string
 		scope    string
@@ -93,11 +121,11 @@ func TestSearchTagsV2(t *testing.T) {
 				Scopes: []ScopedTags{
 					{
 						Name: "span",
-						Tags: []string{firstBatch.SpanAttr, secondBatch.SpanAttr},
+						Tags: []string{batches[0].SpanAttr, batches[1].SpanAttr, batches[2].SpanAttr},
 					},
 					{
 						Name: "resource",
-						Tags: []string{firstBatch.resourceAttr, secondBatch.resourceAttr, "service.name"},
+						Tags: []string{batches[0].resourceAttr, batches[1].resourceAttr, batches[2].resourceAttr, "service.name"},
 					},
 				},
 			},
@@ -111,83 +139,83 @@ func TestSearchTagsV2(t *testing.T) {
 				Scopes: []ScopedTags{
 					{
 						Name: "span",
-						Tags: []string{firstBatch.SpanAttr, secondBatch.SpanAttr},
+						Tags: []string{batches[0].SpanAttr, batches[1].SpanAttr, batches[2].SpanAttr},
 					},
 					{
 						Name: "resource",
-						Tags: []string{firstBatch.resourceAttr, secondBatch.resourceAttr, "service.name"},
+						Tags: []string{batches[0].resourceAttr, batches[1].resourceAttr, batches[2].resourceAttr, "service.name"},
 					},
 				},
 			},
 		},
 		{
 			name:  "first batch - resource",
-			query: fmt.Sprintf(`{ name="%s" }`, firstBatch.name),
+			query: fmt.Sprintf(`{ name="%s" }`, batches[0].name),
 			scope: "resource",
 			expected: searchTagsV2Response{
 				Scopes: []ScopedTags{
 					{
 						Name: "resource",
-						Tags: []string{firstBatch.resourceAttr, "service.name"},
+						Tags: []string{batches[0].resourceAttr, batches[2].resourceAttr, "service.name"},
 					},
 				},
 			},
 		},
 		{
 			name:  "second batch with incomplete query - span",
-			query: fmt.Sprintf(`{ name="%s" && span.x = }`, secondBatch.name),
+			query: fmt.Sprintf(`{ name="%s" && span.twoSpan = }`, batches[1].name),
 			scope: "span",
 			expected: searchTagsV2Response{
 				Scopes: []ScopedTags{
 					{
 						Name: "span",
-						Tags: []string{secondBatch.SpanAttr},
+						Tags: []string{batches[1].SpanAttr, batches[3].SpanAttr},
 					},
 				},
 			},
 		},
 		{
 			name:  "first batch - resource att - span",
-			query: fmt.Sprintf(`{ resource.%s="%s" }`, firstBatch.resourceAttr, firstBatch.resourceAttVal),
+			query: fmt.Sprintf(`{ resource.%s="%s" }`, batches[0].resourceAttr, batches[0].resourceAttVal),
 			scope: "span",
 			expected: searchTagsV2Response{
 				Scopes: []ScopedTags{
 					{
 						Name: "span",
-						Tags: []string{firstBatch.SpanAttr},
+						Tags: []string{batches[0].SpanAttr},
 					},
 				},
 			},
 		},
 		{
 			name:  "first batch - resource att - resource",
-			query: fmt.Sprintf(`{ resource.%s="%s" }`, firstBatch.resourceAttr, firstBatch.resourceAttVal),
+			query: fmt.Sprintf(`{ resource.%s="%s" }`, batches[0].resourceAttr, batches[0].resourceAttVal),
 			scope: "resource",
 			expected: searchTagsV2Response{
 				Scopes: []ScopedTags{
 					{
 						Name: "resource",
-						Tags: []string{firstBatch.resourceAttr, "service.name"},
+						Tags: []string{batches[0].resourceAttr, "service.name"},
 					},
 				},
 			},
 		},
 		{
 			name:  "second batch - resource attribute - span",
-			query: fmt.Sprintf(`{ resource.%s="%s" }`, secondBatch.resourceAttr, secondBatch.resourceAttVal),
+			query: fmt.Sprintf(`{ resource.%s="%s" }`, batches[1].resourceAttr, batches[1].resourceAttVal),
 			scope: "span",
 			expected: searchTagsV2Response{
 				Scopes: []ScopedTags{
 					{
 						Name: "span",
-						Tags: []string{secondBatch.SpanAttr},
+						Tags: []string{batches[1].SpanAttr},
 					},
 				},
 			},
 		},
 		{
 			name:  "too restrictive query",
-			query: fmt.Sprintf(`{ resource.%s="%s" && resource.y="%s" }`, firstBatch.resourceAttr, firstBatch.resourceAttVal, secondBatch.resourceAttVal),
+			query: fmt.Sprintf(`{ resource.%s="%s" && resource.y="%s" }`, batches[0].resourceAttr, batches[0].resourceAttVal, batches[1].resourceAttVal),
 			scope: "none",
 			expected: searchTagsV2Response{
 				Scopes: []ScopedTags{
@@ -201,34 +229,34 @@ func TestSearchTagsV2(t *testing.T) {
 		// Unscoped not supported, unfiltered results.
 		{
 			name:  "unscoped span attribute",
-			query: fmt.Sprintf(`{ .x="%s" }`, firstBatch.spanAttVal),
+			query: fmt.Sprintf(`{ .twoSpan="%s" }`, batches[0].spanAttVal),
 			scope: "none",
 			expected: searchTagsV2Response{
 				Scopes: []ScopedTags{
 					{
 						Name: "span",
-						Tags: []string{firstBatch.SpanAttr, secondBatch.SpanAttr},
+						Tags: []string{batches[0].SpanAttr, batches[1].SpanAttr, batches[2].SpanAttr},
 					},
 					{
 						Name: "resource",
-						Tags: []string{firstBatch.resourceAttr, secondBatch.resourceAttr, "service.name"},
+						Tags: []string{batches[0].resourceAttr, batches[1].resourceAttr, batches[2].resourceAttr, "service.name"},
 					},
 				},
 			},
 		},
 		{
 			name:  "unscoped res attribute",
-			query: fmt.Sprintf(`{ .xx="%s" }`, firstBatch.resourceAttVal),
+			query: fmt.Sprintf(`{ .twoRes="%s" }`, batches[0].resourceAttVal),
 			scope: "none",
 			expected: searchTagsV2Response{
 				Scopes: []ScopedTags{
 					{
 						Name: "span",
-						Tags: []string{firstBatch.SpanAttr, secondBatch.SpanAttr},
+						Tags: []string{batches[0].SpanAttr, batches[1].SpanAttr, batches[2].SpanAttr},
 					},
 					{
 						Name: "resource",
-						Tags: []string{firstBatch.resourceAttr, secondBatch.resourceAttr, "service.name"},
+						Tags: []string{batches[0].resourceAttr, batches[1].resourceAttr, batches[2].resourceAttr, "service.name"},
 					},
 				},
 			},
@@ -241,100 +269,42 @@ func TestSearchTagsV2(t *testing.T) {
 				Scopes: []ScopedTags{
 					{
 						Name: "span",
-						Tags: []string{firstBatch.SpanAttr, secondBatch.SpanAttr},
+						Tags: []string{batches[0].SpanAttr, batches[1].SpanAttr, batches[2].SpanAttr},
 					},
 					{
 						Name: "resource",
-						Tags: []string{firstBatch.resourceAttr, secondBatch.resourceAttr, "service.name"},
+						Tags: []string{batches[0].resourceAttr, batches[1].resourceAttr, batches[2].resourceAttr, "service.name"},
 					},
 				},
 			},
 		},
 		{
 			name:  "bad query - unfiltered results",
-			query: fmt.Sprintf("%s = bar", spanX), // bad query, missing quotes
+			query: fmt.Sprintf("%s = bar", "span.twoSpan"), // bad query, missing quotes
 			scope: "none",
 			expected: searchTagsV2Response{
 				Scopes: []ScopedTags{
 					{
 						Name: "span",
-						Tags: []string{firstBatch.SpanAttr, secondBatch.SpanAttr},
+						Tags: []string{batches[0].SpanAttr, batches[1].SpanAttr, batches[2].SpanAttr},
 					},
 					{
 						Name: "resource",
-						Tags: []string{firstBatch.resourceAttr, secondBatch.resourceAttr, "service.name"},
+						Tags: []string{batches[0].resourceAttr, batches[1].resourceAttr, batches[2].resourceAttr, "service.name"},
 					},
 				},
 			},
 		},
 	}
-
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			callSearchTagsV2AndAssert(t, tempo, tc.scope, tc.query, tc.expected, 0, 0)
-		})
-	}
-
-	util.CallFlush(t, tempo)
-	time.Sleep(blockFlushTimeout)
-	util.CallFlush(t, tempo)
-
-	// wait for 2 objects to be written to the backend
-	require.NoError(t, tempo.WaitSumMetricsWithOptions(e2e.Equals(2), []string{"tempodb_backend_objects_total"}, e2e.WaitMissingMetrics))
-
-	// Assert tags on storage backend
-	now := time.Now()
-	start := now.Add(-2 * time.Hour)
-	end := now.Add(2 * time.Hour)
-
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			callSearchTagsV2AndAssert(t, tempo, tc.scope, tc.query, tc.expected, start.Unix(), end.Unix())
-		})
-	}
 }
 
-func TestSearchTagValuesV2(t *testing.T) {
-	s, err := e2e.NewScenario("tempo_e2e")
-	require.NoError(t, err)
-	defer s.Close()
-
-	require.NoError(t, util.CopyFileToSharedDir(s, configAllInOneLocal, "config.yaml"))
-	tempo := util.NewTempoAllInOne()
-	require.NoError(t, s.StartAndWaitReady(tempo))
-
-	jaegerClient, err := util.NewJaegerToOTLPExporter(tempo.Endpoint(4317))
-	require.NoError(t, err)
-	require.NotNil(t, jaegerClient)
-
-	type batchTmpl struct {
-		spanCount                  int
-		name                       string
-		resourceAttVal, spanAttVal string
-	}
-
-	firstBatch := batchTmpl{spanCount: 2, name: "foo", resourceAttVal: "bar", spanAttVal: "bar"}
-	secondBatch := batchTmpl{spanCount: 2, name: "baz", resourceAttVal: "qux", spanAttVal: "qux"}
-
-	batch := util.MakeThriftBatchWithSpanCountAttributeAndName(firstBatch.spanCount, firstBatch.name, firstBatch.resourceAttVal, firstBatch.spanAttVal, "xx", "x")
-	require.NoError(t, jaegerClient.EmitBatch(context.Background(), batch))
-
-	batch = util.MakeThriftBatchWithSpanCountAttributeAndName(secondBatch.spanCount, secondBatch.name, secondBatch.resourceAttVal, secondBatch.spanAttVal, "xx", "x")
-	require.NoError(t, jaegerClient.EmitBatch(context.Background(), batch))
-
-	// Wait for the traces to be written to the WAL and searchable
-	require.Eventually(t, func() bool {
-		ok, err := isQueryable(tempo.Endpoint(tempoPort))
-		if err != nil {
-			return false
-		}
-		return ok
-	}, queryableTimeout, queryableCheckEvery, "traces were not queryable within timeout")
-
-	// wait for the 2 traces to be written to the WAL
-	require.NoError(t, tempo.WaitSumMetricsWithOptions(e2e.Equals(2), []string{"tempo_ingester_traces_created_total"}, e2e.WaitMissingMetrics))
-
-	testCases := []struct {
+func buildSearchTagValuesV2TestCases(batches []batchTmpl) []struct {
+	name     string
+	query    string
+	tagName  string
+	expected searchTagValuesV2Response
+} {
+	return []struct {
 		name     string
 		query    string
 		tagName  string
@@ -343,69 +313,69 @@ func TestSearchTagValuesV2(t *testing.T) {
 		{
 			name:    "no filtering",
 			query:   "",
-			tagName: spanX,
+			tagName: "span.twoSpan",
 			expected: searchTagValuesV2Response{
-				TagValues: []TagValue{{Type: "string", Value: firstBatch.spanAttVal}, {Type: "string", Value: secondBatch.spanAttVal}},
+				TagValues: []TagValue{{Type: "string", Value: batches[2].spanAttVal}, {Type: "string", Value: batches[3].spanAttVal}},
 			},
 		},
 		{
 			name:    "first batch - name",
-			query:   fmt.Sprintf(`{ name="%s" }`, firstBatch.name),
-			tagName: spanX,
+			query:   fmt.Sprintf(`{ name="%s" }`, batches[2].name),
+			tagName: "span.twoSpan",
 			expected: searchTagValuesV2Response{
-				TagValues: []TagValue{{Type: "string", Value: firstBatch.spanAttVal}},
+				TagValues: []TagValue{{Type: "string", Value: batches[2].spanAttVal}},
 			},
 		},
 		{
 			name:    "second batch with incomplete query - name",
-			query:   fmt.Sprintf(`{ name="%s" && span.x = }`, secondBatch.name),
-			tagName: spanX,
+			query:   fmt.Sprintf(`{ name="%s" && span.twoSpan = }`, batches[3].name),
+			tagName: "span.twoSpan",
 			expected: searchTagValuesV2Response{
-				TagValues: []TagValue{{Type: "string", Value: secondBatch.spanAttVal}},
+				TagValues: []TagValue{{Type: "string", Value: batches[3].spanAttVal}},
 			},
 		},
 		{
 			name:    "first batch only - resource attribute",
-			query:   fmt.Sprintf(`{ %s="%s" }`, resourceX, firstBatch.resourceAttVal),
-			tagName: spanX,
+			query:   fmt.Sprintf(`{ %s="%s" }`, "resource.twoRes", batches[2].resourceAttVal),
+			tagName: "span.twoSpan",
 			expected: searchTagValuesV2Response{
-				TagValues: []TagValue{{Type: "string", Value: firstBatch.spanAttVal}},
+				TagValues: []TagValue{{Type: "string", Value: batches[2].spanAttVal}},
 			},
 		},
 		{
 			name:    "second batch only - resource attribute",
-			query:   fmt.Sprintf(`{ %s="%s" }`, resourceX, secondBatch.resourceAttVal),
-			tagName: spanX,
+			query:   fmt.Sprintf(`{ %s="%s" }`, "resource.twoRes", batches[3].resourceAttVal),
+			tagName: "span.twoSpan",
 			expected: searchTagValuesV2Response{
-				TagValues: []TagValue{{Type: "string", Value: secondBatch.spanAttVal}},
+				TagValues: []TagValue{{Type: "string", Value: batches[3].spanAttVal}},
 			},
 		},
 		{
 			name:     "too restrictive query",
-			query:    fmt.Sprintf(`{ %s="%s" && resource.y="%s" }`, resourceX, firstBatch.resourceAttVal, secondBatch.resourceAttVal),
-			tagName:  spanX,
+			query:    fmt.Sprintf(`{ %s="%s" && resource.y="%s" }`, "resource.twoRes", batches[2].resourceAttVal, batches[3].resourceAttVal),
+			tagName:  "span.twoSpan",
 			expected: searchTagValuesV2Response{TagValues: []TagValue{}},
 		},
 		// Unscoped not supported, unfiltered results.
 		{
 			name:    "unscoped span attribute",
-			query:   fmt.Sprintf(`{ .x="%s" }`, firstBatch.spanAttVal),
-			tagName: spanX,
+			query:   fmt.Sprintf(`{ .twoSpan="%s" }`, batches[2].spanAttVal),
+			tagName: "span.twoSpan",
 			expected: searchTagValuesV2Response{
-				TagValues: []TagValue{{Type: "string", Value: firstBatch.spanAttVal}, {Type: "string", Value: secondBatch.spanAttVal}},
+				TagValues: []TagValue{{Type: "string", Value: batches[2].spanAttVal}, {Type: "string", Value: batches[3].spanAttVal}},
 			},
 		},
 		{
 			name:    "unscoped resource attribute",
-			query:   fmt.Sprintf(`{ .xx="%s" }`, firstBatch.spanAttVal),
-			tagName: resourceX,
+			query:   fmt.Sprintf(`{ .twoRes="%s" }`, batches[2].spanAttVal),
+			tagName: "resource.twoRes",
 			expected: searchTagValuesV2Response{
-				TagValues: []TagValue{{Type: "string", Value: firstBatch.resourceAttVal}, {Type: "string", Value: secondBatch.resourceAttVal}},
+				TagValues: []TagValue{{Type: "string", Value: batches[2].resourceAttVal}, {Type: "string", Value: batches[3].resourceAttVal}},
 			},
 		},
 		{
 			name:    "first batch - name and resource attribute",
-			query:   fmt.Sprintf(`{ name="%s" }`, firstBatch.name),
+			query:   fmt.Sprintf(`{ name="%s" }`, batches[2].name),
 			tagName: "resource.service.name",
 			expected: searchTagValuesV2Response{
 				TagValues: []TagValue{{Type: "string", Value: "my-service"}},
@@ -416,12 +386,12 @@ func TestSearchTagValuesV2(t *testing.T) {
 			query:   `{ resource.service.name="my-service"}`,
 			tagName: "name",
 			expected: searchTagValuesV2Response{
-				TagValues: []TagValue{{Type: "string", Value: secondBatch.name}, {Type: "string", Value: firstBatch.name}},
+				TagValues: []TagValue{{Type: "string", Value: batches[3].name}, {Type: "string", Value: batches[2].name}},
 			},
 		},
 		{
 			name:    "only resource attributes",
-			query:   fmt.Sprintf(`{ %s="%s" }`, resourceX, firstBatch.resourceAttVal),
+			query:   fmt.Sprintf(`{ %s="%s" }`, "resource.twoRes", batches[2].resourceAttVal),
 			tagName: "resource.service.name",
 			expected: searchTagValuesV2Response{
 				TagValues: []TagValue{{Type: "string", Value: "my-service"}},
@@ -429,220 +399,123 @@ func TestSearchTagValuesV2(t *testing.T) {
 		},
 		{
 			name:    "bad query - unfiltered results",
-			query:   fmt.Sprintf("%s = bar", spanX), // bad query, missing quotes
-			tagName: spanX,
+			query:   fmt.Sprintf("%s = bar", "span.twoSpan"), // bad query, missing quotes
+			tagName: "span.twoSpan",
 			expected: searchTagValuesV2Response{
-				TagValues: []TagValue{{Type: "string", Value: firstBatch.spanAttVal}, {Type: "string", Value: secondBatch.spanAttVal}},
+				TagValues: []TagValue{{Type: "string", Value: batches[2].spanAttVal}, {Type: "string", Value: batches[3].spanAttVal}},
 			},
 		},
 	}
-
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			callSearchTagValuesV2AndAssert(t, tempo, tc.tagName, tc.query, tc.expected, 0, 0)
-		})
-	}
-
-	util.CallFlush(t, tempo)
-	time.Sleep(blockFlushTimeout)
-	util.CallFlush(t, tempo)
-
-	// wait for 2 objects to be written to the backend
-	require.NoError(t, tempo.WaitSumMetricsWithOptions(e2e.Equals(2), []string{"tempodb_backend_objects_total"}, e2e.WaitMissingMetrics))
-
-	// Assert tags on storage backend
-	now := time.Now()
-	start := now.Add(-2 * time.Hour)
-	end := now.Add(2 * time.Hour)
-
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			callSearchTagValuesV2AndAssert(t, tempo, tc.tagName, tc.query, tc.expected, start.Unix(), end.Unix())
-		})
-	}
 }
 
-func TestSearchTags(t *testing.T) {
-	s, err := e2e.NewScenario("tempo_e2e_tags")
-	require.NoError(t, err)
-	defer s.Close()
+func TestTraceByIDandTraceQL(t *testing.T) {
+	util.WithTempoHarness(t, util.TestHarnessConfig{
+		Components: util.ComponentRecentDataQuerying | util.ComponentsBackendQuerying | util.ComponentsObjectStorage,
+	}, func(h *util.TempoHarness) {
+		countTraces := 10
+		infos := make([]*tempoUtil.TraceInfo, 0, countTraces)
 
-	require.NoError(t, util.CopyFileToSharedDir(s, configAllInOneLocal, "config.yaml"))
-	tempo := util.NewTempoAllInOne()
-	require.NoError(t, s.StartAndWaitReady(tempo))
-
-	jaegerClient, err := util.NewJaegerToOTLPExporter(tempo.Endpoint(4317))
-	require.NoError(t, err)
-	require.NotNil(t, jaegerClient)
-
-	batch := util.MakeThriftBatch()
-	require.NoError(t, jaegerClient.EmitBatch(context.Background(), batch))
-
-	// Wait for the traces to be written to the WAL and searchable
-	require.Eventually(t, func() bool {
-		ok, err := isQueryable(tempo.Endpoint(tempoPort))
-		if err != nil {
-			return false
+		for range countTraces {
+			time.Sleep(time.Nanosecond) // force a new seed
+			info := tempoUtil.NewTraceInfo(time.Now(), "")
+			infos = append(infos, info)
+			require.NoError(t, info.EmitAllBatches(h.JaegerExporter))
 		}
-		return ok
-	}, queryableTimeout, queryableCheckEvery, "traces were not queryable within timeout")
 
-	// wait for trace to be written to the WAL
-	require.NoError(t, tempo.WaitSumMetricsWithOptions(e2e.Equals(1), []string{"tempo_ingester_traces_created_total"}, e2e.WaitMissingMetrics))
+		liveStoreZoneA := h.Services[util.ServiceLiveStoreZoneA]
+		require.NoError(t, liveStoreZoneA.WaitSumMetricsWithOptions(e2e.Equals(float64(countTraces)), []string{"tempo_live_store_traces_created_total"}, e2e.WaitMissingMetrics))
 
-	callSearchTagsAndAssert(t, tempo, searchTagsResponse{TagNames: []string{"service.name", "x", "xx"}}, 0, 0)
+		grpcClient, err := util.NewSearchGRPCClient(context.Background(), h.QueryFrontendGRPCEndpoint)
+		require.NoError(t, err)
 
-	util.CallFlush(t, tempo)
-	time.Sleep(blockFlushTimeout)
-	util.CallFlush(t, tempo)
-
-	// test metrics
-	require.NoError(t, tempo.WaitSumMetrics(e2e.Equals(1), "tempo_ingester_blocks_flushed_total"))
-	require.NoError(t, tempo.WaitSumMetricsWithOptions(e2e.Equals(1), []string{"tempodb_blocklist_length"}, e2e.WaitMissingMetrics))
-	require.NoError(t, tempo.WaitSumMetrics(e2e.Equals(1), "tempo_ingester_blocks_cleared_total"))
-
-	start := time.Now().Add(-5 * time.Second)
-	end := time.Now().Add(-5 * time.Second)
-	// Assert no more on the ingester
-	callSearchTagsAndAssert(t, tempo, searchTagsResponse{TagNames: []string{}}, start.Unix(), end.Unix())
-
-	// Wait to blocklist_poll to be completed
-	time.Sleep(time.Second * 2)
-	// Assert tags on storage backend
-	now := time.Now()
-	start = now.Add(-2 * time.Hour)
-	end = now.Add(2 * time.Hour)
-	callSearchTagsAndAssert(t, tempo, searchTagsResponse{TagNames: []string{"service.name", "x", "xx"}}, start.Unix(), end.Unix())
-}
-
-func TestSearchTagValues(t *testing.T) {
-	s, err := e2e.NewScenario("tempo_e2e_tags")
-	require.NoError(t, err)
-	defer s.Close()
-
-	require.NoError(t, util.CopyFileToSharedDir(s, configAllInOneLocal, "config.yaml"))
-	tempo := util.NewTempoAllInOne()
-	require.NoError(t, s.StartAndWaitReady(tempo))
-
-	jaegerClient, err := util.NewJaegerToOTLPExporter(tempo.Endpoint(4317))
-	require.NoError(t, err)
-	require.NotNil(t, jaegerClient)
-
-	batch := util.MakeThriftBatch()
-	require.NoError(t, jaegerClient.EmitBatch(context.Background(), batch))
-
-	// Wait for the traces to be written to the WAL and searchable
-	require.Eventually(t, func() bool {
-		ok, err := isQueryable(tempo.Endpoint(tempoPort))
-		if err != nil {
-			return false
+		now := time.Now()
+		for _, i := range infos {
+			util.QueryAndAssertTrace(t, h.HTTPClient, i)
+			util.SearchTraceQLAndAssertTraceWithRange(t, h.HTTPClient, i, now.Add(-time.Hour).Unix(), now.Add(time.Hour).Unix()) // jpe - keep? remove range
+			util.SearchStreamAndAssertTrace(t, context.Background(), grpcClient, i, now.Add(-time.Hour).Unix(), now.Add(time.Hour).Unix())
 		}
-		return ok
-	}, queryableTimeout, queryableCheckEvery, "traces were not queryable within timeout")
 
-	// wait for trace to be written to the WAL
-	require.NoError(t, tempo.WaitSumMetricsWithOptions(e2e.Equals(1), []string{"tempo_ingester_traces_created_total"}, e2e.WaitMissingMetrics))
+		queryFrontend := h.Services[util.ServiceQueryFrontend]
+		require.NoError(t, queryFrontend.WaitSumMetricsWithOptions(e2e.Equals(float64(countTraces)), []string{"tempodb_backend_objects_total"}, e2e.WaitMissingMetrics))
+		require.NoError(t, h.RestartServiceWithConfigOverlay(t, queryFrontend, "../util/config-query-backend.yaml"))
 
-	callSearchTagValuesAndAssert(t, tempo, "service.name", searchTagValuesResponse{TagValues: []string{"my-service"}}, 0, 0)
+		grpcClient, err = util.NewSearchGRPCClient(context.Background(), h.QueryFrontendGRPCEndpoint)
+		require.NoError(t, err)
 
-	util.CallFlush(t, tempo)
-	time.Sleep(blockFlushTimeout)
-	util.CallFlush(t, tempo)
-
-	require.NoError(t, tempo.WaitSumMetrics(e2e.Equals(1), "tempo_ingester_blocks_flushed_total"))
-	require.NoError(t, tempo.WaitSumMetricsWithOptions(e2e.Equals(1), []string{"tempodb_blocklist_length"}, e2e.WaitMissingMetrics))
-	require.NoError(t, tempo.WaitSumMetrics(e2e.Equals(1), "tempo_ingester_blocks_cleared_total"))
-
-	// Assert no more on the ingester
-	start := time.Now().Add(-5 * time.Second)
-	end := time.Now().Add(-5 * time.Second)
-	callSearchTagValuesAndAssert(t, tempo, "service.name", searchTagValuesResponse{TagValues: []string{}}, start.Unix(), end.Unix())
-	// Wait to blocklist_poll to be completed
-	time.Sleep(time.Second * 2)
-	// Assert tags on storage backen
-	now := time.Now()
-	start = now.Add(-2 * time.Hour)
-	end = now.Add(2 * time.Hour)
-	callSearchTagValuesAndAssert(t, tempo, "service.name", searchTagValuesResponse{TagValues: []string{"my-service"}}, start.Unix(), end.Unix())
+		// Assert tags on storage backend
+		for _, i := range infos {
+			util.QueryAndAssertTrace(t, h.HTTPClient, i)
+			util.SearchTraceQLAndAssertTraceWithRange(t, h.HTTPClient, i, now.Add(-time.Hour).Unix(), now.Add(time.Hour).Unix())
+			util.SearchStreamAndAssertTrace(t, context.Background(), grpcClient, i, now.Add(-time.Hour).Unix(), now.Add(time.Hour).Unix())
+		}
+	})
 }
 
 func TestStreamingSearch_badRequest(t *testing.T) {
-	s, err := e2e.NewScenario("tempo_e2e_tags")
-	require.NoError(t, err)
-	defer s.Close()
+	util.WithTempoHarness(t, util.TestHarnessConfig{}, func(h *util.TempoHarness) {
+		// Send a batch of traces
+		batch := util.MakeThriftBatch()
+		require.NoError(t, h.JaegerExporter.EmitBatch(context.Background(), batch))
 
-	require.NoError(t, util.CopyFileToSharedDir(s, configAllInOneLocal, "config.yaml"))
-	tempo := util.NewTempoAllInOne()
-	require.NoError(t, s.StartAndWaitReady(tempo))
+		// Wait for the traces to be written to the WAL
+		liveStoreZoneA := h.Services[util.ServiceLiveStoreZoneA]
+		require.NoError(t, liveStoreZoneA.WaitSumMetricsWithOptions(e2e.Equals(1), []string{"tempo_live_store_traces_created_total"}, e2e.WaitMissingMetrics))
 
-	jaegerClient, err := util.NewJaegerToOTLPExporter(tempo.Endpoint(4317))
-	require.NoError(t, err)
-	require.NotNil(t, jaegerClient)
+		// Create gRPC client
+		c, err := util.NewSearchGRPCClient(context.Background(), h.QueryFrontendGRPCEndpoint)
+		require.NoError(t, err)
 
-	batch := util.MakeThriftBatch()
-	require.NoError(t, jaegerClient.EmitBatch(context.Background(), batch))
+		// Send invalid search query (missing operator)
+		res, err := c.Search(context.Background(), &tempopb.SearchRequest{
+			Query: "{resource.service.name=article}",
+		})
+		require.NoError(t, err)
 
-	// Wait for the traces to be written to the WAL
-	time.Sleep(time.Second * 3)
+		// Expect error on receive
+		_, err = res.Recv()
+		require.Error(t, err)
 
-	// Create gRPC client
-	c, err := util.NewSearchGRPCClient(context.Background(), tempo.Endpoint(tempoPort))
-	require.NoError(t, err)
-
-	res, err := c.Search(context.Background(), &tempopb.SearchRequest{
-		Query: "{resource.service.name=article}",
+		st, ok := status.FromError(err)
+		require.True(t, ok)
+		require.Equal(t, codes.InvalidArgument, st.Code())
 	})
-	require.NoError(t, err)
-
-	_, err = res.Recv()
-	require.Error(t, err)
-
-	st, ok := status.FromError(err)
-	require.True(t, ok)
-	require.Equal(t, codes.InvalidArgument, st.Code())
 }
 
 func TestSearchTagValuesV2_badRequest(t *testing.T) {
-	s, err := e2e.NewScenario("tempo_e2e")
-	require.NoError(t, err)
-	defer s.Close()
+	util.WithTempoHarness(t, util.TestHarnessConfig{}, func(h *util.TempoHarness) {
+		// Test HTTP endpoint returns 400 for invalid tagName
+		invalidTagName := "app.user.id" // not a valid scoped attribute
+		req, err := http.NewRequest(http.MethodGet,
+			fmt.Sprintf("http://%s/api/v2/search/tag/%s/values", h.QueryFrontendHTTPEndpoint, invalidTagName), nil)
+		require.NoError(t, err)
 
-	require.NoError(t, util.CopyFileToSharedDir(s, configAllInOneLocal, "config.yaml"))
-	tempo := util.NewTempoAllInOne()
-	require.NoError(t, s.StartAndWaitReady(tempo))
+		res, err := http.DefaultClient.Do(req)
+		require.NoError(t, err)
+		require.Equal(t, http.StatusBadRequest, res.StatusCode)
 
-	// Test HTTP endpoint returns 400 for invalid tagName
-	invalidTagName := "app.user.id" // not a valid scoped attribute
-	req, err := http.NewRequest(http.MethodGet,
-		fmt.Sprintf("http://%s/api/v2/search/tag/%s/values", tempo.Endpoint(tempoPort), invalidTagName), nil)
-	require.NoError(t, err)
+		body, err := io.ReadAll(res.Body)
+		require.NoError(t, err)
+		defer res.Body.Close()
 
-	res, err := http.DefaultClient.Do(req)
-	require.NoError(t, err)
-	require.Equal(t, http.StatusBadRequest, res.StatusCode)
+		require.Contains(t, string(body), "tag name is not valid intrinsic or scoped attribute")
 
-	body, err := io.ReadAll(res.Body)
-	require.NoError(t, err)
-	defer res.Body.Close()
+		// Test gRPC endpoint returns InvalidArgument for invalid tagName
+		grpcClient, err := util.NewSearchGRPCClient(context.Background(), h.QueryFrontendGRPCEndpoint)
+		require.NoError(t, err)
 
-	require.Contains(t, string(body), "tag name is not valid intrinsic or scoped attribute")
+		stream, err := grpcClient.SearchTagValuesV2(context.Background(), &tempopb.SearchTagValuesRequest{
+			TagName: invalidTagName,
+		})
+		require.NoError(t, err)
 
-	// Test gRPC endpoint returns InvalidArgument for invalid tagName
-	grpcClient, err := util.NewSearchGRPCClient(context.Background(), tempo.Endpoint(tempoPort))
-	require.NoError(t, err)
+		_, err = stream.Recv()
+		require.Error(t, err)
 
-	stream, err := grpcClient.SearchTagValuesV2(context.Background(), &tempopb.SearchTagValuesRequest{
-		TagName: invalidTagName,
+		st, ok := status.FromError(err)
+		require.True(t, ok)
+		require.Equal(t, codes.InvalidArgument, st.Code())
+		require.Contains(t, st.Message(), "tag name is not valid intrinsic or scoped attribute")
 	})
-	require.NoError(t, err)
-
-	_, err = stream.Recv()
-	require.Error(t, err)
-
-	st, ok := status.FromError(err)
-	require.True(t, ok)
-	require.Equal(t, codes.InvalidArgument, st.Code())
-	require.Contains(t, st.Message(), "tag name is not valid intrinsic or scoped attribute")
 }
 
 func callSearchTagValuesV2AndAssert(t *testing.T, svc *e2e.HTTPService, tagName, query string, expected searchTagValuesV2Response, start, end int64) {

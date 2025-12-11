@@ -41,14 +41,16 @@ func (r *MockReporter) GetEmittedBatches() []*thrift.Batch {
 }
 
 type MockHTTPClient struct {
-	err            error
-	resp           http.Response
-	traceResp      *tempopb.Trace
-	requestsCount  int
-	searchResponse []*tempopb.TraceSearchMetadata
-	searchesCount  int
-	metricsResp    *tempopb.QueryRangeResponse
-	metricsCount   int
+	err                 error
+	resp                http.Response
+	traceResp           *tempopb.Trace
+	requestsCount       int
+	searchResponse      []*tempopb.TraceSearchMetadata
+	searchesCount       int
+	metricsResp         *tempopb.QueryRangeResponse
+	metricsCount        int
+	metricsInstantResp  *tempopb.QueryInstantResponse
+	metricsInstantCount int
 	// We need the lock to control concurrent accesses to shared variables in the tests
 	m sync.Mutex
 }
@@ -74,7 +76,7 @@ func (m *MockHTTPClient) MetricsSummary(query string, groupBy string, start int6
 }
 
 //nolint:all
-func (m *MockHTTPClient) MetricsQueryRange(query string, start, end int, step string, exemplars int) (*tempopb.QueryRangeResponse, error) {
+func (m *MockHTTPClient) MetricsQueryRange(query string, start, end int64, step string, exemplars int) (*tempopb.QueryRangeResponse, error) {
 	if m.err != nil {
 		return nil, m.err
 	}
@@ -82,6 +84,16 @@ func (m *MockHTTPClient) MetricsQueryRange(query string, start, end int, step st
 	defer m.m.Unlock()
 	m.metricsCount++
 	return m.metricsResp, nil
+}
+
+func (m *MockHTTPClient) MetricsQueryInstant(query string, start, end int64, exemplars int) (*tempopb.QueryInstantResponse, error) {
+	if m.err != nil {
+		return nil, m.err
+	}
+	m.m.Lock()
+	defer m.m.Unlock()
+	m.metricsInstantCount++
+	return m.metricsInstantResp, nil
 }
 
 //nolint:all

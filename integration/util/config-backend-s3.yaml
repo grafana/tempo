@@ -7,3 +7,14 @@ storage:
       access_key: Cheescake
       secret_key: supersecret
       insecure: true
+
+overrides:
+  user_configurable_overrides:
+    client:
+      backend: s3
+      s3:
+        bucket: tempo
+        endpoint: minio-9000:9000
+        access_key: Cheescake
+        secret_key: supersecret
+        insecure: true

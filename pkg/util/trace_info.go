@@ -384,5 +384,5 @@ func randFrom[T any](r *rand.Rand, s []T) T {
 }
 
 func newRand(t time.Time) *rand.Rand {
-	return rand.New(rand.NewSource(t.Unix()))
+	return rand.New(rand.NewSource(t.UnixNano())) // jpe - does this impact vulture?
 }
