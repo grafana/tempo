@@ -85,6 +85,7 @@ func openWALBlock(filename, path string, ingestionSlack, _ time.Duration) (commo
 		ingestionSlack: ingestionSlack,
 		dedcolsRes:     dedicatedColumnsToColumnMapping(meta.DedicatedColumns, backend.DedicatedColumnScopeResource),
 		dedcolsSpan:    dedicatedColumnsToColumnMapping(meta.DedicatedColumns, backend.DedicatedColumnScopeSpan),
+		dedcolsEvent:   dedicatedColumnsToColumnMapping(meta.DedicatedColumns, backend.DedicatedColumnScopeEvent),
 	}
 
 	// read all files in dir
@@ -171,6 +172,7 @@ func createWALBlock(meta *backend.BlockMeta, filepath, dataEncoding string, inge
 		ingestionSlack: ingestionSlack,
 		dedcolsRes:     dedicatedColumnsToColumnMapping(meta.DedicatedColumns, backend.DedicatedColumnScopeResource),
 		dedcolsSpan:    dedicatedColumnsToColumnMapping(meta.DedicatedColumns, backend.DedicatedColumnScopeSpan),
+		dedcolsEvent:   dedicatedColumnsToColumnMapping(meta.DedicatedColumns, backend.DedicatedColumnScopeEvent),
 	}
 
 	// build folder
