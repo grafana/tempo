@@ -1639,7 +1639,7 @@ func tagNamesRunner(t *testing.T, _ *tempopb.Trace, _ *tempopb.TraceSearchMetada
 			if (bm.Version == vparquet4.VersionString || bm.Version == vparquet5.VersionString) && (tc.name == "resource match" || tc.name == "span match") {
 				// v4 has scope, events, and links
 				tc.expected["instrumentation"] = []string{"scope-attr-str"}
-				tc.expected["event"] = []string{"exception.message"}
+				tc.expected["event"] = []string{"event-dedicated.01", "exception.message"}
 				tc.expected["link"] = []string{"relation"}
 			}
 			if bm.Version == vparquet5.VersionString && tc.name == "no matches" {
@@ -1912,6 +1912,7 @@ func runCompleteBlockSearchTest(t *testing.T, blockVersion string, runners ...ru
 		{Scope: "resource", Name: "res-dedicated.02", Type: "string"},
 		{Scope: "span", Name: "span-dedicated.01", Type: "string"},
 		{Scope: "span", Name: "span-dedicated.02", Type: "string"},
+		{Scope: "event", Name: "event-dedicated.01", Type: "string"},
 	}
 	r, w, c, err := New(testingConfig(tempDir, blockVersion, dc), nil, log.NewNopLogger())
 	require.NoError(t, err)
@@ -2223,6 +2224,7 @@ func makeExpectedTrace(traceID []byte) (
 										Name:         "event name",
 										Attributes: []*v1_common.KeyValue{
 											stringKV("exception.message", "random error"),
+											stringKV("event-dedicated.01", "event-1a"),
 										},
 									},
 								},
@@ -2381,7 +2383,7 @@ func searchTestSuite() (
 		makeReq("http.url", "url/Hello/World"),
 		makeReq("status.code", "error"),
 
-		// Dedicated span and resource attributes
+		// Dedicated attributes
 		makeReq("res-dedicated.01", "res-1a"),
 		makeReq("res-dedicated.02", "res-2b"),
 		makeReq("span-dedicated.01", "span-1a"),

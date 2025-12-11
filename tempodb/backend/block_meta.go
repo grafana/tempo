@@ -42,8 +42,8 @@ const (
 )
 
 var maxSupportedColumns = map[DedicatedColumnType]map[DedicatedColumnScope]int{
-	DedicatedColumnTypeString: {DedicatedColumnScopeSpan: 10, DedicatedColumnScopeResource: 10},
-	DedicatedColumnTypeInt:    {DedicatedColumnScopeSpan: 5, DedicatedColumnScopeResource: 5},
+	DedicatedColumnTypeString: {DedicatedColumnScopeSpan: 10, DedicatedColumnScopeResource: 10, DedicatedColumnScopeEvent: 10},
+	DedicatedColumnTypeInt:    {DedicatedColumnScopeSpan: 5, DedicatedColumnScopeResource: 5, DedicatedColumnScopeEvent: 5},
 }
 
 func DedicatedColumnTypeFromTempopb(t tempopb.DedicatedColumn_Type) (DedicatedColumnType, error) {
