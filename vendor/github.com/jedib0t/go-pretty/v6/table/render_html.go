@@ -60,7 +60,7 @@ const (
 //	  </tfoot>
 //	</table>
 func (t *Table) RenderHTML() string {
-	t.initForRender()
+	t.initForRender(renderModeHTML)
 
 	var out strings.Builder
 	if t.numColumns > 0 {

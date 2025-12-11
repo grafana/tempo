@@ -15,6 +15,11 @@ Used heavily in the other packages in this repo ([list](../list),
     - Foreground colors (Black, Red, Green, Yellow, Blue, Magenta, Cyan, White)
     - Background colors (matching foreground set)
     - Hi-intensity variants for both foreground and background
+    - **256-color palette support** - Extended color support for terminals
+      - Standard 16 colors (0-15)
+      - RGB cube colors (16-231) - 216 colors organized in a 6x6x6 cube
+      - Grayscale colors (232-255) - 24 shades of gray
+      - Helper functions: `Fg256Color(index)`, `Bg256Color(index)`, `Fg256RGB(r, g, b)`, `Bg256RGB(r, g, b)`
     - Text attributes (Bold, Faint, Italic, Underline, Blink, Reverse, Concealed, CrossedOut)
     - Automatic color detection based on environment variables (`NO_COLOR`, `FORCE_COLOR`, `TERM`)
     - Global enable/disable functions for colors
@@ -76,6 +81,7 @@ Used heavily in the other packages in this repo ([list](../list),
     - `EscSeqParser` - Parser for advanced escape sequence parsing and tracking
       - Supports both CSI (Control Sequence Introducer) and OSI (Operating System Command) formats
       - Tracks active formatting codes and can generate consolidated escape sequences
+      - Full support for 256-color escape sequences (`\x1b[38;5;n`m` and `\x1b[48;5;n`m`)
 
 ### Cursor Control
 
