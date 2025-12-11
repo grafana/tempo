@@ -2,12 +2,10 @@ package tempodb
 
 import (
 	"errors"
-	"fmt"
 	"testing"
 
 	"github.com/grafana/tempo/tempodb/encoding/common"
 	v2 "github.com/grafana/tempo/tempodb/encoding/v2"
-	"github.com/grafana/tempo/tempodb/encoding/vparquet2"
 	"github.com/grafana/tempo/tempodb/encoding/vparquet3"
 	"github.com/grafana/tempo/tempodb/wal"
 	"github.com/stretchr/testify/assert"
@@ -142,7 +140,7 @@ func TestDeprecatedVersions(t *testing.T) {
 		{
 			cfg: &Config{
 				WAL: &wal.Config{
-					Version: vparquet2.VersionString,
+					Version: "vParquet5-preview1", // Turned into unsupported
 				},
 				Block: &common.BlockConfig{
 					IndexDownsampleBytes: 1,
@@ -152,53 +150,7 @@ func TestDeprecatedVersions(t *testing.T) {
 					Version:              "vParquet4",
 				},
 			},
-			err: "wal config validation failed: failed to validate block version vParquet2: vParquet2 is not a valid block version for creating blocks",
-		},
-		// block version is deprecaded and Wal is empty
-		{
-			cfg: &Config{
-				WAL: &wal.Config{},
-				Block: &common.BlockConfig{
-					IndexDownsampleBytes: 1,
-					IndexPageSizeBytes:   1,
-					BloomFP:              0.01,
-					BloomShardSizeBytes:  1,
-					Version:              vparquet2.VersionString,
-				},
-			},
-			err: "wal config validation failed: failed to validate block version vParquet2: vParquet2 is not a valid block version for creating blocks",
-		},
-		// block version is deprecated version of encoding
-		{
-			cfg: &Config{
-				WAL: &wal.Config{
-					Version: vparquet3.VersionString,
-				},
-				Block: &common.BlockConfig{
-					IndexDownsampleBytes: 1,
-					IndexPageSizeBytes:   1,
-					BloomFP:              0.01,
-					BloomShardSizeBytes:  1,
-					Version:              vparquet2.VersionString,
-				},
-			},
-			err: fmt.Errorf(common.DeprecatedError, "vParquet2", "vParquet3").Error(),
-		},
-		// block version does not have deprecated version value but WAL does
-		{
-			cfg: &Config{
-				WAL: &wal.Config{
-					Version: vparquet2.VersionString,
-				},
-				Block: &common.BlockConfig{
-					IndexDownsampleBytes: 1,
-					IndexPageSizeBytes:   1,
-					BloomFP:              0.01,
-					BloomShardSizeBytes:  1,
-					Version:              v2.VersionString,
-				},
-			},
-			err: "wal config validation failed: failed to validate block version vParquet2: vParquet2 is not a valid block version for creating blocks",
+			err: "wal config validation failed: failed to validate block version vParquet5-preview1: vParquet5-preview1 is not a valid block version for creating blocks",
 		},
 	}
 
