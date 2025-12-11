@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::path::PathBuf;
 use tonic::transport::Channel;
 
 use crate::config::WorkerConfig;
@@ -9,14 +10,16 @@ use crate::worker::processor_manager::ProcessorManager;
 /// Main querier worker that connects to frontends and manages request processing
 pub struct QuerierWorker {
     config: WorkerConfig,
+    data_path: PathBuf,
     managers: HashMap<String, ProcessorManager>,
 }
 
 impl QuerierWorker {
     /// Create a new QuerierWorker
-    pub fn new(config: WorkerConfig) -> Self {
+    pub fn new(config: WorkerConfig, data_path: PathBuf) -> Self {
         Self {
             config,
+            data_path,
             managers: HashMap::new(),
         }
     }
@@ -37,7 +40,10 @@ impl QuerierWorker {
         let channel = self.connect(&self.config.frontend_address).await?;
 
         // Create processor and manager
-        let processor = FrontendProcessor::new(self.config.querier_id.clone());
+        let processor = FrontendProcessor::new(
+            self.config.querier_id.clone(),
+            self.data_path.clone(),
+        );
 
         let mut manager = ProcessorManager::new(
             processor,
@@ -131,7 +137,8 @@ mod tests {
     #[test]
     fn test_worker_creation() {
         let config = WorkerConfig::default();
-        let worker = QuerierWorker::new(config);
+        let data_path = std::path::PathBuf::from("test.parquet");
+        let worker = QuerierWorker::new(config, data_path);
 
         assert_eq!(worker.manager_count(), 0);
     }
@@ -141,7 +148,8 @@ mod tests {
         let mut config = WorkerConfig::default();
         config.parallelism = 0;
 
-        let mut worker = QuerierWorker::new(config);
+        let data_path = std::path::PathBuf::from("test.parquet");
+        let mut worker = QuerierWorker::new(config, data_path);
 
         // Create a timeout task to prevent the test from hanging
         let run_task = tokio::spawn(async move { worker.run().await });

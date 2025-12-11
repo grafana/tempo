@@ -1,4 +1,6 @@
 use backoff::{backoff::Backoff, ExponentialBackoffBuilder};
+use std::path::PathBuf;
+use std::sync::Arc;
 use std::time::Duration;
 use tonic::transport::Channel;
 use tonic::Streaming;
@@ -8,17 +10,22 @@ use crate::frontend::{
     frontend_client::FrontendClient, ClientToFrontend, Feature, FrontendToClient, Type,
 };
 use crate::httpgrpc::{Header, HttpResponse};
+use crate::worker::query_executor::QueryExecutor;
 
 /// Processor that handles bidirectional streaming with the query-frontend
 #[derive(Clone)]
 pub struct FrontendProcessor {
     querier_id: String,
+    query_executor: Arc<QueryExecutor>,
 }
 
 impl FrontendProcessor {
     /// Create a new FrontendProcessor
-    pub fn new(querier_id: String) -> Self {
-        Self { querier_id }
+    pub fn new(querier_id: String, data_path: PathBuf) -> Self {
+        Self {
+            querier_id,
+            query_executor: Arc::new(QueryExecutor::new(data_path)),
+        }
     }
 
     /// Process queries on a single stream with automatic retry
@@ -200,7 +207,6 @@ impl FrontendProcessor {
     }
 
     /// Handle a single HTTP request
-    /// Returns "Not Implemented" as query execution is stubbed
     async fn handle_http_request(
         &self,
         request: crate::httpgrpc::HttpRequest,
@@ -212,13 +218,30 @@ impl FrontendProcessor {
             "Processing HTTP request"
         );
 
-        // Stub implementation - return "Not Implemented"
-        let response = create_not_implemented_response();
+        // Parse URL to determine endpoint
+        let full_url = if request.url.starts_with("http://") || request.url.starts_with("https://") {
+            request.url.clone()
+        } else {
+            format!("http://localhost{}", request.url)
+        };
+
+        let url = url::Url::parse(&full_url).map_err(|e| {
+            QuerierError::StreamProcessing(format!("Failed to parse URL: {}", e))
+        })?;
+
+        // Route to appropriate handler
+        let http_response = match url.path() {
+            "/api/search" => self.handle_search_request(&url).await,
+            _ => {
+                tracing::warn!(path = url.path(), "Unknown endpoint");
+                Ok(create_not_found_response())
+            }
+        }?;
 
         let client_response = ClientToFrontend {
             client_id: String::new(), // Only needed for GET_ID
             features: 0,
-            http_response: Some(response),
+            http_response: Some(http_response),
             http_response_batch: vec![],
         };
 
@@ -229,8 +252,63 @@ impl FrontendProcessor {
         Ok(())
     }
 
+    /// Handle /api/search endpoint
+    async fn handle_search_request(&self, url: &url::Url) -> Result<HttpResponse> {
+        use crate::worker::query_executor::SearchParams;
+
+        // Parse query parameters
+        let params = SearchParams::from_url(url);
+
+        // Execute query
+        let search_response = self.query_executor.search(&params).await?;
+
+        // Convert to JSON manually
+        let traces_json: Vec<_> = search_response
+            .traces
+            .iter()
+            .map(|t| {
+                serde_json::json!({
+                    "traceID": t.trace_id,
+                    "rootServiceName": t.root_service_name,
+                    "rootTraceName": t.root_trace_name,
+                    "startTimeUnixNano": t.start_time_unix_nano.to_string(),
+                    "durationMs": t.duration_ms,
+                })
+            })
+            .collect();
+
+        let metrics_json = if let Some(ref metrics) = search_response.metrics {
+            serde_json::json!({
+                "inspectedTraces": metrics.inspected_traces,
+                "inspectedBytes": metrics.inspected_bytes,
+                "totalBlocks": metrics.total_blocks,
+                "completedJobs": metrics.completed_jobs,
+                "totalJobs": metrics.total_jobs,
+            })
+        } else {
+            serde_json::json!({})
+        };
+
+        let response_json = serde_json::json!({
+            "traces": traces_json,
+            "metrics": metrics_json,
+        });
+
+        let body = serde_json::to_vec(&response_json).map_err(|e| {
+            QuerierError::StreamProcessing(format!("Failed to serialize response: {}", e))
+        })?;
+
+        Ok(HttpResponse {
+            code: 200,
+            headers: vec![Header {
+                key: "content-type".to_string(),
+                values: vec!["application/json".to_string()],
+            }],
+            body,
+        })
+    }
+
     /// Handle a batch of HTTP requests
-    /// Returns "Not Implemented" for all as query execution is stubbed
     async fn handle_http_request_batch(
         &self,
         requests: Vec<crate::httpgrpc::HttpRequest>,
@@ -238,11 +316,50 @@ impl FrontendProcessor {
     ) -> Result<()> {
         tracing::info!(count = requests.len(), "Processing HTTP request batch");
 
-        // Stub implementation - return "Not Implemented" for all
-        let responses: Vec<_> = requests
-            .iter()
-            .map(|_| create_not_implemented_response())
-            .collect();
+        // Process all requests in parallel
+        let mut handles = Vec::new();
+        for request in requests {
+            let processor = self.clone();
+            let handle = tokio::spawn(async move {
+                // Parse URL
+                let full_url = if request.url.starts_with("http://") || request.url.starts_with("https://") {
+                    request.url.clone()
+                } else {
+                    format!("http://localhost{}", request.url)
+                };
+
+                let url = match url::Url::parse(&full_url) {
+                    Ok(u) => u,
+                    Err(e) => {
+                        tracing::error!(error = %e, "Failed to parse URL");
+                        return create_error_response(400, "Invalid URL");
+                    }
+                };
+
+                // Route to appropriate handler
+                match url.path() {
+                    "/api/search" => processor.handle_search_request(&url).await,
+                    _ => Ok(create_not_found_response()),
+                }
+                .unwrap_or_else(|e| {
+                    tracing::error!(error = %e, "Request processing failed");
+                    create_error_response(500, &format!("Internal error: {}", e))
+                })
+            });
+            handles.push(handle);
+        }
+
+        // Wait for all requests to complete
+        let mut responses = Vec::new();
+        for handle in handles {
+            match handle.await {
+                Ok(response) => responses.push(response),
+                Err(e) => {
+                    tracing::error!(error = %e, "Task join error");
+                    responses.push(create_error_response(500, "Internal error"));
+                }
+            }
+        }
 
         let client_response = ClientToFrontend {
             client_id: String::new(),
@@ -275,13 +392,46 @@ fn create_not_implemented_response() -> HttpResponse {
     }
 }
 
+/// Create a "Not Found" HTTP response
+fn create_not_found_response() -> HttpResponse {
+    let error_body = serde_json::json!({
+        "error": "Endpoint not found"
+    });
+
+    HttpResponse {
+        code: 404,
+        headers: vec![Header {
+            key: "content-type".to_string(),
+            values: vec!["application/json".to_string()],
+        }],
+        body: serde_json::to_vec(&error_body).unwrap_or_default(),
+    }
+}
+
+/// Create a generic error HTTP response
+fn create_error_response(code: i32, message: &str) -> HttpResponse {
+    let error_body = serde_json::json!({
+        "error": message
+    });
+
+    HttpResponse {
+        code,
+        headers: vec![Header {
+            key: "content-type".to_string(),
+            values: vec!["application/json".to_string()],
+        }],
+        body: serde_json::to_vec(&error_body).unwrap_or_default(),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
     fn test_processor_creation() {
-        let processor = FrontendProcessor::new("test-querier".to_string());
+        let data_path = PathBuf::from("test.parquet");
+        let processor = FrontendProcessor::new("test-querier".to_string(), data_path);
         assert_eq!(processor.querier_id, "test-querier");
     }
 
@@ -290,5 +440,25 @@ mod tests {
         let response = create_not_implemented_response();
         assert_eq!(response.code, 501);
         assert!(!response.body.is_empty());
+    }
+
+    #[test]
+    fn test_not_found_response() {
+        let response = create_not_found_response();
+        assert_eq!(response.code, 404);
+        assert!(!response.body.is_empty());
+
+        // Parse body as JSON
+        let body: serde_json::Value = serde_json::from_slice(&response.body).unwrap();
+        assert_eq!(body["error"], "Endpoint not found");
+    }
+
+    #[test]
+    fn test_error_response() {
+        let response = create_error_response(500, "Test error message");
+        assert_eq!(response.code, 500);
+
+        let body: serde_json::Value = serde_json::from_slice(&response.body).unwrap();
+        assert_eq!(body["error"], "Test error message");
     }
 }

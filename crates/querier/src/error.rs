@@ -27,6 +27,10 @@ pub enum QuerierError {
     #[error("Stream processing error: {0}")]
     StreamProcessing(String),
 
+    /// Query execution error
+    #[error("Query execution error: {0}")]
+    QueryExecution(String),
+
     /// Task management error
     #[error("Task management error: {0}")]
     TaskManagement(String),

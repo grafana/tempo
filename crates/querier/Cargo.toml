@@ -43,5 +43,11 @@ hostname= { workspace = true }
 # Metrics
 prometheus= { workspace = true }
 
+# Query execution
+vparquet4 = { path = "../vparquet4" }
+provider = { path = "../provider" }
+datafusion = { workspace = true }
+url = "2"
+
 [build-dependencies]
 tonic-build= { workspace = true }

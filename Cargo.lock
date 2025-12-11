@@ -4466,6 +4466,7 @@ dependencies = [
  "axum",
  "backoff",
  "bytes",
+ "datafusion",
  "futures",
  "hostname",
  "http",
@@ -4474,6 +4475,7 @@ dependencies = [
  "prometheus",
  "prost",
  "prost-types",
+ "provider",
  "serde",
  "serde_json",
  "thiserror 2.0.17",
@@ -4485,6 +4487,8 @@ dependencies = [
  "tower-http 0.5.2",
  "tracing",
  "tracing-subscriber",
+ "url",
+ "vparquet4",
 ]
 
 [[package]]

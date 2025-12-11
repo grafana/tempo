@@ -1,4 +1,5 @@
 // Import from lib
+use std::path::PathBuf;
 use tempo_querier::{http, QuerierWorker, WorkerConfig};
 
 #[tokio::main]
@@ -15,15 +16,21 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Load configuration from environment
     let config = WorkerConfig::from_env()?;
 
+    // Load data path from environment or use default
+    let data_path = std::env::var("DATA_PATH")
+        .map(PathBuf::from)
+        .unwrap_or_else(|_| PathBuf::from("./data.parquet"));
+
     tracing::info!(
         frontend_address = %config.frontend_address,
         querier_id = %config.querier_id,
         parallelism = config.parallelism,
+        data_path = %data_path.display(),
         "Worker configuration loaded"
     );
 
     // Create worker
-    let mut worker = QuerierWorker::new(config);
+    let mut worker = QuerierWorker::new(config, data_path);
 
     // Create HTTP server for metrics endpoint
     let http_addr: std::net::SocketAddr = "0.0.0.0:3100".parse()?;

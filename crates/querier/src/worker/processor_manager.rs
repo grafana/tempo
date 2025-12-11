@@ -185,7 +185,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_processor_manager_creation() {
-        let processor = FrontendProcessor::new("test-querier".to_string());
+        let data_path = std::path::PathBuf::from("test.parquet");
+        let processor = FrontendProcessor::new("test-querier".to_string(), data_path);
 
         // Create a mock channel (this won't actually connect)
         let endpoint = tonic::transport::Endpoint::from_static("http://localhost:9095");
@@ -203,7 +204,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_set_concurrency() {
-        let processor = FrontendProcessor::new("test-querier".to_string());
+        let data_path = std::path::PathBuf::from("test.parquet");
+        let processor = FrontendProcessor::new("test-querier".to_string(), data_path);
 
         let endpoint = tonic::transport::Endpoint::from_static("http://localhost:9095");
         let channel = endpoint.connect_lazy();
