@@ -64,7 +64,7 @@ func (s *LiveStore) PreparePartitionDownscaleHandler(w http.ResponseWriter, r *h
 			return
 		}
 		if state == ring.PartitionInactive {
-			level.Info(logger).Log("msg", "partition is already set to INACTIVE state")
+			level.Debug(logger).Log("msg", "partition is already set to INACTIVE state")
 			break
 		}
 
@@ -100,7 +100,7 @@ func (s *LiveStore) PreparePartitionDownscaleHandler(w http.ResponseWriter, r *h
 
 			level.Info(logger).Log("msg", "partition downscaling preparation cancelled")
 		} else {
-			level.Info(logger).Log("msg", "partition is not in INACTIVE state, so no need to cancel downscaling", "state", state.String())
+			level.Debug(logger).Log("msg", "partition is not in INACTIVE state, so no need to cancel downscaling", "state", state.String())
 		}
 	case http.MethodGet:
 	default:
