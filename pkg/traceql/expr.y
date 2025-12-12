@@ -3,6 +3,7 @@ package traceql
 
 import (
   "time"
+  "math"
 )
 %}
 
@@ -404,6 +405,17 @@ static:
   | KIND_CLIENT      { $$ = NewStaticKind(KindClient)     }
   | KIND_PRODUCER    { $$ = NewStaticKind(KindProducer)   }
   | KIND_CONSUMER    { $$ = NewStaticKind(KindConsumer)   }
+  | IDENTIFIER
+      {
+          if $1 == "minInt" {
+            $$ = NewStaticInt(math.MinInt)
+          } else if $1 == "maxInt" {
+            $$ = NewStaticInt(math.MaxInt)
+          } else {
+            yylex.(*lexer).Error("unknown identifier: " + $1)
+            $$ = NewStaticNil()
+          }
+      }
   ;
 
 // ** DO NOT ADD MORE FEATURES **
