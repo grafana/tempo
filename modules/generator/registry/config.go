@@ -27,6 +27,9 @@ type Config struct {
 	// MaxLabelValueLength configures the maximum length of label values. Label values exceeding
 	// this limit will be truncated.
 	MaxLabelValueLength int `yaml:"max_label_value_length"`
+
+	// Drain configures the experimental drain limiter.
+	Drain DrainConfig `yaml:"drain"`
 }
 
 // RegisterFlagsAndApplyDefaults registers the flags.
@@ -35,4 +38,17 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(string, *flag.FlagSet) {
 	cfg.StaleDuration = 15 * time.Minute
 	cfg.MaxLabelNameLength = 1024
 	cfg.MaxLabelValueLength = 2048
+	cfg.Drain.Mode = DrainModeDisabled
 }
+
+type DrainConfig struct {
+	Mode DrainMode `yaml:"mode"`
+}
+
+type DrainMode string
+
+const (
+	DrainModeDisabled DrainMode = "disabled"
+	DrainModeDryRun   DrainMode = "dry_run"
+	DrainModeEnabled  DrainMode = "enabled"
+)

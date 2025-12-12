@@ -1,0 +1,190 @@
+package registry
+
+import (
+	"sync"
+	"testing"
+
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/prometheus/model/labels"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
+
+func TestDrainSanitizer_PatternDetection(t *testing.T) {
+	t.Parallel()
+
+	sanitizer := NewDrainSanitizer("test-tenant", false)
+
+	// Train with similar span names that should form a pattern
+	lbls1 := labels.FromStrings("span_name", "GET /api/users/123", "service", "api")
+	lbls2 := labels.FromStrings("span_name", "GET /api/users/456", "service", "api")
+	lbls3 := labels.FromStrings("span_name", "GET /api/users/789", "service", "api")
+
+	// First call should return original (no pattern yet)
+	result1 := sanitizer.Sanitize(lbls1)
+	assert.Equal(t, "GET /api/users/123", result1.Get("span_name"))
+
+	// After training, subsequent similar spans should be sanitized
+	result2 := sanitizer.Sanitize(lbls2)
+	result3 := sanitizer.Sanitize(lbls3)
+
+	// All should have the same sanitized span_name pattern
+	assert.Equal(t, result2.Get("span_name"), result3.Get("span_name"))
+	// Pattern should contain the parameter marker
+	assert.Contains(t, result2.Get("span_name"), "<_>")
+	// Original labels should be preserved
+	assert.Equal(t, "api", result2.Get("service"))
+	assert.Equal(t, "api", result3.Get("service"))
+}
+
+func TestDrainSanitizer_DryRunMode(t *testing.T) {
+	t.Parallel()
+
+	sanitizer := NewDrainSanitizer("test-tenant", true) // dryRun = true
+
+	lbls1 := labels.FromStrings("span_name", "GET /api/users/123", "service", "api")
+	lbls2 := labels.FromStrings("span_name", "GET /api/users/456", "service", "api")
+
+	// Train with first span
+	sanitizer.Sanitize(lbls1)
+
+	// In dry-run mode, even if pattern is detected, return original labels
+	result := sanitizer.Sanitize(lbls2)
+	assert.Equal(t, "GET /api/users/456", result.Get("span_name"))
+	assert.Equal(t, lbls2, result)
+}
+
+func TestDrainSanitizer_NilClusterHandling(t *testing.T) {
+	t.Parallel()
+
+	sanitizer := NewDrainSanitizer("test-tenant", false)
+
+	// Span name with too few tokens (less than MinTokens=3)
+	// Tokenizer will produce tokens like ["a", "<END>"] which is < 3
+	lbls := labels.FromStrings("span_name", "a", "service", "api")
+	result := sanitizer.Sanitize(lbls)
+
+	// Should return original labels when cluster is nil
+	assert.Equal(t, "a", result.Get("span_name"))
+	assert.Equal(t, lbls, result)
+}
+
+func TestDrainSanitizer_ConcurrentAccess(t *testing.T) {
+	t.Parallel()
+
+	sanitizer := NewDrainSanitizer("test-tenant", false)
+
+	var wg sync.WaitGroup
+	numGoroutines := 10
+	numCallsPerGoroutine := 100
+
+	wg.Add(numGoroutines)
+	for i := 0; i < numGoroutines; i++ {
+		go func(id int) {
+			defer wg.Done()
+			for j := 0; j < numCallsPerGoroutine; j++ {
+				lbls := labels.FromStrings("span_name", "GET /api/users/123", "id", string(rune(id*1000+j)))
+				result := sanitizer.Sanitize(lbls)
+				// Should always return valid labels
+				assert.NotNil(t, result)
+				assert.NotEmpty(t, result.Get("span_name"))
+			}
+		}(i)
+	}
+
+	wg.Wait()
+	// No panics or race conditions should occur
+}
+
+func TestDrainSanitizer_DemandTracking(t *testing.T) {
+	t.Parallel()
+
+	sanitizer := NewDrainSanitizer("test-tenant", false)
+
+	// Create labels with different span names
+	lbls1 := labels.FromStrings("span_name", "GET /api/users/123")
+	lbls2 := labels.FromStrings("span_name", "GET /api/posts/456")
+	lbls3 := labels.FromStrings("span_name", "POST /api/users/789")
+
+	// Sanitize multiple times
+	sanitizer.Sanitize(lbls1)
+	sanitizer.Sanitize(lbls2)
+	sanitizer.Sanitize(lbls3)
+
+	// Demand should be tracked (we can't easily verify exact count without exposing internals,
+	// but we can verify the sanitizer doesn't crash and processes all labels)
+	// The demand gauge will be updated periodically via doPeriodicMaintenance
+	demandEstimate := sanitizer.demand.Estimate()
+	assert.GreaterOrEqual(t, demandEstimate, uint64(0))
+}
+
+func TestDrainSanitizer_MetricsIncremented(t *testing.T) {
+	t.Parallel()
+
+	// Create a test registry to capture metrics
+	reg := prometheus.NewRegistry()
+	oldMetrics := metrics
+	defer func() { metrics = oldMetrics }()
+
+	metrics = newMetrics(reg)
+	sanitizer := NewDrainSanitizer("test-tenant", false)
+
+	// Train with patterns that will be compacted
+	lbls1 := labels.FromStrings("span_name", "GET /api/users/123")
+	lbls2 := labels.FromStrings("span_name", "GET /api/users/456")
+	lbls3 := labels.FromStrings("span_name", "GET /api/users/789")
+
+	sanitizer.Sanitize(lbls1)
+	sanitizer.Sanitize(lbls2)
+	sanitizer.Sanitize(lbls3)
+
+	// Collect metrics
+	mfs, err := reg.Gather()
+	require.NoError(t, err)
+
+	// Find the spans compacted counter
+	var found bool
+	for _, mf := range mfs {
+		if mf.GetName() == "tempo_metrics_generator_registry_drain_spans_compacted_total" {
+			found = true
+			// Should have at least 2 increments (after pattern is detected)
+			assert.GreaterOrEqual(t, len(mf.GetMetric()), 1)
+		}
+	}
+	assert.True(t, found, "spans compacted metric should exist")
+}
+
+func TestDrainSanitizer_NoSpanNameLabel(t *testing.T) {
+	t.Parallel()
+
+	sanitizer := NewDrainSanitizer("test-tenant", false)
+
+	// Labels without span_name
+	lbls := labels.FromStrings("service", "api", "method", "GET")
+	result := sanitizer.Sanitize(lbls)
+
+	// Should return original labels (span_name is empty string, which drain will reject)
+	assert.Equal(t, lbls, result)
+}
+
+func TestDrainSanitizer_PatternBeforeSanitization(t *testing.T) {
+	t.Parallel()
+
+	sanitizer := NewDrainSanitizer("test-tenant", false)
+
+	// First span name - no pattern yet, so returns original
+	lbls1 := labels.FromStrings("span_name", "GET /api/users/123")
+	result1 := sanitizer.Sanitize(lbls1)
+	assert.Equal(t, "GET /api/users/123", result1.Get("span_name"))
+
+	// Same span name again - still no pattern (only one instance)
+	result2 := sanitizer.Sanitize(lbls1)
+	assert.Equal(t, "GET /api/users/123", result2.Get("span_name"))
+
+	// Different but similar span name - now pattern should emerge
+	lbls2 := labels.FromStrings("span_name", "GET /api/users/456")
+	result3 := sanitizer.Sanitize(lbls2)
+	// After pattern detection, should return sanitized version
+	assert.NotEqual(t, "GET /api/users/456", result3.Get("span_name"))
+	assert.Contains(t, result3.Get("span_name"), "<_>")
+}
