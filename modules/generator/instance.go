@@ -16,6 +16,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 
+	"github.com/grafana/tempo/modules/generator/draincompactionlimiter"
 	"github.com/grafana/tempo/modules/generator/localentitylimiter"
 	"github.com/grafana/tempo/modules/generator/localserieslimiter"
 	"github.com/grafana/tempo/modules/generator/processor"
@@ -112,6 +113,10 @@ func newInstance(cfg *Config, instanceID string, overrides metricsGeneratorOverr
 		limiter = localentitylimiter.New(overrides.MetricsGeneratorMaxActiveEntities, instanceID, limitLogger)
 	default:
 		return nil, fmt.Errorf("invalid limiter type: %s", cfg.LimiterType)
+	}
+
+	if cfg.Drain.Mode != DrainModeDisabled {
+		limiter = draincompactionlimiter.New(limiter, instanceID, cfg.Drain.Mode == DrainModeDryRun)
 	}
 
 	i := &instance{

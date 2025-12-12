@@ -18,9 +18,10 @@ import (
 )
 
 type mockLimiter struct {
-	onAddFunc    func(labelHash uint64, seriesCount uint32, lbls labels.Labels) (labels.Labels, uint64)
-	onUpdateFunc func(labelHash uint64, seriesCount uint32)
-	onDeleteFunc func(labelHash uint64, seriesCount uint32)
+	onAddFunc              func(labelHash uint64, seriesCount uint32, lbls labels.Labels) (labels.Labels, uint64)
+	onUpdateFunc           func(labelHash uint64, seriesCount uint32)
+	onDeleteFunc           func(labelHash uint64, seriesCount uint32)
+	onPruneStaleSeriesFunc func()
 }
 
 var noopLimiter Limiter = &mockLimiter{}
@@ -46,6 +47,13 @@ func (m *mockLimiter) OnDelete(labelHash uint64, seriesCount uint32) {
 		return
 	}
 	m.onDeleteFunc(labelHash, seriesCount)
+}
+
+func (m *mockLimiter) OnPruneStaleSeries() {
+	if m.onPruneStaleSeriesFunc == nil {
+		return
+	}
+	m.onPruneStaleSeriesFunc()
 }
 
 func buildTestLabels(names []string, values []string) labels.Labels {

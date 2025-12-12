@@ -95,6 +95,9 @@ type Limiter interface {
 	// OnDelete is called when an entity is deleted.
 	// LabelHash is a hash of all non-constant labels.
 	OnDelete(labelHash uint64, seriesCount uint32)
+	// OnPruneStaleSeries is called when stale series are pruned.
+	// It is provided as a mechanism for the limiter to perform any periodic maintenance.
+	OnPruneStaleSeries()
 }
 
 // New creates a ManagedRegistry. This Registry will scrape itself, write samples into an appender
@@ -156,6 +159,11 @@ func (r *ManagedRegistry) OnUpdate(labelHash uint64, seriesCount uint32) {
 
 func (r *ManagedRegistry) OnDelete(labelHash uint64, seriesCount uint32) {
 	r.limiter.OnDelete(labelHash, seriesCount)
+}
+
+func (r *ManagedRegistry) OnPruneStaleSeries() {
+	r.entityDemand.Advance()
+	r.limiter.OnPruneStaleSeries()
 }
 
 func (r *ManagedRegistry) NewCounter(name string) Counter {
@@ -264,7 +272,7 @@ func (r *ManagedRegistry) removeStaleSeries(context.Context) {
 		m.removeStaleSeries(timeMs)
 		remainingSeries += m.countActiveSeries()
 	}
-	r.entityDemand.Advance()
+	r.OnPruneStaleSeries()
 
 	level.Info(r.logger).Log("msg", "deleted stale series", "active_series", remainingSeries)
 }

@@ -24,6 +24,7 @@
 * [FEATURE] Add support for `Accept: application/vnd.grafana.llm` to Tempo endpoints. Currently supported directly by trace by id and tag values [#5961](https://github.com/grafana/tempo/pull/5961) (@joe-elliott)
   This response is subject to change and should not be relied on. It is intended for LLM consumption only. Even a fundamental change to its representation (yaml? markdown?) would not be considered breaking.
 * [FEATURE] Metrics generator will now produce overflow series to capture new data once limits are hit. These series have the label `metric_overflow="true"`. [#5954](https://github.com/grafana/tempo/pull/5954) (@Logiraptor)
+* [FEATURE] Add experimental drain limiter to the metrics generator. This can reduce metrics cardinality by clustering similar span names. [](https://github.com/grafana/tempo/pull/...) (@Logiraptor)
 * [ENHANCEMENT] docs: Add explicit notes about authentication [#5735](https://github.com/grafana/tempo/pull/5735) (@electron0zero)
 * [ENHANCEMENT] On startup, first record for live store to consume is not older than two complete block timeouts [#5693](https://github.com/grafana/tempo/pull/5693) (@ruslan-mikhailov)
 * [ENHANCEMENT] Add secure connection support to tempo-cli [#5692](https://github.com/grafana/tempo/pull/5692) (@TheoBrigitte)

@@ -149,3 +149,7 @@ func (l *LocalEntityLimiter) OnDelete(labelHash uint64, seriesCount uint32) {
 	l.metricActiveEntities.Set(float64(len(l.entityActiveSeries)))
 	l.metricTotalEntitiesRemoved.Add(1)
 }
+
+func (l *LocalEntityLimiter) OnPruneStaleSeries() {
+	// No-op, we rely on OnDelete to clean up the series
+}

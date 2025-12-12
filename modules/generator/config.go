@@ -72,6 +72,9 @@ type Config struct {
 	// Defaults to "series". Available options are "series" and "entity".
 	LimiterType LimiterType `yaml:"limiter_type"`
 
+	// Drain configures the experimental drain limiter.
+	Drain DrainConfig `yaml:"drain"`
+
 	// This config is dynamically injected because defined outside the generator config.
 	Ingest            ingest.Config `yaml:"-"`
 	IngestConcurrency uint          `yaml:"ingest_concurrency"`
@@ -97,6 +100,7 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 	cfg.OverrideRingKey = generatorRingKey
 	cfg.Codec = codecPushBytes
 	cfg.LimiterType = LimiterTypeSeries
+	cfg.Drain.Mode = DrainModeDisabled
 
 	hostname, err := os.Hostname()
 	if err != nil {
@@ -274,3 +278,15 @@ func (cfg *ProcessorConfig) copyWithOverrides(o metricsGeneratorOverrides, userI
 
 	return copyCfg, nil
 }
+
+type DrainConfig struct {
+	Mode DrainMode `yaml:"mode"`
+}
+
+type DrainMode string
+
+const (
+	DrainModeDisabled DrainMode = "disabled"
+	DrainModeDryRun   DrainMode = "dry_run"
+	DrainModeEnabled  DrainMode = "enabled"
+)

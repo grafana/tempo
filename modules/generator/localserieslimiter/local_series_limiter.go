@@ -117,3 +117,7 @@ func (l *LocalSeriesLimiter) OnDelete(_ uint64, seriesCount uint32) {
 	l.metricActiveSeries.Set(float64(l.activeSeries.Load()))
 	l.metricTotalSeriesRemoved.Add(float64(seriesCount))
 }
+
+func (l *LocalSeriesLimiter) OnPruneStaleSeries() {
+	// No-op, we rely on OnDelete to clean up the series
+}
