@@ -18,6 +18,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
+	"go.uber.org/atomic"
 	"gopkg.in/yaml.v3"
 
 	"github.com/grafana/dskit/flagext"
@@ -58,8 +59,7 @@ type Manager struct {
 	listenersMtx sync.Mutex
 	listeners    []chan interface{}
 
-	configMtx sync.RWMutex
-	config    interface{}
+	configPtr atomic.Pointer[interface{}]
 
 	configLoadSuccess prometheus.Gauge
 	configHash        *prometheus.GaugeVec
@@ -268,9 +268,22 @@ func mergeConfigMaps(a, b map[string]interface{}, path string) (_ map[string]int
 		out[k] = v
 	}
 	for k, v := range b {
-		_, aHasKey := a[k]
+		aVal, aHasKey := a[k]
+		bVal, bHasKey := b[k]
+
 		_, aIsMap := a[k].(map[string]interface{})
 		_, bIsMap := b[k].(map[string]interface{})
+
+		if aHasKey && aVal == nil && bIsMap {
+			aIsMap = true
+			out[k] = make(map[string]interface{})
+		}
+
+		if bHasKey && bVal == nil && aIsMap {
+			bIsMap = true
+			v = make(map[string]interface{})
+		}
+
 		if aHasKey && aIsMap != bIsMap {
 			return nil, errors.Errorf("conflicting types for %q: %T != %T", path+"."+k, a[k], b[k])
 		}
@@ -292,9 +305,7 @@ func mergeConfigMaps(a, b map[string]interface{}, path string) (_ map[string]int
 }
 
 func (om *Manager) setConfig(config interface{}) {
-	om.configMtx.Lock()
-	defer om.configMtx.Unlock()
-	om.config = config
+	om.configPtr.Store(&config)
 }
 
 func (om *Manager) callListeners(newValue interface{}) {
@@ -325,8 +336,8 @@ func (om *Manager) stopping(_ error) error {
 
 // GetConfig returns last loaded config value, possibly nil.
 func (om *Manager) GetConfig() interface{} {
-	om.configMtx.RLock()
-	defer om.configMtx.RUnlock()
-
-	return om.config
+	if p := om.configPtr.Load(); p != nil {
+		return *p
+	}
+	return nil
 }
