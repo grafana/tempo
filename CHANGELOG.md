@@ -1,5 +1,9 @@
 ## main / unreleased
 
+* [CHANGE] Add stricter validation to user-configurable overrides API, such as refusing duplicate labels [#6008](https://github.com/grafana/tempo/pull/6008) (@carles-grafana)
+* [CHANGE] Expose metrics_generator.dimension_mappings to user-configurable overrides API [#5989](https://github.com/grafana/tempo/pull/5989) (@carles-grafana)
+* [CHANGE] Expose metrics_generator.intrinsic_dimensions to user-configurable overrides API [#5974](https://github.com/grafana/tempo/pull/5974) (@carles-grafana)
+* [CHANGE] TraceQL: Move minInt/maxInt handling into the parser and remove redundant lexer logic. (#5982)
 * [CHANGE] Expose metrics_generator.trace_id_label_name to user-configurable overrides API [#5972](https://github.com/grafana/tempo/pull/5972) (@carles-grafana)
 * [CHANGE] Expose metrics_generator.ingestion_time_range_slack to user-configurable overrides API [#5958](https://github.com/grafana/tempo/pull/5958) (@carles-grafana)
 * [CHANGE] Expose metrics_generator.native_histogram_bucket_factor and native_histogram_min_reset_duration to user-configurable overrides API [#5973](https://github.com/grafana/tempo/pull/5973) (@carles-grafana)
@@ -10,6 +14,7 @@
 * [CHANGE] Added a single binary 3.0 mode `--target=all-3.0` to begin testing single binary 3.0 and updating integration tests. [#6021](https://github.com/grafana/tempo/pull/6021) (@joe-elliott)
   This will be removed in 3.0 and become the standard single binary mode.
 * [CHANGE] Upgrade Tempo to go 1.25.4 [#5939](https://github.com/grafana/tempo/pull/5939) [#6001](https://github.com/grafana/tempo/pull/6001) (@ruslan-mikhailov)
+* [CHANGE] Kafka KIP-714 telemetry is enabled by default. Added `disable_kafka_telemetry` config flag to opt-out [#6046](https://github.com/grafana/tempo/pull/6046) (@oleg-kozlyuk-grafana)
 * [FEATURE] Add `tempo_metrics_generator_registry_active_series_demand_estimate` that estimates metrics-generator active series demand even when the active series limit is reached [#5710](https://github.com/grafana/tempo/pull/5710) (@carles-grafana)
 * [FEATURE] Added validation mode and tests for tempo-vulture [#5605](https://github.com/grafana/tempo/pull/5605) (@davidham)
 * [FEATURE] New block encoding vParquet5-preview3 replacing well-known attributes with dedicated column defaults. This format is in development and breaking changes are expected before final release. [#5696](https://github.com/grafana/tempo/pull/5696) (@stoewer)
@@ -20,6 +25,7 @@
 * [FEATURE] Add SSE-C encryption support to S3 backend [#5789](https://github.com/grafana/tempo/pull/5789) (@steffsas)
 * [FEATURE] Add support for `Accept: application/vnd.grafana.llm` to Tempo endpoints. Currently supported directly by trace by id and tag values [#5961](https://github.com/grafana/tempo/pull/5961) (@joe-elliott)
   This response is subject to change and should not be relied on. It is intended for LLM consumption only. Even a fundamental change to its representation (yaml? markdown?) would not be considered breaking.
+* [FEATURE] Metrics generator will now produce overflow series to capture new data once limits are hit. These series have the label `metric_overflow="true"`. [#5954](https://github.com/grafana/tempo/pull/5954) (@Logiraptor)
 * [ENHANCEMENT] docs: Add explicit notes about authentication [#5735](https://github.com/grafana/tempo/pull/5735) (@electron0zero)
 * [ENHANCEMENT] On startup, first record for live store to consume is not older than two complete block timeouts [#5693](https://github.com/grafana/tempo/pull/5693) (@ruslan-mikhailov)
 * [ENHANCEMENT] Add secure connection support to tempo-cli [#5692](https://github.com/grafana/tempo/pull/5692) (@TheoBrigitte)
@@ -46,6 +52,7 @@
 * [ENHANCEMENT] Validate metrics-generator histogram buckets [#5991](https://github.com/grafana/tempo/pull/5991) (@carles-grafana)
 * [ENHANCEMENT] Removed MustNewConstMetric to prevent panic and added validation for usage tracker config. Added `tempo_distributor_usage_tracker_errors_total` to surface errors in usage tracker. [#5981](https://github.com/grafana/tempo/pull/5981) (@electron0zero)
 * [BUGFIX] Prevent slice panic when truncating series after topk() by adding bounds check in metrics query-range combiner [#6010](https://github.com/grafana/tempo/pull/6010) (@Syedowais312)
+* [BUGFIX] Fix block-builder to more precisely validate block encoding on startup [#6037](https://github.com/grafana/tempo/pull/6037) (@mdisibio)
 * [BUGFIX] Fix compactor to properly consider SSE-KMS information during metadata copy [#5774](https://github.com/grafana/tempo/pull/5774) (@steffsas)
 * [BUGFIX] Fix `spss=0` parameter to properly mean unlimited spans instead of being rejected, and respect `max_spans_per_span_set=0` configuration [#5858](https://github.com/grafana/tempo/pull/5858) (@iamrajiv)
 * [BUGFIX] Fix incorrect results in TraceQL compare() caused by potential hash collision of string array attributes [#5835](https://github.com/grafana/tempo/pull/5835) (@mdisibio)
