@@ -19,6 +19,6 @@ labels:
 <!-- Using a custom admonition because no feature flag is required. -->
 
 {{< admonition type="caution" >}}
-TraceQL metrics is an [experimental feature](/docs/release-life-cycle/). Engineering and on-call support is not available. Documentation is either limited or not provided outside of code comments. No SLA is provided.
+TraceQL metrics is an [public preview feature](/docs/release-life-cycle/). Grafana Labs offers limited support, and breaking changes might occur prior to the feature being made generally available
 TraceQL metrics are enabled by default in Grafana Cloud.
 {{< /admonition >}}
