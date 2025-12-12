@@ -101,20 +101,59 @@ jobs:
           include-hidden-files: true
           if-no-files-found: error
 
+  integration-tests-validation:
+    name: Validate integration test coverage
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out code
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6
+        with:
+          persist-credentials: false
+      - name: Validate all integration folders are covered by CI
+        run: |
+          # Define expected folders that have corresponding test-e2e-* targets
+          EXPECTED_FOLDERS=("api" "limits" "metrics-generator" "operations" "storage" "util")
+
+          # Get actual folders in integration/ (excluding hidden files)
+          ACTUAL_FOLDERS=($(ls -d integration/*/ 2>/dev/null | xargs -n1 basename | sort))
+
+          # Convert arrays to strings for comparison
+          EXPECTED_SORTED=$(printf '%s\n' "${EXPECTED_FOLDERS[@]}" | sort | tr '\n' ' ')
+          ACTUAL_SORTED=$(printf '%s\n' "${ACTUAL_FOLDERS[@]}" | sort | tr '\n' ' ')
+
+          if [ "$EXPECTED_SORTED" != "$ACTUAL_SORTED" ]; then
+            echo "❌ ERROR: Integration folder mismatch detected!"
+            echo ""
+            echo "Expected folders (covered by CI):"
+            printf '  - %s\n' "${EXPECTED_FOLDERS[@]}" | sort
+            echo ""
+            echo "Actual folders in ./integration:"
+            printf '  - %s\n' "${ACTUAL_FOLDERS[@]}" | sort
+            echo ""
+            echo "If you added a new integration test folder, you must:"
+            echo "  1. Add a corresponding 'test-e2e-<folder-name>' target to the Makefile"
+            echo "  2. Add the target to the matrix in .github/workflows/ci.yml (integration-tests job)"
+            echo "  3. Update the EXPECTED_FOLDERS list in this validation step"
+            exit 1
+          fi
+
+          echo "✅ All integration folders are covered by CI"
+
   integration-tests:
     name: Run integration tests
     runs-on: ubuntu-24.04
+    needs: integration-tests-validation
     strategy:
       fail-fast: false
       matrix:
         test-target:
           [
-            test-e2e,
+            test-e2e-operations,
             test-e2e-api,
-            test-integration-poller,
-            test-integration-backendscheduler,
-            test-e2e-deployments,
-            test-e2e-ingest,
+            test-e2e-limits,
+            test-e2e-metrics-generator,
+            test-e2e-storage,
+            test-e2e-util,
           ]
 
     steps:

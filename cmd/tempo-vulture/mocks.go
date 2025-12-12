@@ -8,7 +8,6 @@ import (
 
 	userconfigurableoverrides "github.com/grafana/tempo/modules/overrides/userconfigurable/client"
 	thrift "github.com/jaegertracing/jaeger-idl/thrift-gen/jaeger"
-	"github.com/jaegertracing/jaeger-idl/thrift-gen/zipkincore"
 
 	"github.com/grafana/tempo/pkg/tempopb"
 )
@@ -18,10 +17,6 @@ type MockReporter struct {
 	batchesEmitted []*thrift.Batch
 	// We need the lock to control concurrent accesses to batchesEmitted
 	m sync.Mutex
-}
-
-func (r *MockReporter) EmitZipkinBatch(_ context.Context, _ []*zipkincore.Span) error {
-	return r.err
 }
 
 func (r *MockReporter) EmitBatch(_ context.Context, b *thrift.Batch) error {
@@ -145,7 +140,7 @@ func (m *MockHTTPClient) SearchTagValuesV2(key string, query string) (*tempopb.S
 }
 
 //nolint:all
-func (m *MockHTTPClient) SearchTagValuesV2WithRange(tag string, start int64, end int64) (*tempopb.SearchTagValuesV2Response, error) {
+func (m *MockHTTPClient) SearchTagValuesV2WithRange(tag, query string, start int64, end int64) (*tempopb.SearchTagValuesV2Response, error) {
 	panic("unimplemented")
 }
 
@@ -160,7 +155,7 @@ func (m *MockHTTPClient) SearchTagsV2() (*tempopb.SearchTagsV2Response, error) {
 }
 
 //nolint:all
-func (m *MockHTTPClient) SearchTagsV2WithRange(start int64, end int64) (*tempopb.SearchTagsV2Response, error) {
+func (m *MockHTTPClient) SearchTagsV2WithRange(scope, query string, start int64, end int64) (*tempopb.SearchTagsV2Response, error) {
 	panic("unimplemented")
 }
 

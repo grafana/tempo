@@ -142,41 +142,44 @@ test-with-cover-others: tools ## Run other tests with code coverage
 	mkdir -p $(COVERAGE_DIR)
 	$(GOTEST) $(GOTEST_OPT) -coverprofile=$(COVERAGE_DIR)/others.out $(shell go list $(sort $(dir $(OTHERS_SRC))))
 
-# jpe - these need to be cleaned up below (and possibly in CI as well)
-#     - can we pass a parameter to run integration tests in // to speed things up?
 # runs e2e tests in the top level integration/e2e directory
 .PHONY: test-e2e
-test-e2e: tools docker-tempo docker-tempo-query  ## Run end to end tests
-	$(GOTEST) -v $(GOTEST_OPT) ./integration/e2e
+test-e2e: tools docker-tempo docker-tempo-query test-e2e-operations test-e2e-api test-e2e-limits test-e2e-metrics-generator test-e2e-storage test-e2e-util  ## Run end to end tests
+	@echo "All e2e tests completed"
 
 # runs only deployment modes e2e tests
-.PHONY: test-e2e-deployments
-test-e2e-deployments: tools docker-tempo docker-tempo-query ## Run end to end tests for deployments
-	$(GOTEST) -v $(GOTEST_OPT) ./integration/e2e/deployments
+.PHONY: test-e2e-operations
+test-e2e-operations: tools docker-tempo docker-tempo-query ## Run end to end tests for operations
+	$(GOTEST) -v $(GOTEST_OPT) ./integration/operations
 
 # runs only api e2e tests
 .PHONY: test-e2e-api
 test-e2e-api: tools docker-tempo docker-tempo-query ## Run end to end tests for api
-	$(GOTEST) -v $(GOTEST_OPT) ./integration/e2e/api
+	$(GOTEST) -v $(GOTEST_OPT) ./integration/api
 
 # runs only poller integration tests
-.PHONY: test-integration-poller
-test-integration-poller: tools ## Run poller integration tests
-	$(GOTEST) -v $(GOTEST_OPT) ./integration/poller
+.PHONY: test-e2e-limits
+test-e2e-limits: tools ## Run poller integration tests
+	$(GOTEST) -v $(GOTEST_OPT) ./integration/limits
 
 # runs only backendscheduler integration tests
-.PHONY: test-integration-backendscheduler
-test-integration-backendscheduler: tools docker-tempo ## Run backend-scheduler integration tests
-	$(GOTEST) -v $(GOTEST_OPT) ./integration/backendscheduler
+.PHONY: test-e2e-metrics-generator
+test-e2e-metrics-generator: tools docker-tempo ## Run backend-scheduler integration tests
+	$(GOTEST) -v $(GOTEST_OPT) ./integration/metrics-generator
 
 # runs only ingest integration tests
-.PHONY: test-e2e-ingest
-test-e2e-ingest: tools docker-tempo ## Run end to end tests for ingest
-	$(GOTEST) -v $(GOTEST_OPT) ./integration/e2e/ingest
+.PHONY: test-e2e-storage
+test-e2e-storage: tools docker-tempo ## Run end to end tests for ingest
+	$(GOTEST) -v $(GOTEST_OPT) ./integration/storage
+
+# runs only ingest integration tests
+.PHONY: test-e2e-util
+test-e2e-util: tools docker-tempo ## Run end to end tests for ingest
+	$(GOTEST) -v $(GOTEST_OPT) ./integration/util
 
 # test-all use a docker image so build it first to make sure we're up to date
 .PHONY: test-all ## Run all tests
-test-all: test-with-cover test-e2e test-e2e-deployments test-e2e-api test-integration-poller test-integration-backendscheduler test-e2e-ingest
+test-all: test-with-cover test-e2e
 
 .PHONY: fmt check-fmt
 fmt: tools-image ## Check fmt

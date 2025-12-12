@@ -14,7 +14,6 @@ import (
 
 	"github.com/golang/protobuf/jsonpb" //nolint:all
 	"github.com/golang/protobuf/proto"  //nolint:all
-	"github.com/klauspost/compress/gzhttp"
 
 	userconfigurableoverrides "github.com/grafana/tempo/modules/overrides/userconfigurable/client"
 	"github.com/grafana/tempo/pkg/api"
@@ -42,10 +41,10 @@ type TempoHTTPClient interface {
 	SearchTags() (*tempopb.SearchTagsResponse, error)
 	SearchTagsV2() (*tempopb.SearchTagsV2Response, error)
 	SearchTagsWithRange(start int64, end int64) (*tempopb.SearchTagsResponse, error)
-	SearchTagsV2WithRange(start int64, end int64) (*tempopb.SearchTagsV2Response, error)
+	SearchTagsV2WithRange(scope, query string, start int64, end int64) (*tempopb.SearchTagsV2Response, error)
 	SearchTagValues(key string) (*tempopb.SearchTagValuesResponse, error)
 	SearchTagValuesV2(key, query string) (*tempopb.SearchTagValuesV2Response, error)
-	SearchTagValuesV2WithRange(tag string, start int64, end int64) (*tempopb.SearchTagValuesV2Response, error)
+	SearchTagValuesV2WithRange(tag, query string, start int64, end int64) (*tempopb.SearchTagValuesV2Response, error)
 	Search(tags string) (*tempopb.SearchResponse, error)
 	SearchWithRange(ctx context.Context, tags string, start int64, end int64) (*tempopb.SearchResponse, error)
 	QueryTrace(id string) (*tempopb.Trace, error)
@@ -81,14 +80,8 @@ func New(baseURL, orgID string) *Client {
 	return &Client{
 		BaseURL: baseURL,
 		OrgID:   orgID,
-		client:  http.DefaultClient,
+		client:  &http.Client{},
 	}
-}
-
-func NewWithCompression(baseURL, orgID string) *Client {
-	c := New(baseURL, orgID)
-	c.WithTransport(gzhttp.Transport(http.DefaultTransport))
-	return c
 }
 
 func (c *Client) SetHeader(key string, value string) {
@@ -215,9 +208,9 @@ func (c *Client) SearchTagsWithRange(start int64, end int64) (*tempopb.SearchTag
 	return m, nil
 }
 
-func (c *Client) SearchTagsV2WithRange(start int64, end int64) (*tempopb.SearchTagsV2Response, error) {
+func (c *Client) SearchTagsV2WithRange(scope, query string, start int64, end int64) (*tempopb.SearchTagsV2Response, error) {
 	m := &tempopb.SearchTagsV2Response{}
-	_, err := c.getFor(c.buildTagsV2QueryURL(start, end), m)
+	_, err := c.getFor(c.buildTagsV2QueryURL(scope, query, start, end), m)
 	if err != nil {
 		return nil, err
 	}
@@ -247,9 +240,9 @@ func (c *Client) SearchTagValuesV2(key, query string) (*tempopb.SearchTagValuesV
 	return m, nil
 }
 
-func (c *Client) SearchTagValuesV2WithRange(tag string, start int64, end int64) (*tempopb.SearchTagValuesV2Response, error) {
+func (c *Client) SearchTagValuesV2WithRange(tag, query string, start int64, end int64) (*tempopb.SearchTagValuesV2Response, error) {
 	m := &tempopb.SearchTagValuesV2Response{}
-	_, err := c.getFor(c.buildTagValuesV2QueryURL(tag, start, end), m)
+	_, err := c.getFor(c.buildTagValuesV2QueryURL(tag, query, start, end), m)
 	if err != nil {
 		return nil, err
 	}
@@ -458,9 +451,15 @@ func (c *Client) buildTagsQueryURL(start int64, end int64) string {
 	return fmt.Sprint(joinURL)
 }
 
-func (c *Client) buildTagsV2QueryURL(start int64, end int64) string {
+func (c *Client) buildTagsV2QueryURL(scope, query string, start int64, end int64) string {
 	joinURL, _ := url.Parse(c.BaseURL + api.PathSearchTagsV2 + "?")
 	q := joinURL.Query()
+	if scope != "" {
+		q.Set("scope", scope)
+	}
+	if query != "" {
+		q.Set("q", query)
+	}
 	if start != 0 && end != 0 {
 		q.Set("start", strconv.FormatInt(start, 10))
 		q.Set("end", strconv.FormatInt(end, 10))
@@ -470,10 +469,13 @@ func (c *Client) buildTagsV2QueryURL(start int64, end int64) string {
 	return fmt.Sprint(joinURL)
 }
 
-func (c *Client) buildTagValuesV2QueryURL(key string, start int64, end int64) string {
+func (c *Client) buildTagValuesV2QueryURL(key, query string, start int64, end int64) string {
 	urlPath := fmt.Sprintf(`/api/v2/search/tag/%s/values`, key)
 	joinURL, _ := url.Parse(c.BaseURL + urlPath + "?")
 	q := joinURL.Query()
+	if query != "" {
+		q.Set("q", query)
+	}
 	if start != 0 && end != 0 {
 		q.Set("start", strconv.FormatInt(start, 10))
 		q.Set("end", strconv.FormatInt(end, 10))

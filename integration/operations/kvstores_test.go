@@ -63,29 +63,15 @@ func TestKVStores(t *testing.T) {
 	for _, tc := range testKVStores {
 		t.Run(tc.name, func(t *testing.T) {
 			util.WithTempoHarness(t, util.TestHarnessConfig{
-				ConfigOverlay:      configKVStore,
-				ConfigTemplateFunc: tc.setupKVStore,
+				ConfigOverlay: configKVStore,
+				PreStartHook:  tc.setupKVStore,
 			}, func(h *util.TempoHarness) {
+				h.WaitTracesWritable(t)
+
 				liveStoreA := h.Services[util.ServiceLiveStoreZoneA]
 				liveStoreB := h.Services[util.ServiceLiveStoreZoneB]
 
-				// verify rings. partition ring and live store ring
 				matchers := []*labels.Matcher{
-					{Type: labels.MatchEqual, Name: "state", Value: "Active"},
-					{Type: labels.MatchEqual, Name: "name", Value: "livestore-partitions"},
-				}
-				require.NoError(t, liveStoreA.WaitSumMetricsWithOptions(
-					e2e.Equals(float64(1)),
-					[]string{"tempo_partition_ring_partitions"},
-					e2e.WithLabelMatchers(matchers...),
-				), "live stores failed to join partition ring with %s", tc.name)
-				require.NoError(t, liveStoreB.WaitSumMetricsWithOptions(
-					e2e.Equals(float64(1)),
-					[]string{"tempo_partition_ring_partitions"},
-					e2e.WithLabelMatchers(matchers...),
-				), "live stores failed to join partition ring with %s", tc.name)
-
-				matchers = []*labels.Matcher{
 					{Type: labels.MatchEqual, Name: "state", Value: "ACTIVE"},
 					{Type: labels.MatchEqual, Name: "name", Value: "live-store"},
 				}
@@ -102,33 +88,15 @@ func TestKVStores(t *testing.T) {
 
 				// Send a trace
 				info := tempoUtil.NewTraceInfo(time.Now(), "")
-				require.NoError(t, info.EmitAllBatches(h.JaegerExporter))
-
-				expected, err := info.ConstructTraceFromEpoch()
-				require.NoError(t, err)
-
-				// Test metrics - verify distributor received spans
-				require.NoError(t, h.Services[util.ServiceDistributor].WaitSumMetrics(
-					e2e.Equals(util.SpanCount(expected)),
-					"tempo_distributor_spans_received_total",
-				))
+				require.NoError(t, h.WriteTraceInfo(info, ""))
 
 				// Wait for trace to be created in live stores
-				require.NoError(t, liveStoreA.WaitSumMetricsWithOptions(
-					e2e.Greater(0),
-					[]string{"tempo_live_store_traces_created_total"},
-					e2e.WaitMissingMetrics,
-				))
-
-				require.NoError(t, liveStoreB.WaitSumMetricsWithOptions(
-					e2e.Greater(0),
-					[]string{"tempo_live_store_traces_created_total"},
-					e2e.WaitMissingMetrics,
-				))
+				h.WaitTracesQueryable(t, 1)
 
 				// Find trace
-				util.QueryAndAssertTrace(t, h.HTTPClient, info)
-				util.SearchTraceQLAndAssertTrace(t, h.HTTPClient, info)
+				apiClient := h.APIClientHTTP("")
+				util.QueryAndAssertTrace(t, apiClient, info)
+				util.SearchTraceQLAndAssertTrace(t, apiClient, info)
 			})
 		})
 	}

@@ -21,11 +21,11 @@ const (
 
 func TestOverridesWithObjectStorage(t *testing.T) {
 	util.WithTempoHarness(t, util.TestHarnessConfig{
-		Components:     util.ComponentRecentDataQuerying | util.ComponentsObjectStorage,
+		Backends:       util.BackendObjectStorageAll,
 		DeploymentMode: util.DeploymentModeSingleBinary,
 		ConfigOverlay:  configOverrides,
 	}, func(h *util.TempoHarness) {
-		apiClient := httpclient.New("http://"+h.QueryFrontendHTTPEndpoint, "single-tenant")
+		apiClient := h.APIClientHTTP("single-tenant")
 
 		// Create overrides
 		initialLimits := &client.Limits{
@@ -159,10 +159,10 @@ func TestOverridesAPI_GET(t *testing.T) {
 	util.WithTempoHarness(t, util.TestHarnessConfig{
 		ConfigOverlay:  configOverrides,
 		DeploymentMode: util.DeploymentModeSingleBinary,
-		Components:     util.ComponentRecentDataQuerying | util.ComponentsObjectStorageS3Only,
+		Backends:       util.BackendObjectStorageS3, // this test fails on other backends b/c it's testing specific etag related code
 	}, func(h *util.TempoHarness) {
 		t.Run("returns 404 when config not found", func(t *testing.T) {
-			apiClient := httpclient.New("http://"+h.QueryFrontendHTTPEndpoint, "tenant-get-1")
+			apiClient := h.APIClientHTTP("tenant-get-1")
 
 			limits, etag, err := apiClient.GetOverrides()
 			require.Nil(t, limits) // no limits because it doesn't exist for this tenant
@@ -171,7 +171,7 @@ func TestOverridesAPI_GET(t *testing.T) {
 		})
 
 		t.Run("returns config with etag", func(t *testing.T) {
-			apiClient := httpclient.New("http://"+h.QueryFrontendHTTPEndpoint, "tenant-get-2")
+			apiClient := h.APIClientHTTP("tenant-get-2")
 
 			// create initial config with POST
 			initialLimits := &client.Limits{
@@ -199,10 +199,10 @@ func TestOverridesAPI_POST(t *testing.T) {
 	util.WithTempoHarness(t, util.TestHarnessConfig{
 		ConfigOverlay:  configOverrides,
 		DeploymentMode: util.DeploymentModeSingleBinary,
-		Components:     util.ComponentRecentDataQuerying | util.ComponentsObjectStorageS3Only,
+		Backends:       util.BackendObjectStorageS3, // this test fails on other backends b/c it's testing specific etag related code
 	}, func(h *util.TempoHarness) {
 		t.Run("API returns 428 without if-match header", func(t *testing.T) {
-			baseURL := "http://" + h.QueryFrontendHTTPEndpoint
+			baseURL := h.BaseURL()
 
 			req, err := http.NewRequest(http.MethodPost, fmt.Sprintf("%s/api/overrides", baseURL), strings.NewReader(`{}`))
 			require.NoError(t, err)
@@ -217,7 +217,7 @@ func TestOverridesAPI_POST(t *testing.T) {
 		})
 
 		t.Run("creates config with If-Match 0 on new tenant", func(t *testing.T) {
-			apiClient := httpclient.New("http://"+h.QueryFrontendHTTPEndpoint, "tenant-post-2")
+			apiClient := h.APIClientHTTP("tenant-post-2")
 
 			limits := &client.Limits{
 				MetricsGenerator: client.LimitsMetricsGenerator{
@@ -242,7 +242,7 @@ func TestOverridesAPI_POST(t *testing.T) {
 		})
 
 		t.Run("tenant with existing config returns 412 with If-Match 0", func(t *testing.T) {
-			apiClient := httpclient.New("http://"+h.QueryFrontendHTTPEndpoint, "tenant-post-3")
+			apiClient := h.APIClientHTTP("tenant-post-3")
 
 			// create initial config for tenant so we can try again
 			limits := &client.Limits{
@@ -261,7 +261,7 @@ func TestOverridesAPI_POST(t *testing.T) {
 		})
 
 		t.Run("incorrect If-Match returns 412", func(t *testing.T) {
-			apiClient := httpclient.New("http://"+h.QueryFrontendHTTPEndpoint, "tenant-post-4")
+			apiClient := h.APIClientHTTP("tenant-post-4")
 
 			// Create initial config
 			limits := &client.Limits{
@@ -280,7 +280,7 @@ func TestOverridesAPI_POST(t *testing.T) {
 		})
 
 		t.Run("with invalid json returns 400", func(t *testing.T) {
-			baseURL := "http://" + h.QueryFrontendHTTPEndpoint
+			baseURL := h.BaseURL()
 
 			// invalid config
 			badConfig := strings.NewReader(`{"metrics_generator": {"processor": {"service_graphs": {"histogram_buckets": [0.1, "invalid"]}}}}`)
@@ -295,7 +295,7 @@ func TestOverridesAPI_POST(t *testing.T) {
 		})
 
 		t.Run("updates config with correct version", func(t *testing.T) {
-			apiClient := httpclient.New("http://"+h.QueryFrontendHTTPEndpoint, "tenant-post-6")
+			apiClient := h.APIClientHTTP("tenant-post-6")
 
 			// create initial config
 			initialLimits := &client.Limits{
@@ -336,10 +336,10 @@ func TestOverridesAPI_PATCH(t *testing.T) {
 	util.WithTempoHarness(t, util.TestHarnessConfig{
 		ConfigOverlay:  configOverrides,
 		DeploymentMode: util.DeploymentModeSingleBinary,
-		Components:     util.ComponentRecentDataQuerying | util.ComponentsObjectStorageS3Only,
+		Backends:       util.BackendObjectStorageS3, // this test fails on other backends b/c it's testing specific etag related code
 	}, func(h *util.TempoHarness) {
 		t.Run("with no existing config creates new config", func(t *testing.T) {
-			apiClient := httpclient.New("http://"+h.QueryFrontendHTTPEndpoint, "tenant-patch-1")
+			apiClient := h.APIClientHTTP("tenant-patch-1")
 
 			patch := &client.Limits{
 				MetricsGenerator: client.LimitsMetricsGenerator{
@@ -363,7 +363,7 @@ func TestOverridesAPI_PATCH(t *testing.T) {
 		})
 
 		t.Run("preserves existing config sections", func(t *testing.T) {
-			apiClient := httpclient.New("http://"+h.QueryFrontendHTTPEndpoint, "tenant-patch-2")
+			apiClient := h.APIClientHTTP("tenant-patch-2")
 
 			// create initial config with processors
 			initialLimits := &client.Limits{
@@ -404,7 +404,7 @@ func TestOverridesAPI_PATCH(t *testing.T) {
 		})
 
 		t.Run("merges nested processor configs", func(t *testing.T) {
-			apiClient := httpclient.New("http://"+h.QueryFrontendHTTPEndpoint, "tenant-patch-3")
+			apiClient := h.APIClientHTTP("tenant-patch-3")
 
 			// create initial config with service graphs
 			initialPatch := &client.Limits{
@@ -443,7 +443,7 @@ func TestOverridesAPI_PATCH(t *testing.T) {
 		})
 
 		t.Run("overwrites field values", func(t *testing.T) {
-			apiClient := httpclient.New("http://"+h.QueryFrontendHTTPEndpoint, "tenant-patch-4")
+			apiClient := h.APIClientHTTP("tenant-patch-4")
 
 			// create initial config
 			initialPatch := &client.Limits{
@@ -478,7 +478,7 @@ func TestOverridesAPI_PATCH(t *testing.T) {
 		})
 
 		t.Run("empty top level config doesn't overwrites nested configs", func(t *testing.T) {
-			apiClient := httpclient.New("http://"+h.QueryFrontendHTTPEndpoint, "tenant-patch-5")
+			apiClient := h.APIClientHTTP("tenant-patch-5")
 
 			// create initial config
 			initialPatch := &client.Limits{
@@ -525,7 +525,7 @@ func TestOverridesAPI_PATCH(t *testing.T) {
 		})
 
 		t.Run("version changes after patch", func(t *testing.T) {
-			apiClient := httpclient.New("http://"+h.QueryFrontendHTTPEndpoint, "tenant-patch-6")
+			apiClient := h.APIClientHTTP("tenant-patch-6")
 
 			// Create initial config with POST
 			initialLimits := &client.Limits{
@@ -555,7 +555,7 @@ func TestOverridesAPI_PATCH(t *testing.T) {
 		})
 
 		t.Run("handles complex nested config", func(t *testing.T) {
-			apiClient := httpclient.New("http://"+h.QueryFrontendHTTPEndpoint, "tenant-patch-7")
+			apiClient := h.APIClientHTTP("tenant-patch-7")
 
 			// Create comprehensive config via PATCH
 			patch := &client.Limits{
@@ -602,10 +602,10 @@ func TestOverridesAPI_DELETE(t *testing.T) {
 	util.WithTempoHarness(t, util.TestHarnessConfig{
 		ConfigOverlay:  configOverrides,
 		DeploymentMode: util.DeploymentModeSingleBinary,
-		Components:     util.ComponentRecentDataQuerying | util.ComponentsObjectStorageS3Only,
+		Backends:       util.BackendObjectStorageS3, // this test fails on other backends b/c it's testing specific etag related code
 	}, func(h *util.TempoHarness) {
 		t.Run("config is deleted with correct etag", func(t *testing.T) {
-			apiClient := httpclient.New("http://"+h.QueryFrontendHTTPEndpoint, "tenant-delete-1")
+			apiClient := h.APIClientHTTP("tenant-delete-1")
 
 			// create initial config
 			limits := &client.Limits{
@@ -628,10 +628,10 @@ func TestOverridesAPI_DELETE(t *testing.T) {
 		})
 
 		t.Run("API returns 428 without if-match header", func(t *testing.T) {
-			baseURL := "http://" + h.QueryFrontendHTTPEndpoint
+			baseURL := h.BaseURL()
 
 			// create config first
-			apiClient := httpclient.New(baseURL, "tenant-delete-2")
+			apiClient := h.APIClientHTTP("tenant-delete-2")
 			limits := &client.Limits{
 				CostAttribution: client.CostAttribution{
 					Dimensions: &map[string]string{"region": "region_label"},
@@ -653,7 +653,7 @@ func TestOverridesAPI_DELETE(t *testing.T) {
 		})
 
 		t.Run("API returns 412 with wrong version ", func(t *testing.T) {
-			apiClient := httpclient.New("http://"+h.QueryFrontendHTTPEndpoint, "tenant-delete-wrongver")
+			apiClient := h.APIClientHTTP("tenant-delete-wrongver")
 
 			// create config
 			limits := &client.Limits{

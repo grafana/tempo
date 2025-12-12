@@ -25,7 +25,8 @@ import (
 
 func TestBackendScheduler(t *testing.T) {
 	util.WithTempoHarness(t, util.TestHarnessConfig{
-		Components:    util.ComponentsBackendWork | util.ComponentsObjectStorage,
+		Components:    util.ComponentsBackendWork,
+		Backends:      util.BackendObjectStorageAll,
 		ConfigOverlay: "config-backend-scheduler.yaml",
 	}, func(h *util.TempoHarness) {
 		ctx, cancel := context.WithCancel(context.Background())
@@ -37,7 +38,8 @@ func TestBackendScheduler(t *testing.T) {
 		cfg, err := h.GetConfig()
 		require.NoError(t, err)
 
-		backendEndpoint := h.Backend.(*e2e.HTTPService).HTTPEndpoint()
+		objStorage := h.Services[util.ServiceObjectStorage]
+		backendEndpoint := objStorage.HTTPEndpoint()
 		t.Logf("Endpoint: %s", backendEndpoint)
 
 		// Get the scheduler and worker services from the harness

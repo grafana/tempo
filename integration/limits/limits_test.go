@@ -11,7 +11,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/grafana/dskit/user"
 	"github.com/grafana/tempo/modules/overrides"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
 	"google.golang.org/grpc/codes"
@@ -43,21 +42,22 @@ func TestIngestionLimits(t *testing.T) {
 	util.WithTempoHarness(t, util.TestHarnessConfig{
 		ConfigOverlay: configIngest,
 	}, func(h *util.TempoHarness) {
+		h.WaitTracesWritable(t)
+
 		// should fail b/c the trace is too large. each batch should be ~70 bytes
 		batch := util.MakeThriftBatchWithSpanCount(2)
-		require.NoError(t, h.JaegerExporter.EmitBatch(context.Background(), batch), "max trace size")
+		require.NoError(t, h.WriteJaegerBatch(batch, ""))
 
 		// push a trace
-		require.NoError(t, h.JaegerExporter.EmitBatch(context.Background(), util.MakeThriftBatchWithSpanCount(1)))
+		require.NoError(t, h.WriteJaegerBatch(util.MakeThriftBatchWithSpanCount(1), ""))
 
 		// should fail b/c this will be too many traces
 		batch = util.MakeThriftBatch()
-		require.NoError(t, h.JaegerExporter.EmitBatch(context.Background(), batch), "too many traces")
+		require.NoError(t, h.WriteJaegerBatch(batch, ""))
 
 		// should fail b/c due to ingestion rate limit
 		batch = util.MakeThriftBatchWithSpanCount(10)
-		err := h.JaegerExporter.EmitBatch(context.Background(), batch)
-		require.Error(t, err)
+		err := h.WriteJaegerBatch(batch, "")
 
 		// this error must have a retryinfo as expected in otel collector code: https://github.com/open-telemetry/opentelemetry-collector/blob/d7b49df5d9e922df6ce56ad4b64ee1c79f9dbdbe/exporter/otlpexporter/otlp.go#L172
 		st, ok := status.FromError(err)
@@ -98,6 +98,7 @@ func TestOTLPLimits(t *testing.T) {
 	util.WithTempoHarness(t, util.TestHarnessConfig{
 		ConfigOverlay: configIngest,
 	}, func(h *util.TempoHarness) {
+		h.WaitTracesWritable(t)
 		protoSpans := test.MakeProtoSpans(100)
 
 		// gRPC
@@ -130,6 +131,8 @@ func TestOTLPLimitsVanillaClient(t *testing.T) {
 	util.WithTempoHarness(t, util.TestHarnessConfig{
 		ConfigOverlay: configIngest,
 	}, func(h *util.TempoHarness) {
+		h.WaitTracesWritable(t)
+
 		trace := test.MakeTrace(10, []byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10})
 
 		testCases := []struct {
@@ -186,8 +189,10 @@ func TestOTLPLimitsVanillaClient(t *testing.T) {
 
 func TestQueryLimits(t *testing.T) {
 	util.WithTempoHarness(t, util.TestHarnessConfig{}, func(h *util.TempoHarness) {
+		h.WaitTracesWritable(t)
+
 		batch := util.MakeThriftBatchWithSpanCount(5)
-		require.NoError(t, h.JaegerExporter.EmitBatch(context.Background(), batch))
+		require.NoError(t, h.WriteJaegerBatch(batch, ""))
 
 		// retroactively make the trace too large so it will fail on querying
 		h.UpdateOverrides(map[string]*overrides.Overrides{
@@ -204,28 +209,23 @@ func TestQueryLimits(t *testing.T) {
 		binary.BigEndian.PutUint64(traceID[8:], uint64(batch.Spans[0].TraceIdLow))
 
 		// now try to query it back. this should fail b/c the trace is too large
-		client := h.HTTPClient
+		apiClient := h.APIClientHTTP("")
 
-		// wait for live store to ingest traces
-		liveStore := h.Services[util.ServiceLiveStoreZoneA]
-		err := liveStore.WaitSumMetricsWithOptions(e2e.Greater(0),
-			[]string{"tempo_live_store_traces_created_total"},
-			e2e.WaitMissingMetrics,
-		)
-		require.NoError(t, err)
+		h.WaitTracesQueryable(t, 1)
 
-		_, err = client.QueryTrace(tempoUtil.TraceIDToHexString(traceID[:]))
+		_, err := apiClient.QueryTrace(tempoUtil.TraceIDToHexString(traceID[:]))
 		require.ErrorContains(t, err, trace.ErrTraceTooLarge.Error())
 		require.ErrorContains(t, err, "failed with response: 422") // confirm frontend returns 422
 
 		// wait for live store to complete the block
+		liveStore := h.Services[util.ServiceLiveStoreZoneA]
 		err = liveStore.WaitSumMetricsWithOptions(e2e.Greater(0),
 			[]string{"tempo_live_store_blocks_completed_total"},
 			e2e.WaitMissingMetrics,
 		)
 		require.NoError(t, err)
 
-		_, err = client.QueryTrace(tempoUtil.TraceIDToHexString(traceID[:]))
+		_, err = apiClient.QueryTrace(tempoUtil.TraceIDToHexString(traceID[:]))
 		require.ErrorContains(t, err, trace.ErrTraceTooLarge.Error())
 		require.ErrorContains(t, err, "failed with response: 422") // confirm frontend returns 422
 	})
@@ -235,6 +235,7 @@ func TestLimitsPartialSuccess(t *testing.T) {
 	util.WithTempoHarness(t, util.TestHarnessConfig{
 		ConfigOverlay: configIngestPartialSucess,
 	}, func(h *util.TempoHarness) {
+		h.WaitTracesWritable(t)
 		// make request
 		traceIDs := make([][]byte, 6)
 		for index := range traceIDs {
@@ -256,31 +257,18 @@ func TestLimitsPartialSuccess(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, traces)
 
-		ctx := user.InjectOrgID(context.Background(), tempoUtil.FakeTenantID)
-		ctx, err = user.InjectIntoGRPCRequest(ctx)
-		require.NoError(t, err)
-
 		// send traces to tempo
 		// partial success = no error
-		err = h.OTLPExporter.ConsumeTraces(ctx, traces)
-		require.NoError(t, err)
-
-		// shutdown to ensure traces are flushed
-		require.NoError(t, h.OTLPExporter.Shutdown(context.Background()))
+		require.NoError(t, h.WriteOTLPTraces(traces, ""))
 
 		// wait for live store to ingest traces
-		liveStore := h.Services[util.ServiceLiveStoreZoneA]
-		err = liveStore.WaitSumMetricsWithOptions(e2e.Greater(0),
-			[]string{"tempo_live_store_traces_created_total"},
-			e2e.WaitMissingMetrics,
-		)
-		require.NoError(t, err)
+		h.WaitTracesQueryable(t, 3) // only 3 traces are small enough to be ingested
 
 		// query for the traces that didn't trigger an error
-		client := h.HTTPClient
+		apiClient := h.APIClientHTTP("")
 		for i, count := range spanCountsByTrace {
 			if count == 1 {
-				result, err := client.QueryTrace(tempoUtil.TraceIDToHexString(traceIDs[i]))
+				result, err := apiClient.QueryTrace(tempoUtil.TraceIDToHexString(traceIDs[i]))
 				require.NoError(t, err)
 				assert.Equal(t, 1, len(result.ResourceSpans))
 			}
@@ -288,6 +276,7 @@ func TestLimitsPartialSuccess(t *testing.T) {
 
 		// test metrics
 		// 3 traces with trace_too_large each with 4+5+6 spans
+		liveStore := h.Services[util.ServiceLiveStoreZoneA]
 		err = liveStore.WaitSumMetricsWithOptions(e2e.Equals(15),
 			[]string{"tempo_discarded_spans_total"},
 			e2e.WithLabelMatchers(labels.MustNewMatcher(labels.MatchEqual, "reason", "trace_too_large")),
@@ -301,16 +290,17 @@ func TestQueryRateLimits(t *testing.T) {
 	util.WithTempoHarness(t, util.TestHarnessConfig{
 		ConfigOverlay: configQueryRate,
 	}, func(h *util.TempoHarness) {
+		h.WaitTracesWritable(t)
 		// todo: do we even need to push a trace?
 		batch := util.MakeThriftBatchWithSpanCount(5)
-		require.NoError(t, h.JaegerExporter.EmitBatch(context.Background(), batch))
+		require.NoError(t, h.WriteJaegerBatch(batch, ""))
 
 		// now try to query it back. this should fail b/c the frontend queue doesn't have room
-		client := h.HTTPClient
+		apiClient := h.APIClientHTTP("")
 
 		// 429 HTTP Trace ID Lookup
 		traceID := []byte{0x01, 0x02}
-		_, err := client.QueryTrace(tempoUtil.TraceIDToHexString(traceID))
+		_, err := apiClient.QueryTrace(tempoUtil.TraceIDToHexString(traceID))
 		require.ErrorContains(t, err, "job queue full")
 		require.ErrorContains(t, err, "failed with response: 429")
 
@@ -318,15 +308,15 @@ func TestQueryRateLimits(t *testing.T) {
 		end := time.Now().Add(1 * time.Hour).Unix()
 
 		// 429 HTTP Search
-		_, err = client.SearchTraceQLWithRange("{}", start, end)
+		_, err = apiClient.SearchTraceQLWithRange("{}", start, end)
 		require.ErrorContains(t, err, "job queue full")
 		require.ErrorContains(t, err, "failed with response: 429")
 
 		// 429 GRPC Search
-		grpcClient, err := util.NewSearchGRPCClient(context.Background(), h.Services[util.ServiceQueryFrontend].Endpoint(3200))
+		grpcClient, ctx, err := h.APIClientGRPC("")
 		require.NoError(t, err)
 
-		resp, err := grpcClient.Search(context.Background(), &tempopb.SearchRequest{
+		resp, err := grpcClient.Search(ctx, &tempopb.SearchRequest{
 			Query: "{}",
 			Start: uint32(start),
 			End:   uint32(end),

@@ -1,7 +1,6 @@
 package e2e
 
 import (
-	"context"
 	"fmt"
 	"io"
 	"math/rand"
@@ -30,15 +29,17 @@ const (
 func TestMetricsGeneratorRemoteWrite(t *testing.T) {
 	util.WithTempoHarness(t, util.TestHarnessConfig{
 		ConfigOverlay: configMetricsGenerator,
-		Components:    util.ComponentsMetricsGenerator | util.ComponentRecentDataQuerying,
+		Components:    util.ComponentsMetricsGeneration,
 	}, func(h *util.TempoHarness) {
+		h.WaitTracesWritable(t)
+
 		// Send two spans that have a client-server relationship
 		r := rand.New(rand.NewSource(time.Now().UnixMilli()))
 		traceIDLow := r.Int63()
 		traceIDHigh := r.Int63()
 		parentSpanID := r.Int63()
 
-		err := h.JaegerExporter.EmitBatch(context.Background(), &thrift.Batch{
+		require.NoError(t, h.WriteJaegerBatch(&thrift.Batch{
 			Process: &thrift.Process{ServiceName: "lb"},
 			Spans: []*thrift.Span{
 				{
@@ -52,10 +53,9 @@ func TestMetricsGeneratorRemoteWrite(t *testing.T) {
 					Tags:          []*thrift.Tag{{Key: "span.kind", VStr: stringPtr("client")}},
 				},
 			},
-		})
-		require.NoError(t, err)
+		}, ""))
 
-		err = h.JaegerExporter.EmitBatch(context.Background(), &thrift.Batch{
+		require.NoError(t, h.WriteJaegerBatch(&thrift.Batch{
 			Process: &thrift.Process{ServiceName: "app"},
 			Spans: []*thrift.Span{
 				{
@@ -69,11 +69,10 @@ func TestMetricsGeneratorRemoteWrite(t *testing.T) {
 					Tags:          []*thrift.Tag{{Key: "span.kind", VStr: stringPtr("server")}},
 				},
 			},
-		})
-		require.NoError(t, err)
+		}, ""))
 
 		// also send one with 5 minutes old timestamp
-		err = h.JaegerExporter.EmitBatch(context.Background(), &thrift.Batch{
+		require.NoError(t, h.WriteJaegerBatch(&thrift.Batch{
 			Process: &thrift.Process{ServiceName: "app"},
 			Spans: []*thrift.Span{
 				{
@@ -87,11 +86,10 @@ func TestMetricsGeneratorRemoteWrite(t *testing.T) {
 					Tags:          []*thrift.Tag{{Key: "span.kind", VStr: stringPtr("server")}},
 				},
 			},
-		})
-		require.NoError(t, err)
+		}, ""))
 
 		// also send one with timestamp 10 days in the future
-		err = h.JaegerExporter.EmitBatch(context.Background(), &thrift.Batch{
+		require.NoError(t, h.WriteJaegerBatch(&thrift.Batch{
 			Process: &thrift.Process{ServiceName: "app"},
 			Spans: []*thrift.Span{
 				{
@@ -105,11 +103,10 @@ func TestMetricsGeneratorRemoteWrite(t *testing.T) {
 					Tags:          []*thrift.Tag{{Key: "span.kind", VStr: stringPtr("server")}},
 				},
 			},
-		})
-		require.NoError(t, err)
+		}, ""))
 
 		// also send one with an invalid label value
-		err = h.JaegerExporter.EmitBatch(context.Background(), &thrift.Batch{
+		require.NoError(t, h.WriteJaegerBatch(&thrift.Batch{
 			Process: &thrift.Process{ServiceName: "app"},
 			Spans: []*thrift.Span{
 				{
@@ -123,13 +120,13 @@ func TestMetricsGeneratorRemoteWrite(t *testing.T) {
 					Tags:          []*thrift.Tag{{Key: "span.kind", VStr: stringPtr("server")}},
 				},
 			},
-		})
-		require.NoError(t, err)
+		}, ""))
 
 		// Fetch metrics from Prometheus once they are received
 		var metricFamilies map[string]*io_prometheus_client.MetricFamily
+		var err error
 		for {
-			metricFamilies, err = extractMetricsFromPrometheus(h.Prometheus, `{__name__=~"traces_.+"}`)
+			metricFamilies, err = extractMetricsFromPrometheus(h.Services[util.ServicePrometheus], `{__name__=~"traces_.+"}`)
 			require.NoError(t, err)
 			if len(metricFamilies) > 0 {
 				break
@@ -199,15 +196,17 @@ func TestMetricsGeneratorRemoteWrite(t *testing.T) {
 func TestMetricsGeneratorTargetInfoEnabled(t *testing.T) {
 	util.WithTempoHarness(t, util.TestHarnessConfig{
 		ConfigOverlay: configMetricsGeneratorTargetInfo,
-		Components:    util.ComponentsMetricsGenerator | util.ComponentRecentDataQuerying,
+		Components:    util.ComponentsMetricsGeneration,
 	}, func(h *util.TempoHarness) {
+		h.WaitTracesWritable(t)
+
 		// Send two spans that have a client-server relationship
 		r := rand.New(rand.NewSource(time.Now().UnixMilli()))
 		traceIDLow := r.Int63()
 		traceIDHigh := r.Int63()
 		parentSpanID := r.Int63()
 
-		err := h.JaegerExporter.EmitBatch(context.Background(), &thrift.Batch{
+		require.NoError(t, h.WriteJaegerBatch(&thrift.Batch{
 			Process: &thrift.Process{ServiceName: "lb",
 				Tags: []*thrift.Tag{{Key: "target_info", VStr: stringPtr("lb")}},
 			},
@@ -223,10 +222,9 @@ func TestMetricsGeneratorTargetInfoEnabled(t *testing.T) {
 					Tags:          []*thrift.Tag{{Key: "span.kind", VStr: stringPtr("client")}},
 				},
 			},
-		})
-		require.NoError(t, err)
+		}, ""))
 
-		err = h.JaegerExporter.EmitBatch(context.Background(), &thrift.Batch{
+		require.NoError(t, h.WriteJaegerBatch(&thrift.Batch{
 			Process: &thrift.Process{ServiceName: "app",
 				Tags: []*thrift.Tag{{Key: "target_info", VStr: stringPtr("app")}},
 			},
@@ -242,13 +240,13 @@ func TestMetricsGeneratorTargetInfoEnabled(t *testing.T) {
 					Tags:          []*thrift.Tag{{Key: "span.kind", VStr: stringPtr("server")}},
 				},
 			},
-		})
-		require.NoError(t, err)
+		}, ""))
 
 		// Fetch metrics from Prometheus once they are received
 		var metricFamilies map[string]*io_prometheus_client.MetricFamily
+		var err error
 		for {
-			metricFamilies, err = extractMetricsFromPrometheus(h.Prometheus, `{__name__=~"traces_.+"}`)
+			metricFamilies, err = extractMetricsFromPrometheus(h.Services[util.ServicePrometheus], `{__name__=~"traces_.+"}`)
 			require.NoError(t, err)
 			if len(metricFamilies) > 0 {
 				break
@@ -275,8 +273,10 @@ func TestMetricsGeneratorMessagingSystemLatencyHistogramEnabled(t *testing.T) {
 	// Use a config that enables the messaging system latency histogram
 	util.WithTempoHarness(t, util.TestHarnessConfig{
 		ConfigOverlay: configMetricsGeneratorMessagingSystem,
-		Components:    util.ComponentsMetricsGenerator | util.ComponentRecentDataQuerying,
+		Components:    util.ComponentsMetricsGeneration,
 	}, func(h *util.TempoHarness) {
+		h.WaitTracesWritable(t)
+
 		// Send a pair of spans with a messaging system relationship (producer -> consumer)
 		// ignore the gosec linter because we are using a random number generator to create trace IDs
 		// and span IDs, which is not a security risk in this context.
@@ -295,7 +295,7 @@ func TestMetricsGeneratorMessagingSystemLatencyHistogramEnabled(t *testing.T) {
 		consumerDuration := 2 * time.Second
 
 		// Producer span
-		err := h.JaegerExporter.EmitBatch(context.Background(), &thrift.Batch{
+		require.NoError(t, h.WriteJaegerBatch(&thrift.Batch{
 			Process: &thrift.Process{ServiceName: "producer"},
 			Spans: []*thrift.Span{
 				{
@@ -312,11 +312,10 @@ func TestMetricsGeneratorMessagingSystemLatencyHistogramEnabled(t *testing.T) {
 					},
 				},
 			},
-		})
-		require.NoError(t, err)
+		}, ""))
 
 		// Consumer span
-		err = h.JaegerExporter.EmitBatch(context.Background(), &thrift.Batch{
+		require.NoError(t, h.WriteJaegerBatch(&thrift.Batch{
 			Process: &thrift.Process{ServiceName: "consumer"},
 			Spans: []*thrift.Span{
 				{
@@ -333,13 +332,13 @@ func TestMetricsGeneratorMessagingSystemLatencyHistogramEnabled(t *testing.T) {
 					},
 				},
 			},
-		})
-		require.NoError(t, err)
+		}, ""))
 
 		// Wait for the metric to be produced
 		var metricFamilies map[string]*io_prometheus_client.MetricFamily
+		var err error
 		for {
-			metricFamilies, err = extractMetricsFromPrometheus(h.Prometheus, `{__name__=~"traces_.+"}`)
+			metricFamilies, err = extractMetricsFromPrometheus(h.Services[util.ServicePrometheus], `{__name__=~"traces_.+"}`)
 			require.NoError(t, err)
 			if _, ok := metricFamilies["traces_service_graph_request_messaging_system_seconds_bucket"]; ok {
 				break

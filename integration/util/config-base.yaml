@@ -22,7 +22,6 @@ overrides:
       processors: [service-graphs, span-metrics]
 
 query_frontend:
-  query_end_cutoff: -5m # jpe - why?
   rf1_after: "2025-01-01T00:00:00Z"
 
 distributor:
@@ -50,13 +49,12 @@ live_store:
   partition_ring:
     kvstore:
       store: memberlist
-    delete_inactive_partition_after: 1s # jpe - gru?
 
 storage:
   trace:
     backend: local
     local:
-      path: /shared/var/tempo/backend # jpe - move all paths to /shared for visibility?
+      path: /shared/var/tempo/backend
     pool:
       max_workers: 10
       queue_depth: 100
@@ -70,7 +68,7 @@ memberlist:
     - live-store-zone-b-0:7946
 
 block_builder:
-  consume_cycle_duration: 10s # timings: how often to check and flush a new block? jpe - review - watching tempo_block_builder_flushed_blocks sometimes fails. see encodings test for example
+  consume_cycle_duration: 10s # timings: how often to check and flush a new block?
   assigned_partitions:
     block-builder-0:
     - 0
@@ -98,8 +96,8 @@ metrics_generator:
 backend_scheduler:
   provider:
     compaction:
-      min_cycle_interval: 50ms # timings: jpe research
-      measure_interval: 1s # timings: jpe research
+      min_cycle_interval: 50ms # timings
+      measure_interval: 1s # timings
 backend_worker:
   backend_scheduler_addr: backend-scheduler:9095
-  finish_on_shutdown_timeout: 1s # timings: jpe research
+  finish_on_shutdown_timeout: 1s # timings

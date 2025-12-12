@@ -24,16 +24,17 @@ func TestMCP(t *testing.T) {
 	util.WithTempoHarness(t, util.TestHarnessConfig{
 		ConfigOverlay: "config-mcp.yaml",
 	}, func(h *util.TempoHarness) {
+		h.WaitTracesWritable(t)
+
 		// Write a trace
 		info := tempoUtil.NewTraceInfo(time.Now(), "")
-		require.NoError(t, info.EmitAllBatches(h.JaegerExporter))
+		require.NoError(t, h.WriteTraceInfo(info, ""))
 
 		_, err := info.ConstructTraceFromEpoch()
 		require.NoError(t, err)
 
 		// Wait for the trace to be written to the WAL
-		liveStoreZoneA := h.Services[util.ServiceLiveStoreZoneA]
-		require.NoError(t, liveStoreZoneA.WaitSumMetricsWithOptions(e2e.Equals(1), []string{"tempo_live_store_traces_created_total"}, e2e.WaitMissingMetrics))
+		h.WaitTracesQueryable(t, 1)
 
 		// now query it back with mcp
 		queryFrontend := h.Services[util.ServiceQueryFrontend]

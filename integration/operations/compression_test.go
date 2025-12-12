@@ -1,14 +1,16 @@
 package deployments
 
 import (
+	"bytes"
 	"compress/gzip"
 	"io"
 	"net/http"
 	"testing"
 	"time"
 
-	"github.com/grafana/e2e"
+	"github.com/gogo/protobuf/jsonpb"
 	"github.com/grafana/tempo/integration/util"
+	"github.com/klauspost/compress/gzhttp"
 	"github.com/stretchr/testify/require"
 
 	"github.com/grafana/tempo/pkg/httpclient"
@@ -17,20 +19,24 @@ import (
 )
 
 func TestCompression(t *testing.T) {
-	util.WithTempoHarness(t, util.TestHarnessConfig{}, func(h *util.TempoHarness) {
+	util.WithTempoHarness(t, util.TestHarnessConfig{
+		DeploymentMode: util.DeploymentModeSingleBinary,
+	}, func(h *util.TempoHarness) {
+		h.WaitTracesWritable(t)
+
 		// Send a trace
 		info := tempoUtil.NewTraceInfo(time.Now(), "")
-		require.NoError(t, info.EmitAllBatches(h.JaegerExporter))
+		require.NoError(t, h.WriteTraceInfo(info, ""))
 
-		liveStoreA := h.Services[util.ServiceLiveStoreZoneA]
-		require.NoError(t, liveStoreA.WaitSumMetricsWithOptions(e2e.Equals(1), []string{"tempo_live_store_traces_created_total"}, e2e.WaitMissingMetrics))
+		h.WaitTracesQueryable(t, 1)
 
 		// Create client with compression
-		util.QueryAndAssertTrace(t, h.HTTPClient, info)
+		apiClient := h.APIClientHTTP("")
+		util.QueryAndAssertTrace(t, apiClient, info)
 
 		// Query and assert trace with compression
-		apiClientWithCompression := httpclient.NewWithCompression("http://"+h.QueryFrontendHTTPEndpoint, "")
-		queryAndAssertTraceCompression(t, apiClientWithCompression, info)
+		apiClient.WithTransport(gzhttp.Transport(http.DefaultTransport))
+		queryAndAssertTraceCompression(t, apiClient, info)
 	})
 }
 
@@ -48,7 +54,7 @@ func queryAndAssertTraceCompression(t *testing.T, client *httpclient.Client, inf
 	// response, to disable this behaviour you have to explicitly set the Accept-Encoding header.
 
 	// Make the call directly so we have a chance to inspect the response header and manually un-gzip it ourselves to confirm the content.
-	request, err := http.NewRequest("GET", client.BaseURL+httpclient.QueryTraceEndpoint+"/"+info.HexID(), nil)
+	request, err := http.NewRequest("GET", client.BaseURL+httpclient.QueryTraceV2Endpoint+"/"+info.HexID(), nil)
 	require.NoError(t, err)
 	request.Header.Add("Accept-Encoding", "gzip")
 
@@ -62,11 +68,11 @@ func queryAndAssertTraceCompression(t *testing.T, client *httpclient.Client, inf
 	require.NoError(t, err)
 	defer gzipReader.Close()
 
-	m := &tempopb.Trace{}
+	m := &tempopb.TraceByIDResponse{}
 
 	bodyBytes, _ := io.ReadAll(gzipReader)
-	err = tempopb.UnmarshalFromJSONV1(bodyBytes, m)
-
+	err = jsonpb.Unmarshal(bytes.NewReader(bodyBytes), m)
 	require.NoError(t, err)
-	util.AssertEqualTrace(t, expected, m)
+
+	util.AssertEqualTrace(t, expected, m.Trace)
 }

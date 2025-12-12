@@ -1,6 +1,3 @@
-stream_over_http_enabled: true
-partition_ring_live_store: true
-
 server:
   http_listen_port: 3200
   tls_cipher_suites: TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384
@@ -19,33 +16,6 @@ server:
 internal_server:
   enable: true
   http_listen_port: 3201
-
-distributor:
-  ingester_write_path_enabled: false
-  kafka_write_path_enabled: true
-  receivers:
-    otlp:
-      protocols:
-        grpc:
-          endpoint: "0.0.0.0:4317"
-
-ingest:
-  enabled: true
-  kafka:
-    address: kafka:9092
-    topic: tempo-ingest
-
-live_store: # jpe - lots of copying from config-base.yaml how do we share this?
-  max_trace_live: 5s # timings: the max amount of time a trace can be in the live map
-  max_trace_idle: 1s # timings: the max amount of time a trace can be idle in the live map
-  flush_check_period: 5s # timings: check for traces to flush and wal blocks to complete every 5s
-  max_block_duration: 5s # timings: complete any wal file that's older than 5s. 10s is the max age of a wal file
-
-storage:
-  trace:
-    backend: local
-    local:
-      path: /var/tempo/backend
 
 live_store_client:
   grpc_client_config:

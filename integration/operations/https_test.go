@@ -1,24 +1,91 @@
-package util
+package deployments
 
 import (
+	"bytes"
+	"context"
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
+	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/pem"
 	"io"
 	"math/big"
+	"net/http"
 	"os"
 	"path/filepath"
 	"testing"
 	"time"
 
 	"github.com/grafana/dskit/runutil"
+	"github.com/grafana/e2e"
+	"github.com/grafana/tempo/integration/util"
+	"github.com/grafana/tempo/pkg/httpclient"
+	tempoUtil "github.com/grafana/tempo/pkg/util"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc/credentials"
 )
 
-type KeyMaterial struct {
+const (
+	configHTTPS = "config-https.yaml"
+
+	tempoPort = 3200 // magically matches the port in config-base.yaml
+)
+
+// TestHTTPS tests the use of unsigned certs with Tempo. Due to this we run the special "internal server"
+// on port 3201 which requires us to pass custome readiness probe. Additionally we have to create custom
+// a custom API client that uses https, but doesn't validate the certs.
+// Finally note that we actually push over an unencrypted connection, using the default harness functions.
+// This works b/c the TLS configuration for ingestion is configured through the OTEL receiver config.
+func TestHTTPS(t *testing.T) {
+	km := setupCertificates(t)
+
+	util.WithTempoHarness(t, util.TestHarnessConfig{
+		ConfigOverlay:  configHTTPS,
+		ReadinessProbe: e2e.NewHTTPReadinessProbe(3201, "/ready", 200, 299), // this works b/c the service creation code in ../util/services.go adds a 3201 port to the services. we could also use a custom readiness probe.
+		PreStartHook: func(s *e2e.Scenario, data map[string]any) error {
+			require.NoError(t, util.CopyFileToSharedDir(s, km.ServerCertFile, "tls.crt"))
+			require.NoError(t, util.CopyFileToSharedDir(s, km.ServerKeyFile, "tls.key"))
+			require.NoError(t, util.CopyFileToSharedDir(s, km.CaCertFile, "ca.crt"))
+
+			return nil
+		},
+	}, func(h *util.TempoHarness) {
+		// wait for traces to be writable
+		require.True(t, scrapeMetrics(t, h.Services[util.ServiceDistributor], tempoPort, "tempo_partition_ring_partitions{name=\"livestore-partitions\",state=\"Active\"} 1"))
+
+		// write a trace
+		info := tempoUtil.NewTraceInfo(time.Now(), "")
+		require.NoError(t, h.WriteTraceInfo(info, ""))
+
+		queryFrontend := h.Services[util.ServiceQueryFrontend]
+		apiClient := httpclient.New("https://"+queryFrontend.Endpoint(tempoPort), "")
+
+		// trust bad certs
+		defaultTransport := http.DefaultTransport.(*http.Transport).Clone()
+		defaultTransport.TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
+		apiClient.WithTransport(defaultTransport)
+
+		util.QueryAndAssertTrace(t, apiClient, info)
+
+		// wait for the traces to be queryable
+		require.True(t, scrapeMetrics(t, h.Services[util.ServiceLiveStoreZoneA], tempoPort, "tempo_live_store_traces_created_total{tenant=\"single-tenant\"} 1"))
+		require.True(t, scrapeMetrics(t, h.Services[util.ServiceLiveStoreZoneB], tempoPort, "tempo_live_store_traces_created_total{tenant=\"single-tenant\"} 1"))
+
+		util.SearchTraceQLAndAssertTrace(t, apiClient, info)
+
+		creds := credentials.NewTLS(&tls.Config{InsecureSkipVerify: true})
+		grpcClient, err := util.NewSearchGRPCClient(context.Background(), queryFrontend.Endpoint(tempoPort), creds)
+		require.NoError(t, err)
+
+		now := time.Now()
+		util.SearchStreamAndAssertTrace(t, context.Background(), grpcClient, info, now.Add(-time.Hour).Unix(), now.Unix())
+	})
+
+}
+
+type keyMaterial struct {
 	CaCertFile                string
 	ServerCertFile            string
 	ServerKeyFile             string
@@ -32,7 +99,7 @@ type KeyMaterial struct {
 	Client2KeyFile            string
 }
 
-func SetupCertificates(t *testing.T) KeyMaterial {
+func setupCertificates(t *testing.T) keyMaterial {
 	testCADir := t.TempDir()
 
 	// create server side CA
@@ -116,7 +183,7 @@ func SetupCertificates(t *testing.T) KeyMaterial {
 		client2KeyFile,
 	))
 
-	return KeyMaterial{
+	return keyMaterial{
 		CaCertFile:                caCertFile,
 		ServerCertFile:            serverCertFile,
 		ServerKeyFile:             serverKeyFile,
@@ -209,4 +276,44 @@ func (ca *ca) writeCertificate(template *x509.Certificate, certPath string, keyP
 	}
 
 	return writeExclusivePEMFile(certPath, "CERTIFICATE", 0o600, derBytes)
+}
+
+func scrapeMetrics(t *testing.T, service *e2e.HTTPService, port int, searchString string) bool {
+	t.Helper()
+
+	// create HTTPS client with insecure skip verify
+	client := &http.Client{
+		Transport: &http.Transport{
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+		},
+		Timeout: util.MetricsTimeout,
+	}
+
+	found := false
+
+	require.Eventually(t, func() bool {
+		url := "https://" + service.Endpoint(port) + "/metrics"
+		resp, err := client.Get(url)
+		if err != nil {
+			t.Logf("failed to scrape metrics: %v", err)
+			return false
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode != http.StatusOK {
+			t.Logf("unexpected status code: %d", resp.StatusCode)
+			return false
+		}
+
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			t.Logf("failed to read response body: %v", err)
+			return false
+		}
+
+		found = bytes.Contains(body, []byte(searchString))
+		return found
+	}, time.Minute, time.Second, "could not write trace to tempo")
+
+	return found
 }

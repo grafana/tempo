@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	"github.com/grafana/dskit/user"
-	"github.com/grafana/e2e"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/exporter/zipkinexporter"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -24,12 +23,17 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/grafana/tempo/integration/util"
+	"github.com/grafana/tempo/pkg/tempopb"
 	tempoUtil "github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/pkg/util/test"
 )
 
 func TestReceivers(t *testing.T) {
-	util.WithTempoHarness(t, util.TestHarnessConfig{}, func(h *util.TempoHarness) {
+	util.WithTempoHarness(t, util.TestHarnessConfig{
+		DeploymentMode: util.DeploymentModeSingleBinary,
+	}, func(h *util.TempoHarness) {
+		h.WaitTracesWritable(t)
+
 		testReceivers := []struct {
 			name           string
 			createExporter func() (exporter.Traces, error)
@@ -174,15 +178,26 @@ func TestReceivers(t *testing.T) {
 				require.NoError(t, exp.Shutdown(context.Background()))
 
 				expectedTraces := i + 1
-				require.NoError(t, h.Services[util.ServiceLiveStoreZoneA].WaitSumMetricsWithOptions(e2e.Equals(float64(expectedTraces)), []string{"tempo_live_store_traces_created_total"}, e2e.WaitMissingMetrics))
+				h.WaitTracesQueryable(t, expectedTraces)
 
 				// query for the trace
-				trace, err := h.HTTPClient.QueryTrace(tempoUtil.TraceIDToHexString(traceID))
+				trace, err := h.APIClientHTTP("").QueryTrace(tempoUtil.TraceIDToHexString(traceID))
 				require.NoError(t, err)
 
 				// just compare spanCount because otel flattens all ILS into one
-				assert.Equal(t, util.SpanCount(req), util.SpanCount(trace))
+				assert.Equal(t, spanCount(req), spanCount(trace))
 			})
 		}
 	})
+}
+
+func spanCount(a *tempopb.Trace) float64 {
+	count := 0
+	for _, batch := range a.ResourceSpans {
+		for _, spans := range batch.ScopeSpans {
+			count += len(spans.Spans)
+		}
+	}
+
+	return float64(count)
 }

@@ -8,7 +8,6 @@ import (
 
 	"github.com/grafana/dskit/user"
 	jaeger "github.com/jaegertracing/jaeger-idl/thrift-gen/jaeger"
-	zipkincore "github.com/jaegertracing/jaeger-idl/thrift-gen/zipkincore"
 	jaegerTrans "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/jaeger"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
@@ -40,7 +39,6 @@ type TraceInfo struct {
 // JaegerClient is an interface used to mock the underlying client in tests.
 type JaegerClient interface {
 	EmitBatch(ctx context.Context, b *jaeger.Batch) error
-	EmitZipkinBatch(ctx context.Context, zSpans []*zipkincore.Span) error
 }
 
 // NewTraceInfo is used to produce a new TraceInfo.
@@ -384,5 +382,5 @@ func randFrom[T any](r *rand.Rand, s []T) T {
 }
 
 func newRand(t time.Time) *rand.Rand {
-	return rand.New(rand.NewSource(t.UnixNano())) // jpe - does this impact vulture?
+	return rand.New(rand.NewSource(t.UnixNano()))
 }

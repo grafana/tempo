@@ -13,7 +13,6 @@ import (
 
 	"github.com/go-kit/log"
 	"github.com/google/uuid"
-	"github.com/grafana/e2e"
 	"github.com/grafana/tempo/integration/util"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -67,7 +66,8 @@ func TestPollerOwnership(t *testing.T) {
 	for _, pc := range storageBackendTestPermutations {
 		t.Run(pc.name, func(t *testing.T) {
 			util.WithTempoHarness(t, util.TestHarnessConfig{
-				Components: util.ComponentsObjectStorage,
+				DeploymentMode: util.DeploymentModeNone,
+				Backends:       util.BackendObjectStorageAll,
 			}, func(h *util.TempoHarness) {
 				// Get the config to determine backend type and settings
 				cfg, err := h.GetConfig()
@@ -80,9 +80,8 @@ func TestPollerOwnership(t *testing.T) {
 				listBlockConcurrency := 10
 
 				// Get backend endpoint from the harness
-				httpService, ok := h.Backend.(*e2e.HTTPService)
-				require.True(t, ok, "backend should be an HTTPService")
-				e := httpService.Endpoint(httpService.HTTPPort())
+				objStorage := h.Services[util.ServiceObjectStorage]
+				e := objStorage.Endpoint(objStorage.HTTPPort())
 
 				switch cfg.StorageConfig.Trace.Backend {
 				case backend.S3:
@@ -190,7 +189,8 @@ func TestTenantDeletion(t *testing.T) {
 	for _, pc := range storageBackendTestPermutations {
 		t.Run(pc.name, func(t *testing.T) {
 			util.WithTempoHarness(t, util.TestHarnessConfig{
-				Components: util.ComponentsObjectStorage,
+				DeploymentMode: util.DeploymentModeNone,
+				Backends:       util.BackendObjectStorageAll,
 			}, func(h *util.TempoHarness) {
 				// Get the config to determine backend type and settings
 				cfg, err := h.GetConfig()
@@ -205,9 +205,8 @@ func TestTenantDeletion(t *testing.T) {
 				defer cancel()
 
 				// Get backend endpoint from the harness
-				httpService, ok := h.Backend.(*e2e.HTTPService)
-				require.True(t, ok, "backend should be an HTTPService")
-				e := httpService.Endpoint(httpService.HTTPPort())
+				objStorage := h.Services[util.ServiceObjectStorage]
+				e := objStorage.Endpoint(objStorage.HTTPPort())
 
 				switch cfg.StorageConfig.Trace.Backend {
 				case backend.S3:
