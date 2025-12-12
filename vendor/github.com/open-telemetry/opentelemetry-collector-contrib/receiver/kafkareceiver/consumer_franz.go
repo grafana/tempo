@@ -35,9 +35,10 @@ const franzGoConsumerFeatureGateName = "receiver.kafkareceiver.UseFranzGo"
 // the Kafka receiver will use the franz-go client, which is more performant and has
 // better support for modern Kafka features.
 var franzGoConsumerFeatureGate = featuregate.GlobalRegistry().MustRegister(
-	franzGoConsumerFeatureGateName, featuregate.StageBeta,
+	franzGoConsumerFeatureGateName, featuregate.StageStable,
 	featuregate.WithRegisterDescription("When enabled, the Kafka receiver will use the franz-go client to consume messages."),
 	featuregate.WithRegisterFromVersion("v0.129.0"),
+	featuregate.WithRegisterToVersion("v0.143.0"),
 )
 
 type topicPartition struct {
@@ -51,6 +52,7 @@ type topicPartition struct {
 type franzConsumer struct {
 	config           *Config
 	topics           []string
+	excludeTopics    []string
 	settings         receiver.Settings
 	telemetryBuilder *metadata.TelemetryBuilder
 	newConsumeFn     newConsumeMessageFunc
@@ -123,6 +125,7 @@ func newFranzKafkaConsumer(
 	config *Config,
 	set receiver.Settings,
 	topics []string,
+	excludeTopics []string,
 	newConsumeFn newConsumeMessageFunc,
 ) (*franzConsumer, error) {
 	telemetryBuilder, err := metadata.NewTelemetryBuilder(set.TelemetrySettings)
@@ -133,6 +136,7 @@ func newFranzKafkaConsumer(
 	return &franzConsumer{
 		config:           config,
 		topics:           topics,
+		excludeTopics:    excludeTopics,
 		newConsumeFn:     newConsumeFn,
 		settings:         set,
 		telemetryBuilder: telemetryBuilder,
@@ -212,6 +216,7 @@ func (c *franzConsumer) Start(ctx context.Context, host component.Host) error {
 		c.config.ClientConfig,
 		c.config.ConsumerConfig,
 		c.topics,
+		c.excludeTopics,
 		c.settings.Logger,
 		opts...,
 	)

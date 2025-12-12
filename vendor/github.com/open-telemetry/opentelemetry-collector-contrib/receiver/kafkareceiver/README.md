@@ -23,9 +23,9 @@ If used in conjunction with the `kafkaexporter` configured with `include_metadat
 ## Getting Started
 
 > [!NOTE]
-> You can opt out of using the [`franz-go`](https://github.com/twmb/franz-go) client by disabling the feature gate
-> `receiver.kafkareceiver.UseFranzGo` when you run the OpenTelemetry Collector. See the following page
-> for more details: [Feature Gates](https://github.com/open-telemetry/opentelemetry-collector/tree/main/featuregate#controlling-gates)
+> The Kafka receiver uses the [`franz-go`](https://github.com/twmb/franz-go) client library, which provides
+> better performance and support for modern Kafka features. The `receiver.kafkareceiver.UseFranzGo` feature
+> gate is now stable and always enabled (as of v0.141.0). The legacy Sarama client will be removed after v0.143.0.
 >
 > The `franz-go` client supports directly consuming from multiple topics by specifying a regex expression.
 > To enable this feature, prefix your topic with the `^` character. This is identical to how the `librdkafka`
@@ -44,15 +44,19 @@ The following settings can be optionally configured:
 - `logs`
   - `topic` (default = otlp\_logs): The name of the Kafka topic from which to consume logs.
   - `encoding` (default = otlp\_proto): The encoding for the Kafka topic. See [Supported encodings](#supported-encodings).
+  - `exclude_topic` (default = ""): When using regex topic patterns (prefix with `^`), this regex pattern excludes matching topics. Only works with franz-go client and when topic uses regex.
 - `metrics`
   - `topic` (default = otlp\_metrics): The name of the Kafka topic from which to consume metrics.
   - `encoding` (default = otlp\_proto): The encoding for the Kafka topic. See [Supported encodings](#supported-encodings).
+  - `exclude_topic` (default = ""): When using regex topic patterns (prefix with `^`), this regex pattern excludes matching topics. Only works with franz-go client and when topic uses regex.
 - `traces`
   - `topic` (default = otlp\_spans): The name of the Kafka topic from which to consume traces.
   - `encoding` (default = otlp\_proto): The encoding for the Kafka topic. See [Supported encodings](#supported-encodings).
+  - `exclude_topic` (default = ""): When using regex topic patterns (prefix with `^`), this regex pattern excludes matching topics. Only works with franz-go client and when topic uses regex.
 - `profiles`
   - `topic` (default = otlp\_profiles): The name of the Kafka topic from which to consume profiles.
   - `encoding` (default = otlp\_proto): The encoding for the Kafka topic. See [Supported encodings](#supported-encodings).
+  - `exclude_topic` (default = ""): When using regex topic patterns (prefix with `^`), this regex pattern excludes matching topics. Only works with franz-go client and when topic uses regex.
 - `topic` (Deprecated [v0.124.0]: use `logs::topic`, `traces::topic`, or `metrics::topic`).
    If this is set, it will take precedence over the default value for those fields.
 - `encoding` (Deprecated [v0.124.0]: use `logs::encoding`, `traces::encoding`, or `metrics::encoding`).
@@ -64,10 +68,11 @@ The following settings can be optionally configured:
 - `initial_offset` (default = latest): The initial offset to use if no offset was previously committed. Must be `latest` or `earliest`.
 - `session_timeout` (default = `10s`): The request timeout for detecting client failures when using Kafka’s group management facilities.
 - `heartbeat_interval` (default = `3s`): The expected time between heartbeats to the consumer coordinator when using Kafka’s group management facilities.
-- `group_rebalance_strategy` (default = `range`): This strategy is used to assign partitions to consumers within a consumer group. This setting determines how Kafka distributes topic partitions among the consumers in the group during rebalances. Supported strategies are:
+- `group_rebalance_strategy` (default = `cooperative-sticky`): This strategy is used to assign partitions to consumers within a consumer group. This setting determines how Kafka distributes topic partitions among the consumers in the group during rebalances. Supported strategies are:
   - `range`: This strategy assigns partitions to consumers based on a range. It aims to distribute partitions evenly across consumers, but it can lead to uneven distribution if the number of partitions is not a multiple of the number of consumers. For more information, refer to the Kafka RangeAssignor documentation, see [RangeAssignor](https://kafka.apache.org/31/javadoc/org/apache/kafka/clients/consumer/RangeAssignor.html).
   - `roundrobin`: This strategy assigns partitions to consumers in a round-robin fashion. It ensures a more even distribution of partitions across consumers, especially when the number of partitions is not a multiple of the number of consumers. For more information, refer to the Kafka RoundRobinAssignor documentation, see [RoundRobinAssignor](https://kafka.apache.org/31/javadoc/org/apache/kafka/clients/consumer/RoundRobinAssignor.html).
   - `sticky`: This strategy aims to maintain the same partition assignments during rebalances as much as possible. It minimizes the number of partition movements, which can be beneficial for stateful consumers. For more information, refer to the Kafka StickyAssignor documentation, see [StickyAssignor](https://kafka.apache.org/31/javadoc/org/apache/kafka/clients/consumer/StickyAssignor.html).
+  - `cooperative-sticky`: This strategy is similar to `sticky`, but it supports cooperative rebalancing. It allows consumers to incrementally adjust their partition assignments without requiring a full rebalance, which can reduce downtime during rebalances. For more information, refer to the Kafka CooperativeStickyAssignor documentation, see [CooperativeStickyAssignor](https://kafka.apache.org/31/javadoc/org/apache/kafka/clients/consumer/CooperativeStickyAssignor.html).
 - `group_instance_id`: A unique identifier for the consumer instance within a consumer group.
   - If set to a non-empty string, the consumer is treated as a static member of the group. This means that the consumer will maintain its partition assignments across restarts and rebalances, as long as it rejoins the group with the same `group_instance_id`.
   - If set to an empty string (or not set), the consumer is treated as a dynamic member. In this case, the consumer's partition assignments may change during rebalances.
@@ -216,3 +221,29 @@ attributes with the prefix "kafka.header.", i.e.
 }
 ...
 ```
+
+#### Regex topic patterns with exclusions
+
+When using the `franz-go` client, you can consume from multiple topics using regex patterns
+and exclude specific topics from consumption. This is useful when you want to consume from
+a dynamic set of topics but need to filter out certain ones.
+
+**Note:** Both `topic` and `exclude_topic` must use regex patterns (prefix with `^`) for
+exclusion to work. This feature is only available with the franz-go client.
+
+```yaml
+receivers:
+  kafka:
+    logs:
+      topic: "^logs-.*"                   # Consume from all topics matching logs-*
+      exclude_topic: "^logs-(test|dev)$"  # Exclude logs-test and logs-dev
+    metrics:
+      topic: "^metrics-.*"
+      exclude_topic: "^metrics-internal-.*$"
+```
+
+In the example above:
+- For logs: the receiver will consume from topics like `logs-prod`, `logs-staging`, `logs-app`
+  but will exclude `logs-test` and `logs-dev`
+- For metrics: the receiver will consume from topics like `metrics-app`, `metrics-infra`
+  but will exclude any topics starting with `metrics-internal-`
