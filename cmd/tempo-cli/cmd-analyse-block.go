@@ -21,7 +21,6 @@ import (
 	tempo_io "github.com/grafana/tempo/pkg/io"
 	pq "github.com/grafana/tempo/pkg/parquetquery"
 	"github.com/grafana/tempo/tempodb/backend"
-	"github.com/grafana/tempo/tempodb/encoding/vparquet2"
 	"github.com/grafana/tempo/tempodb/encoding/vparquet3"
 	"github.com/grafana/tempo/tempodb/encoding/vparquet4"
 )
@@ -41,19 +40,6 @@ type scopeAttributePath struct {
 
 func pathsForVersion(v string) attributePaths {
 	switch v {
-	case vparquet2.VersionString:
-		return attributePaths{
-			span: scopeAttributePath{
-				defLevel: vparquet2.DefinitionLevelResourceSpansILSSpanAttrs,
-				keyPath:  vparquet2.FieldSpanAttrKey,
-				valPath:  vparquet2.FieldSpanAttrVal,
-			},
-			res: scopeAttributePath{
-				defLevel: vparquet2.DefinitionLevelResourceAttrs,
-				keyPath:  vparquet2.FieldResourceAttrKey,
-				valPath:  vparquet2.FieldResourceAttrVal,
-			},
-		}
 	case vparquet3.VersionString:
 		return attributePaths{
 			span: scopeAttributePath{
@@ -144,8 +130,6 @@ func processBlock(r backend.Reader, tenantID, blockID string, maxStartTime, minS
 
 	var reader io.ReaderAt
 	switch meta.Version {
-	case vparquet2.VersionString:
-		reader = vparquet2.NewBackendReaderAt(context.Background(), r, vparquet2.DataFileName, meta)
 	case vparquet3.VersionString:
 		reader = vparquet3.NewBackendReaderAt(context.Background(), r, vparquet3.DataFileName, meta)
 	case vparquet4.VersionString:

@@ -8,6 +8,12 @@
 * [CHANGE] Expose metrics_generator.native_histogram_bucket_factor and native_histogram_min_reset_duration to user-configurable overrides API [#5973](https://github.com/grafana/tempo/pull/5973) (@carles-grafana)
 * [CHANGE] Remove remaining aws-sdk-go references and migrate tests to MinIO [#5856](https://github.com/grafana/tempo/pull/5856) (@anglerfishlyy)
 * [CHANGE] **BREAKING CHANGE** Validate tenant ID in frontend and distributor [#5786](https://github.com/grafana/tempo/pull/5786) (@carles-grafana)
+* [CHANGE] Remove vParquet2 encoding [#6071](https://github.com/grafana/tempo/pull/6071) (@mdisibio)
+  **BREAKING CHANGE** In the last release vParquet2 was deprecated and blocked from writes. Now, it's
+  removed entirely. It will no longer be recognized as a valid encoding and cannot read any remaining vParquet2 blocks. Installations
+  running with historical defaults should not require any changes as the default has been migrated for several releases. Installations
+  with storage settings pinned to vParquet2 must run a previous release configured for vParquet3 or higher until all existing vParquet2 blocks
+  have expired and been deleted from the backend, or else it will encounter read errors after upgrading to this release.
 * [CHANGE] Remove busybox from Tempo image to make it more minimal and prevent future vulnerabilities [#5717](https://github.com/grafana/tempo/pull/5717) (@carles-grafana)
 * [CHANGE] Allow RetryInfo to be disabled in per tenant overrides [#5741](https://github.com/grafana/tempo/pull/5741) (@electron0zero)
 * [CHANGE] Added a single binary 3.0 mode `--target=all-3.0` to begin testing single binary 3.0 and updating integration tests. [#6021](https://github.com/grafana/tempo/pull/6021) (@joe-elliott)

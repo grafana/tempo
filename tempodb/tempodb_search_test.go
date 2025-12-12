@@ -34,7 +34,6 @@ import (
 	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 	v2 "github.com/grafana/tempo/tempodb/encoding/v2"
-	"github.com/grafana/tempo/tempodb/encoding/vparquet2"
 	"github.com/grafana/tempo/tempodb/encoding/vparquet4"
 	"github.com/grafana/tempo/tempodb/encoding/vparquet5"
 	"github.com/grafana/tempo/tempodb/wal"
@@ -1092,11 +1091,6 @@ func traceQLStructural(t *testing.T, _ *tempopb.Trace, wantMeta *tempopb.TraceSe
 }
 
 func nestedSet(t *testing.T, _ *tempopb.Trace, wantMeta *tempopb.TraceSearchMetadata, _, _ []*tempopb.SearchRequest, meta *backend.BlockMeta, r Reader, _ common.BackendBlock) {
-	// nested set queries only supported in 3 or greater
-	if meta.Version == vparquet2.VersionString {
-		return
-	}
-
 	ctx := context.Background()
 	e := traceql.NewEngine()
 

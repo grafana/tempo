@@ -11,7 +11,6 @@ import (
 	"github.com/grafana/tempo/tempodb/encoding/common"
 	"github.com/grafana/tempo/tempodb/encoding/unsupported"
 	v2 "github.com/grafana/tempo/tempodb/encoding/v2"
-	"github.com/grafana/tempo/tempodb/encoding/vparquet2"
 	"github.com/grafana/tempo/tempodb/encoding/vparquet3"
 	"github.com/grafana/tempo/tempodb/encoding/vparquet4"
 	"github.com/grafana/tempo/tempodb/encoding/vparquet5"
@@ -73,8 +72,6 @@ func FromVersion(v string) (VersionedEncoding, error) {
 	switch v {
 	case v2.VersionString:
 		return v2.Encoding{}, nil
-	case vparquet2.VersionString:
-		return vparquet2.Encoding{}, nil
 	case vparquet3.VersionString:
 		return vparquet3.Encoding{}, nil
 	case vparquet4.VersionString:
@@ -116,7 +113,6 @@ func LatestEncoding() VersionedEncoding {
 func AllEncodings() []VersionedEncoding {
 	return []VersionedEncoding{
 		v2.Encoding{},
-		vparquet2.Encoding{},
 		vparquet3.Encoding{},
 		vparquet4.Encoding{},
 		vparquet5.Encoding{},
