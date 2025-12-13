@@ -1,7 +1,7 @@
 {
   "OriginalCount": 5000,
-  "FinalCount": 3735,
-  "ReductionPct": 25.3,
+  "FinalCount": 2485,
+  "ReductionPct": 50.3,
   "PatternMapping": {
     "/apple": "/apple",
     "/apple-apple": "/apple-apple",

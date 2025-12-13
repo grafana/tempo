@@ -48,12 +48,17 @@ func main() {
 		drain := drain.New(drain.DefaultConfig(), nil, nil, nil)
 		for _, line := range lines {
 			cluster := drain.Train(line, 0)
-			patternMapping[line] = cluster.String()
+			if cluster == nil {
+				patternMapping[line] = "<nil> (possibly too many tokens)"
+			} else {
+				patternMapping[line] = cluster.String()
+			}
 		}
+		clusters := drain.Clusters()
 		testData := TestData{
 			OriginalCount:  len(lines),
-			FinalCount:     len(patternMapping),
-			ReductionPct:   100 * float64(len(lines)-len(patternMapping)) / float64(len(lines)),
+			FinalCount:     len(clusters),
+			ReductionPct:   100 * float64(len(lines)-len(clusters)) / float64(len(lines)),
 			PatternMapping: patternMapping,
 		}
 

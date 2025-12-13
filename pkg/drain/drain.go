@@ -151,7 +151,7 @@ func New(config *Config, metrics *Metrics, tokenizer LineTokenizer, tokenIsLikel
 		tokenIsLikelyData = DefaultIsDataHeuristic
 	}
 	if tokenizer == nil {
-		tokenizer = &PunctuationAndSuffixAwareTokenizer{}
+		tokenizer = &DefaultTokenizer{}
 	}
 
 	d := &Drain{

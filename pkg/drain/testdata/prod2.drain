@@ -1,7 +1,7 @@
 {
   "OriginalCount": 5000,
-  "FinalCount": 4523,
-  "ReductionPct": 9.54,
+  "FinalCount": 3647,
+  "ReductionPct": 27.06,
   "PatternMapping": {
     "/apple": "/apple",
     "/apple-apple-elderberry-elderberry-grape-cherry": "/apple-apple-elderberry-elderberry-grape-cherry",

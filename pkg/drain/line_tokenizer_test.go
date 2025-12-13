@@ -15,43 +15,72 @@ func TestLineTokenizer(t *testing.T) {
 	}{
 		{
 			name:      "single number",
-			tokenizer: &PunctuationAndSuffixAwareTokenizer{},
+			tokenizer: &DefaultTokenizer{},
 			input:     "1234567890",
 			expected:  []string{"1234567890", "<END>"},
 		},
 		{
 			name:      "single word",
-			tokenizer: &PunctuationAndSuffixAwareTokenizer{},
+			tokenizer: &DefaultTokenizer{},
 			input:     "apple",
 			expected:  []string{"apple", "<END>"},
 		},
 		{
 			name:      "word with number",
-			tokenizer: &PunctuationAndSuffixAwareTokenizer{},
+			tokenizer: &DefaultTokenizer{},
 			input:     "application_1234567890",
 			expected:  []string{"application", "_", "1234567890", "<END>"},
 		},
 		{
 			name:      "SQL LDAP",
-			tokenizer: &PunctuationAndSuffixAwareTokenizer{},
+			tokenizer: &DefaultTokenizer{},
 			input:     "INSERT pineapple.mango,cn=org,dc=place,dc=city",
-			expected:  []string{"INSERT", " ", "pineapple", ".", "mango,cn=org,dc=place,dc=city", "<END>"},
+			expected: []string{
+				"INSERT", " ", "pineapple", ".",
+				"mango", ",", "cn", "=", "org", ",", "dc", "=", "place", ",", "dc", "=", "city",
+				"<END>",
+			},
+		},
+		{
+			name:      "simple sql",
+			tokenizer: &DefaultTokenizer{},
+			input:     "CREATE TABLE apple (fig)",
+			expected: []string{
+				"CREATE", " ", "TABLE", " ",
+				"apple", " ", "(", "fig", ")",
+				"<END>",
+			},
 		},
 		{
 			name:      "words with uuid",
-			tokenizer: &PunctuationAndSuffixAwareTokenizer{},
+			tokenizer: &DefaultTokenizer{},
 			input:     "TRAMPOLINE COMMAND GO: commence jumping: 6cae3d57-f354-4d14-8420-1a2961327100",
-			expected:  []string{"TRAMPOLINE", " ", "COMMAND", " ", "GO:", " ", "commence", " ", "jumping:", " ", "6cae3d57-f354-4d14-8420-1a2961327100", "<END>"},
+			expected: []string{
+				"TRAMPOLINE", " ", "COMMAND", " ",
+				"GO", ":", " ", "commence", " ", "jumping", ":", " ",
+				"6cae3d57-f354-4d14-8420-1a2961327100",
+				"<END>",
+			},
 		},
 		{
 			name:      "query with params",
-			tokenizer: &PunctuationAndSuffixAwareTokenizer{},
+			tokenizer: &DefaultTokenizer{},
 			input:     "fetch GET http://api.namespace.svc.cluster.local/api/apps/shared/inband/service.method?input=abc%3Dmango%26def%3Dkiwi%26height%3D395",
 			expected: []string{
 				"fetch", " ", "GET", " ",
-				"http:", "/", "/", "api", ".", "namespace", ".", "svc", ".", "cluster", ".", "local", "/", "api", "/", "apps", "/", "shared", "/", "inband", "/",
-				"service", ".", "method?input=abc%3Dmango%26def%3Dkiwi%26height%3D395",
-				"<END>"},
+				"http", ":", "/", "/", "api", ".", "namespace", ".", "svc", ".", "cluster", ".", "local", "/", "api", "/", "apps", "/", "shared", "/", "inband", "/",
+				"service", ".", "method", "?", "input", "=", "abc", "%3D", "mango", "%26", "def", "%3D", "kiwi", "%26", "height", "%3D", "395",
+				"<END>",
+			},
+		},
+		{
+			name:      "url with hash",
+			tokenizer: &DefaultTokenizer{},
+			input:     "DELETE /apple-banana-kiwi-date-lemon-elderberry-apple?h=b274be36aa1bf3ef7189d41d8cd98f00b204e9800998ecf8427e",
+			expected: []string{
+				"DELETE", " ", "/", "apple", "-", "banana", "-", "kiwi", "-", "date", "-", "lemon", "-", "elderberry", "-", "apple", "?", "h", "=", "b274be36aa1bf3ef7189d41d8cd98f00b204e9800998ecf8427e",
+				"<END>",
+			},
 		},
 	}
 	for _, test := range tests {
