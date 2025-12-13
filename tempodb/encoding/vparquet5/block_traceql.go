@@ -1670,7 +1670,7 @@ func createAllIterator(ctx context.Context, primaryIter parquetquery.Iterator, c
 		innerIterators = append(innerIterators, primaryIter)
 	}
 
-	eventIter, err := createEventIterator(makeIter, makeNilIter, catConditions.event, allConditions, selectAll)
+	eventIter, err := createEventIterator(makeIter, makeNilIter, catConditions.event, allConditions, dc, selectAll)
 	if err != nil {
 		return nil, fmt.Errorf("creating event iterator: %w", err)
 	}
@@ -1704,13 +1704,41 @@ func createAllIterator(ctx context.Context, primaryIter parquetquery.Iterator, c
 	return createTraceIterator(makeIter, resourceIter, catConditions.trace, start, end, allConditions, selectAll, traceSampler)
 }
 
-func createEventIterator(makeIter, makeNilIter makeIterFn, conditions []traceql.Condition, allConditions bool, selectAll bool) (parquetquery.Iterator, error) {
+func createEventIterator(makeIter, makeNilIter makeIterFn, conditions []traceql.Condition, allConditions bool, dedicatedColumns backend.DedicatedColumns, selectAll bool) (parquetquery.Iterator, error) {
 	if len(conditions) == 0 {
 		return nil, nil
 	}
 
-	eventIters := make([]parquetquery.Iterator, 0, len(conditions))
-	var genericConditions []traceql.Condition
+	var (
+		columnSelectAs    = map[string]string{}
+		columnPredicates  = map[string][]parquetquery.Predicate{}
+		iters             []parquetquery.Iterator
+		genericConditions []traceql.Condition
+		columnMapping     = dedicatedColumnsToColumnMapping(dedicatedColumns, backend.DedicatedColumnScopeEvent)
+	)
+
+	addPredicate := func(columnPath string, p parquetquery.Predicate) {
+		columnPredicates[columnPath] = append(columnPredicates[columnPath], p)
+	}
+
+	specialCase := func(cond traceql.Condition, columnPath string) (handled bool) {
+		// Operands that need special handling.
+		switch cond.Op {
+		case traceql.OpNone:
+			addPredicate(columnPath, nil) // No filtering
+			columnSelectAs[columnPath] = cond.Attribute.Name
+			return true
+		case traceql.OpExists:
+			addPredicate(columnPath, &parquetquery.SkipNilsPredicate{})
+			columnSelectAs[columnPath] = cond.Attribute.Name
+			return true
+		case traceql.OpNotExists:
+			iters = append(iters, makeIter(columnPath, parquetquery.NewNilValuePredicate(), cond.Attribute.Name))
+			return true
+		default:
+			return false
+		}
+	}
 
 	for _, cond := range conditions {
 		switch cond.Attribute.Intrinsic {
@@ -1719,25 +1747,48 @@ func createEventIterator(makeIter, makeNilIter makeIterFn, conditions []traceql.
 			if err != nil {
 				return nil, err
 			}
-			eventIters = append(eventIters, makeIter(columnPathEventName, pred, columnPathEventName))
+			iters = append(iters, makeIter(columnPathEventName, pred, columnPathEventName))
 			continue
 		case traceql.IntrinsicEventTimeSinceStart:
 			pred, err := createIntPredicate(cond.Op, cond.Operands)
 			if err != nil {
 				return nil, err
 			}
-			eventIters = append(eventIters, makeIter(columnPathEventTimeSinceStart, pred, columnPathEventTimeSinceStart))
+			iters = append(iters, makeIter(columnPathEventTimeSinceStart, pred, columnPathEventTimeSinceStart))
 			continue
+		}
+
+		// Attributes stored in dedicated columns
+		if c, ok := columnMapping.get(cond.Attribute.Name); ok {
+			if specialCase(cond, c.ColumnPath) {
+				continue
+			}
+
+			// Compatible type?
+			typ, _ := c.Type.ToStaticType()
+			if typ == operandType(cond.Operands) {
+				pred, err := createPredicate(cond.Op, cond.Operands)
+				if err != nil {
+					return nil, fmt.Errorf("creating predicate: %w", err)
+				}
+				addPredicate(c.ColumnPath, pred)
+				columnSelectAs[c.ColumnPath] = cond.Attribute.Name
+				continue
+			}
 		}
 
 		if cond.Op == traceql.OpNotExists {
 			// Generic attr doesn't exist
 			pred := parquetquery.NewIncludeNilStringEqualPredicate([]byte(cond.Attribute.Name))
-			eventIters = append(eventIters, makeNilIter(columnPathEventAttrKey, pred, cond.Attribute.Name))
+			iters = append(iters, makeNilIter(columnPathEventAttrKey, pred, cond.Attribute.Name))
 			continue
 		}
 
 		genericConditions = append(genericConditions, cond)
+	}
+
+	for columnPath, predicates := range columnPredicates {
+		iters = append(iters, makeIter(columnPath, orIfNeeded(predicates), columnSelectAs[columnPath]))
 	}
 
 	attrIter, err := createAttributeIterator(makeIter, genericConditions, DefinitionLevelResourceSpansILSSpanEventAttrs,
@@ -1747,7 +1798,7 @@ func createEventIterator(makeIter, makeNilIter makeIterFn, conditions []traceql.
 	}
 
 	if attrIter != nil {
-		eventIters = append(eventIters, attrIter)
+		iters = append(iters, attrIter)
 	}
 
 	var required []parquetquery.Iterator
@@ -1770,19 +1821,19 @@ func createEventIterator(makeIter, makeNilIter makeIterFn, conditions []traceql.
 	// This is an optimization for when all of the span conditions must be met.
 	// We simply move all iterators into the required list.
 	if allConditions {
-		required = append(required, eventIters...)
-		eventIters = nil
+		required = append(required, iters...)
+		iters = nil
 	}
 
 	if len(required) == 0 {
 		required = []parquetquery.Iterator{makeIter(columnPathEventName, nil, "")}
 	}
 
-	if len(eventIters) == 0 && len(required) == 0 {
+	if len(iters) == 0 && len(required) == 0 {
 		return nil, nil
 	}
 
-	return parquetquery.NewLeftJoinIterator(DefinitionLevelResourceSpansILSSpanEvent, required, eventIters, eventCol, parquetquery.WithPool(pqEventPool))
+	return parquetquery.NewLeftJoinIterator(DefinitionLevelResourceSpansILSSpanEvent, required, iters, eventCol, parquetquery.WithPool(pqEventPool))
 }
 
 func createLinkIterator(makeIter, makeNilIter makeIterFn, conditions []traceql.Condition, allConditions, selectAll bool) (parquetquery.Iterator, error) {
@@ -3551,12 +3602,25 @@ func (c *eventCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 				s: traceql.NewStaticDuration(time.Duration(e.Value.Int64())),
 			})
 		default:
-			// null value indicates attribute doesn't exist
-			if e.Value.IsNull() {
-				ev.attrs = append(ev.attrs, attrVal{
-					a: newEventAttr(e.Key),
-					s: traceql.NewStaticString("nil"),
-				})
+			// TODO - This exists for span-level dedicated columns like http.status_code
+			// Are nils possible here?
+			switch e.Value.Kind() {
+			case parquet.Boolean:
+				ev.attrs = append(ev.attrs, attrVal{a: newEventAttr(e.Key), s: traceql.NewStaticBool(e.Value.Boolean())})
+			case parquet.Int32, parquet.Int64:
+				ev.attrs = append(ev.attrs, attrVal{a: newEventAttr(e.Key), s: traceql.NewStaticInt(int(e.Value.Int64()))})
+			case parquet.Float:
+				ev.attrs = append(ev.attrs, attrVal{a: newEventAttr(e.Key), s: traceql.NewStaticFloat(e.Value.Double())})
+			case parquet.ByteArray:
+				ev.attrs = append(ev.attrs, attrVal{a: newEventAttr(e.Key), s: traceql.NewStaticString(unsafeToString(e.Value.Bytes()))})
+			default:
+				// null value indicates attribute doesn't exist
+				if e.Value.IsNull() {
+					ev.attrs = append(ev.attrs, attrVal{
+						a: newEventAttr(e.Key),
+						s: traceql.NewStaticString("nil"),
+					})
+				}
 			}
 		}
 	}

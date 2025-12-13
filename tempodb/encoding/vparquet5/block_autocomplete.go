@@ -167,6 +167,18 @@ func tagNamesForSpecialColumns(scope traceql.AttributeScope, pf *parquet.File, d
 			}
 		}
 	}
+
+	// add all event dedicated columns that have values
+	if scope == traceql.AttributeScopeNone || scope == traceql.AttributeScopeEvent {
+		dedCols := dedicatedColumnsToColumnMapping(dcs, backend.DedicatedColumnScopeEvent)
+		for name, col := range dedCols.mapping {
+			if hasValues(col.ColumnPath, pf) {
+				if cb(name, traceql.AttributeScopeEvent) {
+					return
+				}
+			}
+		}
+	}
 }
 
 func (b *backendBlock) FetchTagValues(ctx context.Context, req traceql.FetchTagValuesRequest, cb traceql.FetchTagValuesCallback, mcb common.MetricsCallback, opts common.SearchOptions) error {
@@ -248,7 +260,7 @@ func autocompleteIter(ctx context.Context, tr tagRequest, pf *parquet.File, opts
 	var currentIter parquetquery.Iterator
 
 	if len(catConditions.event) > 0 || tr.keysRequested(traceql.AttributeScopeEvent) {
-		currentIter, err = createDistinctEventIterator(makeIter, makeNilIter, tr, currentIter, catConditions.event)
+		currentIter, err = createDistinctEventIterator(makeIter, makeNilIter, tr, currentIter, catConditions.event, dc)
 		if err != nil {
 			return nil, errors.Wrap(err, "creating event iterator")
 		}
@@ -297,11 +309,27 @@ func createDistinctEventIterator(
 	tr tagRequest,
 	primaryIter parquetquery.Iterator,
 	conditions []traceql.Condition,
+	dedicatedColumns backend.DedicatedColumns,
 ) (parquetquery.Iterator, error) {
 	var (
+		columnSelectAs    = map[string]string{}
+		columnPredicates  = map[string][]parquetquery.Predicate{}
 		iters             []parquetquery.Iterator
 		genericConditions []traceql.Condition
+		columnMapping     = dedicatedColumnsToColumnMapping(dedicatedColumns, backend.DedicatedColumnScopeEvent)
 	)
+
+	addSelectAs := func(attr traceql.Attribute, columnPath string, selectAs string) {
+		if attr == tr.tag {
+			columnSelectAs[columnPath] = selectAs
+		} else {
+			columnSelectAs[columnPath] = "" // Don't select, just filter
+		}
+	}
+
+	addPredicate := func(columnPath string, p parquetquery.Predicate) {
+		columnPredicates[columnPath] = append(columnPredicates[columnPath], p)
+	}
 
 	for _, cond := range conditions {
 		// Intrinsic?
@@ -318,6 +346,37 @@ func createDistinctEventIterator(
 			continue
 		}
 
+		// Attributes stored in dedicated columns
+		if c, ok := columnMapping.get(cond.Attribute.Name); ok {
+			// Operands that need special handling.
+			switch cond.Op {
+			case traceql.OpNone:
+				addPredicate(c.ColumnPath, nil) // No filtering
+				columnSelectAs[c.ColumnPath] = cond.Attribute.Name
+				continue
+			case traceql.OpExists:
+				addPredicate(c.ColumnPath, &parquetquery.SkipNilsPredicate{})
+				columnSelectAs[c.ColumnPath] = cond.Attribute.Name
+				continue
+			case traceql.OpNotExists:
+				pred := parquetquery.NewNilValuePredicate()
+				iters = append(iters, makeIter(c.ColumnPath, pred, cond.Attribute.Name))
+				continue
+			}
+
+			// Compatible type?
+			typ, _ := c.Type.ToStaticType()
+			if typ == operandType(cond.Operands) {
+				pred, err := createPredicate(cond.Op, cond.Operands)
+				if err != nil {
+					return nil, errors.Wrap(err, "creating predicate")
+				}
+				addPredicate(c.ColumnPath, pred)
+				addSelectAs(cond.Attribute, c.ColumnPath, cond.Attribute.Name)
+				continue
+			}
+		}
+
 		// generic attr does not exist?
 		if cond.Op == traceql.OpNotExists {
 			pred := parquetquery.NewIncludeNilStringEqualPredicate([]byte(cond.Attribute.Name))
@@ -327,6 +386,10 @@ func createDistinctEventIterator(
 
 		// Else: generic attribute lookup
 		genericConditions = append(genericConditions, cond)
+	}
+
+	for columnPath, predicates := range columnPredicates {
+		iters = append(iters, makeIter(columnPath, orIfNeeded(predicates), columnSelectAs[columnPath]))
 	}
 
 	attrIter, err := createDistinctAttributeIterator(makeIter, tr, genericConditions, DefinitionLevelResourceSpansILSSpanEventAttrs,
@@ -1173,11 +1236,24 @@ func (d distinctValueCollector) KeepGroup(result *parquetquery.IteratorResult) b
 }
 
 func mapEventAttr(e entry) traceql.Static {
-	if e.Key == columnPathEventName {
+	switch e.Key {
+	case columnPathEventName:
 		return traceql.NewStaticString(unsafeToString(e.Value.ByteArray()))
+	default:
+		// This exists for event-level dedicated columns
+		switch e.Value.Kind() {
+		case parquet.Boolean:
+			return traceql.NewStaticBool(e.Value.Boolean())
+		case parquet.Int32, parquet.Int64:
+			return traceql.NewStaticInt(int(e.Value.Int64()))
+		case parquet.Float:
+			return traceql.NewStaticFloat(e.Value.Double())
+		case parquet.ByteArray, parquet.FixedLenByteArray:
+			return traceql.NewStaticString(unsafeToString(e.Value.ByteArray()))
+		}
 	}
 
-	return traceql.Static{}
+	return traceql.NewStaticNil()
 }
 
 func mapLinkAttr(_ entry) traceql.Static {

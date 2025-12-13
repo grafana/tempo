@@ -51,6 +51,27 @@ var DedicatedResourceColumnPaths = map[backend.DedicatedColumnScope]map[backend.
 			"rs.list.element.ss.list.element.Spans.list.element.DedicatedAttributes.Int05",
 		},
 	},
+	backend.DedicatedColumnScopeEvent: {
+		backend.DedicatedColumnTypeString: {
+			"rs.list.element.ss.list.element.Spans.list.element.Events.list.element.DedicatedAttributes.String01",
+			"rs.list.element.ss.list.element.Spans.list.element.Events.list.element.DedicatedAttributes.String02",
+			"rs.list.element.ss.list.element.Spans.list.element.Events.list.element.DedicatedAttributes.String03",
+			"rs.list.element.ss.list.element.Spans.list.element.Events.list.element.DedicatedAttributes.String04",
+			"rs.list.element.ss.list.element.Spans.list.element.Events.list.element.DedicatedAttributes.String05",
+			"rs.list.element.ss.list.element.Spans.list.element.Events.list.element.DedicatedAttributes.String06",
+			"rs.list.element.ss.list.element.Spans.list.element.Events.list.element.DedicatedAttributes.String07",
+			"rs.list.element.ss.list.element.Spans.list.element.Events.list.element.DedicatedAttributes.String08",
+			"rs.list.element.ss.list.element.Spans.list.element.Events.list.element.DedicatedAttributes.String09",
+			"rs.list.element.ss.list.element.Spans.list.element.Events.list.element.DedicatedAttributes.String10",
+		},
+		backend.DedicatedColumnTypeInt: {
+			"rs.list.element.ss.list.element.Spans.list.element.Events.list.element.DedicatedAttributes.Int01",
+			"rs.list.element.ss.list.element.Spans.list.element.Events.list.element.DedicatedAttributes.Int02",
+			"rs.list.element.ss.list.element.Spans.list.element.Events.list.element.DedicatedAttributes.Int03",
+			"rs.list.element.ss.list.element.Spans.list.element.Events.list.element.DedicatedAttributes.Int04",
+			"rs.list.element.ss.list.element.Spans.list.element.Events.list.element.DedicatedAttributes.Int05",
+		},
+	},
 }
 
 type dedicatedColumn struct {
@@ -58,6 +79,7 @@ type dedicatedColumn struct {
 	ColumnPath  string
 	ColumnIndex int
 	IsArray     bool
+	IsBlob      bool
 }
 
 func (dc *dedicatedColumn) readValue(attrs *DedicatedAttributes) *v1.AnyValue {
@@ -173,6 +195,15 @@ func (dm *dedicatedColumnMapping) get(attr string) (dedicatedColumn, bool) {
 	return col, ok
 }
 
+func (dm *dedicatedColumnMapping) usesPath(path string) bool {
+	for _, col := range dm.mapping {
+		if col.ColumnPath == path {
+			return true
+		}
+	}
+	return false
+}
+
 func (dm *dedicatedColumnMapping) items() iter.Seq2[string, dedicatedColumn] {
 	return func(yield func(string, dedicatedColumn) bool) {
 		for _, k := range dm.keys {
@@ -215,20 +246,22 @@ func dedicatedColumnsToColumnMapping(dedicatedColumns backend.DedicatedColumns, 
 				continue // skip if there are not enough spare columns
 			}
 
-			var isArray bool
-			for _, opt := range c.Options {
-				if opt == backend.DedicatedColumnOptionArray {
-					isArray = true
-					break
-				}
-			}
-
-			mapping.put(c.Name, dedicatedColumn{
+			dc := dedicatedColumn{
 				Type:        c.Type,
 				ColumnPath:  spareColumnPaths[i],
 				ColumnIndex: i,
-				IsArray:     isArray,
-			})
+			}
+
+			for _, opt := range c.Options {
+				switch opt {
+				case backend.DedicatedColumnOptionArray:
+					dc.IsArray = true
+				case backend.DedicatedColumnOptionBlob:
+					dc.IsBlob = true
+				}
+			}
+
+			mapping.put(c.Name, dc)
 			indexByType[c.Type]++
 		}
 	}
