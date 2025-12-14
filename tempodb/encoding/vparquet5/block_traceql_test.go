@@ -1444,16 +1444,26 @@ func BenchmarkBackendBlockTraceQL(b *testing.B) {
 		{"mixed", `{resource.namespace!="" && resource.service.name="cortex-gateway" && duration>50ms && resource.cluster=~"prod.*"}`},
 		{"complex", `{resource.k8s.cluster.name =~ "prod.*" && resource.k8s.namespace.name = "hosted-grafana" && resource.k8s.container.name="hosted-grafana-gateway" && name = "httpclient/grafana" && span.http.status_code = 200 && duration > 20ms}`},
 		{"select", `{resource.k8s.cluster.name =~ "prod.*" && resource.k8s.namespace.name = "tempo-prod"} | select(resource.container)`},
+
+		// TODO - Check block meta and automatically find dedicated and blob attributes to test.
+		// {"span generic", "{span.ICCID=~`.*bar.*`}"},
+		// {"span blob", "{span.model=~`.*a.*`}"},
+		// {"span dedicated", "{span.db.statement=~`.*bar.*`}"},
 	}
 
-	ctx := context.TODO()
-	opts := common.DefaultSearchOptions()
-	opts.StartPage = 3
-	opts.TotalPages = 7
+	var (
+		ctx  = b.Context()
+		opts = common.DefaultSearchOptions()
+		e    = traceql.NewEngine()
+	)
 
 	block := blockForBenchmarks(b)
 	_, _, err := block.openForSearch(ctx, opts)
 	require.NoError(b, err)
+
+	f := traceql.NewSpansetFetcherWrapper(func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
+		return block.Fetch(ctx, req, opts)
+	})
 
 	for _, tc := range testCases {
 		b.Run(tc.name, func(b *testing.B) {
@@ -1461,12 +1471,8 @@ func BenchmarkBackendBlockTraceQL(b *testing.B) {
 			bytesRead := 0
 			matches := 0
 
-			for i := 0; i < b.N; i++ {
-				e := traceql.NewEngine()
-
-				resp, err := e.ExecuteSearch(ctx, &tempopb.SearchRequest{Query: tc.query}, traceql.NewSpansetFetcherWrapper(func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
-					return block.Fetch(ctx, req, opts)
-				}), false)
+			for b.Loop() {
+				resp, err := e.ExecuteSearch(ctx, &tempopb.SearchRequest{Query: tc.query}, f, false)
 				require.NoError(b, err)
 				require.NotNil(b, resp)
 
@@ -1598,7 +1604,6 @@ func BenchmarkBackendBlockQueryRange(b *testing.B) {
 		"{span.http.host != `` && span.http.flavor=`2`} | rate() by (span.http.flavor)", // Multiple conditions
 		"{status=error} | rate()",
 		"{} | quantile_over_time(duration, .99, .9, .5)",
-		"{} | quantile_over_time(duration, .99, .9, .5)",
 		"{} | quantile_over_time(duration, .99) by (span.http.status_code)",
 		"{} | histogram_over_time(duration)",
 		"{} | avg_over_time(duration) by (span.http.status_code)",
@@ -1614,13 +1619,13 @@ func BenchmarkBackendBlockQueryRange(b *testing.B) {
 	// For sampler debugging
 	log.Logger = kitlog.NewLogfmtLogger(kitlog.NewSyncWriter(os.Stderr))
 
-	e := traceql.NewEngine()
-	ctx := context.TODO()
-	opts := common.DefaultSearchOptions()
-	opts.StartPage = 3
-	opts.TotalPages = 7
+	var (
+		e     = traceql.NewEngine()
+		ctx   = b.Context()
+		opts  = common.DefaultSearchOptions()
+		block = blockForBenchmarks(b)
+	)
 
-	block := blockForBenchmarks(b)
 	_, _, err := block.openForSearch(ctx, opts)
 	require.NoError(b, err)
 
@@ -1645,17 +1650,63 @@ func BenchmarkBackendBlockQueryRange(b *testing.B) {
 			require.NoError(b, err)
 
 			b.ResetTimer()
-			for i := 0; i < b.N; i++ {
+			for b.Loop() {
 				err := eval.Do(ctx, f, st, end, int(req.MaxSeries))
 				require.NoError(b, err)
 			}
 
+			// Always call results to include the final series processing in the benchmark.
 			_ = eval.Results()
 
 			bytes, spansTotal, _ := eval.Metrics()
 			b.ReportMetric(float64(bytes)/float64(b.N)/1024.0/1024.0, "MB_io/op")
 			b.ReportMetric(float64(spansTotal)/float64(b.N), "spans/op")
 		})
+	}
+}
+
+func BenchmarkReadAllTraces(b *testing.B) {
+	var (
+		ctx   = b.Context()
+		block = blockForBenchmarks(b)
+		pool  = newRowPool(1_000_000)
+	)
+
+	iter, err := block.rawIter(ctx, pool)
+	require.NoError(b, err)
+
+	for b.Loop() {
+		for {
+			id, row, err := iter.Next(ctx)
+			require.NoError(b, err)
+			if id == nil {
+				break
+			}
+			require.NotNil(b, row)
+			pool.Put(row)
+		}
+	}
+}
+
+func BenchmarkReadSingleTrace(b *testing.B) {
+	var (
+		ctx   = b.Context()
+		opts  = common.DefaultSearchOptions()
+		block = blockForBenchmarks(b)
+	)
+
+	// Get a trace ID from the first page.
+	pf, _, err := block.openForSearch(ctx, opts)
+	require.NoError(b, err)
+	index, err := pf.RowGroups()[0].ColumnChunks()[0].ColumnIndex()
+	require.NoError(b, err)
+	id := index.MaxValue(0).ByteArray()
+	require.NotNil(b, id)
+
+	for b.Loop() {
+		tr, err := block.FindTraceByID(ctx, id, opts)
+		require.NoError(b, err)
+		require.NotNil(b, tr)
 	}
 }
 

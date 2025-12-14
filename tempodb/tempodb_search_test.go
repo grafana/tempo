@@ -1630,13 +1630,15 @@ func tagNamesRunner(t *testing.T, _ *tempopb.Trace, _ *tempopb.TraceSearchMetada
 			if (bm.Version == vparquet4.VersionString || bm.Version == vparquet5.VersionString) && (tc.name == "resource match" || tc.name == "span match") {
 				// v4 has scope, events, and links
 				tc.expected["instrumentation"] = []string{"scope-attr-str"}
-				tc.expected["event"] = []string{"exception.message"}
+				tc.expected["event"] = []string{"event-dedicated.01", "exception.message"}
 				tc.expected["link"] = []string{"relation"}
 			}
 			if bm.Version == vparquet5.VersionString && tc.name == "no matches" {
 				// vp5 does not have well-known attribute columns
+				// Include all expected dedicated attribute names
 				tc.expected["resource"] = []string{"res-dedicated.01", "res-dedicated.02", "service.name"}
 				tc.expected["span"] = []string{"span-dedicated.01", "span-dedicated.02"}
+				tc.expected["event"] = []string{"event-dedicated.01"}
 			}
 			require.Equal(t, len(tc.expected), len(actualMap))
 
@@ -1903,6 +1905,7 @@ func runCompleteBlockSearchTest(t *testing.T, blockVersion string, runners ...ru
 		{Scope: "resource", Name: "res-dedicated.02", Type: "string"},
 		{Scope: "span", Name: "span-dedicated.01", Type: "string"},
 		{Scope: "span", Name: "span-dedicated.02", Type: "string"},
+		{Scope: "event", Name: "event-dedicated.01", Type: "string"},
 	}
 	r, w, c, err := New(testingConfig(tempDir, blockVersion, dc), nil, log.NewNopLogger())
 	require.NoError(t, err)
@@ -1966,7 +1969,15 @@ func runEventLinkInstrumentationSearchTest(t *testing.T, blockVersion string) {
 
 	tempDir := t.TempDir()
 
-	r, w, c, err := New(testingConfig(tempDir, blockVersion, nil), nil, log.NewNopLogger())
+	dc := backend.DedicatedColumns{
+		{Scope: "resource", Name: "res-dedicated.01", Type: "string"},
+		{Scope: "resource", Name: "res-dedicated.02", Type: "string"},
+		{Scope: "span", Name: "span-dedicated.01", Type: "string"},
+		{Scope: "span", Name: "span-dedicated.02", Type: "string"},
+		{Scope: "event", Name: "event-dedicated.01", Type: "string"},
+	}
+
+	r, w, c, err := New(testingConfig(tempDir, blockVersion, dc), nil, log.NewNopLogger())
 	require.NoError(t, err)
 
 	err = c.EnableCompaction(context.Background(), testingCompactorConfig, &mockSharder{}, &mockOverrides{})
@@ -1981,7 +1992,12 @@ func runEventLinkInstrumentationSearchTest(t *testing.T, blockVersion string) {
 
 	searchesThatMatch := []*tempopb.SearchRequest{
 		{
+			// Event generic attribute
 			Query: "{ event.exception.message = `random error` }",
+		},
+		{
+			// Dedicated column
+			Query: "{ event.event-dedicated.01 = `event-1a` }",
 		},
 		{
 			Query: "{ event:name = `event name` }",
@@ -2009,7 +2025,7 @@ func runEventLinkInstrumentationSearchTest(t *testing.T, blockVersion string) {
 	// Write to wal
 	wal := w.WAL()
 
-	meta := &backend.BlockMeta{BlockID: backend.NewUUID(), TenantID: testTenantID}
+	meta := &backend.BlockMeta{BlockID: backend.NewUUID(), TenantID: testTenantID, DedicatedColumns: dc}
 	head, err := wal.NewBlock(meta, model.CurrentEncoding)
 	require.NoError(t, err)
 	dec := model.MustNewSegmentDecoder(model.CurrentEncoding)
@@ -2214,6 +2230,7 @@ func makeExpectedTrace(traceID []byte) (
 										Name:         "event name",
 										Attributes: []*v1_common.KeyValue{
 											stringKV("exception.message", "random error"),
+											stringKV("event-dedicated.01", "event-1a"),
 										},
 									},
 								},
@@ -2372,7 +2389,7 @@ func searchTestSuite() (
 		makeReq("http.url", "url/Hello/World"),
 		makeReq("status.code", "error"),
 
-		// Dedicated span and resource attributes
+		// Dedicated attributes
 		makeReq("res-dedicated.01", "res-1a"),
 		makeReq("res-dedicated.02", "res-2b"),
 		makeReq("span-dedicated.01", "span-1a"),

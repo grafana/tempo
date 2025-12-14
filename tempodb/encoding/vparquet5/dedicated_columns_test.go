@@ -476,6 +476,7 @@ func TestFilterDedicatedColumns(t *testing.T) {
 				{Scope: "span", Name: "span-two", Type: "string"},
 				{Scope: "resource", Name: "res-one", Type: "string"},
 				{Scope: "resource", Name: "res-two", Type: "string"},
+				{Scope: "event", Name: "res-three", Type: "string"},
 			},
 		},
 		{

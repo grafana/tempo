@@ -85,6 +85,7 @@ func openWALBlock(filename, path string, ingestionSlack, _ time.Duration) (commo
 		ingestionSlack: ingestionSlack,
 		dedcolsRes:     dedicatedColumnsToColumnMapping(meta.DedicatedColumns, backend.DedicatedColumnScopeResource),
 		dedcolsSpan:    dedicatedColumnsToColumnMapping(meta.DedicatedColumns, backend.DedicatedColumnScopeSpan),
+		dedcolsEvent:   dedicatedColumnsToColumnMapping(meta.DedicatedColumns, backend.DedicatedColumnScopeEvent),
 	}
 
 	// read all files in dir
@@ -110,7 +111,7 @@ func openWALBlock(filename, path string, ingestionSlack, _ time.Duration) (commo
 		}
 
 		path := filepath.Join(dir, f.Name())
-		page := newWalBlockFlush(path, nil)
+		page := newWalBlockFlush(path, nil, meta.DedicatedColumns)
 
 		file, err := page.file(context.Background())
 		if err != nil {
@@ -171,6 +172,7 @@ func createWALBlock(meta *backend.BlockMeta, filepath, dataEncoding string, inge
 		ingestionSlack: ingestionSlack,
 		dedcolsRes:     dedicatedColumnsToColumnMapping(meta.DedicatedColumns, backend.DedicatedColumnScopeResource),
 		dedcolsSpan:    dedicatedColumnsToColumnMapping(meta.DedicatedColumns, backend.DedicatedColumnScopeSpan),
+		dedcolsEvent:   dedicatedColumnsToColumnMapping(meta.DedicatedColumns, backend.DedicatedColumnScopeEvent),
 	}
 
 	// build folder
@@ -205,14 +207,16 @@ func ownsWALBlock(entry fs.DirEntry) bool {
 }
 
 type walBlockFlush struct {
-	path string
-	ids  *common.IDMap[int64]
+	path    string
+	ids     *common.IDMap[int64]
+	dedcols backend.DedicatedColumns
 }
 
-func newWalBlockFlush(path string, ids *common.IDMap[int64]) *walBlockFlush {
+func newWalBlockFlush(path string, ids *common.IDMap[int64], dedcols backend.DedicatedColumns) *walBlockFlush {
 	return &walBlockFlush{
-		path: path,
-		ids:  ids,
+		path:    path,
+		ids:     ids,
+		dedcols: dedcols,
 	}
 }
 
@@ -234,11 +238,13 @@ func (w *walBlockFlush) file(ctx context.Context) (*pageFile, error) {
 	}
 	size := info.Size()
 
+	sch, _, _ := SchemaWithDynamicChanges(w.dedcols)
+
 	wr := newWalReaderAt(ctx, file)
 	o := []parquet.FileOption{
 		parquet.SkipBloomFilters(true),
 		parquet.SkipPageIndex(true),
-		parquet.FileSchema(parquetSchema),
+		parquet.FileSchema(sch),
 	}
 
 	pf, err := parquet.OpenFile(wr, size, o...)
@@ -296,6 +302,7 @@ type walBlock struct {
 	ingestionSlack time.Duration
 	dedcolsRes     dedicatedColumnMapping
 	dedcolsSpan    dedicatedColumnMapping
+	dedcolsEvent   dedicatedColumnMapping
 
 	// Unflushed data
 	buffer        *Trace
@@ -347,7 +354,7 @@ func (b *walBlock) IngestionSlack() time.Duration {
 
 func (b *walBlock) AppendTrace(id common.ID, trace *tempopb.Trace, start, end uint32, adjustIngestionSlack bool) error {
 	var connected bool
-	b.buffer, connected = traceToParquetWithMapping(id, trace, b.buffer, b.dedcolsRes, b.dedcolsSpan)
+	b.buffer, connected = traceToParquetWithMapping(id, trace, b.buffer, b.dedcolsRes, b.dedcolsSpan, b.dedcolsEvent)
 	if !connected {
 		dataquality.WarnDisconnectedTrace(b.meta.TenantID, dataquality.PhaseTraceFlushedToWal)
 	}
@@ -394,12 +401,13 @@ func (b *walBlock) openWriter() (err error) {
 	}
 
 	if b.writer == nil {
-		b.writer = parquet.NewGenericWriter[*Trace](b.file, &parquet.WriterConfig{
-			Schema: parquetSchema,
-			// setting this value low massively reduces the amount of static memory we hold onto in highly multi-tenant environments at the cost of
-			// cutting pages more aggressively when writing column chunks
-			PageBufferSize: 1024,
-		})
+		_, writerOptions, _ := SchemaWithDynamicChanges(b.meta.DedicatedColumns)
+
+		// setting this value low massively reduces the amount of static memory we hold onto in highly multi-tenant environments at the cost of
+		// cutting pages more aggressively when writing column chunks
+		writerOptions = append(writerOptions, parquet.PageBufferSize(1024))
+
+		b.writer = parquet.NewGenericWriter[*Trace](b.file, writerOptions...)
 	} else {
 		b.writer.Reset(b.file)
 	}
@@ -444,7 +452,7 @@ func (b *walBlock) Flush() (err error) {
 		return fmt.Errorf("error closing file: %w", err)
 	}
 
-	b.writeFlush(newWalBlockFlush(b.file.Name(), b.ids))
+	b.writeFlush(newWalBlockFlush(b.file.Name(), b.ids, b.meta.DedicatedColumns))
 	b.flushedSize += sz
 	b.unflushedSize = 0
 	b.ids = common.NewIDMap[int64](b.ids.Len()) // Recreate new id map with same expected size
@@ -470,7 +478,8 @@ func (b *walBlock) Iterator() (common.Iterator, error) {
 		bookmarks = append(bookmarks, newBookmark[parquet.Row](iter))
 	}
 
-	sch := parquet.SchemaOf(new(Trace))
+	sch, _, _ := SchemaWithDynamicChanges(b.meta.DedicatedColumns)
+
 	iter := newMultiblockIterator(bookmarks, func(rows []parquet.Row) (parquet.Row, error) {
 		if len(rows) == 1 {
 			return rows[0], nil
@@ -530,7 +539,9 @@ func (b *walBlock) FindTraceByID(ctx context.Context, id common.ID, opts common.
 			defer file.Close()
 			pf := file.parquetFile
 
-			r := parquet.NewReader(pf)
+			_, _, readerOptions := SchemaWithDynamicChanges(page.dedcols)
+
+			r := parquet.NewGenericReader[*Trace](pf, readerOptions...)
 			defer r.Close()
 
 			err = r.SeekToRow(rowNumber)
@@ -539,8 +550,8 @@ func (b *walBlock) FindTraceByID(ctx context.Context, id common.ID, opts common.
 			}
 
 			tr := new(Trace)
-			err = r.Read(tr)
-			if err != nil {
+			n, err := r.Read([]*Trace{tr})
+			if n == 0 || (err != nil && !errors.Is(err, io.EOF)) {
 				return nil, fmt.Errorf("error reading row from backend: %w", err)
 			}
 

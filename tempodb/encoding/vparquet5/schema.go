@@ -2,6 +2,7 @@ package vparquet5
 
 import (
 	"bytes"
+	"strings"
 
 	"github.com/golang/protobuf/jsonpb" //nolint:all //deprecated
 	"github.com/parquet-go/parquet-go"
@@ -72,6 +73,13 @@ const (
 	FieldSpanAttrValInt    = "rs.list.element.ss.list.element.Spans.list.element.Attrs.list.element.ValueInt.list.element"
 	FieldSpanAttrValDouble = "rs.list.element.ss.list.element.Spans.list.element.Attrs.list.element.ValueDouble.list.element"
 	FieldSpanAttrValBool   = "rs.list.element.ss.list.element.Spans.list.element.Attrs.list.element.ValueBool.list.element"
+
+	FieldEventAttrKey       = "rs.list.element.ss.list.element.Spans.list.element.Events.list.element.Attrs.list.element.Key"
+	FieldEventAttrIsArray   = "rs.list.element.ss.list.element.Spans.list.element.Events.list.element.Attrs.list.element.IsArray"
+	FieldEventAttrVal       = "rs.list.element.ss.list.element.Spans.list.element.Events.list.element.Attrs.list.element.Value.list.element"
+	FieldEventAttrValInt    = "rs.list.element.ss.list.element.Spans.list.element.Events.list.element.Attrs.list.element.ValueInt.list.element"
+	FieldEventAttrValDouble = "rs.list.element.ss.list.element.Spans.list.element.Events.list.element.Attrs.list.element.ValueDouble.list.element"
+	FieldEventAttrValBool   = "rs.list.element.ss.list.element.Spans.list.element.Events.list.element.Attrs.list.element.ValueBool.list.element"
 )
 
 const (
@@ -100,8 +108,6 @@ var (
 	traceqlResourceLabelMappings = map[string]string{
 		LabelServiceName: "rs.list.element.Resource.ServiceName",
 	}
-
-	parquetSchema = parquet.SchemaOf(&Trace{})
 )
 
 type Attribute struct {
@@ -157,6 +163,8 @@ type Event struct {
 	Name                   string      `parquet:",snappy,dict"`
 	Attrs                  []Attribute `parquet:",list"`
 	DroppedAttributesCount int32       `parquet:",snappy,delta"`
+
+	DedicatedAttributes DedicatedAttributes `parquet:""`
 }
 
 type Link struct {
@@ -350,11 +358,12 @@ func traceToParquet(meta *backend.BlockMeta, id common.ID, tr *tempopb.Trace, ot
 	// Dedicated attribute column assignments
 	dedicatedResourceAttributes := dedicatedColumnsToColumnMapping(meta.DedicatedColumns, backend.DedicatedColumnScopeResource)
 	dedicatedSpanAttributes := dedicatedColumnsToColumnMapping(meta.DedicatedColumns, backend.DedicatedColumnScopeSpan)
+	dedicatedEventAttributes := dedicatedColumnsToColumnMapping(meta.DedicatedColumns, backend.DedicatedColumnScopeEvent)
 
-	return traceToParquetWithMapping(id, tr, ot, dedicatedResourceAttributes, dedicatedSpanAttributes)
+	return traceToParquetWithMapping(id, tr, ot, dedicatedResourceAttributes, dedicatedSpanAttributes, dedicatedEventAttributes)
 }
 
-func traceToParquetWithMapping(id common.ID, tr *tempopb.Trace, ot *Trace, dedicatedResourceAttributes, dedicatedSpanAttributes dedicatedColumnMapping) (*Trace, bool) {
+func traceToParquetWithMapping(id common.ID, tr *tempopb.Trace, ot *Trace, dedicatedResourceAttributes, dedicatedSpanAttributes, dedicatedEventAttributes dedicatedColumnMapping) (*Trace, bool) {
 	if ot == nil {
 		ot = &Trace{}
 	}
@@ -442,7 +451,7 @@ func traceToParquetWithMapping(id common.ID, tr *tempopb.Trace, ot *Trace, dedic
 
 				ss.Events = extendReuseSlice(len(s.Events), ss.Events)
 				for ie, e := range s.Events {
-					eventToParquet(e, &ss.Events[ie], s.StartTimeUnixNano)
+					eventToParquet(e, &ss.Events[ie], s.StartTimeUnixNano, dedicatedEventAttributes)
 				}
 
 				// nested set values do not come from the proto, they are calculated
@@ -486,24 +495,7 @@ func traceToParquetWithMapping(id common.ID, tr *tempopb.Trace, ot *Trace, dedic
 				}
 
 				ss.DroppedLinksCount = int32(s.DroppedLinksCount)
-
-				ss.Attrs = extendReuseSlice(len(s.Attributes), ss.Attrs)
-				attrCount := 0
-				for _, a := range s.Attributes {
-					written := false
-
-					// Dynamically assigned dedicated span attribute columns
-					if spareColumn, exists := dedicatedSpanAttributes.get(a.Key); exists {
-						written = spareColumn.writeValue(&ss.DedicatedAttributes, a.Value)
-					}
-
-					if !written {
-						// Other attributes put in generic columns
-						attrToParquet(a, &ss.Attrs[attrCount])
-						attrCount++
-					}
-				}
-				ss.Attrs = ss.Attrs[:attrCount]
+				writeAttrs(s.Attributes, &ss.Attrs, &ss.DedicatedAttributes, dedicatedSpanAttributes)
 			}
 		}
 	}
@@ -526,6 +518,25 @@ func traceToParquetWithMapping(id common.ID, tr *tempopb.Trace, ot *Trace, dedic
 	}
 
 	return finalizeTrace(ot)
+}
+
+func writeAttrs(input []*v1.KeyValue, generic *[]Attribute, dedicated *DedicatedAttributes, mapping dedicatedColumnMapping) {
+	*generic = extendReuseSlice(len(input), *generic)
+
+	attrCount := 0
+	for _, a := range input {
+		written := false
+
+		if spareColumn, exists := mapping.get(a.Key); exists {
+			written = spareColumn.writeValue(dedicated, a.Value)
+		}
+
+		if !written {
+			attrToParquet(a, &(*generic)[attrCount])
+			attrCount++
+		}
+	}
+	*generic = (*generic)[:attrCount]
 }
 
 // finalizeTrace augments and optimized the trace by calculating service stats, nested set model bounds
@@ -555,15 +566,11 @@ func instrumentationScopeToParquet(s *v1.InstrumentationScope, ss *Instrumentati
 	}
 }
 
-func eventToParquet(e *v1_trace.Span_Event, ee *Event, spanStartTime uint64) {
+func eventToParquet(e *v1_trace.Span_Event, ee *Event, spanStartTime uint64, dedicatedEventAttributes dedicatedColumnMapping) {
 	ee.Name = e.Name
 	ee.TimeSinceStartNano = e.TimeUnixNano - spanStartTime
 	ee.DroppedAttributesCount = int32(e.DroppedAttributesCount)
-
-	ee.Attrs = extendReuseSlice(len(e.Attributes), ee.Attrs)
-	for i, a := range e.Attributes {
-		attrToParquet(a, &ee.Attrs[i])
-	}
+	writeAttrs(e.Attributes, &ee.Attrs, &ee.DedicatedAttributes, dedicatedEventAttributes)
 }
 
 func linkToParquet(l *v1_trace.Span_Link, ll *Link) {
@@ -835,4 +842,80 @@ func extendReuseSlice[T any](sz int, in []T) []T {
 	// append until we're large enough
 	in = in[:cap(in)]
 	return append(in, make([]T, sz-len(in))...)
+}
+
+func SchemaWithDynamicChanges(dedicatedColumns backend.DedicatedColumns) (*parquet.Schema, []parquet.WriterOption, []parquet.ReaderOption) {
+	var (
+		resMapping   = dedicatedColumnsToColumnMapping(dedicatedColumns, backend.DedicatedColumnScopeResource)
+		spanMapping  = dedicatedColumnsToColumnMapping(dedicatedColumns, backend.DedicatedColumnScopeSpan)
+		eventMapping = dedicatedColumnsToColumnMapping(dedicatedColumns, backend.DedicatedColumnScopeEvent)
+	)
+
+	schemaOptions := []parquet.SchemaOption{}
+	writerOptions := []parquet.WriterOption{}
+	readerOptions := []parquet.ReaderOption{}
+
+	// Blobify
+	blobify := func(col dedicatedColumn) {
+		path := strings.Split(col.ColumnPath, ".")
+
+		// Remove dictionary encoding and change compression.
+		option := parquet.StructTag(`parquet:",zstd,optional"`, path...)
+		schemaOptions = append(schemaOptions, option)
+		readerOptions = append(readerOptions, option)
+		writerOptions = append(writerOptions, option)
+
+		// Minor optimization: skip page bounds for blob columns. The min/max values are not
+		// selective, and this saves a little bit of storage and overhead.
+		writerOptions = append(writerOptions, parquet.SkipPageBounds(path...))
+	}
+
+	for _, col := range spanMapping.mapping {
+		if col.IsBlob {
+			blobify(col)
+		}
+	}
+	for _, col := range resMapping.mapping {
+		if col.IsBlob {
+			blobify(col)
+		}
+	}
+	for _, col := range eventMapping.mapping {
+		if col.IsBlob {
+			blobify(col)
+		}
+	}
+
+	// Remove unused dedicated columns.
+	del := func(path string) {
+		option := parquet.StructTag(`parquet:"-"`, strings.Split(path, ".")...)
+		schemaOptions = append(schemaOptions, option)
+		readerOptions = append(readerOptions, option)
+		writerOptions = append(writerOptions, option)
+	}
+
+	for scope, m1 := range DedicatedResourceColumnPaths {
+		for _, paths := range m1 {
+			for _, path := range paths {
+				switch scope {
+				case backend.DedicatedColumnScopeResource:
+					if !resMapping.usesPath(path) {
+						del(path)
+					}
+				case backend.DedicatedColumnScopeSpan:
+					if !spanMapping.usesPath(path) {
+						del(path)
+					}
+				case backend.DedicatedColumnScopeEvent:
+					if !eventMapping.usesPath(path) {
+						del(path)
+					}
+				}
+			}
+		}
+	}
+
+	schema := parquet.SchemaOf(&Trace{}, schemaOptions...)
+
+	return schema, writerOptions, readerOptions
 }

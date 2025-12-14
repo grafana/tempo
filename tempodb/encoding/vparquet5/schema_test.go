@@ -802,7 +802,7 @@ func BenchmarkEventToParquet(b *testing.B) {
 
 	ee := &Event{}
 	for i := 0; i < b.N; i++ {
-		eventToParquet(e, ee, s.StartTimeUnixNano)
+		eventToParquet(e, ee, s.StartTimeUnixNano, dedicatedColumnMapping{})
 	}
 }
 
