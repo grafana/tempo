@@ -1,0 +1,5 @@
+# queries sometimes fail with only 1 livestore available in the test without this setting when they should succeed.
+# todo: why? 
+
+query_frontend:
+  api_timeout: 120s

@@ -5,6 +5,7 @@ import (
 	"math/rand"
 	"time"
 
+	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/util"
 	"github.com/jaegertracing/jaeger-idl/proto-gen/api_v2"
 	thrift "github.com/jaegertracing/jaeger-idl/thrift-gen/jaeger"
@@ -97,13 +98,24 @@ func (h *TempoHarness) WriteJaegerBatch(batch *thrift.Batch, tenant string) erro
 	return exporter.EmitBatch(context.Background(), batch)
 }
 
-func (h *TempoHarness) WriteOTLPTraces(traces ptrace.Traces, tenant string) error {
+func (h *TempoHarness) WriteTempoProtoTraces(traces *tempopb.Trace, tenant string) error {
+	b, err := traces.Marshal()
+	if err != nil {
+		return err
+	}
+
+	// unmarshal into otlp proto
+	otlpTraces, err := (&ptrace.ProtoUnmarshaler{}).UnmarshalTraces(b)
+	if err != nil {
+		return err
+	}
+
 	endpoint := h.Services[ServiceDistributor].Endpoint(4317)
 	exporter, err := newOtelGRPCExporterWithAuth(endpoint, tenant, "", false)
 	if err != nil {
 		return err
 	}
-	if err := exporter.ConsumeTraces(context.Background(), traces); err != nil {
+	if err := exporter.ConsumeTraces(context.Background(), otlpTraces); err != nil {
 		return err
 	}
 	return exporter.Shutdown(context.Background())

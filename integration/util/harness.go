@@ -21,15 +21,6 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
-/*
-jpe - new test ideas
- - status/mgmt endpoints
- - ingest metrics
- - query metrics
- - partial failure states - kafka down, one livestore down, etc.
- - test the test harness itself
-*/
-
 const (
 	// tempo
 	ServiceDistributor      = "distributor"
@@ -46,6 +37,16 @@ const (
 	ServiceObjectStorage = "object-storage"
 	ServicePrometheus    = "prometheus"
 )
+
+var AllTempoServices = []string{
+	ServiceDistributor,
+	ServiceQueryFrontend,
+	ServiceQuerier,
+	ServiceMetricsGenerator,
+	ServiceLiveStoreZoneA,
+	ServiceLiveStoreZoneB,
+	ServiceBlockBuilder,
+}
 
 const (
 	azuriteImage = "mcr.microsoft.com/azure-storage/azurite:3.35.0"
@@ -406,6 +407,8 @@ func (h *TempoHarness) WaitTracesWrittenToBackend(t *testing.T, traces int) {
 	require.NoError(t, queryFrontend.WaitSumMetricsWithOptions(e2e.Equals(float64(traces)), []string{"tempodb_backend_objects_total"}, e2e.WaitMissingMetrics))
 }
 
+// ForceBackendQuerying restarts the query frontend with the query-backend config overlay applied.
+// Using this function requires re-creating any clients pointing at the frontend!
 func (h *TempoHarness) ForceBackendQuerying(t *testing.T) {
 	frontend := h.Services[ServiceQueryFrontend]
 	require.NoError(t, h.restartServiceWithConfigOverlay(t, frontend, queryBackendConfigFile))

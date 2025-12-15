@@ -28,8 +28,6 @@ import (
 	"github.com/grafana/tempo/pkg/tempopb"
 	tempoUtil "github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/pkg/util/test"
-
-	"go.opentelemetry.io/collector/pdata/ptrace"
 )
 
 const (
@@ -247,19 +245,11 @@ func TestLimitsPartialSuccess(t *testing.T) {
 
 		// 3 traces with trace_too_large and 3 with no error
 		spanCountsByTrace := []int{1, 4, 1, 5, 6, 1}
-		req := test.MakeReqWithMultipleTraceWithSpanCount(spanCountsByTrace, traceIDs)
-
-		b, err := req.Marshal()
-		require.NoError(t, err)
-
-		// unmarshal into otlp proto
-		traces, err := (&ptrace.ProtoUnmarshaler{}).UnmarshalTraces(b)
-		require.NoError(t, err)
-		require.NotNil(t, traces)
+		trace := test.MakeReqWithMultipleTraceWithSpanCount(spanCountsByTrace, traceIDs)
 
 		// send traces to tempo
 		// partial success = no error
-		require.NoError(t, h.WriteOTLPTraces(traces, ""))
+		require.NoError(t, h.WriteTempoProtoTraces(trace, ""))
 
 		// wait for live store to ingest traces
 		h.WaitTracesQueryable(t, 3) // only 3 traces are small enough to be ingested
@@ -277,7 +267,7 @@ func TestLimitsPartialSuccess(t *testing.T) {
 		// test metrics
 		// 3 traces with trace_too_large each with 4+5+6 spans
 		liveStore := h.Services[util.ServiceLiveStoreZoneA]
-		err = liveStore.WaitSumMetricsWithOptions(e2e.Equals(15),
+		err := liveStore.WaitSumMetricsWithOptions(e2e.Equals(15),
 			[]string{"tempo_discarded_spans_total"},
 			e2e.WithLabelMatchers(labels.MustNewMatcher(labels.MatchEqual, "reason", "trace_too_large")),
 			e2e.WaitMissingMetrics,
