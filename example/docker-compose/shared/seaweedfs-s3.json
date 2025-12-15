@@ -1,0 +1,20 @@
+{
+  "identities": [
+    {
+      "name": "tempo",
+      "credentials": [
+        {
+          "accessKey": "tempo",
+          "secretKey": "supersecret"
+        }
+      ],
+      "actions": [
+        "Admin",
+        "Read",
+        "Write",
+        "List",
+        "Tagging"
+      ]
+    }
+  ]
+}

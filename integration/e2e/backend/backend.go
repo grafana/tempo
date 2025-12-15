@@ -7,7 +7,6 @@ import (
 	"strings"
 
 	"github.com/grafana/e2e"
-	e2e_db "github.com/grafana/e2e/db"
 	"github.com/grafana/tempo/integration/util"
 
 	"github.com/grafana/tempo/cmd/tempo/app"
@@ -16,8 +15,9 @@ import (
 )
 
 const (
-	azuriteImage = "mcr.microsoft.com/azure-storage/azurite:3.35.0"
-	gcsImage     = "fsouza/fake-gcs-server:1.52.2"
+	azuriteImage  = "mcr.microsoft.com/azure-storage/azurite:3.35.0"
+	gcsImage      = "fsouza/fake-gcs-server:1.52.2"
+	seaweedfsImage = "chrislusf/seaweedfs:latest"
 )
 
 func parsePort(endpoint string) (int, error) {
@@ -38,9 +38,9 @@ func New(scenario *e2e.Scenario, cfg app.Config) (*e2e.HTTPService, error) {
 		if err != nil {
 			return nil, err
 		}
-		backendService = e2e_db.NewMinio(port, "tempo")
+		backendService = NewSeaweedFS(port, "tempo")
 		if backendService == nil {
-			return nil, fmt.Errorf("error creating minio backend")
+			return nil, fmt.Errorf("error creating seaweedfs backend")
 		}
 		err = scenario.StartAndWaitReady(backendService)
 		if err != nil {
@@ -103,6 +103,29 @@ func NewGCS(port int) *e2e.HTTPService {
 		gcsImage, // Create the the gcs container
 		e2e.NewCommandWithoutEntrypoint("sh", "-c", strings.Join(commands, " && ")),
 		e2e.NewHTTPReadinessProbe(port, "/", 400, 400), // for lack of a better way, readiness probe does not support https at the moment
+		port,
+	)
+
+	s.SetBackoff(util.TempoBackoff())
+
+	return s
+}
+
+func NewSeaweedFS(port int, bktNames ...string) *e2e.HTTPService {
+	// Create S3 config JSON content
+	s3Config := `{"identities":[{"name":"tempo","credentials":[{"accessKey":"Cheescake","secretKey":"supersecret"}],"actions":["Admin","Read","Write","List","Tagging"]}]}`
+
+	// Command to start weed server with S3
+	commands := []string{
+		fmt.Sprintf("echo '%s' > /tmp/s3.json", s3Config),
+		fmt.Sprintf("weed server -s3 -s3.port=%d -s3.config=/tmp/s3.json -dir=/data", port),
+	}
+
+	s := e2e.NewHTTPService(
+		fmt.Sprintf("seaweedfs-%v", port),
+		seaweedfsImage,
+		e2e.NewCommandWithoutEntrypoint("sh", "-c", strings.Join(commands, " && ")),
+		e2e.NewHTTPReadinessProbe(9333, "/cluster/status", 200, 200), // Master health check
 		port,
 	)
 

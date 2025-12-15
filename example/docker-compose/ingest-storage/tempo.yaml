@@ -69,7 +69,7 @@ storage:
     backend: s3
     s3:
       bucket: tempo
-      endpoint: minio:9000
+      endpoint: seaweedfs:9000
       access_key: tempo
       secret_key: supersecret
       insecure: true

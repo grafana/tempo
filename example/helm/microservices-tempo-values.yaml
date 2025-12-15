@@ -4,7 +4,9 @@ global:
 gateway:
   enabled: true
 minio:
-  enabled: true
+  # Disabled - using SeaweedFS instead
+  # Deploy SeaweedFS separately and configure the endpoint below
+  enabled: false
 storage:
   trace:
     backend: s3
@@ -12,7 +14,7 @@ storage:
       access_key: 'grafana-tempo'
       secret_key: 'supersecret'
       bucket: 'tempo-traces'
-      endpoint: 'tempo-minio:9000'
+      endpoint: 'seaweedfs:9000'
       insecure: true
 traces:
   otlp:

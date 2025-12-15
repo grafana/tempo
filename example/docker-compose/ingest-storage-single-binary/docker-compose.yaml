@@ -27,17 +27,13 @@ services:
   #    environment:
   #      - OTEL_EXPORTER_OTLP_ENDPOINT=http://alloy:4318
 
-  minio:
-    image: minio/minio:latest
-    environment:
-      - MINIO_ACCESS_KEY=tempo
-      - MINIO_SECRET_KEY=supersecret
+  seaweedfs:
+    image: chrislusf/seaweedfs:latest
+    command: 'server -s3 -s3.port=9000 -s3.config=/etc/seaweedfs/s3.json -dir=/data'
+    volumes:
+      - ../shared/seaweedfs-s3.json:/etc/seaweedfs/s3.json:ro
     ports:
-      - "9001:9001"
-    entrypoint:
-      - sh
-      - -euc
-      - mkdir -p /data/tempo && minio server /data --console-address ':9001'
+      - "9000:9000"
 
   k6-tracing:
     image: ghcr.io/grafana/xk6-client-tracing:v0.0.9

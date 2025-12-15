@@ -54,12 +54,12 @@ tempo {
     overrides+:: {},
   },
 
-  // manually overriding to get tempo to talk to minio
+  // manually overriding to get tempo to talk to seaweedfs
   tempo_config+:: {
     storage+: {
       trace+: {
         s3+: {
-          endpoint: 'minio:9000',
+          endpoint: 'seaweedfs:9000',
           access_key: 'tempo',
           secret_key: 'supersecret',
           insecure: true,
