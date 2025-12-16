@@ -595,6 +595,7 @@ func TestQueryRangeMaxSeries(t *testing.T) {
 			}
 		}
 
+		require.Greater(t, tracesSent, 3)
 		h.WaitTracesQueryable(t, tracesSent)
 
 		callQueryRange(t, h, queryRangeRequest{

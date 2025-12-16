@@ -158,17 +158,17 @@ test-e2e-api: tools docker-tempo docker-tempo-query ## Run end to end tests for 
 	$(GOTEST) -v $(GOTEST_OPT) ./integration/api
 
 # runs only poller integration tests
-.PHONY: test-e2e-limits tools docker-tempo
-test-e2e-limits: tools ## Run poller integration tests
+.PHONY: test-e2e-limits
+test-e2e-limits: tools tools docker-tempo ## Run poller integration tests
 	$(GOTEST) -v $(GOTEST_OPT) ./integration/limits
 
 # runs only backendscheduler integration tests
-.PHONY: test-e2e-metrics-generator tools docker-tempo
+.PHONY: test-e2e-metrics-generator
 test-e2e-metrics-generator: tools docker-tempo ## Run backend-scheduler integration tests
 	$(GOTEST) -v $(GOTEST_OPT) ./integration/metrics-generator
 
 # runs only ingest integration tests
-.PHONY: test-e2e-storage tools docker-tempo
+.PHONY: test-e2e-storage
 test-e2e-storage: tools docker-tempo ## Run end to end tests for ingest
 	$(GOTEST) -v $(GOTEST_OPT) ./integration/storage
 
