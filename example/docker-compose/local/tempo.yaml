@@ -28,6 +28,9 @@ query_frontend:
     query_backend_after: 5m
     duration_slo: 5s
     throughput_bytes_slo: 1.073741824e+09
+  # List of regular expressions that define queries to block
+  # url_deny_list:
+  #   - '.*nil.*'
 
 distributor:
   usage:
