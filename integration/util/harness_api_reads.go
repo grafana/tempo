@@ -44,14 +44,14 @@ func (h *TempoHarness) APIClientGRPC(tenant string) (tempopb.StreamingQuerierCli
 		}
 	}
 
-	client, err := NewSearchGRPCClient(ctx, endpoint, insecure.NewCredentials())
+	client, err := NewSearchGRPCClient(endpoint, insecure.NewCredentials())
 	if err != nil {
 		return nil, nil, err
 	}
 	return client, ctx, nil
 }
 
-func NewSearchGRPCClient(ctx context.Context, endpoint string, creds credentials.TransportCredentials) (tempopb.StreamingQuerierClient, error) {
+func NewSearchGRPCClient(endpoint string, creds credentials.TransportCredentials) (tempopb.StreamingQuerierClient, error) {
 	clientConn, err := grpc.NewClient(endpoint, grpc.WithTransportCredentials(creds))
 	if err != nil {
 		return nil, err

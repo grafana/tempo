@@ -19,15 +19,13 @@ import (
 // - Cancelling the downscale
 // - Verifying normal operation resumes
 func TestLiveStorePartitionDownscale(t *testing.T) {
-	util.WithTempoHarness(t, util.TestHarnessConfig{
-		Components: util.ComponentsRecentDataQuerying,
-	}, func(h *util.TempoHarness) {
+	util.WithTempoHarness(t, util.TestHarnessConfig{}, func(h *util.TempoHarness) {
 		// harness creates 2 live stores that own a first partition, shutdown B we don't want it for this test
 		require.NoError(t, h.Services[util.ServiceLiveStoreZoneB].Stop())
 
 		// start a new livestorea that own a second partition. -1 postfix is important to start a new partition!
-		liveStoreParition1 := newLiveStore("live-store-zone-a-1")
-		require.NoError(t, h.TestScenario.StartAndWaitReady(liveStoreParition1))
+		liveStorePartition1 := newLiveStore("live-store-zone-a-1")
+		require.NoError(t, h.TestScenario.StartAndWaitReady(liveStorePartition1))
 
 		// wait for 2 active partitions
 		waitActivePartitions(t, h.Services[util.ServiceDistributor], 2)
@@ -36,19 +34,19 @@ func TestLiveStorePartitionDownscale(t *testing.T) {
 		require.NoError(t, h.WriteTraceInfo(info, ""))
 
 		liveStorePartition0 := h.Services[util.ServiceLiveStoreZoneA]
-		liveStoreActive := waitForTraceInLiveStore(t, 1, liveStorePartition0, liveStoreParition1)
-		var liveStoreInactive *e2e.HTTPService
+		liveStoreActive := waitForTraceInLiveStore(t, 1, liveStorePartition0, liveStorePartition1)
+		var liveStoreDownscale *e2e.HTTPService
 		if liveStoreActive == liveStorePartition0 {
-			liveStoreInactive = liveStorePartition0
+			liveStoreDownscale = liveStorePartition1
 		} else {
-			liveStoreInactive = liveStoreParition1
+			liveStoreDownscale = liveStorePartition0
 		}
 
 		apiClient := h.APIClientHTTP("")
 		distributor := h.Services[util.ServiceDistributor]
 
 		t.Run("verify partition is ACTIVE", func(t *testing.T) {
-			for _, liveStore := range []*e2e.HTTPService{liveStoreInactive, liveStoreActive} {
+			for _, liveStore := range []*e2e.HTTPService{liveStoreDownscale, liveStoreActive} {
 				res := preparePartitionDownscale(t, http.MethodGet, liveStore)
 				require.Equal(t, "PartitionActive", res.State)
 			}
@@ -56,7 +54,7 @@ func TestLiveStorePartitionDownscale(t *testing.T) {
 
 		t.Run("prepare partition for downscale", func(t *testing.T) {
 			// Set live-store's partition to INACTIVE
-			res := preparePartitionDownscale(t, http.MethodPost, liveStoreInactive)
+			res := preparePartitionDownscale(t, http.MethodPost, liveStoreDownscale)
 			require.Greater(t, res.Timestamp, int64(0))
 			require.Equal(t, "PartitionInactive", res.State)
 
@@ -70,16 +68,16 @@ func TestLiveStorePartitionDownscale(t *testing.T) {
 		})
 
 		t.Run("generate new trace during downscale", func(t *testing.T) {
-			inactiveCount, err := liveStoreInactive.SumMetrics([]string{"tempo_live_store_records_processed_total"}, e2e.SkipMissingMetrics)
+			inactiveCount, err := liveStoreDownscale.SumMetrics([]string{"tempo_live_store_records_processed_total"}, e2e.SkipMissingMetrics)
 			require.NoError(t, err)
 
 			info := tempoUtil.NewTraceInfo(time.Now(), "")
 			require.NoError(t, h.WriteTraceInfo(info, ""))
 
-			require.NoError(t, liveStoreActive.WaitSumMetrics(e2e.GreaterOrEqual(float64(1)), "tempo_live_store_records_processed_total"))
+			require.NoError(t, liveStoreActive.WaitSumMetrics(e2e.Equals(float64(2)), "tempo_live_store_traces_created_total"))
 
 			// Verify inactive live-store didn't process new records
-			inactiveCountAfter, err := liveStoreInactive.SumMetrics([]string{"tempo_live_store_records_processed_total"}, e2e.SkipMissingMetrics)
+			inactiveCountAfter, err := liveStoreDownscale.SumMetrics([]string{"tempo_live_store_records_processed_total"}, e2e.SkipMissingMetrics)
 			require.NoError(t, err)
 			require.Equal(t, inactiveCount, inactiveCountAfter)
 
@@ -87,7 +85,7 @@ func TestLiveStorePartitionDownscale(t *testing.T) {
 		})
 
 		t.Run("cancel downscale preparation", func(t *testing.T) {
-			res := preparePartitionDownscale(t, http.MethodDelete, liveStoreInactive)
+			res := preparePartitionDownscale(t, http.MethodDelete, liveStoreDownscale)
 			require.Equal(t, int64(0), res.Timestamp)
 			require.Equal(t, "PartitionActive", res.State)
 
@@ -95,17 +93,20 @@ func TestLiveStorePartitionDownscale(t *testing.T) {
 		})
 
 		t.Run("verify normal operation after cancellation", func(t *testing.T) {
-			inactiveCount, err := liveStoreInactive.SumMetrics([]string{"tempo_live_store_records_processed_total"}, e2e.SkipMissingMetrics)
-			require.NoError(t, err)
-			activeCount, err := liveStoreActive.SumMetrics([]string{"tempo_live_store_records_processed_total"}, e2e.SkipMissingMetrics)
-			require.NoError(t, err)
-
 			info := tempoUtil.NewTraceInfo(time.Now(), "")
 			require.NoError(t, h.WriteTraceInfo(info, ""))
 
+			// poll the live stores until their total traces created >= 3. this is the third traced written. that means the above trace was consumed and we can query it
+			require.Eventually(t, func() bool {
+				totalA, err := liveStoreActive.SumMetrics([]string{"tempo_live_store_traces_created_total"}, e2e.SkipMissingMetrics)
+				require.NoError(t, err)
+				totalB, err := liveStoreDownscale.SumMetrics([]string{"tempo_live_store_traces_created_total"}, e2e.SkipMissingMetrics)
+				require.NoError(t, err)
+
+				return totalA[0]+totalB[0] >= 3.
+			}, 10*time.Second, 100*time.Millisecond)
+
 			util.QueryAndAssertTrace(t, apiClient, info)
-			require.NoError(t, liveStoreActive.WaitSumMetrics(e2e.Greater(activeCount[0]), "tempo_live_store_records_processed_total"))
-			require.NoError(t, liveStoreInactive.WaitSumMetrics(e2e.Greater(inactiveCount[0]), "tempo_live_store_records_processed_total"))
 		})
 	})
 }
@@ -218,13 +219,13 @@ func verifyPartitionState(t *testing.T, service *e2e.HTTPService, expectedState 
 	))
 }
 
-func waitForTraceInLiveStore(t *testing.T, expectedRecords int, liveStores ...*e2e.HTTPService) *e2e.HTTPService {
+func waitForTraceInLiveStore(t *testing.T, expectedTraces int, liveStores ...*e2e.HTTPService) *e2e.HTTPService {
 	ch := make(chan *e2e.HTTPService)
 	timeout := 30 * time.Second
 
 	for _, liveStore := range liveStores {
 		go func(liveStore *e2e.HTTPService) {
-			err := liveStore.WaitSumMetrics(e2e.GreaterOrEqual(float64(expectedRecords)), "tempo_live_store_records_processed_total")
+			err := liveStore.WaitSumMetrics(e2e.GreaterOrEqual(float64(expectedTraces)), "tempo_live_store_traces_created_total")
 			if err == nil {
 				ch <- liveStore
 			}

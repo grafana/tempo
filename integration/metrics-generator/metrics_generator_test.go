@@ -35,9 +35,9 @@ func TestMetricsGeneratorRemoteWrite(t *testing.T) {
 
 		// Send two spans that have a client-server relationship
 		r := rand.New(rand.NewSource(time.Now().UnixMilli()))
-		traceIDLow := r.Int63()
-		traceIDHigh := r.Int63()
-		parentSpanID := r.Int63()
+		traceIDLow := r.Int63()   // nolint:gosec // G404: Use of weak random number generator
+		traceIDHigh := r.Int63()  // nolint:gosec // G404: Use of weak random number generator
+		parentSpanID := r.Int63() // nolint:gosec // G404: Use of weak random number generator
 
 		require.NoError(t, h.WriteJaegerBatch(&thrift.Batch{
 			Process: &thrift.Process{ServiceName: "lb"},
@@ -61,7 +61,7 @@ func TestMetricsGeneratorRemoteWrite(t *testing.T) {
 				{
 					TraceIdLow:    traceIDLow,
 					TraceIdHigh:   traceIDHigh,
-					SpanId:        r.Int63(),
+					SpanId:        r.Int63(), // nolint:gosec // G404: Use of weak random number generator
 					ParentSpanId:  parentSpanID,
 					OperationName: "app-handle",
 					StartTime:     time.Now().UnixMicro(),
@@ -78,7 +78,7 @@ func TestMetricsGeneratorRemoteWrite(t *testing.T) {
 				{
 					TraceIdLow:    traceIDLow,
 					TraceIdHigh:   traceIDHigh,
-					SpanId:        r.Int63(),
+					SpanId:        r.Int63(), // nolint:gosec // G404: Use of weak random number generator
 					ParentSpanId:  parentSpanID,
 					OperationName: "app-handle",
 					StartTime:     time.Now().Add(-5 * time.Minute).UnixMicro(),
@@ -95,7 +95,7 @@ func TestMetricsGeneratorRemoteWrite(t *testing.T) {
 				{
 					TraceIdLow:    traceIDLow,
 					TraceIdHigh:   traceIDHigh,
-					SpanId:        r.Int63(),
+					SpanId:        r.Int63(), // nolint:gosec // G404: Use of weak random number generator
 					ParentSpanId:  parentSpanID,
 					OperationName: "app-handle",
 					StartTime:     time.Now().Add(10 * 24 * time.Hour).UnixMicro(),
@@ -112,7 +112,7 @@ func TestMetricsGeneratorRemoteWrite(t *testing.T) {
 				{
 					TraceIdLow:    traceIDLow,
 					TraceIdHigh:   traceIDHigh,
-					SpanId:        r.Int63(),
+					SpanId:        r.Int63(), // nolint:gosec // G404: Use of weak random number generator
 					ParentSpanId:  parentSpanID,
 					OperationName: "\xff\xff",
 					StartTime:     time.Now().UnixMicro(),
@@ -202,9 +202,9 @@ func TestMetricsGeneratorTargetInfoEnabled(t *testing.T) {
 
 		// Send two spans that have a client-server relationship
 		r := rand.New(rand.NewSource(time.Now().UnixMilli()))
-		traceIDLow := r.Int63()
-		traceIDHigh := r.Int63()
-		parentSpanID := r.Int63()
+		traceIDLow := r.Int63()   // nolint:gosec // G404: Use of weak random number generator
+		traceIDHigh := r.Int63()  // nolint:gosec // G404: Use of weak random number generator
+		parentSpanID := r.Int63() // nolint:gosec // G404: Use of weak random number generator
 
 		require.NoError(t, h.WriteJaegerBatch(&thrift.Batch{
 			Process: &thrift.Process{
@@ -234,7 +234,7 @@ func TestMetricsGeneratorTargetInfoEnabled(t *testing.T) {
 				{
 					TraceIdLow:    traceIDLow,
 					TraceIdHigh:   traceIDHigh,
-					SpanId:        r.Int63(),
+					SpanId:        r.Int63(), // nolint:gosec // G404: Use of weak random number generator
 					ParentSpanId:  parentSpanID,
 					OperationName: "app-handle",
 					StartTime:     time.Now().UnixMicro(),
@@ -323,7 +323,7 @@ func TestMetricsGeneratorMessagingSystemLatencyHistogramEnabled(t *testing.T) {
 				{
 					TraceIdLow:    traceIDLow,
 					TraceIdHigh:   traceIDHigh,
-					SpanId:        r.Int63(),
+					SpanId:        r.Int63(), // nolint:gosec // G404: Use of weak random number generator
 					ParentSpanId:  parentSpanID,
 					OperationName: "consume-message",
 					StartTime:     consumerStart.UnixMicro(),

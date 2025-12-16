@@ -76,7 +76,7 @@ func TestHTTPS(t *testing.T) {
 		util.SearchTraceQLAndAssertTrace(t, apiClient, info)
 
 		creds := credentials.NewTLS(&tls.Config{InsecureSkipVerify: true})
-		grpcClient, err := util.NewSearchGRPCClient(context.Background(), queryFrontend.Endpoint(tempoPort), creds)
+		grpcClient, err := util.NewSearchGRPCClient(queryFrontend.Endpoint(tempoPort), creds)
 		require.NoError(t, err)
 
 		now := time.Now()
@@ -244,7 +244,7 @@ func (ca *ca) writeCACertificate(path string) error {
 		return err
 	}
 
-	return writeExclusivePEMFile(path, "CERTIFICATE", 0o600, derBytes)
+	return writeExclusivePEMFile(path, "CERTIFICATE", 0o644, derBytes) // nolint:gosec // G306: Expect WriteFile permissions to be 0600 or less
 }
 
 func (ca *ca) writeCertificate(template *x509.Certificate, certPath string, keyPath string) error {
@@ -258,7 +258,7 @@ func (ca *ca) writeCertificate(template *x509.Certificate, certPath string, keyP
 		return err
 	}
 
-	if err := writeExclusivePEMFile(keyPath, "PRIVATE KEY", 0o600, keyBytes); err != nil {
+	if err := writeExclusivePEMFile(keyPath, "PRIVATE KEY", 0o644, keyBytes); err != nil { // nolint:gosec // G306: Expect WriteFile permissions to be 0600 or less
 		return err
 	}
 
@@ -274,7 +274,7 @@ func (ca *ca) writeCertificate(template *x509.Certificate, certPath string, keyP
 		return err
 	}
 
-	return writeExclusivePEMFile(certPath, "CERTIFICATE", 0o600, derBytes)
+	return writeExclusivePEMFile(certPath, "CERTIFICATE", 0o644, derBytes) // nolint:gosec // G306: Expect WriteFile permissions to be 0600 or less
 }
 
 func scrapeMetrics(t *testing.T, service *e2e.HTTPService, port int, searchString string) bool {

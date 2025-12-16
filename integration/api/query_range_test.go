@@ -607,9 +607,10 @@ func TestQueryRangeMaxSeries(t *testing.T) {
 		}, func(queryRangeRes *tempopb.QueryRangeResponse, err error) {
 			require.NoError(t, err)
 			require.NotNil(t, queryRangeRes)
+			// jpe - restore order/requires. this is debug code
+			assert.Equal(t, "Response exceeds maximum series limit of 3, a partial response is returned. Warning: the accuracy of each individual value is not guaranteed.", queryRangeRes.GetMessage())
+			assert.Equal(t, 3, len(queryRangeRes.GetSeries()))
 			require.Equal(t, tempopb.PartialStatus_PARTIAL, queryRangeRes.GetStatus())
-			require.Equal(t, "Response exceeds maximum series limit of 3, a partial response is returned. Warning: the accuracy of each individual value is not guaranteed.", queryRangeRes.GetMessage())
-			require.Equal(t, 3, len(queryRangeRes.GetSeries()))
 		})
 	})
 }

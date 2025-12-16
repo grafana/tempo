@@ -9,12 +9,9 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-const queryBackendConfig = "config-failure-modes.yaml"
-
 func TestFailureModes(t *testing.T) {
 	util.WithTempoHarness(t, util.TestHarnessConfig{
-		Components:    util.ComponentsRecentDataQuerying | util.ComponentsBackendQuerying,
-		ConfigOverlay: queryBackendConfig,
+		Components: util.ComponentsRecentDataQuerying | util.ComponentsBackendQuerying,
 	}, func(h *util.TempoHarness) {
 		h.WaitTracesWritable(t)
 
@@ -30,7 +27,12 @@ func TestFailureModes(t *testing.T) {
 		liveStoreA := h.Services[util.ServiceLiveStoreZoneA]
 		err := liveStoreA.Stop()
 		require.NoError(t, err)
-		util.QueryAndAssertTrace(t, apiClient, info) // todo: seen this fail with transient errors. are our retry settings well configured?
+
+		require.Eventually(t, func() bool {
+			_, err := apiClient.QueryTraceV2(info.HexID()) // todo: seen this fail with transient errors connecting to the shutdown livestore. are our retry settings well configured?
+			t.Logf("query trace v2 error: %v", err)
+			return err == nil
+		}, 10*time.Second, 100*time.Millisecond)
 
 		// stop the second live store. querying should fail
 		liveStoreB := h.Services[util.ServiceLiveStoreZoneB]

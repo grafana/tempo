@@ -42,12 +42,12 @@ func writeFileToSharedDir(s *e2e.Scenario, dst string, content []byte) (string, 
 	dst = sharedContainerPath(s, dst)
 
 	// Ensure the entire path of directories exists
-	err := os.MkdirAll(filepath.Dir(dst), os.ModePerm)
+	err := os.MkdirAll(filepath.Dir(dst), 0o644) // nolint:gosec // G306: Expect WriteFile permissions to be 0600 or less
 	if err != nil {
 		return "", err
 	}
 
-	err = os.WriteFile(dst, content, os.ModePerm)
+	err = os.WriteFile(dst, content, 0o644) // nolint:gosec // G306: Expect WriteFile permissions to be 0600 or less
 	if err != nil {
 		return "", err
 	}
@@ -100,7 +100,7 @@ func setupConfig(t *testing.T, s *e2e.Scenario, config *TestHarnessConfig, reque
 
 	// Create empty overrides file
 	overridesPath := sharedContainerPath(s, tempoOverridesFile)
-	err = os.WriteFile(overridesPath, []byte("overrides: {}\n"), 0o600)
+	err = os.WriteFile(overridesPath, []byte("overrides: {}\n"), 0o644) // nolint:gosec // G306: Expect WriteFile permissions to be 0600 or less
 	require.NoError(t, err, "failed to write initial overrides file")
 	harness.overridesPath = overridesPath
 
@@ -175,7 +175,7 @@ func applyConfigOverlay(s *e2e.Scenario, overlayPath string, templateData map[st
 		return fmt.Errorf("failed to marshal merged config: %w", err)
 	}
 
-	err = os.WriteFile(configPath, outputBytes, 0o600)
+	err = os.WriteFile(configPath, outputBytes, 0o644) // nolint:gosec // G306: Expect WriteFile permissions to be 0600 or less
 	if err != nil {
 		return fmt.Errorf("failed to write config file: %w", err)
 	}
