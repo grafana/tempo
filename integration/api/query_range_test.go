@@ -545,7 +545,7 @@ func minSamples(samples []tempopb.Sample) float64 {
 // which covers a few edge cases under the hood.
 func TestQueryRangeSingleTrace(t *testing.T) {
 	util.WithTempoHarness(t, util.TestHarnessConfig{
-		DeploymentMode: util.DeploymentModeSingleBinary, // for unknown reasons this fails on microservices mode. TODO: figure that crap out (jpe: double check this )
+		DeploymentMode: util.DeploymentModeSingleBinary, // for unknown reasons this fails on microservices mode. TODO: figure that crap out
 	}, func(h *util.TempoHarness) {
 		h.WaitTracesWritable(t)
 		// Emit a single trace
@@ -574,8 +574,7 @@ func TestQueryRangeSingleTrace(t *testing.T) {
 
 func TestQueryRangeMaxSeries(t *testing.T) {
 	util.WithTempoHarness(t, util.TestHarnessConfig{
-		ConfigOverlay:  configQueryRangeMaxSeries,
-		DeploymentMode: util.DeploymentModeSingleBinary, // for unknown reasons this fails on microservices mode. TODO: figure that crap out
+		ConfigOverlay: configQueryRangeMaxSeries,
 	}, func(h *util.TempoHarness) {
 		h.WaitTracesWritable(t)
 
@@ -607,7 +606,6 @@ func TestQueryRangeMaxSeries(t *testing.T) {
 		}, func(queryRangeRes *tempopb.QueryRangeResponse, err error) {
 			require.NoError(t, err)
 			require.NotNil(t, queryRangeRes)
-			// jpe - restore order/requires. this is debug code
 			assert.Equal(t, "Response exceeds maximum series limit of 3, a partial response is returned. Warning: the accuracy of each individual value is not guaranteed.", queryRangeRes.GetMessage())
 			assert.Equal(t, 3, len(queryRangeRes.GetSeries()))
 			require.Equal(t, tempopb.PartialStatus_PARTIAL, queryRangeRes.GetStatus())
@@ -617,8 +615,7 @@ func TestQueryRangeMaxSeries(t *testing.T) {
 
 func TestQueryRangeMaxSeriesDisabled(t *testing.T) {
 	util.WithTempoHarness(t, util.TestHarnessConfig{
-		ConfigOverlay:  configQueryRangeMaxSeriesDisabled,
-		DeploymentMode: util.DeploymentModeSingleBinary, // for unknown reasons this fails on microservices mode. TODO: figure that crap out
+		ConfigOverlay: configQueryRangeMaxSeriesDisabled,
 	}, func(h *util.TempoHarness) {
 		h.WaitTracesWritable(t)
 

@@ -42,13 +42,13 @@ func MakeThriftBatchWithSpanCount(n int) *thrift.Batch {
 func MakeThriftBatchWithSpanCountAttributeAndName(n int, name, resourceValue, spanValue, resourceTag, spanTag string) *thrift.Batch {
 	var spans []*thrift.Span
 
-	traceIDLow := rand.Int63()
-	traceIDHigh := rand.Int63()
+	traceIDLow := rand.Int63()  // nolint:gosec // G404: Use of weak random number generator
+	traceIDHigh := rand.Int63() // nolint:gosec // G404: Use of weak random number generator
 	for range n {
 		spans = append(spans, &thrift.Span{
 			TraceIdLow:    traceIDLow,
 			TraceIdHigh:   traceIDHigh,
-			SpanId:        rand.Int63(),
+			SpanId:        rand.Int63(), // nolint:gosec // G404: Use of weak random number generator
 			ParentSpanId:  0,
 			OperationName: name,
 			References:    nil,
