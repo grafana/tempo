@@ -47,7 +47,7 @@ func TestGenerateRandomTags(t *testing.T) {
 }
 
 func TestGenerateRandomString(t *testing.T) {
-	seed := time.Unix(1632146180, 0)
+	seed := time.Unix(0, 1632146180)
 	info := NewTraceInfo(seed, "")
 
 	strings := []string{
@@ -61,7 +61,7 @@ func TestGenerateRandomString(t *testing.T) {
 }
 
 func TestGenerateRandomInt(t *testing.T) {
-	seed := time.Unix(1632146180, 0)
+	seed := time.Unix(0, 1632146180)
 	info := NewTraceInfo(seed, "")
 
 	cases := []struct {
@@ -93,7 +93,7 @@ func TestGenerateRandomInt(t *testing.T) {
 }
 
 func TestConstructTraceFromEpoch(t *testing.T) {
-	seed := time.Unix(1632146180, 0)
+	seed := time.Unix(0, 1632146180)
 	info := NewTraceInfo(seed, "")
 
 	result, err := info.ConstructTraceFromEpoch()
