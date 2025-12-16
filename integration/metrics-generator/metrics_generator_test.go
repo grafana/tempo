@@ -207,8 +207,9 @@ func TestMetricsGeneratorTargetInfoEnabled(t *testing.T) {
 		parentSpanID := r.Int63()
 
 		require.NoError(t, h.WriteJaegerBatch(&thrift.Batch{
-			Process: &thrift.Process{ServiceName: "lb",
-				Tags: []*thrift.Tag{{Key: "target_info", VStr: stringPtr("lb")}},
+			Process: &thrift.Process{
+				ServiceName: "lb",
+				Tags:        []*thrift.Tag{{Key: "target_info", VStr: stringPtr("lb")}},
 			},
 			Spans: []*thrift.Span{
 				{
@@ -225,8 +226,9 @@ func TestMetricsGeneratorTargetInfoEnabled(t *testing.T) {
 		}, ""))
 
 		require.NoError(t, h.WriteJaegerBatch(&thrift.Batch{
-			Process: &thrift.Process{ServiceName: "app",
-				Tags: []*thrift.Tag{{Key: "target_info", VStr: stringPtr("app")}},
+			Process: &thrift.Process{
+				ServiceName: "app",
+				Tags:        []*thrift.Tag{{Key: "target_info", VStr: stringPtr("app")}},
 			},
 			Spans: []*thrift.Span{
 				{

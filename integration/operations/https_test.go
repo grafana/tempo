@@ -82,7 +82,6 @@ func TestHTTPS(t *testing.T) {
 		now := time.Now()
 		util.SearchStreamAndAssertTrace(t, context.Background(), grpcClient, info, now.Add(-time.Hour).Unix(), now.Unix())
 	})
-
 }
 
 type keyMaterial struct {
