@@ -2,6 +2,7 @@ package traceql
 
 import (
 	"fmt"
+	"math"
 	"strings"
 	"testing"
 	"time"
@@ -867,6 +868,8 @@ func TestSpansetFilterStatics(t *testing.T) {
 		{in: "{ status }", expected: NewIntrinsic(IntrinsicStatus)},
 		{in: "{ statusMessage }", expected: NewIntrinsic(IntrinsicStatusMessage)},
 		{in: "{ 4321 }", expected: NewStaticInt(4321)},
+		{in: "{ maxInt }", expected: NewStaticInt(math.MaxInt)},
+		{in: "{ minInt }", expected: NewStaticInt(math.MinInt)},
 		{in: "{ 1.234 }", expected: NewStaticFloat(1.234)},
 		{in: "{ 3h }", expected: NewStaticDuration(3 * time.Hour)},
 		{in: "{ 1.5m }", expected: NewStaticDuration(1*time.Minute + 30*time.Second)},

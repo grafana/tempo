@@ -101,7 +101,7 @@ func TestHandleSearch(t *testing.T) {
 				"query": "{ foo bar baz }",
 			}),
 			expected: expectedResult{
-				err: "query parse error. Consult TraceQL docs tools: parse error at line 1, col 3: syntax error: unexpected IDENTIFIER",
+				err: "query parse error. Consult TraceQL docs tools: parse error at line 1, col 3: unknown identifier: foo",
 			},
 		},
 		{
@@ -181,7 +181,7 @@ func TestHandleInstantQuery(t *testing.T) {
 				"query": "{ foo bar baz }",
 			}),
 			expected: expectedResult{
-				err: "query parse error. Consult TraceQL docs tools: parse error at line 1, col 3: syntax error: unexpected IDENTIFIER",
+				err: "query parse error. Consult TraceQL docs tools: parse error at line 1, col 3: unknown identifier: foo",
 			},
 		},
 		{
@@ -261,7 +261,7 @@ func TestHandleRangeQuery(t *testing.T) {
 				"query": "{ foo bar baz }",
 			}),
 			expected: expectedResult{
-				err: "query parse error. Consult TraceQL docs tools: parse error at line 1, col 3: syntax error: unexpected IDENTIFIER",
+				err: "query parse error. Consult TraceQL docs tools: parse error at line 1, col 3: unknown identifier: foo",
 			},
 		},
 		{
