@@ -47,7 +47,7 @@ type Config struct {
 }
 
 func (c *Config) AssignedPartitions() []int32 {
-	if c.PartitionsPerInstance <= 0 {
+	if len(c.AssignedPartitionsMap) <= 0 {
 		return c.AssignedPartitionsMap[c.InstanceID]
 	}
 

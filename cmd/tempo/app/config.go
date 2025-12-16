@@ -341,7 +341,7 @@ var (
 
 	warnPartitionAssigmentCollision = ConfigWarning{
 		Message: "Block-builder partition assigment is configured by c.BlockBuilder.PartitionAssigment and c.BlockBuilder.PartitionsPerInstance",
-		Explain: "When both parameters are used c.BlockBuilder.PartitionsPerInstance takes precedence over c.BlockBuilder.PartitionAssigment",
+		Explain: "When both parameters are used c.BlockBuilder.PartitionAssigment takes precedence over c.BlockBuilder.PartitionsPerInstance",
 	}
 )
 
