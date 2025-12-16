@@ -23,7 +23,7 @@ func TestKVStores(t *testing.T) {
 	}{
 		{
 			name: "memberlist",
-			setupKVStore: func(s *e2e.Scenario, templateData map[string]any) error {
+			setupKVStore: func(_ *e2e.Scenario, templateData map[string]any) error {
 				templateData["KVStoreConfig"] = `
       store: memberlist`
 				return nil

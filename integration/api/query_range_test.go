@@ -275,7 +275,7 @@ func TestQueryRangeExemplars(t *testing.T) {
 		} {
 			t.Run(name, func(t *testing.T) {
 				req := req
-				callQueryRange(t, h, req, func(queryRangeRes *tempopb.QueryRangeResponse, err error) {
+				callQueryRange(t, h, req, func(_ *tempopb.QueryRangeResponse, err error) {
 					require.ErrorContains(t, err, "unexpected END_ATTRIBUTE, expecting IDENTIFIER")
 				})
 			})
@@ -307,7 +307,7 @@ func TestQueryRangeExemplars(t *testing.T) {
 			req.SetDefaults()
 			req.Step = "35ms"
 
-			callQueryRange(t, h, req, func(queryRangeRes *tempopb.QueryRangeResponse, err error) {
+			callQueryRange(t, h, req, func(_ *tempopb.QueryRangeResponse, err error) {
 				require.ErrorContains(t, err, "step of 35ms is too small, minimum step for given range is 36ms")
 			})
 		})
@@ -416,6 +416,7 @@ func TestQueryRangeExemplars(t *testing.T) {
 			sumReq := req
 			sumReq.Query = "{} | sum_over_time(duration)"
 			sumRes, err := callInstantQuery(h.APIClientHTTP(""), sumReq)
+			require.NoError(t, err)
 			require.NotNil(t, sumRes)
 			require.Equal(t, 1, len(sumRes.GetSeries()))
 			sum := sumRes.GetSeries()[0].Value
@@ -544,7 +545,7 @@ func minSamples(samples []tempopb.Sample) float64 {
 // which covers a few edge cases under the hood.
 func TestQueryRangeSingleTrace(t *testing.T) {
 	util.WithTempoHarness(t, util.TestHarnessConfig{
-		DeploymentMode: util.DeploymentModeSingleBinary, // for unknown reasons this fails on microservices mode. TOOD: figure that crap out
+		DeploymentMode: util.DeploymentModeSingleBinary, // for unknown reasons this fails on microservices mode. TODO: figure that crap out (jpe: double check this )
 	}, func(h *util.TempoHarness) {
 		h.WaitTracesWritable(t)
 		// Emit a single trace
@@ -574,7 +575,7 @@ func TestQueryRangeSingleTrace(t *testing.T) {
 func TestQueryRangeMaxSeries(t *testing.T) {
 	util.WithTempoHarness(t, util.TestHarnessConfig{
 		ConfigOverlay:  configQueryRangeMaxSeries,
-		DeploymentMode: util.DeploymentModeSingleBinary, // for unknown reasons this fails on microservices mode. TOOD: figure that crap out
+		DeploymentMode: util.DeploymentModeSingleBinary, // for unknown reasons this fails on microservices mode. TODO: figure that crap out
 	}, func(h *util.TempoHarness) {
 		h.WaitTracesWritable(t)
 
@@ -616,7 +617,7 @@ func TestQueryRangeMaxSeries(t *testing.T) {
 func TestQueryRangeMaxSeriesDisabled(t *testing.T) {
 	util.WithTempoHarness(t, util.TestHarnessConfig{
 		ConfigOverlay:  configQueryRangeMaxSeriesDisabled,
-		DeploymentMode: util.DeploymentModeSingleBinary, // for unknown reasons this fails on microservices mode. TOOD: figure that crap out
+		DeploymentMode: util.DeploymentModeSingleBinary, // for unknown reasons this fails on microservices mode. TODO: figure that crap out
 	}, func(h *util.TempoHarness) {
 		h.WaitTracesWritable(t)
 

@@ -52,7 +52,7 @@ func (h *TempoHarness) APIClientGRPC(tenant string) (tempopb.StreamingQuerierCli
 }
 
 func NewSearchGRPCClient(ctx context.Context, endpoint string, creds credentials.TransportCredentials) (tempopb.StreamingQuerierClient, error) {
-	clientConn, err := grpc.DialContext(ctx, endpoint, grpc.WithTransportCredentials(creds))
+	clientConn, err := grpc.NewClient(endpoint, grpc.WithTransportCredentials(creds))
 	if err != nil {
 		return nil, err
 	}

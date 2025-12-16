@@ -44,7 +44,7 @@ func TestHTTPS(t *testing.T) {
 	util.WithTempoHarness(t, util.TestHarnessConfig{
 		ConfigOverlay:  configHTTPS,
 		ReadinessProbe: e2e.NewHTTPReadinessProbe(3201, "/ready", 200, 299), // this works b/c the service creation code in ../util/services.go adds a 3201 port to the services. we could also use a custom readiness probe.
-		PreStartHook: func(s *e2e.Scenario, data map[string]any) error {
+		PreStartHook: func(s *e2e.Scenario, _ map[string]any) error {
 			require.NoError(t, util.CopyFileToSharedDir(s, km.ServerCertFile, "tls.crt"))
 			require.NoError(t, util.CopyFileToSharedDir(s, km.ServerKeyFile, "tls.key"))
 			require.NoError(t, util.CopyFileToSharedDir(s, km.CaCertFile, "ca.crt"))

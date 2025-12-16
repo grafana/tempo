@@ -100,7 +100,7 @@ func setupConfig(t *testing.T, s *e2e.Scenario, config *TestHarnessConfig, reque
 
 	// Create empty overrides file
 	overridesPath := sharedContainerPath(s, tempoOverridesFile)
-	err = os.WriteFile(overridesPath, []byte("overrides: {}\n"), 0o644)
+	err = os.WriteFile(overridesPath, []byte("overrides: {}\n"), 0o600)
 	require.NoError(t, err, "failed to write initial overrides file")
 	harness.overridesPath = overridesPath
 
@@ -175,7 +175,7 @@ func applyConfigOverlay(s *e2e.Scenario, overlayPath string, templateData map[st
 		return fmt.Errorf("failed to marshal merged config: %w", err)
 	}
 
-	err = os.WriteFile(configPath, outputBytes, 0o644)
+	err = os.WriteFile(configPath, outputBytes, 0o600)
 	if err != nil {
 		return fmt.Errorf("failed to write config file: %w", err)
 	}

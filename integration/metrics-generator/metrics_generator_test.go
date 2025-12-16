@@ -284,9 +284,9 @@ func TestMetricsGeneratorMessagingSystemLatencyHistogramEnabled(t *testing.T) {
 		// and span IDs, which is not a security risk in this context.
 		// #nosec G404 -- nosemgrep: math-random-used
 		r := rand.New(rand.NewSource(time.Now().UnixMilli()))
-		traceIDLow := r.Int63()
-		traceIDHigh := r.Int63()
-		parentSpanID := r.Int63()
+		traceIDLow := r.Int63()   // nolint:gosec // G404: Use of weak random number generator
+		traceIDHigh := r.Int63()  // nolint:gosec // G404: Use of weak random number generator
+		parentSpanID := r.Int63() // nolint:gosec // G404: Use of weak random number generator
 
 		// Set explicit times to ensure producer ends before consumer starts
 		now := time.Now()

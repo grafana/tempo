@@ -382,5 +382,5 @@ func randFrom[T any](r *rand.Rand, s []T) T {
 }
 
 func newRand(t time.Time) *rand.Rand {
-	return rand.New(rand.NewSource(t.UnixNano()))
+	return rand.New(rand.NewSource(t.UnixNano())) // nolint:gosec // G404: Use of weak random number generator
 }

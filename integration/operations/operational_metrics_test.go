@@ -29,7 +29,7 @@ func TestWriteMetrics(t *testing.T) {
 			trace := test.MakeTraceWithSpanCount(3, 3, test.ValidTraceID(nil))
 			countBytes += trace.Size()
 
-			h.WriteTempoProtoTraces(trace, "")
+			require.NoError(t, h.WriteTempoProtoTraces(trace, ""))
 		}
 
 		h.WaitTracesQueryable(t, countTraces)
@@ -221,6 +221,7 @@ func assertMetricEquals(t *testing.T, service *e2e.HTTPService, metric string, e
 	require.Equal(t, expected, sums[0])
 }
 
+// nolint:unparam
 func assertMetricCountEquals(t *testing.T, service *e2e.HTTPService, metric string, expected float64, labelValues map[string]string) {
 	t.Helper()
 	opts := []e2e.MetricsOption{e2e.WithMetricCount}
@@ -251,6 +252,7 @@ func assertMetricInDelta(t *testing.T, service *e2e.HTTPService, metric string, 
 	require.InDelta(t, expected, sums[0], delta)
 }
 
+// nolint:unparam
 func assertMetricGreater(t *testing.T, service *e2e.HTTPService, metric string, minValue float64, labelValues map[string]string) {
 	t.Helper()
 	opts := []e2e.MetricsOption{}

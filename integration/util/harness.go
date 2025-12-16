@@ -315,7 +315,7 @@ func (h *TempoHarness) UpdateOverrides(tenantOverrides map[string]*overrides.Ove
 		return fmt.Errorf("failed to marshal overrides: %w", err)
 	}
 
-	err = os.WriteFile(h.overridesPath, data, 0o644)
+	err = os.WriteFile(h.overridesPath, data, 0o600)
 	if err != nil {
 		return fmt.Errorf("failed to write overrides file: %w", err)
 	}

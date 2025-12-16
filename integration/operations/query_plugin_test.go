@@ -23,7 +23,7 @@ func TestSearchUsingJaegerPlugin(t *testing.T) {
 	}, func(h *util.TempoHarness) {
 		h.WaitTracesWritable(t)
 
-		util.CopyFileToSharedDir(h.TestScenario, "config-tempo-query.yaml", "config-tempo-query.yaml")
+		require.NoError(t, util.CopyFileToSharedDir(h.TestScenario, "config-tempo-query.yaml", "config-tempo-query.yaml"))
 
 		// Start tempo-query and jaeger-query services
 		tempoQuery := util.NewTempoQuery()

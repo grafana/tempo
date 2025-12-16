@@ -51,7 +51,7 @@ type MockHTTPClient struct {
 }
 
 //nolint:all
-func (m *MockHTTPClient) DeleteOverrides(version string) error {
+func (m *MockHTTPClient) DeleteOverrides(_ string) error {
 	panic("unimplemented")
 }
 
@@ -66,12 +66,12 @@ func (m *MockHTTPClient) GetOverrides() (*userconfigurableoverrides.Limits, stri
 }
 
 //nolint:all
-func (m *MockHTTPClient) MetricsSummary(query string, groupBy string, start int64, end int64) (*tempopb.SpanMetricsSummaryResponse, error) {
+func (m *MockHTTPClient) MetricsSummary(_ string, _ string, _ int64, _ int64) (*tempopb.SpanMetricsSummaryResponse, error) {
 	panic("unimplemented")
 }
 
 //nolint:all
-func (m *MockHTTPClient) MetricsQueryRange(query string, start, end int64, step string, exemplars int) (*tempopb.QueryRangeResponse, error) {
+func (m *MockHTTPClient) MetricsQueryRange(_ string, _, _ int64, _ string, _ int) (*tempopb.QueryRangeResponse, error) {
 	if m.err != nil {
 		return nil, m.err
 	}
@@ -81,7 +81,8 @@ func (m *MockHTTPClient) MetricsQueryRange(query string, start, end int64, step 
 	return m.metricsResp, nil
 }
 
-func (m *MockHTTPClient) MetricsQueryInstant(query string, start, end int64, exemplars int) (*tempopb.QueryInstantResponse, error) {
+//nolint:all
+func (m *MockHTTPClient) MetricsQueryInstant(_ string, _, _ int64, _ int) (*tempopb.QueryInstantResponse, error) {
 	if m.err != nil {
 		return nil, m.err
 	}
@@ -92,12 +93,12 @@ func (m *MockHTTPClient) MetricsQueryInstant(query string, start, end int64, exe
 }
 
 //nolint:all
-func (m *MockHTTPClient) PatchOverrides(limits *userconfigurableoverrides.Limits) (*userconfigurableoverrides.Limits, string, error) {
+func (m *MockHTTPClient) PatchOverrides(_ *userconfigurableoverrides.Limits) (*userconfigurableoverrides.Limits, string, error) {
 	panic("unimplemented")
 }
 
 //nolint:all
-func (m *MockHTTPClient) QueryTrace(id string) (*tempopb.Trace, error) {
+func (m *MockHTTPClient) QueryTrace(_ string) (*tempopb.Trace, error) {
 	if m.err != nil {
 		return nil, m.err
 	}

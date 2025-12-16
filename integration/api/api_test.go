@@ -613,9 +613,6 @@ func callSearchTagsV2AndAssert(t *testing.T, h *util.TempoHarness, scope, query 
 }
 
 func prepTagsResponse(resp *tempopb.SearchTagsV2Response) {
-	//if len(resp.Scopes) == 0 {
-	//	resp.Scopes = nil
-	//}
 	sort.Slice(resp.Scopes, func(i, j int) bool { return resp.Scopes[i].Name < resp.Scopes[j].Name })
 	for _, scope := range resp.Scopes {
 		if len(scope.Tags) == 0 {

@@ -217,12 +217,12 @@ func NewJaegerGRPCExporter(endpoint string) (*JaegerGRPCExporter, error) {
 }
 
 // Start implements component.Component
-func (e *JaegerGRPCExporter) Start(ctx context.Context, host component.Host) error {
+func (e *JaegerGRPCExporter) Start(_ context.Context, _ component.Host) error {
 	return nil
 }
 
 // Shutdown implements component.Component
-func (e *JaegerGRPCExporter) Shutdown(ctx context.Context) error {
+func (e *JaegerGRPCExporter) Shutdown(_ context.Context) error {
 	return e.client.Close()
 }
 

@@ -193,13 +193,14 @@ func TestQueryLimits(t *testing.T) {
 		require.NoError(t, h.WriteJaegerBatch(batch, ""))
 
 		// retroactively make the trace too large so it will fail on querying
-		h.UpdateOverrides(map[string]*overrides.Overrides{
+		err := h.UpdateOverrides(map[string]*overrides.Overrides{
 			"single-tenant": {
 				Global: overrides.GlobalOverrides{
 					MaxBytesPerTrace: 1,
 				},
 			},
 		})
+		require.NoError(t, err)
 
 		// calc trace id
 		traceID := [16]byte{}
@@ -211,7 +212,7 @@ func TestQueryLimits(t *testing.T) {
 
 		h.WaitTracesQueryable(t, 1)
 
-		_, err := apiClient.QueryTrace(tempoUtil.TraceIDToHexString(traceID[:]))
+		_, err = apiClient.QueryTrace(tempoUtil.TraceIDToHexString(traceID[:]))
 		require.ErrorContains(t, err, trace.ErrTraceTooLarge.Error())
 		require.ErrorContains(t, err, "failed with response: 422") // confirm frontend returns 422
 

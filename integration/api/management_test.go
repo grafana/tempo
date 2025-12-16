@@ -78,18 +78,18 @@ func TestStatusAndRingAPIs(t *testing.T) {
 				endpoint:       "/live-store/ring",
 				expectedStatus: http.StatusOK,
 			},
-			//{ 200s but should 404!
-			//	name:           "generator ring",
-			//	service:        util.ServiceQuerier,
-			//	endpoint:       "/metrics-generator/ring",
-			//	expectedStatus: http.StatusNotFound,
-			//},
-			//{ 404s due to disabled store in config-base.yaml
-			//	name:           "backend worker ring",
-			//	service:        util.ServiceBackendWorker,
-			//	endpoint:       "/backend-worker/ring",
-			//	expectedStatus: http.StatusOK,
-			//},
+			// { 200s but should 404!
+			// 	name:           "generator ring",
+			// 	service:        util.ServiceQuerier,
+			// 	endpoint:       "/metrics-generator/ring",
+			// 	expectedStatus: http.StatusNotFound,
+			// },
+			// { 404s due to disabled store in config-base.yaml
+			// 	name:           "backend worker ring",
+			// 	service:        util.ServiceBackendWorker,
+			// 	endpoint:       "/backend-worker/ring",
+			// 	expectedStatus: http.StatusOK,
+			// },
 			{
 				name:           "partition ring - distributor",
 				service:        util.ServiceDistributor,
