@@ -4,6 +4,7 @@ import (
 	"math"
 	"testing"
 
+	"github.com/grafana/dskit/kv"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -184,4 +185,53 @@ func encode(t *testing.T, tr *tempopb.Trace) []byte {
 	require.NoError(t, err)
 
 	return obj
+}
+
+func TestIsSharded(t *testing.T) {
+	tests := []struct {
+		name     string
+		store    string
+		expected bool
+	}{
+		{
+			name:     "empty store is not sharded",
+			store:    "",
+			expected: false,
+		},
+		{
+			name:     "inmemory store is not sharded",
+			store:    "inmemory",
+			expected: false,
+		},
+		{
+			name:     "memberlist store is sharded",
+			store:    "memberlist",
+			expected: true,
+		},
+		{
+			name:     "consul store is sharded",
+			store:    "consul",
+			expected: true,
+		},
+		{
+			name:     "etcd store is sharded",
+			store:    "etcd",
+			expected: true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			c := &Compactor{
+				cfg: &Config{
+					ShardingRing: RingConfig{
+						KVStore: kv.Config{
+							Store: tc.store,
+						},
+					},
+				},
+			}
+			assert.Equal(t, tc.expected, c.isSharded())
+		})
+	}
 }

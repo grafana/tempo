@@ -11,6 +11,7 @@ import (
 	"github.com/go-kit/log"
 	"github.com/google/uuid"
 	"github.com/grafana/dskit/flagext"
+	"github.com/grafana/dskit/kv"
 	backendscheduler_client "github.com/grafana/tempo/modules/backendscheduler/client"
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/modules/storage"
@@ -24,6 +25,7 @@ import (
 	"github.com/grafana/tempo/tempodb/encoding/common"
 	"github.com/grafana/tempo/tempodb/wal"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/health/grpc_health_v1"
@@ -234,4 +236,53 @@ func writeTraceToWal(t require.TestingT, b common.WALBlock, dec model.SegmentDec
 
 	err = b.Append(id, b2, start, end, true)
 	require.NoError(t, err, "unexpected error writing req")
+}
+
+func TestIsSharded(t *testing.T) {
+	tests := []struct {
+		name     string
+		store    string
+		expected bool
+	}{
+		{
+			name:     "empty store is not sharded",
+			store:    "",
+			expected: false,
+		},
+		{
+			name:     "inmemory store is not sharded",
+			store:    "inmemory",
+			expected: false,
+		},
+		{
+			name:     "memberlist store is sharded",
+			store:    "memberlist",
+			expected: true,
+		},
+		{
+			name:     "consul store is sharded",
+			store:    "consul",
+			expected: true,
+		},
+		{
+			name:     "etcd store is sharded",
+			store:    "etcd",
+			expected: true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			w := &BackendWorker{
+				cfg: Config{
+					Ring: RingConfig{
+						KVStore: kv.Config{
+							Store: tc.store,
+						},
+					},
+				},
+			}
+			assert.Equal(t, tc.expected, w.isSharded())
+		})
+	}
 }

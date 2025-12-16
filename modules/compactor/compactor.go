@@ -266,7 +266,8 @@ func (c *Compactor) MaxCompactionRangeForTenant(tenantID string) time.Duration {
 }
 
 func (c *Compactor) isSharded() bool {
-	return c.cfg.ShardingRing.KVStore.Store != ""
+	store := c.cfg.ShardingRing.KVStore.Store
+	return store != "" && store != "inmemory"
 }
 
 // OnRingInstanceRegister is called while the lifecycler is registering the
