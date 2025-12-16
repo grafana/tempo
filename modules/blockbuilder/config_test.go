@@ -80,6 +80,27 @@ func TestConfig_validate(t *testing.T) {
 			},
 			expectedErr: errors.New("block version validation failed: vParquet5-preview1 is not a valid block version for creating blocks"),
 		},
+		{
+			name: "InvalidPartitionAssignment",
+			cfg: Config{
+				BlockConfig: BlockConfig{
+					BlockCfg: common.BlockConfig{
+						Version:              encoding.LatestEncoding().Version(),
+						IndexDownsampleBytes: 1,
+						IndexPageSizeBytes:   1,
+						BloomFP:              0.1,
+						BloomShardSizeBytes:  1,
+						DedicatedColumns: backend.DedicatedColumns{
+							{Scope: backend.DedicatedColumnScopeResource, Name: "foo", Type: backend.DedicatedColumnTypeString},
+						},
+					},
+				},
+				WAL: wal.Config{
+					Version: encoding.LatestEncoding().Version(),
+				},
+			},
+			expectedErr: errors.New("at least one of AssignedPartitionsMap or PartitionsPerInstance must be set"),
+		},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
