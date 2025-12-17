@@ -1,6 +1,6 @@
 module github.com/grafana/tempo
 
-go 1.24.4
+go 1.25.5
 
 require (
 	cloud.google.com/go/storage v1.52.0
