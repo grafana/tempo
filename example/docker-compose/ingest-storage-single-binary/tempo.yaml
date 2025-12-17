@@ -20,7 +20,7 @@ distributor:
 
 compactor:
   compaction:
-    block_retention: 1h               # overall Tempo trace retention. set for demo purposes
+    block_retention: 1h # overall Tempo trace retention. set for demo purposes
 
 querier:
   query_live_store: true
@@ -35,10 +35,6 @@ metrics_generator:
     remote_write:
       - url: http://prometheus:9090/api/v1/write
         send_exemplars: true
-  traces_storage:
-    path: /var/tempo/generator/traces
-  traces_query_storage:
-    path: /var/tempo/generator/query_traces
 
 query_frontend:
   rf1_after: "1999-01-01T00:00:00Z"
@@ -53,19 +49,19 @@ storage:
       secret_key: supersecret
       insecure: true
     wal:
-      path: /var/tempo/wal             # where to store the wal locally
+      path: /var/tempo/wal # where to store the wal locally
 
 overrides:
   defaults:
     metrics_generator:
-      processors: ['span-metrics', 'service-graphs']
+      processors: ["span-metrics", "service-graphs"]
       generate_native_histograms: both
 
 ingest:
   enabled: true
   kafka:
     address: kafka:9092
-    topic:   tempo-ingest
+    topic: tempo-ingest
 
 block_builder:
   consume_cycle_duration: 30s
