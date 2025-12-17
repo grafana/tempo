@@ -71,23 +71,12 @@ services:
     image: redpandadata/redpanda:latest
     container_name: redpanda
     ports:
-      - "9092:9092" # host port mapping
-    command:
-      - redpanda
-      - start
-      - --overprovisioned
-      - --mode
-      - dev-container
-      - --smp
-      - "1"
-      - --memory
-      - "1G"
-      - --reserve-memory
-      - "0M"
-      - --kafka-addr
-      - PLAINTEXT://0.0.0.0:9092
-      - --advertise-kafka-addr
-      - PLAINTEXT://redpanda:9092
+      - "9092:9092" # Kafka API for clients
+    command: >
+      redpanda start --overprovisioned
+      --mode=dev-container
+      --kafka-addr=PLAINTEXT://0.0.0.0:9092
+      --advertise-kafka-addr=PLAINTEXT://redpanda:9092
     volumes:
       - redpanda-data:/var/lib/redpanda/data
 
