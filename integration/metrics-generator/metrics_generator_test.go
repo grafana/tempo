@@ -27,7 +27,7 @@ const (
 )
 
 func TestMetricsGeneratorRemoteWrite(t *testing.T) {
-	util.WithTempoHarness(t, util.TestHarnessConfig{
+	util.RunIntegrationTests(t, util.TestHarnessConfig{
 		ConfigOverlay: configMetricsGenerator,
 		Components:    util.ComponentsMetricsGeneration,
 	}, func(h *util.TempoHarness) {
@@ -194,7 +194,7 @@ func TestMetricsGeneratorRemoteWrite(t *testing.T) {
 }
 
 func TestMetricsGeneratorTargetInfoEnabled(t *testing.T) {
-	util.WithTempoHarness(t, util.TestHarnessConfig{
+	util.RunIntegrationTests(t, util.TestHarnessConfig{
 		ConfigOverlay: configMetricsGeneratorTargetInfo,
 		Components:    util.ComponentsMetricsGeneration,
 	}, func(h *util.TempoHarness) {
@@ -273,7 +273,7 @@ func TestMetricsGeneratorTargetInfoEnabled(t *testing.T) {
 
 func TestMetricsGeneratorMessagingSystemLatencyHistogramEnabled(t *testing.T) {
 	// Use a config that enables the messaging system latency histogram
-	util.WithTempoHarness(t, util.TestHarnessConfig{
+	util.RunIntegrationTests(t, util.TestHarnessConfig{
 		ConfigOverlay: configMetricsGeneratorMessagingSystem,
 		Components:    util.ComponentsMetricsGeneration,
 	}, func(h *util.TempoHarness) {

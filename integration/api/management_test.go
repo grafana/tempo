@@ -11,7 +11,7 @@ import (
 
 // TestStatusAndRingAPIs performs a basic smoke test of all status and ring management endpoints.
 func TestStatusAndRingAPIs(t *testing.T) {
-	util.WithTempoHarness(t, util.TestHarnessConfig{
+	util.RunIntegrationTests(t, util.TestHarnessConfig{
 		DeploymentMode: util.DeploymentModeMicroservices,
 		Components:     util.ComponentsRecentDataQuerying | util.ComponentsMetricsGeneration | util.ComponentsBackendWork | util.ComponentsBackendQuerying,
 	}, func(h *util.TempoHarness) {

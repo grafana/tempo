@@ -65,7 +65,7 @@ func TestPollerOwnership(t *testing.T) {
 
 	for _, pc := range storageBackendTestPermutations {
 		t.Run(pc.name, func(t *testing.T) {
-			util.WithTempoHarness(t, util.TestHarnessConfig{
+			util.RunIntegrationTests(t, util.TestHarnessConfig{
 				DeploymentMode: util.DeploymentModeNone,
 				Backends:       util.BackendObjectStorageAll,
 			}, func(h *util.TempoHarness) {
@@ -188,7 +188,7 @@ func TestTenantDeletion(t *testing.T) {
 
 	for _, pc := range storageBackendTestPermutations {
 		t.Run(pc.name, func(t *testing.T) {
-			util.WithTempoHarness(t, util.TestHarnessConfig{
+			util.RunIntegrationTests(t, util.TestHarnessConfig{
 				DeploymentMode: util.DeploymentModeNone,
 				Backends:       util.BackendObjectStorageAll,
 			}, func(h *util.TempoHarness) {

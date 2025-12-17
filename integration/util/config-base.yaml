@@ -66,6 +66,9 @@ memberlist:
   join_members:
     - live-store-zone-a-0:7946
     - live-store-zone-b-0:7946
+    - query-frontend:7946
+    - distributor:7946
+    - querier:7946
 
 block_builder:
   consume_cycle_duration: 10s # timings: how often to check and flush a new block?
@@ -105,3 +108,8 @@ backend_worker:
 #  ring:  the ring is not configured in the base config b/c it causes the backend worker to start significantly slower
 #    kvstore:
 #       store: memberlist
+
+# the distributor still uses the ingester client timeouts when sending to kafka. this needs to be fixed for 3.0 but using
+# it for now to avoid flakes on the write path
+ingester_client:
+  remote_timeout: 30s

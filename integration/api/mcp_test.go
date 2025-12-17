@@ -21,7 +21,7 @@ import (
 // TestMCP is a smoke test that starts up a tempo instance, writes a trace and queries it back via MCP.
 // It also verifies that all expected tools are available.
 func TestMCP(t *testing.T) {
-	util.WithTempoHarness(t, util.TestHarnessConfig{
+	util.RunIntegrationTests(t, util.TestHarnessConfig{
 		ConfigOverlay: "config-mcp.yaml",
 	}, func(h *util.TempoHarness) {
 		h.WaitTracesWritable(t)

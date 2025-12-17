@@ -19,7 +19,7 @@ import (
 // - Cancelling the downscale
 // - Verifying normal operation resumes
 func TestLiveStorePartitionDownscale(t *testing.T) {
-	util.WithTempoHarness(t, util.TestHarnessConfig{}, func(h *util.TempoHarness) {
+	util.RunIntegrationTests(t, util.TestHarnessConfig{}, func(h *util.TempoHarness) {
 		// harness creates 2 live stores that own a first partition, shutdown B we don't want it for this test
 		require.NoError(t, h.Services[util.ServiceLiveStoreZoneB].Stop())
 
@@ -114,9 +114,7 @@ func TestLiveStorePartitionDownscale(t *testing.T) {
 // TestLiveStoreDownscaleHappyPath tests the complete downscale flow where
 // an inactive live-store is properly shut down
 func TestLiveStoreDownscaleHappyPath(t *testing.T) {
-	util.WithTempoHarness(t, util.TestHarnessConfig{
-		Components: util.ComponentsRecentDataQuerying,
-	}, func(h *util.TempoHarness) {
+	util.RunIntegrationTests(t, util.TestHarnessConfig{}, func(h *util.TempoHarness) {
 		// harness creates 2 live stores that own a first partition, shutdown B we don't want it for this test
 		require.NoError(t, h.Services[util.ServiceLiveStoreZoneB].Stop())
 

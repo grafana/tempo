@@ -16,7 +16,7 @@ import (
 )
 
 func TestWriteMetrics(t *testing.T) {
-	util.WithTempoHarness(t, util.TestHarnessConfig{
+	util.RunIntegrationTests(t, util.TestHarnessConfig{
 		Components: util.ComponentsRecentDataQuerying | util.ComponentsBackendQuerying,
 	}, func(h *util.TempoHarness) {
 		h.WaitTracesWritable(t)
@@ -67,9 +67,7 @@ func TestWriteMetrics(t *testing.T) {
 }
 
 func TestReadMetrics(t *testing.T) {
-	util.WithTempoHarness(t, util.TestHarnessConfig{
-		Components: util.ComponentsRecentDataQuerying,
-	}, func(h *util.TempoHarness) {
+	util.RunIntegrationTests(t, util.TestHarnessConfig{}, func(h *util.TempoHarness) {
 		h.WaitTracesWritable(t)
 
 		info := tempoUtil.NewTraceInfo(time.Now(), "")

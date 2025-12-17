@@ -12,7 +12,7 @@ import (
 )
 
 func TestInvalidTenants(t *testing.T) {
-	util.WithTempoHarness(t, util.TestHarnessConfig{
+	util.RunIntegrationTests(t, util.TestHarnessConfig{
 		ConfigOverlay:  "config-multi-tenant.yaml",
 		DeploymentMode: util.DeploymentModeSingleBinary,
 	}, func(h *util.TempoHarness) {

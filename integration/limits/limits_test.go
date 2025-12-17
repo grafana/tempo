@@ -37,7 +37,7 @@ const (
 )
 
 func TestIngestionLimits(t *testing.T) {
-	util.WithTempoHarness(t, util.TestHarnessConfig{
+	util.RunIntegrationTests(t, util.TestHarnessConfig{
 		ConfigOverlay: configIngest,
 	}, func(h *util.TempoHarness) {
 		h.WaitTracesWritable(t)
@@ -93,7 +93,7 @@ func TestIngestionLimits(t *testing.T) {
 }
 
 func TestOTLPLimits(t *testing.T) {
-	util.WithTempoHarness(t, util.TestHarnessConfig{
+	util.RunIntegrationTests(t, util.TestHarnessConfig{
 		ConfigOverlay: configIngest,
 	}, func(h *util.TempoHarness) {
 		h.WaitTracesWritable(t)
@@ -126,7 +126,7 @@ func TestOTLPLimits(t *testing.T) {
 }
 
 func TestOTLPLimitsVanillaClient(t *testing.T) {
-	util.WithTempoHarness(t, util.TestHarnessConfig{
+	util.RunIntegrationTests(t, util.TestHarnessConfig{
 		ConfigOverlay: configIngest,
 	}, func(h *util.TempoHarness) {
 		h.WaitTracesWritable(t)
@@ -186,7 +186,7 @@ func TestOTLPLimitsVanillaClient(t *testing.T) {
 }
 
 func TestQueryLimits(t *testing.T) {
-	util.WithTempoHarness(t, util.TestHarnessConfig{}, func(h *util.TempoHarness) {
+	util.RunIntegrationTests(t, util.TestHarnessConfig{}, func(h *util.TempoHarness) {
 		h.WaitTracesWritable(t)
 
 		batch := util.MakeThriftBatchWithSpanCount(5)
@@ -231,7 +231,7 @@ func TestQueryLimits(t *testing.T) {
 }
 
 func TestLimitsPartialSuccess(t *testing.T) {
-	util.WithTempoHarness(t, util.TestHarnessConfig{
+	util.RunIntegrationTests(t, util.TestHarnessConfig{
 		ConfigOverlay: configIngestPartialSucess,
 	}, func(h *util.TempoHarness) {
 		h.WaitTracesWritable(t)
@@ -278,7 +278,7 @@ func TestLimitsPartialSuccess(t *testing.T) {
 }
 
 func TestQueryRateLimits(t *testing.T) {
-	util.WithTempoHarness(t, util.TestHarnessConfig{
+	util.RunIntegrationTests(t, util.TestHarnessConfig{
 		ConfigOverlay: configQueryRate,
 	}, func(h *util.TempoHarness) {
 		h.WaitTracesWritable(t)

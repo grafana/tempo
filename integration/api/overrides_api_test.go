@@ -20,7 +20,7 @@ const (
 )
 
 func TestOverridesWithObjectStorage(t *testing.T) {
-	util.WithTempoHarness(t, util.TestHarnessConfig{
+	util.RunIntegrationTests(t, util.TestHarnessConfig{
 		Backends:       util.BackendObjectStorageAll,
 		DeploymentMode: util.DeploymentModeSingleBinary,
 		ConfigOverlay:  configOverrides,
@@ -156,7 +156,7 @@ func TestOverridesWithObjectStorage(t *testing.T) {
 }
 
 func TestOverridesAPI_GET(t *testing.T) {
-	util.WithTempoHarness(t, util.TestHarnessConfig{
+	util.RunIntegrationTests(t, util.TestHarnessConfig{
 		ConfigOverlay:  configOverrides,
 		DeploymentMode: util.DeploymentModeSingleBinary,
 		Backends:       util.BackendObjectStorageS3, // this test fails on other backends b/c it's testing specific etag related code
@@ -196,7 +196,7 @@ func TestOverridesAPI_GET(t *testing.T) {
 }
 
 func TestOverridesAPI_POST(t *testing.T) {
-	util.WithTempoHarness(t, util.TestHarnessConfig{
+	util.RunIntegrationTests(t, util.TestHarnessConfig{
 		ConfigOverlay:  configOverrides,
 		DeploymentMode: util.DeploymentModeSingleBinary,
 		Backends:       util.BackendObjectStorageS3, // this test fails on other backends b/c it's testing specific etag related code
@@ -333,7 +333,7 @@ func TestOverridesAPI_POST(t *testing.T) {
 }
 
 func TestOverridesAPI_PATCH(t *testing.T) {
-	util.WithTempoHarness(t, util.TestHarnessConfig{
+	util.RunIntegrationTests(t, util.TestHarnessConfig{
 		ConfigOverlay:  configOverrides,
 		DeploymentMode: util.DeploymentModeSingleBinary,
 		Backends:       util.BackendObjectStorageS3, // this test fails on other backends b/c it's testing specific etag related code
@@ -599,7 +599,7 @@ func TestOverridesAPI_PATCH(t *testing.T) {
 }
 
 func TestOverridesAPI_DELETE(t *testing.T) {
-	util.WithTempoHarness(t, util.TestHarnessConfig{
+	util.RunIntegrationTests(t, util.TestHarnessConfig{
 		ConfigOverlay:  configOverrides,
 		DeploymentMode: util.DeploymentModeSingleBinary,
 		Backends:       util.BackendObjectStorageS3, // this test fails on other backends b/c it's testing specific etag related code

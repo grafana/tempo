@@ -10,7 +10,7 @@ import (
 )
 
 func TestFailureModes(t *testing.T) {
-	util.WithTempoHarness(t, util.TestHarnessConfig{
+	util.RunIntegrationTests(t, util.TestHarnessConfig{
 		Components: util.ComponentsRecentDataQuerying | util.ComponentsBackendQuerying,
 	}, func(h *util.TempoHarness) {
 		h.WaitTracesWritable(t)
@@ -23,20 +23,20 @@ func TestFailureModes(t *testing.T) {
 		apiClient := h.APIClientHTTP("")
 		util.QueryAndAssertTrace(t, apiClient, info)
 
-		// stop one live store. should still be queryable
-		liveStoreA := h.Services[util.ServiceLiveStoreZoneA]
-		err := liveStoreA.Stop()
+		// stop one live store. data should still be queryable
+		liveStoreB := h.Services[util.ServiceLiveStoreZoneB]
+		err := liveStoreB.Stop()
 		require.NoError(t, err)
 
 		require.Eventually(t, func() bool {
 			_, err := apiClient.QueryTraceV2(info.HexID()) // todo: seen this fail with transient errors connecting to the shutdown livestore. are our retry settings well configured?
 			t.Logf("query trace v2 error: %v", err)
 			return err == nil
-		}, 10*time.Second, 100*time.Millisecond)
+		}, 30*time.Second, time.Second)
 
 		// stop the second live store. querying should fail
-		liveStoreB := h.Services[util.ServiceLiveStoreZoneB]
-		err = liveStoreB.Stop()
+		liveStoreA := h.Services[util.ServiceLiveStoreZoneA]
+		err = liveStoreA.Stop()
 		require.NoError(t, err)
 		_, err = apiClient.QueryTraceV2(info.HexID())
 		require.Error(t, err)

@@ -17,7 +17,7 @@ func TestEncodings(t *testing.T) {
 
 	for _, enc := range encoding.AllEncodingsForWrites() {
 		t.Run(enc.Version(), func(t *testing.T) {
-			util.WithTempoHarness(t, util.TestHarnessConfig{
+			util.RunIntegrationTests(t, util.TestHarnessConfig{
 				ConfigOverlay: "./config-encodings.yaml",
 				ConfigTemplateData: map[string]any{
 					"Version": enc.Version(),

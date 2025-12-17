@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/grafana/tempo/integration/util"
+	"github.com/grafana/tempo/pkg/collector"
 	"github.com/grafana/tempo/pkg/search"
 	"github.com/grafana/tempo/pkg/tempopb"
 	tempoUtil "github.com/grafana/tempo/pkg/util"
@@ -27,7 +28,7 @@ type batchTmpl struct {
 }
 
 func TestTagEndpoints(t *testing.T) {
-	util.WithTempoHarness(t, util.TestHarnessConfig{
+	util.RunIntegrationTests(t, util.TestHarnessConfig{
 		Components: util.ComponentsRecentDataQuerying | util.ComponentsBackendQuerying,
 	}, func(h *util.TempoHarness) {
 		h.WaitTracesWritable(t)
@@ -410,7 +411,7 @@ func buildSearchTagValuesV2TestCases(batches []batchTmpl) []struct {
 }
 
 func TestTraceByIDandTraceQL(t *testing.T) {
-	util.WithTempoHarness(t, util.TestHarnessConfig{
+	util.RunIntegrationTests(t, util.TestHarnessConfig{
 		Components: util.ComponentsRecentDataQuerying | util.ComponentsBackendQuerying,
 		Backends:   util.BackendObjectStorageAll, // runs basic querying against all 3 object storage backends. no need to replicate for every test.
 	}, func(h *util.TempoHarness) {
@@ -456,12 +457,12 @@ func TestTraceByIDandTraceQL(t *testing.T) {
 }
 
 func TestStreamingSearch_badRequest(t *testing.T) {
-	util.WithTempoHarness(t, util.TestHarnessConfig{}, func(h *util.TempoHarness) {
+	util.RunIntegrationTests(t, util.TestHarnessConfig{}, func(h *util.TempoHarness) {
 		h.WaitTracesWritable(t)
 
 		// Send a batch of traces
 		batch := util.MakeThriftBatch()
-		require.NoError(t, h.WriteJaegerBatch(batch, ""))
+		require.NoError(t, h.WriteJaegerBatch(batch, "")) // jpe - failed here with? rpc error: code = DeadlineExceeded desc = context deadline exceeded? should i increase a timeout somewhere?
 
 		// Wait for the traces to be written to the WAL
 		h.WaitTracesQueryable(t, 1)
@@ -487,7 +488,7 @@ func TestStreamingSearch_badRequest(t *testing.T) {
 }
 
 func TestSearchTagValuesV2_badRequest(t *testing.T) {
-	util.WithTempoHarness(t, util.TestHarnessConfig{}, func(h *util.TempoHarness) {
+	util.RunIntegrationTests(t, util.TestHarnessConfig{}, func(h *util.TempoHarness) {
 		// Test HTTP endpoint returns 400 for invalid tagName
 		invalidTagName := "app.user.id" // not a valid scoped attribute
 		req, err := http.NewRequest(http.MethodGet,
@@ -545,24 +546,44 @@ func callSearchTagValuesV2AndAssert(t *testing.T, h *util.TempoHarness, tagName,
 
 	respTagsValuesV2, err := grpcClient.SearchTagValuesV2(ctx, grpcReq)
 	require.NoError(t, err)
-	var grpcResp *tempopb.SearchTagValuesV2Response
+	finalResponse := &tempopb.SearchTagValuesV2Response{
+		Metrics: &tempopb.MetadataMetrics{},
+	}
 	for {
 		resp, err := respTagsValuesV2.Recv()
 		if resp != nil {
-			grpcResp = resp
+			naiveTagValuesV2Combine(resp, finalResponse)
 		}
 		if errors.Is(err, io.EOF) {
 			break
 		}
 		require.NoError(t, err)
 	}
-	require.NotNil(t, grpcResp)
-	sort.Slice(grpcResp.TagValues, func(i, j int) bool { return grpcResp.TagValues[i].Value < grpcResp.TagValues[j].Value })
-	require.Equal(t, expected.TagValues, grpcResp.TagValues)
+	require.NotNil(t, finalResponse)
+	sort.Slice(finalResponse.TagValues, func(i, j int) bool { return finalResponse.TagValues[i].Value < finalResponse.TagValues[j].Value })
+	require.Equal(t, expected.TagValues, finalResponse.TagValues)
 	// assert metrics, and make sure it's non-zero when response is non-empty
-	if len(grpcResp.TagValues) > 0 {
-		require.Greater(t, grpcResp.Metrics.InspectedBytes, uint64(0))
+	if len(finalResponse.TagValues) > 0 {
+		require.Greater(t, finalResponse.Metrics.InspectedBytes, uint64(0))
 	}
+}
+
+func naiveTagValuesV2Combine(rNew, rInto *tempopb.SearchTagValuesV2Response) {
+	rIntoTagValues := map[string]*tempopb.TagValue{}
+	for _, val := range rInto.GetTagValues() {
+		rIntoTagValues[val.Type+"="+val.Value] = val
+	}
+
+	for _, newVal := range rNew.GetTagValues() {
+		if _, ok := rIntoTagValues[newVal.Type+"="+newVal.Value]; ok {
+			continue
+		}
+
+		rInto.TagValues = append(rInto.TagValues, newVal)
+	}
+
+	rInto.Metrics.InspectedBytes += rNew.Metrics.InspectedBytes
+	rInto.Metrics.CompletedJobs += rNew.Metrics.CompletedJobs
 }
 
 func callSearchTagsV2AndAssert(t *testing.T, h *util.TempoHarness, scope, query string, expected *tempopb.SearchTagsV2Response, start, end int64) {
@@ -590,26 +611,55 @@ func callSearchTagsV2AndAssert(t *testing.T, h *util.TempoHarness, scope, query 
 
 	respTagsValuesV2, err := grpcClient.SearchTagsV2(ctx, grpcReq)
 	require.NoError(t, err)
-	var grpcResp *tempopb.SearchTagsV2Response
+	finalResponse := &tempopb.SearchTagsV2Response{
+		Metrics: &tempopb.MetadataMetrics{},
+	}
 	for {
 		resp, err := respTagsValuesV2.Recv()
 		if resp != nil {
-			grpcResp = resp
+			naiveTagsV2Combine(resp, finalResponse)
 		}
 		if errors.Is(err, io.EOF) {
 			break
 		}
 		require.NoError(t, err)
 	}
-	require.NotNil(t, grpcResp)
-	require.NotNil(t, grpcResp.Metrics)
+	require.NotNil(t, finalResponse)
+	require.NotNil(t, finalResponse.Metrics)
 
-	prepTagsResponse(response)
-	require.Equal(t, expected.Scopes, response.Scopes)
+	prepTagsResponse(finalResponse)
+	require.Equal(t, expected.Scopes, finalResponse.Scopes)
 	// assert metrics, and make sure it's non-zero when response is non-empty
 	if lenWithoutIntrinsic(response) > 0 {
-		require.Greater(t, grpcResp.Metrics.InspectedBytes, uint64(100))
+		require.Greater(t, finalResponse.Metrics.InspectedBytes, uint64(100))
 	}
+}
+
+func naiveTagsV2Combine(rNew, rInto *tempopb.SearchTagsV2Response) {
+	distinctVals := collector.NewScopedDistinctString(0, 0, 0)
+	for _, scope := range rNew.GetScopes() {
+		for _, tag := range scope.GetTags() {
+			distinctVals.Collect(scope.GetName(), tag)
+		}
+	}
+
+	for _, scope := range rInto.GetScopes() {
+		for _, tag := range scope.GetTags() {
+			distinctVals.Collect(scope.GetName(), tag)
+		}
+	}
+
+	scopeToVals := distinctVals.Strings()
+	rInto.Scopes = make([]*tempopb.SearchTagsV2Scope, 0, len(scopeToVals))
+	for scope, vals := range scopeToVals {
+		rInto.Scopes = append(rInto.Scopes, &tempopb.SearchTagsV2Scope{
+			Name: scope,
+			Tags: vals,
+		})
+	}
+
+	rInto.Metrics.InspectedBytes += rNew.Metrics.InspectedBytes
+	rInto.Metrics.CompletedJobs += rNew.Metrics.CompletedJobs
 }
 
 func prepTagsResponse(resp *tempopb.SearchTagsV2Response) {

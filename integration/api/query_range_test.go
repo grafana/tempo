@@ -14,6 +14,7 @@ import (
 	"github.com/grafana/tempo/integration/util"
 	"github.com/grafana/tempo/pkg/httpclient"
 	"github.com/grafana/tempo/pkg/tempopb"
+	v1 "github.com/grafana/tempo/pkg/tempopb/common/v1"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -52,7 +53,7 @@ func (r *queryRangeRequest) SetDefaults() {
 }
 
 func TestQueryRangeExemplars(t *testing.T) {
-	util.WithTempoHarness(t, util.TestHarnessConfig{
+	util.RunIntegrationTests(t, util.TestHarnessConfig{
 		ConfigOverlay: configQueryRangeExemplars,
 	}, func(h *util.TempoHarness) {
 		h.WaitTracesWritable(t)
@@ -544,7 +545,7 @@ func minSamples(samples []tempopb.Sample) float64 {
 // Single trace creates a block with startTime == endTime
 // which covers a few edge cases under the hood.
 func TestQueryRangeSingleTrace(t *testing.T) {
-	util.WithTempoHarness(t, util.TestHarnessConfig{
+	util.RunIntegrationTests(t, util.TestHarnessConfig{
 		DeploymentMode: util.DeploymentModeSingleBinary, // for unknown reasons this fails on microservices mode. TODO: figure that crap out
 	}, func(h *util.TempoHarness) {
 		h.WaitTracesWritable(t)
@@ -573,7 +574,7 @@ func TestQueryRangeSingleTrace(t *testing.T) {
 }
 
 func TestQueryRangeMaxSeries(t *testing.T) {
-	util.WithTempoHarness(t, util.TestHarnessConfig{
+	util.RunIntegrationTests(t, util.TestHarnessConfig{
 		ConfigOverlay: configQueryRangeMaxSeries,
 	}, func(h *util.TempoHarness) {
 		h.WaitTracesWritable(t)
@@ -607,15 +608,15 @@ func TestQueryRangeMaxSeries(t *testing.T) {
 		}, func(queryRangeRes *tempopb.QueryRangeResponse, err error) {
 			require.NoError(t, err)
 			require.NotNil(t, queryRangeRes)
-			assert.Equal(t, "Response exceeds maximum series limit of 3, a partial response is returned. Warning: the accuracy of each individual value is not guaranteed.", queryRangeRes.GetMessage())
-			assert.Equal(t, 3, len(queryRangeRes.GetSeries()))
-			require.Equal(t, tempopb.PartialStatus_PARTIAL, queryRangeRes.GetStatus())
+			require.Equal(t, tempopb.PartialStatus_PARTIAL, queryRangeRes.GetStatus()) // jpe - this fails occassionally. 0 series returned instead of 3+. note on line 598 i'm confirming that tracesSent is greater than 3. it happens on streaming metrics! uh oh
+			require.Equal(t, "Response exceeds maximum series limit of 3, a partial response is returned. Warning: the accuracy of each individual value is not guaranteed.", queryRangeRes.GetMessage())
+			require.Equal(t, 3, len(queryRangeRes.GetSeries()))
 		})
 	})
 }
 
 func TestQueryRangeMaxSeriesDisabled(t *testing.T) {
-	util.WithTempoHarness(t, util.TestHarnessConfig{
+	util.RunIntegrationTests(t, util.TestHarnessConfig{
 		ConfigOverlay: configQueryRangeMaxSeriesDisabled,
 	}, func(h *util.TempoHarness) {
 		h.WaitTracesWritable(t)
@@ -655,7 +656,7 @@ func TestQueryRangeMaxSeriesDisabled(t *testing.T) {
 }
 
 func TestQueryRangeTypeHandling(t *testing.T) {
-	util.WithTempoHarness(t, util.TestHarnessConfig{}, func(h *util.TempoHarness) {
+	util.RunIntegrationTests(t, util.TestHarnessConfig{}, func(h *util.TempoHarness) {
 		h.WaitTracesWritable(t)
 
 		// Emit spans where the attribute names but the values are
@@ -724,12 +725,17 @@ func callQueryRange(t *testing.T, h *util.TempoHarness, req queryRangeRequest, f
 	})
 	require.NoError(t, err)
 
-	var finalResponse *tempopb.QueryRangeResponse
+	finalResponse := &tempopb.QueryRangeResponse{
+		Metrics: &tempopb.SearchMetrics{},
+	}
 	var finalError error
 	for {
+		t.Logf("recv")
 		resp, err := stream.Recv()
 		if resp != nil {
-			finalResponse = resp
+			t.Logf("resp: %+v, count: %d", resp, len(resp.GetSeries()))
+			naiveQueryRangeCombine(resp, finalResponse)
+			t.Logf("resp: %d, finalResponse: %d", len(resp.GetSeries()), len(finalResponse.GetSeries()))
 		}
 		if errors.Is(err, io.EOF) {
 			break
@@ -748,4 +754,50 @@ func strptr(s string) *string {
 
 func int64ptr(i int64) *int64 {
 	return &i
+}
+
+// naiveQueryRangeCombine makes assumptions about the data being sent from Tempo. it assumes that labels orders are always
+// the same and that samples and exemplars do not need to be deduped.
+func naiveQueryRangeCombine(rNew, rInto *tempopb.QueryRangeResponse) {
+	rIntoSeries := map[string]*tempopb.TimeSeries{}
+	for _, series := range rInto.GetSeries() {
+		rIntoSeries[keyFromLabels(series.GetLabels())] = series
+	}
+
+	for _, newSeries := range rNew.GetSeries() {
+		key := keyFromLabels(newSeries.GetLabels())
+		if intoSeries, ok := rIntoSeries[key]; ok {
+			intoSeries.Exemplars = append(intoSeries.Exemplars, newSeries.Exemplars...)
+			intoSeries.Samples = append(intoSeries.Samples, newSeries.Samples...)
+		} else {
+			rIntoSeries[key] = newSeries
+		}
+	}
+
+	// Rebuild the series slice from the map
+	rInto.Series = make([]*tempopb.TimeSeries, 0, len(rIntoSeries))
+	for _, series := range rIntoSeries {
+		rInto.Series = append(rInto.Series, series)
+	}
+
+	if rInto.Message == "" {
+		rInto.Message = rNew.Message
+	}
+	if rInto.Status == 0 {
+		rInto.Status = rNew.Status
+	}
+
+	// metrics?
+	rInto.Metrics.CompletedJobs += rNew.Metrics.CompletedJobs
+	rInto.Metrics.InspectedBytes += rNew.Metrics.InspectedBytes
+	rInto.Metrics.InspectedTraces += rNew.Metrics.InspectedTraces
+	rInto.Metrics.InspectedSpans += rNew.Metrics.InspectedSpans
+}
+
+func keyFromLabels(labels []v1.KeyValue) string {
+	key := ""
+	for _, label := range labels {
+		key += label.Key + "=" + label.Value.GetStringValue() + ","
+	}
+	return key
 }

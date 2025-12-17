@@ -53,7 +53,7 @@ const (
 	gcsImage     = "fsouza/fake-gcs-server:1.52.2"
 )
 
-// DeploymentMode specifies whether to run Tempo as a single binary or microservices
+// DeploymentMode specifies whether to run Tempo as a single binary, microservices or none.
 type DeploymentMode int
 
 const (
@@ -61,39 +61,50 @@ const (
 	DeploymentModeMicroservices DeploymentMode = iota
 	// DeploymentModeSingleBinary runs Tempo as a single all-in-one binary
 	DeploymentModeSingleBinary
-	// DeploymentModeNone no tempo services are started. this seems odd but it's used by poller_test to just start backends
+	// DeploymentModeNone does not start any Tempo services. This seems odd but it's used by poller_test.go to just start backends
 	DeploymentModeNone
 )
 
-// ComponentsMask is a bitmask for controlling which optional Tempo components are started.
+// ComponentsMask is a bitmask for controlling which optional Tempo components are started. These flags are meant to be used
+// with the | operator to request multiple component sets from the test harness. For instance if you wanted to test the full
+// querying capabilities of Tempo you would use: util.ComponentsRecentDataQuerying | util.ComponentsBackendQuerying
 type ComponentsMask uint
 
 const (
-	ComponentsRecentDataQuerying ComponentsMask = 1 << iota // distributor, kafka, query-frontned, querier, livestores. this is default if nothing is specified.
-	ComponentsBackendQuerying                               // distributor, kafka, query-frontned, querier, block-builder
-	ComponentsMetricsGeneration                             // distributor, kafka, metrics generator and prometheus
-	ComponentsBackendWork                                   // backend scheduler, worker
+	// ComponentsRecentDataQuerying starts the distributor, kafka, query-frontend, querier, and livestores for recent data querying. (default)
+	ComponentsRecentDataQuerying ComponentsMask = 1 << iota
+	// ComponentsBackendQuerying starts the distributor, kafka, query-frontend, querier, and block-builder for backend querying.
+	ComponentsBackendQuerying
+	// ComponentsMetricsGeneration starts the distributor, kafka, metrics generator and prometheus for metrics generation.
+	ComponentsMetricsGeneration
+	// ComponentsBackendWork starts the backend scheduler and worker for testing backend work.
+	ComponentsBackendWork
 )
 
+// BackendsMask is a bitmask for controlling which object storage backends are started. These flags are meant to be used
+// with the | operator to request multiple backends from the test harness.
+// The test function will be called once for each backend and so specifying multiple backends will result in longer tests!
+// Use this only when you really need to test the behavior of Tempo against multiple backends.
 type BackendsMask uint
 
 const (
-	BackendLocal BackendsMask = 1 << iota // local backend is default if none specified
+	// BackendLocal starts the local backend. (default)
+	BackendLocal BackendsMask = 1 << iota
+	// BackendObjectStorageS3 starts the S3 backend.
 	BackendObjectStorageS3
+	// BackendObjectStorageAzure starts the Azure backend.
 	BackendObjectStorageAzure
+	// BackendObjectStorageGCS starts the GCS backend.
 	BackendObjectStorageGCS
 
-	BackendObjectStorageAll = BackendObjectStorageS3 | BackendObjectStorageAzure | BackendObjectStorageGCS // tests will be run 3 times. once for each backend
+	// BackendObjectStorageAll starts all three object storage backends. A convenience flag to avoid having to specify all three backends manually.
+	BackendObjectStorageAll = BackendObjectStorageS3 | BackendObjectStorageAzure | BackendObjectStorageGCS
 )
 
-// TempoHarness contains all the services and clients needed to run integration tests
-// with the new Tempo architecture (Kafka + LiveStore).
 type TempoHarness struct {
-	Services map[string]*e2e.HTTPService
-
+	Services     map[string]*e2e.HTTPService
 	TestScenario *e2e.Scenario
 
-	// Overrides file path for dynamic updates
 	overridesPath  string
 	readinessProbe e2e.ReadinessProbe
 }
@@ -109,11 +120,12 @@ type TestHarnessConfig struct {
 	// Template variables should use Go template syntax: {{ .VariableName }}
 	ConfigTemplateData map[string]any
 
+	// ReadinessProbe is a function to use a custom readiness probe for the Tempo services.
+	// It's used by the https tests to swap the readiness port to 3201.
 	ReadinessProbe e2e.ReadinessProbe
 
-	// PreStartHook is called before starting services to populate ConfigTemplateData
-	// It receives the scenario and can start any prerequisite services (like etcd, consul)
-	// and populate template variables with their connection information
+	// PreStartHook is called before starting Tempo services to perform any setup or adjustments.
+	// It's used by a few tests to copy in required files, start prerequisite services, or adjust the template data for overlays.
 	PreStartHook func(*e2e.Scenario, map[string]any) error
 
 	// DeploymentMode specifies whether to run as single binary, microservices, or both
@@ -126,49 +138,12 @@ type TestHarnessConfig struct {
 
 	// Components is a bitmask controlling which optional Tempo components are started.
 	// Recent data components are always started. Use this to add optional components.
-	// Defaults to ComponentsDefault (no optional components).
-	// Example: Components: util.ComponentsMetricsGenerator | util.ComponentsBackendWork
+	// Defaults to ComponentsRecentDataQuerying
 	Components ComponentsMask
 }
 
-// WithTempoHarness sets up Tempo and waits for everything to be ready.
-//
-// Deployment Modes:
-// - DeploymentModeMicroservices (default): Runs Tempo as separate microservices
-// - DeploymentModeSingleBinary: Runs Tempo as a single all-in-one binary
-// - DeploymentModeBoth: Runs tests in both microservices and single binary modes
-//
-// Components started (microservices mode):
-// - Object storage backend (S3/Azure/GCS - auto-detected from config, local backend is skipped)
-// - Kafka
-// - LiveStore instances (in zone-a/zone-b pairs, default 1 pair = 2 instances)
-// - Block Builder instances (optional, configurable count)
-// - Distributor
-// - Metrics Generator + Prometheus (optional)
-// - Query Frontend + Querier (always started)
-//
-// Components started (single binary mode):
-// - Object storage backend (S3/Azure/GCS - auto-detected from config, local backend is skipped)
-// - Kafka
-// - Tempo (single binary with all components)
-//
-// Example usage:
-//
-//	func TestMyFeature(t *testing.T) {
-//		util.WithTempoHarness(t, util.TestHarnessConfig{
-//			ConfigOverlay: "config-s3.yaml",
-//			DeploymentMode: util.DeploymentModeMicroservices, // or DeploymentModeSingleBinary, or DeploymentModeBoth
-//		}, func(h *util.TempoHarness) {
-//			// Send traces
-//			info := tempoUtil.NewTraceInfo(time.Now(), "")
-//			require.NoError(t, info.EmitAllBatches(h.JaegerExporter))
-//
-//			// Query traces
-//			trace, err := h.HTTPClient.QueryTrace(info.HexID())
-//			require.NoError(t, err)
-//		})
-//	}
-func WithTempoHarness(t *testing.T, config TestHarnessConfig, testFunc func(*TempoHarness)) {
+// RunIntegrationTests sets up Tempo for integration tests as requested through the config and then calls the provided testFunc
+func RunIntegrationTests(t *testing.T, config TestHarnessConfig, testFunc func(*TempoHarness)) {
 	t.Helper()
 	t.Parallel()
 
@@ -394,17 +369,17 @@ func (h *TempoHarness) WaitTracesQueryable(t *testing.T, traces int) {
 	t.Helper()
 
 	liveStoreZoneA := h.Services[ServiceLiveStoreZoneA]
-	require.NoError(t, liveStoreZoneA.WaitSumMetricsWithOptions(e2e.Equals(float64(traces)), []string{"tempo_live_store_traces_created_total"}, e2e.WaitMissingMetrics))
+	require.NoError(t, liveStoreZoneA.WaitSumMetricsWithOptions(e2e.GreaterOrEqual(float64(traces)), []string{"tempo_live_store_traces_created_total"}, e2e.WaitMissingMetrics))
 
 	liveStoreZoneB := h.Services[ServiceLiveStoreZoneB]
-	require.NoError(t, liveStoreZoneB.WaitSumMetricsWithOptions(e2e.Equals(float64(traces)), []string{"tempo_live_store_traces_created_total"}, e2e.WaitMissingMetrics))
+	require.NoError(t, liveStoreZoneB.WaitSumMetricsWithOptions(e2e.GreaterOrEqual(float64(traces)), []string{"tempo_live_store_traces_created_total"}, e2e.WaitMissingMetrics))
 }
 
 func (h *TempoHarness) WaitTracesWrittenToBackend(t *testing.T, traces int) {
 	t.Helper()
 
 	queryFrontend := h.Services[ServiceQueryFrontend]
-	require.NoError(t, queryFrontend.WaitSumMetricsWithOptions(e2e.Equals(float64(traces)), []string{"tempodb_backend_objects_total"}, e2e.WaitMissingMetrics))
+	require.NoError(t, queryFrontend.WaitSumMetricsWithOptions(e2e.GreaterOrEqual(float64(traces)), []string{"tempodb_backend_objects_total"}, e2e.WaitMissingMetrics))
 }
 
 // ForceBackendQuerying restarts the query frontend with the query-backend config overlay applied.

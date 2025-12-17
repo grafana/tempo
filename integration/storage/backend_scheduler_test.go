@@ -24,7 +24,7 @@ import (
 )
 
 func TestBackendScheduler(t *testing.T) {
-	util.WithTempoHarness(t, util.TestHarnessConfig{
+	util.RunIntegrationTests(t, util.TestHarnessConfig{
 		Components:    util.ComponentsBackendWork,
 		Backends:      util.BackendObjectStorageAll,
 		ConfigOverlay: "config-backend-scheduler.yaml",

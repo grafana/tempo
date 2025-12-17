@@ -19,7 +19,7 @@ import (
 )
 
 func TestCompression(t *testing.T) {
-	util.WithTempoHarness(t, util.TestHarnessConfig{
+	util.RunIntegrationTests(t, util.TestHarnessConfig{
 		DeploymentMode: util.DeploymentModeSingleBinary,
 	}, func(h *util.TempoHarness) {
 		h.WaitTracesWritable(t)

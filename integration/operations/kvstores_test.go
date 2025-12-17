@@ -62,7 +62,7 @@ func TestKVStores(t *testing.T) {
 
 	for _, tc := range testKVStores {
 		t.Run(tc.name, func(t *testing.T) {
-			util.WithTempoHarness(t, util.TestHarnessConfig{
+			util.RunIntegrationTests(t, util.TestHarnessConfig{
 				ConfigOverlay: configKVStore,
 				PreStartHook:  tc.setupKVStore,
 			}, func(h *util.TempoHarness) {

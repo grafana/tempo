@@ -27,7 +27,7 @@ func TestThreeTenantsSearch(t *testing.T) {
 }
 
 func testSearch(t *testing.T, tenant string) {
-	util.WithTempoHarness(t, util.TestHarnessConfig{
+	util.RunIntegrationTests(t, util.TestHarnessConfig{
 		ConfigOverlay: "config-multi-tenant.yaml",
 	}, func(h *util.TempoHarness) {
 		h.WaitTracesWritable(t)
