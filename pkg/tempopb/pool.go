@@ -2,7 +2,7 @@
 // This package was forked to provide better protection against putting byte slices back into the pool that
 // did not originate from it.
 
-package pool
+package tempopb
 
 import (
 	"fmt"
@@ -28,8 +28,8 @@ type Pool struct {
 	metricMissUnder prometheus.Counter
 }
 
-// New returns a new Pool with size buckets for minSize to maxSize
-func New(name string, minBucket, numBuckets, bktSize int) *Pool {
+// NewPool returns a new Pool with size buckets for minSize to maxSize
+func NewPool(name string, minBucket, numBuckets, bktSize int) *Pool {
 	if minBucket < 0 {
 		panic("invalid min bucket size")
 	}

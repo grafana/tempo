@@ -3,18 +3,16 @@ package tempopb
 import (
 	"os"
 	"strconv"
-
-	"github.com/grafana/tempo/pkg/pool"
 )
 
-var bytePool *pool.Pool
+var bytePool *Pool
 
 func init() {
 	bktSize := intFromEnv("PREALLOC_BKT_SIZE", 400)
 	numBuckets := intFromEnv("PREALLOC_NUM_BUCKETS", 250)
 	minBucket := intFromEnv("PREALLOC_MIN_BUCKET", 0)
 
-	bytePool = pool.New("ingester_prealloc", minBucket, numBuckets, bktSize)
+	bytePool = NewPool("ingester_prealloc", minBucket, numBuckets, bktSize)
 }
 
 // PreallocBytes is a (repeated bytes slices) which preallocs slices on Unmarshal.

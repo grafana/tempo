@@ -9,7 +9,6 @@ The default license for this project is [AGPL-3.0-only](LICENSE).
 The following folders and their subfolders are licensed under Apache-2.0:
 
 ```
-cmd/tempo-query/
 operations/
 pkg/tempopb
 ```

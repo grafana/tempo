@@ -12,7 +12,7 @@ import (
 	"github.com/go-kit/log/level"
 	instr "github.com/grafana/dskit/instrument"
 	"github.com/grafana/gomemcache/memcache"
-	"github.com/grafana/tempo/pkg/pool"
+	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 )
@@ -35,7 +35,7 @@ func init() {
 	minBucket := intFromEnv("CACHE_MIN_BUCKET", 0)
 
 	cacheBufAllocator = &allocator{
-		pool: pool.New("cache", minBucket, numBuckets, bktSize),
+		pool: tempopb.NewPool("cache", minBucket, numBuckets, bktSize),
 	}
 }
 
@@ -188,7 +188,7 @@ func (c *Memcached) Release(buf []byte) {
 
 // allocator is a thin wrapper around pool.Pool to satisfy the memcache allocator interface
 type allocator struct {
-	pool *pool.Pool
+	pool *tempopb.Pool
 }
 
 func (a *allocator) Get(sz int) *[]byte {

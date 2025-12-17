@@ -1,6 +1,6 @@
 // Forked with love from: https://github.com/prometheus/prometheus/tree/c954cd9d1d4e3530be2939d39d8633c38b70913f/util/pool
 
-package pool
+package tempopb
 
 import (
 	"math/rand"
@@ -10,7 +10,7 @@ import (
 )
 
 func TestPoolGet(t *testing.T) {
-	testPool := New("foo", 5, 2, 7)
+	testPool := NewPool("foo", 5, 2, 7)
 	cases := []struct {
 		size        int
 		expectedCap int
@@ -56,7 +56,7 @@ func TestPoolGet(t *testing.T) {
 }
 
 func TestPoolSlicesAreAlwaysLargeEnough(t *testing.T) {
-	testPool := New("foo", 100, 200, 5)
+	testPool := NewPool("foo", 100, 200, 5)
 
 	for i := 0; i < 10000; i++ {
 		size := rand.Intn(1000)
@@ -73,7 +73,7 @@ func TestPoolSlicesAreAlwaysLargeEnough(t *testing.T) {
 }
 
 func TestBucketFor(t *testing.T) {
-	testPool := New("foo", 5, 10, 5)
+	testPool := NewPool("foo", 5, 10, 5)
 	cases := []struct {
 		size     int
 		expected int
