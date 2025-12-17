@@ -71,7 +71,7 @@ func main() {
 		if err != nil {
 			log.Fatalf("failed to marshal test data: %v", err)
 		}
-		err = os.WriteFile(filepath.Join("pkg/drain/testdata", strings.TrimSuffix(file.Name(), ".json")+".drain"), json, 0600)
+		err = os.WriteFile(filepath.Join("pkg/drain/testdata", strings.TrimSuffix(file.Name(), ".json")+".drain"), json, 0o600)
 		if err != nil {
 			log.Fatalf("failed to write file: %v", err)
 		}
