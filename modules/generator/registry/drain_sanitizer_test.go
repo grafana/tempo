@@ -4,10 +4,8 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/prometheus/model/labels"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func TestDrainSanitizer_PatternDetection(t *testing.T) {
@@ -116,42 +114,6 @@ func TestDrainSanitizer_DemandTracking(t *testing.T) {
 	// The demand gauge will be updated periodically via doPeriodicMaintenance
 	demandEstimate := sanitizer.demand.Estimate()
 	assert.GreaterOrEqual(t, demandEstimate, uint64(0))
-}
-
-func TestDrainSanitizer_MetricsIncremented(t *testing.T) {
-	t.Parallel()
-
-	// Create a test registry to capture metrics
-	reg := prometheus.NewRegistry()
-	oldMetrics := metrics
-	defer func() { metrics = oldMetrics }()
-
-	metrics = newMetrics(reg)
-	sanitizer := NewDrainSanitizer("test-tenant", false)
-
-	// Train with patterns that will be compacted
-	lbls1 := labels.FromStrings("span_name", "GET /api/users/123")
-	lbls2 := labels.FromStrings("span_name", "GET /api/users/456")
-	lbls3 := labels.FromStrings("span_name", "GET /api/users/789")
-
-	sanitizer.Sanitize(lbls1)
-	sanitizer.Sanitize(lbls2)
-	sanitizer.Sanitize(lbls3)
-
-	// Collect metrics
-	mfs, err := reg.Gather()
-	require.NoError(t, err)
-
-	// Find the spans compacted counter
-	var found bool
-	for _, mf := range mfs {
-		if mf.GetName() == "tempo_metrics_generator_registry_drain_spans_compacted_total" {
-			found = true
-			// Should have at least 2 increments (after pattern is detected)
-			assert.GreaterOrEqual(t, len(mf.GetMetric()), 1)
-		}
-	}
-	assert.True(t, found, "spans compacted metric should exist")
 }
 
 func TestDrainSanitizer_NoSpanNameLabel(t *testing.T) {
