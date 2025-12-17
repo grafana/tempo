@@ -362,9 +362,23 @@ func TestDedicatedColumns_Validate(t *testing.T) {
 			isValid: true,
 		},
 		{
-			name: "valid with options",
+			name: "array option",
 			cols: DedicatedColumns{
 				{Name: "test.span.str", Scope: DedicatedColumnScopeSpan, Type: DedicatedColumnTypeString, Options: DedicatedColumnOptions{DedicatedColumnOptionArray}},
+			},
+			isValid: true,
+		},
+		{
+			name: "blob option",
+			cols: DedicatedColumns{
+				{Name: "test.span.str", Scope: DedicatedColumnScopeSpan, Type: DedicatedColumnTypeString, Options: DedicatedColumnOptions{DedicatedColumnOptionBlob}},
+			},
+			isValid: true,
+		},
+		{
+			name: "all options",
+			cols: DedicatedColumns{
+				{Name: "test.span.str", Scope: DedicatedColumnScopeSpan, Type: DedicatedColumnTypeString, Options: DedicatedColumnOptions{DedicatedColumnOptionArray, DedicatedColumnOptionBlob}},
 			},
 			isValid: true,
 		},

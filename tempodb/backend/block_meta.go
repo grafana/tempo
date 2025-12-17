@@ -340,7 +340,7 @@ func (dcs DedicatedColumns) Validate() error {
 		}
 
 		for _, opt := range dc.Options {
-			if opt != DedicatedColumnOptionArray {
+			if opt != DedicatedColumnOptionArray && opt != DedicatedColumnOptionBlob {
 				return fmt.Errorf("invalid dedicated attribute columns: invalid option '%s'", opt)
 			}
 		}
