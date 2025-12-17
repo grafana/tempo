@@ -14,26 +14,26 @@ services:
   distributor:
     image: &tempoImage grafana/tempo:latest
     depends_on:
-      - kafka
+      - redpanda
     command: "-target=distributor -config.file=/etc/tempo.yaml"
     restart: always
     volumes:
       - ./tempo.yaml:/etc/tempo.yaml
     ports:
-      - "3200"   # tempo
+      - "3200" # tempo
     environment:
       - OTEL_EXPORTER_OTLP_ENDPOINT=http://alloy:4318
 
   live-store-zone-a-0:
     image: *tempoImage
     depends_on:
-      - kafka
+      - redpanda
     command: "-target=live-store -config.file=/etc/tempo.yaml -live-store.instance-availability-zone=zone-a"
     restart: always
     volumes:
       - ./tempo.yaml:/etc/tempo.yaml
     ports:
-      - "3201:3200"   # tempo
+      - "3201:3200" # tempo
     hostname: live-store-zone-a-0
     environment:
       - OTEL_EXPORTER_OTLP_ENDPOINT=http://alloy:4318
@@ -41,13 +41,13 @@ services:
   live-store-zone-a-1:
     image: *tempoImage
     depends_on:
-      - kafka
+      - redpanda
     command: "-target=live-store -config.file=/etc/tempo.yaml -live-store.instance-availability-zone=zone-a"
     restart: always
     volumes:
       - ./tempo.yaml:/etc/tempo.yaml
     ports:
-      - "3200"   # tempo
+      - "3200" # tempo
     hostname: live-store-zone-a-1
     environment:
       - OTEL_EXPORTER_OTLP_ENDPOINT=http://alloy:4318
@@ -55,13 +55,13 @@ services:
   live-store-zone-b-0:
     image: *tempoImage
     depends_on:
-      - kafka
+      - redpanda
     command: "-target=live-store -config.file=/etc/tempo.yaml -live-store.instance-availability-zone=zone-b"
     restart: always
     volumes:
       - ./tempo.yaml:/etc/tempo.yaml
     ports:
-      - "3200"   # tempo
+      - "3200" # tempo
     hostname: live-store-zone-b-0
     environment:
       - OTEL_EXPORTER_OTLP_ENDPOINT=http://alloy:4318
@@ -69,13 +69,13 @@ services:
   live-store-zone-b-1:
     image: *tempoImage
     depends_on:
-      - kafka
+      - redpanda
     command: "-target=live-store -config.file=/etc/tempo.yaml -live-store.instance-availability-zone=zone-b"
     restart: always
     volumes:
       - ./tempo.yaml:/etc/tempo.yaml
     ports:
-      - "3200"   # tempo
+      - "3200" # tempo
     hostname: live-store-zone-b-1
     environment:
       - OTEL_EXPORTER_OTLP_ENDPOINT=http://alloy:4318
@@ -87,7 +87,7 @@ services:
     volumes:
       - ./tempo.yaml:/etc/tempo.yaml
     ports:
-      - "3200:3200"   # tempo
+      - "3200:3200" # tempo
   # Uncomment the following lines to enable tracing
   #    environment:
   #      - OTEL_EXPORTER_OTLP_ENDPOINT=http://alloy:4318
@@ -99,76 +99,76 @@ services:
     volumes:
       - ./tempo.yaml:/etc/tempo.yaml
     ports:
-      - "3200"   # tempo
+      - "3200" # tempo
     environment:
       - OTEL_EXPORTER_OTLP_ENDPOINT=http://alloy:4318
 
   compactor:
     image: *tempoImage
     depends_on:
-      - kafka
+      - redpanda
     command: "-target=compactor -config.file=/etc/tempo.yaml"
     restart: always
     volumes:
       - ./tempo.yaml:/etc/tempo.yaml
     ports:
-      - "3200"   # tempo
+      - "3200" # tempo
     environment:
       - OTEL_EXPORTER_OTLP_ENDPOINT=http://alloy:4318
 
   metrics-generator-0:
     image: *tempoImage
     depends_on:
-      - kafka
+      - redpanda
     command: "-target=metrics-generator -config.file=/etc/tempo.yaml"
     hostname: metrics-generator-0
     restart: always
     volumes:
       - ./tempo.yaml:/etc/tempo.yaml
     ports:
-      - "3200"   # tempo
+      - "3200" # tempo
     environment:
       - OTEL_EXPORTER_OTLP_ENDPOINT=http://alloy:4318
 
   metrics-generator-1:
     image: *tempoImage
     depends_on:
-      - kafka
+      - redpanda
     command: "-target=metrics-generator -config.file=/etc/tempo.yaml"
     hostname: metrics-generator-1
     restart: always
     volumes:
       - ./tempo.yaml:/etc/tempo.yaml
     ports:
-      - "3200"   # tempo
+      - "3200" # tempo
     environment:
       - OTEL_EXPORTER_OTLP_ENDPOINT=http://alloy:4318
 
   block-builder-0:
     image: *tempoImage
     depends_on:
-      - kafka
+      - redpanda
     command: "-target=block-builder -config.file=/etc/tempo.yaml"
     hostname: block-builder-0
     restart: always
     volumes:
       - ./tempo.yaml:/etc/tempo.yaml
     ports:
-      - "3200"   # tempo
+      - "3200" # tempo
     environment:
       - OTEL_EXPORTER_OTLP_ENDPOINT=http://alloy:4318
 
   block-builder-1:
     image: *tempoImage
     depends_on:
-      - kafka
+      - redpanda
     command: "-target=block-builder -config.file=/etc/tempo.yaml"
     hostname: block-builder-1
     restart: always
     volumes:
       - ./tempo.yaml:/etc/tempo.yaml
     ports:
-        - "3200"   # tempo
+      - "3200" # tempo
     environment:
       - OTEL_EXPORTER_OTLP_ENDPOINT=http://alloy:4318
 
@@ -216,42 +216,29 @@ services:
     ports:
       - "3000:3000"
 
-  "kafka":
-    "image": "confluentinc/cp-kafka:latest"
-    "environment":
-      - "CLUSTER_ID=zH1GDqcNTzGMDCXm5VZQdg"
-      - "KAFKA_BROKER_ID=1"
-      - "KAFKA_NUM_PARTITIONS=100"
-      - "KAFKA_PROCESS_ROLES=broker,controller"
-      - "KAFKA_LISTENERS=PLAINTEXT://:9092,CONTROLLER://:9093,PLAINTEXT_HOST://:29092"
-      - "KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://kafka:9092,PLAINTEXT_HOST://localhost:29092"
-      - "KAFKA_LISTENER_SECURITY_PROTOCOL_MAP=PLAINTEXT:PLAINTEXT,CONTROLLER:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT"
-      - "KAFKA_INTER_BROKER_LISTENER_NAME=PLAINTEXT"
-      - "KAFKA_CONTROLLER_LISTENER_NAMES=CONTROLLER"
-      - "KAFKA_CONTROLLER_QUORUM_VOTERS=1@kafka:9093"
-      - "KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR=1"
-      - "KAFKA_LOG_RETENTION_CHECK_INTERVAL_MS=10000"
-      - "KAFKA_LOG4J_ROOT_LOGLEVEL=WARN"
-    "healthcheck":
-      "interval": "1s"
-      "retries": 30
-      "start_period": "1s"
-      "test": "nc -z localhost 9092 || exit -1"
-      "timeout": "1s"
-    "ports":
-      - "29092:29092"
-
-  "redpanda-console":
-    "image": "docker.redpanda.com/redpandadata/console:v2.7.0@sha256:6ee7ed1203a7d4fd4181765929b28cb2450296402d82cd4d1c491c2d5191f45d"
-    "environment":
-      - "CONFIG_FILEPATH=/etc/redpanda/redpanda-console-config.yaml"
+  redpanda:
+    image: redpandadata/redpanda:latest
+    container_name: redpanda
+    ports:
+      - "9092:9092" # Kafka API for clients
+    command: >
+      redpanda start --overprovisioned
+      --mode=dev-container
+      --kafka-addr=PLAINTEXT://0.0.0.0:9092
+      --advertise-kafka-addr=PLAINTEXT://redpanda:9092
     volumes:
-      - "../shared/redpanda-console.yaml:/etc/redpanda/redpanda-console-config.yaml"
-    "ports":
-      - "8080:8080"
-    "depends_on":
-      - "kafka"
+      - redpanda-data:/var/lib/redpanda/data
 
+  redpanda-console:
+    image: docker.redpanda.com/redpandadata/console:v2.7.0@sha256:6ee7ed1203a7d4fd4181765929b28cb2450296402d82cd4d1c491c2d5191f45d
+    environment:
+      - CONFIG_FILEPATH=/etc/redpanda/redpanda-console-config.yaml
+    volumes:
+      - ../shared/redpanda-console.yaml:/etc/redpanda/redpanda-console-config.yaml
+    ports:
+      - "8080:8080"
+    depends_on:
+      - redpanda
   alloy:
     image: grafana/alloy:v1.12.0@sha256:85e4a706181741dd735d9a69bea81f9e03e16d5349bff46dd9640379f143c007
     volumes:
@@ -267,3 +254,5 @@ services:
       - "12345:12345"
     depends_on:
       - distributor
+volumes:
+  redpanda-data:

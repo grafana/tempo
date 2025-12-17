@@ -60,7 +60,7 @@ overrides:
 ingest:
   enabled: true
   kafka:
-    address: kafka:9092
+    address: redpanda:9092
     topic: tempo-ingest
 
 block_builder:
