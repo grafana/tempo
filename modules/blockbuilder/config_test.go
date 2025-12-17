@@ -140,7 +140,7 @@ func TestConfig_partitionAssignment(t *testing.T) {
 			expectedPartitions: []int32{84, 85},
 		},
 		{
-			name: "partitions_per_instance takes precedence",
+			name: "assigned_partitions takes precedence",
 			cfg: Config{
 				InstanceID:            instanceID,
 				PartitionsPerInstance: 2,
@@ -148,7 +148,7 @@ func TestConfig_partitionAssignment(t *testing.T) {
 					instanceID: {1, 2, 56},
 				},
 			},
-			expectedPartitions: []int32{84, 85},
+			expectedPartitions: []int32{1, 2, 56},
 		},
 		{
 			name: "falls back to assigned_partitions if ID doesn't have an index",
