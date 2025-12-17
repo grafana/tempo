@@ -14,19 +14,6 @@ type Config struct {
 }
 
 func DefaultConfig() *Config {
-	// TODO(kolesnikovae):
-	//
-	// This is crucial for Drain to ensure that the first LogClusterDepth tokens
-	// are constant (see https://jiemingzhu.github.io/pub/pjhe_icws2017.pdf).
-	// We should remove any variables such as timestamps, IDs, IPs, counters, etc.
-	// from these tokens.
-	//
-	// Moreover, Drain is not designed for structured logs. Therefore, we should
-	// handle logfmt (and, probably, JSON) logs in a special way:
-	//
-	// The parse tree should have a fixed length, and the depth should be
-	// determined by the number of fields in the logfmt message.
-	// A parsing tree should be maintained for each unique field set.
 	return &Config{
 		// At training, if at the depth of LogClusterDepth there is a cluster with
 		// similarity coefficient greater that SimTh, then the log message is added
