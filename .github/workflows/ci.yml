@@ -32,7 +32,11 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
+<<<<<<< HEAD
           go-version-file: "go.mod"
+=======
+          go-version: '1.25.5'
+>>>>>>> 7162983ea (Upgrade tools to go 1.25.5 (#6089))
 
       - name: check-fmt
         run: make check-fmt
@@ -83,7 +87,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version-file: "go.mod"
+          go-version: '1.25.5'
 
       - name: Run Tests
         run: make ${{ matrix.test-target }}
@@ -112,7 +116,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version-file: "go.mod"
+          go-version: '1.25.5'
       - name: Run Tests
         run: make ${{ matrix.test-target }}
 
@@ -128,7 +132,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version-file: "go.mod"
+          go-version: '1.25.5'
 
       - name: Build Tempo
         run: make tempo
@@ -174,7 +178,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version-file: "go.mod"
+          go-version: '1.25.5'
 
       - name: Install Protoc
         uses: arduino/setup-protoc@c65c819552d16ad3c9b72d9dfd5ba5237b9c906b # v3
@@ -194,7 +198,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version-file: "go.mod"
+          go-version: '1.25.5'
 
       - name: Check jsonnet
         run: make jsonnet-check
