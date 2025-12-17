@@ -55,7 +55,3 @@ func (c *LogCluster) String() string {
 func (c *LogCluster) GetTokens() []string {
 	return c.Tokens
 }
-
-func (c *LogCluster) append() {
-	c.Size++
-}

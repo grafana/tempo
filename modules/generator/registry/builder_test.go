@@ -67,7 +67,7 @@ func (s sanitizerFunc) Sanitize(lbls labels.Labels) labels.Labels {
 }
 
 func TestLabelBuilder_Sanitizer(t *testing.T) {
-	builder := NewLabelBuilder(0, 0, sanitizerFunc(func(lbls labels.Labels) labels.Labels {
+	builder := NewLabelBuilder(0, 0, sanitizerFunc(func(_ labels.Labels) labels.Labels {
 		return labels.FromStrings("name", "sanitized_value")
 	}))
 	builder.Add("name", "value")
