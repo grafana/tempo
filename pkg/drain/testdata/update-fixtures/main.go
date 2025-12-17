@@ -9,7 +9,6 @@ import (
 	"strings"
 
 	"github.com/grafana/tempo/pkg/drain"
-	"github.com/prometheus/client_golang/prometheus"
 )
 
 type TestData struct {
@@ -46,9 +45,7 @@ func main() {
 			log.Fatalf("failed to unmarshal file: %v", err)
 		}
 		patternMapping := make(map[string]string)
-		reg := prometheus.NewPedanticRegistry()
-		metrics := drain.NewMetrics(reg)
-		drain := drain.New(drain.DefaultConfig(), metrics)
+		drain := drain.New("test-tenant", drain.DefaultConfig())
 		for _, line := range lines {
 			cluster := drain.Train(line)
 			if cluster == nil {

@@ -8,7 +8,6 @@ import (
 	"testing"
 
 	"github.com/grafana/tempo/pkg/drain"
-	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
 )
 
@@ -36,9 +35,7 @@ func TestFixtures(t *testing.T) {
 			if err != nil {
 				t.Fatalf("failed to unmarshal file: %v", err)
 			}
-			reg := prometheus.NewPedanticRegistry()
-			metrics := drain.NewMetrics(reg)
-			drain := drain.New(drain.DefaultConfig(), metrics)
+			drain := drain.New("test-tenant", drain.DefaultConfig())
 			patternMapping := make(map[string]string)
 			for _, line := range lines {
 				cluster := drain.Train(line)
