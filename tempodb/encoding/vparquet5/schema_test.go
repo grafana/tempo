@@ -663,6 +663,8 @@ func TestTraceToParquet(t *testing.T) {
 									Name:         "event name",
 									Attributes: []*v1.KeyValue{
 										{Key: "event.attr", Value: &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "bbb"}}},
+										{Key: "dedicated.event.1", Value: &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "dedicated-event-attr-value-1"}}},
+										{Key: "dedicated.event.2", Value: &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "dedicated-event-attr-value-2"}}},
 									},
 								}},
 							},
@@ -722,6 +724,10 @@ func TestTraceToParquet(t *testing.T) {
 									Name:               "event name",
 									Attrs: []Attribute{
 										attr("event.attr", "bbb"),
+									},
+									DedicatedAttributes: DedicatedAttributes{
+										String01: []string{"dedicated-event-attr-value-1"},
+										String02: []string{"dedicated-event-attr-value-2"},
 									},
 								}},
 							},
