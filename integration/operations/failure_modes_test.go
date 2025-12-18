@@ -39,7 +39,7 @@ func TestFailureModes(t *testing.T) {
 		require.NoError(t, err)
 		fmt.Println(string(body))
 
-		_, err = apiClient.QueryTraceV2(info.HexID()) // todo: occassional failures here when running in parallel. disabled above
+		_, err = apiClient.QueryTraceV2(info.HexID()) // todo: occasional failures here when running in parallel. disabled above
 		require.NoError(t, err)
 
 		// stop the second live store. querying should fail
