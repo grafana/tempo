@@ -27,8 +27,7 @@ type Config struct {
 	// This config is dynamically injected because defined outside the ingester config.
 	IngestConfig ingest.Config `yaml:"-"`
 
-	// WAL is non-configurable and only uses defaults
-	WAL wal.Config `yaml:"-"`
+	WAL wal.Config `yaml:"wal"  doc:"Configuration for the write ahead log."`
 
 	QueryBlockConcurrency    uint          `yaml:"query_block_concurrency,omitempty"`
 	CompleteBlockTimeout     time.Duration `yaml:"complete_block_timeout"`

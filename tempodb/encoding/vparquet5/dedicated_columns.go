@@ -214,6 +214,10 @@ func (dm *dedicatedColumnMapping) items() iter.Seq2[string, dedicatedColumn] {
 	}
 }
 
+func (dm *dedicatedColumnMapping) len() int {
+	return len(dm.keys)
+}
+
 var allScopes = []backend.DedicatedColumnScope{backend.DedicatedColumnScopeResource, backend.DedicatedColumnScopeSpan}
 
 // dedicatedColumnsToColumnMapping returns mapping from attribute names to spare columns for a give

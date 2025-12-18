@@ -32,7 +32,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@4dc6199c7b1a012772edbd06daecab0f50c9053c # v6
         with:
-          go-version: '1.25.4'
+          go-version: '1.25.5'
 
       - name: check-fmt
         run: make check-fmt
@@ -83,7 +83,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@4dc6199c7b1a012772edbd06daecab0f50c9053c # v6
         with:
-          go-version: '1.25.4'
+          go-version: '1.25.5'
 
       - name: Run Tests
         run: make ${{ matrix.test-target }}
@@ -127,7 +127,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@4dc6199c7b1a012772edbd06daecab0f50c9053c # v6
         with:
-          go-version: '1.25.4'
+          go-version: '1.25.5'
       - name: Run Tests
         run: make ${{ matrix.test-target }}
 
@@ -143,7 +143,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@4dc6199c7b1a012772edbd06daecab0f50c9053c # v6
         with:
-          go-version: '1.25.4'
+          go-version: '1.25.5'
 
       - name: Build Tempo
         run: make tempo
@@ -172,7 +172,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@4dc6199c7b1a012772edbd06daecab0f50c9053c # v6
         with:
-          go-version: '1.25.4'
+          go-version: '1.25.5'
 
       - name: Install Protoc
         uses: arduino/setup-protoc@c65c819552d16ad3c9b72d9dfd5ba5237b9c906b # v3
@@ -194,7 +194,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@4dc6199c7b1a012772edbd06daecab0f50c9053c # v6
         with:
-          go-version: '1.25.4'
+          go-version: '1.25.5'
 
       - name: Check jsonnet
         run: make jsonnet-check
@@ -235,7 +235,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@4dc6199c7b1a012772edbd06daecab0f50c9053c # v6
         with:
-          go-version: '1.25.4'
+          go-version: '1.25.5'
 
       - name: Download all coverage artifacts
         uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6

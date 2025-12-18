@@ -18,7 +18,7 @@ distributor:
     enabled: true
 
 ingester:
-  max_block_duration: 5m               # cut the headblock when this much time passes. this is being set for demo purposes and should probably be left alone normally
+  max_block_duration: 5m # cut the headblock when this much time passes. this is being set for demo purposes and should probably be left alone normally
   partition_ring:
     kvstore:
       store: memberlist
@@ -36,7 +36,7 @@ memberlist:
 
 compactor:
   compaction:
-    block_retention: 1h               # overall Tempo trace retention. set for demo purposes
+    block_retention: 1h # overall Tempo trace retention. set for demo purposes
 
 querier:
   frontend_worker:
@@ -74,26 +74,26 @@ storage:
       secret_key: supersecret
       insecure: true
     wal:
-      path: /var/tempo/wal             # where to store the wal locally
+      path: /var/tempo/wal # where to store the wal locally
     local:
       path: /var/tempo/blocks
 
 overrides:
   defaults:
     metrics_generator:
-      processors: ['local-blocks', 'span-metrics', 'service-graphs']
+      processors: ["local-blocks", "span-metrics", "service-graphs"]
       generate_native_histograms: both
 
 ingest:
   enabled: true
   kafka:
-    address: kafka:9092
-    topic:   tempo-ingest
+    address: redpanda:9092
+    topic: tempo-ingest
 
 block_builder:
   consume_cycle_duration: 30s
   assigned_partitions:
-    block-builder-0: [0,2]
+    block-builder-0: [0, 2]
     block-builder-1: [1]
 
 usage_report:

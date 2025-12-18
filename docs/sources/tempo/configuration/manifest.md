@@ -1419,6 +1419,12 @@ live_store:
     metrics:
         time_overlap_cutoff: 0.2
     commit_interval: 5s
+    wal:
+        path: /var/tempo/live-store/traces
+        v2_encoding: none
+        search_encoding: none
+        ingestion_time_range_slack: 2m0s
+        version: vParquet4
     query_block_concurrency: 10
     complete_block_timeout: 1h0m0s
     complete_block_concurrency: 2
