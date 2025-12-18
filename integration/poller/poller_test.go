@@ -17,7 +17,7 @@ import (
 	"github.com/grafana/tempo/integration/util"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"gopkg.in/yaml.v2"
+	"gopkg.in/yaml.v3"
 
 	"github.com/grafana/tempo/cmd/tempo/app"
 	e2eBackend "github.com/grafana/tempo/integration/e2e/backend"

@@ -17,7 +17,7 @@ import (
 	"github.com/grafana/dskit/services"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
-	"gopkg.in/yaml.v2"
+	"gopkg.in/yaml.v3"
 
 	"github.com/grafana/tempo/modules/overrides/histograms"
 	userconfigurableoverrides "github.com/grafana/tempo/modules/overrides/userconfigurable/client"

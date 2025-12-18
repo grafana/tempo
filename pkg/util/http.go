@@ -17,7 +17,7 @@ import (
 	"github.com/golang/snappy"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
-	"gopkg.in/yaml.v2"
+	"gopkg.in/yaml.v3"
 )
 
 const messageSizeLargerErrFmt = "received message larger than max (%d vs %d)"

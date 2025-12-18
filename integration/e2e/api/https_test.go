@@ -17,7 +17,7 @@ import (
 	tempoUtil "github.com/grafana/tempo/pkg/util"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/credentials"
-	"gopkg.in/yaml.v2"
+	"gopkg.in/yaml.v3"
 )
 
 const (

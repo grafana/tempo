@@ -19,7 +19,7 @@ import (
 	"github.com/prometheus/prometheus/model/labels"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"gopkg.in/yaml.v2"
+	"gopkg.in/yaml.v3"
 
 	"github.com/grafana/tempo/cmd/tempo/app"
 	"github.com/grafana/tempo/integration/e2e/backend"

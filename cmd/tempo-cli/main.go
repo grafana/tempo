@@ -8,7 +8,7 @@ import (
 	"github.com/grafana/dskit/flagext"
 
 	"github.com/alecthomas/kong"
-	"gopkg.in/yaml.v2"
+	"gopkg.in/yaml.v3"
 
 	"github.com/grafana/tempo/cmd/tempo/app"
 	"github.com/grafana/tempo/tempodb/backend"

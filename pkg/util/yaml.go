@@ -1,6 +1,6 @@
 package util
 
-import "gopkg.in/yaml.v2"
+import "gopkg.in/yaml.v3"
 
 // YAMLMarshalUnmarshal utility function that converts a YAML interface in a map
 // doing marshal and unmarshal of the parameter
