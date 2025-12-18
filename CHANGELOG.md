@@ -80,6 +80,7 @@
 * [BUGFIX] Fix GetTrace() in tempo-query. [#5864](https://github.com/grafana/tempo/pull/5864) (@andreasgerstmayr)
 * [BUGFIX] Fix unsupported nonexistence nil operator for tags lookup. Fixed issue where some tag values/names were not returned due to distinctAttrCollector optimization [#5967](https://github.com/grafana/tempo/pull/5967) (@ie-pham) (@joe-elliott)
 * [BUGFIX] Fix delete implementation for s3/gcs/azure backends to account for prefix. [#6011](https://github.com/grafana/tempo/pull/6011) (@kaustubhkurve)
+* [BUGFIX] Fix slow pod startup (~90s) in monolithic mode by returning false from isSharded() when kvstore is empty or inmemory. [#6035](https://github.com/grafana/tempo/issues/6035) (@AryanBagade)
 * [BUGFIX] Fix issue with orphaned group nodes in vParquet5-preview6 [#6095](https://github.com/grafana/tempo/pull/6095) (@stoewer)
 * [BUGFIX] Fix disappearing dedicated event attrs in trace view and dedicated blob column validation in vParquet5-preview6 [#6100](https://github.com/grafana/tempo/pull/6100) (@stoewer)
 

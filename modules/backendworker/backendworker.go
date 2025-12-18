@@ -525,7 +525,8 @@ func (w *BackendWorker) callSchedulerWithBackoff(ctx context.Context, f func(con
 }
 
 func (w *BackendWorker) isSharded() bool {
-	return w.cfg.Ring.KVStore.Store != ""
+	store := w.cfg.Ring.KVStore.Store
+	return store != "" && store != "inmemory"
 }
 
 // OnRingInstanceRegister is called while the lifecycler is registering the
