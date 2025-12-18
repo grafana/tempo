@@ -192,6 +192,10 @@ func TestQueryLimits(t *testing.T) {
 		batch := util.MakeThriftBatchWithSpanCount(5)
 		require.NoError(t, h.WriteJaegerBatch(batch, ""))
 
+		// confirm the trace is queryable before adjusting overrides. otherwise the override
+		// update might beat the ingestion into livestore and the test will be flaky
+		h.WaitTracesQueryable(t, 1)
+
 		// retroactively make the trace too large so it will fail on querying
 		err := h.UpdateOverrides(map[string]*overrides.Overrides{
 			"single-tenant": {
@@ -209,8 +213,6 @@ func TestQueryLimits(t *testing.T) {
 
 		// now try to query it back. this should fail b/c the trace is too large
 		apiClient := h.APIClientHTTP("")
-
-		h.WaitTracesQueryable(t, 1)
 
 		_, err = apiClient.QueryTrace(tempoUtil.TraceIDToHexString(traceID[:]))
 		require.ErrorContains(t, err, trace.ErrTraceTooLarge.Error())
