@@ -1,9 +1,6 @@
 package deployments
 
 import (
-	"fmt"
-	"io"
-	"net/http"
 	"testing"
 	"time"
 
@@ -31,13 +28,6 @@ func TestFailureModes(t *testing.T) {
 		liveStoreB := h.Services[util.ServiceLiveStoreZoneB]
 		err := liveStoreB.Stop()
 		require.NoError(t, err)
-
-		// get /live-store/ring on querier and dump to stdout
-		ring, err := http.Get("http://" + h.Services[util.ServiceQuerier].Endpoint(3200) + "/live-store/ring")
-		require.NoError(t, err)
-		body, err := io.ReadAll(ring.Body)
-		require.NoError(t, err)
-		fmt.Println(string(body))
 
 		_, err = apiClient.QueryTraceV2(info.HexID()) // todo: occasional failures here when running in parallel. disabled above
 		require.NoError(t, err)
