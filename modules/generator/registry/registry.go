@@ -128,8 +128,8 @@ func New(cfg *Config, overrides Overrides, tenant string, appendable storage.App
 	}
 
 	var sanitizer Sanitizer = &noopSanitizer{}
-	if cfg.Drain.Mode != DrainModeDisabled {
-		sanitizer = NewDrainSanitizer(tenant, cfg.Drain.Mode == DrainModeDryRun)
+	if drainMode := overrides.MetricsGeneratorDrainMode(tenant); drainMode != DrainModeDisabled {
+		sanitizer = NewDrainSanitizer(tenant, drainMode == DrainModeDryRun)
 	}
 
 	r := &ManagedRegistry{

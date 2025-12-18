@@ -524,6 +524,10 @@ func (m *mockOverrides) MetricsGeneratorNativeHistogramMinResetDuration(string) 
 	return m.nativeHistogramMinResetDuration
 }
 
+func (m *mockOverrides) MetricsGeneratorDrainMode(string) string {
+	return string(DrainModeDisabled)
+}
+
 func mustGetHostname() string {
 	hostname, _ := os.Hostname()
 	return hostname
