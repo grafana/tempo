@@ -8,6 +8,8 @@ import (
 	"time"
 
 	"github.com/gogo/protobuf/proto"
+	"github.com/grafana/tempo/modules/frontend/shardtracker"
+	"github.com/grafana/tempo/pkg/api"
 	"github.com/grafana/tempo/pkg/tempopb"
 	v1 "github.com/grafana/tempo/pkg/tempopb/common/v1"
 	"github.com/grafana/tempo/pkg/traceql"
@@ -142,6 +144,24 @@ func TestQueryRangemaxSeriesShouldQuit(t *testing.T) {
 	queryRangeCombiner, err := NewQueryRange(req, 4)
 	require.NoError(t, err)
 
+	// Add metadata that establishes shard information
+	metadata := &QueryRangeJobResponse{
+		JobMetadata: shardtracker.JobMetadata{
+			TotalBlocks: 10,
+			TotalJobs:   2,
+			TotalBytes:  1000,
+			Shards: []shardtracker.Shard{
+				{
+					TotalJobs:               2,
+					CompletedThroughSeconds: 1200,
+				},
+			},
+		},
+	}
+
+	err = queryRangeCombiner.AddResponse(metadata)
+	require.NoError(t, err)
+
 	// add 3 series, should not quit
 	resp := &tempopb.QueryRangeResponse{
 		Metrics: &tempopb.SearchMetrics{
@@ -185,11 +205,11 @@ func TestQueryRangemaxSeriesShouldQuit(t *testing.T) {
 		},
 	}
 
-	err = queryRangeCombiner.AddResponse(toHTTPResponse(t, resp, 200))
+	err = queryRangeCombiner.AddResponse(toHTTPResponseWithFormat(t, resp, 200, 0, api.HeaderAcceptJSON))
 	require.NoError(t, err)
 	require.False(t, queryRangeCombiner.ShouldQuit())
 
-	// add 4th & 5th series, should quit
+	// add 4th & 5th series, should quit after shard completes
 	secondResp := &tempopb.QueryRangeResponse{
 		Metrics: &tempopb.SearchMetrics{
 			InspectedTraces: 1,
@@ -221,9 +241,155 @@ func TestQueryRangemaxSeriesShouldQuit(t *testing.T) {
 		},
 	}
 
-	err = queryRangeCombiner.AddResponse(toHTTPResponse(t, secondResp, 200))
+	err = queryRangeCombiner.AddResponse(toHTTPResponseWithFormat(t, secondResp, 200, 0, api.HeaderAcceptJSON))
 	require.NoError(t, err)
 	require.True(t, queryRangeCombiner.ShouldQuit())
+}
+
+func TestQueryRangeMaxSeriesQuitRequiresCompletedShards(t *testing.T) {
+	start := uint64(1100 * time.Second)
+	end := uint64(1300 * time.Second)
+	step := traceql.DefaultQueryRangeStep(start, end)
+	bar := &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "bar"}}
+
+	req := &tempopb.QueryRangeRequest{
+		Query:     "{} | rate()",
+		Start:     start,
+		End:       end,
+		Step:      step,
+		MaxSeries: 2,
+	}
+
+	t.Run("max series reached but no shards completed should not quit", func(t *testing.T) {
+		queryRangeCombiner, err := NewQueryRange(req, 2)
+		require.NoError(t, err)
+
+		// Add responses that exceed max series limit but without any metadata about completed shards
+		// This simulates the case where we've received enough data to hit the limit
+		// but haven't completed any shards yet
+		resp := &tempopb.QueryRangeResponse{
+			Metrics: &tempopb.SearchMetrics{
+				InspectedTraces: 1,
+				InspectedBytes:  1,
+			},
+			Series: []*tempopb.TimeSeries{
+				{
+					Labels: []v1.KeyValue{
+						{Key: "series1", Value: bar},
+					},
+					Samples: []tempopb.Sample{
+						{TimestampMs: 1200_000, Value: 1.0},
+					},
+				},
+				{
+					Labels: []v1.KeyValue{
+						{Key: "series2", Value: bar},
+					},
+					Samples: []tempopb.Sample{
+						{TimestampMs: 1200_000, Value: 2.0},
+					},
+				},
+				{
+					Labels: []v1.KeyValue{
+						{Key: "series3", Value: bar},
+					},
+					Samples: []tempopb.Sample{
+						{TimestampMs: 1200_000, Value: 3.0},
+					},
+				},
+			},
+		}
+
+		err = queryRangeCombiner.AddResponse(toHTTPResponse(t, resp, 200))
+		require.NoError(t, err)
+
+		// Even though we've exceeded max series (3 > 2), we should NOT quit
+		// because no shards have been marked as completed yet
+		require.False(t, queryRangeCombiner.ShouldQuit())
+	})
+
+	t.Run("max series reached with completed shards should quit", func(t *testing.T) {
+		queryRangeCombiner, err := NewQueryRange(req, 2)
+		require.NoError(t, err)
+
+		// First, add metadata that establishes shard information
+		metadata := &QueryRangeJobResponse{
+			JobMetadata: shardtracker.JobMetadata{
+				TotalBlocks: 10,
+				TotalJobs:   5,
+				TotalBytes:  1000,
+				Shards: []shardtracker.Shard{
+					{
+						TotalJobs:               2,
+						CompletedThroughSeconds: 1200,
+					},
+					{
+						TotalJobs:               3,
+						CompletedThroughSeconds: 1250,
+					},
+				},
+			},
+		}
+
+		err = queryRangeCombiner.AddResponse(metadata)
+		require.NoError(t, err)
+
+		// Add responses for the first shard with shard index to simulate completion
+		resp1 := &tempopb.QueryRangeResponse{
+			Metrics: &tempopb.SearchMetrics{
+				InspectedTraces: 1,
+				InspectedBytes:  1,
+			},
+			Series: []*tempopb.TimeSeries{
+				{
+					Labels: []v1.KeyValue{
+						{Key: "series1", Value: bar},
+					},
+					Samples: []tempopb.Sample{
+						{TimestampMs: 1200_000, Value: 1.0},
+					},
+				},
+			},
+		}
+
+		// Add first response for shard 0
+		err = queryRangeCombiner.AddResponse(toHTTPResponseWithFormat(t, resp1, 200, 0, api.HeaderAcceptJSON))
+		require.NoError(t, err)
+		require.False(t, queryRangeCombiner.ShouldQuit())
+
+		// Add second response for shard 0 with more series, pushing us over the limit
+		resp2 := &tempopb.QueryRangeResponse{
+			Metrics: &tempopb.SearchMetrics{
+				InspectedTraces: 1,
+				InspectedBytes:  1,
+			},
+			Series: []*tempopb.TimeSeries{
+				{
+					Labels: []v1.KeyValue{
+						{Key: "series2", Value: bar},
+					},
+					Samples: []tempopb.Sample{
+						{TimestampMs: 1200_000, Value: 2.0},
+					},
+				},
+				{
+					Labels: []v1.KeyValue{
+						{Key: "series3", Value: bar},
+					},
+					Samples: []tempopb.Sample{
+						{TimestampMs: 1200_000, Value: 3.0},
+					},
+				},
+			},
+		}
+
+		err = queryRangeCombiner.AddResponse(toHTTPResponseWithFormat(t, resp2, 200, 0, api.HeaderAcceptJSON))
+		require.NoError(t, err)
+
+		// Now we've exceeded max series (3 > 2) AND completed shard 0 (2 jobs received),
+		// so we SHOULD quit
+		require.True(t, queryRangeCombiner.ShouldQuit())
+	})
 }
 
 func BenchmarkMarshalOnly(b *testing.B) {

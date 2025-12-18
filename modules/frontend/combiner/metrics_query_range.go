@@ -119,6 +119,7 @@ func NewQueryRange(req *tempopb.QueryRangeRequest, maxSeriesLimit int) (Combiner
 			}
 
 			// only trim the response if we're not at the end of the stream. for the final response, we'll send all the data.
+			// TODO: why aren't we using .GRPCFinal() correctly instead of doing this? also it looks like TimestampAlways is never set? so I don't think this ever works the way it's intended to.
 			if completedThrough != shardtracker.TimestampAlways {
 				trimSeriesToCompletedWindow(resp.Series, lastCompletedThrough, completedThrough)
 			}
@@ -142,7 +143,10 @@ func NewQueryRange(req *tempopb.QueryRangeRequest, maxSeriesLimit int) (Combiner
 			return resp, nil
 		},
 		quit: func(_ *tempopb.QueryRangeResponse) bool {
-			return combiner.MaxSeriesReached()
+			// if max series have been reached only quit if we've also completed at least one shard. this means that we received
+			// both actual jobs results and metadata from the sharder. if we have received only job results and no metadata then the combiner
+			// will return an empty response
+			return combiner.MaxSeriesReached() && completionTracker.CompletedThroughSeconds() != shardtracker.TimestampUnknown
 		},
 	}
 
