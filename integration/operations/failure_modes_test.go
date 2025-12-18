@@ -11,8 +11,7 @@ import (
 
 func TestFailureModes(t *testing.T) {
 	util.RunIntegrationTests(t, util.TestHarnessConfig{
-		Components:         util.ComponentsRecentDataQuerying | util.ComponentsBackendQuerying,
-		DisableParallelism: true, // for unknown reasons this test is flakey when run in parallel. unsure if there's some kind of cross test interference i'm unaware of? or a timing thing?
+		Components: util.ComponentsRecentDataQuerying | util.ComponentsBackendQuerying,
 	}, func(h *util.TempoHarness) {
 		h.WaitTracesWritable(t)
 
@@ -29,7 +28,7 @@ func TestFailureModes(t *testing.T) {
 		err := liveStoreB.Stop()
 		require.NoError(t, err)
 
-		_, err = apiClient.QueryTraceV2(info.HexID()) // todo: occasional failures here when running in parallel. disabled above
+		_, err = apiClient.QueryTraceV2(info.HexID())
 		require.NoError(t, err)
 
 		// stop the second live store. querying should fail
