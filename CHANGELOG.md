@@ -73,6 +73,7 @@
 * [BUGFIX] Fix: handle collisions with job and instance labels when targetInfo is enabled [#5774](https://github.com/grafana/tempo/pull/5774) (@javiermolinar)
 * [BUGFIX] Fix search by trace:id for short IDs with leading zeros [#5587](https://github.com/grafana/tempo/pull/5587) (@ruslan-mikhailov)
 * [BUGFIX] Fix wrong sleep duration in block-builder if one of partitions is inactive [#5855](https://github.com/grafana/tempo/pull/5855) (@ruslan-mikhailov)
+* [BUGFIX] Fixed rare bug where the TraceQL metrics could return an empty response when max series was hit. [#6099](https://github.com/grafana/tempo/pull/6099) (@joe-elliott)
 * [BUGFIX] Fix S3 compactor multipart upload to ensure Cloudflare R2 compliance by using uniform chunk sizes [#5838](https://github.com/grafana/tempo/pull/5838) (@constantins2001)
 * [BUGFIX] Make top/bottomk deterministic by breaking ties with label vals. [#5846](https://github.com/grafana/tempo/pull/5846) (@joe-elliott)
 * [BUGFIX] Fix metrics streaming releases intermediate/incomplete results. [#5937](https://github.com/grafana/tempo/pull/5937) (@joe-elliott)
