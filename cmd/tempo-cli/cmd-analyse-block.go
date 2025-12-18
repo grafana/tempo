@@ -19,7 +19,6 @@ import (
 
 	tempo_io "github.com/grafana/tempo/pkg/io"
 	"github.com/grafana/tempo/pkg/parquetquery"
-	pq "github.com/grafana/tempo/pkg/parquetquery"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding/vparquet3"
 	"github.com/grafana/tempo/tempodb/encoding/vparquet4"
@@ -569,23 +568,23 @@ func (c cardinality) avgSizePerRowGroup(numRowGroups int) uint64 {
 	return uint64((float64(dict) + float64(content)) / float64(numRowGroups))
 }
 
-type makeIterFn func(columnName string, predicate pq.Predicate, selectAs string) pq.Iterator
+type makeIterFn func(columnName string, predicate parquetquery.Predicate, selectAs string) parquetquery.Iterator
 
 func makeIterFunc(ctx context.Context, pf *parquet.File) makeIterFn {
-	return func(name string, predicate pq.Predicate, selectAs string) pq.Iterator {
-		index, _, maxDef := pq.GetColumnIndexByPath(pf, name)
+	return func(name string, predicate parquetquery.Predicate, selectAs string) parquetquery.Iterator {
+		index, _, maxDef := parquetquery.GetColumnIndexByPath(pf, name)
 		if index == -1 {
 			panic("column not found in parquet file:" + name)
 		}
 
-		opts := []pq.SyncIteratorOpt{
-			pq.SyncIteratorOptColumnName(name),
-			pq.SyncIteratorOptPredicate(predicate),
-			pq.SyncIteratorOptSelectAs(selectAs),
-			pq.SyncIteratorOptMaxDefinitionLevel(maxDef),
+		opts := []parquetquery.SyncIteratorOpt{
+			parquetquery.SyncIteratorOptColumnName(name),
+			parquetquery.SyncIteratorOptPredicate(predicate),
+			parquetquery.SyncIteratorOptSelectAs(selectAs),
+			parquetquery.SyncIteratorOptMaxDefinitionLevel(maxDef),
 		}
 
-		return pq.NewSyncIterator(ctx, pf.RowGroups(), index, opts...)
+		return parquetquery.NewSyncIterator(ctx, pf.RowGroups(), index, opts...)
 	}
 }
 
@@ -603,7 +602,7 @@ func aggregateGenericAttributes(pf *parquet.File, definitionLevel int, keyPath s
 		optional = append(optional, makeIter(isArrayPath, parquetquery.NewSkipNilsPredicate(), "isArray"))
 	}
 
-	attrIter, err := pq.NewLeftJoinIterator(definitionLevel, required, optional, &attrStatsCollector{})
+	attrIter, err := parquetquery.NewLeftJoinIterator(definitionLevel, required, optional, &attrStatsCollector{})
 	if err != nil {
 		return attributeSummary{}, err
 	}
@@ -729,7 +728,7 @@ func aggregateStringColumn(pf *parquet.File, colName string) (cardinality, error
 }
 
 func rowCount(pf *parquet.File, colName string) (count uint64, err error) {
-	index, _, _ := pq.GetColumnIndexByPath(pf, colName)
+	index, _, _ := parquetquery.GetColumnIndexByPath(pf, colName)
 	if index == -1 {
 		return 0, errors.New("column not found in parquet file:" + colName)
 	}
@@ -983,7 +982,7 @@ func topNInt(n int, attrs map[string]*integerAttributeSummary) []*integerAttribu
 	return top
 }
 
-var _ pq.GroupPredicate = (*attrStatsCollector)(nil)
+var _ parquetquery.GroupPredicate = (*attrStatsCollector)(nil)
 
 type attrType int
 
@@ -1023,7 +1022,7 @@ func (a attrStatsCollector) String() string {
 	return "attrStatsCollector{}"
 }
 
-func (a attrStatsCollector) KeepGroup(res *pq.IteratorResult) bool {
+func (a attrStatsCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 	var stats *attrStats
 
 	for _, e := range res.OtherEntries {
