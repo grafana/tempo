@@ -778,8 +778,6 @@ metrics_generator:
         stale_duration: 15m0s
         max_label_name_length: 1024
         max_label_value_length: 2048
-        drain:
-            mode: disabled
     storage:
         path: ""
         wal:
