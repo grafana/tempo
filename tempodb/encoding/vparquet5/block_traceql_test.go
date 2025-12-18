@@ -1111,6 +1111,10 @@ func fullyPopulatedTestTraceWithOption(id common.ID, parentIDTest bool) *Trace {
 											attr("event-attr-key-2", "event-value-2"),
 											attr("message", "exception"),
 										},
+										DedicatedAttributes: DedicatedAttributes{
+											String01: []string{"dedicated-event-attr-value-1"},
+											String02: []string{"dedicated-event-attr-value-2"},
+										},
 									},
 								},
 								Links: links,

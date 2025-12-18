@@ -716,7 +716,7 @@ func parquetToProtoLinks(parquetLinks []Link) []*v1_trace.Span_Link {
 	return protoLinks
 }
 
-func parquetToProtoEvents(parquetEvents []Event, spanStartTimeNano uint64) []*v1_trace.Span_Event {
+func parquetToProtoEvents(parquetEvents []Event, spanStartTimeNano uint64, dedicatedAttributes dedicatedColumnMapping) []*v1_trace.Span_Event {
 	var protoEvents []*v1_trace.Span_Event
 
 	if len(parquetEvents) > 0 {
@@ -735,6 +735,16 @@ func parquetToProtoEvents(parquetEvents []Event, spanStartTimeNano uint64) []*v1
 				protoEvent.Attributes = parquetToProtoAttrs(e.Attrs)
 			}
 
+			for attr, col := range dedicatedAttributes.items() {
+				val := col.readValue(&e.DedicatedAttributes)
+				if val != nil {
+					protoEvent.Attributes = append(protoEvent.Attributes, &v1.KeyValue{
+						Key:   attr,
+						Value: val,
+					})
+				}
+			}
+
 			protoEvents = append(protoEvents, protoEvent)
 		}
 	}
@@ -749,6 +759,7 @@ func ParquetTraceToTempopbTrace(meta *backend.BlockMeta, parquetTrace *Trace) *t
 	// dedicated attribute column assignments
 	dedicatedResourceAttributes := dedicatedColumnsToColumnMapping(meta.DedicatedColumns, backend.DedicatedColumnScopeResource)
 	dedicatedSpanAttributes := dedicatedColumnsToColumnMapping(meta.DedicatedColumns, backend.DedicatedColumnScopeSpan)
+	dedicatedEventAttributes := dedicatedColumnsToColumnMapping(meta.DedicatedColumns, backend.DedicatedColumnScopeEvent)
 
 	for _, rs := range parquetTrace.ResourceSpans {
 		protoBatch := &v1_trace.ResourceSpans{}
@@ -807,12 +818,11 @@ func ParquetTraceToTempopbTrace(meta *backend.BlockMeta, parquetTrace *Trace) *t
 					},
 					Attributes:             spanAttr,
 					DroppedAttributesCount: uint32(span.DroppedAttributesCount),
-					Events:                 parquetToProtoEvents(span.Events, span.StartTimeUnixNano),
+					Events:                 parquetToProtoEvents(span.Events, span.StartTimeUnixNano, dedicatedEventAttributes),
 					DroppedEventsCount:     uint32(span.DroppedEventsCount),
+					Links:                  parquetToProtoLinks(span.Links),
 					DroppedLinksCount:      uint32(span.DroppedLinksCount),
 				}
-
-				protoSpan.Links = parquetToProtoLinks(span.Links)
 
 				// dynamically assigned dedicated resource attribute columns
 				for attr, col := range dedicatedSpanAttributes.items() {
