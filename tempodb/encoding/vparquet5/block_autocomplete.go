@@ -340,9 +340,9 @@ func createDistinctEventIterator(
 			}
 			selectAs := ""
 			if tr.tag == cond.Attribute {
-				selectAs = columnPathEventName
+				selectAs = ColumnPathEventName
 			}
-			iters = append(iters, makeIter(columnPathEventName, pred, selectAs))
+			iters = append(iters, makeIter(ColumnPathEventName, pred, selectAs))
 			continue
 		}
 
@@ -526,8 +526,8 @@ func createDistinctSpanIterator(
 			if err != nil {
 				return nil, err
 			}
-			addPredicate(columnPathSpanName, pred)
-			addSelectAs(cond.Attribute, columnPathSpanName, columnPathSpanName)
+			addPredicate(ColumnPathSpanName, pred)
+			addSelectAs(cond.Attribute, ColumnPathSpanName, ColumnPathSpanName)
 			continue
 
 		case traceql.IntrinsicKind:
@@ -1237,7 +1237,7 @@ func (d distinctValueCollector) KeepGroup(result *parquetquery.IteratorResult) b
 
 func mapEventAttr(e entry) traceql.Static {
 	switch e.Key {
-	case columnPathEventName:
+	case ColumnPathEventName:
 		return traceql.NewStaticString(unsafeToString(e.Value.ByteArray()))
 	default:
 		// This exists for event-level dedicated columns
@@ -1269,7 +1269,7 @@ func mapSpanAttr(e entry) traceql.Static {
 		columnPathSpanStartTime:
 	case columnPathSpanDuration:
 		return traceql.NewStaticDuration(time.Duration(e.Value.Int64()))
-	case columnPathSpanName:
+	case ColumnPathSpanName:
 		return traceql.NewStaticString(unsafeToString(e.Value.ByteArray()))
 	case columnPathSpanStatusCode:
 		// Map OTLP status code back to TraceQL enum.

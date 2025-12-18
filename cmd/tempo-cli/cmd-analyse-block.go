@@ -18,6 +18,7 @@ import (
 	"github.com/parquet-go/parquet-go"
 
 	tempo_io "github.com/grafana/tempo/pkg/io"
+	"github.com/grafana/tempo/pkg/parquetquery"
 	pq "github.com/grafana/tempo/pkg/parquetquery"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding/vparquet3"
@@ -32,12 +33,17 @@ type attributePaths struct {
 }
 
 type scopeAttributePath struct {
-	defLevel           int
-	keyPath            string
-	valPath            string
-	isArrayPath        string
-	dedicatedColScope  backend.DedicatedColumnScope
-	dedicatedColsPaths []string
+	defLevel              int
+	keyPath               string
+	valPath               string
+	intPath               string
+	isArrayPath           string
+	dedicatedColScope     backend.DedicatedColumnScope
+	dedicatedColsPaths    []string
+	dedicatedColsPathsInt []string
+	wellKnownPathsString  map[string]string // key: attribute name, value: path
+	wellKnownPathsInt     map[string]string // key: attribute name, value: path
+	rowCountPath          string
 }
 
 func pathsForVersion(v string) attributePaths {
@@ -45,70 +51,111 @@ func pathsForVersion(v string) attributePaths {
 	case vparquet3.VersionString:
 		return attributePaths{
 			span: scopeAttributePath{
-				defLevel:           vparquet3.DefinitionLevelResourceSpansILSSpanAttrs,
-				keyPath:            vparquet3.FieldSpanAttrKey,
-				valPath:            vparquet3.FieldSpanAttrVal,
-				dedicatedColScope:  backend.DedicatedColumnScopeSpan,
-				dedicatedColsPaths: vparquet3.DedicatedResourceColumnPaths[backend.DedicatedColumnScopeSpan][backend.DedicatedColumnTypeString],
+				defLevel:              vparquet3.DefinitionLevelResourceSpansILSSpanAttrs,
+				keyPath:               vparquet3.FieldSpanAttrKey,
+				valPath:               vparquet3.FieldSpanAttrVal,
+				intPath:               vparquet3.FieldSpanAttrValInt,
+				dedicatedColScope:     backend.DedicatedColumnScopeSpan,
+				dedicatedColsPaths:    vparquet3.DedicatedResourceColumnPaths[backend.DedicatedColumnScopeSpan][backend.DedicatedColumnTypeString],
+				dedicatedColsPathsInt: vparquet3.DedicatedResourceColumnPaths[backend.DedicatedColumnScopeSpan][backend.DedicatedColumnTypeInt],
 			},
 			res: scopeAttributePath{
-				defLevel:           vparquet3.DefinitionLevelResourceAttrs,
-				keyPath:            vparquet3.FieldResourceAttrKey,
-				valPath:            vparquet3.FieldResourceAttrVal,
-				dedicatedColScope:  backend.DedicatedColumnScopeResource,
-				dedicatedColsPaths: vparquet3.DedicatedResourceColumnPaths[backend.DedicatedColumnScopeResource][backend.DedicatedColumnTypeString],
+				defLevel:              vparquet3.DefinitionLevelResourceAttrs,
+				keyPath:               vparquet3.FieldResourceAttrKey,
+				valPath:               vparquet3.FieldResourceAttrVal,
+				intPath:               vparquet3.FieldResourceAttrValInt,
+				dedicatedColScope:     backend.DedicatedColumnScopeResource,
+				dedicatedColsPaths:    vparquet3.DedicatedResourceColumnPaths[backend.DedicatedColumnScopeResource][backend.DedicatedColumnTypeString],
+				dedicatedColsPathsInt: vparquet3.DedicatedResourceColumnPaths[backend.DedicatedColumnScopeResource][backend.DedicatedColumnTypeInt],
 			},
 		}
 	case vparquet4.VersionString:
 		return attributePaths{
 			span: scopeAttributePath{
-				defLevel:           vparquet4.DefinitionLevelResourceSpansILSSpanAttrs,
-				keyPath:            vparquet4.FieldSpanAttrKey,
-				valPath:            vparquet4.FieldSpanAttrVal,
-				isArrayPath:        vparquet4.FieldSpanAttrIsArray,
-				dedicatedColScope:  backend.DedicatedColumnScopeSpan,
-				dedicatedColsPaths: vparquet4.DedicatedResourceColumnPaths[backend.DedicatedColumnScopeSpan][backend.DedicatedColumnTypeString],
+				defLevel:              vparquet4.DefinitionLevelResourceSpansILSSpanAttrs,
+				keyPath:               vparquet4.FieldSpanAttrKey,
+				valPath:               vparquet4.FieldSpanAttrVal,
+				isArrayPath:           vparquet4.FieldSpanAttrIsArray,
+				intPath:               vparquet4.FieldSpanAttrValInt,
+				dedicatedColScope:     backend.DedicatedColumnScopeSpan,
+				dedicatedColsPaths:    vparquet4.DedicatedResourceColumnPaths[backend.DedicatedColumnScopeSpan][backend.DedicatedColumnTypeString],
+				dedicatedColsPathsInt: vparquet4.DedicatedResourceColumnPaths[backend.DedicatedColumnScopeSpan][backend.DedicatedColumnTypeInt],
+				wellKnownPathsString: map[string]string{
+					"http.method": vparquet4.WellKnownColumnLookups["http.method"].ColumnPath,
+					"http.url":    vparquet4.WellKnownColumnLookups["http.url"].ColumnPath,
+				},
+				wellKnownPathsInt: map[string]string{
+					"http.status_code": vparquet4.WellKnownColumnLookups["http.status_code"].ColumnPath,
+				},
+				rowCountPath: vparquet4.ColumnPathSpanName,
 			},
 			res: scopeAttributePath{
-				defLevel:           vparquet4.DefinitionLevelResourceAttrs,
-				keyPath:            vparquet4.FieldResourceAttrKey,
-				valPath:            vparquet4.FieldResourceAttrVal,
-				isArrayPath:        vparquet4.FieldResourceAttrIsArray,
-				dedicatedColScope:  backend.DedicatedColumnScopeResource,
-				dedicatedColsPaths: vparquet4.DedicatedResourceColumnPaths[backend.DedicatedColumnScopeResource][backend.DedicatedColumnTypeString],
+				defLevel:              vparquet4.DefinitionLevelResourceAttrs,
+				keyPath:               vparquet4.FieldResourceAttrKey,
+				valPath:               vparquet4.FieldResourceAttrVal,
+				isArrayPath:           vparquet4.FieldResourceAttrIsArray,
+				intPath:               vparquet4.FieldResourceAttrValInt,
+				dedicatedColScope:     backend.DedicatedColumnScopeResource,
+				dedicatedColsPaths:    vparquet4.DedicatedResourceColumnPaths[backend.DedicatedColumnScopeResource][backend.DedicatedColumnTypeString],
+				dedicatedColsPathsInt: vparquet4.DedicatedResourceColumnPaths[backend.DedicatedColumnScopeResource][backend.DedicatedColumnTypeInt],
+				wellKnownPathsString: map[string]string{
+					// Service name is a fixed column in every parquet version
+					// So we don't need to measure it.
+					// "service.name":       vparquet4.WellKnownColumnLookups["service.name"].ColumnPath,
+					"cluster":            vparquet4.WellKnownColumnLookups["cluster"].ColumnPath,
+					"namespace":          vparquet4.WellKnownColumnLookups["namespace"].ColumnPath,
+					"pod":                vparquet4.WellKnownColumnLookups["pod"].ColumnPath,
+					"container":          vparquet4.WellKnownColumnLookups["container"].ColumnPath,
+					"k8s.cluster.name":   vparquet4.WellKnownColumnLookups["k8s.cluster.name"].ColumnPath,
+					"k8s.namespace.name": vparquet4.WellKnownColumnLookups["k8s.namespace.name"].ColumnPath,
+					"k8s.pod.name":       vparquet4.WellKnownColumnLookups["k8s.pod.name"].ColumnPath,
+					"k8s.container.name": vparquet4.WellKnownColumnLookups["k8s.container.name"].ColumnPath,
+				},
+				rowCountPath: vparquet4.ColumnPathResourceServiceName,
 			},
 			event: scopeAttributePath{
-				defLevel:    vparquet4.DefinitionLevelResourceSpansILSSpanEventAttrs,
-				keyPath:     vparquet4.FieldEventAttrKey,
-				valPath:     vparquet4.FieldEventAttrVal,
-				isArrayPath: vparquet4.FieldEventAttrIsArray,
+				defLevel:     vparquet4.DefinitionLevelResourceSpansILSSpanEventAttrs,
+				keyPath:      vparquet4.FieldEventAttrKey,
+				valPath:      vparquet4.FieldEventAttrVal,
+				intPath:      vparquet4.FieldEventAttrValInt,
+				isArrayPath:  vparquet4.FieldEventAttrIsArray,
+				rowCountPath: vparquet4.ColumnPathEventName,
 			},
 		}
 	case vparquet5.VersionString:
 		return attributePaths{
 			span: scopeAttributePath{
-				defLevel:           vparquet5.DefinitionLevelResourceSpansILSSpanAttrs,
-				keyPath:            vparquet5.FieldSpanAttrKey,
-				valPath:            vparquet5.FieldSpanAttrVal,
-				isArrayPath:        vparquet5.FieldSpanAttrIsArray,
-				dedicatedColScope:  backend.DedicatedColumnScopeSpan,
-				dedicatedColsPaths: vparquet5.DedicatedResourceColumnPaths[backend.DedicatedColumnScopeSpan][backend.DedicatedColumnTypeString],
+				defLevel:              vparquet5.DefinitionLevelResourceSpansILSSpanAttrs,
+				keyPath:               vparquet5.FieldSpanAttrKey,
+				valPath:               vparquet5.FieldSpanAttrVal,
+				intPath:               vparquet5.FieldSpanAttrValInt,
+				isArrayPath:           vparquet5.FieldSpanAttrIsArray,
+				dedicatedColScope:     backend.DedicatedColumnScopeSpan,
+				dedicatedColsPaths:    vparquet5.DedicatedResourceColumnPaths[backend.DedicatedColumnScopeSpan][backend.DedicatedColumnTypeString],
+				dedicatedColsPathsInt: vparquet5.DedicatedResourceColumnPaths[backend.DedicatedColumnScopeSpan][backend.DedicatedColumnTypeInt],
+				rowCountPath:          vparquet5.ColumnPathSpanName,
 			},
 			res: scopeAttributePath{
-				defLevel:           vparquet5.DefinitionLevelResourceAttrs,
-				keyPath:            vparquet5.FieldResourceAttrKey,
-				valPath:            vparquet5.FieldResourceAttrVal,
-				isArrayPath:        vparquet5.FieldResourceAttrIsArray,
-				dedicatedColScope:  backend.DedicatedColumnScopeResource,
-				dedicatedColsPaths: vparquet5.DedicatedResourceColumnPaths[backend.DedicatedColumnScopeResource][backend.DedicatedColumnTypeString],
+				defLevel:              vparquet5.DefinitionLevelResourceAttrs,
+				keyPath:               vparquet5.FieldResourceAttrKey,
+				valPath:               vparquet5.FieldResourceAttrVal,
+				intPath:               vparquet5.FieldResourceAttrValInt,
+				isArrayPath:           vparquet5.FieldResourceAttrIsArray,
+				dedicatedColScope:     backend.DedicatedColumnScopeResource,
+				dedicatedColsPaths:    vparquet5.DedicatedResourceColumnPaths[backend.DedicatedColumnScopeResource][backend.DedicatedColumnTypeString],
+				dedicatedColsPathsInt: vparquet5.DedicatedResourceColumnPaths[backend.DedicatedColumnScopeResource][backend.DedicatedColumnTypeInt],
+				rowCountPath:          vparquet5.ColumnPathResourceServiceName,
 			},
 			event: scopeAttributePath{
-				defLevel:           vparquet5.DefinitionLevelResourceSpansILSSpanEventAttrs,
-				keyPath:            vparquet5.FieldEventAttrKey,
-				valPath:            vparquet5.FieldEventAttrVal,
-				isArrayPath:        vparquet5.FieldEventAttrIsArray,
-				dedicatedColScope:  backend.DedicatedColumnScopeEvent,
-				dedicatedColsPaths: vparquet5.DedicatedResourceColumnPaths[backend.DedicatedColumnScopeEvent][backend.DedicatedColumnTypeString],
+				defLevel:              vparquet5.DefinitionLevelResourceSpansILSSpanEventAttrs,
+				keyPath:               vparquet5.FieldEventAttrKey,
+				valPath:               vparquet5.FieldEventAttrVal,
+				intPath:               vparquet5.FieldEventAttrValInt,
+				isArrayPath:           vparquet5.FieldEventAttrIsArray,
+				dedicatedColScope:     backend.DedicatedColumnScopeEvent,
+				dedicatedColsPaths:    vparquet5.DedicatedResourceColumnPaths[backend.DedicatedColumnScopeEvent][backend.DedicatedColumnTypeString],
+				dedicatedColsPathsInt: vparquet5.DedicatedResourceColumnPaths[backend.DedicatedColumnScopeEvent][backend.DedicatedColumnTypeInt],
+				rowCountPath:          vparquet5.ColumnPathEventName,
 			},
 		}
 	default:
@@ -116,17 +163,34 @@ func pathsForVersion(v string) attributePaths {
 	}
 }
 
+type heuristicSettings struct {
+	NumStringAttr       int     // Target number of dedicated string attributes
+	NumIntAttr          int     // Target number of dedicated integer attributes
+	BlobThresholdBytes  uint64  // Attribute row group content above this size are denoted as blobs
+	IntThresholdPercent float64 // Integers surpassing this percent of rows are recommended to be dedicated
+}
+
+type printSettings struct {
+	Simple  bool
+	Full    bool
+	Jsonnet bool
+	CliArgs bool
+}
+
 type analyseBlockCmd struct {
 	backendOptions
 
-	TenantID         string `arg:"" help:"tenant-id within the bucket"`
-	BlockID          string `arg:"" help:"block ID to list"`
-	NumAttr          int    `help:"Number of attributes to display" default:"15"`
-	BlobThreshold    string `help:"Convert column to blob when dictionary size reaches this value. Disable with 0" default:"4MiB"`
-	GenerateJsonnet  bool   `help:"Generate overrides Jsonnet for dedicated columns"`
-	GenerateCliArgs  bool   `help:"Generate textual args for passing to parquet conversion command"`
-	SimpleSummary    bool   `help:"Print only single line of top attributes" default:"false"`
-	PrintFullSummary bool   `help:"Print full summary of the analysed block" default:"true"`
+	TenantID            string  `arg:"" help:"tenant-id within the bucket"`
+	BlockID             string  `arg:"" help:"block ID to list"`
+	NumAttr             int     `help:"Number of attributes to display" default:"15"`
+	NumIntAttr          int     `help:"Number of integer attributes to display. If set to 0 then it will use the other parameter." default:"5"`
+	BlobThreshold       string  `help:"Convert column to blob when dictionary size reaches this value. Disable with 0" default:"4MiB"`
+	IntPercentThreshold float64 `help:"Threshold for integer attributes put in dedicated columns. Default 5% = 0.05" default:"0.05"`
+	IncludeWellKnown    bool    `help:"Include well-known attributes in the analysis. These are attributes with fixed columns in some versions of parquet, like http.url. This should be enabled when generating dedicated columns targeting vParquet5 or higher which can make use of them." default:"false"`
+	GenerateJsonnet     bool    `help:"Generate overrides Jsonnet for dedicated columns"`
+	GenerateCliArgs     bool    `help:"Generate textual args for passing to parquet conversion command"`
+	SimpleSummary       bool    `help:"Print only single line of top attributes" default:"false"`
+	PrintFullSummary    bool    `help:"Print full summary of the analysed block" default:"true"`
 }
 
 func (cmd *analyseBlockCmd) Run(ctx *globalOptions) error {
@@ -140,7 +204,7 @@ func (cmd *analyseBlockCmd) Run(ctx *globalOptions) error {
 		return err
 	}
 
-	blockSum, err := processBlock(r, cmd.TenantID, cmd.BlockID, time.Time{}, time.Time{}, 0)
+	blockSum, err := processBlock(r, cmd.TenantID, cmd.BlockID, cmd.IncludeWellKnown, time.Time{}, time.Time{}, 0)
 	if err != nil {
 		if errors.Is(err, backend.ErrDoesNotExist) {
 			return fmt.Errorf("unable to analyze block: block has no block.meta because it was compacted")
@@ -152,10 +216,32 @@ func (cmd *analyseBlockCmd) Run(ctx *globalOptions) error {
 		return errors.New("failed to process block")
 	}
 
-	return blockSum.print(cmd.NumAttr, cmd.GenerateJsonnet, cmd.SimpleSummary, cmd.PrintFullSummary, cmd.GenerateCliArgs, blobBytes)
+	if cmd.NumIntAttr == 0 {
+		cmd.NumIntAttr = cmd.NumAttr
+	}
+
+	if cmd.IntPercentThreshold <= 0 || cmd.IntPercentThreshold >= 1 {
+		return errors.New("int percent threshold must be between 0 and 1")
+	}
+
+	settings := heuristicSettings{
+		NumStringAttr:       cmd.NumAttr,
+		NumIntAttr:          cmd.NumIntAttr,
+		BlobThresholdBytes:  blobBytes,
+		IntThresholdPercent: cmd.IntPercentThreshold,
+	}
+
+	printSettings := printSettings{
+		Simple:  cmd.SimpleSummary,
+		Full:    cmd.PrintFullSummary,
+		Jsonnet: cmd.GenerateJsonnet,
+		CliArgs: cmd.GenerateCliArgs,
+	}
+
+	return blockSum.print(settings, printSettings)
 }
 
-func processBlock(r backend.Reader, tenantID, blockID string, maxStartTime, minStartTime time.Time, minCompactionLvl uint32) (*blockSummary, error) {
+func processBlock(r backend.Reader, tenantID, blockID string, includeWellKnown bool, maxStartTime, minStartTime time.Time, minCompactionLvl uint32) (*blockSummary, error) {
 	id := uuid.MustParse(blockID)
 
 	meta, err := r.BlockMeta(context.TODO(), id, tenantID)
@@ -198,17 +284,17 @@ func processBlock(r backend.Reader, tenantID, blockID string, maxStartTime, minS
 
 	paths := pathsForVersion(meta.Version)
 
-	spanSummary, err := aggregateScope(pf, meta, paths.span)
+	spanSummary, err := aggregateScope(pf, meta, paths.span, includeWellKnown)
 	if err != nil {
 		return nil, err
 	}
 
-	resSummary, err := aggregateScope(pf, meta, paths.res)
+	resSummary, err := aggregateScope(pf, meta, paths.res, includeWellKnown)
 	if err != nil {
 		return nil, err
 	}
 
-	eventSummary, err := aggregateScope(pf, meta, paths.event)
+	eventSummary, err := aggregateScope(pf, meta, paths.event, includeWellKnown)
 	if err != nil {
 		return nil, err
 	}
@@ -221,23 +307,88 @@ func processBlock(r backend.Reader, tenantID, blockID string, maxStartTime, minS
 	}, nil
 }
 
-func aggregateScope(pf *parquet.File, meta *backend.BlockMeta, paths scopeAttributePath) (attributeSummary, error) {
-	res, err := aggregateAttributes(pf, paths.defLevel, paths.keyPath, paths.valPath, paths.isArrayPath)
+func aggregateScope(pf *parquet.File, meta *backend.BlockMeta, paths scopeAttributePath, includeWellKnown bool) (attributeSummary, error) {
+	var strings []backend.DedicatedColumn
+	var ints []backend.DedicatedColumn
+	for _, c := range meta.DedicatedColumns {
+		if c.Scope == paths.dedicatedColScope {
+			switch c.Type {
+			case backend.DedicatedColumnTypeString:
+				strings = append(strings, c)
+			case backend.DedicatedColumnTypeInt:
+				ints = append(ints, c)
+			}
+		}
+	}
+
+	res, err := aggregateGenericAttributes(pf, paths.defLevel, paths.keyPath, paths.valPath, paths.intPath, paths.isArrayPath)
 	if err != nil {
 		return res, err
 	}
 
-	if len(paths.dedicatedColsPaths) > 0 {
-		dedicatedData, err := aggregateDedicatedColumns(pf, paths.dedicatedColScope, meta, paths.dedicatedColsPaths)
+	res.dedicated = make(map[string]struct{})
+
+	for i, c := range strings {
+		cardinality, err := aggregateStringColumn(pf, paths.dedicatedColsPaths[i])
 		if err != nil {
 			return res, err
 		}
-		// merge dedicated with span attributes
-		res.dedicated = make(map[string]struct{}, len(dedicatedData.attributes))
-		for k, v := range dedicatedData.attributes {
-			res.attributes[k] = v
-			res.dedicated[k] = struct{}{}
+		res.attributes[c.Name] = &stringAttributeSummary{
+			name:        c.Name,
+			totalBytes:  cardinality.totalBytes(),
+			cardinality: cardinality,
 		}
+		res.dedicated[c.Name] = struct{}{}
+	}
+
+	if includeWellKnown {
+		for wellKnownAttr, path := range paths.wellKnownPathsString {
+			cardinality, err := aggregateStringColumn(pf, path)
+			if err != nil {
+				return res, err
+			}
+			res.attributes[wellKnownAttr] = &stringAttributeSummary{
+				name:        wellKnownAttr,
+				totalBytes:  cardinality.totalBytes(),
+				cardinality: cardinality,
+			}
+			res.dedicated[wellKnownAttr] = struct{}{} // Well-known columns are also dedicated columns.
+		}
+	}
+
+	for i, c := range ints {
+		path := paths.dedicatedColsPathsInt[i]
+		count, err := aggregateIntegerColumn(pf, path)
+		if err != nil {
+			return res, err
+		}
+		res.integerAttributes[path] = &integerAttributeSummary{
+			name:  c.Name,
+			count: count,
+		}
+		res.dedicated[path] = struct{}{}
+	}
+
+	if includeWellKnown {
+		for wellKnownAttr, path := range paths.wellKnownPathsInt {
+			count, err := aggregateIntegerColumn(pf, path)
+			if err != nil {
+				return res, err
+			}
+			res.integerAttributes[wellKnownAttr] = &integerAttributeSummary{
+				name:  wellKnownAttr,
+				count: count,
+			}
+			res.dedicated[wellKnownAttr] = struct{}{} // Well-known columns are also dedicated columns.
+		}
+	}
+
+	if paths.rowCountPath != "" {
+		count, err := rowCount(pf, paths.rowCountPath)
+		if err != nil {
+			return res, err
+		}
+		res.rowCount = count
 	}
 
 	return res, nil
@@ -257,82 +408,92 @@ func (s *blockSummary) add(other blockSummary) {
 	s.eventSummary.add(other.eventSummary)
 }
 
-func (s blockSummary) print(maxAttr int, generateJsonnet, simpleSummary, printFullSummary, generateCliArgs bool, blobBytes uint64) error {
-	if printFullSummary {
-		if err := printSummary("span", maxAttr, s.spanSummary, false, s.numRowGroups, blobBytes); err != nil {
+func (s blockSummary) print(settings heuristicSettings, printSettings printSettings) error {
+	if printSettings.Full {
+		if err := printFullSummary("span", settings, s.spanSummary, s.numRowGroups); err != nil {
 			return err
 		}
 
-		if err := printSummary("resource", maxAttr, s.resourceSummary, false, s.numRowGroups, blobBytes); err != nil {
+		if err := printFullSummary("resource", settings, s.resourceSummary, s.numRowGroups); err != nil {
 			return err
 		}
 
-		if err := printSummary("event", maxAttr, s.eventSummary, false, s.numRowGroups, blobBytes); err != nil {
-			return err
-		}
-	}
-
-	if simpleSummary {
-		if err := printSummary("span", maxAttr, s.spanSummary, true, s.numRowGroups, blobBytes); err != nil {
-			return err
-		}
-
-		if err := printSummary("resource", maxAttr, s.resourceSummary, true, s.numRowGroups, blobBytes); err != nil {
+		if err := printFullSummary("event", settings, s.eventSummary, s.numRowGroups); err != nil {
 			return err
 		}
 	}
 
-	if generateJsonnet {
-		printDedicatedColumnOverridesJsonnet(s, maxAttr, s.numRowGroups, blobBytes)
+	if printSettings.Simple {
+		printSimpleSummary("span", settings.NumStringAttr, s.spanSummary)
+		printSimpleSummary("resource", settings.NumStringAttr, s.resourceSummary)
+		printSimpleSummary("event", settings.NumStringAttr, s.eventSummary)
 	}
 
-	if generateCliArgs {
-		printCliArgs(s, maxAttr, s.numRowGroups, blobBytes)
+	if printSettings.Jsonnet {
+		printDedicatedColumnOverridesJsonnet(s, settings, s.numRowGroups)
+	}
+
+	if printSettings.CliArgs {
+		printCliArgs(s, settings, s.numRowGroups)
 	}
 
 	return nil
 }
 
 type attributeSummary struct {
-	attributes      map[string]*attribute // key: attribute name
-	arrayAttributes map[string]*attribute // key: attribute name
-	dedicated       map[string]struct{}
+	attributes             map[string]*stringAttributeSummary  // key: attribute name
+	arrayAttributes        map[string]*stringAttributeSummary  // key: attribute name
+	integerAttributes      map[string]*integerAttributeSummary // key: attribute name
+	integerArrayAttributes map[string]*integerAttributeSummary // key: attribute name
+	dedicated              map[string]struct{}
+	rowCount               uint64
 }
 
 func (a *attributeSummary) add(other attributeSummary) {
-	// Initialize if needed
-	if a.attributes == nil {
-		a.attributes = make(map[string]*attribute)
-	}
-	if a.arrayAttributes == nil {
-		a.arrayAttributes = make(map[string]*attribute)
-	}
-	if a.dedicated == nil {
-		a.dedicated = make(map[string]struct{})
-	}
+	a.rowCount += other.rowCount
 
-	for k, v := range other.attributes {
-		existing, ok := a.attributes[k]
-		if !ok {
-			a.attributes[k] = v
-			continue
-		}
-		existing.totalBytes += v.totalBytes
-		for k, v := range v.cardinality {
-			existing.cardinality[k] += v
-		}
-	}
-	for k, v := range other.arrayAttributes {
-		existing, ok := a.arrayAttributes[k]
-		if !ok {
-			a.arrayAttributes[k] = v
-			continue
-		}
-		existing.totalBytes += v.totalBytes
+	if a.dedicated == nil {
+		a.dedicated = make(map[string]struct{}, len(other.dedicated))
 	}
 	for k := range other.dedicated {
 		a.dedicated[k] = struct{}{}
 	}
+
+	mergeStringSummary := func(m *map[string]*stringAttributeSummary, other map[string]*stringAttributeSummary) {
+		if *m == nil {
+			*m = make(map[string]*stringAttributeSummary, len(other))
+		}
+		for k, v := range other {
+			existing, ok := (*m)[k]
+			if !ok {
+				(*m)[k] = v
+				continue
+			}
+			existing.totalBytes += v.totalBytes
+			for k, v := range v.cardinality {
+				existing.cardinality[k] += v
+			}
+		}
+	}
+
+	mergeIntegerSummary := func(m *map[string]*integerAttributeSummary, other map[string]*integerAttributeSummary) {
+		if *m == nil {
+			*m = make(map[string]*integerAttributeSummary, len(other))
+		}
+		for k, v := range other {
+			existing, ok := (*m)[k]
+			if !ok {
+				(*m)[k] = v
+				continue
+			}
+			existing.count += v.count
+		}
+	}
+
+	mergeStringSummary(&a.attributes, other.attributes)
+	mergeStringSummary(&a.arrayAttributes, other.arrayAttributes)
+	mergeIntegerSummary(&a.integerAttributes, other.integerAttributes)
+	mergeIntegerSummary(&a.integerArrayAttributes, other.integerArrayAttributes)
 }
 
 func (a attributeSummary) totalBytes() uint64 {
@@ -343,10 +504,23 @@ func (a attributeSummary) totalBytes() uint64 {
 	return total
 }
 
-type attribute struct {
+func (a attributeSummary) totalIntegerCount() uint64 {
+	total := uint64(0)
+	for _, a := range a.integerAttributes {
+		total += a.count
+	}
+	return total
+}
+
+type stringAttributeSummary struct {
 	name        string
 	cardinality cardinality // Only populated for non-arraystring attributes
 	totalBytes  uint64
+}
+
+type integerAttributeSummary struct {
+	name  string
+	count uint64
 }
 
 type cardinality map[string]uint64
@@ -415,24 +589,55 @@ func makeIterFunc(ctx context.Context, pf *parquet.File) makeIterFn {
 	}
 }
 
-func aggregateAttributes(pf *parquet.File, definitionLevel int, keyPath string, valuePath string, isArrayPath string) (attributeSummary, error) {
+func aggregateGenericAttributes(pf *parquet.File, definitionLevel int, keyPath string, valuePath string, intPath string, isArrayPath string) (attributeSummary, error) {
 	makeIter := makeIterFunc(context.Background(), pf)
 
-	iters := []pq.Iterator{
-		makeIter(keyPath, nil, "key"),
-		makeIter(valuePath, nil, "value"),
+	required := []parquetquery.Iterator{
+		makeIter(keyPath, parquetquery.NewSkipNilsPredicate(), "key"),
+	}
+	optional := []parquetquery.Iterator{
+		makeIter(valuePath, parquetquery.NewSkipNilsPredicate(), "value"),
+		makeIter(intPath, parquetquery.NewSkipNilsPredicate(), "int"),
 	}
 	if isArrayPath != "" {
-		iters = append(iters, makeIter(isArrayPath, nil, "isArray"))
+		optional = append(optional, makeIter(isArrayPath, parquetquery.NewSkipNilsPredicate(), "isArray"))
 	}
 
-	attrIter := pq.NewJoinIterator(definitionLevel, iters, &attrStatsCollector{})
+	attrIter, err := pq.NewLeftJoinIterator(definitionLevel, required, optional, &attrStatsCollector{})
+	if err != nil {
+		return attributeSummary{}, err
+	}
 	defer attrIter.Close()
 
 	var (
-		attributes      = make(map[string]*attribute, 1000)
-		arrayAttributes = make(map[string]*attribute, 1000)
+		attributes             = make(map[string]*stringAttributeSummary, 1000)
+		stringArrayAttributes  = make(map[string]*stringAttributeSummary, 1000)
+		integerAttributes      = make(map[string]*integerAttributeSummary, 1000)
+		integerArrayAttributes = make(map[string]*integerAttributeSummary, 1000)
 	)
+
+	getString := func(name string, from map[string]*stringAttributeSummary) *stringAttributeSummary {
+		v, ok := from[name]
+		if !ok {
+			v = &stringAttributeSummary{
+				name:        name,
+				cardinality: make(cardinality),
+			}
+			from[name] = v
+		}
+		return v
+	}
+
+	getInt := func(name string, from map[string]*integerAttributeSummary) *integerAttributeSummary {
+		v, ok := from[name]
+		if !ok {
+			v = &integerAttributeSummary{
+				name: name,
+			}
+			from[name] = v
+		}
+		return v
+	}
 
 	for res, err := attrIter.Next(); res != nil; res, err = attrIter.Next() {
 		if err != nil {
@@ -445,69 +650,57 @@ func aggregateAttributes(pf *parquet.File, definitionLevel int, keyPath string, 
 				continue
 			}
 
-			if stats.isArray {
-				v, ok := arrayAttributes[stats.name]
-				if !ok {
-					v = &attribute{
-						name: stats.name,
-					}
-					arrayAttributes[stats.name] = v
+			switch stats.typ {
+			case attrTypeString:
+				if stats.isArray {
+					v := getString(stats.name, stringArrayAttributes)
+					v.totalBytes += uint64(len(stats.value))
+					v.cardinality.add(stats.value)
+				} else {
+					v := getString(stats.name, attributes)
+					v.totalBytes += uint64(len(stats.value))
+					v.cardinality.add(stats.value)
 				}
-				v.totalBytes += uint64(len(stats.value))
-				arrayAttributes[stats.name] = v
-				continue
-			}
-
-			a, ok := attributes[stats.name]
-			if !ok {
-				a = &attribute{
-					name:        stats.name,
-					cardinality: make(cardinality),
+			case attrTypeInt:
+				if stats.isArray {
+					v := getInt(stats.name, integerArrayAttributes)
+					v.count++
+				} else {
+					v := getInt(stats.name, integerAttributes)
+					v.count++
 				}
-				attributes[stats.name] = a
+			case attrTypeNull:
 			}
-
-			a.totalBytes += uint64(len(stats.value))
-			a.cardinality.add(stats.value)
 
 			putStats(stats)
 		}
 	}
 
 	return attributeSummary{
-		attributes:      attributes,
-		arrayAttributes: arrayAttributes,
+		attributes:             attributes,
+		arrayAttributes:        stringArrayAttributes,
+		integerAttributes:      integerAttributes,
+		integerArrayAttributes: integerArrayAttributes,
 	}, nil
 }
 
-func aggregateDedicatedColumns(pf *parquet.File, scope backend.DedicatedColumnScope, meta *backend.BlockMeta, paths []string) (attributeSummary, error) {
-	attributes := make(map[string]*attribute)
+func aggregateIntegerColumn(pf *parquet.File, colName string) (uint64, error) {
+	var (
+		iter  = makeIterFunc(context.Background(), pf)(colName, parquetquery.NewSkipNilsPredicate(), "")
+		count uint64
+	)
 
-	i := 0
-	for _, dedColumn := range meta.DedicatedColumns {
-		if dedColumn.Scope != scope {
-			continue
-		}
-
-		c, err := aggregateSingleColumn(pf, paths[i])
+	for res, err := iter.Next(); res != nil; res, err = iter.Next() {
 		if err != nil {
-			return attributeSummary{}, err
+			return 0, err
 		}
-		i++
-
-		attributes[dedColumn.Name] = &attribute{
-			name:        dedColumn.Name,
-			totalBytes:  c.totalBytes(),
-			cardinality: c,
-		}
+		count++
 	}
 
-	return attributeSummary{
-		attributes: attributes,
-	}, nil
+	return count, nil
 }
 
-func aggregateSingleColumn(pf *parquet.File, colName string) (cardinality, error) {
+func aggregateStringColumn(pf *parquet.File, colName string) (cardinality, error) {
 	var (
 		iter        = makeIterFunc(context.Background(), pf)(colName, nil, "value")
 		cardinality = make(cardinality)
@@ -535,70 +728,99 @@ func aggregateSingleColumn(pf *parquet.File, colName string) (cardinality, error
 	return cardinality, nil
 }
 
-func printSummary(scope string, maxAttr int, summary attributeSummary, simple bool, numRowGroups int, blobBytes uint64) error {
-	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
+func rowCount(pf *parquet.File, colName string) (count uint64, err error) {
+	index, _, _ := pq.GetColumnIndexByPath(pf, colName)
+	if index == -1 {
+		return 0, errors.New("column not found in parquet file:" + colName)
+	}
 
+	for _, rg := range pf.RowGroups() {
+		count += uint64(rg.ColumnChunks()[index].NumValues())
+	}
+
+	return count, nil
+}
+
+func printSimpleSummary(scope string, maxAttr int, summary attributeSummary) {
 	if maxAttr > len(summary.attributes) {
 		maxAttr = len(summary.attributes)
 	}
 
 	fmt.Println("")
 	attrList := topN(maxAttr, summary.attributes)
-	if simple {
-		fmt.Printf("%s attributes: ", scope)
-		for _, a := range attrList {
-			fmt.Printf("\"%s\", ", a.name)
-		}
-		fmt.Println("")
-		return nil
-	}
-
-	fmt.Printf("Top %d %s attributes by size\n", len(attrList), scope)
-	totalBytes := summary.totalBytes()
+	fmt.Printf("%s attributes: ", scope)
 	for _, a := range attrList {
+		fmt.Printf("\"%s\", ", a.name)
+	}
+	fmt.Println("")
+}
 
-		name := a.name
-		if _, ok := summary.dedicated[a.name]; ok {
-			name = a.name + " (dedicated)"
+func printFullSummary(scope string, settings heuristicSettings, summary attributeSummary, numRowGroups int) error {
+	var (
+		w                 = tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
+		err               error
+		totalBytes        = summary.totalBytes()
+		totalIntegerCount = summary.totalIntegerCount()
+	)
+
+	fmt.Println("--------------------------------")
+	fmt.Printf("- %s Summary -\n", scope)
+	fmt.Println("--------------------------------")
+
+	fmt.Printf("Total rows: %d\n", summary.rowCount)
+
+	fmt.Println("")
+	attrList := topN(settings.NumStringAttr, summary.attributes)
+	if len(attrList) > 0 {
+		fmt.Printf("Top %d attributes by size\n", len(attrList))
+
+		for _, a := range attrList {
+			var (
+				name               = a.name
+				thisBytes          = a.totalBytes
+				percentage         = float64(thisBytes) / float64(totalBytes) * 100
+				totalOccurences    = a.cardinality.totalOccurrences()
+				distinct           = a.cardinality.distinctValueCount()
+				avgReuse           = float64(totalOccurences) / float64(distinct)
+				totalSize          = a.cardinality.avgSizePerRowGroup(numRowGroups)
+				blobText           = ""
+				shouldDedicateText = "✅ Recommended dedicated column" // Currently top N strings are the recommendation, so if we get here it's recommended. Will change in the future.
+			)
+
+			if _, ok := summary.dedicated[a.name]; ok {
+				name = a.name + " (dedicated)"
+			}
+
+			if settings.BlobThresholdBytes > 0 && totalSize >= settings.BlobThresholdBytes {
+				blobText = "(blob)"
+			}
+
+			_, err := fmt.Fprintf(w, "name: %s\t size: %s\t (%.2f%%)\tcount: %d\t distinct: %d\t avg reuse: %.2f\t avg rowgroup content (dict + body): %s %s\t%s\n",
+				name,
+				humanize.Bytes(thisBytes),
+				percentage,
+				totalOccurences,
+				distinct,
+				avgReuse,
+				humanize.Bytes(totalSize),
+				blobText,
+				shouldDedicateText,
+			)
+			if err != nil {
+				return err
+			}
 		}
 
-		var (
-			thisBytes       = a.totalBytes
-			percentage      = float64(thisBytes) / float64(totalBytes) * 100
-			totalOccurences = a.cardinality.totalOccurrences()
-			distinct        = a.cardinality.distinctValueCount()
-			avgReuse        = float64(totalOccurences) / float64(distinct)
-			totalSize       = a.cardinality.avgSizePerRowGroup(numRowGroups)
-		)
-
-		blob := ""
-		if blobBytes > 0 && totalSize >= blobBytes {
-			blob = "(blob)"
-		}
-
-		_, err := fmt.Fprintf(w, "name: %s\t size: %s\t (%.2f%%)\tcount: %d\t distinct: %d\t avg reuse: %.2f\t avg rowgroup content (dict + body): %s %s\n",
-			name,
-			humanize.Bytes(thisBytes),
-			percentage,
-			totalOccurences,
-			distinct,
-			avgReuse,
-			humanize.Bytes(totalSize),
-			blob,
-		)
+		err := w.Flush()
 		if err != nil {
 			return err
 		}
 	}
 
-	err := w.Flush()
-	if err != nil {
-		return err
-	}
-
-	arrayAttrList := topN(maxAttr, summary.arrayAttributes)
+	arrayAttrList := topN(settings.NumStringAttr, summary.arrayAttributes)
 	if len(arrayAttrList) > 0 {
-		fmt.Printf("Top %d %s array attributes by size\n", len(arrayAttrList), scope)
+		fmt.Println("")
+		fmt.Printf("Top %d array attributes by size\n", len(arrayAttrList))
 		for _, a := range arrayAttrList {
 			percentage := float64(a.totalBytes) / float64(totalBytes) * 100
 			_, err := fmt.Fprintf(w, "name: %s\t size: %s\t (%s%%)\n", a.name, humanize.Bytes(a.totalBytes), strconv.FormatFloat(percentage, 'f', 2, 64))
@@ -613,16 +835,50 @@ func printSummary(scope string, maxAttr int, summary attributeSummary, simple bo
 		}
 	}
 
+	integerAttrList := topNInt(settings.NumIntAttr, summary.integerAttributes)
+	if len(integerAttrList) > 0 {
+		fmt.Println("")
+		fmt.Println("Total integer attribute values:", totalIntegerCount)
+		fmt.Printf("Top %d integer attributes by count\n", len(integerAttrList))
+		for _, a := range integerAttrList {
+			var (
+				name                = a.name
+				percentOfValuesText = "n/a"
+				percentOfRowsText   = "n/a"
+				shouldDedicateText  = ""
+			)
+
+			if _, ok := summary.dedicated[a.name]; ok {
+				name = a.name + " (dedicated)"
+			}
+			if totalIntegerCount > 0 {
+				percentOfValuesText = fmt.Sprintf("(%.2f%% of values)", float64(a.count)/float64(totalIntegerCount)*100)
+			}
+			if summary.rowCount > 0 {
+				percentOfRows := float64(a.count) / float64(summary.rowCount)
+				percentOfRowsText = fmt.Sprintf("(%.2f%% of rows)", percentOfRows*100)
+				if percentOfRows >= settings.IntThresholdPercent {
+					shouldDedicateText = "✅ Recommended dedicated column"
+				}
+			}
+			fmt.Fprintf(w, "name: %s\t count: %d\t %s\t%s\t%s\n", name, a.count, percentOfValuesText, percentOfRowsText, shouldDedicateText)
+		}
+		err = w.Flush()
+		if err != nil {
+			return err
+		}
+	}
+
 	return nil
 }
 
-func printDedicatedColumnOverridesJsonnet(summary blockSummary, maxAttr int, numRowGroups int, blobBytes uint64) {
+func printDedicatedColumnOverridesJsonnet(summary blockSummary, settings heuristicSettings, numRowGroups int) {
 	fmt.Println("")
 	fmt.Printf("parquet_dedicated_columns: [\n")
 
-	optionsText := func(a *attribute) string {
+	optionsText := func(a *stringAttributeSummary) string {
 		options := []string{}
-		if blobBytes > 0 && a.cardinality.avgSizePerRowGroup(numRowGroups) > blobBytes {
+		if settings.BlobThresholdBytes > 0 && a.cardinality.avgSizePerRowGroup(numRowGroups) > settings.BlobThresholdBytes {
 			options = append(options, "'blob'")
 		}
 		if len(options) > 0 {
@@ -631,15 +887,15 @@ func printDedicatedColumnOverridesJsonnet(summary blockSummary, maxAttr int, num
 		return ""
 	}
 
-	for _, a := range topN(maxAttr, summary.spanSummary.attributes) {
+	for _, a := range topN(settings.NumStringAttr, summary.spanSummary.attributes) {
 		fmt.Printf(" { scope: 'span', name: '%s', type: 'string' %s },\n", a.name, optionsText(a))
 	}
 
-	for _, a := range topN(maxAttr, summary.resourceSummary.attributes) {
+	for _, a := range topN(settings.NumStringAttr, summary.resourceSummary.attributes) {
 		fmt.Printf(" { scope: 'resource', name: '%s', type: 'string' %s },\n", a.name, optionsText(a))
 	}
 
-	for _, a := range topN(maxAttr, summary.eventSummary.attributes) {
+	for _, a := range topN(settings.NumStringAttr, summary.eventSummary.attributes) {
 		fmt.Printf(" { scope: 'event', name: '%s', type: 'string' %s },\n", a.name, optionsText(a))
 	}
 
@@ -647,40 +903,60 @@ func printDedicatedColumnOverridesJsonnet(summary blockSummary, maxAttr int, num
 	fmt.Println("")
 }
 
-func printCliArgs(s blockSummary, maxAttr int, numRowGroups int, blobBytes uint64) {
+func printCliArgs(s blockSummary, settings heuristicSettings, numRowGroups int) {
 	fmt.Println("")
 	fmt.Printf("quoted/spaced cli list:")
 
 	ss := []string{}
-	for _, a := range topN(maxAttr, s.spanSummary.attributes) {
-		if blobBytes > 0 && a.cardinality.avgSizePerRowGroup(numRowGroups) > blobBytes {
+	for _, a := range topN(settings.NumStringAttr, s.spanSummary.attributes) {
+		if settings.BlobThresholdBytes > 0 && a.cardinality.avgSizePerRowGroup(numRowGroups) > settings.BlobThresholdBytes {
 			ss = append(ss, fmt.Sprintf("\"blob/span.%s\"", a.name))
 		} else {
 			ss = append(ss, fmt.Sprintf("\"span.%s\"", a.name))
 		}
 	}
 
-	for _, a := range topN(maxAttr, s.resourceSummary.attributes) {
-		if blobBytes > 0 && a.cardinality.avgSizePerRowGroup(numRowGroups) > blobBytes {
+	for _, a := range topN(settings.NumStringAttr, s.resourceSummary.attributes) {
+		if settings.BlobThresholdBytes > 0 && a.cardinality.avgSizePerRowGroup(numRowGroups) > settings.BlobThresholdBytes {
 			ss = append(ss, fmt.Sprintf("\"blob/resource.%s\"", a.name))
 		} else {
 			ss = append(ss, fmt.Sprintf("\"resource.%s\"", a.name))
 		}
 	}
 
-	for _, a := range topN(maxAttr, s.eventSummary.attributes) {
-		if blobBytes > 0 && a.cardinality.avgSizePerRowGroup(numRowGroups) > blobBytes {
+	for _, a := range topN(settings.NumStringAttr, s.eventSummary.attributes) {
+		if settings.BlobThresholdBytes > 0 && a.cardinality.avgSizePerRowGroup(numRowGroups) > settings.BlobThresholdBytes {
 			ss = append(ss, fmt.Sprintf("\"blob/event.%s\"", a.name))
 		} else {
 			ss = append(ss, fmt.Sprintf("\"event.%s\"", a.name))
 		}
 	}
 
+	// Integer attributes
+	for _, a := range topNInt(settings.NumIntAttr, s.spanSummary.integerAttributes) {
+		if float64(a.count)/float64(s.spanSummary.rowCount) < settings.IntThresholdPercent {
+			continue
+		}
+		ss = append(ss, fmt.Sprintf("\"int/span.%s\"", a.name))
+	}
+	for _, a := range topNInt(settings.NumIntAttr, s.resourceSummary.integerAttributes) {
+		if float64(a.count)/float64(s.resourceSummary.rowCount) < settings.IntThresholdPercent {
+			continue
+		}
+		ss = append(ss, fmt.Sprintf("\"int/resource.%s\"", a.name))
+	}
+	for _, a := range topNInt(settings.NumIntAttr, s.eventSummary.integerAttributes) {
+		if float64(a.count)/float64(s.eventSummary.rowCount) < settings.IntThresholdPercent {
+			continue
+		}
+		ss = append(ss, fmt.Sprintf("\"int/event.%s\"", a.name))
+	}
+
 	fmt.Println(strings.Join(ss, " "))
 }
 
-func topN(n int, attrs map[string]*attribute) []*attribute {
-	top := make([]*attribute, 0, len(attrs))
+func topN(n int, attrs map[string]*stringAttributeSummary) []*stringAttributeSummary {
+	top := make([]*stringAttributeSummary, 0, len(attrs))
 	for _, attr := range attrs {
 		top = append(top, attr)
 	}
@@ -693,14 +969,37 @@ func topN(n int, attrs map[string]*attribute) []*attribute {
 	return top
 }
 
+func topNInt(n int, attrs map[string]*integerAttributeSummary) []*integerAttributeSummary {
+	top := make([]*integerAttributeSummary, 0, len(attrs))
+	for _, attr := range attrs {
+		top = append(top, attr)
+	}
+	sort.Slice(top, func(i, j int) bool {
+		return top[i].count > top[j].count
+	})
+	if len(top) > n {
+		top = top[:n]
+	}
+	return top
+}
+
 var _ pq.GroupPredicate = (*attrStatsCollector)(nil)
 
+type attrType int
+
+const (
+	attrTypeNull attrType = iota
+	attrTypeString
+	attrTypeInt
+)
+
 type attrStats struct {
-	name    string
-	value   string
-	bytes   uint64
-	isArray bool
-	isNull  bool
+	name     string
+	value    string
+	bytes    uint64
+	intValue int64
+	isArray  bool
+	typ      attrType
 }
 
 var statsPool = sync.Pool{
@@ -710,11 +1009,7 @@ var statsPool = sync.Pool{
 }
 
 func putStats(s *attrStats) {
-	s.name = ""
-	s.value = ""
-	s.bytes = 0
-	s.isArray = false
-	s.isNull = false
+	*s = attrStats{}
 	statsPool.Put(s)
 }
 
@@ -747,21 +1042,19 @@ func (a attrStatsCollector) KeepGroup(res *pq.IteratorResult) bool {
 		case "key":
 			stats.name = e.Value.String()
 		case "value":
-			if e.Value.IsNull() {
-				stats.isNull = true
-			} else {
-				stats.value = e.Value.String()
-				stats.bytes += uint64(len(stats.value))
-			}
+			stats.typ = attrTypeString
+			stats.value = e.Value.String()
+			stats.bytes += uint64(len(stats.value))
+		case "int":
+			stats.typ = attrTypeInt
+			stats.intValue = e.Value.Int64()
 		case "isArray":
-			if !stats.isArray {
-				stats.isArray = e.Value.Boolean()
-			}
+			stats.isArray = e.Value.Boolean()
 		}
 	}
 
 	res.Reset()
-	if stats.isNull {
+	if stats.typ == attrTypeNull {
 		putStats(stats)
 		return false
 	}
