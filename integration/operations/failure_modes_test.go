@@ -1,6 +1,9 @@
 package deployments
 
 import (
+	"fmt"
+	"io"
+	"net/http"
 	"testing"
 	"time"
 
@@ -11,7 +14,8 @@ import (
 
 func TestFailureModes(t *testing.T) {
 	util.RunIntegrationTests(t, util.TestHarnessConfig{
-		Components: util.ComponentsRecentDataQuerying | util.ComponentsBackendQuerying,
+		Components:         util.ComponentsRecentDataQuerying | util.ComponentsBackendQuerying,
+		DisableParallelism: true, // for unknown reasons this test is flakey when run in parallel. unsure if there's some kind of cross test interference i'm unaware of? or a timing thing?
 	}, func(h *util.TempoHarness) {
 		h.WaitTracesWritable(t)
 
@@ -28,11 +32,15 @@ func TestFailureModes(t *testing.T) {
 		err := liveStoreB.Stop()
 		require.NoError(t, err)
 
-		require.Eventually(t, func() bool {
-			_, err := apiClient.QueryTraceV2(info.HexID()) // todo: seen this fail with transient errors connecting to the shutdown livestore. are our retry settings well configured?
-			t.Logf("query trace v2 error: %v", err)
-			return err == nil
-		}, 30*time.Second, time.Second)
+		// get /live-store/ring on querier and dump to stdout
+		ring, err := http.Get("http://" + h.Services[util.ServiceQuerier].Endpoint(3200) + "/live-store/ring")
+		require.NoError(t, err)
+		body, err := io.ReadAll(ring.Body)
+		require.NoError(t, err)
+		fmt.Println(string(body))
+
+		_, err = apiClient.QueryTraceV2(info.HexID()) // todo: occassional failures here when running in parallel. disabled above
+		require.NoError(t, err)
 
 		// stop the second live store. querying should fail
 		liveStoreA := h.Services[util.ServiceLiveStoreZoneA]

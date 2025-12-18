@@ -55,6 +55,17 @@ func NewTraceInfo(timestamp time.Time, tempoOrgID string) *TraceInfo {
 	}
 }
 
+// NewTraceInfos creates multiple trace infos with slightly different timestamps to ensure
+// different trace seeds are used.
+func NewTraceInfos(timestamp time.Time, count int, tempoOrgID string) []*TraceInfo {
+	infos := make([]*TraceInfo, 0, count)
+	for i := 0; i < count; i++ {
+		ts := timestamp.Add(time.Duration(i) * time.Nanosecond)
+		infos = append(infos, NewTraceInfo(ts, tempoOrgID))
+	}
+	return infos
+}
+
 func NewTraceInfoWithMaxLongWrites(timestamp time.Time, maxLongWrites int64, tempoOrgID string) *TraceInfo {
 	r := newRand(timestamp)
 

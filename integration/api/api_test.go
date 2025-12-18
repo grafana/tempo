@@ -418,12 +418,8 @@ func TestTraceByIDandTraceQL(t *testing.T) {
 		h.WaitTracesWritable(t)
 
 		countTraces := 10
-		infos := make([]*tempoUtil.TraceInfo, 0, countTraces)
-
-		for range countTraces {
-			time.Sleep(time.Millisecond) // force a new seed
-			info := tempoUtil.NewTraceInfo(time.Now(), "")
-			infos = append(infos, info)
+		infos := tempoUtil.NewTraceInfos(time.Now(), countTraces, "")
+		for _, info := range infos {
 			require.NoError(t, h.WriteTraceInfo(info, ""))
 		}
 
@@ -462,7 +458,7 @@ func TestStreamingSearch_badRequest(t *testing.T) {
 
 		// Send a batch of traces
 		batch := util.MakeThriftBatch()
-		require.NoError(t, h.WriteJaegerBatch(batch, "")) // jpe - failed here with? rpc error: code = DeadlineExceeded desc = context deadline exceeded? should i increase a timeout somewhere?
+		require.NoError(t, h.WriteJaegerBatch(batch, ""))
 
 		// Wait for the traces to be written to the WAL
 		h.WaitTracesQueryable(t, 1)

@@ -140,12 +140,18 @@ type TestHarnessConfig struct {
 	// Recent data components are always started. Use this to add optional components.
 	// Defaults to ComponentsRecentDataQuerying
 	Components ComponentsMask
+
+	// DisableParallelism is a flag to disable parallelism for the test.
+	// Defaults to false
+	DisableParallelism bool
 }
 
 // RunIntegrationTests sets up Tempo for integration tests as requested through the config and then calls the provided testFunc
 func RunIntegrationTests(t *testing.T, config TestHarnessConfig, testFunc func(*TempoHarness)) {
 	t.Helper()
-	t.Parallel()
+	if !config.DisableParallelism {
+		t.Parallel()
+	}
 
 	// defaults
 	if config.Backends == 0 {

@@ -608,7 +608,7 @@ func TestQueryRangeMaxSeries(t *testing.T) {
 		}, func(queryRangeRes *tempopb.QueryRangeResponse, err error) {
 			require.NoError(t, err)
 			require.NotNil(t, queryRangeRes)
-			require.Equal(t, tempopb.PartialStatus_PARTIAL, queryRangeRes.GetStatus()) // jpe - this fails occassionally. 0 series returned instead of 3+. note on line 598 i'm confirming that tracesSent is greater than 3. it happens on streaming metrics! uh oh
+			require.Equal(t, tempopb.PartialStatus_PARTIAL, queryRangeRes.GetStatus())
 			require.Equal(t, "Response exceeds maximum series limit of 3, a partial response is returned. Warning: the accuracy of each individual value is not guaranteed.", queryRangeRes.GetMessage())
 			require.Equal(t, 3, len(queryRangeRes.GetSeries()))
 		})

@@ -162,6 +162,89 @@ func TestLiveStoreDownscaleHappyPath(t *testing.T) {
 	})
 }
 
+func TestLiveStoreLookback(t *testing.T) {
+	for _, testCase := range []struct {
+		name              string
+		configOverlay     string
+		startNewLiveStore bool
+		expectedTraces    float64
+	}{
+		{
+			name:              "restart_2s",
+			configOverlay:     "config-livestore-short-timeout.yaml", // lookback period twice greater
+			startNewLiveStore: false,
+			expectedTraces:    2, // fresh and after start
+		},
+		{
+			name:              "restart_default",
+			configOverlay:     "", // default is 1h
+			startNewLiveStore: false,
+			expectedTraces:    3, // old, fresh and after start, but not already committed
+		},
+		{
+			name:              "start_2s",
+			configOverlay:     "config-livestore-short-timeout.yaml", // lookback period twice greater
+			startNewLiveStore: true,
+			expectedTraces:    2, // fresh and after start
+		},
+		{
+			name:              "start_default",
+			configOverlay:     "", // default is 1h
+			startNewLiveStore: true,
+			expectedTraces:    4, // all traces
+		},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			util.RunIntegrationTests(t, util.TestHarnessConfig{
+				ConfigOverlay: testCase.configOverlay,
+			}, func(h *util.TempoHarness) {
+				// Start initial live store
+				liveStoreB := h.Services[util.ServiceLiveStoreZoneB]
+				require.NoError(t, liveStoreB.Stop())
+
+				h.WaitTracesWritable(t)
+
+				// Write first trace - will be committed by the first live store before shutdown
+				info := tempoUtil.NewTraceInfo(time.Now(), "")
+				require.NoError(t, h.WriteTraceInfo(info, ""))
+
+				// wait queryable
+				liveStoreA := h.Services[util.ServiceLiveStoreZoneA]
+				require.NoError(t, liveStoreA.WaitSumMetricsWithOptions(e2e.GreaterOrEqual(float64(1)), []string{"tempo_live_store_traces_created_total"}, e2e.WaitMissingMetrics))
+
+				// Stop the live store
+				require.NoError(t, liveStoreA.Stop())
+
+				// Write old trace (during downtime)
+				require.NoError(t, h.WriteTraceInfo(tempoUtil.NewTraceInfo(time.Now(), ""), ""))
+				time.Sleep(3 * time.Second)
+
+				// Write fresh trace (during downtime)
+				require.NoError(t, h.WriteTraceInfo(tempoUtil.NewTraceInfo(time.Now(), ""), ""))
+
+				// Restart the same live store or start a new one
+				liveStore := liveStoreA
+				if testCase.startNewLiveStore {
+					liveStore = liveStoreB
+				}
+				require.NoError(t, liveStore.Start(h.TestScenario.NetworkName(), h.TestScenario.SharedDir()))
+				require.NoError(t, liveStore.WaitReady())
+
+				h.WaitTracesWritable(t)
+
+				// Write trace after restart
+				require.NoError(t, h.WriteTraceInfo(tempoUtil.NewTraceInfo(time.Now(), ""), ""))
+
+				// Verify expected number of traces were processed
+				require.NoError(t, liveStore.WaitSumMetricsWithOptions(e2e.GreaterOrEqual(float64(testCase.expectedTraces)), []string{"tempo_live_store_traces_created_total"}, e2e.WaitMissingMetrics))
+				if testCase.startNewLiveStore {
+					require.NoError(t, liveStore.WaitSumMetricsWithOptions(e2e.GreaterOrEqual(float64(testCase.expectedTraces)), []string{"tempo_live_store_traces_created_total"}, e2e.WaitMissingMetrics))
+				}
+			})
+		})
+	}
+}
+
 const activePartitionState = 2 // apparently state == 2 is active
 
 type preparePartitionDownscaleResponse struct {
