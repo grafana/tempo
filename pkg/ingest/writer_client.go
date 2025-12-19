@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/go-kit/log"
+	"github.com/go-kit/log/level"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/twmb/franz-go/pkg/kerr"
@@ -81,10 +82,18 @@ func NewWriterClient(kafkaCfg KafkaConfig, maxInflightProduceRequests int, logge
 		kgo.MaxBufferedRecords(math.MaxInt), // Use a high value to set it as unlimited, because the client doesn't support "0 as unlimited".
 		kgo.MaxBufferedBytes(0),
 	)
-	if kafkaCfg.AutoCreateTopicEnabled {
-		kafkaCfg.SetDefaultNumberOfPartitionsForAutocreatedTopics(logger)
+	client, err := kgo.NewClient(opts...)
+	if err != nil {
+		return nil, err
 	}
-	return kgo.NewClient(opts...)
+
+	if kafkaCfg.AutoCreateTopicEnabled {
+		if err := kafkaCfg.EnsureTopicPartitions(logger); err != nil {
+			level.Error(logger).Log("msg", "failed to ensure topic partitions", "err", err)
+		}
+	}
+
+	return client, nil
 }
 
 type onlySampledTraces struct {
