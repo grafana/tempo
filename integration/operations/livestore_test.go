@@ -24,7 +24,7 @@ func TestLiveStorePartitionDownscale(t *testing.T) {
 		require.NoError(t, h.Services[util.ServiceLiveStoreZoneB].Stop())
 
 		// start a new livestorea that own a second partition. -1 postfix is important to start a new partition!
-		liveStorePartition1 := newLiveStore("live-store-zone-a-1")
+		liveStorePartition1 := newLiveStore("live-store-zone-a-1", "zone-a")
 		require.NoError(t, h.TestScenario.StartAndWaitReady(liveStorePartition1))
 
 		// wait for 2 active partitions
@@ -119,7 +119,7 @@ func TestLiveStoreDownscaleHappyPath(t *testing.T) {
 		require.NoError(t, h.Services[util.ServiceLiveStoreZoneB].Stop())
 
 		// start a new livestore that own a second partition. -1 postfix is important to start a new partition!
-		liveStorePartition1 := newLiveStore("live-store-zone-a-1")
+		liveStorePartition1 := newLiveStore("live-store-zone-a-1", "zone-a")
 		require.NoError(t, h.TestScenario.StartAndWaitReady(liveStorePartition1))
 
 		// wait for 2 active partitions
@@ -334,6 +334,6 @@ func waitActivePartitions(t *testing.T, service *e2e.HTTPService, count int) {
 		e2e.WithLabelMatchers(matchers...)), "distributor failed to see the partition ring")
 }
 
-func newLiveStore(name string) *e2e.HTTPService {
-	return util.NewTempoService(name, "live-store", e2e.NewHTTPReadinessProbe(3200, "/ready", 200, 299))
+func newLiveStore(name string, zone string) *e2e.HTTPService {
+	return util.NewTempoService(name, "live-store", e2e.NewHTTPReadinessProbe(3200, "/ready", 200, 299), nil, "-live-store.instance-availability-zone="+zone)
 }

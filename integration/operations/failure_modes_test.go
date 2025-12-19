@@ -11,8 +11,7 @@ import (
 
 func TestFailureModes(t *testing.T) {
 	util.RunIntegrationTests(t, util.TestHarnessConfig{
-		Components:         util.ComponentsRecentDataQuerying | util.ComponentsBackendQuerying,
-		DisableParallelism: true,
+		Components: util.ComponentsRecentDataQuerying | util.ComponentsBackendQuerying,
 	}, func(h *util.TempoHarness) {
 		h.WaitTracesWritable(t)
 

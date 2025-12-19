@@ -81,13 +81,14 @@ func NewJaegerQuery() *e2e.HTTPService {
 // serviceName is the name of the service in the e2e environment (can include replica/zone suffixes).
 // target is the Tempo -target flag value (e.g., "distributor", "live-store", "querier").
 // additionalPorts are optional extra ports to expose beyond the default 3200.
-func NewTempoService(serviceName, target string, readinessProbe e2e.ReadinessProbe, additionalPorts ...int) *e2e.HTTPService {
+func NewTempoService(serviceName, target string, readinessProbe e2e.ReadinessProbe, additionalPorts []int, additionalArgs ...string) *e2e.HTTPService {
 	args := []string{
 		"-config.file=" + filepath.Join(e2e.ContainerSharedDir, tempoConfigFile),
 		"-target=" + target,
 	}
 
 	additionalPorts = append(additionalPorts, 3201) // internal server port if enabled
+	args = append(args, additionalArgs...)
 
 	s := e2e.NewHTTPService(
 		serviceName,

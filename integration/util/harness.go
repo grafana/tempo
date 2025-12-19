@@ -470,13 +470,13 @@ func (h *TempoHarness) startMicroservices(t *testing.T, config TestHarnessConfig
 	// technically we should only need the live stores if the test needs ComponentsRecentDataQuerying
 	// unfortunately the config-base.yaml uses live-stores as the memberlist gossip seeds. todo: improve this by templating the memberlist join members
 	if config.Components&(ComponentsRecentDataQuerying|ComponentsBackendQuerying|ComponentsMetricsGeneration) != 0 {
-		liveStoreZoneA := NewTempoService("live-store-zone-a-0", "live-store", readinessProbe)
+		liveStoreZoneA := NewTempoService("live-store-zone-a-0", "live-store", readinessProbe, nil, "-live-store.instance-availability-zone=zone-a")
 		h.Services[ServiceLiveStoreZoneA] = liveStoreZoneA
 		if err := s.StartAndWaitReady(liveStoreZoneA); err != nil {
 			return fmt.Errorf("failed to start live store zone a: %w", err)
 		}
 
-		liveStoreZoneB := NewTempoService("live-store-zone-b-0", "live-store", readinessProbe)
+		liveStoreZoneB := NewTempoService("live-store-zone-b-0", "live-store", readinessProbe, nil, "-live-store.instance-availability-zone=zone-b")
 		h.Services[ServiceLiveStoreZoneB] = liveStoreZoneB
 		if err := s.StartAndWaitReady(liveStoreZoneB); err != nil {
 			return fmt.Errorf("failed to start live store zone b: %w", err)
@@ -487,10 +487,7 @@ func (h *TempoHarness) startMicroservices(t *testing.T, config TestHarnessConfig
 	if config.Components&(ComponentsRecentDataQuerying|ComponentsBackendQuerying|ComponentsMetricsGeneration) != 0 {
 		h.Services[ServiceDistributor] = NewTempoService("distributor", "distributor",
 			readinessProbe,
-			14250, // jaeger grpc ingest
-			4317,  // otlp grpc
-			4318,  // otlp http
-			9411,  // zipkin ingest
+			[]int{14250, 4317, 4318, 9411}, // jaeger grpc ingest, otlp grpc, otlp http, zipkin ingest
 		)
 		if err := s.StartAndWaitReady(h.Services[ServiceDistributor]); err != nil {
 			return fmt.Errorf("failed to start distributor: %w", err)
@@ -499,8 +496,8 @@ func (h *TempoHarness) startMicroservices(t *testing.T, config TestHarnessConfig
 
 	// Start Query Frontend and Querier - needed by ComponentsRecentDataQuerying, ComponentsBackendQuerying
 	if config.Components&(ComponentsRecentDataQuerying|ComponentsBackendQuerying) != 0 {
-		h.Services[ServiceQueryFrontend] = NewTempoService("query-frontend", "query-frontend", readinessProbe)
-		h.Services[ServiceQuerier] = NewTempoService("querier", "querier", readinessProbe)
+		h.Services[ServiceQueryFrontend] = NewTempoService("query-frontend", "query-frontend", readinessProbe, nil)
+		h.Services[ServiceQuerier] = NewTempoService("querier", "querier", readinessProbe, nil)
 		if err := s.StartAndWaitReady(h.Services[ServiceQueryFrontend], h.Services[ServiceQuerier]); err != nil {
 			return fmt.Errorf("failed to start query frontend and querier: %w", err)
 		}
@@ -508,7 +505,7 @@ func (h *TempoHarness) startMicroservices(t *testing.T, config TestHarnessConfig
 
 	// Start Block Builder - needed by ComponentsBackendQuerying
 	if config.Components&ComponentsBackendQuerying != 0 {
-		blockBuilder := NewTempoService("block-builder-0", "block-builder", readinessProbe)
+		blockBuilder := NewTempoService("block-builder-0", "block-builder", readinessProbe, nil)
 		h.Services[ServiceBlockBuilder] = blockBuilder
 		if err := s.StartAndWaitReady(blockBuilder); err != nil {
 			return fmt.Errorf("failed to start block builder: %w", err)
@@ -517,7 +514,7 @@ func (h *TempoHarness) startMicroservices(t *testing.T, config TestHarnessConfig
 
 	// Start Metrics Generator - needed by ComponentsMetricsGeneration
 	if config.Components&ComponentsMetricsGeneration != 0 {
-		h.Services[ServiceMetricsGenerator] = NewTempoService("metrics-generator", "metrics-generator", readinessProbe)
+		h.Services[ServiceMetricsGenerator] = NewTempoService("metrics-generator", "metrics-generator", readinessProbe, nil)
 		if err := s.StartAndWaitReady(h.Services[ServiceMetricsGenerator]); err != nil {
 			return fmt.Errorf("failed to start metrics generator: %w", err)
 		}
@@ -525,8 +522,8 @@ func (h *TempoHarness) startMicroservices(t *testing.T, config TestHarnessConfig
 
 	// Start Backend Scheduler and Worker - needed by ComponentsBackendWork
 	if config.Components&ComponentsBackendWork != 0 {
-		scheduler := NewTempoService("backend-scheduler", "backend-scheduler", readinessProbe)
-		worker := NewTempoService("backend-worker", "backend-worker", readinessProbe)
+		scheduler := NewTempoService("backend-scheduler", "backend-scheduler", readinessProbe, nil)
+		worker := NewTempoService("backend-worker", "backend-worker", readinessProbe, nil)
 		h.Services[ServiceBackendScheduler] = scheduler
 		h.Services[ServiceBackendWorker] = worker
 		if err := s.StartAndWaitReady(scheduler, worker); err != nil {
