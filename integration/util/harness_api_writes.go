@@ -147,8 +147,8 @@ func newOtelGRPCExporterWithAuth(endpoint, orgID, basicAuthToken string, useTLS 
 	otlpCfg.RetryConfig.Enabled = false
 	// Disable queueing
 	otlpCfg.QueueConfig.Enabled = false
-	// beef up the timeout to 30 seconds to avoid flakes
-	otlpCfg.TimeoutConfig.Timeout = 30 * time.Second
+	// beef up the timeout to 10 seconds to avoid flakes
+	otlpCfg.TimeoutConfig.Timeout = 10 * time.Second
 
 	logger, _ := zap.NewDevelopment()
 	te, err := factory.CreateTraces(

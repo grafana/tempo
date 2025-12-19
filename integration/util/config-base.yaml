@@ -104,4 +104,4 @@ backend_worker:
 # the distributor still uses the ingester client timeouts when sending to kafka. this needs to be fixed for 3.0 but using
 # it for now to avoid flakes on the write path
 ingester_client:
-  remote_timeout: 30s
+  remote_timeout: 10s
