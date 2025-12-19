@@ -128,7 +128,7 @@ type TestHarnessConfig struct {
 	// It's used by a few tests to copy in required files, start prerequisite services, or adjust the template data for overlays.
 	PreStartHook func(*e2e.Scenario, map[string]any) error
 
-	// DeploymentMode specifies whether to run as single binary, microservices, or both
+	// DeploymentMode specifies whether to run as single binary, microservices, or none
 	// Defaults to DeploymentModeMicroservices
 	DeploymentMode DeploymentMode
 

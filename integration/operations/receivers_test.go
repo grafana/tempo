@@ -28,9 +28,12 @@ import (
 	"github.com/grafana/tempo/pkg/util/test"
 )
 
+const configReceivers = `config-receivers.yaml`
+
 func TestReceivers(t *testing.T) {
 	util.RunIntegrationTests(t, util.TestHarnessConfig{
 		DeploymentMode: util.DeploymentModeSingleBinary,
+		ConfigOverlay:  configReceivers,
 	}, func(h *util.TempoHarness) {
 		h.WaitTracesWritable(t)
 
