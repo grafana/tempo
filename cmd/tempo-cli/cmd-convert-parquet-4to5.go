@@ -67,6 +67,11 @@ func (cmd *convertParquet4to5) Run() error {
 				options = append(options, backend.DedicatedColumnOptionBlob)
 			}
 
+			col, isInt := strings.CutPrefix(col, "int/")
+			if isInt {
+				typ = backend.DedicatedColumnTypeInt
+			}
+
 			att, err := traceql.ParseIdentifier(col)
 			if err != nil {
 				return err
@@ -84,7 +89,7 @@ func (cmd *convertParquet4to5) Run() error {
 				return fmt.Errorf("dedicated columns must be scoped: %s", att.Scope)
 			}
 
-			fmt.Printf("add dedicated column scope=%s name=%s\n", scope, att.Name)
+			fmt.Printf("add dedicated column scope=%s type=%s name=%s\n", scope, typ, att.Name)
 
 			dedicatedCols = append(dedicatedCols, backend.DedicatedColumn{
 				Scope:   scope,

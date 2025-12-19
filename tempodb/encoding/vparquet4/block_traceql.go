@@ -907,7 +907,7 @@ const (
 	columnPathResourceAttrInt          = "rs.list.element.Resource.Attrs.list.element.ValueInt.list.element"
 	columnPathResourceAttrDouble       = "rs.list.element.Resource.Attrs.list.element.ValueDouble.list.element"
 	columnPathResourceAttrBool         = "rs.list.element.Resource.Attrs.list.element.ValueBool.list.element"
-	columnPathResourceServiceName      = "rs.list.element.Resource.ServiceName"
+	ColumnPathResourceServiceName      = "rs.list.element.Resource.ServiceName"
 	columnPathResourceCluster          = "rs.list.element.Resource.Cluster"
 	columnPathResourceNamespace        = "rs.list.element.Resource.Namespace"
 	columnPathResourcePod              = "rs.list.element.Resource.Pod"
@@ -926,7 +926,7 @@ const (
 	columnPathInstrumentationAttrBool   = "rs.list.element.ss.list.element.Scope.Attrs.list.element.ValueBool.list.element"
 
 	columnPathSpanID              = "rs.list.element.ss.list.element.Spans.list.element.SpanID"
-	columnPathSpanName            = "rs.list.element.ss.list.element.Spans.list.element.Name"
+	ColumnPathSpanName            = "rs.list.element.ss.list.element.Spans.list.element.Name"
 	columnPathSpanStartTime       = "rs.list.element.ss.list.element.Spans.list.element.StartTimeUnixNano"
 	columnPathSpanDuration        = "rs.list.element.ss.list.element.Spans.list.element.DurationNano"
 	columnPathSpanKind            = "rs.list.element.ss.list.element.Spans.list.element.Kind"
@@ -944,7 +944,7 @@ const (
 	columnPathSpanNestedSetRight  = "rs.list.element.ss.list.element.Spans.list.element.NestedSetRight"
 	columnPathSpanParentID        = "rs.list.element.ss.list.element.Spans.list.element.ParentID"
 	columnPathSpanParentSpanID    = "rs.list.element.ss.list.element.Spans.list.element.ParentSpanID"
-	columnPathEventName           = "rs.list.element.ss.list.element.Spans.list.element.Events.list.element.Name"
+	ColumnPathEventName           = "rs.list.element.ss.list.element.Spans.list.element.Events.list.element.Name"
 	columnPathEventTimeSinceStart = "rs.list.element.ss.list.element.Spans.list.element.Events.list.element.TimeSinceStartNano"
 	columnPathLinkTraceID         = "rs.list.element.ss.list.element.Spans.list.element.Links.list.element.TraceID"
 	columnPathLinkSpanID          = "rs.list.element.ss.list.element.Spans.list.element.Links.list.element.SpanID"
@@ -979,7 +979,7 @@ var intrinsicColumnLookups = map[traceql.Intrinsic]struct {
 	typ        traceql.StaticType
 	columnPath string
 }{
-	traceql.IntrinsicName:                 {intrinsicScopeSpan, traceql.TypeString, columnPathSpanName},
+	traceql.IntrinsicName:                 {intrinsicScopeSpan, traceql.TypeString, ColumnPathSpanName},
 	traceql.IntrinsicStatus:               {intrinsicScopeSpan, traceql.TypeStatus, columnPathSpanStatusCode},
 	traceql.IntrinsicStatusMessage:        {intrinsicScopeSpan, traceql.TypeString, columnPathSpanStatusMessage},
 	traceql.IntrinsicDuration:             {intrinsicScopeSpan, traceql.TypeDuration, columnPathSpanDuration},
@@ -1000,7 +1000,7 @@ var intrinsicColumnLookups = map[traceql.Intrinsic]struct {
 	traceql.IntrinsicTraceID:          {intrinsicScopeTrace, traceql.TypeString, columnPathTraceID},
 	traceql.IntrinsicTraceStartTime:   {intrinsicScopeTrace, traceql.TypeDuration, columnPathStartTimeUnixNano},
 
-	traceql.IntrinsicEventName:           {intrinsicScopeEvent, traceql.TypeString, columnPathEventName},
+	traceql.IntrinsicEventName:           {intrinsicScopeEvent, traceql.TypeString, ColumnPathEventName},
 	traceql.IntrinsicEventTimeSinceStart: {intrinsicScopeEvent, traceql.TypeDuration, columnPathEventTimeSinceStart},
 	traceql.IntrinsicLinkTraceID:         {intrinsicScopeLink, traceql.TypeString, columnPathLinkTraceID},
 	traceql.IntrinsicLinkSpanID:          {intrinsicScopeLink, traceql.TypeString, columnPathLinkSpanID},
@@ -1012,13 +1012,13 @@ var intrinsicColumnLookups = map[traceql.Intrinsic]struct {
 }
 
 // Lookup table of all well-known attributes with dedicated columns
-var wellKnownColumnLookups = map[string]struct {
-	columnPath string                 // path.to.column
+var WellKnownColumnLookups = map[string]struct {
+	ColumnPath string                 // path.to.column
 	level      traceql.AttributeScope // span or resource level
 	typ        traceql.StaticType     // Data type
 }{
 	// Resource-level columns
-	LabelServiceName:      {columnPathResourceServiceName, traceql.AttributeScopeResource, traceql.TypeString},
+	LabelServiceName:      {ColumnPathResourceServiceName, traceql.AttributeScopeResource, traceql.TypeString},
 	LabelCluster:          {columnPathResourceCluster, traceql.AttributeScopeResource, traceql.TypeString},
 	LabelNamespace:        {columnPathResourceNamespace, traceql.AttributeScopeResource, traceql.TypeString},
 	LabelPod:              {columnPathResourcePod, traceql.AttributeScopeResource, traceql.TypeString},
@@ -1732,7 +1732,7 @@ func createEventIterator(makeIter, makeNilIter makeIterFn, conditions []traceql.
 			if err != nil {
 				return nil, err
 			}
-			eventIters = append(eventIters, makeIter(columnPathEventName, pred, columnPathEventName))
+			eventIters = append(eventIters, makeIter(ColumnPathEventName, pred, ColumnPathEventName))
 			continue
 		case traceql.IntrinsicEventTimeSinceStart:
 			pred, err := createIntPredicate(cond.Op, cond.Operands)
@@ -1788,7 +1788,7 @@ func createEventIterator(makeIter, makeNilIter makeIterFn, conditions []traceql.
 	}
 
 	if len(required) == 0 {
-		required = []parquetquery.Iterator{makeIter(columnPathEventName, nil, "")}
+		required = []parquetquery.Iterator{makeIter(ColumnPathEventName, nil, "")}
 	}
 
 	if len(eventIters) == 0 && len(required) == 0 {
@@ -1978,8 +1978,8 @@ func createSpanIterator(makeIter, makeNilIter makeIterFn, innerIterators []parqu
 			if err != nil {
 				return nil, err
 			}
-			addPredicate(columnPathSpanName, pred)
-			columnSelectAs[columnPathSpanName] = columnPathSpanName
+			addPredicate(ColumnPathSpanName, pred)
+			columnSelectAs[ColumnPathSpanName] = ColumnPathSpanName
 			continue
 
 		case traceql.IntrinsicKind:
@@ -2061,8 +2061,8 @@ func createSpanIterator(makeIter, makeNilIter makeIterFn, innerIterators []parqu
 		}
 
 		// Well-known attribute?
-		if entry, ok := wellKnownColumnLookups[cond.Attribute.Name]; ok && entry.level != traceql.AttributeScopeResource {
-			if specialCase(cond, entry.columnPath) {
+		if entry, ok := WellKnownColumnLookups[cond.Attribute.Name]; ok && entry.level != traceql.AttributeScopeResource {
+			if specialCase(cond, entry.ColumnPath) {
 				continue
 			}
 
@@ -2072,8 +2072,8 @@ func createSpanIterator(makeIter, makeNilIter makeIterFn, innerIterators []parqu
 				if err != nil {
 					return nil, fmt.Errorf("creating predicate: %w", err)
 				}
-				addPredicate(entry.columnPath, pred)
-				columnSelectAs[entry.columnPath] = cond.Attribute.Name
+				addPredicate(entry.ColumnPath, pred)
+				columnSelectAs[entry.ColumnPath] = cond.Attribute.Name
 				continue
 			}
 		}
@@ -2110,13 +2110,13 @@ func createSpanIterator(makeIter, makeNilIter makeIterFn, innerIterators []parqu
 
 	// SecondPass SelectAll
 	if selectAll {
-		for wellKnownAttr, entry := range wellKnownColumnLookups {
+		for wellKnownAttr, entry := range WellKnownColumnLookups {
 			if entry.level != traceql.AttributeScopeSpan {
 				continue
 			}
 
-			addPredicate(entry.columnPath, nil)
-			columnSelectAs[entry.columnPath] = wellKnownAttr
+			addPredicate(entry.ColumnPath, nil)
+			columnSelectAs[entry.ColumnPath] = wellKnownAttr
 		}
 
 		for intrins, entry := range intrinsicColumnLookups {
@@ -2333,8 +2333,8 @@ func createResourceIterator(makeIter, makeNilIter makeIterFn, instrumentationIte
 
 	for _, cond := range conditions {
 		// Well-known selector?
-		if entry, ok := wellKnownColumnLookups[cond.Attribute.Name]; ok && entry.level != traceql.AttributeScopeSpan {
-			if specialCase(cond, entry.columnPath) {
+		if entry, ok := WellKnownColumnLookups[cond.Attribute.Name]; ok && entry.level != traceql.AttributeScopeSpan {
+			if specialCase(cond, entry.ColumnPath) {
 				continue
 			}
 
@@ -2344,7 +2344,7 @@ func createResourceIterator(makeIter, makeNilIter makeIterFn, instrumentationIte
 				if err != nil {
 					return nil, fmt.Errorf("creating predicate: %w", err)
 				}
-				iters = append(iters, makeIter(entry.columnPath, pred, cond.Attribute.Name))
+				iters = append(iters, makeIter(entry.ColumnPath, pred, cond.Attribute.Name))
 				continue
 			}
 		}
@@ -2381,13 +2381,13 @@ func createResourceIterator(makeIter, makeNilIter makeIterFn, instrumentationIte
 
 	// SecondPass SelectAll
 	if selectAll {
-		for wellKnownAttr, entry := range wellKnownColumnLookups {
+		for wellKnownAttr, entry := range WellKnownColumnLookups {
 			if entry.level != traceql.AttributeScopeResource {
 				continue
 			}
 
-			addPredicate(entry.columnPath, nil)
-			columnSelectAs[entry.columnPath] = wellKnownAttr
+			addPredicate(entry.ColumnPath, nil)
+			columnSelectAs[entry.ColumnPath] = wellKnownAttr
 		}
 
 		for k, v := range columnMapping.mapping {
@@ -3018,7 +3018,7 @@ func (c *spanCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 			durationNanos = kv.Value.Uint64()
 			sp.durationNanos = durationNanos
 			sp.addSpanAttr(traceql.IntrinsicDurationAttribute, traceql.NewStaticDuration(time.Duration(durationNanos)))
-		case columnPathSpanName:
+		case ColumnPathSpanName:
 			sp.addSpanAttr(traceql.IntrinsicNameAttribute, traceql.NewStaticString(unsafeToString(kv.Value.Bytes())))
 		case columnPathSpanStatusCode:
 			sp.addSpanAttr(traceql.IntrinsicStatusAttribute, traceql.NewStaticStatus(otlpStatusToTraceqlStatus(kv.Value.Uint64())))
@@ -3533,7 +3533,7 @@ func (c *eventCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 
 	for _, e := range res.Entries {
 		switch e.Key {
-		case columnPathEventName:
+		case ColumnPathEventName:
 			ev.attrs = append(ev.attrs, attrVal{
 				a: traceql.IntrinsicEventNameAttribute,
 				s: traceql.NewStaticString(unsafeToString(e.Value.Bytes())),
