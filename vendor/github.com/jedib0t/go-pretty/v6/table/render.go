@@ -380,12 +380,16 @@ func (t *Table) renderRowsBorderTop(out *strings.Builder) {
 
 func (t *Table) renderRowsFooter(out *strings.Builder) {
 	if len(t.rowsFooter) > 0 {
-		t.renderRowSeparator(out, renderHint{
-			isFooterRow:    true,
-			isFirstRow:     true,
-			isSeparatorRow: true,
-			separatorType:  separatorTypeFooterTop,
-		})
+		// Only add separator before footer if there are data rows.
+		// Otherwise, renderRowsHeader already added one.
+		if len(t.rows) > 0 {
+			t.renderRowSeparator(out, renderHint{
+				isFooterRow:    true,
+				isFirstRow:     true,
+				isSeparatorRow: true,
+				separatorType:  separatorTypeFooterTop,
+			})
+		}
 		t.renderRows(out, t.rowsFooter, renderHint{isFooterRow: true})
 	}
 }
@@ -407,8 +411,12 @@ func (t *Table) renderRowsHeader(out *strings.Builder) {
 			hintSeparator.rowNumber = 1
 		}
 
-		hintSeparator.separatorType = separatorTypeHeaderBottom
-		t.renderRowSeparator(out, hintSeparator)
+		// Only add separator after header if there are data rows or footer rows.
+		// Otherwise, the bottom border is rendered directly.
+		if len(t.rows) > 0 || len(t.rowsFooter) > 0 || !t.style.Options.DoNotRenderSeparatorWhenEmpty {
+			hintSeparator.separatorType = separatorTypeHeaderBottom
+			t.renderRowSeparator(out, hintSeparator)
+		}
 	}
 }
 

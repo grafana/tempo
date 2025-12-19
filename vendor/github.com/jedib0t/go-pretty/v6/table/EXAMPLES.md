@@ -311,6 +311,77 @@ to get:
 ---
 
 <details>
+<summary><strong>Filtering</strong></summary>
+
+Filtering can be done on one or more columns. All filters are applied with AND logic (all must match).
+Filters are applied before sorting.
+
+```golang
+    t.FilterBy([]table.FilterBy{
+        {Name: "Salary", Operator: table.GreaterThan, Value: 2000},
+        {Name: "First Name", Operator: table.Contains, Value: "on"},
+    })
+```
+
+The `Operator` field in `FilterBy` supports various filtering operators:
+- `Equal` / `NotEqual` - Exact match
+- `GreaterThan` / `GreaterThanOrEqual` - Numeric comparisons
+- `LessThan` / `LessThanOrEqual` - Numeric comparisons
+- `Contains` / `NotContains` - String search
+- `StartsWith` / `EndsWith` - String prefix/suffix matching
+- `RegexMatch` / `RegexNotMatch` - Regular expression matching
+
+You can make string comparisons case-insensitive by setting `IgnoreCase: true`:
+```golang
+    t.FilterBy([]table.FilterBy{
+        {Name: "First Name", Operator: table.Equal, Value: "JON", IgnoreCase: true},
+    })
+```
+
+For advanced filtering requirements, you can provide a custom filter function:
+```golang
+    t.FilterBy([]table.FilterBy{
+        {
+            Number: 2,
+            CustomFilter: func(cellValue string) bool {
+                // Custom logic: include rows where first name length > 3
+                return len(cellValue) > 3
+            },
+        },
+    })
+```
+
+Example: Filter by salary and name
+```golang
+    t := table.NewWriter()
+    t.AppendHeader(table.Row{"#", "First Name", "Last Name", "Salary"})
+    t.AppendRows([]table.Row{
+        {1, "Arya", "Stark", 3000},
+        {20, "Jon", "Snow", 2000},
+        {300, "Tyrion", "Lannister", 5000},
+        {400, "Sansa", "Stark", 2500},
+    })
+    t.FilterBy([]table.FilterBy{
+        {Number: 4, Operator: table.GreaterThan, Value: 2000},
+        {Number: 3, Operator: table.Contains, Value: "Stark"},
+    })
+    t.Render()
+```
+to get:
+```
++-----+------------+-----------+--------+
+|   # | FIRST NAME | LAST NAME | SALARY |
++-----+------------+-----------+--------+
+|   1 | Arya       | Stark     |   3000 |
+| 400 | Sansa      | Stark     |   2500 |
++-----+------------+-----------+--------+
+```
+
+</details>
+
+---
+
+<details>
 <summary><strong>Sorting</strong></summary>
 
 Sorting can be done on one or more columns. The following code will make the
