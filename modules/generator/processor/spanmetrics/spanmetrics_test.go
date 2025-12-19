@@ -2,6 +2,7 @@ package spanmetrics
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math"
 	"os"
@@ -41,7 +42,8 @@ func TestSpanMetrics(t *testing.T) {
 	cfg.RegisterFlagsAndApplyDefaults("", nil)
 	cfg.HistogramBuckets = []float64{0.5, 1}
 
-	p, err := New(cfg, testRegistry, filteredSpansCounter, invalidUTF8SpanLabelsCounter)
+	p, warn, err := New(cfg, testRegistry, filteredSpansCounter, invalidUTF8SpanLabelsCounter)
+	require.NoError(t, warn)
 	require.NoError(t, err)
 	defer p.Shutdown(context.Background())
 
@@ -81,7 +83,8 @@ func TestSpanMetricsTargetInfoEnabled(t *testing.T) {
 	cfg.EnableTargetInfo = true
 	cfg.TargetInfoExcludedDimensions = []string{"random.res.attr"}
 
-	p, err := New(cfg, testRegistry, filteredSpansCounter, invalidUTF8SpanLabelsCounter)
+	p, warn, err := New(cfg, testRegistry, filteredSpansCounter, invalidUTF8SpanLabelsCounter)
+	require.NoError(t, warn)
 	require.NoError(t, err)
 	defer p.Shutdown(context.Background())
 
@@ -229,7 +232,8 @@ func TestSpanMetrics_dimensions(t *testing.T) {
 			cfg.IntrinsicDimensions.StatusMessage = true
 			cfg.Dimensions = tc.dimensions
 
-			p, err := New(cfg, testRegistry, filteredSpansCounter, invalidUTF8SpanLabelsCounter)
+			p, warn, err := New(cfg, testRegistry, filteredSpansCounter, invalidUTF8SpanLabelsCounter)
+			require.NoError(t, warn)
 			require.NoError(t, err)
 			defer p.Shutdown(context.Background())
 
@@ -274,7 +278,8 @@ func TestSpanMetrics_collisions(t *testing.T) {
 	cfg.Dimensions = []string{"span.kind", "span_name"}
 	cfg.IntrinsicDimensions.SpanKind = false
 
-	p, err := New(cfg, testRegistry, filteredSpansCounter, invalidUTF8SpanLabelsCounter)
+	p, warn, err := New(cfg, testRegistry, filteredSpansCounter, invalidUTF8SpanLabelsCounter)
+	require.NoError(t, warn)
 	require.NoError(t, err)
 	defer p.Shutdown(context.Background())
 
@@ -321,7 +326,8 @@ func TestJobLabelWithNamespaceAndInstanceID(t *testing.T) {
 	cfg.HistogramBuckets = []float64{0.5, 1}
 	cfg.EnableTargetInfo = true
 
-	p, err := New(cfg, testRegistry, filteredSpansCounter, invalidUTF8SpanLabelsCounter)
+	p, warn, err := New(cfg, testRegistry, filteredSpansCounter, invalidUTF8SpanLabelsCounter)
+	require.NoError(t, warn)
 	require.NoError(t, err)
 	defer p.Shutdown(context.Background())
 
@@ -453,7 +459,8 @@ func TestSpanMetrics_applyFilterPolicy(t *testing.T) {
 			cfg.FilterPolicies = tc.filterPolicies
 
 			testRegistry := registry.NewTestRegistry()
-			p, err := New(cfg, testRegistry, filteredSpansCounter, invalidUTF8SpanLabelsCounter)
+			p, warn, err := New(cfg, testRegistry, filteredSpansCounter, invalidUTF8SpanLabelsCounter)
+			require.NoError(t, warn)
 			require.NoError(t, err)
 			defer p.Shutdown(context.Background())
 
@@ -514,7 +521,8 @@ func TestJobLabelWithNamespaceAndNoServiceName(t *testing.T) {
 	cfg.HistogramBuckets = []float64{0.5, 1}
 	cfg.EnableTargetInfo = true
 
-	p, err := New(cfg, testRegistry, filteredSpansCounter, invalidUTF8SpanLabelsCounter)
+	p, warn, err := New(cfg, testRegistry, filteredSpansCounter, invalidUTF8SpanLabelsCounter)
+	require.NoError(t, warn)
 	require.NoError(t, err)
 	defer p.Shutdown(context.Background())
 
@@ -567,7 +575,8 @@ func TestLabelsWithDifferentBatches(t *testing.T) {
 	cfg.HistogramBuckets = []float64{0.5, 1}
 	cfg.EnableTargetInfo = true
 
-	p, err := New(cfg, testRegistry, filteredSpansCounter, invalidUTF8SpanLabelsCounter)
+	p, warn, err := New(cfg, testRegistry, filteredSpansCounter, invalidUTF8SpanLabelsCounter)
+	require.NoError(t, warn)
 	require.NoError(t, err)
 	defer p.Shutdown(context.Background())
 
@@ -646,7 +655,8 @@ func TestTargetInfoEnabled(t *testing.T) {
 	cfg.EnableTargetInfo = true
 	cfg.HistogramBuckets = []float64{0.5, 1}
 
-	p, err := New(cfg, testRegistry, filteredSpansCounter, invalidUTF8SpanLabelsCounter)
+	p, warn, err := New(cfg, testRegistry, filteredSpansCounter, invalidUTF8SpanLabelsCounter)
+	require.NoError(t, warn)
 	require.NoError(t, err)
 	defer p.Shutdown(context.Background())
 
@@ -699,7 +709,8 @@ func TestTargetInfoDisabled(t *testing.T) {
 	cfg.EnableTargetInfo = false
 	cfg.HistogramBuckets = []float64{0.5, 1}
 
-	p, err := New(cfg, testRegistry, filteredSpansCounter, invalidUTF8SpanLabelsCounter)
+	p, warn, err := New(cfg, testRegistry, filteredSpansCounter, invalidUTF8SpanLabelsCounter)
+	require.NoError(t, warn)
 	require.NoError(t, err)
 	defer p.Shutdown(context.Background())
 
@@ -748,7 +759,8 @@ func TestTargetInfoWithEmptyKey(t *testing.T) {
 	cfg.EnableTargetInfo = true
 	cfg.HistogramBuckets = []float64{0.5, 1}
 
-	p, err := New(cfg, testRegistry, filteredSpansCounter, invalidUTF8SpanLabelsCounter)
+	p, warn, err := New(cfg, testRegistry, filteredSpansCounter, invalidUTF8SpanLabelsCounter)
+	require.NoError(t, warn)
 	require.NoError(t, err)
 	defer p.Shutdown(context.Background())
 
@@ -800,7 +812,8 @@ func TestTargetInfoWithExclusion(t *testing.T) {
 	cfg.TargetInfoExcludedDimensions = []string{"container", "container.id"}
 	cfg.HistogramBuckets = []float64{0.5, 1}
 
-	p, err := New(cfg, testRegistry, filteredSpansCounter, invalidUTF8SpanLabelsCounter)
+	p, warn, err := New(cfg, testRegistry, filteredSpansCounter, invalidUTF8SpanLabelsCounter)
+	require.NoError(t, warn)
 	require.NoError(t, err)
 	defer p.Shutdown(context.Background())
 
@@ -864,7 +877,8 @@ func TestTargetInfoSanitizeLabelName(t *testing.T) {
 	cfg.EnableTargetInfo = true
 	cfg.HistogramBuckets = []float64{0.5, 1}
 
-	p, err := New(cfg, testRegistry, filteredSpansCounter, invalidUTF8SpanLabelsCounter)
+	p, warn, err := New(cfg, testRegistry, filteredSpansCounter, invalidUTF8SpanLabelsCounter)
+	require.NoError(t, warn)
 	require.NoError(t, err)
 	defer p.Shutdown(context.Background())
 
@@ -919,7 +933,8 @@ func TestTargetInfoWithJobAndInstanceOnly(t *testing.T) {
 	cfg.HistogramBuckets = []float64{0.5, 1}
 	cfg.EnableTargetInfo = true
 
-	p, err := New(cfg, testRegistry, filteredSpansCounter, invalidUTF8SpanLabelsCounter)
+	p, warn, err := New(cfg, testRegistry, filteredSpansCounter, invalidUTF8SpanLabelsCounter)
+	require.NoError(t, warn)
 	require.NoError(t, err)
 	defer p.Shutdown(context.Background())
 
@@ -960,7 +975,8 @@ func TestTargetInfoNoJobAndNoInstance(t *testing.T) {
 	cfg.RegisterFlagsAndApplyDefaults("", nil)
 	cfg.HistogramBuckets = []float64{0.5, 1}
 
-	p, err := New(cfg, testRegistry, filteredSpansCounter, invalidUTF8SpanLabelsCounter)
+	p, warn, err := New(cfg, testRegistry, filteredSpansCounter, invalidUTF8SpanLabelsCounter)
+	require.NoError(t, warn)
 	require.NoError(t, err)
 	defer p.Shutdown(context.Background())
 
@@ -1009,7 +1025,8 @@ func TestTargetInfoWithDifferentBatches(t *testing.T) {
 	cfg.EnableTargetInfo = true
 	cfg.HistogramBuckets = []float64{0.5, 1}
 
-	p, err := New(cfg, testRegistry, filteredSpansCounter, invalidUTF8SpanLabelsCounter)
+	p, warn, err := New(cfg, testRegistry, filteredSpansCounter, invalidUTF8SpanLabelsCounter)
+	require.NoError(t, warn)
 	require.NoError(t, err)
 	defer p.Shutdown(context.Background())
 
@@ -1100,7 +1117,8 @@ func TestEnableInstanceLabelFalse(t *testing.T) {
 	cfg.Dimensions = []string{"http.method", "foo"}
 	cfg.EnableInstanceLabel = false
 
-	p, err := New(cfg, testRegistry, filteredSpansCounter, invalidUTF8SpanLabelsCounter)
+	p, warn, err := New(cfg, testRegistry, filteredSpansCounter, invalidUTF8SpanLabelsCounter)
+	require.NoError(t, warn)
 	require.NoError(t, err)
 	defer p.Shutdown(context.Background())
 
@@ -1220,7 +1238,8 @@ func TestEnableInstanceLabelUnset(t *testing.T) {
 	cfg.Dimensions = []string{"http.method", "foo"}
 	// cfg.EnableInstanceLabel = true // by default it is true
 
-	p, err := New(cfg, testRegistry, filteredSpansCounter, invalidUTF8SpanLabelsCounter)
+	p, warn, err := New(cfg, testRegistry, filteredSpansCounter, invalidUTF8SpanLabelsCounter)
+	require.NoError(t, warn)
 	require.NoError(t, err)
 	defer p.Shutdown(context.Background())
 
@@ -1371,7 +1390,8 @@ func TestSpanMetricsDimensionMapping(t *testing.T) {
 		},
 	}
 
-	p, err := New(cfg, testRegistry, filteredSpansCounter, invalidUTF8SpanLabelsCounter)
+	p, warn, err := New(cfg, testRegistry, filteredSpansCounter, invalidUTF8SpanLabelsCounter)
+	require.NoError(t, warn)
 	require.NoError(t, err)
 	defer p.Shutdown(context.Background())
 
@@ -1444,7 +1464,8 @@ func TestSpanMetricsDimensionMappingMissingLabels(t *testing.T) {
 		},
 	}
 
-	p, err := New(cfg, testRegistry, filteredSpansCounter, invalidUTF8SpanLabelsCounter)
+	p, warn, err := New(cfg, testRegistry, filteredSpansCounter, invalidUTF8SpanLabelsCounter)
+	require.NoError(t, warn)
 	require.NoError(t, err)
 	defer p.Shutdown(context.Background())
 
@@ -1501,7 +1522,8 @@ func TestSpanMetricsNegativeLatency(t *testing.T) {
 	cfg.RegisterFlagsAndApplyDefaults("", nil)
 	cfg.HistogramBuckets = []float64{0.5, 1}
 
-	p, err := New(cfg, testRegistry, filteredSpansCounter, invalidUTF8SpanLabelsCounter)
+	p, warn, err := New(cfg, testRegistry, filteredSpansCounter, invalidUTF8SpanLabelsCounter)
+	require.NoError(t, warn)
 	require.NoError(t, err)
 	defer p.Shutdown(context.Background())
 
@@ -1634,7 +1656,8 @@ func benchmarkFilterPolicy(b *testing.B, policies []filterconfig.FilterPolicy, b
 	cfg.RegisterFlagsAndApplyDefaults("", nil)
 
 	cfg.FilterPolicies = policies
-	p, err := New(cfg, testRegistry, filteredSpansCounter, invalidUTF8SpanLabelsCounter)
+	p, warn, err := New(cfg, testRegistry, filteredSpansCounter, invalidUTF8SpanLabelsCounter)
+	require.NoError(b, warn)
 	require.NoError(b, err)
 	defer p.Shutdown(context.Background())
 	b.ResetTimer()
@@ -1653,7 +1676,8 @@ func TestTargetInfoSkipsLabelsStartingWithNumber(t *testing.T) {
 	cfg.EnableTargetInfo = true
 	cfg.HistogramBuckets = []float64{0.5, 1}
 
-	p, err := New(cfg, testRegistry, filteredSpansCounter, invalidUTF8SpanLabelsCounter)
+	p, warn, err := New(cfg, testRegistry, filteredSpansCounter, invalidUTF8SpanLabelsCounter)
+	require.NoError(t, warn)
 	require.NoError(t, err)
 	defer p.Shutdown(context.Background())
 
@@ -1681,4 +1705,69 @@ func TestTargetInfoSkipsLabelsStartingWithNumber(t *testing.T) {
 	})
 
 	assert.Equal(t, 1.0, testRegistry.Query("traces_target_info", lbls))
+}
+
+func TestValidationWarnings(t *testing.T) {
+	testCases := []struct {
+		name    string
+		cfg     Config
+		expWarn error
+		expErr  error
+	}{
+		{
+			name: "default ok",
+			cfg: func() Config {
+				cfg := Config{}
+				cfg.RegisterFlagsAndApplyDefaults("", nil)
+				return cfg
+			}(),
+			expWarn: nil,
+			expErr:  nil,
+		},
+		{
+			name: "dimension collision 1",
+			cfg: func() Config {
+				cfg := Config{}
+				cfg.RegisterFlagsAndApplyDefaults("", nil)
+				cfg.Dimensions = []string{"foo_bar", "foo.bar"}
+				return cfg
+			}(),
+			expWarn: errors.New(`dimension "foo.bar" produces label "foo_bar" which collides with dimension "foo_bar"`),
+			expErr:  nil,
+		},
+		{
+			name: "dimension collision after remapping",
+			cfg: func() Config {
+				cfg := Config{}
+				cfg.RegisterFlagsAndApplyDefaults("", nil)
+				cfg.Dimensions = []string{"foo_bar"}
+				cfg.DimensionMappings = []sharedconfig.DimensionMappings{
+					{
+						Name:        "foo_bar",
+						SourceLabel: []string{"foo.bar"},
+					},
+				}
+				return cfg
+			}(),
+			expWarn: errors.New(`dimension_mapping "foo_bar" produces label "foo_bar" which collides with dimension "foo_bar"`),
+			expErr:  nil,
+		},
+	}
+
+	var (
+		testRegistry                 = registry.NewTestRegistry()
+		filteredSpansCounter         = metricSpansDiscarded.WithLabelValues("test-tenant", "filtered", "span-metrics")
+		invalidUTF8SpanLabelsCounter = metricSpansDiscarded.WithLabelValues("test-tenant", "invalid_utf8", "span-metrics")
+	)
+
+	for _, tc := range testCases {
+		p, warn, err := New(tc.cfg, testRegistry, filteredSpansCounter, invalidUTF8SpanLabelsCounter)
+		defer func() {
+			if p != nil {
+				p.Shutdown(t.Context())
+			}
+		}()
+		require.Equal(t, tc.expWarn, warn)
+		require.Equal(t, tc.expErr, err)
+	}
 }

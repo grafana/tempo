@@ -1,7 +1,7 @@
 ## main / unreleased
 
 * [CHANGE] Allow to configure WAL for livestore [#6093](https://github.com/grafana/tempo/pull/6093) (@javiermolinar)
-* [CHANGE] Add stricter validation to user-configurable overrides API, such as refusing duplicate labels [#6008](https://github.com/grafana/tempo/pull/6008) (@carles-grafana)
+* [CHANGE] Add stricter validation to user-configurable overrides API, such as refusing duplicate labels [#6008](https://github.com/grafana/tempo/pull/6008) [#6104](https://github.com/grafana/tempo/pull/6104) (@carles-grafana, @mdisibio)
 * [CHANGE] Expose metrics_generator.dimension_mappings to user-configurable overrides API [#5989](https://github.com/grafana/tempo/pull/5989) (@carles-grafana)
 * [CHANGE] Expose metrics_generator.intrinsic_dimensions to user-configurable overrides API [#5974](https://github.com/grafana/tempo/pull/5974) (@carles-grafana)
 * [CHANGE] TraceQL: Move minInt/maxInt handling into the parser and remove redundant lexer logic. (#5982)
