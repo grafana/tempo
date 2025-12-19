@@ -40,6 +40,10 @@ const (
 	OpSpansetUnionSibling
 	OpSpansetUnionAncestor
 	OpSpansetUnionDescendant
+	OpSpansetLinkTo
+	OpSpansetLinkFrom
+	OpSpansetUnionLinkTo
+	OpSpansetUnionLinkFrom
 	OpExists // OpNotExists is not parseable directly in the grammar. span.foo != nil and nil != span.foo are rewritten to something like exists(span.foo). this distinguishes it from when span.foo is nil in an expression like span.foo != "bar"
 	OpNotExists
 )
@@ -193,6 +197,14 @@ func (op Operator) String() string {
 		return "&<<"
 	case OpSpansetUnionDescendant:
 		return "&>>"
+	case OpSpansetLinkTo:
+		return "->>"
+	case OpSpansetLinkFrom:
+		return "<<-"
+	case OpSpansetUnionLinkTo:
+		return "&->>"
+	case OpSpansetUnionLinkFrom:
+		return "&<<-"
 	}
 
 	return fmt.Sprintf("operator(%d)", op)
