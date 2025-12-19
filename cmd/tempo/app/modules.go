@@ -438,9 +438,9 @@ func (t *App) initBlockBuilder() (services.Service, error) {
 	t.cfg.BlockBuilder.IngestStorageConfig = t.cfg.Ingest
 	t.cfg.BlockBuilder.IngestStorageConfig.Kafka.ConsumerGroup = blockbuilder.ConsumerGroup
 
-	if IsSingleBinary(t.cfg.Target) && len(t.cfg.BlockBuilder.AssignedPartitions) == 0 {
+	if IsSingleBinary(t.cfg.Target) && len(t.cfg.BlockBuilder.AssignedPartitionsMap) == 0 {
 		// In SingleBinary mode always use partition 0. This is for small installs or local/debugging setups.
-		t.cfg.BlockBuilder.AssignedPartitions = map[string][]int32{t.cfg.BlockBuilder.InstanceID: {0}}
+		t.cfg.BlockBuilder.AssignedPartitionsMap = map[string][]int32{t.cfg.BlockBuilder.InstanceID: {0}}
 	}
 
 	bb, err := blockbuilder.New(t.cfg.BlockBuilder, log.Logger, t.partitionRing, t.Overrides, t.store)

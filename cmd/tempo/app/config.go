@@ -258,6 +258,10 @@ func (c *Config) CheckConfig() []ConfigWarning {
 		warnings = append(warnings, warnBackendSchedulerPruneAgeLessThanBlocklistPoll)
 	}
 
+	if len(c.BlockBuilder.AssignedPartitionsMap) > 0 && c.BlockBuilder.PartitionsPerInstance > 0 {
+		warnings = append(warnings, warnPartitionAssigmentCollision)
+	}
+
 	return warnings
 }
 
@@ -333,6 +337,11 @@ var (
 	warnBackendSchedulerPruneAgeLessThanBlocklistPoll = ConfigWarning{
 		Message: "c.BackendScheduler.Work.PruneAge must be greater than 2x the storage.trace.blocklist_poll duration",
 		Explain: "The backend scheduler needs not to prune work faster than the block list poll duration to avoid losing track of blocks which may have been have been compacted, but whose status has not been rediscovered during polling.",
+	}
+
+	warnPartitionAssigmentCollision = ConfigWarning{
+		Message: "Block-builder partition assigment is configured by c.BlockBuilder.PartitionAssigment and c.BlockBuilder.PartitionsPerInstance",
+		Explain: "When both parameters are used c.BlockBuilder.PartitionAssigment takes precedence over c.BlockBuilder.PartitionsPerInstance",
 	}
 )
 
