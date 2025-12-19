@@ -8,7 +8,6 @@ import (
 
 	"github.com/grafana/dskit/user"
 	jaeger "github.com/jaegertracing/jaeger-idl/thrift-gen/jaeger"
-	zipkincore "github.com/jaegertracing/jaeger-idl/thrift-gen/zipkincore"
 	jaegerTrans "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/jaeger"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
@@ -40,7 +39,6 @@ type TraceInfo struct {
 // JaegerClient is an interface used to mock the underlying client in tests.
 type JaegerClient interface {
 	EmitBatch(ctx context.Context, b *jaeger.Batch) error
-	EmitZipkinBatch(ctx context.Context, zSpans []*zipkincore.Span) error
 }
 
 // NewTraceInfo is used to produce a new TraceInfo.
@@ -55,6 +53,17 @@ func NewTraceInfo(timestamp time.Time, tempoOrgID string) *TraceInfo {
 		longWritesRemaining: r.Int63n(maxLongWritesPerTrace),
 		tempoOrgID:          tempoOrgID,
 	}
+}
+
+// NewTraceInfos creates multiple trace infos with slightly different timestamps to ensure
+// different trace seeds are used.
+func NewTraceInfos(timestamp time.Time, count int, tempoOrgID string) []*TraceInfo {
+	infos := make([]*TraceInfo, 0, count)
+	for i := 0; i < count; i++ {
+		ts := timestamp.Add(time.Duration(i) * time.Nanosecond)
+		infos = append(infos, NewTraceInfo(ts, tempoOrgID))
+	}
+	return infos
 }
 
 func NewTraceInfoWithMaxLongWrites(timestamp time.Time, maxLongWrites int64, tempoOrgID string) *TraceInfo {
@@ -384,5 +393,5 @@ func randFrom[T any](r *rand.Rand, s []T) T {
 }
 
 func newRand(t time.Time) *rand.Rand {
-	return rand.New(rand.NewSource(t.Unix()))
+	return rand.New(rand.NewSource(t.UnixNano())) // nolint:gosec // G404: Use of weak random number generator
 }

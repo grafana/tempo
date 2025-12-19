@@ -20,7 +20,7 @@ type querySearchTagValuesCmd struct {
 	Start    string `arg:"" optional:"" help:"start time in ISO8601 format"`
 	End      string `arg:"" optional:"" help:"end time in ISO8601 format"`
 
-	Query      string `help:"TraceQL query to filter attribute results by (supported by GRPC only)"`
+	Query      string `help:"TraceQL query to filter attribute results by"`
 	OrgID      string `help:"optional orgID"`
 	UseGRPC    bool   `help:"stream search results over GRPC"`
 	PathPrefix string `help:"string to prefix all http paths with"`
@@ -62,9 +62,9 @@ func (cmd *querySearchTagValuesCmd) searchHTTP(start, end int64) error {
 	var tags *tempopb.SearchTagValuesV2Response
 	var err error
 	if start != 0 || end != 0 {
-		tags, err = client.SearchTagValuesV2WithRange(cmd.Tag, start, end)
+		tags, err = client.SearchTagValuesV2WithRange(cmd.Tag, cmd.Query, start, end)
 	} else {
-		tags, err = client.SearchTagValuesV2(cmd.Tag, "")
+		tags, err = client.SearchTagValuesV2(cmd.Tag, cmd.Query)
 	}
 
 	if err != nil {

@@ -8,7 +8,6 @@ import (
 
 	userconfigurableoverrides "github.com/grafana/tempo/modules/overrides/userconfigurable/client"
 	thrift "github.com/jaegertracing/jaeger-idl/thrift-gen/jaeger"
-	"github.com/jaegertracing/jaeger-idl/thrift-gen/zipkincore"
 
 	"github.com/grafana/tempo/pkg/tempopb"
 )
@@ -18,10 +17,6 @@ type MockReporter struct {
 	batchesEmitted []*thrift.Batch
 	// We need the lock to control concurrent accesses to batchesEmitted
 	m sync.Mutex
-}
-
-func (r *MockReporter) EmitZipkinBatch(_ context.Context, _ []*zipkincore.Span) error {
-	return r.err
 }
 
 func (r *MockReporter) EmitBatch(_ context.Context, b *thrift.Batch) error {
@@ -41,20 +36,22 @@ func (r *MockReporter) GetEmittedBatches() []*thrift.Batch {
 }
 
 type MockHTTPClient struct {
-	err            error
-	resp           http.Response
-	traceResp      *tempopb.Trace
-	requestsCount  int
-	searchResponse []*tempopb.TraceSearchMetadata
-	searchesCount  int
-	metricsResp    *tempopb.QueryRangeResponse
-	metricsCount   int
+	err                 error
+	resp                http.Response
+	traceResp           *tempopb.Trace
+	requestsCount       int
+	searchResponse      []*tempopb.TraceSearchMetadata
+	searchesCount       int
+	metricsResp         *tempopb.QueryRangeResponse
+	metricsCount        int
+	metricsInstantResp  *tempopb.QueryInstantResponse
+	metricsInstantCount int
 	// We need the lock to control concurrent accesses to shared variables in the tests
 	m sync.Mutex
 }
 
 //nolint:all
-func (m *MockHTTPClient) DeleteOverrides(version string) error {
+func (m *MockHTTPClient) DeleteOverrides(_ string) error {
 	panic("unimplemented")
 }
 
@@ -69,12 +66,12 @@ func (m *MockHTTPClient) GetOverrides() (*userconfigurableoverrides.Limits, stri
 }
 
 //nolint:all
-func (m *MockHTTPClient) MetricsSummary(query string, groupBy string, start int64, end int64) (*tempopb.SpanMetricsSummaryResponse, error) {
+func (m *MockHTTPClient) MetricsSummary(_ string, _ string, _ int64, _ int64) (*tempopb.SpanMetricsSummaryResponse, error) {
 	panic("unimplemented")
 }
 
 //nolint:all
-func (m *MockHTTPClient) MetricsQueryRange(query string, start, end int, step string, exemplars int) (*tempopb.QueryRangeResponse, error) {
+func (m *MockHTTPClient) MetricsQueryRange(_ string, _, _ int64, _ string, _ int) (*tempopb.QueryRangeResponse, error) {
 	if m.err != nil {
 		return nil, m.err
 	}
@@ -85,12 +82,23 @@ func (m *MockHTTPClient) MetricsQueryRange(query string, start, end int, step st
 }
 
 //nolint:all
-func (m *MockHTTPClient) PatchOverrides(limits *userconfigurableoverrides.Limits) (*userconfigurableoverrides.Limits, string, error) {
+func (m *MockHTTPClient) MetricsQueryInstant(_ string, _, _ int64, _ int) (*tempopb.QueryInstantResponse, error) {
+	if m.err != nil {
+		return nil, m.err
+	}
+	m.m.Lock()
+	defer m.m.Unlock()
+	m.metricsInstantCount++
+	return m.metricsInstantResp, nil
+}
+
+//nolint:all
+func (m *MockHTTPClient) PatchOverrides(_ *userconfigurableoverrides.Limits) (*userconfigurableoverrides.Limits, string, error) {
 	panic("unimplemented")
 }
 
 //nolint:all
-func (m *MockHTTPClient) QueryTrace(id string) (*tempopb.Trace, error) {
+func (m *MockHTTPClient) QueryTrace(_ string) (*tempopb.Trace, error) {
 	if m.err != nil {
 		return nil, m.err
 	}
@@ -133,7 +141,7 @@ func (m *MockHTTPClient) SearchTagValuesV2(key string, query string) (*tempopb.S
 }
 
 //nolint:all
-func (m *MockHTTPClient) SearchTagValuesV2WithRange(tag string, start int64, end int64) (*tempopb.SearchTagValuesV2Response, error) {
+func (m *MockHTTPClient) SearchTagValuesV2WithRange(tag, query string, start int64, end int64) (*tempopb.SearchTagValuesV2Response, error) {
 	panic("unimplemented")
 }
 
@@ -148,7 +156,7 @@ func (m *MockHTTPClient) SearchTagsV2() (*tempopb.SearchTagsV2Response, error) {
 }
 
 //nolint:all
-func (m *MockHTTPClient) SearchTagsV2WithRange(start int64, end int64) (*tempopb.SearchTagsV2Response, error) {
+func (m *MockHTTPClient) SearchTagsV2WithRange(scope, query string, start int64, end int64) (*tempopb.SearchTagsV2Response, error) {
 	panic("unimplemented")
 }
 

@@ -1,0 +1,7 @@
+metrics_generator:
+  processor:
+    service_graphs:
+      histogram_buckets: [1, 2]  # seconds
+      enable_messaging_system_latency_histogram: true
+    span_metrics:
+      histogram_buckets: [1, 2]

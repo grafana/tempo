@@ -57,6 +57,9 @@ linters:
           - gosec
           - forbidigo
         path: (.+)_test\.go
+      - linters:
+          - revive
+        text: 'var-naming: avoid meaningless package names'
     paths:
       - third_party$
       - builtin$

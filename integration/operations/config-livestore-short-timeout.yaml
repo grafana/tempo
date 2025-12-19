@@ -1,0 +1,2 @@
+live_store:
+  complete_block_timeout: 1s
