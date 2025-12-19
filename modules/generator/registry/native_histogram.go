@@ -244,6 +244,11 @@ func (h *nativeHistogram) collectMetrics(appender storage.Appender, timeMs int64
 				return nativeErr
 			}
 		}
+
+		// Mark the series as seen after all histogram types have been emitted.
+		if s.isNew() {
+			s.registerSeenSeries()
+		}
 	}
 
 	return nil
@@ -316,6 +321,20 @@ func (h *nativeHistogram) activeSeriesPerHistogramSerie() uint32 {
 }
 
 func (h *nativeHistogram) nativeHistograms(appender storage.Appender, lbls labels.Labels, timeMs int64, s *nativeHistogramSeries) (err error) {
+	// If this is a new series, append a zero histogram at the end of the last minute.
+	// This avoids Prometheus throwing away the first value when a metric is aged out
+	// and recreated (the transition from null -> x).
+	if s.isNew() {
+		endOfLastMinuteMs := getEndOfLastMinuteMs(timeMs)
+		zeroHist := &promhistogram.Histogram{
+			Schema: s.histogram.GetSchema(),
+		}
+		_, err := appender.AppendHistogram(0, lbls, endOfLastMinuteMs, zeroHist, nil)
+		if err != nil && !isOutOfOrderError(err) {
+			return err
+		}
+	}
+
 	// Decode to Prometheus representation
 	hist := promhistogram.Histogram{
 		Schema:        s.histogram.GetSchema(),
@@ -482,10 +501,6 @@ func (h *nativeHistogram) classicHistograms(appender storage.Appender, timeMs in
 
 	// drop "le" label again
 	s.lb.Del(labels.BucketLabel)
-
-	if s.isNew() {
-		s.registerSeenSeries()
-	}
 
 	return nil
 }
