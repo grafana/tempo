@@ -1,5 +1,10 @@
 distributor:
   retry_after_on_resource_exhausted: 1s
+  receivers:
+    otlp:
+      protocols:
+        http:
+          endpoint: "0.0.0.0:4318"
 
 overrides:
   defaults:
