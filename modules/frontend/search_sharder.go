@@ -1,12 +1,17 @@
 package frontend
 
 import (
+	"bytes"
 	"context"
 	"fmt"
+	"io"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/go-kit/log" //nolint:all deprecated
+	"github.com/go-kit/log/level"
+	"github.com/gogo/protobuf/jsonpb"
 	"github.com/segmentio/fasthash/fnv1a"
 
 	"github.com/grafana/tempo/modules/frontend/combiner"
@@ -107,6 +112,20 @@ func (s asyncSearchSharder) RoundTrip(pipelineRequest pipeline.Request) (pipelin
 	// If MaxSpansPerSpanSet is non-zero, enforce the limit
 	if s.cfg.MaxSpansPerSpanSet != 0 && searchReq.SpansPerSpanSet > s.cfg.MaxSpansPerSpanSet {
 		return pipeline.NewBadRequest(fmt.Errorf("spans per span set exceeds %d. received %d", s.cfg.MaxSpansPerSpanSet, searchReq.SpansPerSpanSet)), nil
+	}
+
+	// Check if query has cross-trace link traversal
+	rootExpr, err := traceql.Parse(searchReq.Query)
+	level.Info(s.logger).Log("msg", "parsed query", "query", searchReq.Query, "parseErr", err, "hasLinkTraversal", err == nil && rootExpr != nil && rootExpr.HasLinkTraversal())
+	if err == nil && rootExpr.HasLinkTraversal() {
+		maxSpanIDsPerQuery := s.overrides.MaxSpanIDsPerLinkQuery(tenantID)
+		if maxSpanIDsPerQuery <= 0 {
+			// If not configured, use the query limit as the max span IDs per phase
+			maxSpanIDsPerQuery = int(searchReq.Limit)
+		}
+		level.Info(s.logger).Log("msg", "using cross-trace link traversal", "maxSpanIDsPerQuery", maxSpanIDsPerQuery, "query", searchReq.Query)
+		// Use cross-trace execution path (BACKEND BLOCKS ONLY)
+		return s.crossTraceRoundTrip(ctx, pipelineRequest, searchReq, rootExpr, maxSpanIDsPerQuery, tenantID)
 	}
 
 	// buffer of shards+1 allows us to insert ingestReq and metrics
@@ -481,4 +500,1036 @@ func backendJobsFunc(blocks []*backend.BlockMeta, targetBytesPerRequest int, max
 			shardIterCallback(jobsInShard, bytesInShard, 1) // final shard can cover all time. we don't need to be precise
 		}
 	}
+}
+
+// crossTraceRoundTrip handles queries with link traversal operators
+// This implementation executes multi-phase queries by:
+// 1. Starting with the terminal query (no link filter)
+// 2. Extracting span IDs from results
+// 3. Using those span IDs to query the next phase with link:spanID filters
+// 4. Repeating until all phases are complete
+// 5. Streaming all results back to the caller
+func (s *asyncSearchSharder) crossTraceRoundTrip(
+	ctx context.Context,
+	pipelineRequest pipeline.Request,
+	searchReq *tempopb.SearchRequest,
+	rootExpr *traceql.RootExpr,
+	maxSpanIDs int,
+	tenantID string,
+) (pipeline.Responses[combiner.PipelineResponse], error) {
+	// Extract link chain in execution order (terminal first)
+	linkChain := rootExpr.ExtractLinkChain()
+
+	if len(linkChain) == 0 {
+		return pipeline.NewBadRequest(fmt.Errorf("no link operations found in query")), nil
+	}
+
+	level.Info(s.logger).Log(
+		"msg", "cross-trace link traversal detected",
+		"phases", len(linkChain),
+		"maxSpanIDsPerPhase", maxSpanIDs,
+	)
+
+	// Create a copy of searchReq with no limit for phase execution
+	// This ensures we collect all traces in the chain, not just the first N
+	// The combiner will handle limiting the final result
+	unlimitedReq := &tempopb.SearchRequest{
+		Query:           searchReq.Query,
+		Limit:           0, // No limit during phases to get complete chains
+		Start:           searchReq.Start,
+		End:             searchReq.End,
+		SpansPerSpanSet: searchReq.SpansPerSpanSet,
+		RF1After:        searchReq.RF1After,
+	}
+
+	// Execute all phases sequentially and return combined results
+	// We need to execute phases sequentially since each phase depends on the previous one's results
+
+	// Start with the terminal phase (first in execution order)
+	terminal := linkChain[0]
+	terminalQuery := buildQueryFromExpression(terminal.Conditions)
+
+	level.Info(s.logger).Log(
+		"msg", "executing terminal phase",
+		"phase", 0,
+		"query", terminalQuery,
+	)
+
+	// Execute terminal phase and collect span IDs
+	terminalResp, terminalTraces, spanIDs, err := s.executePhaseAndExtractSpanIDs(ctx, pipelineRequest, terminalQuery, unlimitedReq, tenantID)
+	if err != nil {
+		return pipeline.NewBadRequest(fmt.Errorf("terminal phase failed: %w", err)), nil
+	}
+
+	level.Info(s.logger).Log(
+		"msg", "terminal phase complete",
+		"spanIDsFound", len(spanIDs),
+		"tracesFound", len(terminalTraces),
+	)
+
+	// If there's only one phase, return terminal results
+	if len(linkChain) == 1 {
+		return terminalResp, nil
+	}
+
+	// If no span IDs found in terminal phase, return empty
+	if len(spanIDs) == 0 {
+		return pipeline.NewAsyncResponse(nil), nil
+	}
+
+	// Execute all remaining phases to validate complete chain exists
+	// We need to execute ALL phases before returning results to ensure
+	// we only return traces that are part of COMPLETE chains
+	allTracesByPhase := [][]*tempopb.TraceSearchMetadata{terminalTraces}
+	allSpanIDsByPhase := [][]string{spanIDs} // Track span IDs from each phase
+
+	for i := 1; i < len(linkChain); i++ {
+		phase := linkChain[i]
+
+		// Build query with link:spanID filter
+		phaseQuery := buildLinkFilterQuery(phase.Conditions, spanIDs, maxSpanIDs)
+
+		// Expand time range for non-terminal phases
+		// Linked spans may start after the terminal span, so we need a wider window
+		phaseReq := s.expandTimeRangeForPhase(unlimitedReq, i, len(linkChain))
+
+		level.Info(s.logger).Log(
+			"msg", "executing link phase",
+			"phase", i,
+			"query", phaseQuery,
+			"inputSpanIDs", len(spanIDs),
+			"timeRange", fmt.Sprintf("%d-%d", phaseReq.Start, phaseReq.End),
+		)
+
+		// Execute this phase and collect both results and span IDs
+		_, phaseTraces, nextSpanIDs, err := s.executePhaseAndExtractSpanIDs(ctx, pipelineRequest, phaseQuery, phaseReq, tenantID)
+		if err != nil {
+			return pipeline.NewBadRequest(fmt.Errorf("phase %d failed: %w", i, err)), nil
+		}
+
+		level.Info(s.logger).Log(
+			"msg", "link phase complete",
+			"phase", i,
+			"spanIDsFound", len(nextSpanIDs),
+			"tracesFound", len(phaseTraces),
+		)
+
+		// If any phase returns no results, the chain is incomplete
+		// Return empty results (no partial chains)
+		if len(nextSpanIDs) == 0 {
+			level.Info(s.logger).Log("msg", "incomplete link chain, returning empty results", "phase", i)
+			return pipeline.NewAsyncResponse(nil), nil
+		}
+
+		// Collect this phase's results and span IDs
+		allTracesByPhase = append(allTracesByPhase, phaseTraces)
+		allSpanIDsByPhase = append(allSpanIDsByPhase, nextSpanIDs)
+		spanIDs = nextSpanIDs
+	}
+
+	// All phases completed successfully with results
+	// Filter for complete chains and return
+	level.Info(s.logger).Log("msg", "complete link chain found, filtering for complete chains", "totalPhases", len(allTracesByPhase))
+	return s.filterCompleteChains(ctx, allTracesByPhase, allSpanIDsByPhase, linkChain), nil
+}
+
+// expandTimeRangeForPhase expands the time range for non-terminal phases to capture
+// linked spans that may start after the initiating span
+func (s *asyncSearchSharder) expandTimeRangeForPhase(
+	baseReq *tempopb.SearchRequest,
+	phaseIndex int,
+	totalPhases int,
+) *tempopb.SearchRequest {
+	if phaseIndex == 0 {
+		// Terminal phase uses original time range
+		return baseReq
+	}
+
+	// For subsequent phases, expand the time window to account for:
+	// 1. Linked spans may start/end outside the original query window
+	// 2. Async operations may have significant delays
+	// 3. Each subsequent phase may be further delayed
+
+	originalDuration := uint64(baseReq.End - baseReq.Start)
+
+	// Expand the end time based on phase depth
+	// Each phase gets progressively more buffer since spans further in the chain
+	// may be increasingly delayed from the terminal span
+	expansionFactor := uint64(phaseIndex) // Phases 1, 2, 3... get 1x, 2x, 3x expansion
+	expandedEnd := baseReq.End + uint32(originalDuration*expansionFactor)
+
+	// Also consider expanding start time backwards for ->> (forward link) traversal
+	// where earlier spans may have started before the terminal
+	expandedStart := baseReq.Start
+	if originalDuration > 60 { // Only expand start for longer queries (>60s)
+		expandedStart = baseReq.Start - uint32(originalDuration*expansionFactor/2)
+	}
+
+	return &tempopb.SearchRequest{
+		Query:           baseReq.Query,
+		Limit:           baseReq.Limit,
+		Start:           expandedStart,
+		End:             expandedEnd,
+		SpansPerSpanSet: baseReq.SpansPerSpanSet,
+		RF1After:        baseReq.RF1After,
+	}
+}
+
+// filterCompleteChains ensures only traces with complete link chains are returned
+// It validates that for each trace, all linked traces exist in the result set
+func (s *asyncSearchSharder) filterCompleteChains(
+	ctx context.Context,
+	tracesByPhase [][]*tempopb.TraceSearchMetadata,
+	spanIDsByPhase [][]string,
+	linkChain []*traceql.LinkOperationInfo,
+) pipeline.Responses[combiner.PipelineResponse] {
+	// Build span ID mappings and index traces by span ID
+	spanIDToTrace := make(map[string]*tempopb.TraceSearchMetadata)
+	allTraces := make([]*tempopb.TraceSearchMetadata, 0)
+
+	// Index traces by their span IDs
+	for _, phaseTraces := range tracesByPhase {
+		for _, trace := range phaseTraces {
+			allTraces = append(allTraces, trace)
+
+			// Index each span in the trace
+			for _, spanSet := range trace.SpanSets {
+				for _, span := range spanSet.Spans {
+					if span.SpanID != "" {
+						spanIDToTrace[span.SpanID] = trace
+					}
+				}
+			}
+			if trace.SpanSet != nil {
+				for _, span := range trace.SpanSet.Spans {
+					if span.SpanID != "" {
+						spanIDToTrace[span.SpanID] = trace
+					}
+				}
+			}
+		}
+	}
+
+	// Convert spanIDsByPhase to sets for quick lookup
+	validSpanIDsByPhase := make([]map[string]struct{}, len(spanIDsByPhase))
+	for i, ids := range spanIDsByPhase {
+		validSpanIDsByPhase[i] = make(map[string]struct{})
+		for _, id := range ids {
+			validSpanIDsByPhase[i][id] = struct{}{}
+		}
+	}
+
+	// Now filter traces to only include complete chains
+	// Identify all (traceID, phaseIdx) pairs that are part of a complete chain
+	type phaseKey struct {
+		traceID string
+		phase   int
+	}
+	completePhaseTraces := make(map[phaseKey]*tempopb.TraceSearchMetadata)
+	completeTraceIDs := make(map[string]struct{})
+
+	for phaseIdx, phaseTraces := range tracesByPhase {
+		for _, trace := range phaseTraces {
+			if s.isCompleteChain(trace, phaseIdx, validSpanIDsByPhase, spanIDToTrace) {
+				key := phaseKey{trace.TraceID, phaseIdx}
+				completePhaseTraces[key] = trace
+				completeTraceIDs[trace.TraceID] = struct{}{}
+			}
+		}
+	}
+
+	// Determine which phases are included in the final result based on union operators
+	includedPhases := s.getIncludedPhases(linkChain)
+
+	// Merge spans for complete traces from included phases
+	mergedTraces := make(map[string]*tempopb.TraceSearchMetadata)
+	for traceID := range completeTraceIDs {
+		var mergedTrace *tempopb.TraceSearchMetadata
+
+		for phaseIdx := 0; phaseIdx < len(tracesByPhase); phaseIdx++ {
+			if _, isIncluded := includedPhases[phaseIdx]; !isIncluded {
+				continue
+			}
+
+			key := phaseKey{traceID, phaseIdx}
+			if trace, ok := completePhaseTraces[key]; ok {
+				if mergedTrace == nil {
+					// Initialize merged trace with metadata from this trace
+					mergedTrace = &tempopb.TraceSearchMetadata{
+						TraceID:           trace.TraceID,
+						RootServiceName:   trace.RootServiceName,
+						RootTraceName:     trace.RootTraceName,
+						StartTimeUnixNano: trace.StartTimeUnixNano,
+						DurationMs:        trace.DurationMs,
+					}
+				}
+
+				// Merge spans from this phase version of the trace
+				mergedTrace.SpanSets = append(mergedTrace.SpanSets, trace.SpanSets...)
+				if trace.SpanSet != nil {
+					if mergedTrace.SpanSet == nil {
+						mergedTrace.SpanSet = &tempopb.SpanSet{}
+					}
+					mergedTrace.SpanSet.Spans = append(mergedTrace.SpanSet.Spans, trace.SpanSet.Spans...)
+				}
+			}
+		}
+
+		if mergedTrace != nil {
+			mergedTraces[traceID] = mergedTrace
+		}
+	}
+
+	completeTraces := make([]*tempopb.TraceSearchMetadata, 0, len(mergedTraces))
+	for _, mergedTrace := range mergedTraces {
+		// Deduplicate spans within each trace
+		s.deduplicateSpansInTrace(mergedTrace)
+		completeTraces = append(completeTraces, mergedTrace)
+	}
+
+	level.Info(s.logger).Log(
+		"msg", "filtered for complete chains",
+		"totalTraces", len(allTraces),
+		"completeChainTraces", len(completeTraces),
+	)
+
+	// Convert filtered traces back to responses
+	return s.tracesToResponses(ctx, completeTraces)
+}
+
+// getIncludedPhases determines which phases should be included in the final output
+// based on the presence of union operators (&->>, &<<-) in the chain.
+func (s *asyncSearchSharder) getIncludedPhases(linkChain []*traceql.LinkOperationInfo) map[int]struct{} {
+	included := make(map[int]struct{})
+	included[0] = struct{}{} // Terminal phase (Phase 0) is always included
+
+	if len(linkChain) < 2 {
+		return included
+	}
+
+	// Determine if the chain was reversed (LinkTo ->>)
+	isReversed := linkChain[0].IsLinkTo
+
+	// In a chain of N phases, there are N-1 links.
+	// For ->> (reversed):
+	// Link 0 (Phase 0-1) is at linkChain[0]
+	// Link 1 (Phase 1-2) is at linkChain[1]
+	// ...
+	// For <<- (not reversed):
+	// Link 0 (Phase 0-1) is at linkChain[1]
+	// Link 1 (Phase 1-2) is at linkChain[2]
+	// ...
+
+	for i := 1; i < len(linkChain); i++ {
+		isUnion := false
+		if isReversed {
+			isUnion = linkChain[i-1].IsUnion
+		} else {
+			isUnion = linkChain[i].IsUnion
+		}
+
+		// A phase is included if its predecessor was included AND the link is a union
+		if _, ok := included[i-1]; ok && isUnion {
+			included[i] = struct{}{}
+		} else {
+			// Once a link is not a union, subsequent phases in that direction are not included
+			// (unless reached by another path, but this is a linear chain)
+			break
+		}
+	}
+
+	return included
+}
+
+// isCompleteChain checks if a trace is part of a complete link chain
+func (s *asyncSearchSharder) isCompleteChain(
+	trace *tempopb.TraceSearchMetadata,
+	tracePhase int,
+	validSpanIDsByPhase []map[string]struct{},
+	spanIDToTrace map[string]*tempopb.TraceSearchMetadata,
+) bool {
+	// Get the span IDs from this trace
+	var traceSpanIDs []string
+	extractIDs := func(spans []*tempopb.Span) {
+		for _, span := range spans {
+			if span.SpanID != "" {
+				traceSpanIDs = append(traceSpanIDs, span.SpanID)
+			}
+		}
+	}
+
+	for _, spanSet := range trace.SpanSets {
+		extractIDs(spanSet.Spans)
+	}
+	if trace.SpanSet != nil {
+		extractIDs(trace.SpanSet.Spans)
+	}
+
+	// Check link to previous phase (if not terminal)
+	if tracePhase > 0 {
+		foundLinkToPrev := false
+		checkLinks := func(spans []*tempopb.Span) bool {
+			for _, span := range spans {
+				for _, attr := range span.Attributes {
+					if attr.Key == "link:spanID" && attr.Value != nil {
+						targetID := attr.Value.GetStringValue()
+						if _, ok := validSpanIDsByPhase[tracePhase-1][targetID]; ok {
+							return true
+						}
+					}
+				}
+			}
+			return false
+		}
+
+		for _, spanSet := range trace.SpanSets {
+			if checkLinks(spanSet.Spans) {
+				foundLinkToPrev = true
+				break
+			}
+		}
+		if !foundLinkToPrev && trace.SpanSet != nil {
+			foundLinkToPrev = checkLinks(trace.SpanSet.Spans)
+		}
+
+		if !foundLinkToPrev {
+			return false
+		}
+	}
+
+	// Check if something from the next phase links to us (if not last)
+	if tracePhase < len(validSpanIDsByPhase)-1 {
+		foundLinkFromNext := false
+		for _, mySpanID := range traceSpanIDs {
+			// Check if any trace in the next phase has a link attribute pointing to this span
+			// We only need to check traces that own span IDs from the next phase
+			for nextPhaseSpanID := range validSpanIDsByPhase[tracePhase+1] {
+				if nextTrace, ok := spanIDToTrace[nextPhaseSpanID]; ok {
+					if s.traceLinksToSpan(nextTrace, mySpanID) {
+						foundLinkFromNext = true
+						break
+					}
+				}
+			}
+			if foundLinkFromNext {
+				break
+			}
+		}
+
+		if !foundLinkFromNext {
+			return false
+		}
+	}
+
+	return true
+}
+
+// deduplicateSpansInTrace ensures each span ID appears only once in the trace metadata
+func (s *asyncSearchSharder) deduplicateSpansInTrace(trace *tempopb.TraceSearchMetadata) {
+	if trace == nil {
+		return
+	}
+
+	seen := make(map[string]struct{})
+
+	if trace.SpanSet != nil {
+		newSpans := make([]*tempopb.Span, 0, len(trace.SpanSet.Spans))
+		for _, span := range trace.SpanSet.Spans {
+			if span.SpanID == "" {
+				continue
+			}
+			if _, ok := seen[span.SpanID]; !ok {
+				seen[span.SpanID] = struct{}{}
+				newSpans = append(newSpans, span)
+			}
+		}
+		if len(newSpans) > 0 {
+			trace.SpanSet.Spans = newSpans
+		} else {
+			trace.SpanSet = nil
+		}
+	}
+
+	var newSpanSets []*tempopb.SpanSet
+	for _, ss := range trace.SpanSets {
+		newSpans := make([]*tempopb.Span, 0, len(ss.Spans))
+		for _, span := range ss.Spans {
+			if span.SpanID == "" {
+				continue
+			}
+			if _, ok := seen[span.SpanID]; !ok {
+				seen[span.SpanID] = struct{}{}
+				newSpans = append(newSpans, span)
+			}
+		}
+		if len(newSpans) > 0 {
+			ss.Spans = newSpans
+			newSpanSets = append(newSpanSets, ss)
+		}
+	}
+	trace.SpanSets = newSpanSets
+}
+
+// traceLinksToSpan checks if a trace has a link:spanID attribute pointing to the given span
+func (s *asyncSearchSharder) traceLinksToSpan(trace *tempopb.TraceSearchMetadata, targetSpanID string) bool {
+	checkSpans := func(spans []*tempopb.Span) bool {
+		for _, span := range spans {
+			for _, attr := range span.Attributes {
+				if attr.Key == "link:spanID" && attr.Value != nil && attr.Value.GetStringValue() == targetSpanID {
+					return true
+				}
+			}
+		}
+		return false
+	}
+
+	for _, spanSet := range trace.SpanSets {
+		if checkSpans(spanSet.Spans) {
+			return true
+		}
+	}
+	if trace.SpanSet != nil && checkSpans(trace.SpanSet.Spans) {
+		return true
+	}
+
+	return false
+}
+
+// tracesToResponses converts a list of traces back into a streaming response
+func (s *asyncSearchSharder) tracesToResponses(
+	_ context.Context,
+	traces []*tempopb.TraceSearchMetadata,
+) pipeline.Responses[combiner.PipelineResponse] {
+	// Create a search response with the filtered traces
+	searchResp := &tempopb.SearchResponse{
+		Traces:  traces,
+		Metrics: &tempopb.SearchMetrics{},
+	}
+
+	// Marshal to JSON using jsonpb for correct protobuf handling
+	var buf bytes.Buffer
+	marshaler := &jsonpb.Marshaler{EmitDefaults: true}
+	if err := marshaler.Marshal(&buf, searchResp); err != nil {
+		level.Error(s.logger).Log("msg", "failed to marshal filtered traces", "err", err)
+		return pipeline.NewAsyncResponse(nil)
+	}
+	body := buf.Bytes()
+
+	// Create HTTP response
+	httpResp := &http.Response{
+		StatusCode: 200,
+		Header: http.Header{
+			"Content-Type": []string{"application/json"},
+		},
+		Body: io.NopCloser(bytes.NewReader(body)),
+	}
+
+	// Wrap in pipeline response
+	filteredResp := &filteredResponse{
+		httpResp: httpResp,
+	}
+
+	// Return as single response
+	return &multiResponse{
+		responses: []combiner.PipelineResponse{filteredResp},
+		index:     0,
+	}
+}
+
+// filteredResponse implements combiner.PipelineResponse for filtered results
+type filteredResponse struct {
+	httpResp *http.Response
+}
+
+func (f *filteredResponse) HTTPResponse() *http.Response {
+	return f.httpResp
+}
+
+func (f *filteredResponse) RequestData() any {
+	return nil
+}
+
+func (f *filteredResponse) IsMetadata() bool {
+	return false
+}
+
+// combinePhaseResponses combines results from multiple phases into a single response stream
+// This returns all spans in the link chain (gateway + backend + database)
+func (s *asyncSearchSharder) combinePhaseResponses(
+	ctx context.Context,
+	responses []pipeline.Responses[combiner.PipelineResponse],
+) pipeline.Responses[combiner.PipelineResponse] {
+	if len(responses) == 0 {
+		return pipeline.NewAsyncResponse(nil)
+	}
+	if len(responses) == 1 {
+		return responses[0]
+	}
+
+	// Create an async response to collect all results
+	asyncResp := newCombinedResponse(ctx, responses, s.logger, nil)
+	return asyncResp
+}
+
+// combinePhaseResponsesWithQueries combines results from multiple phases with query tracking
+func (s *asyncSearchSharder) combinePhaseResponsesWithQueries(
+	ctx context.Context,
+	responses []pipeline.Responses[combiner.PipelineResponse],
+	queries []string,
+) pipeline.Responses[combiner.PipelineResponse] {
+	if len(responses) == 0 {
+		return pipeline.NewAsyncResponse(nil)
+	}
+	if len(responses) == 1 {
+		return responses[0]
+	}
+
+	// Create an async response to collect all results with query tracking
+	asyncResp := newCombinedResponse(ctx, responses, s.logger, queries)
+	return asyncResp
+}
+
+// combinedResponse implements Responses by iterating through multiple response streams
+type combinedResponse struct {
+	ctx          context.Context
+	responses    []pipeline.Responses[combiner.PipelineResponse]
+	current      int
+	logger       log.Logger
+	resultCounts []int    // Track results per phase
+	queries      []string // Track query for each phase (optional)
+}
+
+func newCombinedResponse(ctx context.Context, responses []pipeline.Responses[combiner.PipelineResponse], logger log.Logger, queries []string) *combinedResponse {
+	return &combinedResponse{
+		ctx:          ctx,
+		responses:    responses,
+		current:      0,
+		logger:       logger,
+		resultCounts: make([]int, len(responses)),
+		queries:      queries,
+	}
+}
+
+func (c *combinedResponse) Next(ctx context.Context) (combiner.PipelineResponse, bool, error) {
+	// Iterate through all response streams
+	for c.current < len(c.responses) {
+		resp, done, err := c.responses[c.current].Next(ctx)
+
+		if err != nil {
+			return nil, false, err
+		}
+
+		if !done {
+			// Count this response if it's not metadata
+			if resp != nil && !resp.IsMetadata() {
+				c.resultCounts[c.current]++
+			}
+			// Return this response
+			return resp, false, nil
+		}
+
+		// This stream is done, log the count for this phase and move to next
+		logFields := []interface{}{
+			"msg", "phase results collected",
+			"phase", c.current,
+			"resultCount", c.resultCounts[c.current],
+		}
+		// Add query if available
+		if c.queries != nil && c.current < len(c.queries) {
+			logFields = append(logFields, "query", c.queries[c.current])
+		}
+		level.Info(c.logger).Log(logFields...)
+		c.current++
+	}
+
+	// All streams exhausted, log total summary
+	totalResults := 0
+	for _, count := range c.resultCounts {
+		totalResults += count
+	}
+	level.Info(c.logger).Log(
+		"msg", "all phases complete",
+		"totalPhases", len(c.responses),
+		"totalResults", totalResults,
+	)
+	return nil, true, nil
+}
+
+// limitedCombinedResponse collects all traces from all phases and limits the final result
+type limitedCombinedResponse struct {
+	ctx            context.Context
+	responses      []pipeline.Responses[combiner.PipelineResponse]
+	limit          uint32
+	allTraces      []*tempopb.TraceSearchMetadata
+	collectionDone bool
+	index          int
+	logger         log.Logger
+	resultCounts   []int // Track traces collected per phase
+}
+
+func newLimitedCombinedResponse(ctx context.Context, responses []pipeline.Responses[combiner.PipelineResponse], limit uint32, logger log.Logger) *limitedCombinedResponse {
+	return &limitedCombinedResponse{
+		ctx:          ctx,
+		responses:    responses,
+		limit:        limit,
+		allTraces:    make([]*tempopb.TraceSearchMetadata, 0),
+		logger:       logger,
+		resultCounts: make([]int, len(responses)),
+	}
+}
+
+func (l *limitedCombinedResponse) Next(ctx context.Context) (combiner.PipelineResponse, bool, error) {
+	// First, collect all traces from all phases if not done yet
+	if !l.collectionDone {
+		traceIDs := make(map[string]struct{})
+
+		for phaseIdx, phaseResp := range l.responses {
+			phaseTraceCount := 0
+			for {
+				resp, done, err := phaseResp.Next(ctx)
+				if done || err != nil {
+					break
+				}
+				if resp == nil || resp.IsMetadata() {
+					continue
+				}
+
+				// Parse the response to extract traces
+				httpResp := resp.HTTPResponse()
+				if httpResp == nil || httpResp.Body == nil {
+					continue
+				}
+
+				bodyBytes, err := io.ReadAll(httpResp.Body)
+				if err != nil {
+					continue
+				}
+				httpResp.Body = io.NopCloser(bytes.NewReader(bodyBytes))
+
+				var searchResp tempopb.SearchResponse
+				contentType := httpResp.Header.Get("Content-Type")
+				if strings.Contains(contentType, "application/json") {
+					unmarshaler := &jsonpb.Unmarshaler{AllowUnknownFields: true}
+					if err := unmarshaler.Unmarshal(bytes.NewReader(bodyBytes), &searchResp); err != nil {
+						continue
+					}
+				} else if strings.Contains(contentType, "application/protobuf") {
+					if err := searchResp.Unmarshal(bodyBytes); err != nil {
+						continue
+					}
+				} else {
+					unmarshaler := &jsonpb.Unmarshaler{AllowUnknownFields: true}
+					_ = unmarshaler.Unmarshal(bytes.NewReader(bodyBytes), &searchResp)
+				}
+
+				// Collect unique traces
+				for _, trace := range searchResp.Traces {
+					phaseTraceCount++
+					if _, seen := traceIDs[trace.TraceID]; !seen {
+						l.allTraces = append(l.allTraces, trace)
+						traceIDs[trace.TraceID] = struct{}{}
+
+						// Stop if we've reached the limit
+						if uint32(len(l.allTraces)) >= l.limit {
+							break
+						}
+					}
+				}
+
+				if uint32(len(l.allTraces)) >= l.limit {
+					break
+				}
+			}
+
+			// Log this phase's results
+			l.resultCounts[phaseIdx] = phaseTraceCount
+			level.Info(l.logger).Log(
+				"msg", "phase traces collected",
+				"phase", phaseIdx,
+				"traceCount", phaseTraceCount,
+				"uniqueTracesCollected", len(l.allTraces),
+			)
+
+			if uint32(len(l.allTraces)) >= l.limit {
+				break
+			}
+		}
+
+		l.collectionDone = true
+		l.index = 0
+	}
+
+	// Now return traces one at a time (or in batches)
+	if l.index >= len(l.allTraces) {
+		return nil, true, nil
+	}
+
+	// Return all collected traces in a single response
+	searchResp := &tempopb.SearchResponse{
+		Traces:  l.allTraces,
+		Metrics: &tempopb.SearchMetrics{},
+	}
+
+	// Marshal to JSON using jsonpb for correct protobuf handling
+	var buf bytes.Buffer
+	marshaler := &jsonpb.Marshaler{EmitDefaults: true}
+	if err := marshaler.Marshal(&buf, searchResp); err != nil {
+		return nil, false, fmt.Errorf("failed to marshal limited traces: %w", err)
+	}
+	body := buf.Bytes()
+
+	// Create HTTP response
+	httpResp := &http.Response{
+		StatusCode: 200,
+		Header: http.Header{
+			"Content-Type": []string{"application/json"},
+		},
+		Body: io.NopCloser(bytes.NewReader(body)),
+	}
+
+	// Wrap in pipeline response
+	result := &filteredResponse{
+		httpResp: httpResp,
+	}
+
+	l.index = len(l.allTraces) // Mark as done
+	return result, false, nil
+}
+
+// executePhaseAndExtractSpanIDs executes a single phase of link traversal
+// Returns the responses, the extracted traces, and span IDs from the results for use in the next phase
+func (s *asyncSearchSharder) executePhaseAndExtractSpanIDs(
+	ctx context.Context,
+	parent pipeline.Request,
+	query string,
+	searchReq *tempopb.SearchRequest,
+	tenantID string,
+) (pipeline.Responses[combiner.PipelineResponse], []*tempopb.TraceSearchMetadata, []string, error) {
+	// Create a new search request with the phase query
+	phaseReq := &tempopb.SearchRequest{
+		Query:           query,
+		Limit:           searchReq.Limit,
+		Start:           searchReq.Start,
+		End:             searchReq.End,
+		SpansPerSpanSet: searchReq.SpansPerSpanSet,
+		RF1After:        searchReq.RF1After,
+	}
+
+	// Create a new parent request with the phase query
+	// We need to do this because backendRequests will clone the parent request
+	// and we don't want the original query with link operators
+	origReq := parent.HTTPRequest()
+	// Clone the URL but clear the query parameters
+	freshURL := *origReq.URL
+	freshURL.RawQuery = ""
+
+	freshReq, err := http.NewRequestWithContext(ctx, origReq.Method, freshURL.String(), http.NoBody)
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("failed to create fresh request: %w", err)
+	}
+	// Copy headers from original request
+	freshReq.Header = origReq.Header.Clone()
+
+	phaseHTTPReq, err := api.BuildSearchRequest(freshReq, phaseReq)
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("failed to build phase request: %w", err)
+	}
+	phaseParent := pipeline.NewHTTPRequest(phaseHTTPReq)
+
+	// Build requests for this phase - query both ingesters and backend blocks
+	// This ensures we find spans regardless of whether they've been flushed yet
+	reqCh := make(chan pipeline.Request, s.cfg.IngesterShards+100)
+
+	// Build ingester requests
+	jobMetrics, err := s.ingesterRequests(tenantID, phaseParent, *phaseReq, reqCh)
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("failed to build ingester requests: %w", err)
+	}
+
+	// Build backend requests
+	s.backendRequests(ctx, tenantID, phaseParent, phaseReq, jobMetrics, reqCh, func(err error) {
+		level.Error(s.logger).Log("msg", "failed to build backend requests for phase", "err", err)
+	})
+
+	// Execute requests and collect responses
+	phaseResp := pipeline.NewAsyncSharderChan(ctx, s.cfg.ConcurrentRequests, reqCh, pipeline.NewAsyncResponse(jobMetrics), s.next)
+
+	// Collect all responses, traces and extract span IDs
+	// We need to buffer responses to return them and also extract span IDs
+	responses := make([]combiner.PipelineResponse, 0)
+	allTraces := make([]*tempopb.TraceSearchMetadata, 0)
+	spanIDs := make([]string, 0, 1000)
+	seenSpanIDs := make(map[string]struct{})
+
+	for {
+		resp, done, err := phaseResp.Next(ctx)
+		if done {
+			break
+		}
+		if err != nil {
+			return nil, nil, nil, fmt.Errorf("error reading phase response: %w", err)
+		}
+
+		// Store response for later
+		if resp != nil {
+			responses = append(responses, resp)
+
+			// Extract traces and span IDs from non-metadata responses
+			if !resp.IsMetadata() {
+				httpResp := resp.HTTPResponse()
+				if httpResp != nil && httpResp.Body != nil {
+					traces, ids, err := extractTracesAndSpanIDsFromResponse(httpResp)
+					if err != nil {
+						level.Warn(s.logger).Log("msg", "failed to extract traces and span IDs", "err", err)
+						continue
+					}
+
+					allTraces = append(allTraces, traces...)
+
+					// Deduplicate span IDs
+					for _, id := range ids {
+						if _, seen := seenSpanIDs[id]; !seen {
+							seenSpanIDs[id] = struct{}{}
+							spanIDs = append(spanIDs, id)
+						}
+					}
+				}
+			}
+		}
+	}
+
+	// Convert buffered responses back to a Responses interface
+	// We create a simple multi-response wrapper
+	multiResp := &multiResponse{responses: responses, index: 0}
+
+	level.Info(s.logger).Log("msg", "phase execution complete", "responsesCollected", len(responses), "spanIDsExtracted", len(spanIDs), "tracesExtracted", len(allTraces))
+
+	return multiResp, allTraces, spanIDs, nil
+}
+
+// multiResponse implements Responses interface for a slice of buffered responses
+type multiResponse struct {
+	responses []combiner.PipelineResponse
+	index     int
+}
+
+func (m *multiResponse) Next(ctx context.Context) (combiner.PipelineResponse, bool, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, true, err
+	}
+
+	if m.index >= len(m.responses) {
+		return nil, true, nil
+	}
+
+	resp := m.responses[m.index]
+	m.index++
+
+	done := m.index >= len(m.responses)
+	return resp, done, nil
+}
+
+// buildLinkFilterQuery builds a query with link:spanID regex filter
+func buildLinkFilterQuery(conditions traceql.SpansetExpression, spanIDs []string, maxSpanIDs int) string {
+	// Example output: { link:spanID =~ "(span1|span2|span3)" && name="backend" }
+
+	// Limit span IDs
+	limitedIDs := spanIDs
+	if len(spanIDs) > maxSpanIDs {
+		limitedIDs = spanIDs[:maxSpanIDs]
+	}
+
+	// Build regex pattern: "(id1|id2|id3)"
+	regexPattern := "(" + strings.Join(limitedIDs, "|") + ")"
+
+	// Get conditions as string and strip outer braces for embedding
+	conditionsStr := buildQueryFromExpression(conditions)
+	conditionsStr = strings.TrimPrefix(conditionsStr, "{")
+	conditionsStr = strings.TrimSuffix(conditionsStr, "}")
+	conditionsStr = strings.TrimSpace(conditionsStr)
+
+	// If conditions are empty, just use link filter
+	if conditionsStr == "" || conditionsStr == "true" {
+		return fmt.Sprintf(`{ link:spanID =~ "%s" }`, regexPattern)
+	}
+
+	// Combine: { link:spanID =~ "pattern" && conditions }
+	return fmt.Sprintf(`{ link:spanID =~ "%s" && %s }`, regexPattern, conditionsStr)
+}
+
+// buildQueryFromExpression converts a SpansetExpression to query string
+func buildQueryFromExpression(expr traceql.SpansetExpression) string {
+	if expr == nil {
+		return ""
+	}
+
+	// Use expr.String() to get query representation
+	// Keep the curly braces as they're required for valid TraceQL syntax
+	return strings.TrimSpace(expr.String())
+}
+
+// extractTracesAndSpanIDsFromResponse extracts traces and span IDs from a search response
+// Handles both JSON and protobuf responses
+func extractTracesAndSpanIDsFromResponse(httpResp *http.Response) ([]*tempopb.TraceSearchMetadata, []string, error) {
+	if httpResp == nil || httpResp.Body == nil {
+		return nil, nil, nil
+	}
+
+	// Read body
+	bodyBytes, err := io.ReadAll(httpResp.Body)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to read response body: %w", err)
+	}
+
+	// Restore body for other consumers
+	httpResp.Body = io.NopCloser(bytes.NewReader(bodyBytes))
+
+	// Parse based on content type
+	contentType := httpResp.Header.Get("Content-Type")
+
+	var searchResp tempopb.SearchResponse
+
+	if strings.Contains(contentType, "application/json") {
+		// Parse JSON using jsonpb for correct protobuf handling
+		unmarshaler := &jsonpb.Unmarshaler{AllowUnknownFields: true}
+		if err := unmarshaler.Unmarshal(bytes.NewReader(bodyBytes), &searchResp); err != nil {
+			return nil, nil, fmt.Errorf("failed to unmarshal JSON response: %w", err)
+		}
+	} else if strings.Contains(contentType, "application/protobuf") {
+		// Parse protobuf
+		if err := searchResp.Unmarshal(bodyBytes); err != nil {
+			return nil, nil, fmt.Errorf("failed to unmarshal protobuf response: %w", err)
+		}
+	} else {
+		// Try JSON by default using jsonpb
+		unmarshaler := &jsonpb.Unmarshaler{AllowUnknownFields: true}
+		if err := unmarshaler.Unmarshal(bytes.NewReader(bodyBytes), &searchResp); err != nil {
+			// Ignore and return empty
+			return nil, nil, nil
+		}
+	}
+
+	// Extract span IDs from traces
+	spanIDs := make([]string, 0)
+	for _, trace := range searchResp.Traces {
+		// Extract from SpanSets (new format)
+		for _, spanSet := range trace.SpanSets {
+			for _, span := range spanSet.Spans {
+				if span.SpanID != "" {
+					spanIDs = append(spanIDs, span.SpanID)
+				}
+			}
+		}
+
+		// Also check deprecated SpanSet field for backwards compatibility
+		if trace.SpanSet != nil {
+			for _, span := range trace.SpanSet.Spans {
+				if span.SpanID != "" {
+					spanIDs = append(spanIDs, span.SpanID)
+				}
+			}
+		}
+	}
+
+	return searchResp.Traces, spanIDs, nil
 }

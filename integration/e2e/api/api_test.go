@@ -38,6 +38,20 @@ const (
 	blockFlushTimeout = 6 * time.Second
 )
 
+func waitForSearchBackend(t *testing.T, tempo *e2e.HTTPService, minBackendObjects float64) {
+	util.CallFlush(t, tempo)
+	time.Sleep(blockFlushTimeout)
+	require.NoError(t, tempo.WaitSumMetricsWithOptions(e2e.GreaterOrEqual(minBackendObjects), []string{"tempodb_backend_objects_total"}, e2e.WaitMissingMetrics))
+
+	require.Eventually(t, func() bool {
+		ok, err := isQueryable(tempo.Endpoint(tempoPort))
+		if err != nil {
+			return false
+		}
+		return ok
+	}, queryableTimeout, queryableCheckEvery, "traces were not queryable within timeout")
+}
+
 func TestSearchTagsV2(t *testing.T) {
 	s, err := e2e.NewScenario("tempo_e2e")
 	require.NoError(t, err)

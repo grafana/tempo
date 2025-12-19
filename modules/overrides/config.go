@@ -168,6 +168,9 @@ type ReadOverrides struct {
 	MaxMetricsDuration model.Duration `yaml:"max_metrics_duration,omitempty" json:"max_metrics_duration,omitempty"`
 
 	UnsafeQueryHints bool `yaml:"unsafe_query_hints,omitempty" json:"unsafe_query_hints,omitempty"`
+
+	// Cross-trace link traversal limits
+	MaxSpanIDsPerLinkQuery int `yaml:"max_span_ids_per_link_query,omitempty" json:"max_span_ids_per_link_query,omitempty"`
 }
 
 type CompactionOverrides struct {
