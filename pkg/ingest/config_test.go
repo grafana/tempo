@@ -13,15 +13,15 @@ import (
 
 func TestEnsureTopicPartitions(t *testing.T) {
 	tests := []struct {
-		name                     string
-		topic                    string
-		desiredPartitions        int
-		existingPartitions       int
-		topicExists              bool
-		expectCreate             bool
-		expectUpdate             bool
-		expectError              bool
-		expectedFinalPartitions  int
+		name                    string
+		topic                   string
+		desiredPartitions       int
+		existingPartitions      int
+		topicExists             bool
+		expectCreate            bool
+		expectUpdate            bool
+		expectError             bool
+		expectedFinalPartitions int
 	}{
 		{
 			name:                    "create new topic",
