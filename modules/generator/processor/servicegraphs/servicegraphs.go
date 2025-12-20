@@ -157,6 +157,35 @@ func (p *Processor) consume(resourceSpans []*v1_trace.ResourceSpans) (err error)
 		totalDroppedSpans int
 	)
 
+	// Pre-index server-like spans (SERVER and CONSUMER) to enable SERVER->SERVER edges
+	type serverSpanInfo struct {
+		serviceName   string
+		resourceAttrs []*v1_common.KeyValue
+		spanAttrs     []*v1_common.KeyValue
+		span          *v1_trace.Span
+	}
+
+	serverIndex := make(map[string]serverSpanInfo, 1024)
+	for _, rs := range resourceSpans {
+		svcName, ok := processor_util.FindServiceName(rs.Resource.Attributes)
+		if !ok {
+			continue
+		}
+		for _, ils := range rs.ScopeSpans {
+			for _, s := range ils.Spans {
+				if s.Kind == v1_trace.Span_SPAN_KIND_SERVER || s.Kind == v1_trace.Span_SPAN_KIND_CONSUMER {
+					k := buildKey(hex.EncodeToString(s.TraceId), hex.EncodeToString(s.SpanId))
+					serverIndex[k] = serverSpanInfo{
+						serviceName:   svcName,
+						resourceAttrs: rs.Resource.Attributes,
+						spanAttrs:     s.Attributes,
+						span:          s,
+					}
+				}
+			}
+		}
+	}
+
 	for _, rs := range resourceSpans {
 		svcName, ok := processor_util.FindServiceName(rs.Resource.Attributes)
 		if !ok {
@@ -186,7 +215,6 @@ func (p *Processor) consume(resourceSpans []*v1_trace.ResourceSpans) (err error)
 						p.upsertPeerNode(e, span.Attributes)
 						p.upsertDatabaseRequest(e, rs.Resource.Attributes, span)
 					})
-
 				case v1_trace.Span_SPAN_KIND_CONSUMER:
 					// override connection type and continue processing as span kind server
 					connectionType = store.MessagingSystem
@@ -204,6 +232,53 @@ func (p *Processor) consume(resourceSpans []*v1_trace.ResourceSpans) (err error)
 						e.SpanMultiplier = spanMultiplier
 						p.upsertPeerNode(e, span.Attributes)
 					})
+					// Additionally upsert client side using this server span's own SpanId key.
+					// This enables cross-request matching: parent SERVER sets client fields under
+					// traceId-spanId, and child SERVER (which uses parentSpanId) completes server fields later.
+					clientKey := buildKey(hex.EncodeToString(span.TraceId), hex.EncodeToString(span.SpanId))
+					if _, err2 := p.store.UpsertEdge(clientKey, func(e *store.Edge) {
+						if e.ClientService == "" {
+							e.TraceID = tempo_util.TraceIDToHexString(span.TraceId)
+							e.ClientService = svcName
+							e.ClientLatencySec = spanDurationSec(span)
+							e.ClientEndTimeUnixNano = span.EndTimeUnixNano
+							e.Failed = e.Failed || p.spanFailed(span)
+							p.upsertDimensions("client_", e.Dimensions, rs.Resource.Attributes, span.Attributes)
+							p.upsertPeerNode(e, span.Attributes)
+							// keep multiplier consistent
+							e.SpanMultiplier = spanMultiplier
+						}
+					}); err2 != nil {
+						if errors.Is(err2, store.ErrTooManyItems) {
+							totalDroppedSpans++
+							p.metricDroppedSpans.Inc()
+						} else {
+							return err2
+						}
+					}
+					// Try to synthesize client side from parent SERVER when no CLIENT exists (SERVER->SERVER)
+					if len(span.ParentSpanId) > 0 {
+						parentKey := buildKey(hex.EncodeToString(span.TraceId), hex.EncodeToString(span.ParentSpanId))
+						if parent, ok := serverIndex[parentKey]; ok && parent.serviceName != svcName {
+							synthKey := parentKey // same key as server side: traceID-parentSpanID
+							_, synthErr := p.store.UpsertEdge(synthKey, func(e *store.Edge) {
+								if e.ClientService == "" {
+									e.ClientService = parent.serviceName
+									e.ClientLatencySec = spanDurationSec(parent.span)
+									e.ClientEndTimeUnixNano = parent.span.EndTimeUnixNano
+									e.Failed = e.Failed || p.spanFailed(parent.span)
+									p.upsertDimensions("client_", e.Dimensions, parent.resourceAttrs, parent.spanAttrs)
+									p.upsertPeerNode(e, parent.span.Attributes)
+								}
+							})
+							if errors.Is(synthErr, store.ErrTooManyItems) {
+								totalDroppedSpans++
+								p.metricDroppedSpans.Inc()
+							} else if synthErr != nil {
+								return synthErr
+							}
+						}
+					}
 				default:
 					// this span is not part of an edge
 					continue
