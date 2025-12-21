@@ -68,10 +68,18 @@ func main() {
 	log.InitLogger(&config.Server)
 
 	// Verifying the config's validity and log warnings now that the logger is initialized
-	if err := configIsValid(config); err != nil {
+	warnings, err := configIsValid(config)
+	if err != nil {
 		level.Error(log.Logger).Log("msg", "invalid configuration", "err", err)
 		os.Exit(1)
-	}	
+	}
+
+	for _, w := range warnings {
+		level.Warn(log.Logger).Log(
+			"msg", "Configuration warning",
+			"warning", w,
+		)
+	}
 
 	// Init tracer if OTEL_TRACES_EXPORTER, OTEL_EXPORTER_OTLP_ENDPOINT or OTEL_EXPORTER_OTLP_TRACES_ENDPOINT is set
 	if os.Getenv("OTEL_TRACES_EXPORTER") != "" || os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT") != "" || os.Getenv("OTEL_EXPORTER_OTLP_TRACES_ENDPOINT") != "" {
@@ -108,23 +116,21 @@ func main() {
 	runtime.KeepAlive(ballast)
 }
 
-func configIsValid(config *app.Config) error {
-    if warnings := config.CheckConfig(); len(warnings) != 0 {
-        return fmt.Errorf("invalid configuration: %d warning(s)", len(warnings))
-    }
-    return nil
+func configIsValid(config *app.Config) ([]string, error) {
+	warnings := config.CheckConfig()
+	return warnings, nil
 }
 
 func loadConfig() (*app.Config, bool, error) {
 	const (
 		configFileOption      = "config.file"
 		configExpandEnvOption = "config.expand-env"
-	)	
+	)
 
 	var (
 		configFile      string
 		configExpandEnv bool
-	)	
+	)
 
 	args := os.Args[1:]
 	config := &app.Config{}
