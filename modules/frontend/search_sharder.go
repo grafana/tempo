@@ -589,20 +589,15 @@ func (s *asyncSearchSharder) crossTraceRoundTrip(
 		// Build query with link:spanID filter
 		phaseQuery := buildLinkFilterQuery(phase.Conditions, spanIDs, maxSpanIDs)
 
-		// Expand time range for non-terminal phases
-		// Linked spans may start after the terminal span, so we need a wider window
-		phaseReq := s.expandTimeRangeForPhase(unlimitedReq, i, len(linkChain))
-
 		level.Info(s.logger).Log(
 			"msg", "executing link phase",
 			"phase", i,
 			"query", phaseQuery,
 			"inputSpanIDs", len(spanIDs),
-			"timeRange", fmt.Sprintf("%d-%d", phaseReq.Start, phaseReq.End),
 		)
 
 		// Execute this phase and collect both results and span IDs
-		_, phaseTraces, nextSpanIDs, err := s.executePhaseAndExtractSpanIDs(ctx, pipelineRequest, phaseQuery, phaseReq, tenantID)
+		_, phaseTraces, nextSpanIDs, err := s.executePhaseAndExtractSpanIDs(ctx, pipelineRequest, phaseQuery, unlimitedReq, tenantID)
 		if err != nil {
 			return pipeline.NewBadRequest(fmt.Errorf("phase %d failed: %w", i, err)), nil
 		}
@@ -631,48 +626,6 @@ func (s *asyncSearchSharder) crossTraceRoundTrip(
 	// Filter for complete chains and return
 	level.Info(s.logger).Log("msg", "complete link chain found, filtering for complete chains", "totalPhases", len(allTracesByPhase))
 	return s.filterCompleteChains(ctx, allTracesByPhase, allSpanIDsByPhase, linkChain), nil
-}
-
-// expandTimeRangeForPhase expands the time range for non-terminal phases to capture
-// linked spans that may start after the initiating span
-func (s *asyncSearchSharder) expandTimeRangeForPhase(
-	baseReq *tempopb.SearchRequest,
-	phaseIndex int,
-	totalPhases int,
-) *tempopb.SearchRequest {
-	if phaseIndex == 0 {
-		// Terminal phase uses original time range
-		return baseReq
-	}
-
-	// For subsequent phases, expand the time window to account for:
-	// 1. Linked spans may start/end outside the original query window
-	// 2. Async operations may have significant delays
-	// 3. Each subsequent phase may be further delayed
-
-	originalDuration := uint64(baseReq.End - baseReq.Start)
-
-	// Expand the end time based on phase depth
-	// Each phase gets progressively more buffer since spans further in the chain
-	// may be increasingly delayed from the terminal span
-	expansionFactor := uint64(phaseIndex) // Phases 1, 2, 3... get 1x, 2x, 3x expansion
-	expandedEnd := baseReq.End + uint32(originalDuration*expansionFactor)
-
-	// Also consider expanding start time backwards for ->> (forward link) traversal
-	// where earlier spans may have started before the terminal
-	expandedStart := baseReq.Start
-	if originalDuration > 60 { // Only expand start for longer queries (>60s)
-		expandedStart = baseReq.Start - uint32(originalDuration*expansionFactor/2)
-	}
-
-	return &tempopb.SearchRequest{
-		Query:           baseReq.Query,
-		Limit:           baseReq.Limit,
-		Start:           expandedStart,
-		End:             expandedEnd,
-		SpansPerSpanSet: baseReq.SpansPerSpanSet,
-		RF1After:        baseReq.RF1After,
-	}
 }
 
 // filterCompleteChains ensures only traces with complete link chains are returned
