@@ -75,6 +75,12 @@ func newLogsReceiver(config *Config, set receiver.Settings, nextConsumer consume
 		if err != nil {
 			return nil, err
 		}
+		if config.Logs.topicAlias != "" {
+			set.Logger.Warn("logs.topic is deprecated, please use logs.topics instead")
+		}
+		if config.Logs.excludeTopicAlias != "" {
+			set.Logger.Warn("logs.exclude_topic is deprecated, please use logs.exclude_topics instead")
+		}
 		return func(ctx context.Context, message kafkaMessage, attrs attribute.Set) error {
 			return processMessage(ctx, message, config, set.Logger, telBldr,
 				&logsHandler{
@@ -87,7 +93,7 @@ func newLogsReceiver(config *Config, set receiver.Settings, nextConsumer consume
 			)
 		}, nil
 	}
-	return newReceiver(config, set, []string{config.Logs.Topic}, newConsumeMessageFunc)
+	return newReceiver(config, set, config.Logs.Topics, config.Logs.ExcludeTopics, newConsumeMessageFunc)
 }
 
 func newMetricsReceiver(config *Config, set receiver.Settings, nextConsumer consumer.Metrics) (receiver.Metrics, error) {
@@ -99,6 +105,13 @@ func newMetricsReceiver(config *Config, set receiver.Settings, nextConsumer cons
 		if err != nil {
 			return nil, err
 		}
+		if config.Metrics.topicAlias != "" {
+			set.Logger.Warn("metrics.topic is deprecated, please use metrics.topics instead")
+		}
+		if config.Metrics.excludeTopicAlias != "" {
+			set.Logger.Warn("metrics.exclude_topic is deprecated, please use metrics.exclude_topics instead")
+		}
+
 		return func(ctx context.Context, message kafkaMessage, attrs attribute.Set) error {
 			return processMessage(ctx, message, config, set.Logger, telBldr,
 				&metricsHandler{
@@ -111,7 +124,7 @@ func newMetricsReceiver(config *Config, set receiver.Settings, nextConsumer cons
 			)
 		}, nil
 	}
-	return newReceiver(config, set, []string{config.Metrics.Topic}, newConsumeMessageFunc)
+	return newReceiver(config, set, config.Metrics.Topics, config.Metrics.ExcludeTopics, newConsumeMessageFunc)
 }
 
 func newTracesReceiver(config *Config, set receiver.Settings, nextConsumer consumer.Traces) (receiver.Traces, error) {
@@ -123,6 +136,14 @@ func newTracesReceiver(config *Config, set receiver.Settings, nextConsumer consu
 		if err != nil {
 			return nil, err
 		}
+
+		if config.Traces.topicAlias != "" {
+			set.Logger.Warn("traces.topic is deprecated, please use traces.topics instead")
+		}
+		if config.Traces.excludeTopicAlias != "" {
+			set.Logger.Warn("traces.exclude_topic is deprecated, please use traces.exclude_topics instead")
+		}
+
 		return func(ctx context.Context, message kafkaMessage, attrs attribute.Set) error {
 			return processMessage(ctx, message, config, set.Logger, telBldr,
 				&tracesHandler{
@@ -135,7 +156,7 @@ func newTracesReceiver(config *Config, set receiver.Settings, nextConsumer consu
 			)
 		}, nil
 	}
-	return newReceiver(config, set, []string{config.Traces.Topic}, consumeFn)
+	return newReceiver(config, set, config.Traces.Topics, config.Traces.ExcludeTopics, consumeFn)
 }
 
 func newProfilesReceiver(config *Config, set receiver.Settings, nextConsumer xconsumer.Profiles) (xreceiver.Profiles, error) {
@@ -147,6 +168,13 @@ func newProfilesReceiver(config *Config, set receiver.Settings, nextConsumer xco
 		if err != nil {
 			return nil, err
 		}
+		if config.Profiles.topicAlias != "" {
+			set.Logger.Warn("profiles.topic is deprecated, please use profiles.topics instead")
+		}
+		if config.Profiles.excludeTopicAlias != "" {
+			set.Logger.Warn("profiles.exclude_topic is deprecated, please use profiles.exclude_topics instead")
+		}
+
 		return func(ctx context.Context, message kafkaMessage, attrs attribute.Set) error {
 			return processMessage(ctx, message, config, set.Logger, telBldr,
 				&profilesHandler{
@@ -159,22 +187,23 @@ func newProfilesReceiver(config *Config, set receiver.Settings, nextConsumer xco
 			)
 		}, nil
 	}
-	return newReceiver(config, set, []string{config.Profiles.Topic}, consumeFn)
+	return newReceiver(config, set, config.Profiles.Topics, config.Profiles.ExcludeTopics, consumeFn)
 }
 
 func newReceiver(
 	config *Config,
 	set receiver.Settings,
 	topics []string,
+	excludeTopics []string,
 	consumeFn func(host component.Host,
 		obsrecv *receiverhelper.ObsReport,
 		telBldr *metadata.TelemetryBuilder,
 	) (consumeMessageFunc, error),
 ) (component.Component, error) {
 	if franzGoConsumerFeatureGate.IsEnabled() {
-		return newFranzKafkaConsumer(config, set, topics, consumeFn)
+		return newFranzKafkaConsumer(config, set, topics, excludeTopics, consumeFn)
 	}
-	return newSaramaConsumer(config, set, topics, consumeFn)
+	return newSaramaConsumer(config, set, topics, excludeTopics, consumeFn)
 }
 
 type logsHandler struct {
