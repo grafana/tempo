@@ -10,8 +10,6 @@ import (
 	"testing"
 
 	"github.com/grafana/e2e"
-	"github.com/grafana/tempo/integration/util"
-	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
@@ -22,6 +20,9 @@ import (
 	oteltrace "go.opentelemetry.io/otel/trace"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
+
+	"github.com/grafana/tempo/integration/util"
+	"github.com/grafana/tempo/pkg/tempopb"
 )
 
 // TestLinkTraversal tests cross-trace link traversal queries
@@ -47,7 +48,9 @@ func TestLinkTraversal(t *testing.T) {
 
 	exporter, err := otlptracegrpc.New(ctx, otlptracegrpc.WithGRPCConn(conn))
 	require.NoError(t, err)
-	defer exporter.Shutdown(ctx)
+	defer func() {
+		_ = exporter.Shutdown(ctx)
+	}()
 
 	// Create resource
 	res, err := resource.New(ctx,
@@ -63,7 +66,9 @@ func TestLinkTraversal(t *testing.T) {
 		tracesdk.WithBatcher(exporter),
 		tracesdk.WithResource(res),
 	)
-	defer tp.Shutdown(ctx)
+	defer func() {
+		_ = tp.Shutdown(ctx)
+	}()
 
 	tracer := tp.Tracer("test-tracer")
 
@@ -218,7 +223,9 @@ func TestLinkTraversalWithConditions(t *testing.T) {
 
 	exporter, err := otlptracegrpc.New(ctx, otlptracegrpc.WithGRPCConn(conn))
 	require.NoError(t, err)
-	defer exporter.Shutdown(ctx)
+	defer func() {
+		_ = exporter.Shutdown(ctx)
+	}()
 
 	// Create resource
 	res, err := resource.New(ctx,
@@ -234,7 +241,9 @@ func TestLinkTraversalWithConditions(t *testing.T) {
 		tracesdk.WithBatcher(exporter),
 		tracesdk.WithResource(res),
 	)
-	defer tp.Shutdown(ctx)
+	defer func() {
+		_ = tp.Shutdown(ctx)
+	}()
 
 	tracer := tp.Tracer("test-tracer")
 

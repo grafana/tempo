@@ -31,14 +31,22 @@ func main() {
 	if err != nil {
 		log.Fatalf("Failed to create exporter: %v", err)
 	}
-	defer exporter.Shutdown(ctx)
+	defer func() {
+		if err := exporter.Shutdown(ctx); err != nil {
+			log.Printf("Failed to shutdown exporter: %v", err)
+		}
+	}()
 
 	// Create tracer provider
 	tp := sdktrace.NewTracerProvider(
 		sdktrace.WithBatcher(exporter),
 		sdktrace.WithResource(newResource()),
 	)
-	defer tp.Shutdown(ctx)
+	defer func() {
+		if err := tp.Shutdown(ctx); err != nil {
+			log.Printf("Failed to shutdown tracer provider: %v", err)
+		}
+	}()
 	otel.SetTracerProvider(tp)
 
 	// Generate test data: database → backend → gateway
@@ -46,7 +54,8 @@ func main() {
 
 	// Flush all traces
 	if err := tp.ForceFlush(ctx); err != nil {
-		log.Fatalf("Failed to flush traces: %v", err)
+		log.Printf("Failed to flush traces: %v", err)
+		return
 	}
 
 	log.Println("Visit http://localhost:3000/explore to see the traces")
@@ -62,10 +71,9 @@ func createExporter(ctx context.Context) (sdktrace.SpanExporter, error) {
 	conn, err := grpc.NewClient(
 		tempoEndpoint,
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
-		grpc.WithBlock(),
 	)
 	if err != nil {
-		return nil, fmt.Errorf("failed to connect to Tempo: %w", err)
+		return nil, fmt.Errorf("failed to create client: %w", err)
 	}
 
 	exporter, err := otlptracegrpc.New(ctx, otlptracegrpc.WithGRPCConn(conn))

@@ -62,7 +62,7 @@ var tokens = map[string]int{
 	"&<":                  UNION_PARENT,
 	"&>>":                 UNION_DESC,
 	"&<<":                 UNION_ANCE,
-	"->":                  LINK_ARROW,       // Intermediate token to allow ->> to be parsed
+	"->":                  LINK_ARROW, // Intermediate token to allow ->> to be parsed
 	"->>":                 LINK_TO,
 	"<<-":                 LINK_FROM,
 	"&-":                  UNION_LINK_DASH,  // Intermediate token to allow &->> to be parsed
