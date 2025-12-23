@@ -1239,18 +1239,19 @@ func extractTracesAndSpanIDsFromResponse(httpResp *http.Response, logger log.Log
 
 	var searchResp tempopb.SearchResponse
 
-	if strings.Contains(contentType, "application/json") {
+	switch {
+	case strings.Contains(contentType, "application/json"):
 		// Parse JSON using jsonpb for correct protobuf handling
 		unmarshaler := &jsonpb.Unmarshaler{AllowUnknownFields: true}
 		if err := unmarshaler.Unmarshal(bytes.NewReader(bodyBytes), &searchResp); err != nil {
 			return nil, nil, nil, fmt.Errorf("failed to unmarshal JSON response: %w", err)
 		}
-	} else if strings.Contains(contentType, "application/protobuf") {
+	case strings.Contains(contentType, "application/protobuf"):
 		// Parse protobuf
 		if err := searchResp.Unmarshal(bodyBytes); err != nil {
 			return nil, nil, nil, fmt.Errorf("failed to unmarshal protobuf response: %w", err)
 		}
-	} else {
+	default:
 		// Try JSON by default using jsonpb
 		unmarshaler := &jsonpb.Unmarshaler{AllowUnknownFields: true}
 		if err := unmarshaler.Unmarshal(bytes.NewReader(bodyBytes), &searchResp); err != nil {
