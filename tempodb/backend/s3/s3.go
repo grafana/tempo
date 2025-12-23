@@ -133,7 +133,7 @@ func internalNew(cfg *Config, confirm bool) (*readerWriter, error) {
 
 	// try listing objects
 	if confirm {
-		_, err = core.ListObjects(cfg.Bucket, cfg.Prefix, "", "/", 0)
+		_, err = core.ListObjects(cfg.Bucket, cfg.Prefix, "", "/", 1)
 		if err != nil {
 			return nil, fmt.Errorf("unexpected error from ListObjects on %s: %w", cfg.Bucket, err)
 		}
