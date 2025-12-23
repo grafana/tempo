@@ -59,7 +59,8 @@ func main() {
 }
 
 func createExporter(ctx context.Context) (sdktrace.SpanExporter, error) {
-	conn, err := grpc.DialContext(ctx, tempoEndpoint,
+	conn, err := grpc.NewClient(
+		tempoEndpoint,
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 		grpc.WithBlock(),
 	)

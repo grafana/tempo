@@ -24,62 +24,98 @@ func TestBuildLinkFilterQuery(t *testing.T) {
 		{
 			name:       "simple condition with few span IDs",
 			conditions: `name="backend"`,
-			spanIDs:    []string{"span1", "span2", "span3"},
+			spanIDs:    []string{"0123456789abcdef", "fedcba9876543210", "0011223344556677"},
 			maxSpanIDs: 10,
-			expected:   `{ link:spanID =~ "(span1|span2|span3)" && name = ` + "`backend`" + ` }`,
+			expected:   `{ link:spanID =~ "(0123456789abcdef|fedcba9876543210|0011223344556677)" && name = ` + "`backend`" + ` }`,
 		},
 		{
 			name:       "empty condition",
 			conditions: "",
-			spanIDs:    []string{"span1", "span2"},
+			spanIDs:    []string{"0123456789abcdef", "fedcba9876543210"},
 			maxSpanIDs: 10,
-			expected:   `{ link:spanID =~ "(span1|span2)" }`,
+			expected:   `{ link:spanID =~ "(0123456789abcdef|fedcba9876543210)" }`,
 		},
 		{
 			name:       "limit span IDs",
 			conditions: `name="backend"`,
-			spanIDs:    []string{"span1", "span2", "span3", "span4", "span5"},
+			spanIDs:    []string{"0123456789abcdef", "fedcba9876543210", "0011223344556677", "8899aabbccddeeff", "1234567890abcdef"},
 			maxSpanIDs: 3,
-			expected:   `{ link:spanID =~ "(span1|span2|span3)" && name = ` + "`backend`" + ` }`,
+			expected:   `{ link:spanID =~ "(0123456789abcdef|fedcba9876543210|0011223344556677)" && name = ` + "`backend`" + ` }`,
 		},
 		{
 			name:       "complex condition",
 			conditions: `name="backend" && status=error`,
-			spanIDs:    []string{"abc123", "def456"},
+			spanIDs:    []string{"0123456789abcdef", "fedcba9876543210"},
 			maxSpanIDs: 10,
-			expected:   `{ link:spanID =~ "(abc123|def456)" && (name = ` + "`backend`) && (status = error)" + ` }`,
+			expected:   `{ link:spanID =~ "(0123456789abcdef|fedcba9876543210)" && (name = ` + "`backend`) && (status = error)" + ` }`,
+		},
+		{
+			name:       "filters invalid span IDs",
+			conditions: `name="backend"`,
+			spanIDs:    []string{"invalid", "0123456789abcdef"},
+			maxSpanIDs: 5,
+			expected:   `{ link:spanID =~ "(0123456789abcdef)" && name = ` + "`backend`" + ` }`,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Parse the conditions to get a SpansetExpression
-			var expr traceql.SpansetExpression
-			if tt.conditions != "" {
-				query := "{" + tt.conditions + "}"
-				parsed, err := traceql.Parse(query)
-				require.NoError(t, err)
-
-				// Extract the spanset expression from the pipeline
-				if len(parsed.Pipeline.Elements) > 0 {
-					if filter, ok := parsed.Pipeline.Elements[0].(*traceql.SpansetFilter); ok {
-						// The filter contains a FieldExpression, we need the whole spanset
-						// For testing purposes, we'll use the string representation
-						condStr := buildQueryFromExpression(filter)
-						// Rebuild with the condition string
-						query2 := "{" + condStr + "}"
-						parsed2, _ := traceql.Parse(query2)
-						if len(parsed2.Pipeline.Elements) > 0 {
-							expr = parsed2.Pipeline.Elements[0].(traceql.SpansetExpression)
-						}
-					}
-				}
-			}
-
-			result := buildLinkFilterQuery(expr, tt.spanIDs, tt.maxSpanIDs)
+			expr := parseSpansetExpression(t, tt.conditions)
+			result, ok := buildLinkFilterQuery(expr, tt.spanIDs, tt.maxSpanIDs)
+			assert.True(t, ok)
 			assert.Equal(t, tt.expected, result)
 		})
 	}
+}
+
+func TestBuildLinkFilterQuery_NoValidIDs(t *testing.T) {
+	query, ok := buildLinkFilterQuery(nil, []string{"bad", "also-bad"}, 5)
+	assert.False(t, ok)
+	assert.Equal(t, "", query)
+}
+
+func TestIsValidSpanID(t *testing.T) {
+	assert.True(t, isValidSpanID("0123456789abcdef"))
+	assert.True(t, isValidSpanID("ABCDEF0123456789"))
+	assert.False(t, isValidSpanID("short"))
+	assert.False(t, isValidSpanID("0123456789abcdeg"))
+}
+
+func TestApplyTraceLimit(t *testing.T) {
+	traces := []*tempopb.TraceSearchMetadata{
+		{TraceID: "trace-1"},
+		{TraceID: "trace-2"},
+		{TraceID: "trace-3"},
+	}
+
+	limited, truncated := applyTraceLimit(traces, 2)
+	assert.True(t, truncated)
+	assert.Equal(t, 2, len(limited))
+	assert.Equal(t, "trace-1", limited[0].TraceID)
+	assert.Equal(t, "trace-2", limited[1].TraceID)
+
+	limited, truncated = applyTraceLimit(traces, 0)
+	assert.False(t, truncated)
+	assert.Equal(t, traces, limited)
+}
+
+func parseSpansetExpression(t *testing.T, conditions string) traceql.SpansetExpression {
+	t.Helper()
+	if conditions == "" {
+		return nil
+	}
+
+	query := "{" + conditions + "}"
+	parsed, err := traceql.Parse(query)
+	require.NoError(t, err)
+	if parsed == nil || len(parsed.Pipeline.Elements) == 0 {
+		return nil
+	}
+
+	if expr, ok := parsed.Pipeline.Elements[0].(traceql.SpansetExpression); ok {
+		return expr
+	}
+	return nil
 }
 
 func TestBuildQueryFromExpression(t *testing.T) {
@@ -91,17 +127,17 @@ func TestBuildQueryFromExpression(t *testing.T) {
 		{
 			name:     "simple name condition",
 			query:    `{name="backend"}`,
-			expected: "name = `backend`",
+			expected: "{ name = `backend` }",
 		},
 		{
 			name:     "multiple conditions",
 			query:    `{name="backend" && status=error}`,
-			expected: "(name = `backend`) && (status = error)",
+			expected: "{ (name = `backend`) && (status = error) }",
 		},
 		{
 			name:     "with attribute",
 			query:    `{span.http.status_code=500}`,
-			expected: "span.http.status_code = 500",
+			expected: "{ span.http.status_code = 500 }",
 		},
 	}
 
