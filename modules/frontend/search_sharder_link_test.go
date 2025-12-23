@@ -7,10 +7,11 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/grafana/tempo/pkg/tempopb"
-	"github.com/grafana/tempo/pkg/traceql"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/grafana/tempo/pkg/tempopb"
+	"github.com/grafana/tempo/pkg/traceql"
 )
 
 func TestBuildLinkFilterQuery(t *testing.T) {
@@ -72,13 +73,6 @@ func TestBuildLinkFilterQuery_NoValidIDs(t *testing.T) {
 	query, ok := buildLinkFilterQuery(nil, []string{"bad", "also-bad"}, 5)
 	assert.False(t, ok)
 	assert.Equal(t, "", query)
-}
-
-func TestIsValidSpanID(t *testing.T) {
-	assert.True(t, isValidSpanID("0123456789abcdef"))
-	assert.True(t, isValidSpanID("ABCDEF0123456789"))
-	assert.False(t, isValidSpanID("short"))
-	assert.False(t, isValidSpanID("0123456789abcdeg"))
 }
 
 func TestApplyTraceLimit(t *testing.T) {

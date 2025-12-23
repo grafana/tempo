@@ -163,7 +163,7 @@ func (r *RootExpr) HasLinkTraversal() bool {
 // LinkOperationInfo contains information about a single link operation in a chain
 type LinkOperationInfo struct {
 	Conditions SpansetExpression // Conditions for this phase
-	Op         Operator           // Which link operator
+	Op         Operator          // Which link operator
 	IsUnion    bool              // Union operator variant?
 	IsLinkTo   bool              // True for ->>, false for <<-
 }
@@ -172,23 +172,24 @@ type LinkOperationInfo struct {
 // Returns the chain in execution order starting with the TERMINAL (the query target):
 //   - For ->> chains: terminal is rightmost → {database} ->> {backend} ->> {gateway}
 //     Executes: gateway → backend → database (reversed to start with gateway)
-//   - For <<- chains: terminal is leftmost → {gateway} <<- {backend} <<- {database}  
+//   - For <<- chains: terminal is leftmost → {gateway} <<- {backend} <<- {database}
 //     Executes: gateway → backend → database (already in order)
+//
 // Terminal-first execution is optimal because:
 //   - Fewer results to traverse (gateway spans << database spans)
 //   - No artificial limits on span IDs
 //   - Deterministic, complete results
 func (r *RootExpr) ExtractLinkChain() []*LinkOperationInfo {
 	var chain []*LinkOperationInfo
-	
+
 	// Find the first pipeline element (should be a link operation chain)
 	if len(r.Pipeline.Elements) == 0 {
 		return chain
 	}
-	
+
 	// Extract link operations from the pipeline
 	r.Pipeline.extractLinkChain(&chain)
-	
+
 	// Determine execution order based on operator direction
 	// Both operators now execute terminal-first for optimal performance
 	if len(chain) > 0 {
@@ -199,7 +200,7 @@ func (r *RootExpr) ExtractLinkChain() []*LinkOperationInfo {
 		}
 		// For <<- chains: terminal is leftmost, already first in chain (no reversal needed)
 	}
-	
+
 	return chain
 }
 
@@ -498,14 +499,14 @@ func (o SpansetOperation) extractLinkOperation(chain *[]*LinkOperationInfo) {
 	if lhsOp, ok := o.LHS.(SpansetOperation); ok && isLinkOperator(lhsOp.Op) {
 		lhsOp.extractLinkOperation(chain)
 	}
-	
+
 	// Add current operation to chain
 	info := &LinkOperationInfo{
-		Op:      o.Op,
-		IsUnion: o.Op == OpSpansetUnionLinkTo || o.Op == OpSpansetUnionLinkFrom,
+		Op:       o.Op,
+		IsUnion:  o.Op == OpSpansetUnionLinkTo || o.Op == OpSpansetUnionLinkFrom,
 		IsLinkTo: o.Op == OpSpansetLinkTo || o.Op == OpSpansetUnionLinkTo,
 	}
-	
+
 	// For chained operations, LHS is the previous link operation
 	// RHS contains the conditions for this phase
 	if lhsOp, ok := o.LHS.(SpansetOperation); ok && isLinkOperator(lhsOp.Op) {
@@ -523,7 +524,7 @@ func (o SpansetOperation) extractLinkOperation(chain *[]*LinkOperationInfo) {
 			IsLinkTo:   o.Op == OpSpansetLinkTo || o.Op == OpSpansetUnionLinkTo,
 		}
 	}
-	
+
 	*chain = append(*chain, info)
 }
 

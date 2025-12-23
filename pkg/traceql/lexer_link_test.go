@@ -27,12 +27,11 @@ func TestLexerLinkTokens(t *testing.T) {
 				},
 			}
 			l.Init(strings.NewReader(tt.input))
-			
+
 			lval := &yySymType{}
 			tok := l.Lex(lval)
-			
+
 			require.Equal(t, tt.expected, tok, "expected token %d (%s), got %d", tt.expected, tt.input, tok)
 		})
 	}
 }
-
