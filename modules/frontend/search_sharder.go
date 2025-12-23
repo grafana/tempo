@@ -517,6 +517,10 @@ func (s *asyncSearchSharder) crossTraceRoundTrip(
 	maxSpanIDs int,
 	tenantID string,
 ) (pipeline.Responses[combiner.PipelineResponse], error) {
+	if err := ctx.Err(); err != nil {
+		return pipeline.NewAsyncResponse(nil), err
+	}
+
 	// Extract link chain in execution order (terminal first)
 	linkChain := rootExpr.ExtractLinkChain()
 
@@ -556,7 +560,7 @@ func (s *asyncSearchSharder) crossTraceRoundTrip(
 	)
 
 	// Execute terminal phase and collect span IDs
-	terminalResp, terminalTraces, spanIDs, err := s.executePhaseAndExtractSpanIDs(ctx, pipelineRequest, terminalQuery, unlimitedReq, tenantID)
+	terminalResp, terminalTraces, spanIDs, err := s.executePhaseAndExtractSpanIDs(ctx, pipelineRequest, terminalQuery, unlimitedReq, tenantID, maxSpanIDs, searchReq.Limit, len(linkChain) == 1)
 	if err != nil {
 		return pipeline.NewBadRequest(fmt.Errorf("terminal phase failed: %w", err)), nil
 	}
@@ -584,10 +588,18 @@ func (s *asyncSearchSharder) crossTraceRoundTrip(
 	allSpanIDsByPhase := [][]string{spanIDs} // Track span IDs from each phase
 
 	for i := 1; i < len(linkChain); i++ {
+		if err := ctx.Err(); err != nil {
+			return pipeline.NewAsyncResponse(nil), err
+		}
+
 		phase := linkChain[i]
 
 		// Build query with link:spanID filter
-		phaseQuery := buildLinkFilterQuery(phase.Conditions, spanIDs, maxSpanIDs)
+		phaseQuery, ok := buildLinkFilterQuery(phase.Conditions, spanIDs, maxSpanIDs)
+		if !ok {
+			level.Warn(s.logger).Log("msg", "no valid span IDs for phase", "phase", i, "inputSpanIDs", len(spanIDs))
+			return pipeline.NewAsyncResponse(nil), nil
+		}
 
 		level.Info(s.logger).Log(
 			"msg", "executing link phase",
@@ -597,7 +609,7 @@ func (s *asyncSearchSharder) crossTraceRoundTrip(
 		)
 
 		// Execute this phase and collect both results and span IDs
-		_, phaseTraces, nextSpanIDs, err := s.executePhaseAndExtractSpanIDs(ctx, pipelineRequest, phaseQuery, unlimitedReq, tenantID)
+		_, phaseTraces, nextSpanIDs, err := s.executePhaseAndExtractSpanIDs(ctx, pipelineRequest, phaseQuery, unlimitedReq, tenantID, maxSpanIDs, searchReq.Limit, false)
 		if err != nil {
 			return pipeline.NewBadRequest(fmt.Errorf("phase %d failed: %w", i, err)), nil
 		}
@@ -625,7 +637,7 @@ func (s *asyncSearchSharder) crossTraceRoundTrip(
 	// All phases completed successfully with results
 	// Filter for complete chains and return
 	level.Info(s.logger).Log("msg", "complete link chain found, filtering for complete chains", "totalPhases", len(allTracesByPhase))
-	return s.filterCompleteChains(ctx, allTracesByPhase, allSpanIDsByPhase, linkChain), nil
+	return s.filterCompleteChains(ctx, allTracesByPhase, allSpanIDsByPhase, linkChain, searchReq.Limit), nil
 }
 
 // filterCompleteChains ensures only traces with complete link chains are returned
@@ -635,7 +647,12 @@ func (s *asyncSearchSharder) filterCompleteChains(
 	tracesByPhase [][]*tempopb.TraceSearchMetadata,
 	spanIDsByPhase [][]string,
 	linkChain []*traceql.LinkOperationInfo,
+	limit uint32,
 ) pipeline.Responses[combiner.PipelineResponse] {
+	if err := ctx.Err(); err != nil {
+		return pipeline.NewAsyncResponse(nil)
+	}
+
 	// Build span ID mappings and index traces by span ID
 	spanIDToTrace := make(map[string]*tempopb.TraceSearchMetadata)
 	allTraces := make([]*tempopb.TraceSearchMetadata, 0)
@@ -740,14 +757,16 @@ func (s *asyncSearchSharder) filterCompleteChains(
 		completeTraces = append(completeTraces, mergedTrace)
 	}
 
+	limitedTraces, truncated := applyTraceLimit(completeTraces, limit)
 	level.Info(s.logger).Log(
 		"msg", "filtered for complete chains",
 		"totalTraces", len(allTraces),
-		"completeChainTraces", len(completeTraces),
+		"completeChainTraces", len(limitedTraces),
+		"truncated", truncated,
 	)
 
 	// Convert filtered traces back to responses
-	return s.tracesToResponses(ctx, completeTraces)
+	return s.tracesToResponses(ctx, limitedTraces)
 }
 
 // getIncludedPhases determines which phases should be included in the final output
@@ -1257,7 +1276,14 @@ func (s *asyncSearchSharder) executePhaseAndExtractSpanIDs(
 	query string,
 	searchReq *tempopb.SearchRequest,
 	tenantID string,
+	maxSpanIDs int,
+	maxTraces uint32,
+	collectResponses bool,
 ) (pipeline.Responses[combiner.PipelineResponse], []*tempopb.TraceSearchMetadata, []string, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, nil, nil, err
+	}
+
 	// Create a new search request with the phase query
 	phaseReq := &tempopb.SearchRequest{
 		Query:           query,
@@ -1311,8 +1337,20 @@ func (s *asyncSearchSharder) executePhaseAndExtractSpanIDs(
 	// We need to buffer responses to return them and also extract span IDs
 	responses := make([]combiner.PipelineResponse, 0)
 	allTraces := make([]*tempopb.TraceSearchMetadata, 0)
-	spanIDs := make([]string, 0, 1000)
+	spanLimit := maxSpanIDs
+	if spanLimit <= 0 {
+		spanLimit = 1000
+	}
+	traceLimit := int(maxTraces)
+	if traceLimit <= 0 {
+		traceLimit = spanLimit
+		if traceLimit <= 0 {
+			traceLimit = 1000
+		}
+	}
+	spanIDs := make([]string, 0, spanLimit)
 	seenSpanIDs := make(map[string]struct{})
+	invalidSpanIDs := 0
 
 	for {
 		resp, done, err := phaseResp.Next(ctx)
@@ -1322,28 +1360,45 @@ func (s *asyncSearchSharder) executePhaseAndExtractSpanIDs(
 		if err != nil {
 			return nil, nil, nil, fmt.Errorf("error reading phase response: %w", err)
 		}
+		if err := ctx.Err(); err != nil {
+			return nil, nil, nil, err
+		}
 
 		// Store response for later
 		if resp != nil {
-			responses = append(responses, resp)
+			if collectResponses && len(responses) < traceLimit {
+				responses = append(responses, resp)
+			}
 
 			// Extract traces and span IDs from non-metadata responses
 			if !resp.IsMetadata() {
 				httpResp := resp.HTTPResponse()
 				if httpResp != nil && httpResp.Body != nil {
-					traces, ids, err := extractTracesAndSpanIDsFromResponse(httpResp)
+					traces, ids, err := extractTracesAndSpanIDsFromResponse(httpResp, s.logger)
 					if err != nil {
 						level.Warn(s.logger).Log("msg", "failed to extract traces and span IDs", "err", err)
 						continue
 					}
 
-					allTraces = append(allTraces, traces...)
+					if len(allTraces) < traceLimit {
+						remaining := traceLimit - len(allTraces)
+						if remaining > len(traces) {
+							remaining = len(traces)
+						}
+						allTraces = append(allTraces, traces[:remaining]...)
+					}
 
 					// Deduplicate span IDs
 					for _, id := range ids {
+						if !isValidSpanID(id) {
+							invalidSpanIDs++
+							continue
+						}
 						if _, seen := seenSpanIDs[id]; !seen {
 							seenSpanIDs[id] = struct{}{}
-							spanIDs = append(spanIDs, id)
+							if len(spanIDs) < spanLimit {
+								spanIDs = append(spanIDs, id)
+							}
 						}
 					}
 				}
@@ -1351,9 +1406,18 @@ func (s *asyncSearchSharder) executePhaseAndExtractSpanIDs(
 		}
 	}
 
+	if invalidSpanIDs > 0 {
+		level.Debug(s.logger).Log("msg", "ignored invalid span IDs during phase extraction", "count", invalidSpanIDs)
+	}
+
 	// Convert buffered responses back to a Responses interface
 	// We create a simple multi-response wrapper
-	multiResp := &multiResponse{responses: responses, index: 0}
+	var multiResp pipeline.Responses[combiner.PipelineResponse]
+	if collectResponses {
+		multiResp = &multiResponse{responses: responses, index: 0}
+	} else {
+		multiResp = pipeline.NewAsyncResponse(nil)
+	}
 
 	level.Info(s.logger).Log("msg", "phase execution complete", "responsesCollected", len(responses), "spanIDsExtracted", len(spanIDs), "tracesExtracted", len(allTraces))
 
@@ -1383,13 +1447,22 @@ func (m *multiResponse) Next(ctx context.Context) (combiner.PipelineResponse, bo
 }
 
 // buildLinkFilterQuery builds a query with link:spanID regex filter
-func buildLinkFilterQuery(conditions traceql.SpansetExpression, spanIDs []string, maxSpanIDs int) string {
+func buildLinkFilterQuery(conditions traceql.SpansetExpression, spanIDs []string, maxSpanIDs int) (string, bool) {
 	// Example output: { link:spanID =~ "(span1|span2|span3)" && name="backend" }
 
 	// Limit span IDs
-	limitedIDs := spanIDs
-	if len(spanIDs) > maxSpanIDs {
-		limitedIDs = spanIDs[:maxSpanIDs]
+	limitedIDs := make([]string, 0, len(spanIDs))
+	for _, id := range spanIDs {
+		if !isValidSpanID(id) {
+			continue
+		}
+		limitedIDs = append(limitedIDs, id)
+		if maxSpanIDs > 0 && len(limitedIDs) >= maxSpanIDs {
+			break
+		}
+	}
+	if len(limitedIDs) == 0 {
+		return "", false
 	}
 
 	// Build regex pattern: "(id1|id2|id3)"
@@ -1403,11 +1476,11 @@ func buildLinkFilterQuery(conditions traceql.SpansetExpression, spanIDs []string
 
 	// If conditions are empty, just use link filter
 	if conditionsStr == "" || conditionsStr == "true" {
-		return fmt.Sprintf(`{ link:spanID =~ "%s" }`, regexPattern)
+		return fmt.Sprintf(`{ link:spanID =~ "%s" }`, regexPattern), true
 	}
 
 	// Combine: { link:spanID =~ "pattern" && conditions }
-	return fmt.Sprintf(`{ link:spanID =~ "%s" && %s }`, regexPattern, conditionsStr)
+	return fmt.Sprintf(`{ link:spanID =~ "%s" && %s }`, regexPattern, conditionsStr), true
 }
 
 // buildQueryFromExpression converts a SpansetExpression to query string
@@ -1423,7 +1496,7 @@ func buildQueryFromExpression(expr traceql.SpansetExpression) string {
 
 // extractTracesAndSpanIDsFromResponse extracts traces and span IDs from a search response
 // Handles both JSON and protobuf responses
-func extractTracesAndSpanIDsFromResponse(httpResp *http.Response) ([]*tempopb.TraceSearchMetadata, []string, error) {
+func extractTracesAndSpanIDsFromResponse(httpResp *http.Response, logger log.Logger) ([]*tempopb.TraceSearchMetadata, []string, error) {
 	if httpResp == nil || httpResp.Body == nil {
 		return nil, nil, nil
 	}
@@ -1457,7 +1530,7 @@ func extractTracesAndSpanIDsFromResponse(httpResp *http.Response) ([]*tempopb.Tr
 		// Try JSON by default using jsonpb
 		unmarshaler := &jsonpb.Unmarshaler{AllowUnknownFields: true}
 		if err := unmarshaler.Unmarshal(bytes.NewReader(bodyBytes), &searchResp); err != nil {
-			// Ignore and return empty
+			level.Debug(logger).Log("msg", "failed to unmarshal search response with fallback", "contentType", contentType, "err", err)
 			return nil, nil, nil
 		}
 	}
@@ -1485,4 +1558,30 @@ func extractTracesAndSpanIDsFromResponse(httpResp *http.Response) ([]*tempopb.Tr
 	}
 
 	return searchResp.Traces, spanIDs, nil
+}
+
+// extractSpanIDsFromResponse is a convenience wrapper used in tests
+func extractSpanIDsFromResponse(httpResp *http.Response) ([]string, error) {
+	_, spanIDs, err := extractTracesAndSpanIDsFromResponse(httpResp, log.NewNopLogger())
+	return spanIDs, err
+}
+
+func isValidSpanID(id string) bool {
+	if len(id) != 16 {
+		return false
+	}
+	for _, c := range id {
+		if (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F') {
+			continue
+		}
+		return false
+	}
+	return true
+}
+
+func applyTraceLimit(traces []*tempopb.TraceSearchMetadata, limit uint32) ([]*tempopb.TraceSearchMetadata, bool) {
+	if limit == 0 || uint32(len(traces)) <= limit {
+		return traces, false
+	}
+	return traces[:limit], true
 }
