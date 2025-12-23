@@ -664,19 +664,33 @@ func (s *asyncSearchSharder) filterCompleteChains(
 		return pipeline.NewAsyncResponse(nil)
 	}
 
-	// Build span ID mappings and index traces by span ID
-	spanIDToTrace := make(map[string]*tempopb.TraceSearchMetadata)
-	allTraces := make([]*tempopb.TraceSearchMetadata, 0)
+	// Indexed by [phaseIdx][traceID]
+	allTraceInfosByPhase := make([]map[string]*traceInfo, len(tracesByPhase))
+	// Global mapping from span ID to traceInfo for quick lookup
+	spanIDToTraceInfo := make(map[string]*traceInfo)
 
-	// Index traces by their span IDs
-	for _, phaseTraces := range tracesByPhase {
+	for phaseIdx, phaseTraces := range tracesByPhase {
+		allTraceInfosByPhase[phaseIdx] = make(map[string]*traceInfo)
 		for _, trace := range phaseTraces {
-			allTraces = append(allTraces, trace)
+			info := &traceInfo{
+				trace:       trace,
+				spanIDs:     make(map[string]struct{}),
+				linkTargets: make(map[string]struct{}),
+			}
+			allTraceInfosByPhase[phaseIdx][trace.TraceID] = info
 
-			// Index each span in the trace
 			forEachSpanInTrace(trace, func(span *tempopb.Span) {
 				if span.SpanID != "" {
-					spanIDToTrace[span.SpanID] = trace
+					info.spanIDs[span.SpanID] = struct{}{}
+					spanIDToTraceInfo[span.SpanID] = info
+				}
+				for _, attr := range span.Attributes {
+					if attr.Key == "link:spanID" && attr.Value != nil {
+						targetID := attr.Value.GetStringValue()
+						if targetID != "" {
+							info.linkTargets[targetID] = struct{}{}
+						}
+					}
 				}
 			})
 		}
@@ -691,6 +705,17 @@ func (s *asyncSearchSharder) filterCompleteChains(
 		}
 	}
 
+	// Build a reverse mapping: which traces (and in which phase) link to which span ID
+	// This allows us to quickly find if "something from the next phase links to us"
+	linksToSpanID := make(map[string][]int) // targetSpanID -> []phaseIdx
+	for phaseIdx, infos := range allTraceInfosByPhase {
+		for _, info := range infos {
+			for targetID := range info.linkTargets {
+				linksToSpanID[targetID] = append(linksToSpanID[targetID], phaseIdx)
+			}
+		}
+	}
+
 	// Now filter traces to only include complete chains
 	// Identify all (traceID, phaseIdx) pairs that are part of a complete chain
 	type phaseKey struct {
@@ -700,12 +725,12 @@ func (s *asyncSearchSharder) filterCompleteChains(
 	completePhaseTraces := make(map[phaseKey]*tempopb.TraceSearchMetadata)
 	completeTraceIDs := make(map[string]struct{})
 
-	for phaseIdx, phaseTraces := range tracesByPhase {
-		for _, trace := range phaseTraces {
-			if s.isCompleteChain(trace, phaseIdx, validSpanIDsByPhase, spanIDToTrace) {
-				key := phaseKey{trace.TraceID, phaseIdx}
-				completePhaseTraces[key] = trace
-				completeTraceIDs[trace.TraceID] = struct{}{}
+	for phaseIdx, infos := range allTraceInfosByPhase {
+		for traceID, info := range infos {
+			if s.isCompleteChain(info, phaseIdx, validSpanIDsByPhase, linksToSpanID) {
+				key := phaseKey{traceID, phaseIdx}
+				completePhaseTraces[key] = info.trace
+				completeTraceIDs[traceID] = struct{}{}
 			}
 		}
 	}
@@ -762,13 +787,66 @@ func (s *asyncSearchSharder) filterCompleteChains(
 	limitedTraces, truncated := applyTraceLimit(completeTraces, limit)
 	level.Info(s.logger).Log(
 		"msg", "filtered for complete chains",
-		"totalTraces", len(allTraces),
+		"totalTracesCollected", len(spanIDToTraceInfo),
 		"completeChainTraces", len(limitedTraces),
 		"truncated", truncated,
 	)
 
 	// Convert filtered traces back to responses
 	return s.tracesToResponses(ctx, limitedTraces, metrics)
+}
+
+// traceInfo stores pre-extracted metadata for efficient chain validation
+type traceInfo struct {
+	trace       *tempopb.TraceSearchMetadata
+	spanIDs     map[string]struct{}
+	linkTargets map[string]struct{}
+}
+
+// isCompleteChain checks if a trace is part of a complete link chain using pre-calculated info
+func (s *asyncSearchSharder) isCompleteChain(
+	info *traceInfo,
+	tracePhase int,
+	validSpanIDsByPhase []map[string]struct{},
+	linksToSpanID map[string][]int,
+) bool {
+	// Check link to previous phase (if not terminal)
+	if tracePhase > 0 {
+		foundLinkToPrev := false
+		for targetID := range info.linkTargets {
+			if _, ok := validSpanIDsByPhase[tracePhase-1][targetID]; ok {
+				foundLinkToPrev = true
+				break
+			}
+		}
+
+		if !foundLinkToPrev {
+			return false
+		}
+	}
+
+	// Check if something from the next phase links to us (if not last)
+	if tracePhase < len(validSpanIDsByPhase)-1 {
+		foundLinkFromNext := false
+		for mySpanID := range info.spanIDs {
+			// Check if any trace in the next phase links to this span ID
+			for _, phaseIdx := range linksToSpanID[mySpanID] {
+				if phaseIdx == tracePhase+1 {
+					foundLinkFromNext = true
+					break
+				}
+			}
+			if foundLinkFromNext {
+				break
+			}
+		}
+
+		if !foundLinkFromNext {
+			return false
+		}
+	}
+
+	return true
 }
 
 // getIncludedPhases determines which phases should be included in the final output
@@ -815,71 +893,6 @@ func (s *asyncSearchSharder) getIncludedPhases(linkChain []*traceql.LinkOperatio
 	return included
 }
 
-// isCompleteChain checks if a trace is part of a complete link chain
-func (s *asyncSearchSharder) isCompleteChain(
-	trace *tempopb.TraceSearchMetadata,
-	tracePhase int,
-	validSpanIDsByPhase []map[string]struct{},
-	spanIDToTrace map[string]*tempopb.TraceSearchMetadata,
-) bool {
-	// Get the span IDs from this trace
-	var traceSpanIDs []string
-	forEachSpanInTrace(trace, func(span *tempopb.Span) {
-		if span.SpanID != "" {
-			traceSpanIDs = append(traceSpanIDs, span.SpanID)
-		}
-	})
-
-	// Check link to previous phase (if not terminal)
-	if tracePhase > 0 {
-		foundLinkToPrev := false
-		forEachSpanInTrace(trace, func(span *tempopb.Span) {
-			if foundLinkToPrev {
-				return
-			}
-			for _, attr := range span.Attributes {
-				if attr.Key == "link:spanID" && attr.Value != nil {
-					targetID := attr.Value.GetStringValue()
-					if _, ok := validSpanIDsByPhase[tracePhase-1][targetID]; ok {
-						foundLinkToPrev = true
-						return
-					}
-				}
-			}
-		})
-
-		if !foundLinkToPrev {
-			return false
-		}
-	}
-
-	// Check if something from the next phase links to us (if not last)
-	if tracePhase < len(validSpanIDsByPhase)-1 {
-		foundLinkFromNext := false
-		for _, mySpanID := range traceSpanIDs {
-			// Check if any trace in the next phase has a link attribute pointing to this span
-			// We only need to check traces that own span IDs from the next phase
-			for nextPhaseSpanID := range validSpanIDsByPhase[tracePhase+1] {
-				if nextTrace, ok := spanIDToTrace[nextPhaseSpanID]; ok {
-					if s.traceLinksToSpan(nextTrace, mySpanID) {
-						foundLinkFromNext = true
-						break
-					}
-				}
-			}
-			if foundLinkFromNext {
-				break
-			}
-		}
-
-		if !foundLinkFromNext {
-			return false
-		}
-	}
-
-	return true
-}
-
 // deduplicateSpansInTrace ensures each span ID appears only once in the trace metadata
 func (s *asyncSearchSharder) deduplicateSpansInTrace(trace *tempopb.TraceSearchMetadata) {
 	if trace == nil {
@@ -924,23 +937,6 @@ func (s *asyncSearchSharder) deduplicateSpansInTrace(trace *tempopb.TraceSearchM
 		}
 	}
 	trace.SpanSets = newSpanSets
-}
-
-// traceLinksToSpan checks if a trace has a link:spanID attribute pointing to the given span
-func (s *asyncSearchSharder) traceLinksToSpan(trace *tempopb.TraceSearchMetadata, targetSpanID string) bool {
-	found := false
-	forEachSpanInTrace(trace, func(span *tempopb.Span) {
-		if found {
-			return
-		}
-		for _, attr := range span.Attributes {
-			if attr.Key == "link:spanID" && attr.Value != nil && attr.Value.GetStringValue() == targetSpanID {
-				found = true
-				return
-			}
-		}
-	})
-	return found
 }
 
 // tracesToResponses converts a list of traces back into a streaming response
