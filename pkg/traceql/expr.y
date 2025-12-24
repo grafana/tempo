@@ -110,7 +110,7 @@ import (
 // Operators are listed with increasing precedence.
 %left <binOp> PIPE
 %left <binOp> AND OR
-%left <binOp> EQ NEQ LT LTE GT GTE NRE RE DESC ANCE SIBL NOT_CHILD NOT_PARENT NOT_DESC NOT_ANCE UNION_CHILD UNION_PARENT UNION_DESC UNION_ANCE UNION_SIBL
+%left <binOp> EQ NEQ LT LTE GT GTE NRE RE DESC ANCE SIBL NOT_CHILD NOT_PARENT NOT_DESC NOT_ANCE UNION_CHILD UNION_PARENT UNION_DESC UNION_ANCE UNION_SIBL LINK_TO LINK_FROM UNION_LINK_TO UNION_LINK_FROM LINK_ARROW UNION_LINK_ARROW UNION_LINK_DASH
 %left <binOp> ADD SUB
 %left <binOp> NOT
 %left <binOp> MUL DIV MOD
@@ -153,6 +153,10 @@ spansetPipelineExpression: // shares the same operators as spansetExpression. sp
   | spansetPipelineExpression UNION_DESC   spansetPipelineExpression  { $$ = newSpansetOperation(OpSpansetUnionDescendant, $1, $3) }
   | spansetPipelineExpression UNION_ANCE   spansetPipelineExpression  { $$ = newSpansetOperation(OpSpansetUnionAncestor, $1, $3) }
   | spansetPipelineExpression UNION_SIBL   spansetPipelineExpression  { $$ = newSpansetOperation(OpSpansetUnionSibling, $1, $3) }
+  | spansetPipelineExpression LINK_TO      spansetPipelineExpression  { $$ = newSpansetOperation(OpSpansetLinkTo, $1, $3) }
+  | spansetPipelineExpression LINK_FROM    spansetPipelineExpression  { $$ = newSpansetOperation(OpSpansetLinkFrom, $1, $3) }
+  | spansetPipelineExpression UNION_LINK_TO   spansetPipelineExpression  { $$ = newSpansetOperation(OpSpansetUnionLinkTo, $1, $3) }
+  | spansetPipelineExpression UNION_LINK_FROM spansetPipelineExpression  { $$ = newSpansetOperation(OpSpansetUnionLinkFrom, $1, $3) }
   | wrappedSpansetPipeline                                       { $$ = $1 }
   ;
 
@@ -223,6 +227,11 @@ spansetExpression: // shares the same operators as scalarPipelineExpression. spl
   | spansetExpression UNION_SIBL   spansetExpression  { $$ = newSpansetOperation(OpSpansetUnionSibling, $1, $3) }
   | spansetExpression UNION_ANCE   spansetExpression  { $$ = newSpansetOperation(OpSpansetUnionAncestor, $1, $3) }
   | spansetExpression UNION_DESC   spansetExpression  { $$ = newSpansetOperation(OpSpansetUnionDescendant, $1, $3) }
+
+  | spansetExpression LINK_TO      spansetExpression  { $$ = newSpansetOperation(OpSpansetLinkTo, $1, $3) }
+  | spansetExpression LINK_FROM    spansetExpression  { $$ = newSpansetOperation(OpSpansetLinkFrom, $1, $3) }
+  | spansetExpression UNION_LINK_TO   spansetExpression  { $$ = newSpansetOperation(OpSpansetUnionLinkTo, $1, $3) }
+  | spansetExpression UNION_LINK_FROM spansetExpression  { $$ = newSpansetOperation(OpSpansetUnionLinkFrom, $1, $3) }
 
   | spansetFilter                                { $$ = $1 } 
   ;
