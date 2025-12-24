@@ -1011,6 +1011,7 @@ overrides:
             retry_info_enabled: true
         read:
             max_bytes_per_tag_values_query: 1000000
+            max_span_ids_per_link_query: 1000
         metrics_generator:
             generate_native_histograms: classic
             ingestion_time_range_slack: 0s
