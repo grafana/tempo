@@ -32,9 +32,8 @@ func TestLinkTraversal(t *testing.T) {
 	require.NoError(t, s.StartAndWaitReady(tempo))
 
 	ctx := context.Background()
-	cancelfunc, tp, err := setupTracerProvider(ctx, tempo, t)
-	require.NoError(t, err)
-	defer cancelfunc()
+	cancelfn, tp := setupTracerProvider(ctx, tempo, t)
+	defer cancelfn()
 
 	tracer := tp.Tracer("test-tracer")
 
@@ -161,7 +160,7 @@ func executeSearchQuery(endpoint, query string) (*tempopb.SearchResponse, error)
 	return client.SearchTraceQL(query)
 }
 
-func setupTracerProvider(ctx context.Context, tempo *e2e.HTTPService, t *testing.T) (func(), *tracesdk.TracerProvider, error) {
+func setupTracerProvider(ctx context.Context, tempo *e2e.HTTPService, t *testing.T) (func(), *tracesdk.TracerProvider) {
 	t.Helper()
 
 	conn, err := grpc.NewClient(
@@ -198,5 +197,5 @@ func setupTracerProvider(ctx context.Context, tempo *e2e.HTTPService, t *testing
 		require.NoError(t, err)
 	}
 
-	return cancelfn, tp, nil
+	return cancelfn, tp
 }
