@@ -49,7 +49,7 @@ func waitForSearchBackend(t *testing.T, tempo *e2e.HTTPService, minBackendObject
 			return false
 		}
 		return ok
-	}, queryableTimeout, queryableCheckEvery, "traces were not queryable within timeout")
+	}, 10*time.Second, queryableCheckEvery, "traces were not queryable within timeout")
 }
 
 func TestSearchTagsV2(t *testing.T) {

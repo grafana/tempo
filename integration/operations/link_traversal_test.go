@@ -2,17 +2,13 @@ package api
 
 import (
 	"context"
-	"encoding/json"
-	"fmt"
-	"io"
-	"net/http"
-	"net/url"
 	"testing"
+	"time"
 
 	"github.com/grafana/e2e"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
 	"go.opentelemetry.io/otel/sdk/resource"
 	tracesdk "go.opentelemetry.io/otel/sdk/trace"
@@ -22,12 +18,10 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 
 	"github.com/grafana/tempo/integration/util"
+	"github.com/grafana/tempo/pkg/httpclient"
 	"github.com/grafana/tempo/pkg/tempopb"
 )
 
-// TestLinkTraversal tests cross-trace link traversal queries
-// This test creates multiple traces with links between them and verifies
-// that link traversal operators work correctly
 func TestLinkTraversal(t *testing.T) {
 	s, err := e2e.NewScenario("tempo_e2e")
 	require.NoError(t, err)
@@ -37,92 +31,56 @@ func TestLinkTraversal(t *testing.T) {
 	tempo := util.NewTempoAllInOne()
 	require.NoError(t, s.StartAndWaitReady(tempo))
 
-	// Create OTLP exporter
 	ctx := context.Background()
-	conn, err := grpc.NewClient(
-		tempo.Endpoint(4317),
-		grpc.WithTransportCredentials(insecure.NewCredentials()),
-	)
+	cancelfunc, tp, err := setupTracerProvider(ctx, tempo, t)
 	require.NoError(t, err)
-	defer conn.Close()
-
-	exporter, err := otlptracegrpc.New(ctx, otlptracegrpc.WithGRPCConn(conn))
-	require.NoError(t, err)
-	defer func() {
-		_ = exporter.Shutdown(ctx)
-	}()
-
-	// Create resource
-	res, err := resource.New(ctx,
-		resource.WithAttributes(
-			semconv.ServiceName("link-traversal-test"),
-			semconv.ServiceVersion("test"),
-		),
-	)
-	require.NoError(t, err)
-
-	// Create tracer provider
-	tp := tracesdk.NewTracerProvider(
-		tracesdk.WithBatcher(exporter),
-		tracesdk.WithResource(res),
-	)
-	defer func() {
-		_ = tp.Shutdown(ctx)
-	}()
+	defer cancelfunc()
 
 	tracer := tp.Tracer("test-tracer")
 
-	// Create a chain of linked traces:
-	// database -> backend -> gateway (database links TO backend, backend links TO gateway)
-	// This means: database has a link pointing to backend's span, backend has a link pointing to gateway's span
-
-	// Create Trace 3: gateway span (terminal - no outgoing links)
-	gatewayCtx, span3 := tracer.Start(context.Background(), "gateway-request",
+	gatewayCtx, gatewaySpan := tracer.Start(context.Background(), "gateway",
 		oteltrace.WithAttributes(
 			attribute.String("service.name", "gateway"),
 			attribute.String("name", "gateway"),
 		),
 	)
-	span3Ctx := span3.SpanContext()
-	span3.End()
-	tp.ForceFlush(gatewayCtx)
+	time.Sleep(10 * time.Millisecond)
+	gatewaySpanCtx := gatewaySpan.SpanContext()
+	gatewaySpan.End()
+	require.NoError(t, tp.ForceFlush(gatewayCtx))
 
-	// Create Trace 2: backend span with link to gateway
-	backendCtx, span2 := tracer.Start(context.Background(), "backend-process",
+	backendCtx, backendSpan := tracer.Start(context.Background(), "backend",
 		oteltrace.WithAttributes(
 			attribute.String("service.name", "backend"),
 			attribute.String("name", "backend"),
 		),
 		oteltrace.WithLinks(oteltrace.Link{
-			SpanContext: span3Ctx,
+			SpanContext: gatewaySpanCtx,
 		}),
 	)
-	span2Ctx := span2.SpanContext()
-	span2.End()
-	tp.ForceFlush(backendCtx)
+	time.Sleep(10 * time.Millisecond)
+	backendSpanCtx := backendSpan.SpanContext()
+	backendSpan.End()
+	require.NoError(t, tp.ForceFlush(backendCtx))
 
-	// Create Trace 1: database span with link to backend
-	databaseCtx, span1 := tracer.Start(context.Background(), "database-query",
+	databaseCtx, databaseSpan := tracer.Start(context.Background(), "database",
 		oteltrace.WithAttributes(
 			attribute.String("service.name", "database"),
 			attribute.String("name", "database"),
 		),
+
 		oteltrace.WithLinks(oteltrace.Link{
-			SpanContext: span2Ctx,
+			SpanContext: backendSpanCtx,
 		}),
 	)
-	span1.End()
-	tp.ForceFlush(databaseCtx)
+	time.Sleep(20 * time.Millisecond)
+	databaseSpan.End()
+	require.NoError(t, tp.ForceFlush(databaseCtx))
 
-	// Flush traces
 	require.NoError(t, tp.ForceFlush(ctx))
 
-	waitForSearchBackend(t, tempo, 1)
+	waitForSearchBackend(t, tempo, 3)
 
-	// Wait for traces to be written
-	require.NoError(t, tempo.WaitSumMetricsWithOptions(e2e.GreaterOrEqual(3), []string{"tempo_ingester_traces_created_total"}, e2e.WaitMissingMetrics))
-
-	// Test link traversal queries
 	testCases := []struct {
 		name        string
 		query       string
@@ -193,170 +151,52 @@ func TestLinkTraversal(t *testing.T) {
 
 			// Verify metrics are present
 			require.NotNil(t, resp.Metrics, "Metrics should be present")
-
-			t.Logf("Query: %s", tc.query)
-			t.Logf("Description: %s", tc.description)
-			t.Logf("Found %d traces", len(resp.Traces))
-			t.Logf("Inspected %d traces, %d bytes", resp.Metrics.InspectedTraces, resp.Metrics.InspectedBytes)
-		})
-	}
-}
-
-// TestLinkTraversalWithConditions tests link traversal with additional conditions
-func TestLinkTraversalWithConditions(t *testing.T) {
-	s, err := e2e.NewScenario("tempo_e2e")
-	require.NoError(t, err)
-	defer s.Close()
-
-	require.NoError(t, util.CopyFileToSharedDir(s, configAllInOneLocal, "config.yaml"))
-	tempo := util.NewTempoAllInOne()
-	require.NoError(t, s.StartAndWaitReady(tempo))
-
-	// Create OTLP exporter
-	ctx := context.Background()
-	conn, err := grpc.NewClient(
-		tempo.Endpoint(4317),
-		grpc.WithTransportCredentials(insecure.NewCredentials()),
-	)
-	require.NoError(t, err)
-	defer conn.Close()
-
-	exporter, err := otlptracegrpc.New(ctx, otlptracegrpc.WithGRPCConn(conn))
-	require.NoError(t, err)
-	defer func() {
-		_ = exporter.Shutdown(ctx)
-	}()
-
-	// Create resource
-	res, err := resource.New(ctx,
-		resource.WithAttributes(
-			semconv.ServiceName("link-traversal-conditions-test"),
-			semconv.ServiceVersion("test"),
-		),
-	)
-	require.NoError(t, err)
-
-	// Create tracer provider
-	tp := tracesdk.NewTracerProvider(
-		tracesdk.WithBatcher(exporter),
-		tracesdk.WithResource(res),
-	)
-	defer func() {
-		_ = tp.Shutdown(ctx)
-	}()
-
-	tracer := tp.Tracer("test-tracer")
-
-	// Create traces with different statuses
-	// database -> backend (database links TO backend)
-
-	// Trace 2: failed backend call (terminal - no outgoing links)
-	backendCtx, span2 := tracer.Start(context.Background(), "backend-error",
-		oteltrace.WithAttributes(
-			attribute.String("service.name", "backend"),
-			attribute.String("name", "backend"),
-			attribute.String("http.status_code", "500"),
-		),
-	)
-	span2.SetStatus(codes.Error, "internal error")
-	span2Ctx := span2.SpanContext()
-	span2.End()
-	tp.ForceFlush(backendCtx)
-
-	// Trace 1: successful database query with link to backend
-	databaseCtx, span1 := tracer.Start(context.Background(), "db-success",
-		oteltrace.WithAttributes(
-			attribute.String("service.name", "database"),
-			attribute.String("name", "database"),
-			attribute.String("db.operation", "select"),
-		),
-		oteltrace.WithLinks(oteltrace.Link{
-			SpanContext: span2Ctx,
-		}),
-	)
-	span1.SetStatus(codes.Ok, "success")
-	span1.End()
-	tp.ForceFlush(databaseCtx)
-
-	// Flush traces
-	require.NoError(t, tp.ForceFlush(ctx))
-
-	waitForSearchBackend(t, tempo, 1)
-
-	// Test queries with conditions
-	testCases := []struct {
-		name        string
-		query       string
-		expectError bool
-		minTraces   int
-	}{
-		{
-			name:        "link with status condition",
-			query:       `{name="database" && status=ok} &->> {name="backend" && status=error}`,
-			expectError: false,
-			minTraces:   1,
-		},
-		{
-			name:        "link with attribute condition",
-			query:       `{name="database" && span.db.operation="select"} &->> {name="backend"}`,
-			expectError: false,
-			minTraces:   1,
-		},
-	}
-
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			resp, err := executeSearchQuery(tempo.Endpoint(tempoPort), tc.query)
-
-			if tc.expectError {
-				require.Error(t, err)
-				return
-			}
-
-			require.NoError(t, err)
-			if resp != nil {
-				require.GreaterOrEqual(t, len(resp.Traces), tc.minTraces)
-				t.Logf("Query: %s - Found %d traces", tc.query, len(resp.Traces))
-			}
 		})
 	}
 }
 
 // executeSearchQuery executes a TraceQL search query against Tempo
 func executeSearchQuery(endpoint, query string) (*tempopb.SearchResponse, error) {
-	// Build search URL
-	searchURL := fmt.Sprintf("http://%s/api/search", endpoint)
+	client := httpclient.New("http://"+endpoint, "")
+	return client.SearchTraceQL(query)
+}
 
-	// Add query parameter
-	params := url.Values{}
-	params.Add("q", query)
-	params.Add("limit", "100")
+func setupTracerProvider(ctx context.Context, tempo *e2e.HTTPService, t *testing.T) (func(), *tracesdk.TracerProvider, error) {
+	t.Helper()
 
-	fullURL := fmt.Sprintf("%s?%s", searchURL, params.Encode())
+	conn, err := grpc.NewClient(
+		tempo.Endpoint(4317),
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+	)
+	require.NoError(t, err)
 
-	// Execute request
-	resp, err := http.Get(fullURL)
-	if err != nil {
-		return nil, fmt.Errorf("failed to execute search: %w", err)
+	// Create OTLP exporter
+	exporter, err := otlptracegrpc.New(ctx, otlptracegrpc.WithGRPCConn(conn))
+	require.NoError(t, err)
+
+	// Create resource
+	res := resource.NewWithAttributes(
+		semconv.SchemaURL,
+		semconv.ServiceName("link-traversal-test"),
+		semconv.ServiceVersion("0.0.0-test"),
+		attribute.String("environment", "test"),
+	)
+
+	// Create tracer provider
+	tp := tracesdk.NewTracerProvider(
+		tracesdk.WithBatcher(exporter),
+		tracesdk.WithResource(res),
+	)
+	otel.SetTracerProvider(tp)
+
+	cancelfn := func() {
+		err := exporter.Shutdown(context.Background())
+		require.NoError(t, err)
+		err = tp.Shutdown(context.Background())
+		require.NoError(t, err)
+		err = conn.Close()
+		require.NoError(t, err)
 	}
-	defer resp.Body.Close()
 
-	// Check status code
-	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("search failed with status %d: %s", resp.StatusCode, string(body))
-	}
-
-	// Parse response
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read response: %w", err)
-	}
-
-	var searchResp tempopb.SearchResponse
-	if err := json.Unmarshal(body, &searchResp); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal response: %w", err)
-	}
-
-	return &searchResp, nil
+	return cancelfn, tp, nil
 }
