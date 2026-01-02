@@ -18,7 +18,7 @@ jobs:
         persist-credentials: false
         
     - name: Anchore SBOM Action
-      uses: anchore/sbom-action@fbfd9c6c189226748411491745178e0c2017392d # v0.20.10
+      uses: anchore/sbom-action@a930d0ac434e3182448fe678398ba5713717112a # v0.21.0
       with:
          artifact-name: ${{ github.event.repository.name }}-spdx.json
 
