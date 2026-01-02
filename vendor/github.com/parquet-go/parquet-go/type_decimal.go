@@ -11,9 +11,9 @@ import (
 // https://github.com/apache/parquet-format/blob/master/LogicalTypes.md#decimal
 func Decimal(scale, precision int, typ Type) Node {
 	switch typ.Kind() {
-	case Int32, Int64, FixedLenByteArray:
+	case Int32, Int64, ByteArray, FixedLenByteArray:
 	default:
-		panic("DECIMAL node must annotate Int32, Int64 or FixedLenByteArray but got " + typ.String())
+		panic("DECIMAL node must annotate Int32, Int64, ByteArray or FixedLenByteArray but got " + typ.String())
 	}
 	return Leaf(&decimalType{
 		decimal: format.DecimalType{
