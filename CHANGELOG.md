@@ -62,6 +62,7 @@
 * [ENHANCEMENT] Add support for application/protobuf in frontend endpoints [#5865](https://github.com/grafana/tempo/pull/5865) (@oleg-kozliuk-grafana)
 * [ENHANCEMENT] Validate metrics-generator histogram buckets [#5991](https://github.com/grafana/tempo/pull/5991) (@carles-grafana)
 * [ENHANCEMENT] Removed MustNewConstMetric to prevent panic and added validation for usage tracker config. Added `tempo_distributor_usage_tracker_errors_total` to surface errors in usage tracker. [#5981](https://github.com/grafana/tempo/pull/5981) (@electron0zero)
+* [ENHANCEMENT] Simplify block-builder partition assignment with config parameter `partitions_per_instance` [#6022](https://github.com/grafana/tempo/pull/6022) (@mapno)
 * [BUGFIX] Prevent slice panic when truncating series after topk() by adding bounds check in metrics query-range combiner [#6010](https://github.com/grafana/tempo/pull/6010) (@Syedowais312)
 * [BUGFIX] Fix block-builder to more precisely validate block encoding on startup [#6037](https://github.com/grafana/tempo/pull/6037) (@mdisibio)
 * [BUGFIX] Fix compactor to properly consider SSE-KMS information during metadata copy [#5774](https://github.com/grafana/tempo/pull/5774) (@steffsas)
