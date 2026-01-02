@@ -36,3 +36,9 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(string, *flag.FlagSet) {
 	cfg.MaxLabelNameLength = 1024
 	cfg.MaxLabelValueLength = 2048
 }
+
+const (
+	DrainModeDisabled = "disabled"
+	DrainModeDryRun   = "dry_run"
+	DrainModeEnabled  = "enabled"
+)
