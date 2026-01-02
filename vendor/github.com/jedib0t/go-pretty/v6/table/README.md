@@ -76,11 +76,23 @@ If you want very specific examples, look at the [EXAMPLES.md](EXAMPLES.md) file.
 
 ### Sorting & Filtering
 
-  - Sort by one or more Columns (`SortBy`)
+  - **Sorting**
+    - Sort by one or more Columns (`SortBy`)
     - Multiple column sorting support
-    - Various sort modes: alphabetical, numeric, alphanumeric, numeric-alpha
+    - Various sort modes: Alphabetical, Numeric, Alpha-numeric, Numeric-alpha
     - Case-insensitive sorting option (`IgnoreCase`)
     - Custom sorting functions (`CustomLess`) for advanced sorting logic
+  - **Filtering**
+    - Filter by one or more Columns (`FilterBy`)
+    - Multiple filters with AND logic (all must match)
+    - Various filter operators:
+      - Equality: Equal, NotEqual
+      - Numeric: GreaterThan, GreaterThanOrEqual, LessThan, LessThanOrEqual
+      - String: Contains, NotContains, StartsWith, EndsWith
+      - Regex: RegexMatch, RegexNotMatch
+    - Case-insensitive filtering option (`IgnoreCase`)
+    - Custom filter functions (`CustomFilter`) for advanced filtering logic
+    - Filters are applied before sorting
   - Suppress/hide columns with no content (`SuppressEmptyColumns`)
   - Hide specific columns (`ColumnConfig.Hidden`)
   - Suppress trailing spaces in the last column (`SuppressTrailingSpaces`)

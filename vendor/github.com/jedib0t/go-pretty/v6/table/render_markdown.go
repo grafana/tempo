@@ -66,7 +66,7 @@ func (t *Table) markdownRenderRowAutoIndex(out *strings.Builder, colIdx int, hin
 		if hint.isSeparatorRow {
 			out.WriteString("---:")
 		} else if hint.isRegularRow() {
-			out.WriteString(fmt.Sprintf("%d ", hint.rowNumber))
+			fmt.Fprintf(out, "%d ", hint.rowNumber)
 		}
 		out.WriteRune('|')
 	}

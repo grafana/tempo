@@ -13,7 +13,7 @@ func WrapHard(str string, wrapLen int) string {
 	if wrapLen <= 0 {
 		return ""
 	}
-	str = strings.Replace(str, "\t", "    ", -1)
+	str = strings.ReplaceAll(str, "\t", "    ")
 	sLen := StringWidthWithoutEscSequences(str)
 	if sLen <= wrapLen {
 		return str
@@ -41,7 +41,7 @@ func WrapSoft(str string, wrapLen int) string {
 	if wrapLen <= 0 {
 		return ""
 	}
-	str = strings.Replace(str, "\t", "    ", -1)
+	str = strings.ReplaceAll(str, "\t", "    ")
 	sLen := StringWidthWithoutEscSequences(str)
 	if sLen <= wrapLen {
 		return str
@@ -68,7 +68,7 @@ func WrapText(str string, wrapLen int) string {
 	if wrapLen <= 0 {
 		return ""
 	}
-	str = strings.Replace(str, "\t", "    ", -1)
+	str = strings.ReplaceAll(str, "\t", "    ")
 	sLen := StringWidthWithoutEscSequences(str)
 	if sLen <= wrapLen {
 		return str
