@@ -84,6 +84,7 @@
 * [BUGFIX] Fix slow pod startup (~90s) in monolithic mode by returning false from isSharded() when kvstore is empty or inmemory. [#6035](https://github.com/grafana/tempo/issues/6035) (@AryanBagade)
 * [BUGFIX] Fix issue with orphaned group nodes in vParquet5-preview6 [#6095](https://github.com/grafana/tempo/pull/6095) (@stoewer)
 * [BUGFIX] Fix disappearing dedicated event attrs in trace view and dedicated blob column validation in vParquet5-preview6 [#6100](https://github.com/grafana/tempo/pull/6100) (@stoewer)
+* [BUGFIX] Fix response-too-large.md ingestion config example in document [#6116](https://github.com/grafana/tempo/pull/6116) (@gamerslouis)
 
 # v2.9.0
 
