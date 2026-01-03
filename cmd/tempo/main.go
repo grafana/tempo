@@ -50,7 +50,7 @@ func main() {
 	mutexProfileFraction := flag.Int("mutex-profile-fraction", 0, "Override default mutex profiling fraction.")
 	blockProfileThreshold := flag.Int("block-profile-threshold", 0, "Override default block profiling threshold.")
 
-	config, configVerify, err := loadConfig()
+	config, _, err := loadConfig()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "failed parsing config: %v\n", err)
 		os.Exit(1)
@@ -68,14 +68,17 @@ func main() {
 	log.InitLogger(&config.Server)
 
 	// Verifying the config's validity and log warnings now that the logger is initialized
-	isValid := configIsValid(config)
+	warnings, err := configIsValid(config)
+	if err != nil {
+		level.Error(log.Logger).Log("msg", "invalid configuration", "err", err)
+		os.Exit(1)
+	}
 
-	// Exit if config.verify flag is true
-	if configVerify {
-		if !isValid {
-			os.Exit(1)
-		}
-		os.Exit(0)
+	for _, w := range warnings {
+		level.Warn(log.Logger).Log(
+			"msg", "Configuration warning",
+			"warning", w,
+		)
 	}
 
 	// Init tracer if OTEL_TRACES_EXPORTER, OTEL_EXPORTER_OTLP_ENDPOINT or OTEL_EXPORTER_OTLP_TRACES_ENDPOINT is set
@@ -113,33 +116,20 @@ func main() {
 	runtime.KeepAlive(ballast)
 }
 
-func configIsValid(config *app.Config) bool {
-	// Warn the user for suspect configurations
-	if warnings := config.CheckConfig(); len(warnings) != 0 {
-		level.Warn(log.Logger).Log("msg", "-- CONFIGURATION WARNINGS --")
-		for _, w := range warnings {
-			output := []any{"msg", w.Message}
-			if w.Explain != "" {
-				output = append(output, "explain", w.Explain)
-			}
-			level.Warn(log.Logger).Log(output...)
-		}
-		return false
-	}
-	return true
+func configIsValid(config *app.Config) ([]string, error) {
+	warnings := config.CheckConfig()
+	return warnings, nil
 }
 
 func loadConfig() (*app.Config, bool, error) {
 	const (
 		configFileOption      = "config.file"
 		configExpandEnvOption = "config.expand-env"
-		configVerifyOption    = "config.verify"
 	)
 
 	var (
 		configFile      string
 		configExpandEnv bool
-		configVerify    bool
 	)
 
 	args := os.Args[1:]
@@ -151,7 +141,6 @@ func loadConfig() (*app.Config, bool, error) {
 
 	fs.StringVar(&configFile, configFileOption, "", "")
 	fs.BoolVar(&configExpandEnv, configExpandEnvOption, false, "")
-	fs.BoolVar(&configVerify, configVerifyOption, false, "")
 
 	// Try to find -config.file & -config.expand-env flags. As Parsing stops on the first error, eg. unknown flag,
 	// we simply try remaining parameters until we find config flag, or there are no params left.
@@ -192,7 +181,6 @@ func loadConfig() (*app.Config, bool, error) {
 	// overlay with cli
 	flagext.IgnoredFlag(flag.CommandLine, configFileOption, "Configuration file to load")
 	flagext.IgnoredFlag(flag.CommandLine, configExpandEnvOption, "Whether to expand environment variables in config file")
-	flagext.IgnoredFlag(flag.CommandLine, configVerifyOption, "Verify configuration and exit")
 	flag.Parse()
 
 	// after loading config, let's force some values if in single binary mode
@@ -214,7 +202,7 @@ func loadConfig() (*app.Config, bool, error) {
 		config.BackendWorker.Ring.KVStore.Store = "" // this will force the single binary to work in "unsharded" mode
 	}
 
-	return config, configVerify, nil
+	return config, false, nil
 }
 
 func setMutexBlockProfiling(mutexFraction int, blockThreshold int) {
