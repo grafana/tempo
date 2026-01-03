@@ -1,3 +1,5 @@
+version: 2
+
 archives:
   - id: default
     builds:
@@ -96,7 +98,7 @@ builds:
       - -X main.Version={{ .Version }}
     mod_timestamp: '{{ .CommitTimestamp }}'
 changelog:
-  skip: true
+  disable: true
   sort: asc
   filters:
     exclude:
@@ -137,3 +139,19 @@ nfpms:
       postinstall: ./tools/packaging/tempo-postinstall.sh
     rpm: {}
     deb: {}
+
+brews:
+  - name: tempo-cli
+    description: "Tempo CLI for Grafana Tempo"
+    homepage: https://grafana.com/oss/tempo/
+    license: Apache-2.0
+
+    install: |
+      bin.install "tempo-cli"
+
+    test: |
+      system "#{bin}/tempo-cli", "--help"
+
+    repository:
+      owner: grafana
+      name: homebrew-tap
