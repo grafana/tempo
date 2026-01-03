@@ -1,0 +1,3 @@
+address: "0.0.0.0:7777"
+backend: tempo:3200 # magically matches the name and port setup in the harness for a single binary deployment
+services_query_duration: 1h

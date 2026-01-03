@@ -1,0 +1,2 @@
+query_frontend:
+  query_end_cutoff: -5m # TestQueryRangeExemplars fails if this is not set. i don't know why
