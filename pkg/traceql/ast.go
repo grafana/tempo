@@ -155,6 +155,61 @@ func (r *RootExpr) IsNoop() bool {
 	return true
 }
 
+// HasLinkTraversal returns true if the query contains cross-trace link traversal operators
+func (r *RootExpr) HasLinkTraversal() bool {
+	return r.Pipeline.hasLinkTraversal()
+}
+
+// LinkOperationInfo contains information about a single link operation in a chain
+type LinkOperationInfo struct {
+	Conditions SpansetExpression // Conditions for this phase
+	Op         Operator          // Which link operator
+	IsUnion    bool              // Union operator variant?
+	IsLinkTo   bool              // True for ->>, false for <<-
+}
+
+// ExtractLinkChain extracts chained link operations for multi-phase execution
+// Returns the chain in execution order starting with the TERMINAL (the query target):
+//   - For ->> chains: terminal is rightmost → {database} ->> {backend} ->> {gateway}
+//     Executes: gateway → backend → database (reversed to start with gateway)
+//   - For <<- chains: terminal is leftmost → {gateway} <<- {backend} <<- {database}
+//     Executes: gateway → backend → database (already in order)
+//
+// Terminal-first execution is optimal because:
+//   - Fewer results to traverse (gateway spans << database spans)
+//   - No artificial limits on span IDs
+//   - Deterministic, complete results
+func (r *RootExpr) ExtractLinkChain() []*LinkOperationInfo {
+	var chain []*LinkOperationInfo
+
+	// Find the first pipeline element (should be a link operation chain)
+	if len(r.Pipeline.Elements) == 0 {
+		return chain
+	}
+
+	// Extract link operations from the pipeline
+	r.Pipeline.extractLinkChain(&chain)
+
+	// Determine execution order based on operator direction
+	// Both operators now execute terminal-first for optimal performance
+	if len(chain) > 0 {
+		firstOp := chain[0].Op
+		if firstOp == OpSpansetLinkTo || firstOp == OpSpansetUnionLinkTo {
+			// For ->> chains: terminal is rightmost, so reverse to put it first
+			reverseChain(chain)
+		}
+		// For <<- chains: terminal is leftmost, already first in chain (no reversal needed)
+	}
+
+	return chain
+}
+
+func reverseChain(chain []*LinkOperationInfo) {
+	for i, j := 0, len(chain)-1; i < j; i, j = i+1, j-1 {
+		chain[i], chain[j] = chain[j], chain[i]
+	}
+}
+
 // **********************
 // Pipeline
 // **********************
@@ -244,6 +299,34 @@ func (p Pipeline) evaluate(input []*Spanset) (result []*Spanset, err error) {
 	}
 
 	return result, nil
+}
+
+// hasLinkTraversal checks if the pipeline contains link traversal operators
+func (p Pipeline) hasLinkTraversal() bool {
+	for _, element := range p.Elements {
+		if op, ok := element.(SpansetOperation); ok {
+			if isLinkOperator(op.Op) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// extractLinkChain extracts link operations from the pipeline
+func (p Pipeline) extractLinkChain(chain *[]*LinkOperationInfo) {
+	for _, element := range p.Elements {
+		if op, ok := element.(SpansetOperation); ok {
+			if isLinkOperator(op.Op) {
+				op.extractLinkOperation(chain)
+			}
+		}
+	}
+}
+
+func isLinkOperator(op Operator) bool {
+	return op == OpSpansetLinkTo || op == OpSpansetLinkFrom ||
+		op == OpSpansetUnionLinkTo || op == OpSpansetUnionLinkFrom
 }
 
 type GroupOperation struct {
@@ -409,6 +492,41 @@ func newSpansetOperation(op Operator, lhs, rhs SpansetExpression) SpansetOperati
 
 // nolint: revive
 func (SpansetOperation) __spansetExpression() {}
+
+// extractLinkOperation recursively extracts link operations into a chain
+func (o SpansetOperation) extractLinkOperation(chain *[]*LinkOperationInfo) {
+	// Check if LHS is also a link operation (chained)
+	if lhsOp, ok := o.LHS.(SpansetOperation); ok && isLinkOperator(lhsOp.Op) {
+		lhsOp.extractLinkOperation(chain)
+	}
+
+	// Add current operation to chain
+	info := &LinkOperationInfo{
+		Op:       o.Op,
+		IsUnion:  o.Op == OpSpansetUnionLinkTo || o.Op == OpSpansetUnionLinkFrom,
+		IsLinkTo: o.Op == OpSpansetLinkTo || o.Op == OpSpansetUnionLinkTo,
+	}
+
+	// For chained operations, LHS is the previous link operation
+	// RHS contains the conditions for this phase
+	if lhsOp, ok := o.LHS.(SpansetOperation); ok && isLinkOperator(lhsOp.Op) {
+		// This is a chained operation, RHS is the condition
+		info.Conditions = o.RHS
+	} else {
+		// First operation in chain, LHS is the condition
+		info.Conditions = o.LHS
+		// Also add RHS as next operation
+		*chain = append(*chain, info)
+		info = &LinkOperationInfo{
+			Conditions: o.RHS,
+			Op:         o.Op,
+			IsUnion:    o.Op == OpSpansetUnionLinkTo || o.Op == OpSpansetUnionLinkFrom,
+			IsLinkTo:   o.Op == OpSpansetLinkTo || o.Op == OpSpansetUnionLinkTo,
+		}
+	}
+
+	*chain = append(*chain, info)
+}
 
 type SpansetFilter struct {
 	Expression          FieldExpression
