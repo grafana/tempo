@@ -109,14 +109,48 @@ Check which instances are configured:
 curl http://localhost:3200/api/status/instances
 ```
 
-Search for traces:
+## Sample applications
+
+The example includes four sample applications that generate distributed traces spanning all Tempo instances:
+
+| Service | Port | Sends traces to | Calls |
+|---------|------|-----------------|-------|
+| sample-app-1 | 8080 | Tempo 1 | sample-app-2 |
+| sample-app-2 | 8081 | Tempo 2 | sample-app-3 |
+| sample-app-3 | 8082 | Tempo 3 | sample-app-4 |
+| sample-app-4 | 8083 | Tempo 4 | (end of chain) |
+
+When you call `sample-app-1`, it generates a trace that propagates through all four services. Each service sends its spans to a different Tempo instance. The federated querier combines all spans into a complete trace.
+
+Trigger a trace manually:
 
 ```bash
-curl "http://localhost:3200/api/search?q={duration>1s}"
+curl http://localhost:8080/generate-trace
+```
+
+## Load generator (k6)
+
+A k6 load generator is included to continuously generate traces for testing. By default, it sends 1 request per second to `sample-app-1`.
+
+### Configuration
+
+Configure the load generator with environment variables in `docker-compose.yaml`:
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `TARGET_URL` | URL to send requests to | `http://sample-app-1:8080/generate-trace` |
+| `REQUESTS_PER_SECOND` | Request rate | `1` |
+| `DURATION` | How long to run | `9h` |
+
+### Viewing k6 output
+
+```bash
+docker compose logs -f k6
 ```
 
 ## Cleanup
 
 ```bash
-docker-compose down -v
+docker compose down -v
 ```
+
