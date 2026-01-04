@@ -1,0 +1,143 @@
+# Example Docker Compose configuration for Tempo Federated Querier
+# This example shows how to set up the federated querier with 4 Tempo instances
+
+services:
+  # Tempo Federated Querier - queries all Tempo instances
+  tempo-federated-querier:
+    build:
+      context: ../../..
+      dockerfile: cmd/tempo-federated-querier/Dockerfile
+    ports:
+      - "3200:3200"
+    volumes:
+      - ./federated-config.yaml:/config.yaml
+    command: ["-config.file=/config.yaml"]
+    depends_on:
+      - tempo-1
+      - tempo-2
+      - tempo-3
+      - tempo-4
+
+  # Tempo Instance 1
+  tempo-1:
+    image: grafana/tempo:latest
+    command: ["-config.file=/etc/tempo.yaml"]
+    volumes:
+      - ./tempo-config.yaml:/etc/tempo.yaml
+      - tempo-1-data:/var/tempo
+    ports:
+      - "3201:3200"
+
+  # Tempo Instance 2
+  tempo-2:
+    image: grafana/tempo:latest
+    command: ["-config.file=/etc/tempo.yaml"]
+    volumes:
+      - ./tempo-config.yaml:/etc/tempo.yaml
+      - tempo-2-data:/var/tempo
+    ports:
+      - "3202:3200"
+
+  # Tempo Instance 3
+  tempo-3:
+    image: grafana/tempo:latest
+    command: ["-config.file=/etc/tempo.yaml"]
+    volumes:
+      - ./tempo-config.yaml:/etc/tempo.yaml
+      - tempo-3-data:/var/tempo
+    ports:
+      - "3203:3200"
+
+  # Tempo Instance 4
+  tempo-4:
+    image: grafana/tempo:latest
+    command: ["-config.file=/etc/tempo.yaml"]
+    volumes:
+      - ./tempo-config.yaml:/etc/tempo.yaml
+      - tempo-4-data:/var/tempo
+    ports:
+      - "3204:3200"
+
+  # Grafana for visualization
+  grafana:
+    image: grafana/grafana:latest
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_AUTH_ANONYMOUS_ENABLED=true
+      - GF_AUTH_ANONYMOUS_ORG_ROLE=Admin
+      - GF_AUTH_DISABLE_LOGIN_FORM=true
+    volumes:
+      - ./grafana-datasources.yaml:/etc/grafana/provisioning/datasources/datasources.yaml
+ # Sample App 1 - Sends traces to Tempo 1
+  sample-app-1:
+    build:
+      context: ./sample-apps
+      dockerfile: Dockerfile
+    environment:
+      - APP_NAME=order-service
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://tempo-1:4318
+      - OTEL_SERVICE_NAME=order-service
+      - TARGET_SERVICE=http://sample-app-2:8080
+    ports:
+      - "8081:8080"
+
+
+  # Sample App 2 - Sends traces to Tempo 2
+  sample-app-2:
+    build:
+      context: ./sample-apps
+      dockerfile: Dockerfile
+    environment:
+      - APP_NAME=inventory-service
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://tempo-2:4318
+      - OTEL_SERVICE_NAME=inventory-service
+      - TARGET_SERVICE=http://sample-app-3:8080
+    ports:
+      - "8082:8080"
+
+  # Sample App 3 - Sends traces to Tempo 3
+  sample-app-3:
+    build:
+      context: ./sample-apps
+      dockerfile: Dockerfile
+    environment:
+      - APP_NAME=payment-service
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://tempo-3:4318
+      - OTEL_SERVICE_NAME=payment-service
+      - TARGET_SERVICE=http://sample-app-4:8080
+    ports:
+      - "8083:8080"
+  # Sample App 4 - Sends traces to Tempo 4
+  sample-app-4:
+    build:
+      context: ./sample-apps
+      dockerfile: Dockerfile
+    environment:
+      - APP_NAME=shipping-service
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://tempo-4:4318
+      - OTEL_SERVICE_NAME=shipping-service
+    ports:
+      - "8084:8080"
+
+  # Load Generator - k6 continuously calls sample-app-1 to generate traces
+  k6:
+    image: grafana/k6:latest
+    volumes:
+      - ./k6:/scripts
+    environment:
+      - TARGET_URL=http://sample-app-1:8080/generate-trace
+      - REQUESTS_PER_SECOND=1
+      - DURATION=9h
+    command: ["run", "--quiet", "/scripts/script.js"]
+    depends_on:
+      - sample-app-1
+      - sample-app-2
+      - sample-app-3
+      - sample-app-4
+
+volumes:
+  tempo-1-data:
+  tempo-2-data:
+  tempo-3-data:
+  tempo-4-data:

@@ -1,0 +1,35 @@
+# Grafana data source configuration pointing to the federated querier
+apiVersion: 1
+
+datasources:
+  - name: Tempo (Federated)
+    type: tempo
+    access: proxy
+    url: http://tempo-federated-querier:3200
+    isDefault: true
+    editable: true
+
+  # Individual instances for comparison/debugging
+  - name: Tempo 1
+    type: tempo
+    access: proxy
+    url: http://tempo-1:3200
+    editable: true
+
+  - name: Tempo 2
+    type: tempo
+    access: proxy
+    url: http://tempo-2:3200
+    editable: true
+
+  - name: Tempo 3
+    type: tempo
+    access: proxy
+    url: http://tempo-3:3200
+    editable: true
+
+  - name: Tempo 4
+    type: tempo
+    access: proxy
+    url: http://tempo-4:3200
+    editable: true

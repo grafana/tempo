@@ -1,0 +1,28 @@
+# Federated Querier Configuration
+http_listen_address: "0.0.0.0"
+http_listen_port: 3200
+
+# Tempo instances to federate
+instances:
+  - name: "tempo-1"
+    endpoint: "http://tempo-1:3200"
+    timeout: 30s
+  - name: "tempo-2"
+    endpoint: "http://tempo-2:3200"
+    timeout: 30s
+  - name: "tempo-3"
+    endpoint: "http://tempo-3:3200"
+    timeout: 30s
+  - name: "tempo-4"
+    endpoint: "http://tempo-4:3200"
+    timeout: 30s
+
+# Query settings
+query_timeout: 30s
+max_concurrent_queries: 20
+max_bytes_per_trace: 52428800
+allow_partial_responses: true
+
+# Search settings
+search_timeout: 30s
+search_limit: 20
