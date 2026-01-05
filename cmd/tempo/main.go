@@ -50,7 +50,8 @@ func main() {
 	mutexProfileFraction := flag.Int("mutex-profile-fraction", 0, "Override default mutex profiling fraction.")
 	blockProfileThreshold := flag.Int("block-profile-threshold", 0, "Override default block profiling threshold.")
 
-	config, _, err := loadConfig()
+	config, configVerify, err := loadConfig()
+	// configVerify is kept for backward compatibility with the CLI-based config verification flow.
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "failed parsing config: %v\n", err)
 		os.Exit(1)
