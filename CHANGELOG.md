@@ -86,6 +86,7 @@
 * [BUGFIX] Fix issue with orphaned group nodes in vParquet5-preview6 [#6095](https://github.com/grafana/tempo/pull/6095) (@stoewer)
 * [BUGFIX] Fix disappearing dedicated event attrs in trace view and dedicated blob column validation in vParquet5-preview6 [#6100](https://github.com/grafana/tempo/pull/6100) (@stoewer)
 * [BUGFIX] Fix response-too-large.md ingestion config example in document [#6116](https://github.com/grafana/tempo/pull/6116) (@gamerslouis)
+* [BUGFIX] Correct handle whitespace or invisible separators in filters in attribute values in tag value search [#](https://github.com/grafana/tempo/pull/) (@mapno)
 
 # v2.9.0
 
