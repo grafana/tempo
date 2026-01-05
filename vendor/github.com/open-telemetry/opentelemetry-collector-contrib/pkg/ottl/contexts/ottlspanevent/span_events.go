@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sync"
 
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/pdata/pcommon"
@@ -23,6 +24,12 @@ import (
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl/contexts/internal/logging"
 )
 
+var tcPool = sync.Pool{
+	New: func() any {
+		return &TransformContext{cache: pcommon.NewMap()}
+	},
+}
+
 // ContextName is the name of the context for span events.
 // Experimental: *NOTE* this constant is subject to change or removal in the future.
 const ContextName = ctxspanevent.Name
@@ -37,12 +44,12 @@ type TransformContext struct {
 	resource             pcommon.Resource
 	cache                pcommon.Map
 	scopeSpans           ptrace.ScopeSpans
-	resouceSpans         ptrace.ResourceSpans
+	resourceSpans        ptrace.ResourceSpans
 	eventIndex           *int64
 }
 
 // MarshalLogObject serializes the TransformContext into a zapcore.ObjectEncoder for logging.
-func (tCtx TransformContext) MarshalLogObject(encoder zapcore.ObjectEncoder) error {
+func (tCtx *TransformContext) MarshalLogObject(encoder zapcore.ObjectEncoder) error {
 	err := encoder.AddObject("resource", logging.Resource(tCtx.resource))
 	err = errors.Join(err, encoder.AddObject("scope", logging.InstrumentationScope(tCtx.instrumentationScope)))
 	err = errors.Join(err, encoder.AddObject("span", logging.Span(tCtx.span)))
@@ -57,7 +64,7 @@ func (tCtx TransformContext) MarshalLogObject(encoder zapcore.ObjectEncoder) err
 // TransformContextOption represents an option for configuring a TransformContext.
 type TransformContextOption func(*TransformContext)
 
-// NewTransformContext creates a new TransformContext with the provided parameters.
+// Deprecated: [v0.142.0] Use NewTransformContextPtr.
 func NewTransformContext(spanEvent ptrace.SpanEvent, span ptrace.Span, instrumentationScope pcommon.InstrumentationScope, resource pcommon.Resource, scopeSpans ptrace.ScopeSpans, resourceSpans ptrace.ResourceSpans, options ...TransformContextOption) TransformContext {
 	tc := TransformContext{
 		spanEvent:            spanEvent,
@@ -66,12 +73,43 @@ func NewTransformContext(spanEvent ptrace.SpanEvent, span ptrace.Span, instrumen
 		resource:             resource,
 		cache:                pcommon.NewMap(),
 		scopeSpans:           scopeSpans,
-		resouceSpans:         resourceSpans,
+		resourceSpans:        resourceSpans,
 	}
 	for _, opt := range options {
 		opt(&tc)
 	}
 	return tc
+}
+
+// NewTransformContextPtr returns a new TransformContext with the provided parameters from a pool of contexts.
+// Caller must call TransformContext.Close on the returned TransformContext.
+func NewTransformContextPtr(resourceSpans ptrace.ResourceSpans, scopeSpans ptrace.ScopeSpans, span ptrace.Span, spanEvent ptrace.SpanEvent, options ...TransformContextOption) *TransformContext {
+	tCtx := tcPool.Get().(*TransformContext)
+	tCtx.spanEvent = spanEvent
+	tCtx.span = span
+	tCtx.instrumentationScope = scopeSpans.Scope()
+	tCtx.resource = resourceSpans.Resource()
+	tCtx.scopeSpans = scopeSpans
+	tCtx.resourceSpans = resourceSpans
+	for _, opt := range options {
+		opt(tCtx)
+	}
+	return tCtx
+}
+
+// Close the current TransformContext.
+// After this function returns this instance cannot be used.
+func (tCtx *TransformContext) Close() {
+	tCtx.spanEvent = ptrace.SpanEvent{}
+	tCtx.span = ptrace.Span{}
+	tCtx.instrumentationScope = pcommon.InstrumentationScope{}
+	tCtx.resource = pcommon.Resource{}
+	tCtx.cache.Clear()
+	tCtx.cache.Clear()
+	tCtx.scopeSpans = ptrace.ScopeSpans{}
+	tCtx.resourceSpans = ptrace.ResourceSpans{}
+	tCtx.eventIndex = nil
+	tcPool.Put(tCtx)
 }
 
 // WithEventIndex sets the index of the SpanEvent within the span, to make it accessible via the event_index property of its context.
@@ -83,38 +121,38 @@ func WithEventIndex(eventIndex int64) TransformContextOption {
 }
 
 // GetSpanEvent returns the span event from the TransformContext.
-func (tCtx TransformContext) GetSpanEvent() ptrace.SpanEvent {
+func (tCtx *TransformContext) GetSpanEvent() ptrace.SpanEvent {
 	return tCtx.spanEvent
 }
 
 // GetSpan returns the span from the TransformContext.
-func (tCtx TransformContext) GetSpan() ptrace.Span {
+func (tCtx *TransformContext) GetSpan() ptrace.Span {
 	return tCtx.span
 }
 
 // GetInstrumentationScope returns the instrumentation scope from the TransformContext.
-func (tCtx TransformContext) GetInstrumentationScope() pcommon.InstrumentationScope {
+func (tCtx *TransformContext) GetInstrumentationScope() pcommon.InstrumentationScope {
 	return tCtx.instrumentationScope
 }
 
 // GetResource returns the resource from the TransformContext.
-func (tCtx TransformContext) GetResource() pcommon.Resource {
+func (tCtx *TransformContext) GetResource() pcommon.Resource {
 	return tCtx.resource
 }
 
 // GetScopeSchemaURLItem returns the schema URL item for the scope from the TransformContext.
-func (tCtx TransformContext) GetScopeSchemaURLItem() ctxcommon.SchemaURLItem {
+func (tCtx *TransformContext) GetScopeSchemaURLItem() ctxcommon.SchemaURLItem {
 	return tCtx.scopeSpans
 }
 
 // GetResourceSchemaURLItem returns the schema URL item for the resource from the TransformContext.
-func (tCtx TransformContext) GetResourceSchemaURLItem() ctxcommon.SchemaURLItem {
-	return tCtx.resouceSpans
+func (tCtx *TransformContext) GetResourceSchemaURLItem() ctxcommon.SchemaURLItem {
+	return tCtx.resourceSpans
 }
 
 // GetEventIndex returns the event index from the TransformContext.
 // If the event index is not set or invalid, an error is returned.
-func (tCtx TransformContext) GetEventIndex() (int64, error) {
+func (tCtx *TransformContext) GetEventIndex() (int64, error) {
 	if tCtx.eventIndex != nil {
 		if *tCtx.eventIndex < 0 {
 			return 0, errors.New("found invalid value for 'event_index'")
@@ -129,9 +167,9 @@ func (tCtx TransformContext) GetEventIndex() (int64, error) {
 // otherwise an error is reported.
 //
 // Experimental: *NOTE* this option is subject to change or removal in the future.
-func EnablePathContextNames() ottl.Option[TransformContext] {
-	return func(p *ottl.Parser[TransformContext]) {
-		ottl.WithPathContextNames[TransformContext]([]string{
+func EnablePathContextNames() ottl.Option[*TransformContext] {
+	return func(p *ottl.Parser[*TransformContext]) {
+		ottl.WithPathContextNames[*TransformContext]([]string{
 			ctxspanevent.Name,
 			ctxspan.Name,
 			ctxresource.Name,
@@ -142,17 +180,17 @@ func EnablePathContextNames() ottl.Option[TransformContext] {
 }
 
 // StatementSequenceOption represents an option for configuring a statement sequence.
-type StatementSequenceOption func(*ottl.StatementSequence[TransformContext])
+type StatementSequenceOption func(*ottl.StatementSequence[*TransformContext])
 
 // WithStatementSequenceErrorMode sets the error mode for a statement sequence.
 func WithStatementSequenceErrorMode(errorMode ottl.ErrorMode) StatementSequenceOption {
-	return func(s *ottl.StatementSequence[TransformContext]) {
-		ottl.WithStatementSequenceErrorMode[TransformContext](errorMode)(s)
+	return func(s *ottl.StatementSequence[*TransformContext]) {
+		ottl.WithStatementSequenceErrorMode[*TransformContext](errorMode)(s)
 	}
 }
 
 // NewStatementSequence creates a new statement sequence with the provided statements and options.
-func NewStatementSequence(statements []*ottl.Statement[TransformContext], telemetrySettings component.TelemetrySettings, options ...StatementSequenceOption) ottl.StatementSequence[TransformContext] {
+func NewStatementSequence(statements []*ottl.Statement[*TransformContext], telemetrySettings component.TelemetrySettings, options ...StatementSequenceOption) ottl.StatementSequence[*TransformContext] {
 	s := ottl.NewStatementSequence(statements, telemetrySettings)
 	for _, op := range options {
 		op(&s)
@@ -161,17 +199,17 @@ func NewStatementSequence(statements []*ottl.Statement[TransformContext], teleme
 }
 
 // ConditionSequenceOption represents an option for configuring a condition sequence.
-type ConditionSequenceOption func(*ottl.ConditionSequence[TransformContext])
+type ConditionSequenceOption func(*ottl.ConditionSequence[*TransformContext])
 
 // WithConditionSequenceErrorMode sets the error mode for a condition sequence.
 func WithConditionSequenceErrorMode(errorMode ottl.ErrorMode) ConditionSequenceOption {
-	return func(c *ottl.ConditionSequence[TransformContext]) {
-		ottl.WithConditionSequenceErrorMode[TransformContext](errorMode)(c)
+	return func(c *ottl.ConditionSequence[*TransformContext]) {
+		ottl.WithConditionSequenceErrorMode[*TransformContext](errorMode)(c)
 	}
 }
 
 // NewConditionSequence creates a new condition sequence with the provided conditions and options.
-func NewConditionSequence(conditions []*ottl.Condition[TransformContext], telemetrySettings component.TelemetrySettings, options ...ConditionSequenceOption) ottl.ConditionSequence[TransformContext] {
+func NewConditionSequence(conditions []*ottl.Condition[*TransformContext], telemetrySettings component.TelemetrySettings, options ...ConditionSequenceOption) ottl.ConditionSequence[*TransformContext] {
 	c := ottl.NewConditionSequence(conditions, telemetrySettings)
 	for _, op := range options {
 		op(&c)
@@ -181,10 +219,10 @@ func NewConditionSequence(conditions []*ottl.Condition[TransformContext], teleme
 
 // NewParser creates a new span event parser with the provided functions and options.
 func NewParser(
-	functions map[string]ottl.Factory[TransformContext],
+	functions map[string]ottl.Factory[*TransformContext],
 	telemetrySettings component.TelemetrySettings,
-	options ...ottl.Option[TransformContext],
-) (ottl.Parser[TransformContext], error) {
+	options ...ottl.Option[*TransformContext],
+) (ottl.Parser[*TransformContext], error) {
 	return ctxcommon.NewParser(
 		functions,
 		telemetrySettings,
@@ -204,37 +242,37 @@ func parseEnum(val *ottl.EnumSymbol) (*ottl.Enum, error) {
 	return nil, errors.New("enum symbol not provided")
 }
 
-func getCache(tCtx TransformContext) pcommon.Map {
+func getCache(tCtx *TransformContext) pcommon.Map {
 	return tCtx.cache
 }
 
-func pathExpressionParser(cacheGetter ctxcache.Getter[TransformContext]) ottl.PathExpressionParser[TransformContext] {
+func pathExpressionParser(cacheGetter ctxcache.Getter[*TransformContext]) ottl.PathExpressionParser[*TransformContext] {
 	return ctxcommon.PathExpressionParser(
 		ctxspanevent.Name,
 		ctxspanevent.DocRef,
 		cacheGetter,
-		map[string]ottl.PathExpressionParser[TransformContext]{
-			ctxresource.Name:    ctxresource.PathGetSetter[TransformContext],
-			ctxscope.Name:       ctxscope.PathGetSetter[TransformContext],
-			ctxscope.LegacyName: ctxscope.PathGetSetter[TransformContext],
-			ctxspan.Name:        ctxspan.PathGetSetter[TransformContext],
+		map[string]ottl.PathExpressionParser[*TransformContext]{
+			ctxresource.Name:    ctxresource.PathGetSetter[*TransformContext],
+			ctxscope.Name:       ctxscope.PathGetSetter[*TransformContext],
+			ctxscope.LegacyName: ctxscope.PathGetSetter[*TransformContext],
+			ctxspan.Name:        ctxspan.PathGetSetter[*TransformContext],
 			ctxspanevent.Name:   spanEventGetSetterWithIndex,
 		})
 }
 
-func spanEventGetSetterWithIndex(path ottl.Path[TransformContext]) (ottl.GetSetter[TransformContext], error) {
+func spanEventGetSetterWithIndex(path ottl.Path[*TransformContext]) (ottl.GetSetter[*TransformContext], error) {
 	if path.Name() == "event_index" {
 		return accessSpanEventIndex(), nil
 	}
 	return ctxspanevent.PathGetSetter(path)
 }
 
-func accessSpanEventIndex() ottl.StandardGetSetter[TransformContext] {
-	return ottl.StandardGetSetter[TransformContext]{
-		Getter: func(_ context.Context, tCtx TransformContext) (any, error) {
+func accessSpanEventIndex() ottl.StandardGetSetter[*TransformContext] {
+	return ottl.StandardGetSetter[*TransformContext]{
+		Getter: func(_ context.Context, tCtx *TransformContext) (any, error) {
 			return tCtx.GetEventIndex()
 		},
-		Setter: func(_ context.Context, _ TransformContext, _ any) error {
+		Setter: func(_ context.Context, _ *TransformContext, _ any) error {
 			return errors.New("the 'event_index' path cannot be modified")
 		},
 	}

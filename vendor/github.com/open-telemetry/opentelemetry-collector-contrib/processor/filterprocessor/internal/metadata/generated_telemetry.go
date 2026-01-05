@@ -63,25 +63,25 @@ func NewTelemetryBuilder(settings component.TelemetrySettings, options ...Teleme
 	var err, errs error
 	builder.ProcessorFilterDatapointsFiltered, err = builder.meter.Int64Counter(
 		"otelcol_processor_filter_datapoints.filtered",
-		metric.WithDescription("Number of metric data points dropped by the filter processor"),
+		metric.WithDescription("Number of metric data points dropped by the filter processor [Development]"),
 		metric.WithUnit("1"),
 	)
 	errs = errors.Join(errs, err)
 	builder.ProcessorFilterLogsFiltered, err = builder.meter.Int64Counter(
 		"otelcol_processor_filter_logs.filtered",
-		metric.WithDescription("Number of logs dropped by the filter processor"),
+		metric.WithDescription("Number of logs dropped by the filter processor [Development]"),
 		metric.WithUnit("1"),
 	)
 	errs = errors.Join(errs, err)
 	builder.ProcessorFilterProfilesFiltered, err = builder.meter.Int64Counter(
 		"otelcol_processor_filter_profiles.filtered",
-		metric.WithDescription("Number of profiles dropped by the filter processor"),
+		metric.WithDescription("Number of profiles dropped by the filter processor [Development]"),
 		metric.WithUnit("1"),
 	)
 	errs = errors.Join(errs, err)
 	builder.ProcessorFilterSpansFiltered, err = builder.meter.Int64Counter(
 		"otelcol_processor_filter_spans.filtered",
-		metric.WithDescription("Number of spans dropped by the filter processor"),
+		metric.WithDescription("Number of spans dropped by the filter processor [Development]"),
 		metric.WithUnit("1"),
 	)
 	errs = errors.Join(errs, err)

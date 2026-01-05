@@ -40,6 +40,7 @@ func converters[K any]() []ottl.Factory[K] {
 		// Converters
 		NewBase64DecodeFactory[K](),
 		NewDecodeFactory[K](),
+		NewCommunityIDFactory[K](),
 		NewConcatFactory[K](),
 		NewContainsValueFactory[K](),
 		NewConvertCaseFactory[K](),
@@ -100,6 +101,8 @@ func converters[K any]() []ottl.Factory[K] {
 		NewTimeFactory[K](),
 		NewFormatTimeFactory[K](),
 		NewTrimFactory[K](),
+		NewTrimPrefixFactory[K](),
+		NewTrimSuffixFactory[K](),
 		NewToKeyValueStringFactory[K](),
 		NewToCamelCaseFactory[K](),
 		NewToLowerCaseFactory[K](),
@@ -122,9 +125,11 @@ func converters[K any]() []ottl.Factory[K] {
 		NewYearFactory[K](),
 		NewHexFactory[K](),
 		NewSliceToMapFactory[K](),
+		NewParseSeverityFactory[K](),
 		NewProfileIDFactory[K](),
 		NewParseIntFactory[K](),
 		NewKeysFactory[K](),
 		NewXXH3Factory[K](),
+		NewXXH128Factory[K](),
 	}
 }

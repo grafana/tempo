@@ -17,13 +17,15 @@ import (
 	"github.com/open-telemetry/opentelemetry-collector-contrib/internal/filter/expr"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/internal/filter/filterottl"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/internal/filter/filterspan"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl/contexts/ottlresource"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl/contexts/ottlspan"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl/contexts/ottlspanevent"
 )
 
 type filterSpanProcessor struct {
-	skipSpanExpr      expr.BoolExpr[ottlspan.TransformContext]
-	skipSpanEventExpr expr.BoolExpr[ottlspanevent.TransformContext]
+	skipResourceExpr  expr.BoolExpr[*ottlresource.TransformContext]
+	skipSpanExpr      expr.BoolExpr[*ottlspan.TransformContext]
+	skipSpanEventExpr expr.BoolExpr[*ottlspanevent.TransformContext]
 	telemetry         *filterTelemetry
 	logger            *zap.Logger
 }
@@ -40,7 +42,14 @@ func newFilterSpansProcessor(set processor.Settings, cfg *Config) (*filterSpanPr
 	}
 	fsp.telemetry = fpt
 
-	if cfg.Traces.SpanConditions != nil || cfg.Traces.SpanEventConditions != nil {
+	if cfg.Traces.ResourceConditions != nil || cfg.Traces.SpanConditions != nil || cfg.Traces.SpanEventConditions != nil {
+		if cfg.Traces.ResourceConditions != nil {
+			fsp.skipResourceExpr, err = filterottl.NewBoolExprForResource(cfg.Traces.ResourceConditions, cfg.resourceFunctions, cfg.ErrorMode, set.TelemetrySettings)
+			if err != nil {
+				return nil, err
+			}
+		}
+
 		if cfg.Traces.SpanConditions != nil {
 			fsp.skipSpanExpr, err = filterottl.NewBoolExprForSpan(cfg.Traces.SpanConditions, cfg.spanFunctions, cfg.ErrorMode, set.TelemetrySettings)
 			if err != nil {
@@ -81,7 +90,7 @@ func newFilterSpansProcessor(set processor.Settings, cfg *Config) (*filterSpanPr
 
 // processTraces filters the given spans of a traces based off the filterSpanProcessor's filters.
 func (fsp *filterSpanProcessor) processTraces(ctx context.Context, td ptrace.Traces) (ptrace.Traces, error) {
-	if fsp.skipSpanExpr == nil && fsp.skipSpanEventExpr == nil {
+	if fsp.skipResourceExpr == nil && fsp.skipSpanExpr == nil && fsp.skipSpanEventExpr == nil {
 		return td, nil
 	}
 
@@ -90,11 +99,27 @@ func (fsp *filterSpanProcessor) processTraces(ctx context.Context, td ptrace.Tra
 	var errors error
 	td.ResourceSpans().RemoveIf(func(rs ptrace.ResourceSpans) bool {
 		resource := rs.Resource()
+		if fsp.skipResourceExpr != nil {
+			tCtx := ottlresource.NewTransformContextPtr(resource, rs)
+			skip, err := fsp.skipResourceExpr.Eval(ctx, tCtx)
+			tCtx.Close()
+			if err != nil {
+				errors = multierr.Append(errors, err)
+				return false
+			}
+			if skip {
+				return true
+			}
+		}
+		if fsp.skipSpanExpr == nil && fsp.skipSpanEventExpr == nil {
+			return rs.ScopeSpans().Len() == 0
+		}
 		rs.ScopeSpans().RemoveIf(func(ss ptrace.ScopeSpans) bool {
-			scope := ss.Scope()
 			ss.Spans().RemoveIf(func(span ptrace.Span) bool {
 				if fsp.skipSpanExpr != nil {
-					skip, err := fsp.skipSpanExpr.Eval(ctx, ottlspan.NewTransformContext(span, scope, resource, ss, rs))
+					tCtx := ottlspan.NewTransformContextPtr(rs, ss, span)
+					skip, err := fsp.skipSpanExpr.Eval(ctx, tCtx)
+					tCtx.Close()
 					if err != nil {
 						errors = multierr.Append(errors, err)
 						return false
@@ -105,7 +130,9 @@ func (fsp *filterSpanProcessor) processTraces(ctx context.Context, td ptrace.Tra
 				}
 				if fsp.skipSpanEventExpr != nil {
 					span.Events().RemoveIf(func(spanEvent ptrace.SpanEvent) bool {
-						skip, err := fsp.skipSpanEventExpr.Eval(ctx, ottlspanevent.NewTransformContext(spanEvent, span, scope, resource, ss, rs))
+						tCtx := ottlspanevent.NewTransformContextPtr(rs, ss, span, spanEvent)
+						skip, err := fsp.skipSpanEventExpr.Eval(ctx, tCtx)
+						tCtx.Close()
 						if err != nil {
 							errors = multierr.Append(errors, err)
 							return false
