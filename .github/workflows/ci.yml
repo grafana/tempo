@@ -175,7 +175,7 @@ jobs:
           go-version: '1.25.5'
 
       - name: Install protoc
-        uses: taiki-e/install-action@v2
+        uses: taiki-e/install-action@0e76c5c569f13f7eb21e8e5b26fe710062b57b62 # v2
         with:
           tool: protoc
 
