@@ -54,6 +54,7 @@ Lastly, message size is also limited in ingestion and can be modified in the dis
 distributor:
   receivers:
     otlp:
-      grpc:
-        max_recv_msg_size_mib: <size>
+      protocols:
+        grpc:
+          max_recv_msg_size_mib: <size>
 ```
