@@ -55,6 +55,48 @@ func (c *TempoClient) GetTraceByIDV2(ctx context.Context, traceID string) (*http
 	return c.doRequest(ctx, http.MethodGet, url)
 }
 
+// Search performs a search query against this Tempo instance
+func (c *TempoClient) Search(ctx context.Context, queryParams string) (*http.Response, error) {
+	url := fmt.Sprintf("%s/api/search?%s", c.endpoint, queryParams)
+	return c.doRequest(ctx, http.MethodGet, url)
+}
+
+// SearchTags fetches available tags from this Tempo instance
+func (c *TempoClient) SearchTags(ctx context.Context, queryParams string) (*http.Response, error) {
+	url := fmt.Sprintf("%s/api/search/tags", c.endpoint)
+	if queryParams != "" {
+		url = fmt.Sprintf("%s?%s", url, queryParams)
+	}
+	return c.doRequest(ctx, http.MethodGet, url)
+}
+
+// SearchTagsV2 fetches available tags with scopes from this Tempo instance
+func (c *TempoClient) SearchTagsV2(ctx context.Context, queryParams string) (*http.Response, error) {
+	url := fmt.Sprintf("%s/api/v2/search/tags", c.endpoint)
+	if queryParams != "" {
+		url = fmt.Sprintf("%s?%s", url, queryParams)
+	}
+	return c.doRequest(ctx, http.MethodGet, url)
+}
+
+// SearchTagValues fetches values for a specific tag from this Tempo instance
+func (c *TempoClient) SearchTagValues(ctx context.Context, tagName, queryParams string) (*http.Response, error) {
+	url := fmt.Sprintf("%s/api/search/tag/%s/values", c.endpoint, tagName)
+	if queryParams != "" {
+		url = fmt.Sprintf("%s?%s", url, queryParams)
+	}
+	return c.doRequest(ctx, http.MethodGet, url)
+}
+
+// SearchTagValuesV2 fetches values for a specific tag with types from this Tempo instance
+func (c *TempoClient) SearchTagValuesV2(ctx context.Context, tagName, queryParams string) (*http.Response, error) {
+	url := fmt.Sprintf("%s/api/v2/search/tag/%s/values", c.endpoint, tagName)
+	if queryParams != "" {
+		url = fmt.Sprintf("%s?%s", url, queryParams)
+	}
+	return c.doRequest(ctx, http.MethodGet, url)
+}
+
 // doRequest performs an HTTP request with appropriate headers
 func (c *TempoClient) doRequest(ctx context.Context, method, url string) (*http.Response, error) {
 	req, err := http.NewRequestWithContext(ctx, method, url, nil)

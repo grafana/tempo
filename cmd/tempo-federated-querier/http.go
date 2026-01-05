@@ -39,6 +39,15 @@ func (h *Handler) RegisterRoutes(r *mux.Router) {
 	r.HandleFunc("/api/traces/{traceID}", h.TraceByIDHandler).Methods(http.MethodGet)
 	r.HandleFunc("/api/v2/traces/{traceID}", h.TraceByIDV2Handler).Methods(http.MethodGet)
 
+	// Search endpoint
+	r.HandleFunc("/api/search", h.SearchHandler).Methods(http.MethodGet)
+
+	// Tags endpoints
+	r.HandleFunc("/api/search/tags", h.SearchTagsHandler).Methods(http.MethodGet)
+	r.HandleFunc("/api/v2/search/tags", h.SearchTagsV2Handler).Methods(http.MethodGet)
+	r.HandleFunc("/api/search/tag/{tagName}/values", h.SearchTagValuesHandler).Methods(http.MethodGet)
+	r.HandleFunc("/api/v2/search/tag/{tagName}/values", h.SearchTagValuesV2Handler).Methods(http.MethodGet)
+
 	// Health and info endpoints
 	r.HandleFunc("/ready", h.ReadyHandler).Methods(http.MethodGet)
 	r.HandleFunc("/api/echo", h.EchoHandler).Methods(http.MethodGet)
@@ -142,6 +151,167 @@ func (h *Handler) TraceByIDV2Handler(w http.ResponseWriter, r *http.Request) {
 
 	// Encode response with metadata
 	h.writeTraceResponseV2(w, r, combinedTrace, metadata)
+}
+
+// SearchHandler handles search requests across all Tempo instances
+func (h *Handler) SearchHandler(w http.ResponseWriter, r *http.Request) {
+	// Pass through all query parameters to each instance
+	queryParams := r.URL.RawQuery
+
+	ctx, cancel := context.WithTimeout(r.Context(), h.cfg.QueryTimeout)
+	defer cancel()
+
+	level.Info(h.logger).Log("msg", "searching traces", "query", queryParams)
+
+	// Query all instances in parallel
+	results := h.querier.QueryAllInstances(ctx, func(ctx context.Context, client *TempoClient) (*http.Response, error) {
+		return client.Search(ctx, queryParams)
+	})
+
+	// Combine search results
+	combinedResponse, metadata, err := h.combiner.CombineSearchResults(results)
+	if err != nil {
+		level.Error(h.logger).Log("msg", "failed to combine search results", "err", err)
+		http.Error(w, fmt.Sprintf("failed to combine search results: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	level.Info(h.logger).Log(
+		"msg", "search completed",
+		"instancesQueried", metadata.InstancesQueried,
+		"instancesResponded", metadata.InstancesResponded,
+		"instancesFailed", metadata.InstancesFailed,
+		"tracesFound", len(combinedResponse.Traces),
+	)
+
+	// Write response
+	h.writeSearchResponse(w, r, combinedResponse)
+}
+
+// SearchTagsHandler handles search tags requests across all Tempo instances
+func (h *Handler) SearchTagsHandler(w http.ResponseWriter, r *http.Request) {
+	queryParams := r.URL.RawQuery
+
+	ctx, cancel := context.WithTimeout(r.Context(), h.cfg.QueryTimeout)
+	defer cancel()
+
+	level.Debug(h.logger).Log("msg", "searching tags", "query", queryParams)
+
+	// Query all instances in parallel
+	results := h.querier.QueryAllInstances(ctx, func(ctx context.Context, client *TempoClient) (*http.Response, error) {
+		return client.SearchTags(ctx, queryParams)
+	})
+
+	// Combine tag results
+	combinedResponse, err := h.combiner.CombineTagsResults(results)
+	if err != nil {
+		level.Error(h.logger).Log("msg", "failed to combine tags results", "err", err)
+		http.Error(w, fmt.Sprintf("failed to combine tags results: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	level.Debug(h.logger).Log("msg", "tags search completed", "tagsFound", len(combinedResponse.TagNames))
+
+	// Write response
+	h.writeTagsResponse(w, r, combinedResponse)
+}
+
+// SearchTagsV2Handler handles v2 search tags requests across all Tempo instances
+func (h *Handler) SearchTagsV2Handler(w http.ResponseWriter, r *http.Request) {
+	queryParams := r.URL.RawQuery
+
+	ctx, cancel := context.WithTimeout(r.Context(), h.cfg.QueryTimeout)
+	defer cancel()
+
+	level.Debug(h.logger).Log("msg", "searching tags v2", "query", queryParams)
+
+	// Query all instances in parallel
+	results := h.querier.QueryAllInstances(ctx, func(ctx context.Context, client *TempoClient) (*http.Response, error) {
+		return client.SearchTagsV2(ctx, queryParams)
+	})
+
+	// Combine tag results
+	combinedResponse, err := h.combiner.CombineTagsV2Results(results)
+	if err != nil {
+		level.Error(h.logger).Log("msg", "failed to combine tags v2 results", "err", err)
+		http.Error(w, fmt.Sprintf("failed to combine tags v2 results: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	level.Debug(h.logger).Log("msg", "tags v2 search completed", "scopesFound", len(combinedResponse.Scopes))
+
+	// Write response
+	h.writeTagsV2Response(w, r, combinedResponse)
+}
+
+// SearchTagValuesHandler handles search tag values requests across all Tempo instances
+func (h *Handler) SearchTagValuesHandler(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	tagName := vars["tagName"]
+	queryParams := r.URL.RawQuery
+
+	if tagName == "" {
+		http.Error(w, "tagName is required", http.StatusBadRequest)
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(r.Context(), h.cfg.QueryTimeout)
+	defer cancel()
+
+	level.Debug(h.logger).Log("msg", "searching tag values", "tag", tagName, "query", queryParams)
+
+	// Query all instances in parallel
+	results := h.querier.QueryAllInstances(ctx, func(ctx context.Context, client *TempoClient) (*http.Response, error) {
+		return client.SearchTagValues(ctx, tagName, queryParams)
+	})
+
+	// Combine tag values results
+	combinedResponse, err := h.combiner.CombineTagValuesResults(results)
+	if err != nil {
+		level.Error(h.logger).Log("msg", "failed to combine tag values results", "err", err)
+		http.Error(w, fmt.Sprintf("failed to combine tag values results: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	level.Debug(h.logger).Log("msg", "tag values search completed", "tag", tagName, "valuesFound", len(combinedResponse.TagValues))
+
+	// Write response
+	h.writeTagValuesResponse(w, r, combinedResponse)
+}
+
+// SearchTagValuesV2Handler handles v2 search tag values requests across all Tempo instances
+func (h *Handler) SearchTagValuesV2Handler(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	tagName := vars["tagName"]
+	queryParams := r.URL.RawQuery
+
+	if tagName == "" {
+		http.Error(w, "tagName is required", http.StatusBadRequest)
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(r.Context(), h.cfg.QueryTimeout)
+	defer cancel()
+
+	level.Debug(h.logger).Log("msg", "searching tag values v2", "tag", tagName, "query", queryParams)
+
+	// Query all instances in parallel
+	results := h.querier.QueryAllInstances(ctx, func(ctx context.Context, client *TempoClient) (*http.Response, error) {
+		return client.SearchTagValuesV2(ctx, tagName, queryParams)
+	})
+
+	// Combine tag values results
+	combinedResponse, err := h.combiner.CombineTagValuesV2Results(results)
+	if err != nil {
+		level.Error(h.logger).Log("msg", "failed to combine tag values v2 results", "err", err)
+		http.Error(w, fmt.Sprintf("failed to combine tag values v2 results: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	level.Debug(h.logger).Log("msg", "tag values v2 search completed", "tag", tagName, "valuesFound", len(combinedResponse.TagValues))
+
+	// Write response
+	h.writeTagValuesV2Response(w, r, combinedResponse)
 }
 
 // ReadyHandler returns ready status
@@ -256,6 +426,141 @@ func (h *Handler) writeTraceResponseV2(w http.ResponseWriter, r *http.Request, t
 	if err := marshaler.Marshal(w, resp); err != nil {
 		level.Error(h.logger).Log("msg", "failed to marshal trace to JSON", "err", err)
 		http.Error(w, fmt.Sprintf("failed to marshal trace: %v", err), http.StatusInternalServerError)
+		return
+	}
+}
+
+// writeSearchResponse writes the search response in the appropriate format
+func (h *Handler) writeSearchResponse(w http.ResponseWriter, r *http.Request, resp *tempopb.SearchResponse) {
+	accept := r.Header.Get("Accept")
+
+	// Check if protobuf is requested
+	if strings.Contains(accept, "application/protobuf") {
+		w.Header().Set("Content-Type", "application/protobuf")
+		data, err := proto.Marshal(resp)
+		if err != nil {
+			level.Error(h.logger).Log("msg", "failed to marshal search response to protobuf", "err", err)
+			http.Error(w, fmt.Sprintf("failed to marshal search response: %v", err), http.StatusInternalServerError)
+			return
+		}
+		w.Write(data)
+		return
+	}
+
+	// Default to JSON - use jsonpb for proper protobuf JSON format
+	w.Header().Set("Content-Type", "application/json")
+	marshaler := &jsonpb.Marshaler{}
+	if err := marshaler.Marshal(w, resp); err != nil {
+		level.Error(h.logger).Log("msg", "failed to marshal search response to JSON", "err", err)
+		http.Error(w, fmt.Sprintf("failed to marshal search response: %v", err), http.StatusInternalServerError)
+		return
+	}
+}
+
+// writeTagsResponse writes the tags response in the appropriate format
+func (h *Handler) writeTagsResponse(w http.ResponseWriter, r *http.Request, resp *tempopb.SearchTagsResponse) {
+	accept := r.Header.Get("Accept")
+
+	// Check if protobuf is requested
+	if strings.Contains(accept, "application/protobuf") {
+		w.Header().Set("Content-Type", "application/protobuf")
+		data, err := proto.Marshal(resp)
+		if err != nil {
+			level.Error(h.logger).Log("msg", "failed to marshal tags response to protobuf", "err", err)
+			http.Error(w, fmt.Sprintf("failed to marshal tags response: %v", err), http.StatusInternalServerError)
+			return
+		}
+		w.Write(data)
+		return
+	}
+
+	// Default to JSON - use jsonpb for proper protobuf JSON format
+	w.Header().Set("Content-Type", "application/json")
+	marshaler := &jsonpb.Marshaler{}
+	if err := marshaler.Marshal(w, resp); err != nil {
+		level.Error(h.logger).Log("msg", "failed to marshal tags response to JSON", "err", err)
+		http.Error(w, fmt.Sprintf("failed to marshal tags response: %v", err), http.StatusInternalServerError)
+		return
+	}
+}
+
+// writeTagsV2Response writes the v2 tags response in the appropriate format
+func (h *Handler) writeTagsV2Response(w http.ResponseWriter, r *http.Request, resp *tempopb.SearchTagsV2Response) {
+	accept := r.Header.Get("Accept")
+
+	// Check if protobuf is requested
+	if strings.Contains(accept, "application/protobuf") {
+		w.Header().Set("Content-Type", "application/protobuf")
+		data, err := proto.Marshal(resp)
+		if err != nil {
+			level.Error(h.logger).Log("msg", "failed to marshal tags v2 response to protobuf", "err", err)
+			http.Error(w, fmt.Sprintf("failed to marshal tags v2 response: %v", err), http.StatusInternalServerError)
+			return
+		}
+		w.Write(data)
+		return
+	}
+
+	// Default to JSON - use jsonpb for proper protobuf JSON format
+	w.Header().Set("Content-Type", "application/json")
+	marshaler := &jsonpb.Marshaler{}
+	if err := marshaler.Marshal(w, resp); err != nil {
+		level.Error(h.logger).Log("msg", "failed to marshal tags v2 response to JSON", "err", err)
+		http.Error(w, fmt.Sprintf("failed to marshal tags v2 response: %v", err), http.StatusInternalServerError)
+		return
+	}
+}
+
+// writeTagValuesResponse writes the tag values response in the appropriate format
+func (h *Handler) writeTagValuesResponse(w http.ResponseWriter, r *http.Request, resp *tempopb.SearchTagValuesResponse) {
+	accept := r.Header.Get("Accept")
+
+	// Check if protobuf is requested
+	if strings.Contains(accept, "application/protobuf") {
+		w.Header().Set("Content-Type", "application/protobuf")
+		data, err := proto.Marshal(resp)
+		if err != nil {
+			level.Error(h.logger).Log("msg", "failed to marshal tag values response to protobuf", "err", err)
+			http.Error(w, fmt.Sprintf("failed to marshal tag values response: %v", err), http.StatusInternalServerError)
+			return
+		}
+		w.Write(data)
+		return
+	}
+
+	// Default to JSON - use jsonpb for proper protobuf JSON format
+	w.Header().Set("Content-Type", "application/json")
+	marshaler := &jsonpb.Marshaler{}
+	if err := marshaler.Marshal(w, resp); err != nil {
+		level.Error(h.logger).Log("msg", "failed to marshal tag values response to JSON", "err", err)
+		http.Error(w, fmt.Sprintf("failed to marshal tag values response: %v", err), http.StatusInternalServerError)
+		return
+	}
+}
+
+// writeTagValuesV2Response writes the v2 tag values response in the appropriate format
+func (h *Handler) writeTagValuesV2Response(w http.ResponseWriter, r *http.Request, resp *tempopb.SearchTagValuesV2Response) {
+	accept := r.Header.Get("Accept")
+
+	// Check if protobuf is requested
+	if strings.Contains(accept, "application/protobuf") {
+		w.Header().Set("Content-Type", "application/protobuf")
+		data, err := proto.Marshal(resp)
+		if err != nil {
+			level.Error(h.logger).Log("msg", "failed to marshal tag values v2 response to protobuf", "err", err)
+			http.Error(w, fmt.Sprintf("failed to marshal tag values v2 response: %v", err), http.StatusInternalServerError)
+			return
+		}
+		w.Write(data)
+		return
+	}
+
+	// Default to JSON - use jsonpb for proper protobuf JSON format
+	w.Header().Set("Content-Type", "application/json")
+	marshaler := &jsonpb.Marshaler{}
+	if err := marshaler.Marshal(w, resp); err != nil {
+		level.Error(h.logger).Log("msg", "failed to marshal tag values v2 response to JSON", "err", err)
+		http.Error(w, fmt.Sprintf("failed to marshal tag values v2 response: %v", err), http.StatusInternalServerError)
 		return
 	}
 }
