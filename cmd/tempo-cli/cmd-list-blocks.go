@@ -107,8 +107,12 @@ func displayResults(results []blockStats, windowDuration time.Duration, includeC
 
 	fmt.Println()
 	w := tablewriter.NewWriter(os.Stdout)
-	w.SetHeader(columns)
-	w.SetFooter(footer)
-	w.AppendBulk(out)
-	w.Render()
+	w.Header(columns)
+	if err := w.Bulk(out); err != nil {
+		panic(err)
+	}
+	w.Footer(footer)
+	if err := w.Render(); err != nil {
+		panic(err)
+	}
 }
