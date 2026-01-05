@@ -10,6 +10,7 @@ import (
 
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
+	"github.com/grafana/tempo/cmd/tempo-federated-querier/combiner"
 )
 
 // TempoClient is an HTTP client for querying a Tempo instance
@@ -146,25 +147,17 @@ func NewFederatedQuerier(cfg Config, logger log.Logger) (*FederatedQuerier, erro
 	}, nil
 }
 
-// QueryResult holds the result from a single Tempo instance
-type QueryResult struct {
-	Instance string
-	Response *http.Response
-	Body     []byte
-	Error    error
-}
-
 // QueryAllInstances queries all Tempo instances in parallel and returns results
-func (q *FederatedQuerier) QueryAllInstances(ctx context.Context, queryFn func(ctx context.Context, client *TempoClient) (*http.Response, error)) []QueryResult {
+func (q *FederatedQuerier) QueryAllInstances(ctx context.Context, queryFn func(ctx context.Context, client *TempoClient) (*http.Response, error)) []combiner.QueryResult {
 	var wg sync.WaitGroup
-	results := make([]QueryResult, len(q.clients))
+	results := make([]combiner.QueryResult, len(q.clients))
 
 	for i, client := range q.clients {
 		wg.Add(1)
 		go func(idx int, c *TempoClient) {
 			defer wg.Done()
 
-			result := QueryResult{
+			result := combiner.QueryResult{
 				Instance: c.Name(),
 			}
 

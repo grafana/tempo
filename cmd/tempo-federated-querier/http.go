@@ -12,13 +12,14 @@ import (
 	"github.com/gogo/protobuf/jsonpb"
 	"github.com/gogo/protobuf/proto"
 	"github.com/gorilla/mux"
+	"github.com/grafana/tempo/cmd/tempo-federated-querier/combiner"
 	"github.com/grafana/tempo/pkg/tempopb"
 )
 
 // Handler handles HTTP requests for the federated querier
 type Handler struct {
 	querier  *FederatedQuerier
-	combiner *TraceCombiner
+	combiner *combiner.Combiner
 	cfg      Config
 	logger   log.Logger
 }
@@ -27,7 +28,7 @@ type Handler struct {
 func NewHandler(querier *FederatedQuerier, cfg Config, logger log.Logger) *Handler {
 	return &Handler{
 		querier:  querier,
-		combiner: NewTraceCombiner(cfg.MaxBytesPerTrace, logger),
+		combiner: combiner.New(cfg.MaxBytesPerTrace, logger),
 		cfg:      cfg,
 		logger:   logger,
 	}
@@ -354,7 +355,7 @@ func (h *Handler) InstancesHandler(w http.ResponseWriter, r *http.Request) {
 
 // writeTraceResponse writes the trace response in the appropriate format
 // This wraps the trace in tempopb.TraceByIDResponse for compatibility with Grafana
-func (h *Handler) writeTraceResponse(w http.ResponseWriter, r *http.Request, trace *tempopb.Trace, metadata *CombineMetadata) {
+func (h *Handler) writeTraceResponse(w http.ResponseWriter, r *http.Request, trace *tempopb.Trace, metadata *combiner.CombineMetadata) {
 	// Create the proper response wrapper that Grafana expects
 	resp := &tempopb.TraceByIDResponse{
 		Trace:   trace,
@@ -388,7 +389,7 @@ func (h *Handler) writeTraceResponse(w http.ResponseWriter, r *http.Request, tra
 
 // writeTraceResponseV2 writes the v2 trace response with metrics
 // This wraps the trace in tempopb.TraceByIDResponse for compatibility with Grafana
-func (h *Handler) writeTraceResponseV2(w http.ResponseWriter, r *http.Request, trace *tempopb.Trace, metadata *CombineMetadata) {
+func (h *Handler) writeTraceResponseV2(w http.ResponseWriter, r *http.Request, trace *tempopb.Trace, metadata *combiner.CombineMetadata) {
 	// Determine partial status
 	status := tempopb.PartialStatus_COMPLETE
 	message := ""

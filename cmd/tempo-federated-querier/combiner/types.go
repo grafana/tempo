@@ -1,8 +1,18 @@
-package main
+package combiner
 
 import (
+	"net/http"
+
 	"github.com/go-kit/log"
 )
+
+// QueryResult holds the result from a single Tempo instance
+type QueryResult struct {
+	Instance string
+	Response *http.Response
+	Body     []byte
+	Error    error
+}
 
 // TraceMetrics contains metrics about the trace query
 type TraceMetrics struct {
@@ -27,15 +37,23 @@ type CombineMetadata struct {
 	Errors             []string
 }
 
-// TraceCombiner combines traces from multiple Tempo instances
-type TraceCombiner struct {
+// SearchMetadata contains metadata about the search combine operation
+type SearchMetadata struct {
+	InstancesQueried   int
+	InstancesResponded int
+	InstancesFailed    int
+	Errors             []string
+}
+
+// Combiner combines results from multiple Tempo instances
+type Combiner struct {
 	maxSizeBytes int
 	logger       log.Logger
 }
 
-// NewTraceCombiner creates a new trace combiner
-func NewTraceCombiner(maxSizeBytes int, logger log.Logger) *TraceCombiner {
-	return &TraceCombiner{
+// New creates a new Combiner
+func New(maxSizeBytes int, logger log.Logger) *Combiner {
+	return &Combiner{
 		maxSizeBytes: maxSizeBytes,
 		logger:       logger,
 	}

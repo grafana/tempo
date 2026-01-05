@@ -1,4 +1,4 @@
-package main
+package combiner
 
 import (
 	"fmt"
@@ -10,17 +10,9 @@ import (
 	"github.com/grafana/tempo/pkg/tempopb"
 )
 
-// SearchMetadata contains metadata about the search combine operation
-type SearchMetadata struct {
-	InstancesQueried   int
-	InstancesResponded int
-	InstancesFailed    int
-	Errors             []string
-}
-
 // CombineSearchResults combines search results from multiple instances
 // Deduplicates traces by traceID and merges metrics
-func (c *TraceCombiner) CombineSearchResults(results []QueryResult) (*tempopb.SearchResponse, *SearchMetadata, error) {
+func (c *Combiner) CombineSearchResults(results []QueryResult) (*tempopb.SearchResponse, *SearchMetadata, error) {
 	metadata := &SearchMetadata{
 		InstancesQueried: len(results),
 	}

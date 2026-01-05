@@ -1,4 +1,4 @@
-package main
+package combiner
 
 import (
 	"net/http"
@@ -10,7 +10,7 @@ import (
 )
 
 // CombineTagsResults combines SearchTagsResponse results from multiple Tempo instances
-func (c *TraceCombiner) CombineTagsResults(results []QueryResult) (*tempopb.SearchTagsResponse, error) {
+func (c *Combiner) CombineTagsResults(results []QueryResult) (*tempopb.SearchTagsResponse, error) {
 	tagSet := make(map[string]struct{})
 	var combinedMetrics *tempopb.MetadataMetrics
 
@@ -56,7 +56,7 @@ func (c *TraceCombiner) CombineTagsResults(results []QueryResult) (*tempopb.Sear
 
 		// Combine metrics
 		if tagsResp.Metrics != nil {
-			combinedMetrics = CombineMetadataMetrics(combinedMetrics, tagsResp.Metrics)
+			combinedMetrics = combineMetadataMetrics(combinedMetrics, tagsResp.Metrics)
 		}
 
 		level.Debug(c.logger).Log("msg", "combined tags from instance", "instance", result.Instance, "tags", len(tagsResp.TagNames))
@@ -76,7 +76,7 @@ func (c *TraceCombiner) CombineTagsResults(results []QueryResult) (*tempopb.Sear
 }
 
 // CombineTagsV2Results combines SearchTagsV2Response results from multiple Tempo instances
-func (c *TraceCombiner) CombineTagsV2Results(results []QueryResult) (*tempopb.SearchTagsV2Response, error) {
+func (c *Combiner) CombineTagsV2Results(results []QueryResult) (*tempopb.SearchTagsV2Response, error) {
 	// Map of scope name to set of tags
 	scopeTagsMap := make(map[string]map[string]struct{})
 	var combinedMetrics *tempopb.MetadataMetrics
@@ -128,7 +128,7 @@ func (c *TraceCombiner) CombineTagsV2Results(results []QueryResult) (*tempopb.Se
 
 		// Combine metrics
 		if tagsResp.Metrics != nil {
-			combinedMetrics = CombineMetadataMetrics(combinedMetrics, tagsResp.Metrics)
+			combinedMetrics = combineMetadataMetrics(combinedMetrics, tagsResp.Metrics)
 		}
 
 		level.Debug(c.logger).Log("msg", "combined tags v2 from instance", "instance", result.Instance, "scopes", len(tagsResp.Scopes))
@@ -159,7 +159,7 @@ func (c *TraceCombiner) CombineTagsV2Results(results []QueryResult) (*tempopb.Se
 }
 
 // CombineTagValuesResults combines SearchTagValuesResponse results from multiple Tempo instances
-func (c *TraceCombiner) CombineTagValuesResults(results []QueryResult) (*tempopb.SearchTagValuesResponse, error) {
+func (c *Combiner) CombineTagValuesResults(results []QueryResult) (*tempopb.SearchTagValuesResponse, error) {
 	valueSet := make(map[string]struct{})
 	var combinedMetrics *tempopb.MetadataMetrics
 
@@ -205,7 +205,7 @@ func (c *TraceCombiner) CombineTagValuesResults(results []QueryResult) (*tempopb
 
 		// Combine metrics
 		if valuesResp.Metrics != nil {
-			combinedMetrics = CombineMetadataMetrics(combinedMetrics, valuesResp.Metrics)
+			combinedMetrics = combineMetadataMetrics(combinedMetrics, valuesResp.Metrics)
 		}
 
 		level.Debug(c.logger).Log("msg", "combined tag values from instance", "instance", result.Instance, "values", len(valuesResp.TagValues))
@@ -225,7 +225,7 @@ func (c *TraceCombiner) CombineTagValuesResults(results []QueryResult) (*tempopb
 }
 
 // CombineTagValuesV2Results combines SearchTagValuesV2Response results from multiple Tempo instances
-func (c *TraceCombiner) CombineTagValuesV2Results(results []QueryResult) (*tempopb.SearchTagValuesV2Response, error) {
+func (c *Combiner) CombineTagValuesV2Results(results []QueryResult) (*tempopb.SearchTagValuesV2Response, error) {
 	// Map of tag value to TagValue struct (to preserve type information)
 	valueMap := make(map[string]*tempopb.TagValue)
 	var combinedMetrics *tempopb.MetadataMetrics
@@ -278,7 +278,7 @@ func (c *TraceCombiner) CombineTagValuesV2Results(results []QueryResult) (*tempo
 
 		// Combine metrics
 		if valuesResp.Metrics != nil {
-			combinedMetrics = CombineMetadataMetrics(combinedMetrics, valuesResp.Metrics)
+			combinedMetrics = combineMetadataMetrics(combinedMetrics, valuesResp.Metrics)
 		}
 
 		level.Debug(c.logger).Log("msg", "combined tag values v2 from instance", "instance", result.Instance, "values", len(valuesResp.TagValues))
@@ -300,8 +300,8 @@ func (c *TraceCombiner) CombineTagValuesV2Results(results []QueryResult) (*tempo
 	}, nil
 }
 
-// CombineMetadataMetrics combines MetadataMetrics from multiple responses
-func CombineMetadataMetrics(existing, incoming *tempopb.MetadataMetrics) *tempopb.MetadataMetrics {
+// combineMetadataMetrics combines MetadataMetrics from multiple responses
+func combineMetadataMetrics(existing, incoming *tempopb.MetadataMetrics) *tempopb.MetadataMetrics {
 	if existing == nil {
 		return incoming
 	}

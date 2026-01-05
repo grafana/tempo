@@ -1,4 +1,4 @@
-package main
+package combiner
 
 import (
 	"encoding/json"
@@ -19,7 +19,7 @@ type traceByIDV2Response struct {
 
 // CombineTraceResults combines trace results from multiple instances (v1 API - direct trace)
 // Returns a tempopb.Trace which can be properly marshaled to both protobuf and JSON
-func (c *TraceCombiner) CombineTraceResults(results []QueryResult) (*tempopb.Trace, *CombineMetadata, error) {
+func (c *Combiner) CombineTraceResults(results []QueryResult) (*tempopb.Trace, *CombineMetadata, error) {
 	metadata := &CombineMetadata{
 		InstancesQueried: len(results),
 	}
@@ -101,7 +101,7 @@ func (c *TraceCombiner) CombineTraceResults(results []QueryResult) (*tempopb.Tra
 
 // CombineTraceResultsV2 combines trace results from multiple instances (v2 API - wrapped response)
 // Returns a tempopb.Trace which can be properly marshaled to both protobuf and JSON
-func (c *TraceCombiner) CombineTraceResultsV2(results []QueryResult) (*tempopb.Trace, *CombineMetadata, error) {
+func (c *Combiner) CombineTraceResultsV2(results []QueryResult) (*tempopb.Trace, *CombineMetadata, error) {
 	metadata := &CombineMetadata{
 		InstancesQueried: len(results),
 	}

@@ -115,7 +115,7 @@ services:
 
 ## API endpoints
 
-The federated querier exposes a subset of Tempo's API for trace queries.
+The federated querier exposes a subset of Tempo's API for trace queries, search, and tag exploration.
 
 ### Trace by ID
 
@@ -125,6 +125,60 @@ GET /api/v2/traces/{traceID}
 ```
 
 Queries all configured Tempo instances for the specified trace ID and combines the results. The v2 endpoint includes additional metadata about which instances responded.
+
+### Search
+
+```
+GET /api/search?q={TraceQL}&limit={limit}&start={start}&end={end}
+```
+
+Searches all configured Tempo instances and combines the results. Traces are deduplicated by trace ID across instances, and metrics are aggregated.
+
+**Query parameters:**
+
+| Parameter | Description | Example |
+| --------- | ----------- | ------- |
+| `q` | TraceQL query | `{resource.service.name="my-service"}` |
+| `limit` | Maximum traces to return | `20` |
+| `start` | Start time (Unix seconds) | `1704067200` |
+| `end` | End time (Unix seconds) | `1704153600` |
+| `spss` | Spans per span set | `3` |
+
+**Example:**
+
+```bash
+curl "http://localhost:3200/api/search?q=%7Bresource.service.name%3D%22order-service%22%7D&limit=20"
+```
+
+### Tags
+
+```
+GET /api/search/tags
+GET /api/v2/search/tags
+```
+
+Returns all available tag names across all Tempo instances. Tags are deduplicated and sorted alphabetically. The v2 endpoint returns tags organized by scope (resource, span, etc.).
+
+### Tag values
+
+```
+GET /api/search/tag/{tagName}/values
+GET /api/v2/search/tag/{tagName}/values
+```
+
+Returns all values for a specific tag across all Tempo instances. Values are deduplicated and sorted. The v2 endpoint includes type information for each value.
+
+**Example:**
+
+```bash
+# Get all values for service.name tag
+curl "http://localhost:3200/api/search/tag/service.name/values"
+
+# Response
+{
+  "tagValues": ["order-service", "payment-service", "user-service"]
+}
+```
 
 ### Status endpoints
 
@@ -177,6 +231,18 @@ This helps you understand whether the trace data is complete or if some instance
 
 The federated querier uses Tempo's native `trace.Combiner` from `pkg/model/trace` to combine spans from multiple instances. This ensures consistent deduplication and ordering with Tempo's internal logic.
 
+### Architecture
+
+The combiner package (`cmd/tempo-federated-querier/combiner`) handles all result combination:
+
+```
+combiner/
+├── types.go      # QueryResult, CombineMetadata, SearchMetadata types
+├── trace.go      # CombineTraceResults, CombineTraceResultsV2
+├── search.go     # CombineSearchResults
+└── tags.go       # CombineTagsResults, CombineTagValuesResults, etc.
+```
+
 ### Deduplication
 
 Spans are deduplicated based on their unique identity:
@@ -185,6 +251,30 @@ Spans are deduplicated based on their unique identity:
 - **Span kind**: Client, server, producer, consumer, or internal
 
 Two spans with the same span ID and kind from different instances are considered duplicates. The combiner keeps only one copy, preserving the most complete span data.
+
+### Search result combining
+
+When combining search results from multiple instances:
+
+1. **Trace deduplication**: Traces with the same trace ID are merged
+2. **Metadata merging**: For duplicate traces:
+   - Earliest `startTimeUnixNano` is used
+   - Longest `durationMs` is used
+   - Service stats are combined using max values
+   - Spansets are merged (deduplicated by span ID)
+3. **Metrics aggregation**: All search metrics are summed:
+   - `inspectedTraces`, `inspectedBytes`, `inspectedSpans`
+   - `totalBlocks`, `completedJobs`, `totalJobs`
+4. **Sorting**: Results are sorted by start time (most recent first)
+
+### Tag combining
+
+When combining tags and tag values:
+
+1. **Tags**: All tag names are collected into a set, deduplicated, and sorted alphabetically
+2. **Tag values**: All values are collected, deduplicated, and sorted
+3. **Scopes (v2)**: Tags are grouped by scope (resource, span, etc.) with deduplication per scope
+4. **Metrics**: Metadata metrics are summed across instances
 
 ### API response formats
 
@@ -240,8 +330,9 @@ The `max_bytes_per_trace` configuration limits the combined trace size. When thi
 
 ## Limitations
 
-- Only trace by ID queries are supported (no search, tags, or metrics queries)
+- No TraceQL metrics queries (`/api/metrics/query`)
 - No caching layer (relies on individual Tempo instance caching)
+- Search results are limited by individual instance limits before combining
 
 ## Clock synchronization considerations
 
@@ -267,27 +358,6 @@ Service A (Instance 1) → Service B (Instance 2) → Service C (Instance 3)
 
 If Service C's clock is 150ms behind, its span appears to start *before* the request even reached Service A. The trace visualization becomes confusing and metrics like total duration are incorrect.
 
-### Mitigation strategies
-
-1. **Use NTP everywhere**: Ensure all services use Network Time Protocol (NTP) to synchronize clocks
-   - Configure NTP on all hosts generating traces
-   - Use the same NTP servers across regions when possible
-   - Monitor clock drift as a metric
-
-2. **Use cloud provider time services**: Major cloud providers offer time sync services
-   - AWS: Amazon Time Sync Service
-   - GCP: Google Public NTP
-   - Azure: Windows Time service with Azure-optimized sources
-
-3. **Accept some drift**: Modern NTP typically keeps drift under 10ms
-   - For most use cases, sub-100ms accuracy is sufficient
-   - The federated querier doesn't attempt to correct timestamps
-
-4. **Use relative timestamps**: When analyzing traces, focus on
-   - Span durations (self-contained, not affected by clock drift)
-   - Parent-child relationships (structural, not time-based)
-   - Service dependencies (logical flow)
-
 ### What the federated querier does NOT do (currently)
 
 The federated querier combines traces as-is without timestamp correction:
@@ -297,98 +367,6 @@ The federated querier combines traces as-is without timestamp correction:
 - **No reordering based on causality**: Trusts the timestamps provided
 
 This is by design—modifying timestamps could hide real latency issues or introduce other problems. The source of truth for timestamps should be fixed at the instrumentation level.
-
-### Potential future improvements
-
-The federated querier could implement these features to help with clock synchronization issues:
-
-#### 1. Clock skew detection
-
-Detect when child spans start before their parent spans:
-
-```go
-// Pseudocode for clock skew detection
-for each span in trace:
-    if span.parentSpanID exists:
-        parent = findSpan(span.parentSpanID)
-        if span.startTime < parent.startTime:
-            skew = parent.startTime - span.startTime
-            warn("Clock skew detected: child starts %v before parent", skew)
-```
-
-This could be exposed as:
-- Log warnings when skew is detected
-- Add `clockSkewDetected: true` to response metadata
-- Include `estimatedSkew` in milliseconds
-
-#### 2. Optional timestamp adjustment
-
-Adjust child spans to start at or after their parent:
-
-```go
-// Pseudocode for timestamp adjustment
-for each span in trace (topological order):
-    if span.parentSpanID exists:
-        parent = findSpan(span.parentSpanID)
-        if span.startTime < parent.startTime:
-            adjustment = parent.startTime - span.startTime
-            span.startTime += adjustment
-            span.endTime += adjustment
-```
-
-This could be enabled via configuration:
-
-```yaml
-clock_skew_correction:
-  enabled: true
-  mode: "adjust"  # "adjust" or "detect-only"
-  max_adjustment: 1s  # Don't adjust more than this
-```
-
-#### 3. Causality-based ordering
-
-Use span parent-child relationships to establish logical ordering independent of timestamps:
-
-```go
-// Build a DAG from parent-child relationships
-// Topological sort gives causal order
-// Use this for visualization hints without modifying data
-```
-
-#### 4. Per-instance clock offset tracking
-
-Track clock offsets between instances over time:
-
-```go
-// If the same span is seen from multiple instances
-// (e.g., client and server spans), calculate offset
-offset = serverSpan.startTime - clientSpan.endTime
-// Negative offset suggests server clock is behind
-```
-
-### Why this isn't implemented yet
-
-1. **Data integrity**: Modifying timestamps changes the original data
-2. **Complexity**: Correct adjustment requires understanding the full trace topology
-3. **Edge cases**: What if there are multiple roots? Circular dependencies?
-4. **User expectations**: Some users want raw data, others want corrected data
-
-If you need clock skew correction, consider:
-- Fixing it at the source (NTP)
-- Using a trace visualization tool that handles skew (Jaeger has some support)
-- Implementing adjustment in a post-processing step
-
-### Monitoring clock health
-
-Consider adding these checks to your observability stack:
-
-```promql
-# Alert on NTP offset exceeding threshold
-abs(node_timex_offset_seconds) > 0.1
-
-# Track clock drift over time
-rate(node_timex_offset_seconds[5m])
-```
 
 ## Next steps
 
