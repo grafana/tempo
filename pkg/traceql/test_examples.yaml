@@ -202,11 +202,11 @@ parse_fails:
   - 'max(duration) < ok'
   - 'min(1) = "foo"'
   - 'min(parent) = nil'
-  - 'avg(childCount) > "foo"'
+  - 'avg(span:childCount) > "foo"'
   # scalar filters
   - 'avg(.field) + 1'             # scalar filters must resolve to boolean
   - 'sum(3) - 2'
-  - 'min(childCount) && 2'
+  - 'min(span:childCount) && 2'
   # select
   - 'select(.a'
   - 'select()'
@@ -272,6 +272,7 @@ validate_fails:
   - '{ traceDuration > "test" }'
   - '{ rootServiceName = 1 }'
   - '{ rootName != 3.2 }'
+  - '{ "foo" = span:childCount }' # string comparison with int is invalid
   - '{ span:status = nil }' # Intrinsics cannot be nil
   - '{ nil = span:status }' # Intrinsics cannot be nil
   - '{ resource.service.name = nil }' # special attribute resource.service.name cannot be nil
@@ -323,11 +324,10 @@ unsupported:
   - 'min(.field) < max(duration)'
   - 'sum(.field) = min(.field)'
   - 'min(.field) + max(.field) > 1'
-  - 'min(.field) + max(childCount) > max(duration) - min(.field)'
-  - 'min(childCount) < 2 / 6'
+  - 'min(.field) + max(span:childCount) > max(duration) - min(.field)'
+  - 'min(span:childCount) < 2 / 6'
   - 'max(1 - (2 + .field)) < avg(3 * duration ^ 2)'
   # aggregates - will be valid when supported
-  - 'min(childCount) < 2'
   - '{ true } | max(parent.a) = 1'
   - '{ .http.status = 200 } | max(.field) - min(.field) > 3'
   # parent - will be valid when supported
@@ -340,10 +340,6 @@ unsupported:
   - '{ parent }'
   - '{ 1 % parent = 1 }'
   - '{ 1 >= parent }'
-  # childCount - will be valid when supported
-  - '{ 1 = childCount }'
-  # childCount - will be invalid when supported
-  - '{ "foo" = childCount }'
   # spanset pipelines + scalar filters - will be valid when supported
   - '{ true } | count() + count() = 1' 
   - '({ true } | count()) + ({ true } | count()) = 1'

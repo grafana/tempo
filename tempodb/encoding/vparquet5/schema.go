@@ -188,6 +188,7 @@ type Span struct {
 	ParentID               int32       `parquet:",delta"` // can be zero for non-root spans, use IsRoot to check for root spans
 	NestedSetLeft          int32       `parquet:",delta"` // doubles as numeric ID and is used to fill ParentID of child spans
 	NestedSetRight         int32       `parquet:",delta"`
+	ChildCount             int32       `parquet:",delta"` // number of direct children of this span
 	Name                   string      `parquet:",snappy,dict"`
 	Kind                   int         `parquet:",delta"`
 	TraceState             string      `parquet:",snappy"`
