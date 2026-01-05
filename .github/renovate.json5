@@ -7,7 +7,8 @@
   schedule: [
     'at any time',
   ],
-  prConcurrentLimit: 10,
+  prConcurrentLimit: 15,
+  branchConcurrentLimit: 15,
   ignoreDeps: [],
   separateMajorMinor: true,
   automergeStrategy: 'squash',
@@ -22,6 +23,7 @@
   ],
   minimumReleaseAge: '7 days',
   postUpdateOptions: [
+    'gomodUpdateImportPaths',
     'gomodTidy',
     'gomodVendor',
   ],
