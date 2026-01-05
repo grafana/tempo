@@ -125,8 +125,7 @@ func testSearch(t *testing.T, tenant string, tenantSize int) {
 	assert.ElementsMatch(t, respTm.rKeys, traceMap.rKeys)
 	assert.ElementsMatch(t, traceMap.spanNames, respTm.spanNames)
 
-	// flush trace to backend
-	util.CallFlush(t, tempo)
+	waitForSearchBackend(t, tempo, 1)
 
 	// search and traceql search, note: SearchAndAssertTrace also calls SearchTagValues
 	util.SearchAndAssertTrace(t, apiClient, info)

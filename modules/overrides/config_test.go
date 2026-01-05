@@ -482,9 +482,10 @@ func generateTestLegacyOverrides() LegacyOverrides {
 		MaxBytesPerTagValuesQuery:  1000,
 		MaxBlocksPerTagValuesQuery: 100,
 
-		MaxSearchDuration:  model.Duration(10 * time.Minute),
-		MaxMetricsDuration: model.Duration(30 * time.Minute),
-		UnsafeQueryHints:   true,
+		MaxSearchDuration:      model.Duration(10 * time.Minute),
+		MaxMetricsDuration:     model.Duration(30 * time.Minute),
+		UnsafeQueryHints:       true,
+		MaxSpanIDsPerLinkQuery: 100,
 
 		MaxBytesPerTrace: 10 * 1024 * 1024,
 

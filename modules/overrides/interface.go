@@ -89,6 +89,7 @@ type Interface interface {
 	UnsafeQueryHints(userID string) bool
 	CostAttributionMaxCardinality(userID string) uint64
 	CostAttributionDimensions(userID string) map[string]string
+	MaxSpanIDsPerLinkQuery(userID string) int
 
 	// Management API
 	WriteStatusRuntimeConfig(w io.Writer, r *http.Request) error

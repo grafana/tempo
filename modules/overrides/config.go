@@ -46,6 +46,7 @@ const (
 	MetricMaxBytesPerTrace                = "max_bytes_per_trace"
 	MetricMaxBytesPerTagValuesQuery       = "max_bytes_per_tag_values_query"
 	MetricMaxBlocksPerTagValuesQuery      = "max_blocks_per_tag_values_query"
+	MetricMaxSpanIDsPerLinkQuery          = "max_span_ids_per_link_query"
 	MetricIngestionRateLimitBytes         = "ingestion_rate_limit_bytes"
 	MetricIngestionBurstSizeBytes         = "ingestion_burst_size_bytes"
 	MetricBlockRetention                  = "block_retention"
@@ -168,6 +169,9 @@ type ReadOverrides struct {
 	MaxMetricsDuration model.Duration `yaml:"max_metrics_duration,omitempty" json:"max_metrics_duration,omitempty"`
 
 	UnsafeQueryHints bool `yaml:"unsafe_query_hints,omitempty" json:"unsafe_query_hints,omitempty"`
+
+	// Cross-trace link traversal limits
+	MaxSpanIDsPerLinkQuery int `yaml:"max_span_ids_per_link_query,omitempty" json:"max_span_ids_per_link_query,omitempty"`
 }
 
 type CompactionOverrides struct {
@@ -282,6 +286,7 @@ func (c *Config) RegisterFlagsAndApplyDefaults(f *flag.FlagSet) {
 	// Querier limits
 	f.IntVar(&c.Defaults.Read.MaxBytesPerTagValuesQuery, "querier.max-bytes-per-tag-values-query", 10e5, "Maximum size of response for a tag-values query. Used mainly to limit large the number of values associated with a particular tag")
 	f.IntVar(&c.Defaults.Read.MaxBlocksPerTagValuesQuery, "querier.max-blocks-per-tag-values-query", 0, "Maximum number of blocks to query for a tag-values query. 0 to disable.")
+	f.IntVar(&c.Defaults.Read.MaxSpanIDsPerLinkQuery, "querier.max-span-ids-per-link-query", 1000, "Maximum number of span IDs to search for in a cross-trace link traversal query. 0 to disable.")
 
 	// Generator - NativeHistograms config
 	f.Float64Var(&c.Defaults.MetricsGenerator.NativeHistogramBucketFactor, "metrics-generator.native-histogram-bucket-factor", 1.1, "The growth factor between buckets for native histograms.")
@@ -307,6 +312,7 @@ func (c *Config) Collect(ch chan<- prometheus.Metric) {
 	ch <- prometheus.MustNewConstMetric(metricLimitsDesc, prometheus.GaugeValue, float64(c.Defaults.Ingestion.BurstSizeBytes), MetricIngestionBurstSizeBytes)
 	ch <- prometheus.MustNewConstMetric(metricLimitsDesc, prometheus.GaugeValue, float64(c.Defaults.Read.MaxBytesPerTagValuesQuery), MetricMaxBytesPerTagValuesQuery)
 	ch <- prometheus.MustNewConstMetric(metricLimitsDesc, prometheus.GaugeValue, float64(c.Defaults.Read.MaxBlocksPerTagValuesQuery), MetricMaxBlocksPerTagValuesQuery)
+	ch <- prometheus.MustNewConstMetric(metricLimitsDesc, prometheus.GaugeValue, float64(c.Defaults.Read.MaxSpanIDsPerLinkQuery), MetricMaxSpanIDsPerLinkQuery)
 	ch <- prometheus.MustNewConstMetric(metricLimitsDesc, prometheus.GaugeValue, float64(c.Defaults.Global.MaxBytesPerTrace), MetricMaxBytesPerTrace)
 	ch <- prometheus.MustNewConstMetric(metricLimitsDesc, prometheus.GaugeValue, float64(c.Defaults.Compaction.BlockRetention), MetricBlockRetention)
 	ch <- prometheus.MustNewConstMetric(metricLimitsDesc, prometheus.GaugeValue, float64(c.Defaults.MetricsGenerator.MaxActiveSeries), MetricMetricsGeneratorMaxActiveSeries)
