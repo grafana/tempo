@@ -12,5 +12,6 @@ spec:
     port: 3200
     targetPort: 3200
   selector:
+    app: live-store-zone-b
     name: live-store-zone-b
     rollout-group: live-store
