@@ -3,7 +3,6 @@
   extends: [
     'config:best-practices',
     ':semanticCommits',
-    'helpers:pinGitHubActionDigestsToSemver',
   ],
   schedule: [
     'at any time',
