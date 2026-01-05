@@ -123,7 +123,11 @@ func displayCompactionSummary(results []blockStats) {
 
 	fmt.Println()
 	w := tablewriter.NewWriter(os.Stdout)
-	w.SetHeader(columns)
-	w.AppendBulk(out)
-	w.Render()
+	w.Header(columns)
+	if err := w.Bulk(out); err != nil {
+		panic(err)
+	}
+	if err := w.Render(); err != nil {
+		panic(err)
+	}
 }
