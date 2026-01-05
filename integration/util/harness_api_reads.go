@@ -134,13 +134,20 @@ func traceIDInResults(t *testing.T, hexID string, resp *tempopb.SearchResponse) 
 }
 
 func QueryAndAssertTrace(t *testing.T, client *httpclient.Client, info *tempoUtil.TraceInfo) {
-	resp, err := client.QueryTraceV2(info.HexID())
+	// v2
+	respV2, err := client.QueryTraceV2(info.HexID())
 	require.NoError(t, err)
 
 	expected, err := info.ConstructTraceFromEpoch()
 	require.NoError(t, err)
 
-	AssertEqualTrace(t, resp.Trace, expected)
+	AssertEqualTrace(t, respV2.Trace, expected)
+
+	// v1
+	respV1, err := client.QueryTrace(info.HexID())
+	require.NoError(t, err)
+
+	AssertEqualTrace(t, respV1, expected)
 }
 
 func AssertEqualTrace(t *testing.T, a, b *tempopb.Trace) {

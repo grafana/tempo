@@ -1,6 +1,7 @@
 package api
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"io"
@@ -10,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gogo/protobuf/jsonpb"
 	"github.com/grafana/tempo/integration/util"
 	"github.com/grafana/tempo/pkg/collector"
 	"github.com/grafana/tempo/pkg/search"
@@ -63,6 +65,17 @@ func TestTagEndpoints(t *testing.T) {
 			})
 		}
 
+		// Test V1 API endpoints (backwards compatibility)
+		t.Run("tags_v1_wal", func(t *testing.T) {
+			expectedTags := []string{"firstRes", "firstSpan", "secondRes", "secondSpan", "service.name", "twoRes", "twoSpan"}
+			callSearchTagsAndAssert(t, h, expectedTags, 0, 0)
+		})
+
+		t.Run("tag_values_v1_wal", func(t *testing.T) {
+			expectedValues := []string{"my-service"}
+			callSearchTagValuesAndAssert(t, h, "service.name", expectedValues, 0, 0)
+		})
+
 		// wait for 4 objects to be written to the backend
 		h.WaitTracesWrittenToBackend(t, 4)
 		h.ForceBackendQuerying(t)
@@ -83,6 +96,17 @@ func TestTagEndpoints(t *testing.T) {
 				callSearchTagValuesV2AndAssert(t, h, tc.tagName, tc.query, tc.expected, start.Unix(), end.Unix())
 			})
 		}
+
+		// Test V1 API endpoints on backend (backwards compatibility)
+		t.Run("tags_v1_backend", func(t *testing.T) {
+			expectedTags := []string{"firstRes", "firstSpan", "secondRes", "secondSpan", "service.name", "twoRes", "twoSpan"}
+			callSearchTagsAndAssert(t, h, expectedTags, start.Unix(), end.Unix())
+		})
+
+		t.Run("tag_values_v1_backend", func(t *testing.T) {
+			expectedValues := []string{"my-service"}
+			callSearchTagValuesAndAssert(t, h, "service.name", expectedValues, start.Unix(), end.Unix())
+		})
 	})
 }
 
@@ -691,4 +715,52 @@ func lenWithoutIntrinsic(resp *tempopb.SearchTagsV2Response) int {
 		size += len(scope.Tags)
 	}
 	return size
+}
+
+func callSearchTagsAndAssert(t *testing.T, h *util.TempoHarness, expectedTagNames []string, start, end int64) {
+	apiClient := h.APIClientHTTP("")
+	var response *tempopb.SearchTagsResponse
+	var err error
+
+	if start == 0 && end == 0 {
+		response, err = apiClient.SearchTags()
+	} else {
+		response, err = apiClient.SearchTagsWithRange(start, end)
+	}
+	require.NoError(t, err)
+
+	// Sort for comparison
+	slices.Sort(response.TagNames)
+	require.Equal(t, expectedTagNames, response.TagNames)
+}
+
+func callSearchTagValuesAndAssert(t *testing.T, h *util.TempoHarness, tagName string, expectedValues []string, start, end int64) {
+	// V1 API doesn't have a client method with range, so we use raw HTTP requests
+	urlPath := fmt.Sprintf("/api/search/tag/%s/values", tagName)
+	req, err := http.NewRequest(http.MethodGet, h.BaseURL()+urlPath, nil)
+	require.NoError(t, err)
+
+	q := req.URL.Query()
+	if start != 0 {
+		q.Set("start", fmt.Sprintf("%d", start))
+	}
+	if end != 0 {
+		q.Set("end", fmt.Sprintf("%d", end))
+	}
+	req.URL.RawQuery = q.Encode()
+
+	res, err := http.DefaultClient.Do(req)
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, res.StatusCode)
+
+	body, err := io.ReadAll(res.Body)
+	require.NoError(t, err)
+	defer res.Body.Close()
+
+	var response tempopb.SearchTagValuesResponse
+	require.NoError(t, jsonpb.Unmarshal(bytes.NewReader(body), &response))
+
+	// Sort for comparison
+	sort.Strings(response.TagValues)
+	require.Equal(t, expectedValues, response.TagValues)
 }
