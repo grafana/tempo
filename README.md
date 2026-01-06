@@ -11,31 +11,6 @@
 Grafana Tempo is an open source, easy-to-use, and high-scale distributed tracing backend. Tempo is cost-efficient, requiring only object storage to operate, and is deeply integrated with Grafana, Prometheus, and Loki.
 
 
-# Fork notice: Federated querier
-
-This fork contains a federated querier component that queries multiple Tempo instances simultaneously and combines the results. This is useful when your observability system is split across multiple Tempo instances and you want to see a complete trace that may span across all of them.
-
-For more information, refer to the [tempo-federated-querier README](cmd/tempo-federated-querier/README.md).
-
-### Example
-
-A complete Docker Compose example is available in [example/docker-compose/federated](example/docker-compose/federated). It includes:
-
-- Four Tempo instances
-- The federated querier
-- Sample applications generating distributed traces
-- k6 load generator
-- Grafana pre-configured with the federated querier as a datasource
-
-To run the example:
-
-```sh
-cd example/docker-compose/federated
-docker compose up -d --build
-```
-
-Open Grafana at http://localhost:3000 and use the Tempo datasource to query traces across all instances.
-
 ## Business value of distributed tracing
 
 Distributed tracing helps teams quickly pinpoint performance issues and understand the flow of requests across services. The Traces Drilldown UI simplifies this process by offering a user-friendly interface to view and analyze trace data, making it easier to identify and resolve issues without needing to write complex queries.
@@ -104,9 +79,6 @@ Tempo's receiver layer, wire format and storage format are all based directly on
 Check out the [Integration Guides](https://grafana.com/docs/tempo/latest/guides/instrumentation/) to see examples of OpenTelemetry instrumentation with Tempo.
 
 ## Other components
-
-### tempo-federated-querier
-[tempo-federated-querier](cmd/tempo-federated-querier) queries multiple Tempo instances in parallel and combines trace data using span-level deduplication. It's designed for environments where traces are distributed across multiple Tempo backends.
 
 ### tempo-vulture
 [tempo-vulture](https://github.com/grafana/tempo/tree/main/cmd/tempo-vulture) is Tempo's bird themed consistency checking tool.  It writes traces to Tempo and then queries them back in a variety of ways.
