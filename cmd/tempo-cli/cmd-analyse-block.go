@@ -2,8 +2,10 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"gopkg.in/yaml.v3"
 	"io"
 	"os"
 	"sort"
@@ -439,6 +441,131 @@ func (s blockSummary) print(settings heuristicSettings, printSettings printSetti
 	return nil
 }
 
+func (s blockSummary) printDedicatedColumns(settings heuristicSettings, format string) error {
+	var dedicatedCols []backend.DedicatedColumn
+
+	// convert block summary to dedicated columns
+
+	// span
+	spanStringAttrList := topNAllStrings(settings.NumStringAttr, s.spanSummary.attributes, s.spanSummary.arrayAttributes)
+	for _, attr := range spanStringAttrList {
+		options := backend.DedicatedColumnOptions{}
+		totalSize := attr.cardinality.avgSizePerRowGroup(s.numRowGroups)
+		if settings.BlobThresholdBytes > 0 && totalSize >= settings.BlobThresholdBytes {
+			options = append(options, backend.DedicatedColumnOptionBlob)
+		}
+		if attr.isArray {
+			options = append(options, backend.DedicatedColumnOptionArray)
+		}
+		dedicatedCols = append(dedicatedCols, backend.DedicatedColumn{
+			Name:    attr.name,
+			Scope:   backend.DedicatedColumnScopeSpan,
+			Type:    backend.DedicatedColumnTypeString,
+			Options: options,
+		})
+	}
+
+	if settings.NumIntAttr > 0 {
+		spanIntAttrList := topNAllIntegers(settings.NumIntAttr, s.spanSummary.integerAttributes, s.spanSummary.integerArrayAttributes)
+		for _, attr := range spanIntAttrList {
+			options := backend.DedicatedColumnOptions{}
+			if attr.isArray {
+				options = append(options, backend.DedicatedColumnOptionArray)
+			}
+			dedicatedCols = append(dedicatedCols, backend.DedicatedColumn{
+				Name:    attr.name,
+				Scope:   backend.DedicatedColumnScopeSpan,
+				Type:    backend.DedicatedColumnTypeInt,
+				Options: options,
+			})
+		}
+	}
+
+	// resource
+	resourceStringAttrList := topNAllStrings(settings.NumStringAttr, s.resourceSummary.attributes, s.resourceSummary.arrayAttributes)
+	for _, attr := range resourceStringAttrList {
+		options := backend.DedicatedColumnOptions{}
+		totalSize := attr.cardinality.avgSizePerRowGroup(s.numRowGroups)
+		if settings.BlobThresholdBytes > 0 && totalSize >= settings.BlobThresholdBytes {
+			options = append(options, backend.DedicatedColumnOptionBlob)
+		}
+		if attr.isArray {
+			options = append(options, backend.DedicatedColumnOptionArray)
+		}
+		dedicatedCols = append(dedicatedCols, backend.DedicatedColumn{
+			Name:    attr.name,
+			Scope:   backend.DedicatedColumnScopeResource,
+			Type:    backend.DedicatedColumnTypeString,
+			Options: options,
+		})
+	}
+
+	if settings.NumIntAttr > 0 {
+		resourceIntAttrList := topNAllIntegers(settings.NumIntAttr, s.resourceSummary.integerAttributes, s.resourceSummary.integerArrayAttributes)
+		for _, attr := range resourceIntAttrList {
+			options := backend.DedicatedColumnOptions{}
+			if attr.isArray {
+				options = append(options, backend.DedicatedColumnOptionArray)
+			}
+			dedicatedCols = append(dedicatedCols, backend.DedicatedColumn{
+				Name:    attr.name,
+				Scope:   backend.DedicatedColumnScopeResource,
+				Type:    backend.DedicatedColumnTypeInt,
+				Options: options,
+			})
+		}
+	}
+
+	// event
+	eventStringAttrList := topNAllStrings(settings.NumStringAttr, s.eventSummary.attributes, s.eventSummary.arrayAttributes)
+	for _, attr := range eventStringAttrList {
+		options := backend.DedicatedColumnOptions{}
+		totalSize := attr.cardinality.avgSizePerRowGroup(s.numRowGroups)
+		if settings.BlobThresholdBytes > 0 && totalSize >= settings.BlobThresholdBytes {
+			options = append(options, backend.DedicatedColumnOptionBlob)
+		}
+		if attr.isArray {
+			options = append(options, backend.DedicatedColumnOptionArray)
+		}
+		dedicatedCols = append(dedicatedCols, backend.DedicatedColumn{
+			Name:    attr.name,
+			Scope:   backend.DedicatedColumnScopeEvent,
+			Type:    backend.DedicatedColumnTypeString,
+			Options: options,
+		})
+	}
+
+	if settings.NumIntAttr > 0 {
+		eventIntAttrList := topNAllIntegers(settings.NumIntAttr, s.eventSummary.integerAttributes, s.eventSummary.integerArrayAttributes)
+		for _, attr := range eventIntAttrList {
+			options := backend.DedicatedColumnOptions{}
+			if attr.isArray {
+				options = append(options, backend.DedicatedColumnOptionArray)
+			}
+			dedicatedCols = append(dedicatedCols, backend.DedicatedColumn{
+				Name:    attr.name,
+				Scope:   backend.DedicatedColumnScopeEvent,
+				Type:    backend.DedicatedColumnTypeInt,
+				Options: options,
+			})
+		}
+	}
+
+	// json prints out JSON format but using backend.DedicatedColumn struct which the keys are s, n, t, o
+	// jsonnet prints out JSONNET format but what user would put in Jsonnet overrides file to generate yaml
+	switch format {
+	case "json":
+		printDedicatedColumnSuggestionsJson(dedicatedCols)
+	case "jsonnet":
+		printDedicatedColumnSuggestionsJsonnet(dedicatedCols)
+	case "yaml":
+		printDedicatedColumnSuggestionsYaml(dedicatedCols)
+	default:
+		return errors.New("unknown format: " + format)
+	}
+	return nil
+}
+
 type attributeSummary struct {
 	attributes             map[string]*stringAttributeSummary  // key: attribute name
 	arrayAttributes        map[string]*stringAttributeSummary  // key: attribute name
@@ -515,11 +642,13 @@ type stringAttributeSummary struct {
 	name        string
 	cardinality cardinality // Only populated for non-arraystring attributes
 	totalBytes  uint64
+	isArray     bool
 }
 
 type integerAttributeSummary struct {
-	name  string
-	count uint64
+	name    string
+	count   uint64
+	isArray bool
 }
 
 type cardinality map[string]uint64
@@ -615,23 +744,25 @@ func aggregateGenericAttributes(pf *parquet.File, definitionLevel int, keyPath s
 		integerArrayAttributes = make(map[string]*integerAttributeSummary, 1000)
 	)
 
-	getString := func(name string, from map[string]*stringAttributeSummary) *stringAttributeSummary {
+	getString := func(name string, from map[string]*stringAttributeSummary, isArray bool) *stringAttributeSummary {
 		v, ok := from[name]
 		if !ok {
 			v = &stringAttributeSummary{
 				name:        name,
 				cardinality: make(cardinality),
+				isArray:     isArray,
 			}
 			from[name] = v
 		}
 		return v
 	}
 
-	getInt := func(name string, from map[string]*integerAttributeSummary) *integerAttributeSummary {
+	getInt := func(name string, from map[string]*integerAttributeSummary, isArray bool) *integerAttributeSummary {
 		v, ok := from[name]
 		if !ok {
 			v = &integerAttributeSummary{
-				name: name,
+				name:    name,
+				isArray: isArray,
 			}
 			from[name] = v
 		}
@@ -652,20 +783,20 @@ func aggregateGenericAttributes(pf *parquet.File, definitionLevel int, keyPath s
 			switch stats.typ {
 			case attrTypeString:
 				if stats.isArray {
-					v := getString(stats.name, stringArrayAttributes)
+					v := getString(stats.name, stringArrayAttributes, true)
 					v.totalBytes += uint64(len(stats.value))
 					v.cardinality.add(stats.value)
 				} else {
-					v := getString(stats.name, attributes)
+					v := getString(stats.name, attributes, false)
 					v.totalBytes += uint64(len(stats.value))
 					v.cardinality.add(stats.value)
 				}
 			case attrTypeInt:
 				if stats.isArray {
-					v := getInt(stats.name, integerArrayAttributes)
+					v := getInt(stats.name, integerArrayAttributes, true)
 					v.count++
 				} else {
-					v := getInt(stats.name, integerAttributes)
+					v := getInt(stats.name, integerAttributes, false)
 					v.count++
 				}
 			case attrTypeNull:
@@ -902,6 +1033,69 @@ func printDedicatedColumnOverridesJsonnet(summary blockSummary, settings heurist
 	fmt.Println("")
 }
 
+type DedicatedColumnYAMLReadableKeys struct {
+	// The Scope of the attribute
+	Scope string `yaml:"scope" json:"scope,omitempty"`
+	// The Name of the attribute stored in the dedicated column
+	Name string `yaml:"name" json:"name"`
+	// The Type of attribute value
+	Type string `yaml:"type" json:"type,omitempty"`
+	// The Options applied to the dedicated attribute column
+	Options []string `yaml:"options" json:"options,omitempty"`
+}
+
+func backendDedicatedColumnsToYAMLReadableKeys(dedCol backend.DedicatedColumns) []DedicatedColumnYAMLReadableKeys {
+	var printDedCols []DedicatedColumnYAMLReadableKeys
+
+	for _, c := range dedCol {
+		dedColPrint := DedicatedColumnYAMLReadableKeys{
+			Scope:   string(c.Scope),
+			Name:    c.Name,
+			Type:    string(c.Type),
+			Options: []string{},
+		}
+		for _, o := range c.Options {
+			dedColPrint.Options = append(dedColPrint.Options, string(o))
+		}
+		printDedCols = append(printDedCols, dedColPrint)
+	}
+	return printDedCols
+}
+
+func printDedicatedColumnSuggestionsJson(dedCol backend.DedicatedColumns) {
+	outBytes, err := json.Marshal(dedCol)
+	if err != nil {
+		fmt.Println("error marshaling dedicated column suggestions to json:", err)
+		return
+	}
+
+	fmt.Println(string(outBytes))
+}
+
+func printDedicatedColumnSuggestionsJsonnet(dedCol backend.DedicatedColumns) {
+	printDedCols := backendDedicatedColumnsToYAMLReadableKeys(dedCol)
+
+	outBytes, err := json.Marshal(printDedCols)
+	if err != nil {
+		fmt.Println("error marshaling dedicated column suggestions to json:", err)
+		return
+	}
+
+	fmt.Println(string(outBytes))
+}
+
+func printDedicatedColumnSuggestionsYaml(dedCol backend.DedicatedColumns) {
+	printDedCols := backendDedicatedColumnsToYAMLReadableKeys(dedCol)
+
+	outBytes, err := yaml.Marshal(printDedCols)
+	if err != nil {
+		fmt.Println("error marshaling dedicated column suggestions to yaml:", err)
+		return
+	}
+
+	fmt.Println(string(outBytes))
+}
+
 func printCliArgs(s blockSummary, settings heuristicSettings, numRowGroups int) {
 	fmt.Println("")
 	fmt.Printf("quoted/spaced cli list:")
@@ -968,9 +1162,43 @@ func topN(n int, attrs map[string]*stringAttributeSummary) []*stringAttributeSum
 	return top
 }
 
+func topNAllStrings(n int, stringAttrs map[string]*stringAttributeSummary, arrayAttrs map[string]*stringAttributeSummary) []*stringAttributeSummary {
+	top := make([]*stringAttributeSummary, 0, len(stringAttrs)+len(arrayAttrs))
+	for _, attr := range stringAttrs {
+		top = append(top, attr)
+	}
+	for _, attr := range arrayAttrs {
+		top = append(top, attr)
+	}
+	sort.Slice(top, func(i, j int) bool {
+		return top[i].totalBytes > top[j].totalBytes
+	})
+	if len(top) > n {
+		top = top[:n]
+	}
+	return top
+}
+
 func topNInt(n int, attrs map[string]*integerAttributeSummary) []*integerAttributeSummary {
 	top := make([]*integerAttributeSummary, 0, len(attrs))
 	for _, attr := range attrs {
+		top = append(top, attr)
+	}
+	sort.Slice(top, func(i, j int) bool {
+		return top[i].count > top[j].count
+	})
+	if len(top) > n {
+		top = top[:n]
+	}
+	return top
+}
+
+func topNAllIntegers(n int, attrs map[string]*integerAttributeSummary, arrayAttrs map[string]*integerAttributeSummary) []*integerAttributeSummary {
+	top := make([]*integerAttributeSummary, 0, len(attrs)+len(arrayAttrs))
+	for _, attr := range attrs {
+		top = append(top, attr)
+	}
+	for _, attr := range arrayAttrs {
 		top = append(top, attr)
 	}
 	sort.Slice(top, func(i, j int) bool {

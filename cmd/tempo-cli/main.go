@@ -92,6 +92,10 @@ var cli struct {
 		Tenant          migrateTenantCmd          `cmd:"" help:"migrate tenant between two backends"`
 		OverridesConfig migrateOverridesConfigCmd `cmd:"" help:"migrate overrides config"`
 	} `cmd:""`
+
+	Suggest struct {
+		DedicatedColumns suggestDedicatedColumnsCmd `cmd:"" help:"Suggest dedicated columns for a tenant"`
+	} `cmd:""`
 }
 
 func main() {

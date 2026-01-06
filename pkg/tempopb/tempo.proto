@@ -113,6 +113,7 @@ message DedicatedColumn {
   enum Scope {
     SPAN = 0;
     RESOURCE = 1;
+    EVENT = 2;
   }
   enum Type {
     STRING = 0;
