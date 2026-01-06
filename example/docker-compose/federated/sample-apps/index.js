@@ -2,6 +2,7 @@
 require('./tracing');
 
 const express = require('express');
+const axios = require('axios');
 const { trace, SpanStatusCode, context, propagation } = require('@opentelemetry/api');
 
 const app = express();
@@ -25,15 +26,16 @@ async function callDownstream(url, traceId) {
   propagation.inject(context.active(), headers);
   
   try {
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...headers,
-      },
-      body: JSON.stringify({ traceId, source: APP_NAME }),
-    });
-    return await response.json();
+    const response = await axios.post(url, 
+      { traceId, source: APP_NAME },
+      {
+        headers: {
+          'Content-Type': 'application/json',
+          ...headers,
+        },
+      }
+    );
+    return response.data;
   } catch (error) {
     console.error(`Failed to call ${url}:`, error.message);
     return { error: error.message };
