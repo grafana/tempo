@@ -14,18 +14,20 @@ import (
 type suggestDedicatedColumnsCmd struct {
 	backendOptions
 
+	TenantID string `arg:"" help:"tenant-id within the bucket"`
+
 	Format              string  `help:"Output format (json/jsonnet/yaml)" enum:"json,jsonnet,yaml" default:"jsonnet"`
-	TenantID            string  `arg:"" help:"tenant-id within the bucket"`
 	BlockID             string  `help:"specific block ID to analyse"`
 	MinCompactionLevel  int     `help:"Min compaction level to analyse" default:"3"`
 	MaxBlocks           int     `help:"Max number of blocks to analyse" default:"10"`
 	NumAttr             int     `help:"Number of attributes to display" default:"15"`
 	NumIntAttr          int     `help:"Number of integer attributes to display. If set to 0 then it will use the NumAttr." default:"0"`
 	IntPercentThreshold float64 `help:"Threshold for integer attributes put in dedicated columns. Default 5% = 0.05" default:"0.05"`
-	IncludeWellKnown    bool    `help:"Include well-known attributes in the analysis. These are attributes with fixed columns in some versions of parquet, like http.url." default:"false"`
+	IncludeWellKnown    bool    `help:"Include well-known attributes in the analysis. These are attributes with fixed columns in some versions of parquet, like http.url." default:"true"`
 	BlobThreshold       string  `help:"Convert column to blob when dictionary size reaches this value" default:"4MiB"`
 	MaxStartTime        string  `help:"Oldest start time for a block to be processed. RFC3339 format '2006-01-02T15:04:05Z07:00'" default:""`
 	MinStartTime        string  `help:"Newest start time for a block to be processed. RFC3339 format '2006-01-02T15:04:05Z07:00'" default:""`
+	Out                 string  `help:"(internal) file to write output to, instead of stdout" default:""`
 }
 
 func (cmd *suggestDedicatedColumnsCmd) Run(ctx *globalOptions) error {
@@ -95,7 +97,7 @@ func (cmd *suggestDedicatedColumnsCmd) Run(ctx *globalOptions) error {
 			return errors.New("int percent threshold must be between 0 and 1")
 		}
 
-		return blockSum.printDedicatedColumns(settings, cmd.Format)
+		return blockSum.printDedicatedColumns(settings, cmd.Format, cmd.Out)
 	}
 
 	// TODO: Parallelize this
@@ -135,5 +137,5 @@ func (cmd *suggestDedicatedColumnsCmd) Run(ctx *globalOptions) error {
 		processedBlocks[block] = struct{}{}
 	}
 
-	return totalSummary.printDedicatedColumns(settings, cmd.Format)
+	return totalSummary.printDedicatedColumns(settings, cmd.Format, cmd.Out)
 }
