@@ -6,138 +6,40 @@ import (
 	"io"
 	"net/http"
 	"sync"
-	"time"
 
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
+
+	"github.com/grafana/tempo/cmd/tempo-federated-querier/client"
 	"github.com/grafana/tempo/cmd/tempo-federated-querier/combiner"
+	"github.com/grafana/tempo/cmd/tempo-federated-querier/handler"
 )
 
-// TempoClient is an HTTP client for querying a Tempo instance
-type TempoClient struct {
-	name       string
-	endpoint   string
-	orgID      string
-	timeout    time.Duration
-	headers    map[string]string
-	httpClient *http.Client
-	logger     log.Logger
-}
-
-// NewTempoClient creates a new client for a Tempo instance
-func NewTempoClient(instance TempoInstance, logger log.Logger) *TempoClient {
-	return &TempoClient{
-		name:     instance.Name,
-		endpoint: instance.Endpoint,
-		orgID:    instance.OrgID,
-		timeout:  instance.Timeout,
-		headers:  instance.Headers,
-		httpClient: &http.Client{
-			Timeout: instance.Timeout,
-		},
-		logger: log.With(logger, "instance", instance.Name),
-	}
-}
-
-// Name returns the instance name
-func (c *TempoClient) Name() string {
-	return c.name
-}
-
-// GetTraceByID fetches a trace by its ID from this Tempo instance
-func (c *TempoClient) GetTraceByID(ctx context.Context, traceID string) (*http.Response, error) {
-	url := fmt.Sprintf("%s/api/traces/%s", c.endpoint, traceID)
-	return c.doRequest(ctx, http.MethodGet, url)
-}
-
-// GetTraceByIDV2 fetches a trace by its ID using the v2 API
-func (c *TempoClient) GetTraceByIDV2(ctx context.Context, traceID string) (*http.Response, error) {
-	url := fmt.Sprintf("%s/api/v2/traces/%s", c.endpoint, traceID)
-	return c.doRequest(ctx, http.MethodGet, url)
-}
-
-// Search performs a search query against this Tempo instance
-func (c *TempoClient) Search(ctx context.Context, queryParams string) (*http.Response, error) {
-	url := fmt.Sprintf("%s/api/search?%s", c.endpoint, queryParams)
-	return c.doRequest(ctx, http.MethodGet, url)
-}
-
-// SearchTags fetches available tags from this Tempo instance
-func (c *TempoClient) SearchTags(ctx context.Context, queryParams string) (*http.Response, error) {
-	url := fmt.Sprintf("%s/api/search/tags", c.endpoint)
-	if queryParams != "" {
-		url = fmt.Sprintf("%s?%s", url, queryParams)
-	}
-	return c.doRequest(ctx, http.MethodGet, url)
-}
-
-// SearchTagsV2 fetches available tags with scopes from this Tempo instance
-func (c *TempoClient) SearchTagsV2(ctx context.Context, queryParams string) (*http.Response, error) {
-	url := fmt.Sprintf("%s/api/v2/search/tags", c.endpoint)
-	if queryParams != "" {
-		url = fmt.Sprintf("%s?%s", url, queryParams)
-	}
-	return c.doRequest(ctx, http.MethodGet, url)
-}
-
-// SearchTagValues fetches values for a specific tag from this Tempo instance
-func (c *TempoClient) SearchTagValues(ctx context.Context, tagName, queryParams string) (*http.Response, error) {
-	url := fmt.Sprintf("%s/api/search/tag/%s/values", c.endpoint, tagName)
-	if queryParams != "" {
-		url = fmt.Sprintf("%s?%s", url, queryParams)
-	}
-	return c.doRequest(ctx, http.MethodGet, url)
-}
-
-// SearchTagValuesV2 fetches values for a specific tag with types from this Tempo instance
-func (c *TempoClient) SearchTagValuesV2(ctx context.Context, tagName, queryParams string) (*http.Response, error) {
-	url := fmt.Sprintf("%s/api/v2/search/tag/%s/values", c.endpoint, tagName)
-	if queryParams != "" {
-		url = fmt.Sprintf("%s?%s", url, queryParams)
-	}
-	return c.doRequest(ctx, http.MethodGet, url)
-}
-
-// doRequest performs an HTTP request with appropriate headers
-func (c *TempoClient) doRequest(ctx context.Context, method, url string) (*http.Response, error) {
-	req, err := http.NewRequestWithContext(ctx, method, url, nil)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create request: %w", err)
-	}
-
-	// Set headers - request JSON format for easier parsing
-	req.Header.Set("Accept", "application/json")
-	if c.orgID != "" {
-		req.Header.Set("X-Scope-OrgID", c.orgID)
-	}
-	for k, v := range c.headers {
-		req.Header.Set(k, v)
-	}
-
-	resp, err := c.httpClient.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("request failed: %w", err)
-	}
-
-	return resp, nil
-}
-
-// FederatedQuerier coordinates queries across multiple Tempo instances
+// FederatedQuerier coordinates queries across multiple Tempo instances.
 type FederatedQuerier struct {
 	cfg     Config
-	clients []*TempoClient
+	clients []*client.Client
 	logger  log.Logger
 }
 
-// NewFederatedQuerier creates a new federated querier
+// Ensure FederatedQuerier implements handler.FederatedQuerier
+var _ handler.FederatedQuerier = (*FederatedQuerier)(nil)
+
+// NewFederatedQuerier creates a new federated querier.
 func NewFederatedQuerier(cfg Config, logger log.Logger) (*FederatedQuerier, error) {
 	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
 
-	clients := make([]*TempoClient, len(cfg.Instances))
+	clients := make([]*client.Client, len(cfg.Instances))
 	for i, inst := range cfg.Instances {
-		clients[i] = NewTempoClient(inst, logger)
+		clients[i] = client.New(client.Config{
+			Name:     inst.Name,
+			Endpoint: inst.Endpoint,
+			OrgID:    inst.OrgID,
+			Timeout:  inst.Timeout,
+			Headers:  inst.Headers,
+		}, logger)
 	}
 
 	return &FederatedQuerier{
@@ -147,24 +49,24 @@ func NewFederatedQuerier(cfg Config, logger log.Logger) (*FederatedQuerier, erro
 	}, nil
 }
 
-// QueryAllInstances queries all Tempo instances in parallel and returns results
-func (q *FederatedQuerier) QueryAllInstances(ctx context.Context, queryFn func(ctx context.Context, client *TempoClient) (*http.Response, error)) []combiner.QueryResult {
+// QueryAllInstances queries all Tempo instances in parallel and returns results.
+func (q *FederatedQuerier) QueryAllInstances(ctx context.Context, queryFn func(ctx context.Context, c client.TempoClient) (*http.Response, error)) []combiner.QueryResult {
 	var wg sync.WaitGroup
 	results := make([]combiner.QueryResult, len(q.clients))
 
-	for i, client := range q.clients {
+	for i, c := range q.clients {
 		wg.Add(1)
-		go func(idx int, c *TempoClient) {
+		go func(idx int, tempoClient *client.Client) {
 			defer wg.Done()
 
 			result := combiner.QueryResult{
-				Instance: c.Name(),
+				Instance: tempoClient.Name(),
 			}
 
-			resp, err := queryFn(ctx, c)
+			resp, err := queryFn(ctx, tempoClient)
 			if err != nil {
 				result.Error = err
-				level.Warn(q.logger).Log("msg", "query failed", "instance", c.Name(), "err", err)
+				level.Warn(q.logger).Log("msg", "query failed", "instance", tempoClient.Name(), "err", err)
 			} else {
 				result.Response = resp
 				// Read body immediately to allow connection reuse
@@ -178,14 +80,14 @@ func (q *FederatedQuerier) QueryAllInstances(ctx context.Context, queryFn func(c
 			}
 
 			results[idx] = result
-		}(i, client)
+		}(i, c)
 	}
 
 	wg.Wait()
 	return results
 }
 
-// Instances returns the list of configured instances
+// Instances returns the list of configured instances.
 func (q *FederatedQuerier) Instances() []string {
 	names := make([]string, len(q.clients))
 	for i, c := range q.clients {

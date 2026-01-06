@@ -11,6 +11,8 @@ import (
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
 	"github.com/gorilla/mux"
+	"github.com/grafana/tempo/cmd/tempo-federated-querier/combiner"
+	"github.com/grafana/tempo/cmd/tempo-federated-querier/handler"
 	"gopkg.in/yaml.v3"
 )
 
@@ -95,12 +97,36 @@ func main() {
 		os.Exit(1)
 	}
 
+	// Create combiner
+	comb := combiner.New(cfg.MaxBytesPerTrace, logger)
+
+	// Create handler config
+	handlerCfg := handler.Config{
+		QueryTimeout: cfg.QueryTimeout,
+		Instances:    make([]handler.InstanceInfo, len(cfg.Instances)),
+	}
+	for i, inst := range cfg.Instances {
+		handlerCfg.Instances[i] = handler.InstanceInfo{
+			Name:     inst.Name,
+			Endpoint: inst.Endpoint,
+		}
+	}
+
+	// Create build info
+	buildInfo := handler.BuildInfo{
+		Version:   Version,
+		Revision:  Revision,
+		Branch:    Branch,
+		BuildDate: BuildDate,
+		GoVersion: GoVersion,
+	}
+
 	// Create HTTP handler
-	handler := NewHandler(querier, cfg, logger)
+	h := handler.NewHandler(querier, comb, handlerCfg, buildInfo, logger)
 
 	// Setup router
 	router := mux.NewRouter()
-	handler.RegisterRoutes(router)
+	h.RegisterRoutes(router)
 
 	// Create HTTP server
 	addr := fmt.Sprintf("%s:%d", cfg.HTTPListenAddress, cfg.HTTPListenPort)
