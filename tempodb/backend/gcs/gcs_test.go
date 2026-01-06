@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -146,14 +147,20 @@ func TestObjectConfigAttributes(t *testing.T) {
 }
 
 func TestRetry_MarkBlockCompacted(t *testing.T) {
-	var count int32
+	var reqCounts sync.Map
+
 	server := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/b/blerg":
 			_, _ = w.Write([]byte(`{}`))
 		default:
-			// First two requests fail, third succeeds.
-			if atomic.LoadInt32(&count) < 2 {
+			// Increment the request count for this path
+			val, _ := reqCounts.LoadOrStore(r.URL.Path, new(int32))
+			countPtr := val.(*int32)
+			count := atomic.AddInt32(countPtr, 1)
+
+			// First two requests fail, third succeeds for each path.
+			if count <= 2 {
 				atomic.AddInt32(&count, 1)
 				w.WriteHeader(503)
 				return
@@ -175,7 +182,13 @@ func TestRetry_MarkBlockCompacted(t *testing.T) {
 	require.NoError(t, err)
 
 	require.NoError(t, c.MarkBlockCompacted(id, "tenant"))
-	require.Equal(t, int32(2), atomic.LoadInt32(&count))
+
+	reqCounts.Range(func(key, value any) bool {
+		urlPath := key.(string)
+		countPtr := value.(*int32)
+		require.Equal(t, int32(3), atomic.LoadInt32(countPtr), "should attempt 3 times for %s", urlPath)
+		return true
+	})
 }
 
 func fakeServer(t *testing.T, returnIn time.Duration, counter *int32) *httptest.Server {

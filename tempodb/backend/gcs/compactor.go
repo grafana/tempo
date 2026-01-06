@@ -19,7 +19,10 @@ func (rw *readerWriter) MarkBlockCompacted(blockID uuid.UUID, tenantID string) e
 	metaFilename := backend.MetaFileName(blockID, tenantID, rw.cfg.Prefix)
 	compactedMetaFilename := backend.CompactedMetaFileName(blockID, tenantID, rw.cfg.Prefix)
 
-	src := rw.bucket.Object(metaFilename)
+	src := rw.bucket.Object(metaFilename).Retryer(
+		storage.WithBackoff(gax.Backoff{}),
+		storage.WithPolicy(storage.RetryAlways),
+	)
 	dst := rw.bucket.Object(compactedMetaFilename).Retryer(
 		storage.WithBackoff(gax.Backoff{}),
 		storage.WithPolicy(storage.RetryAlways),
