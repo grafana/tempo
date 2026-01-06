@@ -140,18 +140,12 @@ type TestHarnessConfig struct {
 	// Recent data components are always started. Use this to add optional components.
 	// Defaults to ComponentsRecentDataQuerying
 	Components ComponentsMask
-
-	// DisableParallelism is a flag to disable parallelism for the test.
-	// Defaults to false
-	DisableParallelism bool
 }
 
 // RunIntegrationTests sets up Tempo for integration tests as requested through the config and then calls the provided testFunc
 func RunIntegrationTests(t *testing.T, config TestHarnessConfig, testFunc func(*TempoHarness)) {
 	t.Helper()
-	if !config.DisableParallelism {
-		t.Parallel()
-	}
+	t.Parallel()
 
 	// defaults
 	if config.Backends == 0 {
@@ -570,7 +564,7 @@ func normalizeTestName(testName string) string {
 	// max test name length is 40 to leave room prefix and suffix. the full container name will be e2e_<test name>_<service name>
 	// this means that if two tests have the same first 40 characters in their names they will conflict!!
 	maxNameLen := 40
-	name := testName[len("Test"):] // strip "Test" prefix
+	name := strings.TrimPrefix(testName, "Test")
 	if len(name) > maxNameLen {
 		name = name[:maxNameLen]
 	}

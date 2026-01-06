@@ -78,6 +78,7 @@ func TestStatusAndRingAPIs(t *testing.T) {
 				endpoint:       "/live-store/ring",
 				expectedStatus: http.StatusOK,
 			},
+			// TODO: research this behavior
 			// { 200s but should 404!
 			// 	name:           "generator ring",
 			// 	service:        util.ServiceQuerier,
