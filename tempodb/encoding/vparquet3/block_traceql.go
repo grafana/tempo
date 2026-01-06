@@ -946,7 +946,8 @@ func checkConditions(conditions []traceql.Condition) error {
 			cond.Attribute.Intrinsic == traceql.IntrinsicLinkTraceID ||
 			cond.Attribute.Intrinsic == traceql.IntrinsicLinkSpanID ||
 			cond.Attribute.Intrinsic == traceql.IntrinsicInstrumentationName ||
-			cond.Attribute.Intrinsic == traceql.IntrinsicInstrumentationVersion {
+			cond.Attribute.Intrinsic == traceql.IntrinsicInstrumentationVersion ||
+			cond.Attribute.Intrinsic == traceql.IntrinsicChildCount {
 
 			return fmt.Errorf("intrinsic '%s' not supported in vParquet3: %w", cond.Attribute.Intrinsic, util.ErrUnsupported)
 		}

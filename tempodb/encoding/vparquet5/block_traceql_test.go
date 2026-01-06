@@ -1374,6 +1374,7 @@ func flattenForSelectAll(tr *Trace, dcm dedicatedColumnMapping) *traceql.Spanset
 				newS.setTraceAttrs(traceAttrs)
 				newS.setResourceAttrs(rsAttrs)
 				newS.setInstrumentationAttrs(instrumentationAttrs)
+				newS.addSpanAttr(traceql.IntrinsicChildCountAttribute, traceql.NewStaticInt(int(s.ChildCount)))
 				newS.addSpanAttr(traceql.IntrinsicDurationAttribute, traceql.NewStaticDuration(time.Duration(s.DurationNano)))
 				newS.addSpanAttr(traceql.IntrinsicKindAttribute, traceql.NewStaticKind(otlpKindToTraceqlKind(uint64(s.Kind))))
 				newS.addSpanAttr(traceql.IntrinsicNameAttribute, traceql.NewStaticString(s.Name))

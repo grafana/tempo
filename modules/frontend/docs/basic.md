@@ -28,6 +28,7 @@ Intrinsic fields use colon notation `<scope>:`:
 - `span:kind` - Kind: server, client, producer, consumer, internal, unspecified
 - `span:id` - Span ID using hex string
 - `span:parentID` - Parent span ID using hex string
+- `span:childCount` - Number of direct children of the span
 - `trace:duration` - Max(end) - min(start) time of spans in trace
 - `trace:rootName` - Name of the root span (if it exists)
 - `trace:rootService` - Service name of the root span (if it exists)
