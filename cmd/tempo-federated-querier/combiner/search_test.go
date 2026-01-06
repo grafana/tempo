@@ -14,11 +14,11 @@ func TestCombineSearchResults(t *testing.T) {
 	c := New(10*1024*1024, logger)
 
 	tests := []struct {
-		name             string
-		results          []QueryResult
-		wantTracesCount  int
-		wantResponded    int
-		wantFailed       int
+		name            string
+		results         []QueryResult
+		wantTracesCount int
+		wantResponded   int
+		wantFailed      int
 	}{
 		{
 			name:            "empty results",

@@ -33,7 +33,6 @@ type Config struct {
 	MaxConcurrentQueries  int           `yaml:"max_concurrent_queries"`
 	MaxBytesPerTrace      int           `yaml:"max_bytes_per_trace"`
 	AllowPartialResponses bool          `yaml:"allow_partial_responses"`
-
 }
 
 // RegisterFlagsAndApplyDefaults registers flags and sets default values

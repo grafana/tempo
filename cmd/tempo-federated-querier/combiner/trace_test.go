@@ -14,13 +14,13 @@ func TestCombineTraceResults(t *testing.T) {
 	c := New(10*1024*1024, logger)
 
 	tests := []struct {
-		name           string
-		results        []QueryResult
-		wantTrace      bool
-		wantSpanCount  int
-		wantWithTrace  int
-		wantNotFound   int
-		wantFailed     int
+		name          string
+		results       []QueryResult
+		wantTrace     bool
+		wantSpanCount int
+		wantWithTrace int
+		wantNotFound  int
+		wantFailed    int
 	}{
 		{
 			name:          "empty results",
