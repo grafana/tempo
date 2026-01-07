@@ -1,8 +1,8 @@
+stream_over_http_enabled: true
 partition_ring_live_store: true
 
 server:
   http_listen_port: 3200
-  log_level: debug
 
 distributor:
   ingester_write_path_enabled: false
@@ -12,29 +12,21 @@ distributor:
       protocols:
         grpc:
           endpoint: "distributor:4317"
-  log_received_spans:
-    enabled: true
-  log_discarded_spans:
-    enabled: true
-
-ingester:
-  max_block_duration: 5m # cut the headblock when this much time passes. this is being set for demo purposes and should probably be left alone normally
-  partition_ring:
-    kvstore:
-      store: memberlist
+  # log_received_spans:
+  #   enabled: true
+  # log_discarded_spans:
+  #   enabled: true
 
 memberlist:
   abort_if_cluster_join_fails: false
   bind_port: 7946
   join_members:
-    - ingester-0:7946
-    - ingester-1:7946
     - live-store-zone-a-0:7946
     - live-store-zone-a-1:7946
     - live-store-zone-b-0:7946
     - live-store-zone-b-1:7946
 
-compactor:
+compactor: # jpe - remove? rename?
   compaction:
     block_retention: 1h # overall Tempo trace retention. set for demo purposes
 
@@ -53,13 +45,6 @@ metrics_generator:
     remote_write:
       - url: http://prometheus:9090/api/v1/write
         send_exemplars: true
-  traces_storage:
-    path: /var/tempo/generator/traces
-  traces_query_storage:
-    path: /var/tempo/generator/query_traces
-  processor:
-    local_blocks:
-      flush_to_storage: true
 
 query_frontend:
   rf1_after: "1999-01-01T00:00:00Z"
@@ -75,13 +60,11 @@ storage:
       insecure: true
     wal:
       path: /var/tempo/wal # where to store the wal locally
-    local:
-      path: /var/tempo/blocks
 
 overrides:
   defaults:
     metrics_generator:
-      processors: ["local-blocks", "span-metrics", "service-graphs"]
+      processors: ["span-metrics", "service-graphs"]
       generate_native_histograms: both
 
 ingest:
@@ -90,10 +73,10 @@ ingest:
     address: redpanda:9092
     topic: tempo-ingest
 
-block_builder:
+block_builder: # jpe - block builder partitions not correct? do we need values through 1000? use new params?
   consume_cycle_duration: 30s
   assigned_partitions:
-    block-builder-0: [0, 2]
+    block-builder-0: [0]
     block-builder-1: [1]
 
 usage_report:

@@ -11,6 +11,8 @@ services:
       - ./tempo-data:/var/tempo
     ports:
       - "3200:3200" # tempo
+    environment:
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://alloy:4318
 
   minio:
     image: minio/minio:latest
@@ -26,7 +28,6 @@ services:
 
   redpanda:
     image: redpandadata/redpanda:latest
-    container_name: redpanda
     ports:
       - "9092:9092" # Kafka API for clients
     command: >
