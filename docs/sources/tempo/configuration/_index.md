@@ -2156,8 +2156,8 @@ overrides:
 
   "<tenant-id>":
       ingestion:
-        [burst_size_bytes: <int>]
-        [rate_limit_bytes: <int>]
+        [rate_size_bytes: <int>] # Applies global and local strategies.
+        [burst_limit_bytes: <int>] # Ignores rate strategy and is always local.
         [max_traces_per_user: <int>]
       global:
         [max_bytes_per_trace: <int>]
