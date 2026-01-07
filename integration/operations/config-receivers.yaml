@@ -1,0 +1,12 @@
+distributor:
+  receivers:
+    otlp:
+      protocols:
+        http:
+          endpoint: "0.0.0.0:4318"
+    zipkin:
+      endpoint: "0.0.0.0:9411"
+    jaeger:
+      protocols:
+        grpc:
+          endpoint: "0.0.0.0:14250"

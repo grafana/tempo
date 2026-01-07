@@ -18,6 +18,7 @@
   have expired and been deleted from the backend, or else it will encounter read errors after upgrading to this release.
 * [CHANGE] Remove busybox from Tempo image to make it more minimal and prevent future vulnerabilities [#5717](https://github.com/grafana/tempo/pull/5717) (@carles-grafana)
 * [CHANGE] Allow RetryInfo to be disabled in per tenant overrides [#5741](https://github.com/grafana/tempo/pull/5741) (@electron0zero)
+* [CHANGE] **BREAKING CHANGE** Added `scope` and `query` params while rewriting integration tests to the Tempo HTTP client `SearchTagsV2WithRange` function.
 * [CHANGE] Added a single binary 3.0 mode `--target=all-3.0` to begin testing single binary 3.0 and updating integration tests. [#6021](https://github.com/grafana/tempo/pull/6021) (@joe-elliott)
   This will be removed in 3.0 and become the standard single binary mode.
 * [CHANGE] Upgrade Tempo to Go 1.25.4 [#5939](https://github.com/grafana/tempo/pull/5939) [#6001](https://github.com/grafana/tempo/pull/6001) (@ruslan-mikhailov)

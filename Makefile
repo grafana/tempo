@@ -1,7 +1,7 @@
 # Adapted from https://www.thapaliya.com/en/writings/well-documented-makefiles/
 .PHONY: help
 help:  ## Display this help
-	@awk 'BEGIN {FS = ":.*##"; printf "\nUsage:\n  make \033[36m<target>\033[0m\n"} /^[a-zA-Z_-]+:.*?##/ { printf "  \033[36m%-15s\033[0m %s\n", $$1, $$2 } /^##@/ { printf "\n\033[1m%s\033[0m\n", substr($$0, 5) } ' $(MAKEFILE_LIST)
+	@awk 'BEGIN {FS = ":.*##"; printf "\nUsage:\n  make \033[36m<target>\033[0m\n"} /^[[:alnum:]_-]+:.*##/ { printf "  \033[36m%-15s\033[0m %s\n", $$1, $$2 } /^##@/ { printf "\n\033[1m%s\033[0m\n", substr($$0, 5) } ' $(MAKEFILE_LIST)
 
 .DEFAULT_GOAL:=help
 
@@ -102,7 +102,7 @@ exe:
 exe-debug:
 	BUILD_DEBUG=1 GOOS=linux make $(COMPONENT)
 
-##@  Testin' and Lintin'
+##@ Unit Tests
 
 .PHONY: test
 test: ## Run tests
@@ -120,7 +120,7 @@ test-with-cover: tools ## Run tests with code coverage
 
 # tests in pkg
 .PHONY: test-with-cover-pkg
-test-with-cover-pkg: tools  ##  Run Tempo packages' tests with code coverage
+test-with-cover-pkg: tools  ## Run Tempo packages' tests with code coverage
 	mkdir -p $(COVERAGE_DIR)
 	$(GOTEST) $(GOTEST_OPT) -coverprofile=$(COVERAGE_DIR)/pkg.out $(shell go list $(sort $(dir $(shell find . -name '*.go' -path './pkg*/*' -type f | sort))))
 
@@ -142,42 +142,51 @@ test-with-cover-others: tools ## Run other tests with code coverage
 	mkdir -p $(COVERAGE_DIR)
 	$(GOTEST) $(GOTEST_OPT) -coverprofile=$(COVERAGE_DIR)/others.out $(shell go list $(sort $(dir $(OTHERS_SRC))))
 
+##@ End to End Tests
+
 # runs e2e tests in the top level integration/e2e directory
 .PHONY: test-e2e
-test-e2e: tools docker-tempo docker-tempo-query  ## Run end to end tests
-	$(GOTEST) -v $(GOTEST_OPT) ./integration/e2e
+test-e2e: tools docker-tempo docker-tempo-query test-e2e-operations test-e2e-api test-e2e-limits test-e2e-metrics-generator test-e2e-storage test-e2e-util ## Run all e2e tests
+	@echo "All e2e tests completed"
 
-# runs only deployment modes e2e tests
-.PHONY: test-e2e-deployments
-test-e2e-deployments: tools docker-tempo docker-tempo-query ## Run end to end tests for deployments
-	$(GOTEST) -v $(GOTEST_OPT) ./integration/e2e/deployments
+# runs only operations e2e tests
+.PHONY: test-e2e-operations
+test-e2e-operations: tools docker-tempo docker-tempo-query ## Run operations e2e tests
+	$(GOTEST) -v $(GOTEST_OPT) ./integration/operations
 
 # runs only api e2e tests
 .PHONY: test-e2e-api
-test-e2e-api: tools docker-tempo docker-tempo-query ## Run end to end tests for api
-	$(GOTEST) -v $(GOTEST_OPT) ./integration/e2e/api
+test-e2e-api: tools docker-tempo docker-tempo-query ## Run api e2e tests
+	$(GOTEST) -v $(GOTEST_OPT) ./integration/api
 
-# runs only poller integration tests
-.PHONY: test-integration-poller
-test-integration-poller: tools ## Run poller integration tests
-	$(GOTEST) -v $(GOTEST_OPT) ./integration/poller
+## runs only poller integration tests
+.PHONY: test-e2e-limits
+test-e2e-limits: tools tools docker-tempo ## Run limits e2e tests
+	$(GOTEST) -v $(GOTEST_OPT) ./integration/limits
 
-# runs only backendscheduler integration tests
-.PHONY: test-integration-backendscheduler
-test-integration-backendscheduler: tools docker-tempo ## Run backend-scheduler integration tests
-	$(GOTEST) -v $(GOTEST_OPT) ./integration/backendscheduler
+# runs only metrics-generator integration tests
+.PHONY: test-e2e-metrics-generator
+test-e2e-metrics-generator: tools docker-tempo ## Run metrics-generator e2e tests
+	$(GOTEST) -v $(GOTEST_OPT) ./integration/metrics-generator
 
 # runs only ingest integration tests
-.PHONY: test-e2e-ingest
-test-e2e-ingest: tools docker-tempo ## Run end to end tests for ingest
-	$(GOTEST) -v $(GOTEST_OPT) ./integration/e2e/ingest
+.PHONY: test-e2e-storage
+test-e2e-storage: tools docker-tempo ## Run storage e2e tests
+	$(GOTEST) -v $(GOTEST_OPT) ./integration/storage
+
+# runs only ingest integration tests
+.PHONY: test-e2e-util
+test-e2e-util: tools docker-tempo ## Run unit tests on the e2e test harness
+	$(GOTEST) -v $(GOTEST_OPT) ./integration/util
 
 # test-all use a docker image so build it first to make sure we're up to date
-.PHONY: test-all ## Run all tests
-test-all: test-with-cover test-e2e test-e2e-deployments test-e2e-api test-integration-poller test-integration-backendscheduler test-e2e-ingest
+.PHONY: test-all
+test-all: test-with-cover test-e2e ## Run all tests
+
+##@ Linters/Formatters
 
 .PHONY: fmt check-fmt
-fmt: tools-image ## Check fmt
+fmt: tools-image ## Format codebase with gofumpt and goimports
 	@$(TOOLS_CMD) gofumpt -w $(FILES_TO_FMT)
 	@$(TOOLS_CMD) goimports -w $(FILES_TO_FMT)
 
@@ -185,14 +194,14 @@ check-fmt: fmt
 	@git diff --exit-code -- $(FILES_TO_FMT)
 
 .PHONY: jsonnetfmt check-jsonnetfmt ## Check jsonnetfmt
-jsonnetfmt: tools-image
+jsonnetfmt: tools-image ## Format jsonnet codebase with jsonnetfmt
 	@$(TOOLS_CMD) jsonnetfmt -i $(FILES_TO_JSONNETFMT)
 
 check-jsonnetfmt: jsonnetfmt
 	@git diff --exit-code -- $(FILES_TO_JSONNETFMT)
 
 .PHONY: lint
-lint: # linting
+lint: ## Lint codebase with golangci-lint
 ifneq ($(base),)
 	$(LINT_CMD) $(LINT) run --config .golangci.yml --new-from-rev=$(base)
 else
@@ -255,7 +264,7 @@ ifndef COMPONENT
 	$(error COMPONENT variable was not defined)
 endif
 
-##@ Gen Proto
+##@ Code Generation
 
 PROTOC = docker run --rm -u ${shell id -u} -v${PWD}:${PWD} -w${PWD} ${DOCKER_PROTOBUF_IMAGE} --proto_path=${PWD}
 PROTO_INTERMEDIATE_DIR = pkg/.patched-proto
@@ -310,8 +319,6 @@ gen-proto:  ## Generate proto files
 
 	rm -rf $(PROTO_INTERMEDIATE_DIR)
 
-##@ Gen Traceql
-
 .PHONY: gen-traceql 
 gen-traceql: ## Generate traceql 
 	docker run --rm -v${PWD}:/src/loki ${LOKI_BUILD_IMAGE} gen-traceql-local
@@ -319,9 +326,6 @@ gen-traceql: ## Generate traceql
 .PHONY: gen-traceql-local
 gen-traceql-local: ## Generate traceq local
 	goyacc -l -o pkg/traceql/expr.y.go pkg/traceql/expr.y && rm -f y.output
-
-
-##@ Gen Parquet-Query
 
 .PHONY: gen-parquet-query
 gen-parquet-query:  ## Generate Parquet query 
