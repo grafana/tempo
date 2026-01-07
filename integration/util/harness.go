@@ -71,14 +71,26 @@ const (
 type ComponentsMask uint
 
 const (
+	componentsKafka ComponentsMask = 1 << iota
+	componentsPrometheus
+	componentsLiveStore
+	componentsDistributor
+	componentsQueryFrontendQuerier // both query-frontend and querier. bundled b/c the query-frontend will never raise its readiness probe w/o querier
+	componentsBlockBuilder
+	componentsMetricsGenerator
+	componentsBackendSchedulerWorker // both backend-scheduler and backend-worker. too tightly coupled to separate
+
+	// the config-base.yaml uses live-stores as the memberlist gossip seeds and so always have to start live stores to stabilize the memberlist gossip cluster. even if they are not needed by the test
+	// todo: improve this by templating the memberlist join members and dynamically choosing which components are the seeds
+
 	// ComponentsRecentDataQuerying starts the distributor, kafka, query-frontend, querier, and livestores for recent data querying. (default)
-	ComponentsRecentDataQuerying ComponentsMask = 1 << iota
+	ComponentsRecentDataQuerying = componentsLiveStore | componentsDistributor | componentsQueryFrontendQuerier | componentsKafka
 	// ComponentsBackendQuerying starts the distributor, kafka, query-frontend, querier, and block-builder for backend querying.
-	ComponentsBackendQuerying
+	ComponentsBackendQuerying = componentsDistributor | componentsQueryFrontendQuerier | componentsBlockBuilder | componentsKafka | componentsLiveStore
 	// ComponentsMetricsGeneration starts the distributor, kafka, metrics generator and prometheus for metrics generation.
-	ComponentsMetricsGeneration
+	ComponentsMetricsGeneration = componentsDistributor | componentsMetricsGenerator | componentsPrometheus | componentsKafka | componentsLiveStore
 	// ComponentsBackendWork starts the backend scheduler and worker for testing backend work.
-	ComponentsBackendWork
+	ComponentsBackendWork = componentsBackendSchedulerWorker
 )
 
 // BackendsMask is a bitmask for controlling which object storage backends are started. These flags are meant to be used
@@ -227,12 +239,12 @@ func runTempoHarness(t *testing.T, harnessCfg TestHarnessConfig, requestedBacken
 
 	// Start Kafka
 	//   todo: should we add a field to reference kafka on the harness? not needed atm. maybe to test failure states by stopping it?
-	if requiresKafka(harnessCfg.Components) {
+	if harnessCfg.Components&componentsKafka != 0 {
 		kafka := e2edb.NewKafka()
 		require.NoError(t, s.StartAndWaitReady(kafka), "failed to start Kafka")
 	}
 
-	if requiresPrometheus(harnessCfg.Components) {
+	if harnessCfg.Components&componentsPrometheus != 0 {
 		prometheus := newPrometheus()
 		require.NoError(t, s.StartAndWaitReady(prometheus), "failed to start prometheus")
 		harness.Services[ServicePrometheus] = prometheus
@@ -250,16 +262,6 @@ func runTempoHarness(t *testing.T, harnessCfg TestHarnessConfig, requestedBacken
 
 	// Run the test function
 	testFunc(harness)
-}
-
-func requiresKafka(c ComponentsMask) bool {
-	return c&ComponentsRecentDataQuerying != 0 ||
-		c&ComponentsMetricsGeneration != 0 ||
-		c&ComponentsBackendQuerying != 0
-}
-
-func requiresPrometheus(c ComponentsMask) bool {
-	return c&ComponentsMetricsGeneration != 0
 }
 
 // UpdateOverrides updates the tenant overrides file with the provided configuration.
@@ -460,10 +462,7 @@ func (h *TempoHarness) startMicroservices(t *testing.T, config TestHarnessConfig
 		readinessProbe = h.readinessProbe
 	}
 
-	// Start LiveStores - needed by ComponentsRecentDataQuerying
-	// technically we should only need the live stores if the test needs ComponentsRecentDataQuerying
-	// unfortunately the config-base.yaml uses live-stores as the memberlist gossip seeds. todo: improve this by templating the memberlist join members
-	if config.Components&(ComponentsRecentDataQuerying|ComponentsBackendQuerying|ComponentsMetricsGeneration) != 0 {
+	if config.Components&componentsLiveStore != 0 {
 		liveStoreZoneA := NewTempoService("live-store-zone-a-0", "live-store", readinessProbe, nil, "-live-store.instance-availability-zone=zone-a")
 		h.Services[ServiceLiveStoreZoneA] = liveStoreZoneA
 		if err := s.StartAndWaitReady(liveStoreZoneA); err != nil {
@@ -477,8 +476,7 @@ func (h *TempoHarness) startMicroservices(t *testing.T, config TestHarnessConfig
 		}
 	}
 
-	// Start Distributor - needed by ComponentsRecentDataQuerying, ComponentsBackendQuerying, ComponentsMetricsGeneration
-	if config.Components&(ComponentsRecentDataQuerying|ComponentsBackendQuerying|ComponentsMetricsGeneration) != 0 {
+	if config.Components&componentsDistributor != 0 {
 		h.Services[ServiceDistributor] = NewTempoService("distributor", "distributor",
 			readinessProbe,
 			[]int{14250, 4317, 4318, 9411}, // jaeger grpc ingest, otlp grpc, otlp http, zipkin ingest
@@ -488,8 +486,7 @@ func (h *TempoHarness) startMicroservices(t *testing.T, config TestHarnessConfig
 		}
 	}
 
-	// Start Query Frontend and Querier - needed by ComponentsRecentDataQuerying, ComponentsBackendQuerying
-	if config.Components&(ComponentsRecentDataQuerying|ComponentsBackendQuerying) != 0 {
+	if config.Components&componentsQueryFrontendQuerier != 0 {
 		h.Services[ServiceQueryFrontend] = NewTempoService("query-frontend", "query-frontend", readinessProbe, nil)
 		h.Services[ServiceQuerier] = NewTempoService("querier", "querier", readinessProbe, nil)
 		if err := s.StartAndWaitReady(h.Services[ServiceQueryFrontend], h.Services[ServiceQuerier]); err != nil {
@@ -497,8 +494,7 @@ func (h *TempoHarness) startMicroservices(t *testing.T, config TestHarnessConfig
 		}
 	}
 
-	// Start Block Builder - needed by ComponentsBackendQuerying
-	if config.Components&ComponentsBackendQuerying != 0 {
+	if config.Components&componentsBlockBuilder != 0 {
 		blockBuilder := NewTempoService("block-builder-0", "block-builder", readinessProbe, nil)
 		h.Services[ServiceBlockBuilder] = blockBuilder
 		if err := s.StartAndWaitReady(blockBuilder); err != nil {
@@ -506,16 +502,14 @@ func (h *TempoHarness) startMicroservices(t *testing.T, config TestHarnessConfig
 		}
 	}
 
-	// Start Metrics Generator - needed by ComponentsMetricsGeneration
-	if config.Components&ComponentsMetricsGeneration != 0 {
+	if config.Components&componentsMetricsGenerator != 0 {
 		h.Services[ServiceMetricsGenerator] = NewTempoService("metrics-generator", "metrics-generator", readinessProbe, nil)
 		if err := s.StartAndWaitReady(h.Services[ServiceMetricsGenerator]); err != nil {
 			return fmt.Errorf("failed to start metrics generator: %w", err)
 		}
 	}
 
-	// Start Backend Scheduler and Worker - needed by ComponentsBackendWork
-	if config.Components&ComponentsBackendWork != 0 {
+	if config.Components&componentsBackendSchedulerWorker != 0 {
 		scheduler := NewTempoService("backend-scheduler", "backend-scheduler", readinessProbe, nil)
 		worker := NewTempoService("backend-worker", "backend-worker", readinessProbe, nil)
 		h.Services[ServiceBackendScheduler] = scheduler
