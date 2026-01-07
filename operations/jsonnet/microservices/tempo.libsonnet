@@ -8,7 +8,6 @@
 (import 'frontend.libsonnet') +
 (import 'querier.libsonnet') +
 (import 'block-builder.libsonnet') +
-(import 'replica-template.libsonnet') +
 (import 'live-store.libsonnet') +
 (import 'backend-scheduler.libsonnet') +
 (import 'backend-worker.libsonnet') +
@@ -16,7 +15,7 @@
 (import 'memcached.libsonnet') +
 (import 'multi-zone.libsonnet') +
 (import 'memberlist.libsonnet') +
-(import 'rollout-operator.libsonnet') +
+(import 'rollout-operator/rollout-operator.libsonnet') +
 
 {
   local k = import 'ksonnet-util/kausal.libsonnet',
