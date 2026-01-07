@@ -224,6 +224,65 @@ func BenchmarkPushSpans(b *testing.B) {
 	b.ReportMetric(float64(mem.HeapAlloc), "heap_alloc")
 }
 
+func TestGetOrCreateInstance_FailureCaching(t *testing.T) {
+	cfg := &Config{}
+	cfg.RegisterFlagsAndApplyDefaults("", &flag.FlagSet{})
+	cfg.Storage.Path = t.TempDir()
+
+	g := &Generator{
+		cfg:             cfg,
+		overrides:       &mockOverrides{processors: map[string]struct{}{"invalid-processor": {}}}, // will fail
+		instances:       map[string]*instance{},
+		failedInstances: map[string]time.Time{},
+		logger:          newTestLogger(t),
+		reg:             prometheus.NewRegistry(),
+	}
+
+	// First call should fail and cache the failure
+	_, err := g.getOrCreateInstance("tenant-1")
+	require.Error(t, err)
+	require.NotErrorIs(t, err, errInstanceCreationBackoff)
+
+	// Second call should return cached error
+	_, err = g.getOrCreateInstance("tenant-1")
+	require.ErrorIs(t, err, errInstanceCreationBackoff)
+
+	// Different tenant should also fail (not cached)
+	_, err = g.getOrCreateInstance("tenant-2")
+	require.Error(t, err)
+	require.NotErrorIs(t, err, errInstanceCreationBackoff)
+}
+
+func TestGetOrCreateInstance_FailureCachingExpiry(t *testing.T) {
+	cfg := &Config{}
+	cfg.RegisterFlagsAndApplyDefaults("", &flag.FlagSet{})
+	cfg.Storage.Path = t.TempDir()
+
+	g := &Generator{
+		cfg:             cfg,
+		overrides:       &mockOverrides{processors: map[string]struct{}{"invalid-processor": {}}}, // will fail
+		instances:       map[string]*instance{},
+		failedInstances: map[string]time.Time{},
+		logger:          newTestLogger(t),
+		reg:             prometheus.NewRegistry(),
+	}
+
+	// First call should fail and cache the failure
+	_, err := g.getOrCreateInstance("tenant-1")
+	require.Error(t, err)
+	require.NotErrorIs(t, err, errInstanceCreationBackoff)
+
+	// Simulate backoff expiry by setting the failure time in the past
+	g.instancesMtx.Lock()
+	g.failedInstances["tenant-1"] = time.Now().Add(-failureBackoff - time.Second)
+	g.instancesMtx.Unlock()
+
+	// After backoff expires, should retry (and fail again with actual error, not backoff error)
+	_, err = g.getOrCreateInstance("tenant-1")
+	require.Error(t, err)
+	require.NotErrorIs(t, err, errInstanceCreationBackoff)
+}
+
 func BenchmarkCollect(b *testing.B) {
 	var (
 		tenant = "test-tenant"
