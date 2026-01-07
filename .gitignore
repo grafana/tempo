@@ -27,3 +27,6 @@ integration/e2e/**/e2e_integration_test[0-9]*
 gh-token.txt
 .cache
 operations/jsonnet/microservices/vendor/
+# Created by tools/entrypoint.sh in ci-tools image.
+# TODO: fix the image so it's no longer required
+.gitconfig

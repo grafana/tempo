@@ -18,8 +18,8 @@ GOPATH := $(shell go env GOPATH)
 GORELEASER := $(GOPATH)/bin/goreleaser
 
 # Build Images
-DOCKER_PROTOBUF_IMAGE ?= otel/build-protobuf:0.25.0
-LOKI_BUILD_IMAGE ?= grafana/loki-build-image:0.34.9
+LOKI_BUILD_IMAGE ?= grafana/loki-build-image:0.34.6
+TEMPO_CI_TOOLS_IMAGE ?= grafana/tempo-ci-tools:latest
 DOCS_IMAGE ?= grafana/docs-base:latest
 
 # More exclusions can be added similar with: -not -path './testbed/*'
@@ -266,12 +266,8 @@ endif
 
 ##@ Code Generation
 
-PROTOC = docker run --rm -u ${shell id -u} -v${PWD}:${PWD} -w${PWD} ${DOCKER_PROTOBUF_IMAGE} --proto_path=${PWD}
 PROTO_INTERMEDIATE_DIR = pkg/.patched-proto
-PROTO_INCLUDES = -I$(PROTO_INTERMEDIATE_DIR)
-PROTO_GEN = $(PROTOC) $(PROTO_INCLUDES) --gogofaster_out=plugins=grpc,paths=source_relative,Mgoogle/protobuf/timestamp.proto=github.com/gogo/protobuf/types:$(2) $(1)
-PROTO_GEN_WITH_VENDOR = $(PROTOC) $(PROTO_INCLUDES) -Ivendor -Ivendor/github.com/gogo/protobuf --gogofaster_out=plugins=grpc,paths=source_relative:$(2) $(1)
-PROTO_GEN_WITHOUT_RELATIVE = $(PROTOC) $(PROTO_INCLUDES) --gogofaster_out=plugins=grpc:$(2) $(1)
+BUF = docker run --rm -u ${shell id -u} -v${PWD}:${PWD} -w${PWD} ${TEMPO_CI_TOOLS_IMAGE} buf
 
 .PHONY: gen-proto
 gen-proto:  ## Generate proto files
@@ -309,13 +305,20 @@ gen-proto:  ## Generate proto files
 	@echo --
 	@echo -- Gen proto --
 	@echo --
-	$(call PROTO_GEN,$(PROTO_INTERMEDIATE_DIR)/common/v1/common.proto,./pkg/tempopb/)
-	$(call PROTO_GEN,$(PROTO_INTERMEDIATE_DIR)/resource/v1/resource.proto,./pkg/tempopb/)
-	$(call PROTO_GEN,$(PROTO_INTERMEDIATE_DIR)/trace/v1/trace.proto,./pkg/tempopb/)
-	$(call PROTO_GEN,pkg/tempopb/tempo.proto,./)
-	$(call PROTO_GEN,pkg/tempopb/backendwork.proto,./)
-	$(call PROTO_GEN_WITHOUT_RELATIVE,tempodb/backend/v1/v1.proto,./)
-	$(call PROTO_GEN_WITH_VENDOR,modules/frontend/v1/frontendv1pb/frontend.proto,./)
+	@# Generate patched OpenTelemetry protos (output to pkg/tempopb/)
+	$(BUF) generate --config buf/buf.gen-config.yaml --template buf/buf.gen.otel.yaml --path $(PROTO_INTERMEDIATE_DIR)/common/v1/common.proto
+	$(BUF) generate --config buf/buf.gen-config.yaml --template buf/buf.gen.otel.yaml --path $(PROTO_INTERMEDIATE_DIR)/resource/v1/resource.proto
+	$(BUF) generate --config buf/buf.gen-config.yaml --template buf/buf.gen.otel.yaml --path $(PROTO_INTERMEDIATE_DIR)/trace/v1/trace.proto
+
+	@# Generate Tempo protos
+	$(BUF) generate --config buf/buf.gen-config.yaml --template buf/buf.gen.tempopb.yaml --path pkg/tempopb/tempo.proto
+	$(BUF) generate --config buf/buf.gen-config.yaml --template buf/buf.gen.tempopb.yaml --path pkg/tempopb/backendwork.proto
+
+	@# Generate backend proto (uses go_package for output path)
+	$(BUF) generate --config buf/buf.gen-config.yaml --template buf/buf.gen.backend.yaml --path tempodb/backend/v1/v1.proto
+
+	@# Generate frontend proto
+	$(BUF) generate --config buf/buf.gen-config.yaml --template buf/buf.gen.frontend.yaml --path modules/frontend/v1/frontendv1pb/frontend.proto
 
 	rm -rf $(PROTO_INTERMEDIATE_DIR)
 
