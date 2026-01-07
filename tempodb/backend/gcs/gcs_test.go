@@ -191,6 +191,80 @@ func TestRetry_MarkBlockCompacted(t *testing.T) {
 	})
 }
 
+func TestRetry_ClearBlock(t *testing.T) {
+	var reqCounts sync.Map
+
+	type requestInfo struct {
+		method string
+		count  int32
+	}
+
+	server := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/b/blerg":
+			_, _ = w.Write([]byte(`{}`))
+		default:
+			// Increment the request count for this path
+
+			val, _ := reqCounts.LoadOrStore(r.URL.Path, &requestInfo{method: r.Method})
+			info := val.(*requestInfo)
+			count := atomic.AddInt32(&info.count, 1)
+
+			// First two requests fail, third succeeds for each path.
+			if count <= 2 {
+				atomic.AddInt32(&count, 1)
+				w.WriteHeader(503)
+				return
+			}
+
+			switch r.Method {
+			case http.MethodDelete:
+				_, _ = w.Write([]byte(`{"done": true}`))
+			case http.MethodGet:
+				_, _ = w.Write([]byte(`
+				{
+            "kind": "storage#objects",
+            "items": [
+                {"name": "tenant/8d1b6283-ec0c-11f0-b403-c4c6e623a3a3/meta.json", "bucket": "blerg", "size": "123"},
+                {"name": "tenant/8d1b6283-ec0c-11f0-b403-c4c6e623a3a3/compacted.meta.json", "bucket": "blerg", "size": "124"}
+            ]
+        }
+				`))
+
+			}
+		}
+	}))
+	server.StartTLS()
+	t.Cleanup(server.Close)
+
+	_, _, c, err := New(&Config{
+		BucketName: "blerg",
+		Insecure:   true,
+		Endpoint:   server.URL,
+	})
+	require.NoError(t, err)
+
+	id, err := uuid.NewUUID()
+	require.NoError(t, err)
+
+	require.NoError(t, c.ClearBlock(id, "tenant"))
+
+	reqCounts.Range(func(key, value any) bool {
+		urlPath := key.(string)
+		info := value.(*requestInfo)
+
+		require.Equal(t, int32(3), atomic.LoadInt32(&info.count), "should attempt 3 times for %s", urlPath)
+
+		if strings.HasSuffix(urlPath, "meta.json") {
+			require.Equal(t, http.MethodDelete, info.method, "should be delete method for %s", urlPath)
+		} else {
+			require.Equal(t, http.MethodGet, info.method, "should be delete method for %s", urlPath)
+		}
+
+		return true
+	})
+}
+
 func fakeServer(t *testing.T, returnIn time.Duration, counter *int32) *httptest.Server {
 	server := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		time.Sleep(returnIn)

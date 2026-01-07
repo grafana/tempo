@@ -61,7 +61,11 @@ func (rw *readerWriter) ClearBlock(blockID uuid.UUID, tenantID string) error {
 			return err
 		}
 
-		o := rw.bucket.Object(attrs.Name)
+		o := rw.bucket.Object(attrs.Name).Retryer(
+			storage.WithBackoff(gax.Backoff{}),
+			storage.WithPolicy(storage.RetryAlways),
+		)
+
 		err = o.Delete(ctx)
 		if err != nil {
 			return err
