@@ -95,7 +95,7 @@ require (
 	github.com/parquet-go/parquet-go v0.25.2-0.20251204015147-5ef078713eb7
 	github.com/twmb/franz-go v1.20.5
 	github.com/twmb/franz-go/pkg/kadm v1.17.1
-	github.com/twmb/franz-go/pkg/kfake v0.0.0-20251203184636-c3eeb81fdaf1
+	github.com/twmb/franz-go/pkg/kfake v0.0.0-20251227070528-0c71f7e25fa1
 	github.com/twmb/franz-go/pkg/kmsg v1.12.0
 	github.com/twmb/franz-go/plugin/kotel v1.6.0
 	github.com/twmb/franz-go/plugin/kprom v1.2.1
@@ -119,6 +119,7 @@ require (
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc v1.38.0
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp v1.38.0
 	go.opentelemetry.io/proto/otlp v1.9.0
+	go.yaml.in/yaml/v2 v2.4.3
 	golang.org/x/net v0.48.0
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20251202230838-ff82c1b0f217
 )
@@ -405,7 +406,6 @@ require (
 	go.opentelemetry.io/otel/log v0.14.0 // indirect
 	go.opentelemetry.io/otel/sdk/log v0.14.0 // indirect
 	go.opentelemetry.io/otel/sdk/metric v1.38.0 // indirect
-	go.yaml.in/yaml/v2 v2.4.3 // indirect
 	go.yaml.in/yaml/v3 v3.0.4 // indirect
 	golang.org/x/crypto v0.46.0 // indirect
 	golang.org/x/exp v0.0.0-20251023183803-a4bb9ffd2546 // indirect
