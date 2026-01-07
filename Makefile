@@ -267,7 +267,7 @@ endif
 ##@ Code Generation
 
 PROTO_INTERMEDIATE_DIR = pkg/.patched-proto
-BUF = docker run --rm -u ${shell id -u} -v${PWD}:${PWD} -w${PWD} --entrypoint /usr/local/bin/buf ${TEMPO_CI_TOOLS_IMAGE}
+BUF = docker run --rm -u ${shell id -u} -v${PWD}:/tempo -w/tempo -e HOME=/tempo --entrypoint /usr/local/bin/buf ${TEMPO_CI_TOOLS_IMAGE}
 
 .PHONY: gen-proto
 gen-proto:  ## Generate proto files
