@@ -417,15 +417,15 @@ require (
 	gonum.org/v1/gonum v0.16.0 // indirect
 	google.golang.org/genproto v0.0.0-20250603155806-513f23925822 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20251022142026-3a174f9686a8 // indirect
-	k8s.io/apimachinery v0.34.3 // indirect
+	k8s.io/apimachinery v0.35.0 // indirect
 	k8s.io/client-go v0.34.1 // indirect
 	k8s.io/klog/v2 v2.130.1 // indirect
-	k8s.io/utils v0.0.0-20250604170112-4c0f3b243397 // indirect
+	k8s.io/utils v0.0.0-20251002143259-bc988d571ff4 // indirect
 )
 
 replace (
-	k8s.io/api => k8s.io/api v0.34.3
-	k8s.io/client-go => k8s.io/client-go v0.34.3
+	k8s.io/api => k8s.io/api v0.35.0
+	k8s.io/client-go => k8s.io/client-go v0.35.0
 )
 
 // Replace memberlist with our fork which includes some fixes that haven't been
