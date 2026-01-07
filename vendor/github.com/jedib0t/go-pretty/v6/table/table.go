@@ -63,6 +63,8 @@ type Table struct {
 	rowsConfigMap map[int]RowConfig
 	// rowsRaw stores the rows that make up the body
 	rowsRaw []Row
+	// rowsRawFiltered is the filtered version of rowsRaw
+	rowsRawFiltered []Row
 	// rowsFooter stores the rows that make up the footer (in string form)
 	rowsFooter []rowStr
 	// rowsFooterConfigs stores RowConfig for each footer row
@@ -92,6 +94,8 @@ type Table struct {
 	sortBy []SortBy
 	// sortedRowIndices is the output of sorting
 	sortedRowIndices []int
+	// filterBy stores the filter criteria
+	filterBy []FilterBy
 	// style contains all the strings used to draw the table, and more
 	style *Style
 	// suppressEmptyColumns hides columns which have no content on all regular
@@ -133,12 +137,16 @@ func (t *Table) AppendHeader(row Row, config ...RowConfig) {
 //
 // Only the first item in the "config" will be tagged against this row.
 func (t *Table) AppendRow(row Row, config ...RowConfig) {
-	t.rowsRaw = append(t.rowsRaw, row)
+	t.rowsRawFiltered = append(t.rowsRawFiltered, row)
+	// Keep original rows in sync for filtering
+	rowCopy := make(Row, len(row))
+	copy(rowCopy, row)
+	t.rowsRaw = append(t.rowsRaw, rowCopy)
 	if len(config) > 0 {
 		if t.rowsConfigMap == nil {
 			t.rowsConfigMap = make(map[int]RowConfig)
 		}
-		t.rowsConfigMap[len(t.rowsRaw)-1] = config[0]
+		t.rowsConfigMap[len(t.rowsRawFiltered)-1] = config[0]
 	}
 }
 
@@ -170,9 +178,15 @@ func (t *Table) AppendSeparator() {
 	if t.separators == nil {
 		t.separators = make(map[int]bool)
 	}
-	if len(t.rowsRaw) > 0 {
-		t.separators[len(t.rowsRaw)-1] = true
+	if len(t.rowsRawFiltered) > 0 {
+		t.separators[len(t.rowsRawFiltered)-1] = true
 	}
+}
+
+// FilterBy sets the rules for filtering the Rows. All filters are applied with
+// AND logic (all must match). Filters are applied before sorting.
+func (t *Table) FilterBy(filterBy []FilterBy) {
+	t.filterBy = filterBy
 }
 
 // ImportGrid helps import 1d or 2d arrays as rows.
@@ -196,7 +210,7 @@ func (t *Table) ImportGrid(grid interface{}) bool {
 
 // Length returns the number of rows to be rendered.
 func (t *Table) Length() int {
-	return len(t.rowsRaw)
+	return len(t.rowsRawFiltered)
 }
 
 // Pager returns an object that splits the table output into pages and
@@ -237,6 +251,7 @@ func (t *Table) ResetHeaders() {
 
 // ResetRows resets and clears all the rows appended earlier.
 func (t *Table) ResetRows() {
+	t.rowsRawFiltered = nil
 	t.rowsRaw = nil
 	t.separators = nil
 }
@@ -371,6 +386,31 @@ func (t *Table) SuppressEmptyColumns() {
 // SuppressTrailingSpaces removes all trailing spaces from the output.
 func (t *Table) SuppressTrailingSpaces() {
 	t.suppressTrailingSpaces = true
+}
+
+// calculateNumColumnsFromRaw calculates the number of columns from raw rows and headers
+func (t *Table) calculateNumColumnsFromRaw() {
+	t.numColumns = 0
+	// Check headers first
+	if len(t.rowsHeaderRaw) > 0 {
+		for _, headerRow := range t.rowsHeaderRaw {
+			if len(headerRow) > t.numColumns {
+				t.numColumns = len(headerRow)
+			}
+		}
+	}
+	// Check data rows
+	for _, row := range t.rowsRawFiltered {
+		if len(row) > t.numColumns {
+			t.numColumns = len(row)
+		}
+	}
+	// Check footer rows
+	for _, footerRow := range t.rowsFooterRaw {
+		if len(footerRow) > t.numColumns {
+			t.numColumns = len(footerRow)
+		}
+	}
 }
 
 func (t *Table) getAlign(colIdx int, hint renderHint) text.Align {
