@@ -1859,7 +1859,15 @@ overrides:
       # Specifies whether the ingestion rate limits should be applied by each instance
       # of the distributor and ingester individually, or the limits are to be shared
       # across all instances. See the "override strategies" section for an example.
+      # Only applies to rate_limit_bytes.
       [rate_strategy: <global|local> | default = local]
+
+      # Per-user ingestion rate limit (bytes) used in ingestion.
+      # Results in errors like RATE_LIMITED: ingestion rate limit (15000000 bytes) exceeded while adding 10 bytes
+      #   RATE_LIMITED: ingestion rate limit (15000000 bytes) exceeded while
+      #   adding 10 bytes
+      # Applies global and local strategies.
+      [rate_limit_bytes: <int> | default = 15000000 (15MB) ]
 
       # Burst size (bytes) used in ingestion.
       # Results in errors like
@@ -1867,13 +1875,6 @@ overrides:
       #   adding 10 bytes
       # Ignores rate strategy and is always local.
       [burst_size_bytes: <int> | default = 20000000 (20MB) ]
-
-      # Per-user ingestion rate limit (bytes) used in ingestion.
-      # Results in errors like
-      #   RATE_LIMITED: ingestion rate limit (15000000 bytes) exceeded while
-      #   adding 10 bytes
-      # Applies global and local strategies.
-      [rate_limit_bytes: <int> | default = 15000000 (15MB) ]
 
       # Maximum number of active traces per user, per ingester.
       # A value of 0 disables the check.
