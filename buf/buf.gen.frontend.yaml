@@ -1,0 +1,7 @@
+version: v2
+plugins:
+  - local: protoc-gen-gogofaster
+    out: modules/frontend/v1/frontendv1pb
+    opt:
+      - plugins=grpc
+      - paths=source_relative

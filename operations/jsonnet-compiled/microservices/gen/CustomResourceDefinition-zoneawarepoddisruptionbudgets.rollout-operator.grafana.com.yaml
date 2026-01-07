@@ -1,0 +1,68 @@
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: zoneawarepoddisruptionbudgets.rollout-operator.grafana.com
+spec:
+  group: rollout-operator.grafana.com
+  names:
+    kind: ZoneAwarePodDisruptionBudget
+    plural: zoneawarepoddisruptionbudgets
+    shortNames:
+    - zpdb
+    singular: zoneawarepoddisruptionbudget
+  scope: Namespaced
+  versions:
+  - name: v1
+    schema:
+      openAPIV3Schema:
+        properties:
+          spec:
+            properties:
+              maxUnavailable:
+                description: The number of pods that can be unavailable within a zone
+                  or partition.
+                minimum: 0
+                type: integer
+              maxUnavailablePercentage:
+                description: Calculate the maxUnavailable value as a percentage of
+                  the StatefulSet's spec.Replica count. This option is not supported
+                  when using podNamePartitionRegex.
+                maximum: 100
+                minimum: 0
+                type: integer
+              podNamePartitionRegex:
+                description: A regular expression for returning a partition name given
+                  a pod name. This field is optional and should only be used when
+                  the ZoneAwarePodDisruptionBudget is to be scoped to a partition,
+                  such as a multi-zone ingester deployment with ingest_storage_enabled.
+                  Enabling this changes the ZPDB functionality such that minAvailability
+                  is applied across ALL zones for a given partition. When not enabled,
+                  the minAvailability is applied to pods within the eviction zone
+                  assuming there are no disruptions in the other zones.
+                type: string
+              podNameRegexGroup:
+                description: The regular expression capture group number that contains
+                  the partition name. This field is only required when the podNamePartitionRegex
+                  field is set and has more then one grouping. The default value is
+                  1 and 1-based indexing is used.
+                minimum: 1
+                type: integer
+              selector:
+                description: A selector for finding pods and statefulsets that this
+                  ZoneAwarePodDisruptionBudget applies to.
+                properties:
+                  matchLabels:
+                    additionalProperties:
+                      type: string
+                    type: object
+                required:
+                - matchLabels
+                type: object
+            required:
+            - selector
+            type: object
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}

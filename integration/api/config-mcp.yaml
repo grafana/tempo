@@ -1,0 +1,3 @@
+query_frontend:
+  mcp_server:
+    enabled: true

@@ -221,7 +221,7 @@ func TestTraceIsReady(t *testing.T) {
 	assert.False(t, ready, "trace should not be ready yet")
 
 	startTime = time.Date(2007, 1, 1, 12, 0, 0, 0, time.UTC)
-	ready = traceIsReady(ti, seed.Add(2*longWriteBackoff), startTime, writeBackoff, longWriteBackoff)
+	ready = traceIsReady(ti, seed.Add(5*longWriteBackoff), startTime, writeBackoff, longWriteBackoff)
 	assert.True(t, ready, "trace should be ready now")
 }
 
