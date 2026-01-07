@@ -305,14 +305,14 @@ To re-enable the compression, use `snappy` with the following settings:
 ```yaml
 ingester_client:
   grpc_client_config:
-    grpc_compression: 'snappy'
+    grpc_compression: "snappy"
 metrics_generator_client:
   grpc_client_config:
-    grpc_compression: 'snappy'
+    grpc_compression: "snappy"
 querier:
   frontend_worker:
     grpc_client_config:
-      grpc_compression: 'snappy'
+      grpc_compression: "snappy"
 ```
 
 ## Ingester
@@ -1675,17 +1675,17 @@ attributes: <list of policy atributes>
 
 ```yaml
 exclude:
-  match_type: 'regex'
+  match_type: "regex"
   attributes:
-    - key: 'resource.service.name'
-      value: 'unknown_service:myservice'
+    - key: "resource.service.name"
+      value: "unknown_service:myservice"
 ```
 
 ```yaml
 include:
-  match_type: 'strict'
+  match_type: "strict"
   attributes:
-    - key: 'foo.bar'
+    - key: "foo.bar"
       value: "baz"
 ```
 
@@ -1865,12 +1865,14 @@ overrides:
       # Results in errors like
       #   RATE_LIMITED: ingestion rate limit (20000000 bytes) exceeded while
       #   adding 10 bytes
+      # Ignores rate strategy and is always local.
       [burst_size_bytes: <int> | default = 20000000 (20MB) ]
 
       # Per-user ingestion rate limit (bytes) used in ingestion.
       # Results in errors like
       #   RATE_LIMITED: ingestion rate limit (15000000 bytes) exceeded while
       #   adding 10 bytes
+      # Applies global and local strategies.
       [rate_limit_bytes: <int> | default = 15000000 (15MB) ]
 
       # Maximum number of active traces per user, per ingester.
