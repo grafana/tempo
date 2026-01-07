@@ -1065,7 +1065,7 @@ func printDedicatedColumnSuggestionsJson(dedCol backend.DedicatedColumns, outPat
 
 	outBytes = append(outBytes, byte('\n'))
 	if outPath != "" {
-		err = os.WriteFile(outPath, outBytes, 0644)
+		err = os.WriteFile(outPath, outBytes, 0o644)
 		if err != nil {
 			fmt.Println("error writing dedicated column suggestions to file:", err)
 			return
@@ -1087,7 +1087,7 @@ func printDedicatedColumnSuggestionsJsonnet(dedCol backend.DedicatedColumns, out
 	outBytes = append(outBytes, byte('\n'))
 
 	if outPath != "" {
-		err = os.WriteFile(outPath, outBytes, 0644)
+		err = os.WriteFile(outPath, outBytes, 0o644)
 		if err != nil {
 			fmt.Println("error writing dedicated column suggestions to file:", err)
 			return
@@ -1108,7 +1108,7 @@ func printDedicatedColumnSuggestionsYaml(dedCol backend.DedicatedColumns, outPat
 	}
 
 	if outPath != "" {
-		err = os.WriteFile(outPath, outBytes, 0644)
+		err = os.WriteFile(outPath, outBytes, 0o644)
 		if err != nil {
 			fmt.Println("error writing dedicated column suggestions to file:", err)
 			return
