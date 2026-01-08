@@ -701,7 +701,7 @@ func queryMetrics(client httpclient.TempoHTTPClient, seed time.Time, config vult
 
 	resp, err := client.MetricsQueryRange(
 		fmt.Sprintf(`{.%s = "%s"} | count_over_time()`, attr.Key, util.StringifyAnyValue(attr.Value)),
-		int(start), int(end), "1m", 0,
+		start, end, "1m", 0,
 	)
 	if err != nil {
 		logger.Error("failed to query metrics", zap.Error(err))

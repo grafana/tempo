@@ -1,12 +1,12 @@
-FROM alpine:latest@sha256:4b7ce07002c69e8f3d704a9c5d6fd3053be500b7f1c69fc0d80990c2ad8dd412 AS ca-certificates
+FROM alpine:latest@sha256:865b95f46d98cf867a156fe4a135ad3fe50d2056aa3f25ed31662dff6da4eb62 AS ca-certificates
 RUN apk add --update --no-cache ca-certificates
 
-FROM gcr.io/distroless/static-debian12:debug@sha256:7dc183cc0aea6abd9d105135e49d37b7474a79391ebea7eb55557cd4486d2225 AS tempo-setup
+FROM gcr.io/distroless/static-debian12:debug@sha256:4ca65de9063e5b25e07b8585cc9d70d4aca9e28dfc6dcdcfcc9bb79acda55678 AS tempo-setup
 
 RUN ["/busybox/addgroup", "-g", "10001", "-S", "tempo"]
 RUN ["/busybox/adduser", "-u", "10001", "-S", "tempo", "-G", "tempo"]
 
-FROM gcr.io/distroless/static-debian12@sha256:87bce11be0af225e4ca761c40babb06d6d559f5767fbf7dc3c47f0f1a466b92c
+FROM gcr.io/distroless/static-debian12@sha256:4b2a093ef4649bccd586625090a3c668b254cfe180dee54f4c94f3e9bd7e381e
 
 ARG TARGETARCH
 COPY bin/linux/tempo-vulture-${TARGETARCH} /tempo-vulture

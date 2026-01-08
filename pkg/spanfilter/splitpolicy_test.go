@@ -318,12 +318,12 @@ func Test_newSplitPolicy(t *testing.T) {
 				MatchType: config.Strict,
 				Attributes: []config.MatchPolicyAttribute{
 					{
-						Key:   "childCount",
+						Key:   "span:childCount",
 						Value: "foo",
 					},
 				},
 			},
-			err: errors.New("unsupported intrinsic: childCount"),
+			err: errors.New("unsupported intrinsic: span:childCount"),
 		},
 	}
 

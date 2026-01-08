@@ -862,7 +862,6 @@ func TestSpansetFilterStatics(t *testing.T) {
 		{in: "{ `foo` }", expected: NewStaticString("foo")},
 		{in: "{ .foo }", expected: NewAttribute("foo")},
 		{in: "{ duration }", expected: NewIntrinsic(IntrinsicDuration)},
-		{in: "{ childCount }", expected: NewIntrinsic(IntrinsicChildCount)},
 		{in: "{ name }", expected: NewIntrinsic(IntrinsicName)},
 		{in: "{ parent }", expected: NewIntrinsic(IntrinsicParent)},
 		{in: "{ status }", expected: NewIntrinsic(IntrinsicStatus)},
@@ -1086,7 +1085,6 @@ func TestIntrinsics(t *testing.T) {
 		expected Intrinsic
 	}{
 		{in: "duration", expected: IntrinsicDuration},
-		{in: "childCount", expected: IntrinsicChildCount},
 		{in: "name", expected: IntrinsicName},
 		{in: "status", expected: IntrinsicStatus},
 		{in: "statusMessage", expected: IntrinsicStatusMessage},
@@ -1227,6 +1225,7 @@ func TestScopedIntrinsics(t *testing.T) {
 		{in: "span:statusMessage", expected: IntrinsicStatusMessage},
 		{in: "span:id", expected: IntrinsicSpanID},
 		{in: "span:parentID", expected: IntrinsicParentID},
+		{in: "span:childCount", expected: IntrinsicChildCount},
 		{in: "event:name", expected: IntrinsicEventName},
 		{in: "event:timeSinceStart", expected: IntrinsicEventTimeSinceStart},
 		{in: "link:traceID", expected: IntrinsicLinkTraceID},

@@ -1,0 +1,7 @@
+version: v2
+modules:
+  - path: .patched-proto
+  - path: tempopb
+  - path: ../vendor
+deps:
+  - buf.build/gogo/protobuf

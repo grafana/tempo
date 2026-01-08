@@ -30,8 +30,10 @@ spec:
       annotations:
         config_hash: 699cc4b0c5f8f06f2115a375105318c8
       labels:
+        app: live-store-zone-b
         name: live-store-zone-b
         rollout-group: live-store
+        tempo-gossip-member: "true"
     spec:
       affinity:
         podAntiAffinity:

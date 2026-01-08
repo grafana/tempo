@@ -49,6 +49,7 @@
     ]) +
     statefulset.mixin.spec.withPodManagementPolicy('Parallel') +
     statefulset.mixin.spec.template.spec.withTerminationGracePeriodSeconds(terminationGracePeriod) +
+    statefulset.mixin.spec.template.metadata.withLabelsMixin({ [$._config.gossip_member_label]: 'true' }) +
     (
       if !concurrent_rollout_enabled then {} else
         statefulset.mixin.spec.selector.withMatchLabels({ name: 'block-builder', 'rollout-group': 'block-builder' }) +
@@ -72,6 +73,6 @@
   // Service
 
   tempo_block_builder_service:
-    k.util.serviceFor($.tempo_block_builder_statefulset),
+    k.util.serviceFor($.tempo_block_builder_statefulset, $._config.service_ignored_labels),
 
 }

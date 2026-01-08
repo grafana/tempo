@@ -119,7 +119,7 @@
       }
       else {}
     )) +
-    statefulSet.mixin.spec.template.metadata.withLabels({ name: name, 'rollout-group': 'live-store' }) +
+    statefulSet.mixin.spec.template.metadata.withLabelsMixin({ name: name, 'rollout-group': 'live-store' }) +
     statefulSet.mixin.spec.selector.withMatchLabels({ name: name, 'rollout-group': 'live-store' }) +
     statefulSet.mixin.spec.updateStrategy.withType('OnDelete') +
     statefulSet.mixin.spec.template.spec.withTerminationGracePeriodSeconds(1200) +
@@ -136,10 +136,6 @@
       3,
       container,
       self.tempo_live_store_pvc,
-      {
-        app: target_name,
-        [$._config.gossip_member_label]: 'true',
-      },
     )
     + statefulSet.mixin.spec.withServiceName(name)
     + statefulSet.mixin.spec.template.metadata.withAnnotations({
@@ -150,6 +146,7 @@
       volume.fromConfigMap(tempo_overrides_config_volume, $._config.overrides_configmap_name),
     ]) +
     statefulSet.mixin.spec.withPodManagementPolicy('Parallel') +
+    statefulSet.mixin.spec.template.metadata.withLabels({ app: name, [$._config.gossip_member_label]: 'true' }) +
     statefulSet.mixin.spec.template.spec.withTerminationGracePeriodSeconds(1200) +
     $.util.podPriority('high'),
 

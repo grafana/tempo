@@ -88,6 +88,7 @@ func assignNestedSetModelBoundsAndServiceStats(trace *Trace) bool {
 				n.span.NestedSetLeft = 0
 				n.span.NestedSetRight = 0
 				n.span.ParentID = 0
+				n.span.ChildCount = 0
 			}
 		}
 		// this trace has over 2 spans with the same span id. the data is invalid and therefore we are preferring "false",
@@ -109,6 +110,11 @@ func assignNestedSetModelBoundsAndServiceStats(trace *Trace) bool {
 		}
 		node.parent = parent
 		parent.children = append(parent.children, node)
+	}
+
+	// assign child count for each node
+	for i := range allNodes {
+		allNodes[i].span.ChildCount = int32(len(allNodes[i].children))
 	}
 
 	// traverse the tree depth first. When going down the tree, assign NestedSetLeft
