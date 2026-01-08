@@ -35,7 +35,7 @@ func (c *BlockConfig) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagS
 type Config struct {
 	InstanceID            string             `yaml:"instance_id" doc:"Instance id."`
 	AssignedPartitionsMap map[string][]int32 `yaml:"assigned_partitions" doc:"List of partitions assigned to this block builder."`
-	PartitionsPerInstance int                `yaml:"partitions_per_instance" doc:"Number of partitions assigned to this block."`
+	PartitionsPerInstance int                `yaml:"partitions_per_instance" doc:"Number of partitions assigned to this block builder."`
 	ConsumeCycleDuration  time.Duration      `yaml:"consume_cycle_duration" doc:"Interval between consumption cycles."`
 	MaxBytesPerCycle      uint64             `yaml:"max_consuming_bytes" doc:"Maximum number of bytes that can be consumed in a single cycle.  0 to disable"`
 
