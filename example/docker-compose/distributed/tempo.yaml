@@ -26,9 +26,19 @@ memberlist:
     - live-store-zone-b-0:7946
     - live-store-zone-b-1:7946
 
-compactor: # jpe - remove? rename?
+backend_scheduler:
+  provider:
+    compaction:
+      compaction:
+        block_retention: 1h # jpe - repeated below?
+
+backend_worker:
+  backend_scheduler_addr: backend-scheduler:3200
   compaction:
-    block_retention: 1h # overall Tempo trace retention. set for demo purposes
+    block_retention: 1h
+  ring:
+    kvstore:
+      store: memberlist
 
 querier:
   frontend_worker:
@@ -73,7 +83,7 @@ ingest:
     address: redpanda:9092
     topic: tempo-ingest
 
-block_builder: # jpe - block builder partitions not correct? do we need values through 1000? use new params?
+block_builder:
   consume_cycle_duration: 30s
   assigned_partitions:
     block-builder-0: [0]

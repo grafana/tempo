@@ -9,7 +9,7 @@ services:
     volumes:
       - ./tempo.yaml:/etc/tempo.yaml
     ports:
-      - "3200" # tempo
+      - "3200"
 
   live-store-zone-a-0:
     image: *tempoImage
@@ -32,7 +32,7 @@ services:
     volumes:
       - ./tempo.yaml:/etc/tempo.yaml
     ports:
-      - "3200" # tempo
+      - "3200"
     hostname: live-store-zone-a-1
 
   live-store-zone-b-0:
@@ -44,7 +44,7 @@ services:
     volumes:
       - ./tempo.yaml:/etc/tempo.yaml
     ports:
-      - "3200" # tempo
+      - "3200"
     hostname: live-store-zone-b-0
 
   live-store-zone-b-1:
@@ -56,7 +56,7 @@ services:
     volumes:
       - ./tempo.yaml:/etc/tempo.yaml
     ports:
-      - "3200" # tempo
+      - "3200"
     hostname: live-store-zone-b-1
 
   query-frontend:
@@ -75,18 +75,30 @@ services:
     volumes:
       - ./tempo.yaml:/etc/tempo.yaml
     ports:
-      - "3200" # tempo
+      - "3200"
 
-  compactor: # jpe - scheduler/worker
+  backend-scheduler:
     image: *tempoImage
     depends_on:
-      - redpanda
-    command: "-target=compactor -config.file=/etc/tempo.yaml"
+      - minio
+    command: "-target=backend-scheduler -config.file=/etc/tempo.yaml"
     restart: always
     volumes:
       - ./tempo.yaml:/etc/tempo.yaml
     ports:
-      - "3200" # tempo
+      - "3200"
+
+  backend-worker-0:
+    image: *tempoImage
+    depends_on:
+      - backend-scheduler
+    hostname: backend-worker-0
+    command: "-target=backend-worker -config.file=/etc/tempo.yaml"
+    restart: always
+    volumes:
+      - ./tempo.yaml:/etc/tempo.yaml
+    ports:
+      - "3200"
 
   metrics-generator-0:
     image: *tempoImage
@@ -98,7 +110,7 @@ services:
     volumes:
       - ./tempo.yaml:/etc/tempo.yaml
     ports:
-      - "3200" # tempo
+      - "3200"
 
   metrics-generator-1:
     image: *tempoImage
@@ -110,7 +122,7 @@ services:
     volumes:
       - ./tempo.yaml:/etc/tempo.yaml
     ports:
-      - "3200" # tempo
+      - "3200"
 
   block-builder-0:
     image: *tempoImage
@@ -122,7 +134,7 @@ services:
     volumes:
       - ./tempo.yaml:/etc/tempo.yaml
     ports:
-      - "3200" # tempo
+      - "3200"
 
   block-builder-1:
     image: *tempoImage
@@ -134,7 +146,7 @@ services:
     volumes:
       - ./tempo.yaml:/etc/tempo.yaml
     ports:
-      - "3200" # tempo
+      - "3200"
 
   minio:
     image: minio/minio:latest
