@@ -1,40 +1,20 @@
 services:
-
-  # Tempo runs as user 10001, and docker compose creates the volume as root.
-  # As such, we need to chown the volume in order for Tempo to start correctly.
-  init:
-    image: busybox:latest
-    user: root
-    entrypoint:
-      - "chown"
-      - "10001:10001"
-      - "/var/tempo"
-    volumes:
-      - ./tempo-data:/var/tempo
-
   tempo:
     image: grafana/tempo:latest
-    command: [ "-config.file=/etc/tempo.yaml" ]
+    command: [ "-config.file=/etc/tempo.yaml", "-target=all-3.0"]
     environment:
       - GRPC_TRACE=api
     volumes:
       - ./tempo.yaml:/etc/tempo.yaml
       - ./tempo-data:/var/tempo
     ports:
-      - "14268:14268"  # jaeger ingest
-      - "3200:3200"   # tempo
-      - "9095:9095" # tempo grpc
       - "4317:4317"  # otlp grpc
-      - "4318:4318"  # otlp http
-      - "9411:9411"   # zipkin
-    depends_on:
-      - init
 
   k6-tracing:
     image: ghcr.io/grafana/xk6-client-tracing:v0.0.9
     environment:
       - ENDPOINT=tempo:4317
-      - TEMPO_X_SCOPE_ORGID=test
+      - TEMPO_X_SCOPE_ORGID=tenant-1
     restart: always
     depends_on:
       - tempo
@@ -43,7 +23,7 @@ services:
     image: ghcr.io/grafana/xk6-client-tracing:v0.0.9
     environment:
       - ENDPOINT=tempo:4317
-      - TEMPO_X_SCOPE_ORGID=test2
+      - TEMPO_X_SCOPE_ORGID=tenant-2
     restart: always
     depends_on:
       - tempo
@@ -60,3 +40,24 @@ services:
       - GF_FEATURE_TOGGLES_ENABLE=traceqlEditor metricsSummary
     ports:
       - "3000:3000"
+
+  redpanda:
+    image: redpandadata/redpanda:latest
+    ports:
+      - "9092:9092" # Kafka API for clients
+    command: >
+      redpanda start --overprovisioned
+      --mode=dev-container
+      --kafka-addr=PLAINTEXT://0.0.0.0:9092
+      --advertise-kafka-addr=PLAINTEXT://redpanda:9092
+
+  redpanda-console:
+    image: docker.redpanda.com/redpandadata/console:v2.7.0@sha256:6ee7ed1203a7d4fd4181765929b28cb2450296402d82cd4d1c491c2d5191f45d
+    environment:
+      - CONFIG_FILEPATH=/etc/redpanda/redpanda-console-config.yaml
+    volumes:
+      - ../shared/redpanda-console.yaml:/etc/redpanda/redpanda-console-config.yaml
+    ports:
+      - "8080:8080"
+    depends_on:
+      - redpanda
