@@ -1022,6 +1022,7 @@ storage:
             object_cache_control: ""
             object_metadata: {}
             list_blocks_concurrency: 3
+            max_retries: 3
         s3:
             tls_cert_path: ""
             tls_key_path: ""
@@ -1115,6 +1116,7 @@ overrides:
                 object_cache_control: ""
                 object_metadata: {}
                 list_blocks_concurrency: 3
+                max_retries: 3
             s3:
                 tls_cert_path: ""
                 tls_key_path: ""
