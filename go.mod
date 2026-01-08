@@ -92,7 +92,7 @@ require (
 	github.com/open-telemetry/opentelemetry-collector-contrib/receiver/kafkareceiver v0.138.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/receiver/opencensusreceiver v0.133.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/receiver/zipkinreceiver v0.138.0
-	github.com/parquet-go/parquet-go v0.25.2-0.20251204015147-5ef078713eb7
+	github.com/parquet-go/parquet-go v0.26.4
 	github.com/twmb/franz-go v1.20.6
 	github.com/twmb/franz-go/pkg/kadm v1.17.1
 	github.com/twmb/franz-go/pkg/kfake v0.0.0-20251227070528-0c71f7e25fa1
@@ -287,8 +287,8 @@ require (
 	github.com/open-telemetry/opentelemetry-collector-contrib/processor/deltatocumulativeprocessor v0.136.0 // indirect
 	github.com/opentracing-contrib/go-stdlib v1.0.0 // indirect
 	github.com/openzipkin/zipkin-go v0.4.3 // indirect
-	github.com/parquet-go/bitpack v0.2.0 // indirect
-	github.com/parquet-go/jsonlite v0.8.1 // indirect
+	github.com/parquet-go/bitpack v1.0.0 // indirect
+	github.com/parquet-go/jsonlite v1.0.0 // indirect
 	github.com/pelletier/go-toml/v2 v2.2.4 // indirect
 	github.com/philhofer/fwd v1.2.0 // indirect
 	github.com/pires/go-proxyproto v0.7.0 // indirect
