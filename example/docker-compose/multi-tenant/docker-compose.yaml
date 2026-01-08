@@ -10,7 +10,8 @@ services:
     ports:
       - "4317:4317"  # otlp grpc
 
-  k6-tracing:
+  # push tenant-1 traces directly to tempo
+  k6-tracing-tenant-1:
     image: ghcr.io/grafana/xk6-client-tracing:v0.0.9
     environment:
       - ENDPOINT=tempo:4317
@@ -19,14 +20,20 @@ services:
     depends_on:
       - tempo
 
+  # push tenant-2 into an otel collector that will attach the tenant header
   k6-tracing-2:
     image: ghcr.io/grafana/xk6-client-tracing:v0.0.9
     environment:
-      - ENDPOINT=tempo:4317
-      - TEMPO_X_SCOPE_ORGID=tenant-2
+      - ENDPOINT=otel-collector:4317
     restart: always
     depends_on:
       - tempo
+
+  otel-collector:
+    image: otel/opentelemetry-collector:0.139.0@sha256:8ac5df2a931e9264667b236d65bf7591fa4ba633a7a634e6caa2f0a4fc549c07
+    command: [ "--config=/etc/otel-collector.yaml" ]
+    volumes:
+      - ./otel-collector.yaml:/etc/otel-collector.yaml
 
   grafana:
     image: grafana/grafana:12.3.1@sha256:2175aaa91c96733d86d31cf270d5310b278654b03f5718c59de12a865380a31f
