@@ -35,8 +35,6 @@ services:
       --mode=dev-container
       --kafka-addr=PLAINTEXT://0.0.0.0:9092
       --advertise-kafka-addr=PLAINTEXT://redpanda:9092
-    volumes:
-      - redpanda-data:/var/lib/redpanda/data
 
   redpanda-console:
     image: docker.redpanda.com/redpandadata/console:v2.7.0@sha256:6ee7ed1203a7d4fd4181765929b28cb2450296402d82cd4d1c491c2d5191f45d
@@ -76,7 +74,7 @@ services:
     depends_on:
       - tempo
 
-  # supporting services - metrics and visualization
+  # supporting services - metrics, visualization and testing
   prometheus:
     image: prom/prometheus:latest
     command:
@@ -101,5 +99,14 @@ services:
     ports:
       - "3000:3000"
 
-volumes:
-  redpanda-data:
+  vulture:
+    image: grafana/tempo-vulture:latest
+    restart: always
+    command:
+      [
+        "-prometheus-listen-address=:8080",
+        "-tempo-query-url=http://tempo:3200",
+        "-tempo-push-url=http://tempo:4317",
+      ]
+    depends_on:
+      - tempo

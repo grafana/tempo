@@ -10,3 +10,7 @@ scrape_configs:
     static_configs:
       - targets:
           - 'tempo:3200'
+  - job_name: 'vulture'
+    static_configs:
+      - targets:
+          - 'vulture:8080'
