@@ -32,6 +32,7 @@
 * [FEATURE] New block encoding vParquet5-preview4 with array support for dedicated columns. This is a preview, breaking changes are expected. [#5760](https://github.com/grafana/tempo/pull/5760) (@stoewer)
 * [FEATURE] New block encoding vParquet5-preview5 with virtual span row numbers. This is a preview, breaking changes are expected. [#5943](https://github.com/grafana/tempo/pull/5943) (@stoewer)
 * [FEATURE] New block encoding vParquet5-preview6 with dedicated columns for events and improved support for high-cardinality/high-length "blob" attributes [#5946](https://github.com/grafana/tempo/pull/5946) (@mdisibio)
+* [FEATURE] New block encoding vParquet5-preview7 with simpler column paths [#6134](https://github.com/grafana/tempo/pull/6134) (@mdisibio)
 * [FEATURE] Add SSE-C encryption support to S3 backend [#5789](https://github.com/grafana/tempo/pull/5789) (@steffsas)
 * [FEATURE] Add support for `Accept: application/vnd.grafana.llm` to Tempo endpoints. Currently supported directly by trace by id and tag values [#5961](https://github.com/grafana/tempo/pull/5961) (@joe-elliott)
 * [FEATURE] add database_name_attributes config to service graph processor [#5398](https://github.com/grafana/tempo/pull/5398) (@KyriosGN0)
