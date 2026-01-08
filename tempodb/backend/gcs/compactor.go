@@ -22,10 +22,12 @@ func (rw *readerWriter) MarkBlockCompacted(blockID uuid.UUID, tenantID string) e
 	src := rw.bucket.Object(metaFilename).Retryer(
 		storage.WithBackoff(gax.Backoff{}),
 		storage.WithPolicy(storage.RetryAlways),
+		storage.WithMaxAttempts(rw.cfg.MaxRetries),
 	)
 	dst := rw.bucket.Object(compactedMetaFilename).Retryer(
 		storage.WithBackoff(gax.Backoff{}),
 		storage.WithPolicy(storage.RetryAlways),
+		storage.WithMaxAttempts(rw.cfg.MaxRetries),
 	)
 
 	ctx := context.TODO()
@@ -64,6 +66,7 @@ func (rw *readerWriter) ClearBlock(blockID uuid.UUID, tenantID string) error {
 		o := rw.bucket.Object(attrs.Name).Retryer(
 			storage.WithBackoff(gax.Backoff{}),
 			storage.WithPolicy(storage.RetryAlways),
+			storage.WithMaxAttempts(rw.cfg.MaxRetries),
 		)
 
 		err = o.Delete(ctx)

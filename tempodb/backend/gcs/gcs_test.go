@@ -175,6 +175,7 @@ func TestRetry_MarkBlockCompacted(t *testing.T) {
 		BucketName: "blerg",
 		Insecure:   true,
 		Endpoint:   server.URL,
+		MaxRetries: 3,
 	})
 	require.NoError(t, err)
 
@@ -241,6 +242,7 @@ func TestRetry_ClearBlock(t *testing.T) {
 		BucketName: "blerg",
 		Insecure:   true,
 		Endpoint:   server.URL,
+		MaxRetries: 3,
 	})
 	require.NoError(t, err)
 
