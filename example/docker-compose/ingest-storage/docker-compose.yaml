@@ -230,7 +230,7 @@ services:
       - redpanda-data:/var/lib/redpanda/data
 
   redpanda-console:
-    image: docker.redpanda.com/redpandadata/console:v2.7.0@sha256:6ee7ed1203a7d4fd4181765929b28cb2450296402d82cd4d1c491c2d5191f45d
+    image: docker.redpanda.com/redpandadata/console:v3.4.0@sha256:09b8ad6454d022a1c0de50150b55f7bc348ed1e83308d45ee1f4bf10dbd0b81e
     environment:
       - CONFIG_FILEPATH=/etc/redpanda/redpanda-console-config.yaml
     volumes:
