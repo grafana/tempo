@@ -154,14 +154,13 @@ func TestRetry_MarkBlockCompacted(t *testing.T) {
 		case "/b/blerg":
 			_, _ = w.Write([]byte(`{}`))
 		default:
-			// Increment the request count for this path
-			val, _ := reqCounts.LoadOrStore(r.URL.Path, new(int32))
-			countPtr := val.(*int32)
-			count := atomic.AddInt32(countPtr, 1)
+			val, _ := reqCounts.LoadOrStore(r.URL.Path, &atomic.Int32{})
+			if atomicCounter, ok := val.(*atomic.Int32); ok {
+				atomicCounter.Add(1)
+			}
 
 			// First two requests fail, third succeeds for each path.
-			if count <= 2 {
-				atomic.AddInt32(&count, 1)
+			if val.(*atomic.Int32).Load() <= 2 {
 				w.WriteHeader(503)
 				return
 			}
@@ -186,8 +185,7 @@ func TestRetry_MarkBlockCompacted(t *testing.T) {
 
 	reqCounts.Range(func(key, value any) bool {
 		urlPath := key.(string)
-		countPtr := value.(*int32)
-		require.Equal(t, int32(3), atomic.LoadInt32(countPtr), "should attempt 3 times for %s", urlPath)
+		require.Equal(t, int32(3), value.(*atomic.Int32).Load(), "should attempt 3 times for %s", urlPath)
 		return true
 	})
 }
