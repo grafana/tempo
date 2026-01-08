@@ -66,6 +66,8 @@
 * [BUGFIX] Fix delete implementation for s3/gcs/azure backends to account for prefix. [#6011](https://github.com/grafana/tempo/pull/6011) (@kaustubhkurve)
 * [BUGFIX] Fix slow pod startup (~90s) in monolithic mode by returning false from isSharded() when kvstore is empty or inmemory. [#6035](https://github.com/grafana/tempo/issues/6035) (@AryanBagade)
 * [BUGFIX] Fix response-too-large.md ingestion config example in document [#6116](https://github.com/grafana/tempo/pull/6116) (@gamerslouis)
+* [BUGFIX] generator: back off when instance creation fails to avoid resource exhaustion [#6142](https://github.com/grafana/tempo/pull/6142) (@carles-grafana)
+
 
 ### vParquet5
 
