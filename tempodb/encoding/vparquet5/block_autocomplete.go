@@ -352,15 +352,16 @@ func createDistinctEventIterator(
 			switch cond.Op {
 			case traceql.OpNone:
 				addPredicate(c.ColumnPath, nil) // No filtering
-				columnSelectAs[c.ColumnPath] = cond.Attribute.Name
+				addSelectAs(cond.Attribute, c.ColumnPath, cond.Attribute.Name)
 				continue
 			case traceql.OpExists:
 				addPredicate(c.ColumnPath, &parquetquery.SkipNilsPredicate{})
-				columnSelectAs[c.ColumnPath] = cond.Attribute.Name
+				addSelectAs(cond.Attribute, c.ColumnPath, cond.Attribute.Name)
 				continue
 			case traceql.OpNotExists:
 				pred := parquetquery.NewNilValuePredicate()
-				iters = append(iters, makeIter(c.ColumnPath, pred, cond.Attribute.Name))
+				addPredicate(c.ColumnPath, pred)
+				addSelectAs(cond.Attribute, c.ColumnPath, cond.Attribute.Name)
 				continue
 			}
 
@@ -615,15 +616,16 @@ func createDistinctSpanIterator(
 			switch cond.Op {
 			case traceql.OpNone:
 				addPredicate(entry.columnPath, nil) // No filtering
-				columnSelectAs[entry.columnPath] = cond.Attribute.Name
+				addSelectAs(cond.Attribute, entry.columnPath, cond.Attribute.Name)
 				continue
 			case traceql.OpExists:
 				addPredicate(entry.columnPath, &parquetquery.SkipNilsPredicate{})
-				columnSelectAs[entry.columnPath] = cond.Attribute.Name
+				addSelectAs(cond.Attribute, entry.columnPath, cond.Attribute.Name)
 				continue
 			case traceql.OpNotExists:
 				pred := parquetquery.NewNilValuePredicate()
-				iters = append(iters, makeIter(entry.columnPath, pred, cond.Attribute.Name))
+				addPredicate(entry.columnPath, pred)
+				addSelectAs(cond.Attribute, entry.columnPath, cond.Attribute.Name)
 				continue
 			}
 
@@ -645,7 +647,7 @@ func createDistinctSpanIterator(
 			switch cond.Op {
 			case traceql.OpNone:
 				addPredicate(c.ColumnPath, nil) // No filtering
-				columnSelectAs[c.ColumnPath] = cond.Attribute.Name
+				addSelectAs(cond.Attribute, c.ColumnPath, cond.Attribute.Name)
 				continue
 			case traceql.OpExists:
 				addPredicate(c.ColumnPath, &parquetquery.SkipNilsPredicate{})
@@ -653,7 +655,8 @@ func createDistinctSpanIterator(
 				continue
 			case traceql.OpNotExists:
 				pred := parquetquery.NewNilValuePredicate()
-				iters = append(iters, makeIter(c.ColumnPath, pred, cond.Attribute.Name))
+				addPredicate(c.ColumnPath, pred)
+				addSelectAs(cond.Attribute, c.ColumnPath, cond.Attribute.Name)
 				continue
 			}
 
@@ -984,15 +987,16 @@ func createDistinctResourceIterator(
 			switch cond.Op {
 			case traceql.OpNone:
 				addPredicate(entry.columnPath, nil) // No filtering
-				columnSelectAs[entry.columnPath] = cond.Attribute.Name
+				addSelectAs(cond.Attribute, entry.columnPath, cond.Attribute.Name)
 				continue
 			case traceql.OpExists:
 				addPredicate(entry.columnPath, &parquetquery.SkipNilsPredicate{})
-				columnSelectAs[entry.columnPath] = cond.Attribute.Name
+				addSelectAs(cond.Attribute, entry.columnPath, cond.Attribute.Name)
 				continue
 			case traceql.OpNotExists:
 				pred := parquetquery.NewNilValuePredicate()
-				iters = append(iters, makeIter(entry.columnPath, pred, cond.Attribute.Name))
+				addPredicate(entry.columnPath, pred)
+				addSelectAs(cond.Attribute, entry.columnPath, cond.Attribute.Name)
 				continue
 			}
 
@@ -1017,15 +1021,16 @@ func createDistinctResourceIterator(
 			switch cond.Op {
 			case traceql.OpNone:
 				addPredicate(c.ColumnPath, nil) // No filtering
-				columnSelectAs[c.ColumnPath] = cond.Attribute.Name
+				addSelectAs(cond.Attribute, c.ColumnPath, cond.Attribute.Name)
 				continue
 			case traceql.OpExists:
 				addPredicate(c.ColumnPath, &parquetquery.SkipNilsPredicate{})
-				columnSelectAs[c.ColumnPath] = cond.Attribute.Name
+				addSelectAs(cond.Attribute, c.ColumnPath, cond.Attribute.Name)
 				continue
 			case traceql.OpNotExists:
 				pred := parquetquery.NewNilValuePredicate()
-				iters = append(iters, makeIter(c.ColumnPath, pred, cond.Attribute.Name))
+				addPredicate(c.ColumnPath, pred)
+				addSelectAs(cond.Attribute, c.ColumnPath, cond.Attribute.Name)
 				continue
 			}
 

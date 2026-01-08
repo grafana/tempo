@@ -142,6 +142,16 @@ func TestFetchTagNames(t *testing.T) {
 			expectedLinkValues:            []string{"link-generic-02-01"},
 			expectedInstrumentationValues: []string{"scope-attr-str-2"},
 		},
+		// well-known column != nil - regression test for panic caused by mixed types in OtherEntries
+		{
+			name:                          "well known span != nil",
+			query:                         "{span.http.method != nil}",
+			expectedSpanValues:            []string{"generic-01-01", "generic-01-02", "span-same", "generic-02-01"},
+			expectedResourceValues:        []string{"generic-01", "resource-same", "generic-02"},
+			expectedEventValues:           []string{"event-generic-01-01", "event-generic-02-01"},
+			expectedLinkValues:            []string{"link-generic-01-01", "link-generic-02-01"},
+			expectedInstrumentationValues: []string{"scope-attr-str-1", "scope-attr-str-2"},
+		},
 	}
 
 	strPtr := func(s string) *string { return &s }
