@@ -51,15 +51,11 @@ query_frontend:
 
 storage:
   trace:
-    backend: s3
-    s3:
-      bucket: tempo
-      endpoint: minio:9000
-      access_key: tempo
-      secret_key: supersecret
-      insecure: true
+    backend: local
     wal:
-      path: /var/tempo/wal # where to store the wal locally
+      path: /var/tempo/wal
+    local:
+      path: /var/tempo/blocks
 
 overrides:
   defaults:
