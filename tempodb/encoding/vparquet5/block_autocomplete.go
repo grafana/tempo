@@ -651,7 +651,7 @@ func createDistinctSpanIterator(
 				continue
 			case traceql.OpExists:
 				addPredicate(c.ColumnPath, &parquetquery.SkipNilsPredicate{})
-				columnSelectAs[c.ColumnPath] = cond.Attribute.Name
+				addSelectAs(cond.Attribute, c.ColumnPath, cond.Attribute.Name)
 				continue
 			case traceql.OpNotExists:
 				pred := parquetquery.NewNilValuePredicate()
