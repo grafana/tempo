@@ -165,6 +165,9 @@ func (ds *DialSettings) Validate() error {
 		return errors.New("options.WithoutAuthentication is incompatible with any option that provides credentials")
 	}
 	// Credentials should not appear with other options.
+	// AuthCredentials is a special case that may be present with
+	// with other options in order to facilitate automatic conversion of
+	// oauth2 types (old auth) to cloud.google.com/go/auth types (new auth).
 	// We currently allow TokenSource and CredentialsFile to coexist.
 	// TODO(jba): make TokenSource & CredentialsFile an error (breaking change).
 	nCreds := 0
@@ -172,9 +175,6 @@ func (ds *DialSettings) Validate() error {
 		nCreds++
 	}
 	if len(ds.CredentialsJSON) > 0 {
-		nCreds++
-	}
-	if ds.AuthCredentials != nil {
 		nCreds++
 	}
 	if len(ds.AuthCredentialsJSON) > 0 {
