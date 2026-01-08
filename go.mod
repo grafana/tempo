@@ -3,7 +3,7 @@ module github.com/grafana/tempo
 go 1.25.5
 
 require (
-	cloud.google.com/go/storage v1.57.2
+	cloud.google.com/go/storage v1.58.0
 	github.com/alecthomas/kong v1.13.0
 	github.com/alicebob/miniredis/v2 v2.35.0
 	github.com/cespare/xxhash/v2 v2.3.0
@@ -126,17 +126,17 @@ require (
 
 require (
 	cel.dev/expr v0.24.0 // indirect
-	cloud.google.com/go v0.121.6 // indirect
+	cloud.google.com/go v0.123.0 // indirect
 	cloud.google.com/go/auth v0.17.0 // indirect
 	cloud.google.com/go/auth/oauth2adapt v0.2.8 // indirect
 	cloud.google.com/go/compute/metadata v0.9.0 // indirect
-	cloud.google.com/go/iam v1.5.2 // indirect
+	cloud.google.com/go/iam v1.5.3 // indirect
 	cloud.google.com/go/monitoring v1.24.2 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/internal v1.11.2 // indirect
 	github.com/AzureAD/microsoft-authentication-library-for-go v1.6.0 // indirect
 	github.com/GoogleCloudPlatform/opentelemetry-operations-go/detectors/gcp v1.30.0 // indirect
-	github.com/GoogleCloudPlatform/opentelemetry-operations-go/exporter/metric v0.53.0 // indirect
-	github.com/GoogleCloudPlatform/opentelemetry-operations-go/internal/resourcemapping v0.53.0 // indirect
+	github.com/GoogleCloudPlatform/opentelemetry-operations-go/exporter/metric v0.54.0 // indirect
+	github.com/GoogleCloudPlatform/opentelemetry-operations-go/internal/resourcemapping v0.54.0 // indirect
 	github.com/HdrHistogram/hdrhistogram-go v1.1.2 // indirect
 	github.com/IBM/sarama v1.46.2 // indirect
 	github.com/alecthomas/participle/v2 v2.1.4 // indirect
@@ -415,8 +415,8 @@ require (
 	golang.org/x/text v0.32.0 // indirect
 	golang.org/x/tools v0.39.0 // indirect
 	gonum.org/v1/gonum v0.16.0 // indirect
-	google.golang.org/genproto v0.0.0-20250603155806-513f23925822 // indirect
-	google.golang.org/genproto/googleapis/api v0.0.0-20251022142026-3a174f9686a8 // indirect
+	google.golang.org/genproto v0.0.0-20250922171735-9219d122eba9 // indirect
+	google.golang.org/genproto/googleapis/api v0.0.0-20251111163417-95abcf5c77ba // indirect
 	k8s.io/apimachinery v0.35.0 // indirect
 	k8s.io/client-go v0.34.1 // indirect
 	k8s.io/klog/v2 v2.130.1 // indirect
