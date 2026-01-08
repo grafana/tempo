@@ -1,0 +1,10 @@
+#
+# used to configure query-frontend to avoid querying the backend. apply using RestartServiceWithConfigOverlay
+#
+
+query_frontend:
+  search:
+    query_backend_after: 0s
+    query_ingesters_until: 0s
+  metrics:
+    query_backend_after: 0s

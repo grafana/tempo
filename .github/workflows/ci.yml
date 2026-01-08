@@ -45,7 +45,7 @@ jobs:
         run: echo "date=$(date +"%Yweek%U")" >> $GITHUB_OUTPUT
 
       - name: cache golangci
-        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        uses: actions/cache@9255dc7a253b0ccc959486e2bca901246202afeb # v5
         with:
           path: .cache/golangci-lint
           key: golangci-lint-${{ runner.os }}-${{ steps.get-year-week-number.outputs.date }}-${{ hashFiles('go.mod', '.golangci.yml') }}
@@ -93,7 +93,7 @@ jobs:
 
       - name: Upload coverage artifacts
         if: always()
-        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
           name: coverage-${{ matrix.test-target }}
           path: .coverage/*.out
@@ -101,20 +101,59 @@ jobs:
           include-hidden-files: true
           if-no-files-found: error
 
+  integration-tests-validation:
+    name: Validate integration test coverage
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out code
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6
+        with:
+          persist-credentials: false
+      - name: Validate all integration folders are covered by CI
+        run: |
+          # Define expected folders that have corresponding test-e2e-* targets
+          EXPECTED_FOLDERS=("api" "limits" "metrics-generator" "operations" "storage" "util")
+
+          # Get actual folders in integration/ (excluding hidden files)
+          ACTUAL_FOLDERS=($(ls -d integration/*/ 2>/dev/null | xargs -n1 basename | sort))
+
+          # Convert arrays to strings for comparison
+          EXPECTED_SORTED=$(printf '%s\n' "${EXPECTED_FOLDERS[@]}" | sort | tr '\n' ' ')
+          ACTUAL_SORTED=$(printf '%s\n' "${ACTUAL_FOLDERS[@]}" | sort | tr '\n' ' ')
+
+          if [ "$EXPECTED_SORTED" != "$ACTUAL_SORTED" ]; then
+            echo "❌ ERROR: Integration folder mismatch detected!"
+            echo ""
+            echo "Expected folders (covered by CI):"
+            printf '  - %s\n' "${EXPECTED_FOLDERS[@]}" | sort
+            echo ""
+            echo "Actual folders in ./integration:"
+            printf '  - %s\n' "${ACTUAL_FOLDERS[@]}" | sort
+            echo ""
+            echo "If you added a new integration test folder, you must:"
+            echo "  1. Add a corresponding 'test-e2e-<folder-name>' target to the Makefile"
+            echo "  2. Add the target to the matrix in .github/workflows/ci.yml (integration-tests job)"
+            echo "  3. Update the EXPECTED_FOLDERS list in this validation step"
+            exit 1
+          fi
+
+          echo "✅ All integration folders are covered by CI"
+
   integration-tests:
     name: Run integration tests
     runs-on: ubuntu-24.04
+    needs: integration-tests-validation
     strategy:
       fail-fast: false
       matrix:
         test-target:
           [
-            test-e2e,
+            test-e2e-operations,
             test-e2e-api,
-            test-integration-poller,
-            test-integration-backendscheduler,
-            test-e2e-deployments,
-            test-e2e-ingest,
+            test-e2e-limits,
+            test-e2e-metrics-generator,
+            test-e2e-storage,
+            test-e2e-util,
           ]
 
     steps:
@@ -173,11 +212,6 @@ jobs:
         uses: actions/setup-go@4dc6199c7b1a012772edbd06daecab0f50c9053c # v6
         with:
           go-version: '1.25.5'
-
-      - name: Install protoc
-        uses: taiki-e/install-action@0e76c5c569f13f7eb21e8e5b26fe710062b57b62 # v2
-        with:
-          tool: protoc
 
       - name: Check vendor
         run: make vendor-check
@@ -238,7 +272,7 @@ jobs:
           go-version: '1.25.5'
 
       - name: Download all coverage artifacts
-        uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
         with:
           pattern: coverage-*
           path: .coverage/

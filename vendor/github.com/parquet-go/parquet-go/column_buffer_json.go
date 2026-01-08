@@ -14,6 +14,11 @@ import (
 
 var jsonNull jsonlite.Value
 
+func init() {
+	v, _ := jsonlite.Parse("null")
+	jsonNull = *v
+}
+
 func jsonParse(data []byte) (*jsonlite.Value, error) {
 	if len(data) == 0 {
 		return &jsonNull, nil
@@ -22,22 +27,32 @@ func jsonParse(data []byte) (*jsonlite.Value, error) {
 }
 
 func writeJSONToLeaf(col ColumnBuffer, levels columnLevels, val *jsonlite.Value, node Node) {
+	typ := node.Type()
+	if typ.Kind() == ByteArray {
+		if logicalType := typ.LogicalType(); logicalType != nil && logicalType.Json != nil {
+			writeJSONToByteArray(col, levels, val, node)
+			return
+		}
+	}
 	switch val.Kind() {
 	case jsonlite.Null:
 		col.writeNull(levels)
 	case jsonlite.True, jsonlite.False:
 		col.writeBoolean(levels, val.Kind() == jsonlite.True)
 	case jsonlite.Number:
-		writeJSONNumber(col, levels, json.Number(val.String()), node)
+		writeJSONNumber(col, levels, val.Number(), node)
 	case jsonlite.String:
 		writeJSONString(col, levels, val.String(), node)
 	default:
-		// Nested objects/arrays shouldn't appear in leaf nodes, but if they do,
-		// serialize back to JSON bytes for BYTE_ARRAY columns
-		buf := buffers.get(256)
-		buf.data = val.Append(buf.data[:0])
-		col.writeByteArray(levels, buf.data)
-		buf.unref()
+		writeJSONToByteArray(col, levels, val, node)
+	}
+}
+
+func writeJSONToByteArray(col ColumnBuffer, levels columnLevels, val *jsonlite.Value, node Node) {
+	if val.Kind() == jsonlite.Null && node.Optional() {
+		col.writeNull(levels)
+	} else {
+		col.writeByteArray(levels, unsafeByteArrayFromString(val.JSON()))
 	}
 }
 
@@ -71,7 +86,7 @@ func writeJSONToRepeated(columns []ColumnBuffer, levels columnLevels, val *jsonl
 		levels.repetitionDepth++
 		levels.definitionLevel++
 
-		for elem := range val.Array() {
+		for elem := range val.Array {
 			elementWriter(columns, levels, reflect.ValueOf(elem))
 			levels.repetitionLevel = levels.repetitionDepth
 		}

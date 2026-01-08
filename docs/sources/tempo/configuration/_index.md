@@ -305,14 +305,14 @@ To re-enable the compression, use `snappy` with the following settings:
 ```yaml
 ingester_client:
   grpc_client_config:
-    grpc_compression: 'snappy'
+    grpc_compression: "snappy"
 metrics_generator_client:
   grpc_client_config:
-    grpc_compression: 'snappy'
+    grpc_compression: "snappy"
 querier:
   frontend_worker:
     grpc_client_config:
-      grpc_compression: 'snappy'
+      grpc_compression: "snappy"
 ```
 
 ## Ingester
@@ -1675,17 +1675,17 @@ attributes: <list of policy atributes>
 
 ```yaml
 exclude:
-  match_type: 'regex'
+  match_type: "regex"
   attributes:
-    - key: 'resource.service.name'
-      value: 'unknown_service:myservice'
+    - key: "resource.service.name"
+      value: "unknown_service:myservice"
 ```
 
 ```yaml
 include:
-  match_type: 'strict'
+  match_type: "strict"
   attributes:
-    - key: 'foo.bar'
+    - key: "foo.bar"
       value: "baz"
 ```
 
@@ -1859,19 +1859,22 @@ overrides:
       # Specifies whether the ingestion rate limits should be applied by each instance
       # of the distributor and ingester individually, or the limits are to be shared
       # across all instances. See the "override strategies" section for an example.
+      # Only applies to rate_limit_bytes.
       [rate_strategy: <global|local> | default = local]
+
+      # Per-user ingestion rate limit (bytes) used in ingestion.
+      # Results in errors like RATE_LIMITED: ingestion rate limit (15000000 bytes) exceeded while adding 10 bytes
+      #   RATE_LIMITED: ingestion rate limit (15000000 bytes) exceeded while
+      #   adding 10 bytes
+      # Applies global and local strategies.
+      [rate_limit_bytes: <int> | default = 15000000 (15MB) ]
 
       # Burst size (bytes) used in ingestion.
       # Results in errors like
       #   RATE_LIMITED: ingestion rate limit (20000000 bytes) exceeded while
       #   adding 10 bytes
+      # Ignores rate strategy and is always local.
       [burst_size_bytes: <int> | default = 20000000 (20MB) ]
-
-      # Per-user ingestion rate limit (bytes) used in ingestion.
-      # Results in errors like
-      #   RATE_LIMITED: ingestion rate limit (15000000 bytes) exceeded while
-      #   adding 10 bytes
-      [rate_limit_bytes: <int> | default = 15000000 (15MB) ]
 
       # Maximum number of active traces per user, per ingester.
       # A value of 0 disables the check.
@@ -2153,8 +2156,8 @@ overrides:
 
   "<tenant-id>":
       ingestion:
-        [burst_size_bytes: <int>]
-        [rate_limit_bytes: <int>]
+        [rate_size_bytes: <int>] # Applies global and local strategies.
+        [burst_limit_bytes: <int>] # Ignores rate strategy and is always local.
         [max_traces_per_user: <int>]
       global:
         [max_bytes_per_trace: <int>]

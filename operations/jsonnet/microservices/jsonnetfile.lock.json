@@ -24,6 +24,16 @@
     {
       "source": {
         "git": {
+          "remote": "https://github.com/grafana/rollout-operator.git",
+          "subdir": "operations/rollout-operator"
+        }
+      },
+      "version": "ee4822b061cb7497b7e8a716161dfa0e3230c0ca",
+      "sum": "rBfx/ffgMo6MBNt8+CqJToKEUCdANJU9xMb2KGXEjW4="
+    },
+    {
+      "source": {
+        "git": {
           "remote": "https://github.com/jsonnet-libs/k8s-libsonnet.git",
           "subdir": "1.29"
         }

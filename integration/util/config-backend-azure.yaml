@@ -1,0 +1,18 @@
+storage:
+  trace:
+    backend: azure
+    azure:
+      container_name: tempo
+      endpoint_suffix: azurite:10000
+      storage_account_name: "devstoreaccount1"
+      storage_account_key: "Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw=="
+
+overrides:
+  user_configurable_overrides:
+    client:
+      backend: azure
+      azure:
+        container_name: tempo
+        endpoint_suffix: azurite:10000
+        storage_account_name: "devstoreaccount1"
+        storage_account_key: "Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw=="
