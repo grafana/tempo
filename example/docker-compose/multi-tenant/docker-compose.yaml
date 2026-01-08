@@ -3,7 +3,7 @@ services:
     image: grafana/tempo:latest
     command: [ "-config.file=/etc/tempo.yaml", "-target=all-3.0"]
     environment:
-      - GRPC_TRACE=api
+      - GRPC_TRACE=api # jpe ?
     volumes:
       - ./tempo.yaml:/etc/tempo.yaml
       - ./tempo-data:/var/tempo
@@ -63,7 +63,7 @@ services:
     environment:
       - CONFIG_FILEPATH=/etc/redpanda/redpanda-console-config.yaml
     volumes:
-      - ../shared/redpanda-console.yaml:/etc/redpanda/redpanda-console-config.yaml
+      - ./redpanda-console.yaml:/etc/redpanda/redpanda-console-config.yaml
     ports:
       - "8080:8080"
     depends_on:

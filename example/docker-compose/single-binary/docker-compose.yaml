@@ -41,7 +41,7 @@ services:
     environment:
       - CONFIG_FILEPATH=/etc/redpanda/redpanda-console-config.yaml
     volumes:
-      - ../shared/redpanda-console.yaml:/etc/redpanda/redpanda-console-config.yaml
+      - ./redpanda-console.yaml:/etc/redpanda/redpanda-console-config.yaml
     ports:
       - "8080:8080"
     depends_on:
@@ -60,7 +60,7 @@ services:
   alloy:
     image: grafana/alloy:v1.12.1@sha256:c311595156fca7b1131683d383dae1acfd29e8879d347161d2a6f714ebac0c0b
     volumes:
-      - ../shared/config.alloy:/etc/alloy/config.alloy
+      - ./config.alloy:/etc/alloy/config.alloy
     command:
       - run
       - /etc/alloy/config.alloy
@@ -90,7 +90,7 @@ services:
   grafana:
     image: grafana/grafana:12.3.1@sha256:2175aaa91c96733d86d31cf270d5310b278654b03f5718c59de12a865380a31f
     volumes:
-      - ../shared/grafana-datasources.yaml:/etc/grafana/provisioning/datasources/datasources.yaml
+      - ./grafana-datasources.yaml:/etc/grafana/provisioning/datasources/datasources.yaml
     environment:
       - GF_AUTH_ANONYMOUS_ENABLED=true
       - GF_AUTH_ANONYMOUS_ORG_ROLE=Admin
