@@ -21,7 +21,7 @@
 * [CHANGE] Upgrade Tempo to Go 1.25.5 [#6096](https://github.com/grafana/tempo/pull/6096) [#6089](https://github.com/grafana/tempo/pull/6089) (@joe-elliott)
 * [CHANGE] Set maxKeys to 1 for S3 confirm list operation [#6114](https://github.com/grafana/tempo/pull/6114) (@cancub)
 * [FEATURE] TraceQL: Add minInt/maxInt. [#5982](https://github.com/grafana/tempo/pull/5982) (@Syedowais312)
-* [FEATURE] TraceQL: Add support for attribute = nil [#4950](https://github.com/grafana/tempo/pull/4905) (@ie-pham)
+* [FEATURE] TraceQL: Add support for attribute = nil [#4905](https://github.com/grafana/tempo/pull/4905) (@ie-pham)
 * [FEATURE] Add support for `Accept: application/vnd.grafana.llm` to Tempo endpoints to improve MCP responses. Currently supported directly by trace by id and tag values [#5961](https://github.com/grafana/tempo/pull/5961) (@joe-elliott)
   This response is subject to change and should not be relied on. It is intended for LLM consumption only. Even a fundamental change to its representation (yaml? markdown?) would not be considered breaking.
 * [FEATURE] Add entity-based limiting mode for metrics-generator as an alternative to series-based limiting. [#5788](https://github.com/grafana/tempo/pull/5788) (@Logiraptor)
