@@ -482,29 +482,55 @@ tempo-cli parquet convert data.parquet out.parquet
 
 Converts a vParquet file (actual data.parquet) of format A to a block of newer format B with an optional list of dedicated attribute columns.
 Actual supported versions for A and B vary by Tempo release. This utility command is useful when testing the impact of different combinations
-of dedicated columns. Currently, all listed columns are assumed to be at the span scope.
+of dedicated columns.
+
+### Convert vParquet3 to vParquet4
 
 ```bash
-tempo-cli parquet convert-3-to-4 <in file> <out path> <list of dedicated columns>
+tempo-cli parquet convert-3-to-4 <in file> [<out path>] [<list of dedicated columns>]
 ```
 
 Arguments:
 
-- `in file` Filename of an existing vParquet file containing Tempo trace data
-- `out path` Path to write the vParquet3 block to.
-- `list of dedicated columns` Additional params indicating which columns to make dedicated. Max 10. Dedicated columns
-  should be named using TraceQL syntax with scope. i.e. `span.db.statement` or `resource.namespace`.
+- `in file` Path to an existing vParquet3 block directory.
+- `out path` Path to write the vParquet4 block to. The default is `./out`.
+- `list of dedicated columns` Optional list of columns to make dedicated. Columns use TraceQL syntax with scope. For example, `span.db.statement`, `resource.namespace`.
 
 Example:
 
 ```bash
-tempo-cli parquet convert-3-to-4 data.parquet ./out db.statement db.name
+tempo-cli parquet convert-3-to-4 data.parquet ./out span.db.statement span.db.name
+```
+
+### Convert vParquet4 to vParquet5
+
+Converts a vParquet4 block to vParquet5 format with an optional list of dedicated attribute columns.
+
+```bash
+tempo-cli parquet convert-4-to-5 <in file> [<out path>] [<list of dedicated columns>]
+```
+
+Arguments:
+
+- `in file` Path to an existing vParquet4 block directory.
+- `out path` Path to write the vParquet5 block to. The default is `./out`.
+- `list of dedicated columns` Optional list of columns to make dedicated. Columns use TraceQL syntax with scope. For example, `span.http.method`, `resource.namespace`, `event.exception.message`.
+
+Column prefixes:
+
+- `int/` marks the column as an integer type. For example, `int/span.http.status_code`.
+- `blob/` marks the column for blob encoding. For example, `blob/span.db.statement`.
+
+Example:
+
+```bash
+tempo-cli parquet convert-4-to-5 ./block-in ./block-out "span.http.method" "int/span.http.status_code" "blob/span.db.statement"
 ```
 
 ## Migrate tenant command
 
 Copy blocks from one backend and tenant to another. Blocks can be copied within the same backend or between two
-different backends. Data format will not be converted but tenant ID in `meta.json` will be rewritten.
+different backends. The data format isn't converted but the tenant ID in `meta.json` is rewritten.
 
 ```bash
 tempo-cli migrate tenant <source tenant> <dest tenant>

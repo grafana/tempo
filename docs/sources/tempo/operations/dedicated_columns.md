@@ -68,6 +68,12 @@ As a rule of thumb, good candidates for dedicated attribute columns are attribut
 even if they aren't frequently queried.
 Reducing the generic attribute key-value list size significantly improves query performance.
 
+### Integer attribute selection
+
+Integer dedicated columns are most effective when the attribute is present on at least 5% of rows in a scope.
+The `tempo-cli analyse block` command shows the percentage of rows for each integer attribute and marks candidates that meet this threshold with a recommendation.
+Sparse integer attributes (below 5% prevalence) typically perform better in the generic attribute storage.
+
 ### Array-valued attributes
 
 Dedicated attribute columns support array-valued attributes.
