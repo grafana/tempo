@@ -610,37 +610,6 @@ func createDistinctSpanIterator(
 			continue
 		}
 
-		// Well-known attribute?
-		if entry, ok := wellKnownColumnLookups[cond.Attribute.Name]; ok && entry.level != traceql.AttributeScopeResource {
-			// Operands that need special handling.
-			switch cond.Op {
-			case traceql.OpNone:
-				addPredicate(entry.columnPath, nil) // No filtering
-				addSelectAs(cond.Attribute, entry.columnPath, cond.Attribute.Name)
-				continue
-			case traceql.OpExists:
-				addPredicate(entry.columnPath, &parquetquery.SkipNilsPredicate{})
-				addSelectAs(cond.Attribute, entry.columnPath, cond.Attribute.Name)
-				continue
-			case traceql.OpNotExists:
-				pred := parquetquery.NewNilValuePredicate()
-				addPredicate(entry.columnPath, pred)
-				addSelectAs(cond.Attribute, entry.columnPath, cond.Attribute.Name)
-				continue
-			}
-
-			// Compatible type?
-			if entry.typ == operandType(cond.Operands) {
-				pred, err := createPredicate(cond.Op, cond.Operands)
-				if err != nil {
-					return nil, errors.Wrap(err, "creating predicate")
-				}
-				addPredicate(entry.columnPath, pred)
-				addSelectAs(cond.Attribute, entry.columnPath, cond.Attribute.Name)
-				continue
-			}
-		}
-
 		// Attributes stored in dedicated columns
 		if c, ok := columnMapping.get(cond.Attribute.Name); ok {
 			// Operands that need special handling.
@@ -993,11 +962,14 @@ func createDistinctResourceIterator(
 				addPredicate(entry.columnPath, &parquetquery.SkipNilsPredicate{})
 				addSelectAs(cond.Attribute, entry.columnPath, cond.Attribute.Name)
 				continue
-			case traceql.OpNotExists:
-				pred := parquetquery.NewNilValuePredicate()
-				addPredicate(entry.columnPath, pred)
-				addSelectAs(cond.Attribute, entry.columnPath, cond.Attribute.Name)
-				continue
+
+				// this should not happen since resource only has one wellknown attribute which is service.name
+				// and that cannot ever be nil, the check is in the parser already
+				// case traceql.OpNotExists:
+				// 	pred := parquetquery.NewNilValuePredicate()
+				// 	addPredicate(entry.columnPath, pred)
+				// 	addSelectAs(cond.Attribute, entry.columnPath, cond.Attribute.Name)
+				// 	continue
 			}
 
 			// Compatible type?
