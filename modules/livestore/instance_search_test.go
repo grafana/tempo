@@ -755,7 +755,7 @@ func TestInstanceSearchDoesNotRace(t *testing.T) {
 	})
 
 	concurrent(func() {
-		err := i.deleteOldBlocks() // livestore cleanup
+		err := i.deleteOldBlocks(context.Background()) // livestore cleanup
 		require.NoError(t, err)
 	})
 

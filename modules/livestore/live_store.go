@@ -254,7 +254,7 @@ func (s *LiveStore) starting(ctx context.Context) error {
 	}
 
 	for _, inst := range s.getInstances() {
-		err = inst.deleteOldBlocks()
+		err = inst.deleteOldBlocks(ctx)
 		if err != nil {
 			level.Warn(s.logger).Log("msg", "failed to delete old blocks", "err", err, "tenant", inst.tenantID)
 		}

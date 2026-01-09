@@ -420,7 +420,7 @@ func (s *BackendScheduler) applyJobsToBlocklist(ctx context.Context, tenant stri
 		}
 	}
 
-	err = s.store.MarkBlocklistCompacted(tenant, oldBlocks, nil)
+	err = s.store.MarkBlocklistCompacted(ctx, tenant, oldBlocks, nil)
 	if err != nil {
 		return fmt.Errorf("failed to mark compacted blocks on in-memory blocklist: %w", err)
 	}

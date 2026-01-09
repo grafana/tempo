@@ -146,7 +146,7 @@ func (s *LiveStore) perTenantCleanupLoop(inst *instance) {
 		select {
 		case <-ticker.C:
 			// dump any blocks that have been flushed for a while
-			err := inst.deleteOldBlocks()
+			err := inst.deleteOldBlocks(s.ctx)
 			if err != nil {
 				level.Error(s.logger).Log("msg", "failed to delete old blocks", "err", err)
 			}
@@ -275,7 +275,7 @@ func (s *LiveStore) reloadBlocks() error {
 			if clearBlock {
 				level.Info(s.logger).Log("msg", "clearing block", "block", id.String(), "err", err)
 				// Partially written block, delete and continue
-				err = l.ClearBlock(id, tenant)
+				err = l.ClearBlock(s.ctx, id, tenant)
 				if err != nil {
 					level.Error(s.logger).Log("msg", "failed to clear partially written block during replay", "err", err)
 				}
@@ -295,7 +295,7 @@ func (s *LiveStore) reloadBlocks() error {
 			if err != nil && !errors.Is(err, util.ErrUnsupported) {
 				level.Error(s.logger).Log("msg", "local block failed validation, dropping", "block", id.String(), "error", err)
 
-				err = l.ClearBlock(id, tenant)
+				err = l.ClearBlock(s.ctx, id, tenant)
 				if err != nil {
 					level.Error(s.logger).Log("msg", "failed to clear invalid block during replay", "err", err)
 				}

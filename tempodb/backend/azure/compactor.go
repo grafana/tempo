@@ -21,7 +21,7 @@ type BlobAttributes struct {
 	LastModified time.Time `json:"last_modified"`
 }
 
-func (rw *Azure) MarkBlockCompacted(blockID uuid.UUID, tenantID string) error {
+func (rw *Azure) MarkBlockCompacted(ctx context.Context, blockID uuid.UUID, tenantID string) error {
 	if len(tenantID) == 0 {
 		return backend.ErrEmptyTenantID
 	}
@@ -32,7 +32,6 @@ func (rw *Azure) MarkBlockCompacted(blockID uuid.UUID, tenantID string) error {
 	// move meta file to a new location
 	metaFilename := backend.MetaFileName(blockID, tenantID, rw.cfg.Prefix)
 	compactedMetaFilename := backend.CompactedMetaFileName(blockID, tenantID, rw.cfg.Prefix)
-	ctx := context.TODO()
 
 	src, _, err := rw.readAll(ctx, metaFilename)
 	if err != nil {
@@ -48,7 +47,7 @@ func (rw *Azure) MarkBlockCompacted(blockID uuid.UUID, tenantID string) error {
 	return rw.Delete(ctx, metaFilename, []string{}, nil)
 }
 
-func (rw *Azure) ClearBlock(blockID uuid.UUID, tenantID string) error {
+func (rw *Azure) ClearBlock(ctx context.Context, blockID uuid.UUID, tenantID string) error {
 	var warning error
 	if len(tenantID) == 0 {
 		return fmt.Errorf("empty tenant id")
@@ -57,8 +56,6 @@ func (rw *Azure) ClearBlock(blockID uuid.UUID, tenantID string) error {
 	if blockID == uuid.Nil {
 		return fmt.Errorf("empty block id")
 	}
-
-	ctx := context.TODO()
 
 	prefix := backend.RootPath(blockID, tenantID, rw.cfg.Prefix)
 	pager := rw.containerClient.NewListBlobsHierarchyPager("", &container.ListBlobsHierarchyOptions{
@@ -89,7 +86,7 @@ func (rw *Azure) ClearBlock(blockID uuid.UUID, tenantID string) error {
 	return warning
 }
 
-func (rw *Azure) CompactedBlockMeta(blockID uuid.UUID, tenantID string) (*backend.CompactedBlockMeta, error) {
+func (rw *Azure) CompactedBlockMeta(ctx context.Context, blockID uuid.UUID, tenantID string) (*backend.CompactedBlockMeta, error) {
 	if len(tenantID) == 0 {
 		return nil, backend.ErrEmptyTenantID
 	}

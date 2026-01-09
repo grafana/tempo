@@ -1258,7 +1258,7 @@ func BenchmarkFullPoller(b *testing.B) {
 				for tenant, blocks := range ml {
 					blocksToCompact := blocks[:bc.compactionsPer]
 					for _, block := range blocksToCompact {
-						err := cc.MarkBlockCompacted(uuid.UUID(block.BlockID), tenant)
+						err := cc.MarkBlockCompacted(ctx, uuid.UUID(block.BlockID), tenant)
 						require.NoError(b, err)
 					}
 				}

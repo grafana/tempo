@@ -489,7 +489,7 @@ func (p *Poller) pollBlock(
 	// if the normal meta doesn't exist maybe it's compacted.
 	if errors.Is(err, backend.ErrDoesNotExist) || compacted {
 		blockMeta = nil
-		compactedBlockMeta, err = p.compactor.CompactedBlockMeta(blockID, tenantID)
+		compactedBlockMeta, err = p.compactor.CompactedBlockMeta(ctx, blockID, tenantID)
 	}
 
 	// blocks in intermediate states may not have a compacted or normal block meta.

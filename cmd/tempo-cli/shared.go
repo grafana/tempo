@@ -60,8 +60,8 @@ type blockStats struct {
 	unifiedBlockMeta
 }
 
-func loadBucket(r backend.Reader, c backend.Compactor, tenantID string, windowRange time.Duration, includeCompacted bool) ([]blockStats, error) {
-	blockIDs, compactedBlockIDs, err := r.Blocks(context.Background(), tenantID)
+func loadBucket(ctx context.Context, r backend.Reader, c backend.Compactor, tenantID string, windowRange time.Duration, includeCompacted bool) ([]blockStats, error) {
+	blockIDs, compactedBlockIDs, err := r.Blocks(ctx, tenantID)
 	if err != nil {
 		return nil, err
 	}
