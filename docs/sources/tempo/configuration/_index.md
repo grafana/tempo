@@ -781,6 +781,11 @@ query_frontend:
         # (default: 0)
         [concurrent_shards: <int>]
 
+        # Enable external trace source for trace-by-ID queries. When enabled,
+        # the frontend will create an additional shard to query the external endpoint
+        # configured in the querier.
+        [external_enabled: <bool> | default = false]
+
         # If set to a non-zero value, it's value will be used to decide if metadata query is within SLO or not.
         # Query is within SLO if it returned 200 within duration_slo seconds OR processed throughput_slo bytes/s data.
         # NOTE: Requires `duration_slo` AND `throughput_bytes_slo` to be configured.
@@ -899,6 +904,20 @@ querier:
     trace_by_id:
         # Timeout for trace lookup requests
         [query_timeout: <duration> | default = 10s]
+
+        # External trace source configuration. When enabled, trace-by-ID queries
+        # will also fetch trace data from an external HTTP endpoint that implements
+        # Tempo's TraceIDV2 API (/api/v2/traces/{traceID}).
+        external:
+            # Enable querying an external endpoint for trace data.
+            [enabled: <bool> | default = false]
+
+            # The URL of the external service that implements the TraceIDV2 API.
+            # Example: "http://external-service:3200"
+            [endpoint: <string>]
+
+            # Timeout for requests to the external endpoint.
+            [timeout: <duration> | default = 10s]
 
     search:
         # Timeout for search requests
