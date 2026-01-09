@@ -441,7 +441,7 @@ func TestFetchTagNames(t *testing.T) {
 
 				actualValues := distinctAttrNames.Strings()
 
-				//require.Equal(t, len(expectedValues), len(actualValues))
+				require.Equal(t, len(expectedValues), len(actualValues))
 				for k := range expectedValues {
 					actual := actualValues[k]
 					sort.Strings(actual)

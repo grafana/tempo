@@ -122,7 +122,7 @@ func TestFetchTagNames(t *testing.T) {
 		},
 		{
 			name:                   "well known span op none",
-			query:                  "{span.http.method != nil}",
+			query:                  "{span.http.method}",
 			expectedSpanValues:     []string{"generic-01-01", "generic-01-02", "span-same", "generic-02-01"},
 			expectedResourceValues: []string{"generic-01", "resource-same", "generic-02"},
 		},
