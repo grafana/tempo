@@ -51,6 +51,10 @@ func TestClient_TraceByID(t *testing.T) {
 		// Validate method
 		require.Equal(t, http.MethodGet, r.Method, "method should be GET")
 
+		// Validate query parameters
+		require.Equal(t, "123", r.URL.Query().Get("start"), "start query parameter should be 123")
+		require.Equal(t, "456", r.URL.Query().Get("end"), "end query parameter should be 456")
+
 		// Marshal and return the trace
 		traceBytes, err := testTrace.Marshal()
 		require.NoError(t, err)
@@ -68,7 +72,7 @@ func TestClient_TraceByID(t *testing.T) {
 
 	// Call TraceByID
 	ctx := context.Background()
-	resp, err := client.TraceByID(ctx, userID, traceID)
+	resp, err := client.TraceByID(ctx, userID, traceID, 123, 456)
 	require.NoError(t, err)
 	require.NotNil(t, resp)
 	require.NotNil(t, resp.Trace)
