@@ -18,12 +18,15 @@ type Config struct {
 	ObjectCacheControl    string            `yaml:"object_cache_control"`
 	ObjectMetadata        map[string]string `yaml:"object_metadata"`
 	ListBlocksConcurrency int               `yaml:"list_blocks_concurrency"`
+	MaxRetries            int               `yaml:"max_retries"`
 }
 
 func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
 	f.StringVar(&cfg.BucketName, util.PrefixConfig(prefix, "gcs.bucket"), "", "gcs bucket to store traces in.")
 	f.StringVar(&cfg.Prefix, util.PrefixConfig(prefix, "gcs.prefix"), "", "gcs bucket prefix to store traces in.")
 	f.IntVar(&cfg.ListBlocksConcurrency, util.PrefixConfig(prefix, "gcs.list_blocks_concurrency"), 3, "number of concurrent list calls to make to backend")
+	f.IntVar(&cfg.MaxRetries, util.PrefixConfig(prefix, "gcs.max_retries"), 3, "number of times to retry failed compaction/retention operations")
+
 	cfg.ChunkBufferSize = 10 * 1024 * 1024
 	cfg.HedgeRequestsUpTo = 2
 }
