@@ -18,7 +18,7 @@ import (
 	"github.com/grafana/tempo/tempodb/backend/azure"
 	"github.com/prometheus/prometheus/model/labels"
 	"github.com/stretchr/testify/require"
-	"gopkg.in/yaml.v2"
+	"gopkg.in/yaml.v3"
 )
 
 const (
