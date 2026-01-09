@@ -3,7 +3,7 @@ package listtomap
 import (
 	"encoding/json"
 
-	"gopkg.in/yaml.v2"
+	"go.yaml.in/yaml/v2"
 )
 
 type ListToMap map[string]struct{}
