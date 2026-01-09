@@ -37,18 +37,11 @@ querier:
   query_live_store: true
 
 metrics_generator:
-  registry:
-    external_labels:
-      source: tempo
-      cluster: docker-compose
-  storage:
-    path: /var/tempo/generator/wal
-    remote_write:
-      - url: http://prometheus:9090/api/v1/write # jpe - remove
-        send_exemplars: true
 
 query_frontend:
   rf1_after: "1999-01-01T00:00:00Z"
+  mcp_server:
+    enabled: true
 
 storage:
   trace:
