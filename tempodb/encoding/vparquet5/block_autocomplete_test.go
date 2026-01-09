@@ -404,8 +404,8 @@ func TestFetchTagNames(t *testing.T) {
 			if scope == traceql.AttributeScopeEvent || scope == traceql.AttributeScopeNone {
 				if len(expectedEventValues) > 0 {
 					expectedValues["event"] = append(expectedValues["event"], expectedEventValues...)
-					expectedValues["event"] = append(expectedValues["event"], dedicatedEventValues...)
 				}
+				expectedValues["event"] = append(expectedValues["event"], dedicatedEventValues...)
 			}
 			if scope == traceql.AttributeScopeLink || scope == traceql.AttributeScopeNone {
 				if len(expectedLinkValues) > 0 {
