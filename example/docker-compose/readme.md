@@ -27,7 +27,7 @@ See below for a list of all examples and the features they demonstrate
 |---------|------------|---------|-----------------|---------|------------------|
 | [Single Binary](./single-binary/) | Single binary | Single tenant | Alloy | S3 (MinIO) | vulture for data integrity, metrics generator, streaming queries, mcp |
 | [Distributed](./distributed/) | Distributed microservices | Single tenant | Alloy | S3 (MinIO) | metrics-generator, streaming queries, mcp |
-| [Multi-tenant](./multi-tenant/) | Single binary | Multi-tenant | OTel Collector + Direct OTLP | Local filesystem | multiple tenants (tenant-1, tenant-2), streaming queries, mcp |
+| [Multitenant](./multitenant/) | Single binary | Multitenant | OTel Collector + Direct OTLP | Local filesystem | multiple tenants (tenant-1, tenant-2), streaming queries, mcp |
 | [Debug](./debug/) | Single binary | Single tenant | Direct OTLP | Local filesystem | tempo-debug image for breakpoing debugging, streaming queries, mcp | 
 
 ### Build images (optional)
