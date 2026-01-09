@@ -23,7 +23,7 @@ backend_scheduler:
   provider:
     compaction:
       compaction:
-        block_retention: 1h # jpe - repeated below?
+        block_retention: 1h
 
 backend_worker:
   backend_scheduler_addr: backend-scheduler:3200
@@ -44,7 +44,7 @@ metrics_generator:
   storage:
     path: /var/tempo/generator/wal
     remote_write:
-      - url: http://prometheus:9090/api/v1/write
+      - url: http://prometheus:9090/api/v1/write # jpe - remove
         send_exemplars: true
 
 query_frontend:

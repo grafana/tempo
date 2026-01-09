@@ -22,7 +22,7 @@ backend_scheduler:
   provider:
     compaction:
       compaction:
-        block_retention: 1h # jpe - repeated below?
+        block_retention: 1h
 
 backend_worker:
   backend_scheduler_addr: backend-scheduler:3200
