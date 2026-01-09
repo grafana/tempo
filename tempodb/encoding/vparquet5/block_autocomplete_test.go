@@ -124,6 +124,108 @@ func TestFetchTagNames(t *testing.T) {
 			expectedLinkValues:            []string{"link-generic-02-01"},
 			expectedInstrumentationValues: []string{"scope-attr-str-2"},
 		},
+		// well-known column != nil - regression test for panic caused by mixed types in OtherEntries
+		{
+			name:                          "well known resource op none",
+			query:                         "{resource.service.name}",
+			expectedSpanValues:            []string{"generic-01-01", "generic-01-02", "span-same", "generic-02-01"},
+			expectedResourceValues:        []string{"generic-01", "resource-same", "generic-02"},
+			expectedEventValues:           []string{"event-generic-01-01", "event-generic-02-01"},
+			expectedLinkValues:            []string{"link-generic-01-01", "link-generic-02-01"},
+			expectedInstrumentationValues: []string{"scope-attr-str-1", "scope-attr-str-2"},
+		},
+		{
+			name:                          "well known resource",
+			query:                         "{resource.service.name != nil}",
+			expectedSpanValues:            []string{"generic-01-01", "generic-01-02", "span-same", "generic-02-01"},
+			expectedResourceValues:        []string{"generic-01", "resource-same", "generic-02"},
+			expectedEventValues:           []string{"event-generic-01-01", "event-generic-02-01"},
+			expectedLinkValues:            []string{"link-generic-01-01", "link-generic-02-01"},
+			expectedInstrumentationValues: []string{"scope-attr-str-1", "scope-attr-str-2"},
+		},
+
+		// dedicated columns
+		{
+			name:                          "dedicated span op none",
+			query:                         "{span.dedicated.span.1}",
+			expectedSpanValues:            []string{"generic-01-01", "generic-01-02", "span-same", "generic-02-01"},
+			expectedResourceValues:        []string{"generic-01", "resource-same", "generic-02"},
+			expectedEventValues:           []string{"event-generic-01-01", "event-generic-02-01"},
+			expectedLinkValues:            []string{"link-generic-01-01", "link-generic-02-01"},
+			expectedInstrumentationValues: []string{"scope-attr-str-1", "scope-attr-str-2"},
+		},
+		{
+			name:                          "dedicated span != nil",
+			query:                         "{span.dedicated.span.1 != nil}",
+			expectedSpanValues:            []string{"generic-01-01", "generic-01-02", "span-same", "generic-02-01"},
+			expectedResourceValues:        []string{"generic-01", "resource-same", "generic-02"},
+			expectedEventValues:           []string{"event-generic-01-01", "event-generic-02-01"},
+			expectedLinkValues:            []string{"link-generic-01-01", "link-generic-02-01"},
+			expectedInstrumentationValues: []string{"scope-attr-str-1", "scope-attr-str-2"},
+		},
+		{
+			name:                          "dedicated span = nil",
+			query:                         "{span.dedicated.span.1 = nil}",
+			expectedSpanValues:            []string{},
+			expectedResourceValues:        []string{},
+			expectedEventValues:           []string{},
+			expectedLinkValues:            []string{},
+			expectedInstrumentationValues: []string{},
+		},
+		{
+			name:                          "dedicated resource != nil",
+			query:                         "{resource.dedicated.resource.1 != nil}",
+			expectedSpanValues:            []string{"generic-01-01", "generic-01-02", "span-same", "generic-02-01"},
+			expectedResourceValues:        []string{"generic-01", "resource-same", "generic-02"},
+			expectedEventValues:           []string{"event-generic-01-01", "event-generic-02-01"},
+			expectedLinkValues:            []string{"link-generic-01-01", "link-generic-02-01"},
+			expectedInstrumentationValues: []string{"scope-attr-str-1", "scope-attr-str-2"},
+		},
+		{
+			name:                          "dedicated resource = nil",
+			query:                         "{resource.dedicated.resource.1 = nil}",
+			expectedSpanValues:            []string{},
+			expectedResourceValues:        []string{},
+			expectedEventValues:           []string{},
+			expectedLinkValues:            []string{},
+			expectedInstrumentationValues: []string{},
+		},
+		{
+			name:                          "dedicated resource op none",
+			query:                         "{resource.dedicated.resource.1}",
+			expectedSpanValues:            []string{"generic-01-01", "generic-01-02", "span-same", "generic-02-01"},
+			expectedResourceValues:        []string{"generic-01", "resource-same", "generic-02"},
+			expectedEventValues:           []string{"event-generic-01-01", "event-generic-02-01"},
+			expectedLinkValues:            []string{"link-generic-01-01", "link-generic-02-01"},
+			expectedInstrumentationValues: []string{"scope-attr-str-1", "scope-attr-str-2"},
+		},
+		{
+			name:                          "dedicated event != nil",
+			query:                         "{event.dedicated.event.1 != nil}",
+			expectedSpanValues:            []string{"generic-01-01", "span-same", "generic-02-01"},
+			expectedResourceValues:        []string{"generic-01", "resource-same", "generic-02"},
+			expectedEventValues:           []string{"event-generic-01-01", "event-generic-02-01"},
+			expectedLinkValues:            []string{"link-generic-01-01", "link-generic-02-01"},
+			expectedInstrumentationValues: []string{"scope-attr-str-1", "scope-attr-str-2"},
+		},
+		{
+			name:                          "dedicated event = nil",
+			query:                         "{event.dedicated.event.1 = nil}",
+			expectedSpanValues:            []string{"generic-01-02"},
+			expectedResourceValues:        []string{"generic-01", "resource-same"},
+			expectedEventValues:           []string{},
+			expectedLinkValues:            []string{},
+			expectedInstrumentationValues: []string{"scope-attr-str-1"},
+		},
+		{
+			name:                          "dedicated event op none",
+			query:                         "{event.dedicated.event.1}",
+			expectedSpanValues:            []string{"generic-01-01", "generic-01-02", "span-same", "generic-02-01"},
+			expectedResourceValues:        []string{"generic-01", "resource-same", "generic-02"},
+			expectedEventValues:           []string{"event-generic-01-01", "event-generic-02-01"},
+			expectedLinkValues:            []string{"link-generic-01-01", "link-generic-02-01"},
+			expectedInstrumentationValues: []string{"scope-attr-str-1", "scope-attr-str-2"},
+		},
 	}
 
 	tr := &Trace{
@@ -170,6 +272,9 @@ func TestFetchTagNames(t *testing.T) {
 										Name: "event-01-01",
 										Attrs: []Attribute{
 											{Key: "event-generic-01-01", Value: []string{"foo"}},
+										},
+										DedicatedAttributes: DedicatedAttributes{
+											String01: []string{"dedicated-01-01"},
 										},
 									},
 								},
@@ -237,6 +342,9 @@ func TestFetchTagNames(t *testing.T) {
 										Attrs: []Attribute{
 											{Key: "event-generic-02-01", Value: []string{"foo"}},
 										},
+										DedicatedAttributes: DedicatedAttributes{
+											String01: []string{"dedicated-02-01"},
+										},
 									},
 								},
 								Links: []Link{
@@ -279,6 +387,7 @@ func TestFetchTagNames(t *testing.T) {
 			// attempt to perfectly filter these, but instead adds them to the return if any values are present
 			dedicatedSpanValues := []string{"dedicated.span.1"}
 			dedicatedResourceValues := []string{"dedicated.resource.1"}
+			dedicatedEventValues := []string{"dedicated.event.1"}
 
 			wellKnownResourceValues := []string{"service.name"}
 
@@ -296,6 +405,7 @@ func TestFetchTagNames(t *testing.T) {
 				if len(expectedEventValues) > 0 {
 					expectedValues["event"] = append(expectedValues["event"], expectedEventValues...)
 				}
+				expectedValues["event"] = append(expectedValues["event"], dedicatedEventValues...)
 			}
 			if scope == traceql.AttributeScopeLink || scope == traceql.AttributeScopeNone {
 				if len(expectedLinkValues) > 0 {
