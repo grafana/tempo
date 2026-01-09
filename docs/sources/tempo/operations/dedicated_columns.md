@@ -9,12 +9,12 @@ weight: 400
 Dedicated attribute columns improve query performance by storing the most frequently used attributes in their own columns,
 rather than in the generic attribute key-value list.
 
-Introduced with `vParquet3`, dedicated attribute columns are only available when using this storage format.
-To read more about the design of `vParquet3`, see [the design proposal](https://github.com/grafana/tempo/blob/main/docs/design-proposals/2023-05%20vParquet3.md).
+Introduced with `vParquet3`, dedicated attribute columns are available when using `vParquet3` or later storage formats.
+With `vParquet5`, dedicated columns gain support for array-valued attributes using the `options` field.
 
 ## Configuration
 
-Dedicated attribute columns can be configured in the storage block or via overrides.
+You can configure dedicated attribute columns in the storage block or via overrides.
 
 ```yaml
 # Storage configuration for traces
@@ -24,16 +24,18 @@ storage:
       version: vParquet3
       # Default dedicated columns for all blocks
       parquet_dedicated_columns:
-        - name: <string>, # name of the attribute
-          type: <string>, # type of the attribute. options: string
+        - name: <string> # name of the attribute
+          type: <string> # type of the attribute. options: string, int
           scope: <string> # scope of the attribute. options: resource, span
+          options: [<string>] # optional, vParquet5 only. options: array
 
 overrides:
   # Global overrides for dedicated columns configuration
   parquet_dedicated_columns:
-    - name: <string>, # name of the attribute
-      type: <string>, # type of the attribute. options: string
+    - name: <string> # name of the attribute
+      type: <string> # type of the attribute. options: string, int
       scope: <string> # scope of the attribute. options: resource, span
+      options: [<string>] # optional, vParquet5 only. options: array
 
   per_tenant_override_config: /conf/overrides.yaml
 ---
@@ -42,16 +44,18 @@ overrides:
 overrides:
   "<tenant id>":
     parquet_dedicated_columns:
-      - name: <string>, # name of the attribute
-        type: <string>, # type of the attribute. options: string
+      - name: <string> # name of the attribute
+        type: <string> # type of the attribute. options: string, int
         scope: <string> # scope of the attribute. options: resource, span
+        options: [<string>] # optional, vParquet5 only. options: array
 
   # A "wildcard" override can be used that will apply to all tenants if a match is not found.
   "*":
     parquet_dedicated_columns:
-      - name: <string>, # name of the attribute
-        type: <string>, # type of the attribute. options: string
+      - name: <string> # name of the attribute
+        type: <string> # type of the attribute. options: string, int
         scope: <string> # scope of the attribute. options: resource, span
+        options: [<string>] # optional, vParquet5 only. options: array
 ```
 
 Priority is given to the most specific configuration, so tenant-specific overrides will take precedence over global overrides.
@@ -59,18 +63,55 @@ Similarly, default overrides take precedence over storage block configuration.
 
 ## Usage
 
-Dedicated attribute columns are limited to 10 span attributes and 10 resource attributes with string values.
+Dedicated attribute columns are limited to 10 string attributes and 5 integer attributes per scope (span and resource).
 As a rule of thumb, good candidates for dedicated attribute columns are attributes that contribute the most to the block size,
-even if they are not frequently queried.
+even if they aren't frequently queried.
 Reducing the generic attribute key-value list size significantly improves query performance.
+
+### Array-valued attributes
+
+Dedicated attribute columns support array-valued attributes.
+This is useful for attributes that can have multiple values, such as HTTP headers or custom tags.
+
+To enable array support, add `options: ["array"]` to the dedicated attribute column configuration.
+The `options` field is only available in `vParquet5` and later.
+Earlier versions ignore this field and only support single-valued attributes.
+
+When `options: ["array"]` is set, the dedicated column stores multiple values per attribute.
+Without this option (default), only single values are supported.
+
+```yaml
+storage:
+  trace:
+    block:
+      version: vParquet5
+      parquet_dedicated_columns:
+        # Single-valued string attribute (default behavior)
+        - name: http.method
+          type: string
+          scope: span
+
+        # Array-valued string attribute
+        - name: http.request.header.accept
+          type: string
+          scope: span
+          options: ["array"]
+
+        # Array-valued integer attribute
+        - name: custom.retry.counts
+          type: int
+          scope: span
+          options: ["array"]
+```
 
 ### Tempo-cli
 
-You can use  the `tempo-cli` tool to find good candidates for dedicated attribute columns.
+You can use the `tempo-cli` tool to find good candidates for dedicated attribute columns.
 The `tempo-cli` provides the commands `analyse block <tenant-id> <block-id>` and `analyse blocks <tenant-id>` that will output the
 top N attributes by size for a given block or all blocks in a tenant.
 
 **Example:**
+
 ```bash
 tempo-cli analyse blocks --backend=local --bucket=./cmd/tempo-cli/test-data/ single-tenant
 ```
