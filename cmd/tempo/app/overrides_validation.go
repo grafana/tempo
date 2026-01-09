@@ -70,8 +70,8 @@ type overridesValidator struct {
 
 var _ api.Validator = (*overridesValidator)(nil)
 
-// newOverridesValidator validates user-configurable overrides
-func newOverridesValidator(cfg *Config) api.Validator {
+// NewOverridesValidator validates user-configurable overrides
+func NewOverridesValidator(cfg *Config) api.Validator {
 	validForwarders := map[string]struct{}{}
 	for _, f := range cfg.Distributor.Forwarders {
 		validForwarders[f.Name] = struct{}{}
