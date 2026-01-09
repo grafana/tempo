@@ -153,6 +153,28 @@ Find if `productcatalogservice` and `frontend` are siblings.
 { resource.service.name = "productcatalogservice" } ~ { resource.service.name="frontend" }
 ```
 
+### Find spans by child count
+
+You can use the `span:childCount` intrinsic to find the number of direct children of a span. This intrinsic is supported in vParquet5 and later.
+
+Find leaf spans (spans with no children), which typically represent terminal operations like database calls or external API requests:
+
+```
+{ span:childCount = 0 }
+```
+
+Find spans without child spans in the frontend service:
+
+```
+{ resource.service.name = "frontend" && span:childCount = 0 }
+```
+
+Find spans with high fan-out that spawn more than 10 child spans:
+
+```
+{ span:childCount > 10 }
+```
+
 ### Other examples
 
 Find the services where the HTTP status is `200`, and list the service name the span belongs to along with returned traces.
