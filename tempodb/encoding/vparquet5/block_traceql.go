@@ -2116,24 +2116,6 @@ func createSpanIterator(makeIter, makeNilIter makeIterFn, innerIterators []parqu
 			continue
 		}
 
-		// Well-known attribute?
-		if entry, ok := wellKnownColumnLookups[cond.Attribute.Name]; ok && entry.level != traceql.AttributeScopeResource {
-			if specialCase(cond, entry.columnPath) {
-				continue
-			}
-
-			// Compatible type?
-			if entry.typ == operandType(cond.Operands) {
-				pred, err := createPredicate(cond.Op, cond.Operands)
-				if err != nil {
-					return nil, fmt.Errorf("creating predicate: %w", err)
-				}
-				addPredicate(entry.columnPath, pred)
-				columnSelectAs[entry.columnPath] = cond.Attribute.Name
-				continue
-			}
-		}
-
 		// Attributes stored in dedicated columns
 		if c, ok := columnMapping.get(cond.Attribute.Name); ok {
 			if specialCase(cond, c.ColumnPath) {
