@@ -438,16 +438,28 @@ Find all traces where the `http.method` attribute is either `GET` or `DELETE`:
 { span.http.method =~ "DELETE|GET" }
 ```
 
-Find all traces where `any_attribute` is not `nil` or where `any_attribute` exists in a span
+Find all traces where `any_attribute` isn't `nil` or where `any_attribute` exists in a span:
 
 ```
 { span.any_attribute != nil }
 ```
 
-Find all traces where `any_attribtute` is `nil` or where `any_attribute` does NOT exist in a span
+Find all traces where `any_attribute` is `nil` or where `any_attribute` does NOT exist in a span:
 
 ```
 { span.any_attribute = nil }
+```
+
+Find all traces where `service.version` does NOT exist at the resource level:
+
+```
+{ resource.service.version = nil }
+```
+
+Find all traces where the event attribute `exception.message` does NOT exist:
+
+```
+{ event.exception.message = nil }
 ```
 
 ### Field expressions
