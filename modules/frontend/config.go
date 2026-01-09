@@ -62,6 +62,7 @@ type TraceByIDConfig struct {
 	QueryShards      int       `yaml:"query_shards,omitempty"`
 	ConcurrentShards int       `yaml:"concurrent_shards,omitempty"`
 	SLO              SLOConfig `yaml:",inline"`
+	ExternalEnabled  bool      `yaml:"external_enabled,omitempty"`
 
 	// RF1After specifies the time after which RF1 logic is applied, injected by the configuration
 	// or determined at runtime based on search request parameters.

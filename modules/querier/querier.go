@@ -25,6 +25,7 @@ import (
 	ingester_client "github.com/grafana/tempo/modules/ingester/client"
 	livestore_client "github.com/grafana/tempo/modules/livestore/client"
 	"github.com/grafana/tempo/modules/overrides"
+	"github.com/grafana/tempo/modules/querier/external"
 	"github.com/grafana/tempo/modules/querier/worker"
 	"github.com/grafana/tempo/modules/storage"
 	"github.com/grafana/tempo/pkg/api"
@@ -103,6 +104,8 @@ type Querier struct {
 	store  storage.Store
 	limits overrides.Interface
 
+	externalClient *external.Client
+
 	subservices        *services.Manager
 	subservicesWatcher *services.FailureWatcher
 }
@@ -180,6 +183,14 @@ func New(
 		engine: traceql.NewEngine(),
 		store:  store,
 		limits: limits,
+	}
+
+	if cfg.TraceByID.External.Enabled {
+		externalClient, err := external.NewClient(cfg.TraceByID.External.Endpoint, cfg.TraceByID.External.Timeout)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create external client: %w", err)
+		}
+		q.externalClient = externalClient
 	}
 
 	q.Service = services.NewBasicService(q.starting, q.running, q.stopping)
@@ -354,6 +365,21 @@ func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDReque
 				inspectedBytes += partialTrace.Metrics.InspectedBytes
 			}
 		}
+	}
+
+	if q.cfg.TraceByID.External.Enabled {
+		if req.QueryMode == QueryModeExternal || req.QueryMode == QueryModeAll {
+			externalResp, err := q.externalClient.TraceByID(ctx, userID, req.TraceID, timeStart, timeEnd)
+			if err != nil {
+				return nil, fmt.Errorf("error querying external in Querier.FindTraceByID: %w", err)
+			}
+			_, err = combiner.Consume(externalResp.Trace)
+			if err != nil {
+				return nil, fmt.Errorf("error combining external results in Querier.FindTraceByID: %w", err)
+			}
+		}
+	} else if req.QueryMode == QueryModeExternal {
+		return nil, fmt.Errorf("external mode is not enabled")
 	}
 
 	completeTrace, _ := combiner.Result()
