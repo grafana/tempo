@@ -10,11 +10,13 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+const testSeed = 1632146180
+
 func TestTraceInfo(t *testing.T) {
 	writeBackoff := 1 * time.Second
 	longWriteBackoff := 5 * time.Second
 
-	seed := time.Unix(1632146180, 0)
+	seed := time.Unix(0, testSeed)
 	info := NewTraceInfo(seed, "")
 	assert.False(t, info.Ready(seed, writeBackoff, longWriteBackoff))
 	assert.False(t, info.Ready(seed.Add(longWriteBackoff), writeBackoff, longWriteBackoff))
@@ -47,7 +49,7 @@ func TestGenerateRandomTags(t *testing.T) {
 }
 
 func TestGenerateRandomString(t *testing.T) {
-	seed := time.Unix(1632146180, 0)
+	seed := time.Unix(0, testSeed)
 	info := NewTraceInfo(seed, "")
 
 	strings := []string{
@@ -61,7 +63,7 @@ func TestGenerateRandomString(t *testing.T) {
 }
 
 func TestGenerateRandomInt(t *testing.T) {
-	seed := time.Unix(1632146180, 0)
+	seed := time.Unix(0, testSeed)
 	info := NewTraceInfo(seed, "")
 
 	cases := []struct {
@@ -93,7 +95,7 @@ func TestGenerateRandomInt(t *testing.T) {
 }
 
 func TestConstructTraceFromEpoch(t *testing.T) {
-	seed := time.Unix(1632146180, 0)
+	seed := time.Unix(0, testSeed)
 	info := NewTraceInfo(seed, "")
 
 	result, err := info.ConstructTraceFromEpoch()

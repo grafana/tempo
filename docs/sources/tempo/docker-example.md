@@ -186,7 +186,7 @@ Now that you've explored the basics of Tempo, you can:
 
 ### Alternative: Complete MLTP example
 
-If you would like to use a demo with multiple telemetry signals, then try the [Introduction to Metrics, Logs, Traces, and Profiling in Grafana](https://github.com/grafana/intro-to-mlpt).
+If you would like to use a demo with multiple telemetry signals, then try the [Introduction to Metrics, Logs, Traces, and Profiling in Grafana](https://github.com/grafana/intro-to-mltp).
 `Intro-to-mltp` provides a self-contained environment for learning about Mimir, Loki, Tempo, Pyroscope, and Grafana.
 The project includes detailed explanations of each component and annotated configurations for a single-instance deployment.
 Data from `intro-to-mltp` can also be pushed to Grafana Cloud.

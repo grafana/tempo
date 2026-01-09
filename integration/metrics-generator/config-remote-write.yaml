@@ -1,0 +1,11 @@
+metrics_generator:
+  processor:
+    service_graphs:
+      histogram_buckets: [1, 2]  # seconds
+    span_metrics:
+      histogram_buckets: [1, 2]  # seconds
+
+overrides:
+  defaults:
+    metrics_generator:
+      max_active_series: 1000

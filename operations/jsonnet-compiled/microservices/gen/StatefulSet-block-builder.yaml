@@ -18,6 +18,7 @@ spec:
       labels:
         app: block-builder
         name: block-builder
+        tempo-gossip-member: "true"
     spec:
       containers:
       - args:

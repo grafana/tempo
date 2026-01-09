@@ -593,6 +593,15 @@ func createDistinctSpanIterator(
 			addSelectAs(cond.Attribute, columnPathSpanParentID, columnPathSpanParentID)
 			continue
 
+		case traceql.IntrinsicChildCount:
+			pred, err := createIntPredicate(cond.Op, cond.Operands)
+			if err != nil {
+				return nil, err
+			}
+			addPredicate(columnPathSpanChildCount, pred)
+			addSelectAs(cond.Attribute, columnPathSpanChildCount, columnPathSpanChildCount)
+			continue
+
 		// TODO: Support structural operators
 		case traceql.IntrinsicStructuralDescendant,
 			traceql.IntrinsicStructuralChild,

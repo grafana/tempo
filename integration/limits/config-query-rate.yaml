@@ -1,0 +1,2 @@
+query_frontend:
+  max_outstanding_per_tenant: 0 # forces everything to 429
