@@ -94,6 +94,10 @@ tempo-cli: ## Build tempo-cli
 tempo-vulture:
 	$(GO_ENV) go build $(GO_OPT) -o ./bin/$(GOOS)/tempo-vulture-$(GOARCH) $(BUILD_INFO) ./cmd/tempo-vulture
 
+.PHONY: tempo-federated-querier
+tempo-federated-querier: ## Build tempo-federated-querier
+	$(GO_ENV) go build $(GO_OPT) -o ./bin/$(GOOS)/tempo-federated-querier-$(GOARCH) $(BUILD_INFO) ./cmd/tempo-federated-querier
+
 .PHONY: exe  ## Build exe
 exe:
 	GOOS=linux make $(COMPONENT)
@@ -245,6 +249,10 @@ docker-tempo-query: ## Build tempo query docker image
 .PHONY: docker-tempo-vulture
 docker-tempo-vulture: ## Build tempo vulture docker image
 	COMPONENT=tempo-vulture make docker-component
+
+.PHONY: docker-tempo-federated-querier
+docker-tempo-federated-querier: ## Build tempo federated querier docker image
+	COMPONENT=tempo-federated-querier make docker-component
 
 .PHONY: docker-images ## Build all docker images
 docker-images: docker-tempo docker-tempo-query docker-tempo-vulture
