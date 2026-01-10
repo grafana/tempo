@@ -2,18 +2,22 @@ package handler
 
 import (
 	"context"
-	"net/http"
 	"time"
 
 	"github.com/go-kit/log"
 	"github.com/gorilla/mux"
-	"github.com/grafana/tempo/cmd/tempo-federated-querier/client"
 	"github.com/grafana/tempo/cmd/tempo-federated-querier/combiner"
 )
 
 // FederatedQuerier defines the interface for coordinating queries across multiple Tempo instances
 type FederatedQuerier interface {
-	QueryAllInstances(ctx context.Context, queryFn func(ctx context.Context, c client.TempoClient) (*http.Response, error)) []combiner.QueryResult
+	QueryTraces(ctx context.Context, traceID string) []combiner.TraceResult
+	QueryTracesV2(ctx context.Context, traceID string) []combiner.TraceByIDResult
+	Search(ctx context.Context, query string, start, end int64) []combiner.SearchResult
+	SearchTags(ctx context.Context, start, end int64) []combiner.SearchTagsResult
+	SearchTagsV2(ctx context.Context, start, end int64) []combiner.SearchTagsV2Result
+	SearchTagValues(ctx context.Context, tagName string) []combiner.SearchTagValuesResult
+	SearchTagValuesV2(ctx context.Context, tagName string, query string, start, end int64) []combiner.SearchTagValuesV2Result
 	Instances() []string
 }
 

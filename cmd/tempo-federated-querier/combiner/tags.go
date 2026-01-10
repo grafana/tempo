@@ -1,16 +1,14 @@
 package combiner
 
 import (
-	"net/http"
 	"sort"
 
 	"github.com/go-kit/log/level"
-	"github.com/gogo/protobuf/jsonpb"
 	"github.com/grafana/tempo/pkg/tempopb"
 )
 
 // CombineTagsResults combines SearchTagsResponse results from multiple Tempo instances
-func (c *Combiner) CombineTagsResults(results []QueryResult) (*tempopb.SearchTagsResponse, error) {
+func (c *Combiner) CombineTagsResults(results []SearchTagsResult) (*tempopb.SearchTagsResponse, error) {
 	tagSet := make(map[string]struct{})
 	var combinedMetrics *tempopb.MetadataMetrics
 
@@ -20,32 +18,14 @@ func (c *Combiner) CombineTagsResults(results []QueryResult) (*tempopb.SearchTag
 			continue
 		}
 
-		if result.Response == nil {
-			level.Warn(c.logger).Log("msg", "instance returned nil response for tags", "instance", result.Instance)
-			continue
-		}
-
-		// Skip 404s - instance doesn't have tags
-		if result.Response.StatusCode == http.StatusNotFound {
+		if result.NotFound {
 			level.Debug(c.logger).Log("msg", "instance returned 404 for tags", "instance", result.Instance)
 			continue
 		}
 
-		if result.Response.StatusCode != http.StatusOK {
-			level.Warn(c.logger).Log("msg", "instance returned non-OK status for tags", "instance", result.Instance, "status", result.Response.StatusCode)
-			continue
-		}
-
-		// Body is already read by QueryAllInstances
-		if len(result.Body) == 0 {
-			level.Debug(c.logger).Log("msg", "instance returned empty body for tags", "instance", result.Instance)
-			continue
-		}
-
-		// Parse the JSON response
-		var tagsResp tempopb.SearchTagsResponse
-		if err := jsonpb.UnmarshalString(string(result.Body), &tagsResp); err != nil {
-			level.Warn(c.logger).Log("msg", "failed to unmarshal tags response", "instance", result.Instance, "err", err)
+		tagsResp := result.Response
+		if tagsResp == nil {
+			level.Debug(c.logger).Log("msg", "instance returned nil response for tags", "instance", result.Instance)
 			continue
 		}
 
@@ -76,7 +56,7 @@ func (c *Combiner) CombineTagsResults(results []QueryResult) (*tempopb.SearchTag
 }
 
 // CombineTagsV2Results combines SearchTagsV2Response results from multiple Tempo instances
-func (c *Combiner) CombineTagsV2Results(results []QueryResult) (*tempopb.SearchTagsV2Response, error) {
+func (c *Combiner) CombineTagsV2Results(results []SearchTagsV2Result) (*tempopb.SearchTagsV2Response, error) {
 	// Map of scope name to set of tags
 	scopeTagsMap := make(map[string]map[string]struct{})
 	var combinedMetrics *tempopb.MetadataMetrics
@@ -87,32 +67,14 @@ func (c *Combiner) CombineTagsV2Results(results []QueryResult) (*tempopb.SearchT
 			continue
 		}
 
-		if result.Response == nil {
-			level.Warn(c.logger).Log("msg", "instance returned nil response for tags v2", "instance", result.Instance)
-			continue
-		}
-
-		// Skip 404s - instance doesn't have tags
-		if result.Response.StatusCode == http.StatusNotFound {
+		if result.NotFound {
 			level.Debug(c.logger).Log("msg", "instance returned 404 for tags v2", "instance", result.Instance)
 			continue
 		}
 
-		if result.Response.StatusCode != http.StatusOK {
-			level.Warn(c.logger).Log("msg", "instance returned non-OK status for tags v2", "instance", result.Instance, "status", result.Response.StatusCode)
-			continue
-		}
-
-		// Body is already read by QueryAllInstances
-		if len(result.Body) == 0 {
-			level.Debug(c.logger).Log("msg", "instance returned empty body for tags v2", "instance", result.Instance)
-			continue
-		}
-
-		// Parse the JSON response
-		var tagsResp tempopb.SearchTagsV2Response
-		if err := jsonpb.UnmarshalString(string(result.Body), &tagsResp); err != nil {
-			level.Warn(c.logger).Log("msg", "failed to unmarshal tags v2 response", "instance", result.Instance, "err", err)
+		tagsResp := result.Response
+		if tagsResp == nil {
+			level.Debug(c.logger).Log("msg", "instance returned nil response for tags v2", "instance", result.Instance)
 			continue
 		}
 
@@ -159,7 +121,7 @@ func (c *Combiner) CombineTagsV2Results(results []QueryResult) (*tempopb.SearchT
 }
 
 // CombineTagValuesResults combines SearchTagValuesResponse results from multiple Tempo instances
-func (c *Combiner) CombineTagValuesResults(results []QueryResult) (*tempopb.SearchTagValuesResponse, error) {
+func (c *Combiner) CombineTagValuesResults(results []SearchTagValuesResult) (*tempopb.SearchTagValuesResponse, error) {
 	valueSet := make(map[string]struct{})
 	var combinedMetrics *tempopb.MetadataMetrics
 
@@ -169,32 +131,14 @@ func (c *Combiner) CombineTagValuesResults(results []QueryResult) (*tempopb.Sear
 			continue
 		}
 
-		if result.Response == nil {
-			level.Warn(c.logger).Log("msg", "instance returned nil response for tag values", "instance", result.Instance)
-			continue
-		}
-
-		// Skip 404s - instance doesn't have this tag
-		if result.Response.StatusCode == http.StatusNotFound {
+		if result.NotFound {
 			level.Debug(c.logger).Log("msg", "instance returned 404 for tag values", "instance", result.Instance)
 			continue
 		}
 
-		if result.Response.StatusCode != http.StatusOK {
-			level.Warn(c.logger).Log("msg", "instance returned non-OK status for tag values", "instance", result.Instance, "status", result.Response.StatusCode)
-			continue
-		}
-
-		// Body is already read by QueryAllInstances
-		if len(result.Body) == 0 {
-			level.Debug(c.logger).Log("msg", "instance returned empty body for tag values", "instance", result.Instance)
-			continue
-		}
-
-		// Parse the JSON response
-		var valuesResp tempopb.SearchTagValuesResponse
-		if err := jsonpb.UnmarshalString(string(result.Body), &valuesResp); err != nil {
-			level.Warn(c.logger).Log("msg", "failed to unmarshal tag values response", "instance", result.Instance, "err", err)
+		valuesResp := result.Response
+		if valuesResp == nil {
+			level.Debug(c.logger).Log("msg", "instance returned nil response for tag values", "instance", result.Instance)
 			continue
 		}
 
@@ -225,7 +169,7 @@ func (c *Combiner) CombineTagValuesResults(results []QueryResult) (*tempopb.Sear
 }
 
 // CombineTagValuesV2Results combines SearchTagValuesV2Response results from multiple Tempo instances
-func (c *Combiner) CombineTagValuesV2Results(results []QueryResult) (*tempopb.SearchTagValuesV2Response, error) {
+func (c *Combiner) CombineTagValuesV2Results(results []SearchTagValuesV2Result) (*tempopb.SearchTagValuesV2Response, error) {
 	// Map of tag value to TagValue struct (to preserve type information)
 	valueMap := make(map[string]*tempopb.TagValue)
 	var combinedMetrics *tempopb.MetadataMetrics
@@ -236,32 +180,14 @@ func (c *Combiner) CombineTagValuesV2Results(results []QueryResult) (*tempopb.Se
 			continue
 		}
 
-		if result.Response == nil {
-			level.Warn(c.logger).Log("msg", "instance returned nil response for tag values v2", "instance", result.Instance)
-			continue
-		}
-
-		// Skip 404s - instance doesn't have this tag
-		if result.Response.StatusCode == http.StatusNotFound {
+		if result.NotFound {
 			level.Debug(c.logger).Log("msg", "instance returned 404 for tag values v2", "instance", result.Instance)
 			continue
 		}
 
-		if result.Response.StatusCode != http.StatusOK {
-			level.Warn(c.logger).Log("msg", "instance returned non-OK status for tag values v2", "instance", result.Instance, "status", result.Response.StatusCode)
-			continue
-		}
-
-		// Body is already read by QueryAllInstances
-		if len(result.Body) == 0 {
-			level.Debug(c.logger).Log("msg", "instance returned empty body for tag values v2", "instance", result.Instance)
-			continue
-		}
-
-		// Parse the JSON response
-		var valuesResp tempopb.SearchTagValuesV2Response
-		if err := jsonpb.UnmarshalString(string(result.Body), &valuesResp); err != nil {
-			level.Warn(c.logger).Log("msg", "failed to unmarshal tag values v2 response", "instance", result.Instance, "err", err)
+		valuesResp := result.Response
+		if valuesResp == nil {
+			level.Debug(c.logger).Log("msg", "instance returned nil response for tag values v2", "instance", result.Instance)
 			continue
 		}
 

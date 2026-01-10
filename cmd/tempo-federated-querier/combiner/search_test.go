@@ -2,7 +2,6 @@ package combiner
 
 import (
 	"fmt"
-	"net/http"
 	"testing"
 
 	"github.com/go-kit/log"
@@ -15,23 +14,27 @@ func TestCombineSearchResults(t *testing.T) {
 
 	tests := []struct {
 		name            string
-		results         []QueryResult
+		results         []SearchResult
 		wantTracesCount int
 		wantResponded   int
 		wantFailed      int
 	}{
 		{
 			name:            "empty results",
-			results:         []QueryResult{},
+			results:         []SearchResult{},
 			wantTracesCount: 0,
 		},
 		{
 			name: "single instance with traces",
-			results: []QueryResult{
+			results: []SearchResult{
 				{
 					Instance: "inst1",
-					Response: &http.Response{StatusCode: http.StatusOK},
-					Body:     []byte(`{"traces":[{"traceID":"abc123","rootServiceName":"svc1","startTimeUnixNano":"1000000000","durationMs":100}],"metrics":{"inspectedTraces":"10","inspectedBytes":"1000"}}`),
+					Response: &tempopb.SearchResponse{
+						Traces: []*tempopb.TraceSearchMetadata{
+							{TraceID: "abc123", RootServiceName: "svc1", StartTimeUnixNano: 1000000000, DurationMs: 100},
+						},
+						Metrics: &tempopb.SearchMetrics{InspectedTraces: 10, InspectedBytes: 1000},
+					},
 				},
 			},
 			wantTracesCount: 1,
@@ -39,16 +42,24 @@ func TestCombineSearchResults(t *testing.T) {
 		},
 		{
 			name: "multiple instances with duplicate traces",
-			results: []QueryResult{
+			results: []SearchResult{
 				{
 					Instance: "inst1",
-					Response: &http.Response{StatusCode: http.StatusOK},
-					Body:     []byte(`{"traces":[{"traceID":"abc123","rootServiceName":"svc1","startTimeUnixNano":"1000000000","durationMs":100}],"metrics":{"inspectedTraces":"10"}}`),
+					Response: &tempopb.SearchResponse{
+						Traces: []*tempopb.TraceSearchMetadata{
+							{TraceID: "abc123", RootServiceName: "svc1", StartTimeUnixNano: 1000000000, DurationMs: 100},
+						},
+						Metrics: &tempopb.SearchMetrics{InspectedTraces: 10},
+					},
 				},
 				{
 					Instance: "inst2",
-					Response: &http.Response{StatusCode: http.StatusOK},
-					Body:     []byte(`{"traces":[{"traceID":"abc123","rootServiceName":"svc1","startTimeUnixNano":"1000000000","durationMs":100}],"metrics":{"inspectedTraces":"20"}}`),
+					Response: &tempopb.SearchResponse{
+						Traces: []*tempopb.TraceSearchMetadata{
+							{TraceID: "abc123", RootServiceName: "svc1", StartTimeUnixNano: 1000000000, DurationMs: 100},
+						},
+						Metrics: &tempopb.SearchMetrics{InspectedTraces: 20},
+					},
 				},
 			},
 			wantTracesCount: 1, // Deduplicated
@@ -56,16 +67,24 @@ func TestCombineSearchResults(t *testing.T) {
 		},
 		{
 			name: "multiple instances with different traces",
-			results: []QueryResult{
+			results: []SearchResult{
 				{
 					Instance: "inst1",
-					Response: &http.Response{StatusCode: http.StatusOK},
-					Body:     []byte(`{"traces":[{"traceID":"abc123","rootServiceName":"svc1","startTimeUnixNano":"1000000000","durationMs":100}],"metrics":{}}`),
+					Response: &tempopb.SearchResponse{
+						Traces: []*tempopb.TraceSearchMetadata{
+							{TraceID: "abc123", RootServiceName: "svc1", StartTimeUnixNano: 1000000000, DurationMs: 100},
+						},
+						Metrics: &tempopb.SearchMetrics{},
+					},
 				},
 				{
 					Instance: "inst2",
-					Response: &http.Response{StatusCode: http.StatusOK},
-					Body:     []byte(`{"traces":[{"traceID":"def456","rootServiceName":"svc2","startTimeUnixNano":"2000000000","durationMs":200}],"metrics":{}}`),
+					Response: &tempopb.SearchResponse{
+						Traces: []*tempopb.TraceSearchMetadata{
+							{TraceID: "def456", RootServiceName: "svc2", StartTimeUnixNano: 2000000000, DurationMs: 200},
+						},
+						Metrics: &tempopb.SearchMetrics{},
+					},
 				},
 			},
 			wantTracesCount: 2,
@@ -73,11 +92,15 @@ func TestCombineSearchResults(t *testing.T) {
 		},
 		{
 			name: "one failed instance",
-			results: []QueryResult{
+			results: []SearchResult{
 				{
 					Instance: "inst1",
-					Response: &http.Response{StatusCode: http.StatusOK},
-					Body:     []byte(`{"traces":[{"traceID":"abc123","startTimeUnixNano":"1000000000","durationMs":100}],"metrics":{}}`),
+					Response: &tempopb.SearchResponse{
+						Traces: []*tempopb.TraceSearchMetadata{
+							{TraceID: "abc123", StartTimeUnixNano: 1000000000, DurationMs: 100},
+						},
+						Metrics: &tempopb.SearchMetrics{},
+					},
 				},
 				{
 					Instance: "inst2",

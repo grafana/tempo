@@ -1,18 +1,38 @@
 package combiner
 
 import (
-	"net/http"
-
 	"github.com/go-kit/log"
+	"github.com/grafana/tempo/pkg/tempopb"
 )
 
-// QueryResult holds the result from a single Tempo instance
-type QueryResult struct {
+// InstanceResult is a generic result from a single Tempo instance
+type InstanceResult[T any] struct {
 	Instance string
-	Response *http.Response
-	Body     []byte
+	Response T
 	Error    error
+	NotFound bool // True if instance returned 404
 }
+
+// TraceResult holds a trace result from a single instance
+type TraceResult = InstanceResult[*tempopb.Trace]
+
+// TraceByIDResult holds a TraceByID v2 API result from a single instance
+type TraceByIDResult = InstanceResult[*tempopb.TraceByIDResponse]
+
+// SearchResult holds a search result from a single instance
+type SearchResult = InstanceResult[*tempopb.SearchResponse]
+
+// SearchTagsResult holds a tags result from a single instance
+type SearchTagsResult = InstanceResult[*tempopb.SearchTagsResponse]
+
+// SearchTagsV2Result holds a tags v2 result from a single instance
+type SearchTagsV2Result = InstanceResult[*tempopb.SearchTagsV2Response]
+
+// SearchTagValuesResult holds a tag values result from a single instance
+type SearchTagValuesResult = InstanceResult[*tempopb.SearchTagValuesResponse]
+
+// SearchTagValuesV2Result holds a tag values v2 result from a single instance
+type SearchTagValuesV2Result = InstanceResult[*tempopb.SearchTagValuesV2Response]
 
 // TraceMetrics contains metrics about the trace query
 type TraceMetrics struct {
@@ -58,3 +78,4 @@ func New(maxSizeBytes int, logger log.Logger) *Combiner {
 		logger:       logger,
 	}
 }
+

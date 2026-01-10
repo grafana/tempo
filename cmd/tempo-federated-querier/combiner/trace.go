@@ -1,25 +1,16 @@
 package combiner
 
 import (
-	"encoding/json"
 	"fmt"
-	"net/http"
 
 	"github.com/go-kit/log/level"
 	"github.com/grafana/tempo/pkg/model/trace"
 	"github.com/grafana/tempo/pkg/tempopb"
 )
 
-// traceByIDV2Response is a helper struct to parse v2 API responses
-// which wrap the trace in {"trace": {...}, "metrics": {...}}
-type traceByIDV2Response struct {
-	Trace   json.RawMessage `json:"trace"`
-	Metrics json.RawMessage `json:"metrics,omitempty"`
-}
-
-// CombineTraceResults combines trace results from multiple instances (v1 API - direct trace)
+// CombineTraceResults combines trace results from multiple instances
 // Returns a tempopb.Trace which can be properly marshaled to both protobuf and JSON
-func (c *Combiner) CombineTraceResults(results []QueryResult) (*tempopb.Trace, *CombineMetadata, error) {
+func (c *Combiner) CombineTraceResults(results []TraceResult) (*tempopb.Trace, *CombineMetadata, error) {
 	metadata := &CombineMetadata{
 		InstancesQueried: len(results),
 	}
@@ -35,7 +26,7 @@ func (c *Combiner) CombineTraceResults(results []QueryResult) (*tempopb.Trace, *
 			continue
 		}
 
-		if result.Response != nil && result.Response.StatusCode == http.StatusNotFound {
+		if result.NotFound {
 			// 404 is a valid response - trace simply not found in this instance
 			metadata.InstancesResponded++
 			metadata.InstancesNotFound++
@@ -43,25 +34,10 @@ func (c *Combiner) CombineTraceResults(results []QueryResult) (*tempopb.Trace, *
 			continue
 		}
 
-		if result.Response != nil && result.Response.StatusCode != http.StatusOK {
-			metadata.InstancesFailed++
-			metadata.Errors = append(metadata.Errors, fmt.Sprintf("%s: status %d", result.Instance, result.Response.StatusCode))
-			level.Warn(c.logger).Log("msg", "instance returned error status", "instance", result.Instance, "status", result.Response.StatusCode)
-			continue
-		}
-
 		metadata.InstancesResponded++
 
-		// Parse the trace using tempopb's UnmarshalFromJSONV1 which handles the batches->resourceSpans conversion
-		tr := &tempopb.Trace{}
-		if err := tempopb.UnmarshalFromJSONV1(result.Body, tr); err != nil {
-			level.Warn(c.logger).Log("msg", "failed to unmarshal trace", "instance", result.Instance, "err", err)
-			metadata.Errors = append(metadata.Errors, fmt.Sprintf("%s: unmarshal error: %v", result.Instance, err))
-			continue
-		}
-
-		// Check if trace has any spans
-		if len(tr.ResourceSpans) == 0 {
+		tr := result.Response
+		if tr == nil || len(tr.ResourceSpans) == 0 {
 			level.Debug(c.logger).Log("msg", "trace response has no spans", "instance", result.Instance)
 			metadata.InstancesNotFound++
 			continue
@@ -99,9 +75,9 @@ func (c *Combiner) CombineTraceResults(results []QueryResult) (*tempopb.Trace, *
 	return combinedTrace, metadata, nil
 }
 
-// CombineTraceResultsV2 combines trace results from multiple instances (v2 API - wrapped response)
+// CombineTraceResultsV2 combines trace results from multiple instances (v2 API with metrics)
 // Returns a tempopb.Trace which can be properly marshaled to both protobuf and JSON
-func (c *Combiner) CombineTraceResultsV2(results []QueryResult) (*tempopb.Trace, *CombineMetadata, error) {
+func (c *Combiner) CombineTraceResultsV2(results []TraceByIDResult) (*tempopb.Trace, *CombineMetadata, error) {
 	metadata := &CombineMetadata{
 		InstancesQueried: len(results),
 	}
@@ -117,7 +93,7 @@ func (c *Combiner) CombineTraceResultsV2(results []QueryResult) (*tempopb.Trace,
 			continue
 		}
 
-		if result.Response != nil && result.Response.StatusCode == http.StatusNotFound {
+		if result.NotFound {
 			// 404 is a valid response - trace simply not found in this instance
 			metadata.InstancesResponded++
 			metadata.InstancesNotFound++
@@ -125,40 +101,10 @@ func (c *Combiner) CombineTraceResultsV2(results []QueryResult) (*tempopb.Trace,
 			continue
 		}
 
-		if result.Response != nil && result.Response.StatusCode != http.StatusOK {
-			metadata.InstancesFailed++
-			metadata.Errors = append(metadata.Errors, fmt.Sprintf("%s: status %d", result.Instance, result.Response.StatusCode))
-			level.Warn(c.logger).Log("msg", "instance returned error status", "instance", result.Instance, "status", result.Response.StatusCode)
-			continue
-		}
-
 		metadata.InstancesResponded++
 
-		// v2 API returns wrapped response: {"trace": {...}, "metrics": {...}}
-		var v2Resp traceByIDV2Response
-		if err := json.Unmarshal(result.Body, &v2Resp); err != nil {
-			level.Warn(c.logger).Log("msg", "failed to unmarshal v2 response wrapper", "instance", result.Instance, "err", err)
-			metadata.Errors = append(metadata.Errors, fmt.Sprintf("%s: v2 wrapper unmarshal error: %v", result.Instance, err))
-			continue
-		}
-
-		// Check if we got a trace
-		if len(v2Resp.Trace) == 0 {
-			level.Debug(c.logger).Log("msg", "v2 response has no trace", "instance", result.Instance)
-			metadata.InstancesNotFound++
-			continue
-		}
-
-		// Parse the trace from the wrapper using tempopb's UnmarshalFromJSONV1
-		tr := &tempopb.Trace{}
-		if err := tempopb.UnmarshalFromJSONV1(v2Resp.Trace, tr); err != nil {
-			level.Warn(c.logger).Log("msg", "failed to unmarshal trace from v2 response", "instance", result.Instance, "err", err)
-			metadata.Errors = append(metadata.Errors, fmt.Sprintf("%s: trace unmarshal error: %v", result.Instance, err))
-			continue
-		}
-
-		// Check if trace has any spans
-		if len(tr.ResourceSpans) == 0 {
+		resp := result.Response
+		if resp == nil || resp.Trace == nil || len(resp.Trace.ResourceSpans) == 0 {
 			level.Debug(c.logger).Log("msg", "trace response has no spans", "instance", result.Instance)
 			metadata.InstancesNotFound++
 			continue
@@ -167,7 +113,7 @@ func (c *Combiner) CombineTraceResultsV2(results []QueryResult) (*tempopb.Trace,
 		metadata.InstancesWithTrace++
 
 		// Consume the trace into the combiner
-		spanCount, err := combiner.Consume(tr)
+		spanCount, err := combiner.Consume(resp.Trace)
 		if err != nil {
 			level.Warn(c.logger).Log("msg", "error consuming trace", "instance", result.Instance, "err", err)
 			metadata.Errors = append(metadata.Errors, fmt.Sprintf("%s: consume error: %v", result.Instance, err))
@@ -195,3 +141,4 @@ func (c *Combiner) CombineTraceResultsV2(results []QueryResult) (*tempopb.Trace,
 
 	return combinedTrace, metadata, nil
 }
+

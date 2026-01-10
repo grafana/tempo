@@ -6,23 +6,24 @@ import (
 	"net/http"
 
 	"github.com/go-kit/log/level"
-	"github.com/grafana/tempo/cmd/tempo-federated-querier/client"
+	"github.com/grafana/tempo/pkg/api"
 )
 
 // SearchHandler handles search requests across all Tempo instances
 func (h *Handler) SearchHandler(w http.ResponseWriter, r *http.Request) {
-	// Pass through all query parameters to each instance
-	queryParams := r.URL.RawQuery
-
 	ctx, cancel := context.WithTimeout(r.Context(), h.cfg.QueryTimeout)
 	defer cancel()
 
-	level.Info(h.logger).Log("msg", "searching traces", "query", queryParams)
+	req, err := api.ParseSearchRequest(r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	level.Info(h.logger).Log("msg", "searching traces", "query", req.Query, "start", req.Start, "end", req.End)
 
 	// Query all instances in parallel
-	results := h.querier.QueryAllInstances(ctx, func(ctx context.Context, c client.TempoClient) (*http.Response, error) {
-		return c.Search(ctx, queryParams)
-	})
+	results := h.querier.Search(ctx, req.Query, int64(req.Start), int64(req.End))
 
 	// Combine search results
 	combinedResponse, metadata, err := h.combiner.CombineSearchResults(results)
@@ -40,5 +41,5 @@ func (h *Handler) SearchHandler(w http.ResponseWriter, r *http.Request) {
 		"tracesFound", len(combinedResponse.Traces),
 	)
 
-	h.writeProtoResponse(w, r, combinedResponse)
+	h.writeFormattedContentForRequest(w, r, combinedResponse)
 }

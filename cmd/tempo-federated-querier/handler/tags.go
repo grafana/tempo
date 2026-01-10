@@ -6,23 +6,24 @@ import (
 	"net/http"
 
 	"github.com/go-kit/log/level"
-	"github.com/gorilla/mux"
-	"github.com/grafana/tempo/cmd/tempo-federated-querier/client"
+	"github.com/grafana/tempo/pkg/api"
 )
 
 // SearchTagsHandler handles search tags requests across all Tempo instances
 func (h *Handler) SearchTagsHandler(w http.ResponseWriter, r *http.Request) {
-	queryParams := r.URL.RawQuery
-
 	ctx, cancel := context.WithTimeout(r.Context(), h.cfg.QueryTimeout)
 	defer cancel()
 
-	level.Debug(h.logger).Log("msg", "searching tags", "query", queryParams)
+	req, err := api.ParseSearchTagsRequest(r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	level.Debug(h.logger).Log("msg", "searching tags", "scope", req.Scope, "start", req.Start, "end", req.End)
 
 	// Query all instances in parallel
-	results := h.querier.QueryAllInstances(ctx, func(ctx context.Context, c client.TempoClient) (*http.Response, error) {
-		return c.SearchTags(ctx, queryParams)
-	})
+	results := h.querier.SearchTags(ctx, int64(req.Start), int64(req.End))
 
 	// Combine tag results
 	combinedResponse, err := h.combiner.CombineTagsResults(results)
@@ -34,22 +35,24 @@ func (h *Handler) SearchTagsHandler(w http.ResponseWriter, r *http.Request) {
 
 	level.Debug(h.logger).Log("msg", "tags search completed", "tagsFound", len(combinedResponse.TagNames))
 
-	h.writeProtoResponse(w, r, combinedResponse)
+	h.writeFormattedContentForRequest(w, r, combinedResponse)
 }
 
 // SearchTagsV2Handler handles v2 search tags requests across all Tempo instances
 func (h *Handler) SearchTagsV2Handler(w http.ResponseWriter, r *http.Request) {
-	queryParams := r.URL.RawQuery
-
 	ctx, cancel := context.WithTimeout(r.Context(), h.cfg.QueryTimeout)
 	defer cancel()
 
-	level.Debug(h.logger).Log("msg", "searching tags v2", "query", queryParams)
+	req, err := api.ParseSearchTagsRequest(r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	level.Debug(h.logger).Log("msg", "searching tags v2", "scope", req.Scope, "start", req.Start, "end", req.End)
 
 	// Query all instances in parallel
-	results := h.querier.QueryAllInstances(ctx, func(ctx context.Context, c client.TempoClient) (*http.Response, error) {
-		return c.SearchTagsV2(ctx, queryParams)
-	})
+	results := h.querier.SearchTagsV2(ctx, int64(req.Start), int64(req.End))
 
 	// Combine tag results
 	combinedResponse, err := h.combiner.CombineTagsV2Results(results)
@@ -61,29 +64,24 @@ func (h *Handler) SearchTagsV2Handler(w http.ResponseWriter, r *http.Request) {
 
 	level.Debug(h.logger).Log("msg", "tags v2 search completed", "scopesFound", len(combinedResponse.Scopes))
 
-	h.writeProtoResponse(w, r, combinedResponse)
+	h.writeFormattedContentForRequest(w, r, combinedResponse)
 }
 
 // SearchTagValuesHandler handles search tag values requests across all Tempo instances
 func (h *Handler) SearchTagValuesHandler(w http.ResponseWriter, r *http.Request) {
-	vars := mux.Vars(r)
-	tagName := vars["tagName"]
-	queryParams := r.URL.RawQuery
-
-	if tagName == "" {
-		http.Error(w, "tagName is required", http.StatusBadRequest)
-		return
-	}
-
 	ctx, cancel := context.WithTimeout(r.Context(), h.cfg.QueryTimeout)
 	defer cancel()
 
-	level.Debug(h.logger).Log("msg", "searching tag values", "tag", tagName, "query", queryParams)
+	req, err := api.ParseSearchTagValuesRequest(r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	level.Debug(h.logger).Log("msg", "searching tag values", "tag", req.TagName)
 
 	// Query all instances in parallel
-	results := h.querier.QueryAllInstances(ctx, func(ctx context.Context, c client.TempoClient) (*http.Response, error) {
-		return c.SearchTagValues(ctx, tagName, queryParams)
-	})
+	results := h.querier.SearchTagValues(ctx, req.TagName)
 
 	// Combine tag values results
 	combinedResponse, err := h.combiner.CombineTagValuesResults(results)
@@ -93,31 +91,26 @@ func (h *Handler) SearchTagValuesHandler(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	level.Debug(h.logger).Log("msg", "tag values search completed", "tag", tagName, "valuesFound", len(combinedResponse.TagValues))
+	level.Debug(h.logger).Log("msg", "tag values search completed", "tag", req.TagName, "valuesFound", len(combinedResponse.TagValues))
 
-	h.writeProtoResponse(w, r, combinedResponse)
+	h.writeFormattedContentForRequest(w, r, combinedResponse)
 }
 
 // SearchTagValuesV2Handler handles v2 search tag values requests across all Tempo instances
 func (h *Handler) SearchTagValuesV2Handler(w http.ResponseWriter, r *http.Request) {
-	vars := mux.Vars(r)
-	tagName := vars["tagName"]
-	queryParams := r.URL.RawQuery
-
-	if tagName == "" {
-		http.Error(w, "tagName is required", http.StatusBadRequest)
-		return
-	}
-
 	ctx, cancel := context.WithTimeout(r.Context(), h.cfg.QueryTimeout)
 	defer cancel()
 
-	level.Debug(h.logger).Log("msg", "searching tag values v2", "tag", tagName, "query", queryParams)
+	req, err := api.ParseSearchTagValuesRequestV2(r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	level.Debug(h.logger).Log("msg", "searching tag values v2", "tag", req.TagName, "query", req.Query, "start", req.Start, "end", req.End)
 
 	// Query all instances in parallel
-	results := h.querier.QueryAllInstances(ctx, func(ctx context.Context, c client.TempoClient) (*http.Response, error) {
-		return c.SearchTagValuesV2(ctx, tagName, queryParams)
-	})
+	results := h.querier.SearchTagValuesV2(ctx, req.TagName, req.Query, int64(req.Start), int64(req.End))
 
 	// Combine tag values results
 	combinedResponse, err := h.combiner.CombineTagValuesV2Results(results)
@@ -127,7 +120,7 @@ func (h *Handler) SearchTagValuesV2Handler(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	level.Debug(h.logger).Log("msg", "tag values v2 search completed", "tag", tagName, "valuesFound", len(combinedResponse.TagValues))
+	level.Debug(h.logger).Log("msg", "tag values v2 search completed", "tag", req.TagName, "valuesFound", len(combinedResponse.TagValues))
 
-	h.writeProtoResponse(w, r, combinedResponse)
+	h.writeFormattedContentForRequest(w, r, combinedResponse)
 }

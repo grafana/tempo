@@ -2,17 +2,14 @@ package combiner
 
 import (
 	"fmt"
-	"net/http"
-	"strings"
 
 	"github.com/go-kit/log/level"
-	"github.com/gogo/protobuf/jsonpb"
 	"github.com/grafana/tempo/pkg/tempopb"
 )
 
 // CombineSearchResults combines search results from multiple instances
 // Deduplicates traces by traceID and merges metrics
-func (c *Combiner) CombineSearchResults(results []QueryResult) (*tempopb.SearchResponse, *SearchMetadata, error) {
+func (c *Combiner) CombineSearchResults(results []SearchResult) (*tempopb.SearchResponse, *SearchMetadata, error) {
 	metadata := &SearchMetadata{
 		InstancesQueried: len(results),
 	}
@@ -31,20 +28,17 @@ func (c *Combiner) CombineSearchResults(results []QueryResult) (*tempopb.SearchR
 			continue
 		}
 
-		if result.Response != nil && result.Response.StatusCode != http.StatusOK {
+		if result.NotFound {
 			metadata.InstancesFailed++
-			metadata.Errors = append(metadata.Errors, fmt.Sprintf("%s: status %d", result.Instance, result.Response.StatusCode))
-			level.Warn(c.logger).Log("msg", "instance returned error status", "instance", result.Instance, "status", result.Response.StatusCode)
+			metadata.Errors = append(metadata.Errors, fmt.Sprintf("%s: not found", result.Instance))
+			level.Warn(c.logger).Log("msg", "instance returned not found", "instance", result.Instance)
 			continue
 		}
 
 		metadata.InstancesResponded++
 
-		// Parse the search response using jsonpb for proper uint64 string handling
-		var searchResp tempopb.SearchResponse
-		if err := jsonpb.Unmarshal(strings.NewReader(string(result.Body)), &searchResp); err != nil {
-			level.Warn(c.logger).Log("msg", "failed to unmarshal search response", "instance", result.Instance, "err", err)
-			metadata.Errors = append(metadata.Errors, fmt.Sprintf("%s: unmarshal error: %v", result.Instance, err))
+		searchResp := result.Response
+		if searchResp == nil {
 			continue
 		}
 

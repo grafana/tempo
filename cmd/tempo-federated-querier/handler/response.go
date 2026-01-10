@@ -2,61 +2,55 @@ package handler
 
 import (
 	"encoding/json"
-	"fmt"
 	"net/http"
-	"strings"
+	"reflect"
 
 	"github.com/go-kit/log/level"
 	"github.com/gogo/protobuf/jsonpb"
 	"github.com/gogo/protobuf/proto"
+	"github.com/grafana/tempo/pkg/api"
 )
 
-const (
-	contentTypeJSON     = "application/json"
-	contentTypeProtobuf = "application/protobuf"
-	acceptHeader        = "Accept"
-)
-
-// writeProtoResponse writes a protobuf message in the appropriate format based on Accept header
-func (h *Handler) writeProtoResponse(w http.ResponseWriter, r *http.Request, msg proto.Message) {
-	accept := r.Header.Get(acceptHeader)
-
-	// Check if protobuf is requested
-	if strings.Contains(accept, contentTypeProtobuf) {
-		h.writeProtobuf(w, msg)
+// writeFormattedContentForRequest writes a protobuf message in the appropriate format based on Accept header
+func (h *Handler) writeFormattedContentForRequest(w http.ResponseWriter, r *http.Request, m proto.Message) {
+	// Check for both explicit nil and typed nil pointers (e.g., (*tempopb.SearchResponse)(nil))
+	// A typed nil pointer is not equal to nil when passed as an interface, so we need reflection
+	if m == nil || (reflect.ValueOf(m).Kind() == reflect.Ptr && reflect.ValueOf(m).IsNil()) {
+		http.Error(w, "internal error: nil response", http.StatusInternalServerError)
 		return
 	}
 
-	// Default to JSON
-	h.writeProtobufAsJSON(w, msg)
-}
+	switch r.Header.Get(api.HeaderAccept) {
+	case api.HeaderAcceptProtobuf:
+		b, err := proto.Marshal(m)
+		if err != nil {
+			level.Error(h.logger).Log("msg", "failed to marshal response to protobuf", "err", err)
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
 
-// writeProtobuf marshals and writes a protobuf message as binary protobuf
-func (h *Handler) writeProtobuf(w http.ResponseWriter, msg proto.Message) {
-	w.Header().Set("Content-Type", contentTypeProtobuf)
-	data, err := proto.Marshal(msg)
-	if err != nil {
-		level.Error(h.logger).Log("msg", "failed to marshal response to protobuf", "err", err)
-		http.Error(w, fmt.Sprintf("failed to marshal response: %v", err), http.StatusInternalServerError)
-		return
-	}
-	w.Write(data)
-}
+		w.Header().Set(api.HeaderContentType, api.HeaderAcceptProtobuf)
+		_, err = w.Write(b)
+		if err != nil {
+			level.Error(h.logger).Log("msg", "failed to write protobuf response", "err", err)
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
 
-// writeProtobufAsJSON marshals and writes a protobuf message as JSON using jsonpb
-func (h *Handler) writeProtobufAsJSON(w http.ResponseWriter, msg proto.Message) {
-	w.Header().Set("Content-Type", contentTypeJSON)
-	marshaler := &jsonpb.Marshaler{}
-	if err := marshaler.Marshal(w, msg); err != nil {
-		level.Error(h.logger).Log("msg", "failed to marshal response to JSON", "err", err)
-		http.Error(w, fmt.Sprintf("failed to marshal response: %v", err), http.StatusInternalServerError)
-		return
+	default:
+		w.Header().Set(api.HeaderContentType, api.HeaderAcceptJSON)
+		err := new(jsonpb.Marshaler).Marshal(w, m)
+		if err != nil {
+			level.Error(h.logger).Log("msg", "failed to marshal response to JSON", "err", err)
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
 	}
 }
 
 // writeJSONResponse writes a generic JSON response
 func (h *Handler) writeJSONResponse(w http.ResponseWriter, data interface{}) {
-	w.Header().Set("Content-Type", contentTypeJSON)
+	w.Header().Set(api.HeaderContentType, api.HeaderAcceptJSON)
 	if err := json.NewEncoder(w).Encode(data); err != nil {
 		level.Error(h.logger).Log("msg", "failed to encode JSON response", "err", err)
 	}

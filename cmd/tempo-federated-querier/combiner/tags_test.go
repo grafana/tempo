@@ -1,7 +1,6 @@
 package combiner
 
 import (
-	"net/http"
 	"testing"
 
 	"github.com/go-kit/log"
@@ -14,52 +13,56 @@ func TestCombineTagsResults(t *testing.T) {
 
 	tests := []struct {
 		name          string
-		results       []QueryResult
+		results       []SearchTagsResult
 		wantTagsCount int
 	}{
 		{
 			name:          "empty results",
-			results:       []QueryResult{},
+			results:       []SearchTagsResult{},
 			wantTagsCount: 0,
 		},
 		{
 			name: "single instance with tags",
-			results: []QueryResult{
+			results: []SearchTagsResult{
 				{
 					Instance: "inst1",
-					Response: &http.Response{StatusCode: http.StatusOK},
-					Body:     []byte(`{"tagNames":["service.name","http.method","http.status_code"]}`),
+					Response: &tempopb.SearchTagsResponse{
+						TagNames: []string{"service.name", "http.method", "http.status_code"},
+					},
 				},
 			},
 			wantTagsCount: 3,
 		},
 		{
 			name: "multiple instances with duplicate tags",
-			results: []QueryResult{
+			results: []SearchTagsResult{
 				{
 					Instance: "inst1",
-					Response: &http.Response{StatusCode: http.StatusOK},
-					Body:     []byte(`{"tagNames":["service.name","http.method"]}`),
+					Response: &tempopb.SearchTagsResponse{
+						TagNames: []string{"service.name", "http.method"},
+					},
 				},
 				{
 					Instance: "inst2",
-					Response: &http.Response{StatusCode: http.StatusOK},
-					Body:     []byte(`{"tagNames":["service.name","http.status_code"]}`),
+					Response: &tempopb.SearchTagsResponse{
+						TagNames: []string{"service.name", "http.status_code"},
+					},
 				},
 			},
 			wantTagsCount: 3, // Deduplicated: service.name, http.method, http.status_code
 		},
 		{
 			name: "skip 404 responses",
-			results: []QueryResult{
+			results: []SearchTagsResult{
 				{
 					Instance: "inst1",
-					Response: &http.Response{StatusCode: http.StatusOK},
-					Body:     []byte(`{"tagNames":["tag1"]}`),
+					Response: &tempopb.SearchTagsResponse{
+						TagNames: []string{"tag1"},
+					},
 				},
 				{
 					Instance: "inst2",
-					Response: &http.Response{StatusCode: http.StatusNotFound},
+					NotFound: true,
 				},
 			},
 			wantTagsCount: 1,
@@ -86,32 +89,43 @@ func TestCombineTagsV2Results(t *testing.T) {
 
 	tests := []struct {
 		name            string
-		results         []QueryResult
+		results         []SearchTagsV2Result
 		wantScopesCount int
 	}{
 		{
 			name: "single instance with scopes",
-			results: []QueryResult{
+			results: []SearchTagsV2Result{
 				{
 					Instance: "inst1",
-					Response: &http.Response{StatusCode: http.StatusOK},
-					Body:     []byte(`{"scopes":[{"name":"resource","tags":["service.name"]},{"name":"span","tags":["http.method"]}]}`),
+					Response: &tempopb.SearchTagsV2Response{
+						Scopes: []*tempopb.SearchTagsV2Scope{
+							{Name: "resource", Tags: []string{"service.name"}},
+							{Name: "span", Tags: []string{"http.method"}},
+						},
+					},
 				},
 			},
 			wantScopesCount: 2,
 		},
 		{
 			name: "multiple instances merge scopes",
-			results: []QueryResult{
+			results: []SearchTagsV2Result{
 				{
 					Instance: "inst1",
-					Response: &http.Response{StatusCode: http.StatusOK},
-					Body:     []byte(`{"scopes":[{"name":"resource","tags":["service.name"]}]}`),
+					Response: &tempopb.SearchTagsV2Response{
+						Scopes: []*tempopb.SearchTagsV2Scope{
+							{Name: "resource", Tags: []string{"service.name"}},
+						},
+					},
 				},
 				{
 					Instance: "inst2",
-					Response: &http.Response{StatusCode: http.StatusOK},
-					Body:     []byte(`{"scopes":[{"name":"resource","tags":["service.namespace"]},{"name":"span","tags":["http.method"]}]}`),
+					Response: &tempopb.SearchTagsV2Response{
+						Scopes: []*tempopb.SearchTagsV2Scope{
+							{Name: "resource", Tags: []string{"service.namespace"}},
+							{Name: "span", Tags: []string{"http.method"}},
+						},
+					},
 				},
 			},
 			wantScopesCount: 2, // resource and span scopes merged
@@ -138,32 +152,35 @@ func TestCombineTagValuesResults(t *testing.T) {
 
 	tests := []struct {
 		name            string
-		results         []QueryResult
+		results         []SearchTagValuesResult
 		wantValuesCount int
 	}{
 		{
 			name: "single instance with values",
-			results: []QueryResult{
+			results: []SearchTagValuesResult{
 				{
 					Instance: "inst1",
-					Response: &http.Response{StatusCode: http.StatusOK},
-					Body:     []byte(`{"tagValues":["value1","value2","value3"]}`),
+					Response: &tempopb.SearchTagValuesResponse{
+						TagValues: []string{"value1", "value2", "value3"},
+					},
 				},
 			},
 			wantValuesCount: 3,
 		},
 		{
 			name: "multiple instances with duplicate values",
-			results: []QueryResult{
+			results: []SearchTagValuesResult{
 				{
 					Instance: "inst1",
-					Response: &http.Response{StatusCode: http.StatusOK},
-					Body:     []byte(`{"tagValues":["value1","value2"]}`),
+					Response: &tempopb.SearchTagValuesResponse{
+						TagValues: []string{"value1", "value2"},
+					},
 				},
 				{
 					Instance: "inst2",
-					Response: &http.Response{StatusCode: http.StatusOK},
-					Body:     []byte(`{"tagValues":["value2","value3"]}`),
+					Response: &tempopb.SearchTagValuesResponse{
+						TagValues: []string{"value2", "value3"},
+					},
 				},
 			},
 			wantValuesCount: 3, // Deduplicated
@@ -190,32 +207,43 @@ func TestCombineTagValuesV2Results(t *testing.T) {
 
 	tests := []struct {
 		name            string
-		results         []QueryResult
+		results         []SearchTagValuesV2Result
 		wantValuesCount int
 	}{
 		{
 			name: "single instance with typed values",
-			results: []QueryResult{
+			results: []SearchTagValuesV2Result{
 				{
 					Instance: "inst1",
-					Response: &http.Response{StatusCode: http.StatusOK},
-					Body:     []byte(`{"tagValues":[{"type":"string","value":"val1"},{"type":"int","value":"123"}]}`),
+					Response: &tempopb.SearchTagValuesV2Response{
+						TagValues: []*tempopb.TagValue{
+							{Type: "string", Value: "val1"},
+							{Type: "int", Value: "123"},
+						},
+					},
 				},
 			},
 			wantValuesCount: 2,
 		},
 		{
 			name: "multiple instances deduplicate by value",
-			results: []QueryResult{
+			results: []SearchTagValuesV2Result{
 				{
 					Instance: "inst1",
-					Response: &http.Response{StatusCode: http.StatusOK},
-					Body:     []byte(`{"tagValues":[{"type":"string","value":"val1"}]}`),
+					Response: &tempopb.SearchTagValuesV2Response{
+						TagValues: []*tempopb.TagValue{
+							{Type: "string", Value: "val1"},
+						},
+					},
 				},
 				{
 					Instance: "inst2",
-					Response: &http.Response{StatusCode: http.StatusOK},
-					Body:     []byte(`{"tagValues":[{"type":"string","value":"val1"},{"type":"string","value":"val2"}]}`),
+					Response: &tempopb.SearchTagValuesV2Response{
+						TagValues: []*tempopb.TagValue{
+							{Type: "string", Value: "val1"},
+							{Type: "string", Value: "val2"},
+						},
+					},
 				},
 			},
 			wantValuesCount: 2, // val1 deduplicated

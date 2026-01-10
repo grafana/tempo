@@ -2,10 +2,12 @@ package combiner
 
 import (
 	"fmt"
-	"net/http"
 	"testing"
 
 	"github.com/go-kit/log"
+	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
+	v1_resource "github.com/grafana/tempo/pkg/tempopb/resource/v1"
+	v1_common "github.com/grafana/tempo/pkg/tempopb/common/v1"
 	"github.com/grafana/tempo/pkg/tempopb"
 )
 
@@ -15,7 +17,7 @@ func TestCombineTraceResults(t *testing.T) {
 
 	tests := []struct {
 		name          string
-		results       []QueryResult
+		results       []TraceResult
 		wantTrace     bool
 		wantSpanCount int
 		wantWithTrace int
@@ -24,22 +26,22 @@ func TestCombineTraceResults(t *testing.T) {
 	}{
 		{
 			name:          "empty results",
-			results:       []QueryResult{},
+			results:       []TraceResult{},
 			wantTrace:     false,
 			wantSpanCount: 0,
 		},
 		{
 			name: "all 404s",
-			results: []QueryResult{
-				{Instance: "inst1", Response: &http.Response{StatusCode: http.StatusNotFound}},
-				{Instance: "inst2", Response: &http.Response{StatusCode: http.StatusNotFound}},
+			results: []TraceResult{
+				{Instance: "inst1", NotFound: true},
+				{Instance: "inst2", NotFound: true},
 			},
 			wantTrace:    false,
 			wantNotFound: 2,
 		},
 		{
 			name: "one error",
-			results: []QueryResult{
+			results: []TraceResult{
 				{Instance: "inst1", Error: fmt.Errorf("connection refused")},
 			},
 			wantTrace:  false,
@@ -47,11 +49,24 @@ func TestCombineTraceResults(t *testing.T) {
 		},
 		{
 			name: "valid trace from one instance",
-			results: []QueryResult{
+			results: []TraceResult{
 				{
 					Instance: "inst1",
-					Response: &http.Response{StatusCode: http.StatusOK},
-					Body:     []byte(`{"batches":[{"resource":{"attributes":[]},"scopeSpans":[{"scope":{},"spans":[{"traceId":"AAAAAAAAAAAAAAAAAAAAAA==","spanId":"AAAAAAAAAAE=","name":"test-span","startTimeUnixNano":"1000000000","endTimeUnixNano":"2000000000"}]}]}]}`),
+					Response: &tempopb.Trace{
+						ResourceSpans: []*v1.ResourceSpans{
+							{
+								Resource: &v1_resource.Resource{},
+								ScopeSpans: []*v1.ScopeSpans{
+									{
+										Scope: &v1_common.InstrumentationScope{},
+										Spans: []*v1.Span{
+											{TraceId: []byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}, SpanId: []byte{0, 0, 0, 0, 0, 0, 0, 1}, Name: "test-span", StartTimeUnixNano: 1000000000, EndTimeUnixNano: 2000000000},
+										},
+									},
+								},
+							},
+						},
+					},
 				},
 			},
 			wantTrace:     true,
@@ -60,13 +75,26 @@ func TestCombineTraceResults(t *testing.T) {
 		},
 		{
 			name: "mixed results - one valid, one 404, one error",
-			results: []QueryResult{
+			results: []TraceResult{
 				{
 					Instance: "inst1",
-					Response: &http.Response{StatusCode: http.StatusOK},
-					Body:     []byte(`{"batches":[{"resource":{"attributes":[]},"scopeSpans":[{"scope":{},"spans":[{"traceId":"AAAAAAAAAAAAAAAAAAAAAA==","spanId":"AAAAAAAAAAE=","name":"test-span","startTimeUnixNano":"1000000000","endTimeUnixNano":"2000000000"}]}]}]}`),
+					Response: &tempopb.Trace{
+						ResourceSpans: []*v1.ResourceSpans{
+							{
+								Resource: &v1_resource.Resource{},
+								ScopeSpans: []*v1.ScopeSpans{
+									{
+										Scope: &v1_common.InstrumentationScope{},
+										Spans: []*v1.Span{
+											{TraceId: []byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}, SpanId: []byte{0, 0, 0, 0, 0, 0, 0, 1}, Name: "test-span", StartTimeUnixNano: 1000000000, EndTimeUnixNano: 2000000000},
+										},
+									},
+								},
+							},
+						},
+					},
 				},
-				{Instance: "inst2", Response: &http.Response{StatusCode: http.StatusNotFound}},
+				{Instance: "inst2", NotFound: true},
 				{Instance: "inst3", Error: fmt.Errorf("timeout")},
 			},
 			wantTrace:     true,
@@ -113,17 +141,33 @@ func TestCombineTraceResultsV2(t *testing.T) {
 
 	tests := []struct {
 		name          string
-		results       []QueryResult
+		results       []TraceByIDResult
 		wantTrace     bool
 		wantWithTrace int
 	}{
 		{
 			name: "valid v2 response",
-			results: []QueryResult{
+			results: []TraceByIDResult{
 				{
 					Instance: "inst1",
-					Response: &http.Response{StatusCode: http.StatusOK},
-					Body:     []byte(`{"trace":{"batches":[{"resource":{"attributes":[]},"scopeSpans":[{"scope":{},"spans":[{"traceId":"AAAAAAAAAAAAAAAAAAAAAA==","spanId":"AAAAAAAAAAE=","name":"test-span","startTimeUnixNano":"1000000000","endTimeUnixNano":"2000000000"}]}]}]},"metrics":{}}`),
+					Response: &tempopb.TraceByIDResponse{
+						Trace: &tempopb.Trace{
+							ResourceSpans: []*v1.ResourceSpans{
+								{
+									Resource: &v1_resource.Resource{},
+									ScopeSpans: []*v1.ScopeSpans{
+										{
+											Scope: &v1_common.InstrumentationScope{},
+											Spans: []*v1.Span{
+												{TraceId: []byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}, SpanId: []byte{0, 0, 0, 0, 0, 0, 0, 1}, Name: "test-span", StartTimeUnixNano: 1000000000, EndTimeUnixNano: 2000000000},
+											},
+										},
+									},
+								},
+							},
+						},
+						Metrics: &tempopb.TraceByIDMetrics{},
+					},
 				},
 			},
 			wantTrace:     true,
@@ -131,11 +175,13 @@ func TestCombineTraceResultsV2(t *testing.T) {
 		},
 		{
 			name: "empty trace in v2 response",
-			results: []QueryResult{
+			results: []TraceByIDResult{
 				{
 					Instance: "inst1",
-					Response: &http.Response{StatusCode: http.StatusOK},
-					Body:     []byte(`{"trace":null,"metrics":{}}`),
+					Response: &tempopb.TraceByIDResponse{
+						Trace:   nil,
+						Metrics: &tempopb.TraceByIDMetrics{},
+					},
 				},
 			},
 			wantTrace:     false,
