@@ -2,10 +2,11 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"time"
 )
 
-// TempoInstance represents a single Tempo instance configuration
+// TempoInstance represents a single Tempo instance configuration.
 type TempoInstance struct {
 	// Name is a friendly name for this instance
 	Name string `yaml:"name"`
@@ -19,7 +20,7 @@ type TempoInstance struct {
 	Headers map[string]string `yaml:"headers,omitempty"`
 }
 
-// Config holds the configuration for the federated querier
+// Config is the root config for the federated querier.
 type Config struct {
 	// Server configuration
 	HTTPListenAddress string `yaml:"http_listen_address"`
@@ -35,38 +36,82 @@ type Config struct {
 	AllowPartialResponses bool          `yaml:"allow_partial_responses"`
 }
 
-// RegisterFlagsAndApplyDefaults registers flags and sets default values
-func (cfg *Config) RegisterFlagsAndApplyDefaults(f *flag.FlagSet) {
-	f.StringVar(&cfg.HTTPListenAddress, "server.http-listen-address", "0.0.0.0", "HTTP server listen address")
-	f.IntVar(&cfg.HTTPListenPort, "server.http-listen-port", 3200, "HTTP server listen port")
-	f.DurationVar(&cfg.QueryTimeout, "query.timeout", 30*time.Second, "Timeout for trace by ID queries")
-	f.IntVar(&cfg.MaxConcurrentQueries, "query.max-concurrent", 20, "Maximum concurrent queries per request")
-	f.IntVar(&cfg.MaxBytesPerTrace, "query.max-bytes-per-trace", 50*1024*1024, "Maximum bytes per trace (50MB default)")
-	f.BoolVar(&cfg.AllowPartialResponses, "query.allow-partial-responses", true, "Allow partial responses if some instances fail")
+// NewDefaultConfig creates a new Config with default values applied.
+func NewDefaultConfig() *Config {
+	defaultConfig := &Config{}
+	defaultFS := flag.NewFlagSet("", flag.PanicOnError)
+	defaultConfig.RegisterFlagsAndApplyDefaults("", defaultFS)
+	return defaultConfig
 }
 
-// Validate validates the configuration
-func (cfg *Config) Validate() error {
-	if len(cfg.Instances) == 0 {
+// RegisterFlagsAndApplyDefaults registers flags and sets default values.
+func (c *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
+	// Server settings
+	f.StringVar(&c.HTTPListenAddress, prefix+"server.http-listen-address", "0.0.0.0", "HTTP server listen address.")
+	f.IntVar(&c.HTTPListenPort, prefix+"server.http-listen-port", 3200, "HTTP server listen port.")
+
+	// Query settings
+	f.DurationVar(&c.QueryTimeout, prefix+"query.timeout", 30*time.Second, "Timeout for trace by ID queries.")
+	f.IntVar(&c.MaxConcurrentQueries, prefix+"query.max-concurrent", 20, "Maximum concurrent queries per request.")
+	f.IntVar(&c.MaxBytesPerTrace, prefix+"query.max-bytes-per-trace", 50*1024*1024, "Maximum bytes per trace (50MB default).")
+	f.BoolVar(&c.AllowPartialResponses, prefix+"query.allow-partial-responses", true, "Allow partial responses if some instances fail.")
+}
+
+// Validate validates the configuration.
+func (c *Config) Validate() error {
+	if len(c.Instances) == 0 {
 		return errNoInstances
 	}
 
-	for i, inst := range cfg.Instances {
+	for i, inst := range c.Instances {
 		if inst.Endpoint == "" {
 			return errInstanceEndpointRequired(i)
 		}
 		if inst.Name == "" {
-			cfg.Instances[i].Name = inst.Endpoint
+			c.Instances[i].Name = inst.Endpoint
 		}
 		if inst.Timeout == 0 {
-			cfg.Instances[i].Timeout = cfg.QueryTimeout
+			c.Instances[i].Timeout = c.QueryTimeout
 		}
 	}
 
 	return nil
 }
 
-// ExampleConfig returns an example configuration YAML
+// CheckConfig checks if config values are suspect and returns a bundled list of warnings and explanation.
+func (c *Config) CheckConfig() []ConfigWarning {
+	var warnings []ConfigWarning
+
+	if c.MaxConcurrentQueries < 1 {
+		warnings = append(warnings, warnMaxConcurrentQueries)
+	}
+
+	for i, inst := range c.Instances {
+		if inst.Timeout > c.QueryTimeout {
+			warnings = append(warnings, ConfigWarning{
+				Message: fmt.Sprintf("c.Instances[%d].Timeout exceeds c.QueryTimeout", i),
+				Explain: "Instance timeout will be capped by the global query timeout",
+			})
+		}
+	}
+
+	return warnings
+}
+
+// ConfigWarning bundles message and explanation strings in one structure.
+type ConfigWarning struct {
+	Message string
+	Explain string
+}
+
+var (
+	warnMaxConcurrentQueries = ConfigWarning{
+		Message: "c.MaxConcurrentQueries must be greater than zero.",
+		Explain: "Setting max concurrent queries to 0 will prevent any queries from running",
+	}
+)
+
+// ExampleConfig returns an example configuration YAML.
 func ExampleConfig() string {
 	return `# Federated Tempo Querier Configuration
 http_listen_address: "0.0.0.0"

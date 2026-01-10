@@ -33,37 +33,31 @@ type InstanceInfo struct {
 	Endpoint string
 }
 
-// BuildInfo holds build version information
-type BuildInfo struct {
-	Version   string
-	Revision  string
-	Branch    string
-	BuildDate string
-	GoVersion string
-}
-
 // Handler handles HTTP requests for the federated querier
 type Handler struct {
-	querier   FederatedQuerier
-	combiner  *combiner.Combiner
-	cfg       Config
-	buildInfo BuildInfo
-	logger    log.Logger
+	querier    FederatedQuerier
+	combiner   *combiner.Combiner
+	cfg        Config
+	defaultCfg Config
+	router     *mux.Router
+	logger     log.Logger
 }
 
 // NewHandler creates a new HTTP handler
-func NewHandler(querier FederatedQuerier, comb *combiner.Combiner, cfg Config, buildInfo BuildInfo, logger log.Logger) *Handler {
+func NewHandler(querier FederatedQuerier, comb *combiner.Combiner, cfg Config, defaultCfg Config, logger log.Logger) *Handler {
 	return &Handler{
-		querier:   querier,
-		combiner:  comb,
-		cfg:       cfg,
-		buildInfo: buildInfo,
-		logger:    logger,
+		querier:    querier,
+		combiner:   comb,
+		cfg:        cfg,
+		defaultCfg: defaultCfg,
+		logger:     logger,
 	}
 }
 
 // RegisterRoutes registers all HTTP routes
 func (h *Handler) RegisterRoutes(r *mux.Router) {
+	h.router = r
+
 	// Trace by ID endpoints
 	r.HandleFunc("/api/traces/{traceID}", h.TraceByIDHandler).Methods("GET")
 	r.HandleFunc("/api/v2/traces/{traceID}", h.TraceByIDV2Handler).Methods("GET")
@@ -79,7 +73,10 @@ func (h *Handler) RegisterRoutes(r *mux.Router) {
 
 	// Health and info endpoints
 	r.HandleFunc("/ready", h.ReadyHandler).Methods("GET")
-	r.HandleFunc("/api/echo", h.EchoHandler).Methods("GET")
 	r.HandleFunc("/api/status/buildinfo", h.BuildInfoHandler).Methods("GET")
 	r.HandleFunc("/api/status/instances", h.InstancesHandler).Methods("GET")
+
+	// Status endpoints
+	r.HandleFunc("/status", h.StatusHandler).Methods("GET")
+	r.HandleFunc("/status/{endpoint}", h.StatusHandler).Methods("GET")
 }
