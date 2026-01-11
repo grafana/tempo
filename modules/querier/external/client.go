@@ -12,10 +12,23 @@ import (
 	"time"
 
 	"github.com/grafana/dskit/user"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 
 	"github.com/grafana/tempo/pkg/api"
 	"github.com/grafana/tempo/pkg/tempopb"
 )
+
+var metricExternalRequestDuration = promauto.NewHistogramVec(prometheus.HistogramOpts{
+	Namespace:                       "tempo",
+	Name:                            "querier_external_endpoint_request_duration_seconds",
+	Help:                            "Duration of requests to the external endpoint in seconds.",
+	Buckets:                         prometheus.DefBuckets,
+	NativeHistogramBucketFactor:     1.1,
+	NativeHistogramMaxBucketNumber:  100,
+	NativeHistogramMinResetDuration: 1 * time.Hour,
+}, []string{"status_code"})
 
 type Client struct {
 	httpClient  *http.Client
@@ -30,7 +43,8 @@ func NewClient(endpoint string, timeout time.Duration) (*Client, error) {
 
 	return &Client{
 		httpClient: &http.Client{
-			Timeout: timeout,
+			Timeout:   timeout,
+			Transport: otelhttp.NewTransport(http.DefaultTransport),
 		},
 		externalURL: externalURL,
 	}, nil
@@ -40,6 +54,12 @@ func NewClient(endpoint string, timeout time.Duration) (*Client, error) {
 // traceID is the trace ID to query
 // startTime and endTime are Unix timestamps in seconds (0 means not specified)
 func (c *Client) TraceByID(ctx context.Context, userID string, traceID []byte, startTime, endTime int64) (*tempopb.TraceByIDResponse, error) {
+	start := time.Now()
+	statusCode := "error"
+	defer func() {
+		metricExternalRequestDuration.WithLabelValues(statusCode).Observe(time.Since(start).Seconds())
+	}()
+
 	path := c.externalURL.JoinPath(strings.Replace(api.PathTracesV2, "{traceID}", hex.EncodeToString(traceID), 1))
 
 	// Add query parameters for start/end times
@@ -65,6 +85,9 @@ func (c *Client) TraceByID(ctx context.Context, userID string, traceID []byte, s
 		return nil, fmt.Errorf("external endpoint request failed: %w", err)
 	}
 	defer resp.Body.Close()
+
+	// Set the status code for the metric tracking in defer
+	statusCode = strconv.Itoa(resp.StatusCode)
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {

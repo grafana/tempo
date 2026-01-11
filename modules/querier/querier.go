@@ -2,6 +2,7 @@ package querier
 
 import (
 	"context"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"net/http"
@@ -369,13 +370,23 @@ func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDReque
 
 	if q.cfg.TraceByID.External.Enabled {
 		if req.QueryMode == QueryModeExternal || req.QueryMode == QueryModeAll {
+			span.AddEvent("searching external", oteltrace.WithAttributes(
+				attribute.String("traceID", hex.EncodeToString(req.TraceID)),
+				attribute.Int64("timeStart", timeStart),
+				attribute.Int64("timeEnd", timeEnd),
+			))
 			externalResp, err := q.externalClient.TraceByID(ctx, userID, req.TraceID, timeStart, timeEnd)
 			if err != nil {
-				return nil, fmt.Errorf("error querying external in Querier.FindTraceByID: %w", err)
+				retErr := fmt.Errorf("error querying external in Querier.FindTraceByID: %w", err)
+				span.RecordError(retErr)
+				return nil, retErr
 			}
+			span.AddEvent("done searching external", oteltrace.WithAttributes(
+				attribute.Int("spansFound", countSpans(externalResp.Trace)),
+			))
 			_, err = combiner.Consume(externalResp.Trace)
 			if err != nil {
-				return nil, fmt.Errorf("error combining external results in Querier.FindTraceByID: %w", err)
+				return nil, err
 			}
 		}
 	} else if req.QueryMode == QueryModeExternal {
@@ -1169,6 +1180,16 @@ func (q *Querier) postProcessIngesterSearchResults(req *tempopb.SearchRequest, r
 	}
 
 	return response
+}
+
+func countSpans(trace *tempopb.Trace) int {
+	count := 0
+	for _, b := range trace.ResourceSpans {
+		for _, ss := range b.ScopeSpans {
+			count += len(ss.Spans)
+		}
+	}
+	return count
 }
 
 func protoToMetricSeries(proto []*tempopb.KeyValue) traceqlmetrics.MetricSeries {
