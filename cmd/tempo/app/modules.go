@@ -33,6 +33,7 @@ import (
 	"github.com/grafana/tempo/modules/distributor"
 	"github.com/grafana/tempo/modules/frontend"
 	"github.com/grafana/tempo/modules/frontend/interceptor"
+	"github.com/grafana/tempo/modules/frontend/pipeline"
 	frontend_v1pb "github.com/grafana/tempo/modules/frontend/v1/frontendv1pb"
 	"github.com/grafana/tempo/modules/generator"
 	"github.com/grafana/tempo/modules/ingester"
@@ -531,10 +532,21 @@ func (t *App) initQueryFrontend() (services.Service, error) {
 	}
 	t.frontend = v1
 
-	// create query frontend
-	queryFrontend, err := frontend.New(t.cfg.Frontend, cortexTripper, t.Overrides, t.store, t.cacheProvider, t.cfg.HTTPAPIPrefix, t.HTTPAuthMiddleware, t.DataAccessController, log.Logger, prometheus.DefaultRegisterer)
-	if err != nil {
-		return nil, err
+	var queryFrontend *frontend.QueryFrontend
+	// Check if federation is enabled and use the federated constructor
+	if t.cfg.Frontend.Federation.Enabled {
+		// create Http RoundTripper for federation
+		httpTripper := pipeline.NewHTTPRoundTripper(t.cfg.Frontend.APITimeout, log.Logger)
+		queryFrontend, err = frontend.NewFederated(t.cfg.Frontend, httpTripper, t.Overrides, t.store, t.cacheProvider, t.cfg.HTTPAPIPrefix, t.HTTPAuthMiddleware, t.DataAccessController, log.Logger, prometheus.DefaultRegisterer)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		// create query frontend
+		queryFrontend, err = frontend.New(t.cfg.Frontend, cortexTripper, t.Overrides, t.store, t.cacheProvider, t.cfg.HTTPAPIPrefix, t.HTTPAuthMiddleware, t.DataAccessController, log.Logger, prometheus.DefaultRegisterer)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	// register grpc server for queriers to connect to
