@@ -251,3 +251,15 @@ services:
       - GF_FEATURE_TOGGLES_ENABLE=traceqlEditor metricsSummary
     ports:
       - "3000:3000"
+
+  vulture:
+    image: grafana/tempo-vulture:latest
+    restart: always
+    command:
+      [
+        "-prometheus-listen-address=:8080",
+        "-tempo-query-url=http://query-frontend:3200",
+        "-tempo-push-url=http://distributor:4317",
+      ]
+    depends_on:
+      - distributor

@@ -10,9 +10,6 @@ scrape_configs:
     static_configs:
       - targets:
           - 'distributor:3200'
-          - 'ingester-0:3200'
-          - 'ingester-1:3200'
-          - 'ingester-2:3200'
           - 'backend-scheduler:3200'
           - 'backend-worker-0:3200'
           - 'querier:3200'
@@ -25,3 +22,7 @@ scrape_configs:
           - 'live-store-zone-a-1:3200'
           - 'live-store-zone-b-0:3200'
           - 'live-store-zone-b-1:3200'
+  - job_name: 'vulture'
+    static_configs:
+      - targets:
+          - 'vulture:8080'

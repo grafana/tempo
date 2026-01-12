@@ -64,3 +64,15 @@ services:
       - "8080:8080"
     depends_on:
       - redpanda
+      
+  vulture:
+    image: grafana/tempo-vulture:latest
+    restart: always
+    command:
+      [
+        "-prometheus-listen-address=:8080",
+        "-tempo-query-url=http://tempo:3200",
+        "-tempo-push-url=http://tempo:4317",
+      ]
+    depends_on:
+      - tempo
