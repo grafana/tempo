@@ -1,47 +1,37 @@
 services:
-  # Tempo runs as user 10001, and docker compose creates the volume as root.
-  # As such, we need to chown the volume in order for Tempo to start correctly.
-  init:
-    image: busybox:latest
-    user: root
-    entrypoint:
-      - "chown"
-      - "10001:10001"
-      - "/var/tempo"
-    volumes:
-      - ./tempo-data:/var/tempo
-
   tempo:
     image: grafana/tempo:latest
-    depends_on:
-      - redpanda
-    command: "-target=all-3.0 -config.file=/etc/tempo.yaml"
-    restart: always
+    command: [ "-config.file=/etc/tempo.yaml", "-target=all-3.0"]
     volumes:
       - ./tempo.yaml:/etc/tempo.yaml
       - ./tempo-data:/var/tempo
     ports:
-      - "3200:3200" # tempo
+      - "4317:4317"  # otlp grpc
 
-  minio:
-    image: minio/minio:latest
-    environment:
-      - MINIO_ACCESS_KEY=tempo
-      - MINIO_SECRET_KEY=supersecret
-    ports:
-      - "9001:9001"
-    entrypoint:
-      - sh
-      - -euc
-      - mkdir -p /data/tempo && minio server /data --console-address ':9001'
-
-  k6-tracing:
+  # push tenant-1 traces directly to tempo
+  k6-tracing-tenant-1:
     image: ghcr.io/grafana/xk6-client-tracing:v0.0.9
     environment:
       - ENDPOINT=tempo:4317
+      - TEMPO_X_SCOPE_ORGID=tenant-1
     restart: always
     depends_on:
       - tempo
+
+  # push tenant-2 into an otel collector that will attach the tenant header
+  k6-tracing-2:
+    image: ghcr.io/grafana/xk6-client-tracing:v0.0.9
+    environment:
+      - ENDPOINT=otel-collector:4317
+    restart: always
+    depends_on:
+      - tempo
+
+  otel-collector:
+    image: otel/opentelemetry-collector:0.139.0@sha256:8ac5df2a931e9264667b236d65bf7591fa4ba633a7a634e6caa2f0a4fc549c07
+    command: [ "--config=/etc/otel-collector.yaml" ]
+    volumes:
+      - ./otel-collector.yaml:/etc/otel-collector.yaml
 
   prometheus:
     image: prom/prometheus:latest
@@ -58,8 +48,9 @@ services:
   grafana:
     image: grafana/grafana:12.3.1@sha256:2175aaa91c96733d86d31cf270d5310b278654b03f5718c59de12a865380a31f
     volumes:
-      - ../shared/grafana-datasources.yaml:/etc/grafana/provisioning/datasources/datasources.yaml
+      - ./grafana-datasources.yaml:/etc/grafana/provisioning/datasources/datasources.yaml
     environment:
+      - GF_DEFAULT_APP_MODE=development
       - GF_AUTH_ANONYMOUS_ENABLED=true
       - GF_AUTH_ANONYMOUS_ORG_ROLE=Admin
       - GF_AUTH_DISABLE_LOGIN_FORM=true
@@ -69,7 +60,6 @@ services:
 
   redpanda:
     image: redpandadata/redpanda:latest
-    container_name: redpanda
     ports:
       - "9092:9092" # Kafka API for clients
     command: >
@@ -77,19 +67,27 @@ services:
       --mode=dev-container
       --kafka-addr=PLAINTEXT://0.0.0.0:9092
       --advertise-kafka-addr=PLAINTEXT://redpanda:9092
-    volumes:
-      - redpanda-data:/var/lib/redpanda/data
 
   redpanda-console:
     image: docker.redpanda.com/redpandadata/console:v2.8.10@sha256:1e257ad592984566c69369227f6200a878165417b42ff18a5f8815df56bc4a7c
     environment:
       - CONFIG_FILEPATH=/etc/redpanda/redpanda-console-config.yaml
     volumes:
-      - ../shared/redpanda-console.yaml:/etc/redpanda/redpanda-console-config.yaml
+      - ./redpanda-console.yaml:/etc/redpanda/redpanda-console-config.yaml
     ports:
       - "8080:8080"
     depends_on:
       - redpanda
 
-volumes:
-  redpanda-data:
+  vulture:
+    image: grafana/tempo-vulture:latest
+    restart: always
+    command:
+      [
+        "-prometheus-listen-address=:8080",
+        "-tempo-query-url=http://tempo:3200",
+        "-tempo-push-url=http://tempo:4317",
+        "-tempo-org-id=vulture-tenant",
+      ]
+    depends_on:
+      - tempo

@@ -18,9 +18,19 @@ distributor:
 #  log_discarded_spans:
 #    enabled: true
 
-compactor:
+backend_scheduler:
+  provider:
+    compaction:
+      compaction:
+        block_retention: 1h
+
+backend_worker:
+  backend_scheduler_addr: backend-scheduler:3200
   compaction:
-    block_retention: 1h # overall Tempo trace retention. set for demo purposes
+    block_retention: 1h
+  ring:
+    kvstore:
+      store: memberlist
 
 querier:
   query_live_store: true
@@ -38,6 +48,8 @@ metrics_generator:
 
 query_frontend:
   rf1_after: "1999-01-01T00:00:00Z"
+  mcp_server:
+    enabled: true
 
 storage:
   trace:

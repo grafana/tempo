@@ -15,7 +15,7 @@ Tempo uses the `X-Scope-OrgID` header to enforce multi-tenancy in Tempo and Graf
 It is set to the tenant (or “organization”) name.
 It is used for scoped writes (ingest) so that each span is stored under its specified tenant, and scoped reads so that queries return only that tenant’s data.
 
-If you're interested in setting up multi-tenancy, consult the [multi-tenant example](https://github.com/grafana/tempo/tree/main/example/docker-compose/otel-collector-multitenant)
+If you're interested in setting up multi-tenancy, consult the [multi-tenant example](https://github.com/grafana/tempo/tree/main/example/docker-compose/multitenant)
 in the repository. This example uses the following settings to achieve multi-tenancy in Tempo.
 
 ## Tenant IDs

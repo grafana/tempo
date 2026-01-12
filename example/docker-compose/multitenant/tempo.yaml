@@ -1,0 +1,64 @@
+partition_ring_live_store: true
+stream_over_http_enabled: true
+multitenancy_enabled: true
+
+server:
+  http_listen_port: 3200
+  log_level: info
+
+distributor:
+  ingester_write_path_enabled: false
+  kafka_write_path_enabled: true
+  receivers:
+    otlp:
+      protocols:
+        grpc:
+          endpoint: "tempo:4317"
+#  log_received_spans:
+#    enabled: true
+#  log_discarded_spans:
+#    enabled: true
+
+backend_scheduler:
+  provider:
+    compaction:
+      compaction:
+        block_retention: 1h
+
+backend_worker:
+  backend_scheduler_addr: backend-scheduler:3200
+  compaction:
+    block_retention: 1h
+  ring:
+    kvstore:
+      store: memberlist
+
+querier:
+  query_live_store: true
+
+metrics_generator:
+
+query_frontend:
+  rf1_after: "1999-01-01T00:00:00Z"
+  mcp_server:
+    enabled: true
+
+storage:
+  trace:
+    backend: local                     # backend configuration to use
+    wal:
+      path: /var/tempo/wal             # where to store the wal locally
+    local:
+      path: /var/tempo/blocks
+
+ingest:
+  enabled: true
+  kafka:
+    address: redpanda:9092
+    topic: tempo-ingest
+
+block_builder:
+  consume_cycle_duration: 30s
+
+usage_report:
+  reporting_enabled: false

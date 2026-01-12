@@ -13,7 +13,7 @@ datasources:
   editable: false
   jsonData:
     httpMethod: GET
-- name: Tempo-Multitenant
+- name: Tempo (yes streaming)
   type: tempo
   access: proxy
   orgId: 1
@@ -23,11 +23,27 @@ datasources:
   version: 1
   editable: false
   apiVersion: 1
-  uid: tempo-authed
+  uid: tempo-streaming-enabled
   jsonData:
-    httpHeaderName1: 'X-Scope-OrgID'
     httpMethod: GET
     serviceMap:
       datasourceUid: prometheus
-  secureJsonData:
-    httpHeaderValue1: 'foo-bar-baz'
+    streamingEnabled:
+      search: true
+      metrics: true
+- name: Tempo (no streaming)
+  type: tempo
+  access: proxy
+  orgId: 1
+  url: http://tempo:3200
+  basicAuth: false
+  isDefault: false
+  version: 1
+  editable: false
+  apiVersion: 1
+  uid: tempo-streaming-disabled
+  jsonData:
+    httpMethod: GET
+    serviceMap:
+      datasourceUid: prometheus
+

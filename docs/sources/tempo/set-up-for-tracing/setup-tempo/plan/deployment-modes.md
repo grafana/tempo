@@ -45,21 +45,6 @@ Find docker-compose deployment examples in the tempo repository: [https://github
 
 To see an annotated example configuration for Tempo, the [Introduction To MLTP](https://github.com/grafana/intro-to-mltp) example repository contains a [configuration](https://github.com/grafana/intro-to-mltp/blob/main/tempo/tempo.yaml) for a monolithic instance.
 
-### Scaling monolithic mode
-
-Monolithic mode can be horizontally scaled out.
-This scalable monolithic mode is similar to the monolithic mode in that all components are run within one process.
-Horizontal scale out is achieved by instantiating more than one process, with each having `-target` set to `scalable-single-binary`.
-
-This mode offers some flexibility of scaling without the configuration complexity of the full
-microservices deployment.
-
-Each of the `queriers` perform a DNS lookup for the `frontend_address` and connect to the addresses found within the DNS record.
-
-#### Example
-
-Find a docker-compose deployment example at [https://github.com/grafana/tempo/tree/main/example/docker-compose/scalable-single-binary](https://github.com/grafana/tempo/tree/main/example/docker-compose/scalable-single-binary)
-
 ## Microservices mode
 
 Microservices mode is a configuration that allows for a fully horizontally scaled deployment that allows individual components of Tempo to be given a set number of replicas.

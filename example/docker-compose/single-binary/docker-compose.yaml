@@ -1,0 +1,112 @@
+services:
+  # tempo, backend and kafka
+  tempo:
+    image: grafana/tempo:latest
+    depends_on:
+      - redpanda
+    command: "-target=all-3.0 -config.file=/etc/tempo.yaml"
+    restart: always
+    volumes:
+      - ./tempo.yaml:/etc/tempo.yaml
+      - ./tempo-data:/var/tempo
+    ports:
+      - "3200:3200" # tempo
+    environment:
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://alloy:4318
+
+  minio:
+    image: minio/minio:latest
+    environment:
+      - MINIO_ACCESS_KEY=tempo
+      - MINIO_SECRET_KEY=supersecret
+    ports:
+      - "9001:9001"
+    entrypoint:
+      - sh
+      - -euc
+      - mkdir -p /data/tempo && minio server /data --console-address ':9001'
+
+  redpanda:
+    image: redpandadata/redpanda:latest
+    ports:
+      - "9092:9092" # Kafka API for clients
+    command: >
+      redpanda start --overprovisioned
+      --mode=dev-container
+      --kafka-addr=PLAINTEXT://0.0.0.0:9092
+      --advertise-kafka-addr=PLAINTEXT://redpanda:9092
+
+  redpanda-console:
+    image: docker.redpanda.com/redpandadata/console:v2.8.10@sha256:1e257ad592984566c69369227f6200a878165417b42ff18a5f8815df56bc4a7c
+    environment:
+      - CONFIG_FILEPATH=/etc/redpanda/redpanda-console-config.yaml
+    volumes:
+      - ./redpanda-console.yaml:/etc/redpanda/redpanda-console-config.yaml
+    ports:
+      - "8080:8080"
+    depends_on:
+      - redpanda
+
+  # ingest pipeline
+  k6-tracing:
+    image: ghcr.io/grafana/xk6-client-tracing:v0.0.9
+    environment:
+      - ENDPOINT=alloy:4317
+    restart: always
+    depends_on:
+      - tempo
+      - alloy
+
+  alloy:
+    image: grafana/alloy:v1.12.1@sha256:c311595156fca7b1131683d383dae1acfd29e8879d347161d2a6f714ebac0c0b
+    volumes:
+      - ./config.alloy:/etc/alloy/config.alloy
+    command:
+      - run
+      - /etc/alloy/config.alloy
+      - --storage.path=/var/lib/alloy/data
+      - --server.http.listen-addr=0.0.0.0:12345
+    environment:
+      - ALLOY_OTLP_UPSTREAM=tempo:4317
+    ports:
+      - "12345:12345"
+      - "4319:4317"
+    depends_on:
+      - tempo
+
+  # supporting services - metrics, visualization and testing
+  prometheus:
+    image: prom/prometheus:latest
+    command:
+      - --config.file=/etc/prometheus.yaml
+      - --web.enable-remote-write-receiver
+      - --enable-feature=exemplar-storage
+      - --enable-feature=native-histograms
+    volumes:
+      - ./prometheus.yaml:/etc/prometheus.yaml
+    ports:
+      - "9090:9090"
+
+  grafana:
+    image: grafana/grafana:12.3.1@sha256:2175aaa91c96733d86d31cf270d5310b278654b03f5718c59de12a865380a31f
+    volumes:
+      - ./grafana-datasources.yaml:/etc/grafana/provisioning/datasources/datasources.yaml
+    environment:
+      - GF_AUTH_ANONYMOUS_ENABLED=true
+      - GF_AUTH_ANONYMOUS_ORG_ROLE=Admin
+      - GF_AUTH_DISABLE_LOGIN_FORM=true
+      - GF_FEATURE_TOGGLES_ENABLE=traceqlEditor metricsSummary
+    ports:
+      - "3000:3000"
+
+  vulture:
+    image: grafana/tempo-vulture:latest
+    restart: always
+    command:
+      [
+        "-prometheus-listen-address=:8080",
+        "-tempo-query-url=http://tempo:3200",
+        "-tempo-push-url=http://tempo:4317",
+      ]
+    depends_on:
+      - tempo

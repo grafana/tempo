@@ -31,7 +31,7 @@ Be aware that using this feature will likely cause tracing data to be passed to 
 
 To experiment with the MCP server using dummy data and Claude Code:
 
-1. Run the local docker-compose example in `/example/docker-compose/local`. This exposes the MCP server at `http://localhost:3200/api/mcp`
+1. Run the local docker-compose example in `/example/docker-compose/single-binary`. This exposes the MCP server at `http://localhost:3200/api/mcp`
 1. Run `claude mcp add --transport=http tempo http://localhost:3200/api/mcp` to add a reference to Claude Code.
 1. Run `claude` and ask some questions.
 

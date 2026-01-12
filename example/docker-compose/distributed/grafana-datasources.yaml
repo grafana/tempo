@@ -13,7 +13,7 @@ datasources:
   editable: false
   jsonData:
     httpMethod: GET
-- name: Tempo
+- name: Tempo (yes streaming)
   type: tempo
   access: proxy
   orgId: 1
@@ -23,7 +23,25 @@ datasources:
   version: 1
   editable: false
   apiVersion: 1
-  uid: tempo
+  uid: tempo-streaming-enabled
+  jsonData:
+    httpMethod: GET
+    serviceMap:
+      datasourceUid: prometheus
+    streamingEnabled:
+      search: true
+      metrics: true
+- name: Tempo (no streaming)
+  type: tempo
+  access: proxy
+  orgId: 1
+  url: http://query-frontend:3200
+  basicAuth: false
+  isDefault: false
+  version: 1
+  editable: false
+  apiVersion: 1
+  uid: tempo-streaming-disabled
   jsonData:
     httpMethod: GET
     serviceMap:
