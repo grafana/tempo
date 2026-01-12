@@ -322,8 +322,8 @@ Event attributes are stored as protocol-buffer encoded.
 
 ```yaml
 repeated group Attrs {
-required binary Key (STRING);
-required binary Value (STRING);
+    required binary Key (STRING);
+    required binary Value (STRING);
 }
 ```
 
