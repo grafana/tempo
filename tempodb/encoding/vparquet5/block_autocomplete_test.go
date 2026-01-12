@@ -10,6 +10,7 @@ import (
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/traceql"
 	"github.com/grafana/tempo/pkg/util/test"
+	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 	"github.com/stretchr/testify/require"
 )
@@ -460,6 +461,8 @@ func TestFetchTagValues(t *testing.T) {
 		name           string
 		tag, query     string
 		expectedValues []tempopb.TagValue
+		tr             *Trace
+		dc             backend.DedicatedColumns
 	}{
 		{
 			name:  "intrinsic with no query - match",
@@ -722,36 +725,60 @@ func TestFetchTagValues(t *testing.T) {
 			query:          "{resource.asdf=nil}",
 			expectedValues: []tempopb.TagValue{stringTagValue("abc2")},
 		},
+		{
+			name:           "resource both array and not array",
+			tag:            "resource.rs",
+			query:          "{}",
+			expectedValues: []tempopb.TagValue{stringTagValue("a"), stringTagValue("b"), stringTagValue("c")},
+			tr:             func() *Trace { tr, _ := mixedArrayTestTrace(); return tr }(),
+			dc:             func() backend.DedicatedColumns { _, dc := mixedArrayTestTrace(); return dc }(),
+		},
+		{
+			name:           "event both array and not array",
+			tag:            "event.es",
+			query:          "{}",
+			expectedValues: []tempopb.TagValue{stringTagValue("e"), stringTagValue("f"), stringTagValue("g")},
+			tr:             func() *Trace { tr, _ := mixedArrayTestTrace(); return tr }(),
+			dc:             func() backend.DedicatedColumns { _, dc := mixedArrayTestTrace(); return dc }(),
+		},
 	}
 
-	ctx := context.TODO()
-	block := makeBackendBlockWithTraces(t, []*Trace{fullyPopulatedTestTrace(common.ID{0})})
-
-	opts := common.DefaultSearchOptions()
+	var (
+		ctx  = t.Context()
+		opts = common.DefaultSearchOptions()
+	)
 
 	for _, tc := range testCases {
 		t.Run(fmt.Sprintf("tag: %s, query: %s", tc.tag, tc.query), func(t *testing.T) {
-			distinctValues := collector.NewDistinctValue[tempopb.TagValue](1_000_000, 0, 0, func(v tempopb.TagValue) int { return len(v.Type) + len(v.Value) })
 			req, err := traceql.ExtractFetchSpansRequest(tc.query)
 			require.NoError(t, err)
 
 			tag, err := traceql.ParseIdentifier(tc.tag)
 			require.NoError(t, err)
 
-			// Build autocomplete request
-			autocompleteReq := traceql.FetchTagValuesRequest{
-				Conditions: req.Conditions,
-				TagName:    tag,
-			}
-
 			tagAtrr, err := traceql.ParseIdentifier(tc.tag)
 			require.NoError(t, err)
 
-			autocompleteReq.Conditions = append(autocompleteReq.Conditions, traceql.Condition{
-				Attribute: tagAtrr,
-				Op:        traceql.OpNone,
-			})
-			mc := collector.NewMetricsCollector()
+			if tc.tr == nil {
+				tc.tr = fullyPopulatedTestTrace(common.ID{0})
+			}
+			if tc.dc == nil {
+				tc.dc = test.MakeDedicatedColumns()
+			}
+			var (
+				block           = makeBackendBlockWithTracesWithDedicatedColumns(t, []*Trace{tc.tr}, tc.dc)
+				mc              = collector.NewMetricsCollector()
+				distinctValues  = collector.NewDistinctValue(1_000_000, 0, 0, func(v tempopb.TagValue) int { return len(v.Type) + len(v.Value) })
+				autocompleteReq = traceql.FetchTagValuesRequest{
+					TagName: tag,
+					Conditions: append(req.Conditions,
+						traceql.Condition{
+							Attribute: tagAtrr,
+							Op:        traceql.OpNone,
+						},
+					),
+				}
+			)
 
 			err = block.FetchTagValues(ctx, autocompleteReq, traceql.MakeCollectTagValueFunc(distinctValues.Collect), mc.Add, opts)
 			require.NoError(t, err)
