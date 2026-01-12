@@ -17,6 +17,7 @@
 * [CHANGE] Remove busybox from Tempo image to make it more minimal and prevent future vulnerabilities [#5717](https://github.com/grafana/tempo/pull/5717) (@carles-grafana)
 * [CHANGE] Allow RetryInfo to be disabled in per tenant overrides [#5741](https://github.com/grafana/tempo/pull/5741) (@electron0zero)
 * [CHANGE] **BREAKING CHANGE** Added `scope` and `query` params while rewriting integration tests to the Tempo HTTP client `SearchTagsV2WithRange` function.
+* [CHANGE] **BREAKING CHANGE** TempoDB schemas vParquet3 and v2 are deprecated and will be removed in 3.0. [#????](https://github.com/grafana/tempo/pull/????) (@joe-elliott)
 * [CHANGE] Upgrade Tempo to Go 1.25.4 [#5939](https://github.com/grafana/tempo/pull/5939) [#6001](https://github.com/grafana/tempo/pull/6001) (@ruslan-mikhailov)
 * [CHANGE] Upgrade Tempo to Go 1.25.5 [#6096](https://github.com/grafana/tempo/pull/6096) [#6089](https://github.com/grafana/tempo/pull/6089) (@joe-elliott)
 * [CHANGE] Set maxKeys to 1 for S3 confirm list operation [#6114](https://github.com/grafana/tempo/pull/6114) (@cancub)
