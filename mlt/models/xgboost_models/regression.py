@@ -44,7 +44,9 @@ class MLTXGBoostRegression(MLTBaseRegression):
         extra_pipeline_kwargs=None,
         use_target_transform=True,
         target_transform="yeo-johnson",  # "yeo-johnson" | "box-cox" | "log1p" | "none"
-        target_standardize=True,        # only applies to PowerTransformer
+        target_standardize=True,
+        sample_weight_column: str | None = None,
+        sample_weight_exponent: float = 1.0,        
     ):
         """
         Initialize the XGBoost regression model with target transformation support.
@@ -77,6 +79,9 @@ class MLTXGBoostRegression(MLTBaseRegression):
         )
         
         # Initialize transformer parameters
+        self.sample_weight_column = sample_weight_column
+        self.sample_weight_exponent = sample_weight_exponent
+        
         self.use_target_transform = use_target_transform
         self.target_transform = target_transform
         self.target_standardize = target_standardize
@@ -141,6 +146,30 @@ class MLTXGBoostRegression(MLTBaseRegression):
         raw_importance = estimator.get_booster().get_score(importance_type=self.importance_type)
         importance = pd.DataFrame(list(raw_importance.items()), columns=["feature", "score"])
         return importance
+
+    def _get_prediction_data(self, features: pd.DataFrame, index: pd.Index) -> pd.DataFrame:
+        """
+        Get predictions and ensure no negative values by clipping to zero.
+        
+        Parameters
+        ----------
+        features : pd.DataFrame
+            Feature data for prediction
+        index : pd.Index
+            Index for the resulting dataframe
+            
+        Returns
+        -------
+        pd.DataFrame
+            DataFrame with predictions clipped to be non-negative
+        """
+        # Get predictions from the pipeline
+        predictions = self.pipeline.predict(features)
+        
+        # Clip negative predictions to zero
+        predictions = np.maximum(predictions, 0)
+        
+        return pd.DataFrame({self.predicted_label_name: predictions}, index=index)
 
     def get_shap_values(self, feature_data: pd.DataFrame, predictions: pd.Series) -> pd.DataFrame:
         """

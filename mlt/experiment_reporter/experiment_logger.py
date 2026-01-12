@@ -386,6 +386,10 @@ class RegressionExperimentLogger(ExperimentLogger):
             "correlation": lambda x, y: np.corrcoef(x, y)[0, 1],
             "hit_rate": lambda x, y: (np.sign(x) == np.sign(y)).mean(),
             "r2": lambda x, y: r2_score(x, y),
+            #relative error proxy measured in log space 
+            "log_rmse" : lambda x, y: log_rmse_from_original(
+                x, y, use_log1p=self._use_log1p_for_log_metrics
+            )
         }
 
     def generate_and_save_ml_artifacts(self, true_label: pd.Series, predicted_label: pd.Series):
