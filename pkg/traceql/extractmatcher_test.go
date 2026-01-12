@@ -125,6 +125,11 @@ func TestExtractMatchers(t *testing.T) {
 			query:    `{ event:name = "exception" }`,
 			expected: `{event:name = "exception"}`,
 		},
+		{
+			name:     "whitespace in value",
+			query:    `{ .foo = " b a r " }   `,
+			expected: `{.foo = " b a r "}`,
+		},
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {

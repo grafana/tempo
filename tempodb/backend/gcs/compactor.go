@@ -19,10 +19,15 @@ func (rw *readerWriter) MarkBlockCompacted(blockID uuid.UUID, tenantID string) e
 	metaFilename := backend.MetaFileName(blockID, tenantID, rw.cfg.Prefix)
 	compactedMetaFilename := backend.CompactedMetaFileName(blockID, tenantID, rw.cfg.Prefix)
 
-	src := rw.bucket.Object(metaFilename)
+	src := rw.bucket.Object(metaFilename).Retryer(
+		storage.WithBackoff(gax.Backoff{}),
+		storage.WithPolicy(storage.RetryAlways),
+		storage.WithMaxAttempts(rw.cfg.MaxRetries),
+	)
 	dst := rw.bucket.Object(compactedMetaFilename).Retryer(
 		storage.WithBackoff(gax.Backoff{}),
 		storage.WithPolicy(storage.RetryAlways),
+		storage.WithMaxAttempts(rw.cfg.MaxRetries),
 	)
 
 	ctx := context.TODO()
@@ -58,7 +63,12 @@ func (rw *readerWriter) ClearBlock(blockID uuid.UUID, tenantID string) error {
 			return err
 		}
 
-		o := rw.bucket.Object(attrs.Name)
+		o := rw.bucket.Object(attrs.Name).Retryer(
+			storage.WithBackoff(gax.Backoff{}),
+			storage.WithPolicy(storage.RetryAlways),
+			storage.WithMaxAttempts(rw.cfg.MaxRetries),
+		)
+
 		err = o.Delete(ctx)
 		if err != nil {
 			return err

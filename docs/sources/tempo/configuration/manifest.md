@@ -835,6 +835,7 @@ ingest:
 block_builder:
     instance_id: hostname
     assigned_partitions: {}
+    partitions_per_instance: 0
     consume_cycle_duration: 5m0s
     max_consuming_bytes: 5000000000
     block:
@@ -1022,6 +1023,7 @@ storage:
             object_cache_control: ""
             object_metadata: {}
             list_blocks_concurrency: 3
+            max_retries: 3
         s3:
             tls_cert_path: ""
             tls_key_path: ""
@@ -1115,6 +1117,7 @@ overrides:
                 object_cache_control: ""
                 object_metadata: {}
                 list_blocks_concurrency: 3
+                max_retries: 3
             s3:
                 tls_cert_path: ""
                 tls_key_path: ""
