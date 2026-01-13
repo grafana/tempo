@@ -296,6 +296,7 @@ func (s *queryRangeSharder) buildBackendRequests(ctx context.Context, tenantID s
 				// DedicatedColumns: dc, for perf reason we pass dedicated columns json in directly to not have to realloc object -> proto -> json
 				Exemplars: exemplars,
 				MaxSeries: searchReq.MaxSeries,
+				XInstant:  searchReq.XInstant,
 			}
 
 			return api.BuildQueryRangeRequest(r, queryRangeReq, dedColsJSON), nil

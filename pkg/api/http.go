@@ -40,6 +40,7 @@ const (
 	urlParamExemplars       = "exemplars"
 	URLParamRF1After        = "rf1After"
 	urlMaxSeries            = "maxSeries"
+	urlInstant              = "instant"
 
 	// backend search querier
 	urlParamStartPage        = "startPage"
@@ -468,6 +469,13 @@ func ParseQueryRangeRequest(r *http.Request) (*tempopb.QueryRangeRequest, error)
 		req.MaxSeries = uint32(maxSeries)
 	}
 
+	if isInstant, found := extractQueryParam(vals, urlInstant); found {
+		val, err := strconv.ParseBool(isInstant)
+		if err == nil {
+			req.SetInstant(val)
+		}
+	}
+
 	return req, nil
 }
 
@@ -536,6 +544,9 @@ func BuildQueryRangeRequest(req *http.Request, searchReq *tempopb.QueryRangeRequ
 
 	qb.addParam(urlParamExemplars, strconv.FormatUint(uint64(searchReq.Exemplars), 10))
 	qb.addParam(urlMaxSeries, strconv.Itoa(int(searchReq.MaxSeries)))
+	if searchReq.HasInstant() {
+		qb.addParam(urlInstant, strconv.FormatBool(searchReq.GetInstant()))
+	}
 
 	req.URL.RawQuery = qb.query()
 
