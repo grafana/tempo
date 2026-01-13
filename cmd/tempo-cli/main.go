@@ -25,9 +25,12 @@ const (
 )
 
 type globalOptions struct {
-	ConfigFile   string `type:"path" short:"c" help:"Path to tempo config file"`
-	OutputFile   string `short:"o" help:"File to write output to, instead of stdout" default:""`
-	OutputFormat string `help:"Output format (jsonnet/yaml)" enum:"jsonnet,yaml" default:"jsonnet"`
+	ConfigFile string `type:"path" short:"c" help:"Path to tempo config file"`
+}
+
+type outputOptions struct {
+	Out    string `short:"o" help:"File to write output to, instead of stdout" default:""`
+	Format string `short:"f" help:"Output format (jsonnet/yaml)" enum:"jsonnet,yaml" default:"yaml"`
 }
 
 type backendOptions struct {
