@@ -84,6 +84,7 @@
 * [BUGFIX] Fix issues related to integer dedicated columns in vParquet5-preview2 [#5716](https://github.com/grafana/tempo/pull/5716) (@stoewer)
 * [BUGFIX] Fix disappearing dedicated event attrs in trace view and dedicated blob column validation in vParquet5-preview6 [#6100](https://github.com/grafana/tempo/pull/6100) (@stoewer)
 * [ENHANCEMENT] Add integer attribute analysis to the tempo-cli `analyse block(s)` commands [#6103](https://github.com/grafana/tempo/pull/6103) (@mdisibio)
+* [ENHANCEMENT] Add `suggest columns` command to tempo-cli [#6131](https://github.com/grafana/tempo/pull/6131) (@ie-pham)
 
 ### Tempo Rearchitecture [EXPERIMENTAL]
 
