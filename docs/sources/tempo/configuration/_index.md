@@ -1546,7 +1546,8 @@ Defines re-used configuration blocks.
 ### Block
 
 ```yaml
-# block format version. options: v2, vParquet3, vParquet4
+# block format version. options: vParquet4
+# deprecated options: v2, vParquet3
 [version: <string> | default = vParquet4]
 
 # bloom filter false positive rate. lower values create larger filters but fewer false positives
@@ -1575,7 +1576,7 @@ Defines re-used configuration blocks.
 # Configures attributes to be stored in dedicated columns within the parquet file, rather than in the
 # generic attribute key-value list. This allows for more efficient searching of these attributes.
 # Up to 10 span attributes and 10 resource attributes can be configured as dedicated columns.
-# Requires vParquet3
+# Requires at least vParquet3
 parquet_dedicated_columns: <list of columns>
 
       # name of the attribute
@@ -1828,8 +1829,9 @@ The storage WAL configuration block.
 [ingestion_time_range_slack: <duration> | default = unset]
 
 # WAL file format version
-# Options: v2, vParquet3, vParquet4
-[version: <string> | default = "vParquet3"]
+# Options: vParquet4
+# Deprecated options: v2, vParquet3
+[version: <string> | default = "vParquet4"]
 ```
 
 ## Overrides
@@ -2076,7 +2078,7 @@ overrides:
       # Configures attributes to be stored in dedicated columns within the parquet file, rather than in the
       # generic attribute key-value list. This allows for more efficient searching of these attributes.
       # Up to 10 span attributes and 10 resource attributes can be configured as dedicated columns.
-      # Requires vParquet3
+      # Requires at least vParquet3
       parquet_dedicated_columns:
         [
           name: <string>, # name of the attribute

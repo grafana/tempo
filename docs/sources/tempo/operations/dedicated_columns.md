@@ -9,7 +9,8 @@ weight: 400
 Dedicated attribute columns improve query performance by storing the most frequently used attributes in their own columns,
 rather than in the generic attribute key-value list.
 
-Introduced with `vParquet3`, dedicated attribute columns are only available when using this storage format.
+Introduced with `vParquet3`, dedicated attribute columns are only available when using this storage format or higher. Note that `vParquet3`
+is deprecated, but this feature is available when using the current default of `vParquet4`.
 To read more about the design of `vParquet3`, see [the design proposal](https://github.com/grafana/tempo/blob/main/docs/design-proposals/2023-05%20vParquet3.md).
 
 ## Configuration
@@ -21,7 +22,6 @@ Dedicated attribute columns can be configured in the storage block or via overri
 storage:
   trace:
     block:
-      version: vParquet3
       # Default dedicated columns for all blocks
       parquet_dedicated_columns:
         - name: <string>, # name of the attribute
