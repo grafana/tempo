@@ -50,7 +50,7 @@ func NewClient(endpoint string, timeout time.Duration) (*Client, error) {
 	}, nil
 }
 
-// TraceByID forwards a trace-by-ID request to the external endpoint
+// TraceByID forwards a trace-by-ID v2 request to the external endpoint
 // traceID is the trace ID to query
 // startTime and endTime are Unix timestamps in seconds (0 means not specified)
 func (c *Client) TraceByID(ctx context.Context, userID string, traceID []byte, startTime, endTime int64) (*tempopb.TraceByIDResponse, error) {
