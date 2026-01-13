@@ -20,8 +20,8 @@ import (
 type migrateOverridesConfigCmd struct {
 	ConfigFile string `arg:"" help:"Path to tempo config file"`
 
-	OverridesDest string `type:"path" short:"o" help:"Path to tempo overrides file. If not specified, output to stdout"`
 	ConfigDest    string `type:"path" short:"d" help:"Path to tempo config file. If not specified, output to stdout"`
+	OverridesDest string `type:"path" short:"o" help:"Path to tempo overrides file. If not specified, output to stdout"`
 }
 
 func (cmd *migrateOverridesConfigCmd) Run(*globalOptions) error {
