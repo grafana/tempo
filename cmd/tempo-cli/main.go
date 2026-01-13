@@ -25,7 +25,9 @@ const (
 )
 
 type globalOptions struct {
-	ConfigFile string `type:"path" short:"c" help:"Path to tempo config file"`
+	ConfigFile   string `type:"path" short:"c" help:"Path to tempo config file"`
+	OutputFile   string `type:"path" short:"o" help:"File to write output to, instead of stdout" default:""`
+	OutputFormat string `help:"Output format (jsonnet/yaml)" enum:"jsonnet,yaml" default:"jsonnet"`
 }
 
 type backendOptions struct {
@@ -94,7 +96,7 @@ var cli struct {
 	} `cmd:""`
 
 	Suggest struct {
-		DedicatedColumns suggestDedicatedColumnsCmd `cmd:"" help:"Suggest dedicated columns for a tenant"`
+		Columns suggestColumnsCmd `cmd:"" help:"Suggest columns for a tenant"`
 	} `cmd:""`
 }
 

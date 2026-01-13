@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -13,8 +12,6 @@ import (
 	"sync"
 	"text/tabwriter"
 	"time"
-
-	"gopkg.in/yaml.v3"
 
 	"github.com/dustin/go-humanize"
 	"github.com/google/uuid"
@@ -442,7 +439,7 @@ func (s blockSummary) print(settings heuristicSettings, printSettings printSetti
 	return nil
 }
 
-func (s blockSummary) printDedicatedColumns(settings heuristicSettings, format string, outPath string) error {
+func (s blockSummary) ToDedicatedColumns(settings heuristicSettings) []backend.DedicatedColumn {
 	var dedicatedCols []backend.DedicatedColumn
 
 	// convert block summary to dedicated columns
@@ -548,20 +545,7 @@ func (s blockSummary) printDedicatedColumns(settings heuristicSettings, format s
 			}
 		}
 	}
-
-	// json prints out JSON format but using backend.DedicatedColumn struct which the keys are s, n, t, o
-	// jsonnet prints out JSONNET format but what user would put in Jsonnet overrides file to generate yaml
-	switch format {
-	case "json":
-		printDedicatedColumnSuggestionsJson(dedicatedCols, outPath)
-	case "jsonnet":
-		printDedicatedColumnSuggestionsJsonnet(dedicatedCols, outPath)
-	case "yaml":
-		printDedicatedColumnSuggestionsYaml(dedicatedCols, outPath)
-	default:
-		return errors.New("unknown format: " + format)
-	}
-	return nil
+	return dedicatedCols
 }
 
 type attributeSummary struct {
@@ -740,7 +724,7 @@ func aggregateGenericAttributes(pf *parquet.File, definitionLevel int, keyPath s
 		integerArrayAttributes = make(map[string]*integerAttributeSummary, 1000)
 	)
 
-	getString := func(name string, from map[string]*stringAttributeSummary, isArray bool) *stringAttributeSummary {
+	getString := func(name string, from map[string]*stringAttributeSummary) *stringAttributeSummary {
 		v, ok := from[name]
 		if !ok {
 			v = &stringAttributeSummary{
@@ -752,7 +736,7 @@ func aggregateGenericAttributes(pf *parquet.File, definitionLevel int, keyPath s
 		return v
 	}
 
-	getInt := func(name string, from map[string]*integerAttributeSummary, isArray bool) *integerAttributeSummary {
+	getInt := func(name string, from map[string]*integerAttributeSummary) *integerAttributeSummary {
 		v, ok := from[name]
 		if !ok {
 			v = &integerAttributeSummary{
@@ -777,20 +761,20 @@ func aggregateGenericAttributes(pf *parquet.File, definitionLevel int, keyPath s
 			switch stats.typ {
 			case attrTypeString:
 				if stats.isArray {
-					v := getString(stats.name, stringArrayAttributes, true)
+					v := getString(stats.name, stringArrayAttributes)
 					v.totalBytes += uint64(len(stats.value))
 					v.cardinality.add(stats.value)
 				} else {
-					v := getString(stats.name, attributes, false)
+					v := getString(stats.name, attributes)
 					v.totalBytes += uint64(len(stats.value))
 					v.cardinality.add(stats.value)
 				}
 			case attrTypeInt:
 				if stats.isArray {
-					v := getInt(stats.name, integerArrayAttributes, true)
+					v := getInt(stats.name, integerArrayAttributes)
 					v.count++
 				} else {
-					v := getInt(stats.name, integerAttributes, false)
+					v := getInt(stats.name, integerAttributes)
 					v.count++
 				}
 			case attrTypeNull:
@@ -1025,98 +1009,6 @@ func printDedicatedColumnOverridesJsonnet(summary blockSummary, settings heurist
 
 	fmt.Printf("], \n")
 	fmt.Println("")
-}
-
-type DedicatedColumnYAMLReadableKeys struct {
-	// The Scope of the attribute
-	Scope string `yaml:"scope" json:"scope,omitempty"`
-	// The Name of the attribute stored in the dedicated column
-	Name string `yaml:"name" json:"name"`
-	// The Type of attribute value
-	Type string `yaml:"type" json:"type,omitempty"`
-	// The Options applied to the dedicated attribute column
-	Options []string `yaml:"options" json:"options,omitempty"`
-}
-
-func backendDedicatedColumnsToYAMLReadableKeys(dedCol backend.DedicatedColumns) []DedicatedColumnYAMLReadableKeys {
-	var printDedCols []DedicatedColumnYAMLReadableKeys
-
-	for _, c := range dedCol {
-		dedColPrint := DedicatedColumnYAMLReadableKeys{
-			Scope:   string(c.Scope),
-			Name:    c.Name,
-			Type:    string(c.Type),
-			Options: []string{},
-		}
-		for _, o := range c.Options {
-			dedColPrint.Options = append(dedColPrint.Options, string(o))
-		}
-		printDedCols = append(printDedCols, dedColPrint)
-	}
-	return printDedCols
-}
-
-func printDedicatedColumnSuggestionsJson(dedCol backend.DedicatedColumns, outPath string) {
-	outBytes, err := json.MarshalIndent(dedCol, "", "  ")
-	if err != nil {
-		fmt.Println("error marshaling dedicated column suggestions to json:", err)
-		return
-	}
-
-	outBytes = append(outBytes, byte('\n'))
-	if outPath != "" {
-		err = os.WriteFile(outPath, outBytes, 0o644)
-		if err != nil {
-			fmt.Println("error writing dedicated column suggestions to file:", err)
-			return
-		}
-		return
-	}
-
-	fmt.Println(string(outBytes))
-}
-
-func printDedicatedColumnSuggestionsJsonnet(dedCol backend.DedicatedColumns, outPath string) {
-	printDedCols := backendDedicatedColumnsToYAMLReadableKeys(dedCol)
-
-	outBytes, err := json.MarshalIndent(printDedCols, "", "  ")
-	if err != nil {
-		fmt.Println("error marshaling dedicated column suggestions to json:", err)
-		return
-	}
-	outBytes = append(outBytes, byte('\n'))
-
-	if outPath != "" {
-		err = os.WriteFile(outPath, outBytes, 0o644)
-		if err != nil {
-			fmt.Println("error writing dedicated column suggestions to file:", err)
-			return
-		}
-		return
-	}
-
-	fmt.Println(string(outBytes))
-}
-
-func printDedicatedColumnSuggestionsYaml(dedCol backend.DedicatedColumns, outPath string) {
-	printDedCols := backendDedicatedColumnsToYAMLReadableKeys(dedCol)
-
-	outBytes, err := yaml.Marshal(printDedCols)
-	if err != nil {
-		fmt.Println("error marshaling dedicated column suggestions to yaml:", err)
-		return
-	}
-
-	if outPath != "" {
-		err = os.WriteFile(outPath, outBytes, 0o644)
-		if err != nil {
-			fmt.Println("error writing dedicated column suggestions to file:", err)
-			return
-		}
-		return
-	}
-
-	fmt.Println(string(outBytes))
 }
 
 func printCliArgs(s blockSummary, settings heuristicSettings, numRowGroups int) {

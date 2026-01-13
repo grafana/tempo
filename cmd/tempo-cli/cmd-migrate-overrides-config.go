@@ -20,11 +20,10 @@ import (
 type migrateOverridesConfigCmd struct {
 	ConfigFile string `arg:"" help:"Path to tempo config file"`
 
-	ConfigDest    string `type:"path" short:"d" help:"Path to tempo config file. If not specified, output to stdout"`
-	OverridesDest string `type:"path" short:"o" help:"Path to tempo overrides file. If not specified, output to stdout"`
+	ConfigDest string `type:"path" short:"d" help:"Path to tempo config file. If not specified, output to stdout"`
 }
 
-func (cmd *migrateOverridesConfigCmd) Run(*globalOptions) error {
+func (cmd *migrateOverridesConfigCmd) Run(ctx *globalOptions) error {
 	// Defaults
 	cfg := app.Config{}
 	cfg.RegisterFlagsAndApplyDefaults("", &flag.FlagSet{})
@@ -89,8 +88,8 @@ func (cmd *migrateOverridesConfigCmd) Run(*globalOptions) error {
 		return fmt.Errorf("failed to marshal overrides: %w", err)
 	}
 
-	if cmd.OverridesDest != "" {
-		if err := os.WriteFile(cmd.OverridesDest, overridesBytes, 0o600); err != nil {
+	if ctx.OutputFile != "" {
+		if err := os.WriteFile(ctx.OutputFile, overridesBytes, 0o600); err != nil {
 			return fmt.Errorf("failed to write overrides file: %w", err)
 		}
 	} else {

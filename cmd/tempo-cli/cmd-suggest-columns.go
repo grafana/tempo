@@ -2,8 +2,13 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"fmt"
+	"os"
 	"time"
+
+	"gopkg.in/yaml.v3"
 
 	"github.com/dustin/go-humanize"
 	"github.com/google/uuid"
@@ -11,12 +16,11 @@ import (
 	"github.com/grafana/tempo/tempodb/backend"
 )
 
-type suggestDedicatedColumnsCmd struct {
+type suggestColumnsCmd struct {
 	backendOptions
 
 	TenantID string `arg:"" help:"tenant-id within the bucket"`
 
-	Format              string  `help:"Output format (json/jsonnet/yaml)" enum:"json,jsonnet,yaml" default:"jsonnet"`
 	BlockID             string  `help:"specific block ID to analyse"`
 	MinCompactionLevel  int     `help:"Min compaction level to analyse" default:"3"`
 	MaxBlocks           int     `help:"Max number of blocks to analyse" default:"10"`
@@ -27,10 +31,9 @@ type suggestDedicatedColumnsCmd struct {
 	BlobThreshold       string  `help:"Convert column to blob when dictionary size reaches this value" default:"4MiB"`
 	MaxStartTime        string  `help:"Oldest start time for a block to be processed. RFC3339 format '2006-01-02T15:04:05Z07:00'" default:""`
 	MinStartTime        string  `help:"Newest start time for a block to be processed. RFC3339 format '2006-01-02T15:04:05Z07:00'" default:""`
-	Out                 string  `help:"(internal) file to write output to, instead of stdout" default:""`
 }
 
-func (cmd *suggestDedicatedColumnsCmd) Run(ctx *globalOptions) error {
+func (cmd *suggestColumnsCmd) Run(ctx *globalOptions) error {
 	blobBytes, err := humanize.ParseBytes(cmd.BlobThreshold)
 	if err != nil {
 		return err
@@ -97,7 +100,7 @@ func (cmd *suggestDedicatedColumnsCmd) Run(ctx *globalOptions) error {
 			return errors.New("int percent threshold must be between 0 and 1")
 		}
 
-		return blockSum.printDedicatedColumns(settings, cmd.Format, cmd.Out)
+		return printDedicatedColumns(blockSum.ToDedicatedColumns(settings), ctx.OutputFormat, ctx.OutputFile)
 	}
 
 	// TODO: Parallelize this
@@ -137,5 +140,89 @@ func (cmd *suggestDedicatedColumnsCmd) Run(ctx *globalOptions) error {
 		processedBlocks[block] = struct{}{}
 	}
 
-	return totalSummary.printDedicatedColumns(settings, cmd.Format, cmd.Out)
+	return printDedicatedColumns(totalSummary.ToDedicatedColumns(settings), ctx.OutputFormat, ctx.OutputFile)
+}
+
+func printDedicatedColumns(dedicatedCols backend.DedicatedColumns, format string, outPath string) error {
+	// json prints out JSON format but using backend.DedicatedColumn struct which the keys are s, n, t, o
+	// jsonnet prints out JSONNET format but what user would put in Jsonnet overrides file to generate yaml
+	switch format {
+	case "jsonnet":
+		printDedicatedColumnSuggestionsJsonnet(dedicatedCols, outPath)
+	case "yaml":
+		printDedicatedColumnSuggestionsYaml(dedicatedCols, outPath)
+	default:
+		return errors.New("unknown format: " + format)
+	}
+	return nil
+}
+
+type DedicatedColumnYAMLReadableKeys struct {
+	// The Scope of the attribute
+	Scope string `yaml:"scope" json:"scope,omitempty"`
+	// The Name of the attribute stored in the dedicated column
+	Name string `yaml:"name" json:"name"`
+	// The Type of attribute value
+	Type string `yaml:"type" json:"type,omitempty"`
+	// The Options applied to the dedicated attribute column
+	Options []string `yaml:"options" json:"options,omitempty"`
+}
+
+func backendDedicatedColumnsToYAMLReadableKeys(dedCol backend.DedicatedColumns) []DedicatedColumnYAMLReadableKeys {
+	var printDedCols []DedicatedColumnYAMLReadableKeys
+
+	for _, c := range dedCol {
+		dedColPrint := DedicatedColumnYAMLReadableKeys{
+			Scope:   string(c.Scope),
+			Name:    c.Name,
+			Type:    string(c.Type),
+			Options: []string{},
+		}
+		for _, o := range c.Options {
+			dedColPrint.Options = append(dedColPrint.Options, string(o))
+		}
+		printDedCols = append(printDedCols, dedColPrint)
+	}
+	return printDedCols
+}
+
+func printDedicatedColumnSuggestionsJsonnet(dedCol backend.DedicatedColumns, outPath string) {
+	printDedCols := backendDedicatedColumnsToYAMLReadableKeys(dedCol)
+
+	outBytes, err := json.MarshalIndent(printDedCols, "", "  ")
+	if err != nil {
+		fmt.Println("error marshaling dedicated column suggestions to json:", err)
+		return
+	}
+	outBytes = append(outBytes, byte('\n'))
+
+	if outPath != "" {
+		err = os.WriteFile(outPath, outBytes, 0o600)
+		if err != nil {
+			fmt.Println("error writing dedicated column suggestions to file:", err)
+			return
+		}
+		return
+	}
+
+	fmt.Println(string(outBytes))
+}
+
+func printDedicatedColumnSuggestionsYaml(dedCol backend.DedicatedColumns, outPath string) {
+	outBytes, err := yaml.Marshal(dedCol)
+	if err != nil {
+		fmt.Println("error marshaling dedicated column suggestions to yaml:", err)
+		return
+	}
+
+	if outPath != "" {
+		err = os.WriteFile(outPath, outBytes, 0o600)
+		if err != nil {
+			fmt.Println("error writing dedicated column suggestions to file:", err)
+			return
+		}
+		return
+	}
+
+	fmt.Println(string(outBytes))
 }
