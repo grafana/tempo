@@ -55,7 +55,6 @@ type PartitionRingConfig struct {
 }
 
 type ExternalConfig struct {
-	Enabled  bool          `yaml:"enabled"`
 	Endpoint string        `yaml:"endpoint"` // e.g., "http://external-service:3200"
 	Timeout  time.Duration `yaml:"timeout"`
 }
@@ -63,7 +62,6 @@ type ExternalConfig struct {
 // RegisterFlagsAndApplyDefaults register flags.
 func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
 	cfg.TraceByID.QueryTimeout = 10 * time.Second
-	cfg.TraceByID.External.Enabled = false
 	cfg.TraceByID.External.Timeout = 10 * time.Second
 	cfg.QueryRelevantIngesters = false
 	cfg.ExtraQueryDelay = 0

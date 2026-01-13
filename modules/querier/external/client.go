@@ -98,6 +98,8 @@ func (c *Client) TraceByID(ctx context.Context, userID string, traceID []byte, s
 		return nil, fmt.Errorf("external endpoint returned status %d: %s", resp.StatusCode, string(body))
 	}
 
+	// The external endpoint is expected to return an OTEL trace protobuf (ptrace.Traces).
+	// This is wire-compatible with tempopb.Trace, so we can unmarshal it directly.
 	var trace tempopb.Trace
 	err = trace.Unmarshal(body)
 	if err != nil {

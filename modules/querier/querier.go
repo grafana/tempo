@@ -135,6 +135,7 @@ func New(
 	liveStoreRing ring.ReadRing,
 	partitionRing *ring.PartitionInstanceRing,
 
+	queryExternal bool,
 	store storage.Store,
 	limits overrides.Interface,
 ) (*Querier, error) {
@@ -186,7 +187,7 @@ func New(
 		limits: limits,
 	}
 
-	if cfg.TraceByID.External.Enabled {
+	if queryExternal {
 		externalClient, err := external.NewClient(cfg.TraceByID.External.Endpoint, cfg.TraceByID.External.Timeout)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create external client: %w", err)
@@ -368,7 +369,7 @@ func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDReque
 		}
 	}
 
-	if q.cfg.TraceByID.External.Enabled {
+	if q.externalClient != nil {
 		if req.QueryMode == QueryModeExternal || req.QueryMode == QueryModeAll {
 			span.AddEvent("searching external", oteltrace.WithAttributes(
 				attribute.String("traceID", hex.EncodeToString(req.TraceID)),
