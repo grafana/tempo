@@ -12,7 +12,7 @@ services:
       - ./tempo-data:/var/tempo
 
   memcached:
-    image: memcached:1.6.40@sha256:cf7cf1c8f636c9d9640a0e0b1a574393cb7f187d64915b31b7b3e84bee47f711
+    image: memcached:1.6.40@sha256:8a424123faf69490a57a98ebf5fd59176f96b6b35da6b800a74b1376ac9ccf62
     container_name: memcached
     ports:
       - "11211:11211"
