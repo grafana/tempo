@@ -36,6 +36,10 @@ type Edge struct {
 
 	// Span multiplier is used for multiplying metrics
 	SpanMultiplier float64
+
+	// SyntheticClient marks edges whose client side was synthesized from a SERVER span
+
+	SyntheticClient bool
 }
 
 // resetEdge resets the Edge to its zero state.
