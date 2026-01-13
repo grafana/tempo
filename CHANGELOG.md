@@ -73,6 +73,7 @@
 
 ### vParquet5
 
+* [CHANGE] Simplify column paths in vParquet5-preview7 by removing LIST meta [#6134](https://github.com/grafana/tempo/pull/6134) (@mdisibio)
 * [FEATURE] New TraceQL intrinsic span:childCount which is the number of direct children of the span. Support in vParquet5 and later. [#6126](https://github.com/grafana/tempo/pull/6126) (@mdisibio)
 * [FEATURE] New block encoding vParquet5-preview4 with array support for dedicated columns. This is a preview, breaking changes are expected. [#5760](https://github.com/grafana/tempo/pull/5760) (@stoewer)
 * [FEATURE] New block encoding vParquet5-preview5 with virtual span row numbers. This is a preview, breaking changes are expected. [#5943](https://github.com/grafana/tempo/pull/5943) (@stoewer)
