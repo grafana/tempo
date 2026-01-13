@@ -25,6 +25,11 @@ Block formats based on Parquet require more CPU and memory resources than the pr
 
 ## Choose a different block format
 
+{{< admonition type="warning" >}}
+`vParquet3` and `v2` have been deprecated and will be removed in Tempo 3.0. In order to cleanly migrate forward to Tempo 3.0 you will need `vParquet4` or higher
+blocks.
+{{< /admonition >}}
+
 The default block format is `vParquet4`, which is the latest iteration of the Parquet-based columnar block format in Tempo.
 vParquet4 introduces columns that enable querying for data in array attributes as well as events and links.
 For more information, refer to [Dedicated attribute columns](https://grafana.com/docs/tempo/<TEMPO_VERSION>/operations/dedicated_columns/).
@@ -33,8 +38,8 @@ You can still use the previous format `vParquet3`.
 To enable it, set the block version option to `vParquet3` in the [Storage section](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/#storage) of the configuration file.
 
 ```yaml
-# block format version. options: v2, vParquet3, vParquet4
-[version: vParquet4]
+# block format version. options: vParquet4
+[version: vParquet3]
 ```
 
 In some cases, you may choose to disable Parquet and use the old `v2` block format.

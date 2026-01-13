@@ -17,12 +17,13 @@
 * [CHANGE] Remove busybox from Tempo image to make it more minimal and prevent future vulnerabilities [#5717](https://github.com/grafana/tempo/pull/5717) (@carles-grafana)
 * [CHANGE] Allow RetryInfo to be disabled in per tenant overrides [#5741](https://github.com/grafana/tempo/pull/5741) (@electron0zero)
 * [CHANGE] **BREAKING CHANGE** Added `scope` and `query` params while rewriting integration tests to the Tempo HTTP client `SearchTagsV2WithRange` function.
+* [CHANGE] **BREAKING CHANGE** TempoDB schemas vParquet3 and v2 are deprecated and will be removed in 3.0. [#6198](https://github.com/grafana/tempo/pull/6198) (@joe-elliott)
 * [CHANGE] Upgrade Tempo to Go 1.25.4 [#5939](https://github.com/grafana/tempo/pull/5939) [#6001](https://github.com/grafana/tempo/pull/6001) (@ruslan-mikhailov)
 * [CHANGE] Upgrade Tempo to Go 1.25.5 [#6096](https://github.com/grafana/tempo/pull/6096) [#6089](https://github.com/grafana/tempo/pull/6089) (@joe-elliott)
 * [CHANGE] Set maxKeys to 1 for S3 confirm list operation [#6114](https://github.com/grafana/tempo/pull/6114) (@cancub)
 * [FEATURE] TraceQL: Add minInt/maxInt. [#5982](https://github.com/grafana/tempo/pull/5982) (@Syedowais312)
-* [FEATURE] TraceQL: Add support for attribute = nil [#4950](https://github.com/grafana/tempo/pull/4905) (@ie-pham)
-* [FEATURE] Add support for `Accept: application/vnd.grafana.llm` to Tempo endpoints to improve MCP responses. Currently supported directly by trace by id and tag values [#5961](https://github.com/grafana/tempo/pull/5961) (@joe-elliott)
+* [FEATURE] TraceQL: Add support for attribute = nil [#4905](https://github.com/grafana/tempo/pull/4905) (@ie-pham)
+* [FEATURE] Add support for `Accept: application/vnd.grafana.llm` to Tempo endpoints to improve MCP responses. Currently supported directly by trace by id and tag values [#5962](https://github.com/grafana/tempo/pull/5962) (@joe-elliott)
   This response is subject to change and should not be relied on. It is intended for LLM consumption only. Even a fundamental change to its representation (yaml? markdown?) would not be considered breaking.
 * [FEATURE] Add entity-based limiting mode for metrics-generator as an alternative to series-based limiting. [#5788](https://github.com/grafana/tempo/pull/5788) (@Logiraptor)
 * [FEATURE] Add `tempo_metrics_generator_registry_active_series_demand_estimate` that estimates metrics-generator active series demand even when the active series limit is reached [#5710](https://github.com/grafana/tempo/pull/5710) (@carles-grafana)
@@ -48,6 +49,7 @@
 * [ENHANCEMENT] Add support for application/protobuf in frontend endpoints [#5865](https://github.com/grafana/tempo/pull/5865) (@oleg-kozliuk-grafana)
 * [ENHANCEMENT] Validate metrics-generator histogram buckets [#5991](https://github.com/grafana/tempo/pull/5991) (@carles-grafana)
 * [ENHANCEMENT] Removed MustNewConstMetric to prevent panic and added validation for usage tracker config. Added `tempo_distributor_usage_tracker_errors_total` to surface errors in usage tracker. [#5981](https://github.com/grafana/tempo/pull/5981) (@electron0zero)
+* [ENHANCEMENT] Simplify block-builder partition assignment with config parameter `partitions_per_instance` [#6022](https://github.com/grafana/tempo/pull/6022) (@mapno)
 * [BUGFIX] Prevent slice panic when truncating series after topk() by adding bounds check in metrics query-range combiner [#6010](https://github.com/grafana/tempo/pull/6010) (@Syedowais312)
 * [BUGFIX] Fix compactor to properly consider SSE-KMS information during metadata copy [#5774](https://github.com/grafana/tempo/pull/5774) (@steffsas)
 * [BUGFIX] Fix `spss=0` parameter to properly mean unlimited spans instead of being rejected, and respect `max_spans_per_span_set=0` configuration [#5858](https://github.com/grafana/tempo/pull/5858) (@iamrajiv)
@@ -67,10 +69,12 @@
 * [BUGFIX] Fix slow pod startup (~90s) in monolithic mode by returning false from isSharded() when kvstore is empty or inmemory. [#6035](https://github.com/grafana/tempo/issues/6035) (@AryanBagade)
 * [BUGFIX] Fix response-too-large.md ingestion config example in document [#6116](https://github.com/grafana/tempo/pull/6116) (@gamerslouis)
 * [BUGFIX] generator: back off when instance creation fails to avoid resource exhaustion [#6142](https://github.com/grafana/tempo/pull/6142) (@carles-grafana)
+* [BUGFIX] Correct handle whitespace or invisible separators in filters in attribute values in tag value search [#6124](https://github.com/grafana/tempo/pull/6124) (@mapno)
 
 
 ### vParquet5
 
+* [CHANGE] Simplify column paths in vParquet5-preview7 by removing LIST meta [#6134](https://github.com/grafana/tempo/pull/6134) (@mdisibio)
 * [FEATURE] New TraceQL intrinsic span:childCount which is the number of direct children of the span. Support in vParquet5 and later. [#6126](https://github.com/grafana/tempo/pull/6126) (@mdisibio)
 * [FEATURE] New block encoding vParquet5-preview4 with array support for dedicated columns. This is a preview, breaking changes are expected. [#5760](https://github.com/grafana/tempo/pull/5760) (@stoewer)
 * [FEATURE] New block encoding vParquet5-preview5 with virtual span row numbers. This is a preview, breaking changes are expected. [#5943](https://github.com/grafana/tempo/pull/5943) (@stoewer)

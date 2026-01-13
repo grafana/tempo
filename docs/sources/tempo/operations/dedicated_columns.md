@@ -10,7 +10,9 @@ Dedicated attribute columns improve query performance by storing the most freque
 rather than in the generic attribute key-value list.
 
 Introduced with `vParquet3`, dedicated attribute columns are available when using `vParquet3` or later storage formats.
-Dedicated attribute columns gain support for array-valued attributes, event-scoped attributes, and blob attributes using the `options` field in vParquet5.
+Even though `vParquet3` is deprecated, this feature is available when using the current value of `vParquet4`.
+
+With `vParuqet5`, dedicated attribute columns gain support for array-valued attributes, event-scoped attributes, and blob attributes using the `options` field.
 
 ## Configuration
 
@@ -21,7 +23,6 @@ You can configure dedicated attribute columns in the storage block or via overri
 storage:
   trace:
     block:
-      version: vParquet3
       # Default dedicated columns for all blocks
       parquet_dedicated_columns:
         - name: <string> # name of the attribute

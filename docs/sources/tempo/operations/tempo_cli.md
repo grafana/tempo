@@ -580,7 +580,8 @@ tempo-cli migrate overrides-config config.yaml --config-dest config-tmp.yaml --o
 <!-- Note that the command uses analyse and not analyze -->
 
 Analyses a block and outputs a summary of the block's generic attributes.
-It's of particular use when trying to determine candidates for dedicated attribute columns.
+
+It's of particular use when trying to determine candidates for dedicated attribute columns in vParquet3+.
 The output includes span, resource, and event attributes with cardinality and size information.
 
 Arguments:
@@ -616,7 +617,8 @@ tempo-cli analyse block --blob-threshold=4MiB --generate-jsonnet --backend=local
 ## Analyse blocks
 
 Analyses all blocks in a given time range and outputs a summary of the blocks' generic attributes.
-It's of particular use when trying to determine candidates for dedicated attribute columns.
+
+It's of particular use when trying to determine candidates for dedicated attribute columns in vParquet3+.
 The output includes span, resource, and event attributes with cardinality and size information.
 
 Arguments:
