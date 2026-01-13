@@ -143,6 +143,39 @@ func TestBackendBlockFindTraceByID_TestData(t *testing.T) {
 	}
 }
 
+func TestBackendBlockTraceRoundtrip(t *testing.T) {
+	testCases := []struct {
+		name string
+		tr   *Trace
+		dc   backend.DedicatedColumns
+	}{
+		{
+			name: "fullypopulated",
+			tr:   fullyPopulatedTestTrace(test.ValidTraceID(nil)),
+			dc:   test.MakeDedicatedColumns(),
+		},
+		{
+			name: "mixed array/non-array",
+			tr:   func() *Trace { tr, _ := mixedArrayTestTrace(); return tr }(),
+			dc:   func() backend.DedicatedColumns { _, dc := mixedArrayTestTrace(); return dc }(),
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			var (
+				ctx       = t.Context()
+				block     = makeBackendBlockWithTracesWithDedicatedColumns(t, []*Trace{tc.tr}, tc.dc)
+				wantProto = ParquetTraceToTempopbTrace(block.meta, tc.tr)
+			)
+
+			gotProto, err := block.FindTraceByID(ctx, tc.tr.TraceID, common.DefaultSearchOptions())
+			require.NoError(t, err)
+			require.Equal(t, wantProto, gotProto.Trace)
+		})
+	}
+}
+
 func BenchmarkFindTraceByID(b *testing.B) {
 	ctx := context.TODO()
 	traceID := []byte{}

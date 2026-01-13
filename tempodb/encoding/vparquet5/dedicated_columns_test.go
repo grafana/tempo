@@ -265,7 +265,7 @@ func TestDedicatedColumn_readValue(t *testing.T) {
 	attrComplete := DedicatedAttributes{
 		String01: []string{"one"},
 		String02: []string{"two"},
-		String03: []string{"three"},
+		String03: []string{"three", "three_b"},
 		String04: []string{"four"},
 		String05: []string{"five"},
 		String06: []string{"six"},
@@ -276,7 +276,7 @@ func TestDedicatedColumn_readValue(t *testing.T) {
 		Int01:    []int64{1},
 		Int02:    []int64{2},
 		Int03:    []int64{3},
-		Int04:    []int64{4},
+		Int04:    []int64{4, 40},
 		Int05:    []int64{5},
 	}
 
@@ -294,10 +294,10 @@ func TestDedicatedColumn_readValue(t *testing.T) {
 		},
 		{
 			name:            "str array",
-			dedicatedColumn: dedicatedColumn{Type: "string", ColumnIndex: 2, IsArray: true},
+			dedicatedColumn: dedicatedColumn{Type: "string", ColumnIndex: 2 /*, IsArray: true*/},
 			attr:            attrComplete,
 			want: &v1.AnyValue{Value: &v1.AnyValue_ArrayValue{
-				ArrayValue: &v1.ArrayValue{Values: []*v1.AnyValue{{Value: &v1.AnyValue_StringValue{StringValue: "three"}}}},
+				ArrayValue: &v1.ArrayValue{Values: []*v1.AnyValue{{Value: &v1.AnyValue_StringValue{StringValue: "three"}}, {Value: &v1.AnyValue_StringValue{StringValue: "three_b"}}}},
 			}},
 		},
 		{
@@ -320,10 +320,10 @@ func TestDedicatedColumn_readValue(t *testing.T) {
 		},
 		{
 			name:            "int array",
-			dedicatedColumn: dedicatedColumn{Type: "int", ColumnIndex: 3, IsArray: true},
+			dedicatedColumn: dedicatedColumn{Type: "int", ColumnIndex: 3 /*, IsArray: true*/},
 			attr:            attrComplete,
 			want: &v1.AnyValue{Value: &v1.AnyValue_ArrayValue{
-				ArrayValue: &v1.ArrayValue{Values: []*v1.AnyValue{{Value: &v1.AnyValue_IntValue{IntValue: 4}}}},
+				ArrayValue: &v1.ArrayValue{Values: []*v1.AnyValue{{Value: &v1.AnyValue_IntValue{IntValue: 4}}, {Value: &v1.AnyValue_IntValue{IntValue: 40}}}},
 			}},
 		},
 		{
@@ -377,12 +377,12 @@ func TestDedicatedColumn_writeValue(t *testing.T) {
 		},
 		{
 			name:            "string array",
-			dedicatedColumn: dedicatedColumn{Type: "string", ColumnIndex: 4, IsArray: true},
+			dedicatedColumn: dedicatedColumn{Type: "string", ColumnIndex: 4},
 			value: &v1.AnyValue{Value: &v1.AnyValue_ArrayValue{
-				ArrayValue: &v1.ArrayValue{Values: []*v1.AnyValue{{Value: &v1.AnyValue_StringValue{StringValue: "five"}}}},
+				ArrayValue: &v1.ArrayValue{Values: []*v1.AnyValue{{Value: &v1.AnyValue_StringValue{StringValue: "five"}}, {Value: &v1.AnyValue_StringValue{StringValue: "five_b"}}}},
 			}},
 			expectedWritten: true,
-			expectedAttr:    DedicatedAttributes{String05: []string{"five"}},
+			expectedAttr:    DedicatedAttributes{String05: []string{"five", "five_b"}},
 		},
 		{
 			name:            "int",
@@ -393,12 +393,12 @@ func TestDedicatedColumn_writeValue(t *testing.T) {
 		},
 		{
 			name:            "int array",
-			dedicatedColumn: dedicatedColumn{Type: "int", ColumnIndex: 3, IsArray: true},
+			dedicatedColumn: dedicatedColumn{Type: "int", ColumnIndex: 3},
 			value: &v1.AnyValue{Value: &v1.AnyValue_ArrayValue{
-				ArrayValue: &v1.ArrayValue{Values: []*v1.AnyValue{{Value: &v1.AnyValue_IntValue{IntValue: 11}}}},
+				ArrayValue: &v1.ArrayValue{Values: []*v1.AnyValue{{Value: &v1.AnyValue_IntValue{IntValue: 11}}, {Value: &v1.AnyValue_IntValue{IntValue: 12}}}},
 			}},
 			expectedWritten: true,
-			expectedAttr:    DedicatedAttributes{Int04: []int64{11}},
+			expectedAttr:    DedicatedAttributes{Int04: []int64{11, 12}},
 		},
 		{
 			name:            "wrong type",
@@ -407,15 +407,10 @@ func TestDedicatedColumn_writeValue(t *testing.T) {
 		},
 		{
 			name:            "wrong array element type",
-			dedicatedColumn: dedicatedColumn{Type: "string", ColumnIndex: 2, IsArray: true},
+			dedicatedColumn: dedicatedColumn{Type: "string", ColumnIndex: 2},
 			value: &v1.AnyValue{Value: &v1.AnyValue_ArrayValue{
 				ArrayValue: &v1.ArrayValue{Values: []*v1.AnyValue{{Value: &v1.AnyValue_IntValue{IntValue: 2}}}},
 			}},
-		},
-		{
-			name:            "not an array",
-			dedicatedColumn: dedicatedColumn{Type: "int", ColumnIndex: 3, IsArray: true},
-			value:           &v1.AnyValue{Value: &v1.AnyValue_IntValue{IntValue: 2}},
 		},
 		{
 			name:            "index too high",
