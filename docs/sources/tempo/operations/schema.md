@@ -5,6 +5,7 @@ description: This document describes the schema used with the Parquet block form
 weight: 900
 aliases:
   - /docs/tempo/parquet/schema
+  - /docs/tempo/parquet/schema
 ---
 
 # Apache Parquet schema
@@ -20,7 +21,7 @@ Refer to the [Parquet configuration options](../../configuration/parquet/) for m
 This document describes the schema used with the Parquet block format.
 
 ## Version applicability
- 
+
 Tempo 2.10 defaults to the vParquet4 schema. vParquet5 is production-ready and differs in some schema details.
 Unless otherwise noted, the sections below describe vParquet4.
 
@@ -433,13 +434,13 @@ Only scalar values are stored in the dedicated attribute columns. Arrays and uns
 
 ```yaml
 repeated group Attrs {
-  required binary Key (STRING);
-  required boolean IsArray;
-  repeated binary Value (STRING);
-  repeated int64 ValueInt (INTEGER(64,true));
-  repeated double ValueDouble;
-  repeated boolean ValueBool;
-  optional binary ValueUnsupported (STRING);
+required binary Key (STRING);
+required boolean IsArray;
+repeated binary Value (STRING);
+repeated int64 ValueInt (INTEGER(64,true));
+repeated double ValueDouble;
+repeated boolean ValueBool;
+optional binary ValueUnsupported (STRING);
 }
 ```
 
