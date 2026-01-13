@@ -52,6 +52,7 @@
 * [ENHANCEMENT] Performance improvement in quantile_over_time() [#5996](https://github.com/grafana/tempo/pull/5996) (@mdisibio)
 * [ENHANCEMENT] Improve shutdown time in the first 30 seconds [#5725](https://github.com/grafana/tempo/pull/5725) (@ldufr)
 * [ENHANCEMENT] Add metric for tracking added latency to write requests [#5781](https://github.com/grafana/tempo/pull/5781) (@mapno)
+* [ENHANCEMENT] Update jsonnet vendor dependencies [#6202](https://github.com/grafana/tempo/pull/6202) (@javiermolinar)
 * [ENHANCEMENT] Improve error message when overrides fail to parse [#5787](https://github.com/grafana/tempo/pull/5787) (@mapno)
 * [ENHANCEMENT] Add `default_spans_per_span_set` configuration option to control default spans returned per trace in search results [#5858](https://github.com/grafana/tempo/pull/5858) (@iamrajiv)
 * [ENHANCEMENT] Increase weight for heavy TraceQL queries [#5782](https://github.com/grafana/tempo/pull/5782) (@ruslan-mikhailov)
