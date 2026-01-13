@@ -9,6 +9,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"path"
 	"strconv"
 	"strings"
 
@@ -220,7 +221,8 @@ func (c *Client) SearchTagsV2WithRange(scope, query string, start int64, end int
 
 func (c *Client) SearchTagValues(key string) (*tempopb.SearchTagValuesResponse, error) {
 	m := &tempopb.SearchTagValuesResponse{}
-	_, err := c.getFor(c.BaseURL+"/api/search/tag/"+key+"/values", m)
+
+	_, err := c.getFor(c.buildTagValuesQueryURL(key), m)
 	if err != nil {
 		return nil, err
 	}
@@ -229,15 +231,7 @@ func (c *Client) SearchTagValues(key string) (*tempopb.SearchTagValuesResponse, 
 }
 
 func (c *Client) SearchTagValuesV2(key, query string) (*tempopb.SearchTagValuesV2Response, error) {
-	m := &tempopb.SearchTagValuesV2Response{}
-	urlPath := fmt.Sprintf(`/api/v2/search/tag/%s/values?q=%s`, key, url.QueryEscape(query))
-
-	_, err := c.getFor(c.BaseURL+urlPath, m)
-	if err != nil {
-		return nil, err
-	}
-
-	return m, nil
+	return c.SearchTagValuesV2WithRange(key, query, 0, 0)
 }
 
 func (c *Client) SearchTagValuesV2WithRange(tag, query string, start int64, end int64) (*tempopb.SearchTagValuesV2Response, error) {
@@ -448,7 +442,7 @@ func (c *Client) buildTagsQueryURL(start int64, end int64) string {
 	}
 	joinURL.RawQuery = q.Encode()
 
-	return fmt.Sprint(joinURL)
+	return joinURL.String()
 }
 
 func (c *Client) buildTagsV2QueryURL(scope, query string, start int64, end int64) string {
@@ -466,12 +460,28 @@ func (c *Client) buildTagsV2QueryURL(scope, query string, start int64, end int64
 	}
 	joinURL.RawQuery = q.Encode()
 
-	return fmt.Sprint(joinURL)
+	return joinURL.String()
 }
 
+// the use of path.Join, not escaping the key and the specific way the url is parsed is all very purposeful here
+// to mimic how Grafana builds URLs when calling Tempo so our integration tests mimic our most important client
+func (c *Client) buildTagValuesQueryURL(key string) string {
+	tagsPath := path.Join("/api/search/tag/", key, "/values")
+
+	joinURL, _ := url.Parse(c.BaseURL)
+	joinURL.Path = path.Join(joinURL.Path, tagsPath)
+
+	return joinURL.String()
+}
+
+// the use of path.Join, not escaping the key and the specific way the url is parsed is all very purposeful here
+// to mimic how Grafana builds URLs when calling Tempo so our integration tests mimic our most important client
 func (c *Client) buildTagValuesV2QueryURL(key, query string, start int64, end int64) string {
-	urlPath := fmt.Sprintf(`/api/v2/search/tag/%s/values`, key)
-	joinURL, _ := url.Parse(c.BaseURL + urlPath + "?")
+	tagsPath := path.Join("/api/v2/search/tag/", key, "/values")
+
+	joinURL, _ := url.Parse(c.BaseURL)
+	joinURL.Path = path.Join(joinURL.Path, tagsPath)
+
 	q := joinURL.Query()
 	if query != "" {
 		q.Set("q", query)
@@ -482,7 +492,7 @@ func (c *Client) buildTagValuesV2QueryURL(key, query string, start int64, end in
 	}
 	joinURL.RawQuery = q.Encode()
 
-	return fmt.Sprint(joinURL)
+	return joinURL.String()
 }
 
 func (c *Client) GetOverrides() (*userconfigurableoverrides.Limits, string, error) {

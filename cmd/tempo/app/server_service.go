@@ -48,7 +48,7 @@ type tempoServer struct {
 
 func newTempoServer() *tempoServer {
 	return &tempoServer{
-		mux: mux.NewRouter().UseEncodedPath(),
+		mux: mux.NewRouter(), // jpe - .UseEncodedPath().SkipClean(true)
 		// externalServer will be initialized in StartService
 	}
 }

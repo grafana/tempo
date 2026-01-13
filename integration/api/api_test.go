@@ -764,3 +764,86 @@ func callSearchTagValuesAndAssert(t *testing.T, h *util.TempoHarness, tagName st
 	sort.Strings(response.TagValues)
 	require.Equal(t, expectedValues, response.TagValues)
 }
+
+func TestTagValuesWithSpecialCharacters(t *testing.T) {
+	util.RunIntegrationTests(t, util.TestHarnessConfig{
+		Components: util.ComponentsRecentDataQuerying | util.ComponentsBackendQuerying,
+	}, func(h *util.TempoHarness) {
+		h.WaitTracesWritable(t)
+
+		// Create traces with tag values containing special characters
+		specialCharValues := []struct {
+			attrName  string
+			attrValue string
+		}{
+			{"attr[bracket", "val["},
+			{"attr/slash", "val/"},
+			{"attr space", "val_"},
+			{"attr&ampersand", "val&"},
+			{"attr:colon", "val:"},
+			{"attr@at", "val@"},
+			{"attr#octothorpe", "val#"},
+			{"attr🐷oink", "val🐷"},
+			{"attr%percent", "val%"},
+			{"attr%20valid_escape_code", "val%20"},
+			{"attr \"'<>#%{}|\\*", "val😬"},
+			// {"attr//doubleslash", "val//"}, jpe - try to validate this with a direct GET
+		}
+
+		for _, tc := range specialCharValues {
+			batch := util.MakeThriftBatchWithSpanCountAttributeAndName(1, "test-service", tc.attrValue, tc.attrValue, tc.attrName, tc.attrName)
+			require.NoError(t, h.WriteJaegerBatch(batch, ""))
+		}
+
+		// Wait for traces to be written to WAL
+		h.WaitTracesQueryable(t, len(specialCharValues))
+
+		// Test tag values retrieval for WAL
+		for _, tc := range specialCharValues {
+			t.Run("wal_resource_"+tc.attrName, func(t *testing.T) {
+				tagName := "resource." + tc.attrName
+				expected := &tempopb.SearchTagValuesV2Response{
+					TagValues: []*tempopb.TagValue{{Type: "string", Value: tc.attrValue}},
+				}
+				callSearchTagValuesV2AndAssert(t, h, tagName, "", expected, 0, 0)
+			})
+
+			t.Run("wal_span_"+tc.attrName, func(t *testing.T) {
+				tagName := "span." + tc.attrName
+				expected := &tempopb.SearchTagValuesV2Response{
+					TagValues: []*tempopb.TagValue{{Type: "string", Value: tc.attrValue}},
+				}
+				callSearchTagValuesV2AndAssert(t, h, tagName, "", expected, 0, 0)
+			})
+		}
+
+		// Wait for traces to be written to backend
+		h.WaitTracesWrittenToBackend(t, len(specialCharValues))
+		h.ForceBackendQuerying(t)
+
+		// Test tag values retrieval for backend
+		now := time.Now()
+		start := now.Add(-2 * time.Hour)
+		end := now.Add(2 * time.Hour)
+
+		for _, tc := range specialCharValues {
+			t.Run("backend_resource_"+tc.attrName, func(t *testing.T) {
+				tagName := "resource." + tc.attrName
+				expected := &tempopb.SearchTagValuesV2Response{
+					TagValues: []*tempopb.TagValue{{Type: "string", Value: tc.attrValue}},
+				}
+				callSearchTagValuesV2AndAssert(t, h, tagName, "", expected, start.Unix(), end.Unix())
+			})
+
+			t.Run("backend_span_"+tc.attrName, func(t *testing.T) {
+				tagName := "span." + tc.attrName
+				expected := &tempopb.SearchTagValuesV2Response{
+					TagValues: []*tempopb.TagValue{{Type: "string", Value: tc.attrValue}},
+				}
+				callSearchTagValuesV2AndAssert(t, h, tagName, "", expected, start.Unix(), end.Unix())
+			})
+		}
+
+		// jpe we've tested span.foo/bar we need to add a manual test to for span.foo%2Ebar or whatever the escape code is
+	})
+}
