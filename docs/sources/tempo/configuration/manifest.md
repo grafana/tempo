@@ -341,7 +341,6 @@ querier:
     trace_by_id:
         query_timeout: 10s
         external:
-            enabled: false
             endpoint: ""
             timeout: 10s
     metrics:
