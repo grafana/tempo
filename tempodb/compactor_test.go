@@ -989,3 +989,62 @@ func benchmarkCompaction(b *testing.B, targetBlockVersion string) {
 	err = rw.compactOneJob(ctx, metas, testTenantID)
 	require.NoError(b, err)
 }
+
+func TestCompactWithConfigUnsupportedVersion(t *testing.T) {
+	tempDir := t.TempDir()
+
+	// Create backend reader/writer directly to write the block meta
+	localCfg := &local.Config{Path: path.Join(tempDir, "traces")}
+	_, rawW, _, err := local.New(localCfg)
+	require.NoError(t, err)
+	backendW := backend.NewWriter(rawW)
+
+	_, _, c, err := New(&Config{
+		Backend: backend.Local,
+		Pool: &pool.Config{
+			MaxWorkers: 10,
+			QueueDepth: 100,
+		},
+		Local: localCfg,
+		Block: &common.BlockConfig{
+			IndexDownsampleBytes: 11,
+			BloomFP:              .01,
+			BloomShardSizeBytes:  100_000,
+			Version:              "vParquet4",
+			Encoding:             backend.EncNone,
+			IndexPageSizeBytes:   1000,
+		},
+		WAL: &wal.Config{
+			Filepath: path.Join(tempDir, "wal"),
+		},
+		BlocklistPoll: 0,
+	}, nil, log.NewNopLogger())
+	require.NoError(t, err)
+
+	ctx := context.Background()
+
+	// Create a block meta with an unsupported preview version and write it to storage
+	meta := &backend.BlockMeta{
+		BlockID:  backend.NewUUID(),
+		TenantID: testTenantID,
+		Version:  "vParquet5-preview6",
+	}
+	err = backendW.WriteBlockMeta(ctx, meta)
+	require.NoError(t, err)
+
+	// Try to compact
+	_, err = c.CompactWithConfig(
+		ctx,
+		[]*backend.BlockMeta{meta},
+		testTenantID,
+		&CompactorConfig{
+			ChunkSizeBytes:     10,
+			MaxCompactionRange: 24 * time.Hour,
+		},
+		&mockSharder{},
+		&mockOverrides{},
+	)
+
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "compaction not supported for block version vParquet5-preview6")
+}
