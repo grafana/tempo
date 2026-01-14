@@ -170,7 +170,7 @@ func newTagValuesStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTrippe
 
 		// we have to interpolate the tag name into the path so that when it is routed to the queriers
 		// they will parse it correctly. see also the mux.SetUrlVars discussion below.
-		pathWithValue := strings.Replace(api.PathSearchTagValues, api.MuxVarTagInPath, req.TagName, 1) // jpe - do a better job
+		pathWithValue := strings.Replace(api.PathSearchTagValues, api.MuxVarTagInPath, req.TagName, 1)
 		downstreamPath := path.Join(apiPrefix, pathWithValue)
 
 		httpReq, tenant, err := buildTagValuesRequestAndExtractTenant(srv.Context(), req, downstreamPath, logger)

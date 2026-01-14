@@ -362,11 +362,7 @@ func (s searchTagSharder) ingesterRequest(tenantID string, parent pipeline.Reque
 
 func (s searchTagSharder) buildIngesterRequest(tenantID string, parent pipeline.Request, searchReq tagSearchReq) (pipeline.Request, error) {
 	subR, err := cloneRequestforQueriers(parent, tenantID, func(r *http.Request) (*http.Request, error) {
-		foo, err := searchReq.buildSearchTagRequest(r)
-		if err != nil {
-			return nil, err
-		}
-		return foo, nil
+		return searchReq.buildSearchTagRequest(r)
 	})
 	if err != nil {
 		return nil, err

@@ -74,10 +74,8 @@
 * [BUGFIX] Fix response-too-large.md ingestion config example in document [#6116](https://github.com/grafana/tempo/pull/6116) (@gamerslouis)
 * [BUGFIX] generator: back off when instance creation fails to avoid resource exhaustion [#6142](https://github.com/grafana/tempo/pull/6142) (@carles-grafana)
 * [BUGFIX] Correct handle whitespace or invisible separators in filters in attribute values in tag value search [#6124](https://github.com/grafana/tempo/pull/6124) (@mapno)
-* [BUGFIX] Fix panic when trying to compact block with unsupported encodings such as vParquet previews. [#6209
-](https://github.com/grafana/tempo/pull/6209
-) (@carles-grafana)
-
+* [BUGFIX] Fix special character handling in attribute value requests. [#6212](https://github.com/grafana/tempo/pull/6212) (@joe-elliott)
+* [BUGFIX] Fix panic when trying to compact block with unsupported encodings such as vParquet previews. [#6209](https://github.com/grafana/tempo/pull/6209) (@carles-grafana)
 
 ### vParquet5
 
