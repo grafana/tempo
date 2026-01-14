@@ -19,7 +19,7 @@ import (
 
 const (
 	MuxVarTagName   = "tagName"
-	MuxVarTagInPath = "{tagName + :.*}"
+	MuxVarTagInPath = "{" + MuxVarTagName + ":.*}"
 
 	ParamScopeIntrinsic = "intrinsic"
 )
