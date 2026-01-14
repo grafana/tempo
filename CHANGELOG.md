@@ -78,6 +78,7 @@
 * [BUGFIX] Fix panic when trying to compact block with unsupported encodings such as vParquet previews. [#6209
 ](https://github.com/grafana/tempo/pull/6209
 ) (@carles-grafana)
+* [BUGFIX] querier: allow external trace by id queries invalidation [#6217](https://github.com/grafana/tempo/pull/6217) (@Logiraptor)
 
 
 ### vParquet5
