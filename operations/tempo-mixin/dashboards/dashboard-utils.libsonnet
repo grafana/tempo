@@ -250,5 +250,16 @@ grafana {
       },
     },
 
+  stack:: super.stack + {
+    fieldConfig+: {
+      defaults+: {
+        custom+: {
+          stacking: {
+            mode: 'normal',
+          },
+        },
+      },
+    },
+  },
 
 }
