@@ -439,6 +439,115 @@ func (s blockSummary) print(settings heuristicSettings, printSettings printSetti
 	return nil
 }
 
+func (s blockSummary) ToDedicatedColumns(settings heuristicSettings) []backend.DedicatedColumn {
+	var dedicatedCols []backend.DedicatedColumn
+
+	// convert block summary to dedicated columns
+
+	// span
+	spanStringAttrList := topN(settings.NumStringAttr, s.spanSummary.attributes)
+	for _, attr := range spanStringAttrList {
+		options := backend.DedicatedColumnOptions{}
+		totalSize := attr.cardinality.avgSizePerRowGroup(s.numRowGroups)
+		if settings.BlobThresholdBytes > 0 && totalSize >= settings.BlobThresholdBytes {
+			options = append(options, backend.DedicatedColumnOptionBlob)
+		}
+		dedicatedCols = append(dedicatedCols, backend.DedicatedColumn{
+			Name:    attr.name,
+			Scope:   backend.DedicatedColumnScopeSpan,
+			Type:    backend.DedicatedColumnTypeString,
+			Options: options,
+		})
+	}
+
+	if settings.NumIntAttr > 0 {
+		spanIntAttrList := topNInt(settings.NumIntAttr, s.spanSummary.integerAttributes)
+		for _, attr := range spanIntAttrList {
+			if s.spanSummary.rowCount > 0 {
+				percentOfRows := float64(attr.count) / float64(s.spanSummary.rowCount)
+				if percentOfRows >= settings.IntThresholdPercent {
+					options := backend.DedicatedColumnOptions{}
+					dedicatedCols = append(dedicatedCols, backend.DedicatedColumn{
+						Name:    attr.name,
+						Scope:   backend.DedicatedColumnScopeSpan,
+						Type:    backend.DedicatedColumnTypeInt,
+						Options: options,
+					})
+				}
+			}
+		}
+	}
+
+	// resource
+	resourceStringAttrList := topN(settings.NumStringAttr, s.resourceSummary.attributes)
+	for _, attr := range resourceStringAttrList {
+		options := backend.DedicatedColumnOptions{}
+		totalSize := attr.cardinality.avgSizePerRowGroup(s.numRowGroups)
+		if settings.BlobThresholdBytes > 0 && totalSize >= settings.BlobThresholdBytes {
+			options = append(options, backend.DedicatedColumnOptionBlob)
+		}
+		dedicatedCols = append(dedicatedCols, backend.DedicatedColumn{
+			Name:    attr.name,
+			Scope:   backend.DedicatedColumnScopeResource,
+			Type:    backend.DedicatedColumnTypeString,
+			Options: options,
+		})
+	}
+
+	if settings.NumIntAttr > 0 {
+		resourceIntAttrList := topNInt(settings.NumIntAttr, s.resourceSummary.integerAttributes)
+		for _, attr := range resourceIntAttrList {
+			if s.resourceSummary.rowCount > 0 {
+				percentOfRows := float64(attr.count) / float64(s.resourceSummary.rowCount)
+				if percentOfRows >= settings.IntThresholdPercent {
+					options := backend.DedicatedColumnOptions{}
+					dedicatedCols = append(dedicatedCols, backend.DedicatedColumn{
+						Name:    attr.name,
+						Scope:   backend.DedicatedColumnScopeResource,
+						Type:    backend.DedicatedColumnTypeInt,
+						Options: options,
+					})
+				}
+			}
+		}
+	}
+
+	// event
+	eventStringAttrList := topN(settings.NumStringAttr, s.eventSummary.attributes)
+	for _, attr := range eventStringAttrList {
+		options := backend.DedicatedColumnOptions{}
+		totalSize := attr.cardinality.avgSizePerRowGroup(s.numRowGroups)
+		if settings.BlobThresholdBytes > 0 && totalSize >= settings.BlobThresholdBytes {
+			options = append(options, backend.DedicatedColumnOptionBlob)
+		}
+		dedicatedCols = append(dedicatedCols, backend.DedicatedColumn{
+			Name:    attr.name,
+			Scope:   backend.DedicatedColumnScopeEvent,
+			Type:    backend.DedicatedColumnTypeString,
+			Options: options,
+		})
+	}
+
+	if settings.NumIntAttr > 0 {
+		eventIntAttrList := topNInt(settings.NumIntAttr, s.eventSummary.integerAttributes)
+		for _, attr := range eventIntAttrList {
+			if s.eventSummary.rowCount > 0 {
+				percentOfRows := float64(attr.count) / float64(s.eventSummary.rowCount)
+				if percentOfRows >= settings.IntThresholdPercent {
+					options := backend.DedicatedColumnOptions{}
+					dedicatedCols = append(dedicatedCols, backend.DedicatedColumn{
+						Name:    attr.name,
+						Scope:   backend.DedicatedColumnScopeEvent,
+						Type:    backend.DedicatedColumnTypeInt,
+						Options: options,
+					})
+				}
+			}
+		}
+	}
+	return dedicatedCols
+}
+
 type attributeSummary struct {
 	attributes             map[string]*stringAttributeSummary  // key: attribute name
 	arrayAttributes        map[string]*stringAttributeSummary  // key: attribute name

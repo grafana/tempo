@@ -28,6 +28,11 @@ type globalOptions struct {
 	ConfigFile string `type:"path" short:"c" help:"Path to tempo config file"`
 }
 
+type outputOptions struct {
+	Out    string `short:"o" help:"File to write output to, instead of stdout" default:""`
+	Format string `short:"f" help:"Output format (jsonnet/yaml)" enum:"jsonnet,yaml" default:"yaml"`
+}
+
 type backendOptions struct {
 	Backend string `help:"backend to connect to (s3/gcs/local/azure), optional, overrides backend in config file" enum:",s3,gcs,local,azure" default:""`
 	Bucket  string `help:"bucket (or path on local backend) to scan, optional, overrides bucket in config file"`
@@ -91,6 +96,10 @@ var cli struct {
 	Migrate struct {
 		Tenant          migrateTenantCmd          `cmd:"" help:"migrate tenant between two backends"`
 		OverridesConfig migrateOverridesConfigCmd `cmd:"" help:"migrate overrides config"`
+	} `cmd:""`
+
+	Suggest struct {
+		Columns suggestColumnsCmd `cmd:"" help:"Suggest columns for a tenant"`
 	} `cmd:""`
 }
 
