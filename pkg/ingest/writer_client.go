@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/go-kit/log"
-	"github.com/go-kit/log/level"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/twmb/franz-go/pkg/kerr"
@@ -28,6 +27,17 @@ import (
 // The input prometheus.Registerer must be wrapped with a prefix (the names of metrics
 // registered don't have a prefix).
 func NewWriterClient(kafkaCfg KafkaConfig, maxInflightProduceRequests int, logger log.Logger, reg prometheus.Registerer) (*kgo.Client, error) {
+	// Ensure topic exists with correct partitions BEFORE creating client to avoid race condition
+	// where client auto-creates topic with default partitions while we're trying to set custom count
+	if kafkaCfg.AutoCreateTopicEnabled {
+		if err := kafkaCfg.EnsureTopicPartitions(logger); err != nil {
+			return nil, fmt.Errorf("failed to ensure topic partitions: %w", err)
+		}
+		// Disable auto-creation for producer client since we've already created the topic
+		// This prevents confusion/conflicts between explicit creation and auto-creation
+		kafkaCfg.AutoCreateTopicEnabled = false
+	}
+
 	// Do not export the client ID, because we use it to specify options to the backend.
 	metrics := kprom.NewMetrics(
 		"", // No prefix. We expect the input prometheus.Registered to be wrapped with a prefix.
@@ -82,15 +92,10 @@ func NewWriterClient(kafkaCfg KafkaConfig, maxInflightProduceRequests int, logge
 		kgo.MaxBufferedRecords(math.MaxInt), // Use a high value to set it as unlimited, because the client doesn't support "0 as unlimited".
 		kgo.MaxBufferedBytes(0),
 	)
+
 	client, err := kgo.NewClient(opts...)
 	if err != nil {
 		return nil, err
-	}
-
-	if kafkaCfg.AutoCreateTopicEnabled {
-		if err := kafkaCfg.EnsureTopicPartitions(logger); err != nil {
-			level.Error(logger).Log("msg", "failed to ensure topic partitions", "err", err)
-		}
 	}
 
 	return client, nil

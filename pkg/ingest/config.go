@@ -168,10 +168,17 @@ func (cfg *KafkaConfig) GetConsumerGroup(instanceID string, partitionID int32) s
 // If the topic exists with fewer partitions than desired, it increases the partition count.
 func (cfg KafkaConfig) EnsureTopicPartitions(logger log.Logger) error {
 	if cfg.AutoCreateTopicDefaultPartitions <= 0 {
+		level.Info(logger).Log("msg", "skipping topic partition setup", "reason", "auto_create_topic_default_partitions <= 0")
 		return nil
 	}
 
-	cl, err := kgo.NewClient(commonKafkaClientOptions(cfg, nil, logger)...)
+	level.Info(logger).Log("msg", "ensuring topic partitions", "topic", cfg.Topic, "desired_partitions", cfg.AutoCreateTopicDefaultPartitions)
+
+	// Create admin client WITHOUT auto-creation enabled to prevent Kafka from auto-creating
+	// the topic with default partitions before we explicitly create it with the desired count
+	adminCfg := cfg
+	adminCfg.AutoCreateTopicEnabled = false
+	cl, err := kgo.NewClient(commonKafkaClientOptions(adminCfg, nil, logger)...)
 	if err != nil {
 		return fmt.Errorf("failed to create kafka client: %w", err)
 	}
@@ -249,5 +256,22 @@ func (cfg KafkaConfig) EnsureTopicPartitions(logger log.Logger) error {
 		"num_partitions", resp.NumPartitions,
 		"replication_factor", resp.ReplicationFactor,
 	)
+
+	// Wait for topic to be visible in metadata before returning to avoid race conditions
+	// where producer starts before metadata has propagated
+	level.Info(logger).Log("msg", "waiting for topic to be visible in metadata", "topic", cfg.Topic)
+	for i := 0; i < 10; i++ {
+		td, err := adm.ListTopics(ctx, cfg.Topic)
+		if err == nil {
+			err = td.Error()
+		}
+		if err == nil && len(td[cfg.Topic].Partitions) == cfg.AutoCreateTopicDefaultPartitions {
+			level.Info(logger).Log("msg", "topic is now visible in metadata", "topic", cfg.Topic, "partitions", len(td[cfg.Topic].Partitions))
+			return nil
+		}
+		level.Info(logger).Log("msg", "topic not yet visible, retrying", "topic", cfg.Topic, "attempt", i+1)
+		time.Sleep(100 * time.Millisecond)
+	}
+	level.Warn(logger).Log("msg", "topic may not be fully propagated in metadata", "topic", cfg.Topic)
 	return nil
 }
