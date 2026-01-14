@@ -3,6 +3,7 @@ package api
 import (
 	"fmt"
 	"net/http/httptest"
+	"net/url"
 	"testing"
 
 	"github.com/gorilla/mux"
@@ -53,13 +54,15 @@ func TestParseSearchTagValuesRequest(t *testing.T) {
 	}
 
 	for _, tc := range tcs {
-		url := fmt.Sprintf("http://tempo/api/v2/search/tag/%s/values", tc.tagName)
+		testUrl := fmt.Sprintf("http://tempo/api/v2/search/tag/%s/values", tc.tagName)
 		if tc.query != "" {
-			url = fmt.Sprintf("%s?q=%s", url, tc.query)
+			testUrl = fmt.Sprintf("%s?q=%s", testUrl, tc.query)
 		}
 
-		httpReq := httptest.NewRequest("GET", url, nil)
-		r := mux.SetURLVars(httpReq, map[string]string{MuxVarTagName: tc.tagName})
+		httpReq := httptest.NewRequest("GET", testUrl, nil)
+		escapedTagName, err := url.PathUnescape(tc.tagName)
+		require.NoError(t, err)
+		r := mux.SetURLVars(httpReq, map[string]string{MuxVarTagName: escapedTagName})
 
 		req, err := parseSearchTagValuesRequest(r, tc.enforceTraceQL)
 		if tc.expectError {
