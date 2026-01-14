@@ -289,6 +289,10 @@ func (rw *readerWriter) CompactWithConfig(ctx context.Context, blockMetas []*bac
 		return nil, err
 	}
 
+	if !enc.CompactionSupported() {
+		return nil, fmt.Errorf("compaction not supported for block version %s", blockMetas[0].Version)
+	}
+
 	compactionLevel := CompactionLevelForBlocks(blockMetas)
 	compactionLevelLabel := strconv.Itoa(int(compactionLevel))
 
