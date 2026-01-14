@@ -51,8 +51,7 @@
         "showPoints": "never",
         "spanNulls": false,
         "stacking": {
-         "group": "A",
-         "mode": "none"
+         "mode": "normal"
         }
        },
        "thresholds": {
@@ -224,8 +223,7 @@
         "showPoints": "never",
         "spanNulls": false,
         "stacking": {
-         "group": "A",
-         "mode": "none"
+         "mode": "normal"
         }
        },
        "thresholds": {
@@ -397,8 +395,7 @@
         "showPoints": "never",
         "spanNulls": false,
         "stacking": {
-         "group": "A",
-         "mode": "none"
+         "mode": "normal"
         }
        },
        "thresholds": {
@@ -663,8 +660,7 @@
         "showPoints": "never",
         "spanNulls": false,
         "stacking": {
-         "group": "A",
-         "mode": "none"
+         "mode": "normal"
         }
        },
        "thresholds": {
@@ -836,8 +832,7 @@
         "showPoints": "never",
         "spanNulls": false,
         "stacking": {
-         "group": "A",
-         "mode": "none"
+         "mode": "normal"
         }
        },
        "thresholds": {
@@ -1107,8 +1102,7 @@
         "showPoints": "never",
         "spanNulls": false,
         "stacking": {
-         "group": "A",
-         "mode": "none"
+         "mode": "normal"
         }
        },
        "thresholds": {
@@ -1165,8 +1159,7 @@
         "showPoints": "never",
         "spanNulls": false,
         "stacking": {
-         "group": "A",
-         "mode": "none"
+         "mode": "normal"
         }
        },
        "thresholds": {
@@ -1245,8 +1238,7 @@
         "showPoints": "never",
         "spanNulls": false,
         "stacking": {
-         "group": "A",
-         "mode": "none"
+         "mode": "normal"
         }
        },
        "thresholds": {
@@ -1418,8 +1410,7 @@
         "showPoints": "never",
         "spanNulls": false,
         "stacking": {
-         "group": "A",
-         "mode": "none"
+         "mode": "normal"
         }
        },
        "thresholds": {
