@@ -574,6 +574,14 @@ func TestValidateAndSanitizeRequest(t *testing.T) {
 			blockEnd:      "ffffffffffffffffffffffffffffffff",
 			expectedError: "http parameter start must be before end. received start=1 end=1",
 		},
+		{
+			httpReq:    httptest.NewRequest("GET", "/api/traces/1234?mode=external&start=1&end=2", nil),
+			queryMode:  "external",
+			startTime:  1,
+			endTime:    2,
+			blockStart: "00000000-0000-0000-0000-000000000000",
+			blockEnd:   "FFFFFFFF-FFFF-FFFF-FFFF-FFFFFFFFFFFF",
+		},
 	}
 
 	for _, tc := range tests {
