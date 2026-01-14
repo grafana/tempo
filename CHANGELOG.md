@@ -95,6 +95,7 @@
 * [BUGFIX] Fix dedicated column array handling to better support attributes with mixed array and non-array values [#6199](https://github.com/grafana/tempo/pull/6199) (@mdisibio)
 * [ENHANCEMENT] Add integer attribute analysis to the tempo-cli `analyse block(s)` commands [#6103](https://github.com/grafana/tempo/pull/6103) (@mdisibio)
 * [ENHANCEMENT] Add `suggest columns` command to tempo-cli [#6131](https://github.com/grafana/tempo/pull/6131) (@ie-pham)
+* [ENHANCEMENT] Convert ServiceStats data from map to list and update encoding/compression to enable sorted output and small reduction in file size [#6216](https://github.com/grafana/tempo/pull/6216) (@mdisibio)
 
 ### Tempo Rearchitecture [EXPERIMENTAL]
 

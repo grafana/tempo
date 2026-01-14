@@ -999,14 +999,16 @@ func fullyPopulatedTestTraceWithOption(id common.ID, parentIDTest bool) *Trace {
 		DurationNano:      uint64((100 * time.Millisecond).Nanoseconds()),
 		RootServiceName:   "RootService",
 		RootSpanName:      "RootSpan",
-		ServiceStats: map[string]ServiceStats{
-			"myservice": {
-				SpanCount:  1,
-				ErrorCount: 0,
+		ServiceStats: []ServiceStats{
+			{
+				ServiceName: "myservice",
+				SpanCount:   1,
+				ErrorCount:  0,
 			},
-			"service2": {
-				SpanCount:  1,
-				ErrorCount: 0,
+			{
+				ServiceName: "service2",
+				SpanCount:   1,
+				ErrorCount:  0,
 			},
 		},
 		ResourceSpans: []ResourceSpans{

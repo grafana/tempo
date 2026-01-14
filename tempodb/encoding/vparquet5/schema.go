@@ -250,8 +250,9 @@ type ResourceSpans struct {
 }
 
 type ServiceStats struct {
-	SpanCount  uint32 `parquet:",delta"`
-	ErrorCount uint32 `parquet:",delta"`
+	ServiceName string `parquet:",snappy,dict"`
+	SpanCount   uint32 `parquet:",delta"`
+	ErrorCount  uint32 `parquet:",delta"`
 }
 
 type Trace struct {
@@ -262,12 +263,12 @@ type Trace struct {
 	TraceIDText string `parquet:",snappy"`
 
 	// Trace-level attributes for searching
-	StartTimeUnixNano uint64                  `parquet:",delta"`
-	EndTimeUnixNano   uint64                  `parquet:",delta"`
-	DurationNano      uint64                  `parquet:",delta"`
-	RootServiceName   string                  `parquet:",dict"`
-	RootSpanName      string                  `parquet:",dict"`
-	ServiceStats      map[string]ServiceStats `parquet:""`
+	StartTimeUnixNano uint64         `parquet:",delta"`
+	EndTimeUnixNano   uint64         `parquet:",delta"`
+	DurationNano      uint64         `parquet:",delta"`
+	RootServiceName   string         `parquet:",dict"`
+	RootSpanName      string         `parquet:",dict"`
+	ServiceStats      []ServiceStats `parquet:""`
 
 	ResourceSpans []ResourceSpans `parquet:"rs"`
 }
