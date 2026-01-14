@@ -28,3 +28,21 @@ func MakeKeyValueDouble(key string, value float64) v1.KeyValue {
 		},
 	}
 }
+
+// gogo/protobuf has poor support for optional field
+// TODO: remove these functions after migration from gogo/protobuf
+
+func (q *QueryRangeRequest) HasInstant() bool {
+	if q.XInstant == nil {
+		return false
+	}
+
+	val, ok := q.GetXInstant().(*QueryRangeRequest_Instant)
+	return ok && val != nil
+}
+
+func (q *QueryRangeRequest) SetInstant(value bool) {
+	q.XInstant = &QueryRangeRequest_Instant{
+		Instant: value,
+	}
+}
