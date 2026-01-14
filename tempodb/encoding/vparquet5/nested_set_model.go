@@ -1,6 +1,8 @@
 package vparquet5
 
 import (
+	"sort"
+
 	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 
 	"github.com/grafana/tempo/pkg/util"
@@ -41,10 +43,11 @@ func assignNestedSetModelBoundsAndServiceStats(trace *Trace) bool {
 	)
 
 	// initialize ServiceStats (spanCount and errorCount per service)
-	trace.ServiceStats = map[string]ServiceStats{}
+	// Map here for ease of accumulation.
+	ss := map[string]ServiceStats{}
 
 	for _, rs := range trace.ResourceSpans {
-		serviceStats := trace.ServiceStats[rs.Resource.ServiceName]
+		serviceStats := ss[rs.Resource.ServiceName]
 
 		for _, ss := range rs.ScopeSpans {
 			serviceStats.SpanCount += uint32(len(ss.Spans))
@@ -75,8 +78,18 @@ func assignNestedSetModelBoundsAndServiceStats(trace *Trace) bool {
 			}
 		}
 
-		trace.ServiceStats[rs.Resource.ServiceName] = serviceStats
+		ss[rs.Resource.ServiceName] = serviceStats
 	}
+
+	// Flatten to array and sort.
+	trace.ServiceStats = make([]ServiceStats, 0, len(ss))
+	for key, s := range ss {
+		s.ServiceName = key
+		trace.ServiceStats = append(trace.ServiceStats, s)
+	}
+	sort.Slice(trace.ServiceStats, func(i, j int) bool {
+		return trace.ServiceStats[i].ServiceName < trace.ServiceStats[j].ServiceName
+	})
 
 	// check preconditions before assignment
 	if len(rootNodes) == 0 {
