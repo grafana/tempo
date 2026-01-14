@@ -74,7 +74,7 @@
      "steppedLine": false,
      "targets": [
       {
-       "expr": "sum by (status) (\n  label_replace(label_replace(rate(tempo_request_duration_seconds_count{cluster=~\"$cluster\", job=~\"($namespace)/cortex-gw(-internal)?\", route=~\"api_.*\"}[$__rate_interval]),\n  \"status\", \"${1}xx\", \"status_code\", \"([0-9])..\"),\n  \"status\", \"${1}\", \"status_code\", \"([a-zA-Z]+)\"))\n",
+       "expr": "sum by (status) (\n  label_replace(label_replace(rate(tempo_request_duration_seconds_count{cluster=~\"$cluster\", job=~\"($namespace)/cortex-gw(-internal)?\", route=~\"api_.*\"}[$__rate_interval]),\n  \"status\", \"${1}xx\", \"status_code\", \"([0-9])..\"),\n  \"status\", \"${1}\", \"status_code\", \"([a-zA-Z_]+)\"))\n",
        "format": "time_series",
        "interval": "1m",
        "legendFormat": "{{status}}",
@@ -284,7 +284,7 @@
      "steppedLine": false,
      "targets": [
       {
-       "expr": "sum by (status) (\n  label_replace(label_replace(rate(tempo_request_duration_seconds_count{cluster=~\"$cluster\", job=~\"($namespace)/query-frontend\", route=~\"api_.*\"}[$__rate_interval]),\n  \"status\", \"${1}xx\", \"status_code\", \"([0-9])..\"),\n  \"status\", \"${1}\", \"status_code\", \"([a-zA-Z]+)\"))\n",
+       "expr": "sum by (status) (\n  label_replace(label_replace(rate(tempo_request_duration_seconds_count{cluster=~\"$cluster\", job=~\"($namespace)/query-frontend\", route=~\"api_.*\"}[$__rate_interval]),\n  \"status\", \"${1}xx\", \"status_code\", \"([0-9])..\"),\n  \"status\", \"${1}\", \"status_code\", \"([a-zA-Z_]+)\"))\n",
        "format": "time_series",
        "interval": "1m",
        "legendFormat": "{{status}}",
@@ -494,7 +494,7 @@
      "steppedLine": false,
      "targets": [
       {
-       "expr": "sum by (status) (\n  label_replace(label_replace(rate(tempo_request_duration_seconds_count{cluster=~\"$cluster\", job=~\"($namespace)/querier\", route=~\"querier_api_.*\"}[$__rate_interval]),\n  \"status\", \"${1}xx\", \"status_code\", \"([0-9])..\"),\n  \"status\", \"${1}\", \"status_code\", \"([a-zA-Z]+)\"))\n",
+       "expr": "sum by (status) (\n  label_replace(label_replace(rate(tempo_request_duration_seconds_count{cluster=~\"$cluster\", job=~\"($namespace)/querier\", route=~\"querier_api_.*\"}[$__rate_interval]),\n  \"status\", \"${1}xx\", \"status_code\", \"([0-9])..\"),\n  \"status\", \"${1}\", \"status_code\", \"([a-zA-Z_]+)\"))\n",
        "format": "time_series",
        "interval": "1m",
        "legendFormat": "{{status}}",
@@ -809,7 +809,7 @@
      "steppedLine": false,
      "targets": [
       {
-       "expr": "sum by (status) (\n  label_replace(label_replace(rate(tempo_request_duration_seconds_count{cluster=~\"$cluster\", job=~\"($namespace)/ingester\", route=~\"/tempopb.Querier/.*\"}[$__rate_interval]),\n  \"status\", \"${1}xx\", \"status_code\", \"([0-9])..\"),\n  \"status\", \"${1}\", \"status_code\", \"([a-zA-Z]+)\"))\n",
+       "expr": "sum by (status) (\n  label_replace(label_replace(rate(tempo_request_duration_seconds_count{cluster=~\"$cluster\", job=~\"($namespace)/ingester\", route=~\"/tempopb.Querier/.*\"}[$__rate_interval]),\n  \"status\", \"${1}xx\", \"status_code\", \"([0-9])..\"),\n  \"status\", \"${1}\", \"status_code\", \"([a-zA-Z_]+)\"))\n",
        "format": "time_series",
        "interval": "1m",
        "legendFormat": "{{status}}",
@@ -1019,7 +1019,7 @@
      "steppedLine": false,
      "targets": [
       {
-       "expr": "sum by (status) (\n  label_replace(label_replace(rate(tempo_request_duration_seconds_count{cluster=~\"$cluster\", container=\"live-store\", route=~\"/tempopb.Querier/.*\"}[$__rate_interval]),\n  \"status\", \"${1}xx\", \"status_code\", \"([0-9])..\"),\n  \"status\", \"${1}\", \"status_code\", \"([a-zA-Z]+)\"))\n",
+       "expr": "sum by (status) (\n  label_replace(label_replace(rate(tempo_request_duration_seconds_count{cluster=~\"$cluster\", container=\"live-store\", route=~\"/tempopb.Querier/.*\"}[$__rate_interval]),\n  \"status\", \"${1}xx\", \"status_code\", \"([0-9])..\"),\n  \"status\", \"${1}\", \"status_code\", \"([a-zA-Z_]+)\"))\n",
        "format": "time_series",
        "interval": "1m",
        "legendFormat": "{{status}}",
@@ -1527,7 +1527,7 @@
      "steppedLine": false,
      "targets": [
       {
-       "expr": "sum by (status) (\n  label_replace(label_replace(rate(tempo_memcache_request_duration_seconds_count{cluster=~\"$cluster\", job=~\"($namespace)/querier\",method=~\"Memcache.Get|Memcache.GetMulti\"}[$__rate_interval]),\n  \"status\", \"${1}xx\", \"status_code\", \"([0-9])..\"),\n  \"status\", \"${1}\", \"status_code\", \"([a-zA-Z]+)\"))\n",
+       "expr": "sum by (status) (\n  label_replace(label_replace(rate(tempo_memcache_request_duration_seconds_count{cluster=~\"$cluster\", job=~\"($namespace)/querier\",method=~\"Memcache.Get|Memcache.GetMulti\"}[$__rate_interval]),\n  \"status\", \"${1}xx\", \"status_code\", \"([0-9])..\"),\n  \"status\", \"${1}\", \"status_code\", \"([a-zA-Z_]+)\"))\n",
        "format": "time_series",
        "interval": "1m",
        "legendFormat": "{{status}}",
@@ -1737,7 +1737,7 @@
      "steppedLine": false,
      "targets": [
       {
-       "expr": "sum by (status) (\n  label_replace(label_replace(rate(tempodb_backend_request_duration_seconds_count{cluster=~\"$cluster\", job=~\"($namespace)/querier\",operation=\"GET\"}[$__rate_interval]),\n  \"status\", \"${1}xx\", \"status_code\", \"([0-9])..\"),\n  \"status\", \"${1}\", \"status_code\", \"([a-zA-Z]+)\"))\n",
+       "expr": "sum by (status) (\n  label_replace(label_replace(rate(tempodb_backend_request_duration_seconds_count{cluster=~\"$cluster\", job=~\"($namespace)/querier\",operation=\"GET\"}[$__rate_interval]),\n  \"status\", \"${1}xx\", \"status_code\", \"([0-9])..\"),\n  \"status\", \"${1}\", \"status_code\", \"([a-zA-Z_]+)\"))\n",
        "format": "time_series",
        "interval": "1m",
        "legendFormat": "{{status}}",
