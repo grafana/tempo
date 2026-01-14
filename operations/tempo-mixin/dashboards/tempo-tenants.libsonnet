@@ -58,6 +58,7 @@ dashboard_utils {
           ) + {
             seriesOverrides: [limit_style('limit'), limit_style('burst limit')],
             yaxes: g.yaxes('Bps'),
+            fieldConfig+: { defaults+: { unit: 'Bps' } },
           },
         )
         .addPanel(
@@ -71,7 +72,7 @@ dashboard_utils {
               'accepted',
               'refused {{ reason }}',
             ],
-          ),
+          ) + { fieldConfig+: { defaults+: { unit: 'ops' } } },
         )
         .addPanel(
           $.panel('Live traces') +
@@ -86,7 +87,10 @@ dashboard_utils {
               'global limit',
               'local limit',
             ],
-          ) + { seriesOverrides: [limit_style('global limit'), limit_style('local limit')] },
+          ) + {
+            seriesOverrides: [limit_style('global limit'), limit_style('local limit')],
+            fieldConfig+: { defaults+: { unit: 'short' } },
+          },
         )
       )
       .addRow(
@@ -96,14 +100,14 @@ dashboard_utils {
           $.queryPanel(
             'sum(rate(tempo_query_frontend_queries_total{%s,tenant="$tenant",op="traces"}[$__rate_interval])) by (status)' % $.jobMatcher($._config.jobs.query_frontend),
             '{{ status }}',
-          ),
+          ) + { fieldConfig+: { defaults+: { unit: 'ops' } } },
         )
         .addPanel(
           $.panel('Queries/s (search)') +
           $.queryPanel(
             'sum(rate(tempo_query_frontend_queries_total{%s,tenant="$tenant",op="search"}[$__rate_interval])) by (status)' % $.jobMatcher($._config.jobs.query_frontend),
             '{{ status }}',
-          ),
+          ) + { fieldConfig+: { defaults+: { unit: 'ops' } } },
         )
       )
       .addRow(
@@ -113,7 +117,10 @@ dashboard_utils {
           $.queryPanel(
             'avg(tempodb_blocklist_length{%s,tenant="$tenant"})' % $.jobMatcher($._config.jobs.compactor),
             'length',
-          ) + { legend: { show: false } },
+          ) + {
+            legend: { show: false },
+            fieldConfig+: { defaults+: { unit: 'short' } },
+          },
         )
         .addPanel(
           $.panel('Outstanding compactions') +
@@ -124,7 +131,10 @@ dashboard_utils {
               count(tempo_build_info{%s})
             ||| % [$.jobMatcher($._config.jobs.compactor), $.jobMatcher($._config.jobs.compactor)],
             'blocks',
-          ) + { legend: { show: false } },
+          ) + {
+            legend: { show: false },
+            fieldConfig+: { defaults+: { unit: 'short' } },
+          },
         )
       )
       .addRow(
@@ -137,6 +147,7 @@ dashboard_utils {
           ) + {
             legend: { show: false },
             yaxes: g.yaxes('Bps'),
+            fieldConfig+: { defaults+: { unit: 'Bps' } },
           },
         )
         .addPanel(
@@ -150,7 +161,10 @@ dashboard_utils {
               '{{ tenant }}',
               'limit',
             ],
-          ) + { seriesOverrides: [limit_style('limit')] },
+          ) + {
+            seriesOverrides: [limit_style('limit')],
+            fieldConfig+: { defaults+: { unit: 'short' } },
+          },
         )
       ),
 
