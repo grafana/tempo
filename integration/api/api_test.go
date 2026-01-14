@@ -809,7 +809,7 @@ func TestTagValuesWithSpecialCharacters(t *testing.T) {
 			{"attr%percent", "val%"},
 			{"attr%20valid_escape_code", "val%20"},
 			{"attr \"'<>#%{}|\\*", "val😬"},
-			// {"attr//doubleslash", "val//"}, jpe - try to validate this with a direct GET
+			// {"attr//doubleslash", "val//"}, getting // to work is another level of difficult and may only be possible over gRPC. the router itself seems to strip this out and reduce it to a single slash. TODO: get this to work
 		}
 
 		for _, tc := range specialCharValues {

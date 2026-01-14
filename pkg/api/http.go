@@ -74,7 +74,7 @@ const (
 	PathTraces              = "/api/traces/{traceID}"
 	PathSearch              = "/api/search"
 	PathSearchTags          = "/api/search/tags"
-	PathSearchTagValues     = "/api/search/tag/{" + MuxVarTagName + ":.*}/values"
+	PathSearchTagValues     = "/api/search/tag/" + MuxVarTagInPath + "/values"
 	PathEcho                = "/api/echo"
 	PathBuildInfo           = "/api/status/buildinfo"
 	PathUsageStats          = "/status/usage-stats"
@@ -87,7 +87,7 @@ const (
 	// PathOverrides user configurable overrides
 	PathOverrides = "/api/overrides"
 
-	PathSearchTagValuesV2 = "/api/v2/search/tag/{" + MuxVarTagName + ":.*}/values"
+	PathSearchTagValuesV2 = "/api/v2/search/tag/" + MuxVarTagInPath + "/values"
 	PathSearchTagsV2      = "/api/v2/search/tags"
 	PathTracesV2          = "/api/v2/traces/{traceID}"
 
