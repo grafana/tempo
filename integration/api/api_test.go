@@ -766,6 +766,28 @@ func callSearchTagValuesAndAssert(t *testing.T, h *util.TempoHarness, tagName st
 }
 
 func TestTagValuesWithSpecialCharacters(t *testing.T) {
+	// the below test uses the tempo http client which purposefully mimics the way Grafana builds urls to call Tempo. this means
+	// that an attribute like span.attr/slash will be requested like /api/v2/search/tag/span.attr/slash/values. this
+	// "manuallyTestSlash" function also confirms that the url encoded slash works: /api/v2/search/tag/span.attr%2Fslash/values
+	manuallyTestSlash := func(t *testing.T, h *util.TempoHarness, start, end int64) {
+		url := h.BaseURL() + "/api/v2/search/tag/span.attr%2Fslash/values"
+		if start != 0 && end != 0 {
+			url = fmt.Sprintf("%s?start=%d&end=%d", url, start, end)
+		}
+
+		req, err := http.NewRequest(http.MethodGet, url, nil)
+		require.NoError(t, err)
+		resp, err := h.APIClientHTTP("").Do(req)
+		require.NoError(t, err)
+		defer resp.Body.Close()
+
+		valuesResp := &tempopb.SearchTagValuesV2Response{}
+		err = jsonpb.Unmarshal(resp.Body, valuesResp)
+		require.NoError(t, err)
+		require.Equal(t, 1, len(valuesResp.TagValues))
+		require.Equal(t, "val/", valuesResp.TagValues[0].Value)
+	}
+
 	util.RunIntegrationTests(t, util.TestHarnessConfig{
 		Components: util.ComponentsRecentDataQuerying | util.ComponentsBackendQuerying,
 	}, func(h *util.TempoHarness) {
@@ -817,14 +839,16 @@ func TestTagValuesWithSpecialCharacters(t *testing.T) {
 			})
 		}
 
+		manuallyTestSlash(t, h, 0, 0)
+
 		// Wait for traces to be written to backend
 		h.WaitTracesWrittenToBackend(t, len(specialCharValues))
 		h.ForceBackendQuerying(t)
 
 		// Test tag values retrieval for backend
 		now := time.Now()
-		start := now.Add(-2 * time.Hour)
-		end := now.Add(2 * time.Hour)
+		start := now.Add(-2 * time.Hour).Unix()
+		end := now.Add(2 * time.Hour).Unix()
 
 		for _, tc := range specialCharValues {
 			t.Run("backend_resource_"+tc.attrName, func(t *testing.T) {
@@ -832,7 +856,7 @@ func TestTagValuesWithSpecialCharacters(t *testing.T) {
 				expected := &tempopb.SearchTagValuesV2Response{
 					TagValues: []*tempopb.TagValue{{Type: "string", Value: tc.attrValue}},
 				}
-				callSearchTagValuesV2AndAssert(t, h, tagName, "", expected, start.Unix(), end.Unix())
+				callSearchTagValuesV2AndAssert(t, h, tagName, "", expected, start, end)
 			})
 
 			t.Run("backend_span_"+tc.attrName, func(t *testing.T) {
@@ -840,10 +864,10 @@ func TestTagValuesWithSpecialCharacters(t *testing.T) {
 				expected := &tempopb.SearchTagValuesV2Response{
 					TagValues: []*tempopb.TagValue{{Type: "string", Value: tc.attrValue}},
 				}
-				callSearchTagValuesV2AndAssert(t, h, tagName, "", expected, start.Unix(), end.Unix())
+				callSearchTagValuesV2AndAssert(t, h, tagName, "", expected, start, end)
 			})
 		}
 
-		// jpe we've tested span.foo/bar we need to add a manual test to for span.foo%2Ebar or whatever the escape code is
+		manuallyTestSlash(t, h, start, end)
 	})
 }
