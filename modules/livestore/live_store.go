@@ -13,6 +13,9 @@ import (
 	"github.com/grafana/dskit/kv"
 	"github.com/grafana/dskit/ring"
 	"github.com/grafana/dskit/services"
+	"go.uber.org/atomic"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/pkg/flushqueues"
 	"github.com/grafana/tempo/pkg/ingest"
@@ -126,6 +129,7 @@ type LiveStore struct {
 	completeQueues  *flushqueues.ExclusiveQueues[*completeOp]
 	startupComplete chan struct{} // channel to signal that the starting function has finished. allows background processes to block until the service is fully started
 	lagCancel       context.CancelFunc
+	currentLag      atomic.Int64 // stored as nanoseconds, updated by consume()
 }
 
 func New(cfg Config, overridesService overrides.Interface, logger log.Logger, reg prometheus.Registerer, singlePartition bool) (*LiveStore, error) {
@@ -409,6 +413,8 @@ func (s *LiveStore) consume(ctx context.Context, rs recordIter, now time.Time) (
 		// Track partition lag in seconds
 		lag := now.Sub(record.Timestamp)
 		ingest.SetPartitionLagSeconds(s.cfg.IngestConfig.Kafka.ConsumerGroup, record.Partition, lag)
+		// Store lag for health checking
+		s.currentLag.Store(int64(lag))
 
 		metricRecordsProcessed.WithLabelValues(tenant).Inc()
 		recordCount++
@@ -594,6 +600,22 @@ func (s *LiveStore) QueryRange(ctx context.Context, req *tempopb.QueryRangeReque
 // doesn't exist, it returns the zero value.
 func withInstance[T any](ctx context.Context, s *LiveStore, fn func(*instance) (*T, error)) (*T, error) {
 	var defaultValue T
+
+	// Check if partition lag exceeds threshold (if configured)
+	if maxLag := s.cfg.MaxPartitionLag; maxLag > 0 {
+		currentLag := time.Duration(s.currentLag.Load())
+		if currentLag > maxLag {
+			err := status.Errorf(codes.Unavailable,
+				"partition lag %s exceeds maximum allowed %s",
+				currentLag.Truncate(time.Second),
+				maxLag.Truncate(time.Second))
+			level.Error(s.logger).Log("msg", "rejecting query due to high partition lag",
+				"current_lag", currentLag.Truncate(time.Second),
+				"max_lag", maxLag.Truncate(time.Second),
+				"err", err)
+			return nil, err
+		}
+	}
 
 	instanceID, err := validation.ExtractValidTenantID(ctx)
 	if err != nil {

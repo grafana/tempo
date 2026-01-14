@@ -45,6 +45,11 @@ type Config struct {
 	MaxBlockDuration      time.Duration `yaml:"max_block_duration"`
 	MaxBlockBytes         uint64        `yaml:"max_block_bytes"`
 
+	// MaxPartitionLag is the maximum acceptable lag for the partition consumer.
+	// If the lag exceeds this value, query endpoints will return Unavailable errors.
+	// A value of 0 disables this check.
+	MaxPartitionLag time.Duration `yaml:"max_partition_lag"`
+
 	// Block configuration
 	BlockConfig common.BlockConfig `yaml:"block_config"`
 
@@ -95,6 +100,7 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 	cfg.WAL.Version = encoding.DefaultEncoding().Version()
 	f.StringVar(&cfg.WAL.Filepath, prefix+".wal.path", "/var/tempo/live-store/traces", "Path at which store WAL blocks.")
 	f.StringVar(&cfg.ShutdownMarkerDir, prefix+".shutdown_marker_dir", "/var/tempo/live-store/shutdown-marker", "Path to the shutdown marker directory.")
+	f.DurationVar(&cfg.MaxPartitionLag, prefix+".max-partition-lag", 0, "Maximum acceptable partition lag. If exceeded, queries return Unavailable. 0 disables the check.")
 }
 
 func (cfg *Config) Validate() error {
@@ -136,6 +142,10 @@ func (cfg *Config) Validate() error {
 
 	if cfg.MaxTraceIdle > cfg.MaxTraceLive {
 		return fmt.Errorf("max_trace_idle (%s) cannot be greater than max_trace_live (%s)", cfg.MaxTraceIdle, cfg.MaxTraceLive)
+	}
+
+	if cfg.MaxPartitionLag < 0 {
+		return fmt.Errorf("max_partition_lag cannot be negative, got %s", cfg.MaxPartitionLag)
 	}
 
 	if err := common.ValidateConfig(&cfg.BlockConfig); err != nil {

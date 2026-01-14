@@ -24,6 +24,8 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
 	"github.com/twmb/franz-go/pkg/kgo"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 func TestLiveStoreBasicConsume(t *testing.T) {
@@ -90,7 +92,7 @@ func TestLiveStoreFullBlockLifecycleCheating(t *testing.T) {
 	requireInstanceState(t, inst, instanceState{liveTraces: 0, walBlocks: 0, completeBlocks: 1})
 
 	// stop gracefully
-	err = services.StopAndAwaitTerminated(t.Context(), liveStore)
+	err = services.StopAndAwaitTerminated(context.Background(), liveStore)
 	require.NoError(t, err)
 }
 
@@ -105,7 +107,7 @@ func TestLiveStoreReplaysTraceInLiveTraces(t *testing.T) {
 	expectedID, expectedTrace := pushToLiveStore(t, liveStore)
 
 	// stop the live store and then create a new one to simulate a restart and replay the data on disk
-	err = services.StopAndAwaitTerminated(t.Context(), liveStore)
+	err = services.StopAndAwaitTerminated(context.Background(), liveStore)
 	require.NoError(t, err)
 
 	liveStore, err = defaultLiveStore(t, tmpDir)
@@ -133,7 +135,7 @@ func TestLiveStoreReplaysTraceInHeadBlock(t *testing.T) {
 	require.NoError(t, err)
 
 	// stop the live store and then create a new one to simulate a restart and replay the data on disk
-	err = services.StopAndAwaitTerminated(t.Context(), liveStore)
+	err = services.StopAndAwaitTerminated(context.Background(), liveStore)
 	require.NoError(t, err)
 
 	liveStore, err = defaultLiveStore(t, tmpDir)
@@ -165,7 +167,7 @@ func TestLiveStoreReplaysTraceInWalBlocks(t *testing.T) {
 	require.NoError(t, err)
 
 	// stop the live store and then create a new one to simulate a restart and replay the data on disk
-	err = services.StopAndAwaitTerminated(t.Context(), liveStore)
+	err = services.StopAndAwaitTerminated(context.Background(), liveStore)
 	require.NoError(t, err)
 
 	liveStore, err = defaultLiveStore(t, tmpDir)
@@ -201,7 +203,7 @@ func TestLiveStoreReplaysTraceInCompleteBlocks(t *testing.T) {
 	require.NoError(t, err)
 
 	// stop the live store and then create a new one to simulate a restart and replay the data on disk
-	err = services.StopAndAwaitTerminated(t.Context(), liveStore)
+	err = services.StopAndAwaitTerminated(context.Background(), liveStore)
 	require.NoError(t, err)
 
 	liveStore, err = defaultLiveStore(t, tmpDir)
@@ -647,4 +649,164 @@ func pushToLiveStore(t *testing.T, liveStore *LiveStore) ([]byte, *tempopb.Trace
 	require.NoError(t, err)
 
 	return id, expectedTrace
+}
+
+func TestLiveStoreLagCheckRejectsQueries(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	liveStore, err := defaultLiveStore(t, tmpDir)
+	require.NoError(t, err)
+	require.NotNil(t, liveStore)
+
+	// Push data so instance exists (avoids Kafka cleanup errors)
+	pushToLiveStore(t, liveStore)
+
+	// Configure max lag threshold
+	liveStore.cfg.MaxPartitionLag = 10 * time.Second
+
+	// Simulate high lag by setting the atomic value directly
+	liveStore.currentLag.Store(int64(30 * time.Second)) // 30 seconds lag
+
+	ctx := user.InjectOrgID(context.Background(), testTenantID)
+
+	// All query methods should return Unavailable error
+	testCases := []struct {
+		name     string
+		callFunc func() (interface{}, error)
+	}{
+		{
+			name: "FindTraceByID",
+			callFunc: func() (interface{}, error) {
+				return liveStore.FindTraceByID(ctx, &tempopb.TraceByIDRequest{
+					TraceID: []byte("test-trace-id"),
+				})
+			},
+		},
+		{
+			name: "SearchRecent",
+			callFunc: func() (interface{}, error) {
+				return liveStore.SearchRecent(ctx, &tempopb.SearchRequest{
+					Query: "{}",
+				})
+			},
+		},
+		{
+			name: "SearchTags",
+			callFunc: func() (interface{}, error) {
+				return liveStore.SearchTags(ctx, &tempopb.SearchTagsRequest{
+					Scope: "span",
+				})
+			},
+		},
+		{
+			name: "SearchTagsV2",
+			callFunc: func() (interface{}, error) {
+				return liveStore.SearchTagsV2(ctx, &tempopb.SearchTagsRequest{
+					Scope: "span",
+				})
+			},
+		},
+		{
+			name: "SearchTagValues",
+			callFunc: func() (interface{}, error) {
+				return liveStore.SearchTagValues(ctx, &tempopb.SearchTagValuesRequest{
+					TagName: "foo",
+				})
+			},
+		},
+		{
+			name: "SearchTagValuesV2",
+			callFunc: func() (interface{}, error) {
+				return liveStore.SearchTagValuesV2(ctx, &tempopb.SearchTagValuesRequest{
+					TagName: "foo",
+				})
+			},
+		},
+		{
+			name: "QueryRange",
+			callFunc: func() (interface{}, error) {
+				return liveStore.QueryRange(ctx, &tempopb.QueryRangeRequest{
+					Query: "{} | count_over_time()",
+					Start: uint64(time.Now().Add(-time.Hour).UnixNano()),
+					End:   uint64(time.Now().UnixNano()),
+					Step:  uint64(time.Second),
+				})
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := tc.callFunc()
+			require.Error(t, err)
+
+			// Verify it's a gRPC Unavailable error
+			st, ok := status.FromError(err)
+			require.True(t, ok, "expected gRPC status error")
+			require.Equal(t, codes.Unavailable, st.Code())
+			require.Contains(t, st.Message(), "partition lag")
+			require.Contains(t, st.Message(), "exceeds maximum")
+		})
+	}
+
+	err = services.StopAndAwaitTerminated(context.Background(), liveStore)
+	require.NoError(t, err)
+}
+
+func TestLiveStoreLagCheckAllowsQueriesWhenDisabled(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	liveStore, err := defaultLiveStore(t, tmpDir)
+	require.NoError(t, err)
+	require.NotNil(t, liveStore)
+
+	// MaxPartitionLagSeconds = 0 means disabled (default)
+	require.Equal(t, time.Duration(0), liveStore.cfg.MaxPartitionLag)
+
+	// Simulate high lag
+	liveStore.currentLag.Store(int64(300 * time.Second)) // 5 minutes lag
+
+	// Push data so instance exists
+	pushToLiveStore(t, liveStore)
+
+	ctx := user.InjectOrgID(context.Background(), testTenantID)
+
+	// Should NOT return error even with high lag because check is disabled
+	resp, err := liveStore.SearchRecent(ctx, &tempopb.SearchRequest{
+		Query: "{}",
+	})
+	require.NoError(t, err)
+	require.NotNil(t, resp)
+
+	err = services.StopAndAwaitTerminated(context.Background(), liveStore)
+	require.NoError(t, err)
+}
+
+func TestLiveStoreLagCheckAllowsQueriesUnderThreshold(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	liveStore, err := defaultLiveStore(t, tmpDir)
+	require.NoError(t, err)
+	require.NotNil(t, liveStore)
+
+	// Configure max lag threshold
+	liveStore.cfg.MaxPartitionLag = 30 * time.Second
+
+	// Simulate low lag (under threshold)
+	liveStore.currentLag.Store(int64(5 * time.Second)) // 5 seconds lag
+
+	// Push data so instance exists
+	pushToLiveStore(t, liveStore)
+
+	ctx := user.InjectOrgID(context.Background(), testTenantID)
+
+	// Should NOT return error when lag is under threshold
+	resp, err := liveStore.SearchRecent(ctx, &tempopb.SearchRequest{
+		Query: "{}",
+	})
+	require.NoError(t, err)
+	require.NotNil(t, resp)
+
+	err = services.StopAndAwaitTerminated(context.Background(), liveStore)
+	require.NoError(t, err)
 }

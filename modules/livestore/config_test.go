@@ -128,6 +128,20 @@ func TestConfigValidate(t *testing.T) {
 			},
 			expectedErr: "max_trace_idle (20s) cannot be greater than max_trace_live (10s)",
 		},
+		{
+			name: "negative max partition lag",
+			modifyConfig: func(cfg *Config) {
+				cfg.MaxPartitionLag = -1 * time.Second
+			},
+			expectedErr: "max_partition_lag cannot be negative",
+		},
+		{
+			name: "valid max partition lag",
+			modifyConfig: func(cfg *Config) {
+				cfg.MaxPartitionLag = 30 * time.Second
+			},
+			expectedErr: "",
+		},
 	}
 
 	for _, tt := range tests {
