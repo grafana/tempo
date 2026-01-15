@@ -90,4 +90,11 @@
       + servicePort.withTargetPort(9095),
     ]),
 
+  // Vertical Pod Autoscaler
+  tempo_backend_scheduler_vpa:
+    if $._config.backend_scheduler.vpa.enabled then
+      $.vpaForController($.tempo_backend_scheduler_statefulset, 'backend_scheduler')
+    else {},
+
+
 }
