@@ -54,12 +54,12 @@ func TestParseSearchTagValuesRequest(t *testing.T) {
 	}
 
 	for _, tc := range tcs {
-		testUrl := fmt.Sprintf("http://tempo/api/v2/search/tag/%s/values", tc.tagName)
+		testURL := fmt.Sprintf("http://tempo/api/v2/search/tag/%s/values", tc.tagName)
 		if tc.query != "" {
-			testUrl = fmt.Sprintf("%s?q=%s", testUrl, tc.query)
+			testURL = fmt.Sprintf("%s?q=%s", testURL, tc.query)
 		}
 
-		httpReq := httptest.NewRequest("GET", testUrl, nil)
+		httpReq := httptest.NewRequest("GET", testURL, nil)
 		escapedTagName, err := url.PathUnescape(tc.tagName)
 		require.NoError(t, err)
 		r := mux.SetURLVars(httpReq, map[string]string{MuxVarTagName: escapedTagName})
