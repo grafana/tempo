@@ -1,0 +1,339 @@
+digraph TempoArchitecture {
+    rankdir=TB;
+    fontname="Helvetica";
+    node [fontname="Helvetica", shape=box, style="rounded,filled"];
+    edge [fontname="Helvetica"];
+    compound=true;
+    newrank=true;
+
+    // Color scheme
+    // Blue: Adaptive Traces components
+    // Green: Gateway/Ingestion
+    // Purple: Query path
+    // Orange: Backend work
+    // Gray: Storage/Infrastructure
+
+    // ============================================
+    // CLIENTS
+    // ============================================
+    subgraph cluster_clients {
+        label="Client Applications";
+        style="rounded,dashed";
+        bgcolor="#fafafa";
+
+        app [label="Applications\n(OTLP/Jaeger/Zipkin)", shape=ellipse, fillcolor="#e3f2fd"];
+        grafana [label="Grafana\n(Queries)", shape=ellipse, fillcolor="#e3f2fd"];
+    }
+
+    // ============================================
+    // BACKEND-ENTERPRISE
+    // ============================================
+    subgraph cluster_enterprise {
+        label="backend-enterprise";
+        style="rounded";
+        bgcolor="#e8f5e9";
+
+        gateway [label=<<TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0">
+            <TR><TD><B>Cloud Backend Gateway</B></TD></TR>
+            <TR><TD>━━━━━━━━━━━━━━━━━━</TD></TR>
+            <TR><TD>• Auth/AuthZ</TD></TR>
+            <TR><TD>• Multi-tenancy</TD></TR>
+            <TR><TD>• LBAC</TD></TR>
+            <TR><TD>• Licensing</TD></TR>
+            <TR><TD>━━━━━━━━━━━━━━━━━━</TD></TR>
+            <TR><TD><FONT COLOR="blue">Replicas: 3+</FONT></TD></TR>
+        </TABLE>>, fillcolor="#a5d6a7"];
+    }
+
+    // ============================================
+    // ADAPTIVE-TRACES
+    // ============================================
+    subgraph cluster_adaptive {
+        label="adaptive-traces";
+        style="rounded";
+        bgcolor="#e1f5fe";
+
+        sampler_gw [label=<<TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0">
+            <TR><TD><B>Sampler Gateway</B></TD></TR>
+            <TR><TD>━━━━━━━━━━━━━━━━━━</TD></TR>
+            <TR><TD>• Head sampling (if policies)</TD></TR>
+            <TR><TD>• Pass-through (if no policies)</TD></TR>
+            <TR><TD>• Rate limiting</TD></TR>
+            <TR><TD>━━━━━━━━━━━━━━━━━━</TD></TR>
+            <TR><TD><FONT COLOR="blue">Replicas: 3+</FONT></TD></TR>
+        </TABLE>>, fillcolor="#4fc3f7"];
+
+        kafka_at [label=<<TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0">
+            <TR><TD><B>Kafka</B></TD></TR>
+            <TR><TD>(Adaptive Traces)</TD></TR>
+            <TR><TD>━━━━━━━━━━━━━━</TD></TR>
+            <TR><TD><FONT COLOR="blue">Partitions: N</FONT></TD></TR>
+        </TABLE>>, shape=cylinder, fillcolor="#81d4fa"];
+
+        sampler [label=<<TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0">
+            <TR><TD><B>Sampler</B></TD></TR>
+            <TR><TD>━━━━━━━━━━━━━━━━━━</TD></TR>
+            <TR><TD>• Tail sampling</TD></TR>
+            <TR><TD>• Anomaly detection</TD></TR>
+            <TR><TD>• Diversity sampling</TD></TR>
+            <TR><TD>• Policy-based decisions</TD></TR>
+            <TR><TD>━━━━━━━━━━━━━━━━━━</TD></TR>
+            <TR><TD><FONT COLOR="blue">Replicas: 3+</FONT></TD></TR>
+        </TABLE>>, fillcolor="#4fc3f7"];
+
+        policy_store [label="Policy Store\n(Per-tenant policies)", fillcolor="#b3e5fc"];
+        decision_idx [label="Decision Index\n(Keep/drop log)", fillcolor="#b3e5fc"];
+    }
+
+    // ============================================
+    // TEMPO - INGESTION
+    // ============================================
+    subgraph cluster_tempo {
+        label="Tempo (Rhythm Architecture)";
+        style="rounded";
+        bgcolor="#fff8e1";
+
+        subgraph cluster_ingestion {
+            label="Ingestion Layer";
+            style="rounded";
+            bgcolor="#c8e6c9";
+
+            distributor [label=<<TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0">
+                <TR><TD><B>Distributor</B></TD></TR>
+                <TR><TD>━━━━━━━━━━━━━━━━━━</TD></TR>
+                <TR><TD>• Validation</TD></TR>
+                <TR><TD>• Rate limiting</TD></TR>
+                <TR><TD>• Routing to Kafka</TD></TR>
+                <TR><TD>━━━━━━━━━━━━━━━━━━</TD></TR>
+                <TR><TD><FONT COLOR="blue">Replicas: 5</FONT></TD></TR>
+            </TABLE>>, fillcolor="#81c784"];
+        }
+
+        kafka_tempo [label=<<TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0">
+            <TR><TD><B>Kafka</B></TD></TR>
+            <TR><TD>(Tempo Ingest)</TD></TR>
+            <TR><TD>━━━━━━━━━━━━━━</TD></TR>
+            <TR><TD><FONT COLOR="blue">Partitions: N</FONT></TD></TR>
+        </TABLE>>, shape=cylinder, fillcolor="#ffecb3"];
+
+        // ============================================
+        // TEMPO - WRITE LAYER
+        // ============================================
+        subgraph cluster_write {
+            label="Write Layer";
+            style="rounded";
+            bgcolor="#fff3e0";
+
+            block_builder [label=<<TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0">
+                <TR><TD><B>Block Builder</B></TD></TR>
+                <TR><TD>━━━━━━━━━━━━━━━━━━</TD></TR>
+                <TR><TD>• Consumes Kafka</TD></TR>
+                <TR><TD>• Creates blocks</TD></TR>
+                <TR><TD>━━━━━━━━━━━━━━━━━━</TD></TR>
+                <TR><TD><FONT COLOR="blue">Replicas: N</FONT></TD></TR>
+                <TR><TD><FONT COLOR="gray">(matches partitions)</FONT></TD></TR>
+            </TABLE>>, fillcolor="#ffe0b2"];
+        }
+
+        // ============================================
+        // TEMPO - READ LAYER
+        // ============================================
+        subgraph cluster_read {
+            label="Read Layer";
+            style="rounded";
+            bgcolor="#f3e5f5";
+
+            subgraph cluster_livestore {
+                label="Live Store (2 zones)";
+                style="rounded";
+                bgcolor="#e1bee7";
+
+                livestore_a [label=<<TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0">
+                    <TR><TD><B>Live Store Zone-A</B></TD></TR>
+                    <TR><TD>━━━━━━━━━━━━━━━━━━</TD></TR>
+                    <TR><TD>• Real-time queries</TD></TR>
+                    <TR><TD>• Kafka consumer</TD></TR>
+                    <TR><TD>• In-memory traces</TD></TR>
+                    <TR><TD>━━━━━━━━━━━━━━━━━━</TD></TR>
+                    <TR><TD><FONT COLOR="blue">Replicas: N</FONT></TD></TR>
+                </TABLE>>, fillcolor="#ce93d8"];
+
+                livestore_b [label=<<TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0">
+                    <TR><TD><B>Live Store Zone-B</B></TD></TR>
+                    <TR><TD>━━━━━━━━━━━━━━━━━━</TD></TR>
+                    <TR><TD>• Real-time queries</TD></TR>
+                    <TR><TD>• Kafka consumer</TD></TR>
+                    <TR><TD>• In-memory traces</TD></TR>
+                    <TR><TD>━━━━━━━━━━━━━━━━━━</TD></TR>
+                    <TR><TD><FONT COLOR="blue">Replicas: N</FONT></TD></TR>
+                </TABLE>>, fillcolor="#ce93d8"];
+            }
+
+            metrics_gen [label=<<TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0">
+                <TR><TD><B>Metrics Generator</B></TD></TR>
+                <TR><TD>━━━━━━━━━━━━━━━━━━</TD></TR>
+                <TR><TD>• Span metrics</TD></TR>
+                <TR><TD>• Service graphs</TD></TR>
+                <TR><TD>• RED metrics</TD></TR>
+                <TR><TD>━━━━━━━━━━━━━━━━━━</TD></TR>
+                <TR><TD><FONT COLOR="blue">Replicas: 3+</FONT></TD></TR>
+            </TABLE>>, fillcolor="#e1bee7"];
+        }
+
+        // ============================================
+        // TEMPO - QUERY LAYER
+        // ============================================
+        subgraph cluster_query {
+            label="Query Layer";
+            style="rounded";
+            bgcolor="#ede7f6";
+
+            query_frontend [label=<<TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0">
+                <TR><TD><B>Query Frontend</B></TD></TR>
+                <TR><TD>━━━━━━━━━━━━━━━━━━</TD></TR>
+                <TR><TD>• Request sharding</TD></TR>
+                <TR><TD>• Caching</TD></TR>
+                <TR><TD>• Load balancing</TD></TR>
+                <TR><TD>━━━━━━━━━━━━━━━━━━</TD></TR>
+                <TR><TD><FONT COLOR="blue">Replicas: 2</FONT></TD></TR>
+            </TABLE>>, fillcolor="#b39ddb"];
+
+            querier [label=<<TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0">
+                <TR><TD><B>Querier</B></TD></TR>
+                <TR><TD>━━━━━━━━━━━━━━━━━━</TD></TR>
+                <TR><TD>• TraceQL execution</TD></TR>
+                <TR><TD>• Multi-source fetch</TD></TR>
+                <TR><TD>━━━━━━━━━━━━━━━━━━</TD></TR>
+                <TR><TD><FONT COLOR="blue">Replicas: 5</FONT></TD></TR>
+            </TABLE>>, fillcolor="#b39ddb"];
+        }
+
+        // ============================================
+        // TEMPO - STORAGE
+        // ============================================
+        subgraph cluster_storage {
+            label="Storage Layer";
+            style="rounded";
+            bgcolor="#eceff1";
+
+            tempodb [label=<<TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0">
+                <TR><TD><B>TempoDB</B></TD></TR>
+                <TR><TD>━━━━━━━━━━━━━━</TD></TR>
+                <TR><TD>• Block management</TD></TR>
+                <TR><TD>• WAL</TD></TR>
+            </TABLE>>, shape=cylinder, fillcolor="#b0bec5"];
+
+            object_storage [label="Object Storage\n(S3 / GCS / Azure)", shape=cylinder, fillcolor="#90a4ae"];
+        }
+
+        // ============================================
+        // TEMPO - BACKEND WORK
+        // ============================================
+        subgraph cluster_backend {
+            label="Backend Work";
+            style="rounded";
+            bgcolor="#fff8e1";
+
+            backend_scheduler [label=<<TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0">
+                <TR><TD><B>Backend Scheduler</B></TD></TR>
+                <TR><TD>━━━━━━━━━━━━━━━━━━</TD></TR>
+                <TR><TD>• Work scheduling</TD></TR>
+                <TR><TD>• Job coordination</TD></TR>
+                <TR><TD>━━━━━━━━━━━━━━━━━━</TD></TR>
+                <TR><TD><FONT COLOR="red"><B>Replicas: 1</B></FONT></TD></TR>
+                <TR><TD><FONT COLOR="red">(singleton)</FONT></TD></TR>
+            </TABLE>>, fillcolor="#ffcc80"];
+
+            backend_worker [label=<<TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0">
+                <TR><TD><B>Backend Worker</B></TD></TR>
+                <TR><TD>━━━━━━━━━━━━━━━━━━</TD></TR>
+                <TR><TD>• Job execution</TD></TR>
+                <TR><TD>• Tenant index writes</TD></TR>
+                <TR><TD>━━━━━━━━━━━━━━━━━━</TD></TR>
+                <TR><TD><FONT COLOR="blue">Replicas: 2+</FONT></TD></TR>
+            </TABLE>>, fillcolor="#ffcc80"];
+
+            compactor [label=<<TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0">
+                <TR><TD><B>Compactor</B></TD></TR>
+                <TR><TD>━━━━━━━━━━━━━━━━━━</TD></TR>
+                <TR><TD>• Block merging</TD></TR>
+                <TR><TD>• Retention enforcement</TD></TR>
+                <TR><TD>• Deduplication</TD></TR>
+                <TR><TD>━━━━━━━━━━━━━━━━━━</TD></TR>
+                <TR><TD><FONT COLOR="blue">Replicas: 5</FONT></TD></TR>
+            </TABLE>>, fillcolor="#ffcc80"];
+        }
+
+        // ============================================
+        // TEMPO - COORDINATION
+        // ============================================
+        subgraph cluster_coordination {
+            label="Coordination";
+            style="rounded";
+            bgcolor="#fafafa";
+
+            cache [label=<<TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0">
+                <TR><TD><B>Cache</B></TD></TR>
+                <TR><TD>(Redis/Memcached)</TD></TR>
+                <TR><TD>━━━━━━━━━━━━━━</TD></TR>
+                <TR><TD><FONT COLOR="blue">Replicas: 3</FONT></TD></TR>
+            </TABLE>>, shape=cylinder, fillcolor="#e0e0e0"];
+
+            memberlist [label="MemberlistKV\n(Ring Management)", fillcolor="#e0e0e0"];
+        }
+    }
+
+    // ============================================
+    // EDGES - WRITE PATH WITH ADAPTIVE TRACES
+    // ============================================
+    app -> gateway [label="OTLP traces", color="#1976d2", penwidth=2];
+    gateway -> sampler_gw [label="All tenants", color="#1976d2", penwidth=2];
+
+    // With policies - sampling path
+    sampler_gw -> kafka_at [label="WITH policies:\nHead sampling", color="#0288d1", penwidth=2];
+    kafka_at -> sampler [color="#0288d1", penwidth=2];
+    sampler -> policy_store [dir=both, color="#0288d1"];
+    sampler -> decision_idx [dir=both, color="#0288d1"];
+    sampler -> distributor [label="Sampled traces", color="#0288d1", penwidth=2];
+
+    // Without policies - pass-through
+    sampler_gw -> distributor [label="WITHOUT policies:\nPass-through proxy", style=dashed, color="#757575", penwidth=2];
+
+    // ============================================
+    // EDGES - TEMPO WRITE PATH
+    // ============================================
+    distributor -> kafka_tempo [color="#388e3c", penwidth=2];
+    kafka_tempo -> block_builder [color="#388e3c", penwidth=2];
+    kafka_tempo -> livestore_a [color="#388e3c", penwidth=2];
+    kafka_tempo -> livestore_b [color="#388e3c", penwidth=2];
+    kafka_tempo -> metrics_gen [color="#388e3c", penwidth=2];
+
+    block_builder -> tempodb [color="#388e3c", penwidth=2];
+    tempodb -> object_storage [color="#616161", penwidth=2];
+
+    // ============================================
+    // EDGES - QUERY PATH
+    // ============================================
+    grafana -> gateway [label="TraceQL", color="#7b1fa2", penwidth=2];
+    gateway -> query_frontend [color="#7b1fa2", penwidth=2];
+    query_frontend -> cache [dir=both, color="#7b1fa2"];
+    query_frontend -> querier [color="#7b1fa2", penwidth=2];
+    querier -> livestore_a [color="#7b1fa2", penwidth=2];
+    querier -> livestore_b [color="#7b1fa2", penwidth=2];
+    querier -> tempodb [color="#7b1fa2", penwidth=2];
+
+    // ============================================
+    // EDGES - BACKEND WORK
+    // ============================================
+    backend_scheduler -> backend_worker [color="#f57c00", penwidth=2];
+    backend_worker -> compactor [color="#f57c00", penwidth=2];
+    compactor -> tempodb [color="#f57c00", penwidth=2];
+
+    // ============================================
+    // LAYOUT HINTS
+    // ============================================
+    {rank=same; app; grafana}
+    {rank=same; sampler_gw; kafka_at; sampler}
+    {rank=same; block_builder; livestore_a; livestore_b; metrics_gen}
+    {rank=same; backend_scheduler; backend_worker; compactor}
+}

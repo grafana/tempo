@@ -1,0 +1,102 @@
+digraph SimplePaths {
+    rankdir=LR;
+    fontname="Helvetica";
+    node [fontname="Helvetica", shape=box, style="rounded,filled"];
+    compound=true;
+
+    subgraph cluster_legend {
+        label="Legend";
+        style="rounded";
+        bgcolor="#fafafa";
+
+        l1 [label="Sampling Path", fillcolor="#4fc3f7"];
+        l2 [label="Pass-through", fillcolor="#b0bec5"];
+        l3 [label="Query Path", fillcolor="#ce93d8"];
+        l4 [label="Backend Work", fillcolor="#ffcc80"];
+    }
+
+    // Path 1: With Adaptive Traces
+    subgraph cluster_path1 {
+        label="Path 1: WITH Adaptive Traces";
+        style="rounded";
+        bgcolor="#e1f5fe";
+
+        p1_app [label="App", fillcolor="#e3f2fd"];
+        p1_gw [label="Gateway\n3+", fillcolor="#a5d6a7"];
+        p1_sgw [label="Sampler GW\n3+", fillcolor="#4fc3f7"];
+        p1_kafka_at [label="Kafka AT\nN parts", shape=cylinder, fillcolor="#81d4fa"];
+        p1_sampler [label="Sampler\n3+", fillcolor="#4fc3f7"];
+        p1_dist [label="Distributor\n5", fillcolor="#81c784"];
+        p1_kafka [label="Kafka\nN parts", shape=cylinder, fillcolor="#ffecb3"];
+        p1_bb [label="Block Builder\nN", fillcolor="#ffe0b2"];
+        p1_ls [label="Live Store\n2×N", fillcolor="#ce93d8"];
+        p1_storage [label="Storage", shape=cylinder, fillcolor="#b0bec5"];
+
+        p1_app -> p1_gw -> p1_sgw;
+        p1_sgw -> p1_kafka_at [label="Head\nSample"];
+        p1_kafka_at -> p1_sampler;
+        p1_sampler -> p1_dist [label="Tail\nSample"];
+        p1_dist -> p1_kafka;
+        p1_kafka -> p1_bb;
+        p1_kafka -> p1_ls;
+        p1_bb -> p1_storage;
+    }
+
+    // Path 2: Without Adaptive Traces
+    subgraph cluster_path2 {
+        label="Path 2: WITHOUT Adaptive Traces";
+        style="rounded";
+        bgcolor="#eceff1";
+
+        p2_app [label="App", fillcolor="#e3f2fd"];
+        p2_gw [label="Gateway\n3+", fillcolor="#a5d6a7"];
+        p2_sgw [label="Sampler GW\n3+", fillcolor="#b0bec5"];
+        p2_dist [label="Distributor\n5", fillcolor="#81c784"];
+        p2_kafka [label="Kafka\nN parts", shape=cylinder, fillcolor="#ffecb3"];
+        p2_bb [label="Block Builder\nN", fillcolor="#ffe0b2"];
+        p2_ls [label="Live Store\n2×N", fillcolor="#ce93d8"];
+        p2_storage [label="Storage", shape=cylinder, fillcolor="#b0bec5"];
+
+        p2_app -> p2_gw -> p2_sgw;
+        p2_sgw -> p2_dist [label="Proxy\nPassthrough", style=dashed];
+        p2_dist -> p2_kafka;
+        p2_kafka -> p2_bb;
+        p2_kafka -> p2_ls;
+        p2_bb -> p2_storage;
+    }
+
+    // Path 3: Query
+    subgraph cluster_path3 {
+        label="Path 3: Query";
+        style="rounded";
+        bgcolor="#f3e5f5";
+
+        p3_grafana [label="Grafana", fillcolor="#e3f2fd"];
+        p3_gw [label="Gateway\n3+", fillcolor="#a5d6a7"];
+        p3_qf [label="Query Frontend\n2", fillcolor="#ce93d8"];
+        p3_cache [label="Cache\n3", shape=cylinder, fillcolor="#e0e0e0"];
+        p3_q [label="Querier\n5", fillcolor="#ce93d8"];
+        p3_ls [label="Live Store\n2×N", fillcolor="#ce93d8"];
+        p3_storage [label="TempoDB", shape=cylinder, fillcolor="#b0bec5"];
+
+        p3_grafana -> p3_gw -> p3_qf;
+        p3_qf -> p3_cache [dir=both];
+        p3_qf -> p3_q;
+        p3_q -> p3_ls;
+        p3_q -> p3_storage;
+    }
+
+    // Path 4: Backend Work
+    subgraph cluster_path4 {
+        label="Path 4: Backend Work";
+        style="rounded";
+        bgcolor="#fff8e1";
+
+        p4_sched [label="Backend Scheduler\n1 (singleton)", fillcolor="#ffcc80"];
+        p4_worker [label="Backend Worker\n2+", fillcolor="#ffcc80"];
+        p4_comp [label="Compactor\n5", fillcolor="#ffcc80"];
+        p4_storage [label="TempoDB", shape=cylinder, fillcolor="#b0bec5"];
+
+        p4_sched -> p4_worker -> p4_comp -> p4_storage;
+    }
+}
