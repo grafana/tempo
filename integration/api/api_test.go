@@ -811,6 +811,14 @@ func TestTagValuesWithSpecialCharacters(t *testing.T) {
 			{"attr%percent", "val%"},
 			{"attr%20valid_escape_code", "val%20"},
 			{"attr \"'<>#%{}|\\*", "val😬"},
+			{"attr=equals", "val="},
+			{"attr?question", "val?"},
+			{"attr+plus", "val+"},
+			{"attr.dot", "val."},
+			{"attr~tilde", "val~"},
+			{"attr(paren", "val("},
+			{"attr,comma", "val,"},
+			{"attr;semicolon", "val;"},
 			// {"attr//doubleslash", "val//"}, getting // to work is another level of difficult and may only be possible over gRPC. the router itself seems to strip this out and reduce it to a single slash. TODO: get this to work
 		}
 
