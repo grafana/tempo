@@ -1273,6 +1273,7 @@ func TestParseIdentifier(t *testing.T) {
 		".foo.bar":         NewAttribute("foo.bar"),
 		"resource.foo.bar": NewScopedAttribute(AttributeScopeResource, false, "foo.bar"),
 		"span.foo.bar":     NewScopedAttribute(AttributeScopeSpan, false, "foo.bar"),
+		"span.\"foo bar\"": NewScopedAttribute(AttributeScopeSpan, false, "foo bar"),
 	}
 	for i, expected := range testCases {
 		actual, err := ParseIdentifier(i)
