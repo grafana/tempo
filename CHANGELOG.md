@@ -1,12 +1,7 @@
 ## main / unreleased
 
-* [CHANGE] Add stricter validation to user-configurable overrides API, such as refusing duplicate labels [#6008](https://github.com/grafana/tempo/pull/6008) [#6104](https://github.com/grafana/tempo/pull/6104) (@carles-grafana, @mdisibio)
-* [CHANGE] Expose metrics_generator.dimension_mappings to user-configurable overrides API [#5989](https://github.com/grafana/tempo/pull/5989) (@carles-grafana)
-* [CHANGE] Expose metrics_generator.intrinsic_dimensions to user-configurable overrides API [#5974](https://github.com/grafana/tempo/pull/5974) (@carles-grafana)
-* [CHANGE] Expose metrics_generator.trace_id_label_name to user-configurable overrides API [#5972](https://github.com/grafana/tempo/pull/5972) (@carles-grafana)
-* [CHANGE] Expose metrics_generator.ingestion_time_range_slack to user-configurable overrides API [#5958](https://github.com/grafana/tempo/pull/5958) (@carles-grafana)
-* [CHANGE] Expose metrics_generator.native_histogram_bucket_factor and native_histogram_min_reset_duration to user-configurable overrides API [#5973](https://github.com/grafana/tempo/pull/5973) (@carles-grafana)
-* [CHANGE] Remove remaining aws-sdk-go references and migrate tests to MinIO [#5856](https://github.com/grafana/tempo/pull/5856) (@anglerfishlyy)
+# v2.10.0-rc.0
+
 * [CHANGE] **BREAKING CHANGE** Validate tenant ID in frontend and distributor [#5786](https://github.com/grafana/tempo/pull/5786) (@carles-grafana)
 * [CHANGE] Remove vParquet2 encoding [#6071](https://github.com/grafana/tempo/pull/6071) (@mdisibio)
   **BREAKING CHANGE** In the last release vParquet2 was deprecated and blocked from writes. Now, it's
@@ -14,13 +9,18 @@
   running with historical defaults should not require any changes as the default has been migrated for several releases. Installations
   with storage settings pinned to vParquet2 must run a previous release configured for vParquet3 or higher until all existing vParquet2 blocks
   have expired and been deleted from the backend, or else it will encounter read errors after upgrading to this release.
-* [CHANGE] Remove busybox from Tempo image to make it more minimal and prevent future vulnerabilities [#5717](https://github.com/grafana/tempo/pull/5717) (@carles-grafana)
-* [CHANGE] Allow RetryInfo to be disabled in per tenant overrides [#5741](https://github.com/grafana/tempo/pull/5741) (@electron0zero)
-* [CHANGE] **BREAKING CHANGE** Added `scope` and `query` params while rewriting integration tests to the Tempo HTTP client `SearchTagsV2WithRange` function.
+* [CHANGE] **BREAKING CHANGE** Added `scope` and `query` params while rewriting integration tests to the Tempo HTTP client `SearchTagsV2WithRange` function. [#6088](https://github.com/grafana/tempo/pull/6088) (@joe-elliott)
 * [CHANGE] **BREAKING CHANGE** TempoDB schemas vParquet3 and v2 are deprecated and will be removed in 3.0. [#6198](https://github.com/grafana/tempo/pull/6198) (@joe-elliott)
+* [CHANGE] Add stricter validation to user-configurable overrides API, such as refusing duplicate labels [#6008](https://github.com/grafana/tempo/pull/6008) [#6104](https://github.com/grafana/tempo/pull/6104) (@carles-grafana, @mdisibio)
+* [CHANGE] Expose metrics_generator.dimension_mappings to user-configurable overrides API [#5989](https://github.com/grafana/tempo/pull/5989) (@carles-grafana)
+* [CHANGE] Expose metrics_generator.intrinsic_dimensions to user-configurable overrides API [#5974](https://github.com/grafana/tempo/pull/5974) (@carles-grafana)
+* [CHANGE] Expose metrics_generator.trace_id_label_name to user-configurable overrides API [#5972](https://github.com/grafana/tempo/pull/5972) (@carles-grafana)
+* [CHANGE] Expose metrics_generator.ingestion_time_range_slack to user-configurable overrides API [#5958](https://github.com/grafana/tempo/pull/5958) (@carles-grafana)
+* [CHANGE] Expose metrics_generator.native_histogram_bucket_factor and native_histogram_min_reset_duration to user-configurable overrides API [#5973](https://github.com/grafana/tempo/pull/5973) (@carles-grafana)
+* [CHANGE] Remove remaining aws-sdk-go references and migrate tests to MinIO [#5856](https://github.com/grafana/tempo/pull/5856) (@anglerfishlyy)
+* [CHANGE] Remove busybox from Tempo image to make it more minimal and prevent future vulnerabilities [#5717](https://github.com/grafana/tempo/pull/5717) (@carles-grafana)
 * [CHANGE] Upgrade Tempo to Go 1.25.4 [#5939](https://github.com/grafana/tempo/pull/5939) [#6001](https://github.com/grafana/tempo/pull/6001) (@ruslan-mikhailov)
 * [CHANGE] Upgrade Tempo to Go 1.25.5 [#6096](https://github.com/grafana/tempo/pull/6096) [#6089](https://github.com/grafana/tempo/pull/6089) (@joe-elliott)
-* [CHANGE] Set maxKeys to 1 for S3 confirm list operation [#6114](https://github.com/grafana/tempo/pull/6114) (@cancub)
 * [FEATURE] New block encoding vParquet5 with dedicated attributes for integers and events, improved performance on high-cardinality/high-length attributes, faster TraceQL queries, and childCount intrinsic. See [vParquet5](#vparquet5) section below for full details.  [#6219](https://github.com/grafana/tempo/pull/6219) (@ie-pham @mdisibio @stoewer)
 * [FEATURE] TraceQL: Add minInt/maxInt. [#5982](https://github.com/grafana/tempo/pull/5982) (@Syedowais312)
 * [FEATURE] TraceQL: Add support for attribute = nil [#4905](https://github.com/grafana/tempo/pull/4905) (@ie-pham)
@@ -52,9 +52,11 @@
 * [ENHANCEMENT] Drop and metric invalid utf8 for all metrics in metrics generator instead of sending invalid data. [#5980](https://github.com/grafana/tempo/pull/5980) (@joe-elliott)
 * [ENHANCEMENT] Add support for application/protobuf in frontend endpoints [#5865](https://github.com/grafana/tempo/pull/5865) (@oleg-kozliuk-grafana)
 * [ENHANCEMENT] Validate metrics-generator histogram buckets [#5991](https://github.com/grafana/tempo/pull/5991) (@carles-grafana)
-* [ENHANCEMENT] TraceQL: Add support for `with(exemplars=false)` hint to disable exemplars in metrics queries (@joe-elliott)
+* [ENHANCEMENT] TraceQL: Add support for `with(exemplars=false)` hint to disable exemplars in metrics queries [#6204](https://github.com/grafana/tempo/pull/6204)(@joe-elliott)
 * [ENHANCEMENT] Removed MustNewConstMetric to prevent panic and added validation for usage tracker config. Added `tempo_distributor_usage_tracker_errors_total` to surface errors in usage tracker. [#5981](https://github.com/grafana/tempo/pull/5981) (@electron0zero)
 * [ENHANCEMENT] Simplify block-builder partition assignment with config parameter `partitions_per_instance` [#6022](https://github.com/grafana/tempo/pull/6022) (@mapno)
+* [ENHANCEMENT] Allow RetryInfo to be disabled in per tenant overrides [#5741](https://github.com/grafana/tempo/pull/5741) (@electron0zero)
+* [ENHANCEMENT] Set maxKeys to 1 for S3 confirm list operation [#6114](https://github.com/grafana/tempo/pull/6114) (@cancub)
 * [BUGFIX] Fix leading zero handling in native histograms implementations [#6033](https://github.com/grafana/tempo/pull/6033) (@zalegrala)
 * [BUGFIX] Prevent slice panic when truncating series after topk() by adding bounds check in metrics query-range combiner [#6010](https://github.com/grafana/tempo/pull/6010) (@Syedowais312)
 * [BUGFIX] Fix compactor to properly consider SSE-KMS information during metadata copy [#5774](https://github.com/grafana/tempo/pull/5774) (@steffsas)
@@ -64,7 +66,6 @@
 * [BUGFIX] Fix = nil handling with intrinsic columns [#5999](https://github.com/grafana/tempo/issues/5999) (@mdisibio)
 * [BUGFIX] Fix: handle collisions with job and instance labels when targetInfo is enabled [#5774](https://github.com/grafana/tempo/pull/5774) (@javiermolinar)
 * [BUGFIX] Fix search by trace:id for short IDs with leading zeros [#5587](https://github.com/grafana/tempo/pull/5587) (@ruslan-mikhailov)
-* [BUGFIX] Fix wrong sleep duration in block-builder if one of partitions is inactive [#5855](https://github.com/grafana/tempo/pull/5855) (@ruslan-mikhailov)
 * [BUGFIX] Fixed rare bug where the TraceQL metrics could return an empty response when max series was hit. [#6099](https://github.com/grafana/tempo/pull/6099) (@joe-elliott)
 * [BUGFIX] Fix S3 compactor multipart upload to ensure Cloudflare R2 compliance by using uniform chunk sizes [#5838](https://github.com/grafana/tempo/pull/5838) (@constantins2001)
 * [BUGFIX] Make top/bottomk deterministic by breaking ties with label vals. [#5846](https://github.com/grafana/tempo/pull/5846) (@joe-elliott)
@@ -111,6 +112,7 @@
 * [BUGFIX] Fix block-builder to more precisely validate block encoding on startup [#6037](https://github.com/grafana/tempo/pull/6037) (@mdisibio)
 * [BUGFIX] Correctly track and reject too large traces in live stores. [#5757](https://github.com/grafana/tempo/pull/5757) (@joe-elliott)
 * [BUGFIX] Jsonnet: Correctly add tempo-gossip-member: true labels to block-builders and live-stores [#6125](https://github.com/grafana/tempo/pull/6125) (@joe-elliott)
+* [BUGFIX] Fix wrong sleep duration in block-builder if one of partitions is inactive [#5855](https://github.com/grafana/tempo/pull/5855) (@ruslan-mikhailov)
 
 # v2.9.0
 
