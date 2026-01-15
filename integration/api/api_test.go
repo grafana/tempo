@@ -525,7 +525,7 @@ func TestSearchTagValuesV2_badRequest(t *testing.T) {
 		require.NoError(t, err)
 		defer res.Body.Close()
 
-		require.Contains(t, string(body), "tag name is not valid intrinsic or scoped attribute")
+		require.Contains(t, string(body), "please provide a valid tagName: failed to parse identifier app.user.id: parse error at line 1, col 2: unknown identifier: app")
 
 		// Test gRPC endpoint returns InvalidArgument for invalid tagName
 		grpcClient, ctx, err := h.APIClientGRPC("")
@@ -542,7 +542,7 @@ func TestSearchTagValuesV2_badRequest(t *testing.T) {
 		st, ok := status.FromError(err)
 		require.True(t, ok)
 		require.Equal(t, codes.InvalidArgument, st.Code())
-		require.Contains(t, st.Message(), "tag name is not valid intrinsic or scoped attribute")
+		require.Contains(t, st.Message(), "please provide a valid tagName: failed to parse identifier app.user.id: parse error at line 1, col 2: unknown identifier: app")
 	})
 }
 
