@@ -246,25 +246,25 @@ func TestContainsNonAttributeRune(t *testing.T) {
 		{"service_name", false},
 
 		// Invalid attribute names (contains non-attribute runes)
-		{"foo bar", true},   // space
-		{"foo{bar", true},   // {
-		{"foo}bar", true},   // }
-		{"foo(bar", true},   // (
-		{"foo)bar", true},   // )
-		{"foo=bar", true},   // =
-		{"foo~bar", true},   // ~
-		{"foo!bar", true},   // !
-		{"foo<bar", true},   // <
-		{"foo>bar", true},   // >
-		{"foo&bar", true},   // &
-		{"foo|bar", true},   // |
-		{"foo^bar", true},   // ^
-		{"foo,bar", true},   // ,
-		{" foo", true},      // leading space
-		{"foo ", true},      // trailing space
+		{"foo bar", true}, // space
+		{"foo{bar", true}, // {
+		{"foo}bar", true}, // }
+		{"foo(bar", true}, // (
+		{"foo)bar", true}, // )
+		{"foo=bar", true}, // =
+		{"foo~bar", true}, // ~
+		{"foo!bar", true}, // !
+		{"foo<bar", true}, // <
+		{"foo>bar", true}, // >
+		{"foo&bar", true}, // &
+		{"foo|bar", true}, // |
+		{"foo^bar", true}, // ^
+		{"foo,bar", true}, // ,
+		{" foo", true},    // leading space
+		{"foo ", true},    // trailing space
 
 		// Edge cases
-		{"", false},         // empty string
+		{"", false}, // empty string
 	}
 
 	for _, tc := range tests {

@@ -1265,18 +1265,18 @@ func TestScopedIntrinsics(t *testing.T) {
 func TestParseIdentifier(t *testing.T) {
 	testCases := map[string]Attribute{
 		// Basic intrinsics
-		"name":             NewIntrinsic(IntrinsicName),
-		"status":           NewIntrinsic(IntrinsicStatus),
-		"statusMessage":    NewIntrinsic(IntrinsicStatusMessage),
-		"kind":             NewIntrinsic(IntrinsicKind),
-		"duration":         NewIntrinsic(IntrinsicDuration),
-		"parent":           NewIntrinsic(IntrinsicParent),
-		"traceDuration":    NewIntrinsic(IntrinsicTraceDuration),
-		"rootName":         NewIntrinsic(IntrinsicTraceRootSpan),
-		"rootServiceName":  NewIntrinsic(IntrinsicTraceRootService),
-		"nestedSetLeft":    NewIntrinsic(IntrinsicNestedSetLeft),
-		"nestedSetRight":   NewIntrinsic(IntrinsicNestedSetRight),
-		"nestedSetParent":  NewIntrinsic(IntrinsicNestedSetParent),
+		"name":            NewIntrinsic(IntrinsicName),
+		"status":          NewIntrinsic(IntrinsicStatus),
+		"statusMessage":   NewIntrinsic(IntrinsicStatusMessage),
+		"kind":            NewIntrinsic(IntrinsicKind),
+		"duration":        NewIntrinsic(IntrinsicDuration),
+		"parent":          NewIntrinsic(IntrinsicParent),
+		"traceDuration":   NewIntrinsic(IntrinsicTraceDuration),
+		"rootName":        NewIntrinsic(IntrinsicTraceRootSpan),
+		"rootServiceName": NewIntrinsic(IntrinsicTraceRootService),
+		"nestedSetLeft":   NewIntrinsic(IntrinsicNestedSetLeft),
+		"nestedSetRight":  NewIntrinsic(IntrinsicNestedSetRight),
+		"nestedSetParent": NewIntrinsic(IntrinsicNestedSetParent),
 
 		// Scoped intrinsics - trace:
 		"trace:duration":    NewIntrinsic(IntrinsicTraceDuration),
@@ -1285,14 +1285,14 @@ func TestParseIdentifier(t *testing.T) {
 		"trace:id":          NewIntrinsic(IntrinsicTraceID),
 
 		// Scoped intrinsics - span:
-		"span:duration":       NewIntrinsic(IntrinsicDuration),
-		"span:name":           NewIntrinsic(IntrinsicName),
-		"span:kind":           NewIntrinsic(IntrinsicKind),
-		"span:status":         NewIntrinsic(IntrinsicStatus),
-		"span:statusMessage":  NewIntrinsic(IntrinsicStatusMessage),
-		"span:id":             NewIntrinsic(IntrinsicSpanID),
-		"span:parentID":       NewIntrinsic(IntrinsicParentID),
-		"span:childCount":     NewIntrinsic(IntrinsicChildCount),
+		"span:duration":      NewIntrinsic(IntrinsicDuration),
+		"span:name":          NewIntrinsic(IntrinsicName),
+		"span:kind":          NewIntrinsic(IntrinsicKind),
+		"span:status":        NewIntrinsic(IntrinsicStatus),
+		"span:statusMessage": NewIntrinsic(IntrinsicStatusMessage),
+		"span:id":            NewIntrinsic(IntrinsicSpanID),
+		"span:parentID":      NewIntrinsic(IntrinsicParentID),
+		"span:childCount":    NewIntrinsic(IntrinsicChildCount),
 
 		// Scoped intrinsics - event:
 		"event:name":           NewIntrinsic(IntrinsicEventName),
@@ -1307,16 +1307,16 @@ func TestParseIdentifier(t *testing.T) {
 		"instrumentation:version": NewIntrinsic(IntrinsicInstrumentationVersion),
 
 		// Simple attributes
-		".name":         NewAttribute("name"),
-		".status":       NewAttribute("status"),
-		".foo":          NewAttribute("foo"),
-		".foo.bar":      NewAttribute("foo.bar"),
-		".foo.bar.baz":  NewAttribute("foo.bar.baz"),
-		".http_status":  NewAttribute("http_status"),
-		".http-status":  NewAttribute("http-status"),
-		".http+":        NewAttribute("http+"),
-		".foo3":         NewAttribute("foo3"),
-		".foo.3":        NewAttribute("foo.3"),
+		".name":        NewAttribute("name"),
+		".status":      NewAttribute("status"),
+		".foo":         NewAttribute("foo"),
+		".foo.bar":     NewAttribute("foo.bar"),
+		".foo.bar.baz": NewAttribute("foo.bar.baz"),
+		".http_status": NewAttribute("http_status"),
+		".http-status": NewAttribute("http-status"),
+		".http+":       NewAttribute("http+"),
+		".foo3":        NewAttribute("foo3"),
+		".foo.3":       NewAttribute("foo.3"),
 
 		// Scoped attributes - resource
 		"resource.foo":         NewScopedAttribute(AttributeScopeResource, false, "foo"),
@@ -1353,26 +1353,26 @@ func TestParseIdentifier(t *testing.T) {
 		"parent.span.foo.bar":     NewScopedAttribute(AttributeScopeSpan, true, "foo.bar"),
 
 		// Quoted identifiers with spaces
-		".\"foo bar\"":             NewAttribute("foo bar"),
-		".\"bar z\".foo":           NewAttribute("bar z.foo"),
-		".\"bar z\".foo.\"bar\"":   NewAttribute("bar z.foo.bar"),
-		".foo.\"bar baz\"":         NewAttribute("foo.bar baz"),
-		".foo.\"bar baz\".bar":     NewAttribute("foo.bar baz.bar"),
-		"span.\"foo bar\"":         NewScopedAttribute(AttributeScopeSpan, false, "foo bar"),
-		"span.\"bar z\".foo":       NewScopedAttribute(AttributeScopeSpan, false, "bar z.foo"),
-		"resource.\"foo bar\"":     NewScopedAttribute(AttributeScopeResource, false, "foo bar"),
-		"parent.\"foo bar\"":       NewScopedAttribute(AttributeScopeNone, true, "foo bar"),
-		"parent.resource.\"foo\"":  NewScopedAttribute(AttributeScopeResource, true, "foo"),
+		".\"foo bar\"":            NewAttribute("foo bar"),
+		".\"bar z\".foo":          NewAttribute("bar z.foo"),
+		".\"bar z\".foo.\"bar\"":  NewAttribute("bar z.foo.bar"),
+		".foo.\"bar baz\"":        NewAttribute("foo.bar baz"),
+		".foo.\"bar baz\".bar":    NewAttribute("foo.bar baz.bar"),
+		"span.\"foo bar\"":        NewScopedAttribute(AttributeScopeSpan, false, "foo bar"),
+		"span.\"bar z\".foo":      NewScopedAttribute(AttributeScopeSpan, false, "bar z.foo"),
+		"resource.\"foo bar\"":    NewScopedAttribute(AttributeScopeResource, false, "foo bar"),
+		"parent.\"foo bar\"":      NewScopedAttribute(AttributeScopeNone, true, "foo bar"),
+		"parent.resource.\"foo\"": NewScopedAttribute(AttributeScopeResource, true, "foo"),
 
 		// Quoted identifiers with escape sequences
-		".foo.\"bar \\\" baz\"":    NewAttribute("foo.bar \" baz"),
-		".foo.\"bar \\\\ baz\"":    NewAttribute("foo.bar \\ baz"),
+		".foo.\"bar \\\" baz\"":      NewAttribute("foo.bar \" baz"),
+		".foo.\"bar \\\\ baz\"":      NewAttribute("foo.bar \\ baz"),
 		".foo.\"bar \\\\\".\" baz\"": NewAttribute("foo.bar \\. baz"),
-		".\"foo.bar\"":             NewAttribute("foo.bar"),
+		".\"foo.bar\"":               NewAttribute("foo.bar"),
 
 		// Unicode identifiers
-		".😝":      NewAttribute("😝"),
-		".\"🤘\"":  NewAttribute("🤘"),
+		".😝":     NewAttribute("😝"),
+		".\"🤘\"": NewAttribute("🤘"),
 	}
 	for input, expected := range testCases {
 		t.Run(input, func(t *testing.T) {
