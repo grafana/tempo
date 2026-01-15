@@ -1,5 +1,8 @@
 ## main / unreleased
 
+# v2.8.3
+* [CHANGE] Upgrade Tempo to Go 1.25.5 [#6096](https://github.com/grafana/tempo/pull/6096) [#6089](https://github.com/grafana/tempo/pull/6089) (@joe-elliott)
+
 # v2.8.2
 
 * [CHANGE] Update Go to version 1.24.4. #5323 (@stoewer)
