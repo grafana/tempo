@@ -1317,6 +1317,7 @@ func TestParseIdentifier(t *testing.T) {
 		".http+":       NewAttribute("http+"),
 		".foo3":        NewAttribute("foo3"),
 		".foo.3":       NewAttribute("foo.3"),
+		".\"0\"":       NewAttribute("0"),
 
 		// Scoped attributes - resource
 		"resource.foo":         NewScopedAttribute(AttributeScopeResource, false, "foo"),
