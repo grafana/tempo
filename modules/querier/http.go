@@ -363,7 +363,8 @@ func (q *Querier) QueryRangeHandler(w http.ResponseWriter, r *http.Request) {
 	ctx, span := tracer.Start(ctx, "Querier.QueryRangeHandler")
 	defer span.End()
 
-	errHandler := func(ctx context.Context, span oteltrace.Span, err error) {
+	// Special error handling to update the span.
+	defer func() {
 		if errors.Is(err, context.Canceled) {
 			// todo: context is also canceled when we hit the query timeout. research what the behavior is
 			// ignore this error. we regularly cancel context once queries are complete
@@ -379,22 +380,10 @@ func (q *Querier) QueryRangeHandler(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			span.RecordError(err)
 		}
-	}
-
-	defer func() {
-		errHandler(ctx, span, err)
-
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-
-		writeFormattedContentForRequest(w, r, resp, span)
 	}()
 
 	req, err := api.ParseQueryRangeRequest(r)
 	if err != nil {
-		errHandler(ctx, span, err)
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
@@ -405,18 +394,16 @@ func (q *Querier) QueryRangeHandler(w http.ResponseWriter, r *http.Request) {
 
 	resp, err = q.QueryRange(ctx, req)
 	if err != nil {
-		errHandler(ctx, span, err)
+		handleError(w, err)
 		return
-	}
-	// This is to prevent a panic marshaling nil
-	if resp == nil {
-		resp = &tempopb.QueryRangeResponse{}
 	}
 
 	if resp != nil && resp.Metrics != nil {
 		span.SetAttributes(attribute.Int64("inspectedBytes", int64(resp.Metrics.InspectedBytes)))
 		span.SetAttributes(attribute.Int64("inspectedSpans", int64(resp.Metrics.InspectedSpans)))
 	}
+
+	writeFormattedContentForRequest(w, r, resp, span)
 }
 
 func handleError(w http.ResponseWriter, err error) {
