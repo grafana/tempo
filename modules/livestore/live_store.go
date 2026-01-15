@@ -123,13 +123,13 @@ type LiveStore struct {
 	overrides    overrides.Interface
 
 	// Background processing
-	ctx             context.Context // context for the service. all background processes should exit if this is cancelled
-	cancel          func()
-	wg              sync.WaitGroup
-	completeQueues  *flushqueues.ExclusiveQueues[*completeOp]
-	startupComplete chan struct{} // channel to signal that the starting function has finished. allows background processes to block until the service is fully started
-	lagCancel       context.CancelFunc
-	currentLag      atomic.Int64 // stored as nanoseconds, updated by consume()
+	ctx                 context.Context // context for the service. all background processes should exit if this is cancelled
+	cancel              func()
+	wg                  sync.WaitGroup
+	completeQueues      *flushqueues.ExclusiveQueues[*completeOp]
+	startupComplete     chan struct{} // channel to signal that the starting function has finished. allows background processes to block until the service is fully started
+	lagCancel           context.CancelFunc
+	lastRecordTimestamp atomic.Int64 // stored as unix nanoseconds, updated by consume(). zero indicates no data has been received
 }
 
 func New(cfg Config, overridesService overrides.Interface, logger log.Logger, reg prometheus.Registerer, singlePartition bool) (*LiveStore, error) {
@@ -413,8 +413,8 @@ func (s *LiveStore) consume(ctx context.Context, rs recordIter, now time.Time) (
 		// Track partition lag in seconds
 		lag := now.Sub(record.Timestamp)
 		ingest.SetPartitionLagSeconds(s.cfg.IngestConfig.Kafka.ConsumerGroup, record.Partition, lag)
-		// Store lag for health checking
-		s.currentLag.Store(int64(lag))
+		// Store last record timestamp for health checking
+		s.lastRecordTimestamp.Store(record.Timestamp.UnixNano())
 
 		metricRecordsProcessed.WithLabelValues(tenant).Inc()
 		recordCount++
@@ -603,17 +603,22 @@ func withInstance[T any](ctx context.Context, s *LiveStore, fn func(*instance) (
 
 	// Check if partition lag exceeds threshold (if configured)
 	if maxLag := s.cfg.MaxPartitionLag; maxLag > 0 {
-		currentLag := time.Duration(s.currentLag.Load())
-		if currentLag > maxLag {
-			err := status.Errorf(codes.Unavailable,
-				"partition lag %s exceeds maximum allowed %s",
-				currentLag.Truncate(time.Second),
-				maxLag.Truncate(time.Second))
-			level.Error(s.logger).Log("msg", "rejecting query due to high partition lag",
-				"current_lag", currentLag.Truncate(time.Second),
-				"max_lag", maxLag.Truncate(time.Second),
-				"err", err)
-			return nil, err
+		lastTimestampNanos := s.lastRecordTimestamp.Load()
+		// If lastRecordTimestamp is zero, partition has no data - don't return lag error
+		if lastTimestampNanos != 0 {
+			lastTimestamp := time.Unix(0, lastTimestampNanos)
+			currentLag := time.Since(lastTimestamp)
+			if currentLag > maxLag {
+				err := status.Errorf(codes.Unavailable,
+					"partition lag %s exceeds maximum allowed %s",
+					currentLag.Truncate(time.Second),
+					maxLag.Truncate(time.Second))
+				level.Error(s.logger).Log("msg", "rejecting query due to high partition lag",
+					"current_lag", currentLag.Truncate(time.Second),
+					"max_lag", maxLag.Truncate(time.Second),
+					"err", err)
+				return nil, err
+			}
 		}
 	}
 

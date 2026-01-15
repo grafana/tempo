@@ -664,8 +664,8 @@ func TestLiveStoreLagCheckRejectsQueries(t *testing.T) {
 	// Configure max lag threshold
 	liveStore.cfg.MaxPartitionLag = 10 * time.Second
 
-	// Simulate high lag by setting the atomic value directly
-	liveStore.currentLag.Store(int64(30 * time.Second)) // 30 seconds lag
+	// Simulate high lag by setting lastRecordTimestamp to 30 seconds ago
+	liveStore.lastRecordTimestamp.Store(time.Now().Add(-30 * time.Second).UnixNano())
 
 	ctx := user.InjectOrgID(context.Background(), testTenantID)
 
@@ -763,8 +763,8 @@ func TestLiveStoreLagCheckAllowsQueriesWhenDisabled(t *testing.T) {
 	// MaxPartitionLagSeconds = 0 means disabled (default)
 	require.Equal(t, time.Duration(0), liveStore.cfg.MaxPartitionLag)
 
-	// Simulate high lag
-	liveStore.currentLag.Store(int64(300 * time.Second)) // 5 minutes lag
+	// Simulate high lag by setting lastRecordTimestamp to 5 minutes ago
+	liveStore.lastRecordTimestamp.Store(time.Now().Add(-5 * time.Minute).UnixNano())
 
 	// Push data so instance exists
 	pushToLiveStore(t, liveStore)
@@ -792,8 +792,8 @@ func TestLiveStoreLagCheckAllowsQueriesUnderThreshold(t *testing.T) {
 	// Configure max lag threshold
 	liveStore.cfg.MaxPartitionLag = 30 * time.Second
 
-	// Simulate low lag (under threshold)
-	liveStore.currentLag.Store(int64(5 * time.Second)) // 5 seconds lag
+	// Simulate low lag (under threshold) by setting lastRecordTimestamp to 5 seconds ago
+	liveStore.lastRecordTimestamp.Store(time.Now().Add(-5 * time.Second).UnixNano())
 
 	// Push data so instance exists
 	pushToLiveStore(t, liveStore)
@@ -801,6 +801,36 @@ func TestLiveStoreLagCheckAllowsQueriesUnderThreshold(t *testing.T) {
 	ctx := user.InjectOrgID(context.Background(), testTenantID)
 
 	// Should NOT return error when lag is under threshold
+	resp, err := liveStore.SearchRecent(ctx, &tempopb.SearchRequest{
+		Query: "{}",
+	})
+	require.NoError(t, err)
+	require.NotNil(t, resp)
+
+	err = services.StopAndAwaitTerminated(context.Background(), liveStore)
+	require.NoError(t, err)
+}
+
+func TestLiveStoreLagCheckAllowsQueriesWhenNoDataReceived(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	liveStore, err := defaultLiveStore(t, tmpDir)
+	require.NoError(t, err)
+	require.NotNil(t, liveStore)
+
+	// Configure max lag threshold
+	liveStore.cfg.MaxPartitionLag = 10 * time.Second
+
+	// Push data so instance exists
+	pushToLiveStore(t, liveStore)
+
+	// Reset lastRecordTimestamp to zero to simulate no data being received
+	// This tests the edge case where partition exists but hasn't received any records yet
+	liveStore.lastRecordTimestamp.Store(0)
+
+	ctx := user.InjectOrgID(context.Background(), testTenantID)
+
+	// Should NOT return error when lastRecordTimestamp is zero (partition has no data)
 	resp, err := liveStore.SearchRecent(ctx, &tempopb.SearchRequest{
 		Query: "{}",
 	})
