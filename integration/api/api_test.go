@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"slices"
 	"sort"
+	"strings"
 	"testing"
 	"time"
 
@@ -16,6 +17,7 @@ import (
 	"github.com/grafana/tempo/pkg/collector"
 	"github.com/grafana/tempo/pkg/search"
 	"github.com/grafana/tempo/pkg/tempopb"
+	"github.com/grafana/tempo/pkg/traceql"
 	tempoUtil "github.com/grafana/tempo/pkg/util"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
@@ -523,7 +525,7 @@ func TestSearchTagValuesV2_badRequest(t *testing.T) {
 		require.NoError(t, err)
 		defer res.Body.Close()
 
-		require.Contains(t, string(body), "tag name is not valid intrinsic or scoped attribute")
+		require.Contains(t, string(body), "please provide a valid tagName: failed to parse identifier app.user.id: parse error at line 1, col 2: unknown identifier: app")
 
 		// Test gRPC endpoint returns InvalidArgument for invalid tagName
 		grpcClient, ctx, err := h.APIClientGRPC("")
@@ -540,7 +542,7 @@ func TestSearchTagValuesV2_badRequest(t *testing.T) {
 		st, ok := status.FromError(err)
 		require.True(t, ok)
 		require.Equal(t, codes.InvalidArgument, st.Code())
-		require.Contains(t, st.Message(), "tag name is not valid intrinsic or scoped attribute")
+		require.Contains(t, st.Message(), "please provide a valid tagName: failed to parse identifier app.user.id: parse error at line 1, col 2: unknown identifier: app")
 	})
 }
 
@@ -809,12 +811,30 @@ func TestTagValuesWithSpecialCharacters(t *testing.T) {
 			{"attr%percent", "val%"},
 			{"attr%20valid_escape_code", "val%20"},
 			{"attr \"'<>#%{}|\\*", "val😬"},
+			{"attr=equals", "val="},
+			{"attr?question", "val?"},
+			{"attr+plus", "val+"},
+			{"attr.dot", "val."},
+			{"attr~tilde", "val~"},
+			{"attr(paren", "val("},
+			{"attr,comma", "val,"},
+			{"attr;semicolon", "val;"},
 			// {"attr//doubleslash", "val//"}, getting // to work is another level of difficult and may only be possible over gRPC. the router itself seems to strip this out and reduce it to a single slash. TODO: get this to work
 		}
 
 		for _, tc := range specialCharValues {
 			batch := util.MakeThriftBatchWithSpanCountAttributeAndName(1, "test-service", tc.attrValue, tc.attrValue, tc.attrName, tc.attrName)
 			require.NoError(t, h.WriteJaegerBatch(batch, ""))
+		}
+
+		// now that we've written data, we have to update any attr name with special characters to escape quotes, backslashes, and wrap in quotes to make this a valid traceql identifier
+		for i, tc := range specialCharValues {
+			if traceql.ContainsNonAttributeRune(tc.attrName) {
+				specialCharValues[i].attrName = strings.ReplaceAll(tc.attrName, "\\", "\\\\")
+				specialCharValues[i].attrName = strings.ReplaceAll(tc.attrName, "\"", "\\\"")
+
+				specialCharValues[i].attrName = fmt.Sprintf("%q", tc.attrName)
+			}
 		}
 
 		// Wait for traces to be written to WAL
