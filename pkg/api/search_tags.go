@@ -18,7 +18,8 @@ import (
 )
 
 const (
-	MuxVarTagName = "tagName"
+	MuxVarTagName   = "tagName"
+	MuxVarTagInPath = "{" + MuxVarTagName + ":.*}"
 
 	ParamScopeIntrinsic = "intrinsic"
 )
@@ -380,18 +381,13 @@ func ParseSearchTagValuesRequestV2(r *http.Request) (*tempopb.SearchTagValuesReq
 
 func parseSearchTagValuesRequest(r *http.Request, enforceTraceQL bool) (*tempopb.SearchTagValuesRequest, error) {
 	vars := mux.Vars(r)
-	escapedTagName, ok := vars[MuxVarTagName]
+	tagName, ok := vars[MuxVarTagName]
 	if !ok {
 		return nil, errors.New("please provide a tagName")
 	}
 
-	if escapedTagName == "" {
+	if tagName == "" {
 		return nil, errors.New("please provide a non-empty tagName")
-	}
-
-	tagName, unescapingError := url.QueryUnescape(escapedTagName)
-	if unescapingError != nil {
-		return nil, errors.New("error in unescaping tagName")
 	}
 
 	if enforceTraceQL {
