@@ -54,6 +54,7 @@
 * [ENHANCEMENT] TraceQL: Add support for `with(exemplars=false)` hint to disable exemplars in metrics queries (@joe-elliott)
 * [ENHANCEMENT] Removed MustNewConstMetric to prevent panic and added validation for usage tracker config. Added `tempo_distributor_usage_tracker_errors_total` to surface errors in usage tracker. [#5981](https://github.com/grafana/tempo/pull/5981) (@electron0zero)
 * [ENHANCEMENT] Simplify block-builder partition assignment with config parameter `partitions_per_instance` [#6022](https://github.com/grafana/tempo/pull/6022) (@mapno)
+* [BUGFIX] Fix leading zero handling in native histograms implementations [#6033](https://github.com/grafana/tempo/pull/6033) (@zalegrala)
 * [BUGFIX] Prevent slice panic when truncating series after topk() by adding bounds check in metrics query-range combiner [#6010](https://github.com/grafana/tempo/pull/6010) (@Syedowais312)
 * [BUGFIX] Fix compactor to properly consider SSE-KMS information during metadata copy [#5774](https://github.com/grafana/tempo/pull/5774) (@steffsas)
 * [BUGFIX] Fix `spss=0` parameter to properly mean unlimited spans instead of being rejected, and respect `max_spans_per_span_set=0` configuration [#5858](https://github.com/grafana/tempo/pull/5858) (@iamrajiv)
@@ -76,6 +77,7 @@
 * [BUGFIX] Correct handle whitespace or invisible separators in filters in attribute values in tag value search [#6124](https://github.com/grafana/tempo/pull/6124) (@mapno)
 * [BUGFIX] Fix special character handling in attribute value requests. [#6212](https://github.com/grafana/tempo/pull/6212) (@joe-elliott)
 * [BUGFIX] Fix panic when trying to compact block with unsupported encodings such as vParquet previews. [#6209](https://github.com/grafana/tempo/pull/6209) (@carles-grafana)
+* [BUGFIX] querier: allow external trace by id queries in validation [#6217](https://github.com/grafana/tempo/pull/6217) (@Logiraptor)
 
 ### vParquet5
 
@@ -91,6 +93,7 @@
 * [BUGFIX] Fix dedicated column array handling to better support attributes with mixed array and non-array values [#6199](https://github.com/grafana/tempo/pull/6199) (@mdisibio)
 * [ENHANCEMENT] Add integer attribute analysis to the tempo-cli `analyse block(s)` commands [#6103](https://github.com/grafana/tempo/pull/6103) (@mdisibio)
 * [ENHANCEMENT] Add `suggest columns` command to tempo-cli [#6131](https://github.com/grafana/tempo/pull/6131) (@ie-pham)
+* [ENHANCEMENT] Convert ServiceStats data from map to list and update encoding/compression to enable sorted output and small reduction in file size [#6216](https://github.com/grafana/tempo/pull/6216) (@mdisibio)
 
 ### Tempo Rearchitecture [EXPERIMENTAL]
 

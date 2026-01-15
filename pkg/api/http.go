@@ -94,6 +94,7 @@ const (
 	QueryModeKey       = "mode"
 	QueryModeIngesters = "ingesters"
 	QueryModeBlocks    = "blocks"
+	QueryModeExternal  = "external"
 	QueryModeAll       = "all"
 	BlockStartKey      = "blockStart"
 	BlockEndKey        = "blockEnd"
@@ -860,6 +861,8 @@ func ValidateAndSanitizeRequest(r *http.Request) (string, string, string, int64,
 		queryMode = QueryModeIngesters
 	case q == QueryModeBlocks:
 		queryMode = QueryModeBlocks
+	case q == QueryModeExternal:
+		queryMode = QueryModeExternal
 	default:
 		return "", "", "", 0, 0, time.Time{}, fmt.Errorf("invalid value for mode %s", q)
 	}
