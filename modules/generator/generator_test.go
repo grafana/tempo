@@ -163,7 +163,7 @@ func BenchmarkPushSpans(b *testing.B) {
 				"span-metrics":   {},
 				"service-graphs": {},
 			},
-			spanMetricsEnableTargetInfo:             true,
+			spanMetricsEnableTargetInfo:             boolPtr(true),
 			spanMetricsTargetInfoExcludedDimensions: []string{"excluded}"},
 		}
 	)
@@ -240,7 +240,7 @@ func BenchmarkCollect(b *testing.B) {
 				"service-graphs": {},
 			},
 			spanMetricsDimensions:                   []string{"k8s.cluster.name", "k8s.namespace.name"},
-			spanMetricsEnableTargetInfo:             true,
+			spanMetricsEnableTargetInfo:             boolPtr(true),
 			spanMetricsTargetInfoExcludedDimensions: []string{"excluded}"},
 			nativeHistograms:                        overrides.HistogramMethodBoth,
 		}

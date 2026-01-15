@@ -15,14 +15,14 @@ type mockOverrides struct {
 	serviceGraphsDimensions                            []string
 	serviceGraphsPeerAttributes                        []string
 	serviceGraphsEnableClientServerPrefix              bool
-	serviceGraphsEnableMessagingSystemLatencyHistogram bool
-	serviceGraphsEnableVirtualNodeLabel                bool
+	serviceGraphsEnableMessagingSystemLatencyHistogram *bool
+	serviceGraphsEnableVirtualNodeLabel                *bool
 	spanMetricsHistogramBuckets                        []float64
 	spanMetricsDimensions                              []string
 	spanMetricsIntrinsicDimensions                     map[string]bool
 	spanMetricsFilterPolicies                          []filterconfig.FilterPolicy
 	spanMetricsDimensionMappings                       []sharedconfig.DimensionMappings
-	spanMetricsEnableTargetInfo                        bool
+	spanMetricsEnableTargetInfo                        *bool
 	spanMetricsTargetInfoExcludedDimensions            []string
 	localBlocksMaxLiveTraces                           uint64
 	localBlocksMaxBlockDuration                        time.Duration
@@ -131,20 +131,32 @@ func (m *mockOverrides) MetricsGeneratorProcessorSpanMetricsDimensionMappings(st
 }
 
 // MetricsGeneratorProcessorSpanMetricsEnableTargetInfo enables target_info metrics
-func (m *mockOverrides) MetricsGeneratorProcessorSpanMetricsEnableTargetInfo(string) bool {
-	return m.spanMetricsEnableTargetInfo
+func (m *mockOverrides) MetricsGeneratorProcessorSpanMetricsEnableTargetInfo(string) (bool, bool) {
+	spanMetricsEnableTargetInfo := m.spanMetricsEnableTargetInfo
+	if spanMetricsEnableTargetInfo != nil {
+		return *spanMetricsEnableTargetInfo, true
+	}
+	return false, false
 }
 
 func (m *mockOverrides) MetricsGeneratorProcessorServiceGraphsEnableClientServerPrefix(string) bool {
 	return m.serviceGraphsEnableClientServerPrefix
 }
 
-func (m *mockOverrides) MetricsGeneratorProcessorServiceGraphsEnableMessagingSystemLatencyHistogram(string) bool {
-	return m.serviceGraphsEnableMessagingSystemLatencyHistogram
+func (m *mockOverrides) MetricsGeneratorProcessorServiceGraphsEnableMessagingSystemLatencyHistogram(string) (bool, bool) {
+	serviceGraphsEnableMessagingSystemLatencyHistogram := m.serviceGraphsEnableMessagingSystemLatencyHistogram
+	if serviceGraphsEnableMessagingSystemLatencyHistogram != nil {
+		return *serviceGraphsEnableMessagingSystemLatencyHistogram, true
+	}
+	return false, false
 }
 
-func (m *mockOverrides) MetricsGeneratorProcessorServiceGraphsEnableVirtualNodeLabel(string) bool {
-	return m.serviceGraphsEnableVirtualNodeLabel
+func (m *mockOverrides) MetricsGeneratorProcessorServiceGraphsEnableVirtualNodeLabel(string) (bool, bool) {
+	serviceGraphsEnableVirtualNodeLabel := m.serviceGraphsEnableVirtualNodeLabel
+	if serviceGraphsEnableVirtualNodeLabel != nil {
+		return *serviceGraphsEnableVirtualNodeLabel, true
+	}
+	return false, false
 }
 
 func (m *mockOverrides) MetricsGeneratorProcessorSpanMetricsTargetInfoExcludedDimensions(string) []string {

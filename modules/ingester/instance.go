@@ -229,8 +229,8 @@ func (i *instance) measureReceivedBytes(traceBytes []byte) {
 }
 
 // CutCompleteTraces moves any complete traces out of the map to complete traces.
-func (i *instance) CutCompleteTraces(cutoff time.Duration, immediate bool) error {
-	tracesToCut := i.tracesToCut(cutoff, immediate)
+func (i *instance) CutCompleteTraces(idleCutoff time.Duration, liveCutoff time.Duration, immediate bool) error {
+	tracesToCut := i.tracesToCut(time.Now(), idleCutoff, liveCutoff, immediate)
 	segmentDecoder := model.MustNewSegmentDecoder(model.CurrentEncoding)
 
 	// Sort by ID
@@ -554,7 +554,7 @@ func (i *instance) getDedicatedColumns() backend.DedicatedColumns {
 	return i.dedicatedColumns
 }
 
-func (i *instance) tracesToCut(cutoff time.Duration, immediate bool) []*liveTrace {
+func (i *instance) tracesToCut(now time.Time, idleCutoff time.Duration, liveCutoff time.Duration, immediate bool) []*liveTrace {
 	i.tracesMtx.Lock()
 	defer i.tracesMtx.Unlock()
 
@@ -562,11 +562,15 @@ func (i *instance) tracesToCut(cutoff time.Duration, immediate bool) []*liveTrac
 	metricLiveTraces.WithLabelValues(i.instanceID).Set(float64(len(i.traces)))
 	metricLiveTraceBytes.WithLabelValues(i.instanceID).Set(float64(i.traceSizeBytes))
 
-	cutoffTime := time.Now().Add(cutoff)
+	idleCutoffTime := now.Add(-idleCutoff)
+	liveCutoffTime := now.Add(-liveCutoff)
 	tracesToCut := make([]*liveTrace, 0, len(i.traces))
 
 	for key, trace := range i.traces {
-		if cutoffTime.After(trace.lastAppend) || immediate {
+		if idleCutoffTime.After(trace.lastAppend) ||
+			liveCutoffTime.After(trace.createdAt) ||
+			immediate {
+
 			tracesToCut = append(tracesToCut, trace)
 
 			// decrease live trace bytes

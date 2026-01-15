@@ -44,8 +44,8 @@ func TestSearchUsingJaegerPlugin(t *testing.T) {
 	batch = makeThriftBatchWithSpanCountForServiceAndOp(2, "request", "frontend")
 	require.NoError(t, jaegerClient.EmitBatch(context.Background(), batch))
 
-	// Wait for the traces to be written to the WAL
-	time.Sleep(time.Second * 3)
+	// wait for the 2 traces to be written to the WAL
+	require.NoError(t, tempo.WaitSumMetricsWithOptions(e2e.Equals(2), []string{"tempo_ingester_traces_created_total"}, e2e.WaitMissingMetrics))
 
 	callJaegerQuerySearchServicesAssert(t, tempo, jaegerQuery, servicesOrOpJaegerQueryResponse{
 		Data: []string{
@@ -100,6 +100,9 @@ func TestSearchUsingBackendTagsService(t *testing.T) {
 
 	batch = makeThriftBatchWithSpanCountForServiceAndOp(2, "request", "frontend")
 	require.NoError(t, jaegerClient.EmitBatch(context.Background(), batch))
+
+	// wait for the 2 traces to be written to the WAL
+	require.NoError(t, tempo.WaitSumMetricsWithOptions(e2e.Equals(2), []string{"tempo_ingester_traces_created_total"}, e2e.WaitMissingMetrics))
 
 	callJaegerQuerySearchServicesAssert(t, tempo, jaegerQuery, servicesOrOpJaegerQueryResponse{
 		Data: []string{

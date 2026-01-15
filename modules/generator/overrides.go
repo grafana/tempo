@@ -32,10 +32,10 @@ type metricsGeneratorOverrides interface {
 	MetricsGeneratorProcessorLocalBlocksFlushCheckPeriod(userID string) time.Duration
 	MetricsGeneratorProcessorLocalBlocksCompleteBlockTimeout(userID string) time.Duration
 	MetricsGeneratorProcessorSpanMetricsDimensionMappings(userID string) []sharedconfig.DimensionMappings
-	MetricsGeneratorProcessorSpanMetricsEnableTargetInfo(userID string) bool
+	MetricsGeneratorProcessorSpanMetricsEnableTargetInfo(userID string) (bool, bool)
 	MetricsGeneratorProcessorServiceGraphsEnableClientServerPrefix(userID string) bool
-	MetricsGeneratorProcessorServiceGraphsEnableMessagingSystemLatencyHistogram(userID string) bool
-	MetricsGeneratorProcessorServiceGraphsEnableVirtualNodeLabel(userID string) bool
+	MetricsGeneratorProcessorServiceGraphsEnableMessagingSystemLatencyHistogram(userID string) (bool, bool)
+	MetricsGeneratorProcessorServiceGraphsEnableVirtualNodeLabel(userID string) (bool, bool)
 	MetricsGeneratorProcessorSpanMetricsTargetInfoExcludedDimensions(userID string) []string
 	MetricsGeneratorProcessorHostInfoHostIdentifiers(userID string) []string
 	MetricsGeneratorProcessorHostInfoMetricName(userID string) string
