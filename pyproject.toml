@@ -1,55 +1,68 @@
-[tool.poetry]
-name = "mlt"
+[project]
+name = "grafanalabs-ml-pipeline-development"
 version = "0.1.0"
-description = "ml tool for modelling"
-authors = ["Rudabeh Meskarian"]
-packages = [
-    { include = "mlt"},
+description = "ML tooling for modelling"
+readme = "README.md"
+authors = [{ name = "Rudabeh Meskarian" }]
+requires-python = ">=3.12"
+dependencies = [
+    "numpy>=1.26.0",
+    "pandas>=2.2.0",
+    "scikit-learn>=1.4.0",
+    "matplotlib>=3.8.0",
+    "pyyaml>=6.0.0",
+    "hydra-core>=1.3.2",
+    "omegaconf>=2.3.0",
+    "shap>=0.46.0",
+    "numba>=0.59",
+    "llvmlite>=0.42",
+    "seaborn>=0.13.2",
+    "ray>=2.47.1",
 ]
 
-[tool.poetry.dependencies]
-python = "^3.12"
-numpy = "^1.21.0"
-pandas = "^2.2.0"
-scikit-learn = "^1.0.0"
-#torch = "^1.9.0"
-matplotlib = "^3.4.0"
-pyyaml = "^6.0"
-hydra-core = "^1.3.2"
-omegaconf = "^2.3.0"
-shap = "^0.46.0"
-# pyarrow = "^17.0.0"
-seaborn = "^0.13.2"
-xgboost = "^2.1.4"
-# pmdarima = "2.0.4"
-ray = "^2.47.1"
-
-
-[tool.poetry.extras]
-xgboost = ["xgboost"]
-
-[tool.poetry.dev-dependencies]
-pytest = "^6.2.5"
-black = "^21.6b0"
-flake8 = "^3.9.0"
-ipykernel = "^6.16.0"
-jupyter = "^1.0.0"
+[project.optional-dependencies]
+xgboost = ["xgboost>=2.1.4"]
+# torch = ["torch>=2.2.0"]          # uncomment if needed
+# pyarrow = ["pyarrow>=17.0.0"]     # uncomment if needed
+# pmdarima = ["pmdarima==2.0.4"]    # uncomment if needed
 
 [build-system]
-requires = ["poetry-core>=1.0.0"]
-build-backend = "poetry.core.masonry.api"
+requires = ["hatchling"]
+build-backend = "hatchling.build"
 
-[tool.black] 
-line-length = 120 
-extend-exclude = "notebooks/*"
+[tool.hatch.build.targets.wheel]
+packages = ["src/grafanalabs_ml_pipeline_development"]
 
-[tool.flake8]
-max-line-length = 120
+[dependency-groups]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-cov>=4.0.0",
+    "pytest-mock>=3.0.0",
+    "ruff>=0.8.0",
+]
 
-[tool.isort] 
-line_length = 120 
-multi_line_output = 5
+[tool.uv]
+keyring-provider = "subprocess"
+index-strategy = "first-index" # never remove this or bad things will happen
 
-[tool.poetry2conda]
-name = "mlt"
-default-channel = "pip"
+[[tool.uv.index]]
+name = "pypi"
+url = "https://pypi.org/simple/"
+authenticate = "never"
+
+[[tool.uv.index]]
+name = "data-python"
+url = "https://oauth2accesstoken@us-python.pkg.dev/grafanalabs-global/data-python/simple/"
+publish-url = "https://us-python.pkg.dev/grafanalabs-global/data-python/"
+authenticate = "always"
+
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "W"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
