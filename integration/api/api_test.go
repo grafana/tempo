@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"slices"
 	"sort"
+	"strings"
 	"testing"
 	"time"
 
@@ -16,6 +17,7 @@ import (
 	"github.com/grafana/tempo/pkg/collector"
 	"github.com/grafana/tempo/pkg/search"
 	"github.com/grafana/tempo/pkg/tempopb"
+	"github.com/grafana/tempo/pkg/traceql"
 	tempoUtil "github.com/grafana/tempo/pkg/util"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
@@ -815,6 +817,16 @@ func TestTagValuesWithSpecialCharacters(t *testing.T) {
 		for _, tc := range specialCharValues {
 			batch := util.MakeThriftBatchWithSpanCountAttributeAndName(1, "test-service", tc.attrValue, tc.attrValue, tc.attrName, tc.attrName)
 			require.NoError(t, h.WriteJaegerBatch(batch, ""))
+		}
+
+		// now that we've written data, we have to update any attr name with special characters to escape quotes, backslashes, and wrap in quotes to make this a valid traceql identifier
+		for i, tc := range specialCharValues {
+			if traceql.ContainsNonAttributeRune(tc.attrName) {
+				specialCharValues[i].attrName = strings.ReplaceAll(tc.attrName, "\\", "\\\\")
+				specialCharValues[i].attrName = strings.ReplaceAll(tc.attrName, "\"", "\\\"")
+
+				specialCharValues[i].attrName = fmt.Sprintf("%q", tc.attrName)
+			}
 		}
 
 		// Wait for traces to be written to WAL
