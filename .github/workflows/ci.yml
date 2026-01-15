@@ -32,11 +32,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-<<<<<<< HEAD
-          go-version-file: "go.mod"
-=======
           go-version: '1.25.5'
->>>>>>> 7162983ea (Upgrade tools to go 1.25.5 (#6089))
 
       - name: check-fmt
         run: make check-fmt
