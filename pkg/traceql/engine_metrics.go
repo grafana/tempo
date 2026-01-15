@@ -152,7 +152,7 @@ func AlignRequest(req *tempopb.QueryRangeRequest) {
 }
 
 // Start time is rounded down to next step
-func alignStart(start, end, step uint64, instant bool) uint64 {
+func alignStart(start, _, step uint64, instant bool) uint64 {
 	if step == 0 {
 		return 0
 	}
@@ -164,7 +164,7 @@ func alignStart(start, end, step uint64, instant bool) uint64 {
 }
 
 // End time is rounded up to next step
-func alignEnd(start, end, step uint64, instant bool) uint64 {
+func alignEnd(_, end, step uint64, instant bool) uint64 {
 	if step == 0 {
 		return 0
 	}
