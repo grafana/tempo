@@ -80,6 +80,7 @@
 * [BUGFIX] Fix special character handling in attribute value requests.[#6212](https://github.com/grafana/tempo/pull/6212),[#6223](https://github.com/grafana/tempo/pull/6223) (@joe-elliott)
 * [BUGFIX] Fix panic when trying to compact block with unsupported encodings such as vParquet previews. [#6209](https://github.com/grafana/tempo/pull/6209) (@carles-grafana)
 * [BUGFIX] querier: allow external trace by id queries in validation [#6217](https://github.com/grafana/tempo/pull/6217) (@Logiraptor)
+* [BUGFIX] querier: use v1 trace by id endpoint for external trace by id requests [#6236](https://github.com/grafana/tempo/pull/6236) (@Logiraptor)
 
 ### vParquet5
 
