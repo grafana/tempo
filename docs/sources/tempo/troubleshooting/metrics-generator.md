@@ -81,6 +81,56 @@ overrides:
 
 Note that this value is per metrics generator. The actual max series remote written will be `<# of metrics generators> * <metrics_generator.max_active_series>`.
 
+### Overflow series
+
+When the active series limit is reached, the metrics-generator produces overflow series instead of dropping new data. These series have the label `metric_overflow="true"` and capture all data that would otherwise be lost.
+
+To identify overflow series in your metrics:
+
+```promql
+{metric_overflow="true"}
+```
+
+As existing series become stale and are removed, new series are split out from the overflow bucket until the limit is reached again. To reduce overflow, either increase `max_active_series` or reduce cardinality by adjusting dimensions or filters.
+
+### Entity-based limiting
+
+You can configure entity-based limiting as an alternative to series-based limiting.
+An entity is a unique label combination (excluding external labels) across multiple metrics.
+Entity-based limiting ensures the generator always produces the full set of metrics for a given entity, rather than limiting randomly once the series limit is triggered.
+
+To enable entity-based limiting, set `limiter_type` to `entity`:
+
+```yaml
+metrics_generator:
+  limiter_type: entity
+```
+
+Use the following metric to determine if entities are being limited:
+
+```
+sum(rate(tempo_metrics_generator_registry_entities_limited_total{}[1m]))
+```
+
+Configure the entity limit with:
+
+```yaml
+overrides:
+  defaults:
+    metrics_generator:
+      max_active_entities: 0
+```
+
+### Estimate active series demand
+
+When the active series limit is reached, the `tempo_metrics_generator_registry_active_series` metric no longer reflects the true demand. Use the `tempo_metrics_generator_registry_active_series_demand_estimate` metric to estimate what the active series count would be without the limit:
+
+```promql
+tempo_metrics_generator_registry_active_series_demand_estimate{}
+```
+
+This metric uses HyperLogLog estimation and has approximately 3% deviation from the actual cardinality. Use this to determine if you need to increase limits or reduce cardinality.
+
 ### Remote write failures
 
 For any number of reasons, the generator may fail a write to the remote write target. Use the following metrics to
