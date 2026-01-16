@@ -122,6 +122,10 @@ func TrimToAfter(req *tempopb.QueryRangeRequest, before time.Time) {
 	}
 }
 
+// IsInstant returns true if the request is an instant query. It relies on the instant flag.
+// If the flag is not provided, it falls back on determining by step and range.
+// The fallback logic is to provide consistent results during rollout of the instant flag
+// and will be removed in a future release.
 func IsInstant(req *tempopb.QueryRangeRequest) bool {
 	if req == nil {
 		return false
