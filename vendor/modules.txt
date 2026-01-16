@@ -1165,7 +1165,7 @@ github.com/parquet-go/bitpack/unsafecast
 # github.com/parquet-go/jsonlite v1.0.0
 ## explicit; go 1.23
 github.com/parquet-go/jsonlite
-# github.com/parquet-go/parquet-go v0.26.4
+# github.com/parquet-go/parquet-go v0.27.0
 ## explicit; go 1.24.9
 github.com/parquet-go/parquet-go
 github.com/parquet-go/parquet-go/bloom
@@ -1480,6 +1480,11 @@ github.com/twmb/franz-go/plugin/kzap
 # github.com/twmb/murmur3 v1.1.8
 ## explicit; go 1.11
 github.com/twmb/murmur3
+# github.com/twpayne/go-geom v1.6.1
+## explicit; go 1.22
+github.com/twpayne/go-geom
+github.com/twpayne/go-geom/encoding/wkb
+github.com/twpayne/go-geom/encoding/wkbcommon
 # github.com/ua-parser/uap-go v0.0.0-20241012191800-bbb40edc15aa
 ## explicit
 github.com/ua-parser/uap-go/uaparser
