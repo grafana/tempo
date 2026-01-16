@@ -455,7 +455,7 @@ String values are enclosed in double quotes:
 
 #### Nil
 
-Use `nil` to check for missing attributes:
+Use `nil` to check for attributes that are missing or null  and `!= nil` to ensure an attribute is present with a non-null value. 
 
 ```
 { span.optional_field = nil }
