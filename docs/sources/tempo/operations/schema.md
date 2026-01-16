@@ -139,7 +139,7 @@ The table below uses these abbreviations:
 To increase the readability the table omits the groups `list.element` that are added for nested list types in Parquet.
 For maps (for example, ServiceStats), Parquet also inserts map-specific group levels that are omitted here.
 
-### Block schema (abridged, vParquet4)
+{{< collapse title="vParquet4 block schema example" >}}
 
 ```
 message Trace {
@@ -150,14 +150,264 @@ message Trace {
   required int64 DurationNano (INTEGER(64,false));
   required binary RootServiceName (STRING);
   required binary RootSpanName (STRING);
-  required group ServiceStats (MAP) { /* ... */ }
-  required group rs (LIST) { /* ResourceSpans ... */ }
+  optional group ServiceStats (MAP) {
+    repeated group key_value {
+      required binary key (STRING);
+      required group value {
+        required int32 SpanCount (INTEGER(32,false));
+        required int32 ErrorCount (INTEGER(32,false));
+      }
+    }
+  }
+  required group rs (LIST) {
+    repeated group list {
+      required group element {
+        required group Resource {
+          required group Attrs (LIST) {
+            repeated group list {
+              required group element {
+                required binary Key (STRING);
+                required boolean IsArray;
+                required group Value (LIST) {
+                  repeated group list {
+                    required binary element (STRING);
+                  }
+                }
+                required group ValueInt (LIST) {
+                  repeated group list {
+                    required int64 element (INTEGER(64,true));
+                  }
+                }
+                required group ValueDouble (LIST) {
+                  repeated group list {
+                    required double element;
+                  }
+                }
+                required group ValueBool (LIST) {
+                  repeated group list {
+                    required boolean element;
+                  }
+                }
+                optional binary ValueUnsupported (STRING);
+              }
+            }
+          }
+          required int32 DroppedAttributesCount (INTEGER(32,true));
+          required binary ServiceName (STRING);
+          optional binary Cluster (STRING);
+          optional binary Namespace (STRING);
+          optional binary Pod (STRING);
+          optional binary Container (STRING);
+          optional binary K8sClusterName (STRING);
+          optional binary K8sNamespaceName (STRING);
+          optional binary K8sPodName (STRING);
+          optional binary K8sContainerName (STRING);
+          required group DedicatedAttributes {
+            optional binary String01 (STRING);
+            optional binary String02 (STRING);
+            optional binary String03 (STRING);
+            optional binary String04 (STRING);
+            optional binary String05 (STRING);
+            optional binary String06 (STRING);
+            optional binary String07 (STRING);
+            optional binary String08 (STRING);
+            optional binary String09 (STRING);
+            optional binary String10 (STRING);
+          }
+        }
+        required group ss (LIST) {
+          repeated group list {
+            required group element {
+              required group Scope {
+                required binary Name (STRING);
+                required binary Version (STRING);
+                required group Attrs (LIST) {
+                  repeated group list {
+                    required group element {
+                      required binary Key (STRING);
+                      required boolean IsArray;
+                      required group Value (LIST) {
+                        repeated group list {
+                          required binary element (STRING);
+                        }
+                      }
+                      required group ValueInt (LIST) {
+                        repeated group list {
+                          required int64 element (INTEGER(64,true));
+                        }
+                      }
+                      required group ValueDouble (LIST) {
+                        repeated group list {
+                          required double element;
+                        }
+                      }
+                      required group ValueBool (LIST) {
+                        repeated group list {
+                          required boolean element;
+                        }
+                      }
+                      optional binary ValueUnsupported (STRING);
+                    }
+                  }
+                }
+                required int32 DroppedAttributesCount (INTEGER(32,true));
+              }
+              required group Spans (LIST) {
+                repeated group list {
+                  required group element {
+                    required binary SpanID;
+                    required binary ParentSpanID;
+                    required int32 ParentID (INTEGER(32,true));
+                    required int32 NestedSetLeft (INTEGER(32,true));
+                    required int32 NestedSetRight (INTEGER(32,true));
+                    required binary Name (STRING);
+                    required int64 Kind (INTEGER(64,true));
+                    required binary TraceState (STRING);
+                    required int64 StartTimeUnixNano (INTEGER(64,false));
+                    required int64 DurationNano (INTEGER(64,false));
+                    required int64 StatusCode (INTEGER(64,true));
+                    required binary StatusMessage (STRING);
+                    required group Attrs (LIST) {
+                      repeated group list {
+                        required group element {
+                          required binary Key (STRING);
+                          required boolean IsArray;
+                          required group Value (LIST) {
+                            repeated group list {
+                              required binary element (STRING);
+                            }
+                          }
+                          required group ValueInt (LIST) {
+                            repeated group list {
+                              required int64 element (INTEGER(64,true));
+                            }
+                          }
+                          required group ValueDouble (LIST) {
+                            repeated group list {
+                              required double element;
+                            }
+                          }
+                          required group ValueBool (LIST) {
+                            repeated group list {
+                              required boolean element;
+                            }
+                          }
+                          optional binary ValueUnsupported (STRING);
+                        }
+                      }
+                    }
+                    required int32 DroppedAttributesCount (INTEGER(32,true));
+                    required group Events (LIST) {
+                      repeated group list {
+                        required group element {
+                          required int64 TimeSinceStartNano (INTEGER(64,false));
+                          required binary Name (STRING);
+                          required group Attrs (LIST) {
+                            repeated group list {
+                              required group element {
+                                required binary Key (STRING);
+                                required boolean IsArray;
+                                required group Value (LIST) {
+                                  repeated group list {
+                                    required binary element (STRING);
+                                  }
+                                }
+                                required group ValueInt (LIST) {
+                                  repeated group list {
+                                    required int64 element (INTEGER(64,true));
+                                  }
+                                }
+                                required group ValueDouble (LIST) {
+                                  repeated group list {
+                                    required double element;
+                                  }
+                                }
+                                required group ValueBool (LIST) {
+                                  repeated group list {
+                                    required boolean element;
+                                  }
+                                }
+                                optional binary ValueUnsupported (STRING);
+                              }
+                            }
+                          }
+                          required int32 DroppedAttributesCount (INTEGER(32,true));
+                        }
+                      }
+                    }
+                    required int32 DroppedEventsCount (INTEGER(32,true));
+                    required group Links (LIST) {
+                      repeated group list {
+                        required group element {
+                          required binary TraceID;
+                          required binary SpanID;
+                          required binary TraceState (STRING);
+                          required group Attrs (LIST) {
+                            repeated group list {
+                              required group element {
+                                required binary Key (STRING);
+                                required boolean IsArray;
+                                required group Value (LIST) {
+                                  repeated group list {
+                                    required binary element (STRING);
+                                  }
+                                }
+                                required group ValueInt (LIST) {
+                                  repeated group list {
+                                    required int64 element (INTEGER(64,true));
+                                  }
+                                }
+                                required group ValueDouble (LIST) {
+                                  repeated group list {
+                                    required double element;
+                                  }
+                                }
+                                required group ValueBool (LIST) {
+                                  repeated group list {
+                                    required boolean element;
+                                  }
+                                }
+                                optional binary ValueUnsupported (STRING);
+                              }
+                            }
+                          }
+                          required int32 DroppedAttributesCount (INTEGER(32,true));
+                        }
+                      }
+                    }
+                    required int32 DroppedLinksCount (INTEGER(32,true));
+                    optional binary HttpMethod (STRING);
+                    optional binary HttpUrl (STRING);
+                    optional int64 HttpStatusCode (INTEGER(64,true));
+                    required group DedicatedAttributes {
+                      optional binary String01 (STRING);
+                      optional binary String02 (STRING);
+                      optional binary String03 (STRING);
+                      optional binary String04 (STRING);
+                      optional binary String05 (STRING);
+                      optional binary String06 (STRING);
+                      optional binary String07 (STRING);
+                      optional binary String08 (STRING);
+                      optional binary String09 (STRING);
+                      optional binary String10 (STRING);
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
 }
 ```
 
+{{< /collapse >}}
+
 For the authoritative schema, refer to `tempodb/encoding/vparquet4/schema.go` and `tempodb/encoding/vparquet5/schema.go`.
 
-### vParquet5 differences (summary)
+### Summary of vParquet5 differences
 
 - Resource-level dedicated columns (Cluster/Namespace/Pod/Container/K8s\*) and span HTTP columns are removed; vParquet5 relies on dynamically assigned dedicated columns only.
 - Dedicated attribute columns expand to include integer spares and optional blob configuration for selected columns.
