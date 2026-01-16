@@ -124,6 +124,19 @@
       },
     },
 
+    memcached+: {
+      vpa: {
+        enabled: false,
+        update_mode: 'Auto',
+        target_resources: ['cpu'],
+
+        cpu: {
+          min: '10m',
+          max: '2',
+        },
+      },
+    },
+
   },
 
   local vpa = import 'vpa.libsonnet',
@@ -150,14 +163,24 @@
         + verticalPodAutoscaler.spec.resourcePolicy.containerPolicies.withMode('Auto')
         + verticalPodAutoscaler.spec.resourcePolicy.containerPolicies.withControlledValues('RequestsAndLimits')
         + verticalPodAutoscaler.spec.resourcePolicy.containerPolicies.withControlledResources(vpaConfig.target_resources)
-        + verticalPodAutoscaler.spec.resourcePolicy.containerPolicies.withMaxAllowed({
-          cpu: vpaConfig.cpu.max,
-          memory: vpaConfig.memory.max,
-        })
-        + verticalPodAutoscaler.spec.resourcePolicy.containerPolicies.withMinAllowed({
-          cpu: vpaConfig.cpu.min,
-          memory: vpaConfig.memory.min,
-        }),
+        + (
+          if std.objectHas(vpaConfig, 'cpu') && std.objectHas(vpaConfig.cpu, 'max') ||
+             std.objectHas(vpaConfig, 'memory') && std.objectHas(vpaConfig.memory, 'max')
+          then
+            verticalPodAutoscaler.spec.resourcePolicy.containerPolicies.withMaxAllowed({
+              cpu: if std.objectHas(vpaConfig, 'cpu') && std.objectHas(vpaConfig.cpu, 'max') then vpaConfig.cpu.max,
+              memory: if std.objectHas(vpaConfig, 'memory') && std.objectHas(vpaConfig.memory, 'max') then vpaConfig.memory.max,
+            })
+        )
+        + (
+          if std.objectHas(vpaConfig, 'cpu') && std.objectHas(vpaConfig.cpu, 'min') ||
+             std.objectHas(vpaConfig, 'memory') && std.objectHas(vpaConfig.memory, 'min')
+          then
+            verticalPodAutoscaler.spec.resourcePolicy.containerPolicies.withMinAllowed({
+              cpu: if std.objectHas(vpaConfig, 'cpu') && std.objectHas(vpaConfig.cpu, 'min') then vpaConfig.cpu.min,
+              memory: if std.objectHas(vpaConfig, 'memory') && std.objectHas(vpaConfig.memory, 'min') then vpaConfig.memory.min,
+            })
+        ),
       ]),
 
 }
