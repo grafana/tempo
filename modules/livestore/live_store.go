@@ -166,6 +166,7 @@ func New(cfg Config, overridesService overrides.Interface, logger log.Logger, re
 
 	// Initialize ready state to starting
 	s.readyErr.Store(&ErrStarting)
+	metricReady.Set(0)
 	s.lastRecordTimeNanos.Store(-1)
 
 	var err error
@@ -654,9 +655,8 @@ func (s *LiveStore) cutOneInstanceToWal(inst *instance, immediate bool) {
 // CheckReady returns nil if the live-store is ready to serve queries
 func (s *LiveStore) CheckReady(_ context.Context) error {
 	if err := s.readyErr.Load(); err != nil {
-		return fmt.Errorf("live-store not ready: %w", *err)
+		return *err
 	}
-
 	return nil
 }
 
