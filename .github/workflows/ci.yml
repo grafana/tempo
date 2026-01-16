@@ -219,4 +219,3 @@ jobs:
       - name: Build Website
         run: docker run -v ${PWD}/docs/sources:/hugo/content/docs/tempo/latest --rm grafana/docs-base:latest make prod
 
-  coverage-annotations:
