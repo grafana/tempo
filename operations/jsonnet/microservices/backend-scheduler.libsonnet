@@ -91,10 +91,6 @@
     ]),
 
   // Vertical Pod Autoscaler
-  tempo_backend_scheduler_vpa:
-    if $._config.backend_scheduler.vpa.enabled then
-      $.vpaForController($.tempo_backend_scheduler_statefulset, 'backend_scheduler')
-    else {},
-
+  tempo_backend_scheduler_vpa: $.vpaForController($.tempo_backend_scheduler_statefulset, 'backend_scheduler'),
 
 }
