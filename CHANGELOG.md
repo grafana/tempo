@@ -1,4 +1,5 @@
 ## main / unreleased
+* [BUGFIX] Correct instant query calculation for rate() [#6205](https://github.com/grafana/tempo/pull/6205) (@ruslan-mikhailov)
 
 # v2.10.0-rc.0
 
