@@ -907,12 +907,12 @@ querier:
 
         # External trace source configuration. When enabled, trace-by-ID queries
         # will also fetch trace data from an external HTTP endpoint that implements
-        # Tempo's TraceIDV2 API (/api/v2/traces/{traceID}).
+        # Tempo's TraceIDV1 API (/api/traces/{traceID}).
         external:
             # Enable querying an external endpoint for trace data.
             [enabled: <bool> | default = false]
 
-            # The URL of the external service that implements the TraceIDV2 API.
+            # The URL of the external service that implements the TraceIDV1 API.
             # Example: "http://external-service:3200"
             [endpoint: <string>]
 
