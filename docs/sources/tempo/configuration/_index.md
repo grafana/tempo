@@ -906,13 +906,13 @@ querier:
         [query_timeout: <duration> | default = 10s]
 
         # External trace source configuration. When enabled, trace-by-ID queries
-        # will also fetch trace data from an external HTTP endpoint that implements
-        # Tempo's TraceIDV2 API (/api/v2/traces/{traceID}).
+        # will also fetch trace data from an external HTTP endpoint that returns
+        # an opentelemetry protobuf formatted trace.
         external:
             # Enable querying an external endpoint for trace data.
             [enabled: <bool> | default = false]
 
-            # The URL of the external service that implements the TraceIDV2 API.
+            # The URL of the external service.
             # Example: "http://external-service:3200"
             [endpoint: <string>]
 
