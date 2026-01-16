@@ -60,7 +60,7 @@ func (c *Client) TraceByID(ctx context.Context, userID string, traceID []byte, s
 		metricExternalRequestDuration.WithLabelValues(statusCode).Observe(time.Since(start).Seconds())
 	}()
 
-	path := c.externalURL.JoinPath(strings.Replace(api.PathTracesV2, "{traceID}", hex.EncodeToString(traceID), 1))
+	path := c.externalURL.JoinPath(strings.Replace(api.PathTraces, "{traceID}", hex.EncodeToString(traceID), 1))
 
 	// Add query parameters for start/end times
 	q := path.Query()
