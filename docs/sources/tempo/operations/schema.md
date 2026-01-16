@@ -433,13 +433,13 @@ Only scalar values are stored in the dedicated attribute columns. Arrays and uns
 
 ```yaml
 repeated group Attrs {
-required binary Key (STRING);
-required boolean IsArray;
-repeated binary Value (STRING);
-repeated int64 ValueInt (INTEGER(64,true));
-repeated double ValueDouble;
-repeated boolean ValueBool;
-optional binary ValueUnsupported (STRING);
+  required binary Key (STRING);
+  required boolean IsArray;
+  repeated binary Value (STRING);
+  repeated int64 ValueInt (INTEGER(64,true));
+  repeated double ValueDouble;
+  repeated boolean ValueBool;
+  optional binary ValueUnsupported (STRING);
 }
 ```
 
