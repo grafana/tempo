@@ -44,6 +44,7 @@ type PartitionReader struct {
 	commitInterval  time.Duration
 	wg              sync.WaitGroup
 	offsetWatermark atomic.Pointer[kadm.Offset]
+	highWatermark   atomic.Int64 // stores the partition's high watermark (log end offset)
 
 	consume consumeFn
 	metrics partitionReaderMetrics
@@ -69,6 +70,7 @@ func newPartitionReader(client *kgo.Client, partitionID int32, cfg ingest.KafkaC
 		metrics:        metrics,
 		logger:         log.With(logger, "partition", partitionID),
 	}
+	r.highWatermark.Store(-1)
 
 	r.Service = services.NewBasicService(r.start, r.running, r.stop)
 	return r, nil
@@ -101,6 +103,13 @@ func (r *PartitionReader) running(ctx context.Context) error {
 			continue
 		}
 
+		// Extract high watermark from fetch response
+		fetches.EachPartition(func(p kgo.FetchTopicPartition) {
+			if p.Partition == r.partitionID {
+				r.highWatermark.Store(p.HighWatermark)
+			}
+		})
+
 		r.recordFetchesMetrics(fetches)
 		if offset := r.consumeFetches(ctx, fetches); offset != nil {
 			r.storeOffsetForCommit(ctx, offset)
@@ -118,6 +127,16 @@ func (r *PartitionReader) storeOffsetForCommit(ctx context.Context, offset *kadm
 	}
 
 	r.offsetWatermark.Store(offset)
+}
+
+// GetCurrentOffset returns the current offset watermark
+func (r *PartitionReader) GetCurrentOffset() *kadm.Offset {
+	return r.offsetWatermark.Load()
+}
+
+// GetHighWatermark returns the partition's high watermark (log end offset)
+func (r *PartitionReader) GetHighWatermark() int64 {
+	return r.highWatermark.Load()
 }
 
 func (r *PartitionReader) stop(error) error {

@@ -2,9 +2,11 @@ package livestore
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/go-kit/log"
@@ -41,6 +43,8 @@ const (
 	droppedRecordReasonDecodingFailed   = "decoding_failed"
 	droppedRecordReasonInstanceNotFound = "instance_not_found"
 )
+
+var ErrStarting = errors.New("live-store is starting")
 
 var (
 	// Queue management metrics
@@ -93,6 +97,20 @@ var (
 		Name:      "records_dropped_total",
 		Help:      "The total number of kafka records dropped per tenant.",
 	}, []string{"tenant", "reason"})
+
+	// Readiness metrics
+	metricCatchUpDuration = promauto.NewHistogram(prometheus.HistogramOpts{
+		Namespace: "tempo_live_store",
+		Name:      "catch_up_duration_seconds",
+		Help:      "Time spent catching up at startup",
+		Buckets:   prometheus.ExponentialBuckets(0.1, 2, 12),
+	})
+
+	metricReady = promauto.NewGauge(prometheus.GaugeOpts{
+		Namespace: "tempo_live_store",
+		Name:      "ready",
+		Help:      "1 if ready to serve queries, 0 otherwise",
+	})
 )
 
 type LiveStore struct {
@@ -120,12 +138,14 @@ type LiveStore struct {
 	overrides    overrides.Interface
 
 	// Background processing
-	ctx             context.Context // context for the service. all background processes should exit if this is cancelled
-	cancel          func()
-	wg              sync.WaitGroup
-	completeQueues  *flushqueues.ExclusiveQueues[*completeOp]
-	startupComplete chan struct{} // channel to signal that the starting function has finished. allows background processes to block until the service is fully started
-	lagCancel       context.CancelFunc
+	ctx                 context.Context // context for the service. all background processes should exit if this is cancelled
+	cancel              func()
+	wg                  sync.WaitGroup
+	completeQueues      *flushqueues.ExclusiveQueues[*completeOp]
+	startupComplete     chan struct{} // channel to signal that the starting function has finished. allows background processes to block until the service is fully started
+	lagCancel           context.CancelFunc
+	readyErr            atomic.Pointer[error] // nil when ready to serve queries
+	lastRecordTimeNanos atomic.Int64          // stores timestamp of last consumed record as UnixNano, -1 means not set
 }
 
 func New(cfg Config, overridesService overrides.Interface, logger log.Logger, reg prometheus.Registerer, singlePartition bool) (*LiveStore, error) {
@@ -143,6 +163,10 @@ func New(cfg Config, overridesService overrides.Interface, logger log.Logger, re
 		completeQueues:  flushqueues.New[*completeOp](cfg.CompleteBlockConcurrency, metricCompleteQueueLength),
 		startupComplete: make(chan struct{}),
 	}
+
+	// Initialize ready state to starting
+	s.readyErr.Store(&ErrStarting)
+	s.lastRecordTimeNanos.Store(-1)
 
 	var err error
 	if singlePartition {
@@ -294,6 +318,11 @@ func (s *LiveStore) starting(ctx context.Context) error {
 		return fmt.Errorf("failed to start partition reader: %w", err)
 	}
 
+	// Wait for catch-up before marking ready (if enabled)
+	if err := s.waitForCatchUp(ctx); err != nil {
+		return fmt.Errorf("failed to catch up: %w", err)
+	}
+
 	lagCtx, cncl := context.WithCancel(s.ctx)
 	s.lagCancel = cncl
 	// Start exporting partition lag metrics
@@ -315,6 +344,11 @@ func (s *LiveStore) starting(ctx context.Context) error {
 
 	// allow background processes to start
 	s.startAllBackgroundProcesses()
+
+	// Mark as ready at end of starting()
+	s.readyErr.Store(nil)
+	metricReady.Set(1)
+	level.Info(s.logger).Log("msg", "live-store ready to serve queries")
 
 	return nil
 }
@@ -364,6 +398,112 @@ func (s *LiveStore) stopping(error) error {
 	s.stopAllBackgroundProcesses()
 
 	return nil
+}
+
+func (s *LiveStore) waitForCatchUp(ctx context.Context) error {
+	// If disabled (ReadinessTargetLag == 0), mark ready immediately
+	// This preserves backward compatibility
+	if s.cfg.ReadinessTargetLag == 0 {
+		level.Info(s.logger).Log("msg", "catch-up waiting disabled (readiness_target_lag=0)")
+		return nil
+	}
+
+	startTime := time.Now()
+
+	ticker := time.NewTicker(time.Second) // Check every second
+	defer ticker.Stop()
+
+	level.Info(s.logger).Log(
+		"msg", "waiting for Kafka catch-up",
+		"target_lag", s.cfg.ReadinessTargetLag,
+		"max_wait", s.cfg.ReadinessMaxWait,
+	)
+
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-ticker.C:
+			elapsed := time.Since(startTime)
+
+			// Check max wait timeout
+			if elapsed >= s.cfg.ReadinessMaxWait {
+				level.Warn(s.logger).Log(
+					"msg", "max catch-up wait exceeded, proceeding anyway",
+					"elapsed", elapsed,
+					"max_wait", s.cfg.ReadinessMaxWait,
+				)
+				metricCatchUpDuration.Observe(elapsed.Seconds())
+				return nil
+			}
+
+			// Calculate current lag
+			lag := s.calculateTimeLag()
+			if lag == nil {
+				level.Debug(s.logger).Log("msg", "lag could not be determined, waiting")
+				continue
+			}
+
+			level.Debug(s.logger).Log(
+				"msg", "catch-up progress",
+				"current_lag", *lag,
+				"target_lag", s.cfg.ReadinessTargetLag,
+				"elapsed", elapsed,
+			)
+
+			if *lag <= s.cfg.ReadinessTargetLag {
+				level.Info(s.logger).Log(
+					"msg", "caught up with Kafka",
+					"final_lag", *lag,
+					"target_lag", s.cfg.ReadinessTargetLag,
+					"elapsed", elapsed,
+				)
+				metricCatchUpDuration.Observe(elapsed.Seconds())
+				return nil
+			}
+		}
+	}
+}
+
+// Calculate lag based on parameters populated by PartitionReader
+// Edge cases:
+// - empty partition = no lag
+// - nothing has been fetched yet = indeterminate
+// - we know the watermark but nothing has been consumed yet = indeterminate
+func (s *LiveStore) calculateTimeLag() *time.Duration {
+	// Use cached high watermark from fetch responses (avoids extra API call)
+	highWatermark := s.reader.GetHighWatermark()
+
+	// If we haven't performed any fetches yet, we can't determine lag
+	if highWatermark < 0 {
+		return nil
+	}
+
+	// Check if partition is empty - empty partition means no lag
+	if highWatermark == 0 {
+		lag := time.Duration(0)
+		return &lag
+	}
+
+	// Check if we are at end (within statistical error)
+	// Arbitrary value of 10 to shortcut calculations
+	currentOffset := s.reader.GetCurrentOffset()
+	if currentOffset != nil && highWatermark-currentOffset.At <= 10 {
+		lag := time.Duration(0)
+		return &lag
+	}
+
+	nanos := s.lastRecordTimeNanos.Load()
+	if nanos < 0 {
+		// Haven't consumed records - check if offset at end
+		return nil // Not caught up yet, can't determine lag
+	}
+
+	// Potential race condition that can result in negative lag?
+	// Assuming strictly monotonic timestamps in Kafka, can't cause an issue
+	lastRecordTime := time.Unix(0, nanos)
+	lag := time.Since(lastRecordTime)
+	return &lag
 }
 
 func (s *LiveStore) consume(ctx context.Context, rs recordIter, now time.Time) (*kadm.Offset, error) {
@@ -420,6 +560,9 @@ func (s *LiveStore) consume(ctx context.Context, rs recordIter, now time.Time) (
 	if lastRecord == nil {
 		return nil, nil
 	}
+
+	// Store the timestamp of the last consumed record for lag calculation
+	s.lastRecordTimeNanos.Store(lastRecord.Timestamp.UnixNano())
 
 	offset := kadm.NewOffsetFromRecord(lastRecord)
 	return &offset, nil
@@ -508,6 +651,15 @@ func (s *LiveStore) cutOneInstanceToWal(inst *instance, immediate bool) {
 	}
 }
 
+// CheckReady returns nil if the live-store is ready to serve queries
+func (s *LiveStore) CheckReady(_ context.Context) error {
+	if err := s.readyErr.Load(); err != nil {
+		return fmt.Errorf("live-store not ready: %w", *err)
+	}
+
+	return nil
+}
+
 // OnRingInstanceRegister implements ring.BasicLifecyclerDelegate
 func (s *LiveStore) OnRingInstanceRegister(_ *ring.BasicLifecycler, _ ring.Desc, _ bool, _ string, _ ring.InstanceDesc) (ring.InstanceState, ring.Tokens) {
 	return ring.ACTIVE, nil // no tokens needed for the livestore ring, we just need to be in the ring for service discovery
@@ -594,6 +746,11 @@ func (s *LiveStore) QueryRange(ctx context.Context, req *tempopb.QueryRangeReque
 // doesn't exist, it returns the zero value.
 func withInstance[T any](ctx context.Context, s *LiveStore, fn func(*instance) (*T, error)) (*T, error) {
 	var defaultValue T
+
+	// Check readiness before processing query
+	if err := s.CheckReady(ctx); err != nil {
+		return &defaultValue, err
+	}
 
 	instanceID, err := validation.ExtractValidTenantID(ctx)
 	if err != nil {
