@@ -364,6 +364,7 @@ func hashForSearchRequest(searchRequest *tempopb.SearchRequest) uint64 {
 	}
 
 	// forces the query into a canonical form
+	traceql.Normalize(ast)
 	query := ast.String()
 
 	// add the query, limit and spss to the hash
