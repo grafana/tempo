@@ -74,4 +74,7 @@
   //   + servicePort.withTargetPort(9095),
   // ])
 
+  // Vertical Pod Autoscaler
+  tempo_backend_worker_vpa: $.vpaForController($.tempo_backend_worker_statefulset, 'backend_worker'),
+
 }
