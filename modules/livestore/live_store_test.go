@@ -488,28 +488,13 @@ func TestLiveStoreQueryMethodsBeforeStarted(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			// Call the function before livestore has started
-			// This should not panic and should return an empty response
+			// This should not panic and should return an error indicating not ready
 			resp, err := tc.callFunc()
 
-			// Should not panic and should not error
-			require.NoError(t, err)
+			// Should return ErrStarting error when not ready
+			require.Error(t, err)
+			require.ErrorIs(t, err, ErrStarting)
 			require.NotNil(t, resp)
-
-			// All methods should return empty responses
-			switch r := resp.(type) {
-			case *tempopb.SearchResponse:
-				require.Empty(t, r.Traces)
-			case *tempopb.SearchTagsResponse:
-				require.Empty(t, r.TagNames)
-			case *tempopb.SearchTagsV2Response:
-				require.Empty(t, r.Scopes)
-			case *tempopb.SearchTagValuesResponse:
-				require.Empty(t, r.TagValues)
-			case *tempopb.SearchTagValuesV2Response:
-				require.Empty(t, r.TagValues)
-			case *tempopb.QueryRangeResponse:
-				require.Empty(t, r.Series)
-			}
 		})
 	}
 }
