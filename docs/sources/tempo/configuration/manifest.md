@@ -413,6 +413,7 @@ query_frontend:
         max_exemplars: 100
         streaming_shards: 200
         max_intervals: 10000
+        send_instant_param: true
     multi_tenant_queries_enabled: true
     response_consumers: 10
     weights:

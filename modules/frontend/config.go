@@ -73,6 +73,10 @@ type MetricsConfig struct {
 	Sharder      QueryRangeSharderConfig `yaml:",inline"`
 	SLO          SLOConfig               `yaml:",inline"`
 	MaxIntervals uint64                  `yaml:"max_intervals,omitempty"`
+	// SendInstantParam is a temporary flag to allow disabling sending the instant flag
+	// for a smoother rollout of the instant flag.
+	// This flag will be removed in a future release.
+	SendInstantParam bool `yaml:"send_instant_param,omitempty"`
 }
 
 type SLOConfig struct {
@@ -141,6 +145,7 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(string, *flag.FlagSet) {
 	// enable multi tenant queries by default
 	cfg.MultiTenantQueriesEnabled = true
 	cfg.Metrics.MaxIntervals = 10_000
+	cfg.Metrics.SendInstantParam = true
 }
 
 type CortexNoQuerierLimits struct{}

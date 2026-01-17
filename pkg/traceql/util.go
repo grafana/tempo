@@ -53,13 +53,13 @@ type bucketSet interface {
 // newExemplarBucketSet creates a new bucket set for the aligned time range
 // start and end are in nanoseconds.
 // If the range is instant, empty bucket set is returned.
-func newExemplarBucketSet(exemplars uint32, start, end, step uint64) bucketSet {
-	if isInstant(start, end, step) {
+func newExemplarBucketSet(exemplars uint32, start, end, step uint64, instant bool) bucketSet {
+	if instant {
 		return &alwaysFullBucketSet{}
 	}
 
-	start = alignStart(start, end, step)
-	end = alignEnd(start, end, step)
+	start = alignStart(start, end, step, instant)
+	end = alignEnd(start, end, step, instant)
 
 	return newBucketSet(exemplars, start, end)
 }

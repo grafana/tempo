@@ -50,6 +50,9 @@ func newQueryInstantStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTri
 			End:   req.End,
 			Step:  req.End - req.Start,
 		}
+		if cfg.Metrics.SendInstantParam {
+			qr.SetInstant(true)
+		}
 
 		httpReq := api.BuildQueryRangeRequest(&http.Request{
 			URL:    &url.URL{Path: downstreamPath},
@@ -121,6 +124,9 @@ func newMetricsQueryInstantHTTPHandler(cfg Config, next pipeline.AsyncRoundTripp
 			Start: i.Start,
 			End:   i.End,
 			Step:  i.End - i.Start,
+		}
+		if cfg.Metrics.SendInstantParam {
+			qr.SetInstant(true)
 		}
 
 		// Clone existing to keep it unaltered.
