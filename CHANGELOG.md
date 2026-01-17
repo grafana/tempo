@@ -47,6 +47,7 @@
 * [ENHANCEMENT] Increase weight for heavy TraceQL queries [#5782](https://github.com/grafana/tempo/pull/5782) (@ruslan-mikhailov)
 * [ENHANCEMENT] Improve observability of collection failures in the metrics generator with error categorization [#5936](https://github.com/grafana/tempo/pull/5936) (@javiermolinar)
 * [ENHANCEMENT] Update tempo-mixin dashboards to use timeseries panels with explicit units [#6210](https://github.com/grafana/tempo/pull/6210) (@javiermolinar)
+* [ENHANCEMENT] Remove Metrics Summary/GetMetrics panels from the tempo-operational dashboard [#6221](https://github.com/grafana/tempo/pull/6221) (@javimolinar)
 * [ENHANCEMENT] Update list of intrinsics returned by search tags endpoint [#5857](https://github.com/grafana/tempo/pull/5857) (@andreasgerstmayr)
 * [ENHANCEMENT] Add "Requests Executed" panel for querier metrics in the operational dashboard. [#5848](https://github.com/grafana/tempo/pull/5848) (@anglerfishlyy)
 * [ENHANCEMENT] Drop and metric invalid utf8 for all metrics in metrics generator instead of sending invalid data. [#5980](https://github.com/grafana/tempo/pull/5980) (@joe-elliott)
