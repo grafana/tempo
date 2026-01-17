@@ -353,7 +353,7 @@ func (p *Processor) flushLoop() {
 
 			// attempt to delete the block
 			p.blocksMtx.Lock()
-			err := p.wal.LocalBackend().ClearBlock(op.blockID, p.tenant)
+			err := p.wal.LocalBackend().ClearBlock(p.ctx, op.blockID, p.tenant)
 			if err != nil {
 				_ = level.Error(p.logger).Log("msg", "failed to clear corrupt block", "tenant", p.tenant, "block", op.blockID, "err", err)
 			}
@@ -445,7 +445,7 @@ func (p *Processor) completeBlock(id uuid.UUID) error {
 	if _, ok := p.walBlocks[id]; !ok {
 		// WAL block is gone.
 		_ = level.Warn(p.logger).Log("msg", "local blocks processor WAL block disappeared while being completed, deleting complete block", "id", id)
-		err := p.wal.LocalBackend().ClearBlock(id, p.tenant)
+		err := p.wal.LocalBackend().ClearBlock(ctx, id, p.tenant)
 		if err != nil {
 			_ = level.Error(p.logger).Log("msg", "failed to clear complete block after WAL disappeared", "tenant", p.tenant, "block", id, "err", err)
 		}
@@ -641,7 +641,7 @@ func (p *Processor) deleteOldBlocks() (err error) {
 		if !p.Cfg.FlushToStorage {
 			if b.BlockMeta().EndTime.Before(cuttoff) {
 				level.Info(p.logger).Log("msg", "deleting complete block", "block", id.String())
-				err = p.wal.LocalBackend().ClearBlock(id, p.tenant)
+				err = p.wal.LocalBackend().ClearBlock(p.ctx, id, p.tenant)
 				if err != nil {
 					return err
 				}
@@ -657,7 +657,7 @@ func (p *Processor) deleteOldBlocks() (err error) {
 
 		if b.BlockMeta().EndTime.Before(cuttoff) {
 			level.Info(p.logger).Log("msg", "deleting flushed complete block", "block", id.String())
-			err = p.wal.LocalBackend().ClearBlock(id, p.tenant)
+			err = p.wal.LocalBackend().ClearBlock(p.ctx, id, p.tenant)
 			if err != nil {
 				return err
 			}
@@ -871,7 +871,7 @@ func (p *Processor) reloadBlocks() error {
 		if clearBlock {
 			level.Info(p.logger).Log("msg", "clearing block", "block", id.String(), "err", err)
 			// Partially written block, delete and continue
-			err = l.ClearBlock(id, t)
+			err = l.ClearBlock(ctx, id, t)
 			if err != nil {
 				level.Error(p.logger).Log("msg", "local blocks processor failed to clear partially written block during replay", "err", err)
 			}

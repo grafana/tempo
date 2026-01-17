@@ -12,7 +12,7 @@ import (
 	"github.com/grafana/tempo/tempodb/backend"
 )
 
-func (rw *readerWriter) MarkBlockCompacted(blockID uuid.UUID, tenantID string) error {
+func (rw *readerWriter) MarkBlockCompacted(ctx context.Context, blockID uuid.UUID, tenantID string) error {
 	if len(tenantID) == 0 {
 		return backend.ErrEmptyTenantID
 	}
@@ -25,7 +25,7 @@ func (rw *readerWriter) MarkBlockCompacted(blockID uuid.UUID, tenantID string) e
 
 	// copy meta.json to meta.compacted.json
 	// core.CopyObject does not support SSE on src object
-	_, err := rw.core.Client.CopyObject(context.TODO(),
+	_, err := rw.core.Client.CopyObject(ctx,
 		minio.CopyDestOptions{
 			Bucket:     rw.cfg.Bucket,
 			Object:     backend.CompactedMetaFileName(blockID, tenantID, rw.cfg.Prefix),
@@ -44,10 +44,10 @@ func (rw *readerWriter) MarkBlockCompacted(blockID uuid.UUID, tenantID string) e
 	}
 
 	// delete meta.json
-	return rw.core.RemoveObject(context.TODO(), rw.cfg.Bucket, metaFileName, minio.RemoveObjectOptions{})
+	return rw.core.RemoveObject(ctx, rw.cfg.Bucket, metaFileName, minio.RemoveObjectOptions{})
 }
 
-func (rw *readerWriter) ClearBlock(blockID uuid.UUID, tenantID string) error {
+func (rw *readerWriter) ClearBlock(ctx context.Context, blockID uuid.UUID, tenantID string) error {
 	if len(tenantID) == 0 {
 		return backend.ErrEmptyTenantID
 	}
@@ -66,7 +66,7 @@ func (rw *readerWriter) ClearBlock(blockID uuid.UUID, tenantID string) error {
 
 	level.Debug(rw.logger).Log("msg", "listing objects", "found", len(res.Contents))
 	for _, obj := range res.Contents {
-		err = rw.core.RemoveObject(context.TODO(), rw.cfg.Bucket, obj.Key, minio.RemoveObjectOptions{})
+		err = rw.core.RemoveObject(ctx, rw.cfg.Bucket, obj.Key, minio.RemoveObjectOptions{})
 		if err != nil {
 			return fmt.Errorf("error deleting obj from s3: %s: %w", obj.Key, err)
 		}
@@ -75,7 +75,7 @@ func (rw *readerWriter) ClearBlock(blockID uuid.UUID, tenantID string) error {
 	return nil
 }
 
-func (rw *readerWriter) CompactedBlockMeta(blockID uuid.UUID, tenantID string) (*backend.CompactedBlockMeta, error) {
+func (rw *readerWriter) CompactedBlockMeta(ctx context.Context, blockID uuid.UUID, tenantID string) (*backend.CompactedBlockMeta, error) {
 	if len(tenantID) == 0 {
 		return nil, backend.ErrEmptyTenantID
 	}
@@ -84,7 +84,7 @@ func (rw *readerWriter) CompactedBlockMeta(blockID uuid.UUID, tenantID string) (
 	}
 
 	compactedMetaFileName := backend.CompactedMetaFileName(blockID, tenantID, rw.cfg.Prefix)
-	bytes, info, err := rw.readAllWithObjInfo(context.TODO(), compactedMetaFileName)
+	bytes, info, err := rw.readAllWithObjInfo(ctx, compactedMetaFileName)
 	if err != nil {
 		return nil, readError(err)
 	}

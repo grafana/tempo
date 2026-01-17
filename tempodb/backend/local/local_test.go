@@ -124,7 +124,7 @@ func TestShutdownRemovesTenantsWithoutBlocks(t *testing.T) {
 	blockExists(t, blockID, tenant, r)
 
 	// clear the block
-	err = c.ClearBlock((uuid.UUID)(blockID), tenant)
+	err = c.ClearBlock(context.Background(), (uuid.UUID)(blockID), tenant)
 	require.NoError(t, err)
 
 	tenantExists(t, tenant, r)

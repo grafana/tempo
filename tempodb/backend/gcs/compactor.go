@@ -14,7 +14,7 @@ import (
 	"github.com/grafana/tempo/tempodb/backend"
 )
 
-func (rw *readerWriter) MarkBlockCompacted(blockID uuid.UUID, tenantID string) error {
+func (rw *readerWriter) MarkBlockCompacted(ctx context.Context, blockID uuid.UUID, tenantID string) error {
 	// move meta file to a new location
 	metaFilename := backend.MetaFileName(blockID, tenantID, rw.cfg.Prefix)
 	compactedMetaFilename := backend.CompactedMetaFileName(blockID, tenantID, rw.cfg.Prefix)
@@ -30,7 +30,6 @@ func (rw *readerWriter) MarkBlockCompacted(blockID uuid.UUID, tenantID string) e
 		storage.WithMaxAttempts(rw.cfg.MaxRetries),
 	)
 
-	ctx := context.TODO()
 	_, err := dst.CopierFrom(src).Run(ctx)
 	if err != nil {
 		return err
@@ -39,7 +38,7 @@ func (rw *readerWriter) MarkBlockCompacted(blockID uuid.UUID, tenantID string) e
 	return src.Delete(ctx)
 }
 
-func (rw *readerWriter) ClearBlock(blockID uuid.UUID, tenantID string) error {
+func (rw *readerWriter) ClearBlock(ctx context.Context, blockID uuid.UUID, tenantID string) error {
 	if len(tenantID) == 0 {
 		return fmt.Errorf("empty tenant id")
 	}
@@ -48,7 +47,6 @@ func (rw *readerWriter) ClearBlock(blockID uuid.UUID, tenantID string) error {
 		return fmt.Errorf("empty block id")
 	}
 
-	ctx := context.TODO()
 	iter := rw.bucket.Objects(ctx, &storage.Query{
 		Prefix:   backend.RootPath(blockID, tenantID, rw.cfg.Prefix),
 		Versions: false,
@@ -78,10 +76,10 @@ func (rw *readerWriter) ClearBlock(blockID uuid.UUID, tenantID string) error {
 	return nil
 }
 
-func (rw *readerWriter) CompactedBlockMeta(blockID uuid.UUID, tenantID string) (*backend.CompactedBlockMeta, error) {
+func (rw *readerWriter) CompactedBlockMeta(ctx context.Context, blockID uuid.UUID, tenantID string) (*backend.CompactedBlockMeta, error) {
 	name := backend.CompactedMetaFileName(blockID, tenantID, rw.cfg.Prefix)
 
-	bytes, attrs, err := rw.readAll(context.Background(), name)
+	bytes, attrs, err := rw.readAll(ctx, name)
 	if err != nil {
 		return nil, readError(err)
 	}

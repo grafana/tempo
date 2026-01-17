@@ -53,12 +53,14 @@ func (cmd *listBlockCmd) Run(ctx *globalOptions) error {
 func dumpBlock(r tempodb_backend.Reader, c tempodb_backend.Compactor, tenantID string, windowRange time.Duration, blockID string, scan bool) error {
 	id := uuid.MustParse(blockID)
 
-	meta, err := r.BlockMeta(context.TODO(), id, tenantID)
+	ctx := context.TODO()
+
+	meta, err := r.BlockMeta(ctx, id, tenantID)
 	if err != nil && !errors.Is(err, tempodb_backend.ErrDoesNotExist) {
 		return err
 	}
 
-	compactedMeta, err := c.CompactedBlockMeta(id, tenantID)
+	compactedMeta, err := c.CompactedBlockMeta(ctx, id, tenantID)
 	if err != nil && !errors.Is(err, tempodb_backend.ErrDoesNotExist) {
 		return err
 	}

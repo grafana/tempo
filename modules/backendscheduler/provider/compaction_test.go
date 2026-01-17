@@ -177,7 +177,7 @@ func TestCompactionProvider_EmptyStart(t *testing.T) {
 			u := backend.MustParse(blockID)
 			if _, ok := foundMetaInMetas(metas, u); ok {
 				// metas = append(metas, meta)
-				err = store.MarkBlockCompacted(tenant, u)
+				err = store.MarkBlockCompacted(ctx, tenant, u)
 				require.NoError(t, err, "should be able to mark block %s compacted for tenant %s", blockID, tenant)
 			}
 		}

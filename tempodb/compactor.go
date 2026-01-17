@@ -342,7 +342,7 @@ func (rw *readerWriter) CompactWithConfig(ctx context.Context, blockMetas []*bac
 	}
 
 	// mark old blocks compacted, so they don't show up in polling
-	if err := markCompacted(rw, tenantID, blockMetas, newCompactedBlocks); err != nil {
+	if err := markCompacted(ctx, rw, tenantID, blockMetas, newCompactedBlocks); err != nil {
 		return nil, err
 	}
 
@@ -363,7 +363,7 @@ func (rw *readerWriter) CompactWithConfig(ctx context.Context, blockMetas []*bac
 }
 
 // MarkCompacted marks the old blocks as compacted and adds the new blocks to the blocklist.  No backend changes are made.
-func (rw *readerWriter) MarkBlocklistCompacted(tenantID string, oldBlocks, newBlocks []*backend.BlockMeta) error {
+func (rw *readerWriter) MarkBlocklistCompacted(ctx context.Context, tenantID string, oldBlocks, newBlocks []*backend.BlockMeta) error {
 	// Converted outgoing blocks into compacted entries.
 	newCompactions := make([]*backend.CompactedBlockMeta, 0, len(oldBlocks))
 	for _, newBlock := range oldBlocks {
@@ -378,12 +378,12 @@ func (rw *readerWriter) MarkBlocklistCompacted(tenantID string, oldBlocks, newBl
 	return nil
 }
 
-func markCompacted(rw *readerWriter, tenantID string, oldBlocks, newBlocks []*backend.BlockMeta) error {
+func markCompacted(ctx context.Context, rw *readerWriter, tenantID string, oldBlocks, newBlocks []*backend.BlockMeta) error {
 	// Check if we have any errors, but continue marking the blocks as compacted
 	var errCount int
 	for _, meta := range oldBlocks {
 		// Mark in the backend
-		if err := rw.c.MarkBlockCompacted((uuid.UUID)(meta.BlockID), tenantID); err != nil {
+		if err := rw.c.MarkBlockCompacted(ctx, (uuid.UUID)(meta.BlockID), tenantID); err != nil {
 			errCount++
 			level.Error(rw.logger).Log("msg", "unable to mark block compacted", "blockID", meta.BlockID, "tenantID", tenantID, "err", err)
 			metricCompactionErrors.Inc()

@@ -59,7 +59,7 @@ func TestFixtures(t *testing.T) {
 
 	compactedBlockMetas := make([]*backend.CompactedBlockMeta, 0, len(listCompactedMetas))
 	for _, u := range listCompactedMetas {
-		m, e := rc.CompactedBlockMeta(u, tenant)
+		m, e := rc.CompactedBlockMeta(ctx, u, tenant)
 		assert.NoError(t, e)
 		compactedBlockMetas = append(compactedBlockMetas, m)
 		assert.Equal(t, tenant, m.TenantID)

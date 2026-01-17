@@ -181,7 +181,7 @@ func TestRetry_MarkBlockCompacted(t *testing.T) {
 	id, err := uuid.NewUUID()
 	require.NoError(t, err)
 
-	require.NoError(t, c.MarkBlockCompacted(id, "tenant"))
+	require.NoError(t, c.MarkBlockCompacted(context.Background(), id, "tenant"))
 
 	reqCounts.Range(func(key, value any) bool {
 		urlPath := key.(string)
@@ -247,7 +247,7 @@ func TestRetry_ClearBlock(t *testing.T) {
 	id, err := uuid.NewUUID()
 	require.NoError(t, err)
 
-	require.NoError(t, c.ClearBlock(id, "tenant"))
+	require.NoError(t, c.ClearBlock(context.Background(), id, "tenant"))
 
 	reqCounts.Range(func(key, value any) bool {
 		urlPath := key.(string)

@@ -89,7 +89,7 @@ func (cmd *dropTracesCmd) Run(opts *globalOptions) error {
 		}
 
 		level.Info(logger).Log("msg", "marking block compacted", "block", block.BlockID)
-		err = c.MarkBlockCompacted((uuid.UUID)(block.BlockID), block.TenantID)
+		err = c.MarkBlockCompacted(ctx, (uuid.UUID)(block.BlockID), block.TenantID)
 		if err != nil {
 			level.Error(logger).Log("msg", "error marking block compacted", "block", block.BlockID, "err", err)
 		}
@@ -247,7 +247,7 @@ func isInBlock(ctx context.Context, r backend.Reader, background bool, blockNum 
 
 	if errors.Is(err, backend.ErrDoesNotExist) {
 		// tempo proper searches compacted blocks, b/c each querier has a different view of the backend blocks.
-		// however, with a single snaphot of the backend, we can only search the noncompacted blocks.
+		// however, with a single snapshot of the backend, we can only search the noncompacted blocks.
 		return nil, nil
 	}
 

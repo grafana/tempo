@@ -115,7 +115,7 @@ func (s *tenantStore) Flush(ctx context.Context, r tempodb.Reader, w tempodb.Wri
 				"blockid", blockID,
 			)
 			span.AddEvent("marking existing block compacted", trace.WithAttributes(attribute.String("block_id", blockID.String())))
-			if err := c.MarkBlockCompacted(s.tenantID, blockID); err != nil {
+			if err := c.MarkBlockCompacted(ctx, s.tenantID, blockID); err != nil {
 				return err
 			}
 		}
@@ -166,7 +166,7 @@ func (s *tenantStore) Flush(ctx context.Context, r tempodb.Reader, w tempodb.Wri
 
 	metricBlockBuilderFlushedBlocks.WithLabelValues(s.tenantID).Inc()
 
-	if err := s.wal.LocalBackend().ClearBlock((uuid.UUID)(newMeta.BlockID), s.tenantID); err != nil {
+	if err := s.wal.LocalBackend().ClearBlock(ctx, (uuid.UUID)(newMeta.BlockID), s.tenantID); err != nil {
 		return err
 	}
 	span.AddEvent("cleared block from wal", trace.WithAttributes(attribute.String("block_id", newMeta.BlockID.String())))
