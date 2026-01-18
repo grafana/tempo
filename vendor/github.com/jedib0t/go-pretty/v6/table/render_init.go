@@ -289,11 +289,15 @@ func (t *Table) initForRenderPaddedColumns() {
 }
 
 func (t *Table) initForRenderRows() {
-	// auto-index: calc the index column's max length
-	t.autoIndexVIndexMaxLength = len(fmt.Sprint(len(t.rowsRaw)))
+	// filter the rows as requested (before stringification and sorting)
+	t.initForRenderFilterRows()
 
-	// stringify all the rows to make it easy to render
-	t.rows = t.initForRenderRowsStringify(t.rowsRaw, renderHint{})
+	// auto-index: calc the index column's max length
+	t.autoIndexVIndexMaxLength = len(fmt.Sprint(len(t.rowsRawFiltered)))
+
+	// stringify the filtered rows
+	t.numColumns = 0
+	t.rows = t.initForRenderRowsStringify(t.rowsRawFiltered, renderHint{})
 	t.rowsFooter = t.initForRenderRowsStringify(t.rowsFooterRaw, renderHint{isFooterRow: true})
 	t.rowsHeader = t.initForRenderRowsStringify(t.rowsHeaderRaw, renderHint{isHeaderRow: true})
 
@@ -310,6 +314,60 @@ func (t *Table) initForRenderRows() {
 	t.initForRenderHideColumns()
 }
 
+// initForRenderFilterRows filters the raw rows by removing non-matching rows from t.rowsRawFiltered.
+func (t *Table) initForRenderFilterRows() {
+	// Restore original rows before filtering (in case of multiple renders with different filters)
+	if len(t.rowsRaw) > 0 {
+		t.rowsRawFiltered = make([]Row, len(t.rowsRaw))
+		for i, row := range t.rowsRaw {
+			rowCopy := make(Row, len(row))
+			copy(rowCopy, row)
+			t.rowsRawFiltered[i] = rowCopy
+		}
+	}
+
+	if len(t.filterBy) == 0 {
+		// No filters, nothing to do
+		return
+	}
+
+	// Store original separators and track which rows are kept
+	originalSeparators := make(map[int]bool)
+	for k, v := range t.separators {
+		originalSeparators[k] = v
+	}
+
+	// Calculate numColumns from raw rows/headers for filter parsing
+	t.calculateNumColumnsFromRaw()
+	parsedFilterBy := t.parseFilterBy(t.filterBy)
+	if len(parsedFilterBy) == 0 {
+		// No valid filters, nothing to do
+		return
+	}
+
+	// Filter rows in place and track which original rows were kept
+	filteredRows := t.rowsRawFiltered[:0]
+	keptIndices := make([]int, 0, len(t.rowsRawFiltered))
+	for origIdx, row := range t.rowsRawFiltered {
+		if t.matchesFiltersRaw(row, parsedFilterBy) {
+			filteredRows = append(filteredRows, row)
+			keptIndices = append(keptIndices, origIdx)
+		}
+	}
+	t.rowsRawFiltered = filteredRows
+
+	// Update separators map to reflect filtered rows
+	if len(originalSeparators) > 0 {
+		newSeparators := make(map[int]bool)
+		for newIdx, origIdx := range keptIndices {
+			if originalSeparators[origIdx] {
+				newSeparators[newIdx] = true
+			}
+		}
+		t.separators = newSeparators
+	}
+}
+
 func (t *Table) initForRenderRowsStringify(rows []Row, hint renderHint) []rowStr {
 	rowsStr := make([]rowStr, len(rows))
 	for idx, row := range rows {
@@ -324,27 +382,32 @@ func (t *Table) initForRenderRowPainterColors() {
 		return
 	}
 
-	// generate the colors
-	t.rowsColors = make([]text.Colors, len(t.rowsRaw))
-	for idx, row := range t.rowsRaw {
-		idxColors := idx
+	// generate the colors for the final rows (after filtering and sorting)
+	// rowsColors will be indexed by the final position in t.rows
+	t.rowsColors = make([]text.Colors, len(t.rows))
+
+	// For each final position, find the row index in t.rowsRawFiltered (which is already filtered)
+	for finalPos := range t.rows {
+		var rowIdx int
+
 		if len(t.sortedRowIndices) > 0 {
-			// override with the sorted row index
-			for j := 0; j < len(t.sortedRowIndices); j++ {
-				if t.sortedRowIndices[j] == idx {
-					idxColors = j
-					break
-				}
-			}
+			// Rows were sorted: finalPos -> sortedRowIndices[finalPos] -> rowIdx in t.rowsRawFiltered
+			rowIdx = t.sortedRowIndices[finalPos]
+		} else {
+			// No sorting: finalPos -> rowIdx in t.rowsRawFiltered
+			rowIdx = finalPos
 		}
 
-		if t.rowPainter != nil {
-			t.rowsColors[idxColors] = t.rowPainter(row)
-		} else if t.rowPainterWithAttributes != nil {
-			t.rowsColors[idxColors] = t.rowPainterWithAttributes(row, RowAttributes{
-				Number:       idx + 1,
-				NumberSorted: idxColors + 1,
-			})
+		if rowIdx >= 0 && rowIdx < len(t.rowsRawFiltered) {
+			row := t.rowsRawFiltered[rowIdx]
+			if t.rowPainter != nil {
+				t.rowsColors[finalPos] = t.rowPainter(row)
+			} else if t.rowPainterWithAttributes != nil {
+				t.rowsColors[finalPos] = t.rowPainterWithAttributes(row, RowAttributes{
+					Number:       rowIdx + 1,
+					NumberSorted: finalPos + 1,
+				})
+			}
 		}
 	}
 }
@@ -394,6 +457,10 @@ func (t *Table) initForRenderRowSeparatorStrings() {
 		if len(t.rows) > 1 {
 			addSeparatorType(separatorTypeRowMiddle)
 		}
+	} else if len(t.rowsHeader) > 0 || t.autoIndex {
+		// When there are headers but no data rows, we still need separatorTypeRowBottom
+		// for the bottom border.
+		addSeparatorType(separatorTypeRowBottom)
 	}
 	if len(t.rowsFooter) > 0 || t.autoIndex {
 		addSeparatorType(separatorTypeFooterTop)
@@ -463,4 +530,5 @@ func (t *Table) reset() {
 	t.rowsColors = nil
 	t.rowsFooter = nil
 	t.rowsHeader = nil
+	t.sortedRowIndices = nil
 }

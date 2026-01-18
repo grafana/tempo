@@ -245,7 +245,7 @@ func Test_newSplitPolicy(t *testing.T) {
 					},
 				},
 			},
-			err: errors.New("invalid policy match attribute: tag name is not valid intrinsic or scoped attribute: unsupported"),
+			err: errors.New("invalid policy match attribute: failed to parse identifier unsupported: parse error at line 1, col 2: unknown identifier: unsupported"),
 		},
 		{
 			name: "unsupported kind intrinsic string value",
@@ -318,12 +318,12 @@ func Test_newSplitPolicy(t *testing.T) {
 				MatchType: config.Strict,
 				Attributes: []config.MatchPolicyAttribute{
 					{
-						Key:   "childCount",
+						Key:   "span:childCount",
 						Value: "foo",
 					},
 				},
 			},
-			err: errors.New("unsupported intrinsic: childCount"),
+			err: errors.New("unsupported intrinsic: span:childCount"),
 		},
 	}
 

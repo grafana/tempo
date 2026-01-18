@@ -9,12 +9,12 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"path"
 	"strconv"
 	"strings"
 
 	"github.com/golang/protobuf/jsonpb" //nolint:all
 	"github.com/golang/protobuf/proto"  //nolint:all
-	"github.com/klauspost/compress/gzhttp"
 
 	userconfigurableoverrides "github.com/grafana/tempo/modules/overrides/userconfigurable/client"
 	"github.com/grafana/tempo/pkg/api"
@@ -42,10 +42,10 @@ type TempoHTTPClient interface {
 	SearchTags() (*tempopb.SearchTagsResponse, error)
 	SearchTagsV2() (*tempopb.SearchTagsV2Response, error)
 	SearchTagsWithRange(start int64, end int64) (*tempopb.SearchTagsResponse, error)
-	SearchTagsV2WithRange(start int64, end int64) (*tempopb.SearchTagsV2Response, error)
+	SearchTagsV2WithRange(scope, query string, start int64, end int64) (*tempopb.SearchTagsV2Response, error)
 	SearchTagValues(key string) (*tempopb.SearchTagValuesResponse, error)
 	SearchTagValuesV2(key, query string) (*tempopb.SearchTagValuesV2Response, error)
-	SearchTagValuesV2WithRange(tag string, start int64, end int64) (*tempopb.SearchTagValuesV2Response, error)
+	SearchTagValuesV2WithRange(tag, query string, start int64, end int64) (*tempopb.SearchTagValuesV2Response, error)
 	Search(tags string) (*tempopb.SearchResponse, error)
 	SearchWithRange(ctx context.Context, tags string, start int64, end int64) (*tempopb.SearchResponse, error)
 	QueryTrace(id string) (*tempopb.Trace, error)
@@ -54,7 +54,8 @@ type TempoHTTPClient interface {
 	SearchTraceQLWithRange(query string, start int64, end int64) (*tempopb.SearchResponse, error)
 	SearchTraceQLWithRangeAndLimit(query string, start int64, end int64, limit int64, spss int64) (*tempopb.SearchResponse, error)
 	MetricsSummary(query string, groupBy string, start int64, end int64) (*tempopb.SpanMetricsSummaryResponse, error)
-	MetricsQueryRange(query string, start, end int, step string, exemplars int) (*tempopb.QueryRangeResponse, error)
+	MetricsQueryRange(query string, start, end int64, step string, exemplars int) (*tempopb.QueryRangeResponse, error)
+	MetricsQueryInstant(query string, start, end int64, exemplars int) (*tempopb.QueryInstantResponse, error)
 	GetOverrides() (*userconfigurableoverrides.Limits, string, error)
 	SetOverrides(limits *userconfigurableoverrides.Limits, version string) (string, error)
 	PatchOverrides(limits *userconfigurableoverrides.Limits) (*userconfigurableoverrides.Limits, string, error)
@@ -80,14 +81,8 @@ func New(baseURL, orgID string) *Client {
 	return &Client{
 		BaseURL: baseURL,
 		OrgID:   orgID,
-		client:  http.DefaultClient,
+		client:  &http.Client{},
 	}
-}
-
-func NewWithCompression(baseURL, orgID string) *Client {
-	c := New(baseURL, orgID)
-	c.WithTransport(gzhttp.Transport(http.DefaultTransport))
-	return c
 }
 
 func (c *Client) SetHeader(key string, value string) {
@@ -214,9 +209,9 @@ func (c *Client) SearchTagsWithRange(start int64, end int64) (*tempopb.SearchTag
 	return m, nil
 }
 
-func (c *Client) SearchTagsV2WithRange(start int64, end int64) (*tempopb.SearchTagsV2Response, error) {
+func (c *Client) SearchTagsV2WithRange(scope, query string, start int64, end int64) (*tempopb.SearchTagsV2Response, error) {
 	m := &tempopb.SearchTagsV2Response{}
-	_, err := c.getFor(c.buildTagsV2QueryURL(start, end), m)
+	_, err := c.getFor(c.buildTagsV2QueryURL(scope, query, start, end), m)
 	if err != nil {
 		return nil, err
 	}
@@ -226,7 +221,8 @@ func (c *Client) SearchTagsV2WithRange(start int64, end int64) (*tempopb.SearchT
 
 func (c *Client) SearchTagValues(key string) (*tempopb.SearchTagValuesResponse, error) {
 	m := &tempopb.SearchTagValuesResponse{}
-	_, err := c.getFor(c.BaseURL+"/api/search/tag/"+key+"/values", m)
+
+	_, err := c.getFor(c.buildTagValuesQueryURL(key), m)
 	if err != nil {
 		return nil, err
 	}
@@ -235,20 +231,12 @@ func (c *Client) SearchTagValues(key string) (*tempopb.SearchTagValuesResponse, 
 }
 
 func (c *Client) SearchTagValuesV2(key, query string) (*tempopb.SearchTagValuesV2Response, error) {
-	m := &tempopb.SearchTagValuesV2Response{}
-	urlPath := fmt.Sprintf(`/api/v2/search/tag/%s/values?q=%s`, key, url.QueryEscape(query))
-
-	_, err := c.getFor(c.BaseURL+urlPath, m)
-	if err != nil {
-		return nil, err
-	}
-
-	return m, nil
+	return c.SearchTagValuesV2WithRange(key, query, 0, 0)
 }
 
-func (c *Client) SearchTagValuesV2WithRange(tag string, start int64, end int64) (*tempopb.SearchTagValuesV2Response, error) {
+func (c *Client) SearchTagValuesV2WithRange(tag, query string, start int64, end int64) (*tempopb.SearchTagValuesV2Response, error) {
 	m := &tempopb.SearchTagValuesV2Response{}
-	_, err := c.getFor(c.buildTagValuesV2QueryURL(tag, start, end), m)
+	_, err := c.getFor(c.buildTagValuesV2QueryURL(tag, query, start, end), m)
 	if err != nil {
 		return nil, err
 	}
@@ -396,15 +384,16 @@ func (c *Client) buildSearchQueryURL(queryType string, query string, start int64
 	return fmt.Sprint(joinURL)
 }
 
-func (c *Client) MetricsQueryRange(query string, start, end int, step string, exemplars int) (*tempopb.QueryRangeResponse, error) {
+func (c *Client) MetricsQueryRange(query string, start, end int64, step string, exemplars int) (*tempopb.QueryRangeResponse, error) {
 	joinURL, _ := url.Parse(c.BaseURL + api.PathMetricsQueryRange + "?")
 	q := joinURL.Query()
 	if exemplars != 0 {
 		q.Set("exemplars", strconv.Itoa(exemplars))
 	}
+
 	if start != 0 && end != 0 {
-		q.Set("start", strconv.Itoa(start))
-		q.Set("end", strconv.Itoa(end))
+		q.Set("start", strconv.FormatInt(start, 10))
+		q.Set("end", strconv.FormatInt(end, 10))
 	}
 	if step != "" {
 		q.Set("step", step)
@@ -413,6 +402,29 @@ func (c *Client) MetricsQueryRange(query string, start, end int, step string, ex
 	joinURL.RawQuery = q.Encode()
 
 	m := &tempopb.QueryRangeResponse{}
+	_, err := c.getFor(fmt.Sprint(joinURL), m)
+	if err != nil {
+		return m, err
+	}
+
+	return m, nil
+}
+
+func (c *Client) MetricsQueryInstant(query string, start, end int64, exemplars int) (*tempopb.QueryInstantResponse, error) {
+	joinURL, _ := url.Parse(c.BaseURL + api.PathMetricsQueryInstant + "?")
+	q := joinURL.Query()
+	if exemplars != 0 {
+		q.Set("exemplars", strconv.Itoa(exemplars))
+	}
+
+	if start != 0 && end != 0 {
+		q.Set("start", strconv.FormatInt(start, 10))
+		q.Set("end", strconv.FormatInt(end, 10))
+	}
+	q.Set("q", query)
+	joinURL.RawQuery = q.Encode()
+
+	m := &tempopb.QueryInstantResponse{}
 	_, err := c.getFor(fmt.Sprint(joinURL), m)
 	if err != nil {
 		return m, err
@@ -430,32 +442,57 @@ func (c *Client) buildTagsQueryURL(start int64, end int64) string {
 	}
 	joinURL.RawQuery = q.Encode()
 
-	return fmt.Sprint(joinURL)
+	return joinURL.String()
 }
 
-func (c *Client) buildTagsV2QueryURL(start int64, end int64) string {
+func (c *Client) buildTagsV2QueryURL(scope, query string, start int64, end int64) string {
 	joinURL, _ := url.Parse(c.BaseURL + api.PathSearchTagsV2 + "?")
 	q := joinURL.Query()
+	if scope != "" {
+		q.Set("scope", scope)
+	}
+	if query != "" {
+		q.Set("q", query)
+	}
 	if start != 0 && end != 0 {
 		q.Set("start", strconv.FormatInt(start, 10))
 		q.Set("end", strconv.FormatInt(end, 10))
 	}
 	joinURL.RawQuery = q.Encode()
 
-	return fmt.Sprint(joinURL)
+	return joinURL.String()
 }
 
-func (c *Client) buildTagValuesV2QueryURL(key string, start int64, end int64) string {
-	urlPath := fmt.Sprintf(`/api/v2/search/tag/%s/values`, key)
-	joinURL, _ := url.Parse(c.BaseURL + urlPath + "?")
+// the use of path.Join, not escaping the key and the specific way the url is parsed is all very purposeful here
+// to mimic how Grafana builds URLs when calling Tempo so our integration tests mimic our most important client
+func (c *Client) buildTagValuesQueryURL(key string) string {
+	tagsPath := path.Join("/api/search/tag/", key, "/values")
+
+	joinURL, _ := url.Parse(c.BaseURL)
+	joinURL.Path = path.Join(joinURL.Path, tagsPath)
+
+	return joinURL.String()
+}
+
+// the use of path.Join, not escaping the key and the specific way the url is parsed is all very purposeful here
+// to mimic how Grafana builds URLs when calling Tempo so our integration tests mimic our most important client
+func (c *Client) buildTagValuesV2QueryURL(key, query string, start int64, end int64) string {
+	tagsPath := path.Join("/api/v2/search/tag/", key, "/values")
+
+	joinURL, _ := url.Parse(c.BaseURL)
+	joinURL.Path = path.Join(joinURL.Path, tagsPath)
+
 	q := joinURL.Query()
+	if query != "" {
+		q.Set("q", query)
+	}
 	if start != 0 && end != 0 {
 		q.Set("start", strconv.FormatInt(start, 10))
 		q.Set("end", strconv.FormatInt(end, 10))
 	}
 	joinURL.RawQuery = q.Encode()
 
-	return fmt.Sprint(joinURL)
+	return joinURL.String()
 }
 
 func (c *Client) GetOverrides() (*userconfigurableoverrides.Limits, string, error) {

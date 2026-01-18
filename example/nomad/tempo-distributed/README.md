@@ -1,3 +1,7 @@
+> [!IMPORTANT]
+> This example was created for the 2.x Tempo architecture and has not been updated for 3.X because none of the maintainers
+> deploy to Nomad. This example is deprecated and will eventually be removed if it is not updated by the community.
+
 # Microservices mode
 
 This Nomad job will deploy Tempo in

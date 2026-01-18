@@ -408,7 +408,10 @@ func prepareRequestForQueriers(req *http.Request, tenant string) {
 	// https://github.com/grafana/dskit/blob/f5bd38371e1cfae5479b2c23b3893c1a97868bdf/httpgrpc/httpgrpc.go#L53
 	const queryDelimiter = "?"
 
-	uri := path.Join(api.PathPrefixQuerier, req.URL.Path)
+	// req.Url.Path is an unescaped string so its important to use req.URL.EscapedPath() here so
+	// that the httpgrpc bridge works. this really only matters for tag value requests that add the tag name to the path.
+	// in retrospect putting a field that holds arbitrary user data and supports the full UTF8 char set into the path was a bad idea.
+	uri := path.Join(api.PathPrefixQuerier, req.URL.EscapedPath())
 	if len(req.URL.RawQuery) > 0 {
 		uri += queryDelimiter + req.URL.RawQuery
 	}

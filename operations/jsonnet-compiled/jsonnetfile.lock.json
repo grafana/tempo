@@ -8,7 +8,7 @@
           "subdir": "ksonnet-util"
         }
       },
-      "version": "1dab04037c4394fec95606cbca4d1ff6bd85c9a4",
+      "version": "79d130bed0a0e2b185814d84632224d24f5c1cac",
       "sum": "0y3AFX9LQSpfWTxWKSwoLgbt0Wc9nnCwhMH2szKzHv0="
     },
     {
@@ -18,8 +18,18 @@
           "subdir": "memcached"
         }
       },
-      "version": "1dab04037c4394fec95606cbca4d1ff6bd85c9a4",
+      "version": "79d130bed0a0e2b185814d84632224d24f5c1cac",
       "sum": "zNTCDRaCqJUHjQSQRsxGR3jLrMP9tU7YNQb13dbm1bU="
+    },
+    {
+      "source": {
+        "git": {
+          "remote": "https://github.com/grafana/rollout-operator.git",
+          "subdir": "operations/rollout-operator"
+        }
+      },
+      "version": "4a47245cb7ffa81a0a94c704de36e2e6069421fd",
+      "sum": "nu+33+dylfBD2zFTNQ+9x4LztbdhFAtXrNjoe/jyon8="
     },
     {
       "source": {

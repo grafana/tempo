@@ -8,7 +8,7 @@ import (
 	"github.com/grafana/dskit/flagext"
 
 	"github.com/alecthomas/kong"
-	"gopkg.in/yaml.v2"
+	"go.yaml.in/yaml/v2"
 
 	"github.com/grafana/tempo/cmd/tempo/app"
 	"github.com/grafana/tempo/tempodb/backend"
@@ -26,6 +26,11 @@ const (
 
 type globalOptions struct {
 	ConfigFile string `type:"path" short:"c" help:"Path to tempo config file"`
+}
+
+type outputOptions struct {
+	Out    string `short:"o" help:"File to write output to, instead of stdout" default:""`
+	Format string `short:"f" help:"Output format (jsonnet/yaml)" enum:"jsonnet,yaml" default:"yaml"`
 }
 
 type backendOptions struct {
@@ -91,6 +96,10 @@ var cli struct {
 	Migrate struct {
 		Tenant          migrateTenantCmd          `cmd:"" help:"migrate tenant between two backends"`
 		OverridesConfig migrateOverridesConfigCmd `cmd:"" help:"migrate overrides config"`
+	} `cmd:""`
+
+	Suggest struct {
+		Columns suggestColumnsCmd `cmd:"" help:"Suggest columns for a tenant"`
 	} `cmd:""`
 }
 

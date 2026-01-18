@@ -300,6 +300,7 @@ local filename = 'tempo-rollout-progress.json';
             format: 'percentunit',
             min: null,  // Can be negative.
           }),
+          fieldConfig+: { defaults+: { unit: 'percentunit' } },
 
           id: 12,
           gridPos: { h: 8, w: 8, x: 16, y: 8 },

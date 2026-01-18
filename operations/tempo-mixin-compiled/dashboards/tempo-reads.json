@@ -40,123 +40,104 @@
       "error": "#E24D42",
       "success": "#7EB26D"
      },
-     "bars": false,
-     "dashLength": 10,
-     "dashes": false,
      "datasource": "$datasource",
+     "fieldConfig": {
+      "defaults": {
+       "custom": {
+        "drawStyle": "line",
+        "fillOpacity": 1,
+        "lineWidth": 1,
+        "pointSize": 5,
+        "showPoints": "never",
+        "spanNulls": false,
+        "stacking": {
+         "mode": "normal"
+        }
+       },
+       "thresholds": {
+        "mode": "absolute",
+        "steps": [
+
+        ]
+       },
+       "unit": "ops"
+      },
+      "overrides": [
+
+      ]
+     },
      "fill": 10,
      "id": 1,
-     "legend": {
-      "avg": false,
-      "current": false,
-      "max": false,
-      "min": false,
-      "show": true,
-      "total": false,
-      "values": false
-     },
-     "lines": true,
      "linewidth": 0,
      "links": [
 
      ],
-     "nullPointMode": "null as zero",
-     "percentage": false,
-     "pointradius": 5,
-     "points": false,
-     "renderer": "flot",
-     "seriesOverrides": [
-
-     ],
-     "spaceLength": 10,
+     "options": {
+      "legend": {
+       "showLegend": true
+      },
+      "tooltip": {
+       "mode": "single",
+       "sort": "none"
+      }
+     },
      "span": 6,
      "stack": true,
-     "steppedLine": false,
      "targets": [
       {
-       "expr": "sum by (status) (\n  label_replace(label_replace(rate(tempo_request_duration_seconds_count{cluster=~\"$cluster\", job=~\"($namespace)/cortex-gw(-internal)?\", route=~\"api_.*\"}[$__rate_interval]),\n  \"status\", \"${1}xx\", \"status_code\", \"([0-9])..\"),\n  \"status\", \"${1}\", \"status_code\", \"([a-zA-Z]+)\"))\n",
+       "expr": "sum by (status) (\n  label_replace(label_replace(rate(tempo_request_duration_seconds_count{cluster=~\"$cluster\", job=~\"($namespace)/cortex-gw(-internal)?\", route=~\"api_.*\"}[$__rate_interval]),\n  \"status\", \"${1}xx\", \"status_code\", \"([0-9])..\"),\n  \"status\", \"${1}\", \"status_code\", \"([a-zA-Z_]+)\"))\n",
        "format": "time_series",
        "interval": "1m",
        "legendFormat": "{{status}}",
        "refId": "A"
       }
      ],
-     "thresholds": [
-
-     ],
-     "timeFrom": null,
-     "timeShift": null,
      "title": "QPS",
-     "tooltip": {
-      "shared": true,
-      "sort": 2,
-      "value_type": "individual"
-     },
-     "type": "graph",
-     "xaxis": {
-      "buckets": null,
-      "mode": "time",
-      "name": null,
-      "show": true,
-      "values": [
+     "type": "timeseries"
+    },
+    {
+     "datasource": "$datasource",
+     "fieldConfig": {
+      "defaults": {
+       "custom": {
+        "drawStyle": "line",
+        "fillOpacity": 1,
+        "lineWidth": 1,
+        "pointSize": 5,
+        "showPoints": "never",
+        "spanNulls": false,
+        "stacking": {
+         "group": "A",
+         "mode": "none"
+        }
+       },
+       "thresholds": {
+        "mode": "absolute",
+        "steps": [
+
+        ]
+       },
+       "unit": "ms"
+      },
+      "overrides": [
 
       ]
      },
-     "yaxes": [
-      {
-       "format": "short",
-       "label": null,
-       "logBase": 1,
-       "max": null,
-       "min": 0,
-       "show": true
-      },
-      {
-       "format": "short",
-       "label": null,
-       "logBase": 1,
-       "max": null,
-       "min": null,
-       "show": false
-      }
-     ]
-    },
-    {
-     "aliasColors": {
-
-     },
-     "bars": false,
-     "dashLength": 10,
-     "dashes": false,
-     "datasource": "$datasource",
-     "fill": 1,
      "id": 2,
-     "legend": {
-      "avg": false,
-      "current": false,
-      "max": false,
-      "min": false,
-      "show": true,
-      "total": false,
-      "values": false
-     },
-     "lines": true,
-     "linewidth": 1,
      "links": [
 
      ],
      "nullPointMode": "null as zero",
-     "percentage": false,
-     "pointradius": 5,
-     "points": false,
-     "renderer": "flot",
-     "seriesOverrides": [
-
-     ],
-     "spaceLength": 10,
+     "options": {
+      "legend": {
+       "showLegend": true
+      },
+      "tooltip": {
+       "mode": "single",
+       "sort": "none"
+      }
+     },
      "span": 6,
-     "stack": false,
-     "steppedLine": false,
      "targets": [
       {
        "expr": "histogram_quantile(0.99, sum(rate(tempo_request_duration_seconds_bucket{cluster=~\"$cluster\", job=~\"($namespace)/cortex-gw(-internal)?\",route=~\"api_.*\"}[$__rate_interval])) by (le,route)) * 1e3",
@@ -186,27 +167,8 @@
        "step": 10
       }
      ],
-     "thresholds": [
-
-     ],
-     "timeFrom": null,
-     "timeShift": null,
      "title": "Latency",
-     "tooltip": {
-      "shared": true,
-      "sort": 2,
-      "value_type": "individual"
-     },
-     "type": "graph",
-     "xaxis": {
-      "buckets": null,
-      "mode": "time",
-      "name": null,
-      "show": true,
-      "values": [
-
-      ]
-     },
+     "type": "timeseries",
      "yaxes": [
       {
        "format": "ms",
@@ -250,123 +212,104 @@
       "error": "#E24D42",
       "success": "#7EB26D"
      },
-     "bars": false,
-     "dashLength": 10,
-     "dashes": false,
      "datasource": "$datasource",
+     "fieldConfig": {
+      "defaults": {
+       "custom": {
+        "drawStyle": "line",
+        "fillOpacity": 1,
+        "lineWidth": 1,
+        "pointSize": 5,
+        "showPoints": "never",
+        "spanNulls": false,
+        "stacking": {
+         "mode": "normal"
+        }
+       },
+       "thresholds": {
+        "mode": "absolute",
+        "steps": [
+
+        ]
+       },
+       "unit": "ops"
+      },
+      "overrides": [
+
+      ]
+     },
      "fill": 10,
      "id": 3,
-     "legend": {
-      "avg": false,
-      "current": false,
-      "max": false,
-      "min": false,
-      "show": true,
-      "total": false,
-      "values": false
-     },
-     "lines": true,
      "linewidth": 0,
      "links": [
 
      ],
-     "nullPointMode": "null as zero",
-     "percentage": false,
-     "pointradius": 5,
-     "points": false,
-     "renderer": "flot",
-     "seriesOverrides": [
-
-     ],
-     "spaceLength": 10,
+     "options": {
+      "legend": {
+       "showLegend": true
+      },
+      "tooltip": {
+       "mode": "single",
+       "sort": "none"
+      }
+     },
      "span": 6,
      "stack": true,
-     "steppedLine": false,
      "targets": [
       {
-       "expr": "sum by (status) (\n  label_replace(label_replace(rate(tempo_request_duration_seconds_count{cluster=~\"$cluster\", job=~\"($namespace)/query-frontend\", route=~\"api_.*\"}[$__rate_interval]),\n  \"status\", \"${1}xx\", \"status_code\", \"([0-9])..\"),\n  \"status\", \"${1}\", \"status_code\", \"([a-zA-Z]+)\"))\n",
+       "expr": "sum by (status) (\n  label_replace(label_replace(rate(tempo_request_duration_seconds_count{cluster=~\"$cluster\", job=~\"($namespace)/query-frontend\", route=~\"api_.*\"}[$__rate_interval]),\n  \"status\", \"${1}xx\", \"status_code\", \"([0-9])..\"),\n  \"status\", \"${1}\", \"status_code\", \"([a-zA-Z_]+)\"))\n",
        "format": "time_series",
        "interval": "1m",
        "legendFormat": "{{status}}",
        "refId": "A"
       }
      ],
-     "thresholds": [
-
-     ],
-     "timeFrom": null,
-     "timeShift": null,
      "title": "QPS",
-     "tooltip": {
-      "shared": true,
-      "sort": 2,
-      "value_type": "individual"
-     },
-     "type": "graph",
-     "xaxis": {
-      "buckets": null,
-      "mode": "time",
-      "name": null,
-      "show": true,
-      "values": [
+     "type": "timeseries"
+    },
+    {
+     "datasource": "$datasource",
+     "fieldConfig": {
+      "defaults": {
+       "custom": {
+        "drawStyle": "line",
+        "fillOpacity": 1,
+        "lineWidth": 1,
+        "pointSize": 5,
+        "showPoints": "never",
+        "spanNulls": false,
+        "stacking": {
+         "group": "A",
+         "mode": "none"
+        }
+       },
+       "thresholds": {
+        "mode": "absolute",
+        "steps": [
+
+        ]
+       },
+       "unit": "ms"
+      },
+      "overrides": [
 
       ]
      },
-     "yaxes": [
-      {
-       "format": "short",
-       "label": null,
-       "logBase": 1,
-       "max": null,
-       "min": 0,
-       "show": true
-      },
-      {
-       "format": "short",
-       "label": null,
-       "logBase": 1,
-       "max": null,
-       "min": null,
-       "show": false
-      }
-     ]
-    },
-    {
-     "aliasColors": {
-
-     },
-     "bars": false,
-     "dashLength": 10,
-     "dashes": false,
-     "datasource": "$datasource",
-     "fill": 1,
      "id": 4,
-     "legend": {
-      "avg": false,
-      "current": false,
-      "max": false,
-      "min": false,
-      "show": true,
-      "total": false,
-      "values": false
-     },
-     "lines": true,
-     "linewidth": 1,
      "links": [
 
      ],
      "nullPointMode": "null as zero",
-     "percentage": false,
-     "pointradius": 5,
-     "points": false,
-     "renderer": "flot",
-     "seriesOverrides": [
-
-     ],
-     "spaceLength": 10,
+     "options": {
+      "legend": {
+       "showLegend": true
+      },
+      "tooltip": {
+       "mode": "single",
+       "sort": "none"
+      }
+     },
      "span": 6,
-     "stack": false,
-     "steppedLine": false,
      "targets": [
       {
        "expr": "histogram_quantile(0.99, sum(rate(tempo_request_duration_seconds_bucket{cluster=~\"$cluster\", job=~\"($namespace)/query-frontend\",route=~\"api_.*\"}[$__rate_interval])) by (le,route)) * 1e3",
@@ -396,27 +339,8 @@
        "step": 10
       }
      ],
-     "thresholds": [
-
-     ],
-     "timeFrom": null,
-     "timeShift": null,
      "title": "Latency",
-     "tooltip": {
-      "shared": true,
-      "sort": 2,
-      "value_type": "individual"
-     },
-     "type": "graph",
-     "xaxis": {
-      "buckets": null,
-      "mode": "time",
-      "name": null,
-      "show": true,
-      "values": [
-
-      ]
-     },
+     "type": "timeseries",
      "yaxes": [
       {
        "format": "ms",
@@ -460,123 +384,104 @@
       "error": "#E24D42",
       "success": "#7EB26D"
      },
-     "bars": false,
-     "dashLength": 10,
-     "dashes": false,
      "datasource": "$datasource",
+     "fieldConfig": {
+      "defaults": {
+       "custom": {
+        "drawStyle": "line",
+        "fillOpacity": 1,
+        "lineWidth": 1,
+        "pointSize": 5,
+        "showPoints": "never",
+        "spanNulls": false,
+        "stacking": {
+         "mode": "normal"
+        }
+       },
+       "thresholds": {
+        "mode": "absolute",
+        "steps": [
+
+        ]
+       },
+       "unit": "ops"
+      },
+      "overrides": [
+
+      ]
+     },
      "fill": 10,
      "id": 5,
-     "legend": {
-      "avg": false,
-      "current": false,
-      "max": false,
-      "min": false,
-      "show": true,
-      "total": false,
-      "values": false
-     },
-     "lines": true,
      "linewidth": 0,
      "links": [
 
      ],
-     "nullPointMode": "null as zero",
-     "percentage": false,
-     "pointradius": 5,
-     "points": false,
-     "renderer": "flot",
-     "seriesOverrides": [
-
-     ],
-     "spaceLength": 10,
+     "options": {
+      "legend": {
+       "showLegend": true
+      },
+      "tooltip": {
+       "mode": "single",
+       "sort": "none"
+      }
+     },
      "span": 4,
      "stack": true,
-     "steppedLine": false,
      "targets": [
       {
-       "expr": "sum by (status) (\n  label_replace(label_replace(rate(tempo_request_duration_seconds_count{cluster=~\"$cluster\", job=~\"($namespace)/querier\", route=~\"querier_api_.*\"}[$__rate_interval]),\n  \"status\", \"${1}xx\", \"status_code\", \"([0-9])..\"),\n  \"status\", \"${1}\", \"status_code\", \"([a-zA-Z]+)\"))\n",
+       "expr": "sum by (status) (\n  label_replace(label_replace(rate(tempo_request_duration_seconds_count{cluster=~\"$cluster\", job=~\"($namespace)/querier\", route=~\"querier_api_.*\"}[$__rate_interval]),\n  \"status\", \"${1}xx\", \"status_code\", \"([0-9])..\"),\n  \"status\", \"${1}\", \"status_code\", \"([a-zA-Z_]+)\"))\n",
        "format": "time_series",
        "interval": "1m",
        "legendFormat": "{{status}}",
        "refId": "A"
       }
      ],
-     "thresholds": [
-
-     ],
-     "timeFrom": null,
-     "timeShift": null,
      "title": "QPS",
-     "tooltip": {
-      "shared": true,
-      "sort": 2,
-      "value_type": "individual"
-     },
-     "type": "graph",
-     "xaxis": {
-      "buckets": null,
-      "mode": "time",
-      "name": null,
-      "show": true,
-      "values": [
+     "type": "timeseries"
+    },
+    {
+     "datasource": "$datasource",
+     "fieldConfig": {
+      "defaults": {
+       "custom": {
+        "drawStyle": "line",
+        "fillOpacity": 1,
+        "lineWidth": 1,
+        "pointSize": 5,
+        "showPoints": "never",
+        "spanNulls": false,
+        "stacking": {
+         "group": "A",
+         "mode": "none"
+        }
+       },
+       "thresholds": {
+        "mode": "absolute",
+        "steps": [
+
+        ]
+       },
+       "unit": "ms"
+      },
+      "overrides": [
 
       ]
      },
-     "yaxes": [
-      {
-       "format": "short",
-       "label": null,
-       "logBase": 1,
-       "max": null,
-       "min": 0,
-       "show": true
-      },
-      {
-       "format": "short",
-       "label": null,
-       "logBase": 1,
-       "max": null,
-       "min": null,
-       "show": false
-      }
-     ]
-    },
-    {
-     "aliasColors": {
-
-     },
-     "bars": false,
-     "dashLength": 10,
-     "dashes": false,
-     "datasource": "$datasource",
-     "fill": 1,
      "id": 6,
-     "legend": {
-      "avg": false,
-      "current": false,
-      "max": false,
-      "min": false,
-      "show": true,
-      "total": false,
-      "values": false
-     },
-     "lines": true,
-     "linewidth": 1,
      "links": [
 
      ],
      "nullPointMode": "null as zero",
-     "percentage": false,
-     "pointradius": 5,
-     "points": false,
-     "renderer": "flot",
-     "seriesOverrides": [
-
-     ],
-     "spaceLength": 10,
+     "options": {
+      "legend": {
+       "showLegend": true
+      },
+      "tooltip": {
+       "mode": "single",
+       "sort": "none"
+      }
+     },
      "span": 4,
-     "stack": false,
-     "steppedLine": false,
      "targets": [
       {
        "expr": "histogram_quantile(0.99, sum(rate(tempo_request_duration_seconds_bucket{cluster=~\"$cluster\", job=~\"($namespace)/querier\",route=~\"querier_api_.*\"}[$__rate_interval])) by (le,route)) * 1e3",
@@ -606,27 +511,8 @@
        "step": 10
       }
      ],
-     "thresholds": [
-
-     ],
-     "timeFrom": null,
-     "timeShift": null,
      "title": "Latency",
-     "tooltip": {
-      "shared": true,
-      "sort": 2,
-      "value_type": "individual"
-     },
-     "type": "graph",
-     "xaxis": {
-      "buckets": null,
-      "mode": "time",
-      "name": null,
-      "show": true,
-      "values": [
-
-      ]
-     },
+     "type": "timeseries",
      "yaxes": [
       {
        "format": "ms",
@@ -647,41 +533,48 @@
      ]
     },
     {
-     "aliasColors": {
-
-     },
-     "bars": false,
-     "dashLength": 10,
-     "dashes": false,
      "datasource": "$datasource",
-     "fill": 1,
-     "id": 7,
-     "legend": {
-      "avg": false,
-      "current": false,
-      "max": false,
-      "min": false,
-      "show": true,
-      "total": false,
-      "values": false
+     "fieldConfig": {
+      "defaults": {
+       "custom": {
+        "drawStyle": "line",
+        "fillOpacity": 1,
+        "lineWidth": 1,
+        "pointSize": 5,
+        "showPoints": "never",
+        "spanNulls": false,
+        "stacking": {
+         "group": "A",
+         "mode": "none"
+        }
+       },
+       "thresholds": {
+        "mode": "absolute",
+        "steps": [
+
+        ]
+       },
+       "unit": "ms"
+      },
+      "overrides": [
+
+      ]
      },
-     "lines": true,
-     "linewidth": 1,
+     "id": 7,
      "links": [
 
      ],
      "nullPointMode": "null as zero",
-     "percentage": false,
-     "pointradius": 5,
-     "points": false,
-     "renderer": "flot",
-     "seriesOverrides": [
-
-     ],
-     "spaceLength": 10,
+     "options": {
+      "legend": {
+       "showLegend": true
+      },
+      "tooltip": {
+       "mode": "single",
+       "sort": "none"
+      }
+     },
      "span": 4,
-     "stack": false,
-     "steppedLine": false,
      "targets": [
       {
        "expr": "histogram_quantile(0.99, sum(rate(tempo_querier_worker_request_executed_total_bucket{cluster=~\"$cluster\", job=~\"($namespace)/querier\",route=~\"querier_api_.*\"}[$__rate_interval])) by (le,route)) * 1e3",
@@ -711,27 +604,8 @@
        "step": 10
       }
      ],
-     "thresholds": [
-
-     ],
-     "timeFrom": null,
-     "timeShift": null,
      "title": "Requests Executed",
-     "tooltip": {
-      "shared": true,
-      "sort": 2,
-      "value_type": "individual"
-     },
-     "type": "graph",
-     "xaxis": {
-      "buckets": null,
-      "mode": "time",
-      "name": null,
-      "show": true,
-      "values": [
-
-      ]
-     },
+     "type": "timeseries",
      "yaxes": [
       {
        "format": "ms",
@@ -775,123 +649,104 @@
       "error": "#E24D42",
       "success": "#7EB26D"
      },
-     "bars": false,
-     "dashLength": 10,
-     "dashes": false,
      "datasource": "$datasource",
+     "fieldConfig": {
+      "defaults": {
+       "custom": {
+        "drawStyle": "line",
+        "fillOpacity": 1,
+        "lineWidth": 1,
+        "pointSize": 5,
+        "showPoints": "never",
+        "spanNulls": false,
+        "stacking": {
+         "mode": "normal"
+        }
+       },
+       "thresholds": {
+        "mode": "absolute",
+        "steps": [
+
+        ]
+       },
+       "unit": "ops"
+      },
+      "overrides": [
+
+      ]
+     },
      "fill": 10,
      "id": 8,
-     "legend": {
-      "avg": false,
-      "current": false,
-      "max": false,
-      "min": false,
-      "show": true,
-      "total": false,
-      "values": false
-     },
-     "lines": true,
      "linewidth": 0,
      "links": [
 
      ],
-     "nullPointMode": "null as zero",
-     "percentage": false,
-     "pointradius": 5,
-     "points": false,
-     "renderer": "flot",
-     "seriesOverrides": [
-
-     ],
-     "spaceLength": 10,
+     "options": {
+      "legend": {
+       "showLegend": true
+      },
+      "tooltip": {
+       "mode": "single",
+       "sort": "none"
+      }
+     },
      "span": 6,
      "stack": true,
-     "steppedLine": false,
      "targets": [
       {
-       "expr": "sum by (status) (\n  label_replace(label_replace(rate(tempo_request_duration_seconds_count{cluster=~\"$cluster\", job=~\"($namespace)/ingester\", route=~\"/tempopb.Querier/.*\"}[$__rate_interval]),\n  \"status\", \"${1}xx\", \"status_code\", \"([0-9])..\"),\n  \"status\", \"${1}\", \"status_code\", \"([a-zA-Z]+)\"))\n",
+       "expr": "sum by (status) (\n  label_replace(label_replace(rate(tempo_request_duration_seconds_count{cluster=~\"$cluster\", job=~\"($namespace)/ingester\", route=~\"/tempopb.Querier/.*\"}[$__rate_interval]),\n  \"status\", \"${1}xx\", \"status_code\", \"([0-9])..\"),\n  \"status\", \"${1}\", \"status_code\", \"([a-zA-Z_]+)\"))\n",
        "format": "time_series",
        "interval": "1m",
        "legendFormat": "{{status}}",
        "refId": "A"
       }
      ],
-     "thresholds": [
-
-     ],
-     "timeFrom": null,
-     "timeShift": null,
      "title": "QPS",
-     "tooltip": {
-      "shared": true,
-      "sort": 2,
-      "value_type": "individual"
-     },
-     "type": "graph",
-     "xaxis": {
-      "buckets": null,
-      "mode": "time",
-      "name": null,
-      "show": true,
-      "values": [
+     "type": "timeseries"
+    },
+    {
+     "datasource": "$datasource",
+     "fieldConfig": {
+      "defaults": {
+       "custom": {
+        "drawStyle": "line",
+        "fillOpacity": 1,
+        "lineWidth": 1,
+        "pointSize": 5,
+        "showPoints": "never",
+        "spanNulls": false,
+        "stacking": {
+         "group": "A",
+         "mode": "none"
+        }
+       },
+       "thresholds": {
+        "mode": "absolute",
+        "steps": [
+
+        ]
+       },
+       "unit": "ms"
+      },
+      "overrides": [
 
       ]
      },
-     "yaxes": [
-      {
-       "format": "short",
-       "label": null,
-       "logBase": 1,
-       "max": null,
-       "min": 0,
-       "show": true
-      },
-      {
-       "format": "short",
-       "label": null,
-       "logBase": 1,
-       "max": null,
-       "min": null,
-       "show": false
-      }
-     ]
-    },
-    {
-     "aliasColors": {
-
-     },
-     "bars": false,
-     "dashLength": 10,
-     "dashes": false,
-     "datasource": "$datasource",
-     "fill": 1,
      "id": 9,
-     "legend": {
-      "avg": false,
-      "current": false,
-      "max": false,
-      "min": false,
-      "show": true,
-      "total": false,
-      "values": false
-     },
-     "lines": true,
-     "linewidth": 1,
      "links": [
 
      ],
      "nullPointMode": "null as zero",
-     "percentage": false,
-     "pointradius": 5,
-     "points": false,
-     "renderer": "flot",
-     "seriesOverrides": [
-
-     ],
-     "spaceLength": 10,
+     "options": {
+      "legend": {
+       "showLegend": true
+      },
+      "tooltip": {
+       "mode": "single",
+       "sort": "none"
+      }
+     },
      "span": 6,
-     "stack": false,
-     "steppedLine": false,
      "targets": [
       {
        "expr": "histogram_quantile(0.99, sum(rate(tempo_request_duration_seconds_bucket{cluster=~\"$cluster\", job=~\"($namespace)/ingester\",route=~\"/tempopb.Querier/.*\"}[$__rate_interval])) by (le,route)) * 1e3",
@@ -921,27 +776,8 @@
        "step": 10
       }
      ],
-     "thresholds": [
-
-     ],
-     "timeFrom": null,
-     "timeShift": null,
      "title": "Latency",
-     "tooltip": {
-      "shared": true,
-      "sort": 2,
-      "value_type": "individual"
-     },
-     "type": "graph",
-     "xaxis": {
-      "buckets": null,
-      "mode": "time",
-      "name": null,
-      "show": true,
-      "values": [
-
-      ]
-     },
+     "type": "timeseries",
      "yaxes": [
       {
        "format": "ms",
@@ -985,123 +821,104 @@
       "error": "#E24D42",
       "success": "#7EB26D"
      },
-     "bars": false,
-     "dashLength": 10,
-     "dashes": false,
      "datasource": "$datasource",
+     "fieldConfig": {
+      "defaults": {
+       "custom": {
+        "drawStyle": "line",
+        "fillOpacity": 1,
+        "lineWidth": 1,
+        "pointSize": 5,
+        "showPoints": "never",
+        "spanNulls": false,
+        "stacking": {
+         "mode": "normal"
+        }
+       },
+       "thresholds": {
+        "mode": "absolute",
+        "steps": [
+
+        ]
+       },
+       "unit": "ops"
+      },
+      "overrides": [
+
+      ]
+     },
      "fill": 10,
      "id": 10,
-     "legend": {
-      "avg": false,
-      "current": false,
-      "max": false,
-      "min": false,
-      "show": true,
-      "total": false,
-      "values": false
-     },
-     "lines": true,
      "linewidth": 0,
      "links": [
 
      ],
-     "nullPointMode": "null as zero",
-     "percentage": false,
-     "pointradius": 5,
-     "points": false,
-     "renderer": "flot",
-     "seriesOverrides": [
-
-     ],
-     "spaceLength": 10,
+     "options": {
+      "legend": {
+       "showLegend": true
+      },
+      "tooltip": {
+       "mode": "single",
+       "sort": "none"
+      }
+     },
      "span": 3,
      "stack": true,
-     "steppedLine": false,
      "targets": [
       {
-       "expr": "sum by (status) (\n  label_replace(label_replace(rate(tempo_request_duration_seconds_count{cluster=~\"$cluster\", container=\"live-store\", route=~\"/tempopb.Querier/.*\"}[$__rate_interval]),\n  \"status\", \"${1}xx\", \"status_code\", \"([0-9])..\"),\n  \"status\", \"${1}\", \"status_code\", \"([a-zA-Z]+)\"))\n",
+       "expr": "sum by (status) (\n  label_replace(label_replace(rate(tempo_request_duration_seconds_count{cluster=~\"$cluster\", container=\"live-store\", route=~\"/tempopb.Querier/.*\"}[$__rate_interval]),\n  \"status\", \"${1}xx\", \"status_code\", \"([0-9])..\"),\n  \"status\", \"${1}\", \"status_code\", \"([a-zA-Z_]+)\"))\n",
        "format": "time_series",
        "interval": "1m",
        "legendFormat": "{{status}}",
        "refId": "A"
       }
      ],
-     "thresholds": [
-
-     ],
-     "timeFrom": null,
-     "timeShift": null,
      "title": "QPS",
-     "tooltip": {
-      "shared": true,
-      "sort": 2,
-      "value_type": "individual"
-     },
-     "type": "graph",
-     "xaxis": {
-      "buckets": null,
-      "mode": "time",
-      "name": null,
-      "show": true,
-      "values": [
+     "type": "timeseries"
+    },
+    {
+     "datasource": "$datasource",
+     "fieldConfig": {
+      "defaults": {
+       "custom": {
+        "drawStyle": "line",
+        "fillOpacity": 1,
+        "lineWidth": 1,
+        "pointSize": 5,
+        "showPoints": "never",
+        "spanNulls": false,
+        "stacking": {
+         "group": "A",
+         "mode": "none"
+        }
+       },
+       "thresholds": {
+        "mode": "absolute",
+        "steps": [
+
+        ]
+       },
+       "unit": "ms"
+      },
+      "overrides": [
 
       ]
      },
-     "yaxes": [
-      {
-       "format": "short",
-       "label": null,
-       "logBase": 1,
-       "max": null,
-       "min": 0,
-       "show": true
-      },
-      {
-       "format": "short",
-       "label": null,
-       "logBase": 1,
-       "max": null,
-       "min": null,
-       "show": false
-      }
-     ]
-    },
-    {
-     "aliasColors": {
-
-     },
-     "bars": false,
-     "dashLength": 10,
-     "dashes": false,
-     "datasource": "$datasource",
-     "fill": 1,
      "id": 11,
-     "legend": {
-      "avg": false,
-      "current": false,
-      "max": false,
-      "min": false,
-      "show": true,
-      "total": false,
-      "values": false
-     },
-     "lines": true,
-     "linewidth": 1,
      "links": [
 
      ],
      "nullPointMode": "null as zero",
-     "percentage": false,
-     "pointradius": 5,
-     "points": false,
-     "renderer": "flot",
-     "seriesOverrides": [
-
-     ],
-     "spaceLength": 10,
+     "options": {
+      "legend": {
+       "showLegend": true
+      },
+      "tooltip": {
+       "mode": "single",
+       "sort": "none"
+      }
+     },
      "span": 3,
-     "stack": false,
-     "steppedLine": false,
      "targets": [
       {
        "expr": "histogram_quantile(0.99, sum(rate(tempo_request_duration_seconds_bucket{cluster=~\"$cluster\", container=\"live-store\",route=~\"/tempopb.Querier/.*\"}[$__rate_interval])) by (le,route)) * 1e3",
@@ -1131,27 +948,8 @@
        "step": 10
       }
      ],
-     "thresholds": [
-
-     ],
-     "timeFrom": null,
-     "timeShift": null,
      "title": "Latency",
-     "tooltip": {
-      "shared": true,
-      "sort": 2,
-      "value_type": "individual"
-     },
-     "type": "graph",
-     "xaxis": {
-      "buckets": null,
-      "mode": "time",
-      "name": null,
-      "show": true,
-      "values": [
-
-      ]
-     },
+     "type": "timeseries",
      "yaxes": [
       {
        "format": "ms",
@@ -1172,41 +970,47 @@
      ]
     },
     {
-     "aliasColors": {
-
-     },
-     "bars": false,
-     "dashLength": 10,
-     "dashes": false,
      "datasource": "$datasource",
-     "fill": 1,
-     "id": 12,
-     "legend": {
-      "avg": false,
-      "current": false,
-      "max": false,
-      "min": false,
-      "show": true,
-      "total": false,
-      "values": false
+     "fieldConfig": {
+      "defaults": {
+       "custom": {
+        "drawStyle": "line",
+        "fillOpacity": 1,
+        "lineWidth": 1,
+        "pointSize": 5,
+        "showPoints": "never",
+        "spanNulls": false,
+        "stacking": {
+         "group": "A",
+         "mode": "none"
+        }
+       },
+       "thresholds": {
+        "mode": "absolute",
+        "steps": [
+
+        ]
+       },
+       "unit": "short"
+      },
+      "overrides": [
+
+      ]
      },
-     "lines": true,
-     "linewidth": 1,
+     "id": 12,
      "links": [
 
      ],
-     "nullPointMode": "null as zero",
-     "percentage": false,
-     "pointradius": 5,
-     "points": false,
-     "renderer": "flot",
-     "seriesOverrides": [
-
-     ],
-     "spaceLength": 10,
+     "options": {
+      "legend": {
+       "showLegend": true
+      },
+      "tooltip": {
+       "mode": "single",
+       "sort": "none"
+      }
+     },
      "span": 3,
-     "stack": false,
-     "steppedLine": false,
      "targets": [
       {
        "expr": "tempo_live_store_complete_queue_length{cluster=~\"$cluster\", pod=~\"live-store-zone.*\"}",
@@ -1216,82 +1020,51 @@
        "legendLink": null
       }
      ],
-     "thresholds": [
-
-     ],
-     "timeFrom": null,
-     "timeShift": null,
      "title": "Pending Queue Length",
-     "tooltip": {
-      "shared": true,
-      "sort": 2,
-      "value_type": "individual"
-     },
-     "type": "graph",
-     "xaxis": {
-      "buckets": null,
-      "mode": "time",
-      "name": null,
-      "show": true,
-      "values": [
+     "type": "timeseries"
+    },
+    {
+     "datasource": "$datasource",
+     "fieldConfig": {
+      "defaults": {
+       "custom": {
+        "drawStyle": "line",
+        "fillOpacity": 1,
+        "lineWidth": 1,
+        "pointSize": 5,
+        "showPoints": "never",
+        "spanNulls": false,
+        "stacking": {
+         "group": "A",
+         "mode": "none"
+        }
+       },
+       "thresholds": {
+        "mode": "absolute",
+        "steps": [
+
+        ]
+       },
+       "unit": "ops"
+      },
+      "overrides": [
 
       ]
      },
-     "yaxes": [
-      {
-       "format": "short",
-       "label": null,
-       "logBase": 1,
-       "max": null,
-       "min": 0,
-       "show": true
-      },
-      {
-       "format": "short",
-       "label": null,
-       "logBase": 1,
-       "max": null,
-       "min": null,
-       "show": false
-      }
-     ]
-    },
-    {
-     "aliasColors": {
-
-     },
-     "bars": false,
-     "dashLength": 10,
-     "dashes": false,
-     "datasource": "$datasource",
-     "fill": 1,
      "id": 13,
-     "legend": {
-      "avg": false,
-      "current": false,
-      "max": false,
-      "min": false,
-      "show": true,
-      "total": false,
-      "values": false
-     },
-     "lines": true,
-     "linewidth": 1,
      "links": [
 
      ],
-     "nullPointMode": "null as zero",
-     "percentage": false,
-     "pointradius": 5,
-     "points": false,
-     "renderer": "flot",
-     "seriesOverrides": [
-
-     ],
-     "spaceLength": 10,
+     "options": {
+      "legend": {
+       "showLegend": true
+      },
+      "tooltip": {
+       "mode": "single",
+       "sort": "none"
+      }
+     },
      "span": 3,
-     "stack": false,
-     "steppedLine": false,
      "targets": [
       {
        "expr": "sum by(pod) (rate(tempo_live_store_blocks_completed_total{cluster=~\"$cluster\", container=\"live-store\"}[$__rate_interval]))",
@@ -1301,45 +1074,8 @@
        "legendLink": null
       }
      ],
-     "thresholds": [
-
-     ],
-     "timeFrom": null,
-     "timeShift": null,
      "title": "Completed Blocks",
-     "tooltip": {
-      "shared": true,
-      "sort": 2,
-      "value_type": "individual"
-     },
-     "type": "graph",
-     "xaxis": {
-      "buckets": null,
-      "mode": "time",
-      "name": null,
-      "show": true,
-      "values": [
-
-      ]
-     },
-     "yaxes": [
-      {
-       "format": "short",
-       "label": null,
-       "logBase": 1,
-       "max": null,
-       "min": 0,
-       "show": true
-      },
-      {
-       "format": "short",
-       "label": null,
-       "logBase": 1,
-       "max": null,
-       "min": null,
-       "show": false
-      }
-     ]
+     "type": "timeseries"
     }
    ],
    "repeat": null,
@@ -1366,8 +1102,7 @@
         "showPoints": "never",
         "spanNulls": false,
         "stacking": {
-         "group": "A",
-         "mode": "none"
+         "mode": "normal"
         }
        },
        "thresholds": {
@@ -1424,8 +1159,7 @@
         "showPoints": "never",
         "spanNulls": false,
         "stacking": {
-         "group": "A",
-         "mode": "none"
+         "mode": "normal"
         }
        },
        "thresholds": {
@@ -1493,123 +1227,104 @@
       "error": "#E24D42",
       "success": "#7EB26D"
      },
-     "bars": false,
-     "dashLength": 10,
-     "dashes": false,
      "datasource": "$datasource",
+     "fieldConfig": {
+      "defaults": {
+       "custom": {
+        "drawStyle": "line",
+        "fillOpacity": 1,
+        "lineWidth": 1,
+        "pointSize": 5,
+        "showPoints": "never",
+        "spanNulls": false,
+        "stacking": {
+         "mode": "normal"
+        }
+       },
+       "thresholds": {
+        "mode": "absolute",
+        "steps": [
+
+        ]
+       },
+       "unit": "ops"
+      },
+      "overrides": [
+
+      ]
+     },
      "fill": 10,
      "id": 16,
-     "legend": {
-      "avg": false,
-      "current": false,
-      "max": false,
-      "min": false,
-      "show": true,
-      "total": false,
-      "values": false
-     },
-     "lines": true,
      "linewidth": 0,
      "links": [
 
      ],
-     "nullPointMode": "null as zero",
-     "percentage": false,
-     "pointradius": 5,
-     "points": false,
-     "renderer": "flot",
-     "seriesOverrides": [
-
-     ],
-     "spaceLength": 10,
+     "options": {
+      "legend": {
+       "showLegend": true
+      },
+      "tooltip": {
+       "mode": "single",
+       "sort": "none"
+      }
+     },
      "span": 6,
      "stack": true,
-     "steppedLine": false,
      "targets": [
       {
-       "expr": "sum by (status) (\n  label_replace(label_replace(rate(tempo_memcache_request_duration_seconds_count{cluster=~\"$cluster\", job=~\"($namespace)/querier\",method=~\"Memcache.Get|Memcache.GetMulti\"}[$__rate_interval]),\n  \"status\", \"${1}xx\", \"status_code\", \"([0-9])..\"),\n  \"status\", \"${1}\", \"status_code\", \"([a-zA-Z]+)\"))\n",
+       "expr": "sum by (status) (\n  label_replace(label_replace(rate(tempo_memcache_request_duration_seconds_count{cluster=~\"$cluster\", job=~\"($namespace)/querier\",method=~\"Memcache.Get|Memcache.GetMulti\"}[$__rate_interval]),\n  \"status\", \"${1}xx\", \"status_code\", \"([0-9])..\"),\n  \"status\", \"${1}\", \"status_code\", \"([a-zA-Z_]+)\"))\n",
        "format": "time_series",
        "interval": "1m",
        "legendFormat": "{{status}}",
        "refId": "A"
       }
      ],
-     "thresholds": [
-
-     ],
-     "timeFrom": null,
-     "timeShift": null,
      "title": "QPS",
-     "tooltip": {
-      "shared": true,
-      "sort": 2,
-      "value_type": "individual"
-     },
-     "type": "graph",
-     "xaxis": {
-      "buckets": null,
-      "mode": "time",
-      "name": null,
-      "show": true,
-      "values": [
+     "type": "timeseries"
+    },
+    {
+     "datasource": "$datasource",
+     "fieldConfig": {
+      "defaults": {
+       "custom": {
+        "drawStyle": "line",
+        "fillOpacity": 1,
+        "lineWidth": 1,
+        "pointSize": 5,
+        "showPoints": "never",
+        "spanNulls": false,
+        "stacking": {
+         "group": "A",
+         "mode": "none"
+        }
+       },
+       "thresholds": {
+        "mode": "absolute",
+        "steps": [
+
+        ]
+       },
+       "unit": "ms"
+      },
+      "overrides": [
 
       ]
      },
-     "yaxes": [
-      {
-       "format": "short",
-       "label": null,
-       "logBase": 1,
-       "max": null,
-       "min": 0,
-       "show": true
-      },
-      {
-       "format": "short",
-       "label": null,
-       "logBase": 1,
-       "max": null,
-       "min": null,
-       "show": false
-      }
-     ]
-    },
-    {
-     "aliasColors": {
-
-     },
-     "bars": false,
-     "dashLength": 10,
-     "dashes": false,
-     "datasource": "$datasource",
-     "fill": 1,
      "id": 17,
-     "legend": {
-      "avg": false,
-      "current": false,
-      "max": false,
-      "min": false,
-      "show": true,
-      "total": false,
-      "values": false
-     },
-     "lines": true,
-     "linewidth": 1,
      "links": [
 
      ],
      "nullPointMode": "null as zero",
-     "percentage": false,
-     "pointradius": 5,
-     "points": false,
-     "renderer": "flot",
-     "seriesOverrides": [
-
-     ],
-     "spaceLength": 10,
+     "options": {
+      "legend": {
+       "showLegend": true
+      },
+      "tooltip": {
+       "mode": "single",
+       "sort": "none"
+      }
+     },
      "span": 6,
-     "stack": false,
-     "steppedLine": false,
      "targets": [
       {
        "expr": "histogram_quantile(0.99, sum(rate(tempo_memcache_request_duration_seconds_bucket{cluster=~\"$cluster\", job=~\"($namespace)/querier\",method=~\"Memcache.Get|Memcache.GetMulti\"}[$__rate_interval])) by (le,)) * 1e3",
@@ -1639,27 +1354,8 @@
        "step": 10
       }
      ],
-     "thresholds": [
-
-     ],
-     "timeFrom": null,
-     "timeShift": null,
      "title": "Latency",
-     "tooltip": {
-      "shared": true,
-      "sort": 2,
-      "value_type": "individual"
-     },
-     "type": "graph",
-     "xaxis": {
-      "buckets": null,
-      "mode": "time",
-      "name": null,
-      "show": true,
-      "values": [
-
-      ]
-     },
+     "type": "timeseries",
      "yaxes": [
       {
        "format": "ms",
@@ -1703,123 +1399,104 @@
       "error": "#E24D42",
       "success": "#7EB26D"
      },
-     "bars": false,
-     "dashLength": 10,
-     "dashes": false,
      "datasource": "$datasource",
+     "fieldConfig": {
+      "defaults": {
+       "custom": {
+        "drawStyle": "line",
+        "fillOpacity": 1,
+        "lineWidth": 1,
+        "pointSize": 5,
+        "showPoints": "never",
+        "spanNulls": false,
+        "stacking": {
+         "mode": "normal"
+        }
+       },
+       "thresholds": {
+        "mode": "absolute",
+        "steps": [
+
+        ]
+       },
+       "unit": "ops"
+      },
+      "overrides": [
+
+      ]
+     },
      "fill": 10,
      "id": 18,
-     "legend": {
-      "avg": false,
-      "current": false,
-      "max": false,
-      "min": false,
-      "show": true,
-      "total": false,
-      "values": false
-     },
-     "lines": true,
      "linewidth": 0,
      "links": [
 
      ],
-     "nullPointMode": "null as zero",
-     "percentage": false,
-     "pointradius": 5,
-     "points": false,
-     "renderer": "flot",
-     "seriesOverrides": [
-
-     ],
-     "spaceLength": 10,
+     "options": {
+      "legend": {
+       "showLegend": true
+      },
+      "tooltip": {
+       "mode": "single",
+       "sort": "none"
+      }
+     },
      "span": 6,
      "stack": true,
-     "steppedLine": false,
      "targets": [
       {
-       "expr": "sum by (status) (\n  label_replace(label_replace(rate(tempodb_backend_request_duration_seconds_count{cluster=~\"$cluster\", job=~\"($namespace)/querier\",operation=\"GET\"}[$__rate_interval]),\n  \"status\", \"${1}xx\", \"status_code\", \"([0-9])..\"),\n  \"status\", \"${1}\", \"status_code\", \"([a-zA-Z]+)\"))\n",
+       "expr": "sum by (status) (\n  label_replace(label_replace(rate(tempodb_backend_request_duration_seconds_count{cluster=~\"$cluster\", job=~\"($namespace)/querier\",operation=\"GET\"}[$__rate_interval]),\n  \"status\", \"${1}xx\", \"status_code\", \"([0-9])..\"),\n  \"status\", \"${1}\", \"status_code\", \"([a-zA-Z_]+)\"))\n",
        "format": "time_series",
        "interval": "1m",
        "legendFormat": "{{status}}",
        "refId": "A"
       }
      ],
-     "thresholds": [
-
-     ],
-     "timeFrom": null,
-     "timeShift": null,
      "title": "QPS",
-     "tooltip": {
-      "shared": true,
-      "sort": 2,
-      "value_type": "individual"
-     },
-     "type": "graph",
-     "xaxis": {
-      "buckets": null,
-      "mode": "time",
-      "name": null,
-      "show": true,
-      "values": [
+     "type": "timeseries"
+    },
+    {
+     "datasource": "$datasource",
+     "fieldConfig": {
+      "defaults": {
+       "custom": {
+        "drawStyle": "line",
+        "fillOpacity": 1,
+        "lineWidth": 1,
+        "pointSize": 5,
+        "showPoints": "never",
+        "spanNulls": false,
+        "stacking": {
+         "group": "A",
+         "mode": "none"
+        }
+       },
+       "thresholds": {
+        "mode": "absolute",
+        "steps": [
+
+        ]
+       },
+       "unit": "ms"
+      },
+      "overrides": [
 
       ]
      },
-     "yaxes": [
-      {
-       "format": "short",
-       "label": null,
-       "logBase": 1,
-       "max": null,
-       "min": 0,
-       "show": true
-      },
-      {
-       "format": "short",
-       "label": null,
-       "logBase": 1,
-       "max": null,
-       "min": null,
-       "show": false
-      }
-     ]
-    },
-    {
-     "aliasColors": {
-
-     },
-     "bars": false,
-     "dashLength": 10,
-     "dashes": false,
-     "datasource": "$datasource",
-     "fill": 1,
      "id": 19,
-     "legend": {
-      "avg": false,
-      "current": false,
-      "max": false,
-      "min": false,
-      "show": true,
-      "total": false,
-      "values": false
-     },
-     "lines": true,
-     "linewidth": 1,
      "links": [
 
      ],
      "nullPointMode": "null as zero",
-     "percentage": false,
-     "pointradius": 5,
-     "points": false,
-     "renderer": "flot",
-     "seriesOverrides": [
-
-     ],
-     "spaceLength": 10,
+     "options": {
+      "legend": {
+       "showLegend": true
+      },
+      "tooltip": {
+       "mode": "single",
+       "sort": "none"
+      }
+     },
      "span": 6,
-     "stack": false,
-     "steppedLine": false,
      "targets": [
       {
        "expr": "histogram_quantile(0.99, sum(rate(tempodb_backend_request_duration_seconds_bucket{cluster=~\"$cluster\", job=~\"($namespace)/querier\",operation=\"GET\"}[$__rate_interval])) by (le,)) * 1e3",
@@ -1849,27 +1526,8 @@
        "step": 10
       }
      ],
-     "thresholds": [
-
-     ],
-     "timeFrom": null,
-     "timeShift": null,
      "title": "Latency",
-     "tooltip": {
-      "shared": true,
-      "sort": 2,
-      "value_type": "individual"
-     },
-     "type": "graph",
-     "xaxis": {
-      "buckets": null,
-      "mode": "time",
-      "name": null,
-      "show": true,
-      "values": [
-
-      ]
-     },
+     "type": "timeseries",
      "yaxes": [
       {
        "format": "ms",

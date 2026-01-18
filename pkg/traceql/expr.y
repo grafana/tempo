@@ -422,7 +422,6 @@ static:
 // Going forward with scoped intrinsics only
 intrinsicField:
     IDURATION       { $$ = NewIntrinsic(IntrinsicDuration)         }
-  | CHILDCOUNT      { $$ = NewIntrinsic(IntrinsicChildCount)       }
   | NAME            { $$ = NewIntrinsic(IntrinsicName)             }
   | STATUS          { $$ = NewIntrinsic(IntrinsicStatus)           }
   | STATUS_MESSAGE  { $$ = NewIntrinsic(IntrinsicStatusMessage)    }
@@ -450,6 +449,7 @@ scopedIntrinsicField:
   | SPAN_COLON STATUS_MESSAGE       { $$ = NewIntrinsic(IntrinsicStatusMessage)          }
   | SPAN_COLON ID                   { $$ = NewIntrinsic(IntrinsicSpanID)                 }
   | SPAN_COLON PARENT_ID            { $$ = NewIntrinsic(IntrinsicParentID)               }
+  | SPAN_COLON CHILDCOUNT           { $$ = NewIntrinsic(IntrinsicChildCount)             }
 // event:             
   | EVENT_COLON NAME                { $$ = NewIntrinsic(IntrinsicEventName)              }
   | EVENT_COLON TIMESINCESTART      { $$ = NewIntrinsic(IntrinsicEventTimeSinceStart)    }

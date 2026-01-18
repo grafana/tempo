@@ -85,6 +85,8 @@ func DedicatedColumnScopeFromTempopb(s tempopb.DedicatedColumn_Scope) (Dedicated
 		return DedicatedColumnScopeSpan, nil
 	case tempopb.DedicatedColumn_RESOURCE:
 		return DedicatedColumnScopeResource, nil
+	case tempopb.DedicatedColumn_EVENT:
+		return DedicatedColumnScopeEvent, nil
 	default:
 		return "", fmt.Errorf("invalid value for tempopb.DedicatedColumn_Scope '%v'", s)
 	}
@@ -96,6 +98,8 @@ func (s DedicatedColumnScope) ToTempopb() (tempopb.DedicatedColumn_Scope, error)
 		return tempopb.DedicatedColumn_SPAN, nil
 	case DedicatedColumnScopeResource:
 		return tempopb.DedicatedColumn_RESOURCE, nil
+	case DedicatedColumnScopeEvent:
+		return tempopb.DedicatedColumn_EVENT, nil
 	default:
 		return 0, fmt.Errorf("invalid value for dedicated column scope '%v'", s)
 	}

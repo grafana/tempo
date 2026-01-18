@@ -999,14 +999,16 @@ func fullyPopulatedTestTraceWithOption(id common.ID, parentIDTest bool) *Trace {
 		DurationNano:      uint64((100 * time.Millisecond).Nanoseconds()),
 		RootServiceName:   "RootService",
 		RootSpanName:      "RootSpan",
-		ServiceStats: map[string]ServiceStats{
-			"myservice": {
-				SpanCount:  1,
-				ErrorCount: 0,
+		ServiceStats: []ServiceStats{
+			{
+				ServiceName: "myservice",
+				SpanCount:   1,
+				ErrorCount:  0,
 			},
-			"service2": {
-				SpanCount:  1,
-				ErrorCount: 0,
+			{
+				ServiceName: "service2",
+				SpanCount:   1,
+				ErrorCount:  0,
 			},
 		},
 		ResourceSpans: []ResourceSpans{
@@ -1166,6 +1168,7 @@ func fullyPopulatedTestTraceWithOption(id common.ID, parentIDTest bool) *Trace {
 						SpanCount: 1,
 						Spans: []Span{
 							{
+								ParentSpanID:           []byte{},
 								SpanID:                 []byte("spanid2"),
 								Name:                   "world",
 								StartTimeUnixNano:      uint64(200 * time.Second),
@@ -1196,6 +1199,146 @@ func fullyPopulatedTestTraceWithOption(id common.ID, parentIDTest bool) *Trace {
 			},
 		},
 	}
+}
+
+// mixedArrayTestTrace - similar to the fullyPopulatedTestTrace, but this trace contains
+// attributes that are both flat and array values, within the same attribute key, and configured
+// for dedicated columns. This is to test handling of mixed array/non-array data within an attribute.
+func mixedArrayTestTrace() (*Trace, backend.DedicatedColumns) {
+	// Testing all types of dedicated columns
+	dc := []backend.DedicatedColumn{
+		{
+			Scope: "resource",
+			Name:  "rs",
+			Type:  "string",
+		},
+		{
+			Scope: "resource",
+			Name:  "ri",
+			Type:  "int",
+		},
+		{
+			Scope: "span",
+			Name:  "ss",
+			Type:  "string",
+		},
+		{
+			Scope: "span",
+			Name:  "si",
+			Type:  "int",
+		},
+		{
+			Scope: "event",
+			Name:  "es",
+			Type:  "string",
+		},
+		{
+			Scope: "event",
+			Name:  "ei",
+			Type:  "int",
+		},
+	}
+
+	// Populating all types of dedicated columns and mixed array/non-array attributes.
+	tr := &Trace{
+		TraceID: test.ValidTraceID(nil),
+		ResourceSpans: []ResourceSpans{
+			{
+				Resource: Resource{
+					ServiceName: "flat",
+					Attrs: []Attribute{
+						attr("rs-generic", "a"),
+						attr("ri-generic", 1),
+					},
+					DedicatedAttributes: DedicatedAttributes{
+						String01: []string{"a"},
+						Int01:    []int64{1},
+					},
+				},
+				ScopeSpans: []ScopeSpans{
+					{
+						SpanCount: 1,
+						Spans: []Span{
+							{
+								SpanID:       []byte{},
+								ParentSpanID: []byte{},
+								Name:         "flat",
+								Attrs: []Attribute{
+									attr("ss-generic", "b"),
+									attr("si-generic", 2),
+								},
+								DedicatedAttributes: DedicatedAttributes{
+									String01: []string{"b"},
+									Int01:    []int64{2},
+								},
+								Events: []Event{
+									{
+										Name: "flat",
+										Attrs: []Attribute{
+											attr("es-generic", "e"),
+											attr("ei-generic", 5),
+										},
+										DedicatedAttributes: DedicatedAttributes{
+											String01: []string{"e"},
+											Int01:    []int64{5},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			{
+				Resource: Resource{
+					ServiceName: "arrays",
+					Attrs: []Attribute{
+						attr("rs-generic", []string{"a", "b"}),
+						attr("ri-generic", []int64{1, 2}),
+					},
+					DedicatedAttributes: DedicatedAttributes{
+						String01: []string{"b", "c"},
+						Int01:    []int64{1},
+					},
+				},
+				ScopeSpans: []ScopeSpans{
+					{
+						SpanCount: 1,
+						Spans: []Span{
+							{
+								SpanID:       []byte{},
+								ParentSpanID: []byte{},
+								Name:         "arrays",
+								Attrs: []Attribute{
+									attr("ss-generic", []string{"c", "d"}),
+									attr("si-generic", []int64{3, 4}),
+								},
+								DedicatedAttributes: DedicatedAttributes{
+									String01: []string{"c", "d"},
+									Int01:    []int64{3, 4},
+								},
+								Events: []Event{
+									{
+										Name: "event-arrays",
+										Attrs: []Attribute{
+											attr("es-generic", []string{"f", "g"}),
+											attr("ei-generic", []int64{6, 7}),
+										},
+										DedicatedAttributes: DedicatedAttributes{
+											String01: []string{"f", "g"},
+											Int01:    []int64{6, 7},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	return tr, dc
 }
 
 func TestBackendBlockSelectAll(t *testing.T) {
@@ -1374,6 +1517,7 @@ func flattenForSelectAll(tr *Trace, dcm dedicatedColumnMapping) *traceql.Spanset
 				newS.setTraceAttrs(traceAttrs)
 				newS.setResourceAttrs(rsAttrs)
 				newS.setInstrumentationAttrs(instrumentationAttrs)
+				newS.addSpanAttr(traceql.IntrinsicChildCountAttribute, traceql.NewStaticInt(int(s.ChildCount)))
 				newS.addSpanAttr(traceql.IntrinsicDurationAttribute, traceql.NewStaticDuration(time.Duration(s.DurationNano)))
 				newS.addSpanAttr(traceql.IntrinsicKindAttribute, traceql.NewStaticKind(otlpKindToTraceqlKind(uint64(s.Kind))))
 				newS.addSpanAttr(traceql.IntrinsicNameAttribute, traceql.NewStaticString(s.Name))

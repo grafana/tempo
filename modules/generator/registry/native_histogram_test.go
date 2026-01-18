@@ -889,3 +889,76 @@ func Test_nativeHistogram_onUpdate(t *testing.T) {
 		assert.Equal(t, initialUpdates+2, seriesUpdated)
 	})
 }
+
+// Test that native histograms emit a leading zero for new series.
+// This avoids Prometheus discarding the first value when transitioning from null -> x.
+func Test_nativeHistogram_leadingZero(t *testing.T) {
+	collectionTimeMs := time.Now().UnixMilli()
+	endOfLastMinuteMs := getEndOfLastMinuteMs(collectionTimeMs)
+
+	t.Run("native_mode", func(t *testing.T) {
+		h := newNativeHistogram("test_histogram", []float64{}, noopLimiter, "trace_id", HistogramModeNative, nil, testTenant, &mockOverrides{}, 15*time.Minute)
+
+		lbls := buildTestLabels([]string{"label"}, []string{"value-1"})
+		h.ObserveWithExemplar(lbls, 1.5, "trace-1", 1.0)
+
+		// First collection: leading zero + actual value
+		appender1 := &capturingAppender{}
+		err := h.collectMetrics(appender1, collectionTimeMs)
+		require.NoError(t, err)
+		require.Len(t, appender1.histograms, 2, "First collection should have 2 histograms")
+
+		assert.Equal(t, endOfLastMinuteMs, appender1.histograms[0].t)
+		assert.Equal(t, uint64(0), appender1.histograms[0].h.Count)
+		assert.Equal(t, collectionTimeMs, appender1.histograms[1].t)
+		assert.Equal(t, uint64(1), appender1.histograms[1].h.Count)
+
+		// Second collection: no leading zero
+		h.ObserveWithExemplar(lbls, 2.5, "trace-2", 1.0)
+		appender2 := &capturingAppender{}
+		err = h.collectMetrics(appender2, collectionTimeMs+1000)
+		require.NoError(t, err)
+		require.Len(t, appender2.histograms, 1, "Second collection should have only 1 histogram")
+		assert.Equal(t, uint64(2), appender2.histograms[0].h.Count)
+	})
+
+	t.Run("both_mode", func(t *testing.T) {
+		h := newNativeHistogram("test_histogram", []float64{1, 2}, noopLimiter, "trace_id", HistogramModeBoth, nil, testTenant, &mockOverrides{}, 15*time.Minute)
+
+		lbls := buildTestLabels([]string{"label"}, []string{"value-1"})
+		h.ObserveWithExemplar(lbls, 1.5, "trace-1", 1.0)
+
+		// First collection: both native and classic should have leading zeros
+		appender1 := &capturingAppender{}
+		err := h.collectMetrics(appender1, collectionTimeMs)
+		require.NoError(t, err)
+
+		// Native: leading zero + actual
+		require.Len(t, appender1.histograms, 2)
+		assert.Equal(t, endOfLastMinuteMs, appender1.histograms[0].t)
+		assert.Equal(t, uint64(0), appender1.histograms[0].h.Count)
+		assert.Equal(t, collectionTimeMs, appender1.histograms[1].t)
+		assert.Equal(t, uint64(1), appender1.histograms[1].h.Count)
+
+		// Classic: verify leading zeros exist
+		hasClassicLeadingZero := false
+		for _, s := range appender1.samples {
+			if s.t == endOfLastMinuteMs && s.v == 0 {
+				hasClassicLeadingZero = true
+				break
+			}
+		}
+		assert.True(t, hasClassicLeadingZero, "Classic histograms should have leading zeros")
+
+		// Second collection: no leading zeros for either
+		h.ObserveWithExemplar(lbls, 2.5, "trace-2", 1.0)
+		appender2 := &capturingAppender{}
+		err = h.collectMetrics(appender2, collectionTimeMs+1000)
+		require.NoError(t, err)
+		require.Len(t, appender2.histograms, 1, "Second collection should have only 1 native histogram")
+
+		for _, s := range appender2.samples {
+			assert.NotEqual(t, endOfLastMinuteMs, s.t, "Second collection should have no classic leading zeros")
+		}
+	})
+}

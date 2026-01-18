@@ -230,7 +230,7 @@ services:
       - redpanda-data:/var/lib/redpanda/data
 
   redpanda-console:
-    image: docker.redpanda.com/redpandadata/console:v2.7.0@sha256:6ee7ed1203a7d4fd4181765929b28cb2450296402d82cd4d1c491c2d5191f45d
+    image: docker.redpanda.com/redpandadata/console:v2.8.10@sha256:1e257ad592984566c69369227f6200a878165417b42ff18a5f8815df56bc4a7c
     environment:
       - CONFIG_FILEPATH=/etc/redpanda/redpanda-console-config.yaml
     volumes:
@@ -240,7 +240,7 @@ services:
     depends_on:
       - redpanda
   alloy:
-    image: grafana/alloy:v1.12.1@sha256:c311595156fca7b1131683d383dae1acfd29e8879d347161d2a6f714ebac0c0b
+    image: grafana/alloy:v1.12.2@sha256:f94b1c82957accb77cd11385fd5e3600758ef1b1ab79557c97319ad28590735a
     volumes:
       - ../shared/config.alloy:/etc/alloy/config.alloy
     command:

@@ -1,0 +1,6 @@
+multitenancy_enabled: true
+
+overrides:
+  user_configurable_overrides:
+    enabled: true
+    poll_interval: 10s
