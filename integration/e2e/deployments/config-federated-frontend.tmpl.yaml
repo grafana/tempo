@@ -1,0 +1,28 @@
+target: federated-query-frontend
+stream_over_http_enabled: true
+
+server:
+  http_listen_port: 3200
+
+query_frontend:
+  max_batch_size: 10
+
+
+federated_frontend:
+  concurrent_requests: 4
+  instances:
+  {{ range .Instances }}   
+  - name: {{ .Name }}
+    endpoint: {{ .Endpoint }}
+    timeout: 30s
+  {{ end }}
+storage:
+  trace:
+    backend: local
+    local:
+      path: /tmp/tempo/traces
+
+overrides:
+  defaults:
+    metrics_generator:
+      processors: []

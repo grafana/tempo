@@ -194,6 +194,48 @@ func NewTempoMetricsGenerator(extraArgs ...string) *e2e.HTTPService {
 	return s
 }
 
+func NewTempoAllInOneWithName(name string, extraArgs ...string) *e2e.HTTPService {
+	args := buildArgsWithExtra(nil, extraArgs)
+
+	s := e2e.NewHTTPService(
+		name,
+		image,
+		e2e.NewCommandWithoutEntrypoint("/tempo", args...),
+		e2e.NewHTTPReadinessProbe(3200, "/ready", 200, 299),
+		3200,  // http all things
+		3201,  // http all things
+		9095,  // grpc tempo
+		14250, // jaeger grpc ingest
+		9411,  // zipkin ingest (used by load)
+		4317,  // otlp grpc
+		4318,  // OTLP HTTP
+	)
+
+	s.SetBackoff(TempoBackoff())
+
+	return s
+}
+
+func NewTempoFederatedFrontend(extraArgs ...string) *e2e.HTTPService {
+	return NewNamedTempoFederatedFrontend("federated-frontend", extraArgs...)
+}
+
+func NewNamedTempoFederatedFrontend(name string, extraArgs ...string) *e2e.HTTPService {
+	args := buildArgsWithExtra(nil, extraArgs)
+
+	s := e2e.NewHTTPService(
+		name,
+		image,
+		e2e.NewCommandWithoutEntrypoint("/tempo", args...),
+		e2e.NewHTTPReadinessProbe(3200, "/ready", 200, 299),
+		3200,
+	)
+
+	s.SetBackoff(TempoBackoff())
+
+	return s
+}
+
 func NewTempoQueryFrontend(extraArgs ...string) *e2e.HTTPService {
 	return NewNamedTempoQueryFrontend("query-frontend", extraArgs...)
 }
