@@ -69,6 +69,7 @@ type Config struct {
 	BackenSchedulerClient backendscheduler_client.Config `yaml:"backend_scheduler_client,omitempty"`
 	BackendWorker         backendworker.Config           `yaml:"backend_worker,omitempty"`
 	LiveStore             livestore.Config               `yaml:"live_store,omitempty"`
+	FederatedFrontend     frontend.FederatedConfig       `yaml:"federated_frontend,omitempty"`
 }
 
 func NewDefaultConfig() *Config {

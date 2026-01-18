@@ -1,6 +1,7 @@
 package frontend
 
 import (
+	"flag"
 	"fmt"
 	"net/http"
 	"time"
@@ -18,22 +19,48 @@ import (
 	"github.com/grafana/tempo/tempodb"
 )
 
-// NewFederated creates a new QueryFrontend configured for federation mode.
-func NewFederated(cfg Config, next pipeline.RoundTripper, o overrides.Interface, reader tempodb.Reader, cacheProvider cache.Provider, apiPrefix string, authMiddleware middleware.Interface, dataAccessController DataAccessController, logger log.Logger, registerer prometheus.Registerer) (*QueryFrontend, error) {
-	level.Info(logger).Log("msg", "creating federated query frontend", "instances", len(cfg.Federation.Instances))
+// FederatedConfig configures the federated frontend to query multiple Tempo instances.
+type FederatedConfig struct {
+	// Instances is the list of Tempo instances to query
+	Instances []FederatedInstance `yaml:"instances,omitempty"`
+	// ConcurrentRequests is the maximum number of concurrent requests to instances
+	ConcurrentRequests int `yaml:"concurrent_requests,omitempty"`
+}
 
-	if !cfg.Federation.Enabled || len(cfg.Federation.Instances) == 0 {
-		return nil, fmt.Errorf("federation must be enabled with at least one instance configured")
+// FederatedInstance represents a single Tempo instance configuration for federation.
+type FederatedInstance struct {
+	// Name is a friendly name for this instance
+	Name string `yaml:"name"`
+	// Endpoint is the base URL for this Tempo instance (e.g., "http://tempo-1:3200")
+	Endpoint string `yaml:"endpoint"`
+	// OrgID is the tenant ID to use for this instance (optional, overrides the request tenant)
+	OrgID string `yaml:"org_id,omitempty"`
+	// Timeout is the request timeout for this instance
+	Timeout time.Duration `yaml:"timeout,omitempty"`
+	// Headers are additional headers to send with requests
+	Headers map[string]string `yaml:"headers,omitempty"`
+}
+
+// RegisterFlagsAndApplyDefaults registers flags and applies defaults.
+func (c *FederatedConfig) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
+	c.ConcurrentRequests = 4
+}
+
+// NewFederated creates a new Frontend configured for federation mode.
+func NewFederated(cfg Config, fedCfg FederatedConfig, next pipeline.RoundTripper, o overrides.Interface, reader tempodb.Reader, cacheProvider cache.Provider, apiPrefix string, authMiddleware middleware.Interface, dataAccessController DataAccessController, logger log.Logger, registerer prometheus.Registerer) (*QueryFrontend, error) {
+	level.Info(logger).Log("msg", "creating federated query frontend", "instances", len(fedCfg.Instances))
+
+	if len(fedCfg.Instances) == 0 {
+		return nil, fmt.Errorf("federation must have at least one instance configured")
 	}
 
 	// Build federation config
-	federationCfg := pipeline.FederationConfig{
-		Enabled:            true,
-		ConcurrentRequests: cfg.Federation.ConcurrentRequests,
+	pipelineFederationCfg := pipeline.FederationConfig{
+		ConcurrentRequests: fedCfg.ConcurrentRequests,
 	}
 	maxTimeout := 30 * time.Second
-	for _, inst := range cfg.Federation.Instances {
-		federationCfg.Instances = append(federationCfg.Instances, pipeline.FederationInstance{
+	for _, inst := range fedCfg.Instances {
+		pipelineFederationCfg.Instances = append(pipelineFederationCfg.Instances, pipeline.FederationInstance{
 			Name:     inst.Name,
 			Endpoint: inst.Endpoint,
 			OrgID:    inst.OrgID,
@@ -46,7 +73,7 @@ func NewFederated(cfg Config, next pipeline.RoundTripper, o overrides.Interface,
 	}
 
 	// Create middlewares
-	federationSharder := pipeline.NewAsyncFederationSharder(federationCfg, logger)
+	federationSharder := pipeline.NewAsyncFederationSharder(pipelineFederationCfg, logger)
 	retryWare := pipeline.NewRetryWare(cfg.MaxRetries, cfg.Weights.RetryWithWeights, registerer)
 	traceIDStatusCodeWare := pipeline.NewStatusCodeAdjustWareWithAllowedCode(http.StatusNotFound)
 	urlDenyListWare := pipeline.NewURLDenyListWare(cfg.URLDenyList)

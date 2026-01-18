@@ -24,7 +24,6 @@ type Config struct {
 	ResponseConsumers         int                    `yaml:"response_consumers"`
 	Weights                   pipeline.WeightsConfig `yaml:"weights"`
 	MCPServer                 MCPServerConfig        `yaml:"mcp_server"`
-	Federation                FederationConfig       `yaml:"federation,omitempty"`
 
 	// the maximum time limit that tempo will work on an api request. this includes both
 	// grpc and http requests and applies to all "api" frontend query endpoints such as
@@ -50,30 +49,6 @@ type Config struct {
 
 type MCPServerConfig struct {
 	Enabled bool `yaml:"enabled"`
-}
-
-// FederationConfig configures federation to query multiple Tempo instances.
-type FederationConfig struct {
-	// Enabled enables federation mode
-	Enabled bool `yaml:"enabled,omitempty"`
-	// Instances is the list of Tempo instances to query
-	Instances []TempoInstance `yaml:"instances,omitempty"`
-	// ConcurrentRequests is the maximum number of concurrent requests to instances
-	ConcurrentRequests int `yaml:"concurrent_requests,omitempty"`
-}
-
-// TempoInstance represents a single Tempo instance configuration for federation.
-type TempoInstance struct {
-	// Name is a friendly name for this instance
-	Name string `yaml:"name"`
-	// Endpoint is the base URL for this Tempo instance (e.g., "http://tempo-1:3200")
-	Endpoint string `yaml:"endpoint"`
-	// OrgID is the tenant ID to use for this instance (optional, overrides the request tenant)
-	OrgID string `yaml:"org_id,omitempty"`
-	// Timeout is the request timeout for this instance
-	Timeout time.Duration `yaml:"timeout,omitempty"`
-	// Headers are additional headers to send with requests
-	Headers map[string]string `yaml:"headers,omitempty"`
 }
 
 type SearchConfig struct {

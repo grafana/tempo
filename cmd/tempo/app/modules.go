@@ -82,6 +82,7 @@ const (
 	MetricsGeneratorNoLocalBlocks string = "metrics-generator-no-local-blocks"
 	Querier                       string = "querier"
 	QueryFrontend                 string = "query-frontend"
+	FederatedQueryFrontend        string = "federated-query-frontend"
 	Compactor                     string = "compactor"
 	BlockBuilder                  string = "block-builder"
 	BackendScheduler              string = "backend-scheduler"
@@ -532,21 +533,10 @@ func (t *App) initQueryFrontend() (services.Service, error) {
 	}
 	t.frontend = v1
 
-	var queryFrontend *frontend.QueryFrontend
-	// Check if federation is enabled and use the federated constructor
-	if t.cfg.Frontend.Federation.Enabled {
-		// create Http RoundTripper for federation
-		httpTripper := pipeline.NewHTTPRoundTripper(t.cfg.Frontend.APITimeout, log.Logger)
-		queryFrontend, err = frontend.NewFederated(t.cfg.Frontend, httpTripper, t.Overrides, t.store, t.cacheProvider, t.cfg.HTTPAPIPrefix, t.HTTPAuthMiddleware, t.DataAccessController, log.Logger, prometheus.DefaultRegisterer)
-		if err != nil {
-			return nil, err
-		}
-	} else {
-		// create query frontend
-		queryFrontend, err = frontend.New(t.cfg.Frontend, cortexTripper, t.Overrides, t.store, t.cacheProvider, t.cfg.HTTPAPIPrefix, t.HTTPAuthMiddleware, t.DataAccessController, log.Logger, prometheus.DefaultRegisterer)
-		if err != nil {
-			return nil, err
-		}
+	// create query frontend
+	queryFrontend, err := frontend.New(t.cfg.Frontend, cortexTripper, t.Overrides, t.store, t.cacheProvider, t.cfg.HTTPAPIPrefix, t.HTTPAuthMiddleware, t.DataAccessController, log.Logger, prometheus.DefaultRegisterer)
+	if err != nil {
+		return nil, err
 	}
 
 	// register grpc server for queriers to connect to
@@ -601,6 +591,43 @@ func (t *App) initQueryFrontend() (services.Service, error) {
 
 	// todo: queryFrontend should implement service.Service and take the cortex frontend a submodule
 	return t.frontend, nil
+}
+
+func (t *App) initFederatedQueryFrontend() (services.Service, error) {
+	// create Http RoundTripper for federation
+	httpTripper := pipeline.NewHTTPRoundTripper(t.cfg.Frontend.APITimeout, log.Logger)
+
+	// create federated query frontend
+	queryFrontend, err := frontend.NewFederated(t.cfg.Frontend, t.cfg.FederatedFrontend, httpTripper, t.Overrides, t.store, t.cacheProvider, t.cfg.HTTPAPIPrefix, t.HTTPAuthMiddleware, t.DataAccessController, log.Logger, prometheus.DefaultRegisterer)
+	if err != nil {
+		return nil, err
+	}
+
+	// we register the streaming querier service on both the http and grpc servers. Grafana expects
+	// this GRPC service to be available on the HTTP server.
+	tempopb.RegisterStreamingQuerierServer(t.Server.GRPC(), queryFrontend)
+
+	httpAPIMiddleware := []middleware.Interface{
+		t.HTTPAuthMiddleware,
+		httpGzipMiddleware(),
+	}
+
+	// use the api timeout for http requests if set
+	if t.cfg.Frontend.APITimeout > 0 {
+		httpAPIMiddleware = append(httpAPIMiddleware, middleware.NewTimeoutMiddleware(t.cfg.Frontend.APITimeout, "unable to process request in the configured timeout", kitlog.NewNopLogger()))
+	}
+
+	// wrap handlers with auth
+	base := middleware.Merge(httpAPIMiddleware...)
+
+	// http trace by id endpoint
+	t.Server.HTTPRouter().Handle(addHTTPAPIPrefix(&t.cfg, api.PathTraces), base.Wrap(queryFrontend.TraceByIDHandler))
+	t.Server.HTTPRouter().Handle(addHTTPAPIPrefix(&t.cfg, api.PathTracesV2), base.Wrap(queryFrontend.TraceByIDHandlerV2))
+
+	// http query echo endpoint
+	t.Server.HTTPRouter().Handle(addHTTPAPIPrefix(&t.cfg, api.PathEcho), echoHandler())
+
+	return services.NewIdleService(nil, nil), nil
 }
 
 //go:embed static
@@ -861,6 +888,7 @@ func (t *App) setupModuleManager() error {
 	mm.RegisterModule(Ingester, t.initIngester)
 	mm.RegisterModule(Querier, t.initQuerier)
 	mm.RegisterModule(QueryFrontend, t.initQueryFrontend)
+	mm.RegisterModule(FederatedQueryFrontend, t.initFederatedQueryFrontend)
 	mm.RegisterModule(Compactor, t.initCompactor)
 	mm.RegisterModule(MetricsGenerator, t.initGenerator)
 	mm.RegisterModule(MetricsGeneratorNoLocalBlocks, t.initGeneratorNoLocalBlocks)
@@ -893,6 +921,7 @@ func (t *App) setupModuleManager() error {
 
 		// individual targets
 		QueryFrontend:                 {Common, Store, OverridesAPI},
+		FederatedQueryFrontend:        {Common, Store, OverridesAPI},
 		Distributor:                   {Common, IngesterRing, MetricsGeneratorRing, PartitionRing},
 		Ingester:                      {Common, Store, MemberlistKV, PartitionRing},
 		MetricsGenerator:              {Common, OptionalStore, MemberlistKV, PartitionRing},

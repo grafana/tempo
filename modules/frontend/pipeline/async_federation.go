@@ -24,7 +24,6 @@ type FederationInstance struct {
 
 // FederationConfig holds the configuration for federation.
 type FederationConfig struct {
-	Enabled            bool
 	Instances          []FederationInstance
 	ConcurrentRequests int
 }
@@ -40,11 +39,6 @@ type asyncFederationSharder struct {
 // NewAsyncFederationSharder creates a new federation sharder middleware.
 func NewAsyncFederationSharder(cfg FederationConfig, logger log.Logger) AsyncMiddleware[combiner.PipelineResponse] {
 	return AsyncMiddlewareFunc[combiner.PipelineResponse](func(next AsyncRoundTripper[combiner.PipelineResponse]) AsyncRoundTripper[combiner.PipelineResponse] {
-		// If federation is not enabled or no instances configured, pass through
-		if !cfg.Enabled || len(cfg.Instances) == 0 {
-			return next
-		}
-
 		timeout := 30 * time.Second
 		for _, inst := range cfg.Instances {
 			if inst.Timeout > timeout {
@@ -188,7 +182,6 @@ func NewHTTPRoundTripper(timeout time.Duration, logger log.Logger) RoundTripper 
 		}
 
 		level.Debug(logger).Log("msg", "executing federation HTTP request", "instance", instanceName, "url", httpReq.URL.String())
-
 		resp, err := client.Do(httpReq)
 		if err != nil {
 			level.Warn(logger).Log("msg", "federation HTTP request failed", "instance", instanceName, "err", err)
