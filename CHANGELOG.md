@@ -1,5 +1,8 @@
 ## main / unreleased
 
+* [ENHANCEMENT] Improved live store readiness check and added `readiness_target_lag` and `readiness_max_wait` config parameters. Live store will now - if `readiness_target_lag` is set - not report `/ready` until Kafka lag is brought under the specified value [#6238](https://github.com/grafana/tempo/pull/6238) (@oleg-kozlyuk-grafana)
+
+
 # v2.10.0-rc.0
 
 * [CHANGE] **BREAKING CHANGE** Validate tenant ID in frontend and distributor [#5786](https://github.com/grafana/tempo/pull/5786) (@carles-grafana)

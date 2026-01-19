@@ -126,7 +126,7 @@ func (r *PartitionReader) running(ctx context.Context) error {
 				for _, partition := range topic.Partitions {
 					// HighWatermark guaranteed to be >= LastStableOffset
 					lag := partition.HighWatermark - partition.LastStableOffset
-					r.lag.Store(max(r.lag.Load(), lag))
+					r.lag.Store(lag)
 				}
 			}
 		}
