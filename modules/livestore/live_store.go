@@ -99,11 +99,10 @@ var (
 	}, []string{"tenant", "reason"})
 
 	// Readiness metrics
-	metricCatchUpDuration = promauto.NewHistogram(prometheus.HistogramOpts{
+	metricCatchUpDuration = promauto.NewGauge(prometheus.GaugeOpts{
 		Namespace: "tempo_live_store",
 		Name:      "catch_up_duration_seconds",
 		Help:      "Time spent catching up at startup",
-		Buckets:   prometheus.ExponentialBuckets(0.1, 2, 12),
 	})
 
 	metricReady = promauto.NewGauge(prometheus.GaugeOpts{
@@ -434,14 +433,14 @@ func (s *LiveStore) waitForCatchUp(ctx context.Context) error {
 					"elapsed", elapsed,
 					"max_wait", s.cfg.ReadinessMaxWait,
 				)
-				metricCatchUpDuration.Observe(elapsed.Seconds())
+				metricCatchUpDuration.Set(elapsed.Seconds())
 				return nil
 			}
 
 			// Calculate current lag
 			lag := s.calculateTimeLag()
 			if lag == nil {
-				level.Debug(s.logger).Log("msg", "lag could not be determined, waiting")
+				level.Debug(s.logger).Log("msg", "catch-up lag could not be determined, waiting")
 				continue
 			}
 
@@ -459,7 +458,7 @@ func (s *LiveStore) waitForCatchUp(ctx context.Context) error {
 					"target_lag", s.cfg.ReadinessTargetLag,
 					"elapsed", elapsed,
 				)
-				metricCatchUpDuration.Observe(elapsed.Seconds())
+				metricCatchUpDuration.Set(elapsed.Seconds())
 				return nil
 			}
 		}
@@ -473,29 +472,27 @@ func (s *LiveStore) waitForCatchUp(ctx context.Context) error {
 // - we know the watermark but nothing has been consumed yet = indeterminate
 func (s *LiveStore) calculateTimeLag() *time.Duration {
 	// Use cached high watermark from fetch responses (avoids extra API call)
-	highWatermark := s.reader.GetHighWatermark()
+	lag := s.reader.lag.Load()
+	zero := time.Duration(0)
 
 	// If we haven't performed any fetches yet, we can't determine lag
-	if highWatermark < 0 {
+	if lag < 0 {
+		level.Debug(s.logger).Log("msg", "High watermark not set yet")
 		return nil
 	}
 
-	// Check if partition is empty - empty partition means no lag
-	if highWatermark == 0 {
-		lag := time.Duration(0)
-		return &lag
-	}
-
-	// Check if we are at end (within statistical error)
-	// Arbitrary value of 10 to shortcut calculations
-	currentOffset := s.reader.GetCurrentOffset()
-	if currentOffset != nil && highWatermark-currentOffset.At <= 10 {
-		lag := time.Duration(0)
-		return &lag
+	// Check if we are near end or partition is empty
+	// Arbitrary value picked to shortcut calculations
+	if lag <= 1000 {
+		level.Debug(s.logger).Log(
+			"msg", "At or close to partition end",
+			"lag", lag)
+		return &zero
 	}
 
 	nanos := s.lastRecordTimeNanos.Load()
 	if nanos < 0 {
+		level.Debug(s.logger).Log("msg", "No last record yet")
 		// Haven't consumed records - check if offset at end
 		return nil // Not caught up yet, can't determine lag
 	}
@@ -503,8 +500,8 @@ func (s *LiveStore) calculateTimeLag() *time.Duration {
 	// Potential race condition that can result in negative lag?
 	// Assuming strictly monotonic timestamps in Kafka, can't cause an issue
 	lastRecordTime := time.Unix(0, nanos)
-	lag := time.Since(lastRecordTime)
-	return &lag
+	recordLag := time.Since(lastRecordTime)
+	return &recordLag
 }
 
 func (s *LiveStore) consume(ctx context.Context, rs recordIter, now time.Time) (*kadm.Offset, error) {

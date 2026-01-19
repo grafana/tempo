@@ -33,7 +33,7 @@ services:
     volumes:
       - ./tempo.yaml:/etc/tempo.yaml
     ports:
-      - "3201:3200" # tempo
+      - "3200" # tempo
     hostname: live-store-zone-a-0
     environment:
       - OTEL_EXPORTER_OTLP_ENDPOINT=http://alloy:4318

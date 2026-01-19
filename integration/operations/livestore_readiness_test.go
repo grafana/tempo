@@ -14,7 +14,9 @@ import (
 // TestLiveStoreReadinessDefaultBehavior verifies that with readiness_target_lag=0 (default),
 // the LiveStore becomes ready immediately without waiting
 func TestLiveStoreReadinessDefaultBehavior(t *testing.T) {
-	util.RunIntegrationTests(t, util.TestHarnessConfig{}, func(h *util.TempoHarness) {
+	util.RunIntegrationTests(t, util.TestHarnessConfig{
+		Components: util.ComponentsRecentDataQuerying,
+	}, func(h *util.TempoHarness) {
 		liveStoreA := h.Services[util.ServiceLiveStoreZoneA]
 
 		// With default config (readiness_target_lag=0), LiveStore should be ready immediately
@@ -37,6 +39,7 @@ func TestLiveStoreReadinessDefaultBehavior(t *testing.T) {
 func TestLiveStoreReadinessWithCatchUp(t *testing.T) {
 	util.RunIntegrationTests(t, util.TestHarnessConfig{
 		ConfigOverlay: "config-livestore-readiness-enabled.yaml",
+		Components:    util.ComponentsRecentDataQuerying,
 	}, func(h *util.TempoHarness) {
 		liveStoreA := h.Services[util.ServiceLiveStoreZoneA]
 		liveStoreB := h.Services[util.ServiceLiveStoreZoneB]
@@ -83,7 +86,7 @@ func TestLiveStoreReadinessWithCatchUp(t *testing.T) {
 
 		// Verify catch_up_duration metric was recorded
 		// The metric should have at least one observation
-		metrics, err := liveStoreA.SumMetrics([]string{"tempo_live_store_catch_up_duration_seconds_count"})
+		metrics, err := liveStoreA.SumMetrics([]string{"tempo_live_store_catch_up_duration_seconds"})
 		require.NoError(t, err)
 		require.Greater(t, metrics[0], 0.0, "catch_up_duration should have been recorded")
 	})
@@ -94,6 +97,7 @@ func TestLiveStoreReadinessWithCatchUp(t *testing.T) {
 func TestLiveStoreReadinessMaxWaitTimeout(t *testing.T) {
 	util.RunIntegrationTests(t, util.TestHarnessConfig{
 		ConfigOverlay: "config-livestore-readiness-timeout.yaml",
+		Components:    util.ComponentsRecentDataQuerying,
 	}, func(h *util.TempoHarness) {
 		liveStoreA := h.Services[util.ServiceLiveStoreZoneA]
 		liveStoreB := h.Services[util.ServiceLiveStoreZoneB]
@@ -151,6 +155,7 @@ func TestLiveStoreReadinessMaxWaitTimeout(t *testing.T) {
 func TestLiveStoreReadinessRestartWithLag(t *testing.T) {
 	util.RunIntegrationTests(t, util.TestHarnessConfig{
 		ConfigOverlay: "config-livestore-readiness-enabled.yaml",
+		Components:    util.ComponentsRecentDataQuerying,
 	}, func(h *util.TempoHarness) {
 		liveStoreA := h.Services[util.ServiceLiveStoreZoneA]
 		liveStoreB := h.Services[util.ServiceLiveStoreZoneB]
@@ -213,7 +218,7 @@ func TestLiveStoreReadinessRestartWithLag(t *testing.T) {
 		require.NoError(t, liveStoreA.WaitSumMetrics(e2e.GreaterOrEqual(1), "tempo_live_store_traces_created_total"))
 
 		// Verify catch_up_duration metric was recorded
-		metrics, err := liveStoreA.SumMetrics([]string{"tempo_live_store_catch_up_duration_seconds_count"})
+		metrics, err := liveStoreA.SumMetrics([]string{"tempo_live_store_catch_up_duration_seconds"})
 		require.NoError(t, err)
 		require.Greater(t, metrics[0], 0.0, "catch_up_duration should have been recorded")
 	})
