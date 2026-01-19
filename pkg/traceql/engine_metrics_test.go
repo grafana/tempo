@@ -1102,6 +1102,115 @@ func TestCountOverTimeInstantNsWithCutoff(t *testing.T) {
 	})
 }
 
+func TestRateCutoff(t *testing.T) {
+	start := 1*time.Second + 300*time.Nanosecond // additional 300ns that can be accidentally dropped by ms conversion
+	end := 3 * time.Second
+	step := end - start
+	cutoff := 2*time.Second + 300*time.Nanosecond
+
+	req := tempopb.QueryRangeRequest{
+		Start: uint64(start),
+		End:   uint64(end),
+		Step:  uint64(step),
+		Query: "{ } | rate()",
+	}
+	for _, tc := range []struct {
+		name           string
+		setInstant     func(req tempopb.QueryRangeRequest) tempopb.QueryRangeRequest
+		expectedResult []float64
+	}{
+		{
+			"legacy request (no instant param)",
+			func(req tempopb.QueryRangeRequest) tempopb.QueryRangeRequest {
+				req.Step = req.End - req.Start
+				return req
+			},
+			// BUG: without instant query provided, instant rate is calculated incorrectly as sum of rates for each sub-interval
+			[]float64{(4 / (cutoff - start).Seconds()) + (4 / (end - cutoff).Seconds())},
+		},
+		{
+			"instant query",
+			func(req tempopb.QueryRangeRequest) tempopb.QueryRangeRequest {
+				req.SetInstant(true)
+				return req
+			},
+			[]float64{8 / step.Seconds()},
+		},
+		{
+			"not instant query",
+			func(req tempopb.QueryRangeRequest) tempopb.QueryRangeRequest {
+				req.SetInstant(false)
+				return req
+			},
+			// consumes all spans due to step alignment
+			[]float64{11 / step.Seconds(), 3 / step.Seconds()},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			req = tc.setInstant(req)
+
+			// from start to cutoff
+			req1 := req
+			req1.End = uint64(cutoff)
+			req1 = tc.setInstant(req1)
+			// from cutoff to end
+			req2 := req
+			req2.Start = uint64(cutoff)
+			req2 = tc.setInstant(req2)
+
+			in1 := []Span{
+				// outside of the range but within the range for ms. Should be ignored for instant queries.
+				newMockSpan(nil).WithStartTime(uint64(start - 20*time.Nanosecond)).WithDuration(1),
+				newMockSpan(nil).WithStartTime(uint64(start - time.Nanosecond)).WithDuration(1),
+
+				// within the range
+				newMockSpan(nil).WithStartTime(uint64(start)).WithDuration(1),
+				newMockSpan(nil).WithStartTime(uint64(start + time.Nanosecond)).WithDuration(1),
+				newMockSpan(nil).WithStartTime(uint64(cutoff - time.Nanosecond)).WithDuration(1),
+				newMockSpan(nil).WithStartTime(uint64(cutoff)).WithDuration(1),
+
+				// outside of cutoff
+				newMockSpan(nil).WithStartTime(uint64(cutoff + time.Nanosecond)).WithDuration(1),
+			}
+
+			in2 := []Span{
+				// outside of cutoff
+				newMockSpan(nil).WithStartTime(uint64(cutoff - time.Nanosecond)).WithDuration(1),
+
+				// within the range
+				newMockSpan(nil).WithStartTime(uint64(cutoff)).WithDuration(1),
+				newMockSpan(nil).WithStartTime(uint64(cutoff + time.Nanosecond)).WithDuration(1),
+				newMockSpan(nil).WithStartTime(uint64(end - time.Nanosecond)).WithDuration(1),
+				newMockSpan(nil).WithStartTime(uint64(end)).WithDuration(10),
+
+				// outside of the range but within the range for ms. Should be ignored for instant queries.
+				newMockSpan(nil).WithStartTime(uint64(end + time.Nanosecond)).WithDuration(1),
+				newMockSpan(nil).WithStartTime(uint64(end + 20*time.Nanosecond)).WithDuration(1),
+			}
+
+			// expectedValue := 8 * float64(time.Second.Nanoseconds()) / float64(step.Nanoseconds())
+			out := []TimeSeries{
+				{
+					Labels: []Label{
+						{Name: "__name__", Value: NewStaticString("rate")},
+					},
+					Values:    tc.expectedResult,
+					Exemplars: make([]Exemplar, 0),
+				},
+			}
+
+			res1, err := processLayer1AndLayer2(&req1, in1)
+			require.NoError(t, err)
+			res2, err := processLayer1AndLayer2(&req2, in2)
+			require.NoError(t, err)
+			res, seriesCount, err := processLayer3(&req, res1, res2)
+			require.NoError(t, err)
+			require.Equal(t, len(res), seriesCount)
+			requireEqualSeriesSets(t, out, res)
+		})
+	}
+}
+
 func TestMinOverTimeForDuration(t *testing.T) {
 	req := &tempopb.QueryRangeRequest{
 		Start: 1,
@@ -2710,7 +2819,7 @@ func processLayer1AndLayer2(req *tempopb.QueryRangeRequest, in ...[]Span) (Serie
 	return layer2.Results(), nil
 }
 
-func processLayer3(req *tempopb.QueryRangeRequest, res SeriesSet) (SeriesSet, int, error) {
+func processLayer3(req *tempopb.QueryRangeRequest, results ...SeriesSet) (SeriesSet, int, error) {
 	e := NewEngine()
 
 	layer3, err := e.CompileMetricsQueryRangeNonRaw(req, AggregateModeFinal)
@@ -2718,7 +2827,9 @@ func processLayer3(req *tempopb.QueryRangeRequest, res SeriesSet) (SeriesSet, in
 		return nil, 0, err
 	}
 
-	layer3.ObserveSeries(res.ToProto(req))
+	for _, res := range results {
+		layer3.ObserveSeries(res.ToProto(req))
+	}
 	return layer3.Results(), layer3.Length(), nil
 }
 
