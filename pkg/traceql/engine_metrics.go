@@ -76,7 +76,9 @@ func TrimToBlockOverlap(req *tempopb.QueryRangeRequest, blockStart, blockEnd tim
 	end2 = alignEnd(start2, end2, step, false)
 	// if had no instant flag set, had no instant step and become instant,
 	// add one nanosecond. This usually happens to small blocks.
-	if !req.HasInstant() && !IsInstant(req) && (end2-start2 == step) {
+	wasAssumedRange := !req.HasInstant() && !IsInstant(req)
+	willBecomeInstant := (end2-start2 == step)
+	if wasAssumedRange && willBecomeInstant {
 		end2++
 	}
 
