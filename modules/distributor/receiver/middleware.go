@@ -83,3 +83,7 @@ func (m *multiTenancyMiddleware) Wrap(next consumer.Traces) consumer.Traces {
 		return next.ConsumeTraces(ctx, td)
 	})
 }
+
+// TracePushMiddleware is a hook called when a trace push request is received.
+// Middlewares are invoked after the request is decoded but before it's processed.
+type TracePushMiddleware func(ctx context.Context, td ptrace.Traces) error

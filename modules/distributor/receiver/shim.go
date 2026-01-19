@@ -123,11 +123,12 @@ var _ services.Service = (*receiversShim)(nil)
 type receiversShim struct {
 	services.Service
 
-	retryDelay *durationpb.Duration
-	receivers  []receiver.Traces
-	pusher     TracesPusher
-	logger     *log.RateLimitedLogger
-	fatal      chan error
+	retryDelay           *durationpb.Duration
+	receivers            []receiver.Traces
+	pusher               TracesPusher
+	logger               *log.RateLimitedLogger
+	fatal                chan error
+	tracePushMiddlewares []TracePushMiddleware
 }
 
 var (
@@ -154,11 +155,12 @@ func (m *mapProvider) Scheme() string { return "mock" }
 
 func (m *mapProvider) Shutdown(context.Context) error { return nil }
 
-func New(receiverCfg map[string]interface{}, pusher TracesPusher, middleware Middleware, retryAfterDuration time.Duration, logLevel dslog.Level, reg prometheus.Registerer) (services.Service, error) {
+func New(receiverCfg map[string]interface{}, pusher TracesPusher, middleware Middleware, tracePushMiddlewares []TracePushMiddleware, retryAfterDuration time.Duration, logLevel dslog.Level, reg prometheus.Registerer) (services.Service, error) {
 	shim := &receiversShim{
-		pusher: pusher,
-		logger: log.NewRateLimitedLogger(logsPerSecond, level.Error(log.Logger)),
-		fatal:  make(chan error),
+		pusher:               pusher,
+		logger:               log.NewRateLimitedLogger(logsPerSecond, level.Error(log.Logger)),
+		fatal:                make(chan error),
+		tracePushMiddlewares: tracePushMiddlewares,
 	}
 
 	if retryAfterDuration > 0 {
@@ -348,6 +350,14 @@ func (r *receiversShim) stopping(_ error) error {
 func (r *receiversShim) ConsumeTraces(ctx context.Context, td ptrace.Traces) error {
 	ctx, span := tracer.Start(ctx, "distributor.ConsumeTraces")
 	defer span.End()
+
+	// Call trace push middlewares
+	for _, mw := range r.tracePushMiddlewares {
+		if err := mw(ctx, td); err != nil {
+			r.logger.Log("msg", "trace push middleware rejected traces", "err", err)
+			return err
+		}
+	}
 
 	var err error
 

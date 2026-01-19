@@ -9,6 +9,7 @@ import (
 	"github.com/grafana/tempo/pkg/ingest"
 
 	"github.com/grafana/tempo/modules/distributor/forwarder"
+	"github.com/grafana/tempo/modules/distributor/receiver"
 	"github.com/grafana/tempo/modules/distributor/usage"
 	"github.com/grafana/tempo/pkg/util"
 )
@@ -57,6 +58,9 @@ type Config struct {
 
 	// For testing.
 	factory ring_client.PoolAddrFunc `yaml:"-"`
+
+	// TracePushMiddlewares are hooks called when a trace push request is received.
+	TracePushMiddlewares []receiver.TracePushMiddleware `yaml:"-"`
 
 	MaxAttributeBytes int `yaml:"max_attribute_bytes"`
 
