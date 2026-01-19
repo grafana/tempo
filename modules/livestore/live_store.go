@@ -45,7 +45,6 @@ const (
 )
 
 var ErrStarting = errors.New("live-store is starting")
-var ErrStopping = errors.New("live-store is stopping")
 
 var (
 	// Queue management metrics
@@ -367,7 +366,6 @@ func (s *LiveStore) stopping(error) error {
 	// Stop the kafka lag background worker.
 	s.lagCancel()
 	metricReady.Set(0)
-	s.readyErr.Store(&ErrStopping)
 
 	// Stop consuming
 	err := services.StopAndAwaitTerminated(context.Background(), s.reader)
