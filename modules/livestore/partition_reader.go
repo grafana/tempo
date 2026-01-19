@@ -85,6 +85,23 @@ func (r *PartitionReader) running(ctx context.Context) error {
 		return fmt.Errorf("failed to fetch last committed offset: %w", err)
 	}
 
+	// Fetch end offset to calculate initial lag before entering poll loop.
+	// Ensures we have data even if PollFetches blocks due to empty partition
+	if endOffsets, err := r.adm.ListEndOffsets(ctx, r.topic); err == nil {
+		if endOffset, found := endOffsets.Lookup(r.topic, r.partitionID); found && endOffset.Err == nil {
+			// Get the committed offset value
+			committedAt := offset.EpochOffset().Offset
+			if committedAt >= 0 {
+				lag := endOffset.Offset - committedAt
+				if lag < 0 {
+					lag = 0
+				}
+				r.lag.Store(lag)
+				level.Debug(r.logger).Log("msg", "initial lag calculated", "lag", lag, "committed", committedAt, "end", endOffset.Offset)
+			}
+		}
+	}
+
 	r.client.AddConsumePartitions(map[string]map[int32]kgo.Offset{r.topic: {r.partitionID: offset}})
 	defer r.client.RemoveConsumePartitions(map[string][]int32{r.topic: {r.partitionID}})
 
@@ -102,7 +119,6 @@ func (r *PartitionReader) running(ctx context.Context) error {
 			continue
 		}
 
-		r.lag.Store(-1)
 		// Calculate and store maximum lag in entries
 		// Technically shaped as a nested loop, but we only have one partition (at the moment)
 		for _, fetch := range fetches {
