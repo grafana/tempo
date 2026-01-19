@@ -1559,7 +1559,7 @@ func NewIntervalMapperFromReq(req *tempopb.QueryRangeRequest) IntervalMapper {
 func NewIntervalMapper(start, end, step uint64, instant bool) IntervalMapper {
 	startMs := start - start%uint64(time.Millisecond)
 	endMs := end - end%uint64(time.Millisecond)
-	if instant || step == 0 {
+	if instant {
 		return &IntervalMapperInstant{
 			start:   start,
 			end:     end,

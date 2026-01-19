@@ -79,9 +79,6 @@ func TestTimestampOf(t *testing.T) {
 		expected         uint64
 	}{
 		{
-			expected: 0,
-		},
-		{
 			interval: 2,
 			start:    10, // aligned to 9
 			step:     3,
@@ -192,7 +189,16 @@ func TestIntervalOf(t *testing.T) {
 		expected             int
 	}{
 		// start <= step
-		{expected: -1},
+		{
+			start:    1,
+			step:     1,
+			expected: -1,
+		},
+		{
+			start:    9,
+			step:     10,
+			expected: -1,
+		},
 		{
 			ts:       0,
 			end:      1,
