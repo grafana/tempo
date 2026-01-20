@@ -2,11 +2,14 @@ receivers:
   otlp:
     protocols:
       grpc:
+        endpoint: 0.0.0.0:4317
 exporters:
   otlp:
     endpoint: tempo:4317
     tls:
       insecure: true
+    headers:
+      x-scope-orgid: tenant-2
 service:
   pipelines:
     traces:
