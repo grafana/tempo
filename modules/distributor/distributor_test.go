@@ -2592,7 +2592,7 @@ func TestTracePushMiddlewareRejectsTraces(t *testing.T) {
 
 	// Create a middleware that rejects traces
 	expectedErr := errors.New("middleware rejected traces")
-	rejectMiddleware := func(_ context.Context, td ptrace.Traces) error {
+	rejectMiddleware := func(_ context.Context, _ ptrace.Traces) error {
 		return expectedErr
 	}
 
