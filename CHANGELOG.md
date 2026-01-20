@@ -1,6 +1,8 @@
 ## main / unreleased
 
-- Updated Go to version 1.25.5 to address [CVE-2025-61729](https://github.com/advisories/GHSA-7c64-f9jr-v9h2), [CVE-2025-47907](https://github.com/advisories/GHSA-j5pm-7495-qmr3), [CVE-2025-58183](https://github.com/advisories/GHSA-9gcr-gp5f-jw27), and [CVE-2025-61727](https://github.com/advisories/GHSA-5mh9-3jwc-rp59). [[PR 6089](https://github.com/grafana/tempo/pull/6089), [PR 6096](https://github.com/grafana/tempo/pull/6096), [PR 6233](https://github.com/grafana/tempo/pull/6233)] 
+# v2.9.1
+
+* [CHANGE] Upgrade Tempo to Go 1.25.5 [#6096](https://github.com/grafana/tempo/pull/6096) [#6089](https://github.com/grafana/tempo/pull/6089) (@joe-elliott)
 
 # v2.9.0-rc.0
 
