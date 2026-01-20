@@ -410,7 +410,7 @@ For the authoritative schema, refer to `tempodb/encoding/vparquet4/schema.go` an
 ### Summary of vParquet5 differences
 
 - Resource-level dedicated columns (Cluster/Namespace/Pod/Container/K8s\*) and span HTTP columns are removed; vParquet5 relies on dynamically assigned dedicated columns only.
-- Dedicated attribute columns expand to include integer spares and optional blob configuration for selected columns.
+- Dedicated attribute columns expand to include integer spares, array attributes, and optional blob configuration for selected columns.
 - Additional fields exist for optimization, including span `ChildCount`, rounded start time buckets, and trace-level `ServiceStats` as a list with explicit service names.
 
 ## Trace-level attributes
