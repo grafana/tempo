@@ -91,7 +91,7 @@ func TestBlockMetaObjectAdded(t *testing.T) {
 	}
 }
 
-func TestBlockMetaJSONRoundTrip(t *testing.T) {
+func TestBlockMetaJSONProtoRoundTrip(t *testing.T) {
 	timeParse := func(s string) time.Time {
 		date, err := time.Parse(time.RFC3339Nano, s)
 		require.NoError(t, err)
@@ -147,6 +147,7 @@ func TestBlockMetaJSONRoundTrip(t *testing.T) {
     	]
 	}`
 
+	// JSON
 	metaJSON, err := json.Marshal(meta)
 	require.NoError(t, err)
 	assert.JSONEq(t, expectedJSON, string(metaJSON))
@@ -155,6 +156,14 @@ func TestBlockMetaJSONRoundTrip(t *testing.T) {
 	err = json.Unmarshal(metaJSON, &metaRoundtrip)
 	require.NoError(t, err)
 	assert.Equal(t, meta, metaRoundtrip)
+
+	// proto
+	protoData, err := meta.Marshal()
+	require.NoError(t, err)
+	newMeta := BlockMeta{}
+	require.NoError(t, newMeta.Unmarshal(protoData))
+
+	assert.Equal(t, meta, newMeta)
 }
 
 func BenchmarkBlockMetaMarshalUnmarshal(b *testing.B) {
