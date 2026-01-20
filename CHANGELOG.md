@@ -8,7 +8,7 @@
 * [BUGFIX] Fix Tempo configuration options that were always overridden by runtime overrides. [#5202](https://github.com/grafana/tempo/pull/5202) (@KyriosGN0)
 * [BUGFIX] Fix trace idle period in ingesters to be correctly applied. Add max live trace period to limit how long traces remain in memory. [#5346](https://github.com/grafana/tempo/pull/5346) (@joe-elliott)
 * [BUGFIX] Return 400 Bad Request instead of 500 when an invalid tag name is provided to the SearchTagValuesV2 endpoint. [#5493](https://github.com/grafana/tempo/pull/5493) (@carles-grafana)
-* [BUGFIX] Fix panic in query_range http handling that could be triggered by cancellations or other errors [#5667](https://github.com/grafana/tempo/pull/5667) (@mdisibio)
+* [BUGFIX] Fix panic in query_range http handling that could be triggered by cancellations or other errors [#5667](https://github.com/grafana/tempo/pull/5667) (@mdisibio) 
 
 # v2.8.2
 
