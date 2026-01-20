@@ -387,6 +387,10 @@ func TestGetBatchBuffer(t *testing.T) {
 				queueLength: prometheus.NewGaugeVec(prometheus.GaugeOpts{
 					Name: "test_len",
 				}, []string{"user"}),
+
+				batchWeight: prometheus.NewHistogramVec(prometheus.HistogramOpts{
+					Name: "test_weight",
+				}, []string{"user"}),
 			}
 
 			batchBuffer := make([]Request, tt.requestedCount)
