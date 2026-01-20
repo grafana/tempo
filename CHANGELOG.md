@@ -1,8 +1,14 @@
 ## main / unreleased
 
 # v2.8.3
+ 
 * [CHANGE] Upgrade Tempo to Go 1.25.5 [#6096](https://github.com/grafana/tempo/pull/6096) [#6089](https://github.com/grafana/tempo/pull/6089) (@joe-elliott)
+* [CHANGE] Upgrade github.com/expr-lang/expr to v1.17.7 to fix CVE-2025-68156 (denial-of-service via unbounded recursion). [#6092](https://github.com/grafana/tempo/pull/6092)
 * [BUGFIX] Deadlock on invalid query to api/v2/search/tags (SearchTagsV2) [#5607](https://github.com/grafana/tempo/pull/5607) (@ruslan-mikhailov)
+* [BUGFIX] Fix Tempo configuration options that were always overridden by runtime overrides. [#5202](https://github.com/grafana/tempo/pull/5202) (@KyriosGN0)
+* [BUGFIX] Fix trace idle period in ingesters to be correctly applied. Add max live trace period to limit how long traces remain in memory. [#5346](https://github.com/grafana/tempo/pull/5346) (@joe-elliott)
+* [BUGFIX] Return 400 Bad Request instead of 500 when an invalid tag name is provided to the SearchTagValuesV2 endpoint. [#5493](https://github.com/grafana/tempo/pull/5493) (@carles-grafana)
+* [BUGFIX] Fix panic in query_range http handling that could be triggered by cancellations or other errors [#5667](https://github.com/grafana/tempo/pull/5667) (@mdisibio) 
 
 # v2.8.2
 
