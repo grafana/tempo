@@ -340,7 +340,8 @@ func TestTrimToBlockOverlap(t *testing.T) {
 			// Left border is able to be extended.
 			"2024-01-01T01:00:00.123Z", "2024-01-01T02:00:00.123Z", time.Hour,
 			"2024-01-01T01:30:00.123Z", "2024-01-01T02:30:00.123Z",
-			"2024-01-01T01:00:00.123Z", "2024-01-01T02:00:00.123Z", time.Hour,
+			// we subtract a nanosecond to the start to make sure it's before the block start
+			"2024-01-01T01:30:00.122999999Z", "2024-01-01T02:00:00.123Z", 30*time.Minute + time.Nanosecond,
 		},
 	}
 

@@ -74,13 +74,6 @@ func TrimToBlockOverlap(req *tempopb.QueryRangeRequest, blockStart, blockEnd tim
 	// they will get trimmed back down.
 	start2 = alignStart(start2, end2, step, IsInstant(req))
 	end2 = alignEnd(start2, end2, step, IsInstant(req))
-	// if had no instant flag set, had no instant step and become instant,
-	// add one nanosecond. This usually happens to small blocks.
-	wasAssumedRange := !req.HasInstant() && !IsInstant(req)
-	willBecomeInstant := (end2-start2 == step)
-	if wasAssumedRange && willBecomeInstant {
-		end2++
-	}
 
 	// Now trim to the overlap preserving nanosecond precision for
 	// when we split a block.
@@ -91,6 +84,14 @@ func TrimToBlockOverlap(req *tempopb.QueryRangeRequest, blockStart, blockEnd tim
 	// this can happen during new version rollout
 	if !req.HasInstant() && IsInstant(req) {
 		step = end - start
+	}
+
+	// if had no instant flag set, had no instant step and become instant,
+	// add one nanosecond. This usually happens to small blocks.
+	wasAssumedRange := !req.HasInstant() && !IsInstant(req)
+	willBecomeInstant := (end-start == step)
+	if wasAssumedRange && willBecomeInstant {
+		end++
 	}
 
 	return start, end, step
