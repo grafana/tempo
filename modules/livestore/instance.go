@@ -463,7 +463,7 @@ func (i *instance) completeBlock(ctx context.Context, id uuid.UUID) error {
 	// Verify the WAL block still exists
 	if _, ok := i.walBlocks[id]; !ok {
 		level.Warn(i.logger).Log("msg", "WAL block disappeared while being completed, deleting complete block", "id", id)
-		err := i.wal.LocalBackend().ClearBlock(id, i.tenantID)
+		err := i.wal.LocalBackend().ClearBlock(ctx, id, i.tenantID)
 		if err != nil {
 			level.Error(i.logger).Log("msg", "failed to clear complete block after WAL disappeared", "block", id, "err", err)
 		}
@@ -485,7 +485,7 @@ func (i *instance) completeBlock(ctx context.Context, id uuid.UUID) error {
 	return nil
 }
 
-func (i *instance) deleteOldBlocks() error {
+func (i *instance) deleteOldBlocks(ctx context.Context) error {
 	i.blocksMtx.Lock()
 	defer i.blocksMtx.Unlock()
 
@@ -509,7 +509,7 @@ func (i *instance) deleteOldBlocks() error {
 		if completeBlock.BlockMeta().EndTime.Before(cutoff) {
 
 			level.Info(i.logger).Log("msg", "deleting complete block", "block", id.String())
-			err := i.wal.LocalBackend().ClearBlock(id, i.tenantID)
+			err := i.wal.LocalBackend().ClearBlock(ctx, id, i.tenantID)
 			if err != nil {
 				return err
 			}

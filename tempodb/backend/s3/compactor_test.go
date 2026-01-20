@@ -1,6 +1,7 @@
 package s3
 
 import (
+	"context"
 	"encoding/base64"
 	"net/http"
 	"testing"
@@ -88,7 +89,7 @@ func TestMarkBlockCompacted(t *testing.T) {
 			})
 			require.NoError(t, err)
 
-			_ = c.MarkBlockCompacted(uuid.New(), "tenant1")
+			_ = c.MarkBlockCompacted(context.Background(), uuid.New(), "tenant1")
 
 			// check expected headers to be set with expected values
 			for headerKey, expectedHeaderValue := range tc.expectedHeaderValues {

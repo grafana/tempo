@@ -116,9 +116,9 @@ type Reader interface {
 
 type Compactor interface {
 	EnableCompaction(ctx context.Context, cfg *CompactorConfig, sharder CompactorSharder, overrides CompactorOverrides) error
-	MarkBlockCompacted(tenantID string, blockID backend.UUID) error
+	MarkBlockCompacted(ctx context.Context, tenantID string, blockID backend.UUID) error
 	CompactWithConfig(ctx context.Context, metas []*backend.BlockMeta, tenantID string, cfg *CompactorConfig, sharder CompactorSharder, overrides CompactorOverrides) ([]*backend.BlockMeta, error)
-	MarkBlocklistCompacted(tenantID string, outputIDs, inputIDs []*backend.BlockMeta) error
+	MarkBlocklistCompacted(ctx context.Context, tenantID string, outputIDs, inputIDs []*backend.BlockMeta) error
 	RetainWithConfig(ctx context.Context, cfg *CompactorConfig, sharder CompactorSharder, overrides CompactorOverrides)
 }
 
@@ -314,7 +314,7 @@ func (rw *readerWriter) BlockMeta(ctx context.Context, tenantID string, blockID 
 		return meta, nil, nil
 	}
 
-	compactedMeta, err := rw.c.CompactedBlockMeta((uuid.UUID)(blockID), tenantID)
+	compactedMeta, err := rw.c.CompactedBlockMeta(ctx, (uuid.UUID)(blockID), tenantID)
 	if err != nil && !errors.Is(err, backend.ErrDoesNotExist) {
 		return nil, nil, err
 	}
@@ -603,8 +603,8 @@ func (rw *readerWriter) EnableCompaction(ctx context.Context, cfg *CompactorConf
 	return nil
 }
 
-func (rw *readerWriter) MarkBlockCompacted(tenantID string, blockID backend.UUID) error {
-	return rw.c.MarkBlockCompacted((uuid.UUID)(blockID), tenantID)
+func (rw *readerWriter) MarkBlockCompacted(ctx context.Context, tenantID string, blockID backend.UUID) error {
+	return rw.c.MarkBlockCompacted(ctx, (uuid.UUID)(blockID), tenantID)
 }
 
 // EnablePolling activates the polling loop. Pass nil if this component

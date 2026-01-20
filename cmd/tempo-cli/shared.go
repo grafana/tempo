@@ -60,8 +60,8 @@ type blockStats struct {
 	unifiedBlockMeta
 }
 
-func loadBucket(r backend.Reader, c backend.Compactor, tenantID string, windowRange time.Duration, includeCompacted bool) ([]blockStats, error) {
-	blockIDs, compactedBlockIDs, err := r.Blocks(context.Background(), tenantID)
+func loadBucket(ctx context.Context, r backend.Reader, c backend.Compactor, tenantID string, windowRange time.Duration, includeCompacted bool) ([]blockStats, error) {
+	blockIDs, compactedBlockIDs, err := r.Blocks(ctx, tenantID)
 	if err != nil {
 		return nil, err
 	}
@@ -80,7 +80,7 @@ func loadBucket(r backend.Reader, c backend.Compactor, tenantID string, windowRa
 		go func(id2 backend.UUID, blockNum2 int) {
 			defer wg.Done()
 
-			b, err := loadBlock(r, c, tenantID, id2, blockNum2, windowRange, includeCompacted)
+			b, err := loadBlock(ctx, r, c, tenantID, id2, blockNum2, windowRange, includeCompacted)
 			if err != nil {
 				fmt.Println("Error loading block:", id2, err)
 				return
@@ -107,20 +107,20 @@ func loadBucket(r backend.Reader, c backend.Compactor, tenantID string, windowRa
 	return results, nil
 }
 
-func loadBlock(r backend.Reader, c backend.Compactor, tenantID string, id backend.UUID, blockNum int, windowRange time.Duration, includeCompacted bool) (*blockStats, error) {
+func loadBlock(ctx context.Context, r backend.Reader, c backend.Compactor, tenantID string, id backend.UUID, blockNum int, windowRange time.Duration, includeCompacted bool) (*blockStats, error) {
 	fmt.Print(".")
 	if blockNum%100 == 0 {
 		fmt.Print(strconv.Itoa(blockNum))
 	}
 
-	meta, err := r.BlockMeta(context.Background(), (uuid.UUID)(id), tenantID)
+	meta, err := r.BlockMeta(ctx, (uuid.UUID)(id), tenantID)
 	if errors.Is(err, backend.ErrDoesNotExist) && !includeCompacted {
 		return nil, nil
 	} else if err != nil && !errors.Is(err, backend.ErrDoesNotExist) {
 		return nil, err
 	}
 
-	compactedMeta, err := c.CompactedBlockMeta((uuid.UUID)(id), tenantID)
+	compactedMeta, err := c.CompactedBlockMeta(ctx, (uuid.UUID)(id), tenantID)
 	if err != nil && !errors.Is(err, backend.ErrDoesNotExist) {
 		return nil, err
 	}

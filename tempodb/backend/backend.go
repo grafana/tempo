@@ -87,9 +87,9 @@ type Reader interface {
 // Compactor is a collection of methods to interact with compacted elements of a tempodb block
 type Compactor interface {
 	// MarkBlockCompacted marks a block as compacted. Call this after a block has been successfully compacted to a new block
-	MarkBlockCompacted(blockID uuid.UUID, tenantID string) error
+	MarkBlockCompacted(ctx context.Context, blockID uuid.UUID, tenantID string) error
 	// ClearBlock removes a block from the backend
-	ClearBlock(blockID uuid.UUID, tenantID string) error
+	ClearBlock(ctx context.Context, blockID uuid.UUID, tenantID string) error
 	// CompactedBlockMeta returns the compacted blockmeta given a block and tenant id
-	CompactedBlockMeta(blockID uuid.UUID, tenantID string) (*CompactedBlockMeta, error)
+	CompactedBlockMeta(ctx context.Context, blockID uuid.UUID, tenantID string) (*CompactedBlockMeta, error)
 }
