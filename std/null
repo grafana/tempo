@@ -1,3 +1,0 @@
-modules/frontend/queue/user_queues.go:108:3: assignOp: replace `uid = uid + 1` with `uid++` (gocritic)
-		uid = uid + 1
-		^
