@@ -1,7 +1,7 @@
 ## main / unreleased
 
 # v2.8.3
-
+ 
 * [CHANGE] Upgrade Tempo to Go 1.25.5 [#6096](https://github.com/grafana/tempo/pull/6096) [#6089](https://github.com/grafana/tempo/pull/6089) (@joe-elliott)
 * [CHANGE] Upgrade github.com/expr-lang/expr to v1.17.7 to fix CVE-2025-68156 (denial-of-service via unbounded recursion). [#6092](https://github.com/grafana/tempo/pull/6092)
 * [BUGFIX] Deadlock on invalid query to api/v2/search/tags (SearchTagsV2) [#5607](https://github.com/grafana/tempo/pull/5607) (@ruslan-mikhailov)
