@@ -72,8 +72,8 @@ func TrimToBlockOverlap(req *tempopb.QueryRangeRequest, blockStart, blockEnd tim
 	// low-precision timestamps within the block may be rounded up to
 	// this step.  If the boundaries exceed the overall range
 	// they will get trimmed back down.
-	start2 = alignStart(start2, end2, step, false)
-	end2 = alignEnd(start2, end2, step, false)
+	start2 = alignStart(start2, end2, step, IsInstant(req))
+	end2 = alignEnd(start2, end2, step, IsInstant(req))
 	// if had no instant flag set, had no instant step and become instant,
 	// add one nanosecond. This usually happens to small blocks.
 	wasAssumedRange := !req.HasInstant() && !IsInstant(req)
