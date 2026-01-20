@@ -309,7 +309,7 @@ func New(
 		cfgReceivers = defaultReceivers
 	}
 
-	receivers, err := receiver.New(cfgReceivers, d, middleware, cfg.TracePushMiddlewares, cfg.RetryAfterOnResourceExhausted, loggingLevel, reg)
+	receivers, err := receiver.New(cfgReceivers, d, middleware, cfg.RetryAfterOnResourceExhausted, loggingLevel, reg)
 	if err != nil {
 		return nil, err
 	}

@@ -123,12 +123,11 @@ var _ services.Service = (*receiversShim)(nil)
 type receiversShim struct {
 	services.Service
 
-	retryDelay           *durationpb.Duration
-	receivers            []receiver.Traces
-	pusher               TracesPusher
-	logger               *log.RateLimitedLogger
-	fatal                chan error
-	tracePushMiddlewares []TracePushMiddleware
+	retryDelay *durationpb.Duration
+	receivers  []receiver.Traces
+	pusher     TracesPusher
+	logger     *log.RateLimitedLogger
+	fatal      chan error
 }
 
 var (
@@ -155,12 +154,11 @@ func (m *mapProvider) Scheme() string { return "mock" }
 
 func (m *mapProvider) Shutdown(context.Context) error { return nil }
 
-func New(receiverCfg map[string]interface{}, pusher TracesPusher, middleware Middleware, tracePushMiddlewares []TracePushMiddleware, retryAfterDuration time.Duration, logLevel dslog.Level, reg prometheus.Registerer) (services.Service, error) {
+func New(receiverCfg map[string]interface{}, pusher TracesPusher, middleware Middleware, retryAfterDuration time.Duration, logLevel dslog.Level, reg prometheus.Registerer) (services.Service, error) {
 	shim := &receiversShim{
-		pusher:               pusher,
-		logger:               log.NewRateLimitedLogger(logsPerSecond, level.Error(log.Logger)),
-		fatal:                make(chan error),
-		tracePushMiddlewares: tracePushMiddlewares,
+		pusher: pusher,
+		logger: log.NewRateLimitedLogger(logsPerSecond, level.Error(log.Logger)),
+		fatal:  make(chan error),
 	}
 
 	if retryAfterDuration > 0 {
