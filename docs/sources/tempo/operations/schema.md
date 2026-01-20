@@ -4,7 +4,7 @@ menuTitle: Parquet schema
 description: This document describes the schema used with the Parquet block format.
 weight: 900
 aliases:
-- /docs/tempo/parquet/schema
+  - /docs/tempo/parquet/schema
 ---
 
 # Apache Parquet schema
@@ -261,32 +261,39 @@ message Trace {
   }
 }
 ```
+
 ## Trace-level attributes
+
 For speed and ease-of-use, we are projecting several values to columns at the trace-level:
-* Trace ID - Don't store on each span.
-* Root service/span names/StartTimeUnixNano - These are selected properties of the root span in each trace (if there is one). These are used for displaying results in the Grafana UI. These properties are computed at ingest time and stored once for efficiency, so we don't have to find the root span.
-* `DurationNanos` - The total trace duration, computed at ingest time. This powers the min/max duration filtering in the current Tempo search and is more efficient than scanning the spans duration column. However, it may go away with TraceQL or we could decide to change it to span-level duration filtering too.
+
+- Trace ID - Don't store on each span.
+- Root service/span names/StartTimeUnixNano - These are selected properties of the root span in each trace (if there is one). These are used for displaying results in the Grafana UI. These properties are computed at ingest time and stored once for efficiency, so we don't have to find the root span.
+- `DurationNanos` - The total trace duration, computed at ingest time. This powers the min/max duration filtering in the current Tempo search and is more efficient than scanning the spans duration column. However, it may go away with TraceQL or we could decide to change it to span-level duration filtering too.
 
 ## Well-known attributes
 
 Projecting attributes to their own columns has benefits for search speed and size.
 Therefore, we are taking an opinionated approach and store some well-known attributes to their own dedicated columns.
 All other attributes are stored in the generic key/value maps and are still searchable, but not as quickly.
+
+In vParquet5, well-known attribute columns are replaced by [dedicated attribute columns](../dedicated_columns/) with sensible defaults applied when no dedicated columns are configured.
+The well-known columns described below apply to vParquet3 and vParquet4.
+
 We chose these attributes based on the [OTEL semantic-conventions](https://github.com/open-telemetry/semantic-conventions/tree/main) and what we commonly use ourselves (scratching our own itch), but we think they will be useful to most workloads.
 
 Resource-level attributes include the following:
 
-* `service.name`
-* `cluster` and `k8s.cluster.name`
-* `namespace` and `k8s.namespace.name`
-* `pod` and `k8s.pod.name`
-* `container` and `k8s.container.name`
+- `service.name`
+- `cluster` and `k8s.cluster.name`
+- `namespace` and `k8s.namespace.name`
+- `pod` and `k8s.pod.name`
+- `container` and `k8s.container.name`
 
 Span-level attributes include the following:
 
-* `http.method`
-* `http.url`
-* `http.status_code` (int)
+- `http.method`
+- `http.url`
+- `http.status_code` (int)
 
 ## "Any"-type Attributes
 

@@ -480,6 +480,7 @@ func (t *App) initQuerier() (services.Service, error) {
 		t.cfg.LiveStoreClient,
 		t.readRings[ringLiveStore],
 		t.partitionRing,
+		t.cfg.Frontend.TraceByID.ExternalEnabled,
 		t.store,
 		t.Overrides,
 	)

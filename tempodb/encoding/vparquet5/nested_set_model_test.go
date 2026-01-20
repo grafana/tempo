@@ -314,7 +314,7 @@ func TestAssignServiceStats(t *testing.T) {
 	tests := []struct {
 		name     string
 		trace    []ResourceSpans
-		expected map[string]ServiceStats
+		expected []ServiceStats
 	}{
 		{
 			name: "single span",
@@ -328,7 +328,7 @@ func TestAssignServiceStats(t *testing.T) {
 					}},
 				},
 			},
-			expected: map[string]ServiceStats{"serviceA": {SpanCount: 1}},
+			expected: []ServiceStats{{ServiceName: "serviceA", SpanCount: 1}},
 		},
 		{
 			name: "multiple services",
@@ -351,7 +351,7 @@ func TestAssignServiceStats(t *testing.T) {
 					}},
 				},
 			},
-			expected: map[string]ServiceStats{"serviceA": {SpanCount: 2}, "serviceB": {SpanCount: 1}},
+			expected: []ServiceStats{{ServiceName: "serviceA", SpanCount: 2}, {ServiceName: "serviceB", SpanCount: 1}},
 		},
 		{
 			name: "multiple services with errors",
@@ -376,7 +376,7 @@ func TestAssignServiceStats(t *testing.T) {
 					}},
 				},
 			},
-			expected: map[string]ServiceStats{"serviceA": {SpanCount: 2, ErrorCount: 1}, "serviceB": {SpanCount: 3, ErrorCount: 2}},
+			expected: []ServiceStats{{ServiceName: "serviceA", SpanCount: 2, ErrorCount: 1}, {ServiceName: "serviceB", SpanCount: 3, ErrorCount: 2}},
 		},
 	}
 

@@ -781,6 +781,11 @@ query_frontend:
         # (default: 0)
         [concurrent_shards: <int>]
 
+        # Enable external trace source for trace-by-ID queries. When enabled,
+        # the frontend will create an additional shard to query the external endpoint
+        # configured in the querier.
+        [external_enabled: <bool> | default = false]
+
         # If set to a non-zero value, it's value will be used to decide if metadata query is within SLO or not.
         # Query is within SLO if it returned 200 within duration_slo seconds OR processed throughput_slo bytes/s data.
         # NOTE: Requires `duration_slo` AND `throughput_bytes_slo` to be configured.
@@ -899,6 +904,20 @@ querier:
     trace_by_id:
         # Timeout for trace lookup requests
         [query_timeout: <duration> | default = 10s]
+
+        # External trace source configuration. When enabled, trace-by-ID queries
+        # will also fetch trace data from an external HTTP endpoint that returns
+        # an opentelemetry protobuf formatted trace.
+        external:
+            # Enable querying an external endpoint for trace data.
+            [enabled: <bool> | default = false]
+
+            # The URL of the external service.
+            # Example: "http://external-service:3200"
+            [endpoint: <string>]
+
+            # Timeout for requests to the external endpoint.
+            [timeout: <duration> | default = 10s]
 
     search:
         # Timeout for search requests
@@ -1546,7 +1565,8 @@ Defines re-used configuration blocks.
 ### Block
 
 ```yaml
-# block format version. options: v2, vParquet3, vParquet4
+# block format version. options: vParquet4
+# deprecated options: v2, vParquet3
 [version: <string> | default = vParquet4]
 
 # bloom filter false positive rate. lower values create larger filters but fewer false positives
@@ -1575,7 +1595,7 @@ Defines re-used configuration blocks.
 # Configures attributes to be stored in dedicated columns within the parquet file, rather than in the
 # generic attribute key-value list. This allows for more efficient searching of these attributes.
 # Up to 10 span attributes and 10 resource attributes can be configured as dedicated columns.
-# Requires vParquet3
+# Requires at least vParquet3
 parquet_dedicated_columns: <list of columns>
 
       # name of the attribute
@@ -1828,8 +1848,9 @@ The storage WAL configuration block.
 [ingestion_time_range_slack: <duration> | default = unset]
 
 # WAL file format version
-# Options: v2, vParquet3, vParquet4
-[version: <string> | default = "vParquet3"]
+# Options: vParquet4
+# Deprecated options: v2, vParquet3
+[version: <string> | default = "vParquet4"]
 ```
 
 ## Overrides
@@ -2076,7 +2097,7 @@ overrides:
       # Configures attributes to be stored in dedicated columns within the parquet file, rather than in the
       # generic attribute key-value list. This allows for more efficient searching of these attributes.
       # Up to 10 span attributes and 10 resource attributes can be configured as dedicated columns.
-      # Requires vParquet3
+      # Requires at least vParquet3
       parquet_dedicated_columns:
         [
           name: <string>, # name of the attribute

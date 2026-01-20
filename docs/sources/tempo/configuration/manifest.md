@@ -340,6 +340,9 @@ querier:
         query_timeout: 30s
     trace_by_id:
         query_timeout: 10s
+        external:
+            endpoint: ""
+            timeout: 10s
     metrics:
         concurrent_blocks: 2
         time_overlap_cutoff: 0.2

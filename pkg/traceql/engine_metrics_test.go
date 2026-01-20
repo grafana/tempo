@@ -378,6 +378,45 @@ func TestCompileMetricsQueryRange(t *testing.T) {
 	}
 }
 
+func TestCompileMetricsQueryRangeExemplarsHint(t *testing.T) {
+	defaultExempalars := 5
+
+	tcs := []struct {
+		q             string
+		expectedCount int
+	}{
+		{
+			q:             "{} | rate() with(exemplars=10)",
+			expectedCount: 10,
+		},
+		{
+			q:             "{} | rate() with(exemplars=false)",
+			expectedCount: 0,
+		},
+		{
+			q:             "{} | rate() with(exemplars=true)",
+			expectedCount: defaultExempalars,
+		},
+		{
+			q:             "{} | rate()",
+			expectedCount: defaultExempalars,
+		},
+	}
+
+	for _, tc := range tcs {
+		eval, err := NewEngine().CompileMetricsQueryRange(&tempopb.QueryRangeRequest{
+			Query: tc.q,
+			Start: 1,
+			End:   2,
+			Step:  1,
+		}, 5, 0, false)
+
+		require.NoError(t, err)
+		require.NotNil(t, eval)
+		require.Equal(t, tc.expectedCount, eval.maxExemplars)
+	}
+}
+
 func TestCompileMetricsQueryRangeFetchSpansRequest(t *testing.T) {
 	tc := map[string]struct {
 		q           string
@@ -1253,6 +1292,43 @@ func TestAvgOverTimeForDurationWithoutAggregation(t *testing.T) {
 	assert.Equal(t, 100., avg.Values[0]*float64(time.Second))
 	assert.Equal(t, 200., avg.Values[1]*float64(time.Second))
 	assert.Equal(t, 200., avg.Values[2]*float64(time.Second))
+}
+
+func TestAvgOverTimeCombine(t *testing.T) {
+	req := &tempopb.QueryRangeRequest{
+		Start: 1,
+		End:   uint64(3 * time.Second),
+		Step:  uint64(1 * time.Second),
+		Query: "{ } | avg_over_time(duration)",
+	}
+
+	// Three set of spans with different data for a single time interval
+	// Each set will be passed to level 2 independently
+	in1 := []Span{
+		newMockSpan(nil).WithStartTime(uint64(1 * time.Second)).WithDuration(uint64(100 * time.Second)),
+	}
+
+	in2 := []Span{
+		newMockSpan(nil).WithStartTime(uint64(1 * time.Second)).WithDuration(uint64(200 * time.Second)),
+		newMockSpan(nil).WithStartTime(uint64(1 * time.Second)).WithDuration(uint64(400 * time.Second)),
+	}
+
+	in3 := []Span{
+		newMockSpan(nil).WithStartTime(uint64(1 * time.Second)).WithDuration(uint64(500 * time.Second)),
+		newMockSpan(nil).WithStartTime(uint64(1 * time.Second)).WithDuration(uint64(600 * time.Second)),
+		newMockSpan(nil).WithStartTime(uint64(1 * time.Second)).WithDuration(uint64(700 * time.Second)),
+	}
+
+	result, seriesCount, err := runTraceQLMetric(req, in1, in2, in3)
+	require.NoError(t, err)
+	require.Equal(t, len(result), seriesCount)
+
+	avg := result[LabelsFromArgs("__name__", "avg_over_time").MapKey()]
+
+	expectedResult := (100 + 200 + 400 + 500 + 600 + 700) / 6.
+	assert.Equal(t, expectedResult, avg.Values[0])
+	assert.True(t, math.IsNaN(avg.Values[1]), "expected NaN, got %f", avg.Values[1])
+	assert.True(t, math.IsNaN(avg.Values[2]), "expected NaN, got %f", avg.Values[2])
 }
 
 func TestAvgOverTimeForSpanAttribute(t *testing.T) {

@@ -32,7 +32,8 @@ type SearchConfig struct {
 }
 
 type TraceByIDConfig struct {
-	QueryTimeout time.Duration `yaml:"query_timeout"`
+	QueryTimeout time.Duration  `yaml:"query_timeout"`
+	External     ExternalConfig `yaml:"external"`
 }
 
 type MetricsConfig struct {
@@ -53,9 +54,15 @@ type PartitionRingConfig struct {
 	PreferredZone                string        `yaml:"preferred_zone,omitempty"`
 }
 
+type ExternalConfig struct {
+	Endpoint string        `yaml:"endpoint"` // e.g., "http://external-service:3200"
+	Timeout  time.Duration `yaml:"timeout"`
+}
+
 // RegisterFlagsAndApplyDefaults register flags.
 func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
 	cfg.TraceByID.QueryTimeout = 10 * time.Second
+	cfg.TraceByID.External.Timeout = 10 * time.Second
 	cfg.QueryRelevantIngesters = false
 	cfg.ExtraQueryDelay = 0
 	cfg.MaxConcurrentQueries = 20

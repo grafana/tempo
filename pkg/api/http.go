@@ -74,7 +74,7 @@ const (
 	PathTraces              = "/api/traces/{traceID}"
 	PathSearch              = "/api/search"
 	PathSearchTags          = "/api/search/tags"
-	PathSearchTagValues     = "/api/search/tag/{" + MuxVarTagName + "}/values"
+	PathSearchTagValues     = "/api/search/tag/" + MuxVarTagInPath + "/values"
 	PathEcho                = "/api/echo"
 	PathBuildInfo           = "/api/status/buildinfo"
 	PathUsageStats          = "/status/usage-stats"
@@ -87,13 +87,14 @@ const (
 	// PathOverrides user configurable overrides
 	PathOverrides = "/api/overrides"
 
-	PathSearchTagValuesV2 = "/api/v2/search/tag/{" + MuxVarTagName + "}/values"
+	PathSearchTagValuesV2 = "/api/v2/search/tag/" + MuxVarTagInPath + "/values"
 	PathSearchTagsV2      = "/api/v2/search/tags"
 	PathTracesV2          = "/api/v2/traces/{traceID}"
 
 	QueryModeKey       = "mode"
 	QueryModeIngesters = "ingesters"
 	QueryModeBlocks    = "blocks"
+	QueryModeExternal  = "external"
 	QueryModeAll       = "all"
 	BlockStartKey      = "blockStart"
 	BlockEndKey        = "blockEnd"
@@ -860,6 +861,8 @@ func ValidateAndSanitizeRequest(r *http.Request) (string, string, string, int64,
 		queryMode = QueryModeIngesters
 	case q == QueryModeBlocks:
 		queryMode = QueryModeBlocks
+	case q == QueryModeExternal:
+		queryMode = QueryModeExternal
 	default:
 		return "", "", "", 0, 0, time.Time{}, fmt.Errorf("invalid value for mode %s", q)
 	}

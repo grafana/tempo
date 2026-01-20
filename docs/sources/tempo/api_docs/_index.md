@@ -212,8 +212,12 @@ Parameters:
 
 **Returns**
 
-By default, this endpoint returns Query response with a [OpenTelemetry](https://github.com/open-telemetry/opentelemetry-proto/tree/main/opentelemetry/proto/trace/v1) JSON trace,
-but if it can also send OpenTelemetry proto if `Accept: application/protobuf` is passed.
+By default, this endpoint returns Query response with a [OpenTelemetry](https://github.com/open-telemetry/opentelemetry-proto/tree/main/opentelemetry/proto/trace/v1) JSON trace.
+
+Other formats can be requested using the `Accept` header:
+
+- `Accept: application/protobuf` - Returns OpenTelemetry proto format
+- `Accept: application/vnd.grafana.llm` - Returns a simplified JSON format optimized for LLM consumption. This format is subject to change and shouldn't be relied on for programmatic use.
 
 ### Search
 
@@ -611,6 +615,13 @@ Parameters:
   Optional. Limits the maximum number of tags values
 - `maxStaleValues = (integer)`
   Optional. Limits the search for tags values. If the number of stale (already known) values reaches or exceeds this limit, the search stops. If Tempo processes `maxStaleValues` matches without finding a new tag name, the search is returned early.
+
+**Returns**
+
+By default, this endpoint returns a JSON response with tag values and their types.
+Other formats can be requested using the `Accept` header:
+
+- `Accept: application/vnd.grafana.llm` - Returns a simplified JSON format optimized for LLM consumption. This format is subject to change and shouldn't be relied on for programmatic use.
 
 #### Filtered tag values
 

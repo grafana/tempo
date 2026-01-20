@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"slices"
 	"sort"
+	"strings"
 	"testing"
 	"time"
 
@@ -16,6 +17,7 @@ import (
 	"github.com/grafana/tempo/pkg/collector"
 	"github.com/grafana/tempo/pkg/search"
 	"github.com/grafana/tempo/pkg/tempopb"
+	"github.com/grafana/tempo/pkg/traceql"
 	tempoUtil "github.com/grafana/tempo/pkg/util"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
@@ -523,7 +525,7 @@ func TestSearchTagValuesV2_badRequest(t *testing.T) {
 		require.NoError(t, err)
 		defer res.Body.Close()
 
-		require.Contains(t, string(body), "tag name is not valid intrinsic or scoped attribute")
+		require.Contains(t, string(body), "please provide a valid tagName: failed to parse identifier app.user.id: parse error at line 1, col 2: unknown identifier: app")
 
 		// Test gRPC endpoint returns InvalidArgument for invalid tagName
 		grpcClient, ctx, err := h.APIClientGRPC("")
@@ -540,7 +542,7 @@ func TestSearchTagValuesV2_badRequest(t *testing.T) {
 		st, ok := status.FromError(err)
 		require.True(t, ok)
 		require.Equal(t, codes.InvalidArgument, st.Code())
-		require.Contains(t, st.Message(), "tag name is not valid intrinsic or scoped attribute")
+		require.Contains(t, st.Message(), "please provide a valid tagName: failed to parse identifier app.user.id: parse error at line 1, col 2: unknown identifier: app")
 	})
 }
 
@@ -763,4 +765,129 @@ func callSearchTagValuesAndAssert(t *testing.T, h *util.TempoHarness, tagName st
 	// Sort for comparison
 	sort.Strings(response.TagValues)
 	require.Equal(t, expectedValues, response.TagValues)
+}
+
+func TestTagValuesWithSpecialCharacters(t *testing.T) {
+	// the below test uses the tempo http client which purposefully mimics the way Grafana builds urls to call Tempo. this means
+	// that an attribute like span.attr/slash will be requested like /api/v2/search/tag/span.attr/slash/values. this
+	// "manuallyTestSlash" function also confirms that the url encoded slash works: /api/v2/search/tag/span.attr%2Fslash/values
+	manuallyTestSlash := func(t *testing.T, h *util.TempoHarness, start, end int64) {
+		url := h.BaseURL() + "/api/v2/search/tag/span.attr%2Fslash/values"
+		if start != 0 && end != 0 {
+			url = fmt.Sprintf("%s?start=%d&end=%d", url, start, end)
+		}
+
+		req, err := http.NewRequest(http.MethodGet, url, nil)
+		require.NoError(t, err)
+		resp, err := h.APIClientHTTP("").Do(req)
+		require.NoError(t, err)
+		defer resp.Body.Close()
+
+		valuesResp := &tempopb.SearchTagValuesV2Response{}
+		err = jsonpb.Unmarshal(resp.Body, valuesResp)
+		require.NoError(t, err)
+		require.Equal(t, 1, len(valuesResp.TagValues))
+		require.Equal(t, "val/", valuesResp.TagValues[0].Value)
+	}
+
+	util.RunIntegrationTests(t, util.TestHarnessConfig{
+		Components: util.ComponentsRecentDataQuerying | util.ComponentsBackendQuerying,
+	}, func(h *util.TempoHarness) {
+		h.WaitTracesWritable(t)
+
+		// Create traces with tag values containing special characters
+		specialCharValues := []struct {
+			attrName  string
+			attrValue string
+		}{
+			{"attr[bracket", "val["},
+			{"attr/slash", "val/"},
+			{"attr space", "val_"},
+			{"attr&ampersand", "val&"},
+			{"attr:colon", "val:"},
+			{"attr@at", "val@"},
+			{"attr#octothorpe", "val#"},
+			{"attr🐷oink", "val🐷"},
+			{"attr%percent", "val%"},
+			{"attr%20valid_escape_code", "val%20"},
+			{"attr \"'<>#%{}|\\*", "val😬"},
+			{"attr=equals", "val="},
+			{"attr?question", "val?"},
+			{"attr+plus", "val+"},
+			{"attr.dot", "val."},
+			{"attr~tilde", "val~"},
+			{"attr(paren", "val("},
+			{"attr,comma", "val,"},
+			{"attr;semicolon", "val;"},
+			// {"attr//doubleslash", "val//"}, getting // to work is another level of difficult and may only be possible over gRPC. the router itself seems to strip this out and reduce it to a single slash. TODO: get this to work
+		}
+
+		for _, tc := range specialCharValues {
+			batch := util.MakeThriftBatchWithSpanCountAttributeAndName(1, "test-service", tc.attrValue, tc.attrValue, tc.attrName, tc.attrName)
+			require.NoError(t, h.WriteJaegerBatch(batch, ""))
+		}
+
+		// now that we've written data, we have to update any attr name with special characters to escape quotes, backslashes, and wrap in quotes to make this a valid traceql identifier
+		for i, tc := range specialCharValues {
+			if traceql.ContainsNonAttributeRune(tc.attrName) {
+				specialCharValues[i].attrName = strings.ReplaceAll(tc.attrName, "\\", "\\\\")
+				specialCharValues[i].attrName = strings.ReplaceAll(tc.attrName, "\"", "\\\"")
+
+				specialCharValues[i].attrName = fmt.Sprintf("%q", tc.attrName)
+			}
+		}
+
+		// Wait for traces to be written to WAL
+		h.WaitTracesQueryable(t, len(specialCharValues))
+
+		// Test tag values retrieval for WAL
+		for _, tc := range specialCharValues {
+			t.Run("wal_resource_"+tc.attrName, func(t *testing.T) {
+				tagName := "resource." + tc.attrName
+				expected := &tempopb.SearchTagValuesV2Response{
+					TagValues: []*tempopb.TagValue{{Type: "string", Value: tc.attrValue}},
+				}
+				callSearchTagValuesV2AndAssert(t, h, tagName, "", expected, 0, 0)
+			})
+
+			t.Run("wal_span_"+tc.attrName, func(t *testing.T) {
+				tagName := "span." + tc.attrName
+				expected := &tempopb.SearchTagValuesV2Response{
+					TagValues: []*tempopb.TagValue{{Type: "string", Value: tc.attrValue}},
+				}
+				callSearchTagValuesV2AndAssert(t, h, tagName, "", expected, 0, 0)
+			})
+		}
+
+		manuallyTestSlash(t, h, 0, 0)
+
+		// Wait for traces to be written to backend
+		h.WaitTracesWrittenToBackend(t, len(specialCharValues))
+		h.ForceBackendQuerying(t)
+
+		// Test tag values retrieval for backend
+		now := time.Now()
+		start := now.Add(-2 * time.Hour).Unix()
+		end := now.Add(2 * time.Hour).Unix()
+
+		for _, tc := range specialCharValues {
+			t.Run("backend_resource_"+tc.attrName, func(t *testing.T) {
+				tagName := "resource." + tc.attrName
+				expected := &tempopb.SearchTagValuesV2Response{
+					TagValues: []*tempopb.TagValue{{Type: "string", Value: tc.attrValue}},
+				}
+				callSearchTagValuesV2AndAssert(t, h, tagName, "", expected, start, end)
+			})
+
+			t.Run("backend_span_"+tc.attrName, func(t *testing.T) {
+				tagName := "span." + tc.attrName
+				expected := &tempopb.SearchTagValuesV2Response{
+					TagValues: []*tempopb.TagValue{{Type: "string", Value: tc.attrValue}},
+				}
+				callSearchTagValuesV2AndAssert(t, h, tagName, "", expected, start, end)
+			})
+		}
+
+		manuallyTestSlash(t, h, start, end)
+	})
 }
