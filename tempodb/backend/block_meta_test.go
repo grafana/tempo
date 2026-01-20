@@ -213,7 +213,7 @@ func BenchmarkBlockMetaMarshalUnmarshal(b *testing.B) {
 		_, err := meta.Marshal()
 		require.NoError(b, err, "marshal should not fail")
 		for b.Loop() {
-			meta.Marshal()
+			meta.Marshal() // nolint:errcheck // skipping error check for benchmark, checked above
 		}
 	})
 
@@ -223,7 +223,7 @@ func BenchmarkBlockMetaMarshalUnmarshal(b *testing.B) {
 		require.NoError(b, meta.Unmarshal(data), "unmarshal should not fail")
 
 		for b.Loop() {
-			meta.Unmarshal(data)
+			meta.Unmarshal(data) // nolint:errcheck // skipping error check for benchmark, checked above
 		}
 	})
 }
