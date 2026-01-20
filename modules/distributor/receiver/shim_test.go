@@ -151,7 +151,7 @@ func runReceiverShim(t *testing.T, receiverCfg map[string]interface{}, pusher Tr
 	level := dslog.Level{}
 	_ = level.Set("info")
 
-	shim, err := New(receiverCfg, pusher, FakeTenantMiddleware(), nil, 0, level, reg)
+	shim, err := New(receiverCfg, pusher, FakeTenantMiddleware(), 0, level, reg)
 	require.NoError(t, err)
 
 	err = services.StartAndAwaitRunning(context.Background(), shim)

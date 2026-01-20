@@ -351,14 +351,6 @@ func (r *receiversShim) ConsumeTraces(ctx context.Context, td ptrace.Traces) err
 	ctx, span := tracer.Start(ctx, "distributor.ConsumeTraces")
 	defer span.End()
 
-	// Call trace push middlewares
-	for _, mw := range r.tracePushMiddlewares {
-		if err := mw(ctx, td); err != nil {
-			r.logger.Log("msg", "trace push middleware rejected traces", "err", err)
-			return err
-		}
-	}
-
 	var err error
 
 	start := time.Now()

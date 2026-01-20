@@ -186,6 +186,9 @@ type Distributor struct {
 
 	logger log.Logger
 
+	// TracePushMiddlewares are hooks called when a trace push request is received.
+	tracePushMiddlewares []receiver.TracePushMiddleware
+
 	// For testing functionality that relies on timing without having to sleep in unit tests.
 	sleep func(time.Duration)
 	now   func() time.Time
@@ -262,6 +265,7 @@ func New(
 		partitionRing:        partitionRing,
 		overrides:            o,
 		traceEncoder:         model.MustNewSegmentDecoder(model.CurrentEncoding),
+		tracePushMiddlewares: cfg.TracePushMiddlewares,
 		logger:               logger,
 		sleep:                time.Sleep,
 		now:                  time.Now,
@@ -410,6 +414,13 @@ func (d *Distributor) PushTraces(ctx context.Context, traces ptrace.Traces) (*te
 
 	ctx, span := tracer.Start(ctx, "distributor.PushBytes")
 	defer span.End()
+
+	// Call trace push middlewares
+	for _, mw := range d.tracePushMiddlewares {
+		if err := mw(ctx, traces); err != nil {
+			return nil, err
+		}
+	}
 
 	userID, spanCount, size, err := d.extractBasicInfo(ctx, traces)
 	if err != nil {
