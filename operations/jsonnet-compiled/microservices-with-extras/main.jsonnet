@@ -14,26 +14,64 @@ tempo
   // generate with `tempo_query.enabled: true` to include tempo-query manifests
   _config+:: {
     namespace: 'tracing',
+
+    backend_scheduler+: {
+      pvc_size: '200Mi',
+      pvc_storage_class: 'fast',
+      vpa+: {
+        enabled: true,
+      },
+    },
+
+    backend_worker+: {
+      vpa+: {
+        enabled: true,
+      },
+    },
+
+    block_builder+: {
+      vpa+: {
+        enabled: true,
+      },
+    },
+
     compactor+: {
       replicas: 5,
     },
+
+    live_store+: {
+      pvc_size: '10Gi',
+      pvc_storage_class: 'fast',
+
+      vpa+: {
+        enabled: true,
+      },
+    },
+
+
+    metrics_generator+: {
+      pvc_size: '10Gi',
+      pvc_storage_class: 'fast',
+      ephemeral_storage_request_size: '10Gi',
+      ephemeral_storage_limit_size: '11Gi',
+      vpa+: {
+        enabled: true,
+      },
+    },
+
     query_frontend+: {
       replicas: 2,
     },
+
     querier+: {
       replicas: 5,
+      vpa+: {
+        enabled: true,
+      },
     },
     ingester+: {
       replicas: 10,
       pvc_size: '10Gi',
-      pvc_storage_class: 'fast',
-    },
-    live_store+: {
-      pvc_size: '10Gi',
-      pvc_storage_class: 'fast',
-    },
-    backend_scheduler+: {
-      pvc_size: '200Mi',
       pvc_storage_class: 'fast',
     },
     distributor+: {
@@ -54,12 +92,6 @@ tempo
           },
         },
       },
-    },
-    metrics_generator+: {
-      pvc_size: '10Gi',
-      pvc_storage_class: 'fast',
-      ephemeral_storage_request_size: '10Gi',
-      ephemeral_storage_limit_size: '11Gi',
     },
     memcached+: {
       replicas: 5,
