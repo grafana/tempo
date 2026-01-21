@@ -158,12 +158,12 @@ func TestTimestampOf(t *testing.T) {
 			end:      15,
 			step:     100,
 			instant:  true,
-			expected: 100,
+			expected: 15, // not aligned
 		},
 	}
 
 	for _, c := range tc {
-		mapper := NewIntervalMapper(c.start, c.end, c.step, false)
+		mapper := NewIntervalMapper(c.start, c.end, c.step, c.instant)
 		assert.Equal(t, c.expected, mapper.TimestampOf(c.interval), "interval: %d, start: %d, end: %d, step: %d", c.interval, c.start, c.end, c.step)
 	}
 }
@@ -208,10 +208,27 @@ func TestIntervalOf(t *testing.T) {
 		},
 		{
 			ts:       0,
+			start:    0,
 			end:      1,
 			step:     1,
 			instant:  true,
-			expected: -1,
+			expected: 0, // start and end are inclusive for instant queries
+		},
+		{
+			ts:       10,
+			start:    0,
+			end:      10,
+			step:     100,
+			instant:  true,
+			expected: 0, // start and end are inclusive for instant queries
+		},
+		{
+			ts:       98,
+			start:    0,
+			end:      10,
+			step:     99,
+			instant:  true,
+			expected: -1, // outside of range, range is not aligned
 		},
 		{
 			ts:       10,
@@ -289,7 +306,7 @@ func TestIntervalOf(t *testing.T) {
 	}
 
 	for _, c := range tc {
-		mapper := NewIntervalMapper(c.start, c.end, c.step, false)
+		mapper := NewIntervalMapper(c.start, c.end, c.step, c.instant)
 		assert.Equal(t, c.expected, mapper.Interval(c.ts), "ts: %d, start: %d, end: %d, step: %d", c.ts, c.start, c.end, c.step)
 	}
 }
