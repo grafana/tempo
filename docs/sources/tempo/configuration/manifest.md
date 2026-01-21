@@ -629,11 +629,6 @@ metrics_generator:
                 bloom_filter_false_positive: 0.01
                 bloom_filter_shard_size_bytes: 102400
                 version: vParquet4
-                search_encoding: snappy
-                search_page_size_bytes: 1048576
-                v2_index_downsample_bytes: 1048576
-                v2_index_page_size_bytes: 256000
-                v2_encoding: zstd
                 parquet_row_group_size_bytes: 100000000
                 parquet_dedicated_columns:
                     - scope: resource
@@ -738,14 +733,10 @@ metrics_generator:
         remote_write_add_org_id_header: true
     traces_storage:
         path: ""
-        v2_encoding: none
-        search_encoding: none
         ingestion_time_range_slack: 2m0s
         version: vParquet4
     traces_query_storage:
         path: ""
-        v2_encoding: none
-        search_encoding: none
         ingestion_time_range_slack: 2m0s
         version: vParquet4
     metrics_ingestion_time_range_slack: 30s
@@ -789,11 +780,6 @@ block_builder:
         bloom_filter_false_positive: 0.01
         bloom_filter_shard_size_bytes: 102400
         version: vParquet4
-        search_encoding: snappy
-        search_page_size_bytes: 1048576
-        v2_index_downsample_bytes: 1048576
-        v2_index_page_size_bytes: 256000
-        v2_encoding: zstd
         parquet_row_group_size_bytes: 100000000
         parquet_dedicated_columns:
             - scope: resource
@@ -854,8 +840,6 @@ block_builder:
               options: []
     wal:
         path: /var/tempo/block-builder/traces
-        v2_encoding: none
-        search_encoding: none
         ingestion_time_range_slack: 2m0s
         version: vParquet4
 storage:
@@ -865,18 +849,11 @@ storage:
             queue_depth: 20000
         wal:
             path: /var/tempo/wal
-            v2_encoding: snappy
-            search_encoding: none
             ingestion_time_range_slack: 2m0s
         block:
             bloom_filter_false_positive: 0.01
             bloom_filter_shard_size_bytes: 102400
             version: vParquet4
-            search_encoding: snappy
-            search_page_size_bytes: 1048576
-            v2_index_downsample_bytes: 1048576
-            v2_index_page_size_bytes: 256000
-            v2_encoding: zstd
             parquet_row_group_size_bytes: 100000000
             parquet_dedicated_columns:
                 - scope: resource
@@ -1182,9 +1159,6 @@ backend_scheduler:
         compaction:
             measure_interval: 1m0s
             compaction:
-                v2_in_buffer_bytes: 5242880
-                v2_out_buffer_bytes: 20971520
-                v2_prefetch_traces_count: 1000
                 compaction_window: 1h0m0s
                 max_compaction_objects: 6000000
                 max_block_bytes: 107374182400
@@ -1234,9 +1208,6 @@ backend_worker:
         max_period: 1m0s
         max_retries: 0
     compaction:
-        v2_in_buffer_bytes: 5242880
-        v2_out_buffer_bytes: 20971520
-        v2_prefetch_traces_count: 1000
         compaction_window: 1h0m0s
         max_compaction_objects: 6000000
         max_block_bytes: 107374182400
@@ -1370,8 +1341,6 @@ live_store:
     commit_interval: 5s
     wal:
         path: /var/tempo/live-store/traces
-        v2_encoding: none
-        search_encoding: none
         ingestion_time_range_slack: 2m0s
         version: vParquet4
     query_block_concurrency: 10
@@ -1389,11 +1358,6 @@ live_store:
         bloom_filter_false_positive: 0.01
         bloom_filter_shard_size_bytes: 102400
         version: ""
-        search_encoding: snappy
-        search_page_size_bytes: 1048576
-        v2_index_downsample_bytes: 1048576
-        v2_index_page_size_bytes: 256000
-        v2_encoding: zstd
         parquet_row_group_size_bytes: 100000000
         parquet_dedicated_columns:
             - scope: resource

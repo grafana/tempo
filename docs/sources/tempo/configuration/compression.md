@@ -4,6 +4,8 @@ description: Learn about compression and encoding options available for Tempo.
 weight: 200
 ---
 
+jpe - remove?
+
 <!-- Page needs to be updated. -->
 
 # Compression and encoding
