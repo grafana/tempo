@@ -52,4 +52,7 @@
 
   tempo_querier_service:
     k.util.serviceFor($.tempo_querier_deployment),
+
+  // Vertical Pod Autoscaler
+  tempo_querier_vpa: $.vpaForController($.tempo_querier_deployment, 'querier'),
 }
