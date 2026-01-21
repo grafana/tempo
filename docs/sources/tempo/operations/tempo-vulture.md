@@ -14,10 +14,10 @@ It is useful for monitoring data integrity in production environments and for po
 
 Tempo Vulture performs the following operations:
 
-1. **Write traces**: Pushes test traces to Tempo using OTLP over gRPC
-2. **Read traces by ID**: Queries Tempo to retrieve traces by their trace ID
-3. **Search traces**: Uses TraceQL to search for traces by attributes
-4. **Metrics queries**: Validates TraceQL metrics queries (optional)
+- Write traces: Pushes test traces to Tempo using OTLP over gRPC
+- Read traces by ID: Queries Tempo to retrieve traces by their trace ID
+- Search traces: Uses TraceQL to search for traces by attributes
+- Metrics queries: Validates TraceQL metrics queries (optional)
 
 Tempo Vulture can run in two modes:
 
@@ -40,6 +40,8 @@ make tempo-vulture
 ```
 
 ## Configuration flags
+
+Configure Tempo Vulture using command-line flags.
 
 ### Required flags
 
