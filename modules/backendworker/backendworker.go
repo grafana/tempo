@@ -118,7 +118,7 @@ func New(cfg Config, schedulerClientCfg backendscheduler_client.Config, store st
 
 		w.Ring, err = ring.New(cfg.Ring.ToLifecyclerConfig().RingConfig, backendWorkerRingKey, cfg.OverrideRingKey, log.Logger, reg)
 		if err != nil {
-			return nil, fmt.Errorf("unable to initialize compactor ring: %w", err)
+			return nil, fmt.Errorf("unable to initialize backend-worker ring: %w", err)
 		}
 	}
 
@@ -152,26 +152,26 @@ func (w *BackendWorker) starting(ctx context.Context) (err error) {
 		}
 
 		// Wait until the ring client detected this instance in the ACTIVE state.
-		level.Info(log.Logger).Log("msg", "waiting until compactor is ACTIVE in the ring")
+		level.Info(log.Logger).Log("msg", "waiting until backend-worker is ACTIVE in the ring")
 		ctxWithTimeout, cancel := context.WithTimeout(ctx, w.cfg.Ring.WaitActiveInstanceTimeout)
 		defer cancel()
 		if err := ring.WaitInstanceState(ctxWithTimeout, w.Ring, w.ringLifecycler.GetInstanceID(), ring.ACTIVE); err != nil {
 			return err
 		}
-		level.Info(log.Logger).Log("msg", "compactor is ACTIVE in the ring")
+		level.Info(log.Logger).Log("msg", "backend-worker is ACTIVE in the ring")
 
-		// In the event of a cluster cold start we may end up in a situation where each new compactor
+		// In the event of a cluster cold start we may end up in a situation where each new backend-worker
 		// instance starts at a slightly different time and thus each one starts with a different state
 		// of the ring. It's better to just wait the ring stability for a short time.
 		if w.cfg.Ring.WaitStabilityMinDuration > 0 {
 			minWaiting := w.cfg.Ring.WaitStabilityMinDuration
 			maxWaiting := w.cfg.Ring.WaitStabilityMaxDuration
 
-			level.Info(log.Logger).Log("msg", "waiting until compactor ring topology is stable", "min_waiting", minWaiting.String(), "max_waiting", maxWaiting.String())
+			level.Info(log.Logger).Log("msg", "waiting until backend-worker ring topology is stable", "min_waiting", minWaiting.String(), "max_waiting", maxWaiting.String())
 			if err := ring.WaitRingStability(ctx, w.Ring, ringOp, minWaiting, maxWaiting); err != nil {
-				level.Warn(log.Logger).Log("msg", "compactor ring topology is not stable after the max waiting time, proceeding anyway")
+				level.Warn(log.Logger).Log("msg", "backend-worker ring topology is not stable after the max waiting time, proceeding anyway")
 			} else {
-				level.Info(log.Logger).Log("msg", "compactor ring topology is stable")
+				level.Info(log.Logger).Log("msg", "backend-worker ring topology is stable")
 			}
 		}
 	}

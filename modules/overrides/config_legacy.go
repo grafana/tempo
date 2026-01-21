@@ -147,7 +147,7 @@ type LegacyOverrides struct {
 	MetricsGeneratorProcessorHostInfoMetricName                                 string                           `yaml:"metrics_generator_processor_host_info_metric_name" json:"metrics_generator_processor_host_info_metric_name"`
 	MetricsGeneratorIngestionSlack                                              time.Duration                    `yaml:"metrics_generator_ingestion_time_range_slack" json:"metrics_generator_ingestion_time_range_slack,omitempty"`
 
-	// Compactor enforced limits.
+	// Backend-worker/scheduler enforced limits.
 	BlockRetention     model.Duration `yaml:"block_retention" json:"block_retention"`
 	CompactionDisabled bool           `yaml:"compaction_disabled" json:"compaction_disabled"`
 	CompactionWindow   model.Duration `yaml:"compaction_window" json:"compaction_window"`
