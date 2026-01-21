@@ -3,8 +3,8 @@
     tempo: 'grafana/tempo:latest',
     tempo_query: 'grafana/tempo-query:latest',
     tempo_vulture: 'grafana/tempo-vulture:latest',
-    memcached: 'memcached:1.6.38-alpine',
-    memcachedExporter: 'prom/memcached-exporter:v0.15.2',
+    memcached: 'memcached:1.6.40-alpine',
+    memcachedExporter: 'prom/memcached-exporter:v0.15.5',
 
     tempo_compactor: self.tempo,
     tempo_distributor: self.tempo,
