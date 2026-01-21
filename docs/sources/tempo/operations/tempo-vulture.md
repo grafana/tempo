@@ -21,8 +21,8 @@ Tempo Vulture performs the following operations:
 
 Tempo Vulture can run in two modes:
 
-- **Continuous mode** (default): Runs indefinitely, continuously writing and reading traces while exposing Prometheus metrics
-- **Validation mode**: Executes a fixed number of write/read cycles and exits with a status code indicating success or failure
+- Continuous mode (default): Runs indefinitely, continuously writing and reading traces while exposing Prometheus metrics
+- Validation mode: Executes a fixed number of write/read cycles and exits with a status code indicating success or failure
 
 ## Run Tempo Vulture
 
