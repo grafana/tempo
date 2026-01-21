@@ -41,6 +41,8 @@ type mockOverrides struct {
 	nativeHistograms                                   histograms.HistogramMethod
 	hostInfoHostIdentifiers                            []string
 	hostInfoMetricName                                 string
+	serviceGraphsSpanMultiplierKey                     string
+	spanMetricsSpanMultiplierKey                       string
 }
 
 var _ metricsGeneratorOverrides = (*mockOverrides)(nil)
@@ -213,4 +215,12 @@ func (m *mockOverrides) MetricsGeneratorProcessorHostInfoHostIdentifiers(string)
 
 func (m *mockOverrides) MetricsGeneratorProcessorHostInfoMetricName(string) string {
 	return m.hostInfoMetricName
+}
+
+func (m *mockOverrides) MetricsGeneratorProcessorServiceGraphsSpanMultiplierKey(string) string {
+	return m.serviceGraphsSpanMultiplierKey
+}
+
+func (m *mockOverrides) MetricsGeneratorProcessorSpanMetricsSpanMultiplierKey(string) string {
+	return m.spanMetricsSpanMultiplierKey
 }

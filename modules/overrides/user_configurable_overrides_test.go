@@ -102,6 +102,8 @@ func TestUserConfigOverridesManager_allFields(t *testing.T) {
 	EnableInstanceLabel, EnableInstanceLabelIsSet := mgr.MetricsGeneratorProcessorSpanMetricsEnableInstanceLabel(tenant1)
 	assert.Equal(t, true, EnableInstanceLabel)
 	assert.Equal(t, false, EnableInstanceLabelIsSet)
+	assert.Empty(t, mgr.MetricsGeneratorProcessorServiceGraphsSpanMultiplierKey(tenant1))
+	assert.Empty(t, mgr.MetricsGeneratorProcessorSpanMetricsSpanMultiplierKey(tenant1))
 
 	// Inject user-configurable overrides
 	mgr.tenantLimits[tenant1] = &userconfigurableoverrides.Limits{
@@ -123,6 +125,7 @@ func TestUserConfigOverridesManager_allFields(t *testing.T) {
 					EnableVirtualNodeLabel:   boolPtr(true),
 					PeerAttributes:           &[]string{"attribute"},
 					HistogramBuckets:         &[]float64{1, 2, 3, 4, 5},
+					SpanMultiplierKey:        strPtr("custom_key"),
 				},
 				SpanMetrics: userconfigurableoverrides.LimitsMetricsGeneratorProcessorSpanMetrics{
 					Dimensions:          &[]string{"sm-dimension"},
@@ -158,6 +161,7 @@ func TestUserConfigOverridesManager_allFields(t *testing.T) {
 					},
 					HistogramBuckets:             &[]float64{10, 20, 30, 40, 50},
 					TargetInfoExcludedDimensions: &[]string{"some-label"},
+					SpanMultiplierKey:            strPtr("custom_key"),
 				},
 			},
 		},
@@ -201,6 +205,8 @@ func TestUserConfigOverridesManager_allFields(t *testing.T) {
 	assert.Equal(t, "span.kind", filterPolicies[0].Exclude.Attributes[0].Key)
 	assert.Equal(t, "SPAN_KIND_SERVER", filterPolicies[0].Include.Attributes[0].Value)
 	assert.Equal(t, "SPAN_KIND_CONSUMER", filterPolicies[0].Exclude.Attributes[0].Value)
+	assert.Equal(t, "custom_key", mgr.MetricsGeneratorProcessorServiceGraphsSpanMultiplierKey(tenant1))
+	assert.Equal(t, "custom_key", mgr.MetricsGeneratorProcessorSpanMetricsSpanMultiplierKey(tenant1))
 }
 
 func TestUserConfigOverridesManager_populateFromBackend(t *testing.T) {
