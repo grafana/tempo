@@ -94,14 +94,11 @@ func testCompactionRoundtrip(t *testing.T, targetBlockVersion string) {
 			Path: path.Join(tempDir, "traces"),
 		},
 		Block: &common.BlockConfig{
-			IndexDownsampleBytes: 11,
-			BloomFP:              .01,
-			BloomShardSizeBytes:  100_000,
-			Version:              targetBlockVersion,
-			Encoding:             backend.EncLZ4_4M,
-			IndexPageSizeBytes:   1000,
-			RowGroupSizeBytes:    30_000_000,
-			DedicatedColumns:     backend.DedicatedColumns{{Scope: "span", Name: "key", Type: "string"}},
+			BloomFP:             .01,
+			BloomShardSizeBytes: 100_000,
+			Version:             targetBlockVersion,
+			RowGroupSizeBytes:   30_000_000,
+			DedicatedColumns:    backend.DedicatedColumns{{Scope: "span", Name: "key", Type: "string"}},
 		},
 		WAL: &wal.Config{
 			Filepath: path.Join(tempDir, "wal"),
@@ -112,8 +109,6 @@ func testCompactionRoundtrip(t *testing.T, targetBlockVersion string) {
 
 	ctx := context.Background()
 	err = c.EnableCompaction(ctx, &CompactorConfig{
-		ChunkSizeBytes:          10_000_000,
-		FlushSizeBytes:          10_000_000,
 		MaxCompactionRange:      24 * time.Hour,
 		BlockRetention:          0,
 		CompactedBlockRetention: 0,
@@ -248,13 +243,10 @@ func testSameIDCompaction(t *testing.T, targetBlockVersion string) {
 			Path: path.Join(tempDir, "traces"),
 		},
 		Block: &common.BlockConfig{
-			IndexDownsampleBytes: 11,
-			BloomFP:              .01,
-			BloomShardSizeBytes:  100_000,
-			Version:              targetBlockVersion,
-			Encoding:             backend.EncSnappy,
-			IndexPageSizeBytes:   1000,
-			RowGroupSizeBytes:    30_000_000,
+			BloomFP:             .01,
+			BloomShardSizeBytes: 100_000,
+			Version:             targetBlockVersion,
+			RowGroupSizeBytes:   30_000_000,
 		},
 		WAL: &wal.Config{
 			Filepath: path.Join(tempDir, "wal"),
@@ -265,11 +257,9 @@ func testSameIDCompaction(t *testing.T, targetBlockVersion string) {
 
 	ctx := context.Background()
 	err = c.EnableCompaction(ctx, &CompactorConfig{
-		ChunkSizeBytes:          10_000_000,
 		MaxCompactionRange:      24 * time.Hour,
 		BlockRetention:          0,
 		CompactedBlockRetention: 0,
-		FlushSizeBytes:          10_000_000,
 	}, &mockSharder{}, &mockOverrides{})
 	require.NoError(t, err)
 
@@ -394,12 +384,9 @@ func TestCompactionUpdatesBlocklist(t *testing.T) {
 			Path: path.Join(tempDir, "traces"),
 		},
 		Block: &common.BlockConfig{
-			IndexDownsampleBytes: 11,
-			BloomFP:              .01,
-			BloomShardSizeBytes:  100_000,
-			Version:              encoding.DefaultEncoding().Version(),
-			Encoding:             backend.EncNone,
-			IndexPageSizeBytes:   1000,
+			BloomFP:             .01,
+			BloomShardSizeBytes: 100_000,
+			Version:             encoding.DefaultEncoding().Version(),
 		},
 		WAL: &wal.Config{
 			Filepath: path.Join(tempDir, "wal"),
@@ -410,7 +397,6 @@ func TestCompactionUpdatesBlocklist(t *testing.T) {
 
 	ctx := context.Background()
 	err = c.EnableCompaction(ctx, &CompactorConfig{
-		ChunkSizeBytes:          10,
 		MaxCompactionRange:      24 * time.Hour,
 		BlockRetention:          0,
 		CompactedBlockRetention: 0,
@@ -465,12 +451,9 @@ func TestCompactionMetrics(t *testing.T) {
 			Path: path.Join(tempDir, "traces"),
 		},
 		Block: &common.BlockConfig{
-			IndexDownsampleBytes: 11,
-			BloomFP:              .01,
-			BloomShardSizeBytes:  100_000,
-			Version:              encoding.DefaultEncoding().Version(),
-			Encoding:             backend.EncNone,
-			IndexPageSizeBytes:   1000,
+			BloomFP:             .01,
+			BloomShardSizeBytes: 100_000,
+			Version:             encoding.DefaultEncoding().Version(),
 		},
 		WAL: &wal.Config{
 			Filepath: path.Join(tempDir, "wal"),
@@ -481,7 +464,6 @@ func TestCompactionMetrics(t *testing.T) {
 
 	ctx := context.Background()
 	err = c.EnableCompaction(ctx, &CompactorConfig{
-		ChunkSizeBytes:          10,
 		MaxCompactionRange:      24 * time.Hour,
 		BlockRetention:          0,
 		CompactedBlockRetention: 0,
@@ -539,12 +521,9 @@ func TestCompactionIteratesThroughTenants(t *testing.T) {
 			Path: path.Join(tempDir, "traces"),
 		},
 		Block: &common.BlockConfig{
-			IndexDownsampleBytes: 11,
-			BloomFP:              .01,
-			BloomShardSizeBytes:  100_000,
-			Version:              encoding.DefaultEncoding().Version(),
-			Encoding:             backend.EncLZ4_64k,
-			IndexPageSizeBytes:   1000,
+			BloomFP:             .01,
+			BloomShardSizeBytes: 100_000,
+			Version:             encoding.DefaultEncoding().Version(),
 		},
 		WAL: &wal.Config{
 			Filepath: path.Join(tempDir, "wal"),
@@ -555,7 +534,6 @@ func TestCompactionIteratesThroughTenants(t *testing.T) {
 
 	ctx := context.Background()
 	err = c.EnableCompaction(ctx, &CompactorConfig{
-		ChunkSizeBytes:          10,
 		MaxCompactionRange:      24 * time.Hour,
 		MaxCompactionObjects:    1000,
 		MaxBlockBytes:           1024 * 1024 * 1024,
@@ -610,13 +588,10 @@ func testCompactionHonorsBlockStartEndTimes(t *testing.T, targetBlockVersion str
 			Path: path.Join(tempDir, "traces"),
 		},
 		Block: &common.BlockConfig{
-			IndexDownsampleBytes: 11,
-			BloomFP:              .01,
-			BloomShardSizeBytes:  100_000,
-			Version:              targetBlockVersion,
-			Encoding:             backend.EncNone,
-			IndexPageSizeBytes:   1000,
-			RowGroupSizeBytes:    30_000_000,
+			BloomFP:             .01,
+			BloomShardSizeBytes: 100_000,
+			Version:             targetBlockVersion,
+			RowGroupSizeBytes:   30_000_000,
 		},
 		WAL: &wal.Config{
 			Filepath:       path.Join(tempDir, "wal"),
@@ -628,8 +603,6 @@ func testCompactionHonorsBlockStartEndTimes(t *testing.T, targetBlockVersion str
 
 	ctx := context.Background()
 	err = c.EnableCompaction(ctx, &CompactorConfig{
-		ChunkSizeBytes:          10_000_000,
-		FlushSizeBytes:          10_000_000,
 		MaxCompactionRange:      24 * time.Hour,
 		BlockRetention:          0,
 		CompactedBlockRetention: 0,
@@ -686,13 +659,10 @@ func testCompactionDropsTraces(t *testing.T, targetBlockVersion string) {
 			Path: path.Join(tempDir, "traces"),
 		},
 		Block: &common.BlockConfig{
-			IndexDownsampleBytes: 11,
-			BloomFP:              .01,
-			BloomShardSizeBytes:  100_000,
-			Version:              targetBlockVersion,
-			Encoding:             backend.EncSnappy,
-			IndexPageSizeBytes:   1000,
-			RowGroupSizeBytes:    30_000_000,
+			BloomFP:             .01,
+			BloomShardSizeBytes: 100_000,
+			Version:             targetBlockVersion,
+			RowGroupSizeBytes:   30_000_000,
 		},
 		WAL: &wal.Config{
 			Filepath: path.Join(tempDir, "wal"),
@@ -738,13 +708,10 @@ func testCompactionDropsTraces(t *testing.T, targetBlockVersion string) {
 	rw := r.(*readerWriter)
 	// force compact to a new block
 	opts := common.CompactionOptions{
-		BlockConfig:        *rw.cfg.Block,
-		ChunkSizeBytes:     DefaultChunkSizeBytes,
-		FlushSizeBytes:     DefaultFlushSizeBytes,
-		IteratorBufferSize: DefaultIteratorBufferSize,
-		OutputBlocks:       1,
-		Combiner:           model.StaticCombiner,
-		MaxBytesPerTrace:   0,
+		BlockConfig:      *rw.cfg.Block,
+		OutputBlocks:     1,
+		Combiner:         model.StaticCombiner,
+		MaxBytesPerTrace: 0,
 
 		// hook to drop the trace
 		DropObject: func(id common.ID) bool {
@@ -831,12 +798,9 @@ func testCompactWithConfig(t *testing.T, targetBlockVersion string) {
 			Path: path.Join(tempDir, "traces"),
 		},
 		Block: &common.BlockConfig{
-			IndexDownsampleBytes: 11,
-			BloomFP:              .01,
-			BloomShardSizeBytes:  100_000,
-			Version:              targetBlockVersion,
-			Encoding:             backend.EncNone,
-			IndexPageSizeBytes:   1000,
+			BloomFP:             .01,
+			BloomShardSizeBytes: 100_000,
+			Version:             targetBlockVersion,
 		},
 		WAL: &wal.Config{
 			Filepath: path.Join(tempDir, "wal"),
@@ -858,7 +822,6 @@ func testCompactWithConfig(t *testing.T, targetBlockVersion string) {
 		metas,
 		testTenantID,
 		&CompactorConfig{
-			ChunkSizeBytes:          10,
 			MaxCompactionRange:      24 * time.Hour,
 			BlockRetention:          0,
 			CompactedBlockRetention: 0,
@@ -949,13 +912,10 @@ func benchmarkCompaction(b *testing.B, targetBlockVersion string) {
 			Path: path.Join(tempDir, "traces"),
 		},
 		Block: &common.BlockConfig{
-			IndexDownsampleBytes: 11,
-			BloomFP:              .01,
-			BloomShardSizeBytes:  100_000,
-			Version:              targetBlockVersion,
-			Encoding:             backend.EncZstd,
-			IndexPageSizeBytes:   1000,
-			RowGroupSizeBytes:    30_000_000,
+			BloomFP:             .01,
+			BloomShardSizeBytes: 100_000,
+			Version:             targetBlockVersion,
+			RowGroupSizeBytes:   30_000_000,
 		},
 		WAL: &wal.Config{
 			Filepath: path.Join(tempDir, "wal"),
@@ -967,11 +927,7 @@ func benchmarkCompaction(b *testing.B, targetBlockVersion string) {
 	rw := c.(*readerWriter)
 
 	ctx := context.Background()
-	err = c.EnableCompaction(ctx, &CompactorConfig{
-		ChunkSizeBytes:     10_000_000,
-		FlushSizeBytes:     10_000_000,
-		IteratorBufferSize: DefaultIteratorBufferSize,
-	}, &mockSharder{}, &mockOverrides{})
+	err = c.EnableCompaction(ctx, &CompactorConfig{}, &mockSharder{}, &mockOverrides{})
 	require.NoError(b, err)
 
 	traceCount := 20_000
@@ -1007,12 +963,9 @@ func TestCompactWithConfigUnsupportedVersion(t *testing.T) {
 		},
 		Local: localCfg,
 		Block: &common.BlockConfig{
-			IndexDownsampleBytes: 11,
-			BloomFP:              .01,
-			BloomShardSizeBytes:  100_000,
-			Version:              "vParquet4",
-			Encoding:             backend.EncNone,
-			IndexPageSizeBytes:   1000,
+			BloomFP:             .01,
+			BloomShardSizeBytes: 100_000,
+			Version:             "vParquet4",
 		},
 		WAL: &wal.Config{
 			Filepath: path.Join(tempDir, "wal"),
@@ -1038,7 +991,6 @@ func TestCompactWithConfigUnsupportedVersion(t *testing.T) {
 		[]*backend.BlockMeta{meta},
 		testTenantID,
 		&CompactorConfig{
-			ChunkSizeBytes:     10,
 			MaxCompactionRange: 24 * time.Hour,
 		},
 		&mockSharder{},

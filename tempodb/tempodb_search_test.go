@@ -1864,13 +1864,11 @@ func testingConfig(dir string, version string, dc backend.DedicatedColumns) *Con
 			Path: path.Join(dir, "traces"),
 		},
 		Block: &common.BlockConfig{
-			IndexDownsampleBytes: 17,
-			BloomFP:              .01,
-			BloomShardSizeBytes:  100_000,
-			Version:              version,
-			IndexPageSizeBytes:   1000,
-			RowGroupSizeBytes:    10000,
-			DedicatedColumns:     dc,
+			BloomFP:             .01,
+			BloomShardSizeBytes: 100_000,
+			Version:             version,
+			RowGroupSizeBytes:   10000,
+			DedicatedColumns:    dc,
 		},
 		WAL: &wal.Config{
 			Filepath:       path.Join(dir, "wal"),
@@ -1885,7 +1883,6 @@ func testingConfig(dir string, version string, dc backend.DedicatedColumns) *Con
 }
 
 var testingCompactorConfig = &CompactorConfig{
-	ChunkSizeBytes:          10,
 	MaxCompactionRange:      time.Hour,
 	BlockRetention:          0,
 	CompactedBlockRetention: 0,

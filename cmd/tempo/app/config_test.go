@@ -72,7 +72,6 @@ func TestConfig_CheckConfig(t *testing.T) {
 				warnCompleteBlockTimeout,
 				warnBlockRetention,
 				warnRetentionConcurrency,
-				warnStorageTraceBackendS3,
 				warnBlocklistPollConcurrency,
 				warnLogReceivedTraces,
 				warnLogDiscardedTraces,

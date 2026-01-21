@@ -7,6 +7,8 @@ import (
 	"strings"
 )
 
+// jpe ?
+
 // Encoding is the identifier for a chunk encoding.
 type Encoding byte
 

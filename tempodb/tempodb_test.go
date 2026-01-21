@@ -50,12 +50,9 @@ func testConfig(t *testing.T, enc backend.Encoding, blocklistPoll time.Duration,
 			Path: path.Join(tempDir, "traces"),
 		},
 		Block: &common.BlockConfig{
-			IndexDownsampleBytes: 17,
-			BloomFP:              .01,
-			BloomShardSizeBytes:  100_000,
-			Version:              encoding.DefaultEncoding().Version(),
-			Encoding:             enc,
-			IndexPageSizeBytes:   1000,
+			BloomFP:             .01,
+			BloomShardSizeBytes: 100_000,
+			Version:             encoding.DefaultEncoding().Version(),
 		},
 		WAL: &wal.Config{
 			Filepath: path.Join(tempDir, "wal"),
@@ -83,7 +80,6 @@ func TestDB(t *testing.T) {
 	defer cancel()
 
 	err := c.EnableCompaction(ctx, &CompactorConfig{
-		ChunkSizeBytes:          10,
 		MaxCompactionRange:      time.Hour,
 		BlockRetention:          0,
 		CompactedBlockRetention: 0,
@@ -205,7 +201,6 @@ func TestBlockCleanup(t *testing.T) {
 	r, w, c, tempDir := testConfig(t, backend.EncLZ4_256k, 0)
 
 	err := c.EnableCompaction(context.Background(), &CompactorConfig{
-		ChunkSizeBytes:          10,
 		MaxCompactionRange:      time.Hour,
 		BlockRetention:          0,
 		CompactedBlockRetention: 0,
@@ -497,7 +492,6 @@ func TestSearchCompactedBlocks(t *testing.T) {
 	r, w, c, _ := testConfig(t, backend.EncLZ4_256k, time.Hour)
 
 	err := c.EnableCompaction(context.Background(), &CompactorConfig{
-		ChunkSizeBytes:          10,
 		MaxCompactionRange:      time.Hour,
 		BlockRetention:          0,
 		CompactedBlockRetention: 0,
@@ -649,12 +643,9 @@ func testCompleteBlockHonorsStartStopTimes(t *testing.T, targetBlockVersion stri
 			Path: path.Join(tempDir, "traces"),
 		},
 		Block: &common.BlockConfig{
-			IndexDownsampleBytes: 17,
-			BloomFP:              .01,
-			BloomShardSizeBytes:  100_000,
-			Version:              targetBlockVersion,
-			Encoding:             backend.EncNone,
-			IndexPageSizeBytes:   1000,
+			BloomFP:             .01,
+			BloomShardSizeBytes: 100_000,
+			Version:             targetBlockVersion,
 		},
 		WAL: &wal.Config{
 			IngestionSlack: time.Minute,
@@ -722,13 +713,10 @@ func benchmarkCompleteBlock(b *testing.B, e encoding.VersionedEncoding) {
 			Path: path.Join(tempDir, "traces"),
 		},
 		Block: &common.BlockConfig{
-			IndexDownsampleBytes: 17,
-			BloomFP:              .01,
-			BloomShardSizeBytes:  100_000,
-			Encoding:             backend.EncNone,
-			IndexPageSizeBytes:   1000,
-			Version:              e.Version(),
-			RowGroupSizeBytes:    30_000_000,
+			BloomFP:             .01,
+			BloomShardSizeBytes: 100_000,
+			Version:             e.Version(),
+			RowGroupSizeBytes:   30_000_000,
 		},
 		WAL: &wal.Config{
 			IngestionSlack: time.Minute,
@@ -890,7 +878,6 @@ func TestNoCompactFlag(t *testing.T) {
 			defer cancel()
 
 			err := c.EnableCompaction(ctx, &CompactorConfig{
-				ChunkSizeBytes:          10,
 				MaxCompactionRange:      time.Hour,
 				BlockRetention:          0,
 				CompactedBlockRetention: 0,

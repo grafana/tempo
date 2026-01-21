@@ -863,7 +863,7 @@ func (t *App) setupModuleManager() error {
 		Distributor:                   {Common, IngesterRing, MetricsGeneratorRing, PartitionRing},
 		Ingester:                      {Common, Store, MemberlistKV, PartitionRing},
 		MetricsGenerator:              {Common, OptionalStore, MemberlistKV, PartitionRing},
-		MetricsGeneratorNoLocalBlocks: {Common, GeneratorRingWatcher}, // jpe - could be consolidated?
+		MetricsGeneratorNoLocalBlocks: {Common, GeneratorRingWatcher},
 		Querier:                       {Common, Store, IngesterRing, MetricsGeneratorRing, SecondaryIngesterRing, PartitionRing},
 		BlockBuilder:                  {Common, Store, MemberlistKV, PartitionRing},
 		BackendScheduler:              {Common, Store},
@@ -871,7 +871,7 @@ func (t *App) setupModuleManager() error {
 		LiveStore:                     {Common, MemberlistKV, PartitionRing},
 
 		// composite targets
-		SingleBinary:         {QueryFrontend, Querier, Ingester, Distributor, MetricsGenerator},                                                 // jpe - remove
+		SingleBinary:         {QueryFrontend, Querier, Ingester, Distributor, MetricsGenerator},
 		SingleBinary3_0:      {BackendScheduler, BackendWorker, QueryFrontend, Querier, Distributor, MetricsGenerator, BlockBuilder, LiveStore}, // TODO: when we cut 3.0 remove SingleBinary and replace with this
 		ScalableSingleBinary: {SingleBinary},
 	}

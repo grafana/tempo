@@ -39,7 +39,6 @@ func TestAppendBlockStartEnd(t *testing.T) {
 func testAppendBlockStartEnd(t *testing.T, e encoding.VersionedEncoding) {
 	wal, err := New(&Config{
 		Filepath:       t.TempDir(),
-		Encoding:       backend.EncNone,
 		IngestionSlack: 3 * time.Minute,
 		Version:        encoding.DefaultEncoding().Version(),
 	})
@@ -97,7 +96,6 @@ func TestIngestionSlack(t *testing.T) {
 func testIngestionSlack(t *testing.T, e encoding.VersionedEncoding) {
 	wal, err := New(&Config{
 		Filepath:       t.TempDir(),
-		Encoding:       backend.EncNone,
 		IngestionSlack: time.Minute,
 		Version:        encoding.DefaultEncoding().Version(),
 	})
@@ -316,7 +314,6 @@ func TestInvalidFilesAndFoldersAreHandled(t *testing.T) {
 	tempDir := t.TempDir()
 	wal, err := New(&Config{
 		Filepath: tempDir,
-		Encoding: backend.EncGZIP,
 		Version:  encoding.DefaultEncoding().Version(),
 	})
 	require.NoError(t, err, "unexpected error creating temp wal")
@@ -366,7 +363,6 @@ func runWALTest(t testing.TB, encoding string, runner func([][]byte, []*tempopb.
 func runWALTestWithAppendMode(t testing.TB, encoding string, appendTrace bool, runner func([][]byte, []*tempopb.Trace, common.WALBlock)) {
 	wal, err := New(&Config{
 		Filepath: t.TempDir(),
-		Encoding: backend.EncNone,
 		Version:  encoding,
 	})
 	require.NoError(t, err, "unexpected error creating temp wal")
@@ -514,7 +510,6 @@ func runWALBenchmark(b *testing.B, encoding string, flushCount int, runner func(
 func runWALBenchmarkWithAppendMode(b *testing.B, encoding string, flushCount int, appendTrace bool, runner func([][]byte, []*tempopb.Trace, common.WALBlock)) {
 	wal, err := New(&Config{
 		Filepath: b.TempDir(),
-		Encoding: backend.EncNone,
 		Version:  encoding,
 	})
 	require.NoError(b, err, "unexpected error creating temp wal")

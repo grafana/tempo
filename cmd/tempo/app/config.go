@@ -174,10 +174,6 @@ func (c *Config) CheckConfig() []ConfigWarning {
 		warnings = append(warnings, warnRetentionConcurrency)
 	}
 
-	if c.StorageConfig.Trace.Backend == backend.S3 && c.BackendWorker.Compactor.FlushSizeBytes < 5242880 {
-		warnings = append(warnings, warnStorageTraceBackendS3)
-	}
-
 	if c.StorageConfig.Trace.BlocklistPollConcurrency == 0 {
 		warnings = append(warnings, warnBlocklistPollConcurrency)
 	}
@@ -258,10 +254,6 @@ var (
 	warnRetentionConcurrency = ConfigWarning{
 		Message: "backend_worker.Compactor.RetentionConcurrency must be greater than zero. Using default.",
 		Explain: fmt.Sprintf("default=%d", tempodb.DefaultRetentionConcurrency),
-	}
-	warnStorageTraceBackendS3 = ConfigWarning{
-		Message: "backend_worker.Compactor.FlushSizeBytes < 5242880",
-		Explain: "Compaction flush size should be 5MB or higher for S3 backend",
 	}
 	warnBlocklistPollConcurrency = ConfigWarning{
 		Message: "c.StorageConfig.Trace.BlocklistPollConcurrency must be greater than zero. Using default.",

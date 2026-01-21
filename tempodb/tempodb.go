@@ -278,9 +278,6 @@ func (rw *readerWriter) CompleteBlockWithBackend(ctx context.Context, block comm
 		EndTime:          walMeta.EndTime,
 		DataEncoding:     walMeta.DataEncoding,
 		DedicatedColumns: walMeta.DedicatedColumns,
-
-		// Other
-		Encoding: rw.cfg.Block.Encoding,
 	}
 
 	newMeta, err := vers.CreateBlock(ctx, rw.cfg.Block, inMeta, iter, r, w)

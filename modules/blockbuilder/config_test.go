@@ -34,11 +34,9 @@ func TestConfig_validate(t *testing.T) {
 			cfg: Config{
 				BlockConfig: BlockConfig{
 					BlockCfg: common.BlockConfig{
-						Version:              encoding.LatestEncoding().Version(),
-						IndexDownsampleBytes: 1,
-						IndexPageSizeBytes:   1,
-						BloomFP:              0.1,
-						BloomShardSizeBytes:  1,
+						Version:             encoding.LatestEncoding().Version(),
+						BloomFP:             0.1,
+						BloomShardSizeBytes: 1,
 						DedicatedColumns: backend.DedicatedColumns{
 							{Scope: backend.DedicatedColumnScopeResource, Name: "foo", Type: backend.DedicatedColumnTypeString},
 						},
@@ -68,11 +66,9 @@ func TestConfig_validate(t *testing.T) {
 			cfg: Config{
 				BlockConfig: BlockConfig{
 					BlockCfg: common.BlockConfig{
-						Version:              encoding.LatestEncoding().Version(),
-						IndexDownsampleBytes: 1,
-						IndexPageSizeBytes:   1,
-						BloomFP:              0.1,
-						BloomShardSizeBytes:  1,
+						Version:             encoding.LatestEncoding().Version(),
+						BloomFP:             0.1,
+						BloomShardSizeBytes: 1,
 						DedicatedColumns: backend.DedicatedColumns{
 							{Scope: backend.DedicatedColumnScopeResource, Name: "foo", Type: backend.DedicatedColumnTypeString},
 						},

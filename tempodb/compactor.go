@@ -28,10 +28,6 @@ const (
 	outputBlocks = 1
 
 	DefaultCompactionCycle = 30 * time.Second
-
-	DefaultChunkSizeBytes            = 5 * 1024 * 1024  // 5 MiB
-	DefaultFlushSizeBytes     uint32 = 20 * 1024 * 1024 // 20 MiB
-	DefaultIteratorBufferSize        = 1000
 )
 
 var tracer = otel.Tracer("tempodb/compactor")
@@ -303,13 +299,10 @@ func (rw *readerWriter) CompactWithConfig(ctx context.Context, blockMetas []*bac
 	}
 
 	opts := common.CompactionOptions{
-		BlockConfig:        *rw.cfg.Block,
-		ChunkSizeBytes:     compactorCfg.ChunkSizeBytes,
-		FlushSizeBytes:     compactorCfg.FlushSizeBytes,
-		IteratorBufferSize: compactorCfg.IteratorBufferSize,
-		OutputBlocks:       outputBlocks,
-		Combiner:           combiner,
-		MaxBytesPerTrace:   compactorOverrides.MaxBytesPerTraceForTenant(tenantID),
+		BlockConfig:      *rw.cfg.Block,
+		OutputBlocks:     outputBlocks,
+		Combiner:         combiner,
+		MaxBytesPerTrace: compactorOverrides.MaxBytesPerTraceForTenant(tenantID),
 		BytesWritten: func(compactionLevel, bytes int) {
 			metricCompactionBytesWritten.WithLabelValues(strconv.Itoa(compactionLevel)).Add(float64(bytes))
 		},

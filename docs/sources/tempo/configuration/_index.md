@@ -1575,12 +1575,6 @@ Defines re-used configuration blocks.
 # maximum size of each bloom filter shard
 [bloom_filter_shard_size_bytes: <int> | default = 100KiB]
 
-# number of bytes per index record
-[v2_index_downsample_bytes: <uint64> | default = 1MiB]
-
-# block encoding/compression. options: none, gzip, lz4-64k, lz4-256k, lz4-1M, lz4, snappy, zstd, s2
-[v2_encoding: <string> | default = zstd]
-
 # search data encoding/compression. same options as block encoding.
 [search_encoding: <string> | default = snappy]
 
