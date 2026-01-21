@@ -8,28 +8,28 @@
     backend_scheduler+: {
       pdb: {
         enabled: false,
-        maxUnavailable: 1,
+        max_unavailable: 1,
       },
     },
 
     backend_worker+: {
       pdb: {
         enabled: false,
-        maxUnavailable: 1,
+        max_unavailable: 1,
       },
     },
 
     block_builder+: {
       pdb: {
         enabled: false,
-        maxUnavailable: 1,
+        max_unavailable: 1,
       },
     },
 
     distributor+: {
       pdb: {
         enabled: false,
-        maxUnavailable: 1,
+        max_unavailable: 1,
       },
     },
 
@@ -43,28 +43,28 @@
     metrics_generator+: {
       pdb: {
         enabled: false,
-        maxUnavailable: 1,
+        max_unavailable: 1,
       },
     },
 
     query_frontend+: {
       pdb: {
         enabled: false,
-        maxUnavailable: 1,
+        max_unavailable: 1,
       },
     },
 
     querier+: {
       pdb: {
         enabled: false,
-        maxUnavailable: 1,
+        max_unavailable: 1,
       },
     },
 
     memcached+: {
       pdb: {
         enabled: false,
-        maxUnavailable: 1,
+        max_unavailable: 1,
       },
     },
 
@@ -78,8 +78,8 @@
     local pdbConfig = $._config[configKey].pdb;
 
     local maxUnavailable =
-      if std.objectHas(pdbConfig, 'maxUnavailable') && pdbConfig.maxUnavailable != null then
-        pdbConfig.maxUnavailable
+      if std.objectHas(pdbConfig, 'max_unavailable') && pdbConfig.max_unavailable != null then
+        pdbConfig.max_unavailable
       else
         1;
 
