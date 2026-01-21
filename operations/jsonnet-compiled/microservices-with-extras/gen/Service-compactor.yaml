@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    name: compactor
+  name: compactor
+  namespace: tracing
+spec:
+  ports:
+  - name: compactor-prom-metrics
+    port: 3200
+    targetPort: 3200
+  selector:
+    app: compactor
+    name: compactor

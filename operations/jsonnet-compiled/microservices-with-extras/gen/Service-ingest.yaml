@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    name: distributor
+  name: ingest
+  namespace: tracing
+spec:
+  clusterIP: None
+  ports:
+  - name: distributor-prom-metrics
+    port: 3200
+    targetPort: 3200
+  selector:
+    app: distributor
+    name: distributor
+    tempo-gossip-member: "true"

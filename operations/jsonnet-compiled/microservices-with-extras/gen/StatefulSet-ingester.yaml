@@ -1,0 +1,85 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: ingester
+  namespace: tracing
+spec:
+  podManagementPolicy: Parallel
+  replicas: 10
+  selector:
+    matchLabels:
+      app: ingester
+      name: ingester
+      tempo-gossip-member: "true"
+  serviceName: ingester
+  template:
+    metadata:
+      annotations:
+        config_hash: 46188d18f0d8adfa8586e9dbeb744db2
+      labels:
+        app: ingester
+        name: ingester
+        tempo-gossip-member: "true"
+    spec:
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+          - labelSelector:
+              matchLabels:
+                name: ingester
+            topologyKey: kubernetes.io/hostname
+      containers:
+      - args:
+        - -config.file=/conf/tempo.yaml
+        - -mem-ballast-size-mbs=1024
+        - -target=ingester
+        image: grafana/tempo:latest
+        name: ingester
+        ports:
+        - containerPort: 3200
+          name: prom-metrics
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: 3200
+          initialDelaySeconds: 15
+          timeoutSeconds: 1
+        resources:
+          limits:
+            cpu: "5"
+            memory: 5Gi
+          requests:
+            cpu: "3"
+            memory: 3Gi
+        volumeMounts:
+        - mountPath: /conf
+          name: tempo-conf
+        - mountPath: /var/tempo
+          name: ingester-data
+        - mountPath: /overrides
+          name: overrides
+      securityContext:
+        fsGroup: 10001
+      terminationGracePeriodSeconds: 1200
+      volumes:
+      - configMap:
+          name: tempo-ingester
+        name: tempo-conf
+      - configMap:
+          name: tempo-overrides
+        name: overrides
+  volumeClaimTemplates:
+  - apiVersion: v1
+    kind: PersistentVolumeClaim
+    metadata:
+      labels:
+        app: ingester
+      name: ingester-data
+      namespace: tracing
+    spec:
+      accessModes:
+      - ReadWriteOnce
+      resources:
+        requests:
+          storage: 10Gi
+      storageClassName: fast

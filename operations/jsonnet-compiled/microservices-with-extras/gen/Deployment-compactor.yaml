@@ -1,0 +1,64 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: compactor
+  namespace: tracing
+spec:
+  minReadySeconds: 10
+  replicas: 5
+  revisionHistoryLimit: 10
+  selector:
+    matchLabels:
+      app: compactor
+      name: compactor
+  strategy:
+    rollingUpdate:
+      maxSurge: 50%
+      maxUnavailable: 100%
+  template:
+    metadata:
+      annotations:
+        config_hash: 004e7f005ba26495e1943b7948696f5c
+      labels:
+        app: compactor
+        name: compactor
+    spec:
+      containers:
+      - args:
+        - -config.file=/conf/tempo.yaml
+        - -mem-ballast-size-mbs=1024
+        - -target=compactor
+        env:
+        - name: GOMEMLIMIT
+          value: 5GiB
+        image: grafana/tempo:latest
+        imagePullPolicy: IfNotPresent
+        name: compactor
+        ports:
+        - containerPort: 3200
+          name: prom-metrics
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: 3200
+          initialDelaySeconds: 15
+          timeoutSeconds: 1
+        resources:
+          limits:
+            cpu: "1"
+            memory: 5Gi
+          requests:
+            cpu: 500m
+            memory: 3Gi
+        volumeMounts:
+        - mountPath: /conf
+          name: tempo-conf
+        - mountPath: /overrides
+          name: overrides
+      volumes:
+      - configMap:
+          name: tempo-compactor
+        name: tempo-conf
+      - configMap:
+          name: tempo-overrides
+        name: overrides

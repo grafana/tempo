@@ -1,0 +1,20 @@
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    name: query-frontend
+  name: query-frontend-discovery
+  namespace: tracing
+spec:
+  clusterIP: None
+  ports:
+  - name: query-frontend-prom-metrics
+    port: 3200
+    targetPort: 3200
+  - name: grpc
+    port: 9095
+    targetPort: 9095
+  publishNotReadyAddresses: true
+  selector:
+    app: query-frontend
+    name: query-frontend

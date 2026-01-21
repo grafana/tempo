@@ -1,0 +1,18 @@
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    name: memcached
+  name: memcached
+  namespace: tracing
+spec:
+  clusterIP: None
+  ports:
+  - name: memcached-client
+    port: 11211
+    targetPort: 11211
+  - name: exporter-http-metrics
+    port: 9150
+    targetPort: 9150
+  selector:
+    name: memcached
