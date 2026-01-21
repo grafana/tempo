@@ -77,4 +77,7 @@
   // Vertical Pod Autoscaler
   tempo_backend_worker_vpa: $.vpaForController($.tempo_backend_worker_statefulset, 'backend_worker'),
 
+  // Pod Disruption Budget
+  tempo_backend_worker_pdb: $.pdbForController($.tempo_backend_worker_statefulset, 'backend_worker'),
+
 }

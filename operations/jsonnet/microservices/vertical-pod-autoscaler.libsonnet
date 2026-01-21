@@ -7,10 +7,6 @@
         update_mode: 'Auto',
         target_resources: ['cpu', 'memory'],
 
-        // TODO: are the CPU/Memory min/max values the same as the
-        // requests/limits in the config?  Can we just reuse those values
-        // instead of duplicating them here?
-
         cpu: {
           min: '100m',
           max: '2',

@@ -90,4 +90,8 @@
     + service.mixin.spec.withPublishNotReadyAddresses(true)
     + service.mixin.spec.withClusterIp('None')
     + service.mixin.metadata.withName('query-frontend-discovery'),
+
+  // Pod Disruption Budget
+  tempo_query_frontend_pdb: $.pdbForController($.tempo_query_frontend_deployment, 'query_frontend'),
+
 }
