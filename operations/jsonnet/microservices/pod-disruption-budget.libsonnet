@@ -8,24 +8,28 @@
     backend_scheduler+: {
       pdb: {
         enabled: false,
+        maxUnavailable: 1,
       },
     },
 
     backend_worker+: {
       pdb: {
         enabled: false,
+        maxUnavailable: 1,
       },
     },
 
     block_builder+: {
       pdb: {
         enabled: false,
+        maxUnavailable: 1,
       },
     },
 
     distributor+: {
       pdb: {
         enabled: false,
+        maxUnavailable: 1,
       },
     },
 
@@ -39,29 +43,32 @@
     metrics_generator+: {
       pdb: {
         enabled: false,
+        maxUnavailable: 1,
       },
     },
 
     query_frontend+: {
       pdb: {
         enabled: false,
+        maxUnavailable: 1,
       },
     },
 
     querier+: {
       pdb: {
         enabled: false,
+        maxUnavailable: 1,
       },
     },
 
     memcached+: {
       pdb: {
         enabled: false,
+        maxUnavailable: 1,
       },
     },
 
   },
-
 
   pdbForController(controller, configKey)::
     assert std.objectHas($._config, configKey) : '$._config must have key ' + configKey;
@@ -70,10 +77,17 @@
 
     local pdbConfig = $._config[configKey].pdb;
 
+    local maxUnavailable =
+      if std.objectHas(pdbConfig, 'maxUnavailable') && pdbConfig.maxUnavailable != null then
+        pdbConfig.maxUnavailable
+      else
+        1;
+
     if !pdbConfig.enabled then
       {}
     else
-      pdb.new(controller.metadata.new)
-      + pdb.spec.withMaxUnavailable(1)
+      pdb.new(controller.metadata.name)
+      + pdb.metadata.withLabels({ name: controller.metadata.name })
+      + pdb.spec.withMaxUnavailable(maxUnavailable)
       + pdb.spec.selector.withMatchLabels({ name: controller.metadata.name }),
 }
