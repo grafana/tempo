@@ -52,14 +52,16 @@ type RequestQueue struct {
 	queues  *queues
 	stopped bool
 
-	queueLength       *prometheus.GaugeVec   // Per user and reason.
-	discardedRequests *prometheus.CounterVec // Per user.
+	queueLength       *prometheus.GaugeVec     // Per user and reason.
+	batchWeight       *prometheus.HistogramVec // Weight of the batch
+	discardedRequests *prometheus.CounterVec   // Per user.
 }
 
-func NewRequestQueue(maxOutstandingPerTenant int, queueLength *prometheus.GaugeVec, discardedRequests *prometheus.CounterVec) *RequestQueue {
+func NewRequestQueue(maxOutstandingPerTenant int, queueLength *prometheus.GaugeVec, batchWeight *prometheus.HistogramVec, discardedRequests *prometheus.CounterVec) *RequestQueue {
 	q := &RequestQueue{
 		queues:            newUserQueues(maxOutstandingPerTenant),
 		queueLength:       queueLength,
+		batchWeight:       batchWeight,
 		discardedRequests: discardedRequests,
 	}
 
@@ -174,15 +176,12 @@ FindQueue:
 
 func (q *RequestQueue) getBatchBuffer(batchBuffer []Request, userID string, queue chan Request) []Request {
 	requestedCount := len(batchBuffer)
-	guaranteedInQueue := requestedCount
-
-	if len(queue) < requestedCount {
-		guaranteedInQueue = len(queue)
-	}
+	guaranteedInQueue := min(len(queue), requestedCount)
 
 	totalWeight := 0
 	actuallyInBatch := 0
-	for i := 0; i < guaranteedInQueue; i++ {
+
+	for i := range guaranteedInQueue {
 		batchBuffer[i] = <-queue
 		actuallyInBatch++
 		totalWeight += batchBuffer[i].Weight()
@@ -194,6 +193,8 @@ func (q *RequestQueue) getBatchBuffer(batchBuffer []Request, userID string, queu
 	batchBuffer = batchBuffer[:actuallyInBatch]
 
 	q.queueLength.WithLabelValues(userID).Set(float64(len(queue)))
+	q.batchWeight.WithLabelValues(userID).Observe(float64(totalWeight))
+
 	return batchBuffer
 }
 
