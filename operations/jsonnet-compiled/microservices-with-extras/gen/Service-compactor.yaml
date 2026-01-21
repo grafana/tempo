@@ -6,6 +6,8 @@ metadata:
   name: compactor
   namespace: tracing
 spec:
+  ipFamilies:
+  - IPv6
   ports:
   - name: compactor-prom-metrics
     port: 3200

@@ -6,6 +6,8 @@ metadata:
   name: distributor
   namespace: tracing
 spec:
+  ipFamilies:
+  - IPv6
   ports:
   - name: distributor-prom-metrics
     port: 3200

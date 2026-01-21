@@ -6,6 +6,8 @@ metadata:
   name: backend-scheduler
   namespace: tracing
 spec:
+  ipFamilies:
+  - IPv6
   ports:
   - name: backend-scheduler-prom-metrics
     port: 3200

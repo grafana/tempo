@@ -6,6 +6,8 @@ metadata:
   name: metrics-generator
   namespace: tracing
 spec:
+  ipFamilies:
+  - IPv6
   ports:
   - name: metrics-generator-prom-metrics
     port: 3200

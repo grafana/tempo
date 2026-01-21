@@ -6,6 +6,8 @@ metadata:
   name: backend-worker
   namespace: tracing
 spec:
+  ipFamilies:
+  - IPv6
   ports:
   - name: backend-worker-prom-metrics
     port: 3200

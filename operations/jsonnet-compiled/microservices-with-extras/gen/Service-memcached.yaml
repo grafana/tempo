@@ -7,6 +7,8 @@ metadata:
   namespace: tracing
 spec:
   clusterIP: None
+  ipFamilies:
+  - IPv6
   ports:
   - name: memcached-client
     port: 11211

@@ -6,6 +6,8 @@ metadata:
   name: ingester
   namespace: tracing
 spec:
+  ipFamilies:
+  - IPv6
   ports:
   - name: ingester-prom-metrics
     port: 3200

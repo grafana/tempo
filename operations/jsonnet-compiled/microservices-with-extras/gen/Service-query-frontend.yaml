@@ -6,6 +6,8 @@ metadata:
   name: query-frontend
   namespace: tracing
 spec:
+  ipFamilies:
+  - IPv6
   ports:
   - name: query-frontend-prom-metrics
     port: 3200

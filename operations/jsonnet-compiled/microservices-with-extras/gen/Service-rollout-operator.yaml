@@ -4,6 +4,8 @@ metadata:
   name: rollout-operator
   namespace: tracing
 spec:
+  ipFamilies:
+  - IPv6
   ports:
   - name: https
     port: 443

@@ -6,16 +6,21 @@ data:
     http_api_prefix: ""
     ingester:
         lifecycler:
+            enable_inet6: true
             ring:
                 replication_factor: 3
     memberlist:
         abort_if_cluster_join_fails: false
+        bind_addr:
+            - '::'
         bind_port: 7946
         join_members:
             - dns+gossip-ring.tracing.svc.cluster.local.:7946
     overrides:
         per_tenant_override_config: /overrides/overrides.yaml
     server:
+        grpc_listen_address: ::0
+        http_listen_address: ::0
         http_listen_port: 3200
     storage:
         trace:

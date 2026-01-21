@@ -2,7 +2,9 @@
 
 local tempo = import 'microservices/tempo.libsonnet';
 
-tempo {
+tempo
++ tempo.util.withInet6()
+  {
   _images+:: {
     tempo: 'grafana/tempo:latest',
     tempo_vulture: 'grafana/tempo-vulture:latest',

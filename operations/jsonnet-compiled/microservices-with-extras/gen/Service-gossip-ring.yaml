@@ -5,6 +5,8 @@ metadata:
   namespace: tracing
 spec:
   clusterIP: None
+  ipFamilies:
+  - IPv6
   ports:
   - name: gossip-ring
     port: 7946

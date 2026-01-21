@@ -6,6 +6,8 @@ metadata:
   name: querier
   namespace: tracing
 spec:
+  ipFamilies:
+  - IPv6
   ports:
   - name: querier-prom-metrics
     port: 3200

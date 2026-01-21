@@ -10,6 +10,8 @@ data:
                 replication_factor: 3
     memberlist:
         abort_if_cluster_join_fails: false
+        bind_addr:
+            - '::'
         bind_port: 7946
         join_members:
             - dns+gossip-ring.tracing.svc.cluster.local.:7946
@@ -19,6 +21,8 @@ data:
         frontend_worker:
             frontend_address: query-frontend-discovery.tracing.svc.cluster.local.:9095
     server:
+        grpc_listen_address: ::0
+        http_listen_address: ::0
         http_listen_port: 3200
     storage:
         trace:
