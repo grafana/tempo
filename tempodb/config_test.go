@@ -5,8 +5,8 @@ import (
 	"testing"
 
 	"github.com/grafana/tempo/tempodb/encoding/common"
-	v2 "github.com/grafana/tempo/tempodb/encoding/v2"
 	"github.com/grafana/tempo/tempodb/encoding/vparquet3"
+	"github.com/grafana/tempo/tempodb/encoding/vparquet5"
 	"github.com/grafana/tempo/tempodb/wal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -75,19 +75,19 @@ func TestValidateConfig(t *testing.T) {
 					IndexPageSizeBytes:   1,
 					BloomFP:              0.01,
 					BloomShardSizeBytes:  1,
-					Version:              v2.VersionString,
+					Version:              vparquet5.VersionString,
 				},
 			},
 			expectedConfig: &Config{
 				WAL: &wal.Config{
-					Version: v2.VersionString,
+					Version: vparquet5.VersionString,
 				},
 				Block: &common.BlockConfig{
 					IndexDownsampleBytes: 1,
 					IndexPageSizeBytes:   1,
 					BloomFP:              0.01,
 					BloomShardSizeBytes:  1,
-					Version:              v2.VersionString,
+					Version:              vparquet5.VersionString,
 				},
 			},
 		},
@@ -102,7 +102,7 @@ func TestValidateConfig(t *testing.T) {
 					IndexPageSizeBytes:   1,
 					BloomFP:              0.01,
 					BloomShardSizeBytes:  1,
-					Version:              v2.VersionString,
+					Version:              vparquet5.VersionString,
 				},
 			},
 			expectedConfig: &Config{
@@ -114,7 +114,7 @@ func TestValidateConfig(t *testing.T) {
 					IndexPageSizeBytes:   1,
 					BloomFP:              0.01,
 					BloomShardSizeBytes:  1,
-					Version:              v2.VersionString,
+					Version:              vparquet5.VersionString,
 				},
 			},
 		},

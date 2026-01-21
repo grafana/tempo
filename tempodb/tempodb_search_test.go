@@ -33,7 +33,6 @@ import (
 	"github.com/grafana/tempo/tempodb/backend/local"
 	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/grafana/tempo/tempodb/encoding/common"
-	v2 "github.com/grafana/tempo/tempodb/encoding/v2"
 	"github.com/grafana/tempo/tempodb/encoding/vparquet4"
 	"github.com/grafana/tempo/tempodb/encoding/vparquet5"
 	"github.com/grafana/tempo/tempodb/wal"
@@ -1893,11 +1892,6 @@ var testingCompactorConfig = &CompactorConfig{
 }
 
 func runCompleteBlockSearchTest(t *testing.T, blockVersion string, runners ...runnerFn) {
-	// v2 doesn't support any search. just bail here before doing the work below to save resources
-	if blockVersion == v2.VersionString {
-		return
-	}
-
 	tempDir := t.TempDir()
 
 	dc := backend.DedicatedColumns{
@@ -2668,10 +2662,6 @@ func TestSearchForTagsAndTagValues(t *testing.T) {
 
 func TestSearchByShortTraceID(t *testing.T) {
 	for _, v := range encoding.AllEncodingsForWrites() {
-		if v.Version() == v2.VersionString { // no support of the feature in v2
-			continue
-		}
-
 		blockVersion := v.Version()
 
 		tempDir := t.TempDir()

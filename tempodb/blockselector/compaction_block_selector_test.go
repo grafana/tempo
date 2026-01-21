@@ -635,7 +635,7 @@ func TestTimeWindowBlockSelectorBlocksToCompact(t *testing.T) {
 				{
 					BlockID: backend.MustParse("00000000-0000-0000-0000-000000000001"),
 					EndTime: now,
-					Version: "v2",
+					Version: "vParquet5",
 				},
 				{
 					BlockID: backend.MustParse("00000000-0000-0000-0000-000000000002"),
@@ -654,7 +654,7 @@ func TestTimeWindowBlockSelectorBlocksToCompact(t *testing.T) {
 				{
 					BlockID: backend.MustParse("00000000-0000-0000-0000-000000000001"),
 					EndTime: now,
-					Version: "v2",
+					Version: "vParquet5",
 				},
 				{
 					BlockID: backend.MustParse("00000000-0000-0000-0000-000000000002"),
@@ -664,7 +664,7 @@ func TestTimeWindowBlockSelectorBlocksToCompact(t *testing.T) {
 				{
 					BlockID: backend.MustParse("00000000-0000-0000-0000-000000000003"),
 					EndTime: now,
-					Version: "v2",
+					Version: "vParquet5",
 				},
 				{
 					BlockID: backend.MustParse("00000000-0000-0000-0000-000000000004"),
@@ -676,12 +676,12 @@ func TestTimeWindowBlockSelectorBlocksToCompact(t *testing.T) {
 				{
 					BlockID: backend.MustParse("00000000-0000-0000-0000-000000000001"),
 					EndTime: now,
-					Version: "v2",
+					Version: "vParquet5",
 				},
 				{
 					BlockID: backend.MustParse("00000000-0000-0000-0000-000000000003"),
 					EndTime: now,
-					Version: "v2",
+					Version: "vParquet5",
 				},
 			},
 			expectedHash: fmt.Sprintf("%v-%v-%v-%v", tenantID, 0, now.Unix(), 0),
