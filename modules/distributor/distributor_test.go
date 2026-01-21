@@ -2582,7 +2582,7 @@ func TestTracePushMiddlewareCalled(t *testing.T) {
 	assert.Equal(t, traces.SpanCount(), receivedTraces.SpanCount(), "Middleware should receive the same traces")
 }
 
-func TestTracePushMiddlewareRejectsTraces(t *testing.T) {
+func TestTracePushMiddlewareFailsOpen(t *testing.T) {
 	limits := overrides.Config{}
 	limitCfg := &flag.FlagSet{}
 	limits.RegisterFlagsAndApplyDefaults(limitCfg)
@@ -2590,13 +2590,13 @@ func TestTracePushMiddlewareRejectsTraces(t *testing.T) {
 	distributorCfg, ingesterClientCfg, overridesSvc, _,
 		ingesterRing, loggingLevel, middleware := setupDependencies(t, limits)
 
-	// Create a middleware that rejects traces
-	expectedErr := errors.New("middleware rejected traces")
-	rejectMiddleware := func(_ context.Context, _ ptrace.Traces) error {
+	// Create a middleware that returns an error
+	expectedErr := errors.New("middleware error")
+	errorMiddleware := func(_ context.Context, _ ptrace.Traces) error {
 		return expectedErr
 	}
 
-	distributorCfg.TracePushMiddlewares = []receiver.TracePushMiddleware{rejectMiddleware}
+	distributorCfg.TracePushMiddlewares = []receiver.TracePushMiddleware{errorMiddleware}
 
 	d, err := New(
 		distributorCfg,
@@ -2616,8 +2616,7 @@ func TestTracePushMiddlewareRejectsTraces(t *testing.T) {
 	// Create test traces
 	traces := batchesToTraces(t, []*v1.ResourceSpans{test.MakeBatch(10, nil)})
 
-	// Call PushTraces - should fail
+	// Call PushTraces - should succeed despite middleware error (fail open)
 	_, err = d.PushTraces(ctx, traces)
-	require.Error(t, err)
-	assert.Equal(t, expectedErr, err, "Should return the middleware error")
+	require.NoError(t, err, "PushTraces should succeed even when middleware returns an error")
 }

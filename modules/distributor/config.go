@@ -60,6 +60,7 @@ type Config struct {
 	factory ring_client.PoolAddrFunc `yaml:"-"`
 
 	// TracePushMiddlewares are hooks called when a trace push request is received.
+	// Middleware errors are logged but don't fail the push (fail open behavior).
 	TracePushMiddlewares []receiver.TracePushMiddleware `yaml:"-"`
 
 	MaxAttributeBytes int `yaml:"max_attribute_bytes"`

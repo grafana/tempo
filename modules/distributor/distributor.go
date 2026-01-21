@@ -187,6 +187,7 @@ type Distributor struct {
 	logger log.Logger
 
 	// TracePushMiddlewares are hooks called when a trace push request is received.
+	// Middleware errors are logged but don't fail the push (fail open behavior).
 	tracePushMiddlewares []receiver.TracePushMiddleware
 
 	// For testing functionality that relies on timing without having to sleep in unit tests.
@@ -412,13 +413,13 @@ func (d *Distributor) extractBasicInfo(ctx context.Context, traces ptrace.Traces
 func (d *Distributor) PushTraces(ctx context.Context, traces ptrace.Traces) (*tempopb.PushResponse, error) {
 	reqStart := time.Now()
 
-	ctx, span := tracer.Start(ctx, "distributor.PushBytes")
+	ctx, span := tracer.Start(ctx, "distributor.PushTraces")
 	defer span.End()
 
 	// Call trace push middlewares
 	for _, mw := range d.tracePushMiddlewares {
 		if err := mw(ctx, traces); err != nil {
-			return nil, err
+			_ = level.Warn(d.logger).Log("msg", "trace push middleware failed", "err", err)
 		}
 	}
 
