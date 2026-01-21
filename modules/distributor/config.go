@@ -9,7 +9,6 @@ import (
 	"github.com/grafana/tempo/pkg/ingest"
 
 	"github.com/grafana/tempo/modules/distributor/forwarder"
-	"github.com/grafana/tempo/modules/distributor/receiver"
 	"github.com/grafana/tempo/modules/distributor/usage"
 	"github.com/grafana/tempo/pkg/util"
 )
@@ -61,7 +60,7 @@ type Config struct {
 
 	// TracePushMiddlewares are hooks called when a trace push request is received.
 	// Middleware errors are logged but don't fail the push (fail open behavior).
-	TracePushMiddlewares []receiver.TracePushMiddleware `yaml:"-"`
+	TracePushMiddlewares []TracePushMiddleware `yaml:"-"`
 
 	MaxAttributeBytes int `yaml:"max_attribute_bytes"`
 

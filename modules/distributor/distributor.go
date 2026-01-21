@@ -188,7 +188,7 @@ type Distributor struct {
 
 	// TracePushMiddlewares are hooks called when a trace push request is received.
 	// Middleware errors are logged but don't fail the push (fail open behavior).
-	tracePushMiddlewares []receiver.TracePushMiddleware
+	tracePushMiddlewares []TracePushMiddleware
 
 	// For testing functionality that relies on timing without having to sleep in unit tests.
 	sleep func(time.Duration)
@@ -1070,3 +1070,8 @@ func (d *Distributor) RetryInfoEnabled(ctx context.Context) (bool, error) {
 	// cluster level is enabled, check per-tenant override and respect that.
 	return d.overrides.IngestionRetryInfoEnabled(userID), nil
 }
+
+// TracePushMiddleware is a hook called when a trace push request is received.
+// Middlewares are invoked after the request is decoded but before it's processed.
+// Errors returned by middleware are logged but don't fail the push (fail open behavior).
+type TracePushMiddleware func(ctx context.Context, td ptrace.Traces) error

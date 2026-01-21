@@ -2546,7 +2546,7 @@ func TestTracePushMiddlewareCalled(t *testing.T) {
 		return nil
 	}
 
-	distributorCfg.TracePushMiddlewares = []receiver.TracePushMiddleware{testMiddleware}
+	distributorCfg.TracePushMiddlewares = []TracePushMiddleware{testMiddleware}
 
 	d, err := New(
 		distributorCfg,
@@ -2596,7 +2596,7 @@ func TestTracePushMiddlewareFailsOpen(t *testing.T) {
 		return expectedErr
 	}
 
-	distributorCfg.TracePushMiddlewares = []receiver.TracePushMiddleware{errorMiddleware}
+	distributorCfg.TracePushMiddlewares = []TracePushMiddleware{errorMiddleware}
 
 	d, err := New(
 		distributorCfg,
