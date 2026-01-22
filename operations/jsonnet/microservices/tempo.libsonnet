@@ -15,6 +15,7 @@
 (import 'memcached.libsonnet') +
 (import 'multi-zone.libsonnet') +
 (import 'memberlist.libsonnet') +
+(import 'vertical-pod-autoscaler.libsonnet') +
 (import 'rollout-operator/rollout-operator.libsonnet') +
 
 {

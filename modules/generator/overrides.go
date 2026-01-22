@@ -41,6 +41,8 @@ type metricsGeneratorOverrides interface {
 	MetricsGeneratorProcessorSpanMetricsEnableInstanceLabel(userID string) (bool, bool)
 	MetricsGeneratorProcessorHostInfoHostIdentifiers(userID string) []string
 	MetricsGeneratorProcessorHostInfoMetricName(userID string) string
+	MetricsGeneratorProcessorServiceGraphsSpanMultiplierKey(userID string) string
+	MetricsGeneratorProcessorSpanMetricsSpanMultiplierKey(userID string) string
 	DedicatedColumns(userID string) backend.DedicatedColumns
 	MaxLocalTracesPerUser(userID string) int
 	MaxBytesPerTrace(userID string) int

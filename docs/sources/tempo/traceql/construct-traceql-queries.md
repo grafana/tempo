@@ -396,6 +396,72 @@ You can use quoted attributes syntax with non-quoted attribute syntax, the follo
 Currently, only the `\"` and `\\` escape sequences are supported.
 {{< /admonition >}}
 
+### Value types and literals
+
+TraceQL supports several literal types for expressing values in queries.
+A literal is a fixed value written directly in a query, such as `200`, `"GET"`, or `5s`.
+
+#### Integers
+
+Integer values can be positive or negative:
+
+```
+{ span.http.status_code = 200 }
+{ span.retry_count > -1 }
+```
+
+TraceQL provides two special constants for integer bounds:
+
+- `minInt` - The minimum 64-bit integer value (`-9223372036854775808)
+- `maxInt` - The maximum 64-bit integer value (`9223372036854775807`)
+
+These constants are useful when you need explicit numeric extremes without hardcoding long literals:
+
+```
+{ span.value != minInt && span.value != maxInt }
+```
+
+#### Durations
+
+Duration values specify time intervals.
+Supported units include `ns` (nanoseconds), `us` (microseconds), `ms` (milliseconds), `s` (seconds), `m` (minutes), and `h` (hours):
+
+```
+{ span:duration > 100ms }
+{ trace:duration > 5s }
+```
+
+Durations can also be signed:
+
+```
+{ event:timeSinceStart > -5s }
+```
+
+#### Floats
+
+Floating-point values use decimal notation:
+
+```
+{ span.value > 1.5 }
+```
+
+#### Strings
+
+String values are enclosed in double quotes:
+
+```
+{ span.http.method = "GET" }
+```
+
+#### Nil
+
+Use `nil` to check for attributes that are missing or null  and `!= nil` to ensure an attribute is present with a non-null value. 
+
+```
+{ span.optional_field = nil }
+{ span.required_field != nil }
+```
+
 ### Comparison operators
 
 Comparison operators are used to test values within an expression.
