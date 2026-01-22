@@ -101,7 +101,7 @@ message SearchBlockRequest {
   // string encoding = 5;
   uint32 indexPageSize = 6;
   uint32 totalRecords = 7;
-  string dataEncoding = 8;
+  // string dataEncoding = 8;
   string version = 9;
   uint64 size = 10; // total size of data file
   uint32 footerSize = 11; // size of file footer (parquet)
@@ -198,7 +198,7 @@ message SearchTagsBlockRequest {
   // string encoding = 5;
   uint32 indexPageSize = 6;
   uint32 totalRecords = 7;
-  string dataEncoding = 8;
+  // string dataEncoding = 8;
   string version = 9;
   uint64 size = 10; // total size of data file
   uint32 footerSize = 11; // size of file footer (parquet)
@@ -215,7 +215,7 @@ message SearchTagValuesBlockRequest {
   // string encoding = 5;
   uint32 indexPageSize = 6;
   uint32 totalRecords = 7;
-  string dataEncoding = 8;
+  // string dataEncoding = 8;
   string version = 9;
   uint64 size = 10; // total size of data file
   uint32 footerSize = 11; // size of file footer (parquet)

@@ -291,16 +291,9 @@ func (rw *readerWriter) CompactWithConfig(ctx context.Context, blockMetas []*bac
 	compactionLevel := CompactionLevelForBlocks(blockMetas)
 	compactionLevelLabel := strconv.Itoa(int(compactionLevel))
 
-	combiner := instrumentedObjectCombiner{
-		tenant:               tenantID,
-		inner:                compactorSharder,
-		compactionLevelLabel: compactionLevelLabel,
-	}
-
 	opts := common.CompactionOptions{
 		BlockConfig:      *rw.cfg.Block,
 		OutputBlocks:     outputBlocks,
-		Combiner:         combiner,
 		MaxBytesPerTrace: compactorOverrides.MaxBytesPerTraceForTenant(tenantID),
 		BytesWritten: func(compactionLevel, bytes int) {
 			metricCompactionBytesWritten.WithLabelValues(strconv.Itoa(compactionLevel)).Add(float64(bytes))
@@ -428,21 +421,6 @@ func CompactionLevelForBlocks(blockMetas []*backend.BlockMeta) uint8 {
 	}
 
 	return level
-}
-
-type instrumentedObjectCombiner struct {
-	tenant               string
-	compactionLevelLabel string
-	inner                CompactorSharder
-}
-
-// Combine wraps the inner combiner with combined metrics
-func (i instrumentedObjectCombiner) Combine(dataEncoding string, objs ...[]byte) ([]byte, bool, error) {
-	b, wasCombined, err := i.inner.Combine(dataEncoding, i.tenant, objs...)
-	if wasCombined {
-		metricCompactionObjectsCombined.WithLabelValues(i.compactionLevelLabel).Inc()
-	}
-	return b, wasCombined, err
 }
 
 // doForAtLeast executes the function f. It blocks for at least the passed duration but can go longer. if context is cancelled after

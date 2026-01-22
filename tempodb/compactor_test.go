@@ -38,10 +38,6 @@ func (m *mockSharder) Owns(string) bool {
 	return true
 }
 
-func (m *mockSharder) Combine(dataEncoding string, _ string, objs ...[]byte) ([]byte, bool, error) {
-	return model.StaticCombiner.Combine(dataEncoding, objs...)
-}
-
 func (m *mockSharder) RecordDiscardedSpans(int, string, string, string, string) {}
 
 type mockJobSharder struct{}
@@ -130,7 +126,7 @@ func testCompactionRoundtrip(t *testing.T, targetBlockVersion string) {
 
 	for i := 0; i < blockCount; i++ {
 		blockID := backend.NewUUID()
-		meta := &backend.BlockMeta{BlockID: blockID, TenantID: testTenantID, DataEncoding: model.CurrentEncoding}
+		meta := &backend.BlockMeta{BlockID: blockID, TenantID: testTenantID}
 		head, err := wal.NewBlock(meta, model.CurrentEncoding)
 		require.NoError(t, err)
 
@@ -302,7 +298,7 @@ func testSameIDCompaction(t *testing.T, targetBlockVersion string) {
 	// and write them to different blocks
 	for i := 0; i < blockCount; i++ {
 		blockID := backend.NewUUID()
-		meta := &backend.BlockMeta{BlockID: blockID, TenantID: testTenantID, DataEncoding: v1.Encoding}
+		meta := &backend.BlockMeta{BlockID: blockID, TenantID: testTenantID}
 		head, err := wal.NewBlock(meta, v1.Encoding)
 		require.NoError(t, err)
 
@@ -681,7 +677,7 @@ func testCompactionDropsTraces(t *testing.T, targetBlockVersion string) {
 
 	// write a bunch of dummy data
 	blockID := backend.NewUUID()
-	meta := &backend.BlockMeta{BlockID: blockID, TenantID: testTenantID, DataEncoding: v1.Encoding}
+	meta := &backend.BlockMeta{BlockID: blockID, TenantID: testTenantID}
 	head, err := wal.NewBlock(meta, v1.Encoding)
 	require.NoError(t, err)
 
@@ -710,7 +706,6 @@ func testCompactionDropsTraces(t *testing.T, targetBlockVersion string) {
 	opts := common.CompactionOptions{
 		BlockConfig:      *rw.cfg.Block,
 		OutputBlocks:     1,
-		Combiner:         model.StaticCombiner,
 		MaxBytesPerTrace: 0,
 
 		// hook to drop the trace

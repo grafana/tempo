@@ -6,7 +6,6 @@ import (
 
 	"github.com/go-kit/log"
 
-	"github.com/grafana/tempo/pkg/model"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/traceql"
 	"github.com/grafana/tempo/tempodb/backend"
@@ -73,7 +72,6 @@ type CompactionOptions struct {
 	MaxBytesPerTrace int
 	OutputBlocks     uint8
 	BlockConfig      BlockConfig
-	Combiner         model.ObjectCombiner
 
 	// DropObject can be used to drop a trace from the compaction process. Currently it only receives the ID
 	// of the trace to be compacted. If the function returns true, the trace will be dropped.

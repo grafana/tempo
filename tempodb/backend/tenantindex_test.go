@@ -21,9 +21,9 @@ func TestIndexMarshalUnmarshal(t *testing.T) {
 			idx: &TenantIndex{
 				CreatedAt: time.Now(),
 				Meta: []*BlockMeta{
-					NewBlockMeta("test", uuid.New(), "v1", "adsf"),
-					NewBlockMeta("test", uuid.New(), "v2", "adsf"),
-					NewBlockMeta("test", uuid.New(), "v3", "adsf"),
+					NewBlockMeta("test", uuid.New(), "v1"),
+					NewBlockMeta("test", uuid.New(), "v2"),
+					NewBlockMeta("test", uuid.New(), "v3"),
 				},
 			},
 		},
@@ -32,15 +32,15 @@ func TestIndexMarshalUnmarshal(t *testing.T) {
 				CreatedAt: time.Now(),
 				CompactedMeta: []*CompactedBlockMeta{
 					{
-						BlockMeta:     *NewBlockMeta("test", uuid.New(), "v1", "adsf"),
+						BlockMeta:     *NewBlockMeta("test", uuid.New(), "v1"),
 						CompactedTime: time.Now(),
 					},
 					{
-						BlockMeta:     *NewBlockMeta("test", uuid.New(), "v1", "adsf"),
+						BlockMeta:     *NewBlockMeta("test", uuid.New(), "v1"),
 						CompactedTime: time.Now(),
 					},
 					{
-						BlockMeta:     *NewBlockMeta("test", uuid.New(), "v1", "adsf"),
+						BlockMeta:     *NewBlockMeta("test", uuid.New(), "v1"),
 						CompactedTime: time.Now(),
 					},
 				},
@@ -49,21 +49,21 @@ func TestIndexMarshalUnmarshal(t *testing.T) {
 		{
 			idx: &TenantIndex{
 				Meta: []*BlockMeta{
-					NewBlockMeta("test", uuid.New(), "v1", "adsf"),
-					NewBlockMeta("test", uuid.New(), "v2", "adsf"),
-					NewBlockMeta("test", uuid.New(), "v3", "adsf"),
+					NewBlockMeta("test", uuid.New(), "v1"),
+					NewBlockMeta("test", uuid.New(), "v2"),
+					NewBlockMeta("test", uuid.New(), "v3"),
 				},
 				CompactedMeta: []*CompactedBlockMeta{
 					{
-						BlockMeta:     *NewBlockMeta("test", uuid.New(), "v1", "adsf"),
+						BlockMeta:     *NewBlockMeta("test", uuid.New(), "v1"),
 						CompactedTime: time.Now(),
 					},
 					{
-						BlockMeta:     *NewBlockMeta("test", uuid.New(), "v1", "adsf"),
+						BlockMeta:     *NewBlockMeta("test", uuid.New(), "v1"),
 						CompactedTime: time.Now(),
 					},
 					{
-						BlockMeta:     *NewBlockMeta("test", uuid.New(), "v1", "adsf"),
+						BlockMeta:     *NewBlockMeta("test", uuid.New(), "v1"),
 						CompactedTime: time.Now(),
 					},
 				},

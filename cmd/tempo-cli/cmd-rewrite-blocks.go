@@ -13,7 +13,6 @@ import (
 	"github.com/go-kit/log/level"
 	"github.com/google/uuid"
 	"github.com/grafana/tempo/pkg/boundedwaitgroup"
-	"github.com/grafana/tempo/pkg/model"
 	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/tempodb"
 	"github.com/grafana/tempo/tempodb/backend"
@@ -122,8 +121,7 @@ func rewriteBlock(ctx context.Context, r backend.Reader, w backend.Writer, meta 
 			DedicatedColumns: meta.DedicatedColumns,
 		},
 		OutputBlocks:     1,
-		Combiner:         model.StaticCombiner, // this should never be necessary b/c we are only compacting one block
-		MaxBytesPerTrace: 0,                    // disable for this process
+		MaxBytesPerTrace: 0, // disable for this process
 
 		// hook to drop the trace
 		DropObject: func(id common.ID) bool {

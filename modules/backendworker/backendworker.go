@@ -17,9 +17,7 @@ import (
 	backendscheduler_client "github.com/grafana/tempo/modules/backendscheduler/client"
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/modules/storage"
-	"github.com/grafana/tempo/pkg/model"
 	"github.com/grafana/tempo/pkg/tempopb"
-	tempo_util "github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/pkg/util/log"
 	"github.com/grafana/tempo/tempodb"
 	"github.com/grafana/tempo/tempodb/backend"
@@ -383,61 +381,6 @@ func (w *BackendWorker) compact(ctx context.Context, blockMetas []*backend.Block
 	return w.store.CompactWithConfig(ctx, blockMetas, tenantID, &w.cfg.Compactor, w, w)
 }
 
-// Combine implements tempodb.CompactorSharder
-func (w *BackendWorker) Combine(dataEncoding string, tenantID string, objs ...[]byte) ([]byte, bool, error) {
-	combinedObj, wasCombined, err := model.StaticCombiner.Combine(dataEncoding, objs...)
-	if err != nil {
-		return nil, false, err
-	}
-
-	maxBytes := w.overrides.MaxBytesPerTrace(tenantID)
-	if maxBytes == 0 || len(combinedObj) < maxBytes {
-		return combinedObj, wasCombined, nil
-	}
-
-	// technically neither of these conditions should ever be true, we are adding them as guard code
-	// for the following logic
-	if len(objs) == 0 {
-		return []byte{}, wasCombined, nil
-	}
-	if len(objs) == 1 {
-		return objs[0], wasCombined, nil
-	}
-
-	totalDiscarded := countSpans(dataEncoding, objs[1:]...)
-	overrides.RecordDiscardedSpans(totalDiscarded, overrides.ReasonCompactorDiscardedSpans, tenantID)
-	return objs[0], wasCombined, nil
-}
-
-// Copied from compactor module.  Centralize?
-func countSpans(dataEncoding string, objs ...[]byte) (total int) {
-	var traceID string
-	decoder, err := model.NewObjectDecoder(dataEncoding)
-	if err != nil {
-		return 0
-	}
-
-	for _, o := range objs {
-		t, err := decoder.PrepareForRead(o)
-		if err != nil {
-			continue
-		}
-
-		for _, b := range t.ResourceSpans {
-			for _, ilm := range b.ScopeSpans {
-				if len(ilm.Spans) > 0 && traceID == "" {
-					traceID = tempo_util.TraceIDToHexString(ilm.Spans[0].TraceId)
-				}
-				total += len(ilm.Spans)
-			}
-		}
-	}
-
-	level.Debug(log.Logger).Log("msg", "max size of trace exceeded", "traceId", traceID, "discarded_span_count", total)
-
-	return
-}
-
 func (w *BackendWorker) Owns(hash string) bool {
 	if !w.isSharded() {
 		return true
@@ -577,10 +520,6 @@ func (ownsEverythingSharder) Owns(_ string) bool {
 
 func (s ownsEverythingSharder) RecordDiscardedSpans(count int, tenantID string, traceID string, rootSpanName string, rootServiceName string) {
 	s.w.RecordDiscardedSpans(count, tenantID, traceID, rootSpanName, rootServiceName)
-}
-
-func (s ownsEverythingSharder) Combine(dataEncoding string, tenantID string, objs ...[]byte) ([]byte, bool, error) {
-	return s.w.Combine(dataEncoding, tenantID, objs...)
 }
 
 // createShutdownContext creates a context that starts a timeout only after parentCtx is cancelled

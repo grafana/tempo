@@ -149,7 +149,7 @@ func TestBlockSharding(t *testing.T) {
 	wal := w.WAL()
 
 	dec := model.MustNewSegmentDecoder(model.CurrentEncoding)
-	meta := &backend.BlockMeta{BlockID: blockID, TenantID: testTenantID, DataEncoding: model.CurrentEncoding}
+	meta := &backend.BlockMeta{BlockID: blockID, TenantID: testTenantID}
 	head, err := wal.NewBlock(meta, model.CurrentEncoding)
 	assert.NoError(t, err)
 
@@ -588,7 +588,7 @@ func testCompleteBlock(t *testing.T, from, to string) {
 
 	blockID := uuid.New()
 
-	meta := backend.NewBlockMeta(testTenantID, blockID, from, "")
+	meta := backend.NewBlockMeta(testTenantID, blockID, from)
 	block, err := wal.NewBlock(meta, model.CurrentEncoding)
 	require.NoError(t, err, "unexpected error creating block")
 	require.Equal(t, block.BlockMeta().Version, from)

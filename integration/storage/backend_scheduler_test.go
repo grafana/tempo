@@ -318,7 +318,7 @@ func populateBackend(ctx context.Context, t testing.TB, w tempodb.Writer, tenant
 
 		for range blockCount {
 			blockID := backend.NewUUID()
-			meta := &backend.BlockMeta{BlockID: blockID, TenantID: tenantID, DataEncoding: model.CurrentEncoding}
+			meta := &backend.BlockMeta{BlockID: blockID, TenantID: tenantID}
 			head, err := wal.NewBlock(meta, model.CurrentEncoding)
 			require.NoError(t, err)
 

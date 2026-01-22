@@ -47,7 +47,6 @@ const (
 	urlParamBlockID          = "blockID"
 	urlParamIndexPageSize    = "indexPageSize"
 	urlParamTotalRecords     = "totalRecords"
-	urlParamDataEncoding     = "dataEncoding"
 	urlParamVersion          = "version"
 	urlParamSize             = "size"
 	urlParamFooterSize       = "footerSize"
@@ -811,7 +810,6 @@ func BuildSearchBlockRequest(req *http.Request, searchReq *tempopb.SearchBlockRe
 	qb.addParam("encoding", "none") // todo: remove. encoding was removed b/c its unused but we still add it here to make rollouts seamless
 	qb.addParam(urlParamIndexPageSize, strconv.FormatUint(uint64(searchReq.IndexPageSize), 10))
 	qb.addParam(urlParamTotalRecords, strconv.FormatUint(uint64(searchReq.TotalRecords), 10))
-	qb.addParam(urlParamDataEncoding, searchReq.DataEncoding)
 	qb.addParam(urlParamVersion, searchReq.Version)
 	qb.addParam(urlParamFooterSize, strconv.FormatUint(uint64(searchReq.FooterSize), 10))
 	if len(dedicatedColumnsJSON) > 0 && dedicatedColumnsJSON != "null" { // if a caller marshals a nil dedicated cols we will receive the string "null"

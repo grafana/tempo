@@ -916,7 +916,6 @@ func (q *Querier) SearchBlock(ctx context.Context, req *tempopb.SearchBlockReque
 		IndexPageSize:    req.IndexPageSize,
 		TotalRecords:     req.TotalRecords,
 		BlockID:          blockID,
-		DataEncoding:     req.DataEncoding,
 		FooterSize:       req.FooterSize,
 		DedicatedColumns: dc,
 	}
@@ -966,7 +965,6 @@ func (q *Querier) internalTagsSearchBlockV2(ctx context.Context, req *tempopb.Se
 		IndexPageSize:    req.IndexPageSize,
 		TotalRecords:     req.TotalRecords,
 		BlockID:          blockID,
-		DataEncoding:     req.DataEncoding,
 		FooterSize:       req.FooterSize,
 		DedicatedColumns: dc,
 	}
@@ -1041,7 +1039,6 @@ func (q *Querier) internalTagValuesSearchBlock(ctx context.Context, req *tempopb
 		IndexPageSize:    req.IndexPageSize,
 		TotalRecords:     req.TotalRecords,
 		BlockID:          blockID,
-		DataEncoding:     req.DataEncoding,
 		FooterSize:       req.FooterSize,
 		DedicatedColumns: dc,
 	}
@@ -1081,7 +1078,6 @@ func (q *Querier) internalTagValuesSearchBlockV2(ctx context.Context, req *tempo
 		IndexPageSize:    req.IndexPageSize,
 		TotalRecords:     req.TotalRecords,
 		BlockID:          blockID,
-		DataEncoding:     req.DataEncoding,
 		FooterSize:       req.FooterSize,
 		DedicatedColumns: dc,
 	}

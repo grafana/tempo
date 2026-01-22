@@ -88,12 +88,6 @@ func ParseSearchBlockRequest(r *http.Request) (*tempopb.SearchBlockRequest, erro
 	}
 	req.TotalRecords = uint32(totalRecords)
 
-	// Data encoding can be blank for some block formats, therefore
-	// no validation on the param here.  Eventually we may be able
-	// to remove this parameter entirely.
-	dataEncoding := vals.Get(urlParamDataEncoding)
-	req.DataEncoding = dataEncoding
-
 	version := vals.Get(urlParamVersion)
 	if version == "" {
 		return nil, errors.New("version required")
@@ -205,12 +199,6 @@ func parseSearchTagValuesBlockRequest(r *http.Request, enforceTraceQL bool) (*te
 	}
 	req.TotalRecords = uint32(totalRecords)
 
-	// Data encoding can be blank for some block formats, therefore
-	// no validation on the param here.  Eventually we may be able
-	// to remove this parameter entirely.
-	dataEncoding := vals.Get(urlParamDataEncoding)
-	req.DataEncoding = dataEncoding
-
 	version := vals.Get(urlParamVersion)
 	if version == "" {
 		return nil, errors.New("version required")
@@ -306,12 +294,6 @@ func ParseSearchTagsBlockRequest(r *http.Request) (*tempopb.SearchTagsBlockReque
 		return nil, fmt.Errorf("totalRecords must be greater than 0. received %d", totalRecords)
 	}
 	req.TotalRecords = uint32(totalRecords)
-
-	// Data encoding can be blank for some block formats, therefore
-	// no validation on the param here.  Eventually we may be able
-	// to remove this parameter entirely.
-	dataEncoding := vals.Get(urlParamDataEncoding)
-	req.DataEncoding = dataEncoding
 
 	version := vals.Get(urlParamVersion)
 	if version == "" {
@@ -498,7 +480,6 @@ func BuildSearchTagsBlockRequest(req *http.Request, searchReq *tempopb.SearchTag
 	q.addParam("encoding", "none")
 	q.addParam(urlParamIndexPageSize, strconv.FormatUint(uint64(searchReq.IndexPageSize), 10))
 	q.addParam(urlParamTotalRecords, strconv.FormatUint(uint64(searchReq.TotalRecords), 10))
-	q.addParam(urlParamDataEncoding, searchReq.DataEncoding)
 	q.addParam(urlParamVersion, searchReq.Version)
 	q.addParam(urlParamFooterSize, strconv.FormatUint(uint64(searchReq.FooterSize), 10))
 
@@ -552,7 +533,6 @@ func BuildSearchTagValuesBlockRequest(req *http.Request, searchReq *tempopb.Sear
 	qb.addParam("encoding", "none")
 	qb.addParam(urlParamIndexPageSize, strconv.FormatUint(uint64(searchReq.IndexPageSize), 10))
 	qb.addParam(urlParamTotalRecords, strconv.FormatUint(uint64(searchReq.TotalRecords), 10))
-	qb.addParam(urlParamDataEncoding, searchReq.DataEncoding)
 	qb.addParam(urlParamVersion, searchReq.Version)
 	qb.addParam(urlParamFooterSize, strconv.FormatUint(uint64(searchReq.FooterSize), 10))
 

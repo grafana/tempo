@@ -20,15 +20,13 @@ const (
 
 func TestNewBlockMeta(t *testing.T) {
 	testVersion := "blerg"
-	testDataEncoding := "blarg"
 
 	id := uuid.New()
-	b := NewBlockMeta(testTenantID, id, testVersion, testDataEncoding)
+	b := NewBlockMeta(testTenantID, id, testVersion)
 
 	assert.Equal(t, id, (uuid.UUID)(b.BlockID))
 	assert.Equal(t, testTenantID, b.TenantID)
 	assert.Equal(t, testVersion, b.Version)
-	assert.Equal(t, testDataEncoding, b.DataEncoding)
 }
 
 func TestBlockMetaObjectAdded(t *testing.T) {
@@ -107,7 +105,6 @@ func TestBlockMetaJSONRoundTrip(t *testing.T) {
 		CompactionLevel: 1,
 		IndexPageSize:   250000,
 		TotalRecords:    124356,
-		DataEncoding:    "",
 		BloomShardCount: 244,
 		FooterSize:      15775,
 		DedicatedColumns: DedicatedColumns{
@@ -130,7 +127,6 @@ func TestBlockMetaJSONRoundTrip(t *testing.T) {
     	"compactionLevel": 1,
     	"indexPageSize": 250000,
     	"totalRecords": 124356,
-    	"dataEncoding": "",
     	"bloomShards": 244,
 		"footerSize": 15775,
     	"dedicatedColumns": [
