@@ -20,7 +20,7 @@ Refer to the [Parquet configuration options](../../configuration/parquet/) for m
 This document describes the schema used with the Parquet block format.
 
 ## Version applicability
-
+ 
 Tempo 2.10 defaults to the vParquet4 schema. vParquet5 is production-ready and differs in some schema details.
 Unless otherwise noted, the sections below describe vParquet4.
 
