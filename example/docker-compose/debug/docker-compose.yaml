@@ -1,7 +1,7 @@
 services:
   tempo:
     image: grafana/tempo-debug:latest
-    command: [ "-target=all-3.0", "-config.file=/etc/tempo.yaml" ]
+    command: [ "-target=all", "-config.file=/etc/tempo.yaml" ]
     volumes:
       - ./tempo.yaml:/etc/tempo.yaml
       - ./tempo-data:/var/tempo

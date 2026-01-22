@@ -4,7 +4,7 @@ services:
     image: grafana/tempo:latest
     depends_on:
       - redpanda
-    command: "-target=all-3.0 -config.file=/etc/tempo.yaml"
+    command: "-target=all -config.file=/etc/tempo.yaml"
     restart: always
     volumes:
       - ./tempo.yaml:/etc/tempo.yaml
