@@ -36,7 +36,6 @@ type VersionedEncoding interface {
 	// * BlockID
 	// * TenantID
 	// * Encoding
-	// * DataEncoding
 	// * StartTime
 	// * EndTime
 	// * TotalObjects

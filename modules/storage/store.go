@@ -12,10 +12,8 @@ import (
 )
 
 var (
-	statCache             = usagestats.NewString("storage_cache")
-	statBackend           = usagestats.NewString("storage_backend")
-	statWalEncoding       = usagestats.NewString("storage_wal_encoding")
-	statWalSearchEncoding = usagestats.NewString("storage_wal_search_encoding")
+	statCache   = usagestats.NewString("storage_cache")
+	statBackend = usagestats.NewString("storage_backend")
 )
 
 // Store wraps the tempodb storage layer

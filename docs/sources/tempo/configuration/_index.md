@@ -1573,9 +1573,6 @@ Defines re-used configuration blocks.
 # maximum size of each bloom filter shard
 [bloom_filter_shard_size_bytes: <int> | default = 100KiB]
 
-# search data encoding/compression. same options as block encoding.
-[search_encoding: <string> | default = snappy]
-
 # number of bytes per search page
 [search_page_size_bytes: <int> | default = 1MiB]
 
