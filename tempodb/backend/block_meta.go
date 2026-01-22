@@ -219,17 +219,15 @@ func (dcs *DedicatedColumns) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
-func NewBlockMeta(tenantID string, blockID uuid.UUID, version string, encoding Encoding, dataEncoding string) *BlockMeta {
-	return NewBlockMetaWithDedicatedColumns(tenantID, blockID, version, encoding, dataEncoding, nil)
+func NewBlockMeta(tenantID string, blockID uuid.UUID, version string) *BlockMeta {
+	return NewBlockMetaWithDedicatedColumns(tenantID, blockID, version, nil)
 }
 
-func NewBlockMetaWithDedicatedColumns(tenantID string, blockID uuid.UUID, version string, encoding Encoding, dataEncoding string, dc DedicatedColumns) *BlockMeta {
+func NewBlockMetaWithDedicatedColumns(tenantID string, blockID uuid.UUID, version string, dc DedicatedColumns) *BlockMeta {
 	b := &BlockMeta{
 		Version:          version,
 		BlockID:          UUID(blockID),
 		TenantID:         tenantID,
-		Encoding:         encoding,
-		DataEncoding:     dataEncoding,
 		DedicatedColumns: dc,
 	}
 

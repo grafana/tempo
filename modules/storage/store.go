@@ -12,12 +12,8 @@ import (
 )
 
 var (
-	statCache               = usagestats.NewString("storage_cache")
-	statBackend             = usagestats.NewString("storage_backend")
-	statWalEncoding         = usagestats.NewString("storage_wal_encoding")
-	statWalSearchEncoding   = usagestats.NewString("storage_wal_search_encoding")
-	statBlockEncoding       = usagestats.NewString("storage_block_encoding")
-	statBlockSearchEncoding = usagestats.NewString("storage_block_search_encoding")
+	statCache   = usagestats.NewString("storage_cache")
+	statBackend = usagestats.NewString("storage_backend")
 )
 
 // Store wraps the tempodb storage layer
@@ -43,10 +39,6 @@ type store struct {
 func NewStore(cfg Config, cacheProvider cache.Provider, logger log.Logger) (Store, error) {
 	statCache.Set(cfg.Trace.Cache)
 	statBackend.Set(cfg.Trace.Backend)
-	statWalEncoding.Set(cfg.Trace.WAL.Encoding.String())
-	statWalSearchEncoding.Set(cfg.Trace.WAL.SearchEncoding.String())
-	statBlockEncoding.Set(cfg.Trace.Block.Encoding.String())
-	statBlockSearchEncoding.Set(cfg.Trace.Block.SearchEncoding.String())
 
 	r, w, c, err := tempodb.New(&cfg.Trace, cacheProvider, logger)
 	if err != nil {

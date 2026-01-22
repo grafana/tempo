@@ -15,7 +15,7 @@ spec:
   template:
     metadata:
       annotations:
-        config_hash: 1c46db8f00d0094a1d213fb87e3fd4ba
+        config_hash: eeb2912a9914d007cc3b1a00de7932d6
       labels:
         app: metrics-generator
         name: metrics-generator

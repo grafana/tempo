@@ -14,7 +14,7 @@ import (
 )
 
 // RingConfig masks the ring lifecycler config which contains
-// many options not really required by the compactors ring. This config
+// many options not really required by the worker's ring. This config
 // is used to strip down the config to the minimum, and avoid confusion
 // to the user.
 type RingConfig struct {
@@ -50,26 +50,26 @@ func (cfg *RingConfig) RegisterFlags(f *flag.FlagSet) {
 	}
 
 	// Ring flags
-	cfg.KVStore.RegisterFlagsWithPrefix("compactor.ring.", "collectors/", f)
-	f.DurationVar(&cfg.HeartbeatPeriod, "compactor.ring.heartbeat-period", 5*time.Second, "Period at which to heartbeat to the ring. 0 = disabled.")
-	f.DurationVar(&cfg.HeartbeatTimeout, "compactor.ring.heartbeat-timeout", time.Minute, "The heartbeat timeout after which compactors are considered unhealthy within the ring. 0 = never (timeout disabled).")
+	cfg.KVStore.RegisterFlagsWithPrefix("worker.ring.", "collectors/", f)
+	f.DurationVar(&cfg.HeartbeatPeriod, "worker.ring.heartbeat-period", 5*time.Second, "Period at which to heartbeat to the ring. 0 = disabled.")
+	f.DurationVar(&cfg.HeartbeatTimeout, "worker.ring.heartbeat-timeout", time.Minute, "The heartbeat timeout after which workers are considered unhealthy within the ring. 0 = never (timeout disabled).")
 
 	// Wait stability flags.
-	f.DurationVar(&cfg.WaitStabilityMinDuration, "compactor.ring.wait-stability-min-duration", time.Minute, "Minimum time to wait for ring stability at startup. 0 to disable.")
-	f.DurationVar(&cfg.WaitStabilityMaxDuration, "compactor.ring.wait-stability-max-duration", 5*time.Minute, "Maximum time to wait for ring stability at startup. If the compactor ring keeps changing after this period of time, the compactor will start anyway.")
+	f.DurationVar(&cfg.WaitStabilityMinDuration, "worker.ring.wait-stability-min-duration", time.Minute, "Minimum time to wait for ring stability at startup. 0 to disable.")
+	f.DurationVar(&cfg.WaitStabilityMaxDuration, "worker.ring.wait-stability-max-duration", 5*time.Minute, "Maximum time to wait for ring stability at startup. If the backend-worker ring keeps changing after this period of time, the backend-worker will start anyway.")
 
 	// Instance flags
 	cfg.InstanceInterfaceNames = []string{"eth0", "en0"}
-	f.Var((*flagext.StringSlice)(&cfg.InstanceInterfaceNames), "compactor.ring.instance-interface-names", "Name of network interface to read address from.")
-	f.StringVar(&cfg.InstanceAddr, "compactor.ring.instance-addr", "", "IP address to advertise in the ring.")
-	f.IntVar(&cfg.InstancePort, "compactor.ring.instance-port", 0, "Port to advertise in the ring (defaults to server.grpc-listen-port).")
-	f.StringVar(&cfg.InstanceID, "compactor.ring.instance-id", hostname, "Instance ID to register in the ring.")
+	f.Var((*flagext.StringSlice)(&cfg.InstanceInterfaceNames), "worker.ring.instance-interface-names", "Name of network interface to read address from.")
+	f.StringVar(&cfg.InstanceAddr, "worker.ring.instance-addr", "", "IP address to advertise in the ring.")
+	f.IntVar(&cfg.InstancePort, "worker.ring.instance-port", 0, "Port to advertise in the ring (defaults to server.grpc-listen-port).")
+	f.StringVar(&cfg.InstanceID, "worker.ring.instance-id", hostname, "Instance ID to register in the ring.")
 
 	// Timeout durations
-	f.DurationVar(&cfg.WaitActiveInstanceTimeout, "compactor.ring.wait-active-instance-timeout", 10*time.Minute, "Timeout for waiting on compactor to become ACTIVE in the ring.")
+	f.DurationVar(&cfg.WaitActiveInstanceTimeout, "worker.ring.wait-active-instance-timeout", 10*time.Minute, "Timeout for waiting on backend-worker to become ACTIVE in the ring.")
 }
 
-// ToLifecyclerConfig returns a LifecyclerConfig based on the compactor
+// ToLifecyclerConfig returns a LifecyclerConfig based on the backend-worker
 // ring config.
 func (cfg *RingConfig) ToLifecyclerConfig() ring.LifecyclerConfig {
 	// We have to make sure that the ring.LifecyclerConfig and ring.Config

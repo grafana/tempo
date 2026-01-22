@@ -6,7 +6,6 @@
     memcached: 'memcached:1.6.40-alpine',
     memcachedExporter: 'prom/memcached-exporter:v0.15.5',
 
-    tempo_compactor: self.tempo,
     tempo_distributor: self.tempo,
     tempo_ingester: self.tempo,
     tempo_querier: self.tempo,
@@ -38,19 +37,6 @@
     // disable tempo-query by default
     tempo_query: {
       enabled: false,
-    },
-    compactor: {
-      replicas: 1,
-      resources: {
-        requests: {
-          cpu: '500m',
-          memory: '3Gi',
-        },
-        limits: {
-          cpu: '1',
-          memory: '5Gi',
-        },
-      },
     },
     query_frontend: {
       replicas: 1,

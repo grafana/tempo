@@ -424,63 +424,6 @@ query_frontend:
         enabled: false
     max_query_expression_size_bytes: 131072
     rf1_after: 0001-01-01T00:00:00Z
-compactor:
-    ring:
-        kvstore:
-            store: ""
-            prefix: collectors/
-            consul:
-                host: localhost:8500
-                acl_token: ""
-                http_client_timeout: 20s
-                consistent_reads: false
-                watch_rate_limit: 1
-                watch_burst_size: 1
-                cas_retry_delay: 1s
-            etcd:
-                endpoints: []
-                dial_timeout: 10s
-                max_retries: 10
-                tls_enabled: false
-                tls_cert_path: ""
-                tls_key_path: ""
-                tls_ca_path: ""
-                tls_server_name: ""
-                tls_insecure_skip_verify: false
-                tls_cipher_suites: ""
-                tls_min_version: ""
-                username: ""
-                password: ""
-            multi:
-                primary: ""
-                secondary: ""
-                mirror_enabled: false
-                mirror_timeout: 2s
-        heartbeat_period: 5s
-        heartbeat_timeout: 1m0s
-        wait_stability_min_duration: 1m0s
-        wait_stability_max_duration: 5m0s
-        instance_id: hostname
-        instance_interface_names:
-            - eth0
-            - en0
-        instance_port: 0
-        instance_addr: ""
-        enable_inet6: false
-        wait_active_instance_timeout: 10m0s
-    compaction:
-        v2_in_buffer_bytes: 5242880
-        v2_out_buffer_bytes: 20971520
-        v2_prefetch_traces_count: 1000
-        compaction_window: 1h0m0s
-        max_compaction_objects: 6000000
-        max_block_bytes: 107374182400
-        block_retention: 336h0m0s
-        compacted_block_retention: 1h0m0s
-        retention_concurrency: 10
-        max_time_per_tenant: 5m0s
-        compaction_cycle: 30s
-    override_ring_key: compactor
 ingester:
     lifecycler:
         ring:
@@ -686,11 +629,6 @@ metrics_generator:
                 bloom_filter_false_positive: 0.01
                 bloom_filter_shard_size_bytes: 102400
                 version: vParquet4
-                search_encoding: snappy
-                search_page_size_bytes: 1048576
-                v2_index_downsample_bytes: 1048576
-                v2_index_page_size_bytes: 256000
-                v2_encoding: zstd
                 parquet_row_group_size_bytes: 100000000
                 parquet_dedicated_columns:
                     - scope: resource
@@ -795,14 +733,10 @@ metrics_generator:
         remote_write_add_org_id_header: true
     traces_storage:
         path: ""
-        v2_encoding: none
-        search_encoding: none
         ingestion_time_range_slack: 2m0s
         version: vParquet4
     traces_query_storage:
         path: ""
-        v2_encoding: none
-        search_encoding: none
         ingestion_time_range_slack: 2m0s
         version: vParquet4
     metrics_ingestion_time_range_slack: 30s
@@ -846,11 +780,6 @@ block_builder:
         bloom_filter_false_positive: 0.01
         bloom_filter_shard_size_bytes: 102400
         version: vParquet4
-        search_encoding: snappy
-        search_page_size_bytes: 1048576
-        v2_index_downsample_bytes: 1048576
-        v2_index_page_size_bytes: 256000
-        v2_encoding: zstd
         parquet_row_group_size_bytes: 100000000
         parquet_dedicated_columns:
             - scope: resource
@@ -911,8 +840,6 @@ block_builder:
               options: []
     wal:
         path: /var/tempo/block-builder/traces
-        v2_encoding: none
-        search_encoding: none
         ingestion_time_range_slack: 2m0s
         version: vParquet4
 storage:
@@ -922,18 +849,11 @@ storage:
             queue_depth: 20000
         wal:
             path: /var/tempo/wal
-            v2_encoding: snappy
-            search_encoding: none
             ingestion_time_range_slack: 2m0s
         block:
             bloom_filter_false_positive: 0.01
             bloom_filter_shard_size_bytes: 102400
             version: vParquet4
-            search_encoding: snappy
-            search_page_size_bytes: 1048576
-            v2_index_downsample_bytes: 1048576
-            v2_index_page_size_bytes: 256000
-            v2_encoding: zstd
             parquet_row_group_size_bytes: 100000000
             parquet_dedicated_columns:
                 - scope: resource
@@ -1239,9 +1159,6 @@ backend_scheduler:
         compaction:
             measure_interval: 1m0s
             compaction:
-                v2_in_buffer_bytes: 5242880
-                v2_out_buffer_bytes: 20971520
-                v2_prefetch_traces_count: 1000
                 compaction_window: 1h0m0s
                 max_compaction_objects: 6000000
                 max_block_bytes: 107374182400
@@ -1291,9 +1208,6 @@ backend_worker:
         max_period: 1m0s
         max_retries: 0
     compaction:
-        v2_in_buffer_bytes: 5242880
-        v2_out_buffer_bytes: 20971520
-        v2_prefetch_traces_count: 1000
         compaction_window: 1h0m0s
         max_compaction_objects: 6000000
         max_block_bytes: 107374182400
@@ -1427,8 +1341,6 @@ live_store:
     commit_interval: 5s
     wal:
         path: /var/tempo/live-store/traces
-        v2_encoding: none
-        search_encoding: none
         ingestion_time_range_slack: 2m0s
         version: vParquet4
     query_block_concurrency: 10
@@ -1446,11 +1358,6 @@ live_store:
         bloom_filter_false_positive: 0.01
         bloom_filter_shard_size_bytes: 102400
         version: ""
-        search_encoding: snappy
-        search_page_size_bytes: 1048576
-        v2_index_downsample_bytes: 1048576
-        v2_index_page_size_bytes: 256000
-        v2_encoding: zstd
         parquet_row_group_size_bytes: 100000000
         parquet_dedicated_columns:
             - scope: resource

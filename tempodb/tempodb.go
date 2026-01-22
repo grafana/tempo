@@ -123,7 +123,6 @@ type Compactor interface {
 }
 
 type CompactorSharder interface {
-	Combine(dataEncoding string, tenantID string, objs ...[]byte) ([]byte, bool, error)
 	Owns(hash string) bool
 	RecordDiscardedSpans(count int, tenantID string, traceID string, rootSpanName string, rootServiceName string)
 }
@@ -276,11 +275,7 @@ func (rw *readerWriter) CompleteBlockWithBackend(ctx context.Context, block comm
 		TotalObjects:     walMeta.TotalObjects,
 		StartTime:        walMeta.StartTime,
 		EndTime:          walMeta.EndTime,
-		DataEncoding:     walMeta.DataEncoding,
 		DedicatedColumns: walMeta.DedicatedColumns,
-
-		// Other
-		Encoding: rw.cfg.Block.Encoding,
 	}
 
 	newMeta, err := vers.CreateBlock(ctx, rw.cfg.Block, inMeta, iter, r, w)

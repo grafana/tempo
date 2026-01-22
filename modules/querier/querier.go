@@ -904,11 +904,6 @@ func (q *Querier) SearchBlock(ctx context.Context, req *tempopb.SearchBlockReque
 		return nil, err
 	}
 
-	enc, err := backend.ParseEncoding(req.Encoding)
-	if err != nil {
-		return nil, err
-	}
-
 	dc, err := backend.DedicatedColumnsFromTempopb(req.DedicatedColumns)
 	if err != nil {
 		return nil, err
@@ -917,12 +912,10 @@ func (q *Querier) SearchBlock(ctx context.Context, req *tempopb.SearchBlockReque
 	meta := &backend.BlockMeta{
 		Version:          req.Version,
 		TenantID:         tenantID,
-		Encoding:         enc,
 		Size_:            req.Size_,
 		IndexPageSize:    req.IndexPageSize,
 		TotalRecords:     req.TotalRecords,
 		BlockID:          blockID,
-		DataEncoding:     req.DataEncoding,
 		FooterSize:       req.FooterSize,
 		DedicatedColumns: dc,
 	}
@@ -960,11 +953,6 @@ func (q *Querier) internalTagsSearchBlockV2(ctx context.Context, req *tempopb.Se
 		return nil, err
 	}
 
-	enc, err := backend.ParseEncoding(req.Encoding)
-	if err != nil {
-		return nil, err
-	}
-
 	dc, err := backend.DedicatedColumnsFromTempopb(req.DedicatedColumns)
 	if err != nil {
 		return nil, err
@@ -973,12 +961,10 @@ func (q *Querier) internalTagsSearchBlockV2(ctx context.Context, req *tempopb.Se
 	meta := &backend.BlockMeta{
 		Version:          req.Version,
 		TenantID:         tenantID,
-		Encoding:         enc,
 		Size_:            req.Size_,
 		IndexPageSize:    req.IndexPageSize,
 		TotalRecords:     req.TotalRecords,
 		BlockID:          blockID,
-		DataEncoding:     req.DataEncoding,
 		FooterSize:       req.FooterSize,
 		DedicatedColumns: dc,
 	}
@@ -1041,11 +1027,6 @@ func (q *Querier) internalTagValuesSearchBlock(ctx context.Context, req *tempopb
 		return &tempopb.SearchTagValuesResponse{}, err
 	}
 
-	enc, err := backend.ParseEncoding(req.Encoding)
-	if err != nil {
-		return &tempopb.SearchTagValuesResponse{}, err
-	}
-
 	dc, err := backend.DedicatedColumnsFromTempopb(req.DedicatedColumns)
 	if err != nil {
 		return &tempopb.SearchTagValuesResponse{}, err
@@ -1054,12 +1035,10 @@ func (q *Querier) internalTagValuesSearchBlock(ctx context.Context, req *tempopb
 	meta := &backend.BlockMeta{
 		Version:          req.Version,
 		TenantID:         tenantID,
-		Encoding:         enc,
 		Size_:            req.Size_,
 		IndexPageSize:    req.IndexPageSize,
 		TotalRecords:     req.TotalRecords,
 		BlockID:          blockID,
-		DataEncoding:     req.DataEncoding,
 		FooterSize:       req.FooterSize,
 		DedicatedColumns: dc,
 	}
@@ -1087,11 +1066,6 @@ func (q *Querier) internalTagValuesSearchBlockV2(ctx context.Context, req *tempo
 		return &tempopb.SearchTagValuesV2Response{}, err
 	}
 
-	enc, err := backend.ParseEncoding(req.Encoding)
-	if err != nil {
-		return &tempopb.SearchTagValuesV2Response{}, err
-	}
-
 	dc, err := backend.DedicatedColumnsFromTempopb(req.DedicatedColumns)
 	if err != nil {
 		return &tempopb.SearchTagValuesV2Response{}, err
@@ -1100,12 +1074,10 @@ func (q *Querier) internalTagValuesSearchBlockV2(ctx context.Context, req *tempo
 	meta := &backend.BlockMeta{
 		Version:          req.Version,
 		TenantID:         tenantID,
-		Encoding:         enc,
 		Size_:            req.Size_,
 		IndexPageSize:    req.IndexPageSize,
 		TotalRecords:     req.TotalRecords,
 		BlockID:          blockID,
-		DataEncoding:     req.DataEncoding,
 		FooterSize:       req.FooterSize,
 		DedicatedColumns: dc,
 	}

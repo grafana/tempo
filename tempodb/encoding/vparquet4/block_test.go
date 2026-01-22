@@ -69,7 +69,7 @@ func validBlock(t *testing.T) (*backendBlock, backend.Writer) {
 		BloomShardSizeBytes: 100 * 1024,
 	}
 
-	meta := backend.NewBlockMeta("fake", uuid.New(), VersionString, backend.EncNone, "")
+	meta := backend.NewBlockMeta("fake", uuid.New(), VersionString)
 	meta.TotalObjects = 1
 	meta.StartTime = time.Unix(300, 0)
 	meta.EndTime = time.Unix(305, 0)

@@ -17,7 +17,7 @@ const (
 	ReasonLiveTracesExceeded = "live_traces_exceeded"
 	// ReasonUnknown indicates an unknown error when pushing spans.
 	ReasonUnknown = "unknown_error"
-	// ReasonTraceTooLargeToCompact indicates a trace is too large for the compactor to combine/compact.
+	// ReasonTraceTooLargeToCompact indicates a trace is too large for the backend-worker to combine/compact.
 	ReasonCompactorDiscardedSpans = "trace_too_large_to_compact"
 )
 

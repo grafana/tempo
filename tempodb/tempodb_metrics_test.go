@@ -836,13 +836,11 @@ func TestTempoDBQueryRange(t *testing.T) {
 			Path: path.Join(tempDir, "traces"),
 		},
 		Block: &common.BlockConfig{
-			IndexDownsampleBytes: 17,
-			BloomFP:              .01,
-			BloomShardSizeBytes:  100_000,
-			Version:              blockVersion,
-			IndexPageSizeBytes:   1000,
-			RowGroupSizeBytes:    10000,
-			DedicatedColumns:     dc,
+			BloomFP:             .01,
+			BloomShardSizeBytes: 100_000,
+			Version:             blockVersion,
+			RowGroupSizeBytes:   10000,
+			DedicatedColumns:    dc,
 		},
 		WAL: &wal.Config{
 			Filepath:       path.Join(tempDir, "wal"),
@@ -857,7 +855,6 @@ func TestTempoDBQueryRange(t *testing.T) {
 	require.NoError(t, err)
 
 	err = c.EnableCompaction(context.Background(), &CompactorConfig{
-		ChunkSizeBytes:          10,
 		MaxCompactionRange:      time.Hour,
 		BlockRetention:          0,
 		CompactedBlockRetention: 0,

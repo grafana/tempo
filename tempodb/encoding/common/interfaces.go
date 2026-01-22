@@ -6,7 +6,6 @@ import (
 
 	"github.com/go-kit/log"
 
-	"github.com/grafana/tempo/pkg/model"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/traceql"
 	"github.com/grafana/tempo/tempodb/backend"
@@ -70,13 +69,9 @@ type Compactor interface {
 }
 
 type CompactionOptions struct {
-	ChunkSizeBytes     uint32
-	FlushSizeBytes     uint32
-	IteratorBufferSize int // How many traces to prefetch async.
-	MaxBytesPerTrace   int
-	OutputBlocks       uint8
-	BlockConfig        BlockConfig
-	Combiner           model.ObjectCombiner
+	MaxBytesPerTrace int
+	OutputBlocks     uint8
+	BlockConfig      BlockConfig
 
 	// DropObject can be used to drop a trace from the compaction process. Currently it only receives the ID
 	// of the trace to be compacted. If the function returns true, the trace will be dropped.
