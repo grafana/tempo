@@ -184,7 +184,7 @@ type analyseBlockCmd struct {
 	TenantID            string  `arg:"" help:"tenant-id within the bucket"`
 	BlockID             string  `arg:"" help:"block ID to list"`
 	NumAttr             int     `help:"Number of attributes to display" default:"20"`
-	NumIntAttr          int     `help:"Number of integer attributes to display. If set to 0 then it will use the other parameter." default:"10"`
+	NumIntAttr          int     `help:"Number of integer attributes to display. If set to 0 then it will use the other parameter." default:"5"`
 	BlobThreshold       string  `help:"Convert column to blob when dictionary size reaches this value. Disable with 0" default:"4MiB"`
 	IntPercentThreshold float64 `help:"Threshold for integer attributes put in dedicated columns. Default 5% = 0.05" default:"0.05"`
 	StrPercentThreshold float64 `help:"Threshold for string attributes put in dedicated columns. Default 3% = 0.03." default:"0.03"`
