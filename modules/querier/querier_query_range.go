@@ -59,11 +59,6 @@ func (q *Querier) queryBlock(ctx context.Context, req *tempopb.QueryRangeRequest
 		return nil, err
 	}
 
-	enc, err := backend.ParseEncoding(req.Encoding)
-	if err != nil {
-		return nil, err
-	}
-
 	dc, err := backend.DedicatedColumnsFromTempopb(req.DedicatedColumns)
 	if err != nil {
 		return nil, err
@@ -74,7 +69,6 @@ func (q *Querier) queryBlock(ctx context.Context, req *tempopb.QueryRangeRequest
 		TenantID:  tenantID,
 		StartTime: time.Unix(0, int64(req.Start)),
 		EndTime:   time.Unix(0, int64(req.End)),
-		Encoding:  enc,
 		// IndexPageSize:    req.IndexPageSize,
 		// TotalRecords:     req.TotalRecords,
 		BlockID: blockID,

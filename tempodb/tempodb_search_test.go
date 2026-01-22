@@ -2511,7 +2511,7 @@ func TestWALBlockGetMetrics(t *testing.T) {
 }
 
 func TestSearchForTagsAndTagValues(t *testing.T) {
-	r, w, c, _ := testConfig(t, backend.EncGZIP, 0)
+	r, w, c, _ := testConfig(t, 0)
 
 	err := c.EnableCompaction(context.Background(), testingCompactorConfig, &mockSharder{}, &mockOverrides{})
 	require.NoError(t, err)

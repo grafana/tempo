@@ -41,7 +41,7 @@ const (
 
 type testConfigOption func(*Config)
 
-func testConfig(t *testing.T, enc backend.Encoding, blocklistPoll time.Duration, opts ...testConfigOption) (Reader, Writer, Compactor, string) {
+func testConfig(t *testing.T, blocklistPoll time.Duration, opts ...testConfigOption) (Reader, Writer, Compactor, string) {
 	tempDir := t.TempDir()
 
 	cfg := &Config{
@@ -74,7 +74,7 @@ func testConfig(t *testing.T, enc backend.Encoding, blocklistPoll time.Duration,
 }
 
 func TestDB(t *testing.T) {
-	r, w, c, _ := testConfig(t, backend.EncGZIP, 0)
+	r, w, c, _ := testConfig(t, 0)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -125,7 +125,7 @@ func TestDB(t *testing.T) {
 }
 
 func TestNoCompactionWhenCompactionRange0(t *testing.T) {
-	_, _, c, _ := testConfig(t, backend.EncGZIP, 0)
+	_, _, c, _ := testConfig(t, 0)
 
 	err := c.EnableCompaction(context.Background(), &CompactorConfig{
 		MaxCompactionRange: 0,
@@ -137,7 +137,7 @@ func TestBlockSharding(t *testing.T) {
 	// push a req with some traceID
 	// cut headblock & write to backend
 	// search with different shards and check if its respecting the params
-	r, w, _, _ := testConfig(t, backend.EncLZ4_256k, 0)
+	r, w, _, _ := testConfig(t, 0)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -189,7 +189,7 @@ func TestBlockSharding(t *testing.T) {
 }
 
 func TestNilOnUnknownTenantID(t *testing.T) {
-	r, _, _, _ := testConfig(t, backend.EncLZ4_256k, 0)
+	r, _, _, _ := testConfig(t, 0)
 
 	buff, failedBlocks, err := r.Find(context.Background(), "unknown", []byte{0x01}, BlockIDMin, BlockIDMax, 0, 0, common.DefaultSearchOptions())
 	assert.Nil(t, buff)
@@ -198,7 +198,7 @@ func TestNilOnUnknownTenantID(t *testing.T) {
 }
 
 func TestBlockCleanup(t *testing.T) {
-	r, w, c, tempDir := testConfig(t, backend.EncLZ4_256k, 0)
+	r, w, c, tempDir := testConfig(t, 0)
 
 	err := c.EnableCompaction(context.Background(), &CompactorConfig{
 		MaxCompactionRange:      time.Hour,
@@ -489,7 +489,7 @@ func TestIncludeCompactedBlock(t *testing.T) {
 
 func TestSearchCompactedBlocks(t *testing.T) {
 	t.Parallel()
-	r, w, c, _ := testConfig(t, backend.EncLZ4_256k, time.Hour)
+	r, w, c, _ := testConfig(t, time.Hour)
 
 	err := c.EnableCompaction(context.Background(), &CompactorConfig{
 		MaxCompactionRange:      time.Hour,
@@ -578,7 +578,7 @@ func TestCompleteBlock(t *testing.T) {
 }
 
 func testCompleteBlock(t *testing.T, from, to string) {
-	_, w, _, _ := testConfig(t, backend.EncLZ4_256k, time.Minute, func(c *Config) {
+	_, w, _, _ := testConfig(t, time.Minute, func(c *Config) {
 		c.Block.Version = from // temporarily set config to from while we create the wal, so it makes blocks in the "from" format
 	})
 
@@ -588,7 +588,7 @@ func testCompleteBlock(t *testing.T, from, to string) {
 
 	blockID := uuid.New()
 
-	meta := backend.NewBlockMeta(testTenantID, blockID, from, backend.EncNone, "")
+	meta := backend.NewBlockMeta(testTenantID, blockID, from, "")
 	block, err := wal.NewBlock(meta, model.CurrentEncoding)
 	require.NoError(t, err, "unexpected error creating block")
 	require.Equal(t, block.BlockMeta().Version, from)
@@ -870,7 +870,7 @@ func TestNoCompactFlag(t *testing.T) {
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			r, w, c, _ := testConfig(t, backend.EncGZIP, 0, func(c *Config) {
+			r, w, c, _ := testConfig(t, 0, func(c *Config) {
 				c.Block.CreateWithNoCompactFlag = tc.createWithNoCompactFlag
 			})
 
@@ -938,7 +938,7 @@ func TestNoCompactFlag(t *testing.T) {
 }
 
 func TestPollNotification(t *testing.T) {
-	r, w, _, _ := testConfig(t, backend.EncGZIP, 0)
+	r, w, _, _ := testConfig(t, 0)
 
 	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 	defer cancel()

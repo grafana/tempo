@@ -21,9 +21,9 @@ func TestIndexMarshalUnmarshal(t *testing.T) {
 			idx: &TenantIndex{
 				CreatedAt: time.Now(),
 				Meta: []*BlockMeta{
-					NewBlockMeta("test", uuid.New(), "v1", EncGZIP, "adsf"),
-					NewBlockMeta("test", uuid.New(), "v2", EncNone, "adsf"),
-					NewBlockMeta("test", uuid.New(), "v3", EncLZ4_4M, "adsf"),
+					NewBlockMeta("test", uuid.New(), "v1", "adsf"),
+					NewBlockMeta("test", uuid.New(), "v2", "adsf"),
+					NewBlockMeta("test", uuid.New(), "v3", "adsf"),
 				},
 			},
 		},
@@ -32,15 +32,15 @@ func TestIndexMarshalUnmarshal(t *testing.T) {
 				CreatedAt: time.Now(),
 				CompactedMeta: []*CompactedBlockMeta{
 					{
-						BlockMeta:     *NewBlockMeta("test", uuid.New(), "v1", EncGZIP, "adsf"),
+						BlockMeta:     *NewBlockMeta("test", uuid.New(), "v1", "adsf"),
 						CompactedTime: time.Now(),
 					},
 					{
-						BlockMeta:     *NewBlockMeta("test", uuid.New(), "v1", EncZstd, "adsf"),
+						BlockMeta:     *NewBlockMeta("test", uuid.New(), "v1", "adsf"),
 						CompactedTime: time.Now(),
 					},
 					{
-						BlockMeta:     *NewBlockMeta("test", uuid.New(), "v1", EncSnappy, "adsf"),
+						BlockMeta:     *NewBlockMeta("test", uuid.New(), "v1", "adsf"),
 						CompactedTime: time.Now(),
 					},
 				},
@@ -49,21 +49,21 @@ func TestIndexMarshalUnmarshal(t *testing.T) {
 		{
 			idx: &TenantIndex{
 				Meta: []*BlockMeta{
-					NewBlockMeta("test", uuid.New(), "v1", EncGZIP, "adsf"),
-					NewBlockMeta("test", uuid.New(), "v2", EncNone, "adsf"),
-					NewBlockMeta("test", uuid.New(), "v3", EncLZ4_4M, "adsf"),
+					NewBlockMeta("test", uuid.New(), "v1", "adsf"),
+					NewBlockMeta("test", uuid.New(), "v2", "adsf"),
+					NewBlockMeta("test", uuid.New(), "v3", "adsf"),
 				},
 				CompactedMeta: []*CompactedBlockMeta{
 					{
-						BlockMeta:     *NewBlockMeta("test", uuid.New(), "v1", EncGZIP, "adsf"),
+						BlockMeta:     *NewBlockMeta("test", uuid.New(), "v1", "adsf"),
 						CompactedTime: time.Now(),
 					},
 					{
-						BlockMeta:     *NewBlockMeta("test", uuid.New(), "v1", EncZstd, "adsf"),
+						BlockMeta:     *NewBlockMeta("test", uuid.New(), "v1", "adsf"),
 						CompactedTime: time.Now(),
 					},
 					{
-						BlockMeta:     *NewBlockMeta("test", uuid.New(), "v1", EncSnappy, "adsf"),
+						BlockMeta:     *NewBlockMeta("test", uuid.New(), "v1", "adsf"),
 						CompactedTime: time.Now(),
 					},
 				},

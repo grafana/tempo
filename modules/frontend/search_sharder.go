@@ -319,7 +319,6 @@ func buildBackendRequests(ctx context.Context, tenantID string, parent pipeline.
 				BlockID:       blockID,
 				StartPage:     uint32(startPage),
 				PagesToSearch: uint32(pages),
-				Encoding:      m.Encoding.String(),
 				IndexPageSize: m.IndexPageSize,
 				TotalRecords:  m.TotalRecords,
 				DataEncoding:  m.DataEncoding,

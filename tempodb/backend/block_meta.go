@@ -13,6 +13,8 @@ import (
 	"github.com/grafana/tempo/pkg/traceql"
 )
 
+// type Encoding string jpe ?
+
 // DedicatedColumnType is the type of the values in the dedicated attribute column. Only 'string' is supported.
 type DedicatedColumnType string
 
@@ -219,16 +221,15 @@ func (dcs *DedicatedColumns) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
-func NewBlockMeta(tenantID string, blockID uuid.UUID, version string, encoding Encoding, dataEncoding string) *BlockMeta {
-	return NewBlockMetaWithDedicatedColumns(tenantID, blockID, version, encoding, dataEncoding, nil)
+func NewBlockMeta(tenantID string, blockID uuid.UUID, version string, dataEncoding string) *BlockMeta {
+	return NewBlockMetaWithDedicatedColumns(tenantID, blockID, version, dataEncoding, nil)
 }
 
-func NewBlockMetaWithDedicatedColumns(tenantID string, blockID uuid.UUID, version string, encoding Encoding, dataEncoding string, dc DedicatedColumns) *BlockMeta {
+func NewBlockMetaWithDedicatedColumns(tenantID string, blockID uuid.UUID, version string, dataEncoding string, dc DedicatedColumns) *BlockMeta {
 	b := &BlockMeta{
 		Version:          version,
 		BlockID:          UUID(blockID),
 		TenantID:         tenantID,
-		Encoding:         encoding,
 		DataEncoding:     dataEncoding,
 		DedicatedColumns: dc,
 	}

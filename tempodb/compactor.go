@@ -265,7 +265,6 @@ func (rw *readerWriter) CompactWithConfig(ctx context.Context, blockMetas []*bac
 			"totalObjects", blockMeta.TotalObjects,
 			"size", blockMeta.Size_,
 			"compactionLevel", blockMeta.CompactionLevel,
-			"encoding", blockMeta.Encoding.String(),
 			"totalRecords", blockMeta.TotalObjects,
 			"bloomShardCount", blockMeta.BloomShardCount,
 			"footerSize", blockMeta.FooterSize,

@@ -35,7 +35,7 @@ func (l *listBlocksCmd) Run(ctx *globalOptions) error {
 }
 
 func displayResults(results []blockStats, windowDuration time.Duration, includeCompacted bool) {
-	columns := []string{"id", "lvl", "objects", "size", "encoding", "vers", "window", "start", "end", "duration", "age"}
+	columns := []string{"id", "lvl", "objects", "size", "vers", "window", "start", "end", "duration", "age"}
 	if includeCompacted {
 		columns = append(columns, "cmp")
 	}
@@ -59,8 +59,6 @@ func displayResults(results []blockStats, windowDuration time.Duration, includeC
 				s = strconv.Itoa(int(r.TotalObjects))
 			case "size":
 				s = fmt.Sprintf("%v", humanize.Bytes(r.Size_))
-			case "encoding":
-				s = r.Encoding.String()
 			case "vers":
 				s = r.Version
 			case "window":

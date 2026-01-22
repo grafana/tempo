@@ -14,7 +14,6 @@ import (
 
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/traceql"
-	"github.com/grafana/tempo/tempodb/backend"
 )
 
 const (
@@ -71,13 +70,6 @@ func ParseSearchBlockRequest(r *http.Request) (*tempopb.SearchBlockRequest, erro
 		return nil, fmt.Errorf("invalid blockID: %w", err)
 	}
 	req.BlockID = blockID.String()
-
-	s = vals.Get(urlParamEncoding)
-	encoding, err := backend.ParseEncoding(s)
-	if err != nil {
-		return nil, err
-	}
-	req.Encoding = encoding.String()
 
 	s = vals.Get(urlParamIndexPageSize)
 	indexPageSize, err := strconv.ParseInt(s, 10, 32)
@@ -196,13 +188,6 @@ func parseSearchTagValuesBlockRequest(r *http.Request, enforceTraceQL bool) (*te
 	}
 	req.BlockID = blockID.String()
 
-	s = vals.Get(urlParamEncoding)
-	encoding, err := backend.ParseEncoding(s)
-	if err != nil {
-		return nil, err
-	}
-	req.Encoding = encoding.String()
-
 	s = vals.Get(urlParamIndexPageSize)
 	indexPageSize, err := strconv.ParseInt(s, 10, 32)
 	if err != nil {
@@ -304,13 +289,6 @@ func ParseSearchTagsBlockRequest(r *http.Request) (*tempopb.SearchTagsBlockReque
 		return nil, fmt.Errorf("invalid blockID: %w", err)
 	}
 	req.BlockID = blockID.String()
-
-	s = vals.Get(urlParamEncoding)
-	encoding, err := backend.ParseEncoding(s)
-	if err != nil {
-		return nil, err
-	}
-	req.Encoding = encoding.String()
 
 	s = vals.Get(urlParamIndexPageSize)
 	indexPageSize, err := strconv.ParseInt(s, 10, 32)
@@ -517,7 +495,7 @@ func BuildSearchTagsBlockRequest(req *http.Request, searchReq *tempopb.SearchTag
 	q.addParam(urlParamBlockID, searchReq.BlockID)
 	q.addParam(urlParamStartPage, strconv.FormatUint(uint64(searchReq.StartPage), 10))
 	q.addParam(urlParamPagesToSearch, strconv.FormatUint(uint64(searchReq.PagesToSearch), 10))
-	q.addParam(urlParamEncoding, searchReq.Encoding)
+	q.addParam("encoding", "none")
 	q.addParam(urlParamIndexPageSize, strconv.FormatUint(uint64(searchReq.IndexPageSize), 10))
 	q.addParam(urlParamTotalRecords, strconv.FormatUint(uint64(searchReq.TotalRecords), 10))
 	q.addParam(urlParamDataEncoding, searchReq.DataEncoding)
@@ -571,7 +549,7 @@ func BuildSearchTagValuesBlockRequest(req *http.Request, searchReq *tempopb.Sear
 	qb.addParam(urlParamBlockID, searchReq.BlockID)
 	qb.addParam(urlParamStartPage, strconv.FormatUint(uint64(searchReq.StartPage), 10))
 	qb.addParam(urlParamPagesToSearch, strconv.FormatUint(uint64(searchReq.PagesToSearch), 10))
-	qb.addParam(urlParamEncoding, searchReq.Encoding)
+	qb.addParam("encoding", "none")
 	qb.addParam(urlParamIndexPageSize, strconv.FormatUint(uint64(searchReq.IndexPageSize), 10))
 	qb.addParam(urlParamTotalRecords, strconv.FormatUint(uint64(searchReq.TotalRecords), 10))
 	qb.addParam(urlParamDataEncoding, searchReq.DataEncoding)

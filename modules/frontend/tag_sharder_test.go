@@ -88,7 +88,7 @@ func (r *fakeReq) buildTagSearchBlockRequest(subR *http.Request, blockID string,
 }
 
 func TestTagsBackendRequestsDoNotHitBackendIfStartIsAfterQueryBackendAfter(t *testing.T) {
-	bm := backend.NewBlockMeta("test", uuid.New(), "wdwad", backend.EncGZIP, "asdf")
+	bm := backend.NewBlockMeta("test", uuid.New(), "wdwad", "asdf")
 	startTime := time.Now().Add(-1 * time.Minute).Unix()
 	endTime := time.Now().Unix()
 	s := &searchTagSharder{
@@ -112,7 +112,7 @@ func TestTagsBackendRequestsDoNotHitBackendIfStartIsAfterQueryBackendAfter(t *te
 }
 
 func TestTagsBackendRequests(t *testing.T) {
-	bm := backend.NewBlockMeta("test", uuid.New(), "wdwad", backend.EncGZIP, "asdf")
+	bm := backend.NewBlockMeta("test", uuid.New(), "wdwad", "asdf")
 	bm.StartTime = time.Unix(100, 0)
 	bm.EndTime = time.Unix(200, 0)
 	bm.Size_ = defaultTargetBytesPerRequest * 2
