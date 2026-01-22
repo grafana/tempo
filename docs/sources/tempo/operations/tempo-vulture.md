@@ -17,7 +17,7 @@ Tempo Vulture performs the following operations:
 - Write traces: Pushes test traces to Tempo using OTLP over gRPC
 - Read traces by ID: Queries Tempo to retrieve traces by their trace ID
 - Search traces: Uses TraceQL to search for traces by attributes
-- Metrics queries: Validates TraceQL metrics queries (optional)
+- Metrics queries: Validates TraceQL metrics queries (enabled by default)
 
 Tempo Vulture can run in two modes:
 
