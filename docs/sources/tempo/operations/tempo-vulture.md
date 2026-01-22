@@ -115,7 +115,7 @@ Error types include:
 ### Alerting
 
 You can configure alerts based on Tempo Vulture metrics.
-For example, the Tempo mixin includes a `TempoVultureHighErrorRate` alert that fires when the error rate exceeds a configurable threshold.
+For example, the Tempo mixin includes a [`TempoVultureHighErrorRate` alert](https://github.com/grafana/tempo/blob/08325a7d5da6a330ac5564265eee52e13544abc9/operations/tempo-mixin/alerts.libsonnet#L426) that fires when the error rate exceeds a configurable threshold.
 
 ## Validation mode
 
@@ -126,6 +126,9 @@ Validation mode was added in Tempo 2.10.
 Validation mode runs Tempo Vulture as a one-shot test that can be integrated into CI/CD pipelines for post-deployment validation.
 Instead of running continuously, it executes a fixed number of write/read cycles and exits with a status code indicating success or failure.
 
+{{< admonition type="warning" >}}
+Running Vulture as a Deployment while in validation mode causes problems in Kubernetes. Because Deployments expect long-running processes, a container that finishes its task and exits triggers a `CrashLoopBackOff` (even with exit code `0`). Run validation mode as a Job instead.
+{{< /admonition >}}
 ### Exit codes
 
 | Exit code | Meaning |
