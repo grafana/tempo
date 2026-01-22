@@ -266,6 +266,14 @@ func (cfg *ProcessorConfig) copyWithOverrides(o metricsGeneratorOverrides, userI
 		copyCfg.HostInfo.MetricName = o.MetricsGeneratorProcessorHostInfoMetricName(userID)
 	}
 
+	if spanMultiplierKey := o.MetricsGeneratorProcessorServiceGraphsSpanMultiplierKey(userID); spanMultiplierKey != "" {
+		copyCfg.ServiceGraphs.SpanMultiplierKey = spanMultiplierKey
+	}
+
+	if spanMultiplierKey := o.MetricsGeneratorProcessorSpanMetricsSpanMultiplierKey(userID); spanMultiplierKey != "" {
+		copyCfg.SpanMetrics.SpanMultiplierKey = spanMultiplierKey
+	}
+
 	copySubprocessors := make(map[spanmetrics.Subprocessor]bool)
 	for sp, enabled := range cfg.SpanMetrics.Subprocessors {
 		copySubprocessors[sp] = enabled

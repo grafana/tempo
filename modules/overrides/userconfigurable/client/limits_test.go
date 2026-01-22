@@ -45,7 +45,8 @@ func TestLimits_parseJson(t *testing.T) {
     "generate_native_histograms": "native",
     "processor": {
       "service_graphs": {
-        "dimensions": ["cluster"]
+        "dimensions": ["cluster"],
+        "span_multiplier_key": "custom_key"
       },
       "span_metrics": {
         "dimensions": ["cluster"],
@@ -69,7 +70,8 @@ func TestLimits_parseJson(t *testing.T) {
             "join": ""
           }
         ],
-        "histogram_buckets": [0.1, 0.2, 0.5]
+        "histogram_buckets": [0.1, 0.2, 0.5],
+        "span_multiplier_key": "custom_key"
       },
       "host_info": {
         "host_identifiers": ["k8s.node.name", "host.id"],
@@ -91,7 +93,8 @@ func TestLimits_parseJson(t *testing.T) {
 					GenerateNativeHistograms:        (*histograms.HistogramMethod)(strPtr("native")),
 					Processor: LimitsMetricsGeneratorProcessor{
 						ServiceGraphs: LimitsMetricsGeneratorProcessorServiceGraphs{
-							Dimensions: &[]string{"cluster"},
+							Dimensions:        &[]string{"cluster"},
+							SpanMultiplierKey: strPtr("custom_key"),
 						},
 						SpanMetrics: LimitsMetricsGeneratorProcessorSpanMetrics{
 							Dimensions:          &[]string{"cluster"},
@@ -109,6 +112,7 @@ func TestLimits_parseJson(t *testing.T) {
 									Join:        "",
 								},
 							},
+							SpanMultiplierKey: strPtr("custom_key"),
 						},
 						HostInfo: LimitsMetricGeneratorProcessorHostInfo{
 							HostIdentifiers: &[]string{"k8s.node.name", "host.id"},
