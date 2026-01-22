@@ -1,6 +1,14 @@
 ## main / unreleased
+
+* [CHANGE] Set traceQL query metrics checks by default in Vulture [#6275](https://github.com/grafana/tempo/pull/6275) (@javiermolinar)
+* [FEATURE] Add span_multiplier_key to overrides. This allows tenants to specify the attribute key used for span multiplier values to compensate for head-based sampling. [#6260](https://github.com/grafana/tempo/pull/6260) (@carles-grafana)
 * [ENHANCEMENT] Double the maximum number of dedicated string columns in vParquet5 and update tempo-cli to determine the optimum number for the data [#6282](https://github.com/grafana/tempo/pull/6282) (@mdisibio)
 * [BUGFIX] Correct avg_over_time calculation [#6252](https://github.com/grafana/tempo/pull/6252) (@ruslan-mikhailov)
+
+### 3.0 Cleanup
+
+* [CHANGE] **BREAKING CHANGE** Removed `v2` block encoding and compactor component. [#6273](https://github.com/grafana/tempo/pull/6273) (@joe-elliott)
+  This includes the removal of the following CLI commands which were `v2` specific: `list block`, `list index`, `view index`, `gen index`, `gen bloom`.
 
 # v2.10.0-rc.0
 
@@ -392,6 +400,7 @@ querier:
   Due to this, Tempo installations running inside Docker have to update the address they listen.
   For more details on this change, see [#4465](https://github.com/grafana/tempo/issues/4465)
   For more information about the security risk this change addresses, see https://github.com/open-telemetry/opentelemetry-collector/blob/main/docs/security-best-practices.md#safeguards-against-denial-of-service-attacks
+* [CHANGE] **BREAKING CHANGE** By default, attributes are truncated to 2KB. [#4335](https://github.com/grafana/tempo/pull/4335) (@ie-pham)
 * [CHANGE] Replace `cespare/xxhash` with `cespare/xxhash/v2` [#4485](https://github.com/grafana/tempo/pull/4485) (@Juneezee)
 * [CHANGE] chore: remove gofakeit dependency [#4274](https://github.com/grafana/tempo/pull/4274) (@javiermolinar)
 * [CHANGE] Chore: delete spanlogger. [4312](https://github.com/grafana/tempo/pull/4312) (@javiermolinar)

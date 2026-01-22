@@ -39,14 +39,13 @@ func TestAppendBlockStartEnd(t *testing.T) {
 func testAppendBlockStartEnd(t *testing.T, e encoding.VersionedEncoding) {
 	wal, err := New(&Config{
 		Filepath:       t.TempDir(),
-		Encoding:       backend.EncNone,
 		IngestionSlack: 3 * time.Minute,
 		Version:        encoding.DefaultEncoding().Version(),
 	})
 	require.NoError(t, err, "unexpected error creating temp wal")
 
 	blockID := uuid.New()
-	meta := backend.NewBlockMeta("fake", blockID, e.Version(), backend.EncNone, "")
+	meta := backend.NewBlockMeta("fake", blockID, e.Version())
 	block, err := wal.NewBlock(meta, model.CurrentEncoding)
 	require.NoError(t, err, "unexpected error creating block")
 
@@ -97,14 +96,13 @@ func TestIngestionSlack(t *testing.T) {
 func testIngestionSlack(t *testing.T, e encoding.VersionedEncoding) {
 	wal, err := New(&Config{
 		Filepath:       t.TempDir(),
-		Encoding:       backend.EncNone,
 		IngestionSlack: time.Minute,
 		Version:        encoding.DefaultEncoding().Version(),
 	})
 	require.NoError(t, err, "unexpected error creating temp wal")
 
 	blockID := uuid.New()
-	meta := backend.NewBlockMeta("fake", blockID, e.Version(), backend.EncNone, "")
+	meta := backend.NewBlockMeta("fake", blockID, e.Version())
 	block, err := wal.NewBlock(meta, model.CurrentEncoding)
 	require.NoError(t, err, "unexpected error creating block")
 
@@ -316,7 +314,6 @@ func TestInvalidFilesAndFoldersAreHandled(t *testing.T) {
 	tempDir := t.TempDir()
 	wal, err := New(&Config{
 		Filepath: tempDir,
-		Encoding: backend.EncGZIP,
 		Version:  encoding.DefaultEncoding().Version(),
 	})
 	require.NoError(t, err, "unexpected error creating temp wal")
@@ -325,7 +322,7 @@ func TestInvalidFilesAndFoldersAreHandled(t *testing.T) {
 
 	// create all valid blocks
 	for _, e := range writeableEncodings {
-		meta := backend.NewBlockMeta("fake", uuid.New(), e.Version(), backend.EncNone, "")
+		meta := backend.NewBlockMeta("fake", uuid.New(), e.Version())
 		block, err := wal.NewBlock(meta, model.CurrentEncoding)
 		require.NoError(t, err)
 
@@ -344,11 +341,7 @@ func TestInvalidFilesAndFoldersAreHandled(t *testing.T) {
 	}
 
 	// create unparseable filename
-	err = os.WriteFile(filepath.Join(tempDir, "fe0b83eb-a86b-4b6c-9a74-dc272cd5700e:tenant:v2:notanencoding"), []byte{}, 0o600)
-	require.NoError(t, err)
-
-	// create empty block
-	err = os.WriteFile(filepath.Join(tempDir, "fe0b83eb-a86b-4b6c-9a74-dc272cd5700e:blerg:v2:gzip"), []byte{}, 0o600)
+	err = os.WriteFile(filepath.Join(tempDir, "fe0b83eb-a86b-4b6c-9a74-dc272cd5700e:tenant:vParquet5:notanencoding"), []byte{}, 0o600)
 	require.NoError(t, err)
 
 	// create unparseable block
@@ -358,11 +351,8 @@ func TestInvalidFilesAndFoldersAreHandled(t *testing.T) {
 	require.NoError(t, err, "unexpected error getting blocks")
 	require.Len(t, blocks, len(writeableEncodings)) // valid blocks created above
 
-	// empty file should have been removed
-	require.NoFileExists(t, filepath.Join(tempDir, "fe0b83eb-a86b-4b6c-9a74-dc272cd5700e:blerg:v2:gzip"))
-
 	// unparseable files/folder should have been ignored
-	require.FileExists(t, filepath.Join(tempDir, "fe0b83eb-a86b-4b6c-9a74-dc272cd5700e:tenant:v2:notanencoding"))
+	require.FileExists(t, filepath.Join(tempDir, "fe0b83eb-a86b-4b6c-9a74-dc272cd5700e:tenant:vParquet5:notanencoding"))
 	require.DirExists(t, filepath.Join(tempDir, "fe0b83eb-a86b-4b6c-9a74-dc272cd5700e+tenant+vOther"))
 }
 
@@ -373,14 +363,13 @@ func runWALTest(t testing.TB, encoding string, runner func([][]byte, []*tempopb.
 func runWALTestWithAppendMode(t testing.TB, encoding string, appendTrace bool, runner func([][]byte, []*tempopb.Trace, common.WALBlock)) {
 	wal, err := New(&Config{
 		Filepath: t.TempDir(),
-		Encoding: backend.EncNone,
 		Version:  encoding,
 	})
 	require.NoError(t, err, "unexpected error creating temp wal")
 
 	blockID := uuid.New()
 
-	meta := backend.NewBlockMeta("fake", blockID, encoding, backend.EncNone, "")
+	meta := backend.NewBlockMeta("fake", blockID, encoding)
 	block, err := wal.NewBlock(meta, model.CurrentEncoding)
 	require.NoError(t, err, "unexpected error creating block")
 
@@ -521,14 +510,13 @@ func runWALBenchmark(b *testing.B, encoding string, flushCount int, runner func(
 func runWALBenchmarkWithAppendMode(b *testing.B, encoding string, flushCount int, appendTrace bool, runner func([][]byte, []*tempopb.Trace, common.WALBlock)) {
 	wal, err := New(&Config{
 		Filepath: b.TempDir(),
-		Encoding: backend.EncNone,
 		Version:  encoding,
 	})
 	require.NoError(b, err, "unexpected error creating temp wal")
 
 	blockID := uuid.New()
 
-	meta := backend.NewBlockMeta("fake", blockID, encoding, backend.EncNone, "")
+	meta := backend.NewBlockMeta("fake", blockID, encoding)
 	block, err := wal.NewBlock(meta, model.CurrentEncoding)
 	require.NoError(b, err, "unexpected error creating block")
 

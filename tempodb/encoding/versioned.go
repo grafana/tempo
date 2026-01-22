@@ -10,7 +10,6 @@ import (
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 	"github.com/grafana/tempo/tempodb/encoding/unsupported"
-	v2 "github.com/grafana/tempo/tempodb/encoding/v2"
 	"github.com/grafana/tempo/tempodb/encoding/vparquet3"
 	"github.com/grafana/tempo/tempodb/encoding/vparquet4"
 	"github.com/grafana/tempo/tempodb/encoding/vparquet5"
@@ -37,7 +36,6 @@ type VersionedEncoding interface {
 	// * BlockID
 	// * TenantID
 	// * Encoding
-	// * DataEncoding
 	// * StartTime
 	// * EndTime
 	// * TotalObjects
@@ -58,7 +56,6 @@ type VersionedEncoding interface {
 	// * BlockID
 	// * TenantID
 	// * Encoding
-	// * DataEncoding (of the file - v2)
 	// * DedicatedColumns (vParquet3)
 	// * ReplicationFactor (Optional)
 	CreateWALBlock(meta *backend.BlockMeta, filepath, dataEncoding string, ingestionSlack time.Duration) (common.WALBlock, error)
@@ -70,8 +67,6 @@ type VersionedEncoding interface {
 // FromVersion returns a versioned encoding for the provided string
 func FromVersion(v string) (VersionedEncoding, error) {
 	switch v {
-	case v2.VersionString:
-		return v2.Encoding{}, nil
 	case vparquet3.VersionString:
 		return vparquet3.Encoding{}, nil
 	case vparquet4.VersionString:
@@ -112,7 +107,6 @@ func LatestEncoding() VersionedEncoding {
 // AllEncodings returns all encodings
 func AllEncodings() []VersionedEncoding {
 	return []VersionedEncoding{
-		v2.Encoding{},
 		vparquet3.Encoding{},
 		vparquet4.Encoding{},
 		vparquet5.Encoding{},

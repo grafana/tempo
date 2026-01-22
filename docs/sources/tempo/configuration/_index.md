@@ -1464,8 +1464,6 @@ storage:
         # configuration block for the Write Ahead Log (WAL)
         wal: <WAL config>
           [path: <string> | default = "/var/tempo/wal"]
-          [v2_encoding: <string> | default = snappy]
-          [search_encoding: <string> | default = none]
           [ingestion_time_range_slack: <duration> | default = 2m]
 
         # block configuration
@@ -1575,15 +1573,6 @@ Defines re-used configuration blocks.
 # maximum size of each bloom filter shard
 [bloom_filter_shard_size_bytes: <int> | default = 100KiB]
 
-# number of bytes per index record
-[v2_index_downsample_bytes: <uint64> | default = 1MiB]
-
-# block encoding/compression. options: none, gzip, lz4-64k, lz4-256k, lz4-1M, lz4, snappy, zstd, s2
-[v2_encoding: <string> | default = zstd]
-
-# search data encoding/compression. same options as block encoding.
-[search_encoding: <string> | default = snappy]
-
 # number of bytes per search page
 [search_page_size_bytes: <int> | default = 1MiB]
 
@@ -1646,18 +1635,6 @@ The `compaction` configuration block is used by the compactor, scheduler, and wo
 # The time between compaction cycles.
 # Note: The default will be used if the value is set to 0.
 [compaction_cycle: <duration> | default=30s]
-
-# Optional
-# Amount of data to buffer from input blocks.
-[v2_in_buffer_bytes: <int> | default=5242880]
-
-# Optional
-# Flush data to backend when buffer is this large.
-[v2_out_buffer_bytes: <int> | default=20971520]
-
-# Optional
-# Number of traces to buffer in memory during compaction. Increasing may improve performance but will also increase memory usage. Default is 1000.
-[v2_prefetch_traces_count: <int> | default=1000]
 ```
 
 ### Filter policies
@@ -1828,14 +1805,6 @@ The storage WAL configuration block.
 # Must be set.
 # Example: "/var/tempo/wal
 [path: <string> | default = ""]
-
-# WAL encoding/compression.
-# options: none, gzip, lz4-64k, lz4-256k, lz4-1M, lz4, snappy, zstd, s2
-[v2_encoding: <string> | default = "zstd" ]
-
-# Defines the search data encoding/compression protocol.
-# Options: none, gzip, lz4-64k, lz4-256k, lz4-1M, lz4, snappy, zstd, s2
-[search_encoding: <string> | default = "snappy"]
 
 # When a span is written to the WAL it adjusts the start and end times of the block it is written to.
 # This block start and end time range is then used when choosing blocks for search.

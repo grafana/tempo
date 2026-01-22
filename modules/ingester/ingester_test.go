@@ -522,12 +522,9 @@ func defaultIngesterStore(t testing.TB, tmpDir string) storage.Store {
 				Path: tmpDir,
 			},
 			Block: &common.BlockConfig{
-				IndexDownsampleBytes: 2,
-				BloomFP:              0.01,
-				BloomShardSizeBytes:  100_000,
-				Version:              encoding.LatestEncoding().Version(),
-				Encoding:             backend.EncLZ4_1M,
-				IndexPageSizeBytes:   1000,
+				BloomFP:             0.01,
+				BloomShardSizeBytes: 100_000,
+				Version:             encoding.LatestEncoding().Version(),
 			},
 			WAL: &wal.Config{
 				Filepath: tmpDir,

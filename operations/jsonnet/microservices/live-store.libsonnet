@@ -193,4 +193,11 @@
   tempo_live_store_service: null,  // Only multi-zone services are supported
 
   live_store_pdb: null,  // Only rollout PDB is used
+
+  // Vertical Pod Autoscaler
+  tempo_live_store_vpa: [
+    $.vpaForController($.tempo_live_store_zone_a_statefulset, 'live_store'),
+    $.vpaForController($.tempo_live_store_zone_b_statefulset, 'live_store'),
+  ],
+
 }

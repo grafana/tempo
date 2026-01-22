@@ -331,6 +331,13 @@ func (o *userConfigurableOverridesManager) MetricsGeneratorProcessorServiceGraph
 	return o.Interface.MetricsGeneratorProcessorServiceGraphsHistogramBuckets(userID)
 }
 
+func (o *userConfigurableOverridesManager) MetricsGeneratorProcessorServiceGraphsSpanMultiplierKey(userID string) string {
+	if spanMultiplierKey, ok := o.getTenantLimits(userID).GetMetricsGenerator().GetProcessor().GetServiceGraphs().GetSpanMultiplierKey(); ok {
+		return spanMultiplierKey
+	}
+	return o.Interface.MetricsGeneratorProcessorServiceGraphsSpanMultiplierKey(userID)
+}
+
 func (o *userConfigurableOverridesManager) MetricsGeneratorProcessorSpanMetricsDimensions(userID string) []string {
 	if dimensions, ok := o.getTenantLimits(userID).GetMetricsGenerator().GetProcessor().GetSpanMetrics().GetDimensions(); ok {
 		return dimensions
@@ -385,6 +392,13 @@ func (o *userConfigurableOverridesManager) MetricsGeneratorProcessorSpanMetricsE
 		return EnableInstanceLabel, true
 	}
 	return o.Interface.MetricsGeneratorProcessorSpanMetricsEnableInstanceLabel(userID)
+}
+
+func (o *userConfigurableOverridesManager) MetricsGeneratorProcessorSpanMetricsSpanMultiplierKey(userID string) string {
+	if spanMultiplierKey, ok := o.getTenantLimits(userID).GetMetricsGenerator().GetProcessor().GetSpanMetrics().GetSpanMultiplierKey(); ok {
+		return spanMultiplierKey
+	}
+	return o.Interface.MetricsGeneratorProcessorSpanMetricsSpanMultiplierKey(userID)
 }
 
 func (o *userConfigurableOverridesManager) MetricsGeneratorProcessorHostInfoHostIdentifiers(userID string) []string {

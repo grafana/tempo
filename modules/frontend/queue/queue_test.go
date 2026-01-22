@@ -170,8 +170,11 @@ func queueWithListeners(ctx context.Context, listeners int, batchSize int, liste
 	c := prometheus.NewCounterVec(prometheus.CounterOpts{
 		Name: "test_discarded",
 	}, []string{"user"})
+	b := prometheus.NewHistogramVec(prometheus.HistogramOpts{
+		Name: "test_batch_weight",
+	}, []string{"user"})
 
-	q := NewRequestQueue(100_000, g, c)
+	q := NewRequestQueue(100_000, g, b, c)
 	start := make(chan struct{})
 
 	for i := 0; i < listeners; i++ {
@@ -383,6 +386,10 @@ func TestGetBatchBuffer(t *testing.T) {
 			q := &RequestQueue{
 				queueLength: prometheus.NewGaugeVec(prometheus.GaugeOpts{
 					Name: "test_len",
+				}, []string{"user"}),
+
+				batchWeight: prometheus.NewHistogramVec(prometheus.HistogramOpts{
+					Name: "test_weight",
 				}, []string{"user"}),
 			}
 

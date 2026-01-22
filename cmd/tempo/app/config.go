@@ -13,7 +13,6 @@ import (
 	"github.com/grafana/tempo/modules/backendworker"
 	"github.com/grafana/tempo/modules/blockbuilder"
 	"github.com/grafana/tempo/modules/cache"
-	"github.com/grafana/tempo/modules/compactor"
 	"github.com/grafana/tempo/modules/distributor"
 	"github.com/grafana/tempo/modules/frontend"
 	"github.com/grafana/tempo/modules/generator"
@@ -31,7 +30,6 @@ import (
 	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/tempodb"
 	"github.com/grafana/tempo/tempodb/backend"
-	"github.com/grafana/tempo/tempodb/encoding/common"
 )
 
 const defaultGRPCCompression = "snappy"
@@ -55,7 +53,6 @@ type Config struct {
 	LiveStoreClient       livestore_client.Config        `yaml:"live_store_client,omitempty"`
 	Querier               querier.Config                 `yaml:"querier,omitempty"`
 	Frontend              frontend.Config                `yaml:"query_frontend,omitempty"`
-	Compactor             compactor.Config               `yaml:"compactor,omitempty"`
 	Ingester              ingester.Config                `yaml:"ingester,omitempty"`
 	Generator             generator.Config               `yaml:"metrics_generator,omitempty"`
 	Ingest                ingest.Config                  `yaml:"ingest,omitempty"`
@@ -149,7 +146,6 @@ func (c *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
 	c.BlockBuilder.RegisterFlagsAndApplyDefaults(util.PrefixConfig(prefix, "block-builder"), f)
 	c.Querier.RegisterFlagsAndApplyDefaults(util.PrefixConfig(prefix, "querier"), f)
 	c.Frontend.RegisterFlagsAndApplyDefaults(util.PrefixConfig(prefix, "frontend"), f)
-	c.Compactor.RegisterFlagsAndApplyDefaults(util.PrefixConfig(prefix, "compactor"), f)
 	c.StorageConfig.RegisterFlagsAndApplyDefaults(util.PrefixConfig(prefix, "storage"), f)
 	c.UsageReport.RegisterFlagsAndApplyDefaults(util.PrefixConfig(prefix, "reporting"), f)
 	c.CacheProvider.RegisterFlagsAndApplyDefaults(util.PrefixConfig(prefix, "cache"), f)
@@ -170,16 +166,12 @@ func (c *Config) CheckConfig() []ConfigWarning {
 		warnings = append(warnings, warnCompleteBlockTimeout)
 	}
 
-	if c.Compactor.Compactor.BlockRetention < c.StorageConfig.Trace.BlocklistPoll {
+	if c.BackendWorker.Compactor.BlockRetention < c.StorageConfig.Trace.BlocklistPoll {
 		warnings = append(warnings, warnBlockRetention)
 	}
 
-	if c.Compactor.Compactor.RetentionConcurrency == 0 {
+	if c.BackendWorker.Compactor.RetentionConcurrency == 0 {
 		warnings = append(warnings, warnRetentionConcurrency)
-	}
-
-	if c.StorageConfig.Trace.Backend == backend.S3 && c.Compactor.Compactor.FlushSizeBytes < 5242880 {
-		warnings = append(warnings, warnStorageTraceBackendS3)
 	}
 
 	if c.StorageConfig.Trace.BlocklistPollConcurrency == 0 {
@@ -207,27 +199,6 @@ func (c *Config) CheckConfig() []ConfigWarning {
 			Message: err.Error(),
 			Explain: "Tempo will not start with an invalid dedicated attribute column configuration",
 		})
-	}
-
-	// check v2 specific settings
-	if c.StorageConfig.Trace.Block.Version != "v2" && c.StorageConfig.Trace.Block.IndexDownsampleBytes != common.DefaultIndexDownSampleBytes {
-		warnings = append(warnings, newV2Warning("v2_index_downsample_bytes"))
-	}
-
-	if c.StorageConfig.Trace.Block.Version != "v2" && c.StorageConfig.Trace.Block.IndexPageSizeBytes != common.DefaultIndexPageSizeBytes {
-		warnings = append(warnings, newV2Warning("v2_index_page_size_bytes"))
-	}
-
-	if c.StorageConfig.Trace.Block.Version != "v2" && c.Compactor.Compactor.ChunkSizeBytes != tempodb.DefaultChunkSizeBytes {
-		warnings = append(warnings, newV2Warning("v2_in_buffer_bytes"))
-	}
-
-	if c.StorageConfig.Trace.Block.Version != "v2" && c.Compactor.Compactor.FlushSizeBytes != tempodb.DefaultFlushSizeBytes {
-		warnings = append(warnings, newV2Warning("v2_out_buffer_bytes"))
-	}
-
-	if c.StorageConfig.Trace.Block.Version != "v2" && c.Compactor.Compactor.IteratorBufferSize != tempodb.DefaultIteratorBufferSize {
-		warnings = append(warnings, newV2Warning("v2_prefetch_traces_count"))
 	}
 
 	if c.tracesAndOverridesStorageConflict() {
@@ -277,16 +248,12 @@ var (
 		Explain: "You may receive 404s between the time the ingesters have flushed a trace and the querier is aware of the new block",
 	}
 	warnBlockRetention = ConfigWarning{
-		Message: "compactor.compaction.compacted_block_timeout < storage.trace.blocklist_poll",
-		Explain: "Queriers and Compactors may attempt to read a block that no longer exists",
+		Message: "backend_worker.compaction.compacted_block_timeout < storage.trace.blocklist_poll",
+		Explain: "Queriers and Backend-workers may attempt to read a block that no longer exists",
 	}
 	warnRetentionConcurrency = ConfigWarning{
-		Message: "c.Compactor.Compactor.RetentionConcurrency must be greater than zero. Using default.",
+		Message: "backend_worker.Compactor.RetentionConcurrency must be greater than zero. Using default.",
 		Explain: fmt.Sprintf("default=%d", tempodb.DefaultRetentionConcurrency),
-	}
-	warnStorageTraceBackendS3 = ConfigWarning{
-		Message: "c.Compactor.Compactor.FlushSizeBytes < 5242880",
-		Explain: "Compaction flush size should be 5MB or higher for S3 backend",
 	}
 	warnBlocklistPollConcurrency = ConfigWarning{
 		Message: "c.StorageConfig.Trace.BlocklistPollConcurrency must be greater than zero. Using default.",
@@ -344,13 +311,6 @@ var (
 		Explain: "When both parameters are used c.BlockBuilder.PartitionAssigment takes precedence over c.BlockBuilder.PartitionsPerInstance",
 	}
 )
-
-func newV2Warning(setting string) ConfigWarning {
-	return ConfigWarning{
-		Message: "c.StorageConfig.Trace.Block.Version != \"v2\" but " + setting + " is set",
-		Explain: "This setting is only used in v2 blocks",
-	}
-}
 
 func (c *Config) tracesAndOverridesStorageConflict() bool {
 	traceStorage := c.StorageConfig.Trace

@@ -82,6 +82,7 @@ metrics_generator:
       [enable_client_server_prefix: <bool>]
       [enable_messaging_system_latency_histogram: <bool>]
       [enable_virtual_node_label: <bool>]
+      [span_multiplier_key: <string>]
 
     span_metrics:
       [histogram_buckets: <list of float>]
@@ -100,6 +101,7 @@ metrics_generator:
       [enable_target_info: <bool>]
       [target_info_excluded_dimensions: <list of string>]
       [enable_instance_label: <bool>]
+      [span_multiplier_key: <string>]
 
     host_info:
       [host_identifiers: <list of string>]

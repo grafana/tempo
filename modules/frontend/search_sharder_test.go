@@ -131,14 +131,12 @@ func TestBuildBackendRequests(t *testing.T) {
 					Size_:         1000,
 					TotalRecords:  100,
 					BlockID:       backend.MustParse("00000000-0000-0000-0000-000000000000"),
-					DataEncoding:  "json",
-					Encoding:      backend.EncGZIP,
 					IndexPageSize: 13,
 					Version:       "glarg",
 				},
 			},
 			expectedURIs: []string{
-				"/querier?blockID=00000000-0000-0000-0000-000000000000&dataEncoding=json&encoding=gzip&end=20&footerSize=0&indexPageSize=13&k=test&pagesToSearch=100&size=1000&start=10&startPage=0&totalRecords=100&v=test&version=glarg",
+				"/querier?blockID=00000000-0000-0000-0000-000000000000&encoding=none&end=20&footerSize=0&indexPageSize=13&k=test&pagesToSearch=100&size=1000&start=10&startPage=0&totalRecords=100&v=test&version=glarg",
 			},
 		},
 		// meta.json with dedicated columns
@@ -149,7 +147,6 @@ func TestBuildBackendRequests(t *testing.T) {
 					Size_:         1000,
 					TotalRecords:  10,
 					BlockID:       backend.MustParse("00000000-0000-0000-0000-000000000000"),
-					Encoding:      backend.EncNone,
 					IndexPageSize: 13,
 					Version:       "vParquet3",
 					DedicatedColumns: backend.DedicatedColumns{
@@ -158,7 +155,7 @@ func TestBuildBackendRequests(t *testing.T) {
 				},
 			},
 			expectedURIs: []string{
-				"/querier?blockID=00000000-0000-0000-0000-000000000000&dataEncoding=&dc=%5B%7B%22name%22%3A%22net.sock.host.addr%22%7D%5D&encoding=none&end=20&footerSize=0&indexPageSize=13&k=test&pagesToSearch=10&size=1000&start=10&startPage=0&totalRecords=10&v=test&version=vParquet3",
+				"/querier?blockID=00000000-0000-0000-0000-000000000000&dc=%5B%7B%22name%22%3A%22net.sock.host.addr%22%7D%5D&encoding=none&end=20&footerSize=0&indexPageSize=13&k=test&pagesToSearch=10&size=1000&start=10&startPage=0&totalRecords=10&v=test&version=vParquet3",
 			},
 		},
 		// bytes/per request is too small for the page size
@@ -172,9 +169,9 @@ func TestBuildBackendRequests(t *testing.T) {
 				},
 			},
 			expectedURIs: []string{
-				"/querier?blockID=00000000-0000-0000-0000-000000000000&dataEncoding=&encoding=none&end=20&footerSize=0&indexPageSize=0&k=test&pagesToSearch=1&size=1000&start=10&startPage=0&totalRecords=3&v=test&version=",
-				"/querier?blockID=00000000-0000-0000-0000-000000000000&dataEncoding=&encoding=none&end=20&footerSize=0&indexPageSize=0&k=test&pagesToSearch=1&size=1000&start=10&startPage=1&totalRecords=3&v=test&version=",
-				"/querier?blockID=00000000-0000-0000-0000-000000000000&dataEncoding=&encoding=none&end=20&footerSize=0&indexPageSize=0&k=test&pagesToSearch=1&size=1000&start=10&startPage=2&totalRecords=3&v=test&version=",
+				"/querier?blockID=00000000-0000-0000-0000-000000000000&encoding=none&end=20&footerSize=0&indexPageSize=0&k=test&pagesToSearch=1&size=1000&start=10&startPage=0&totalRecords=3&v=test&version=",
+				"/querier?blockID=00000000-0000-0000-0000-000000000000&encoding=none&end=20&footerSize=0&indexPageSize=0&k=test&pagesToSearch=1&size=1000&start=10&startPage=1&totalRecords=3&v=test&version=",
+				"/querier?blockID=00000000-0000-0000-0000-000000000000&encoding=none&end=20&footerSize=0&indexPageSize=0&k=test&pagesToSearch=1&size=1000&start=10&startPage=2&totalRecords=3&v=test&version=",
 			},
 		},
 		// 100 pages, 10 bytes per page, 1k allowed per request
@@ -188,7 +185,7 @@ func TestBuildBackendRequests(t *testing.T) {
 				},
 			},
 			expectedURIs: []string{
-				"/querier?blockID=00000000-0000-0000-0000-000000000000&dataEncoding=&encoding=none&end=20&footerSize=0&indexPageSize=0&k=test&pagesToSearch=100&size=1000&start=10&startPage=0&totalRecords=100&v=test&version=",
+				"/querier?blockID=00000000-0000-0000-0000-000000000000&encoding=none&end=20&footerSize=0&indexPageSize=0&k=test&pagesToSearch=100&size=1000&start=10&startPage=0&totalRecords=100&v=test&version=",
 			},
 		},
 		// 100 pages, 10 bytes per page, 900 allowed per request
@@ -202,8 +199,8 @@ func TestBuildBackendRequests(t *testing.T) {
 				},
 			},
 			expectedURIs: []string{
-				"/querier?blockID=00000000-0000-0000-0000-000000000000&dataEncoding=&encoding=none&end=20&footerSize=0&indexPageSize=0&k=test&pagesToSearch=90&size=1000&start=10&startPage=0&totalRecords=100&v=test&version=",
-				"/querier?blockID=00000000-0000-0000-0000-000000000000&dataEncoding=&encoding=none&end=20&footerSize=0&indexPageSize=0&k=test&pagesToSearch=90&size=1000&start=10&startPage=90&totalRecords=100&v=test&version=",
+				"/querier?blockID=00000000-0000-0000-0000-000000000000&encoding=none&end=20&footerSize=0&indexPageSize=0&k=test&pagesToSearch=90&size=1000&start=10&startPage=0&totalRecords=100&v=test&version=",
+				"/querier?blockID=00000000-0000-0000-0000-000000000000&encoding=none&end=20&footerSize=0&indexPageSize=0&k=test&pagesToSearch=90&size=1000&start=10&startPage=90&totalRecords=100&v=test&version=",
 			},
 		},
 		// two blocks
@@ -222,10 +219,10 @@ func TestBuildBackendRequests(t *testing.T) {
 				},
 			},
 			expectedURIs: []string{
-				"/querier?blockID=00000000-0000-0000-0000-000000000000&dataEncoding=&encoding=none&end=20&footerSize=0&indexPageSize=0&k=test&pagesToSearch=90&size=1000&start=10&startPage=0&totalRecords=100&v=test&version=",
-				"/querier?blockID=00000000-0000-0000-0000-000000000000&dataEncoding=&encoding=none&end=20&footerSize=0&indexPageSize=0&k=test&pagesToSearch=90&size=1000&start=10&startPage=90&totalRecords=100&v=test&version=",
-				"/querier?blockID=00000000-0000-0000-0000-000000000001&dataEncoding=&encoding=none&end=20&footerSize=0&indexPageSize=0&k=test&pagesToSearch=180&size=1000&start=10&startPage=0&totalRecords=200&v=test&version=",
-				"/querier?blockID=00000000-0000-0000-0000-000000000001&dataEncoding=&encoding=none&end=20&footerSize=0&indexPageSize=0&k=test&pagesToSearch=180&size=1000&start=10&startPage=180&totalRecords=200&v=test&version=",
+				"/querier?blockID=00000000-0000-0000-0000-000000000000&encoding=none&end=20&footerSize=0&indexPageSize=0&k=test&pagesToSearch=90&size=1000&start=10&startPage=0&totalRecords=100&v=test&version=",
+				"/querier?blockID=00000000-0000-0000-0000-000000000000&encoding=none&end=20&footerSize=0&indexPageSize=0&k=test&pagesToSearch=90&size=1000&start=10&startPage=90&totalRecords=100&v=test&version=",
+				"/querier?blockID=00000000-0000-0000-0000-000000000001&encoding=none&end=20&footerSize=0&indexPageSize=0&k=test&pagesToSearch=180&size=1000&start=10&startPage=0&totalRecords=200&v=test&version=",
+				"/querier?blockID=00000000-0000-0000-0000-000000000001&encoding=none&end=20&footerSize=0&indexPageSize=0&k=test&pagesToSearch=180&size=1000&start=10&startPage=180&totalRecords=200&v=test&version=",
 			},
 		},
 	}
@@ -273,8 +270,6 @@ func TestBuildBackendRequestsShardNumbers(t *testing.T) {
 					Size_:         1000,
 					TotalRecords:  10,
 					BlockID:       backend.MustParse("00000000-0000-0000-0000-000000000000"),
-					DataEncoding:  "json",
-					Encoding:      backend.EncGZIP,
 					IndexPageSize: 13,
 					Version:       "glarg",
 				},
@@ -290,8 +285,6 @@ func TestBuildBackendRequestsShardNumbers(t *testing.T) {
 					Size_:         1000,
 					TotalRecords:  10,
 					BlockID:       backend.MustParse("00000000-0000-0000-0000-000000000000"),
-					DataEncoding:  "json",
-					Encoding:      backend.EncGZIP,
 					IndexPageSize: 13,
 					Version:       "glarg",
 				},
@@ -384,7 +377,7 @@ func TestBuildBackendRequestsShardNumbers(t *testing.T) {
 }
 
 func TestBackendRequests(t *testing.T) {
-	bm := backend.NewBlockMeta("test", uuid.New(), "wdwad", backend.EncGZIP, "asdf")
+	bm := backend.NewBlockMeta("test", uuid.New(), "wdwad")
 	bm.StartTime = time.Unix(100, 0)
 	bm.EndTime = time.Unix(200, 0)
 	bm.Size_ = defaultTargetBytesPerRequest * 2
@@ -409,8 +402,8 @@ func TestBackendRequests(t *testing.T) {
 			name:    "start and end same as block",
 			request: "/?tags=foo%3Dbar&minDuration=10ms&maxDuration=30ms&limit=50&start=100&end=200",
 			expectedReqsURIs: []string{
-				"/querier?blockID=" + bm.BlockID.String() + "&dataEncoding=asdf&encoding=gzip&end=200&footerSize=0&indexPageSize=0&limit=50&maxDuration=30ms&minDuration=10ms&pagesToSearch=1&size=209715200&start=100&startPage=0&tags=foo%3Dbar&totalRecords=2&version=wdwad",
-				"/querier?blockID=" + bm.BlockID.String() + "&dataEncoding=asdf&encoding=gzip&end=200&footerSize=0&indexPageSize=0&limit=50&maxDuration=30ms&minDuration=10ms&pagesToSearch=1&size=209715200&start=100&startPage=1&tags=foo%3Dbar&totalRecords=2&version=wdwad",
+				"/querier?blockID=" + bm.BlockID.String() + "&encoding=none&end=200&footerSize=0&indexPageSize=0&limit=50&maxDuration=30ms&minDuration=10ms&pagesToSearch=1&size=209715200&start=100&startPage=0&tags=foo%3Dbar&totalRecords=2&version=wdwad",
+				"/querier?blockID=" + bm.BlockID.String() + "&encoding=none&end=200&footerSize=0&indexPageSize=0&limit=50&maxDuration=30ms&minDuration=10ms&pagesToSearch=1&size=209715200&start=100&startPage=1&tags=foo%3Dbar&totalRecords=2&version=wdwad",
 			},
 			expectedJobs:       2,
 			expectedBlocks:     1,
@@ -420,8 +413,8 @@ func TestBackendRequests(t *testing.T) {
 			name:    "start and end in block",
 			request: "/?tags=foo%3Dbar&minDuration=10ms&maxDuration=30ms&limit=50&start=110&end=150",
 			expectedReqsURIs: []string{
-				"/querier?blockID=" + bm.BlockID.String() + "&dataEncoding=asdf&encoding=gzip&end=150&footerSize=0&indexPageSize=0&limit=50&maxDuration=30ms&minDuration=10ms&pagesToSearch=1&size=209715200&start=110&startPage=0&tags=foo%3Dbar&totalRecords=2&version=wdwad",
-				"/querier?blockID=" + bm.BlockID.String() + "&dataEncoding=asdf&encoding=gzip&end=150&footerSize=0&indexPageSize=0&limit=50&maxDuration=30ms&minDuration=10ms&pagesToSearch=1&size=209715200&start=110&startPage=1&tags=foo%3Dbar&totalRecords=2&version=wdwad",
+				"/querier?blockID=" + bm.BlockID.String() + "&encoding=none&end=150&footerSize=0&indexPageSize=0&limit=50&maxDuration=30ms&minDuration=10ms&pagesToSearch=1&size=209715200&start=110&startPage=0&tags=foo%3Dbar&totalRecords=2&version=wdwad",
+				"/querier?blockID=" + bm.BlockID.String() + "&encoding=none&end=150&footerSize=0&indexPageSize=0&limit=50&maxDuration=30ms&minDuration=10ms&pagesToSearch=1&size=209715200&start=110&startPage=1&tags=foo%3Dbar&totalRecords=2&version=wdwad",
 			},
 			expectedJobs:       2,
 			expectedBlocks:     1,

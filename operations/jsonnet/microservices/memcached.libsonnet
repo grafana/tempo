@@ -31,4 +31,6 @@ memcached {
     name: 'memcached',
     max_item_size: '5m',
   },
+
+  memcached_vpa: $.vpaForController($.memcached_all.statefulSet, 'memcached'),
 }

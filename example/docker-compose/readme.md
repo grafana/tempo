@@ -1,31 +1,34 @@
 ## Docker-compose
 
 So you found your way to the docker compose examples?  This is a great place to
-get started with Tempo, learn some basic configuration, and learn about various
-trace discovery flows.
+get started with Tempo and see some of the various configuration options
 
-Refer to [getting-started](https://grafana.com/docs/tempo/next/getting-started/docker-example/) for a walk-through using the Local example.
-
-If you are interested in more complex configuration we would recommend the [tanka/jsonnet examples](../tk/readme.md).
+Refer to [getting-started](https://grafana.com/docs/tempo/latest/getting-started/docker-example/) for a walk-through using the single-binary example.
 
 ### Examples
 
-The easiest example to start with is [Local Storage](local/readme.md): this example will run Tempo as a single binary
-together with the synthetic-load-generator, to generate traces, and Grafana, to query Tempo.  Data is stored locally on
-disk.
+The easiest example to start with is the [single-binary](./single-binary/). This example will run Tempo as a single binary, [xk6-client-tracing](https://github.com/grafana/xk6-client-tracing) 
+to generate traces and Grafana to visualize trace data.
 
-The following examples showcase specific features or integrations:
+To use any example simply:
 
-- [Grafana Alloy](alloy/readme.md)
-  Simple example using the Grafana Alloy as a tracing pipeline.
-- [OpenTelemetry Collector](otel-collector/readme.md)
-  Simple example using the OpenTelemetry Collector as a tracing pipeline.
-- [OpenTelemetry Collector Multitenant](otel-collector-multitenant/readme.md)
-  Uses the OpenTelemetry Collector in an advanced multitenant configuration.
+1. Navigate to the appropriate folder and run `docker-compose up`
+1. Visit [Grafana Explore](http://localhost:3000/explore) and try some basic queries. See [the docs](https://grafana.com/docs/tempo/latest/traceql/construct-traceql-queries/) for help on more complex queries.  
+  `{}` - basic search that finds everything  
+  `{} | rate()` - rate of all spans
+1. Visit [Traces Drilldown](http://localhost:3000/a/grafana-exploretraces-app/) for a queryless way to explore your data.
+1. Connect your favorite LLM agent to our [MCP server](https://grafana.com/docs/tempo/latest/api_docs/mcp-server/)
 
-This example uses the `local` backend, suitable for local testing and development:
+### Features
 
-- [Local storage](local/readme.md)
+See below for a list of all examples and the features they demonstrate
+
+| Example | Deployment | Tenancy | Trace Ingestion | Storage | Other Features |
+|---------|------------|---------|-----------------|---------|------------------|
+| [Single Binary](./single-binary/) | Single binary | Single tenant | Alloy | S3 (MinIO) | vulture for data integrity, metrics generator, streaming queries, mcp |
+| [Distributed](./distributed/) | Distributed microservices | Single tenant | Alloy | S3 (MinIO) | vulture for data integrity, metrics-generator, streaming queries, mcp |
+| [Multitenant](./multitenant/) | Single binary | Multitenant | OTel Collector + Direct OTLP | Local filesystem | vulture for data integrity, multiple tenants (tenant-1, tenant-2), streaming queries, mcp |
+| [Debug](./debug/) | Single binary | Single tenant | Direct OTLP | Local filesystem | vulture for data integrity, tempo-debug image for breakpoint debugging, streaming queries, mcp | 
 
 ### Build images (optional)
 
