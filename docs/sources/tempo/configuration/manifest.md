@@ -407,7 +407,7 @@ query_frontend:
     metrics:
         concurrent_jobs: 1000
         target_bytes_per_job: 104857600
-        max_duration: 3h0m0s
+        max_duration: 24h0m0s
         query_backend_after: 30m0s
         interval: 5m0s
         max_exemplars: 100
