@@ -86,9 +86,7 @@ const (
 	LiveStore                     string = "live-store"
 
 	// composite targets
-	SingleBinary         string = "all"
-	SingleBinary3_0      string = "all-3.0"
-	ScalableSingleBinary string = "scalable-single-binary"
+	SingleBinary string = "all"
 
 	// ring names
 	ringIngester          string = "ingester"
@@ -97,9 +95,8 @@ const (
 	ringLiveStore         string = "live-store"
 )
 
-// IsSingleBinary returns true if the target is SingleBinary or SingleBinary3_0
 func IsSingleBinary(target string) bool {
-	return target == SingleBinary || target == SingleBinary3_0
+	return target == SingleBinary
 }
 
 func (t *App) initServer() (services.Service, error) {
@@ -368,8 +365,8 @@ func (t *App) initGenerator() (services.Service, error) {
 	queryRangeHandler := t.HTTPAuthMiddleware.Wrap(http.HandlerFunc(t.generator.QueryRangeHandler))
 	t.Server.HTTPRouter().Handle(path.Join(api.PathPrefixGenerator, addHTTPAPIPrefix(&t.cfg, api.PathMetricsQueryRange)), queryRangeHandler)
 
-	if t.cfg.Target != SingleBinary3_0 { // conflicts with livestore, only in single binary 3.0 mode. this will go away once SingleBinary3_0 -> SingleBinary
-		tempopb.RegisterMetricsGeneratorServer(t.Server.GRPC(), t.generator)
+	if !IsSingleBinary(t.cfg.Target) {
+		tempopb.RegisterMetricsGeneratorServer(t.Server.GRPC(), t.generator) // todo: this can be removed before 3.0 but needs to exist as long as we have any deployments anywhere on the traditional arch
 	}
 
 	return t.generator, nil
@@ -606,7 +603,7 @@ func (t *App) initOptionalStore() (services.Service, error) {
 func (t *App) initStore() (services.Service, error) {
 	// the only component that needs a functioning tempodb pool are the queriers. all other components will just spin up
 	// hundreds of never used pool goroutines. set pool size to 0 here to avoid that.
-	if t.cfg.Target != Querier && !IsSingleBinary(t.cfg.Target) && t.cfg.Target != ScalableSingleBinary {
+	if t.cfg.Target != Querier && !IsSingleBinary(t.cfg.Target) {
 		t.cfg.StorageConfig.Trace.Pool.MaxWorkers = 0
 		t.cfg.StorageConfig.Trace.Pool.QueueDepth = 0
 	}
@@ -837,8 +834,6 @@ func (t *App) setupModuleManager() error {
 	mm.RegisterModule(LiveStore, t.initLiveStore)
 
 	mm.RegisterModule(SingleBinary, nil)
-	mm.RegisterModule(ScalableSingleBinary, nil)
-	mm.RegisterModule(SingleBinary3_0, nil)
 
 	deps := map[string][]string{
 		// InternalServer: nil,
@@ -871,9 +866,7 @@ func (t *App) setupModuleManager() error {
 		LiveStore:                     {Common, MemberlistKV, PartitionRing},
 
 		// composite targets
-		SingleBinary:         {QueryFrontend, Querier, Ingester, Distributor, MetricsGenerator},
-		SingleBinary3_0:      {BackendScheduler, BackendWorker, QueryFrontend, Querier, Distributor, MetricsGenerator, BlockBuilder, LiveStore}, // TODO: when we cut 3.0 remove SingleBinary and replace with this
-		ScalableSingleBinary: {SingleBinary},
+		SingleBinary: {BackendScheduler, BackendWorker, QueryFrontend, Querier, Distributor, MetricsGenerator, BlockBuilder, LiveStore},
 	}
 
 	for mod, targets := range deps {
