@@ -1,0 +1,15 @@
+modules/frontend/handler.go:46:17: captLocal: `LogQueryRequestHeaders' should not be capitalized (gocritic)
+func newHandler(LogQueryRequestHeaders flagext.StringSliceCSV, rt http.RoundTripper, logger log.Logger) http.Handler {
+                ^
+modules/frontend/handler.go:161:2: ifElseChain: rewrite if-else to switch statement (gocritic)
+	if grpcutil.IsCanceled(err) {
+	^
+modules/frontend/search_handlers_test.go:263:76: unused-parameter: parameter 'i' seems to be unused, consider removing or renaming it as _ (revive)
+			err = f.streamingSearch(tc.request, newMockStreamingServer(tenant, func(i int, sr *tempopb.SearchResponse) {
+			                                                                        ^
+modules/frontend/search_handlers_test.go:411:76: unused-parameter: parameter 'i' seems to be unused, consider removing or renaming it as _ (revive)
+			err = f.streamingSearch(tc.request, newMockStreamingServer(tenant, func(i int, sr *tempopb.SearchResponse) {
+			                                                                        ^
+modules/frontend/cache_keys.go:36:5: QF1001: could apply De Morgan's law (staticcheck)
+	if !(start.Before(meta.StartTime) && // search start is before block start
+	   ^
