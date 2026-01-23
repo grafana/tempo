@@ -2,7 +2,7 @@
 all: jb gen check
 
 gen: jb gen-examples
-gen-examples: gen-example/microservices
+gen-examples: gen-example/microservices gen-example/microservices-with-extras
 
 jb:
 	jb install ../jsonnet/microservices

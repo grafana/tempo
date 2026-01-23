@@ -1,5 +1,6 @@
 ## main / unreleased
 
+* [CHANGE] Updade default max duration for traceql metrics queries up to one day [#6285](https://github.com/grafana/tempo/pull/6285) (@javiermolinar)
 * [CHANGE] Set traceQL query metrics checks by default in Vulture [#6275](https://github.com/grafana/tempo/pull/6275) (@javiermolinar)
 * [FEATURE] Add span_multiplier_key to overrides. This allows tenants to specify the attribute key used for span multiplier values to compensate for head-based sampling. [#6260](https://github.com/grafana/tempo/pull/6260) (@carles-grafana)
 * [ENHANCEMENT] Double the maximum number of dedicated string columns in vParquet5 and update tempo-cli to determine the optimum number for the data [#6282](https://github.com/grafana/tempo/pull/6282) (@mdisibio)
@@ -9,6 +10,7 @@
 
 * [CHANGE] **BREAKING CHANGE** Removed `v2` block encoding and compactor component. [#6273](https://github.com/grafana/tempo/pull/6273) (@joe-elliott)
   This includes the removal of the following CLI commands which were `v2` specific: `list block`, `list index`, `view index`, `gen index`, `gen bloom`.
+* [CHANGE] **BREAKING CHANGE** Sets the `all` target to be 3.0 compatible and removes the `scalable-single-binary` target [#6283](https://github.com/grafana/tempo/pull/6283) (@joe-elliott)
 
 # v2.10.0-rc.0
 

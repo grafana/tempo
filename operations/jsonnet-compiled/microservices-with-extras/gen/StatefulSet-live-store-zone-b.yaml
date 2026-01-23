@@ -1,0 +1,110 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  annotations:
+    grafana.com/prepare-downscale-http-path: live-store/prepare-downscale
+    grafana.com/prepare-downscale-http-port: "3200"
+    grafana.com/rollout-delayed-downscale: 35m
+    grafana.com/rollout-mirror-replicas-from-resource-api-version: rollout-operator.grafana.com/v1
+    grafana.com/rollout-mirror-replicas-from-resource-kind: ReplicaTemplate
+    grafana.com/rollout-mirror-replicas-from-resource-name: live-store
+    grafana.com/rollout-mirror-replicas-from-resource-write-back: "false"
+    grafana.com/rollout-prepare-delayed-downscale-url: http://pod:3200/live-store/prepare-partition-downscale
+    rollout-max-unavailable: "25"
+  labels:
+    grafana.com/min-time-between-zones-downscale: "0"
+    grafana.com/prepare-downscale: "true"
+    rollout-group: live-store
+  name: live-store-zone-b
+  namespace: tracing
+spec:
+  podManagementPolicy: Parallel
+  replicas: 0
+  selector:
+    matchLabels:
+      name: live-store-zone-b
+      rollout-group: live-store
+  serviceName: live-store-zone-b
+  template:
+    metadata:
+      annotations:
+        config_hash: aebeb2804a488c8b7c7039d7f018ff5f
+      labels:
+        app: live-store-zone-b
+        name: live-store-zone-b
+        rollout-group: live-store
+        tempo-gossip-member: "true"
+    spec:
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+          - labelSelector:
+              matchExpressions:
+              - key: rollout-group
+                operator: In
+                values:
+                - live-store
+              - key: name
+                operator: NotIn
+                values:
+                - live-store-zone-b
+            topologyKey: kubernetes.io/hostname
+      containers:
+      - args:
+        - -config.file=/conf/tempo.yaml
+        - -live-store.instance-availability-zone=zone-b
+        - -mem-ballast-size-mbs=1024
+        - -target=live-store
+        image: grafana/tempo:latest
+        imagePullPolicy: IfNotPresent
+        name: live-store
+        ports:
+        - containerPort: 3200
+          name: prom-metrics
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: 3200
+          initialDelaySeconds: 15
+          timeoutSeconds: 1
+        resources:
+          limits:
+            cpu: "1"
+            memory: 2Gi
+          requests:
+            cpu: 500m
+            memory: 1Gi
+        volumeMounts:
+        - mountPath: /conf
+          name: tempo-conf
+        - mountPath: /var/tempo/live-store
+          name: live-store-data
+        - mountPath: /overrides
+          name: overrides
+      securityContext:
+        fsGroup: 10001
+      terminationGracePeriodSeconds: 1200
+      volumes:
+      - configMap:
+          name: tempo-live-store
+        name: tempo-conf
+      - configMap:
+          name: tempo-overrides
+        name: overrides
+  updateStrategy:
+    type: OnDelete
+  volumeClaimTemplates:
+  - apiVersion: v1
+    kind: PersistentVolumeClaim
+    metadata:
+      labels:
+        app: live-store
+      name: live-store-data
+      namespace: tracing
+    spec:
+      accessModes:
+      - ReadWriteOnce
+      resources:
+        requests:
+          storage: 10Gi
+      storageClassName: fast
