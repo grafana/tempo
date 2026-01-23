@@ -46,7 +46,7 @@ type Processor struct {
 	now func() time.Time
 }
 
-func New(cfg Config, reg registry.Registry, filteredSpansCounter, invalidUTF8Counter prometheus.Counter) (_ gen.Processor, warn error, err error) {
+func New(cfg Config, reg registry.Registry, filteredSpansCounter, invalidUTF8Counter prometheus.Counter) (gen.Processor, error) {
 	var configuredIntrinsicDimensions []string
 
 	if cfg.IntrinsicDimensions.Service {
@@ -67,7 +67,10 @@ func New(cfg Config, reg registry.Registry, filteredSpansCounter, invalidUTF8Cou
 
 	c := reclaimable.New(validation.SanitizeLabelName, 10000)
 
-	warn = validation.ValidateDimensions(cfg.Dimensions, configuredIntrinsicDimensions, cfg.DimensionMappings, c.Get)
+	err := validation.ValidateDimensions(cfg.Dimensions, configuredIntrinsicDimensions, cfg.DimensionMappings, c.Get)
+	if err != nil {
+		return nil, err
+	}
 
 	p := &Processor{
 		Cfg:                   cfg,
@@ -91,11 +94,11 @@ func New(cfg Config, reg registry.Registry, filteredSpansCounter, invalidUTF8Cou
 
 	filter, err := spanfilter.NewSpanFilter(cfg.FilterPolicies)
 	if err != nil {
-		return nil, warn, err
+		return nil, err
 	}
 
 	p.filter = filter
-	return p, warn, nil
+	return p, nil
 }
 
 func (p *Processor) Name() string {
