@@ -119,6 +119,7 @@ func newMetricsQueryRangeHTTPHandler(cfg Config, next pipeline.AsyncRoundTripper
 		if err := validateQueryRangeReq(cfg, queryRangeReq); err != nil {
 			return httpInvalidRequest(err), nil
 		}
+		req = api.BuildQueryRangeRequest(req, queryRangeReq, "")
 		traceql.AlignRequest(queryRangeReq)
 
 		// build and use roundtripper
