@@ -29,14 +29,14 @@ require (
 	github.com/jedib0t/go-pretty/v6 v6.7.8
 	github.com/json-iterator/go v1.1.12
 	github.com/jsternberg/zap-logfmt v1.3.0
-	github.com/klauspost/compress v1.18.2
+	github.com/klauspost/compress v1.18.3
 	github.com/minio/minio-go/v7 v7.0.98
 	github.com/mitchellh/mapstructure v1.5.1-0.20231216201459-8508981c8b6c // indirect
 	github.com/olekukonko/tablewriter v1.1.2
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/jaeger v0.138.0
 	github.com/opentracing-contrib/go-grpc v0.1.1 // indirect
 	github.com/opentracing/opentracing-go v1.2.0 // indirect
-	github.com/pierrec/lz4/v4 v4.1.23
+	github.com/pierrec/lz4/v4 v4.1.23 // indirect
 	github.com/pkg/errors v0.9.1
 	github.com/prometheus/client_golang v1.23.2
 	github.com/prometheus/client_model v0.6.2
