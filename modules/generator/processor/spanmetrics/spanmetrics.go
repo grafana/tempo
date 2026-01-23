@@ -167,6 +167,8 @@ func (p *Processor) aggregateMetricsForSpan(svcName string, jobName string, inst
 	for _, d := range p.Cfg.Dimensions {
 		value, _ := processor_util.FindAttributeValue(d, rs.Attributes, span.Attributes)
 		label := validation.SanitizeLabelNameWithCollisions(d, validation.SupportedIntrinsicDimensionsSet, p.sanitizeCache.Get)
+		// if there is a collision, for example deployment.environment and deployment_environment,
+		// both sanitized to deployment_environment, we just take the last one configured.
 		builder.Add(label, value)
 	}
 
