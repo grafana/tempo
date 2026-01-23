@@ -7,6 +7,13 @@
   schedule: [
     'at any time',
   ],
+  baseBranchPatterns: [
+    'main', 
+    'release-v2.8',
+    'release-v2.9',
+    'release-v2.10',
+    '/^release-v3.*/',
+  ],
   prConcurrentLimit: 15,
   branchConcurrentLimit: 15,
   ignoreDeps: [],
