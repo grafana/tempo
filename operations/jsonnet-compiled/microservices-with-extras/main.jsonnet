@@ -21,16 +21,25 @@ tempo
       vpa+: {
         enabled: true,
       },
+      pdb+: {
+        enabled: true,
+      },
     },
 
     backend_worker+: {
       vpa+: {
         enabled: true,
       },
+      pdb+: {
+        enabled: true,
+      },
     },
 
     block_builder+: {
       vpa+: {
+        enabled: true,
+      },
+      pdb+: {
         enabled: true,
       },
     },
@@ -57,15 +66,24 @@ tempo
       vpa+: {
         enabled: true,
       },
+      pdb+: {
+        enabled: true,
+      },
     },
 
     query_frontend+: {
       replicas: 2,
+      pdb+: {
+        enabled: true,
+      },
     },
 
     querier+: {
       replicas: 5,
       vpa+: {
+        enabled: true,
+      },
+      pdb+: {
         enabled: true,
       },
     },
@@ -92,9 +110,15 @@ tempo
           },
         },
       },
+      pdb+: {
+        enabled: true,
+      },
     },
     memcached+: {
       replicas: 5,
+      pdb+: {
+        enabled: true,
+      },
     },
     vulture+: {
       replicas: 1,

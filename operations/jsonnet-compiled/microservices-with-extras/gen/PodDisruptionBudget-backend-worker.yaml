@@ -1,0 +1,12 @@
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  labels:
+    name: backend-worker
+  name: backend-worker
+  namespace: tracing
+spec:
+  maxUnavailable: 1
+  selector:
+    matchLabels:
+      name: backend-worker

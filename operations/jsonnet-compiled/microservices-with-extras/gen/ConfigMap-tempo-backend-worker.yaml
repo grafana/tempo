@@ -5,7 +5,6 @@ data:
         backend_scheduler_addr: backend-scheduler.tracing.svc.cluster.local.:9095
         ring:
             enable_inet6: true
-    compactor: {}
     distributor: {}
     http_api_prefix: ""
     ingester:
