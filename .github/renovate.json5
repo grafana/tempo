@@ -7,7 +7,7 @@
   schedule: [
     'at any time',
   ],
-  baseBranchPatterns: [
+  baseBranches: [
     'main', 
     'release-v2.8',
     'release-v2.9',
