@@ -44,6 +44,9 @@ func newQueryRangeStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripp
 		if req.Step == 0 {
 			req.Step = traceql.DefaultQueryRangeStep(req.Start, req.End)
 		}
+		if !req.HasInstant() { // if not found, set it explicitly
+			req.SetInstant(false)
+		}
 		if err := validateQueryRangeReq(cfg, req); err != nil {
 			return err
 		}
@@ -107,6 +110,9 @@ func newMetricsQueryRangeHTTPHandler(cfg Config, next pipeline.AsyncRoundTripper
 		if err != nil {
 			level.Error(logger).Log("msg", "query range: parse search request failed", "err", err)
 			return httpInvalidRequest(err), nil
+		}
+		if !queryRangeReq.HasInstant() { // if not found, set it explicitly
+			queryRangeReq.SetInstant(false)
 		}
 		logQueryRangeRequest(logger, tenant, queryRangeReq)
 
