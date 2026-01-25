@@ -117,6 +117,12 @@ func TestFederation(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, federatedTrace)
 
+		// Query federated frontend for the split trace using V2 API
+		federatedTraceV2, err := federatedClient.QueryTraceV2(traceID)
+		require.NoError(t, err)
+		require.NotNil(t, federatedTraceV2)
+		require.NotNil(t, federatedTraceV2.Trace)
+
 		// Verify the federated trace contains spans from both tempo instances
 		// Total should be 2 spans (1 from tempo1 + 1 from tempo2)
 		totalSpanCount := 0
@@ -139,5 +145,27 @@ func TestFederation(t *testing.T) {
 		require.Equal(t, 2, totalSpanCount, "federated trace should have 2 total spans")
 		require.Equal(t, 1, tempo1SpanNames, "federated trace should have 1 span with 'tempo1' prefix")
 		require.Equal(t, 1, tempo2SpanNames, "federated trace should have 1 span with 'tempo2' prefix")
+
+		// Verify the V2 federated trace also contains spans from both tempo instances
+		totalSpanCountV2 := 0
+		tempo1SpanNamesV2 := 0
+		tempo2SpanNamesV2 := 0
+		for _, rs := range federatedTraceV2.Trace.ResourceSpans {
+			for _, ss := range rs.ScopeSpans {
+				for _, span := range ss.Spans {
+					totalSpanCountV2++
+					spanName := span.Name
+					if len(spanName) >= 6 && spanName[:6] == "tempo1" {
+						tempo1SpanNamesV2++
+					} else if len(spanName) >= 6 && spanName[:6] == "tempo2" {
+						tempo2SpanNamesV2++
+					}
+				}
+			}
+		}
+
+		require.Equal(t, 2, totalSpanCountV2, "federated trace V2 should have 2 total spans")
+		require.Equal(t, 1, tempo1SpanNamesV2, "federated trace V2 should have 1 span with 'tempo1' prefix")
+		require.Equal(t, 1, tempo2SpanNamesV2, "federated trace V2 should have 1 span with 'tempo2' prefix")
 	})
 }
