@@ -11,11 +11,12 @@ query_frontend:
 federated_frontend:
   concurrent_requests: 4
   instances:
-  {{ range .Instances }}   
-  - name: {{ .Name }}
-    endpoint: {{ .Endpoint }}
+  - name: tempo1
+    endpoint: http://e2e_Federation-tempo1:3200
     timeout: 30s
-  {{ end }}
+  - name: tempo2
+    endpoint: http://e2e_Federation-tempo2:3200
+    timeout: 30s
 storage:
   trace:
     backend: local
