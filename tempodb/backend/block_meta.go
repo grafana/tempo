@@ -6,9 +6,9 @@ import (
 	"slices"
 	"time"
 
+	"github.com/bytedance/sonic"
 	"github.com/cespare/xxhash/v2"
 	"github.com/google/uuid"
-
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/traceql"
 )
@@ -179,13 +179,13 @@ func (dc *DedicatedColumn) MarshalJSON() ([]byte, error) {
 	if cpy.Type == DefaultDedicatedColumnType {
 		cpy.Type = ""
 	}
-	return json.Marshal(&cpy)
+	return sonic.Marshal(&cpy)
 }
 
 func (dc *DedicatedColumn) UnmarshalJSON(b []byte) error {
 	type dcAlias DedicatedColumn // alias required to avoid recursive calls of UnmarshalJSON
 
-	err := json.Unmarshal(b, (*dcAlias)(dc))
+	err := sonic.Unmarshal(b, (*dcAlias)(dc))
 	if err != nil {
 		return err
 	}
@@ -210,7 +210,7 @@ func (dcs *DedicatedColumns) UnmarshalJSON(b []byte) error {
 	}
 
 	type dcsAlias DedicatedColumns // alias required to avoid recursive calls of UnmarshalJSON
-	err := json.Unmarshal(b, (*dcsAlias)(dcs))
+	err := sonic.Unmarshal(b, (*dcsAlias)(dcs))
 	if err != nil {
 		return err
 	}
@@ -219,17 +219,15 @@ func (dcs *DedicatedColumns) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
-func NewBlockMeta(tenantID string, blockID uuid.UUID, version string, encoding Encoding, dataEncoding string) *BlockMeta {
-	return NewBlockMetaWithDedicatedColumns(tenantID, blockID, version, encoding, dataEncoding, nil)
+func NewBlockMeta(tenantID string, blockID uuid.UUID, version string) *BlockMeta {
+	return NewBlockMetaWithDedicatedColumns(tenantID, blockID, version, nil)
 }
 
-func NewBlockMetaWithDedicatedColumns(tenantID string, blockID uuid.UUID, version string, encoding Encoding, dataEncoding string, dc DedicatedColumns) *BlockMeta {
+func NewBlockMetaWithDedicatedColumns(tenantID string, blockID uuid.UUID, version string, dc DedicatedColumns) *BlockMeta {
 	b := &BlockMeta{
 		Version:          version,
 		BlockID:          UUID(blockID),
 		TenantID:         tenantID,
-		Encoding:         encoding,
-		DataEncoding:     dataEncoding,
 		DedicatedColumns: dc,
 	}
 
@@ -408,7 +406,7 @@ func (dcs DedicatedColumns) Marshal() ([]byte, error) {
 	}
 
 	// NOTE: The json bytes interned in a map to avoid re-unmarshalling the same byte slice.
-	return json.Marshal(dcs)
+	return sonic.Marshal(dcs)
 }
 
 func (dcs DedicatedColumns) MarshalTo(data []byte) (n int, err error) {
@@ -427,7 +425,7 @@ func (dcs *DedicatedColumns) Unmarshal(data []byte) error {
 	}
 
 	// NOTE: The json bytes interned in a map to avoid re-unmarshalling the same byte slice.
-	return json.Unmarshal(data, &dcs)
+	return sonic.Unmarshal(data, &dcs)
 }
 
 func (b *CompactedBlockMeta) UnmarshalJSON(data []byte) error {

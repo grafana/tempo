@@ -38,8 +38,6 @@
       container.mixin.readinessProbe.withTimeoutSeconds(1),
 
     withInet6():: {
-      tempo_compactor_service+:
-        service.mixin.spec.withIpFamilies(['IPv6']),
       tempo_distributor_service+:
         service.mixin.spec.withIpFamilies(['IPv6']),
       tempo_ingester_service+:
@@ -80,14 +78,6 @@
         },
         memberlist+: {
           bind_addr: ['::'],
-        },
-      },
-
-      tempo_compactor_config+: {
-        compactor+: {
-          ring+: {
-            enable_inet6: true,
-          },
         },
       },
 

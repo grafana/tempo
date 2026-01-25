@@ -29,7 +29,6 @@ import (
 	"github.com/grafana/tempo/modules/backendworker"
 	"github.com/grafana/tempo/modules/blockbuilder"
 	"github.com/grafana/tempo/modules/cache"
-	"github.com/grafana/tempo/modules/compactor"
 	"github.com/grafana/tempo/modules/distributor"
 	"github.com/grafana/tempo/modules/frontend"
 	"github.com/grafana/tempo/modules/frontend/interceptor"
@@ -90,9 +89,7 @@ const (
 	LiveStore                     string = "live-store"
 
 	// composite targets
-	SingleBinary         string = "all"
-	SingleBinary3_0      string = "all-3.0"
-	ScalableSingleBinary string = "scalable-single-binary"
+	SingleBinary string = "all"
 
 	// ring names
 	ringIngester          string = "ingester"
@@ -101,9 +98,8 @@ const (
 	ringLiveStore         string = "live-store"
 )
 
-// IsSingleBinary returns true if the target is SingleBinary or SingleBinary3_0
 func IsSingleBinary(target string) bool {
-	return target == SingleBinary || target == SingleBinary3_0
+	return target == SingleBinary
 }
 
 func (t *App) initServer() (services.Service, error) {
@@ -372,8 +368,8 @@ func (t *App) initGenerator() (services.Service, error) {
 	queryRangeHandler := t.HTTPAuthMiddleware.Wrap(http.HandlerFunc(t.generator.QueryRangeHandler))
 	t.Server.HTTPRouter().Handle(path.Join(api.PathPrefixGenerator, addHTTPAPIPrefix(&t.cfg, api.PathMetricsQueryRange)), queryRangeHandler)
 
-	if t.cfg.Target != SingleBinary3_0 { // conflicts with livestore, only in single binary 3.0 mode. this will go away once SingleBinary3_0 -> SingleBinary
-		tempopb.RegisterMetricsGeneratorServer(t.Server.GRPC(), t.generator)
+	if !IsSingleBinary(t.cfg.Target) {
+		tempopb.RegisterMetricsGeneratorServer(t.Server.GRPC(), t.generator) // todo: this can be removed before 3.0 but needs to exist as long as we have any deployments anywhere on the traditional arch
 	}
 
 	return t.generator, nil
@@ -462,7 +458,7 @@ func (t *App) initQuerier() (services.Service, error) {
 		level.Warn(log.Logger).Log("msg", "Worker address is empty in single binary mode. Attempting automatic worker configuration. If queries are unresponsive consider configuring the worker explicitly.", "address", t.cfg.Querier.Worker.FrontendAddress)
 	}
 
-	// do not enable polling if this is the single binary. in that case the compactor will take care of polling
+	// do not enable polling if this is the single binary. in that case the backend-worker will take care of polling
 	if t.cfg.Target == Querier {
 		t.store.EnablePolling(context.Background(), nil, false)
 	}
@@ -634,24 +630,6 @@ func (t *App) initFederatedQueryFrontend() (services.Service, error) {
 //go:embed static
 var staticFiles embed.FS
 
-func (t *App) initCompactor() (services.Service, error) {
-	if t.cfg.Target == ScalableSingleBinary && t.cfg.Compactor.ShardingRing.KVStore.Store == "" {
-		t.cfg.Compactor.ShardingRing.KVStore.Store = "memberlist"
-	}
-
-	compactor, err := compactor.New(t.cfg.Compactor, t.store, t.Overrides, prometheus.DefaultRegisterer)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create compactor: %w", err)
-	}
-	t.compactor = compactor
-
-	if t.compactor.Ring != nil {
-		t.Server.HTTPRouter().Handle("/compactor/ring", t.compactor.Ring)
-	}
-
-	return t.compactor, nil
-}
-
 func (t *App) initOptionalStore() (services.Service, error) {
 	// Used by the local-blocs processor to flush RF1 blocks to storage.
 	// Only initialize if it's configured.
@@ -665,7 +643,7 @@ func (t *App) initOptionalStore() (services.Service, error) {
 func (t *App) initStore() (services.Service, error) {
 	// the only component that needs a functioning tempodb pool are the queriers. all other components will just spin up
 	// hundreds of never used pool goroutines. set pool size to 0 here to avoid that.
-	if t.cfg.Target != Querier && !IsSingleBinary(t.cfg.Target) && t.cfg.Target != ScalableSingleBinary {
+	if t.cfg.Target != Querier && !IsSingleBinary(t.cfg.Target) {
 		t.cfg.StorageConfig.Trace.Pool.MaxWorkers = 0
 		t.cfg.StorageConfig.Trace.Pool.QueueDepth = 0
 	}
@@ -703,7 +681,6 @@ func (t *App) initMemberlistKV() (services.Service, error) {
 	t.cfg.Ingester.IngesterPartitionRing.KVStore.MemberlistKV = t.MemberlistKV.GetMemberlistKV
 	t.cfg.Generator.Ring.KVStore.MemberlistKV = t.MemberlistKV.GetMemberlistKV
 	t.cfg.Distributor.DistributorRing.KVStore.MemberlistKV = t.MemberlistKV.GetMemberlistKV
-	t.cfg.Compactor.ShardingRing.KVStore.MemberlistKV = t.MemberlistKV.GetMemberlistKV
 	t.cfg.BackendWorker.Ring.KVStore.MemberlistKV = t.MemberlistKV.GetMemberlistKV
 	t.cfg.LiveStore.PartitionRing.KVStore.MemberlistKV = t.MemberlistKV.GetMemberlistKV
 	t.cfg.LiveStore.Ring.KVStore.MemberlistKV = t.MemberlistKV.GetMemberlistKV
@@ -899,8 +876,6 @@ func (t *App) setupModuleManager() error {
 	mm.RegisterModule(LiveStore, t.initLiveStore)
 
 	mm.RegisterModule(SingleBinary, nil)
-	mm.RegisterModule(ScalableSingleBinary, nil)
-	mm.RegisterModule(SingleBinary3_0, nil)
 
 	deps := map[string][]string{
 		// InternalServer: nil,
@@ -928,16 +903,13 @@ func (t *App) setupModuleManager() error {
 		MetricsGenerator:              {Common, OptionalStore, MemberlistKV, PartitionRing},
 		MetricsGeneratorNoLocalBlocks: {Common, GeneratorRingWatcher},
 		Querier:                       {Common, Store, IngesterRing, MetricsGeneratorRing, SecondaryIngesterRing, PartitionRing},
-		Compactor:                     {Common, Store, MemberlistKV},
 		BlockBuilder:                  {Common, Store, MemberlistKV, PartitionRing},
 		BackendScheduler:              {Common, Store},
 		BackendWorker:                 {Common, Store, MemberlistKV},
 		LiveStore:                     {Common, MemberlistKV, PartitionRing},
 
 		// composite targets
-		SingleBinary:         {Compactor, QueryFrontend, Querier, Ingester, Distributor, MetricsGenerator},
-		SingleBinary3_0:      {BackendScheduler, BackendWorker, QueryFrontend, Querier, Distributor, MetricsGenerator, BlockBuilder, LiveStore}, // TODO: when we cut 3.0 remove SingleBinary and replace with this
-		ScalableSingleBinary: {SingleBinary},
+		SingleBinary: {BackendScheduler, BackendWorker, QueryFrontend, Querier, Distributor, MetricsGenerator, BlockBuilder, LiveStore},
 	}
 
 	for mod, targets := range deps {

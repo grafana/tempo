@@ -269,7 +269,7 @@ func makeBackendBlockWithTracesWithDedicatedColumns(t *testing.T, trs []*Trace, 
 		BloomShardSizeBytes: 100 * 1024,
 	}
 
-	meta := backend.NewBlockMeta("fake", uuid.New(), VersionString, backend.EncNone, "")
+	meta := backend.NewBlockMeta("fake", uuid.New(), VersionString)
 	meta.TotalObjects = 1
 	meta.DedicatedColumns = dc
 

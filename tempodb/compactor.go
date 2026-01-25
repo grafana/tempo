@@ -28,10 +28,6 @@ const (
 	outputBlocks = 1
 
 	DefaultCompactionCycle = 30 * time.Second
-
-	DefaultChunkSizeBytes            = 5 * 1024 * 1024  // 5 MiB
-	DefaultFlushSizeBytes     uint32 = 20 * 1024 * 1024 // 20 MiB
-	DefaultIteratorBufferSize        = 1000
 )
 
 var tracer = otel.Tracer("tempodb/compactor")
@@ -269,7 +265,6 @@ func (rw *readerWriter) CompactWithConfig(ctx context.Context, blockMetas []*bac
 			"totalObjects", blockMeta.TotalObjects,
 			"size", blockMeta.Size_,
 			"compactionLevel", blockMeta.CompactionLevel,
-			"encoding", blockMeta.Encoding.String(),
 			"totalRecords", blockMeta.TotalObjects,
 			"bloomShardCount", blockMeta.BloomShardCount,
 			"footerSize", blockMeta.FooterSize,
@@ -296,20 +291,10 @@ func (rw *readerWriter) CompactWithConfig(ctx context.Context, blockMetas []*bac
 	compactionLevel := CompactionLevelForBlocks(blockMetas)
 	compactionLevelLabel := strconv.Itoa(int(compactionLevel))
 
-	combiner := instrumentedObjectCombiner{
-		tenant:               tenantID,
-		inner:                compactorSharder,
-		compactionLevelLabel: compactionLevelLabel,
-	}
-
 	opts := common.CompactionOptions{
-		BlockConfig:        *rw.cfg.Block,
-		ChunkSizeBytes:     compactorCfg.ChunkSizeBytes,
-		FlushSizeBytes:     compactorCfg.FlushSizeBytes,
-		IteratorBufferSize: compactorCfg.IteratorBufferSize,
-		OutputBlocks:       outputBlocks,
-		Combiner:           combiner,
-		MaxBytesPerTrace:   compactorOverrides.MaxBytesPerTraceForTenant(tenantID),
+		BlockConfig:      *rw.cfg.Block,
+		OutputBlocks:     outputBlocks,
+		MaxBytesPerTrace: compactorOverrides.MaxBytesPerTraceForTenant(tenantID),
 		BytesWritten: func(compactionLevel, bytes int) {
 			metricCompactionBytesWritten.WithLabelValues(strconv.Itoa(compactionLevel)).Add(float64(bytes))
 		},
@@ -436,21 +421,6 @@ func CompactionLevelForBlocks(blockMetas []*backend.BlockMeta) uint8 {
 	}
 
 	return level
-}
-
-type instrumentedObjectCombiner struct {
-	tenant               string
-	compactionLevelLabel string
-	inner                CompactorSharder
-}
-
-// Combine wraps the inner combiner with combined metrics
-func (i instrumentedObjectCombiner) Combine(dataEncoding string, objs ...[]byte) ([]byte, bool, error) {
-	b, wasCombined, err := i.inner.Combine(dataEncoding, i.tenant, objs...)
-	if wasCombined {
-		metricCompactionObjectsCombined.WithLabelValues(i.compactionLevelLabel).Inc()
-	}
-	return b, wasCombined, err
 }
 
 // doForAtLeast executes the function f. It blocks for at least the passed duration but can go longer. if context is cancelled after

@@ -98,10 +98,10 @@ message SearchBlockRequest {
   string blockID = 2;
   uint32 startPage = 3;
   uint32 pagesToSearch = 4;
-  string encoding = 5;
+  // string encoding = 5;
   uint32 indexPageSize = 6;
   uint32 totalRecords = 7;
-  string dataEncoding = 8;
+  // string dataEncoding = 8;
   string version = 9;
   uint64 size = 10; // total size of data file
   uint32 footerSize = 11; // size of file footer (parquet)
@@ -195,10 +195,10 @@ message SearchTagsBlockRequest {
   string blockID = 2;
   uint32 startPage = 3;
   uint32 pagesToSearch = 4;
-  string encoding = 5;
+  // string encoding = 5;
   uint32 indexPageSize = 6;
   uint32 totalRecords = 7;
-  string dataEncoding = 8;
+  // string dataEncoding = 8;
   string version = 9;
   uint64 size = 10; // total size of data file
   uint32 footerSize = 11; // size of file footer (parquet)
@@ -212,10 +212,10 @@ message SearchTagValuesBlockRequest {
   string blockID = 2;
   uint32 startPage = 3;
   uint32 pagesToSearch = 4;
-  string encoding = 5;
+  // string encoding = 5;
   uint32 indexPageSize = 6;
   uint32 totalRecords = 7;
-  string dataEncoding = 8;
+  // string dataEncoding = 8;
   string version = 9;
   uint64 size = 10; // total size of data file
   uint32 footerSize = 11; // size of file footer (parquet)
@@ -450,7 +450,7 @@ message QueryRangeRequest {
   uint32 startPage = 9;
   uint32 pagesToSearch = 10;
   string version = 11;
-  string encoding = 12;
+  // string encoding = 12;
   uint64 size = 13; // total size of data file
   uint32 footerSize = 14; // size of file footer (parquet)
   repeated DedicatedColumn dedicatedColumns = 15;

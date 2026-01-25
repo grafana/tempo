@@ -1294,6 +1294,43 @@ func TestAvgOverTimeForDurationWithoutAggregation(t *testing.T) {
 	assert.Equal(t, 200., avg.Values[2]*float64(time.Second))
 }
 
+func TestAvgOverTimeCombine(t *testing.T) {
+	req := &tempopb.QueryRangeRequest{
+		Start: 1,
+		End:   uint64(3 * time.Second),
+		Step:  uint64(1 * time.Second),
+		Query: "{ } | avg_over_time(duration)",
+	}
+
+	// Three set of spans with different data for a single time interval
+	// Each set will be passed to level 2 independently
+	in1 := []Span{
+		newMockSpan(nil).WithStartTime(uint64(1 * time.Second)).WithDuration(uint64(100 * time.Second)),
+	}
+
+	in2 := []Span{
+		newMockSpan(nil).WithStartTime(uint64(1 * time.Second)).WithDuration(uint64(200 * time.Second)),
+		newMockSpan(nil).WithStartTime(uint64(1 * time.Second)).WithDuration(uint64(400 * time.Second)),
+	}
+
+	in3 := []Span{
+		newMockSpan(nil).WithStartTime(uint64(1 * time.Second)).WithDuration(uint64(500 * time.Second)),
+		newMockSpan(nil).WithStartTime(uint64(1 * time.Second)).WithDuration(uint64(600 * time.Second)),
+		newMockSpan(nil).WithStartTime(uint64(1 * time.Second)).WithDuration(uint64(700 * time.Second)),
+	}
+
+	result, seriesCount, err := runTraceQLMetric(req, in1, in2, in3)
+	require.NoError(t, err)
+	require.Equal(t, len(result), seriesCount)
+
+	avg := result[LabelsFromArgs("__name__", "avg_over_time").MapKey()]
+
+	expectedResult := (100 + 200 + 400 + 500 + 600 + 700) / 6.
+	assert.Equal(t, expectedResult, avg.Values[0])
+	assert.True(t, math.IsNaN(avg.Values[1]), "expected NaN, got %f", avg.Values[1])
+	assert.True(t, math.IsNaN(avg.Values[2]), "expected NaN, got %f", avg.Values[2])
+}
+
 func TestAvgOverTimeForSpanAttribute(t *testing.T) {
 	req := &tempopb.QueryRangeRequest{
 		Start: 1,

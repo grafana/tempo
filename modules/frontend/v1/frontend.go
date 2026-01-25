@@ -65,6 +65,7 @@ type Frontend struct {
 	numClients        prometheus.GaugeFunc
 	queueDuration     prometheus.Histogram
 	actualBatchSize   prometheus.Histogram
+	batchWeight       *prometheus.HistogramVec
 }
 
 type request struct {
@@ -99,6 +100,11 @@ func New(cfg Config, log log.Logger, registerer prometheus.Registerer) (*Fronten
 			Name: "tempo_query_frontend_queue_length",
 			Help: "Number of queries in the queue.",
 		}, []string{"user"}),
+		batchWeight: promauto.With(registerer).NewHistogramVec(prometheus.HistogramOpts{
+			Name:    "tempo_query_frontend_batch_weight",
+			Help:    "Weight of the batch.",
+			Buckets: prometheus.LinearBuckets(1, 1, cfg.MaxBatchSize),
+		}, []string{"user"}),
 		discardedRequests: promauto.With(registerer).NewCounterVec(prometheus.CounterOpts{
 			Name: "tempo_query_frontend_discarded_requests_total",
 			Help: "Total number of query requests discarded.",
@@ -119,7 +125,7 @@ func New(cfg Config, log log.Logger, registerer prometheus.Registerer) (*Fronten
 		connectedQuerierWorkers: &atomic.Int32{},
 	}
 
-	f.requestQueue = queue.NewRequestQueue(cfg.MaxOutstandingPerTenant, f.queueLength, f.discardedRequests)
+	f.requestQueue = queue.NewRequestQueue(cfg.MaxOutstandingPerTenant, f.queueLength, f.batchWeight, f.discardedRequests)
 	f.activeUsers = util.NewActiveUsersCleanupWithDefaultValues(f.cleanupInactiveUserMetrics)
 
 	var err error

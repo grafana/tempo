@@ -1,0 +1,33 @@
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingWebhookConfiguration
+metadata:
+  labels:
+    grafana.com/inject-rollout-operator-ca: "true"
+    grafana.com/namespace: tracing
+  name: zpdb-validation-tracing
+webhooks:
+- admissionReviewVersions:
+  - v1
+  clientConfig:
+    service:
+      name: rollout-operator
+      namespace: tracing
+      path: /admission/zpdb-validation
+      port: 443
+  failurePolicy: Fail
+  name: zpdb-validation-tracing.grafana.com
+  namespaceSelector:
+    matchLabels:
+      kubernetes.io/metadata.name: tracing
+  rules:
+  - apiGroups:
+    - rollout-operator.grafana.com
+    apiVersions:
+    - v1
+    operations:
+    - CREATE
+    - UPDATE
+    resources:
+    - zoneawarepoddisruptionbudgets
+    scope: Namespaced
+  sideEffects: None

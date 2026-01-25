@@ -328,14 +328,6 @@ func TestParseSearchBlockRequest(t *testing.T) {
 			expectedError: "invalid blockID: invalid UUID length: 4",
 		},
 		{
-			url:           "/?start=10&end=20&startPage=0&pagesToSearch=10&blockID=b92ec614-3fd7-4299-b6db-f657e7025a9b",
-			expectedError: "invalid encoding: , supported: none, gzip, lz4-64k, lz4-256k, lz4-1M, lz4, snappy, zstd, s2",
-		},
-		{
-			url:           "/?start=10&end=20&startPage=0&pagesToSearch=10&blockID=b92ec614-3fd7-4299-b6db-f657e7025a9b&encoding=blerg",
-			expectedError: "invalid encoding: blerg, supported: none, gzip, lz4-64k, lz4-256k, lz4-1M, lz4, snappy, zstd, s2",
-		},
-		{
 			url:           "/?start=10&end=20&startPage=0&pagesToSearch=10&blockID=b92ec614-3fd7-4299-b6db-f657e7025a9b&encoding=s2",
 			expectedError: "invalid indexPageSize : strconv.ParseInt: parsing \"\": invalid syntax",
 		},
@@ -356,7 +348,7 @@ func TestParseSearchBlockRequest(t *testing.T) {
 			expectedError: "invalid footerSize : strconv.ParseUint: parsing \"\": invalid syntax",
 		},
 		{
-			url: "/?tags=foo%3Dbar&start=10&end=20&startPage=0&pagesToSearch=10&blockID=b92ec614-3fd7-4299-b6db-f657e7025a9b&encoding=s2&footerSize=2000&indexPageSize=10&totalRecords=11&dataEncoding=v1&version=v2&size=1000",
+			url: "/?tags=foo%3Dbar&start=10&end=20&startPage=0&pagesToSearch=10&blockID=b92ec614-3fd7-4299-b6db-f657e7025a9b&encoding=none&footerSize=2000&indexPageSize=10&totalRecords=11&dataEncoding=v1&version=v2&size=1000",
 			expected: &tempopb.SearchBlockRequest{
 				SearchReq: &tempopb.SearchRequest{
 					Tags: map[string]string{
@@ -370,10 +362,8 @@ func TestParseSearchBlockRequest(t *testing.T) {
 				StartPage:     0,
 				PagesToSearch: 10,
 				BlockID:       "b92ec614-3fd7-4299-b6db-f657e7025a9b",
-				Encoding:      "s2",
 				IndexPageSize: 10,
 				TotalRecords:  11,
-				DataEncoding:  "v1",
 				Version:       "v2",
 				Size_:         1000,
 				FooterSize:    2000,
@@ -394,7 +384,6 @@ func TestParseSearchBlockRequest(t *testing.T) {
 				StartPage:     0,
 				PagesToSearch: 10,
 				BlockID:       "b92ec614-3fd7-4299-b6db-f657e7025a9b",
-				Encoding:      "none",
 				IndexPageSize: 0,
 				TotalRecords:  2,
 				Version:       "vParquet3",
@@ -431,31 +420,27 @@ func TestBuildSearchBlockRequest(t *testing.T) {
 				StartPage:     0,
 				PagesToSearch: 10,
 				BlockID:       "b92ec614-3fd7-4299-b6db-f657e7025a9b",
-				Encoding:      "s2",
 				IndexPageSize: 10,
 				TotalRecords:  11,
-				DataEncoding:  "v1",
 				Version:       "v2",
 				Size_:         1000,
 				FooterSize:    2000,
 			},
-			query: "?blockID=b92ec614-3fd7-4299-b6db-f657e7025a9b&pagesToSearch=10&size=1000&startPage=0&encoding=s2&indexPageSize=10&totalRecords=11&dataEncoding=v1&version=v2&footerSize=2000",
+			query: "?blockID=b92ec614-3fd7-4299-b6db-f657e7025a9b&pagesToSearch=10&size=1000&startPage=0&encoding=none&indexPageSize=10&totalRecords=11&version=v2&footerSize=2000",
 		},
 		{
 			req: &tempopb.SearchBlockRequest{
 				StartPage:     0,
 				PagesToSearch: 10,
 				BlockID:       "b92ec614-3fd7-4299-b6db-f657e7025a9b",
-				Encoding:      "s2",
 				IndexPageSize: 10,
 				TotalRecords:  11,
-				DataEncoding:  "v1",
 				Version:       "v2",
 				Size_:         1000,
 				FooterSize:    2000,
 			},
 			httpReq: httptest.NewRequest("GET", "/test/path", nil),
-			query:   "/test/path?blockID=b92ec614-3fd7-4299-b6db-f657e7025a9b&pagesToSearch=10&size=1000&startPage=0&encoding=s2&indexPageSize=10&totalRecords=11&dataEncoding=v1&version=v2&footerSize=2000",
+			query:   "/test/path?blockID=b92ec614-3fd7-4299-b6db-f657e7025a9b&pagesToSearch=10&size=1000&startPage=0&encoding=none&indexPageSize=10&totalRecords=11&version=v2&footerSize=2000",
 		},
 		{
 			req: &tempopb.SearchBlockRequest{
@@ -472,22 +457,19 @@ func TestBuildSearchBlockRequest(t *testing.T) {
 				StartPage:     0,
 				PagesToSearch: 10,
 				BlockID:       "b92ec614-3fd7-4299-b6db-f657e7025a9b",
-				Encoding:      "s2",
 				IndexPageSize: 10,
 				TotalRecords:  11,
-				DataEncoding:  "v1",
 				Version:       "v2",
 				Size_:         1000,
 				FooterSize:    2000,
 			},
-			query: "?start=10&end=20&limit=50&maxDuration=40ms&minDuration=30ms&spss=0&tags=foo%3Dbar&blockID=b92ec614-3fd7-4299-b6db-f657e7025a9b&pagesToSearch=10&size=1000&startPage=0&encoding=s2&indexPageSize=10&totalRecords=11&dataEncoding=v1&version=v2&footerSize=2000",
+			query: "?start=10&end=20&limit=50&maxDuration=40ms&minDuration=30ms&spss=0&tags=foo%3Dbar&blockID=b92ec614-3fd7-4299-b6db-f657e7025a9b&pagesToSearch=10&size=1000&startPage=0&encoding=none&indexPageSize=10&totalRecords=11&version=v2&footerSize=2000",
 		},
 		{
 			req: &tempopb.SearchBlockRequest{
 				StartPage:     0,
 				PagesToSearch: 10,
 				BlockID:       "b92ec614-3fd7-4299-b6db-f657e7025a9b",
-				Encoding:      "none",
 				IndexPageSize: 0,
 				TotalRecords:  2,
 				Version:       "vParquet3",
@@ -498,7 +480,7 @@ func TestBuildSearchBlockRequest(t *testing.T) {
 				},
 			},
 			httpReq: httptest.NewRequest("GET", "/test/path", nil),
-			query:   "/test/path?blockID=b92ec614-3fd7-4299-b6db-f657e7025a9b&pagesToSearch=10&size=1000&startPage=0&encoding=none&indexPageSize=0&totalRecords=2&dataEncoding=&version=vParquet3&footerSize=2000&dc=%5B%7B%22scope%22%3A1%2C%22name%22%3A%22net.sock.host.addr%22%7D%5D",
+			query:   "/test/path?blockID=b92ec614-3fd7-4299-b6db-f657e7025a9b&pagesToSearch=10&size=1000&startPage=0&encoding=none&indexPageSize=0&totalRecords=2&version=vParquet3&footerSize=2000&dc=%5B%7B%22scope%22%3A1%2C%22name%22%3A%22net.sock.host.addr%22%7D%5D",
 		},
 	}
 
