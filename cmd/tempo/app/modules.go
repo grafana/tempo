@@ -82,7 +82,6 @@ const (
 	Querier                       string = "querier"
 	QueryFrontend                 string = "query-frontend"
 	FederatedQueryFrontend        string = "federated-query-frontend"
-	Compactor                     string = "compactor"
 	BlockBuilder                  string = "block-builder"
 	BackendScheduler              string = "backend-scheduler"
 	BackendWorker                 string = "backend-worker"
@@ -867,7 +866,6 @@ func (t *App) setupModuleManager() error {
 	mm.RegisterModule(Querier, t.initQuerier)
 	mm.RegisterModule(QueryFrontend, t.initQueryFrontend)
 	mm.RegisterModule(FederatedQueryFrontend, t.initFederatedQueryFrontend)
-	mm.RegisterModule(Compactor, t.initCompactor)
 	mm.RegisterModule(MetricsGenerator, t.initGenerator)
 	mm.RegisterModule(MetricsGeneratorNoLocalBlocks, t.initGeneratorNoLocalBlocks)
 	mm.RegisterModule(BlockBuilder, t.initBlockBuilder)
