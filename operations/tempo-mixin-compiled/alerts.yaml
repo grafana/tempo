@@ -345,3 +345,31 @@
     "annotations":
       "message": "Metrics-generator processor updates are failing for tenant {{ $labels.tenant }} in {{ $labels.cluster }}/{{ $labels.namespace }}."
       "runbook_url": "https://github.com/grafana/tempo/tree/main/operations/tempo-mixin/runbook.md#TempoMetricsGeneratorProcessorUpdatesFailing"
+    "expr": |
+      sum by (cluster, namespace, tenant) (
+        increase(tempo_metrics_generator_active_processors_update_failed_total{namespace=~".*"}[5m])
+      ) > 0
+    "for": "15m"
+    "labels":
+      "severity": "critical"
+  - "alert": "TempoMetricsGeneratorServiceGraphsDroppingSpans"
+    "annotations":
+      "message": "Metrics-generator service-graphs processor is dropping {{ $value | humanizePercentage }} spans for tenant {{ $labels.tenant }} in {{ $labels.cluster }}/{{ $labels.namespace }}."
+      "runbook_url": "https://github.com/grafana/tempo/tree/main/operations/tempo-mixin/runbook.md#TempoMetricsGeneratorServiceGraphsDroppingSpans"
+    "expr": |
+      sum by (cluster, namespace, tenant) (increase(tempo_metrics_generator_processor_service_graphs_dropped_spans{namespace=~".*"}[1h]))
+      /
+      sum by (cluster, namespace, tenant) (increase(tempo_metrics_generator_spans_received_total{namespace=~".*"}[1h]))
+      > 0.005
+    "for": "15m"
+    "labels":
+      "severity": "warning"
+  - "alert": "TempoMetricsGeneratorCollectionsFailing"
+    "annotations":
+      "message": "Metrics-generator collections are failing for tenant {{ $labels.tenant }} in {{ $labels.cluster }}/{{ $labels.namespace }}."
+      "runbook_url": "https://github.com/grafana/tempo/tree/main/operations/tempo-mixin/runbook.md#TempoMetricsGeneratorCollectionsFailing"
+    "expr": |
+      sum by (cluster, namespace, tenant, pod, job) (increase(tempo_metrics_generator_registry_collections_failed_total{namespace=~".*"}[5m])) > 2
+    "for": "5m"
+    "labels":
+      "severity": "critical"

@@ -530,15 +530,13 @@
               runbook_url: 'https://github.com/grafana/tempo/tree/main/operations/tempo-mixin/runbook.md#TempoDistributorUsageTrackerErrors',
             },
           },
-
-
           {
             alert: 'TempoMetricsGeneratorProcessorUpdatesFailing',
             expr: |||
               sum by (cluster, namespace, tenant) (
                 increase(tempo_metrics_generator_active_processors_update_failed_total{namespace=~"%s"}[5m])
               ) > 0
-            ||| % $.namespace_matcher,
+            ||| % $._config.namespace,
             'for': '15m',
             labels: {
               severity: 'critical',
@@ -556,7 +554,7 @@
               /
               sum by (cluster, namespace, tenant) (increase(tempo_metrics_generator_spans_received_total{namespace=~"%s"}[1h]))
               > 0.005
-            ||| % [$.namespace_matcher, $.namespace_matcher],
+            ||| % [$._config.namespace, $._config.namespace],
             'for': '15m',
             labels: {
               severity: 'warning',
@@ -570,7 +568,7 @@
             alert: 'TempoMetricsGeneratorCollectionsFailing',
             expr: |||
               sum by (cluster, namespace, tenant, pod, job) (increase(tempo_metrics_generator_registry_collections_failed_total{namespace=~"%s"}[5m])) > 2
-            ||| % $.namespace_matcher,
+            ||| % $._config.namespace,
             'for': '5m',
             labels: {
               severity: 'critical',
