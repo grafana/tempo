@@ -1068,6 +1068,134 @@ func (s Static) divideBy(f float64) Static {
 	return s
 }
 
+func (s Static) append(o Static) (Static, bool) {
+	switch s.Type {
+	case TypeString:
+		values := make([]string, 0, 2)
+		values = append(values, s.EncodeToString(false))
+
+		switch o.Type {
+		case TypeString:
+			values = append(values, o.EncodeToString(false))
+		case TypeStringArray:
+			arr, _ := o.StringArray()
+			values = append(values, arr...)
+		default:
+			return StaticNil, false
+		}
+		return NewStaticStringArray(values), true
+	case TypeStringArray:
+		values := make([]string, 0, 2)
+		arr, _ := s.StringArray()
+		values = append(values, arr...)
+
+		switch o.Type {
+		case TypeString:
+			values = append(values, o.EncodeToString(false))
+		case TypeStringArray:
+			arr, _ = o.StringArray()
+			values = append(values, arr...)
+		default:
+			return StaticNil, false
+		}
+		return NewStaticStringArray(values), true
+	case TypeInt:
+		values := make([]int, 0, 2)
+		n, _ := s.Int()
+		values = append(values, n)
+
+		switch o.Type {
+		case TypeInt:
+			n, _ = o.Int()
+			values = append(values, n)
+		case TypeIntArray:
+			arr, _ := o.IntArray()
+			values = append(values, arr...)
+		default:
+			return StaticNil, false
+		}
+		return NewStaticIntArray(values), true
+	case TypeIntArray:
+		values := make([]int, 0, 2)
+		arr, _ := s.IntArray()
+		values = append(values, arr...)
+
+		switch o.Type {
+		case TypeInt:
+			n, _ := o.Int()
+			values = append(values, n)
+		case TypeIntArray:
+			arr, _ := o.IntArray()
+			values = append(values, arr...)
+		default:
+			return StaticNil, false
+		}
+		return NewStaticIntArray(values), true
+	case TypeFloat:
+		values := make([]float64, 0, 2)
+		values = append(values, s.Float())
+
+		switch o.Type {
+		case TypeFloat:
+			values = append(values, o.Float())
+		case TypeFloatArray:
+			arr, _ := o.FloatArray()
+			values = append(values, arr...)
+		default:
+			return StaticNil, false
+		}
+		return NewStaticFloatArray(values), true
+	case TypeFloatArray:
+		values := make([]float64, 0, 2)
+		arr, _ := s.FloatArray()
+		values = append(values, arr...)
+
+		switch o.Type {
+		case TypeFloat:
+			values = append(values, o.Float())
+		case TypeFloatArray:
+			arr, _ = o.FloatArray()
+			values = append(values, arr...)
+		default:
+			return StaticNil, false
+		}
+		return NewStaticFloatArray(values), true
+	case TypeBoolean:
+		values := make([]bool, 0, 2)
+		b, _ := s.Bool()
+		values = append(values, b)
+
+		switch o.Type {
+		case TypeBoolean:
+			b, _ = o.Bool()
+			values = append(values, b)
+		case TypeBooleanArray:
+			arr, _ := o.BooleanArray()
+			values = append(values, arr...)
+		default:
+			return StaticNil, false
+		}
+		return NewStaticBooleanArray(values), true
+	case TypeBooleanArray:
+		values := make([]bool, 0, 2)
+		arr, _ := s.BooleanArray()
+		values = append(values, arr...)
+
+		switch o.Type {
+		case TypeBoolean:
+			b, _ := o.Bool()
+			values = append(values, b)
+		case TypeBooleanArray:
+			arr, _ := o.BooleanArray()
+			values = append(values, arr...)
+		default:
+			return StaticNil, false
+		}
+		return NewStaticBooleanArray(values), true
+	}
+	return StaticNil, false
+}
+
 func (Static) referencesSpan() bool {
 	return false
 }
