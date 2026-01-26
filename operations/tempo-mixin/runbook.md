@@ -293,7 +293,7 @@ This alert fires when one or more Kafka partitions have no active live-store ins
 ### How it works
 
 - Live-stores consume traces from Kafka partitions and serve them on the read path
-- Each partition should have at least one live-store instance consuming from it across all zones
+- Each active partition should have at least one live-store instance consuming from it across all zones
 - The alert compares the total number of active/inactive partitions in the ring against the count of partitions that have at least one active consumer
 - If there are more partitions than consumers, some partitions are unowned
 
