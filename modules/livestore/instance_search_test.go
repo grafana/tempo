@@ -1232,7 +1232,7 @@ func TestLiveStoreQueryRange(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			req := tc.req
 			req.MaxSeries = 10
-			req.Start, req.End, req.Step = traceql.TrimToBlockOverlap(req.Start, req.End, req.Step, block.BlockMeta().StartTime, block.BlockMeta().EndTime)
+			req.Start, req.End, req.Step = traceql.TrimToBlockOverlap(req, block.BlockMeta().StartTime, block.BlockMeta().EndTime)
 
 			results, err := inst.QueryRange(ctx, req)
 			require.NoError(t, err)
