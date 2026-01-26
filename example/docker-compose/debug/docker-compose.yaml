@@ -55,7 +55,7 @@ services:
       --advertise-kafka-addr=PLAINTEXT://redpanda:9092
 
   redpanda-console:
-    image: docker.redpanda.com/redpandadata/console:v2.8.10@sha256:1e257ad592984566c69369227f6200a878165417b42ff18a5f8815df56bc4a7c
+    image: docker.redpanda.com/redpandadata/console:v3.5.0@sha256:b2cbdd93dee412142f95a61488118f33b8e31ea576bfb3ce625fbaffbdf0803a
     environment:
       - CONFIG_FILEPATH=/etc/redpanda/redpanda-console-config.yaml
     volumes:
