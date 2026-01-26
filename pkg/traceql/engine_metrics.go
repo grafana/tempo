@@ -108,12 +108,12 @@ func TrimToBefore(req *tempopb.QueryRangeRequest, before time.Time) {
 
 // TrimToAfter shortens the query window to only include after the given time.
 // Request must be in unix nanoseconds already.
-func TrimToAfter(req *tempopb.QueryRangeRequest, before time.Time) {
+func TrimToAfter(req *tempopb.QueryRangeRequest, after time.Time) {
 	wasInstant := IsInstant(req)
-	beforeNs := uint64(before.UnixNano())
+	afterNs := uint64(after.UnixNano())
 
-	req.Start = max(req.Start, beforeNs)
-	req.End = max(req.End, beforeNs)
+	req.Start = max(req.Start, afterNs)
+	req.End = max(req.End, afterNs)
 
 	if wasInstant {
 		// Maintain instant nature of the request
