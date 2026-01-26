@@ -332,6 +332,15 @@
     "for": "10m"
     "labels":
       "severity": "critical"
+  - "alert": "TempoDistributorUsageTrackerErrors"
+    "annotations":
+      "message": "Tempo distributor usage tracker errors for tenant {{ $labels.tenant }} in {{ $labels.cluster }}/{{ $labels.namespace }} (reason: {{ $labels.reason }})."
+      "runbook_url": "https://github.com/grafana/tempo/tree/main/operations/tempo-mixin/runbook.md#TempoDistributorUsageTrackerErrors"
+    "expr": |
+      sum by (cluster, namespace, tenant, reason)(rate(tempo_distributor_usage_tracker_errors_total{}[5m])) > 0
+    "for": "30m"
+    "labels":
+      "severity": "critical"
   - "alert": "TempoMetricsGeneratorProcessorUpdatesFailing"
     "annotations":
       "message": "Metrics-generator processor updates are failing for tenant {{ $labels.tenant }} in {{ $labels.cluster }}/{{ $labels.namespace }}."
