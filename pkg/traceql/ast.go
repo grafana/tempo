@@ -34,6 +34,7 @@ type RootExpr struct {
 	MetricsPipeline    firstStageElement
 	MetricsSecondStage secondStageElement
 	Hints              *Hints
+	OptimizationCount  int
 }
 
 func NeedsFullTrace(e ...Element) bool {
