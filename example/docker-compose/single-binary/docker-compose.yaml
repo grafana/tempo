@@ -11,8 +11,10 @@ services:
       - ./tempo-data:/var/tempo
     ports:
       - "3200:3200" # tempo
+      - "4317:4317" # Tempo OTLP GRPC
+      - "4318:4318" # Tempo OTLP HTTP
     environment:
-      - OTEL_EXPORTER_OTLP_ENDPOINT=http://alloy:4318
+     - OTEL_EXPORTER_OTLP_ENDPOINT=http://alloy:4318
 
   minio:
     image: minio/minio:latest
