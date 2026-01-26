@@ -11,7 +11,7 @@ services:
     ports:
       - "3200:3200"
       - "4317:4317"
-      - "4317:4318"
+      - "4318:4318"
 
   live-store-zone-a-0:
     image: *tempoImage
