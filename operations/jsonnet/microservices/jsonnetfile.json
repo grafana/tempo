@@ -13,15 +13,6 @@
     {
       "source": {
         "git": {
-          "remote": "https://github.com/grafana/rollout-operator.git",
-          "subdir": "operations/rollout-operator"
-        }
-      },
-      "version": "v0.32.0"
-    },
-    {
-      "source": {
-        "git": {
           "remote": "https://github.com/jsonnet-libs/k8s-libsonnet.git",
           "subdir": "1.29"
         }

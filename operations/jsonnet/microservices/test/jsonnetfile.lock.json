@@ -8,7 +8,7 @@
           "subdir": "ksonnet-util"
         }
       },
-      "version": "1dab04037c4394fec95606cbca4d1ff6bd85c9a4",
+      "version": "3b08e7d37511dfd39af6027d07788a5ca8ec71b1",
       "sum": "0y3AFX9LQSpfWTxWKSwoLgbt0Wc9nnCwhMH2szKzHv0="
     },
     {
@@ -18,18 +18,8 @@
           "subdir": "memcached"
         }
       },
-      "version": "1dab04037c4394fec95606cbca4d1ff6bd85c9a4",
-      "sum": "zNTCDRaCqJUHjQSQRsxGR3jLrMP9tU7YNQb13dbm1bU="
-    },
-    {
-      "source": {
-        "git": {
-          "remote": "https://github.com/grafana/rollout-operator.git",
-          "subdir": "operations/rollout-operator"
-        }
-      },
-      "version": "4a47245cb7ffa81a0a94c704de36e2e6069421fd",
-      "sum": "nu+33+dylfBD2zFTNQ+9x4LztbdhFAtXrNjoe/jyon8="
+      "version": "3b08e7d37511dfd39af6027d07788a5ca8ec71b1",
+      "sum": "SWywAq4U0MRPMbASU0Ez8O9ArRNeoZzb75sEuReueow="
     },
     {
       "source": {
@@ -38,18 +28,18 @@
           "subdir": "doc-util"
         }
       },
-      "version": "6ac6c69685b8c29c54515448eaca583da2d88150",
-      "sum": "BrAL/k23jq+xy9oA7TWIhUx07dsA/QLm3g7ktCwe//U="
+      "version": "ff76f6d8edde6366c6dcf81a356481b0e344566b",
+      "sum": "OxjkWDF0oHmwV52hhyoFW3bwtwgke8s/EOPNRiICPTI="
     },
     {
       "source": {
         "git": {
           "remote": "https://github.com/jsonnet-libs/k8s-libsonnet.git",
-          "subdir": "1.33"
+          "subdir": "1.26"
         }
       },
-      "version": "291653b2c17d03e855e7e00ce0e4ec25502b2ce2",
-      "sum": "FTic3KWLxPcO/DpkwJ6AgvWmbxouYiAVrflXtbAiIhY="
+      "version": "a0779420abf73f90167d449a9e527319ced7d134",
+      "sum": "q6ZaBe1Ciob0O3QbLqtEfOnCGt5rsv5A9RCFN3+Ex/I="
     },
     {
       "source": {
@@ -68,8 +58,8 @@
           "subdir": ""
         }
       },
-      "version": "4d7f8cb24d613430799f9d56809cc6964f35cea9",
-      "sum": "hOrwkOx34tOXqoDVnwuI/Uf/dr9HFFSPWpDPOvnEGrk="
+      "version": "3e494e02563b9eababbb24f0dfca0a50e03dc0b3",
+      "sum": "GP6SaIzrnD0HRw/EeI3iO9HboA2dnBizgEpxw3m7Ph4="
     }
   ],
   "legacyImports": false

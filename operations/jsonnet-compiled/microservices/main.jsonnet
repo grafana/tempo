@@ -73,15 +73,6 @@ tempo {
     },
     backend: 'gcs',
     bucket: 'tempo',
-
-    // NOTE: Enable the ReplicaTemplate role if intend to use the rollout-operator.
-    // rollout_operator_replica_template_access_enabled: true,
-
-    // NOTE: Disable the custom resource installation for the rollout-operator
-    // if you have already installed the custom resources in your cluster, or
-    // if you want to manage them separately.
-    // zpdb_custom_resource_definition_enabled: false,
-    // replica_template_custom_resource_definition_enabled: false,
   },
 
   local statefulSet = $.apps.v1.statefulSet,
