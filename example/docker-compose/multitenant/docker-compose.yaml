@@ -7,7 +7,7 @@ services:
       - ./tempo-data:/var/tempo
     ports:
       - "4317:4317"  # otlp grpc
-
+      - "4318:4318"  # otlpc http
   # push tenant-1 traces directly to tempo
   k6-tracing-tenant-1:
     image: ghcr.io/grafana/xk6-client-tracing:v0.0.9
