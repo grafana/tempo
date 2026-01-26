@@ -29,11 +29,17 @@ func newSaramaConsumer(
 	config *Config,
 	set receiver.Settings,
 	topics []string,
+	excludeTopics []string,
 	newConsumeFn newConsumeMessageFunc,
 ) (*saramaConsumer, error) {
 	telemetryBuilder, err := metadata.NewTelemetryBuilder(set.TelemetrySettings)
 	if err != nil {
 		return nil, err
+	}
+
+	// Sarama doesn't support exclude topics, return an error if configured
+	if len(excludeTopics) > 0 && excludeTopics[0] != "" {
+		return nil, errors.New("exclude_topic is configured but is not supported when using Sarama consumer (only supported with franz-go)")
 	}
 
 	return &saramaConsumer{

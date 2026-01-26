@@ -21,7 +21,7 @@ import (
 // invocation and the boolean expression to match telemetry for invoking the function.
 type Statement[K any] struct {
 	function          Expr[K]
-	condition         BoolExpr[K]
+	condition         boolExpr[K]
 	origText          string
 	telemetrySettings component.TelemetrySettings
 }
@@ -52,7 +52,7 @@ func (s *Statement[K]) Execute(ctx context.Context, tCtx K) (any, bool, error) {
 
 // Condition holds a top level Condition. A Condition is a boolean expression to match telemetry.
 type Condition[K any] struct {
-	condition BoolExpr[K]
+	condition boolExpr[K]
 	origText  string
 }
 
