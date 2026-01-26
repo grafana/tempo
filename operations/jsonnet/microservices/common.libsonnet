@@ -66,8 +66,6 @@
         service.mixin.spec.withIpFamilies(['IPv6']),
       tempo_live_store_zone_b_service+:
         service.mixin.spec.withIpFamilies(['IPv6']),
-      rollout_operator_service+:
-        service.mixin.spec.withIpFamilies(['IPv6']),
 
       memcached+: {
         service+:
