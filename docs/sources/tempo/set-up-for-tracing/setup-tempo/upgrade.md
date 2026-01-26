@@ -27,6 +27,112 @@ For detailed information about any release, refer to the [Release notes](https:/
 You can check your configuration options using the [`status` API endpoint](https://grafana.com/docs/tempo/<TEMPO_VERSION>/api_docs/#status) in your Tempo installation.
 {{< /admonition >}}
 
+## Upgrade to Tempo 2.10
+
+When upgrading to Tempo 2.10, be aware of these considerations and breaking changes.
+
+When [upgrading](/docs/tempo/<TEMPO_VERSION>/set-up-for-tracing/setup-tempo/upgrade/) to Tempo 2.10, be aware of these considerations and breaking changes.
+
+### Busybox removed from Tempo image
+
+The Tempo container image no longer includes busybox. This change reduces the image size and attack surface, preventing future busybox-related vulnerabilities from affecting Tempo deployments. [[PR 5717](https://github.com/grafana/tempo/pull/5717)]
+
+The image switched from `gcr.io/distroless/static-debian12:debug`, which includes busybox, to `gcr.io/distroless/static-debian12`, which doesn't. The busybox shell and utilities are no longer available inside the running container.
+
+You can no longer `exec` into the Tempo container with a shell. Commands like `kubectl exec -it <pod> -- sh` or `docker exec -it <container> sh` will fail.
+
+To debug a running Tempo container, use one of these alternatives:
+- Kubernetes ephemeral debug containers (`kubectl debug`)
+- Docker Desktop or other container runtime tools that support shell injection for distroless images
+
+If you have custom Docker Compose files or scripts that use the Tempo image for shell operations (such as running `chown` in an init container), update them to use a separate `busybox:latest` image for those tasks.
+
+Tempo's runtime behavior, configuration options, and APIs are unchanged.
+
+### vParquet format changes
+
+This release includes breaking changes to vParquet block format support and deprecates older formats ahead of Tempo 3.0.
+
+In preparation for Tempo 3.0, make sure you're using vParquet4 or higher.
+
+#### Enable vParquet5 (optional)
+
+vParquet5 is now production-ready and available as an optional upgrade. vParquet4 remains the default block format. [[PR 6219](https://github.com/grafana/tempo/pull/6219)]
+
+To enable vParquet5, set the block version in your [storage configuration](/docs/tempo/<TEMPO_VERSION>/configuration/parquet/):
+
+```yaml
+storage:
+  trace:
+    block:
+      version: vParquet5
+```
+
+Once enabled, Tempo writes new blocks in vParquet5 format while continuing to read existing vParquet4 blocks. No migration of existing data is required.
+
+#### vParquet2 removed
+
+vParquet2 encoding has been completely removed from Tempo 2.10. Tempo can no longer read vParquet2 blocks. [[PR 6071](https://github.com/grafana/tempo/pull/6071)]
+
+No action is required if you've used default settings. The default block format migrated away from vParquet2 several releases ago.
+
+Action is required if your storage configuration explicitly specifies vParquet2. Before upgrading, verify your configuration doesn't specify vParquet2. If it does:
+  - Update to a previous Tempo release (2.9 or earlier) configured for vParquet3 or higher
+  - Wait for all existing vParquet2 blocks to expire and be deleted from backend storage
+  - Then upgrade to Tempo 2.10
+
+Upgrading to 2.10 while vParquet2 blocks still exist in storage will cause read errors.
+
+#### vParquet3 and vParquet2 schemas deprecated
+
+TempoDB schemas vParquet3 and vParquet2 are now deprecated and will be removed in Tempo 3.0. [[PR 6198](https://github.com/grafana/tempo/pull/6198)]
+
+If you're using vParquet3, plan your migration to vParquet4 or higher before upgrading to Tempo 3.0.
+
+### Breaking changes
+
+Be aware of these breaking changes when upgrading to Tempo 2.10:
+
+- Tenant ID validation: Tempo now validates tenant IDs in the frontend and distributor components, using the same validation rules as Grafana Mimir. Previously, Tempo accepted any tenant ID value. Valid tenant IDs may only contain alphanumeric characters (a-z, A-Z, 0-9) and special characters (`!`, `-`, `_`, `.`, `*`, `'`, `(`, `)`), with a maximum length of 150 characters. Empty tenant IDs and the values `.` or `..` are rejected. Requests with invalid tenant IDs return an error. [[PR 5786](https://github.com/grafana/tempo/pull/5786)]
+- SearchTagsV2WithRange API change: The Tempo HTTP client `SearchTagsV2WithRange` function signature has changed. The function previously accepted only `start` and `end` parameters. It now requires two additional parameters: `scope` and `query`. This change affects Go code that imports the `pkg/httpclient` package. To maintain existing behavior, pass empty strings for the new parameters: `SearchTagsV2WithRange("", "", start, end)`. [[PR 6088](https://github.com/grafana/tempo/pull/6088)]
+- Go version upgrade: Tempo 2.10 upgrades to Go 1.25.5, which may affect custom builds or deployments with specific Go version requirements. (PRs [#5939](https://github.com/grafana/tempo/pull/5939) [#6001](https://github.com/grafana/tempo/pull/6001), [#6096](https://github.com/grafana/tempo/pull/6096), [#6089](https://github.com/grafana/tempo/pull/6089))
+
+## Upgrade to Tempo 2.9
+
+When upgrading to Tempo 2.9, be aware of these considerations and breaking changes.
+
+### RPM and DEB packages discontinued
+
+Tempo no longer publishes RPM and DEB packages due to an internal change to the handling of signing keys. This can be restored if customers need these packages. ([PR 5684](https://github.com/grafana/tempo/pull/5684))
+
+### Migrated Vulture and integration tests to OTLP exporter
+
+In this release, we've migrated Tempo Vulture and Integration Tests from the deprecated Jaeger agent/exporter to the standard OTLP exporter. Vulture now pushes traces to the Tempo OTLP GRCP endpoint. ([PR 5058](https://github.com/grafana/tempo/pull/5058))
+
+### Bucket calculation changes
+
+TraceQL metrics buckets are now calculated based on data in the past instead of the future, which aligns behavior with Prometheus. This resolves issues with empty last buckets that were previously encountered. ([PR 5366](https://github.com/grafana/tempo/pull/5366))
+
+This change may cause differences in existing dashboards and alerts that rely on TraceQL metrics bucket calculations. Review your monitoring and alerting configurations after upgrading.
+
+### Series label handling improvements
+
+Fixed incorrect TraceQL metrics results when series labels include both strings and integers with the same textual representation (such as `"500"` vs `500`). The `prom_labels` field has been removed from TraceQL metrics responses as it was the source of these errors. ([PR 5659](https://github.com/grafana/tempo/pull/5659))
+
+There may be brief interruptions to TraceQL metrics queries during rollout while components run different versions. Plan for a coordinated rollout to minimize impact.
+
+### vParquet5 block format
+
+Tempo 2.9 introduces a new experimental vParquet5 block format, designed to improve query performance and reduce storage requirements.vParquet5 has two previews: `vParquet5-preview1`, low-resolution timestamp columns, and `vParquet5-preview2`, dedicated integer columns.
+
+Breaking changes are expected before the final release. ([PR 5495](https://github.com/grafana/tempo/pull/5495), [PR 5639](https://github.com/grafana/tempo/pull/5639))
+
+### Go version upgrade
+
+Tempo 2.9 upgrades to Go 1.25.0, which may affect custom builds or deployments with specific Go version requirements. ([PR 5548](https://github.com/grafana/tempo/pull/5548))
+
+If you're building Tempo from source or using custom Docker images, ensure your build environment supports Go 1.25.0.
+
 ## Upgrade to Tempo 2.8
 
 When upgrading to Tempo 2.8, be aware of these considerations and breaking changes.
