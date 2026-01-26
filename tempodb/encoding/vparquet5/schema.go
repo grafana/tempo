@@ -151,11 +151,6 @@ type DedicatedAttributes struct {
 	Int03    []int64  `parquet:",snappy,optional"`
 	Int04    []int64  `parquet:",snappy,optional"`
 	Int05    []int64  `parquet:",snappy,optional"`
-	Int06    []int64  `parquet:",snappy,optional"`
-	Int07    []int64  `parquet:",snappy,optional"`
-	Int08    []int64  `parquet:",snappy,optional"`
-	Int09    []int64  `parquet:",snappy,optional"`
-	Int10    []int64  `parquet:",snappy,optional"`
 }
 
 func (da *DedicatedAttributes) Reset() {
@@ -184,11 +179,6 @@ func (da *DedicatedAttributes) Reset() {
 	da.Int03 = da.Int03[:0]
 	da.Int04 = da.Int04[:0]
 	da.Int05 = da.Int05[:0]
-	da.Int06 = da.Int06[:0]
-	da.Int07 = da.Int07[:0]
-	da.Int08 = da.Int08[:0]
-	da.Int09 = da.Int09[:0]
-	da.Int10 = da.Int10[:0]
 }
 
 type Event struct {

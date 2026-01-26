@@ -137,6 +137,42 @@ func TestConfig_CheckConfig(t *testing.T) {
 			}(),
 			expect: nil,
 		},
+		{
+			name: "trace storage has too many dedicated columns",
+			config: func() *Config {
+				cfg := NewDefaultConfig()
+				cfg.StorageConfig.Trace.Block.DedicatedColumns = backend.DedicatedColumns{
+					{Name: "dedicated.resource.1", Type: "string", Scope: "resource"},
+					{Name: "dedicated.resource.2", Type: "string", Scope: "resource"},
+					{Name: "dedicated.resource.3", Type: "string", Scope: "resource"},
+					{Name: "dedicated.resource.4", Type: "string", Scope: "resource"},
+					{Name: "dedicated.resource.5", Type: "string", Scope: "resource"},
+					{Name: "dedicated.resource.6", Type: "string", Scope: "resource"},
+					{Name: "dedicated.resource.7", Type: "string", Scope: "resource"},
+					{Name: "dedicated.resource.8", Type: "string", Scope: "resource"},
+					{Name: "dedicated.resource.9", Type: "string", Scope: "resource"},
+					{Name: "dedicated.resource.10", Type: "string", Scope: "resource"},
+					{Name: "dedicated.resource.11", Type: "string", Scope: "resource"},
+					{Name: "dedicated.resource.12", Type: "string", Scope: "resource"},
+					{Name: "dedicated.resource.13", Type: "string", Scope: "resource"},
+					{Name: "dedicated.resource.14", Type: "string", Scope: "resource"},
+					{Name: "dedicated.resource.15", Type: "string", Scope: "resource"},
+					{Name: "dedicated.resource.16", Type: "string", Scope: "resource"},
+					{Name: "dedicated.resource.17", Type: "string", Scope: "resource"},
+					{Name: "dedicated.resource.18", Type: "string", Scope: "resource"},
+					{Name: "dedicated.resource.19", Type: "string", Scope: "resource"},
+					{Name: "dedicated.resource.20", Type: "string", Scope: "resource"},
+					{Name: "dedicated.resource.21", Type: "string", Scope: "resource"},
+				}
+				return cfg
+			}(),
+			expect: []ConfigWarning{
+				{
+					Message: (backend.WarnTooManyColumns{Type: "string", Scope: "resource", Count: 21, MaxCount: 20}).Error(),
+					Explain: "Dedicated attribute column configuration contains an invalid configuration that will be ignored",
+				},
+			},
+		},
 	}
 
 	for _, tc := range tt {

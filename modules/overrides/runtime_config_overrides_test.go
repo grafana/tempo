@@ -721,9 +721,9 @@ type mockValidator struct {
 	f func(*Overrides) error
 }
 
-func (m mockValidator) Validate(config *Overrides) error {
+func (m mockValidator) Validate(config *Overrides) (error, []error) {
 	if m.f != nil {
-		return m.f(config)
+		return m.f(config), nil
 	}
-	return nil
+	return nil, nil
 }
