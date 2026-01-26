@@ -145,7 +145,7 @@ func TestStatic_String(t *testing.T) {
 		{arg: []int{1, 2, 3}, want: "[1, 2, 3]"},
 		{arg: []float64{1.1, 3.3}, want: "[1.1, 3.3]"},
 		{arg: []bool{true, true, false}, want: "[true, true, false]"},
-		{arg: []string{"aa", "bb"}, want: `["aa", "bb"]`},
+		{arg: []string{"aa", "bb"}, want: "[`aa`, `bb`]"},
 	}
 
 	for _, tt := range tests {
