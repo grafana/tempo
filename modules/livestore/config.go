@@ -48,6 +48,16 @@ type Config struct {
 	// Block configuration
 	BlockConfig common.BlockConfig `yaml:"block_config"`
 
+	// ReadinessTargetLag is the target consumer lag threshold before the live-store
+	// is considered ready to serve queries. The live-store will wait until lag drops
+	// below this value. Set to 0 to disable readiness waiting (default, backward compatible).
+	ReadinessTargetLag time.Duration `yaml:"readiness_target_lag"`
+
+	// ReadinessMaxWait is the maximum time to wait for catching up at startup.
+	// If this timeout is exceeded, the live-store becomes ready anyway.
+	// Only used if ReadinessTargetLag > 0. Default: 30m.
+	ReadinessMaxWait time.Duration `yaml:"readiness_max_wait"`
+
 	// testing config
 	holdAllBackgroundProcesses bool `yaml:"-"` // if this is set to true, the live store will never release its background processes
 }
@@ -83,6 +93,10 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 
 	cfg.CommitInterval = 5 * time.Second
 
+	// Readiness config - default to disabled (backward compatible)
+	cfg.ReadinessTargetLag = 0
+	cfg.ReadinessMaxWait = 30 * time.Minute
+
 	// Initialize block config with defaults
 	cfg.BlockConfig.RegisterFlagsAndApplyDefaults(prefix+".block", f)
 
@@ -90,6 +104,8 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 	f.DurationVar(&cfg.CompleteBlockTimeout, prefix+".complete-block-timeout", cfg.CompleteBlockTimeout, "Duration to keep blocks in the live store after they have been flushed.")
 	f.UintVar(&cfg.QueryBlockConcurrency, prefix+".concurrent-blocks", cfg.QueryBlockConcurrency, "Number of concurrent blocks to query for metrics.")
 	f.Float64Var(&cfg.Metrics.TimeOverlapCutoff, prefix+".metrics.time-overlap-cutoff", cfg.Metrics.TimeOverlapCutoff, "Time overlap cutoff ratio for metrics queries (0.0-1.0).")
+	f.DurationVar(&cfg.ReadinessTargetLag, prefix+".readiness-target-lag", cfg.ReadinessTargetLag, "Target lag threshold before live-store is ready. 0 disables waiting (backward compatible).")
+	f.DurationVar(&cfg.ReadinessMaxWait, prefix+".readiness-max-wait", cfg.ReadinessMaxWait, "Maximum time to wait for catching up at startup. Only used if readiness-target-lag > 0.")
 
 	cfg.WAL.RegisterFlags(f) // WAL config has no flags, only defaults
 	cfg.WAL.Version = encoding.DefaultEncoding().Version()

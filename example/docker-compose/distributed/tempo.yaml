@@ -95,3 +95,7 @@ block_builder:
 
 usage_report:
   reporting_enabled: false
+
+live_store:
+  readiness_target_lag: 5s
+  readiness_max_wait: 5m0s
