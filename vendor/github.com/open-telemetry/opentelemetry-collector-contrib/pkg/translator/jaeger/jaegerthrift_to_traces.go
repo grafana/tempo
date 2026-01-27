@@ -10,7 +10,7 @@ import (
 	"github.com/jaegertracing/jaeger-idl/thrift-gen/jaeger"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
-	conventions "go.opentelemetry.io/otel/semconv/v1.9.0"
+	conventions "go.opentelemetry.io/otel/semconv/v1.38.0"
 
 	"github.com/open-telemetry/opentelemetry-collector-contrib/internal/coreinternal/tracetranslator"
 	idutils "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/core/xidutils"
@@ -195,7 +195,7 @@ func jThriftReferencesToSpanLinks(refs []*jaeger.SpanRef, excludeParentID int64,
 		link := dest.AppendEmpty()
 		link.SetTraceID(idutils.UInt64ToTraceID(uint64(ref.TraceIdHigh), uint64(ref.TraceIdLow)))
 		link.SetSpanID(idutils.UInt64ToSpanID(uint64(ref.SpanId)))
-		link.Attributes().PutStr(string(conventions.OpentracingRefTypeKey), jThriftRefTypeToAttribute(ref.RefType))
+		link.Attributes().PutStr(string(conventions.OpenTracingRefTypeKey), jThriftRefTypeToAttribute(ref.RefType))
 	}
 }
 
@@ -206,7 +206,7 @@ func microsecondsToUnixNano(ms int64) pcommon.Timestamp {
 
 func jThriftRefTypeToAttribute(ref jaeger.SpanRefType) string {
 	if ref == jaeger.SpanRefType_CHILD_OF {
-		return conventions.OpentracingRefTypeChildOf.Value.AsString()
+		return conventions.OpenTracingRefTypeChildOf.Value.AsString()
 	}
-	return conventions.OpentracingRefTypeFollowsFrom.Value.AsString()
+	return conventions.OpenTracingRefTypeFollowsFrom.Value.AsString()
 }

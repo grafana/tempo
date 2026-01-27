@@ -27,7 +27,7 @@ metadata:
 spec:
   type: buildkite-pipeline
   owner: group:logstash
-  system: buildkite
+  system: platform-ingest
   implementation:
     apiVersion: buildkite.elastic.dev/v1
     kind: Pipeline

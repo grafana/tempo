@@ -4,6 +4,11 @@
 package kafkareceiver // import "github.com/open-telemetry/opentelemetry-collector-contrib/receiver/kafkareceiver"
 
 import (
+	"errors"
+	"fmt"
+	"regexp"
+	"strings"
+
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/config/configretry"
 	"go.opentelemetry.io/collector/confmap"
@@ -30,24 +35,6 @@ type Config struct {
 	// Profiles holds configuration about how profiles should be consumed.
 	Profiles TopicEncodingConfig `mapstructure:"profiles"`
 
-	// Topic holds the name of the Kafka topic from which to consume data.
-	//
-	// Topic has no default. If explicitly specified, it will take precedence
-	// over the default values of Logs.Topic, Traces.Topic, and Metrics.Topic.
-	//
-	// Deprecated [v0.124.0]: Use Logs.Topic, Traces.Topic, and Metrics.Topic.
-	Topic string `mapstructure:"topic"`
-
-	// Encoding holds the expected encoding of messages (default "otlp_proto")
-	//
-	// Encoding has no default. If explicitly specified, it will take precedence
-	// over the default values of Logs.Encoding, Traces.Encoding, and
-	// Metrics.Encoding.
-	//
-	// Deprecated [v0.124.0]: Use Logs.Encoding, Traces.Encoding, and
-	// Metrics.Encoding.
-	Encoding string `mapstructure:"encoding"`
-
 	// MessageMarking controls the way the messages are marked as consumed.
 	MessageMarking MessageMarking `mapstructure:"message_marking"`
 
@@ -66,39 +53,79 @@ func (c *Config) Unmarshal(conf *confmap.Conf) error {
 	if err := conf.Unmarshal(c); err != nil {
 		return err
 	}
-	// Check if deprecated fields have been explicitly set,
-	// in which case they should be used instead of signal-
-	// specific defaults.
+
+	// Check if deprecated fields have been explicitly set
+	// give them  precedence
 	var zeroConfig Config
 	if err := conf.Unmarshal(&zeroConfig); err != nil {
 		return err
 	}
-	if c.Topic != "" {
-		if zeroConfig.Logs.Topic == "" {
-			c.Logs.Topic = c.Topic
-		}
-		if zeroConfig.Metrics.Topic == "" {
-			c.Metrics.Topic = c.Topic
-		}
-		if zeroConfig.Traces.Topic == "" {
-			c.Traces.Topic = c.Topic
-		}
-		if zeroConfig.Profiles.Topic == "" {
-			c.Profiles.Topic = c.Topic
+
+	// handle deprecated topic and exclude_topic for log signal
+	if zeroConfig.Logs.Topic != "" {
+		if len(zeroConfig.Logs.Topics) == 0 {
+			c.Logs.Topics = []string{zeroConfig.Logs.Topic}
+			// copy original logs.topic to its alias
+			// required for validation further down in this code
+			c.Logs.topicAlias = c.Logs.Topic
+			c.Logs.Topic = ""
 		}
 	}
-	if c.Encoding != "" {
-		if zeroConfig.Logs.Encoding == "" {
-			c.Logs.Encoding = c.Encoding
+	if zeroConfig.Logs.ExcludeTopic != "" {
+		if len(zeroConfig.Logs.ExcludeTopics) == 0 {
+			c.Logs.ExcludeTopics = []string{zeroConfig.Logs.ExcludeTopic}
+			c.Logs.excludeTopicAlias = c.Logs.ExcludeTopic
+			c.Logs.ExcludeTopic = ""
 		}
-		if zeroConfig.Metrics.Encoding == "" {
-			c.Metrics.Encoding = c.Encoding
+	}
+
+	// handle deprecated topic and exclude_topic for metric signal
+	if zeroConfig.Metrics.Topic != "" {
+		if len(zeroConfig.Metrics.Topics) == 0 {
+			c.Metrics.Topics = []string{zeroConfig.Metrics.Topic}
+			c.Metrics.topicAlias = c.Metrics.Topic
+			c.Metrics.Topic = ""
 		}
-		if zeroConfig.Traces.Encoding == "" {
-			c.Traces.Encoding = c.Encoding
+	}
+
+	if zeroConfig.Metrics.ExcludeTopic != "" {
+		if len(zeroConfig.Metrics.ExcludeTopics) == 0 {
+			c.Metrics.ExcludeTopics = []string{zeroConfig.Metrics.ExcludeTopic}
+			c.Metrics.excludeTopicAlias = c.Metrics.ExcludeTopic
+			c.Metrics.ExcludeTopic = ""
 		}
-		if zeroConfig.Profiles.Encoding == "" {
-			c.Profiles.Encoding = c.Encoding
+	}
+
+	// handle deprecated topic and exclude_topic for trace signal
+	if zeroConfig.Traces.Topic != "" {
+		if len(zeroConfig.Traces.Topics) == 0 {
+			c.Traces.Topics = []string{zeroConfig.Traces.Topic}
+			c.Traces.topicAlias = c.Traces.Topic
+			c.Traces.Topic = ""
+		}
+	}
+
+	if zeroConfig.Traces.ExcludeTopic != "" {
+		if len(zeroConfig.Traces.ExcludeTopics) == 0 {
+			c.Traces.ExcludeTopics = []string{zeroConfig.Traces.ExcludeTopic}
+			c.Traces.excludeTopicAlias = c.Traces.ExcludeTopic
+			c.Traces.ExcludeTopic = ""
+		}
+	}
+
+	// handle deprecated topic and exclude_topic for profile signal
+	if zeroConfig.Profiles.Topic != "" {
+		if len(zeroConfig.Profiles.Topics) == 0 {
+			c.Profiles.Topics = []string{zeroConfig.Profiles.Topic}
+			c.Profiles.topicAlias = c.Profiles.Topic
+			c.Profiles.Topic = ""
+		}
+	}
+	if zeroConfig.Profiles.ExcludeTopic != "" {
+		if len(zeroConfig.Profiles.ExcludeTopics) == 0 {
+			c.Profiles.ExcludeTopics = []string{zeroConfig.Profiles.ExcludeTopic}
+			c.Profiles.excludeTopicAlias = c.Profiles.ExcludeTopic
+			c.Profiles.ExcludeTopic = ""
 		}
 	}
 
@@ -116,12 +143,104 @@ func (c *Config) Unmarshal(conf *confmap.Conf) error {
 		c.MessageMarking.OnPermanentError = c.MessageMarking.OnError
 	}
 
-	return conf.Unmarshal(c)
+	return nil
+}
+
+// Validate checks the receiver configuration is valid.
+func (c *Config) Validate() error {
+	if c.Logs.Topic != "" && len(c.Logs.Topics) != 0 {
+		return errors.New("both logs.topic and logs.topics cannot be set")
+	}
+	if c.Metrics.Topic != "" && len(c.Metrics.Topics) != 0 {
+		return errors.New("both metrics.topic and metrics.topics cannot be set")
+	}
+	if c.Traces.Topic != "" && len(c.Traces.Topics) != 0 {
+		return errors.New("both traces.topic and traces.topics cannot be set")
+	}
+	if c.Profiles.Topic != "" && len(c.Profiles.Topics) != 0 {
+		return errors.New("both profiles.topic and profiles.topics cannot be set")
+	}
+
+	if c.Logs.ExcludeTopic != "" && len(c.Logs.ExcludeTopics) != 0 {
+		return errors.New("both logs.exclude_topic and logs.exclude_topics cannot be set")
+	}
+	if c.Metrics.ExcludeTopic != "" && len(c.Metrics.ExcludeTopics) != 0 {
+		return errors.New("both metrics.exclude_topic and metrics.exclude_topics cannot be set")
+	}
+	if c.Traces.ExcludeTopic != "" && len(c.Traces.ExcludeTopics) != 0 {
+		return errors.New("both traces.exclude_topic and traces.exclude_topics cannot be set")
+	}
+	if c.Profiles.ExcludeTopic != "" && len(c.Profiles.ExcludeTopics) != 0 {
+		return errors.New("both profiles.exclude_topic and profiles.exclude_topics cannot be set")
+	}
+
+	// Validate that exclude_topic is only used with regex topic patterns
+	if err := validateExcludeTopic("logs", c.Logs.Topics, c.Logs.ExcludeTopics); err != nil {
+		return err
+	}
+	if err := validateExcludeTopic("metrics", c.Metrics.Topics, c.Metrics.ExcludeTopics); err != nil {
+		return err
+	}
+	if err := validateExcludeTopic("traces", c.Traces.Topics, c.Traces.ExcludeTopics); err != nil {
+		return err
+	}
+	if err := validateExcludeTopic("profiles", c.Profiles.Topics, c.Profiles.ExcludeTopics); err != nil {
+		return err
+	}
+	return nil
+}
+
+// validateExcludeTopic checks that exclude_topic is only configured when topics uses regex pattern
+func validateExcludeTopic(signalType string, topics, excludeTopics []string) error {
+	if len(excludeTopics) == 0 {
+		return nil // No exclude_topic configured, nothing to validate
+	}
+
+	// if none of the configured topic uses regex return error
+	var usesRegex bool
+	for _, topic := range topics {
+		if strings.HasPrefix(topic, "^") {
+			usesRegex = true
+			break
+		}
+	}
+
+	if !usesRegex {
+		return fmt.Errorf(
+			"%s.exclude_topics is configured but none of the configured %s.topics use regex pattern (must start with '^')",
+			signalType, signalType,
+		)
+	}
+
+	for _, excludeTopic := range excludeTopics {
+		// Validate that exclude_topic is not empty
+		if excludeTopic == "" {
+			return fmt.Errorf(
+				"%s.exclude_topics contains empty string, which would match all topics",
+				signalType,
+			)
+		}
+		// Validate that exclude_topic is a valid regex pattern
+		if _, err := regexp.Compile(excludeTopic); err != nil {
+			return fmt.Errorf(
+				"%s.exclude_topic contains invalid regex pattern: %w",
+				signalType, err,
+			)
+		}
+	}
+
+	return nil
 }
 
 // TopicEncodingConfig holds signal-specific topic and encoding configuration.
 type TopicEncodingConfig struct {
-	// Topic holds the name of the Kafka topic from which messages of the
+	// Deprecated [v0.142.0]: Use Topics
+	Topic string `mapstructure:"topic"`
+
+	// alias for Topic
+	topicAlias string
+
+	// Topics holds the name of the Kafka topics from which messages of the
 	// signal type should be consumed.
 	//
 	// The default depends on the signal type:
@@ -129,12 +248,21 @@ type TopicEncodingConfig struct {
 	//  - "otlp_metrics" for metrics
 	//  - "otlp_logs" for logs
 	//  - "otlp_profiles" for profiles
-	Topic string `mapstructure:"topic"`
+	Topics []string `mapstructure:"topics"`
 
 	// Encoding holds the expected encoding of messages for the signal type
 	//
 	// Defaults to "otlp_proto".
 	Encoding string `mapstructure:"encoding"`
+
+	// Deprecated [v0.142.0]: Use ExcludeTopics
+	ExcludeTopic string `mapstructure:"exclude_topic"`
+
+	// alias for exclude_topic
+	excludeTopicAlias string
+
+	// Optional exclude topics option, used only in regex mode.
+	ExcludeTopics []string `mapstructure:"exclude_topics"`
 }
 
 type MessageMarking struct {
