@@ -18,6 +18,7 @@
     enabled: true,
     labels: ['security'],
   },
+  osvVulnerabilityAlerts: true,
   prConcurrentLimit: 20,
   branchConcurrentLimit: 20,
   ignoreDeps: [],
@@ -40,15 +41,10 @@
   ],
   packageRules: [
     {
-      description: 'Disable all updates for release branches',
+      description: 'Disable all non-vulnerability updates for releases',
       matchBaseBranches: ['/^release-/'],
+      matchPackageNames: ['*'],
       enabled: false,
-    },
-    {
-      description: 'Enable only security/vulnerability updates for release branches',
-      matchBaseBranches: ['/^release-/'],
-      isVulnerabilityAlert: true,
-      enabled: true,
     },
     {
       description: 'Group OpenTelemetry OTEL updates',
