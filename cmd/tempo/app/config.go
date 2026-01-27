@@ -194,19 +194,18 @@ func (c *Config) CheckConfig() []ConfigWarning {
 		warnings = append(warnings, warnMCPServerEnabled)
 	}
 
-	if err, dcWarnings := c.StorageConfig.Trace.Block.DedicatedColumns.Validate(); err != nil || len(dcWarnings) > 0 {
-		if err != nil {
-			warnings = append(warnings, ConfigWarning{
-				Message: err.Error(),
-				Explain: "Tempo will not start with an invalid dedicated attribute column configuration",
-			})
-		}
-		for _, warning := range dcWarnings {
-			warnings = append(warnings, ConfigWarning{
-				Message: warning.Error(),
-				Explain: "Dedicated attribute column configuration contains an invalid configuration that will be ignored",
-			})
-		}
+	dcWarnings, dcErr := c.StorageConfig.Trace.Block.DedicatedColumns.Validate()
+	if dcErr != nil {
+		warnings = append(warnings, ConfigWarning{
+			Message: dcErr.Error(),
+			Explain: "Tempo will not start with an invalid dedicated attribute column configuration",
+		})
+	}
+	for _, warning := range dcWarnings {
+		warnings = append(warnings, ConfigWarning{
+			Message: warning.Error(),
+			Explain: "Dedicated attribute column configuration contains an invalid configuration that will be ignored",
+		})
 	}
 
 	if c.tracesAndOverridesStorageConflict() {

@@ -60,6 +60,6 @@ func ValidateConfig(b *BlockConfig) error {
 	}*/
 
 	// TODO - log or pass warnings up the chain?
-	err, _ := b.DedicatedColumns.Validate()
+	_, err := b.DedicatedColumns.Validate()
 	return err
 }

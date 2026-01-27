@@ -326,7 +326,7 @@ func (dcs DedicatedColumns) ToTempopb() ([]*tempopb.DedicatedColumn, error) {
 	return tempopbCols, nil
 }
 
-func (dcs DedicatedColumns) Validate() (err error, warnings []error) {
+func (dcs DedicatedColumns) Validate() (warnings []error, err error) {
 	columnCount := map[DedicatedColumnType]map[DedicatedColumnScope]int{}
 	nameCount := map[DedicatedColumnScope]map[string]struct{}{}
 

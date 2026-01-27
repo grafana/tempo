@@ -644,7 +644,7 @@ func TestDedicatedColumns_Validate(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			err, warnings := tc.cols.Validate()
+			warnings, err := tc.cols.Validate()
 			if tc.isValid {
 				require.NoError(t, err, "dedicated columns expected to be valid, but got error: %s", err)
 			} else {
