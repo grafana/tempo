@@ -186,7 +186,6 @@ func (p *Processor) consume(resourceSpans []*v1_trace.ResourceSpans) (err error)
 						p.upsertPeerNode(e, span.Attributes)
 						p.upsertDatabaseRequest(e, rs.Resource.Attributes, span)
 					})
-
 				case v1_trace.Span_SPAN_KIND_CONSUMER:
 					// override connection type and continue processing as span kind server
 					connectionType = store.MessagingSystem
@@ -204,6 +203,32 @@ func (p *Processor) consume(resourceSpans []*v1_trace.ResourceSpans) (err error)
 						e.SpanMultiplier = spanMultiplier
 						p.upsertPeerNode(e, span.Attributes)
 					})
+					// This enables cross-request matching: parent SERVER sets client fields under
+					// traceId-spanId, and child SERVER (which uses parentSpanId) completes server fields later.
+					clientKey := buildKey(hex.EncodeToString(span.TraceId), hex.EncodeToString(span.SpanId))
+					if _, err2 := p.store.UpsertEdge(clientKey, func(e *store.Edge) {
+						if e.ClientService == "" {
+							e.TraceID = tempo_util.TraceIDToHexString(span.TraceId)
+							e.ClientService = svcName
+							e.ClientLatencySec = spanDurationSec(span)
+							e.ClientEndTimeUnixNano = span.EndTimeUnixNano
+							e.Failed = e.Failed || p.spanFailed(span)
+							p.upsertDimensions("client_", e.Dimensions, rs.Resource.Attributes, span.Attributes)
+							p.upsertPeerNode(e, span.Attributes)
+							// keep multiplier consistent
+							e.SpanMultiplier = spanMultiplier
+							// mark as synthetic so expiry doesn't double-count
+							e.SyntheticClient = true
+						}
+					}); err2 != nil {
+						if errors.Is(err2, store.ErrTooManyItems) {
+							totalDroppedSpans++
+							p.metricDroppedSpans.Inc()
+						} else {
+							return err2
+						}
+					}
+					// Removed same-batch parent synthesis; dual-upsert below handles both same-batch and cross-request.
 				default:
 					// this span is not part of an edge
 					continue
@@ -370,6 +395,13 @@ func (p *Processor) onComplete(e *store.Edge) {
 
 func (p *Processor) onExpire(e *store.Edge) {
 	wasCounted := false
+
+	// Do not count synthetic client-only edges as expired; these are helper edges
+	// created for SERVER->SERVER matching and should not contribute to expiry metrics
+	// on their own if the server side never arrived.
+	if e.SyntheticClient && len(e.ServerService) == 0 {
+		return
+	}
 
 	// If an edge is expired, we check if there are signs that the missing span is belongs to a "virtual node".
 	// These are nodes that are outside the user's reach (eg. an external service for payment processing),
