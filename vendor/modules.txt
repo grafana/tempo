@@ -132,8 +132,6 @@ github.com/GoogleCloudPlatform/opentelemetry-operations-go/exporter/metric
 # github.com/GoogleCloudPlatform/opentelemetry-operations-go/internal/resourcemapping v0.54.0
 ## explicit; go 1.24.0
 github.com/GoogleCloudPlatform/opentelemetry-operations-go/internal/resourcemapping
-# github.com/HdrHistogram/hdrhistogram-go v1.1.2
-## explicit; go 1.14
 # github.com/IBM/sarama v1.46.2
 ## explicit; go 1.24.0
 github.com/IBM/sarama
@@ -380,8 +378,8 @@ github.com/cncf/xds/go/xds/data/orca/v3
 github.com/cncf/xds/go/xds/service/orca/v3
 github.com/cncf/xds/go/xds/type/matcher/v3
 github.com/cncf/xds/go/xds/type/v3
-# github.com/coreos/go-semver v0.3.0
-## explicit
+# github.com/coreos/go-semver v0.3.1
+## explicit; go 1.8
 github.com/coreos/go-semver/semver
 # github.com/coreos/go-systemd/v22 v22.6.0
 ## explicit; go 1.23
@@ -714,7 +712,7 @@ github.com/googleapis/gax-go/v2/iterator
 # github.com/gorilla/mux v1.8.1
 ## explicit; go 1.20
 github.com/gorilla/mux
-# github.com/grafana/dskit v0.0.0-20251031165806-a6f15387939b
+# github.com/grafana/dskit v0.0.0-20260123032120-fb7d1aad51e6
 ## explicit; go 1.24.0
 github.com/grafana/dskit/backoff
 github.com/grafana/dskit/cancellation
@@ -782,6 +780,7 @@ github.com/grpc-ecosystem/go-grpc-middleware
 # github.com/grpc-ecosystem/grpc-gateway/v2 v2.27.3
 ## explicit; go 1.24.0
 github.com/grpc-ecosystem/grpc-gateway/v2/internal/httprule
+github.com/grpc-ecosystem/grpc-gateway/v2/protoc-gen-openapiv2/options
 github.com/grpc-ecosystem/grpc-gateway/v2/runtime
 github.com/grpc-ecosystem/grpc-gateway/v2/utilities
 # github.com/hashicorp/consul/api v1.32.0
@@ -831,7 +830,7 @@ github.com/hashicorp/golang-lru/simplelru
 github.com/hashicorp/golang-lru/v2
 github.com/hashicorp/golang-lru/v2/internal
 github.com/hashicorp/golang-lru/v2/simplelru
-# github.com/hashicorp/memberlist v0.5.2 => github.com/grafana/memberlist v0.3.1-0.20251024160842-5cd332c2849a
+# github.com/hashicorp/memberlist v0.5.3 => github.com/grafana/memberlist v0.3.1-0.20251024160842-5cd332c2849a
 ## explicit; go 1.20
 github.com/hashicorp/memberlist
 # github.com/hashicorp/serf v0.10.2
@@ -991,8 +990,8 @@ github.com/mdlayher/socket
 # github.com/mdlayher/vsock v1.2.1
 ## explicit; go 1.20
 github.com/mdlayher/vsock
-# github.com/miekg/dns v1.1.68
-## explicit; go 1.23.0
+# github.com/miekg/dns v1.1.69
+## explicit; go 1.24.0
 github.com/miekg/dns
 # github.com/minio/crc64nvme v1.1.1
 ## explicit; go 1.22
@@ -1194,10 +1193,10 @@ github.com/open-telemetry/opentelemetry-collector-contrib/receiver/opencensusrec
 ## explicit; go 1.24.0
 github.com/open-telemetry/opentelemetry-collector-contrib/receiver/zipkinreceiver
 github.com/open-telemetry/opentelemetry-collector-contrib/receiver/zipkinreceiver/internal/metadata
-# github.com/opentracing-contrib/go-grpc v0.1.1
-## explicit; go 1.22.7
+# github.com/opentracing-contrib/go-grpc v0.1.2
+## explicit; go 1.23.8
 github.com/opentracing-contrib/go-grpc
-# github.com/opentracing-contrib/go-stdlib v1.0.0
+# github.com/opentracing-contrib/go-stdlib v1.1.1
 ## explicit; go 1.14
 github.com/opentracing-contrib/go-stdlib/nethttp
 # github.com/opentracing/opentracing-go v1.2.0
@@ -1263,8 +1262,8 @@ github.com/pierrec/lz4/v4/internal/lz4block
 github.com/pierrec/lz4/v4/internal/lz4errors
 github.com/pierrec/lz4/v4/internal/lz4stream
 github.com/pierrec/lz4/v4/internal/xxh32
-# github.com/pires/go-proxyproto v0.7.0
-## explicit; go 1.18
+# github.com/pires/go-proxyproto v0.8.1
+## explicit; go 1.24
 github.com/pires/go-proxyproto
 # github.com/pkg/browser v0.0.0-20240102092130-5ac0b6a4141c
 ## explicit; go 1.14
@@ -1317,14 +1316,14 @@ github.com/prometheus/common/model
 github.com/prometheus/common/promslog
 github.com/prometheus/common/route
 github.com/prometheus/common/version
-# github.com/prometheus/exporter-toolkit v0.14.1
-## explicit; go 1.23.0
+# github.com/prometheus/exporter-toolkit v0.15.1
+## explicit; go 1.24.0
 github.com/prometheus/exporter-toolkit/web
 # github.com/prometheus/otlptranslator v1.0.0
 ## explicit; go 1.23.0
 github.com/prometheus/otlptranslator
-# github.com/prometheus/procfs v0.17.0
-## explicit; go 1.23.0
+# github.com/prometheus/procfs v0.19.2
+## explicit; go 1.24.0
 github.com/prometheus/procfs
 github.com/prometheus/procfs/internal/fs
 github.com/prometheus/procfs/internal/util
@@ -1416,7 +1415,7 @@ github.com/sean-/seed
 # github.com/segmentio/fasthash v1.0.3
 ## explicit; go 1.11
 github.com/segmentio/fasthash/fnv1a
-# github.com/sercand/kuberesolver/v6 v6.0.0
+# github.com/sercand/kuberesolver/v6 v6.0.1
 ## explicit; go 1.22.0
 github.com/sercand/kuberesolver/v6
 # github.com/shirou/gopsutil/v4 v4.25.9
@@ -1616,24 +1615,26 @@ github.com/yusufpapurcu/wmi
 # github.com/zeebo/xxh3 v1.0.2
 ## explicit; go 1.17
 github.com/zeebo/xxh3
-# go.etcd.io/etcd/api/v3 v3.5.12
-## explicit; go 1.20
+# go.etcd.io/etcd/api/v3 v3.6.7
+## explicit; go 1.24.0
 go.etcd.io/etcd/api/v3/authpb
 go.etcd.io/etcd/api/v3/etcdserverpb
 go.etcd.io/etcd/api/v3/membershippb
 go.etcd.io/etcd/api/v3/mvccpb
 go.etcd.io/etcd/api/v3/v3rpc/rpctypes
 go.etcd.io/etcd/api/v3/version
-# go.etcd.io/etcd/client/pkg/v3 v3.5.12
-## explicit; go 1.20
+go.etcd.io/etcd/api/v3/versionpb
+# go.etcd.io/etcd/client/pkg/v3 v3.6.7
+## explicit; go 1.24.0
 go.etcd.io/etcd/client/pkg/v3/fileutil
 go.etcd.io/etcd/client/pkg/v3/logutil
 go.etcd.io/etcd/client/pkg/v3/systemd
 go.etcd.io/etcd/client/pkg/v3/tlsutil
 go.etcd.io/etcd/client/pkg/v3/transport
 go.etcd.io/etcd/client/pkg/v3/types
-# go.etcd.io/etcd/client/v3 v3.5.12
-## explicit; go 1.20
+go.etcd.io/etcd/client/pkg/v3/verify
+# go.etcd.io/etcd/client/v3 v3.6.7
+## explicit; go 1.24.0
 go.etcd.io/etcd/client/v3
 go.etcd.io/etcd/client/v3/credentials
 go.etcd.io/etcd/client/v3/internal/endpoint
@@ -1927,25 +1928,25 @@ go.opentelemetry.io/collector/service/hostcapabilities
 # go.opentelemetry.io/contrib/bridges/otelzap v0.13.0
 ## explicit; go 1.23.0
 go.opentelemetry.io/contrib/bridges/otelzap
-# go.opentelemetry.io/contrib/bridges/prometheus v0.63.0
-## explicit; go 1.23.0
+# go.opentelemetry.io/contrib/bridges/prometheus v0.64.0
+## explicit; go 1.24.0
 go.opentelemetry.io/contrib/bridges/prometheus
 # go.opentelemetry.io/contrib/detectors/gcp v1.38.0
 ## explicit; go 1.23.8
 go.opentelemetry.io/contrib/detectors/gcp
-# go.opentelemetry.io/contrib/exporters/autoexport v0.63.0
-## explicit; go 1.23.0
+# go.opentelemetry.io/contrib/exporters/autoexport v0.64.0
+## explicit; go 1.24.0
 go.opentelemetry.io/contrib/exporters/autoexport
-# go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.63.0
-## explicit; go 1.23.0
+# go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.64.0
+## explicit; go 1.24.0
 go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc
 go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc/internal
-# go.opentelemetry.io/contrib/instrumentation/net/http/httptrace/otelhttptrace v0.63.0
-## explicit; go 1.23.0
+# go.opentelemetry.io/contrib/instrumentation/net/http/httptrace/otelhttptrace v0.64.0
+## explicit; go 1.24.0
 go.opentelemetry.io/contrib/instrumentation/net/http/httptrace/otelhttptrace
 go.opentelemetry.io/contrib/instrumentation/net/http/httptrace/otelhttptrace/internal/semconv
-# go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.63.0
-## explicit; go 1.23.0
+# go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.64.0
+## explicit; go 1.24.0
 go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp
 go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp/internal/request
 go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp/internal/semconv
@@ -1956,11 +1957,11 @@ go.opentelemetry.io/contrib/otelconf/v0.3.0
 # go.opentelemetry.io/contrib/propagators/b3 v1.38.0
 ## explicit; go 1.23.0
 go.opentelemetry.io/contrib/propagators/b3
-# go.opentelemetry.io/contrib/propagators/jaeger v1.35.0
-## explicit; go 1.22.0
+# go.opentelemetry.io/contrib/propagators/jaeger v1.39.0
+## explicit; go 1.24.0
 go.opentelemetry.io/contrib/propagators/jaeger
-# go.opentelemetry.io/contrib/samplers/jaegerremote v0.31.0
-## explicit; go 1.23.0
+# go.opentelemetry.io/contrib/samplers/jaegerremote v0.33.0
+## explicit; go 1.24.0
 go.opentelemetry.io/contrib/samplers/jaegerremote
 go.opentelemetry.io/contrib/samplers/jaegerremote/internal/ratelimiter
 # go.opentelemetry.io/otel v1.39.0
@@ -1980,7 +1981,6 @@ go.opentelemetry.io/otel/semconv/v1.13.0
 go.opentelemetry.io/otel/semconv/v1.15.0
 go.opentelemetry.io/otel/semconv/v1.16.0
 go.opentelemetry.io/otel/semconv/v1.18.0
-go.opentelemetry.io/otel/semconv/v1.20.0
 go.opentelemetry.io/otel/semconv/v1.21.0
 go.opentelemetry.io/otel/semconv/v1.25.0
 go.opentelemetry.io/otel/semconv/v1.26.0
@@ -1999,26 +1999,32 @@ go.opentelemetry.io/otel/exporters/jaeger/internal/gen-go/agent
 go.opentelemetry.io/otel/exporters/jaeger/internal/gen-go/jaeger
 go.opentelemetry.io/otel/exporters/jaeger/internal/gen-go/zipkincore
 go.opentelemetry.io/otel/exporters/jaeger/internal/third_party/thrift/lib/go/thrift
-# go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploggrpc v0.14.0
-## explicit; go 1.23.0
+# go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploggrpc v0.15.0
+## explicit; go 1.24.0
 go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploggrpc
+go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploggrpc/internal
+go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploggrpc/internal/observ
 go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploggrpc/internal/retry
 go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploggrpc/internal/transform
-# go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploghttp v0.14.0
-## explicit; go 1.23.0
+go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploggrpc/internal/x
+# go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploghttp v0.15.0
+## explicit; go 1.24.0
 go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploghttp
+go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploghttp/internal
+go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploghttp/internal/observ
 go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploghttp/internal/retry
 go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploghttp/internal/transform
-# go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc v1.38.0
-## explicit; go 1.23.0
+go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploghttp/internal/x
+# go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc v1.39.0
+## explicit; go 1.24.0
 go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc
 go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc/internal
 go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc/internal/envconfig
 go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc/internal/oconf
 go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc/internal/retry
 go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc/internal/transform
-# go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetrichttp v1.38.0
-## explicit; go 1.23.0
+# go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetrichttp v1.39.0
+## explicit; go 1.24.0
 go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetrichttp
 go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetrichttp/internal
 go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetrichttp/internal/envconfig
@@ -2049,22 +2055,28 @@ go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp/internal/observ
 go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp/internal/otlpconfig
 go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp/internal/retry
 go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp/internal/x
-# go.opentelemetry.io/otel/exporters/prometheus v0.60.0
-## explicit; go 1.23.0
+# go.opentelemetry.io/otel/exporters/prometheus v0.61.0
+## explicit; go 1.24.0
 go.opentelemetry.io/otel/exporters/prometheus
-# go.opentelemetry.io/otel/exporters/stdout/stdoutlog v0.14.0
-## explicit; go 1.23.0
+go.opentelemetry.io/otel/exporters/prometheus/internal
+go.opentelemetry.io/otel/exporters/prometheus/internal/counter
+go.opentelemetry.io/otel/exporters/prometheus/internal/observ
+go.opentelemetry.io/otel/exporters/prometheus/internal/x
+# go.opentelemetry.io/otel/exporters/stdout/stdoutlog v0.15.0
+## explicit; go 1.24.0
 go.opentelemetry.io/otel/exporters/stdout/stdoutlog
-# go.opentelemetry.io/otel/exporters/stdout/stdoutmetric v1.38.0
-## explicit; go 1.23.0
+# go.opentelemetry.io/otel/exporters/stdout/stdoutmetric v1.39.0
+## explicit; go 1.24.0
 go.opentelemetry.io/otel/exporters/stdout/stdoutmetric
-# go.opentelemetry.io/otel/exporters/stdout/stdouttrace v1.38.0
-## explicit; go 1.23.0
+# go.opentelemetry.io/otel/exporters/stdout/stdouttrace v1.39.0
+## explicit; go 1.24.0
 go.opentelemetry.io/otel/exporters/stdout/stdouttrace
+go.opentelemetry.io/otel/exporters/stdout/stdouttrace/internal
 go.opentelemetry.io/otel/exporters/stdout/stdouttrace/internal/counter
+go.opentelemetry.io/otel/exporters/stdout/stdouttrace/internal/observ
 go.opentelemetry.io/otel/exporters/stdout/stdouttrace/internal/x
-# go.opentelemetry.io/otel/log v0.14.0
-## explicit; go 1.23.0
+# go.opentelemetry.io/otel/log v0.15.0
+## explicit; go 1.24.0
 go.opentelemetry.io/otel/log
 go.opentelemetry.io/otel/log/embedded
 go.opentelemetry.io/otel/log/global
@@ -2085,9 +2097,10 @@ go.opentelemetry.io/otel/sdk/trace
 go.opentelemetry.io/otel/sdk/trace/internal/env
 go.opentelemetry.io/otel/sdk/trace/internal/observ
 go.opentelemetry.io/otel/sdk/trace/tracetest
-# go.opentelemetry.io/otel/sdk/log v0.14.0
-## explicit; go 1.23.0
+# go.opentelemetry.io/otel/sdk/log v0.15.0
+## explicit; go 1.24.0
 go.opentelemetry.io/otel/sdk/log
+go.opentelemetry.io/otel/sdk/log/internal/observ
 go.opentelemetry.io/otel/sdk/log/internal/x
 # go.opentelemetry.io/otel/sdk/metric v1.39.0
 ## explicit; go 1.24.0
@@ -2163,7 +2176,7 @@ golang.org/x/crypto/md4
 golang.org/x/crypto/pbkdf2
 golang.org/x/crypto/pkcs12
 golang.org/x/crypto/pkcs12/internal/rc2
-# golang.org/x/exp v0.0.0-20251023183803-a4bb9ffd2546
+# golang.org/x/exp v0.0.0-20251125195548-87e1e737ad39
 ## explicit; go 1.24.0
 golang.org/x/exp/constraints
 golang.org/x/exp/maps
