@@ -7,8 +7,20 @@
   schedule: [
     'at any time',
   ],
-  prConcurrentLimit: 15,
-  branchConcurrentLimit: 15,
+  baseBranches: [
+    'main',
+    'release-v2.8',
+    'release-v2.9',
+    'release-v2.10',
+    '/^release-v3.*/',
+  ],
+  vulnerabilityAlerts: {
+    enabled: true,
+    labels: ['security'],
+  },
+  osvVulnerabilityAlerts: true,
+  prConcurrentLimit: 20,
+  branchConcurrentLimit: 20,
   ignoreDeps: [],
   separateMajorMinor: true,
   automergeStrategy: 'squash',
@@ -28,6 +40,12 @@
     'gomodVendor',
   ],
   packageRules: [
+    {
+      description: 'Disable all non-vulnerability updates for releases',
+      matchBaseBranches: ['/^release-v.*/'],
+      matchPackageNames: ['*'],
+      enabled: false,
+    },
     {
       description: 'Group OpenTelemetry OTEL updates',
       matchManagers: [
