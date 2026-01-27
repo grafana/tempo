@@ -17,7 +17,7 @@ jobs:
     steps:
       - name: Get Github App secrets from vault
         id: get-secrets
-        uses: grafana/shared-workflows/actions/get-vault-secrets@cc504fc21d1d334135fbbb84b099afc43d667a12 #get-vault-secrets 1.2.0
+        uses: grafana/shared-workflows/actions/get-vault-secrets@d8a9c5f93da5baf14c1669f30cb4366f87804640 #get-vault-secrets 1.2.0
         with:
           export_env: false
           repo_secrets: |
