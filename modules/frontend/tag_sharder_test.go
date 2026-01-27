@@ -78,7 +78,6 @@ func (r *fakeReq) buildTagSearchBlockRequest(subR *http.Request, blockID string,
 	q.Set("encoding", "gzip")
 	q.Set("indexPageSize", strconv.FormatUint(0, 10))
 	q.Set("totalRecords", strconv.FormatUint(2, 10))
-	q.Set("dataEncoding", "asdf")
 	q.Set("version", "wdwad")
 	q.Set("footerSize", strconv.FormatUint(0, 10))
 
@@ -88,7 +87,7 @@ func (r *fakeReq) buildTagSearchBlockRequest(subR *http.Request, blockID string,
 }
 
 func TestTagsBackendRequestsDoNotHitBackendIfStartIsAfterQueryBackendAfter(t *testing.T) {
-	bm := backend.NewBlockMeta("test", uuid.New(), "wdwad", backend.EncGZIP, "asdf")
+	bm := backend.NewBlockMeta("test", uuid.New(), "wdwad")
 	startTime := time.Now().Add(-1 * time.Minute).Unix()
 	endTime := time.Now().Unix()
 	s := &searchTagSharder{
@@ -112,7 +111,7 @@ func TestTagsBackendRequestsDoNotHitBackendIfStartIsAfterQueryBackendAfter(t *te
 }
 
 func TestTagsBackendRequests(t *testing.T) {
-	bm := backend.NewBlockMeta("test", uuid.New(), "wdwad", backend.EncGZIP, "asdf")
+	bm := backend.NewBlockMeta("test", uuid.New(), "wdwad")
 	bm.StartTime = time.Unix(100, 0)
 	bm.EndTime = time.Unix(200, 0)
 	bm.Size_ = defaultTargetBytesPerRequest * 2
@@ -140,8 +139,8 @@ func TestTagsBackendRequests(t *testing.T) {
 				100, 200,
 			},
 			expectedReqsURIs: []string{
-				"/querier?blockID=" + bm.BlockID.String() + "&dataEncoding=asdf&encoding=gzip&end=200&footerSize=0&indexPageSize=0&pagesToSearch=1&size=209715200&start=100&startPage=0&totalRecords=2&version=wdwad",
-				"/querier?blockID=" + bm.BlockID.String() + "&dataEncoding=asdf&encoding=gzip&end=200&footerSize=0&indexPageSize=0&pagesToSearch=1&size=209715200&start=100&startPage=1&totalRecords=2&version=wdwad",
+				"/querier?blockID=" + bm.BlockID.String() + "&encoding=gzip&end=200&footerSize=0&indexPageSize=0&pagesToSearch=1&size=209715200&start=100&startPage=0&totalRecords=2&version=wdwad",
+				"/querier?blockID=" + bm.BlockID.String() + "&encoding=gzip&end=200&footerSize=0&indexPageSize=0&pagesToSearch=1&size=209715200&start=100&startPage=1&totalRecords=2&version=wdwad",
 			},
 			expectedError: nil,
 		},
@@ -151,8 +150,8 @@ func TestTagsBackendRequests(t *testing.T) {
 				110, 150,
 			},
 			expectedReqsURIs: []string{
-				"/querier?blockID=" + bm.BlockID.String() + "&dataEncoding=asdf&encoding=gzip&end=150&footerSize=0&indexPageSize=0&pagesToSearch=1&size=209715200&start=110&startPage=0&totalRecords=2&version=wdwad",
-				"/querier?blockID=" + bm.BlockID.String() + "&dataEncoding=asdf&encoding=gzip&end=150&footerSize=0&indexPageSize=0&pagesToSearch=1&size=209715200&start=110&startPage=1&totalRecords=2&version=wdwad",
+				"/querier?blockID=" + bm.BlockID.String() + "&encoding=gzip&end=150&footerSize=0&indexPageSize=0&pagesToSearch=1&size=209715200&start=110&startPage=0&totalRecords=2&version=wdwad",
+				"/querier?blockID=" + bm.BlockID.String() + "&encoding=gzip&end=150&footerSize=0&indexPageSize=0&pagesToSearch=1&size=209715200&start=110&startPage=1&totalRecords=2&version=wdwad",
 			},
 			expectedError: nil,
 		},

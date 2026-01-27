@@ -19,7 +19,7 @@ const (
 )
 
 func NewTempoAllInOne(rp e2e.ReadinessProbe) *e2e.HTTPService {
-	args := []string{"-config.file=" + filepath.Join(e2e.ContainerSharedDir, tempoConfigFile), "-target=all-3.0"}
+	args := []string{"-config.file=" + filepath.Join(e2e.ContainerSharedDir, tempoConfigFile), "-target=all"}
 
 	s := e2e.NewHTTPService(
 		"tempo",

@@ -44,7 +44,7 @@ func TestWriter(t *testing.T) {
 
 	u = uuid.New()
 	expectedPath := filepath.Join("test", u.String(), MetaName)
-	meta := NewBlockMeta("test", u, "blerg", EncGZIP, "glarg")
+	meta := NewBlockMeta("test", u, "blerg")
 	jsonBytes, err := json.Marshal(meta)
 	assert.NoError(t, err)
 	assert.NoError(t, err)
@@ -134,7 +134,7 @@ func TestReader(t *testing.T) {
 	assert.Error(t, err)
 	assert.Nil(t, meta)
 
-	expectedMeta := NewBlockMeta("test", uuid.New(), "blerg", EncGZIP, "glarg")
+	expectedMeta := NewBlockMeta("test", uuid.New(), "blerg")
 	m.R, _ = json.Marshal(expectedMeta)
 	meta, err = r.BlockMeta(ctx, uuid.New(), "test")
 	assert.NoError(t, err)
@@ -210,7 +210,7 @@ func TestRootPath(t *testing.T) {
 
 func TestRoundTripMeta(t *testing.T) {
 	// RoundTrip with empty DedicatedColumns
-	meta := NewBlockMeta("test", uuid.New(), "blerg", EncGZIP, "glarg")
+	meta := NewBlockMeta("test", uuid.New(), "blerg")
 	// RoundTrip with empty DedicatedColumns
 	expectedPb, err := meta.Marshal()
 	assert.NoError(t, err)
@@ -252,7 +252,7 @@ func TestTenantIndexFallback(t *testing.T) {
 		tenantID = "test"
 
 		u           = uuid.New()
-		meta        = NewBlockMeta(tenantID, u, "blerg", EncGZIP, "glarg")
+		meta        = NewBlockMeta(tenantID, u, "blerg")
 		expectedIdx = newTenantIndex([]*BlockMeta{meta}, nil)
 	)
 

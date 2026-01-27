@@ -1,0 +1,13 @@
+apiVersion: v1
+data:
+  overrides.yaml: |
+    overrides:
+        super_user:
+            ingestion_burst_size_bytes: 2e+07
+            ingestion_rate_limit_bytes: 2e+07
+            max_bytes_per_trace: 3e+07
+            max_traces_per_user: 100000
+kind: ConfigMap
+metadata:
+  name: tempo-overrides
+  namespace: tracing

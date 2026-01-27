@@ -45,7 +45,7 @@ jobs:
         run: echo "date=$(date +"%Yweek%U")" >> $GITHUB_OUTPUT
 
       - name: cache golangci
-        uses: actions/cache@9255dc7a253b0ccc959486e2bca901246202afeb # v5
+        uses: actions/cache@8b402f58fbc84540c8b491a91e594a4576fec3d7 # v5
         with:
           path: .cache/golangci-lint
           key: golangci-lint-${{ runner.os }}-${{ steps.get-year-week-number.outputs.date }}-${{ hashFiles('go.mod', '.golangci.yml') }}

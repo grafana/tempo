@@ -33,7 +33,6 @@ import (
 	"github.com/grafana/tempo/tempodb/backend/local"
 	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/grafana/tempo/tempodb/encoding/common"
-	v2 "github.com/grafana/tempo/tempodb/encoding/v2"
 	"github.com/grafana/tempo/tempodb/encoding/vparquet4"
 	"github.com/grafana/tempo/tempodb/encoding/vparquet5"
 	"github.com/grafana/tempo/tempodb/wal"
@@ -1865,13 +1864,11 @@ func testingConfig(dir string, version string, dc backend.DedicatedColumns) *Con
 			Path: path.Join(dir, "traces"),
 		},
 		Block: &common.BlockConfig{
-			IndexDownsampleBytes: 17,
-			BloomFP:              .01,
-			BloomShardSizeBytes:  100_000,
-			Version:              version,
-			IndexPageSizeBytes:   1000,
-			RowGroupSizeBytes:    10000,
-			DedicatedColumns:     dc,
+			BloomFP:             .01,
+			BloomShardSizeBytes: 100_000,
+			Version:             version,
+			RowGroupSizeBytes:   10000,
+			DedicatedColumns:    dc,
 		},
 		WAL: &wal.Config{
 			Filepath:       path.Join(dir, "wal"),
@@ -1886,18 +1883,12 @@ func testingConfig(dir string, version string, dc backend.DedicatedColumns) *Con
 }
 
 var testingCompactorConfig = &CompactorConfig{
-	ChunkSizeBytes:          10,
 	MaxCompactionRange:      time.Hour,
 	BlockRetention:          0,
 	CompactedBlockRetention: 0,
 }
 
 func runCompleteBlockSearchTest(t *testing.T, blockVersion string, runners ...runnerFn) {
-	// v2 doesn't support any search. just bail here before doing the work below to save resources
-	if blockVersion == v2.VersionString {
-		return
-	}
-
 	tempDir := t.TempDir()
 
 	dc := backend.DedicatedColumns{
@@ -2520,7 +2511,7 @@ func TestWALBlockGetMetrics(t *testing.T) {
 }
 
 func TestSearchForTagsAndTagValues(t *testing.T) {
-	r, w, c, _ := testConfig(t, backend.EncGZIP, 0)
+	r, w, c, _ := testConfig(t, 0)
 
 	err := c.EnableCompaction(context.Background(), testingCompactorConfig, &mockSharder{}, &mockOverrides{})
 	require.NoError(t, err)
@@ -2668,10 +2659,6 @@ func TestSearchForTagsAndTagValues(t *testing.T) {
 
 func TestSearchByShortTraceID(t *testing.T) {
 	for _, v := range encoding.AllEncodingsForWrites() {
-		if v.Version() == v2.VersionString { // no support of the feature in v2
-			continue
-		}
-
 		blockVersion := v.Version()
 
 		tempDir := t.TempDir()

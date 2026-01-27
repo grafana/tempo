@@ -81,7 +81,7 @@ func generateTestBlocks(t *testing.T, tempDir string, tenantID string, blockCoun
 	for bn := 0; bn < blockCount; bn++ {
 		traces := newTestTraces(traceCount)
 		iter := &testIterator{traces: traces}
-		meta := backend.NewBlockMeta(tenantID, uuid.New(), vparquet4.VersionString, backend.EncNone, "")
+		meta := backend.NewBlockMeta(tenantID, uuid.New(), vparquet4.VersionString)
 		meta.TotalObjects = int64(len(iter.traces))
 		_, err := vparquet4.CreateBlock(ctx, cfg, meta, iter, r, w)
 		require.NoError(t, err)

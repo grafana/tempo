@@ -13,7 +13,6 @@ import (
 	"github.com/go-kit/log/level"
 	"github.com/google/uuid"
 	"github.com/grafana/tempo/pkg/boundedwaitgroup"
-	"github.com/grafana/tempo/pkg/model"
 	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/tempodb"
 	"github.com/grafana/tempo/tempodb/backend"
@@ -115,27 +114,14 @@ func rewriteBlock(ctx context.Context, r backend.Reader, w backend.Writer, meta 
 			BloomShardSizeBytes: common.DefaultBloomShardSizeBytes,
 			Version:             meta.Version,
 
-			// these fields aren't in use anymore. we need to remove the old flatbuffer search. setting them for completeness
-			SearchEncoding:      backend.EncSnappy,
-			SearchPageSizeBytes: 1024 * 1024,
-
-			// v2 fields
-			IndexDownsampleBytes: common.DefaultIndexDownSampleBytes,
-			IndexPageSizeBytes:   common.DefaultIndexPageSizeBytes,
-			Encoding:             backend.EncZstd,
-
 			// parquet fields
 			RowGroupSizeBytes: 100_000_000, // default
 
 			// vParquet3 fields
 			DedicatedColumns: meta.DedicatedColumns,
 		},
-		ChunkSizeBytes:     tempodb.DefaultChunkSizeBytes,
-		FlushSizeBytes:     tempodb.DefaultFlushSizeBytes,
-		IteratorBufferSize: tempodb.DefaultIteratorBufferSize,
-		OutputBlocks:       1,
-		Combiner:           model.StaticCombiner, // this should never be necessary b/c we are only compacting one block
-		MaxBytesPerTrace:   0,                    // disable for this process
+		OutputBlocks:     1,
+		MaxBytesPerTrace: 0, // disable for this process
 
 		// hook to drop the trace
 		DropObject: func(id common.ID) bool {

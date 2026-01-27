@@ -9,7 +9,6 @@ import (
 	"github.com/grafana/tempo/integration/util"
 	tempoUtil "github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/tempodb/encoding"
-	v2 "github.com/grafana/tempo/tempodb/encoding/v2"
 )
 
 func TestEncodings(t *testing.T) {
@@ -33,11 +32,6 @@ func TestEncodings(t *testing.T) {
 
 				apiClient := h.APIClientHTTP("")
 				util.QueryAndAssertTrace(t, apiClient, info)
-
-				// v2 does not support querying and must be skipped
-				if enc.Version() == v2.VersionString {
-					return
-				}
 
 				// search for trace in backend multiple times with different attributes to make sure
 				// we search with different scopes and with attributes from dedicated columns

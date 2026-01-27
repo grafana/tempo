@@ -50,6 +50,7 @@
 * [ENHANCEMENT] Increase weight for heavy TraceQL queries [#5782](https://github.com/grafana/tempo/pull/5782) (@ruslan-mikhailov)
 * [ENHANCEMENT] Improve observability of collection failures in the metrics generator with error categorization [#5936](https://github.com/grafana/tempo/pull/5936) (@javiermolinar)
 * [ENHANCEMENT] Update tempo-mixin dashboards to use timeseries panels with explicit units [#6210](https://github.com/grafana/tempo/pull/6210) (@javiermolinar)
+* [ENHANCEMENT] Remove Metrics Summary/GetMetrics panels from the tempo-operational dashboard [#6221](https://github.com/grafana/tempo/pull/6221) (@javimolinar)
 * [ENHANCEMENT] Update list of intrinsics returned by search tags endpoint [#5857](https://github.com/grafana/tempo/pull/5857) (@andreasgerstmayr)
 * [ENHANCEMENT] Add "Requests Executed" panel for querier metrics in the operational dashboard. [#5848](https://github.com/grafana/tempo/pull/5848) (@anglerfishlyy)
 * [ENHANCEMENT] Drop and metric invalid utf8 for all metrics in metrics generator instead of sending invalid data. [#5980](https://github.com/grafana/tempo/pull/5980) (@joe-elliott)
@@ -83,6 +84,7 @@
 * [BUGFIX] Fix special character handling in attribute value requests.[#6212](https://github.com/grafana/tempo/pull/6212),[#6223](https://github.com/grafana/tempo/pull/6223) (@joe-elliott)
 * [BUGFIX] Fix panic when trying to compact block with unsupported encodings such as vParquet previews. [#6209](https://github.com/grafana/tempo/pull/6209) (@carles-grafana)
 * [BUGFIX] querier: allow external trace by id queries in validation [#6217](https://github.com/grafana/tempo/pull/6217) (@Logiraptor)
+* [BUGFIX] querier: use v1 trace by id endpoint for external trace by id requests [#6236](https://github.com/grafana/tempo/pull/6236) (@Logiraptor)
 
 ### vParquet5
 
@@ -391,6 +393,7 @@ querier:
   Due to this, Tempo installations running inside Docker have to update the address they listen.
   For more details on this change, see [#4465](https://github.com/grafana/tempo/issues/4465)
   For more information about the security risk this change addresses, see https://github.com/open-telemetry/opentelemetry-collector/blob/main/docs/security-best-practices.md#safeguards-against-denial-of-service-attacks
+* [CHANGE] **BREAKING CHANGE** By default, attributes are truncated to 2KB. [#4335](https://github.com/grafana/tempo/pull/4335) (@ie-pham)
 * [CHANGE] Replace `cespare/xxhash` with `cespare/xxhash/v2` [#4485](https://github.com/grafana/tempo/pull/4485) (@Juneezee)
 * [CHANGE] chore: remove gofakeit dependency [#4274](https://github.com/grafana/tempo/pull/4274) (@javiermolinar)
 * [CHANGE] Chore: delete spanlogger. [4312](https://github.com/grafana/tempo/pull/4312) (@javiermolinar)

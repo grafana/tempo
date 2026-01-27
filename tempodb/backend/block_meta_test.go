@@ -20,17 +20,13 @@ const (
 
 func TestNewBlockMeta(t *testing.T) {
 	testVersion := "blerg"
-	testEncoding := EncLZ4_256k
-	testDataEncoding := "blarg"
 
 	id := uuid.New()
-	b := NewBlockMeta(testTenantID, id, testVersion, testEncoding, testDataEncoding)
+	b := NewBlockMeta(testTenantID, id, testVersion)
 
 	assert.Equal(t, id, (uuid.UUID)(b.BlockID))
 	assert.Equal(t, testTenantID, b.TenantID)
 	assert.Equal(t, testVersion, b.Version)
-	assert.Equal(t, testEncoding, b.Encoding)
-	assert.Equal(t, testDataEncoding, b.DataEncoding)
 }
 
 func TestBlockMetaObjectAdded(t *testing.T) {
@@ -91,7 +87,7 @@ func TestBlockMetaObjectAdded(t *testing.T) {
 	}
 }
 
-func TestBlockMetaJSONRoundTrip(t *testing.T) {
+func TestBlockMetaJSONProtoRoundTrip(t *testing.T) {
 	timeParse := func(s string) time.Time {
 		date, err := time.Parse(time.RFC3339Nano, s)
 		require.NoError(t, err)
@@ -107,10 +103,8 @@ func TestBlockMetaJSONRoundTrip(t *testing.T) {
 		TotalObjects:    10,
 		Size_:           12345,
 		CompactionLevel: 1,
-		Encoding:        EncZstd,
 		IndexPageSize:   250000,
 		TotalRecords:    124356,
-		DataEncoding:    "",
 		BloomShardCount: 244,
 		FooterSize:      15775,
 		DedicatedColumns: DedicatedColumns{
@@ -131,10 +125,8 @@ func TestBlockMetaJSONRoundTrip(t *testing.T) {
     	"totalObjects": 10,
     	"size": 12345,
     	"compactionLevel": 1,
-		"encoding": "zstd",
     	"indexPageSize": 250000,
     	"totalRecords": 124356,
-    	"dataEncoding": "",
     	"bloomShards": 244,
 		"footerSize": 15775,
     	"dedicatedColumns": [
@@ -147,6 +139,7 @@ func TestBlockMetaJSONRoundTrip(t *testing.T) {
     	]
 	}`
 
+	// JSON
 	metaJSON, err := json.Marshal(meta)
 	require.NoError(t, err)
 	assert.JSONEq(t, expectedJSON, string(metaJSON))
@@ -155,6 +148,74 @@ func TestBlockMetaJSONRoundTrip(t *testing.T) {
 	err = json.Unmarshal(metaJSON, &metaRoundtrip)
 	require.NoError(t, err)
 	assert.Equal(t, meta, metaRoundtrip)
+
+	// proto
+	protoData, err := meta.Marshal()
+	require.NoError(t, err)
+	newMeta := BlockMeta{}
+	require.NoError(t, newMeta.Unmarshal(protoData))
+
+	assert.Equal(t, meta, newMeta)
+}
+
+func BenchmarkBlockMetaMarshalUnmarshal(b *testing.B) {
+	timeParse := func(s string) time.Time {
+		date, err := time.Parse(time.RFC3339Nano, s)
+		require.NoError(b, err)
+		return date
+	}
+
+	meta := BlockMeta{
+		Version:         "vParquet3",
+		BlockID:         MustParse("00000000-0000-0000-0000-000000000000"),
+		TenantID:        "single-tenant",
+		StartTime:       timeParse("2021-01-01T00:00:00.0000000Z"),
+		EndTime:         timeParse("2021-01-02T00:00:00.0000000Z"),
+		TotalObjects:    10,
+		Size_:           12345,
+		CompactionLevel: 1,
+		IndexPageSize:   250000,
+		TotalRecords:    124356,
+		BloomShardCount: 244,
+		FooterSize:      15775,
+		DedicatedColumns: DedicatedColumns{
+			{Scope: "resource", Name: "namespace", Type: "string"},
+			{Scope: "resource", Name: "net.host.port", Type: "int"},
+			{Scope: "span", Name: "http.method", Type: "string"},
+			{Scope: "span", Name: "namespace", Type: "string"},
+			{Scope: "span", Name: "http.response.body.size", Type: "int"},
+			{Scope: "span", Name: "http.request.header.accept", Type: "string", Options: DedicatedColumnOptions{DedicatedColumnOptionArray}},
+
+			{Name: "test.span.str-01", Scope: DedicatedColumnScopeSpan, Type: DedicatedColumnTypeString},
+			{Name: "test.span.str-02", Scope: DedicatedColumnScopeSpan, Type: DedicatedColumnTypeString},
+			{Name: "test.span.str-03", Scope: DedicatedColumnScopeSpan, Type: DedicatedColumnTypeString},
+			{Name: "test.span.str-04", Scope: DedicatedColumnScopeSpan, Type: DedicatedColumnTypeString},
+			{Name: "test.span.str-05", Scope: DedicatedColumnScopeSpan, Type: DedicatedColumnTypeString},
+			{Name: "test.span.str-06", Scope: DedicatedColumnScopeSpan, Type: DedicatedColumnTypeString},
+			{Name: "test.span.str-07", Scope: DedicatedColumnScopeSpan, Type: DedicatedColumnTypeString},
+			{Name: "test.span.str-08", Scope: DedicatedColumnScopeSpan, Type: DedicatedColumnTypeString},
+			{Name: "test.span.str-09", Scope: DedicatedColumnScopeSpan, Type: DedicatedColumnTypeString},
+			{Name: "test.span.str-10", Scope: DedicatedColumnScopeSpan, Type: DedicatedColumnTypeString},
+		},
+	}
+
+	b.Run("marshal", func(b *testing.B) {
+		_, err := meta.Marshal()
+		require.NoError(b, err, "marshal should not fail")
+		for b.Loop() {
+			meta.Marshal() // nolint:errcheck // skipping error check for benchmark, checked above
+		}
+	})
+
+	b.Run("unmarshal", func(b *testing.B) {
+		data, err := meta.Marshal()
+		require.NoError(b, err)
+		require.NoError(b, meta.Unmarshal(data), "unmarshal should not fail")
+
+		for b.Loop() {
+			meta.Unmarshal(data) // nolint:errcheck // skipping error check for benchmark, checked above
+		}
+	})
 }
 
 func TestDedicatedColumnsFromTempopb(t *testing.T) {

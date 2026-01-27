@@ -34,7 +34,6 @@ import (
 
 	"github.com/grafana/tempo/cmd/tempo/build"
 	"github.com/grafana/tempo/modules/backendscheduler"
-	"github.com/grafana/tempo/modules/compactor"
 	"github.com/grafana/tempo/modules/distributor"
 	"github.com/grafana/tempo/modules/distributor/receiver"
 	frontend_v1 "github.com/grafana/tempo/modules/frontend/v1"
@@ -76,7 +75,6 @@ type App struct {
 	distributor          *distributor.Distributor
 	querier              *querier.Querier
 	frontend             *frontend_v1.Frontend
-	compactor            *compactor.Compactor
 	ingester             *ingester.Ingester
 	generator            *generator.Generator
 	blockBuilder         *blockbuilder.BlockBuilder

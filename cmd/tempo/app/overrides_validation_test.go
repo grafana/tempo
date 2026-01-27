@@ -618,7 +618,7 @@ func Test_overridesValidator(t *testing.T) {
 			},
 		},
 		{
-			name: "service_graphs.dimensions collision after sanitization",
+			name: "service_graphs.dimensions no duplicate validation",
 			cfg:  Config{},
 			limits: client.Limits{
 				MetricsGenerator: client.LimitsMetricsGenerator{
@@ -629,7 +629,7 @@ func Test_overridesValidator(t *testing.T) {
 					},
 				},
 			},
-			expErr: `dimension "my.label" produces label "my_label" which collides with dimension "my_label"`,
+			expErr: "",
 		},
 		{
 			name: "span_metrics.dimensions valid",
@@ -683,7 +683,7 @@ func Test_overridesValidator(t *testing.T) {
 			},
 		},
 		{
-			name: "span_metrics dimensions collision after sanitization",
+			name: "span_metrics no duplicate validation",
 			cfg:  Config{},
 			limits: client.Limits{
 				MetricsGenerator: client.LimitsMetricsGenerator{
@@ -694,7 +694,7 @@ func Test_overridesValidator(t *testing.T) {
 					},
 				},
 			},
-			expErr: `dimension "my.label" produces label "my_label" which collides with dimension "my_label"`,
+			expErr: "",
 		},
 		{
 			name: "span_metrics dimension_mapping collision with dimension",

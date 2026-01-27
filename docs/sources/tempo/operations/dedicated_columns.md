@@ -12,7 +12,7 @@ rather than in the generic attribute key-value list.
 Introduced with `vParquet3`, dedicated attribute columns are available when using `vParquet3` or later storage formats.
 Even though `vParquet3` is deprecated, this feature is available when using the current value of `vParquet4`.
 
-With `vParuqet5`, dedicated attribute columns gain support for array-valued attributes, event-scoped attributes, and blob attributes using the `options` field.
+With `vParquet5`, dedicated attribute columns gain support for array-valued attributes, event-scoped attributes, and blob attributes using the `options` field.
 
 ## Configuration
 

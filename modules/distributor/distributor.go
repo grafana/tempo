@@ -186,6 +186,10 @@ type Distributor struct {
 
 	logger log.Logger
 
+	// TracePushMiddlewares are hooks called when a trace push request is received.
+	// Middleware errors are logged but don't fail the push (fail open behavior).
+	tracePushMiddlewares []TracePushMiddleware
+
 	// For testing functionality that relies on timing without having to sleep in unit tests.
 	sleep func(time.Duration)
 	now   func() time.Time
@@ -262,6 +266,7 @@ func New(
 		partitionRing:        partitionRing,
 		overrides:            o,
 		traceEncoder:         model.MustNewSegmentDecoder(model.CurrentEncoding),
+		tracePushMiddlewares: cfg.TracePushMiddlewares,
 		logger:               logger,
 		sleep:                time.Sleep,
 		now:                  time.Now,
@@ -408,8 +413,15 @@ func (d *Distributor) extractBasicInfo(ctx context.Context, traces ptrace.Traces
 func (d *Distributor) PushTraces(ctx context.Context, traces ptrace.Traces) (*tempopb.PushResponse, error) {
 	reqStart := time.Now()
 
-	ctx, span := tracer.Start(ctx, "distributor.PushBytes")
+	ctx, span := tracer.Start(ctx, "distributor.PushTraces")
 	defer span.End()
+
+	// Call trace push middlewares
+	for _, mw := range d.tracePushMiddlewares {
+		if err := mw(ctx, traces); err != nil {
+			_ = level.Warn(d.logger).Log("msg", "trace push middleware failed", "err", err)
+		}
+	}
 
 	userID, spanCount, size, err := d.extractBasicInfo(ctx, traces)
 	if err != nil {
@@ -1058,3 +1070,8 @@ func (d *Distributor) RetryInfoEnabled(ctx context.Context) (bool, error) {
 	// cluster level is enabled, check per-tenant override and respect that.
 	return d.overrides.IngestionRetryInfoEnabled(userID), nil
 }
+
+// TracePushMiddleware is a hook called when a trace push request is received.
+// Middlewares are invoked after the request is decoded but before it's processed.
+// Errors returned by middleware are logged but don't fail the push (fail open behavior).
+type TracePushMiddleware func(ctx context.Context, td ptrace.Traces) error
