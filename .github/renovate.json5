@@ -7,7 +7,7 @@
   schedule: [
     'at any time',
   ],
-  baseBranches: [
+  baseBranchPatterns: [
     'main',
     'release-v2.8',
     'release-v2.9',
@@ -16,7 +16,9 @@
   ],
   vulnerabilityAlerts: {
     enabled: true,
-    labels: ['security'],
+    labels: [
+      'security',
+    ],
   },
   osvVulnerabilityAlerts: true,
   prConcurrentLimit: 20,
@@ -31,7 +33,7 @@
     'dependencies',
     'renovate',
     '{{manager}}',
-    '{{updateType}}'
+    '{{updateType}}',
   ],
   minimumReleaseAge: '7 days',
   postUpdateOptions: [
@@ -42,8 +44,12 @@
   packageRules: [
     {
       description: 'Disable all non-vulnerability updates for releases',
-      matchBaseBranches: ['/^release-v.*/'],
-      matchPackageNames: ['*'],
+      matchBaseBranches: [
+        '/^release-v.*/',
+      ],
+      matchPackageNames: [
+        '*',
+      ],
       enabled: false,
     },
     {
