@@ -377,18 +377,18 @@ func (o *BinaryOperation) execute(span Span) (Static, error) {
 		o.b.Finish(leftBranch)
 	}
 
-	// Look for cases where we don't even need to evalulate the RHS
+	// Look for cases where we don't even need to evaluate the RHS
 	// But wait until we have enough samples so we can optimize
 	if !recording {
 		if lhsB, ok := lhs.Bool(); ok {
 			if o.Op == OpAnd && !lhsB {
 				// x && y
-				// x is false so we don't need to evalulate y
+				// x is false so we don't need to evaluate y
 				return StaticFalse, nil
 			}
 			if o.Op == OpOr && lhsB {
 				// x || y
-				// x is true so we don't need to evalulate y
+				// x is true so we don't need to evaluate y
 				return StaticTrue, nil
 			}
 		}
@@ -407,188 +407,325 @@ func (o *BinaryOperation) execute(span Span) (Static, error) {
 		o.b.Finish(rightBranch)
 	}
 
-	// Ensure the resolved types are still valid
-	lhsT := lhs.Type
-	rhsT := rhs.Type
-	if !lhsT.isMatchingOperand(rhsT) {
+	res, executed, expressions, err := binOpExecute(o.Op, lhs, rhs, o.compiledExpressions, recording, &o.b)
+	if err != nil {
+		return NewStaticNil(), err
+	}
+	if !executed {
 		return StaticFalse, nil
 	}
 
-	if !o.Op.binaryTypesValid(lhsT, rhsT) {
-		return NewStaticBool(false), nil
+	if recording {
+		if done := o.b.Sampled(); done {
+			if o.b.OptimalBranch() == rightBranch {
+				// RHS is the optimal starting branch, so swap the elements now
+				o.LHS, o.RHS = o.RHS, o.LHS
+			}
+		}
+	}
+
+	if len(expressions) > 0 {
+		o.compiledExpressions = expressions
+	}
+	return res, nil
+}
+
+func binOpExecute(op Operator, lhs, rhs Static, expressions []*regexp.Regexp, recording bool, optimizer *branchOptimizer) (Static, bool, []*regexp.Regexp, error) {
+	lhsT := lhs.Type
+	rhsT := rhs.Type
+
+	// ensure the resolved types are still valid
+	if !lhsT.isMatchingOperand(rhsT) {
+		return StaticFalse, false, nil, nil
+	}
+	if !op.binaryTypesValid(lhsT, rhsT) {
+		return StaticFalse, false, nil, nil
 	}
 
 	if lhsT == TypeString && rhsT == TypeString {
-		// All operations are done on raw unquoted values.
-		lhsS := lhs.EncodeToString(false)
-		rhsS := rhs.EncodeToString(false)
-
-		switch o.Op {
-		case OpGreater:
-			return NewStaticBool(strings.Compare(lhsS, rhsS) > 0), nil
-		case OpGreaterEqual:
-			return NewStaticBool(strings.Compare(lhsS, rhsS) >= 0), nil
-		case OpLess:
-			return NewStaticBool(strings.Compare(lhsS, rhsS) < 0), nil
-		case OpLessEqual:
-			return NewStaticBool(strings.Compare(lhsS, rhsS) <= 0), nil
-		case OpRegex:
-			if o.compiledExpression == nil {
-				o.compiledExpression, err = regexp.NewRegexp([]string{rhsS}, true)
-				if err != nil {
-					return NewStaticNil(), err
-				}
-			}
-
-			matched := o.compiledExpression.MatchString(lhsS)
-			return NewStaticBool(matched), err
-		case OpNotRegex:
-			if o.compiledExpression == nil {
-				o.compiledExpression, err = regexp.NewRegexp([]string{rhsS}, false)
-				if err != nil {
-					return NewStaticNil(), err
-				}
-			}
-
-			matched := o.compiledExpression.MatchString(lhsS)
-			return NewStaticBool(matched), err
-		default:
+		// if both types are strings, execute string operations ...
+		res, executed, exp, err := binOpExecuteString(op, lhs, rhs, expressions)
+		if err != nil {
+			return NewStaticNil(), false, nil, err
 		}
-	}
 
-	// if both sides are integers then do integer math, otherwise we can drop to the
-	// catch-all below
-	if lhsT == TypeInt && rhsT == TypeInt {
-		lhsN, _ := lhs.Int()
-		rhsN, _ := rhs.Int()
-
-		switch o.Op {
-		case OpAdd:
-			return NewStaticInt(lhsN + rhsN), nil
-		case OpSub:
-			return NewStaticInt(lhsN - rhsN), nil
-		case OpDiv:
-			return NewStaticInt(lhsN / rhsN), nil
-		case OpMod:
-			return NewStaticInt(lhsN % rhsN), nil
-		case OpMult:
-			return NewStaticInt(lhsN * rhsN), nil
-		case OpGreater:
-			return NewStaticBool(lhsN > rhsN), nil
-		case OpGreaterEqual:
-			return NewStaticBool(lhsN >= rhsN), nil
-		case OpLess:
-			return NewStaticBool(lhsN < rhsN), nil
-		case OpLessEqual:
-			return NewStaticBool(lhsN <= rhsN), nil
-		case OpPower:
-			return NewStaticInt(intPow(rhsN, lhsN)), nil
+		if executed {
+			return res, true, exp, nil
 		}
-	}
-
-	if lhsT == TypeBoolean && rhsT == TypeBoolean {
+		// if not executed, fall back to the catch-all below
+	} else if lhsT == TypeInt && rhsT == TypeInt {
+		// if both types are ints, execute int operations
+		res, executed := binOpExecuteInt(op, lhs, rhs)
+		if executed {
+			return res, true, expressions, nil
+		}
+		// if not executed, fall back to the catch-all below
+	} else if lhsT == TypeBoolean && rhsT == TypeBoolean {
+		// if both types are bools, execute boolean operations
 		lhsB, _ := lhs.Bool()
 		rhsB, _ := rhs.Bool()
 
 		if recording {
-			switch o.Op {
+			switch op {
 			case OpAnd:
 				if !lhsB {
 					// Record cost of wasted rhs execution
-					o.b.Penalize(rightBranch)
+					optimizer.Penalize(rightBranch)
 				}
 				if !rhsB {
 					// Record cost of wasted lhs execution
-					o.b.Penalize(leftBranch)
+					optimizer.Penalize(leftBranch)
 				}
 			case OpOr:
 				if rhsB {
 					// Record cost of wasted lhs execution
-					o.b.Penalize(rightBranch)
+					optimizer.Penalize(rightBranch)
 				}
 				if lhsB {
-					// Record cost of wasated rhs execution
-					o.b.Penalize(leftBranch)
-				}
-			}
-
-			if done := o.b.Sampled(); done {
-				if o.b.OptimalBranch() == rightBranch {
-					// RHS is the optimal starting branch,
-					// so swap the elements now.
-					o.LHS, o.RHS = o.RHS, o.LHS
+					// Record cost of wasted rhs execution
+					optimizer.Penalize(leftBranch)
 				}
 			}
 		}
 
-		switch o.Op {
-		case OpAnd:
-			return NewStaticBool(lhsB && rhsB), nil
-		case OpOr:
-			return NewStaticBool(lhsB || rhsB), nil
+		res, executed := binOpExecuteBool(op, lhs, rhs)
+		if executed {
+			return res, true, expressions, nil
 		}
-	}
-
-	if lhsT.isMatchingArrayElement(rhsT) {
-		// we only support boolean op in the arrays
-		if !o.Op.isBoolean() {
-			return NewStaticNil(), errors.ErrUnsupported
-		}
-
-		elemOp := &BinaryOperation{Op: o.Op, LHS: lhs, RHS: rhs}
-		arraySide := lhs
-		// to support symmetric operations
-		if rhsT.isArray() {
-			// for regex operations, TraceQL makes an assumption that RHS is the regex, and compiles it.
-			// we can support symmetric array operations by flipping the sides and executing the binary operation.
-			elemOp = &BinaryOperation{Op: getFlippedOp(o.Op), LHS: rhs, RHS: lhs}
-			arraySide = rhs
-		}
-
-		var res Static
-		err := arraySide.GetElements(func(elem Static) bool {
-			elemOp.LHS = elem
-			res, err = elemOp.execute(span)
-			if err != nil {
-				return false // stop iteration early if there's an error
-			}
-			match, ok := res.Bool()
-			return !(ok && match) // stop if a match is found
-		})
+		// if not executed, fall back to the catch-all below
+	} else if lhsT.isMatchingArrayElement(rhsT) {
+		// if operands matching arrays / array elements, execute array operations
+		res, executed, exp, err := binOpExecuteArray(op, lhs, rhs, expressions)
 		if err != nil {
-			return NewStaticNil(), err
+			return NewStaticNil(), false, nil, err
 		}
-
-		return res, err
+		if executed {
+			return res, true, exp, nil
+		}
+		// if not executed, fall back to the catch-all below
 	}
 
-	switch o.Op {
-	case OpAdd:
-		return NewStaticFloat(lhs.Float() + rhs.Float()), nil
-	case OpSub:
-		return NewStaticFloat(lhs.Float() - rhs.Float()), nil
-	case OpDiv:
-		return NewStaticFloat(lhs.Float() / rhs.Float()), nil
-	case OpMod:
-		return NewStaticFloat(math.Mod(lhs.Float(), rhs.Float())), nil
-	case OpMult:
-		return NewStaticFloat(lhs.Float() * rhs.Float()), nil
+	// if no operation was executed, execute float operations as a catch-all
+	res, executed := binOpExecuteFloat(op, lhs, rhs)
+	if !executed {
+		return NewStaticNil(), false, nil, errors.New("unexpected operator " + op.String())
+	}
+	return res, true, expressions, nil
+}
+
+func binOpExecuteArray(op Operator, lhs, rhs Static, expressions []*regexp.Regexp) (Static, bool, []*regexp.Regexp, error) {
+	// we only support boolean op in the arrays
+	if !op.isBoolean() {
+		return NewStaticNil(), false, nil, errors.ErrUnsupported
+	}
+
+	var (
+		// the operator to apply to each element of the array
+		elemOp Operator
+
+		// the array and scalar sid of the operation
+		array  Static
+		scalar Static
+
+		flipOperands bool
+	)
+
+	if lhs.Type.isArray() && rhs.Type.isArray() {
+		return NewStaticNil(), false, nil, errors.New("array operators must consist of a scalar and an array operand")
+	}
+
+	// determine which side is the array and which is the scalar
+	if isArrayOp(op) {
+		elemOp = getElementOp(op)
+		array = rhs
+		scalar = lhs
+
+		// array operations like IN, NOT IN, REGEX_MATCH_ANY, REGEX_MATCH_NONE are not symmetric
+		if !array.Type.isArray() {
+			return NewStaticNil(), false, nil, errors.New("array operators require array on the right side")
+		}
+	} else {
+		elemOp = op
+		array = rhs
+		scalar = lhs
+
+		if scalar.Type.isArray() {
+			elemOp = getFlippedOp(op)
+			array, scalar = scalar, array
+
+			// for regex operations we assume the RHS is a regex: must flip back operands later
+			if elemOp == OpRegex || elemOp == OpNotRegex {
+				flipOperands = true
+			}
+		}
+	}
+
+	// operators like OpNotEqual and OpNotRegex have the semantics of 'not in' / 'match none': must check all elements
+	matchAll := elemOp == OpNotEqual || elemOp == OpNotRegex
+
+	// apply operation to each element of the array
+	var elemCount, matchCount int
+	var elemErr error
+	// TODO(adrian) reimplement loop with iter.Seq2
+	err := array.GetElements(func(elem Static) bool {
+		elemCount++
+
+		l := scalar
+		r := elem
+		if flipOperands {
+			l, r = r, l
+		}
+
+		var (
+			exp    []*regexp.Regexp
+			expIdx = elemCount - 1
+		)
+
+		if len(expressions) > expIdx {
+			exp = expressions[expIdx : expIdx+1]
+		}
+
+		res, executed, exp, err := binOpExecute(elemOp, l, r, exp, false, nil)
+		if err != nil || !executed {
+			matchCount = 0
+			elemErr = err
+			return false
+		}
+
+		if len(expressions) == expIdx {
+			expressions = append(expressions, exp...)
+		}
+
+		match, ok := res.Bool()
+		if ok && match {
+			matchCount++
+			if !matchAll {
+				return false
+			}
+		}
+
+		return true
+	})
+	if err != nil {
+		return NewStaticNil(), false, nil, err
+	}
+	if elemErr != nil {
+		return NewStaticNil(), false, nil, elemErr
+	}
+
+	if matchAll {
+		return NewStaticBool(matchCount == elemCount), true, expressions, nil
+	}
+	return NewStaticBool(matchCount > 0), true, expressions, nil
+}
+
+func binOpExecuteString(op Operator, lhs, rhs Static, expressions []*regexp.Regexp) (Static, bool, []*regexp.Regexp, error) {
+	// all string operations are done on raw unquoted values.
+	lhsS := lhs.EncodeToString(false)
+	rhsS := rhs.EncodeToString(false)
+
+	switch op {
 	case OpGreater:
-		return NewStaticBool(lhs.Float() > rhs.Float()), nil
+		return NewStaticBool(strings.Compare(lhsS, rhsS) > 0), true, expressions, nil
 	case OpGreaterEqual:
-		return NewStaticBool(lhs.Float() >= rhs.Float()), nil
+		return NewStaticBool(strings.Compare(lhsS, rhsS) >= 0), true, expressions, nil
 	case OpLess:
-		return NewStaticBool(lhs.Float() < rhs.Float()), nil
+		return NewStaticBool(strings.Compare(lhsS, rhsS) < 0), true, expressions, nil
 	case OpLessEqual:
-		return NewStaticBool(lhs.Float() <= rhs.Float()), nil
-	case OpPower:
-		return NewStaticFloat(math.Pow(lhs.Float(), rhs.Float())), nil
-	case OpEqual:
-		return NewStaticBool(lhs.Equals(&rhs)), nil
-	case OpNotEqual:
-		return NewStaticBool(lhs.NotEquals(&rhs)), nil
+		return NewStaticBool(strings.Compare(lhsS, rhsS) <= 0), true, expressions, nil
+	case OpRegex, OpNotRegex:
+		shouldMatch := op == OpRegex
+
+		if len(expressions) == 0 {
+			exp, err := regexp.NewRegexp([]string{rhsS}, shouldMatch)
+			if err != nil {
+				return NewStaticNil(), false, nil, err
+			}
+			expressions = append(expressions, exp)
+		}
+		if len(expressions) != 1 {
+			return NewStaticNil(), false, expressions, errors.New("unexpected numbers of pre-compiled regexp")
+		}
+
+		matched := expressions[0].MatchString(lhsS)
+		return NewStaticBool(matched), true, expressions, nil
 	default:
-		return NewStaticNil(), errors.New("unexpected operator " + o.Op.String())
+		return NewStaticNil(), false, expressions, nil // the operation was not executed
+	}
+}
+
+func binOpExecuteInt(op Operator, lhs, rhs Static) (Static, bool) {
+	lhsN, _ := lhs.Int()
+	rhsN, _ := rhs.Int()
+
+	switch op {
+	case OpAdd:
+		return NewStaticInt(lhsN + rhsN), true
+	case OpSub:
+		return NewStaticInt(lhsN - rhsN), true
+	case OpDiv:
+		return NewStaticInt(lhsN / rhsN), true
+	case OpMod:
+		return NewStaticInt(lhsN % rhsN), true
+	case OpMult:
+		return NewStaticInt(lhsN * rhsN), true
+	case OpGreater:
+		return NewStaticBool(lhsN > rhsN), true
+	case OpGreaterEqual:
+		return NewStaticBool(lhsN >= rhsN), true
+	case OpLess:
+		return NewStaticBool(lhsN < rhsN), true
+	case OpLessEqual:
+		return NewStaticBool(lhsN <= rhsN), true
+	case OpPower:
+		return NewStaticInt(intPow(rhsN, lhsN)), true
+	default:
+		return NewStaticNil(), false
+	}
+}
+
+func binOpExecuteBool(op Operator, lhs, rhs Static) (Static, bool) {
+	lhsB, _ := lhs.Bool()
+	rhsB, _ := rhs.Bool()
+
+	switch op {
+	case OpAnd:
+		return NewStaticBool(lhsB && rhsB), true
+	case OpOr:
+		return NewStaticBool(lhsB || rhsB), true
+	default:
+		return NewStaticNil(), false
+	}
+}
+
+func binOpExecuteFloat(op Operator, lhs, rhs Static) (Static, bool) {
+	switch op {
+	case OpAdd:
+		return NewStaticFloat(lhs.Float() + rhs.Float()), true
+	case OpSub:
+		return NewStaticFloat(lhs.Float() - rhs.Float()), true
+	case OpDiv:
+		return NewStaticFloat(lhs.Float() / rhs.Float()), true
+	case OpMod:
+		return NewStaticFloat(math.Mod(lhs.Float(), rhs.Float())), true
+	case OpMult:
+		return NewStaticFloat(lhs.Float() * rhs.Float()), true
+	case OpGreater:
+		return NewStaticBool(lhs.Float() > rhs.Float()), true
+	case OpGreaterEqual:
+		return NewStaticBool(lhs.Float() >= rhs.Float()), true
+	case OpLess:
+		return NewStaticBool(lhs.Float() < rhs.Float()), true
+	case OpLessEqual:
+		return NewStaticBool(lhs.Float() <= rhs.Float()), true
+	case OpPower:
+		return NewStaticFloat(math.Pow(lhs.Float(), rhs.Float())), true
+	case OpEqual:
+		return NewStaticBool(lhs.Equals(&rhs)), true
+	case OpNotEqual:
+		return NewStaticBool(lhs.NotEquals(&rhs)), true
+	default:
+		return NewStaticNil(), false
 	}
 }
 
@@ -606,6 +743,25 @@ func getFlippedOp(op Operator) Operator {
 	default:
 		return op
 	}
+}
+
+func getElementOp(op Operator) Operator {
+	switch op {
+	case OpIn:
+		return OpEqual
+	case OpNotIn:
+		return OpNotEqual
+	case OpRegexMatchAny:
+		return OpRegex
+	case OpRegexMatchNone:
+		return OpNotRegex
+	default:
+		return op
+	}
+}
+
+func isArrayOp(op Operator) bool {
+	return op == OpIn || op == OpNotIn || op == OpRegexMatchAny || op == OpRegexMatchNone
 }
 
 // why does this and the above exist?

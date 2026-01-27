@@ -509,7 +509,7 @@ type BinaryOperation struct {
 	LHS FieldExpression
 	RHS FieldExpression
 
-	compiledExpression *regexp.Regexp
+	compiledExpressions []*regexp.Regexp
 
 	b branchOptimizer
 }

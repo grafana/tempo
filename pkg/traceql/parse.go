@@ -21,7 +21,7 @@ func init() {
 }
 
 func Parse(s string) (expr *RootExpr, err error) {
-	return parseWithOptimizationOption(s, false) // TODO enable optimizations by default
+	return parseWithOptimizationOption(s, false) // TODO(adrian) enable optimizations by default
 }
 
 func parseWithOptimizationOption(s string, astOptimization bool) (expr *RootExpr, err error) {
