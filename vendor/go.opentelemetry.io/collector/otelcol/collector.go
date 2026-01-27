@@ -25,7 +25,6 @@ import (
 	"go.opentelemetry.io/collector/confmap/xconfmap"
 	"go.opentelemetry.io/collector/otelcol/internal/grpclog"
 	"go.opentelemetry.io/collector/service"
-	"go.opentelemetry.io/collector/service/telemetry/otelconftelemetry"
 )
 
 // State defines Collector's state.
@@ -54,7 +53,8 @@ func (s State) String() string {
 
 // CollectorSettings holds configuration for creating a new Collector.
 type CollectorSettings struct {
-	// Factories service factories.
+	// Factories returns component factories for the collector.
+	//
 	// TODO(13263) This is a dangerous "bare" function value, should define an interface
 	// following style guidelines.
 	Factories func() (Factories, error)
@@ -99,7 +99,8 @@ type CollectorSettings struct {
 
 // Collector represents a server providing the OpenTelemetry Collector service.
 type Collector struct {
-	set CollectorSettings
+	set            CollectorSettings
+	buildZapLogger func(zap.Config, ...zap.Option) (*zap.Logger, error)
 
 	configProvider *ConfigProvider
 
@@ -136,9 +137,10 @@ func NewCollector(set CollectorSettings) (*Collector, error) {
 	state := new(atomic.Int64)
 	state.Store(int64(StateStarting))
 	return &Collector{
-		set:          set,
-		state:        state,
-		shutdownChan: make(chan struct{}),
+		set:            set,
+		buildZapLogger: zap.Config.Build,
+		state:          state,
+		shutdownChan:   make(chan struct{}),
 		// Per signal.Notify documentation, a size of the channel equaled with
 		// the number of signals getting notified on is recommended.
 		signalsChannel:             make(chan os.Signal, 3),
@@ -178,6 +180,7 @@ func (col *Collector) setupConfigurationComponents(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("failed to initialize factories: %w", err)
 	}
+
 	cfg, err := col.configProvider.Get(ctx, factories)
 	if err != nil {
 		return fmt.Errorf("failed to get config: %w", err)
@@ -193,6 +196,17 @@ func (col *Collector) setupConfigurationComponents(ctx context.Context) error {
 
 	if err = conf.Marshal(cfg); err != nil {
 		return fmt.Errorf("could not marshal configuration: %w", err)
+	}
+
+	// Wrap the buildZapLogger to append LoggingOptions from collector settings,
+	// since service.Settings.LoggingOptions is deprecated.
+	buildZapLogger := col.buildZapLogger
+	if len(col.set.LoggingOptions) > 0 {
+		origBuildZapLogger := buildZapLogger
+		buildZapLogger = func(zapCfg zap.Config, opts ...zap.Option) (*zap.Logger, error) {
+			opts = append(opts, col.set.LoggingOptions...)
+			return origBuildZapLogger(zapCfg, opts...)
+		}
 	}
 
 	col.service, err = service.New(ctx, service.Settings{
@@ -218,11 +232,8 @@ func (col *Collector) setupConfigurationComponents(ctx context.Context) error {
 			Connector: buildModuleInfo(factories.ConnectorModules),
 		},
 		AsyncErrorChannel: col.asyncErrorChannel,
-		LoggingOptions:    col.set.LoggingOptions,
-
-		// TODO: inject the telemetry factory through factories.
-		// See https://github.com/open-telemetry/opentelemetry-collector/issues/4970
-		TelemetryFactory: otelconftelemetry.NewFactory(),
+		BuildZapLogger:    buildZapLogger,
+		TelemetryFactory:  factories.Telemetry,
 	}, cfg.Service)
 	if err != nil {
 		return err
@@ -272,6 +283,7 @@ func (col *Collector) DryRun(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("failed to initialize factories: %w", err)
 	}
+
 	cfg, err := col.configProvider.Get(ctx, factories)
 	if err != nil {
 		return fmt.Errorf("failed to get config: %w", err)
@@ -291,6 +303,7 @@ func (col *Collector) DryRun(ctx context.Context) error {
 		ExportersFactories:  factories.Exporters,
 		ConnectorsConfigs:   cfg.Connectors,
 		ConnectorsFactories: factories.Connectors,
+		TelemetryFactory:    factories.Telemetry,
 	}, service.Config{
 		Pipelines: cfg.Service.Pipelines,
 	})
