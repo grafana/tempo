@@ -36,6 +36,20 @@
   ],
   packageRules: [
     {
+      description: 'Only security updates for release branches',
+      matchBaseBranches: [
+        '/^release-.*/',
+      ],
+      matchUpdateTypes: [
+        'pin',
+        'digest',
+        'patch',
+        'minor',
+        'major',
+      ],
+      enabled: false,
+    },
+    {
       description: 'Group OpenTelemetry OTEL updates',
       matchManagers: [
         'gomod',
