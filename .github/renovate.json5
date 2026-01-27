@@ -42,7 +42,7 @@
   packageRules: [
     {
       description: 'Disable all non-vulnerability updates for releases',
-      matchBaseBranches: ['/^release-/'],
+      matchBaseBranches: ['/^release-v.*/'],
       matchPackageNames: ['*'],
       enabled: false,
     },
