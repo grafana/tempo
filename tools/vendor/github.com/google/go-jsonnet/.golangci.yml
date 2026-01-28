@@ -1,0 +1,28 @@
+run:
+  skip-files: ast/identifier_set.go
+linters:
+  enable:
+    - stylecheck
+    - gochecknoinits
+    - golint
+    - govet
+issues:
+  exclude-use-default: false
+  exclude:
+    - "should have a package comment, unless it's in another file for this package"
+    - "the surrounding loop is unconditionally terminated"
+  exclude-rules:
+    # ignore govet on non-critical files
+    - path: 'linter/*'
+      linters:
+        - govet
+    - path: '(.+)_test\.go'
+      linters:
+        - govet
+linters-settings:
+  golint:
+    min-confidence: 0
+  govet:
+    enable-all: true
+    disable:
+      - shadow
