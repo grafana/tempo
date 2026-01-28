@@ -1,0 +1,9 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "go_default_library",
+    srcs = ["formatter.go"],
+    importpath = "github.com/google/go-jsonnet/formatter",
+    visibility = ["//visibility:public"],
+    deps = ["//internal/formatter:go_default_library"],
+)
