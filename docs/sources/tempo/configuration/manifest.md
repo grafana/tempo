@@ -17,6 +17,9 @@ and other [configuration documentation](../). Most installations will require on
 ```yaml
 target: all
 http_api_prefix: ""
+memory:
+    automemlimit_enabled: false
+    automemlimit_ratio: 0.8
 server:
     http_listen_network: tcp
     http_listen_address: ""

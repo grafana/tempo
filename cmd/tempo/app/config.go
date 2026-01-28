@@ -34,6 +34,12 @@ import (
 
 const defaultGRPCCompression = "snappy"
 
+// MemoryConfig configures memory management settings
+type MemoryConfig struct {
+	AutoMemLimitEnabled bool    `yaml:"automemlimit_enabled"`
+	AutoMemLimitRatio   float64 `yaml:"automemlimit_ratio"`
+}
+
 // Config is the root config for App.
 type Config struct {
 	Target                 string        `yaml:"target,omitempty"`
@@ -45,6 +51,7 @@ type Config struct {
 	EnableGoRuntimeMetrics bool          `yaml:"enable_go_runtime_metrics,omitempty"`
 	PartitionRingLiveStore bool          `yaml:"partition_ring_live_store,omitempty"` // todo: remove after rhythm migration
 
+	Memory                MemoryConfig                   `yaml:"memory,omitempty"`
 	Server                server.Config                  `yaml:"server,omitempty"`
 	InternalServer        internalserver.Config          `yaml:"internal_server,omitempty"`
 	Distributor           distributor.Config             `yaml:"distributor,omitempty"`
@@ -80,6 +87,12 @@ func (c *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
 	c.Target = SingleBinary
 	c.StreamOverHTTPEnabled = false
 	c.PartitionRingLiveStore = false
+
+	// Memory settings
+	c.Memory = MemoryConfig{
+		AutoMemLimitEnabled: false,
+		AutoMemLimitRatio:   0.8,
+	}
 
 	// global settings
 	f.StringVar(&c.Target, "target", SingleBinary, "target module")
