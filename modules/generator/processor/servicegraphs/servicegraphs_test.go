@@ -568,7 +568,6 @@ func TestServiceGraphs_DatabaseNameAttributes(t *testing.T) {
 		"beast":           "",
 		"god":             "",
 	})
-	print(testRegistry.Query(`traces_service_graph_request_total`, labels))
 	assert.Equal(t, 1.0, testRegistry.Query(`traces_service_graph_request_total`, labels))
 }
 

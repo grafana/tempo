@@ -39,9 +39,15 @@ func TestWorker(t *testing.T) {
 	limitCfg.RegisterFlagsAndApplyDefaults(&flag.FlagSet{})
 
 	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
 
 	workerCfg, schedulerClientCfg, overridesSvc, scheduler, store := setupDependencies(ctx, t, limitCfg)
+
+	defer func() {
+		cancel()
+		// Explicitly stop the store to avoid race condition on test fixture shutdown
+		store.StopAsync()
+		_ = store.AwaitTerminated(context.Background())
+	}()
 
 	w, err := New(workerCfg, schedulerClientCfg, store, overridesSvc, prometheus.DefaultRegisterer)
 	require.NoError(t, err)
