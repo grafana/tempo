@@ -46,7 +46,7 @@ func TestWorker(t *testing.T) {
 		cancel()
 		// Explicitly stop the store to avoid race condition on test fixture shutdown
 		store.StopAsync()
-		store.AwaitTerminated(context.Background())
+		_ = store.AwaitTerminated(context.Background())
 	}()
 
 	w, err := New(workerCfg, schedulerClientCfg, store, overridesSvc, prometheus.DefaultRegisterer)
