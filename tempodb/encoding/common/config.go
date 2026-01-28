@@ -59,5 +59,7 @@ func ValidateConfig(b *BlockConfig) error {
 		return fmt.Errorf(DeprecatedError, "vParquet2", "vParquet3")
 	}*/
 
-	return b.DedicatedColumns.Validate()
+	// TODO - log or pass warnings up the chain?
+	_, err := b.DedicatedColumns.Validate()
+	return err
 }

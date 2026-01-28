@@ -19,6 +19,7 @@ import (
 
 	tempo_io "github.com/grafana/tempo/pkg/io"
 	"github.com/grafana/tempo/pkg/parquetquery"
+	"github.com/grafana/tempo/pkg/traceql"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding/vparquet3"
 	"github.com/grafana/tempo/tempodb/encoding/vparquet4"
@@ -167,6 +168,7 @@ type heuristicSettings struct {
 	NumIntAttr          int     // Target number of dedicated integer attributes
 	BlobThresholdBytes  uint64  // Attribute row group content above this size are denoted as blobs
 	IntThresholdPercent float64 // Integers surpassing this percent of rows are recommended to be dedicated
+	StrThresholdPercent float64 // Strings surpassing this percent of rows are recommended to be dedicated
 }
 
 type printSettings struct {
@@ -181,10 +183,11 @@ type analyseBlockCmd struct {
 
 	TenantID            string  `arg:"" help:"tenant-id within the bucket"`
 	BlockID             string  `arg:"" help:"block ID to list"`
-	NumAttr             int     `help:"Number of attributes to display" default:"15"`
+	NumAttr             int     `help:"Number of attributes to display" default:"20"`
 	NumIntAttr          int     `help:"Number of integer attributes to display. If set to 0 then it will use the other parameter." default:"5"`
 	BlobThreshold       string  `help:"Convert column to blob when dictionary size reaches this value. Disable with 0" default:"4MiB"`
 	IntPercentThreshold float64 `help:"Threshold for integer attributes put in dedicated columns. Default 5% = 0.05" default:"0.05"`
+	StrPercentThreshold float64 `help:"Threshold for string attributes put in dedicated columns. Default 3% = 0.03." default:"0.03"`
 	IncludeWellKnown    bool    `help:"Include well-known attributes in the analysis. These are attributes with fixed columns in some versions of parquet, like http.url. This should be enabled when generating dedicated columns targeting vParquet5 or higher which can make use of them." default:"false"`
 	GenerateJsonnet     bool    `help:"Generate overrides Jsonnet for dedicated columns"`
 	GenerateCliArgs     bool    `help:"Generate textual args for passing to parquet conversion command"`
@@ -223,11 +226,16 @@ func (cmd *analyseBlockCmd) Run(ctx *globalOptions) error {
 		return errors.New("int percent threshold must be between 0 and 1")
 	}
 
+	if cmd.StrPercentThreshold <= 0 || cmd.StrPercentThreshold >= 1 {
+		return errors.New("str percent threshold must be between 0 and 1")
+	}
+
 	settings := heuristicSettings{
 		NumStringAttr:       cmd.NumAttr,
 		NumIntAttr:          cmd.NumIntAttr,
 		BlobThresholdBytes:  blobBytes,
 		IntThresholdPercent: cmd.IntPercentThreshold,
+		StrThresholdPercent: cmd.StrPercentThreshold,
 	}
 
 	printSettings := printSettings{
@@ -442,109 +450,55 @@ func (s blockSummary) print(settings heuristicSettings, printSettings printSetti
 func (s blockSummary) ToDedicatedColumns(settings heuristicSettings) []backend.DedicatedColumn {
 	var dedicatedCols []backend.DedicatedColumn
 
-	// convert block summary to dedicated columns
-
-	// span
-	spanStringAttrList := topN(settings.NumStringAttr, s.spanSummary.attributes)
-	for _, attr := range spanStringAttrList {
-		options := backend.DedicatedColumnOptions{}
-		totalSize := attr.cardinality.avgSizePerRowGroup(s.numRowGroups)
-		if settings.BlobThresholdBytes > 0 && totalSize >= settings.BlobThresholdBytes {
-			options = append(options, backend.DedicatedColumnOptionBlob)
+	doStringSummary := func(summary attributeSummary, scope backend.DedicatedColumnScope) {
+		if summary.rowCount == 0 {
+			return
 		}
-		dedicatedCols = append(dedicatedCols, backend.DedicatedColumn{
-			Name:    attr.name,
-			Scope:   backend.DedicatedColumnScopeSpan,
-			Type:    backend.DedicatedColumnTypeString,
-			Options: options,
-		})
-	}
-
-	if settings.NumIntAttr > 0 {
-		spanIntAttrList := topNInt(settings.NumIntAttr, s.spanSummary.integerAttributes)
-		for _, attr := range spanIntAttrList {
-			if s.spanSummary.rowCount > 0 {
-				percentOfRows := float64(attr.count) / float64(s.spanSummary.rowCount)
-				if percentOfRows >= settings.IntThresholdPercent {
-					options := backend.DedicatedColumnOptions{}
-					dedicatedCols = append(dedicatedCols, backend.DedicatedColumn{
-						Name:    attr.name,
-						Scope:   backend.DedicatedColumnScopeSpan,
-						Type:    backend.DedicatedColumnTypeInt,
-						Options: options,
-					})
-				}
+		for _, attr := range topN(settings.NumStringAttr, summary.attributes) {
+			percentOfRows := float64(attr.cardinality.totalOccurrences()) / float64(summary.rowCount)
+			if percentOfRows < settings.StrThresholdPercent {
+				continue
 			}
-		}
-	}
 
-	// resource
-	resourceStringAttrList := topN(settings.NumStringAttr, s.resourceSummary.attributes)
-	for _, attr := range resourceStringAttrList {
-		options := backend.DedicatedColumnOptions{}
-		totalSize := attr.cardinality.avgSizePerRowGroup(s.numRowGroups)
-		if settings.BlobThresholdBytes > 0 && totalSize >= settings.BlobThresholdBytes {
-			options = append(options, backend.DedicatedColumnOptionBlob)
-		}
-		dedicatedCols = append(dedicatedCols, backend.DedicatedColumn{
-			Name:    attr.name,
-			Scope:   backend.DedicatedColumnScopeResource,
-			Type:    backend.DedicatedColumnTypeString,
-			Options: options,
-		})
-	}
-
-	if settings.NumIntAttr > 0 {
-		resourceIntAttrList := topNInt(settings.NumIntAttr, s.resourceSummary.integerAttributes)
-		for _, attr := range resourceIntAttrList {
-			if s.resourceSummary.rowCount > 0 {
-				percentOfRows := float64(attr.count) / float64(s.resourceSummary.rowCount)
-				if percentOfRows >= settings.IntThresholdPercent {
-					options := backend.DedicatedColumnOptions{}
-					dedicatedCols = append(dedicatedCols, backend.DedicatedColumn{
-						Name:    attr.name,
-						Scope:   backend.DedicatedColumnScopeResource,
-						Type:    backend.DedicatedColumnTypeInt,
-						Options: options,
-					})
-				}
+			options := backend.DedicatedColumnOptions{}
+			totalSize := attr.cardinality.avgSizePerRowGroup(s.numRowGroups)
+			if settings.BlobThresholdBytes > 0 && totalSize >= settings.BlobThresholdBytes {
+				options = append(options, backend.DedicatedColumnOptionBlob)
 			}
+			dedicatedCols = append(dedicatedCols, backend.DedicatedColumn{
+				Name:    attr.name,
+				Scope:   scope,
+				Type:    backend.DedicatedColumnTypeString,
+				Options: options,
+			})
 		}
 	}
 
-	// event
-	eventStringAttrList := topN(settings.NumStringAttr, s.eventSummary.attributes)
-	for _, attr := range eventStringAttrList {
-		options := backend.DedicatedColumnOptions{}
-		totalSize := attr.cardinality.avgSizePerRowGroup(s.numRowGroups)
-		if settings.BlobThresholdBytes > 0 && totalSize >= settings.BlobThresholdBytes {
-			options = append(options, backend.DedicatedColumnOptionBlob)
+	doIntSummary := func(summary attributeSummary, scope backend.DedicatedColumnScope) {
+		if summary.rowCount == 0 {
+			return
 		}
-		dedicatedCols = append(dedicatedCols, backend.DedicatedColumn{
-			Name:    attr.name,
-			Scope:   backend.DedicatedColumnScopeEvent,
-			Type:    backend.DedicatedColumnTypeString,
-			Options: options,
-		})
-	}
-
-	if settings.NumIntAttr > 0 {
-		eventIntAttrList := topNInt(settings.NumIntAttr, s.eventSummary.integerAttributes)
-		for _, attr := range eventIntAttrList {
-			if s.eventSummary.rowCount > 0 {
-				percentOfRows := float64(attr.count) / float64(s.eventSummary.rowCount)
-				if percentOfRows >= settings.IntThresholdPercent {
-					options := backend.DedicatedColumnOptions{}
-					dedicatedCols = append(dedicatedCols, backend.DedicatedColumn{
-						Name:    attr.name,
-						Scope:   backend.DedicatedColumnScopeEvent,
-						Type:    backend.DedicatedColumnTypeInt,
-						Options: options,
-					})
-				}
+		for _, attr := range topNInt(settings.NumIntAttr, summary.integerAttributes) {
+			percentOfRows := float64(attr.count) / float64(summary.rowCount)
+			if percentOfRows < settings.IntThresholdPercent {
+				continue
 			}
+			dedicatedCols = append(dedicatedCols, backend.DedicatedColumn{
+				Name:    attr.name,
+				Scope:   scope,
+				Type:    backend.DedicatedColumnTypeInt,
+				Options: backend.DedicatedColumnOptions{},
+			})
 		}
 	}
+
+	doStringSummary(s.spanSummary, backend.DedicatedColumnScopeSpan)
+	doIntSummary(s.spanSummary, backend.DedicatedColumnScopeSpan)
+	doStringSummary(s.resourceSummary, backend.DedicatedColumnScopeResource)
+	doIntSummary(s.resourceSummary, backend.DedicatedColumnScopeResource)
+	doStringSummary(s.eventSummary, backend.DedicatedColumnScopeEvent)
+	doIntSummary(s.eventSummary, backend.DedicatedColumnScopeEvent)
+
 	return dedicatedCols
 }
 
@@ -608,6 +562,14 @@ func (a attributeSummary) totalBytes() uint64 {
 	total := uint64(0)
 	for _, a := range a.attributes {
 		total += a.totalBytes
+	}
+	return total
+}
+
+func (a attributeSummary) totalStringCount() uint64 {
+	total := uint64(0)
+	for _, a := range a.attributes {
+		total += a.cardinality.totalOccurrences()
 	}
 	return total
 }
@@ -876,6 +838,7 @@ func printFullSummary(scope string, settings heuristicSettings, summary attribut
 	fmt.Println("--------------------------------")
 
 	fmt.Printf("Total rows: %d\n", summary.rowCount)
+	fmt.Printf("Total string values: %d\n", summary.totalStringCount())
 
 	fmt.Println("")
 	attrList := topN(settings.NumStringAttr, summary.attributes)
@@ -892,7 +855,8 @@ func printFullSummary(scope string, settings heuristicSettings, summary attribut
 				avgReuse           = float64(totalOccurences) / float64(distinct)
 				totalSize          = a.cardinality.avgSizePerRowGroup(numRowGroups)
 				blobText           = ""
-				shouldDedicateText = "✅ Recommended dedicated column" // Currently top N strings are the recommendation, so if we get here it's recommended. Will change in the future.
+				percentOfRowsText  = ""
+				shouldDedicateText = ""
 			)
 
 			if _, ok := summary.dedicated[a.name]; ok {
@@ -903,11 +867,20 @@ func printFullSummary(scope string, settings heuristicSettings, summary attribut
 				blobText = "(blob)"
 			}
 
-			_, err := fmt.Fprintf(w, "name: %s\t size: %s\t (%.2f%%)\tcount: %d\t distinct: %d\t avg reuse: %.2f\t avg rowgroup content (dict + body): %s %s\t%s\n",
+			if summary.rowCount > 0 {
+				percentOfRows := float64(totalOccurences) / float64(summary.rowCount)
+				percentOfRowsText = fmt.Sprintf("(%.2f%% of rows)", percentOfRows*100)
+				if percentOfRows >= settings.StrThresholdPercent {
+					shouldDedicateText = "✅ Recommended dedicated column"
+				}
+			}
+
+			_, err := fmt.Fprintf(w, "name: %s\t size: %s\t (%.2f%%)\tcount: %d\t%s\t distinct: %d\t avg reuse: %.2f\t avg rowgroup content (dict + body): %s %s\t%s\n",
 				name,
 				humanize.Bytes(thisBytes),
 				percentage,
 				totalOccurences,
+				percentOfRowsText,
 				distinct,
 				avgReuse,
 				humanize.Bytes(totalSize),
@@ -1015,52 +988,41 @@ func printCliArgs(s blockSummary, settings heuristicSettings, numRowGroups int) 
 	fmt.Println("")
 	fmt.Printf("quoted/spaced cli list:")
 
-	ss := []string{}
-	for _, a := range topN(settings.NumStringAttr, s.spanSummary.attributes) {
-		if settings.BlobThresholdBytes > 0 && a.cardinality.avgSizePerRowGroup(numRowGroups) > settings.BlobThresholdBytes {
-			ss = append(ss, fmt.Sprintf("\"blob/span.%s\"", a.name))
-		} else {
-			ss = append(ss, fmt.Sprintf("\"span.%s\"", a.name))
+	escapeString := func(s string) string {
+		return strings.ReplaceAll(s, "\"", "\\\"")
+	}
+
+	doStringSummary := func(summary attributeSummary, scope traceql.AttributeScope) {
+		for _, a := range topN(settings.NumStringAttr, summary.attributes) {
+			if float64(a.cardinality.totalOccurrences())/float64(summary.rowCount) < settings.StrThresholdPercent {
+				// Did not meet threshold
+				continue
+			}
+			attrStr := traceql.NewScopedAttribute(scope, false, a.name).String()
+			if settings.BlobThresholdBytes > 0 && a.cardinality.avgSizePerRowGroup(numRowGroups) > settings.BlobThresholdBytes {
+				attrStr = "blob/" + attrStr
+			}
+			fmt.Printf("\"%s\" ", escapeString(attrStr))
 		}
 	}
 
-	for _, a := range topN(settings.NumStringAttr, s.resourceSummary.attributes) {
-		if settings.BlobThresholdBytes > 0 && a.cardinality.avgSizePerRowGroup(numRowGroups) > settings.BlobThresholdBytes {
-			ss = append(ss, fmt.Sprintf("\"blob/resource.%s\"", a.name))
-		} else {
-			ss = append(ss, fmt.Sprintf("\"resource.%s\"", a.name))
+	doIntSummary := func(summary attributeSummary, scope traceql.AttributeScope) {
+		for _, a := range topNInt(settings.NumIntAttr, summary.integerAttributes) {
+			if float64(a.count)/float64(summary.rowCount) < settings.IntThresholdPercent {
+				continue
+			}
+			attrStr := traceql.NewScopedAttribute(scope, false, a.name).String()
+			fmt.Printf("\"%s\" ", escapeString(attrStr))
 		}
 	}
 
-	for _, a := range topN(settings.NumStringAttr, s.eventSummary.attributes) {
-		if settings.BlobThresholdBytes > 0 && a.cardinality.avgSizePerRowGroup(numRowGroups) > settings.BlobThresholdBytes {
-			ss = append(ss, fmt.Sprintf("\"blob/event.%s\"", a.name))
-		} else {
-			ss = append(ss, fmt.Sprintf("\"event.%s\"", a.name))
-		}
-	}
+	doStringSummary(s.spanSummary, traceql.AttributeScopeSpan)
+	doStringSummary(s.resourceSummary, traceql.AttributeScopeResource)
+	doStringSummary(s.eventSummary, traceql.AttributeScopeEvent)
 
-	// Integer attributes
-	for _, a := range topNInt(settings.NumIntAttr, s.spanSummary.integerAttributes) {
-		if float64(a.count)/float64(s.spanSummary.rowCount) < settings.IntThresholdPercent {
-			continue
-		}
-		ss = append(ss, fmt.Sprintf("\"int/span.%s\"", a.name))
-	}
-	for _, a := range topNInt(settings.NumIntAttr, s.resourceSummary.integerAttributes) {
-		if float64(a.count)/float64(s.resourceSummary.rowCount) < settings.IntThresholdPercent {
-			continue
-		}
-		ss = append(ss, fmt.Sprintf("\"int/resource.%s\"", a.name))
-	}
-	for _, a := range topNInt(settings.NumIntAttr, s.eventSummary.integerAttributes) {
-		if float64(a.count)/float64(s.eventSummary.rowCount) < settings.IntThresholdPercent {
-			continue
-		}
-		ss = append(ss, fmt.Sprintf("\"int/event.%s\"", a.name))
-	}
-
-	fmt.Println(strings.Join(ss, " "))
+	doIntSummary(s.spanSummary, traceql.AttributeScopeSpan)
+	doIntSummary(s.resourceSummary, traceql.AttributeScopeResource)
+	doIntSummary(s.eventSummary, traceql.AttributeScopeEvent)
 }
 
 func topN(n int, attrs map[string]*stringAttributeSummary) []*stringAttributeSummary {

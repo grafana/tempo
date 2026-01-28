@@ -409,9 +409,10 @@ func TestDedicatedColumnsMarshalRoundTrip(t *testing.T) {
 
 func TestDedicatedColumns_Validate(t *testing.T) {
 	testCases := []struct {
-		name    string
-		cols    DedicatedColumns
-		isValid bool
+		name             string
+		cols             DedicatedColumns
+		isValid          bool
+		expectedWarnings []error
 	}{
 		{name: "nil", isValid: true},
 		{name: "empty", cols: DedicatedColumns{}, isValid: true},
@@ -560,6 +561,20 @@ func TestDedicatedColumns_Validate(t *testing.T) {
 				{Name: "test.res.str-09", Scope: DedicatedColumnScopeResource, Type: DedicatedColumnTypeString},
 				{Name: "test.res.str-10", Scope: DedicatedColumnScopeResource, Type: DedicatedColumnTypeString},
 				{Name: "test.res.str-11", Scope: DedicatedColumnScopeResource, Type: DedicatedColumnTypeString},
+				{Name: "test.res.str-12", Scope: DedicatedColumnScopeResource, Type: DedicatedColumnTypeString},
+				{Name: "test.res.str-13", Scope: DedicatedColumnScopeResource, Type: DedicatedColumnTypeString},
+				{Name: "test.res.str-14", Scope: DedicatedColumnScopeResource, Type: DedicatedColumnTypeString},
+				{Name: "test.res.str-15", Scope: DedicatedColumnScopeResource, Type: DedicatedColumnTypeString},
+				{Name: "test.res.str-16", Scope: DedicatedColumnScopeResource, Type: DedicatedColumnTypeString},
+				{Name: "test.res.str-17", Scope: DedicatedColumnScopeResource, Type: DedicatedColumnTypeString},
+				{Name: "test.res.str-18", Scope: DedicatedColumnScopeResource, Type: DedicatedColumnTypeString},
+				{Name: "test.res.str-19", Scope: DedicatedColumnScopeResource, Type: DedicatedColumnTypeString},
+				{Name: "test.res.str-20", Scope: DedicatedColumnScopeResource, Type: DedicatedColumnTypeString},
+				{Name: "test.res.str-21", Scope: DedicatedColumnScopeResource, Type: DedicatedColumnTypeString},
+			},
+			isValid: true,
+			expectedWarnings: []error{
+				WarnTooManyColumns{Type: DedicatedColumnTypeString, Scope: DedicatedColumnScopeResource, Count: 21, MaxCount: 20},
 			},
 		},
 		{
@@ -572,6 +587,10 @@ func TestDedicatedColumns_Validate(t *testing.T) {
 				{Name: "test.res.int-04", Scope: DedicatedColumnScopeResource, Type: DedicatedColumnTypeInt},
 				{Name: "test.res.int-05", Scope: DedicatedColumnScopeResource, Type: DedicatedColumnTypeInt},
 				{Name: "test.res.int-06", Scope: DedicatedColumnScopeResource, Type: DedicatedColumnTypeInt},
+			},
+			isValid: true,
+			expectedWarnings: []error{
+				WarnTooManyColumns{Type: DedicatedColumnTypeInt, Scope: DedicatedColumnScopeResource, Count: 6, MaxCount: 5},
 			},
 		},
 		{
@@ -589,6 +608,20 @@ func TestDedicatedColumns_Validate(t *testing.T) {
 				{Name: "test.span.str-09", Scope: DedicatedColumnScopeSpan, Type: DedicatedColumnTypeString},
 				{Name: "test.span.str-10", Scope: DedicatedColumnScopeSpan, Type: DedicatedColumnTypeString},
 				{Name: "test.span.str-11", Scope: DedicatedColumnScopeSpan, Type: DedicatedColumnTypeString},
+				{Name: "test.span.str-12", Scope: DedicatedColumnScopeSpan, Type: DedicatedColumnTypeString},
+				{Name: "test.span.str-13", Scope: DedicatedColumnScopeSpan, Type: DedicatedColumnTypeString},
+				{Name: "test.span.str-14", Scope: DedicatedColumnScopeSpan, Type: DedicatedColumnTypeString},
+				{Name: "test.span.str-15", Scope: DedicatedColumnScopeSpan, Type: DedicatedColumnTypeString},
+				{Name: "test.span.str-16", Scope: DedicatedColumnScopeSpan, Type: DedicatedColumnTypeString},
+				{Name: "test.span.str-17", Scope: DedicatedColumnScopeSpan, Type: DedicatedColumnTypeString},
+				{Name: "test.span.str-18", Scope: DedicatedColumnScopeSpan, Type: DedicatedColumnTypeString},
+				{Name: "test.span.str-19", Scope: DedicatedColumnScopeSpan, Type: DedicatedColumnTypeString},
+				{Name: "test.span.str-20", Scope: DedicatedColumnScopeSpan, Type: DedicatedColumnTypeString},
+				{Name: "test.span.str-21", Scope: DedicatedColumnScopeSpan, Type: DedicatedColumnTypeString},
+			},
+			isValid: true,
+			expectedWarnings: []error{
+				WarnTooManyColumns{Type: DedicatedColumnTypeString, Scope: DedicatedColumnScopeSpan, Count: 21, MaxCount: 20},
 			},
 		},
 		{
@@ -602,17 +635,22 @@ func TestDedicatedColumns_Validate(t *testing.T) {
 				{Name: "test.span.int-05", Scope: DedicatedColumnScopeSpan, Type: DedicatedColumnTypeInt},
 				{Name: "test.span.int-06", Scope: DedicatedColumnScopeSpan, Type: DedicatedColumnTypeInt},
 			},
+			isValid: true,
+			expectedWarnings: []error{
+				WarnTooManyColumns{Type: DedicatedColumnTypeInt, Scope: DedicatedColumnScopeSpan, Count: 6, MaxCount: 5},
+			},
 		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			err := tc.cols.Validate()
+			warnings, err := tc.cols.Validate()
 			if tc.isValid {
 				require.NoError(t, err, "dedicated columns expected to be valid, but got error: %s", err)
 			} else {
 				require.Error(t, err, "dedicated columns expected to be invalid, but got no error")
 			}
+			require.Equal(t, tc.expectedWarnings, warnings)
 		})
 	}
 }

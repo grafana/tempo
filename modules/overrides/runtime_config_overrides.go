@@ -26,7 +26,7 @@ import (
 )
 
 type Validator interface {
-	Validate(config *Overrides) error
+	Validate(config *Overrides) (warnings []error, err error)
 }
 
 // perTenantOverrides represents the overrides config file
@@ -104,9 +104,12 @@ func loadPerTenantOverrides(validator Validator, typ ConfigType, expandEnv bool)
 
 		if validator != nil {
 			for tenant, tenantOverrides := range overrides.TenantLimits {
-				err := validator.Validate(tenantOverrides)
+				warnings, err := validator.Validate(tenantOverrides)
 				if err != nil {
 					return nil, fmt.Errorf("validating overrides for %s failed: %w", tenant, err)
+				}
+				for _, warning := range warnings {
+					level.Warn(log.Logger).Log("msg", "Overrides validation warning", "tenant", tenant, "warning", warning)
 				}
 			}
 		}
