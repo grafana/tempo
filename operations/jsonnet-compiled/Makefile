@@ -1,9 +1,6 @@
 
 all: jb gen check
 
-gen: jb gen-examples
-gen-examples: gen-example/microservices gen-example/microservices-with-extras
-
 jb:
 	jb install ../jsonnet/microservices
 	jb update ../jsonnet/microservices
@@ -12,6 +9,9 @@ jb-check:
 	cp ../jsonnet/microservices/jsonnetfile.json .
 	cp ../jsonnet/microservices/jsonnetfile.lock.json .
 	git diff --exit-code -- jsonnetfile*.json
+
+gen: jb gen-examples
+gen-examples: gen-example/microservices gen-example/microservices-with-extras
 
 gen-example/%:
 	jb update
@@ -22,7 +22,7 @@ gen-example/%:
 	rm -rf out-$*/
 
 check: check-examples
-check-examples: check-example/microservices
+check-examples: check-example/microservices check-example/microservices-with-extras
 
 check-example/%: gen-example/%
 	git diff --exit-code -- ../$*/gen/*.yaml
