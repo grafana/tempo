@@ -23,17 +23,17 @@ func generateFakeSearchResponse(probability float64) *tempopb.SearchResponse {
 	traces := make([]*tempopb.TraceSearchMetadata, numTraces)
 
 	for i := range numTraces {
-		traceID := fmt.Sprintf("%016x%016x", rand.Int63(), rand.Int63()) //nolint:gosec // G404
+		traceID := fmt.Sprintf("%016x%016x", rand.Int63(), rand.Int63())                      //nolint:gosec // G404
 		startTime := time.Now().Add(-time.Duration(rand.Intn(3600)) * time.Second).UnixNano() //nolint:gosec // G404
-		duration := uint32(100 + rand.Intn(900)) //nolint:gosec // G404
+		duration := uint32(100 + rand.Intn(900))                                              //nolint:gosec // G404
 
 		numSpans := 1 + rand.Intn(5) //nolint:gosec // G404
 		spans := make([]*tempopb.Span, numSpans)
 
 		for k := range numSpans {
-			spanID := fmt.Sprintf("%016x", rand.Int63()) //nolint:gosec // G404
+			spanID := fmt.Sprintf("%016x", rand.Int63())                                  //nolint:gosec // G404
 			spanStartTime := uint64(startTime) + uint64(rand.Intn(int(duration)))*1000000 //nolint:gosec // G404
-			spanDuration := uint64(rand.Intn(100)) * 1000000 //nolint:gosec // G404
+			spanDuration := uint64(rand.Intn(100)) * 1000000                              //nolint:gosec // G404
 
 			numAttrs := 1 + rand.Intn(3) //nolint:gosec // G404
 			attrs := make([]*v1.KeyValue, numAttrs)
@@ -64,7 +64,7 @@ func generateFakeSearchResponse(probability float64) *tempopb.SearchResponse {
 
 		traces[i] = &tempopb.TraceSearchMetadata{
 			TraceID:           traceID,
-			RootServiceName:   fmt.Sprintf("service-%d", rand.Intn(5)), //nolint:gosec // G404
+			RootServiceName:   fmt.Sprintf("service-%d", rand.Intn(5)),    //nolint:gosec // G404
 			RootTraceName:     fmt.Sprintf("operation-%d", rand.Intn(10)), //nolint:gosec // G404
 			StartTimeUnixNano: uint64(startTime),
 			DurationMs:        duration,
