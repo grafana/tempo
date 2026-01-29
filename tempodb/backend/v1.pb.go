@@ -5,14 +5,15 @@ package backend
 
 import (
 	fmt "fmt"
-	_ "github.com/gogo/protobuf/gogoproto"
-	proto "github.com/gogo/protobuf/proto"
-	_ "github.com/gogo/protobuf/types"
-	github_com_gogo_protobuf_types "github.com/gogo/protobuf/types"
 	io "io"
 	math "math"
 	math_bits "math/bits"
 	time "time"
+
+	_ "github.com/gogo/protobuf/gogoproto"
+	proto "github.com/gogo/protobuf/proto"
+	_ "github.com/gogo/protobuf/types"
+	github_com_gogo_protobuf_types "github.com/gogo/protobuf/types"
 )
 
 // Reference imports to suppress errors if they are not otherwise used.
@@ -274,6 +275,14 @@ func (m *TenantIndex) GetCompactedMeta() []*CompactedBlockMeta {
 		return m.CompactedMeta
 	}
 	return nil
+}
+
+func (dcs DedicatedColumns) MarshalTo(data []byte) (int, error) {
+	b, err := dcs.Marshal()
+	if err != nil {
+		return 0, err
+	}
+	return copy(data, b), nil
 }
 
 func init() {
