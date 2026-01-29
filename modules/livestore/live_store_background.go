@@ -15,20 +15,20 @@ import (
 	"github.com/grafana/tempo/tempodb/encoding"
 )
 
-var initialBackoff = 30 * time.Second
-
 const (
-	maxBackoff       = 120 * time.Second
-	maxFlushAttempts = 10
+	defaultInitialBackoff = 30 * time.Second
+	defaultMaxBackoff     = 120 * time.Second
+	maxFlushAttempts      = 10
 )
 
 type completeOp struct {
 	tenantID string
 	blockID  uuid.UUID
 
-	at       time.Time
-	attempts int
-	bo       time.Duration
+	at         time.Time
+	attempts   int
+	bo         time.Duration
+	maxBackoff time.Duration
 }
 
 func (o *completeOp) Key() string { return o.tenantID + "/" + o.blockID.String() }
@@ -37,8 +37,8 @@ func (o *completeOp) Priority() int64 { return -o.at.Unix() }
 
 func (o *completeOp) backoff() time.Duration {
 	o.bo *= 2
-	if o.bo > maxBackoff {
-		o.bo = maxBackoff
+	if o.bo > o.maxBackoff {
+		o.bo = o.maxBackoff
 	}
 
 	return o.bo
@@ -162,8 +162,9 @@ func (s *LiveStore) enqueueCompleteOp(tenantID string, blockID uuid.UUID, jitter
 		tenantID: tenantID,
 		blockID:  blockID,
 		// Initial priority and backoff
-		at: time.Now(),
-		bo: initialBackoff,
+		at:         time.Now(),
+		bo:         s.cfg.initialBackoff,
+		maxBackoff: s.cfg.maxBackoff,
 	}
 
 	if jitter {

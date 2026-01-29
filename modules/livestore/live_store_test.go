@@ -526,15 +526,12 @@ func (e *erroredEnc) SetError(err error) {
 }
 
 func TestRequeueOnError(t *testing.T) {
-	originInitialBackoff := initialBackoff
-	initialBackoff = 100 * time.Millisecond
-	defer func() {
-		initialBackoff = originInitialBackoff
-	}()
-
 	tmpDir := t.TempDir()
 
 	cfg := defaultConfig(t, tmpDir)
+	initialBackoff := 100 * time.Millisecond
+	cfg.initialBackoff = initialBackoff
+	cfg.maxBackoff = 3 * initialBackoff
 	cfg.CompleteBlockConcurrency = 1 // to simplify the test
 	cfg.holdAllBackgroundProcesses = false
 	liveStore, err := liveStoreWithConfig(t, cfg)
