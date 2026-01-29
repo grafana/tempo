@@ -15,9 +15,10 @@ import (
 	"github.com/grafana/tempo/tempodb/encoding"
 )
 
+var initialBackoff = 30 * time.Second
+
 const (
 	maxBackoff       = 120 * time.Second
-	initialBackoff   = 30 * time.Second
 	maxFlushAttempts = 10
 )
 

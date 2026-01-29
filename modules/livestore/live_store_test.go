@@ -2,7 +2,9 @@ package livestore
 
 import (
 	"context"
+	"errors"
 	"flag"
+	"sync"
 	"testing"
 	"time"
 
@@ -19,6 +21,7 @@ import (
 	v1_resource "github.com/grafana/tempo/pkg/tempopb/resource/v1"
 	v1_trace "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 	"github.com/grafana/tempo/pkg/util/test"
+	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 	"github.com/prometheus/client_golang/prometheus"
@@ -497,6 +500,72 @@ func TestLiveStoreQueryMethodsBeforeStarted(t *testing.T) {
 			require.NotNil(t, resp)
 		})
 	}
+}
+
+// erroredEnc is a wrapper around a VersionedEncoding that returns given error on CreateBlock
+// if error is not nil. Otherwise, it calls the original CreateBlock method.
+type erroredEnc struct {
+	encoding.VersionedEncoding
+	err error
+	mx  sync.Mutex // to make race detection happy
+}
+
+func (e *erroredEnc) CreateBlock(ctx context.Context, cfg *common.BlockConfig, meta *backend.BlockMeta, i common.Iterator, r backend.Reader, to backend.Writer) (*backend.BlockMeta, error) {
+	e.mx.Lock()
+	defer e.mx.Unlock()
+	if e.err != nil {
+		return nil, e.err
+	}
+	return e.VersionedEncoding.CreateBlock(ctx, cfg, meta, i, r, to)
+}
+
+func (e *erroredEnc) SetError(err error) {
+	e.mx.Lock()
+	defer e.mx.Unlock()
+	e.err = err
+}
+
+func TestRequeueOnError(t *testing.T) {
+	originInitialBackoff := initialBackoff
+	initialBackoff = 100 * time.Millisecond
+	defer func() {
+		initialBackoff = originInitialBackoff
+	}()
+
+	tmpDir := t.TempDir()
+
+	cfg := defaultConfig(t, tmpDir)
+	cfg.CompleteBlockConcurrency = 1 // to simplify the test
+	cfg.holdAllBackgroundProcesses = false
+	liveStore, err := liveStoreWithConfig(t, cfg)
+	require.NoError(t, err)
+	require.NotNil(t, liveStore)
+
+	inst, err := liveStore.getOrCreateInstance(testTenantID)
+	require.NoError(t, err)
+	enc := erroredEnc{
+		VersionedEncoding: inst.enc,
+		mx:                sync.Mutex{},
+	}
+	enc.SetError(errors.New("forced error"))
+	inst.enc = &enc
+
+	// push data
+	expectedID, expectedTrace := pushToLiveStore(t, liveStore)
+	requireTraceInLiveStore(t, liveStore, expectedID, expectedTrace)
+	requireInstanceState(t, inst, instanceState{liveTraces: 1, walBlocks: 0, completeBlocks: 0})
+
+	// cut to wal and enqueue complete operation
+	liveStore.cutAllInstancesToWal()
+	requireInstanceState(t, inst, instanceState{liveTraces: 0, walBlocks: 1, completeBlocks: 0})
+
+	// wait for the first backoff that should not be successful
+	time.Sleep(initialBackoff * 2)
+	requireInstanceState(t, inst, instanceState{liveTraces: 0, walBlocks: 1, completeBlocks: 0})
+	// now enc does not error and block should be flushed successfully
+	enc.SetError(nil)
+	time.Sleep(initialBackoff * 8)
+	requireInstanceState(t, inst, instanceState{liveTraces: 0, walBlocks: 0, completeBlocks: 1})
 }
 
 type instanceState struct {
