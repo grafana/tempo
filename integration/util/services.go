@@ -40,6 +40,45 @@ func NewTempoAllInOne(rp e2e.ReadinessProbe) *e2e.HTTPService {
 	return s
 }
 
+// NewTempoAllInOneWithName creates a Tempo all-in-one instance with a custom name and args.
+// This is useful for federation tests where multiple independent Tempo instances are needed.
+func NewTempoAllInOneWithName(name string, args ...string) *e2e.HTTPService {
+	s := e2e.NewHTTPService(
+		name,
+		image,
+		e2e.NewCommandWithoutEntrypoint("/tempo", args...),
+		e2e.NewHTTPReadinessProbe(3200, "/ready", 200, 299),
+		3200,  // http all things
+		3201,  // http internal server if enabled
+		9095,  // grpc tempo
+		14250, // jaeger grpc ingest
+		9411,  // zipkin ingest (used by load)
+		4317,  // otlp grpc
+		4318,  // OTLP HTTP
+	)
+
+	s.SetMetricsTimeout(MetricsTimeout)
+	s.SetBackoff(tempoBackoff())
+	return s
+}
+
+// NewTempoFederatedFrontend creates a Tempo federated query frontend service.
+func NewTempoFederatedFrontend(args ...string) *e2e.HTTPService {
+	finalArgs := append([]string{"-target=federated-query-frontend"}, args...)
+
+	s := e2e.NewHTTPService(
+		"federated-frontend",
+		image,
+		e2e.NewCommandWithoutEntrypoint("/tempo", finalArgs...),
+		e2e.NewHTTPReadinessProbe(3200, "/ready", 200, 299),
+		3200, // http
+	)
+
+	s.SetMetricsTimeout(MetricsTimeout)
+	s.SetBackoff(tempoBackoff())
+	return s
+}
+
 func NewTempoQuery() *e2e.HTTPService {
 	args := []string{
 		"-config=" + filepath.Join(e2e.ContainerSharedDir, "config-tempo-query.yaml"),
