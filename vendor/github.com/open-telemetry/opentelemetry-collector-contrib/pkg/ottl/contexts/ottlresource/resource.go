@@ -5,6 +5,7 @@ package ottlresource // import "github.com/open-telemetry/opentelemetry-collecto
 
 import (
 	"errors"
+	"sync"
 
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/pdata/pcommon"
@@ -16,6 +17,12 @@ import (
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl/contexts/internal/ctxresource"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl/contexts/internal/logging"
 )
+
+var tcPool = sync.Pool{
+	New: func() any {
+		return &TransformContext{cache: pcommon.NewMap()}
+	},
+}
 
 // ContextName is the name of the context for resources.
 // Experimental: *NOTE* this constant is subject to change or removal in the future.
@@ -34,7 +41,7 @@ type TransformContext struct {
 }
 
 // MarshalLogObject serializes the TransformContext into a zapcore.ObjectEncoder for logging.
-func (tCtx TransformContext) MarshalLogObject(encoder zapcore.ObjectEncoder) error {
+func (tCtx *TransformContext) MarshalLogObject(encoder zapcore.ObjectEncoder) error {
 	err := encoder.AddObject("resource", logging.Resource(tCtx.resource))
 	err = errors.Join(err, encoder.AddObject("cache", logging.Map(tCtx.cache)))
 	return err
@@ -43,26 +50,34 @@ func (tCtx TransformContext) MarshalLogObject(encoder zapcore.ObjectEncoder) err
 // TransformContextOption represents an option for configuring a TransformContext.
 type TransformContextOption func(*TransformContext)
 
-// NewTransformContext creates a new TransformContext with the provided parameters.
-func NewTransformContext(resource pcommon.Resource, schemaURLItem ctxcommon.SchemaURLItem, options ...TransformContextOption) TransformContext {
-	tc := TransformContext{
-		resource:      resource,
-		cache:         pcommon.NewMap(),
-		schemaURLItem: schemaURLItem,
-	}
+// NewTransformContextPtr returns a new TransformContext with the provided parameters from a pool of contexts.
+// Caller must call TransformContext.Close on the returned TransformContext.
+func NewTransformContextPtr(resource pcommon.Resource, schemaURLItem ctxcommon.SchemaURLItem, options ...TransformContextOption) *TransformContext {
+	tCtx := tcPool.Get().(*TransformContext)
+	tCtx.resource = resource
+	tCtx.schemaURLItem = schemaURLItem
 	for _, opt := range options {
-		opt(&tc)
+		opt(tCtx)
 	}
-	return tc
+	return tCtx
+}
+
+// Close the current TransformContext.
+// After this function returns this instance cannot be used.
+func (tCtx *TransformContext) Close() {
+	tCtx.resource = pcommon.Resource{}
+	tCtx.cache.Clear()
+	tCtx.schemaURLItem = nil
+	tcPool.Put(tCtx)
 }
 
 // GetResource returns the resource from the TransformContext.
-func (tCtx TransformContext) GetResource() pcommon.Resource {
+func (tCtx *TransformContext) GetResource() pcommon.Resource {
 	return tCtx.resource
 }
 
 // GetResourceSchemaURLItem returns the schema URL item for the resource from the TransformContext.
-func (tCtx TransformContext) GetResourceSchemaURLItem() ctxcommon.SchemaURLItem {
+func (tCtx *TransformContext) GetResourceSchemaURLItem() ctxcommon.SchemaURLItem {
 	return tCtx.schemaURLItem
 }
 
@@ -71,24 +86,24 @@ func (tCtx TransformContext) GetResourceSchemaURLItem() ctxcommon.SchemaURLItem 
 // otherwise an error is reported.
 //
 // Experimental: *NOTE* this option is subject to change or removal in the future.
-func EnablePathContextNames() ottl.Option[TransformContext] {
-	return func(p *ottl.Parser[TransformContext]) {
-		ottl.WithPathContextNames[TransformContext]([]string{ContextName})(p)
+func EnablePathContextNames() ottl.Option[*TransformContext] {
+	return func(p *ottl.Parser[*TransformContext]) {
+		ottl.WithPathContextNames[*TransformContext]([]string{ContextName})(p)
 	}
 }
 
 // StatementSequenceOption represents an option for configuring a statement sequence.
-type StatementSequenceOption func(*ottl.StatementSequence[TransformContext])
+type StatementSequenceOption func(*ottl.StatementSequence[*TransformContext])
 
 // WithStatementSequenceErrorMode sets the error mode for a statement sequence.
 func WithStatementSequenceErrorMode(errorMode ottl.ErrorMode) StatementSequenceOption {
-	return func(s *ottl.StatementSequence[TransformContext]) {
-		ottl.WithStatementSequenceErrorMode[TransformContext](errorMode)(s)
+	return func(s *ottl.StatementSequence[*TransformContext]) {
+		ottl.WithStatementSequenceErrorMode[*TransformContext](errorMode)(s)
 	}
 }
 
 // NewStatementSequence creates a new statement sequence with the provided statements and options.
-func NewStatementSequence(statements []*ottl.Statement[TransformContext], telemetrySettings component.TelemetrySettings, options ...StatementSequenceOption) ottl.StatementSequence[TransformContext] {
+func NewStatementSequence(statements []*ottl.Statement[*TransformContext], telemetrySettings component.TelemetrySettings, options ...StatementSequenceOption) ottl.StatementSequence[*TransformContext] {
 	s := ottl.NewStatementSequence(statements, telemetrySettings)
 	for _, op := range options {
 		op(&s)
@@ -97,17 +112,17 @@ func NewStatementSequence(statements []*ottl.Statement[TransformContext], teleme
 }
 
 // ConditionSequenceOption represents an option for configuring a condition sequence.
-type ConditionSequenceOption func(*ottl.ConditionSequence[TransformContext])
+type ConditionSequenceOption func(*ottl.ConditionSequence[*TransformContext])
 
 // WithConditionSequenceErrorMode sets the error mode for a condition sequence.
 func WithConditionSequenceErrorMode(errorMode ottl.ErrorMode) ConditionSequenceOption {
-	return func(c *ottl.ConditionSequence[TransformContext]) {
-		ottl.WithConditionSequenceErrorMode[TransformContext](errorMode)(c)
+	return func(c *ottl.ConditionSequence[*TransformContext]) {
+		ottl.WithConditionSequenceErrorMode[*TransformContext](errorMode)(c)
 	}
 }
 
 // NewConditionSequence creates a new condition sequence with the provided conditions and options.
-func NewConditionSequence(conditions []*ottl.Condition[TransformContext], telemetrySettings component.TelemetrySettings, options ...ConditionSequenceOption) ottl.ConditionSequence[TransformContext] {
+func NewConditionSequence(conditions []*ottl.Condition[*TransformContext], telemetrySettings component.TelemetrySettings, options ...ConditionSequenceOption) ottl.ConditionSequence[*TransformContext] {
 	c := ottl.NewConditionSequence(conditions, telemetrySettings)
 	for _, op := range options {
 		op(&c)
@@ -117,10 +132,10 @@ func NewConditionSequence(conditions []*ottl.Condition[TransformContext], teleme
 
 // NewParser creates a new resource parser with the provided functions and options.
 func NewParser(
-	functions map[string]ottl.Factory[TransformContext],
+	functions map[string]ottl.Factory[*TransformContext],
 	telemetrySettings component.TelemetrySettings,
-	options ...ottl.Option[TransformContext],
-) (ottl.Parser[TransformContext], error) {
+	options ...ottl.Option[*TransformContext],
+) (ottl.Parser[*TransformContext], error) {
 	return ctxcommon.NewParser(
 		functions,
 		telemetrySettings,
@@ -134,16 +149,16 @@ func parseEnum(_ *ottl.EnumSymbol) (*ottl.Enum, error) {
 	return nil, errors.New("resource context does not provide Enum support")
 }
 
-func getCache(tCtx TransformContext) pcommon.Map {
+func getCache(tCtx *TransformContext) pcommon.Map {
 	return tCtx.cache
 }
 
-func pathExpressionParser(cacheGetter ctxcache.Getter[TransformContext]) ottl.PathExpressionParser[TransformContext] {
+func pathExpressionParser(cacheGetter ctxcache.Getter[*TransformContext]) ottl.PathExpressionParser[*TransformContext] {
 	return ctxcommon.PathExpressionParser(
 		ctxresource.Name,
 		ctxresource.DocRef,
 		cacheGetter,
-		map[string]ottl.PathExpressionParser[TransformContext]{
-			ctxresource.Name: ctxresource.PathGetSetter[TransformContext],
+		map[string]ottl.PathExpressionParser[*TransformContext]{
+			ctxresource.Name: ctxresource.PathGetSetter[*TransformContext],
 		})
 }
