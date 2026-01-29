@@ -141,6 +141,28 @@ func (op Operator) unaryTypesValid(t StaticType) bool {
 	return false
 }
 
+// isArrayOp returns true if the operator is a dedicated array operator like IN, NOT IN, MATCH ANY, or MATCH NONE. It
+// returns false for all other operators, even if those operators can operate on arrays like = or !=.
+func (op Operator) isArrayOp() bool {
+	return op == OpIn || op == OpNotIn || op == OpRegexMatchAny || op == OpRegexMatchNone
+}
+
+// toElementOp returns the equivalent element operator for the given array operator
+func (op Operator) toElementOp() Operator {
+	switch op {
+	case OpIn:
+		return OpEqual
+	case OpNotIn:
+		return OpNotEqual
+	case OpRegexMatchAny:
+		return OpRegex
+	case OpRegexMatchNone:
+		return OpNotRegex
+	default:
+		return op
+	}
+}
+
 func (op Operator) String() string {
 	switch op {
 	case OpAdd:

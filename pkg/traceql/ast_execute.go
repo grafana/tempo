@@ -535,8 +535,8 @@ func binOpExecuteArray(op Operator, lhs, rhs Static, expressions []*regexp.Regex
 	}
 
 	// determine which side is the array and which is the scalar
-	if isArrayOp(op) {
-		elemOp = getElementOp(op)
+	if op.isArrayOp() {
+		elemOp = op.toElementOp()
 		array = rhs
 		scalar = lhs
 
@@ -727,25 +727,6 @@ func getFlippedOp(op Operator) Operator {
 	default:
 		return op
 	}
-}
-
-func getElementOp(op Operator) Operator {
-	switch op {
-	case OpIn:
-		return OpEqual
-	case OpNotIn:
-		return OpNotEqual
-	case OpRegexMatchAny:
-		return OpRegex
-	case OpRegexMatchNone:
-		return OpNotRegex
-	default:
-		return op
-	}
-}
-
-func isArrayOp(op Operator) bool {
-	return op == OpIn || op == OpNotIn || op == OpRegexMatchAny || op == OpRegexMatchNone
 }
 
 // why does this and the above exist?
