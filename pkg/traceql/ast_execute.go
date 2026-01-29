@@ -565,9 +565,7 @@ func binOpExecuteArray(op Operator, lhs, rhs Static, expressions []*regexp.Regex
 
 	// apply operation to each element of the array
 	var elemCount, matchCount int
-	var elemErr error
-	// TODO(adrian) reimplement loop with iter.Seq2
-	err := array.GetElements(func(elem Static) bool {
+	for i, elem := range array.Elements() {
 		elemCount++
 
 		l := scalar
@@ -576,23 +574,17 @@ func binOpExecuteArray(op Operator, lhs, rhs Static, expressions []*regexp.Regex
 			l, r = r, l
 		}
 
-		var (
-			exp    []*regexp.Regexp
-			expIdx = elemCount - 1
-		)
-
-		if len(expressions) > expIdx {
-			exp = expressions[expIdx : expIdx+1]
+		var exp []*regexp.Regexp
+		if len(expressions) > i {
+			exp = expressions[i : i+1]
 		}
 
 		res, executed, exp, err := binOpExecute(elemOp, l, r, exp, false, nil)
 		if err != nil || !executed {
-			matchCount = 0
-			elemErr = err
-			return false
+			return NewStaticNil(), false, nil, err
 		}
 
-		if len(expressions) == expIdx {
+		if len(expressions) == i {
 			expressions = append(expressions, exp...)
 		}
 
@@ -600,17 +592,9 @@ func binOpExecuteArray(op Operator, lhs, rhs Static, expressions []*regexp.Regex
 		if ok && match {
 			matchCount++
 			if !matchAll {
-				return false
+				break
 			}
 		}
-
-		return true
-	})
-	if err != nil {
-		return NewStaticNil(), false, nil, err
-	}
-	if elemErr != nil {
-		return NewStaticNil(), false, nil, elemErr
 	}
 
 	if matchAll {

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"cmp"
 	"fmt"
+	"iter"
 	"math"
 	"slices"
 	"strings"
@@ -893,49 +894,42 @@ func (s Static) compare(o *Static) int {
 	}
 }
 
-type VisitFunc func(Static) bool // Return false to stop iteration
-
-// GetElements turns arrays into slice of Static elements to iterate over.
-func (s Static) GetElements(fn VisitFunc) error {
-	switch s.Type {
-	case TypeIntArray:
-		ints, _ := s.IntArray()
-		for _, n := range ints {
-			if !fn(NewStaticInt(n)) {
-				break // stop early if the callback returns false
+// Elements iterate over the elements of a Static value. If the Static is not an array,
+// it will loop over itself as the only element
+func (s Static) Elements() iter.Seq2[int, Static] {
+	return func(fn func(int, Static) bool) {
+		switch s.Type {
+		case TypeIntArray:
+			ints, _ := s.IntArray()
+			for i, n := range ints {
+				if !fn(i, NewStaticInt(n)) {
+					return
+				}
 			}
-		}
-		return nil
-
-	case TypeFloatArray:
-		floats, _ := s.FloatArray()
-		for _, f := range floats {
-			if !fn(NewStaticFloat(f)) {
-				break
+		case TypeFloatArray:
+			floats, _ := s.FloatArray()
+			for i, f := range floats {
+				if !fn(i, NewStaticFloat(f)) {
+					return
+				}
 			}
-		}
-		return nil
-
-	case TypeStringArray:
-		strs, _ := s.StringArray()
-		for _, str := range strs {
-			if !fn(NewStaticString(str)) {
-				break
+		case TypeStringArray:
+			strs, _ := s.StringArray()
+			for i, str := range strs {
+				if !fn(i, NewStaticString(str)) {
+					return
+				}
 			}
-		}
-		return nil
-
-	case TypeBooleanArray:
-		bools, _ := s.BooleanArray()
-		for _, b := range bools {
-			if !fn(NewStaticBool(b)) {
-				break
+		case TypeBooleanArray:
+			bools, _ := s.BooleanArray()
+			for i, b := range bools {
+				if !fn(i, NewStaticBool(b)) {
+					return
+				}
 			}
+		default:
+			fn(0, s)
 		}
-		return nil
-
-	default:
-		return fmt.Errorf("unsupported type")
 	}
 }
 
