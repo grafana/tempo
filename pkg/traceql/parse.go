@@ -21,7 +21,7 @@ func init() {
 }
 
 func Parse(s string) (expr *RootExpr, err error) {
-	return parseWithOptimizationOption(s, false) // TODO(adrian) enable optimizations by default
+	return parseWithOptimizationOption(s, true)
 }
 
 func parseWithOptimizationOption(s string, astOptimization bool) (expr *RootExpr, err error) {
@@ -52,7 +52,8 @@ func parseWithOptimizationOption(s string, astOptimization bool) (expr *RootExpr
 		return nil, fmt.Errorf("unknown parse error: %d", e)
 	}
 
-	if astOptimization {
+	hintSkipOptimization, _ := l.expr.Hints.GetBool(HintSkipOptimization, true)
+	if astOptimization && !hintSkipOptimization {
 		l.expr = ApplyDefaultASTRewrites(l.expr)
 		level.Debug(log.Logger).Log("msg", "optimize AST for TraceQL query", "query", s, "optimizedQuery", l.expr.String(), "optimizationCount", l.expr.OptimizationCount)
 	}
