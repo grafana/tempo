@@ -76,7 +76,7 @@ require (
 	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.13.1
 	github.com/Azure/azure-sdk-for-go/sdk/storage/azblob v1.6.3
 	github.com/axiomhq/hyperloglog v0.2.6
-	github.com/bytedance/sonic v1.14.2
+	github.com/bytedance/sonic v1.15.0
 	github.com/evanphx/json-patch v5.9.11+incompatible
 	github.com/golang/groupcache v0.0.0-20241129210726-2c02b8208cf8
 	github.com/googleapis/gax-go/v2 v2.16.0
@@ -167,7 +167,7 @@ require (
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/buger/jsonparser v1.1.1 // indirect
 	github.com/bytedance/gopkg v0.1.3 // indirect
-	github.com/bytedance/sonic/loader v0.4.0 // indirect
+	github.com/bytedance/sonic/loader v0.5.0 // indirect
 	github.com/cenkalti/backoff/v4 v4.3.0 // indirect
 	github.com/cenkalti/backoff/v5 v5.0.3 // indirect
 	github.com/census-instrumentation/opencensus-proto v0.4.1 // indirect
