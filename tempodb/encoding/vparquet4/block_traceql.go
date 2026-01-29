@@ -2609,9 +2609,9 @@ func createStringPredicate(op traceql.Operator, operands traceql.Operands) (parq
 
 	switch op {
 	case traceql.OpEqual:
-		return parquetquery.NewStringEqualPredicate([]byte(s)), nil
+		return parquetquery.NewStringEqualPredicate(s), nil
 	case traceql.OpNotEqual:
-		return parquetquery.NewStringNotEqualPredicate([]byte(s)), nil
+		return parquetquery.NewStringNotEqualPredicate(s), nil
 	case traceql.OpRegex:
 		return parquetquery.NewRegexInPredicate([]string{s})
 	case traceql.OpNotRegex:
