@@ -12,6 +12,7 @@ import (
 	"github.com/grafana/tempo/pkg/api"
 	"github.com/grafana/tempo/pkg/blockboundary"
 	"github.com/grafana/tempo/pkg/validation"
+	"github.com/prometheus/client_golang/prometheus"
 )
 
 const (
@@ -24,9 +25,10 @@ type asyncTraceSharder struct {
 	cfg             *TraceByIDConfig
 	logger          log.Logger
 	blockBoundaries [][]byte
+	jobsPerQuery    *prometheus.HistogramVec
 }
 
-func newAsyncTraceIDSharder(cfg *TraceByIDConfig, logger log.Logger) pipeline.AsyncMiddleware[combiner.PipelineResponse] {
+func newAsyncTraceIDSharder(cfg *TraceByIDConfig, jobsPerQuery *prometheus.HistogramVec, logger log.Logger) pipeline.AsyncMiddleware[combiner.PipelineResponse] {
 	return pipeline.AsyncMiddlewareFunc[combiner.PipelineResponse](func(next pipeline.AsyncRoundTripper[combiner.PipelineResponse]) pipeline.AsyncRoundTripper[combiner.PipelineResponse] {
 		// Calculate block boundaries:
 		// - If external is enabled: N-2 block shards (1 ingester + 1 external + N-2 blocks = N total)
@@ -40,6 +42,7 @@ func newAsyncTraceIDSharder(cfg *TraceByIDConfig, logger log.Logger) pipeline.As
 			cfg:             cfg,
 			logger:          logger,
 			blockBoundaries: blockboundary.CreateBlockBoundaries(numBlockShards),
+			jobsPerQuery:    jobsPerQuery,
 		}
 	})
 }
@@ -54,6 +57,7 @@ func (s asyncTraceSharder) RoundTrip(pipelineRequest pipeline.Request) (pipeline
 	if err != nil {
 		return nil, err
 	}
+	s.jobsPerQuery.WithLabelValues(traceByIDOp).Observe(float64(len(reqs)))
 
 	// execute requests
 	concurrentShards := uint(s.cfg.QueryShards)
