@@ -6,10 +6,10 @@ import (
 	"time"
 
 	"github.com/go-kit/log/level"
-	"github.com/grafana/dskit/user"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/traceql"
 	"github.com/grafana/tempo/pkg/util/log"
+	"github.com/grafana/tempo/pkg/validation"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 )
@@ -49,17 +49,12 @@ func (q *Querier) queryRangeRecent(ctx context.Context, req *tempopb.QueryRangeR
 }
 
 func (q *Querier) queryBlock(ctx context.Context, req *tempopb.QueryRangeRequest) (*tempopb.QueryRangeResponse, error) {
-	tenantID, err := user.ExtractOrgID(ctx)
+	tenantID, err := validation.ExtractValidTenantID(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("error extracting org id in Querier.queryBlock: %w", err)
 	}
 
 	blockID, err := backend.ParseUUID(req.BlockID)
-	if err != nil {
-		return nil, err
-	}
-
-	enc, err := backend.ParseEncoding(req.Encoding)
 	if err != nil {
 		return nil, err
 	}
@@ -74,11 +69,9 @@ func (q *Querier) queryBlock(ctx context.Context, req *tempopb.QueryRangeRequest
 		TenantID:  tenantID,
 		StartTime: time.Unix(0, int64(req.Start)),
 		EndTime:   time.Unix(0, int64(req.End)),
-		Encoding:  enc,
 		// IndexPageSize:    req.IndexPageSize,
 		// TotalRecords:     req.TotalRecords,
-		BlockID: blockID,
-		// DataEncoding:     req.DataEncoding,
+		BlockID:          blockID,
 		Size_:            req.Size_,
 		FooterSize:       req.FooterSize,
 		DedicatedColumns: dc,

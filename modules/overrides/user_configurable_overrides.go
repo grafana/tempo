@@ -17,10 +17,11 @@ import (
 	"github.com/grafana/dskit/services"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
-	"gopkg.in/yaml.v2"
+	"go.yaml.in/yaml/v2"
 
 	"github.com/grafana/tempo/modules/overrides/histograms"
 	userconfigurableoverrides "github.com/grafana/tempo/modules/overrides/userconfigurable/client"
+	"github.com/grafana/tempo/pkg/sharedconfig"
 	filterconfig "github.com/grafana/tempo/pkg/spanfilter/config"
 	"github.com/grafana/tempo/pkg/util/listtomap"
 	tempo_log "github.com/grafana/tempo/pkg/util/log"
@@ -239,11 +240,25 @@ func (o *userConfigurableOverridesManager) MetricsGeneratorProcessors(userID str
 	return listtomap.Merge(processorsUserConfigurable, processorsRuntime)
 }
 
+func (o *userConfigurableOverridesManager) MetricsGeneratorIngestionSlack(userID string) time.Duration {
+	if ingestionSlack, ok := o.getTenantLimits(userID).GetMetricsGenerator().GetIngestionSlack(); ok {
+		return ingestionSlack
+	}
+	return o.Interface.MetricsGeneratorIngestionSlack(userID)
+}
+
 func (o *userConfigurableOverridesManager) MetricsGeneratorDisableCollection(userID string) bool {
 	if disableCollection, ok := o.getTenantLimits(userID).GetMetricsGenerator().GetDisableCollection(); ok {
 		return disableCollection
 	}
 	return o.Interface.MetricsGeneratorDisableCollection(userID)
+}
+
+func (o *userConfigurableOverridesManager) MetricsGeneratorTraceIDLabelName(userID string) string {
+	if traceIDLabelName, ok := o.getTenantLimits(userID).GetMetricsGenerator().GetTraceIDLabelName(); ok {
+		return traceIDLabelName
+	}
+	return o.Interface.MetricsGeneratorTraceIDLabelName(userID)
 }
 
 func (o *userConfigurableOverridesManager) MetricsGeneratorGenerateNativeHistograms(userID string) histograms.HistogramMethod {
@@ -258,6 +273,20 @@ func (o *userConfigurableOverridesManager) MetricsGeneratorNativeHistogramMaxBuc
 		return num
 	}
 	return o.Interface.MetricsGeneratorNativeHistogramMaxBucketNumber(userID)
+}
+
+func (o *userConfigurableOverridesManager) MetricsGeneratorNativeHistogramBucketFactor(userID string) float64 {
+	if factor, ok := o.getTenantLimits(userID).GetMetricsGenerator().GetNativeHistogramBucketFactor(); ok {
+		return factor
+	}
+	return o.Interface.MetricsGeneratorNativeHistogramBucketFactor(userID)
+}
+
+func (o *userConfigurableOverridesManager) MetricsGeneratorNativeHistogramMinResetDuration(userID string) time.Duration {
+	if minReset, ok := o.getTenantLimits(userID).GetMetricsGenerator().GetNativeHistogramMinResetDuration(); ok {
+		return minReset
+	}
+	return o.Interface.MetricsGeneratorNativeHistogramMinResetDuration(userID)
 }
 
 func (o *userConfigurableOverridesManager) MetricsGeneratorCollectionInterval(userID string) time.Duration {
@@ -302,11 +331,32 @@ func (o *userConfigurableOverridesManager) MetricsGeneratorProcessorServiceGraph
 	return o.Interface.MetricsGeneratorProcessorServiceGraphsHistogramBuckets(userID)
 }
 
+func (o *userConfigurableOverridesManager) MetricsGeneratorProcessorServiceGraphsSpanMultiplierKey(userID string) string {
+	if spanMultiplierKey, ok := o.getTenantLimits(userID).GetMetricsGenerator().GetProcessor().GetServiceGraphs().GetSpanMultiplierKey(); ok {
+		return spanMultiplierKey
+	}
+	return o.Interface.MetricsGeneratorProcessorServiceGraphsSpanMultiplierKey(userID)
+}
+
 func (o *userConfigurableOverridesManager) MetricsGeneratorProcessorSpanMetricsDimensions(userID string) []string {
 	if dimensions, ok := o.getTenantLimits(userID).GetMetricsGenerator().GetProcessor().GetSpanMetrics().GetDimensions(); ok {
 		return dimensions
 	}
 	return o.Interface.MetricsGeneratorProcessorSpanMetricsDimensions(userID)
+}
+
+func (o *userConfigurableOverridesManager) MetricsGeneratorProcessorSpanMetricsIntrinsicDimensions(userID string) map[string]bool {
+	if intrinsicDimensions, ok := o.getTenantLimits(userID).GetMetricsGenerator().GetProcessor().GetSpanMetrics().GetIntrinsicDimensions(); ok {
+		return intrinsicDimensions
+	}
+	return o.Interface.MetricsGeneratorProcessorSpanMetricsIntrinsicDimensions(userID)
+}
+
+func (o *userConfigurableOverridesManager) MetricsGeneratorProcessorSpanMetricsDimensionMappings(userID string) []sharedconfig.DimensionMappings {
+	if mappings, ok := o.getTenantLimits(userID).GetMetricsGenerator().GetProcessor().GetSpanMetrics().GetDimensionMappings(); ok {
+		return mappings
+	}
+	return o.Interface.MetricsGeneratorProcessorSpanMetricsDimensionMappings(userID)
 }
 
 func (o *userConfigurableOverridesManager) MetricsGeneratorProcessorSpanMetricsEnableTargetInfo(userID string) (bool, bool) {
@@ -342,6 +392,13 @@ func (o *userConfigurableOverridesManager) MetricsGeneratorProcessorSpanMetricsE
 		return EnableInstanceLabel, true
 	}
 	return o.Interface.MetricsGeneratorProcessorSpanMetricsEnableInstanceLabel(userID)
+}
+
+func (o *userConfigurableOverridesManager) MetricsGeneratorProcessorSpanMetricsSpanMultiplierKey(userID string) string {
+	if spanMultiplierKey, ok := o.getTenantLimits(userID).GetMetricsGenerator().GetProcessor().GetSpanMetrics().GetSpanMultiplierKey(); ok {
+		return spanMultiplierKey
+	}
+	return o.Interface.MetricsGeneratorProcessorSpanMetricsSpanMultiplierKey(userID)
 }
 
 func (o *userConfigurableOverridesManager) MetricsGeneratorProcessorHostInfoHostIdentifiers(userID string) []string {

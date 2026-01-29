@@ -42,6 +42,9 @@ type Config struct {
 
 	// RF1After specifies the time after which RF1 logic is applied.
 	RF1After time.Time `yaml:"rf1_after" category:"advanced"`
+
+	// QueryEndCutoff prevents querying incomplete recent data.
+	QueryEndCutoff time.Duration `yaml:"query_end_cutoff,omitempty"`
 }
 
 type MCPServerConfig struct {
@@ -59,6 +62,7 @@ type TraceByIDConfig struct {
 	QueryShards      int       `yaml:"query_shards,omitempty"`
 	ConcurrentShards int       `yaml:"concurrent_shards,omitempty"`
 	SLO              SLOConfig `yaml:",inline"`
+	ExternalEnabled  bool      `yaml:"external_enabled,omitempty"`
 
 	// RF1After specifies the time after which RF1 logic is applied, injected by the configuration
 	// or determined at runtime based on search request parameters.
@@ -88,16 +92,17 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(string, *flag.FlagSet) {
 	cfg.ResponseConsumers = 10
 	cfg.Search = SearchConfig{
 		Sharder: SearchSharderConfig{
-			QueryBackendAfter:     15 * time.Minute,
-			QueryIngestersUntil:   30 * time.Minute,
-			DefaultLimit:          20,
-			MaxLimit:              0,
-			MaxDuration:           168 * time.Hour, // 1 week
-			ConcurrentRequests:    defaultConcurrentRequests,
-			TargetBytesPerRequest: defaultTargetBytesPerRequest,
-			MostRecentShards:      defaultMostRecentShards,
-			IngesterShards:        3,
-			MaxSpansPerSpanSet:    100,
+			QueryBackendAfter:      15 * time.Minute,
+			QueryIngestersUntil:    30 * time.Minute,
+			DefaultLimit:           20,
+			MaxLimit:               0,
+			MaxDuration:            168 * time.Hour, // 1 week
+			ConcurrentRequests:     defaultConcurrentRequests,
+			TargetBytesPerRequest:  defaultTargetBytesPerRequest,
+			MostRecentShards:       defaultMostRecentShards,
+			IngesterShards:         3,
+			DefaultSpansPerSpanSet: 3,
+			MaxSpansPerSpanSet:     100,
 		},
 		SLO: slo,
 	}
@@ -107,13 +112,14 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(string, *flag.FlagSet) {
 	}
 	cfg.Metrics = MetricsConfig{
 		Sharder: QueryRangeSharderConfig{
-			MaxDuration:           3 * time.Hour,
+			MaxDuration:           24 * time.Hour,
 			QueryBackendAfter:     30 * time.Minute,
 			ConcurrentRequests:    defaultConcurrentRequests,
 			TargetBytesPerRequest: defaultTargetBytesPerRequest,
 			Interval:              5 * time.Minute,
 			MaxExemplars:          100,
 			MaxResponseSeries:     0,
+			StreamingShards:       defaultStreamingShards,
 		},
 		SLO: slo,
 	}

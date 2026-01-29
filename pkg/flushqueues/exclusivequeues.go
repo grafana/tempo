@@ -4,32 +4,32 @@ import (
 	"sync"
 
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/uber-go/atomic"
+	"go.uber.org/atomic"
 )
 
-type ExclusiveQueues struct {
-	queues     []*PriorityQueue
+type ExclusiveQueues[T Op] struct {
+	queues     []*PriorityQueue[T]
 	index      *atomic.Int32
 	activeKeys sync.Map
 	stopped    atomic.Bool
 }
 
 // New creates a new set of flush queues with a prom gauge to track current depth
-func New(queues int, metric prometheus.Gauge) *ExclusiveQueues {
-	f := &ExclusiveQueues{
-		queues: make([]*PriorityQueue, queues),
+func New[T Op](queues int, metric prometheus.Gauge) *ExclusiveQueues[T] {
+	f := &ExclusiveQueues[T]{
+		queues: make([]*PriorityQueue[T], queues),
 		index:  atomic.NewInt32(0),
 	}
 
 	for j := 0; j < queues; j++ {
-		f.queues[j] = NewPriorityQueue(metric)
+		f.queues[j] = NewPriorityQueue[T](metric)
 	}
 
 	return f
 }
 
 // Enqueue adds the op to the next queue and prevents any other items to be added with this key
-func (f *ExclusiveQueues) Enqueue(op Op) error {
+func (f *ExclusiveQueues[T]) Enqueue(op T) error {
 	_, ok := f.activeKeys.Load(op.Key())
 	if ok {
 		return nil
@@ -41,23 +41,23 @@ func (f *ExclusiveQueues) Enqueue(op Op) error {
 
 // Dequeue removes the next op from the requested queue.  After dequeueing the calling
 // process either needs to call ClearKey or Requeue
-func (f *ExclusiveQueues) Dequeue(q int) Op {
+func (f *ExclusiveQueues[T]) Dequeue(q int) T {
 	return f.queues[q].Dequeue()
 }
 
 // Requeue adds an op that is presumed to already be covered by activeKeys
-func (f *ExclusiveQueues) Requeue(op Op) error {
+func (f *ExclusiveQueues[T]) Requeue(op T) error {
 	flushQueueIndex := int(f.index.Inc()) % len(f.queues)
 	_, err := f.queues[flushQueueIndex].Enqueue(op)
 	return err
 }
 
 // Clear unblocks the requested op.  This should be called only after a flush has been successful
-func (f *ExclusiveQueues) Clear(op Op) {
+func (f *ExclusiveQueues[T]) Clear(op T) {
 	f.activeKeys.Delete(op.Key())
 }
 
-func (f *ExclusiveQueues) IsEmpty() bool {
+func (f *ExclusiveQueues[T]) IsEmpty() bool {
 	length := 0
 
 	f.activeKeys.Range(func(_, _ interface{}) bool {
@@ -69,7 +69,7 @@ func (f *ExclusiveQueues) IsEmpty() bool {
 }
 
 // Stop closes all queues
-func (f *ExclusiveQueues) Stop() {
+func (f *ExclusiveQueues[T]) Stop() {
 	f.stopped.Store(true)
 
 	for _, q := range f.queues {
@@ -77,6 +77,6 @@ func (f *ExclusiveQueues) Stop() {
 	}
 }
 
-func (f *ExclusiveQueues) IsStopped() bool {
+func (f *ExclusiveQueues[T]) IsStopped() bool {
 	return f.stopped.Load()
 }

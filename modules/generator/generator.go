@@ -14,7 +14,6 @@ import (
 	"github.com/grafana/dskit/kv"
 	"github.com/grafana/dskit/ring"
 	"github.com/grafana/dskit/services"
-	"github.com/grafana/dskit/user"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/twmb/franz-go/pkg/kadm"
 	"github.com/twmb/franz-go/pkg/kgo"
@@ -28,6 +27,7 @@ import (
 	objStorage "github.com/grafana/tempo/modules/storage"
 	"github.com/grafana/tempo/pkg/ingest"
 	"github.com/grafana/tempo/pkg/tempopb"
+	"github.com/grafana/tempo/pkg/validation"
 	tempodb_wal "github.com/grafana/tempo/tempodb/wal"
 )
 
@@ -45,13 +45,17 @@ const (
 	// contained in the requests. This is intended to be used by clients that send
 	// requests for which span-derived metrics have already been generated elsewhere.
 	NoGenerateMetricsContextKey = "no-generate-metrics"
+
+	// failureBackoff is the duration to wait before retrying failed tenant instance creation.
+	failureBackoff = 1 * time.Minute
 )
 
 var tracer = otel.Tracer("modules/generator")
 
 var (
-	ErrUnconfigured = errors.New("no metrics_generator.storage.path configured, metrics generator will be disabled")
-	ErrReadOnly     = errors.New("metrics-generator is shutting down")
+	ErrUnconfigured            = errors.New("no metrics_generator.storage.path configured, metrics generator will be disabled")
+	ErrReadOnly                = errors.New("metrics-generator is shutting down")
+	errInstanceCreationBackoff = errors.New("instance creation in backoff")
 )
 
 type Generator struct {
@@ -62,8 +66,9 @@ type Generator struct {
 
 	ringLifecycler *ring.BasicLifecycler
 
-	instancesMtx sync.RWMutex
-	instances    map[string]*instance
+	instancesMtx    sync.RWMutex
+	instances       map[string]*instance
+	failedInstances map[string]time.Time // instance -> when creation last failed
 
 	subservices        *services.Manager
 	subservicesWatcher *services.FailureWatcher
@@ -107,7 +112,8 @@ func New(cfg *Config, overrides metricsGeneratorOverrides, reg prometheus.Regist
 		cfg:       cfg,
 		overrides: overrides,
 
-		instances: map[string]*instance{},
+		instances:       map[string]*instance{},
+		failedInstances: map[string]time.Time{},
 
 		store:         store,
 		partitionRing: partitionRing,
@@ -268,7 +274,7 @@ func (g *Generator) PushSpans(ctx context.Context, req *tempopb.PushSpansRequest
 	ctx, span := tracer.Start(ctx, "generator.PushSpans")
 	defer span.End()
 
-	instanceID, err := user.ExtractOrgID(ctx)
+	instanceID, err := validation.ExtractValidTenantID(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -285,6 +291,7 @@ func (g *Generator) PushSpans(ctx context.Context, req *tempopb.PushSpansRequest
 }
 
 func (g *Generator) getOrCreateInstance(instanceID string) (*instance, error) {
+	// Fast path: check with read lock first
 	inst, ok := g.getInstanceByID(instanceID)
 	if ok {
 		return inst, nil
@@ -293,15 +300,28 @@ func (g *Generator) getOrCreateInstance(instanceID string) (*instance, error) {
 	g.instancesMtx.Lock()
 	defer g.instancesMtx.Unlock()
 
-	inst, ok = g.instances[instanceID]
-	if ok {
+	// Double-check after acquiring write lock
+	if inst, ok := g.instances[instanceID]; ok {
 		return inst, nil
+	}
+
+	// Check if this instance creation failed previously
+	if failedAt, ok := g.failedInstances[instanceID]; ok {
+		if time.Since(failedAt) < failureBackoff {
+			return nil, errInstanceCreationBackoff
+		}
+		// Backoff expired, clear the failure and retry
+		delete(g.failedInstances, instanceID)
 	}
 
 	inst, err := g.createInstance(instanceID)
 	if err != nil {
+		g.failedInstances[instanceID] = time.Now()
+		level.Error(g.logger).Log("msg", "instance creation failed, will retry after backoff",
+			"backoff", failureBackoff, "tenant", instanceID, "err", err)
 		return nil, err
 	}
+
 	g.instances[instanceID] = inst
 	return inst, nil
 }
@@ -416,7 +436,7 @@ func (g *Generator) OnRingInstanceHeartbeat(*ring.BasicLifecycler, *ring.Desc, *
 }
 
 func (g *Generator) GetMetrics(ctx context.Context, req *tempopb.SpanMetricsRequest) (*tempopb.SpanMetricsResponse, error) {
-	instanceID, err := user.ExtractOrgID(ctx)
+	instanceID, err := validation.ExtractValidTenantID(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -431,7 +451,7 @@ func (g *Generator) GetMetrics(ctx context.Context, req *tempopb.SpanMetricsRequ
 }
 
 func (g *Generator) QueryRange(ctx context.Context, req *tempopb.QueryRangeRequest) (*tempopb.QueryRangeResponse, error) {
-	instanceID, err := user.ExtractOrgID(ctx)
+	instanceID, err := validation.ExtractValidTenantID(ctx)
 	if err != nil {
 		return nil, err
 	}

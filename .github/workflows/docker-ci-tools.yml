@@ -23,7 +23,7 @@ jobs:
       tag: ${{ steps.get-tag.outputs.tag }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6
         with:
           persist-credentials: false
 
@@ -44,12 +44,12 @@ jobs:
       TAG: ${{ needs.get-image-tag.outputs.tag }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6
         with:
           persist-credentials: false
 
       - name: Login to DockerHub
-        uses: grafana/shared-workflows/actions/dockerhub-login@a37de51f3d713a30a9e4b21bcdfbd38170020593 # dockerhub-login-v1.0.1
+        uses: grafana/shared-workflows/actions/dockerhub-login@081a366728379fd0426b9cfef190e9a21c2d5418 # dockerhub-login/v1.0.3
 
       - name: docker-build-and-push
         run: |
@@ -67,12 +67,12 @@ jobs:
       TAG: ${{ needs.get-image-tag.outputs.tag }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6
         with:
           persist-credentials: false
 
       - name: Login to DockerHub
-        uses: grafana/shared-workflows/actions/dockerhub-login@a37de51f3d713a30a9e4b21bcdfbd38170020593 # dockerhub-login-v1.0.1
+        uses: grafana/shared-workflows/actions/dockerhub-login@081a366728379fd0426b9cfef190e9a21c2d5418 # dockerhub-login/v1.0.3
 
       - name: docker-manifest-create-and-push
         run: |

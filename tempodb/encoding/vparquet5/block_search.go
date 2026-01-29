@@ -60,12 +60,15 @@ func (b *backendBlock) openForSearch(ctx context.Context, opts common.SearchOpti
 
 	// TODO: ctx is also cached when we cache backendReaderAt, not ideal but leaving it as is for now
 	backendReaderAt := NewBackendReaderAt(ctx, b.r, DataFileName, b.meta)
+
+	schema, _, _ := SchemaWithDynamicChanges(b.meta.DedicatedColumns)
+
 	// no searches currently require bloom filters or the page index. so just add them statically
 	o := []parquet.FileOption{
 		parquet.SkipBloomFilters(true),
 		parquet.SkipPageIndex(true),
 		parquet.FileReadMode(parquet.ReadModeAsync),
-		parquet.FileSchema(parquetSchema),
+		parquet.FileSchema(schema),
 	}
 
 	// if the read buffer size provided is <= 0 then we'll use the parquet default
@@ -393,37 +396,28 @@ func makeIterFuncNoIntern(ctx context.Context, rgs []parquet.RowGroup, pf *parqu
 	}
 }
 
-type rowNumberIterator struct {
-	rowNumbers []pq.RowNumber
-}
+func makeNilIterFunc(ctx context.Context, rgs []parquet.RowGroup, pf *parquet.File) makeIterFn {
+	return func(name string, predicate pq.Predicate, selectAs string) pq.Iterator {
+		index, _, maxDef := pq.GetColumnIndexByPath(pf, name)
+		if index == -1 {
+			// TODO - don't panic, error instead
+			panic("column not found in parquet file:" + name)
+		}
 
-var _ pq.Iterator = (*rowNumberIterator)(nil)
+		opts := []pq.SyncIteratorOpt{
+			pq.SyncIteratorOptColumnName(name),
+			pq.SyncIteratorOptPredicate(predicate),
+			pq.SyncIteratorOptSelectAs(selectAs),
+			pq.SyncIteratorOptMaxDefinitionLevel(maxDef),
+		}
 
-func (r *rowNumberIterator) String() string {
-	return "rowNumberIterator()"
-}
+		if name != columnPathSpanID && name != columnPathTraceID {
+			opts = append(opts, pq.SyncIteratorOptIntern())
+		}
 
-func (r *rowNumberIterator) Next() (*pq.IteratorResult, error) {
-	if len(r.rowNumbers) == 0 {
-		return nil, nil
+		return pq.NewNilSyncIterator(ctx, rgs, index, opts...)
 	}
-
-	res := &pq.IteratorResult{RowNumber: r.rowNumbers[0]}
-	r.rowNumbers = r.rowNumbers[1:]
-	return res, nil
 }
-
-func (r *rowNumberIterator) SeekTo(to pq.RowNumber, definitionLevel int) (*pq.IteratorResult, error) {
-	var at *pq.IteratorResult
-
-	for at, _ = r.Next(); r != nil && at != nil && pq.CompareRowNumbers(definitionLevel, at.RowNumber, to) < 0; {
-		at, _ = r.Next()
-	}
-
-	return at, nil
-}
-
-func (r *rowNumberIterator) Close() {}
 
 // reportValuesPredicate is a "fake" predicate that uses existing iterator logic to find all values in a given column
 type reportValuesPredicate struct {

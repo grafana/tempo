@@ -125,9 +125,6 @@ func (c SearchConfig) ApplyToOptions(o *common.SearchOptions) {
 
 // CompactorConfig contains compaction configuration options
 type CompactorConfig struct {
-	ChunkSizeBytes          uint32        `yaml:"v2_in_buffer_bytes"`
-	FlushSizeBytes          uint32        `yaml:"v2_out_buffer_bytes"`
-	IteratorBufferSize      int           `yaml:"v2_prefetch_traces_count"`
 	MaxCompactionRange      time.Duration `yaml:"compaction_window"`
 	MaxCompactionObjects    int           `yaml:"max_compaction_objects"`
 	MaxBlockBytes           uint64        `yaml:"max_block_bytes"`
@@ -140,9 +137,6 @@ type CompactorConfig struct {
 
 func (cfg *CompactorConfig) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
 	// fill in default values
-	cfg.ChunkSizeBytes = DefaultChunkSizeBytes
-	cfg.FlushSizeBytes = DefaultFlushSizeBytes
-	cfg.IteratorBufferSize = DefaultIteratorBufferSize
 	cfg.MaxTimePerTenant = DefaultMaxTimePerTenant
 	cfg.CompactionCycle = DefaultCompactionCycle
 	cfg.CompactedBlockRetention = time.Hour
@@ -156,7 +150,7 @@ func (cfg *CompactorConfig) RegisterFlagsAndApplyDefaults(prefix string, f *flag
 
 func (cfg *CompactorConfig) validate() error {
 	if cfg.MaxCompactionRange == 0 {
-		return errors.New("Compaction window can't be 0")
+		return errors.New("compaction window can't be 0")
 	}
 
 	return nil
@@ -190,7 +184,7 @@ func validateConfig(cfg *Config) error {
 		return fmt.Errorf("block config validation failed: %w", err)
 	}
 
-	_, err = encoding.FromVersion(cfg.Block.Version)
+	_, err = encoding.FromVersionForWrites(cfg.Block.Version)
 	if err != nil {
 		return fmt.Errorf("block version validation failed: %w", err)
 	}

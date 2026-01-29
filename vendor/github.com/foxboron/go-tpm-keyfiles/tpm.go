@@ -605,7 +605,7 @@ func ReadPublic(tpm transport.TPMCloser, handle tpm2.TPMHandle) (*tpm2.AuthHandl
 	}
 	return &tpm2.AuthHandle{
 		Handle: handle,
-		Name:   rsp.QualifiedName,
+		Name:   rsp.Name,
 	}, pub, nil
 }
 
@@ -644,6 +644,7 @@ func GetParentHandle(sess *TPMSession, parent tpm2.TPMHandle, ownerauth []byte) 
 			return nil, err
 		}
 		parenthandle = *handle
+		parenthandle.Auth = tpm2.PasswordAuth(ownerauth)
 
 		// TODO: Unclear to me if we just load the EK and use that, instead of the key.
 		sess.SetSalted(parent, *pub)

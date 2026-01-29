@@ -7,21 +7,24 @@ import (
 	"testing"
 	"time"
 
+	"github.com/prometheus/prometheus/model/labels"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/atomic"
 )
 
 func Test_gaugeInc(t *testing.T) {
 	var seriesAdded int
-	onAdd := func(_ uint32) bool {
-		seriesAdded++
-		return true
+	lifecycler := &mockLimiter{
+		onAddFunc: func(hash uint64, _ uint32, lbls labels.Labels) (labels.Labels, uint64) {
+			seriesAdded++
+			return lbls, hash
+		},
 	}
 
-	c := newGauge("my_gauge", onAdd, nil, nil, 15*time.Minute)
+	c := newGauge("my_gauge", lifecycler, map[string]string{}, 15*time.Minute)
 
-	c.Inc(newLabelValueCombo([]string{"label"}, []string{"value-1"}), 1.0)
-	c.Inc(newLabelValueCombo([]string{"label"}, []string{"value-2"}), 2.0)
+	c.Inc(buildTestLabels([]string{"label"}, []string{"value-1"}), 1.0)
+	c.Inc(buildTestLabels([]string{"label"}, []string{"value-2"}), 2.0)
 
 	assert.Equal(t, 2, seriesAdded)
 
@@ -32,8 +35,8 @@ func Test_gaugeInc(t *testing.T) {
 	}
 	collectMetricAndAssert(t, c, collectionTimeMs, 2, expectedSamples, nil)
 
-	c.Inc(newLabelValueCombo([]string{"label"}, []string{"value-2"}), 2.0)
-	c.Inc(newLabelValueCombo([]string{"label"}, []string{"value-3"}), 3.0)
+	c.Inc(buildTestLabels([]string{"label"}, []string{"value-2"}), 2.0)
+	c.Inc(buildTestLabels([]string{"label"}, []string{"value-3"}), 3.0)
 
 	assert.Equal(t, 3, seriesAdded)
 
@@ -48,15 +51,17 @@ func Test_gaugeInc(t *testing.T) {
 
 func TestGaugeDifferentLabels(t *testing.T) {
 	var seriesAdded int
-	onAdd := func(_ uint32) bool {
-		seriesAdded++
-		return true
+	lifecycler := &mockLimiter{
+		onAddFunc: func(hash uint64, _ uint32, lbls labels.Labels) (labels.Labels, uint64) {
+			seriesAdded++
+			return lbls, hash
+		},
 	}
 
-	c := newGauge("my_gauge", onAdd, nil, nil, 15*time.Minute)
+	c := newGauge("my_gauge", lifecycler, map[string]string{}, 15*time.Minute)
 
-	c.Inc(newLabelValueCombo([]string{"label"}, []string{"value-1"}), 1.0)
-	c.Inc(newLabelValueCombo([]string{"another_label"}, []string{"another_value"}), 2.0)
+	c.Inc(buildTestLabels([]string{"label"}, []string{"value-1"}), 1.0)
+	c.Inc(buildTestLabels([]string{"another_label"}, []string{"another_value"}), 2.0)
 
 	assert.Equal(t, 2, seriesAdded)
 
@@ -70,15 +75,17 @@ func TestGaugeDifferentLabels(t *testing.T) {
 
 func Test_gaugeSet(t *testing.T) {
 	var seriesAdded int
-	onAdd := func(_ uint32) bool {
-		seriesAdded++
-		return true
+	lifecycler := &mockLimiter{
+		onAddFunc: func(hash uint64, _ uint32, lbls labels.Labels) (labels.Labels, uint64) {
+			seriesAdded++
+			return lbls, hash
+		},
 	}
 
-	c := newGauge("my_gauge", onAdd, nil, nil, 15*time.Minute)
+	c := newGauge("my_gauge", lifecycler, map[string]string{}, 15*time.Minute)
 
-	c.Set(newLabelValueCombo([]string{"label"}, []string{"value-1"}), 1.0)
-	c.Set(newLabelValueCombo([]string{"label"}, []string{"value-2"}), 2.0)
+	c.Set(buildTestLabels([]string{"label"}, []string{"value-1"}), 1.0)
+	c.Set(buildTestLabels([]string{"label"}, []string{"value-2"}), 2.0)
 
 	assert.Equal(t, 2, seriesAdded)
 
@@ -89,8 +96,8 @@ func Test_gaugeSet(t *testing.T) {
 	}
 	collectMetricAndAssert(t, c, collectionTimeMs, 2, expectedSamples, nil)
 
-	c.Set(newLabelValueCombo([]string{"label"}, []string{"value-2"}), 2.0)
-	c.Set(newLabelValueCombo([]string{"label"}, []string{"value-3"}), 3.0)
+	c.Set(buildTestLabels([]string{"label"}, []string{"value-2"}), 2.0)
+	c.Set(buildTestLabels([]string{"label"}, []string{"value-3"}), 3.0)
 
 	assert.Equal(t, 3, seriesAdded)
 
@@ -105,18 +112,25 @@ func Test_gaugeSet(t *testing.T) {
 
 func Test_gauge_cantAdd(t *testing.T) {
 	canAdd := false
-	onAdd := func(count uint32) bool {
-		assert.Equal(t, uint32(1), count)
-		return canAdd
+	overflowLabels := labels.FromStrings("metric_overflow", "true")
+	overflowHash := overflowLabels.Hash()
+	lifecycler := &mockLimiter{
+		onAddFunc: func(_ uint64, count uint32, lbls labels.Labels) (labels.Labels, uint64) {
+			assert.Equal(t, uint32(1), count)
+			if canAdd {
+				return lbls, lbls.Hash()
+			}
+			return overflowLabels, overflowHash
+		},
 	}
 
-	c := newGauge("my_gauge", onAdd, nil, nil, 15*time.Minute)
+	c := newGauge("my_gauge", lifecycler, map[string]string{}, 15*time.Minute)
 
 	// allow adding new series
 	canAdd = true
 
-	c.Inc(newLabelValueCombo([]string{"label"}, []string{"value-1"}), 1.0)
-	c.Inc(newLabelValueCombo([]string{"label"}, []string{"value-2"}), 2.0)
+	c.Inc(buildTestLabels([]string{"label"}, []string{"value-1"}), 1.0)
+	c.Inc(buildTestLabels([]string{"label"}, []string{"value-2"}), 2.0)
 
 	collectionTimeMs := time.Now().UnixMilli()
 	expectedSamples := []sample{
@@ -125,32 +139,35 @@ func Test_gauge_cantAdd(t *testing.T) {
 	}
 	collectMetricAndAssert(t, c, collectionTimeMs, 2, expectedSamples, nil)
 
-	// block new series - existing series can still be updated
+	// block new series - existing series can still be updated, new series map to overflow
 	canAdd = false
 
-	c.Inc(newLabelValueCombo([]string{"label"}, []string{"value-2"}), 2.0)
-	c.Inc(newLabelValueCombo([]string{"label"}, []string{"value-3"}), 3.0)
+	c.Inc(buildTestLabels([]string{"label"}, []string{"value-2"}), 2.0)
+	c.Inc(buildTestLabels([]string{"label"}, []string{"value-3"}), 3.0)
 
 	collectionTimeMs = time.Now().UnixMilli()
 	expectedSamples = []sample{
 		newSample(map[string]string{"__name__": "my_gauge", "label": "value-1"}, collectionTimeMs, 1),
 		newSample(map[string]string{"__name__": "my_gauge", "label": "value-2"}, collectionTimeMs, 4),
+		newSample(map[string]string{"__name__": "my_gauge", "metric_overflow": "true"}, collectionTimeMs, 3),
 	}
-	collectMetricAndAssert(t, c, collectionTimeMs, 2, expectedSamples, nil)
+	collectMetricAndAssert(t, c, collectionTimeMs, 3, expectedSamples, nil)
 }
 
 func Test_gauge_removeStaleSeries(t *testing.T) {
 	var removedSeries int
-	onRemove := func(count uint32) {
-		assert.Equal(t, uint32(1), count)
-		removedSeries++
+	lifecycler := &mockLimiter{
+		onDeleteFunc: func(_ uint64, count uint32) {
+			assert.Equal(t, uint32(1), count)
+			removedSeries++
+		},
 	}
 
-	c := newGauge("my_gauge", nil, onRemove, nil, 15*time.Minute)
+	c := newGauge("my_gauge", lifecycler, map[string]string{}, 15*time.Minute)
 
 	timeMs := time.Now().UnixMilli()
-	c.Inc(newLabelValueCombo([]string{"label"}, []string{"value-1"}), 1.0)
-	c.Inc(newLabelValueCombo([]string{"label"}, []string{"value-2"}), 2.0)
+	c.Inc(buildTestLabels([]string{"label"}, []string{"value-1"}), 1.0)
+	c.Inc(buildTestLabels([]string{"label"}, []string{"value-2"}), 2.0)
 
 	c.removeStaleSeries(timeMs)
 
@@ -167,7 +184,7 @@ func Test_gauge_removeStaleSeries(t *testing.T) {
 	timeMs = time.Now().UnixMilli()
 
 	// update value-2 series
-	c.Inc(newLabelValueCombo([]string{"label"}, []string{"value-2"}), 2.0)
+	c.Inc(buildTestLabels([]string{"label"}, []string{"value-2"}), 2.0)
 
 	c.removeStaleSeries(timeMs)
 
@@ -181,10 +198,10 @@ func Test_gauge_removeStaleSeries(t *testing.T) {
 }
 
 func Test_gauge_externalLabels(t *testing.T) {
-	c := newGauge("my_gauge", nil, nil, map[string]string{"external_label": "external_value"}, 15*time.Minute)
+	c := newGauge("my_gauge", noopLimiter, map[string]string{"external_label": "external_value"}, 15*time.Minute)
 
-	c.Inc(newLabelValueCombo([]string{"label"}, []string{"value-1"}), 1.0)
-	c.Inc(newLabelValueCombo([]string{"label"}, []string{"value-2"}), 2.0)
+	c.Inc(buildTestLabels([]string{"label"}, []string{"value-1"}), 1.0)
+	c.Inc(buildTestLabels([]string{"label"}, []string{"value-2"}), 2.0)
 
 	collectionTimeMs := time.Now().UnixMilli()
 	expectedSamples := []sample{
@@ -195,7 +212,7 @@ func Test_gauge_externalLabels(t *testing.T) {
 }
 
 func Test_gauge_concurrencyDataRace(t *testing.T) {
-	c := newGauge("my_gauge", nil, nil, nil, 15*time.Minute)
+	c := newGauge("my_gauge", noopLimiter, map[string]string{}, 15*time.Minute)
 
 	end := make(chan struct{})
 
@@ -212,8 +229,8 @@ func Test_gauge_concurrencyDataRace(t *testing.T) {
 
 	for i := 0; i < 4; i++ {
 		go accessor(func() {
-			c.Inc(newLabelValueCombo([]string{"label"}, []string{"value-1"}), 1.0)
-			c.Inc(newLabelValueCombo([]string{"label"}, []string{"value-2"}), 1.0)
+			c.Inc(buildTestLabels([]string{"label"}, []string{"value-1"}), 1.0)
+			c.Inc(buildTestLabels([]string{"label"}, []string{"value-2"}), 1.0)
 		})
 	}
 
@@ -224,7 +241,7 @@ func Test_gauge_concurrencyDataRace(t *testing.T) {
 		for i := range s {
 			s[i] = letters[rand.Intn(len(letters))]
 		}
-		c.Inc(newLabelValueCombo([]string{"label"}, []string{string(s)}), 1.0)
+		c.Inc(buildTestLabels([]string{"label"}, []string{string(s)}), 1.0)
 	})
 
 	go accessor(func() {
@@ -241,7 +258,7 @@ func Test_gauge_concurrencyDataRace(t *testing.T) {
 }
 
 func Test_gauge_concurrencyCorrectness(t *testing.T) {
-	c := newGauge("my_gauge", nil, nil, nil, 15*time.Minute)
+	c := newGauge("my_gauge", noopLimiter, map[string]string{}, 15*time.Minute)
 
 	var wg sync.WaitGroup
 	end := make(chan struct{})
@@ -257,7 +274,7 @@ func Test_gauge_concurrencyCorrectness(t *testing.T) {
 				case <-end:
 					return
 				default:
-					c.Inc(newLabelValueCombo([]string{"label"}, []string{"value-1"}), 1.0)
+					c.Inc(buildTestLabels([]string{"label"}, []string{"value-1"}), 1.0)
 					totalCount.Inc()
 				}
 			}
@@ -277,15 +294,15 @@ func Test_gauge_concurrencyCorrectness(t *testing.T) {
 }
 
 func Test_gauge_demandTracking(t *testing.T) {
-	g := newGauge("my_gauge", nil, nil, nil, 15*time.Minute)
+	g := newGauge("my_gauge", noopLimiter, map[string]string{}, 15*time.Minute)
 
 	// Initially, demand should be 0
 	assert.Equal(t, 0, g.countSeriesDemand())
 
 	// Add some series
 	for i := 0; i < 50; i++ {
-		lvc := newLabelValueCombo([]string{"label"}, []string{fmt.Sprintf("value-%d", i)})
-		g.Inc(lvc, 1.0)
+		lbls := buildTestLabels([]string{"label"}, []string{fmt.Sprintf("value-%d", i)})
+		g.Inc(lbls, 1.0)
 	}
 
 	// Demand should now be approximately 50 (within HLL error)
@@ -299,16 +316,23 @@ func Test_gauge_demandTracking(t *testing.T) {
 
 func Test_gauge_demandVsActiveSeries(t *testing.T) {
 	limitReached := false
-	onAdd := func(_ uint32) bool {
-		return !limitReached
-	}
+	overflowLabels := labels.FromStrings("metric_overflow", "true")
+	overflowHash := overflowLabels.Hash()
 
-	g := newGauge("my_gauge", onAdd, nil, nil, 15*time.Minute)
+	lifecycler := &mockLimiter{
+		onAddFunc: func(hash uint64, _ uint32, lbls labels.Labels) (labels.Labels, uint64) {
+			if !limitReached {
+				return lbls, hash
+			}
+			return overflowLabels, overflowHash
+		},
+	}
+	g := newGauge("my_gauge", lifecycler, map[string]string{}, 15*time.Minute)
 
 	// Add series up to a point
 	for i := 0; i < 30; i++ {
-		lvc := newLabelValueCombo([]string{"label"}, []string{fmt.Sprintf("value-%d", i)})
-		g.Set(lvc, float64(i))
+		lbls := buildTestLabels([]string{"label"}, []string{fmt.Sprintf("value-%d", i)})
+		g.Set(lbls, float64(i))
 	}
 
 	assert.Equal(t, 30, g.countActiveSeries())
@@ -316,14 +340,14 @@ func Test_gauge_demandVsActiveSeries(t *testing.T) {
 	// Hit the limit
 	limitReached = true
 
-	// Try to add more series (they should be rejected)
+	// Try to add more series (they should be mapped to overflow)
 	for i := 30; i < 60; i++ {
-		lvc := newLabelValueCombo([]string{"label"}, []string{fmt.Sprintf("value-%d", i)})
-		g.Set(lvc, float64(i))
+		lbls := buildTestLabels([]string{"label"}, []string{fmt.Sprintf("value-%d", i)})
+		g.Set(lbls, float64(i))
 	}
 
-	// Active series should still be 30
-	assert.Equal(t, 30, g.countActiveSeries())
+	// Active series should be 30 accepted + 1 overflow = 31 total
+	assert.Equal(t, 31, g.countActiveSeries())
 
 	// But demand should show all attempted series
 	demand := g.countSeriesDemand()
@@ -332,12 +356,13 @@ func Test_gauge_demandVsActiveSeries(t *testing.T) {
 }
 
 func Test_gauge_demandDecay(t *testing.T) {
-	g := newGauge("my_gauge", nil, nil, nil, 15*time.Minute)
+	lifecycler := &mockLimiter{}
+	g := newGauge("my_gauge", lifecycler, map[string]string{}, 15*time.Minute)
 
 	// Add series
 	for i := 0; i < 40; i++ {
-		lvc := newLabelValueCombo([]string{"label"}, []string{fmt.Sprintf("value-%d", i)})
-		g.Inc(lvc, 1.0)
+		lbls := buildTestLabels([]string{"label"}, []string{fmt.Sprintf("value-%d", i)})
+		g.Inc(lbls, 1.0)
 	}
 
 	initialDemand := g.countSeriesDemand()
@@ -351,4 +376,39 @@ func Test_gauge_demandDecay(t *testing.T) {
 	// Demand should have decreased or be zero
 	finalDemand := g.countSeriesDemand()
 	assert.LessOrEqual(t, finalDemand, initialDemand/2, "demand should significantly decay")
+}
+
+func Test_gauge_onUpdate(t *testing.T) {
+	var seriesUpdated int
+	lifecycler := &mockLimiter{
+		onAddFunc: func(hash uint64, _ uint32, lbls labels.Labels) (labels.Labels, uint64) {
+			return lbls, hash
+		},
+		onUpdateFunc: func(_ uint64, count uint32) {
+			assert.Equal(t, uint32(1), count)
+			seriesUpdated++
+		},
+	}
+
+	g := newGauge("my_gauge", lifecycler, map[string]string{}, 15*time.Minute)
+
+	// Add initial series
+	g.Inc(buildTestLabels([]string{"label"}, []string{"value-1"}), 1.0)
+	g.Set(buildTestLabels([]string{"label"}, []string{"value-2"}), 5.0)
+
+	// No updates yet (new series don't trigger OnUpdate)
+	assert.Equal(t, 0, seriesUpdated)
+
+	// Update existing series with Inc
+	g.Inc(buildTestLabels([]string{"label"}, []string{"value-1"}), 2.0)
+	assert.Equal(t, 1, seriesUpdated)
+
+	// Update existing series with Set
+	g.Set(buildTestLabels([]string{"label"}, []string{"value-2"}), 10.0)
+	assert.Equal(t, 2, seriesUpdated)
+
+	// Update both series
+	g.Inc(buildTestLabels([]string{"label"}, []string{"value-1"}), 1.0)
+	g.Set(buildTestLabels([]string{"label"}, []string{"value-2"}), 15.0)
+	assert.Equal(t, 4, seriesUpdated)
 }

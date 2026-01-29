@@ -2,6 +2,8 @@ package spanmetrics
 
 import (
 	"strings"
+
+	"github.com/grafana/tempo/modules/generator/processor"
 )
 
 type Subprocessor int
@@ -21,11 +23,11 @@ var SupportedSubprocessors = []Subprocessor{
 func (s Subprocessor) String() string {
 	switch s {
 	case Latency:
-		return "span-metrics-latency"
+		return processor.SpanMetricsLatencyName
 	case Count:
-		return "span-metrics-count"
+		return processor.SpanMetricsCountName
 	case Size:
-		return "span-metrics-size"
+		return processor.SpanMetricsSizeName
 	default:
 		return "unsupported"
 	}

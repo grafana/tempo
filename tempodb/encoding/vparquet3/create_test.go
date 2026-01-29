@@ -38,7 +38,7 @@ func TestCreateBlockHonorsTraceStartEndTimesFromWalMeta(t *testing.T) {
 		BloomShardSizeBytes: 100 * 1024,
 	}
 
-	meta := backend.NewBlockMeta("fake", uuid.New(), VersionString, backend.EncNone, "")
+	meta := backend.NewBlockMeta("fake", uuid.New(), VersionString)
 	meta.TotalObjects = 1
 	meta.StartTime = time.Unix(300, 0)
 	meta.EndTime = time.Unix(305, 0)
@@ -67,7 +67,7 @@ func TestCreateBlockFilterDedicatedColumns(t *testing.T) {
 		BloomShardSizeBytes: 100 * 1024,
 	}
 
-	meta := backend.NewBlockMeta("fake", uuid.New(), VersionString, backend.EncNone, "")
+	meta := backend.NewBlockMeta("fake", uuid.New(), VersionString)
 	meta.TotalObjects = 1
 	meta.DedicatedColumns = backend.DedicatedColumns{
 		{Scope: "span", Name: "span-one", Type: "string"},

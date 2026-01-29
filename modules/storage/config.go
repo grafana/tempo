@@ -6,7 +6,6 @@ import (
 	"github.com/grafana/tempo/pkg/cache"
 	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/tempodb"
-	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/backend/azure"
 	"github.com/grafana/tempo/tempodb/backend/gcs"
 	"github.com/grafana/tempo/tempodb/backend/local"
@@ -36,8 +35,6 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 	cfg.Trace.WAL = &wal.Config{}
 	cfg.Trace.WAL.RegisterFlags(f)
 	f.StringVar(&cfg.Trace.WAL.Filepath, util.PrefixConfig(prefix, "trace.wal.path"), "/var/tempo/wal", "Path at which store WAL blocks.")
-	cfg.Trace.WAL.Encoding = backend.EncSnappy
-	cfg.Trace.WAL.SearchEncoding = backend.EncNone
 
 	cfg.Trace.Search = &tempodb.SearchConfig{}
 	cfg.Trace.Search.RegisterFlagsAndApplyDefaults(prefix, f)

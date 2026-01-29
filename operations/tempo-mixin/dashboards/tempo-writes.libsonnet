@@ -26,14 +26,16 @@ dashboard_utils {
               sum by (grpc_status) (
                 rate(
                   label_replace(
-                    {__name__=~"envoy_cluster_grpc_[0-9]+", %s"},
+                    {__name__=~"envoy_cluster_grpc_[0-9]+", %s},
                     "grpc_status", "$1", "__name__", "envoy_cluster_grpc_([0-9]+)"
                   )
                 [ $__rate_interval : 30s ])
               )
             ||| % $.jobMatcher($._config.jobs.gateway),
             '{{grpc_status}}',
-          )
+          ) + {
+            fieldConfig+: { defaults+: { unit: 'ops' } },
+          }
         )
         .addPanel(
           $.textPanel(
@@ -79,7 +81,9 @@ dashboard_utils {
               * 100
             |||,
             '{{job}}',
-          )
+          ) + {
+            fieldConfig+: { defaults+: { unit: 'percent' } },
+          }
         ).addPanel(
           $.panel('Envoy remaining requests/connections') +
           $.queryPanel(
@@ -88,7 +92,9 @@ dashboard_utils {
               'min(envoy_cluster_circuit_breakers_default_remaining_cx{namespace="$namespace"}) by(job)',
             ],
             ['{{job}} rq', '{{job}} cx']
-          )
+          ) + {
+            fieldConfig+: { defaults+: { unit: 'short' } },
+          }
         )
       )
 
@@ -98,11 +104,13 @@ dashboard_utils {
           $.panel('Spans / sec') +
           $.queryPanel('sum(rate(tempo_receiver_accepted_spans{%s}[$__rate_interval]))' % $.jobMatcher($._config.jobs.distributor), 'accepted') +
           $.queryPanel('sum(rate(tempo_receiver_refused_spans{%s}[$__rate_interval]))' % $.jobMatcher($._config.jobs.distributor), 'refused')
+          + { fieldConfig+: { defaults+: { unit: 'ops' } } }
         )
         .addPanel(
           $.panel('Bytes / sec') +
           $.queryPanel('sum(rate(tempo_distributor_bytes_received_total{%s}[$__rate_interval])) by (status)' % $.jobMatcher($._config.jobs.distributor), 'received') {
             yaxes: $.yaxes('binBps'),
+            fieldConfig+: { defaults+: { unit: 'binBps' } },
           }
         )
         .addPanel(
@@ -117,20 +125,24 @@ dashboard_utils {
           $.queryPanel('sum(rate(tempo_receiver_accepted_spans{%s}[$__rate_interval]))' % $.jobMatcher($._config.jobs.distributor), 'accepted') +
           $.queryPanel('sum(rate(tempo_receiver_refused_spans{%s}[$__rate_interval]))' % $.jobMatcher($._config.jobs.distributor), 'refused') +
           $.queryPanel('sum(rate(tempo_distributor_ingester_append_failures_total{%s}[$__rate_interval]))' % $.jobMatcher($._config.jobs.distributor), 'ingester append failure')
+          + { fieldConfig+: { defaults+: { unit: 'ops' } } }
         ).addPanel(
           $.panel('Discarded spans') +
-          $.queryPanel('sum(rate(tempo_discarded_spans_total{%s}[$__rate_interval])) by(reason)' % $.jobMatcher($._config.jobs.distributor), '{{reason}}')
+          $.queryPanel('sum(rate(tempo_discarded_spans_total{%s}[$__rate_interval])) by(reason)' % $.jobMatcher($._config.jobs.distributor), '{{reason}}') +
+          { fieldConfig+: { defaults+: { unit: 'ops' } } }
         )
       )
       .addRow(
         g.row('Kafka produced records')
         .addPanel(
           $.panel('Kafka append records / sec') +
-          $.queryPanel('sum(rate(tempo_distributor_produce_records_total{%s}[$__rate_interval]))' % $.jobMatcher($._config.jobs.distributor), 'appends')
+          $.queryPanel('sum(rate(tempo_distributor_produce_records_total{%s}[$__rate_interval]))' % $.jobMatcher($._config.jobs.distributor), 'appends') +
+          { fieldConfig+: { defaults+: { unit: 'ops' } } }
         )
         .addPanel(
           $.panel('Kafka failed append records / sec') +
-          $.queryPanel('sum(rate(tempo_distributor_produce_failures_total{%s}[$__rate_interval])) by(reason)' % $.jobMatcher($._config.jobs.distributor), '{{reason}}')
+          $.queryPanel('sum(rate(tempo_distributor_produce_failures_total{%s}[$__rate_interval])) by(reason)' % $.jobMatcher($._config.jobs.distributor), '{{reason}}') +
+          { fieldConfig+: { defaults+: { unit: 'ops' } } }
         )
       )
       .addRow(
@@ -139,6 +151,7 @@ dashboard_utils {
           $.panel('Kafka write bytes / sec') +
           $.queryPanel('sum(rate(tempo_distributor_kafka_write_bytes_total{%s}[$__rate_interval]))' % $.jobMatcher($._config.jobs.distributor), 'writes') {
             yaxes: $.yaxes('binBps'),
+            fieldConfig+: { defaults+: { unit: 'binBps' } },
           }
         )
         .addPanel(

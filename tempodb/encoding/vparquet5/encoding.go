@@ -9,7 +9,7 @@ import (
 	"github.com/grafana/tempo/tempodb/encoding/common"
 )
 
-const VersionString = "vParquet5-preview3"
+const VersionString = "vParquet5"
 
 type Encoding struct{}
 
@@ -22,6 +22,10 @@ func (v Encoding) NewCompactor(opts common.CompactionOptions) common.Compactor {
 }
 
 func (v Encoding) CompactionSupported() bool {
+	return true
+}
+
+func (v Encoding) WritesSupported() bool {
 	return true
 }
 

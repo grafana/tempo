@@ -7,21 +7,24 @@ import (
 	"testing"
 	"time"
 
+	"github.com/prometheus/prometheus/model/labels"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/atomic"
 )
 
 func Test_counter(t *testing.T) {
 	var seriesAdded int
-	onAdd := func(_ uint32) bool {
-		seriesAdded++
-		return true
+	lifecycler := &mockLimiter{
+		onAddFunc: func(hash uint64, _ uint32, lbls labels.Labels) (labels.Labels, uint64) {
+			seriesAdded++
+			return lbls, hash
+		},
 	}
 
-	c := newCounter("my_counter", onAdd, nil, nil, 15*time.Minute)
+	c := newCounter("my_counter", lifecycler, map[string]string{}, 15*time.Minute)
 
-	c.Inc(newLabelValueCombo([]string{"label"}, []string{"value-1"}), 1.0)
-	c.Inc(newLabelValueCombo([]string{"label"}, []string{"value-2"}), 2.0)
+	c.Inc(buildTestLabels([]string{"label"}, []string{"value-1"}), 1.0)
+	c.Inc(buildTestLabels([]string{"label"}, []string{"value-2"}), 2.0)
 
 	assert.Equal(t, 2, seriesAdded)
 
@@ -35,8 +38,8 @@ func Test_counter(t *testing.T) {
 	}
 	collectMetricAndAssert(t, c, collectionTimeMs, 2, expectedSamples, nil)
 
-	c.Inc(newLabelValueCombo([]string{"label"}, []string{"value-2"}), 2.0)
-	c.Inc(newLabelValueCombo([]string{"label"}, []string{"value-3"}), 3.0)
+	c.Inc(buildTestLabels([]string{"label"}, []string{"value-2"}), 2.0)
+	c.Inc(buildTestLabels([]string{"label"}, []string{"value-3"}), 3.0)
 
 	assert.Equal(t, 3, seriesAdded)
 
@@ -54,15 +57,17 @@ func Test_counter(t *testing.T) {
 
 func TestCounterDifferentLabels(t *testing.T) {
 	var seriesAdded int
-	onAdd := func(_ uint32) bool {
-		seriesAdded++
-		return true
+	lifecycler := &mockLimiter{
+		onAddFunc: func(hash uint64, _ uint32, lbls labels.Labels) (labels.Labels, uint64) {
+			seriesAdded++
+			return lbls, hash
+		},
 	}
 
-	c := newCounter("my_counter", onAdd, nil, nil, 15*time.Minute)
+	c := newCounter("my_counter", lifecycler, map[string]string{}, 15*time.Minute)
 
-	c.Inc(newLabelValueCombo([]string{"label"}, []string{"value-1"}), 1.0)
-	c.Inc(newLabelValueCombo([]string{"another_label"}, []string{"another_value"}), 2.0)
+	c.Inc(buildTestLabels([]string{"label"}, []string{"value-1"}), 1.0)
+	c.Inc(buildTestLabels([]string{"another_label"}, []string{"another_value"}), 2.0)
 
 	assert.Equal(t, 2, seriesAdded)
 
@@ -79,18 +84,25 @@ func TestCounterDifferentLabels(t *testing.T) {
 
 func Test_counter_cantAdd(t *testing.T) {
 	canAdd := false
-	onAdd := func(count uint32) bool {
-		assert.Equal(t, uint32(1), count)
-		return canAdd
+	overflowLabels := labels.FromStrings("metric_overflow", "true")
+	overflowHash := overflowLabels.Hash()
+	lifecycler := &mockLimiter{
+		onAddFunc: func(_ uint64, count uint32, lbls labels.Labels) (labels.Labels, uint64) {
+			assert.Equal(t, uint32(1), count)
+			if canAdd {
+				return lbls, lbls.Hash()
+			}
+			return overflowLabels, overflowHash
+		},
 	}
 
-	c := newCounter("my_counter", onAdd, nil, nil, 15*time.Minute)
+	c := newCounter("my_counter", lifecycler, map[string]string{}, 15*time.Minute)
 
 	// allow adding new series
 	canAdd = true
 
-	c.Inc(newLabelValueCombo([]string{"label"}, []string{"value-1"}), 1.0)
-	c.Inc(newLabelValueCombo([]string{"label"}, []string{"value-2"}), 2.0)
+	c.Inc(buildTestLabels([]string{"label"}, []string{"value-1"}), 1.0)
+	c.Inc(buildTestLabels([]string{"label"}, []string{"value-2"}), 2.0)
 
 	collectionTimeMs := time.Now().UnixMilli()
 	endOfLastMinuteMs := getEndOfLastMinuteMs(collectionTimeMs)
@@ -102,32 +114,37 @@ func Test_counter_cantAdd(t *testing.T) {
 	}
 	collectMetricAndAssert(t, c, collectionTimeMs, 2, expectedSamples, nil)
 
-	// block new series - existing series can still be updated
+	// block new series - existing series can still be updated, new series map to overflow
 	canAdd = false
 
-	c.Inc(newLabelValueCombo([]string{"label"}, []string{"value-2"}), 2.0)
-	c.Inc(newLabelValueCombo([]string{"label"}, []string{"value-3"}), 3.0)
+	c.Inc(buildTestLabels([]string{"label"}, []string{"value-2"}), 2.0)
+	c.Inc(buildTestLabels([]string{"label"}, []string{"value-3"}), 3.0)
 
 	collectionTimeMs = time.Now().UnixMilli()
+	endOfLastMinuteMs = getEndOfLastMinuteMs(collectionTimeMs)
 	expectedSamples = []sample{
 		newSample(map[string]string{"__name__": "my_counter", "label": "value-1"}, collectionTimeMs, 1),
 		newSample(map[string]string{"__name__": "my_counter", "label": "value-2"}, collectionTimeMs, 4),
+		newSample(map[string]string{"__name__": "my_counter", "metric_overflow": "true"}, endOfLastMinuteMs, 0),
+		newSample(map[string]string{"__name__": "my_counter", "metric_overflow": "true"}, collectionTimeMs, 3),
 	}
-	collectMetricAndAssert(t, c, collectionTimeMs, 2, expectedSamples, nil)
+	collectMetricAndAssert(t, c, collectionTimeMs, 3, expectedSamples, nil)
 }
 
 func Test_counter_removeStaleSeries(t *testing.T) {
 	var removedSeries int
-	onRemove := func(count uint32) {
-		assert.Equal(t, uint32(1), count)
-		removedSeries++
+	lifecycler := &mockLimiter{
+		onDeleteFunc: func(_ uint64, count uint32) {
+			assert.Equal(t, uint32(1), count)
+			removedSeries++
+		},
 	}
 
-	c := newCounter("my_counter", nil, onRemove, nil, 15*time.Minute)
+	c := newCounter("my_counter", lifecycler, map[string]string{}, 15*time.Minute)
 
 	timeMs := time.Now().UnixMilli()
-	c.Inc(newLabelValueCombo([]string{"label"}, []string{"value-1"}), 1.0)
-	c.Inc(newLabelValueCombo([]string{"label"}, []string{"value-2"}), 2.0)
+	c.Inc(buildTestLabels([]string{"label"}, []string{"value-1"}), 1.0)
+	c.Inc(buildTestLabels([]string{"label"}, []string{"value-2"}), 2.0)
 
 	c.removeStaleSeries(timeMs)
 
@@ -147,7 +164,7 @@ func Test_counter_removeStaleSeries(t *testing.T) {
 	timeMs = time.Now().UnixMilli()
 
 	// update value-2 series
-	c.Inc(newLabelValueCombo([]string{"label"}, []string{"value-2"}), 2.0)
+	c.Inc(buildTestLabels([]string{"label"}, []string{"value-2"}), 2.0)
 
 	c.removeStaleSeries(timeMs)
 
@@ -161,10 +178,10 @@ func Test_counter_removeStaleSeries(t *testing.T) {
 }
 
 func Test_counter_externalLabels(t *testing.T) {
-	c := newCounter("my_counter", nil, nil, map[string]string{"external_label": "external_value"}, 15*time.Minute)
+	c := newCounter("my_counter", noopLimiter, map[string]string{"external_label": "external_value"}, 15*time.Minute)
 
-	c.Inc(newLabelValueCombo([]string{"label"}, []string{"value-1"}), 1.0)
-	c.Inc(newLabelValueCombo([]string{"label"}, []string{"value-2"}), 2.0)
+	c.Inc(buildTestLabels([]string{"label"}, []string{"value-1"}), 1.0)
+	c.Inc(buildTestLabels([]string{"label"}, []string{"value-2"}), 2.0)
 
 	collectionTimeMs := time.Now().UnixMilli()
 	endOfLastMinuteMs := getEndOfLastMinuteMs(collectionTimeMs)
@@ -178,7 +195,7 @@ func Test_counter_externalLabels(t *testing.T) {
 }
 
 func Test_counter_concurrencyDataRace(t *testing.T) {
-	c := newCounter("my_counter", nil, nil, nil, 15*time.Minute)
+	c := newCounter("my_counter", noopLimiter, map[string]string{}, 15*time.Minute)
 
 	end := make(chan struct{})
 
@@ -195,8 +212,8 @@ func Test_counter_concurrencyDataRace(t *testing.T) {
 
 	for i := 0; i < 4; i++ {
 		go accessor(func() {
-			c.Inc(newLabelValueCombo([]string{"label"}, []string{"value-1"}), 1.0)
-			c.Inc(newLabelValueCombo([]string{"label"}, []string{"value-2"}), 1.0)
+			c.Inc(buildTestLabels([]string{"label"}, []string{"value-1"}), 1.0)
+			c.Inc(buildTestLabels([]string{"label"}, []string{"value-2"}), 1.0)
 		})
 	}
 
@@ -207,7 +224,7 @@ func Test_counter_concurrencyDataRace(t *testing.T) {
 		for i := range s {
 			s[i] = letters[rand.Intn(len(letters))]
 		}
-		c.Inc(newLabelValueCombo([]string{"label"}, []string{string(s)}), 1.0)
+		c.Inc(buildTestLabels([]string{"label"}, []string{string(s)}), 1.0)
 	})
 
 	go accessor(func() {
@@ -224,7 +241,7 @@ func Test_counter_concurrencyDataRace(t *testing.T) {
 }
 
 func Test_counter_concurrencyCorrectness(t *testing.T) {
-	c := newCounter("my_counter", nil, nil, nil, 15*time.Minute)
+	c := newCounter("my_counter", noopLimiter, map[string]string{}, 15*time.Minute)
 
 	var wg sync.WaitGroup
 	end := make(chan struct{})
@@ -240,7 +257,7 @@ func Test_counter_concurrencyCorrectness(t *testing.T) {
 				case <-end:
 					return
 				default:
-					c.Inc(newLabelValueCombo([]string{"label"}, []string{"value-1"}), 1.0)
+					c.Inc(buildTestLabels([]string{"label"}, []string{"value-1"}), 1.0)
 					totalCount.Add(1)
 				}
 			}
@@ -282,15 +299,15 @@ func collectMetricAndAssert(t *testing.T, m metric, collectionTimeMs int64, expe
 }
 
 func Test_counter_demandTracking(t *testing.T) {
-	c := newCounter("my_counter", nil, nil, nil, 15*time.Minute)
+	c := newCounter("my_counter", noopLimiter, map[string]string{}, 15*time.Minute)
 
 	// Initially, demand should be 0
 	assert.Equal(t, 0, c.countSeriesDemand())
 
 	// Add some series
 	for i := 0; i < 50; i++ {
-		lvc := newLabelValueCombo([]string{"label"}, []string{fmt.Sprintf("value-%d", i)})
-		c.Inc(lvc, 1.0)
+		lbls := buildTestLabels([]string{"label"}, []string{fmt.Sprintf("value-%d", i)})
+		c.Inc(lbls, 1.0)
 	}
 
 	// Demand should now be approximately 50 (within HLL error)
@@ -304,16 +321,23 @@ func Test_counter_demandTracking(t *testing.T) {
 
 func Test_counter_demandVsActiveSeries(t *testing.T) {
 	limitReached := false
-	onAdd := func(_ uint32) bool {
-		return !limitReached
+	overflowLabels := labels.FromStrings("metric_overflow", "true")
+	overflowHash := overflowLabels.Hash()
+	lifecycler := &mockLimiter{
+		onAddFunc: func(hash uint64, _ uint32, lbls labels.Labels) (labels.Labels, uint64) {
+			if !limitReached {
+				return lbls, hash
+			}
+			return overflowLabels, overflowHash
+		},
 	}
 
-	c := newCounter("my_counter", onAdd, nil, nil, 15*time.Minute)
+	c := newCounter("my_counter", lifecycler, map[string]string{}, 15*time.Minute)
 
 	// Add series up to a point
 	for i := 0; i < 30; i++ {
-		lvc := newLabelValueCombo([]string{"label"}, []string{fmt.Sprintf("value-%d", i)})
-		c.Inc(lvc, 1.0)
+		lbls := buildTestLabels([]string{"label"}, []string{fmt.Sprintf("value-%d", i)})
+		c.Inc(lbls, 1.0)
 	}
 
 	assert.Equal(t, 30, c.countActiveSeries())
@@ -321,14 +345,14 @@ func Test_counter_demandVsActiveSeries(t *testing.T) {
 	// Hit the limit
 	limitReached = true
 
-	// Try to add more series (they should be rejected)
+	// Try to add more series (they should be mapped to overflow)
 	for i := 30; i < 60; i++ {
-		lvc := newLabelValueCombo([]string{"label"}, []string{fmt.Sprintf("value-%d", i)})
-		c.Inc(lvc, 1.0)
+		lbls := buildTestLabels([]string{"label"}, []string{fmt.Sprintf("value-%d", i)})
+		c.Inc(lbls, 1.0)
 	}
 
-	// Active series should still be 30
-	assert.Equal(t, 30, c.countActiveSeries())
+	// Active series should be 30 accepted + 1 overflow = 31 total
+	assert.Equal(t, 31, c.countActiveSeries())
 
 	// But demand should show all attempted series
 	demand := c.countSeriesDemand()
@@ -337,12 +361,12 @@ func Test_counter_demandVsActiveSeries(t *testing.T) {
 }
 
 func Test_counter_demandDecay(t *testing.T) {
-	c := newCounter("my_counter", nil, nil, nil, 15*time.Minute)
+	c := newCounter("my_counter", noopLimiter, map[string]string{}, 15*time.Minute)
 
 	// Add series
 	for i := 0; i < 40; i++ {
-		lvc := newLabelValueCombo([]string{"label"}, []string{fmt.Sprintf("value-%d", i)})
-		c.Inc(lvc, 1.0)
+		lbls := buildTestLabels([]string{"label"}, []string{fmt.Sprintf("value-%d", i)})
+		c.Inc(lbls, 1.0)
 	}
 
 	initialDemand := c.countSeriesDemand()
@@ -350,10 +374,41 @@ func Test_counter_demandDecay(t *testing.T) {
 
 	// Advance the cardinality tracker enough times to clear the window
 	for i := 0; i < 5; i++ {
-		c.removeStaleSeries(time.Now().Add(time.Hour).UnixMilli())
+		c.removeStaleSeries(time.Now().UnixMilli())
 	}
 
 	// Demand should have decreased or be zero
 	finalDemand := c.countSeriesDemand()
 	assert.LessOrEqual(t, finalDemand, initialDemand/2, "demand should significantly decay")
+}
+
+func Test_counter_onUpdate(t *testing.T) {
+	var seriesUpdated int
+	lifecycler := &mockLimiter{
+		onAddFunc: func(hash uint64, _ uint32, lbls labels.Labels) (labels.Labels, uint64) {
+			return lbls, hash
+		},
+		onUpdateFunc: func(_ uint64, count uint32) {
+			assert.Equal(t, uint32(1), count)
+			seriesUpdated++
+		},
+	}
+
+	c := newCounter("my_counter", lifecycler, map[string]string{}, 15*time.Minute)
+
+	// Add initial series
+	c.Inc(buildTestLabels([]string{"label"}, []string{"value-1"}), 1.0)
+	c.Inc(buildTestLabels([]string{"label"}, []string{"value-2"}), 2.0)
+
+	// No updates yet (new series don't trigger OnUpdate)
+	assert.Equal(t, 0, seriesUpdated)
+
+	// Update existing series
+	c.Inc(buildTestLabels([]string{"label"}, []string{"value-1"}), 1.0)
+	assert.Equal(t, 1, seriesUpdated)
+
+	// Update both series
+	c.Inc(buildTestLabels([]string{"label"}, []string{"value-1"}), 3.0)
+	c.Inc(buildTestLabels([]string{"label"}, []string{"value-2"}), 4.0)
+	assert.Equal(t, 3, seriesUpdated)
 }

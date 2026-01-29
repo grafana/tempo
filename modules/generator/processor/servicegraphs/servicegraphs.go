@@ -12,15 +12,15 @@ import (
 	"github.com/go-kit/log/level"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
-	"github.com/prometheus/prometheus/util/strutil"
 	"go.opentelemetry.io/otel/attribute"
 	semconv "go.opentelemetry.io/otel/semconv/v1.25.0"
-	semconvnew "go.opentelemetry.io/otel/semconv/v1.34.0"
 
 	gen "github.com/grafana/tempo/modules/generator/processor"
 	"github.com/grafana/tempo/modules/generator/processor/servicegraphs/store"
 	processor_util "github.com/grafana/tempo/modules/generator/processor/util"
 	"github.com/grafana/tempo/modules/generator/registry"
+	"github.com/grafana/tempo/modules/generator/validation"
+	"github.com/grafana/tempo/pkg/cache/reclaimable"
 	"github.com/grafana/tempo/pkg/tempopb"
 	v1_common "github.com/grafana/tempo/pkg/tempopb/common/v1"
 	v1_trace "github.com/grafana/tempo/pkg/tempopb/trace/v1"
@@ -71,7 +71,6 @@ type Processor struct {
 	Cfg Config
 
 	registry registry.Registry
-	labels   []string
 	store    store.Store
 
 	closeCh chan struct{}
@@ -81,39 +80,25 @@ type Processor struct {
 	serviceGraphRequestServerSecondsHistogram          registry.Histogram
 	serviceGraphRequestClientSecondsHistogram          registry.Histogram
 	serviceGraphRequestMessagingSystemSecondsHistogram registry.Histogram
+	sanitizeCache                                      reclaimable.Cache[string, string]
 
 	metricDroppedSpans prometheus.Counter
 	metricTotalEdges   prometheus.Counter
 	metricExpiredEdges prometheus.Counter
+	invalidUTF8Counter prometheus.Counter
 	logger             log.Logger
 }
 
-func New(cfg Config, tenant string, reg registry.Registry, logger log.Logger) gen.Processor {
-	labels := []string{"client", "server", "connection_type"}
-
+func New(cfg Config, tenant string, reg registry.Registry, logger log.Logger, invalidUTF8Counter prometheus.Counter) gen.Processor {
 	if cfg.EnableVirtualNodeLabel {
 		cfg.Dimensions = append(cfg.Dimensions, virtualNodeLabel)
 	}
 
-	for _, d := range cfg.Dimensions {
-		if cfg.EnableClientServerPrefix {
-			if cfg.EnableVirtualNodeLabel {
-				// leave the extra label for this feature as-is
-				if d == virtualNodeLabel {
-					labels = append(labels, strutil.SanitizeLabelName(d))
-					continue
-				}
-			}
-			labels = append(labels, strutil.SanitizeLabelName("client_"+d), strutil.SanitizeLabelName("server_"+d))
-		} else {
-			labels = append(labels, strutil.SanitizeLabelName(d))
-		}
-	}
+	sanitizeCache := reclaimable.New(validation.SanitizeLabelName, 10000)
 
 	p := &Processor{
 		Cfg:      cfg,
 		registry: reg,
-		labels:   labels,
 		closeCh:  make(chan struct{}, 1),
 
 		serviceGraphRequestTotal:                           reg.NewCounter(metricRequestTotal),
@@ -121,10 +106,12 @@ func New(cfg Config, tenant string, reg registry.Registry, logger log.Logger) ge
 		serviceGraphRequestServerSecondsHistogram:          reg.NewHistogram(metricRequestServerSeconds, cfg.HistogramBuckets, cfg.HistogramOverride),
 		serviceGraphRequestClientSecondsHistogram:          reg.NewHistogram(metricRequestClientSeconds, cfg.HistogramBuckets, cfg.HistogramOverride),
 		serviceGraphRequestMessagingSystemSecondsHistogram: reg.NewHistogram(metricRequestMessagingSystemSeconds, cfg.HistogramBuckets, cfg.HistogramOverride),
+		sanitizeCache: sanitizeCache,
 
 		metricDroppedSpans: metricDroppedSpans.WithLabelValues(tenant),
 		metricTotalEdges:   metricTotalEdges.WithLabelValues(tenant),
 		metricExpiredEdges: metricExpiredEdges.WithLabelValues(tenant),
+		invalidUTF8Counter: invalidUTF8Counter,
 		logger:             log.With(logger, "component", "service-graphs"),
 	}
 
@@ -150,7 +137,7 @@ func New(cfg Config, tenant string, reg registry.Registry, logger log.Logger) ge
 }
 
 func (p *Processor) Name() string {
-	return Name
+	return gen.ServiceGraphsName
 }
 
 func (p *Processor) PushSpans(_ context.Context, req *tempopb.PushSpansRequest) {
@@ -288,19 +275,11 @@ func (p *Processor) upsertDatabaseRequest(e *store.Edge, resourceAttr []*v1_comm
 	)
 
 	// Check for db.name or db.namespace first.  The dbName is set initially to maintain backwards compatbility.
-	if name, ok := processor_util.FindAttributeValue(string(semconv.DBNameKey), resourceAttr, span.Attributes); ok {
-		dbName = name
-		isDatabase = true
-	}
-	if name, ok := processor_util.FindAttributeValue(string(semconvnew.DBNamespaceKey), span.Attributes); ok {
-		dbName = name
-		isDatabase = true
-	}
-
-	// Check for db.system only if we don't have db.name above
-	if !isDatabase {
-		if _, ok := processor_util.FindAttributeValue(string(semconv.DBSystemKey), resourceAttr, span.Attributes); ok {
+	for _, attrName := range p.Cfg.DatabaseNameAttributes {
+		if name, ok := processor_util.FindAttributeValue(attrName, resourceAttr, span.Attributes); ok {
+			dbName = name
 			isDatabase = true
+			break
 		}
 	}
 
@@ -310,8 +289,6 @@ func (p *Processor) upsertDatabaseRequest(e *store.Edge, resourceAttr []*v1_comm
 	}
 	e.ConnectionType = store.Database
 	e.ServerLatencySec = spanDurationSec(span)
-
-	// Set the service name by order of precedence
 
 	// Check for peer.service
 	if name, ok := processor_util.FindAttributeValue(string(semconv.PeerServiceKey), resourceAttr, span.Attributes); ok {
@@ -346,27 +323,32 @@ func (p *Processor) Shutdown(_ context.Context) {
 }
 
 func (p *Processor) onComplete(e *store.Edge) {
-	labelValues := make([]string, 0, 2+len(p.Cfg.Dimensions))
-	labelValues = append(labelValues, e.ClientService, e.ServerService, string(e.ConnectionType))
+	builder := p.registry.NewLabelBuilder()
+	builder.Add("client", e.ClientService)
+	builder.Add("server", e.ServerService)
+	builder.Add("connection_type", string(e.ConnectionType))
 
 	for _, dimension := range p.Cfg.Dimensions {
 		if p.Cfg.EnableClientServerPrefix {
 			if p.Cfg.EnableVirtualNodeLabel {
 				// leave the extra label for this feature as-is
 				if dimension == virtualNodeLabel {
-					labelValues = append(labelValues, e.Dimensions[dimension])
+					builder.Add(virtualNodeLabel, e.Dimensions[dimension])
 					continue
 				}
 			}
-			labelValues = append(labelValues, e.Dimensions["client_"+dimension], e.Dimensions["server_"+dimension])
+			builder.Add(p.sanitizeCache.Get("client_"+dimension), e.Dimensions["client_"+dimension])
+			builder.Add(p.sanitizeCache.Get("server_"+dimension), e.Dimensions["server_"+dimension])
 		} else {
-			labelValues = append(labelValues, e.Dimensions[dimension])
+			builder.Add(p.sanitizeCache.Get(dimension), e.Dimensions[dimension])
 		}
 	}
 
-	labels := append([]string{}, p.labels...)
-
-	registryLabelValues := p.registry.NewLabelValueCombo(labels, labelValues)
+	registryLabelValues, validUTF8 := builder.CloseAndBuildLabels()
+	if !validUTF8 {
+		p.invalidUTF8Counter.Inc()
+		return
+	}
 
 	p.serviceGraphRequestTotal.Inc(registryLabelValues, 1*e.SpanMultiplier)
 	if e.Failed {

@@ -20,7 +20,7 @@ jobs:
       tag: ${{ steps.get-tag.outputs.tag }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6
         with:
           persist-credentials: false
 
@@ -45,7 +45,7 @@ jobs:
       TAG: ${{ needs.get-tag.outputs.tag }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6
         with:
           persist-credentials: false
 
@@ -62,7 +62,7 @@ jobs:
           docker build -f cmd/${{ matrix.component }}/Dockerfile -t grafana/${{ matrix.component }}:$TAG_ARCH .
 
       - name: Login to DockerHub
-        uses: grafana/shared-workflows/actions/dockerhub-login@a37de51f3d713a30a9e4b21bcdfbd38170020593 # dockerhub-login-v1.0.1
+        uses: grafana/shared-workflows/actions/dockerhub-login@081a366728379fd0426b9cfef190e9a21c2d5418 # dockerhub-login/v1.0.3
 
       - name: docker-push
         run: |
@@ -83,12 +83,12 @@ jobs:
       IMAGE_NAME: grafana/${{ matrix.component }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6
         with:
           persist-credentials: false
 
       - name: Login to DockerHub
-        uses: grafana/shared-workflows/actions/dockerhub-login@a37de51f3d713a30a9e4b21bcdfbd38170020593 # dockerhub-login-v1.0.1
+        uses: grafana/shared-workflows/actions/dockerhub-login@081a366728379fd0426b9cfef190e9a21c2d5418 # dockerhub-login/v1.0.3
 
       - name: docker-manifest-create-and-push
         run: |
@@ -113,7 +113,7 @@ jobs:
       id-token: write
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6
         with:
           persist-credentials: false
 
@@ -127,7 +127,7 @@ jobs:
           echo "grafana/tempo-vulture:$(./tools/image-tag)" > tags_for_cd_tempo_vulture
 
       - name: Authenticate to GAR
-        uses: grafana/shared-workflows/actions/login-to-gar@a37de51f3d713a30a9e4b21bcdfbd38170020593 # login-to-gar-v0.3.0
+        uses: grafana/shared-workflows/actions/login-to-gar@c7ad5f57693ac858c698d95783685a9cbfd91223 # login-to-gar/v1.0.1
         id: login-to-gar
         with:
           registry: us-docker.pkg.dev
@@ -135,7 +135,7 @@ jobs:
 
       - name: Get Vault secrets
         id: get-secrets
-        uses: grafana/shared-workflows/actions/get-vault-secrets@a37de51f3d713a30a9e4b21bcdfbd38170020593 # get-vault-secrets-v1.2.0
+        uses: grafana/shared-workflows/actions/get-vault-secrets@a37de51f3d713a30a9e4b21bcdfbd38170020593 # get-vault-secrets/v1.3.0
         with:
           export_env: false
           common_secrets: |
@@ -160,17 +160,17 @@ jobs:
             "repo_name": "deployment_tools",
             "update_jsonnet_attribute_configs": [
               {
-                "file_path": "ksonnet/environments/tempo/dev-us-central-0.tempo-dev-01/images.libsonnet",
+                "file_path": "ksonnet/environments/tempo/dev-us-east-0.tempo-dev-02/images.libsonnet",
                 "jsonnet_key": "tempo",
                 "jsonnet_value_file": "tags_for_cd_tempo"
               },
               {
-                "file_path": "ksonnet/environments/tempo/dev-us-central-0.tempo-dev-01/images.libsonnet",
+                "file_path": "ksonnet/environments/tempo/dev-us-east-0.tempo-dev-02/images.libsonnet",
                 "jsonnet_key": "tempo_query",
                 "jsonnet_value_file": "tags_for_cd_tempo_query"
               },
               {
-                "file_path": "ksonnet/environments/tempo/dev-us-central-0.tempo-dev-01/images.libsonnet",
+                "file_path": "ksonnet/environments/tempo/dev-us-east-0.tempo-dev-02/images.libsonnet",
                 "jsonnet_key": "tempo_vulture",
                 "jsonnet_value_file": "tags_for_cd_tempo_vulture"
               }

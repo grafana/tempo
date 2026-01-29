@@ -1,0 +1,38 @@
+name: Renovate
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/renovate.json5'
+      - '.github/workflows/renovate.yml'
+
+  pull_request:
+    paths:
+      - '.github/renovate.json5'
+      - '.github/workflows/renovate.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: Validate Config
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6
+        with:
+          persist-credentials: false
+
+      - name: Cache npm packages
+        uses: actions/cache@8b402f58fbc84540c8b491a91e594a4576fec3d7 # v5
+        with:
+          path: ~/.npm
+          key: ${{ runner.os }}-npx-renovate
+
+      - name: Validate Renovate Config
+        uses: grafana/shared-workflows/actions/validate-renovate-config@051f0a1cef0e1ef9f92fbe57c65b1eec029c3904 # v0.1.1
+        with:
+          path: .github/renovate.json5

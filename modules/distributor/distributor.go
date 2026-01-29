@@ -186,6 +186,10 @@ type Distributor struct {
 
 	logger log.Logger
 
+	// TracePushMiddlewares are hooks called when a trace push request is received.
+	// Middleware errors are logged but don't fail the push (fail open behavior).
+	tracePushMiddlewares []TracePushMiddleware
+
 	// For testing functionality that relies on timing without having to sleep in unit tests.
 	sleep func(time.Duration)
 	now   func() time.Time
@@ -262,17 +266,18 @@ func New(
 		partitionRing:        partitionRing,
 		overrides:            o,
 		traceEncoder:         model.MustNewSegmentDecoder(model.CurrentEncoding),
+		tracePushMiddlewares: cfg.TracePushMiddlewares,
 		logger:               logger,
 		sleep:                time.Sleep,
 		now:                  time.Now,
 	}
 
 	if cfg.Usage.CostAttribution.Enabled {
-		usage, err := usage.NewTracker(cfg.Usage.CostAttribution, "cost-attribution", o.CostAttributionDimensions, o.CostAttributionMaxCardinality)
+		tracker, err := usage.NewTracker(cfg.Usage.CostAttribution, "cost-attribution", o.CostAttributionDimensions, o.CostAttributionMaxCardinality, logger)
 		if err != nil {
 			return nil, fmt.Errorf("creating usage tracker: %w", err)
 		}
-		d.usage = usage
+		d.usage = tracker
 	}
 
 	var generatorsPoolFactory ring_client.PoolAddrFunc = func(addr string) (ring_client.PoolClient, error) {
@@ -396,20 +401,27 @@ func (d *Distributor) checkForRateLimits(tracesSize, spanCount int, userID strin
 }
 
 func (d *Distributor) extractBasicInfo(ctx context.Context, traces ptrace.Traces) (userID string, spanCount, tracesSize int, err error) {
-	user, e := user.ExtractOrgID(ctx)
+	orgID, e := validation.ExtractValidTenantID(ctx)
 	if e != nil {
-		return "", 0, 0, e
+		return "", 0, 0, status.Error(codes.InvalidArgument, e.Error())
 	}
 
-	return user, traces.SpanCount(), (&ptrace.ProtoMarshaler{}).TracesSize(traces), nil
+	return orgID, traces.SpanCount(), (&ptrace.ProtoMarshaler{}).TracesSize(traces), nil
 }
 
 // PushTraces pushes a batch of traces
 func (d *Distributor) PushTraces(ctx context.Context, traces ptrace.Traces) (*tempopb.PushResponse, error) {
 	reqStart := time.Now()
 
-	ctx, span := tracer.Start(ctx, "distributor.PushBytes")
+	ctx, span := tracer.Start(ctx, "distributor.PushTraces")
 	defer span.End()
+
+	// Call trace push middlewares
+	for _, mw := range d.tracePushMiddlewares {
+		if err := mw(ctx, traces); err != nil {
+			_ = level.Warn(d.logger).Log("msg", "trace push middleware failed", "err", err)
+		}
+	}
 
 	userID, spanCount, size, err := d.extractBasicInfo(ctx, traces)
 	if err != nil {
@@ -1043,3 +1055,23 @@ func (d *Distributor) getMaxAttributeBytes(userID string) int {
 
 	return d.cfg.MaxAttributeBytes
 }
+
+func (d *Distributor) RetryInfoEnabled(ctx context.Context) (bool, error) {
+	userID, err := user.ExtractOrgID(ctx)
+	if err != nil {
+		return false, err
+	}
+
+	// if disabled at cluster level, just return false
+	if d.cfg.RetryAfterOnResourceExhausted <= 0 {
+		return false, nil
+	}
+
+	// cluster level is enabled, check per-tenant override and respect that.
+	return d.overrides.IngestionRetryInfoEnabled(userID), nil
+}
+
+// TracePushMiddleware is a hook called when a trace push request is received.
+// Middlewares are invoked after the request is decoded but before it's processed.
+// Errors returned by middleware are logged but don't fail the push (fail open behavior).
+type TracePushMiddleware func(ctx context.Context, td ptrace.Traces) error

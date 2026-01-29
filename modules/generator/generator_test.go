@@ -14,6 +14,7 @@ import (
 
 	"github.com/go-kit/log"
 	"github.com/grafana/dskit/services"
+	"github.com/grafana/tempo/modules/generator/processor"
 	"github.com/grafana/tempo/modules/generator/processor/spanmetrics"
 	"github.com/grafana/tempo/modules/generator/storage"
 	"github.com/grafana/tempo/modules/overrides"
@@ -39,7 +40,7 @@ func TestGeneratorSpanMetrics_subprocessorConcurrency(t *testing.T) {
 		Defaults: overrides.Overrides{
 			MetricsGenerator: overrides.MetricsGeneratorOverrides{
 				Processors: map[string]struct{}{
-					spanmetrics.Name: {},
+					processor.SpanMetricsName: {},
 				},
 				CollectionInterval: 2 * time.Second,
 			},
@@ -55,7 +56,7 @@ overrides:
       collection_interval: 1s
       processors:
         - %s
-`, user1, spanmetrics.Name)), 0o700))
+`, user1, processor.SpanMetricsName)), 0o700))
 
 	o, err := overrides.NewOverrides(overridesConfig, nil, prometheus.NewRegistry())
 	require.NoError(t, err)
@@ -121,7 +122,7 @@ func verifySubprocessors(t *testing.T, instance *instance, expected map[spanmetr
 
 	require.Len(t, instance.processors, 1)
 
-	processor, ok := instance.processors[spanmetrics.Name]
+	processor, ok := instance.processors[processor.SpanMetricsName]
 	require.True(t, ok)
 
 	require.Equal(t, len(processor.(*spanmetrics.Processor).Cfg.Subprocessors), len(expected))
@@ -221,6 +222,65 @@ func BenchmarkPushSpans(b *testing.B) {
 	runtime.ReadMemStats(&mem)
 	b.ReportMetric(float64(mem.HeapInuse), "heap_in_use")
 	b.ReportMetric(float64(mem.HeapAlloc), "heap_alloc")
+}
+
+func TestGetOrCreateInstance_FailureCaching(t *testing.T) {
+	cfg := &Config{}
+	cfg.RegisterFlagsAndApplyDefaults("", &flag.FlagSet{})
+	cfg.Storage.Path = t.TempDir()
+
+	g := &Generator{
+		cfg:             cfg,
+		overrides:       &mockOverrides{processors: map[string]struct{}{"invalid-processor": {}}}, // will fail
+		instances:       map[string]*instance{},
+		failedInstances: map[string]time.Time{},
+		logger:          newTestLogger(t),
+		reg:             prometheus.NewRegistry(),
+	}
+
+	// First call should fail and cache the failure
+	_, err := g.getOrCreateInstance("tenant-1")
+	require.Error(t, err)
+	require.NotErrorIs(t, err, errInstanceCreationBackoff)
+
+	// Second call should return cached error
+	_, err = g.getOrCreateInstance("tenant-1")
+	require.ErrorIs(t, err, errInstanceCreationBackoff)
+
+	// Different tenant should also fail (not cached)
+	_, err = g.getOrCreateInstance("tenant-2")
+	require.Error(t, err)
+	require.NotErrorIs(t, err, errInstanceCreationBackoff)
+}
+
+func TestGetOrCreateInstance_FailureCachingExpiry(t *testing.T) {
+	cfg := &Config{}
+	cfg.RegisterFlagsAndApplyDefaults("", &flag.FlagSet{})
+	cfg.Storage.Path = t.TempDir()
+
+	g := &Generator{
+		cfg:             cfg,
+		overrides:       &mockOverrides{processors: map[string]struct{}{"invalid-processor": {}}}, // will fail
+		instances:       map[string]*instance{},
+		failedInstances: map[string]time.Time{},
+		logger:          newTestLogger(t),
+		reg:             prometheus.NewRegistry(),
+	}
+
+	// First call should fail and cache the failure
+	_, err := g.getOrCreateInstance("tenant-1")
+	require.Error(t, err)
+	require.NotErrorIs(t, err, errInstanceCreationBackoff)
+
+	// Simulate backoff expiry by setting the failure time in the past
+	g.instancesMtx.Lock()
+	g.failedInstances["tenant-1"] = time.Now().Add(-failureBackoff - time.Second)
+	g.instancesMtx.Unlock()
+
+	// After backoff expires, should retry (and fail again with actual error, not backoff error)
+	_, err = g.getOrCreateInstance("tenant-1")
+	require.Error(t, err)
+	require.NotErrorIs(t, err, errInstanceCreationBackoff)
 }
 
 func BenchmarkCollect(b *testing.B) {

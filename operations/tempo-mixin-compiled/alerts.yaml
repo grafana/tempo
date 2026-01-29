@@ -115,7 +115,7 @@
       "severity": "critical"
   - "alert": "TempoBlockListRisingQuickly"
     "annotations":
-      "message": "Tempo block list length is up 40 percent over the last 7 days.  Consider scaling compactors."
+      "message": "Tempo block list length is up 40 percent over the last 7 days. Consider scaling compactors."
       "runbook_url": "https://github.com/grafana/tempo/tree/main/operations/tempo-mixin/runbook.md#TempoBlockListRisingQuickly"
     "expr": |
       avg(tempodb_blocklist_length{namespace=~".*", container="compactor"}) / avg(tempodb_blocklist_length{namespace=~".*", container="compactor"} offset 7d) by (cluster, namespace) > 1.4
@@ -178,7 +178,7 @@
       "severity": "critical"
   - "alert": "TempoMetricsGeneratorPartitionLagCritical"
     "annotations":
-      "message": "Tempo partition {{ $labels.partition }} in consumer group {{ $labels.group }} is lagging by more than 900 seconds in {{ $labels.cluster }}/{{ $labels.namespace }}."
+      "message": "Tempo partition {{ $labels.partition }} is lagging by more than 900 seconds in {{ $labels.cluster }}/{{ $labels.namespace }}."
       "runbook_url": "https://github.com/grafana/tempo/tree/main/operations/tempo-mixin/runbook.md#TempoPartitionLag"
     "expr": |
       max by (cluster, namespace, partition) (tempo_ingest_group_partition_lag_seconds{namespace=~".*", container="metrics-generator"}) > 900
@@ -187,7 +187,7 @@
       "severity": "critical"
   - "alert": "TempoBlockBuilderPartitionLagWarning"
     "annotations":
-      "message": "Tempo ingest partition {{ $labels.partition }} for blockbuilder {{ $labels.pod }} is lagging by more than 300 seconds in {{ $labels.cluster }}/{{ $labels.namespace }}."
+      "message": "Tempo ingest partition {{ $labels.partition }} for blockbuilder is lagging by more than 300 seconds in {{ $labels.cluster }}/{{ $labels.namespace }}."
       "runbook_url": "https://github.com/grafana/tempo/tree/main/operations/tempo-mixin/runbook.md#TempoPartitionLag"
     "expr": |
       max by (cluster, namespace, partition) (avg_over_time(tempo_ingest_group_partition_lag_seconds{namespace=~".*", container="block-builder"}[6m])) > 200
@@ -196,7 +196,7 @@
       "severity": "warning"
   - "alert": "TempoBlockBuilderPartitionLagCritical"
     "annotations":
-      "message": "Tempo ingest partition {{ $labels.partition }} for blockbuilder {{ $labels.pod }} is lagging by more than 300 seconds in {{ $labels.cluster }}/{{ $labels.namespace }}."
+      "message": "Tempo ingest partition {{ $labels.partition }} for blockbuilder is lagging by more than 300 seconds in {{ $labels.cluster }}/{{ $labels.namespace }}."
       "runbook_url": "https://github.com/grafana/tempo/tree/main/operations/tempo-mixin/runbook.md#TempoPartitionLag"
     "expr": |
       max by (cluster, namespace, partition) (avg_over_time(tempo_ingest_group_partition_lag_seconds{namespace=~".*", container=~"block-builder"}[6m])) > 300
@@ -205,7 +205,7 @@
       "severity": "critical"
   - "alert": "TempoLiveStorePartitionLagWarning"
     "annotations":
-      "message": "Tempo ingest partition {{ $labels.partition }} for live store  {{ $labels.group }} is lagging by more than 300 seconds in {{ $labels.cluster }}/{{ $labels.namespace }}."
+      "message": "Tempo ingest partition {{ $labels.partition }} for live store {{ $labels.group }} is lagging by more than 300 seconds in {{ $labels.cluster }}/{{ $labels.namespace }}."
       "runbook_url": "https://github.com/grafana/tempo/tree/main/operations/tempo-mixin/runbook.md#TempoPartitionLag"
     "expr": |
       max by (cluster, namespace, partition, group) (avg_over_time(tempo_ingest_group_partition_lag_seconds{namespace=~".*", container="live-store"}[6m])) > 200

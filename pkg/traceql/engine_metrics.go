@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"math/bits"
 	"math/rand"
 	"sort"
 	"sync"
@@ -13,7 +14,6 @@ import (
 
 	"github.com/grafana/tempo/pkg/tempopb"
 	commonv1proto "github.com/grafana/tempo/pkg/tempopb/common/v1"
-	v1 "github.com/grafana/tempo/pkg/tempopb/common/v1"
 	"github.com/grafana/tempo/pkg/util"
 	"github.com/prometheus/prometheus/model/labels"
 )
@@ -55,8 +55,10 @@ func DefaultQueryRangeStep(start, end uint64) uint64 {
 // opportunistically remove time slots that are known to be unused.
 // When possible and not exceeding the request range, borders are aligned to the step.
 // When a block is split then the borders will maintain the nanosecond precision of the request.
-func TrimToBlockOverlap(start, end, step uint64, blockStart, blockEnd time.Time) (uint64, uint64, uint64) {
-	wasInstant := end-start == step
+func TrimToBlockOverlap(req *tempopb.QueryRangeRequest, blockStart, blockEnd time.Time) (uint64, uint64, uint64) {
+	start := req.Start
+	end := req.End
+	step := req.Step
 
 	// We subtract 1 nanosecond from the block's start time
 	// to make sure we include the left border of the block.
@@ -70,22 +72,26 @@ func TrimToBlockOverlap(start, end, step uint64, blockStart, blockEnd time.Time)
 	// low-precision timestamps within the block may be rounded up to
 	// this step.  If the boundaries exceed the overall range
 	// they will get trimmed back down.
-	start2 = alignStart(start2, end2, step)
-	end2 = alignEnd(start2, end2, step)
-	// if wasn't instant and may become instant,
-	// add one nanosecond. This usually happens to small blocks.
-	if !wasInstant && isInstant(start2, end2, step) {
-		end2++
-	}
+	start2 = alignStart(start2, end2, step, IsInstant(req))
+	end2 = alignEnd(start2, end2, step, IsInstant(req))
 
 	// Now trim to the overlap preserving nanosecond precision for
 	// when we split a block.
 	start = max(start, start2)
 	end = min(end, end2)
 
-	if wasInstant {
-		// Alter step to maintain instant nature
+	// if no instant flag but step is instant, restore it
+	// this can happen during new version rollout
+	if !req.HasInstant() && IsInstant(req) {
 		step = end - start
+	}
+
+	// if had no instant flag set, had no instant step and become instant,
+	// add one nanosecond. This usually happens to small blocks.
+	wasAssumedRange := !req.HasInstant() && !IsInstant(req)
+	willBecomeInstant := (end-start == step)
+	if wasAssumedRange && willBecomeInstant {
+		end++
 	}
 
 	return start, end, step
@@ -99,9 +105,8 @@ func TrimToBefore(req *tempopb.QueryRangeRequest, before time.Time) {
 
 	req.Start = min(req.Start, beforeNs)
 	req.End = min(req.End, beforeNs)
-
-	if wasInstant {
-		// Maintain instant nature of the request
+	// if has no instant query indicator param, restore step
+	if !req.HasInstant() && wasInstant && !IsInstant(req) {
 		req.Step = req.End - req.Start
 	}
 }
@@ -114,22 +119,25 @@ func TrimToAfter(req *tempopb.QueryRangeRequest, before time.Time) {
 
 	req.Start = max(req.Start, beforeNs)
 	req.End = max(req.End, beforeNs)
-
-	if wasInstant {
-		// Maintain instant nature of the request
+	// if has no instant query indicator param, restore step
+	if !req.HasInstant() && wasInstant && !IsInstant(req) {
 		req.Step = req.End - req.Start
 	}
 }
 
+// IsInstant returns true if the request is an instant query. It relies on the instant flag.
+// If the flag is not provided, it falls back on determining by step and range.
+// The fallback logic is to provide consistent results during rollout of the instant flag
+// and will be removed in a future release.
 func IsInstant(req *tempopb.QueryRangeRequest) bool {
 	if req == nil {
 		return false
 	}
-	return isInstant(req.Start, req.End, req.Step)
-}
-
-func isInstant(start, end, step uint64) bool {
-	return end-start == step
+	if req.HasInstant() {
+		return req.GetInstant()
+	}
+	// false or no field defined, fallback to old logic.
+	return req.End-req.Start == req.Step
 }
 
 // AlignRequest shifts the start and end times of the request to align with the step
@@ -142,8 +150,8 @@ func AlignRequest(req *tempopb.QueryRangeRequest) {
 	}
 
 	// It doesn't really matter but the request fields are expected to be in nanoseconds.
-	req.Start = alignStart(req.Start, req.End, req.Step)
-	req.End = alignEnd(req.Start, req.End, req.Step)
+	req.Start = alignStart(req.Start, req.End, req.Step, false)
+	req.End = alignEnd(req.Start, req.End, req.Step, false)
 
 	if req.Start > req.Step { // to avoid overflow
 		req.Start -= req.Step // force to have additional initial bucket
@@ -151,11 +159,11 @@ func AlignRequest(req *tempopb.QueryRangeRequest) {
 }
 
 // Start time is rounded down to next step
-func alignStart(start, end, step uint64) uint64 {
+func alignStart(start, _, step uint64, instant bool) uint64 {
 	if step == 0 {
 		return 0
 	}
-	if isInstant(start, end, step) {
+	if instant {
 		return start
 	}
 
@@ -163,11 +171,11 @@ func alignStart(start, end, step uint64) uint64 {
 }
 
 // End time is rounded up to next step
-func alignEnd(start, end, step uint64) uint64 {
+func alignEnd(_, end, step uint64, instant bool) uint64 {
 	if step == 0 {
 		return 0
 	}
-	if isInstant(start, end, step) {
+	if instant {
 		return end
 	}
 
@@ -186,7 +194,7 @@ type Label struct {
 
 type Labels []Label
 
-func LabelsFromProto(ls []v1.KeyValue) Labels {
+func LabelsFromProto(ls []commonv1proto.KeyValue) Labels {
 	out := make(Labels, 0, len(ls))
 	for _, l := range ls {
 		out = append(out, Label{Name: l.Key, Value: StaticFromAnyValue(l.Value)})
@@ -267,6 +275,14 @@ func (ls Labels) MapKey() SeriesMapKey {
 		key[i] = SeriesMapLabel{Name: ls[i].Name, Value: ls[i].Value.MapKey()}
 	}
 	return key
+}
+
+// Add returns a copy of the labels with the given label added to the end.
+func (ls Labels) Add(label Label) Labels {
+	cp := make(Labels, len(ls)+1)
+	copy(cp, ls)
+	cp[len(cp)-1] = label
+	return cp
 }
 
 type Exemplar struct {
@@ -485,7 +501,8 @@ type StepAggregator struct {
 var _ RangeAggregator = (*StepAggregator)(nil)
 
 func NewStepAggregator(start, end, step uint64, innerAgg func() VectorAggregator) *StepAggregator {
-	mapper := NewIntervalMapper(start, end, step)
+	const instant = false // never used for instant queries
+	mapper := NewIntervalMapper(start, end, step, instant)
 	intervals := mapper.IntervalCount()
 	vectors := make([]VectorAggregator, intervals)
 	for i := range vectors {
@@ -496,7 +513,7 @@ func NewStepAggregator(start, end, step uint64, innerAgg func() VectorAggregator
 		intervalMapper:  mapper,
 		vectors:         vectors,
 		exemplars:       make([]Exemplar, 0, maxExemplars),
-		exemplarBuckets: newExemplarBucketSet(maxExemplars, start, end, step),
+		exemplarBuckets: newExemplarBucketSet(maxExemplars, start, end, step, instant),
 	}
 }
 
@@ -943,8 +960,14 @@ func (e *Engine) CompileMetricsQueryRange(req *tempopb.QueryRangeRequest, exempl
 		return nil, fmt.Errorf("not a metrics query")
 	}
 
+	// the exemplars hint supports both bool and int. first we test for the integer value. if
+	// its not present then we look to see if the user provided `with(exemplars=false)`
 	if v, ok := expr.Hints.GetInt(HintExemplars, allowUnsafeQueryHints); ok {
 		exemplars = v
+	} else if v, ok := expr.Hints.GetBool(HintExemplars, allowUnsafeQueryHints); ok {
+		if !v {
+			exemplars = 0
+		}
 	}
 
 	// Debug sampling hints, remove once we settle on approach.
@@ -1371,6 +1394,15 @@ func (e *MetricsEvaluator) DoSpansOnly(ctx context.Context, f SpansetFetcher, fe
 
 		e.spansTotal += 1
 
+		if e.maxExemplars > 0 && e.exemplarCount < e.maxExemplars {
+			traceID, ok := s.AttributeFor(IntrinsicTraceIDAttribute)
+			if ok {
+				if e.sampleExemplar(traceID.valBytes) {
+					e.metricsPipeline.observeExemplar(s)
+				}
+			}
+		}
+
 		seriesCount = e.metricsPipeline.length()
 
 		// e.mtx.Unlock()
@@ -1497,12 +1529,11 @@ const (
 )
 
 type SimpleAggregator struct {
-	ss               SeriesSet
-	exemplarBuckets  bucketSet
-	intervalMapper   IntervalMapper
-	aggregationFunc  func(existingValue float64, newValue float64) float64
-	start, end, step uint64
-	initWithNaN      bool
+	ss              SeriesSet
+	exemplarBuckets bucketSet
+	intervalMapper  IntervalMapper
+	aggregationFunc func(existingValue float64, newValue float64) float64
+	initWithNaN     bool
 }
 
 func NewSimpleCombiner(req *tempopb.QueryRangeRequest, op SimpleAggregationOp, exemplars uint32) *SimpleAggregator {
@@ -1528,7 +1559,7 @@ func NewSimpleCombiner(req *tempopb.QueryRangeRequest, op SimpleAggregationOp, e
 	}
 	return &SimpleAggregator{
 		ss:              make(SeriesSet),
-		exemplarBuckets: newExemplarBucketSet(exemplars, req.Start, req.End, req.Step),
+		exemplarBuckets: newExemplarBucketSet(exemplars, req.Start, req.End, req.Step, IsInstant(req)),
 		intervalMapper:  NewIntervalMapperFromReq(req),
 		aggregationFunc: f,
 		initWithNaN:     initWithNaN,
@@ -1632,13 +1663,13 @@ type IntervalMapper interface {
 }
 
 func NewIntervalMapperFromReq(req *tempopb.QueryRangeRequest) IntervalMapper {
-	return NewIntervalMapper(req.Start, req.End, req.Step)
+	return NewIntervalMapper(req.Start, req.End, req.Step, IsInstant(req))
 }
 
-func NewIntervalMapper(start, end, step uint64) IntervalMapper {
+func NewIntervalMapper(start, end, step uint64, instant bool) IntervalMapper {
 	startMs := start - start%uint64(time.Millisecond)
 	endMs := end - end%uint64(time.Millisecond)
-	if isInstant(start, end, step) {
+	if instant {
 		return &IntervalMapperInstant{
 			start:   start,
 			end:     end,
@@ -1647,11 +1678,11 @@ func NewIntervalMapper(start, end, step uint64) IntervalMapper {
 		}
 	}
 	mapper := &IntervalMapperQueryRange{
-		start:   alignStart(start, end, step),
-		end:     alignEnd(start, end, step),
+		start:   alignStart(start, end, step, instant),
+		end:     alignEnd(start, end, step, instant),
 		step:    step,
-		startMs: alignStart(startMs, endMs, step),
-		endMs:   alignEnd(startMs, endMs, step),
+		startMs: alignStart(startMs, endMs, step, instant),
+		endMs:   alignEnd(startMs, endMs, step, instant),
 	}
 	// pre-calculate intervals
 	intervals := (mapper.end - mapper.start) / mapper.step
@@ -1766,7 +1797,7 @@ func NewHistogramAggregator(req *tempopb.QueryRangeRequest, qs []float64, exempl
 		exemplarLimit:  exemplarLimit,
 		labelBuffer:    make(Labels, 0, 8), // Pre-allocate with reasonable capacity
 		exemplarBucketsCreator: func() bucketSet {
-			return newExemplarBucketSet(exemplarLimit, req.Start, req.End, req.Step)
+			return newExemplarBucketSet(exemplarLimit, req.Start, req.End, req.Step, IsInstant(req))
 		},
 	}
 }
@@ -1950,8 +1981,10 @@ func Log2Bucketize(v uint64) float64 {
 		return -1
 	}
 
-	// return float64(int(2) << (uint(math.Ceil(math.Log2(float64(v)))) - 1))
-	return math.Pow(2, math.Ceil(math.Log2(float64(v))))
+	return float64(uint64(1) << (64 - bits.LeadingZeros64(v-1)))
+
+	// OLD:
+	// return math.Pow(2, math.Ceil(math.Log2(float64(v))))
 }
 
 // Log2Quantile returns the quantile given bucket labeled with float ranges and counts. Uses
@@ -2101,8 +2134,9 @@ func processTopK(input SeriesSet, valueLength, limit int) SeriesSet {
 			}
 
 			// If new value is greater than smallest in heap, replace it
+			// For ties (equal values), use series key comparison to maintain determinism
 			smallest := (*h)[0]
-			if value > smallest.value {
+			if dataPointGreaterThan(seriesValue{key: key, value: value}, smallest) {
 				heap.Pop(h)
 				heap.Push(h, seriesValue{
 					key:   key,
@@ -2155,8 +2189,9 @@ func processBottomK(input SeriesSet, valueLength, limit int) SeriesSet {
 			}
 
 			// If new value is less than largest in heap, replace it
+			// For ties (equal values), use series key comparison to maintain determinism
 			largest := (*h)[0]
-			if value < largest.value {
+			if dataPointLessThan(seriesValue{key: key, value: value}, largest) {
 				heap.Pop(h)
 				heap.Push(h, seriesValue{
 					key:   key,

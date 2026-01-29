@@ -174,6 +174,7 @@ func (rw *readerWriter) CloseAppend(_ context.Context, tracker backend.AppendTra
 }
 
 func (rw *readerWriter) Delete(ctx context.Context, name string, keypath backend.KeyPath, _ *backend.CacheInfo) error {
+	keypath = backend.KeyPathWithPrefix(keypath, rw.cfg.Prefix)
 	return readError(rw.bucket.Object(backend.ObjectFileName(keypath, name)).Delete(ctx))
 }
 
@@ -182,7 +183,7 @@ func (rw *readerWriter) List(ctx context.Context, keypath backend.KeyPath) ([]st
 	keypath = backend.KeyPathWithPrefix(keypath, rw.cfg.Prefix)
 	prefix := path.Join(keypath...)
 	if len(prefix) > 0 {
-		prefix = prefix + "/"
+		prefix += "/"
 	}
 	iter := rw.bucket.Objects(ctx, &storage.Query{
 		Prefix:    prefix,
@@ -218,8 +219,8 @@ func (rw *readerWriter) ListBlocks(ctx context.Context, tenant string) ([]uuid.U
 		bb                = blockboundary.CreateBlockBoundaries(rw.cfg.ListBlocksConcurrency)
 		errChan           = make(chan error, len(bb))
 		keypath           = backend.KeyPathWithPrefix(backend.KeyPath{tenant}, rw.cfg.Prefix)
-		min               uuid.UUID
-		max               uuid.UUID
+		minID             uuid.UUID
+		maxID             uuid.UUID
 		blockIDs          = make([]uuid.UUID, 0, 1000)
 		compactedBlockIDs = make([]uuid.UUID, 0, 1000)
 	)
@@ -230,11 +231,11 @@ func (rw *readerWriter) ListBlocks(ctx context.Context, tenant string) ([]uuid.U
 	}
 
 	for i := 0; i < len(bb)-1; i++ {
-		min = uuid.UUID(bb[i])
-		max = uuid.UUID(bb[i+1])
+		minID = uuid.UUID(bb[i])
+		maxID = uuid.UUID(bb[i+1])
 
 		wg.Add(1)
-		go func(min, max uuid.UUID) {
+		go func(minUUID, maxUUID uuid.UUID) {
 			defer wg.Done()
 
 			var (
@@ -242,7 +243,7 @@ func (rw *readerWriter) ListBlocks(ctx context.Context, tenant string) ([]uuid.U
 					Prefix:      prefix,
 					Delimiter:   "",
 					Versions:    false,
-					StartOffset: prefix + min.String(),
+					StartOffset: prefix + minUUID.String(),
 				}
 				parts []string
 				id    uuid.UUID
@@ -250,8 +251,8 @@ func (rw *readerWriter) ListBlocks(ctx context.Context, tenant string) ([]uuid.U
 
 			// If max is global max, then we don't want to set an end offset to
 			// ensure we reach the end.  EndOffset is exclusive.
-			if max != backend.GlobalMaxBlockID {
-				query.EndOffset = prefix + max.String()
+			if maxUUID != backend.GlobalMaxBlockID {
+				query.EndOffset = prefix + maxUUID.String()
 			}
 
 			iter := rw.bucket.Objects(ctx, query)
@@ -288,13 +289,13 @@ func (rw *readerWriter) ListBlocks(ctx context.Context, tenant string) ([]uuid.U
 					continue
 				}
 
-				if bytes.Compare(id[:], min[:]) < 0 {
+				if bytes.Compare(id[:], minUUID[:]) < 0 {
 					errChan <- fmt.Errorf("block UUID below shard minimum")
 					return
 				}
 
-				if max != backend.GlobalMaxBlockID {
-					if bytes.Compare(id[:], max[:]) >= 0 {
+				if maxUUID != backend.GlobalMaxBlockID {
+					if bytes.Compare(id[:], maxUUID[:]) >= 0 {
 						return
 					}
 				}
@@ -308,7 +309,7 @@ func (rw *readerWriter) ListBlocks(ctx context.Context, tenant string) ([]uuid.U
 				}
 				mtx.Unlock()
 			}
-		}(min, max)
+		}(minID, maxID)
 	}
 	wg.Wait()
 	close(errChan)
@@ -330,7 +331,7 @@ func (rw *readerWriter) Find(ctx context.Context, keypath backend.KeyPath, f bac
 	keypath = backend.KeyPathWithPrefix(keypath, rw.cfg.Prefix)
 	prefix := path.Join(keypath...)
 	if len(prefix) > 0 {
-		prefix = prefix + "/"
+		prefix += "/"
 	}
 
 	iter := rw.bucket.Objects(ctx, &storage.Query{
@@ -349,7 +350,7 @@ func (rw *readerWriter) Find(ctx context.Context, keypath backend.KeyPath, f bac
 		}
 
 		opts := backend.FindMatch{
-			Key:      attrs.Name,
+			Key:      strings.TrimPrefix(attrs.Name, rw.cfg.Prefix),
 			Modified: attrs.Updated,
 		}
 		f(opts)
@@ -423,6 +424,7 @@ func (rw *readerWriter) WriteVersioned(ctx context.Context, name string, keypath
 }
 
 func (rw *readerWriter) DeleteVersioned(ctx context.Context, name string, keypath backend.KeyPath, version backend.Version) error {
+	keypath = backend.KeyPathWithPrefix(keypath, rw.cfg.Prefix)
 	o := rw.bucket.Object(backend.ObjectFileName(keypath, name))
 
 	preconditions, err := createPreconditions(version)

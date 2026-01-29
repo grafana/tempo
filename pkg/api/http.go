@@ -40,15 +40,14 @@ const (
 	urlParamExemplars       = "exemplars"
 	URLParamRF1After        = "rf1After"
 	urlMaxSeries            = "maxSeries"
+	urlInstant              = "instant"
 
 	// backend search querier
 	urlParamStartPage        = "startPage"
 	urlParamPagesToSearch    = "pagesToSearch"
 	urlParamBlockID          = "blockID"
-	urlParamEncoding         = "encoding"
 	urlParamIndexPageSize    = "indexPageSize"
 	urlParamTotalRecords     = "totalRecords"
-	urlParamDataEncoding     = "dataEncoding"
 	urlParamVersion          = "version"
 	urlParamSize             = "size"
 	urlParamFooterSize       = "footerSize"
@@ -65,6 +64,7 @@ const (
 	HeaderContentType      = "Content-Type"
 	HeaderAcceptProtobuf   = "application/protobuf"
 	HeaderAcceptJSON       = "application/json"
+	HeaderAcceptLLM        = "application/vnd.grafana.llm"
 	HeaderRecentDataTarget = "Recent-Data-Target"
 
 	PathPrefixQuerier   = "/querier"
@@ -73,7 +73,7 @@ const (
 	PathTraces              = "/api/traces/{traceID}"
 	PathSearch              = "/api/search"
 	PathSearchTags          = "/api/search/tags"
-	PathSearchTagValues     = "/api/search/tag/{" + MuxVarTagName + "}/values"
+	PathSearchTagValues     = "/api/search/tag/" + MuxVarTagInPath + "/values"
 	PathEcho                = "/api/echo"
 	PathBuildInfo           = "/api/status/buildinfo"
 	PathUsageStats          = "/status/usage-stats"
@@ -86,13 +86,14 @@ const (
 	// PathOverrides user configurable overrides
 	PathOverrides = "/api/overrides"
 
-	PathSearchTagValuesV2 = "/api/v2/search/tag/{" + MuxVarTagName + "}/values"
+	PathSearchTagValuesV2 = "/api/v2/search/tag/" + MuxVarTagInPath + "/values"
 	PathSearchTagsV2      = "/api/v2/search/tags"
 	PathTracesV2          = "/api/v2/traces/{traceID}"
 
 	QueryModeKey       = "mode"
 	QueryModeIngesters = "ingesters"
 	QueryModeBlocks    = "blocks"
+	QueryModeExternal  = "external"
 	QueryModeAll       = "all"
 	BlockStartKey      = "blockStart"
 	BlockEndKey        = "blockEnd"
@@ -101,6 +102,35 @@ const (
 	defaultSpansPerSpanSet = 3
 	defaultSince           = 1 * time.Hour
 )
+
+// MarshallingFormat represents the format used for marshalling HTTP responses
+type MarshallingFormat string
+
+const (
+	MarshallingFormatProtobuf MarshallingFormat = HeaderAcceptProtobuf
+	MarshallingFormatJSON     MarshallingFormat = HeaderAcceptJSON
+	MarshallingFormatLLM      MarshallingFormat = HeaderAcceptLLM
+)
+
+// MarshalingFormatFromAcceptHeader extracts the marshaling format from the Accept header
+// It properly handles multiple media types and quality values
+func MarshalingFormatFromAcceptHeader(header http.Header) MarshallingFormat {
+	allMarshallingFormats := []MarshallingFormat{MarshallingFormatProtobuf, MarshallingFormatJSON, MarshallingFormatLLM}
+	acceptHeader := header.Get(HeaderAccept)
+	if acceptHeader == "" {
+		return MarshallingFormatJSON
+	}
+
+	// Check if a specific/supported marshalling format is requested
+	for _, format := range allMarshallingFormats {
+		if strings.Contains(acceptHeader, string(format)) {
+			return format
+		}
+	}
+
+	// Default to JSON
+	return MarshallingFormatJSON
+}
 
 func ParseRecentDataTargetHeader(req *http.Request) string {
 	v := req.Header.Get(HeaderRecentDataTarget)
@@ -124,6 +154,12 @@ func ParseTraceID(r *http.Request) ([]byte, error) {
 
 // ParseSearchRequest takes an http.Request and decodes query params to create a tempopb.SearchRequest
 func ParseSearchRequest(r *http.Request) (*tempopb.SearchRequest, error) {
+	return ParseSearchRequestWithDefault(r, defaultSpansPerSpanSet)
+}
+
+// ParseSearchRequestWithDefault takes an http.Request and decodes query params to create a tempopb.SearchRequest
+// using the provided default value for SpansPerSpanSet when not specified in the request
+func ParseSearchRequestWithDefault(r *http.Request, defaultSpansPerSpanSet uint32) (*tempopb.SearchRequest, error) {
 	req := &tempopb.SearchRequest{
 		Tags:            map[string]string{},
 		SpansPerSpanSet: defaultSpansPerSpanSet,
@@ -235,8 +271,8 @@ func ParseSearchRequest(r *http.Request) (*tempopb.SearchRequest, error) {
 		if err != nil {
 			return nil, fmt.Errorf("invalid spss: %w", err)
 		}
-		if spansPerSpanSet <= 0 {
-			return nil, errors.New("invalid spss: must be a positive number")
+		if spansPerSpanSet < 0 {
+			return nil, errors.New("invalid spss: must be a non-negative number")
 		}
 		req.SpansPerSpanSet = uint32(spansPerSpanSet)
 	}
@@ -405,9 +441,6 @@ func ParseQueryRangeRequest(r *http.Request) (*tempopb.QueryRangeRequest, error)
 	version, _ := extractQueryParam(vals, urlParamVersion)
 	req.Version = version
 
-	encoding, _ := extractQueryParam(vals, urlParamEncoding)
-	req.Encoding = encoding
-
 	size, _ := extractQueryParam(vals, urlParamSize)
 	if size, err := strconv.Atoi(size); err == nil {
 		req.Size_ = uint64(size)
@@ -434,6 +467,13 @@ func ParseQueryRangeRequest(r *http.Request) (*tempopb.QueryRangeRequest, error)
 	maxSeries, _ := extractQueryParam(vals, urlMaxSeries)
 	if maxSeries, err := strconv.Atoi(maxSeries); err == nil {
 		req.MaxSeries = uint32(maxSeries)
+	}
+
+	if isInstant, found := extractQueryParam(vals, urlInstant); found {
+		val, err := strconv.ParseBool(isInstant)
+		if err == nil {
+			req.SetInstant(val)
+		}
 	}
 
 	return req, nil
@@ -475,8 +515,12 @@ func BuildQueryRangeRequest(req *http.Request, searchReq *tempopb.QueryRangeRequ
 	}
 
 	qb := newQueryBuilder("")
-	qb.addParam(urlParamStart, strconv.FormatUint(searchReq.Start, 10))
-	qb.addParam(urlParamEnd, strconv.FormatUint(searchReq.End, 10))
+	if searchReq.Start != 0 {
+		qb.addParam(urlParamStart, strconv.FormatUint(searchReq.Start, 10))
+	}
+	if searchReq.End != 0 {
+		qb.addParam(urlParamEnd, strconv.FormatUint(searchReq.End, 10))
+	}
 	if searchReq.Step != 0 { // if step != 0 leave the param out and Tempo will calculate it
 		qb.addParam(urlParamStep, time.Duration(searchReq.Step).String())
 	}
@@ -486,7 +530,7 @@ func BuildQueryRangeRequest(req *http.Request, searchReq *tempopb.QueryRangeRequ
 	qb.addParam(urlParamStartPage, strconv.Itoa(int(searchReq.StartPage)))
 	qb.addParam(urlParamPagesToSearch, strconv.Itoa(int(searchReq.PagesToSearch)))
 	qb.addParam(urlParamVersion, searchReq.Version)
-	qb.addParam(urlParamEncoding, searchReq.Encoding)
+	qb.addParam("encoding", "none")
 	qb.addParam(urlParamSize, strconv.Itoa(int(searchReq.Size_)))
 	qb.addParam(urlParamFooterSize, strconv.Itoa(int(searchReq.FooterSize)))
 
@@ -500,6 +544,9 @@ func BuildQueryRangeRequest(req *http.Request, searchReq *tempopb.QueryRangeRequ
 
 	qb.addParam(urlParamExemplars, strconv.FormatUint(uint64(searchReq.Exemplars), 10))
 	qb.addParam(urlMaxSeries, strconv.Itoa(int(searchReq.MaxSeries)))
+	if searchReq.HasInstant() {
+		qb.addParam(urlInstant, strconv.FormatBool(searchReq.GetInstant()))
+	}
 
 	req.URL.RawQuery = qb.query()
 
@@ -526,10 +573,8 @@ func BuildQueryRequest(req *http.Request, queryParams map[string]string) *http.R
 
 func bounds(vals url.Values) (time.Time, time.Time, error) {
 	var (
-		now      = time.Now()
-		start, _ = extractQueryParam(vals, urlParamStart)
-		end, _   = extractQueryParam(vals, urlParamEnd)
-		since, _ = extractQueryParam(vals, urlParamSince)
+		now               = time.Now()
+		start, end, since = extractDateRangeParams(vals)
 	)
 
 	return determineBounds(now, start, end, since)
@@ -552,7 +597,7 @@ func determineBounds(now time.Time, startString, endString, sinceString string) 
 
 	// endOrNow is used to apply a default for the start time or an offset if 'since' is provided.
 	// we want to use the 'end' time so long as it's not in the future as this should provide
-	// a more intuitive experience when end time is in the future.
+	// a more intuitive experience when end time is in the future.ß
 	endOrNow := end
 	if end.After(now) {
 		endOrNow = now
@@ -566,7 +611,84 @@ func determineBounds(now time.Time, startString, endString, sinceString string) 
 	return start, end, nil
 }
 
-// parseTimestamp parses a ns unix timestamp from a string
+// ClampDateRangeReq parses and validates date range parameters from an HTTP request,
+// applying clamping logic to ensure the end time doesn't exceed current time minus endBuffer.
+//
+// Parameters:
+//   - req: HTTP request containing query parameters for start, end, and since
+//   - defStart: default duration to subtract from current time for start when no parameters provided
+//   - endBuffer: duration to subtract from current time to clamp the maximum end time
+//
+// Returns:
+//   - start: parsed or calculated start time
+//   - end: parsed or calculated end time, clamped to not exceed (now - endBuffer)
+//   - p: timestamp precision detected from the parsed values
+//   - err: error if parsing fails or validation errors occur
+//
+// Parameter precedence and behavior:
+//  1. If 'since' is provided: end = now - endBuffer, start = end - since
+//  2. If neither start nor end provided: end = now - endBuffer, start = now - defStart
+//  3. If both start and end provided: parse both and clamp end to not exceed (now - endBuffer)
+//  4. If only one of start/end provided: returns validation error
+//
+// Validation rules when both start and end are provided:
+//   - Both must have the same string length (seconds vs nanoseconds format)
+//   - Both must be either fractional or integer (consistent decimal point usage)
+func ClampDateRangeReq(req *http.Request, defStart, endBuffer time.Duration) (start, end time.Time, err error) {
+	vals := req.URL.Query()
+	var (
+		now                        = time.Now()
+		startVal, endVal, sinceVal = extractDateRangeParams(vals)
+	)
+
+	// Since provided, it takes precedence
+	if sinceVal != "" {
+		d, err := model.ParseDuration(sinceVal)
+		if err != nil {
+			return time.Time{}, time.Time{}, fmt.Errorf("could not parse 'since' parameter: %w", err)
+		}
+		end = now.Add(-endBuffer)
+		start = end.Add(-time.Duration(d))
+		return start, end, nil
+	}
+
+	// No start or end, sets defaults values
+	if startVal == "" && endVal == "" {
+		end = now.Add(-endBuffer)
+		start = now.Add(-defStart)
+		return start, end, nil
+	}
+
+	// Validating inputs
+	if startVal == "" || endVal == "" {
+		return time.Time{}, time.Time{}, fmt.Errorf("only one of start and end provided: must provide both or neither")
+	}
+
+	// Both provided, parse and clamp
+	start, err = parseTimestamp(startVal, time.Time{})
+	if err != nil {
+		return time.Time{}, time.Time{}, fmt.Errorf("could not parse 'start' parameter: %w", err)
+	}
+
+	end, err = parseTimestamp(endVal, time.Time{})
+	if err != nil {
+		return time.Time{}, time.Time{}, fmt.Errorf("could not parse 'end' parameter: %w", err)
+	}
+	maxEnd := now.Add(-endBuffer)
+	if maxEnd.Before(end) {
+		end = maxEnd
+		if start.After(end) {
+			start = now.Add(-defStart) // It can be possible that after clamping the end the start time would be greater.
+		}
+	}
+
+	return start, end, nil
+}
+
+// parseTimestamp parses an unix timestamp from a string
+// allowed values: unix epoch seconds (int), unix epoch nanoseconds (int),
+// unix epoch fractional seconds (float), or RFC3339 string
+// any other string will result on a parsing error
 // if the value is empty it returns a default value passed as second parameter
 func parseTimestamp(value string, def time.Time) (time.Time, error) {
 	if value == "" {
@@ -587,6 +709,7 @@ func parseTimestamp(value string, def time.Time) (time.Time, error) {
 		}
 		return time.Time{}, err
 	}
+
 	if len(value) <= 10 {
 		return time.Unix(nanos, 0), nil
 	}
@@ -610,7 +733,7 @@ func parseSecondsOrDuration(value string) (time.Duration, error) {
 		return time.Duration(ts), nil
 	}
 	if d, err := time.ParseDuration(value); err == nil {
-		return time.Duration(d), nil
+		return d, nil
 	}
 	return 0, fmt.Errorf("cannot parse %q to a valid duration", value)
 }
@@ -629,8 +752,12 @@ func BuildSearchRequest(req *http.Request, searchReq *tempopb.SearchRequest) (*h
 	}
 
 	qb := newQueryBuilder("")
-	qb.addParam(urlParamStart, strconv.FormatUint(uint64(searchReq.Start), 10))
-	qb.addParam(urlParamEnd, strconv.FormatUint(uint64(searchReq.End), 10))
+	if searchReq.Start != 0 {
+		qb.addParam(urlParamStart, strconv.FormatUint(uint64(searchReq.Start), 10))
+	}
+	if searchReq.End != 0 {
+		qb.addParam(urlParamEnd, strconv.FormatUint(uint64(searchReq.End), 10))
+	}
 	if searchReq.Limit != 0 {
 		qb.addParam(urlParamLimit, strconv.FormatUint(uint64(searchReq.Limit), 10))
 	}
@@ -640,9 +767,8 @@ func BuildSearchRequest(req *http.Request, searchReq *tempopb.SearchRequest) (*h
 	if searchReq.MinDurationMs != 0 {
 		qb.addParam(urlParamMinDuration, strconv.FormatUint(uint64(searchReq.MinDurationMs), 10)+"ms")
 	}
-	if searchReq.SpansPerSpanSet != 0 {
-		qb.addParam(urlParamSpansPerSpanSet, strconv.FormatUint(uint64(searchReq.SpansPerSpanSet), 10))
-	}
+	// Always add spans_per_span_set parameter even if 0 (which means unlimited)
+	qb.addParam(urlParamSpansPerSpanSet, strconv.FormatUint(uint64(searchReq.SpansPerSpanSet), 10))
 
 	if len(searchReq.Query) > 0 {
 		qb.addParam(urlParamQuery, searchReq.Query)
@@ -692,10 +818,9 @@ func BuildSearchBlockRequest(req *http.Request, searchReq *tempopb.SearchBlockRe
 	qb.addParam(urlParamPagesToSearch, strconv.FormatUint(uint64(searchReq.PagesToSearch), 10))
 	qb.addParam(urlParamSize, strconv.FormatUint(searchReq.Size_, 10))
 	qb.addParam(urlParamStartPage, strconv.FormatUint(uint64(searchReq.StartPage), 10))
-	qb.addParam(urlParamEncoding, searchReq.Encoding)
+	qb.addParam("encoding", "none") // todo: remove. encoding was removed b/c its unused but we still add it here to make rollouts seamless
 	qb.addParam(urlParamIndexPageSize, strconv.FormatUint(uint64(searchReq.IndexPageSize), 10))
 	qb.addParam(urlParamTotalRecords, strconv.FormatUint(uint64(searchReq.TotalRecords), 10))
-	qb.addParam(urlParamDataEncoding, searchReq.DataEncoding)
 	qb.addParam(urlParamVersion, searchReq.Version)
 	qb.addParam(urlParamFooterSize, strconv.FormatUint(uint64(searchReq.FooterSize), 10))
 	if len(dedicatedColumnsJSON) > 0 && dedicatedColumnsJSON != "null" { // if a caller marshals a nil dedicated cols we will receive the string "null"
@@ -710,6 +835,13 @@ func BuildSearchBlockRequest(req *http.Request, searchReq *tempopb.SearchBlockRe
 func extractQueryParam(v url.Values, param string) (string, bool) {
 	value := v.Get(param)
 	return value, value != ""
+}
+
+func extractDateRangeParams(vals url.Values) (start, end, since string) {
+	start, _ = extractQueryParam(vals, urlParamStart)
+	end, _ = extractQueryParam(vals, urlParamEnd)
+	since, _ = extractQueryParam(vals, urlParamSince)
+	return
 }
 
 // ValidateAndSanitizeRequest validates params for trace by id api
@@ -727,13 +859,16 @@ func ValidateAndSanitizeRequest(r *http.Request) (string, string, string, int64,
 	var blockEnd string
 	var rf1After time.Time
 
-	if len(q) == 0 || q == QueryModeAll {
+	switch {
+	case len(q) == 0 || q == QueryModeAll:
 		queryMode = QueryModeAll
-	} else if q == QueryModeIngesters {
+	case q == QueryModeIngesters:
 		queryMode = QueryModeIngesters
-	} else if q == QueryModeBlocks {
+	case q == QueryModeBlocks:
 		queryMode = QueryModeBlocks
-	} else {
+	case q == QueryModeExternal:
+		queryMode = QueryModeExternal
+	default:
 		return "", "", "", 0, 0, time.Time{}, fmt.Errorf("invalid value for mode %s", q)
 	}
 

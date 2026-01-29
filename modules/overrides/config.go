@@ -74,6 +74,7 @@ type IngestionOverrides struct {
 	TenantShardSize   int            `yaml:"tenant_shard_size,omitempty" json:"tenant_shard_size,omitempty"`
 	MaxAttributeBytes int            `yaml:"max_attribute_bytes,omitempty" json:"max_attribute_bytes,omitempty"`
 	ArtificialDelay   *time.Duration `yaml:"artificial_delay,omitempty" json:"artificial_delay,omitempty"`
+	RetryInfoEnabled  bool           `yaml:"retry_info_enabled,omitempty" json:"retry_info_enabled,omitempty"`
 }
 
 type ForwarderOverrides struct {
@@ -88,6 +89,7 @@ type ServiceGraphsOverrides struct {
 	EnableClientServerPrefix              *bool     `yaml:"enable_client_server_prefix,omitempty" json:"enable_client_server_prefix,omitempty"`
 	EnableMessagingSystemLatencyHistogram *bool     `yaml:"enable_messaging_system_latency_histogram,omitempty" json:"enable_messaging_system_latency_histogram,omitempty"`
 	EnableVirtualNodeLabel                *bool     `yaml:"enable_virtual_node_label,omitempty" json:"enable_virtual_node_label,omitempty"`
+	SpanMultiplierKey                     string    `yaml:"span_multiplier_key,omitempty" json:"span_multiplier_key,omitempty"`
 }
 
 type SpanMetricsOverrides struct {
@@ -99,6 +101,7 @@ type SpanMetricsOverrides struct {
 	EnableTargetInfo             *bool                            `yaml:"enable_target_info,omitempty" json:"enable_target_info,omitempty"`
 	TargetInfoExcludedDimensions []string                         `yaml:"target_info_excluded_dimensions,omitempty" json:"target_info_excluded_dimensions,omitempty"`
 	EnableInstanceLabel          *bool                            `yaml:"enable_instance_label,omitempty" json:"enable_instance_label,omitempty"`
+	SpanMultiplierKey            string                           `yaml:"span_multiplier_key,omitempty" json:"span_multiplier_key,omitempty"`
 }
 
 type LocalBlocksOverrides struct {
@@ -140,6 +143,7 @@ type MetricsGeneratorOverrides struct {
 	RingSize                 int                        `yaml:"ring_size,omitempty" json:"ring_size,omitempty"`
 	Processors               listtomap.ListToMap        `yaml:"processors,omitempty" json:"processors,omitempty"`
 	MaxActiveSeries          uint32                     `yaml:"max_active_series,omitempty" json:"max_active_series,omitempty"`
+	MaxActiveEntities        uint32                     `yaml:"max_active_entities,omitempty" json:"max_active_entities,omitempty"`
 	CollectionInterval       time.Duration              `yaml:"collection_interval,omitempty" json:"collection_interval,omitempty"`
 	DisableCollection        bool                       `yaml:"disable_collection,omitempty" json:"disable_collection,omitempty"`
 	GenerateNativeHistograms histograms.HistogramMethod `yaml:"generate_native_histograms" json:"generate_native_histograms,omitempty"`
@@ -149,7 +153,7 @@ type MetricsGeneratorOverrides struct {
 
 	Forwarder      ForwarderOverrides `yaml:"forwarder,omitempty" json:"forwarder,omitempty"`
 	Processor      ProcessorOverrides `yaml:"processor,omitempty" json:"processor,omitempty"`
-	IngestionSlack time.Duration      `yaml:"ingestion_time_range_slack" json:"ingestion_time_range_slack"`
+	IngestionSlack time.Duration      `yaml:"ingestion_time_range_slack" json:"ingestion_time_range_slack,omitempty"`
 
 	NativeHistogramBucketFactor     float64       `yaml:"native_histogram_bucket_factor,omitempty" json:"native_histogram_bucket_factor,omitempty"`
 	NativeHistogramMaxBucketNumber  uint32        `yaml:"native_histogram_max_bucket_number,omitempty" json:"native_histogram_max_bucket_number,omitempty"`
@@ -169,7 +173,7 @@ type ReadOverrides struct {
 }
 
 type CompactionOverrides struct {
-	// Compactor enforced overrides.
+	// Backend-worker/scheduler enforced overrides.
 	BlockRetention     model.Duration `yaml:"block_retention,omitempty" json:"block_retention,omitempty"`
 	CompactionWindow   model.Duration `yaml:"compaction_window,omitempty" json:"compaction_window,omitempty"`
 	CompactionDisabled bool           `yaml:"compaction_disabled,omitempty" json:"compaction_disabled,omitempty"`
@@ -249,8 +253,8 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	legacyCfg.PerTenantOverridePeriod = c.PerTenantOverridePeriod
 	legacyCfg.UserConfigurableOverridesConfig = c.UserConfigurableOverridesConfig
 
-	if err := unmarshal(&legacyCfg); err != nil {
-		return err
+	if legacyErr := unmarshal(&legacyCfg); legacyErr != nil {
+		return fmt.Errorf("failed to unmarshal config: %w; also failed in legacy format: %w", err, legacyErr)
 	}
 
 	c.Defaults = legacyCfg.DefaultOverrides.toNewLimits()
@@ -267,6 +271,7 @@ func (c *Config) RegisterFlagsAndApplyDefaults(f *flag.FlagSet) {
 	c.Defaults.MetricsGenerator.GenerateNativeHistograms = histograms.HistogramMethodClassic
 
 	// Distributor LegacyOverrides
+	c.Defaults.Ingestion.RetryInfoEnabled = true // enabled in overrides by default but it's disabled with RetryAfterOnResourceExhausted = 0
 	f.StringVar(&c.Defaults.Ingestion.RateStrategy, "distributor.rate-limit-strategy", "local", "Whether the various ingestion rate limits should be applied individually to each distributor instance (local), or evenly shared across the cluster (global).")
 	f.IntVar(&c.Defaults.Ingestion.RateLimitBytes, "distributor.ingestion-rate-limit-bytes", 15e6, "Per-user ingestion rate limit in bytes per second.")
 	f.IntVar(&c.Defaults.Ingestion.BurstSizeBytes, "distributor.ingestion-burst-size-bytes", 20e6, "Per-user ingestion burst size in bytes. Should be set to the expected size (in bytes) of a single push request.")

@@ -450,7 +450,7 @@ func TestStatic_MapKey(t *testing.T) {
 		NewStaticString(""), NewStaticString("foo"),
 		NewStaticIntArray([]int{}), NewStaticIntArray([]int{1, 2, 3}),
 		NewStaticFloatArray([]float64{}), NewStaticFloatArray([]float64{0.0}), NewStaticFloatArray([]float64{0.0, 2.0, 3.0}),
-		NewStaticStringArray([]string{}), NewStaticStringArray([]string{""}), NewStaticStringArray([]string{"foo"}),
+		NewStaticStringArray([]string{}), NewStaticStringArray([]string{""}), NewStaticStringArray([]string{"foo"}), NewStaticStringArray([]string{"f", "o", "o"}),
 		NewStaticBooleanArray([]bool{}), NewStaticBooleanArray([]bool{false}), NewStaticBooleanArray([]bool{true}),
 	}
 
@@ -466,11 +466,18 @@ func TestStatic_MapKey(t *testing.T) {
 	}
 }
 
-func TestStatic_StringArray_MapKey_IsUnique(t *testing.T) {
-	v1 := NewStaticStringArray([]string{"foo", "bar"})
-	v2 := NewStaticStringArray([]string{"foobar"})
+func BenchmarkStatic_MapKey(b *testing.B) {
+	testCases := []Static{
+		NewStaticStringArray([]string{"foo", "bar"}),
+	}
 
-	assert.NotEqual(t, v1.MapKey(), v2.MapKey())
+	for _, tc := range testCases {
+		b.Run(tc.String(), func(b *testing.B) {
+			for b.Loop() {
+				_ = tc.MapKey()
+			}
+		})
+	}
 }
 
 func TestStatic_Equals(t *testing.T) {
@@ -1105,5 +1112,69 @@ func TestNeedsFullTrace(t *testing.T) {
 			require.NoError(t, err)
 			require.Equal(t, true, expr.NeedsFullTrace())
 		})
+	}
+}
+
+func TestNewBinaryOperation_TraceIDNormalization(t *testing.T) {
+	traceIDAttr := NewIntrinsic(IntrinsicTraceID)
+	op := OpEqual
+
+	tests := []struct {
+		name       string
+		expression FieldExpression
+		expected   FieldExpression
+	}{
+		{
+			name:       "with leading zeros",
+			expression: NewStaticString("0000123"),
+			expected:   NewStaticString("123"),
+		},
+		{
+			name:       "no leading zeros",
+			expression: NewStaticString("123456789abcdef123456789abcdef"),
+			expected:   NewStaticString("123456789abcdef123456789abcdef"),
+		},
+		{
+			name:       "int",
+			expression: NewStaticInt(123),
+			expected:   NewStaticInt(123),
+		},
+		{
+			name:       "float",
+			expression: NewStaticFloat(123.0),
+			expected:   NewStaticFloat(123.0),
+		},
+	}
+
+	for _, tc := range []struct {
+		name    string
+		reverse bool
+	}{
+		{name: "trace:id = value", reverse: false},
+		{name: "value = trace:id", reverse: true},
+	} {
+		for _, tt := range tests {
+			t.Run(tc.name+" "+tt.name, func(t *testing.T) {
+				var lhs FieldExpression = traceIDAttr
+				rhs := tt.expression
+				var expectedLHS FieldExpression = traceIDAttr
+				expectedRHS := tt.expected
+
+				if tc.reverse {
+					lhs = tt.expression
+					rhs = traceIDAttr
+					expectedLHS = tt.expected
+					expectedRHS = traceIDAttr
+				}
+
+				binop := newBinaryOperation(op, lhs, rhs)
+
+				// Verify the result is a BinaryOperation
+				require.IsType(t, &BinaryOperation{}, binop)
+				actualBinop := binop.(*BinaryOperation)
+				assert.Equal(t, expectedLHS, actualBinop.LHS)
+				assert.Equal(t, expectedRHS, actualBinop.RHS)
+			})
+		}
 	}
 }

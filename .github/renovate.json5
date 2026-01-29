@@ -1,0 +1,104 @@
+{
+  $schema: 'https://docs.renovatebot.com/renovate-schema.json',
+  extends: [
+    'config:best-practices',
+    ':semanticCommits',
+  ],
+  schedule: [
+    'at any time',
+  ],
+  baseBranchPatterns: [
+    'main',
+    'release-v2.8',
+    'release-v2.9',
+    'release-v2.10',
+    '/^release-v3.*/',
+  ],
+  vulnerabilityAlerts: {
+    enabled: true,
+    labels: [
+      'security',
+    ],
+  },
+  osvVulnerabilityAlerts: true,
+  prConcurrentLimit: 20,
+  branchConcurrentLimit: 20,
+  ignoreDeps: [],
+  separateMajorMinor: true,
+  automergeStrategy: 'squash',
+  automergeType: 'pr',
+  automerge: true,
+  platformAutomerge: true,
+  addLabels: [
+    'dependencies',
+    'renovate',
+    '{{manager}}',
+    '{{updateType}}',
+  ],
+  minimumReleaseAge: '7 days',
+  postUpdateOptions: [
+    'gomodUpdateImportPaths',
+    'gomodTidy',
+    'gomodVendor',
+  ],
+  packageRules: [
+    {
+      description: 'Disable all non-vulnerability updates for releases',
+      matchBaseBranches: [
+        '/^release-v.*/',
+      ],
+      matchPackageNames: [
+        '*',
+      ],
+      enabled: false,
+    },
+    {
+      description: 'Group OpenTelemetry OTEL updates',
+      matchManagers: [
+        'gomod',
+      ],
+      groupName: 'opentelemetry-otel',
+      matchPackageNames: [
+        '/^go\\.opentelemetry\\.io/otel/',
+      ],
+    },
+    {
+      description: 'Group OpenTelemetry Contrib updates',
+      matchManagers: [
+        'gomod',
+      ],
+      groupName: 'opentelemetry-contrib',
+      matchPackageNames: [
+        '/^go\\.opentelemetry\\.io/contrib/',
+        '/^github\\.com/open-telemetry/opentelemetry-collector-contrib/',
+      ],
+    },
+    {
+      description: 'Group OpenTelemetry Collector updates',
+      matchManagers: [
+        'gomod',
+      ],
+      groupName: 'opentelemetry-collector',
+      matchPackageNames: [
+        '/^go\\.opentelemetry\\.io/collector/',
+      ],
+    },
+    {
+      description: 'Group k8s.io updates',
+      matchManagers: [
+        'gomod',
+      ],
+      groupName: 'k8s.io',
+      matchPackageNames: [
+        '/^k8s\\.io//',
+      ],
+    },
+    {
+      description: 'Group Docker updates',
+      matchManagers: [
+        'dockerfile',
+      ],
+      groupName: 'docker',
+    },
+  ],
+}

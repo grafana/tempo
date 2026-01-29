@@ -20,7 +20,6 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/grafana/dskit/flagext"
 	"github.com/minio/minio-go/v7"
 	"github.com/minio/minio-go/v7/pkg/credentials"
@@ -31,10 +30,13 @@ import (
 )
 
 const (
-	getMethod          = "GET"
-	putMethod          = "PUT"
-	tagHeader          = "X-Amz-Tagging"
-	storageClassHeader = "X-Amz-Storage-Class"
+	getMethod           = "GET"
+	putMethod           = "PUT"
+	tagHeader           = "X-Amz-Tagging"
+	storageClassHeader  = "X-Amz-Storage-Class"
+	sseHeader           = "X-Amz-Server-Side-Encryption"
+	sseKMSKeyIDHeader   = "X-Amz-Server-Side-Encryption-Aws-Kms-Key-Id"
+	sseKMSContextHeader = "X-Amz-Server-Side-Encryption-Context"
 
 	defaultAccessKey = "AKIAIOSFODNN7EXAMPLE"
 	defaultSecretKey = "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
@@ -324,7 +326,7 @@ func fakeServer(t *testing.T, returnIn time.Duration, counter *int32) *httptest.
 
 func TestReadError(t *testing.T) {
 	errA := minio.ErrorResponse{
-		Code: s3.ErrCodeNoSuchKey,
+		Code: minio.NoSuchKey,
 	}
 	errB := readError(errA)
 	assert.Equal(t, backend.ErrDoesNotExist, errB)
@@ -334,21 +336,13 @@ func TestReadError(t *testing.T) {
 	assert.Equal(t, wups, errB)
 }
 
-func fakeServerWithHeader(t *testing.T, obj *url.Values, testedHeaderName string) *httptest.Server {
-	require.NotNil(t, obj)
+func fakeServerWithHeader(t *testing.T, httpHeader *http.Header) *httptest.Server {
+	require.NotNil(t, httpHeader)
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch method := r.Method; method {
 		case putMethod:
-			// https://docs.aws.amazon.com/AmazonS3/latest/API/API_PutObject.html
-			switch testedHeaderValue := r.Header.Get(testedHeaderName); testedHeaderValue {
-			case "":
-			default:
-
-				value, err := url.ParseQuery(testedHeaderValue)
-				require.NoError(t, err)
-				*obj = value
-			}
+			*httpHeader = r.Header
 		case getMethod:
 			// return fake list response b/c it's the only call that has to succeed
 			_, _ = w.Write([]byte(`<?xml version="1.0" encoding="UTF-8"?>
@@ -375,9 +369,9 @@ func TestObjectBlockTags(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			// rawObject := raw.Object{}
-			var obj url.Values
+			var httpHeaders http.Header
 
-			server := fakeServerWithHeader(t, &obj, tagHeader)
+			server := fakeServerWithHeader(t, &httpHeaders)
 			_, w, _, err := New(&Config{
 				Region:    "blerg",
 				AccessKey: "test",
@@ -392,8 +386,13 @@ func TestObjectBlockTags(t *testing.T) {
 			ctx := context.Background()
 			_ = w.Write(ctx, "object", backend.KeyPath{"test"}, bytes.NewReader([]byte{}), 0, nil)
 
+			testedHeaderValue := httpHeaders.Get(tagHeader)
+			require.NotEmpty(t, testedHeaderValue)
+			headerValue, err := url.ParseQuery(testedHeaderValue)
+			require.NoError(t, err)
+
 			for k, v := range tc.tags {
-				vv := obj.Get(k)
+				vv := headerValue.Get(k)
 				require.NotEmpty(t, vv)
 				require.Equal(t, v, vv)
 			}
@@ -467,6 +466,77 @@ func TestObjectWithPrefix(t *testing.T) {
 
 			ctx := context.Background()
 			err = w.Write(ctx, tc.objectName, tc.keyPath, bytes.NewReader([]byte{}), 0, nil)
+			assert.NoError(t, err)
+		})
+	}
+}
+
+func TestDelete(t *testing.T) {
+	tests := []struct {
+		name        string
+		prefix      string
+		objectName  string
+		keyPath     backend.KeyPath
+		httpHandler func(t *testing.T) http.HandlerFunc
+	}{
+		{
+			name:       "without prefix",
+			prefix:     "",
+			objectName: "object",
+			keyPath:    backend.KeyPath{"test"},
+			httpHandler: func(t *testing.T) http.HandlerFunc {
+				return func(w http.ResponseWriter, r *http.Request) {
+					if r.Method == getMethod {
+						assert.Equal(t, r.URL.Query().Get("prefix"), "")
+
+						_, _ = w.Write([]byte(`<?xml version="1.0" encoding="UTF-8"?>
+						<ListBucketResult>
+						</ListBucketResult>`))
+						return
+					}
+					assert.Equal(t, "/blerg/test/object", r.URL.String())
+					w.WriteHeader(http.StatusNoContent)
+				}
+			},
+		},
+		{
+			name:       "with prefix",
+			prefix:     "test_storage",
+			objectName: "object",
+			keyPath:    backend.KeyPath{"test"},
+			httpHandler: func(t *testing.T) http.HandlerFunc {
+				return func(w http.ResponseWriter, r *http.Request) {
+					if r.Method == getMethod {
+						assert.Equal(t, r.URL.Query().Get("prefix"), "test_storage")
+
+						_, _ = w.Write([]byte(`<?xml version="1.0" encoding="UTF-8"?>
+						<ListBucketResult>
+						</ListBucketResult>`))
+						return
+					}
+					assert.Equal(t, "/blerg/test_storage/test/object", r.URL.String())
+					w.WriteHeader(http.StatusNoContent)
+				}
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			server := testServer(t, tc.httpHandler(t))
+			_, w, _, err := New(&Config{
+				Region:    "blerg",
+				AccessKey: "test",
+				SecretKey: flagext.SecretWithValue("test"),
+				Bucket:    "blerg",
+				Prefix:    tc.prefix,
+				Insecure:  true,
+				Endpoint:  server.URL[7:],
+			})
+			require.NoError(t, err)
+
+			ctx := context.Background()
+			err = w.Delete(ctx, tc.objectName, tc.keyPath, nil)
 			assert.NoError(t, err)
 		})
 	}
@@ -604,9 +674,9 @@ func TestObjectStorageClass(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			// rawObject := raw.Object{}
-			var obj url.Values
+			var httpHeader http.Header
 
-			server := fakeServerWithHeader(t, &obj, storageClassHeader)
+			server := fakeServerWithHeader(t, &httpHeader)
 			_, w, _, err := New(&Config{
 				Region:       "blerg",
 				AccessKey:    "test",
@@ -620,7 +690,7 @@ func TestObjectStorageClass(t *testing.T) {
 
 			ctx := context.Background()
 			_ = w.Write(ctx, "object", backend.KeyPath{"test"}, bytes.NewReader([]byte{}), 0, nil)
-			require.Equal(t, obj.Has(tc.StorageClass), true)
+			require.Equal(t, tc.StorageClass, httpHeader.Get(storageClassHeader))
 		})
 	}
 }
@@ -665,7 +735,8 @@ func metadataMockedHandler(t *testing.T) http.HandlerFunc {
 	require.NoError(t, err)
 
 	return func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.String() == "/" {
+		switch r.URL.String() {
+		case "/":
 			err := r.ParseForm()
 			require.NoError(t, err)
 
@@ -697,7 +768,7 @@ func metadataMockedHandler(t *testing.T) http.HandlerFunc {
 
 			err1 := xml.NewEncoder(w).Encode(assumeResponse)
 			require.NoError(t, err1)
-		} else if r.URL.String() == "/latest/api/token" {
+		case "/latest/api/token":
 			// Check for X-aws-ec2-metadata-token-ttl-seconds request header
 			if r.Header.Get("X-aws-ec2-metadata-token-ttl-seconds") == "" {
 				w.WriteHeader(400)
@@ -716,11 +787,11 @@ func metadataMockedHandler(t *testing.T) http.HandlerFunc {
 			if _, err := w.Write([]byte(token)); err != nil {
 				require.NoError(t, err)
 			}
-		} else if r.URL.String() == "/latest/meta-data/iam/security-credentials/" {
+		case "/latest/meta-data/iam/security-credentials/":
 			if _, err := w.Write([]byte("role-name\n")); err != nil {
 				require.NoError(t, err)
 			}
-		} else if r.URL.String() == "/latest/meta-data/iam/security-credentials/role-name" {
+		case "/latest/meta-data/iam/security-credentials/role-name":
 			creds := ec2RoleCredRespBody{
 				LastUpdated:     timeNow(),
 				Expiration:      timeNow().Add(1 * time.Hour),

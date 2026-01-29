@@ -33,8 +33,6 @@ import (
 	"github.com/grafana/tempo/tempodb/backend/local"
 	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/grafana/tempo/tempodb/encoding/common"
-	v2 "github.com/grafana/tempo/tempodb/encoding/v2"
-	"github.com/grafana/tempo/tempodb/encoding/vparquet2"
 	"github.com/grafana/tempo/tempodb/encoding/vparquet4"
 	"github.com/grafana/tempo/tempodb/encoding/vparquet5"
 	"github.com/grafana/tempo/tempodb/wal"
@@ -46,11 +44,8 @@ const attributeWithTerminalChars = `{ } ( ) = ~ ! < > & | ^`
 
 func TestSearchCompleteBlock(t *testing.T) {
 	t.Parallel()
-	for _, v := range encoding.AllEncodings() {
+	for _, v := range encoding.AllEncodingsForWrites() {
 		vers := v.Version()
-		if vers == vparquet2.VersionString {
-			continue // vParquet2 is deprecated
-		}
 		t.Run(vers, func(t *testing.T) {
 			t.Parallel()
 			runCompleteBlockSearchTest(t, vers,
@@ -1095,11 +1090,6 @@ func traceQLStructural(t *testing.T, _ *tempopb.Trace, wantMeta *tempopb.TraceSe
 }
 
 func nestedSet(t *testing.T, _ *tempopb.Trace, wantMeta *tempopb.TraceSearchMetadata, _, _ []*tempopb.SearchRequest, meta *backend.BlockMeta, r Reader, _ common.BackendBlock) {
-	// nested set queries only supported in 3 or greater
-	if meta.Version == vparquet2.VersionString {
-		return
-	}
-
 	ctx := context.Background()
 	e := traceql.NewEngine()
 
@@ -1639,13 +1629,15 @@ func tagNamesRunner(t *testing.T, _ *tempopb.Trace, _ *tempopb.TraceSearchMetada
 			if (bm.Version == vparquet4.VersionString || bm.Version == vparquet5.VersionString) && (tc.name == "resource match" || tc.name == "span match") {
 				// v4 has scope, events, and links
 				tc.expected["instrumentation"] = []string{"scope-attr-str"}
-				tc.expected["event"] = []string{"exception.message"}
+				tc.expected["event"] = []string{"event-dedicated.01", "exception.message"}
 				tc.expected["link"] = []string{"relation"}
 			}
 			if bm.Version == vparquet5.VersionString && tc.name == "no matches" {
 				// vp5 does not have well-known attribute columns
+				// Include all expected dedicated attribute names
 				tc.expected["resource"] = []string{"res-dedicated.01", "res-dedicated.02", "service.name"}
 				tc.expected["span"] = []string{"span-dedicated.01", "span-dedicated.02"}
+				tc.expected["event"] = []string{"event-dedicated.01"}
 			}
 			require.Equal(t, len(tc.expected), len(actualMap))
 
@@ -1872,13 +1864,11 @@ func testingConfig(dir string, version string, dc backend.DedicatedColumns) *Con
 			Path: path.Join(dir, "traces"),
 		},
 		Block: &common.BlockConfig{
-			IndexDownsampleBytes: 17,
-			BloomFP:              .01,
-			BloomShardSizeBytes:  100_000,
-			Version:              version,
-			IndexPageSizeBytes:   1000,
-			RowGroupSizeBytes:    10000,
-			DedicatedColumns:     dc,
+			BloomFP:             .01,
+			BloomShardSizeBytes: 100_000,
+			Version:             version,
+			RowGroupSizeBytes:   10000,
+			DedicatedColumns:    dc,
 		},
 		WAL: &wal.Config{
 			Filepath:       path.Join(dir, "wal"),
@@ -1893,18 +1883,12 @@ func testingConfig(dir string, version string, dc backend.DedicatedColumns) *Con
 }
 
 var testingCompactorConfig = &CompactorConfig{
-	ChunkSizeBytes:          10,
 	MaxCompactionRange:      time.Hour,
 	BlockRetention:          0,
 	CompactedBlockRetention: 0,
 }
 
 func runCompleteBlockSearchTest(t *testing.T, blockVersion string, runners ...runnerFn) {
-	// v2 doesn't support any search. just bail here before doing the work below to save resources
-	if blockVersion == v2.VersionString {
-		return
-	}
-
 	tempDir := t.TempDir()
 
 	dc := backend.DedicatedColumns{
@@ -1912,6 +1896,7 @@ func runCompleteBlockSearchTest(t *testing.T, blockVersion string, runners ...ru
 		{Scope: "resource", Name: "res-dedicated.02", Type: "string"},
 		{Scope: "span", Name: "span-dedicated.01", Type: "string"},
 		{Scope: "span", Name: "span-dedicated.02", Type: "string"},
+		{Scope: "event", Name: "event-dedicated.01", Type: "string"},
 	}
 	r, w, c, err := New(testingConfig(tempDir, blockVersion, dc), nil, log.NewNopLogger())
 	require.NoError(t, err)
@@ -1975,7 +1960,15 @@ func runEventLinkInstrumentationSearchTest(t *testing.T, blockVersion string) {
 
 	tempDir := t.TempDir()
 
-	r, w, c, err := New(testingConfig(tempDir, blockVersion, nil), nil, log.NewNopLogger())
+	dc := backend.DedicatedColumns{
+		{Scope: "resource", Name: "res-dedicated.01", Type: "string"},
+		{Scope: "resource", Name: "res-dedicated.02", Type: "string"},
+		{Scope: "span", Name: "span-dedicated.01", Type: "string"},
+		{Scope: "span", Name: "span-dedicated.02", Type: "string"},
+		{Scope: "event", Name: "event-dedicated.01", Type: "string"},
+	}
+
+	r, w, c, err := New(testingConfig(tempDir, blockVersion, dc), nil, log.NewNopLogger())
 	require.NoError(t, err)
 
 	err = c.EnableCompaction(context.Background(), testingCompactorConfig, &mockSharder{}, &mockOverrides{})
@@ -1990,7 +1983,12 @@ func runEventLinkInstrumentationSearchTest(t *testing.T, blockVersion string) {
 
 	searchesThatMatch := []*tempopb.SearchRequest{
 		{
+			// Event generic attribute
 			Query: "{ event.exception.message = `random error` }",
+		},
+		{
+			// Dedicated column
+			Query: "{ event.event-dedicated.01 = `event-1a` }",
 		},
 		{
 			Query: "{ event:name = `event name` }",
@@ -2018,7 +2016,7 @@ func runEventLinkInstrumentationSearchTest(t *testing.T, blockVersion string) {
 	// Write to wal
 	wal := w.WAL()
 
-	meta := &backend.BlockMeta{BlockID: backend.NewUUID(), TenantID: testTenantID}
+	meta := &backend.BlockMeta{BlockID: backend.NewUUID(), TenantID: testTenantID, DedicatedColumns: dc}
 	head, err := wal.NewBlock(meta, model.CurrentEncoding)
 	require.NoError(t, err)
 	dec := model.MustNewSegmentDecoder(model.CurrentEncoding)
@@ -2223,6 +2221,7 @@ func makeExpectedTrace(traceID []byte) (
 										Name:         "event name",
 										Attributes: []*v1_common.KeyValue{
 											stringKV("exception.message", "random error"),
+											stringKV("event-dedicated.01", "event-1a"),
 										},
 									},
 								},
@@ -2381,7 +2380,7 @@ func searchTestSuite() (
 		makeReq("http.url", "url/Hello/World"),
 		makeReq("status.code", "error"),
 
-		// Dedicated span and resource attributes
+		// Dedicated attributes
 		makeReq("res-dedicated.01", "res-1a"),
 		makeReq("res-dedicated.02", "res-2b"),
 		makeReq("span-dedicated.01", "span-1a"),
@@ -2512,7 +2511,7 @@ func TestWALBlockGetMetrics(t *testing.T) {
 }
 
 func TestSearchForTagsAndTagValues(t *testing.T) {
-	r, w, c, _ := testConfig(t, backend.EncGZIP, 0)
+	r, w, c, _ := testConfig(t, 0)
 
 	err := c.EnableCompaction(context.Background(), testingCompactorConfig, &mockSharder{}, &mockOverrides{})
 	require.NoError(t, err)
@@ -2659,15 +2658,7 @@ func TestSearchForTagsAndTagValues(t *testing.T) {
 }
 
 func TestSearchByShortTraceID(t *testing.T) {
-	for _, v := range encoding.AllEncodings() {
-		if v.Version() == v2.VersionString { // no support of the feature in v2
-			continue
-		}
-
-		if v.Version() == vparquet2.VersionString { // vparquet2 is deprecated
-			continue
-		}
-
+	for _, v := range encoding.AllEncodingsForWrites() {
 		blockVersion := v.Version()
 
 		tempDir := t.TempDir()
@@ -2723,20 +2714,25 @@ func TestSearchByShortTraceID(t *testing.T) {
 			return block.Fetch(ctx, req, common.DefaultSearchOptions())
 		})
 
-		t.Run(fmt.Sprintf("%s: include trace id", v.Version()), func(t *testing.T) {
-			req := &tempopb.SearchRequest{Query: fmt.Sprintf(`{trace:id="%s"}`, wantMeta.TraceID)}
-			res, err := traceql.NewEngine().ExecuteSearch(ctx, req, fetcher, false)
-			require.NoError(t, err, "search request: %+v", req)
-			require.NotEmpty(t, res.Traces)
+		for name, traceID := range map[string]string{
+			"short trace id":                    wantMeta.TraceID,
+			"short trace id with leading zeros": strings.Repeat("0", 32-len(wantMeta.TraceID)) + wantMeta.TraceID,
+		} {
+			t.Run(fmt.Sprintf("%s: include trace id %s", v.Version(), name), func(t *testing.T) {
+				req := &tempopb.SearchRequest{Query: fmt.Sprintf(`{trace:id="%s"}`, traceID)}
+				res, err := traceql.NewEngine().ExecuteSearch(ctx, req, fetcher, false)
+				require.NoError(t, err, "search request: %+v", req)
+				require.NotEmpty(t, res.Traces)
 
-			actual := actualForExpectedMeta(wantMeta, res)
-			require.NotNil(t, actual, "search request: %v", req)
+				actual := actualForExpectedMeta(wantMeta, res)
+				require.NotNil(t, actual, "search request: %v", req)
 
-			actual.SpanSet = nil // todo: add the matching spansets to wantmeta
-			actual.SpanSets = nil
-			actual.ServiceStats = nil
-			require.Equal(t, wantMeta, actual, "search request: %v", req)
-		})
+				actual.SpanSet = nil // todo: add the matching spansets to wantmeta
+				actual.SpanSets = nil
+				actual.ServiceStats = nil
+				require.Equal(t, wantMeta, actual, "search request: %v", req)
+			})
+		}
 
 		t.Run(fmt.Sprintf("%s: include span id", v.Version()), func(t *testing.T) {
 			spanID := "0000000000010203"
@@ -2767,14 +2763,19 @@ func TestSearchByShortTraceID(t *testing.T) {
 			require.Equal(t, wantMeta, actual, "search request: %v", req)
 		})
 
-		t.Run(fmt.Sprintf("%s: exclude trace id", v.Version()), func(t *testing.T) {
-			req := &tempopb.SearchRequest{Query: fmt.Sprintf(`{trace:id!="%s"}`, wantMeta.TraceID)}
-			res, err := traceql.NewEngine().ExecuteSearch(ctx, req, fetcher, false)
-			require.NoError(t, err, "search request: %+v", req)
-			require.NotEmpty(t, res.Traces)
-			actual := actualForExpectedMeta(wantMeta, res)
-			require.Nil(t, actual, "search request: %v", req)
-		})
+		for name, traceID := range map[string]string{
+			"short trace id":                    wantMeta.TraceID,
+			"short trace id with leading zeros": strings.Repeat("0", 32-len(wantMeta.TraceID)) + wantMeta.TraceID,
+		} {
+			t.Run(fmt.Sprintf("%s: exclude trace id %s", v.Version(), name), func(t *testing.T) {
+				req := &tempopb.SearchRequest{Query: fmt.Sprintf(`{trace:id!="%s"}`, traceID)}
+				res, err := traceql.NewEngine().ExecuteSearch(ctx, req, fetcher, false)
+				require.NoError(t, err, "search request: %+v", req)
+				require.NotEmpty(t, res.Traces)
+				actual := actualForExpectedMeta(wantMeta, res)
+				require.Nil(t, actual, "search request: %v", req)
+			})
+		}
 
 		t.Run(fmt.Sprintf("%s: exclude span id", v.Version()), func(t *testing.T) {
 			spanID := "0000000000010203"

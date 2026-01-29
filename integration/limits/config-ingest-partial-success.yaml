@@ -1,0 +1,8 @@
+overrides:
+  defaults:
+    ingestion:
+      max_traces_per_user: 6
+      rate_limit_bytes: 7000
+      burst_size_bytes: 7000
+    global:
+      max_bytes_per_trace: 600

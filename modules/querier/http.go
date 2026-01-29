@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"reflect"
 	"strings"
 	"time"
 
@@ -27,6 +28,7 @@ const (
 	QueryModeBlocks    = "blocks"
 	QueryModeAll       = "all"
 	QueryModeRecent    = "recent"
+	QueryModeExternal  = "external"
 )
 
 // TraceByIDHandler is a http.HandlerFunc to retrieve traces
@@ -442,6 +444,16 @@ func handleError(w http.ResponseWriter, err error) {
 }
 
 func writeFormattedContentForRequest(w http.ResponseWriter, req *http.Request, m proto.Message, span oteltrace.Span) {
+	// Check for both explicit nil and typed nil pointers (e.g., (*tempopb.SearchResponse)(nil))
+	// A typed nil pointer is not equal to nil when passed as an interface, so we need reflection
+	if m == nil || (reflect.ValueOf(m).Kind() == reflect.Ptr && reflect.ValueOf(m).IsNil()) {
+		http.Error(w, "internal error: nil response", http.StatusInternalServerError)
+		if span != nil {
+			span.RecordError(fmt.Errorf("nil response in writeFormattedContentForRequest"))
+		}
+		return
+	}
+
 	switch req.Header.Get(api.HeaderAccept) {
 	case api.HeaderAcceptProtobuf:
 		b, err := proto.Marshal(m)

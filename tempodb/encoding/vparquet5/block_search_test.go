@@ -46,15 +46,16 @@ func TestBackendBlockSearch(t *testing.T) {
 						attr("k8s.container.name", "k8scontainer"),
 					},
 					DedicatedAttributes: DedicatedAttributes{
-						String01: ptr("dedicated-resource-attr-value-1"),
-						String02: ptr("dedicated-resource-attr-value-2"),
-						String03: ptr("dedicated-resource-attr-value-3"),
-						String04: ptr("dedicated-resource-attr-value-4"),
-						String05: ptr("dedicated-resource-attr-value-5"),
+						String01: []string{"dedicated-resource-attr-value-1"},
+						String02: []string{"dedicated-resource-attr-value-2"},
+						String03: []string{"dedicated-resource-attr-value-3"},
+						String04: []string{"dedicated-resource-attr-value-4"},
+						String05: []string{"dedicated-resource-attr-value-5"},
 					},
 				},
 				ScopeSpans: []ScopeSpans{
 					{
+						SpanCount: 1,
 						Spans: []Span{
 							{
 								Name:         "hello",
@@ -68,11 +69,11 @@ func TestBackendBlockSearch(t *testing.T) {
 									attr("http.status_code", 500),
 								},
 								DedicatedAttributes: DedicatedAttributes{
-									String01: ptr("dedicated-span-attr-value-1"),
-									String02: ptr("dedicated-span-attr-value-2"),
-									String03: ptr("dedicated-span-attr-value-3"),
-									String04: ptr("dedicated-span-attr-value-4"),
-									String05: ptr("dedicated-span-attr-value-5"),
+									String01: []string{"dedicated-span-attr-value-1"},
+									String02: []string{"dedicated-span-attr-value-2"},
+									String03: []string{"dedicated-span-attr-value-3"},
+									String04: []string{"dedicated-span-attr-value-4"},
+									String05: []string{"dedicated-span-attr-value-5"},
 								},
 							},
 						},
@@ -250,6 +251,10 @@ func TestBackendBlockSearch(t *testing.T) {
 }
 
 func makeBackendBlockWithTraces(t *testing.T, trs []*Trace) *backendBlock {
+	return makeBackendBlockWithTracesWithDedicatedColumns(t, trs, test.MakeDedicatedColumns())
+}
+
+func makeBackendBlockWithTracesWithDedicatedColumns(t *testing.T, trs []*Trace, dc backend.DedicatedColumns) *backendBlock {
 	rawR, rawW, _, err := local.New(&local.Config{
 		Path: t.TempDir(),
 	})
@@ -264,9 +269,9 @@ func makeBackendBlockWithTraces(t *testing.T, trs []*Trace) *backendBlock {
 		BloomShardSizeBytes: 100 * 1024,
 	}
 
-	meta := backend.NewBlockMeta("fake", uuid.New(), VersionString, backend.EncNone, "")
+	meta := backend.NewBlockMeta("fake", uuid.New(), VersionString)
 	meta.TotalObjects = 1
-	meta.DedicatedColumns = test.MakeDedicatedColumns()
+	meta.DedicatedColumns = dc
 
 	s := newStreamingBlock(ctx, cfg, meta, r, w, tempo_io.NewBufferedWriter)
 
@@ -304,17 +309,17 @@ func makeTraces() ([]*Trace, map[string]string, map[string]string, map[string]st
 	resourceAttrVals[LabelK8sContainerName] = "k8scon"
 
 	dedicatedResourceAttrs := DedicatedAttributes{
-		String01: ptr("dedicated-resource-attr-value-1"),
-		String02: ptr("dedicated-resource-attr-value-2"),
-		String03: ptr("dedicated-resource-attr-value-3"),
-		String04: ptr("dedicated-resource-attr-value-4"),
-		String05: ptr("dedicated-resource-attr-value-5"),
+		String01: []string{"dedicated-resource-attr-value-1"},
+		String02: []string{"dedicated-resource-attr-value-2"},
+		String03: []string{"dedicated-resource-attr-value-3"},
+		String04: []string{"dedicated-resource-attr-value-4"},
+		String05: []string{"dedicated-resource-attr-value-5"},
 	}
-	resourceAttrVals["dedicated.resource.1"] = *dedicatedResourceAttrs.String01
-	resourceAttrVals["dedicated.resource.2"] = *dedicatedResourceAttrs.String02
-	resourceAttrVals["dedicated.resource.3"] = *dedicatedResourceAttrs.String03
-	resourceAttrVals["dedicated.resource.4"] = *dedicatedResourceAttrs.String04
-	resourceAttrVals["dedicated.resource.5"] = *dedicatedResourceAttrs.String05
+	resourceAttrVals["dedicated.resource.1"] = dedicatedResourceAttrs.String01[0]
+	resourceAttrVals["dedicated.resource.2"] = dedicatedResourceAttrs.String02[0]
+	resourceAttrVals["dedicated.resource.3"] = dedicatedResourceAttrs.String03[0]
+	resourceAttrVals["dedicated.resource.4"] = dedicatedResourceAttrs.String04[0]
+	resourceAttrVals["dedicated.resource.5"] = dedicatedResourceAttrs.String05[0]
 
 	intrinsicVals[LabelName] = "span"
 	// todo: the below 3 are not supported in traceql and should be removed when support for tags based search is removed
@@ -327,17 +332,17 @@ func makeTraces() ([]*Trace, map[string]string, map[string]string, map[string]st
 	spanAttrVals[LabelHTTPStatusCode] = "404"
 
 	dedicatedSpanAttrs := DedicatedAttributes{
-		String01: ptr("dedicated-span-attr-value-1"),
-		String02: ptr("dedicated-span-attr-value-2"),
-		String03: ptr("dedicated-span-attr-value-3"),
-		String04: ptr("dedicated-span-attr-value-4"),
-		String05: ptr("dedicated-span-attr-value-5"),
+		String01: []string{"dedicated-span-attr-value-1"},
+		String02: []string{"dedicated-span-attr-value-2"},
+		String03: []string{"dedicated-span-attr-value-3"},
+		String04: []string{"dedicated-span-attr-value-4"},
+		String05: []string{"dedicated-span-attr-value-5"},
 	}
-	spanAttrVals["dedicated.span.1"] = *dedicatedSpanAttrs.String01
-	spanAttrVals["dedicated.span.2"] = *dedicatedSpanAttrs.String02
-	spanAttrVals["dedicated.span.3"] = *dedicatedSpanAttrs.String03
-	spanAttrVals["dedicated.span.4"] = *dedicatedSpanAttrs.String04
-	spanAttrVals["dedicated.span.5"] = *dedicatedSpanAttrs.String05
+	spanAttrVals["dedicated.span.1"] = dedicatedSpanAttrs.String01[0]
+	spanAttrVals["dedicated.span.2"] = dedicatedSpanAttrs.String02[0]
+	spanAttrVals["dedicated.span.3"] = dedicatedSpanAttrs.String03[0]
+	spanAttrVals["dedicated.span.4"] = dedicatedSpanAttrs.String04[0]
+	spanAttrVals["dedicated.span.5"] = dedicatedSpanAttrs.String05[0]
 
 	for i := 0; i < 10; i++ {
 		tr := &Trace{

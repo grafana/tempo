@@ -16,8 +16,6 @@ import (
 	"github.com/go-kit/log"
 	"github.com/golang/protobuf/proto" //nolint:all
 	"github.com/google/uuid"
-	v2 "github.com/grafana/tempo/tempodb/encoding/v2"
-	"github.com/grafana/tempo/tempodb/encoding/vparquet2"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -43,7 +41,7 @@ const (
 
 type testConfigOption func(*Config)
 
-func testConfig(t *testing.T, enc backend.Encoding, blocklistPoll time.Duration, opts ...testConfigOption) (Reader, Writer, Compactor, string) {
+func testConfig(t *testing.T, blocklistPoll time.Duration, opts ...testConfigOption) (Reader, Writer, Compactor, string) {
 	tempDir := t.TempDir()
 
 	cfg := &Config{
@@ -52,12 +50,9 @@ func testConfig(t *testing.T, enc backend.Encoding, blocklistPoll time.Duration,
 			Path: path.Join(tempDir, "traces"),
 		},
 		Block: &common.BlockConfig{
-			IndexDownsampleBytes: 17,
-			BloomFP:              .01,
-			BloomShardSizeBytes:  100_000,
-			Version:              encoding.DefaultEncoding().Version(),
-			Encoding:             enc,
-			IndexPageSizeBytes:   1000,
+			BloomFP:             .01,
+			BloomShardSizeBytes: 100_000,
+			Version:             encoding.DefaultEncoding().Version(),
 		},
 		WAL: &wal.Config{
 			Filepath: path.Join(tempDir, "wal"),
@@ -79,13 +74,12 @@ func testConfig(t *testing.T, enc backend.Encoding, blocklistPoll time.Duration,
 }
 
 func TestDB(t *testing.T) {
-	r, w, c, _ := testConfig(t, backend.EncGZIP, 0)
+	r, w, c, _ := testConfig(t, 0)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
 	err := c.EnableCompaction(ctx, &CompactorConfig{
-		ChunkSizeBytes:          10,
 		MaxCompactionRange:      time.Hour,
 		BlockRetention:          0,
 		CompactedBlockRetention: 0,
@@ -131,7 +125,7 @@ func TestDB(t *testing.T) {
 }
 
 func TestNoCompactionWhenCompactionRange0(t *testing.T) {
-	_, _, c, _ := testConfig(t, backend.EncGZIP, 0)
+	_, _, c, _ := testConfig(t, 0)
 
 	err := c.EnableCompaction(context.Background(), &CompactorConfig{
 		MaxCompactionRange: 0,
@@ -143,7 +137,7 @@ func TestBlockSharding(t *testing.T) {
 	// push a req with some traceID
 	// cut headblock & write to backend
 	// search with different shards and check if its respecting the params
-	r, w, _, _ := testConfig(t, backend.EncLZ4_256k, 0)
+	r, w, _, _ := testConfig(t, 0)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -155,7 +149,7 @@ func TestBlockSharding(t *testing.T) {
 	wal := w.WAL()
 
 	dec := model.MustNewSegmentDecoder(model.CurrentEncoding)
-	meta := &backend.BlockMeta{BlockID: blockID, TenantID: testTenantID, DataEncoding: model.CurrentEncoding}
+	meta := &backend.BlockMeta{BlockID: blockID, TenantID: testTenantID}
 	head, err := wal.NewBlock(meta, model.CurrentEncoding)
 	assert.NoError(t, err)
 
@@ -195,7 +189,7 @@ func TestBlockSharding(t *testing.T) {
 }
 
 func TestNilOnUnknownTenantID(t *testing.T) {
-	r, _, _, _ := testConfig(t, backend.EncLZ4_256k, 0)
+	r, _, _, _ := testConfig(t, 0)
 
 	buff, failedBlocks, err := r.Find(context.Background(), "unknown", []byte{0x01}, BlockIDMin, BlockIDMax, 0, 0, common.DefaultSearchOptions())
 	assert.Nil(t, buff)
@@ -204,10 +198,9 @@ func TestNilOnUnknownTenantID(t *testing.T) {
 }
 
 func TestBlockCleanup(t *testing.T) {
-	r, w, c, tempDir := testConfig(t, backend.EncLZ4_256k, 0)
+	r, w, c, tempDir := testConfig(t, 0)
 
 	err := c.EnableCompaction(context.Background(), &CompactorConfig{
-		ChunkSizeBytes:          10,
 		MaxCompactionRange:      time.Hour,
 		BlockRetention:          0,
 		CompactedBlockRetention: 0,
@@ -496,10 +489,9 @@ func TestIncludeCompactedBlock(t *testing.T) {
 
 func TestSearchCompactedBlocks(t *testing.T) {
 	t.Parallel()
-	r, w, c, _ := testConfig(t, backend.EncLZ4_256k, time.Hour)
+	r, w, c, _ := testConfig(t, time.Hour)
 
 	err := c.EnableCompaction(context.Background(), &CompactorConfig{
-		ChunkSizeBytes:          10,
 		MaxCompactionRange:      time.Hour,
 		BlockRetention:          0,
 		CompactedBlockRetention: 0,
@@ -575,14 +567,8 @@ func TestSearchCompactedBlocks(t *testing.T) {
 }
 
 func TestCompleteBlock(t *testing.T) {
-	for _, from := range encoding.AllEncodings() {
-		if from.Version() == vparquet2.VersionString {
-			continue // vParquet2 is deprecated
-		}
-		for _, to := range encoding.AllEncodings() {
-			if from.Version() == vparquet2.VersionString {
-				continue // vParquet2 is deprecated
-			}
+	for _, from := range encoding.AllEncodingsForWrites() {
+		for _, to := range encoding.AllEncodingsForWrites() {
 			t.Run(fmt.Sprintf("%s->%s", from.Version(), to.Version()), func(t *testing.T) {
 				t.Parallel()
 				testCompleteBlock(t, from.Version(), to.Version())
@@ -592,7 +578,7 @@ func TestCompleteBlock(t *testing.T) {
 }
 
 func testCompleteBlock(t *testing.T, from, to string) {
-	_, w, _, _ := testConfig(t, backend.EncLZ4_256k, time.Minute, func(c *Config) {
+	_, w, _, _ := testConfig(t, time.Minute, func(c *Config) {
 		c.Block.Version = from // temporarily set config to from while we create the wal, so it makes blocks in the "from" format
 	})
 
@@ -602,11 +588,7 @@ func testCompleteBlock(t *testing.T, from, to string) {
 
 	blockID := uuid.New()
 
-	var dataEncoding string
-	if from == v2.VersionString {
-		dataEncoding = model.CurrentEncoding
-	}
-	meta := backend.NewBlockMeta(testTenantID, blockID, from, backend.EncNone, dataEncoding)
+	meta := backend.NewBlockMeta(testTenantID, blockID, from)
 	block, err := wal.NewBlock(meta, model.CurrentEncoding)
 	require.NoError(t, err, "unexpected error creating block")
 	require.Equal(t, block.BlockMeta().Version, from)
@@ -644,11 +626,8 @@ func testCompleteBlock(t *testing.T, from, to string) {
 }
 
 func TestCompleteBlockHonorsStartStopTimes(t *testing.T) {
-	for _, enc := range encoding.AllEncodings() {
+	for _, enc := range encoding.AllEncodingsForWrites() {
 		version := enc.Version()
-		if version == vparquet2.VersionString {
-			continue // vParquet2 is deprecated
-		}
 		t.Run(version, func(t *testing.T) {
 			testCompleteBlockHonorsStartStopTimes(t, version)
 		})
@@ -664,12 +643,9 @@ func testCompleteBlockHonorsStartStopTimes(t *testing.T, targetBlockVersion stri
 			Path: path.Join(tempDir, "traces"),
 		},
 		Block: &common.BlockConfig{
-			IndexDownsampleBytes: 17,
-			BloomFP:              .01,
-			BloomShardSizeBytes:  100_000,
-			Version:              targetBlockVersion,
-			Encoding:             backend.EncNone,
-			IndexPageSizeBytes:   1000,
+			BloomFP:             .01,
+			BloomShardSizeBytes: 100_000,
+			Version:             targetBlockVersion,
 		},
 		WAL: &wal.Config{
 			IngestionSlack: time.Minute,
@@ -718,7 +694,7 @@ func writeTraceToWal(t require.TestingT, b common.WALBlock, dec model.SegmentDec
 }
 
 func BenchmarkCompleteBlock(b *testing.B) {
-	for _, enc := range encoding.AllEncodings() {
+	for _, enc := range encoding.AllEncodingsForWrites() {
 		b.Run(enc.Version(), func(b *testing.B) {
 			benchmarkCompleteBlock(b, enc)
 		})
@@ -737,13 +713,10 @@ func benchmarkCompleteBlock(b *testing.B, e encoding.VersionedEncoding) {
 			Path: path.Join(tempDir, "traces"),
 		},
 		Block: &common.BlockConfig{
-			IndexDownsampleBytes: 17,
-			BloomFP:              .01,
-			BloomShardSizeBytes:  100_000,
-			Encoding:             backend.EncNone,
-			IndexPageSizeBytes:   1000,
-			Version:              e.Version(),
-			RowGroupSizeBytes:    30_000_000,
+			BloomFP:             .01,
+			BloomShardSizeBytes: 100_000,
+			Version:             e.Version(),
+			RowGroupSizeBytes:   30_000_000,
 		},
 		WAL: &wal.Config{
 			IngestionSlack: time.Minute,
@@ -822,7 +795,7 @@ func TestCreateLegacyCache(t *testing.T) {
 					},
 				},
 			},
-			expectedErr: errors.New("no legacy cache configured, but cache_control is enabled. Please use the new top level cache configuration."),
+			expectedErr: errors.New("no legacy cache configured, but cache_control is enabled. Please use the new top level cache configuration"),
 		},
 		{
 			name: "memcached + cache control",
@@ -897,7 +870,7 @@ func TestNoCompactFlag(t *testing.T) {
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			r, w, c, _ := testConfig(t, backend.EncGZIP, 0, func(c *Config) {
+			r, w, c, _ := testConfig(t, 0, func(c *Config) {
 				c.Block.CreateWithNoCompactFlag = tc.createWithNoCompactFlag
 			})
 
@@ -905,7 +878,6 @@ func TestNoCompactFlag(t *testing.T) {
 			defer cancel()
 
 			err := c.EnableCompaction(ctx, &CompactorConfig{
-				ChunkSizeBytes:          10,
 				MaxCompactionRange:      time.Hour,
 				BlockRetention:          0,
 				CompactedBlockRetention: 0,
@@ -966,7 +938,7 @@ func TestNoCompactFlag(t *testing.T) {
 }
 
 func TestPollNotification(t *testing.T) {
-	r, w, _, _ := testConfig(t, backend.EncGZIP, 0)
+	r, w, _, _ := testConfig(t, 0)
 
 	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 	defer cancel()

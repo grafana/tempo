@@ -35,6 +35,7 @@ type Interface interface {
 	MaxGlobalTracesPerUser(userID string) int
 	MaxBytesPerTrace(userID string) int
 	IngestionArtificialDelay(userID string) (time.Duration, bool)
+	IngestionRetryInfoEnabled(userID string) bool
 	MaxCompactionRange(userID string) time.Duration
 	Forwarders(userID string) []string
 	MaxBytesPerTagValuesQuery(userID string) int
@@ -47,10 +48,11 @@ type Interface interface {
 	MetricsGeneratorRingSize(userID string) int
 	MetricsGeneratorProcessors(userID string) map[string]struct{}
 	MetricsGeneratorMaxActiveSeries(userID string) uint32
+	MetricsGeneratorMaxActiveEntities(userID string) uint32
 	MetricsGeneratorCollectionInterval(userID string) time.Duration
 	MetricsGeneratorDisableCollection(userID string) bool
 	MetricsGeneratorGenerateNativeHistograms(userID string) histograms.HistogramMethod
-	MetricsGenerationTraceIDLabelName(userID string) string
+	MetricsGeneratorTraceIDLabelName(userID string) string
 	MetricsGeneratorRemoteWriteHeaders(userID string) map[string]string
 	MetricsGeneratorForwarderQueueSize(userID string) int
 	MetricsGeneratorForwarderWorkers(userID string) int
@@ -76,6 +78,8 @@ type Interface interface {
 	MetricsGeneratorProcessorSpanMetricsEnableInstanceLabel(userID string) (bool, bool)
 	MetricsGeneratorProcessorHostInfoHostIdentifiers(userID string) []string
 	MetricsGeneratorProcessorHostInfoMetricName(userID string) string
+	MetricsGeneratorProcessorServiceGraphsSpanMultiplierKey(userID string) string
+	MetricsGeneratorProcessorSpanMetricsSpanMultiplierKey(userID string) string
 	MetricsGeneratorNativeHistogramBucketFactor(userID string) float64
 	MetricsGeneratorNativeHistogramMaxBucketNumber(userID string) uint32
 	MetricsGeneratorNativeHistogramMinResetDuration(userID string) time.Duration

@@ -28,7 +28,6 @@ import (
 	"github.com/grafana/tempo/tempodb/blockselector"
 	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/grafana/tempo/tempodb/encoding/common"
-	"github.com/grafana/tempo/tempodb/encoding/vparquet2"
 	"github.com/grafana/tempo/tempodb/pool"
 	"github.com/grafana/tempo/tempodb/wal"
 )
@@ -37,10 +36,6 @@ type mockSharder struct{}
 
 func (m *mockSharder) Owns(string) bool {
 	return true
-}
-
-func (m *mockSharder) Combine(dataEncoding string, _ string, objs ...[]byte) ([]byte, bool, error) {
-	return model.StaticCombiner.Combine(dataEncoding, objs...)
 }
 
 func (m *mockSharder) RecordDiscardedSpans(int, string, string, string, string) {}
@@ -73,11 +68,8 @@ func (m *mockOverrides) MaxCompactionRangeForTenant(_ string) time.Duration {
 }
 
 func TestCompactionRoundtrip(t *testing.T) {
-	for _, enc := range encoding.AllEncodings() {
+	for _, enc := range encoding.AllEncodingsForWrites() {
 		version := enc.Version()
-		if version == vparquet2.VersionString {
-			continue // vParquet2 is deprecated
-		}
 		t.Run(version, func(t *testing.T) {
 			t.Parallel()
 			testCompactionRoundtrip(t, version)
@@ -98,14 +90,11 @@ func testCompactionRoundtrip(t *testing.T, targetBlockVersion string) {
 			Path: path.Join(tempDir, "traces"),
 		},
 		Block: &common.BlockConfig{
-			IndexDownsampleBytes: 11,
-			BloomFP:              .01,
-			BloomShardSizeBytes:  100_000,
-			Version:              targetBlockVersion,
-			Encoding:             backend.EncLZ4_4M,
-			IndexPageSizeBytes:   1000,
-			RowGroupSizeBytes:    30_000_000,
-			DedicatedColumns:     backend.DedicatedColumns{{Scope: "span", Name: "key", Type: "string"}},
+			BloomFP:             .01,
+			BloomShardSizeBytes: 100_000,
+			Version:             targetBlockVersion,
+			RowGroupSizeBytes:   30_000_000,
+			DedicatedColumns:    backend.DedicatedColumns{{Scope: "span", Name: "key", Type: "string"}},
 		},
 		WAL: &wal.Config{
 			Filepath: path.Join(tempDir, "wal"),
@@ -116,8 +105,6 @@ func testCompactionRoundtrip(t *testing.T, targetBlockVersion string) {
 
 	ctx := context.Background()
 	err = c.EnableCompaction(ctx, &CompactorConfig{
-		ChunkSizeBytes:          10_000_000,
-		FlushSizeBytes:          10_000_000,
 		MaxCompactionRange:      24 * time.Hour,
 		BlockRetention:          0,
 		CompactedBlockRetention: 0,
@@ -135,11 +122,11 @@ func testCompactionRoundtrip(t *testing.T, targetBlockVersion string) {
 	dec := model.MustNewSegmentDecoder(model.CurrentEncoding)
 
 	allReqs := make([]*tempopb.Trace, 0, blockCount*recordCount)
-	allIds := make([]common.ID, 0, blockCount*recordCount)
+	allIDs := make([]common.ID, 0, blockCount*recordCount)
 
 	for i := 0; i < blockCount; i++ {
 		blockID := backend.NewUUID()
-		meta := &backend.BlockMeta{BlockID: blockID, TenantID: testTenantID, DataEncoding: model.CurrentEncoding}
+		meta := &backend.BlockMeta{BlockID: blockID, TenantID: testTenantID}
 		head, err := wal.NewBlock(meta, model.CurrentEncoding)
 		require.NoError(t, err)
 
@@ -150,7 +137,7 @@ func testCompactionRoundtrip(t *testing.T, targetBlockVersion string) {
 			writeTraceToWal(t, head, dec, id, req, 0, 0)
 
 			allReqs = append(allReqs, req)
-			allIds = append(allIds, id)
+			allIDs = append(allIDs, id)
 		}
 
 		_, err = w.CompleteBlock(ctx, head)
@@ -198,7 +185,7 @@ func testCompactionRoundtrip(t *testing.T, targetBlockVersion string) {
 	require.Equal(t, blockCount*recordCount, records)
 
 	// now see if we can find our ids
-	for i, id := range allIds {
+	for i, id := range allIDs {
 		t.Run(fmt.Sprintf("trace-%d", i), func(t *testing.T) {
 			trs, failedBlocks, err := rw.Find(context.Background(), testTenantID, id, BlockIDMin, BlockIDMax, 0, 0, common.DefaultSearchOptions())
 			require.NoError(t, err)
@@ -230,13 +217,9 @@ func testCompactionRoundtrip(t *testing.T, targetBlockVersion string) {
 }
 
 func TestSameIDCompaction(t *testing.T) {
-	for _, enc := range encoding.AllEncodings() {
-		version := enc.Version()
-		if version == vparquet2.VersionString {
-			continue // vParquet2 is deprecated
-		}
-		t.Run(version, func(t *testing.T) {
-			testSameIDCompaction(t, version)
+	for _, enc := range encoding.AllEncodingsForWrites() {
+		t.Run(enc.Version(), func(t *testing.T) {
+			testSameIDCompaction(t, enc.Version())
 		})
 	}
 }
@@ -256,13 +239,10 @@ func testSameIDCompaction(t *testing.T, targetBlockVersion string) {
 			Path: path.Join(tempDir, "traces"),
 		},
 		Block: &common.BlockConfig{
-			IndexDownsampleBytes: 11,
-			BloomFP:              .01,
-			BloomShardSizeBytes:  100_000,
-			Version:              targetBlockVersion,
-			Encoding:             backend.EncSnappy,
-			IndexPageSizeBytes:   1000,
-			RowGroupSizeBytes:    30_000_000,
+			BloomFP:             .01,
+			BloomShardSizeBytes: 100_000,
+			Version:             targetBlockVersion,
+			RowGroupSizeBytes:   30_000_000,
 		},
 		WAL: &wal.Config{
 			Filepath: path.Join(tempDir, "wal"),
@@ -273,11 +253,9 @@ func testSameIDCompaction(t *testing.T, targetBlockVersion string) {
 
 	ctx := context.Background()
 	err = c.EnableCompaction(ctx, &CompactorConfig{
-		ChunkSizeBytes:          10_000_000,
 		MaxCompactionRange:      24 * time.Hour,
 		BlockRetention:          0,
 		CompactedBlockRetention: 0,
-		FlushSizeBytes:          10_000_000,
 	}, &mockSharder{}, &mockOverrides{})
 	require.NoError(t, err)
 
@@ -293,7 +271,7 @@ func testSameIDCompaction(t *testing.T, targetBlockVersion string) {
 
 	// make a bunch of sharded requests
 	allReqs := make([][][]byte, 0, recordCount)
-	allIds := make([][]byte, 0, recordCount)
+	allIDs := make([][]byte, 0, recordCount)
 	sharded := 0
 	for i := 0; i < recordCount; i++ {
 		id := test.ValidTraceID(nil)
@@ -314,19 +292,19 @@ func testSameIDCompaction(t *testing.T, targetBlockVersion string) {
 			sharded++
 		}
 		allReqs = append(allReqs, reqs)
-		allIds = append(allIds, id)
+		allIDs = append(allIDs, id)
 	}
 
 	// and write them to different blocks
 	for i := 0; i < blockCount; i++ {
 		blockID := backend.NewUUID()
-		meta := &backend.BlockMeta{BlockID: blockID, TenantID: testTenantID, DataEncoding: v1.Encoding}
+		meta := &backend.BlockMeta{BlockID: blockID, TenantID: testTenantID}
 		head, err := wal.NewBlock(meta, v1.Encoding)
 		require.NoError(t, err)
 
 		for j := 0; j < recordCount; j++ {
 			req := allReqs[j]
-			id := allIds[j]
+			id := allIDs[j]
 
 			if i < len(req) {
 				err = head.Append(id, req[i], 0, 0, true)
@@ -362,7 +340,7 @@ func testSameIDCompaction(t *testing.T, targetBlockVersion string) {
 	rw.blocklist.ApplyPollResults(blocklist.PerTenant{testTenantID: metas}, blocklist.PerTenantCompacted{})
 
 	// search for all ids
-	for i, id := range allIds {
+	for i, id := range allIDs {
 		trs, failedBlocks, err := rw.Find(context.Background(), testTenantID, id, BlockIDMin, BlockIDMax, 0, 0, common.DefaultSearchOptions())
 		require.NoError(t, err)
 		require.Nil(t, failedBlocks)
@@ -402,12 +380,9 @@ func TestCompactionUpdatesBlocklist(t *testing.T) {
 			Path: path.Join(tempDir, "traces"),
 		},
 		Block: &common.BlockConfig{
-			IndexDownsampleBytes: 11,
-			BloomFP:              .01,
-			BloomShardSizeBytes:  100_000,
-			Version:              encoding.DefaultEncoding().Version(),
-			Encoding:             backend.EncNone,
-			IndexPageSizeBytes:   1000,
+			BloomFP:             .01,
+			BloomShardSizeBytes: 100_000,
+			Version:             encoding.DefaultEncoding().Version(),
 		},
 		WAL: &wal.Config{
 			Filepath: path.Join(tempDir, "wal"),
@@ -418,7 +393,6 @@ func TestCompactionUpdatesBlocklist(t *testing.T) {
 
 	ctx := context.Background()
 	err = c.EnableCompaction(ctx, &CompactorConfig{
-		ChunkSizeBytes:          10,
 		MaxCompactionRange:      24 * time.Hour,
 		BlockRetention:          0,
 		CompactedBlockRetention: 0,
@@ -473,12 +447,9 @@ func TestCompactionMetrics(t *testing.T) {
 			Path: path.Join(tempDir, "traces"),
 		},
 		Block: &common.BlockConfig{
-			IndexDownsampleBytes: 11,
-			BloomFP:              .01,
-			BloomShardSizeBytes:  100_000,
-			Version:              encoding.DefaultEncoding().Version(),
-			Encoding:             backend.EncNone,
-			IndexPageSizeBytes:   1000,
+			BloomFP:             .01,
+			BloomShardSizeBytes: 100_000,
+			Version:             encoding.DefaultEncoding().Version(),
 		},
 		WAL: &wal.Config{
 			Filepath: path.Join(tempDir, "wal"),
@@ -489,7 +460,6 @@ func TestCompactionMetrics(t *testing.T) {
 
 	ctx := context.Background()
 	err = c.EnableCompaction(ctx, &CompactorConfig{
-		ChunkSizeBytes:          10,
 		MaxCompactionRange:      24 * time.Hour,
 		BlockRetention:          0,
 		CompactedBlockRetention: 0,
@@ -547,12 +517,9 @@ func TestCompactionIteratesThroughTenants(t *testing.T) {
 			Path: path.Join(tempDir, "traces"),
 		},
 		Block: &common.BlockConfig{
-			IndexDownsampleBytes: 11,
-			BloomFP:              .01,
-			BloomShardSizeBytes:  100_000,
-			Version:              encoding.DefaultEncoding().Version(),
-			Encoding:             backend.EncLZ4_64k,
-			IndexPageSizeBytes:   1000,
+			BloomFP:             .01,
+			BloomShardSizeBytes: 100_000,
+			Version:             encoding.DefaultEncoding().Version(),
 		},
 		WAL: &wal.Config{
 			Filepath: path.Join(tempDir, "wal"),
@@ -563,7 +530,6 @@ func TestCompactionIteratesThroughTenants(t *testing.T) {
 
 	ctx := context.Background()
 	err = c.EnableCompaction(ctx, &CompactorConfig{
-		ChunkSizeBytes:          10,
 		MaxCompactionRange:      24 * time.Hour,
 		MaxCompactionObjects:    1000,
 		MaxBlockBytes:           1024 * 1024 * 1024,
@@ -597,14 +563,10 @@ func TestCompactionIteratesThroughTenants(t *testing.T) {
 }
 
 func TestCompactionHonorsBlockStartEndTimes(t *testing.T) {
-	for _, enc := range encoding.AllEncodings() {
-		version := enc.Version()
-		if version == vparquet2.VersionString {
-			continue // vParquet2 is deprecated
-		}
-		t.Run(version, func(t *testing.T) {
+	for _, enc := range encoding.AllEncodingsForWrites() {
+		t.Run(enc.Version(), func(t *testing.T) {
 			t.Parallel()
-			testCompactionHonorsBlockStartEndTimes(t, version)
+			testCompactionHonorsBlockStartEndTimes(t, enc.Version())
 		})
 	}
 }
@@ -622,13 +584,10 @@ func testCompactionHonorsBlockStartEndTimes(t *testing.T, targetBlockVersion str
 			Path: path.Join(tempDir, "traces"),
 		},
 		Block: &common.BlockConfig{
-			IndexDownsampleBytes: 11,
-			BloomFP:              .01,
-			BloomShardSizeBytes:  100_000,
-			Version:              targetBlockVersion,
-			Encoding:             backend.EncNone,
-			IndexPageSizeBytes:   1000,
-			RowGroupSizeBytes:    30_000_000,
+			BloomFP:             .01,
+			BloomShardSizeBytes: 100_000,
+			Version:             targetBlockVersion,
+			RowGroupSizeBytes:   30_000_000,
 		},
 		WAL: &wal.Config{
 			Filepath:       path.Join(tempDir, "wal"),
@@ -640,8 +599,6 @@ func testCompactionHonorsBlockStartEndTimes(t *testing.T, targetBlockVersion str
 
 	ctx := context.Background()
 	err = c.EnableCompaction(ctx, &CompactorConfig{
-		ChunkSizeBytes:          10_000_000,
-		FlushSizeBytes:          10_000_000,
 		MaxCompactionRange:      24 * time.Hour,
 		BlockRetention:          0,
 		CompactedBlockRetention: 0,
@@ -677,14 +634,10 @@ func testCompactionHonorsBlockStartEndTimes(t *testing.T, targetBlockVersion str
 }
 
 func TestCompactionDropsTraces(t *testing.T) {
-	for _, enc := range encoding.AllEncodings() {
-		version := enc.Version()
-		if version == vparquet2.VersionString {
-			continue // vParquet2 is deprecated
-		}
-		t.Run(version, func(t *testing.T) {
+	for _, enc := range encoding.AllEncodingsForWrites() {
+		t.Run(enc.Version(), func(t *testing.T) {
 			t.Parallel()
-			testCompactionDropsTraces(t, version)
+			testCompactionDropsTraces(t, enc.Version())
 		})
 	}
 }
@@ -702,13 +655,10 @@ func testCompactionDropsTraces(t *testing.T, targetBlockVersion string) {
 			Path: path.Join(tempDir, "traces"),
 		},
 		Block: &common.BlockConfig{
-			IndexDownsampleBytes: 11,
-			BloomFP:              .01,
-			BloomShardSizeBytes:  100_000,
-			Version:              targetBlockVersion,
-			Encoding:             backend.EncSnappy,
-			IndexPageSizeBytes:   1000,
-			RowGroupSizeBytes:    30_000_000,
+			BloomFP:             .01,
+			BloomShardSizeBytes: 100_000,
+			Version:             targetBlockVersion,
+			RowGroupSizeBytes:   30_000_000,
 		},
 		WAL: &wal.Config{
 			Filepath: path.Join(tempDir, "wal"),
@@ -727,7 +677,7 @@ func testCompactionDropsTraces(t *testing.T, targetBlockVersion string) {
 
 	// write a bunch of dummy data
 	blockID := backend.NewUUID()
-	meta := &backend.BlockMeta{BlockID: blockID, TenantID: testTenantID, DataEncoding: v1.Encoding}
+	meta := &backend.BlockMeta{BlockID: blockID, TenantID: testTenantID}
 	head, err := wal.NewBlock(meta, v1.Encoding)
 	require.NoError(t, err)
 
@@ -754,13 +704,9 @@ func testCompactionDropsTraces(t *testing.T, targetBlockVersion string) {
 	rw := r.(*readerWriter)
 	// force compact to a new block
 	opts := common.CompactionOptions{
-		BlockConfig:        *rw.cfg.Block,
-		ChunkSizeBytes:     DefaultChunkSizeBytes,
-		FlushSizeBytes:     DefaultFlushSizeBytes,
-		IteratorBufferSize: DefaultIteratorBufferSize,
-		OutputBlocks:       1,
-		Combiner:           model.StaticCombiner,
-		MaxBytesPerTrace:   0,
+		BlockConfig:      *rw.cfg.Block,
+		OutputBlocks:     1,
+		MaxBytesPerTrace: 0,
 
 		// hook to drop the trace
 		DropObject: func(id common.ID) bool {
@@ -826,14 +772,10 @@ func TestDoForAtLeast(t *testing.T) {
 }
 
 func TestCompactWithConfig(t *testing.T) {
-	for _, enc := range encoding.AllEncodings() {
-		version := enc.Version()
-		if version == vparquet2.VersionString {
-			continue // vParquet2 is deprecated
-		}
-		t.Run(version, func(t *testing.T) {
+	for _, enc := range encoding.AllEncodingsForWrites() {
+		t.Run(enc.Version(), func(t *testing.T) {
 			t.Parallel()
-			testCompactWithConfig(t, version)
+			testCompactWithConfig(t, enc.Version())
 		})
 	}
 }
@@ -851,12 +793,9 @@ func testCompactWithConfig(t *testing.T, targetBlockVersion string) {
 			Path: path.Join(tempDir, "traces"),
 		},
 		Block: &common.BlockConfig{
-			IndexDownsampleBytes: 11,
-			BloomFP:              .01,
-			BloomShardSizeBytes:  100_000,
-			Version:              targetBlockVersion,
-			Encoding:             backend.EncNone,
-			IndexPageSizeBytes:   1000,
+			BloomFP:             .01,
+			BloomShardSizeBytes: 100_000,
+			Version:             targetBlockVersion,
 		},
 		WAL: &wal.Config{
 			Filepath: path.Join(tempDir, "wal"),
@@ -878,7 +817,6 @@ func testCompactWithConfig(t *testing.T, targetBlockVersion string) {
 		metas,
 		testTenantID,
 		&CompactorConfig{
-			ChunkSizeBytes:          10,
 			MaxCompactionRange:      24 * time.Hour,
 			BlockRetention:          0,
 			CompactedBlockRetention: 0,
@@ -949,13 +887,9 @@ func makeTraceID(i int, j int) []byte {
 }
 
 func BenchmarkCompaction(b *testing.B) {
-	for _, enc := range encoding.AllEncodings() {
-		version := enc.Version()
-		if version == vparquet2.VersionString {
-			continue // vParquet2 is deprecated
-		}
-		b.Run(version, func(b *testing.B) {
-			benchmarkCompaction(b, version)
+	for _, enc := range encoding.AllEncodingsForWrites() {
+		b.Run(enc.Version(), func(b *testing.B) {
+			benchmarkCompaction(b, enc.Version())
 		})
 	}
 }
@@ -973,13 +907,10 @@ func benchmarkCompaction(b *testing.B, targetBlockVersion string) {
 			Path: path.Join(tempDir, "traces"),
 		},
 		Block: &common.BlockConfig{
-			IndexDownsampleBytes: 11,
-			BloomFP:              .01,
-			BloomShardSizeBytes:  100_000,
-			Version:              targetBlockVersion,
-			Encoding:             backend.EncZstd,
-			IndexPageSizeBytes:   1000,
-			RowGroupSizeBytes:    30_000_000,
+			BloomFP:             .01,
+			BloomShardSizeBytes: 100_000,
+			Version:             targetBlockVersion,
+			RowGroupSizeBytes:   30_000_000,
 		},
 		WAL: &wal.Config{
 			Filepath: path.Join(tempDir, "wal"),
@@ -991,11 +922,7 @@ func benchmarkCompaction(b *testing.B, targetBlockVersion string) {
 	rw := c.(*readerWriter)
 
 	ctx := context.Background()
-	err = c.EnableCompaction(ctx, &CompactorConfig{
-		ChunkSizeBytes:     10_000_000,
-		FlushSizeBytes:     10_000_000,
-		IteratorBufferSize: DefaultIteratorBufferSize,
-	}, &mockSharder{}, &mockOverrides{})
+	err = c.EnableCompaction(ctx, &CompactorConfig{}, &mockSharder{}, &mockOverrides{})
 	require.NoError(b, err)
 
 	traceCount := 20_000
@@ -1012,4 +939,59 @@ func benchmarkCompaction(b *testing.B, targetBlockVersion string) {
 
 	err = rw.compactOneJob(ctx, metas, testTenantID)
 	require.NoError(b, err)
+}
+
+func TestCompactWithConfigUnsupportedVersion(t *testing.T) {
+	tempDir := t.TempDir()
+
+	// Create backend reader/writer directly to write the block meta
+	localCfg := &local.Config{Path: path.Join(tempDir, "traces")}
+	_, rawW, _, err := local.New(localCfg)
+	require.NoError(t, err)
+	backendW := backend.NewWriter(rawW)
+
+	_, _, c, err := New(&Config{
+		Backend: backend.Local,
+		Pool: &pool.Config{
+			MaxWorkers: 10,
+			QueueDepth: 100,
+		},
+		Local: localCfg,
+		Block: &common.BlockConfig{
+			BloomFP:             .01,
+			BloomShardSizeBytes: 100_000,
+			Version:             "vParquet4",
+		},
+		WAL: &wal.Config{
+			Filepath: path.Join(tempDir, "wal"),
+		},
+		BlocklistPoll: 0,
+	}, nil, log.NewNopLogger())
+	require.NoError(t, err)
+
+	ctx := context.Background()
+
+	// Create a block meta with an unsupported preview version and write it to storage
+	meta := &backend.BlockMeta{
+		BlockID:  backend.NewUUID(),
+		TenantID: testTenantID,
+		Version:  "vParquet5-preview6",
+	}
+	err = backendW.WriteBlockMeta(ctx, meta)
+	require.NoError(t, err)
+
+	// Try to compact
+	_, err = c.CompactWithConfig(
+		ctx,
+		[]*backend.BlockMeta{meta},
+		testTenantID,
+		&CompactorConfig{
+			MaxCompactionRange: 24 * time.Hour,
+		},
+		&mockSharder{},
+		&mockOverrides{},
+	)
+
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "compaction not supported for block version vParquet5-preview6")
 }

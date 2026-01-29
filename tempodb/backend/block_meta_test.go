@@ -20,17 +20,13 @@ const (
 
 func TestNewBlockMeta(t *testing.T) {
 	testVersion := "blerg"
-	testEncoding := EncLZ4_256k
-	testDataEncoding := "blarg"
 
 	id := uuid.New()
-	b := NewBlockMeta(testTenantID, id, testVersion, testEncoding, testDataEncoding)
+	b := NewBlockMeta(testTenantID, id, testVersion)
 
 	assert.Equal(t, id, (uuid.UUID)(b.BlockID))
 	assert.Equal(t, testTenantID, b.TenantID)
 	assert.Equal(t, testVersion, b.Version)
-	assert.Equal(t, testEncoding, b.Encoding)
-	assert.Equal(t, testDataEncoding, b.DataEncoding)
 }
 
 func TestBlockMetaObjectAdded(t *testing.T) {
@@ -91,7 +87,7 @@ func TestBlockMetaObjectAdded(t *testing.T) {
 	}
 }
 
-func TestBlockMetaJSONRoundTrip(t *testing.T) {
+func TestBlockMetaJSONProtoRoundTrip(t *testing.T) {
 	timeParse := func(s string) time.Time {
 		date, err := time.Parse(time.RFC3339Nano, s)
 		require.NoError(t, err)
@@ -107,10 +103,8 @@ func TestBlockMetaJSONRoundTrip(t *testing.T) {
 		TotalObjects:    10,
 		Size_:           12345,
 		CompactionLevel: 1,
-		Encoding:        EncZstd,
 		IndexPageSize:   250000,
 		TotalRecords:    124356,
-		DataEncoding:    "",
 		BloomShardCount: 244,
 		FooterSize:      15775,
 		DedicatedColumns: DedicatedColumns{
@@ -119,6 +113,7 @@ func TestBlockMetaJSONRoundTrip(t *testing.T) {
 			{Scope: "span", Name: "http.method", Type: "string"},
 			{Scope: "span", Name: "namespace", Type: "string"},
 			{Scope: "span", Name: "http.response.body.size", Type: "int"},
+			{Scope: "span", Name: "http.request.header.accept", Type: "string", Options: DedicatedColumnOptions{DedicatedColumnOptionArray}},
 		},
 	}
 	expectedJSON := `{
@@ -130,10 +125,8 @@ func TestBlockMetaJSONRoundTrip(t *testing.T) {
     	"totalObjects": 10,
     	"size": 12345,
     	"compactionLevel": 1,
-		"encoding": "zstd",
     	"indexPageSize": 250000,
     	"totalRecords": 124356,
-    	"dataEncoding": "",
     	"bloomShards": 244,
 		"footerSize": 15775,
     	"dedicatedColumns": [
@@ -141,10 +134,12 @@ func TestBlockMetaJSONRoundTrip(t *testing.T) {
     		{"s": "resource", "n": "net.host.port", "t": "int"},
     		{"n": "http.method"},
     		{"n": "namespace"},
-    		{"n": "http.response.body.size", "t": "int"}
+    		{"n": "http.response.body.size", "t": "int"},
+    		{"n": "http.request.header.accept", "o": ["array"]}
     	]
 	}`
 
+	// JSON
 	metaJSON, err := json.Marshal(meta)
 	require.NoError(t, err)
 	assert.JSONEq(t, expectedJSON, string(metaJSON))
@@ -153,6 +148,74 @@ func TestBlockMetaJSONRoundTrip(t *testing.T) {
 	err = json.Unmarshal(metaJSON, &metaRoundtrip)
 	require.NoError(t, err)
 	assert.Equal(t, meta, metaRoundtrip)
+
+	// proto
+	protoData, err := meta.Marshal()
+	require.NoError(t, err)
+	newMeta := BlockMeta{}
+	require.NoError(t, newMeta.Unmarshal(protoData))
+
+	assert.Equal(t, meta, newMeta)
+}
+
+func BenchmarkBlockMetaMarshalUnmarshal(b *testing.B) {
+	timeParse := func(s string) time.Time {
+		date, err := time.Parse(time.RFC3339Nano, s)
+		require.NoError(b, err)
+		return date
+	}
+
+	meta := BlockMeta{
+		Version:         "vParquet3",
+		BlockID:         MustParse("00000000-0000-0000-0000-000000000000"),
+		TenantID:        "single-tenant",
+		StartTime:       timeParse("2021-01-01T00:00:00.0000000Z"),
+		EndTime:         timeParse("2021-01-02T00:00:00.0000000Z"),
+		TotalObjects:    10,
+		Size_:           12345,
+		CompactionLevel: 1,
+		IndexPageSize:   250000,
+		TotalRecords:    124356,
+		BloomShardCount: 244,
+		FooterSize:      15775,
+		DedicatedColumns: DedicatedColumns{
+			{Scope: "resource", Name: "namespace", Type: "string"},
+			{Scope: "resource", Name: "net.host.port", Type: "int"},
+			{Scope: "span", Name: "http.method", Type: "string"},
+			{Scope: "span", Name: "namespace", Type: "string"},
+			{Scope: "span", Name: "http.response.body.size", Type: "int"},
+			{Scope: "span", Name: "http.request.header.accept", Type: "string", Options: DedicatedColumnOptions{DedicatedColumnOptionArray}},
+
+			{Name: "test.span.str-01", Scope: DedicatedColumnScopeSpan, Type: DedicatedColumnTypeString},
+			{Name: "test.span.str-02", Scope: DedicatedColumnScopeSpan, Type: DedicatedColumnTypeString},
+			{Name: "test.span.str-03", Scope: DedicatedColumnScopeSpan, Type: DedicatedColumnTypeString},
+			{Name: "test.span.str-04", Scope: DedicatedColumnScopeSpan, Type: DedicatedColumnTypeString},
+			{Name: "test.span.str-05", Scope: DedicatedColumnScopeSpan, Type: DedicatedColumnTypeString},
+			{Name: "test.span.str-06", Scope: DedicatedColumnScopeSpan, Type: DedicatedColumnTypeString},
+			{Name: "test.span.str-07", Scope: DedicatedColumnScopeSpan, Type: DedicatedColumnTypeString},
+			{Name: "test.span.str-08", Scope: DedicatedColumnScopeSpan, Type: DedicatedColumnTypeString},
+			{Name: "test.span.str-09", Scope: DedicatedColumnScopeSpan, Type: DedicatedColumnTypeString},
+			{Name: "test.span.str-10", Scope: DedicatedColumnScopeSpan, Type: DedicatedColumnTypeString},
+		},
+	}
+
+	b.Run("marshal", func(b *testing.B) {
+		_, err := meta.Marshal()
+		require.NoError(b, err, "marshal should not fail")
+		for b.Loop() {
+			meta.Marshal() // nolint:errcheck // skipping error check for benchmark, checked above
+		}
+	})
+
+	b.Run("unmarshal", func(b *testing.B) {
+		data, err := meta.Marshal()
+		require.NoError(b, err)
+		require.NoError(b, meta.Unmarshal(data), "unmarshal should not fail")
+
+		for b.Loop() {
+			meta.Unmarshal(data) // nolint:errcheck // skipping error check for benchmark, checked above
+		}
+	})
 }
 
 func TestDedicatedColumnsFromTempopb(t *testing.T) {
@@ -169,12 +232,14 @@ func TestDedicatedColumnsFromTempopb(t *testing.T) {
 				{Scope: tempopb.DedicatedColumn_RESOURCE, Name: "test.res.1", Type: tempopb.DedicatedColumn_STRING},
 				{Scope: tempopb.DedicatedColumn_SPAN, Name: "test.span.2", Type: tempopb.DedicatedColumn_STRING},
 				{Scope: tempopb.DedicatedColumn_SPAN, Name: "test.span.3", Type: tempopb.DedicatedColumn_INT},
+				{Scope: tempopb.DedicatedColumn_SPAN, Name: "test.span.4", Type: tempopb.DedicatedColumn_INT, Options: tempopb.DedicatedColumn_ARRAY},
 			},
 			expected: DedicatedColumns{
 				{Scope: DedicatedColumnScopeSpan, Name: "test.span.1", Type: DedicatedColumnTypeString},
 				{Scope: DedicatedColumnScopeResource, Name: "test.res.1", Type: DedicatedColumnTypeString},
 				{Scope: DedicatedColumnScopeSpan, Name: "test.span.2", Type: DedicatedColumnTypeString},
 				{Scope: DedicatedColumnScopeSpan, Name: "test.span.3", Type: DedicatedColumnTypeInt},
+				{Scope: DedicatedColumnScopeSpan, Name: "test.span.4", Type: DedicatedColumnTypeInt, Options: DedicatedColumnOptions{DedicatedColumnOptionArray}},
 			},
 		},
 		{
@@ -223,7 +288,8 @@ func TestDedicatedColumns_ToTempopb(t *testing.T) {
 				{Scope: DedicatedColumnScopeResource, Name: "test.res.1", Type: DedicatedColumnTypeString},
 				{Scope: DedicatedColumnScopeResource, Name: "test.res.2", Type: DedicatedColumnTypeInt},
 				{Scope: DedicatedColumnScopeSpan, Name: "test.span.2", Type: DedicatedColumnTypeString},
-				{Scope: DedicatedColumnScopeSpan, Name: "test.span.3", Type: DedicatedColumnTypeInt},
+				{Scope: DedicatedColumnScopeSpan, Name: "test.span.3", Type: DedicatedColumnTypeInt, Options: DedicatedColumnOptions{}},
+				{Scope: DedicatedColumnScopeSpan, Name: "test.span.4", Type: DedicatedColumnTypeInt, Options: DedicatedColumnOptions{DedicatedColumnOptionArray}},
 			},
 			expected: []*tempopb.DedicatedColumn{
 				{Scope: tempopb.DedicatedColumn_SPAN, Name: "test.span.1", Type: tempopb.DedicatedColumn_STRING},
@@ -231,6 +297,7 @@ func TestDedicatedColumns_ToTempopb(t *testing.T) {
 				{Scope: tempopb.DedicatedColumn_RESOURCE, Name: "test.res.2", Type: tempopb.DedicatedColumn_INT},
 				{Scope: tempopb.DedicatedColumn_SPAN, Name: "test.span.2", Type: tempopb.DedicatedColumn_STRING},
 				{Scope: tempopb.DedicatedColumn_SPAN, Name: "test.span.3", Type: tempopb.DedicatedColumn_INT},
+				{Scope: tempopb.DedicatedColumn_SPAN, Name: "test.span.4", Type: tempopb.DedicatedColumn_INT, Options: tempopb.DedicatedColumn_ARRAY},
 			},
 		},
 		{
@@ -248,6 +315,14 @@ func TestDedicatedColumns_ToTempopb(t *testing.T) {
 				{Scope: DedicatedColumnScope("no-scope"), Name: "test.span.2", Type: DedicatedColumnTypeString},
 			},
 			expectedErr: errors.New("unable to convert dedicated column 'test.span.2': invalid value for dedicated column scope 'no-scope'"),
+		},
+		{
+			name: "wrong option",
+			cols: DedicatedColumns{
+				{Scope: DedicatedColumnScopeResource, Name: "test.res.1", Type: DedicatedColumnTypeString},
+				{Scope: DedicatedColumnScopeSpan, Name: "test.span.2", Type: DedicatedColumnTypeString, Options: DedicatedColumnOptions{DedicatedColumnOptionArray, DedicatedColumnOption("no-option")}},
+			},
+			expectedErr: errors.New("unable to convert dedicated column 'test.span.2': invalid value for dedicated column option 'no-option'"),
 		},
 	}
 
@@ -292,6 +367,7 @@ func TestDedicatedColumnsMarshalRoundTrip(t *testing.T) {
 				{Scope: DedicatedColumnScopeSpan, Name: "test.span.1", Type: DedicatedColumnTypeString},
 				{Scope: DedicatedColumnScopeSpan, Name: "test.span.2", Type: DedicatedColumnTypeString},
 				{Scope: DedicatedColumnScopeSpan, Name: "test.span.3", Type: DedicatedColumnTypeInt},
+				{Scope: DedicatedColumnScopeSpan, Name: "test.span.4", Type: DedicatedColumnTypeString, Options: DedicatedColumnOptions{DedicatedColumnOptionArray}},
 			},
 		},
 	}
@@ -333,9 +409,10 @@ func TestDedicatedColumnsMarshalRoundTrip(t *testing.T) {
 
 func TestDedicatedColumns_Validate(t *testing.T) {
 	testCases := []struct {
-		name    string
-		cols    DedicatedColumns
-		isValid bool
+		name             string
+		cols             DedicatedColumns
+		isValid          bool
+		expectedWarnings []error
 	}{
 		{name: "nil", isValid: true},
 		{name: "empty", cols: DedicatedColumns{}, isValid: true},
@@ -343,6 +420,27 @@ func TestDedicatedColumns_Validate(t *testing.T) {
 			name: "minimal valid",
 			cols: DedicatedColumns{
 				{Name: "test.span.str", Scope: DedicatedColumnScopeSpan, Type: DedicatedColumnTypeString},
+			},
+			isValid: true,
+		},
+		{
+			name: "array option",
+			cols: DedicatedColumns{
+				{Name: "test.span.str", Scope: DedicatedColumnScopeSpan, Type: DedicatedColumnTypeString, Options: DedicatedColumnOptions{DedicatedColumnOptionArray}},
+			},
+			isValid: true,
+		},
+		{
+			name: "blob option",
+			cols: DedicatedColumns{
+				{Name: "test.span.str", Scope: DedicatedColumnScopeSpan, Type: DedicatedColumnTypeString, Options: DedicatedColumnOptions{DedicatedColumnOptionBlob}},
+			},
+			isValid: true,
+		},
+		{
+			name: "all options",
+			cols: DedicatedColumns{
+				{Name: "test.span.str", Scope: DedicatedColumnScopeSpan, Type: DedicatedColumnTypeString, Options: DedicatedColumnOptions{DedicatedColumnOptionArray, DedicatedColumnOptionBlob}},
 			},
 			isValid: true,
 		},
@@ -442,6 +540,13 @@ func TestDedicatedColumns_Validate(t *testing.T) {
 			},
 		},
 		{
+			name: "invalid option",
+			cols: DedicatedColumns{
+				{Name: "test.span.str", Scope: DedicatedColumnScopeSpan, Type: DedicatedColumnTypeString},
+				{Name: "test.span.str", Scope: DedicatedColumnScopeSpan, Type: DedicatedColumnTypeString, Options: DedicatedColumnOptions{DedicatedColumnOption("no-option")}},
+			},
+		},
+		{
 			name: "too many resource str cols",
 			cols: DedicatedColumns{
 				{Name: "test.span.str", Scope: DedicatedColumnScopeSpan, Type: DedicatedColumnTypeString},
@@ -456,6 +561,20 @@ func TestDedicatedColumns_Validate(t *testing.T) {
 				{Name: "test.res.str-09", Scope: DedicatedColumnScopeResource, Type: DedicatedColumnTypeString},
 				{Name: "test.res.str-10", Scope: DedicatedColumnScopeResource, Type: DedicatedColumnTypeString},
 				{Name: "test.res.str-11", Scope: DedicatedColumnScopeResource, Type: DedicatedColumnTypeString},
+				{Name: "test.res.str-12", Scope: DedicatedColumnScopeResource, Type: DedicatedColumnTypeString},
+				{Name: "test.res.str-13", Scope: DedicatedColumnScopeResource, Type: DedicatedColumnTypeString},
+				{Name: "test.res.str-14", Scope: DedicatedColumnScopeResource, Type: DedicatedColumnTypeString},
+				{Name: "test.res.str-15", Scope: DedicatedColumnScopeResource, Type: DedicatedColumnTypeString},
+				{Name: "test.res.str-16", Scope: DedicatedColumnScopeResource, Type: DedicatedColumnTypeString},
+				{Name: "test.res.str-17", Scope: DedicatedColumnScopeResource, Type: DedicatedColumnTypeString},
+				{Name: "test.res.str-18", Scope: DedicatedColumnScopeResource, Type: DedicatedColumnTypeString},
+				{Name: "test.res.str-19", Scope: DedicatedColumnScopeResource, Type: DedicatedColumnTypeString},
+				{Name: "test.res.str-20", Scope: DedicatedColumnScopeResource, Type: DedicatedColumnTypeString},
+				{Name: "test.res.str-21", Scope: DedicatedColumnScopeResource, Type: DedicatedColumnTypeString},
+			},
+			isValid: true,
+			expectedWarnings: []error{
+				WarnTooManyColumns{Type: DedicatedColumnTypeString, Scope: DedicatedColumnScopeResource, Count: 21, MaxCount: 20},
 			},
 		},
 		{
@@ -468,6 +587,10 @@ func TestDedicatedColumns_Validate(t *testing.T) {
 				{Name: "test.res.int-04", Scope: DedicatedColumnScopeResource, Type: DedicatedColumnTypeInt},
 				{Name: "test.res.int-05", Scope: DedicatedColumnScopeResource, Type: DedicatedColumnTypeInt},
 				{Name: "test.res.int-06", Scope: DedicatedColumnScopeResource, Type: DedicatedColumnTypeInt},
+			},
+			isValid: true,
+			expectedWarnings: []error{
+				WarnTooManyColumns{Type: DedicatedColumnTypeInt, Scope: DedicatedColumnScopeResource, Count: 6, MaxCount: 5},
 			},
 		},
 		{
@@ -485,6 +608,20 @@ func TestDedicatedColumns_Validate(t *testing.T) {
 				{Name: "test.span.str-09", Scope: DedicatedColumnScopeSpan, Type: DedicatedColumnTypeString},
 				{Name: "test.span.str-10", Scope: DedicatedColumnScopeSpan, Type: DedicatedColumnTypeString},
 				{Name: "test.span.str-11", Scope: DedicatedColumnScopeSpan, Type: DedicatedColumnTypeString},
+				{Name: "test.span.str-12", Scope: DedicatedColumnScopeSpan, Type: DedicatedColumnTypeString},
+				{Name: "test.span.str-13", Scope: DedicatedColumnScopeSpan, Type: DedicatedColumnTypeString},
+				{Name: "test.span.str-14", Scope: DedicatedColumnScopeSpan, Type: DedicatedColumnTypeString},
+				{Name: "test.span.str-15", Scope: DedicatedColumnScopeSpan, Type: DedicatedColumnTypeString},
+				{Name: "test.span.str-16", Scope: DedicatedColumnScopeSpan, Type: DedicatedColumnTypeString},
+				{Name: "test.span.str-17", Scope: DedicatedColumnScopeSpan, Type: DedicatedColumnTypeString},
+				{Name: "test.span.str-18", Scope: DedicatedColumnScopeSpan, Type: DedicatedColumnTypeString},
+				{Name: "test.span.str-19", Scope: DedicatedColumnScopeSpan, Type: DedicatedColumnTypeString},
+				{Name: "test.span.str-20", Scope: DedicatedColumnScopeSpan, Type: DedicatedColumnTypeString},
+				{Name: "test.span.str-21", Scope: DedicatedColumnScopeSpan, Type: DedicatedColumnTypeString},
+			},
+			isValid: true,
+			expectedWarnings: []error{
+				WarnTooManyColumns{Type: DedicatedColumnTypeString, Scope: DedicatedColumnScopeSpan, Count: 21, MaxCount: 20},
 			},
 		},
 		{
@@ -498,17 +635,22 @@ func TestDedicatedColumns_Validate(t *testing.T) {
 				{Name: "test.span.int-05", Scope: DedicatedColumnScopeSpan, Type: DedicatedColumnTypeInt},
 				{Name: "test.span.int-06", Scope: DedicatedColumnScopeSpan, Type: DedicatedColumnTypeInt},
 			},
+			isValid: true,
+			expectedWarnings: []error{
+				WarnTooManyColumns{Type: DedicatedColumnTypeInt, Scope: DedicatedColumnScopeSpan, Count: 6, MaxCount: 5},
+			},
 		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			err := tc.cols.Validate()
+			warnings, err := tc.cols.Validate()
 			if tc.isValid {
 				require.NoError(t, err, "dedicated columns expected to be valid, but got error: %s", err)
 			} else {
 				require.Error(t, err, "dedicated columns expected to be invalid, but got no error")
 			}
+			require.Equal(t, tc.expectedWarnings, warnings)
 		})
 	}
 }

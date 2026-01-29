@@ -25,7 +25,7 @@ func (b Block) BlockMeta() *backend.BlockMeta {
 }
 
 func (b Block) Search(context.Context, *tempopb.SearchRequest, common.SearchOptions) (*tempopb.SearchResponse, error) {
-	return nil, nil
+	return &tempopb.SearchResponse{}, nil
 }
 
 func (b Block) SearchTags(context.Context, traceql.AttributeScope, common.TagsCallback, common.MetricsCallback, common.SearchOptions) error {

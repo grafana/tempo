@@ -210,7 +210,7 @@ func (l *lexer) Lex(lval *yySymType) int {
 	multiTok := -1
 	tokStrNext := l.TokenText()
 	for {
-		tokStrNext = tokStrNext + string(l.Peek())
+		tokStrNext += string(l.Peek())
 		tok, ok := tokens[tokStrNext]
 		if ok {
 			multiTok = tok
@@ -401,6 +401,15 @@ func isDurationRune(r rune) bool {
 	default:
 		return false
 	}
+}
+
+func ContainsNonAttributeRune(s string) bool {
+	for _, r := range s {
+		if !isAttributeRune(r) {
+			return true
+		}
+	}
+	return false
 }
 
 func isAttributeRune(r rune) bool {

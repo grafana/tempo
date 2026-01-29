@@ -63,43 +63,45 @@ func replaceAllPatterns[K any](target ottl.PMapGetSetter[K], mode, regexPattern 
 			return nil, err
 		}
 
-		updated := pcommon.NewMap()
-		updated.EnsureCapacity(val.Len())
-	AttributeLoop:
-		for key, originalValue := range val.All() {
-			switch mode {
-			case modeValue:
-				if originalValue.Type() == pcommon.ValueTypeStr && compiledPattern.MatchString(originalValue.Str()) {
-					if !fn.IsEmpty() {
-						updatedString, err := applyOptReplaceFunction(ctx, tCtx, compiledPattern, fn, originalValue.Str(), replacementVal, replacementFormat)
-						if err != nil {
-							break AttributeLoop
-						}
-						updated.PutStr(key, updatedString)
-					} else {
-						updatedString := compiledPattern.ReplaceAllString(originalValue.Str(), replacementVal)
-						updated.PutStr(key, updatedString)
-					}
-				} else {
-					originalValue.CopyTo(updated.PutEmpty(key))
+		switch mode {
+		case modeValue:
+			for _, value := range val.All() {
+				if value.Type() != pcommon.ValueTypeStr || !compiledPattern.MatchString(value.Str()) {
+					continue
 				}
-			case modeKey:
-				if compiledPattern.MatchString(key) {
-					if !fn.IsEmpty() {
-						updatedKey, err := applyOptReplaceFunction(ctx, tCtx, compiledPattern, fn, key, replacementVal, replacementFormat)
-						if err != nil {
-							break AttributeLoop
-						}
-						originalValue.CopyTo(updated.PutEmpty(updatedKey))
-					} else {
-						updatedKey := compiledPattern.ReplaceAllString(key, replacementVal)
-						originalValue.CopyTo(updated.PutEmpty(updatedKey))
+				if !fn.IsEmpty() {
+					updatedString, err := applyOptReplaceFunction(ctx, tCtx, compiledPattern, fn, value.Str(), replacementVal, replacementFormat)
+					if err != nil {
+						continue
 					}
+					value.SetStr(updatedString)
 				} else {
-					originalValue.CopyTo(updated.PutEmpty(key))
+					value.SetStr(compiledPattern.ReplaceAllString(value.Str(), replacementVal))
 				}
 			}
+		case modeKey:
+			// Because we are changing the keys we cannot do in-place update, but we can move values to the
+			// updated map and then move back the updated map to the initial map to avoid a copy in the target.Set,
+			// because the pcommon.Map.CopyTo will not do a copy if it is the same object in this case val.
+			updated := pcommon.NewMap()
+			updated.EnsureCapacity(val.Len())
+			for key, value := range val.All() {
+				if !compiledPattern.MatchString(key) {
+					value.MoveTo(updated.PutEmpty(key))
+					continue
+				}
+				if !fn.IsEmpty() {
+					updatedKey, err := applyOptReplaceFunction(ctx, tCtx, compiledPattern, fn, key, replacementVal, replacementFormat)
+					if err != nil {
+						continue
+					}
+					value.MoveTo(updated.PutEmpty(updatedKey))
+				} else {
+					value.MoveTo(updated.PutEmpty(compiledPattern.ReplaceAllString(key, replacementVal)))
+				}
+			}
+			updated.MoveTo(val)
 		}
-		return nil, target.Set(ctx, tCtx, updated)
+		return nil, target.Set(ctx, tCtx, val)
 	}, nil
 }

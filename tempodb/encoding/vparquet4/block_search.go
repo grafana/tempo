@@ -212,15 +212,15 @@ func makePipelineWithRowGroups(ctx context.Context, req *tempopb.SearchRequest, 
 
 	// Duration filtering?
 	if req.MinDurationMs > 0 || req.MaxDurationMs > 0 {
-		min := int64(0)
+		minDur := int64(0)
 		if req.MinDurationMs > 0 {
-			min = (time.Millisecond * time.Duration(req.MinDurationMs)).Nanoseconds()
+			minDur = (time.Millisecond * time.Duration(req.MinDurationMs)).Nanoseconds()
 		}
-		max := int64(math.MaxInt64)
+		maxDur := int64(math.MaxInt64)
 		if req.MaxDurationMs > 0 {
-			max = (time.Millisecond * time.Duration(req.MaxDurationMs)).Nanoseconds()
+			maxDur = (time.Millisecond * time.Duration(req.MaxDurationMs)).Nanoseconds()
 		}
-		durFilter := pq.NewIntBetweenPredicate(min, max)
+		durFilter := pq.NewIntBetweenPredicate(minDur, maxDur)
 		traceIters = append(traceIters, makeIter("DurationNano", durFilter, "Duration"))
 	}
 
@@ -368,6 +368,29 @@ func makeIterFunc(ctx context.Context, rgs []parquet.RowGroup, pf *parquet.File)
 		}
 
 		return pq.NewSyncIterator(ctx, rgs, index, opts...)
+	}
+}
+
+func makeNilIterFunc(ctx context.Context, rgs []parquet.RowGroup, pf *parquet.File) makeIterFn {
+	return func(name string, predicate pq.Predicate, selectAs string) pq.Iterator {
+		index, _, maxDef := pq.GetColumnIndexByPath(pf, name)
+		if index == -1 {
+			// TODO - don't panic, error instead
+			panic("column not found in parquet file:" + name)
+		}
+
+		opts := []pq.SyncIteratorOpt{
+			pq.SyncIteratorOptColumnName(name),
+			pq.SyncIteratorOptPredicate(predicate),
+			pq.SyncIteratorOptSelectAs(selectAs),
+			pq.SyncIteratorOptMaxDefinitionLevel(maxDef),
+		}
+
+		if name != columnPathSpanID && name != columnPathTraceID {
+			opts = append(opts, pq.SyncIteratorOptIntern())
+		}
+
+		return pq.NewNilSyncIterator(ctx, rgs, index, opts...)
 	}
 }
 

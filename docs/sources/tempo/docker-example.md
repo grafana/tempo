@@ -63,8 +63,8 @@ A setup script is running in the background to install the necessary dependencie
 
 ## Clone the Tempo repository and start Docker
 
-This quick start guide uses the `local` example running Tempo as a single binary (monolithic). Any data is stored locally in the `tempo-data` folder.
-To learn more, read the [local storage example README](https://github.com/grafana/tempo/blob/main/example/docker-compose/local).
+This quick start guide uses the `single-binary` docker-compose example. Check out our [collection of examples](https://github.com/grafana/tempo/blob/main/example/docker-compose) to explore various
+operating modes and configurations.
 
 1. Clone the Tempo repository:
 
@@ -75,13 +75,7 @@ To learn more, read the [local storage example README](https://github.com/grafan
 1. Go into the examples directory:
 
    ```bash
-   cd tempo/example/docker-compose/local
-   ```
-
-1. Create a new directory to store data:
-
-   ```bash
-   mkdir tempo-data
+   cd tempo/example/docker-compose/single-binary
    ```
 
 1. Start the services defined in the docker-compose file:
@@ -186,7 +180,7 @@ Now that you've explored the basics of Tempo, you can:
 
 ### Alternative: Complete MLTP example
 
-If you would like to use a demo with multiple telemetry signals, then try the [Introduction to Metrics, Logs, Traces, and Profiling in Grafana](https://github.com/grafana/intro-to-mlpt).
+If you would like to use a demo with multiple telemetry signals, then try the [Introduction to Metrics, Logs, Traces, and Profiling in Grafana](https://github.com/grafana/intro-to-mltp).
 `Intro-to-mltp` provides a self-contained environment for learning about Mimir, Loki, Tempo, Pyroscope, and Grafana.
 The project includes detailed explanations of each component and annotated configurations for a single-instance deployment.
 Data from `intro-to-mltp` can also be pushed to Grafana Cloud.

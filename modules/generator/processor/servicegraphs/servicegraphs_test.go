@@ -11,15 +11,15 @@ import (
 
 	"github.com/go-kit/log"
 	"github.com/gogo/protobuf/jsonpb"
+	"github.com/grafana/tempo/modules/generator/registry"
+	"github.com/grafana/tempo/pkg/tempopb"
+	"github.com/grafana/tempo/pkg/util/test"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/prometheus/model/labels"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	semconv "go.opentelemetry.io/otel/semconv/v1.25.0"
 	semconvnew "go.opentelemetry.io/otel/semconv/v1.34.0"
-
-	"github.com/grafana/tempo/modules/generator/registry"
-	"github.com/grafana/tempo/pkg/tempopb"
-	"github.com/grafana/tempo/pkg/util/test"
 )
 
 // NOTE: This is a way to know if the contents of the semconv package have changed.
@@ -46,7 +46,7 @@ func TestServiceGraphs(t *testing.T) {
 	cfg.Dimensions = []string{"beast", "god"}
 	cfg.EnableMessagingSystemLatencyHistogram = true
 
-	p := New(cfg, "test", testRegistry, log.NewNopLogger())
+	p := New(cfg, "test", testRegistry, log.NewNopLogger(), prometheus.NewCounter(prometheus.CounterOpts{}))
 	defer p.Shutdown(context.Background())
 
 	request, err := loadTestData("testdata/trace-with-queue-database.json")
@@ -55,25 +55,20 @@ func TestServiceGraphs(t *testing.T) {
 	p.PushSpans(context.Background(), request)
 
 	requesterToServerLabels := labels.FromMap(map[string]string{
-		"client":          "mythical-requester",
-		"server":          "mythical-server",
-		"connection_type": "",
-		"beast":           "manticore",
-		"god":             "zeus",
+		"client": "mythical-requester",
+		"server": "mythical-server",
+		"beast":  "manticore",
+		"god":    "zeus",
 	})
 	serverToDatabaseLabels := labels.FromMap(map[string]string{
 		"client":          "mythical-server",
 		"server":          "postgres",
 		"connection_type": "database",
-		"beast":           "",
-		"god":             "",
 	})
 	requesterToRecorderLabels := labels.FromMap(map[string]string{
 		"client":          "mythical-requester",
 		"server":          "mythical-recorder",
 		"connection_type": "messaging_system",
-		"beast":           "",
-		"god":             "",
 	})
 
 	// counters
@@ -133,7 +128,7 @@ func TestServiceGraphs_prefixDimensions(t *testing.T) {
 	cfg.Dimensions = []string{"beast", "god"}
 	cfg.EnableClientServerPrefix = true
 
-	p := New(cfg, "test", testRegistry, log.NewNopLogger())
+	p := New(cfg, "test", testRegistry, log.NewNopLogger(), prometheus.NewCounter(prometheus.CounterOpts{}))
 	defer p.Shutdown(context.Background())
 
 	request, err := loadTestData("testdata/trace-with-queue-database.json")
@@ -142,13 +137,12 @@ func TestServiceGraphs_prefixDimensions(t *testing.T) {
 	p.PushSpans(context.Background(), request)
 
 	requesterToServerLabels := labels.FromMap(map[string]string{
-		"client":          "mythical-requester",
-		"server":          "mythical-server",
-		"connection_type": "",
-		"client_beast":    "manticore",
-		"server_beast":    "manticore",
-		"client_god":      "ares",
-		"server_god":      "zeus",
+		"client":       "mythical-requester",
+		"server":       "mythical-server",
+		"client_beast": "manticore",
+		"server_beast": "manticore",
+		"client_god":   "ares",
+		"server_god":   "zeus",
 	})
 
 	// counters
@@ -165,7 +159,7 @@ func TestServiceGraphs_MessagingSystemLatencyHistogram(t *testing.T) {
 	cfg.Dimensions = []string{"beast", "god"}
 	cfg.EnableMessagingSystemLatencyHistogram = true
 
-	p := New(cfg, "test", testRegistry, log.NewNopLogger())
+	p := New(cfg, "test", testRegistry, log.NewNopLogger(), prometheus.NewCounter(prometheus.CounterOpts{}))
 	defer p.Shutdown(context.Background())
 
 	request, err := loadTestData("testdata/trace-with-queue-database.json")
@@ -177,8 +171,6 @@ func TestServiceGraphs_MessagingSystemLatencyHistogram(t *testing.T) {
 		"client":          "mythical-requester",
 		"server":          "mythical-recorder",
 		"connection_type": "messaging_system",
-		"beast":           "",
-		"god":             "",
 	})
 
 	// counters
@@ -191,7 +183,7 @@ func TestServiceGraphs_failedRequests(t *testing.T) {
 	cfg := Config{}
 	cfg.RegisterFlagsAndApplyDefaults("", nil)
 
-	p := New(cfg, "test", testRegistry, log.NewNopLogger())
+	p := New(cfg, "test", testRegistry, log.NewNopLogger(), prometheus.NewCounter(prometheus.CounterOpts{}))
 	defer p.Shutdown(context.Background())
 
 	request, err := loadTestData("testdata/trace-with-failed-requests.json")
@@ -200,9 +192,8 @@ func TestServiceGraphs_failedRequests(t *testing.T) {
 	p.PushSpans(context.Background(), request)
 
 	requesterToServerLabels := labels.FromMap(map[string]string{
-		"client":          "mythical-requester",
-		"server":          "mythical-server",
-		"connection_type": "",
+		"client": "mythical-requester",
+		"server": "mythical-server",
 	})
 	serverToDatabaseLabels := labels.FromMap(map[string]string{
 		"client":          "mythical-server",
@@ -224,7 +215,7 @@ func TestServiceGraphs_tooManySpansErr(t *testing.T) {
 	cfg := Config{}
 	cfg.RegisterFlagsAndApplyDefaults("", nil)
 	cfg.MaxItems = 1
-	p := New(cfg, "test", &testRegistry, log.NewNopLogger())
+	p := New(cfg, "test", &testRegistry, log.NewNopLogger(), prometheus.NewCounter(prometheus.CounterOpts{}))
 	defer p.Shutdown(context.Background())
 
 	request, err := loadTestData("testdata/trace-with-queue-database.json")
@@ -244,7 +235,7 @@ func TestServiceGraphs_virtualNodes(t *testing.T) {
 	cfg.HistogramBuckets = []float64{0.04}
 	cfg.Wait = time.Nanosecond
 
-	p := New(cfg, "test", testRegistry, log.NewNopLogger())
+	p := New(cfg, "test", testRegistry, log.NewNopLogger(), prometheus.NewCounter(prometheus.CounterOpts{}))
 	defer p.Shutdown(context.Background())
 
 	request, err := loadTestData("testdata/trace-with-virtual-nodes.json")
@@ -292,7 +283,7 @@ func TestServiceGraphs_virtualNodesExtraLabelsForUninstrumentedServices(t *testi
 	cfg.EnableVirtualNodeLabel = true
 	cfg.Wait = time.Nanosecond
 
-	p := New(cfg, "test", testRegistry, log.NewNopLogger())
+	p := New(cfg, "test", testRegistry, log.NewNopLogger(), prometheus.NewCounter(prometheus.CounterOpts{}))
 	defer p.Shutdown(context.Background())
 
 	request, err := loadTestData("testdata/trace-with-virtual-nodes.json")
@@ -335,7 +326,7 @@ func TestServiceGraphs_expiredEdges(t *testing.T) {
 
 	const tenant = "expired-edge-test"
 
-	p := New(cfg, tenant, testRegistry, log.NewNopLogger())
+	p := New(cfg, tenant, testRegistry, log.NewNopLogger(), prometheus.NewCounter(prometheus.CounterOpts{}))
 	defer p.Shutdown(context.Background())
 
 	/*
@@ -483,7 +474,7 @@ func TestServiceGraphs_databaseVirtualNodes(t *testing.T) {
 			cfg.HistogramBuckets = []float64{0.04}
 			cfg.EnableMessagingSystemLatencyHistogram = true
 
-			p := New(cfg, "test", testRegistry, log.NewNopLogger())
+			p := New(cfg, "test", testRegistry, log.NewNopLogger(), prometheus.NewCounter(prometheus.CounterOpts{}))
 			defer p.Shutdown(context.Background())
 
 			request, err := loadTestData(tc.fixturePath)
@@ -520,7 +511,7 @@ func TestServiceGraphs_prefixDimensionsAndEnableExtraLabels(t *testing.T) {
 	cfg.EnableClientServerPrefix = true
 	cfg.EnableVirtualNodeLabel = true
 
-	p := New(cfg, "test", testRegistry, log.NewNopLogger())
+	p := New(cfg, "test", testRegistry, log.NewNopLogger(), prometheus.NewCounter(prometheus.CounterOpts{}))
 	defer p.Shutdown(context.Background())
 
 	request, err := loadTestData("testdata/trace-with-queue-database.json")
@@ -530,24 +521,17 @@ func TestServiceGraphs_prefixDimensionsAndEnableExtraLabels(t *testing.T) {
 
 	messagingSystemLabels := labels.FromMap(map[string]string{
 		"client":                  "mythical-requester",
-		"client_db_system":        "",
 		"client_messaging_system": "rabbitmq",
 		"connection_type":         "messaging_system",
-		"server_db_system":        "",
 		"server_messaging_system": "rabbitmq",
 		"server":                  "mythical-recorder",
-		virtualNodeLabel:          "",
 	})
 
 	dbSystemSystemLabels := labels.FromMap(map[string]string{
-		"client":                  "mythical-server",
-		"client_db_system":        "postgresql",
-		"client_messaging_system": "",
-		"connection_type":         "database",
-		"server_db_system":        "",
-		"server_messaging_system": "",
-		"server":                  "postgres",
-		virtualNodeLabel:          "",
+		"client":           "mythical-server",
+		"client_db_system": "postgresql",
+		"connection_type":  "database",
+		"server":           "postgres",
 	})
 
 	// counters
@@ -556,6 +540,35 @@ func TestServiceGraphs_prefixDimensionsAndEnableExtraLabels(t *testing.T) {
 
 	assert.Equal(t, 1.0, testRegistry.Query(`traces_service_graph_request_total`, dbSystemSystemLabels))
 	assert.Equal(t, 0.0, testRegistry.Query(`traces_service_graph_request_failed_total`, dbSystemSystemLabels))
+}
+
+func TestServiceGraphs_DatabaseNameAttributes(t *testing.T) {
+	testRegistry := registry.NewTestRegistry()
+
+	cfg := Config{}
+	cfg.RegisterFlagsAndApplyDefaults("", nil)
+
+	cfg.HistogramBuckets = []float64{0.04}
+	cfg.Dimensions = []string{"beast", "god"}
+	cfg.DatabaseNameAttributes = []string{"db.system"}
+
+	p := New(cfg, "test", testRegistry, log.NewNopLogger(), prometheus.NewCounter(prometheus.CounterOpts{}))
+	defer p.Shutdown(context.Background())
+
+	request, err := loadTestData("testdata/trace-with-queue-database.json")
+	require.NoError(t, err)
+
+	p.PushSpans(context.Background(), request)
+
+	// The server label should be set to the value of db.system
+	labels := labels.FromMap(map[string]string{
+		"client":          "mythical-server",
+		"server":          "postgresql",
+		"connection_type": "database",
+		"beast":           "",
+		"god":             "",
+	})
+	assert.Equal(t, 1.0, testRegistry.Query(`traces_service_graph_request_total`, labels))
 }
 
 func BenchmarkServiceGraphs(b *testing.B) {
@@ -567,7 +580,7 @@ func BenchmarkServiceGraphs(b *testing.B) {
 	cfg.HistogramBuckets = []float64{0.04}
 	cfg.Dimensions = []string{"beast", "god"}
 
-	p := New(cfg, "test", testRegistry, log.NewNopLogger())
+	p := New(cfg, "test", testRegistry, log.NewNopLogger(), prometheus.NewCounter(prometheus.CounterOpts{}))
 	defer p.Shutdown(context.Background())
 
 	request, err := loadTestData("testdata/trace-with-queue-database.json")

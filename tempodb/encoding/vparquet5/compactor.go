@@ -74,13 +74,13 @@ func (c *Compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader,
 			return nil, fmt.Errorf("error creating iterator for block %s: %w", blockMeta.BlockID.String(), err)
 		}
 
-		bookmarks = append(bookmarks, newBookmark[parquet.Row](iter))
+		bookmarks = append(bookmarks, newBookmark(iter))
 	}
 
 	var (
 		replicationFactor   = inputs[0].ReplicationFactor
 		nextCompactionLevel = compactionLevel + 1
-		sch                 = parquet.SchemaOf(new(Trace))
+		sch, _, _           = SchemaWithDynamicChanges(inputs[0].DedicatedColumns)
 	)
 
 	// Dedupe rows and also call the metrics callback.
@@ -283,7 +283,6 @@ func (c *Compactor) finishBlock(ctx context.Context, block *streamingBlock, l lo
 		"totalObjects", block.meta.TotalObjects,
 		"size", block.meta.Size_,
 		"compactionLevel", block.meta.CompactionLevel,
-		"encoding", block.meta.Encoding.String(),
 		"totalRecords", block.meta.TotalObjects,
 		"bloomShardCount", block.meta.BloomShardCount,
 		"footerSize", block.meta.FooterSize,
@@ -401,7 +400,7 @@ func countSpans(schema *parquet.Schema, row parquet.Row) (traceID, rootSpanName,
 		return "", "", "", 0
 	}
 
-	spanID, found := schema.Lookup("rs", "list", "element", "ss", "list", "element", "Spans", "list", "element", "SpanID")
+	spanID, found := schema.Lookup("rs", "ss", "Spans", "SpanID")
 	if !found {
 		return "", "", "", 0
 	}

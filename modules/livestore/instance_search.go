@@ -20,7 +20,6 @@ import (
 	"go.uber.org/atomic"
 
 	"github.com/go-kit/log/level"
-	"github.com/grafana/dskit/user"
 	"github.com/grafana/tempo/modules/ingester"
 	"github.com/grafana/tempo/pkg/api"
 	"github.com/grafana/tempo/pkg/boundedwaitgroup"
@@ -30,6 +29,7 @@ import (
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/traceql"
 	"github.com/grafana/tempo/pkg/util"
+	"github.com/grafana/tempo/pkg/validation"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 )
@@ -288,7 +288,7 @@ func (i *instance) SearchTagsV2(ctx context.Context, req *tempopb.SearchTagsRequ
 	ctx, span := tracer.Start(ctx, "instance.SearchTagsV2")
 	defer span.End()
 
-	userID, err := user.ExtractOrgID(ctx)
+	userID, err := validation.ExtractValidTenantID(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -374,7 +374,7 @@ func (i *instance) SearchTagsV2(ctx context.Context, req *tempopb.SearchTagsRequ
 }
 
 func (i *instance) SearchTagValues(ctx context.Context, req *tempopb.SearchTagValuesRequest) (*tempopb.SearchTagValuesResponse, error) {
-	userID, err := user.ExtractOrgID(ctx)
+	userID, err := validation.ExtractValidTenantID(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -431,7 +431,7 @@ func (i *instance) SearchTagValues(ctx context.Context, req *tempopb.SearchTagVa
 }
 
 func (i *instance) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTagValuesRequest) (*tempopb.SearchTagValuesV2Response, error) {
-	userID, err := user.ExtractOrgID(ctx)
+	userID, err := validation.ExtractValidTenantID(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -775,7 +775,7 @@ func (i *instance) queryRangeCompleteBlock(ctx context.Context, b *ingester.Loca
 	// Trim and align the request for this block. I.e. if the request is "Last Hour" we don't want to
 	// cache the response for that, we want only the few minutes time range for this block. This has
 	// size savings but the main thing is that the response is reuseable for any overlapping query.
-	req.Start, req.End, req.Step = traceql.TrimToBlockOverlap(req.Start, req.End, req.Step, m.StartTime, m.EndTime)
+	req.Start, req.End, req.Step = traceql.TrimToBlockOverlap(&req, m.StartTime, m.EndTime)
 
 	if req.Start >= req.End {
 		// After alignment there is no overlap or something else isn't right

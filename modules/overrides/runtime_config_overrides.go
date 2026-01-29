@@ -15,7 +15,7 @@ import (
 	"github.com/grafana/dskit/runtimeconfig"
 	"github.com/grafana/dskit/services"
 	"github.com/prometheus/client_golang/prometheus"
-	"gopkg.in/yaml.v2"
+	"go.yaml.in/yaml/v2"
 
 	"github.com/grafana/tempo/modules/overrides/histograms"
 	"github.com/grafana/tempo/pkg/sharedconfig"
@@ -26,7 +26,7 @@ import (
 )
 
 type Validator interface {
-	Validate(config *Overrides) error
+	Validate(config *Overrides) (warnings []error, err error)
 }
 
 // perTenantOverrides represents the overrides config file
@@ -104,9 +104,12 @@ func loadPerTenantOverrides(validator Validator, typ ConfigType, expandEnv bool)
 
 		if validator != nil {
 			for tenant, tenantOverrides := range overrides.TenantLimits {
-				err := validator.Validate(tenantOverrides)
+				warnings, err := validator.Validate(tenantOverrides)
 				if err != nil {
 					return nil, fmt.Errorf("validating overrides for %s failed: %w", tenant, err)
+				}
+				for _, warning := range warnings {
+					level.Warn(log.Logger).Log("msg", "Overrides validation warning", "tenant", tenant, "warning", warning)
 				}
 			}
 		}
@@ -343,6 +346,10 @@ func (o *runtimeConfigOverridesManager) IngestionArtificialDelay(userID string) 
 	return 0, false
 }
 
+func (o *runtimeConfigOverridesManager) IngestionRetryInfoEnabled(userID string) bool {
+	return o.getOverridesForUser(userID).Ingestion.RetryInfoEnabled
+}
+
 // MaxBytesPerTrace returns the maximum size of a single trace in bytes allowed for a user.
 func (o *runtimeConfigOverridesManager) MaxBytesPerTrace(userID string) int {
 	return o.getOverridesForUser(userID).Global.MaxBytesPerTrace
@@ -408,8 +415,16 @@ func (o *runtimeConfigOverridesManager) MetricsGeneratorProcessors(userID string
 
 // MetricsGeneratorMaxActiveSeries is the maximum amount of active series in the metrics-generator
 // registry for this tenant. Note this is a local limit enforced in every instance separately.
+// Requires the generator's limiter type to be set to "series".
 func (o *runtimeConfigOverridesManager) MetricsGeneratorMaxActiveSeries(userID string) uint32 {
 	return o.getOverridesForUser(userID).MetricsGenerator.MaxActiveSeries
+}
+
+// MetricsGeneratorMaxEntities is the maximum amount of entities in the metrics-generator registry
+// for this tenant. Note this is a local limit enforced in every instance separately.
+// Requires the generator's limiter type to be set to "entity".
+func (o *runtimeConfigOverridesManager) MetricsGeneratorMaxActiveEntities(userID string) uint32 {
+	return o.getOverridesForUser(userID).MetricsGenerator.MaxActiveEntities
 }
 
 // MetricsGeneratorCollectionInterval is the collection interval of the metrics-generator registry
@@ -448,9 +463,9 @@ func (o *runtimeConfigOverridesManager) MetricsGeneratorNativeHistogramMinResetD
 	return o.defaultLimits.MetricsGenerator.NativeHistogramMinResetDuration
 }
 
-// MetricsGenerationTraceIDLabelName is the label name used for the trace ID in metrics.
+// MetricsGeneratorTraceIDLabelName is the label name used for the trace ID in metrics.
 // "TraceID" is used if no value is provided.
-func (o *runtimeConfigOverridesManager) MetricsGenerationTraceIDLabelName(userID string) string {
+func (o *runtimeConfigOverridesManager) MetricsGeneratorTraceIDLabelName(userID string) string {
 	return o.getOverridesForUser(userID).MetricsGenerator.TraceIDLabelName
 }
 
@@ -588,6 +603,14 @@ func (o *runtimeConfigOverridesManager) MetricsGeneratorProcessorHostInfoHostIde
 
 func (o *runtimeConfigOverridesManager) MetricsGeneratorProcessorHostInfoMetricName(userID string) string {
 	return o.getOverridesForUser(userID).MetricsGenerator.Processor.HostInfo.MetricName
+}
+
+func (o *runtimeConfigOverridesManager) MetricsGeneratorProcessorServiceGraphsSpanMultiplierKey(userID string) string {
+	return o.getOverridesForUser(userID).MetricsGenerator.Processor.ServiceGraphs.SpanMultiplierKey
+}
+
+func (o *runtimeConfigOverridesManager) MetricsGeneratorProcessorSpanMetricsSpanMultiplierKey(userID string) string {
+	return o.getOverridesForUser(userID).MetricsGenerator.Processor.SpanMetrics.SpanMultiplierKey
 }
 
 // BlockRetention is the duration of the block retention for this tenant.

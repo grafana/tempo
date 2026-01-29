@@ -244,8 +244,7 @@ var queryRangeTestCases = []struct {
 				},
 			},
 		},
-		expectedL2: nil,
-		expectedL3: []*tempopb.TimeSeries{
+		expectedL2: []*tempopb.TimeSeries{
 			{
 				Labels: []common_v1.KeyValue{tempopb.MakeKeyValueString("__name__", "avg_over_time")},
 				Samples: []tempopb.Sample{
@@ -253,6 +252,29 @@ var queryRangeTestCases = []struct {
 					{TimestampMs: 30_000, Value: 345 / 15.0}, // sum from 16 to 30 is 345
 					{TimestampMs: 45_000, Value: 570 / 15.0}, // sum from 31 to 45 is 570
 					{TimestampMs: 60_000, Value: 240 / 5.0},  // sum from 46 to 50 is 240
+				},
+			},
+			{
+				Labels: []common_v1.KeyValue{
+					tempopb.MakeKeyValueString("__name__", "avg_over_time"),
+					tempopb.MakeKeyValueString("__meta_type", "__count"),
+				},
+				Samples: []tempopb.Sample{
+					{TimestampMs: 15_000, Value: 2 * 15},
+					{TimestampMs: 30_000, Value: 2 * 15},
+					{TimestampMs: 45_000, Value: 2 * 15},
+					{TimestampMs: 60_000, Value: 2 * 5},
+				},
+			},
+		},
+		expectedL3: []*tempopb.TimeSeries{
+			{
+				Labels: []common_v1.KeyValue{tempopb.MakeKeyValueString("__name__", "avg_over_time")},
+				Samples: []tempopb.Sample{
+					{TimestampMs: 15_000, Value: 120 / 15.0},
+					{TimestampMs: 30_000, Value: 345 / 15.0},
+					{TimestampMs: 45_000, Value: 570 / 15.0},
+					{TimestampMs: 60_000, Value: 240 / 5.0},
 				},
 			},
 		},
@@ -814,13 +836,11 @@ func TestTempoDBQueryRange(t *testing.T) {
 			Path: path.Join(tempDir, "traces"),
 		},
 		Block: &common.BlockConfig{
-			IndexDownsampleBytes: 17,
-			BloomFP:              .01,
-			BloomShardSizeBytes:  100_000,
-			Version:              blockVersion,
-			IndexPageSizeBytes:   1000,
-			RowGroupSizeBytes:    10000,
-			DedicatedColumns:     dc,
+			BloomFP:             .01,
+			BloomShardSizeBytes: 100_000,
+			Version:             blockVersion,
+			RowGroupSizeBytes:   10000,
+			DedicatedColumns:    dc,
 		},
 		WAL: &wal.Config{
 			Filepath:       path.Join(tempDir, "wal"),
@@ -835,7 +855,6 @@ func TestTempoDBQueryRange(t *testing.T) {
 	require.NoError(t, err)
 
 	err = c.EnableCompaction(context.Background(), &CompactorConfig{
-		ChunkSizeBytes:          10,
 		MaxCompactionRange:      time.Hour,
 		BlockRetention:          0,
 		CompactedBlockRetention: 0,

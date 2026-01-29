@@ -16,46 +16,54 @@ Instructions for configuring Tempo data sources are available in the [Grafana Cl
 The Tempo configuration options include:
 
 - [Configure Tempo](#configure-tempo)
-    - [Use environment variables in the configuration](#use-environment-variables-in-the-configuration)
-    - [Server](#server)
-    - [Distributor](#distributor)
-        - [Set max attribute size to help control out of memory errors](#set-max-attribute-size-to-help-control-out-of-memory-errors)
-        - [gRPC compression](#grpc-compression)
-    - [Ingester](#ingester)
-        - [Ingester configuration block](#ingester-configuration-block)
-    - [Metrics-generator](#metrics-generator)
-    - [Query-frontend](#query-frontend)
-        - [Limit query size to improve performance and stability](#limit-query-size-to-improve-performance-and-stability)
-            - [Limit the spans per spanset](#limit-the-spans-per-spanset)
-            - [Cap the maximum query length](#cap-the-maximum-query-length)
-    - [Querier](#querier)
-    - [Compactor](#compactor)
-    - [Storage](#storage)
-        - [Local storage recommendations](#local-storage-recommendations)
-        - [Storage block configuration example](#storage-block-configuration-example)
-    - [Memberlist](#memberlist)
-    - [Configuration blocks](#configuration-blocks)
-        - [Block config](#block-config)
-        - [Filter policy config](#filter-policy-config)
-            - [Filter policy](#filter-policy)
-            - [Policy match](#policy-match)
-            - [Examples](#examples)
-        - [KVStore config](#kvstore-config)
-        - [Search config](#search-config)
-        - [WAL config](#wal-config)
-    - [Overrides](#overrides)
-        - [Ingestion limits](#ingestion-limits)
-            - [Standard overrides](#standard-overrides)
-            - [Tenant-specific overrides](#tenant-specific-overrides)
-                - [Runtime overrides](#runtime-overrides)
-                - [User-configurable overrides](#user-configurable-overrides)
-            - [Override strategies](#override-strategies)
-    - [Usage-report](#usage-report)
-        - [Configure usage-reporting](#configure-usage-reporting)
-    - [Cache](#cache)
-    - [Configure authentication](#configure-authentication)
+  - [Use environment variables in the configuration](#use-environment-variables-in-the-configuration)
+  - [Server](#server)
+  - [Distributor](#distributor)
+    - [Set max attribute size to help control out of memory errors](#set-max-attribute-size-to-help-control-out-of-memory-errors)
+    - [gRPC compression](#grpc-compression)
+  - [Ingester](#ingester)
+    - [Ingester configuration block](#ingester-configuration-block)
+  - [Metrics-generator](#metrics-generator)
+  - [Query-frontend](#query-frontend)
+    - [Limit query size to improve performance and stability](#limit-query-size-to-improve-performance-and-stability)
+      - [Limit the spans per spanset](#limit-the-spans-per-spanset)
+      - [Cap the maximum query length](#cap-the-maximum-query-length)
+  - [Querier](#querier)
+  - [Compactor](#compactor)
+  - [Backend scheduler](#backend-scheduler)
+  - [Backend worker](#backend-worker)
+  - [Storage](#storage)
+    - [Local storage recommendations](#local-storage-recommendations)
+    - [Storage block configuration example](#storage-block-configuration-example)
+  - [Memberlist](#memberlist)
+  - [Configuration blocks](#configuration-blocks)
+    - [Block](#block)
+    - [Compaction](#compaction)
+    - [Filter policies](#filter-policies)
+      - [Filter policy](#filter-policy)
+      - [Policy match](#policy-match)
+      - [Examples](#examples)
+    - [GRPC client](#grpc-client)
+    - [KVStore](#kvstore)
+    - [Search](#search)
+    - [WAL](#wal)
+  - [Overrides](#overrides)
+    - [Ingestion limits](#ingestion-limits)
+      - [Standard overrides](#standard-overrides)
+      - [Tenant-specific overrides](#tenant-specific-overrides)
+        - [Runtime overrides](#runtime-overrides)
+        - [User-configurable overrides](#user-configurable-overrides)
+      - [Override strategies](#override-strategies)
+  - [Usage-report](#usage-report)
+    - [Configure usage-reporting](#configure-usage-reporting)
+  - [Cache](#cache)
+  - [Configure authentication](#configure-authentication)
 
 Additionally, you can review [TLS](network/tls/) to configure the cluster components to communicate over TLS, or receive traces over TLS.
+
+{{< admonition type="tip" >}}
+Throughout the configuration, the `duration` values support the following units: `ns`, `us` (or `µs`), `ms`, `s`, `m`, `h`. See the [Go time package](https://pkg.go.dev/time#ParseDuration) for more information.
+{{< /admonition >}}
 
 ## Use environment variables in the configuration
 
@@ -297,14 +305,14 @@ To re-enable the compression, use `snappy` with the following settings:
 ```yaml
 ingester_client:
   grpc_client_config:
-    grpc_compression: 'snappy'
+    grpc_compression: "snappy"
 metrics_generator_client:
   grpc_client_config:
-    grpc_compression: 'snappy'
+    grpc_compression: "snappy"
 querier:
   frontend_worker:
     grpc_client_config:
-      grpc_compression: 'snappy'
+      grpc_compression: "snappy"
 ```
 
 ## Ingester
@@ -462,6 +470,9 @@ metrics_generator:
             # Enables additional labels for services and virtual nodes.
             [enable_virtual_node_label: <bool> | default = false]
 
+            # List of attribute names used to identify the database name from span attributes. If it isn't set, the order is peer.service -> server.address -> network.peer.address -> db.name
+            [database_name_attributes: <list of string> | default = ["db.namespace","db.name","db.system"]]
+
         span_metrics:
 
             # Buckets for the latency histogram in seconds.
@@ -487,14 +498,18 @@ metrics_generator:
             # the metrics if present.
             [dimensions: <list of string>]
 
-            # Custom labeling mapping
+            # Custom labeling mapping to rename attributes or combine multiple attributes into a single label.
+            # Use dimension_mappings to rename a single attribute to a custom label name or combine multiple attributes into a composite label.
             dimension_mappings: <list of label mappings>
-                # The new label name
+                # The new label name (will be sanitized for Prometheus compatibility)
               - [name: <string>]
-                # The actual attributes that will make the value of the new label
+                # List of attribute names to map. Can be a single attribute (for renaming) or multiple attributes (for combining)
                 [source_labels: <list of strings>]
-                # The separator used to join multiple `source_labels`
-                [join: <string>]
+                # Separator used to join attribute values together when multiple source_labels are provided.
+                # For example, with source_labels: ["service.name", "service.namespace"] and join: "/",
+                # if service.name="abc" and service.namespace="def", the result is "abc/def".
+                # Ignored if only one source_label is provided.
+                [join: <string> | default = ""]
 
             # Enable traces_target_info metrics
             [enable_target_info: <bool> | default = false]
@@ -581,6 +596,12 @@ metrics_generator:
 
         # The maximum length of label values. Label values exceeding this limit will be truncated.
         [max_label_value_length: <int> | default = 2048]
+
+    # Type of limiter to use for controlling metrics-generator memory usage.
+    # Options: "series" (default) or "entity".
+    # - "series": Limits the total number of active metric series. Use with max_active_series override.
+    # - "entity": Limits the number of unique label combinations (entities). Use with max_active_entities override.
+    [limiter_type: <string> | default = "series"]
 
     # Configuration block for the Write Ahead Log (WAL)
     traces_storage: <WAL config>
@@ -731,6 +752,10 @@ query_frontend:
         # The number of shards to break ingester queries into.
         [ingester_shards: <int> | default = 3]
 
+        # The default number of spans to return per span set when not specified in the request.
+        # Set to 0 to return unlimited spans by default.
+        [default_spans_per_span_set: <int> | default = 3]
+
         # The maximum allowed value of spans per span set. 0 disables this limit.
         [max_spans_per_span_set: <int> | default = 100]
 
@@ -755,6 +780,11 @@ query_frontend:
         # The maximum number of shards to execute at once. If set to 0 query_shards is used.
         # (default: 0)
         [concurrent_shards: <int>]
+
+        # Enable external trace source for trace-by-ID queries. When enabled,
+        # the frontend will create an additional shard to query the external endpoint
+        # configured in the querier.
+        [external_enabled: <bool> | default = false]
 
         # If set to a non-zero value, it's value will be used to decide if metadata query is within SLO or not.
         # Query is within SLO if it returned 200 within duration_slo seconds OR processed throughput_slo bytes/s data.
@@ -801,6 +831,10 @@ query_frontend:
         # Query is within SLO if it returned 200 within duration_slo seconds OR processed throughput_slo bytes/s data.
         [throughput_bytes_slo: <float> | default = 0 ]
 
+        # The number of shards to use when streaming metrics queries back to the user. A shard must be fully completed before
+        # the results are returned to the user. More shards results in a more granular effect at the cost of additional bookkeeping.
+        [streaming_shards: <int> | default = 200]
+
 ```
 
 ### Limit query size to improve performance and stability
@@ -811,15 +845,17 @@ In a similar manner, excessive queries result size can also negatively impact qu
 
 #### Limit the spans per spanset
 
-You can set the maximum spans per spanset by setting `max_spans_per_span_set` for the query-frontend.
-The default value is 100.
+You can control spans per spanset behavior using two configuration options:
+
+- `default_spans_per_span_set`: Sets the default number of spans returned when not specified in the query (default: 3). Set to `0` to return unlimited spans by default.
+- `max_spans_per_span_set`: Sets the maximum allowed value (default: 100). Set to `0` to disable the limit entirely.
 
 In Grafana or Grafana Cloud, you can use the **Span Limit** field in the [TraceQL query editor](https://grafana.com/docs/grafana-cloud/connect-externally-hosted/data-sources/tempo/query-editor/) in Grafana Explore.
-This field sets the maximum number of spans to return for each span set.
-The maximum value that you can set for the **Span Limit** value (or the spss query) is controlled by `max_spans_per_span_set`.
+This field sets the number of spans to return for each span set (the `spss` query parameter).
+If not specified, the value from `default_spans_per_span_set` is used.
+The maximum value that you can set for **Span Limit** (or the `spss` query parameter) is controlled by `max_spans_per_span_set`.
 To disable the maximum spans per span set limit, set `max_spans_per_span_set` to `0`.
-When set to `0`, there is no maximum and users can put any value in **Span Limit**.
-However, this can only be set by a Tempo administrator, not by the user.
+When set to `0`, there is no maximum and users can request any number of spans, including unlimited spans by setting `spss=0`.
 
 #### Cap the maximum query length
 
@@ -869,6 +905,20 @@ querier:
         # Timeout for trace lookup requests
         [query_timeout: <duration> | default = 10s]
 
+        # External trace source configuration. When enabled, trace-by-ID queries
+        # will also fetch trace data from an external HTTP endpoint that returns
+        # an opentelemetry protobuf formatted trace.
+        external:
+            # Enable querying an external endpoint for trace data.
+            [enabled: <bool> | default = false]
+
+            # The URL of the external service.
+            # Example: "http://external-service:3200"
+            [endpoint: <string>]
+
+            # Timeout for requests to the external endpoint.
+            [timeout: <duration> | default = 10s]
+
     search:
         # Timeout for search requests
         [query_timeout: <duration> | default = 30s]
@@ -902,42 +952,134 @@ compactor:
             [store: <string> | default = memberlist]
             [prefix: <string> | default = "collectors/" ]
 
+    # Refer to the Compaction block section for details
+    compaction: <Compaction config>
+```
+
+## Backend scheduler
+
+The backend scheduler is responsible for scheduling and tracking jobs which are assigned to backend workers for processing.
+Only one scheduler should be running at a time.
+
+```yaml
+backend_scheduler:
+
+  # Work cache configuration
+  work:
+
+    # How long to keep completed or failed jobs in the work cache before pruning them.
+    [prune_age: <duration> | default = 1h]
+
+    # After this duration, jobs that have not been updated are considered dead and will be reassigned.
+    [dead_job_timeout: <duration> | default = 24h]
+
+  # How often to perform maintenance tasks (pruning old jobs, checking for dead jobs, etc.)
+  [maintenance_interval: <duration> | default = 1m]
+
+  # How often to flush the work cache to backend storage
+  [backend_flush_interval: <duration> | default = 1m]
+
+  # Provider configuration for job generation
+  provider:
+
+    # Retention job configuration
+    retention:
+
+      # How often to check for blocks that need to be deleted due to retention
+      [interval: <duration> | default = 1h]
+
+    # Compaction job configuration
     compaction:
 
-        # Optional. Duration to keep blocks. Default is 14 days (336h).
-        [block_retention: <duration>]
+      # How often to measure tenant block lists and create new compaction jobs
+      [measure_interval: <duration> | default = 1m]
 
-        # Optional. Duration to keep blocks that have been compacted elsewhere. Default is 1h.
-        [compacted_block_retention: <duration>]
+      # Compaction settings
+      # Refer to the Compaction block section for details
+      compaction: <Compaction config>
 
-        # Optional. Blocks in this time window will be compacted together. Default is 1h.
-        [compaction_window: <duration>]
+      # Maximum number of compaction jobs to create per tenant
+      [max_jobs_per_tenant: <int> | default = 1000]
 
-        # Optional. Maximum number of traces in a compacted block. Default is 6 million.
-        # WARNING: Deprecated. Use max_block_bytes instead.
-        [max_compaction_objects: <int>]
+      # Minimum number of blocks required for compaction
+      [min_input_blocks: <int> | default = 2]
 
-        # Optional. Maximum size of a compacted block in bytes. Default is 100 GB.
-        [max_block_bytes: <int>]
+      # Maximum number of blocks to compact together
+      [max_input_blocks: <int> | default = 4]
 
-        # Optional. Number of tenants to process in parallel during retention. Default is 10.
-        [retention_concurrency: <int>]
+      # Maximum compaction level (0 means no limit)
+      [max_compaction_level: <int> | default = 0]
 
-        # Optional. The maximum amount of time to spend compacting a single tenant before moving to the next. Default is 5m.
-        [max_time_per_tenant: <duration>]
+      # Minimum time between compaction cycles for a tenant
+      [min_cycle_interval: <duration> | default = 30s]
 
-        # Optional. The time between compaction cycles. Default is 30s.
-        # Note: The default will be used if the value is set to 0.
-        [compaction_cycle: <duration>]
+  # How long to wait for a worker to complete a job before timing out internally
+  [job_timeout: <duration> | default = 15s]
 
-        # Optional. Amount of data to buffer from input blocks. Default is 5 MiB.
-        [v2_in_buffer_bytes: <int>]
+  # Path to store local work cache files
+  [local_work_path: <string> | default = "/var/tempo"]
+```
 
-        # Optional. Flush data to backend when buffer is this large. Default is 20 MB.
-        [v2_out_buffer_bytes: <int>]
+## Backend worker
 
-        # Optional. Number of traces to buffer in memory during compaction. Increasing may improve performance but will also increase memory usage. Default is 1000.
-        [v2_prefetch_traces_count: <int>]
+The backend worker connects to the backend scheduler to receive and process jobs.
+Workers are responsible for executing compaction and retention and other jobs, and updating the scheduler on job status.
+
+```yaml
+# gRPC client configuration for connecting to the backend scheduler
+backend_scheduler_client:
+  grpc_client_config: <GRPC client config>
+backend_worker:
+
+  # Address of the backend scheduler to connect to
+  [backend_scheduler_addr: <string>]
+
+  # Backoff configuration for retrying failed jobs
+  backoff:
+    [min_period: <duration> | default = 100ms]
+    [max_period: <duration> | default = 1m]
+    [max_retries: <int> | default = 0]
+
+  # Compaction settings
+  # Refer to the Compaction block section for details
+  compaction: <Compaction config>
+
+  # Override the default ring key used by the backend worker
+  [override_ring_key: <string> | default = "backend-worker"]
+
+  # Ring configuration for coordinating tenant polling across workers
+  ring:
+    kvstore: <KVStore config>
+
+    # Period at which to heartbeat the instance
+    # 0 disables heartbeat altogether
+    [heartbeat_period: <duration> | default = 5s]
+
+    # The heartbeat timeout, after which, the instance is skipped.
+    # 0 disables timeout.
+    [heartbeat_timeout: <duration> | default = 1m]
+
+    # Our Instance ID to register as in the ring.
+    [instance_id: <string> | default = os.Hostname()]
+
+    # Name of the network interface to read address from.
+    [instance_interface_names: <list of string> | default = ["eth0", "en0"] ]
+
+    # Our advertised IP address in the ring, (usefull if the local ip =/= the external ip)
+    # Will default to the configured `instance_id` ip address,
+    # if unset, will fallback to ip reported by `instance_interface_names`
+    # (Effected by `enable_inet6`)
+    [instance_addr: <string> | default = auto(instance_id, instance_interface_names)]
+
+    # Our advertised port in the ring
+    # Defaults to the configured GRPC listing port
+    [instance_port: <int> | default = auto(listen_port)]
+
+    # Enables the registering of ipv6 addresses in the ring.
+    [enable_inet6: <bool> | default = false]
+
+  # Timeout for finishing the current job before shutting down the worker
+  [finish_on_shutdown_timeout: <duration> | default = 30s]
 ```
 
 ## Storage
@@ -1151,7 +1293,7 @@ storage:
             [sse: <map[string]string>]:
               # Optional
               # Example: type: SSE-S3
-              # Type of encryption to use with s3 bucket, either SSE-KMS or SSE-S3
+              # Type of encryption to use with s3 bucket, either SSE-KMS, SSE-S3, or SSE-C
               [type: string]:
 
               # Optional
@@ -1162,6 +1304,12 @@ storage:
               # Example: kms_encryption_context: "encryptionContext": {"department": "10103.0"}
               # KMS Encryption Context used for object encryption. It expects JSON formatted string
               kms_encryption_context:
+
+              # Optional
+              # Example: encryption_key: <32-byte-long-key>
+              # SSE-C Encryption Key used for object encryption with customer provided keys.
+              # It expects a 32 byte long string.
+              encryption_key:
 
         # azure configuration. Will be used only if value of backend is "azure"
         # EXPERIMENTAL
@@ -1316,8 +1464,6 @@ storage:
         # configuration block for the Write Ahead Log (WAL)
         wal: <WAL config>
           [path: <string> | default = "/var/tempo/wal"]
-          [v2_encoding: <string> | default = snappy]
-          [search_encoding: <string> | default = none]
           [ingestion_time_range_slack: <duration> | default = 2m]
 
         # block configuration
@@ -1414,10 +1560,11 @@ memberlist:
 
 Defines re-used configuration blocks.
 
-### Block config
+### Block
 
 ```yaml
-# block format version. options: v2, vParquet3, vParquet4
+# block format version. options: vParquet4
+# deprecated options: v2, vParquet3
 [version: <string> | default = vParquet4]
 
 # bloom filter false positive rate. lower values create larger filters but fewer false positives
@@ -1425,15 +1572,6 @@ Defines re-used configuration blocks.
 
 # maximum size of each bloom filter shard
 [bloom_filter_shard_size_bytes: <int> | default = 100KiB]
-
-# number of bytes per index record
-[v2_index_downsample_bytes: <uint64> | default = 1MiB]
-
-# block encoding/compression. options: none, gzip, lz4-64k, lz4-256k, lz4-1M, lz4, snappy, zstd, s2
-[v2_encoding: <string> | default = zstd]
-
-# search data encoding/compression. same options as block encoding.
-[search_encoding: <string> | default = snappy]
 
 # number of bytes per search page
 [search_page_size_bytes: <int> | default = 1MiB]
@@ -1446,7 +1584,7 @@ Defines re-used configuration blocks.
 # Configures attributes to be stored in dedicated columns within the parquet file, rather than in the
 # generic attribute key-value list. This allows for more efficient searching of these attributes.
 # Up to 10 span attributes and 10 resource attributes can be configured as dedicated columns.
-# Requires vParquet3
+# Requires at least vParquet3
 parquet_dedicated_columns: <list of columns>
 
       # name of the attribute
@@ -1460,9 +1598,48 @@ parquet_dedicated_columns: <list of columns>
       [scope: <string>]
 ```
 
-### Filter policy config
+### Compaction
 
-Span filter config block
+The `compaction` configuration block is used by the compactor, scheduler, and worker.
+
+```yaml
+# Optional. Duration to keep blocks.
+[block_retention: <duration> | default=336h]
+
+# Optional
+# Duration to keep blocks that have been compacted elsewhere.
+[compacted_block_retention: <duration> | default=1h]
+
+# Optional
+# Blocks in this time window will be compacted together.
+[compaction_window: <duration> | default=1h]
+
+# Optional
+# Maximum number of traces in a compacted block.
+# WARNING: Deprecated. Use max_block_bytes instead.
+[max_compaction_objects: <int> | default=6000000]
+
+# Optional
+# Maximum size of a compacted block in bytes.
+[max_block_bytes: <int> | default=107374182400]
+
+# Optional
+# Number of tenants to process in parallel during retention.
+[retention_concurrency: <int> | default=10]
+
+# Optional
+# The maximum amount of time to spend compacting a single tenant before moving to the next.
+[max_time_per_tenant: <duration> | default=5m]
+
+# Optional
+# The time between compaction cycles.
+# Note: The default will be used if the value is set to 0.
+[compaction_cycle: <duration> | default=30s]
+```
+
+### Filter policies
+
+Span filter configuration policies block
 
 #### Filter policy
 
@@ -1495,23 +1672,53 @@ attributes: <list of policy atributes>
 
 ```yaml
 exclude:
-  match_type: 'regex'
+  match_type: "regex"
   attributes:
-    - key: 'resource.service.name'
-      value: 'unknown_service:myservice'
+    - key: "resource.service.name"
+      value: "unknown_service:myservice"
 ```
 
 ```yaml
 include:
-  match_type: 'strict'
+  match_type: "strict"
   attributes:
-    - key: 'foo.bar'
-      value: 'baz'
+    - key: "foo.bar"
+      value: "baz"
 ```
 
-### KVStore config
+### GRPC client
 
-The kvstore configuration block
+These settings are used to configure various gRPC clients used throughout Tempo.
+
+```
+[max_recv_msg_size: <int> | default = 104857600]
+[max_send_msg_size: <int> | default = 104857600]
+[grpc_compression: <string> | default = "snappy"]
+[rate_limit: <float> | default = 0]
+[rate_limit_burst: <int> | default = 0]
+[backoff_on_ratelimits: <bool> | default = false]
+backoff_config:
+  [min_period: <duration> | default = 100ms]
+  [max_period: <duration> | default = 10s]
+  [max_retries: <int> | default = 10]
+[initial_stream_window_size: <int>]
+[initial_connection_window_size: <int>]
+[tls_enabled: <bool> | default = false]
+[tls_cert_path: <string>]
+[tls_key_path: <string>]
+[tls_ca_path: <string>]
+[tls_server_name: <string>]
+[tls_insecure_skip_verify: <bool> | default = false]
+[tls_cipher_suites: <string>]
+[tls_min_version: <string>]
+[connect_timeout: <duration> | default = 5s]
+[connect_backoff_base_delay: <duration> | default = 1s]
+[connect_backoff_max_delay: <duration> | default = 5s]
+```
+
+### KVStore
+
+The `kvstore` configuration block
 
 ```yaml
 # Set backing store to use
@@ -1555,7 +1762,7 @@ multi:
   [mirror_timeout: <bool> | default = 2s]
 ```
 
-### Search config
+### Search
 
 ```yaml
 # Target number of bytes per GET request while scanning blocks. Default is 1MB. Reducing
@@ -1589,7 +1796,7 @@ cache_control:
     [offset_index: <bool> | default = false]
 ```
 
-### WAL config
+### WAL
 
 The storage WAL configuration block.
 
@@ -1598,14 +1805,6 @@ The storage WAL configuration block.
 # Must be set.
 # Example: "/var/tempo/wal
 [path: <string> | default = ""]
-
-# WAL encoding/compression.
-# options: none, gzip, lz4-64k, lz4-256k, lz4-1M, lz4, snappy, zstd, s2
-[v2_encoding: <string> | default = "zstd" ]
-
-# Defines the search data encoding/compression protocol.
-# Options: none, gzip, lz4-64k, lz4-256k, lz4-1M, lz4, snappy, zstd, s2
-[search_encoding: <string> | default = "snappy"]
 
 # When a span is written to the WAL it adjusts the start and end times of the block it is written to.
 # This block start and end time range is then used when choosing blocks for search.
@@ -1618,8 +1817,9 @@ The storage WAL configuration block.
 [ingestion_time_range_slack: <duration> | default = unset]
 
 # WAL file format version
-# Options: v2, vParquet3, vParquet4
-[version: <string> | default = "vParquet3"]
+# Options: vParquet4
+# Deprecated options: v2, vParquet3
+[version: <string> | default = "vParquet4"]
 ```
 
 ## Overrides
@@ -1635,7 +1835,6 @@ See below for how to override these limits globally or per tenant.
 #### Standard overrides
 
 You can create an `overrides` section to configure ingestion limits that apply to all tenants of the cluster.
-A snippet of a `config.yaml` file showing how the overrides section is [here](https://github.com/grafana/tempo/blob/a000a0d461221f439f585e7ed55575e7f51a0acd/integration/bench/config.yaml#L39-L40).
 
 ```yaml
 # Overrides configuration block
@@ -1650,19 +1849,22 @@ overrides:
       # Specifies whether the ingestion rate limits should be applied by each instance
       # of the distributor and ingester individually, or the limits are to be shared
       # across all instances. See the "override strategies" section for an example.
+      # Only applies to rate_limit_bytes.
       [rate_strategy: <global|local> | default = local]
+
+      # Per-user ingestion rate limit (bytes) used in ingestion.
+      # Results in errors like RATE_LIMITED: ingestion rate limit (15000000 bytes) exceeded while adding 10 bytes
+      #   RATE_LIMITED: ingestion rate limit (15000000 bytes) exceeded while
+      #   adding 10 bytes
+      # Applies global and local strategies.
+      [rate_limit_bytes: <int> | default = 15000000 (15MB) ]
 
       # Burst size (bytes) used in ingestion.
       # Results in errors like
       #   RATE_LIMITED: ingestion rate limit (20000000 bytes) exceeded while
       #   adding 10 bytes
+      # Ignores rate strategy and is always local.
       [burst_size_bytes: <int> | default = 20000000 (20MB) ]
-
-      # Per-user ingestion rate limit (bytes) used in ingestion.
-      # Results in errors like
-      #   RATE_LIMITED: ingestion rate limit (15000000 bytes) exceeded while
-      #   adding 10 bytes
-      [rate_limit_bytes: <int> | default = 15000000 (15MB) ]
 
       # Maximum number of active traces per user, per ingester.
       # A value of 0 disables the check.
@@ -1749,7 +1951,16 @@ overrides:
       # If the limit is reached, no new series will be added but existing series will still be
       # updated. The amount of limited series can be observed with the metric
       #   tempo_metrics_generator_registry_series_limited_total
+      # This setting only applies when limiter_type is set to "series" (the default).
       [max_active_series: <int>]
+
+      # Maximum number of active entities (unique label combinations) in the registry, per instance
+      # of the metrics-generator. A value of 0 disables this check.
+      # If the limit is reached, no new entities will be added but existing entities will still be
+      # updated. The amount of limited entities can be observed with the metric
+      #   tempo_metrics_generator_registry_entities_limited_total
+      # This setting only applies when limiter_type is set to "entity".
+      [max_active_entities: <int>]
 
       # Per-user configuration of the collection interval. A value of 0 means the global default is
       # used set in the metrics_generator config block.
@@ -1766,8 +1977,9 @@ overrides:
       [disable_collection: <bool> | default = false]
 
       # Per-user configuration of the trace-id label name. This value will be used as name for the label to store the
-      # trace ID of exemplars in generated metrics. If not set, the default value "trace_id" will be used.
-      [trace_id_label_name: <string> | default = "trace_id"]
+      # trace ID of exemplars in generated metrics. If not set, the default value "traceID" will be used.
+      # Note it is different to the OTEL convention: https://opentelemetry.io/docs/specs/otel/compatibility/prometheus_and_openmetrics/#exemplars
+      [trace_id_label_name: <string> | default = "traceID"]
 
       # This option only allows spans with end time that occur within the configured duration to be
       # considered in metrics generation.
@@ -1854,7 +2066,7 @@ overrides:
       # Configures attributes to be stored in dedicated columns within the parquet file, rather than in the
       # generic attribute key-value list. This allows for more efficient searching of these attributes.
       # Up to 10 span attributes and 10 resource attributes can be configured as dedicated columns.
-      # Requires vParquet3
+      # Requires at least vParquet3
       parquet_dedicated_columns:
         [
           name: <string>, # name of the attribute
@@ -1934,8 +2146,8 @@ overrides:
 
   "<tenant-id>":
       ingestion:
-        [burst_size_bytes: <int>]
-        [rate_limit_bytes: <int>]
+        [rate_size_bytes: <int>] # Applies global and local strategies.
+        [burst_limit_bytes: <int>] # Ignores rate strategy and is always local.
         [max_traces_per_user: <int>]
       global:
         [max_bytes_per_trace: <int>]

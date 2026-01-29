@@ -31,8 +31,7 @@ type nativeHistogram struct {
 	series       map[uint64]*nativeHistogramSeries
 	seriesDemand *Cardinality
 
-	onAddSerie    func(count uint32) bool
-	onRemoveSerie func(count uint32)
+	lifecycler Limiter
 
 	buckets []float64
 
@@ -91,16 +90,7 @@ var (
 	_ metric    = (*nativeHistogram)(nil)
 )
 
-func newNativeHistogram(name string, buckets []float64, onAddSeries func(uint32) bool, onRemoveSeries func(count uint32), traceIDLabelName string, histogramOverride HistogramMode, externalLabels map[string]string, tenant string, overrides Overrides, staleDuration time.Duration) *nativeHistogram {
-	if onAddSeries == nil {
-		onAddSeries = func(uint32) bool {
-			return true
-		}
-	}
-	if onRemoveSeries == nil {
-		onRemoveSeries = func(uint32) {}
-	}
-
+func newNativeHistogram(name string, buckets []float64, lifecycler Limiter, traceIDLabelName string, histogramOverride HistogramMode, externalLabels map[string]string, tenant string, overrides Overrides, staleDuration time.Duration) *nativeHistogram {
 	if traceIDLabelName == "" {
 		traceIDLabelName = "traceID"
 	}
@@ -109,8 +99,7 @@ func newNativeHistogram(name string, buckets []float64, onAddSeries func(uint32)
 		metricName:        name,
 		series:            make(map[uint64]*nativeHistogramSeries),
 		seriesDemand:      NewCardinality(staleDuration, removeStaleSeriesInterval),
-		onAddSerie:        onAddSeries,
-		onRemoveSerie:     onRemoveSeries,
+		lifecycler:        lifecycler,
 		traceIDLabelName:  traceIDLabelName,
 		buckets:           buckets,
 		histogramOverride: histogramOverride,
@@ -125,28 +114,23 @@ func newNativeHistogram(name string, buckets []float64, onAddSeries func(uint32)
 	}
 }
 
-func (h *nativeHistogram) ObserveWithExemplar(labelValueCombo *LabelValueCombo, value float64, traceID string, multiplier float64) {
-	hash := labelValueCombo.getHash()
+func (h *nativeHistogram) ObserveWithExemplar(lbls labels.Labels, value float64, traceID string, multiplier float64) {
+	hash := lbls.Hash()
 
 	h.seriesDemand.Insert(hash)
 
 	h.seriesMtx.Lock()
 	defer h.seriesMtx.Unlock()
 
-	s, ok := h.series[hash]
-	if ok {
-		h.updateSeries(s, value, traceID, multiplier)
+	s, lbls, hash := resolveSeries(h.series, hash, lbls, h.lifecycler, h.activeSeriesPerHistogramSerie())
+	if s != nil {
+		h.updateSeries(hash, s, value, traceID, multiplier)
 		return
 	}
-
-	if !h.onAddSerie(h.activeSeriesPerHistogramSerie()) {
-		return
-	}
-
-	h.series[hash] = h.newSeries(labelValueCombo, value, traceID, multiplier)
+	h.series[hash] = h.newSeries(lbls, value, traceID, multiplier)
 }
 
-func (h *nativeHistogram) newSeries(labelValueCombo *LabelValueCombo, value float64, traceID string, multiplier float64) *nativeHistogramSeries {
+func (h *nativeHistogram) newSeries(lbls labels.Labels, value float64, traceID string, multiplier float64) *nativeHistogramSeries {
 	// Configure histogram based on mode
 	//
 	// Native-only mode sets buckets to nil, and uses the histogram.Exemplars slice as the native exemplar format.
@@ -186,13 +170,9 @@ func (h *nativeHistogram) newSeries(labelValueCombo *LabelValueCombo, value floa
 		overridesHash: hsh,
 	}
 
-	h.updateSeries(newSeries, value, traceID, multiplier)
+	h.updateSeries(lbls.Hash(), newSeries, value, traceID, multiplier)
 
-	lb := labels.NewBuilder(getLabelsFromValueCombo(labelValueCombo))
-	// set external labels
-	for name, value := range h.externalLabels {
-		lb.Set(name, value)
-	}
+	lb := newSeriesLabelsBuilder(lbls, h.externalLabels)
 
 	lb.Set(labels.MetricName, h.metricName)
 
@@ -210,7 +190,7 @@ func (h *nativeHistogram) newSeries(labelValueCombo *LabelValueCombo, value floa
 	return newSeries
 }
 
-func (h *nativeHistogram) updateSeries(s *nativeHistogramSeries, value float64, traceID string, multiplier float64) {
+func (h *nativeHistogram) updateSeries(hash uint64, s *nativeHistogramSeries, value float64, traceID string, multiplier float64) {
 	// Use Prometheus native exemplar handling
 	exemplarObserver := s.promHistogram.(prometheus.ExemplarObserver)
 
@@ -222,6 +202,7 @@ func (h *nativeHistogram) updateSeries(s *nativeHistogramSeries, value float64, 
 	}
 
 	s.lastUpdated = time.Now().UnixMilli()
+	h.lifecycler.OnUpdate(hash, h.activeSeriesPerHistogramSerie())
 }
 
 func (h *nativeHistogram) name() string {
@@ -263,6 +244,11 @@ func (h *nativeHistogram) collectMetrics(appender storage.Appender, timeMs int64
 				return nativeErr
 			}
 		}
+
+		// Mark the series as seen after all histogram types have been emitted.
+		if s.isNew() {
+			s.registerSeenSeries()
+		}
 	}
 
 	return nil
@@ -287,17 +273,16 @@ func (h *nativeHistogram) removeStaleSeries(staleTimeMs int64) {
 	defer h.seriesMtx.Unlock()
 
 	for hash, s := range h.series {
-
 		if s.overridesHash != overridesHash {
 			// The overrides have changed, so we need to recreate the series.
 			delete(h.series, hash)
-			h.onRemoveSerie(h.activeSeriesPerHistogramSerie())
+			h.lifecycler.OnDelete(hash, h.activeSeriesPerHistogramSerie())
 			continue
 		}
 
 		if s.lastUpdated < staleTimeMs {
 			delete(h.series, hash)
-			h.onRemoveSerie(h.activeSeriesPerHistogramSerie())
+			h.lifecycler.OnDelete(hash, h.activeSeriesPerHistogramSerie())
 		}
 	}
 	h.seriesDemand.Advance()
@@ -336,6 +321,20 @@ func (h *nativeHistogram) activeSeriesPerHistogramSerie() uint32 {
 }
 
 func (h *nativeHistogram) nativeHistograms(appender storage.Appender, lbls labels.Labels, timeMs int64, s *nativeHistogramSeries) (err error) {
+	// If this is a new series, append a zero histogram at the end of the last minute.
+	// This avoids Prometheus throwing away the first value when a metric is aged out
+	// and recreated (the transition from null -> x).
+	if s.isNew() {
+		endOfLastMinuteMs := getEndOfLastMinuteMs(timeMs)
+		zeroHist := &promhistogram.Histogram{
+			Schema: s.histogram.GetSchema(),
+		}
+		_, err := appender.AppendHistogram(0, lbls, endOfLastMinuteMs, zeroHist, nil)
+		if err != nil && !isOutOfOrderError(err) {
+			return err
+		}
+	}
+
 	// Decode to Prometheus representation
 	hist := promhistogram.Histogram{
 		Schema:        s.histogram.GetSchema(),
@@ -460,7 +459,7 @@ func (h *nativeHistogram) classicHistograms(appender storage.Appender, timeMs in
 		if s.isNew() {
 			endOfLastMinuteMs := getEndOfLastMinuteMs(timeMs)
 			_, appendErr := appender.Append(0, s.lb.Labels(), endOfLastMinuteMs, 0)
-			if appendErr != nil {
+			if err != nil && !isOutOfOrderError(err) {
 				return appendErr
 			}
 		}
@@ -490,7 +489,7 @@ func (h *nativeHistogram) classicHistograms(appender storage.Appender, timeMs in
 		if s.isNew() {
 			endOfLastMinuteMs := getEndOfLastMinuteMs(timeMs)
 			_, err = appender.Append(0, s.lb.Labels(), endOfLastMinuteMs, 0)
-			if err != nil {
+			if err != nil && !isOutOfOrderError(err) {
 				return err
 			}
 		}
@@ -502,10 +501,6 @@ func (h *nativeHistogram) classicHistograms(appender storage.Appender, timeMs in
 
 	// drop "le" label again
 	s.lb.Del(labels.BucketLabel)
-
-	if s.isNew() {
-		s.registerSeenSeries()
-	}
 
 	return nil
 }

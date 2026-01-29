@@ -14,8 +14,6 @@ refs:
       destination: https://grafana.com/docs/enterprise-traces/<ENTERPRISE_TRACES_VERSION>/metrics-generator/cardinality/
 ---
 
-
-
 # Use the metrics-generator to create metrics from spans
 
 Part of the metrics-generator, the span metrics processor generates metrics from ingested tracing data, including request, error, and duration (RED) metrics.
@@ -83,12 +81,39 @@ By default, the metrics processor adds the following labels to each metric: `ser
   - `STATUS_CODE_ERROR` - The span operation completed with an error
 - `status_message` (optionally enabled) - The message that details the reason for the `status_code` label
 - `job` - The name of the job, a combination of namespace and service; only added if `metrics_generator.processor.span_metrics.enable_target_info: true`
-- `instance` - The instance ID; only added if `metrics_generator.processor.span_metrics.enable_target_info: true` and `metrics_generator.processor.span_metrics.enable_instance_label: true` 
+- `instance` - The instance ID; only added if `metrics_generator.processor.span_metrics.enable_target_info: true` and `metrics_generator.processor.span_metrics.enable_instance_label: true`
 
 Additional user defined labels can be created using the [`dimensions` configuration option](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration#metrics-generator).
 When a configured dimension collides with one of the default labels (for example, `status_code`), the label for the respective dimension is prefixed with double underscore (for example, `__status_code`).
 
-Custom labeling of dimensions is also supported using the [`dimension_mapping` configuration option](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration#metrics-generator).
+Custom labeling of dimensions is also supported using the [`dimension_mappings` configuration option](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration#metrics-generator).
+You can use `dimension_mappings` to rename a single attribute to a different label name, or to combine multiple attributes into a single composite label.
+
+This example shows how to rename the `deployment.environment` attribute to a new label called `deployment_environment`.
+
+```yaml
+dimension_mappings:
+  - name: deployment_environment
+    source_labels: ["deployment.environment"]
+    join: "-" # Ignored when only one source_label
+```
+
+This example shows how to combine the `service.name`, `service.namespace`, and `service.version` attributes into a single label called `service_instance`. The `join` parameter specifies the separator used to join the attribute values together.
+
+```yaml
+dimension_mappings:
+  - name: service_instance
+    source_labels: ["service.name", "service.namespace", "service.version"]
+    join: "/"
+```
+
+With this configuration, if a span has the following attribute values:
+
+- `service.name = "abc"`
+- `service.namespace = "def"`
+- `service.version = "ghi"`
+
+The resulting metric label is `service_instance="abc/def/ghi"`.
 
 An optional metric called `traces_target_info` using all resource level attributes as dimensions can be enabled in the [`enable_target_info` configuration option](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration#metrics-generator).
 

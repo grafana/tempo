@@ -48,7 +48,7 @@ func TestProtoToParquetEmptyTrace(t *testing.T) {
 	want := &Trace{
 		TraceID:       make([]byte, 16),
 		ResourceSpans: nil,
-		ServiceStats:  map[string]ServiceStats{},
+		ServiceStats:  []ServiceStats{},
 	}
 
 	got, connected := traceToParquet(&backend.BlockMeta{}, nil, &tempopb.Trace{}, nil)
@@ -128,7 +128,7 @@ func TestFieldsAreCleared(t *testing.T) {
 		TraceID:         traceID,
 		TraceIDText:     "102030405060708090a0b0c0d0e0f",
 		RootServiceName: "service1",
-		ServiceStats:    map[string]ServiceStats{"service1": {SpanCount: 1, ErrorCount: 1}},
+		ServiceStats:    []ServiceStats{{ServiceName: "service1", SpanCount: 1, ErrorCount: 1}},
 		ResourceSpans: []ResourceSpans{{
 			Resource: Resource{
 				ServiceName: "service1",
@@ -137,6 +137,7 @@ func TestFieldsAreCleared(t *testing.T) {
 				},
 			},
 			ScopeSpans: []ScopeSpans{{
+				SpanCount: 1,
 				Spans: []Span{{
 					StatusCode:     2,
 					ParentID:       -1,
@@ -315,10 +316,11 @@ func TestTraceToParquet(t *testing.T) {
 				TraceIDText:     "102030405060708090a0b0c0d0e0f",
 				RootSpanName:    "span-a",
 				RootServiceName: "service-a",
-				ServiceStats: map[string]ServiceStats{
-					"service-a": {
-						SpanCount:  1,
-						ErrorCount: 0,
+				ServiceStats: []ServiceStats{
+					{
+						ServiceName: "service-a",
+						SpanCount:   1,
+						ErrorCount:  0,
 					},
 				},
 				ResourceSpans: []ResourceSpans{{
@@ -340,11 +342,11 @@ func TestTraceToParquet(t *testing.T) {
 							attr("k8s.container.name", "k8s-container-a"),
 						},
 						DedicatedAttributes: DedicatedAttributes{
-							String01: ptr("dedicated-resource-attr-value-1"),
-							String02: ptr("dedicated-resource-attr-value-2"),
-							String03: ptr("dedicated-resource-attr-value-3"),
-							String04: ptr("dedicated-resource-attr-value-4"),
-							String05: ptr("dedicated-resource-attr-value-5"),
+							String01: []string{"dedicated-resource-attr-value-1"},
+							String02: []string{"dedicated-resource-attr-value-2"},
+							String03: []string{"dedicated-resource-attr-value-3"},
+							String04: []string{"dedicated-resource-attr-value-4"},
+							String05: []string{"dedicated-resource-attr-value-5"},
 						},
 					},
 					ScopeSpans: []ScopeSpans{{
@@ -360,6 +362,7 @@ func TestTraceToParquet(t *testing.T) {
 								attr("scope.string.array", []string{"one", "two"}),
 							},
 						},
+						SpanCount: 1,
 						Spans: []Span{{
 							Name:           "span-a",
 							SpanID:         []byte{0xFF, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01},
@@ -380,11 +383,11 @@ func TestTraceToParquet(t *testing.T) {
 							},
 							DroppedAttributesCount: 0,
 							DedicatedAttributes: DedicatedAttributes{
-								String01: ptr("dedicated-span-attr-value-1"),
-								String02: ptr("dedicated-span-attr-value-2"),
-								String03: ptr("dedicated-span-attr-value-3"),
-								String04: ptr("dedicated-span-attr-value-4"),
-								String05: ptr("dedicated-span-attr-value-5"),
+								String01: []string{"dedicated-span-attr-value-1"},
+								String02: []string{"dedicated-span-attr-value-2"},
+								String03: []string{"dedicated-span-attr-value-3"},
+								String04: []string{"dedicated-span-attr-value-4"},
+								String05: []string{"dedicated-span-attr-value-5"},
 							},
 						}},
 					}},
@@ -436,10 +439,11 @@ func TestTraceToParquet(t *testing.T) {
 				TraceIDText:     "102030405060708090a0b0c0d0e0f",
 				RootSpanName:    "span-a",
 				RootServiceName: "service-a",
-				ServiceStats: map[string]ServiceStats{
-					"service-a": {
-						SpanCount:  3,
-						ErrorCount: 0,
+				ServiceStats: []ServiceStats{
+					{
+						ServiceName: "service-a",
+						SpanCount:   3,
+						ErrorCount:  0,
 					},
 				},
 				ResourceSpans: []ResourceSpans{{
@@ -448,12 +452,14 @@ func TestTraceToParquet(t *testing.T) {
 						Attrs:       []Attribute{},
 					},
 					ScopeSpans: []ScopeSpans{{
+						SpanCount: 3,
 						Spans: []Span{
 							{
 								Name:           "span-a",
 								SpanID:         []byte{0xFF, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01},
 								NestedSetLeft:  1,
 								NestedSetRight: 6,
+								ChildCount:     2,
 								ParentID:       -1,
 								Attrs: []Attribute{
 									attr("span.attr", "aaa"),
@@ -549,14 +555,16 @@ func TestTraceToParquet(t *testing.T) {
 				TraceIDText:     "102030405060708090a0b0c0d0e0f",
 				RootSpanName:    "span-a",
 				RootServiceName: "service-a",
-				ServiceStats: map[string]ServiceStats{
-					"service-a": {
-						SpanCount:  3,
-						ErrorCount: 1,
+				ServiceStats: []ServiceStats{
+					{
+						ServiceName: "service-a",
+						SpanCount:   3,
+						ErrorCount:  1,
 					},
-					"service-b": {
-						SpanCount:  2,
-						ErrorCount: 1,
+					{
+						ServiceName: "service-b",
+						SpanCount:   2,
+						ErrorCount:  1,
 					},
 				},
 				ResourceSpans: []ResourceSpans{{
@@ -565,12 +573,14 @@ func TestTraceToParquet(t *testing.T) {
 						Attrs:       []Attribute{},
 					},
 					ScopeSpans: []ScopeSpans{{
+						SpanCount: 3,
 						Spans: []Span{
 							{
 								Name:           "span-a",
 								SpanID:         []byte{0xFF, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01},
 								NestedSetLeft:  1,
 								NestedSetRight: 10,
+								ChildCount:     2,
 								ParentID:       -1,
 								StatusCode:     int(v1_trace.Status_STATUS_CODE_ERROR),
 							},
@@ -589,6 +599,7 @@ func TestTraceToParquet(t *testing.T) {
 								ParentID:       1,
 								NestedSetLeft:  4,
 								NestedSetRight: 9,
+								ChildCount:     1,
 							},
 						},
 					}},
@@ -598,6 +609,7 @@ func TestTraceToParquet(t *testing.T) {
 						Attrs:       []Attribute{},
 					},
 					ScopeSpans: []ScopeSpans{{
+						SpanCount: 2,
 						Spans: []Span{
 							{
 								Name:           "span-d",
@@ -605,6 +617,7 @@ func TestTraceToParquet(t *testing.T) {
 								ParentSpanID:   []byte{0xFF, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x03},
 								NestedSetLeft:  5,
 								NestedSetRight: 8,
+								ChildCount:     1,
 								ParentID:       4,
 							},
 							{
@@ -658,6 +671,8 @@ func TestTraceToParquet(t *testing.T) {
 									Name:         "event name",
 									Attributes: []*v1.KeyValue{
 										{Key: "event.attr", Value: &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "bbb"}}},
+										{Key: "dedicated.event.1", Value: &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "dedicated-event-attr-value-1"}}},
+										{Key: "dedicated.event.2", Value: &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "dedicated-event-attr-value-2"}}},
 									},
 								}},
 							},
@@ -673,10 +688,11 @@ func TestTraceToParquet(t *testing.T) {
 				StartTimeUnixNano: 1000,
 				EndTimeUnixNano:   4000,
 				DurationNano:      3000,
-				ServiceStats: map[string]ServiceStats{
-					"service-a": {
-						SpanCount:  2,
-						ErrorCount: 0,
+				ServiceStats: []ServiceStats{
+					{
+						ServiceName: "service-a",
+						SpanCount:   2,
+						ErrorCount:  0,
 					},
 				},
 				ResourceSpans: []ResourceSpans{{
@@ -685,6 +701,7 @@ func TestTraceToParquet(t *testing.T) {
 						Attrs:       []Attribute{},
 					},
 					ScopeSpans: []ScopeSpans{{
+						SpanCount: 2,
 						Spans: []Span{
 							{
 								Name:              "span-with-link",
@@ -716,6 +733,10 @@ func TestTraceToParquet(t *testing.T) {
 									Name:               "event name",
 									Attrs: []Attribute{
 										attr("event.attr", "bbb"),
+									},
+									DedicatedAttributes: DedicatedAttributes{
+										String01: []string{"dedicated-event-attr-value-1"},
+										String02: []string{"dedicated-event-attr-value-2"},
 									},
 								}},
 							},
@@ -796,7 +817,7 @@ func BenchmarkEventToParquet(b *testing.B) {
 
 	ee := &Event{}
 	for i := 0; i < b.N; i++ {
-		eventToParquet(e, ee, s.StartTimeUnixNano)
+		eventToParquet(e, ee, s.StartTimeUnixNano, dedicatedColumnMapping{})
 	}
 }
 
@@ -988,7 +1009,7 @@ func traceEqual(t *testing.T, expected, actual *Trace, messages ...interface{}) 
 	sortAttributes(actual)
 
 	if !cmp.Equal(expected, actual, cmpopts.EquateEmpty()) {
-		t.Log(cmp.Diff(expected, actual))
+		t.Log(cmp.Diff(expected, actual, cmpopts.EquateEmpty()))
 		assert.Fail(t, "expected and actual are not equal", messages...)
 	}
 }

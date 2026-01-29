@@ -121,10 +121,16 @@ func New(cfg Config, next pipeline.RoundTripper, o overrides.Interface, reader t
 		return nil, fmt.Errorf("frontend metrics interval should be greater than 0")
 	}
 
+	if cfg.QueryEndCutoff > cfg.Search.Sharder.QueryBackendAfter {
+		return nil, fmt.Errorf("QueryBackendAfter (%v) must be greater than query end cutoff (%v)", cfg.Search.Sharder.QueryBackendAfter, cfg.QueryEndCutoff)
+	}
+
 	// Propagate RF1After to search and traceByID sharders
 	cfg.Search.Sharder.RF1After = cfg.RF1After
 	cfg.TraceByID.RF1After = cfg.RF1After
 
+	adjustEndWareSeconds := pipeline.NewAdjustStartEndWare(cfg.Search.Sharder.QueryBackendAfter, cfg.QueryEndCutoff, false)
+	adjustEndWareNanos := pipeline.NewAdjustStartEndWare(cfg.Metrics.Sharder.QueryBackendAfter, cfg.QueryEndCutoff, true) // metrics queries work in nanoseconds
 	retryWare := pipeline.NewRetryWare(cfg.MaxRetries, cfg.Weights.RetryWithWeights, registerer)
 	cacheWare := pipeline.NewCachingWare(cacheProvider, cache.RoleFrontendSearch, logger)
 	statusCodeWare := pipeline.NewStatusCodeAdjustWare()
@@ -132,6 +138,7 @@ func New(cfg Config, next pipeline.RoundTripper, o overrides.Interface, reader t
 	urlDenyListWare := pipeline.NewURLDenyListWare(cfg.URLDenyList)
 	queryValidatorWare := pipeline.NewQueryValidatorWare(cfg.MaxQueryExpressionSizeBytes)
 	headerStripWare := pipeline.NewStripHeadersWare(cfg.AllowedHeaders)
+	tenantValidatorWare := pipeline.NewTenantValidatorMiddleware()
 
 	tracePipeline := pipeline.Build(
 		[]pipeline.AsyncMiddleware[combiner.PipelineResponse]{
@@ -139,6 +146,7 @@ func New(cfg Config, next pipeline.RoundTripper, o overrides.Interface, reader t
 			urlDenyListWare,
 			pipeline.NewWeightRequestWare(pipeline.TraceByID, cfg.Weights),
 			multiTenantMiddleware(cfg, logger),
+			tenantValidatorWare,
 			newAsyncTraceIDSharder(&cfg.TraceByID, logger),
 		},
 		[]pipeline.Middleware{traceIDStatusCodeWare, retryWare},
@@ -147,10 +155,12 @@ func New(cfg Config, next pipeline.RoundTripper, o overrides.Interface, reader t
 	searchPipeline := pipeline.Build(
 		[]pipeline.AsyncMiddleware[combiner.PipelineResponse]{
 			headerStripWare,
+			adjustEndWareSeconds,
 			urlDenyListWare,
 			queryValidatorWare,
 			pipeline.NewWeightRequestWare(pipeline.TraceQLSearch, cfg.Weights),
 			multiTenantMiddleware(cfg, logger),
+			tenantValidatorWare,
 			newAsyncSearchSharder(reader, o, cfg.Search.Sharder, logger),
 		},
 		[]pipeline.Middleware{cacheWare, statusCodeWare, retryWare},
@@ -159,9 +169,11 @@ func New(cfg Config, next pipeline.RoundTripper, o overrides.Interface, reader t
 	searchTagsPipeline := pipeline.Build(
 		[]pipeline.AsyncMiddleware[combiner.PipelineResponse]{
 			headerStripWare,
+			adjustEndWareSeconds,
 			urlDenyListWare,
 			pipeline.NewWeightRequestWare(pipeline.Default, cfg.Weights),
 			multiTenantMiddleware(cfg, logger),
+			tenantValidatorWare,
 			newAsyncTagSharder(reader, o, cfg.Search.Sharder, parseTagsRequest, logger),
 		},
 		[]pipeline.Middleware{cacheWare, statusCodeWare, retryWare},
@@ -170,9 +182,11 @@ func New(cfg Config, next pipeline.RoundTripper, o overrides.Interface, reader t
 	searchTagValuesPipeline := pipeline.Build(
 		[]pipeline.AsyncMiddleware[combiner.PipelineResponse]{
 			headerStripWare,
+			adjustEndWareSeconds,
 			urlDenyListWare,
 			pipeline.NewWeightRequestWare(pipeline.Default, cfg.Weights),
 			multiTenantMiddleware(cfg, logger),
+			tenantValidatorWare,
 			newAsyncTagSharder(reader, o, cfg.Search.Sharder, parseTagValuesRequest, logger),
 		},
 		[]pipeline.Middleware{cacheWare, statusCodeWare, retryWare},
@@ -181,9 +195,11 @@ func New(cfg Config, next pipeline.RoundTripper, o overrides.Interface, reader t
 	searchTagValuesV2Pipeline := pipeline.Build(
 		[]pipeline.AsyncMiddleware[combiner.PipelineResponse]{
 			headerStripWare,
+			adjustEndWareSeconds,
 			urlDenyListWare,
 			pipeline.NewWeightRequestWare(pipeline.Default, cfg.Weights),
 			multiTenantMiddleware(cfg, logger),
+			tenantValidatorWare,
 			newAsyncTagSharder(reader, o, cfg.Search.Sharder, parseTagValuesRequestV2, logger),
 		},
 		[]pipeline.Middleware{cacheWare, statusCodeWare, retryWare},
@@ -193,9 +209,11 @@ func New(cfg Config, next pipeline.RoundTripper, o overrides.Interface, reader t
 	metricsPipeline := pipeline.Build(
 		[]pipeline.AsyncMiddleware[combiner.PipelineResponse]{
 			urlDenyListWare,
+			adjustEndWareNanos,
 			queryValidatorWare,
 			pipeline.NewWeightRequestWare(pipeline.Default, cfg.Weights),
 			multiTenantUnsupportedMiddleware(cfg, logger),
+			tenantValidatorWare,
 		},
 		[]pipeline.Middleware{statusCodeWare, retryWare},
 		next)
@@ -204,10 +222,12 @@ func New(cfg Config, next pipeline.RoundTripper, o overrides.Interface, reader t
 	queryRangePipeline := pipeline.Build(
 		[]pipeline.AsyncMiddleware[combiner.PipelineResponse]{
 			headerStripWare,
+			adjustEndWareNanos,
 			urlDenyListWare,
 			queryValidatorWare,
 			pipeline.NewWeightRequestWare(pipeline.TraceQLMetrics, cfg.Weights),
 			multiTenantMiddleware(cfg, logger),
+			tenantValidatorWare,
 			newAsyncQueryRangeSharder(reader, o, cfg.Metrics.Sharder, false, logger),
 		},
 		[]pipeline.Middleware{cacheWare, statusCodeWare, retryWare},
@@ -216,10 +236,12 @@ func New(cfg Config, next pipeline.RoundTripper, o overrides.Interface, reader t
 	queryInstantPipeline := pipeline.Build(
 		[]pipeline.AsyncMiddleware[combiner.PipelineResponse]{
 			headerStripWare,
+			adjustEndWareNanos,
 			urlDenyListWare,
 			queryValidatorWare,
 			pipeline.NewWeightRequestWare(pipeline.TraceQLMetrics, cfg.Weights),
 			multiTenantMiddleware(cfg, logger),
+			tenantValidatorWare,
 			newAsyncQueryRangeSharder(reader, o, cfg.Metrics.Sharder, true, logger),
 		},
 		[]pipeline.Middleware{cacheWare, statusCodeWare, retryWare},
@@ -386,7 +408,10 @@ func prepareRequestForQueriers(req *http.Request, tenant string) {
 	// https://github.com/grafana/dskit/blob/f5bd38371e1cfae5479b2c23b3893c1a97868bdf/httpgrpc/httpgrpc.go#L53
 	const queryDelimiter = "?"
 
-	uri := path.Join(api.PathPrefixQuerier, req.URL.Path)
+	// req.Url.Path is an unescaped string so its important to use req.URL.EscapedPath() here so
+	// that the httpgrpc bridge works. this really only matters for tag value requests that add the tag name to the path.
+	// in retrospect putting a field that holds arbitrary user data and supports the full UTF8 char set into the path was a bad idea.
+	uri := path.Join(api.PathPrefixQuerier, req.URL.EscapedPath())
 	if len(req.URL.RawQuery) > 0 {
 		uri += queryDelimiter + req.URL.RawQuery
 	}

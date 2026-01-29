@@ -74,7 +74,7 @@ func TestBackendBlockFindTraceByID(t *testing.T) {
 		return bytes.Compare(traces[i].TraceID, traces[j].TraceID) == -1
 	})
 
-	meta := backend.NewBlockMeta("fake", uuid.New(), VersionString, backend.EncNone, "")
+	meta := backend.NewBlockMeta("fake", uuid.New(), VersionString)
 	meta.TotalObjects = int64(len(traces))
 	s := newStreamingBlock(ctx, cfg, meta, r, w, tempo_io.NewBufferedWriter)
 

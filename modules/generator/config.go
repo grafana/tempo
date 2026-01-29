@@ -14,6 +14,7 @@ import (
 	"github.com/grafana/tempo/modules/generator/processor/spanmetrics"
 	"github.com/grafana/tempo/modules/generator/registry"
 	"github.com/grafana/tempo/modules/generator/storage"
+	"github.com/grafana/tempo/modules/generator/validation"
 	"github.com/grafana/tempo/pkg/ingest"
 	"github.com/grafana/tempo/pkg/ring"
 	"github.com/grafana/tempo/tempodb/encoding"
@@ -34,6 +35,13 @@ const (
 	codecPushBytes = "push-bytes"
 	// codecOTLP refers to the codec used for decoding ptrace.Traces
 	codecOTLP = "otlp"
+)
+
+type LimiterType string
+
+const (
+	LimiterTypeSeries LimiterType = "series"
+	LimiterTypeEntity LimiterType = "entity"
 )
 
 var validCodecs = []string{codecPushBytes, codecOTLP}
@@ -60,6 +68,10 @@ type Config struct {
 	// DisableGRPC controls whether to run a gRPC server with the metrics generator endpoints.
 	DisableGRPC bool `yaml:"disable_grpc"`
 
+	// LimiterType configures the type of limiter to use.
+	// Defaults to "series". Available options are "series" and "entity".
+	LimiterType LimiterType `yaml:"limiter_type"`
+
 	// This config is dynamically injected because defined outside the generator config.
 	Ingest            ingest.Config `yaml:"-"`
 	IngestConcurrency uint          `yaml:"ingest_concurrency"`
@@ -84,6 +96,7 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 	cfg.QueryTimeout = 30 * time.Second
 	cfg.OverrideRingKey = generatorRingKey
 	cfg.Codec = codecPushBytes
+	cfg.LimiterType = LimiterTypeSeries
 
 	hostname, err := os.Hostname()
 	if err != nil {
@@ -122,6 +135,12 @@ func (cfg *Config) Validate() error {
 		return fmt.Errorf("invalid codec: %s, valid choices are %s", cfg.Codec, validCodecs)
 	}
 
+	switch cfg.LimiterType {
+	case LimiterTypeSeries, LimiterTypeEntity:
+	default:
+		return fmt.Errorf("invalid limiter type: %s, valid values are %s and %s", cfg.LimiterType, LimiterTypeSeries, LimiterTypeEntity)
+	}
+
 	return nil
 }
 
@@ -144,7 +163,10 @@ func (cfg *ProcessorConfig) Validate() error {
 	if err := cfg.LocalBlocks.Validate(); err != nil {
 		errs = append(errs, err)
 	}
-	if err := cfg.HostInfo.Validate(); err != nil {
+	if err := validation.ValidateHostInfoHostIdentifiers(cfg.HostInfo.HostIdentifiers); err != nil {
+		errs = append(errs, err)
+	}
+	if err := validation.ValidateHostInfoMetricName(cfg.HostInfo.MetricName); err != nil {
 		errs = append(errs, err)
 	}
 
@@ -242,6 +264,14 @@ func (cfg *ProcessorConfig) copyWithOverrides(o metricsGeneratorOverrides, userI
 
 	if hostInfoMetricName := o.MetricsGeneratorProcessorHostInfoMetricName(userID); hostInfoMetricName != "" {
 		copyCfg.HostInfo.MetricName = o.MetricsGeneratorProcessorHostInfoMetricName(userID)
+	}
+
+	if spanMultiplierKey := o.MetricsGeneratorProcessorServiceGraphsSpanMultiplierKey(userID); spanMultiplierKey != "" {
+		copyCfg.ServiceGraphs.SpanMultiplierKey = spanMultiplierKey
+	}
+
+	if spanMultiplierKey := o.MetricsGeneratorProcessorSpanMetricsSpanMultiplierKey(userID); spanMultiplierKey != "" {
+		copyCfg.SpanMetrics.SpanMultiplierKey = spanMultiplierKey
 	}
 
 	copySubprocessors := make(map[spanmetrics.Subprocessor]bool)

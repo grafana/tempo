@@ -9,7 +9,7 @@ dashboard_utils {
       .addRow(
         $.row('Fetched records')
         .addPanel(
-          $.panel('Kafka fetched records / sec') +
+          $.timeseriesPanel('Kafka fetched records / sec') +
           $.panelDescription(
             'Kafka fetched records / sec',
             'Overview of per-second rate of records fetched from Kafka.',
@@ -21,7 +21,8 @@ dashboard_utils {
             ],
             ['sucessful', 'read errors']
           ) +
-          $.stack,
+          $.stack +
+          { fieldConfig+: { defaults+: { unit: 'ops' } } },
         )
         .addPanel(
           $.timeseriesPanel('Per pod Kafka fetched records / sec') +
@@ -35,7 +36,7 @@ dashboard_utils {
           ) +
           $.stack
           +
-          { fieldConfig+: { defaults+: { unit: 'short' } } },
+          { fieldConfig+: { defaults+: { unit: 'ops' } } },
         )
         .addPanel(
           $.timeseriesPanel('Per partition Kafka fetched records / sec') +
@@ -49,13 +50,13 @@ dashboard_utils {
           ) +
           $.stack
           +
-          { fieldConfig+: { defaults+: { unit: 'short' } } },
+          { fieldConfig+: { defaults+: { unit: 'ops' } } },
         )
       )
       .addRow(
         $.row('Read bytes')
         .addPanel(
-          $.panel('Kafka read bytes / sec') +
+          $.timeseriesPanel('Kafka read bytes / sec') +
           $.panelDescription(
             'Kafka read bytes / sec',
             'Overview of per-second rate of bytes readed from Kafka.',
@@ -106,7 +107,7 @@ dashboard_utils {
       .addRow(
         $.row('Flushed blocks')
         .addPanel(
-          $.panel('Flushed blocks / sec') +
+          $.timeseriesPanel('Flushed blocks / sec') +
           $.panelDescription(
             'Block builder partition section duration',
             'Overview of the partition section duration.',
@@ -116,7 +117,7 @@ dashboard_utils {
           ) +
           $.stack
           +
-          { fieldConfig+: { defaults+: { unit: 'short' } } },
+          { fieldConfig+: { defaults+: { unit: 'ops' } } },
         )
         .addPanel(
           $.timeseriesPanel('Per pod flushed blocks / sec') +
@@ -130,7 +131,7 @@ dashboard_utils {
           ) +
           $.stack
           +
-          { fieldConfig+: { defaults+: { unit: 'short' } } },
+          { fieldConfig+: { defaults+: { unit: 'ops' } } },
         )
       )
       .addRow(

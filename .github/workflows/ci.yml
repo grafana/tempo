@@ -25,14 +25,14 @@ jobs:
     steps:
 
       - name: Check out code
-        uses: actions/checkout@v5
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6
         with:
           fetch-depth: "0"
           persist-credentials: false
       - name: Set up Go
-        uses: actions/setup-go@v6
+        uses: actions/setup-go@7a3fe6cf4cb3a834922a1244abfce67bcef6a0c5 # v6
         with:
-          go-version-file: "go.mod"
+          go-version: '1.25.5'
 
       - name: check-fmt
         run: make check-fmt
@@ -45,7 +45,7 @@ jobs:
         run: echo "date=$(date +"%Yweek%U")" >> $GITHUB_OUTPUT
 
       - name: cache golangci
-        uses: actions/cache@v4
+        uses: actions/cache@8b402f58fbc84540c8b491a91e594a4576fec3d7 # v5
         with:
           path: .cache/golangci-lint
           key: golangci-lint-${{ runner.os }}-${{ steps.get-year-week-number.outputs.date }}-${{ hashFiles('go.mod', '.golangci.yml') }}
@@ -76,45 +76,97 @@ jobs:
 
     steps:
       - name: Check out code
-        uses: actions/checkout@v5
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6
         with:
           persist-credentials: false
 
       - name: Set up Go
-        uses: actions/setup-go@v6
+        uses: actions/setup-go@7a3fe6cf4cb3a834922a1244abfce67bcef6a0c5 # v6
         with:
-          go-version-file: "go.mod"
+          go-version: '1.25.5'
 
       - name: Run Tests
         run: make ${{ matrix.test-target }}
 
+      - name: List coverage artifacts
+        run: ls .coverage
+
+      - name: Upload coverage artifacts
+        if: always()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: coverage-${{ matrix.test-target }}
+          path: .coverage/*.out
+          retention-days: 1
+          include-hidden-files: true
+          if-no-files-found: error
+
+  integration-tests-validation:
+    name: Validate integration test coverage
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out code
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6
+        with:
+          persist-credentials: false
+      - name: Validate all integration folders are covered by CI
+        run: |
+          # Define expected folders that have corresponding test-e2e-* targets
+          EXPECTED_FOLDERS=("api" "limits" "metrics-generator" "operations" "storage" "util")
+
+          # Get actual folders in integration/ (excluding hidden files)
+          ACTUAL_FOLDERS=($(ls -d integration/*/ 2>/dev/null | xargs -n1 basename | sort))
+
+          # Convert arrays to strings for comparison
+          EXPECTED_SORTED=$(printf '%s\n' "${EXPECTED_FOLDERS[@]}" | sort | tr '\n' ' ')
+          ACTUAL_SORTED=$(printf '%s\n' "${ACTUAL_FOLDERS[@]}" | sort | tr '\n' ' ')
+
+          if [ "$EXPECTED_SORTED" != "$ACTUAL_SORTED" ]; then
+            echo "❌ ERROR: Integration folder mismatch detected!"
+            echo ""
+            echo "Expected folders (covered by CI):"
+            printf '  - %s\n' "${EXPECTED_FOLDERS[@]}" | sort
+            echo ""
+            echo "Actual folders in ./integration:"
+            printf '  - %s\n' "${ACTUAL_FOLDERS[@]}" | sort
+            echo ""
+            echo "If you added a new integration test folder, you must:"
+            echo "  1. Add a corresponding 'test-e2e-<folder-name>' target to the Makefile"
+            echo "  2. Add the target to the matrix in .github/workflows/ci.yml (integration-tests job)"
+            echo "  3. Update the EXPECTED_FOLDERS list in this validation step"
+            exit 1
+          fi
+
+          echo "✅ All integration folders are covered by CI"
+
   integration-tests:
     name: Run integration tests
     runs-on: ubuntu-24.04
+    needs: integration-tests-validation
     strategy:
       fail-fast: false
       matrix:
         test-target:
           [
-            test-e2e,
+            test-e2e-operations,
             test-e2e-api,
-            test-integration-poller,
-            test-integration-backendscheduler,
-            test-e2e-deployments,
-            test-e2e-ingest,
+            test-e2e-limits,
+            test-e2e-metrics-generator,
+            test-e2e-storage,
+            test-e2e-util,
           ]
 
     steps:
       - name: Check out code
-        uses: actions/checkout@v5
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6
         with:
           persist-credentials: false
       - name: Fetch tags
         run: git fetch --prune --unshallow --tags
       - name: Set up Go
-        uses: actions/setup-go@v6
+        uses: actions/setup-go@7a3fe6cf4cb3a834922a1244abfce67bcef6a0c5 # v6
         with:
-          go-version-file: "go.mod"
+          go-version: '1.25.5'
       - name: Run Tests
         run: make ${{ matrix.test-target }}
 
@@ -123,14 +175,14 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - name: Check out code
-        uses: actions/checkout@v5
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6
         with:
           persist-credentials: false
 
       - name: Set up Go
-        uses: actions/setup-go@v6
+        uses: actions/setup-go@7a3fe6cf4cb3a834922a1244abfce67bcef6a0c5 # v6
         with:
-          go-version-file: "go.mod"
+          go-version: '1.25.5'
 
       - name: Build Tempo
         run: make tempo
@@ -147,39 +199,19 @@ jobs:
       - name: Build tempo-cli
         run: make tempo-cli
 
-  benchmark:
-    name: Benchmark
-    runs-on: ubuntu-24.04
-    steps:
-      - name: Check out code
-        uses: actions/checkout@v5
-        with:
-          persist-credentials: false
-
-      - name: Set up Go
-        uses: actions/setup-go@v6
-        with:
-          go-version-file: "go.mod"
-
-      - name: Bench
-        run: make test-bench
-
   vendor-check:
     name: Vendor check
     runs-on: ubuntu-24.04
     steps:
       - name: Check out code
-        uses: actions/checkout@v5
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6
         with:
           persist-credentials: false
 
       - name: Set up Go
-        uses: actions/setup-go@v6
+        uses: actions/setup-go@7a3fe6cf4cb3a834922a1244abfce67bcef6a0c5 # v6
         with:
-          go-version-file: "go.mod"
-
-      - name: Install Protoc
-        uses: arduino/setup-protoc@c65c819552d16ad3c9b72d9dfd5ba5237b9c906b # v3
+          go-version: '1.25.5'
 
       - name: Check vendor
         run: make vendor-check
@@ -189,14 +221,14 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - name: Check out code
-        uses: actions/checkout@v5
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6
         with:
           persist-credentials: false
 
       - name: Set up Go
-        uses: actions/setup-go@v6
+        uses: actions/setup-go@7a3fe6cf4cb3a834922a1244abfce67bcef6a0c5 # v6
         with:
-          go-version-file: "go.mod"
+          go-version: '1.25.5'
 
       - name: Check jsonnet
         run: make jsonnet-check
@@ -212,9 +244,43 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - name: Check out code
-        uses: actions/checkout@v5
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6
         with:
           persist-credentials: false
 
       - name: Build Website
         run: docker run -v ${PWD}/docs/sources:/hugo/content/docs/tempo/latest --rm grafana/docs-base:latest make prod
+
+  coverage-annotations:
+    name: Coverage Annotations
+    runs-on: ubuntu-24.04
+    needs: [unit-tests]
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - name: Check out code
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6
+        with:
+          persist-credentials: false
+          fetch-depth: 0  # Fetch full history for proper diff computation
+
+
+      - name: Set up Go
+        uses: actions/setup-go@7a3fe6cf4cb3a834922a1244abfce67bcef6a0c5 # v6
+        with:
+          go-version: '1.25.5'
+
+      - name: Download all coverage artifacts
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+        with:
+          pattern: coverage-*
+          path: .coverage/
+          merge-multiple: true
+
+      - name: Generate coverage annotations with canopy
+        run: |
+          go run github.com/oleg-kozlyuk-grafana/go-canopy/cmd/canopy@2efb4d4dc1ae364d45aa30bff3dca29bc651d499 \
+            --base ${{ github.event.pull_request.base.sha }} \
+            --commit ${{ github.event.pull_request.head.sha }} \
+            --format GitHubAnnotations

@@ -38,6 +38,10 @@ dashboard_utils {
           $.panel('Latency') +
           $.latencyPanel('tempo_request_duration_seconds', '{%s,route=~"querier_%sapi_.*"}' % [$.jobMatcher($._config.jobs.querier), $._config.http_api_prefix], additional_grouping='route')
         )
+        .addPanel(
+          $.panel('Requests Executed') +
+          $.latencyPanel('tempo_querier_worker_request_executed_total', '{%s,route=~"querier_%sapi_.*"}' % [$.jobMatcher($._config.jobs.querier), $._config.http_api_prefix], additional_grouping='route')
+        )
       )
       .addRow(
         g.row('Ingester')
@@ -64,11 +68,12 @@ dashboard_utils {
           $.panel('Pending Queue Length') +
           $.queryPanel(
             'tempo_live_store_complete_queue_length{%s}' % $.podMatcher('live-store-zone.*'), '{{pod}}'
-          )
+          ) + { fieldConfig+: { defaults+: { unit: 'short' } } }
         )
         .addPanel(
           $.panel('Completed Blocks') +
-          $.queryPanel('sum by(pod) (rate(tempo_live_store_blocks_completed_total{%s}[$__rate_interval]))' % $.containerMatcher($._config.jobs.live_store), '{{pod}}')
+          $.queryPanel('sum by(pod) (rate(tempo_live_store_blocks_completed_total{%s}[$__rate_interval]))' % $.containerMatcher($._config.jobs.live_store), '{{pod}}') +
+          { fieldConfig+: { defaults+: { unit: 'ops' } } }
         )
       )
       .addRow(

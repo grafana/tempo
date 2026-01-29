@@ -1,11 +1,14 @@
 package usage
 
 import (
+	"bytes"
 	"math"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
+	"github.com/go-kit/log"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
 
 	v1common "github.com/grafana/tempo/pkg/tempopb/common/v1"
@@ -166,30 +169,6 @@ func TestUsageTracker(t *testing.T) {
 	})
 
 	// -------------------------------------------------------------
-	// Test case 5 - Multiple labels with rename
-	// Multiple dimensions are renamed into the same output label
-	// -------------------------------------------------------------
-	name = "rename"
-	dimensions = map[string]string{
-		"service.name": "foo",
-		"attr":         "foo",
-	}
-	expected = make(map[uint64]*bucket)
-	expected[hash([]string{"foo"}, []string{"1"})] = &bucket{
-		labels: []string{"1"},
-		bytes:  nonSpanRatio(0.75) + spanSize(0) + spanSize(1) + spanSize(3),
-	}
-	expected[hash([]string{"foo"}, []string{"2"})] = &bucket{
-		labels: []string{"2"},
-		bytes:  nonSpanRatio(0.25) + spanSize(2),
-	}
-	testCases = append(testCases, testcase{
-		name:       name,
-		dimensions: dimensions,
-		expected:   expected,
-	})
-
-	// -------------------------------------------------------------
 	// Test case 6 - Some spans missing value
 	// Some spans within the same batch are missing values and
 	// should continue to inherit the batch value
@@ -252,11 +231,13 @@ func TestUsageTracker(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			cfg := testConfig()
+			logger := log.NewNopLogger()
+
 			if tc.max > 0 {
 				cfg.MaxCardinality = uint64(tc.max)
 			}
 
-			u, err := NewTracker(cfg, "test", func(_ string) map[string]string { return tc.dimensions }, func(_ string) uint64 { return 0 })
+			u, err := NewTracker(cfg, "test", func(_ string) map[string]string { return tc.dimensions }, func(_ string) uint64 { return 0 }, logger)
 			require.NoError(t, err)
 
 			u.Observe("test", data)
@@ -276,6 +257,117 @@ func TestUsageTracker(t *testing.T) {
 				// To make testing less brittle from rounding, just ensure that each series
 				// is within 1 byte of expected. We already ensured the total is 100% accurate above.
 				require.InDelta(t, expectedBucket.bytes, actual[expectedHash].bytes, 1.0)
+			}
+		})
+	}
+}
+
+func TestCollectDoesNotPanic(t *testing.T) {
+	tests := []struct {
+		name       string
+		dimensions map[string]string
+		wantErr    bool
+	}{
+		{
+			name: "invalid prometheus label - __name__",
+			dimensions: map[string]string{
+				"span.attr": "__name__",
+			},
+			wantErr: true,
+		},
+		{
+			name: "invalid prometheus label - starts with __",
+			dimensions: map[string]string{
+				"resource.service": "__invalid__",
+			},
+			wantErr: true,
+		},
+		{
+			name: "sanitized into invalid prometheus label",
+			dimensions: map[string]string{
+				"👻👻👻": "",
+			},
+			wantErr: true,
+		},
+		{
+			name: "sanitized into invalid prometheus label - dashes",
+			dimensions: map[string]string{
+				"--test": "",
+			},
+			wantErr: true,
+		},
+		{
+			name: "valid dimensions",
+			dimensions: map[string]string{
+				"span.attr":        "attribute",
+				"resource.service": "service",
+				"span.http.method": "",
+			},
+			wantErr: false,
+		},
+	}
+
+	// Minimal test data
+	data := []*v1.ResourceSpans{
+		{
+			Resource: &v1resource.Resource{
+				Attributes: []*v1common.KeyValue{
+					{
+						Key:   "service.name",
+						Value: &v1common.AnyValue{Value: &v1common.AnyValue_StringValue{StringValue: "svc"}},
+					},
+				},
+			},
+			ScopeSpans: []*v1.ScopeSpans{
+				{
+					Spans: []*v1.Span{
+						{
+							Attributes: []*v1common.KeyValue{
+								{Key: "attr", Value: &v1common.AnyValue{Value: &v1common.AnyValue_StringValue{StringValue: "1"}}},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := testConfig()
+			var logsBuf bytes.Buffer
+			logger := log.NewLogfmtLogger(&logsBuf)
+
+			u, err := NewTracker(cfg, "test", func(_ string) map[string]string { return tt.dimensions }, func(_ string) uint64 { return 0 }, logger)
+			require.NoError(t, err) // NewTracker itself should not error
+
+			// Try to observe data
+			u.Observe("test", data)
+
+			// Test the Collect method - this is where invalid dimensions cause prometheus.NewConstMetric to fail
+			ch := make(chan prometheus.Metric, 10)
+			go func() {
+				u.Collect(ch)
+				close(ch)
+			}()
+
+			// Count metrics collected
+			metricsCount := 0
+			for range ch {
+				metricsCount++
+			}
+
+			if tt.wantErr {
+				// Invalid dimensions will cause prometheus.NewConstMetric to fail in Collect()
+				// The Collect method logs the error and skips that series, so we should get 0 metrics
+				require.Equal(t, 0, metricsCount, "expected no metrics to be collected with invalid dimensions (prometheus.NewConstMetric should fail)")
+				// check that we are logging and error
+				logs := logsBuf.String()
+				require.Contains(t, logs, "failed to collect usage tracker metric")
+				require.Contains(t, logs, "tenantID=test")
+			} else {
+				// Valid dimensions should result in some metrics being collected successfully
+				require.Greater(t, metricsCount, 0, "expected metrics to be collected with valid dimensions")
 			}
 		})
 	}
@@ -316,6 +408,7 @@ func TestScopeAwareAttributeMatching(t *testing.T) {
 			},
 		},
 	}
+	logger := log.NewNopLogger()
 
 	tests := []struct {
 		name          string
@@ -469,7 +562,7 @@ func TestScopeAwareAttributeMatching(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			u, err := NewTracker(testConfig(), "test", func(_ string) map[string]string { return tt.dimensions }, func(_ string) uint64 { return 0 })
+			u, err := NewTracker(testConfig(), "test", func(_ string) map[string]string { return tt.dimensions }, func(_ string) uint64 { return 0 }, logger)
 			require.NoError(t, err)
 
 			u.Observe("test", data)
@@ -508,7 +601,7 @@ func TestParseDimensionKey(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.input, func(t *testing.T) {
-			attr, scope := parseDimensionKey(tt.input)
+			attr, scope := ParseDimensionKey(tt.input)
 			require.Equal(t, tt.expectedAttr, attr)
 			require.Equal(t, tt.expectedScope, scope)
 		})
@@ -524,7 +617,8 @@ func BenchmarkUsageTrackerObserve(b *testing.B) {
 		maxFn    = func(_ string) uint64 { return 0 }
 	)
 
-	u, err := NewTracker(testConfig(), "test", labelsFn, maxFn)
+	logger := log.NewNopLogger()
+	u, err := NewTracker(testConfig(), "test", labelsFn, maxFn, logger)
 	require.NoError(b, err)
 
 	for i := 0; i < b.N; i++ {
@@ -541,8 +635,9 @@ func BenchmarkUsageTrackerCollect(b *testing.B) {
 		req      = httptest.NewRequest("", "/", nil)
 		resp     = &NoopHTTPResponseWriter{}
 	)
+	logger := log.NewNopLogger()
 
-	u, err := NewTracker(testConfig(), "test", labelsFn, maxFn)
+	u, err := NewTracker(testConfig(), "test", labelsFn, maxFn, logger)
 	require.NoError(b, err)
 
 	u.Observe("test", tr.ResourceSpans)

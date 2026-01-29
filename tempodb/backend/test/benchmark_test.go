@@ -27,10 +27,8 @@ func BenchmarkIndexLoad(b *testing.B) {
 			TotalObjects:    10,
 			Size_:           12345,
 			CompactionLevel: 1,
-			Encoding:        backend.EncZstd,
 			IndexPageSize:   250000,
 			TotalRecords:    124356,
-			DataEncoding:    "",
 			BloomShardCount: 244,
 			FooterSize:      15775,
 			DedicatedColumns: backend.DedicatedColumns{

@@ -31,7 +31,6 @@ import (
 const (
 	blockBuilderServiceName = "block-builder"
 	ConsumerGroup           = "block-builder"
-	pollTimeout             = 2 * time.Second
 	cutTime                 = 10 * time.Second
 	emptyPartitionEndOffset = 0  // partition has no records
 	commitOffsetAtEnd       = -1 // offset is at the end of partition
@@ -39,6 +38,7 @@ const (
 )
 
 var (
+	pollTimeout         = 10 * time.Second
 	metricFetchDuration = promauto.NewHistogramVec(prometheus.HistogramOpts{
 		Namespace:                   "tempo",
 		Subsystem:                   "block_builder",
@@ -177,12 +177,10 @@ func New(
 func (b *BlockBuilder) starting(ctx context.Context) (err error) {
 	level.Info(b.logger).Log("msg", "block builder starting")
 	topic := b.cfg.IngestStorageConfig.Kafka.Topic
-	b.enc = encoding.DefaultEncoding()
-	if version := b.cfg.BlockConfig.BlockCfg.Version; version != "" {
-		b.enc, err = encoding.FromVersion(version)
-		if err != nil {
-			return fmt.Errorf("failed to create encoding: %w", err)
-		}
+
+	b.enc, err = encoding.FromVersionForWrites(b.cfg.BlockConfig.BlockCfg.Version)
+	if err != nil {
+		return fmt.Errorf("failed to create encoding: %w", err)
 	}
 
 	b.wal, err = wal.New(&b.cfg.WAL)
@@ -222,6 +220,9 @@ func (b *BlockBuilder) running(ctx context.Context) error {
 	defer close(b.consumeStopped)
 	for {
 		// Create a detached context for consume
+		// This is so that when the parent context is canceled and the block builder is stopping,
+		// we still finish the current consumption and flush of blocks. That is preferred than
+		// to starting over after a restart.
 		consumeCtx, cancel := context.WithCancel(context.Background())
 
 		waitTime, err := b.consume(consumeCtx)
@@ -231,6 +232,16 @@ func (b *BlockBuilder) running(ctx context.Context) error {
 			level.Error(b.logger).Log("msg", "consumeCycle failed", "err", err)
 		}
 
+		// Always check for cancellation before going to next cycle.
+		// There are cases like when the queue is lagged, that waitTime could be zero.
+		// In this case it's non-deterministic which select statement will be executed below,
+		// so we do a specific check here first.
+		if ctx.Err() != nil {
+			// Parent context canceled, return
+			return nil
+		}
+
+		// Now wait for next cycle or cancellation.
 		select {
 		case <-time.After(waitTime): // Continue with next cycle
 		case <-ctx.Done():
@@ -292,12 +303,17 @@ func (b *BlockBuilder) consume(ctx context.Context) (time.Duration, error) {
 
 		laggiestPartition := ps[0]
 		if laggiestPartition.lastRecordTs.IsZero() {
-			return b.cfg.ConsumeCycleDuration, nil
+			return b.cfg.ConsumeCycleDuration, errors.New("partition has no last record timestamp")
 		}
 
 		lagTime := time.Since(laggiestPartition.lastRecordTs)
 		if lagTime < b.cfg.ConsumeCycleDuration {
 			return b.cfg.ConsumeCycleDuration - lagTime, nil
+		}
+		// If we don't know exact offset, we need to start over on next cycle to fetch offsets again.
+		// This can happen when pull timeouted or the consumer had no lag.
+		if laggiestPartition.commitOffset == commitOffsetAtEnd {
+			return 0, nil
 		}
 		lastRecordTs, lastRecordOffset, err := b.consumePartition(ctx, laggiestPartition)
 		if err != nil {
@@ -451,7 +467,7 @@ outer:
 		span.AddEvent("no data")
 		// No data means we are caught up
 		ingest.SetPartitionLagSeconds(group, ps.partition, 0)
-		return time.Time{}, commitOffsetAtEnd, nil
+		return time.Now(), commitOffsetAtEnd, nil
 	}
 
 	// Record lag at the end of the consumption
@@ -631,8 +647,9 @@ func (b *BlockBuilder) getAssignedPartitions() []int32 {
 			ringAssignedPartitions[p.Id] = p.GetState().String()
 		}
 	}
-	assignedActivePartitions := make([]int32, 0, len(b.cfg.AssignedPartitions[b.cfg.InstanceID]))
-	for _, partition := range b.cfg.AssignedPartitions[b.cfg.InstanceID] {
+
+	assignedActivePartitions := make([]int32, 0, len(b.cfg.AssignedPartitions()))
+	for _, partition := range b.cfg.AssignedPartitions() {
 		if s, ok := ringAssignedPartitions[partition]; ok {
 			metricOwnedPartitions.WithLabelValues(strconv.Itoa(int(partition)), s).Set(1)
 			assignedActivePartitions = append(assignedActivePartitions, partition)

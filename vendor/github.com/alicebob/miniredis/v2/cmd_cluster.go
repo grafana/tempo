@@ -62,6 +62,9 @@ func (m *Miniredis) cmdClusterKeySlot(c *server.Peer, cmd string, args []string)
 // CLUSTER NODES
 func (m *Miniredis) cmdClusterNodes(c *server.Peer, cmd string, args []string) {
 	withTx(m, c, func(c *server.Peer, ctx *connCtx) {
-		c.WriteBulk("e7d1eecce10fd6bb5eb35b9f99a514335d9ba9ca 127.0.0.1:7000@7000 myself,master - 0 0 1 connected 0-16383")
+		// do not try to use m.Addr() here, as m is blocked by this tx.
+		addr := m.srv.Addr()
+		port := m.srv.Addr().Port
+		c.WriteBulk(fmt.Sprintf("e7d1eecce10fd6bb5eb35b9f99a514335d9ba9ca %s@%d myself,master - 0 0 1 connected 0-16383", addr, port))
 	})
 }

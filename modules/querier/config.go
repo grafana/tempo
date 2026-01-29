@@ -24,6 +24,7 @@ type Config struct {
 	ShuffleShardingIngestersLookbackPeriod time.Duration `yaml:"shuffle_sharding_ingesters_lookback_period"`
 	QueryRelevantIngesters                 bool          `yaml:"query_relevant_ingesters"`
 	SecondaryIngesterRing                  string        `yaml:"secondary_ingester_ring,omitempty"`
+	QueryLiveStore                         bool          `yaml:"query_live_store,omitempty"` // todo: remove after rhythm migration
 }
 
 type SearchConfig struct {
@@ -31,7 +32,8 @@ type SearchConfig struct {
 }
 
 type TraceByIDConfig struct {
-	QueryTimeout time.Duration `yaml:"query_timeout"`
+	QueryTimeout time.Duration  `yaml:"query_timeout"`
+	External     ExternalConfig `yaml:"external"`
 }
 
 type MetricsConfig struct {
@@ -52,9 +54,15 @@ type PartitionRingConfig struct {
 	PreferredZone                string        `yaml:"preferred_zone,omitempty"`
 }
 
+type ExternalConfig struct {
+	Endpoint string        `yaml:"endpoint"` // e.g., "http://external-service:3200"
+	Timeout  time.Duration `yaml:"timeout"`
+}
+
 // RegisterFlagsAndApplyDefaults register flags.
 func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
 	cfg.TraceByID.QueryTimeout = 10 * time.Second
+	cfg.TraceByID.External.Timeout = 10 * time.Second
 	cfg.QueryRelevantIngesters = false
 	cfg.ExtraQueryDelay = 0
 	cfg.MaxConcurrentQueries = 20
@@ -81,6 +89,7 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 	cfg.PartitionRing.MinimizeRequests = true
 	cfg.PartitionRing.MinimizeRequestsHedgingDelay = 3 * time.Second
 	cfg.PartitionRing.PreferredZone = ""
+	cfg.QueryLiveStore = false
 
 	f.StringVar(&cfg.Worker.FrontendAddress, prefix+".frontend-address", "", "Address of query frontend service, in host:port format.")
 }

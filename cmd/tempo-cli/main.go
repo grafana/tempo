@@ -8,7 +8,7 @@ import (
 	"github.com/grafana/dskit/flagext"
 
 	"github.com/alecthomas/kong"
-	"gopkg.in/yaml.v2"
+	"go.yaml.in/yaml/v2"
 
 	"github.com/grafana/tempo/cmd/tempo/app"
 	"github.com/grafana/tempo/tempodb/backend"
@@ -28,6 +28,11 @@ type globalOptions struct {
 	ConfigFile string `type:"path" short:"c" help:"Path to tempo config file"`
 }
 
+type outputOptions struct {
+	Out    string `short:"o" help:"File to write output to, instead of stdout" default:""`
+	Format string `short:"f" help:"Output format (jsonnet/yaml)" enum:"jsonnet,yaml" default:"yaml"`
+}
+
 type backendOptions struct {
 	Backend string `help:"backend to connect to (s3/gcs/local/azure), optional, overrides backend in config file" enum:",s3,gcs,local,azure" default:""`
 	Bucket  string `help:"bucket (or path on local backend) to scan, optional, overrides bucket in config file"`
@@ -42,11 +47,9 @@ var cli struct {
 	globalOptions
 
 	List struct {
-		Block             listBlockCmd             `cmd:"" help:"List information about a block"`
 		Blocks            listBlocksCmd            `cmd:"" help:"List information about all blocks in a bucket"`
 		CompactionSummary listCompactionSummaryCmd `cmd:"" help:"List summary of data by compaction level"`
 		CacheSummary      listCacheSummaryCmd      `cmd:"" help:"List summary of bloom sizes per day per compaction level"`
-		Index             listIndexCmd             `cmd:"" help:"List information about a block index"`
 		Column            listColumnCmd            `cmd:"" help:"List values in a given column"`
 	} `cmd:""`
 
@@ -56,13 +59,10 @@ var cli struct {
 	} `cmd:""`
 
 	View struct {
-		Index  viewIndexCmd  `cmd:"" help:"View contents of block index"`
 		Schema viewSchemaCmd `cmd:"" help:"View parquet schema"`
 	} `cmd:""`
 
 	Gen struct {
-		Index     indexCmd     `cmd:"" help:"Generate index for a block"`
-		Bloom     bloomCmd     `cmd:"" help:"Generate bloom for a block"`
 		AttrIndex attrIndexCmd `cmd:"" help:"Generate an attribute index for a parquet block (EXPERIMENTAL)"`
 	} `cmd:""`
 
@@ -84,7 +84,6 @@ var cli struct {
 	} `cmd:""`
 
 	Parquet struct {
-		Convert2to3 convertParquet2to3 `cmd:"" help:"convert an existing vParquet2 file to vParquet3 block"`
 		Convert3to4 convertParquet3to4 `cmd:"" help:"convert an existing vParquet3 file to vParquet4 block"`
 		Convert4to5 convertParquet4to5 `cmd:"" help:"convert an existing vParquet4 file to vParquet5 block"`
 	} `cmd:""`
@@ -92,6 +91,10 @@ var cli struct {
 	Migrate struct {
 		Tenant          migrateTenantCmd          `cmd:"" help:"migrate tenant between two backends"`
 		OverridesConfig migrateOverridesConfigCmd `cmd:"" help:"migrate overrides config"`
+	} `cmd:""`
+
+	Suggest struct {
+		Columns suggestColumnsCmd `cmd:"" help:"Suggest columns for a tenant"`
 	} `cmd:""`
 }
 

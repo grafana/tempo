@@ -10,8 +10,6 @@ import (
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 	"github.com/grafana/tempo/tempodb/encoding/unsupported"
-	v2 "github.com/grafana/tempo/tempodb/encoding/v2"
-	"github.com/grafana/tempo/tempodb/encoding/vparquet2"
 	"github.com/grafana/tempo/tempodb/encoding/vparquet3"
 	"github.com/grafana/tempo/tempodb/encoding/vparquet4"
 	"github.com/grafana/tempo/tempodb/encoding/vparquet5"
@@ -29,14 +27,15 @@ type VersionedEncoding interface {
 	// encoding. It is expected to use internal details for efficiency.
 	NewCompactor(common.CompactionOptions) common.Compactor
 
-	CompactionSupported() bool
+	// Feature detection methods:
+	CompactionSupported() bool // Whether these blocks should be compacted, if false the compactor will ignore these.
+	WritesSupported() bool     // Whether this encoding can create new blocks, or is in deprecated read-only mode.
 
 	// CreateBlock with the given attributes and trace contents.
 	// BlockMeta is used as a container for many options. Required fields:
 	// * BlockID
 	// * TenantID
 	// * Encoding
-	// * DataEncoding
 	// * StartTime
 	// * EndTime
 	// * TotalObjects
@@ -57,7 +56,6 @@ type VersionedEncoding interface {
 	// * BlockID
 	// * TenantID
 	// * Encoding
-	// * DataEncoding (of the file - v2)
 	// * DedicatedColumns (vParquet3)
 	// * ReplicationFactor (Optional)
 	CreateWALBlock(meta *backend.BlockMeta, filepath, dataEncoding string, ingestionSlack time.Duration) (common.WALBlock, error)
@@ -69,10 +67,6 @@ type VersionedEncoding interface {
 // FromVersion returns a versioned encoding for the provided string
 func FromVersion(v string) (VersionedEncoding, error) {
 	switch v {
-	case v2.VersionString:
-		return v2.Encoding{}, nil
-	case vparquet2.VersionString:
-		return vparquet2.Encoding{}, nil
 	case vparquet3.VersionString:
 		return vparquet3.Encoding{}, nil
 	case vparquet4.VersionString:
@@ -85,6 +79,19 @@ func FromVersion(v string) (VersionedEncoding, error) {
 		}
 		return nil, fmt.Errorf("%s is not a valid block version", v)
 	}
+}
+
+// FromVersionForWrites returns a versioned encoding for the provided string, but only for
+// encodings that are supported for creating new blocks.  Deprecated or readonly encodings will return an error.
+func FromVersionForWrites(v string) (VersionedEncoding, error) {
+	enc, err := FromVersion(v)
+	if err != nil {
+		return nil, err
+	}
+	if !enc.WritesSupported() {
+		return nil, fmt.Errorf("%s is not a valid block version for creating blocks", v)
+	}
+	return enc, nil
 }
 
 // DefaultEncoding for newly written blocks.
@@ -100,12 +107,21 @@ func LatestEncoding() VersionedEncoding {
 // AllEncodings returns all encodings
 func AllEncodings() []VersionedEncoding {
 	return []VersionedEncoding{
-		v2.Encoding{},
-		vparquet2.Encoding{},
 		vparquet3.Encoding{},
 		vparquet4.Encoding{},
 		vparquet5.Encoding{},
 	}
+}
+
+// AllEncodingsForWrites is the list of encodings that can create new blocks.
+func AllEncodingsForWrites() []VersionedEncoding {
+	var writeable []VersionedEncoding
+	for _, enc := range AllEncodings() {
+		if enc.WritesSupported() {
+			writeable = append(writeable, enc)
+		}
+	}
+	return writeable
 }
 
 // OpenBlock for reading in the backend. It automatically chooses the encoding for the given block.

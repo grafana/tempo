@@ -81,6 +81,7 @@ server:
     http_path_prefix: ""
     cluster_validation:
         label: ""
+        additional_labels: ""
         grpc:
             enabled: false
             soft_validation: false
@@ -153,6 +154,7 @@ internal_server:
     http_path_prefix: ""
     cluster_validation:
         label: ""
+        additional_labels: ""
         grpc:
             enabled: false
             soft_validation: false
@@ -229,6 +231,7 @@ distributor:
         producer_max_buffered_bytes: 0
         target_consumer_lag_at_startup: 0s
         max_consumer_lag_at_startup: 0s
+        disable_kafka_telemetry: false
         consumer_group_lag_metric_update_interval: 0s
     extend_writes: true
     retry_after_on_resource_exhausted: 0s
@@ -337,6 +340,9 @@ querier:
         query_timeout: 30s
     trace_by_id:
         query_timeout: 10s
+        external:
+            endpoint: ""
+            timeout: 10s
     metrics:
         concurrent_blocks: 2
         time_overlap_cutoff: 0.2
@@ -394,16 +400,18 @@ query_frontend:
         query_ingesters_until: 30m0s
         ingester_shards: 3
         most_recent_shards: 200
+        default_spans_per_span_set: 3
         max_spans_per_span_set: 100
     trace_by_id:
         query_shards: 50
     metrics:
         concurrent_jobs: 1000
         target_bytes_per_job: 104857600
-        max_duration: 3h0m0s
+        max_duration: 24h0m0s
         query_backend_after: 30m0s
         interval: 5m0s
         max_exemplars: 100
+        streaming_shards: 200
         max_intervals: 10000
     multi_tenant_queries_enabled: true
     response_consumers: 10
@@ -416,63 +424,6 @@ query_frontend:
         enabled: false
     max_query_expression_size_bytes: 131072
     rf1_after: 0001-01-01T00:00:00Z
-compactor:
-    ring:
-        kvstore:
-            store: ""
-            prefix: collectors/
-            consul:
-                host: localhost:8500
-                acl_token: ""
-                http_client_timeout: 20s
-                consistent_reads: false
-                watch_rate_limit: 1
-                watch_burst_size: 1
-                cas_retry_delay: 1s
-            etcd:
-                endpoints: []
-                dial_timeout: 10s
-                max_retries: 10
-                tls_enabled: false
-                tls_cert_path: ""
-                tls_key_path: ""
-                tls_ca_path: ""
-                tls_server_name: ""
-                tls_insecure_skip_verify: false
-                tls_cipher_suites: ""
-                tls_min_version: ""
-                username: ""
-                password: ""
-            multi:
-                primary: ""
-                secondary: ""
-                mirror_enabled: false
-                mirror_timeout: 2s
-        heartbeat_period: 5s
-        heartbeat_timeout: 1m0s
-        wait_stability_min_duration: 1m0s
-        wait_stability_max_duration: 5m0s
-        instance_id: hostname
-        instance_interface_names:
-            - eth0
-            - en0
-        instance_port: 0
-        instance_addr: ""
-        enable_inet6: false
-        wait_active_instance_timeout: 10m0s
-    compaction:
-        v2_in_buffer_bytes: 5242880
-        v2_out_buffer_bytes: 20971520
-        v2_prefetch_traces_count: 1000
-        compaction_window: 1h0m0s
-        max_compaction_objects: 6000000
-        max_block_bytes: 107374182400
-        block_retention: 336h0m0s
-        compacted_block_retention: 1h0m0s
-        retention_concurrency: 10
-        max_time_per_tenant: 5m0s
-        compaction_cycle: 30s
-    override_ring_key: compactor
 ingester:
     lifecycler:
         ring:
@@ -637,6 +588,10 @@ metrics_generator:
                 - db.system
             span_multiplier_key: ""
             enable_virtual_node_label: false
+            database_name_attributes:
+                - db.namespace
+                - db.name
+                - db.system
         span_metrics:
             histogram_buckets:
                 - 0.002
@@ -674,55 +629,64 @@ metrics_generator:
                 bloom_filter_false_positive: 0.01
                 bloom_filter_shard_size_bytes: 102400
                 version: vParquet4
-                search_encoding: snappy
-                search_page_size_bytes: 1048576
-                v2_index_downsample_bytes: 1048576
-                v2_index_page_size_bytes: 256000
-                v2_encoding: zstd
                 parquet_row_group_size_bytes: 100000000
                 parquet_dedicated_columns:
                     - scope: resource
                       name: k8s.cluster.name
                       type: string
+                      options: []
                     - scope: resource
                       name: k8s.namespace.name
                       type: string
+                      options: []
                     - scope: resource
                       name: k8s.pod.name
                       type: string
+                      options: []
                     - scope: resource
                       name: k8s.container.name
                       type: string
+                      options: []
                     - scope: span
                       name: http.request.method
                       type: string
+                      options: []
                     - scope: span
                       name: http.response.status_code
                       type: int
+                      options: []
                     - scope: span
                       name: url.path
                       type: string
+                      options: []
                     - scope: span
                       name: url.route
                       type: string
+                      options: []
                     - scope: span
                       name: server.address
                       type: string
+                      options: []
                     - scope: span
                       name: server.port
                       type: int
+                      options: []
                     - scope: span
                       name: http.method
                       type: string
+                      options: []
                     - scope: span
                       name: http.url
                       type: string
+                      options: []
                     - scope: span
                       name: http.route
                       type: string
+                      options: []
                     - scope: span
                       name: http.status_code
                       type: int
+                      options: []
             search:
                 chunk_size_bytes: 1000000
                 prefetch_trace_count: 1000
@@ -769,14 +733,10 @@ metrics_generator:
         remote_write_add_org_id_header: true
     traces_storage:
         path: ""
-        v2_encoding: none
-        search_encoding: none
         ingestion_time_range_slack: 2m0s
         version: vParquet4
     traces_query_storage:
         path: ""
-        v2_encoding: none
-        search_encoding: none
         ingestion_time_range_slack: 2m0s
         version: vParquet4
     metrics_ingestion_time_range_slack: 30s
@@ -785,6 +745,7 @@ metrics_generator:
     codec: push-bytes
     disable_local_blocks: false
     disable_grpc: false
+    limiter_type: series
     ingest_concurrency: 16
     instance_id: hostname
 ingest:
@@ -806,10 +767,12 @@ ingest:
         producer_max_buffered_bytes: 1073741824
         target_consumer_lag_at_startup: 2s
         max_consumer_lag_at_startup: 15s
+        disable_kafka_telemetry: false
         consumer_group_lag_metric_update_interval: 1m0s
 block_builder:
     instance_id: hostname
     assigned_partitions: {}
+    partitions_per_instance: 0
     consume_cycle_duration: 5m0s
     max_consuming_bytes: 5000000000
     block:
@@ -817,59 +780,66 @@ block_builder:
         bloom_filter_false_positive: 0.01
         bloom_filter_shard_size_bytes: 102400
         version: vParquet4
-        search_encoding: snappy
-        search_page_size_bytes: 1048576
-        v2_index_downsample_bytes: 1048576
-        v2_index_page_size_bytes: 256000
-        v2_encoding: zstd
         parquet_row_group_size_bytes: 100000000
         parquet_dedicated_columns:
             - scope: resource
               name: k8s.cluster.name
               type: string
+              options: []
             - scope: resource
               name: k8s.namespace.name
               type: string
+              options: []
             - scope: resource
               name: k8s.pod.name
               type: string
+              options: []
             - scope: resource
               name: k8s.container.name
               type: string
+              options: []
             - scope: span
               name: http.request.method
               type: string
+              options: []
             - scope: span
               name: http.response.status_code
               type: int
+              options: []
             - scope: span
               name: url.path
               type: string
+              options: []
             - scope: span
               name: url.route
               type: string
+              options: []
             - scope: span
               name: server.address
               type: string
+              options: []
             - scope: span
               name: server.port
               type: int
+              options: []
             - scope: span
               name: http.method
               type: string
+              options: []
             - scope: span
               name: http.url
               type: string
+              options: []
             - scope: span
               name: http.route
               type: string
+              options: []
             - scope: span
               name: http.status_code
               type: int
+              options: []
     wal:
         path: /var/tempo/block-builder/traces
-        v2_encoding: none
-        search_encoding: none
         ingestion_time_range_slack: 2m0s
         version: vParquet4
 storage:
@@ -879,62 +849,69 @@ storage:
             queue_depth: 20000
         wal:
             path: /var/tempo/wal
-            v2_encoding: snappy
-            search_encoding: none
             ingestion_time_range_slack: 2m0s
         block:
             bloom_filter_false_positive: 0.01
             bloom_filter_shard_size_bytes: 102400
             version: vParquet4
-            search_encoding: snappy
-            search_page_size_bytes: 1048576
-            v2_index_downsample_bytes: 1048576
-            v2_index_page_size_bytes: 256000
-            v2_encoding: zstd
             parquet_row_group_size_bytes: 100000000
             parquet_dedicated_columns:
                 - scope: resource
                   name: k8s.cluster.name
                   type: string
+                  options: []
                 - scope: resource
                   name: k8s.namespace.name
                   type: string
+                  options: []
                 - scope: resource
                   name: k8s.pod.name
                   type: string
+                  options: []
                 - scope: resource
                   name: k8s.container.name
                   type: string
+                  options: []
                 - scope: span
                   name: http.request.method
                   type: string
+                  options: []
                 - scope: span
                   name: http.response.status_code
                   type: int
+                  options: []
                 - scope: span
                   name: url.path
                   type: string
+                  options: []
                 - scope: span
                   name: url.route
                   type: string
+                  options: []
                 - scope: span
                   name: server.address
                   type: string
+                  options: []
                 - scope: span
                   name: server.port
                   type: int
+                  options: []
                 - scope: span
                   name: http.method
                   type: string
+                  options: []
                 - scope: span
                   name: http.url
                   type: string
+                  options: []
                 - scope: span
                   name: http.route
                   type: string
+                  options: []
                 - scope: span
                   name: http.status_code
                   type: int
+                  options: []
         search:
             chunk_size_bytes: 1000000
             prefetch_trace_count: 1000
@@ -969,6 +946,7 @@ storage:
             object_cache_control: ""
             object_metadata: {}
             list_blocks_concurrency: 3
+            max_retries: 3
         s3:
             tls_cert_path: ""
             tls_key_path: ""
@@ -1001,6 +979,7 @@ storage:
                 type: ""
                 kms_key_id: ""
                 kms_encryption_context: ""
+                encryption_key: ""
         azure:
             storage_account_name: ""
             storage_account_key: ""
@@ -1029,6 +1008,7 @@ overrides:
             rate_limit_bytes: 15000000
             burst_size_bytes: 20000000
             max_traces_per_user: 10000
+            retry_info_enabled: true
         read:
             max_bytes_per_tag_values_query: 1000000
         metrics_generator:
@@ -1060,6 +1040,7 @@ overrides:
                 object_cache_control: ""
                 object_metadata: {}
                 list_blocks_concurrency: 3
+                max_retries: 3
             s3:
                 tls_cert_path: ""
                 tls_key_path: ""
@@ -1092,6 +1073,7 @@ overrides:
                     type: ""
                     kms_key_id: ""
                     kms_encryption_context: ""
+                    encryption_key: ""
             azure:
                 storage_account_name: ""
                 storage_account_key: ""
@@ -1150,6 +1132,10 @@ memberlist:
     tls_insecure_skip_verify: false
     tls_cipher_suites: ""
     tls_min_version: ""
+    zone_aware_routing:
+        enabled: false
+        instance_availability_zone: ""
+        role: member
 usage_report:
     reporting_enabled: true
     backoff:
@@ -1173,9 +1159,6 @@ backend_scheduler:
         compaction:
             measure_interval: 1m0s
             compaction:
-                v2_in_buffer_bytes: 5242880
-                v2_out_buffer_bytes: 20971520
-                v2_prefetch_traces_count: 1000
                 compaction_window: 1h0m0s
                 max_compaction_objects: 6000000
                 max_block_bytes: 107374182400
@@ -1225,9 +1208,6 @@ backend_worker:
         max_period: 1m0s
         max_retries: 0
     compaction:
-        v2_in_buffer_bytes: 5242880
-        v2_out_buffer_bytes: 20971520
-        v2_prefetch_traces_count: 1000
         compaction_window: 1h0m0s
         max_compaction_objects: 6000000
         max_block_bytes: 107374182400
@@ -1359,6 +1339,10 @@ live_store:
     metrics:
         time_overlap_cutoff: 0.2
     commit_interval: 5s
+    wal:
+        path: /var/tempo/live-store/traces
+        ingestion_time_range_slack: 2m0s
+        version: vParquet4
     query_block_concurrency: 10
     complete_block_timeout: 1h0m0s
     complete_block_concurrency: 2
@@ -1374,53 +1358,64 @@ live_store:
         bloom_filter_false_positive: 0.01
         bloom_filter_shard_size_bytes: 102400
         version: ""
-        search_encoding: snappy
-        search_page_size_bytes: 1048576
-        v2_index_downsample_bytes: 1048576
-        v2_index_page_size_bytes: 256000
-        v2_encoding: zstd
         parquet_row_group_size_bytes: 100000000
         parquet_dedicated_columns:
             - scope: resource
               name: k8s.cluster.name
               type: string
+              options: []
             - scope: resource
               name: k8s.namespace.name
               type: string
+              options: []
             - scope: resource
               name: k8s.pod.name
               type: string
+              options: []
             - scope: resource
               name: k8s.container.name
               type: string
+              options: []
             - scope: span
               name: http.request.method
               type: string
+              options: []
             - scope: span
               name: http.response.status_code
               type: int
+              options: []
             - scope: span
               name: url.path
               type: string
+              options: []
             - scope: span
               name: url.route
               type: string
+              options: []
             - scope: span
               name: server.address
               type: string
+              options: []
             - scope: span
               name: server.port
               type: int
+              options: []
             - scope: span
               name: http.method
               type: string
+              options: []
             - scope: span
               name: http.url
               type: string
+              options: []
             - scope: span
               name: http.route
               type: string
+              options: []
             - scope: span
               name: http.status_code
               type: int
+              options: []
+    readiness_target_lag: 0s
+    readiness_max_wait: 30m0s
 ```

@@ -44,6 +44,7 @@ type PartitionReader struct {
 	commitInterval  time.Duration
 	wg              sync.WaitGroup
 	offsetWatermark atomic.Pointer[kadm.Offset]
+	lag             atomic.Int64
 
 	consume consumeFn
 	metrics partitionReaderMetrics
@@ -69,7 +70,7 @@ func newPartitionReader(client *kgo.Client, partitionID int32, cfg ingest.KafkaC
 		metrics:        metrics,
 		logger:         log.With(logger, "partition", partitionID),
 	}
-
+	r.lag.Store(-1)
 	r.Service = services.NewBasicService(r.start, r.running, r.stop)
 	return r, nil
 }
@@ -84,11 +85,28 @@ func (r *PartitionReader) running(ctx context.Context) error {
 		return fmt.Errorf("failed to fetch last committed offset: %w", err)
 	}
 
-	r.wg.Add(1)
-	go r.commitLoop(ctx)
+	// Fetch end offset to calculate initial lag before entering poll loop.
+	// Ensures we have data even if PollFetches blocks due to empty partition
+	if endOffsets, err := r.adm.ListEndOffsets(ctx, r.topic); err == nil {
+		if endOffset, found := endOffsets.Lookup(r.topic, r.partitionID); found && endOffset.Err == nil {
+			// Get the committed offset value
+			committedAt := offset.EpochOffset().Offset
+			if committedAt >= 0 {
+				lag := endOffset.Offset - committedAt
+				if lag < 0 {
+					lag = 0
+				}
+				r.lag.Store(lag)
+				level.Debug(r.logger).Log("msg", "initial lag calculated", "lag", lag, "committed", committedAt, "end", endOffset.Offset)
+			}
+		}
+	}
 
 	r.client.AddConsumePartitions(map[string]map[int32]kgo.Offset{r.topic: {r.partitionID: offset}})
 	defer r.client.RemoveConsumePartitions(map[string][]int32{r.topic: {r.partitionID}})
+
+	r.wg.Go(func() { r.commitLoop(ctx) })
+	r.metrics.ownedPartition.WithLabelValues(strconv.Itoa(int(r.partitionID)), r.consumerGroup).Set(1)
 
 	for ctx.Err() == nil {
 		fetches := r.client.PollFetches(ctx)
@@ -99,6 +117,18 @@ func (r *PartitionReader) running(ctx context.Context) error {
 			err := collectFetchErrs(fetches)
 			level.Error(r.logger).Log("msg", "encountered error while fetching", "err", err)
 			continue
+		}
+
+		// Calculate and store maximum lag in entries
+		// Technically shaped as a nested loop, but we only have one partition (at the moment)
+		for _, fetch := range fetches {
+			for _, topic := range fetch.Topics {
+				for _, partition := range topic.Partitions {
+					// HighWatermark guaranteed to be >= LastStableOffset
+					lag := partition.HighWatermark - partition.LastStableOffset
+					r.lag.Store(lag)
+				}
+			}
 		}
 
 		r.recordFetchesMetrics(fetches)
@@ -123,6 +153,8 @@ func (r *PartitionReader) storeOffsetForCommit(ctx context.Context, offset *kadm
 func (r *PartitionReader) stop(error) error {
 	level.Info(r.logger).Log("msg", "stopping partition reader")
 
+	r.metrics.ownedPartition.WithLabelValues(strconv.Itoa(int(r.partitionID)), r.consumerGroup).Set(0)
+
 	r.wg.Wait()
 
 	r.client.Close()
@@ -131,8 +163,6 @@ func (r *PartitionReader) stop(error) error {
 }
 
 func (r *PartitionReader) commitLoop(ctx context.Context) {
-	defer r.wg.Done()
-
 	if r.commitInterval == 0 { // Sync commits
 		return
 	}
@@ -285,6 +315,7 @@ func (r *PartitionReader) commitOffset(ctx context.Context, offset kadm.Offset) 
 type partitionReaderMetrics struct {
 	receiveDelay    prometheus.Histogram
 	recordsPerFetch prometheus.Histogram
+	ownedPartition  *prometheus.GaugeVec
 	kprom           *kprom.Metrics
 }
 
@@ -303,6 +334,12 @@ func newPartitionReaderMetrics(partitionID int32, reg prometheus.Registerer) par
 			Buckets:                     prometheus.ExponentialBuckets(1, 2, 15),
 			NativeHistogramBucketFactor: 1.1,
 		}),
+		ownedPartition: factory.NewGaugeVec(prometheus.GaugeOpts{
+			Namespace: "tempo",
+			Subsystem: "live_store",
+			Name:      "partition_owned",
+			Help:      "1 if this consumer currently owns the partition.",
+		}, []string{"partition", "zone"}),
 		kprom: kprom.NewMetrics("tempo_ingest_storage_reader",
 			kprom.Registerer(prometheus.WrapRegistererWith(prometheus.Labels{"partition": strconv.Itoa(int(partitionID))}, reg)),
 			// Do not export the client ID, because we use it to specify options to the backend.

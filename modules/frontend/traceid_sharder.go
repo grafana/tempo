@@ -6,12 +6,12 @@ import (
 	"time"
 
 	"github.com/go-kit/log" //nolint:all //deprecated
-	"github.com/grafana/dskit/user"
 	"github.com/grafana/tempo/modules/frontend/combiner"
 	"github.com/grafana/tempo/modules/frontend/pipeline"
 	"github.com/grafana/tempo/modules/querier"
 	"github.com/grafana/tempo/pkg/api"
 	"github.com/grafana/tempo/pkg/blockboundary"
+	"github.com/grafana/tempo/pkg/validation"
 )
 
 const (
@@ -28,11 +28,18 @@ type asyncTraceSharder struct {
 
 func newAsyncTraceIDSharder(cfg *TraceByIDConfig, logger log.Logger) pipeline.AsyncMiddleware[combiner.PipelineResponse] {
 	return pipeline.AsyncMiddlewareFunc[combiner.PipelineResponse](func(next pipeline.AsyncRoundTripper[combiner.PipelineResponse]) pipeline.AsyncRoundTripper[combiner.PipelineResponse] {
+		// Calculate block boundaries:
+		// - If external is enabled: N-2 block shards (1 ingester + 1 external + N-2 blocks = N total)
+		// - If external is disabled: N-1 block shards (1 ingester + N-1 blocks = N total)
+		numBlockShards := cfg.QueryShards - 1
+		if cfg.ExternalEnabled {
+			numBlockShards = cfg.QueryShards - 2
+		}
 		return asyncTraceSharder{
 			next:            next,
 			cfg:             cfg,
 			logger:          logger,
-			blockBoundaries: blockboundary.CreateBlockBoundaries(cfg.QueryShards - 1), // one shard will be used to query ingesters
+			blockBoundaries: blockboundary.CreateBlockBoundaries(numBlockShards),
 		}
 	})
 }
@@ -71,21 +78,23 @@ func (s asyncTraceSharder) RoundTrip(pipelineRequest pipeline.Request) (pipeline
 // buildShardedRequests returns a slice of requests sharded on the precalculated
 // block boundaries
 func (s *asyncTraceSharder) buildShardedRequests(parent pipeline.Request) ([]pipeline.Request, error) {
-	userID, err := user.ExtractOrgID(parent.Context())
+	userID, err := validation.ExtractValidTenantID(parent.Context())
 	if err != nil {
 		return nil, err
 	}
 
-	reqs := make([]pipeline.Request, s.cfg.QueryShards)
+	reqs := make([]pipeline.Request, 0, s.cfg.QueryShards)
 	params := map[string]string{}
 
-	reqs[0], err = cloneRequestforQueriers(parent, userID, func(r *http.Request) (*http.Request, error) {
+	// Job 0: ingester job
+	req, err := cloneRequestforQueriers(parent, userID, func(r *http.Request) (*http.Request, error) {
 		params[querier.QueryModeKey] = querier.QueryModeIngesters
 		return api.BuildQueryRequest(r, params), nil
 	})
 	if err != nil {
 		return nil, err
 	}
+	reqs = append(reqs, req)
 
 	var rf1After string
 	if val := parent.HTTPRequest().URL.Query().Get(api.URLParamRF1After); val != "" {
@@ -94,7 +103,22 @@ func (s *asyncTraceSharder) buildShardedRequests(parent pipeline.Request) ([]pip
 		rf1After = s.cfg.RF1After.Format(time.RFC3339)
 	}
 
-	// build sharded block queries
+	// Job 1: external job (if enabled)
+	if s.cfg.ExternalEnabled {
+		req, err = cloneRequestforQueriers(parent, userID, func(r *http.Request) (*http.Request, error) {
+			params[querier.QueryModeKey] = querier.QueryModeExternal
+			return api.BuildQueryRequest(r, params), nil
+		})
+		if err != nil {
+			return nil, err
+		}
+		reqs = append(reqs, req)
+	}
+
+	// Jobs 2 to N-1: block queries
+	// When external is enabled, we have N-2 block shards
+	// When external is disabled, we have N-1 block shards
+	// blockBoundaries has length equal to numBlockShards, and we create shards between boundaries
 	for i := 1; i < len(s.blockBoundaries); i++ {
 		i := i // save the loop variable locally to make sure the closure grabs the correct var.
 		pipelineR, _ := cloneRequestforQueriers(parent, userID, func(r *http.Request) (*http.Request, error) {
@@ -106,8 +130,7 @@ func (s *asyncTraceSharder) buildShardedRequests(parent pipeline.Request) ([]pip
 
 			return api.BuildQueryRequest(r, params), nil
 		})
-
-		reqs[i] = pipelineR
+		reqs = append(reqs, pipelineR)
 	}
 
 	return reqs, nil

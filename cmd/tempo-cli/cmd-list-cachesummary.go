@@ -83,8 +83,12 @@ func displayCacheSummary(results []blockStats) {
 
 	fmt.Println()
 	w := tablewriter.NewWriter(os.Stdout)
-	w.SetHeader(columns)
-	w.AppendBulk(out)
-	w.SetFooter(columnTotalsRow)
-	w.Render()
+	w.Header(columns)
+	if err := w.Bulk(out); err != nil {
+		panic(err)
+	}
+	w.Footer(columnTotalsRow)
+	if err := w.Render(); err != nil {
+		panic(err)
+	}
 }

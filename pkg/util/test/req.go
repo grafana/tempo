@@ -32,16 +32,16 @@ func MakeSpan(traceID []byte) *v1_trace.Span {
 	now := time.Now()
 	startTime := uint64(now.UnixNano())
 	endTime := uint64(now.Add(time.Second).UnixNano())
-	return makeSpanWithAttributeCount(traceID, rand.Int()%10+1, startTime, endTime)
+	return makeSpanWithAttributeCount(traceID, rand.Int()%10+1, startTime, endTime) // nolint:gosec // G404: Use of weak random number generator
 }
 
 func MakeSpanWithTimeWindow(traceID []byte, startTime uint64, endTime uint64) *v1_trace.Span {
-	return makeSpanWithAttributeCount(traceID, rand.Int()%10+1, startTime, endTime)
+	return makeSpanWithAttributeCount(traceID, rand.Int()%10+1, startTime, endTime) // nolint:gosec // G404: Use of weak random number generator
 }
 
 func makeSpanWithAttributeCount(traceID []byte, count int, startTime uint64, endTime uint64) *v1_trace.Span {
 	attributes := make([]*v1_common.KeyValue, 0, count)
-	for i := 0; i < count; i++ {
+	for range count {
 		attributes = append(attributes, &v1_common.KeyValue{
 			Key:   RandomString(),
 			Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_StringValue{StringValue: RandomString()}},
@@ -60,8 +60,8 @@ func makeSpanWithAttributeCount(traceID []byte, count int, startTime uint64, end
 		StartTimeUnixNano:      startTime,
 		EndTimeUnixNano:        endTime,
 		Attributes:             attributes,
-		DroppedLinksCount:      rand.Uint32(),
-		DroppedAttributesCount: rand.Uint32(),
+		DroppedLinksCount:      rand.Uint32(), // nolint:gosec // G404: Use of weak random number generator
+		DroppedAttributesCount: rand.Uint32(), // nolint:gosec // G404: Use of weak random number generator
 	}
 	_, err := crand.Read(s.SpanId)
 	if err != nil {
@@ -69,7 +69,7 @@ func makeSpanWithAttributeCount(traceID []byte, count int, startTime uint64, end
 	}
 
 	// add link
-	if rand.Intn(5) == 0 {
+	if rand.Intn(5) == 0 { // nolint:gosec // G404: Use of weak random number generator
 		s.Links = append(s.Links, &v1_trace.Span_Link{
 			TraceId:    traceID,
 			SpanId:     make([]byte, 8),
@@ -88,7 +88,7 @@ func makeSpanWithAttributeCount(traceID []byte, count int, startTime uint64, end
 	}
 
 	// add attr
-	if rand.Intn(2) == 0 {
+	if rand.Intn(2) == 0 { // nolint:gosec // G404: Use of weak random number generator
 		s.Attributes = append(s.Attributes, &v1_common.KeyValue{
 			Key: "key",
 			Value: &v1_common.AnyValue{
@@ -100,11 +100,11 @@ func makeSpanWithAttributeCount(traceID []byte, count int, startTime uint64, end
 	}
 
 	// add event
-	if rand.Intn(3) == 0 {
+	if rand.Intn(3) == 0 { // nolint:gosec // G404: Use of weak random number generator
 		s.Events = append(s.Events, &v1_trace.Span_Event{
 			TimeUnixNano:           s.StartTimeUnixNano + uint64(rand.Intn(1*1000*1000)), // 1ms
 			Name:                   "event",
-			DroppedAttributesCount: rand.Uint32(),
+			DroppedAttributesCount: rand.Uint32(), // nolint:gosec // G404: Use of weak random number generator
 			Attributes: []*v1_common.KeyValue{
 				{
 					Key: "eventkey",
@@ -122,7 +122,11 @@ func makeSpanWithAttributeCount(traceID []byte, count int, startTime uint64, end
 }
 
 func MakeBatch(spans int, traceID []byte) *v1_trace.ResourceSpans {
-	return makeBatchWithTimeRange(spans, traceID, nil)
+	return makeBatchWithTimeRange(spans, traceID, nil, nil)
+}
+
+func MakeBatchWithAttributes(spans int, traceID []byte, resAttributes []*v1_common.KeyValue) *v1_trace.ResourceSpans {
+	return makeBatchWithTimeRange(spans, traceID, nil, resAttributes)
 }
 
 type batchTimeRange struct {
@@ -130,7 +134,7 @@ type batchTimeRange struct {
 	end   uint64
 }
 
-func makeBatchWithTimeRange(spans int, traceID []byte, timeRange *batchTimeRange) *v1_trace.ResourceSpans {
+func makeBatchWithTimeRange(spans int, traceID []byte, timeRange *batchTimeRange, resAttributes []*v1_common.KeyValue) *v1_trace.ResourceSpans {
 	traceID = ValidTraceID(traceID)
 
 	batch := &v1_trace.ResourceSpans{
@@ -156,14 +160,18 @@ func makeBatchWithTimeRange(spans int, traceID []byte, timeRange *batchTimeRange
 		},
 	}
 
+	if resAttributes != nil {
+		batch.Resource.Attributes = append(batch.Resource.Attributes, resAttributes...)
+	}
+
 	var (
 		ss      *v1_trace.ScopeSpans
 		ssCount int
 	)
 
-	for i := 0; i < spans; i++ {
+	for range spans {
 		// occasionally make a new ss
-		if ss == nil || rand.Int()%3 == 0 {
+		if ss == nil || rand.Int()%3 == 0 { // nolint:gosec // G404: Use of weak random number generator
 			ssCount++
 			ss = &v1_trace.ScopeSpans{
 				Scope: &v1_common.InstrumentationScope{
@@ -192,7 +200,7 @@ func MakeTrace(requests int, traceID []byte) *tempopb.Trace {
 	}
 
 	for i := 0; i < requests; i++ {
-		trace.ResourceSpans = append(trace.ResourceSpans, MakeBatch(rand.Int()%20+1, traceID))
+		trace.ResourceSpans = append(trace.ResourceSpans, MakeBatch(rand.Int()%20+1, traceID)) // nolint:gosec // G404: Use of weak random number generator
 	}
 
 	return trace
@@ -205,9 +213,9 @@ func MakeTraceWithTimeRange(requests int, traceID []byte, startTime, endTime uin
 		ResourceSpans: make([]*v1_trace.ResourceSpans, 0),
 	}
 
-	for i := 0; i < requests; i++ {
+	for range requests {
 		timeRange := &batchTimeRange{start: startTime, end: endTime}
-		trace.ResourceSpans = append(trace.ResourceSpans, makeBatchWithTimeRange(rand.Int()%20+1, traceID, timeRange))
+		trace.ResourceSpans = append(trace.ResourceSpans, makeBatchWithTimeRange(rand.Int()%20+1, traceID, timeRange, nil)) // nolint:gosec // G404: Use of weak random number generator
 	}
 
 	return trace
@@ -218,7 +226,7 @@ func MakeTraceWithSpanCount(requests int, spansEach int, traceID []byte) *tempop
 		ResourceSpans: make([]*v1_trace.ResourceSpans, 0),
 	}
 
-	for i := 0; i < requests; i++ {
+	for range requests {
 		trace.ResourceSpans = append(trace.ResourceSpans, MakeBatch(spansEach, traceID))
 	}
 
@@ -243,6 +251,10 @@ var (
 		{Scope: "span", Name: "dedicated.span.5", Type: "string"},
 		{Scope: "span", Name: "dedicated.span.6", Type: "int"},
 		{Scope: "span", Name: "dedicated.span.7", Type: "int"},
+	}
+	dedicatedColumnsEvent = backend.DedicatedColumns{
+		{Scope: "event", Name: "dedicated.event.1", Type: "string"},
+		{Scope: "event", Name: "dedicated.event.2", Type: "string"},
 	}
 )
 
@@ -278,6 +290,13 @@ func AddDedicatedAttributes(trace *tempopb.Trace) *tempopb.Trace {
 			Value: makeVal(c.Type, c.Scope, i),
 		})
 	}
+	eventAttrs := make([]*v1_common.KeyValue, 0, len(dedicatedColumnsEvent))
+	for i, c := range dedicatedColumnsEvent {
+		eventAttrs = append(eventAttrs, &v1_common.KeyValue{
+			Key:   c.Name,
+			Value: makeVal(c.Type, c.Scope, i),
+		})
+	}
 
 	for _, batch := range trace.ResourceSpans {
 		attr := make([]*v1_common.KeyValue, 0, len(resourceAttrs)+len(batch.Resource.Attributes))
@@ -289,6 +308,12 @@ func AddDedicatedAttributes(trace *tempopb.Trace) *tempopb.Trace {
 				attr = make([]*v1_common.KeyValue, 0, len(spanAttrs)+len(span.Attributes))
 				attr = append(attr, spanAttrs...)
 				span.Attributes = append(attr, span.Attributes...)
+
+				for _, e := range span.Events {
+					attr = make([]*v1_common.KeyValue, 0, len(eventAttrs)+len(e.Attributes))
+					attr = append(attr, eventAttrs...)
+					e.Attributes = append(attr, e.Attributes...)
+				}
 			}
 		}
 	}
@@ -315,9 +340,10 @@ func MakeReqWithMultipleTraceWithSpanCount(spanCounts []int, traceIDs [][]byte) 
 // MakeDedicatedColumns creates a dedicated column assignment that matches the attributes
 // generated by AddDedicatedAttributes.
 func MakeDedicatedColumns() backend.DedicatedColumns {
-	columns := make(backend.DedicatedColumns, 0, len(dedicatedColumnsResource)+len(dedicatedColumnsSpan))
+	columns := make(backend.DedicatedColumns, 0, len(dedicatedColumnsResource)+len(dedicatedColumnsSpan)+len(dedicatedColumnsEvent))
 	columns = append(columns, dedicatedColumnsResource...)
 	columns = append(columns, dedicatedColumnsSpan...)
+	columns = append(columns, dedicatedColumnsEvent...)
 	return columns
 }
 
@@ -342,7 +368,7 @@ func RandomString() string {
 
 	s := make([]rune, 10)
 	for i := range s {
-		s[i] = letters[rand.Intn(len(letters))]
+		s[i] = letters[rand.Intn(len(letters))] // nolint:gosec // G404: Use of weak random number generator
 	}
 	return string(s)
 }

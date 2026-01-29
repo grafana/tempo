@@ -91,6 +91,10 @@ func (o ScalarOperation) validate() error {
 		return err
 	}
 
+	if o.Op == OpNotExists || o.Op == OpExists {
+		return fmt.Errorf("illegal operation for the given type: %s", o.String())
+	}
+
 	lhsT := o.LHS.impliedType()
 	rhsT := o.RHS.impliedType()
 	if !lhsT.isMatchingOperand(rhsT) {
@@ -135,6 +139,10 @@ func (a Aggregate) validate() error {
 func (o SpansetOperation) validate() error {
 	if err := o.LHS.validate(); err != nil {
 		return err
+	}
+
+	if o.Op == OpNotExists || o.Op == OpExists {
+		return fmt.Errorf("illegal operation for the given type: %s", o.String())
 	}
 
 	return o.RHS.validate()
@@ -198,12 +206,12 @@ func (o *BinaryOperation) validate() error {
 	lhsT := o.LHS.impliedType()
 	rhsT := o.RHS.impliedType()
 
-	if !lhsT.isMatchingOperand(rhsT) {
-		return fmt.Errorf("binary operations must operate on the same type: %s", o.String())
+	if o.Op == OpNotExists || o.Op == OpExists {
+		return fmt.Errorf("illegal operation for the given type: %s", o.String())
 	}
 
-	if rhsT == TypeNil && o.Op == OpEqual {
-		return newUnsupportedError("{.a = nil}")
+	if !lhsT.isMatchingOperand(rhsT) {
+		return fmt.Errorf("binary operations must operate on the same type: %s", o.String())
 	}
 
 	if !o.Op.binaryTypesValid(lhsT, rhsT) {
@@ -257,6 +265,18 @@ func (o UnaryOperation) validate() error {
 		return err
 	}
 
+	// Disallow intrinsic=nil
+	if o.Op == OpNotExists {
+		if attr, ok := o.Expression.(Attribute); ok {
+			switch {
+			case attr.Intrinsic != IntrinsicNone:
+				return fmt.Errorf("%s=nil is not valid because intrinsics cannot be nil", attr.String())
+			case attr == NewScopedAttribute(AttributeScopeResource, false, "service.name"):
+				return fmt.Errorf("%s=nil is not valid because resource.service.name cannot be nil", attr.String())
+			}
+		}
+	}
+
 	t := o.Expression.impliedType()
 	if t == TypeAttribute {
 		return nil
@@ -278,7 +298,7 @@ func (a Attribute) validate() error {
 		return newUnsupportedError("parent")
 	}
 	switch a.Intrinsic {
-	case IntrinsicParent, IntrinsicChildCount:
+	case IntrinsicParent:
 		return newUnsupportedError(fmt.Sprintf("intrinsic (%v)", a.Intrinsic))
 	}
 

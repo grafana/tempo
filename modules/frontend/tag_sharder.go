@@ -7,13 +7,13 @@ import (
 	"time"
 
 	"github.com/go-kit/log"
-	"github.com/grafana/dskit/user"
 	"github.com/grafana/tempo/modules/frontend/combiner"
 	"github.com/grafana/tempo/modules/frontend/pipeline"
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/pkg/api"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/traceql"
+	"github.com/grafana/tempo/pkg/validation"
 	"github.com/grafana/tempo/tempodb"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/segmentio/fasthash/fnv1a"
@@ -63,10 +63,8 @@ func (r *tagsSearchRequest) buildTagSearchBlockRequest(subR *http.Request, block
 		BlockID:       blockID,
 		StartPage:     uint32(startPage),
 		PagesToSearch: uint32(pages),
-		Encoding:      m.Encoding.String(),
 		IndexPageSize: m.IndexPageSize,
 		TotalRecords:  m.TotalRecords,
-		DataEncoding:  m.DataEncoding,
 		Version:       m.Version,
 		Size_:         m.Size_,
 		FooterSize:    m.FooterSize,
@@ -120,10 +118,8 @@ func (r *tagValueSearchRequest) buildTagSearchBlockRequest(subR *http.Request, b
 		BlockID:       blockID,
 		StartPage:     uint32(startPage),
 		PagesToSearch: uint32(pages),
-		Encoding:      m.Encoding.String(),
 		IndexPageSize: m.IndexPageSize,
 		TotalRecords:  m.TotalRecords,
-		DataEncoding:  m.DataEncoding,
 		Version:       m.Version,
 		Size_:         m.Size_,
 		FooterSize:    m.FooterSize,
@@ -208,7 +204,7 @@ func (s searchTagSharder) RoundTrip(pipelineRequest pipeline.Request) (pipeline.
 	r := pipelineRequest.HTTPRequest()
 	ctx := pipelineRequest.Context()
 
-	tenantID, err := user.ExtractOrgID(ctx)
+	tenantID, err := validation.ExtractValidTenantID(ctx)
 	if err != nil {
 		return pipeline.NewBadRequest(err), nil
 	}

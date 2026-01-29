@@ -23,12 +23,14 @@ func (c *Overrides) toLegacy() LegacyOverrides {
 		MaxGlobalTracesPerUser:     c.Ingestion.MaxGlobalTracesPerUser,
 		IngestionMaxAttributeBytes: c.Ingestion.MaxAttributeBytes,
 		IngestionArtificialDelay:   c.Ingestion.ArtificialDelay,
+		IngestionRetryInfoEnabled:  c.Ingestion.RetryInfoEnabled,
 
 		Forwarders: c.Forwarders,
 
 		MetricsGeneratorRingSize:                                                    c.MetricsGenerator.RingSize,
 		MetricsGeneratorProcessors:                                                  c.MetricsGenerator.Processors,
 		MetricsGeneratorMaxActiveSeries:                                             c.MetricsGenerator.MaxActiveSeries,
+		MetricsGeneratorMaxActiveEntities:                                           c.MetricsGenerator.MaxActiveEntities,
 		MetricsGeneratorCollectionInterval:                                          c.MetricsGenerator.CollectionInterval,
 		MetricsGeneratorDisableCollection:                                           c.MetricsGenerator.DisableCollection,
 		MetricsGeneratorGenerateNativeHistograms:                                    c.MetricsGenerator.GenerateNativeHistograms,
@@ -42,6 +44,7 @@ func (c *Overrides) toLegacy() LegacyOverrides {
 		MetricsGeneratorProcessorServiceGraphsEnableClientServerPrefix:              c.MetricsGenerator.Processor.ServiceGraphs.EnableClientServerPrefix,
 		MetricsGeneratorProcessorServiceGraphsEnableMessagingSystemLatencyHistogram: c.MetricsGenerator.Processor.ServiceGraphs.EnableMessagingSystemLatencyHistogram,
 		MetricsGeneratorProcessorServiceGraphsEnableVirtualNodeLabel:                c.MetricsGenerator.Processor.ServiceGraphs.EnableVirtualNodeLabel,
+		MetricsGeneratorProcessorServiceGraphsSpanMultiplierKey:                     c.MetricsGenerator.Processor.ServiceGraphs.SpanMultiplierKey,
 		MetricsGeneratorProcessorSpanMetricsHistogramBuckets:                        c.MetricsGenerator.Processor.SpanMetrics.HistogramBuckets,
 		MetricsGeneratorProcessorSpanMetricsDimensions:                              c.MetricsGenerator.Processor.SpanMetrics.Dimensions,
 		MetricsGeneratorProcessorSpanMetricsIntrinsicDimensions:                     c.MetricsGenerator.Processor.SpanMetrics.IntrinsicDimensions,
@@ -50,6 +53,7 @@ func (c *Overrides) toLegacy() LegacyOverrides {
 		MetricsGeneratorProcessorSpanMetricsEnableTargetInfo:                        c.MetricsGenerator.Processor.SpanMetrics.EnableTargetInfo,
 		MetricsGeneratorProcessorSpanMetricsTargetInfoExcludedDimensions:            c.MetricsGenerator.Processor.SpanMetrics.TargetInfoExcludedDimensions,
 		MetricsGeneratorProcessorSpanMetricsEnableInstanceLabel:                     c.MetricsGenerator.Processor.SpanMetrics.EnableInstanceLabel,
+		MetricsGeneratorProcessorSpanMetricsSpanMultiplierKey:                       c.MetricsGenerator.Processor.SpanMetrics.SpanMultiplierKey,
 		MetricsGeneratorProcessorLocalBlocksMaxLiveTraces:                           c.MetricsGenerator.Processor.LocalBlocks.MaxLiveTraces,
 		MetricsGeneratorProcessorLocalBlocksMaxBlockDuration:                        c.MetricsGenerator.Processor.LocalBlocks.MaxBlockDuration,
 		MetricsGeneratorProcessorLocalBlocksMaxBlockBytes:                           c.MetricsGenerator.Processor.LocalBlocks.MaxBlockBytes,
@@ -93,6 +97,7 @@ type LegacyOverrides struct {
 	IngestionTenantShardSize   int            `yaml:"ingestion_tenant_shard_size" json:"ingestion_tenant_shard_size"`
 	IngestionMaxAttributeBytes int            `yaml:"ingestion_max_attribute_bytes" json:"ingestion_max_attribute_bytes"`
 	IngestionArtificialDelay   *time.Duration `yaml:"ingestion_artificial_delay" json:"ingestion_artificial_delay"`
+	IngestionRetryInfoEnabled  bool           `yaml:"ingestion_retry_info_enabled" json:"ingestion_retry_info_enabled"`
 
 	// Ingester enforced limits.
 	MaxLocalTracesPerUser  int `yaml:"max_traces_per_user" json:"max_traces_per_user"`
@@ -105,6 +110,7 @@ type LegacyOverrides struct {
 	MetricsGeneratorRingSize                                                    int                              `yaml:"metrics_generator_ring_size" json:"metrics_generator_ring_size"`
 	MetricsGeneratorProcessors                                                  listtomap.ListToMap              `yaml:"metrics_generator_processors" json:"metrics_generator_processors"`
 	MetricsGeneratorMaxActiveSeries                                             uint32                           `yaml:"metrics_generator_max_active_series" json:"metrics_generator_max_active_series"`
+	MetricsGeneratorMaxActiveEntities                                           uint32                           `yaml:"metrics_generator_max_active_entities" json:"metrics_generator_max_active_entities"`
 	MetricsGeneratorCollectionInterval                                          time.Duration                    `yaml:"metrics_generator_collection_interval" json:"metrics_generator_collection_interval"`
 	MetricsGeneratorDisableCollection                                           bool                             `yaml:"metrics_generator_disable_collection" json:"metrics_generator_disable_collection"`
 	MetricsGeneratorGenerateNativeHistograms                                    histograms.HistogramMethod       `yaml:"metrics_generator_generate_native_histograms" json:"metrics_generator_generate_native_histograms"`
@@ -121,6 +127,7 @@ type LegacyOverrides struct {
 	MetricsGeneratorProcessorServiceGraphsEnableClientServerPrefix              *bool                            `yaml:"metrics_generator_processor_service_graphs_enable_client_server_prefix" json:"metrics_generator_processor_service_graphs_enable_client_server_prefix"`
 	MetricsGeneratorProcessorServiceGraphsEnableMessagingSystemLatencyHistogram *bool                            `yaml:"metrics_generator_processor_service_graphs_enable_messaging_system_latency_histogram" json:"metrics_generator_processor_service_graphs_enable_messaging_system_latency_histogram"`
 	MetricsGeneratorProcessorServiceGraphsEnableVirtualNodeLabel                *bool                            `yaml:"metrics_generator_processor_service_graphs_enable_virtual_node_label" json:"metrics_generator_processor_service_graphs_enable_virtual_node_label"`
+	MetricsGeneratorProcessorServiceGraphsSpanMultiplierKey                     string                           `yaml:"metrics_generator_processor_service_graphs_span_multiplier_key" json:"metrics_generator_processor_service_graphs_span_multiplier_key"`
 	MetricsGeneratorProcessorSpanMetricsHistogramBuckets                        []float64                        `yaml:"metrics_generator_processor_span_metrics_histogram_buckets" json:"metrics_generator_processor_span_metrics_histogram_buckets"`
 	MetricsGeneratorProcessorSpanMetricsDimensions                              []string                         `yaml:"metrics_generator_processor_span_metrics_dimensions" json:"metrics_generator_processor_span_metrics_dimensions"`
 	MetricsGeneratorProcessorSpanMetricsIntrinsicDimensions                     map[string]bool                  `yaml:"metrics_generator_processor_span_metrics_intrinsic_dimensions" json:"metrics_generator_processor_span_metrics_intrinsic_dimensions"`
@@ -129,6 +136,7 @@ type LegacyOverrides struct {
 	MetricsGeneratorProcessorSpanMetricsEnableTargetInfo                        *bool                            `yaml:"metrics_generator_processor_span_metrics_enable_target_info" json:"metrics_generator_processor_span_metrics_enable_target_info"`
 	MetricsGeneratorProcessorSpanMetricsTargetInfoExcludedDimensions            []string                         `yaml:"metrics_generator_processor_span_metrics_target_info_excluded_dimensions" json:"metrics_generator_processor_span_metrics_target_info_excluded_dimensions"`
 	MetricsGeneratorProcessorSpanMetricsEnableInstanceLabel                     *bool                            `yaml:"metrics_generator_processor_span_metrics_enable_instance_label" json:"metrics_generator_processor_span_metrics_enable_instance_label"`
+	MetricsGeneratorProcessorSpanMetricsSpanMultiplierKey                       string                           `yaml:"metrics_generator_processor_span_metrics_span_multiplier_key" json:"metrics_generator_processor_span_metrics_span_multiplier_key"`
 	MetricsGeneratorProcessorLocalBlocksMaxLiveTraces                           uint64                           `yaml:"metrics_generator_processor_local_blocks_max_live_traces" json:"metrics_generator_processor_local_blocks_max_live_traces"`
 	MetricsGeneratorProcessorLocalBlocksMaxBlockDuration                        time.Duration                    `yaml:"metrics_generator_processor_local_blocks_max_block_duration" json:"metrics_generator_processor_local_blocks_max_block_duration"`
 	MetricsGeneratorProcessorLocalBlocksMaxBlockBytes                           uint64                           `yaml:"metrics_generator_processor_local_blocks_max_block_bytes" json:"metrics_generator_processor_local_blocks_max_block_bytes"`
@@ -137,9 +145,9 @@ type LegacyOverrides struct {
 	MetricsGeneratorProcessorLocalBlocksCompleteBlockTimeout                    time.Duration                    `yaml:"metrics_generator_processor_local_blocks_complete_block_timeout" json:"metrics_generator_processor_local_blocks_complete_block_timeout"`
 	MetricsGeneratorProcessorHostInfoHostIdentifiers                            []string                         `yaml:"metrics_generator_processor_host_info_host_identifiers" json:"metrics_generator_processor_host_info_host_identifiers"`
 	MetricsGeneratorProcessorHostInfoMetricName                                 string                           `yaml:"metrics_generator_processor_host_info_metric_name" json:"metrics_generator_processor_host_info_metric_name"`
-	MetricsGeneratorIngestionSlack                                              time.Duration                    `yaml:"metrics_generator_ingestion_time_range_slack" json:"metrics_generator_ingestion_time_range_slack"`
+	MetricsGeneratorIngestionSlack                                              time.Duration                    `yaml:"metrics_generator_ingestion_time_range_slack" json:"metrics_generator_ingestion_time_range_slack,omitempty"`
 
-	// Compactor enforced limits.
+	// Backend-worker/scheduler enforced limits.
 	BlockRetention     model.Duration `yaml:"block_retention" json:"block_retention"`
 	CompactionDisabled bool           `yaml:"compaction_disabled" json:"compaction_disabled"`
 	CompactionWindow   model.Duration `yaml:"compaction_window" json:"compaction_window"`
@@ -174,6 +182,7 @@ func (l *LegacyOverrides) toNewLimits() Overrides {
 			TenantShardSize:        l.IngestionTenantShardSize,
 			MaxAttributeBytes:      l.IngestionMaxAttributeBytes,
 			ArtificialDelay:        l.IngestionArtificialDelay,
+			RetryInfoEnabled:       l.IngestionRetryInfoEnabled,
 		},
 		Read: ReadOverrides{
 			MaxBytesPerTagValuesQuery:  l.MaxBytesPerTagValuesQuery,
@@ -191,6 +200,7 @@ func (l *LegacyOverrides) toNewLimits() Overrides {
 			RingSize:                 l.MetricsGeneratorRingSize,
 			Processors:               l.MetricsGeneratorProcessors,
 			MaxActiveSeries:          l.MetricsGeneratorMaxActiveSeries,
+			MaxActiveEntities:        l.MetricsGeneratorMaxActiveEntities,
 			CollectionInterval:       l.MetricsGeneratorCollectionInterval,
 			DisableCollection:        l.MetricsGeneratorDisableCollection,
 			TraceIDLabelName:         l.MetricsGeneratorTraceIDLabelName,
@@ -209,6 +219,7 @@ func (l *LegacyOverrides) toNewLimits() Overrides {
 					EnableClientServerPrefix:              l.MetricsGeneratorProcessorServiceGraphsEnableClientServerPrefix,
 					EnableMessagingSystemLatencyHistogram: l.MetricsGeneratorProcessorServiceGraphsEnableMessagingSystemLatencyHistogram,
 					EnableVirtualNodeLabel:                l.MetricsGeneratorProcessorServiceGraphsEnableVirtualNodeLabel,
+					SpanMultiplierKey:                     l.MetricsGeneratorProcessorServiceGraphsSpanMultiplierKey,
 				},
 				SpanMetrics: SpanMetricsOverrides{
 					HistogramBuckets:             l.MetricsGeneratorProcessorSpanMetricsHistogramBuckets,
@@ -219,6 +230,7 @@ func (l *LegacyOverrides) toNewLimits() Overrides {
 					EnableTargetInfo:             l.MetricsGeneratorProcessorSpanMetricsEnableTargetInfo,
 					TargetInfoExcludedDimensions: l.MetricsGeneratorProcessorSpanMetricsTargetInfoExcludedDimensions,
 					EnableInstanceLabel:          l.MetricsGeneratorProcessorSpanMetricsEnableInstanceLabel,
+					SpanMultiplierKey:            l.MetricsGeneratorProcessorSpanMetricsSpanMultiplierKey,
 				},
 				LocalBlocks: LocalBlocksOverrides{
 					MaxLiveTraces:        l.MetricsGeneratorProcessorLocalBlocksMaxLiveTraces,

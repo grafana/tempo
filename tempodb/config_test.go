@@ -2,13 +2,11 @@ package tempodb
 
 import (
 	"errors"
-	"fmt"
 	"testing"
 
 	"github.com/grafana/tempo/tempodb/encoding/common"
-	v2 "github.com/grafana/tempo/tempodb/encoding/v2"
-	"github.com/grafana/tempo/tempodb/encoding/vparquet2"
 	"github.com/grafana/tempo/tempodb/encoding/vparquet3"
+	"github.com/grafana/tempo/tempodb/encoding/vparquet5"
 	"github.com/grafana/tempo/tempodb/wal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -73,23 +71,19 @@ func TestValidateConfig(t *testing.T) {
 			cfg: &Config{
 				WAL: &wal.Config{},
 				Block: &common.BlockConfig{
-					IndexDownsampleBytes: 1,
-					IndexPageSizeBytes:   1,
-					BloomFP:              0.01,
-					BloomShardSizeBytes:  1,
-					Version:              v2.VersionString,
+					BloomFP:             0.01,
+					BloomShardSizeBytes: 1,
+					Version:             vparquet5.VersionString,
 				},
 			},
 			expectedConfig: &Config{
 				WAL: &wal.Config{
-					Version: v2.VersionString,
+					Version: vparquet5.VersionString,
 				},
 				Block: &common.BlockConfig{
-					IndexDownsampleBytes: 1,
-					IndexPageSizeBytes:   1,
-					BloomFP:              0.01,
-					BloomShardSizeBytes:  1,
-					Version:              v2.VersionString,
+					BloomFP:             0.01,
+					BloomShardSizeBytes: 1,
+					Version:             vparquet5.VersionString,
 				},
 			},
 		},
@@ -100,11 +94,9 @@ func TestValidateConfig(t *testing.T) {
 					Version: vparquet3.VersionString,
 				},
 				Block: &common.BlockConfig{
-					IndexDownsampleBytes: 1,
-					IndexPageSizeBytes:   1,
-					BloomFP:              0.01,
-					BloomShardSizeBytes:  1,
-					Version:              v2.VersionString,
+					BloomFP:             0.01,
+					BloomShardSizeBytes: 1,
+					Version:             vparquet5.VersionString,
 				},
 			},
 			expectedConfig: &Config{
@@ -112,11 +104,9 @@ func TestValidateConfig(t *testing.T) {
 					Version: vparquet3.VersionString,
 				},
 				Block: &common.BlockConfig{
-					IndexDownsampleBytes: 1,
-					IndexPageSizeBytes:   1,
-					BloomFP:              0.01,
-					BloomShardSizeBytes:  1,
-					Version:              v2.VersionString,
+					BloomFP:             0.01,
+					BloomShardSizeBytes: 1,
+					Version:             vparquet5.VersionString,
 				},
 			},
 		},
@@ -142,85 +132,15 @@ func TestDeprecatedVersions(t *testing.T) {
 		{
 			cfg: &Config{
 				WAL: &wal.Config{
-					Version: vparquet2.VersionString,
+					Version: "vParquet5-preview1", // Turned into unsupported
 				},
 				Block: &common.BlockConfig{
-					IndexDownsampleBytes: 1,
-					IndexPageSizeBytes:   1,
-					BloomFP:              0.01,
-					BloomShardSizeBytes:  1,
-					Version:              "vParquet4",
+					BloomFP:             0.01,
+					BloomShardSizeBytes: 1,
+					Version:             "vParquet4",
 				},
 			},
-			expectedConfig: &Config{
-				WAL: &wal.Config{
-					Version: vparquet2.VersionString,
-				},
-				Block: &common.BlockConfig{
-					IndexDownsampleBytes: 1,
-					IndexPageSizeBytes:   1,
-					BloomFP:              0.01,
-					BloomShardSizeBytes:  1,
-					Version:              "vParquet4",
-				},
-			},
-		},
-		// block version is deprecaded and Wal is empty
-		{
-			cfg: &Config{
-				WAL: &wal.Config{},
-				Block: &common.BlockConfig{
-					IndexDownsampleBytes: 1,
-					IndexPageSizeBytes:   1,
-					BloomFP:              0.01,
-					BloomShardSizeBytes:  1,
-					Version:              vparquet2.VersionString,
-				},
-			},
-			err: fmt.Errorf(common.DeprecatedError, "vParquet2", "vParquet3").Error(),
-		},
-		// block version is deprecated version of encoding
-		{
-			cfg: &Config{
-				WAL: &wal.Config{
-					Version: vparquet3.VersionString,
-				},
-				Block: &common.BlockConfig{
-					IndexDownsampleBytes: 1,
-					IndexPageSizeBytes:   1,
-					BloomFP:              0.01,
-					BloomShardSizeBytes:  1,
-					Version:              vparquet2.VersionString,
-				},
-			},
-			err: fmt.Errorf(common.DeprecatedError, "vParquet2", "vParquet3").Error(),
-		},
-		// block version does not have deprecated version value but WAL does
-		{
-			cfg: &Config{
-				WAL: &wal.Config{
-					Version: vparquet2.VersionString,
-				},
-				Block: &common.BlockConfig{
-					IndexDownsampleBytes: 1,
-					IndexPageSizeBytes:   1,
-					BloomFP:              0.01,
-					BloomShardSizeBytes:  1,
-					Version:              v2.VersionString,
-				},
-			},
-			expectedConfig: &Config{
-				WAL: &wal.Config{
-					Version: vparquet2.VersionString,
-				},
-				Block: &common.BlockConfig{
-					IndexDownsampleBytes: 1,
-					IndexPageSizeBytes:   1,
-					BloomFP:              0.01,
-					BloomShardSizeBytes:  1,
-					Version:              v2.VersionString,
-				},
-			},
+			err: "wal config validation failed: failed to validate block version vParquet5-preview1: vParquet5-preview1 is not a valid block version for creating blocks",
 		},
 	}
 
@@ -243,7 +163,7 @@ func TestValidateCompactorConfig(t *testing.T) {
 		MaxCompactionRange: 0,
 	}
 
-	expected := errors.New("Compaction window can't be 0")
+	expected := errors.New("compaction window can't be 0")
 	actual := compactorConfig.validate()
 
 	require.Equal(t, expected, actual)

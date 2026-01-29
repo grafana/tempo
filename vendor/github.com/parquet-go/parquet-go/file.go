@@ -14,6 +14,7 @@ import (
 
 	"github.com/parquet-go/parquet-go/encoding/thrift"
 	"github.com/parquet-go/parquet-go/format"
+	"github.com/parquet-go/parquet-go/internal/memory"
 )
 
 const (
@@ -728,7 +729,7 @@ func (c *FileColumnChunk) readBloomFilter(reader io.ReaderAt) (*FileBloomFilter,
 type FilePages struct {
 	chunk    *FileColumnChunk
 	rbuf     *bufio.Reader
-	rbufpool *sync.Pool
+	rbufpool *memory.Pool[bufio.Reader]
 	section  io.SectionReader
 
 	protocol thrift.CompactProtocol
@@ -764,10 +765,8 @@ func (f *FilePages) init(c *FileColumnChunk, reader io.ReaderAt) {
 	f.rbuf, f.rbufpool = getBufioReader(&f.section, f.bufferSize)
 	f.decoder.Reset(f.protocol.NewReader(f.rbuf))
 	f.index = 0
-	if f.lastPage != nil {
-		Release(f.lastPage)
-		f.lastPage = nil
-	}
+	Release(f.lastPage)
+	f.lastPage = nil
 	f.lastPageIndex = -1
 	f.serveLastPage = false
 }
@@ -937,14 +936,14 @@ func (f *FilePages) readDictionary() error {
 	page := buffers.get(int(header.CompressedPageSize))
 	defer page.unref()
 
-	if _, err := io.ReadFull(rbuf, page.data); err != nil {
+	if _, err := io.ReadFull(rbuf, page.data.Slice()); err != nil {
 		return err
 	}
 
 	return f.readDictionaryPage(header, page)
 }
 
-func (f *FilePages) readDictionaryPage(header *format.PageHeader, page *buffer) error {
+func (f *FilePages) readDictionaryPage(header *format.PageHeader, page *buffer[byte]) error {
 	if header.DictionaryPageHeader == nil {
 		return ErrMissingPageHeader
 	}
@@ -956,7 +955,7 @@ func (f *FilePages) readDictionaryPage(header *format.PageHeader, page *buffer) 
 	return nil
 }
 
-func (f *FilePages) readDataPageV1(header *format.PageHeader, page *buffer) (Page, error) {
+func (f *FilePages) readDataPageV1(header *format.PageHeader, page *buffer[byte]) (Page, error) {
 	if header.DataPageHeader == nil {
 		return nil, ErrMissingPageHeader
 	}
@@ -968,7 +967,7 @@ func (f *FilePages) readDataPageV1(header *format.PageHeader, page *buffer) (Pag
 	return f.chunk.column.decodeDataPageV1(DataPageHeaderV1{header.DataPageHeader}, page, f.dictionary, header.UncompressedPageSize)
 }
 
-func (f *FilePages) readDataPageV2(header *format.PageHeader, page *buffer) (Page, error) {
+func (f *FilePages) readDataPageV2(header *format.PageHeader, page *buffer[byte]) (Page, error) {
 	if header.DataPageHeaderV2 == nil {
 		return nil, ErrMissingPageHeader
 	}
@@ -983,17 +982,17 @@ func (f *FilePages) readDataPageV2(header *format.PageHeader, page *buffer) (Pag
 	return f.chunk.column.decodeDataPageV2(DataPageHeaderV2{header.DataPageHeaderV2}, page, f.dictionary, header.UncompressedPageSize)
 }
 
-func (f *FilePages) readPage(header *format.PageHeader, reader *bufio.Reader) (*buffer, error) {
+func (f *FilePages) readPage(header *format.PageHeader, reader *bufio.Reader) (*buffer[byte], error) {
 	page := buffers.get(int(header.CompressedPageSize))
 	defer page.unref()
 
-	if _, err := io.ReadFull(reader, page.data); err != nil {
+	if _, err := io.ReadFull(reader, page.data.Slice()); err != nil {
 		return nil, err
 	}
 
 	if header.CRC != 0 {
 		headerChecksum := uint32(header.CRC)
-		bufferChecksum := crc32.ChecksumIEEE(page.data)
+		bufferChecksum := crc32.ChecksumIEEE(page.data.Slice())
 
 		if headerChecksum != bufferChecksum {
 			// The parquet specs indicate that corruption errors could be
@@ -1098,10 +1097,8 @@ func (f *FilePages) Close() error {
 	f.dataOffset = 0
 	f.dictOffset = 0
 	f.index = 0
-	if f.lastPage != nil {
-		Release(f.lastPage)
-		f.lastPage = nil
-	}
+	Release(f.lastPage)
+	f.lastPage = nil
 	f.lastPageIndex = -1
 	f.serveLastPage = false
 	f.skip = 0
@@ -1117,28 +1114,26 @@ type putBufioReaderFunc func()
 
 var (
 	bufioReaderPoolLock sync.Mutex
-	bufioReaderPool     = map[int]*sync.Pool{}
+	bufioReaderPool     = map[int]*memory.Pool[bufio.Reader]{}
 )
 
-func getBufioReader(r io.Reader, bufferSize int) (*bufio.Reader, *sync.Pool) {
+func getBufioReader(r io.Reader, bufferSize int) (*bufio.Reader, *memory.Pool[bufio.Reader]) {
 	pool := getBufioReaderPool(bufferSize)
-	rbuf, _ := pool.Get().(*bufio.Reader)
-	if rbuf == nil {
-		rbuf = bufio.NewReaderSize(r, bufferSize)
-	} else {
-		rbuf.Reset(r)
-	}
+	rbuf := pool.Get(
+		func() *bufio.Reader { return bufio.NewReaderSize(r, bufferSize) },
+		func(rbuf *bufio.Reader) { rbuf.Reset(r) },
+	)
 	return rbuf, pool
 }
 
-func putBufioReader(rbuf *bufio.Reader, pool *sync.Pool) {
-	if rbuf != nil && pool != nil {
+func putBufioReader(rbuf *bufio.Reader, pool *memory.Pool[bufio.Reader]) {
+	if pool != nil {
 		rbuf.Reset(nil)
 		pool.Put(rbuf)
 	}
 }
 
-func getBufioReaderPool(size int) *sync.Pool {
+func getBufioReaderPool(size int) *memory.Pool[bufio.Reader] {
 	bufioReaderPoolLock.Lock()
 	defer bufioReaderPoolLock.Unlock()
 
@@ -1146,7 +1141,7 @@ func getBufioReaderPool(size int) *sync.Pool {
 		return pool
 	}
 
-	pool := &sync.Pool{}
+	pool := &memory.Pool[bufio.Reader]{}
 	bufioReaderPool[size] = pool
 	return pool
 }

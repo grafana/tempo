@@ -2,11 +2,14 @@ package kfake
 
 import (
 	"crypto/sha256"
+	"encoding/binary"
+	"fmt"
 	"math/rand"
 	"sort"
 	"strconv"
 	"time"
 
+	"github.com/twmb/franz-go/pkg/kgo"
 	"github.com/twmb/franz-go/pkg/kmsg"
 )
 
@@ -34,6 +37,7 @@ type (
 		batches []partBatch
 		dir     string
 
+		p                int32 // partition number
 		highWatermark    int64
 		lastStableOffset int64
 		logStartOffset   int64
@@ -80,7 +84,7 @@ func (fs followers) has(b *broker) bool {
 	return false
 }
 
-func (d *data) mkt(t string, nparts int, nreplicas int, configs map[string]*string) {
+func (d *data) mkt(t string, nparts, nreplicas int, configs map[string]*string) {
 	if d.tps != nil {
 		if _, exists := d.tps[t]; exists {
 			panic("should have checked existence already")
@@ -111,7 +115,8 @@ func (d *data) mkt(t string, nparts int, nreplicas int, configs map[string]*stri
 		d.tcfgs[t] = configs
 	}
 	for i := 0; i < nparts; i++ {
-		d.tps.mkp(t, int32(i), d.c.newPartData)
+		p := int32(i)
+		d.tps.mkp(t, p, d.c.newPartData(p))
 	}
 }
 
@@ -122,12 +127,15 @@ func (c *Cluster) noLeader() *broker {
 	}
 }
 
-func (c *Cluster) newPartData() *partData {
-	return &partData{
-		dir:       defLogDir,
-		leader:    c.bs[rand.Intn(len(c.bs))],
-		watch:     make(map[*watchFetch]struct{}),
-		createdAt: time.Now(),
+func (c *Cluster) newPartData(p int32) func() *partData {
+	return func() *partData {
+		return &partData{
+			p:         p,
+			dir:       defLogDir,
+			leader:    c.bs[rand.Intn(len(c.bs))],
+			watch:     make(map[*watchFetch]struct{}),
+			createdAt: time.Now(),
+		}
 	}
 }
 
@@ -149,7 +157,7 @@ func (pd *partData) pushBatch(nbytes int, b kmsg.RecordBatch) {
 	}
 }
 
-func (pd *partData) searchOffset(o int64) (index int, found bool, atEnd bool) {
+func (pd *partData) searchOffset(o int64) (index int, found, atEnd bool) {
 	if o < pd.logStartOffset || o > pd.highWatermark {
 		return 0, false, false
 	}
@@ -267,7 +275,7 @@ func (c *Cluster) setBrokerConfig(k string, v *string, dry bool) bool {
 	return true
 }
 
-func (d *data) setTopicConfig(t string, k string, v *string, dry bool) bool {
+func (d *data) setTopicConfig(t, k string, v *string, dry bool) bool {
 	if dry {
 		return true
 	}
@@ -357,4 +365,41 @@ func numberConfig(min int, hasMin bool, max int, hasMax bool) func(*string) bool
 		}
 		return true
 	}
+}
+
+func forEachBatchRecord(batch kmsg.RecordBatch, cb func(kmsg.Record) error) error {
+	records, err := kgo.DefaultDecompressor().Decompress(
+		batch.Records,
+		kgo.CompressionCodecType(batch.Attributes&0x0007),
+	)
+	if err != nil {
+		return err
+	}
+	for range batch.NumRecords {
+		rec := kmsg.NewRecord()
+		err := rec.ReadFrom(records)
+		if err != nil {
+			return fmt.Errorf("corrupt batch: %w", err)
+		}
+		if err := cb(rec); err != nil {
+			return err
+		}
+		length, amt := binary.Varint(records)
+		records = records[length+int64(amt):]
+	}
+	if len(records) > 0 {
+		return fmt.Errorf("corrupt batch, extra left over bytes after parsing batch: %v", len(records))
+	}
+	return nil
+}
+
+// BatchRecord returns the raw kmsg.Record's within a record batch, or an error
+// if they could not be processed.
+func BatchRecords(b kmsg.RecordBatch) ([]kmsg.Record, error) {
+	var rs []kmsg.Record
+	err := forEachBatchRecord(b, func(r kmsg.Record) error {
+		rs = append(rs, r)
+		return nil
+	})
+	return rs, err
 }

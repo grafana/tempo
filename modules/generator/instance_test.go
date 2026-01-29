@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/go-kit/log"
+	"github.com/grafana/tempo/modules/generator/processor"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/prometheus/prometheus/model/exemplar"
@@ -21,7 +22,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/grafana/tempo/modules/generator/processor/hostinfo"
-	"github.com/grafana/tempo/modules/generator/processor/servicegraphs"
 	"github.com/grafana/tempo/modules/generator/processor/spanmetrics"
 	"github.com/grafana/tempo/modules/generator/storage"
 	"github.com/grafana/tempo/pkg/tempopb"
@@ -33,14 +33,16 @@ func Test_instance_concurrency(t *testing.T) {
 	// Both instances use the same overrides, this map will be accessed by both
 	overrides := &mockOverrides{}
 	overrides.processors = map[string]struct{}{
-		spanmetrics.Name:   {},
-		servicegraphs.Name: {},
+		processor.SpanMetricsName:   {},
+		processor.ServiceGraphsName: {},
 	}
+	cfg := &Config{}
+	cfg.RegisterFlagsAndApplyDefaults("", &flag.FlagSet{})
 
-	instance1, err := newInstance(&Config{}, "test", overrides, &noopStorage{}, log.NewNopLogger(), nil, nil, nil)
+	instance1, err := newInstance(cfg, "test", overrides, &noopStorage{}, log.NewNopLogger(), nil, nil, nil)
 	assert.NoError(t, err)
 
-	instance2, err := newInstance(&Config{}, "test", overrides, &noopStorage{}, log.NewNopLogger(), nil, nil, nil)
+	instance2, err := newInstance(cfg, "test", overrides, &noopStorage{}, log.NewNopLogger(), nil, nil, nil)
 	assert.NoError(t, err)
 
 	end := make(chan struct{})
@@ -88,12 +90,14 @@ func Test_instance_concurrency(t *testing.T) {
 func TestInstancePushSpansSkipProcessors(t *testing.T) {
 	overrides := &mockOverrides{}
 	overrides.processors = map[string]struct{}{
-		spanmetrics.Name:   {},
-		servicegraphs.Name: {},
+		processor.SpanMetricsName:   {},
+		processor.ServiceGraphsName: {},
 	}
 	const tenantID = "skip-processors-test"
 
-	i, err := newInstance(&Config{}, tenantID, overrides, &noopStorage{}, log.NewNopLogger(), nil, nil, nil)
+	cfg := &Config{}
+	cfg.RegisterFlagsAndApplyDefaults("", &flag.FlagSet{})
+	i, err := newInstance(cfg, tenantID, overrides, &noopStorage{}, log.NewNopLogger(), nil, nil, nil)
 	require.NoError(t, err)
 
 	req := test.MakeBatch(1, nil)
@@ -151,13 +155,13 @@ func Test_instance_updateProcessors(t *testing.T) {
 
 	t.Run("add servicegraphs processors", func(t *testing.T) {
 		overrides.processors = map[string]struct{}{
-			servicegraphs.Name: {},
+			processor.ServiceGraphsName: {},
 		}
 		err := instance.updateProcessors()
 		assert.NoError(t, err)
 
 		assert.Len(t, instance.processors, 1)
-		assert.Equal(t, instance.processors[servicegraphs.Name].Name(), servicegraphs.Name)
+		assert.Equal(t, instance.processors[processor.ServiceGraphsName].Name(), processor.ServiceGraphsName)
 	})
 
 	t.Run("add unknown processor", func(t *testing.T) {
@@ -169,26 +173,26 @@ func Test_instance_updateProcessors(t *testing.T) {
 
 		// existing processors should not be removed when adding a new processor fails
 		assert.Len(t, instance.processors, 1)
-		assert.Equal(t, instance.processors[servicegraphs.Name].Name(), servicegraphs.Name)
+		assert.Equal(t, instance.processors[processor.ServiceGraphsName].Name(), processor.ServiceGraphsName)
 	})
 
 	t.Run("add spanmetrics processor", func(t *testing.T) {
 		overrides.processors = map[string]struct{}{
-			servicegraphs.Name: {},
-			spanmetrics.Name:   {},
+			processor.ServiceGraphsName: {},
+			processor.SpanMetricsName:   {},
 		}
 		err := instance.updateProcessors()
 		assert.NoError(t, err)
 
 		assert.Len(t, instance.processors, 2)
-		assert.Equal(t, instance.processors[servicegraphs.Name].Name(), servicegraphs.Name)
-		assert.Equal(t, instance.processors[spanmetrics.Name].Name(), spanmetrics.Name)
+		assert.Equal(t, instance.processors[processor.ServiceGraphsName].Name(), processor.ServiceGraphsName)
+		assert.Equal(t, instance.processors[processor.SpanMetricsName].Name(), processor.SpanMetricsName)
 	})
 
 	t.Run("replace spanmetrics processor", func(t *testing.T) {
 		overrides.processors = map[string]struct{}{
-			servicegraphs.Name: {},
-			spanmetrics.Name:   {},
+			processor.ServiceGraphsName: {},
+			processor.SpanMetricsName:   {},
 		}
 		overrides.spanMetricsDimensions = []string{"namespace"}
 		overrides.spanMetricsIntrinsicDimensions = map[string]bool{"status_message": true}
@@ -201,29 +205,29 @@ func Test_instance_updateProcessors(t *testing.T) {
 		expectedConfig.Dimensions = []string{"namespace"}
 		expectedConfig.IntrinsicDimensions.StatusMessage = true
 
-		assert.Equal(t, expectedConfig, instance.processors[spanmetrics.Name].(*spanmetrics.Processor).Cfg)
+		assert.Equal(t, expectedConfig, instance.processors[processor.SpanMetricsName].(*spanmetrics.Processor).Cfg)
 	})
 
 	t.Run("add hostinfo processor", func(t *testing.T) {
 		overrides.processors = map[string]struct{}{
-			servicegraphs.Name: {},
-			spanmetrics.Name:   {},
-			hostinfo.Name:      {},
+			processor.ServiceGraphsName: {},
+			processor.SpanMetricsName:   {},
+			processor.HostInfoName:      {},
 		}
 		err := instance.updateProcessors()
 		assert.NoError(t, err)
 
 		assert.Len(t, instance.processors, 3)
-		assert.Equal(t, instance.processors[servicegraphs.Name].Name(), servicegraphs.Name)
-		assert.Equal(t, instance.processors[spanmetrics.Name].Name(), spanmetrics.Name)
-		assert.Equal(t, instance.processors[hostinfo.Name].Name(), hostinfo.Name)
+		assert.Equal(t, instance.processors[processor.ServiceGraphsName].Name(), processor.ServiceGraphsName)
+		assert.Equal(t, instance.processors[processor.SpanMetricsName].Name(), processor.SpanMetricsName)
+		assert.Equal(t, instance.processors[processor.HostInfoName].Name(), processor.HostInfoName)
 	})
 
 	t.Run("replace hostinfo processor", func(t *testing.T) {
 		overrides.processors = map[string]struct{}{
-			servicegraphs.Name: {},
-			spanmetrics.Name:   {},
-			hostinfo.Name:      {},
+			processor.ServiceGraphsName: {},
+			processor.SpanMetricsName:   {},
+			processor.HostInfoName:      {},
 		}
 		overrides.hostInfoHostIdentifiers = []string{"host.id"}
 
@@ -236,7 +240,7 @@ func Test_instance_updateProcessors(t *testing.T) {
 		expectedConfig.HostIdentifiers = []string{"host.id"}
 		expectedConfig.MetricName = "sample_traces_host_info"
 
-		assert.Equal(t, expectedConfig, instance.processors[hostinfo.Name].(*hostinfo.Processor).Cfg)
+		assert.Equal(t, expectedConfig, instance.processors[processor.HostInfoName].(*hostinfo.Processor).Cfg)
 	})
 
 	t.Run("remove processor", func(t *testing.T) {
@@ -249,7 +253,7 @@ func Test_instance_updateProcessors(t *testing.T) {
 
 	t.Run("add span-latency subprocessor", func(t *testing.T) {
 		overrides.processors = map[string]struct{}{
-			servicegraphs.Name:           {},
+			processor.ServiceGraphsName:  {},
 			spanmetrics.Latency.String(): {},
 		}
 		err := instance.updateProcessors()
@@ -264,9 +268,9 @@ func Test_instance_updateProcessors(t *testing.T) {
 		expectedConfig.Subprocessors[spanmetrics.Count] = false
 		expectedConfig.Subprocessors[spanmetrics.Size] = false
 
-		assert.Equal(t, expectedConfig, instance.processors[spanmetrics.Name].(*spanmetrics.Processor).Cfg)
+		assert.Equal(t, expectedConfig, instance.processors[processor.SpanMetricsName].(*spanmetrics.Processor).Cfg)
 
-		expectedProcessors := []string{servicegraphs.Name, spanmetrics.Name}
+		expectedProcessors := []string{processor.ServiceGraphsName, processor.SpanMetricsName}
 		actualProcessors := make([]string, 0, len(instance.processors))
 
 		for name := range instance.processors {
@@ -280,8 +284,8 @@ func Test_instance_updateProcessors(t *testing.T) {
 
 	t.Run("replace span-latency subprocessor with span-count", func(t *testing.T) {
 		overrides.processors = map[string]struct{}{
-			servicegraphs.Name:         {},
-			spanmetrics.Count.String(): {},
+			processor.ServiceGraphsName: {},
+			spanmetrics.Count.String():  {},
 		}
 		err := instance.updateProcessors()
 		assert.NoError(t, err)
@@ -295,9 +299,9 @@ func Test_instance_updateProcessors(t *testing.T) {
 		expectedConfig.Subprocessors[spanmetrics.Count] = true
 		expectedConfig.Subprocessors[spanmetrics.Size] = false
 
-		assert.Equal(t, expectedConfig, instance.processors[spanmetrics.Name].(*spanmetrics.Processor).Cfg)
+		assert.Equal(t, expectedConfig, instance.processors[processor.SpanMetricsName].(*spanmetrics.Processor).Cfg)
 
-		expectedProcessors := []string{servicegraphs.Name, spanmetrics.Name}
+		expectedProcessors := []string{processor.ServiceGraphsName, processor.SpanMetricsName}
 		actualProcessors := make([]string, 0, len(instance.processors))
 
 		for name := range instance.processors {
@@ -311,7 +315,7 @@ func Test_instance_updateProcessors(t *testing.T) {
 
 	t.Run("use all three subprocessors at once", func(t *testing.T) {
 		overrides.processors = map[string]struct{}{
-			servicegraphs.Name:           {},
+			processor.ServiceGraphsName:  {},
 			spanmetrics.Count.String():   {},
 			spanmetrics.Latency.String(): {},
 			spanmetrics.Size.String():    {},
@@ -328,9 +332,9 @@ func Test_instance_updateProcessors(t *testing.T) {
 		expectedConfig.Subprocessors[spanmetrics.Count] = true
 		expectedConfig.Subprocessors[spanmetrics.Size] = true
 
-		assert.Equal(t, expectedConfig, instance.processors[spanmetrics.Name].(*spanmetrics.Processor).Cfg)
+		assert.Equal(t, expectedConfig, instance.processors[processor.SpanMetricsName].(*spanmetrics.Processor).Cfg)
 
-		expectedProcessors := []string{servicegraphs.Name, spanmetrics.Name}
+		expectedProcessors := []string{processor.ServiceGraphsName, processor.SpanMetricsName}
 		actualProcessors := make([]string, 0, len(instance.processors))
 
 		for name := range instance.processors {
@@ -344,8 +348,8 @@ func Test_instance_updateProcessors(t *testing.T) {
 
 	t.Run("replace subprocessors with span-metrics processor", func(t *testing.T) {
 		overrides.processors = map[string]struct{}{
-			servicegraphs.Name: {},
-			spanmetrics.Name:   {},
+			processor.ServiceGraphsName: {},
+			processor.SpanMetricsName:   {},
 		}
 		err := instance.updateProcessors()
 		assert.NoError(t, err)
@@ -358,9 +362,9 @@ func Test_instance_updateProcessors(t *testing.T) {
 		expectedConfig.Subprocessors[spanmetrics.Latency] = true
 		expectedConfig.Subprocessors[spanmetrics.Count] = true
 
-		assert.Equal(t, expectedConfig, instance.processors[spanmetrics.Name].(*spanmetrics.Processor).Cfg)
+		assert.Equal(t, expectedConfig, instance.processors[processor.SpanMetricsName].(*spanmetrics.Processor).Cfg)
 
-		expectedProcessors := []string{servicegraphs.Name, spanmetrics.Name}
+		expectedProcessors := []string{processor.ServiceGraphsName, processor.SpanMetricsName}
 		actualProcessors := make([]string, 0, len(instance.processors))
 
 		for name := range instance.processors {
@@ -375,8 +379,8 @@ func Test_instance_updateProcessors(t *testing.T) {
 	t.Run("replace span-metrics and servicegraphs processors when histograms impementation changes", func(t *testing.T) {
 		overrides.nativeHistograms = "native"
 		overrides.processors = map[string]struct{}{
-			servicegraphs.Name: {},
-			spanmetrics.Name:   {},
+			processor.ServiceGraphsName: {},
+			processor.SpanMetricsName:   {},
 		}
 		err := instance.updateProcessors()
 		assert.NoError(t, err)
@@ -391,7 +395,7 @@ func Test_instance_updateProcessors(t *testing.T) {
 			assert.Empty(t, toRemove)
 
 			sort.Strings(toReplace)
-			assert.Equal(t, []string{servicegraphs.Name, spanmetrics.Name}, toReplace)
+			assert.Equal(t, []string{processor.ServiceGraphsName, processor.SpanMetricsName}, toReplace)
 		}
 
 		assertHistogramsNoChange := func(t *testing.T) {

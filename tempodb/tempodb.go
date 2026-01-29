@@ -124,7 +124,6 @@ type Compactor interface {
 }
 
 type CompactorSharder interface {
-	Combine(dataEncoding string, tenantID string, objs ...[]byte) ([]byte, bool, error)
 	Owns(hash string) bool
 	RecordDiscardedSpans(count int, tenantID string, traceID string, rootSpanName string, rootServiceName string)
 }
@@ -251,7 +250,7 @@ func (rw *readerWriter) CompleteBlock(ctx context.Context, block common.WALBlock
 // new block will have the same ID as the input block.
 func (rw *readerWriter) CompleteBlockWithBackend(ctx context.Context, block common.WALBlock, r backend.Reader, w backend.Writer) (common.BackendBlock, error) {
 	// The destination block format:
-	vers, err := encoding.FromVersion(rw.cfg.Block.Version)
+	vers, err := encoding.FromVersionForWrites(rw.cfg.Block.Version)
 	if err != nil {
 		return nil, err
 	}
@@ -277,11 +276,7 @@ func (rw *readerWriter) CompleteBlockWithBackend(ctx context.Context, block comm
 		TotalObjects:     walMeta.TotalObjects,
 		StartTime:        walMeta.StartTime,
 		EndTime:          walMeta.EndTime,
-		DataEncoding:     walMeta.DataEncoding,
 		DedicatedColumns: walMeta.DedicatedColumns,
-
-		// Other
-		Encoding: rw.cfg.Block.Encoding,
 	}
 
 	newMeta, err := vers.CreateBlock(ctx, rw.cfg.Block, inMeta, iter, r, w)
@@ -783,7 +778,7 @@ func createLegacyCache(cfg *Config, logger gkLog.Logger) (cache.Cache, []cache.R
 			(cfg.Search.CacheControl.ColumnIndex ||
 				cfg.Search.CacheControl.Footer ||
 				cfg.Search.CacheControl.OffsetIndex) {
-			return nil, nil, errors.New("no legacy cache configured, but cache_control is enabled. Please use the new top level cache configuration.")
+			return nil, nil, errors.New("no legacy cache configured, but cache_control is enabled. Please use the new top level cache configuration")
 		}
 
 		return nil, nil, nil

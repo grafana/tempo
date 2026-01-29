@@ -56,14 +56,13 @@ func GetSpanMultiplier(ratioKey string, span *v1.Span, rs *v1_resource.Resource)
 
 func GetJobValue(attributes []*v1_common.KeyValue) string {
 	svName, _ := FindServiceName(attributes)
-	namespace, _ := FindServiceNamespace(attributes)
-
 	// if service name is not present, consider job value empty
 	if svName == "" {
 		return ""
-	} else if namespace != "" {
-		namespace += "/"
 	}
-
-	return namespace + svName
+	namespace, _ := FindServiceNamespace(attributes)
+	if namespace == "" {
+		return svName
+	}
+	return namespace + "/" + svName
 }

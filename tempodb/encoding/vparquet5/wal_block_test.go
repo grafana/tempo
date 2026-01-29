@@ -34,7 +34,7 @@ func TestFullFilename(t *testing.T) {
 		{
 			name: "basic",
 			b: &walBlock{
-				meta: backend.NewBlockMeta("foo", uuid.MustParse("123e4567-e89b-12d3-a456-426614174000"), VersionString, backend.EncNone, ""),
+				meta: backend.NewBlockMeta("foo", uuid.MustParse("123e4567-e89b-12d3-a456-426614174000"), VersionString),
 				path: "/blerg",
 			},
 			expected: "/blerg/123e4567-e89b-12d3-a456-426614174000+foo+" + VersionString,
@@ -42,7 +42,7 @@ func TestFullFilename(t *testing.T) {
 		{
 			name: "no path",
 			b: &walBlock{
-				meta: backend.NewBlockMeta("foo", uuid.MustParse("123e4567-e89b-12d3-a456-426614174000"), VersionString, backend.EncNone, ""),
+				meta: backend.NewBlockMeta("foo", uuid.MustParse("123e4567-e89b-12d3-a456-426614174000"), VersionString),
 				path: "",
 			},
 			expected: "123e4567-e89b-12d3-a456-426614174000+foo+" + VersionString,
@@ -65,7 +65,7 @@ func TestPartialReplay(t *testing.T) {
 	blockID := uuid.New()
 	basePath := t.TempDir()
 
-	meta := backend.NewBlockMeta("fake", blockID, VersionString, backend.EncNone, "")
+	meta := backend.NewBlockMeta("fake", blockID, VersionString)
 	w, err := createWALBlock(meta, basePath, model.CurrentEncoding, 0)
 	require.NoError(t, err)
 
@@ -294,7 +294,7 @@ func TestRowIterator(t *testing.T) {
 }
 
 func testWalBlock(t *testing.T, f func(w *walBlock, ids []common.ID, trs []*tempopb.Trace)) {
-	meta := backend.NewBlockMeta("fake", uuid.New(), VersionString, backend.EncNone, "")
+	meta := backend.NewBlockMeta("fake", uuid.New(), VersionString)
 	w, err := createWALBlock(meta, t.TempDir(), model.CurrentEncoding, 0)
 	require.NoError(t, err)
 

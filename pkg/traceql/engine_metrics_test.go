@@ -32,30 +32,41 @@ func TestDefaultQueryRangeStep(t *testing.T) {
 func TestStepRangeToIntervals(t *testing.T) {
 	tc := []struct {
 		start, end, step uint64
+		instant          bool
 		expected         int
 	}{
 		{
-			start:    0,
-			end:      1,
+			start:    10,
+			end:      11,
 			step:     1,
-			expected: 1, // end-start == step -> instant query, only one interval
+			instant:  false,
+			expected: 1,
 		},
 		{
 			start:    0,
 			end:      3,
 			step:     1,
+			instant:  false,
 			expected: 3, // 1, 2, 3
 		},
 		{
 			start:    0,
 			end:      10,
 			step:     3,
+			instant:  false,
 			expected: 4, // 3, 6, 9, 12
+		},
+		{
+			start:    0,
+			end:      10,
+			step:     3,
+			instant:  true,
+			expected: 1, // for instant queries, always only one interval
 		},
 	}
 
 	for _, c := range tc {
-		mapper := NewIntervalMapper(c.start, c.end, c.step)
+		mapper := NewIntervalMapper(c.start, c.end, c.step, c.instant)
 		require.Equal(t, c.expected, mapper.IntervalCount())
 	}
 }
@@ -64,16 +75,15 @@ func TestTimestampOf(t *testing.T) {
 	tc := []struct {
 		interval         int
 		start, end, step uint64
+		instant          bool
 		expected         uint64
 	}{
-		{
-			expected: 0,
-		},
 		{
 			interval: 2,
 			start:    10, // aligned to 9
 			step:     3,
 			end:      100,
+			instant:  false,
 			expected: 18, // 12, 15, 18 <-- intervals
 		},
 		// start <= step
@@ -82,6 +92,7 @@ func TestTimestampOf(t *testing.T) {
 			start:    1,
 			end:      10,
 			step:     1,
+			instant:  false,
 			expected: 2,
 		},
 		{
@@ -89,6 +100,7 @@ func TestTimestampOf(t *testing.T) {
 			start:    1,
 			end:      5,
 			step:     1,
+			instant:  false,
 			expected: 3,
 		},
 		{
@@ -96,6 +108,7 @@ func TestTimestampOf(t *testing.T) {
 			start:    1,
 			end:      5,
 			step:     1,
+			instant:  false,
 			expected: 6,
 		},
 		// start > step
@@ -104,6 +117,7 @@ func TestTimestampOf(t *testing.T) {
 			start:    10,
 			end:      50,
 			step:     10,
+			instant:  false,
 			expected: 20,
 		},
 		{
@@ -111,6 +125,7 @@ func TestTimestampOf(t *testing.T) {
 			start:    10,
 			end:      50,
 			step:     10,
+			instant:  false,
 			expected: 40, // 3rd interval: (10;20] (20;30] (30;40]
 		},
 		{
@@ -118,12 +133,37 @@ func TestTimestampOf(t *testing.T) {
 			start:    10,
 			end:      50,
 			step:     10,
+			instant:  false,
 			expected: 50,
+		},
+		{
+			interval: 0,
+			start:    10,
+			end:      20,
+			step:     10,
+			instant:  false,
+			expected: 20,
+		},
+		{
+			interval: 0,
+			start:    10,
+			end:      20,
+			step:     10,
+			instant:  true,
+			expected: 20,
+		},
+		{
+			interval: 0,
+			start:    10,
+			end:      15,
+			step:     100,
+			instant:  true,
+			expected: 15, // not aligned
 		},
 	}
 
 	for _, c := range tc {
-		mapper := NewIntervalMapper(c.start, c.end, c.step)
+		mapper := NewIntervalMapper(c.start, c.end, c.step, c.instant)
 		assert.Equal(t, c.expected, mapper.TimestampOf(c.interval), "interval: %d, start: %d, end: %d, step: %d", c.interval, c.start, c.end, c.step)
 	}
 }
@@ -134,7 +174,7 @@ func TestTimestampOfIntervals(t *testing.T) {
 	end := uint64(100)
 	step := uint64(10)
 
-	mapper := NewIntervalMapper(start, end, step)
+	mapper := NewIntervalMapper(start, end, step, false)
 	intervals := mapper.IntervalCount()
 	for i := range intervals {
 		ts := mapper.TimestampOf(i)
@@ -145,21 +185,57 @@ func TestTimestampOfIntervals(t *testing.T) {
 func TestIntervalOf(t *testing.T) {
 	tc := []struct {
 		ts, start, end, step uint64
+		instant              bool
 		expected             int
 	}{
 		// start <= step
-		{expected: -1},
+		{
+			start:    1,
+			step:     1,
+			expected: -1,
+		},
+		{
+			start:    9,
+			step:     10,
+			expected: -1,
+		},
 		{
 			ts:       0,
 			end:      1,
 			step:     1,
-			expected: 0, // corner case. TODO: should we return -1?
+			instant:  false,
+			expected: -1,
+		},
+		{
+			ts:       0,
+			start:    0,
+			end:      1,
+			step:     1,
+			instant:  true,
+			expected: 0, // start and end are inclusive for instant queries
+		},
+		{
+			ts:       10,
+			start:    0,
+			end:      10,
+			step:     100,
+			instant:  true,
+			expected: 0, // start and end are inclusive for instant queries
+		},
+		{
+			ts:       98,
+			start:    0,
+			end:      10,
+			step:     99,
+			instant:  true,
+			expected: -1, // outside of range, range is not aligned
 		},
 		{
 			ts:       10,
 			start:    1,
 			end:      10,
 			step:     1,
+			instant:  false,
 			expected: 8, // 9th interval: (9;10]
 		},
 		{
@@ -167,6 +243,7 @@ func TestIntervalOf(t *testing.T) {
 			start:    1,
 			end:      5,
 			step:     1,
+			instant:  false,
 			expected: -1, // should be excluded
 		},
 		{
@@ -174,6 +251,7 @@ func TestIntervalOf(t *testing.T) {
 			start:    1,
 			end:      5,
 			step:     1,
+			instant:  false,
 			expected: 0, // 2nd interval: (1;2]
 		},
 		// start > step
@@ -182,6 +260,7 @@ func TestIntervalOf(t *testing.T) {
 			start:    10,
 			end:      50,
 			step:     10,
+			instant:  false,
 			expected: 0, // first interval: (10;20]
 		},
 		{
@@ -189,6 +268,7 @@ func TestIntervalOf(t *testing.T) {
 			start:    10,
 			end:      50,
 			step:     10,
+			instant:  false,
 			expected: -1, // should be excluded
 		},
 		{
@@ -196,6 +276,7 @@ func TestIntervalOf(t *testing.T) {
 			start:    10,
 			end:      50,
 			step:     10,
+			instant:  false,
 			expected: -1, // should be excluded
 		},
 		{
@@ -203,6 +284,7 @@ func TestIntervalOf(t *testing.T) {
 			start:    10,
 			end:      50,
 			step:     10,
+			instant:  false,
 			expected: 0, // first interval: (10;20]
 		},
 		{
@@ -210,6 +292,7 @@ func TestIntervalOf(t *testing.T) {
 			start:    10,
 			end:      50,
 			step:     10,
+			instant:  false,
 			expected: 1, // second interval: (20;30]
 		},
 		{
@@ -217,12 +300,13 @@ func TestIntervalOf(t *testing.T) {
 			start:    10,
 			end:      50,
 			step:     10,
+			instant:  false,
 			expected: 3, // 4th interval: (40;50]
 		},
 	}
 
 	for _, c := range tc {
-		mapper := NewIntervalMapper(c.start, c.end, c.step)
+		mapper := NewIntervalMapper(c.start, c.end, c.step, c.instant)
 		assert.Equal(t, c.expected, mapper.Interval(c.ts), "ts: %d, start: %d, end: %d, step: %d", c.ts, c.start, c.end, c.step)
 	}
 }
@@ -273,7 +357,8 @@ func TestTrimToBlockOverlap(t *testing.T) {
 			// Left border is able to be extended.
 			"2024-01-01T01:00:00.123Z", "2024-01-01T02:00:00.123Z", time.Hour,
 			"2024-01-01T01:30:00.123Z", "2024-01-01T02:30:00.123Z",
-			"2024-01-01T01:00:00.123Z", "2024-01-01T02:00:00.123Z", time.Hour,
+			// we subtract a nanosecond to the start to make sure it's before the block start
+			"2024-01-01T01:30:00.122999999Z", "2024-01-01T02:00:00.123Z", 30*time.Minute + time.Nanosecond,
 		},
 	}
 
@@ -283,10 +368,14 @@ func TestTrimToBlockOverlap(t *testing.T) {
 		start2, _ := time.Parse(time.RFC3339Nano, c.start2)
 		end2, _ := time.Parse(time.RFC3339Nano, c.end2)
 
+		req := &tempopb.QueryRangeRequest{
+			Start: uint64(start1.UnixNano()),
+			End:   uint64(end1.UnixNano()),
+			Step:  uint64(c.step.Nanoseconds()),
+		}
+
 		actualStart, actualEnd, actualStep := TrimToBlockOverlap(
-			uint64(start1.UnixNano()),
-			uint64(end1.UnixNano()),
-			uint64(c.step.Nanoseconds()),
+			req,
 			start2,
 			end2,
 		)
@@ -375,6 +464,45 @@ func TestCompileMetricsQueryRange(t *testing.T) {
 				require.EqualError(t, err, c.expectedErr.Error())
 			}
 		})
+	}
+}
+
+func TestCompileMetricsQueryRangeExemplarsHint(t *testing.T) {
+	defaultExempalars := 5
+
+	tcs := []struct {
+		q             string
+		expectedCount int
+	}{
+		{
+			q:             "{} | rate() with(exemplars=10)",
+			expectedCount: 10,
+		},
+		{
+			q:             "{} | rate() with(exemplars=false)",
+			expectedCount: 0,
+		},
+		{
+			q:             "{} | rate() with(exemplars=true)",
+			expectedCount: defaultExempalars,
+		},
+		{
+			q:             "{} | rate()",
+			expectedCount: defaultExempalars,
+		},
+	}
+
+	for _, tc := range tcs {
+		eval, err := NewEngine().CompileMetricsQueryRange(&tempopb.QueryRangeRequest{
+			Query: tc.q,
+			Start: 1,
+			End:   2,
+			Step:  1,
+		}, 5, 0, false)
+
+		require.NoError(t, err)
+		require.NotNil(t, eval)
+		require.Equal(t, tc.expectedCount, eval.maxExemplars)
 	}
 }
 
@@ -598,6 +726,33 @@ func TestOptimizeFetchSpansRequest(t *testing.T) {
 	}
 }
 
+func TestLog2Bucketize(t *testing.T) {
+	tc := []struct {
+		input  uint64
+		output float64
+	}{
+		{0, -1},
+		{1, -1},
+		{2, 2.0},
+		{3, 4.0},
+		{4, 4.0},
+		{5, 8.0},
+		{1023, 1024.0},
+		{1024, 1024.0},
+		{1025, 2048.0},
+	}
+
+	for _, c := range tc {
+		require.Equal(t, c.output, Log2Bucketize(c.input))
+	}
+}
+
+func BenchmarkLog2Bucketize(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		Log2Bucketize(1024)
+	}
+}
+
 func TestQuantileOverTime(t *testing.T) {
 	req := &tempopb.QueryRangeRequest{
 		Start: 1,
@@ -767,6 +922,7 @@ func TestCountOverTimeInstantNs(t *testing.T) {
 		Step:  uint64(step),
 		Query: "{ } | count_over_time()",
 	}
+	req.SetInstant(true)
 
 	in := []Span{
 		// outside of the range but within the range for ms. Should be ignored.
@@ -813,6 +969,7 @@ func TestAvgOverTimeInstantNs(t *testing.T) {
 		Step:  uint64(step),
 		Query: "{ } | avg_over_time(span:duration)",
 	}
+	req.SetInstant(true)
 
 	in := []Span{
 		// outside of the range but within the range for ms. Should be ignored.
@@ -859,6 +1016,7 @@ func TestCountOverTimeInstantNsWithCutoff(t *testing.T) {
 		Step:  uint64(step),
 		Query: "{ } | count_over_time()",
 	}
+	req.SetInstant(true)
 
 	cutoff := 2*time.Second + 300*time.Nanosecond
 	// from start to cutoff
@@ -960,6 +1118,115 @@ func TestCountOverTimeInstantNsWithCutoff(t *testing.T) {
 		requireEqualSeriesSets(t, out, layer3.Results())
 		require.Equal(t, len(layer3.Results()), layer3.Length())
 	})
+}
+
+func TestRateCutoff(t *testing.T) {
+	start := 1*time.Second + 300*time.Nanosecond // additional 300ns that can be accidentally dropped by ms conversion
+	end := 3 * time.Second
+	step := end - start
+	cutoff := 2*time.Second + 300*time.Nanosecond
+
+	req := tempopb.QueryRangeRequest{
+		Start: uint64(start),
+		End:   uint64(end),
+		Step:  uint64(step),
+		Query: "{ } | rate()",
+	}
+	for _, tc := range []struct {
+		name           string
+		setInstant     func(req tempopb.QueryRangeRequest) tempopb.QueryRangeRequest
+		expectedResult []float64
+	}{
+		{
+			"legacy request (no instant param)",
+			func(req tempopb.QueryRangeRequest) tempopb.QueryRangeRequest {
+				req.Step = req.End - req.Start
+				return req
+			},
+			// BUG: without instant query provided, instant rate is calculated incorrectly as sum of rates for each sub-interval
+			[]float64{(4 / (cutoff - start).Seconds()) + (4 / (end - cutoff).Seconds())},
+		},
+		{
+			"instant query",
+			func(req tempopb.QueryRangeRequest) tempopb.QueryRangeRequest {
+				req.SetInstant(true)
+				return req
+			},
+			[]float64{8 / step.Seconds()},
+		},
+		{
+			"not instant query",
+			func(req tempopb.QueryRangeRequest) tempopb.QueryRangeRequest {
+				req.SetInstant(false)
+				return req
+			},
+			// consumes all spans due to step alignment
+			[]float64{11 / step.Seconds(), 3 / step.Seconds()},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			req = tc.setInstant(req)
+
+			// from start to cutoff
+			req1 := req
+			req1.End = uint64(cutoff)
+			req1 = tc.setInstant(req1)
+			// from cutoff to end
+			req2 := req
+			req2.Start = uint64(cutoff)
+			req2 = tc.setInstant(req2)
+
+			in1 := []Span{
+				// outside of the range but within the range for ms. Should be ignored for instant queries.
+				newMockSpan(nil).WithStartTime(uint64(start - 20*time.Nanosecond)).WithDuration(1),
+				newMockSpan(nil).WithStartTime(uint64(start - time.Nanosecond)).WithDuration(1),
+
+				// within the range
+				newMockSpan(nil).WithStartTime(uint64(start)).WithDuration(1),
+				newMockSpan(nil).WithStartTime(uint64(start + time.Nanosecond)).WithDuration(1),
+				newMockSpan(nil).WithStartTime(uint64(cutoff - time.Nanosecond)).WithDuration(1),
+				newMockSpan(nil).WithStartTime(uint64(cutoff)).WithDuration(1),
+
+				// outside of cutoff
+				newMockSpan(nil).WithStartTime(uint64(cutoff + time.Nanosecond)).WithDuration(1),
+			}
+
+			in2 := []Span{
+				// outside of cutoff
+				newMockSpan(nil).WithStartTime(uint64(cutoff - time.Nanosecond)).WithDuration(1),
+
+				// within the range
+				newMockSpan(nil).WithStartTime(uint64(cutoff)).WithDuration(1),
+				newMockSpan(nil).WithStartTime(uint64(cutoff + time.Nanosecond)).WithDuration(1),
+				newMockSpan(nil).WithStartTime(uint64(end - time.Nanosecond)).WithDuration(1),
+				newMockSpan(nil).WithStartTime(uint64(end)).WithDuration(10),
+
+				// outside of the range but within the range for ms. Should be ignored for instant queries.
+				newMockSpan(nil).WithStartTime(uint64(end + time.Nanosecond)).WithDuration(1),
+				newMockSpan(nil).WithStartTime(uint64(end + 20*time.Nanosecond)).WithDuration(1),
+			}
+
+			// expectedValue := 8 * float64(time.Second.Nanoseconds()) / float64(step.Nanoseconds())
+			out := []TimeSeries{
+				{
+					Labels: []Label{
+						{Name: "__name__", Value: NewStaticString("rate")},
+					},
+					Values:    tc.expectedResult,
+					Exemplars: make([]Exemplar, 0),
+				},
+			}
+
+			res1, err := processLayer1AndLayer2(&req1, in1)
+			require.NoError(t, err)
+			res2, err := processLayer1AndLayer2(&req2, in2)
+			require.NoError(t, err)
+			res, seriesCount, err := processLayer3(&req, res1, res2)
+			require.NoError(t, err)
+			require.Equal(t, len(res), seriesCount)
+			requireEqualSeriesSets(t, out, res)
+		})
+	}
 }
 
 func TestMinOverTimeForDuration(t *testing.T) {
@@ -1226,6 +1493,43 @@ func TestAvgOverTimeForDurationWithoutAggregation(t *testing.T) {
 	assert.Equal(t, 100., avg.Values[0]*float64(time.Second))
 	assert.Equal(t, 200., avg.Values[1]*float64(time.Second))
 	assert.Equal(t, 200., avg.Values[2]*float64(time.Second))
+}
+
+func TestAvgOverTimeCombine(t *testing.T) {
+	req := &tempopb.QueryRangeRequest{
+		Start: 1,
+		End:   uint64(3 * time.Second),
+		Step:  uint64(1 * time.Second),
+		Query: "{ } | avg_over_time(duration)",
+	}
+
+	// Three set of spans with different data for a single time interval
+	// Each set will be passed to level 2 independently
+	in1 := []Span{
+		newMockSpan(nil).WithStartTime(uint64(1 * time.Second)).WithDuration(uint64(100 * time.Second)),
+	}
+
+	in2 := []Span{
+		newMockSpan(nil).WithStartTime(uint64(1 * time.Second)).WithDuration(uint64(200 * time.Second)),
+		newMockSpan(nil).WithStartTime(uint64(1 * time.Second)).WithDuration(uint64(400 * time.Second)),
+	}
+
+	in3 := []Span{
+		newMockSpan(nil).WithStartTime(uint64(1 * time.Second)).WithDuration(uint64(500 * time.Second)),
+		newMockSpan(nil).WithStartTime(uint64(1 * time.Second)).WithDuration(uint64(600 * time.Second)),
+		newMockSpan(nil).WithStartTime(uint64(1 * time.Second)).WithDuration(uint64(700 * time.Second)),
+	}
+
+	result, seriesCount, err := runTraceQLMetric(req, in1, in2, in3)
+	require.NoError(t, err)
+	require.Equal(t, len(result), seriesCount)
+
+	avg := result[LabelsFromArgs("__name__", "avg_over_time").MapKey()]
+
+	expectedResult := (100 + 200 + 400 + 500 + 600 + 700) / 6.
+	assert.Equal(t, expectedResult, avg.Values[0])
+	assert.True(t, math.IsNaN(avg.Values[1]), "expected NaN, got %f", avg.Values[1])
+	assert.True(t, math.IsNaN(avg.Values[2]), "expected NaN, got %f", avg.Values[2])
 }
 
 func TestAvgOverTimeForSpanAttribute(t *testing.T) {
@@ -1882,6 +2186,7 @@ func TestSecondStageTopKInstant(t *testing.T) {
 		Step:  uint64(7 * time.Second),
 		Query: "{ } | rate() by (span.foo) | topk(2)",
 	}
+	req.SetInstant(true)
 
 	in := make([]Span, 0)
 	// 15 spans, at different start times across 3 series
@@ -1960,6 +2265,7 @@ func TestSecondStageBottomKInstant(t *testing.T) {
 		Step:  end - start,
 		Query: "{ } | rate() by (span.foo) | bottomk(2)",
 	}
+	req.SetInstant(true)
 
 	in := make([]Span, 0)
 	// 15 spans, at different start times across 3 series
@@ -2229,37 +2535,199 @@ func TestProcessBottomK(t *testing.T) {
 }
 
 func TestTiesInTopK(t *testing.T) {
-	input := createSeriesSet(map[string][]float64{
-		"a": {10, 5, 1},
-		"b": {10, 4, 2},
-		"c": {10, 3, 3},
-	})
-	result := processTopK(input, 3, 2)
+	t.Run("three-way tie at first position", func(t *testing.T) {
+		input := createSeriesSet(map[string][]float64{
+			"a": {10, 5, 1},
+			"b": {10, 4, 2},
+			"c": {10, 3, 3},
+		})
+		result := processTopK(input, 3, 2)
 
-	// because of ties, we can have different result at index 0
-	// "a" can be [10, 5, NaN] OR [NaN, 5, NaN]
-	// "b" can be [10, 4, 2] OR [NaN, 4, 2]
-	// "c" can be [10, NaN, 3] OR [NaN, NaN, 3]
-	checkEqualForTies(t, result[LabelsFromArgs("label", "a").MapKey()].Values, []float64{10, 5, math.NaN()})
-	checkEqualForTies(t, result[LabelsFromArgs("label", "b").MapKey()].Values, []float64{10, 4, 2})
-	checkEqualForTies(t, result[LabelsFromArgs("label", "c").MapKey()].Values, []float64{10, math.NaN(), 3})
+		// When there are ties, series are selected deterministically using
+		// alphabetical order of labels as the tiebreaker (alphabetically earlier wins).
+		// At index 0: all have value 10, so "a" and "b" are selected (alphabetically first)
+		// At index 1: top 2 are {a:5, b:4} (c:3 is excluded)
+		// At index 2: top 2 are {b:2, c:3} (a:1 is excluded)
+		expectSeriesValues(t, result[LabelsFromArgs("label", "a").MapKey()].Values, []float64{10, 5, math.NaN()})
+		expectSeriesValues(t, result[LabelsFromArgs("label", "b").MapKey()].Values, []float64{10, 4, 2})
+		expectSeriesValues(t, result[LabelsFromArgs("label", "c").MapKey()].Values, []float64{math.NaN(), math.NaN(), 3})
+	})
+
+	t.Run("all values tied", func(t *testing.T) {
+		input := createSeriesSet(map[string][]float64{
+			"x": {5, 5, 5},
+			"y": {5, 5, 5},
+			"z": {5, 5, 5},
+		})
+		result := processTopK(input, 3, 2)
+
+		// All values are equal (5), so topk should consistently select "x" and "y" (alphabetically first)
+		expectSeriesValues(t, result[LabelsFromArgs("label", "x").MapKey()].Values, []float64{5, 5, 5})
+		expectSeriesValues(t, result[LabelsFromArgs("label", "y").MapKey()].Values, []float64{5, 5, 5})
+		// "z" should be excluded at all positions
+		_, exists := result[LabelsFromArgs("label", "z").MapKey()]
+		require.False(t, exists, "series z should not be in result")
+	})
+
+	t.Run("partial ties with different values", func(t *testing.T) {
+		input := createSeriesSet(map[string][]float64{
+			"alpha": {100, 50, 50},
+			"beta":  {100, 50, 40},
+			"gamma": {90, 50, 30},
+			"delta": {80, 40, 20},
+		})
+		result := processTopK(input, 3, 2)
+
+		// At index 0: top 2 are {alpha:100, beta:100} (tied at top, alphabetically first)
+		// At index 1: top 2 are {alpha:50, beta:50} (three-way tie at 50, alphabetically first two)
+		// At index 2: top 2 are {alpha:50, beta:40} (alpha:50 is highest, beta:40 is second)
+		expectSeriesValues(t, result[LabelsFromArgs("label", "alpha").MapKey()].Values, []float64{100, 50, 50})
+		expectSeriesValues(t, result[LabelsFromArgs("label", "beta").MapKey()].Values, []float64{100, 50, 40})
+		// gamma and delta should not be in the result (all NaN)
+		_, exists := result[LabelsFromArgs("label", "gamma").MapKey()]
+		require.False(t, exists, "series gamma should not be in result")
+		_, exists = result[LabelsFromArgs("label", "delta").MapKey()]
+		require.False(t, exists, "series delta should not be in result")
+	})
+
+	t.Run("k=1 with ties", func(t *testing.T) {
+		input := createSeriesSet(map[string][]float64{
+			"service1": {100, 80, 60},
+			"service2": {100, 70, 60},
+			"service3": {90, 60, 60},
+		})
+		result := processTopK(input, 3, 1)
+
+		// With k=1, only one series should be selected at each position
+		// At index 0: top 1 is {service1:100} (tied with service2, but alphabetically first)
+		// At index 1: top 1 is {service1:80} (highest value)
+		// At index 2: top 1 is {service1:60} (three-way tie, alphabetically first)
+		expectSeriesValues(t, result[LabelsFromArgs("label", "service1").MapKey()].Values, []float64{100, 80, 60})
+		_, exists := result[LabelsFromArgs("label", "service2").MapKey()]
+		require.False(t, exists, "series service2 should not be in result")
+		_, exists = result[LabelsFromArgs("label", "service3").MapKey()]
+		require.False(t, exists, "series service3 should not be in result")
+	})
+
+	t.Run("ties with NaN values", func(t *testing.T) {
+		input := createSeriesSet(map[string][]float64{
+			"m": {math.NaN(), 10, 10},
+			"n": {10, 10, math.NaN()},
+			"o": {10, math.NaN(), 10},
+		})
+		result := processTopK(input, 3, 2)
+
+		// NaN values should be ignored, ties broken alphabetically
+		// At index 0: top 2 are {n:10, o:10} (m has NaN, alphabetically first two with values)
+		// At index 1: top 2 are {m:10, n:10} (o has NaN, alphabetically first two with values)
+		// At index 2: top 2 are {m:10, o:10} (n has NaN, alphabetically first two with values)
+		expectSeriesValues(t, result[LabelsFromArgs("label", "m").MapKey()].Values, []float64{math.NaN(), 10, 10})
+		expectSeriesValues(t, result[LabelsFromArgs("label", "n").MapKey()].Values, []float64{10, 10, math.NaN()})
+		expectSeriesValues(t, result[LabelsFromArgs("label", "o").MapKey()].Values, []float64{10, math.NaN(), 10})
+	})
 }
 
 func TestTiesInBottomK(t *testing.T) {
-	input := createSeriesSet(map[string][]float64{
-		"a": {10, 5, 1},
-		"b": {10, 4, 2},
-		"c": {10, 3, 3},
-	})
-	result := processBottomK(input, 3, 2)
+	t.Run("three-way tie at first position", func(t *testing.T) {
+		input := createSeriesSet(map[string][]float64{
+			"a": {10, 5, 1},
+			"b": {10, 4, 2},
+			"c": {10, 3, 3},
+		})
+		result := processBottomK(input, 3, 2)
 
-	// because of ties, we can have different result at index 0
-	// "a" can be [10, NaN, 1] OR [NaN, NaN, 1]
-	// "b" can be [10, 4, 2] OR [NaN, 4, 2]
-	// "c" can be [10, 3, NaN] OR [NaN, 3, NaN]
-	checkEqualForTies(t, result[LabelsFromArgs("label", "a").MapKey()].Values, []float64{10, math.NaN(), 1})
-	checkEqualForTies(t, result[LabelsFromArgs("label", "b").MapKey()].Values, []float64{10, 4, 2})
-	checkEqualForTies(t, result[LabelsFromArgs("label", "c").MapKey()].Values, []float64{10, 3, math.NaN()})
+		// When there are ties, series are selected deterministically using
+		// alphabetical order of labels as the tiebreaker.
+		// With reversed comparison, bottomk selects alphabetically later series when tied.
+		// At index 0: all have value 10, so "b" and "c" are selected (alphabetically later)
+		// At index 1: bottom 2 are {c:3, b:4} (a:5 is excluded)
+		// At index 2: bottom 2 are {a:1, b:2} (c:3 is excluded)
+		expectSeriesValues(t, result[LabelsFromArgs("label", "a").MapKey()].Values, []float64{math.NaN(), math.NaN(), 1})
+		expectSeriesValues(t, result[LabelsFromArgs("label", "b").MapKey()].Values, []float64{10, 4, 2})
+		expectSeriesValues(t, result[LabelsFromArgs("label", "c").MapKey()].Values, []float64{10, 3, math.NaN()})
+	})
+
+	t.Run("all values tied", func(t *testing.T) {
+		input := createSeriesSet(map[string][]float64{
+			"x": {5, 5, 5},
+			"y": {5, 5, 5},
+			"z": {5, 5, 5},
+		})
+		result := processBottomK(input, 3, 2)
+
+		// All values are equal (5), so bottomk should consistently select "y" and "z" (alphabetically later)
+		expectSeriesValues(t, result[LabelsFromArgs("label", "y").MapKey()].Values, []float64{5, 5, 5})
+		expectSeriesValues(t, result[LabelsFromArgs("label", "z").MapKey()].Values, []float64{5, 5, 5})
+		// "x" should be excluded at all positions
+		_, exists := result[LabelsFromArgs("label", "x").MapKey()]
+		require.False(t, exists, "series x should not be in result")
+	})
+
+	t.Run("partial ties with different values", func(t *testing.T) {
+		input := createSeriesSet(map[string][]float64{
+			"alpha": {10, 20, 30},
+			"beta":  {10, 20, 40},
+			"gamma": {10, 20, 50},
+			"delta": {20, 30, 60},
+		})
+		result := processBottomK(input, 3, 2)
+
+		// At index 0: bottom 2 are {beta:10, gamma:10} (three-way tie at 10, alphabetically later two)
+		// At index 1: bottom 2 are {beta:20, gamma:20} (three-way tie at 20, alphabetically later two)
+		// At index 2: bottom 2 are {alpha:30, beta:40} (alpha:30 is lowest, beta:40 is second lowest)
+		expectSeriesValues(t, result[LabelsFromArgs("label", "alpha").MapKey()].Values, []float64{math.NaN(), math.NaN(), 30})
+		expectSeriesValues(t, result[LabelsFromArgs("label", "beta").MapKey()].Values, []float64{10, 20, 40})
+		expectSeriesValues(t, result[LabelsFromArgs("label", "gamma").MapKey()].Values, []float64{10, 20, math.NaN()})
+		// delta should not be in the result (all NaN)
+		_, exists := result[LabelsFromArgs("label", "delta").MapKey()]
+		require.False(t, exists, "series delta should not be in result")
+	})
+
+	t.Run("k=1 with ties", func(t *testing.T) {
+		input := createSeriesSet(map[string][]float64{
+			"service1": {10, 20, 30},
+			"service2": {10, 25, 30},
+			"service3": {15, 30, 30},
+		})
+		result := processBottomK(input, 3, 1)
+
+		// With k=1, only one series should be selected at each position
+		// At index 0: bottom 1 is {service2:10} (tied with service1, but alphabetically later)
+		// At index 1: bottom 1 is {service1:20} (lowest value)
+		// At index 2: bottom 1 is {service3:30} (three-way tie, alphabetically later)
+		expectSeriesValues(t, result[LabelsFromArgs("label", "service1").MapKey()].Values, []float64{math.NaN(), 20, math.NaN()})
+		expectSeriesValues(t, result[LabelsFromArgs("label", "service2").MapKey()].Values, []float64{10, math.NaN(), math.NaN()})
+		expectSeriesValues(t, result[LabelsFromArgs("label", "service3").MapKey()].Values, []float64{math.NaN(), math.NaN(), 30})
+	})
+
+	t.Run("ties with NaN values", func(t *testing.T) {
+		input := createSeriesSet(map[string][]float64{
+			"m": {math.NaN(), 5, 5},
+			"n": {5, 5, math.NaN()},
+			"o": {5, math.NaN(), 5},
+		})
+		result := processBottomK(input, 3, 2)
+
+		// NaN values should be ignored, ties broken alphabetically (later for bottomk)
+		// At index 0: bottom 2 are {n:5, o:5} (m has NaN, alphabetically later two with values)
+		// At index 1: bottom 2 are {m:5, n:5} (o has NaN, alphabetically later two with values)
+		// At index 2: bottom 2 are {m:5, o:5} (n has NaN, alphabetically later two with values)
+		expectSeriesValues(t, result[LabelsFromArgs("label", "m").MapKey()].Values, []float64{math.NaN(), 5, 5})
+		expectSeriesValues(t, result[LabelsFromArgs("label", "n").MapKey()].Values, []float64{5, 5, math.NaN()})
+		expectSeriesValues(t, result[LabelsFromArgs("label", "o").MapKey()].Values, []float64{5, math.NaN(), 5})
+	})
+
+	t.Run("edge case with larger k than series", func(t *testing.T) {
+		input := createSeriesSet(map[string][]float64{
+			"a": {1, 2, 3},
+			"b": {1, 2, 3},
+		})
+		result := processBottomK(input, 3, 5)
+
+		// k=5 is larger than the number of series (2), so all series should be included
+		expectSeriesValues(t, result[LabelsFromArgs("label", "a").MapKey()].Values, []float64{1, 2, 3})
+		expectSeriesValues(t, result[LabelsFromArgs("label", "b").MapKey()].Values, []float64{1, 2, 3})
+	})
 }
 
 func TestHistogramAggregator(t *testing.T) {
@@ -2369,7 +2837,7 @@ func processLayer1AndLayer2(req *tempopb.QueryRangeRequest, in ...[]Span) (Serie
 	return layer2.Results(), nil
 }
 
-func processLayer3(req *tempopb.QueryRangeRequest, res SeriesSet) (SeriesSet, int, error) {
+func processLayer3(req *tempopb.QueryRangeRequest, results ...SeriesSet) (SeriesSet, int, error) {
 	e := NewEngine()
 
 	layer3, err := e.CompileMetricsQueryRangeNonRaw(req, AggregateModeFinal)
@@ -2377,7 +2845,9 @@ func processLayer3(req *tempopb.QueryRangeRequest, res SeriesSet) (SeriesSet, in
 		return nil, 0, err
 	}
 
-	layer3.ObserveSeries(res.ToProto(req))
+	for _, res := range results {
+		layer3.ObserveSeries(res.ToProto(req))
+	}
 	return layer3.Results(), layer3.Length(), nil
 }
 
@@ -2433,19 +2903,13 @@ func expectSeriesSet(t *testing.T, expected, result SeriesSet) {
 	}
 }
 
-func checkEqualForTies(t *testing.T, result, expected []float64) {
+func expectSeriesValues(t *testing.T, result, expected []float64) {
+	require.Len(t, result, len(expected))
 	for i := range result {
-		switch i {
-		// at index 0, we have a tie so it can be sometimes NaN
-		case 0:
-			require.True(t, math.IsNaN(result[0]) || result[0] == expected[0],
-				"index 0: expected NaN or %v, got %v", expected[0], result[0])
-		default:
-			if math.IsNaN(expected[i]) {
-				require.True(t, math.IsNaN(result[i]), "index %d: expected NaN, got %v", i, result[i])
-			} else {
-				require.Equal(t, expected[i], result[i], "index %d: expected %v", i, expected[i])
-			}
+		if math.IsNaN(expected[i]) {
+			require.True(t, math.IsNaN(result[i]), "index %d: expected NaN, got %v", i, result[i])
+		} else {
+			require.Equal(t, expected[i], result[i], "index %d: expected %v, got %v", i, expected[i], result[i])
 		}
 	}
 }
@@ -2460,7 +2924,7 @@ func BenchmarkSumOverTime(b *testing.B) {
 	for range totalSpans {
 		s := time.Duration(randInt(1, 3)) * time.Second
 		v := randFloat(minimum, maximun)
-		in = append(in2, newMockSpan(nil).WithStartTime(uint64(s)).WithSpanString("foo", "bar").WithSpanFloat("kafka.lag", v).WithDuration(100))
+		in = append(in, newMockSpan(nil).WithStartTime(uint64(s)).WithSpanString("foo", "bar").WithSpanFloat("kafka.lag", v).WithDuration(100))
 		s = time.Duration(randInt(1, 3)) * time.Second
 		v = randFloat(minimum, maximun)
 		in2 = append(in2, newMockSpan(nil).WithStartTime(uint64(s)).WithSpanString("foo", "bar").WithSpanFloat("kafka.lag", v).WithDuration(100))

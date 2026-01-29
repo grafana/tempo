@@ -75,7 +75,16 @@ grafana {
         }
         for target in super.targets
       ],
+      fieldConfig+: {
+        defaults+: {
+          unit: 'ops',
+        },
+      },
     },
+
+  panel(title):: $.timeseriesPanel(title),
+
+  timeseriesPanel(title):: super.timeseriesPanel(title),
 
   // fork of grafana latency panel with additional_grouping added
   latencyPanel(metricName, selector, multiplier='1e3', additional_grouping=''):: {
@@ -109,6 +118,11 @@ grafana {
         interval: '1m',
       },
     ],
+    fieldConfig+: {
+      defaults+: {
+        unit: 'ms',
+      },
+    },
     yaxes: $.yaxes('ms'),
   },
 
@@ -116,7 +130,7 @@ grafana {
     $._config.per_cluster_label + '=~"$cluster", namespace=~"$namespace"',
 
   containerCPUUsagePanel(title, containerName)::
-    $.panel(title) +
+    $.timeseriesPanel(title) +
     $.queryPanel([
       'sum by(pod) (rate(container_cpu_usage_seconds_total{%s,container=~"%s"}[$__rate_interval]))' % [$.namespaceMatcher(), containerName],
       'min(container_spec_cpu_quota{%s,container=~"%s"} / container_spec_cpu_period{%s,container=~"%s"})' % [$.namespaceMatcher(), containerName, $.namespaceMatcher(), containerName],
@@ -135,10 +149,11 @@ grafana {
           fill: 0,
         },
       ],
+      fieldConfig+: { defaults+: { unit: 'cores' } },
     },
 
   containerMemoryWorkingSetPanel(title, containerName)::
-    $.panel(title) +
+    $.timeseriesPanel(title) +
     $.queryPanel([
       'sum by(pod) (container_memory_working_set_bytes{%s,container=~"%s"})' % [$.namespaceMatcher(), containerName],
       'min(container_spec_memory_limit_bytes{%s,container=~"%s"} > 0)' % [$.namespaceMatcher(), containerName],
@@ -157,13 +172,17 @@ grafana {
           fill: 0,
         },
       ],
+      fieldConfig+: { defaults+: { unit: 'bytes' } },
       yaxes: $.yaxes('bytes'),
     },
 
   goHeapInUsePanel(title, job)::
-    $.panel(title) +
+    $.timeseriesPanel(title) +
     $.queryPanel('sum by(instance) (go_memstats_heap_inuse_bytes{%s})' % job, '{{instance}}') +
-    { yaxes: $.yaxes('bytes') },
+    {
+      fieldConfig+: { defaults+: { unit: 'bytes' } },
+      yaxes: $.yaxes('bytes'),
+    },
 
   newStatPanel(queries, legends='', unit='percentunit', decimals=1, thresholds=[], instant=false, novalue='')::
     super.queryPanel(queries, legends) + {
@@ -231,5 +250,16 @@ grafana {
       },
     },
 
+  stack:: super.stack + {
+    fieldConfig+: {
+      defaults+: {
+        custom+: {
+          stacking: {
+            mode: 'normal',
+          },
+        },
+      },
+    },
+  },
 
 }

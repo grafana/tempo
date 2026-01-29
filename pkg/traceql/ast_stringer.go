@@ -96,7 +96,7 @@ func (s Static) EncodeToString(quotes bool) string {
 		f := strconv.FormatFloat(s.Float(), 'g', -1, 64)
 		// if the float string doesn't contain e or ., then append .0 to distinguish it from an int
 		if !strings.ContainsAny(f, "e.") {
-			f = f + ".0"
+			f += ".0"
 		}
 		return f
 	case TypeString:
@@ -180,6 +180,10 @@ func (a Attribute) String() string {
 		scope += "."
 	}
 
+	if ContainsNonAttributeRune(att) {
+		att = "\"" + att + "\""
+	}
+
 	return scope + att
 }
 
@@ -191,8 +195,7 @@ func (a MetricsAggregate) String() string {
 	if a.attr != (Attribute{}) {
 		s.WriteString(a.attr.String())
 	}
-	switch a.op {
-	case metricsAggregateQuantileOverTime:
+	if a.op == metricsAggregateQuantileOverTime {
 		s.WriteString(",")
 		for i, f := range a.floats {
 			s.WriteString(strconv.FormatFloat(f, 'f', 5, 64))
@@ -231,6 +234,10 @@ func binaryOp(op Operator, lhs Element, rhs Element) string {
 func unaryOp(op Operator, e Element) string {
 	if op == OpExists {
 		return wrapElement(e) + " != nil"
+	}
+
+	if op == OpNotExists {
+		return wrapElement(e) + " = nil"
 	}
 
 	return op.String() + wrapElement(e)

@@ -29,8 +29,7 @@ type histogram struct {
 	series       map[uint64]*histogramSeries
 	seriesDemand *Cardinality
 
-	onAddSerie    func(count uint32) bool
-	onRemoveSerie func(count uint32)
+	lifecycler Limiter
 
 	traceIDLabelName string
 }
@@ -68,16 +67,7 @@ var (
 	_ metric    = (*histogram)(nil)
 )
 
-func newHistogram(name string, buckets []float64, onAddSeries func(uint32) bool, onRemoveSeries func(count uint32), traceIDLabelName string, externalLabels map[string]string, staleDuration time.Duration) *histogram {
-	if onAddSeries == nil {
-		onAddSeries = func(uint32) bool {
-			return true
-		}
-	}
-	if onRemoveSeries == nil {
-		onRemoveSeries = func(uint32) {}
-	}
-
+func newHistogram(name string, buckets []float64, lifecycler Limiter, traceIDLabelName string, externalLabels map[string]string, staleDuration time.Duration) *histogram {
 	if traceIDLabelName == "" {
 		traceIDLabelName = "traceID"
 	}
@@ -99,35 +89,29 @@ func newHistogram(name string, buckets []float64, onAddSeries func(uint32) bool,
 		bucketLabels:     bucketLabels,
 		series:           make(map[uint64]*histogramSeries),
 		seriesDemand:     NewCardinality(staleDuration, removeStaleSeriesInterval),
-		onAddSerie:       onAddSeries,
-		onRemoveSerie:    onRemoveSeries,
+		lifecycler:       lifecycler,
 		traceIDLabelName: traceIDLabelName,
 		externalLabels:   externalLabels,
 	}
 }
 
-func (h *histogram) ObserveWithExemplar(labelValueCombo *LabelValueCombo, value float64, traceID string, multiplier float64) {
-	hash := labelValueCombo.getHash()
+func (h *histogram) ObserveWithExemplar(lbls labels.Labels, value float64, traceID string, multiplier float64) {
+	hash := lbls.Hash()
 
 	h.seriesDemand.Insert(hash)
 
 	h.seriesMtx.Lock()
 	defer h.seriesMtx.Unlock()
 
-	s, ok := h.series[hash]
-	if ok {
-		h.updateSeries(s, value, traceID, multiplier)
+	s, lbls, hash := resolveSeries(h.series, hash, lbls, h.lifecycler, h.activeSeriesPerHistogramSerie())
+	if s != nil {
+		h.updateSeries(hash, s, value, traceID, multiplier)
 		return
 	}
-
-	if !h.onAddSerie(h.activeSeriesPerHistogramSerie()) {
-		return
-	}
-
-	h.series[hash] = h.newSeries(labelValueCombo, value, traceID, multiplier)
+	h.series[hash] = h.newSeries(lbls, value, traceID, multiplier)
 }
 
-func (h *histogram) newSeries(labelValueCombo *LabelValueCombo, value float64, traceID string, multiplier float64) *histogramSeries {
+func (h *histogram) newSeries(lbls labels.Labels, value float64, traceID string, multiplier float64) *histogramSeries {
 	newSeries := &histogramSeries{
 		count:          atomic.NewFloat64(0),
 		sum:            atomic.NewFloat64(0),
@@ -146,10 +130,7 @@ func (h *histogram) newSeries(labelValueCombo *LabelValueCombo, value float64, t
 	// Precompute all labels for all sub-metrics upfront
 
 	// Create and populate label builder
-	lb := labels.NewBuilder(getLabelsFromValueCombo(labelValueCombo))
-	for name, value := range h.externalLabels {
-		lb.Set(name, value)
-	}
+	lb := newSeriesLabelsBuilder(lbls, h.externalLabels)
 
 	// _count
 	lb.Set(labels.MetricName, h.nameCount)
@@ -166,12 +147,12 @@ func (h *histogram) newSeries(labelValueCombo *LabelValueCombo, value float64, t
 		newSeries.bucketLabels = append(newSeries.bucketLabels, lb.Labels())
 	}
 
-	h.updateSeries(newSeries, value, traceID, multiplier)
+	h.updateSeries(lbls.Hash(), newSeries, value, traceID, multiplier)
 
 	return newSeries
 }
 
-func (h *histogram) updateSeries(s *histogramSeries, value float64, traceID string, multiplier float64) {
+func (h *histogram) updateSeries(hash uint64, s *histogramSeries, value float64, traceID string, multiplier float64) {
 	s.count.Add(1 * multiplier)
 	s.sum.Add(value * multiplier)
 
@@ -186,6 +167,7 @@ func (h *histogram) updateSeries(s *histogramSeries, value float64, traceID stri
 	s.exemplarValues[bucket].Store(value)
 
 	s.lastUpdated.Store(time.Now().UnixMilli())
+	h.lifecycler.OnUpdate(hash, h.activeSeriesPerHistogramSerie())
 }
 
 func (h *histogram) name() string {
@@ -204,7 +186,7 @@ func (h *histogram) collectMetrics(appender storage.Appender, timeMs int64) erro
 			// different aggregation interval to avoid be downsampled.
 			endOfLastMinuteMs := getEndOfLastMinuteMs(timeMs)
 			_, err := appender.Append(0, s.countLabels, endOfLastMinuteMs, 0)
-			if err != nil {
+			if err != nil && !isOutOfOrderError(err) {
 				return err
 			}
 		}
@@ -226,7 +208,7 @@ func (h *histogram) collectMetrics(appender storage.Appender, timeMs int64) erro
 			if s.isNew() {
 				endOfLastMinuteMs := getEndOfLastMinuteMs(timeMs)
 				_, err = appender.Append(0, s.bucketLabels[i], endOfLastMinuteMs, 0)
-				if err != nil {
+				if err != nil && !isOutOfOrderError(err) {
 					return err
 				}
 			}
@@ -283,7 +265,7 @@ func (h *histogram) removeStaleSeries(staleTimeMs int64) {
 	for hash, s := range h.series {
 		if s.lastUpdated.Load() < staleTimeMs {
 			delete(h.series, hash)
-			h.onRemoveSerie(h.activeSeriesPerHistogramSerie())
+			h.lifecycler.OnDelete(hash, h.activeSeriesPerHistogramSerie())
 		}
 	}
 	h.seriesDemand.Advance()

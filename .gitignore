@@ -4,6 +4,7 @@
 .claude
 *.test
 *.out
+.coverage/
 *.pprof
 /.envrc
 /bin
@@ -20,10 +21,9 @@
 /tempo-vulture
 /tempodb/encoding/benchmark_block
 private-key.key
-integration/e2e/e2e_integration_test[0-9]*
-integration/e2e/*/e2e_integration_test[0-9]*
-integration/e2e/deployments/e2e_integration_test[0-9]*
+integration/**/e2e_integration_test[0-9]*
 .tempo.yaml
 /tmp
 gh-token.txt
 .cache
+operations/jsonnet/microservices/vendor/

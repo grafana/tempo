@@ -119,11 +119,13 @@
       }
       else {}
     )) +
-    statefulSet.mixin.spec.template.metadata.withLabels({ name: name, 'rollout-group': 'live-store' }) +
+    statefulSet.mixin.spec.template.metadata.withLabelsMixin({ name: name, 'rollout-group': 'live-store' }) +
     statefulSet.mixin.spec.selector.withMatchLabels({ name: name, 'rollout-group': 'live-store' }) +
     statefulSet.mixin.spec.updateStrategy.withType('OnDelete') +
     statefulSet.mixin.spec.template.spec.withTerminationGracePeriodSeconds(1200) +
-    $.removeReplicasFromSpec +  // Zone-aware live-store statefulsets follow the replicas in the ReplicaTemplate
+    (
+      if $._config.live_store.replicas > 0 then $.removeReplicasFromSpec else statefulSet.mixin.spec.withReplicas(0)
+    ) +  // Zone-aware live-store statefulsets follow the replicas in the ReplicaTemplate
     (if !std.isObject($._config.node_selector) then {} else statefulSet.mixin.spec.template.spec.withNodeSelectorMixin($._config.node_selector)) +
     statefulSet.spec.template.spec.securityContext.withFsGroup(10001) +  // 10001 is the UID of the tempo user
     self.liveStoreZoneAntiAffinity(name),
@@ -134,10 +136,6 @@
       3,
       container,
       self.tempo_live_store_pvc,
-      {
-        app: target_name,
-        [$._config.gossip_member_label]: 'true',
-      },
     )
     + statefulSet.mixin.spec.withServiceName(name)
     + statefulSet.mixin.spec.template.metadata.withAnnotations({
@@ -148,6 +146,7 @@
       volume.fromConfigMap(tempo_overrides_config_volume, $._config.overrides_configmap_name),
     ]) +
     statefulSet.mixin.spec.withPodManagementPolicy('Parallel') +
+    statefulSet.mixin.spec.template.metadata.withLabels({ app: name, [$._config.gossip_member_label]: 'true' }) +
     statefulSet.mixin.spec.template.spec.withTerminationGracePeriodSeconds(1200) +
     $.util.podPriority('high'),
 
@@ -194,4 +193,11 @@
   tempo_live_store_service: null,  // Only multi-zone services are supported
 
   live_store_pdb: null,  // Only rollout PDB is used
+
+  // Vertical Pod Autoscaler
+  tempo_live_store_vpa: [
+    $.vpaForController($.tempo_live_store_zone_a_statefulset, 'live_store'),
+    $.vpaForController($.tempo_live_store_zone_b_statefulset, 'live_store'),
+  ],
+
 }

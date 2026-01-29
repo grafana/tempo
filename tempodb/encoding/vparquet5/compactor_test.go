@@ -58,7 +58,6 @@ func benchmarkCompactor(b *testing.B, traceCount, batchCount, spanCount int) {
 		c := NewCompactor(common.CompactionOptions{
 			BlockConfig:      *cfg,
 			OutputBlocks:     1,
-			FlushSizeBytes:   30_000_000,
 			MaxBytesPerTrace: 50_000_000,
 		})
 
@@ -94,7 +93,6 @@ func BenchmarkCompactorDupes(b *testing.B) {
 		c := NewCompactor(common.CompactionOptions{
 			BlockConfig:      *cfg,
 			OutputBlocks:     1,
-			FlushSizeBytes:   30_000_000,
 			MaxBytesPerTrace: 50_000_000,
 			ObjectsCombined:  func(_, _ int) {},
 			SpansDiscarded:   func(_, _, _ string, _ int) {},
@@ -154,7 +152,7 @@ func TestCountSpans(t *testing.T) {
 	rootSpan := "foo"
 	rootService := "bar"
 
-	sch := parquet.SchemaOf(new(Trace))
+	sch, _, _ := SchemaWithDynamicChanges(backend.DedicatedColumns{})
 	traceID := make([]byte, 16)
 	_, err := crand.Read(traceID)
 	require.NoError(t, err)
@@ -192,7 +190,6 @@ func TestCompact(t *testing.T) {
 	c := NewCompactor(common.CompactionOptions{
 		BlockConfig:     blockConfig,
 		OutputBlocks:    1,
-		FlushSizeBytes:  30_000_000,
 		ObjectsCombined: func(_, _ int) {},
 	})
 

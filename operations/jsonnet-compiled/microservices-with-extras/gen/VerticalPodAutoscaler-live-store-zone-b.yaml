@@ -1,0 +1,27 @@
+apiVersion: autoscaling.k8s.io/v1
+kind: VerticalPodAutoscaler
+metadata:
+  name: live-store-zone-b
+  namespace: tracing
+spec:
+  resourcePolicy:
+    containerPolicies:
+    - containerName: live-store
+      controlledResources:
+      - cpu
+      - memory
+      controlledValues: RequestsAndLimits
+      maxAllowed:
+        cpu: "2"
+        memory: 4Gi
+      minAllowed:
+        cpu: 100m
+        memory: 1Gi
+      mode: Auto
+  targetRef:
+    apiVersion: apps/v1
+    kind: StatefulSet
+    name: live-store-zone-b
+  updatePolicy:
+    minReplicas: 1
+    updateMode: Auto

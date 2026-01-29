@@ -119,6 +119,13 @@ func TestSpansetFilter_extractConditions(t *testing.T) {
 			},
 			allConditions: true,
 		},
+		{
+			query: `{ span.foo = nil }`,
+			conditions: []Condition{
+				newCondition(NewScopedAttribute(AttributeScopeSpan, false, "foo"), OpNotExists),
+			},
+			allConditions: true,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.query, func(t *testing.T) {
@@ -336,6 +343,68 @@ func TestMetricsAggregate_extractConditions(t *testing.T) {
 			require.Equal(t, tt.first, req.Conditions)
 			require.Equal(t, tt.second, req.SecondPassConditions)
 			require.Equal(t, tt.all, req.AllConditions, "FetchSpansRequest.AllConditions")
+		})
+	}
+}
+
+func TestUnaryOperation_extractConditions(t *testing.T) {
+	tests := []struct {
+		query         string
+		conditions    []Condition
+		allConditions bool
+	}{
+		{
+			query: `{ span.foo != nil }`,
+			conditions: []Condition{
+				newCondition(NewScopedAttribute(AttributeScopeSpan, false, "foo"), OpExists),
+			},
+			allConditions: true,
+		},
+		{
+			query: `{ span.foo = nil }`,
+			conditions: []Condition{
+				newCondition(NewScopedAttribute(AttributeScopeSpan, false, "foo"), OpNotExists),
+			},
+			allConditions: true,
+		},
+		{
+			query: `{ span.foo }`,
+			conditions: []Condition{
+				newCondition(NewScopedAttribute(AttributeScopeSpan, false, "foo"), OpNone),
+			},
+			allConditions: true,
+		},
+		{
+			query: `{ !span.foo }`,
+			conditions: []Condition{
+				newCondition(NewScopedAttribute(AttributeScopeSpan, false, "foo"), OpNone),
+			},
+			allConditions: true,
+		},
+		{
+			query: `{ !(span.a = "a" || span.a = "c") }`,
+			conditions: []Condition{
+				newCondition(NewScopedAttribute(AttributeScopeSpan, false, "a"), OpEqual, NewStaticString("a")),
+				newCondition(NewScopedAttribute(AttributeScopeSpan, false, "a"), OpEqual, NewStaticString("c")),
+			},
+			allConditions: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.query, func(t *testing.T) {
+			expr, err := Parse(tt.query)
+			require.NoError(t, err)
+
+			req := &FetchSpansRequest{
+				Conditions:    []Condition{},
+				AllConditions: true,
+			}
+			expr.extractConditions(req)
+
+			assert.Equal(t, tt.conditions, req.Conditions)
+			assert.Nil(t, req.SecondPassConditions)
+			assert.Equal(t, tt.allConditions, req.AllConditions, "FetchSpansRequest.AllConditions")
 		})
 	}
 }

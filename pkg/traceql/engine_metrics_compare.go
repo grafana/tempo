@@ -231,13 +231,13 @@ func (m *MetricsCompare) result(multiplier float64) SeriesSet {
 
 	addValues := func(prefix Label, data map[Attribute]map[StaticMapKey]*staticWithCounts) {
 		for a, values := range data {
+			name := a.String()
+
 			// Compute topN values for this attribute
 			top.reset()
 			for mk, sc := range values {
 				top.add(mk, sc.counts)
 			}
-
-			name := a.String()
 
 			top.get(m.topN, func(mk StaticMapKey) {
 				sc := values[mk]
@@ -374,7 +374,7 @@ func NewBaselineAggregator(req *tempopb.QueryRangeRequest, topN int, exemplars u
 		maxed:           make(map[string]struct{}),
 		intervalMapper:  NewIntervalMapperFromReq(req),
 		topN:            topN,
-		exemplarBuckets: newExemplarBucketSet(exemplars, req.Start, req.End, req.Step),
+		exemplarBuckets: newExemplarBucketSet(exemplars, req.Start, req.End, req.Step, IsInstant(req)),
 	}
 }
 

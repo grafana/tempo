@@ -25,6 +25,7 @@ import (
 
 	"github.com/grafana/tempo/modules/frontend/combiner"
 	"github.com/grafana/tempo/modules/frontend/pipeline"
+	"github.com/grafana/tempo/modules/frontend/shardtracker"
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/pkg/api"
 	"github.com/grafana/tempo/pkg/tempopb"
@@ -134,14 +135,12 @@ func TestBuildBackendRequests(t *testing.T) {
 					Size_:         1000,
 					TotalRecords:  100,
 					BlockID:       backend.MustParse("00000000-0000-0000-0000-000000000000"),
-					DataEncoding:  "json",
-					Encoding:      backend.EncGZIP,
 					IndexPageSize: 13,
 					Version:       "glarg",
 				},
 			},
 			expectedURIs: []string{
-				"/querier?blockID=00000000-0000-0000-0000-000000000000&dataEncoding=json&encoding=gzip&end=20&footerSize=0&indexPageSize=13&k=test&pagesToSearch=100&size=1000&start=10&startPage=0&totalRecords=100&v=test&version=glarg",
+				"/querier?blockID=00000000-0000-0000-0000-000000000000&encoding=none&end=20&footerSize=0&indexPageSize=13&k=test&pagesToSearch=100&size=1000&start=10&startPage=0&totalRecords=100&v=test&version=glarg",
 			},
 		},
 		// meta.json with dedicated columns
@@ -152,7 +151,6 @@ func TestBuildBackendRequests(t *testing.T) {
 					Size_:         1000,
 					TotalRecords:  10,
 					BlockID:       backend.MustParse("00000000-0000-0000-0000-000000000000"),
-					Encoding:      backend.EncNone,
 					IndexPageSize: 13,
 					Version:       "vParquet3",
 					DedicatedColumns: backend.DedicatedColumns{
@@ -161,7 +159,7 @@ func TestBuildBackendRequests(t *testing.T) {
 				},
 			},
 			expectedURIs: []string{
-				"/querier?blockID=00000000-0000-0000-0000-000000000000&dataEncoding=&dc=%5B%7B%22name%22%3A%22net.sock.host.addr%22%7D%5D&encoding=none&end=20&footerSize=0&indexPageSize=13&k=test&pagesToSearch=10&size=1000&start=10&startPage=0&totalRecords=10&v=test&version=vParquet3",
+				"/querier?blockID=00000000-0000-0000-0000-000000000000&dc=%5B%7B%22name%22%3A%22net.sock.host.addr%22%7D%5D&encoding=none&end=20&footerSize=0&indexPageSize=13&k=test&pagesToSearch=10&size=1000&start=10&startPage=0&totalRecords=10&v=test&version=vParquet3",
 			},
 		},
 		// bytes/per request is too small for the page size
@@ -175,9 +173,9 @@ func TestBuildBackendRequests(t *testing.T) {
 				},
 			},
 			expectedURIs: []string{
-				"/querier?blockID=00000000-0000-0000-0000-000000000000&dataEncoding=&encoding=none&end=20&footerSize=0&indexPageSize=0&k=test&pagesToSearch=1&size=1000&start=10&startPage=0&totalRecords=3&v=test&version=",
-				"/querier?blockID=00000000-0000-0000-0000-000000000000&dataEncoding=&encoding=none&end=20&footerSize=0&indexPageSize=0&k=test&pagesToSearch=1&size=1000&start=10&startPage=1&totalRecords=3&v=test&version=",
-				"/querier?blockID=00000000-0000-0000-0000-000000000000&dataEncoding=&encoding=none&end=20&footerSize=0&indexPageSize=0&k=test&pagesToSearch=1&size=1000&start=10&startPage=2&totalRecords=3&v=test&version=",
+				"/querier?blockID=00000000-0000-0000-0000-000000000000&encoding=none&end=20&footerSize=0&indexPageSize=0&k=test&pagesToSearch=1&size=1000&start=10&startPage=0&totalRecords=3&v=test&version=",
+				"/querier?blockID=00000000-0000-0000-0000-000000000000&encoding=none&end=20&footerSize=0&indexPageSize=0&k=test&pagesToSearch=1&size=1000&start=10&startPage=1&totalRecords=3&v=test&version=",
+				"/querier?blockID=00000000-0000-0000-0000-000000000000&encoding=none&end=20&footerSize=0&indexPageSize=0&k=test&pagesToSearch=1&size=1000&start=10&startPage=2&totalRecords=3&v=test&version=",
 			},
 		},
 		// 100 pages, 10 bytes per page, 1k allowed per request
@@ -191,7 +189,7 @@ func TestBuildBackendRequests(t *testing.T) {
 				},
 			},
 			expectedURIs: []string{
-				"/querier?blockID=00000000-0000-0000-0000-000000000000&dataEncoding=&encoding=none&end=20&footerSize=0&indexPageSize=0&k=test&pagesToSearch=100&size=1000&start=10&startPage=0&totalRecords=100&v=test&version=",
+				"/querier?blockID=00000000-0000-0000-0000-000000000000&encoding=none&end=20&footerSize=0&indexPageSize=0&k=test&pagesToSearch=100&size=1000&start=10&startPage=0&totalRecords=100&v=test&version=",
 			},
 		},
 		// 100 pages, 10 bytes per page, 900 allowed per request
@@ -205,8 +203,8 @@ func TestBuildBackendRequests(t *testing.T) {
 				},
 			},
 			expectedURIs: []string{
-				"/querier?blockID=00000000-0000-0000-0000-000000000000&dataEncoding=&encoding=none&end=20&footerSize=0&indexPageSize=0&k=test&pagesToSearch=90&size=1000&start=10&startPage=0&totalRecords=100&v=test&version=",
-				"/querier?blockID=00000000-0000-0000-0000-000000000000&dataEncoding=&encoding=none&end=20&footerSize=0&indexPageSize=0&k=test&pagesToSearch=90&size=1000&start=10&startPage=90&totalRecords=100&v=test&version=",
+				"/querier?blockID=00000000-0000-0000-0000-000000000000&encoding=none&end=20&footerSize=0&indexPageSize=0&k=test&pagesToSearch=90&size=1000&start=10&startPage=0&totalRecords=100&v=test&version=",
+				"/querier?blockID=00000000-0000-0000-0000-000000000000&encoding=none&end=20&footerSize=0&indexPageSize=0&k=test&pagesToSearch=90&size=1000&start=10&startPage=90&totalRecords=100&v=test&version=",
 			},
 		},
 		// two blocks
@@ -225,10 +223,10 @@ func TestBuildBackendRequests(t *testing.T) {
 				},
 			},
 			expectedURIs: []string{
-				"/querier?blockID=00000000-0000-0000-0000-000000000000&dataEncoding=&encoding=none&end=20&footerSize=0&indexPageSize=0&k=test&pagesToSearch=90&size=1000&start=10&startPage=0&totalRecords=100&v=test&version=",
-				"/querier?blockID=00000000-0000-0000-0000-000000000000&dataEncoding=&encoding=none&end=20&footerSize=0&indexPageSize=0&k=test&pagesToSearch=90&size=1000&start=10&startPage=90&totalRecords=100&v=test&version=",
-				"/querier?blockID=00000000-0000-0000-0000-000000000001&dataEncoding=&encoding=none&end=20&footerSize=0&indexPageSize=0&k=test&pagesToSearch=180&size=1000&start=10&startPage=0&totalRecords=200&v=test&version=",
-				"/querier?blockID=00000000-0000-0000-0000-000000000001&dataEncoding=&encoding=none&end=20&footerSize=0&indexPageSize=0&k=test&pagesToSearch=180&size=1000&start=10&startPage=180&totalRecords=200&v=test&version=",
+				"/querier?blockID=00000000-0000-0000-0000-000000000000&encoding=none&end=20&footerSize=0&indexPageSize=0&k=test&pagesToSearch=90&size=1000&start=10&startPage=0&totalRecords=100&v=test&version=",
+				"/querier?blockID=00000000-0000-0000-0000-000000000000&encoding=none&end=20&footerSize=0&indexPageSize=0&k=test&pagesToSearch=90&size=1000&start=10&startPage=90&totalRecords=100&v=test&version=",
+				"/querier?blockID=00000000-0000-0000-0000-000000000001&encoding=none&end=20&footerSize=0&indexPageSize=0&k=test&pagesToSearch=180&size=1000&start=10&startPage=0&totalRecords=200&v=test&version=",
+				"/querier?blockID=00000000-0000-0000-0000-000000000001&encoding=none&end=20&footerSize=0&indexPageSize=0&k=test&pagesToSearch=180&size=1000&start=10&startPage=180&totalRecords=200&v=test&version=",
 			},
 		},
 	}
@@ -276,8 +274,6 @@ func TestBuildBackendRequestsShardNumbers(t *testing.T) {
 					Size_:         1000,
 					TotalRecords:  10,
 					BlockID:       backend.MustParse("00000000-0000-0000-0000-000000000000"),
-					DataEncoding:  "json",
-					Encoding:      backend.EncGZIP,
 					IndexPageSize: 13,
 					Version:       "glarg",
 				},
@@ -293,8 +289,6 @@ func TestBuildBackendRequestsShardNumbers(t *testing.T) {
 					Size_:         1000,
 					TotalRecords:  10,
 					BlockID:       backend.MustParse("00000000-0000-0000-0000-000000000000"),
-					DataEncoding:  "json",
-					Encoding:      backend.EncGZIP,
 					IndexPageSize: 13,
 					Version:       "glarg",
 				},
@@ -387,7 +381,7 @@ func TestBuildBackendRequestsShardNumbers(t *testing.T) {
 }
 
 func TestBackendRequests(t *testing.T) {
-	bm := backend.NewBlockMeta("test", uuid.New(), "wdwad", backend.EncGZIP, "asdf")
+	bm := backend.NewBlockMeta("test", uuid.New(), "wdwad")
 	bm.StartTime = time.Unix(100, 0)
 	bm.EndTime = time.Unix(200, 0)
 	bm.Size_ = defaultTargetBytesPerRequest * 2
@@ -412,8 +406,8 @@ func TestBackendRequests(t *testing.T) {
 			name:    "start and end same as block",
 			request: "/?tags=foo%3Dbar&minDuration=10ms&maxDuration=30ms&limit=50&start=100&end=200",
 			expectedReqsURIs: []string{
-				"/querier?blockID=" + bm.BlockID.String() + "&dataEncoding=asdf&encoding=gzip&end=200&footerSize=0&indexPageSize=0&limit=50&maxDuration=30ms&minDuration=10ms&pagesToSearch=1&size=209715200&start=100&startPage=0&tags=foo%3Dbar&totalRecords=2&version=wdwad",
-				"/querier?blockID=" + bm.BlockID.String() + "&dataEncoding=asdf&encoding=gzip&end=200&footerSize=0&indexPageSize=0&limit=50&maxDuration=30ms&minDuration=10ms&pagesToSearch=1&size=209715200&start=100&startPage=1&tags=foo%3Dbar&totalRecords=2&version=wdwad",
+				"/querier?blockID=" + bm.BlockID.String() + "&encoding=none&end=200&footerSize=0&indexPageSize=0&limit=50&maxDuration=30ms&minDuration=10ms&pagesToSearch=1&size=209715200&start=100&startPage=0&tags=foo%3Dbar&totalRecords=2&version=wdwad",
+				"/querier?blockID=" + bm.BlockID.String() + "&encoding=none&end=200&footerSize=0&indexPageSize=0&limit=50&maxDuration=30ms&minDuration=10ms&pagesToSearch=1&size=209715200&start=100&startPage=1&tags=foo%3Dbar&totalRecords=2&version=wdwad",
 			},
 			expectedJobs:       2,
 			expectedBlocks:     1,
@@ -423,8 +417,8 @@ func TestBackendRequests(t *testing.T) {
 			name:    "start and end in block",
 			request: "/?tags=foo%3Dbar&minDuration=10ms&maxDuration=30ms&limit=50&start=110&end=150",
 			expectedReqsURIs: []string{
-				"/querier?blockID=" + bm.BlockID.String() + "&dataEncoding=asdf&encoding=gzip&end=150&footerSize=0&indexPageSize=0&limit=50&maxDuration=30ms&minDuration=10ms&pagesToSearch=1&size=209715200&start=110&startPage=0&tags=foo%3Dbar&totalRecords=2&version=wdwad",
-				"/querier?blockID=" + bm.BlockID.String() + "&dataEncoding=asdf&encoding=gzip&end=150&footerSize=0&indexPageSize=0&limit=50&maxDuration=30ms&minDuration=10ms&pagesToSearch=1&size=209715200&start=110&startPage=1&tags=foo%3Dbar&totalRecords=2&version=wdwad",
+				"/querier?blockID=" + bm.BlockID.String() + "&encoding=none&end=150&footerSize=0&indexPageSize=0&limit=50&maxDuration=30ms&minDuration=10ms&pagesToSearch=1&size=209715200&start=110&startPage=0&tags=foo%3Dbar&totalRecords=2&version=wdwad",
+				"/querier?blockID=" + bm.BlockID.String() + "&encoding=none&end=150&footerSize=0&indexPageSize=0&limit=50&maxDuration=30ms&minDuration=10ms&pagesToSearch=1&size=209715200&start=110&startPage=1&tags=foo%3Dbar&totalRecords=2&version=wdwad",
 			},
 			expectedJobs:       2,
 			expectedBlocks:     1,
@@ -485,16 +479,16 @@ func TestBackendRequests(t *testing.T) {
 func TestIngesterRequests(t *testing.T) {
 	nownow := time.Now()
 
-	now := int(time.Now().Unix())
+	now := int(nownow.Unix())
 
 	ago := func(d string) int {
 		duration, err := time.ParseDuration(d)
 		require.NoError(t, err)
 		return int(nownow.Add(-duration).Unix())
 	}
-	tenMinutesAgo := int(time.Now().Add(-10 * time.Minute).Unix())
-	fifteenMinutesAgo := int(time.Now().Add(-15 * time.Minute).Unix())
-	twentyMinutesAgo := int(time.Now().Add(-20 * time.Minute).Unix())
+	tenMinutesAgo := int(nownow.Add(-10 * time.Minute).Unix())
+	fifteenMinutesAgo := int(nownow.Add(-15 * time.Minute).Unix())
+	twentyMinutesAgo := int(nownow.Add(-20 * time.Minute).Unix())
 
 	tests := []struct {
 		request             string
@@ -553,13 +547,13 @@ func TestIngesterRequests(t *testing.T) {
 		{
 			request:             "/?tags=foo%3Dbar&minDuration=10ms&maxDuration=30ms&limit=50",
 			queryIngestersUntil: 15 * time.Minute,
-			expectedURI:         []string{"/querier?end=0&limit=50&maxDuration=30ms&minDuration=10ms&spss=3&start=0&tags=foo%3Dbar"},
+			expectedURI:         []string{"minDuration=10ms&maxDuration=30ms&limit=50&spss=3&tags=foo%3Dbar"},
 			ingesterShards:      1,
 		},
 		{
 			request:             "/?limit=50",
 			queryIngestersUntil: 15 * time.Minute,
-			expectedURI:         []string{"/querier?end=0&limit=50&spss=3&start=0"},
+			expectedURI:         []string{"limit=50&spss=3"},
 			ingesterShards:      1,
 		},
 		// start/end = 20 - 10 mins ago - break across query ingesters until
@@ -1032,13 +1026,13 @@ func TestBackendShards(t *testing.T) {
 		name      string
 		maxShards int
 		searchEnd uint32
-		expected  []combiner.SearchShards
+		expected  []shardtracker.Shard
 	}{
 		{
 			name:      "1 shard, puts all jobs in one shard",
 			maxShards: 1,
 			searchEnd: 50,
-			expected: []combiner.SearchShards{
+			expected: []shardtracker.Shard{
 				{TotalJobs: 8, CompletedThroughSeconds: 1},
 			},
 		},
@@ -1046,7 +1040,7 @@ func TestBackendShards(t *testing.T) {
 			name:      "2 shards, split evenly between",
 			maxShards: 2,
 			searchEnd: 50,
-			expected: []combiner.SearchShards{
+			expected: []shardtracker.Shard{
 				{TotalJobs: 4, CompletedThroughSeconds: 30},
 				{TotalJobs: 4, CompletedThroughSeconds: 1},
 			},
@@ -1055,7 +1049,7 @@ func TestBackendShards(t *testing.T) {
 			name:      "3 shards, one for each block",
 			maxShards: 3,
 			searchEnd: 50,
-			expected: []combiner.SearchShards{
+			expected: []shardtracker.Shard{
 				{TotalJobs: 2, CompletedThroughSeconds: 40},
 				{TotalJobs: 2, CompletedThroughSeconds: 30},
 				{TotalJobs: 4, CompletedThroughSeconds: 1},
@@ -1065,7 +1059,7 @@ func TestBackendShards(t *testing.T) {
 			name:      "4 shards, one for each block",
 			maxShards: 4,
 			searchEnd: 50,
-			expected: []combiner.SearchShards{
+			expected: []shardtracker.Shard{
 				{TotalJobs: 2, CompletedThroughSeconds: 40},
 				{TotalJobs: 2, CompletedThroughSeconds: 30},
 				{TotalJobs: 2, CompletedThroughSeconds: 20},
@@ -1076,7 +1070,7 @@ func TestBackendShards(t *testing.T) {
 			name:      "5 shards, one for each block",
 			maxShards: 5,
 			searchEnd: 50,
-			expected: []combiner.SearchShards{
+			expected: []shardtracker.Shard{
 				{TotalJobs: 2, CompletedThroughSeconds: 40},
 				{TotalJobs: 2, CompletedThroughSeconds: 30},
 				{TotalJobs: 2, CompletedThroughSeconds: 20},
@@ -1087,7 +1081,7 @@ func TestBackendShards(t *testing.T) {
 			name:      "4 shards, search end forces 2 blocks in the first shard",
 			maxShards: 4,
 			searchEnd: 35,
-			expected: []combiner.SearchShards{
+			expected: []shardtracker.Shard{
 				{TotalJobs: 4, CompletedThroughSeconds: 30},
 				{TotalJobs: 2, CompletedThroughSeconds: 20},
 				{TotalJobs: 2, CompletedThroughSeconds: 10},
@@ -1097,7 +1091,7 @@ func TestBackendShards(t *testing.T) {
 			name:      "4 shards, search end forces 3 blocks in the first shard",
 			maxShards: 4,
 			searchEnd: 25,
-			expected: []combiner.SearchShards{
+			expected: []shardtracker.Shard{
 				{TotalJobs: 6, CompletedThroughSeconds: 20},
 				{TotalJobs: 2, CompletedThroughSeconds: 10},
 			},
@@ -1106,7 +1100,7 @@ func TestBackendShards(t *testing.T) {
 			name:      "2 shards, search end forces 2 blocks in the first shard",
 			maxShards: 2,
 			searchEnd: 35,
-			expected: []combiner.SearchShards{
+			expected: []shardtracker.Shard{
 				{TotalJobs: 4, CompletedThroughSeconds: 30},
 				{TotalJobs: 4, CompletedThroughSeconds: 1},
 			},
@@ -1133,10 +1127,10 @@ func TestBackendShards(t *testing.T) {
 	for _, tc := range tcs {
 		t.Run(tc.name, func(t *testing.T) {
 			fn := backendJobsFunc(metas, defaultTargetBytesPerRequest, tc.maxShards, tc.searchEnd)
-			actualShards := []combiner.SearchShards{}
+			actualShards := []shardtracker.Shard{}
 
 			fn(func(jobs int, _ uint64, completedThroughTime uint32) {
-				actualShards = append(actualShards, combiner.SearchShards{
+				actualShards = append(actualShards, shardtracker.Shard{
 					TotalJobs:               uint32(jobs),
 					CompletedThroughSeconds: completedThroughTime,
 				})
@@ -1320,6 +1314,104 @@ func TestSearchSharderReturnsConsistentShards(t *testing.T) {
 			}
 
 			// fmt.Println("Test case:", tc.name, "passed with shards:", searchJobResponse.Shards)
+		})
+	}
+}
+
+// TestDefaultSpansPerSpanSet verifies that the default_spans_per_span_set configuration
+// is properly used when no spss parameter is provided in the request
+func TestDefaultSpansPerSpanSet(t *testing.T) {
+	tests := []struct {
+		name               string
+		configDefault      uint32
+		requestSpss        string // empty means no spss param
+		expectedSpss       uint32
+		maxSpansPerSpanSet uint32
+	}{
+		{
+			name:               "use configured default when no spss param",
+			configDefault:      10,
+			requestSpss:        "",
+			expectedSpss:       10,
+			maxSpansPerSpanSet: 100,
+		},
+		{
+			name:               "use zero as configured default (unlimited)",
+			configDefault:      0,
+			requestSpss:        "",
+			expectedSpss:       0, // 0 means unlimited when explicitly configured
+			maxSpansPerSpanSet: 0,
+		},
+		{
+			name:               "override configured default with request param",
+			configDefault:      10,
+			requestSpss:        "5",
+			expectedSpss:       5,
+			maxSpansPerSpanSet: 100,
+		},
+		{
+			name:               "spss=0 in URL means unlimited when max=0",
+			configDefault:      10,
+			requestSpss:        "0",
+			expectedSpss:       0, // 0 means unlimited, not "return 0 spans"
+			maxSpansPerSpanSet: 0, // max=0 means unlimited allowed
+		},
+		{
+			name:               "respect max_spans_per_span_set=0 (unlimited)",
+			configDefault:      10,
+			requestSpss:        "1000",
+			expectedSpss:       1000,
+			maxSpansPerSpanSet: 0, // 0 means unlimited
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			// Track the actual spss value that was used
+			var capturedSpss uint32
+
+			next := pipeline.AsyncRoundTripperFunc[combiner.PipelineResponse](func(r pipeline.Request) (pipeline.Responses[combiner.PipelineResponse], error) {
+				// Parse the request to capture spss
+				req, err := api.ParseSearchRequest(r.HTTPRequest())
+				if err == nil {
+					capturedSpss = req.SpansPerSpanSet
+				}
+				return pipeline.NewAsyncResponse(nil), nil
+			})
+
+			o, err := overrides.NewOverrides(overrides.Config{}, nil, prometheus.DefaultRegisterer)
+			require.NoError(t, err)
+
+			sharder := newAsyncSearchSharder(&mockReader{}, o, SearchSharderConfig{
+				ConcurrentRequests:     defaultConcurrentRequests,
+				TargetBytesPerRequest:  defaultTargetBytesPerRequest,
+				DefaultSpansPerSpanSet: tc.configDefault,
+				MaxSpansPerSpanSet:     tc.maxSpansPerSpanSet,
+			}, log.NewNopLogger())
+			testRT := sharder.Wrap(next)
+
+			// Build request URL
+			urlPath := "/"
+			if tc.requestSpss != "" {
+				urlPath = "/?spss=" + tc.requestSpss
+			}
+
+			req := httptest.NewRequest("GET", urlPath, nil)
+			req = req.WithContext(user.InjectOrgID(req.Context(), "test-tenant"))
+
+			resps, err := testRT.RoundTrip(pipeline.NewHTTPRequest(req))
+			require.NoError(t, err)
+
+			// Drain responses to ensure all the goroutines complete
+			for {
+				_, done, err := resps.Next(context.Background())
+				require.NoError(t, err)
+				if done {
+					break
+				}
+			}
+
+			assert.Equal(t, tc.expectedSpss, capturedSpss, "spss value mismatch")
 		})
 	}
 }

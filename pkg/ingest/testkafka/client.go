@@ -20,6 +20,7 @@ func NewKafkaClient(t testing.TB, address, topic string) *kgo.Client {
 		kgo.DefaultProduceTopic(topic),
 		// We will choose the Partition of each record.
 		kgo.RecordPartitioner(kgo.ManualPartitioner()),
+		kgo.DisableClientMetrics(),
 	)
 	require.NoError(t, err)
 	t.Cleanup(writeClient.Close)

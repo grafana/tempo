@@ -58,9 +58,9 @@ func (p *StringInPredicate) KeepColumnChunk(cc *ColumnChunkHelper) bool {
 	if err == nil && ci != nil {
 		for _, subs := range p.ss {
 			for i := 0; i < ci.NumPages(); i++ {
-				min := ci.MinValue(i).ByteArray()
-				max := ci.MaxValue(i).ByteArray()
-				ok := bytes.Compare(min, subs) <= 0 && bytes.Compare(max, subs) >= 0
+				minVal := ci.MinValue(i).ByteArray()
+				maxVal := ci.MaxValue(i).ByteArray()
+				ok := bytes.Compare(minVal, subs) <= 0 && bytes.Compare(maxVal, subs) >= 0
 				if ok {
 					// At least one page in this chunk matches
 					return true
@@ -218,9 +218,9 @@ func (p *IntBetweenPredicate) KeepColumnChunk(c *ColumnChunkHelper) bool {
 	ci, err := c.ColumnIndex()
 	if err == nil && ci != nil {
 		for i := 0; i < ci.NumPages(); i++ {
-			min := ci.MinValue(i).Int64()
-			max := ci.MaxValue(i).Int64()
-			if p.max >= min && p.min <= max {
+			minVal := ci.MinValue(i).Int64()
+			maxVal := ci.MaxValue(i).Int64()
+			if p.max >= minVal && p.min <= maxVal {
 				return true
 			}
 		}
@@ -236,8 +236,8 @@ func (p *IntBetweenPredicate) KeepValue(v pq.Value) bool {
 }
 
 func (p *IntBetweenPredicate) KeepPage(page pq.Page) bool {
-	if min, max, ok := page.Bounds(); ok {
-		return p.max >= min.Int64() && p.min <= max.Int64()
+	if minVal, maxVal, ok := page.Bounds(); ok {
+		return p.max >= minVal.Int64() && p.min <= maxVal.Int64()
 	}
 	return true
 }
@@ -277,9 +277,9 @@ func (p *GenericPredicate[T]) KeepColumnChunk(c *ColumnChunkHelper) bool {
 	ci, err := c.ColumnIndex()
 	if err == nil && ci != nil {
 		for i := 0; i < ci.NumPages(); i++ {
-			min := p.Extract(ci.MinValue(i))
-			max := p.Extract(ci.MaxValue(i))
-			if p.RangeFn(min, max) {
+			minVal := p.Extract(ci.MinValue(i))
+			maxVal := p.Extract(ci.MaxValue(i))
+			if p.RangeFn(minVal, maxVal) {
 				return true
 			}
 		}
@@ -478,3 +478,62 @@ func (m *CallbackPredicate) KeepColumnChunk(*ColumnChunkHelper) bool { return m.
 func (m *CallbackPredicate) KeepPage(pq.Page) bool { return m.cb() }
 
 func (m *CallbackPredicate) KeepValue(pq.Value) bool { return m.cb() }
+
+var _ Predicate = (*NilValuePredicate)(nil)
+
+type NilValuePredicate struct{}
+
+func NewNilValuePredicate() NilValuePredicate {
+	return NilValuePredicate{}
+}
+
+func (p NilValuePredicate) String() string {
+	return "NilValuePredicate{}"
+}
+
+func (p NilValuePredicate) KeepColumnChunk(c *ColumnChunkHelper) bool {
+	ci, err := c.ColumnIndex()
+	if err == nil && ci != nil {
+		for i := range ci.NumPages() {
+			if ci.NullCount(i) > 0 {
+				// At least one page in this chunk matches
+				return true
+			}
+		}
+		return false
+	}
+	return true
+}
+
+func (p NilValuePredicate) KeepPage(page pq.Page) bool {
+	return page.NumNulls() > 0
+}
+
+func (p NilValuePredicate) KeepValue(v pq.Value) bool {
+	return v.IsNull()
+}
+
+type IncludeNilStringEqualPredicate struct {
+	value []byte
+}
+
+func NewIncludeNilStringEqualPredicate(val []byte) IncludeNilStringEqualPredicate {
+	return IncludeNilStringEqualPredicate{value: val}
+}
+
+func (p IncludeNilStringEqualPredicate) String() string {
+	return "IncludeNilStringEqualPredicate{}"
+}
+
+func (p IncludeNilStringEqualPredicate) KeepColumnChunk(_ *ColumnChunkHelper) bool {
+	return true
+}
+
+func (p IncludeNilStringEqualPredicate) KeepPage(_ pq.Page) bool {
+	return true
+}
+
+func (p IncludeNilStringEqualPredicate) KeepValue(v pq.Value) bool {
+	vv := v.ByteArray()
+	return bytes.Equal(vv, p.value)
+}

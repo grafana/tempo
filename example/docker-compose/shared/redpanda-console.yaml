@@ -1,3 +1,0 @@
-kafka:
-  brokers:
-    - kafka:9092

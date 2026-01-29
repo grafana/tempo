@@ -477,22 +477,12 @@ func TestSpanMetrics_applyFilterPolicy(t *testing.T) {
 }
 
 func BenchmarkSpanFilter_applyFilterPolicyNone(b *testing.B) {
-	// Generate a batch of 100k spans
-	// r, done := test.NewRandomBatcher()
-	// defer done()
-	// batch := r.GenerateBatch(1e6)
-	// data, _ := batch.Marshal()
-	//_ = os.WriteFile("testbatch100k", data, 0600)
-
 	// Read the file generated above
 	data, err := os.ReadFile("testbatch100k")
 	require.NoError(b, err)
 	batch := &tracev1.ResourceSpans{}
 	err = batch.Unmarshal(data)
 	require.NoError(b, err)
-
-	// b.Logf("size: %s", humanize.Bytes(uint64(batch.Size())))
-	// b.Logf("span count: %d", len(batch.ScopeSpans))
 
 	var policies []config.FilterPolicy
 

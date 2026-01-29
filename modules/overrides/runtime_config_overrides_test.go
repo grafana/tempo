@@ -18,7 +18,7 @@ import (
 	"github.com/prometheus/common/model"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"gopkg.in/yaml.v2"
+	"go.yaml.in/yaml/v2"
 
 	"github.com/grafana/tempo/pkg/sharedconfig"
 	"github.com/grafana/tempo/tempodb/backend"
@@ -721,9 +721,9 @@ type mockValidator struct {
 	f func(*Overrides) error
 }
 
-func (m mockValidator) Validate(config *Overrides) error {
+func (m mockValidator) Validate(config *Overrides) (warnings []error, err error) {
 	if m.f != nil {
-		return m.f(config)
+		return nil, m.f(config)
 	}
-	return nil
+	return nil, nil
 }

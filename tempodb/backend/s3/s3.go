@@ -21,7 +21,6 @@ import (
 
 	"github.com/grafana/tempo/tempodb/backend/instrumentation"
 
-	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/cristalhq/hedgedhttp"
 	gkLog "github.com/go-kit/log"
 	"github.com/go-kit/log/level"
@@ -59,6 +58,7 @@ type appendTracker struct {
 	objectName string
 	parts      []minio.ObjectPart
 	partNum    int
+	buffer     []byte // buffer to accumulate data for R2-compliant fixed-size chunks
 }
 
 type overrideSignatureVersion struct {
@@ -133,7 +133,7 @@ func internalNew(cfg *Config, confirm bool) (*readerWriter, error) {
 
 	// try listing objects
 	if confirm {
-		_, err = core.ListObjects(cfg.Bucket, cfg.Prefix, "", "/", 0)
+		_, err = core.ListObjects(cfg.Bucket, cfg.Prefix, "", "/", 1)
 		if err != nil {
 			return nil, fmt.Errorf("unexpected error from ListObjects on %s: %w", cfg.Bucket, err)
 		}
@@ -168,6 +168,12 @@ func getPutObjectOptions(rw *readerWriter) minio.PutObjectOptions {
 func getObjectOptions(rw *readerWriter) minio.GetObjectOptions {
 	return minio.GetObjectOptions{
 		ServerSideEncryption: rw.sse,
+	}
+}
+
+func getPutObjectPartOptions(rw *readerWriter) minio.PutObjectPartOptions {
+	return minio.PutObjectPartOptions{
+		SSE: rw.sse,
 	}
 }
 
@@ -211,7 +217,7 @@ func (rw *readerWriter) Append(ctx context.Context, name string, keypath backend
 	keypath = backend.KeyPathWithPrefix(keypath, rw.cfg.Prefix)
 	objectName := backend.ObjectFileName(keypath, name)
 
-	options := getPutObjectOptions(rw)
+	putObjOptions := getPutObjectOptions(rw)
 	if tracker != nil {
 		a = tracker.(appendTracker)
 	} else {
@@ -219,7 +225,7 @@ func (rw *readerWriter) Append(ctx context.Context, name string, keypath backend
 			ctx,
 			rw.cfg.Bucket,
 			objectName,
-			options,
+			putObjOptions,
 		)
 		if err != nil {
 			return nil, err
@@ -228,23 +234,56 @@ func (rw *readerWriter) Append(ctx context.Context, name string, keypath backend
 		a.objectName = objectName
 	}
 
-	level.Debug(rw.logger).Log("msg", "appending object to s3", "objectName", objectName)
+	// PartSize == 0: Preserve old behavior (immediate upload without buffering)
+	// PartSize > 0: Enable R2-compliant chunking with uniform part sizes
+	if rw.cfg.PartSize == 0 {
+		level.Debug(rw.logger).Log("msg", "appending object to s3", "objectName", objectName)
 
-	a.partNum++
-	objPart, err := rw.core.PutObjectPart(
-		ctx,
-		rw.cfg.Bucket,
-		objectName,
-		a.uploadID,
-		a.partNum,
-		bytes.NewReader(buffer),
-		int64(len(buffer)),
-		minio.PutObjectPartOptions{},
-	)
-	if err != nil {
-		return a, fmt.Errorf("error in multipart upload: %w", err)
+		a.partNum++
+		putObjPartOptions := getPutObjectPartOptions(rw)
+		objPart, err := rw.core.PutObjectPart(
+			ctx,
+			rw.cfg.Bucket,
+			objectName,
+			a.uploadID,
+			a.partNum,
+			bytes.NewReader(buffer),
+			int64(len(buffer)),
+			putObjPartOptions,
+		)
+		if err != nil {
+			return a, fmt.Errorf("error in multipart upload: %w", err)
+		}
+		a.parts = append(a.parts, objPart)
+	} else {
+		a.buffer = append(a.buffer, buffer...)
+
+		chunkSize := rw.cfg.PartSize
+		putObjPartOptions := getPutObjectPartOptions(rw)
+		for uint64(len(a.buffer)) >= chunkSize {
+			chunk := a.buffer[:chunkSize]
+
+			level.Debug(rw.logger).Log("msg", "appending object to s3", "objectName", objectName, "partNum", a.partNum+1, "chunkSize", chunkSize)
+
+			a.partNum++
+			objPart, err := rw.core.PutObjectPart(
+				ctx,
+				rw.cfg.Bucket,
+				objectName,
+				a.uploadID,
+				a.partNum,
+				bytes.NewReader(chunk),
+				int64(chunkSize),
+				putObjPartOptions,
+			)
+			if err != nil {
+				return a, fmt.Errorf("error in multipart upload: %w", err)
+			}
+			a.parts = append(a.parts, objPart)
+
+			a.buffer = a.buffer[chunkSize:]
+		}
 	}
-	a.parts = append(a.parts, objPart)
 
 	return a, nil
 }
@@ -256,6 +295,29 @@ func (rw *readerWriter) CloseAppend(ctx context.Context, tracker backend.AppendT
 	}
 
 	a := tracker.(appendTracker)
+
+	// Only flush buffer if using new chunking behavior (PartSize > 0)
+	if rw.cfg.PartSize > 0 && len(a.buffer) > 0 {
+		level.Debug(rw.logger).Log("msg", "flushing final chunk to s3", "objectName", a.objectName, "partNum", a.partNum+1, "chunkSize", len(a.buffer))
+
+		a.partNum++
+		putObjPartOptions := getPutObjectPartOptions(rw)
+		objPart, err := rw.core.PutObjectPart(
+			ctx,
+			rw.cfg.Bucket,
+			a.objectName,
+			a.uploadID,
+			a.partNum,
+			bytes.NewReader(a.buffer),
+			int64(len(a.buffer)),
+			putObjPartOptions,
+		)
+		if err != nil {
+			return fmt.Errorf("error uploading final part in multipart upload: %w", err)
+		}
+		a.parts = append(a.parts, objPart)
+	}
+
 	completeParts := make([]minio.CompletePart, 0)
 	for _, p := range a.parts {
 		completeParts = append(completeParts, minio.CompletePart{
@@ -270,7 +332,9 @@ func (rw *readerWriter) CloseAppend(ctx context.Context, tracker backend.AppendT
 		a.objectName,
 		a.uploadID,
 		completeParts,
-		minio.PutObjectOptions{},
+		minio.PutObjectOptions{
+			ServerSideEncryption: rw.sse,
+		},
 	)
 	if err != nil {
 		return fmt.Errorf("error completing multipart upload, object: %s, obj etag: %s: %w", a.objectName, uploadInfo.ETag, err)
@@ -280,8 +344,8 @@ func (rw *readerWriter) CloseAppend(ctx context.Context, tracker backend.AppendT
 }
 
 func (rw *readerWriter) Delete(ctx context.Context, name string, keypath backend.KeyPath, _ *backend.CacheInfo) error {
-	filename := backend.ObjectFileName(keypath, name)
-	return rw.core.RemoveObject(ctx, rw.cfg.Bucket, filename, minio.RemoveObjectOptions{})
+	keypath = backend.KeyPathWithPrefix(keypath, rw.cfg.Prefix)
+	return rw.core.RemoveObject(ctx, rw.cfg.Bucket, backend.ObjectFileName(keypath, name), minio.RemoveObjectOptions{})
 }
 
 // List implements backend.Reader
@@ -291,7 +355,7 @@ func (rw *readerWriter) List(_ context.Context, keypath backend.KeyPath) ([]stri
 	var objects []string
 
 	if len(prefix) > 0 {
-		prefix = prefix + "/"
+		prefix += "/"
 	}
 
 	nextMarker := ""
@@ -323,37 +387,35 @@ func (rw *readerWriter) ListBlocks(
 	ctx, span := tracer.Start(ctx, "readerWriter.ListBlocks")
 	defer span.End()
 
-	blockIDs := make([]uuid.UUID, 0, 1000)
-	compactedBlockIDs := make([]uuid.UUID, 0, 1000)
+	var (
+		wg                = sync.WaitGroup{}
+		mtx               = sync.Mutex{}
+		bb                = blockboundary.CreateBlockBoundaries(rw.cfg.ListBlocksConcurrency)
+		errChan           = make(chan error, len(bb))
+		keypath           = backend.KeyPathWithPrefix(backend.KeyPath{tenant}, rw.cfg.Prefix)
+		minID             uuid.UUID
+		maxID             uuid.UUID
+		blockIDs          = make([]uuid.UUID, 0, 1000)
+		compactedBlockIDs = make([]uuid.UUID, 0, 1000)
+	)
 
-	keypath := backend.KeyPathWithPrefix(backend.KeyPath{tenant}, rw.cfg.Prefix)
 	prefix := path.Join(keypath...)
 	if len(prefix) > 0 {
 		prefix += "/"
 	}
 
-	bb := blockboundary.CreateBlockBoundaries(rw.cfg.ListBlocksConcurrency)
-
-	errChan := make(chan error, len(bb))
-	wg := sync.WaitGroup{}
-	mtx := sync.Mutex{}
-
-	var min uuid.UUID
-	var max uuid.UUID
-
 	for i := 0; i < len(bb)-1; i++ {
-
-		min = uuid.UUID(bb[i])
-		max = uuid.UUID(bb[i+1])
+		minID = uuid.UUID(bb[i])
+		maxID = uuid.UUID(bb[i+1])
 
 		wg.Add(1)
-		go func(min, max uuid.UUID) {
+		go func(minUUID, maxUUID uuid.UUID) {
 			defer wg.Done()
 
 			var (
 				err        error
 				res        minio.ListBucketV2Result
-				startAfter = prefix + min.String()
+				startAfter = prefix + minUUID.String()
 			)
 
 			for res.IsTruncated = true; res.IsTruncated; {
@@ -386,13 +448,13 @@ func (rw *readerWriter) ListBlocks(
 						continue
 					}
 
-					if bytes.Compare(id[:], min[:]) < 0 {
+					if bytes.Compare(id[:], minUUID[:]) < 0 {
 						errChan <- fmt.Errorf("block UUID below shard minimum")
 						return
 					}
 
-					if max != backend.GlobalMaxBlockID {
-						if bytes.Compare(id[:], max[:]) >= 0 {
+					if maxUUID != backend.GlobalMaxBlockID {
+						if bytes.Compare(id[:], maxUUID[:]) >= 0 {
 							return
 						}
 					}
@@ -407,7 +469,7 @@ func (rw *readerWriter) ListBlocks(
 					mtx.Unlock()
 				}
 			}
-		}(min, max)
+		}(minID, maxID)
 	}
 	wg.Wait()
 	close(errChan)
@@ -432,7 +494,7 @@ func (rw *readerWriter) Find(ctx context.Context, keypath backend.KeyPath, f bac
 	prefix := path.Join(keypath...)
 
 	if len(prefix) > 0 {
-		prefix = prefix + "/"
+		prefix += "/"
 	}
 
 	nextToken := ""
@@ -455,7 +517,7 @@ func (rw *readerWriter) Find(ctx context.Context, keypath backend.KeyPath, f bac
 			if len(res.Contents) > 0 {
 				for _, c := range res.Contents {
 					opts := backend.FindMatch{
-						Key:      c.Key,
+						Key:      strings.TrimPrefix(c.Key, rw.cfg.Prefix),
 						Modified: c.LastModified,
 					}
 					f(opts)
@@ -532,6 +594,8 @@ func (rw *readerWriter) DeleteVersioned(ctx context.Context, name string, keypat
 	// another process writes to the same object in between ReadVersioned and Delete its changes will
 	// be overwritten.
 	// TODO use rw.hedgedCore.GetObject, don't download the full object
+	keypath = backend.KeyPathWithPrefix(keypath, rw.cfg.Prefix)
+
 	_, currentVersion, err := rw.ReadVersioned(ctx, name, keypath)
 	if err != nil && !errors.Is(err, backend.ErrDoesNotExist) {
 		return err
@@ -572,7 +636,7 @@ func (rw *readerWriter) readAll(ctx context.Context, name string) ([]byte, error
 func (rw *readerWriter) readAllWithObjInfo(ctx context.Context, name string) ([]byte, minio.ObjectInfo, error) {
 	options := getObjectOptions(rw)
 	reader, info, _, err := rw.hedgedCore.GetObject(ctx, rw.cfg.Bucket, name, options)
-	if err != nil && minio.ToErrorResponse(err).Code == s3.ErrCodeNoSuchKey {
+	if err != nil && minio.ToErrorResponse(err).Code == minio.NoSuchKey {
 		return nil, minio.ObjectInfo{}, backend.ErrDoesNotExist
 	} else if err != nil {
 		return nil, minio.ObjectInfo{}, fmt.Errorf("error fetching object from s3 backend: %w", err)
@@ -707,7 +771,7 @@ func createCore(cfg *Config, hedge bool) (*minio.Core, error) {
 }
 
 func readError(err error) error {
-	if err != nil && minio.ToErrorResponse(err).Code == s3.ErrCodeNoSuchKey {
+	if err != nil && minio.ToErrorResponse(err).Code == minio.NoSuchKey {
 		return backend.ErrDoesNotExist
 	}
 	return err
@@ -730,20 +794,25 @@ func buildSSEConfig(cfg *Config) (encrypt.ServerSide, error) {
 	case SSEKMS:
 		if cfg.SSE.KMSKeyID == "" {
 			return nil, errors.New("KMSKeyID is missing")
-		} else {
-			encryptionCtx, err := parseKMSEncryptionContext(cfg.SSE.KMSEncryptionContext)
-			if err != nil {
-				return nil, err
-			}
-			if encryptionCtx == nil {
-				// To overcome a limitation in Minio which checks interface{} == nil.
-
-				return encrypt.NewSSEKMS(cfg.SSE.KMSKeyID, nil)
-			}
-			return encrypt.NewSSEKMS(cfg.SSE.KMSKeyID, encryptionCtx)
 		}
+
+		encryptionCtx, err := parseKMSEncryptionContext(cfg.SSE.KMSEncryptionContext)
+		if err != nil {
+			return nil, err
+		}
+		if encryptionCtx == nil {
+			// To overcome a limitation in Minio which checks interface{} == nil.
+			return encrypt.NewSSEKMS(cfg.SSE.KMSKeyID, nil)
+		}
+		return encrypt.NewSSEKMS(cfg.SSE.KMSKeyID, encryptionCtx)
+
 	case SSES3:
 		return encrypt.NewSSE(), nil
+	case SSEC:
+		if cfg.SSE.CustomerEncryptionKey == "" {
+			return nil, errors.New("SSE-C EncryptionKey is missing")
+		}
+		return encrypt.NewSSEC([]byte(cfg.SSE.CustomerEncryptionKey))
 	default:
 		return nil, errUnsupportedSSEType
 	}

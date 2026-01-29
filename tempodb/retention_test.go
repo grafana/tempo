@@ -17,7 +17,6 @@ import (
 	"github.com/grafana/tempo/tempodb/backend/local"
 	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/grafana/tempo/tempodb/encoding/common"
-	"github.com/grafana/tempo/tempodb/encoding/vparquet2"
 	"github.com/grafana/tempo/tempodb/pool"
 	"github.com/grafana/tempo/tempodb/wal"
 )
@@ -31,12 +30,9 @@ func TestRetention(t *testing.T) {
 			Path: path.Join(tempDir, "traces"),
 		},
 		Block: &common.BlockConfig{
-			IndexDownsampleBytes: 17,
-			BloomFP:              0.01,
-			BloomShardSizeBytes:  100_000,
-			Version:              encoding.DefaultEncoding().Version(),
-			Encoding:             backend.EncLZ4_256k,
-			IndexPageSizeBytes:   1000,
+			BloomFP:             0.01,
+			BloomShardSizeBytes: 100_000,
+			Version:             encoding.DefaultEncoding().Version(),
 		},
 		WAL: &wal.Config{
 			Filepath: path.Join(tempDir, "wal"),
@@ -47,7 +43,6 @@ func TestRetention(t *testing.T) {
 
 	ctx := context.Background()
 	err = c.EnableCompaction(ctx, &CompactorConfig{
-		ChunkSizeBytes:          10,
 		MaxCompactionRange:      time.Hour,
 		BlockRetention:          time.Hour,
 		CompactedBlockRetention: time.Hour,
@@ -97,12 +92,9 @@ func TestRetentionUpdatesBlocklistImmediately(t *testing.T) {
 			Path: path.Join(tempDir, "traces"),
 		},
 		Block: &common.BlockConfig{
-			IndexDownsampleBytes: 17,
-			BloomFP:              0.01,
-			BloomShardSizeBytes:  100_000,
-			Version:              encoding.DefaultEncoding().Version(),
-			Encoding:             backend.EncLZ4_256k,
-			IndexPageSizeBytes:   1000,
+			BloomFP:             0.01,
+			BloomShardSizeBytes: 100_000,
+			Version:             encoding.DefaultEncoding().Version(),
 		},
 		WAL: &wal.Config{
 			Filepath: path.Join(tempDir, "wal"),
@@ -115,7 +107,6 @@ func TestRetentionUpdatesBlocklistImmediately(t *testing.T) {
 	r.EnablePolling(ctx, &mockJobSharder{}, false)
 
 	err = c.EnableCompaction(context.Background(), &CompactorConfig{
-		ChunkSizeBytes:          10,
 		MaxCompactionRange:      time.Hour,
 		BlockRetention:          0,
 		CompactedBlockRetention: 0,
@@ -167,12 +158,9 @@ func TestBlockRetentionOverride(t *testing.T) {
 			Path: path.Join(tempDir, "traces"),
 		},
 		Block: &common.BlockConfig{
-			IndexDownsampleBytes: 17,
-			BloomFP:              0.01,
-			BloomShardSizeBytes:  100_000,
-			Version:              encoding.DefaultEncoding().Version(),
-			Encoding:             backend.EncLZ4_256k,
-			IndexPageSizeBytes:   1000,
+			BloomFP:             0.01,
+			BloomShardSizeBytes: 100_000,
+			Version:             encoding.DefaultEncoding().Version(),
 		},
 		WAL: &wal.Config{
 			Filepath: path.Join(tempDir, "wal"),
@@ -185,7 +173,6 @@ func TestBlockRetentionOverride(t *testing.T) {
 
 	ctx := context.Background()
 	err = c.EnableCompaction(ctx, &CompactorConfig{
-		ChunkSizeBytes:          10,
 		MaxCompactionRange:      time.Hour,
 		BlockRetention:          time.Hour,
 		CompactedBlockRetention: 0,
@@ -232,12 +219,9 @@ func TestBlockRetentionOverrideDisabled(t *testing.T) {
 			Path: path.Join(tempDir, "traces"),
 		},
 		Block: &common.BlockConfig{
-			IndexDownsampleBytes: 17,
-			BloomFP:              0.01,
-			BloomShardSizeBytes:  100_000,
-			Version:              encoding.DefaultEncoding().Version(),
-			Encoding:             backend.EncLZ4_256k,
-			IndexPageSizeBytes:   1000,
+			BloomFP:             0.01,
+			BloomShardSizeBytes: 100_000,
+			Version:             encoding.DefaultEncoding().Version(),
 		},
 		WAL: &wal.Config{
 			Filepath: path.Join(tempDir, "wal"),
@@ -252,7 +236,6 @@ func TestBlockRetentionOverrideDisabled(t *testing.T) {
 
 	ctx := context.Background()
 	err = c.EnableCompaction(ctx, &CompactorConfig{
-		ChunkSizeBytes:          10,
 		MaxCompactionRange:      time.Hour,
 		BlockRetention:          time.Hour,
 		CompactedBlockRetention: 0,
@@ -281,13 +264,9 @@ func TestBlockRetentionOverrideDisabled(t *testing.T) {
 }
 
 func TestRetainWithConfig(t *testing.T) {
-	for _, enc := range encoding.AllEncodings() {
-		version := enc.Version()
-		if version == vparquet2.VersionString {
-			continue // vParquet2 is deprecated
-		}
-		t.Run(version, func(t *testing.T) {
-			testRetainWithConfig(t, version)
+	for _, enc := range encoding.AllEncodingsForWrites() {
+		t.Run(enc.Version(), func(t *testing.T) {
+			testRetainWithConfig(t, enc.Version())
 		})
 	}
 }
@@ -308,12 +287,9 @@ func testRetainWithConfig(t *testing.T, targetBlockVersion string) {
 				Path: path.Join(tempDir, "traces"),
 			},
 			Block: &common.BlockConfig{
-				IndexDownsampleBytes: 11,
-				BloomFP:              .01,
-				BloomShardSizeBytes:  100_000,
-				Version:              targetBlockVersion,
-				Encoding:             backend.EncNone,
-				IndexPageSizeBytes:   1000,
+				BloomFP:             .01,
+				BloomShardSizeBytes: 100_000,
+				Version:             targetBlockVersion,
 			},
 			WAL: &wal.Config{
 				Filepath: path.Join(tempDir, "wal"),
@@ -340,7 +316,6 @@ func testRetainWithConfig(t *testing.T, targetBlockVersion string) {
 	time.Sleep(time.Second)
 
 	compactorCfg := &CompactorConfig{
-		ChunkSizeBytes:          10,
 		MaxCompactionRange:      time.Hour,
 		BlockRetention:          time.Nanosecond,
 		CompactedBlockRetention: time.Nanosecond,

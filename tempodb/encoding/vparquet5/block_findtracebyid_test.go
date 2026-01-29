@@ -8,7 +8,6 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
-	"github.com/parquet-go/parquet-go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -52,6 +51,7 @@ func TestBackendBlockFindTraceByID(t *testing.T) {
 					},
 					ScopeSpans: []ScopeSpans{
 						{
+							SpanCount: 1,
 							Spans: []Span{
 								{
 									Name: "hello",
@@ -74,7 +74,7 @@ func TestBackendBlockFindTraceByID(t *testing.T) {
 		return bytes.Compare(traces[i].TraceID, traces[j].TraceID) == -1
 	})
 
-	meta := backend.NewBlockMeta("fake", uuid.New(), VersionString, backend.EncNone, "")
+	meta := backend.NewBlockMeta("fake", uuid.New(), VersionString)
 	meta.TotalObjects = int64(len(traces))
 	s := newStreamingBlock(ctx, cfg, meta, r, w, tempo_io.NewBufferedWriter)
 
@@ -100,7 +100,6 @@ func TestBackendBlockFindTraceByID(t *testing.T) {
 		gotProto, err := b.FindTraceByID(ctx, tr.TraceID, common.DefaultSearchOptions())
 		require.NoError(t, err)
 		require.Equal(t, wantProto, gotProto.Trace)
-		require.Greater(t, gotProto.Metrics.InspectedBytes, uint64(60000)) // approximate value
 	}
 }
 
@@ -125,7 +124,7 @@ func TestBackendBlockFindTraceByID_TestData(t *testing.T) {
 	iter, err := b.rawIter(context.Background(), newRowPool(10))
 	require.NoError(t, err)
 
-	sch := parquet.SchemaOf(new(Trace))
+	sch, _, _ := SchemaWithDynamicChanges(meta.DedicatedColumns)
 	for {
 		_, row, err := iter.Next(context.Background())
 		require.NoError(t, err)
@@ -141,6 +140,39 @@ func TestBackendBlockFindTraceByID_TestData(t *testing.T) {
 		protoTr, err := b.FindTraceByID(ctx, tr.TraceID, common.DefaultSearchOptions())
 		require.NoError(t, err)
 		require.NotNil(t, protoTr)
+	}
+}
+
+func TestBackendBlockTraceRoundtrip(t *testing.T) {
+	testCases := []struct {
+		name string
+		tr   *Trace
+		dc   backend.DedicatedColumns
+	}{
+		{
+			name: "fullypopulated",
+			tr:   fullyPopulatedTestTrace(test.ValidTraceID(nil)),
+			dc:   test.MakeDedicatedColumns(),
+		},
+		{
+			name: "mixed array/non-array",
+			tr:   func() *Trace { tr, _ := mixedArrayTestTrace(); return tr }(),
+			dc:   func() backend.DedicatedColumns { _, dc := mixedArrayTestTrace(); return dc }(),
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			var (
+				ctx       = t.Context()
+				block     = makeBackendBlockWithTracesWithDedicatedColumns(t, []*Trace{tc.tr}, tc.dc)
+				wantProto = ParquetTraceToTempopbTrace(block.meta, tc.tr)
+			)
+
+			gotProto, err := block.FindTraceByID(ctx, tc.tr.TraceID, common.DefaultSearchOptions())
+			require.NoError(t, err)
+			require.Equal(t, wantProto, gotProto.Trace)
+		})
 	}
 }
 

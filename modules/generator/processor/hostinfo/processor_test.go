@@ -5,14 +5,17 @@ import (
 	"strconv"
 	"testing"
 
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/prometheus/model/labels"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"github.com/grafana/tempo/modules/generator/processor"
 	"github.com/grafana/tempo/modules/generator/registry"
 	"github.com/grafana/tempo/pkg/tempopb"
 	common_v1 "github.com/grafana/tempo/pkg/tempopb/common/v1"
 	trace_v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 	"github.com/grafana/tempo/pkg/util/test"
-	"github.com/prometheus/prometheus/model/labels"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func TestHostInfo(t *testing.T) {
@@ -20,9 +23,9 @@ func TestHostInfo(t *testing.T) {
 	cfg := Config{}
 
 	cfg.RegisterFlagsAndApplyDefaults("", nil)
-	p, err := New(cfg, testRegistry, nil)
+	p, err := New(cfg, testRegistry, nil, prometheus.NewCounter(prometheus.CounterOpts{}))
 	require.NoError(t, err)
-	require.Equal(t, p.Name(), Name)
+	require.Equal(t, p.Name(), processor.HostInfoName)
 	defer p.Shutdown(context.TODO())
 
 	req := &tempopb.PushSpansRequest{
@@ -58,9 +61,9 @@ func TestHostInfoHostSource(t *testing.T) {
 
 	cfg := Config{}
 	cfg.RegisterFlagsAndApplyDefaults("", nil)
-	p, err := New(cfg, testRegistry, nil)
+	p, err := New(cfg, testRegistry, nil, prometheus.NewCounter(prometheus.CounterOpts{}))
 	require.NoError(t, err)
-	require.Equal(t, p.Name(), Name)
+	require.Equal(t, p.Name(), processor.HostInfoName)
 	defer p.Shutdown(context.TODO())
 
 	req := &tempopb.PushSpansRequest{

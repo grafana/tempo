@@ -8,6 +8,7 @@ import (
 
 	"github.com/go-kit/log"
 	"github.com/gorilla/mux"
+	"github.com/grafana/tempo/pkg/api"
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/stretchr/testify/require"
 )
@@ -100,7 +101,7 @@ func TestHandleSearch(t *testing.T) {
 				"query": "{ foo bar baz }",
 			}),
 			expected: expectedResult{
-				err: "query parse error. Consult TraceQL docs tools: parse error at line 1, col 3: syntax error: unexpected IDENTIFIER",
+				err: "query parse error. Consult TraceQL docs tools: parse error at line 1, col 3: unknown identifier: foo",
 			},
 		},
 		{
@@ -180,7 +181,7 @@ func TestHandleInstantQuery(t *testing.T) {
 				"query": "{ foo bar baz }",
 			}),
 			expected: expectedResult{
-				err: "query parse error. Consult TraceQL docs tools: parse error at line 1, col 3: syntax error: unexpected IDENTIFIER",
+				err: "query parse error. Consult TraceQL docs tools: parse error at line 1, col 3: unknown identifier: foo",
 			},
 		},
 		{
@@ -260,7 +261,7 @@ func TestHandleRangeQuery(t *testing.T) {
 				"query": "{ foo bar baz }",
 			}),
 			expected: expectedResult{
-				err: "query parse error. Consult TraceQL docs tools: parse error at line 1, col 3: syntax error: unexpected IDENTIFIER",
+				err: "query parse error. Consult TraceQL docs tools: parse error at line 1, col 3: unknown identifier: foo",
 			},
 		},
 		{
@@ -447,6 +448,101 @@ func TestHandleTraceQLDocs(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, result)
 	require.NotEmpty(t, result.Content)
+}
+
+func TestAcceptHeaderIsSet(t *testing.T) {
+	tests := []struct {
+		name    string
+		request mcp.CallToolRequest
+		handler func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error)
+	}{
+		{
+			name: "handleSearch sets Accept header",
+			request: callToolRequest(map[string]any{
+				"query": "{ span.foo = \"bar\" }",
+			}),
+		},
+		{
+			name: "handleInstantQuery sets Accept header",
+			request: callToolRequest(map[string]any{
+				"query": "{} | rate()",
+			}),
+		},
+		{
+			name: "handleRangeQuery sets Accept header",
+			request: callToolRequest(map[string]any{
+				"query": "{} | rate()",
+			}),
+		},
+		{
+			name: "handleGetTrace sets Accept header",
+			request: callToolRequest(map[string]any{
+				"trace_id": "12345678abcdef90",
+			}),
+		},
+		{
+			name:    "handleGetAttributeNames sets Accept header",
+			request: callToolRequest(map[string]any{}),
+		},
+		{
+			name: "handleGetAttributeValues sets Accept header",
+			request: callToolRequest(map[string]any{
+				"name": "service.name",
+			}),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var capturedRequest *http.Request
+
+			// Mock handler that captures the request
+			mockHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				capturedRequest = r
+				w.WriteHeader(http.StatusOK)
+			})
+
+			server := &MCPServer{
+				frontend: &QueryFrontend{
+					SearchHandler:              mockHandler,
+					TraceByIDHandlerV2:         mockHandler,
+					SearchTagsV2Handler:        mockHandler,
+					SearchTagsValuesV2Handler:  mockHandler,
+					MetricsQueryInstantHandler: mockHandler,
+					MetricsQueryRangeHandler:   mockHandler,
+				},
+				logger:     log.NewNopLogger(),
+				pathPrefix: "",
+			}
+
+			ctx := context.Background()
+
+			// Call the appropriate handler based on test name
+			var result *mcp.CallToolResult
+			var err error
+			switch tt.name {
+			case "handleSearch sets Accept header":
+				result, err = server.handleSearch(ctx, tt.request)
+			case "handleInstantQuery sets Accept header":
+				result, err = server.handleInstantQuery(ctx, tt.request)
+			case "handleRangeQuery sets Accept header":
+				result, err = server.handleRangeQuery(ctx, tt.request)
+			case "handleGetTrace sets Accept header":
+				result, err = server.handleGetTrace(ctx, tt.request)
+			case "handleGetAttributeNames sets Accept header":
+				result, err = server.handleGetAttributeNames(ctx, tt.request)
+			case "handleGetAttributeValues sets Accept header":
+				result, err = server.handleGetAttributeValues(ctx, tt.request)
+			}
+
+			require.NoError(t, err)
+			require.NotNil(t, result)
+
+			// Verify the Accept header was set correctly
+			require.NotNil(t, capturedRequest)
+			require.Equal(t, api.HeaderAcceptLLM, capturedRequest.Header.Get(api.HeaderAccept))
+		})
+	}
 }
 
 func callToolRequest(args map[string]any) mcp.CallToolRequest {

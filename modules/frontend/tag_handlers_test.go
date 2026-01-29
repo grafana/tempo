@@ -118,12 +118,12 @@ func runnerTagValuesV2BadRequestOnInvalidTagName(t *testing.T, f *QueryFrontend)
 	f.SearchTagsValuesV2Handler.ServeHTTP(httpResp, httpReq)
 
 	require.Equal(t, http.StatusBadRequest, httpResp.Code)
-	require.Contains(t, httpResp.Body.String(), "tag name is not valid intrinsic or scoped attribute: app.user.id")
+	require.Contains(t, httpResp.Body.String(), "please provide a valid tagName: failed to parse identifier app.user.id: parse error at line 1, col 2: unknown identifier: app")
 
 	// grpc
 	grpcReq := &tempopb.SearchTagValuesRequest{TagName: "app.user.id"}
 	err := f.streamingTagValuesV2(grpcReq, newMockStreamingServer[*tempopb.SearchTagValuesV2Response]("tenant", nil))
-	require.Equal(t, status.Error(codes.InvalidArgument, "please provide a valid tagName: tag name is not valid intrinsic or scoped attribute: app.user.id"), err)
+	require.Equal(t, status.Error(codes.InvalidArgument, "please provide a valid tagName: failed to parse identifier app.user.id: parse error at line 1, col 2: unknown identifier: app"), err)
 }
 
 func runnerTagsV2ClientCancelContext(t *testing.T, f *QueryFrontend) {
@@ -222,7 +222,7 @@ func TestSearchTagsV2Intrinsics(t *testing.T) {
 					{
 						// Only a subset of intrinsic tags will fit
 						Name: api.ParamScopeIntrinsic,
-						Tags: search.GetVirtualIntrinsicValues()[0:10],
+						Tags: search.GetVirtualIntrinsicValues()[0:9],
 					},
 				},
 			},
@@ -350,6 +350,9 @@ func TestSearchTagsV2FailurePropagatesFromQueriers(t *testing.T) {
 					ConcurrentRequests:    defaultConcurrentRequests,
 					TargetBytesPerRequest: defaultTargetBytesPerRequest,
 					MostRecentShards:      defaultMostRecentShards,
+					QueryIngestersUntil:   100 * time.Hour,
+					QueryBackendAfter:     100 * time.Hour,
+					IngesterShards:        1,
 				},
 				SLO: testSLOcfg,
 			},
@@ -396,6 +399,9 @@ func TestSearchTagsV2FailurePropagatesFromQueriers(t *testing.T) {
 					ConcurrentRequests:    defaultConcurrentRequests,
 					TargetBytesPerRequest: defaultTargetBytesPerRequest,
 					MostRecentShards:      defaultMostRecentShards,
+					QueryIngestersUntil:   100 * time.Hour,
+					QueryBackendAfter:     100 * time.Hour,
+					IngesterShards:        1,
 				},
 				SLO: testSLOcfg,
 			},
@@ -483,6 +489,9 @@ func TestSearchTagValuesV2FailurePropagatesFromQueriers(t *testing.T) {
 						ConcurrentRequests:    defaultConcurrentRequests,
 						TargetBytesPerRequest: defaultTargetBytesPerRequest,
 						MostRecentShards:      defaultMostRecentShards,
+						QueryIngestersUntil:   100 * time.Hour,
+						QueryBackendAfter:     100 * time.Hour,
+						IngesterShards:        1,
 					},
 					SLO: testSLOcfg,
 				},
@@ -530,6 +539,9 @@ func TestSearchTagValuesV2FailurePropagatesFromQueriers(t *testing.T) {
 						ConcurrentRequests:    defaultConcurrentRequests,
 						TargetBytesPerRequest: defaultTargetBytesPerRequest,
 						MostRecentShards:      defaultMostRecentShards,
+						QueryIngestersUntil:   100 * time.Hour,
+						QueryBackendAfter:     100 * time.Hour,
+						IngesterShards:        1,
 					},
 					SLO: testSLOcfg,
 				},

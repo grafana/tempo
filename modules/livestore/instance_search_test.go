@@ -580,7 +580,7 @@ func defaultLiveStore(t testing.TB, tmpDir string) (*LiveStore, error) {
 	// Create metrics
 	reg := prometheus.NewRegistry()
 
-	logger := &testLogger{t}
+	logger := test.NewTestingLogger(t)
 
 	// Use fake Kafka cluster for testing
 	liveStore, err := New(cfg, limits, logger, reg, true) // singlePartition = true for testing
@@ -589,17 +589,6 @@ func defaultLiveStore(t testing.TB, tmpDir string) (*LiveStore, error) {
 	}
 
 	return liveStore, services.StartAndAwaitRunning(t.Context(), liveStore)
-}
-
-var _ log.Logger = (*testLogger)(nil)
-
-type testLogger struct {
-	t testing.TB
-}
-
-func (l *testLogger) Log(keyvals ...interface{}) error {
-	l.t.Log(keyvals...)
-	return nil
 }
 
 func pushTracesToInstance(t *testing.T, i *instance, numTraces int) ([]*tempopb.Trace, [][]byte) {
@@ -1243,7 +1232,7 @@ func TestLiveStoreQueryRange(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			req := tc.req
 			req.MaxSeries = 10
-			req.Start, req.End, req.Step = traceql.TrimToBlockOverlap(req.Start, req.End, req.Step, block.BlockMeta().StartTime, block.BlockMeta().EndTime)
+			req.Start, req.End, req.Step = traceql.TrimToBlockOverlap(req, block.BlockMeta().StartTime, block.BlockMeta().EndTime)
 
 			results, err := inst.QueryRange(ctx, req)
 			require.NoError(t, err)

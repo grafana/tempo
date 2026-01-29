@@ -1,0 +1,7 @@
+version: v2
+plugins:
+  - local: protoc-gen-gogofaster
+    out: .
+    opt:
+      - plugins=grpc
+      - Mgoogle/protobuf/timestamp.proto=github.com/gogo/protobuf/types

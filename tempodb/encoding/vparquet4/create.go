@@ -140,7 +140,7 @@ type streamingBlock struct {
 }
 
 func newStreamingBlock(ctx context.Context, cfg *common.BlockConfig, meta *backend.BlockMeta, r backend.Reader, to backend.Writer, createBufferedWriter func(w io.Writer) tempo_io.BufferedWriteFlusher) *streamingBlock {
-	newMeta := backend.NewBlockMeta(meta.TenantID, (uuid.UUID)(meta.BlockID), VersionString, backend.EncNone, "")
+	newMeta := backend.NewBlockMeta(meta.TenantID, (uuid.UUID)(meta.BlockID), VersionString)
 	newMeta.StartTime = meta.StartTime
 	newMeta.EndTime = meta.EndTime
 	newMeta.ReplicationFactor = meta.ReplicationFactor
@@ -267,7 +267,7 @@ func (b *streamingBlock) Complete() (int, error) {
 		return 0, fmt.Errorf("error reading parquet file footer: %w", err)
 	}
 	if string(buf[4:8]) != "PAR1" {
-		return 0, errors.New("Failed to confirm magic footer while writing a new parquet block")
+		return 0, errors.New("failed to confirm magic footer while writing a new parquet block")
 	}
 	b.meta.FooterSize = binary.LittleEndian.Uint32(buf[0:4])
 

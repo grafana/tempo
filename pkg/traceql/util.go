@@ -53,13 +53,13 @@ type bucketSet interface {
 // newExemplarBucketSet creates a new bucket set for the aligned time range
 // start and end are in nanoseconds.
 // If the range is instant, empty bucket set is returned.
-func newExemplarBucketSet(exemplars uint32, start, end, step uint64) bucketSet {
-	if isInstant(start, end, step) {
+func newExemplarBucketSet(exemplars uint32, start, end, step uint64, instant bool) bucketSet {
+	if instant {
 		return &alwaysFullBucketSet{}
 	}
 
-	start = alignStart(start, end, step)
-	end = alignEnd(start, end, step)
+	start = alignStart(start, end, step, instant)
+	end = alignEnd(start, end, step, instant)
 
 	return newBucketSet(exemplars, start, end)
 }
@@ -200,15 +200,15 @@ func (b *branchOptimizer) Sampled() (done bool) {
 
 // OptimalBranch returns the branch with the least penalized cost over time, i.e. the optimal one to start with.
 func (b *branchOptimizer) OptimalBranch() int {
-	mini := 0
-	min := b.totals[0]
+	bestIndex := 0
+	bestTotal := b.totals[0]
 	for i := 1; i < len(b.totals); i++ {
-		if b.totals[i] < min {
-			mini = i
-			min = b.totals[i]
+		if b.totals[i] < bestTotal {
+			bestIndex = i
+			bestTotal = b.totals[i]
 		}
 	}
-	return mini
+	return bestIndex
 }
 
 func kahanSumInc(inc, sum, c float64) (newSum, newC float64) {
