@@ -10,27 +10,18 @@ import (
 	"github.com/prometheus/prometheus/model/labels"
 )
 
-type drainSanitizerMetrics struct {
-	totalSpansCompacted *prometheus.CounterVec
-	demand              *prometheus.GaugeVec
-}
-
-func newMetrics(reg prometheus.Registerer) drainSanitizerMetrics {
-	return drainSanitizerMetrics{
-		totalSpansCompacted: promauto.With(reg).NewCounterVec(prometheus.CounterOpts{
-			Namespace: "tempo",
-			Name:      "metrics_generator_registry_drain_spans_compacted_total",
-			Help:      "The total amount of spans compacted per tenant",
-		}, []string{"tenant"}),
-		demand: promauto.With(reg).NewGaugeVec(prometheus.GaugeOpts{
-			Namespace: "tempo",
-			Name:      "metrics_generator_registry_post_drain_demand_estimate",
-			Help:      "The demand for the registry after applying DRAIN",
-		}, []string{"tenant"}),
-	}
-}
-
-var metrics = newMetrics(prometheus.DefaultRegisterer)
+var (
+	metricTotalSpansCompacted = promauto.NewCounterVec(prometheus.CounterOpts{
+		Namespace: "tempo",
+		Name:      "metrics_generator_registry_drain_spans_compacted_total",
+		Help:      "The total amount of spans compacted per tenant",
+	}, []string{"tenant"})
+	metricDemand = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: "tempo",
+		Name:      "metrics_generator_registry_post_drain_demand_estimate",
+		Help:      "The demand for the registry after applying DRAIN",
+	}, []string{"tenant"})
+)
 
 type DrainSanitizer struct {
 	mtx    sync.Mutex
@@ -52,9 +43,9 @@ func NewDrainSanitizer(tenant string, dryRun bool) *DrainSanitizer {
 	return &DrainSanitizer{
 		drain:                     drain.New(tenant, drain.DefaultConfig()),
 		dryRun:                    dryRun,
-		metricTotalSpansCompacted: metrics.totalSpansCompacted.WithLabelValues(tenant),
+		metricTotalSpansCompacted: metricTotalSpansCompacted.WithLabelValues(tenant),
 		demand:                    NewCardinality(15*time.Minute, 5*time.Minute),
-		demandGauge:               metrics.demand.WithLabelValues(tenant),
+		demandGauge:               metricDemand.WithLabelValues(tenant),
 		demandUpdateChan:          time.Tick(15 * time.Second),
 		pruneChan:                 time.Tick(5 * time.Minute),
 	}

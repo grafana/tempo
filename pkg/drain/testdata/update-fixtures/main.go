@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -64,11 +65,14 @@ func main() {
 
 		fmt.Printf("finished %s\n reduction: %f%%\n", file.Name(), testData.ReductionPct) //nolint:forbidigo
 
-		json, err := json.MarshalIndent(testData, "", "  ")
-		if err != nil {
+		var buf bytes.Buffer
+		enc := json.NewEncoder(&buf)
+		enc.SetEscapeHTML(false)
+		enc.SetIndent("", "  ")
+		if err := enc.Encode(testData); err != nil {
 			log.Fatalf("failed to marshal test data: %v", err)
 		}
-		err = os.WriteFile(filepath.Join("pkg/drain/testdata", strings.TrimSuffix(file.Name(), ".json")+".drain"), json, 0o600)
+		err = os.WriteFile(filepath.Join("pkg/drain/testdata", strings.TrimSuffix(file.Name(), ".json")+".drain"), buf.Bytes(), 0o600)
 		if err != nil {
 			log.Fatalf("failed to write file: %v", err)
 		}

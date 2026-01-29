@@ -35,6 +35,10 @@ func (t *defaultTokenizer) Tokenize(line string, tokens []string) []string {
 		}
 	}
 
+	// The <END> token is added because the drain algorithm often wildcards the
+	// last token, which doesn't work well for inputs like `GET /users/123/data`
+	// and `GET /users/123/settings` - we want to preserve `/data` and `/settings`.
+	// Adding an extra token helps reduce this behavior.
 	tokens = append(tokens, "<END>")
 
 	return tokens
@@ -98,6 +102,8 @@ func lexAny(l *lexer) stateFn {
 	case unicode.IsLetter(r) || unicode.IsNumber(r):
 		return lexAlphaNumeric
 	default:
+		// TODO: Consider combining consecutive delimiters (slashes, commas, etc.)
+		// into a single token for better pattern matching efficiency.
 		return l.emit()
 	}
 }

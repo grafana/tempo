@@ -82,6 +82,42 @@ func TestLineTokenizer(t *testing.T) {
 				"<END>",
 			},
 		},
+		{
+			name:      "multi-byte characters chinese",
+			tokenizer: &defaultTokenizer{},
+			input:     "GET /api/用户/123",
+			expected: []string{
+				"GET", " ", "/", "api", "/", "用户", "/", "123",
+				"<END>",
+			},
+		},
+		{
+			name:      "multi-byte characters japanese",
+			tokenizer: &defaultTokenizer{},
+			input:     "処理 completed タスク456",
+			expected: []string{
+				"処理", " ", "completed", " ", "タスク456",
+				"<END>",
+			},
+		},
+		{
+			name:      "emoji in span name",
+			tokenizer: &defaultTokenizer{},
+			input:     "🚀 deploy service-abc",
+			expected: []string{
+				"🚀", " ", "deploy", " ", "service", "-", "abc",
+				"<END>",
+			},
+		},
+		{
+			name:      "mixed emoji and text",
+			tokenizer: &defaultTokenizer{},
+			input:     "task✅done/item🔥hot",
+			expected: []string{
+				"task", "✅", "done", "/", "item", "🔥", "hot",
+				"<END>",
+			},
+		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {

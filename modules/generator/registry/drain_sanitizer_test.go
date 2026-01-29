@@ -113,7 +113,7 @@ func TestDrainSanitizer_DemandTracking(t *testing.T) {
 	// but we can verify the sanitizer doesn't crash and processes all labels)
 	// The demand gauge will be updated periodically via doPeriodicMaintenance
 	demandEstimate := sanitizer.demand.Estimate()
-	assert.GreaterOrEqual(t, demandEstimate, uint64(0))
+	assert.GreaterOrEqual(t, demandEstimate, uint64(1))
 }
 
 func TestDrainSanitizer_NoSpanNameLabel(t *testing.T) {
@@ -149,4 +149,52 @@ func TestDrainSanitizer_PatternBeforeSanitization(t *testing.T) {
 	// After pattern detection, should return sanitized version
 	assert.NotEqual(t, "GET /api/users/456", result3.Get("span_name"))
 	assert.Contains(t, result3.Get("span_name"), "<_>")
+}
+
+func TestDrainSanitizer_FullSanitizedOutput(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name           string
+		inputs         []string
+		expectedOutput string
+	}{
+		{
+			name:           "REST API path with user ID",
+			inputs:         []string{"GET /api/users/123", "GET /api/users/456", "GET /api/users/789"},
+			expectedOutput: "GET /api/users/<_>",
+		},
+		{
+			name:           "REST API path with multiple IDs",
+			inputs:         []string{"POST /api/orders/100/items/1", "POST /api/orders/200/items/2", "POST /api/orders/300/items/3"},
+			expectedOutput: "POST /api/orders/<_>/items/<_>",
+		},
+		{
+			name:           "database query with table name",
+			inputs:         []string{"SELECT * FROM users_100", "SELECT * FROM users_200", "SELECT * FROM users_300"},
+			expectedOutput: "SELECT * FROM users_<_>",
+		},
+		{
+			name:           "gRPC method call",
+			inputs:         []string{"grpc.client/service.Method/123", "grpc.client/service.Method/456", "grpc.client/service.Method/789"},
+			expectedOutput: "grpc.client/service.Method/<_>",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			sanitizer := NewDrainSanitizer("test-tenant", false)
+
+			// Train with first inputs
+			for _, input := range tc.inputs[:len(tc.inputs)-1] {
+				sanitizer.Sanitize(labels.FromStrings("span_name", input))
+			}
+
+			// Last input should produce the expected sanitized output
+			lastInput := tc.inputs[len(tc.inputs)-1]
+			result := sanitizer.Sanitize(labels.FromStrings("span_name", lastInput))
+			assert.Equal(t, tc.expectedOutput, result.Get("span_name"))
+		})
+	}
 }
