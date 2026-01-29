@@ -17,6 +17,8 @@
   local volumeMount = k.core.v1.volumeMount,
   local pvc = k.core.v1.persistentVolumeClaim,
 
+  local this = self,
+
   //
   // Multi-zone live-stores (non-optional).
   //
@@ -172,11 +174,9 @@
   tempo_live_store_zone_b_service:
     $.newLiveStoreZoneService($.tempo_live_store_zone_b_statefulset),
 
-  live_store_rollout_pdb:
-    podDisruptionBudget.new('live-store-rollout-pdb') +
-    podDisruptionBudget.mixin.metadata.withLabels({ name: 'live-store-rollout-pdb' }) +
-    podDisruptionBudget.mixin.spec.selector.withMatchLabels({ 'rollout-group': 'live-store' }) +
-    podDisruptionBudget.mixin.spec.withMaxUnavailable(1),
+  live_store_rollout_pdb: if $._config.live_store.zpdb.enabled then
+    this.newZPDB('live-store-rollout', 'live-store', $._config.live_store.zpdb.max_unavailable, $._config.live_store.zpdb.partition_regex, $._config.live_store.zpdb.partition_group)
+  else {},
 
   tempo_live_store_configmap:
     configMap.new('tempo-live-store') +
@@ -191,8 +191,6 @@
   tempo_live_store_statefulset: null,  // Only multi-zone deployments are supported
 
   tempo_live_store_service: null,  // Only multi-zone services are supported
-
-  live_store_pdb: null,  // Only rollout PDB is used
 
   // Vertical Pod Autoscaler
   tempo_live_store_vpa: [
