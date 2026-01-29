@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/cespare/xxhash/v2"
+	"github.com/gogo/protobuf/proto"
 	"github.com/google/uuid"
 
 	"github.com/grafana/tempo/pkg/tempopb"
@@ -25,6 +26,14 @@ type DedicatedColumnOption string
 
 // DedicatedColumnOptions is a list of options applied to a dedicated column
 type DedicatedColumnOptions []DedicatedColumnOption
+
+type dedicatedColumnsWrapper struct {
+	DedicatedColumns []*tempopb.DedicatedColumn `protobuf:"bytes,1,rep,name=dedicatedColumns"`
+}
+
+func (*dedicatedColumnsWrapper) Reset()         {}
+func (*dedicatedColumnsWrapper) String() string { return "dedicatedColumnsWrapper" }
+func (*dedicatedColumnsWrapper) ProtoMessage()  {}
 
 const (
 	DedicatedColumnTypeString DedicatedColumnType = "string"
@@ -401,33 +410,46 @@ func (dcs DedicatedColumns) Size() int {
 	b, _ := dcs.Marshal()
 	return len(b)
 }
-
 func (dcs DedicatedColumns) Marshal() ([]byte, error) {
 	if len(dcs) == 0 {
 		return nil, nil
 	}
 
-	// NOTE: The json bytes interned in a map to avoid re-unmarshalling the same byte slice.
-	return json.Marshal(dcs)
-}
-
-func (dcs DedicatedColumns) MarshalTo(data []byte) (n int, err error) {
-	bb, err := dcs.Marshal()
+	pbCols, err := dcs.ToTempopb()
 	if err != nil {
-		return 0, err
+		return nil, err
 	}
-	copy(data, bb)
 
-	return len(bb), nil
+	w := &dedicatedColumnsWrapper{
+		DedicatedColumns: pbCols,
+	}
+
+	return proto.Marshal(w)
 }
-
 func (dcs *DedicatedColumns) Unmarshal(data []byte) error {
 	if len(data) == 0 {
 		return nil
 	}
 
-	// NOTE: The json bytes interned in a map to avoid re-unmarshalling the same byte slice.
-	return json.Unmarshal(data, &dcs)
+	// JSON detection (legacy blocks)
+	switch data[0] {
+	case '{', '[':
+		return json.Unmarshal(data, dcs)
+	}
+
+	// Proto path
+	var w dedicatedColumnsWrapper
+	if err := proto.Unmarshal(data, &w); err != nil {
+		return err
+	}
+
+	cols, err := DedicatedColumnsFromTempopb(w.DedicatedColumns)
+	if err != nil {
+		return err
+	}
+
+	*dcs = cols
+	return nil
 }
 
 func (b *CompactedBlockMeta) UnmarshalJSON(data []byte) error {
