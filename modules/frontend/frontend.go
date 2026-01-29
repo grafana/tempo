@@ -127,7 +127,7 @@ func New(cfg Config, next pipeline.RoundTripper, o overrides.Interface, reader t
 	}
 
 	jobsPerQuery := promauto.With(registerer).NewHistogramVec(prometheus.HistogramOpts{
-		Name:    "query_frontend_jobs_per_query",
+		Name:    "tempo_query_frontend_jobs_per_query",
 		Help:    "Number of planned jobs per query in the query frontend.",
 		Buckets: prometheus.ExponentialBuckets(1, 10, 7),
 	}, []string{"op"})
