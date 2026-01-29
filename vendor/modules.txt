@@ -7,7 +7,7 @@ cloud.google.com/go/internal
 cloud.google.com/go/internal/optional
 cloud.google.com/go/internal/trace
 cloud.google.com/go/internal/version
-# cloud.google.com/go/auth v0.18.0
+# cloud.google.com/go/auth v0.18.1
 ## explicit; go 1.24.0
 cloud.google.com/go/auth
 cloud.google.com/go/auth/credentials
@@ -2297,7 +2297,7 @@ gonum.org/v1/gonum/lapack
 gonum.org/v1/gonum/lapack/gonum
 gonum.org/v1/gonum/lapack/lapack64
 gonum.org/v1/gonum/mat
-# google.golang.org/api v0.261.0
+# google.golang.org/api v0.262.0
 ## explicit; go 1.24.0
 google.golang.org/api/googleapi
 google.golang.org/api/googleapi/transport
