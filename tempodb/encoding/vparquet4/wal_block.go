@@ -18,7 +18,6 @@ import (
 	"github.com/grafana/tempo/pkg/dataquality"
 	"github.com/grafana/tempo/pkg/model"
 	"github.com/grafana/tempo/pkg/model/trace"
-	"github.com/grafana/tempo/pkg/parquetquery"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/traceql"
 	"github.com/grafana/tempo/pkg/util"
@@ -259,9 +258,8 @@ func (w *walBlockFlush) rowIterator() (*rowIterator, error) {
 
 	pf := file.parquetFile
 
-	idx, _, _ := parquetquery.GetColumnIndexByPath(pf, TraceIDColumnName)
 	r := parquet.NewReader(pf)
-	return newRowIterator(r, file, w.ids.EntriesSortedByID(), idx), nil
+	return newRowIterator(r, file, w.ids.EntriesSortedByID()), nil
 }
 
 type pageFile struct {
@@ -905,18 +903,16 @@ func parseName(filename string) (uuid.UUID, string, string, error) {
 // traces are iterated according to the given row numbers, because there is
 // not a guarantee that the underlying parquet file is sorted
 type rowIterator struct {
-	reader       *parquet.Reader //nolint:all //deprecated
-	pageFile     *pageFile
-	rowNumbers   []common.IDMapEntry[int64]
-	traceIDIndex int
+	reader     *parquet.Reader //nolint:all //deprecated
+	pageFile   *pageFile
+	rowNumbers []common.IDMapEntry[int64]
 }
 
-func newRowIterator(r *parquet.Reader, pageFile *pageFile, rowNumbers []common.IDMapEntry[int64], traceIDIndex int) *rowIterator { //nolint:all //deprecated
+func newRowIterator(r *parquet.Reader, pageFile *pageFile, rowNumbers []common.IDMapEntry[int64]) *rowIterator { //nolint:all //deprecated
 	return &rowIterator{
-		reader:       r,
-		pageFile:     pageFile,
-		rowNumbers:   rowNumbers,
-		traceIDIndex: traceIDIndex,
+		reader:     r,
+		pageFile:   pageFile,
+		rowNumbers: rowNumbers,
 	}
 }
 
@@ -947,16 +943,7 @@ func (i *rowIterator) Next(context.Context) (common.ID, parquet.Row, error) {
 		return nil, nil, err
 	}
 
-	row := rows[0]
-	var id common.ID
-	for _, v := range row {
-		if v.Column() == i.traceIDIndex {
-			id = v.ByteArray()
-			break
-		}
-	}
-
-	return id, row, nil
+	return nextRowNumber.ID, rows[0], nil
 }
 
 func (i *rowIterator) Close() {

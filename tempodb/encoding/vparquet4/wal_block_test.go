@@ -414,3 +414,54 @@ func BenchmarkWalSearchTagValues(b *testing.B) {
 		})
 	}
 }
+
+// BenchmarkRowIteratorNext benchmarks the rowIterator.Next() function
+// to measure the performance of extracting trace IDs during iteration.
+func BenchmarkRowIteratorNext(b *testing.B) {
+	ctx := context.Background()
+	meta := backend.NewBlockMeta("fake", uuid.New(), VersionString)
+	w, err := createWALBlock(meta, b.TempDir(), model.CurrentEncoding, 0)
+	require.NoError(b, err)
+
+	decoder := model.MustNewSegmentDecoder(model.CurrentEncoding)
+
+	// Create a WAL block with traces
+	count := 100
+	for i := 0; i < count; i++ {
+		id := test.ValidTraceID(nil)
+		tr := test.MakeTrace(10, id)
+		trace.SortTrace(tr)
+
+		b1, err := decoder.PrepareForWrite(tr, 0, 0)
+		require.NoError(b, err)
+
+		b2, err := decoder.ToObject([][]byte{b1})
+		require.NoError(b, err)
+
+		err = w.Append(id, b2, 0, 0, true)
+		require.NoError(b, err)
+	}
+
+	require.NoError(b, w.Flush())
+
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+		// Get a fresh row iterator for each benchmark iteration
+		for _, f := range w.flushed {
+			ri, err := f.rowIterator()
+			require.NoError(b, err)
+
+			for {
+				id, row, err := ri.Next(ctx)
+				require.NoError(b, err)
+				if id == nil {
+					break
+				}
+				// Return the row to the pool to avoid memory buildup
+				completeBlockRowPool.Put(row)
+			}
+			ri.Close()
+		}
+	}
+}
