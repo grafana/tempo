@@ -400,7 +400,7 @@ tempo-mixin-check: tools-image
 ## TODO: temp addition to make testing easier
 .PHONY: link-dev
 link-dev: docker-images
-	docker-compose -f example/docker-compose/local/docker-compose.yaml up -d
+	docker-compose -f example/docker-compose/single-binary/docker-compose.yaml up -d
 	cd example/docker-compose/local/linkgen && go run main.go
 
 # Import fragments

@@ -382,10 +382,6 @@ func (o *runtimeConfigOverridesManager) CostAttributionDimensions(userID string)
 	return o.getOverridesForUser(userID).CostAttribution.Dimensions
 }
 
-func (o *runtimeConfigOverridesManager) MaxSpanIDsPerLinkQuery(userID string) int {
-	return o.getOverridesForUser(userID).Read.MaxSpanIDsPerLinkQuery
-}
-
 // MaxSearchDuration is the duration of the max search duration for this tenant.
 func (o *runtimeConfigOverridesManager) MaxSearchDuration(userID string) time.Duration {
 	return time.Duration(o.getOverridesForUser(userID).Read.MaxSearchDuration)

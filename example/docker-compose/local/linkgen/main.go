@@ -60,11 +60,13 @@ func main() {
 
 	log.Println("Visit http://localhost:3000/explore to see the traces")
 
-	log.Println(
-		"\nTest queries:",
-		"\n {span.service.name=\"database\"} &->> {span.service.name=\"backend\"} &->> {span.service.name=\"gateway\"}",
-		"\n {span.service.name=\"gateway\"} &<<- {span.service.name=\"backend\"} &<<- {span.service.name=\"database\"}",
-	)
+	log.Println("\nTest link traversal queries:")
+	log.Println("\n# 2-hop backward traversal (gateway ← backend):")
+	log.Println("./bin/darwin/tempo-cli-arm64 query api link-search localhost:3200 '{span.service.name=\"gateway\"} &<<- {span.service.name=\"backend\"}' now-1h now --verbose")
+	log.Println("\n# 3-hop backward traversal (gateway ← backend ← database):")
+	log.Println("./bin/darwin/tempo-cli-arm64 query api link-search localhost:3200 '{span.service.name=\"gateway\"} &<<- {span.service.name=\"backend\"} &<<- {span.service.name=\"database\"}' now-1h now --verbose")
+	log.Println("\n# 3-hop forward traversal (database → backend → gateway):")
+	log.Println("./bin/darwin/tempo-cli-arm64 query api link-search localhost:3200 '{span.service.name=\"database\"} &->> {span.service.name=\"backend\"} &->> {span.service.name=\"gateway\"}' now-1h now --verbose")
 }
 
 func createExporter(ctx context.Context) (sdktrace.SpanExporter, error) {
