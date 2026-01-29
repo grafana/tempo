@@ -602,9 +602,9 @@ func createRecordIter(records []*kgo.Record) recordIter {
 }
 
 func requireInstanceState(t *testing.T, inst *instance, state instanceState) {
-	require.Equal(t, uint64(state.liveTraces), inst.liveTraces.Len())
-	require.Len(t, inst.walBlocks, state.walBlocks)
-	require.Len(t, inst.completeBlocks, state.completeBlocks)
+	require.Equal(t, uint64(state.liveTraces), inst.liveTraces.Len(), "live traces count mismatch")
+	require.Len(t, inst.walBlocks, state.walBlocks, "wal blocks count mismatch")
+	require.Len(t, inst.completeBlocks, state.completeBlocks, "complete blocks count mismatch")
 }
 
 func requireTraceInLiveStore(t *testing.T, liveStore *LiveStore, traceID []byte, expectedTrace *tempopb.Trace) {
