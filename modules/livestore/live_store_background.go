@@ -112,7 +112,7 @@ func (s *LiveStore) globalCompleteLoop(idx int) {
 			go func() {
 				time.Sleep(delay)
 
-				if err := s.enqueueOp(op); err != nil {
+				if err := s.requeueOp(op); err != nil {
 					_ = level.Error(s.logger).Log("msg", "failed to requeue block for flushing", "tenant", op.tenantID, "block", op.blockID, "err", err)
 				}
 			}()
@@ -191,6 +191,15 @@ func (s *LiveStore) enqueueOp(op *completeOp) error {
 
 	level.Debug(s.logger).Log("msg", "enqueueing complete op", "tenant", op.tenantID, "block", op.blockID, "attempts", op.attempts)
 	return s.completeQueues.Enqueue(op)
+}
+
+func (s *LiveStore) requeueOp(op *completeOp) error {
+	if s.completeQueues.IsStopped() {
+		return fmt.Errorf("complete queues are stopped, cannot requeue operation for block %s", op.blockID.String())
+	}
+
+	level.Debug(s.logger).Log("msg", "requeueing complete op", "tenant", op.tenantID, "block", op.blockID, "attempts", op.attempts)
+	return s.completeQueues.Requeue(op)
 }
 
 func observeFailedOp(op *completeOp) {
