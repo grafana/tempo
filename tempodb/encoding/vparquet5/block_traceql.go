@@ -2700,7 +2700,6 @@ func createStringPredicate(op traceql.Operator, operands traceql.Operands) (parq
 	}
 }
 
-
 func createBytesPredicate(op traceql.Operator, operands traceql.Operands, isSpan bool) (parquetquery.Predicate, error) {
 	if pred, handled := createExistencePredicate(op); handled {
 		return pred, nil
