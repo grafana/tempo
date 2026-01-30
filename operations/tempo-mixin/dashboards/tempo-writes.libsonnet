@@ -170,39 +170,6 @@ dashboard_utils {
         )
       )
       .addRow(
-        g.row('Ingester')
-        .addPanel(
-          $.panel('QPS') +
-          $.qpsPanel('tempo_request_duration_seconds_count{%s, route=~"/tempopb.Pusher/Push.*"}' % $.jobMatcher($._config.jobs.ingester))
-        )
-        .addPanel(
-          $.panel('Latency') +
-          $.latencyPanel('tempo_request_duration_seconds', '{%s,route=~"/tempopb.Pusher/Push.*"}' % $.jobMatcher($._config.jobs.ingester))
-        )
-      )
-      .addRow(
-        g.row('Memcached - Ingester')
-        .addPanel(
-          $.panel('QPS') +
-          $.qpsPanel('tempo_memcache_request_duration_seconds_count{%s,method="Memcache.Put"}' % $.jobMatcher($._config.jobs.ingester))
-        )
-        .addPanel(
-          $.panel('Latency') +
-          $.latencyPanel('tempo_memcache_request_duration_seconds', '{%s,method="Memcache.Put"}' % $.jobMatcher($._config.jobs.ingester))
-        )
-      )
-      .addRow(
-        g.row('Backend - Ingester')
-        .addPanel(
-          $.panel('QPS') +
-          $.qpsPanel('tempodb_backend_request_duration_seconds_count{%s,operation=~"(PUT|POST)"}' % $.jobMatcher($._config.jobs.ingester))
-        )
-        .addPanel(
-          $.panel('Latency') +
-          $.latencyPanel('tempodb_backend_request_duration_seconds', '{%s,operation=~"(PUT|POST)"}' % $.jobMatcher($._config.jobs.ingester))
-        )
-      )
-      .addRow(
         g.row('Memcached - Compactor')
         .addPanel(
           $.panel('QPS') +
