@@ -751,6 +751,9 @@ func (s *LiveStore) QueryRange(ctx context.Context, req *tempopb.QueryRangeReque
 var errLagged = errors.New("cannot guarantee complete results")
 
 func (s *LiveStore) isLagged(endNanos int64) bool {
+	if !s.cfg.FailOnHighLag { // if config disabled, never lagged
+		return false
+	}
 	lag := s.calculateTimeLag()
 	if lag == nil { // lag is unknown
 		return true // prefer error over potentially incomplete results
