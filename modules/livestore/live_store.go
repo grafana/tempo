@@ -687,6 +687,9 @@ func (s *LiveStore) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDReq
 
 // SearchRecent implements tempopb.Querier
 func (s *LiveStore) SearchRecent(ctx context.Context, req *tempopb.SearchRequest) (*tempopb.SearchResponse, error) {
+	if s.isLagged(int64(req.End) * 1e9) {
+		return nil, errLagged
+	}
 	return withInstance(ctx, s, func(inst *instance) (*tempopb.SearchResponse, error) {
 		return inst.Search(ctx, req)
 	})
@@ -737,9 +740,22 @@ func (s *LiveStore) GetMetrics(_ context.Context, _ *tempopb.SpanMetricsRequest)
 
 // QueryRange implements tempopb.MetricsGeneratorServer
 func (s *LiveStore) QueryRange(ctx context.Context, req *tempopb.QueryRangeRequest) (*tempopb.QueryRangeResponse, error) {
+	if s.isLagged(int64(req.End)) {
+		return nil, errLagged
+	}
 	return withInstance(ctx, s, func(inst *instance) (*tempopb.QueryRangeResponse, error) {
 		return inst.QueryRange(ctx, req)
 	})
+}
+
+var errLagged = errors.New("cannot guarantee complete results")
+
+func (s *LiveStore) isLagged(endNanos int64) bool {
+	lag := s.calculateTimeLag()
+	if lag == nil { // lag is unknown
+		return true // prefer error over potentially incomplete results
+	}
+	return time.Since(time.Unix(0, endNanos)) < *lag
 }
 
 // withInstance extracts the tenant ID from the context, gets the instance,
