@@ -9,17 +9,27 @@ weight: 400
 
 # Tempo architecture
 
-The journey of a trace is usually from an instrumented application, to a trace receiver/collector which can process the incoming trace spans before batching them up and sending them to a trace backend store (such as Tempo), and then those traces being retrieved and visualized in a tool like Grafana.
+The journey of a trace is usually from an instrumented application, to a trace receiver/collector,
+to a trace backend store, and then those traces being retrieved and visualized in a tool like Grafana.
 
 Tempo acts in two major capacities:
 
-- An ingester of trace span, sorting the span resources and attributes into columns in an Apache Parquet schema, before sending them to object storage for long-term retention.
+- Ingesting trace spans, sorting the span resources and attributes into columns in an Apache Parquet schema,
+  before sending them to object storage for long-term retention.
 - Retrieving trace data from storage, either by specific trace ID or by search parameters via TraceQL.
+
+Grafana Tempo has a microservices-based architecture. These microservices are called components.
+Components are horizontally scalable and can be run separately or in parallel.
+
+All components are compiled into the same binary. The `-target` parameter controls which component is started.
+
+To get started with Grafana Tempo, we recommend using the monolithic deployment option.
 
 Refer to the [example setups](https://grafana.com/docs/tempo/<TEMPO_VERSION>/set-up-for-tracing/setup-tempo/example-demo-app/)
 or [deployment options](https://grafana.com/docs/tempo/<TEMPO_VERSION>/set-up-for-tracing/setup-tempo/deploy/) for help deploying.
 
-![Tempo architecture diagram](/media/docs/tempo/tempo_arch.png)
+[//]: # (TODO: Update diagram)
+![Tempo architecture diagram](/media/docs/tempo/tempo_arch_3.0.png)
 
 ## Components
 
@@ -27,34 +37,49 @@ Tempo is made up of the following components.
 
 ### Distributor
 
-The distributor accepts spans in multiple formats including Jaeger, OpenTelemetry, Zipkin. It routes spans to ingesters by hashing the `traceID` and using a [distributed consistent hash ring](http://grafana.com/docs/tempo/<TEMPO_VERSION>/operations/manage-advanced-systems/consistent_hash_ring/).
-The distributor uses the receiver layer from the [OpenTelemetry Collector](https://github.com/open-telemetry/opentelemetry-collector).
+The distributor accepts spans in multiple formats including Jaeger, OpenTelemetry, Zipkin.
+It uses the receiver layer from the [OpenTelemetry Collector](https://github.com/open-telemetry/opentelemetry-collector).
 For best performance, it's recommended to ingest [OTel Proto](https://github.com/open-telemetry/opentelemetry-proto).
 For this reason, [Grafana Alloy](https://github.com/grafana/alloy/) uses the OTLP exporter/receiver to send spans to Tempo.
 
-Once data is received, the Distributor determines which Ingesters to send the data to if there is more than one Ingester configured.
+Once data is received, the distributor validates the request against limits, shards traces by hashing the `traceID`, and writes records to Kafka.
+The distributor uses the partition ring to determine which partitions are active and routes data accordingly.
+A write is only acknowledged to the client after Kafka has confirmed receipt of the data.
 
-### Ingester
+### Kafka-compatible system
 
-The Ingester is responsible for both indexing the received span data, and storing it into object storage.
-It does so by examining the incoming span data and partitioning its span and resource attributes into the Parquet schema to allow fast retrieval later.
-Ingesters build blocks of trace data for a configured period/maximum block size, before writing it to storage.
-There are configurable redundancy mechanisms in Ingesters to allow for partial outage of Tempo in scaled deployments (but not in monolithic mode).
+Tempo uses a Kafka-compatible system (such as Apache Kafka or Warpstream) as a durable queue between distributors and downstream components.
+This serves as a write-ahead log (WAL) that enables the decoupling of write and read paths.
 
-The Ingester batches trace into blocks, creates bloom filters and indexes, and then flushes it all to the backend.
-Blocks in the backend are generated in the following layout:
+When distributors receive trace data, they shard traces by trace ID and write records to Kafka partitions.
+Once Kafka acknowledges the write, the distributor returns a response to the client.
+From this point, the write and read paths diverge:
 
-```
-<bucketname> / <tenantID> / <blockID> / <meta.json>
-                                      / <index>
-                                      / <data>
-                                      / <bloom_0>
-                                      / <bloom_1>
-                                        ...
-                                      / <bloom_n>
-```
+- **Block-builders** consume from Kafka to build blocks for long-term object storage.
+- **Live-stores** consume from Kafka to serve recent data queries.
 
-Refer to the [Ingester](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/#ingester) documentation for more information on the configuration options.
+Because traces are sharded by trace ID to specific partitions, both block-builders and live-stores consume unique data without requiring deduplication.
+This enables Tempo to operate with a replication factor of 1 (RF1) while maintaining durability through Kafka.
+
+### Block builder
+
+The Block builder is responsible for building blocks which are sent to long-term storage.
+It does so by consuming from one or more Kafka partitions where distributors have sent trace spans to.
+The Block builder organizes spans into blocks based on a configurable time window (for example, 5 min).
+
+### Live store
+
+The live store is a read-path component responsible for serving recent trace data.
+It consumes trace data from Kafka and makes it available for queries, typically covering the last 30 minutes to 1 hour of data depending on configuration.
+
+Live stores own the partition lifecycle within Tempo.
+While Kafka has its own concept of partitions, Tempo maintains a separate **partition ring** that tracks which Tempo partitions are active and which live stores own them.
+Tempo partitions map to Kafka partitions, but they are logically distinct: the partition ring allows Tempo to control partition states (pending, active, inactive) and ownership independently of Kafka's internal partition management.
+
+For high availability, live stores are typically deployed across multiple availability zones.
+Each Tempo partition is owned by one live store per zone, so if a live store in one zone becomes unavailable, the live store in the other zone can continue serving queries.
+While this setup replicates data across zones (RF2), the read quorum is 1—queriers only need a response from one live store per partition.
+This provides high availability without requiring data deduplication on the read path.
 
 ### Query Frontend
 
@@ -75,11 +100,11 @@ Queriers connect to the Query Frontend via a streaming gRPC connection to proces
 ### Querier
 
 Queriers carry out the actual examination of block data in object storage to find any relevant span data based on the trace ID or TraceQL query given.
-As well as object storage, they also query Ingesters for any recent span data that may have been processed but not yet sent to object storage.
+As well as object storage, they also query live stores for any recent span data that may have been processed but not yet sent to object storage.
 This ensures that both historical and recent trace data is always available.
 
-The querier finds the requested trace ID in either the ingesters or the backend storage.
-Depending on parameters, the querier queries the ingesters for recently ingested traces and pulls the bloom filters and indexes from the backend storage to efficiently locate the traces within object storage blocks.
+The querier finds the requested trace ID in either the live stores or the backend storage.
+Depending on parameters, the querier queries the live stores for recently ingested traces and pulls the bloom filters and indexes from the backend storage to efficiently locate the traces within object storage blocks.
 
 The querier exposes an HTTP endpoint at:
 `GET /querier/api/traces/<traceID>`, but it's not intended for direct use.
@@ -90,7 +115,7 @@ Queries should be sent to the Query Frontend.
 
 The compactor is responsible for ensuring that the stored data is both compressed and deduplicated (more on deduplication in the advanced course).
 The compactor is also responsible for expiring data after the retention period for that data has been reached.
-Compactors run on scheduled frequent intervals to deal with data that is not compacted and has been stored by the ingesters.
+Compactors run on scheduled frequent intervals to deal with data that is not compacted and has been stored by the block builders.
 Compaction takes into account the data stored for specific traces to minimize search space on queries.
 
 ### Backend scheduler and worker
@@ -118,7 +143,24 @@ Tempo uses object storage for storing all tracing data. It supports three major 
 
 ### Metrics generator
 
-This is an **optional** component that derives metrics from ingested traces and writes them to a metrics storage. Refer to the [metrics-generator documentation](https://grafana.com/docs/tempo/<TEMPO_VERSION>/metrics-from-traces/metrics-generator/) to learn more.
+This is an **optional** component that derives metrics from ingested traces and writes them to a metrics storage.
+Like live stores, metrics generators consume trace data from Kafka.
+Refer to the [metrics-generator documentation](https://grafana.com/docs/tempo/<TEMPO_VERSION>/metrics-from-traces/metrics-generator/) to learn more.
+
+## Lifecycle of a write
+
+1. Trace data is sent from the tracing pipeline (OpenTelemetry Collector, Grafana Alloy) to a **distributor**.
+2. The distributor validates the request, shards traces by trace ID, and writes to **Kafka**.
+3. Kafka acknowledges the write, and the distributor returns a response to the client.
+4. **Live stores** consume from Kafka and make data available for recent queries.
+5. **Block builders** consume from Kafka and build blocks for long-term object storage.
+
+## Lifecycle of a read
+
+1. The **query frontend** receives a TraceQL query and shards it into jobs for recent data and long-term storage.
+2. **Queriers** retrieve recent data from **live stores**.
+3. For older data, queriers fetch blocks from **object storage**.
+4. Results are aggregated and returned to the user.
 
 ## Things to keep in mind
 
