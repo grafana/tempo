@@ -229,7 +229,7 @@ func New(cfg Config, next pipeline.RoundTripper, o overrides.Interface, reader t
 	queryRangePipeline := pipeline.Build(
 		[]pipeline.AsyncMiddleware[combiner.PipelineResponse]{
 			headerStripWare,
-			adjustEndWareNanos,
+			// adjustEndWareNanos, // due to alignments and combiner, it needs to be done in handler
 			urlDenyListWare,
 			queryValidatorWare,
 			pipeline.NewWeightRequestWare(pipeline.TraceQLMetrics, cfg.Weights),

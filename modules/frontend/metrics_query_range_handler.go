@@ -50,6 +50,17 @@ func newQueryRangeStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripp
 		if err := validateQueryRangeReq(cfg, req); err != nil {
 			return err
 		}
+
+		// the end time cutoff is applied here because it has to be done before combiner creation
+		if cfg.QueryEndCutoff > 0 {
+			now := time.Now()
+			maxEnd := now.Add(-cfg.QueryEndCutoff)
+			reqEnd := time.Unix(0, int64(req.End))
+			if reqEnd.After(maxEnd) {
+				req.End = uint64(maxEnd.UnixNano())
+			}
+		}
+
 		traceql.AlignRequest(req)
 
 		httpReq := api.BuildQueryRangeRequest(&http.Request{
@@ -120,6 +131,17 @@ func newMetricsQueryRangeHTTPHandler(cfg Config, next pipeline.AsyncRoundTripper
 			return httpInvalidRequest(err), nil
 		}
 		req = api.BuildQueryRangeRequest(req, queryRangeReq, "")
+
+		// the end time cutoff is applied here because it has to be done before combiner creation
+		if cfg.QueryEndCutoff > 0 {
+			now := time.Now()
+			maxEnd := now.Add(-cfg.QueryEndCutoff)
+			reqEnd := time.Unix(0, int64(queryRangeReq.End))
+			if reqEnd.After(maxEnd) {
+				queryRangeReq.End = uint64(maxEnd.UnixNano())
+			}
+		}
+
 		traceql.AlignRequest(queryRangeReq)
 
 		// build and use roundtripper
