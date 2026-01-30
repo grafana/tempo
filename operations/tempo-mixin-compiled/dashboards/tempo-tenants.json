@@ -333,7 +333,7 @@
      "span": 4,
      "targets": [
       {
-       "expr": "max(tempo_ingester_live_traces{cluster=~\"$cluster\", job=~\"($namespace)/ingester\",tenant=\"$tenant\"})",
+       "expr": "max(tempo_live_store_live_traces{cluster=~\"$cluster\", job=~\"($namespace)/live-store.*\",tenant=\"$tenant\"})",
        "format": "time_series",
        "interval": "1m",
        "legendFormat": "live traces",
