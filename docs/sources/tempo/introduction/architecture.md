@@ -18,12 +18,12 @@ Tempo acts in two major capacities:
   before sending them to object storage for long-term retention.
 - Retrieving trace data from storage, either by specific trace ID or by search parameters via TraceQL.
 
-Grafana Tempo has a microservices-based architecture. These microservices are called components.
-Components are horizontally scalable and can be run separately or in parallel.
+Grafana Tempo has a microservices-based architecture.
+All components are compiled into the same binary, and the `-target` parameter controls which component is started.
+This allows Tempo to run in two modes:
 
-All components are compiled into the same binary. The `-target` parameter controls which component is started.
-
-To get started with Grafana Tempo, we recommend using the monolithic deployment option.
+- **Monolithic mode**: All components run in a single process. Recommended for getting started.
+- **Microservices mode**: Each component runs as a separate process, allowing independent scaling.
 
 Refer to the [example setups](https://grafana.com/docs/tempo/<TEMPO_VERSION>/set-up-for-tracing/setup-tempo/example-demo-app/)
 or [deployment options](https://grafana.com/docs/tempo/<TEMPO_VERSION>/set-up-for-tracing/setup-tempo/deploy/) for help deploying.
