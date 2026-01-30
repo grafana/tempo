@@ -1730,3 +1730,50 @@ func TestMetricsSecondStageErrors(t *testing.T) {
 		})
 	}
 }
+
+func TestParseRewrites(t *testing.T) {
+	tests := []struct {
+		name  string
+		query string
+		want  string
+	}{
+		{
+			name:  "no rewrites",
+			query: "{ .attr = `foo` }",
+			want:  "{ .attr = `foo` }",
+		},
+		{
+			name:  "query with rewrite OR",
+			query: "{ .attr = `foo` || .attr = `bar` } | rate()",
+			want:  "{ .attr IN [`foo`, `bar`] } | rate()",
+		},
+		{
+			name:  "query with rewrite AND",
+			query: "{ .attr != `foo` && .attr != `bar` }",
+			want:  "{ .attr NOT IN [`foo`, `bar`] }",
+		},
+		{
+			name:  "query with rewrite OR regex",
+			query: "{ .attr =~ `foo` || .attr =~ `bar` }",
+			want:  "{ .attr MATCH ANY [`foo`, `bar`] }",
+		},
+		{
+			name:  "query with rewrite AND regex",
+			query: "{ .attr !~ `foo` && .attr !~ `bar` }",
+			want:  "{ .attr MATCH NONE [`foo`, `bar`] }",
+		},
+		{
+			name:  "skip rewrites hint",
+			query: "{ .attr = `foo` || .attr = `bar` } | rate() with(skip_optimization=true)",
+			want:  "{ (.attr = `foo`) || (.attr = `bar`) } | rate() with(skip_optimization=true)",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			actual, err := Parse(tc.query)
+			require.NoError(t, err)
+			require.Equal(t, tc.want, actual.String())
+		})
+	}
+}
