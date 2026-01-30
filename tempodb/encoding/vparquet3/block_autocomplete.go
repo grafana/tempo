@@ -410,7 +410,7 @@ func createDistinctSpanIterator(
 			}
 
 			// Compatible type?
-			if entry.typ == operandType(cond.Operands) {
+			if isMatchingColumnType(entry.typ, operandType(cond.Operands)) {
 				pred, err := createPredicate(cond.Op, cond.Operands)
 				if err != nil {
 					return nil, errors.Wrap(err, "creating predicate")
@@ -442,7 +442,7 @@ func createDistinctSpanIterator(
 
 			// Compatible type?
 			typ, _ := c.Type.ToStaticType()
-			if typ == operandType(cond.Operands) {
+			if isMatchingColumnType(typ, operandType(cond.Operands)) {
 				pred, err := createPredicate(cond.Op, cond.Operands)
 				if err != nil {
 					return nil, errors.Wrap(err, "creating predicate")
@@ -702,7 +702,7 @@ func createDistinctResourceIterator(
 			}
 
 			// Compatible type?
-			if entry.typ == operandType(cond.Operands) {
+			if isMatchingColumnType(entry.typ, operandType(cond.Operands)) {
 				pred, err := createPredicate(cond.Op, cond.Operands)
 				if err != nil {
 					return nil, errors.Wrap(err, "creating predicate")
@@ -737,7 +737,7 @@ func createDistinctResourceIterator(
 
 			// Compatible type?
 			typ, _ := c.Type.ToStaticType()
-			if typ == operandType(cond.Operands) {
+			if isMatchingColumnType(typ, operandType(cond.Operands)) {
 				pred, err := createPredicate(cond.Op, cond.Operands)
 				if err != nil {
 					return nil, errors.Wrap(err, "creating predicate")
