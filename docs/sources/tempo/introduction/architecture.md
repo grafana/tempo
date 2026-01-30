@@ -28,7 +28,6 @@ To get started with Grafana Tempo, we recommend using the monolithic deployment 
 Refer to the [example setups](https://grafana.com/docs/tempo/<TEMPO_VERSION>/set-up-for-tracing/setup-tempo/example-demo-app/)
 or [deployment options](https://grafana.com/docs/tempo/<TEMPO_VERSION>/set-up-for-tracing/setup-tempo/deploy/) for help deploying.
 
-[//]: # (TODO: Update diagram)
 ![Tempo architecture diagram](/media/docs/tempo/tempo_arch_3.0.png)
 
 ## Components
