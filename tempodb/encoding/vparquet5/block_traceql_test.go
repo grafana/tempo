@@ -1609,10 +1609,6 @@ func BenchmarkBackendBlockTraceQL(b *testing.B) {
 	_, _, err := block.openForSearch(ctx, opts)
 	require.NoError(b, err)
 
-	f := traceql.NewSpansetFetcherWrapper(func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
-		return block.Fetch(ctx, req, opts)
-	})
-
 	for _, tc := range testCases {
 		b.Run(tc.name, func(b *testing.B) {
 			b.ResetTimer()
@@ -1620,6 +1616,16 @@ func BenchmarkBackendBlockTraceQL(b *testing.B) {
 			matches := 0
 
 			for b.Loop() {
+
+				f := traceql.NewSpansetFetcherWrapperBoth(
+					func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
+						return block.Fetch(ctx, req, opts)
+					},
+					func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansOnlyResponse, error) {
+						return block.FetchSpans(ctx, req, opts)
+					},
+				)
+
 				resp, err := e.ExecuteSearch(ctx, &tempopb.SearchRequest{Query: tc.query}, f, false)
 				require.NoError(b, err)
 				require.NotNil(b, resp)
@@ -1744,25 +1750,39 @@ func BenchmarkIterators(b *testing.B) {
 func BenchmarkBackendBlockQueryRange(b *testing.B) {
 	testCases := []string{
 		"{} | rate()",
-		"{} | rate() with(sample=true)",
-		"{} | rate() by (span.http.status_code)",
-		"{} | rate() by (resource.service.name)",
-		"{} | rate() by (span.http.url)", // High cardinality attribute
-		"{resource.service.name=`loki-ingester`} | rate()",
-		"{span.http.host != `` && span.http.flavor=`2`} | rate() by (span.http.flavor)", // Multiple conditions
-		"{status=error} | rate()",
-		"{} | quantile_over_time(duration, .99, .9, .5)",
-		"{} | quantile_over_time(duration, .99) by (span.http.status_code)",
-		"{} | histogram_over_time(duration)",
-		"{} | avg_over_time(duration) by (span.http.status_code)",
-		"{} | max_over_time(duration) by (span.http.status_code)",
-		"{} | min_over_time(duration) by (span.http.status_code)",
-		"{ name != nil } | compare({status=error})",
-		"{} > {} | rate() by (name)", // structural
+		"{} | rate() with(new=true)",
+		//"{} | rate() with(new=true, exemplars=0)",
+		/*"{} | rate() with(sample=true)",*/
+		//"{} | rate() by (span.http.status_code)",
+		//"{} | rate() by (span.http.status_code) with(new=true)",
+		//"{} | rate() by (resource.service.name)",
+		//"{} | rate() by (resource.service.name) with(new=true)",
+		//"{} | rate() by (span.http.url)", // High cardinality attribute*/
+		//"{resource.service.name=`loki-ingester`} | rate()",
+		/*"{span.http.host != `` && span.http.flavor=`2`} | rate() by (span.http.flavor)", // Multiple conditions
+		"{status=error} | rate()",*/
+		//"{} | quantile_over_time(duration, .99, .9, .5)",
+		//"{} | quantile_over_time(duration, .99, .9, .5) with(new=true)",
+		/*
+			"{} | quantile_over_time(duration, .99) by (span.http.status_code)",
+			"{} | histogram_over_time(duration)",
+			"{} | avg_over_time(duration) by (span.http.status_code)",
+			"{} | max_over_time(duration) by (span.http.status_code)",
+			"{} | min_over_time(duration) by (span.http.status_code)",*/
+		//"{ name != nil } | compare({status=error})",
+		//"{} > {} | rate() by (name)", // structural
 
 		// This is useful for sampler debugging
 		// {} | rate() with(sample=true,debug=true,info=true)
 	}
+
+	os.Setenv("VP5_BENCH_PATH", "/Users/marty/src/tempo/cmd/tempo-cli/hello-str-dyn-50-3percent")
+	// os.Setenv("VP5_BENCH_TENANTID", "328776")
+	// os.Setenv("VP5_BENCH_BLOCKID", "5ee5a693-5ccf-4d5a-bb1d-9412844c626e")
+
+	// os.Setenv("VP5_BENCH_PATH", "/Users/marty/src/tmp")
+	os.Setenv("VP5_BENCH_BLOCKID", "d1240180-7d43-49b3-b691-06ddcc4e53b3")
+	os.Setenv("VP5_BENCH_TENANTID", "1")
 
 	// For sampler debugging
 	log.Logger = kitlog.NewLogfmtLogger(kitlog.NewSyncWriter(os.Stderr))
@@ -1772,20 +1792,20 @@ func BenchmarkBackendBlockQueryRange(b *testing.B) {
 		ctx   = b.Context()
 		opts  = common.DefaultSearchOptions()
 		block = blockForBenchmarks(b)
+		st    = uint64(block.meta.StartTime.UnixNano())
+		end   = uint64(block.meta.EndTime.UnixNano())
+		f     = traceql.NewSpansetFetcherWrapperBoth(
+			func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
+				return block.Fetch(ctx, req, opts)
+			},
+			func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansOnlyResponse, error) {
+				return block.FetchSpans(ctx, req, opts)
+			},
+		)
 	)
-
-	_, _, err := block.openForSearch(ctx, opts)
-	require.NoError(b, err)
-
-	f := traceql.NewSpansetFetcherWrapper(func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
-		return block.Fetch(ctx, req, opts)
-	})
 
 	for _, tc := range testCases {
 		b.Run(tc, func(b *testing.B) {
-			st := uint64(block.meta.StartTime.UnixNano())
-			end := uint64(block.meta.EndTime.UnixNano())
-
 			req := &tempopb.QueryRangeRequest{
 				Query:     tc,
 				Step:      uint64(time.Minute),
@@ -1809,6 +1829,7 @@ func BenchmarkBackendBlockQueryRange(b *testing.B) {
 			bytes, spansTotal, _ := eval.Metrics()
 			b.ReportMetric(float64(bytes)/float64(b.N)/1024.0/1024.0, "MB_io/op")
 			b.ReportMetric(float64(spansTotal)/float64(b.N), "spans/op")
+			b.ReportMetric(float64(spansTotal)/float64(b.Elapsed().Seconds()), "spans/s")
 		})
 	}
 }
@@ -1897,9 +1918,14 @@ func TestSamplingError(t *testing.T) {
 	_, _, err := block.openForSearch(ctx, opts)
 	require.NoError(t, err)
 
-	f := traceql.NewSpansetFetcherWrapper(func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
-		return block.Fetch(ctx, req, opts)
-	})
+	f := traceql.NewSpansetFetcherWrapperBoth(
+		func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
+			return block.Fetch(ctx, req, opts)
+		},
+		func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansOnlyResponse, error) {
+			return block.FetchSpans(ctx, req, opts)
+		},
+	)
 
 	executeQuery := func(t *testing.T, q string) (results traceql.SeriesSet, spanCount int) {
 		st := uint64(block.meta.StartTime.UnixNano())

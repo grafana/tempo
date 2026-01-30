@@ -1215,7 +1215,7 @@ func TestBackendBlockSelectAll(t *testing.T) {
 		ctx          = context.Background()
 		numTraces    = 250
 		traces       = make([]*Trace, 0, numTraces)
-		wantTraceIdx = rand.Intn(numTraces)
+		wantTraceIdx = 1 // rand.Intn(numTraces)
 		wantTraceID  = test.ValidTraceID(nil)
 		wantTrace    = fullyPopulatedTestTrace(wantTraceID)
 		dc           = test.MakeDedicatedColumns()

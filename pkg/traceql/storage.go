@@ -3,6 +3,8 @@ package traceql
 import (
 	"context"
 	"time"
+
+	"github.com/grafana/tempo/pkg/util"
 )
 
 type Operands []Static
@@ -249,8 +251,20 @@ type FetchSpansResponse struct {
 	Bytes func() uint64
 }
 
+type SpanIterator interface {
+	Next(context.Context) (Span, error)
+	Close()
+}
+
+type FetchSpansOnlyResponse struct {
+	Results SpanIterator
+	// callback to get the size of data read during Fetch
+	Bytes func() uint64
+}
+
 type SpansetFetcher interface {
 	Fetch(context.Context, FetchSpansRequest) (FetchSpansResponse, error)
+	FetchSpans(context.Context, FetchSpansRequest) (FetchSpansOnlyResponse, error)
 }
 
 // FetchTagValuesCallback is called to collect unique tag values.
@@ -310,17 +324,29 @@ func ExtractFetchSpansRequest(query string) (FetchSpansRequest, error) {
 }
 
 type SpansetFetcherWrapper struct {
-	f func(ctx context.Context, req FetchSpansRequest) (FetchSpansResponse, error)
+	f  func(ctx context.Context, req FetchSpansRequest) (FetchSpansResponse, error)
+	f2 func(ctx context.Context, req FetchSpansRequest) (FetchSpansOnlyResponse, error)
 }
 
-var _ = (SpansetFetcher)(&SpansetFetcherWrapper{})
+var _ SpansetFetcher = (*SpansetFetcherWrapper)(nil)
 
 func NewSpansetFetcherWrapper(f func(ctx context.Context, req FetchSpansRequest) (FetchSpansResponse, error)) SpansetFetcher {
-	return SpansetFetcherWrapper{f}
+	return SpansetFetcherWrapper{f, nil}
+}
+
+func NewSpansetFetcherWrapperBoth(f func(ctx context.Context, req FetchSpansRequest) (FetchSpansResponse, error), f2 func(ctx context.Context, req FetchSpansRequest) (FetchSpansOnlyResponse, error)) SpansetFetcher {
+	return SpansetFetcherWrapper{f, f2}
 }
 
 func (s SpansetFetcherWrapper) Fetch(ctx context.Context, request FetchSpansRequest) (FetchSpansResponse, error) {
 	return s.f(ctx, request)
+}
+
+func (s SpansetFetcherWrapper) FetchSpans(ctx context.Context, request FetchSpansRequest) (FetchSpansOnlyResponse, error) {
+	if s.f2 == nil {
+		return FetchSpansOnlyResponse{}, util.ErrUnsupported
+	}
+	return s.f2(ctx, request)
 }
 
 type FetchTagsCallback func(tag string, scope AttributeScope) bool

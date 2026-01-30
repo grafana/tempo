@@ -13,6 +13,7 @@ import (
 	"github.com/grafana/tempo/pkg/tempopb"
 	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 	"github.com/grafana/tempo/pkg/traceql"
+	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/pkg/util/test"
 	"github.com/grafana/tempo/tempodb"
 	"github.com/grafana/tempo/tempodb/backend"
@@ -428,6 +429,10 @@ func (m *mockBlock) SearchTagValuesV2(context.Context, traceql.Attribute, common
 
 func (m *mockBlock) Fetch(context.Context, traceql.FetchSpansRequest, common.SearchOptions) (traceql.FetchSpansResponse, error) {
 	return traceql.FetchSpansResponse{}, nil
+}
+
+func (m *mockBlock) FetchSpans(context.Context, traceql.FetchSpansRequest, common.SearchOptions) (traceql.FetchSpansOnlyResponse, error) {
+	return traceql.FetchSpansOnlyResponse{}, util.ErrUnsupported
 }
 
 func (m *mockBlock) FetchTagValues(context.Context, traceql.FetchTagValuesRequest, traceql.FetchTagValuesCallback, common.MetricsCallback, common.SearchOptions) error {

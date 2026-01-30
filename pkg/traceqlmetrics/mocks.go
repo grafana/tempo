@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/grafana/tempo/pkg/traceql"
+	"github.com/grafana/tempo/pkg/util"
 )
 
 type mockSpan struct {
@@ -87,6 +88,10 @@ func (m *mockFetcher) Fetch(_ context.Context, req traceql.FetchSpansRequest) (t
 	return traceql.FetchSpansResponse{
 		Results: m,
 	}, nil
+}
+
+func (m *mockFetcher) FetchSpans(_ context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansOnlyResponse, error) {
+	return traceql.FetchSpansOnlyResponse{}, util.ErrUnsupported
 }
 
 func (m *mockFetcher) Next(context.Context) (*traceql.Spanset, error) {

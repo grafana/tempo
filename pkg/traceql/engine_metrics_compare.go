@@ -253,7 +253,9 @@ func (m *MetricsCompare) result(multiplier float64) SeriesSet {
 		}
 	}
 
+	fmt.Println("addValues baselines")
 	addValues(internalLabelTypeBaseline, m.baselines)
+	fmt.Println("addValues selections")
 	addValues(internalLabelTypeSelection, m.selections)
 
 	// Add errors for attributes that hit the limit in either area

@@ -725,6 +725,11 @@ func (b *walBlock) Fetch(ctx context.Context, req traceql.FetchSpansRequest, _ c
 	}, nil
 }
 
+func (b *walBlock) FetchSpans(ctx context.Context, req traceql.FetchSpansRequest, _ common.SearchOptions) (traceql.FetchSpansOnlyResponse, error) {
+	// TODO
+	return traceql.FetchSpansOnlyResponse{}, util.ErrUnsupported
+}
+
 func (b *walBlock) FetchTagValues(ctx context.Context, req traceql.FetchTagValuesRequest, cb traceql.FetchTagValuesCallback, mcb common.MetricsCallback, opts common.SearchOptions) error {
 	ctx, span := tracer.Start(ctx, "walBlock.FetchTagValues")
 	defer span.End()

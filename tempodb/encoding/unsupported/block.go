@@ -44,6 +44,10 @@ func (b Block) Fetch(context.Context, traceql.FetchSpansRequest, common.SearchOp
 	return traceql.FetchSpansResponse{}, util.ErrUnsupported
 }
 
+func (b Block) FetchSpans(ctx context.Context, req traceql.FetchSpansRequest, opts common.SearchOptions) (traceql.FetchSpansOnlyResponse, error) {
+	return traceql.FetchSpansOnlyResponse{}, util.ErrUnsupported
+}
+
 func (b Block) FetchTagValues(context.Context, traceql.FetchTagValuesRequest, traceql.FetchTagValuesCallback, common.MetricsCallback, common.SearchOptions) error {
 	return nil
 }

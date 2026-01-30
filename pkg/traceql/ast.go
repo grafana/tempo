@@ -407,24 +407,59 @@ func newSpansetOperation(op Operator, lhs, rhs SpansetExpression) SpansetOperati
 	}
 }
 
+/*type noopSpansetFilter struct{}
+
+var _ PipelineElement = (*noopSpansetFilter)(nil)
+
+func (noopSpansetFilter) evaluate(input []*Spanset) ([]*Spanset, error) {
+	return input, nil
+}
+
+func (noopSpansetFilter) extractConditions(request *FetchSpansRequest) {
+}
+
+func (noopSpansetFilter) String() string {
+	return "noopSpansetFilter"
+}
+
+func (noopSpansetFilter) validate() error {
+	return nil
+}*/
+
 // nolint: revive
 func (SpansetOperation) __spansetExpression() {}
 
 type SpansetFilter struct {
 	Expression          FieldExpression
 	matchingSpansBuffer []Span
+	// noop                bool
 }
 
 func newSpansetFilter(e FieldExpression) *SpansetFilter {
-	return &SpansetFilter{
+	f := &SpansetFilter{
 		Expression: e,
 	}
+
+	// AST rewrite for simplification
+	/*if !e.referencesSpan() && e.validate() == nil {
+		if simplified, err := e.execute(nil); err == nil {
+			if b, ok := simplified.Bool(); ok && b {
+				f.noop = true
+			}
+		}
+	}*/
+
+	return f
 }
 
 // nolint: revive
 func (*SpansetFilter) __spansetExpression() {}
 
 func (f *SpansetFilter) evaluate(input []*Spanset) ([]*Spanset, error) {
+	/*if f.noop {
+		return input, nil
+	}*/
+
 	var outputBuffer []*Spanset
 
 	for _, ss := range input {
