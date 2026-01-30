@@ -625,6 +625,23 @@ For example, to get a failing endpoint AND all descendant failing spans in one q
 { span.http.url = "/path/of/api" && status = error } &>> { status = error }
 ```
 
+### Cross-trace link traversal
+
+These spanset operators allow you to query spans across traces that are connected by span links. 
+Normal structural operators only look at relationships within a single trace. Link traversal 
+operators can traverse from a span in one trace to a linked span in a completely different trace.
+
+- `{condA} ->> {condB}` - The link-to operator (`->>`) looks for spans matching `{condB}` that are linked TO from a span matching `{condA}`.
+- `{condA} <<- {condB}` - The link-from operator (`<<-`) looks for spans matching `{condB}` that are linked FROM by a span matching `{condA}`.
+- `{condA} &->> {condB}` - The union link-to operator (`&->>`) returns spans that match both `{condA}` AND the linked spans matching `{condB}`.
+- `{condA} &<<- {condB}` - The union link-from operator (`&<<-`) returns spans that match both `{condA}` AND the linking spans matching `{condB}`.
+
+For example, to find a backend trace that was triggered by a specific gateway request via a span link:
+
+```traceql
+{ resource.service.name = "gateway" && span.http.url = "/api/v1/resource" } ->> { resource.service.name = "backend" }
+```
+
 ### Experimental structural
 
 These spanset operators look at the structure of a trace and the relationship between the spans.
