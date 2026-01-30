@@ -155,3 +155,5 @@ brews:
     repository:
       owner: grafana
       name: homebrew-grafana
+      pull_request:
+            enabled: true
