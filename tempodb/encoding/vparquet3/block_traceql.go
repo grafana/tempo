@@ -2172,7 +2172,7 @@ func createDurationPredicate(op traceql.Operator, operands traceql.Operands) (pa
 		return pred, nil
 	}
 
-	if operands[0].Type == traceql.TypeFloat || operands[0].Type == traceql.TypeFloatArray {
+	if len(operands) > 0 && (operands[0].Type == traceql.TypeFloat || operands[0].Type == traceql.TypeFloatArray) {
 		// The column is already indexed as int, so we need to convert the float to int
 		return createIntPredicateFromFloat(op, operands)
 	}
@@ -2195,6 +2195,10 @@ func createDurationPredicate(op traceql.Operator, operands traceql.Operands) (pa
 func createIntPredicateFromFloat(op traceql.Operator, operands traceql.Operands) (parquetquery.Predicate, error) {
 	if pred, handled := createExistencePredicate(op); handled {
 		return pred, nil
+	}
+
+	if len(operands) == 0 {
+		return nil, fmt.Errorf("operands cannot be empty")
 	}
 
 	switch operands[0].Type {
@@ -2284,6 +2288,10 @@ func createIntPredicateFromFloat(op traceql.Operator, operands traceql.Operands)
 func createIntPredicate(op traceql.Operator, operands traceql.Operands) (parquetquery.Predicate, error) {
 	if pred, handled := createExistencePredicate(op); handled {
 		return pred, nil
+	}
+
+	if len(operands) == 0 {
+		return nil, fmt.Errorf("operands cannot be empty")
 	}
 
 	var i int64

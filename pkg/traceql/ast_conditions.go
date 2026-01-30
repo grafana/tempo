@@ -48,19 +48,20 @@ func (o *BinaryOperation) extractConditions(request *FetchSpansRequest) {
 	case Attribute:
 		switch r := o.RHS.(type) {
 		case Static:
-			if (o.RHS.(Static).Type == TypeNil && o.Op == OpNotEqual) || !o.Op.isBoolean() { // the fetch layer can't build predicates on operators that are not boolean
+			switch {
+			case (o.RHS.(Static).Type == TypeNil && o.Op == OpNotEqual) || !o.Op.isBoolean(): // the fetch layer can't build predicates on operators that are not boolean
 				request.appendCondition(Condition{
 					Attribute: l,
 					Op:        OpNone,
 					Operands:  nil,
 				})
-			} else if r.Type == TypeBoolean && (o.Op == OpOr || o.Op == OpAnd) {
+			case r.Type == TypeBoolean && (o.Op == OpOr || o.Op == OpAnd):
 				request.appendCondition(Condition{
 					Attribute: l,
 					Op:        OpNone,
 					Operands:  nil,
 				})
-			} else {
+			default:
 				op := o.Op
 				if op.isArrayOp() {
 					op = op.toElementOp()
@@ -97,19 +98,20 @@ func (o *BinaryOperation) extractConditions(request *FetchSpansRequest) {
 		case Static:
 			return // if both are Static, don't need to send any conditions
 		case Attribute:
-			if (o.LHS.(Static).Type == TypeNil && o.Op == OpNotEqual) || !o.Op.isBoolean() { // the fetch layer can't build predicates on operators that are not boolean
+			switch {
+			case (o.LHS.(Static).Type == TypeNil && o.Op == OpNotEqual) || !o.Op.isBoolean(): // the fetch layer can't build predicates on operators that are not boolean
 				request.appendCondition(Condition{
 					Attribute: r,
 					Op:        OpNone,
 					Operands:  nil,
 				})
-			} else if l.Type == TypeBoolean && (o.Op == OpOr || o.Op == OpAnd) {
+			case l.Type == TypeBoolean && (o.Op == OpOr || o.Op == OpAnd):
 				request.appendCondition(Condition{
 					Attribute: r,
 					Op:        OpNone,
 					Operands:  nil,
 				})
-			} else {
+			default:
 				op := o.Op
 				if op.isArrayOp() {
 					op = op.toElementOp()

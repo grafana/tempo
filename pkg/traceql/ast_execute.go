@@ -442,7 +442,8 @@ func binOpExecute(op Operator, lhs, rhs Static, expressions []*regexp.Regexp, re
 		return StaticFalse, false, nil, nil
 	}
 
-	if lhsT == TypeString && rhsT == TypeString {
+	switch {
+	case lhsT == TypeString && rhsT == TypeString:
 		// if both types are strings, execute string operations ...
 		res, executed, exp, err := binOpExecuteString(op, lhs, rhs, expressions)
 		if err != nil {
@@ -453,14 +454,14 @@ func binOpExecute(op Operator, lhs, rhs Static, expressions []*regexp.Regexp, re
 			return res, true, exp, nil
 		}
 		// if not executed, fall back to the catch-all below
-	} else if lhsT == TypeInt && rhsT == TypeInt {
+	case lhsT == TypeInt && rhsT == TypeInt:
 		// if both types are ints, execute int operations
 		res, executed := binOpExecuteInt(op, lhs, rhs)
 		if executed {
 			return res, true, expressions, nil
 		}
 		// if not executed, fall back to the catch-all below
-	} else if lhsT == TypeBoolean && rhsT == TypeBoolean {
+	case lhsT == TypeBoolean && rhsT == TypeBoolean:
 		// if both types are bools, execute boolean operations
 		lhsB, _ := lhs.Bool()
 		rhsB, _ := rhs.Bool()
@@ -493,7 +494,7 @@ func binOpExecute(op Operator, lhs, rhs Static, expressions []*regexp.Regexp, re
 			return res, true, expressions, nil
 		}
 		// if not executed, fall back to the catch-all below
-	} else if lhsT.isMatchingArrayElement(rhsT) {
+	case lhsT.isMatchingArrayElement(rhsT):
 		// if operands matching arrays / array elements, execute array operations
 		res, executed, exp, err := binOpExecuteArray(op, lhs, rhs, expressions)
 		if err != nil {

@@ -892,11 +892,11 @@ func TestSpansetOperationEvaluateArray(t *testing.T) {
 		//	[]*Spanset{
 		//		{Spans: []Span{
 		//			&mockSpan{id: []byte{1}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticBooleanArray([]bool{true, false})}},
-		//			&mockSpan{id: []byte{2}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticBooleanArray([]bool{true, true})}},
-		//			&mockSpan{id: []byte{3}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticBooleanArray([]bool{false, false})}},
-		//		}},
-		//	},
-		//},
+		// 			&mockSpan{id: []byte{2}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticBooleanArray([]bool{true, true})}},
+		// 			&mockSpan{id: []byte{3}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticBooleanArray([]bool{false, false})}},
+		// 		}},
+		// 	},
+		// },
 		// empty arrays
 		{
 			"{ .foo = 1 }",
@@ -1213,11 +1213,11 @@ func TestSpansetOperationEvaluateArraySymmetric(t *testing.T) {
 		//	[]*Spanset{
 		//		{Spans: []Span{
 		//			&mockSpan{id: []byte{1}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticBooleanArray([]bool{true, false})}},
-		//			&mockSpan{id: []byte{2}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticBooleanArray([]bool{true, true})}},
-		//			&mockSpan{id: []byte{3}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticBooleanArray([]bool{false, false})}},
-		//		}},
-		//	},
-		//},
+		// 			&mockSpan{id: []byte{2}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticBooleanArray([]bool{true, true})}},
+		// 			&mockSpan{id: []byte{3}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticBooleanArray([]bool{false, false})}},
+		// 		}},
+		// 	},
+		// },
 	}
 	for _, tc := range testCases {
 		testEvaluator(t, tc)

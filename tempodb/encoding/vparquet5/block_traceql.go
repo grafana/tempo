@@ -2791,6 +2791,10 @@ func createIntPredicateFromFloat(op traceql.Operator, operands traceql.Operands)
 		return pred, nil
 	}
 
+	if len(operands) == 0 {
+		return nil, fmt.Errorf("operands cannot be empty")
+	}
+
 	switch operands[0].Type {
 	case traceql.TypeFloat:
 		f := operands[0].Float()
