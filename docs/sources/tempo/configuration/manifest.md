@@ -1416,4 +1416,6 @@ live_store:
               name: http.status_code
               type: int
               options: []
+    readiness_target_lag: 0s
+    readiness_max_wait: 30m0s
 ```

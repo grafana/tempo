@@ -42,7 +42,7 @@ const (
 )
 
 var maxSupportedColumns = map[DedicatedColumnType]map[DedicatedColumnScope]int{
-	DedicatedColumnTypeString: {DedicatedColumnScopeSpan: 10, DedicatedColumnScopeResource: 10, DedicatedColumnScopeEvent: 10},
+	DedicatedColumnTypeString: {DedicatedColumnScopeSpan: 20, DedicatedColumnScopeResource: 20, DedicatedColumnScopeEvent: 20},
 	DedicatedColumnTypeInt:    {DedicatedColumnScopeSpan: 5, DedicatedColumnScopeResource: 5, DedicatedColumnScopeEvent: 5},
 }
 
@@ -131,6 +131,17 @@ const (
 	MetricsGeneratorReplicationFactor = 1
 	LiveStoreReplicationFactor        = MetricsGeneratorReplicationFactor
 )
+
+type WarnTooManyColumns struct {
+	Type     DedicatedColumnType
+	Scope    DedicatedColumnScope
+	Count    int
+	MaxCount int
+}
+
+func (w WarnTooManyColumns) Error() string {
+	return fmt.Sprintf("invalid dedicated attribute columns: number of columns with type '%s' and scope '%s' must be <= %d but was %d", w.Type, w.Scope, w.MaxCount, w.Count)
+}
 
 var defaultDedicatedColumns = DedicatedColumns{
 	// resource
@@ -315,13 +326,14 @@ func (dcs DedicatedColumns) ToTempopb() ([]*tempopb.DedicatedColumn, error) {
 	return tempopbCols, nil
 }
 
-func (dcs DedicatedColumns) Validate() error {
+func (dcs DedicatedColumns) Validate() (warnings []error, err error) {
 	columnCount := map[DedicatedColumnType]map[DedicatedColumnScope]int{}
 	nameCount := map[DedicatedColumnScope]map[string]struct{}{}
 
 	for _, dc := range dcs {
 		if dc.Name == "" {
-			return fmt.Errorf("invalid dedicated attribute columns: empty name")
+			err = fmt.Errorf("invalid dedicated attribute columns: empty name")
+			return
 		}
 
 		// check for duplicate names
@@ -329,7 +341,8 @@ func (dcs DedicatedColumns) Validate() error {
 			nameCount[dc.Scope] = map[string]struct{}{dc.Name: {}}
 		} else {
 			if _, duplicate := names[dc.Name]; duplicate {
-				return fmt.Errorf("invalid dedicated attribute columns: duplicate name '%s' for scope '%s'", dc.Name, dc.Scope)
+				err = fmt.Errorf("invalid dedicated attribute columns: duplicate name '%s' for scope '%s'", dc.Name, dc.Scope)
+				return
 			}
 			names[dc.Name] = struct{}{}
 		}
@@ -343,7 +356,8 @@ func (dcs DedicatedColumns) Validate() error {
 
 		for _, opt := range dc.Options {
 			if opt != DedicatedColumnOptionArray && opt != DedicatedColumnOptionBlob {
-				return fmt.Errorf("invalid dedicated attribute columns: invalid option '%s'", opt)
+				err = fmt.Errorf("invalid dedicated attribute columns: invalid option '%s'", opt)
+				return
 			}
 		}
 	}
@@ -353,19 +367,21 @@ func (dcs DedicatedColumns) Validate() error {
 		for scope, count := range scopes {
 			supportedScopes, ok := maxSupportedColumns[typ]
 			if !ok {
-				return fmt.Errorf("invalid dedicated attribute columns: unsupported dedicated column type '%s'", typ)
+				err = fmt.Errorf("invalid dedicated attribute columns: unsupported dedicated column type '%s'", typ)
+				return
 			}
 			maxCount, ok := supportedScopes[scope]
 			if !ok {
-				return fmt.Errorf("invalid dedicated attribute columns: unsupported dedicated column scope '%s'", scope)
+				err = fmt.Errorf("invalid dedicated attribute columns: unsupported dedicated column scope '%s'", scope)
+				return
 			}
 			if count > maxCount {
-				return fmt.Errorf("invalid dedicated attribute columns: number of columns with type '%s' and scope '%s' must be <= %d but was %d", typ, scope, maxCount, count)
+				warnings = append(warnings, WarnTooManyColumns{Type: typ, Scope: scope, Count: count, MaxCount: maxCount})
 			}
 		}
 	}
 
-	return nil
+	return
 }
 
 // separatorByte is a byte that cannot occur in valid UTF-8 sequences

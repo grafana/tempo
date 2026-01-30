@@ -180,6 +180,10 @@ func (a Attribute) String() string {
 		scope += "."
 	}
 
+	if ContainsNonAttributeRune(att) {
+		att = "\"" + att + "\""
+	}
+
 	return scope + att
 }
 

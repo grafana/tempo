@@ -374,6 +374,15 @@ func (t *App) readyHandler(sm *services.Manager, shutdownRequested *atomic.Bool)
 			}
 		}
 
+		// LiveStore has a special check that makes sure it has caught up with Kafka
+		// before serving queries.
+		if t.liveStore != nil {
+			if err := t.liveStore.CheckReady(r.Context()); err != nil {
+				http.Error(w, "LiveStore not ready: "+err.Error(), http.StatusServiceUnavailable)
+				return
+			}
+		}
+
 		http.Error(w, "ready", http.StatusOK)
 	}
 }

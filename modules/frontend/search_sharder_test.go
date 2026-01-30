@@ -475,16 +475,16 @@ func TestBackendRequests(t *testing.T) {
 func TestIngesterRequests(t *testing.T) {
 	nownow := time.Now()
 
-	now := int(time.Now().Unix())
+	now := int(nownow.Unix())
 
 	ago := func(d string) int {
 		duration, err := time.ParseDuration(d)
 		require.NoError(t, err)
 		return int(nownow.Add(-duration).Unix())
 	}
-	tenMinutesAgo := int(time.Now().Add(-10 * time.Minute).Unix())
-	fifteenMinutesAgo := int(time.Now().Add(-15 * time.Minute).Unix())
-	twentyMinutesAgo := int(time.Now().Add(-20 * time.Minute).Unix())
+	tenMinutesAgo := int(nownow.Add(-10 * time.Minute).Unix())
+	fifteenMinutesAgo := int(nownow.Add(-15 * time.Minute).Unix())
+	twentyMinutesAgo := int(nownow.Add(-20 * time.Minute).Unix())
 
 	tests := []struct {
 		request             string

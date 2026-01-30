@@ -16,6 +16,7 @@ import (
 	"github.com/grafana/tempo/modules/overrides/userconfigurable/client"
 	"github.com/grafana/tempo/pkg/sharedconfig"
 	filterconfig "github.com/grafana/tempo/pkg/spanfilter/config"
+	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -45,10 +46,11 @@ func histogramMethodPtr(h histograms.HistogramMethod) *histograms.HistogramMetho
 
 func Test_runtimeOverridesValidator(t *testing.T) {
 	testCases := []struct {
-		name      string
-		cfg       Config
-		overrides overrides.Overrides
-		expErr    string
+		name        string
+		cfg         Config
+		overrides   overrides.Overrides
+		expErr      string
+		expWarnings []error
 	}{
 		{
 			name: "ingestion.tenant_shard_size smaller than RF",
@@ -198,18 +200,65 @@ func Test_runtimeOverridesValidator(t *testing.T) {
 			},
 			expErr: "cost_attribution.dimensions config has invalid label name: '__name__'",
 		},
+		{
+			name: "invalid dedicated columns",
+			cfg:  Config{},
+			overrides: overrides.Overrides{
+				Storage: overrides.StorageOverrides{
+					DedicatedColumns: backend.DedicatedColumns{
+						{Name: "dedicated.resource.1", Type: "string", Scope: "foo"},
+					},
+				},
+			},
+			expErr: "invalid dedicated attribute columns: unsupported dedicated column scope 'foo'",
+		},
+		{
+			name: "too many dedicated columns",
+			cfg:  Config{},
+			overrides: overrides.Overrides{
+				Storage: overrides.StorageOverrides{
+					DedicatedColumns: backend.DedicatedColumns{
+						{Name: "dedicated.resource.1", Type: "string", Scope: "resource"},
+						{Name: "dedicated.resource.2", Type: "string", Scope: "resource"},
+						{Name: "dedicated.resource.3", Type: "string", Scope: "resource"},
+						{Name: "dedicated.resource.4", Type: "string", Scope: "resource"},
+						{Name: "dedicated.resource.5", Type: "string", Scope: "resource"},
+						{Name: "dedicated.resource.6", Type: "string", Scope: "resource"},
+						{Name: "dedicated.resource.7", Type: "string", Scope: "resource"},
+						{Name: "dedicated.resource.8", Type: "string", Scope: "resource"},
+						{Name: "dedicated.resource.9", Type: "string", Scope: "resource"},
+						{Name: "dedicated.resource.10", Type: "string", Scope: "resource"},
+						{Name: "dedicated.resource.11", Type: "string", Scope: "resource"},
+						{Name: "dedicated.resource.12", Type: "string", Scope: "resource"},
+						{Name: "dedicated.resource.13", Type: "string", Scope: "resource"},
+						{Name: "dedicated.resource.14", Type: "string", Scope: "resource"},
+						{Name: "dedicated.resource.15", Type: "string", Scope: "resource"},
+						{Name: "dedicated.resource.16", Type: "string", Scope: "resource"},
+						{Name: "dedicated.resource.17", Type: "string", Scope: "resource"},
+						{Name: "dedicated.resource.18", Type: "string", Scope: "resource"},
+						{Name: "dedicated.resource.19", Type: "string", Scope: "resource"},
+						{Name: "dedicated.resource.20", Type: "string", Scope: "resource"},
+						{Name: "dedicated.resource.21", Type: "string", Scope: "resource"},
+					},
+				},
+			},
+			expWarnings: []error{
+				backend.WarnTooManyColumns{Type: "string", Scope: "resource", Count: 21, MaxCount: 20},
+			},
+		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			validator := newRuntimeConfigValidator(&tc.cfg)
 
-			err := validator.Validate(&tc.overrides)
+			warnings, err := validator.Validate(&tc.overrides)
 			if tc.expErr != "" {
 				assert.EqualError(t, err, tc.expErr)
 			} else {
 				assert.NoError(t, err)
 			}
+			assert.Equal(t, tc.expWarnings, warnings)
 		})
 	}
 }
