@@ -321,7 +321,7 @@ func TestTagsSearchSharderRoundTripBadRequest(t *testing.T) {
 		TargetBytesPerRequest: defaultTargetBytesPerRequest,
 		MostRecentShards:      defaultMostRecentShards,
 		MaxDuration:           5 * time.Minute,
-	}, parseTagsRequest, log.NewNopLogger())
+	}, parseTagsRequest, nil, log.NewNopLogger())
 	testRT := sharder.Wrap(next)
 
 	// no org id
@@ -356,7 +356,7 @@ func TestTagsSearchSharderRoundTripBadRequest(t *testing.T) {
 		TargetBytesPerRequest: defaultTargetBytesPerRequest,
 		MostRecentShards:      defaultMostRecentShards,
 		MaxDuration:           5 * time.Minute,
-	}, parseTagsRequest, log.NewNopLogger())
+	}, parseTagsRequest, nil, log.NewNopLogger())
 	testRT = sharder.Wrap(next)
 
 	req = httptest.NewRequest("GET", "/?start=1000&end=1500", nil)
