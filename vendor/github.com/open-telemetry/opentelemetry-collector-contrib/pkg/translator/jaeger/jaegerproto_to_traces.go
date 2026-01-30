@@ -14,7 +14,8 @@ import (
 	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
-	conventions "go.opentelemetry.io/otel/semconv/v1.16.0"
+	conventionsv125 "go.opentelemetry.io/otel/semconv/v1.25.0"
+	conventions "go.opentelemetry.io/otel/semconv/v1.38.0"
 
 	"github.com/open-telemetry/opentelemetry-collector-contrib/internal/coreinternal/occonventions"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/internal/coreinternal/tracetranslator"
@@ -266,7 +267,7 @@ func setInternalSpanStatus(attrs pcommon.Map, span ptrace.Span) {
 		}
 	}
 
-	if codeAttr, ok := attrs.Get(string(conventions.OtelStatusCodeKey)); ok {
+	if codeAttr, ok := attrs.Get(string(conventions.OTelStatusCodeKey)); ok {
 		if !statusExists {
 			// The error tag is the ultimate truth for a Jaeger spans' error
 			// status. Only parse the otel.status_code tag if the error tag is
@@ -286,8 +287,8 @@ func setInternalSpanStatus(attrs pcommon.Map, span ptrace.Span) {
 		// Regardless of error tag value, remove the otel.status_code tag. The
 		// otel.status_message tag will have already been removed if
 		// statusExists is true.
-		attrs.Remove(string(conventions.OtelStatusCodeKey))
-	} else if httpCodeAttr, ok := attrs.Get(string(conventions.HTTPStatusCodeKey)); !statusExists && ok {
+		attrs.Remove(string(conventions.OTelStatusCodeKey))
+	} else if httpCodeAttr, ok := attrs.Get(string(conventionsv125.HTTPStatusCodeKey)); !statusExists && ok {
 		// Fallback to introspecting if this span represents a failed HTTP
 		// request or response, but again, only do so if the `error` tag was
 		// not set to true and no explicit status was sent.
@@ -314,9 +315,9 @@ func setInternalSpanStatus(attrs pcommon.Map, span ptrace.Span) {
 // returned. The OTel status description attribute is deleted from attrs in
 // the process.
 func extractStatusDescFromAttr(attrs pcommon.Map) (string, bool) {
-	if msgAttr, ok := attrs.Get(string(conventions.OtelStatusDescriptionKey)); ok {
+	if msgAttr, ok := attrs.Get(string(conventions.OTelStatusDescriptionKey)); ok {
 		msg := msgAttr.Str()
-		attrs.Remove(string(conventions.OtelStatusDescriptionKey))
+		attrs.Remove(string(conventions.OTelStatusDescriptionKey))
 		return msg, true
 	}
 	return "", false
@@ -425,7 +426,7 @@ func jReferencesToSpanLinks(refs []model.SpanRef, excludeParentID model.SpanID, 
 		link := dest.AppendEmpty()
 		link.SetTraceID(idutils.UInt64ToTraceID(ref.TraceID.High, ref.TraceID.Low))
 		link.SetSpanID(idutils.UInt64ToSpanID(uint64(ref.SpanID)))
-		link.Attributes().PutStr(string(conventions.OpentracingRefTypeKey), jRefTypeToAttribute(ref.RefType))
+		link.Attributes().PutStr(string(conventions.OpenTracingRefTypeKey), jRefTypeToAttribute(ref.RefType))
 	}
 }
 
@@ -441,9 +442,9 @@ func getTraceStateFromAttrs(attrs pcommon.Map) string {
 
 func getScope(span *model.Span) scope {
 	il := scope{}
-	if libraryName, ok := getAndDeleteTag(span, string(conventions.OtelScopeNameKey)); ok {
+	if libraryName, ok := getAndDeleteTag(span, string(conventions.OTelScopeNameKey)); ok {
 		il.name = libraryName
-		if libraryVersion, ok := getAndDeleteTag(span, string(conventions.OtelScopeVersionKey)); ok {
+		if libraryVersion, ok := getAndDeleteTag(span, string(conventions.OTelScopeVersionKey)); ok {
 			il.version = libraryVersion
 		}
 	}
@@ -463,7 +464,7 @@ func getAndDeleteTag(span *model.Span, key string) (string, bool) {
 
 func jRefTypeToAttribute(ref model.SpanRefType) string {
 	if ref == model.ChildOf {
-		return conventions.OpentracingRefTypeChildOf.Value.AsString()
+		return conventions.OpenTracingRefTypeChildOf.Value.AsString()
 	}
-	return conventions.OpentracingRefTypeFollowsFrom.Value.AsString()
+	return conventions.OpenTracingRefTypeFollowsFrom.Value.AsString()
 }
