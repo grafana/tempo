@@ -42,7 +42,8 @@ example/              - great place to get started running Tempo
   tk/
 integration/          - e2e tests
 modules/              - top level Tempo components
-  compactor/
+  backend-worker/
+  backend-scheduler/
   distributor/
   ingester/
   overrides/

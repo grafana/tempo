@@ -231,6 +231,50 @@ func testLexer(t *testing.T, tcs []lexerTestCase) {
 	}
 }
 
+func TestContainsNonAttributeRune(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected bool
+	}{
+		// Valid attribute names (no non-attribute runes)
+		{"foo", false},
+		{"foo-bar", false},
+		{"foo+bar", false},
+		{"foo3", false},
+		{"count", false},
+		{"foo.bar.baz", false},
+		{"service_name", false},
+
+		// Invalid attribute names (contains non-attribute runes)
+		{"foo bar", true}, // space
+		{"foo{bar", true}, // {
+		{"foo}bar", true}, // }
+		{"foo(bar", true}, // (
+		{"foo)bar", true}, // )
+		{"foo=bar", true}, // =
+		{"foo~bar", true}, // ~
+		{"foo!bar", true}, // !
+		{"foo<bar", true}, // <
+		{"foo>bar", true}, // >
+		{"foo&bar", true}, // &
+		{"foo|bar", true}, // |
+		{"foo^bar", true}, // ^
+		{"foo,bar", true}, // ,
+		{" foo", true},    // leading space
+		{"foo ", true},    // trailing space
+
+		// Edge cases
+		{"", false}, // empty string
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.input, func(t *testing.T) {
+			actual := ContainsNonAttributeRune(tc.input)
+			require.Equal(t, tc.expected, actual)
+		})
+	}
+}
+
 func BenchmarkIsAttributeRune(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		isAttributeRune('=')

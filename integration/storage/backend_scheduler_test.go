@@ -279,14 +279,11 @@ func printMetricValue(t *testing.T, expectedValue string, metric string) e2e.Met
 
 func setupBackendWithEndpoint(t testing.TB, cfg *tempodb.Config, endpoint string) tempodb.Writer {
 	cfg.Block = &common.BlockConfig{
-		IndexDownsampleBytes: 11,
-		BloomFP:              .01,
-		BloomShardSizeBytes:  100_000,
-		Version:              encoding.LatestEncoding().Version(),
-		Encoding:             backend.EncNone,
-		IndexPageSizeBytes:   1000,
-		RowGroupSizeBytes:    30_000_000,
-		DedicatedColumns:     backend.DedicatedColumns{{Scope: "span", Name: "key", Type: "string"}},
+		BloomFP:             .01,
+		BloomShardSizeBytes: 100_000,
+		Version:             encoding.LatestEncoding().Version(),
+		RowGroupSizeBytes:   30_000_000,
+		DedicatedColumns:    backend.DedicatedColumns{{Scope: "span", Name: "key", Type: "string"}},
 	}
 	cfg.WAL = &wal.Config{
 		Filepath: t.TempDir(),
@@ -321,7 +318,7 @@ func populateBackend(ctx context.Context, t testing.TB, w tempodb.Writer, tenant
 
 		for range blockCount {
 			blockID := backend.NewUUID()
-			meta := &backend.BlockMeta{BlockID: blockID, TenantID: tenantID, DataEncoding: model.CurrentEncoding}
+			meta := &backend.BlockMeta{BlockID: blockID, TenantID: tenantID}
 			head, err := wal.NewBlock(meta, model.CurrentEncoding)
 			require.NoError(t, err)
 

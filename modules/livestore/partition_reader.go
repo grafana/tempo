@@ -44,6 +44,7 @@ type PartitionReader struct {
 	commitInterval  time.Duration
 	wg              sync.WaitGroup
 	offsetWatermark atomic.Pointer[kadm.Offset]
+	lag             atomic.Int64
 
 	consume consumeFn
 	metrics partitionReaderMetrics
@@ -69,7 +70,7 @@ func newPartitionReader(client *kgo.Client, partitionID int32, cfg ingest.KafkaC
 		metrics:        metrics,
 		logger:         log.With(logger, "partition", partitionID),
 	}
-
+	r.lag.Store(-1)
 	r.Service = services.NewBasicService(r.start, r.running, r.stop)
 	return r, nil
 }
@@ -82,6 +83,23 @@ func (r *PartitionReader) running(ctx context.Context) error {
 	offset, err := r.fetchLastCommittedOffsetWithRetries(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to fetch last committed offset: %w", err)
+	}
+
+	// Fetch end offset to calculate initial lag before entering poll loop.
+	// Ensures we have data even if PollFetches blocks due to empty partition
+	if endOffsets, err := r.adm.ListEndOffsets(ctx, r.topic); err == nil {
+		if endOffset, found := endOffsets.Lookup(r.topic, r.partitionID); found && endOffset.Err == nil {
+			// Get the committed offset value
+			committedAt := offset.EpochOffset().Offset
+			if committedAt >= 0 {
+				lag := endOffset.Offset - committedAt
+				if lag < 0 {
+					lag = 0
+				}
+				r.lag.Store(lag)
+				level.Debug(r.logger).Log("msg", "initial lag calculated", "lag", lag, "committed", committedAt, "end", endOffset.Offset)
+			}
+		}
 	}
 
 	r.client.AddConsumePartitions(map[string]map[int32]kgo.Offset{r.topic: {r.partitionID: offset}})
@@ -99,6 +117,18 @@ func (r *PartitionReader) running(ctx context.Context) error {
 			err := collectFetchErrs(fetches)
 			level.Error(r.logger).Log("msg", "encountered error while fetching", "err", err)
 			continue
+		}
+
+		// Calculate and store maximum lag in entries
+		// Technically shaped as a nested loop, but we only have one partition (at the moment)
+		for _, fetch := range fetches {
+			for _, topic := range fetch.Topics {
+				for _, partition := range topic.Partitions {
+					// HighWatermark guaranteed to be >= LastStableOffset
+					lag := partition.HighWatermark - partition.LastStableOffset
+					r.lag.Store(lag)
+				}
+			}
 		}
 
 		r.recordFetchesMetrics(fetches)

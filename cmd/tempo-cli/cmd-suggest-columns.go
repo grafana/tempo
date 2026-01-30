@@ -25,8 +25,9 @@ type suggestColumnsCmd struct {
 	BlockID             string  `help:"specific block ID to analyse"`
 	MinCompactionLevel  int     `help:"Min compaction level to analyse" default:"3"`
 	MaxBlocks           int     `help:"Max number of blocks to analyse" default:"10"`
-	NumAttr             int     `help:"Number of attributes to display" default:"10"`
-	NumIntAttr          int     `help:"Number of integer attributes to display. If set to 0 then it will use the NumAttr." default:"0"`
+	NumAttr             int     `help:"Number of attributes to display" default:"20"`
+	NumIntAttr          int     `help:"Number of integer attributes to display. If set to 0 then it will use the NumAttr." default:"5"`
+	StrPercentThreshold float64 `help:"Threshold for string attributes put in dedicated columns. Default 3% = 0.03." default:"0.03"`
 	IntPercentThreshold float64 `help:"Threshold for integer attributes put in dedicated columns. Default 5% = 0.05" default:"0.05"`
 	IncludeWellKnown    bool    `help:"Include well-known attributes in the analysis. These are attributes with fixed columns in some versions of parquet, like http.url." default:"true"`
 	BlobThreshold       string  `help:"Convert column to blob when dictionary size reaches this value" default:"4MiB"`
@@ -68,6 +69,10 @@ func (cmd *suggestColumnsCmd) Run(ctx *globalOptions) error {
 		cmd.NumIntAttr = cmd.NumAttr
 	}
 
+	if cmd.StrPercentThreshold <= 0 || cmd.StrPercentThreshold >= 1 {
+		return errors.New("str percent threshold must be between 0 and 1")
+	}
+
 	if cmd.IntPercentThreshold <= 0 || cmd.IntPercentThreshold >= 1 {
 		return errors.New("int percent threshold must be between 0 and 1")
 	}
@@ -76,6 +81,7 @@ func (cmd *suggestColumnsCmd) Run(ctx *globalOptions) error {
 		NumStringAttr:       cmd.NumAttr,
 		NumIntAttr:          cmd.NumIntAttr,
 		BlobThresholdBytes:  blobBytes,
+		StrThresholdPercent: cmd.StrPercentThreshold,
 		IntThresholdPercent: cmd.IntPercentThreshold,
 	}
 

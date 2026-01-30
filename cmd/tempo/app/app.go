@@ -34,7 +34,6 @@ import (
 
 	"github.com/grafana/tempo/cmd/tempo/build"
 	"github.com/grafana/tempo/modules/backendscheduler"
-	"github.com/grafana/tempo/modules/compactor"
 	"github.com/grafana/tempo/modules/distributor"
 	"github.com/grafana/tempo/modules/distributor/receiver"
 	frontend_v1 "github.com/grafana/tempo/modules/frontend/v1"
@@ -76,7 +75,6 @@ type App struct {
 	distributor          *distributor.Distributor
 	querier              *querier.Querier
 	frontend             *frontend_v1.Frontend
-	compactor            *compactor.Compactor
 	ingester             *ingester.Ingester
 	generator            *generator.Generator
 	blockBuilder         *blockbuilder.BlockBuilder
@@ -372,6 +370,15 @@ func (t *App) readyHandler(sm *services.Manager, shutdownRequested *atomic.Bool)
 		if t.frontend != nil {
 			if err := t.frontend.CheckReady(r.Context()); err != nil {
 				http.Error(w, "Query Frontend not ready: "+err.Error(), http.StatusServiceUnavailable)
+				return
+			}
+		}
+
+		// LiveStore has a special check that makes sure it has caught up with Kafka
+		// before serving queries.
+		if t.liveStore != nil {
+			if err := t.liveStore.CheckReady(r.Context()); err != nil {
+				http.Error(w, "LiveStore not ready: "+err.Error(), http.StatusServiceUnavailable)
 				return
 			}
 		}

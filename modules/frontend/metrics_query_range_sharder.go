@@ -24,6 +24,7 @@ import (
 	"github.com/grafana/tempo/pkg/validation"
 	"github.com/grafana/tempo/tempodb"
 	"github.com/grafana/tempo/tempodb/backend"
+	"github.com/prometheus/client_golang/prometheus"
 )
 
 const (
@@ -31,12 +32,13 @@ const (
 )
 
 type queryRangeSharder struct {
-	next        pipeline.AsyncRoundTripper[combiner.PipelineResponse]
-	reader      tempodb.Reader
-	overrides   overrides.Interface
-	cfg         QueryRangeSharderConfig
-	logger      log.Logger
-	instantMode bool
+	next         pipeline.AsyncRoundTripper[combiner.PipelineResponse]
+	reader       tempodb.Reader
+	overrides    overrides.Interface
+	cfg          QueryRangeSharderConfig
+	logger       log.Logger
+	instantMode  bool
+	jobsPerQuery *prometheus.HistogramVec
 }
 
 type QueryRangeSharderConfig struct {
@@ -52,15 +54,16 @@ type QueryRangeSharderConfig struct {
 }
 
 // newAsyncQueryRangeSharder creates a sharding middleware for search
-func newAsyncQueryRangeSharder(reader tempodb.Reader, o overrides.Interface, cfg QueryRangeSharderConfig, instantMode bool, logger log.Logger) pipeline.AsyncMiddleware[combiner.PipelineResponse] {
+func newAsyncQueryRangeSharder(reader tempodb.Reader, o overrides.Interface, cfg QueryRangeSharderConfig, instantMode bool, jobsPerQuery *prometheus.HistogramVec, logger log.Logger) pipeline.AsyncMiddleware[combiner.PipelineResponse] {
 	return pipeline.AsyncMiddlewareFunc[combiner.PipelineResponse](func(next pipeline.AsyncRoundTripper[combiner.PipelineResponse]) pipeline.AsyncRoundTripper[combiner.PipelineResponse] {
 		return queryRangeSharder{
-			next:        next,
-			reader:      reader,
-			overrides:   o,
-			instantMode: instantMode,
-			cfg:         cfg,
-			logger:      logger,
+			next:         next,
+			reader:       reader,
+			overrides:    o,
+			instantMode:  instantMode,
+			cfg:          cfg,
+			logger:       logger,
+			jobsPerQuery: jobsPerQuery,
 		}
 	})
 }
@@ -150,6 +153,9 @@ func (s queryRangeSharder) RoundTrip(pipelineRequest pipeline.Request) (pipeline
 	span.SetAttributes(attribute.Int64("totalJobs", int64(jobMetadata.TotalJobs)))
 	span.SetAttributes(attribute.Int64("totalBlocks", int64(jobMetadata.TotalBlocks)))
 	span.SetAttributes(attribute.Int64("totalBlockBytes", int64(jobMetadata.TotalBytes)))
+	if s.jobsPerQuery != nil {
+		s.jobsPerQuery.WithLabelValues(metricsOp).Observe(float64(jobMetadata.TotalJobs))
+	}
 
 	return pipeline.NewAsyncSharderChan(ctx, s.cfg.ConcurrentRequests, reqCh, pipeline.NewAsyncResponse(jobMetadata), s.next), nil
 }
@@ -265,7 +271,7 @@ func (s *queryRangeSharder) buildBackendRequests(ctx context.Context, tenantID s
 		// Trim and align the request for this block. I.e. if the request is "Last Hour" we don't want to
 		// cache the response for that, we want only the few minutes time range for this block. This has
 		// size savings but the main thing is that the response is reuseable for any overlapping query.
-		start, end, step := traceql.TrimToBlockOverlap(searchReq.Start, searchReq.End, searchReq.Step, m.StartTime, m.EndTime)
+		start, end, step := traceql.TrimToBlockOverlap(&searchReq, m.StartTime, m.EndTime)
 		if start == end || step == 0 {
 			level.Warn(s.logger).Log("msg", "invalid start/step end. skipping", "start", start, "end", end, "step", step, "blockStart", m.StartTime.UnixNano(), "blockEnd", m.EndTime.UnixNano())
 			return
@@ -291,12 +297,12 @@ func (s *queryRangeSharder) buildBackendRequests(ctx context.Context, tenantID s
 				StartPage:     uint32(startPage),
 				PagesToSearch: uint32(pages),
 				Version:       m.Version,
-				Encoding:      m.Encoding.String(),
 				Size_:         m.Size_,
 				FooterSize:    m.FooterSize,
 				// DedicatedColumns: dc, for perf reason we pass dedicated columns json in directly to not have to realloc object -> proto -> json
 				Exemplars: exemplars,
 				MaxSeries: searchReq.MaxSeries,
+				XInstant:  searchReq.XInstant,
 			}
 
 			return api.BuildQueryRangeRequest(r, queryRangeReq, dedColsJSON), nil

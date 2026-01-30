@@ -18,6 +18,7 @@
       backend_worker: 'backend-worker',
       memcached: 'memcached',
       live_store: 'live-store',
+      live_store_zones: 'live-store.*',
     },
     alerts: {
       compactions_per_hour_failed: 2,

@@ -14,7 +14,7 @@ spec:
   template:
     metadata:
       annotations:
-        config_hash: 46188d18f0d8adfa8586e9dbeb744db2
+        config_hash: 96a49bace28831351f5e1c9f6671556a
       labels:
         app: backend-scheduler
         name: backend-scheduler
