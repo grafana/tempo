@@ -1,3 +1,4 @@
+display_name: Service
 type: service
 github_project: open-telemetry/opentelemetry-collector
 
@@ -5,7 +6,7 @@ status:
   disable_codecov_badge: true
   class: pkg
   stability:
-    development: [traces, metrics, logs]
+    development: [traces, metrics, logs, profiles]
   distributions: [core, contrib]
 
 telemetry:
@@ -13,6 +14,8 @@ telemetry:
     connector.consumed.items:
       prefix: otelcol.
       enabled: true
+      stability:
+        level: development
       description: Number of items passed to the connector.
       unit: "{item}"
       sum:
@@ -22,6 +25,8 @@ telemetry:
     connector.consumed.size:
       prefix: otelcol.
       enabled: false
+      stability:
+        level: development
       description: Size of items passed to the connector, based on ProtoMarshaler.Sizer.
       unit: "{item}"
       sum:
@@ -31,6 +36,8 @@ telemetry:
     connector.produced.items:
       prefix: otelcol.
       enabled: true
+      stability:
+        level: development
       description: Number of items emitted from the connector.
       unit: "{item}"
       sum:
@@ -40,6 +47,8 @@ telemetry:
     connector.produced.size:
       prefix: otelcol.
       enabled: false
+      stability:
+        level: development
       description: Size of items emitted from the connector, based on ProtoMarshaler.Sizer.
       unit: "{item}"
       sum:
@@ -49,6 +58,8 @@ telemetry:
     exporter.consumed.items:
       prefix: otelcol.
       enabled: true
+      stability:
+        level: development
       description: Number of items passed to the exporter.
       unit: "{item}"
       sum:
@@ -58,6 +69,8 @@ telemetry:
     exporter.consumed.size:
       prefix: otelcol.
       enabled: false
+      stability:
+        level: development
       description: Size of items passed to the exporter, based on ProtoMarshaler.Sizer.
       unit: "{item}"
       sum:
@@ -130,6 +143,8 @@ telemetry:
     processor.consumed.items:
       prefix: otelcol.
       enabled: true
+      stability:
+        level: development
       description: Number of items passed to the processor.
       unit: "{item}"
       sum:
@@ -139,6 +154,8 @@ telemetry:
     processor.consumed.size:
       prefix: otelcol.
       enabled: false
+      stability:
+        level: development
       description: Size of items passed to the processor, based on ProtoMarshaler.Sizer.
       unit: "{item}"
       sum:
@@ -148,6 +165,8 @@ telemetry:
     processor.produced.items:
       prefix: otelcol.
       enabled: true
+      stability:
+        level: development
       description: Number of items emitted from the processor.
       unit: "{item}"
       sum:
@@ -157,6 +176,8 @@ telemetry:
     processor.produced.size:
       prefix: otelcol.
       enabled: false
+      stability:
+        level: development
       description: Size of items emitted from the processor, based on ProtoMarshaler.Sizer.
       unit: "{item}"
       sum:
@@ -166,6 +187,8 @@ telemetry:
     receiver.produced.items:
       prefix: otelcol.
       enabled: true
+      stability:
+        level: development
       description: Number of items emitted from the receiver.
       unit: "{item}"
       sum:
@@ -175,6 +198,8 @@ telemetry:
     receiver.produced.size:
       prefix: otelcol.
       enabled: false
+      stability:
+        level: development
       description: Size of items emitted from the receiver, based on ProtoMarshaler.Sizer.
       unit: "{item}"
       sum:
