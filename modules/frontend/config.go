@@ -62,6 +62,7 @@ type TraceByIDConfig struct {
 	QueryShards      int       `yaml:"query_shards,omitempty"`
 	ConcurrentShards int       `yaml:"concurrent_shards,omitempty"`
 	SLO              SLOConfig `yaml:",inline"`
+	ExternalEnabled  bool      `yaml:"external_enabled,omitempty"`
 
 	// RF1After specifies the time after which RF1 logic is applied, injected by the configuration
 	// or determined at runtime based on search request parameters.
@@ -111,7 +112,7 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(string, *flag.FlagSet) {
 	}
 	cfg.Metrics = MetricsConfig{
 		Sharder: QueryRangeSharderConfig{
-			MaxDuration:           3 * time.Hour,
+			MaxDuration:           24 * time.Hour,
 			QueryBackendAfter:     30 * time.Minute,
 			ConcurrentRequests:    defaultConcurrentRequests,
 			TargetBytesPerRequest: defaultTargetBytesPerRequest,

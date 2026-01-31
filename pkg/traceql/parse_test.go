@@ -862,7 +862,6 @@ func TestSpansetFilterStatics(t *testing.T) {
 		{in: "{ `foo` }", expected: NewStaticString("foo")},
 		{in: "{ .foo }", expected: NewAttribute("foo")},
 		{in: "{ duration }", expected: NewIntrinsic(IntrinsicDuration)},
-		{in: "{ childCount }", expected: NewIntrinsic(IntrinsicChildCount)},
 		{in: "{ name }", expected: NewIntrinsic(IntrinsicName)},
 		{in: "{ parent }", expected: NewIntrinsic(IntrinsicParent)},
 		{in: "{ status }", expected: NewIntrinsic(IntrinsicStatus)},
@@ -1086,7 +1085,6 @@ func TestIntrinsics(t *testing.T) {
 		expected Intrinsic
 	}{
 		{in: "duration", expected: IntrinsicDuration},
-		{in: "childCount", expected: IntrinsicChildCount},
 		{in: "name", expected: IntrinsicName},
 		{in: "status", expected: IntrinsicStatus},
 		{in: "statusMessage", expected: IntrinsicStatusMessage},
@@ -1227,6 +1225,7 @@ func TestScopedIntrinsics(t *testing.T) {
 		{in: "span:statusMessage", expected: IntrinsicStatusMessage},
 		{in: "span:id", expected: IntrinsicSpanID},
 		{in: "span:parentID", expected: IntrinsicParentID},
+		{in: "span:childCount", expected: IntrinsicChildCount},
 		{in: "event:name", expected: IntrinsicEventName},
 		{in: "event:timeSinceStart", expected: IntrinsicEventTimeSinceStart},
 		{in: "link:traceID", expected: IntrinsicLinkTraceID},
@@ -1265,20 +1264,182 @@ func TestScopedIntrinsics(t *testing.T) {
 
 func TestParseIdentifier(t *testing.T) {
 	testCases := map[string]Attribute{
-		"name":             NewIntrinsic(IntrinsicName),
-		"status":           NewIntrinsic(IntrinsicStatus),
-		"statusMessage":    NewIntrinsic(IntrinsicStatusMessage),
-		"kind":             NewIntrinsic(IntrinsicKind),
-		".name":            NewAttribute("name"),
-		".status":          NewAttribute("status"),
-		".foo.bar":         NewAttribute("foo.bar"),
-		"resource.foo.bar": NewScopedAttribute(AttributeScopeResource, false, "foo.bar"),
+		// Basic intrinsics
+		"name":            NewIntrinsic(IntrinsicName),
+		"status":          NewIntrinsic(IntrinsicStatus),
+		"statusMessage":   NewIntrinsic(IntrinsicStatusMessage),
+		"kind":            NewIntrinsic(IntrinsicKind),
+		"duration":        NewIntrinsic(IntrinsicDuration),
+		"parent":          NewIntrinsic(IntrinsicParent),
+		"traceDuration":   NewIntrinsic(IntrinsicTraceDuration),
+		"rootName":        NewIntrinsic(IntrinsicTraceRootSpan),
+		"rootServiceName": NewIntrinsic(IntrinsicTraceRootService),
+		"nestedSetLeft":   NewIntrinsic(IntrinsicNestedSetLeft),
+		"nestedSetRight":  NewIntrinsic(IntrinsicNestedSetRight),
+		"nestedSetParent": NewIntrinsic(IntrinsicNestedSetParent),
+
+		// Scoped intrinsics - trace:
+		"trace:duration":    NewIntrinsic(IntrinsicTraceDuration),
+		"trace:rootName":    NewIntrinsic(IntrinsicTraceRootSpan),
+		"trace:rootService": NewIntrinsic(IntrinsicTraceRootService),
+		"trace:id":          NewIntrinsic(IntrinsicTraceID),
+
+		// Scoped intrinsics - span:
+		"span:duration":      NewIntrinsic(IntrinsicDuration),
+		"span:name":          NewIntrinsic(IntrinsicName),
+		"span:kind":          NewIntrinsic(IntrinsicKind),
+		"span:status":        NewIntrinsic(IntrinsicStatus),
+		"span:statusMessage": NewIntrinsic(IntrinsicStatusMessage),
+		"span:id":            NewIntrinsic(IntrinsicSpanID),
+		"span:parentID":      NewIntrinsic(IntrinsicParentID),
+		"span:childCount":    NewIntrinsic(IntrinsicChildCount),
+
+		// Scoped intrinsics - event:
+		"event:name":           NewIntrinsic(IntrinsicEventName),
+		"event:timeSinceStart": NewIntrinsic(IntrinsicEventTimeSinceStart),
+
+		// Scoped intrinsics - link:
+		"link:traceID": NewIntrinsic(IntrinsicLinkTraceID),
+		"link:spanID":  NewIntrinsic(IntrinsicLinkSpanID),
+
+		// Scoped intrinsics - instrumentation:
+		"instrumentation:name":    NewIntrinsic(IntrinsicInstrumentationName),
+		"instrumentation:version": NewIntrinsic(IntrinsicInstrumentationVersion),
+
+		// Simple attributes
+		".name":        NewAttribute("name"),
+		".status":      NewAttribute("status"),
+		".foo":         NewAttribute("foo"),
+		".foo.bar":     NewAttribute("foo.bar"),
+		".foo.bar.baz": NewAttribute("foo.bar.baz"),
+		".http_status": NewAttribute("http_status"),
+		".http-status": NewAttribute("http-status"),
+		".http+":       NewAttribute("http+"),
+		".foo3":        NewAttribute("foo3"),
+		".foo.3":       NewAttribute("foo.3"),
+		".\"0\"":       NewAttribute("0"),
+
+		// Scoped attributes - resource
+		"resource.foo":         NewScopedAttribute(AttributeScopeResource, false, "foo"),
+		"resource.foo.bar":     NewScopedAttribute(AttributeScopeResource, false, "foo.bar"),
+		"resource.foo.bar.baz": NewScopedAttribute(AttributeScopeResource, false, "foo.bar.baz"),
+
+		// Scoped attributes - span
+		"span.foo":         NewScopedAttribute(AttributeScopeSpan, false, "foo"),
 		"span.foo.bar":     NewScopedAttribute(AttributeScopeSpan, false, "foo.bar"),
+		"span.foo.bar.baz": NewScopedAttribute(AttributeScopeSpan, false, "foo.bar.baz"),
+
+		// Scoped attributes - event
+		"event.foo":     NewScopedAttribute(AttributeScopeEvent, false, "foo"),
+		"event.foo.bar": NewScopedAttribute(AttributeScopeEvent, false, "foo.bar"),
+
+		// Scoped attributes - link
+		"link.foo":     NewScopedAttribute(AttributeScopeLink, false, "foo"),
+		"link.foo.bar": NewScopedAttribute(AttributeScopeLink, false, "foo.bar"),
+
+		// Scoped attributes - instrumentation
+		"instrumentation.foo":     NewScopedAttribute(AttributeScopeInstrumentation, false, "foo"),
+		"instrumentation.foo.bar": NewScopedAttribute(AttributeScopeInstrumentation, false, "foo.bar"),
+
+		// Parent-scoped intrinsics
+		"parent.duration": NewScopedAttribute(AttributeScopeNone, true, "duration"),
+		"parent.name":     NewScopedAttribute(AttributeScopeNone, true, "name"),
+		"parent.foo":      NewScopedAttribute(AttributeScopeNone, true, "foo"),
+		"parent.foo.bar":  NewScopedAttribute(AttributeScopeNone, true, "foo.bar"),
+
+		// Parent-scoped with resource/span
+		"parent.resource.foo":     NewScopedAttribute(AttributeScopeResource, true, "foo"),
+		"parent.resource.foo.bar": NewScopedAttribute(AttributeScopeResource, true, "foo.bar"),
+		"parent.span.foo":         NewScopedAttribute(AttributeScopeSpan, true, "foo"),
+		"parent.span.foo.bar":     NewScopedAttribute(AttributeScopeSpan, true, "foo.bar"),
+
+		// Quoted identifiers with spaces
+		".\"foo bar\"":            NewAttribute("foo bar"),
+		".\"bar z\".foo":          NewAttribute("bar z.foo"),
+		".\"bar z\".foo.\"bar\"":  NewAttribute("bar z.foo.bar"),
+		".foo.\"bar baz\"":        NewAttribute("foo.bar baz"),
+		".foo.\"bar baz\".bar":    NewAttribute("foo.bar baz.bar"),
+		"span.\"foo bar\"":        NewScopedAttribute(AttributeScopeSpan, false, "foo bar"),
+		"span.\"bar z\".foo":      NewScopedAttribute(AttributeScopeSpan, false, "bar z.foo"),
+		"resource.\"foo bar\"":    NewScopedAttribute(AttributeScopeResource, false, "foo bar"),
+		"parent.\"foo bar\"":      NewScopedAttribute(AttributeScopeNone, true, "foo bar"),
+		"parent.resource.\"foo\"": NewScopedAttribute(AttributeScopeResource, true, "foo"),
+
+		// Quoted identifiers with escape sequences
+		".foo.\"bar \\\" baz\"":      NewAttribute("foo.bar \" baz"),
+		".foo.\"bar \\\\ baz\"":      NewAttribute("foo.bar \\ baz"),
+		".foo.\"bar \\\\\".\" baz\"": NewAttribute("foo.bar \\. baz"),
+		".\"foo.bar\"":               NewAttribute("foo.bar"),
+
+		// Unicode identifiers
+		".😝":     NewAttribute("😝"),
+		".\"🤘\"": NewAttribute("🤘"),
 	}
-	for i, expected := range testCases {
-		actual, err := ParseIdentifier(i)
-		require.NoError(t, err, i)
-		require.Equal(t, expected, actual, i)
+	for input, expected := range testCases {
+		t.Run(input, func(t *testing.T) {
+			actual, err := ParseIdentifier(input)
+			require.NoError(t, err, "input: %s", input)
+			require.Equal(t, expected, actual, "input: %s", input)
+		})
+	}
+}
+
+func TestParseIdentifierErrors(t *testing.T) {
+	errorCases := []struct {
+		input       string
+		description string
+	}{
+		// Empty and whitespace
+		{"", "empty string"},
+		{"   ", "only whitespace"},
+
+		// Invalid syntax
+		{"{ .foo }", "curly braces (already a filter)"},
+		{".foo &&", "incomplete expression with operator"},
+		{".foo && .bar", "multiple identifiers with AND"},
+		{".foo || .bar", "multiple identifiers with OR"},
+		{".foo > .bar", "comparison operator"},
+
+		// Expressions that aren't identifiers
+		{".foo = \"bar\"", "comparison expression"},
+		{".foo + .bar", "arithmetic expression"},
+		{".foo != nil", "existence check"},
+		{"true", "boolean literal"},
+		{"123", "numeric literal"},
+		{"\"string\"", "string literal"},
+		{"`backtick`", "backtick string literal"},
+
+		// Aggregate functions
+		{"count()", "aggregate function"},
+		{"max(.foo)", "aggregate with attribute"},
+		{"avg(duration)", "aggregate with intrinsic"},
+
+		// Invalid scoped intrinsics
+		{":duration", "missing scope prefix"},
+		{"trace:name", "invalid trace intrinsic"},
+		{"parent:id", "invalid parent scope"},
+
+		// Incomplete attributes
+		{".", "dot without identifier"},
+		{"span.", "scope without attribute"},
+		{"resource.", "resource without attribute"},
+		{"parent.", "parent without attribute"},
+
+		// Invalid quoted strings
+		{".\"foo", "unclosed quote"},
+		{".\"foo\\", "unclosed quote with escape"},
+
+		// Complex queries
+		{"{ .foo } | { .bar }", "pipeline expression"},
+		{"({ .foo })", "wrapped spanset"},
+	}
+
+	for _, tc := range errorCases {
+		t.Run(tc.description, func(t *testing.T) {
+			_, err := ParseIdentifier(tc.input)
+			require.Error(t, err, "expected error for input: %s", tc.input)
+			require.Contains(t, err.Error(), "failed to parse identifier", "error should have context")
+		})
 	}
 }
 

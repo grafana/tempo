@@ -128,19 +128,19 @@ func (g *Generator) readCh(ctx context.Context) {
 
 		i, err := g.getOrCreateInstance(tenant)
 		if err != nil {
-			level.Error(g.logger).Log("msg", "consumeKafkaChannel getOrCreateInstance", "err", err)
+			level.Error(g.logger).Log("tenant", tenant, "msg", "consumeKafkaChannel getOrCreateInstance", "err", err)
 			continue
 		}
 
 		iterator, err := c.Decode(r.Value)
 		if err != nil {
-			level.Error(g.logger).Log("msg", "consumeKafkaChannel decode", "err", err)
+			level.Error(g.logger).Log("tenant", tenant, "msg", "consumeKafkaChannel decode", "err", err)
 			continue
 		}
 
 		for resourceSpans, err := range iterator {
 			if err != nil {
-				level.Error(g.logger).Log("msg", "consumeKafkaChannel unmarshal", "err", err)
+				level.Error(g.logger).Log("tenant", tenant, "msg", "consumeKafkaChannel unmarshal", "err", err)
 				continue
 			}
 

@@ -1,0 +1,107 @@
+#
+# base config for e2e tests. any field in this config can be overridden by passing in a 
+# ConfigOverlay to the e2e test framework.
+#
+# Note: A lot of this is boilerplate, but there a few settings that exist to hasten 
+# the normal Tempo processes for the sake of e2e tests. See all comments marked "timings"
+# below.
+#
+
+stream_over_http_enabled: true
+partition_ring_live_store: true
+
+server:
+  http_listen_port: 3200
+  log_level: info
+
+overrides:
+  per_tenant_override_config: /shared/overrides.yaml
+  per_tenant_override_period: 1s # timings: check for updated overrides every second
+  defaults:
+    metrics_generator:
+      processors: [service-graphs, span-metrics]
+
+query_frontend:
+  rf1_after: "2025-01-01T00:00:00Z"
+
+distributor:
+  ingester_write_path_enabled: false
+  kafka_write_path_enabled: true
+  receivers:
+    otlp:
+      protocols:
+        grpc:
+          endpoint: "0.0.0.0:4317"
+
+live_store:
+  max_trace_live: 5s # timings: the max amount of time a trace can be in the live map
+  max_trace_idle: 1s # timings: the max amount of time a trace can be idle in the live map
+  flush_check_period: 5s # timings: check for traces to flush and wal blocks to complete every 5s
+  max_block_duration: 5s # timings: complete any wal file that's older than 5s. 10s is the max age of a wal file
+  partition_ring:
+    kvstore:
+      store: memberlist
+
+storage:
+  trace:
+    backend: local
+    local:
+      path: /shared/var/tempo/backend
+    pool:
+      max_workers: 10
+      queue_depth: 100
+    blocklist_poll: 2s # timings: check for updated blocklists every 2s
+
+memberlist:
+  abort_if_cluster_join_fails: false
+  bind_port: 7946
+  join_members:
+    - live-store-zone-a-0:7946
+    - live-store-zone-b-0:7946
+    - query-frontend:7946
+    - distributor:7946
+    - querier:7946
+
+block_builder:
+  consume_cycle_duration: 10s # timings: how often to check and flush a new block?
+  assigned_partitions:
+    block-builder-0:
+    - 0
+
+ingest:
+  enabled: true
+  kafka:
+    address: kafka:9092
+    topic: tempo-ingest
+
+querier:
+  frontend_worker:
+    frontend_address: query-frontend:9095
+  query_live_store: true
+
+metrics_generator:
+  registry:
+    collection_interval: 1s # timings: collect and send metrics every second
+  storage:
+    path: /shared/var/tempo
+    remote_write:
+      - url: http://prometheus:9090/api/v1/write 
+        send_exemplars: true
+
+backend_scheduler:
+  provider:
+    compaction:
+      min_cycle_interval: 50ms # timings
+      measure_interval: 1s # timings
+
+backend_worker:
+  backend_scheduler_addr: backend-scheduler:9095
+  finish_on_shutdown_timeout: 1s # timings
+#  ring:  the ring is not configured in the base config b/c it causes the backend worker to start significantly slower
+#    kvstore:
+#       store: memberlist
+
+# the distributor still uses the ingester client timeouts when sending to kafka. this needs to be fixed for 3.0 but using
+# it for now to avoid flakes on the write path
+ingester_client:
+  remote_timeout: 30s

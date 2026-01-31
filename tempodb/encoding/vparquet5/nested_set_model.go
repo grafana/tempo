@@ -1,6 +1,8 @@
 package vparquet5
 
 import (
+	"sort"
+
 	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 
 	"github.com/grafana/tempo/pkg/util"
@@ -41,10 +43,11 @@ func assignNestedSetModelBoundsAndServiceStats(trace *Trace) bool {
 	)
 
 	// initialize ServiceStats (spanCount and errorCount per service)
-	trace.ServiceStats = map[string]ServiceStats{}
+	// Map here for ease of accumulation.
+	ss := map[string]ServiceStats{}
 
 	for _, rs := range trace.ResourceSpans {
-		serviceStats := trace.ServiceStats[rs.Resource.ServiceName]
+		serviceStats := ss[rs.Resource.ServiceName]
 
 		for _, ss := range rs.ScopeSpans {
 			serviceStats.SpanCount += uint32(len(ss.Spans))
@@ -75,8 +78,18 @@ func assignNestedSetModelBoundsAndServiceStats(trace *Trace) bool {
 			}
 		}
 
-		trace.ServiceStats[rs.Resource.ServiceName] = serviceStats
+		ss[rs.Resource.ServiceName] = serviceStats
 	}
+
+	// Flatten to array and sort.
+	trace.ServiceStats = make([]ServiceStats, 0, len(ss))
+	for key, s := range ss {
+		s.ServiceName = key
+		trace.ServiceStats = append(trace.ServiceStats, s)
+	}
+	sort.Slice(trace.ServiceStats, func(i, j int) bool {
+		return trace.ServiceStats[i].ServiceName < trace.ServiceStats[j].ServiceName
+	})
 
 	// check preconditions before assignment
 	if len(rootNodes) == 0 {
@@ -88,6 +101,7 @@ func assignNestedSetModelBoundsAndServiceStats(trace *Trace) bool {
 				n.span.NestedSetLeft = 0
 				n.span.NestedSetRight = 0
 				n.span.ParentID = 0
+				n.span.ChildCount = 0
 			}
 		}
 		// this trace has over 2 spans with the same span id. the data is invalid and therefore we are preferring "false",
@@ -109,6 +123,11 @@ func assignNestedSetModelBoundsAndServiceStats(trace *Trace) bool {
 		}
 		node.parent = parent
 		parent.children = append(parent.children, node)
+	}
+
+	// assign child count for each node
+	for i := range allNodes {
+		allNodes[i].span.ChildCount = int32(len(allNodes[i].children))
 	}
 
 	// traverse the tree depth first. When going down the tree, assign NestedSetLeft

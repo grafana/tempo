@@ -15,35 +15,34 @@ func generateFakeSearchResponse(probability float64) *tempopb.SearchResponse {
 	if probability <= 0 {
 		return &tempopb.SearchResponse{}
 	}
-	r := rand.New(rand.NewSource(time.Now().UnixNano())) //nolint:gosec // G404
-	if probability < 1 && r.Float64() > probability {    //nolint:gosec // G404
+	if probability < 1 && rand.Float64() > probability { //nolint:gosec // G404
 		return &tempopb.SearchResponse{}
 	}
 
-	numTraces := 1 + r.Intn(3)
+	numTraces := 1 + rand.Intn(3) //nolint:gosec // G404
 	traces := make([]*tempopb.TraceSearchMetadata, numTraces)
 
 	for i := range numTraces {
-		traceID := fmt.Sprintf("%016x%016x", r.Int63(), r.Int63())
-		startTime := time.Now().Add(-time.Duration(r.Intn(3600)) * time.Second).UnixNano()
-		duration := uint32(100 + r.Intn(900)) // 100-1000ms
+		traceID := fmt.Sprintf("%016x%016x", rand.Int63(), rand.Int63())                      //nolint:gosec // G404
+		startTime := time.Now().Add(-time.Duration(rand.Intn(3600)) * time.Second).UnixNano() //nolint:gosec // G404
+		duration := uint32(100 + rand.Intn(900))                                              //nolint:gosec // G404
 
-		numSpans := 1 + r.Intn(5) // 1-5 spans
+		numSpans := 1 + rand.Intn(5) //nolint:gosec // G404
 		spans := make([]*tempopb.Span, numSpans)
 
 		for k := range numSpans {
-			spanID := fmt.Sprintf("%016x", r.Int63())
-			spanStartTime := uint64(startTime) + uint64(r.Intn(int(duration)))*1000000 // convert ms to ns
-			spanDuration := uint64(r.Intn(100)) * 1000000                              // 0-100ms in nanoseconds
+			spanID := fmt.Sprintf("%016x", rand.Int63())                                  //nolint:gosec // G404
+			spanStartTime := uint64(startTime) + uint64(rand.Intn(int(duration)))*1000000 //nolint:gosec // G404
+			spanDuration := uint64(rand.Intn(100)) * 1000000                              //nolint:gosec // G404
 
-			numAttrs := 1 + r.Intn(3) // 1-3 attributes per span
+			numAttrs := 1 + rand.Intn(3) //nolint:gosec // G404
 			attrs := make([]*v1.KeyValue, numAttrs)
 			for l := range attrs {
 				attrs[l] = &v1.KeyValue{
 					Key: fmt.Sprintf("attr-%d", l),
 					Value: &v1.AnyValue{
 						Value: &v1.AnyValue_StringValue{
-							StringValue: fmt.Sprintf("value-%d", r.Intn(10)),
+							StringValue: fmt.Sprintf("value-%d", rand.Intn(10)), //nolint:gosec // G404
 						},
 					},
 				}
@@ -65,8 +64,8 @@ func generateFakeSearchResponse(probability float64) *tempopb.SearchResponse {
 
 		traces[i] = &tempopb.TraceSearchMetadata{
 			TraceID:           traceID,
-			RootServiceName:   fmt.Sprintf("service-%d", r.Intn(5)),
-			RootTraceName:     fmt.Sprintf("operation-%d", r.Intn(10)),
+			RootServiceName:   fmt.Sprintf("service-%d", rand.Intn(5)),    //nolint:gosec // G404
+			RootTraceName:     fmt.Sprintf("operation-%d", rand.Intn(10)), //nolint:gosec // G404
 			StartTimeUnixNano: uint64(startTime),
 			DurationMs:        duration,
 			SpanSet:           spanSet,
@@ -78,7 +77,7 @@ func generateFakeSearchResponse(probability float64) *tempopb.SearchResponse {
 		Traces: traces,
 		Metrics: &tempopb.SearchMetrics{
 			InspectedTraces: uint32(numTraces),
-			InspectedBytes:  uint64(r.Intn(1000000)),
+			InspectedBytes:  uint64(rand.Intn(1000000)), //nolint:gosec // G404
 		},
 	}
 }

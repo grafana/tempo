@@ -1,0 +1,14 @@
+apiVersion: rollout-operator.grafana.com/v1
+kind: ZoneAwarePodDisruptionBudget
+metadata:
+  labels:
+    name: live-store-rollout
+  name: live-store-rollout
+  namespace: tracing
+spec:
+  maxUnavailable: 1
+  podNamePartitionRegex: '[a-z\-]+-zone-[a-z]-([0-9]+)'
+  podNameRegexGroup: 1
+  selector:
+    matchLabels:
+      rollout-group: live-store

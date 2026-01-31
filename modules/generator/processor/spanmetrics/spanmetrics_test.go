@@ -2,6 +2,7 @@ package spanmetrics
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math"
 	"os"
@@ -1681,4 +1682,65 @@ func TestTargetInfoSkipsLabelsStartingWithNumber(t *testing.T) {
 	})
 
 	assert.Equal(t, 1.0, testRegistry.Query("traces_target_info", lbls))
+}
+
+func TestValidationErrors(t *testing.T) {
+	testCases := []struct {
+		name   string
+		cfg    Config
+		expErr error
+	}{
+		{
+			name: "default ok",
+			cfg: func() Config {
+				cfg := Config{}
+				cfg.RegisterFlagsAndApplyDefaults("", nil)
+				return cfg
+			}(),
+			expErr: nil,
+		},
+		{
+			// this may be a valid use case if tenant is using diffferent SDK for instrumentation, so we allow it
+			name: "dimension collision ignored",
+			cfg: func() Config {
+				cfg := Config{}
+				cfg.RegisterFlagsAndApplyDefaults("", nil)
+				cfg.Dimensions = []string{"deployment_environment", "deployment.environment"}
+				return cfg
+			}(),
+			expErr: nil,
+		},
+		{
+			name: "dimension collision after remapping",
+			cfg: func() Config {
+				cfg := Config{}
+				cfg.RegisterFlagsAndApplyDefaults("", nil)
+				cfg.Dimensions = []string{"foo_bar"}
+				cfg.DimensionMappings = []sharedconfig.DimensionMappings{
+					{
+						Name:        "foo_bar",
+						SourceLabel: []string{"foo.bar"},
+					},
+				}
+				return cfg
+			}(),
+			expErr: errors.New(`dimension_mapping "foo_bar" produces label "foo_bar" which collides with dimension "foo_bar"`),
+		},
+	}
+
+	var (
+		testRegistry                 = registry.NewTestRegistry()
+		filteredSpansCounter         = metricSpansDiscarded.WithLabelValues("test-tenant", "filtered", "span-metrics")
+		invalidUTF8SpanLabelsCounter = metricSpansDiscarded.WithLabelValues("test-tenant", "invalid_utf8", "span-metrics")
+	)
+
+	for _, tc := range testCases {
+		p, err := New(tc.cfg, testRegistry, filteredSpansCounter, invalidUTF8SpanLabelsCounter)
+		defer func() {
+			if p != nil {
+				p.Shutdown(t.Context())
+			}
+		}()
+		require.Equal(t, tc.expErr, err)
+	}
 }

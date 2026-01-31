@@ -41,8 +41,7 @@
         "showPoints": "never",
         "spanNulls": false,
         "stacking": {
-         "group": "A",
-         "mode": "none"
+         "mode": "normal"
         }
        },
        "thresholds": {
@@ -51,7 +50,7 @@
 
         ]
        },
-       "unit": "s"
+       "unit": "ops"
       },
       "overrides": [
 
@@ -106,8 +105,7 @@
         "showPoints": "never",
         "spanNulls": false,
         "stacking": {
-         "group": "A",
-         "mode": "none"
+         "mode": "normal"
         }
        },
        "thresholds": {
@@ -116,7 +114,7 @@
 
         ]
        },
-       "unit": "short"
+       "unit": "ops"
       },
       "overrides": [
 
@@ -164,8 +162,7 @@
         "showPoints": "never",
         "spanNulls": false,
         "stacking": {
-         "group": "A",
-         "mode": "none"
+         "mode": "normal"
         }
        },
        "thresholds": {
@@ -174,7 +171,7 @@
 
         ]
        },
-       "unit": "short"
+       "unit": "ops"
       },
       "overrides": [
 
@@ -234,8 +231,7 @@
         "showPoints": "never",
         "spanNulls": false,
         "stacking": {
-         "group": "A",
-         "mode": "none"
+         "mode": "normal"
         }
        },
        "thresholds": {
@@ -310,8 +306,7 @@
         "showPoints": "never",
         "spanNulls": false,
         "stacking": {
-         "group": "A",
-         "mode": "none"
+         "mode": "normal"
         }
        },
        "thresholds": {
@@ -386,8 +381,7 @@
         "showPoints": "never",
         "spanNulls": false,
         "stacking": {
-         "group": "A",
-         "mode": "none"
+         "mode": "normal"
         }
        },
        "thresholds": {
@@ -474,8 +468,7 @@
         "showPoints": "never",
         "spanNulls": false,
         "stacking": {
-         "group": "A",
-         "mode": "none"
+         "mode": "normal"
         }
        },
        "thresholds": {
@@ -484,7 +477,7 @@
 
         ]
        },
-       "unit": "short"
+       "unit": "ops"
       },
       "overrides": [
 
@@ -532,8 +525,7 @@
         "showPoints": "never",
         "spanNulls": false,
         "stacking": {
-         "group": "A",
-         "mode": "none"
+         "mode": "normal"
         }
        },
        "thresholds": {
@@ -542,7 +534,7 @@
 
         ]
        },
-       "unit": "short"
+       "unit": "ops"
       },
       "overrides": [
 
@@ -602,8 +594,7 @@
         "showPoints": "never",
         "spanNulls": false,
         "stacking": {
-         "group": "A",
-         "mode": "none"
+         "mode": "normal"
         }
        },
        "thresholds": {
@@ -660,8 +651,7 @@
         "showPoints": "never",
         "spanNulls": false,
         "stacking": {
-         "group": "A",
-         "mode": "none"
+         "mode": "normal"
         }
        },
        "thresholds": {
@@ -718,47 +708,50 @@
    "height": "250px",
    "panels": [
     {
-     "aliasColors": {
-
-     },
-     "bars": false,
-     "dashLength": 10,
-     "dashes": false,
      "datasource": "$datasource",
      "description": "### Block builder partition section duration\nOverview of the partition section duration.\n",
      "fieldConfig": {
       "defaults": {
+       "custom": {
+        "drawStyle": "line",
+        "fillOpacity": 1,
+        "lineWidth": 1,
+        "pointSize": 5,
+        "showPoints": "never",
+        "spanNulls": false,
+        "stacking": {
+         "mode": "normal"
+        }
+       },
+       "thresholds": {
+        "mode": "absolute",
+        "steps": [
+
+        ]
+       },
        "unit": "s"
-      }
+      },
+      "overrides": [
+
+      ]
      },
      "fill": 10,
      "id": 11,
-     "legend": {
-      "avg": false,
-      "current": false,
-      "max": false,
-      "min": false,
-      "show": true,
-      "total": false,
-      "values": false
-     },
-     "lines": true,
      "linewidth": 0,
      "links": [
 
      ],
-     "nullPointMode": "null as zero",
-     "percentage": false,
-     "pointradius": 5,
-     "points": false,
-     "renderer": "flot",
-     "seriesOverrides": [
-
-     ],
-     "spaceLength": 10,
+     "options": {
+      "legend": {
+       "showLegend": true
+      },
+      "tooltip": {
+       "mode": "single",
+       "sort": "none"
+      }
+     },
      "span": 6,
      "stack": true,
-     "steppedLine": false,
      "targets": [
       {
        "expr": "sum(rate(tempo_block_builder_process_partition_section_duration_seconds{cluster=~\"$cluster\", job=~\"($namespace)/block-builder\"}[$__rate_interval]))  by (partition)",
@@ -768,27 +761,8 @@
        "legendLink": null
       }
      ],
-     "thresholds": [
-
-     ],
-     "timeFrom": null,
-     "timeShift": null,
      "title": "Partition section duration (sec)",
-     "tooltip": {
-      "shared": true,
-      "sort": 2,
-      "value_type": "individual"
-     },
      "type": "heatmap",
-     "xaxis": {
-      "buckets": null,
-      "mode": "time",
-      "name": null,
-      "show": true,
-      "values": [
-
-      ]
-     },
      "yaxes": [
       {
        "format": "s",
@@ -809,47 +783,50 @@
      ]
     },
     {
-     "aliasColors": {
-
-     },
-     "bars": false,
-     "dashLength": 10,
-     "dashes": false,
      "datasource": "$datasource",
      "description": "### Block builder partition cycle duration\nOverview of the partition cycle duration.\n",
      "fieldConfig": {
       "defaults": {
+       "custom": {
+        "drawStyle": "line",
+        "fillOpacity": 1,
+        "lineWidth": 1,
+        "pointSize": 5,
+        "showPoints": "never",
+        "spanNulls": false,
+        "stacking": {
+         "mode": "normal"
+        }
+       },
+       "thresholds": {
+        "mode": "absolute",
+        "steps": [
+
+        ]
+       },
        "unit": "s"
-      }
+      },
+      "overrides": [
+
+      ]
      },
      "fill": 10,
      "id": 12,
-     "legend": {
-      "avg": false,
-      "current": false,
-      "max": false,
-      "min": false,
-      "show": true,
-      "total": false,
-      "values": false
-     },
-     "lines": true,
      "linewidth": 0,
      "links": [
 
      ],
-     "nullPointMode": "null as zero",
-     "percentage": false,
-     "pointradius": 5,
-     "points": false,
-     "renderer": "flot",
-     "seriesOverrides": [
-
-     ],
-     "spaceLength": 10,
+     "options": {
+      "legend": {
+       "showLegend": true
+      },
+      "tooltip": {
+       "mode": "single",
+       "sort": "none"
+      }
+     },
      "span": 6,
      "stack": true,
-     "steppedLine": false,
      "targets": [
       {
        "expr": "sum(rate(tempo_block_builder_consume_cycle_duration_seconds{cluster=~\"$cluster\", job=~\"($namespace)/block-builder\"}[$__rate_interval]))",
@@ -859,27 +836,8 @@
        "legendLink": null
       }
      ],
-     "thresholds": [
-
-     ],
-     "timeFrom": null,
-     "timeShift": null,
      "title": "Partition cycle duration (sec)",
-     "tooltip": {
-      "shared": true,
-      "sort": 2,
-      "value_type": "individual"
-     },
      "type": "heatmap",
-     "xaxis": {
-      "buckets": null,
-      "mode": "time",
-      "name": null,
-      "show": true,
-      "values": [
-
-      ]
-     },
      "yaxes": [
       {
        "format": "s",
@@ -933,7 +891,7 @@
 
         ]
        },
-       "unit": "s"
+       "unit": "cores"
       },
       "overrides": [
 
@@ -1013,7 +971,7 @@
 
         ]
        },
-       "unit": "s"
+       "unit": "bytes"
       },
       "overrides": [
 

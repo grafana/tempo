@@ -60,7 +60,7 @@ func (cmd *querySearchTagsCmd) searchHTTP(start, end int64) error {
 	var tags *tempopb.SearchTagsV2Response
 	var err error
 	if start != 0 || end != 0 {
-		tags, err = client.SearchTagsV2WithRange(start, end)
+		tags, err = client.SearchTagsV2WithRange("", "", start, end)
 	} else {
 		tags, err = client.SearchTagsV2()
 	}

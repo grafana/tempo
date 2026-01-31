@@ -8,7 +8,6 @@ tempo {
   _config+:: {
     cluster: 'k3d',
     namespace: 'default',
-    compactor+: {},
     querier+: {},
     ingester+: {
       pvc_size: '5Gi',
@@ -76,8 +75,6 @@ tempo {
 
   local container = k.core.v1.container,
   local containerPort = k.core.v1.containerPort,
-  tempo_compactor_container+::
-    k.util.resourcesRequests('500m', '500Mi'),
 
   tempo_distributor_container+::
     k.util.resourcesRequests('500m', '500Mi') +

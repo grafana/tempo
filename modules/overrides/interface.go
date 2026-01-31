@@ -78,6 +78,8 @@ type Interface interface {
 	MetricsGeneratorProcessorSpanMetricsEnableInstanceLabel(userID string) (bool, bool)
 	MetricsGeneratorProcessorHostInfoHostIdentifiers(userID string) []string
 	MetricsGeneratorProcessorHostInfoMetricName(userID string) string
+	MetricsGeneratorProcessorServiceGraphsSpanMultiplierKey(userID string) string
+	MetricsGeneratorProcessorSpanMetricsSpanMultiplierKey(userID string) string
 	MetricsGeneratorNativeHistogramBucketFactor(userID string) float64
 	MetricsGeneratorNativeHistogramMaxBucketNumber(userID string) uint32
 	MetricsGeneratorNativeHistogramMinResetDuration(userID string) time.Duration

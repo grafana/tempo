@@ -48,3 +48,5 @@ The override `metrics_generator.disable_collection` is defined for this use-case
 
 To get an estimate, set the override to `true`, and run the metrics-generator as you would normally.
 Then, check `tempo_metrics_generator_registry_active_series` for the calculated estimation of active series for your set-up.
+
+If your active series limit is already reached and `tempo_metrics_generator_registry_active_series` no longer reflects true demand, use the `tempo_metrics_generator_registry_active_series_demand_estimate` metric instead. This metric uses HyperLogLog estimation to approximate the actual cardinality even when limits are in effect.

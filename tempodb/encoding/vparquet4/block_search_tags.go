@@ -275,9 +275,9 @@ func searchTagValues(ctx context.Context, tag traceql.Attribute, cb common.TagVa
 	}
 
 	// Search well-known attribute column if one exists and is a compatible scope.
-	column := wellKnownColumnLookups[tag.Name]
-	if column.columnPath != "" && (tag.Scope == column.level || tag.Scope == traceql.AttributeScopeNone) {
-		err := searchSpecialTagValues(ctx, column.columnPath, pf, cb)
+	column := WellKnownColumnLookups[tag.Name]
+	if column.ColumnPath != "" && (tag.Scope == column.level || tag.Scope == traceql.AttributeScopeNone) {
+		err := searchSpecialTagValues(ctx, column.ColumnPath, pf, cb)
 		if err != nil {
 			return fmt.Errorf("unexpected error searching special tags: %w", err)
 		}

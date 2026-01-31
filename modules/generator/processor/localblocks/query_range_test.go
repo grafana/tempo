@@ -47,12 +47,10 @@ func TestProcessor(t *testing.T) {
 			Path: path.Join(tempDir, "traces"),
 		},
 		Block: &common.BlockConfig{
-			IndexDownsampleBytes: 17,
-			BloomFP:              .01,
-			BloomShardSizeBytes:  100_000,
-			Version:              blockVersion,
-			IndexPageSizeBytes:   1000,
-			RowGroupSizeBytes:    10000,
+			BloomFP:             .01,
+			BloomShardSizeBytes: 100_000,
+			Version:             blockVersion,
+			RowGroupSizeBytes:   10000,
 		},
 		WAL: &wal.Config{
 			Filepath:       path.Join(tempDir, "wal"),
@@ -197,7 +195,7 @@ func TestProcessor(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			req := tc.req
-			req.Start, req.End, req.Step = traceql.TrimToBlockOverlap(req.Start, req.End, req.Step, block.BlockMeta().StartTime, block.BlockMeta().EndTime)
+			req.Start, req.End, req.Step = traceql.TrimToBlockOverlap(req, block.BlockMeta().StartTime, block.BlockMeta().EndTime)
 
 			e := traceql.NewEngine()
 			rawEval, err := e.CompileMetricsQueryRange(req, int(req.Exemplars), 0, false)

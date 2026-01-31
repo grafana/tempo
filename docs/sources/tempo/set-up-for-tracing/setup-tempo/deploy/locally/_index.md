@@ -6,7 +6,7 @@ weight: 400
 
 # Deploy Tempo locally
 
-You can deploy Tempo This section provides instructions for deploying Tempo locally using Tanka and Jsonnet or using Docker Compose.
+This section provides instructions for deploying Tempo locally using Docker Compose.
 
 {{< section withDescriptions="true">}}
 

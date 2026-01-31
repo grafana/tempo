@@ -6,9 +6,9 @@ import (
 	"slices"
 	"time"
 
+	"github.com/bytedance/sonic"
 	"github.com/cespare/xxhash/v2"
 	"github.com/google/uuid"
-
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/traceql"
 )
@@ -42,7 +42,7 @@ const (
 )
 
 var maxSupportedColumns = map[DedicatedColumnType]map[DedicatedColumnScope]int{
-	DedicatedColumnTypeString: {DedicatedColumnScopeSpan: 10, DedicatedColumnScopeResource: 10, DedicatedColumnScopeEvent: 10},
+	DedicatedColumnTypeString: {DedicatedColumnScopeSpan: 20, DedicatedColumnScopeResource: 20, DedicatedColumnScopeEvent: 20},
 	DedicatedColumnTypeInt:    {DedicatedColumnScopeSpan: 5, DedicatedColumnScopeResource: 5, DedicatedColumnScopeEvent: 5},
 }
 
@@ -85,6 +85,8 @@ func DedicatedColumnScopeFromTempopb(s tempopb.DedicatedColumn_Scope) (Dedicated
 		return DedicatedColumnScopeSpan, nil
 	case tempopb.DedicatedColumn_RESOURCE:
 		return DedicatedColumnScopeResource, nil
+	case tempopb.DedicatedColumn_EVENT:
+		return DedicatedColumnScopeEvent, nil
 	default:
 		return "", fmt.Errorf("invalid value for tempopb.DedicatedColumn_Scope '%v'", s)
 	}
@@ -96,6 +98,8 @@ func (s DedicatedColumnScope) ToTempopb() (tempopb.DedicatedColumn_Scope, error)
 		return tempopb.DedicatedColumn_SPAN, nil
 	case DedicatedColumnScopeResource:
 		return tempopb.DedicatedColumn_RESOURCE, nil
+	case DedicatedColumnScopeEvent:
+		return tempopb.DedicatedColumn_EVENT, nil
 	default:
 		return 0, fmt.Errorf("invalid value for dedicated column scope '%v'", s)
 	}
@@ -127,6 +131,17 @@ const (
 	MetricsGeneratorReplicationFactor = 1
 	LiveStoreReplicationFactor        = MetricsGeneratorReplicationFactor
 )
+
+type WarnTooManyColumns struct {
+	Type     DedicatedColumnType
+	Scope    DedicatedColumnScope
+	Count    int
+	MaxCount int
+}
+
+func (w WarnTooManyColumns) Error() string {
+	return fmt.Sprintf("invalid dedicated attribute columns: number of columns with type '%s' and scope '%s' must be <= %d but was %d", w.Type, w.Scope, w.MaxCount, w.Count)
+}
 
 var defaultDedicatedColumns = DedicatedColumns{
 	// resource
@@ -175,13 +190,13 @@ func (dc *DedicatedColumn) MarshalJSON() ([]byte, error) {
 	if cpy.Type == DefaultDedicatedColumnType {
 		cpy.Type = ""
 	}
-	return json.Marshal(&cpy)
+	return sonic.Marshal(&cpy)
 }
 
 func (dc *DedicatedColumn) UnmarshalJSON(b []byte) error {
 	type dcAlias DedicatedColumn // alias required to avoid recursive calls of UnmarshalJSON
 
-	err := json.Unmarshal(b, (*dcAlias)(dc))
+	err := sonic.Unmarshal(b, (*dcAlias)(dc))
 	if err != nil {
 		return err
 	}
@@ -206,7 +221,7 @@ func (dcs *DedicatedColumns) UnmarshalJSON(b []byte) error {
 	}
 
 	type dcsAlias DedicatedColumns // alias required to avoid recursive calls of UnmarshalJSON
-	err := json.Unmarshal(b, (*dcsAlias)(dcs))
+	err := sonic.Unmarshal(b, (*dcsAlias)(dcs))
 	if err != nil {
 		return err
 	}
@@ -215,17 +230,15 @@ func (dcs *DedicatedColumns) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
-func NewBlockMeta(tenantID string, blockID uuid.UUID, version string, encoding Encoding, dataEncoding string) *BlockMeta {
-	return NewBlockMetaWithDedicatedColumns(tenantID, blockID, version, encoding, dataEncoding, nil)
+func NewBlockMeta(tenantID string, blockID uuid.UUID, version string) *BlockMeta {
+	return NewBlockMetaWithDedicatedColumns(tenantID, blockID, version, nil)
 }
 
-func NewBlockMetaWithDedicatedColumns(tenantID string, blockID uuid.UUID, version string, encoding Encoding, dataEncoding string, dc DedicatedColumns) *BlockMeta {
+func NewBlockMetaWithDedicatedColumns(tenantID string, blockID uuid.UUID, version string, dc DedicatedColumns) *BlockMeta {
 	b := &BlockMeta{
 		Version:          version,
 		BlockID:          UUID(blockID),
 		TenantID:         tenantID,
-		Encoding:         encoding,
-		DataEncoding:     dataEncoding,
 		DedicatedColumns: dc,
 	}
 
@@ -313,13 +326,14 @@ func (dcs DedicatedColumns) ToTempopb() ([]*tempopb.DedicatedColumn, error) {
 	return tempopbCols, nil
 }
 
-func (dcs DedicatedColumns) Validate() error {
+func (dcs DedicatedColumns) Validate() (warnings []error, err error) {
 	columnCount := map[DedicatedColumnType]map[DedicatedColumnScope]int{}
 	nameCount := map[DedicatedColumnScope]map[string]struct{}{}
 
 	for _, dc := range dcs {
 		if dc.Name == "" {
-			return fmt.Errorf("invalid dedicated attribute columns: empty name")
+			err = fmt.Errorf("invalid dedicated attribute columns: empty name")
+			return
 		}
 
 		// check for duplicate names
@@ -327,7 +341,8 @@ func (dcs DedicatedColumns) Validate() error {
 			nameCount[dc.Scope] = map[string]struct{}{dc.Name: {}}
 		} else {
 			if _, duplicate := names[dc.Name]; duplicate {
-				return fmt.Errorf("invalid dedicated attribute columns: duplicate name '%s' for scope '%s'", dc.Name, dc.Scope)
+				err = fmt.Errorf("invalid dedicated attribute columns: duplicate name '%s' for scope '%s'", dc.Name, dc.Scope)
+				return
 			}
 			names[dc.Name] = struct{}{}
 		}
@@ -340,8 +355,9 @@ func (dcs DedicatedColumns) Validate() error {
 		}
 
 		for _, opt := range dc.Options {
-			if opt != DedicatedColumnOptionArray {
-				return fmt.Errorf("invalid dedicated attribute columns: invalid option '%s'", opt)
+			if opt != DedicatedColumnOptionArray && opt != DedicatedColumnOptionBlob {
+				err = fmt.Errorf("invalid dedicated attribute columns: invalid option '%s'", opt)
+				return
 			}
 		}
 	}
@@ -351,19 +367,21 @@ func (dcs DedicatedColumns) Validate() error {
 		for scope, count := range scopes {
 			supportedScopes, ok := maxSupportedColumns[typ]
 			if !ok {
-				return fmt.Errorf("invalid dedicated attribute columns: unsupported dedicated column type '%s'", typ)
+				err = fmt.Errorf("invalid dedicated attribute columns: unsupported dedicated column type '%s'", typ)
+				return
 			}
 			maxCount, ok := supportedScopes[scope]
 			if !ok {
-				return fmt.Errorf("invalid dedicated attribute columns: unsupported dedicated column scope '%s'", scope)
+				err = fmt.Errorf("invalid dedicated attribute columns: unsupported dedicated column scope '%s'", scope)
+				return
 			}
 			if count > maxCount {
-				return fmt.Errorf("invalid dedicated attribute columns: number of columns with type '%s' and scope '%s' must be <= %d but was %d", typ, scope, maxCount, count)
+				warnings = append(warnings, WarnTooManyColumns{Type: typ, Scope: scope, Count: count, MaxCount: maxCount})
 			}
 		}
 	}
 
-	return nil
+	return
 }
 
 // separatorByte is a byte that cannot occur in valid UTF-8 sequences
@@ -404,7 +422,7 @@ func (dcs DedicatedColumns) Marshal() ([]byte, error) {
 	}
 
 	// NOTE: The json bytes interned in a map to avoid re-unmarshalling the same byte slice.
-	return json.Marshal(dcs)
+	return sonic.Marshal(dcs)
 }
 
 func (dcs DedicatedColumns) MarshalTo(data []byte) (n int, err error) {
@@ -423,7 +441,7 @@ func (dcs *DedicatedColumns) Unmarshal(data []byte) error {
 	}
 
 	// NOTE: The json bytes interned in a map to avoid re-unmarshalling the same byte slice.
-	return json.Unmarshal(data, &dcs)
+	return sonic.Unmarshal(data, &dcs)
 }
 
 func (b *CompactedBlockMeta) UnmarshalJSON(data []byte) error {

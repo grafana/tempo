@@ -1,0 +1,12 @@
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  labels:
+    name: ingester
+  name: ingester
+  namespace: tracing
+spec:
+  maxUnavailable: 1
+  selector:
+    matchLabels:
+      name: ingester

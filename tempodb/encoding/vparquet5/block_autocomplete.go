@@ -340,9 +340,9 @@ func createDistinctEventIterator(
 			}
 			selectAs := ""
 			if tr.tag == cond.Attribute {
-				selectAs = columnPathEventName
+				selectAs = ColumnPathEventName
 			}
-			iters = append(iters, makeIter(columnPathEventName, pred, selectAs))
+			iters = append(iters, makeIter(ColumnPathEventName, pred, selectAs))
 			continue
 		}
 
@@ -352,15 +352,16 @@ func createDistinctEventIterator(
 			switch cond.Op {
 			case traceql.OpNone:
 				addPredicate(c.ColumnPath, nil) // No filtering
-				columnSelectAs[c.ColumnPath] = cond.Attribute.Name
+				addSelectAs(cond.Attribute, c.ColumnPath, cond.Attribute.Name)
 				continue
 			case traceql.OpExists:
 				addPredicate(c.ColumnPath, &parquetquery.SkipNilsPredicate{})
-				columnSelectAs[c.ColumnPath] = cond.Attribute.Name
+				addSelectAs(cond.Attribute, c.ColumnPath, cond.Attribute.Name)
 				continue
 			case traceql.OpNotExists:
 				pred := parquetquery.NewNilValuePredicate()
-				iters = append(iters, makeIter(c.ColumnPath, pred, cond.Attribute.Name))
+				addPredicate(c.ColumnPath, pred)
+				addSelectAs(cond.Attribute, c.ColumnPath, cond.Attribute.Name)
 				continue
 			}
 
@@ -526,8 +527,8 @@ func createDistinctSpanIterator(
 			if err != nil {
 				return nil, err
 			}
-			addPredicate(columnPathSpanName, pred)
-			addSelectAs(cond.Attribute, columnPathSpanName, columnPathSpanName)
+			addPredicate(ColumnPathSpanName, pred)
+			addSelectAs(cond.Attribute, ColumnPathSpanName, ColumnPathSpanName)
 			continue
 
 		case traceql.IntrinsicKind:
@@ -593,41 +594,20 @@ func createDistinctSpanIterator(
 			addSelectAs(cond.Attribute, columnPathSpanParentID, columnPathSpanParentID)
 			continue
 
+		case traceql.IntrinsicChildCount:
+			pred, err := createIntPredicate(cond.Op, cond.Operands)
+			if err != nil {
+				return nil, err
+			}
+			addPredicate(columnPathSpanChildCount, pred)
+			addSelectAs(cond.Attribute, columnPathSpanChildCount, columnPathSpanChildCount)
+			continue
+
 		// TODO: Support structural operators
 		case traceql.IntrinsicStructuralDescendant,
 			traceql.IntrinsicStructuralChild,
 			traceql.IntrinsicStructuralSibling:
 			continue
-		}
-
-		// Well-known attribute?
-		if entry, ok := wellKnownColumnLookups[cond.Attribute.Name]; ok && entry.level != traceql.AttributeScopeResource {
-			// Operands that need special handling.
-			switch cond.Op {
-			case traceql.OpNone:
-				addPredicate(entry.columnPath, nil) // No filtering
-				columnSelectAs[entry.columnPath] = cond.Attribute.Name
-				continue
-			case traceql.OpExists:
-				addPredicate(entry.columnPath, &parquetquery.SkipNilsPredicate{})
-				columnSelectAs[entry.columnPath] = cond.Attribute.Name
-				continue
-			case traceql.OpNotExists:
-				pred := parquetquery.NewNilValuePredicate()
-				iters = append(iters, makeIter(entry.columnPath, pred, cond.Attribute.Name))
-				continue
-			}
-
-			// Compatible type?
-			if entry.typ == operandType(cond.Operands) {
-				pred, err := createPredicate(cond.Op, cond.Operands)
-				if err != nil {
-					return nil, errors.Wrap(err, "creating predicate")
-				}
-				addPredicate(entry.columnPath, pred)
-				addSelectAs(cond.Attribute, entry.columnPath, cond.Attribute.Name)
-				continue
-			}
 		}
 
 		// Attributes stored in dedicated columns
@@ -636,15 +616,16 @@ func createDistinctSpanIterator(
 			switch cond.Op {
 			case traceql.OpNone:
 				addPredicate(c.ColumnPath, nil) // No filtering
-				columnSelectAs[c.ColumnPath] = cond.Attribute.Name
+				addSelectAs(cond.Attribute, c.ColumnPath, cond.Attribute.Name)
 				continue
 			case traceql.OpExists:
 				addPredicate(c.ColumnPath, &parquetquery.SkipNilsPredicate{})
-				columnSelectAs[c.ColumnPath] = cond.Attribute.Name
+				addSelectAs(cond.Attribute, c.ColumnPath, cond.Attribute.Name)
 				continue
 			case traceql.OpNotExists:
 				pred := parquetquery.NewNilValuePredicate()
-				iters = append(iters, makeIter(c.ColumnPath, pred, cond.Attribute.Name))
+				addPredicate(c.ColumnPath, pred)
+				addSelectAs(cond.Attribute, c.ColumnPath, cond.Attribute.Name)
 				continue
 			}
 
@@ -975,16 +956,20 @@ func createDistinctResourceIterator(
 			switch cond.Op {
 			case traceql.OpNone:
 				addPredicate(entry.columnPath, nil) // No filtering
-				columnSelectAs[entry.columnPath] = cond.Attribute.Name
+				addSelectAs(cond.Attribute, entry.columnPath, cond.Attribute.Name)
 				continue
 			case traceql.OpExists:
 				addPredicate(entry.columnPath, &parquetquery.SkipNilsPredicate{})
-				columnSelectAs[entry.columnPath] = cond.Attribute.Name
+				addSelectAs(cond.Attribute, entry.columnPath, cond.Attribute.Name)
 				continue
-			case traceql.OpNotExists:
-				pred := parquetquery.NewNilValuePredicate()
-				iters = append(iters, makeIter(entry.columnPath, pred, cond.Attribute.Name))
-				continue
+
+				// this should not happen since resource only has one wellknown attribute which is service.name
+				// and that cannot ever be nil, the check is in the parser already
+				// case traceql.OpNotExists:
+				// 	pred := parquetquery.NewNilValuePredicate()
+				// 	addPredicate(entry.columnPath, pred)
+				// 	addSelectAs(cond.Attribute, entry.columnPath, cond.Attribute.Name)
+				// 	continue
 			}
 
 			// Compatible type?
@@ -1008,15 +993,16 @@ func createDistinctResourceIterator(
 			switch cond.Op {
 			case traceql.OpNone:
 				addPredicate(c.ColumnPath, nil) // No filtering
-				columnSelectAs[c.ColumnPath] = cond.Attribute.Name
+				addSelectAs(cond.Attribute, c.ColumnPath, cond.Attribute.Name)
 				continue
 			case traceql.OpExists:
 				addPredicate(c.ColumnPath, &parquetquery.SkipNilsPredicate{})
-				columnSelectAs[c.ColumnPath] = cond.Attribute.Name
+				addSelectAs(cond.Attribute, c.ColumnPath, cond.Attribute.Name)
 				continue
 			case traceql.OpNotExists:
 				pred := parquetquery.NewNilValuePredicate()
-				iters = append(iters, makeIter(c.ColumnPath, pred, cond.Attribute.Name))
+				addPredicate(c.ColumnPath, pred)
+				addSelectAs(cond.Attribute, c.ColumnPath, cond.Attribute.Name)
 				continue
 			}
 
@@ -1237,7 +1223,7 @@ func (d distinctValueCollector) KeepGroup(result *parquetquery.IteratorResult) b
 
 func mapEventAttr(e entry) traceql.Static {
 	switch e.Key {
-	case columnPathEventName:
+	case ColumnPathEventName:
 		return traceql.NewStaticString(unsafeToString(e.Value.ByteArray()))
 	default:
 		// This exists for event-level dedicated columns
@@ -1269,7 +1255,7 @@ func mapSpanAttr(e entry) traceql.Static {
 		columnPathSpanStartTime:
 	case columnPathSpanDuration:
 		return traceql.NewStaticDuration(time.Duration(e.Value.Int64()))
-	case columnPathSpanName:
+	case ColumnPathSpanName:
 		return traceql.NewStaticString(unsafeToString(e.Value.ByteArray()))
 	case columnPathSpanStatusCode:
 		// Map OTLP status code back to TraceQL enum.

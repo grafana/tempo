@@ -23,43 +23,52 @@ func newRuntimeConfigValidator(cfg *Config) overrides.Validator {
 	}
 }
 
-func (r *runtimeConfigValidator) Validate(config *overrides.Overrides) error {
+func (r *runtimeConfigValidator) Validate(config *overrides.Overrides) (warnings []error, err error) {
 	if config.Ingestion.TenantShardSize != 0 {
 		ingesterReplicationFactor := r.cfg.Ingester.LifecyclerConfig.RingConfig.ReplicationFactor
 		if config.Ingestion.TenantShardSize < ingesterReplicationFactor {
-			return fmt.Errorf("ingester.tenant.shard_size is lower than replication factor (%d < %d)", config.Ingestion.TenantShardSize, ingesterReplicationFactor)
+			return warnings, fmt.Errorf("ingester.tenant.shard_size is lower than replication factor (%d < %d)", config.Ingestion.TenantShardSize, ingesterReplicationFactor)
 		}
 	}
 
 	if config.MetricsGenerator.GenerateNativeHistograms != "" {
 		if err := validation.ValidateHistogramMode(string(config.MetricsGenerator.GenerateNativeHistograms)); err != nil {
-			return err
+			return warnings, err
 		}
 	}
 
 	if config.MetricsGenerator.NativeHistogramBucketFactor != 0 {
 		if err := validation.ValidateNativeHistogramBucketFactor(config.MetricsGenerator.NativeHistogramBucketFactor); err != nil {
-			return err
+			return warnings, err
 		}
 	}
 
 	if config.CostAttribution.Dimensions != nil {
 		if err := validation.ValidateCostAttributionDimensions(config.CostAttribution.Dimensions); err != nil {
-			return err
+			return warnings, err
+		}
+	}
+
+	if config.Storage.DedicatedColumns != nil {
+		if dcWarnings, dcErr := config.Storage.DedicatedColumns.Validate(); dcErr != nil || len(dcWarnings) > 0 {
+			warnings = append(warnings, dcWarnings...)
+			if dcErr != nil {
+				return warnings, dcErr
+			}
 		}
 	}
 
 	serviceBuckets := config.MetricsGenerator.Processor.ServiceGraphs.HistogramBuckets
 	if err := validation.ValidateHistogramBuckets(serviceBuckets, "metrics_generator.processor.service_graphs.histogram_buckets"); err != nil {
-		return err
+		return warnings, err
 	}
 
 	spanBuckets := config.MetricsGenerator.Processor.SpanMetrics.HistogramBuckets
 	if err := validation.ValidateHistogramBuckets(spanBuckets, "metrics_generator.processor.span_metrics.histogram_buckets"); err != nil {
-		return err
+		return warnings, err
 	}
 
-	return nil
+	return
 }
 
 type overridesValidator struct {

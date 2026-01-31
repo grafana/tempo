@@ -17,6 +17,8 @@
   local volumeMount = k.core.v1.volumeMount,
   local pvc = k.core.v1.persistentVolumeClaim,
 
+  local this = self,
+
   //
   // Multi-zone live-stores (non-optional).
   //
@@ -119,7 +121,7 @@
       }
       else {}
     )) +
-    statefulSet.mixin.spec.template.metadata.withLabels({ name: name, 'rollout-group': 'live-store' }) +
+    statefulSet.mixin.spec.template.metadata.withLabelsMixin({ name: name, 'rollout-group': 'live-store' }) +
     statefulSet.mixin.spec.selector.withMatchLabels({ name: name, 'rollout-group': 'live-store' }) +
     statefulSet.mixin.spec.updateStrategy.withType('OnDelete') +
     statefulSet.mixin.spec.template.spec.withTerminationGracePeriodSeconds(1200) +
@@ -136,10 +138,6 @@
       3,
       container,
       self.tempo_live_store_pvc,
-      {
-        app: target_name,
-        [$._config.gossip_member_label]: 'true',
-      },
     )
     + statefulSet.mixin.spec.withServiceName(name)
     + statefulSet.mixin.spec.template.metadata.withAnnotations({
@@ -150,6 +148,7 @@
       volume.fromConfigMap(tempo_overrides_config_volume, $._config.overrides_configmap_name),
     ]) +
     statefulSet.mixin.spec.withPodManagementPolicy('Parallel') +
+    statefulSet.mixin.spec.template.metadata.withLabels({ app: name, [$._config.gossip_member_label]: 'true' }) +
     statefulSet.mixin.spec.template.spec.withTerminationGracePeriodSeconds(1200) +
     $.util.podPriority('high'),
 
@@ -175,11 +174,9 @@
   tempo_live_store_zone_b_service:
     $.newLiveStoreZoneService($.tempo_live_store_zone_b_statefulset),
 
-  live_store_rollout_pdb:
-    podDisruptionBudget.new('live-store-rollout-pdb') +
-    podDisruptionBudget.mixin.metadata.withLabels({ name: 'live-store-rollout-pdb' }) +
-    podDisruptionBudget.mixin.spec.selector.withMatchLabels({ 'rollout-group': 'live-store' }) +
-    podDisruptionBudget.mixin.spec.withMaxUnavailable(1),
+  live_store_rollout_pdb: if $._config.live_store.zpdb.enabled then
+    this.newZPDB('live-store-rollout', 'live-store', $._config.live_store.zpdb.max_unavailable, $._config.live_store.zpdb.partition_regex, $._config.live_store.zpdb.partition_group)
+  else {},
 
   tempo_live_store_configmap:
     configMap.new('tempo-live-store') +
@@ -195,5 +192,10 @@
 
   tempo_live_store_service: null,  // Only multi-zone services are supported
 
-  live_store_pdb: null,  // Only rollout PDB is used
+  // Vertical Pod Autoscaler
+  tempo_live_store_vpa: [
+    $.vpaForController($.tempo_live_store_zone_a_statefulset, 'live_store'),
+    $.vpaForController($.tempo_live_store_zone_b_statefulset, 'live_store'),
+  ],
+
 }

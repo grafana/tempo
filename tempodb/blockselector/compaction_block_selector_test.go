@@ -614,28 +614,12 @@ func TestTimeWindowBlockSelectorBlocksToCompact(t *testing.T) {
 			},
 		},
 		{
-			name: "don't compact across dataEncodings",
-			blocklist: []*backend.BlockMeta{
-				{
-					BlockID:      backend.MustParse("00000000-0000-0000-0000-000000000000"),
-					EndTime:      now,
-					DataEncoding: "bar",
-				},
-				{
-					BlockID:      backend.MustParse("00000000-0000-0000-0000-000000000001"),
-					EndTime:      now,
-					DataEncoding: "foo",
-				},
-			},
-			expected: nil,
-		},
-		{
 			name: "ensures blocks of different versions are not compacted",
 			blocklist: []*backend.BlockMeta{
 				{
 					BlockID: backend.MustParse("00000000-0000-0000-0000-000000000001"),
 					EndTime: now,
-					Version: "v2",
+					Version: "vParquet5",
 				},
 				{
 					BlockID: backend.MustParse("00000000-0000-0000-0000-000000000002"),
@@ -654,7 +638,7 @@ func TestTimeWindowBlockSelectorBlocksToCompact(t *testing.T) {
 				{
 					BlockID: backend.MustParse("00000000-0000-0000-0000-000000000001"),
 					EndTime: now,
-					Version: "v2",
+					Version: "vParquet5",
 				},
 				{
 					BlockID: backend.MustParse("00000000-0000-0000-0000-000000000002"),
@@ -664,7 +648,7 @@ func TestTimeWindowBlockSelectorBlocksToCompact(t *testing.T) {
 				{
 					BlockID: backend.MustParse("00000000-0000-0000-0000-000000000003"),
 					EndTime: now,
-					Version: "v2",
+					Version: "vParquet5",
 				},
 				{
 					BlockID: backend.MustParse("00000000-0000-0000-0000-000000000004"),
@@ -674,19 +658,6 @@ func TestTimeWindowBlockSelectorBlocksToCompact(t *testing.T) {
 			},
 			expected: []*backend.BlockMeta{
 				{
-					BlockID: backend.MustParse("00000000-0000-0000-0000-000000000001"),
-					EndTime: now,
-					Version: "v2",
-				},
-				{
-					BlockID: backend.MustParse("00000000-0000-0000-0000-000000000003"),
-					EndTime: now,
-					Version: "v2",
-				},
-			},
-			expectedHash: fmt.Sprintf("%v-%v-%v-%v", tenantID, 0, now.Unix(), 0),
-			expectedSecond: []*backend.BlockMeta{
-				{
 					BlockID: backend.MustParse("00000000-0000-0000-0000-000000000002"),
 					EndTime: now,
 					Version: "vParquet3",
@@ -695,6 +666,19 @@ func TestTimeWindowBlockSelectorBlocksToCompact(t *testing.T) {
 					BlockID: backend.MustParse("00000000-0000-0000-0000-000000000004"),
 					EndTime: now,
 					Version: "vParquet3",
+				},
+			},
+			expectedHash: fmt.Sprintf("%v-%v-%v-%v", tenantID, 0, now.Unix(), 0),
+			expectedSecond: []*backend.BlockMeta{
+				{
+					BlockID: backend.MustParse("00000000-0000-0000-0000-000000000001"),
+					EndTime: now,
+					Version: "vParquet5",
+				},
+				{
+					BlockID: backend.MustParse("00000000-0000-0000-0000-000000000003"),
+					EndTime: now,
+					Version: "vParquet5",
 				},
 			},
 			expectedHash2: fmt.Sprintf("%v-%v-%v-%v", tenantID, 0, now.Unix(), 0),

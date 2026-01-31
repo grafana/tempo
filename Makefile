@@ -1,7 +1,7 @@
 # Adapted from https://www.thapaliya.com/en/writings/well-documented-makefiles/
 .PHONY: help
 help:  ## Display this help
-	@awk 'BEGIN {FS = ":.*##"; printf "\nUsage:\n  make \033[36m<target>\033[0m\n"} /^[a-zA-Z_-]+:.*?##/ { printf "  \033[36m%-15s\033[0m %s\n", $$1, $$2 } /^##@/ { printf "\n\033[1m%s\033[0m\n", substr($$0, 5) } ' $(MAKEFILE_LIST)
+	@awk 'BEGIN {FS = ":.*##"; printf "\nUsage:\n  make \033[36m<target>\033[0m\n"} /^[[:alnum:]_-]+:.*##/ { printf "  \033[36m%-15s\033[0m %s\n", $$1, $$2 } /^##@/ { printf "\n\033[1m%s\033[0m\n", substr($$0, 5) } ' $(MAKEFILE_LIST)
 
 .DEFAULT_GOAL:=help
 
@@ -18,8 +18,10 @@ GOPATH := $(shell go env GOPATH)
 GORELEASER := $(GOPATH)/bin/goreleaser
 
 # Build Images
-DOCKER_PROTOBUF_IMAGE ?= otel/build-protobuf:0.25.0
 LOKI_BUILD_IMAGE ?= grafana/loki-build-image:0.34.6
+# https://hub.docker.com/repository/docker/grafana/tempo-ci-tools/
+# built by: .github/workflows/docker-ci-tools.yml
+TEMPO_CI_TOOLS_IMAGE ?= grafana/tempo-ci-tools:main-c2aa3e8
 DOCS_IMAGE ?= grafana/docs-base:latest
 
 # More exclusions can be added similar with: -not -path './testbed/*'
@@ -74,7 +76,7 @@ ifeq ($(UNAME), Darwin)
     SED_OPTS := ''
 endif
 
-FILES_TO_FMT=$(shell find . -type d \( -path ./vendor -o -path ./opentelemetry-proto -o -path ./vendor-fix \) -prune -o -name '*.go' -not -name "*.pb.go" -not -name '*.y.go' -not -name '*.gen.go' -print)
+FILES_TO_FMT=$(shell find . -type d \( -path ./vendor -o -path ./tools/vendor -o -path ./opentelemetry-proto -o -path ./vendor-fix \) -prune -o -name '*.go' -not -name "*.pb.go" -not -name '*.y.go' -not -name '*.gen.go' -print)
 FILES_TO_JSONNETFMT=$(shell find ./operations/jsonnet ./operations/tempo-mixin ./example -type f \( -name '*.libsonnet' -o -name '*.jsonnet' \) -not -path "*/vendor/*" -print)
 
 ##@ Building
@@ -102,7 +104,7 @@ exe:
 exe-debug:
 	BUILD_DEBUG=1 GOOS=linux make $(COMPONENT)
 
-##@  Testin' and Lintin'
+##@ Unit Tests
 
 .PHONY: test
 test: ## Run tests
@@ -120,7 +122,7 @@ test-with-cover: tools ## Run tests with code coverage
 
 # tests in pkg
 .PHONY: test-with-cover-pkg
-test-with-cover-pkg: tools  ##  Run Tempo packages' tests with code coverage
+test-with-cover-pkg: tools  ## Run Tempo packages' tests with code coverage
 	mkdir -p $(COVERAGE_DIR)
 	$(GOTEST) $(GOTEST_OPT) -coverprofile=$(COVERAGE_DIR)/pkg.out $(shell go list $(sort $(dir $(shell find . -name '*.go' -path './pkg*/*' -type f | sort))))
 
@@ -142,42 +144,51 @@ test-with-cover-others: tools ## Run other tests with code coverage
 	mkdir -p $(COVERAGE_DIR)
 	$(GOTEST) $(GOTEST_OPT) -coverprofile=$(COVERAGE_DIR)/others.out $(shell go list $(sort $(dir $(OTHERS_SRC))))
 
+##@ End to End Tests
+
 # runs e2e tests in the top level integration/e2e directory
 .PHONY: test-e2e
-test-e2e: tools docker-tempo docker-tempo-query  ## Run end to end tests
-	$(GOTEST) -v $(GOTEST_OPT) ./integration/e2e
+test-e2e: tools docker-tempo docker-tempo-query test-e2e-operations test-e2e-api test-e2e-limits test-e2e-metrics-generator test-e2e-storage test-e2e-util ## Run all e2e tests
+	@echo "All e2e tests completed"
 
-# runs only deployment modes e2e tests
-.PHONY: test-e2e-deployments
-test-e2e-deployments: tools docker-tempo docker-tempo-query ## Run end to end tests for deployments
-	$(GOTEST) -v $(GOTEST_OPT) ./integration/e2e/deployments
+# runs only operations e2e tests
+.PHONY: test-e2e-operations
+test-e2e-operations: tools docker-tempo docker-tempo-query ## Run operations e2e tests
+	$(GOTEST) -v $(GOTEST_OPT) ./integration/operations
 
 # runs only api e2e tests
 .PHONY: test-e2e-api
-test-e2e-api: tools docker-tempo docker-tempo-query ## Run end to end tests for api
-	$(GOTEST) -v $(GOTEST_OPT) ./integration/e2e/api
+test-e2e-api: tools docker-tempo docker-tempo-query ## Run api e2e tests
+	$(GOTEST) -v $(GOTEST_OPT) ./integration/api
 
-# runs only poller integration tests
-.PHONY: test-integration-poller
-test-integration-poller: tools ## Run poller integration tests
-	$(GOTEST) -v $(GOTEST_OPT) ./integration/poller
+## runs only poller integration tests
+.PHONY: test-e2e-limits
+test-e2e-limits: tools tools docker-tempo ## Run limits e2e tests
+	$(GOTEST) -v $(GOTEST_OPT) ./integration/limits
 
-# runs only backendscheduler integration tests
-.PHONY: test-integration-backendscheduler
-test-integration-backendscheduler: tools docker-tempo ## Run backend-scheduler integration tests
-	$(GOTEST) -v $(GOTEST_OPT) ./integration/backendscheduler
+# runs only metrics-generator integration tests
+.PHONY: test-e2e-metrics-generator
+test-e2e-metrics-generator: tools docker-tempo ## Run metrics-generator e2e tests
+	$(GOTEST) -v $(GOTEST_OPT) ./integration/metrics-generator
 
 # runs only ingest integration tests
-.PHONY: test-e2e-ingest
-test-e2e-ingest: tools docker-tempo ## Run end to end tests for ingest
-	$(GOTEST) -v $(GOTEST_OPT) ./integration/e2e/ingest
+.PHONY: test-e2e-storage
+test-e2e-storage: tools docker-tempo ## Run storage e2e tests
+	$(GOTEST) -v $(GOTEST_OPT) ./integration/storage
+
+# runs only ingest integration tests
+.PHONY: test-e2e-util
+test-e2e-util: tools docker-tempo ## Run unit tests on the e2e test harness
+	$(GOTEST) -v $(GOTEST_OPT) ./integration/util
 
 # test-all use a docker image so build it first to make sure we're up to date
-.PHONY: test-all ## Run all tests
-test-all: test-with-cover test-e2e test-e2e-deployments test-e2e-api test-integration-poller test-integration-backendscheduler test-e2e-ingest
+.PHONY: test-all
+test-all: test-with-cover test-e2e ## Run all tests
+
+##@ Linters/Formatters
 
 .PHONY: fmt check-fmt
-fmt: tools-image ## Check fmt
+fmt: tools-image ## Format codebase with gofumpt and goimports
 	@$(TOOLS_CMD) gofumpt -w $(FILES_TO_FMT)
 	@$(TOOLS_CMD) goimports -w $(FILES_TO_FMT)
 
@@ -185,14 +196,14 @@ check-fmt: fmt
 	@git diff --exit-code -- $(FILES_TO_FMT)
 
 .PHONY: jsonnetfmt check-jsonnetfmt ## Check jsonnetfmt
-jsonnetfmt: tools-image
+jsonnetfmt: tools-image ## Format jsonnet codebase with jsonnetfmt
 	@$(TOOLS_CMD) jsonnetfmt -i $(FILES_TO_JSONNETFMT)
 
 check-jsonnetfmt: jsonnetfmt
 	@git diff --exit-code -- $(FILES_TO_JSONNETFMT)
 
 .PHONY: lint
-lint: # linting
+lint: ## Lint codebase with golangci-lint
 ifneq ($(base),)
 	$(LINT_CMD) $(LINT) run --config .golangci.yml --new-from-rev=$(base)
 else
@@ -255,14 +266,10 @@ ifndef COMPONENT
 	$(error COMPONENT variable was not defined)
 endif
 
-##@ Gen Proto
+##@ Code Generation
 
-PROTOC = docker run --rm -u ${shell id -u} -v${PWD}:${PWD} -w${PWD} ${DOCKER_PROTOBUF_IMAGE} --proto_path=${PWD}
 PROTO_INTERMEDIATE_DIR = pkg/.patched-proto
-PROTO_INCLUDES = -I$(PROTO_INTERMEDIATE_DIR)
-PROTO_GEN = $(PROTOC) $(PROTO_INCLUDES) --gogofaster_out=plugins=grpc,paths=source_relative,Mgoogle/protobuf/timestamp.proto=github.com/gogo/protobuf/types:$(2) $(1)
-PROTO_GEN_WITH_VENDOR = $(PROTOC) $(PROTO_INCLUDES) -Ivendor -Ivendor/github.com/gogo/protobuf --gogofaster_out=plugins=grpc,paths=source_relative:$(2) $(1)
-PROTO_GEN_WITHOUT_RELATIVE = $(PROTOC) $(PROTO_INCLUDES) --gogofaster_out=plugins=grpc:$(2) $(1)
+BUF = docker run --rm -u ${shell id -u} -v${PWD}:/tempo -w/tempo -e HOME=/tempo --entrypoint /usr/local/bin/buf ${TEMPO_CI_TOOLS_IMAGE}
 
 .PHONY: gen-proto
 gen-proto:  ## Generate proto files
@@ -300,17 +307,22 @@ gen-proto:  ## Generate proto files
 	@echo --
 	@echo -- Gen proto --
 	@echo --
-	$(call PROTO_GEN,$(PROTO_INTERMEDIATE_DIR)/common/v1/common.proto,./pkg/tempopb/)
-	$(call PROTO_GEN,$(PROTO_INTERMEDIATE_DIR)/resource/v1/resource.proto,./pkg/tempopb/)
-	$(call PROTO_GEN,$(PROTO_INTERMEDIATE_DIR)/trace/v1/trace.proto,./pkg/tempopb/)
-	$(call PROTO_GEN,pkg/tempopb/tempo.proto,./)
-	$(call PROTO_GEN,pkg/tempopb/backendwork.proto,./)
-	$(call PROTO_GEN_WITHOUT_RELATIVE,tempodb/backend/v1/v1.proto,./)
-	$(call PROTO_GEN_WITH_VENDOR,modules/frontend/v1/frontendv1pb/frontend.proto,./)
+	@# Generate patched OpenTelemetry protos (output to pkg/tempopb/)
+	$(BUF) generate --config buf/buf.gen-config.yaml --template buf/buf.gen.otel.yaml --path $(PROTO_INTERMEDIATE_DIR)/common/v1/common.proto
+	$(BUF) generate --config buf/buf.gen-config.yaml --template buf/buf.gen.otel.yaml --path $(PROTO_INTERMEDIATE_DIR)/resource/v1/resource.proto
+	$(BUF) generate --config buf/buf.gen-config.yaml --template buf/buf.gen.otel.yaml --path $(PROTO_INTERMEDIATE_DIR)/trace/v1/trace.proto
+
+	@# Generate Tempo protos
+	$(BUF) generate --config buf/buf.gen-config.yaml --template buf/buf.gen.tempopb.yaml --path pkg/tempopb/tempo.proto
+	$(BUF) generate --config buf/buf.gen-config.yaml --template buf/buf.gen.tempopb.yaml --path pkg/tempopb/backendwork.proto
+
+	@# Generate backend proto (uses go_package for output path)
+	$(BUF) generate --config buf/buf.gen-config.yaml --template buf/buf.gen.backend.yaml --path tempodb/backend/v1/v1.proto
+
+	@# Generate frontend proto
+	$(BUF) generate --config buf/buf.gen-config.yaml --template buf/buf.gen.frontend.yaml --path modules/frontend/v1/frontendv1pb/frontend.proto
 
 	rm -rf $(PROTO_INTERMEDIATE_DIR)
-
-##@ Gen Traceql
 
 .PHONY: gen-traceql 
 gen-traceql: ## Generate traceql 
@@ -319,9 +331,6 @@ gen-traceql: ## Generate traceql
 .PHONY: gen-traceql-local
 gen-traceql-local: ## Generate traceq local
 	goyacc -l -o pkg/traceql/expr.y.go pkg/traceql/expr.y && rm -f y.output
-
-
-##@ Gen Parquet-Query
 
 .PHONY: gen-parquet-query
 gen-parquet-query:  ## Generate Parquet query 

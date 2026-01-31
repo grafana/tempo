@@ -98,10 +98,8 @@ func ValidateDimensions(dimensions []string, intrinsicDimensions []string, dimen
 
 	for _, d := range dimensions {
 		sanitized := SanitizeLabelNameWithCollisions(d, SupportedIntrinsicDimensionsSet, sanitizeFn)
-		if source, exists := seen[sanitized]; exists {
-			return fmt.Errorf("dimension %q produces label %q which collides with %s", d, sanitized, source)
-		}
 		seen[sanitized] = fmt.Sprintf("dimension %q", d)
+		// we allow collisions like deployment_environment and deployment.environment, this may be a valid use case if tenant is using different SDK for instrumentation
 	}
 
 	for _, m := range dimensionMappings {
@@ -193,15 +191,5 @@ func ValidateDimensionMappings(dimensionMappings []sharedconfig.DimensionMapping
 }
 
 func ValidateServiceGraphsDimensions(dimensions []string) error {
-	seen := make(map[string]string) // sanitized label -> original dimension
-
-	for _, d := range dimensions {
-		sanitized := SanitizeLabelName(d)
-		if source, exists := seen[sanitized]; exists {
-			return fmt.Errorf("dimension %q produces label %q which collides with dimension %q", d, sanitized, source)
-		}
-		seen[sanitized] = d
-	}
-
 	return nil
 }

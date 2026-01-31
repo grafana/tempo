@@ -1,0 +1,8 @@
+{
+  "apiVersion": "tanka.dev/v1alpha1",
+  "kind": "Environment",
+  "spec": {
+    "injectLabels": false,
+    "namespace": "tracing"
+  }
+}

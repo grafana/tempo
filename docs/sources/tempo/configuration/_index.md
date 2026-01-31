@@ -305,14 +305,14 @@ To re-enable the compression, use `snappy` with the following settings:
 ```yaml
 ingester_client:
   grpc_client_config:
-    grpc_compression: 'snappy'
+    grpc_compression: "snappy"
 metrics_generator_client:
   grpc_client_config:
-    grpc_compression: 'snappy'
+    grpc_compression: "snappy"
 querier:
   frontend_worker:
     grpc_client_config:
-      grpc_compression: 'snappy'
+      grpc_compression: "snappy"
 ```
 
 ## Ingester
@@ -781,6 +781,11 @@ query_frontend:
         # (default: 0)
         [concurrent_shards: <int>]
 
+        # Enable external trace source for trace-by-ID queries. When enabled,
+        # the frontend will create an additional shard to query the external endpoint
+        # configured in the querier.
+        [external_enabled: <bool> | default = false]
+
         # If set to a non-zero value, it's value will be used to decide if metadata query is within SLO or not.
         # Query is within SLO if it returned 200 within duration_slo seconds OR processed throughput_slo bytes/s data.
         # NOTE: Requires `duration_slo` AND `throughput_bytes_slo` to be configured.
@@ -899,6 +904,20 @@ querier:
     trace_by_id:
         # Timeout for trace lookup requests
         [query_timeout: <duration> | default = 10s]
+
+        # External trace source configuration. When enabled, trace-by-ID queries
+        # will also fetch trace data from an external HTTP endpoint that returns
+        # an opentelemetry protobuf formatted trace.
+        external:
+            # Enable querying an external endpoint for trace data.
+            [enabled: <bool> | default = false]
+
+            # The URL of the external service.
+            # Example: "http://external-service:3200"
+            [endpoint: <string>]
+
+            # Timeout for requests to the external endpoint.
+            [timeout: <duration> | default = 10s]
 
     search:
         # Timeout for search requests
@@ -1445,8 +1464,6 @@ storage:
         # configuration block for the Write Ahead Log (WAL)
         wal: <WAL config>
           [path: <string> | default = "/var/tempo/wal"]
-          [v2_encoding: <string> | default = snappy]
-          [search_encoding: <string> | default = none]
           [ingestion_time_range_slack: <duration> | default = 2m]
 
         # block configuration
@@ -1546,7 +1563,8 @@ Defines re-used configuration blocks.
 ### Block
 
 ```yaml
-# block format version. options: v2, vParquet3, vParquet4
+# block format version. options: vParquet4
+# deprecated options: v2, vParquet3
 [version: <string> | default = vParquet4]
 
 # bloom filter false positive rate. lower values create larger filters but fewer false positives
@@ -1554,15 +1572,6 @@ Defines re-used configuration blocks.
 
 # maximum size of each bloom filter shard
 [bloom_filter_shard_size_bytes: <int> | default = 100KiB]
-
-# number of bytes per index record
-[v2_index_downsample_bytes: <uint64> | default = 1MiB]
-
-# block encoding/compression. options: none, gzip, lz4-64k, lz4-256k, lz4-1M, lz4, snappy, zstd, s2
-[v2_encoding: <string> | default = zstd]
-
-# search data encoding/compression. same options as block encoding.
-[search_encoding: <string> | default = snappy]
 
 # number of bytes per search page
 [search_page_size_bytes: <int> | default = 1MiB]
@@ -1575,7 +1584,7 @@ Defines re-used configuration blocks.
 # Configures attributes to be stored in dedicated columns within the parquet file, rather than in the
 # generic attribute key-value list. This allows for more efficient searching of these attributes.
 # Up to 10 span attributes and 10 resource attributes can be configured as dedicated columns.
-# Requires vParquet3
+# Requires at least vParquet3
 parquet_dedicated_columns: <list of columns>
 
       # name of the attribute
@@ -1626,18 +1635,6 @@ The `compaction` configuration block is used by the compactor, scheduler, and wo
 # The time between compaction cycles.
 # Note: The default will be used if the value is set to 0.
 [compaction_cycle: <duration> | default=30s]
-
-# Optional
-# Amount of data to buffer from input blocks.
-[v2_in_buffer_bytes: <int> | default=5242880]
-
-# Optional
-# Flush data to backend when buffer is this large.
-[v2_out_buffer_bytes: <int> | default=20971520]
-
-# Optional
-# Number of traces to buffer in memory during compaction. Increasing may improve performance but will also increase memory usage. Default is 1000.
-[v2_prefetch_traces_count: <int> | default=1000]
 ```
 
 ### Filter policies
@@ -1675,17 +1672,17 @@ attributes: <list of policy atributes>
 
 ```yaml
 exclude:
-  match_type: 'regex'
+  match_type: "regex"
   attributes:
-    - key: 'resource.service.name'
-      value: 'unknown_service:myservice'
+    - key: "resource.service.name"
+      value: "unknown_service:myservice"
 ```
 
 ```yaml
 include:
-  match_type: 'strict'
+  match_type: "strict"
   attributes:
-    - key: 'foo.bar'
+    - key: "foo.bar"
       value: "baz"
 ```
 
@@ -1809,14 +1806,6 @@ The storage WAL configuration block.
 # Example: "/var/tempo/wal
 [path: <string> | default = ""]
 
-# WAL encoding/compression.
-# options: none, gzip, lz4-64k, lz4-256k, lz4-1M, lz4, snappy, zstd, s2
-[v2_encoding: <string> | default = "zstd" ]
-
-# Defines the search data encoding/compression protocol.
-# Options: none, gzip, lz4-64k, lz4-256k, lz4-1M, lz4, snappy, zstd, s2
-[search_encoding: <string> | default = "snappy"]
-
 # When a span is written to the WAL it adjusts the start and end times of the block it is written to.
 # This block start and end time range is then used when choosing blocks for search.
 # This is also used for querying traces by ID when the start and end parameters are specified. To prevent spans too far
@@ -1828,8 +1817,9 @@ The storage WAL configuration block.
 [ingestion_time_range_slack: <duration> | default = unset]
 
 # WAL file format version
-# Options: v2, vParquet3, vParquet4
-[version: <string> | default = "vParquet3"]
+# Options: vParquet4
+# Deprecated options: v2, vParquet3
+[version: <string> | default = "vParquet4"]
 ```
 
 ## Overrides
@@ -1859,19 +1849,22 @@ overrides:
       # Specifies whether the ingestion rate limits should be applied by each instance
       # of the distributor and ingester individually, or the limits are to be shared
       # across all instances. See the "override strategies" section for an example.
+      # Only applies to rate_limit_bytes.
       [rate_strategy: <global|local> | default = local]
+
+      # Per-user ingestion rate limit (bytes) used in ingestion.
+      # Results in errors like RATE_LIMITED: ingestion rate limit (15000000 bytes) exceeded while adding 10 bytes
+      #   RATE_LIMITED: ingestion rate limit (15000000 bytes) exceeded while
+      #   adding 10 bytes
+      # Applies global and local strategies.
+      [rate_limit_bytes: <int> | default = 15000000 (15MB) ]
 
       # Burst size (bytes) used in ingestion.
       # Results in errors like
       #   RATE_LIMITED: ingestion rate limit (20000000 bytes) exceeded while
       #   adding 10 bytes
+      # Ignores rate strategy and is always local.
       [burst_size_bytes: <int> | default = 20000000 (20MB) ]
-
-      # Per-user ingestion rate limit (bytes) used in ingestion.
-      # Results in errors like
-      #   RATE_LIMITED: ingestion rate limit (15000000 bytes) exceeded while
-      #   adding 10 bytes
-      [rate_limit_bytes: <int> | default = 15000000 (15MB) ]
 
       # Maximum number of active traces per user, per ingester.
       # A value of 0 disables the check.
@@ -2073,7 +2066,7 @@ overrides:
       # Configures attributes to be stored in dedicated columns within the parquet file, rather than in the
       # generic attribute key-value list. This allows for more efficient searching of these attributes.
       # Up to 10 span attributes and 10 resource attributes can be configured as dedicated columns.
-      # Requires vParquet3
+      # Requires at least vParquet3
       parquet_dedicated_columns:
         [
           name: <string>, # name of the attribute
@@ -2153,8 +2146,8 @@ overrides:
 
   "<tenant-id>":
       ingestion:
-        [burst_size_bytes: <int>]
-        [rate_limit_bytes: <int>]
+        [rate_size_bytes: <int>] # Applies global and local strategies.
+        [burst_limit_bytes: <int>] # Ignores rate strategy and is always local.
         [max_traces_per_user: <int>]
       global:
         [max_bytes_per_trace: <int>]

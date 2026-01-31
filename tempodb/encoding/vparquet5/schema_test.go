@@ -48,7 +48,7 @@ func TestProtoToParquetEmptyTrace(t *testing.T) {
 	want := &Trace{
 		TraceID:       make([]byte, 16),
 		ResourceSpans: nil,
-		ServiceStats:  map[string]ServiceStats{},
+		ServiceStats:  []ServiceStats{},
 	}
 
 	got, connected := traceToParquet(&backend.BlockMeta{}, nil, &tempopb.Trace{}, nil)
@@ -128,7 +128,7 @@ func TestFieldsAreCleared(t *testing.T) {
 		TraceID:         traceID,
 		TraceIDText:     "102030405060708090a0b0c0d0e0f",
 		RootServiceName: "service1",
-		ServiceStats:    map[string]ServiceStats{"service1": {SpanCount: 1, ErrorCount: 1}},
+		ServiceStats:    []ServiceStats{{ServiceName: "service1", SpanCount: 1, ErrorCount: 1}},
 		ResourceSpans: []ResourceSpans{{
 			Resource: Resource{
 				ServiceName: "service1",
@@ -316,10 +316,11 @@ func TestTraceToParquet(t *testing.T) {
 				TraceIDText:     "102030405060708090a0b0c0d0e0f",
 				RootSpanName:    "span-a",
 				RootServiceName: "service-a",
-				ServiceStats: map[string]ServiceStats{
-					"service-a": {
-						SpanCount:  1,
-						ErrorCount: 0,
+				ServiceStats: []ServiceStats{
+					{
+						ServiceName: "service-a",
+						SpanCount:   1,
+						ErrorCount:  0,
 					},
 				},
 				ResourceSpans: []ResourceSpans{{
@@ -438,10 +439,11 @@ func TestTraceToParquet(t *testing.T) {
 				TraceIDText:     "102030405060708090a0b0c0d0e0f",
 				RootSpanName:    "span-a",
 				RootServiceName: "service-a",
-				ServiceStats: map[string]ServiceStats{
-					"service-a": {
-						SpanCount:  3,
-						ErrorCount: 0,
+				ServiceStats: []ServiceStats{
+					{
+						ServiceName: "service-a",
+						SpanCount:   3,
+						ErrorCount:  0,
 					},
 				},
 				ResourceSpans: []ResourceSpans{{
@@ -457,6 +459,7 @@ func TestTraceToParquet(t *testing.T) {
 								SpanID:         []byte{0xFF, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01},
 								NestedSetLeft:  1,
 								NestedSetRight: 6,
+								ChildCount:     2,
 								ParentID:       -1,
 								Attrs: []Attribute{
 									attr("span.attr", "aaa"),
@@ -552,14 +555,16 @@ func TestTraceToParquet(t *testing.T) {
 				TraceIDText:     "102030405060708090a0b0c0d0e0f",
 				RootSpanName:    "span-a",
 				RootServiceName: "service-a",
-				ServiceStats: map[string]ServiceStats{
-					"service-a": {
-						SpanCount:  3,
-						ErrorCount: 1,
+				ServiceStats: []ServiceStats{
+					{
+						ServiceName: "service-a",
+						SpanCount:   3,
+						ErrorCount:  1,
 					},
-					"service-b": {
-						SpanCount:  2,
-						ErrorCount: 1,
+					{
+						ServiceName: "service-b",
+						SpanCount:   2,
+						ErrorCount:  1,
 					},
 				},
 				ResourceSpans: []ResourceSpans{{
@@ -575,6 +580,7 @@ func TestTraceToParquet(t *testing.T) {
 								SpanID:         []byte{0xFF, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01},
 								NestedSetLeft:  1,
 								NestedSetRight: 10,
+								ChildCount:     2,
 								ParentID:       -1,
 								StatusCode:     int(v1_trace.Status_STATUS_CODE_ERROR),
 							},
@@ -593,6 +599,7 @@ func TestTraceToParquet(t *testing.T) {
 								ParentID:       1,
 								NestedSetLeft:  4,
 								NestedSetRight: 9,
+								ChildCount:     1,
 							},
 						},
 					}},
@@ -610,6 +617,7 @@ func TestTraceToParquet(t *testing.T) {
 								ParentSpanID:   []byte{0xFF, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x03},
 								NestedSetLeft:  5,
 								NestedSetRight: 8,
+								ChildCount:     1,
 								ParentID:       4,
 							},
 							{
@@ -663,6 +671,8 @@ func TestTraceToParquet(t *testing.T) {
 									Name:         "event name",
 									Attributes: []*v1.KeyValue{
 										{Key: "event.attr", Value: &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "bbb"}}},
+										{Key: "dedicated.event.1", Value: &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "dedicated-event-attr-value-1"}}},
+										{Key: "dedicated.event.2", Value: &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "dedicated-event-attr-value-2"}}},
 									},
 								}},
 							},
@@ -678,10 +688,11 @@ func TestTraceToParquet(t *testing.T) {
 				StartTimeUnixNano: 1000,
 				EndTimeUnixNano:   4000,
 				DurationNano:      3000,
-				ServiceStats: map[string]ServiceStats{
-					"service-a": {
-						SpanCount:  2,
-						ErrorCount: 0,
+				ServiceStats: []ServiceStats{
+					{
+						ServiceName: "service-a",
+						SpanCount:   2,
+						ErrorCount:  0,
 					},
 				},
 				ResourceSpans: []ResourceSpans{{
@@ -722,6 +733,10 @@ func TestTraceToParquet(t *testing.T) {
 									Name:               "event name",
 									Attrs: []Attribute{
 										attr("event.attr", "bbb"),
+									},
+									DedicatedAttributes: DedicatedAttributes{
+										String01: []string{"dedicated-event-attr-value-1"},
+										String02: []string{"dedicated-event-attr-value-2"},
 									},
 								}},
 							},

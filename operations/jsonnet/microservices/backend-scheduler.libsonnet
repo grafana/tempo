@@ -90,4 +90,10 @@
       + servicePort.withTargetPort(9095),
     ]),
 
+  // Vertical Pod Autoscaler
+  tempo_backend_scheduler_vpa: $.vpaForController($.tempo_backend_scheduler_statefulset, 'backend_scheduler'),
+
+  // Pod Disruption Budget
+  tempo_backend_scheduler_pdb: $.pdbForController($.tempo_backend_scheduler_statefulset, 'backend_scheduler'),
+
 }

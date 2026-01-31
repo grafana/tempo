@@ -55,7 +55,7 @@ func TestCombiner(t *testing.T) {
 			name: "root meta from second overrides empty first",
 			traceA: &Trace{
 				TraceID:      []byte{0x00, 0x01},
-				ServiceStats: map[string]ServiceStats{},
+				ServiceStats: []ServiceStats{},
 			},
 			traceB: &Trace{
 				TraceID:           []byte{0x00, 0x01},
@@ -64,7 +64,7 @@ func TestCombiner(t *testing.T) {
 				StartTimeUnixNano: 10,
 				EndTimeUnixNano:   20,
 				DurationNano:      10,
-				ServiceStats:      map[string]ServiceStats{},
+				ServiceStats:      []ServiceStats{},
 			},
 			expectedTrace: &Trace{
 				TraceID:           []byte{0x00, 0x01},
@@ -73,7 +73,7 @@ func TestCombiner(t *testing.T) {
 				StartTimeUnixNano: 10,
 				EndTimeUnixNano:   20,
 				DurationNano:      10,
-				ServiceStats:      map[string]ServiceStats{},
+				ServiceStats:      []ServiceStats{},
 			},
 		},
 		{
@@ -82,19 +82,19 @@ func TestCombiner(t *testing.T) {
 				TraceID:         []byte{0x00, 0x01},
 				RootServiceName: "serviceNameA",
 				RootSpanName:    "spanNameA",
-				ServiceStats:    map[string]ServiceStats{},
+				ServiceStats:    []ServiceStats{},
 			},
 			traceB: &Trace{
 				TraceID:         []byte{0x00, 0x01},
 				RootServiceName: "serviceNameB",
 				RootSpanName:    "spanNameB",
-				ServiceStats:    map[string]ServiceStats{},
+				ServiceStats:    []ServiceStats{},
 			},
 			expectedTrace: &Trace{
 				TraceID:         []byte{0x00, 0x01},
 				RootServiceName: "serviceNameA",
 				RootSpanName:    "spanNameA",
-				ServiceStats:    map[string]ServiceStats{},
+				ServiceStats:    []ServiceStats{},
 			},
 		},
 		{
@@ -116,7 +116,7 @@ func TestCombiner(t *testing.T) {
 				StartTimeUnixNano: 5,
 				EndTimeUnixNano:   25,
 				DurationNano:      20,
-				ServiceStats:      map[string]ServiceStats{},
+				ServiceStats:      []ServiceStats{},
 			},
 		},
 		{
@@ -138,7 +138,7 @@ func TestCombiner(t *testing.T) {
 				StartTimeUnixNano: 10,
 				EndTimeUnixNano:   20,
 				DurationNano:      10,
-				ServiceStats:      map[string]ServiceStats{},
+				ServiceStats:      []ServiceStats{},
 			},
 		},
 		{
@@ -194,12 +194,14 @@ func TestCombiner(t *testing.T) {
 			expectedTrace: &Trace{
 				TraceID:         []byte{0x00, 0x01},
 				RootServiceName: "serviceNameA",
-				ServiceStats: map[string]ServiceStats{
-					"serviceNameA": {
-						SpanCount: 1,
+				ServiceStats: []ServiceStats{
+					{
+						ServiceName: "serviceNameA",
+						SpanCount:   1,
 					},
-					"serviceNameB": {
-						SpanCount: 1,
+					{
+						ServiceName: "serviceNameB",
+						SpanCount:   1,
 					},
 				},
 				ResourceSpans: []ResourceSpans{
@@ -217,6 +219,7 @@ func TestCombiner(t *testing.T) {
 										NestedSetLeft:  1,
 										NestedSetRight: 4,
 										ParentID:       -1,
+										ChildCount:     1,
 									},
 								},
 							},
@@ -303,13 +306,15 @@ func TestCombiner(t *testing.T) {
 			expectedTrace: &Trace{
 				TraceID:         []byte{0x00, 0x01},
 				RootServiceName: "serviceNameA",
-				ServiceStats: map[string]ServiceStats{
-					"serviceNameA": {
-						SpanCount: 1,
+				ServiceStats: []ServiceStats{
+					{
+						ServiceName: "serviceNameA",
+						SpanCount:   1,
 					},
-					"serviceNameB": {
-						SpanCount:  2,
-						ErrorCount: 1,
+					{
+						ServiceName: "serviceNameB",
+						SpanCount:   2,
+						ErrorCount:  1,
 					},
 				},
 				ResourceSpans: []ResourceSpans{
@@ -327,6 +332,7 @@ func TestCombiner(t *testing.T) {
 										ParentID:       -1,
 										NestedSetLeft:  1,
 										NestedSetRight: 6,
+										ChildCount:     2,
 									},
 								},
 							},

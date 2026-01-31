@@ -298,7 +298,7 @@ func (a Attribute) validate() error {
 		return newUnsupportedError("parent")
 	}
 	switch a.Intrinsic {
-	case IntrinsicParent, IntrinsicChildCount:
+	case IntrinsicParent:
 		return newUnsupportedError(fmt.Sprintf("intrinsic (%v)", a.Intrinsic))
 	}
 

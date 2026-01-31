@@ -35,7 +35,7 @@ func (l *listBlocksCmd) Run(ctx *globalOptions) error {
 }
 
 func displayResults(results []blockStats, windowDuration time.Duration, includeCompacted bool) {
-	columns := []string{"id", "lvl", "objects", "size", "encoding", "vers", "window", "start", "end", "duration", "age"}
+	columns := []string{"id", "lvl", "objects", "size", "vers", "window", "start", "end", "duration", "age"}
 	if includeCompacted {
 		columns = append(columns, "cmp")
 	}
@@ -59,8 +59,6 @@ func displayResults(results []blockStats, windowDuration time.Duration, includeC
 				s = strconv.Itoa(int(r.TotalObjects))
 			case "size":
 				s = fmt.Sprintf("%v", humanize.Bytes(r.Size_))
-			case "encoding":
-				s = r.Encoding.String()
 			case "vers":
 				s = r.Version
 			case "window":
@@ -107,8 +105,12 @@ func displayResults(results []blockStats, windowDuration time.Duration, includeC
 
 	fmt.Println()
 	w := tablewriter.NewWriter(os.Stdout)
-	w.SetHeader(columns)
-	w.SetFooter(footer)
-	w.AppendBulk(out)
-	w.Render()
+	w.Header(columns)
+	if err := w.Bulk(out); err != nil {
+		panic(err)
+	}
+	w.Footer(footer)
+	if err := w.Render(); err != nil {
+		panic(err)
+	}
 }

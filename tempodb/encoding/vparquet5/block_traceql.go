@@ -31,10 +31,10 @@ var (
 	pqLinkPool            = parquetquery.NewResultPool(1)
 	pqInstrumentationPool = parquetquery.NewResultPool(1)
 
-	intervalMapper15Seconds   = traceql.NewIntervalMapper(roundingStart, roundingEnd, uint64(15*time.Second))
-	intervalMapper60Seconds   = traceql.NewIntervalMapper(roundingStart, roundingEnd, uint64(60*time.Second))
-	intervalMapper300Seconds  = traceql.NewIntervalMapper(roundingStart, roundingEnd, uint64(300*time.Second))
-	intervalMapper3600Seconds = traceql.NewIntervalMapper(roundingStart, roundingEnd, uint64(3600*time.Second))
+	intervalMapper15Seconds   = traceql.NewIntervalMapper(roundingStart, roundingEnd, uint64(15*time.Second), false)
+	intervalMapper60Seconds   = traceql.NewIntervalMapper(roundingStart, roundingEnd, uint64(60*time.Second), false)
+	intervalMapper300Seconds  = traceql.NewIntervalMapper(roundingStart, roundingEnd, uint64(300*time.Second), false)
+	intervalMapper3600Seconds = traceql.NewIntervalMapper(roundingStart, roundingEnd, uint64(3600*time.Second), false)
 )
 
 type attrVal struct {
@@ -904,59 +904,60 @@ const (
 	columnPathDurationNanos           = "DurationNano"
 	columnPathRootSpanName            = "RootSpanName"
 	columnPathRootServiceName         = "RootServiceName"
-	columnPathServiceStatsServiceName = "ServiceStats.key_value.key"
-	columnPathServiceStatsSpanCount   = "ServiceStats.key_value.value.SpanCount"
-	columnPathServiceStatsErrorCount  = "ServiceStats.key_value.value.ErrorCount"
-	columnPathResourceAttrKey         = "rs.list.element.Resource.Attrs.list.element.Key"
-	columnPathResourceAttrString      = "rs.list.element.Resource.Attrs.list.element.Value.list.element"
-	columnPathResourceAttrInt         = "rs.list.element.Resource.Attrs.list.element.ValueInt.list.element"
-	columnPathResourceAttrDouble      = "rs.list.element.Resource.Attrs.list.element.ValueDouble.list.element"
-	columnPathResourceAttrBool        = "rs.list.element.Resource.Attrs.list.element.ValueBool.list.element"
-	columnPathResourceServiceName     = "rs.list.element.Resource.ServiceName"
+	columnPathServiceStatsServiceName = "ServiceStats.ServiceName"
+	columnPathServiceStatsSpanCount   = "ServiceStats.SpanCount"
+	columnPathServiceStatsErrorCount  = "ServiceStats.ErrorCount"
+	columnPathResourceAttrKey         = "rs.Resource.Attrs.Key"
+	columnPathResourceAttrString      = "rs.Resource.Attrs.Value"
+	columnPathResourceAttrInt         = "rs.Resource.Attrs.ValueInt"
+	columnPathResourceAttrDouble      = "rs.Resource.Attrs.ValueDouble"
+	columnPathResourceAttrBool        = "rs.Resource.Attrs.ValueBool"
+	ColumnPathResourceServiceName     = "rs.Resource.ServiceName"
 
-	columnPathScopeSpansSpanCount       = "rs.list.element.ss.list.element.SpanCount"
-	columnPathInstrumentationName       = "rs.list.element.ss.list.element.Scope.Name"
-	columnPathInstrumentationVersion    = "rs.list.element.ss.list.element.Scope.Version"
-	columnPathInstrumentationAttrKey    = "rs.list.element.ss.list.element.Scope.Attrs.list.element.Key"
-	columnPathInstrumentationAttrString = "rs.list.element.ss.list.element.Scope.Attrs.list.element.Value.list.element"
-	columnPathInstrumentationAttrInt    = "rs.list.element.ss.list.element.Scope.Attrs.list.element.ValueInt.list.element"
-	columnPathInstrumentationAttrDouble = "rs.list.element.ss.list.element.Scope.Attrs.list.element.ValueDouble.list.element"
-	columnPathInstrumentationAttrBool   = "rs.list.element.ss.list.element.Scope.Attrs.list.element.ValueBool.list.element"
+	columnPathScopeSpansSpanCount       = "rs.ss.SpanCount"
+	columnPathInstrumentationName       = "rs.ss.Scope.Name"
+	columnPathInstrumentationVersion    = "rs.ss.Scope.Version"
+	columnPathInstrumentationAttrKey    = "rs.ss.Scope.Attrs.Key"
+	columnPathInstrumentationAttrString = "rs.ss.Scope.Attrs.Value"
+	columnPathInstrumentationAttrInt    = "rs.ss.Scope.Attrs.ValueInt"
+	columnPathInstrumentationAttrDouble = "rs.ss.Scope.Attrs.ValueDouble"
+	columnPathInstrumentationAttrBool   = "rs.ss.Scope.Attrs.ValueBool"
 
-	columnPathSpanID               = "rs.list.element.ss.list.element.Spans.list.element.SpanID"
-	columnPathSpanName             = "rs.list.element.ss.list.element.Spans.list.element.Name"
-	columnPathSpanStartTime        = "rs.list.element.ss.list.element.Spans.list.element.StartTimeUnixNano"
-	columnPathSpanStartRounded15   = "rs.list.element.ss.list.element.Spans.list.element.StartTimeRounded15"
-	columnPathSpanStartRounded60   = "rs.list.element.ss.list.element.Spans.list.element.StartTimeRounded60"
-	columnPathSpanStartRounded300  = "rs.list.element.ss.list.element.Spans.list.element.StartTimeRounded300"
-	columnPathSpanStartRounded3600 = "rs.list.element.ss.list.element.Spans.list.element.StartTimeRounded3600"
-	columnPathSpanDuration         = "rs.list.element.ss.list.element.Spans.list.element.DurationNano"
-	columnPathSpanKind             = "rs.list.element.ss.list.element.Spans.list.element.Kind"
-	columnPathSpanStatusCode       = "rs.list.element.ss.list.element.Spans.list.element.StatusCode"
-	columnPathSpanStatusMessage    = "rs.list.element.ss.list.element.Spans.list.element.StatusMessage"
-	columnPathSpanAttrKey          = "rs.list.element.ss.list.element.Spans.list.element.Attrs.list.element.Key"
-	columnPathSpanAttrString       = "rs.list.element.ss.list.element.Spans.list.element.Attrs.list.element.Value.list.element"
-	columnPathSpanAttrInt          = "rs.list.element.ss.list.element.Spans.list.element.Attrs.list.element.ValueInt.list.element"
-	columnPathSpanAttrDouble       = "rs.list.element.ss.list.element.Spans.list.element.Attrs.list.element.ValueDouble.list.element"
-	columnPathSpanAttrBool         = "rs.list.element.ss.list.element.Spans.list.element.Attrs.list.element.ValueBool.list.element"
-	columnPathSpanNestedSetLeft    = "rs.list.element.ss.list.element.Spans.list.element.NestedSetLeft"
-	columnPathSpanNestedSetRight   = "rs.list.element.ss.list.element.Spans.list.element.NestedSetRight"
-	columnPathSpanParentID         = "rs.list.element.ss.list.element.Spans.list.element.ParentID"
-	columnPathSpanParentSpanID     = "rs.list.element.ss.list.element.Spans.list.element.ParentSpanID"
-	columnPathEventName            = "rs.list.element.ss.list.element.Spans.list.element.Events.list.element.Name"
-	columnPathEventTimeSinceStart  = "rs.list.element.ss.list.element.Spans.list.element.Events.list.element.TimeSinceStartNano"
-	columnPathLinkTraceID          = "rs.list.element.ss.list.element.Spans.list.element.Links.list.element.TraceID"
-	columnPathLinkSpanID           = "rs.list.element.ss.list.element.Spans.list.element.Links.list.element.SpanID"
-	columnPathEventAttrKey         = "rs.list.element.ss.list.element.Spans.list.element.Events.list.element.Attrs.list.element.Key"
-	columnPathEventAttrString      = "rs.list.element.ss.list.element.Spans.list.element.Events.list.element.Attrs.list.element.Value.list.element"
-	columnPathEventAttrInt         = "rs.list.element.ss.list.element.Spans.list.element.Events.list.element.Attrs.list.element.ValueInt.list.element"
-	columnPathEventAttrDouble      = "rs.list.element.ss.list.element.Spans.list.element.Events.list.element.Attrs.list.element.ValueDouble.list.element"
-	columnPathEventAttrBool        = "rs.list.element.ss.list.element.Spans.list.element.Events.list.element.Attrs.list.element.ValueBool.list.element"
-	columnPathLinkAttrKey          = "rs.list.element.ss.list.element.Spans.list.element.Links.list.element.Attrs.list.element.Key"
-	columnPathLinkAttrString       = "rs.list.element.ss.list.element.Spans.list.element.Links.list.element.Attrs.list.element.Value.list.element"
-	columnPathLinkAttrInt          = "rs.list.element.ss.list.element.Spans.list.element.Links.list.element.Attrs.list.element.ValueInt.list.element"
-	columnPathLinkAttrDouble       = "rs.list.element.ss.list.element.Spans.list.element.Links.list.element.Attrs.list.element.ValueDouble.list.element"
-	columnPathLinkAttrBool         = "rs.list.element.ss.list.element.Spans.list.element.Links.list.element.Attrs.list.element.ValueBool.list.element"
+	columnPathSpanID               = "rs.ss.Spans.SpanID"
+	ColumnPathSpanName             = "rs.ss.Spans.Name"
+	columnPathSpanStartTime        = "rs.ss.Spans.StartTimeUnixNano"
+	columnPathSpanStartRounded15   = "rs.ss.Spans.StartTimeRounded15"
+	columnPathSpanStartRounded60   = "rs.ss.Spans.StartTimeRounded60"
+	columnPathSpanStartRounded300  = "rs.ss.Spans.StartTimeRounded300"
+	columnPathSpanStartRounded3600 = "rs.ss.Spans.StartTimeRounded3600"
+	columnPathSpanDuration         = "rs.ss.Spans.DurationNano"
+	columnPathSpanKind             = "rs.ss.Spans.Kind"
+	columnPathSpanStatusCode       = "rs.ss.Spans.StatusCode"
+	columnPathSpanStatusMessage    = "rs.ss.Spans.StatusMessage"
+	columnPathSpanAttrKey          = "rs.ss.Spans.Attrs.Key"
+	columnPathSpanAttrString       = "rs.ss.Spans.Attrs.Value"
+	columnPathSpanAttrInt          = "rs.ss.Spans.Attrs.ValueInt"
+	columnPathSpanAttrDouble       = "rs.ss.Spans.Attrs.ValueDouble"
+	columnPathSpanAttrBool         = "rs.ss.Spans.Attrs.ValueBool"
+	columnPathSpanNestedSetLeft    = "rs.ss.Spans.NestedSetLeft"
+	columnPathSpanNestedSetRight   = "rs.ss.Spans.NestedSetRight"
+	columnPathSpanChildCount       = "rs.ss.Spans.ChildCount"
+	columnPathSpanParentID         = "rs.ss.Spans.ParentID"
+	columnPathSpanParentSpanID     = "rs.ss.Spans.ParentSpanID"
+	ColumnPathEventName            = "rs.ss.Spans.Events.Name"
+	columnPathEventTimeSinceStart  = "rs.ss.Spans.Events.TimeSinceStartNano"
+	columnPathLinkTraceID          = "rs.ss.Spans.Links.TraceID"
+	columnPathLinkSpanID           = "rs.ss.Spans.Links.SpanID"
+	columnPathEventAttrKey         = "rs.ss.Spans.Events.Attrs.Key"
+	columnPathEventAttrString      = "rs.ss.Spans.Events.Attrs.Value"
+	columnPathEventAttrInt         = "rs.ss.Spans.Events.Attrs.ValueInt"
+	columnPathEventAttrDouble      = "rs.ss.Spans.Events.Attrs.ValueDouble"
+	columnPathEventAttrBool        = "rs.ss.Spans.Events.Attrs.ValueBool"
+	columnPathLinkAttrKey          = "rs.ss.Spans.Links.Attrs.Key"
+	columnPathLinkAttrString       = "rs.ss.Spans.Links.Attrs.Value"
+	columnPathLinkAttrInt          = "rs.ss.Spans.Links.Attrs.ValueInt"
+	columnPathLinkAttrDouble       = "rs.ss.Spans.Links.Attrs.ValueDouble"
+	columnPathLinkAttrBool         = "rs.ss.Spans.Links.Attrs.ValueBool"
 
 	otherEntrySpansetKey         = "spanset"
 	otherEntrySpanKey            = "span"
@@ -978,7 +979,7 @@ var intrinsicColumnLookups = map[traceql.Intrinsic]struct {
 	typ        traceql.StaticType
 	columnPath string
 }{
-	traceql.IntrinsicName:                 {intrinsicScopeSpan, traceql.TypeString, columnPathSpanName},
+	traceql.IntrinsicName:                 {intrinsicScopeSpan, traceql.TypeString, ColumnPathSpanName},
 	traceql.IntrinsicStatus:               {intrinsicScopeSpan, traceql.TypeStatus, columnPathSpanStatusCode},
 	traceql.IntrinsicStatusMessage:        {intrinsicScopeSpan, traceql.TypeString, columnPathSpanStatusMessage},
 	traceql.IntrinsicDuration:             {intrinsicScopeSpan, traceql.TypeDuration, columnPathSpanDuration},
@@ -992,6 +993,7 @@ var intrinsicColumnLookups = map[traceql.Intrinsic]struct {
 	traceql.IntrinsicNestedSetLeft:        {intrinsicScopeSpan, traceql.TypeInt, columnPathSpanNestedSetLeft},
 	traceql.IntrinsicNestedSetRight:       {intrinsicScopeSpan, traceql.TypeInt, columnPathSpanNestedSetRight},
 	traceql.IntrinsicNestedSetParent:      {intrinsicScopeSpan, traceql.TypeInt, columnPathSpanParentID},
+	traceql.IntrinsicChildCount:           {intrinsicScopeSpan, traceql.TypeInt, columnPathSpanChildCount},
 
 	traceql.IntrinsicTraceRootService: {intrinsicScopeTrace, traceql.TypeString, columnPathRootServiceName},
 	traceql.IntrinsicTraceRootSpan:    {intrinsicScopeTrace, traceql.TypeString, columnPathRootSpanName},
@@ -999,7 +1001,7 @@ var intrinsicColumnLookups = map[traceql.Intrinsic]struct {
 	traceql.IntrinsicTraceID:          {intrinsicScopeTrace, traceql.TypeString, columnPathTraceID},
 	traceql.IntrinsicTraceStartTime:   {intrinsicScopeTrace, traceql.TypeDuration, columnPathStartTimeUnixNano},
 
-	traceql.IntrinsicEventName:           {intrinsicScopeEvent, traceql.TypeString, columnPathEventName},
+	traceql.IntrinsicEventName:           {intrinsicScopeEvent, traceql.TypeString, ColumnPathEventName},
 	traceql.IntrinsicEventTimeSinceStart: {intrinsicScopeEvent, traceql.TypeDuration, columnPathEventTimeSinceStart},
 	traceql.IntrinsicLinkTraceID:         {intrinsicScopeLink, traceql.TypeString, columnPathLinkTraceID},
 	traceql.IntrinsicLinkSpanID:          {intrinsicScopeLink, traceql.TypeString, columnPathLinkSpanID},
@@ -1018,7 +1020,7 @@ var wellKnownColumnLookups = map[string]struct {
 	typ        traceql.StaticType     // Data type
 }{
 	// Resource-level columns
-	LabelServiceName: {columnPathResourceServiceName, traceql.AttributeScopeResource, traceql.TypeString},
+	LabelServiceName: {ColumnPathResourceServiceName, traceql.AttributeScopeResource, traceql.TypeString},
 }
 
 // Fetch spansets from the block for the given TraceQL FetchSpansRequest. The request is checked for
@@ -1747,7 +1749,7 @@ func createEventIterator(makeIter, makeNilIter makeIterFn, conditions []traceql.
 			if err != nil {
 				return nil, err
 			}
-			iters = append(iters, makeIter(columnPathEventName, pred, columnPathEventName))
+			iters = append(iters, makeIter(ColumnPathEventName, pred, ColumnPathEventName))
 			continue
 		case traceql.IntrinsicEventTimeSinceStart:
 			pred, err := createIntPredicate(cond.Op, cond.Operands)
@@ -1826,7 +1828,7 @@ func createEventIterator(makeIter, makeNilIter makeIterFn, conditions []traceql.
 	}
 
 	if len(required) == 0 {
-		required = []parquetquery.Iterator{makeIter(columnPathEventName, nil, "")}
+		required = []parquetquery.Iterator{makeIter(ColumnPathEventName, nil, "")}
 	}
 
 	if len(iters) == 0 && len(required) == 0 {
@@ -2034,8 +2036,8 @@ func createSpanIterator(makeIter, makeNilIter makeIterFn, innerIterators []parqu
 			if err != nil {
 				return nil, err
 			}
-			addPredicate(columnPathSpanName, pred)
-			columnSelectAs[columnPathSpanName] = columnPathSpanName
+			addPredicate(ColumnPathSpanName, pred)
+			columnSelectAs[ColumnPathSpanName] = ColumnPathSpanName
 			continue
 
 		case traceql.IntrinsicKind:
@@ -2114,24 +2116,14 @@ func createSpanIterator(makeIter, makeNilIter makeIterFn, innerIterators []parqu
 			addPredicate(columnPathSpanParentID, pred)
 			columnSelectAs[columnPathSpanParentID] = columnPathSpanParentID
 			continue
-		}
-
-		// Well-known attribute?
-		if entry, ok := wellKnownColumnLookups[cond.Attribute.Name]; ok && entry.level != traceql.AttributeScopeResource {
-			if specialCase(cond, entry.columnPath) {
-				continue
+		case traceql.IntrinsicChildCount:
+			pred, err := createIntPredicate(cond.Op, cond.Operands)
+			if err != nil {
+				return nil, err
 			}
-
-			// Compatible type?
-			if entry.typ == operandType(cond.Operands) {
-				pred, err := createPredicate(cond.Op, cond.Operands)
-				if err != nil {
-					return nil, fmt.Errorf("creating predicate: %w", err)
-				}
-				addPredicate(entry.columnPath, pred)
-				columnSelectAs[entry.columnPath] = cond.Attribute.Name
-				continue
-			}
+			addPredicate(columnPathSpanChildCount, pred)
+			columnSelectAs[columnPathSpanChildCount] = columnPathSpanChildCount
+			continue
 		}
 
 		// Attributes stored in dedicated columns
@@ -3076,7 +3068,7 @@ func (c *spanCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 			durationNanos = kv.Value.Uint64()
 			sp.durationNanos = durationNanos
 			sp.addSpanAttr(traceql.IntrinsicDurationAttribute, traceql.NewStaticDuration(time.Duration(durationNanos)))
-		case columnPathSpanName:
+		case ColumnPathSpanName:
 			sp.addSpanAttr(traceql.IntrinsicNameAttribute, traceql.NewStaticString(unsafeToString(kv.Value.Bytes())))
 		case columnPathSpanStatusCode:
 			sp.addSpanAttr(traceql.IntrinsicStatusAttribute, traceql.NewStaticStatus(otlpStatusToTraceqlStatus(kv.Value.Uint64())))
@@ -3099,6 +3091,8 @@ func (c *spanCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 			if c.nestedSetRightExplicit {
 				sp.addSpanAttr(traceql.IntrinsicNestedSetRightAttribute, traceql.NewStaticInt(int(kv.Value.Int32())))
 			}
+		case columnPathSpanChildCount:
+			sp.addSpanAttr(traceql.IntrinsicChildCountAttribute, traceql.NewStaticInt(int(kv.Value.Int32())))
 		default:
 			// TODO - This exists for span-level dedicated columns like http.status_code
 			// Are nils possible here?
@@ -3591,7 +3585,7 @@ func (c *eventCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 
 	for _, e := range res.Entries {
 		switch e.Key {
-		case columnPathEventName:
+		case ColumnPathEventName:
 			ev.attrs = append(ev.attrs, attrVal{
 				a: traceql.IntrinsicEventNameAttribute,
 				s: traceql.NewStaticString(unsafeToString(e.Value.Bytes())),
