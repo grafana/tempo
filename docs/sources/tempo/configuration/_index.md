@@ -141,7 +141,9 @@ server:
 ## Memory
 
 Tempo supports automatic GOMEMLIMIT configuration using the [automemlimit](https://github.com/KimMachineGun/automemlimit) library.
-When enabled, it automatically sets Go's memory limit based on available container or system memory.
+When enabled, it automatically sets Go's memory limit based on available container (via CGroups) or system memory every 15 seconds.
+
+NOTE: enabling this will override value set in GOMEMLIMIT environment variable
 
 ```yaml
 memory:

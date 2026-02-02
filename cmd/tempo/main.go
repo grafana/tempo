@@ -8,6 +8,7 @@ import (
 	"os"
 	"reflect"
 	"runtime"
+	"time"
 
 	"github.com/KimMachineGun/automemlimit/memlimit"
 	"github.com/drone/envsubst"
@@ -237,6 +238,7 @@ func initAutoMemLimit(config *app.Config) {
 				memlimit.FromSystem,
 			),
 		),
+		memlimit.WithRefreshInterval(15*time.Second),
 		memlimit.WithLogger(logger),
 	)
 	if err != nil {
