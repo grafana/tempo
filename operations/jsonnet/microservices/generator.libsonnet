@@ -103,4 +103,7 @@
   // Vertical Pod Autoscaler
   tempo_metrics_generator_vpa: $.vpaForController($.tempo_metrics_generator_statefulset, 'metrics_generator'),
 
+  // Pod Disruption Budget
+  tempo_metrics_generator_pdb: $.pdbForController($.tempo_metrics_generator_statefulset, 'metrics_generator'),
+
 }

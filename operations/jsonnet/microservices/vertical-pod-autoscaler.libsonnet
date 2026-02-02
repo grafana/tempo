@@ -7,10 +7,6 @@
         update_mode: 'Auto',
         target_resources: ['cpu', 'memory'],
 
-        // TODO: are the CPU/Memory min/max values the same as the
-        // requests/limits in the config?  Can we just reuse those values
-        // instead of duplicating them here?
-
         cpu: {
           min: '100m',
           max: '2',
@@ -139,7 +135,8 @@
 
   },
 
-  local vpa = import 'vpa.libsonnet',
+  local vpa = import 'github.com/jsonnet-libs/vertical-pod-autoscaler-libsonnet/1.0.0/main.libsonnet',
+
   local verticalPodAutoscaler = vpa.autoscaling.v1.verticalPodAutoscaler,
   vpaForController(controller, configKey)::
     assert controller.kind == 'Deployment'
@@ -149,9 +146,11 @@
 
     assert std.objectHas($._config, configKey) : '$._config must have key ' + configKey;
 
+    assert std.objectHas($._config[configKey], 'vpa') : '$._config.%s must have key "vpa"' % configKey;
+
     local vpaConfig = $._config[configKey].vpa;
 
-    if !vpaConfig.enabled then
+    if std.objectHas(vpaConfig, 'enabled') && !vpaConfig.enabled then
       {}
     else
       verticalPodAutoscaler.new(controller.metadata.name)

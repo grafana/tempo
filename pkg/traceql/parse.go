@@ -48,6 +48,8 @@ func Parse(s string) (expr *RootExpr, err error) {
 	return l.expr, nil
 }
 
+// warning: ParseIdentifier is used to parse filter policies in pkg/spanfilter/config/config.go
+// if changed, it can break existing config
 func ParseIdentifier(s string) (Attribute, error) {
 	// Wrap the identifier in curly braces to create a valid spanset filter expression
 	attr := "{" + s + "}"

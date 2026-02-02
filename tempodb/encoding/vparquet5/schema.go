@@ -136,6 +136,16 @@ type DedicatedAttributes struct {
 	String08 []string `parquet:",snappy,optional,dict"`
 	String09 []string `parquet:",snappy,optional,dict"`
 	String10 []string `parquet:",snappy,optional,dict"`
+	String11 []string `parquet:",snappy,optional,dict"`
+	String12 []string `parquet:",snappy,optional,dict"`
+	String13 []string `parquet:",snappy,optional,dict"`
+	String14 []string `parquet:",snappy,optional,dict"`
+	String15 []string `parquet:",snappy,optional,dict"`
+	String16 []string `parquet:",snappy,optional,dict"`
+	String17 []string `parquet:",snappy,optional,dict"`
+	String18 []string `parquet:",snappy,optional,dict"`
+	String19 []string `parquet:",snappy,optional,dict"`
+	String20 []string `parquet:",snappy,optional,dict"`
 	Int01    []int64  `parquet:",snappy,optional"`
 	Int02    []int64  `parquet:",snappy,optional"`
 	Int03    []int64  `parquet:",snappy,optional"`
@@ -154,6 +164,16 @@ func (da *DedicatedAttributes) Reset() {
 	da.String08 = da.String08[:0]
 	da.String09 = da.String09[:0]
 	da.String10 = da.String10[:0]
+	da.String11 = da.String11[:0]
+	da.String12 = da.String12[:0]
+	da.String13 = da.String13[:0]
+	da.String14 = da.String14[:0]
+	da.String15 = da.String15[:0]
+	da.String16 = da.String16[:0]
+	da.String17 = da.String17[:0]
+	da.String18 = da.String18[:0]
+	da.String19 = da.String19[:0]
+	da.String20 = da.String20[:0]
 	da.Int01 = da.Int01[:0]
 	da.Int02 = da.Int02[:0]
 	da.Int03 = da.Int03[:0]

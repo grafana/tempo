@@ -1,13 +1,13 @@
 services:
   tempo:
     image: grafana/tempo:latest
-    command: [ "-config.file=/etc/tempo.yaml", "-target=all-3.0"]
+    command: [ "-config.file=/etc/tempo.yaml", "-target=all"]
     volumes:
       - ./tempo.yaml:/etc/tempo.yaml
       - ./tempo-data:/var/tempo
     ports:
       - "4317:4317"  # otlp grpc
-
+      - "4318:4318"  # otlpc http
   # push tenant-1 traces directly to tempo
   k6-tracing-tenant-1:
     image: ghcr.io/grafana/xk6-client-tracing:v0.0.9
@@ -28,7 +28,7 @@ services:
       - tempo
 
   otel-collector:
-    image: otel/opentelemetry-collector:0.139.0@sha256:8ac5df2a931e9264667b236d65bf7591fa4ba633a7a634e6caa2f0a4fc549c07
+    image: otel/opentelemetry-collector:0.144.0@sha256:a43e68866ce4cfa701fb6711de3111b72660e40ebb05a79d1759b002938b608f
     command: [ "--config=/etc/otel-collector.yaml" ]
     volumes:
       - ./otel-collector.yaml:/etc/otel-collector.yaml
@@ -69,7 +69,7 @@ services:
       --advertise-kafka-addr=PLAINTEXT://redpanda:9092
 
   redpanda-console:
-    image: docker.redpanda.com/redpandadata/console:v2.8.10@sha256:1e257ad592984566c69369227f6200a878165417b42ff18a5f8815df56bc4a7c
+    image: docker.redpanda.com/redpandadata/console:v3.5.0@sha256:b2cbdd93dee412142f95a61488118f33b8e31ea576bfb3ce625fbaffbdf0803a
     environment:
       - CONFIG_FILEPATH=/etc/redpanda/redpanda-console-config.yaml
     volumes:

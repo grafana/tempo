@@ -8,7 +8,7 @@
           "subdir": "ksonnet-util"
         }
       },
-      "version": "b679d0e38f3a7d3b924f312d578d8a6dca4c4e31",
+      "version": "517e2f277e18152b2a941133f7aab80ccf73bd1e",
       "sum": "0y3AFX9LQSpfWTxWKSwoLgbt0Wc9nnCwhMH2szKzHv0="
     },
     {
@@ -18,7 +18,7 @@
           "subdir": "memcached"
         }
       },
-      "version": "b679d0e38f3a7d3b924f312d578d8a6dca4c4e31",
+      "version": "517e2f277e18152b2a941133f7aab80ccf73bd1e",
       "sum": "zNTCDRaCqJUHjQSQRsxGR3jLrMP9tU7YNQb13dbm1bU="
     },
     {

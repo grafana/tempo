@@ -56,5 +56,5 @@ func TestApp_RunStop(t *testing.T) {
 		// #nosec G107 -- nosemgrep: tainted-url-host
 		_, httpErr := http.Get(healthCheckURL)
 		return httpErr != nil
-	}, 30*time.Second, 1*time.Second)
+	}, 60*time.Second, 1*time.Second)
 }

@@ -16,7 +16,6 @@
         },
       },
     },
-    compactor: {},
     storage: {
       trace: {
         blocklist_poll: '0',
@@ -68,25 +67,6 @@
     metrics_generator+: {
       storage+: {
         path: '/var/tempo/generator_wal',
-      },
-    },
-  },
-
-  tempo_compactor_config:: $.tempo_config {
-    compactor+: {
-      compaction+: {
-        v2_in_buffer_bytes: 10485760,
-        block_retention: '144h',
-      },
-      ring+: {
-        kvstore+: {
-          store: 'memberlist',
-        },
-      },
-    },
-    storage+: {
-      trace+: {
-        blocklist_poll: '5m',
       },
     },
   },
@@ -148,12 +128,6 @@
     configMap.new('tempo-metrics-generator') +
     configMap.withData({
       'tempo.yaml': $.util.manifestYaml($.tempo_metrics_generator_config),
-    }),
-
-  tempo_compactor_configmap:
-    configMap.new('tempo-compactor') +
-    configMap.withData({
-      'tempo.yaml': k.util.manifestYaml($.tempo_compactor_config),
     }),
 
   tempo_querier_configmap:

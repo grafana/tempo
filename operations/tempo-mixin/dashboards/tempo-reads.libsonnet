@@ -44,17 +44,6 @@ dashboard_utils {
         )
       )
       .addRow(
-        g.row('Ingester')
-        .addPanel(
-          $.panel('QPS') +
-          $.qpsPanel('tempo_request_duration_seconds_count{%s, route=~"/tempopb.Querier/.*"}' % $.jobMatcher($._config.jobs.ingester))
-        )
-        .addPanel(
-          $.panel('Latency') +
-          $.latencyPanel('tempo_request_duration_seconds', '{%s,route=~"/tempopb.Querier/.*"}' % $.jobMatcher($._config.jobs.ingester), additional_grouping='route')
-        )
-      )
-      .addRow(
         g.row('Livestore')
         .addPanel(
           $.panel('QPS') +

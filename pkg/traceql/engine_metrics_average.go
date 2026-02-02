@@ -39,11 +39,11 @@ func (a *averageOverTimeAggregator) init(q *tempopb.QueryRangeRequest, mode Aggr
 		weightedAverageSeries: make(map[SeriesMapKey]*averageSeries),
 		len:                   intervalMapper.IntervalCount(),
 		intervalMapper:        intervalMapper,
-		exemplarBuckets:       newExemplarBucketSet(maxExemplars, q.Start, q.End, q.Step),
+		exemplarBuckets:       newExemplarBucketSet(maxExemplars, q.Start, q.End, q.Step, IsInstant(q)),
 	}
 
 	if mode == AggregateModeRaw {
-		a.agg = newAvgOverTimeSpanAggregator(a.attr, a.by, q.Start, q.End, q.Step)
+		a.agg = newAvgOverTimeSpanAggregator(a.attr, a.by, q.Start, q.End, q.Step, IsInstant(q))
 	}
 
 	a.mode = mode
@@ -405,6 +405,7 @@ type avgOverTimeSpanAggregator[F FastStatic, S StaticVals] struct {
 	getSpanAttValue  func(s Span) float64
 	intervalMapper   IntervalMapper
 	start, end, step uint64
+	instant          bool
 
 	// Data
 	series     map[F]avgOverTimeSeries[S]
@@ -415,7 +416,7 @@ type avgOverTimeSpanAggregator[F FastStatic, S StaticVals] struct {
 
 var _ SpanAggregator = (*avgOverTimeSpanAggregator[FastStatic1, StaticVals1])(nil)
 
-func newAvgOverTimeSpanAggregator(attr Attribute, by []Attribute, start, end, step uint64) SpanAggregator {
+func newAvgOverTimeSpanAggregator(attr Attribute, by []Attribute, start, end, step uint64, instant bool) SpanAggregator {
 	lookups := make([][]Attribute, len(by))
 	for i, attr := range by {
 		if attr.Intrinsic == IntrinsicNone && attr.Scope == AttributeScopeNone {
@@ -434,19 +435,19 @@ func newAvgOverTimeSpanAggregator(attr Attribute, by []Attribute, start, end, st
 
 	switch aggNum {
 	case 2:
-		return newAvgAggregator[FastStatic2, StaticVals2](attr, by, lookups, start, end, step)
+		return newAvgAggregator[FastStatic2, StaticVals2](attr, by, lookups, start, end, step, instant)
 	case 3:
-		return newAvgAggregator[FastStatic3, StaticVals3](attr, by, lookups, start, end, step)
+		return newAvgAggregator[FastStatic3, StaticVals3](attr, by, lookups, start, end, step, instant)
 	case 4:
-		return newAvgAggregator[FastStatic4, StaticVals4](attr, by, lookups, start, end, step)
+		return newAvgAggregator[FastStatic4, StaticVals4](attr, by, lookups, start, end, step, instant)
 	case 5:
-		return newAvgAggregator[FastStatic5, StaticVals5](attr, by, lookups, start, end, step)
+		return newAvgAggregator[FastStatic5, StaticVals5](attr, by, lookups, start, end, step, instant)
 	default:
-		return newAvgAggregator[FastStatic1, StaticVals1](attr, by, lookups, start, end, step)
+		return newAvgAggregator[FastStatic1, StaticVals1](attr, by, lookups, start, end, step, instant)
 	}
 }
 
-func newAvgAggregator[F FastStatic, S StaticVals](attr Attribute, by []Attribute, lookups [][]Attribute, start, end, step uint64) SpanAggregator {
+func newAvgAggregator[F FastStatic, S StaticVals](attr Attribute, by []Attribute, lookups [][]Attribute, start, end, step uint64, instant bool) SpanAggregator {
 	var fn func(s Span) float64
 
 	switch attr {
@@ -469,10 +470,11 @@ func newAvgAggregator[F FastStatic, S StaticVals](attr Attribute, by []Attribute
 		getSpanAttValue: fn,
 		by:              by,
 		byLookups:       lookups,
-		intervalMapper:  NewIntervalMapper(start, end, step),
+		intervalMapper:  NewIntervalMapper(start, end, step, instant),
 		start:           start,
 		end:             end,
 		step:            step,
+		instant:         instant,
 	}
 }
 
@@ -580,7 +582,7 @@ func (g *avgOverTimeSpanAggregator[F, S]) getSeries(span Span) avgOverTimeSeries
 		s = avgOverTimeSeries[S]{
 			vals:            g.buf.vals,
 			average:         newAverageSeries(intervals, maxExemplars, nil),
-			exemplarBuckets: newExemplarBucketSet(maxExemplars, g.start, g.end, g.step),
+			exemplarBuckets: newExemplarBucketSet(maxExemplars, g.start, g.end, g.step, g.instant),
 			initialized:     true,
 		}
 		g.series[g.buf.fast] = s

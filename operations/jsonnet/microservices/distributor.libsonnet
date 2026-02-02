@@ -63,4 +63,6 @@
   // Vertical Pod Autoscaler
   tempo_distributor_vpa: $.vpaForController($.tempo_distributor_deployment, 'distributor'),
 
+  // Pod Disruption Budget
+  tempo_distributor_pdb: $.pdbForController($.tempo_distributor_deployment, 'distributor'),
 }

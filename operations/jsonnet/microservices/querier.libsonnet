@@ -55,4 +55,7 @@
 
   // Vertical Pod Autoscaler
   tempo_querier_vpa: $.vpaForController($.tempo_querier_deployment, 'querier'),
+
+  // Pod Disruption Budget
+  tempo_querier_pdb: $.pdbForController($.tempo_querier_deployment, 'querier'),
 }

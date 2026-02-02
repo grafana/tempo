@@ -4,15 +4,17 @@ services:
     image: grafana/tempo:latest
     depends_on:
       - redpanda
-    command: "-target=all-3.0 -config.file=/etc/tempo.yaml"
+    command: "-target=all -config.file=/etc/tempo.yaml"
     restart: always
     volumes:
       - ./tempo.yaml:/etc/tempo.yaml
       - ./tempo-data:/var/tempo
     ports:
       - "3200:3200" # tempo
+      - "4317:4317" # Tempo OTLP GRPC
+      - "4318:4318" # Tempo OTLP HTTP
     environment:
-      - OTEL_EXPORTER_OTLP_ENDPOINT=http://alloy:4318
+     - OTEL_EXPORTER_OTLP_ENDPOINT=http://alloy:4318
 
   minio:
     image: minio/minio:latest
@@ -37,7 +39,7 @@ services:
       --advertise-kafka-addr=PLAINTEXT://redpanda:9092
 
   redpanda-console:
-    image: docker.redpanda.com/redpandadata/console:v2.8.10@sha256:1e257ad592984566c69369227f6200a878165417b42ff18a5f8815df56bc4a7c
+    image: docker.redpanda.com/redpandadata/console:v3.5.0@sha256:b2cbdd93dee412142f95a61488118f33b8e31ea576bfb3ce625fbaffbdf0803a
     environment:
       - CONFIG_FILEPATH=/etc/redpanda/redpanda-console-config.yaml
     volumes:
@@ -58,7 +60,7 @@ services:
       - alloy
 
   alloy:
-    image: grafana/alloy:v1.12.1@sha256:c311595156fca7b1131683d383dae1acfd29e8879d347161d2a6f714ebac0c0b
+    image: grafana/alloy:v1.12.2@sha256:f94b1c82957accb77cd11385fd5e3600758ef1b1ab79557c97319ad28590735a
     volumes:
       - ./config.alloy:/etc/alloy/config.alloy
     command:

@@ -26,7 +26,6 @@ func getTenantStore(t *testing.T, startTime time.Time, cycleDuration, slackDurat
 
 	w, err := wal.New(&wal.Config{
 		Filepath:       tmpDir,
-		Encoding:       backend.EncNone,
 		IngestionSlack: 3 * time.Minute,
 		Version:        encoding.DefaultEncoding().Version(),
 	})

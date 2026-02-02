@@ -14,8 +14,6 @@ import (
 	"github.com/grafana/tempo/tempodb"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding/common"
-	v2 "github.com/grafana/tempo/tempodb/encoding/v2"
-	"github.com/grafana/tempo/tempodb/encoding/vparquet4"
 )
 
 func TestConfig_CheckConfig(t *testing.T) {
@@ -74,7 +72,6 @@ func TestConfig_CheckConfig(t *testing.T) {
 				warnCompleteBlockTimeout,
 				warnBlockRetention,
 				warnRetentionConcurrency,
-				warnStorageTraceBackendS3,
 				warnBlocklistPollConcurrency,
 				warnLogReceivedTraces,
 				warnLogDiscardedTraces,
@@ -101,40 +98,6 @@ func TestConfig_CheckConfig(t *testing.T) {
 				return cfg
 			}(),
 			expect: []ConfigWarning{warnStorageTraceBackendLocal},
-		},
-		{
-			name: "warnings for v2 settings when they drift from default",
-			config: func() *Config {
-				cfg := NewDefaultConfig()
-				cfg.StorageConfig.Trace.Block.Version = vparquet4.VersionString
-				cfg.StorageConfig.Trace.Block.IndexDownsampleBytes = 1
-				cfg.StorageConfig.Trace.Block.IndexPageSizeBytes = 1
-				cfg.Compactor.Compactor.ChunkSizeBytes = 1
-				cfg.Compactor.Compactor.FlushSizeBytes = 1
-				cfg.Compactor.Compactor.IteratorBufferSize = 1
-				return cfg
-			}(),
-			expect: []ConfigWarning{
-				newV2Warning("v2_index_downsample_bytes"),
-				newV2Warning("v2_index_page_size_bytes"),
-				newV2Warning("v2_in_buffer_bytes"),
-				newV2Warning("v2_out_buffer_bytes"),
-				newV2Warning("v2_prefetch_traces_count"),
-			},
-		},
-		{
-			name: "no warnings for v2 settings when they drift from default and v2 is the block version",
-			config: func() *Config {
-				cfg := NewDefaultConfig()
-				cfg.StorageConfig.Trace.Block.Version = v2.VersionString
-				cfg.StorageConfig.Trace.Block.IndexDownsampleBytes = 1
-				cfg.StorageConfig.Trace.Block.IndexPageSizeBytes = 1
-				cfg.Compactor.Compactor.ChunkSizeBytes = 1
-				cfg.Compactor.Compactor.FlushSizeBytes = 1
-				cfg.Compactor.Compactor.IteratorBufferSize = 1
-				return cfg
-			}(),
-			expect: nil,
 		},
 		{
 			name: "trace storage conflicts with overrides storage - local",
@@ -173,6 +136,42 @@ func TestConfig_CheckConfig(t *testing.T) {
 				return cfg
 			}(),
 			expect: nil,
+		},
+		{
+			name: "trace storage has too many dedicated columns",
+			config: func() *Config {
+				cfg := NewDefaultConfig()
+				cfg.StorageConfig.Trace.Block.DedicatedColumns = backend.DedicatedColumns{
+					{Name: "dedicated.resource.1", Type: "string", Scope: "resource"},
+					{Name: "dedicated.resource.2", Type: "string", Scope: "resource"},
+					{Name: "dedicated.resource.3", Type: "string", Scope: "resource"},
+					{Name: "dedicated.resource.4", Type: "string", Scope: "resource"},
+					{Name: "dedicated.resource.5", Type: "string", Scope: "resource"},
+					{Name: "dedicated.resource.6", Type: "string", Scope: "resource"},
+					{Name: "dedicated.resource.7", Type: "string", Scope: "resource"},
+					{Name: "dedicated.resource.8", Type: "string", Scope: "resource"},
+					{Name: "dedicated.resource.9", Type: "string", Scope: "resource"},
+					{Name: "dedicated.resource.10", Type: "string", Scope: "resource"},
+					{Name: "dedicated.resource.11", Type: "string", Scope: "resource"},
+					{Name: "dedicated.resource.12", Type: "string", Scope: "resource"},
+					{Name: "dedicated.resource.13", Type: "string", Scope: "resource"},
+					{Name: "dedicated.resource.14", Type: "string", Scope: "resource"},
+					{Name: "dedicated.resource.15", Type: "string", Scope: "resource"},
+					{Name: "dedicated.resource.16", Type: "string", Scope: "resource"},
+					{Name: "dedicated.resource.17", Type: "string", Scope: "resource"},
+					{Name: "dedicated.resource.18", Type: "string", Scope: "resource"},
+					{Name: "dedicated.resource.19", Type: "string", Scope: "resource"},
+					{Name: "dedicated.resource.20", Type: "string", Scope: "resource"},
+					{Name: "dedicated.resource.21", Type: "string", Scope: "resource"},
+				}
+				return cfg
+			}(),
+			expect: []ConfigWarning{
+				{
+					Message: (backend.WarnTooManyColumns{Type: "string", Scope: "resource", Count: 21, MaxCount: 20}).Error(),
+					Explain: "Dedicated attribute column configuration contains an invalid configuration that will be ignored",
+				},
+			},
 		},
 	}
 

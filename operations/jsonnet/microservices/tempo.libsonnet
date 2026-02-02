@@ -1,7 +1,6 @@
 (import 'common.libsonnet') +
 (import 'configmap.libsonnet') +
 (import 'config.libsonnet') +
-(import 'compactor.libsonnet') +
 (import 'distributor.libsonnet') +
 (import 'ingester.libsonnet') +
 (import 'generator.libsonnet') +
@@ -16,6 +15,7 @@
 (import 'multi-zone.libsonnet') +
 (import 'memberlist.libsonnet') +
 (import 'vertical-pod-autoscaler.libsonnet') +
+(import 'pod-disruption-budget.libsonnet') +
 (import 'rollout-operator/rollout-operator.libsonnet') +
 
 {

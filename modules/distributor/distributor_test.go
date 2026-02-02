@@ -2526,3 +2526,97 @@ func TestRetryInfoEnabled(t *testing.T) {
 		})
 	}
 }
+
+func TestTracePushMiddlewareCalled(t *testing.T) {
+	limits := overrides.Config{}
+	limitCfg := &flag.FlagSet{}
+	limits.RegisterFlagsAndApplyDefaults(limitCfg)
+
+	distributorCfg, ingesterClientCfg, overridesSvc, ingesters,
+		ingesterRing, loggingLevel, middleware := setupDependencies(t, limits)
+
+	// Track middleware calls
+	var middlewareCalled bool
+	var receivedTraces ptrace.Traces
+
+	// Create a test middleware
+	testMiddleware := func(_ context.Context, td ptrace.Traces) error {
+		middlewareCalled = true
+		receivedTraces = td
+		return nil
+	}
+
+	distributorCfg.TracePushMiddlewares = []TracePushMiddleware{testMiddleware}
+
+	d, err := New(
+		distributorCfg,
+		ingesterClientCfg,
+		ingesterRing,
+		generator_client.Config{},
+		nil,
+		nil,
+		overridesSvc,
+		middleware,
+		kitlog.NewLogfmtLogger(os.Stdout),
+		loggingLevel,
+		prometheus.NewRegistry(),
+	)
+	require.NoError(t, err)
+
+	// Ensure all ingesters are ready
+	for _, ingester := range ingesters {
+		ingester.pushBytes = pushBytesNoOp
+		ingester.pushBytesV2 = pushBytesNoOp
+	}
+
+	// Create test traces
+	traces := batchesToTraces(t, []*v1.ResourceSpans{test.MakeBatch(10, nil)})
+
+	// Call PushTraces
+	_, err = d.PushTraces(ctx, traces)
+	require.NoError(t, err)
+
+	// Verify middleware was called
+	assert.True(t, middlewareCalled, "TracePushMiddleware should have been called")
+	assert.NotNil(t, receivedTraces, "Middleware should have received traces")
+	assert.Equal(t, traces.SpanCount(), receivedTraces.SpanCount(), "Middleware should receive the same traces")
+}
+
+func TestTracePushMiddlewareFailsOpen(t *testing.T) {
+	limits := overrides.Config{}
+	limitCfg := &flag.FlagSet{}
+	limits.RegisterFlagsAndApplyDefaults(limitCfg)
+
+	distributorCfg, ingesterClientCfg, overridesSvc, _,
+		ingesterRing, loggingLevel, middleware := setupDependencies(t, limits)
+
+	// Create a middleware that returns an error
+	expectedErr := errors.New("middleware error")
+	errorMiddleware := func(_ context.Context, _ ptrace.Traces) error {
+		return expectedErr
+	}
+
+	distributorCfg.TracePushMiddlewares = []TracePushMiddleware{errorMiddleware}
+
+	d, err := New(
+		distributorCfg,
+		ingesterClientCfg,
+		ingesterRing,
+		generator_client.Config{},
+		nil,
+		nil,
+		overridesSvc,
+		middleware,
+		kitlog.NewLogfmtLogger(os.Stdout),
+		loggingLevel,
+		prometheus.NewRegistry(),
+	)
+	require.NoError(t, err)
+
+	// Create test traces
+	traces := batchesToTraces(t, []*v1.ResourceSpans{test.MakeBatch(10, nil)})
+
+	// Call PushTraces - should succeed despite middleware error (fail open)
+	_, err = d.PushTraces(ctx, traces)
+	require.NoError(t, err, "PushTraces should succeed even when middleware returns an error")
+}
