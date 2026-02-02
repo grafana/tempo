@@ -131,7 +131,6 @@ func newMetricsQueryRangeHTTPHandler(cfg Config, next pipeline.AsyncRoundTripper
 		if err := validateQueryRangeReq(cfg, queryRangeReq); err != nil {
 			return httpInvalidRequest(err), nil
 		}
-		req = api.BuildQueryRangeRequest(req, queryRangeReq, "")
 
 		traceql.AlignRequest(queryRangeReq)
 
@@ -145,6 +144,7 @@ func newMetricsQueryRangeHTTPHandler(cfg Config, next pipeline.AsyncRoundTripper
 				traceql.AlignEndToLeft(queryRangeReq) // realign, but always to the left
 			}
 		}
+		req = api.BuildQueryRangeRequest(req, queryRangeReq, "")
 
 		// build and use roundtripper
 		combiner, err := combiner.NewTypedQueryRange(queryRangeReq, cfg.Metrics.Sharder.MaxResponseSeries)

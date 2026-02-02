@@ -116,8 +116,8 @@ func TestQueryRangeHandlerSucceeds(t *testing.T) {
 func TestQueryRangeAccessesCache(t *testing.T) {
 	tenant := "foo"
 	meta := &backend.BlockMeta{
-		StartTime:         time.Unix(15, 0),
-		EndTime:           time.Unix(16, 0),
+		StartTime:         time.Unix(150, 0),
+		EndTime:           time.Unix(160, 0),
 		Size_:             defaultTargetBytesPerRequest,
 		TotalRecords:      1,
 		BlockID:           backend.MustParse("00000000-0000-0000-0000-000000000123"),
@@ -135,11 +135,11 @@ func TestQueryRangeAccessesCache(t *testing.T) {
 				},
 				Samples: []tempopb.Sample{
 					{
-						TimestampMs: 1200_000,
+						TimestampMs: 12_000_000,
 						Value:       2,
 					},
 					{
-						TimestampMs: 1100_000,
+						TimestampMs: 11_000_000,
 						Value:       1,
 					},
 				},
@@ -166,8 +166,8 @@ func TestQueryRangeAccessesCache(t *testing.T) {
 	step := 1000000000
 	query := "{} | rate()"
 	hash := hashForQueryRangeRequest(&tempopb.QueryRangeRequest{Query: query, Step: uint64(step)})
-	startNS := 10 * time.Second
-	endNS := 20 * time.Second
+	startNS := 100 * time.Second
+	endNS := 200 * time.Second
 	cacheKey := queryRangeCacheKey(tenant, hash, time.Unix(0, int64(startNS)), time.Unix(0, int64(endNS)), meta, 0, 1)
 
 	// confirm cache key coesn't exist
@@ -283,8 +283,8 @@ func TestQueryRangeCachedMetrics(t *testing.T) {
 	// set up backend
 	tenant := "foo"
 	meta := &backend.BlockMeta{
-		StartTime:         time.Unix(15, 0),
-		EndTime:           time.Unix(16, 0),
+		StartTime:         time.Unix(150, 0),
+		EndTime:           time.Unix(160, 0),
 		Size_:             defaultTargetBytesPerRequest,
 		TotalRecords:      1,
 		BlockID:           backend.MustParse("00000000-0000-0000-0000-000000000123"),
@@ -313,7 +313,7 @@ func TestQueryRangeCachedMetrics(t *testing.T) {
 						},
 						Samples: []tempopb.Sample{
 							{
-								TimestampMs: 1100_000,
+								TimestampMs: 11_000_000,
 								Value:       1,
 							},
 						},
@@ -329,8 +329,8 @@ func TestQueryRangeCachedMetrics(t *testing.T) {
 	query := "{} | rate()"
 	var step uint64 = 1000000000
 	hash := hashForQueryRangeRequest(&tempopb.QueryRangeRequest{Query: query, Step: step})
-	startNS := uint64(10 * time.Second)
-	endNS := uint64(20 * time.Second)
+	startNS := uint64(100 * time.Second)
+	endNS := uint64(200 * time.Second)
 	cacheKey := queryRangeCacheKey(tenant, hash, time.Unix(0, int64(startNS)), time.Unix(0, int64(endNS)), meta, 0, 1)
 
 	// confirm cache key doesn't exist
