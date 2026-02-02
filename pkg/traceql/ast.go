@@ -407,48 +407,18 @@ func newSpansetOperation(op Operator, lhs, rhs SpansetExpression) SpansetOperati
 	}
 }
 
-/*type noopSpansetFilter struct{}
-
-var _ PipelineElement = (*noopSpansetFilter)(nil)
-
-func (noopSpansetFilter) evaluate(input []*Spanset) ([]*Spanset, error) {
-	return input, nil
-}
-
-func (noopSpansetFilter) extractConditions(request *FetchSpansRequest) {
-}
-
-func (noopSpansetFilter) String() string {
-	return "noopSpansetFilter"
-}
-
-func (noopSpansetFilter) validate() error {
-	return nil
-}*/
-
 // nolint: revive
 func (SpansetOperation) __spansetExpression() {}
 
 type SpansetFilter struct {
 	Expression          FieldExpression
 	matchingSpansBuffer []Span
-	// noop                bool
 }
 
 func newSpansetFilter(e FieldExpression) *SpansetFilter {
 	f := &SpansetFilter{
 		Expression: e,
 	}
-
-	// AST rewrite for simplification
-	/*if !e.referencesSpan() && e.validate() == nil {
-		if simplified, err := e.execute(nil); err == nil {
-			if b, ok := simplified.Bool(); ok && b {
-				f.noop = true
-			}
-		}
-	}*/
-
 	return f
 }
 
@@ -456,14 +426,29 @@ func newSpansetFilter(e FieldExpression) *SpansetFilter {
 func (*SpansetFilter) __spansetExpression() {}
 
 func (f *SpansetFilter) evaluate(input []*Spanset) ([]*Spanset, error) {
-	/*if f.noop {
-		return input, nil
-	}*/
+	var (
+		// When evaluating the input, it is most efficient to return the input when we can.
+		// This is possible when every input spanset and span passes the filter.
+		// If anything fails, then we use a copy-on-write approach, copying the input up to the mismatch and then
+		// appending further spansets after.
+		outputBuffer []*Spanset
+		forked       bool
+	)
 
-	var outputBuffer []*Spanset
+	fork := func(i int) {
+		if !forked {
+			// First we are working the output, so copy all previously identical spansets into the output.
+			if i > 0 {
+				outputBuffer = append(outputBuffer, input[:i-1]...)
+			}
+		}
+		forked = true
+	}
 
-	for _, ss := range input {
+	for i, ss := range input {
 		if len(ss.Spans) == 0 {
+			// This spanset is empty so it's dropped.
+			fork(i)
 			continue
 		}
 
@@ -483,22 +468,34 @@ func (f *SpansetFilter) evaluate(input []*Spanset) ([]*Spanset, error) {
 		}
 
 		if len(f.matchingSpansBuffer) == 0 {
+			// All spans were filtered out of this spanset.
+			fork(i)
 			continue
 		}
 
 		if len(f.matchingSpansBuffer) == len(ss.Spans) {
-			// All matched, so we return the input as-is
-			// and preserve the local buffer.
-			outputBuffer = append(outputBuffer, ss)
+			// All matched, so we can use this input spanset exactly as-is.
+			// If we have forked the overall input previously,
+			// then copy it to the new output.
+			// Otherwise we are continuing to use the input and nothing do to.
+			if forked {
+				outputBuffer = append(outputBuffer, ss)
+			}
 			continue
 		}
 
+		// If we get here then the spanset is being partially filtered.
+		fork(i)
 		matchingSpanset := ss.clone()
 		matchingSpanset.Spans = append([]Span(nil), f.matchingSpansBuffer...)
 		outputBuffer = append(outputBuffer, matchingSpanset)
 	}
 
-	return outputBuffer, nil
+	if forked {
+		return outputBuffer, nil
+	}
+
+	return input, nil
 }
 
 type ScalarFilter struct {
