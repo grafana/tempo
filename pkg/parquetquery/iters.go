@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"math"
+	"slices"
 	"sync"
 
 	"github.com/grafana/tempo/pkg/parquetquery/intern"
@@ -1243,7 +1244,6 @@ type LeftJoinIterator struct {
 	collectedThroughRequired     []RowNumber
 	collectedThroughOptional     []RowNumber
 	peeksRequired, peeksOptional []*IteratorResult
-	exhaustedOptional            []bool
 	collector                    Collector
 	pool                         *ResultPool
 
@@ -1288,16 +1288,12 @@ func NewLeftJoinIterator(definitionLevel int, required, optional []Iterator, pre
 	j.peeksOptional = make([]*IteratorResult, len(j.optional))
 	j.collectedThroughRequired = make([]RowNumber, len(j.required))
 	j.collectedThroughOptional = make([]RowNumber, len(j.optional))
-	j.exhaustedOptional = make([]bool, len(j.optional))
 
 	for i := range j.collectedThroughRequired {
 		j.collectedThroughRequired[i] = EmptyRowNumber()
 	}
 	for i := range j.collectedThroughOptional {
 		j.collectedThroughOptional[i] = EmptyRowNumber()
-	}
-	for i := range j.exhaustedOptional {
-		j.exhaustedOptional[i] = false
 	}
 
 	return j, nil
@@ -1461,22 +1457,26 @@ func (j *LeftJoinIterator) seekAllRequired(t RowNumber, d int) (done bool, err e
 }
 
 func (j *LeftJoinIterator) seekAllOptional(t RowNumber, d int) (err error) {
-	for iterNum, iter := range j.optional {
-		if j.exhaustedOptional[iterNum] {
-			continue
-		}
-
+	for iterNum := 0; iterNum < len(j.optional); iterNum++ {
 		d2 := min(d, j.defLevelsOptional[iterNum])
 
 		if j.peeksOptional[iterNum] == nil || CompareRowNumbers(d2, j.peeksOptional[iterNum].RowNumber, t) == -1 {
-			j.peeksOptional[iterNum], err = iter.SeekTo(t, d2)
-			if j.peeksOptional[iterNum] == nil {
-				// Iterator is exhausted.
-				j.exhaustedOptional[iterNum] = true
-				continue
-			}
+			j.peeksOptional[iterNum], err = j.optional[iterNum].SeekTo(t, d2)
 			if err != nil {
 				return
+			}
+			if j.peeksOptional[iterNum] == nil {
+				// Iterator is exhausted.
+				// Remove it from the list, so it is skipped for all remaining operations.
+				// This might seem overly complex, it is significantly faster in cases where optional
+				// iterators are expected to exit early via callbacks.
+				j.optional = slices.Delete(j.optional, iterNum, iterNum+1)
+				j.peeksOptional = slices.Delete(j.peeksOptional, iterNum, iterNum+1)
+				j.defLevelsOptional = slices.Delete(j.defLevelsOptional, iterNum, iterNum+1)
+				j.paramsOptional = slices.Delete(j.paramsOptional, iterNum, iterNum+1)
+				j.collectedThroughOptional = slices.Delete(j.collectedThroughOptional, iterNum, iterNum+1)
+				iterNum--
+				continue
 			}
 		}
 	}
@@ -1484,37 +1484,29 @@ func (j *LeftJoinIterator) seekAllOptional(t RowNumber, d int) (err error) {
 }
 
 func (j *LeftJoinIterator) collectOptional(rowNumber RowNumber) (err error) {
-	iters := j.optional
-	peeks := j.peeksOptional
-	defLevels := j.defLevelsOptional
-	params := j.paramsOptional
 iters:
-	for i, iter := range iters {
-		if j.exhaustedOptional[i] {
-			continue
-		}
-
+	for i, iter := range j.optional {
 		// Collect matches from this iter while it points at the given row number.
-		d := defLevels[i]
-		p := params[i]
+		d := j.defLevelsOptional[i]
+		p := j.paramsOptional[i]
 
-		for peeks[i] != nil {
+		for j.peeksOptional[i] != nil {
 			// Optional iterators may or may not be pointing at the right row.
 			// So always check first.
 			// Interned version of EqualRowNumber
 			// Compare in reverse order because most row number activity
 			// occurs at the deeper definition levels.
 			for k := d; k >= 0; k-- {
-				if peeks[i].RowNumber[k] != rowNumber[k] {
+				if j.peeksOptional[i].RowNumber[k] != rowNumber[k] {
 					continue iters
 				}
 			}
 
 			// Collect and save row number.
-			j.collector.Collect(peeks[i], p)
-			j.collectedThroughOptional[i] = peeks[i].RowNumber
+			j.collector.Collect(j.peeksOptional[i], p)
+			j.collectedThroughOptional[i] = j.peeksOptional[i].RowNumber
 
-			peeks[i], err = iter.Next()
+			j.peeksOptional[i], err = iter.Next()
 			if err != nil {
 				return
 			}
