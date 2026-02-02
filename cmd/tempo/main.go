@@ -4,10 +4,13 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"log/slog"
 	"os"
 	"reflect"
 	"runtime"
+	"time"
 
+	"github.com/KimMachineGun/automemlimit/memlimit"
 	"github.com/drone/envsubst"
 	"github.com/go-kit/log/level"
 	"github.com/grafana/dskit/flagext"
@@ -59,6 +62,9 @@ func main() {
 		fmt.Println(version.Print(appName))
 		os.Exit(0)
 	}
+
+	// Init automemlimit if enabled
+	initAutoMemLimit(config)
 
 	// Init the logger which will honor the log level set in config.Server
 	if reflect.DeepEqual(&config.Server.LogLevel, &dslog.Level{}) {
@@ -215,6 +221,31 @@ func loadConfig() (*app.Config, bool, error) {
 	}
 
 	return config, configVerify, nil
+}
+
+func initAutoMemLimit(config *app.Config) {
+	if !config.Memory.AutoMemLimitEnabled {
+		return
+	}
+
+	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelInfo}))
+
+	limit, err := memlimit.SetGoMemLimitWithOpts(
+		memlimit.WithRatio(config.Memory.AutoMemLimitRatio),
+		memlimit.WithProvider(
+			memlimit.ApplyFallback(
+				memlimit.FromCgroup,
+				memlimit.FromSystem,
+			),
+		),
+		memlimit.WithRefreshInterval(15*time.Second),
+		memlimit.WithLogger(logger),
+	)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "warning: failed to set GOMEMLIMIT: %v\n", err)
+		return
+	}
+	fmt.Fprintf(os.Stderr, "info: GOMEMLIMIT set to %d bytes (ratio: %.2f)\n", limit, config.Memory.AutoMemLimitRatio)
 }
 
 func setMutexBlockProfiling(mutexFraction int, blockThreshold int) {
