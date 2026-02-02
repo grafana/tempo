@@ -157,9 +157,12 @@ Refer to the [metrics-generator documentation](https://grafana.com/docs/tempo/<T
 
 1. Trace data is sent from the tracing pipeline (OpenTelemetry Collector, Grafana Alloy) to a **distributor**.
 2. The distributor validates the request, shards traces by trace ID, and writes to **Kafka**.
-3. Kafka acknowledges the write, and the distributor returns a response to the client.
-4. **Live-stores** consume from Kafka and make data available for recent queries.
-5. **Block-builders** consume from Kafka and build blocks for long-term object storage.
+3. Kafka acknowledges the write
+4. And the distributor returns a response to the client.
+5. **Live-stores** consume from Kafka and make data available for recent queries.
+6. **Block-builders** consume from Kafka and build blocks for long-term object storage.
+
+![Lifecycle of a write diagram](/media/docs/tempo/lifecycle-of-a-write.png)
 
 ## Lifecycle of a read
 
