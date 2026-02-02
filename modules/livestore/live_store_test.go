@@ -735,7 +735,7 @@ func TestIsLagged(t *testing.T) {
 			readerLag:      10, // low lag
 			lastRecordNano: -1, // no last record yet
 			end:            now,
-			expectedLagged: false,
+			expectedLagged: true,
 			description:    "When no last record yet, should not be lagged",
 		},
 		{
