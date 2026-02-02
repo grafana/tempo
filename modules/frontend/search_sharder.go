@@ -19,6 +19,7 @@ import (
 	"github.com/grafana/tempo/pkg/validation"
 	"github.com/grafana/tempo/tempodb"
 	"github.com/grafana/tempo/tempodb/backend"
+	"github.com/prometheus/client_golang/prometheus"
 )
 
 const (
@@ -51,20 +52,22 @@ type asyncSearchSharder struct {
 	reader    tempodb.Reader
 	overrides overrides.Interface
 
-	cfg    SearchSharderConfig
-	logger log.Logger
+	cfg          SearchSharderConfig
+	logger       log.Logger
+	jobsPerQuery *prometheus.HistogramVec
 }
 
 // newAsyncSearchSharder creates a sharding middleware for search
-func newAsyncSearchSharder(reader tempodb.Reader, o overrides.Interface, cfg SearchSharderConfig, logger log.Logger) pipeline.AsyncMiddleware[combiner.PipelineResponse] {
+func newAsyncSearchSharder(reader tempodb.Reader, o overrides.Interface, cfg SearchSharderConfig, jobsPerQuery *prometheus.HistogramVec, logger log.Logger) pipeline.AsyncMiddleware[combiner.PipelineResponse] {
 	return pipeline.AsyncMiddlewareFunc[combiner.PipelineResponse](func(next pipeline.AsyncRoundTripper[combiner.PipelineResponse]) pipeline.AsyncRoundTripper[combiner.PipelineResponse] {
 		return asyncSearchSharder{
 			next:      next,
 			reader:    reader,
 			overrides: o,
 
-			cfg:    cfg,
-			logger: logger,
+			cfg:          cfg,
+			logger:       logger,
+			jobsPerQuery: jobsPerQuery,
 		}
 	})
 }
@@ -124,6 +127,8 @@ func (s asyncSearchSharder) RoundTrip(pipelineRequest pipeline.Request) (pipelin
 		// todo: actually find a way to return this error to the user
 		s.logger.Log("msg", "search: failed to build backend requests", "err", err)
 	})
+
+	s.jobsPerQuery.WithLabelValues(searchOp).Observe(float64(jobMetrics.TotalJobs))
 
 	// execute requests
 	return pipeline.NewAsyncSharderChan(ctx, s.cfg.ConcurrentRequests, reqCh, pipeline.NewAsyncResponse(jobMetrics), s.next), nil

@@ -475,16 +475,16 @@ func TestBackendRequests(t *testing.T) {
 func TestIngesterRequests(t *testing.T) {
 	nownow := time.Now()
 
-	now := int(time.Now().Unix())
+	now := int(nownow.Unix())
 
 	ago := func(d string) int {
 		duration, err := time.ParseDuration(d)
 		require.NoError(t, err)
 		return int(nownow.Add(-duration).Unix())
 	}
-	tenMinutesAgo := int(time.Now().Add(-10 * time.Minute).Unix())
-	fifteenMinutesAgo := int(time.Now().Add(-15 * time.Minute).Unix())
-	twentyMinutesAgo := int(time.Now().Add(-20 * time.Minute).Unix())
+	tenMinutesAgo := int(nownow.Add(-10 * time.Minute).Unix())
+	fifteenMinutesAgo := int(nownow.Add(-15 * time.Minute).Unix())
+	twentyMinutesAgo := int(nownow.Add(-20 * time.Minute).Unix())
 
 	tests := []struct {
 		request             string
@@ -818,7 +818,7 @@ func TestTotalJobsIncludesIngester(t *testing.T) {
 		TargetBytesPerRequest: defaultTargetBytesPerRequest,
 		MostRecentShards:      defaultMostRecentShards,
 		IngesterShards:        1,
-	}, log.NewNopLogger())
+	}, newJobsPerQueryHistogram(), log.NewNopLogger())
 	testRT := sharder.Wrap(next)
 
 	path := fmt.Sprintf("/?start=%d&end=%d", now-1, now+1)
@@ -864,7 +864,7 @@ func TestSearchSharderRoundTripBadRequest(t *testing.T) {
 		MostRecentShards:      defaultMostRecentShards,
 		MaxDuration:           5 * time.Minute,
 		MaxSpansPerSpanSet:    100,
-	}, log.NewNopLogger())
+	}, newJobsPerQueryHistogram(), log.NewNopLogger())
 	testRT := sharder.Wrap(next)
 
 	// no org id
@@ -904,7 +904,7 @@ func TestSearchSharderRoundTripBadRequest(t *testing.T) {
 		TargetBytesPerRequest: defaultTargetBytesPerRequest,
 		MostRecentShards:      defaultMostRecentShards,
 		MaxDuration:           5 * time.Minute,
-	}, log.NewNopLogger())
+	}, newJobsPerQueryHistogram(), log.NewNopLogger())
 	testRT = sharder.Wrap(next)
 
 	req = httptest.NewRequest("GET", "/?start=1000&end=1500", nil)
@@ -978,6 +978,14 @@ func TestMaxDuration(t *testing.T) {
 	}
 	actual = sharder.maxDuration("test")
 	assert.Equal(t, 10*time.Minute, actual)
+}
+
+func newJobsPerQueryHistogram() *prometheus.HistogramVec {
+	return prometheus.NewHistogramVec(prometheus.HistogramOpts{
+		Name:    "test_query_frontend_jobs_per_query",
+		Help:    "Test histogram for jobs per query.",
+		Buckets: prometheus.DefBuckets,
+	}, []string{"op"})
 }
 
 func TestHashTraceQLQuery(t *testing.T) {
@@ -1238,7 +1246,7 @@ func TestSearchSharderReturnsConsistentShards(t *testing.T) {
 				MostRecentShards:      mostRecentShards,
 				TargetBytesPerRequest: defaultTargetBytesPerRequest,
 				ConcurrentRequests:    5,
-			}, log.NewNopLogger())
+			}, newJobsPerQueryHistogram(), log.NewNopLogger())
 
 			// Create request with the test scenario time range
 			path := fmt.Sprintf("/?tags=service%%3Dapi&limit=100&start=%d&end=%d",
@@ -1383,7 +1391,7 @@ func TestDefaultSpansPerSpanSet(t *testing.T) {
 				TargetBytesPerRequest:  defaultTargetBytesPerRequest,
 				DefaultSpansPerSpanSet: tc.configDefault,
 				MaxSpansPerSpanSet:     tc.maxSpansPerSpanSet,
-			}, log.NewNopLogger())
+			}, newJobsPerQueryHistogram(), log.NewNopLogger())
 			testRT := sharder.Wrap(next)
 
 			// Build request URL

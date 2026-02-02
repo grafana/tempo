@@ -34,7 +34,7 @@ jobs:
         run: npm install --production --prefix ./actions
       - name: Get Github App secrets from vault
         id: get-secrets
-        uses: grafana/shared-workflows/actions/get-vault-secrets@051f0a1cef0e1ef9f92fbe57c65b1eec029c3904 #get-vault-secrets 1.3.0
+        uses: grafana/shared-workflows/actions/get-vault-secrets@e6dde86ffefaa91fc693b8cb4209cf9428a661d1 #get-vault-secrets 1.3.0
         with:
           export_env: false
           repo_secrets: |

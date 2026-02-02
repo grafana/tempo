@@ -21,6 +21,16 @@ var DedicatedResourceColumnPaths = map[backend.DedicatedColumnScope]map[backend.
 			"rs.Resource.DedicatedAttributes.String08",
 			"rs.Resource.DedicatedAttributes.String09",
 			"rs.Resource.DedicatedAttributes.String10",
+			"rs.Resource.DedicatedAttributes.String11",
+			"rs.Resource.DedicatedAttributes.String12",
+			"rs.Resource.DedicatedAttributes.String13",
+			"rs.Resource.DedicatedAttributes.String14",
+			"rs.Resource.DedicatedAttributes.String15",
+			"rs.Resource.DedicatedAttributes.String16",
+			"rs.Resource.DedicatedAttributes.String17",
+			"rs.Resource.DedicatedAttributes.String18",
+			"rs.Resource.DedicatedAttributes.String19",
+			"rs.Resource.DedicatedAttributes.String20",
 		},
 		backend.DedicatedColumnTypeInt: {
 			"rs.Resource.DedicatedAttributes.Int01",
@@ -42,6 +52,16 @@ var DedicatedResourceColumnPaths = map[backend.DedicatedColumnScope]map[backend.
 			"rs.ss.Spans.DedicatedAttributes.String08",
 			"rs.ss.Spans.DedicatedAttributes.String09",
 			"rs.ss.Spans.DedicatedAttributes.String10",
+			"rs.ss.Spans.DedicatedAttributes.String11",
+			"rs.ss.Spans.DedicatedAttributes.String12",
+			"rs.ss.Spans.DedicatedAttributes.String13",
+			"rs.ss.Spans.DedicatedAttributes.String14",
+			"rs.ss.Spans.DedicatedAttributes.String15",
+			"rs.ss.Spans.DedicatedAttributes.String16",
+			"rs.ss.Spans.DedicatedAttributes.String17",
+			"rs.ss.Spans.DedicatedAttributes.String18",
+			"rs.ss.Spans.DedicatedAttributes.String19",
+			"rs.ss.Spans.DedicatedAttributes.String20",
 		},
 		backend.DedicatedColumnTypeInt: {
 			"rs.ss.Spans.DedicatedAttributes.Int01",
@@ -63,6 +83,16 @@ var DedicatedResourceColumnPaths = map[backend.DedicatedColumnScope]map[backend.
 			"rs.ss.Spans.Events.DedicatedAttributes.String08",
 			"rs.ss.Spans.Events.DedicatedAttributes.String09",
 			"rs.ss.Spans.Events.DedicatedAttributes.String10",
+			"rs.ss.Spans.Events.DedicatedAttributes.String11",
+			"rs.ss.Spans.Events.DedicatedAttributes.String12",
+			"rs.ss.Spans.Events.DedicatedAttributes.String13",
+			"rs.ss.Spans.Events.DedicatedAttributes.String14",
+			"rs.ss.Spans.Events.DedicatedAttributes.String15",
+			"rs.ss.Spans.Events.DedicatedAttributes.String16",
+			"rs.ss.Spans.Events.DedicatedAttributes.String17",
+			"rs.ss.Spans.Events.DedicatedAttributes.String18",
+			"rs.ss.Spans.Events.DedicatedAttributes.String19",
+			"rs.ss.Spans.Events.DedicatedAttributes.String20",
 		},
 		backend.DedicatedColumnTypeInt: {
 			"rs.ss.Spans.Events.DedicatedAttributes.Int01",
@@ -108,6 +138,26 @@ func (dc *dedicatedColumn) readValue(attrs *DedicatedAttributes) *v1.AnyValue {
 			val = dedicatedColStrToAnyValue(attrs.String09)
 		case 9:
 			val = dedicatedColStrToAnyValue(attrs.String10)
+		case 10:
+			val = dedicatedColStrToAnyValue(attrs.String11)
+		case 11:
+			val = dedicatedColStrToAnyValue(attrs.String12)
+		case 12:
+			val = dedicatedColStrToAnyValue(attrs.String13)
+		case 13:
+			val = dedicatedColStrToAnyValue(attrs.String14)
+		case 14:
+			val = dedicatedColStrToAnyValue(attrs.String15)
+		case 15:
+			val = dedicatedColStrToAnyValue(attrs.String16)
+		case 16:
+			val = dedicatedColStrToAnyValue(attrs.String17)
+		case 17:
+			val = dedicatedColStrToAnyValue(attrs.String18)
+		case 18:
+			val = dedicatedColStrToAnyValue(attrs.String19)
+		case 19:
+			val = dedicatedColStrToAnyValue(attrs.String20)
 		}
 	case backend.DedicatedColumnTypeInt:
 		switch dc.ColumnIndex {
@@ -153,6 +203,26 @@ func (dc *dedicatedColumn) writeValue(attrs *DedicatedAttributes, value *v1.AnyV
 			attrs.String09, written = anyValueToDedicatedColStr(value, attrs.String09)
 		case 9:
 			attrs.String10, written = anyValueToDedicatedColStr(value, attrs.String10)
+		case 10:
+			attrs.String11, written = anyValueToDedicatedColStr(value, attrs.String11)
+		case 11:
+			attrs.String12, written = anyValueToDedicatedColStr(value, attrs.String12)
+		case 12:
+			attrs.String13, written = anyValueToDedicatedColStr(value, attrs.String13)
+		case 13:
+			attrs.String14, written = anyValueToDedicatedColStr(value, attrs.String14)
+		case 14:
+			attrs.String15, written = anyValueToDedicatedColStr(value, attrs.String15)
+		case 15:
+			attrs.String16, written = anyValueToDedicatedColStr(value, attrs.String16)
+		case 16:
+			attrs.String17, written = anyValueToDedicatedColStr(value, attrs.String17)
+		case 17:
+			attrs.String18, written = anyValueToDedicatedColStr(value, attrs.String18)
+		case 18:
+			attrs.String19, written = anyValueToDedicatedColStr(value, attrs.String19)
+		case 19:
+			attrs.String20, written = anyValueToDedicatedColStr(value, attrs.String20)
 		}
 	case backend.DedicatedColumnTypeInt:
 		switch dc.ColumnIndex {
