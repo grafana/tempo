@@ -220,18 +220,27 @@ func (o *BinaryOperation) validate() error {
 
 	// if this is a regex operator confirm the RHS is a valid regex
 	if o.Op == OpRegex || o.Op == OpNotRegex {
-		// Ensure that we validate against the raw/unquoted string when possible.
-		// When RHS is a hardcoded string in the query which is compiled to a Static.
-		var text string
-		if static, ok := o.RHS.(Static); ok {
-			text = static.EncodeToString(false)
-		} else {
-			text = o.RHS.String()
+		static, ok := o.RHS.(Static)
+		if !ok {
+			return fmt.Errorf("invalid type for %s or %s: %s", OpRegex, OpNotRegex, o.RHS.String())
 		}
 
-		_, err := regexp.Compile(text)
-		if err != nil {
-			return fmt.Errorf("invalid regex: %s", o.RHS.String())
+		switch rhsT {
+		case TypeString:
+			_, err := regexp.Compile(static.EncodeToString(false))
+			if err != nil {
+				return fmt.Errorf("invalid regex: %s", o.RHS.String())
+			}
+		case TypeStringArray:
+			strs, _ := static.StringArray()
+			for _, str := range strs {
+				_, err := regexp.Compile(str)
+				if err != nil {
+					return fmt.Errorf("invalid regex: %s", o.RHS.String())
+				}
+			}
+		default:
+			return fmt.Errorf("invalid type for %s or %s: %s", OpRegex, OpNotRegex, o.RHS.String())
 		}
 	}
 

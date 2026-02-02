@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"cmp"
 	"fmt"
+	"iter"
 	"math"
 	"slices"
 	"strings"
@@ -34,6 +35,7 @@ type RootExpr struct {
 	MetricsPipeline    firstStageElement
 	MetricsSecondStage secondStageElement
 	Hints              *Hints
+	OptimizationCount  int
 }
 
 func NeedsFullTrace(e ...Element) bool {
@@ -508,7 +510,7 @@ type BinaryOperation struct {
 	LHS FieldExpression
 	RHS FieldExpression
 
-	compiledExpression *regexp.Regexp
+	compiledExpressions []*regexp.Regexp
 
 	b branchOptimizer
 }
@@ -892,49 +894,42 @@ func (s Static) compare(o *Static) int {
 	}
 }
 
-type VisitFunc func(Static) bool // Return false to stop iteration
-
-// GetElements turns arrays into slice of Static elements to iterate over.
-func (s Static) GetElements(fn VisitFunc) error {
-	switch s.Type {
-	case TypeIntArray:
-		ints, _ := s.IntArray()
-		for _, n := range ints {
-			if !fn(NewStaticInt(n)) {
-				break // stop early if the callback returns false
+// Elements iterate over the elements of a Static value. If the Static is not an array,
+// it will loop over itself as the only element
+func (s Static) Elements() iter.Seq2[int, Static] {
+	return func(fn func(int, Static) bool) {
+		switch s.Type {
+		case TypeIntArray:
+			ints, _ := s.IntArray()
+			for i, n := range ints {
+				if !fn(i, NewStaticInt(n)) {
+					return
+				}
 			}
-		}
-		return nil
-
-	case TypeFloatArray:
-		floats, _ := s.FloatArray()
-		for _, f := range floats {
-			if !fn(NewStaticFloat(f)) {
-				break
+		case TypeFloatArray:
+			floats, _ := s.FloatArray()
+			for i, f := range floats {
+				if !fn(i, NewStaticFloat(f)) {
+					return
+				}
 			}
-		}
-		return nil
-
-	case TypeStringArray:
-		strs, _ := s.StringArray()
-		for _, str := range strs {
-			if !fn(NewStaticString(str)) {
-				break
+		case TypeStringArray:
+			strs, _ := s.StringArray()
+			for i, str := range strs {
+				if !fn(i, NewStaticString(str)) {
+					return
+				}
 			}
-		}
-		return nil
-
-	case TypeBooleanArray:
-		bools, _ := s.BooleanArray()
-		for _, b := range bools {
-			if !fn(NewStaticBool(b)) {
-				break
+		case TypeBooleanArray:
+			bools, _ := s.BooleanArray()
+			for i, b := range bools {
+				if !fn(i, NewStaticBool(b)) {
+					return
+				}
 			}
+		default:
+			fn(0, s)
 		}
-		return nil
-
-	default:
-		return fmt.Errorf("unsupported type")
 	}
 }
 
@@ -996,6 +991,21 @@ func (s Static) IntArray() ([]int, bool) {
 	}
 	numInts := uintptr(len(s.valBytes)) / unsafe.Sizeof(int(0))
 	return unsafe.Slice((*int)(unsafe.Pointer(&s.valBytes[0])), numInts), true
+}
+
+func (s Static) Int64Array() ([]int64, bool) {
+	if s.Type != TypeIntArray {
+		return nil, false
+	}
+
+	if s.valBytes == nil {
+		return nil, true
+	}
+	if len(s.valBytes) == 0 {
+		return []int64{}, true
+	}
+	numInts := uintptr(len(s.valBytes)) / unsafe.Sizeof(int64(0))
+	return unsafe.Slice((*int64)(unsafe.Pointer(&s.valBytes[0])), numInts), true
 }
 
 func (s Static) FloatArray() ([]float64, bool) {
@@ -1066,6 +1076,134 @@ func (s Static) divideBy(f float64) Static {
 		return NewStaticFloat(sf / f)
 	}
 	return s
+}
+
+func (s Static) append(o Static) (Static, bool) {
+	switch s.Type {
+	case TypeString:
+		values := make([]string, 0, 2)
+		values = append(values, s.EncodeToString(false))
+
+		switch o.Type {
+		case TypeString:
+			values = append(values, o.EncodeToString(false))
+		case TypeStringArray:
+			arr, _ := o.StringArray()
+			values = append(values, arr...)
+		default:
+			return StaticNil, false
+		}
+		return NewStaticStringArray(values), true
+	case TypeStringArray:
+		values := make([]string, 0, 2)
+		arr, _ := s.StringArray()
+		values = append(values, arr...)
+
+		switch o.Type {
+		case TypeString:
+			values = append(values, o.EncodeToString(false))
+		case TypeStringArray:
+			arr, _ = o.StringArray()
+			values = append(values, arr...)
+		default:
+			return StaticNil, false
+		}
+		return NewStaticStringArray(values), true
+	case TypeInt:
+		values := make([]int, 0, 2)
+		n, _ := s.Int()
+		values = append(values, n)
+
+		switch o.Type {
+		case TypeInt:
+			n, _ = o.Int()
+			values = append(values, n)
+		case TypeIntArray:
+			arr, _ := o.IntArray()
+			values = append(values, arr...)
+		default:
+			return StaticNil, false
+		}
+		return NewStaticIntArray(values), true
+	case TypeIntArray:
+		values := make([]int, 0, 2)
+		arr, _ := s.IntArray()
+		values = append(values, arr...)
+
+		switch o.Type {
+		case TypeInt:
+			n, _ := o.Int()
+			values = append(values, n)
+		case TypeIntArray:
+			arr, _ := o.IntArray()
+			values = append(values, arr...)
+		default:
+			return StaticNil, false
+		}
+		return NewStaticIntArray(values), true
+	case TypeFloat:
+		values := make([]float64, 0, 2)
+		values = append(values, s.Float())
+
+		switch o.Type {
+		case TypeFloat:
+			values = append(values, o.Float())
+		case TypeFloatArray:
+			arr, _ := o.FloatArray()
+			values = append(values, arr...)
+		default:
+			return StaticNil, false
+		}
+		return NewStaticFloatArray(values), true
+	case TypeFloatArray:
+		values := make([]float64, 0, 2)
+		arr, _ := s.FloatArray()
+		values = append(values, arr...)
+
+		switch o.Type {
+		case TypeFloat:
+			values = append(values, o.Float())
+		case TypeFloatArray:
+			arr, _ = o.FloatArray()
+			values = append(values, arr...)
+		default:
+			return StaticNil, false
+		}
+		return NewStaticFloatArray(values), true
+	case TypeBoolean:
+		values := make([]bool, 0, 2)
+		b, _ := s.Bool()
+		values = append(values, b)
+
+		switch o.Type {
+		case TypeBoolean:
+			b, _ = o.Bool()
+			values = append(values, b)
+		case TypeBooleanArray:
+			arr, _ := o.BooleanArray()
+			values = append(values, arr...)
+		default:
+			return StaticNil, false
+		}
+		return NewStaticBooleanArray(values), true
+	case TypeBooleanArray:
+		values := make([]bool, 0, 2)
+		arr, _ := s.BooleanArray()
+		values = append(values, arr...)
+
+		switch o.Type {
+		case TypeBoolean:
+			b, _ := o.Bool()
+			values = append(values, b)
+		case TypeBooleanArray:
+			arr, _ := o.BooleanArray()
+			values = append(values, arr...)
+		default:
+			return StaticNil, false
+		}
+		return NewStaticBooleanArray(values), true
+	}
+	return StaticNil, false
 }
 
 func (Static) referencesSpan() bool {

@@ -20,62 +20,77 @@ type Predicate interface {
 	KeepValue(pq.Value) bool
 }
 
-// StringInPredicate checks for any of the given strings.
-// Case sensitive exact byte matching
-type StringInPredicate struct {
-	ss [][]byte
+// NewStringEqualPredicate is just an alias for the equivalent byte predicate
+func NewStringEqualPredicate(s string) Predicate {
+	return NewByteEqualPredicate([]byte(s))
 }
 
-var _ Predicate = (*StringInPredicate)(nil)
+// NewStringNotEqualPredicate is just an alias for the equivalent byte predicate
+func NewStringNotEqualPredicate(s string) Predicate {
+	return NewByteNotEqualPredicate([]byte(s))
+}
+
+// ByteInPredicate checks for any of the given strings. Case-sensitive exact byte matching
+type ByteInPredicate struct {
+	values [][]byte
+}
+
+var _ Predicate = (*ByteInPredicate)(nil)
 
 func NewStringInPredicate(ss []string) Predicate {
-	p := &StringInPredicate{
-		ss: make([][]byte, len(ss)),
+	p := &ByteInPredicate{
+		values: make([][]byte, len(ss)),
 	}
 	for i := range ss {
-		p.ss[i] = []byte(ss[i])
+		p.values[i] = []byte(ss[i])
 	}
 	return p
 }
 
-func (p *StringInPredicate) String() string {
-	var strings string
-	for i, s := range p.ss {
-		if i > 0 {
-			strings += ", "
-		}
-		strings += string(s)
+func NewByteInPredicate(bb [][]byte) Predicate {
+	return &ByteInPredicate{
+		values: bb,
 	}
-	return fmt.Sprintf("StringInPredicate{%s}", strings)
 }
 
-func (p *StringInPredicate) KeepColumnChunk(cc *ColumnChunkHelper) bool {
+func (p *ByteInPredicate) String() string {
+	var strs string
+	for i, s := range p.values {
+		if i > 0 {
+			strs += ", "
+		}
+		strs += string(s)
+	}
+	return fmt.Sprintf("ByteInPredicate{%s}", strs)
+}
+
+func (p *ByteInPredicate) KeepColumnChunk(cc *ColumnChunkHelper) bool {
 	if d := cc.Dictionary(); d != nil {
 		return keepDictionary(d, p.KeepValue)
 	}
 
 	ci, err := cc.ColumnIndex()
-	if err == nil && ci != nil {
-		for _, subs := range p.ss {
-			for i := 0; i < ci.NumPages(); i++ {
-				minVal := ci.MinValue(i).ByteArray()
-				maxVal := ci.MaxValue(i).ByteArray()
-				ok := bytes.Compare(minVal, subs) <= 0 && bytes.Compare(maxVal, subs) >= 0
-				if ok {
-					// At least one page in this chunk matches
-					return true
-				}
-			}
-		}
-		return false
+	if err != nil || ci == nil {
+		return true // no index: keep column chunk
 	}
 
-	return true
+	for _, subs := range p.values {
+		for i := 0; i < ci.NumPages(); i++ {
+			minVal := ci.MinValue(i).ByteArray()
+			maxVal := ci.MaxValue(i).ByteArray()
+			ok := bytes.Compare(minVal, subs) <= 0 && bytes.Compare(maxVal, subs) >= 0
+			if ok {
+				// At least one page in this chunk matches
+				return true
+			}
+		}
+	}
+	return false
 }
 
-func (p *StringInPredicate) KeepValue(v pq.Value) bool {
+func (p *ByteInPredicate) KeepValue(v pq.Value) bool {
 	ba := v.ByteArray()
-	for _, ss := range p.ss {
+	for _, ss := range p.values {
 		if bytes.Equal(ba, ss) {
 			return true
 		}
@@ -83,7 +98,64 @@ func (p *StringInPredicate) KeepValue(v pq.Value) bool {
 	return false
 }
 
-func (p *StringInPredicate) KeepPage(pq.Page) bool {
+func (p *ByteInPredicate) KeepPage(pq.Page) bool {
+	// todo: check bounds
+	return true
+}
+
+// ByteNotInPredicate checks for any of the given strings. Case-sensitive exact byte matching
+type ByteNotInPredicate struct {
+	values [][]byte
+}
+
+var _ Predicate = (*ByteNotInPredicate)(nil)
+
+func NewStringNotInPredicate(ss []string) Predicate {
+	p := &ByteNotInPredicate{
+		values: make([][]byte, len(ss)),
+	}
+	for i := range ss {
+		p.values[i] = []byte(ss[i])
+	}
+	return p
+}
+
+func NewByteNotInPredicate(bb [][]byte) Predicate {
+	return &ByteNotInPredicate{
+		values: bb,
+	}
+}
+
+func (p *ByteNotInPredicate) String() string {
+	var strs string
+	for i, s := range p.values {
+		if i > 0 {
+			strs += ", "
+		}
+		strs += string(s)
+	}
+	return fmt.Sprintf("ByteNotInPredicate{%s}", strs)
+}
+
+func (p *ByteNotInPredicate) KeepColumnChunk(cc *ColumnChunkHelper) bool {
+	if d := cc.Dictionary(); d != nil {
+		return keepDictionary(d, p.KeepValue)
+	}
+
+	return true
+}
+
+func (p *ByteNotInPredicate) KeepValue(v pq.Value) bool {
+	ba := v.ByteArray()
+	for _, ss := range p.values {
+		if bytes.Equal(ba, ss) {
+			return false
+		}
+	}
+	return true
+}
+
+func (p *ByteNotInPredicate) KeepPage(pq.Page) bool {
 	// todo: check bounds
 	return true
 }

@@ -108,6 +108,15 @@ valid:
   - '({ true } | count() > 1 | { false }) >> ({ true } | count() > 1 | { false })'
   - '({ true } | count() > 1 | { false }) > ({ true } | count() > 1 | { false })'
   - '({ true } | count() > 1 | { false }) ~ ({ true } | count() > 1 | { false })'
+  # can be optimized
+  - '{.attr="a" || .attr="b"}'
+  - '{.attr=1 || .attr=2}'
+  - '{.attr=1.1 || .attr=2.2}'
+  - '{.attr!="a" && .attr!="b"}'
+  - '{.attr!=1 && .attr!=2}'
+  - '{.attr!=1.1 && .attr!=1.1}'
+  - '{.attr=~"a.*" || .attr=~"b.*"}'
+  - '{.attr!~"a.*" && .attr!~"b.*"}'
   # scalar filters
   - 'avg(.field) > 1'
   - 'max(duration) >= 1s'
