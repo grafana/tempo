@@ -689,7 +689,7 @@ func (s *LiveStore) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDReq
 
 // SearchRecent implements tempopb.Querier
 func (s *LiveStore) SearchRecent(ctx context.Context, req *tempopb.SearchRequest) (*tempopb.SearchResponse, error) {
-	if s.isLagged(int64(req.End) * 1e9) {
+	if s.isLagged(int64(req.End) * 1e9) { // convert seconds to nanoseconds
 		return nil, errLagged
 	}
 	return withInstance(ctx, s, func(inst *instance) (*tempopb.SearchResponse, error) {
@@ -742,7 +742,7 @@ func (s *LiveStore) GetMetrics(_ context.Context, _ *tempopb.SpanMetricsRequest)
 
 // QueryRange implements tempopb.MetricsGeneratorServer
 func (s *LiveStore) QueryRange(ctx context.Context, req *tempopb.QueryRangeRequest) (*tempopb.QueryRangeResponse, error) {
-	if s.isLagged(int64(req.End)) {
+	if s.isLagged(int64(req.End)) { // end param is already nanos, no need to convert
 		return nil, errLagged
 	}
 	return withInstance(ctx, s, func(inst *instance) (*tempopb.QueryRangeResponse, error) {
