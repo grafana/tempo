@@ -1,3 +1,0 @@
-modules/distributor/receiver/middleware_test.go:95:44: unused-parameter: parameter 't' seems to be unused, consider removing or renaming it as _ (revive)
-		consumer := newAssertingConsumer(t, func(t *testing.T, ctx context.Context) {})
-		                                         ^

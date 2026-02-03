@@ -1,3 +1,0 @@
-pkg/cache/redis_client.go:75:51: G402: TLS InsecureSkipVerify may be true. (gosec)
-		opt.TLSConfig = &tls.Config{InsecureSkipVerify: cfg.InsecureSkipVerify}
-		                                                ^
