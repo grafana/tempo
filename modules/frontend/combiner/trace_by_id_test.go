@@ -104,5 +104,8 @@ func toHTTPProtoResponse(t *testing.T, pb proto.Message, statusCode int) Pipelin
 	return &testPipelineResponse{r: &http.Response{
 		Body:       io.NopCloser(bytes.NewReader(body)),
 		StatusCode: statusCode,
+		Header: http.Header{
+			api.HeaderContentType: {api.HeaderAcceptProtobuf},
+		},
 	}}
 }
