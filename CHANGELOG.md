@@ -41,7 +41,7 @@
 * [CHANGE] Remove remaining aws-sdk-go references and migrate tests to MinIO [#5856](https://github.com/grafana/tempo/pull/5856) (@anglerfishlyy)
 * [CHANGE] Remove busybox from Tempo image to make it more minimal and prevent future vulnerabilities [#5717](https://github.com/grafana/tempo/pull/5717) (@carles-grafana)
 * [CHANGE] Upgrade Tempo to Go 1.25.4 [#5939](https://github.com/grafana/tempo/pull/5939) [#6001](https://github.com/grafana/tempo/pull/6001) (@ruslan-mikhailov)
-* [CHANGE] Upgrade Tempo to Go 1.25.5 [#6096](https://github.com/grafana/tempo/pull/6096) [#6089](https://github.com/grafana/tempo/pull/6089) (@joe-elliott)
+* [CHANGE] Upgrade Tempo to Go 1.25.6 [#6096](https://github.com/grafana/tempo/pull/6096) [#6089](https://github.com/grafana/tempo/pull/6089) (@joe-elliott)
 * [FEATURE] New block encoding vParquet5 with dedicated attributes for integers and events, improved performance on high-cardinality/high-length attributes, faster TraceQL queries, and childCount intrinsic. See [vParquet5](#vparquet5) section below for full details.  [#6219](https://github.com/grafana/tempo/pull/6219) (@ie-pham @mdisibio @stoewer)
 * [FEATURE] TraceQL: Add minInt/maxInt. [#5982](https://github.com/grafana/tempo/pull/5982) (@Syedowais312)
 * [FEATURE] TraceQL: Add support for attribute = nil [#4905](https://github.com/grafana/tempo/pull/4905) (@ie-pham)
