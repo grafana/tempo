@@ -723,8 +723,8 @@ func TestIsLagged(t *testing.T) {
 		{
 			name:           "lag unknown - should be lagged",
 			failOnHighLag:  true,
-			readerLag:      -1, // lag unknown
-			lastRecordNano: now.UnixNano(),
+			readerLag:      -1,                                   // lag unknown
+			lastRecordNano: now.Add(-100 * time.Hour).UnixNano(), // high lag
 			end:            now,
 			expectedLagged: true,
 			description:    "When lag is unknown (nil), prefer error over potentially incomplete results",
@@ -778,7 +778,6 @@ func TestIsLagged(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
 			tmpDir := t.TempDir()
 			ls, err := defaultLiveStore(t, tmpDir)
 			require.NoError(t, err)
