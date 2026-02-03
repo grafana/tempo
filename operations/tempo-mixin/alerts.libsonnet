@@ -160,7 +160,7 @@
               runbook_url: 'https://github.com/grafana/tempo/tree/main/operations/tempo-mixin/runbook.md#TempoTenantIndexFailures',
             },
           },
-           // compactors
+          // compactors
           {
             alert: 'TempoCompactionTooManyOutstandingBlocks',
             expr: |||
