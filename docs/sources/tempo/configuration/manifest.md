@@ -230,6 +230,7 @@ distributor:
         last_produced_offset_retry_timeout: 0s
         auto_create_topic_enabled: false
         auto_create_topic_default_partitions: 0
+        wait_for_coordinator_min_partitions: 0
         producer_max_record_size_bytes: 0
         producer_max_buffered_bytes: 0
         target_consumer_lag_at_startup: 0s
@@ -766,6 +767,7 @@ ingest:
         last_produced_offset_retry_timeout: 10s
         auto_create_topic_enabled: true
         auto_create_topic_default_partitions: 1000
+        wait_for_coordinator_min_partitions: 500
         producer_max_record_size_bytes: 15983616
         producer_max_buffered_bytes: 1073741824
         target_consumer_lag_at_startup: 2s
