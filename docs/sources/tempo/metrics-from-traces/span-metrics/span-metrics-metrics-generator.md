@@ -73,7 +73,7 @@ This processor mirrored the implementation from the OpenTelemetry Collector of t
 The OTel `spanmetricsprocessor` has since been [deprecated](https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/processor/spanmetricsprocessor/v0.95.0/processor/spanmetricsprocessor/README.md) and replaced with the [span metric connector](https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/processor/spanmetricsprocessor/v0.95.0/connector/spanmetricsconnector/README.md).
 
 {{< admonition type="note" >}}
-To learn more about cardinality and how to perform a dry run of the metrics generator, see the [Cardinality documentation](ref:cardinality).
+To learn more about cardinality and how to perform a dry run of the metrics generator, refer to the [Cardinality documentation](ref:cardinality).
 {{< /admonition >}}
 
 ### Metrics
@@ -88,7 +88,7 @@ The following metrics are exported:
 
 By default, the metrics processor adds the following labels to each metric: `service`, `span_name`, `span_kind`, and `status_code`.
 
-The `status_message`, `job`, and `instance` labels are optional and require additional configuration (see below).
+The `status_message`, `job`, and `instance` labels are optional and require additional configuration, as described in the sections below.
 
 - `service` - The name of the service that generated the span
 - `span_name` - The unique name of the span
@@ -108,7 +108,7 @@ The `status_message`, `job`, and `instance` labels are optional and require addi
 
 ### Disabling intrinsic dimensions
 
-You can disable any of the default intrinsic dimensions using the `intrinsic_dimensions` configuration. This is useful for reducing cardinality when certain labels are not needed.
+You can control which intrinsic dimensions are included in your metrics. Disable any of the default intrinsic dimensions using the `intrinsic_dimensions` configuration. This is useful for reducing cardinality when certain labels are not needed.
 
 ```yaml
 metrics_generator:
@@ -133,8 +133,7 @@ Custom labeling of dimensions is also supported using the [`dimension_mappings` 
 
 **Understanding dimensions vs dimension_mappings:**
 
-- Use `dimensions` when you want to add span attributes as labels using their default (sanitized) names
-- Use `dimension_mappings` when you want to rename attributes to custom label names or combine multiple attributes
+Use `dimensions` when you want to add span attributes as labels using their default (sanitized) names. Use `dimension_mappings` when you want to rename attributes to custom label names or combine multiple attributes.
 
 When using `dimension_mappings`, you do not need to also list the same attributes in `dimensions`. The `dimension_mappings` configuration reads directly from the original span attributes.
 You can use `dimension_mappings` to rename a single attribute to a different label name, or to combine multiple attributes into a single composite label.
@@ -143,7 +142,7 @@ You can use `dimension_mappings` to rename a single attribute to a different lab
 The `source_labels` field must contain the **original span or resource attribute names** (with dots), not sanitized Prometheus label names. For example, use `deployment.environment`, not `deployment_environment`.
 {{< /admonition >}}
 
-This example shows how to rename the `deployment.environment` attribute to a shorter label called `env`.
+The following example shows how to rename the `deployment.environment` attribute to a shorter label called `env`, for example:
 
 ```yaml
 dimension_mappings:
