@@ -283,12 +283,13 @@ func (cfg KafkaConfig) EnsureTopicPartitions(logger log.Logger) error {
 // This is especially important after creating topics with many partitions.
 func (cfg KafkaConfig) waitForCoordinator(ctx context.Context, adm *kadm.Client, logger log.Logger) error {
 	// Calculate timeout based on partition count: more partitions = more time needed
-	coordinatorTimeout := time.Duration(cfg.AutoCreateTopicDefaultPartitions/10) * time.Second
+	// Use partitions/100 to keep timeouts reasonable (1000 partitions = 10s base)
+	coordinatorTimeout := time.Duration(cfg.AutoCreateTopicDefaultPartitions/100) * time.Second
 	if coordinatorTimeout < 5*time.Second {
 		coordinatorTimeout = 5 * time.Second // Minimum 5 seconds
 	}
-	if coordinatorTimeout > 60*time.Second {
-		coordinatorTimeout = 60 * time.Second // Maximum 60 seconds
+	if coordinatorTimeout > 30*time.Second {
+		coordinatorTimeout = 30 * time.Second // Maximum 30 seconds (reduced for test performance)
 	}
 
 	level.Info(logger).Log(
