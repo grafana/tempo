@@ -58,7 +58,7 @@ type VersionedEncoding interface {
 	// * Encoding
 	// * DedicatedColumns (vParquet3)
 	// * ReplicationFactor (Optional)
-	CreateWALBlock(meta *backend.BlockMeta, filepath, dataEncoding string, ingestionSlack time.Duration) (common.WALBlock, error)
+	CreateWALBlock(meta *backend.BlockMeta, filepath, dataEncoding string, ingestionSlack time.Duration, pageBufferSize int) (common.WALBlock, error)
 
 	// OwnsWALBlock indicates if this encoding owns the WAL block
 	OwnsWALBlock(entry fs.DirEntry) bool

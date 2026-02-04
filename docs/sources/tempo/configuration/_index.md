@@ -1840,6 +1840,11 @@ The storage WAL configuration block.
 # Options: vParquet4
 # Deprecated options: v2, vParquet3
 [version: <string> | default = "vParquet4"]
+
+# Page buffer size for parquet writer in WAL blocks.
+# Lower values reduce static memory usage in multi-tenant environments
+# at the cost of cutting pages more aggressively when writing column chunks.
+[page_buffer_size: <int> | default = 1024]
 ```
 
 ## Overrides

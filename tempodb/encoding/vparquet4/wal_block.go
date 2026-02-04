@@ -154,7 +154,7 @@ func openWALBlock(filename, path string, ingestionSlack, _ time.Duration) (commo
 }
 
 // createWALBlock creates a new appendable block
-func createWALBlock(meta *backend.BlockMeta, filepath, dataEncoding string, ingestionSlack time.Duration) (*walBlock, error) {
+func createWALBlock(meta *backend.BlockMeta, filepath, dataEncoding string, ingestionSlack time.Duration, pageBufferSize int) (*walBlock, error) {
 	newMeta := &backend.BlockMeta{
 		Version:           VersionString,
 		BlockID:           meta.BlockID,
@@ -169,6 +169,7 @@ func createWALBlock(meta *backend.BlockMeta, filepath, dataEncoding string, inge
 		path:           filepath,
 		ids:            common.NewIDMap[int64](0),
 		ingestionSlack: ingestionSlack,
+		pageBufferSize: pageBufferSize,
 		dedcolsRes:     dedicatedColumnsToColumnMapping(newMeta.DedicatedColumns, backend.DedicatedColumnScopeResource),
 		dedcolsSpan:    dedicatedColumnsToColumnMapping(newMeta.DedicatedColumns, backend.DedicatedColumnScopeSpan),
 	}
@@ -294,6 +295,7 @@ type walBlock struct {
 	meta           *backend.BlockMeta
 	path           string
 	ingestionSlack time.Duration
+	pageBufferSize int
 	dedcolsRes     dedicatedColumnMapping
 	dedcolsSpan    dedicatedColumnMapping
 
@@ -398,7 +400,7 @@ func (b *walBlock) openWriter() (err error) {
 			Schema: parquetSchema,
 			// setting this value low massively reduces the amount of static memory we hold onto in highly multi-tenant environments at the cost of
 			// cutting pages more aggressively when writing column chunks
-			PageBufferSize: 1024,
+			PageBufferSize: b.pageBufferSize,
 		})
 	} else {
 		b.writer.Reset(b.file)

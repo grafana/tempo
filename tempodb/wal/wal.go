@@ -30,10 +30,14 @@ type Config struct {
 	Filepath       string        `yaml:"path"`
 	IngestionSlack time.Duration `yaml:"ingestion_time_range_slack"`
 	Version        string        `yaml:"version,omitempty"`
+	PageBufferSize int           `yaml:"page_buffer_size,omitempty"`
 }
+
+const defaultPageBufferSize = 1024
 
 func (c *Config) RegisterFlags(*flag.FlagSet) {
 	c.IngestionSlack = 2 * time.Minute
+	c.PageBufferSize = defaultPageBufferSize
 }
 
 func (c *Config) Validate() error {
@@ -148,7 +152,11 @@ func (w *WAL) NewBlock(meta *backend.BlockMeta, dataEncoding string) (common.WAL
 	if err != nil {
 		return nil, err
 	}
-	return v.CreateWALBlock(meta, w.c.Filepath, dataEncoding, w.c.IngestionSlack)
+	pageBufferSize := w.c.PageBufferSize
+	if pageBufferSize <= 0 {
+		pageBufferSize = defaultPageBufferSize
+	}
+	return v.CreateWALBlock(meta, w.c.Filepath, dataEncoding, w.c.IngestionSlack, pageBufferSize)
 }
 
 func (w *WAL) GetFilepath() string {
