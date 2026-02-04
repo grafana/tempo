@@ -58,6 +58,10 @@ type Config struct {
 	// Only used if ReadinessTargetLag > 0. Default: 30m.
 	ReadinessMaxWait time.Duration `yaml:"readiness_max_wait"`
 
+	// FailOnHighLag makes the live-store fail on search and metrics requests if lag is high
+	// and live-store cannot guarantee completeness of results.
+	FailOnHighLag bool `yaml:"fail_on_high_lag"`
+
 	// testing config
 	holdAllBackgroundProcesses bool `yaml:"-"` // if this is set to true, the live store will never release its background processes
 

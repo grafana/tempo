@@ -1421,4 +1421,5 @@ live_store:
               options: []
     readiness_target_lag: 0s
     readiness_max_wait: 30m0s
+    fail_on_high_lag: false
 ```
