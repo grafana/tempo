@@ -24,6 +24,8 @@ When sampling, you can use a head or tail sampling strategy.
 With a head sampling strategy, the decision to sample the trace is usually made as early as possible and doesn’t need to take into account the whole trace.
 It’s a simple but effective sampling strategy.
 
+{{< youtube id="8JDgAEM5nHs" >}}
+
 With a tail sampling strategy, the decision to sample a trace is made after considering all or most of the spans. For example, tail sampling is a good option to sample only traces that have errors or traces with long request duration.
 Tail sampling is more complex to configure, implement, and maintain but is the recommended sampling strategy for large systems with a high telemetry volume.
 
