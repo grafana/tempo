@@ -273,6 +273,12 @@ func (b *streamingBlock) Complete() (int, error) {
 
 	b.meta.BloomShardCount = uint32(b.bloom.GetShardCount())
 
+	size, err := b.bloom.SerializedSizeBytes()
+	if err != nil {
+		return 0, err
+	}
+	b.meta.BloomFilterBytes = size
+
 	if b.withNoCompactFlag {
 		// write nocompact flag first to prevent compaction before completion
 		err := b.to.WriteNoCompactFlag(b.ctx, (uuid.UUID)(b.meta.BlockID), b.meta.TenantID)
