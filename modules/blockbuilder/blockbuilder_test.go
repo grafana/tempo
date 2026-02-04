@@ -883,7 +883,7 @@ func blockbuilderConfig(t testing.TB, address string, assignedPartitions []int32
 	cfg.IngestStorageConfig.Kafka.Address = address
 	cfg.IngestStorageConfig.Kafka.Topic = testTopic
 	cfg.IngestStorageConfig.Kafka.ConsumerGroup = testConsumerGroup
-	cfg.AssignedPartitions = map[string][]int32{cfg.InstanceID: assignedPartitions}
+	cfg.AssignedPartitionsMap = map[string][]int32{cfg.InstanceID: assignedPartitions}
 
 	cfg.ConsumeCycleDuration = 5 * time.Second
 
@@ -916,12 +916,9 @@ func newStoreWithLogger(ctx context.Context, t testing.TB, log log.Logger, skipN
 				Path: tmpDir,
 			},
 			Block: &common.BlockConfig{
-				IndexDownsampleBytes: 2,
-				BloomFP:              0.01,
-				BloomShardSizeBytes:  100_000,
-				Version:              encoding.LatestEncoding().Version(),
-				Encoding:             backend.EncLZ4_1M,
-				IndexPageSizeBytes:   1000,
+				BloomFP:             0.01,
+				BloomShardSizeBytes: 100_000,
+				Version:             encoding.LatestEncoding().Version(),
 			},
 			WAL: &wal.Config{
 				Filepath: tmpDir,

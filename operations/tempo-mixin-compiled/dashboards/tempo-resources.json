@@ -50,7 +50,7 @@
 
         ]
        },
-       "unit": "s"
+       "unit": "cores"
       },
       "overrides": [
 
@@ -130,7 +130,7 @@
 
         ]
        },
-       "unit": "s"
+       "unit": "bytes"
       },
       "overrides": [
 
@@ -228,7 +228,7 @@
 
         ]
        },
-       "unit": "s"
+       "unit": "bytes"
       },
       "overrides": [
 
@@ -312,7 +312,7 @@
 
         ]
        },
-       "unit": "s"
+       "unit": "cores"
       },
       "overrides": [
 
@@ -392,7 +392,7 @@
 
         ]
        },
-       "unit": "s"
+       "unit": "bytes"
       },
       "overrides": [
 
@@ -490,7 +490,7 @@
 
         ]
        },
-       "unit": "s"
+       "unit": "bytes"
       },
       "overrides": [
 
@@ -574,275 +574,13 @@
 
         ]
        },
-       "unit": "s"
+       "unit": "cores"
       },
       "overrides": [
 
       ]
      },
      "id": 7,
-     "links": [
-
-     ],
-     "options": {
-      "legend": {
-       "showLegend": true
-      },
-      "tooltip": {
-       "mode": "single",
-       "sort": "none"
-      }
-     },
-     "seriesOverrides": [
-      {
-       "alias": "limit",
-       "color": "#E02F44",
-       "fill": 0
-      },
-      {
-       "alias": "request",
-       "color": "#FCE300",
-       "fill": 0
-      }
-     ],
-     "span": 4,
-     "targets": [
-      {
-       "expr": "sum by(pod) (rate(container_cpu_usage_seconds_total{cluster=~\"$cluster\", namespace=~\"$namespace\",container=~\"ingester\"}[$__rate_interval]))",
-       "format": "time_series",
-       "interval": "1m",
-       "legendFormat": "{{pod}}",
-       "legendLink": null
-      },
-      {
-       "expr": "min(container_spec_cpu_quota{cluster=~\"$cluster\", namespace=~\"$namespace\",container=~\"ingester\"} / container_spec_cpu_period{cluster=~\"$cluster\", namespace=~\"$namespace\",container=~\"ingester\"})",
-       "format": "time_series",
-       "interval": "1m",
-       "legendFormat": "limit",
-       "legendLink": null
-      },
-      {
-       "expr": "min(kube_pod_container_resource_requests{cluster=~\"$cluster\", namespace=~\"$namespace\",container=~\"ingester\", resource=\"cpu\"} > 0)",
-       "format": "time_series",
-       "interval": "1m",
-       "legendFormat": "request",
-       "legendLink": null
-      }
-     ],
-     "title": "CPU",
-     "type": "timeseries"
-    },
-    {
-     "datasource": "$datasource",
-     "fieldConfig": {
-      "defaults": {
-       "custom": {
-        "drawStyle": "line",
-        "fillOpacity": 1,
-        "lineWidth": 1,
-        "pointSize": 5,
-        "showPoints": "never",
-        "spanNulls": false,
-        "stacking": {
-         "group": "A",
-         "mode": "none"
-        }
-       },
-       "thresholds": {
-        "mode": "absolute",
-        "steps": [
-
-        ]
-       },
-       "unit": "s"
-      },
-      "overrides": [
-
-      ]
-     },
-     "id": 8,
-     "links": [
-
-     ],
-     "options": {
-      "legend": {
-       "showLegend": true
-      },
-      "tooltip": {
-       "mode": "single",
-       "sort": "none"
-      }
-     },
-     "seriesOverrides": [
-      {
-       "alias": "limit",
-       "color": "#E02F44",
-       "fill": 0
-      },
-      {
-       "alias": "request",
-       "color": "#FCE300",
-       "fill": 0
-      }
-     ],
-     "span": 4,
-     "targets": [
-      {
-       "expr": "sum by(pod) (container_memory_working_set_bytes{cluster=~\"$cluster\", namespace=~\"$namespace\",container=~\"ingester\"})",
-       "format": "time_series",
-       "interval": "1m",
-       "legendFormat": "{{pod}}",
-       "legendLink": null
-      },
-      {
-       "expr": "min(container_spec_memory_limit_bytes{cluster=~\"$cluster\", namespace=~\"$namespace\",container=~\"ingester\"} > 0)",
-       "format": "time_series",
-       "interval": "1m",
-       "legendFormat": "limit",
-       "legendLink": null
-      },
-      {
-       "expr": "min(kube_pod_container_resource_requests{cluster=~\"$cluster\", namespace=~\"$namespace\",container=~\"ingester\", resource=\"memory\"} > 0)",
-       "format": "time_series",
-       "interval": "1m",
-       "legendFormat": "request",
-       "legendLink": null
-      }
-     ],
-     "title": "Memory (workingset)",
-     "type": "timeseries",
-     "yaxes": [
-      {
-       "format": "bytes",
-       "label": null,
-       "logBase": 1,
-       "max": null,
-       "min": 0,
-       "show": true
-      },
-      {
-       "format": "short",
-       "label": null,
-       "logBase": 1,
-       "max": null,
-       "min": null,
-       "show": false
-      }
-     ]
-    },
-    {
-     "datasource": "$datasource",
-     "fieldConfig": {
-      "defaults": {
-       "custom": {
-        "drawStyle": "line",
-        "fillOpacity": 1,
-        "lineWidth": 1,
-        "pointSize": 5,
-        "showPoints": "never",
-        "spanNulls": false,
-        "stacking": {
-         "group": "A",
-         "mode": "none"
-        }
-       },
-       "thresholds": {
-        "mode": "absolute",
-        "steps": [
-
-        ]
-       },
-       "unit": "s"
-      },
-      "overrides": [
-
-      ]
-     },
-     "id": 9,
-     "links": [
-
-     ],
-     "options": {
-      "legend": {
-       "showLegend": true
-      },
-      "tooltip": {
-       "mode": "single",
-       "sort": "none"
-      }
-     },
-     "span": 4,
-     "targets": [
-      {
-       "expr": "sum by(instance) (go_memstats_heap_inuse_bytes{cluster=~\"$cluster\", job=~\"($namespace)/ingester\"})",
-       "format": "time_series",
-       "interval": "1m",
-       "legendFormat": "{{instance}}",
-       "legendLink": null
-      }
-     ],
-     "title": "Memory (go heap inuse)",
-     "type": "timeseries",
-     "yaxes": [
-      {
-       "format": "bytes",
-       "label": null,
-       "logBase": 1,
-       "max": null,
-       "min": 0,
-       "show": true
-      },
-      {
-       "format": "short",
-       "label": null,
-       "logBase": 1,
-       "max": null,
-       "min": null,
-       "show": false
-      }
-     ]
-    }
-   ],
-   "repeat": null,
-   "repeatIteration": null,
-   "repeatRowId": null,
-   "showTitle": true,
-   "title": "Ingester",
-   "titleSize": "h6"
-  },
-  {
-   "collapse": false,
-   "height": "250px",
-   "panels": [
-    {
-     "datasource": "$datasource",
-     "fieldConfig": {
-      "defaults": {
-       "custom": {
-        "drawStyle": "line",
-        "fillOpacity": 1,
-        "lineWidth": 1,
-        "pointSize": 5,
-        "showPoints": "never",
-        "spanNulls": false,
-        "stacking": {
-         "group": "A",
-         "mode": "none"
-        }
-       },
-       "thresholds": {
-        "mode": "absolute",
-        "steps": [
-
-        ]
-       },
-       "unit": "s"
-      },
-      "overrides": [
-
-      ]
-     },
-     "id": 10,
      "links": [
 
      ],
@@ -916,13 +654,13 @@
 
         ]
        },
-       "unit": "s"
+       "unit": "bytes"
       },
       "overrides": [
 
       ]
      },
-     "id": 11,
+     "id": 8,
      "links": [
 
      ],
@@ -1014,13 +752,13 @@
 
         ]
        },
-       "unit": "s"
+       "unit": "bytes"
       },
       "overrides": [
 
       ]
      },
-     "id": 12,
+     "id": 9,
      "links": [
 
      ],
@@ -1098,13 +836,13 @@
 
         ]
        },
-       "unit": "s"
+       "unit": "cores"
       },
       "overrides": [
 
       ]
      },
-     "id": 13,
+     "id": 10,
      "links": [
 
      ],
@@ -1178,13 +916,13 @@
 
         ]
        },
-       "unit": "s"
+       "unit": "bytes"
       },
       "overrides": [
 
       ]
      },
-     "id": 14,
+     "id": 11,
      "links": [
 
      ],
@@ -1276,13 +1014,13 @@
 
         ]
        },
-       "unit": "s"
+       "unit": "bytes"
       },
       "overrides": [
 
       ]
      },
-     "id": 15,
+     "id": 12,
      "links": [
 
      ],
@@ -1360,13 +1098,13 @@
 
         ]
        },
-       "unit": "s"
+       "unit": "cores"
       },
       "overrides": [
 
       ]
      },
-     "id": 16,
+     "id": 13,
      "links": [
 
      ],
@@ -1440,13 +1178,13 @@
 
         ]
        },
-       "unit": "s"
+       "unit": "bytes"
       },
       "overrides": [
 
       ]
      },
-     "id": 17,
+     "id": 14,
      "links": [
 
      ],
@@ -1538,13 +1276,13 @@
 
         ]
        },
-       "unit": "s"
+       "unit": "bytes"
       },
       "overrides": [
 
       ]
      },
-     "id": 18,
+     "id": 15,
      "links": [
 
      ],
@@ -1622,13 +1360,13 @@
 
         ]
        },
-       "unit": "s"
+       "unit": "cores"
       },
       "overrides": [
 
       ]
      },
-     "id": 19,
+     "id": 16,
      "links": [
 
      ],
@@ -1702,13 +1440,13 @@
 
         ]
        },
-       "unit": "s"
+       "unit": "bytes"
       },
       "overrides": [
 
       ]
      },
-     "id": 20,
+     "id": 17,
      "links": [
 
      ],
@@ -1800,13 +1538,13 @@
 
         ]
        },
-       "unit": "s"
+       "unit": "bytes"
       },
       "overrides": [
 
       ]
      },
-     "id": 21,
+     "id": 18,
      "links": [
 
      ],
@@ -1884,13 +1622,13 @@
 
         ]
        },
-       "unit": "s"
+       "unit": "cores"
       },
       "overrides": [
 
       ]
      },
-     "id": 22,
+     "id": 19,
      "links": [
 
      ],
@@ -1964,13 +1702,13 @@
 
         ]
        },
-       "unit": "s"
+       "unit": "bytes"
       },
       "overrides": [
 
       ]
      },
-     "id": 23,
+     "id": 20,
      "links": [
 
      ],
@@ -2062,13 +1800,13 @@
 
         ]
        },
-       "unit": "s"
+       "unit": "bytes"
       },
       "overrides": [
 
       ]
      },
-     "id": 24,
+     "id": 21,
      "links": [
 
      ],
@@ -2146,13 +1884,13 @@
 
         ]
        },
-       "unit": "s"
+       "unit": "cores"
       },
       "overrides": [
 
       ]
      },
-     "id": 25,
+     "id": 22,
      "links": [
 
      ],
@@ -2226,13 +1964,13 @@
 
         ]
        },
-       "unit": "s"
+       "unit": "bytes"
       },
       "overrides": [
 
       ]
      },
-     "id": 26,
+     "id": 23,
      "links": [
 
      ],
@@ -2336,13 +2074,13 @@
 
         ]
        },
-       "unit": "s"
+       "unit": "cores"
       },
       "overrides": [
 
       ]
      },
-     "id": 27,
+     "id": 24,
      "links": [
 
      ],
@@ -2416,13 +2154,13 @@
 
         ]
        },
-       "unit": "s"
+       "unit": "bytes"
       },
       "overrides": [
 
       ]
      },
-     "id": 28,
+     "id": 25,
      "links": [
 
      ],
@@ -2514,13 +2252,13 @@
 
         ]
        },
-       "unit": "s"
+       "unit": "bytes"
       },
       "overrides": [
 
       ]
      },
-     "id": 29,
+     "id": 26,
      "links": [
 
      ],
@@ -2598,13 +2336,13 @@
 
         ]
        },
-       "unit": "s"
+       "unit": "cores"
       },
       "overrides": [
 
       ]
      },
-     "id": 30,
+     "id": 27,
      "links": [
 
      ],
@@ -2678,13 +2416,13 @@
 
         ]
        },
-       "unit": "s"
+       "unit": "bytes"
       },
       "overrides": [
 
       ]
      },
-     "id": 31,
+     "id": 28,
      "links": [
 
      ],
@@ -2776,13 +2514,13 @@
 
         ]
        },
-       "unit": "s"
+       "unit": "bytes"
       },
       "overrides": [
 
       ]
      },
-     "id": 32,
+     "id": 29,
      "links": [
 
      ],
@@ -2860,13 +2598,13 @@
 
         ]
        },
-       "unit": "s"
+       "unit": "cores"
       },
       "overrides": [
 
       ]
      },
-     "id": 33,
+     "id": 30,
      "links": [
 
      ],
@@ -2940,13 +2678,13 @@
 
         ]
        },
-       "unit": "s"
+       "unit": "bytes"
       },
       "overrides": [
 
       ]
      },
-     "id": 34,
+     "id": 31,
      "links": [
 
      ],
@@ -3038,13 +2776,13 @@
 
         ]
        },
-       "unit": "s"
+       "unit": "bytes"
       },
       "overrides": [
 
       ]
      },
-     "id": 35,
+     "id": 32,
      "links": [
 
      ],
@@ -3122,13 +2860,13 @@
 
         ]
        },
-       "unit": "s"
+       "unit": "cores"
       },
       "overrides": [
 
       ]
      },
-     "id": 36,
+     "id": 33,
      "links": [
 
      ],
@@ -3202,13 +2940,13 @@
 
         ]
        },
-       "unit": "s"
+       "unit": "bytes"
       },
       "overrides": [
 
       ]
      },
-     "id": 37,
+     "id": 34,
      "links": [
 
      ],
@@ -3300,13 +3038,13 @@
 
         ]
        },
-       "unit": "s"
+       "unit": "bytes"
       },
       "overrides": [
 
       ]
      },
-     "id": 38,
+     "id": 35,
      "links": [
 
      ],

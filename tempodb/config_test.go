@@ -5,8 +5,8 @@ import (
 	"testing"
 
 	"github.com/grafana/tempo/tempodb/encoding/common"
-	v2 "github.com/grafana/tempo/tempodb/encoding/v2"
 	"github.com/grafana/tempo/tempodb/encoding/vparquet3"
+	"github.com/grafana/tempo/tempodb/encoding/vparquet5"
 	"github.com/grafana/tempo/tempodb/wal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -71,23 +71,19 @@ func TestValidateConfig(t *testing.T) {
 			cfg: &Config{
 				WAL: &wal.Config{},
 				Block: &common.BlockConfig{
-					IndexDownsampleBytes: 1,
-					IndexPageSizeBytes:   1,
-					BloomFP:              0.01,
-					BloomShardSizeBytes:  1,
-					Version:              v2.VersionString,
+					BloomFP:             0.01,
+					BloomShardSizeBytes: 1,
+					Version:             vparquet5.VersionString,
 				},
 			},
 			expectedConfig: &Config{
 				WAL: &wal.Config{
-					Version: v2.VersionString,
+					Version: vparquet5.VersionString,
 				},
 				Block: &common.BlockConfig{
-					IndexDownsampleBytes: 1,
-					IndexPageSizeBytes:   1,
-					BloomFP:              0.01,
-					BloomShardSizeBytes:  1,
-					Version:              v2.VersionString,
+					BloomFP:             0.01,
+					BloomShardSizeBytes: 1,
+					Version:             vparquet5.VersionString,
 				},
 			},
 		},
@@ -98,11 +94,9 @@ func TestValidateConfig(t *testing.T) {
 					Version: vparquet3.VersionString,
 				},
 				Block: &common.BlockConfig{
-					IndexDownsampleBytes: 1,
-					IndexPageSizeBytes:   1,
-					BloomFP:              0.01,
-					BloomShardSizeBytes:  1,
-					Version:              v2.VersionString,
+					BloomFP:             0.01,
+					BloomShardSizeBytes: 1,
+					Version:             vparquet5.VersionString,
 				},
 			},
 			expectedConfig: &Config{
@@ -110,11 +104,9 @@ func TestValidateConfig(t *testing.T) {
 					Version: vparquet3.VersionString,
 				},
 				Block: &common.BlockConfig{
-					IndexDownsampleBytes: 1,
-					IndexPageSizeBytes:   1,
-					BloomFP:              0.01,
-					BloomShardSizeBytes:  1,
-					Version:              v2.VersionString,
+					BloomFP:             0.01,
+					BloomShardSizeBytes: 1,
+					Version:             vparquet5.VersionString,
 				},
 			},
 		},
@@ -143,11 +135,9 @@ func TestDeprecatedVersions(t *testing.T) {
 					Version: "vParquet5-preview1", // Turned into unsupported
 				},
 				Block: &common.BlockConfig{
-					IndexDownsampleBytes: 1,
-					IndexPageSizeBytes:   1,
-					BloomFP:              0.01,
-					BloomShardSizeBytes:  1,
-					Version:              "vParquet4",
+					BloomFP:             0.01,
+					BloomShardSizeBytes: 1,
+					Version:             "vParquet4",
 				},
 			},
 			err: "wal config validation failed: failed to validate block version vParquet5-preview1: vParquet5-preview1 is not a valid block version for creating blocks",

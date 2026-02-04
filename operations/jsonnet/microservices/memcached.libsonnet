@@ -31,4 +31,10 @@ memcached {
     name: 'memcached',
     max_item_size: '5m',
   },
+
+  // Vertacal Pod Autoscaler
+  memcached_vpa: $.vpaForController($.memcached_all.statefulSet, 'memcached'),
+
+  // Pod Disruption Budget
+  memcached_pdb: $.pdbForController($.memcached_all.statefulSet, 'memcached'),
 }

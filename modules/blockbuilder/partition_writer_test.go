@@ -6,7 +6,6 @@ import (
 
 	"github.com/go-kit/log"
 	"github.com/grafana/tempo/pkg/util/test"
-	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/grafana/tempo/tempodb/wal"
 	"github.com/stretchr/testify/require"
@@ -25,7 +24,6 @@ func getPartitionWriter(t *testing.T) *writer {
 	)
 	w, err := wal.New(&wal.Config{
 		Filepath:       tmpDir,
-		Encoding:       backend.EncNone,
 		IngestionSlack: 3 * time.Minute,
 		Version:        encoding.DefaultEncoding().Version(),
 	})

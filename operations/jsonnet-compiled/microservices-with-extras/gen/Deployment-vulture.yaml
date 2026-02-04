@@ -1,0 +1,44 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: vulture
+  namespace: tracing
+spec:
+  minReadySeconds: 10
+  replicas: 1
+  revisionHistoryLimit: 10
+  selector:
+    matchLabels:
+      app: vulture
+      name: vulture
+  template:
+    metadata:
+      labels:
+        app: vulture
+        name: vulture
+    spec:
+      containers:
+      - args:
+        - -prometheus-listen-address=:8080
+        - -tempo-push-url=http://distributor
+        - -tempo-query-url=http://query-frontend:3200/tempo
+        - -tempo-org-id=1
+        - -tempo-retention-duration=336h
+        - -tempo-search-backoff-duration=5s
+        - -tempo-read-backoff-duration=10s
+        - -tempo-metrics-backoff-duration=0s
+        - -tempo-write-backoff-duration=10s
+        - -tempo-long-write-backoff-duration=50s
+        image: grafana/tempo-vulture:latest
+        imagePullPolicy: IfNotPresent
+        name: vulture
+        ports:
+        - containerPort: 8080
+          name: prom-metrics
+        resources:
+          limits:
+            cpu: 100m
+            memory: 500Mi
+          requests:
+            cpu: 50m
+            memory: 100Mi

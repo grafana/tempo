@@ -75,4 +75,9 @@
   tempo_block_builder_service:
     k.util.serviceFor($.tempo_block_builder_statefulset, $._config.service_ignored_labels),
 
+  // Vertical Pod Autoscaler
+  tempo_block_builder_vpa: $.vpaForController($.tempo_block_builder_statefulset, 'block_builder'),
+
+  // Pod Disruption Budget
+  tempo_block_builder_pdb: $.pdbForController($.tempo_block_builder_statefulset, 'block_builder'),
 }

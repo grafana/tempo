@@ -107,6 +107,80 @@ func TestFetchTagNames(t *testing.T) {
 			expectedSpanValues:     []string{"span-same", "generic-02-01"},
 			expectedResourceValues: []string{"resource-same", "generic-02"},
 		},
+		// well-known column != nil - regression test for panic caused by mixed types in OtherEntries
+		{
+			name:                   "well known span != nil",
+			query:                  "{span.http.method != nil}",
+			expectedSpanValues:     []string{"generic-01-01", "generic-01-02", "span-same", "generic-02-01"},
+			expectedResourceValues: []string{"generic-01", "resource-same", "generic-02"},
+		},
+		{
+			name:                   "well known span = nil",
+			query:                  "{span.http.method = nil}",
+			expectedSpanValues:     []string{},
+			expectedResourceValues: []string{},
+		},
+		{
+			name:                   "well known span op none",
+			query:                  "{span.http.method}",
+			expectedSpanValues:     []string{"generic-01-01", "generic-01-02", "span-same", "generic-02-01"},
+			expectedResourceValues: []string{"generic-01", "resource-same", "generic-02"},
+		},
+		{
+			name:                   "well known resource != nil",
+			query:                  "{resource.cluster != nil}",
+			expectedSpanValues:     []string{"generic-01-01", "generic-01-02", "span-same", "generic-02-01"},
+			expectedResourceValues: []string{"generic-01", "resource-same", "generic-02"},
+		},
+		{
+			name:                   "well known resource = nil",
+			query:                  "{resource.cluster = nil}",
+			expectedSpanValues:     []string{},
+			expectedResourceValues: []string{},
+		},
+		{
+			name:                   "well known resource op none",
+			query:                  "{resource.cluster}",
+			expectedSpanValues:     []string{"generic-01-01", "generic-01-02", "span-same", "generic-02-01"},
+			expectedResourceValues: []string{"generic-01", "resource-same", "generic-02"},
+		},
+		// dedicated columns
+		{
+			name:                   "span dedicated != nil",
+			query:                  "{span.dedicated.span.1 != nil}",
+			expectedSpanValues:     []string{"generic-01-01", "generic-01-02", "span-same", "generic-02-01"},
+			expectedResourceValues: []string{"generic-01", "resource-same", "generic-02"},
+		},
+		{
+			name:                   "span dedicated = nil",
+			query:                  "{span.dedicated.span.1 = nil}",
+			expectedSpanValues:     []string{},
+			expectedResourceValues: []string{},
+		},
+		{
+			name:                   "span dedicated op none",
+			query:                  "{span.dedicated.span.1}",
+			expectedSpanValues:     []string{"generic-01-01", "generic-01-02", "span-same", "generic-02-01"},
+			expectedResourceValues: []string{"generic-01", "resource-same", "generic-02"},
+		},
+		{
+			name:                   "resource dedicated != nil",
+			query:                  "{resource.dedicated.resource.1 != nil}",
+			expectedSpanValues:     []string{"generic-01-01", "generic-01-02", "span-same", "generic-02-01"},
+			expectedResourceValues: []string{"generic-01", "resource-same", "generic-02"},
+		},
+		{
+			name:                   "resource dedicated = nil",
+			query:                  "{resource.dedicated.resource.1 = nil}",
+			expectedSpanValues:     []string{},
+			expectedResourceValues: []string{},
+		},
+		{
+			name:                   "resource dedicated op none",
+			query:                  "{resource.dedicated.resource.1}",
+			expectedSpanValues:     []string{"generic-01-01", "generic-01-02", "span-same", "generic-02-01"},
+			expectedResourceValues: []string{"generic-01", "resource-same", "generic-02"},
+		},
 	}
 
 	strPtr := func(s string) *string { return &s }

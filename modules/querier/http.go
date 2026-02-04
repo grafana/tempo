@@ -28,6 +28,7 @@ const (
 	QueryModeBlocks    = "blocks"
 	QueryModeAll       = "all"
 	QueryModeRecent    = "recent"
+	QueryModeExternal  = "external"
 )
 
 // TraceByIDHandler is a http.HandlerFunc to retrieve traces

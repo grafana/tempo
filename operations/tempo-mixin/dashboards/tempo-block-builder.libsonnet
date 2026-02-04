@@ -21,7 +21,8 @@ dashboard_utils {
             ],
             ['sucessful', 'read errors']
           ) +
-          $.stack,
+          $.stack +
+          { fieldConfig+: { defaults+: { unit: 'ops' } } },
         )
         .addPanel(
           $.timeseriesPanel('Per pod Kafka fetched records / sec') +
@@ -35,7 +36,7 @@ dashboard_utils {
           ) +
           $.stack
           +
-          { fieldConfig+: { defaults+: { unit: 'short' } } },
+          { fieldConfig+: { defaults+: { unit: 'ops' } } },
         )
         .addPanel(
           $.timeseriesPanel('Per partition Kafka fetched records / sec') +
@@ -49,7 +50,7 @@ dashboard_utils {
           ) +
           $.stack
           +
-          { fieldConfig+: { defaults+: { unit: 'short' } } },
+          { fieldConfig+: { defaults+: { unit: 'ops' } } },
         )
       )
       .addRow(
@@ -116,7 +117,7 @@ dashboard_utils {
           ) +
           $.stack
           +
-          { fieldConfig+: { defaults+: { unit: 'short' } } },
+          { fieldConfig+: { defaults+: { unit: 'ops' } } },
         )
         .addPanel(
           $.timeseriesPanel('Per pod flushed blocks / sec') +
@@ -130,7 +131,7 @@ dashboard_utils {
           ) +
           $.stack
           +
-          { fieldConfig+: { defaults+: { unit: 'short' } } },
+          { fieldConfig+: { defaults+: { unit: 'ops' } } },
         )
       )
       .addRow(

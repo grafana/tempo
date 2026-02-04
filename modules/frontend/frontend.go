@@ -17,6 +17,7 @@ import (
 	"github.com/grafana/dskit/middleware"
 	"github.com/grafana/dskit/user"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
 
 	"github.com/grafana/tempo/modules/frontend/combiner"
 	"github.com/grafana/tempo/modules/frontend/pipeline"
@@ -125,6 +126,12 @@ func New(cfg Config, next pipeline.RoundTripper, o overrides.Interface, reader t
 		return nil, fmt.Errorf("QueryBackendAfter (%v) must be greater than query end cutoff (%v)", cfg.Search.Sharder.QueryBackendAfter, cfg.QueryEndCutoff)
 	}
 
+	jobsPerQuery := promauto.With(registerer).NewHistogramVec(prometheus.HistogramOpts{
+		Name:    "tempo_query_frontend_jobs_per_query",
+		Help:    "Number of planned jobs per query in the query frontend.",
+		Buckets: prometheus.ExponentialBuckets(1, 10, 7),
+	}, []string{"op"})
+
 	// Propagate RF1After to search and traceByID sharders
 	cfg.Search.Sharder.RF1After = cfg.RF1After
 	cfg.TraceByID.RF1After = cfg.RF1After
@@ -147,7 +154,7 @@ func New(cfg Config, next pipeline.RoundTripper, o overrides.Interface, reader t
 			pipeline.NewWeightRequestWare(pipeline.TraceByID, cfg.Weights),
 			multiTenantMiddleware(cfg, logger),
 			tenantValidatorWare,
-			newAsyncTraceIDSharder(&cfg.TraceByID, logger),
+			newAsyncTraceIDSharder(&cfg.TraceByID, jobsPerQuery, logger),
 		},
 		[]pipeline.Middleware{traceIDStatusCodeWare, retryWare},
 		next)
@@ -161,7 +168,7 @@ func New(cfg Config, next pipeline.RoundTripper, o overrides.Interface, reader t
 			pipeline.NewWeightRequestWare(pipeline.TraceQLSearch, cfg.Weights),
 			multiTenantMiddleware(cfg, logger),
 			tenantValidatorWare,
-			newAsyncSearchSharder(reader, o, cfg.Search.Sharder, logger),
+			newAsyncSearchSharder(reader, o, cfg.Search.Sharder, jobsPerQuery, logger),
 		},
 		[]pipeline.Middleware{cacheWare, statusCodeWare, retryWare},
 		next)
@@ -174,7 +181,7 @@ func New(cfg Config, next pipeline.RoundTripper, o overrides.Interface, reader t
 			pipeline.NewWeightRequestWare(pipeline.Default, cfg.Weights),
 			multiTenantMiddleware(cfg, logger),
 			tenantValidatorWare,
-			newAsyncTagSharder(reader, o, cfg.Search.Sharder, parseTagsRequest, logger),
+			newAsyncTagSharder(reader, o, cfg.Search.Sharder, parseTagsRequest, jobsPerQuery, logger),
 		},
 		[]pipeline.Middleware{cacheWare, statusCodeWare, retryWare},
 		next)
@@ -187,7 +194,7 @@ func New(cfg Config, next pipeline.RoundTripper, o overrides.Interface, reader t
 			pipeline.NewWeightRequestWare(pipeline.Default, cfg.Weights),
 			multiTenantMiddleware(cfg, logger),
 			tenantValidatorWare,
-			newAsyncTagSharder(reader, o, cfg.Search.Sharder, parseTagValuesRequest, logger),
+			newAsyncTagSharder(reader, o, cfg.Search.Sharder, parseTagValuesRequest, jobsPerQuery, logger),
 		},
 		[]pipeline.Middleware{cacheWare, statusCodeWare, retryWare},
 		next)
@@ -200,7 +207,7 @@ func New(cfg Config, next pipeline.RoundTripper, o overrides.Interface, reader t
 			pipeline.NewWeightRequestWare(pipeline.Default, cfg.Weights),
 			multiTenantMiddleware(cfg, logger),
 			tenantValidatorWare,
-			newAsyncTagSharder(reader, o, cfg.Search.Sharder, parseTagValuesRequestV2, logger),
+			newAsyncTagSharder(reader, o, cfg.Search.Sharder, parseTagValuesRequestV2, jobsPerQuery, logger),
 		},
 		[]pipeline.Middleware{cacheWare, statusCodeWare, retryWare},
 		next)
@@ -228,7 +235,7 @@ func New(cfg Config, next pipeline.RoundTripper, o overrides.Interface, reader t
 			pipeline.NewWeightRequestWare(pipeline.TraceQLMetrics, cfg.Weights),
 			multiTenantMiddleware(cfg, logger),
 			tenantValidatorWare,
-			newAsyncQueryRangeSharder(reader, o, cfg.Metrics.Sharder, false, logger),
+			newAsyncQueryRangeSharder(reader, o, cfg.Metrics.Sharder, false, jobsPerQuery, logger),
 		},
 		[]pipeline.Middleware{cacheWare, statusCodeWare, retryWare},
 		next)
@@ -242,7 +249,7 @@ func New(cfg Config, next pipeline.RoundTripper, o overrides.Interface, reader t
 			pipeline.NewWeightRequestWare(pipeline.TraceQLMetrics, cfg.Weights),
 			multiTenantMiddleware(cfg, logger),
 			tenantValidatorWare,
-			newAsyncQueryRangeSharder(reader, o, cfg.Metrics.Sharder, true, logger),
+			newAsyncQueryRangeSharder(reader, o, cfg.Metrics.Sharder, true, jobsPerQuery, logger),
 		},
 		[]pipeline.Middleware{cacheWare, statusCodeWare, retryWare},
 		next)
@@ -408,7 +415,10 @@ func prepareRequestForQueriers(req *http.Request, tenant string) {
 	// https://github.com/grafana/dskit/blob/f5bd38371e1cfae5479b2c23b3893c1a97868bdf/httpgrpc/httpgrpc.go#L53
 	const queryDelimiter = "?"
 
-	uri := path.Join(api.PathPrefixQuerier, req.URL.Path)
+	// req.Url.Path is an unescaped string so its important to use req.URL.EscapedPath() here so
+	// that the httpgrpc bridge works. this really only matters for tag value requests that add the tag name to the path.
+	// in retrospect putting a field that holds arbitrary user data and supports the full UTF8 char set into the path was a bad idea.
+	uri := path.Join(api.PathPrefixQuerier, req.URL.EscapedPath())
 	if len(req.URL.RawQuery) > 0 {
 		uri += queryDelimiter + req.URL.RawQuery
 	}

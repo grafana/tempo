@@ -40,15 +40,14 @@ const (
 	urlParamExemplars       = "exemplars"
 	URLParamRF1After        = "rf1After"
 	urlMaxSeries            = "maxSeries"
+	urlInstant              = "instant"
 
 	// backend search querier
 	urlParamStartPage        = "startPage"
 	urlParamPagesToSearch    = "pagesToSearch"
 	urlParamBlockID          = "blockID"
-	urlParamEncoding         = "encoding"
 	urlParamIndexPageSize    = "indexPageSize"
 	urlParamTotalRecords     = "totalRecords"
-	urlParamDataEncoding     = "dataEncoding"
 	urlParamVersion          = "version"
 	urlParamSize             = "size"
 	urlParamFooterSize       = "footerSize"
@@ -74,7 +73,7 @@ const (
 	PathTraces              = "/api/traces/{traceID}"
 	PathSearch              = "/api/search"
 	PathSearchTags          = "/api/search/tags"
-	PathSearchTagValues     = "/api/search/tag/{" + MuxVarTagName + "}/values"
+	PathSearchTagValues     = "/api/search/tag/" + MuxVarTagInPath + "/values"
 	PathEcho                = "/api/echo"
 	PathBuildInfo           = "/api/status/buildinfo"
 	PathUsageStats          = "/status/usage-stats"
@@ -87,13 +86,14 @@ const (
 	// PathOverrides user configurable overrides
 	PathOverrides = "/api/overrides"
 
-	PathSearchTagValuesV2 = "/api/v2/search/tag/{" + MuxVarTagName + "}/values"
+	PathSearchTagValuesV2 = "/api/v2/search/tag/" + MuxVarTagInPath + "/values"
 	PathSearchTagsV2      = "/api/v2/search/tags"
 	PathTracesV2          = "/api/v2/traces/{traceID}"
 
 	QueryModeKey       = "mode"
 	QueryModeIngesters = "ingesters"
 	QueryModeBlocks    = "blocks"
+	QueryModeExternal  = "external"
 	QueryModeAll       = "all"
 	BlockStartKey      = "blockStart"
 	BlockEndKey        = "blockEnd"
@@ -441,9 +441,6 @@ func ParseQueryRangeRequest(r *http.Request) (*tempopb.QueryRangeRequest, error)
 	version, _ := extractQueryParam(vals, urlParamVersion)
 	req.Version = version
 
-	encoding, _ := extractQueryParam(vals, urlParamEncoding)
-	req.Encoding = encoding
-
 	size, _ := extractQueryParam(vals, urlParamSize)
 	if size, err := strconv.Atoi(size); err == nil {
 		req.Size_ = uint64(size)
@@ -470,6 +467,13 @@ func ParseQueryRangeRequest(r *http.Request) (*tempopb.QueryRangeRequest, error)
 	maxSeries, _ := extractQueryParam(vals, urlMaxSeries)
 	if maxSeries, err := strconv.Atoi(maxSeries); err == nil {
 		req.MaxSeries = uint32(maxSeries)
+	}
+
+	if isInstant, found := extractQueryParam(vals, urlInstant); found {
+		val, err := strconv.ParseBool(isInstant)
+		if err == nil {
+			req.SetInstant(val)
+		}
 	}
 
 	return req, nil
@@ -526,7 +530,7 @@ func BuildQueryRangeRequest(req *http.Request, searchReq *tempopb.QueryRangeRequ
 	qb.addParam(urlParamStartPage, strconv.Itoa(int(searchReq.StartPage)))
 	qb.addParam(urlParamPagesToSearch, strconv.Itoa(int(searchReq.PagesToSearch)))
 	qb.addParam(urlParamVersion, searchReq.Version)
-	qb.addParam(urlParamEncoding, searchReq.Encoding)
+	qb.addParam("encoding", "none")
 	qb.addParam(urlParamSize, strconv.Itoa(int(searchReq.Size_)))
 	qb.addParam(urlParamFooterSize, strconv.Itoa(int(searchReq.FooterSize)))
 
@@ -540,6 +544,9 @@ func BuildQueryRangeRequest(req *http.Request, searchReq *tempopb.QueryRangeRequ
 
 	qb.addParam(urlParamExemplars, strconv.FormatUint(uint64(searchReq.Exemplars), 10))
 	qb.addParam(urlMaxSeries, strconv.Itoa(int(searchReq.MaxSeries)))
+	if searchReq.HasInstant() {
+		qb.addParam(urlInstant, strconv.FormatBool(searchReq.GetInstant()))
+	}
 
 	req.URL.RawQuery = qb.query()
 
@@ -811,10 +818,9 @@ func BuildSearchBlockRequest(req *http.Request, searchReq *tempopb.SearchBlockRe
 	qb.addParam(urlParamPagesToSearch, strconv.FormatUint(uint64(searchReq.PagesToSearch), 10))
 	qb.addParam(urlParamSize, strconv.FormatUint(searchReq.Size_, 10))
 	qb.addParam(urlParamStartPage, strconv.FormatUint(uint64(searchReq.StartPage), 10))
-	qb.addParam(urlParamEncoding, searchReq.Encoding)
+	qb.addParam("encoding", "none") // todo: remove. encoding was removed b/c its unused but we still add it here to make rollouts seamless
 	qb.addParam(urlParamIndexPageSize, strconv.FormatUint(uint64(searchReq.IndexPageSize), 10))
 	qb.addParam(urlParamTotalRecords, strconv.FormatUint(uint64(searchReq.TotalRecords), 10))
-	qb.addParam(urlParamDataEncoding, searchReq.DataEncoding)
 	qb.addParam(urlParamVersion, searchReq.Version)
 	qb.addParam(urlParamFooterSize, strconv.FormatUint(uint64(searchReq.FooterSize), 10))
 	if len(dedicatedColumnsJSON) > 0 && dedicatedColumnsJSON != "null" { // if a caller marshals a nil dedicated cols we will receive the string "null"
@@ -860,6 +866,8 @@ func ValidateAndSanitizeRequest(r *http.Request) (string, string, string, int64,
 		queryMode = QueryModeIngesters
 	case q == QueryModeBlocks:
 		queryMode = QueryModeBlocks
+	case q == QueryModeExternal:
+		queryMode = QueryModeExternal
 	default:
 		return "", "", "", 0, 0, time.Time{}, fmt.Errorf("invalid value for mode %s", q)
 	}

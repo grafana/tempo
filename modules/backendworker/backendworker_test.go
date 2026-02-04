@@ -12,6 +12,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/grafana/dskit/flagext"
 	"github.com/grafana/dskit/kv"
+	"github.com/grafana/dskit/services"
 	backendscheduler_client "github.com/grafana/tempo/modules/backendscheduler/client"
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/modules/storage"
@@ -38,9 +39,15 @@ func TestWorker(t *testing.T) {
 	limitCfg.RegisterFlagsAndApplyDefaults(&flag.FlagSet{})
 
 	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
 
 	workerCfg, schedulerClientCfg, overridesSvc, scheduler, store := setupDependencies(ctx, t, limitCfg)
+
+	defer func() {
+		cancel()
+		// Explicitly stop the store to avoid race condition on test fixture shutdown
+		store.StopAsync()
+		_ = store.AwaitTerminated(context.Background())
+	}()
 
 	w, err := New(workerCfg, schedulerClientCfg, store, overridesSvc, prometheus.DefaultRegisterer)
 	require.NoError(t, err)
@@ -57,6 +64,9 @@ func TestWorker(t *testing.T) {
 	}
 
 	err = w.processJobs(ctx)
+	require.NoError(t, err)
+
+	err = services.StopAndAwaitTerminated(ctx, w)
 	require.NoError(t, err)
 }
 
@@ -171,12 +181,9 @@ func newStoreWithLogger(ctx context.Context, t testing.TB, log log.Logger, tmpDi
 				Path: tmpDir + "/traces",
 			},
 			Block: &common.BlockConfig{
-				IndexDownsampleBytes: 2,
-				BloomFP:              0.01,
-				BloomShardSizeBytes:  100_000,
-				Version:              encoding.LatestEncoding().Version(),
-				Encoding:             backend.EncLZ4_1M,
-				IndexPageSizeBytes:   1000,
+				BloomFP:             0.01,
+				BloomShardSizeBytes: 100_000,
+				Version:             encoding.LatestEncoding().Version(),
 			},
 			WAL: &wal.Config{
 				Filepath: tmpDir + "/wal",

@@ -403,6 +403,15 @@ func isDurationRune(r rune) bool {
 	}
 }
 
+func ContainsNonAttributeRune(s string) bool {
+	for _, r := range s {
+		if !isAttributeRune(r) {
+			return true
+		}
+	}
+	return false
+}
+
 func isAttributeRune(r rune) bool {
 	if unicode.IsSpace(r) {
 		return false

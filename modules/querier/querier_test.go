@@ -2,15 +2,21 @@ package querier
 
 import (
 	"context"
+	"net/http"
+	"net/http/httptest"
 	"sort"
+	"strconv"
 	"testing"
+	"time"
 
 	"github.com/grafana/dskit/user"
 	generator_client "github.com/grafana/tempo/modules/generator/client"
 	ingester_client "github.com/grafana/tempo/modules/ingester/client"
 	livestore_client "github.com/grafana/tempo/modules/livestore/client"
 	"github.com/grafana/tempo/modules/overrides"
+	"github.com/grafana/tempo/pkg/api"
 	"github.com/grafana/tempo/pkg/tempopb"
+	v1_trace "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
 )
@@ -19,7 +25,7 @@ func TestVirtualTagsDoesntHitBackend(t *testing.T) {
 	o, err := overrides.NewOverrides(overrides.Config{}, nil, prometheus.DefaultRegisterer)
 	require.NoError(t, err)
 
-	q, err := New(Config{}, ingester_client.Config{}, nil, generator_client.Config{}, nil, false, livestore_client.Config{}, nil, nil, nil, o)
+	q, err := New(Config{}, ingester_client.Config{}, nil, generator_client.Config{}, nil, false, livestore_client.Config{}, nil, nil, false, nil, o)
 	require.NoError(t, err)
 
 	ctx := user.InjectOrgID(context.Background(), "blerg")
@@ -104,4 +110,74 @@ func TestVirtualTagsDoesntHitBackend(t *testing.T) {
 	})
 	require.Error(t, err)
 	require.Nil(t, resp)
+}
+
+func TestFindTraceByID_ExternalMode(t *testing.T) {
+	traceID := []byte{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f, 0x10}
+	userID := "test-tenant"
+
+	externalTrace := &tempopb.Trace{
+		ResourceSpans: []*v1_trace.ResourceSpans{
+			{
+				ScopeSpans: []*v1_trace.ScopeSpans{
+					{
+						Spans: []*v1_trace.Span{
+							{
+								TraceId: traceID,
+								SpanId:  []byte{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08},
+								Name:    "external-span",
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	startTime := int64(1000)
+	endTime := int64(2000)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Verify that start and end query parameters are present
+		require.Equal(t, strconv.FormatInt(startTime, 10), r.URL.Query().Get("start"))
+		require.Equal(t, strconv.FormatInt(endTime, 10), r.URL.Query().Get("end"))
+
+		traceBytes, err := externalTrace.Marshal()
+		require.NoError(t, err)
+
+		w.Header().Set("Content-Type", api.HeaderAcceptProtobuf)
+		w.WriteHeader(http.StatusOK)
+		_, err = w.Write(traceBytes)
+		require.NoError(t, err)
+	}))
+	defer server.Close()
+
+	cfg := Config{
+		TraceByID: TraceByIDConfig{
+			External: ExternalConfig{
+				Endpoint: server.URL,
+				Timeout:  10 * time.Second,
+			},
+		},
+	}
+
+	o, err := overrides.NewOverrides(overrides.Config{}, nil, prometheus.DefaultRegisterer)
+	require.NoError(t, err)
+
+	q, err := New(cfg, ingester_client.Config{}, nil, generator_client.Config{}, nil, false, livestore_client.Config{}, nil, nil, true, nil, o)
+	require.NoError(t, err)
+
+	ctx := user.InjectOrgID(context.Background(), userID)
+
+	resp, err := q.FindTraceByID(ctx, &tempopb.TraceByIDRequest{
+		TraceID:   traceID,
+		QueryMode: QueryModeExternal,
+	}, startTime, endTime)
+
+	require.NoError(t, err)
+	require.NotNil(t, resp)
+	require.NotNil(t, resp.Trace)
+	require.Len(t, resp.Trace.ResourceSpans, 1)
+	require.Len(t, resp.Trace.ResourceSpans[0].ScopeSpans, 1)
+	require.Len(t, resp.Trace.ResourceSpans[0].ScopeSpans[0].Spans, 1)
+	require.Equal(t, "external-span", resp.Trace.ResourceSpans[0].ScopeSpans[0].Spans[0].Name)
 }

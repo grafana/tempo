@@ -28,7 +28,6 @@ import (
 	"go.opentelemetry.io/collector/receiver/otlpreceiver"
 	"go.opentelemetry.io/otel"
 	otelcodes "go.opentelemetry.io/otel/codes"
-	tracenoop "go.opentelemetry.io/otel/trace/noop"
 	"go.uber.org/multierr"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
@@ -245,8 +244,11 @@ func New(receiverCfg map[string]interface{}, pusher TracesPusher, middleware Mid
 		return nil, err
 	}
 
-	traceProvider := tracenoop.NewTracerProvider()
-	meterProvider := NewMeterProvider(reg)
+	telemetrySettings := component.TelemetrySettings{
+		Logger:         zapLogger,
+		TracerProvider: otel.GetTracerProvider(),
+		MeterProvider:  NewMeterProvider(reg),
+	}
 	// todo: propagate a real context?  translate our log configuration into zap?
 	ctx := context.Background()
 	for componentID, cfg := range conf.Receivers {
@@ -283,12 +285,8 @@ func New(receiverCfg map[string]interface{}, pusher TracesPusher, middleware Mid
 		}
 
 		params := receiver.Settings{
-			ID: component.NewIDWithName(componentID.Type(), fmt.Sprintf("%s_receiver", componentID.Type().String())),
-			TelemetrySettings: component.TelemetrySettings{
-				Logger:         zapLogger,
-				TracerProvider: traceProvider,
-				MeterProvider:  meterProvider,
-			},
+			ID:                component.NewIDWithName(componentID.Type(), fmt.Sprintf("%s_receiver", componentID.Type().String())),
+			TelemetrySettings: telemetrySettings,
 		}
 		receiver, err := factoryBase.CreateTraces(ctx, params, cfg, middleware.Wrap(shim))
 		if err != nil {

@@ -145,6 +145,20 @@ func TestProcessorConfig_copyWithOverrides(t *testing.T) {
 			},
 		}, copied.SpanMetrics.FilterPolicies)
 	})
+
+	t.Run("span multiplier key overrides", func(t *testing.T) {
+		o := &mockOverrides{
+			serviceGraphsSpanMultiplierKey: "custom_key",
+			spanMetricsSpanMultiplierKey:   "custom_key",
+		}
+
+		copied, err := original.copyWithOverrides(o, "tenant")
+		require.NoError(t, err)
+
+		assert.NotEqual(t, *original, copied)
+		assert.Equal(t, "custom_key", copied.ServiceGraphs.SpanMultiplierKey)
+		assert.Equal(t, "custom_key", copied.SpanMetrics.SpanMultiplierKey)
+	})
 }
 
 func boolPtr(b bool) *bool {

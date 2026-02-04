@@ -153,6 +153,28 @@ Find if `productcatalogservice` and `frontend` are siblings.
 { resource.service.name = "productcatalogservice" } ~ { resource.service.name="frontend" }
 ```
 
+### Find spans by child count
+
+You can use the `span:childCount` intrinsic to find the number of direct children of a span. This intrinsic is supported in vParquet5 and later.
+
+Find leaf spans (spans with no children), which typically represent terminal operations like database calls or external API requests:
+
+```
+{ span:childCount = 0 }
+```
+
+Find spans without child spans in the frontend service:
+
+```
+{ resource.service.name = "frontend" && span:childCount = 0 }
+```
+
+Find spans with high fan-out that spawn more than 10 child spans:
+
+```
+{ span:childCount > 10 }
+```
+
 ### Other examples
 
 Find the services where the HTTP status is `200`, and list the service name the span belongs to along with returned traces.
@@ -374,6 +396,72 @@ You can use quoted attributes syntax with non-quoted attribute syntax, the follo
 Currently, only the `\"` and `\\` escape sequences are supported.
 {{< /admonition >}}
 
+### Value types and literals
+
+TraceQL supports several literal types for expressing values in queries.
+A literal is a fixed value written directly in a query, such as `200`, `"GET"`, or `5s`.
+
+#### Integers
+
+Integer values can be positive or negative:
+
+```
+{ span.http.status_code = 200 }
+{ span.retry_count > -1 }
+```
+
+TraceQL provides two special constants for integer bounds:
+
+- `minInt` - The minimum 64-bit integer value (`-9223372036854775808)
+- `maxInt` - The maximum 64-bit integer value (`9223372036854775807`)
+
+These constants are useful when you need explicit numeric extremes without hardcoding long literals:
+
+```
+{ span.value != minInt && span.value != maxInt }
+```
+
+#### Durations
+
+Duration values specify time intervals.
+Supported units include `ns` (nanoseconds), `us` (microseconds), `ms` (milliseconds), `s` (seconds), `m` (minutes), and `h` (hours):
+
+```
+{ span:duration > 100ms }
+{ trace:duration > 5s }
+```
+
+Durations can also be signed:
+
+```
+{ event:timeSinceStart > -5s }
+```
+
+#### Floats
+
+Floating-point values use decimal notation:
+
+```
+{ span.value > 1.5 }
+```
+
+#### Strings
+
+String values are enclosed in double quotes:
+
+```
+{ span.http.method = "GET" }
+```
+
+#### Nil
+
+Use `nil` to check for attributes that are missing or null  and `!= nil` to ensure an attribute is present with a non-null value. 
+
+```
+{ span.optional_field = nil }
+{ span.required_field != nil }
+```
+
 ### Comparison operators
 
 Comparison operators are used to test values within an expression.
@@ -416,16 +504,28 @@ Find all traces where the `http.method` attribute is either `GET` or `DELETE`:
 { span.http.method =~ "DELETE|GET" }
 ```
 
-Find all traces where `any_attribute` is not `nil` or where `any_attribute` exists in a span
+Find all traces where `any_attribute` isn't `nil` or where `any_attribute` exists in a span:
 
 ```
 { span.any_attribute != nil }
 ```
 
-Find all traces where `any_attribtute` is `nil` or where `any_attribute` does NOT exist in a span
+Find all traces where `any_attribute` is `nil` or where `any_attribute` does NOT exist in a span:
 
 ```
 { span.any_attribute = nil }
+```
+
+Find all traces where `service.version` does NOT exist at the resource level:
+
+```
+{ resource.service.version = nil }
+```
+
+Find all traces where the event attribute `exception.message` does NOT exist:
+
+```
+{ event.exception.message = nil }
 ```
 
 ### Field expressions

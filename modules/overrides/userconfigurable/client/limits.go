@@ -154,6 +154,7 @@ type LimitsMetricsGeneratorProcessorServiceGraphs struct {
 	EnableVirtualNodeLabel                *bool      `yaml:"enable_virtual_node_label,omitempty" json:"enable_virtual_node_label,omitempty"`
 	PeerAttributes                        *[]string  `yaml:"peer_attributes,omitempty" json:"peer_attributes,omitempty"`
 	HistogramBuckets                      *[]float64 `yaml:"histogram_buckets,omitempty" json:"histogram_buckets,omitempty"`
+	SpanMultiplierKey                     *string    `yaml:"span_multiplier_key,omitempty" json:"span_multiplier_key,omitempty"`
 }
 
 func (l *LimitsMetricsGeneratorProcessorServiceGraphs) GetDimensions() ([]string, bool) {
@@ -191,6 +192,13 @@ func (l *LimitsMetricsGeneratorProcessorServiceGraphs) GetHistogramBuckets() ([]
 	return nil, false
 }
 
+func (l *LimitsMetricsGeneratorProcessorServiceGraphs) GetSpanMultiplierKey() (string, bool) {
+	if l != nil && l.SpanMultiplierKey != nil {
+		return *l.SpanMultiplierKey, true
+	}
+	return "", false
+}
+
 type LimitsMetricsGeneratorProcessorSpanMetrics struct {
 	Dimensions                   *[]string                         `yaml:"dimensions,omitempty" json:"dimensions,omitempty"`
 	IntrinsicDimensions          *map[string]bool                  `yaml:"intrinsic_dimensions,omitempty" json:"intrinsic_dimensions,omitempty"`
@@ -200,6 +208,7 @@ type LimitsMetricsGeneratorProcessorSpanMetrics struct {
 	HistogramBuckets             *[]float64                        `yaml:"histogram_buckets,omitempty" json:"histogram_buckets,omitempty"`
 	TargetInfoExcludedDimensions *[]string                         `yaml:"target_info_excluded_dimensions,omitempty" json:"target_info_excluded_dimensions,omitempty"`
 	EnableInstanceLabel          *bool                             `yaml:"enable_instance_label,omitempty" json:"enable_instance_label,omitempty"`
+	SpanMultiplierKey            *string                           `yaml:"span_multiplier_key,omitempty" json:"span_multiplier_key,omitempty"`
 }
 
 func (l *LimitsMetricsGeneratorProcessorSpanMetrics) GetDimensions() ([]string, bool) {
@@ -256,6 +265,13 @@ func (l *LimitsMetricsGeneratorProcessorSpanMetrics) GetEnableInstanceLabel() (b
 		return *l.EnableInstanceLabel, true
 	}
 	return true, false // default to true if not set
+}
+
+func (l *LimitsMetricsGeneratorProcessorSpanMetrics) GetSpanMultiplierKey() (string, bool) {
+	if l != nil && l.SpanMultiplierKey != nil {
+		return *l.SpanMultiplierKey, true
+	}
+	return "", false
 }
 
 type LimitsMetricGeneratorProcessorHostInfo struct {

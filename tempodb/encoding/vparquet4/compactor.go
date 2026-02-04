@@ -283,7 +283,6 @@ func (c *Compactor) finishBlock(ctx context.Context, block *streamingBlock, l lo
 		"totalObjects", block.meta.TotalObjects,
 		"size", block.meta.Size_,
 		"compactionLevel", block.meta.CompactionLevel,
-		"encoding", block.meta.Encoding.String(),
 		"totalRecords", block.meta.TotalObjects,
 		"bloomShardCount", block.meta.BloomShardCount,
 		"footerSize", block.meta.FooterSize,
