@@ -217,7 +217,8 @@ func (cfg KafkaConfig) EnsureTopicPartitions(logger log.Logger) error {
 					"num_partitions", currentPartitionCount,
 					"desired_partitions", cfg.AutoCreateTopicDefaultPartitions,
 				)
-				return nil
+				// Still need to check coordinator readiness
+				return cfg.waitForCoordinator(ctx, adm, logger)
 			}
 
 			if cfg.AutoCreateTopicDefaultPartitions < currentPartitionCount {
@@ -245,7 +246,8 @@ func (cfg KafkaConfig) EnsureTopicPartitions(logger log.Logger) error {
 				"previous_partitions", currentPartitionCount,
 				"new_partitions", cfg.AutoCreateTopicDefaultPartitions,
 			)
-			return nil
+			// Check coordinator readiness after partition update
+			return cfg.waitForCoordinator(ctx, adm, logger)
 		}
 		return fmt.Errorf("failed to create topic %s: %w", cfg.Topic, err)
 	}
@@ -267,11 +269,77 @@ func (cfg KafkaConfig) EnsureTopicPartitions(logger log.Logger) error {
 		}
 		if err == nil && len(td[cfg.Topic].Partitions) == cfg.AutoCreateTopicDefaultPartitions {
 			level.Info(logger).Log("msg", "topic is now visible in metadata", "topic", cfg.Topic, "partitions", len(td[cfg.Topic].Partitions))
-			return nil
+			break
 		}
 		level.Info(logger).Log("msg", "topic not yet visible, retrying", "topic", cfg.Topic, "attempt", i+1)
 		time.Sleep(100 * time.Millisecond)
 	}
-	level.Warn(logger).Log("msg", "topic may not be fully propagated in metadata", "topic", cfg.Topic)
-	return nil
+
+	// Check coordinator readiness after topic creation
+	return cfg.waitForCoordinator(ctx, adm, logger)
+}
+
+// waitForCoordinator waits for the Kafka coordinator to be available.
+// This is especially important after creating topics with many partitions.
+func (cfg KafkaConfig) waitForCoordinator(ctx context.Context, adm *kadm.Client, logger log.Logger) error {
+	// Calculate timeout based on partition count: more partitions = more time needed
+	coordinatorTimeout := time.Duration(cfg.AutoCreateTopicDefaultPartitions/10) * time.Second
+	if coordinatorTimeout < 5*time.Second {
+		coordinatorTimeout = 5 * time.Second // Minimum 5 seconds
+	}
+	if coordinatorTimeout > 60*time.Second {
+		coordinatorTimeout = 60 * time.Second // Maximum 60 seconds
+	}
+
+	level.Info(logger).Log(
+		"msg", "waiting for group coordinator to be available",
+		"topic", cfg.Topic,
+		"timeout", coordinatorTimeout,
+	)
+
+	coordinatorCtx, cancel := context.WithTimeout(ctx, coordinatorTimeout)
+	defer cancel()
+
+	// Use a test consumer group name to check coordinator availability
+	testGroupID := cfg.ConsumerGroup
+	if testGroupID == "" {
+		testGroupID = "tempo-coordinator-check"
+	}
+
+	retryDelay := 100 * time.Millisecond
+	maxRetryDelay := 2 * time.Second
+
+	for {
+		select {
+		case <-coordinatorCtx.Done():
+			level.Warn(logger).Log(
+				"msg", "coordinator may not be fully ready",
+				"topic", cfg.Topic,
+				"timeout", coordinatorTimeout,
+			)
+			return nil // Don't fail, just warn
+
+		default:
+			// Try to describe the consumer group - this will fail if coordinator isn't ready
+			groups, err := adm.DescribeGroups(coordinatorCtx, testGroupID)
+			if err == nil && len(groups) > 0 {
+				groupInfo := groups[testGroupID]
+				// Check if coordinator is ready (no error or only "unknown member" which means coordinator is up)
+				if groupInfo.Err == nil || errors.Is(groupInfo.Err, kerr.UnknownMemberID) {
+					level.Info(logger).Log(
+						"msg", "group coordinator is ready",
+						"topic", cfg.Topic,
+					)
+					return nil
+				}
+			}
+
+			// Coordinator not ready yet, retry with backoff
+			time.Sleep(retryDelay)
+			retryDelay *= 2
+			if retryDelay > maxRetryDelay {
+				retryDelay = maxRetryDelay
+			}
+		}
+	}
 }
