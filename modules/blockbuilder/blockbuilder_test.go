@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"errors"
 	"fmt"
+	"sync"
 	"testing"
 	"time"
 
@@ -814,13 +815,14 @@ func TestBlockbuilder_gracefulShutdown(t *testing.T) {
 	chConsumeDone := make(chan struct{})
 	chStopDone := make(chan struct{})
 
+	var consumeStartedOnce, consumeDoneOnce sync.Once
 	k.ControlKey(kmsg.OffsetCommit, func(kmsg.Request) (kmsg.Response, error, bool) {
-		close(chConsumeDone)
+		consumeDoneOnce.Do(func() { close(chConsumeDone) })
 		return nil, nil, false
 	})
 
 	k.ControlKey(kmsg.OffsetFetch, func(kmsg.Request) (kmsg.Response, error, bool) {
-		close(chConsumeStarted)
+		consumeStartedOnce.Do(func() { close(chConsumeStarted) })
 		return nil, nil, false
 	})
 
