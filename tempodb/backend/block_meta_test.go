@@ -233,6 +233,7 @@ func TestDedicatedColumnsFromTempopb(t *testing.T) {
 				{Scope: tempopb.DedicatedColumn_SPAN, Name: "test.span.2", Type: tempopb.DedicatedColumn_STRING},
 				{Scope: tempopb.DedicatedColumn_SPAN, Name: "test.span.3", Type: tempopb.DedicatedColumn_INT},
 				{Scope: tempopb.DedicatedColumn_SPAN, Name: "test.span.4", Type: tempopb.DedicatedColumn_INT, Options: tempopb.DedicatedColumn_ARRAY},
+				{Scope: tempopb.DedicatedColumn_SPAN, Name: "test.span.5", Type: tempopb.DedicatedColumn_STRING, Options: tempopb.DedicatedColumn_BLOB | tempopb.DedicatedColumn_ARRAY},
 			},
 			expected: DedicatedColumns{
 				{Scope: DedicatedColumnScopeSpan, Name: "test.span.1", Type: DedicatedColumnTypeString},
@@ -240,6 +241,7 @@ func TestDedicatedColumnsFromTempopb(t *testing.T) {
 				{Scope: DedicatedColumnScopeSpan, Name: "test.span.2", Type: DedicatedColumnTypeString},
 				{Scope: DedicatedColumnScopeSpan, Name: "test.span.3", Type: DedicatedColumnTypeInt},
 				{Scope: DedicatedColumnScopeSpan, Name: "test.span.4", Type: DedicatedColumnTypeInt, Options: DedicatedColumnOptions{DedicatedColumnOptionArray}},
+				{Scope: DedicatedColumnScopeSpan, Name: "test.span.5", Type: DedicatedColumnTypeString, Options: DedicatedColumnOptions{DedicatedColumnOptionArray, DedicatedColumnOptionBlob}},
 			},
 		},
 		{
@@ -290,6 +292,7 @@ func TestDedicatedColumns_ToTempopb(t *testing.T) {
 				{Scope: DedicatedColumnScopeSpan, Name: "test.span.2", Type: DedicatedColumnTypeString},
 				{Scope: DedicatedColumnScopeSpan, Name: "test.span.3", Type: DedicatedColumnTypeInt, Options: DedicatedColumnOptions{}},
 				{Scope: DedicatedColumnScopeSpan, Name: "test.span.4", Type: DedicatedColumnTypeInt, Options: DedicatedColumnOptions{DedicatedColumnOptionArray}},
+				{Scope: DedicatedColumnScopeSpan, Name: "test.span.5", Type: DedicatedColumnTypeInt, Options: DedicatedColumnOptions{DedicatedColumnOptionArray, DedicatedColumnOptionBlob}},
 			},
 			expected: []*tempopb.DedicatedColumn{
 				{Scope: tempopb.DedicatedColumn_SPAN, Name: "test.span.1", Type: tempopb.DedicatedColumn_STRING},
@@ -298,6 +301,7 @@ func TestDedicatedColumns_ToTempopb(t *testing.T) {
 				{Scope: tempopb.DedicatedColumn_SPAN, Name: "test.span.2", Type: tempopb.DedicatedColumn_STRING},
 				{Scope: tempopb.DedicatedColumn_SPAN, Name: "test.span.3", Type: tempopb.DedicatedColumn_INT},
 				{Scope: tempopb.DedicatedColumn_SPAN, Name: "test.span.4", Type: tempopb.DedicatedColumn_INT, Options: tempopb.DedicatedColumn_ARRAY},
+				{Scope: tempopb.DedicatedColumn_SPAN, Name: "test.span.5", Type: tempopb.DedicatedColumn_INT, Options: tempopb.DedicatedColumn_ARRAY | tempopb.DedicatedColumn_BLOB},
 			},
 		},
 		{
@@ -368,6 +372,7 @@ func TestDedicatedColumnsMarshalRoundTrip(t *testing.T) {
 				{Scope: DedicatedColumnScopeSpan, Name: "test.span.2", Type: DedicatedColumnTypeString},
 				{Scope: DedicatedColumnScopeSpan, Name: "test.span.3", Type: DedicatedColumnTypeInt},
 				{Scope: DedicatedColumnScopeSpan, Name: "test.span.4", Type: DedicatedColumnTypeString, Options: DedicatedColumnOptions{DedicatedColumnOptionArray}},
+				{Scope: DedicatedColumnScopeSpan, Name: "test.span.5", Type: DedicatedColumnTypeString, Options: DedicatedColumnOptions{DedicatedColumnOptionArray, DedicatedColumnOptionBlob}},
 			},
 		},
 	}
