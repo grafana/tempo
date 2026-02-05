@@ -725,7 +725,7 @@ func (b *walBlock) Fetch(ctx context.Context, req traceql.FetchSpansRequest, _ c
 	}, nil
 }
 
-func (b *walBlock) FetchSpans(ctx context.Context, req traceql.FetchSpansRequest, _ common.SearchOptions) (traceql.FetchSpansOnlyResponse, error) {
+func (b *walBlock) FetchSpans(_ context.Context, _ traceql.FetchSpansRequest, _ common.SearchOptions) (traceql.FetchSpansOnlyResponse, error) {
 	// TODO
 	return traceql.FetchSpansOnlyResponse{}, util.ErrUnsupported
 }

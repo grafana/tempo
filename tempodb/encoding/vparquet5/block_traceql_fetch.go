@@ -90,12 +90,9 @@ func create(makeIter makeIterFn,
 	// anywhere, except in the case of the empty query: {}
 	batchRequireAtLeastOneMatchOverall := len(conditions) > 0 && len(catConditions.trace) == 0
 
-	traceIters, traceOptional, err := createTraceIterators(makeIter, catConditions.trace, start, end, allConditions, dedicatedColumns, selectAll)
-	if err != nil {
-		return nil, nil, err
-	}
+	traceIters, traceOptional := createTraceIterators(makeIter, catConditions.trace, start, end, allConditions, dedicatedColumns, selectAll)
 
-	resIters, resOptional, err := createResourceIterators(makeIter, catConditions.resource /*batchRequireAtLeastOneMatchOverall,*/, allConditions, dedicatedColumns, selectAll)
+	resIters, resOptional, err := createResourceIterators(makeIter, catConditions.resource, allConditions, dedicatedColumns, selectAll)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -125,7 +122,7 @@ func create(makeIter makeIterFn,
 		debugName = "secondPass"
 	}
 
-	spanCol := NewSpanCollector2()
+	spanCol := newSpanCollector2()
 	spanCol.secondPass = secondPass
 	spanCol.name = debugName
 	switch {
@@ -217,7 +214,7 @@ func createTraceIterators(
 	allConditions bool,
 	_ backend.DedicatedColumns,
 	selectAll bool,
-) (required, optional []parquetquery.Iterator, err error) {
+) (required, optional []parquetquery.Iterator) {
 	var alwaysOptional []parquetquery.Iterator
 
 	for _, cond := range conditions {
@@ -275,7 +272,7 @@ func createTraceIterators(
 
 	optional = append(optional, alwaysOptional...)
 
-	return required, optional, nil
+	return required, optional
 }
 
 func createResourceIterators(
@@ -906,7 +903,7 @@ type scopedAttributeCollector struct {
 
 var _ parquetquery.Collector = (*scopedAttributeCollector)(nil)
 
-func NewScopedAttributeCollector(scope traceql.AttributeScope) *scopedAttributeCollector {
+func newScopedAttributeCollector(scope traceql.AttributeScope) *scopedAttributeCollector {
 	c := &scopedAttributeCollector{}
 	c.at.a.Scope = scope
 	c.atRes.AppendOtherValue("scopedAttribute", &c.at)
@@ -995,7 +992,7 @@ func createScopedAttributeIterator(makeIter makeIterFn, conditions []traceql.Con
 
 		return parquetquery.NewLeftJoinIterator(definitionLevel,
 			nil, nil, nil,
-			parquetquery.WithCollector(NewScopedAttributeCollector(scope)),
+			parquetquery.WithCollector(newScopedAttributeCollector(scope)),
 			parquetquery.WithIterator(definitionLevel, makeIter(keyPath, skipNils, "key"), false, nil),
 			parquetquery.WithIterator(definitionLevel, makeIter(strPath, skipNils, "string"), true, nil),
 			parquetquery.WithIterator(definitionLevel, makeIter(intPath, skipNils, "int"), true, nil),
@@ -1089,7 +1086,7 @@ func createScopedAttributeIterator(makeIter makeIterFn, conditions []traceql.Con
 	opts := []parquetquery.LeftJoinIteratorOption{
 		parquetquery.WithIterator(definitionLevel, makeIter(keyPath, parquetquery.NewStringInPredicate(attrKeys), "key"), false, nil),
 		parquetquery.WithPool(pqAttrPool),
-		parquetquery.WithCollector(NewScopedAttributeCollector(scope)),
+		parquetquery.WithCollector(newScopedAttributeCollector(scope)),
 	}
 	if allConditions && len(iters) == 1 {
 		// Add as required.
@@ -1124,15 +1121,16 @@ func (c *spanCollector2) String() string {
 	return fmt.Sprintf("spanCollector(%d)", c.minAttributes)
 }
 
-func NewSpanCollector2() *spanCollector2 {
-	// We always return this span.
+func newSpanCollector2() *spanCollector2 {
 	c := &spanCollector2{}
+
+	// We always return this result with the same span.
 	c.atRes.AppendOtherValue(otherEntrySpanKey, &c.at)
 
+	// We always return this spanset with the 1 span.
 	c.spansetBuffer = &traceql.Spanset{
 		Spans: make([]traceql.Span, 1),
 	}
-
 	c.spansetBuffer.Spans[0] = &c.at
 
 	return c

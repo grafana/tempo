@@ -78,6 +78,6 @@ func (b *backendBlock) Validate(ctx context.Context) error {
 	return nil
 }
 
-func (b *backendBlock) FetchSpans(ctx context.Context, req traceql.FetchSpansRequest, opts common.SearchOptions) (traceql.FetchSpansOnlyResponse, error) {
+func (b *backendBlock) FetchSpans(_ context.Context, _ traceql.FetchSpansRequest, _ common.SearchOptions) (traceql.FetchSpansOnlyResponse, error) {
 	return traceql.FetchSpansOnlyResponse{}, util.ErrUnsupported
 }

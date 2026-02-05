@@ -1392,7 +1392,7 @@ func (e *MetricsEvaluator) DoSpansOnly(ctx context.Context, f SpansetFetcher, fe
 
 		e.metricsPipeline.observe(s)
 
-		e.spansTotal += 1
+		e.spansTotal++
 
 		if e.maxExemplars > 0 && e.exemplarCount < e.maxExemplars {
 			traceID, ok := s.AttributeFor(IntrinsicTraceIDAttribute)

@@ -518,7 +518,7 @@ func TestLeftJoinDown(t *testing.T) {
 			buf.Reset()
 			buf.RowNumber = rowNumber
 		},
-		collect: func(r *IteratorResult, param any) {
+		collect: func(r *IteratorResult, _ any) {
 			buf.Append(r)
 		},
 		result: func() *IteratorResult {
