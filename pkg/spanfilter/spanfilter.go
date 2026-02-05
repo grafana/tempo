@@ -10,6 +10,10 @@ type SpanFilter struct {
 	include     []*splitPolicy
 	includeOnly []*splitPolicy
 	exclude     []*splitPolicy
+
+	hasInclude     bool
+	hasIncludeOnly bool
+	hasExclude     bool
 }
 
 // NewSpanFilter returns a SpanFilter that will filter spans based on the given filter policies.
@@ -28,6 +32,7 @@ func NewSpanFilter(filterPolicies []config.FilterPolicy) (*SpanFilter, error) {
 
 		if include != nil {
 			sf.include = append(sf.include, include)
+			sf.hasInclude = true
 		}
 
 		includeOnly, err := getSplitPolicy(policy.IncludeOnly)
@@ -37,13 +42,16 @@ func NewSpanFilter(filterPolicies []config.FilterPolicy) (*SpanFilter, error) {
 
 		if includeOnly != nil {
 			sf.includeOnly = append(sf.includeOnly, includeOnly)
+			sf.hasIncludeOnly = true
 		}
+
 		exclude, err := getSplitPolicy(policy.Exclude)
 		if err != nil {
 			return nil, err
 		}
 		if exclude != nil {
 			sf.exclude = append(sf.exclude, exclude)
+			sf.hasExclude = true
 		}
 	}
 
@@ -53,15 +61,15 @@ func NewSpanFilter(filterPolicies []config.FilterPolicy) (*SpanFilter, error) {
 // ApplyFilterPolicy returns true if the span should be included in the metrics.
 func (f *SpanFilter) ApplyFilterPolicy(rs *v1.Resource, span *tracev1.Span) bool {
 	// With no filter policies specified, all spans are included.
-	if len(f.include) == 0 && len(f.includeOnly) == 0 && len(f.exclude) == 0 {
+	if !f.hasInclude && !f.hasIncludeOnly && !f.hasExclude {
 		return true
 	}
 
-	if f.isExcluded(rs, span) {
+	if f.hasExclude && f.isExcluded(rs, span) {
 		return false
 	}
 
-	if len(f.includeOnly) > 0 && f.isIncludedOnly(rs, span) {
+	if f.hasIncludeOnly && f.isIncludedOnly(rs, span) {
 		return true
 	}
 	return f.isIncluded(rs, span)
