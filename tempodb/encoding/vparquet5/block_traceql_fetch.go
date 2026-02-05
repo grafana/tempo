@@ -49,7 +49,7 @@ type spanOnlyIterator struct {
 
 var _ traceql.SpanIterator = (*spanOnlyIterator)(nil)
 
-func (i *spanOnlyIterator) Next(ctx context.Context) (traceql.Span, error) {
+func (i *spanOnlyIterator) Next(_ context.Context) (traceql.Span, error) {
 	res, err := i.iter.Next()
 	if err != nil {
 		return nil, err

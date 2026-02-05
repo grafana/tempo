@@ -90,7 +90,7 @@ func (m *mockFetcher) Fetch(_ context.Context, req traceql.FetchSpansRequest) (t
 	}, nil
 }
 
-func (m *mockFetcher) FetchSpans(_ context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansOnlyResponse, error) {
+func (m *mockFetcher) FetchSpans(_ context.Context, _ traceql.FetchSpansRequest) (traceql.FetchSpansOnlyResponse, error) {
 	return traceql.FetchSpansOnlyResponse{}, util.ErrUnsupported
 }
 
