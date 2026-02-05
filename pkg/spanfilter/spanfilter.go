@@ -7,8 +7,9 @@ import (
 )
 
 type SpanFilter struct {
-	include []*splitPolicy
-	exclude []*splitPolicy
+	include     []*splitPolicy
+	includeOnly []*splitPolicy
+	exclude     []*splitPolicy
 }
 
 // NewSpanFilter returns a SpanFilter that will filter spans based on the given filter policies.
@@ -29,6 +30,14 @@ func NewSpanFilter(filterPolicies []config.FilterPolicy) (*SpanFilter, error) {
 			sf.include = append(sf.include, include)
 		}
 
+		includeOnly, err := getSplitPolicy(policy.IncludeOnly)
+		if err != nil {
+			return nil, err
+		}
+
+		if includeOnly != nil {
+			sf.includeOnly = append(sf.includeOnly, includeOnly)
+		}
 		exclude, err := getSplitPolicy(policy.Exclude)
 		if err != nil {
 			return nil, err

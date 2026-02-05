@@ -273,12 +273,13 @@ func TestSpanMetrics_applyFilterPolicy(t *testing.T) {
 			filterPolicies: nil,
 		},
 		{
-			name:   "non nil policy with nil include/exclude fails",
-			err:    fmt.Errorf("invalid filter policy; policies must have at least an `include` or `exclude`: {<nil> <nil>}"),
+			name:   "non nil policy with nil include/includeOnly/exclude fails",
+			err:    fmt.Errorf("invalid filter policy; policies must have at least an `include`, `includeOnly` or `exclude`: {<nil> <nil> <nil>}"),
 			expect: false,
 			filterPolicies: []config.FilterPolicy{{
-				Include: nil,
-				Exclude: nil,
+				Include:     nil,
+				IncludeOnly: nil,
+				Exclude:     nil,
 			}},
 		},
 		{
