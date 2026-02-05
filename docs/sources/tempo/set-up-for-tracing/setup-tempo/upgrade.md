@@ -42,6 +42,7 @@ The image switched from `gcr.io/distroless/static-debian12:debug`, which include
 You can no longer `exec` into the Tempo container with a shell. Commands like `kubectl exec -it <pod> -- sh` or `docker exec -it <container> sh` will fail.
 
 To debug a running Tempo container, use one of these alternatives:
+
 - Kubernetes ephemeral debug containers (`kubectl debug`)
 - Docker Desktop or other container runtime tools that support shell injection for distroless images
 
@@ -77,9 +78,10 @@ vParquet2 encoding has been completely removed from Tempo 2.10. Tempo can no lon
 No action is required if you've used default settings. The default block format migrated away from vParquet2 several releases ago.
 
 Action is required if your storage configuration explicitly specifies vParquet2. Before upgrading, verify your configuration doesn't specify vParquet2. If it does:
-  - Update to a previous Tempo release (2.9 or earlier) configured for vParquet3 or higher
-  - Wait for all existing vParquet2 blocks to expire and be deleted from backend storage
-  - Then upgrade to Tempo 2.10
+
+- Update to a previous Tempo release (2.9 or earlier) configured for vParquet3 or higher
+- Wait for all existing vParquet2 blocks to expire and be deleted from backend storage
+- Then upgrade to Tempo 2.10
 
 Upgrading to 2.10 while vParquet2 blocks still exist in storage will cause read errors.
 
@@ -214,7 +216,7 @@ To workaround this, you need to specify the address you want to bind to explicit
 ```yaml
 # ...
 http:
-  endpoint: 'tempo:4318'
+  endpoint: "tempo:4318"
 ```
 
 You can also explicitly bind to `0.0.0.0` still, but this has potential security risks:
@@ -222,7 +224,7 @@ You can also explicitly bind to `0.0.0.0` still, but this has potential security
 ```yaml
 # ...
 http:
-  endpoint: '0.0.0.0:4318'
+  endpoint: "0.0.0.0:4318"
 ```
 
 ### Maximum spans per span set
@@ -346,7 +348,7 @@ The local-blocks processor must be enabled to start using metrics queries like `
 
   ```yaml
   overrides:
-    'tenantID':
+    "tenantID":
       metrics_generator_processors:
         - local-blocks
   ```
@@ -679,7 +681,7 @@ overrides:
   ingestion_rate_limit_bytes: 12345
   ingestion_burst_size_bytes: 67890
   max_search_duration: 17s
-  forwarders: ['foo']
+  forwarders: ["foo"]
   metrics_generator_processors: [service-graphs, span-metrics]
 ```
 
@@ -694,7 +696,7 @@ overrides:
       burst_size_bytes: 67890
     read:
       max_search_duration: 17s
-    forwarders: ['foo']
+    forwarders: ["foo"]
     metrics_generator:
       processors: [service-graphs, span-metrics]
 ```

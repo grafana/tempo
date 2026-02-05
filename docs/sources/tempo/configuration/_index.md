@@ -30,7 +30,6 @@ The Tempo configuration options include:
       - [Limit the spans per spanset](#limit-the-spans-per-spanset)
       - [Cap the maximum query length](#cap-the-maximum-query-length)
   - [Querier](#querier)
-  - [Compactor](#compactor)
   - [Backend scheduler](#backend-scheduler)
   - [Backend worker](#backend-worker)
   - [Storage](#storage)
@@ -954,28 +953,6 @@ querier:
 It also queries compacted blocks that fall within the (2 \* BlocklistPoll) range where the value of Blocklist poll duration
 is defined in the storage section below.
 
-## Compactor
-
-For more information on configuration options, refer to [this file](https://github.com/grafana/tempo/blob/main/modules/compactor/config.go).
-
-Compactors stream blocks from the storage backend, combine them and write them back. Values shown below are the defaults.
-
-```yaml
-compactor:
-
-    # Optional. Disables backend compaction. Default is false.
-    # Note: This should only be used in a non-production context for debugging purposes. This will allow blocks to say in the backend for further investigation if desired.
-    [disabled: <bool>]
-
-    ring:
-        kvstore: <KVStore config>
-            [store: <string> | default = memberlist]
-            [prefix: <string> | default = "collectors/" ]
-
-    # Refer to the Compaction block section for details
-    compaction: <Compaction config>
-```
-
 ## Backend scheduler
 
 The backend scheduler is responsible for scheduling and tracking jobs which are assigned to backend workers for processing.
@@ -1394,7 +1371,7 @@ storage:
         # fallback to scanning the entire bucket. Set to false to disable this behavior. Default is true.
         [blocklist_poll_fallback: <bool>]
 
-        # Maximum number of compactors that should build the tenant index. All other components will download
+        # Maximum number of workers that should build the tenant index. All other components will download
         # the index. Default 2.
         [blocklist_poll_tenant_index_builders: <int>]
 
@@ -1620,7 +1597,7 @@ parquet_dedicated_columns: <list of columns>
 
 ### Compaction
 
-The `compaction` configuration block is used by the compactor, scheduler, and worker.
+The `compaction` configuration block is used by the scheduler and worker.
 
 ```yaml
 # Optional. Duration to keep blocks.
@@ -1936,10 +1913,10 @@ overrides:
     # Compaction related overrides
     compaction:
       # Per-user block retention. If this value is set to 0 (default),
-      # then block_retention in the compactor configuration is used.
+      # then block_retention in the compaction configuration is used.
       [block_retention: <duration> | default = 0s]
       # Per-user compaction window. If this value is set to 0 (default),
-      # then block_retention in the compactor configuration is used.
+      # then block_retention in the compaction configuration is used.
       [compaction_window: <duration> | default = 0s]
       # Allow compaction and retention to be deactivated on a per-tenant basis. Default value
       # is false (compaction active). Useful to perform operations on the backend
