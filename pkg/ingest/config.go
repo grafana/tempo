@@ -217,23 +217,12 @@ func (cfg KafkaConfig) EnsureTopicPartitions(logger log.Logger) error {
 
 			currentPartitionCount := len(td[cfg.Topic].Partitions.Numbers())
 			if cfg.AutoCreateTopicDefaultPartitions == currentPartitionCount {
-				level.Info(logger).Log(
-					"msg", "topic already has the correct number of partitions",
-					"topic", cfg.Topic,
-					"num_partitions", currentPartitionCount,
-					"desired_partitions", cfg.AutoCreateTopicDefaultPartitions,
-				)
-				// Topic already exists with correct partitions, coordinator should already be initialized
-				return nil
+			// Topic already exists with correct partitions, nothing to do
+			// Topic already exists with correct partitions, nothing to do
 			}
 
 			if cfg.AutoCreateTopicDefaultPartitions < currentPartitionCount {
-				level.Info(logger).Log(
-					"msg", "topic already has more partitions than the desired number",
-					"topic", cfg.Topic,
-					"num_partitions", currentPartitionCount,
-					"desired_partitions", cfg.AutoCreateTopicDefaultPartitions,
-				)
+			// Topic has more partitions than desired, nothing to do
 				return nil
 			}
 
@@ -318,14 +307,8 @@ func (cfg KafkaConfig) getCoordinatorWaitMinPartitions() int {
 // This is especially important after creating topics with many partitions.
 func (cfg KafkaConfig) waitForCoordinator(ctx context.Context, adm *kadm.Client, logger log.Logger) error {
 	minPartitions := cfg.getCoordinatorWaitMinPartitions()
-	// Check if coordinator wait is disabled or partition count is below threshold
+	// Skip coordinator wait if partition count is below threshold
 	if cfg.AutoCreateTopicDefaultPartitions < minPartitions {
-		level.Info(logger).Log(
-			"msg", "skipping coordinator wait",
-			"topic", cfg.Topic,
-			"partitions", cfg.AutoCreateTopicDefaultPartitions,
-			"min_partitions_threshold", minPartitions,
-		)
 		return nil
 	}
 
