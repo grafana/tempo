@@ -886,7 +886,7 @@ func blockbuilderConfig(t testing.TB, address string, assignedPartitions []int32
 	cfg.IngestStorageConfig.Kafka.Topic = testTopic
 	cfg.IngestStorageConfig.Kafka.ConsumerGroup = testConsumerGroup
 	cfg.IngestStorageConfig.Kafka.AutoCreateTopicDefaultPartitions = 2 // Match test partition count
-	cfg.IngestStorageConfig.Kafka.WaitForCoordinatorMinPartitions = 0  // Disable coordinator wait in tests
+	cfg.IngestStorageConfig.Kafka.WaitForCoordinatorMinPartitions = -1 // Disable coordinator wait in tests
 	cfg.AssignedPartitionsMap = map[string][]int32{cfg.InstanceID: assignedPartitions}
 
 	cfg.ConsumeCycleDuration = 5 * time.Second
