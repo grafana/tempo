@@ -10,16 +10,18 @@ import (
 	"github.com/prometheus/prometheus/model/labels"
 )
 
+const labelSpanName = "span_name"
+
 var (
-	metricTotalSpansCompacted = promauto.NewCounterVec(prometheus.CounterOpts{
+	metricTotalSpansSanitized = promauto.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "tempo",
-		Name:      "metrics_generator_registry_drain_spans_compacted_total",
-		Help:      "The total amount of spans compacted per tenant",
+		Name:      "metrics_generator_registry_spans_sanitized_total",
+		Help:      "The total amount of spans sanitized per tenant",
 	}, []string{"tenant"})
-	metricDemand = promauto.NewGaugeVec(prometheus.GaugeOpts{
+	metricPostSanitizationDemand = promauto.NewGaugeVec(prometheus.GaugeOpts{
 		Namespace: "tempo",
-		Name:      "metrics_generator_registry_post_drain_demand_estimate",
-		Help:      "The demand for the registry after applying DRAIN",
+		Name:      "metrics_generator_registry_post_sanitization_demand_estimate",
+		Help:      "The demand for the registry after applying span name sanitization",
 	}, []string{"tenant"})
 )
 
@@ -29,7 +31,7 @@ type DrainSanitizer struct {
 	dryRun bool
 	demand *Cardinality
 
-	metricTotalSpansCompacted prometheus.Counter
+	metricTotalSpansSanitized prometheus.Counter
 	demandGauge               prometheus.Gauge
 
 	// channels for periodic maintenance. these allow us to avoid spawning
@@ -39,13 +41,13 @@ type DrainSanitizer struct {
 	pruneChan        <-chan time.Time
 }
 
-func NewDrainSanitizer(tenant string, dryRun bool) *DrainSanitizer {
+func NewDrainSanitizer(tenant string, dryRun bool, staleDuration time.Duration) *DrainSanitizer {
 	return &DrainSanitizer{
 		drain:                     drain.New(tenant, drain.DefaultConfig()),
 		dryRun:                    dryRun,
-		metricTotalSpansCompacted: metricTotalSpansCompacted.WithLabelValues(tenant),
-		demand:                    NewCardinality(15*time.Minute, 5*time.Minute),
-		demandGauge:               metricDemand.WithLabelValues(tenant),
+		metricTotalSpansSanitized: metricTotalSpansSanitized.WithLabelValues(tenant),
+		demand:                    NewCardinality(staleDuration, removeStaleSeriesInterval),
+		demandGauge:               metricPostSanitizationDemand.WithLabelValues(tenant),
 		demandUpdateChan:          time.Tick(15 * time.Second),
 		pruneChan:                 time.Tick(5 * time.Minute),
 	}
@@ -57,7 +59,7 @@ func (s *DrainSanitizer) Sanitize(lbls labels.Labels) labels.Labels {
 	s.mtx.Lock()
 	defer s.mtx.Unlock()
 
-	spanName := lbls.Get("span_name")
+	spanName := lbls.Get(labelSpanName)
 	cluster := s.drain.Train(spanName)
 	// drain has various limits to prevent excessive memory usage, etc. in these
 	// cases, we will just return the original labels.
@@ -75,9 +77,9 @@ func (s *DrainSanitizer) Sanitize(lbls labels.Labels) labels.Labels {
 		return lbls
 	}
 
-	s.metricTotalSpansCompacted.Inc()
+	s.metricTotalSpansSanitized.Inc()
 	builder := labels.NewBuilder(lbls)
-	builder.Set("span_name", newSpanName)
+	builder.Set(labelSpanName, newSpanName)
 	newLbls := builder.Labels()
 	newLabelHash := newLbls.Hash()
 	s.demand.Insert(newLabelHash)

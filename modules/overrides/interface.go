@@ -83,7 +83,7 @@ type Interface interface {
 	MetricsGeneratorNativeHistogramBucketFactor(userID string) float64
 	MetricsGeneratorNativeHistogramMaxBucketNumber(userID string) uint32
 	MetricsGeneratorNativeHistogramMinResetDuration(userID string) time.Duration
-	MetricsGeneratorDrainMode(userID string) string
+	MetricsGeneratorSpanNameSanitization(userID string) string
 	BlockRetention(userID string) time.Duration
 	CompactionDisabled(userID string) bool
 	MaxSearchDuration(userID string) time.Duration

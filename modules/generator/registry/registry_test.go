@@ -524,8 +524,8 @@ func (m *mockOverrides) MetricsGeneratorNativeHistogramMinResetDuration(string) 
 	return m.nativeHistogramMinResetDuration
 }
 
-func (m *mockOverrides) MetricsGeneratorDrainMode(string) string {
-	return string(DrainModeDisabled)
+func (m *mockOverrides) MetricsGeneratorSpanNameSanitization(string) string {
+	return SpanNameSanitizationDisabled
 }
 
 func mustGetHostname() string {

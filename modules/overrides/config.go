@@ -158,7 +158,7 @@ type MetricsGeneratorOverrides struct {
 	NativeHistogramBucketFactor     float64       `yaml:"native_histogram_bucket_factor,omitempty" json:"native_histogram_bucket_factor,omitempty"`
 	NativeHistogramMaxBucketNumber  uint32        `yaml:"native_histogram_max_bucket_number,omitempty" json:"native_histogram_max_bucket_number,omitempty"`
 	NativeHistogramMinResetDuration time.Duration `yaml:"native_histogram_min_reset_duration,omitempty" json:"native_histogram_min_reset_duration,omitempty"`
-	DrainMode                       string        `yaml:"drain_mode,omitempty" json:"drain_mode,omitempty"`
+	SpanNameSanitization            string        `yaml:"span_name_sanitization,omitempty" json:"span_name_sanitization,omitempty"`
 }
 
 type ReadOverrides struct {
@@ -270,6 +270,7 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 func (c *Config) RegisterFlagsAndApplyDefaults(f *flag.FlagSet) {
 	// Generator
 	c.Defaults.MetricsGenerator.GenerateNativeHistograms = histograms.HistogramMethodClassic
+	c.Defaults.MetricsGenerator.SpanNameSanitization = "disabled"
 
 	// Distributor LegacyOverrides
 	c.Defaults.Ingestion.RetryInfoEnabled = true // enabled in overrides by default but it's disabled with RetryAfterOnResourceExhausted = 0

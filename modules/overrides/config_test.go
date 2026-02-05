@@ -476,7 +476,7 @@ func generateTestLegacyOverrides() LegacyOverrides {
 		MetricsGeneratorNativeHistogramBucketFactor:                      1.5,
 		MetricsGeneratorNativeHistogramMaxBucketNumber:                   200,
 		MetricsGeneratorNativeHistogramMinResetDuration:                  10 * time.Minute,
-		MetricsGeneratorDrainMode:                                        "disabled",
+		MetricsGeneratorSpanNameSanitization:                             "disabled",
 
 		BlockRetention:     model.Duration(7 * 24 * time.Hour),
 		CompactionDisabled: true,

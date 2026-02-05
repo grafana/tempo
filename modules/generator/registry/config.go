@@ -38,7 +38,7 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(string, *flag.FlagSet) {
 }
 
 const (
-	DrainModeDisabled = "disabled"
-	DrainModeDryRun   = "dry_run"
-	DrainModeEnabled  = "enabled"
+	SpanNameSanitizationDisabled = "disabled"
+	SpanNameSanitizationDryRun   = "dry_run"
+	SpanNameSanitizationEnabled  = "enabled"
 )

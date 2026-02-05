@@ -463,11 +463,11 @@ func (o *runtimeConfigOverridesManager) MetricsGeneratorNativeHistogramMinResetD
 	return o.defaultLimits.MetricsGenerator.NativeHistogramMinResetDuration
 }
 
-func (o *runtimeConfigOverridesManager) MetricsGeneratorDrainMode(userID string) string {
-	if mode := o.getOverridesForUser(userID).MetricsGenerator.DrainMode; mode != "" {
+func (o *runtimeConfigOverridesManager) MetricsGeneratorSpanNameSanitization(userID string) string {
+	if mode := o.getOverridesForUser(userID).MetricsGenerator.SpanNameSanitization; mode != "" {
 		return mode
 	}
-	return o.defaultLimits.MetricsGenerator.DrainMode
+	return o.defaultLimits.MetricsGenerator.SpanNameSanitization
 }
 
 // MetricsGeneratorTraceIDLabelName is the label name used for the trace ID in metrics.

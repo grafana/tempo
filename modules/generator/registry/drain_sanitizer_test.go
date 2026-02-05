@@ -3,6 +3,7 @@ package registry
 import (
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/prometheus/prometheus/model/labels"
 	"github.com/stretchr/testify/assert"
@@ -11,7 +12,7 @@ import (
 func TestDrainSanitizer_PatternDetection(t *testing.T) {
 	t.Parallel()
 
-	sanitizer := NewDrainSanitizer("test-tenant", false)
+	sanitizer := NewDrainSanitizer("test-tenant", false, 15*time.Minute)
 
 	// Train with similar span names that should form a pattern
 	lbls1 := labels.FromStrings("span_name", "GET /api/users/123", "service", "api")
@@ -38,7 +39,7 @@ func TestDrainSanitizer_PatternDetection(t *testing.T) {
 func TestDrainSanitizer_DryRunMode(t *testing.T) {
 	t.Parallel()
 
-	sanitizer := NewDrainSanitizer("test-tenant", true) // dryRun = true
+	sanitizer := NewDrainSanitizer("test-tenant", true, 15*time.Minute) // dryRun = true
 
 	lbls1 := labels.FromStrings("span_name", "GET /api/users/123", "service", "api")
 	lbls2 := labels.FromStrings("span_name", "GET /api/users/456", "service", "api")
@@ -55,7 +56,7 @@ func TestDrainSanitizer_DryRunMode(t *testing.T) {
 func TestDrainSanitizer_NilClusterHandling(t *testing.T) {
 	t.Parallel()
 
-	sanitizer := NewDrainSanitizer("test-tenant", false)
+	sanitizer := NewDrainSanitizer("test-tenant", false, 15*time.Minute)
 
 	// Span name with too few tokens (less than MinTokens=3)
 	// Tokenizer will produce tokens like ["a", "<END>"] which is < 3
@@ -70,7 +71,7 @@ func TestDrainSanitizer_NilClusterHandling(t *testing.T) {
 func TestDrainSanitizer_ConcurrentAccess(t *testing.T) {
 	t.Parallel()
 
-	sanitizer := NewDrainSanitizer("test-tenant", false)
+	sanitizer := NewDrainSanitizer("test-tenant", false, 15*time.Minute)
 
 	var wg sync.WaitGroup
 	numGoroutines := 10
@@ -97,7 +98,7 @@ func TestDrainSanitizer_ConcurrentAccess(t *testing.T) {
 func TestDrainSanitizer_DemandTracking(t *testing.T) {
 	t.Parallel()
 
-	sanitizer := NewDrainSanitizer("test-tenant", false)
+	sanitizer := NewDrainSanitizer("test-tenant", false, 15*time.Minute)
 
 	// Create labels with different span names
 	lbls1 := labels.FromStrings("span_name", "GET /api/users/123")
@@ -119,7 +120,7 @@ func TestDrainSanitizer_DemandTracking(t *testing.T) {
 func TestDrainSanitizer_NoSpanNameLabel(t *testing.T) {
 	t.Parallel()
 
-	sanitizer := NewDrainSanitizer("test-tenant", false)
+	sanitizer := NewDrainSanitizer("test-tenant", false, 15*time.Minute)
 
 	// Labels without span_name
 	lbls := labels.FromStrings("service", "api", "method", "GET")
@@ -132,7 +133,7 @@ func TestDrainSanitizer_NoSpanNameLabel(t *testing.T) {
 func TestDrainSanitizer_PatternBeforeSanitization(t *testing.T) {
 	t.Parallel()
 
-	sanitizer := NewDrainSanitizer("test-tenant", false)
+	sanitizer := NewDrainSanitizer("test-tenant", false, 15*time.Minute)
 
 	// First span name - no pattern yet, so returns original
 	lbls1 := labels.FromStrings("span_name", "GET /api/users/123")
@@ -184,7 +185,7 @@ func TestDrainSanitizer_FullSanitizedOutput(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			sanitizer := NewDrainSanitizer("test-tenant", false)
+			sanitizer := NewDrainSanitizer("test-tenant", false, 15*time.Minute)
 
 			// Train with first inputs
 			for _, input := range tc.inputs[:len(tc.inputs)-1] {
