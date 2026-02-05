@@ -53,11 +53,29 @@ func NewSpanFilter(filterPolicies []config.FilterPolicy) (*SpanFilter, error) {
 // ApplyFilterPolicy returns true if the span should be included in the metrics.
 func (f *SpanFilter) ApplyFilterPolicy(rs *v1.Resource, span *tracev1.Span) bool {
 	// With no filter policies specified, all spans are included.
-	if len(f.include) == 0 && len(f.exclude) == 0 {
+	if len(f.include) == 0 && len(f.includeOnly) == 0 && len(f.exclude) == 0 {
 		return true
 	}
 
-	return f.isIncluded(rs, span) && !f.isExcluded(rs, span)
+	if f.isExcluded(rs, span) {
+		return false
+	}
+
+	if len(f.includeOnly) > 0 && f.isIncludedOnly(rs, span) {
+		return true
+	}
+	return f.isIncluded(rs, span)
+}
+
+// This is different than the isIncluded. It's a VIP pass,working as an OR expression.
+// if ANY policy matches the span is included
+func (f *SpanFilter) isIncludedOnly(rs *v1.Resource, span *tracev1.Span) bool {
+	for _, policy := range f.includeOnly {
+		if policy.Match(rs, span) {
+			return true
+		}
+	}
+	return false
 }
 
 func (f *SpanFilter) isIncluded(rs *v1.Resource, span *tracev1.Span) bool {

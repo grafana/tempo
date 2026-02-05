@@ -462,7 +462,130 @@ func TestSpanMetrics_applyFilterPolicy(t *testing.T) {
 				Name: "test",
 			},
 		},
-	}
+
+		{
+			name:   "a matching includeOnly policy for internal span kind for allowed service",
+			expect: true,
+			filterPolicies: []config.FilterPolicy{
+				{
+					// include only server kind
+					Include: &config.PolicyMatch{
+						MatchType: config.Strict,
+						Attributes: []config.MatchPolicyAttribute{
+							{Key: "kind", Value: "SPAN_KIND_SERVER"},
+						},
+					},
+					// Allow internal spans for "auth-service"
+					IncludeOnly: &config.PolicyMatch{
+						MatchType: config.Strict,
+						Attributes: []config.MatchPolicyAttribute{
+							{Key: "kind", Value: "SPAN_KIND_INTERNAL"},
+							{Key: "resource.service.name", Value: "auth-service"},
+						},
+					},
+				},
+			},
+			resource: &v1.Resource{
+				Attributes: []*commonv1.KeyValue{
+					{Key: "service.name", Value: &commonv1.AnyValue{Value: &commonv1.AnyValue_StringValue{StringValue: "auth-service"}}},
+				},
+			},
+			span: &tracev1.Span{
+				Kind: tracev1.Span_SPAN_KIND_INTERNAL,
+				Name: "check-token",
+			},
+		},
+		{
+			name:   "a non matching includeOnly policy rejects internal span for non-allowed service",
+			expect: false,
+			filterPolicies: []config.FilterPolicy{
+				{
+					Include: &config.PolicyMatch{
+						MatchType: config.Strict,
+						Attributes: []config.MatchPolicyAttribute{
+							{Key: "kind", Value: "SPAN_KIND_SERVER"},
+						},
+					},
+					IncludeOnly: &config.PolicyMatch{
+						MatchType: config.Strict,
+						Attributes: []config.MatchPolicyAttribute{
+							{Key: "kind", Value: "SPAN_KIND_INTERNAL"},
+							{Key: "resource.service.name", Value: "auth-service"},
+						},
+					},
+				},
+			},
+			resource: &v1.Resource{
+				Attributes: []*commonv1.KeyValue{
+					{Key: "service.name", Value: &commonv1.AnyValue{Value: &commonv1.AnyValue_StringValue{StringValue: "noisy-service"}}},
+				},
+			},
+			span: &tracev1.Span{
+				Kind: tracev1.Span_SPAN_KIND_INTERNAL,
+				Name: "random-log",
+			},
+		},
+		{
+			name:   "a matching includeOnly is excluded by a Exclude policy",
+			expect: false,
+			filterPolicies: []config.FilterPolicy{
+				{
+					IncludeOnly: &config.PolicyMatch{
+						MatchType: config.Strict,
+						Attributes: []config.MatchPolicyAttribute{
+							{Key: "kind", Value: "SPAN_KIND_INTERNAL"},
+							{Key: "resource.service.name", Value: "auth-service"},
+						},
+					},
+					Exclude: &config.PolicyMatch{
+						MatchType: config.Strict,
+						Attributes: []config.MatchPolicyAttribute{
+							{Key: "resource.env", Value: "dev"},
+						},
+					},
+				},
+			},
+			resource: &v1.Resource{
+				Attributes: []*commonv1.KeyValue{
+					{Key: "service.name", Value: &commonv1.AnyValue{Value: &commonv1.AnyValue_StringValue{StringValue: "auth-service"}}},
+					{Key: "env", Value: &commonv1.AnyValue{Value: &commonv1.AnyValue_StringValue{StringValue: "dev"}}},
+				},
+			},
+			span: &tracev1.Span{
+				Kind: tracev1.Span_SPAN_KIND_INTERNAL,
+				Name: "check-token",
+			},
+		},
+		{
+			name:   "allows server spans even if IncludeOnly is present",
+			expect: true,
+			filterPolicies: []config.FilterPolicy{
+				{
+					Include: &config.PolicyMatch{
+						MatchType: config.Strict,
+						Attributes: []config.MatchPolicyAttribute{
+							{Key: "kind", Value: "SPAN_KIND_SERVER"},
+						},
+					},
+					IncludeOnly: &config.PolicyMatch{
+						MatchType: config.Strict,
+						Attributes: []config.MatchPolicyAttribute{
+							{Key: "kind", Value: "SPAN_KIND_INTERNAL"},
+							{Key: "resource.service.name", Value: "auth-service"},
+						},
+					},
+				},
+			},
+			resource: &v1.Resource{
+				Attributes: []*commonv1.KeyValue{
+					{Key: "service.name", Value: &commonv1.AnyValue{Value: &commonv1.AnyValue_StringValue{StringValue: "any-service"}}},
+				},
+			},
+			span: &tracev1.Span{
+				Kind: tracev1.Span_SPAN_KIND_SERVER,
+				Name: "get-user",
+			},
+		}}
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
