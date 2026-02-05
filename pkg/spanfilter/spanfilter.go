@@ -72,7 +72,15 @@ func (f *SpanFilter) ApplyFilterPolicy(rs *v1.Resource, span *tracev1.Span) bool
 	if f.hasIncludeOnly && f.isIncludedOnly(rs, span) {
 		return true
 	}
-	return f.isIncluded(rs, span)
+
+	if f.hasInclude {
+		return f.isIncluded(rs, span)
+	}
+
+	// If we have an include_only but NO standard include, and we reached
+	// here, it means include_only didn't match. -> return false.
+	// IF NO inclusion rules exist at all -> return true.
+	return !f.hasIncludeOnly
 }
 
 // This is different than the isIncluded. It's a VIP pass,working as an OR expression.

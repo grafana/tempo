@@ -496,6 +496,30 @@ func TestSpanMetrics_applyFilterPolicy(t *testing.T) {
 			},
 		},
 		{
+			name:   "a non matching includeOnly policy with no other include policy",
+			expect: false,
+			filterPolicies: []config.FilterPolicy{
+				{ // Allow internal spans for "auth-service"
+					IncludeOnly: &config.PolicyMatch{
+						MatchType: config.Strict,
+						Attributes: []config.MatchPolicyAttribute{
+							{Key: "kind", Value: "SPAN_KIND_INTERNAL"},
+							{Key: "resource.service.name", Value: "auth-service"},
+						},
+					},
+				},
+			},
+			resource: &v1.Resource{
+				Attributes: []*commonv1.KeyValue{
+					{Key: "service.name", Value: &commonv1.AnyValue{Value: &commonv1.AnyValue_StringValue{StringValue: "distributor"}}},
+				},
+			},
+			span: &tracev1.Span{
+				Kind: tracev1.Span_SPAN_KIND_INTERNAL,
+				Name: "check-token",
+			},
+		},
+		{
 			name:   "a non matching includeOnly policy rejects internal span for non-allowed service",
 			expect: false,
 			filterPolicies: []config.FilterPolicy{
