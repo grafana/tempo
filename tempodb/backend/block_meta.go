@@ -110,6 +110,9 @@ func DedicatedColumnOptionsFromTempopb(o tempopb.DedicatedColumn_Option) Dedicat
 	if o&tempopb.DedicatedColumn_ARRAY != 0 {
 		options = append(options, DedicatedColumnOptionArray)
 	}
+	if o&tempopb.DedicatedColumn_BLOB != 0 {
+		options = append(options, DedicatedColumnOptionBlob)
+	}
 	return options
 }
 
@@ -119,6 +122,8 @@ func (o DedicatedColumnOptions) ToTempopb() (tempopb.DedicatedColumn_Option, err
 		switch opt {
 		case DedicatedColumnOptionArray:
 			optionsMask |= tempopb.DedicatedColumn_ARRAY
+		case DedicatedColumnOptionBlob:
+			optionsMask |= tempopb.DedicatedColumn_BLOB
 		default:
 			return 0, fmt.Errorf("invalid value for dedicated column option '%v'", opt)
 		}
