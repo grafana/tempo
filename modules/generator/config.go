@@ -234,13 +234,17 @@ func (cfg *ProcessorConfig) copyWithOverrides(o metricsGeneratorOverrides, userI
 		copyCfg.SpanMetrics.HistogramOverride = registry.HistogramModeToValue[string(histograms)]
 	}
 
-	copyCfg.SpanMetrics.DimensionMappings = o.MetricsGeneratorProcessorSpanMetricsDimensionMappings(userID)
+	if dimensionMappings := o.MetricsGeneratorProcessorSpanMetricsDimensionMappings(userID); dimensionMappings != nil {
+		copyCfg.SpanMetrics.DimensionMappings = dimensionMappings
+	}
 
 	if enableTargetInfo, ok := o.MetricsGeneratorProcessorSpanMetricsEnableTargetInfo(userID); ok {
 		copyCfg.SpanMetrics.EnableTargetInfo = enableTargetInfo
 	}
 
-	copyCfg.SpanMetrics.TargetInfoExcludedDimensions = o.MetricsGeneratorProcessorSpanMetricsTargetInfoExcludedDimensions(userID)
+	if targetInfoExcludedDimensions := o.MetricsGeneratorProcessorSpanMetricsTargetInfoExcludedDimensions(userID); targetInfoExcludedDimensions != nil {
+		copyCfg.SpanMetrics.TargetInfoExcludedDimensions = targetInfoExcludedDimensions
+	}
 
 	if EnableInstanceLabel, ok := o.MetricsGeneratorProcessorSpanMetricsEnableInstanceLabel(userID); ok {
 		copyCfg.SpanMetrics.EnableInstanceLabel = EnableInstanceLabel
