@@ -94,12 +94,6 @@ type KafkaConfig struct {
 	// The fetch backoff config to use in the concurrent fetchers (when enabled). This setting
 	// is just used to change the default backoff in tests.
 	concurrentFetchersFetchBackoffConfig backoff.Config `yaml:"-"`
-
-	// WaitForCoordinatorMinPartitions is the minimum partition count required to wait for coordinator readiness.
-	// This is NOT exposed as a CLI flag or YAML config - it's only used for testing.
-	// Default is 500 (wait for coordinator when >= 500 partitions).
-	// Tests can set to -1 to disable coordinator waiting entirely.
-	WaitForCoordinatorMinPartitions int `yaml:"-"`
 }
 
 func (cfg *KafkaConfig) RegisterFlags(f *flag.FlagSet) {
@@ -217,12 +211,12 @@ func (cfg KafkaConfig) EnsureTopicPartitions(logger log.Logger) error {
 
 			currentPartitionCount := len(td[cfg.Topic].Partitions.Numbers())
 			if cfg.AutoCreateTopicDefaultPartitions == currentPartitionCount {
-			// Topic already exists with correct partitions, nothing to do
-			// Topic already exists with correct partitions, nothing to do
+				// Topic already exists with correct partitions, nothing to do
+				return nil
 			}
 
 			if cfg.AutoCreateTopicDefaultPartitions < currentPartitionCount {
-			// Topic has more partitions than desired, nothing to do
+				// Topic has more partitions than desired, nothing to do
 				return nil
 			}
 
@@ -241,8 +235,7 @@ func (cfg KafkaConfig) EnsureTopicPartitions(logger log.Logger) error {
 				"previous_partitions", currentPartitionCount,
 				"new_partitions", cfg.AutoCreateTopicDefaultPartitions,
 			)
-			// Check coordinator readiness after partition update, passing previous count
-			return cfg.waitForCoordinatorAfterUpdate(ctx, adm, logger, currentPartitionCount)
+			return nil
 		}
 		return fmt.Errorf("failed to create topic %s: %w", cfg.Topic, err)
 	}
@@ -270,104 +263,5 @@ func (cfg KafkaConfig) EnsureTopicPartitions(logger log.Logger) error {
 		time.Sleep(100 * time.Millisecond)
 	}
 
-	// Check coordinator readiness after topic creation
-	return cfg.waitForCoordinator(ctx, adm, logger)
-}
-
-// waitForCoordinatorAfterUpdate waits for coordinator after partition update, but only if
-// the partition count meets the minimum threshold (500 by default, or as set for tests).
-func (cfg KafkaConfig) waitForCoordinatorAfterUpdate(ctx context.Context, adm *kadm.Client, logger log.Logger, previousPartitionCount int) error {
-	minPartitions := cfg.getCoordinatorWaitMinPartitions()
-	if cfg.AutoCreateTopicDefaultPartitions < minPartitions {
-		level.Info(logger).Log(
-			"msg", "skipping coordinator wait for partition update",
-			"topic", cfg.Topic,
-			"previous_partitions", previousPartitionCount,
-			"new_partitions", cfg.AutoCreateTopicDefaultPartitions,
-			"min_partitions_threshold", minPartitions,
-		)
-		return nil
-	}
-	return cfg.waitForCoordinator(ctx, adm, logger)
-}
-
-// getCoordinatorWaitMinPartitions returns the minimum partition count for coordinator wait.
-// Returns 500 by default, or the test-configured value if explicitly set.
-// A negative value (e.g. -1) can be used by tests to disable coordinator wait.
-func (cfg KafkaConfig) getCoordinatorWaitMinPartitions() int {
-	// If explicitly set (including negative values for disabling), use it
-	if cfg.WaitForCoordinatorMinPartitions != 0 {
-		return cfg.WaitForCoordinatorMinPartitions
-	}
-	// Default: wait for >= 500 partitions
-	return 500
-}
-
-// waitForCoordinator waits for the Kafka coordinator to be available.
-// This is especially important after creating topics with many partitions.
-func (cfg KafkaConfig) waitForCoordinator(ctx context.Context, adm *kadm.Client, logger log.Logger) error {
-	minPartitions := cfg.getCoordinatorWaitMinPartitions()
-	// Skip coordinator wait if partition count is below threshold
-	if cfg.AutoCreateTopicDefaultPartitions < minPartitions {
-		return nil
-	}
-
-	// Calculate timeout based on partition count: more partitions = more time needed
-	// Scale timeout for large partition counts (1000 partitions = 10s)
-	coordinatorTimeout := time.Duration(cfg.AutoCreateTopicDefaultPartitions/100) * time.Second
-	if coordinatorTimeout > 30*time.Second {
-		coordinatorTimeout = 30 * time.Second // Maximum 30 seconds
-	}
-
-	level.Info(logger).Log(
-		"msg", "waiting for group coordinator to be available",
-		"topic", cfg.Topic,
-		"timeout", coordinatorTimeout,
-	)
-
-	coordinatorCtx, cancel := context.WithTimeout(ctx, coordinatorTimeout)
-	defer cancel()
-
-	// Use a test consumer group name to check coordinator availability
-	testGroupID := cfg.ConsumerGroup
-	if testGroupID == "" {
-		testGroupID = "tempo-coordinator-check"
-	}
-
-	retryDelay := 100 * time.Millisecond
-	maxRetryDelay := 2 * time.Second
-
-	for {
-		select {
-		case <-coordinatorCtx.Done():
-			level.Warn(logger).Log(
-				"msg", "coordinator may not be fully ready",
-				"topic", cfg.Topic,
-				"timeout", coordinatorTimeout,
-			)
-			return nil // Don't fail, just warn
-
-		default:
-			// Try to describe the consumer group - this will fail if coordinator isn't ready
-			groups, err := adm.DescribeGroups(coordinatorCtx, testGroupID)
-			if err == nil && len(groups) > 0 {
-				groupInfo := groups[testGroupID]
-				// Check if coordinator is ready (no error or only "unknown member" which means coordinator is up)
-				if groupInfo.Err == nil || errors.Is(groupInfo.Err, kerr.UnknownMemberID) {
-					level.Info(logger).Log(
-						"msg", "group coordinator is ready",
-						"topic", cfg.Topic,
-					)
-					return nil
-				}
-			}
-
-			// Coordinator not ready yet, retry with backoff
-			time.Sleep(retryDelay)
-			retryDelay *= 2
-			if retryDelay > maxRetryDelay {
-				retryDelay = maxRetryDelay
-			}
-		}
-	}
+	return nil
 }
