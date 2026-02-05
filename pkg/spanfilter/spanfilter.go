@@ -7,18 +7,13 @@ import (
 )
 
 type SpanFilter struct {
-	filterPolicies []*filterPolicy
-}
-
-type filterPolicy struct {
-	Include *splitPolicy
-	Exclude *splitPolicy
+	include []*splitPolicy
+	exclude []*splitPolicy
 }
 
 // NewSpanFilter returns a SpanFilter that will filter spans based on the given filter policies.
 func NewSpanFilter(filterPolicies []config.FilterPolicy) (*SpanFilter, error) {
-	var policies []*filterPolicy
-
+	sf := new(SpanFilter)
 	for _, policy := range filterPolicies {
 		err := config.ValidateFilterPolicy(policy)
 		if err != nil {
@@ -30,43 +25,48 @@ func NewSpanFilter(filterPolicies []config.FilterPolicy) (*SpanFilter, error) {
 			return nil, err
 		}
 
+		if include != nil {
+			sf.include = append(sf.include, include)
+		}
+
 		exclude, err := getSplitPolicy(policy.Exclude)
 		if err != nil {
 			return nil, err
 		}
-		p := filterPolicy{
-			Include: include,
-			Exclude: exclude,
-		}
-
-		if p.Include != nil || p.Exclude != nil {
-			policies = append(policies, &p)
+		if exclude != nil {
+			sf.exclude = append(sf.exclude, exclude)
 		}
 	}
 
-	return &SpanFilter{
-		filterPolicies: policies,
-	}, nil
+	return sf, nil
 }
 
 // ApplyFilterPolicy returns true if the span should be included in the metrics.
 func (f *SpanFilter) ApplyFilterPolicy(rs *v1.Resource, span *tracev1.Span) bool {
 	// With no filter policies specified, all spans are included.
-	if len(f.filterPolicies) == 0 {
+	if len(f.include) == 0 && len(f.exclude) == 0 {
 		return true
 	}
 
-	for _, policy := range f.filterPolicies {
-		if policy.Include != nil && !policy.Include.Match(rs, span) {
-			return false
-		}
+	return f.isIncluded(rs, span) && !f.isExcluded(rs, span)
+}
 
-		if policy.Exclude != nil && policy.Exclude.Match(rs, span) {
+func (f *SpanFilter) isIncluded(rs *v1.Resource, span *tracev1.Span) bool {
+	for _, policy := range f.include {
+		if !policy.Match(rs, span) {
 			return false
 		}
 	}
-
 	return true
+}
+
+func (f *SpanFilter) isExcluded(rs *v1.Resource, span *tracev1.Span) bool {
+	for _, policy := range f.exclude {
+		if policy.Match(rs, span) {
+			return true
+		}
+	}
+	return false
 }
 
 func getSplitPolicy(policy *config.PolicyMatch) (*splitPolicy, error) {
