@@ -585,7 +585,8 @@ func TestSpanMetrics_applyFilterPolicy(t *testing.T) {
 				Kind: tracev1.Span_SPAN_KIND_SERVER,
 				Name: "get-user",
 			},
-		}}
+		},
+	}
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
