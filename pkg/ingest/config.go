@@ -263,5 +263,7 @@ func (cfg KafkaConfig) EnsureTopicPartitions(logger log.Logger) error {
 		time.Sleep(100 * time.Millisecond)
 	}
 
+	// Give coordinator a moment to initialize for new topics
+	time.Sleep(2 * time.Second)
 	return nil
 }
