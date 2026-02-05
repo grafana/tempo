@@ -8,6 +8,7 @@ import (
 
 	"github.com/grafana/tempo/modules/generator/processor/servicegraphs"
 	"github.com/grafana/tempo/modules/generator/processor/spanmetrics"
+	"github.com/grafana/tempo/pkg/sharedconfig"
 	"github.com/grafana/tempo/pkg/spanfilter/config"
 )
 
@@ -158,6 +159,62 @@ func TestProcessorConfig_copyWithOverrides(t *testing.T) {
 		assert.NotEqual(t, *original, copied)
 		assert.Equal(t, "custom_key", copied.ServiceGraphs.SpanMultiplierKey)
 		assert.Equal(t, "custom_key", copied.SpanMetrics.SpanMultiplierKey)
+	})
+
+	t.Run("dimension_mappings preserved when no override", func(t *testing.T) {
+		// Create original config with dimension_mappings set
+		originalWithMappings := &ProcessorConfig{
+			SpanMetrics: spanmetrics.Config{
+				DimensionMappings: []sharedconfig.DimensionMappings{
+					{Name: "env", SourceLabel: []string{"deployment.environment"}},
+				},
+				TargetInfoExcludedDimensions: []string{"telemetry.sdk.version"},
+			},
+		}
+
+		// Empty overrides should preserve base config values
+		o := &mockOverrides{}
+
+		copied, err := originalWithMappings.copyWithOverrides(o, "tenant")
+		require.NoError(t, err)
+
+		// Verify dimension_mappings from base config is preserved
+		assert.Equal(t, []sharedconfig.DimensionMappings{
+			{Name: "env", SourceLabel: []string{"deployment.environment"}},
+		}, copied.SpanMetrics.DimensionMappings)
+
+		// Verify target_info_excluded_dimensions from base config is preserved
+		assert.Equal(t, []string{"telemetry.sdk.version"}, copied.SpanMetrics.TargetInfoExcludedDimensions)
+	})
+
+	t.Run("dimension_mappings overridden when override is set", func(t *testing.T) {
+		// Create original config with dimension_mappings set
+		originalWithMappings := &ProcessorConfig{
+			SpanMetrics: spanmetrics.Config{
+				DimensionMappings: []sharedconfig.DimensionMappings{
+					{Name: "env", SourceLabel: []string{"deployment.environment"}},
+				},
+				TargetInfoExcludedDimensions: []string{"telemetry.sdk.version"},
+			},
+		}
+
+		// Override should replace base config values
+		o := &mockOverrides{
+			spanMetricsDimensionMappings: []sharedconfig.DimensionMappings{
+				{Name: "cluster", SourceLabel: []string{"k8s.cluster.name"}},
+			},
+			spanMetricsTargetInfoExcludedDimensions: []string{"process.runtime.version"},
+		}
+
+		copied, err := originalWithMappings.copyWithOverrides(o, "tenant")
+		require.NoError(t, err)
+
+		// Verify override replaced base config
+		assert.Equal(t, []sharedconfig.DimensionMappings{
+			{Name: "cluster", SourceLabel: []string{"k8s.cluster.name"}},
+		}, copied.SpanMetrics.DimensionMappings)
+
+		assert.Equal(t, []string{"process.runtime.version"}, copied.SpanMetrics.TargetInfoExcludedDimensions)
 	})
 }
 
