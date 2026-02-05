@@ -142,6 +142,8 @@ You can use `dimension_mappings` to rename a single attribute to a different lab
 The `source_labels` field must contain the **original span or resource attribute names** (with dots), not sanitized Prometheus label names. For example, use `deployment.environment`, not `deployment_environment`.
 {{< /admonition >}}
 
+The `name` field can use either dots (`.`) or underscores (`_`), as both are converted to underscores (`_`) in the final Prometheus metric labels. For example, both `env` and `env.label` result in `env_label` in Prometheus metrics.
+
 The following example shows how to rename the `deployment.environment` attribute to a shorter label called `env`, for example:
 
 ```yaml
