@@ -537,28 +537,11 @@ func TestBackendNilValueBlockSearchTraceQL(t *testing.T) {
 	}
 }
 
-func TestBackendBlockSearchTraceQL(t *testing.T) {
-	numTraces := 250
-	traces := make([]*Trace, 0, numTraces)
-	wantTraceIdx := rand.Intn(numTraces)
-	wantTraceID := test.ValidTraceID(nil)
-
-	for i := 0; i < numTraces; i++ {
-		if i == wantTraceIdx {
-			traces = append(traces, fullyPopulatedTestTrace(wantTraceID))
-			continue
-		}
-
-		id := test.ValidTraceID(nil)
-		tr, _ := traceToParquet(&backend.BlockMeta{}, id, test.MakeTrace(1, id), nil)
-		traces = append(traces, tr)
-	}
-
-	b := makeBackendBlockWithTraces(t, traces)
-	ctx := context.Background()
-	traceIDText := util.TraceIDToHexString(wantTraceID)
-
-	searchesThatMatch := []struct {
+func searchesThatMatch(t *testing.T, traceIDText string) []struct {
+	name string
+	req  traceql.FetchSpansRequest
+} {
+	return []struct {
 		name string
 		req  traceql.FetchSpansRequest
 	}{
@@ -736,35 +719,13 @@ func TestBackendBlockSearchTraceQL(t *testing.T) {
 			},
 		},
 	}
+}
 
-	for _, tc := range searchesThatMatch {
-		t.Run(tc.name, func(t *testing.T) {
-			req := tc.req
-			if req.SecondPass == nil {
-				req.SecondPass = func(s *traceql.Spanset) ([]*traceql.Spanset, error) { return []*traceql.Spanset{s}, nil }
-				req.SecondPassConditions = traceql.SearchMetaConditions()
-			}
-
-			resp, err := b.Fetch(ctx, req, common.DefaultSearchOptions())
-			require.NoError(t, err, "search request:%v", req)
-
-			found := false
-			for {
-				spanSet, err := resp.Results.Next(ctx)
-				require.NoError(t, err, "search request:%v", req)
-				if spanSet == nil {
-					break
-				}
-				found = bytes.Equal(spanSet.TraceID, wantTraceID)
-				if found {
-					break
-				}
-			}
-			require.True(t, found, "search request:%v", req)
-		})
-	}
-
-	searchesThatDontMatch := []struct {
+func searchesThatDontMatch(t *testing.T) []struct {
+	name string
+	req  traceql.FetchSpansRequest
+} {
+	return []struct {
 		name string
 		req  traceql.FetchSpansRequest
 	}{
@@ -865,8 +826,59 @@ func TestBackendBlockSearchTraceQL(t *testing.T) {
 			},
 		},
 	}
+}
 
-	for _, tc := range searchesThatDontMatch {
+func TestBackendBlockSearchTraceQL(t *testing.T) {
+	var (
+		ctx          = t.Context()
+		numTraces    = 250
+		traces       = make([]*Trace, 0, numTraces)
+		wantTraceIdx = rand.Intn(numTraces)
+		wantTraceID  = test.ValidTraceID(nil)
+		traceIDText  = util.TraceIDToHexString(wantTraceID)
+	)
+
+	for i := 0; i < numTraces; i++ {
+		if i == wantTraceIdx {
+			traces = append(traces, fullyPopulatedTestTrace(wantTraceID))
+			continue
+		}
+
+		id := test.ValidTraceID(nil)
+		tr, _ := traceToParquet(&backend.BlockMeta{}, id, test.MakeTrace(1, id), nil)
+		traces = append(traces, tr)
+	}
+
+	b := makeBackendBlockWithTraces(t, traces)
+
+	for _, tc := range searchesThatMatch(t, traceIDText) {
+		t.Run(tc.name, func(t *testing.T) {
+			req := tc.req
+			if req.SecondPass == nil {
+				req.SecondPass = func(s *traceql.Spanset) ([]*traceql.Spanset, error) { return []*traceql.Spanset{s}, nil }
+				req.SecondPassConditions = traceql.SearchMetaConditions()
+			}
+
+			resp, err := b.Fetch(ctx, req, common.DefaultSearchOptions())
+			require.NoError(t, err, "search request:%v", req)
+
+			found := false
+			for {
+				spanSet, err := resp.Results.Next(ctx)
+				require.NoError(t, err, "search request:%v", req)
+				if spanSet == nil {
+					break
+				}
+				if bytes.Equal(spanSet.TraceID, wantTraceID) {
+					found = true
+					break
+				}
+			}
+			require.True(t, found, "search request:%v", req)
+		})
+	}
+
+	for _, tc := range searchesThatDontMatch(t) {
 		t.Run(tc.name, func(t *testing.T) {
 			req := tc.req
 			if req.SecondPass == nil {
