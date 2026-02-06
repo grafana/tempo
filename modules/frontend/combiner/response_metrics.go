@@ -22,6 +22,7 @@ func (mc *SearchMetricsCombiner) Combine(newMetrics *tempopb.SearchMetrics, resp
 		if !IsCacheHit(resp.HTTPResponse()) {
 			mc.Metrics.InspectedTraces += newMetrics.InspectedTraces
 			mc.Metrics.InspectedBytes += newMetrics.InspectedBytes
+			mc.Metrics.InspectedSpans += newMetrics.InspectedSpans
 		}
 	}
 }
