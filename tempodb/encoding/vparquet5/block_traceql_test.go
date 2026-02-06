@@ -154,27 +154,35 @@ func TestCreateNumericPredicate(t *testing.T) {
 }
 
 func TestOne(t *testing.T) {
-	wantTr := fullyPopulatedTestTrace(nil)
-	b := makeBackendBlockWithTraces(t, []*Trace{wantTr})
-	ctx := context.Background()
-	q := `{ resource.region != nil || resource.service.name = "bar" }`
-	// q := `{ resource.str-array =~ "value.*" }`
-	req := traceql.MustExtractFetchSpansRequestWithMetadata(q)
+	var (
+		ctx    = t.Context()
+		wantTr = fullyPopulatedTestTrace(nil)
+		b      = makeBackendBlockWithTraces(t, []*Trace{wantTr})
+		// q      = `{ resource.service.name="foo" } | quantile_over_time(duration, 0.5) by (span.bar)`
+		q   = `{} | rate()`
+		req = &tempopb.QueryRangeRequest{
+			Query: q,
+			Start: uint64(1000 * time.Second),
+			End:   uint64(1001 * time.Second),
+			Step:  uint64(1 * time.Second),
+		}
+	)
+	eval, err := traceql.NewEngine().CompileMetricsQueryRange(req, 1, 0, false)
+	require.NoError(t, err)
+	fetchSpansRequest := eval.FetchSpansRequest()
 
-	req.StartTimeUnixNanos = uint64(1000 * time.Second)
-	req.EndTimeUnixNanos = uint64(1001 * time.Second)
-
-	resp, err := b.Fetch(ctx, req, common.DefaultSearchOptions())
+	spanOnly, err := b.FetchSpans(ctx, fetchSpansRequest, common.DefaultSearchOptions())
 	require.NoError(t, err, "search request:", req)
 
-	spanSet, err := resp.Results.Next(ctx)
+	spanset, err := b.Fetch(ctx, fetchSpansRequest, common.DefaultSearchOptions())
 	require.NoError(t, err, "search request:", req)
 
 	t.Log(q)
+	t.Log("-----------Fetch-----------")
+	t.Log(spanset.Results.(*spansetIterator).iter)
+	t.Log("-----------FetchSpans-----------")
+	t.Log(spanOnly.Results.(*spanOnlyIterator).iter)
 	t.Log("-----------")
-	t.Log(resp.Results.(*spansetIterator).iter)
-	t.Log("-----------")
-	t.Log(spanSet)
 }
 
 func TestBackendNilKeyBlockSearchTraceQL(t *testing.T) {
@@ -1762,6 +1770,7 @@ func BenchmarkIterators(b *testing.B) {
 func BenchmarkBackendBlockQueryRange(b *testing.B) {
 	testCases := []string{
 		"{} | rate()",
+		"{} | rate() with(new=true)",
 		"{} | rate() with(sample=true)",
 		"{} | rate() by (span.http.status_code)",
 		"{} | rate() by (resource.service.name)",

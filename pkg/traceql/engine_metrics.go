@@ -1198,6 +1198,10 @@ type MetricsEvaluator struct {
 	mtx                             sync.Mutex
 }
 
+func (e *MetricsEvaluator) FetchSpansRequest() FetchSpansRequest {
+	return *e.storageReq
+}
+
 func timeRangeOverlap(reqStart, reqEnd, dataStart, dataEnd uint64) float64 {
 	st := max(reqStart, dataStart)
 	end := min(reqEnd, dataEnd)

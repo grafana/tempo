@@ -1229,6 +1229,10 @@ func (c *oldStyleCollector) Close() {
 	c.pool.Release(c.at)
 }
 
+func (c *oldStyleCollector) String() string {
+	return fmt.Sprintf("oldStyleCollector: %s", c.pred)
+}
+
 var _ Collector = (*oldStyleCollector)(nil)
 
 // LeftJoinIterator joins two or more iterators for matches at the given definition level.

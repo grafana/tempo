@@ -30,7 +30,7 @@ func (b *backendBlock) FetchSpans(ctx context.Context, req traceql.FetchSpansReq
 	}
 
 	if len(req.SecondPassConditions) > 0 || req.SecondPassSelectAll {
-		iter, span, err = create(makeIter, iter, req.SecondPassConditions, nil, req.StartTimeUnixNanos, req.EndTimeUnixNanos, false, req.SecondPassSelectAll, b.meta.DedicatedColumns, nil)
+		iter, span, err = create(makeIter, iter, req.SecondPassConditions, nil, 0, 0, false, req.SecondPassSelectAll, b.meta.DedicatedColumns, nil)
 		if err != nil {
 			return traceql.FetchSpansOnlyResponse{}, err
 		}
