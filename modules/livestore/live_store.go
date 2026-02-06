@@ -473,6 +473,7 @@ func (s *LiveStore) waitForCatchUp(ctx context.Context) error {
 // - we know the watermark but nothing has been consumed yet = indeterminate
 //
 // It takes lagShortcutThreshold to shortcut calculations if the lag is close to the end of the partition.
+// To disable the shortcut, set lagShortcutThreshold to a negative value.
 func (s *LiveStore) calculateTimeLag(lagShortcutThreshold int64) *time.Duration {
 	// Use cached high watermark from fetch responses (avoids extra API call)
 	lag := s.reader.lag.Load()
@@ -486,7 +487,7 @@ func (s *LiveStore) calculateTimeLag(lagShortcutThreshold int64) *time.Duration 
 
 	// Check if we are near end or partition is empty
 	// Arbitrary value picked to shortcut calculations
-	if lagShortcutThreshold > 0 && lag <= lagShortcutThreshold {
+	if lagShortcutThreshold >= 0 && lag <= lagShortcutThreshold {
 		level.Debug(s.logger).Log(
 			"msg", "At or close to partition end",
 			"lag", lag)
