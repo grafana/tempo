@@ -155,6 +155,18 @@ Options:
 Set the `stream_over_http_enabled` flag to true in the Tempo configuration to enable streaming over HTTP. For more information, refer to [Tempo GRPC API documentation](../../api_docs/).
 {{< /admonition >}}
 
+Example:
+
+```bash
+tempo-cli query api search-tags localhost:3200
+```
+
+Example with time range:
+
+```bash
+tempo-cli query api search-tags localhost:3200 2024-01-01T00:00:00 2024-01-02T00:00:00
+```
+
 ### Search tag values
 
 Call the Tempo API and search attribute values.
@@ -181,6 +193,18 @@ Options:
 {{< admonition type="note" >}}
 Set the `stream_over_http_enabled` flag to true in the Tempo configuration to enable streaming over HTTP. For more information, refer to [Tempo GRPC API documentation](../../api_docs/).
 {{< /admonition >}}
+
+Example to find all service names:
+
+```bash
+tempo-cli query api search-tag-values localhost:3200 resource.service.name
+```
+
+Example with query filter to find service names that have errors:
+
+```bash
+tempo-cli query api search-tag-values --query '{status = error}' localhost:3200 resource.service.name
+```
 
 ### Metrics
 
@@ -447,7 +471,7 @@ Options:
 Example:
 
 ```bash
-tempo-cli query search http.method GET 2021-09-21T00:00:00 2021-09-21T00:05:00 single-tenant --backend=gcs --bucket=tempo-trace-data
+tempo-cli query search http.method GET 2024-01-01T00:00:00 2024-01-01T00:05:00 single-tenant --backend=gcs --bucket=tempo-trace-data
 ```
 
 ## Parquet convert A to B command
@@ -526,7 +550,7 @@ tempo-cli migrate tenant --source-config-file source.yaml --config-file dest.yam
 
 ## Migrate overrides config command
 
-Migrate overrides config from inline format (legacy) to idented YAML format (new).
+Migrate overrides configuration from inline format (legacy) to idented YAML format (new).
 
 ```bash
 tempo-cli migrate overrides-config <source config file>
@@ -538,8 +562,8 @@ Arguments:
 
 Options:
 
-- `--config-dest <value>` Destination file for the migrated config. If not specified, config is printed to stdout.
-- `--overrides-dest <value>` Destination file for the migrated overrides. If not specified, overrides are printed to stdout.
+- `--config-dest <value>` Destination file for the migrated configuration. If not specified, configuration is printed to `stdout`.
+- `--overrides-dest <value>` Destination file for the migrated overrides. If not specified, overrides are printed to `stdout`.
 
 Example:
 
