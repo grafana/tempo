@@ -205,11 +205,17 @@ func (i *instance) Search(ctx context.Context, req *tempopb.SearchRequest) (*tem
 		}
 
 		if api.IsTraceQLQuery(req) {
+			f := traceql.NewSpansetFetcherWrapperBoth(
+				func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
+					return b.Fetch(ctx, req, opts)
+				},
+				func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansOnlyResponse, error) {
+					return b.FetchSpans(ctx, req, opts)
+				},
+			)
 			// note: we are creating new engine for each wal block,
 			// and engine.ExecuteSearch is parsing the query for each block
-			resp, err = traceql.NewEngine().ExecuteSearch(ctx, req, traceql.NewSpansetFetcherWrapper(func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
-				return b.Fetch(ctx, req, opts)
-			}), i.overrides.UnsafeQueryHints(i.tenantID))
+			resp, err = traceql.NewEngine().ExecuteSearch(ctx, req, f, i.overrides.UnsafeQueryHints(i.tenantID))
 		} else {
 			resp, err = b.Search(ctx, req, opts)
 		}
@@ -747,10 +753,14 @@ func (i *instance) queryRangeWALBlock(ctx context.Context, b common.WALBlock, ev
 	))
 	defer span.End()
 
-	fetcher := traceql.NewSpansetFetcherWrapper(func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
-		return b.Fetch(ctx, req, common.DefaultSearchOptions())
-	})
-
+	fetcher := traceql.NewSpansetFetcherWrapperBoth(
+		func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
+			return b.Fetch(ctx, req, common.DefaultSearchOptions())
+		},
+		func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansOnlyResponse, error) {
+			return b.FetchSpans(ctx, req, common.DefaultSearchOptions())
+		},
+	)
 	return eval.Do(ctx, fetcher, uint64(m.StartTime.UnixNano()), uint64(m.EndTime.UnixNano()), maxSeries)
 }
 
@@ -788,9 +798,14 @@ func (i *instance) queryRangeCompleteBlock(ctx context.Context, b *ingester.Loca
 	if err != nil {
 		return nil, err
 	}
-	f := traceql.NewSpansetFetcherWrapper(func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
-		return b.Fetch(ctx, req, common.DefaultSearchOptions())
-	})
+	f := traceql.NewSpansetFetcherWrapperBoth(
+		func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
+			return b.Fetch(ctx, req, common.DefaultSearchOptions())
+		},
+		func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansOnlyResponse, error) {
+			return b.FetchSpans(ctx, req, common.DefaultSearchOptions())
+		},
+	)
 	err = eval.Do(ctx, f, uint64(m.StartTime.UnixNano()), uint64(m.EndTime.UnixNano()), int(req.MaxSeries))
 	if err != nil {
 		return nil, err
