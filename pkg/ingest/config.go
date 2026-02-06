@@ -172,8 +172,6 @@ func (cfg KafkaConfig) EnsureTopicPartitions(logger log.Logger) error {
 		return nil
 	}
 
-	level.Info(logger).Log("msg", "ensuring topic partitions", "topic", cfg.Topic, "desired_partitions", cfg.AutoCreateTopicDefaultPartitions)
-
 	// Create admin client WITHOUT auto-creation enabled to prevent Kafka from auto-creating
 	// the topic with default partitions before we explicitly create it with the desired count
 	adminCfg := cfg
@@ -199,8 +197,6 @@ func (cfg KafkaConfig) EnsureTopicPartitions(logger log.Logger) error {
 	if err != nil {
 		// If topic already exists, check and update partition count if needed
 		if errors.Is(err, kerr.TopicAlreadyExists) {
-			level.Info(logger).Log("msg", "topic already exists", "topic", cfg.Topic)
-
 			td, err := adm.ListTopics(ctx, cfg.Topic)
 			if err == nil {
 				err = td.Error()
@@ -228,35 +224,19 @@ func (cfg KafkaConfig) EnsureTopicPartitions(logger log.Logger) error {
 			if err != nil {
 				return fmt.Errorf("failed to update partitions for topic %s to new value %d: %w", cfg.Topic, cfg.AutoCreateTopicDefaultPartitions, err)
 			}
-
-			level.Info(logger).Log(
-				"msg", "successfully updated partitions",
-				"topic", cfg.Topic,
-				"previous_partitions", currentPartitionCount,
-				"new_partitions", cfg.AutoCreateTopicDefaultPartitions,
-			)
 			return nil
 		}
 		return fmt.Errorf("failed to create topic %s: %w", cfg.Topic, err)
 	}
 
-	level.Info(logger).Log(
-		"msg", "successfully created topic",
-		"topic", resp.Topic,
-		"num_partitions", resp.NumPartitions,
-		"replication_factor", resp.ReplicationFactor,
-	)
-
 	// Wait for topic to be visible in metadata before returning to avoid race conditions
 	// where producer starts before metadata has propagated
-	level.Info(logger).Log("msg", "waiting for topic to be visible in metadata", "topic", cfg.Topic)
 	for i := 0; i < 10; i++ {
 		td, err := adm.ListTopics(ctx, cfg.Topic)
 		if err == nil {
 			err = td.Error()
 		}
 		if err == nil && len(td[cfg.Topic].Partitions) == cfg.AutoCreateTopicDefaultPartitions {
-			level.Info(logger).Log("msg", "topic is now visible in metadata", "topic", cfg.Topic, "partitions", len(td[cfg.Topic].Partitions))
 			break
 		}
 		level.Info(logger).Log("msg", "topic not yet visible, retrying", "topic", cfg.Topic, "attempt", i+1)
