@@ -152,7 +152,7 @@ func TestCountSpans(t *testing.T) {
 	rootSpan := "foo"
 	rootService := "bar"
 
-	sch, _, _ := SchemaWithDynamicChanges(backend.DedicatedColumns{})
+	sch, _, _ := SchemaWithDynamicChanges(backend.DedicatedColumns{}, nil)
 	traceID := make([]byte, 16)
 	_, err := crand.Read(traceID)
 	require.NoError(t, err)

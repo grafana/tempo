@@ -27,9 +27,10 @@ type WAL struct {
 }
 
 type Config struct {
-	Filepath       string        `yaml:"path"`
-	IngestionSlack time.Duration `yaml:"ingestion_time_range_slack"`
-	Version        string        `yaml:"version,omitempty"`
+	Filepath           string                   `yaml:"path"`
+	IngestionSlack     time.Duration            `yaml:"ingestion_time_range_slack"`
+	Version            string                   `yaml:"version,omitempty"`
+	ParquetCompression common.ParquetCompression `yaml:"parquet_compression,omitempty"`
 }
 
 func (c *Config) RegisterFlags(*flag.FlagSet) {
@@ -148,7 +149,7 @@ func (w *WAL) NewBlock(meta *backend.BlockMeta, dataEncoding string) (common.WAL
 	if err != nil {
 		return nil, err
 	}
-	return v.CreateWALBlock(meta, w.c.Filepath, dataEncoding, w.c.IngestionSlack)
+	return v.CreateWALBlock(meta, w.c.Filepath, dataEncoding, w.c.IngestionSlack, w.c.ParquetCompression)
 }
 
 func (w *WAL) GetFilepath() string {

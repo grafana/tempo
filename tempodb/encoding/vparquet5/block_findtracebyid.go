@@ -260,7 +260,7 @@ func findTraceByID(ctx context.Context, traceID common.ID, meta *backend.BlockMe
 	rowMatch += int64(res.RowNumber[0])
 
 	// seek to row and read
-	_, _, readerOptions := SchemaWithDynamicChanges(meta.DedicatedColumns)
+	_, _, readerOptions := SchemaWithDynamicChanges(meta.DedicatedColumns, nil)
 	r := parquet.NewGenericReader[*Trace](pf, readerOptions...)
 	defer r.Close()
 

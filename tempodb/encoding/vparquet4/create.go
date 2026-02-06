@@ -153,7 +153,7 @@ func newStreamingBlock(ctx context.Context, cfg *common.BlockConfig, meta *backe
 
 	w := &backendWriter{ctx, to, DataFileName, (uuid.UUID)(meta.BlockID), meta.TenantID, nil}
 	bw := createBufferedWriter(w)
-	pw := parquet.NewGenericWriter[*Trace](bw)
+	pw := parquet.NewGenericWriter[*Trace](bw, cfg.GetCompressionOption())
 
 	return &streamingBlock{
 		ctx:   ctx,
