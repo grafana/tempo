@@ -5,14 +5,18 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"sync"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/gogo/protobuf/jsonpb"
 	"github.com/gogo/protobuf/proto"
 	"github.com/grafana/dskit/user"
+	"github.com/grafana/tempo/modules/frontend/pipeline"
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/pkg/api"
 	"github.com/grafana/tempo/pkg/cache"
@@ -20,6 +24,7 @@ import (
 	v1 "github.com/grafana/tempo/pkg/tempopb/common/v1"
 	"github.com/grafana/tempo/pkg/util/test"
 	"github.com/grafana/tempo/tempodb/backend"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -116,8 +121,8 @@ func TestQueryRangeHandlerSucceeds(t *testing.T) {
 func TestQueryRangeAccessesCache(t *testing.T) {
 	tenant := "foo"
 	meta := &backend.BlockMeta{
-		StartTime:         time.Unix(15, 0),
-		EndTime:           time.Unix(16, 0),
+		StartTime:         time.Unix(150, 0),
+		EndTime:           time.Unix(160, 0),
 		Size_:             defaultTargetBytesPerRequest,
 		TotalRecords:      1,
 		BlockID:           backend.MustParse("00000000-0000-0000-0000-000000000123"),
@@ -135,11 +140,11 @@ func TestQueryRangeAccessesCache(t *testing.T) {
 				},
 				Samples: []tempopb.Sample{
 					{
-						TimestampMs: 1200_000,
+						TimestampMs: 12_000_000,
 						Value:       2,
 					},
 					{
-						TimestampMs: 1100_000,
+						TimestampMs: 11_000_000,
 						Value:       1,
 					},
 				},
@@ -166,8 +171,8 @@ func TestQueryRangeAccessesCache(t *testing.T) {
 	step := 1000000000
 	query := "{} | rate()"
 	hash := hashForQueryRangeRequest(&tempopb.QueryRangeRequest{Query: query, Step: uint64(step)})
-	startNS := 10 * time.Second
-	endNS := 20 * time.Second
+	startNS := 100 * time.Second
+	endNS := 200 * time.Second
 	cacheKey := queryRangeCacheKey(tenant, hash, time.Unix(0, int64(startNS)), time.Unix(0, int64(endNS)), meta, 0, 1)
 
 	// confirm cache key coesn't exist
@@ -283,8 +288,8 @@ func TestQueryRangeCachedMetrics(t *testing.T) {
 	// set up backend
 	tenant := "foo"
 	meta := &backend.BlockMeta{
-		StartTime:         time.Unix(15, 0),
-		EndTime:           time.Unix(16, 0),
+		StartTime:         time.Unix(150, 0),
+		EndTime:           time.Unix(160, 0),
 		Size_:             defaultTargetBytesPerRequest,
 		TotalRecords:      1,
 		BlockID:           backend.MustParse("00000000-0000-0000-0000-000000000123"),
@@ -313,7 +318,7 @@ func TestQueryRangeCachedMetrics(t *testing.T) {
 						},
 						Samples: []tempopb.Sample{
 							{
-								TimestampMs: 1100_000,
+								TimestampMs: 11_000_000,
 								Value:       1,
 							},
 						},
@@ -329,8 +334,8 @@ func TestQueryRangeCachedMetrics(t *testing.T) {
 	query := "{} | rate()"
 	var step uint64 = 1000000000
 	hash := hashForQueryRangeRequest(&tempopb.QueryRangeRequest{Query: query, Step: step})
-	startNS := uint64(10 * time.Second)
-	endNS := uint64(20 * time.Second)
+	startNS := uint64(100 * time.Second)
+	endNS := uint64(200 * time.Second)
 	cacheKey := queryRangeCacheKey(tenant, hash, time.Unix(0, int64(startNS)), time.Unix(0, int64(endNS)), meta, 0, 1)
 
 	// confirm cache key doesn't exist
@@ -384,4 +389,141 @@ func TestQueryRangeCachedMetrics(t *testing.T) {
 	require.Equal(t, uint32(1), actualResp.Metrics.TotalJobs)
 	require.Equal(t, uint32(1), actualResp.Metrics.TotalBlocks)
 	require.Equal(t, uint64(defaultTargetBytesPerRequest), actualResp.Metrics.TotalBlockBytes)
+}
+
+func TestQueryRangeHandlerWithEndCutoff(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		step := 10 * time.Second
+
+		time.Sleep(123 * time.Millisecond) // to make default time for synctest imperfect
+		now := time.Now()
+		alignedNow := now.Truncate(step) // align back to step
+
+		start := now.Add(-100 * time.Second).UnixNano()
+		cutoff := 30 * time.Second
+
+		tenant := "foo"
+		meta := &backend.BlockMeta{
+			StartTime:         now.Add(-100 * time.Second),
+			EndTime:           now,
+			Size_:             defaultTargetBytesPerRequest,
+			TotalRecords:      1,
+			BlockID:           backend.MustParse("00000000-0000-0000-0000-000000000123"),
+			ReplicationFactor: 1,
+		}
+		retResp := &tempopb.QueryRangeResponse{
+			Metrics: &tempopb.SearchMetrics{
+				InspectedTraces: 1,
+				InspectedBytes:  1,
+			},
+			Series: []*tempopb.TimeSeries{
+				{
+					Labels: []v1.KeyValue{
+						{Key: "foo", Value: &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "bar"}}},
+					},
+					Samples: []tempopb.Sample{
+						{
+							TimestampMs: 12_000_000,
+							Value:       2,
+						},
+						{
+							TimestampMs: 11_000_000,
+							Value:       1,
+						},
+					},
+				},
+			},
+		}
+
+		rdr := &mockReader{
+			metas: []*backend.BlockMeta{meta},
+		}
+		rt := &mockRoundTripperWithCapture{
+			rt: mockRoundTripper{
+				responseFn: func() proto.Message {
+					return retResp
+				},
+			},
+		}
+
+		for _, tc := range []struct {
+			name        string
+			end         time.Time
+			expectedEnd time.Time
+		}{
+			{
+				name:        "now",
+				end:         now,
+				expectedEnd: alignedNow.Add(-cutoff),
+			},
+			{
+				name:        "unaligned",
+				end:         now.Add(-100 * time.Millisecond),
+				expectedEnd: alignedNow.Add(-cutoff),
+			},
+			{
+				name:        "before cutoff",
+				end:         now.Add(-cutoff - 20*time.Second),
+				expectedEnd: alignedNow.Add(-cutoff - 10*time.Second), // aligned to right
+			},
+			{
+				name:        "before unaligned",
+				end:         now.Add(-cutoff - 3*time.Second),
+				expectedEnd: alignedNow.Add(-cutoff),
+			},
+		} {
+			f := frontendWithSettings(t, rt, rdr, nil, nil, func(c *Config, _ *overrides.Config) {
+				c.Metrics.Sharder.Interval = time.Hour
+				c.QueryEndCutoff = cutoff
+			})
+
+			httpReq := httptest.NewRequest("GET", api.PathMetricsQueryRange, nil)
+			httpReq = api.BuildQueryRangeRequest(httpReq, &tempopb.QueryRangeRequest{
+				Query: "{} | rate()",
+				Start: uint64(start),
+				End:   uint64(tc.end.UnixNano()),
+				Step:  uint64(step),
+			}, "")
+
+			ctx := user.InjectOrgID(httpReq.Context(), tenant)
+			httpReq = httpReq.WithContext(ctx)
+
+			httpResp := httptest.NewRecorder()
+
+			f.MetricsQueryRangeHandler.ServeHTTP(httpResp, httpReq)
+
+			resp := httpResp.Result()
+			require.Equal(t, 200, resp.StatusCode)
+
+			actualResp := &tempopb.QueryRangeResponse{}
+			bytesResp, err := io.ReadAll(resp.Body)
+			require.NoError(t, err)
+			err = jsonpb.Unmarshal(bytes.NewReader(bytesResp), actualResp)
+			require.NoError(t, err)
+
+			require.NotNil(t, rt.req)
+			actualEnd := time.Unix(0, int64(rt.req.End))
+			assert.Equal(t, tc.expectedEnd, actualEnd, "[%s] actual end %s is not equal to expected end %s", tc.name, actualEnd, tc.expectedEnd)
+		}
+	})
+}
+
+// mockRoundTripperWithCapture is a mitm helper that captures query range requests
+type mockRoundTripperWithCapture struct {
+	rt  mockRoundTripper
+	req *tempopb.QueryRangeRequest
+	mx  sync.Mutex
+}
+
+func (m *mockRoundTripperWithCapture) RoundTrip(req pipeline.Request) (*http.Response, error) {
+	qrReq, err := api.ParseQueryRangeRequest(req.HTTPRequest())
+	if err != nil {
+		panic("wrong test setup")
+	}
+	m.mx.Lock()
+	defer m.mx.Unlock()
+	m.req = qrReq
+
+	res, err := m.rt.RoundTrip(req)
+	return res, err
 }

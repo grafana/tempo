@@ -1,0 +1,3 @@
+query_frontend:
+  query_end_cutoff: 5s
+
