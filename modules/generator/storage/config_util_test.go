@@ -7,8 +7,12 @@ import (
 	"testing"
 
 	prometheus_common_config "github.com/prometheus/common/config"
+	"github.com/prometheus/common/model"
 	prometheus_config "github.com/prometheus/prometheus/config"
+	"github.com/prometheus/prometheus/model/labels"
+	"github.com/prometheus/prometheus/model/relabel"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/grafana/tempo/pkg/util"
 )
@@ -140,6 +144,48 @@ func Test_copyMap(t *testing.T) {
 	assert.Len(t, original, 2)
 	assert.Equal(t, "v2", original["k2"])
 	assert.Equal(t, "", original["k3"])
+}
+
+func Test_generateTenantRemoteWriteConfigs_writeRelabelConfigs(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
+
+	cfg := Config{
+		RemoteWrite: []prometheus_config.RemoteWriteConfig{
+			{
+				URL:     &prometheus_common_config.URL{URL: urlMustParse("http://prometheus-1/api/prom/push")},
+				Headers: map[string]string{},
+				WriteRelabelConfigs: []*relabel.Config{
+					{
+						SourceLabels: model.LabelNames{"deployment_environment"},
+						Separator:    relabel.DefaultRelabelConfig.Separator,
+						Regex:        relabel.DefaultRelabelConfig.Regex,
+						Replacement:  relabel.DefaultRelabelConfig.Replacement,
+						Action:       relabel.Replace,
+						TargetLabel:  "client_deployment_environment",
+					},
+				},
+			},
+		},
+	}
+
+	// Validate once at startup, as the generator does in Config.Validate().
+	require.NoError(t, cfg.Validate())
+
+	result := generateTenantRemoteWriteConfigs(cfg.RemoteWrite, "my-tenant", nil, false, logger, false)
+
+	// Simulate what the Prometheus remote write queue manager does: run the
+	// relabel configs against a label set. Before the fix this panics with
+	// "Invalid name validation scheme requested: unset" because
+	// NameValidationScheme was never initialized on the relabel configs.
+	lbls := labels.FromStrings("deployment_environment", "production")
+
+	var newLbls labels.Labels
+	var keep bool
+	assert.NotPanics(t, func() {
+		newLbls, keep = relabel.Process(lbls, result[0].WriteRelabelConfigs...)
+	})
+	assert.True(t, keep)
+	assert.Equal(t, "production", newLbls.Get("client_deployment_environment"))
 }
 
 func urlMustParse(urlStr string) *url.URL {
