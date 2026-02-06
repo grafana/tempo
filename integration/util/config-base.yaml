@@ -73,6 +73,7 @@ ingest:
   kafka:
     address: kafka:9092
     topic: tempo-ingest
+    auto_create_topic_default_partitions: 2
 
 querier:
   frontend_worker:
