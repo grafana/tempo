@@ -88,7 +88,6 @@ tempo {
   admin_api_args:: {
     target: 'admin-api',
     'config.file': '/conf/tempo.yaml',
-    'mem-ballast-size-mbs': $._config.ballast_size_mbs,
   },
   admin_api_container::
     container.new(name='admin-api', image=$._images.tempo)
@@ -119,7 +118,6 @@ tempo {
     'gateway.proxy.ingester.url': 'http://ingester:%s' % $._config.port,
     'gateway.proxy.querier.url': 'http://querier:%s' % $._config.port,
     'gateway.proxy.query-frontend.url': 'http://query-frontend:%s' % $._config.port,
-    'mem-ballast-size-mbs': $._config.ballast_size_mbs,
   },
   gateway_container::
     container.new(name='gateway', image=$._images.tempo)
