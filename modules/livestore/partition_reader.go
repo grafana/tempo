@@ -119,21 +119,27 @@ func (r *PartitionReader) running(ctx context.Context) error {
 			continue
 		}
 
-		// Calculate and store maximum lag in entries
-		// Technically shaped as a nested loop, but we only have one partition (at the moment)
-		for _, fetch := range fetches {
-			for _, topic := range fetch.Topics {
-				for _, partition := range topic.Partitions {
-					// HighWatermark guaranteed to be >= LastStableOffset
-					lag := partition.HighWatermark - partition.LastStableOffset
-					r.lag.Store(lag)
-				}
-			}
-		}
-
 		r.recordFetchesMetrics(fetches)
 		if offset := r.consumeFetches(ctx, fetches); offset != nil {
 			r.storeOffsetForCommit(ctx, offset)
+		}
+
+		// Calculate lag as the difference between the high watermark and
+		// the last successfully processed (committed) offset.
+		for _, fetch := range fetches {
+			for _, topic := range fetch.Topics {
+				for _, partition := range topic.Partitions {
+					var committedOffset int64
+					if owm := r.offsetWatermark.Load(); owm != nil {
+						committedOffset = owm.At
+					}
+					lag := partition.HighWatermark - committedOffset
+					if lag < 0 {
+						lag = 0
+					}
+					r.lag.Store(lag)
+				}
+			}
 		}
 	}
 
