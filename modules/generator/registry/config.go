@@ -38,7 +38,7 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(string, *flag.FlagSet) {
 }
 
 const (
-	SpanNameSanitizationDisabled = "disabled"
+	SpanNameSanitizationDisabled = ""
 	SpanNameSanitizationDryRun   = "dry_run"
 	SpanNameSanitizationEnabled  = "enabled"
 )

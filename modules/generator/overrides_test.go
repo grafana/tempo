@@ -153,7 +153,7 @@ func (m *mockOverrides) MetricsGeneratorNativeHistogramMinResetDuration(string) 
 }
 
 func (m *mockOverrides) MetricsGeneratorSpanNameSanitization(string) string {
-	return "disabled"
+	return ""
 }
 
 // MetricsGeneratorProcessorSpanMetricsEnableTargetInfo enables target_info metrics

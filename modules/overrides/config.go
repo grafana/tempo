@@ -270,7 +270,6 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 func (c *Config) RegisterFlagsAndApplyDefaults(f *flag.FlagSet) {
 	// Generator
 	c.Defaults.MetricsGenerator.GenerateNativeHistograms = histograms.HistogramMethodClassic
-	c.Defaults.MetricsGenerator.SpanNameSanitization = "disabled"
 
 	// Distributor LegacyOverrides
 	c.Defaults.Ingestion.RetryInfoEnabled = true // enabled in overrides by default but it's disabled with RetryAfterOnResourceExhausted = 0
