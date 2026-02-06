@@ -18,6 +18,7 @@ The Tempo configuration options include:
 - [Configure Tempo](#configure-tempo)
   - [Use environment variables in the configuration](#use-environment-variables-in-the-configuration)
   - [Server](#server)
+  - [Memory](#memory)
   - [Distributor](#distributor)
     - [Set max attribute size to help control out of memory errors](#set-max-attribute-size-to-help-control-out-of-memory-errors)
     - [gRPC compression](#grpc-compression)
@@ -135,6 +136,25 @@ server:
     # Max gRPC message size that can be sent
     # This value may need to be increased if you have large traces
     [grpc_server_max_send_msg_size: <int> | default = 16777216]
+```
+
+## Memory
+
+Tempo supports automatic GOMEMLIMIT configuration using the [automemlimit](https://github.com/KimMachineGun/automemlimit) library.
+When enabled, it automatically sets Go's memory limit based on available container (via CGroups) or system memory every 15 seconds.
+
+NOTE: enabling this will override value set in GOMEMLIMIT environment variable
+
+```yaml
+memory:
+    # Enable automatic GOMEMLIMIT configuration based on cgroup/system memory.
+    # When enabled, Tempo will automatically detect available memory from cgroups (v2 or v1)
+    # or system memory and set GOMEMLIMIT accordingly.
+    [automemlimit_enabled: <bool> | default = false]
+
+    # Ratio of available memory to use for GOMEMLIMIT.
+    # For example, 0.8 means 80% of available memory will be used for GOMEMLIMIT.
+    [automemlimit_ratio: <float> | default = 0.8]
 ```
 
 ## Distributor

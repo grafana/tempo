@@ -1,7 +1,7 @@
 .DS_Store
 .idea
 .vscode
-.claude
+.claude/settings.local.json
 *.test
 *.out
 .coverage/

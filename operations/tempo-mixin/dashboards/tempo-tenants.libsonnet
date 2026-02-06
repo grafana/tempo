@@ -78,7 +78,7 @@ dashboard_utils {
           $.panel('Live traces') +
           $.queryPanel(
             [
-              'max(tempo_ingester_live_traces{%s,tenant="$tenant"})' % $.jobMatcher($._config.jobs.ingester),
+              'max(tempo_live_store_live_traces{%s,tenant="$tenant"})' % $.jobMatcher($._config.jobs.live_store_zones),
               limitQuery('max_global_traces_per_user'),
               limitQuery('max_local_traces_per_user'),
             ],

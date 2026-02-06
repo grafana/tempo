@@ -41,18 +41,6 @@ dashboard_utils {
         )
       )
       .addRow(
-        g.row('Ingester')
-        .addPanel(
-          cpuPanel($._config.jobs.ingester),
-        )
-        .addPanel(
-          memoryPanel($._config.jobs.ingester),
-        )
-        .addPanel(
-          heapPanel('Memory (go heap inuse)', $.jobMatcher($._config.jobs.ingester)),
-        )
-      )
-      .addRow(
         g.row('Livestore')
         .addPanel(
           cpuPanel($._config.jobs.live_store),

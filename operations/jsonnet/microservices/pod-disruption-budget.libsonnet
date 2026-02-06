@@ -33,12 +33,16 @@
       },
     },
 
-    // TODO: use the zpdb from the rollout-operator for live_stores
-    // live_store+: {
-    //   pdb: {
-    //     enabled: false,
-    //   },
-    // },
+    live_store+: {
+      // Live-stores use the zone-aware Pod Disruption Budget.
+      // https://github.com/grafana/rollout-operator/blob/main/operations/rollout-operator/zone-aware-pod-disruption-budget.libsonnet
+      zpdb: {
+        enabled: true,  // Required by default.
+        max_unavailable: 1,
+        partition_regex: '[a-z\\-]+-zone-[a-z]-([0-9]+)',
+        partition_group: 1,
+      },
+    },
 
     metrics_generator+: {
       pdb: {

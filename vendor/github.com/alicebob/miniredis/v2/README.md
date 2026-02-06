@@ -225,6 +225,7 @@ Implemented commands:
    - CLUSTER SLOTS
    - CLUSTER KEYSLOT
    - CLUSTER NODES
+   - CLUSTER SHARDS
  - HyperLogLog (complete)
    - PFADD
    - PFCOUNT
