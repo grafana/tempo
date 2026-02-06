@@ -243,7 +243,11 @@ func (cfg KafkaConfig) EnsureTopicPartitions(logger log.Logger) error {
 		time.Sleep(100 * time.Millisecond)
 	}
 
-	// Give coordinator a moment to initialize for new topics
+	// Give coordinator a moment to initialize for new topics.
+	// This simple 2-second wait prevents coordinator-not-available errors in E2E tests
+	// when topics are created with many partitions. The coordinator needs time to initialize
+	// before consumers can successfully fetch offsets.
+	// See: commit a03809a80 "Add simple 2-second wait for coordinator after topic creation"
 	time.Sleep(2 * time.Second)
 	return nil
 }
