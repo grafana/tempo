@@ -18,7 +18,6 @@
   tempo_query_frontend_args:: {
     target: target_name,
     'config.file': '/conf/tempo.yaml',
-    'mem-ballast-size-mbs': $._config.ballast_size_mbs,
   },
 
   tempo_query_frontend_container::

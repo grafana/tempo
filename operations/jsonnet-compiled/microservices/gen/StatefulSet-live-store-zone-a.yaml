@@ -52,7 +52,6 @@ spec:
       - args:
         - -config.file=/conf/tempo.yaml
         - -live-store.instance-availability-zone=zone-a
-        - -mem-ballast-size-mbs=1024
         - -target=live-store
         image: grafana/tempo:latest
         imagePullPolicy: IfNotPresent

@@ -19,7 +19,6 @@
   tempo_metrics_generator_args:: {
     target: target_name,
     'config.file': '/conf/tempo.yaml',
-    'mem-ballast-size-mbs': $._config.ballast_size_mbs,
   },
 
   tempo_metrics_generator_pvc::
