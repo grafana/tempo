@@ -156,7 +156,7 @@ func TestValidateFilterPolicies(t *testing.T) {
 			policies: []filterconfig.FilterPolicy{{
 				Include: &filterconfig.PolicyMatch{
 					MatchType:  filterconfig.Regex,
-					Attributes: []filterconfig.MatchPolicyAttribute{{Key: "resource.service.name", Value: ".*(" }},
+					Attributes: []filterconfig.MatchPolicyAttribute{{Key: "resource.service.name", Value: ".*("}},
 				},
 			}},
 			expErr:     true,
@@ -189,7 +189,7 @@ func TestValidateFilterPolicies(t *testing.T) {
 			policies: []filterconfig.FilterPolicy{{
 				Include: &filterconfig.PolicyMatch{
 					MatchType:  filterconfig.Regex,
-					Attributes: []filterconfig.MatchPolicyAttribute{{Key: "name", Value: ".*(" }},
+					Attributes: []filterconfig.MatchPolicyAttribute{{Key: "name", Value: ".*("}},
 				},
 			}},
 			expErr:     true,
