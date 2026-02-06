@@ -51,7 +51,6 @@ spec:
       containers:
       - args:
         - -config.file=/conf/tempo.yaml
-        - -mem-ballast-size-mbs=1024
         - -target=live-store
         - -live-store.instance-availability-zone=zone-a
         image: grafana/tempo:latest
