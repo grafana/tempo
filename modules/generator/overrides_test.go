@@ -152,6 +152,10 @@ func (m *mockOverrides) MetricsGeneratorNativeHistogramMinResetDuration(string) 
 	return m.nativeHistogramMinResetDuration
 }
 
+func (m *mockOverrides) MetricsGeneratorSpanNameSanitization(string) string {
+	return ""
+}
+
 // MetricsGeneratorProcessorSpanMetricsEnableTargetInfo enables target_info metrics
 func (m *mockOverrides) MetricsGeneratorProcessorSpanMetricsEnableTargetInfo(string) (bool, bool) {
 	spanMetricsEnableTargetInfo := m.spanMetricsEnableTargetInfo
