@@ -3,7 +3,7 @@ title: Polling
 description: Learn about polling cycle configuration options in Tempo.
 weight: 700
 aliases:
-- /docs/tempo/configuration/polling
+  - /docs/tempo/configuration/polling
 ---
 
 # Polling
@@ -23,7 +23,7 @@ storage:
         # fallback to scanning the entire bucket. Set to false to disable this behavior. Default is true.
         [blocklist_poll_fallback: <bool>]
 
-        # Maximum number of compactors or workers that should build the tenant index. All other components will download
+        # Maximum number of workers that should build the tenant index. All other components will download
         # the index. Default 2.
         [blocklist_poll_tenant_index_builders: <int>]
 
@@ -42,24 +42,24 @@ against the `blockist_poll` to handle this:
 The ingester `complete_block_timeout` is used to hold a block in the ingester for a given period of time after
 it has been flushed. This allows the ingester to return traces to the queriers while they are still unaware
 of the newly flushed blocks.
+
 ```
 ingester:
   # How long to hold a complete block in the ingester after it has been flushed to the backend. Default is 15m
   [complete_block_timeout: <duration>]
 ```
 
-The compactor `compacted_block_retention` is used to keep a block in the backend for a given period of time
+The compaction `compacted_block_retention` is used to keep a block in the backend for a given period of time
 after it has been compacted and the data is no longer needed. This allows queriers with a stale blocklist to access
 these blocks successfully until they complete their polling cycles and have up to date blocklists. Like the
 `complete_block_timeout`, this should be at a minimum 2x the configured `blocklist_poll` duration.
 
 ```
-compactor:
-  compaction:
-    # How long to leave a block in the backend after it has been compacted successfully. Default is 1h
-    [compacted_block_retention: <duration>]
+compaction:
+  # How long to leave a block in the backend after it has been compacted successfully. Default is 1h
+  [compacted_block_retention: <duration>]
 ```
 
-Additionally, the querier `blocklist_poll` duration needs to be greater than or equal to the compactor
+Additionally, the querier `blocklist_poll` duration needs to be greater than or equal to the worker
 `blocklist_poll` duration. Otherwise, a querier may not correctly check all assigned blocks and incorrectly return 404.
 It is recommended to simply set both components to use the same poll duration.

@@ -3,8 +3,8 @@ title: Bad blocks
 description: Troubleshoot queries failing with an error message indicating bad blocks.
 weight: 475
 aliases:
-- ../../operations/troubleshooting/bad-blocks/ # https://grafana.com/docs/tempo/<TEMPO_VERSION>/operations/troubleshooting/bad-blocks/
-- ../bad-blocks/ # https://grafana.com/docs/tempo/<TEMPO_VERSION>/troubleshooting/bad-blocks/
+  - ../../operations/troubleshooting/bad-blocks/ # https://grafana.com/docs/tempo/<TEMPO_VERSION>/operations/troubleshooting/bad-blocks/
+  - ../bad-blocks/ # https://grafana.com/docs/tempo/<TEMPO_VERSION>/troubleshooting/bad-blocks/
 ---
 
 # Bad blocks
@@ -21,15 +21,9 @@ A block can get corrupted if the ingester crashed while flushing the block to th
 
 ## Fixing bad blocks
 
-At the moment, a backend block can be fixed if either the index or bloom-filter is corrupt/deleted.
+The `gen index` and `gen bloom` CLI commands that were previously used to fix corrupted blocks have been removed in Tempo 3.0. These commands were specific to the v2 block format, which is no longer supported.
 
-To fix such a block, first download it onto a machine where you can run the `tempo-cli`.
-
-Next run the `tempo-cli`'s `gen index` / `gen bloom` commands depending on which file is corrupt/deleted.
-The command will create a fresh index/bloom-filter from the data file at the required location (in the block folder).
-To view all of the options for this command, see the [CLI docs](https://grafana.com/docs/tempo/<TEMPO_VERSION>/operations/tempo_cli/).
-
-Finally, upload the generated index or bloom-filter onto the object store backend under the folder for the block.
+If you encounter corrupted blocks, the recommended approach is to delete the affected blocks, which may result in some loss of data. Alternatively, you can restore the blocks from a backup if available.
 
 ## Removing bad blocks
 
