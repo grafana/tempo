@@ -7,18 +7,18 @@ import (
 )
 
 type SpanFilter struct {
-	filterPolicies []*filterPolicy
-}
+	include     []*splitPolicy
+	includeOnly []*splitPolicy
+	exclude     []*splitPolicy
 
-type filterPolicy struct {
-	Include *splitPolicy
-	Exclude *splitPolicy
+	hasInclude     bool
+	hasIncludeOnly bool
+	hasExclude     bool
 }
 
 // NewSpanFilter returns a SpanFilter that will filter spans based on the given filter policies.
 func NewSpanFilter(filterPolicies []config.FilterPolicy) (*SpanFilter, error) {
-	var policies []*filterPolicy
-
+	sf := new(SpanFilter)
 	for _, policy := range filterPolicies {
 		err := config.ValidateFilterPolicy(policy)
 		if err != nil {
@@ -30,43 +30,86 @@ func NewSpanFilter(filterPolicies []config.FilterPolicy) (*SpanFilter, error) {
 			return nil, err
 		}
 
+		if include != nil {
+			sf.include = append(sf.include, include)
+			sf.hasInclude = true
+		}
+
+		includeOnly, err := getSplitPolicy(policy.IncludeOnly)
+		if err != nil {
+			return nil, err
+		}
+
+		if includeOnly != nil {
+			sf.includeOnly = append(sf.includeOnly, includeOnly)
+			sf.hasIncludeOnly = true
+		}
+
 		exclude, err := getSplitPolicy(policy.Exclude)
 		if err != nil {
 			return nil, err
 		}
-		p := filterPolicy{
-			Include: include,
-			Exclude: exclude,
-		}
-
-		if p.Include != nil || p.Exclude != nil {
-			policies = append(policies, &p)
+		if exclude != nil {
+			sf.exclude = append(sf.exclude, exclude)
+			sf.hasExclude = true
 		}
 	}
 
-	return &SpanFilter{
-		filterPolicies: policies,
-	}, nil
+	return sf, nil
 }
 
 // ApplyFilterPolicy returns true if the span should be included in the metrics.
 func (f *SpanFilter) ApplyFilterPolicy(rs *v1.Resource, span *tracev1.Span) bool {
 	// With no filter policies specified, all spans are included.
-	if len(f.filterPolicies) == 0 {
+	if !f.hasInclude && !f.hasIncludeOnly && !f.hasExclude {
 		return true
 	}
 
-	for _, policy := range f.filterPolicies {
-		if policy.Include != nil && !policy.Include.Match(rs, span) {
-			return false
-		}
+	if f.hasExclude && f.isExcluded(rs, span) {
+		return false
+	}
 
-		if policy.Exclude != nil && policy.Exclude.Match(rs, span) {
+	if f.hasIncludeOnly && f.isIncludedOnly(rs, span) {
+		return true
+	}
+
+	if f.hasInclude {
+		return f.isIncluded(rs, span)
+	}
+
+	// If we have an include_only but NO standard include, and we reached
+	// here, it means include_only didn't match. -> return false.
+	// IF NO inclusion rules exist at all -> return true.
+	return !f.hasIncludeOnly
+}
+
+// This is different than the isIncluded. It's a VIP pass,working as an OR expression.
+// if ANY policy matches the span is included
+func (f *SpanFilter) isIncludedOnly(rs *v1.Resource, span *tracev1.Span) bool {
+	for _, policy := range f.includeOnly {
+		if policy.Match(rs, span) {
+			return true
+		}
+	}
+	return false
+}
+
+func (f *SpanFilter) isIncluded(rs *v1.Resource, span *tracev1.Span) bool {
+	for _, policy := range f.include {
+		if !policy.Match(rs, span) {
 			return false
 		}
 	}
-
 	return true
+}
+
+func (f *SpanFilter) isExcluded(rs *v1.Resource, span *tracev1.Span) bool {
+	for _, policy := range f.exclude {
+		if policy.Match(rs, span) {
+			return true
+		}
+	}
+	return false
 }
 
 func getSplitPolicy(policy *config.PolicyMatch) (*splitPolicy, error) {
