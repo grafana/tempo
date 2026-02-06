@@ -9,6 +9,7 @@ import (
 	"github.com/grafana/tempo/modules/generator/processor"
 	"github.com/grafana/tempo/modules/generator/registry"
 	"github.com/grafana/tempo/pkg/sharedconfig"
+	filterconfig "github.com/grafana/tempo/pkg/spanfilter/config"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/model"
 	"github.com/prometheus/prometheus/util/strutil"
@@ -185,6 +186,15 @@ func ValidateDimensionMappings(dimensionMappings []sharedconfig.DimensionMapping
 		}
 		if len(m.SourceLabel) == 0 {
 			return fmt.Errorf("dimension_mappings: source_labels cannot be empty for mapping with name %q", m.Name)
+		}
+	}
+	return nil
+}
+
+func ValidateFilterPolicies(policies []filterconfig.FilterPolicy) error {
+	for _, fp := range policies {
+		if err := filterconfig.ValidateFilterPolicy(fp); err != nil {
+			return err
 		}
 	}
 	return nil

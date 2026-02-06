@@ -3,8 +3,163 @@ package validation
 import (
 	"testing"
 
+	filterconfig "github.com/grafana/tempo/pkg/spanfilter/config"
 	"github.com/stretchr/testify/require"
 )
+
+func TestValidateFilterPolicies(t *testing.T) {
+	tests := []struct {
+		name       string
+		policies   []filterconfig.FilterPolicy
+		expErr     bool
+		expErrText string
+	}{
+		{
+			name:     "nil policies",
+			policies: nil,
+		},
+		{
+			name:     "empty policies",
+			policies: []filterconfig.FilterPolicy{},
+		},
+		{
+			name: "valid include with strict match",
+			policies: []filterconfig.FilterPolicy{{
+				Include: &filterconfig.PolicyMatch{
+					MatchType:  filterconfig.Strict,
+					Attributes: []filterconfig.MatchPolicyAttribute{{Key: "resource.service.name", Value: "my-service"}},
+				},
+			}},
+		},
+		{
+			name: "valid exclude with regex match",
+			policies: []filterconfig.FilterPolicy{{
+				Exclude: &filterconfig.PolicyMatch{
+					MatchType:  filterconfig.Regex,
+					Attributes: []filterconfig.MatchPolicyAttribute{{Key: "resource.service.name", Value: "unknown_.*"}},
+				},
+			}},
+		},
+		{
+			name: "valid include and exclude",
+			policies: []filterconfig.FilterPolicy{{
+				Include: &filterconfig.PolicyMatch{
+					MatchType:  filterconfig.Strict,
+					Attributes: []filterconfig.MatchPolicyAttribute{{Key: "resource.service.name", Value: "my-service"}},
+				},
+				Exclude: &filterconfig.PolicyMatch{
+					MatchType:  filterconfig.Regex,
+					Attributes: []filterconfig.MatchPolicyAttribute{{Key: "span.http.url", Value: "/health.*"}},
+				},
+			}},
+		},
+		{
+			name: "valid intrinsic attributes",
+			policies: []filterconfig.FilterPolicy{{
+				Include: &filterconfig.PolicyMatch{
+					MatchType: filterconfig.Strict,
+					Attributes: []filterconfig.MatchPolicyAttribute{
+						{Key: "kind", Value: "SPAN_KIND_SERVER"},
+						{Key: "name", Value: "HTTP GET"},
+						{Key: "status", Value: "ok"},
+					},
+				},
+			}},
+		},
+		{
+			name: "multiple valid policies",
+			policies: []filterconfig.FilterPolicy{
+				{
+					Include: &filterconfig.PolicyMatch{
+						MatchType:  filterconfig.Strict,
+						Attributes: []filterconfig.MatchPolicyAttribute{{Key: "resource.service.name", Value: "svc-a"}},
+					},
+				},
+				{
+					Exclude: &filterconfig.PolicyMatch{
+						MatchType:  filterconfig.Regex,
+						Attributes: []filterconfig.MatchPolicyAttribute{{Key: "span.http.url", Value: "/health.*"}},
+					},
+				},
+			},
+		},
+		{
+			name:       "no include or exclude",
+			policies:   []filterconfig.FilterPolicy{{}},
+			expErr:     true,
+			expErrText: "must have at least an `include` or `exclude`",
+		},
+		{
+			name: "invalid match type on include",
+			policies: []filterconfig.FilterPolicy{{
+				Include: &filterconfig.PolicyMatch{
+					MatchType:  "invalid",
+					Attributes: []filterconfig.MatchPolicyAttribute{{Key: "resource.service.name", Value: "test"}},
+				},
+			}},
+			expErr:     true,
+			expErrText: "invalid match type",
+		},
+		{
+			name: "invalid match type on exclude",
+			policies: []filterconfig.FilterPolicy{{
+				Exclude: &filterconfig.PolicyMatch{
+					MatchType:  "invalid",
+					Attributes: []filterconfig.MatchPolicyAttribute{{Key: "resource.service.name", Value: "test"}},
+				},
+			}},
+			expErr:     true,
+			expErrText: "invalid match type",
+		},
+		{
+			name: "empty attribute key",
+			policies: []filterconfig.FilterPolicy{{
+				Include: &filterconfig.PolicyMatch{
+					MatchType:  filterconfig.Strict,
+					Attributes: []filterconfig.MatchPolicyAttribute{{Key: "", Value: "test"}},
+				},
+			}},
+			expErr:     true,
+			expErrText: "invalid attribute",
+		},
+		{
+			name: "unsupported intrinsic",
+			policies: []filterconfig.FilterPolicy{{
+				Exclude: &filterconfig.PolicyMatch{
+					MatchType:  filterconfig.Strict,
+					Attributes: []filterconfig.MatchPolicyAttribute{{Key: "duration"}},
+				},
+			}},
+			expErr:     true,
+			expErrText: "unsupported intrinsic",
+		},
+		{
+			name: "second policy invalid",
+			policies: []filterconfig.FilterPolicy{
+				{
+					Include: &filterconfig.PolicyMatch{
+						MatchType:  filterconfig.Strict,
+						Attributes: []filterconfig.MatchPolicyAttribute{{Key: "resource.service.name", Value: "valid"}},
+					},
+				},
+				{},
+			},
+			expErr:     true,
+			expErrText: "must have at least an `include` or `exclude`",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := ValidateFilterPolicies(tt.policies)
+			if tt.expErr {
+				require.ErrorContains(t, err, tt.expErrText)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+}
 
 func TestValidateCostAttributionDimensions(t *testing.T) {
 	tests := []struct {
