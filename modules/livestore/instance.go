@@ -224,7 +224,7 @@ func (i *instance) pushBytes(ctx context.Context, ts time.Time, req *tempopb.Pus
 			traceSz := trace.Size()
 			allowResult := i.traceSizes.Allow(traceID, traceSz, maxBytes)
 			if !allowResult.IsAllowed {
-				i.maxTraceLogger.Log("msg", overrides.ErrorPrefixTraceTooLarge, "max", maxBytes, "traceSz", traceSz, "totalSize", allowResult.CurrentTotalSize, "trace", hex.EncodeToString(traceID))
+				i.maxTraceLogger.Log("msg", overrides.ErrorPrefixTraceTooLarge, "max", maxBytes, "traceSz", traceSz, "totalSize", allowResult.CurrentTotalSize, "trace", hex.EncodeToString(traceID), "insight", true)
 				overrides.RecordDiscardedSpans(countSpans(trace), overrides.ReasonTraceTooLarge, i.tenantID)
 				continue
 			}

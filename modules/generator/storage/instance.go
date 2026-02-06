@@ -169,15 +169,16 @@ func (s *storageImpl) watchOverrides() {
 
 			if !headersEqual(s.currentHeaders, newHeaders) || s.sendNativeHistograms != newSendNativeHistograms {
 				s.logger.Info("updating remote write configuration")
-				s.currentHeaders = newHeaders
-				s.sendNativeHistograms = newSendNativeHistograms
 				err := s.remote.ApplyConfig(&prometheus_config.Config{
 					RemoteWriteConfigs: generateTenantRemoteWriteConfigs(s.cfg.RemoteWrite, s.tenantID, newHeaders, s.cfg.RemoteWriteAddOrgIDHeader, s.logger, newSendNativeHistograms),
 				})
 				if err != nil {
 					metricStorageRemoteWriteUpdateFailed.WithLabelValues(s.tenantID).Inc()
-					s.logger.Info("Failed to update remote write configuration. Remote write will continue with configuration", "err", err.Error())
+					s.logger.Warn("Failed to update remote write configuration. Remote write will continue with previous configuration", "err", err.Error())
+					continue
 				}
+				s.currentHeaders = newHeaders
+				s.sendNativeHistograms = newSendNativeHistograms
 			}
 		case <-s.closeCh:
 			return

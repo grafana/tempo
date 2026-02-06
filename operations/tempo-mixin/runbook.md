@@ -267,6 +267,167 @@ This alert fires when a Kafka partition in a consumer group is lagging behind th
    - If the lag is temporary due to a spike in traffic, monitor to see if it recovers
 
 
+## TempoBlockBuildersPartitionsMismatch
+
+This alert fires when more than 1 active or inactive partition has been un-owned by a block-builder for more than 10 minutes.
+
+### How it works
+
+Each block-builder is configured to consume from one or more Kafka partitions.
+
+The distributor uses the partition ring to determine which partitions are active and where each trace should be sent.
+
+
+### How to investigate it
+
+1. Ensure that all the blockbuilders are running and not crashlooping.
+2. Look what partition is missing. This metric will return the assigned ones and their state:
+   `tempo_block_builder_owned_partitions{namespace="tempo-dev-01"}`
+3. Check is that partition is assigned to any of the block-builder instances. Look for any error.
+
+
+## TempoLiveStoresPartitionsUnowned
+
+This alert fires when one or more Kafka partitions have no active live-store instances consuming from them for more than 10 minutes.
+
+### How it works
+
+- Live-stores consume traces from Kafka partitions and serve them on the read path
+- Each active partition should have at least one live-store instance consuming from it across all zones
+- The alert compares the total number of active/inactive partitions in the ring against the count of partitions that have at least one active consumer
+- If there are more partitions than consumers, some partitions are unowned
+
+### Impact
+
+- **Read path degradation**: Queries for recent traces in unowned partitions will fail or return incomplete results
+- **Critical**: This is a data availability issue that needs immediate attention
+
+### How to investigate
+
+1. Check which partitions are unowned by comparing the partition ring to active consumers:
+   ```
+   tempo_partition_ring_partitions{name="livestore-partitions", state=~"Active|Inactive"}
+   tempo_live_store_partition_owned{}
+   ```
+
+2. Check if live-store pods are running and healthy:
+   ```bash
+   kubectl -n <namespace> get pods -l name=live-store
+   kubectl -n <namespace> logs -l name=live-store --tail=100
+   ```
+
+3. Look for errors in the logs related to live-store pod health
+
+### How to fix
+
+1. **If live-store pods are down or crashlooping:**
+   - Check pod status and logs for errors
+   - If OOM, consider scaling resources
+   - Restart unhealthy pods if needed
+
+2. **If live-store pods are running but not claiming partitions:**
+   - Check logs for errors
+
+## TempoLiveStoreZoneSeverelyDegraded
+
+This alert fires when a zone owns 60% fewer partitions than other zones,
+indicating that a large portion of live-store pods in that zone are unhealthy.
+
+### How to investigate
+
+1. Check pod health in the affected zone:
+   ```bash
+   kubectl -n <namespace> get pods -l name=live-store -o wide
+   ```
+
+2. Review health metrics to see partition distribution across zones:
+   ```
+   tempo_live_store_partition_owned
+   ```
+
+3. Check logs for errors in the affected zone's pods:
+   ```bash
+   kubectl -n <namespace> logs -l name=live-store --tail=100
+   ```
+
+4. Look at Kubernetes events for any issues (node problems, scheduling failures, etc.):
+   ```bash
+   kubectl -n <namespace> get events --sort-by='.lastTimestamp'
+   ```
+
+### How to fix
+
+- Restart unhealthy pods in the affected zone
+- Check for node-level issues if multiple pods are down
+- Verify zone has sufficient resources to run live-store pods
+
+## TempoDistributorUsageTrackerErrors
+
+The Tempo distributor is encountering errors when usage tracker/cost attribution for a tenant. This is caused by a misconfigured usage tracker configuration for the affected tenant.
+
+This alert means that tenant's cost attribution is not working or is incorrect due to this misconfiguration.
+
+### Troubleshooting Steps
+
+1. Check the alert labels to identify the affected (alerting metric has the tenant, reason, cluster, and namespace labels).
+2. Review the tenant's usage tracker configuration for issues
+3. Check distributor logs for detailed error messages and more details of the reason.
+4. If the configuration is incorrect, work with the impacted tenant to fix their usage tracker settings.
+
+
+## TempoMetricsGeneratorProcessorUpdatesFailing
+
+The metrics-generator contains processors to convert spans into metrics. They can be enabled/disabled dynamically per
+tenant. The metrics-generator periodically reads the overrides file and updates the active processors accordingly.
+
+Updating the processors might fail if an invalid processor is configured (i.e. a typo) or if creating and registering
+the new processor failed. If the update failed, the metrics-generator will keep retrying. This process is per tenant and
+failed updates to a single tenant should not impact others.
+
+How to investigate:
+
+1. Check the logs.
+2. Verify if there were any recent changes to the overrides file.
+
+## TempoMetricsGeneratorServiceGraphsDroppingSpans
+
+The service graphs processor buffers spans internally. If the buffer is full, spans will be dropped. This will result in
+incomplete service graphs metrics.
+
+How to fix:
+
+1. Increase buffer size or increase the amount of workers.
+
+## TempoMetricsGeneratorCollectionsFailing
+
+The metrics-generator has a registry that keeps track of all the active counters. On a regular interval the state of
+these counters will be collected and appended as samples onto the WAL. These samples are sent out using remote write.
+
+If a collection fails, the samples will be dropped and the metrics for this tenant will be interrupted.
+
+How to investigate:
+
+1. Check the logs to find out why the collection failed. Search for the phrase "collecting metrics failed".
+
+## TempoMemcachedErrorsElevated
+
+This alert fires when memcached request errors exceed 20% for a role in a namespace/cluster.
+
+Likely causes include an overloaded memcached tier, network issues, or backend store timeouts surfacing as 5xx errors.
+
+### How to investigate
+
+1. Check memcached pod health and recent restarts.
+2. Review memcached logs for 5xx responses or connection errors.
+3. Compare request rate and cache hit ratio to see if the tier is saturated.
+4. Look for backend store or network timeouts that could be causing request failures.
+
+### How to fix
+
+- Scale memcached for the affected role (more replicas or resources).
+- Increase memcached capacity limits if eviction or memory pressure is high.
+- Address backend or network issues if errors correlate with timeouts upstream.
+
 ## TempoBackendSchedulerJobsFailureRateHigh
 
 This alert fires when the failure rate of backend scheduler jobs exceeds alert threshold.
