@@ -180,7 +180,7 @@ Refer to the [Optional: Other storage options](#optional-other-storage-options) 
 
 {{< admonition type="note" >}}
 
-The MinIO installation included with this Helm chart is for demonstration purposes only.
+The MinIO installation included with this Helm chart is for demonstration purposes only. MinIO is deprecated and in maintenance mode.
 This configuration sets up a maximum storage size of 5GiB.
 This MinIO installation isn't suitable for production environments and should only be used for example purposes.
 For production, use performant, production-grade object storage.
