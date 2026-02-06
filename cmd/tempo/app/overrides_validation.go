@@ -7,7 +7,6 @@ import (
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/modules/overrides/userconfigurable/api"
 	"github.com/grafana/tempo/modules/overrides/userconfigurable/client"
-	filterconfig "github.com/grafana/tempo/pkg/spanfilter/config"
 )
 
 type runtimeConfigValidator struct {
@@ -112,10 +111,8 @@ func (v *overridesValidator) Validate(limits *client.Limits) error {
 	}
 
 	if filterPolicies, ok := limits.GetMetricsGenerator().GetProcessor().GetSpanMetrics().GetFilterPolicies(); ok {
-		for _, fp := range filterPolicies {
-			if err := filterconfig.ValidateFilterPolicy(fp); err != nil {
-				return err
-			}
+		if err := validation.ValidateFilterPolicies(filterPolicies); err != nil {
+			return err
 		}
 	}
 

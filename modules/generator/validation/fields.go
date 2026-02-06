@@ -9,6 +9,8 @@ import (
 	"github.com/grafana/tempo/modules/generator/processor"
 	"github.com/grafana/tempo/modules/generator/registry"
 	"github.com/grafana/tempo/pkg/sharedconfig"
+	"github.com/grafana/tempo/pkg/spanfilter"
+	filterconfig "github.com/grafana/tempo/pkg/spanfilter/config"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/model"
 	"github.com/prometheus/prometheus/util/strutil"
@@ -188,6 +190,14 @@ func ValidateDimensionMappings(dimensionMappings []sharedconfig.DimensionMapping
 		}
 	}
 	return nil
+}
+
+func ValidateFilterPolicies(policies []filterconfig.FilterPolicy) error {
+	// config.ValidateFilterPolicy only does shallow structural validation.
+	// NewSpanFilter does full validation including attribute parsing, scope checks, and regex compilation.
+	// The filter itself is discarded, we only care about the error because we are checking if the policies are valid.
+	_, err := spanfilter.NewSpanFilter(policies)
+	return err
 }
 
 func ValidateServiceGraphsDimensions(dimensions []string) error {
