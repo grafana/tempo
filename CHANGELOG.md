@@ -8,6 +8,7 @@
 * [FEATURE] Add span_multiplier_key to overrides. This allows tenants to specify the attribute key used for span multiplier values to compensate for head-based sampling. [#6260](https://github.com/grafana/tempo/pull/6260) (@carles-grafana)
 * [ENHANCEMENT] Add new alerts and runbooks entries [#6276](https://github.com/grafana/tempo/pull/6276) (@javiermolinar)
 * [ENHANCEMENT] Double the maximum number of dedicated string columns in vParquet5 and update tempo-cli to determine the optimum number for the data [#6282](https://github.com/grafana/tempo/pull/6282) (@mdisibio)
+* [ENHANCEMENT] Improve attribute truncating observability [#6400](https://github.com/grafana/tempo/pull/6400) (@javiermolinar)
 * [ENHANCEMENT] Improved live store readiness check and added `readiness_target_lag` and `readiness_max_wait` config parameters. Live store will now - if `readiness_target_lag` is set - not report `/ready` until Kafka lag is brought under the specified value [#6238](https://github.com/grafana/tempo/pull/6238) (@oleg-kozlyuk-grafana)
 * [ENHANCEMENT] Expose a new histogram metric to track the jobs per query distribution [#6343](https://github.com/grafana/tempo/pull/6343) (@javiermolinar)
 * [BUGFIX] Fix query-frontend unable to convert dedicated column blob option [#6377](https://github.com/grafana/tempo/pull/6377) (@stoewer)
