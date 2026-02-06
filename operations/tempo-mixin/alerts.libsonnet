@@ -5,20 +5,6 @@
         name: 'tempo_alerts',
         rules: [
           {
-            alert: 'TempoCompactorUnhealthy',
-            expr: |||
-              max by (%s) (tempo_ring_members{state="Unhealthy", name="%s", namespace=~"%s"}) > 0
-            ||| % [$._config.group_by_cluster, $._config.jobs.compactor, $._config.namespace],
-            'for': '15m',
-            labels: {
-              severity: 'critical',
-            },
-            annotations: {
-              message: 'There are {{ printf "%f" $value }} unhealthy compactor(s).',
-              runbook_url: 'https://github.com/grafana/tempo/tree/main/operations/tempo-mixin/runbook.md#TempoCompactorUnhealthy',
-            },
-          },
-          {
             alert: 'TempoDistributorUnhealthy',
             'for': '15m',
             expr: |||
@@ -30,20 +16,6 @@
             annotations: {
               message: 'There are {{ printf "%f" $value }} unhealthy distributor(s).',
               runbook_url: 'https://github.com/grafana/tempo/tree/main/operations/tempo-mixin/runbook.md#TempoDistributorUnhealthy',
-            },
-          },
-          {
-            alert: 'TempoIngesterUnhealthy',
-            'for': '15m',
-            expr: |||
-              max by (%s) (tempo_ring_members{state="Unhealthy", name="%s", namespace=~"%s"}) > 0
-            ||| % [$._config.group_by_cluster, $._config.jobs.ingester, $._config.namespace],
-            labels: {
-              severity: 'critical',
-            },
-            annotations: {
-              message: 'There are {{ printf "%f" $value }} unhealthy ingester(s).',
-              runbook_url: 'https://github.com/grafana/tempo/tree/main/operations/tempo-mixin/runbook.md#TempoIngesterUnhealthy',
             },
           },
           {
@@ -87,38 +59,6 @@
             annotations: {
               message: 'Greater than %s compactions have failed in the past hour.' % $._config.alerts.compactions_per_hour_failed,
               runbook_url: 'https://github.com/grafana/tempo/tree/main/operations/tempo-mixin/runbook.md#TempoCompactionsFailing',
-            },
-          },
-          {
-            // wait 5m for failed flushes to self-heal using retries
-            alert: 'TempoIngesterFlushesUnhealthy',
-            expr: |||
-              sum by (%s) (increase(tempo_ingester_failed_flushes_total{}[1h])) > %s and
-              sum by (%s) (increase(tempo_ingester_failed_flushes_total{}[5m])) > 0
-            ||| % [$._config.group_by_cluster, $._config.alerts.flushes_per_hour_failed, $._config.group_by_cluster],
-            'for': '5m',
-            labels: {
-              severity: 'warning',
-            },
-            annotations: {
-              message: 'Greater than %s flush retries have occurred in the past hour.' % $._config.alerts.flushes_per_hour_failed,
-              runbook_url: 'https://github.com/grafana/tempo/tree/main/operations/tempo-mixin/runbook.md#TempoIngesterFlushesFailing',
-            },
-          },
-          {
-            // wait 10m for failed flushes to self-heal using retries
-            alert: 'TempoIngesterFlushesFailing',
-            expr: |||
-              sum by (%s) (increase(tempo_ingester_flush_failed_retries_total{}[1h])) > %s and
-              sum by (%s) (increase(tempo_ingester_flush_failed_retries_total{}[5m])) > 0
-            ||| % [$._config.group_by_cluster, $._config.alerts.flushes_per_hour_failed, $._config.group_by_cluster],
-            'for': '5m',
-            labels: {
-              severity: 'critical',
-            },
-            annotations: {
-              message: 'Greater than %s flush retries have failed in the past hour.' % $._config.alerts.flushes_per_hour_failed,
-              runbook_url: 'https://github.com/grafana/tempo/tree/main/operations/tempo-mixin/runbook.md#TempoIngesterFlushesFailing',
             },
           },
           {
@@ -220,25 +160,9 @@
               runbook_url: 'https://github.com/grafana/tempo/tree/main/operations/tempo-mixin/runbook.md#TempoTenantIndexFailures',
             },
           },
-          // ingesters
-          {
-            alert: 'TempoProvisioningTooManyWrites',
-            // 30MB/s written to the WAL per ingester max
-            expr: |||
-              avg by (%s) (rate(tempo_ingester_bytes_received_total{job=~".+/ingester"}[5m])) / 1024 / 1024 > 30
-            ||| % $._config.group_by_cluster,
-            'for': '15m',
-            labels: {
-              severity: 'warning',
-            },
-            annotations: {
-              message: 'Ingesters in {{ $labels.%s }}/{{ $labels.namespace }} are receiving more data/second than desired, add more ingesters.' % $._config.per_cluster_label,
-              runbook_url: 'https://github.com/grafana/tempo/tree/main/operations/tempo-mixin/runbook.md#TempoProvisioningTooManyWrites',
-            },
-          },
           // compactors
           {
-            alert: 'TempoCompactorsTooManyOutstandingBlocks',
+            alert: 'TempoCompactionTooManyOutstandingBlocks',
             expr: |||
               sum by (%s) (tempodb_compaction_outstanding_blocks{container="compactor", namespace=~"%s"}) / ignoring(tenant) group_left count(tempo_build_info{container="compactor", namespace=~"%s"}) by (%s) > %d
             ||| % [$._config.group_by_tenant, $._config.namespace, $._config.namespace, $._config.group_by_cluster, $._config.alerts.outstanding_blocks_warning],
@@ -248,11 +172,11 @@
             },
             annotations: {
               message: "There are too many outstanding compaction blocks in {{ $labels.%s }}/{{ $labels.namespace }} for tenant {{ $labels.tenant }}, increase compactor's CPU or add more compactors." % $._config.per_cluster_label,
-              runbook_url: 'https://github.com/grafana/tempo/tree/main/operations/tempo-mixin/runbook.md#TempoCompactorsTooManyOutstandingBlocks',
+              runbook_url: 'https://github.com/grafana/tempo/tree/main/operations/tempo-mixin/runbook.md#TempoCompactionTooManyOutstandingBlocks',
             },
           },
           {
-            alert: 'TempoCompactorsTooManyOutstandingBlocks',
+            alert: 'TempoCompactionTooManyOutstandingBlocks',
             expr: |||
               sum by (%s) (tempodb_compaction_outstanding_blocks{container="compactor", namespace=~"%s"}) / ignoring(tenant) group_left count(tempo_build_info{container="compactor", namespace=~"%s"}) by (%s) > %d
             ||| % [$._config.group_by_tenant, $._config.namespace, $._config.namespace, $._config.group_by_cluster, $._config.alerts.outstanding_blocks_critical],
@@ -262,21 +186,7 @@
             },
             annotations: {
               message: "There are too many outstanding compaction blocks in {{ $labels.%s }}/{{ $labels.namespace }} for tenant {{ $labels.tenant }}, increase compactor's CPU or add more compactors." % $._config.per_cluster_label,
-              runbook_url: 'https://github.com/grafana/tempo/tree/main/operations/tempo-mixin/runbook.md#TempoCompactorsTooManyOutstandingBlocks',
-            },
-          },
-          {
-            alert: 'TempoIngesterReplayErrors',
-            'for': '5m',
-            expr: |||
-              sum by (%s) (increase(tempo_ingester_replay_errors_total{namespace=~"%s"}[5m])) > 0
-            ||| % [$._config.group_by_tenant, $._config.namespace],
-            labels: {
-              severity: 'critical',
-            },
-            annotations: {
-              message: 'Tempo ingester has encountered errors while replaying a block on startup in {{ $labels.%s }}/{{ $labels.namespace }} for tenant {{ $labels.tenant }}' % $._config.per_cluster_label,
-              runbook_url: 'https://github.com/grafana/tempo/tree/main/operations/tempo-mixin/runbook.md#TempoIngesterReplayErrors',
+              runbook_url: 'https://github.com/grafana/tempo/tree/main/operations/tempo-mixin/runbook.md#TempoCompactionTooManyOutstandingBlocks',
             },
           },
           {
@@ -457,7 +367,7 @@
           {
             alert: 'TempoBlockBuildersPartitionsMismatch',
             expr: |||
-              max(tempo_partition_ring_partitions{name=~"ingester-partitions|livestore-partitions", state=~"Active|Inactive"}) by (namespace,cluster)
+              max(tempo_partition_ring_partitions{name=~"livestore-partitions", state=~"Active|Inactive"}) by (namespace,cluster)
               >
               sum(tempo_block_builder_owned_partitions) by(namespace,cluster)
             |||,
