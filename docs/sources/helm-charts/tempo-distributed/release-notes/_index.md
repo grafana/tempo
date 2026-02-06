@@ -16,5 +16,5 @@ Use this short code if or when the release notes are moved to live with the doc 
 {{< section menuTitle="true" >}}
 -->
 
-The release notes for the `tempo-distributed` Helm chart reside in the [`tempo-distributed` README file](https://github.com/grafana/helm-charts/blob/main/charts/tempo-distributed/README.md).
+The release notes for the `tempo-distributed` Helm chart reside in the [`tempo-distributed` README file](https://github.com/grafana-community/helm-charts/blob/main/charts/tempo-distributed/README.md).
 

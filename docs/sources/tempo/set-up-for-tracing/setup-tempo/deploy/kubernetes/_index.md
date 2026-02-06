@@ -23,10 +23,10 @@ Grafana Tempo does not come with any included authentication layer. You must run
 
 ## Helm
 
-Helm charts are available in the `grafana/helm-charts` repository:
+Helm charts are available in the `grafana-community/helm-charts` repository:
 
 - [monolithic mode](https://github.com/grafana/helm-charts/tree/main/charts/tempo)
-- [microservices mode](https://github.com/grafana/helm-charts/tree/main/charts/tempo-distributed) and [`tempo-distributed` chart documentation](/docs/helm-charts/tempo-distributed/next/)
+- [microservices mode](https://github.com/grafana-community/helm-charts/tree/main/charts/tempo-distributed) and [`tempo-distributed` chart documentation](/docs/helm-charts/tempo-distributed/next/)
 
 In addition, several Helm chart examples are available in the Tempo repository.
 
