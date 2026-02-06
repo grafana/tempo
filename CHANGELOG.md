@@ -15,6 +15,7 @@
 * [BUGFIX] Correct instant query calculation for rate() [#6205](https://github.com/grafana/tempo/pull/6205) (@ruslan-mikhailov)
 * [BUGFIX] Fix live-store deadlock occurring after a complete block failure [#6338](https://github.com/grafana/tempo/pull/6338) (@ruslan-mikhailov)
 * [BUGFIX] generator: fix dimension_mappings and target_info_excluded_dimensions being unconditionally overwritten even when overrides were nil [#6390](https://github.com/grafana/tempo/pull/6390) (@carles-grafana)
+* [BUGFIX] generator: fix panic when `write_relabel_configs` is configured on remote write endpoints [#6396](https://github.com/grafana/tempo/pull/6396) (@carles-grafana)
 
 ### 3.0 Cleanup
 
