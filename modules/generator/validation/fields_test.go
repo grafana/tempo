@@ -61,7 +61,7 @@ func TestValidateFilterPolicies(t *testing.T) {
 					Attributes: []filterconfig.MatchPolicyAttribute{
 						{Key: "kind", Value: "SPAN_KIND_SERVER"},
 						{Key: "name", Value: "HTTP GET"},
-						{Key: "status", Value: "ok"},
+						{Key: "status", Value: "STATUS_CODE_OK"},
 					},
 				},
 			}},
@@ -82,6 +82,24 @@ func TestValidateFilterPolicies(t *testing.T) {
 					},
 				},
 			},
+		},
+		{
+			name: "valid span-scoped attribute",
+			policies: []filterconfig.FilterPolicy{{
+				Include: &filterconfig.PolicyMatch{
+					MatchType:  filterconfig.Strict,
+					Attributes: []filterconfig.MatchPolicyAttribute{{Key: "span.http.method", Value: "GET"}},
+				},
+			}},
+		},
+		{
+			name: "valid intrinsic with regex match",
+			policies: []filterconfig.FilterPolicy{{
+				Include: &filterconfig.PolicyMatch{
+					MatchType:  filterconfig.Regex,
+					Attributes: []filterconfig.MatchPolicyAttribute{{Key: "name", Value: "HTTP.*"}},
+				},
+			}},
 		},
 		{
 			name:       "no include or exclude",
@@ -132,6 +150,83 @@ func TestValidateFilterPolicies(t *testing.T) {
 			}},
 			expErr:     true,
 			expErrText: "unsupported intrinsic",
+		},
+		{
+			name: "invalid regex pattern",
+			policies: []filterconfig.FilterPolicy{{
+				Include: &filterconfig.PolicyMatch{
+					MatchType:  filterconfig.Regex,
+					Attributes: []filterconfig.MatchPolicyAttribute{{Key: "resource.service.name", Value: ".*(" }},
+				},
+			}},
+			expErr:     true,
+			expErrText: "invalid attribute filter regexp",
+		},
+		{
+			name: "invalid intrinsic kind value",
+			policies: []filterconfig.FilterPolicy{{
+				Include: &filterconfig.PolicyMatch{
+					MatchType:  filterconfig.Strict,
+					Attributes: []filterconfig.MatchPolicyAttribute{{Key: "kind", Value: "INVALID_KIND"}},
+				},
+			}},
+			expErr:     true,
+			expErrText: "unsupported kind intrinsic string value",
+		},
+		{
+			name: "invalid intrinsic status value",
+			policies: []filterconfig.FilterPolicy{{
+				Include: &filterconfig.PolicyMatch{
+					MatchType:  filterconfig.Strict,
+					Attributes: []filterconfig.MatchPolicyAttribute{{Key: "status", Value: "invalid"}},
+				},
+			}},
+			expErr:     true,
+			expErrText: "unsupported status intrinsic string value",
+		},
+		{
+			name: "invalid regex on intrinsic",
+			policies: []filterconfig.FilterPolicy{{
+				Include: &filterconfig.PolicyMatch{
+					MatchType:  filterconfig.Regex,
+					Attributes: []filterconfig.MatchPolicyAttribute{{Key: "name", Value: ".*(" }},
+				},
+			}},
+			expErr:     true,
+			expErrText: "invalid intrinsic filter regex",
+		},
+		{
+			name: "unsupported event attribute scope",
+			policies: []filterconfig.FilterPolicy{{
+				Include: &filterconfig.PolicyMatch{
+					MatchType:  filterconfig.Strict,
+					Attributes: []filterconfig.MatchPolicyAttribute{{Key: "event.name", Value: "test"}},
+				},
+			}},
+			expErr:     true,
+			expErrText: "invalid or unsupported attribute scope",
+		},
+		{
+			name: "unsupported link attribute scope",
+			policies: []filterconfig.FilterPolicy{{
+				Include: &filterconfig.PolicyMatch{
+					MatchType:  filterconfig.Strict,
+					Attributes: []filterconfig.MatchPolicyAttribute{{Key: "link.traceID", Value: "test"}},
+				},
+			}},
+			expErr:     true,
+			expErrText: "invalid or unsupported attribute scope",
+		},
+		{
+			name: "unsupported instrumentation attribute scope",
+			policies: []filterconfig.FilterPolicy{{
+				Include: &filterconfig.PolicyMatch{
+					MatchType:  filterconfig.Strict,
+					Attributes: []filterconfig.MatchPolicyAttribute{{Key: "instrumentation.name", Value: "test"}},
+				},
+			}},
+			expErr:     true,
+			expErrText: "invalid or unsupported attribute scope",
 		},
 		{
 			name: "second policy invalid",
