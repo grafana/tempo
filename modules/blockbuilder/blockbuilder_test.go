@@ -815,6 +815,12 @@ func TestBlockbuilder_gracefulShutdown(t *testing.T) {
 	chConsumeDone := make(chan struct{})
 	chStopDone := make(chan struct{})
 
+	// Use sync.Once to prevent panics from closing channels multiple times.
+	// Multiple OffsetFetch/OffsetCommit calls can happen when:
+	// - Multiple consume cycles run during the test (each cycle fetches/commits offsets)
+	// - Coordinator checks or other Kafka operations trigger additional offset operations
+	// Without sync.Once, trying to close an already-closed channel causes a panic.
+	// See: commit ca6c83c24 "Fix race condition in TestBlockbuilder_gracefulShutdown"
 	var consumeStartedOnce, consumeDoneOnce sync.Once
 	k.ControlKey(kmsg.OffsetCommit, func(kmsg.Request) (kmsg.Response, error, bool) {
 		consumeDoneOnce.Do(func() { close(chConsumeDone) })
