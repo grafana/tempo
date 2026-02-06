@@ -61,7 +61,12 @@ Verify that you have:
 If you want to access Tempo from outside of the Kubernetes cluster, you may need an ingress.
 Ingress-related procedures are optional.
 {{< /admonition >}}
+{{< admonition type="note" >}}
+If you want to access Tempo from outside of the Kubernetes cluster, you may need an ingress.
+Ingress-related procedures are optional.
 
+Note that [ingress-nginx](https://github.com/kubernetes/ingress-nginx) is being retired and should not be used in production environments.
+{{< /admonition >}}
 <!-- This section should be verified before being made visible. It's from Mimir and might need to be updated for Tempo.
 
 ## Security setup
