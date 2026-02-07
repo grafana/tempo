@@ -738,10 +738,12 @@ metrics_generator:
         path: ""
         ingestion_time_range_slack: 2m0s
         version: vParquet4
+        page_buffer_size: 1024
     traces_query_storage:
         path: ""
         ingestion_time_range_slack: 2m0s
         version: vParquet4
+        page_buffer_size: 1024
     metrics_ingestion_time_range_slack: 30s
     query_timeout: 30s
     override_ring_key: metrics-generator
@@ -845,6 +847,7 @@ block_builder:
         path: /var/tempo/block-builder/traces
         ingestion_time_range_slack: 2m0s
         version: vParquet4
+        page_buffer_size: 1024
 storage:
     trace:
         pool:
@@ -853,6 +856,7 @@ storage:
         wal:
             path: /var/tempo/wal
             ingestion_time_range_slack: 2m0s
+            page_buffer_size: 1024
         block:
             bloom_filter_false_positive: 0.01
             bloom_filter_shard_size_bytes: 102400
@@ -1346,6 +1350,7 @@ live_store:
         path: /var/tempo/live-store/traces
         ingestion_time_range_slack: 2m0s
         version: vParquet4
+        page_buffer_size: 1024
     query_block_concurrency: 10
     complete_block_timeout: 1h0m0s
     complete_block_concurrency: 2

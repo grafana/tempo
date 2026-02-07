@@ -67,7 +67,7 @@ func TestPartialReplay(t *testing.T) {
 	basePath := t.TempDir()
 
 	meta := backend.NewBlockMeta("fake", blockID, VersionString)
-	w, err := createWALBlock(meta, basePath, model.CurrentEncoding, 0)
+	w, err := createWALBlock(meta, basePath, model.CurrentEncoding, 0, 16384)
 	require.NoError(t, err)
 
 	// Flush a set of traces across 2 pages
@@ -296,7 +296,7 @@ func TestRowIterator(t *testing.T) {
 
 func testWalBlock(t *testing.T, f func(w *walBlock, ids []common.ID, trs []*tempopb.Trace)) {
 	meta := backend.NewBlockMeta("fake", uuid.New(), VersionString)
-	w, err := createWALBlock(meta, t.TempDir(), model.CurrentEncoding, 0)
+	w, err := createWALBlock(meta, t.TempDir(), model.CurrentEncoding, 0, 16384)
 	require.NoError(t, err)
 
 	decoder := model.MustNewSegmentDecoder(model.CurrentEncoding)
@@ -342,7 +342,7 @@ func TestCreateWALBlockFilterDedicatedColumns(t *testing.T) {
 	}
 	original := slices.Clone(meta.DedicatedColumns)
 
-	wb, err := createWALBlock(meta, t.TempDir(), model.CurrentEncoding, 0)
+	wb, err := createWALBlock(meta, t.TempDir(), model.CurrentEncoding, 0, 16384)
 	require.NoError(t, err)
 	outMeta := wb.BlockMeta()
 
