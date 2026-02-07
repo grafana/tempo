@@ -52,7 +52,7 @@ func (v Encoding) OpenWALBlock(string, string, time.Duration, time.Duration) (b 
 }
 
 // CreateWALBlock creates a new appendable block
-func (v Encoding) CreateWALBlock(*backend.BlockMeta, string, string, time.Duration) (common.WALBlock, error) {
+func (v Encoding) CreateWALBlock(*backend.BlockMeta, string, string, time.Duration, common.ParquetCompression) (common.WALBlock, error) {
 	return nil, util.ErrUnsupported
 }
 

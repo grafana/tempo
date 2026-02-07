@@ -51,8 +51,8 @@ func (v Encoding) OpenWALBlock(filename, path string, ingestionSlack, additional
 }
 
 // CreateWALBlock creates a new appendable block
-func (v Encoding) CreateWALBlock(meta *backend.BlockMeta, filepath, dataEncoding string, ingestionSlack time.Duration) (common.WALBlock, error) {
-	return createWALBlock(meta, filepath, dataEncoding, ingestionSlack)
+func (v Encoding) CreateWALBlock(meta *backend.BlockMeta, filepath, dataEncoding string, ingestionSlack time.Duration, parquetCompression common.ParquetCompression) (common.WALBlock, error) {
+	return createWALBlock(meta, filepath, dataEncoding, ingestionSlack, parquetCompression)
 }
 
 func (v Encoding) OwnsWALBlock(entry fs.DirEntry) bool {

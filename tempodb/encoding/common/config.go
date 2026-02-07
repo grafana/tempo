@@ -6,6 +6,12 @@ import (
 
 	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/tempodb/backend"
+	"github.com/parquet-go/parquet-go"
+	"github.com/parquet-go/parquet-go/compress/gzip"
+	"github.com/parquet-go/parquet-go/compress/lz4"
+	"github.com/parquet-go/parquet-go/compress/snappy"
+	"github.com/parquet-go/parquet-go/compress/uncompressed"
+	"github.com/parquet-go/parquet-go/compress/zstd"
 )
 
 const (
@@ -13,6 +19,17 @@ const (
 	DefaultBloomShardSizeBytes  = 100 * 1024
 	DefaultIndexDownSampleBytes = 1024 * 1024
 	DefaultIndexPageSizeBytes   = 250 * 1024
+)
+
+// ParquetCompression defines the compression algorithm for parquet columns.
+type ParquetCompression string
+
+const (
+	ParquetCompressionSnappy ParquetCompression = "snappy"
+	ParquetCompressionLZ4    ParquetCompression = "lz4_raw"
+	ParquetCompressionZstd   ParquetCompression = "zstd"
+	ParquetCompressionGzip   ParquetCompression = "gzip"
+	ParquetCompressionNone   ParquetCompression = "none"
 )
 
 const DeprecatedError = "%s is no longer supported, please use %s or later"
@@ -24,7 +41,8 @@ type BlockConfig struct {
 	Version             string  `yaml:"version"`
 
 	// parquet fields
-	RowGroupSizeBytes int `yaml:"parquet_row_group_size_bytes"`
+	RowGroupSizeBytes  int                `yaml:"parquet_row_group_size_bytes"`
+	ParquetCompression ParquetCompression `yaml:"parquet_compression"`
 
 	// vParquet3 fields
 	DedicatedColumns backend.DedicatedColumns `yaml:"parquet_dedicated_columns"`
@@ -39,6 +57,24 @@ func (cfg *BlockConfig) RegisterFlagsAndApplyDefaults(prefix string, f *flag.Fla
 
 	cfg.RowGroupSizeBytes = 100_000_000 // 100 MB
 	cfg.DedicatedColumns = backend.DefaultDedicatedColumns()
+	cfg.ParquetCompression = ParquetCompressionSnappy
+}
+
+// GetCompressionOption returns a parquet.WriterOption that sets the compression codec
+// for all columns in the parquet file.
+func (cfg *BlockConfig) GetCompressionOption() parquet.WriterOption {
+	switch cfg.ParquetCompression {
+	case ParquetCompressionLZ4:
+		return parquet.Compression(&lz4.Codec{})
+	case ParquetCompressionZstd:
+		return parquet.Compression(&zstd.Codec{})
+	case ParquetCompressionGzip:
+		return parquet.Compression(&gzip.Codec{})
+	case ParquetCompressionNone:
+		return parquet.Compression(&uncompressed.Codec{})
+	default: // snappy or empty
+		return parquet.Compression(&snappy.Codec{})
+	}
 }
 
 // ValidateConfig returns true if the config is valid
@@ -49,6 +85,15 @@ func ValidateConfig(b *BlockConfig) error {
 
 	if b.BloomShardSizeBytes <= 0 {
 		return fmt.Errorf("positive value required for bloom-filter shard size")
+	}
+
+	// Validate parquet compression
+	switch b.ParquetCompression {
+	case ParquetCompressionSnappy, ParquetCompressionLZ4, ParquetCompressionZstd,
+		ParquetCompressionGzip, ParquetCompressionNone, "":
+		// valid
+	default:
+		return fmt.Errorf("invalid parquet_compression: %s", b.ParquetCompression)
 	}
 
 	// Check for deprecated version,

@@ -155,7 +155,7 @@ func openWALBlock(filename, path string, ingestionSlack, _ time.Duration) (commo
 }
 
 // createWALBlock creates a new appendable block
-func createWALBlock(meta *backend.BlockMeta, filepath, dataEncoding string, ingestionSlack time.Duration) (*walBlock, error) {
+func createWALBlock(meta *backend.BlockMeta, filepath, dataEncoding string, ingestionSlack time.Duration, parquetCompression common.ParquetCompression) (*walBlock, error) {
 	newMeta := &backend.BlockMeta{
 		Version:           VersionString,
 		BlockID:           meta.BlockID,
@@ -166,13 +166,14 @@ func createWALBlock(meta *backend.BlockMeta, filepath, dataEncoding string, inge
 	}
 
 	b := &walBlock{
-		meta:           newMeta,
-		path:           filepath,
-		ids:            common.NewIDMap[int64](0),
-		ingestionSlack: ingestionSlack,
-		dedcolsRes:     dedicatedColumnsToColumnMapping(meta.DedicatedColumns, backend.DedicatedColumnScopeResource),
-		dedcolsSpan:    dedicatedColumnsToColumnMapping(meta.DedicatedColumns, backend.DedicatedColumnScopeSpan),
-		dedcolsEvent:   dedicatedColumnsToColumnMapping(meta.DedicatedColumns, backend.DedicatedColumnScopeEvent),
+		meta:               newMeta,
+		path:               filepath,
+		ids:                common.NewIDMap[int64](0),
+		ingestionSlack:     ingestionSlack,
+		parquetCompression: parquetCompression,
+		dedcolsRes:         dedicatedColumnsToColumnMapping(meta.DedicatedColumns, backend.DedicatedColumnScopeResource),
+		dedcolsSpan:        dedicatedColumnsToColumnMapping(meta.DedicatedColumns, backend.DedicatedColumnScopeSpan),
+		dedcolsEvent:       dedicatedColumnsToColumnMapping(meta.DedicatedColumns, backend.DedicatedColumnScopeEvent),
 	}
 
 	// build folder
@@ -238,7 +239,7 @@ func (w *walBlockFlush) file(ctx context.Context) (*pageFile, error) {
 	}
 	size := info.Size()
 
-	sch, _, _ := SchemaWithDynamicChanges(w.dedcols)
+	sch, _, _ := SchemaWithDynamicChanges(w.dedcols, nil)
 
 	wr := newWalReaderAt(ctx, file)
 	o := []parquet.FileOption{
@@ -297,12 +298,13 @@ func (b *pageFileClosingIterator) Close() {
 }
 
 type walBlock struct {
-	meta           *backend.BlockMeta
-	path           string
-	ingestionSlack time.Duration
-	dedcolsRes     dedicatedColumnMapping
-	dedcolsSpan    dedicatedColumnMapping
-	dedcolsEvent   dedicatedColumnMapping
+	meta               *backend.BlockMeta
+	path               string
+	ingestionSlack     time.Duration
+	parquetCompression common.ParquetCompression
+	dedcolsRes         dedicatedColumnMapping
+	dedcolsSpan        dedicatedColumnMapping
+	dedcolsEvent       dedicatedColumnMapping
 
 	// Unflushed data
 	buffer        *Trace
@@ -401,7 +403,9 @@ func (b *walBlock) openWriter() (err error) {
 	}
 
 	if b.writer == nil {
-		_, writerOptions, _ := SchemaWithDynamicChanges(b.meta.DedicatedColumns)
+		// Get compression option from config, defaulting to snappy
+		cfg := &common.BlockConfig{ParquetCompression: b.parquetCompression}
+		_, writerOptions, _ := SchemaWithDynamicChanges(b.meta.DedicatedColumns, cfg.GetCompressionOption())
 
 		// setting this value low massively reduces the amount of static memory we hold onto in highly multi-tenant environments at the cost of
 		// cutting pages more aggressively when writing column chunks
@@ -478,7 +482,7 @@ func (b *walBlock) Iterator() (common.Iterator, error) {
 		bookmarks = append(bookmarks, newBookmark[parquet.Row](iter))
 	}
 
-	sch, _, _ := SchemaWithDynamicChanges(b.meta.DedicatedColumns)
+	sch, _, _ := SchemaWithDynamicChanges(b.meta.DedicatedColumns, nil)
 
 	iter := newMultiblockIterator(bookmarks, func(rows []parquet.Row) (parquet.Row, error) {
 		if len(rows) == 1 {
@@ -539,7 +543,7 @@ func (b *walBlock) FindTraceByID(ctx context.Context, id common.ID, opts common.
 			defer file.Close()
 			pf := file.parquetFile
 
-			_, _, readerOptions := SchemaWithDynamicChanges(page.dedcols)
+			_, _, readerOptions := SchemaWithDynamicChanges(page.dedcols, nil)
 
 			r := parquet.NewGenericReader[*Trace](pf, readerOptions...)
 			defer r.Close()

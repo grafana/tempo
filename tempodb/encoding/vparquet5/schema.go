@@ -879,7 +879,7 @@ func extendReuseSlice[T any](sz int, in []T) []T {
 	return append(in, make([]T, sz-len(in))...)
 }
 
-func SchemaWithDynamicChanges(dedicatedColumns backend.DedicatedColumns) (*parquet.Schema, []parquet.WriterOption, []parquet.ReaderOption) {
+func SchemaWithDynamicChanges(dedicatedColumns backend.DedicatedColumns, compressionOption parquet.WriterOption) (*parquet.Schema, []parquet.WriterOption, []parquet.ReaderOption) {
 	var (
 		resMapping   = dedicatedColumnsToColumnMapping(dedicatedColumns, backend.DedicatedColumnScopeResource)
 		spanMapping  = dedicatedColumnsToColumnMapping(dedicatedColumns, backend.DedicatedColumnScopeSpan)
@@ -889,6 +889,11 @@ func SchemaWithDynamicChanges(dedicatedColumns backend.DedicatedColumns) (*parqu
 	schemaOptions := []parquet.SchemaOption{}
 	writerOptions := []parquet.WriterOption{}
 	readerOptions := []parquet.ReaderOption{}
+
+	// Add compression option if provided - this sets the default compression for all columns
+	if compressionOption != nil {
+		writerOptions = append(writerOptions, compressionOption)
+	}
 
 	// Blobify
 	blobify := func(col dedicatedColumn) {

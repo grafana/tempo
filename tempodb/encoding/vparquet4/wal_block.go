@@ -154,7 +154,7 @@ func openWALBlock(filename, path string, ingestionSlack, _ time.Duration) (commo
 }
 
 // createWALBlock creates a new appendable block
-func createWALBlock(meta *backend.BlockMeta, filepath, dataEncoding string, ingestionSlack time.Duration) (*walBlock, error) {
+func createWALBlock(meta *backend.BlockMeta, filepath, dataEncoding string, ingestionSlack time.Duration, parquetCompression common.ParquetCompression) (*walBlock, error) {
 	newMeta := &backend.BlockMeta{
 		Version:           VersionString,
 		BlockID:           meta.BlockID,
@@ -165,12 +165,13 @@ func createWALBlock(meta *backend.BlockMeta, filepath, dataEncoding string, inge
 	}
 
 	b := &walBlock{
-		meta:           newMeta,
-		path:           filepath,
-		ids:            common.NewIDMap[int64](0),
-		ingestionSlack: ingestionSlack,
-		dedcolsRes:     dedicatedColumnsToColumnMapping(newMeta.DedicatedColumns, backend.DedicatedColumnScopeResource),
-		dedcolsSpan:    dedicatedColumnsToColumnMapping(newMeta.DedicatedColumns, backend.DedicatedColumnScopeSpan),
+		meta:               newMeta,
+		path:               filepath,
+		ids:                common.NewIDMap[int64](0),
+		ingestionSlack:     ingestionSlack,
+		parquetCompression: parquetCompression,
+		dedcolsRes:         dedicatedColumnsToColumnMapping(newMeta.DedicatedColumns, backend.DedicatedColumnScopeResource),
+		dedcolsSpan:        dedicatedColumnsToColumnMapping(newMeta.DedicatedColumns, backend.DedicatedColumnScopeSpan),
 	}
 
 	// build folder
@@ -291,11 +292,12 @@ func (b *pageFileClosingIterator) Close() {
 }
 
 type walBlock struct {
-	meta           *backend.BlockMeta
-	path           string
-	ingestionSlack time.Duration
-	dedcolsRes     dedicatedColumnMapping
-	dedcolsSpan    dedicatedColumnMapping
+	meta               *backend.BlockMeta
+	path               string
+	ingestionSlack     time.Duration
+	parquetCompression common.ParquetCompression
+	dedcolsRes         dedicatedColumnMapping
+	dedcolsSpan        dedicatedColumnMapping
 
 	// Unflushed data
 	buffer        *Trace
@@ -394,12 +396,15 @@ func (b *walBlock) openWriter() (err error) {
 	}
 
 	if b.writer == nil {
-		b.writer = parquet.NewGenericWriter[*Trace](b.file, &parquet.WriterConfig{
-			Schema: parquetSchema,
+		// Get compression option from config, defaulting to snappy
+		cfg := &common.BlockConfig{ParquetCompression: b.parquetCompression}
+		b.writer = parquet.NewGenericWriter[*Trace](b.file,
+			cfg.GetCompressionOption(),
+			parquet.SchemaOf(new(Trace)),
 			// setting this value low massively reduces the amount of static memory we hold onto in highly multi-tenant environments at the cost of
 			// cutting pages more aggressively when writing column chunks
-			PageBufferSize: 1024,
-		})
+			parquet.PageBufferSize(1024),
+		)
 	} else {
 		b.writer.Reset(b.file)
 	}
