@@ -873,4 +873,3 @@ func TestManagedRegistry_cardinalitySanitizer(t *testing.T) {
 	activeSeries := reg.activeSeries()
 	require.Less(t, activeSeries, uint32(30), "active series should be bounded by cardinality limiter")
 }
-
