@@ -470,6 +470,16 @@ func (o *runtimeConfigOverridesManager) MetricsGeneratorSpanNameSanitization(use
 	return o.defaultLimits.MetricsGenerator.SpanNameSanitization
 }
 
+// MetricsGeneratorMaxCardinalityPerLabel is the maximum number of distinct values any single
+// label can have before values are replaced with __cardinality_overflow__.
+// 0 disables the limit.
+func (o *runtimeConfigOverridesManager) MetricsGeneratorMaxCardinalityPerLabel(userID string) uint64 {
+	if v := o.getOverridesForUser(userID).MetricsGenerator.MaxCardinalityPerLabel; v > 0 {
+		return v
+	}
+	return o.defaultLimits.MetricsGenerator.MaxCardinalityPerLabel
+}
+
 // MetricsGeneratorTraceIDLabelName is the label name used for the trace ID in metrics.
 // "TraceID" is used if no value is provided.
 func (o *runtimeConfigOverridesManager) MetricsGeneratorTraceIDLabelName(userID string) string {

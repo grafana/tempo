@@ -13,7 +13,7 @@ import (
 )
 
 func TestCardinalitySanitizer_Disabled(t *testing.T) {
-	s := NewCardinalitySanitizer("test", 0, 15*time.Minute)
+	s := NewCardinalitySanitizer("test", &mockOverrides{maxCardinalityPerLabel: 0}, 15*time.Minute)
 
 	lbls := labels.FromStrings("__name__", "foo", "method", "GET", "url", "/api/users/123")
 	result := s.Sanitize(lbls)
@@ -21,7 +21,7 @@ func TestCardinalitySanitizer_Disabled(t *testing.T) {
 }
 
 func TestCardinalitySanitizer_UnderLimit(t *testing.T) {
-	s := NewCardinalitySanitizer("test", 100, 15*time.Minute)
+	s := NewCardinalitySanitizer("test", &mockOverrides{maxCardinalityPerLabel: 100}, 15*time.Minute)
 
 	// Insert a few distinct values — well under the limit
 	for i := 0; i < 5; i++ {
@@ -41,7 +41,7 @@ func TestCardinalitySanitizer_UnderLimit(t *testing.T) {
 }
 
 func TestCardinalitySanitizer_SelectiveOverflow(t *testing.T) {
-	s := NewCardinalitySanitizer("test", 5, 15*time.Minute)
+	s := NewCardinalitySanitizer("test", &mockOverrides{maxCardinalityPerLabel: 5}, 15*time.Minute)
 
 	// Push many distinct url values but few method values
 	for i := 0; i < 20; i++ {
@@ -61,7 +61,7 @@ func TestCardinalitySanitizer_SelectiveOverflow(t *testing.T) {
 }
 
 func TestCardinalitySanitizer_MetricNamePreserved(t *testing.T) {
-	s := NewCardinalitySanitizer("test", 1, 15*time.Minute)
+	s := NewCardinalitySanitizer("test", &mockOverrides{maxCardinalityPerLabel: 1}, 15*time.Minute)
 
 	// Push multiple distinct metric names — __name__ should never be overflowed
 	for i := 0; i < 20; i++ {
@@ -79,7 +79,7 @@ func TestCardinalitySanitizer_MetricNamePreserved(t *testing.T) {
 // TestCardinalitySanitizer_ConcurrentAccess verifies Sanitize() is safe to call
 // from multiple goroutines. Run with -race to detect unsynchronized access.
 func TestCardinalitySanitizer_ConcurrentAccess(t *testing.T) {
-	s := NewCardinalitySanitizer("test", 10, 15*time.Minute)
+	s := NewCardinalitySanitizer("test", &mockOverrides{maxCardinalityPerLabel: 10}, 15*time.Minute)
 
 	var wg sync.WaitGroup
 	wg.Add(10)
@@ -100,7 +100,7 @@ func TestCardinalitySanitizer_OverflowMetrics(t *testing.T) {
 		Name: "test_overflow_counter",
 	})
 
-	s := NewCardinalitySanitizer("test-metrics", 5, 15*time.Minute)
+	s := NewCardinalitySanitizer("test-metrics", &mockOverrides{maxCardinalityPerLabel: 5}, 15*time.Minute)
 	s.overflowCounter = overflowCounter
 
 	// Push enough distinct values to exceed limit
@@ -125,7 +125,7 @@ func TestCardinalitySanitizer_OverflowMetrics(t *testing.T) {
 }
 
 func TestCardinalitySanitizer_MultipleLabelsOverflow(t *testing.T) {
-	s := NewCardinalitySanitizer("test", 5, 15*time.Minute)
+	s := NewCardinalitySanitizer("test", &mockOverrides{maxCardinalityPerLabel: 5}, 15*time.Minute)
 
 	// Push many distinct values for BOTH url and user_id
 	for i := 0; i < 20; i++ {

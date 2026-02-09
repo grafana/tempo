@@ -484,6 +484,7 @@ type mockOverrides struct {
 	nativeHistogramMaxBucketNumber  uint32
 	nativeHistogramBucketFactor     float64
 	nativeHistogramMinResetDuration time.Duration
+	maxCardinalityPerLabel          uint64
 }
 
 var _ Overrides = (*mockOverrides)(nil)
@@ -526,6 +527,10 @@ func (m *mockOverrides) MetricsGeneratorNativeHistogramMinResetDuration(string) 
 
 func (m *mockOverrides) MetricsGeneratorSpanNameSanitization(string) string {
 	return SpanNameSanitizationDisabled
+}
+
+func (m *mockOverrides) MetricsGeneratorMaxCardinalityPerLabel(string) uint64 {
+	return m.maxCardinalityPerLabel
 }
 
 func mustGetHostname() string {
@@ -816,10 +821,9 @@ func TestManagedRegistry_cardinalitySanitizer(t *testing.T) {
 	appender := &capturingAppender{}
 
 	cfg := &Config{
-		MaxCardinalityPerLabel: 5,
-		StaleDuration:          15 * time.Minute,
+		StaleDuration: 15 * time.Minute,
 	}
-	reg := New(cfg, &mockOverrides{}, "test-card", appender, log.NewNopLogger(), noopLimiter)
+	reg := New(cfg, &mockOverrides{maxCardinalityPerLabel: 5}, "test-card", appender, log.NewNopLogger(), noopLimiter)
 	defer reg.Close()
 
 	counter := reg.NewCounter("http_requests")

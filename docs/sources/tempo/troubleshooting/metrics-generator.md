@@ -140,12 +140,13 @@ sum(rate(tempo_metrics_generator_registry_cardinality_limit_overflows_total{}[1m
 Configure the per-label cardinality limit:
 
 ```yaml
-metrics_generator:
-  registry:
-    max_cardinality_per_label: 0
+overrides:
+  defaults:
+    metrics_generator:
+      max_cardinality_per_label: 0
 ```
 
-A value of `0` (default) disables the limit. 
+A value of `0` (default) disables the limit.
 
 This setting works alongside both `max_active_series` and entity-based limiting.
 

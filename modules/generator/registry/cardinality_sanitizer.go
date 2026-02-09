@@ -31,7 +31,8 @@ type labelCardinalityState struct {
 type CardinalitySanitizer struct {
 	mtx            sync.Mutex
 	tenant         string
-	maxCardinality uint64
+	overrides      Overrides
+	maxCardinality uint64 // cached from overrides, refreshed every maintenance tick
 	labelsState    map[string]*labelCardinalityState
 	staleDuration  time.Duration
 
@@ -41,10 +42,11 @@ type CardinalitySanitizer struct {
 	pruneChan        <-chan time.Time
 }
 
-func NewCardinalitySanitizer(tenant string, maxCardinality uint64, staleDuration time.Duration) *CardinalitySanitizer {
+func NewCardinalitySanitizer(tenant string, overrides Overrides, staleDuration time.Duration) *CardinalitySanitizer {
 	return &CardinalitySanitizer{
 		tenant:           tenant,
-		maxCardinality:   maxCardinality,
+		overrides:        overrides,
+		maxCardinality:   overrides.MetricsGeneratorMaxCardinalityPerLabel(tenant),
 		labelsState:      make(map[string]*labelCardinalityState),
 		staleDuration:    staleDuration,
 		overflowCounter:  metricCardinalityLimitOverflows.WithLabelValues(tenant),
@@ -107,6 +109,8 @@ func (s *CardinalitySanitizer) doPeriodicMaintenance() {
 	select {
 	case <-s.demandUpdateChan:
 		s.mtx.Lock()
+		// Refresh the cached maxCardinality from the override
+		s.maxCardinality = s.overrides.MetricsGeneratorMaxCardinalityPerLabel(s.tenant)
 		for _, state := range s.labelsState {
 			state.overLimit = state.sketch.Estimate() > s.maxCardinality
 		}
