@@ -521,6 +521,7 @@ func (s *LiveStore) consume(ctx context.Context, rs recordIter, now time.Time) (
 
 		if record.Timestamp.Before(cutoff) {
 			metricRecordsDropped.WithLabelValues(tenant, droppedRecordReasonTooOld).Inc()
+			lastRecord = record
 			continue
 		}
 
@@ -530,6 +531,7 @@ func (s *LiveStore) consume(ctx context.Context, rs recordIter, now time.Time) (
 			metricRecordsDropped.WithLabelValues(tenant, droppedRecordReasonDecodingFailed).Inc()
 			level.Error(s.logger).Log("msg", "failed to decoded record", "tenant", tenant, "err", err)
 			span.RecordError(err)
+			lastRecord = record
 			continue
 		}
 
@@ -539,6 +541,7 @@ func (s *LiveStore) consume(ctx context.Context, rs recordIter, now time.Time) (
 			metricRecordsDropped.WithLabelValues(tenant, droppedRecordReasonInstanceNotFound).Inc()
 			level.Error(s.logger).Log("msg", "failed to get instance for tenant", "tenant", tenant, "err", err)
 			span.RecordError(err)
+			lastRecord = record
 			continue
 		}
 
