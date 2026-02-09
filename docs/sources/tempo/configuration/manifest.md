@@ -633,6 +633,7 @@ metrics_generator:
                 bloom_filter_shard_size_bytes: 102400
                 version: vParquet4
                 parquet_row_group_size_bytes: 100000000
+                parquet_compression: snappy
                 parquet_dedicated_columns:
                     - scope: resource
                       name: k8s.cluster.name
@@ -784,6 +785,7 @@ block_builder:
         bloom_filter_shard_size_bytes: 102400
         version: vParquet4
         parquet_row_group_size_bytes: 100000000
+        parquet_compression: snappy
         parquet_dedicated_columns:
             - scope: resource
               name: k8s.cluster.name
@@ -858,6 +860,7 @@ storage:
             bloom_filter_shard_size_bytes: 102400
             version: vParquet4
             parquet_row_group_size_bytes: 100000000
+            parquet_compression: snappy
             parquet_dedicated_columns:
                 - scope: resource
                   name: k8s.cluster.name
@@ -1362,6 +1365,7 @@ live_store:
         bloom_filter_shard_size_bytes: 102400
         version: ""
         parquet_row_group_size_bytes: 100000000
+        parquet_compression: snappy
         parquet_dedicated_columns:
             - scope: resource
               name: k8s.cluster.name
