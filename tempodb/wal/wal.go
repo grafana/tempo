@@ -27,9 +27,9 @@ type WAL struct {
 }
 
 type Config struct {
-	Filepath           string                   `yaml:"path"`
-	IngestionSlack     time.Duration            `yaml:"ingestion_time_range_slack"`
-	Version            string                   `yaml:"version,omitempty"`
+	Filepath           string                    `yaml:"path"`
+	IngestionSlack     time.Duration             `yaml:"ingestion_time_range_slack"`
+	Version            string                    `yaml:"version,omitempty"`
 	ParquetCompression common.ParquetCompression `yaml:"parquet_compression,omitempty"`
 }
 
