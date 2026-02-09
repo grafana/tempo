@@ -123,6 +123,19 @@ func TestLimits_parseJson(t *testing.T) {
 			},
 		},
 		{
+			"span_name_sanitization",
+			`{
+  "metrics_generator": {
+    "span_name_sanitization": "enabled"
+  }
+}`,
+			Limits{
+				MetricsGenerator: LimitsMetricsGenerator{
+					SpanNameSanitization: strPtr("enabled"),
+				},
+			},
+		},
+		{
 			"empty struct field",
 			`{"metrics_generator": {}}`,
 			Limits{},

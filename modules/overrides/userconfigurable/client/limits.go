@@ -46,6 +46,7 @@ type LimitsMetricsGenerator struct {
 	NativeHistogramMaxBucketNumber  *uint32                     `yaml:"native_histogram_max_bucket_number,omitempty" json:"native_histogram_max_bucket_number,omitempty"`
 	NativeHistogramBucketFactor     *float64                    `yaml:"native_histogram_bucket_factor,omitempty" json:"native_histogram_bucket_factor,omitempty"`
 	NativeHistogramMinResetDuration *Duration                   `yaml:"native_histogram_min_reset_duration,omitempty" json:"native_histogram_min_reset_duration,omitempty"`
+	SpanNameSanitization            *string                     `yaml:"span_name_sanitization,omitempty" json:"span_name_sanitization,omitempty"`
 
 	Processor LimitsMetricsGeneratorProcessor `yaml:"processor,omitempty" json:"processor,omitempty"`
 }
@@ -118,6 +119,13 @@ func (l *LimitsMetricsGenerator) GetIngestionSlack() (time.Duration, bool) {
 		return l.IngestionSlack.Duration, true
 	}
 	return 0, false
+}
+
+func (l *LimitsMetricsGenerator) GetSpanNameSanitization() (string, bool) {
+	if l != nil && l.SpanNameSanitization != nil {
+		return *l.SpanNameSanitization, true
+	}
+	return "", false
 }
 
 type LimitsMetricsGeneratorProcessor struct {
