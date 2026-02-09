@@ -318,11 +318,6 @@ func (s *LiveStore) starting(ctx context.Context) error {
 		return fmt.Errorf("failed to start partition reader: %w", err)
 	}
 
-	// Wait for catch-up before marking ready (if enabled)
-	if err := s.waitForCatchUp(ctx); err != nil {
-		return fmt.Errorf("failed to catch up: %w", err)
-	}
-
 	lagCtx, cncl := context.WithCancel(s.ctx)
 	s.lagCancel = cncl
 	// Start exporting partition lag metrics
@@ -344,6 +339,11 @@ func (s *LiveStore) starting(ctx context.Context) error {
 
 	// allow background processes to start
 	s.startAllBackgroundProcesses()
+
+	// Wait for catch-up before marking ready (if enabled)
+	if err := s.waitForCatchUp(ctx); err != nil {
+		return fmt.Errorf("failed to catch up: %w", err)
+	}
 
 	// Mark as ready at end of starting()
 	s.readyErr.Store(nil)
