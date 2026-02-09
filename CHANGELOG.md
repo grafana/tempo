@@ -56,6 +56,7 @@
 * [FEATURE] Add entity-based limiting mode for metrics-generator as an alternative to series-based limiting. [#5788](https://github.com/grafana/tempo/pull/5788) (@Logiraptor)
 * [FEATURE] Add `tempo_metrics_generator_registry_active_series_demand_estimate` that estimates metrics-generator active series demand even when the active series limit is reached [#5710](https://github.com/grafana/tempo/pull/5710) (@carles-grafana)
 * [FEATURE] Metrics generator will now produce overflow series to capture new data once limits are hit. These series have the label `metric_overflow="true"`. [#5954](https://github.com/grafana/tempo/pull/5954) (@Logiraptor)
+* [FEATURE] Add experimental drain limiter to the metrics generator. This can reduce metrics cardinality by clustering similar span names. [#6098](https://github.com/grafana/tempo/pull/6098) (@Logiraptor)
 * [FEATURE] Add support for external storage to trace by id endpoint [#6185](https://github.com/grafana/tempo/pull/6185) (@Logiraptor)
 * [ENHANCEMENT] add database_name_attributes config to service graph processor [#5398](https://github.com/grafana/tempo/pull/5398) (@KyriosGN0)
 * [ENHANCEMENT] Added validation mode and tests for tempo-vulture [#5605](https://github.com/grafana/tempo/pull/5605) (@davidham)
