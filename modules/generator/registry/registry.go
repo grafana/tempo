@@ -119,7 +119,17 @@ func New(cfg *Config, overrides Overrides, tenant string, appendable storage.App
 		externalLabels[cfg.InjectTenantIDAs] = tenant
 	}
 
-	sanitizer := NewDrainSanitizer(tenant, overrides.MetricsGeneratorSpanNameSanitization, cfg.StaleDuration)
+	drainSanitizer := NewDrainSanitizer(tenant, overrides.MetricsGeneratorSpanNameSanitization, cfg.StaleDuration)
+
+	var cardinalitySanitizer Sanitizer
+	// FIXME: config is only loaded at startup, pass overrides so we can reload
+	if cfg.MaxCardinalityPerLabel > 0 {
+		cardinalitySanitizer = NewCardinalitySanitizer(tenant, cfg.MaxCardinalityPerLabel, cfg.StaleDuration)
+	}
+
+	// run drainSanitizer before cardinalitySanitizer, cardinalitySanitizer should run just
+	// before we run the limier and at the end of all Sanitizers
+	sanitizer := NewChainSanitizer(drainSanitizer, cardinalitySanitizer)
 
 	r := &ManagedRegistry{
 		onShutdown: cancel,

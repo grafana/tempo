@@ -811,3 +811,62 @@ func TestManagedRegistry_entityDemandWithMultipleMetrics(t *testing.T) {
 	assert.Less(t, math.Abs(diff), 0.15, "entity demand should be ~50 since same entities used across metrics")
 	assert.Less(t, entityDemand, uint64(70), "entity demand should not triple-count entities across metrics")
 }
+
+func TestManagedRegistry_cardinalitySanitizer(t *testing.T) {
+	appender := &capturingAppender{}
+
+	cfg := &Config{
+		MaxCardinalityPerLabel: 5,
+		StaleDuration:          15 * time.Minute,
+	}
+	reg := New(cfg, &mockOverrides{}, "test-card", appender, log.NewNopLogger(), noopLimiter)
+	defer reg.Close()
+
+	counter := reg.NewCounter("http_requests")
+
+	// Helper to build labels through the registry's label builder (which applies the sanitizer)
+	buildLabels := func(method, url string) labels.Labels {
+		b := reg.NewLabelBuilder()
+		b.Add("method", method)
+		b.Add("url", url)
+		lbls, _ := b.CloseAndBuildLabels()
+		return lbls
+	}
+
+	// Push 20 series with high-cardinality url but low-cardinality method
+	for i := 0; i < 20; i++ {
+		counter.Inc(buildLabels("GET", fmt.Sprintf("/users/%d", i)), 1.0)
+	}
+
+	// Force the cardinality limiter to re-evaluate overLimit flags.
+	chain, ok := reg.sanitizer.(*ChainSanitizer)
+	require.True(t, ok, "expected sanitizer to be *ChainSanitizer")
+	for _, s := range chain.sanitizers {
+		if cl, ok := s.(*CardinalitySanitizer); ok {
+			triggerMaintenance(cl)
+		}
+	}
+
+	// Push more series after maintenance has flagged url as over limit
+	for i := 20; i < 30; i++ {
+		counter.Inc(buildLabels("GET", fmt.Sprintf("/users/%d", i)), 1.0)
+	}
+
+	reg.CollectMetrics(context.Background())
+
+	// Verify: url should have overflowed to __overflow__ for post-maintenance series
+	// while method remains "GET"
+	foundOverflow := false
+	for _, s := range appender.samples {
+		if s.l.Get("url") == "__overflow__" {
+			foundOverflow = true
+			require.Equal(t, "GET", s.l.Get("method"), "method should be preserved when url overflows")
+		}
+	}
+	require.True(t, foundOverflow, "expected at least one series with url=__overflow__")
+
+	// Verify active series is bounded — overflow collapses many url values into one
+	activeSeries := reg.activeSeries()
+	require.Less(t, activeSeries, uint32(30), "active series should be bounded by cardinality limiter")
+}
+
