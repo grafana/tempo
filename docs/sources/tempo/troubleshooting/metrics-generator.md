@@ -121,6 +121,38 @@ overrides:
       max_active_entities: 0
 ```
 
+### Per-label cardinality limiting
+
+The per-label cardinality sanitizer caps the number of distinct values any single label can have. When a label exceeds the configured threshold, its value is replaced with `__cardinality_overflow__` while all other labels are preserved.
+
+For example, a high-cardinality `url` label is overflowed while `method` is kept:
+
+```
+{service="foo", method="GET", url="/users/123"} → {service="foo", method="GET", url="__cardinality_overflow__"}
+```
+
+To detect if per-label cardinality limiting is active:
+
+```promql
+sum(rate(tempo_metrics_generator_registry_cardinality_limit_overflows_total{}[1m]))
+```
+
+Configure the per-label cardinality limit:
+
+```yaml
+metrics_generator:
+  registry:
+    max_cardinality_per_label: 0
+```
+
+A value of `0` (default) disables the limit. 
+
+This setting works alongside both `max_active_series` and entity-based limiting.
+
+The per-label cardinality sanitizer runs first during label construction, capping cardinality of the individual label's values. The active series or entity limiter enforces a hard ceiling on total series or entities.
+
+The per-label limit prevents a single high-cardinality label from consuming the entire series/entity budget, while the series/entity limiter guards against combinatorial explosion across multiple labels and series.
+
 ### Estimate active series demand
 
 When the active series limit is reached, the `tempo_metrics_generator_registry_active_series` metric no longer reflects the true demand. Use the `tempo_metrics_generator_registry_active_series_demand_estimate` metric to estimate what the active series count would be without the limit:

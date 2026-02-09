@@ -29,7 +29,7 @@ type Config struct {
 	MaxLabelValueLength int `yaml:"max_label_value_length"`
 
 	// MaxCardinalityPerLabel caps the number of distinct values any single label can have.
-	// When exceeded, the label value is replaced with "__overflow__" while other labels are preserved.
+	// When exceeded, the label value is replaced with "__cardinality_overflow__" while other labels are preserved.
 	// 0 disables the limit.
 	MaxCardinalityPerLabel uint64 `yaml:"max_cardinality_per_label"`
 }

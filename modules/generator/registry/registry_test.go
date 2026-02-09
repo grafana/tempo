@@ -854,16 +854,16 @@ func TestManagedRegistry_cardinalitySanitizer(t *testing.T) {
 
 	reg.CollectMetrics(context.Background())
 
-	// Verify: url should have overflowed to __overflow__ for post-maintenance series
+	// Verify: url should have overflowed to __cardinality_overflow__ for post-maintenance series
 	// while method remains "GET"
 	foundOverflow := false
 	for _, s := range appender.samples {
-		if s.l.Get("url") == "__overflow__" {
+		if s.l.Get("url") == "__cardinality_overflow__" {
 			foundOverflow = true
 			require.Equal(t, "GET", s.l.Get("method"), "method should be preserved when url overflows")
 		}
 	}
-	require.True(t, foundOverflow, "expected at least one series with url=__overflow__")
+	require.True(t, foundOverflow, "expected at least one series with url=__cardinality_overflow__")
 
 	// Verify active series is bounded — overflow collapses many url values into one
 	activeSeries := reg.activeSeries()

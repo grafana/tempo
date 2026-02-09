@@ -11,12 +11,12 @@ import (
 	"github.com/prometheus/prometheus/schema"
 )
 
-const overflowValue = "__overflow__"
+const overflowValue = "__cardinality_overflow__"
 
 var metricCardinalityLimitOverflows = promauto.NewCounterVec(prometheus.CounterOpts{
 	Namespace: "tempo",
 	Name:      "metrics_generator_registry_cardinality_limit_overflows_total",
-	Help:      "Total number of label values replaced with __overflow__ by the per-label cardinality limiter",
+	Help:      "Total number of label values replaced with __cardinality_overflow__ by the per-label cardinality sanitizer",
 }, []string{"tenant"})
 
 type labelCardinalityState struct {
@@ -24,7 +24,7 @@ type labelCardinalityState struct {
 	overLimit bool // cached flag, updated periodically in maintenance tick
 }
 
-// CardinalitySanitizer replaces individual label values with __overflow__
+// CardinalitySanitizer replaces individual label values with __cardinality_overflow__
 // when the estimated cardinality of that label exceeds maxCardinality.
 // Unlike the global series limiter which collapses all labels into a single overflow
 // entity, this preserves all other labels and only overflows the problematic one.
