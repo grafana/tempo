@@ -151,7 +151,7 @@ func traceQLRunner(t *testing.T, _ *tempopb.Trace, wantMeta *tempopb.TraceSearch
 		{Query: `{ span.span-dedicated.01 =~ "span-2.*" && span.span-dedicated.01 =~ "span-3.*" }`},
 	}
 
-	searchesThatDontMatch = append(searchesThatDontMatch, quotedAttributesThaDontMatch...)
+	searchesThatDontMatch = append(searchesThatDontMatch, quotedAttributesThatDontMatch...)
 	searchesThatDontMatch = append(searchesThatDontMatch, optimizedSearchesThatDontMatch...)
 	for _, req := range searchesThatDontMatch {
 		fetcher := traceql.NewSpansetFetcherWrapper(func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
