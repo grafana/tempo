@@ -4,6 +4,7 @@
 * [CHANGE] Updade default max duration for traceql metrics queries up to one day [#6285](https://github.com/grafana/tempo/pull/6285) (@javiermolinar)
 * [CHANGE] Set traceQL query metrics checks by default in Vulture [#6275](https://github.com/grafana/tempo/pull/6275) (@javiermolinar)
 * [FEATURE] Add automemlimit support for automatic GOMEMLIMIT configuration. Enable with `memory.automemlimit_enabled: true`. [#6313](https://github.com/grafana/tempo/pull/6313) (@oleg-kozlyuk)
+* [CHANGE] TraceQL metrics - change default step intervals to align with new vParquet5 timestamp columns [#6413](https://github.com/grafana/tempo/pull/6413) (@mdisibio)
 * [CHANGE] Remove all traces of ingesters from the dashboards [#6352](https://github.com/grafana/tempo/pull/6352) (@javiermolinar)
 * [FEATURE] Add span_multiplier_key to overrides. This allows tenants to specify the attribute key used for span multiplier values to compensate for head-based sampling. [#6260](https://github.com/grafana/tempo/pull/6260) (@carles-grafana)
 * [ENHANCEMENT] Add new alerts and runbooks entries [#6276](https://github.com/grafana/tempo/pull/6276) (@javiermolinar)
