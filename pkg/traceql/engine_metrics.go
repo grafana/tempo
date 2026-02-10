@@ -40,8 +40,12 @@ func DefaultQueryRangeStep(start, end uint64) uint64 {
 	// In all other cases, the minimum step will be 1s.
 	if delta < time.Minute {
 		g := 50 * time.Millisecond
-		rounded := baseline / g * g
-		return uint64(rounded.Nanoseconds())
+		if baseline > g {
+			rounded := baseline / g * g
+			return uint64(rounded.Nanoseconds())
+		}
+		// Minimum granularity.
+		return uint64(g.Nanoseconds())
 	}
 
 	// Default granularities. These match the timestamp
