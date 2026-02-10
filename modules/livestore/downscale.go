@@ -180,8 +180,8 @@ func (s *LiveStore) PrepareDownscaleHandler(w http.ResponseWriter, r *http.Reque
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
-		if state != ring.PartitionInactive {
-			level.Info(s.logger).Log("msg", "partition must be in INACTIVE state")
+		if !allowPrepareDownscale(state) {
+			level.Info(s.logger).Log("msg", "partition must not be in PENDING state")
 			w.WriteHeader(http.StatusConflict)
 			return
 		}
@@ -203,6 +203,14 @@ func (s *LiveStore) PrepareDownscaleHandler(w http.ResponseWriter, r *http.Reque
 	}
 
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// allowPrepareDownscale returns whether prepare-downscale is allowed for the
+// given partition state. Only PENDING is rejected. ACTIVE is allowed for
+// zone-only removal (instance leaves as owner, partition stays active for
+// others). INACTIVE is allowed for full partition downscale.
+func allowPrepareDownscale(state ring.PartitionState) bool {
+	return state != ring.PartitionPending
 }
 
 // setPrepareShutdown configures the live-store for shutdown preparation
