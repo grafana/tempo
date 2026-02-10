@@ -62,13 +62,9 @@ func (o *BinaryOperation) extractConditions(request *FetchSpansRequest) {
 					Operands:  nil,
 				})
 			default:
-				op := o.Op
-				if op.isArrayOp() {
-					op = op.toElementOp()
-				}
 				request.appendCondition(Condition{
 					Attribute: l,
-					Op:        op,
+					Op:        o.Op,
 					Operands:  []Static{r},
 				})
 			}
@@ -112,13 +108,9 @@ func (o *BinaryOperation) extractConditions(request *FetchSpansRequest) {
 					Operands:  nil,
 				})
 			default:
-				op := o.Op
-				if op.isArrayOp() {
-					op = op.toElementOp()
-				}
 				request.appendCondition(Condition{
 					Attribute: r,
-					Op:        op,
+					Op:        o.Op,
 					Operands:  []Static{l},
 				})
 			}

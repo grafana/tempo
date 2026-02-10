@@ -364,7 +364,7 @@ func TestBinaryOperation_extractConditions(t *testing.T) {
 			name: "string IN array",
 			op:   &BinaryOperation{Op: OpIn, LHS: NewAttribute("attr"), RHS: NewStaticStringArray([]string{"a", "b"})},
 			want: []Condition{
-				newCondition(NewAttribute("attr"), OpEqual, NewStaticStringArray([]string{"a", "b"})),
+				newCondition(NewAttribute("attr"), OpIn, NewStaticStringArray([]string{"a", "b"})),
 			},
 		},
 		{
@@ -378,7 +378,7 @@ func TestBinaryOperation_extractConditions(t *testing.T) {
 			name: "int IN array",
 			op:   &BinaryOperation{Op: OpIn, LHS: NewAttribute("attr"), RHS: NewStaticIntArray([]int{1, 2, 3})},
 			want: []Condition{
-				newCondition(NewAttribute("attr"), OpEqual, NewStaticIntArray([]int{1, 2, 3})),
+				newCondition(NewAttribute("attr"), OpIn, NewStaticIntArray([]int{1, 2, 3})),
 			},
 		},
 		{
@@ -392,7 +392,7 @@ func TestBinaryOperation_extractConditions(t *testing.T) {
 			name: "string array MATCH ANY regex",
 			op:   &BinaryOperation{Op: OpRegexMatchAny, LHS: NewAttribute("attr"), RHS: NewStaticStringArray([]string{"a.*", "b.*"})},
 			want: []Condition{
-				newCondition(NewAttribute("attr"), OpRegex, NewStaticStringArray([]string{"a.*", "b.*"})),
+				newCondition(NewAttribute("attr"), OpRegexMatchAny, NewStaticStringArray([]string{"a.*", "b.*"})),
 			},
 		},
 	}

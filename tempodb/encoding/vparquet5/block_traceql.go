@@ -1066,7 +1066,9 @@ func checkConditions(conditions []traceql.Condition) error {
 		case traceql.OpEqual, traceql.OpNotEqual,
 			traceql.OpGreater, traceql.OpGreaterEqual,
 			traceql.OpLess, traceql.OpLessEqual,
-			traceql.OpRegex, traceql.OpNotRegex:
+			traceql.OpRegex, traceql.OpNotRegex,
+			traceql.OpIn, traceql.OpNotIn,
+			traceql.OpRegexMatchAny, traceql.OpRegexMatchNone:
 			if opCount != 1 {
 				return fmt.Errorf("operation %v must have exactly 1 argument. condition: %+v", cond.Op, cond)
 			}
@@ -2684,13 +2686,13 @@ func createStringPredicate(op traceql.Operator, operands traceql.Operands) (parq
 	case traceql.TypeStringArray:
 		strs, _ := operands[0].StringArray()
 		switch op {
-		case traceql.OpEqual:
+		case traceql.OpEqual, traceql.OpIn:
 			return parquetquery.NewStringInPredicate(strs), nil
-		case traceql.OpNotEqual:
+		case traceql.OpNotEqual, traceql.OpNotIn:
 			return parquetquery.NewStringNotInPredicate(strs), nil
-		case traceql.OpRegex:
+		case traceql.OpRegex, traceql.OpRegexMatchAny:
 			return parquetquery.NewRegexInPredicate(strs)
-		case traceql.OpNotRegex:
+		case traceql.OpNotRegex, traceql.OpRegexMatchNone:
 			return parquetquery.NewRegexNotInPredicate(strs)
 		default:
 			return nil, fmt.Errorf("operator not supported for strings arrays: %+v", op)
@@ -2749,9 +2751,9 @@ func createBytesPredicate(op traceql.Operator, operands traceql.Operands, isSpan
 		}
 
 		switch op {
-		case traceql.OpEqual:
+		case traceql.OpEqual, traceql.OpIn:
 			return parquetquery.NewByteInPredicate(ids), nil
-		case traceql.OpNotEqual:
+		case traceql.OpNotEqual, traceql.OpNotIn:
 			return parquetquery.NewByteNotInPredicate(ids), nil
 		default:
 			return nil, fmt.Errorf("operator not supported for IDs: %+v", op)
@@ -2865,12 +2867,12 @@ func createIntPredicateFromFloat(op traceql.Operator, operands traceql.Operands)
 			}
 		}
 		switch op {
-		case traceql.OpEqual:
+		case traceql.OpEqual, traceql.OpIn:
 			if len(ints) == 0 {
 				return nil, nil
 			}
 			return parquetquery.NewIntInPredicate(ints), nil
-		case traceql.OpNotEqual:
+		case traceql.OpNotEqual, traceql.OpNotIn:
 			if len(ints) == 0 {
 				return parquetquery.NewCallbackPredicate(func() bool { return true }), nil
 			}
@@ -2910,9 +2912,9 @@ func createIntPredicate(op traceql.Operator, operands traceql.Operands) (parquet
 		ints, _ := operands[0].Int64Array()
 
 		switch op {
-		case traceql.OpEqual:
+		case traceql.OpEqual, traceql.OpIn:
 			return parquetquery.NewIntInPredicate(ints), nil
-		case traceql.OpNotEqual:
+		case traceql.OpNotEqual, traceql.OpNotIn:
 			return parquetquery.NewIntNotInPredicate(ints), nil
 		default:
 			return nil, fmt.Errorf("operator not supported for int arrays: %+v", op)
@@ -2968,9 +2970,9 @@ func createFloatPredicate(op traceql.Operator, operands traceql.Operands) (parqu
 		floats, _ := operands[0].FloatArray()
 
 		switch op {
-		case traceql.OpEqual:
+		case traceql.OpEqual, traceql.OpIn:
 			return parquetquery.NewFloatInPredicate(floats), nil
-		case traceql.OpNotEqual:
+		case traceql.OpNotEqual, traceql.OpNotIn:
 			return parquetquery.NewFloatNotInPredicate(floats), nil
 		default:
 			return nil, fmt.Errorf("operator not supported for float arrays: %+v", op)
@@ -3001,9 +3003,9 @@ func createBoolPredicate(op traceql.Operator, operands traceql.Operands) (parque
 		bools, _ := operands[0].BooleanArray()
 
 		switch op {
-		case traceql.OpEqual:
+		case traceql.OpEqual, traceql.OpIn:
 			return parquetquery.NewBoolInPredicate(bools), nil
-		case traceql.OpNotEqual:
+		case traceql.OpNotEqual, traceql.OpNotIn:
 			return parquetquery.NewBoolNotInPredicate(bools), nil
 		default:
 			return nil, fmt.Errorf("operator not supported for boolean arrays: %+v", op)

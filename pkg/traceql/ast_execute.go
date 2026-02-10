@@ -773,7 +773,6 @@ func binOpExecuteScalar(op Operator, lhs, rhs Static, expressions []*regexp.Rege
 	}
 }
 
-
 // getFlippedOp will return the flipped op, used when flipping the LHS and RHS of a BinaryOperation
 func getFlippedOp(op Operator) Operator {
 	switch op {
