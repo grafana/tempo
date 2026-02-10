@@ -51,6 +51,7 @@ type ManagedRegistry struct {
 	metrics      map[string]metric
 	entityDemand *Cardinality
 	limiter      Limiter
+	sanitizer    Sanitizer
 
 	appendable storage.Appendable
 
@@ -97,6 +98,19 @@ type Limiter interface {
 	OnDelete(labelHash uint64, seriesCount uint32)
 }
 
+// Sanitizer is applies a transformation to all non-constant labels.
+type Sanitizer interface {
+	Sanitize(lbls labels.Labels) labels.Labels
+}
+
+type noopSanitizer struct{}
+
+var _ Sanitizer = (*noopSanitizer)(nil)
+
+func (s *noopSanitizer) Sanitize(lbls labels.Labels) labels.Labels {
+	return lbls
+}
+
 // New creates a ManagedRegistry. This Registry will scrape itself, write samples into an appender
 // and remove stale series.
 func New(cfg *Config, overrides Overrides, tenant string, appendable storage.Appendable, logger log.Logger, limiter Limiter) *ManagedRegistry {
@@ -113,6 +127,11 @@ func New(cfg *Config, overrides Overrides, tenant string, appendable storage.App
 		externalLabels[cfg.InjectTenantIDAs] = tenant
 	}
 
+	var sanitizer Sanitizer = &noopSanitizer{}
+	if sanitizationMode := overrides.MetricsGeneratorSpanNameSanitization(tenant); sanitizationMode != SpanNameSanitizationDisabled {
+		sanitizer = NewDrainSanitizer(tenant, sanitizationMode == SpanNameSanitizationDryRun, cfg.StaleDuration)
+	}
+
 	r := &ManagedRegistry{
 		onShutdown: cancel,
 
@@ -125,6 +144,7 @@ func New(cfg *Config, overrides Overrides, tenant string, appendable storage.App
 
 		appendable:   appendable,
 		limiter:      limiter,
+		sanitizer:    sanitizer,
 		entityDemand: NewCardinality(cfg.StaleDuration, removeStaleSeriesInterval),
 
 		logger:                 logger,
@@ -141,7 +161,7 @@ func New(cfg *Config, overrides Overrides, tenant string, appendable storage.App
 }
 
 func (r *ManagedRegistry) NewLabelBuilder() LabelBuilder {
-	return NewLabelBuilder(r.cfg.MaxLabelNameLength, r.cfg.MaxLabelValueLength)
+	return NewLabelBuilder(r.cfg.MaxLabelNameLength, r.cfg.MaxLabelValueLength, r.sanitizer)
 }
 
 func (r *ManagedRegistry) OnAdd(labelHash uint64, seriesCount uint32, lbls labels.Labels) (labels.Labels, uint64) {

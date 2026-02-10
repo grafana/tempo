@@ -119,21 +119,38 @@ func (r *PartitionReader) running(ctx context.Context) error {
 			continue
 		}
 
-		// Calculate and store maximum lag in entries
-		// Technically shaped as a nested loop, but we only have one partition (at the moment)
+		r.recordFetchesMetrics(fetches)
+		offset, consumptionErr := r.consume(ctx, fetches.RecordIter(), time.Now())
+		if consumptionErr != nil {
+			// TODO abort ingesting & back off if it's a server error, ignore error if it's a client error
+			level.Error(r.logger).Log("msg", "encountered error processing records; skipping", "err", consumptionErr)
+		}
+		if offset != nil {
+			r.storeOffsetForCommit(ctx, offset)
+		}
+
+		// Calculate lag as the difference between the high watermark and
+		// the last successfully processed (committed) offset.
 		for _, fetch := range fetches {
 			for _, topic := range fetch.Topics {
 				for _, partition := range topic.Partitions {
-					// HighWatermark guaranteed to be >= LastStableOffset
-					lag := partition.HighWatermark - partition.LastStableOffset
+					owm := r.offsetWatermark.Load()
+					// if we had consumption error and no last offset registered, we cannot determine lag
+					if owm == nil && consumptionErr != nil {
+						continue
+					}
+					var committedOffset int64
+					var lag int64
+					if owm != nil {
+						committedOffset = owm.At
+						lag = partition.HighWatermark - committedOffset
+						if lag < 0 {
+							lag = 0
+						}
+					} // else offset is not yet set due to no new records, therefore lag is 0
 					r.lag.Store(lag)
 				}
 			}
-		}
-
-		r.recordFetchesMetrics(fetches)
-		if offset := r.consumeFetches(ctx, fetches); offset != nil {
-			r.storeOffsetForCommit(ctx, offset)
 		}
 	}
 
@@ -197,18 +214,6 @@ func collectFetchErrs(fetches kgo.Fetches) (_ error) {
 		mErr.Add(err)
 	})
 	return mErr.Err()
-}
-
-func (r *PartitionReader) consumeFetches(ctx context.Context, fetches kgo.Fetches) *kadm.Offset {
-	// Pass offset and byte information to the live-store
-	offset, err := r.consume(ctx, fetches.RecordIter(), time.Now())
-	if err != nil {
-		// TODO abort ingesting & back off if it's a server error, ignore error if it's a client error
-		level.Error(r.logger).Log("msg", "encountered error processing records; skipping", "err", err)
-		return nil
-	}
-
-	return offset
 }
 
 func (r *PartitionReader) recordFetchesMetrics(fetches kgo.Fetches) {
