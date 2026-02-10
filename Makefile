@@ -396,5 +396,12 @@ tempo-mixin: tools-image
 tempo-mixin-check: tools-image
 	$(TOOLS_CMD) make -C operations/tempo-mixin check
 
+
+## TODO: temp addition to make testing easier
+.PHONY: link-dev
+link-dev: docker-images
+	docker-compose -f example/docker-compose/single-binary/docker-compose.yaml up -d
+	cd example/docker-compose/local/linkgen && go run main.go
+
 # Import fragments
 include build/tools.mk
