@@ -18,6 +18,7 @@ The Tempo configuration options include:
 - [Configure Tempo](#configure-tempo)
   - [Use environment variables in the configuration](#use-environment-variables-in-the-configuration)
   - [Server](#server)
+  - [Memory](#memory)
   - [Distributor](#distributor)
     - [Set max attribute size to help control out of memory errors](#set-max-attribute-size-to-help-control-out-of-memory-errors)
     - [gRPC compression](#grpc-compression)
@@ -29,7 +30,6 @@ The Tempo configuration options include:
       - [Limit the spans per spanset](#limit-the-spans-per-spanset)
       - [Cap the maximum query length](#cap-the-maximum-query-length)
   - [Querier](#querier)
-  - [Compactor](#compactor)
   - [Backend scheduler](#backend-scheduler)
   - [Backend worker](#backend-worker)
   - [Storage](#storage)
@@ -135,6 +135,25 @@ server:
     # Max gRPC message size that can be sent
     # This value may need to be increased if you have large traces
     [grpc_server_max_send_msg_size: <int> | default = 16777216]
+```
+
+## Memory
+
+Tempo supports automatic GOMEMLIMIT configuration using the [automemlimit](https://github.com/KimMachineGun/automemlimit) library.
+When enabled, it automatically sets Go's memory limit based on available container (via CGroups) or system memory every 15 seconds.
+
+NOTE: enabling this will override value set in GOMEMLIMIT environment variable
+
+```yaml
+memory:
+    # Enable automatic GOMEMLIMIT configuration based on cgroup/system memory.
+    # When enabled, Tempo will automatically detect available memory from cgroups (v2 or v1)
+    # or system memory and set GOMEMLIMIT accordingly.
+    [automemlimit_enabled: <bool> | default = false]
+
+    # Ratio of available memory to use for GOMEMLIMIT.
+    # For example, 0.8 means 80% of available memory will be used for GOMEMLIMIT.
+    [automemlimit_ratio: <float> | default = 0.8]
 ```
 
 ## Distributor
@@ -934,28 +953,6 @@ querier:
 It also queries compacted blocks that fall within the (2 \* BlocklistPoll) range where the value of Blocklist poll duration
 is defined in the storage section below.
 
-## Compactor
-
-For more information on configuration options, refer to [this file](https://github.com/grafana/tempo/blob/main/modules/compactor/config.go).
-
-Compactors stream blocks from the storage backend, combine them and write them back. Values shown below are the defaults.
-
-```yaml
-compactor:
-
-    # Optional. Disables backend compaction. Default is false.
-    # Note: This should only be used in a non-production context for debugging purposes. This will allow blocks to say in the backend for further investigation if desired.
-    [disabled: <bool>]
-
-    ring:
-        kvstore: <KVStore config>
-            [store: <string> | default = memberlist]
-            [prefix: <string> | default = "collectors/" ]
-
-    # Refer to the Compaction block section for details
-    compaction: <Compaction config>
-```
-
 ## Backend scheduler
 
 The backend scheduler is responsible for scheduling and tracking jobs which are assigned to backend workers for processing.
@@ -1374,7 +1371,7 @@ storage:
         # fallback to scanning the entire bucket. Set to false to disable this behavior. Default is true.
         [blocklist_poll_fallback: <bool>]
 
-        # Maximum number of compactors that should build the tenant index. All other components will download
+        # Maximum number of workers that should build the tenant index. All other components will download
         # the index. Default 2.
         [blocklist_poll_tenant_index_builders: <int>]
 
@@ -1600,7 +1597,7 @@ parquet_dedicated_columns: <list of columns>
 
 ### Compaction
 
-The `compaction` configuration block is used by the compactor, scheduler, and worker.
+The `compaction` configuration block is used by the scheduler and worker.
 
 ```yaml
 # Optional. Duration to keep blocks.
@@ -1916,10 +1913,10 @@ overrides:
     # Compaction related overrides
     compaction:
       # Per-user block retention. If this value is set to 0 (default),
-      # then block_retention in the compactor configuration is used.
+      # then block_retention in the compaction configuration is used.
       [block_retention: <duration> | default = 0s]
       # Per-user compaction window. If this value is set to 0 (default),
-      # then block_retention in the compactor configuration is used.
+      # then block_retention in the compaction configuration is used.
       [compaction_window: <duration> | default = 0s]
       # Allow compaction and retention to be deactivated on a per-tenant basis. Default value
       # is false (compaction active). Useful to perform operations on the backend

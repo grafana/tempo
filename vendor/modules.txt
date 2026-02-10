@@ -42,7 +42,7 @@ cloud.google.com/go/iam/apiv1/iampb
 cloud.google.com/go/monitoring/apiv3/v2
 cloud.google.com/go/monitoring/apiv3/v2/monitoringpb
 cloud.google.com/go/monitoring/internal
-# cloud.google.com/go/storage v1.59.1
+# cloud.google.com/go/storage v1.59.2
 ## explicit; go 1.24.0
 cloud.google.com/go/storage
 cloud.google.com/go/storage/experimental
@@ -137,6 +137,9 @@ github.com/GoogleCloudPlatform/opentelemetry-operations-go/internal/resourcemapp
 # github.com/IBM/sarama v1.46.2
 ## explicit; go 1.24.0
 github.com/IBM/sarama
+# github.com/KimMachineGun/automemlimit v0.7.5
+## explicit; go 1.22.0
+github.com/KimMachineGun/automemlimit/memlimit
 # github.com/alecthomas/kong v1.13.0
 ## explicit; go 1.20
 github.com/alecthomas/kong
@@ -985,6 +988,20 @@ github.com/mattn/go-isatty
 # github.com/mattn/go-runewidth v0.0.19
 ## explicit; go 1.20
 github.com/mattn/go-runewidth
+# github.com/maypok86/otter/v2 v2.2.1
+## explicit; go 1.24
+github.com/maypok86/otter/v2
+github.com/maypok86/otter/v2/internal/deque
+github.com/maypok86/otter/v2/internal/deque/queue
+github.com/maypok86/otter/v2/internal/expiration
+github.com/maypok86/otter/v2/internal/generated/node
+github.com/maypok86/otter/v2/internal/hashmap
+github.com/maypok86/otter/v2/internal/lossy
+github.com/maypok86/otter/v2/internal/xiter
+github.com/maypok86/otter/v2/internal/xmath
+github.com/maypok86/otter/v2/internal/xruntime
+github.com/maypok86/otter/v2/internal/xsync
+github.com/maypok86/otter/v2/stats
 # github.com/mdlayher/socket v0.4.1
 ## explicit; go 1.20
 github.com/mdlayher/socket
@@ -1246,6 +1263,9 @@ github.com/parquet-go/parquet-go/internal/debug
 github.com/parquet-go/parquet-go/internal/memory
 github.com/parquet-go/parquet-go/internal/unsafecast
 github.com/parquet-go/parquet-go/sparse
+# github.com/pbnjay/memory v0.0.0-20210728143218-7b4eea64cf58
+## explicit; go 1.16
+github.com/pbnjay/memory
 # github.com/pelletier/go-toml/v2 v2.2.4
 ## explicit; go 1.21.0
 github.com/pelletier/go-toml/v2
@@ -2297,7 +2317,7 @@ gonum.org/v1/gonum/lapack
 gonum.org/v1/gonum/lapack/gonum
 gonum.org/v1/gonum/lapack/lapack64
 gonum.org/v1/gonum/mat
-# google.golang.org/api v0.262.0
+# google.golang.org/api v0.264.0
 ## explicit; go 1.24.0
 google.golang.org/api/googleapi
 google.golang.org/api/googleapi/transport
@@ -2331,7 +2351,7 @@ google.golang.org/genproto/googleapis/api/httpbody
 google.golang.org/genproto/googleapis/api/label
 google.golang.org/genproto/googleapis/api/metric
 google.golang.org/genproto/googleapis/api/monitoredres
-# google.golang.org/genproto/googleapis/rpc v0.0.0-20260120174246-409b4a993575
+# google.golang.org/genproto/googleapis/rpc v0.0.0-20260122232226-8e98ce8d340d
 ## explicit; go 1.24.0
 google.golang.org/genproto/googleapis/rpc/code
 google.golang.org/genproto/googleapis/rpc/errdetails

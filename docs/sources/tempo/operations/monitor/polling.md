@@ -11,9 +11,9 @@ aliases:
 # Use polling to monitor the backend status
 
 Tempo maintains knowledge of the state of the backend by polling it on regular intervals. There are only
-only a few components that need this knowledge: compactors, schedulers, workers, queriers and query-frontends.
+only a few components that need this knowledge: schedulers, workers, queriers and query-frontends.
 
-To reduce calls to the backend, only the compactors and workers perform a "full" poll against the backend and update the tenant indexes. This process lists all blocks for a given tenant and determines their state. The ring is used to split the work of writing the tenant indexes for all tenants.
+To reduce calls to the backend, only the workers perform a "full" poll against the backend and update the tenant indexes. This process lists all blocks for a given tenant and determines their state. The ring is used to split the work of writing the tenant indexes for all tenants.
 
 The remaining components will only read the tenant index, and fall back to a full poll only if the index is too far out of date.
 
@@ -44,7 +44,7 @@ If you are building your own dashboards or alerts, here are a few relevant metri
 - `tempodb_blocklist_tenant_index_errors_total`
   A holistic metrics that indcrements for any error building the tenant index. Any increase in this metric should be reviewed.
 - `tempodb_blocklist_tenant_index_builder`
-  A gauge that has the value 1 if this compactor is attempting to build the tenant index and 0 if it is not. At least one compactor
+  A gauge that has the value 1 if this worker is attempting to build the tenant index and 0 if it is not. At least one worker
   must have this value set to 1 for the system to be working.
 - `tempodb_blocklist_tenant_index_age_seconds`
   The age of the last loaded tenant index. now() minus this value indicates how stale this components view of the blocklist is.

@@ -318,11 +318,6 @@ func (s *LiveStore) starting(ctx context.Context) error {
 		return fmt.Errorf("failed to start partition reader: %w", err)
 	}
 
-	// Wait for catch-up before marking ready (if enabled)
-	if err := s.waitForCatchUp(ctx); err != nil {
-		return fmt.Errorf("failed to catch up: %w", err)
-	}
-
 	lagCtx, cncl := context.WithCancel(s.ctx)
 	s.lagCancel = cncl
 	// Start exporting partition lag metrics
@@ -344,6 +339,11 @@ func (s *LiveStore) starting(ctx context.Context) error {
 
 	// allow background processes to start
 	s.startAllBackgroundProcesses()
+
+	// Wait for catch-up before marking ready (if enabled)
+	if err := s.waitForCatchUp(ctx); err != nil {
+		return fmt.Errorf("failed to catch up: %w", err)
+	}
 
 	// Mark as ready at end of starting()
 	s.readyErr.Store(nil)
@@ -521,6 +521,7 @@ func (s *LiveStore) consume(ctx context.Context, rs recordIter, now time.Time) (
 
 		if record.Timestamp.Before(cutoff) {
 			metricRecordsDropped.WithLabelValues(tenant, droppedRecordReasonTooOld).Inc()
+			lastRecord = record
 			continue
 		}
 
@@ -530,6 +531,7 @@ func (s *LiveStore) consume(ctx context.Context, rs recordIter, now time.Time) (
 			metricRecordsDropped.WithLabelValues(tenant, droppedRecordReasonDecodingFailed).Inc()
 			level.Error(s.logger).Log("msg", "failed to decoded record", "tenant", tenant, "err", err)
 			span.RecordError(err)
+			lastRecord = record
 			continue
 		}
 
@@ -539,6 +541,7 @@ func (s *LiveStore) consume(ctx context.Context, rs recordIter, now time.Time) (
 			metricRecordsDropped.WithLabelValues(tenant, droppedRecordReasonInstanceNotFound).Inc()
 			level.Error(s.logger).Log("msg", "failed to get instance for tenant", "tenant", tenant, "err", err)
 			span.RecordError(err)
+			lastRecord = record
 			continue
 		}
 

@@ -122,6 +122,7 @@ message DedicatedColumn {
   enum Option {
     NONE = 0;
     ARRAY = 1;
+    BLOB = 2;
   }
   Scope scope = 3;
   string name = 2;

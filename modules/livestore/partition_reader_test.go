@@ -2,6 +2,7 @@ package livestore
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -51,6 +52,7 @@ func TestPartitionReaderCommits(t *testing.T) {
 		r := defaultPartitionReaderWithCommitInterval(t, address, 0, consumeFn)
 
 		assert.Eventually(t, func() bool { return kafkaCommits.Load() >= 1 }, time.Second*2, 10*time.Millisecond)
+		assert.Equal(t, int64(0), r.lag.Load())
 
 		t.Cleanup(func() { require.NoError(t, services.StopAndAwaitTerminated(context.Background(), r)) })
 	})
@@ -87,9 +89,46 @@ func TestPartitionReaderCommits(t *testing.T) {
 
 		// Waiting up to commitInterval, a commit will have happened by then
 		assert.Eventually(t, func() bool { return asyncCommits.Load() >= 1 }, commitInterval*2, 10*time.Millisecond)
+		assert.Equal(t, int64(0), r.lag.Load())
 
 		require.NoError(t, services.StopAndAwaitTerminated(context.Background(), r))
 	})
+}
+
+func TestPartitionReaderLag(t *testing.T) {
+	k, address := testkafka.CreateCluster(t, 1, testTopic)
+
+	kafkaCommits := atomic.NewInt32(0)
+	k.ControlKey(kmsg.OffsetCommit, func(kmsg.Request) (kmsg.Response, error, bool) {
+		kafkaCommits.Inc()
+		return nil, nil, false
+	})
+
+	var counter int
+	consumeFn := func(_ context.Context, rs recordIter, _ time.Time) (*kadm.Offset, error) {
+		counter++
+		if counter <= 1 { // allow to process one record to store lag
+			lastRecord := rs.Next()
+			offset := kadm.NewOffsetFromRecord(lastRecord)
+			return &offset, nil
+		}
+		return nil, errors.New("error consuming records")
+	}
+
+	// commitInterval=0 commits synchronously
+	r := defaultPartitionReaderWithCommitInterval(t, address, 0, consumeFn)
+
+	client := testkafka.NewKafkaClient(t, address, testTopic)
+	records := 10
+	for range records {
+		testkafka.SendReq(t.Context(), t, client, ingest.Encode, testTenantID)
+	}
+
+	time.Sleep(time.Second)
+	assert.Equal(t, int32(1), kafkaCommits.Load(), "only one record should be committed")
+	assert.Equal(t, int64(records)-1, r.lag.Load(), "only one record should be committed")
+
+	t.Cleanup(func() { require.NoError(t, services.StopAndAwaitTerminated(context.Background(), r)) })
 }
 
 func defaultPartitionReaderWithCommitInterval(t *testing.T, address string, commitInterval time.Duration, consume consumeFn) *PartitionReader {

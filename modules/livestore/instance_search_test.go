@@ -535,7 +535,7 @@ func defaultInstanceAndTmpDir(t testing.TB) (*instance, *LiveStore) {
 	return instance, liveStore
 }
 
-func defaultLiveStore(t testing.TB, tmpDir string) (*LiveStore, error) {
+func defaultConfig(t testing.TB, tmpDir string) Config {
 	cfg := Config{}
 	cfg.RegisterFlagsAndApplyDefaults("", flag.NewFlagSet("", flag.ContinueOnError))
 	cfg.WAL.Filepath = tmpDir
@@ -570,7 +570,15 @@ func defaultLiveStore(t testing.TB, tmpDir string) (*LiveStore, error) {
 	cfg.Ring.InstanceAddr = "localhost"
 	cfg.Ring.InstanceID = "test-1"
 	cfg.PartitionRing.KVStore.Mock = mockParititionStore
+	return cfg
+}
 
+func defaultLiveStore(t testing.TB, tmpDir string) (*LiveStore, error) {
+	cfg := defaultConfig(t, tmpDir)
+	return liveStoreWithConfig(t, cfg)
+}
+
+func liveStoreWithConfig(t testing.TB, cfg Config) (*LiveStore, error) {
 	// Create overrides
 	limits, err := overrides.NewOverrides(overrides.Config{}, nil, prometheus.DefaultRegisterer)
 	if err != nil {

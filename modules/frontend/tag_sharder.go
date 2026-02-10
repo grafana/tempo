@@ -16,6 +16,7 @@ import (
 	"github.com/grafana/tempo/pkg/validation"
 	"github.com/grafana/tempo/tempodb"
 	"github.com/grafana/tempo/tempodb/backend"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/segmentio/fasthash/fnv1a"
 )
 
@@ -181,10 +182,11 @@ type searchTagSharder struct {
 	cfg          SearchSharderConfig
 	logger       log.Logger
 	parseRequest parseRequestFunction
+	jobsPerQuery *prometheus.HistogramVec
 }
 
 // newAsyncTagSharder creates a sharding middleware for tags and tag values
-func newAsyncTagSharder(reader tempodb.Reader, o overrides.Interface, cfg SearchSharderConfig, parseRequest parseRequestFunction, logger log.Logger) pipeline.AsyncMiddleware[combiner.PipelineResponse] {
+func newAsyncTagSharder(reader tempodb.Reader, o overrides.Interface, cfg SearchSharderConfig, parseRequest parseRequestFunction, jobsPerQuery *prometheus.HistogramVec, logger log.Logger) pipeline.AsyncMiddleware[combiner.PipelineResponse] {
 	return pipeline.AsyncMiddlewareFunc[combiner.PipelineResponse](func(next pipeline.AsyncRoundTripper[combiner.PipelineResponse]) pipeline.AsyncRoundTripper[combiner.PipelineResponse] {
 		return searchTagSharder{
 			next:         next,
@@ -193,6 +195,7 @@ func newAsyncTagSharder(reader tempodb.Reader, o overrides.Interface, cfg Search
 			cfg:          cfg,
 			logger:       logger,
 			parseRequest: parseRequest,
+			jobsPerQuery: jobsPerQuery,
 		}
 	})
 }
@@ -232,14 +235,18 @@ func (s searchTagSharder) RoundTrip(pipelineRequest pipeline.Request) (pipeline.
 	}
 
 	reqCh := make(chan pipeline.Request, 1) // buffer of 1 allows us to insert ingestReq if it exists
+	queryJobs := 0
 	if ingesterReq != nil {
 		reqCh <- ingesterReq
+		queryJobs = 1
 	}
 
-	s.backendRequests(ctx, tenantID, pipelineRequest, searchReq, reqCh, func(err error) {
+	queryJobs += s.backendRequests(ctx, tenantID, pipelineRequest, searchReq, reqCh, func(err error) {
 		// todo: actually find a way to return this error to the user
 		s.logger.Log("msg", "failed to build backend requests", "err", err)
 	})
+
+	s.jobsPerQuery.WithLabelValues(metadataOp).Observe(float64(queryJobs))
 
 	// TODO(suraj): send jobMetricsResponse like we send in asyncSearchSharder.RoundTrip and accumulate these metrics in the
 	// combiners, and log these metrics in the logger like we do in search_handlers.go
@@ -250,11 +257,11 @@ func (s searchTagSharder) RoundTrip(pipelineRequest pipeline.Request) (pipeline.
 
 // backendRequest builds backend requests to search backend blocks. backendRequest takes ownership of reqCh and closes it.
 // it returns 3 int values: totalBlocks, totalBlockBytes, and estimated jobs
-func (s searchTagSharder) backendRequests(ctx context.Context, tenantID string, parent pipeline.Request, searchReq tagSearchReq, reqCh chan<- pipeline.Request, errFn func(error)) {
+func (s searchTagSharder) backendRequests(ctx context.Context, tenantID string, parent pipeline.Request, searchReq tagSearchReq, reqCh chan<- pipeline.Request, errFn func(error)) int {
 	// request without start or end, search only in ingester
 	if searchReq.start() == 0 || searchReq.end() == 0 {
 		close(reqCh)
-		return
+		return 0
 	}
 
 	// calculate duration (start and end) to search the backend blocks
@@ -263,7 +270,7 @@ func (s searchTagSharder) backendRequests(ctx context.Context, tenantID string, 
 	// no need to search backend
 	if start == end {
 		close(reqCh)
-		return
+		return 0
 	}
 
 	rf1After := searchReq.rf1After()
@@ -277,10 +284,14 @@ func (s searchTagSharder) backendRequests(ctx context.Context, tenantID string, 
 	blocks := blockMetasForSearch(s.reader.BlockMetas(tenantID), startT, endT, rf1FilterFn(rf1After))
 
 	targetBytesPerRequest := s.cfg.TargetBytesPerRequest
+	// the callback function is nil, so we will use it just for counting the total number of jobs
+	totalJobs := iterateTagJobs(blocks, targetBytesPerRequest, nil)
 
 	go func() {
 		s.buildBackendRequests(ctx, tenantID, parent, blocks, targetBytesPerRequest, reqCh, errFn, searchReq)
 	}()
+
+	return totalJobs
 }
 
 // buildBackendRequests returns a slice of requests that cover all blocks in the store
@@ -293,32 +304,26 @@ func (s searchTagSharder) buildBackendRequests(ctx context.Context, tenantID str
 	startTime := time.Unix(int64(searchReq.start()), 0)
 	endTime := time.Unix(int64(searchReq.end()), 0)
 
-	for _, m := range metas {
-		pages := pagesPerRequest(m, bytesPerRequest)
-		if pages == 0 {
-			continue
-		}
-
+	iterateTagJobs(metas, bytesPerRequest, func(m *backend.BlockMeta, startPage, pages int) bool {
 		blockID := m.BlockID.String()
-		for startPage := 0; startPage < int(m.TotalRecords); startPage += pages {
-			pipelineR, err := cloneRequestforQueriers(parent, tenantID, func(r *http.Request) (*http.Request, error) {
-				return searchReq.buildTagSearchBlockRequest(r, blockID, startPage, pages, m)
-			})
-			if err != nil {
-				errFn(err)
-				continue
-			}
-
-			key := cacheKey(keyPrefix, tenantID, hash, startTime, endTime, m, startPage, pages)
-			pipelineR.SetCacheKey(key)
-
-			select {
-			case reqCh <- pipelineR:
-			case <-ctx.Done():
-				return
-			}
+		pipelineR, err := cloneRequestforQueriers(parent, tenantID, func(r *http.Request) (*http.Request, error) {
+			return searchReq.buildTagSearchBlockRequest(r, blockID, startPage, pages, m)
+		})
+		if err != nil {
+			errFn(err)
+			return true
 		}
-	}
+
+		key := cacheKey(keyPrefix, tenantID, hash, startTime, endTime, m, startPage, pages)
+		pipelineR.SetCacheKey(key)
+
+		select {
+		case reqCh <- pipelineR:
+			return true
+		case <-ctx.Done():
+			return false
+		}
+	})
 }
 
 // ingesterRequest returns a new start and end time range for the backend as well as a http request
@@ -375,4 +380,27 @@ func (s searchTagSharder) maxDuration(tenantID string) time.Duration {
 	}
 
 	return s.cfg.MaxDuration
+}
+
+type tagJobIterFn func(m *backend.BlockMeta, startPage, pages int) bool
+
+// Helper function to iterate over the blocks meta. If jobIter is not null it will execute it as a callback
+func iterateTagJobs(metas []*backend.BlockMeta, bytesPerRequest int, jobIter tagJobIterFn) int {
+	jobs := 0
+
+	for _, m := range metas {
+		pages := pagesPerRequest(m, bytesPerRequest)
+		if pages == 0 {
+			continue
+		}
+
+		for startPage := 0; startPage < int(m.TotalRecords); startPage += pages {
+			jobs++
+			if jobIter != nil && !jobIter(m, startPage, pages) {
+				return jobs
+			}
+		}
+	}
+
+	return jobs
 }
