@@ -139,7 +139,7 @@ func traceQLRunner(t *testing.T, _ *tempopb.Trace, wantMeta *tempopb.TraceSearch
 		require.Equal(t, wantMeta, actual, "search request: %v", req)
 	}
 
-	quotedAttributesThaDontMatch := []*tempopb.SearchRequest{
+	quotedAttributesThatDontMatch := []*tempopb.SearchRequest{
 		{Query: fmt.Sprintf("{ .%q = %q }", attributeWithTerminalChars, "value mismatch")},
 		{Query: `{ ."unknow".attribute = "res-2a" }`},
 		{Query: `{ resource."resource attribute" = "unknown" }`},
