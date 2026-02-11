@@ -246,6 +246,35 @@ func Test_runtimeOverridesValidator(t *testing.T) {
 				backend.WarnTooManyColumns{Type: "string", Scope: "resource", Count: 21, MaxCount: 20},
 			},
 		},
+		{
+			name: "metrics_generator.span_name_sanitization empty (disabled)",
+			cfg:  Config{},
+			overrides: overrides.Overrides{MetricsGenerator: overrides.MetricsGeneratorOverrides{
+				SpanNameSanitization: "",
+			}},
+		},
+		{
+			name: "metrics_generator.span_name_sanitization dry_run",
+			cfg:  Config{},
+			overrides: overrides.Overrides{MetricsGenerator: overrides.MetricsGeneratorOverrides{
+				SpanNameSanitization: "dry_run",
+			}},
+		},
+		{
+			name: "metrics_generator.span_name_sanitization enabled",
+			cfg:  Config{},
+			overrides: overrides.Overrides{MetricsGenerator: overrides.MetricsGeneratorOverrides{
+				SpanNameSanitization: "enabled",
+			}},
+		},
+		{
+			name: "metrics_generator.span_name_sanitization invalid",
+			cfg:  Config{},
+			overrides: overrides.Overrides{MetricsGenerator: overrides.MetricsGeneratorOverrides{
+				SpanNameSanitization: "invalid",
+			}},
+			expErr: "span_name_sanitization \"invalid\" is not valid, valid values: [ dry_run enabled]",
+		},
 	}
 
 	for _, tc := range testCases {
@@ -787,6 +816,43 @@ func Test_overridesValidator(t *testing.T) {
 				},
 			},
 			expErr: `dimension_mapping "combined" produces label "combined" which collides with dimension_mapping "combined"`,
+		},
+		{
+			name: "metrics_generator.span_name_sanitization empty (disabled)",
+			cfg:  Config{},
+			limits: client.Limits{
+				MetricsGenerator: client.LimitsMetricsGenerator{
+					SpanNameSanitization: strPtr(""),
+				},
+			},
+		},
+		{
+			name: "metrics_generator.span_name_sanitization dry_run",
+			cfg:  Config{},
+			limits: client.Limits{
+				MetricsGenerator: client.LimitsMetricsGenerator{
+					SpanNameSanitization: strPtr("dry_run"),
+				},
+			},
+		},
+		{
+			name: "metrics_generator.span_name_sanitization enabled",
+			cfg:  Config{},
+			limits: client.Limits{
+				MetricsGenerator: client.LimitsMetricsGenerator{
+					SpanNameSanitization: strPtr("enabled"),
+				},
+			},
+		},
+		{
+			name: "metrics_generator.span_name_sanitization invalid",
+			cfg:  Config{},
+			limits: client.Limits{
+				MetricsGenerator: client.LimitsMetricsGenerator{
+					SpanNameSanitization: strPtr("invalid"),
+				},
+			},
+			expErr: "span_name_sanitization \"invalid\" is not valid, valid values: [ dry_run enabled]",
 		},
 	}
 

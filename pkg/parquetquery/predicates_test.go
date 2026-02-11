@@ -10,6 +10,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+type testInt struct {
+	N int64 `parquet:",dict"`
+}
+
 type mockPredicate struct {
 	ret         bool
 	valCalled   bool
@@ -83,6 +87,44 @@ func TestSubstringPredicate(t *testing.T) {
 	}
 }
 
+func TestNewStringInPredicate(t *testing.T) {
+	testCases := []predicateTestCase{
+		{
+			testName: "all chunks/pages/values inspected",
+			predicate: func() Predicate {
+				return NewStringInPredicate([]string{"abc", "acd"})
+			}(),
+			keptChunks: 1,
+			keptPages:  1,
+			keptValues: 2,
+			writeData: func(w *parquet.Writer) { //nolint:all
+				require.NoError(t, w.Write(&testDictString{"abc"})) // kept
+				require.NoError(t, w.Write(&testDictString{"acd"})) // kept
+				require.NoError(t, w.Write(&testDictString{"cde"})) // skipped
+			},
+		},
+		{
+			testName: "dictionary in the page header allows for skipping a column chunk",
+			predicate: func() Predicate {
+				return NewStringInPredicate([]string{"x"})
+			}(), // Not present in any values
+			keptChunks: 0,
+			keptPages:  0,
+			keptValues: 0,
+			writeData: func(w *parquet.Writer) { //nolint:all
+				require.NoError(t, w.Write(&testDictString{"abc"}))
+				require.NoError(t, w.Write(&testDictString{"abc"}))
+			},
+		},
+	}
+
+	for _, tC := range testCases {
+		t.Run(tC.testName, func(t *testing.T) {
+			testPredicate(t, tC)
+		})
+	}
+}
+
 func TestNewRegexInPredicate(t *testing.T) {
 	testCases := []predicateTestCase{
 		{
@@ -116,6 +158,45 @@ func TestNewRegexInPredicate(t *testing.T) {
 			writeData: func(w *parquet.Writer) { //nolint:all
 				require.NoError(t, w.Write(&testDictString{"abc"}))
 				require.NoError(t, w.Write(&testDictString{"abc"}))
+			},
+		},
+	}
+
+	for _, tC := range testCases {
+		t.Run(tC.testName, func(t *testing.T) {
+			testPredicate(t, tC)
+		})
+	}
+}
+
+func TestNewStringNotInPredicate(t *testing.T) {
+	testCases := []predicateTestCase{
+		{
+			testName: "all chunks/pages/values inspected",
+			predicate: func() Predicate {
+				return NewStringNotInPredicate([]string{"abc", "acd"})
+			}(),
+			keptChunks: 1,
+			keptPages:  1,
+			keptValues: 2,
+			writeData: func(w *parquet.Writer) { //nolint:all
+				require.NoError(t, w.Write(&testDictString{"abc"})) // skipped
+				require.NoError(t, w.Write(&testDictString{"acd"})) // skipped
+				require.NoError(t, w.Write(&testDictString{"cde"})) // kept
+				require.NoError(t, w.Write(&testDictString{"xde"})) // kept
+			},
+		},
+		{
+			testName: "dictionary in the page header allows for skipping a column chunk",
+			predicate: func() Predicate {
+				return NewStringNotInPredicate([]string{"xyz"})
+			}(), // All values excluded
+			keptChunks: 0,
+			keptPages:  0,
+			keptValues: 0,
+			writeData: func(w *parquet.Writer) { //nolint:all
+				require.NoError(t, w.Write(&testDictString{"xyz"}))
+				require.NoError(t, w.Write(&testDictString{"xyz"}))
 			},
 		},
 	}
@@ -302,5 +383,88 @@ func BenchmarkRegexInPredicate(b *testing.B) {
 		for _, ss := range s {
 			p.KeepValue(ss)
 		}
+	}
+}
+
+func TestIntInPredicate(t *testing.T) {
+	testCases := []predicateTestCase{
+		{
+			testName: "all chunks/pages/values inspected",
+			predicate: func() Predicate {
+				var p Predicate = NewIntInPredicate([]int64{1, 3})
+				return p
+			}(),
+			keptChunks: 1,
+			keptPages:  1,
+			keptValues: 2,
+			writeData: func(w *parquet.Writer) { //nolint:all
+				require.NoError(t, w.Write(&testInt{1}))  // kept
+				require.NoError(t, w.Write(&testInt{2}))  // skipped
+				require.NoError(t, w.Write(&testInt{3}))  // kept
+				require.NoError(t, w.Write(&testInt{10})) // skipped
+			},
+		},
+		{
+			testName: "dictionary allows skipping a column chunk when no ints match",
+			predicate: func() Predicate {
+				var p Predicate = NewIntInPredicate([]int64{0, 4, 100})
+				return p
+			}(),
+			keptChunks: 0,
+			keptPages:  0,
+			keptValues: 0,
+			writeData: func(w *parquet.Writer) { //nolint:all
+				require.NoError(t, w.Write(&testInt{1}))
+				require.NoError(t, w.Write(&testInt{2}))
+				require.NoError(t, w.Write(&testInt{3}))
+			},
+		},
+	}
+
+	for _, tC := range testCases {
+		t.Run(tC.testName, func(t *testing.T) {
+			testPredicate(t, tC)
+		})
+	}
+}
+
+func TestIntNotInPredicate(t *testing.T) {
+	testCases := []predicateTestCase{
+		{
+			testName: "all chunks/pages/values inspected",
+			predicate: func() Predicate {
+				var p Predicate = NewIntNotInPredicate([]int64{1, 3})
+				return p
+			}(),
+			keptChunks: 1,
+			keptPages:  1,
+			keptValues: 2,
+			writeData: func(w *parquet.Writer) { //nolint:all
+				require.NoError(t, w.Write(&testInt{1})) // skipped
+				require.NoError(t, w.Write(&testInt{2})) // kept
+				require.NoError(t, w.Write(&testInt{3})) // skipped
+				require.NoError(t, w.Write(&testInt{4})) // kept
+			},
+		},
+		{
+			testName: "dictionary allows skipping a column chunk when all ints excluded",
+			predicate: func() Predicate {
+				var p Predicate = NewIntNotInPredicate([]int64{7, 8})
+				return p
+			}(),
+			keptChunks: 0,
+			keptPages:  0,
+			keptValues: 0,
+			writeData: func(w *parquet.Writer) { //nolint:all
+				require.NoError(t, w.Write(&testInt{7}))
+				require.NoError(t, w.Write(&testInt{8}))
+			},
+		},
+	}
+
+	for _, tC := range testCases {
+		t.Run(tC.testName, func(t *testing.T) {
+			testPredicate(t, tC)
+		})
 	}
 }

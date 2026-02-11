@@ -90,6 +90,110 @@ func (p {{ $structName }}) KeepValue(v pq.Value) bool {
 }
 {{- end }}
 {{- end }}
+
+{{- /* Generate In/NotIn for Int, Float, Bool */}}
+{{- range .}}
+{{- $pred := . }}
+{{- if or (eq $pred.Name "Int") (eq $pred.Name "Float") (eq $pred.Name "Bool") }}
+{{- $structName := printf "%sInPredicate" $pred.Name }}
+var _ Predicate = (*{{ $structName }})(nil)
+
+type {{ $structName }} struct {
+	values []{{$pred.Type}}
+}
+
+func New{{ $structName }}(vals []{{$pred.Type}}) {{ $structName }} {
+	return {{ $structName }}{values: vals}
+}
+
+func (p {{ $structName }}) String() string { return fmt.Sprintf("{{ $structName }}{%v}", p.values) }
+
+func (p {{ $structName }}) KeepColumnChunk(c *ColumnChunkHelper) bool {
+	if d := c.Dictionary(); d != nil {
+		return keepDictionary(d, p.KeepValue)
+	}
+	{{- if or (eq $pred.Name "Int") (eq $pred.Name "Float") }}
+	ci, err := c.ColumnIndex()
+	if err == nil && ci != nil {
+		for i := 0; i < ci.NumPages(); i++ {
+			min := ci.MinValue(i).{{ $pred.ParquetFunc }}
+			max := ci.MaxValue(i).{{ $pred.ParquetFunc }}
+			for _, v := range p.values {
+				if min <= v && v <= max {
+					return true
+				}
+			}
+		}
+		return false
+	}
+	{{- end }}
+	return true
+}
+
+func (p {{ $structName }}) KeepPage(page pq.Page) bool {
+	{{- if or (eq $pred.Name "Int") (eq $pred.Name "Float") }}
+	minV, maxV, ok := page.Bounds()
+	if ok {
+		min := minV.{{ $pred.ParquetFunc }}
+		max := maxV.{{ $pred.ParquetFunc }}
+		for _, v := range p.values {
+			if min <= v && v <= max {
+				return true
+			}
+		}
+		return false
+	}
+	{{- end }}
+	return true
+}
+
+func (p {{ $structName }}) KeepValue(v pq.Value) bool {
+	vv := v.{{ $pred.ParquetFunc }}
+	for _, x := range p.values {
+		if vv == x {
+			return true
+		}
+	}
+	return false
+}
+
+{{- $structName := printf "%sNotInPredicate" $pred.Name }}
+var _ Predicate = (*{{ $structName }})(nil)
+
+type {{ $structName }} struct {
+	values []{{$pred.Type}}
+}
+
+func New{{ $structName }}(vals []{{$pred.Type}}) {{ $structName }} {
+	return {{ $structName }}{values: vals}
+}
+
+func (p {{ $structName }}) String() string {
+	return fmt.Sprintf("{{ $structName }}{%v}", p.values)
+}
+
+func (p {{ $structName }}) KeepColumnChunk(c *ColumnChunkHelper) bool {
+	if d := c.Dictionary(); d != nil {
+		return keepDictionary(d, p.KeepValue)
+	}
+	return true
+}
+
+func (p {{ $structName }}) KeepPage(page pq.Page) bool { 
+	return true
+}
+
+func (p {{ $structName }}) KeepValue(v pq.Value) bool {
+	vv := v.{{ $pred.ParquetFunc }}
+	for _, x := range p.values {
+		if vv == x {
+			return false
+		}
+	}
+	return true
+}
+{{- end }}
+{{- end }}
 `
 
 	type op struct {
@@ -211,16 +315,6 @@ func (p {{ $structName }}) KeepValue(v pq.Value) bool {
 			ParquetFunc:    "ByteArray()",
 			FormatModifier: "%s",
 			Ops: []op{
-				{
-					Op:          "Equal",
-					CompareCond: "bytes.Equal(vv, p.value)",
-					RangeCond:   "", // benchmarks are generally better w/o a range condition? "bytes.Compare(p.value, min) >= 0 && bytes.Compare(p.value, max) <= 0",
-				},
-				{
-					Op:          "NotEqual",
-					CompareCond: "!bytes.Equal(vv, p.value)",
-					RangeCond:   "!bytes.Equal(min, p.value) || !bytes.Equal(p.value, max)",
-				},
 				{
 					Op:          "Greater",
 					CompareCond: "bytes.Compare(vv, p.value) > 0",

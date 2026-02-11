@@ -20,11 +20,12 @@ const (
 	HintDebugReturnIn     = "debug_return_in"   // performance testing hint to simulate query latency and return fake data
 	HintDebugStdDev       = "debug_std_dev"     // standard deviation for debug_return_in latency simulation
 	HintDebugDataFactor   = "debug_data_factor" // performance testing hint to control the possibility of non-empty fake data
+	HintSkipOptimization  = "skip_optimization" // don't apply AST optimizations
 )
 
 func isUnsafe(h string) bool {
 	switch h {
-	case HintSample, HintTraceSample, HintSpanSample, HintExemplars, HintMostRecent:
+	case HintSample, HintTraceSample, HintSpanSample, HintExemplars, HintMostRecent, HintSkipOptimization:
 		return false
 	default:
 		return true

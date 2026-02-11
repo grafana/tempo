@@ -209,6 +209,49 @@ func TestUserConfigOverridesManager_allFields(t *testing.T) {
 	assert.Equal(t, "custom_key", mgr.MetricsGeneratorProcessorSpanMetricsSpanMultiplierKey(tenant1))
 }
 
+func TestUserConfigOverridesManager_MetricsGeneratorSpanNameSanitization(t *testing.T) {
+	defaultLimits := Overrides{
+		MetricsGenerator: MetricsGeneratorOverrides{
+			SpanNameSanitization: "disabled",
+		},
+	}
+	_, mgr, cleanup := localUserConfigOverrides(t, defaultLimits, nil)
+	defer cleanup()
+
+	// Test fallback behavior - tenant without override should return default value
+	assert.Equal(t, "disabled", mgr.MetricsGeneratorSpanNameSanitization(tenant1))
+	assert.Equal(t, "disabled", mgr.MetricsGeneratorSpanNameSanitization(tenant2))
+
+	// Set user-configurable override for tenant1
+	mgr.tenantLimits[tenant1] = &userconfigurableoverrides.Limits{
+		MetricsGenerator: userconfigurableoverrides.LimitsMetricsGenerator{
+			SpanNameSanitization: strPtr("enabled"),
+		},
+	}
+
+	// Test tenant override behavior - tenant1 should return override value
+	assert.Equal(t, "enabled", mgr.MetricsGeneratorSpanNameSanitization(tenant1))
+
+	// Test fallback behavior - tenant2 without override should still return default value
+	assert.Equal(t, "disabled", mgr.MetricsGeneratorSpanNameSanitization(tenant2))
+
+	// Update override for tenant1
+	mgr.tenantLimits[tenant1] = &userconfigurableoverrides.Limits{
+		MetricsGenerator: userconfigurableoverrides.LimitsMetricsGenerator{
+			SpanNameSanitization: strPtr("strict"),
+		},
+	}
+
+	// Test updated override value
+	assert.Equal(t, "strict", mgr.MetricsGeneratorSpanNameSanitization(tenant1))
+
+	// Remove override for tenant1
+	delete(mgr.tenantLimits, tenant1)
+
+	// Test fallback behavior after removal - should return default value again
+	assert.Equal(t, "disabled", mgr.MetricsGeneratorSpanNameSanitization(tenant1))
+}
+
 func TestUserConfigOverridesManager_populateFromBackend(t *testing.T) {
 	defaultLimits := Overrides{
 		Forwarders: []string{"my-forwarder"},

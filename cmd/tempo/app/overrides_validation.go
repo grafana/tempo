@@ -36,6 +36,12 @@ func (r *runtimeConfigValidator) Validate(config *overrides.Overrides) (warnings
 		}
 	}
 
+	if config.MetricsGenerator.SpanNameSanitization != "" {
+		if err := validation.ValidateSpanNameSanitization(config.MetricsGenerator.SpanNameSanitization); err != nil {
+			return warnings, err
+		}
+	}
+
 	if config.MetricsGenerator.NativeHistogramBucketFactor != 0 {
 		if err := validation.ValidateNativeHistogramBucketFactor(config.MetricsGenerator.NativeHistogramBucketFactor); err != nil {
 			return warnings, err
@@ -166,6 +172,12 @@ func (v *overridesValidator) Validate(limits *client.Limits) error {
 
 	if histogramMode, ok := limits.GetMetricsGenerator().GetGenerateNativeHistograms(); ok {
 		if err := validation.ValidateHistogramMode(string(histogramMode)); err != nil {
+			return err
+		}
+	}
+
+	if spanNameSanitization, ok := limits.GetMetricsGenerator().GetSpanNameSanitization(); ok {
+		if err := validation.ValidateSpanNameSanitization(spanNameSanitization); err != nil {
 			return err
 		}
 	}
