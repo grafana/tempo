@@ -88,11 +88,24 @@ func TestCardinalitySanitizer_ConcurrentAccess(t *testing.T) {
 			defer wg.Done()
 			for i := 0; i < 100; i++ {
 				lbls := labels.FromStrings("__name__", "m", "label", fmt.Sprintf("g%d-v%d", id, i))
-				_ = s.Sanitize(lbls)
+				result := s.Sanitize(lbls)
+				require.Equal(t, "m", result.Get("__name__"), "metric name must be preserved")
+				val := result.Get("label")
+				require.True(t, val == fmt.Sprintf("g%d-v%d", id, i) || val == overflowValue,
+					"label value must be original or overflow, got: %s", val)
 			}
 		}(g)
 	}
 	wg.Wait()
+
+	// After all goroutines finish, trigger maintenance and verify the sanitizer state is consistent
+	triggerMaintenance(s)
+
+	s.mtx.Lock()
+	state, ok := s.labelsState["label"]
+	s.mtx.Unlock()
+	require.True(t, ok, "label state should exist after concurrent inserts")
+	require.Greater(t, state.sketch.Estimate(), uint64(0), "sketch should have recorded values")
 }
 
 func TestCardinalitySanitizer_OverflowMetrics(t *testing.T) {
