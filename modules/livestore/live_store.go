@@ -589,8 +589,21 @@ func (s *LiveStore) consume(ctx context.Context, rs recordIter, now time.Time) (
 		// Get or create tenant instance
 		inst, err := s.getOrCreateInstance(tenant)
 		if err != nil {
+			// Record both record-level and span-level metrics for consistency
 			metricRecordsDropped.WithLabelValues(tenant, droppedRecordReasonInstanceNotFound).Inc()
-			level.Error(s.logger).Log("msg", "failed to get instance for tenant", "tenant", tenant, "err", err)
+
+			// Estimate span count since we can't decode the failed record
+			// Conservative estimate: typical record contains ~10 traces × ~10 spans = 100 spans
+			// Better to over-count than under-count for capacity planning
+			const estimatedSpansPerRecord = 100
+			overrides.RecordDiscardedSpans(estimatedSpansPerRecord, "instance_not_found", tenant)
+
+			level.Error(s.logger).Log(
+				"msg", "failed to get instance for tenant",
+				"tenant", tenant,
+				"estimated_discarded_spans", estimatedSpansPerRecord,
+				"err", err,
+			)
 			span.RecordError(err)
 			consecutiveErrors++
 			// Fixed C-14: Circuit breaker to prevent offset commit on repeated failures
