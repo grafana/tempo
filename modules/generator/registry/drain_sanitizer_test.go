@@ -7,6 +7,7 @@ import (
 
 	"github.com/prometheus/prometheus/model/labels"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func newTestDrainSanitizer(mode string) *DrainSanitizer {
@@ -55,6 +56,36 @@ func TestDrainSanitizer_DryRunMode(t *testing.T) {
 	result := sanitizer.Sanitize(lbls2)
 	assert.Equal(t, "GET /api/users/456", result.Get("span_name"))
 	assert.Equal(t, lbls2, result)
+}
+
+func TestDrainSanitizer_RuntimeModeToggle(t *testing.T) {
+	t.Parallel()
+
+	mode := SpanNameSanitizationEnabled
+	sanitizer := NewDrainSanitizer("test-tenant", func(string) string { return mode }, 15*time.Minute)
+
+	// Train the drain tree with similar span names to establish a pattern
+	sanitizer.Sanitize(labels.FromStrings("span_name", "GET /api/users/123"))
+	sanitizer.Sanitize(labels.FromStrings("span_name", "GET /api/users/456"))
+
+	// With enabled mode, should sanitize
+	result := sanitizer.Sanitize(labels.FromStrings("span_name", "GET /api/users/789"))
+	require.Contains(t, result.Get("span_name"), "<_>")
+
+	// Toggle to disabled at runtime - should pass through
+	mode = SpanNameSanitizationDisabled
+	result = sanitizer.Sanitize(labels.FromStrings("span_name", "GET /api/users/999"))
+	require.Equal(t, "GET /api/users/999", result.Get("span_name"))
+
+	// Toggle to dry-run at runtime - should pass through but still train
+	mode = SpanNameSanitizationDryRun
+	result = sanitizer.Sanitize(labels.FromStrings("span_name", "GET /api/users/111"))
+	require.Equal(t, "GET /api/users/111", result.Get("span_name"))
+
+	// Toggle back to enabled - should sanitize again
+	mode = SpanNameSanitizationEnabled
+	result = sanitizer.Sanitize(labels.FromStrings("span_name", "GET /api/users/222"))
+	require.Contains(t, result.Get("span_name"), "<_>")
 }
 
 func TestDrainSanitizer_DisabledMode(t *testing.T) {
