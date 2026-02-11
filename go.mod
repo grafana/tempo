@@ -80,12 +80,13 @@ require (
 	github.com/bytedance/sonic v1.15.0
 	github.com/evanphx/json-patch v5.9.11+incompatible
 	github.com/golang/groupcache v0.0.0-20241129210726-2c02b8208cf8
-	github.com/googleapis/gax-go/v2 v2.16.0
+	github.com/googleapis/gax-go/v2 v2.17.0
 	github.com/grafana/gomemcache v0.0.0-20251127154401-74f93547077b
 	github.com/grpc-ecosystem/go-grpc-middleware v1.4.0
 	github.com/hashicorp/golang-lru/v2 v2.0.7
 	github.com/jaegertracing/jaeger-idl v0.6.0
 	github.com/mark3labs/mcp-go v0.43.2
+	github.com/maypok86/otter/v2 v2.2.1
 	github.com/open-telemetry/opentelemetry-collector-contrib/exporter/zipkinexporter v0.138.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl v0.138.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/processor/filterprocessor v0.138.0
@@ -123,7 +124,7 @@ require (
 	go.opentelemetry.io/proto/otlp v1.9.0
 	go.yaml.in/yaml/v2 v2.4.3
 	golang.org/x/net v0.49.0
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20260122232226-8e98ce8d340d
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20260128011058-8636f8732409
 )
 
 require (
@@ -260,7 +261,6 @@ require (
 	github.com/mattn/go-colorable v0.1.14 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/mattn/go-runewidth v0.0.19 // indirect
-	github.com/maypok86/otter/v2 v2.2.1 // indirect
 	github.com/mdlayher/socket v0.4.1 // indirect
 	github.com/mdlayher/vsock v1.2.1 // indirect
 	github.com/miekg/dns v1.1.68 // indirect
@@ -424,8 +424,8 @@ require (
 	golang.org/x/text v0.33.0 // indirect
 	golang.org/x/tools v0.40.0 // indirect
 	gonum.org/v1/gonum v0.16.0 // indirect
-	google.golang.org/genproto v0.0.0-20251202230838-ff82c1b0f217 // indirect
-	google.golang.org/genproto/googleapis/api v0.0.0-20251202230838-ff82c1b0f217 // indirect
+	google.golang.org/genproto v0.0.0-20260128011058-8636f8732409 // indirect
+	google.golang.org/genproto/googleapis/api v0.0.0-20260128011058-8636f8732409 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	k8s.io/apimachinery v0.35.0 // indirect
 	k8s.io/client-go v0.34.1 // indirect
