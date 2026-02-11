@@ -67,6 +67,7 @@ func (c *Overrides) toLegacy() LegacyOverrides {
 		MetricsGeneratorNativeHistogramMaxBucketNumber:                              c.MetricsGenerator.NativeHistogramMaxBucketNumber,
 		MetricsGeneratorNativeHistogramMinResetDuration:                             c.MetricsGenerator.NativeHistogramMinResetDuration,
 		MetricsGeneratorSpanNameSanitization:                                        c.MetricsGenerator.SpanNameSanitization,
+		MetricsGeneratorMaxCardinalityPerLabel:                                      c.MetricsGenerator.MaxCardinalityPerLabel,
 
 		BlockRetention:     c.Compaction.BlockRetention,
 		CompactionWindow:   c.Compaction.CompactionWindow,
@@ -119,6 +120,7 @@ type LegacyOverrides struct {
 	MetricsGeneratorNativeHistogramMaxBucketNumber                              uint32                           `yaml:"metrics_generator_native_histogram_max_bucket_number,omitempty" json:"metrics_generator_native_histogram_max_bucket_number,omitempty"`
 	MetricsGeneratorNativeHistogramMinResetDuration                             time.Duration                    `yaml:"metrics_generator_native_histogram_min_reset_duration,omitempty" json:"native_histogram_min_reset_duration,omitempty"`
 	MetricsGeneratorSpanNameSanitization                                        string                           `yaml:"metrics_generator_span_name_sanitization" json:"metrics_generator_span_name_sanitization"`
+	MetricsGeneratorMaxCardinalityPerLabel                                      uint64                           `yaml:"metrics_generator_max_cardinality_per_label,omitempty" json:"metrics_generator_max_cardinality_per_label,omitempty"`
 	MetricsGeneratorTraceIDLabelName                                            string                           `yaml:"metrics_generator_trace_id_label_name" json:"metrics_generator_trace_id_label_name"`
 	MetricsGeneratorForwarderQueueSize                                          int                              `yaml:"metrics_generator_forwarder_queue_size" json:"metrics_generator_forwarder_queue_size"`
 	MetricsGeneratorForwarderWorkers                                            int                              `yaml:"metrics_generator_forwarder_workers" json:"metrics_generator_forwarder_workers"`
@@ -251,6 +253,7 @@ func (l *LegacyOverrides) toNewLimits() Overrides {
 			NativeHistogramMaxBucketNumber:  l.MetricsGeneratorNativeHistogramMaxBucketNumber,
 			NativeHistogramMinResetDuration: l.MetricsGeneratorNativeHistogramMinResetDuration,
 			SpanNameSanitization:            l.MetricsGeneratorSpanNameSanitization,
+			MaxCardinalityPerLabel:          l.MetricsGeneratorMaxCardinalityPerLabel,
 		},
 		Forwarders: l.Forwarders,
 		Global: GlobalOverrides{
