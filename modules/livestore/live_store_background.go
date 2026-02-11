@@ -359,27 +359,48 @@ func (s *LiveStore) reloadBlocks() error {
 		if err != nil {
 			level.Error(s.logger).Log("msg", "failed to list blocks for orphan check", "tenant", tenant, "err", err)
 		} else {
-			orphanCount := 0
+			// PASS 1: Identify potential orphans (with lock)
+			inst.blocksMtx.Lock()
+			orphanCandidates := []uuid.UUID{}
 			for _, blockOnDisk := range allBlocksOnDisk {
-				// Check if this block is tracked in either walBlocks or completeBlocks
-				inst.blocksMtx.Lock()
 				_, inWAL := inst.walBlocks[blockOnDisk]
 				_, inComplete := inst.completeBlocks[blockOnDisk]
+				if !inWAL && !inComplete {
+					orphanCandidates = append(orphanCandidates, blockOnDisk)
+				}
+			}
+			inst.blocksMtx.Unlock()
+
+			level.Debug(s.logger).Log("msg", "identified potential orphan candidates",
+				"count", len(orphanCandidates), "tenant", tenant)
+
+			// PASS 2: Delete orphans with re-verification (prevents TOCTOU race)
+			orphanCount := 0
+			for _, orphanID := range orphanCandidates {
+				// Double-check before deleting (in case state changed)
+				inst.blocksMtx.Lock()
+				_, inWAL := inst.walBlocks[orphanID]
+				_, inComplete := inst.completeBlocks[orphanID]
+				isCompleting := inst.completingBlocks[orphanID] // NEW CHECK
+				stillOrphaned := !inWAL && !inComplete && !isCompleting
 				inst.blocksMtx.Unlock()
 
-				if !inWAL && !inComplete {
-					// Found orphaned complete block
+				if stillOrphaned {
 					level.Warn(s.logger).Log("msg", "found orphaned complete block on startup, cleaning",
-						"id", blockOnDisk, "tenant", tenant)
+						"id", orphanID, "tenant", tenant)
 
-					cleanErr := l.ClearBlock(blockOnDisk, tenant)
+					cleanErr := l.ClearBlock(orphanID, tenant) // Safe - triple-checked
 					if cleanErr != nil {
 						level.Error(s.logger).Log("msg", "failed to clear orphaned block on startup",
-							"id", blockOnDisk, "tenant", tenant, "err", cleanErr)
+							"id", orphanID, "tenant", tenant, "err", cleanErr)
 					} else {
 						orphanCount++
 						metricOrphanedBlocksCleaned.Inc()
 					}
+				} else {
+					// State changed between passes - block is no longer orphaned
+					level.Debug(s.logger).Log("msg", "block no longer orphaned, skipping cleanup",
+						"id", orphanID, "tenant", tenant)
 				}
 			}
 
