@@ -127,10 +127,7 @@ func New(cfg *Config, overrides Overrides, tenant string, appendable storage.App
 		externalLabels[cfg.InjectTenantIDAs] = tenant
 	}
 
-	var sanitizer Sanitizer = &noopSanitizer{}
-	if sanitizationMode := overrides.MetricsGeneratorSpanNameSanitization(tenant); sanitizationMode != SpanNameSanitizationDisabled {
-		sanitizer = NewDrainSanitizer(tenant, sanitizationMode == SpanNameSanitizationDryRun, cfg.StaleDuration)
-	}
+	sanitizer := NewDrainSanitizer(tenant, overrides.MetricsGeneratorSpanNameSanitization, cfg.StaleDuration)
 
 	r := &ManagedRegistry{
 		onShutdown: cancel,

@@ -25,11 +25,16 @@ var (
 	}, []string{"tenant"})
 )
 
+// sanitizeModeFunc returns the current span name sanitization mode for the tenant.
+type sanitizeModeFunc func(tenant string) string
+
 type DrainSanitizer struct {
 	mtx    sync.Mutex
 	drain  *drain.Drain
-	dryRun bool
 	demand *Cardinality
+
+	tenant        string
+	sanitizeModeF sanitizeModeFunc
 
 	metricTotalSpansSanitized prometheus.Counter
 	demandGauge               prometheus.Gauge
@@ -41,10 +46,11 @@ type DrainSanitizer struct {
 	pruneChan        <-chan time.Time
 }
 
-func NewDrainSanitizer(tenant string, dryRun bool, staleDuration time.Duration) *DrainSanitizer {
+func NewDrainSanitizer(tenant string, sanitizeModeF sanitizeModeFunc, staleDuration time.Duration) *DrainSanitizer {
 	return &DrainSanitizer{
 		drain:                     drain.New(tenant, drain.DefaultConfig()),
-		dryRun:                    dryRun,
+		tenant:                    tenant,
+		sanitizeModeF:             sanitizeModeF,
 		metricTotalSpansSanitized: metricTotalSpansSanitized.WithLabelValues(tenant),
 		demand:                    NewCardinality(staleDuration, removeStaleSeriesInterval),
 		demandGauge:               metricPostSanitizationDemand.WithLabelValues(tenant),
@@ -54,6 +60,13 @@ func NewDrainSanitizer(tenant string, dryRun bool, staleDuration time.Duration) 
 }
 
 func (s *DrainSanitizer) Sanitize(lbls labels.Labels) labels.Labels {
+	// Check the override at runtime so that changes to the sanitization mode override
+	// take effect without restarting the generator.
+	mode := s.sanitizeModeF(s.tenant)
+	if mode == SpanNameSanitizationDisabled {
+		return lbls
+	}
+
 	s.doPeriodicMaintenance()
 
 	s.mtx.Lock()
@@ -84,7 +97,8 @@ func (s *DrainSanitizer) Sanitize(lbls labels.Labels) labels.Labels {
 	newLabelHash := newLbls.Hash()
 	s.demand.Insert(newLabelHash)
 
-	if s.dryRun {
+	// in dry-run mode, return the labels without modifying but capture metrics
+	if mode == SpanNameSanitizationDryRun {
 		return lbls
 	}
 
