@@ -552,8 +552,10 @@ func (i *instance) completeBlock(ctx context.Context, id uuid.UUID) error {
 		return nil
 	}
 
-	// Add to complete blocks
+	// Add to complete blocks and remove from WAL blocks atomically
+	// This prevents the dual-map window that would cause duplicate search results
 	i.completeBlocks[id] = localBlock
+	delete(i.walBlocks, id)
 	i.blocksMtx.Unlock()
 
 	// STEP 4: Clear WAL block (I/O outside lock)
@@ -570,7 +572,7 @@ func (i *instance) completeBlock(ctx context.Context, id uuid.UUID) error {
 			metricCompleteBlockCleanupFailures.Inc()
 		}
 
-		// Remove from map
+		// Remove from completeBlocks map (walBlocks already removed above)
 		i.blocksMtx.Lock()
 		delete(i.completeBlocks, id)
 		i.blocksMtx.Unlock()
@@ -578,10 +580,8 @@ func (i *instance) completeBlock(ctx context.Context, id uuid.UUID) error {
 		return fmt.Errorf("failed to clear WAL block %s: %w", id, err)
 	}
 
-	// STEP 5: Final cleanup - remove from WAL blocks
-	i.blocksMtx.Lock()
-	delete(i.walBlocks, id)
-	i.blocksMtx.Unlock()
+	// STEP 5: Final cleanup - completingBlocks map (walBlocks already removed atomically above)
+	// Note: No need to remove from walBlocks here - already done atomically with completeBlocks add
 
 	level.Info(i.logger).Log("msg", "completed block", "id", id.String())
 	span.AddEvent("block completed successfully")
