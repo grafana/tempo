@@ -57,7 +57,7 @@ func (m *mockLimiter) OnPruneStaleSeries() {
 }
 
 func buildTestLabels(names []string, values []string) labels.Labels {
-	builder := NewLabelBuilder(0, 0, newTestDrainSanitizer(SpanNameSanitizationDisabled))
+	builder := NewLabelBuilder(0, 0, newTestDrainSanitizer(SpanNameSanitizationDisabled), noopLabelLimiter{})
 	for i := range names {
 		builder.Add(names[i], values[i])
 	}
@@ -842,14 +842,8 @@ func TestManagedRegistry_cardinalitySanitizer(t *testing.T) {
 		counter.Inc(buildLabels("GET", fmt.Sprintf("/users/%d", i)), 1.0)
 	}
 
-	// Force the cardinality limiter to re-evaluate overLimit flags.
-	chain, ok := reg.sanitizer.(*ChainSanitizer)
-	require.True(t, ok, "expected sanitizer to be *ChainSanitizer")
-	for _, s := range chain.sanitizers {
-		if cl, ok := s.(*CardinalitySanitizer); ok {
-			triggerMaintenance(cl)
-		}
-	}
+	// Force the per-label limiter to re-evaluate overLimit flags.
+	triggerMaintenance(reg.perLabelLimiter.(*PerLabelLimiter))
 
 	// Push more series after maintenance has flagged url as over limit
 	for i := 20; i < 30; i++ {

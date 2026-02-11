@@ -16,7 +16,7 @@ const overflowValue = "__cardinality_overflow__"
 var metricCardinalityLimitOverflows = promauto.NewCounterVec(prometheus.CounterOpts{
 	Namespace: "tempo",
 	Name:      "metrics_generator_registry_cardinality_limit_overflows_total",
-	Help:      "Total number of label values replaced with __cardinality_overflow__ by the per-label cardinality sanitizer",
+	Help:      "Total number of label values replaced with __cardinality_overflow__ by the per-label cardinality limiter",
 }, []string{"tenant"})
 
 type labelCardinalityState struct {
@@ -24,11 +24,15 @@ type labelCardinalityState struct {
 	overLimit bool // cached flag, updated periodically in maintenance tick
 }
 
-// CardinalitySanitizer replaces individual label values with __cardinality_overflow__
-// when the estimated cardinality of that label exceeds maxCardinality.
-// Unlike the global series limiter which collapses all labels into a single overflow
-// entity, this preserves all other labels and only overflows the problematic one.
-type CardinalitySanitizer struct {
+// PerLabelLimiter caps the number of distinct values any single label can have.
+// When a label's estimated cardinality exceeds maxCardinality, its value is replaced
+// with __cardinality_overflow__ while all other labels are preserved.
+//
+// This is conceptually a limiter, not a sanitizer - it enforces a cardinality ceiling
+// rather than normalizing label values (like DrainSanitizer does for span names).
+// It runs in the label-building pipeline after sanitization but before the global
+// entity limiter, making the processing order: sanitize -> per-label limit -> entity limit.
+type PerLabelLimiter struct {
 	mtx            sync.Mutex
 	tenant         string
 	overrides      Overrides
@@ -42,10 +46,10 @@ type CardinalitySanitizer struct {
 	pruneChan        <-chan time.Time
 }
 
-func NewCardinalitySanitizer(tenant string, overrides Overrides, staleDuration time.Duration) *CardinalitySanitizer {
-	return &CardinalitySanitizer{
-		tenant:           tenant,
-		overrides:        overrides,
+func NewPerLabelLimiter(tenant string, overrides Overrides, staleDuration time.Duration) *PerLabelLimiter {
+	return &PerLabelLimiter{
+		tenant:    tenant,
+		overrides: overrides,
 		maxCardinality:   overrides.MetricsGeneratorMaxCardinalityPerLabel(tenant),
 		labelsState:      make(map[string]*labelCardinalityState),
 		staleDuration:    staleDuration,
@@ -55,7 +59,10 @@ func NewCardinalitySanitizer(tenant string, overrides Overrides, staleDuration t
 	}
 }
 
-func (s *CardinalitySanitizer) Sanitize(lbls labels.Labels) labels.Labels {
+// Limit applies the per-label cardinality limit to the given labels.
+// Labels whose estimated cardinality exceeds the configured max have their
+// value replaced with __cardinality_overflow__.
+func (s *PerLabelLimiter) Limit(lbls labels.Labels) labels.Labels {
 	// disabled, return as is
 	if s.maxCardinality == 0 {
 		return lbls
@@ -77,7 +84,7 @@ func (s *CardinalitySanitizer) Sanitize(lbls labels.Labels) labels.Labels {
 
 		// Always insert the ORIGINAL value hash to track true demand.
 		// If we inserted the overflow value, the estimate would drop to 1
-		// and cause oscillation: over→overflow→estimate drops→under→real values→over→...
+		// and cause oscillation: over->overflow->estimate drops->under->real values->over->...
 		state.sketch.Insert(xxhash.Sum64String(l.Value))
 
 		if state.overLimit {
@@ -89,7 +96,7 @@ func (s *CardinalitySanitizer) Sanitize(lbls labels.Labels) labels.Labels {
 	return builder.Labels()
 }
 
-func (s *CardinalitySanitizer) getOrCreateState(labelName string) *labelCardinalityState {
+func (s *PerLabelLimiter) getOrCreateState(labelName string) *labelCardinalityState {
 	state, ok := s.labelsState[labelName]
 	if !ok {
 		state = &labelCardinalityState{
@@ -101,11 +108,11 @@ func (s *CardinalitySanitizer) getOrCreateState(labelName string) *labelCardinal
 }
 
 // doPeriodicMaintenance holds s.mtx while iterating labelsState for both
-// demand updates (every 15s) and pruning (every 5m). This blocks Sanitize()
+// demand updates (every 15s) and pruning (every 5m). This blocks Limit()
 // callers for the duration. In practice this is fast, so it's acceptable.
 // If it becomes a problem, snapshot the labelsState slice under the lock
-// and do sketch operations outside it
-func (s *CardinalitySanitizer) doPeriodicMaintenance() {
+// and do sketch operations outside it.
+func (s *PerLabelLimiter) doPeriodicMaintenance() {
 	select {
 	case <-s.demandUpdateChan:
 		s.mtx.Lock()

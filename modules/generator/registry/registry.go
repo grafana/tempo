@@ -50,8 +50,10 @@ type ManagedRegistry struct {
 	metricsMtx   sync.RWMutex
 	metrics      map[string]metric
 	entityDemand *Cardinality
-	limiter      Limiter
-	sanitizer    Sanitizer
+
+	sanitizer       Sanitizer
+	perLabelLimiter LabelLimiter
+	limiter         Limiter
 
 	appendable storage.Appendable
 
@@ -98,6 +100,11 @@ type Limiter interface {
 	OnDelete(labelHash uint64, seriesCount uint32)
 }
 
+// LabelLimiter caps label cardinality by replacing high-cardinality values.
+type LabelLimiter interface {
+	Limit(lbls labels.Labels) labels.Labels
+}
+
 // Sanitizer applies a transformation to all non-constant labels.
 type Sanitizer interface {
 	Sanitize(lbls labels.Labels) labels.Labels
@@ -120,11 +127,7 @@ func New(cfg *Config, overrides Overrides, tenant string, appendable storage.App
 	}
 
 	drainSanitizer := NewDrainSanitizer(tenant, overrides.MetricsGeneratorSpanNameSanitization, cfg.StaleDuration)
-	cardinalitySanitizer := NewCardinalitySanitizer(tenant, overrides, cfg.StaleDuration)
-
-	// run drainSanitizer before cardinalitySanitizer, cardinalitySanitizer should run just
-	// before we run the limier and at the end of all Sanitizers
-	sanitizer := NewChainSanitizer(drainSanitizer, cardinalitySanitizer)
+	perLabelLimiter := NewPerLabelLimiter(tenant, overrides, cfg.StaleDuration)
 
 	r := &ManagedRegistry{
 		onShutdown: cancel,
@@ -136,10 +139,11 @@ func New(cfg *Config, overrides Overrides, tenant string, appendable storage.App
 
 		metrics: map[string]metric{},
 
-		appendable:   appendable,
-		limiter:      limiter,
-		sanitizer:    sanitizer,
-		entityDemand: NewCardinality(cfg.StaleDuration, removeStaleSeriesInterval),
+		appendable:      appendable,
+		sanitizer:       drainSanitizer,
+		perLabelLimiter: perLabelLimiter,
+		limiter:         limiter,
+		entityDemand:    NewCardinality(cfg.StaleDuration, removeStaleSeriesInterval),
 
 		logger:                 logger,
 		limitLogger:            tempo_log.NewRateLimitedLogger(1, level.Warn(logger)),
@@ -155,7 +159,7 @@ func New(cfg *Config, overrides Overrides, tenant string, appendable storage.App
 }
 
 func (r *ManagedRegistry) NewLabelBuilder() LabelBuilder {
-	return NewLabelBuilder(r.cfg.MaxLabelNameLength, r.cfg.MaxLabelValueLength, r.sanitizer)
+	return NewLabelBuilder(r.cfg.MaxLabelNameLength, r.cfg.MaxLabelValueLength, r.sanitizer, r.perLabelLimiter)
 }
 
 func (r *ManagedRegistry) OnAdd(labelHash uint64, seriesCount uint32, lbls labels.Labels) (labels.Labels, uint64) {
