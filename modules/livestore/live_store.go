@@ -508,6 +508,25 @@ func (s *LiveStore) calculateTimeLag(lagShortcutThreshold int64) *time.Duration 
 	return &recordLag
 }
 
+// consume processes records from Kafka and returns the offset to commit.
+//
+// Return values:
+//   - (offset, nil): Records successfully processed up to offset
+//   - (nil, nil): Context cancelled before processing (graceful shutdown)
+//   - (nil, error): Processing error occurred
+//
+// IMPORTANT: This function works in conjunction with PartitionReader.commitLoop.
+// The commitLoop performs a final offset commit on shutdown using the last
+// stored offset from storeOffsetForCommit(). This implementation guarantees
+// correctness by:
+//   1. Returning (offset, nil) only for successfully processed complete batches
+//   2. Returning (nil, nil) on context cancellation (no partial commits)
+//   3. Never calling storeOffsetForCommit() for partial batches
+//
+// If this contract changes (e.g., intermediate offset commits within this function),
+// the commitLoop must be updated to skip or condition its shutdown commit.
+//
+// See: partition_reader.go commitLoop() for the shutdown commit logic.
 func (s *LiveStore) consume(ctx context.Context, rs recordIter, now time.Time) (*kadm.Offset, error) {
 	defer s.decoder.Reset()
 	_, span := tracer.Start(ctx, "LiveStore.consume")

@@ -179,6 +179,24 @@ func (r *PartitionReader) stop(error) error {
 	return nil
 }
 
+// commitLoop periodically commits the last stored offset and performs
+// a final commit on shutdown.
+//
+// IMPORTANT: The shutdown commit at context cancellation assumes that
+// consume() only stores offsets for fully processed batches. If consume()
+// is interrupted (context cancelled), it returns (nil, nil) and does NOT
+// call storeOffsetForCommit(), so the shutdown commit uses the last fully
+// processed batch offset.
+//
+// This coupling between consume() and commitLoop is critical for correctness:
+// - consume() controls which offsets are eligible for commit via storeOffsetForCommit()
+// - commitLoop trusts that stored offsets represent complete processing
+// - Shutdown commit is safe because partial batches never reach storeOffsetForCommit()
+//
+// If consume() changes to store intermediate offsets, this shutdown commit
+// must be removed or made conditional to avoid committing partial work.
+//
+// See: live_store.go consume() for the offset return contract.
 func (r *PartitionReader) commitLoop(ctx context.Context) {
 	if r.commitInterval == 0 { // Sync commits
 		return
