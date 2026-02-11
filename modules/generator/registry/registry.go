@@ -98,17 +98,9 @@ type Limiter interface {
 	OnDelete(labelHash uint64, seriesCount uint32)
 }
 
-// Sanitizer is applies a transformation to all non-constant labels.
+// Sanitizer applies a transformation to all non-constant labels.
 type Sanitizer interface {
 	Sanitize(lbls labels.Labels) labels.Labels
-}
-
-type noopSanitizer struct{}
-
-var _ Sanitizer = (*noopSanitizer)(nil)
-
-func (s *noopSanitizer) Sanitize(lbls labels.Labels) labels.Labels {
-	return lbls
 }
 
 // New creates a ManagedRegistry. This Registry will scrape itself, write samples into an appender
@@ -127,10 +119,7 @@ func New(cfg *Config, overrides Overrides, tenant string, appendable storage.App
 		externalLabels[cfg.InjectTenantIDAs] = tenant
 	}
 
-	var sanitizer Sanitizer = &noopSanitizer{}
-	if sanitizationMode := overrides.MetricsGeneratorSpanNameSanitization(tenant); sanitizationMode != SpanNameSanitizationDisabled {
-		sanitizer = NewDrainSanitizer(tenant, sanitizationMode == SpanNameSanitizationDryRun, cfg.StaleDuration)
-	}
+	sanitizer := NewDrainSanitizer(tenant, overrides.MetricsGeneratorSpanNameSanitization, cfg.StaleDuration)
 
 	r := &ManagedRegistry{
 		onShutdown: cancel,

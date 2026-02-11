@@ -8,7 +8,7 @@ import (
 )
 
 func TestLabelBuilder(t *testing.T) {
-	builder := NewLabelBuilder(0, 0, &noopSanitizer{})
+	builder := NewLabelBuilder(0, 0, newTestDrainSanitizer(SpanNameSanitizationDisabled))
 	builder.Add("name", "value")
 	lbls, ok := builder.CloseAndBuildLabels()
 
@@ -23,7 +23,7 @@ func TestLabelBuilder(t *testing.T) {
 }
 
 func TestLabelBuilder_MaxLabelNameLength(t *testing.T) {
-	builder := NewLabelBuilder(10, 10, &noopSanitizer{})
+	builder := NewLabelBuilder(10, 10, newTestDrainSanitizer(SpanNameSanitizationDisabled))
 	builder.Add("name", "very_long_value")
 	builder.Add("very_long_name", "value")
 
@@ -34,7 +34,7 @@ func TestLabelBuilder_MaxLabelNameLength(t *testing.T) {
 }
 
 func TestLabelBuilder_InvalidUTF8(t *testing.T) {
-	builder := NewLabelBuilder(0, 0, &noopSanitizer{})
+	builder := NewLabelBuilder(0, 0, newTestDrainSanitizer(SpanNameSanitizationDisabled))
 	builder.Add("name", "svc-\xc3\x28") // Invalid UTF-8
 
 	_, ok := builder.CloseAndBuildLabels()
