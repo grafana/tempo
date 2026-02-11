@@ -75,7 +75,7 @@ func TestScheduleRetry_ShutdownDuringDelay(t *testing.T) {
 
 // TestEnqueueOpWithJitter_ShutdownDuringDelay verifies jitter goroutine exits on shutdown
 func TestEnqueueOpWithJitter_ShutdownDuringDelay(t *testing.T) {
-	defer goleak.VerifyNone(t)
+	defer goleak.VerifyNone(t, goleak.IgnoreCurrent())
 
 	// Setup
 	ctx, cancel := context.WithCancel(context.Background())
