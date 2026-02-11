@@ -86,7 +86,7 @@ require (
 	github.com/hashicorp/golang-lru/v2 v2.0.7
 	github.com/jaegertracing/jaeger-idl v0.6.0
 	github.com/mark3labs/mcp-go v0.43.2
-	github.com/maypok86/otter/v2 v2.2.1
+	github.com/maypok86/otter/v2 v2.3.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/exporter/zipkinexporter v0.138.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl v0.138.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/processor/filterprocessor v0.138.0

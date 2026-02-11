@@ -1,3 +1,21 @@
+## 2.3.0 - 2025-12-22
+
+### ✨Features
+
+- A [plugin](https://github.com/maypok86/otter/tree/main/plugin/pslog) for the `slog` logger has been added.
+- The `StopAllGoroutines` method has been added.
+
+### 🚀 Improvements
+
+- docs: add Nuclei to projects list ([#169](https://github.com/maypok86/otter/pull/169))
+
+### 🐞 Bug Fixes
+
+- fix: the return value check in the err-not-found example ([#156](https://github.com/maypok86/otter/issues/156))
+- Panics when running under synctest ([#158](https://github.com/maypok86/otter/issues/158))
+- Does not build with GOARCH=wasm ([#161](https://github.com/maypok86/otter/issues/161))
+- fix: treat expired item refresh as create operation in ExpiryCreating ([#154](https://github.com/maypok86/otter/pull/154))
+
 ## 2.2.1 - 2025-07-22
 
 ### 🚀 Improvements
