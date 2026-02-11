@@ -13,6 +13,7 @@
 * [ENHANCEMENT] Improved live store readiness check and added `readiness_target_lag` and `readiness_max_wait` config parameters. Live store will now - if `readiness_target_lag` is set - not report `/ready` until Kafka lag is brought under the specified value [#6238](https://github.com/grafana/tempo/pull/6238) [#6405](https://github.com/grafana/tempo/pull/6405) (@oleg-kozlyuk-grafana, @ruslan-mikhailov)
 * [ENHANCEMENT] Expose a new histogram metric to track the jobs per query distribution [#6343](https://github.com/grafana/tempo/pull/6343) (@javiermolinar)
 * [ENHANCEMENT] Do deep validation for filter policies in user configurable overrides API [#6407](https://github.com/grafana/tempo/pull/6407) (@electron0zero)
+* [ENHANCEMENT] Add `fail_on_high_lag` parameter to allow live-store to fail if it is lagged [#6363](https://github.com/grafana/tempo/pull/6363) (@ruslan-mikhailov)
 * [BUGFIX] Fix query-frontend unable to convert dedicated column blob option [#6377](https://github.com/grafana/tempo/pull/6377) (@stoewer)
 * [BUGFIX] Correct avg_over_time calculation [#6252](https://github.com/grafana/tempo/pull/6252) (@ruslan-mikhailov)
 * [BUGFIX] Correct instant query calculation for rate() [#6205](https://github.com/grafana/tempo/pull/6205) (@ruslan-mikhailov)
