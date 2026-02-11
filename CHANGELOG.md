@@ -1,6 +1,7 @@
 ## main / unreleased
 
 * [BUGFIX] Fix query-frontend unable to convert dedicated column blob option [#6377](https://github.com/grafana/tempo/pull/6377) (@stoewer)
+* [BUGFIX] Fix issue with additional matched spans in queries with only resource attributes [#6432](https://github.com/grafana/tempo/pull/6432) (@stoewer)
 
 # v2.10.0
 
