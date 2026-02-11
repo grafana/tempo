@@ -131,6 +131,114 @@ func TestPartitionReaderLag(t *testing.T) {
 	t.Cleanup(func() { require.NoError(t, services.StopAndAwaitTerminated(context.Background(), r)) })
 }
 
+func TestFetchLastCommittedOffsetForceFromLookback(t *testing.T) {
+	lookback := time.Hour
+
+	t.Run("committed offset exists, forceFromLookback=false uses committed offset", func(t *testing.T) {
+		_, address := testkafka.CreateCluster(t, 1, testTopic)
+		client := testkafka.NewKafkaClient(t, address, testTopic)
+
+		// Produce a record and commit an offset
+		testkafka.SendReq(t.Context(), t, client, ingest.Encode, testTenantID)
+
+		adm := kadm.NewClient(client)
+		offsets := make(kadm.Offsets)
+		offsets.Add(kadm.Offset{
+			Topic:     testTopic,
+			Partition: testPartition,
+			At:        0,
+		})
+		_, err := adm.CommitOffsets(t.Context(), testConsumerGroup, offsets)
+		require.NoError(t, err)
+
+		l := test.NewTestingLogger(t)
+		cfg := ingest.KafkaConfig{}
+		flagext.DefaultValues(&cfg)
+		cfg.Address = address
+		cfg.Topic = testTopic
+		cfg.ConsumerGroup = testConsumerGroup
+
+		readerClient, err := ingest.NewReaderClient(cfg, ingest.NewReaderClientMetrics(liveStoreServiceName, prometheus.NewRegistry()), l)
+		require.NoError(t, err)
+
+		r, err := newPartitionReader(readerClient, testPartition, cfg, 0, lookback, false, nil, l, newPartitionReaderMetrics(testPartition, prometheus.NewRegistry()))
+		require.NoError(t, err)
+
+		offset, err := r.fetchLastCommittedOffset(t.Context())
+		require.NoError(t, err)
+
+		// Should use committed offset (At(0)), not lookback
+		epochOffset := offset.EpochOffset()
+		assert.Equal(t, int64(0), epochOffset.Offset)
+	})
+
+	t.Run("committed offset exists, forceFromLookback=true ignores committed offset", func(t *testing.T) {
+		_, address := testkafka.CreateCluster(t, 1, testTopic)
+		client := testkafka.NewKafkaClient(t, address, testTopic)
+
+		// Produce a record and commit an offset
+		testkafka.SendReq(t.Context(), t, client, ingest.Encode, testTenantID)
+
+		adm := kadm.NewClient(client)
+		offsets := make(kadm.Offsets)
+		offsets.Add(kadm.Offset{
+			Topic:     testTopic,
+			Partition: testPartition,
+			At:        0,
+		})
+		_, err := adm.CommitOffsets(t.Context(), testConsumerGroup, offsets)
+		require.NoError(t, err)
+
+		l := test.NewTestingLogger(t)
+		cfg := ingest.KafkaConfig{}
+		flagext.DefaultValues(&cfg)
+		cfg.Address = address
+		cfg.Topic = testTopic
+		cfg.ConsumerGroup = testConsumerGroup
+
+		readerClient, err := ingest.NewReaderClient(cfg, ingest.NewReaderClientMetrics(liveStoreServiceName, prometheus.NewRegistry()), l)
+		require.NoError(t, err)
+
+		r, err := newPartitionReader(readerClient, testPartition, cfg, 0, lookback, true, nil, l, newPartitionReaderMetrics(testPartition, prometheus.NewRegistry()))
+		require.NoError(t, err)
+
+		offset, err := r.fetchLastCommittedOffset(t.Context())
+		require.NoError(t, err)
+
+		// Should use lookback period (AfterMilli), not the committed offset
+		epochOffset := offset.EpochOffset()
+		expectedMilli := time.Now().Add(-lookback).UnixMilli()
+		assert.InDelta(t, expectedMilli, epochOffset.Offset, 5000, "offset should be near lookback time in millis")
+		assert.Equal(t, int32(-1), epochOffset.Epoch, "epoch=-1 indicates AfterMilli offset")
+	})
+
+	t.Run("no committed offset, forceFromLookback=true uses lookback period", func(t *testing.T) {
+		_, address := testkafka.CreateCluster(t, 1, testTopic)
+
+		l := test.NewTestingLogger(t)
+		cfg := ingest.KafkaConfig{}
+		flagext.DefaultValues(&cfg)
+		cfg.Address = address
+		cfg.Topic = testTopic
+		cfg.ConsumerGroup = testConsumerGroup
+
+		readerClient, err := ingest.NewReaderClient(cfg, ingest.NewReaderClientMetrics(liveStoreServiceName, prometheus.NewRegistry()), l)
+		require.NoError(t, err)
+
+		r, err := newPartitionReader(readerClient, testPartition, cfg, 0, lookback, true, nil, l, newPartitionReaderMetrics(testPartition, prometheus.NewRegistry()))
+		require.NoError(t, err)
+
+		offset, err := r.fetchLastCommittedOffset(t.Context())
+		require.NoError(t, err)
+
+		// Should use lookback period
+		epochOffset := offset.EpochOffset()
+		expectedMilli := time.Now().Add(-lookback).UnixMilli()
+		assert.InDelta(t, expectedMilli, epochOffset.Offset, 5000, "offset should be near lookback time in millis")
+		assert.Equal(t, int32(-1), epochOffset.Epoch, "epoch=-1 indicates AfterMilli offset")
+	})
+}
+
 func defaultPartitionReaderWithCommitInterval(t *testing.T, address string, commitInterval time.Duration, consume consumeFn) *PartitionReader {
 	l := test.NewTestingLogger(t)
 
@@ -147,7 +255,7 @@ func defaultPartitionReaderWithCommitInterval(t *testing.T, address string, comm
 	)
 	require.NoError(t, err)
 
-	r, err := newPartitionReader(client, 0, cfg, commitInterval, time.Hour, consume, l, newPartitionReaderMetrics(testPartition, prometheus.NewRegistry()))
+	r, err := newPartitionReader(client, 0, cfg, commitInterval, time.Hour, false, consume, l, newPartitionReaderMetrics(testPartition, prometheus.NewRegistry()))
 	require.NoError(t, err)
 
 	err = services.StartAndAwaitRunning(t.Context(), r)
