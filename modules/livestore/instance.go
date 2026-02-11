@@ -111,11 +111,12 @@ type instance struct {
 	enc encoding.VersionedEncoding
 
 	// Block management
-	blocksMtx      sync.RWMutex
-	headBlock      common.WALBlock
-	walBlocks      map[uuid.UUID]common.WALBlock
-	completeBlocks map[uuid.UUID]*ingester.LocalBlock
-	lastCutTime    time.Time
+	blocksMtx        sync.RWMutex
+	headBlock        common.WALBlock
+	walBlocks        map[uuid.UUID]common.WALBlock
+	completeBlocks   map[uuid.UUID]*ingester.LocalBlock
+	completingBlocks map[uuid.UUID]bool // Tracks blocks currently being completed to prevent TOCTOU races
+	lastCutTime      time.Time
 
 	// Live traces
 	liveTracesMtx  sync.Mutex
@@ -142,6 +143,7 @@ func newInstance(instanceID string, cfg Config, wal *wal.WAL, overrides override
 		enc:                enc,
 		walBlocks:          map[uuid.UUID]common.WALBlock{},
 		completeBlocks:     map[uuid.UUID]*ingester.LocalBlock{},
+		completingBlocks:   map[uuid.UUID]bool{}, // Track blocks being completed
 		liveTraces:         livetraces.New[*v1.ResourceSpans](func(rs *v1.ResourceSpans) uint64 { return uint64(rs.Size()) }, cfg.MaxTraceIdle, cfg.MaxTraceLive, instanceID),
 		traceSizes:         tracesizes.New(),
 		maxTraceLogger:     util_log.NewRateLimitedLogger(maxTraceLogLinesPerSecond, level.Warn(logger)),
@@ -449,16 +451,36 @@ func (i *instance) completeBlock(ctx context.Context, id uuid.UUID) error {
 		))
 	defer span.End()
 
+	// STEP 1: Check and mark as in-progress (TOCTOU prevention)
 	i.blocksMtx.Lock()
 	walBlock := i.walBlocks[id]
-	i.blocksMtx.Unlock()
-
 	if walBlock == nil {
+		i.blocksMtx.Unlock()
 		level.Warn(i.logger).Log("msg", "WAL block disappeared before being completed", "id", id)
 		span.AddEvent("WAL block not found")
 		return nil
 	}
 
+	// Check if already being completed
+	if i.completingBlocks[id] {
+		i.blocksMtx.Unlock()
+		err := fmt.Errorf("block already being completed")
+		span.RecordError(err)
+		return err
+	}
+
+	// Mark as in-progress
+	i.completingBlocks[id] = true
+	i.blocksMtx.Unlock()
+
+	// Ensure cleanup on exit (even if function panics)
+	defer func() {
+		i.blocksMtx.Lock()
+		delete(i.completingBlocks, id)
+		i.blocksMtx.Unlock()
+	}()
+
+	// STEP 2: Perform I/O without lock (safe - marked in-progress)
 	blockSize := walBlock.DataLength()
 	metricCompletionSize.Observe(float64(blockSize))
 	span.SetAttributes(attribute.Int64("block_size", int64(blockSize)))
@@ -476,17 +498,14 @@ func (i *instance) completeBlock(ctx context.Context, id uuid.UUID) error {
 	defer iter.Close()
 
 	// Check if complete block already exists from previous failed attempt
-	// This prevents accumulation of orphaned blocks on repeated failures
 	_, metaErr := reader.BlockMeta(ctx, id, i.tenantID)
 	if metaErr == nil {
-		// Block exists - this is a retry after previous cleanup failure
+		// Block exists - clear before retry
 		level.Warn(i.logger).Log("msg", "found existing complete block from failed attempt, clearing before retry",
 			"id", id, "tenant", i.tenantID)
 
-		// Attempt to clear the orphaned block
-		clearErr := i.wal.LocalBackend().ClearBlock(id, i.tenantID)
+		clearErr := i.wal.LocalBackend().ClearBlock(id, i.tenantID) // I/O without lock
 		if clearErr != nil {
-			// Cannot proceed - retry would create more orphans
 			level.Error(i.logger).Log("msg", "cannot retry - failed to clear existing complete block",
 				"id", id, "tenant", i.tenantID, "err", clearErr)
 			metricCompleteBlockCleanupFailures.Inc()
@@ -498,7 +517,7 @@ func (i *instance) completeBlock(ctx context.Context, id uuid.UUID) error {
 		metricOrphanedBlocksCleaned.Inc()
 	}
 
-	// Now safe to create new complete block (no orphans will accumulate)
+	// Create new complete block (I/O without lock)
 	newMeta, err := i.enc.CreateBlock(ctx, &i.Cfg.BlockConfig, walBlock.BlockMeta(), iter, reader, writer)
 	if err != nil {
 		level.Error(i.logger).Log("msg", "failed to create complete block", "id", id, "err", err)
@@ -513,13 +532,19 @@ func (i *instance) completeBlock(ctx context.Context, id uuid.UUID) error {
 		return err
 	}
 
-	i.blocksMtx.Lock()
-	defer i.blocksMtx.Unlock()
+	// Create LocalBlock wrapper (cheap operation, but do outside lock anyway)
+	localBlock := ingester.NewLocalBlock(ctx, newBlock, i.wal.LocalBackend())
 
-	// Verify the WAL block still exists
-	if _, ok := i.walBlocks[id]; !ok {
+	// STEP 3: Final state update with lock (double-check pattern)
+	i.blocksMtx.Lock()
+
+	// Verify WAL block still exists (could have been deleted during I/O)
+	walBlock, ok := i.walBlocks[id]
+	if !ok {
+		i.blocksMtx.Unlock()
+		// Block disappeared during completion - clean up orphan
 		level.Warn(i.logger).Log("msg", "WAL block disappeared while being completed, deleting complete block", "id", id)
-		err := i.wal.LocalBackend().ClearBlock(id, i.tenantID)
+		err := i.wal.LocalBackend().ClearBlock(id, i.tenantID) // I/O without lock
 		if err != nil {
 			level.Error(i.logger).Log("msg", "failed to clear complete block after WAL disappeared", "block", id, "err", err)
 		}
@@ -527,29 +552,36 @@ func (i *instance) completeBlock(ctx context.Context, id uuid.UUID) error {
 		return nil
 	}
 
-	i.completeBlocks[id] = ingester.NewLocalBlock(ctx, newBlock, i.wal.LocalBackend())
+	// Add to complete blocks
+	i.completeBlocks[id] = localBlock
+	i.blocksMtx.Unlock()
 
+	// STEP 4: Clear WAL block (I/O outside lock)
 	err = walBlock.Clear()
 	if err != nil {
 		level.Error(i.logger).Log("msg", "failed to clear WAL block", "id", id, "err", err)
 		span.RecordError(err)
 
-		// Clean up orphaned complete block files to prevent disk space leak
-		cleanupErr := i.wal.LocalBackend().ClearBlock(id, i.tenantID)
+		// Clean up orphaned complete block files
+		cleanupErr := i.wal.LocalBackend().ClearBlock(id, i.tenantID) // I/O without lock
 		if cleanupErr != nil {
 			level.Error(i.logger).Log("msg", "failed to clear orphaned complete block",
 				"id", id, "clear_err", err, "cleanup_err", cleanupErr)
 			metricCompleteBlockCleanupFailures.Inc()
 		}
 
-		// Remove completed block reference from map (prevents queries from seeing stale data)
-		// Keep WAL block in walBlocks map - will be retried by globalCompleteLoop
+		// Remove from map
+		i.blocksMtx.Lock()
 		delete(i.completeBlocks, id)
+		i.blocksMtx.Unlock()
 
 		return fmt.Errorf("failed to clear WAL block %s: %w", id, err)
 	}
-	// Success - remove WAL block from tracking
-	delete(i.walBlocks, (uuid.UUID)(walBlock.BlockMeta().BlockID))
+
+	// STEP 5: Final cleanup - remove from WAL blocks
+	i.blocksMtx.Lock()
+	delete(i.walBlocks, id)
+	i.blocksMtx.Unlock()
 
 	level.Info(i.logger).Log("msg", "completed block", "id", id.String())
 	span.AddEvent("block completed successfully")
