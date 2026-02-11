@@ -516,9 +516,25 @@ func (s *LiveStore) consume(ctx context.Context, rs recordIter, now time.Time) (
 	recordCount := 0
 	var lastRecord *kgo.Record
 
+	// Circuit breaker to prevent infinite retries on persistent instance creation failures
+	const maxConsecutiveErrors = 100
+	consecutiveErrors := 0
+
 	cutoff := now.Add(-s.cfg.CompleteBlockTimeout)
 	// Process records by tenant
 	for !rs.Done() {
+		// Fixed C-9: Check for context cancellation to enable fast shutdown
+		select {
+		case <-ctx.Done():
+			level.Info(s.logger).Log("msg", "consume loop cancelled by context",
+				"processed_records", recordCount)
+
+			// Graceful shutdown: return nil error
+			// Offset not committed to allow reprocessing on restart
+			return nil, nil // ✅ CORRECT: shutdown is not an error
+		default:
+		}
+
 		record := rs.Next()
 		tenant := string(record.Key)
 
@@ -544,9 +560,18 @@ func (s *LiveStore) consume(ctx context.Context, rs recordIter, now time.Time) (
 			metricRecordsDropped.WithLabelValues(tenant, droppedRecordReasonInstanceNotFound).Inc()
 			level.Error(s.logger).Log("msg", "failed to get instance for tenant", "tenant", tenant, "err", err)
 			span.RecordError(err)
+			consecutiveErrors++
+			// Fixed C-14: Circuit breaker to prevent offset commit on repeated failures
+			if consecutiveErrors >= maxConsecutiveErrors {
+				return nil, fmt.Errorf("circuit breaker opened: %d consecutive instance creation failures, last error: %w",
+					consecutiveErrors, err)
+			}
 			lastRecord = record
 			continue
 		}
+
+		// Reset error counter on successful instance retrieval
+		consecutiveErrors = 0
 
 		// Push data to tenant instance
 		inst.pushBytes(ctx, record.Timestamp, pushReq)
