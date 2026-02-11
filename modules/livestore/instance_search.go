@@ -381,13 +381,16 @@ func (i *instance) SearchTagValues(ctx context.Context, req *tempopb.SearchTagVa
 	distinctValues := collector.NewDistinctString(maxBytesPerTagValues, limit, staleValueThreshold)
 	mc := collector.NewMetricsCollector()
 
-	var inspectedBlocks, maxBlocks int
+	// Use atomic counter to prevent race conditions when searching blocks concurrently
+	var inspectedBlocks atomic.Int32
+	var maxBlocks int32
 	if limit := i.overrides.MaxBlocksPerTagValuesQuery(userID); limit > 0 {
-		maxBlocks = limit
+		maxBlocks = int32(limit)
 	}
 
 	search := func(ctx context.Context, _ *backend.BlockMeta, b block) error {
-		if maxBlocks > 0 && inspectedBlocks >= maxBlocks {
+		// Check block limit with atomic load
+		if maxBlocks > 0 && inspectedBlocks.Load() >= maxBlocks {
 			return nil
 		}
 
@@ -399,7 +402,8 @@ func (i *instance) SearchTagValues(ctx context.Context, req *tempopb.SearchTagVa
 			return errComplete
 		}
 
-		inspectedBlocks++
+		// Atomic increment to prevent race with concurrent block searches
+		inspectedBlocks.Add(1)
 		err = b.SearchTagValues(ctx, tagName, distinctValues.Collect, mc.Add, common.DefaultSearchOptions())
 		if err != nil && !errors.Is(err, util.ErrUnsupported) {
 			return fmt.Errorf("unexpected error searching tag values (%s): %w", tagName, err)
