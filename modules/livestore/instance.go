@@ -91,6 +91,12 @@ var (
 		Name:      "orphaned_blocks_cleaned_total",
 		Help:      "Total number of orphaned complete blocks cleaned up (startup or retry)",
 	})
+	metricWALBlockCleanupFailures = promauto.NewCounter(prometheus.CounterOpts{
+		Namespace: "tempo",
+		Subsystem: "live_store",
+		Name:      "wal_block_cleanup_failures_total",
+		Help:      "Total number of WAL block cleanup failures during deleteOldBlocks",
+	})
 )
 
 type instance struct {
@@ -555,16 +561,25 @@ func (i *instance) deleteOldBlocks() error {
 	defer i.blocksMtx.Unlock()
 
 	cutoff := time.Now().Add(-i.Cfg.CompleteBlockTimeout) // Delete blocks older than Complete Block Timeout
+	cleanupErrors := 0
 
 	for id, walBlock := range i.walBlocks {
 		if walBlock.BlockMeta().EndTime.Before(cutoff) {
 			if _, ok := i.completeBlocks[id]; !ok {
-				level.Warn(i.logger).Log("msg", "deleting WAL block that was never completed", "block", id.String())
+				level.Warn(i.logger).Log("msg", "deleting old WAL block (may have had completion issues)",
+					"block", id.String(), "tenant", i.tenantID)
 			}
+
 			err := walBlock.Clear()
 			if err != nil {
-				return err
+				// Log error but CONTINUE cleanup (don't block other blocks)
+				level.Error(i.logger).Log("msg", "failed to clear old WAL block, skipping",
+					"id", id, "tenant", i.tenantID, "err", err)
+				metricWALBlockCleanupFailures.Inc()
+				cleanupErrors++
+				continue // ✅ Skip this block but continue with others
 			}
+
 			delete(i.walBlocks, id)
 			metricBlocksClearedTotal.WithLabelValues("wal").Inc()
 		}
@@ -576,12 +591,25 @@ func (i *instance) deleteOldBlocks() error {
 			level.Info(i.logger).Log("msg", "deleting complete block", "block", id.String())
 			err := i.wal.LocalBackend().ClearBlock(id, i.tenantID)
 			if err != nil {
-				return err
+				// Log error but CONTINUE cleanup (don't block other blocks)
+				level.Error(i.logger).Log("msg", "failed to clear old complete block, skipping",
+					"id", id, "tenant", i.tenantID, "err", err)
+				metricWALBlockCleanupFailures.Inc()
+				cleanupErrors++
+				continue // ✅ Skip this block but continue with others
 			}
+
 			delete(i.completeBlocks, id)
 			metricBlocksClearedTotal.WithLabelValues("complete").Inc()
 		}
 	}
 
-	return nil
+	// Log summary if any blocks failed
+	if cleanupErrors > 0 {
+		level.Error(i.logger).Log("msg", "some blocks failed to clean up",
+			"failed_count", cleanupErrors,
+			"tenant", i.tenantID)
+	}
+
+	return nil // ✅ Always return nil to allow cleanup to continue
 }
