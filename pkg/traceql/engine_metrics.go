@@ -1369,49 +1369,53 @@ func (e *MetricsEvaluator) DoSpansOnly(ctx context.Context, f SpansetFetcher, fe
 
 	defer fetch.Results.Close()
 
-	seriesCount := 0
-
 	for {
-		s, err := fetch.Results.Next(ctx)
+		done, err := func() (done bool, err error) {
+			e.mtx.Lock()
+			defer e.mtx.Unlock()
+
+			for i := 0; i < 100; i++ {
+				s, err := fetch.Results.Next(ctx)
+				if err != nil {
+					return true, err
+				}
+				if s == nil {
+					return true, nil
+				}
+
+				if e.checkTime {
+					st := s.StartTimeUnixNanos()
+					if st <= e.start || st > e.end {
+						continue
+					}
+				}
+
+				if e.storageReq.SpanSampler != nil {
+					e.storageReq.SpanSampler.Measured()
+				}
+
+				e.metricsPipeline.observe(s)
+				e.spansTotal++
+
+				if e.maxExemplars > 0 && e.exemplarCount < e.maxExemplars {
+					traceID, ok := s.AttributeFor(IntrinsicTraceIDAttribute)
+					if ok {
+						if e.sampleExemplar(traceID.valBytes) {
+							e.metricsPipeline.observeExemplar(s)
+						}
+					}
+				}
+
+				if maxSeries > 0 && e.metricsPipeline.length() >= maxSeries {
+					return true, nil
+				}
+			}
+			return
+		}()
 		if err != nil {
 			return err
 		}
-		if s == nil {
-			break
-		}
-
-		// e.mtx.Lock()
-
-		if e.checkTime {
-			st := s.StartTimeUnixNanos()
-			if st <= e.start || st > e.end {
-				// e.mtx.Unlock()
-				continue
-			}
-		}
-
-		if e.storageReq.SpanSampler != nil {
-			e.storageReq.SpanSampler.Measured()
-		}
-
-		e.metricsPipeline.observe(s)
-
-		e.spansTotal++
-
-		if e.maxExemplars > 0 && e.exemplarCount < e.maxExemplars {
-			traceID, ok := s.AttributeFor(IntrinsicTraceIDAttribute)
-			if ok {
-				if e.sampleExemplar(traceID.valBytes) {
-					e.metricsPipeline.observeExemplar(s)
-				}
-			}
-		}
-
-		seriesCount = e.metricsPipeline.length()
-
-		// e.mtx.Unlock()
-
-		if maxSeries > 0 && seriesCount >= maxSeries {
+		if done {
 			break
 		}
 	}
