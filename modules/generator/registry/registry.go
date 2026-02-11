@@ -127,7 +127,7 @@ func New(cfg *Config, overrides Overrides, tenant string, appendable storage.App
 	}
 
 	drainSanitizer := NewDrainSanitizer(tenant, overrides.MetricsGeneratorSpanNameSanitization, cfg.StaleDuration)
-	perLabelLimiter := NewPerLabelLimiter(tenant, overrides, cfg.StaleDuration)
+	perLabelLimiter := NewPerLabelLimiter(tenant, overrides.MetricsGeneratorMaxCardinalityPerLabel, cfg.StaleDuration)
 
 	r := &ManagedRegistry{
 		onShutdown: cancel,

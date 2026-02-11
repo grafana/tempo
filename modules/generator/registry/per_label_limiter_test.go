@@ -12,18 +12,23 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestCardinalitySanitizer_Disabled(t *testing.T) {
-	s := NewPerLabelLimiter("test", &mockOverrides{maxCardinalityPerLabel: 0}, 15*time.Minute)
+// testMaxCardinality returns a maxCardinalityFunc that always returns the given value.
+func testMaxCardinality(value uint64) maxCardinalityFunc {
+	return func(string) uint64 { return value }
+}
+
+func TestPerLabelLimiter_Disabled(t *testing.T) {
+	s := NewPerLabelLimiter("test", testMaxCardinality(0), 15*time.Minute)
 
 	lbls := labels.FromStrings("__name__", "foo", "method", "GET", "url", "/api/users/123")
 	result := s.Limit(lbls)
 	require.Equal(t, lbls, result)
 }
 
-func TestCardinalitySanitizer_UnderLimit(t *testing.T) {
-	s := NewPerLabelLimiter("test", &mockOverrides{maxCardinalityPerLabel: 100}, 15*time.Minute)
+func TestPerLabelLimiter_UnderLimit(t *testing.T) {
+	s := NewPerLabelLimiter("test", testMaxCardinality(100), 15*time.Minute)
 
-	// Insert a few distinct values — well under the limit
+	// Insert a few distinct values - well under the limit
 	for i := 0; i < 5; i++ {
 		lbls := labels.FromStrings("__name__", "foo", "method", fmt.Sprintf("m%d", i))
 		result := s.Limit(lbls)
@@ -40,8 +45,8 @@ func TestCardinalitySanitizer_UnderLimit(t *testing.T) {
 	require.Equal(t, "GET", result.Get("method"))
 }
 
-func TestCardinalitySanitizer_SelectiveOverflow(t *testing.T) {
-	s := NewPerLabelLimiter("test", &mockOverrides{maxCardinalityPerLabel: 5}, 15*time.Minute)
+func TestPerLabelLimiter_SelectiveOverflow(t *testing.T) {
+	s := NewPerLabelLimiter("test", testMaxCardinality(5), 15*time.Minute)
 
 	// Push many distinct url values but few method values
 	for i := 0; i < 20; i++ {
@@ -60,10 +65,10 @@ func TestCardinalitySanitizer_SelectiveOverflow(t *testing.T) {
 	require.Equal(t, "http_requests", result.Get("__name__"), "__name__ should be preserved")
 }
 
-func TestCardinalitySanitizer_MetricNamePreserved(t *testing.T) {
-	s := NewPerLabelLimiter("test", &mockOverrides{maxCardinalityPerLabel: 1}, 15*time.Minute)
+func TestPerLabelLimiter_MetricNamePreserved(t *testing.T) {
+	s := NewPerLabelLimiter("test", testMaxCardinality(1), 15*time.Minute)
 
-	// Push multiple distinct metric names — __name__ should never be overflowed
+	// Push multiple distinct metric names - __name__ should never be overflowed
 	for i := 0; i < 20; i++ {
 		lbls := labels.FromStrings("__name__", fmt.Sprintf("metric_%d", i))
 		s.Limit(lbls)
@@ -76,10 +81,10 @@ func TestCardinalitySanitizer_MetricNamePreserved(t *testing.T) {
 	require.Equal(t, "metric_999", result.Get("__name__"))
 }
 
-// TestCardinalitySanitizer_ConcurrentAccess verifies Sanitize() is safe to call
+// TestPerLabelLimiter_ConcurrentAccess verifies Limit() is safe to call
 // from multiple goroutines. Run with -race to detect unsynchronized access.
-func TestCardinalitySanitizer_ConcurrentAccess(t *testing.T) {
-	s := NewPerLabelLimiter("test", &mockOverrides{maxCardinalityPerLabel: 10}, 15*time.Minute)
+func TestPerLabelLimiter_ConcurrentAccess(t *testing.T) {
+	s := NewPerLabelLimiter("test", testMaxCardinality(10), 15*time.Minute)
 
 	var wg sync.WaitGroup
 	wg.Add(10)
@@ -98,7 +103,7 @@ func TestCardinalitySanitizer_ConcurrentAccess(t *testing.T) {
 	}
 	wg.Wait()
 
-	// After all goroutines finish, trigger maintenance and verify the sanitizer state is consistent
+	// After all goroutines finish, trigger maintenance and verify state is consistent
 	triggerMaintenance(s)
 
 	s.mtx.Lock()
@@ -108,12 +113,12 @@ func TestCardinalitySanitizer_ConcurrentAccess(t *testing.T) {
 	require.Greater(t, state.sketch.Estimate(), uint64(0), "sketch should have recorded values")
 }
 
-func TestCardinalitySanitizer_OverflowMetrics(t *testing.T) {
+func TestPerLabelLimiter_OverflowMetrics(t *testing.T) {
 	overflowCounter := prometheus.NewCounter(prometheus.CounterOpts{
 		Name: "test_overflow_counter",
 	})
 
-	s := NewPerLabelLimiter("test-metrics", &mockOverrides{maxCardinalityPerLabel: 5}, 15*time.Minute)
+	s := NewPerLabelLimiter("test-metrics", testMaxCardinality(5), 15*time.Minute)
 	s.overflowCounter = overflowCounter
 
 	// Push enough distinct values to exceed limit
@@ -127,7 +132,7 @@ func TestCardinalitySanitizer_OverflowMetrics(t *testing.T) {
 	s.labelsState["url"].overLimit = true
 	s.mtx.Unlock()
 
-	// Now sanitize — should increment the counter
+	// Now limit - should increment the counter
 	lbls := labels.FromStrings("__name__", "m", "url", "/path/new")
 	result := s.Limit(lbls)
 	require.Equal(t, overflowValue, result.Get("url"))
@@ -137,8 +142,8 @@ func TestCardinalitySanitizer_OverflowMetrics(t *testing.T) {
 	require.Equal(t, float64(1), m.GetCounter().GetValue())
 }
 
-func TestCardinalitySanitizer_MultipleLabelsOverflow(t *testing.T) {
-	s := NewPerLabelLimiter("test", &mockOverrides{maxCardinalityPerLabel: 5}, 15*time.Minute)
+func TestPerLabelLimiter_MultipleLabelsOverflow(t *testing.T) {
+	s := NewPerLabelLimiter("test", testMaxCardinality(5), 15*time.Minute)
 
 	// Push many distinct values for BOTH url and user_id
 	for i := 0; i < 20; i++ {
@@ -160,7 +165,7 @@ func triggerMaintenance(s *PerLabelLimiter) {
 	s.mtx.Lock()
 	for _, state := range s.labelsState {
 		est := state.sketch.Estimate()
-		state.overLimit = est > s.maxCardinality
+		state.overLimit = est > s.maxCardinalityFunc(s.tenant)
 	}
 	s.mtx.Unlock()
 }

@@ -19,6 +19,9 @@ var metricCardinalityLimitOverflows = promauto.NewCounterVec(prometheus.CounterO
 	Help:      "Total number of label values replaced with __cardinality_overflow__ by the per-label cardinality limiter",
 }, []string{"tenant"})
 
+// maxCardinalityFunc returns the MaxCardinalityPerLabel config value for the tenant.
+type maxCardinalityFunc func(tenant string) uint64
+
 type labelCardinalityState struct {
 	sketch    *Cardinality
 	overLimit bool // cached flag, updated periodically in maintenance tick
@@ -33,12 +36,12 @@ type labelCardinalityState struct {
 // It runs in the label-building pipeline after sanitization but before the global
 // entity limiter, making the processing order: sanitize -> per-label limit -> entity limit.
 type PerLabelLimiter struct {
-	mtx            sync.Mutex
-	tenant         string
-	overrides      Overrides
-	maxCardinality uint64 // cached from overrides, refreshed every maintenance tick
-	labelsState    map[string]*labelCardinalityState
-	staleDuration  time.Duration
+	mtx                sync.Mutex
+	tenant             string
+	maxCardinalityFunc maxCardinalityFunc
+
+	labelsState   map[string]*labelCardinalityState
+	staleDuration time.Duration
 
 	overflowCounter prometheus.Counter
 
@@ -46,16 +49,15 @@ type PerLabelLimiter struct {
 	pruneChan        <-chan time.Time
 }
 
-func NewPerLabelLimiter(tenant string, overrides Overrides, staleDuration time.Duration) *PerLabelLimiter {
+func NewPerLabelLimiter(tenant string, maxCardinalityF maxCardinalityFunc, staleDuration time.Duration) *PerLabelLimiter {
 	return &PerLabelLimiter{
-		tenant:    tenant,
-		overrides: overrides,
-		maxCardinality:   overrides.MetricsGeneratorMaxCardinalityPerLabel(tenant),
-		labelsState:      make(map[string]*labelCardinalityState),
-		staleDuration:    staleDuration,
-		overflowCounter:  metricCardinalityLimitOverflows.WithLabelValues(tenant),
-		demandUpdateChan: time.Tick(15 * time.Second),
-		pruneChan:        time.Tick(5 * time.Minute),
+		tenant:             tenant,
+		maxCardinalityFunc: maxCardinalityF,
+		labelsState:        make(map[string]*labelCardinalityState),
+		staleDuration:      staleDuration,
+		overflowCounter:    metricCardinalityLimitOverflows.WithLabelValues(tenant),
+		demandUpdateChan:   time.Tick(15 * time.Second),
+		pruneChan:          time.Tick(5 * time.Minute),
 	}
 }
 
@@ -63,8 +65,8 @@ func NewPerLabelLimiter(tenant string, overrides Overrides, staleDuration time.D
 // Labels whose estimated cardinality exceeds the configured max have their
 // value replaced with __cardinality_overflow__.
 func (s *PerLabelLimiter) Limit(lbls labels.Labels) labels.Labels {
-	// disabled, return as is
-	if s.maxCardinality == 0 {
+	// MaxCardinalityPerLabel is zero, so limiter is disabled, return labels as is
+	if s.maxCardinalityFunc(s.tenant) == 0 {
 		return lbls
 	}
 
@@ -116,10 +118,8 @@ func (s *PerLabelLimiter) doPeriodicMaintenance() {
 	select {
 	case <-s.demandUpdateChan:
 		s.mtx.Lock()
-		// Refresh the cached maxCardinality from the override
-		s.maxCardinality = s.overrides.MetricsGeneratorMaxCardinalityPerLabel(s.tenant)
 		for _, state := range s.labelsState {
-			state.overLimit = state.sketch.Estimate() > s.maxCardinality
+			state.overLimit = state.sketch.Estimate() > s.maxCardinalityFunc(s.tenant)
 		}
 		s.mtx.Unlock()
 	case <-s.pruneChan:
