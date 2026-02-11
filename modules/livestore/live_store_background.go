@@ -93,7 +93,7 @@ func (s *LiveStore) globalCompleteLoop(idx int) {
 		if err != nil {
 			level.Error(s.logger).Log("msg", "failed to retrieve instance for completion", "tenant", op.tenantID, "err", err)
 			observeFailedOp(op)
-			return
+			continue // Fixed C-2: Continue processing instead of killing worker thread
 		}
 
 		err = inst.completeBlock(s.ctx, op.blockID)
@@ -326,6 +326,49 @@ func (s *LiveStore) reloadBlocks() error {
 			inst.blocksMtx.Lock()
 			inst.completeBlocks[id] = lb
 			inst.blocksMtx.Unlock()
+		}
+
+		// After loading all blocks from disk, check for orphaned complete blocks
+		// (blocks that exist on disk but not in memory maps)
+		inst, err := s.getOrCreateInstance(tenant)
+		if err != nil {
+			return fmt.Errorf("failed to get instance for orphan check in tenant %s: %w", tenant, err)
+		}
+
+		level.Info(s.logger).Log("msg", "scanning for orphaned complete blocks", "tenant", tenant)
+
+		allBlocksOnDisk, _, err := r.Blocks(ctx, tenant)
+		if err != nil {
+			level.Error(s.logger).Log("msg", "failed to list blocks for orphan check", "tenant", tenant, "err", err)
+		} else {
+			orphanCount := 0
+			for _, blockOnDisk := range allBlocksOnDisk {
+				// Check if this block is tracked in either walBlocks or completeBlocks
+				inst.blocksMtx.Lock()
+				_, inWAL := inst.walBlocks[blockOnDisk]
+				_, inComplete := inst.completeBlocks[blockOnDisk]
+				inst.blocksMtx.Unlock()
+
+				if !inWAL && !inComplete {
+					// Found orphaned complete block
+					level.Warn(s.logger).Log("msg", "found orphaned complete block on startup, cleaning",
+						"id", blockOnDisk, "tenant", tenant)
+
+					cleanErr := l.ClearBlock(blockOnDisk, tenant)
+					if cleanErr != nil {
+						level.Error(s.logger).Log("msg", "failed to clear orphaned block on startup",
+							"id", blockOnDisk, "tenant", tenant, "err", cleanErr)
+					} else {
+						orphanCount++
+						metricOrphanedBlocksCleaned.Inc()
+					}
+				}
+			}
+
+			if orphanCount > 0 {
+				level.Info(s.logger).Log("msg", "cleaned orphaned complete blocks on startup",
+					"count", orphanCount, "tenant", tenant)
+			}
 		}
 	}
 

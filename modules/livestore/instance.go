@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/hex"
 	"errors"
+	"fmt"
 	"sort"
 	"sync"
 	"time"
@@ -78,6 +79,18 @@ var (
 		Name:      "back_pressure_seconds_total",
 		Help:      "The total amount of time spent waiting to process data from queue",
 	}, []string{"reason"})
+	metricCompleteBlockCleanupFailures = promauto.NewCounter(prometheus.CounterOpts{
+		Namespace: "tempo",
+		Subsystem: "live_store",
+		Name:      "complete_block_cleanup_failures_total",
+		Help:      "Total number of complete block cleanup failures after WAL clear errors",
+	})
+	metricOrphanedBlocksCleaned = promauto.NewCounter(prometheus.CounterOpts{
+		Namespace: "tempo",
+		Subsystem: "live_store",
+		Name:      "orphaned_blocks_cleaned_total",
+		Help:      "Total number of orphaned complete blocks cleaned up (startup or retry)",
+	})
 )
 
 type instance struct {
@@ -193,7 +206,11 @@ func (i *instance) pushBytes(ctx context.Context, ts time.Time, req *tempopb.Pus
 	}
 
 	if err := ctx.Err(); err != nil {
-		level.Error(i.logger).Log("msg", "failed to push bytes to instance", "err", err)
+		// Fixed C-7: Record dropped traces when context is cancelled
+		level.Error(i.logger).Log("msg", "failed to push bytes to instance due to context cancellation",
+			"err", err, "dropped_traces", len(req.Traces))
+		// Estimate 10 spans per trace since we can't unmarshal during shutdown
+		overrides.RecordDiscardedSpans(len(req.Traces)*10, "context_cancelled", i.tenantID)
 		return
 	}
 
@@ -203,6 +220,15 @@ func (i *instance) pushBytes(ctx context.Context, ts time.Time, req *tempopb.Pus
 
 	// For each pre-marshalled trace, we need to unmarshal it and push to live traces
 	for j, traceBytes := range req.Traces {
+		// Fixed C-16: Check context before processing each trace to enable fast shutdown
+		if err := ctx.Err(); err != nil {
+			remainingTraces := len(req.Traces) - j
+			level.Info(i.logger).Log("msg", "batch processing cancelled by context",
+				"processed", j, "remaining", remainingTraces)
+			overrides.RecordDiscardedSpans(remainingTraces*10, "context_cancelled", i.tenantID)
+			return
+		}
+
 		traceID := req.Ids[j]
 		// measure received bytes as sum of slice lengths
 		// type byte is guaranteed to be 1 byte in size
@@ -443,6 +469,30 @@ func (i *instance) completeBlock(ctx context.Context, id uuid.UUID) error {
 	}
 	defer iter.Close()
 
+	// Check if complete block already exists from previous failed attempt
+	// This prevents accumulation of orphaned blocks on repeated failures
+	_, metaErr := reader.BlockMeta(ctx, id, i.tenantID)
+	if metaErr == nil {
+		// Block exists - this is a retry after previous cleanup failure
+		level.Warn(i.logger).Log("msg", "found existing complete block from failed attempt, clearing before retry",
+			"id", id, "tenant", i.tenantID)
+
+		// Attempt to clear the orphaned block
+		clearErr := i.wal.LocalBackend().ClearBlock(id, i.tenantID)
+		if clearErr != nil {
+			// Cannot proceed - retry would create more orphans
+			level.Error(i.logger).Log("msg", "cannot retry - failed to clear existing complete block",
+				"id", id, "tenant", i.tenantID, "err", clearErr)
+			metricCompleteBlockCleanupFailures.Inc()
+			return fmt.Errorf("cannot retry completion - failed to clear existing complete block: %w", clearErr)
+		}
+
+		level.Info(i.logger).Log("msg", "cleared orphaned complete block, proceeding with retry",
+			"id", id, "tenant", i.tenantID)
+		metricOrphanedBlocksCleaned.Inc()
+	}
+
+	// Now safe to create new complete block (no orphans will accumulate)
 	newMeta, err := i.enc.CreateBlock(ctx, &i.Cfg.BlockConfig, walBlock.BlockMeta(), iter, reader, writer)
 	if err != nil {
 		level.Error(i.logger).Log("msg", "failed to create complete block", "id", id, "err", err)
@@ -477,7 +527,22 @@ func (i *instance) completeBlock(ctx context.Context, id uuid.UUID) error {
 	if err != nil {
 		level.Error(i.logger).Log("msg", "failed to clear WAL block", "id", id, "err", err)
 		span.RecordError(err)
+
+		// Clean up orphaned complete block files to prevent disk space leak
+		cleanupErr := i.wal.LocalBackend().ClearBlock(id, i.tenantID)
+		if cleanupErr != nil {
+			level.Error(i.logger).Log("msg", "failed to clear orphaned complete block",
+				"id", id, "clear_err", err, "cleanup_err", cleanupErr)
+			metricCompleteBlockCleanupFailures.Inc()
+		}
+
+		// Remove completed block reference from map (prevents queries from seeing stale data)
+		// Keep WAL block in walBlocks map - will be retried by globalCompleteLoop
+		delete(i.completeBlocks, id)
+
+		return fmt.Errorf("failed to clear WAL block %s: %w", id, err)
 	}
+	// Success - remove WAL block from tracking
 	delete(i.walBlocks, (uuid.UUID)(walBlock.BlockMeta().BlockID))
 
 	level.Info(i.logger).Log("msg", "completed block", "id", id.String())
