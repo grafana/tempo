@@ -264,20 +264,24 @@ func (i *instance) pushBytes(ctx context.Context, ts time.Time, req *tempopb.Pus
 			}
 		}
 
-		i.liveTracesMtx.Lock()
-		// Push each batch in the trace to live traces
+		// Push each batch in the trace to live traces with fine-grained locking
+		// Lock is acquired/released per batch to reduce contention
 		for _, batch := range trace.ResourceSpans {
 			if len(batch.ScopeSpans) == 0 || len(batch.ScopeSpans[0].Spans) == 0 {
 				continue
 			}
 
-			// Push to live traces with tenant-specific limits
-			if err := i.liveTraces.PushWithTimestampAndLimits(ts, traceID, batch, uint64(maxLiveTraces), 0); err != nil {
+			// Acquire lock for this single batch only
+			i.liveTracesMtx.Lock()
+			err := i.liveTraces.PushWithTimestampAndLimits(ts, traceID, batch, uint64(maxLiveTraces), 0)
+			i.liveTracesMtx.Unlock()
+
+			if err != nil {
 				var reason string
 				switch {
 				case errors.Is(err, livetraces.ErrMaxLiveTracesExceeded):
 					reason = overrides.ReasonLiveTracesExceeded
-				case errors.Is(err, livetraces.ErrMaxTraceSizeExceeded): // this should technically never happen b/c we are passing 0 as max trace sz
+				case errors.Is(err, livetraces.ErrMaxTraceSizeExceeded):
 					reason = overrides.ReasonTraceTooLarge
 				default:
 					reason = overrides.ReasonUnknown
@@ -287,7 +291,6 @@ func (i *instance) pushBytes(ctx context.Context, ts time.Time, req *tempopb.Pus
 				continue
 			}
 		}
-		i.liveTracesMtx.Unlock()
 	}
 }
 
