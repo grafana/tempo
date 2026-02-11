@@ -391,15 +391,27 @@ func (s *LiveStore) stopping(error) error {
 		return nil
 	}
 
-	ticker := time.NewTicker(100 * time.Millisecond)
-	defer ticker.Stop()
+	// Run stopAllBackgroundProcesses in goroutine with timeout protection
+	done := make(chan struct{})
+	go func() {
+		s.stopAllBackgroundProcesses()
+		close(done)
+	}()
 
 	timeout := time.NewTimer(s.cfg.InstanceCleanupPeriod)
 	defer timeout.Stop()
 
-	s.stopAllBackgroundProcesses()
-
-	return nil
+	select {
+	case <-done:
+		level.Info(s.logger).Log("msg", "livestore stopped gracefully")
+		return nil
+	case <-timeout.C:
+		level.Error(s.logger).Log(
+			"msg", "livestore shutdown timed out",
+			"timeout", s.cfg.InstanceCleanupPeriod,
+		)
+		return fmt.Errorf("shutdown timed out after %s", s.cfg.InstanceCleanupPeriod)
+	}
 }
 
 func (s *LiveStore) waitForCatchUp(ctx context.Context) error {
