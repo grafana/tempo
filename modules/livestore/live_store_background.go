@@ -109,11 +109,20 @@ func (s *LiveStore) globalCompleteLoop(idx int) {
 
 			metricCompletionRetries.Inc()
 
+			s.wg.Add(1)
 			go func() {
-				time.Sleep(delay)
+				defer s.wg.Done()
 
-				if err := s.requeueOp(op); err != nil {
-					_ = level.Error(s.logger).Log("msg", "failed to requeue block for flushing", "tenant", op.tenantID, "block", op.blockID, "err", err)
+				select {
+				case <-time.After(delay):
+					// Proceed with retry
+					if err := s.requeueOp(op); err != nil {
+						_ = level.Error(s.logger).Log("msg", "failed to requeue block for flushing", "tenant", op.tenantID, "block", op.blockID, "err", err)
+					}
+				case <-s.ctx.Done():
+					// Shutdown - abandon retry
+					level.Debug(s.logger).Log("msg", "retry cancelled due to shutdown", "tenant", op.tenantID, "block", op.blockID)
+					return
 				}
 			}()
 		} else {
@@ -176,10 +185,19 @@ func (s *LiveStore) enqueueCompleteOp(tenantID string, blockID uuid.UUID, jitter
 
 func (s *LiveStore) enqueueOpWithJitter(op *completeOp) error {
 	delay := time.Duration(rand.Int64N(10_000) * int64(time.Millisecond)) //gosec:disable G404 — It doesn't require strong randomness
+
+	s.wg.Add(1)
 	go func() {
-		time.Sleep(delay)
-		if err := s.enqueueOp(op); err != nil {
-			level.Error(s.logger).Log("msg", "failed to enqueue block", "tenant", op.tenantID, "block", op.blockID, "err", err)
+		defer s.wg.Done()
+
+		select {
+		case <-time.After(delay):
+			if err := s.enqueueOp(op); err != nil {
+				level.Error(s.logger).Log("msg", "failed to enqueue block", "tenant", op.tenantID, "block", op.blockID, "err", err)
+			}
+		case <-s.ctx.Done():
+			level.Debug(s.logger).Log("msg", "jitter enqueue cancelled due to shutdown", "tenant", op.tenantID, "block", op.blockID)
+			return
 		}
 	}()
 	return nil
