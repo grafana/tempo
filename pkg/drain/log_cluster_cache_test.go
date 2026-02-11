@@ -120,21 +120,19 @@ func TestLogClusterCache_MaxSizeEviction(t *testing.T) {
 	// but we can verify the cache size is bounded reasonably
 	clusterCount := 0
 	for i := 1; i <= maxSize*3; i++ {
-		if cache.Get(i) != nil {
+		if cache.GetQuietly(i) != nil {
 			clusterCount++
 		}
 	}
-	// Otter cache eviction behavior is complex and may not evict immediately.
+	// Otter cache uses S3-FIFO eviction which is frequency-based, not strictly LRU.
 	// The important thing is that the cache doesn't grow unbounded and handles Put operations correctly.
 	// Verify cache is bounded (not all items are present, or at least cache operations work)
 	assert.LessOrEqual(t, clusterCount, maxSize*3, "cache should not exceed reasonable bounds")
 	assert.Greater(t, clusterCount, 0, "cache should contain some items")
 
-	// Verify cache operations work correctly - recently accessed items should be accessible
-	assert.NotNil(t, cache.Get(maxSize*3), "recently added items should be accessible")
-
-	// Evictions counter should have been incremented
-	// Note: otter cache uses LRU eviction, so oldest items get evicted
+	// Note: We cannot assert which specific items survive eviction because S3-FIFO
+	// uses a probationary period and frequency-based promotion. Recently added items
+	// are not guaranteed to survive if the cache is already full.
 }
 
 func TestLogClusterCache_Values(t *testing.T) {
