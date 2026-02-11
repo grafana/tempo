@@ -3158,10 +3158,6 @@ func (c *spanCollector) String() string {
 }
 
 func (c *spanCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
-	if res.RowNumber[DefinitionLevelResourceSpansILSSpan] < 0 {
-		return false
-	}
-
 	var sp *span
 	// look for existing span first. this occurs on the second pass
 	for _, e := range res.OtherEntries {
