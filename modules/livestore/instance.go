@@ -592,11 +592,13 @@ func (i *instance) completeBlock(ctx context.Context, id uuid.UUID) error {
 }
 
 func (i *instance) deleteOldBlocks() error {
-	i.blocksMtx.Lock()
-	defer i.blocksMtx.Unlock()
-
 	cutoff := time.Now().Add(-i.Cfg.CompleteBlockTimeout) // Delete blocks older than Complete Block Timeout
 	cleanupErrors := 0
+
+	// Phase 1: Collect blocks to delete (fast, under lock)
+	i.blocksMtx.Lock()
+	walBlocksToDelete := make([]uuid.UUID, 0)
+	completeBlocksToDelete := make([]uuid.UUID, 0)
 
 	for id, walBlock := range i.walBlocks {
 		if walBlock.BlockMeta().EndTime.Before(cutoff) {
@@ -612,18 +614,7 @@ func (i *instance) deleteOldBlocks() error {
 					"block", id.String(), "tenant", i.tenantID)
 			}
 
-			err := walBlock.Clear()
-			if err != nil {
-				// Log error but CONTINUE cleanup (don't block other blocks)
-				level.Error(i.logger).Log("msg", "failed to clear old WAL block, skipping",
-					"id", id, "tenant", i.tenantID, "err", err)
-				metricWALBlockCleanupFailures.Inc()
-				cleanupErrors++
-				continue // ✅ Skip this block but continue with others
-			}
-
-			delete(i.walBlocks, id)
-			metricBlocksClearedTotal.WithLabelValues("wal").Inc()
+			walBlocksToDelete = append(walBlocksToDelete, id)
 		}
 	}
 
@@ -637,20 +628,62 @@ func (i *instance) deleteOldBlocks() error {
 				continue
 			}
 
-			level.Info(i.logger).Log("msg", "deleting complete block", "block", id.String())
-			err := i.wal.LocalBackend().ClearBlock(id, i.tenantID)
-			if err != nil {
-				// Log error but CONTINUE cleanup (don't block other blocks)
-				level.Error(i.logger).Log("msg", "failed to clear old complete block, skipping",
-					"id", id, "tenant", i.tenantID, "err", err)
-				metricWALBlockCleanupFailures.Inc()
-				cleanupErrors++
-				continue // ✅ Skip this block but continue with others
-			}
-
-			delete(i.completeBlocks, id)
-			metricBlocksClearedTotal.WithLabelValues("complete").Inc()
+			completeBlocksToDelete = append(completeBlocksToDelete, id)
 		}
+	}
+	i.blocksMtx.Unlock()
+
+	// Phase 2 & 3: Delete WAL block files (slow, NO lock) then remove from map (fast, under lock)
+	for _, id := range walBlocksToDelete {
+		// Get block reference under read lock
+		i.blocksMtx.RLock()
+		walBlock, exists := i.walBlocks[id]
+		i.blocksMtx.RUnlock()
+
+		if !exists {
+			continue // Block already deleted
+		}
+
+		// Clear block file (OUTSIDE lock)
+		err := walBlock.Clear()
+		if err != nil {
+			// Log error but CONTINUE cleanup (don't block other blocks)
+			level.Error(i.logger).Log("msg", "failed to clear old WAL block, skipping",
+				"id", id, "tenant", i.tenantID, "err", err)
+			metricWALBlockCleanupFailures.Inc()
+			cleanupErrors++
+			continue // ✅ Skip this block but continue with others
+		}
+
+		// Remove from map (fast, under lock)
+		i.blocksMtx.Lock()
+		delete(i.walBlocks, id)
+		i.blocksMtx.Unlock()
+
+		metricBlocksClearedTotal.WithLabelValues("wal").Inc()
+	}
+
+	// Phase 2 & 3: Delete complete block files (slow, NO lock) then remove from map (fast, under lock)
+	for _, id := range completeBlocksToDelete {
+		level.Info(i.logger).Log("msg", "deleting complete block", "block", id.String())
+
+		// Clear block file (OUTSIDE lock)
+		err := i.wal.LocalBackend().ClearBlock(id, i.tenantID)
+		if err != nil {
+			// Log error but CONTINUE cleanup (don't block other blocks)
+			level.Error(i.logger).Log("msg", "failed to clear old complete block, skipping",
+				"id", id, "tenant", i.tenantID, "err", err)
+			metricWALBlockCleanupFailures.Inc()
+			cleanupErrors++
+			continue // ✅ Skip this block but continue with others
+		}
+
+		// Remove from map (fast, under lock)
+		i.blocksMtx.Lock()
+		delete(i.completeBlocks, id)
+		i.blocksMtx.Unlock()
+
+		metricBlocksClearedTotal.WithLabelValues("complete").Inc()
 	}
 
 	// Log summary if any blocks failed
