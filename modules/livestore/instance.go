@@ -597,6 +597,13 @@ func (i *instance) deleteOldBlocks() error {
 
 	for id, walBlock := range i.walBlocks {
 		if walBlock.BlockMeta().EndTime.Before(cutoff) {
+			// Skip blocks that are currently being completed
+			if i.completingBlocks[id] {
+				level.Debug(i.logger).Log("msg", "skipping WAL block deletion, completion in progress",
+					"block", id.String())
+				continue
+			}
+
 			if _, ok := i.completeBlocks[id]; !ok {
 				level.Warn(i.logger).Log("msg", "deleting old WAL block (may have had completion issues)",
 					"block", id.String(), "tenant", i.tenantID)
@@ -619,6 +626,13 @@ func (i *instance) deleteOldBlocks() error {
 
 	for id, completeBlock := range i.completeBlocks {
 		if completeBlock.BlockMeta().EndTime.Before(cutoff) {
+			// Skip blocks that are currently being completed
+			// This shouldn't happen in normal operation, but protects against edge cases
+			if i.completingBlocks[id] {
+				level.Debug(i.logger).Log("msg", "skipping complete block deletion, completion in progress",
+					"block", id.String())
+				continue
+			}
 
 			level.Info(i.logger).Log("msg", "deleting complete block", "block", id.String())
 			err := i.wal.LocalBackend().ClearBlock(id, i.tenantID)
