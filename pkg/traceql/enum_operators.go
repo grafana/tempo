@@ -40,8 +40,14 @@ const (
 	OpSpansetUnionSibling
 	OpSpansetUnionAncestor
 	OpSpansetUnionDescendant
-	OpExists // OpNotExists is not parseable directly in the grammar. span.foo != nil and nil != span.foo are rewritten to something like exists(span.foo). this distinguishes it from when span.foo is nil in an expression like span.foo != "bar"
+
+	// The following operators are used internally and only exist in the AST. They are not parseable in TraceQL
+	OpExists
 	OpNotExists
+	OpIn
+	OpNotIn
+	OpRegexMatchAny
+	OpRegexMatchNone
 )
 
 func (op Operator) isBoolean() bool {
@@ -57,7 +63,11 @@ func (op Operator) isBoolean() bool {
 		op == OpLessEqual ||
 		op == OpNot ||
 		op == OpExists ||
-		op == OpNotExists
+		op == OpNotExists ||
+		op == OpIn ||
+		op == OpNotIn ||
+		op == OpRegexMatchAny ||
+		op == OpRegexMatchNone
 }
 
 func (op Operator) binaryTypesValid(lhsT StaticType, rhsT StaticType) bool {
@@ -74,7 +84,9 @@ func binaryTypeValid(op Operator, t StaticType) bool {
 		return op == OpAnd ||
 			op == OpOr ||
 			op == OpEqual ||
-			op == OpNotEqual
+			op == OpNotEqual ||
+			op == OpIn ||
+			op == OpNotIn
 	case TypeFloat, TypeFloatArray, TypeInt, TypeIntArray, TypeDuration:
 		return op == OpAdd ||
 			op == OpSub ||
@@ -87,7 +99,9 @@ func binaryTypeValid(op Operator, t StaticType) bool {
 			op == OpGreater ||
 			op == OpGreaterEqual ||
 			op == OpLess ||
-			op == OpLessEqual
+			op == OpLessEqual ||
+			op == OpIn ||
+			op == OpNotIn
 	case TypeString, TypeStringArray:
 		return op == OpEqual ||
 			op == OpNotEqual ||
@@ -96,7 +110,11 @@ func binaryTypeValid(op Operator, t StaticType) bool {
 			op == OpGreater ||
 			op == OpGreaterEqual ||
 			op == OpLess ||
-			op == OpLessEqual
+			op == OpLessEqual ||
+			op == OpIn ||
+			op == OpNotIn ||
+			op == OpRegexMatchAny ||
+			op == OpRegexMatchNone
 	case TypeNil, TypeStatus, TypeKind:
 		return op == OpEqual || op == OpNotEqual
 	}
@@ -121,6 +139,28 @@ func (op Operator) unaryTypesValid(t StaticType) bool {
 	}
 
 	return false
+}
+
+// isArrayOp returns true if the operator is a dedicated array operator like IN, NOT IN, MATCH ANY, or MATCH NONE. It
+// returns false for all other operators, even if those operators can operate on arrays like = or !=.
+func (op Operator) isArrayOp() bool {
+	return op == OpIn || op == OpNotIn || op == OpRegexMatchAny || op == OpRegexMatchNone
+}
+
+// toElementOp returns the equivalent element operator for the given array operator
+func (op Operator) toElementOp() Operator {
+	switch op {
+	case OpIn:
+		return OpEqual
+	case OpNotIn:
+		return OpNotEqual
+	case OpRegexMatchAny:
+		return OpRegex
+	case OpRegexMatchNone:
+		return OpNotRegex
+	default:
+		return op
+	}
 }
 
 func (op Operator) String() string {
@@ -193,6 +233,16 @@ func (op Operator) String() string {
 		return "&<<"
 	case OpSpansetUnionDescendant:
 		return "&>>"
+
+	// Operators IN, NOT IN, MATCH ANY, and MATCH NONE do not exist in the TraceQL syntax (only used internally)
+	case OpIn:
+		return "IN"
+	case OpNotIn:
+		return "NOT IN"
+	case OpRegexMatchAny:
+		return "MATCH ANY"
+	case OpRegexMatchNone:
+		return "MATCH NONE"
 	}
 
 	return fmt.Sprintf("operator(%d)", op)

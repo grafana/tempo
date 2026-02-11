@@ -15,17 +15,32 @@ import (
 )
 
 func TestDefaultQueryRangeStep(t *testing.T) {
+	day := 24 * time.Hour
 	tc := []struct {
-		start, end time.Time
-		expected   time.Duration
+		window   time.Duration
+		expected time.Duration
 	}{
-		{time.Unix(0, 0), time.Unix(100, 0), time.Second},
-		{time.Unix(0, 0), time.Unix(600, 0), 2 * time.Second},
-		{time.Unix(0, 0), time.Unix(3600, 0), 15 * time.Second},
+		{59 * time.Second, 200 * time.Millisecond},
+		{time.Minute, time.Second},
+		{5 * time.Minute, 1 * time.Second},
+		{15 * time.Minute, 3 * time.Second},
+		{30 * time.Minute, 5 * time.Second},
+		{time.Hour, 15 * time.Second},
+		{3 * time.Hour, 45 * time.Second},
+		{6 * time.Hour, time.Minute},
+		{12 * time.Hour, 3 * time.Minute},
+		{day - time.Second, 5 * time.Minute}, // 23:59:59 - edge case - ensure this is treated the same as 24 hours
+		{day, 5 * time.Minute},
+		{2 * day, 10 * time.Minute},
+		{7 * day, 40 * time.Minute},
+		{14 * day, time.Hour},
+		{30 * day, 3 * time.Hour},
 	}
 
 	for _, c := range tc {
-		require.Equal(t, c.expected, time.Duration(DefaultQueryRangeStep(uint64(c.start.UnixNano()), uint64(c.end.UnixNano()))))
+		t.Run(c.window.String(), func(t *testing.T) {
+			require.Equal(t, c.expected, time.Duration(DefaultQueryRangeStep(0, uint64(c.window.Nanoseconds()))))
+		})
 	}
 }
 

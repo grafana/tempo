@@ -206,8 +206,9 @@ Below is a list of known projects that use Otter:
 
 - [Grafana](https://github.com/grafana/grafana): The open and composable observability and data visualization platform.
 - [Centrifugo](https://github.com/centrifugal/centrifugo): Scalable real-time messaging server in a language-agnostic way.
-- [FrankenPHP](https://github.com/php/frankenphp): The modern PHP app server
-- [Unkey](https://github.com/unkeyed/unkey): Open source API management platform
+- [FrankenPHP](https://github.com/php/frankenphp): The modern PHP app server.
+- [Unkey](https://github.com/unkeyed/unkey): Open source API management platform.
+- [Nuclei](https://github.com/projectdiscovery/nuclei): A fast, open-source, and highly customizable vulnerability scanner.
 
 ## 🗃 Related works <a id="related-works" />
 

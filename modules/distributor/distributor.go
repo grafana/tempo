@@ -72,6 +72,11 @@ var (
 		Name:      "distributor_metrics_generator_pushes_failures_total",
 		Help:      "The total number of failed span pushes sent to metrics-generators.",
 	}, []string{"metrics_generator"})
+	metricGeneratorTenantRingSize = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: "tempo",
+		Name:      "distributor_metrics_generator_tenant_ring_size",
+		Help:      "The number of generator instances in the ring for a tenant",
+	}, []string{"tenant"})
 	metricSpansIngested = promauto.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "tempo",
 		Name:      "distributor_spans_received_total",
@@ -604,7 +609,11 @@ func (d *Distributor) sendToGenerators(ctx context.Context, userID string, keys 
 	// If an instance is unhealthy write to the next one (i.e. write extend is enabled)
 	op := ring.Write
 
-	readRing := d.generatorsRing.ShuffleShard(userID, d.overrides.MetricsGeneratorRingSize(userID))
+	ringSize := d.overrides.MetricsGeneratorRingSize(userID)
+
+	metricGeneratorTenantRingSize.WithLabelValues(userID).Set(float64(ringSize))
+
+	readRing := d.generatorsRing.ShuffleShard(userID, ringSize)
 
 	err := ring.DoBatchWithOptions(ctx, op, readRing, keys, func(generator ring.InstanceDesc, indexes []int) error {
 		localCtx, cancel := context.WithTimeout(ctx, d.generatorClientCfg.RemoteTimeout)

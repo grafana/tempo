@@ -61,6 +61,8 @@ linters:
     - gosec
     - unused
   exclusions:
+    paths:
+      - issue_test.go
     rules:
       - path: _test\.go
         linters:
