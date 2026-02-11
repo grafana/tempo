@@ -27,6 +27,7 @@ import (
 	"github.com/twmb/franz-go/pkg/kadm"
 	"github.com/twmb/franz-go/pkg/kgo"
 	"go.opentelemetry.io/otel/attribute"
+	uberatomic "go.uber.org/atomic"
 )
 
 const (
@@ -143,8 +144,8 @@ type LiveStore struct {
 	completeQueues      *flushqueues.ExclusiveQueues[*completeOp]
 	startupComplete     chan struct{} // channel to signal that the starting function has finished. allows background processes to block until the service is fully started
 	lagCancel           context.CancelFunc
-	readyErr            atomic.Pointer[error] // nil when ready to serve queries
-	lastRecordTimeNanos atomic.Int64          // stores timestamp of last consumed record as UnixNano, -1 means not set
+	readyErr            uberatomic.Error // nil when ready to serve queries - using atomic.Error to avoid nil pointer dereference
+	lastRecordTimeNanos atomic.Int64     // stores timestamp of last consumed record as UnixNano, -1 means not set
 }
 
 func New(cfg Config, overridesService overrides.Interface, logger log.Logger, reg prometheus.Registerer, singlePartition bool) (*LiveStore, error) {
@@ -164,7 +165,7 @@ func New(cfg Config, overridesService overrides.Interface, logger log.Logger, re
 	}
 
 	// Initialize ready state to starting
-	s.readyErr.Store(&ErrStarting)
+	s.readyErr.Store(ErrStarting) // No pointer - atomic.Error handles it
 	metricReady.Set(0)
 	s.lastRecordTimeNanos.Store(-1)
 
@@ -702,10 +703,7 @@ func (s *LiveStore) cutOneInstanceToWal(inst *instance, immediate bool) {
 
 // CheckReady returns nil if the live-store is ready to serve queries
 func (s *LiveStore) CheckReady(_ context.Context) error {
-	if err := s.readyErr.Load(); err != nil {
-		return *err
-	}
-	return nil
+	return s.readyErr.Load() // FIXED: atomic.Error returns error directly (no dereference)
 }
 
 // OnRingInstanceRegister implements ring.BasicLifecyclerDelegate
