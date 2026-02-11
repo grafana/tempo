@@ -134,7 +134,10 @@ func (v *virtualRowNumberIterator) SeekTo(rowNumber pq.RowNumber, definitionLeve
 		v.rowsLeft--
 		v.at.RowNumber.Next(v.definitionLevel, v.definitionLevel, v.definitionLevel)
 	}
-	if v.rowsLeft == 0 && seek > 0 {
+
+	rowsExhausted := v.rowsLeft == 0 && seek > 0
+	defLevelNotDefined := v.at.RowNumber[v.definitionLevel] < 0
+	if rowsExhausted || defLevelNotDefined {
 		return v.Next()
 	}
 
