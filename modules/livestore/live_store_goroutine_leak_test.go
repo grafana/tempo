@@ -21,7 +21,7 @@ func TestScheduleRetry_ShutdownDuringDelay(t *testing.T) {
 	defer cancel()
 
 	cfg := Config{
-		initialBackoff: 5 * time.Second,  // Long delay to test cancellation
+		initialBackoff: 5 * time.Second, // Long delay to test cancellation
 		maxBackoff:     10 * time.Second,
 	}
 
