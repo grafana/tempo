@@ -40,12 +40,12 @@ type PartitionReader struct {
 	client *kgo.Client
 	adm    *kadm.Client
 
-	lookbackPeriod     time.Duration
-	commitInterval     time.Duration
-	forceFromLookback  bool
-	wg              sync.WaitGroup
-	offsetWatermark atomic.Pointer[kadm.Offset]
-	lag             atomic.Int64
+	lookbackPeriod    time.Duration
+	commitInterval    time.Duration
+	forceFromLookback bool
+	wg                sync.WaitGroup
+	offsetWatermark   atomic.Pointer[kadm.Offset]
+	lag               atomic.Int64
 
 	consume consumeFn
 	metrics partitionReaderMetrics
