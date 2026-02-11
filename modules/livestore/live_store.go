@@ -519,9 +519,9 @@ func (s *LiveStore) calculateTimeLag(lagShortcutThreshold int64) *time.Duration 
 // The commitLoop performs a final offset commit on shutdown using the last
 // stored offset from storeOffsetForCommit(). This implementation guarantees
 // correctness by:
-//   1. Returning (offset, nil) only for successfully processed complete batches
-//   2. Returning (nil, nil) on context cancellation (no partial commits)
-//   3. Never calling storeOffsetForCommit() for partial batches
+//  1. Returning (offset, nil) only for successfully processed complete batches
+//  2. Returning (nil, nil) on context cancellation (no partial commits)
+//  3. Never calling storeOffsetForCommit() for partial batches
 //
 // If this contract changes (e.g., intermediate offset commits within this function),
 // the commitLoop must be updated to skip or condition its shutdown commit.

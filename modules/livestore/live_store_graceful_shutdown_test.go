@@ -25,7 +25,7 @@ func TestConsume_GracefulShutdown_ReturnsNilError(t *testing.T) {
 	require.NotNil(t, store)
 	defer func() {
 		store.StopAsync()
-		store.AwaitTerminated(context.Background())
+		require.NoError(t, store.AwaitTerminated(context.Background()))
 	}()
 
 	// Create context that will be cancelled
@@ -76,7 +76,7 @@ func TestConsume_GracefulShutdown_MidBatch(t *testing.T) {
 	require.NotNil(t, store)
 	defer func() {
 		store.StopAsync()
-		store.AwaitTerminated(context.Background())
+		require.NoError(t, store.AwaitTerminated(context.Background()))
 	}()
 
 	// Create context that will be cancelled mid-processing
