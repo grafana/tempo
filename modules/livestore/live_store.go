@@ -284,6 +284,11 @@ func (s *LiveStore) starting(ctx context.Context) error {
 		}
 	}
 
+	forceFromLookback := len(s.getInstances()) == 0
+	if forceFromLookback {
+		level.Info(s.logger).Log("msg", "no local data found after reload, will force reading from lookback period")
+	}
+
 	err = services.StartAndAwaitRunning(ctx, s.ingestPartitionLifecycler)
 	if err != nil {
 		return fmt.Errorf("failed to start partition lifecycler: %w", err)
@@ -309,7 +314,7 @@ func (s *LiveStore) starting(ctx context.Context) error {
 	}
 
 	lookbackPeriod := 2 * s.cfg.CompleteBlockTimeout
-	s.reader, err = NewPartitionReaderForPusher(s.client, s.ingestPartitionID, s.cfg.IngestConfig.Kafka, s.cfg.CommitInterval, lookbackPeriod, s.consume, s.logger, s.reg)
+	s.reader, err = NewPartitionReaderForPusher(s.client, s.ingestPartitionID, s.cfg.IngestConfig.Kafka, s.cfg.CommitInterval, lookbackPeriod, forceFromLookback, s.consume, s.logger, s.reg)
 	if err != nil {
 		return fmt.Errorf("failed to create partition reader: %w", err)
 	}
