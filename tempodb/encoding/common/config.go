@@ -65,7 +65,7 @@ func (cfg *BlockConfig) RegisterFlagsAndApplyDefaults(prefix string, f *flag.Fla
 func (cfg *BlockConfig) GetCompressionOption() parquet.WriterOption {
 	switch cfg.ParquetCompression {
 	case ParquetCompressionLZ4:
-		return parquet.Compression(&lz4.Codec{})
+		return parquet.Compression(&lz4.Codec{Level: lz4.Fastest})
 	case ParquetCompressionZstd:
 		return parquet.Compression(&zstd.Codec{})
 	case ParquetCompressionGzip:
