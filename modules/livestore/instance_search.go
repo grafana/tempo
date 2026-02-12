@@ -499,38 +499,38 @@ func (i *instance) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTag
 		// check the cache first
 		cacheData, err := localB.GetDiskCache(ctx, cacheKey)
 		if err != nil {
-			// just log the error and move on...we will search the block
+			// Log but don't fail - fall through to backend search
 			_ = level.Warn(i.logger).Log("msg", "GetDiskCache failed", "err", err)
-			return nil
-		}
-
-		// we got data...unmarshall, and add values to central collector and add bytesRead
-		if len(cacheData) > 0 {
+			// Fall through to search below (cache miss path)
+		} else if len(cacheData) > 0 {
+			// we got data...unmarshall, and add values to central collector and add bytesRead
 			resp := &tempopb.SearchTagValuesV2Response{}
 			err = proto.Unmarshal(cacheData, resp)
 			if err != nil {
+				// Log but don't fail - fall through to backend search
 				_ = level.Warn(i.logger).Log("msg", "GetDiskCache unmarshal failed", "err", err)
+				// Fall through to search below (cache miss path)
+			} else {
+
+				span.SetAttributes(attribute.Bool("cached", true))
+				// Instead of the reporting the InspectedBytes of the cached response.
+				// we report the size of cacheData as the Inspected bytes in case we hit disk cache.
+				// we do this because, because it's incorrect and misleading to report the metrics of cachedResponse
+				// we report the size of the cacheData as the amount of data was read to search this block.
+				// this can skew our metrics because this will be lower than the data read to search the block.
+				// we can remove this if this becomes an issue but leave it in for now to more accurate.
+				mCollector.Add(uint64(len(cacheData)))
+
+				for _, v := range resp.TagValues {
+					if vCollector.Collect(*v) {
+						return errComplete
+					}
+				}
 				return nil
 			}
-
-			span.SetAttributes(attribute.Bool("cached", true))
-			// Instead of the reporting the InspectedBytes of the cached response.
-			// we report the size of cacheData as the Inspected bytes in case we hit disk cache.
-			// we do this because, because it's incorrect and misleading to report the metrics of cachedResponse
-			// we report the size of the cacheData as the amount of data was read to search this block.
-			// this can skew our metrics because this will be lower than the data read to search the block.
-			// we can remove this if this becomes an issue but leave it in for now to more accurate.
-			mCollector.Add(uint64(len(cacheData)))
-
-			for _, v := range resp.TagValues {
-				if vCollector.Collect(*v) {
-					return errComplete
-				}
-			}
-			return nil
 		}
 
-		// cache miss, search the block. We will cache the results if we find any.
+		// cache miss or error, search the block. We will cache the results if we find any.
 		span.SetAttributes(attribute.Bool("cached", false))
 		// using local collector to collect values from the block and cache them.
 		localCol := collector.NewDistinctValue[tempopb.TagValue](limit, req.MaxTagValues, req.StaleValueThreshold, func(v tempopb.TagValue) int { return len(v.Type) + len(v.Value) })

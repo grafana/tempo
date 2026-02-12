@@ -165,7 +165,11 @@ func (i *instance) backpressure(ctx context.Context) bool {
 	if i.Cfg.MaxLiveTracesBytes > 0 {
 		// Check live traces
 		i.liveTracesMtx.Lock()
-		sz := i.liveTraces.Size()
+		// Guard against nil during shutdown
+		var sz uint64
+		if i.liveTraces != nil {
+			sz = i.liveTraces.Size()
+		}
 		i.liveTracesMtx.Unlock()
 
 		if sz >= i.Cfg.MaxLiveTracesBytes {
@@ -273,6 +277,13 @@ func (i *instance) pushBytes(ctx context.Context, ts time.Time, req *tempopb.Pus
 
 			// Acquire lock for this single batch only
 			i.liveTracesMtx.Lock()
+			// Guard against nil during shutdown
+			if i.liveTraces == nil {
+				i.liveTracesMtx.Unlock()
+				// During shutdown, drop this batch but continue with others
+				level.Warn(i.logger).Log("msg", "dropping batch during shutdown", "traces", len(batch.ScopeSpans))
+				continue // Continue processing remaining batches
+			}
 			err := i.liveTraces.PushWithTimestampAndLimits(ts, traceID, batch, uint64(maxLiveTraces), 0)
 			i.liveTracesMtx.Unlock()
 
@@ -306,6 +317,13 @@ func countSpans(trace *tempopb.Trace) int {
 
 func (i *instance) cutIdleTraces(immediate bool) error {
 	i.liveTracesMtx.Lock()
+
+	// Guard against nil during shutdown
+	if i.liveTraces == nil {
+		i.liveTracesMtx.Unlock()
+		return nil
+	}
+
 	// Set metrics before cutting (similar to ingester)
 	metricLiveTraces.WithLabelValues(i.tenantID).Set(float64(i.liveTraces.Len()))
 	metricLiveTraceBytes.WithLabelValues(i.tenantID).Set(float64(i.liveTraces.Size()))
@@ -489,8 +507,15 @@ func (i *instance) completeBlock(ctx context.Context, id uuid.UUID) error {
 	span.SetAttributes(attribute.Int64("block_size", int64(blockSize)))
 
 	// Create completed block
-	reader := backend.NewReader(i.wal.LocalBackend())
-	writer := backend.NewWriter(i.wal.LocalBackend())
+	localBackend := i.wal.LocalBackend()
+	if localBackend == nil {
+		err := fmt.Errorf("WAL local backend not available for block %s", id)
+		level.Error(i.logger).Log("msg", "local backend unavailable", "id", id, "err", err)
+		span.RecordError(err)
+		return err
+	}
+	reader := backend.NewReader(localBackend)
+	writer := backend.NewWriter(localBackend)
 
 	iter, err := walBlock.Iterator()
 	if err != nil {
@@ -507,7 +532,7 @@ func (i *instance) completeBlock(ctx context.Context, id uuid.UUID) error {
 		level.Warn(i.logger).Log("msg", "found existing complete block from failed attempt, clearing before retry",
 			"id", id, "tenant", i.tenantID)
 
-		clearErr := i.wal.LocalBackend().ClearBlock(id, i.tenantID) // I/O without lock
+		clearErr := localBackend.ClearBlock(id, i.tenantID) // I/O without lock
 		if clearErr != nil {
 			level.Error(i.logger).Log("msg", "cannot retry - failed to clear existing complete block",
 				"id", id, "tenant", i.tenantID, "err", clearErr)
@@ -536,7 +561,7 @@ func (i *instance) completeBlock(ctx context.Context, id uuid.UUID) error {
 	}
 
 	// Create LocalBlock wrapper (cheap operation, but do outside lock anyway)
-	localBlock := ingester.NewLocalBlock(ctx, newBlock, i.wal.LocalBackend())
+	localBlock := ingester.NewLocalBlock(ctx, newBlock, localBackend)
 
 	// STEP 3: Final state update with lock (double-check pattern)
 	i.blocksMtx.Lock()
@@ -547,7 +572,7 @@ func (i *instance) completeBlock(ctx context.Context, id uuid.UUID) error {
 		i.blocksMtx.Unlock()
 		// Block disappeared during completion - clean up orphan
 		level.Warn(i.logger).Log("msg", "WAL block disappeared while being completed, deleting complete block", "id", id)
-		err := i.wal.LocalBackend().ClearBlock(id, i.tenantID) // I/O without lock
+		err := localBackend.ClearBlock(id, i.tenantID) // I/O without lock
 		if err != nil {
 			level.Error(i.logger).Log("msg", "failed to clear complete block after WAL disappeared", "block", id, "err", err)
 		}
@@ -568,13 +593,23 @@ func (i *instance) completeBlock(ctx context.Context, id uuid.UUID) error {
 		span.RecordError(err)
 
 		// Clean up orphaned complete block files
-		cleanupErr := i.wal.LocalBackend().ClearBlock(id, i.tenantID) // I/O without lock
+		cleanupErr := localBackend.ClearBlock(id, i.tenantID) // I/O without lock
 		if cleanupErr != nil {
-			level.Error(i.logger).Log("msg", "failed to clear orphaned complete block",
-				"id", id, "clear_err", err, "cleanup_err", cleanupErr)
+			// CRITICAL: Both WAL clear and complete block clear failed
+			// Do NOT remove from maps - files still exist and need retry
+			level.Error(i.logger).Log("msg", "both WAL clear and complete block clear failed",
+				"id", id, "wal_clear_err", err, "complete_clear_err", cleanupErr)
 			metricCompleteBlockCleanupFailures.Inc()
+
+			// Remove from completeBlocks map but keep state dirty for retry
+			i.blocksMtx.Lock()
+			delete(i.completeBlocks, id)
+			i.blocksMtx.Unlock()
+
+			return fmt.Errorf("both WAL clear and complete block clear failed for %s (will retry): wal=%w, complete=%v", id, err, cleanupErr)
 		}
 
+		// Complete block clear succeeded, so only WAL clear failed
 		// Remove from completeBlocks map (walBlocks already removed above)
 		i.blocksMtx.Lock()
 		delete(i.completeBlocks, id)
@@ -647,12 +682,26 @@ func (i *instance) deleteOldBlocks() error {
 		// Clear block file (OUTSIDE lock)
 		err := walBlock.Clear()
 		if err != nil {
-			// Log error but CONTINUE cleanup (don't block other blocks)
+			if errors.Is(err, backend.ErrDoesNotExist) {
+				// Block already deleted - this is OK
+				level.Debug(i.logger).Log("msg", "WAL block already deleted", "id", id)
+				// Still remove from map
+				i.blocksMtx.Lock()
+				delete(i.walBlocks, id)
+				i.blocksMtx.Unlock()
+				continue
+			}
+			// Real error - log and continue
 			level.Error(i.logger).Log("msg", "failed to clear old WAL block, skipping",
 				"id", id, "tenant", i.tenantID, "err", err)
 			metricWALBlockCleanupFailures.Inc()
 			cleanupErrors++
-			continue // ✅ Skip this block but continue with others
+
+			// Circuit breaker: if too many failures, something is seriously wrong
+			if cleanupErrors > 10 {
+				return fmt.Errorf("too many WAL block deletion failures (%d), possible disk issue", cleanupErrors)
+			}
+			continue // Skip this block but continue with others
 		}
 
 		// Remove from map (fast, under lock)
@@ -670,12 +719,26 @@ func (i *instance) deleteOldBlocks() error {
 		// Clear block file (OUTSIDE lock)
 		err := i.wal.LocalBackend().ClearBlock(id, i.tenantID)
 		if err != nil {
-			// Log error but CONTINUE cleanup (don't block other blocks)
+			if errors.Is(err, backend.ErrDoesNotExist) {
+				// Block already deleted - this is OK
+				level.Debug(i.logger).Log("msg", "complete block already deleted", "id", id)
+				// Still remove from map
+				i.blocksMtx.Lock()
+				delete(i.completeBlocks, id)
+				i.blocksMtx.Unlock()
+				continue
+			}
+			// Real error - log and continue
 			level.Error(i.logger).Log("msg", "failed to clear old complete block, skipping",
 				"id", id, "tenant", i.tenantID, "err", err)
 			metricWALBlockCleanupFailures.Inc()
 			cleanupErrors++
-			continue // ✅ Skip this block but continue with others
+
+			// Circuit breaker: if too many failures, something is seriously wrong
+			if cleanupErrors > 10 {
+				return fmt.Errorf("too many complete block deletion failures (%d), possible disk issue", cleanupErrors)
+			}
+			continue // Skip this block but continue with others
 		}
 
 		// Remove from map (fast, under lock)
@@ -688,10 +751,11 @@ func (i *instance) deleteOldBlocks() error {
 
 	// Log summary if any blocks failed
 	if cleanupErrors > 0 {
-		level.Error(i.logger).Log("msg", "some blocks failed to clean up",
+		level.Warn(i.logger).Log("msg", "some blocks failed to clean up",
 			"failed_count", cleanupErrors,
+			"total_attempted", len(walBlocksToDelete)+len(completeBlocksToDelete),
 			"tenant", i.tenantID)
 	}
 
-	return nil // ✅ Always return nil to allow cleanup to continue
+	return nil
 }

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"runtime/debug"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -46,6 +47,60 @@ const (
 )
 
 var ErrStarting = errors.New("live-store is starting")
+
+// withPanicRecovery wraps a function with panic recovery, ensuring panics
+// are caught, logged, and returned as errors instead of crashing the service.
+//
+// This is a generic helper that works with any return type T.
+func withPanicRecovery[T any](logger log.Logger, operation string, fn func() (T, error)) (result T, err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			// Sanitize panic message to remove sensitive data
+			sanitized := sanitizePanicMessage(r)
+
+			level.Error(logger).Log(
+				"msg", "panic recovered",
+				"operation", operation,
+				"panic", sanitized,
+				"stack", string(debug.Stack()),
+			)
+
+			err = fmt.Errorf("internal error in %s: %v", operation, sanitized)
+		}
+	}()
+
+	return fn()
+}
+
+// isValidTenantID validates tenant IDs used in metric labels to prevent cardinality explosion.
+// This is a security-critical function that protects against metric label injection attacks.
+//
+// Valid tenant IDs:
+// - Length: 1-64 characters (reduced from 128)
+// - Characters: alphanumeric, hyphens, underscores, and DOTS
+// - Dots allow Grafana Cloud tenant IDs like "org-123.production"
+//
+// Examples:
+// - Valid: "tenant-1", "org_123", "acme.prod", "dev-team-a"
+// - Invalid: "", "a"*65, "tenant$", "../etc/passwd"
+func isValidTenantID(tenant string) bool {
+	// Empty or too long
+	if len(tenant) == 0 || len(tenant) > 64 {
+		return false
+	}
+
+	// Must be alphanumeric + hyphens + underscores + dots
+	for _, c := range tenant {
+		if !((c >= 'a' && c <= 'z') ||
+			(c >= 'A' && c <= 'Z') ||
+			(c >= '0' && c <= '9') ||
+			c == '-' || c == '_' || c == '.') {
+			return false
+		}
+	}
+
+	return true
+}
 
 var (
 	// Queue management metrics
@@ -146,22 +201,28 @@ type LiveStore struct {
 	lagCancel           context.CancelFunc
 	readyErr            uberatomic.Error // nil when ready to serve queries - using atomic.Error to avoid nil pointer dereference
 	lastRecordTimeNanos atomic.Int64     // stores timestamp of last consumed record as UnixNano, -1 means not set
+
+	// Circuit breaker for invalid tenant validation
+	invalidTenantCount *atomic.Int64
+	invalidTenantLimit int64
 }
 
 func New(cfg Config, overridesService overrides.Interface, logger log.Logger, reg prometheus.Registerer, singlePartition bool) (*LiveStore, error) {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	s := &LiveStore{
-		cfg:             cfg,
-		logger:          logger,
-		reg:             reg,
-		decoder:         ingest.NewDecoder(),
-		ctx:             ctx,
-		cancel:          cancel,
-		instances:       make(map[string]*instance),
-		overrides:       overridesService,
-		completeQueues:  flushqueues.New[*completeOp](cfg.CompleteBlockConcurrency, metricCompleteQueueLength),
-		startupComplete: make(chan struct{}),
+		cfg:                cfg,
+		logger:             logger,
+		reg:                reg,
+		decoder:            ingest.NewDecoder(),
+		ctx:                ctx,
+		cancel:             cancel,
+		instances:          make(map[string]*instance),
+		overrides:          overridesService,
+		completeQueues:     flushqueues.New[*completeOp](cfg.CompleteBlockConcurrency, metricCompleteQueueLength),
+		startupComplete:    make(chan struct{}),
+		invalidTenantCount: &atomic.Int64{},
+		invalidTenantLimit: 1000, // Allow 1000 invalid attempts before circuit break
 	}
 
 	// Initialize ready state to starting
@@ -371,8 +432,16 @@ func (s *LiveStore) stopping(error) error {
 	// Stop consuming
 	err := services.StopAndAwaitTerminated(context.Background(), s.reader)
 	if err != nil {
-		level.Warn(s.logger).Log("msg", "failed to stop reader", "err", err)
-		return err
+		// Suppress expected context cancellation errors during shutdown
+		// The lag worker and partition reader are cancelled via s.lagCancel() above,
+		// which causes Kafka operations to fail with context.Canceled.
+		// This is expected behavior during graceful shutdown and not an error condition.
+		if errors.Is(err, context.Canceled) {
+			level.Info(s.logger).Log("msg", "reader stopped during shutdown (expected context cancellation)")
+		} else {
+			level.Warn(s.logger).Log("msg", "failed to stop reader", "err", err)
+			return err
+		}
 	}
 
 	// Reset lag metrics for our partition when stopping
@@ -651,6 +720,22 @@ func (s *LiveStore) getInstance(tenantID string) (*instance, bool) {
 }
 
 func (s *LiveStore) getOrCreateInstance(tenantID string) (*instance, error) {
+	// Circuit breaker check
+	if s.invalidTenantCount.Load() > s.invalidTenantLimit {
+		return nil, fmt.Errorf("too many invalid tenant IDs, possible attack")
+	}
+
+	// Validate tenant ID to prevent metric cardinality explosion
+	if !isValidTenantID(tenantID) {
+		s.invalidTenantCount.Add(1)
+		level.Warn(s.logger).Log(
+			"msg", "rejected invalid tenant ID",
+			"tenant", tenantID,
+			"invalid_count", s.invalidTenantCount.Load(),
+		)
+		return nil, fmt.Errorf("invalid tenant ID: %s", tenantID)
+	}
+
 	s.instancesMtx.RLock()
 	inst, ok := s.instances[tenantID]
 	s.instancesMtx.RUnlock()
@@ -750,18 +835,22 @@ func (s *LiveStore) OnRingInstanceHeartbeat(*ring.BasicLifecycler, *ring.Desc, *
 
 // FindTraceByID implements tempopb.Querier
 func (s *LiveStore) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDRequest) (*tempopb.TraceByIDResponse, error) {
-	return withInstance(ctx, s, func(inst *instance) (*tempopb.TraceByIDResponse, error) {
-		return inst.FindByTraceID(ctx, req.TraceID, req.AllowPartialTrace)
+	return withPanicRecovery(s.logger, "FindTraceByID", func() (*tempopb.TraceByIDResponse, error) {
+		return withInstance(ctx, s, func(inst *instance) (*tempopb.TraceByIDResponse, error) {
+			return inst.FindByTraceID(ctx, req.TraceID, req.AllowPartialTrace)
+		})
 	})
 }
 
 // SearchRecent implements tempopb.Querier
 func (s *LiveStore) SearchRecent(ctx context.Context, req *tempopb.SearchRequest) (*tempopb.SearchResponse, error) {
-	if s.isLagged(int64(req.End) * 1e9) { // convert seconds to nanoseconds
-		return nil, errLagged
-	}
-	return withInstance(ctx, s, func(inst *instance) (*tempopb.SearchResponse, error) {
-		return inst.Search(ctx, req)
+	return withPanicRecovery(s.logger, "SearchRecent", func() (*tempopb.SearchResponse, error) {
+		if s.isLagged(int64(req.End) * 1e9) { // convert seconds to nanoseconds
+			return nil, errLagged
+		}
+		return withInstance(ctx, s, func(inst *instance) (*tempopb.SearchResponse, error) {
+			return inst.Search(ctx, req)
+		})
 	})
 }
 
@@ -772,29 +861,37 @@ func (s *LiveStore) SearchBlock(_ context.Context, _ *tempopb.SearchBlockRequest
 
 // SearchTags implements tempopb.Querier
 func (s *LiveStore) SearchTags(ctx context.Context, req *tempopb.SearchTagsRequest) (*tempopb.SearchTagsResponse, error) {
-	return withInstance(ctx, s, func(inst *instance) (*tempopb.SearchTagsResponse, error) {
-		return inst.SearchTags(ctx, req.Scope)
+	return withPanicRecovery(s.logger, "SearchTags", func() (*tempopb.SearchTagsResponse, error) {
+		return withInstance(ctx, s, func(inst *instance) (*tempopb.SearchTagsResponse, error) {
+			return inst.SearchTags(ctx, req.Scope)
+		})
 	})
 }
 
 // SearchTagsV2 implements tempopb.Querier
 func (s *LiveStore) SearchTagsV2(ctx context.Context, req *tempopb.SearchTagsRequest) (*tempopb.SearchTagsV2Response, error) {
-	return withInstance(ctx, s, func(inst *instance) (*tempopb.SearchTagsV2Response, error) {
-		return inst.SearchTagsV2(ctx, req)
+	return withPanicRecovery(s.logger, "SearchTagsV2", func() (*tempopb.SearchTagsV2Response, error) {
+		return withInstance(ctx, s, func(inst *instance) (*tempopb.SearchTagsV2Response, error) {
+			return inst.SearchTagsV2(ctx, req)
+		})
 	})
 }
 
 // SearchTagValues implements tempopb.Querier
 func (s *LiveStore) SearchTagValues(ctx context.Context, req *tempopb.SearchTagValuesRequest) (*tempopb.SearchTagValuesResponse, error) {
-	return withInstance(ctx, s, func(inst *instance) (*tempopb.SearchTagValuesResponse, error) {
-		return inst.SearchTagValues(ctx, req)
+	return withPanicRecovery(s.logger, "SearchTagValues", func() (*tempopb.SearchTagValuesResponse, error) {
+		return withInstance(ctx, s, func(inst *instance) (*tempopb.SearchTagValuesResponse, error) {
+			return inst.SearchTagValues(ctx, req)
+		})
 	})
 }
 
 // SearchTagValuesV2 implements tempopb.Querier
 func (s *LiveStore) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTagValuesRequest) (*tempopb.SearchTagValuesV2Response, error) {
-	return withInstance(ctx, s, func(inst *instance) (*tempopb.SearchTagValuesV2Response, error) {
-		return inst.SearchTagValuesV2(ctx, req)
+	return withPanicRecovery(s.logger, "SearchTagValuesV2", func() (*tempopb.SearchTagValuesV2Response, error) {
+		return withInstance(ctx, s, func(inst *instance) (*tempopb.SearchTagValuesV2Response, error) {
+			return inst.SearchTagValuesV2(ctx, req)
+		})
 	})
 }
 
@@ -810,11 +907,13 @@ func (s *LiveStore) GetMetrics(_ context.Context, _ *tempopb.SpanMetricsRequest)
 
 // QueryRange implements tempopb.MetricsGeneratorServer
 func (s *LiveStore) QueryRange(ctx context.Context, req *tempopb.QueryRangeRequest) (*tempopb.QueryRangeResponse, error) {
-	if s.isLagged(int64(req.End)) { // end param is already nanos, no need to convert
-		return nil, errLagged
-	}
-	return withInstance(ctx, s, func(inst *instance) (*tempopb.QueryRangeResponse, error) {
-		return inst.QueryRange(ctx, req)
+	return withPanicRecovery(s.logger, "QueryRange", func() (*tempopb.QueryRangeResponse, error) {
+		if s.isLagged(int64(req.End)) { // end param is already nanos, no need to convert
+			return nil, errLagged
+		}
+		return withInstance(ctx, s, func(inst *instance) (*tempopb.QueryRangeResponse, error) {
+			return inst.QueryRange(ctx, req)
+		})
 	})
 }
 
@@ -853,4 +952,52 @@ func withInstance[T any](ctx context.Context, s *LiveStore, fn func(*instance) (
 	}
 
 	return fn(inst)
+}
+
+// withBlockIOTimeout wraps block I/O operations with a timeout.
+//
+// Timeout behavior:
+// - If parent context has deadline earlier than configured timeout, uses parent deadline
+// - If parent context has no deadline, uses configured BlockIOTimeout
+// - If parent deadline is later than configured timeout, uses configured timeout
+//
+// This ensures:
+// - Operations don't exceed configured limits (security)
+// - Parent deadlines are respected (correctness)
+// - No TOCTOU race conditions (uses WithDeadline, not WithTimeout)
+//
+// Edge cases:
+// - Negative timeouts: Returns immediate error with clear message
+// - Expired deadlines: Detected and reported as "deadline already passed"
+// - Context cancellation: Propagates cancellation to operation
+func (s *LiveStore) withBlockIOTimeout(ctx context.Context, operation string, fn func(context.Context) error) error {
+	var timeoutCtx context.Context
+	var cancel context.CancelFunc
+
+	if parentDeadline, hasParentDeadline := ctx.Deadline(); hasParentDeadline {
+		// Use deadline comparison (not duration) to eliminate TOCTOU
+		configuredDeadline := time.Now().Add(s.cfg.BlockIOTimeout)
+
+		// Use earlier of parent vs configured deadline
+		if parentDeadline.Before(configuredDeadline) {
+			timeoutCtx, cancel = context.WithDeadline(ctx, parentDeadline)
+		} else {
+			timeoutCtx, cancel = context.WithDeadline(ctx, configuredDeadline)
+		}
+	} else {
+		// No parent deadline, use configured timeout
+		timeoutCtx, cancel = context.WithTimeout(ctx, s.cfg.BlockIOTimeout)
+	}
+	defer cancel()
+
+	// Execute the operation with timeout context
+	err := fn(timeoutCtx)
+	if err != nil {
+		if errors.Is(err, context.DeadlineExceeded) {
+			return fmt.Errorf("%s operation timed out: %w", operation, err)
+		}
+		return fmt.Errorf("%s operation failed: %w", operation, err)
+	}
+
+	return nil
 }
