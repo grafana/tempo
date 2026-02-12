@@ -16,7 +16,6 @@ Tempo provides various command-line flags to configure its behavior when startin
 | Flag | Description | Default |
 | --- | --- | --- |
 | `--version` | Print this build's version information and exit | `false` |
-| `--mem-ballast-size-mbs` | Size of memory ballast to allocate in MBs | `0` |
 | `--mutex-profile-fraction` | Override default mutex profiling fraction | `0` |
 | `--block-profile-threshold` | Override default block profiling threshold | `0` |
 | `--config.file` | Configuration file to load | |

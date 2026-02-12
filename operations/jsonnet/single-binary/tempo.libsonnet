@@ -44,7 +44,6 @@
     container.withArgs([
       '-target=scalable-single-binary',
       '-config.file=/conf/tempo.yaml',
-      '-mem-ballast-size-mbs=' + $._config.ballast_size_mbs,
     ]) +
     container.withVolumeMounts([
       volumeMount.new(tempo_config_volume, '/conf'),
