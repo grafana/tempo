@@ -371,6 +371,7 @@ func (s *LiveStore) stopping(error) error {
 	// Remove partition owner from ring on shutdown if configured.
 	// On startup, createPartitionAndRegisterOwner() re-registers the owner immediately.
 	if s.cfg.RemoveOwnerOnShutdown {
+		level.Info(s.logger).Log("msg", "Unregistering partition owner")
 		s.ingestPartitionLifecycler.SetRemoveOwnerOnShutdown(true)
 	}
 
