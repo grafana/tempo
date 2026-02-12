@@ -1,10 +1,12 @@
 package livestore
 
 import (
+	"bytes"
 	"context"
 	"testing"
 	"time"
 
+	"github.com/go-kit/log"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -12,6 +14,7 @@ import (
 	"github.com/grafana/dskit/services"
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/pkg/tempopb"
+	util_log "github.com/grafana/tempo/pkg/util/log"
 	"github.com/grafana/tempo/pkg/util/test"
 )
 
@@ -156,6 +159,24 @@ func TestInstanceLimits(t *testing.T) {
 		err := services.StopAndAwaitTerminated(t.Context(), ls)
 		require.NoError(t, err)
 	})
+}
+
+// TestTraceTooLargeLogContainsInsight verifies that the "trace too large" log line contains insight=true
+func TestTraceTooLargeLogContainsInsight(t *testing.T) {
+	id := test.ValidTraceID(nil)
+	trace := test.MakeTrace(1, id)
+	instance, ls := instanceWithPushLimits(t, trace.Size(), 4)
+
+	// Replace maxTraceLogger to capture log output
+	var logBuf bytes.Buffer
+	instance.maxTraceLogger = util_log.NewRateLimitedLogger(maxTraceLogLinesPerSecond, log.NewLogfmtLogger(&logBuf))
+
+	pushTrace(t.Context(), t, instance, trace, id)
+	pushTrace(t.Context(), t, instance, trace, id) // second push exceeds limit
+
+	assert.Contains(t, logBuf.String(), "insight=true")
+
+	require.NoError(t, services.StopAndAwaitTerminated(t.Context(), ls))
 }
 
 func TestInstanceNoLimits(t *testing.T) {

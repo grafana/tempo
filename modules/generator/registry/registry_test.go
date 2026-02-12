@@ -18,9 +18,10 @@ import (
 )
 
 type mockLimiter struct {
-	onAddFunc    func(labelHash uint64, seriesCount uint32, lbls labels.Labels) (labels.Labels, uint64)
-	onUpdateFunc func(labelHash uint64, seriesCount uint32)
-	onDeleteFunc func(labelHash uint64, seriesCount uint32)
+	onAddFunc              func(labelHash uint64, seriesCount uint32, lbls labels.Labels) (labels.Labels, uint64)
+	onUpdateFunc           func(labelHash uint64, seriesCount uint32)
+	onDeleteFunc           func(labelHash uint64, seriesCount uint32)
+	onPruneStaleSeriesFunc func()
 }
 
 var noopLimiter Limiter = &mockLimiter{}
@@ -48,8 +49,15 @@ func (m *mockLimiter) OnDelete(labelHash uint64, seriesCount uint32) {
 	m.onDeleteFunc(labelHash, seriesCount)
 }
 
+func (m *mockLimiter) OnPruneStaleSeries() {
+	if m.onPruneStaleSeriesFunc == nil {
+		return
+	}
+	m.onPruneStaleSeriesFunc()
+}
+
 func buildTestLabels(names []string, values []string) labels.Labels {
-	builder := NewLabelBuilder(0, 0)
+	builder := NewLabelBuilder(0, 0, newTestDrainSanitizer(SpanNameSanitizationDisabled))
 	for i := range names {
 		builder.Add(names[i], values[i])
 	}
@@ -514,6 +522,10 @@ func (m *mockOverrides) MetricsGeneratorNativeHistogramMaxBucketNumber(string) u
 
 func (m *mockOverrides) MetricsGeneratorNativeHistogramMinResetDuration(string) time.Duration {
 	return m.nativeHistogramMinResetDuration
+}
+
+func (m *mockOverrides) MetricsGeneratorSpanNameSanitization(string) string {
+	return SpanNameSanitizationDisabled
 }
 
 func mustGetHostname() string {

@@ -43,7 +43,7 @@ Reading a large trace can spike the memory usage of the read components:
 Writing a large trace can spike the memory usage of the write components:
 
 * ingester
-* compactor
+* worker
 * metrics-generator
 
 Start with a smaller trace size limit of 15MB, and increase it as needed.
@@ -95,7 +95,7 @@ When reading these attributes, they can spike the memory usage of the read compo
 
 When writing these attributes, they can spike the memory usage of the write components:
 * ingester
-* compactor
+* worker
 * metrics-generator
 
 You can [automatically limit attribute sizes](https://github.com/grafana/tempo/pull/4335) using [`max_attribute_bytes`](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/#set-max-attribute-size-to-help-control-out-of-memory-errors).

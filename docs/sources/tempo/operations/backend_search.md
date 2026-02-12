@@ -16,12 +16,11 @@ Depending on your volume, this may result in slow queries.
 
 This document explains how read path in Tempo works, what controls you have to tune the read path, details of the core configuration options, and how to tune these configuration options to get the most out of your Tempo cluster.
 
-The general advice is to scale your compactors and queriers. Additional queriers can more effectively run jobs in parallel
-while additional compactors more aggressively reduce the length of your blocklist and copies of data (if using `RF=3`).
+The general advice is to scale your workers and queriers. Additional queriers can more effectively run jobs in parallel
+while additional workers more aggressively reduce the length of your blocklist and copies of data (if using `RF=3`).
 
 {{< admonition type="note" >}}
-All forms of search (TraceQL and tags based) are only supported on the `vParquet` and forward blocks. [v2 blocks](../../configuration/parquet/#choose-a-different-block-format)
-can only be used for trace by id lookup.
+All forms of search (TraceQL and tags based) are only supported on the `vParquet` and forward blocks. The v2 block format has been removed in Tempo 3.0.
 
 Tempo 2.3 and higher support [Dedicated attribute columns](../dedicated_columns/), another great method to improve search performance.
 {{< /admonition>}}

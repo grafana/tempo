@@ -9,7 +9,7 @@ weight: 200
 
 Tempo can be deployed in _monolithic_ or _microservices_ modes.
 
-_Monolithic mode_ was previously called _single binary mode_. Similarly _scalable monolithic mode_ was previously called _scalable single binary mode_.
+_Monolithic mode_ was previously called _single binary mode_. Similarly _scalable monolithic mode_ was previously called _scalable single binary mode_. The scalable single binary mode has been removed in Tempo 3.0.
 While the documentation reflects this change, some URL names and deployment tooling may not yet reflect this change.
 
 The deployment mode is determined by the runtime configuration `target`, or
@@ -59,8 +59,8 @@ Each instance of a component is a single process, therefore dedicating themselve
 This allows for:
 
 - A more resilient deployment that includes data replication factors. Components can be run over multiple nodes, such as in a Kubernetes cluster, ensuring that catastrophic failure of one node does not have a failure impact for the system as a whole. For example, by default, three independent ingesters are all sent the same span data by a distributor. If two of those ingesters fail, the data is still processed and stored by an ingester.
-- Horizontal scaling up and down of clusters. For example, an organization may see upticks in traffic in certain periods (say, Black Friday), and need to scale up the amount of trace data being ingested for a week. Microservices mode allows them to temporarily scale up the number of ingesters, queriers, etc. that they may need with no adverse impact on the overall system which may not be as simple with Monolithic or SSB mode.
-- However, much like the difference between Monolithic mode and SSB mode, there is an increased TCO and maintenance cost that goes along with Microservices mode. Whilst it is more flexible, it requires more attention to run proficiently. Microservices mode is the default deployment for Tempo and Grafana Enterprise Traces (GET) via the tempo-distributed Helm Chart.
+- Horizontal scaling up and down of clusters. For example, an organization may see upticks in traffic in certain periods (say, Black Friday), and need to scale up the amount of trace data being ingested for a week. Microservices mode allows them to temporarily scale up the number of ingesters, queriers, etc. that they may need with no adverse impact on the overall system which may not be as simple with Monolithic mode.
+- However, there is an increased TCO and maintenance cost that goes along with Microservices mode. Whilst it is more flexible, it requires more attention to run proficiently. Microservices mode is the default deployment for Tempo and Grafana Enterprise Traces (GET) via the tempo-distributed Helm Chart.
 
 The configuration associated with each component's deployment specifies a
 `target`. For example, to deploy a `querier`, the configuration would contain

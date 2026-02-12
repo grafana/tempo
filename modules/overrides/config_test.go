@@ -349,7 +349,7 @@ func ensureAllFieldsPopulated(t *testing.T, o LegacyOverrides) {
 		fieldName := structType.Field(i).Name
 
 		// Skip certain fields that can be zero in valid configs
-		skip := []string{"IngestionArtificialDelay"}
+		skip := []string{"IngestionArtificialDelay", "MetricsGeneratorSpanNameSanitization"}
 		if slices.Contains(skip, fieldName) {
 			continue
 		}
@@ -476,6 +476,7 @@ func generateTestLegacyOverrides() LegacyOverrides {
 		MetricsGeneratorNativeHistogramBucketFactor:                      1.5,
 		MetricsGeneratorNativeHistogramMaxBucketNumber:                   200,
 		MetricsGeneratorNativeHistogramMinResetDuration:                  10 * time.Minute,
+		MetricsGeneratorSpanNameSanitization:                             "",
 
 		BlockRetention:     model.Duration(7 * 24 * time.Hour),
 		CompactionDisabled: true,

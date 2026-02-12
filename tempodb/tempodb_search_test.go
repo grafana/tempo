@@ -98,6 +98,20 @@ func traceQLRunner(t *testing.T, _ *tempopb.Trace, wantMeta *tempopb.TraceSearch
 		{Query: `{ ."res-dedicated.02" = "res-2a" }`},
 		{Query: `{ resource."k8s.namespace.name" = "k8sNamespace" }`},
 	}
+	optimizedSearchesThatMatch := []*tempopb.SearchRequest{
+		{Query: `{ resource.service.name = "MyService" || resource.service.name = "does-not-exist" }`},
+		{Query: `{ resource.service.name = "does-not-exist" || resource.service.name = "RootService" }`},
+		{Query: `{ resource.res-dedicated.01 = "res-1a" || resource.res-dedicated.01 = "res-1b" }`},
+		{Query: `{ resource.res-dedicated.01 != "res-2a" && resource.res-dedicated.01 != "res-2b" }`},
+		{Query: `{ resource.res-dedicated.01 =~ "does-not-exist" || resource.res-dedicated.01 =~ "res-1.*" }`},
+		{Query: `{ resource.res-dedicated.01 !~ "res-2.*" && resource.res-dedicated.01 !~ "res-3.*" }`},
+		{Query: `{ span.foo="Bar" || span.foo="does-not-exist" }`},
+		{Query: `{ span.foo!="does-not-exist-1" && span.foo!="does-not-exist-2" }`},
+		{Query: `{ span.span-dedicated.01 = "span-1a" || span.span-dedicated.01 = "span-1b" }`},
+		{Query: `{ span.span-dedicated.01 != "span-2a" && span.span-dedicated.01 != "span-2b" }`},
+		{Query: `{ span.span-dedicated.01 =~ "does-not-exist" || span.span-dedicated.01 =~ "span-1.*" }`},
+		{Query: `{ span.span-dedicated.01 !~ "span-2.*" && span.span-dedicated.01 !~ "span-3.*" }`},
+	}
 	parentID := util.SpanIDToHexString([]byte{4, 5, 6})
 	parentIDQuery := &tempopb.SearchRequest{
 		Query: fmt.Sprintf("{ span:parentID = %q }", parentID),
@@ -105,6 +119,7 @@ func traceQLRunner(t *testing.T, _ *tempopb.Trace, wantMeta *tempopb.TraceSearch
 
 	searchesThatMatch = append(searchesThatMatch, quotedAttributesThatMatch...)
 	searchesThatMatch = append(searchesThatMatch, parentIDQuery)
+	searchesThatMatch = append(searchesThatMatch, optimizedSearchesThatMatch...)
 	for _, req := range searchesThatMatch {
 		fetcher := traceql.NewSpansetFetcherWrapper(func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
 			return r.Fetch(ctx, meta, req, common.DefaultSearchOptions())
@@ -124,13 +139,20 @@ func traceQLRunner(t *testing.T, _ *tempopb.Trace, wantMeta *tempopb.TraceSearch
 		require.Equal(t, wantMeta, actual, "search request: %v", req)
 	}
 
-	quotedAttributesThaDonttMatch := []*tempopb.SearchRequest{
+	quotedAttributesThatDontMatch := []*tempopb.SearchRequest{
 		{Query: fmt.Sprintf("{ .%q = %q }", attributeWithTerminalChars, "value mismatch")},
 		{Query: `{ ."unknow".attribute = "res-2a" }`},
 		{Query: `{ resource."resource attribute" = "unknown" }`},
 	}
+	optimizedSearchesThatDontMatch := []*tempopb.SearchRequest{
+		{Query: `{ resource.service.name = "does-not-exist-1" || resource.service.name = "does-not-exist-2" }`},
+		{Query: `{ resource.res-dedicated.01 = "res-2a" || resource.res-dedicated.01 = "res-2b" }`},
+		{Query: `{ span.foo!="Bar" && span.foo!="does-not-exist" }`},
+		{Query: `{ span.span-dedicated.01 =~ "span-2.*" && span.span-dedicated.01 =~ "span-3.*" }`},
+	}
 
-	searchesThatDontMatch = append(searchesThatDontMatch, quotedAttributesThaDonttMatch...)
+	searchesThatDontMatch = append(searchesThatDontMatch, quotedAttributesThatDontMatch...)
+	searchesThatDontMatch = append(searchesThatDontMatch, optimizedSearchesThatDontMatch...)
 	for _, req := range searchesThatDontMatch {
 		fetcher := traceql.NewSpansetFetcherWrapper(func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
 			return r.Fetch(ctx, meta, req, common.DefaultSearchOptions())

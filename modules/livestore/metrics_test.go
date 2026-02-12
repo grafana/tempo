@@ -65,25 +65,32 @@ func setupTest(t *testing.T) *testSetup {
 }
 
 func TestMetrics_InitialValues(t *testing.T) {
+	// Record baseline values before creating the instance.
+	// Global metrics persist across test runs, so we can't assume they start at zero.
+	baselineTracesCreated, _ := getCounterVecValue(metricTracesCreatedTotal, testTenant)
+	baselineLiveTraces, _ := test.GetGaugeVecValue(metricLiveTraces, testTenant)
+	baselineLiveTraceBytes, _ := test.GetGaugeVecValue(metricLiveTraceBytes, testTenant)
+	baselineBytesReceived, _ := getCounterVecValue(metricBytesReceivedTotal, testTenant, "trace")
+
 	setup := setupTest(t)
 	defer setup.cleanup()
 
-	// Test initial metric values - should all be zero for a new instance
+	// Verify creating a new instance does not change any metric values
 	tracesCreatedValue, err := test.GetCounterValue(setup.instance.tracesCreatedTotal)
 	require.NoError(t, err)
-	assert.Equal(t, 0.0, tracesCreatedValue, "traces created should start at 0")
+	assert.Equal(t, baselineTracesCreated, tracesCreatedValue, "traces created should not change after instance creation")
 
 	liveTracesValue, err := test.GetGaugeVecValue(metricLiveTraces, testTenant)
 	require.NoError(t, err)
-	assert.Equal(t, 0.0, liveTracesValue, "live traces should start at 0")
+	assert.Equal(t, baselineLiveTraces, liveTracesValue, "live traces should not change after instance creation")
 
 	liveTraceBytesValue, err := test.GetGaugeVecValue(metricLiveTraceBytes, testTenant)
 	require.NoError(t, err)
-	assert.Equal(t, 0.0, liveTraceBytesValue, "live trace bytes should start at 0")
+	assert.Equal(t, baselineLiveTraceBytes, liveTraceBytesValue, "live trace bytes should not change after instance creation")
 
 	bytesReceivedValue, err := getCounterVecValue(metricBytesReceivedTotal, testTenant, "trace")
 	require.NoError(t, err)
-	assert.Equal(t, 0.0, bytesReceivedValue, "bytes received should start at 0")
+	assert.Equal(t, baselineBytesReceived, bytesReceivedValue, "bytes received should not change after instance creation")
 }
 
 func TestMetrics_PushBytesTracking(t *testing.T) {

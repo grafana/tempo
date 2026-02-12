@@ -18,10 +18,11 @@ refs:
 
 Part of the metrics-generator, the span metrics processor generates metrics from ingested tracing data, including request, error, and duration (RED) metrics.
 
-Span metrics generate two metrics:
+Span metrics generate three metrics:
 
 - A counter that computes requests
 - A histogram that tracks the distribution of durations of all requests
+- A counter that tracks the total size of spans ingested
 
 Span metrics are of particular interest if your system is not monitored with metrics,
 but it has distributed tracing implemented.
@@ -43,6 +44,26 @@ Refer to [the configuration details](https://grafana.com/docs/tempo/<TEMPO_VERSI
 
 If you want to enable metrics-generator for your Grafana Cloud account, refer to the [Metrics-generator in Grafana Cloud](https://grafana.com/docs/grafana-cloud/send-data/traces/metrics-generator/) documentation.
 
+### Enabling specific metrics (subprocessors)
+
+Instead of enabling all span metrics, you can enable individual metric types using subprocessors in the overrides configuration:
+
+- `span-metrics-latency` - Enables only the `traces_spanmetrics_latency` histogram
+- `span-metrics-count` - Enables only the `traces_spanmetrics_calls_total` counter
+- `span-metrics-size` - Enables only the `traces_spanmetrics_size_total` counter
+
+Example overrides configuration:
+
+```yaml
+overrides:
+  defaults:
+    metrics_generator:
+      processors:
+        - span-metrics-latency
+        - span-metrics-count
+        # span-metrics-size omitted to disable size metrics
+```
+
 ## How it works
 
 The span metrics processor works by inspecting every received span and computing the total count and the duration of spans for every unique combination of dimensions.
@@ -52,7 +73,7 @@ This processor mirrored the implementation from the OpenTelemetry Collector of t
 The OTel `spanmetricsprocessor` has since been [deprecated](https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/processor/spanmetricsprocessor/v0.95.0/processor/spanmetricsprocessor/README.md) and replaced with the [span metric connector](https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/processor/spanmetricsprocessor/v0.95.0/connector/spanmetricsconnector/README.md).
 
 {{< admonition type="note" >}}
-To learn more about cardinality and how to perform a dry run of the metrics generator, see the [Cardinality documentation](ref:cardinality).
+To learn more about cardinality and how to perform a dry run of the metrics generator, refer to the [Cardinality documentation](ref:cardinality).
 {{< /admonition >}}
 
 ### Metrics
@@ -65,7 +86,9 @@ The following metrics are exported:
 | traces_spanmetrics_calls_total | Counter   | Dimensions | Total count of the span      |
 | traces_spanmetrics_size_total  | Counter   | Dimensions | Total size of spans ingested |
 
-By default, the metrics processor adds the following labels to each metric: `service`, `span_name`, `span_kind`, `status_code`, `status_message`, `job`, and `instance`.
+By default, the metrics processor adds the following labels to each metric: `service`, `span_name`, `span_kind`, and `status_code`.
+
+The `status_message`, `job`, and `instance` labels are optional and require additional configuration, as described in the sections below.
 
 - `service` - The name of the service that generated the span
 - `span_name` - The unique name of the span
@@ -83,19 +106,50 @@ By default, the metrics processor adds the following labels to each metric: `ser
 - `job` - The name of the job, a combination of namespace and service; only added if `metrics_generator.processor.span_metrics.enable_target_info: true`
 - `instance` - The instance ID; only added if `metrics_generator.processor.span_metrics.enable_target_info: true` and `metrics_generator.processor.span_metrics.enable_instance_label: true`
 
+### Disabling intrinsic dimensions
+
+You can control which intrinsic dimensions are included in your metrics. Disable any of the default intrinsic dimensions using the `intrinsic_dimensions` configuration. This is useful for reducing cardinality when certain labels are not needed.
+
+```yaml
+metrics_generator:
+  processor:
+    span_metrics:
+      intrinsic_dimensions:
+        service: true
+        span_name: true
+        span_kind: false # Disable span_kind label
+        status_code: true
+        status_message: false # Disabled by default
+```
+
+### Adding custom dimensions
+
 Additional user defined labels can be created using the [`dimensions` configuration option](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration#metrics-generator).
 When a configured dimension collides with one of the default labels (for example, `status_code`), the label for the respective dimension is prefixed with double underscore (for example, `__status_code`).
 
+### Renaming dimensions with dimension_mappings
+
 Custom labeling of dimensions is also supported using the [`dimension_mappings` configuration option](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration#metrics-generator).
+
+**Understanding dimensions vs dimension_mappings:**
+
+Use `dimensions` when you want to add span attributes as labels using their default (sanitized) names. Use `dimension_mappings` when you want to rename attributes to custom label names or combine multiple attributes.
+
+When using `dimension_mappings`, you do not need to also list the same attributes in `dimensions`. The `dimension_mappings` configuration reads directly from the original span attributes.
 You can use `dimension_mappings` to rename a single attribute to a different label name, or to combine multiple attributes into a single composite label.
 
-This example shows how to rename the `deployment.environment` attribute to a new label called `deployment_environment`.
+{{< admonition type="note" >}}
+The `source_labels` field must contain the **original span or resource attribute names** (with dots), not sanitized Prometheus label names. For example, use `deployment.environment`, not `deployment_environment`.
+{{< /admonition >}}
+
+The `name` field can use either dots (`.`) or underscores (`_`), as both are converted to underscores (`_`) in the final Prometheus metric labels. For example, both `env` and `env.label` result in `env_label` in Prometheus metrics.
+
+The following example shows how to rename the `deployment.environment` attribute to a shorter label called `env`, for example:
 
 ```yaml
 dimension_mappings:
-  - name: deployment_environment
+  - name: env
     source_labels: ["deployment.environment"]
-    join: "-" # Ignored when only one source_label
 ```
 
 This example shows how to combine the `service.name`, `service.namespace`, and `service.version` attributes into a single label called `service_instance`. The `join` parameter specifies the separator used to join the attribute values together.
@@ -116,6 +170,22 @@ With this configuration, if a span has the following attribute values:
 The resulting metric label is `service_instance="abc/def/ghi"`.
 
 An optional metric called `traces_target_info` using all resource level attributes as dimensions can be enabled in the [`enable_target_info` configuration option](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration#metrics-generator).
+
+### Excluding dimensions from target_info
+
+When `enable_target_info` is enabled, all resource attributes are included as labels on the `traces_target_info` metric. To reduce cardinality, you can exclude specific attributes using the `target_info_excluded_dimensions` configuration:
+
+```yaml
+metrics_generator:
+  processor:
+    span_metrics:
+      enable_target_info: true
+      target_info_excluded_dimensions:
+        - "telemetry.sdk.version"
+        - "process.runtime.version"
+```
+
+### Handling sampled traces
 
 If you use a ratio-based sampler, you can use the custom sampler below to not lose metric information. However, you also need to set `metrics_generator.processor.span_metrics.span_multiplier_key` to `"X-SampleRatio"`.
 
