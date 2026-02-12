@@ -7,8 +7,9 @@ import (
 )
 
 type FilterPolicy struct {
-	Include *PolicyMatch `yaml:"include" json:"include,omitempty"`
-	Exclude *PolicyMatch `yaml:"exclude" json:"exclude,omitempty"`
+	Include    *PolicyMatch `yaml:"include" json:"include,omitempty"`
+	IncludeAny *PolicyMatch `yaml:"include_any" json:"include_any,omitempty"`
+	Exclude    *PolicyMatch `yaml:"exclude" json:"exclude,omitempty"`
 }
 
 type MatchType string
@@ -35,13 +36,19 @@ type MatchPolicyAttribute struct {
 }
 
 func ValidateFilterPolicy(policy FilterPolicy) error {
-	if policy.Include == nil && policy.Exclude == nil {
-		return fmt.Errorf("invalid filter policy; policies must have at least an `include` or `exclude`: %v", policy)
+	if policy.Include == nil && policy.IncludeAny == nil && policy.Exclude == nil {
+		return fmt.Errorf("invalid filter policy; policies must have at least an `include`, `includeAny` or `exclude`: %v", policy)
 	}
 
 	if policy.Include != nil {
 		if err := ValidatePolicyMatch(policy.Include); err != nil {
 			return fmt.Errorf("invalid include policy: %w", err)
+		}
+	}
+
+	if policy.IncludeAny != nil {
+		if err := ValidatePolicyMatch(policy.IncludeAny); err != nil {
+			return fmt.Errorf("invalid includeAny policy: %w", err)
 		}
 	}
 

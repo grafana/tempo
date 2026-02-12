@@ -327,19 +327,13 @@ func (i *instance) diffProcessors(desiredProcessors map[string]struct{}, desired
 func (i *instance) addProcessor(processorName string, cfg ProcessorConfig) error {
 	level.Debug(i.logger).Log("msg", "adding processor", "processorName", processorName)
 
-	var (
-		newProcessor processor.Processor
-		warn         error
-		err          error
-	)
+	var newProcessor processor.Processor
+	var err error
 	switch processorName {
 	case processor.SpanMetricsName:
 		filteredSpansCounter := metricSpansDiscarded.WithLabelValues(i.instanceID, reasonSpanMetricsFiltered, processor.SpanMetricsName)
 		invalidUTF8Counter := metricSpansDiscarded.WithLabelValues(i.instanceID, reasonInvalidUTF8, processor.SpanMetricsName)
-		newProcessor, warn, err = spanmetrics.New(cfg.SpanMetrics, i.registry, filteredSpansCounter, invalidUTF8Counter)
-		if warn != nil {
-			level.Warn(i.logger).Log("msg", "warning when adding spanmetrics processor", "warn", warn)
-		}
+		newProcessor, err = spanmetrics.New(cfg.SpanMetrics, i.registry, filteredSpansCounter, invalidUTF8Counter)
 		if err != nil {
 			return err
 		}

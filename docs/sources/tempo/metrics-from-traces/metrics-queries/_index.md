@@ -105,8 +105,3 @@ Example:
 ```
 { span:name = "GET /:endpoint" } | quantile_over_time(duration, .99) by (span.http.target) with (exemplars=true)
 ```
-
-{{< admonition type="note" >}}
-TraceQL metric queries with exemplars aren't fully supported in Grafana Explore.
-They will be supported in a future Grafana release.
-{{< /admonition >}}

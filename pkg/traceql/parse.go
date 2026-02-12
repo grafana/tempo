@@ -5,6 +5,9 @@ import (
 	"fmt"
 	"strings"
 	"text/scanner"
+
+	"github.com/go-kit/log/level"
+	"github.com/grafana/tempo/pkg/util/log"
 )
 
 func init() {
@@ -18,6 +21,10 @@ func init() {
 }
 
 func Parse(s string) (expr *RootExpr, err error) {
+	return parseWithOptimizationOption(s, true)
+}
+
+func parseWithOptimizationOption(s string, astOptimization bool) (expr *RootExpr, err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			var ok bool
@@ -45,30 +52,47 @@ func Parse(s string) (expr *RootExpr, err error) {
 		return nil, fmt.Errorf("unknown parse error: %d", e)
 	}
 
+	hintSkipOptimization, _ := l.expr.Hints.GetBool(HintSkipOptimization, true)
+	if astOptimization && !hintSkipOptimization {
+		l.expr = ApplyDefaultASTRewrites(l.expr)
+		level.Debug(log.Logger).Log("msg", "optimize AST for TraceQL query", "query", s, "optimizedQuery", l.expr.String(), "optimizationCount", l.expr.OptimizationCount)
+	}
+
 	return l.expr, nil
 }
 
+// warning: ParseIdentifier is used to parse filter policies in pkg/spanfilter/config/config.go
+// if changed, it can break existing config
 func ParseIdentifier(s string) (Attribute, error) {
-	if i := intrinsicFromString(s); i != IntrinsicNone {
-		return NewIntrinsic(i), nil
+	// Wrap the identifier in curly braces to create a valid spanset filter expression
+	attr := "{" + s + "}"
+	expr, err := Parse(attr)
+	if err != nil {
+		return Attribute{}, fmt.Errorf("failed to parse identifier %s: %w", s, err)
 	}
 
-	switch {
-	case strings.HasPrefix(s, "."):
-		return NewAttribute(strings.TrimPrefix(s, ".")), nil
-	case strings.HasPrefix(s, "resource."):
-		return NewScopedAttribute(AttributeScopeResource, false, strings.TrimPrefix(s, "resource.")), nil
-	case strings.HasPrefix(s, "span."):
-		return NewScopedAttribute(AttributeScopeSpan, false, strings.TrimPrefix(s, "span.")), nil
-	case strings.HasPrefix(s, "instrumentation."):
-		return NewScopedAttribute(AttributeScopeInstrumentation, false, strings.TrimPrefix(s, "instrumentation.")), nil
-	case strings.HasPrefix(s, "event."):
-		return NewScopedAttribute(AttributeScopeEvent, false, strings.TrimPrefix(s, "event.")), nil
-	case strings.HasPrefix(s, "link."):
-		return NewScopedAttribute(AttributeScopeLink, false, strings.TrimPrefix(s, "link.")), nil
-	default:
-		return Attribute{}, fmt.Errorf("tag name is not valid intrinsic or scoped attribute: %s", s)
+	// Validate the parsed expression structure
+	if expr == nil {
+		return Attribute{}, fmt.Errorf("failed to parse identifier %s: parsed expression is nil", s)
 	}
+
+	if len(expr.Pipeline.Elements) == 0 {
+		return Attribute{}, fmt.Errorf("failed to parse identifier %s: no pipeline elements found", s)
+	}
+
+	// Extract and validate the spanset filter
+	filter, ok := expr.Pipeline.Elements[0].(*SpansetFilter)
+	if !ok {
+		return Attribute{}, fmt.Errorf("failed to parse identifier %s: expected SpansetFilter but got %T", s, expr.Pipeline.Elements[0])
+	}
+
+	// Extract and validate the attribute
+	attribute, ok := filter.Expression.(Attribute)
+	if !ok {
+		return Attribute{}, fmt.Errorf("failed to parse identifier %s: expected Attribute but got %T", s, filter.Expression)
+	}
+
+	return attribute, nil
 }
 
 func MustParseIdentifier(s string) Attribute {

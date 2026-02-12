@@ -31,10 +31,10 @@ var (
 	pqLinkPool            = parquetquery.NewResultPool(1)
 	pqInstrumentationPool = parquetquery.NewResultPool(1)
 
-	intervalMapper15Seconds   = traceql.NewIntervalMapper(roundingStart, roundingEnd, uint64(15*time.Second))
-	intervalMapper60Seconds   = traceql.NewIntervalMapper(roundingStart, roundingEnd, uint64(60*time.Second))
-	intervalMapper300Seconds  = traceql.NewIntervalMapper(roundingStart, roundingEnd, uint64(300*time.Second))
-	intervalMapper3600Seconds = traceql.NewIntervalMapper(roundingStart, roundingEnd, uint64(3600*time.Second))
+	intervalMapper15Seconds   = traceql.NewIntervalMapper(roundingStart, roundingEnd, uint64(15*time.Second), false)
+	intervalMapper60Seconds   = traceql.NewIntervalMapper(roundingStart, roundingEnd, uint64(60*time.Second), false)
+	intervalMapper300Seconds  = traceql.NewIntervalMapper(roundingStart, roundingEnd, uint64(300*time.Second), false)
+	intervalMapper3600Seconds = traceql.NewIntervalMapper(roundingStart, roundingEnd, uint64(3600*time.Second), false)
 )
 
 type attrVal struct {
@@ -904,59 +904,60 @@ const (
 	columnPathDurationNanos           = "DurationNano"
 	columnPathRootSpanName            = "RootSpanName"
 	columnPathRootServiceName         = "RootServiceName"
-	columnPathServiceStatsServiceName = "ServiceStats.key_value.key"
-	columnPathServiceStatsSpanCount   = "ServiceStats.key_value.value.SpanCount"
-	columnPathServiceStatsErrorCount  = "ServiceStats.key_value.value.ErrorCount"
-	columnPathResourceAttrKey         = "rs.list.element.Resource.Attrs.list.element.Key"
-	columnPathResourceAttrString      = "rs.list.element.Resource.Attrs.list.element.Value.list.element"
-	columnPathResourceAttrInt         = "rs.list.element.Resource.Attrs.list.element.ValueInt.list.element"
-	columnPathResourceAttrDouble      = "rs.list.element.Resource.Attrs.list.element.ValueDouble.list.element"
-	columnPathResourceAttrBool        = "rs.list.element.Resource.Attrs.list.element.ValueBool.list.element"
-	ColumnPathResourceServiceName     = "rs.list.element.Resource.ServiceName"
+	columnPathServiceStatsServiceName = "ServiceStats.ServiceName"
+	columnPathServiceStatsSpanCount   = "ServiceStats.SpanCount"
+	columnPathServiceStatsErrorCount  = "ServiceStats.ErrorCount"
+	columnPathResourceAttrKey         = "rs.Resource.Attrs.Key"
+	columnPathResourceAttrString      = "rs.Resource.Attrs.Value"
+	columnPathResourceAttrInt         = "rs.Resource.Attrs.ValueInt"
+	columnPathResourceAttrDouble      = "rs.Resource.Attrs.ValueDouble"
+	columnPathResourceAttrBool        = "rs.Resource.Attrs.ValueBool"
+	ColumnPathResourceServiceName     = "rs.Resource.ServiceName"
 
-	columnPathScopeSpansSpanCount       = "rs.list.element.ss.list.element.SpanCount"
-	columnPathInstrumentationName       = "rs.list.element.ss.list.element.Scope.Name"
-	columnPathInstrumentationVersion    = "rs.list.element.ss.list.element.Scope.Version"
-	columnPathInstrumentationAttrKey    = "rs.list.element.ss.list.element.Scope.Attrs.list.element.Key"
-	columnPathInstrumentationAttrString = "rs.list.element.ss.list.element.Scope.Attrs.list.element.Value.list.element"
-	columnPathInstrumentationAttrInt    = "rs.list.element.ss.list.element.Scope.Attrs.list.element.ValueInt.list.element"
-	columnPathInstrumentationAttrDouble = "rs.list.element.ss.list.element.Scope.Attrs.list.element.ValueDouble.list.element"
-	columnPathInstrumentationAttrBool   = "rs.list.element.ss.list.element.Scope.Attrs.list.element.ValueBool.list.element"
+	columnPathScopeSpansSpanCount       = "rs.ss.SpanCount"
+	columnPathInstrumentationName       = "rs.ss.Scope.Name"
+	columnPathInstrumentationVersion    = "rs.ss.Scope.Version"
+	columnPathInstrumentationAttrKey    = "rs.ss.Scope.Attrs.Key"
+	columnPathInstrumentationAttrString = "rs.ss.Scope.Attrs.Value"
+	columnPathInstrumentationAttrInt    = "rs.ss.Scope.Attrs.ValueInt"
+	columnPathInstrumentationAttrDouble = "rs.ss.Scope.Attrs.ValueDouble"
+	columnPathInstrumentationAttrBool   = "rs.ss.Scope.Attrs.ValueBool"
 
-	columnPathSpanID               = "rs.list.element.ss.list.element.Spans.list.element.SpanID"
-	ColumnPathSpanName             = "rs.list.element.ss.list.element.Spans.list.element.Name"
-	columnPathSpanStartTime        = "rs.list.element.ss.list.element.Spans.list.element.StartTimeUnixNano"
-	columnPathSpanStartRounded15   = "rs.list.element.ss.list.element.Spans.list.element.StartTimeRounded15"
-	columnPathSpanStartRounded60   = "rs.list.element.ss.list.element.Spans.list.element.StartTimeRounded60"
-	columnPathSpanStartRounded300  = "rs.list.element.ss.list.element.Spans.list.element.StartTimeRounded300"
-	columnPathSpanStartRounded3600 = "rs.list.element.ss.list.element.Spans.list.element.StartTimeRounded3600"
-	columnPathSpanDuration         = "rs.list.element.ss.list.element.Spans.list.element.DurationNano"
-	columnPathSpanKind             = "rs.list.element.ss.list.element.Spans.list.element.Kind"
-	columnPathSpanStatusCode       = "rs.list.element.ss.list.element.Spans.list.element.StatusCode"
-	columnPathSpanStatusMessage    = "rs.list.element.ss.list.element.Spans.list.element.StatusMessage"
-	columnPathSpanAttrKey          = "rs.list.element.ss.list.element.Spans.list.element.Attrs.list.element.Key"
-	columnPathSpanAttrString       = "rs.list.element.ss.list.element.Spans.list.element.Attrs.list.element.Value.list.element"
-	columnPathSpanAttrInt          = "rs.list.element.ss.list.element.Spans.list.element.Attrs.list.element.ValueInt.list.element"
-	columnPathSpanAttrDouble       = "rs.list.element.ss.list.element.Spans.list.element.Attrs.list.element.ValueDouble.list.element"
-	columnPathSpanAttrBool         = "rs.list.element.ss.list.element.Spans.list.element.Attrs.list.element.ValueBool.list.element"
-	columnPathSpanNestedSetLeft    = "rs.list.element.ss.list.element.Spans.list.element.NestedSetLeft"
-	columnPathSpanNestedSetRight   = "rs.list.element.ss.list.element.Spans.list.element.NestedSetRight"
-	columnPathSpanParentID         = "rs.list.element.ss.list.element.Spans.list.element.ParentID"
-	columnPathSpanParentSpanID     = "rs.list.element.ss.list.element.Spans.list.element.ParentSpanID"
-	ColumnPathEventName            = "rs.list.element.ss.list.element.Spans.list.element.Events.list.element.Name"
-	columnPathEventTimeSinceStart  = "rs.list.element.ss.list.element.Spans.list.element.Events.list.element.TimeSinceStartNano"
-	columnPathLinkTraceID          = "rs.list.element.ss.list.element.Spans.list.element.Links.list.element.TraceID"
-	columnPathLinkSpanID           = "rs.list.element.ss.list.element.Spans.list.element.Links.list.element.SpanID"
-	columnPathEventAttrKey         = "rs.list.element.ss.list.element.Spans.list.element.Events.list.element.Attrs.list.element.Key"
-	columnPathEventAttrString      = "rs.list.element.ss.list.element.Spans.list.element.Events.list.element.Attrs.list.element.Value.list.element"
-	columnPathEventAttrInt         = "rs.list.element.ss.list.element.Spans.list.element.Events.list.element.Attrs.list.element.ValueInt.list.element"
-	columnPathEventAttrDouble      = "rs.list.element.ss.list.element.Spans.list.element.Events.list.element.Attrs.list.element.ValueDouble.list.element"
-	columnPathEventAttrBool        = "rs.list.element.ss.list.element.Spans.list.element.Events.list.element.Attrs.list.element.ValueBool.list.element"
-	columnPathLinkAttrKey          = "rs.list.element.ss.list.element.Spans.list.element.Links.list.element.Attrs.list.element.Key"
-	columnPathLinkAttrString       = "rs.list.element.ss.list.element.Spans.list.element.Links.list.element.Attrs.list.element.Value.list.element"
-	columnPathLinkAttrInt          = "rs.list.element.ss.list.element.Spans.list.element.Links.list.element.Attrs.list.element.ValueInt.list.element"
-	columnPathLinkAttrDouble       = "rs.list.element.ss.list.element.Spans.list.element.Links.list.element.Attrs.list.element.ValueDouble.list.element"
-	columnPathLinkAttrBool         = "rs.list.element.ss.list.element.Spans.list.element.Links.list.element.Attrs.list.element.ValueBool.list.element"
+	columnPathSpanID               = "rs.ss.Spans.SpanID"
+	ColumnPathSpanName             = "rs.ss.Spans.Name"
+	columnPathSpanStartTime        = "rs.ss.Spans.StartTimeUnixNano"
+	columnPathSpanStartRounded15   = "rs.ss.Spans.StartTimeRounded15"
+	columnPathSpanStartRounded60   = "rs.ss.Spans.StartTimeRounded60"
+	columnPathSpanStartRounded300  = "rs.ss.Spans.StartTimeRounded300"
+	columnPathSpanStartRounded3600 = "rs.ss.Spans.StartTimeRounded3600"
+	columnPathSpanDuration         = "rs.ss.Spans.DurationNano"
+	columnPathSpanKind             = "rs.ss.Spans.Kind"
+	columnPathSpanStatusCode       = "rs.ss.Spans.StatusCode"
+	columnPathSpanStatusMessage    = "rs.ss.Spans.StatusMessage"
+	columnPathSpanAttrKey          = "rs.ss.Spans.Attrs.Key"
+	columnPathSpanAttrString       = "rs.ss.Spans.Attrs.Value"
+	columnPathSpanAttrInt          = "rs.ss.Spans.Attrs.ValueInt"
+	columnPathSpanAttrDouble       = "rs.ss.Spans.Attrs.ValueDouble"
+	columnPathSpanAttrBool         = "rs.ss.Spans.Attrs.ValueBool"
+	columnPathSpanNestedSetLeft    = "rs.ss.Spans.NestedSetLeft"
+	columnPathSpanNestedSetRight   = "rs.ss.Spans.NestedSetRight"
+	columnPathSpanChildCount       = "rs.ss.Spans.ChildCount"
+	columnPathSpanParentID         = "rs.ss.Spans.ParentID"
+	columnPathSpanParentSpanID     = "rs.ss.Spans.ParentSpanID"
+	ColumnPathEventName            = "rs.ss.Spans.Events.Name"
+	columnPathEventTimeSinceStart  = "rs.ss.Spans.Events.TimeSinceStartNano"
+	columnPathLinkTraceID          = "rs.ss.Spans.Links.TraceID"
+	columnPathLinkSpanID           = "rs.ss.Spans.Links.SpanID"
+	columnPathEventAttrKey         = "rs.ss.Spans.Events.Attrs.Key"
+	columnPathEventAttrString      = "rs.ss.Spans.Events.Attrs.Value"
+	columnPathEventAttrInt         = "rs.ss.Spans.Events.Attrs.ValueInt"
+	columnPathEventAttrDouble      = "rs.ss.Spans.Events.Attrs.ValueDouble"
+	columnPathEventAttrBool        = "rs.ss.Spans.Events.Attrs.ValueBool"
+	columnPathLinkAttrKey          = "rs.ss.Spans.Links.Attrs.Key"
+	columnPathLinkAttrString       = "rs.ss.Spans.Links.Attrs.Value"
+	columnPathLinkAttrInt          = "rs.ss.Spans.Links.Attrs.ValueInt"
+	columnPathLinkAttrDouble       = "rs.ss.Spans.Links.Attrs.ValueDouble"
+	columnPathLinkAttrBool         = "rs.ss.Spans.Links.Attrs.ValueBool"
 
 	otherEntrySpansetKey         = "spanset"
 	otherEntrySpanKey            = "span"
@@ -992,6 +993,7 @@ var intrinsicColumnLookups = map[traceql.Intrinsic]struct {
 	traceql.IntrinsicNestedSetLeft:        {intrinsicScopeSpan, traceql.TypeInt, columnPathSpanNestedSetLeft},
 	traceql.IntrinsicNestedSetRight:       {intrinsicScopeSpan, traceql.TypeInt, columnPathSpanNestedSetRight},
 	traceql.IntrinsicNestedSetParent:      {intrinsicScopeSpan, traceql.TypeInt, columnPathSpanParentID},
+	traceql.IntrinsicChildCount:           {intrinsicScopeSpan, traceql.TypeInt, columnPathSpanChildCount},
 
 	traceql.IntrinsicTraceRootService: {intrinsicScopeTrace, traceql.TypeString, columnPathRootServiceName},
 	traceql.IntrinsicTraceRootSpan:    {intrinsicScopeTrace, traceql.TypeString, columnPathRootSpanName},
@@ -1064,7 +1066,9 @@ func checkConditions(conditions []traceql.Condition) error {
 		case traceql.OpEqual, traceql.OpNotEqual,
 			traceql.OpGreater, traceql.OpGreaterEqual,
 			traceql.OpLess, traceql.OpLessEqual,
-			traceql.OpRegex, traceql.OpNotRegex:
+			traceql.OpRegex, traceql.OpNotRegex,
+			traceql.OpIn, traceql.OpNotIn,
+			traceql.OpRegexMatchAny, traceql.OpRegexMatchNone:
 			if opCount != 1 {
 				return fmt.Errorf("operation %v must have exactly 1 argument. condition: %+v", cond.Op, cond)
 			}
@@ -1104,6 +1108,24 @@ func operandType(operands traceql.Operands) traceql.StaticType {
 		return operands[0].Type
 	}
 	return traceql.TypeNil
+}
+
+func isMatchingColumnType(colType, opType traceql.StaticType) bool {
+	if colType == opType {
+		return true
+	}
+	switch opType {
+	case traceql.TypeStringArray:
+		return colType == traceql.TypeString
+	case traceql.TypeIntArray:
+		return colType == traceql.TypeInt
+	case traceql.TypeFloatArray:
+		return colType == traceql.TypeFloat
+	case traceql.TypeBooleanArray:
+		return colType == traceql.TypeBoolean
+	default:
+		return false
+	}
 }
 
 // spansetIterator turns the parquet iterator into the final
@@ -1766,7 +1788,7 @@ func createEventIterator(makeIter, makeNilIter makeIterFn, conditions []traceql.
 
 			// Compatible type?
 			typ, _ := c.Type.ToStaticType()
-			if typ == operandType(cond.Operands) {
+			if isMatchingColumnType(typ, operandType(cond.Operands)) {
 				pred, err := createPredicate(cond.Op, cond.Operands)
 				if err != nil {
 					return nil, fmt.Errorf("creating predicate: %w", err)
@@ -2114,24 +2136,14 @@ func createSpanIterator(makeIter, makeNilIter makeIterFn, innerIterators []parqu
 			addPredicate(columnPathSpanParentID, pred)
 			columnSelectAs[columnPathSpanParentID] = columnPathSpanParentID
 			continue
-		}
-
-		// Well-known attribute?
-		if entry, ok := wellKnownColumnLookups[cond.Attribute.Name]; ok && entry.level != traceql.AttributeScopeResource {
-			if specialCase(cond, entry.columnPath) {
-				continue
+		case traceql.IntrinsicChildCount:
+			pred, err := createIntPredicate(cond.Op, cond.Operands)
+			if err != nil {
+				return nil, err
 			}
-
-			// Compatible type?
-			if entry.typ == operandType(cond.Operands) {
-				pred, err := createPredicate(cond.Op, cond.Operands)
-				if err != nil {
-					return nil, fmt.Errorf("creating predicate: %w", err)
-				}
-				addPredicate(entry.columnPath, pred)
-				columnSelectAs[entry.columnPath] = cond.Attribute.Name
-				continue
-			}
+			addPredicate(columnPathSpanChildCount, pred)
+			columnSelectAs[columnPathSpanChildCount] = columnPathSpanChildCount
+			continue
 		}
 
 		// Attributes stored in dedicated columns
@@ -2142,7 +2154,7 @@ func createSpanIterator(makeIter, makeNilIter makeIterFn, innerIterators []parqu
 
 			// Compatible type?
 			typ, _ := c.Type.ToStaticType()
-			if typ == operandType(cond.Operands) {
+			if isMatchingColumnType(typ, operandType(cond.Operands)) {
 				pred, err := createPredicate(cond.Op, cond.Operands)
 				if err != nil {
 					return nil, fmt.Errorf("creating predicate: %w", err)
@@ -2389,7 +2401,7 @@ func createResourceIterator(makeIter, makeNilIter makeIterFn, instrumentationIte
 			}
 
 			// Compatible type?
-			if entry.typ == operandType(cond.Operands) {
+			if isMatchingColumnType(entry.typ, operandType(cond.Operands)) {
 				pred, err := createPredicate(cond.Op, cond.Operands)
 				if err != nil {
 					return nil, fmt.Errorf("creating predicate: %w", err)
@@ -2407,7 +2419,7 @@ func createResourceIterator(makeIter, makeNilIter makeIterFn, instrumentationIte
 
 			// Compatible type?
 			typ, _ := c.Type.ToStaticType()
-			if typ == operandType(cond.Operands) {
+			if isMatchingColumnType(typ, operandType(cond.Operands)) {
 				pred, err := createPredicate(cond.Op, cond.Operands)
 				if err != nil {
 					return nil, fmt.Errorf("creating predicate: %w", err)
@@ -2629,13 +2641,13 @@ func createPredicate(op traceql.Operator, operands traceql.Operands) (parquetque
 	}
 
 	switch operands[0].Type {
-	case traceql.TypeString:
+	case traceql.TypeString, traceql.TypeStringArray:
 		return createStringPredicate(op, operands)
-	case traceql.TypeInt:
+	case traceql.TypeInt, traceql.TypeIntArray:
 		return createIntPredicate(op, operands)
-	case traceql.TypeFloat:
+	case traceql.TypeFloat, traceql.TypeFloatArray:
 		return createFloatPredicate(op, operands)
-	case traceql.TypeBoolean:
+	case traceql.TypeBoolean, traceql.TypeBooleanArray:
 		return createBoolPredicate(op, operands)
 	default:
 		return nil, fmt.Errorf("cannot create predicate for operand: %v", operands[0])
@@ -2647,30 +2659,46 @@ func createStringPredicate(op traceql.Operator, operands traceql.Operands) (parq
 		return pred, nil
 	}
 
-	s := operands[0].EncodeToString(false)
-	if operands[0].Type != traceql.TypeString {
-		return nil, fmt.Errorf("operand is not string: %s", s)
-	}
+	switch operands[0].Type {
+	case traceql.TypeString:
+		s := operands[0].EncodeToString(false)
 
-	switch op {
-	case traceql.OpEqual:
-		return parquetquery.NewStringEqualPredicate([]byte(s)), nil
-	case traceql.OpNotEqual:
-		return parquetquery.NewStringNotEqualPredicate([]byte(s)), nil
-	case traceql.OpRegex:
-		return parquetquery.NewRegexInPredicate([]string{s})
-	case traceql.OpNotRegex:
-		return parquetquery.NewRegexNotInPredicate([]string{s})
-	case traceql.OpGreater:
-		return parquetquery.NewStringGreaterPredicate([]byte(s)), nil
-	case traceql.OpGreaterEqual:
-		return parquetquery.NewStringGreaterEqualPredicate([]byte(s)), nil
-	case traceql.OpLess:
-		return parquetquery.NewStringLessPredicate([]byte(s)), nil
-	case traceql.OpLessEqual:
-		return parquetquery.NewStringLessEqualPredicate([]byte(s)), nil
+		switch op {
+		case traceql.OpEqual:
+			return parquetquery.NewStringEqualPredicate(s), nil
+		case traceql.OpNotEqual:
+			return parquetquery.NewStringNotEqualPredicate(s), nil
+		case traceql.OpRegex:
+			return parquetquery.NewRegexInPredicate([]string{s})
+		case traceql.OpNotRegex:
+			return parquetquery.NewRegexNotInPredicate([]string{s})
+		case traceql.OpGreater:
+			return parquetquery.NewStringGreaterPredicate([]byte(s)), nil
+		case traceql.OpGreaterEqual:
+			return parquetquery.NewStringGreaterEqualPredicate([]byte(s)), nil
+		case traceql.OpLess:
+			return parquetquery.NewStringLessPredicate([]byte(s)), nil
+		case traceql.OpLessEqual:
+			return parquetquery.NewStringLessEqualPredicate([]byte(s)), nil
+		default:
+			return nil, fmt.Errorf("operator not supported for strings: %+v", op)
+		}
+	case traceql.TypeStringArray:
+		strs, _ := operands[0].StringArray()
+		switch op {
+		case traceql.OpEqual, traceql.OpIn:
+			return parquetquery.NewStringInPredicate(strs), nil
+		case traceql.OpNotEqual, traceql.OpNotIn:
+			return parquetquery.NewStringNotInPredicate(strs), nil
+		case traceql.OpRegex, traceql.OpRegexMatchAny:
+			return parquetquery.NewRegexInPredicate(strs)
+		case traceql.OpNotRegex, traceql.OpRegexMatchNone:
+			return parquetquery.NewRegexNotInPredicate(strs)
+		default:
+			return nil, fmt.Errorf("operator not supported for strings arrays: %+v", op)
+		}
 	default:
-		return nil, fmt.Errorf("operator not supported for strings: %+v", op)
+		return nil, fmt.Errorf("operand is not a string or string array: %s", operands[0])
 	}
 }
 
@@ -2679,30 +2707,59 @@ func createBytesPredicate(op traceql.Operator, operands traceql.Operands, isSpan
 		return pred, nil
 	}
 
-	s := operands[0].EncodeToString(false)
-	if operands[0].Type != traceql.TypeString {
-		return nil, fmt.Errorf("operand is not string: %s", s)
-	}
+	switch operands[0].Type {
+	case traceql.TypeString:
+		s := operands[0].EncodeToString(false)
 
-	var id []byte
-	var err error
-	if isSpan {
-		id, err = util.HexStringToSpanID(s)
-	} else {
-		id, err = util.HexStringToTraceID(s)
-	}
+		var id []byte
+		var err error
+		if isSpan {
+			id, err = util.HexStringToSpanID(s)
+		} else {
+			id, err = util.HexStringToTraceID(s)
+		}
 
-	if err != nil {
-		return nil, nil
-	}
+		if err != nil {
+			return nil, nil
+		}
 
-	switch op {
-	case traceql.OpEqual:
-		return parquetquery.NewByteEqualPredicate(id), nil
-	case traceql.OpNotEqual:
-		return parquetquery.NewByteNotEqualPredicate(id), nil
+		switch op {
+		case traceql.OpEqual:
+			return parquetquery.NewByteEqualPredicate(id), nil
+		case traceql.OpNotEqual:
+			return parquetquery.NewByteNotEqualPredicate(id), nil
+		default:
+			return nil, fmt.Errorf("operator not supported for IDs: %+v", op)
+		}
+	case traceql.TypeStringArray:
+		strs, _ := operands[0].StringArray()
+		ids := make([][]byte, 0, len(strs))
+
+		for _, s := range strs {
+			var id []byte
+			var err error
+			if isSpan {
+				id, err = util.HexStringToSpanID(s)
+			} else {
+				id, err = util.HexStringToTraceID(s)
+			}
+
+			if err != nil {
+				return nil, nil
+			}
+			ids = append(ids, id)
+		}
+
+		switch op {
+		case traceql.OpEqual, traceql.OpIn:
+			return parquetquery.NewByteInPredicate(ids), nil
+		case traceql.OpNotEqual, traceql.OpNotIn:
+			return parquetquery.NewByteNotInPredicate(ids), nil
+		default:
+			return nil, fmt.Errorf("operator not supported for IDs: %+v", op)
+		}
 	default:
-		return nil, fmt.Errorf("operator not supported for IDs: %+v", op)
+		return nil, fmt.Errorf("operand is not string or string array: %s", operands[0])
 	}
 }
 
@@ -2711,7 +2768,11 @@ func createDurationPredicate(op traceql.Operator, operands traceql.Operands) (pa
 		return pred, nil
 	}
 
-	if operands[0].Type == traceql.TypeFloat {
+	if len(operands) == 0 {
+		return nil, fmt.Errorf("operands cannot be empty")
+	}
+
+	if operands[0].Type == traceql.TypeFloat || operands[0].Type == traceql.TypeFloatArray {
 		// The column is already indexed as int, so we need to convert the float to int
 		return createIntPredicateFromFloat(op, operands)
 	}
@@ -2736,62 +2797,101 @@ func createIntPredicateFromFloat(op traceql.Operator, operands traceql.Operands)
 		return pred, nil
 	}
 
-	if operands[0].Type != traceql.TypeFloat {
-		return nil, fmt.Errorf("operand is not float: %s", operands[0].EncodeToString(false))
-	}
-	f := operands[0].Float()
-
-	if math.IsNaN(f) {
-		return nil, nil
+	if len(operands) == 0 {
+		return nil, fmt.Errorf("operands cannot be empty")
 	}
 
-	// Check if it's in [MinInt64, MaxInt64) range, and if so, see if it's an integer.
-	if float64(math.MinInt64) <= f && f < float64(math.MaxInt64) {
-		if intPart, frac := math.Modf(f); frac == 0 {
-			intOperands := traceql.Operands{traceql.NewStaticInt(int(intPart))}
-			return createIntPredicate(op, intOperands)
-		}
-	}
+	switch operands[0].Type {
+	case traceql.TypeFloat:
+		f := operands[0].Float()
 
-	switch op {
-	case traceql.OpEqual:
-		return nil, nil
-	case traceql.OpNotEqual:
-		return parquetquery.NewCallbackPredicate(func() bool { return true }), nil
-	case traceql.OpGreater, traceql.OpGreaterEqual:
-		switch {
-		case f < float64(math.MinInt64):
-			return parquetquery.NewCallbackPredicate(func() bool { return true }), nil
-		case float64(math.MaxInt64) <= f:
+		if math.IsNaN(f) {
 			return nil, nil
-		case 0 < f:
-			// "x > 10.3" -> "x >= 11"
-			return parquetquery.NewIntGreaterEqualPredicate(int64(f) + 1), nil
-		default:
-			// "x > -2.7" -> "x >= -2"
-			return parquetquery.NewIntGreaterEqualPredicate(int64(f)), nil
 		}
-	case traceql.OpLess, traceql.OpLessEqual:
-		switch {
-		case f < float64(math.MinInt64):
-			return nil, nil
-		case float64(math.MaxInt64) <= f:
-			return parquetquery.NewCallbackPredicate(func() bool { return true }), nil
-		case f < 0:
-			// "x < -2.7" -> "x <= -3"
-			return parquetquery.NewIntLessEqualPredicate(int64(f) - 1), nil
-		default:
-			// "x < 10.3" -> "x <= 10"
-			return parquetquery.NewIntLessEqualPredicate(int64(f)), nil
-		}
-	}
 
-	return nil, fmt.Errorf("operator not supported for integers: %v", op)
+		// Check if it's in [MinInt64, MaxInt64) range, and if so, see if it's an integer.
+		if float64(math.MinInt64) <= f && f < float64(math.MaxInt64) {
+			if intPart, frac := math.Modf(f); frac == 0 {
+				intOperands := traceql.Operands{traceql.NewStaticInt(int(intPart))}
+				return createIntPredicate(op, intOperands)
+			}
+		}
+
+		switch op {
+		case traceql.OpEqual:
+			return nil, nil
+		case traceql.OpNotEqual:
+			return parquetquery.NewCallbackPredicate(func() bool { return true }), nil
+		case traceql.OpGreater, traceql.OpGreaterEqual:
+			switch {
+			case f < float64(math.MinInt64):
+				return parquetquery.NewCallbackPredicate(func() bool { return true }), nil
+			case float64(math.MaxInt64) <= f:
+				return nil, nil
+			case 0 < f:
+				// "x > 10.3" -> "x >= 11"
+				return parquetquery.NewIntGreaterEqualPredicate(int64(f) + 1), nil
+			default:
+				// "x > -2.7" -> "x >= -2"
+				return parquetquery.NewIntGreaterEqualPredicate(int64(f)), nil
+			}
+		case traceql.OpLess, traceql.OpLessEqual:
+			switch {
+			case f < float64(math.MinInt64):
+				return nil, nil
+			case float64(math.MaxInt64) <= f:
+				return parquetquery.NewCallbackPredicate(func() bool { return true }), nil
+			case f < 0:
+				// "x < -2.7" -> "x <= -3"
+				return parquetquery.NewIntLessEqualPredicate(int64(f) - 1), nil
+			default:
+				// "x < 10.3" -> "x <= 10"
+				return parquetquery.NewIntLessEqualPredicate(int64(f)), nil
+			}
+		default:
+			return nil, fmt.Errorf("operator not supported for floats: %+v", op)
+		}
+	case traceql.TypeFloatArray:
+		floats, _ := operands[0].FloatArray()
+		ints := make([]int64, 0, len(floats))
+		for _, f := range floats {
+			if math.IsNaN(f) {
+				continue
+			}
+
+			// Check if it's in [MinInt64, MaxInt64) range, and if so, see if it's an integer.
+			if float64(math.MinInt64) <= f && f < float64(math.MaxInt64) {
+				if intPart, frac := math.Modf(f); frac == 0 {
+					ints = append(ints, int64(intPart))
+				}
+			}
+		}
+		switch op {
+		case traceql.OpEqual, traceql.OpIn:
+			if len(ints) == 0 {
+				return nil, nil
+			}
+			return parquetquery.NewIntInPredicate(ints), nil
+		case traceql.OpNotEqual, traceql.OpNotIn:
+			if len(ints) == 0 {
+				return parquetquery.NewCallbackPredicate(func() bool { return true }), nil
+			}
+			return parquetquery.NewIntNotInPredicate(ints), nil
+		default:
+			return nil, fmt.Errorf("operator not supported for float arrays: %+v", op)
+		}
+	default:
+		return nil, fmt.Errorf("operand is not float or float array: %s", operands[0].EncodeToString(false))
+	}
 }
 
 func createIntPredicate(op traceql.Operator, operands traceql.Operands) (parquetquery.Predicate, error) {
 	if pred, handled := createExistencePredicate(op); handled {
 		return pred, nil
+	}
+
+	if len(operands) == 0 {
+		return nil, fmt.Errorf("operands cannot be empty")
 	}
 
 	var i int64
@@ -2808,8 +2908,19 @@ func createIntPredicate(op traceql.Operator, operands traceql.Operands) (parquet
 	case traceql.TypeKind:
 		k, _ := operands[0].Kind()
 		i = int64(KindMapping[k.String()])
+	case traceql.TypeIntArray:
+		ints, _ := operands[0].Int64Array()
+
+		switch op {
+		case traceql.OpEqual, traceql.OpIn:
+			return parquetquery.NewIntInPredicate(ints), nil
+		case traceql.OpNotEqual, traceql.OpNotIn:
+			return parquetquery.NewIntNotInPredicate(ints), nil
+		default:
+			return nil, fmt.Errorf("operator not supported for int arrays: %+v", op)
+		}
 	default:
-		return nil, fmt.Errorf("operand is not int, duration, status or kind: %s", operands[0].EncodeToString(false))
+		return nil, fmt.Errorf("operand is not int, int array, duration, status or kind: %s", operands[0].EncodeToString(false))
 	}
 
 	switch op {
@@ -2835,28 +2946,39 @@ func createFloatPredicate(op traceql.Operator, operands traceql.Operands) (parqu
 		return pred, nil
 	}
 
-	// Ensure operand is float
-	if operands[0].Type != traceql.TypeFloat {
-		return nil, fmt.Errorf("operand is not float: %s", operands[0].EncodeToString(false))
-	}
+	switch operands[0].Type {
+	case traceql.TypeFloat:
+		f := operands[0].Float()
 
-	f := operands[0].Float()
+		switch op {
+		case traceql.OpEqual:
+			return parquetquery.NewFloatEqualPredicate(f), nil
+		case traceql.OpNotEqual:
+			return parquetquery.NewFloatNotEqualPredicate(f), nil
+		case traceql.OpGreater:
+			return parquetquery.NewFloatGreaterPredicate(f), nil
+		case traceql.OpGreaterEqual:
+			return parquetquery.NewFloatGreaterEqualPredicate(f), nil
+		case traceql.OpLess:
+			return parquetquery.NewFloatLessPredicate(f), nil
+		case traceql.OpLessEqual:
+			return parquetquery.NewFloatLessEqualPredicate(f), nil
+		default:
+			return nil, fmt.Errorf("operator not supported for floats: %+v", op)
+		}
+	case traceql.TypeFloatArray:
+		floats, _ := operands[0].FloatArray()
 
-	switch op {
-	case traceql.OpEqual:
-		return parquetquery.NewFloatEqualPredicate(f), nil
-	case traceql.OpNotEqual:
-		return parquetquery.NewFloatNotEqualPredicate(f), nil
-	case traceql.OpGreater:
-		return parquetquery.NewFloatGreaterPredicate(f), nil
-	case traceql.OpGreaterEqual:
-		return parquetquery.NewFloatGreaterEqualPredicate(f), nil
-	case traceql.OpLess:
-		return parquetquery.NewFloatLessPredicate(f), nil
-	case traceql.OpLessEqual:
-		return parquetquery.NewFloatLessEqualPredicate(f), nil
+		switch op {
+		case traceql.OpEqual, traceql.OpIn:
+			return parquetquery.NewFloatInPredicate(floats), nil
+		case traceql.OpNotEqual, traceql.OpNotIn:
+			return parquetquery.NewFloatNotInPredicate(floats), nil
+		default:
+			return nil, fmt.Errorf("operator not supported for float arrays: %+v", op)
+		}
 	default:
-		return nil, fmt.Errorf("operator not supported for floats: %+v", op)
+		return nil, fmt.Errorf("operand is not float or float array: %s", operands[0].EncodeToString(false))
 	}
 }
 
@@ -2865,19 +2987,31 @@ func createBoolPredicate(op traceql.Operator, operands traceql.Operands) (parque
 		return pred, nil
 	}
 
-	// Ensure operand is bool
-	b, ok := operands[0].Bool()
-	if !ok {
-		return nil, fmt.Errorf("operand is not bool: %+v", operands[0].EncodeToString(false))
-	}
+	switch operands[0].Type {
+	case traceql.TypeBoolean:
+		b, _ := operands[0].Bool()
 
-	switch op {
-	case traceql.OpEqual:
-		return parquetquery.NewBoolEqualPredicate(b), nil
-	case traceql.OpNotEqual:
-		return parquetquery.NewBoolNotEqualPredicate(b), nil
+		switch op {
+		case traceql.OpEqual:
+			return parquetquery.NewBoolEqualPredicate(b), nil
+		case traceql.OpNotEqual:
+			return parquetquery.NewBoolNotEqualPredicate(b), nil
+		default:
+			return nil, fmt.Errorf("operator not supported for booleans: %+v", op)
+		}
+	case traceql.TypeBooleanArray:
+		bools, _ := operands[0].BooleanArray()
+
+		switch op {
+		case traceql.OpEqual, traceql.OpIn:
+			return parquetquery.NewBoolInPredicate(bools), nil
+		case traceql.OpNotEqual, traceql.OpNotIn:
+			return parquetquery.NewBoolNotInPredicate(bools), nil
+		default:
+			return nil, fmt.Errorf("operator not supported for boolean arrays: %+v", op)
+		}
 	default:
-		return nil, fmt.Errorf("operator not supported for booleans: %+v", op)
+		return nil, fmt.Errorf("oparand is not bool or bool array: %+v", operands[0].EncodeToString(false))
 	}
 }
 
@@ -2940,28 +3074,28 @@ func createAttributeIterator(makeIter makeIterFn, conditions []traceql.Condition
 		}
 
 		switch cond.Operands[0].Type {
-		case traceql.TypeString:
+		case traceql.TypeString, traceql.TypeStringArray:
 			pred, err := createStringPredicate(cond.Op, cond.Operands)
 			if err != nil {
 				return nil, fmt.Errorf("creating attribute predicate: %w", err)
 			}
 			attrStringPreds = append(attrStringPreds, pred)
 
-		case traceql.TypeInt:
+		case traceql.TypeInt, traceql.TypeIntArray:
 			pred, err := createIntPredicate(cond.Op, cond.Operands)
 			if err != nil {
 				return nil, fmt.Errorf("creating attribute predicate: %w", err)
 			}
 			attrIntPreds = append(attrIntPreds, pred)
 
-		case traceql.TypeFloat:
+		case traceql.TypeFloat, traceql.TypeFloatArray:
 			pred, err := createFloatPredicate(cond.Op, cond.Operands)
 			if err != nil {
 				return nil, fmt.Errorf("creating attribute predicate: %w", err)
 			}
 			attrFltPreds = append(attrFltPreds, pred)
 
-		case traceql.TypeBoolean:
+		case traceql.TypeBoolean, traceql.TypeBooleanArray:
 			pred, err := createBoolPredicate(cond.Op, cond.Operands)
 			if err != nil {
 				return nil, fmt.Errorf("creating attribute predicate: %w", err)
@@ -3099,6 +3233,8 @@ func (c *spanCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 			if c.nestedSetRightExplicit {
 				sp.addSpanAttr(traceql.IntrinsicNestedSetRightAttribute, traceql.NewStaticInt(int(kv.Value.Int32())))
 			}
+		case columnPathSpanChildCount:
+			sp.addSpanAttr(traceql.IntrinsicChildCountAttribute, traceql.NewStaticInt(int(kv.Value.Int32())))
 		default:
 			// TODO - This exists for span-level dedicated columns like http.status_code
 			// Are nils possible here?

@@ -72,6 +72,7 @@ metrics_generator:
   [native_histogram_max_bucket_number: <int> | default = 100]
   [native_histogram_bucket_factor: <float> | default = 1.1]
   [native_histogram_min_reset_duration: <duration> | default = 15m]
+  [span_name_sanitization: <string>]
 
   processor:
 
@@ -82,6 +83,7 @@ metrics_generator:
       [enable_client_server_prefix: <bool>]
       [enable_messaging_system_latency_histogram: <bool>]
       [enable_virtual_node_label: <bool>]
+      [span_multiplier_key: <string>]
 
     span_metrics:
       [histogram_buckets: <list of float>]
@@ -90,7 +92,7 @@ metrics_generator:
       [intrinsic_dimensions: <map string to bool>]
       [filter_policies: [
         [
-          include/exclude:
+          include/include_any/exclude:
             match_type: <string> # options: strict, regexp
             attributes:
               - key: <string>
@@ -100,6 +102,7 @@ metrics_generator:
       [enable_target_info: <bool>]
       [target_info_excluded_dimensions: <list of string>]
       [enable_instance_label: <bool>]
+      [span_multiplier_key: <string>]
 
     host_info:
       [host_identifiers: <list of string>]

@@ -22,17 +22,17 @@
     {
       "source": {
         "git": {
-          "remote": "https://github.com/jsonnet-libs/docsonnet.git",
-          "subdir": "doc-util"
+          "remote": "https://github.com/grafana/rollout-operator.git",
+          "subdir": "operations/rollout-operator"
         }
       },
-      "version": "master"
+      "version": "v0.32.0"
     },
     {
       "source": {
         "git": {
           "remote": "https://github.com/jsonnet-libs/k8s-libsonnet.git",
-          "subdir": "1.26"
+          "subdir": "1.33"
         }
       },
       "version": "main"

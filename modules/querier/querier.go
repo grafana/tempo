@@ -2,6 +2,7 @@ package querier
 
 import (
 	"context"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"net/http"
@@ -25,6 +26,7 @@ import (
 	ingester_client "github.com/grafana/tempo/modules/ingester/client"
 	livestore_client "github.com/grafana/tempo/modules/livestore/client"
 	"github.com/grafana/tempo/modules/overrides"
+	"github.com/grafana/tempo/modules/querier/external"
 	"github.com/grafana/tempo/modules/querier/worker"
 	"github.com/grafana/tempo/modules/storage"
 	"github.com/grafana/tempo/pkg/api"
@@ -103,6 +105,8 @@ type Querier struct {
 	store  storage.Store
 	limits overrides.Interface
 
+	externalClient *external.Client
+
 	subservices        *services.Manager
 	subservicesWatcher *services.FailureWatcher
 }
@@ -131,6 +135,7 @@ func New(
 	liveStoreRing ring.ReadRing,
 	partitionRing *ring.PartitionInstanceRing,
 
+	queryExternal bool,
 	store storage.Store,
 	limits overrides.Interface,
 ) (*Querier, error) {
@@ -180,6 +185,14 @@ func New(
 		engine: traceql.NewEngine(),
 		store:  store,
 		limits: limits,
+	}
+
+	if queryExternal {
+		externalClient, err := external.NewClient(cfg.TraceByID.External.Endpoint, cfg.TraceByID.External.Timeout)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create external client: %w", err)
+		}
+		q.externalClient = externalClient
 	}
 
 	q.Service = services.NewBasicService(q.starting, q.running, q.stopping)
@@ -354,6 +367,31 @@ func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDReque
 				inspectedBytes += partialTrace.Metrics.InspectedBytes
 			}
 		}
+	}
+
+	if q.externalClient != nil {
+		if req.QueryMode == QueryModeExternal || req.QueryMode == QueryModeAll {
+			span.AddEvent("searching external", oteltrace.WithAttributes(
+				attribute.String("traceID", hex.EncodeToString(req.TraceID)),
+				attribute.Int64("timeStart", timeStart),
+				attribute.Int64("timeEnd", timeEnd),
+			))
+			externalResp, err := q.externalClient.TraceByID(ctx, userID, req.TraceID, timeStart, timeEnd)
+			if err != nil {
+				retErr := fmt.Errorf("error querying external in Querier.FindTraceByID: %w", err)
+				span.RecordError(retErr)
+				return nil, retErr
+			}
+			span.AddEvent("done searching external", oteltrace.WithAttributes(
+				attribute.Int("spansFound", countSpans(externalResp.Trace)),
+			))
+			_, err = combiner.Consume(externalResp.Trace)
+			if err != nil {
+				return nil, err
+			}
+		}
+	} else if req.QueryMode == QueryModeExternal {
+		return nil, fmt.Errorf("external mode is not enabled")
 	}
 
 	completeTrace, _ := combiner.Result()
@@ -866,11 +904,6 @@ func (q *Querier) SearchBlock(ctx context.Context, req *tempopb.SearchBlockReque
 		return nil, err
 	}
 
-	enc, err := backend.ParseEncoding(req.Encoding)
-	if err != nil {
-		return nil, err
-	}
-
 	dc, err := backend.DedicatedColumnsFromTempopb(req.DedicatedColumns)
 	if err != nil {
 		return nil, err
@@ -879,12 +912,10 @@ func (q *Querier) SearchBlock(ctx context.Context, req *tempopb.SearchBlockReque
 	meta := &backend.BlockMeta{
 		Version:          req.Version,
 		TenantID:         tenantID,
-		Encoding:         enc,
 		Size_:            req.Size_,
 		IndexPageSize:    req.IndexPageSize,
 		TotalRecords:     req.TotalRecords,
 		BlockID:          blockID,
-		DataEncoding:     req.DataEncoding,
 		FooterSize:       req.FooterSize,
 		DedicatedColumns: dc,
 	}
@@ -922,11 +953,6 @@ func (q *Querier) internalTagsSearchBlockV2(ctx context.Context, req *tempopb.Se
 		return nil, err
 	}
 
-	enc, err := backend.ParseEncoding(req.Encoding)
-	if err != nil {
-		return nil, err
-	}
-
 	dc, err := backend.DedicatedColumnsFromTempopb(req.DedicatedColumns)
 	if err != nil {
 		return nil, err
@@ -935,12 +961,10 @@ func (q *Querier) internalTagsSearchBlockV2(ctx context.Context, req *tempopb.Se
 	meta := &backend.BlockMeta{
 		Version:          req.Version,
 		TenantID:         tenantID,
-		Encoding:         enc,
 		Size_:            req.Size_,
 		IndexPageSize:    req.IndexPageSize,
 		TotalRecords:     req.TotalRecords,
 		BlockID:          blockID,
-		DataEncoding:     req.DataEncoding,
 		FooterSize:       req.FooterSize,
 		DedicatedColumns: dc,
 	}
@@ -1003,11 +1027,6 @@ func (q *Querier) internalTagValuesSearchBlock(ctx context.Context, req *tempopb
 		return &tempopb.SearchTagValuesResponse{}, err
 	}
 
-	enc, err := backend.ParseEncoding(req.Encoding)
-	if err != nil {
-		return &tempopb.SearchTagValuesResponse{}, err
-	}
-
 	dc, err := backend.DedicatedColumnsFromTempopb(req.DedicatedColumns)
 	if err != nil {
 		return &tempopb.SearchTagValuesResponse{}, err
@@ -1016,12 +1035,10 @@ func (q *Querier) internalTagValuesSearchBlock(ctx context.Context, req *tempopb
 	meta := &backend.BlockMeta{
 		Version:          req.Version,
 		TenantID:         tenantID,
-		Encoding:         enc,
 		Size_:            req.Size_,
 		IndexPageSize:    req.IndexPageSize,
 		TotalRecords:     req.TotalRecords,
 		BlockID:          blockID,
-		DataEncoding:     req.DataEncoding,
 		FooterSize:       req.FooterSize,
 		DedicatedColumns: dc,
 	}
@@ -1049,11 +1066,6 @@ func (q *Querier) internalTagValuesSearchBlockV2(ctx context.Context, req *tempo
 		return &tempopb.SearchTagValuesV2Response{}, err
 	}
 
-	enc, err := backend.ParseEncoding(req.Encoding)
-	if err != nil {
-		return &tempopb.SearchTagValuesV2Response{}, err
-	}
-
 	dc, err := backend.DedicatedColumnsFromTempopb(req.DedicatedColumns)
 	if err != nil {
 		return &tempopb.SearchTagValuesV2Response{}, err
@@ -1062,12 +1074,10 @@ func (q *Querier) internalTagValuesSearchBlockV2(ctx context.Context, req *tempo
 	meta := &backend.BlockMeta{
 		Version:          req.Version,
 		TenantID:         tenantID,
-		Encoding:         enc,
 		Size_:            req.Size_,
 		IndexPageSize:    req.IndexPageSize,
 		TotalRecords:     req.TotalRecords,
 		BlockID:          blockID,
-		DataEncoding:     req.DataEncoding,
 		FooterSize:       req.FooterSize,
 		DedicatedColumns: dc,
 	}
@@ -1143,6 +1153,16 @@ func (q *Querier) postProcessIngesterSearchResults(req *tempopb.SearchRequest, r
 	}
 
 	return response
+}
+
+func countSpans(trace *tempopb.Trace) int {
+	count := 0
+	for _, b := range trace.ResourceSpans {
+		for _, ss := range b.ScopeSpans {
+			count += len(ss.Spans)
+		}
+	}
+	return count
 }
 
 func protoToMetricSeries(proto []*tempopb.KeyValue) traceqlmetrics.MetricSeries {

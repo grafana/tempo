@@ -146,7 +146,6 @@ func (twbs *timeWindowBlockSelector) BlocksToCompact() ([]*backend.BlockMeta, st
 				stripe := twbs.entries[i : j+1]
 
 				if twbs.entries[i].group == twbs.entries[j].group &&
-					twbs.entries[i].meta.DataEncoding == twbs.entries[j].meta.DataEncoding &&
 					twbs.entries[i].meta.Version == twbs.entries[j].meta.Version && // update after parquet: only compact blocks of the same version
 					twbs.entries[i].meta.DedicatedColumnsHash() == twbs.entries[j].meta.DedicatedColumnsHash() && // update after vParquet3: only compact blocks of the same dedicated columns
 					len(stripe) <= twbs.MaxInputBlocks &&

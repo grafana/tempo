@@ -58,6 +58,10 @@ type Config struct {
 	// For testing.
 	factory ring_client.PoolAddrFunc `yaml:"-"`
 
+	// TracePushMiddlewares are hooks called when a trace push request is received.
+	// Middleware errors are logged but don't fail the push (fail open behavior).
+	TracePushMiddlewares []TracePushMiddleware `yaml:"-"`
+
 	MaxAttributeBytes int `yaml:"max_attribute_bytes"`
 
 	// ArtificialDelay is an optional duration to introduce a delay for artificial processing in the distributor.

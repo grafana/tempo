@@ -44,10 +44,26 @@ func newQueryRangeStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripp
 		if req.Step == 0 {
 			req.Step = traceql.DefaultQueryRangeStep(req.Start, req.End)
 		}
+		if !req.HasInstant() { // if not found, set it explicitly
+			req.SetInstant(false)
+		}
 		if err := validateQueryRangeReq(cfg, req); err != nil {
 			return err
 		}
+
 		traceql.AlignRequest(req)
+
+		// the end time cutoff is applied here because it has to be done before combiner creation
+		// TODO: this is a copy of ClampDateRangeReq and needs to be removed after a proper fix
+		if cfg.QueryEndCutoff > 0 {
+			now := time.Now()
+			maxEnd := now.Add(-cfg.QueryEndCutoff)
+			reqEnd := time.Unix(0, int64(req.End))
+			if maxEnd.Before(reqEnd) {
+				req.End = uint64(maxEnd.UnixNano())
+				traceql.AlignEndToLeft(req) // realign, but always to the left
+			}
+		}
 
 		httpReq := api.BuildQueryRangeRequest(&http.Request{
 			URL:    &url.URL{Path: downstreamPath},
@@ -108,12 +124,29 @@ func newMetricsQueryRangeHTTPHandler(cfg Config, next pipeline.AsyncRoundTripper
 			level.Error(logger).Log("msg", "query range: parse search request failed", "err", err)
 			return httpInvalidRequest(err), nil
 		}
+		if !queryRangeReq.HasInstant() { // if not found, set it explicitly
+			queryRangeReq.SetInstant(false)
+		}
 		logQueryRangeRequest(logger, tenant, queryRangeReq)
 
 		if err := validateQueryRangeReq(cfg, queryRangeReq); err != nil {
 			return httpInvalidRequest(err), nil
 		}
+
 		traceql.AlignRequest(queryRangeReq)
+
+		// the end time cutoff is applied here because it has to be done before combiner creation
+		// TODO: this is a copy of ClampDateRangeReq and needs to be removed after a proper fix
+		if cfg.QueryEndCutoff > 0 {
+			now := time.Now()
+			maxEnd := now.Add(-cfg.QueryEndCutoff)
+			reqEnd := time.Unix(0, int64(queryRangeReq.End))
+			if maxEnd.Before(reqEnd) {
+				queryRangeReq.End = uint64(maxEnd.UnixNano())
+				traceql.AlignEndToLeft(queryRangeReq) // realign, but always to the left
+			}
+		}
+		req = api.BuildQueryRangeRequest(req, queryRangeReq, "")
 
 		// build and use roundtripper
 		combiner, err := combiner.NewTypedQueryRange(queryRangeReq, cfg.Metrics.Sharder.MaxResponseSeries)

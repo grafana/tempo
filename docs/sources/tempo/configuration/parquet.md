@@ -21,9 +21,13 @@ If you install using the [Tempo Helm charts](https://grafana.com/docs/tempo/<TEM
 No data conversion or upgrade process is necessary.
 As soon as a block format is enabled, Tempo starts writing data in that format, leaving existing data as-is.
 
-Block formats based on Parquet require more CPU and memory resources than the previous `v2` format but provide search and TraceQL functionality.
+Block formats based on Parquet require more CPU and memory resources than the previous `v2` format (which has been removed in Tempo 3.0) but provide search and TraceQL functionality.
 
 ## Choose a different block format
+
+{{< admonition type="warning" >}}
+`vParquet3` has been deprecated and will be removed in a future Tempo release. The `v2` block format has been removed in Tempo 3.0. In order to cleanly migrate forward to Tempo 3.0 you will need `vParquet4` or higher blocks.
+{{< /admonition >}}
 
 The default block format is `vParquet4`, which is the latest iteration of the Parquet-based columnar block format in Tempo.
 vParquet4 introduces columns that enable querying for data in array attributes as well as events and links.
@@ -33,18 +37,13 @@ You can still use the previous format `vParquet3`.
 To enable it, set the block version option to `vParquet3` in the [Storage section](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/#storage) of the configuration file.
 
 ```yaml
-# block format version. options: v2, vParquet3, vParquet4
-[version: vParquet4]
+# block format version. options: vParquet4
+[version: vParquet3]
 ```
 
-In some cases, you may choose to disable Parquet and use the old `v2` block format.
-Using the `v2` block format disables all forms of search, but also reduces resource consumption, and may be desired for a high-throughput cluster that doesn't need these capabilities.
-To make this change, set the block version option to `v2` in the Storage section of the configuration file.
-
-```yaml
-# block format version. options: v2, vParquet3, vParquet4
-[version: v2]
-```
+{{< admonition type="warning" >}}
+The `v2` block format has been removed in Tempo 3.0. Only Parquet-based formats (vParquet3, vParquet4, vParquet5) are supported.
+{{< /admonition >}}
 
 To re-enable the default `vParquet4` format, remove the block version option from the [Storage section](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/#storage) of the configuration file or set the option to `vParquet4`.
 

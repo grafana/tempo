@@ -29,41 +29,47 @@
    "height": "250px",
    "panels": [
     {
-     "aliasColors": {
-
-     },
-     "bars": false,
-     "dashLength": 10,
-     "dashes": false,
      "datasource": "$datasource",
-     "fill": 1,
-     "id": 1,
-     "legend": {
-      "avg": false,
-      "current": false,
-      "max": false,
-      "min": false,
-      "show": true,
-      "total": false,
-      "values": false
+     "fieldConfig": {
+      "defaults": {
+       "custom": {
+        "drawStyle": "line",
+        "fillOpacity": 1,
+        "lineWidth": 1,
+        "pointSize": 5,
+        "showPoints": "never",
+        "spanNulls": false,
+        "stacking": {
+         "group": "A",
+         "mode": "none"
+        }
+       },
+       "thresholds": {
+        "mode": "absolute",
+        "steps": [
+
+        ]
+       },
+       "unit": "s"
+      },
+      "overrides": [
+
+      ]
      },
-     "lines": true,
-     "linewidth": 1,
+     "id": 1,
      "links": [
 
      ],
-     "nullPointMode": "null as zero",
-     "percentage": false,
-     "pointradius": 5,
-     "points": false,
-     "renderer": "flot",
-     "seriesOverrides": [
-
-     ],
-     "spaceLength": 10,
+     "options": {
+      "legend": {
+       "showLegend": true
+      },
+      "tooltip": {
+       "mode": "single",
+       "sort": "none"
+      }
+     },
      "span": 12,
-     "stack": false,
-     "steppedLine": false,
      "styles": [
       {
        "alias": "Time",
@@ -96,46 +102,9 @@
        "refId": "A"
       }
      ],
-     "thresholds": [
-
-     ],
-     "timeFrom": null,
-     "timeShift": null,
      "title": "Limits",
-     "tooltip": {
-      "shared": true,
-      "sort": 2,
-      "value_type": "individual"
-     },
      "transform": "table",
-     "type": "table",
-     "xaxis": {
-      "buckets": null,
-      "mode": "time",
-      "name": null,
-      "show": true,
-      "values": [
-
-      ]
-     },
-     "yaxes": [
-      {
-       "format": "short",
-       "label": null,
-       "logBase": 1,
-       "max": null,
-       "min": 0,
-       "show": true
-      },
-      {
-       "format": "short",
-       "label": null,
-       "logBase": 1,
-       "max": null,
-       "min": null,
-       "show": false
-      }
-     ]
+     "type": "table"
     }
    ],
    "repeat": null,
@@ -150,34 +119,46 @@
    "height": "250px",
    "panels": [
     {
-     "aliasColors": {
-
-     },
-     "bars": false,
-     "dashLength": 10,
-     "dashes": false,
      "datasource": "$datasource",
-     "fill": 1,
-     "id": 2,
-     "legend": {
-      "avg": false,
-      "current": false,
-      "max": false,
-      "min": false,
-      "show": true,
-      "total": false,
-      "values": false
+     "fieldConfig": {
+      "defaults": {
+       "custom": {
+        "drawStyle": "line",
+        "fillOpacity": 1,
+        "lineWidth": 1,
+        "pointSize": 5,
+        "showPoints": "never",
+        "spanNulls": false,
+        "stacking": {
+         "group": "A",
+         "mode": "none"
+        }
+       },
+       "thresholds": {
+        "mode": "absolute",
+        "steps": [
+
+        ]
+       },
+       "unit": "Bps"
+      },
+      "overrides": [
+
+      ]
      },
-     "lines": true,
-     "linewidth": 1,
+     "id": 2,
      "links": [
 
      ],
-     "nullPointMode": "null as zero",
-     "percentage": false,
-     "pointradius": 5,
-     "points": false,
-     "renderer": "flot",
+     "options": {
+      "legend": {
+       "showLegend": true
+      },
+      "tooltip": {
+       "mode": "single",
+       "sort": "none"
+      }
+     },
      "seriesOverrides": [
       {
        "alias": "limit",
@@ -190,10 +171,7 @@
        "fill": 0
       }
      ],
-     "spaceLength": 10,
      "span": 4,
-     "stack": false,
-     "steppedLine": false,
      "targets": [
       {
        "expr": "sum(rate(tempo_distributor_bytes_received_total{cluster=~\"$cluster\", job=~\"($namespace)/distributor\",tenant=\"$tenant\"}[$__rate_interval]))",
@@ -217,27 +195,8 @@
        "legendLink": null
       }
      ],
-     "thresholds": [
-
-     ],
-     "timeFrom": null,
-     "timeShift": null,
      "title": "Distributor bytes/s",
-     "tooltip": {
-      "shared": true,
-      "sort": 2,
-      "value_type": "individual"
-     },
-     "type": "graph",
-     "xaxis": {
-      "buckets": null,
-      "mode": "time",
-      "name": null,
-      "show": true,
-      "values": [
-
-      ]
-     },
+     "type": "timeseries",
      "yaxes": [
       {
        "format": "Bps",
@@ -258,41 +217,47 @@
      ]
     },
     {
-     "aliasColors": {
-
-     },
-     "bars": false,
-     "dashLength": 10,
-     "dashes": false,
      "datasource": "$datasource",
-     "fill": 1,
-     "id": 3,
-     "legend": {
-      "avg": false,
-      "current": false,
-      "max": false,
-      "min": false,
-      "show": true,
-      "total": false,
-      "values": false
+     "fieldConfig": {
+      "defaults": {
+       "custom": {
+        "drawStyle": "line",
+        "fillOpacity": 1,
+        "lineWidth": 1,
+        "pointSize": 5,
+        "showPoints": "never",
+        "spanNulls": false,
+        "stacking": {
+         "group": "A",
+         "mode": "none"
+        }
+       },
+       "thresholds": {
+        "mode": "absolute",
+        "steps": [
+
+        ]
+       },
+       "unit": "ops"
+      },
+      "overrides": [
+
+      ]
      },
-     "lines": true,
-     "linewidth": 1,
+     "id": 3,
      "links": [
 
      ],
-     "nullPointMode": "null as zero",
-     "percentage": false,
-     "pointradius": 5,
-     "points": false,
-     "renderer": "flot",
-     "seriesOverrides": [
-
-     ],
-     "spaceLength": 10,
+     "options": {
+      "legend": {
+       "showLegend": true
+      },
+      "tooltip": {
+       "mode": "single",
+       "sort": "none"
+      }
+     },
      "span": 4,
-     "stack": false,
-     "steppedLine": false,
      "targets": [
       {
        "expr": "sum(rate(tempo_distributor_spans_received_total{cluster=~\"$cluster\", job=~\"($namespace)/distributor\",tenant=\"$tenant\"}[$__rate_interval]))",
@@ -309,75 +274,50 @@
        "legendLink": null
       }
      ],
-     "thresholds": [
-
-     ],
-     "timeFrom": null,
-     "timeShift": null,
      "title": "Distributor spans/s",
-     "tooltip": {
-      "shared": true,
-      "sort": 2,
-      "value_type": "individual"
-     },
-     "type": "graph",
-     "xaxis": {
-      "buckets": null,
-      "mode": "time",
-      "name": null,
-      "show": true,
-      "values": [
+     "type": "timeseries"
+    },
+    {
+     "datasource": "$datasource",
+     "fieldConfig": {
+      "defaults": {
+       "custom": {
+        "drawStyle": "line",
+        "fillOpacity": 1,
+        "lineWidth": 1,
+        "pointSize": 5,
+        "showPoints": "never",
+        "spanNulls": false,
+        "stacking": {
+         "group": "A",
+         "mode": "none"
+        }
+       },
+       "thresholds": {
+        "mode": "absolute",
+        "steps": [
+
+        ]
+       },
+       "unit": "short"
+      },
+      "overrides": [
 
       ]
      },
-     "yaxes": [
-      {
-       "format": "short",
-       "label": null,
-       "logBase": 1,
-       "max": null,
-       "min": 0,
-       "show": true
-      },
-      {
-       "format": "short",
-       "label": null,
-       "logBase": 1,
-       "max": null,
-       "min": null,
-       "show": false
-      }
-     ]
-    },
-    {
-     "aliasColors": {
-
-     },
-     "bars": false,
-     "dashLength": 10,
-     "dashes": false,
-     "datasource": "$datasource",
-     "fill": 1,
      "id": 4,
-     "legend": {
-      "avg": false,
-      "current": false,
-      "max": false,
-      "min": false,
-      "show": true,
-      "total": false,
-      "values": false
-     },
-     "lines": true,
-     "linewidth": 1,
      "links": [
 
      ],
-     "nullPointMode": "null as zero",
-     "percentage": false,
-     "pointradius": 5,
-     "points": false,
-     "renderer": "flot",
+     "options": {
+      "legend": {
+       "showLegend": true
+      },
+      "tooltip": {
+       "mode": "single",
+       "sort": "none"
+      }
+     },
      "seriesOverrides": [
       {
        "alias": "global limit",
@@ -390,13 +330,10 @@
        "fill": 0
       }
      ],
-     "spaceLength": 10,
      "span": 4,
-     "stack": false,
-     "steppedLine": false,
      "targets": [
       {
-       "expr": "max(tempo_ingester_live_traces{cluster=~\"$cluster\", job=~\"($namespace)/ingester\",tenant=\"$tenant\"})",
+       "expr": "max(tempo_live_store_live_traces{cluster=~\"$cluster\", job=~\"($namespace)/live-store.*\",tenant=\"$tenant\"})",
        "format": "time_series",
        "interval": "1m",
        "legendFormat": "live traces",
@@ -417,45 +354,8 @@
        "legendLink": null
       }
      ],
-     "thresholds": [
-
-     ],
-     "timeFrom": null,
-     "timeShift": null,
      "title": "Live traces",
-     "tooltip": {
-      "shared": true,
-      "sort": 2,
-      "value_type": "individual"
-     },
-     "type": "graph",
-     "xaxis": {
-      "buckets": null,
-      "mode": "time",
-      "name": null,
-      "show": true,
-      "values": [
-
-      ]
-     },
-     "yaxes": [
-      {
-       "format": "short",
-       "label": null,
-       "logBase": 1,
-       "max": null,
-       "min": 0,
-       "show": true
-      },
-      {
-       "format": "short",
-       "label": null,
-       "logBase": 1,
-       "max": null,
-       "min": null,
-       "show": false
-      }
-     ]
+     "type": "timeseries"
     }
    ],
    "repeat": null,
@@ -470,41 +370,47 @@
    "height": "250px",
    "panels": [
     {
-     "aliasColors": {
-
-     },
-     "bars": false,
-     "dashLength": 10,
-     "dashes": false,
      "datasource": "$datasource",
-     "fill": 1,
-     "id": 5,
-     "legend": {
-      "avg": false,
-      "current": false,
-      "max": false,
-      "min": false,
-      "show": true,
-      "total": false,
-      "values": false
+     "fieldConfig": {
+      "defaults": {
+       "custom": {
+        "drawStyle": "line",
+        "fillOpacity": 1,
+        "lineWidth": 1,
+        "pointSize": 5,
+        "showPoints": "never",
+        "spanNulls": false,
+        "stacking": {
+         "group": "A",
+         "mode": "none"
+        }
+       },
+       "thresholds": {
+        "mode": "absolute",
+        "steps": [
+
+        ]
+       },
+       "unit": "ops"
+      },
+      "overrides": [
+
+      ]
      },
-     "lines": true,
-     "linewidth": 1,
+     "id": 5,
      "links": [
 
      ],
-     "nullPointMode": "null as zero",
-     "percentage": false,
-     "pointradius": 5,
-     "points": false,
-     "renderer": "flot",
-     "seriesOverrides": [
-
-     ],
-     "spaceLength": 10,
+     "options": {
+      "legend": {
+       "showLegend": true
+      },
+      "tooltip": {
+       "mode": "single",
+       "sort": "none"
+      }
+     },
      "span": 6,
-     "stack": false,
-     "steppedLine": false,
      "targets": [
       {
        "expr": "sum(rate(tempo_query_frontend_queries_total{cluster=~\"$cluster\", job=~\"($namespace)/query-frontend\",tenant=\"$tenant\",op=\"traces\"}[$__rate_interval])) by (status)",
@@ -514,82 +420,51 @@
        "legendLink": null
       }
      ],
-     "thresholds": [
-
-     ],
-     "timeFrom": null,
-     "timeShift": null,
      "title": "Queries/s (ID lookup)",
-     "tooltip": {
-      "shared": true,
-      "sort": 2,
-      "value_type": "individual"
-     },
-     "type": "graph",
-     "xaxis": {
-      "buckets": null,
-      "mode": "time",
-      "name": null,
-      "show": true,
-      "values": [
+     "type": "timeseries"
+    },
+    {
+     "datasource": "$datasource",
+     "fieldConfig": {
+      "defaults": {
+       "custom": {
+        "drawStyle": "line",
+        "fillOpacity": 1,
+        "lineWidth": 1,
+        "pointSize": 5,
+        "showPoints": "never",
+        "spanNulls": false,
+        "stacking": {
+         "group": "A",
+         "mode": "none"
+        }
+       },
+       "thresholds": {
+        "mode": "absolute",
+        "steps": [
+
+        ]
+       },
+       "unit": "ops"
+      },
+      "overrides": [
 
       ]
      },
-     "yaxes": [
-      {
-       "format": "short",
-       "label": null,
-       "logBase": 1,
-       "max": null,
-       "min": 0,
-       "show": true
-      },
-      {
-       "format": "short",
-       "label": null,
-       "logBase": 1,
-       "max": null,
-       "min": null,
-       "show": false
-      }
-     ]
-    },
-    {
-     "aliasColors": {
-
-     },
-     "bars": false,
-     "dashLength": 10,
-     "dashes": false,
-     "datasource": "$datasource",
-     "fill": 1,
      "id": 6,
-     "legend": {
-      "avg": false,
-      "current": false,
-      "max": false,
-      "min": false,
-      "show": true,
-      "total": false,
-      "values": false
-     },
-     "lines": true,
-     "linewidth": 1,
      "links": [
 
      ],
-     "nullPointMode": "null as zero",
-     "percentage": false,
-     "pointradius": 5,
-     "points": false,
-     "renderer": "flot",
-     "seriesOverrides": [
-
-     ],
-     "spaceLength": 10,
+     "options": {
+      "legend": {
+       "showLegend": true
+      },
+      "tooltip": {
+       "mode": "single",
+       "sort": "none"
+      }
+     },
      "span": 6,
-     "stack": false,
-     "steppedLine": false,
      "targets": [
       {
        "expr": "sum(rate(tempo_query_frontend_queries_total{cluster=~\"$cluster\", job=~\"($namespace)/query-frontend\",tenant=\"$tenant\",op=\"search\"}[$__rate_interval])) by (status)",
@@ -599,45 +474,8 @@
        "legendLink": null
       }
      ],
-     "thresholds": [
-
-     ],
-     "timeFrom": null,
-     "timeShift": null,
      "title": "Queries/s (search)",
-     "tooltip": {
-      "shared": true,
-      "sort": 2,
-      "value_type": "individual"
-     },
-     "type": "graph",
-     "xaxis": {
-      "buckets": null,
-      "mode": "time",
-      "name": null,
-      "show": true,
-      "values": [
-
-      ]
-     },
-     "yaxes": [
-      {
-       "format": "short",
-       "label": null,
-       "logBase": 1,
-       "max": null,
-       "min": 0,
-       "show": true
-      },
-      {
-       "format": "short",
-       "label": null,
-       "logBase": 1,
-       "max": null,
-       "min": null,
-       "show": false
-      }
-     ]
+     "type": "timeseries"
     }
    ],
    "repeat": null,
@@ -652,35 +490,50 @@
    "height": "250px",
    "panels": [
     {
-     "aliasColors": {
-
-     },
-     "bars": false,
-     "dashLength": 10,
-     "dashes": false,
      "datasource": "$datasource",
-     "fill": 1,
+     "fieldConfig": {
+      "defaults": {
+       "custom": {
+        "drawStyle": "line",
+        "fillOpacity": 1,
+        "lineWidth": 1,
+        "pointSize": 5,
+        "showPoints": "never",
+        "spanNulls": false,
+        "stacking": {
+         "group": "A",
+         "mode": "none"
+        }
+       },
+       "thresholds": {
+        "mode": "absolute",
+        "steps": [
+
+        ]
+       },
+       "unit": "short"
+      },
+      "overrides": [
+
+      ]
+     },
      "id": 7,
      "legend": {
       "show": false
      },
-     "lines": true,
-     "linewidth": 1,
      "links": [
 
      ],
-     "nullPointMode": "null as zero",
-     "percentage": false,
-     "pointradius": 5,
-     "points": false,
-     "renderer": "flot",
-     "seriesOverrides": [
-
-     ],
-     "spaceLength": 10,
+     "options": {
+      "legend": {
+       "showLegend": true
+      },
+      "tooltip": {
+       "mode": "single",
+       "sort": "none"
+      }
+     },
      "span": 6,
-     "stack": false,
-     "steppedLine": false,
      "targets": [
       {
        "expr": "avg(tempodb_blocklist_length{cluster=~\"$cluster\", job=~\"($namespace)/compactor\",tenant=\"$tenant\"})",
@@ -690,76 +543,54 @@
        "legendLink": null
       }
      ],
-     "thresholds": [
-
-     ],
-     "timeFrom": null,
-     "timeShift": null,
      "title": "Blockslist length",
-     "tooltip": {
-      "shared": true,
-      "sort": 2,
-      "value_type": "individual"
-     },
-     "type": "graph",
-     "xaxis": {
-      "buckets": null,
-      "mode": "time",
-      "name": null,
-      "show": true,
-      "values": [
+     "type": "timeseries"
+    },
+    {
+     "datasource": "$datasource",
+     "fieldConfig": {
+      "defaults": {
+       "custom": {
+        "drawStyle": "line",
+        "fillOpacity": 1,
+        "lineWidth": 1,
+        "pointSize": 5,
+        "showPoints": "never",
+        "spanNulls": false,
+        "stacking": {
+         "group": "A",
+         "mode": "none"
+        }
+       },
+       "thresholds": {
+        "mode": "absolute",
+        "steps": [
+
+        ]
+       },
+       "unit": "short"
+      },
+      "overrides": [
 
       ]
      },
-     "yaxes": [
-      {
-       "format": "short",
-       "label": null,
-       "logBase": 1,
-       "max": null,
-       "min": 0,
-       "show": true
-      },
-      {
-       "format": "short",
-       "label": null,
-       "logBase": 1,
-       "max": null,
-       "min": null,
-       "show": false
-      }
-     ]
-    },
-    {
-     "aliasColors": {
-
-     },
-     "bars": false,
-     "dashLength": 10,
-     "dashes": false,
-     "datasource": "$datasource",
-     "fill": 1,
      "id": 8,
      "legend": {
       "show": false
      },
-     "lines": true,
-     "linewidth": 1,
      "links": [
 
      ],
-     "nullPointMode": "null as zero",
-     "percentage": false,
-     "pointradius": 5,
-     "points": false,
-     "renderer": "flot",
-     "seriesOverrides": [
-
-     ],
-     "spaceLength": 10,
+     "options": {
+      "legend": {
+       "showLegend": true
+      },
+      "tooltip": {
+       "mode": "single",
+       "sort": "none"
+      }
+     },
      "span": 6,
-     "stack": false,
-     "steppedLine": false,
      "targets": [
       {
        "expr": "sum(tempodb_compaction_outstanding_blocks{cluster=~\"$cluster\", job=~\"($namespace)/compactor\",tenant=\"$tenant\"})\n/\ncount(tempo_build_info{cluster=~\"$cluster\", job=~\"($namespace)/compactor\"})\n",
@@ -769,45 +600,8 @@
        "legendLink": null
       }
      ],
-     "thresholds": [
-
-     ],
-     "timeFrom": null,
-     "timeShift": null,
      "title": "Outstanding compactions",
-     "tooltip": {
-      "shared": true,
-      "sort": 2,
-      "value_type": "individual"
-     },
-     "type": "graph",
-     "xaxis": {
-      "buckets": null,
-      "mode": "time",
-      "name": null,
-      "show": true,
-      "values": [
-
-      ]
-     },
-     "yaxes": [
-      {
-       "format": "short",
-       "label": null,
-       "logBase": 1,
-       "max": null,
-       "min": 0,
-       "show": true
-      },
-      {
-       "format": "short",
-       "label": null,
-       "logBase": 1,
-       "max": null,
-       "min": null,
-       "show": false
-      }
-     ]
+     "type": "timeseries"
     }
    ],
    "repeat": null,
@@ -822,35 +616,50 @@
    "height": "250px",
    "panels": [
     {
-     "aliasColors": {
-
-     },
-     "bars": false,
-     "dashLength": 10,
-     "dashes": false,
      "datasource": "$datasource",
-     "fill": 1,
+     "fieldConfig": {
+      "defaults": {
+       "custom": {
+        "drawStyle": "line",
+        "fillOpacity": 1,
+        "lineWidth": 1,
+        "pointSize": 5,
+        "showPoints": "never",
+        "spanNulls": false,
+        "stacking": {
+         "group": "A",
+         "mode": "none"
+        }
+       },
+       "thresholds": {
+        "mode": "absolute",
+        "steps": [
+
+        ]
+       },
+       "unit": "Bps"
+      },
+      "overrides": [
+
+      ]
+     },
      "id": 9,
      "legend": {
       "show": false
      },
-     "lines": true,
-     "linewidth": 1,
      "links": [
 
      ],
-     "nullPointMode": "null as zero",
-     "percentage": false,
-     "pointradius": 5,
-     "points": false,
-     "renderer": "flot",
-     "seriesOverrides": [
-
-     ],
-     "spaceLength": 10,
+     "options": {
+      "legend": {
+       "showLegend": true
+      },
+      "tooltip": {
+       "mode": "single",
+       "sort": "none"
+      }
+     },
      "span": 6,
-     "stack": false,
-     "steppedLine": false,
      "targets": [
       {
        "expr": "sum(rate(tempo_metrics_generator_bytes_received_total{cluster=~\"$cluster\", job=~\"($namespace)/metrics-generator\",tenant=\"$tenant\"}[$__rate_interval]))",
@@ -860,27 +669,8 @@
        "legendLink": null
       }
      ],
-     "thresholds": [
-
-     ],
-     "timeFrom": null,
-     "timeShift": null,
      "title": "Bytes/s",
-     "tooltip": {
-      "shared": true,
-      "sort": 2,
-      "value_type": "individual"
-     },
-     "type": "graph",
-     "xaxis": {
-      "buckets": null,
-      "mode": "time",
-      "name": null,
-      "show": true,
-      "values": [
-
-      ]
-     },
+     "type": "timeseries",
      "yaxes": [
       {
        "format": "Bps",
@@ -901,34 +691,46 @@
      ]
     },
     {
-     "aliasColors": {
-
-     },
-     "bars": false,
-     "dashLength": 10,
-     "dashes": false,
      "datasource": "$datasource",
-     "fill": 1,
-     "id": 10,
-     "legend": {
-      "avg": false,
-      "current": false,
-      "max": false,
-      "min": false,
-      "show": true,
-      "total": false,
-      "values": false
+     "fieldConfig": {
+      "defaults": {
+       "custom": {
+        "drawStyle": "line",
+        "fillOpacity": 1,
+        "lineWidth": 1,
+        "pointSize": 5,
+        "showPoints": "never",
+        "spanNulls": false,
+        "stacking": {
+         "group": "A",
+         "mode": "none"
+        }
+       },
+       "thresholds": {
+        "mode": "absolute",
+        "steps": [
+
+        ]
+       },
+       "unit": "short"
+      },
+      "overrides": [
+
+      ]
      },
-     "lines": true,
-     "linewidth": 1,
+     "id": 10,
      "links": [
 
      ],
-     "nullPointMode": "null as zero",
-     "percentage": false,
-     "pointradius": 5,
-     "points": false,
-     "renderer": "flot",
+     "options": {
+      "legend": {
+       "showLegend": true
+      },
+      "tooltip": {
+       "mode": "single",
+       "sort": "none"
+      }
+     },
      "seriesOverrides": [
       {
        "alias": "limit",
@@ -936,10 +738,7 @@
        "fill": 0
       }
      ],
-     "spaceLength": 10,
      "span": 6,
-     "stack": false,
-     "steppedLine": false,
      "targets": [
       {
        "expr": "sum(tempo_metrics_generator_registry_active_series{cluster=~\"$cluster\", job=~\"($namespace)/metrics-generator\",tenant=\"$tenant\"})",
@@ -956,45 +755,8 @@
        "legendLink": null
       }
      ],
-     "thresholds": [
-
-     ],
-     "timeFrom": null,
-     "timeShift": null,
      "title": "Active series",
-     "tooltip": {
-      "shared": true,
-      "sort": 2,
-      "value_type": "individual"
-     },
-     "type": "graph",
-     "xaxis": {
-      "buckets": null,
-      "mode": "time",
-      "name": null,
-      "show": true,
-      "values": [
-
-      ]
-     },
-     "yaxes": [
-      {
-       "format": "short",
-       "label": null,
-       "logBase": 1,
-       "max": null,
-       "min": 0,
-       "show": true
-      },
-      {
-       "format": "short",
-       "label": null,
-       "logBase": 1,
-       "max": null,
-       "min": null,
-       "show": false
-      }
-     ]
+     "type": "timeseries"
     }
    ],
    "repeat": null,

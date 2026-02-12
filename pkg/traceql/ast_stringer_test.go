@@ -6,7 +6,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"gopkg.in/yaml.v2"
+	"go.yaml.in/yaml/v2"
 )
 
 const testExamplesFile = "./test_examples.yaml"
@@ -28,11 +28,11 @@ func TestStringer(t *testing.T) {
 	for _, s := range sets {
 		for _, q := range s {
 			t.Run(q, func(t *testing.T) {
-				pass1, err := Parse(q)
+				pass1, err := parseWithOptimizationOption(q, false)
 				require.NoError(t, err)
 
 				// now parse it a second time and confirm that it parses the same way twice
-				pass2, err := Parse(pass1.String())
+				pass2, err := parseWithOptimizationOption(pass1.String(), false)
 				ok := assert.NoError(t, err)
 				if !ok {
 					t.Logf("\n\t1: %s", pass1.String())

@@ -29,8 +29,8 @@ import (
 
 // regex patterns for tag values endpoints, precompile for performance
 var (
-	tagNameRegexV1 = regexp.MustCompile(`.*/api/search/tag/([^/]+)/values`)
-	tagNameRegexV2 = regexp.MustCompile(`.*/api/v2/search/tag/([^/]+)/values`)
+	tagNameRegexV1 = regexp.MustCompile(`.*/api/search/tag/(.+)/values`)
+	tagNameRegexV2 = regexp.MustCompile(`.*/api/v2/search/tag/(.+)/values`)
 )
 
 //nolint:all //deprecated
@@ -170,7 +170,7 @@ func newTagValuesStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTrippe
 
 		// we have to interpolate the tag name into the path so that when it is routed to the queriers
 		// they will parse it correctly. see also the mux.SetUrlVars discussion below.
-		pathWithValue := strings.Replace(api.PathSearchTagValues, "{"+api.MuxVarTagName+"}", req.TagName, 1)
+		pathWithValue := strings.Replace(api.PathSearchTagValues, api.MuxVarTagInPath, req.TagName, 1)
 		downstreamPath := path.Join(apiPrefix, pathWithValue)
 
 		httpReq, tenant, err := buildTagValuesRequestAndExtractTenant(srv.Context(), req, downstreamPath, logger)
@@ -216,7 +216,7 @@ func newTagValuesV2StreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTrip
 		}
 		// we have to interpolate the tag name into the path so that when it is routed to the queriers
 		// they will parse it correctly. see also the mux.SetUrlVars discussion below.
-		pathWithValue := strings.Replace(api.PathSearchTagValuesV2, "{"+api.MuxVarTagName+"}", req.TagName, 1)
+		pathWithValue := strings.Replace(api.PathSearchTagValuesV2, api.MuxVarTagInPath, req.TagName, 1)
 		downstreamPath := path.Join(apiPrefix, pathWithValue)
 
 		httpReq, tenant, err := buildTagValuesRequestAndExtractTenant(ctx, req, downstreamPath, logger)

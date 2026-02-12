@@ -352,21 +352,22 @@ func createDistinctEventIterator(
 			switch cond.Op {
 			case traceql.OpNone:
 				addPredicate(c.ColumnPath, nil) // No filtering
-				columnSelectAs[c.ColumnPath] = cond.Attribute.Name
+				addSelectAs(cond.Attribute, c.ColumnPath, cond.Attribute.Name)
 				continue
 			case traceql.OpExists:
 				addPredicate(c.ColumnPath, &parquetquery.SkipNilsPredicate{})
-				columnSelectAs[c.ColumnPath] = cond.Attribute.Name
+				addSelectAs(cond.Attribute, c.ColumnPath, cond.Attribute.Name)
 				continue
 			case traceql.OpNotExists:
 				pred := parquetquery.NewNilValuePredicate()
-				iters = append(iters, makeIter(c.ColumnPath, pred, cond.Attribute.Name))
+				addPredicate(c.ColumnPath, pred)
+				addSelectAs(cond.Attribute, c.ColumnPath, cond.Attribute.Name)
 				continue
 			}
 
 			// Compatible type?
 			typ, _ := c.Type.ToStaticType()
-			if typ == operandType(cond.Operands) {
+			if isMatchingColumnType(typ, operandType(cond.Operands)) {
 				pred, err := createPredicate(cond.Op, cond.Operands)
 				if err != nil {
 					return nil, errors.Wrap(err, "creating predicate")
@@ -593,41 +594,20 @@ func createDistinctSpanIterator(
 			addSelectAs(cond.Attribute, columnPathSpanParentID, columnPathSpanParentID)
 			continue
 
+		case traceql.IntrinsicChildCount:
+			pred, err := createIntPredicate(cond.Op, cond.Operands)
+			if err != nil {
+				return nil, err
+			}
+			addPredicate(columnPathSpanChildCount, pred)
+			addSelectAs(cond.Attribute, columnPathSpanChildCount, columnPathSpanChildCount)
+			continue
+
 		// TODO: Support structural operators
 		case traceql.IntrinsicStructuralDescendant,
 			traceql.IntrinsicStructuralChild,
 			traceql.IntrinsicStructuralSibling:
 			continue
-		}
-
-		// Well-known attribute?
-		if entry, ok := wellKnownColumnLookups[cond.Attribute.Name]; ok && entry.level != traceql.AttributeScopeResource {
-			// Operands that need special handling.
-			switch cond.Op {
-			case traceql.OpNone:
-				addPredicate(entry.columnPath, nil) // No filtering
-				columnSelectAs[entry.columnPath] = cond.Attribute.Name
-				continue
-			case traceql.OpExists:
-				addPredicate(entry.columnPath, &parquetquery.SkipNilsPredicate{})
-				columnSelectAs[entry.columnPath] = cond.Attribute.Name
-				continue
-			case traceql.OpNotExists:
-				pred := parquetquery.NewNilValuePredicate()
-				iters = append(iters, makeIter(entry.columnPath, pred, cond.Attribute.Name))
-				continue
-			}
-
-			// Compatible type?
-			if entry.typ == operandType(cond.Operands) {
-				pred, err := createPredicate(cond.Op, cond.Operands)
-				if err != nil {
-					return nil, errors.Wrap(err, "creating predicate")
-				}
-				addPredicate(entry.columnPath, pred)
-				addSelectAs(cond.Attribute, entry.columnPath, cond.Attribute.Name)
-				continue
-			}
 		}
 
 		// Attributes stored in dedicated columns
@@ -636,21 +616,22 @@ func createDistinctSpanIterator(
 			switch cond.Op {
 			case traceql.OpNone:
 				addPredicate(c.ColumnPath, nil) // No filtering
-				columnSelectAs[c.ColumnPath] = cond.Attribute.Name
+				addSelectAs(cond.Attribute, c.ColumnPath, cond.Attribute.Name)
 				continue
 			case traceql.OpExists:
 				addPredicate(c.ColumnPath, &parquetquery.SkipNilsPredicate{})
-				columnSelectAs[c.ColumnPath] = cond.Attribute.Name
+				addSelectAs(cond.Attribute, c.ColumnPath, cond.Attribute.Name)
 				continue
 			case traceql.OpNotExists:
 				pred := parquetquery.NewNilValuePredicate()
-				iters = append(iters, makeIter(c.ColumnPath, pred, cond.Attribute.Name))
+				addPredicate(c.ColumnPath, pred)
+				addSelectAs(cond.Attribute, c.ColumnPath, cond.Attribute.Name)
 				continue
 			}
 
 			// Compatible type?
 			typ, _ := c.Type.ToStaticType()
-			if typ == operandType(cond.Operands) {
+			if isMatchingColumnType(typ, operandType(cond.Operands)) {
 				pred, err := createPredicate(cond.Op, cond.Operands)
 				if err != nil {
 					return nil, errors.Wrap(err, "creating predicate")
@@ -753,7 +734,7 @@ func createDistinctAttributeIterator(
 		var keyIter, valIter parquetquery.Iterator
 
 		switch cond.Operands[0].Type {
-		case traceql.TypeString:
+		case traceql.TypeString, traceql.TypeStringArray:
 			pred, err := createStringPredicate(cond.Op, cond.Operands)
 			if err != nil {
 				return nil, fmt.Errorf("creating attribute predicate: %w", err)
@@ -761,7 +742,7 @@ func createDistinctAttributeIterator(
 			keyIter = makeIter(keyPath, parquetquery.NewStringInPredicate([]string{cond.Attribute.Name}), selectAs("key", cond.Attribute))
 			valIter = makeIter(strPath, pred, selectAs("string", cond.Attribute))
 
-		case traceql.TypeInt:
+		case traceql.TypeInt, traceql.TypeIntArray:
 			pred, err := createIntPredicate(cond.Op, cond.Operands)
 			if err != nil {
 				return nil, fmt.Errorf("creating attribute predicate: %w", err)
@@ -769,7 +750,7 @@ func createDistinctAttributeIterator(
 			keyIter = makeIter(keyPath, parquetquery.NewStringInPredicate([]string{cond.Attribute.Name}), selectAs("key", cond.Attribute))
 			valIter = makeIter(intPath, pred, selectAs("int", cond.Attribute))
 
-		case traceql.TypeFloat:
+		case traceql.TypeFloat, traceql.TypeFloatArray:
 			pred, err := createFloatPredicate(cond.Op, cond.Operands)
 			if err != nil {
 				return nil, fmt.Errorf("creating attribute predicate: %w", err)
@@ -777,7 +758,7 @@ func createDistinctAttributeIterator(
 			keyIter = makeIter(keyPath, parquetquery.NewStringInPredicate([]string{cond.Attribute.Name}), selectAs("key", cond.Attribute))
 			valIter = makeIter(floatPath, pred, selectAs("float", cond.Attribute))
 
-		case traceql.TypeBoolean:
+		case traceql.TypeBoolean, traceql.TypeBooleanArray:
 			pred, err := createBoolPredicate(cond.Op, cond.Operands)
 			if err != nil {
 				return nil, fmt.Errorf("creating attribute predicate: %w", err)
@@ -975,20 +956,24 @@ func createDistinctResourceIterator(
 			switch cond.Op {
 			case traceql.OpNone:
 				addPredicate(entry.columnPath, nil) // No filtering
-				columnSelectAs[entry.columnPath] = cond.Attribute.Name
+				addSelectAs(cond.Attribute, entry.columnPath, cond.Attribute.Name)
 				continue
 			case traceql.OpExists:
 				addPredicate(entry.columnPath, &parquetquery.SkipNilsPredicate{})
-				columnSelectAs[entry.columnPath] = cond.Attribute.Name
+				addSelectAs(cond.Attribute, entry.columnPath, cond.Attribute.Name)
 				continue
-			case traceql.OpNotExists:
-				pred := parquetquery.NewNilValuePredicate()
-				iters = append(iters, makeIter(entry.columnPath, pred, cond.Attribute.Name))
-				continue
+
+				// this should not happen since resource only has one wellknown attribute which is service.name
+				// and that cannot ever be nil, the check is in the parser already
+				// case traceql.OpNotExists:
+				// 	pred := parquetquery.NewNilValuePredicate()
+				// 	addPredicate(entry.columnPath, pred)
+				// 	addSelectAs(cond.Attribute, entry.columnPath, cond.Attribute.Name)
+				// 	continue
 			}
 
 			// Compatible type?
-			if entry.typ == operandType(cond.Operands) {
+			if isMatchingColumnType(entry.typ, operandType(cond.Operands)) {
 				pred, err := createPredicate(cond.Op, cond.Operands)
 				if err != nil {
 					return nil, errors.Wrap(err, "creating predicate")
@@ -1008,21 +993,22 @@ func createDistinctResourceIterator(
 			switch cond.Op {
 			case traceql.OpNone:
 				addPredicate(c.ColumnPath, nil) // No filtering
-				columnSelectAs[c.ColumnPath] = cond.Attribute.Name
+				addSelectAs(cond.Attribute, c.ColumnPath, cond.Attribute.Name)
 				continue
 			case traceql.OpExists:
 				addPredicate(c.ColumnPath, &parquetquery.SkipNilsPredicate{})
-				columnSelectAs[c.ColumnPath] = cond.Attribute.Name
+				addSelectAs(cond.Attribute, c.ColumnPath, cond.Attribute.Name)
 				continue
 			case traceql.OpNotExists:
 				pred := parquetquery.NewNilValuePredicate()
-				iters = append(iters, makeIter(c.ColumnPath, pred, cond.Attribute.Name))
+				addPredicate(c.ColumnPath, pred)
+				addSelectAs(cond.Attribute, c.ColumnPath, cond.Attribute.Name)
 				continue
 			}
 
 			// Compatible type?
 			typ, _ := c.Type.ToStaticType()
-			if typ == operandType(cond.Operands) {
+			if isMatchingColumnType(typ, operandType(cond.Operands)) {
 				pred, err := createPredicate(cond.Op, cond.Operands)
 				if err != nil {
 					return nil, errors.Wrap(err, "creating predicate")

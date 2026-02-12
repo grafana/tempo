@@ -32,3 +32,32 @@ func TestBuildShardedRequests(t *testing.T) {
 	require.Equal(t, "/querier?mode=ingesters", shardedReqs[0].HTTPRequest().RequestURI)
 	urisEqual(t, []string{"/querier?blockEnd=ffffffffffffffffffffffffffffffff&blockStart=00000000000000000000000000000000&mode=blocks"}, []string{shardedReqs[1].HTTPRequest().RequestURI})
 }
+
+func TestBuildShardedRequestsWithExternal(t *testing.T) {
+	queryShards := 4
+
+	sharder := &asyncTraceSharder{
+		cfg: &TraceByIDConfig{
+			QueryShards:     queryShards,
+			ExternalEnabled: true,
+		},
+		blockBoundaries: blockboundary.CreateBlockBoundaries(queryShards - 2),
+	}
+
+	ctx := user.InjectOrgID(context.Background(), "blerg")
+	req := httptest.NewRequest("GET", "/", nil).WithContext(ctx)
+
+	shardedReqs, err := sharder.buildShardedRequests(pipeline.NewHTTPRequest(req))
+	require.NoError(t, err)
+	require.Len(t, shardedReqs, queryShards)
+
+	require.Equal(t, "/querier?mode=ingesters", shardedReqs[0].HTTPRequest().RequestURI)
+	require.Equal(t, "/querier?mode=external", shardedReqs[1].HTTPRequest().RequestURI)
+
+	// Verify block shard requests
+	for i := 2; i < queryShards; i++ {
+		require.Contains(t, shardedReqs[i].HTTPRequest().RequestURI, "mode=blocks")
+		require.Contains(t, shardedReqs[i].HTTPRequest().RequestURI, "blockStart")
+		require.Contains(t, shardedReqs[i].HTTPRequest().RequestURI, "blockEnd")
+	}
+}

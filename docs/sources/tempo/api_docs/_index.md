@@ -43,7 +43,7 @@ For externally supported gRPC API, [refer to Tempo gRPC API](#tempo-grpc-api).
 | [TraceQL Metrics (instant)](#instant)                                                 | Query-frontend                            | HTTP | `GET /api/metrics/query`                                  |
 | [Query Echo Endpoint](#query-echo-endpoint)                                           | Query-frontend                            | HTTP | `GET /api/echo`                                           |
 | [Overrides API](#overrides-api)                                                       | Query-frontend                            | HTTP | `GET,POST,PATCH,DELETE /api/overrides`                    |
-| Memberlist                                                                            | Distributor, Ingester, Querier, Compactor | HTTP | `GET /memberlist`                                         |
+| Memberlist                                                                            | Distributor, Ingester, Querier            | HTTP | `GET /memberlist`                                         |
 | [Flush](#flush)                                                                       | Ingester                                  | HTTP | `GET,POST /flush`                                         |
 | [Shutdown](#shutdown)                                                                 | Ingester                                  | HTTP | `GET,POST /shutdown`                                      |
 | [Prepare partition downscale](#prepare-partition-downscale)                           | Ingester                                  | HTTP | `GET,POST,DELETE /ingester/prepare-partition-downscale`   |
@@ -53,7 +53,6 @@ For externally supported gRPC API, [refer to Tempo gRPC API](#tempo-grpc-api).
 | [Distributor ring status](#distributor-ring-status) (\*)                              | Distributor                               | HTTP | `GET /distributor/ring`                                   |
 | [Ingesters ring status](#ingesters-ring-status)                                       | Distributor, Querier                      | HTTP | `GET /ingester/ring`                                      |
 | [Metrics-generator ring status](#metrics-generator-ring-status) (\*)                  | Distributor                               | HTTP | `GET /metrics-generator/ring`                             |
-| [Compactor ring status](#compactor-ring-status)                                       | Compactor                                 | HTTP | `GET /compactor/ring`                                     |
 | [Status](#status)                                                                     | Status                                    | HTTP | `GET /status`                                             |
 | [List build information](#list-build-information)                                     | Status                                    | HTTP | `GET /api/status/buildinfo`                               |
 | [MCP Server](https://grafana.com/docs/tempo/<TEMPO_VERSION>/api_docs/mcp-server) (\*) | MCP                                       |      | `/api/mcp`                                                |
@@ -212,8 +211,12 @@ Parameters:
 
 **Returns**
 
-By default, this endpoint returns Query response with a [OpenTelemetry](https://github.com/open-telemetry/opentelemetry-proto/tree/main/opentelemetry/proto/trace/v1) JSON trace,
-but if it can also send OpenTelemetry proto if `Accept: application/protobuf` is passed.
+By default, this endpoint returns Query response with a [OpenTelemetry](https://github.com/open-telemetry/opentelemetry-proto/tree/main/opentelemetry/proto/trace/v1) JSON trace.
+
+Other formats can be requested using the `Accept` header:
+
+- `Accept: application/protobuf` - Returns OpenTelemetry proto format
+- `Accept: application/vnd.grafana.llm` - Returns a simplified JSON format optimized for LLM consumption. This format is subject to change and shouldn't be relied on for programmatic use.
 
 ### Search
 
@@ -612,6 +615,13 @@ Parameters:
 - `maxStaleValues = (integer)`
   Optional. Limits the search for tags values. If the number of stale (already known) values reaches or exceeds this limit, the search stops. If Tempo processes `maxStaleValues` matches without finding a new tag name, the search is returned early.
 
+**Returns**
+
+By default, this endpoint returns a JSON response with tag values and their types.
+Other formats can be requested using the `Accept` header:
+
+- `Accept: application/vnd.grafana.llm` - Returns a simplified JSON format optimized for LLM consumption. This format is subject to change and shouldn't be relied on for programmatic use.
+
 #### Filtered tag values
 
 You can pass an optional URL query parameter, `q`, to your request.
@@ -847,16 +857,6 @@ GET /metrics-generator/ring
 Displays a web page with the metrics-generator hash ring status, including the state, health, and last heartbeat time of each metrics-generator.
 
 This endpoint is only available when the metrics-generator is enabled. Refer to [metrics-generator](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/#metrics-generator).
-
-For more information, refer to [consistent hash ring](http://grafana.com/docs/tempo/<TEMPO_VERSION>/operations/manage-advanced-systems/consistent_hash_ring/).
-
-### Compactor ring status
-
-```
-GET /compactor/ring
-```
-
-Displays a web page with the compactor hash ring status, including the state, healthy, and last heartbeat time of each compactor.
 
 For more information, refer to [consistent hash ring](http://grafana.com/docs/tempo/<TEMPO_VERSION>/operations/manage-advanced-systems/consistent_hash_ring/).
 

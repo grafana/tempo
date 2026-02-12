@@ -556,7 +556,7 @@ func (i *instance) resetHeadBlock() error {
 
 func (i *instance) getDedicatedColumns() backend.DedicatedColumns {
 	if cols := i.overrides.DedicatedColumns(i.instanceID); cols != nil {
-		err := cols.Validate()
+		err, _ := cols.Validate()
 		if err != nil {
 			level.Error(i.logger).Log("msg", "Unable to apply overrides for dedicated attribute columns. Columns invalid.", "error", err)
 			return i.dedicatedColumns

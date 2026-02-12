@@ -465,7 +465,8 @@ func (c *Cluster) Control(fn func(kmsg.Request) (kmsg.Response, error, bool)) {
 }
 
 // Control is a function to call on a specific request key that the cluster
-// handles.
+// handles. If the key is -1, then the control function is run on all requests.
+// For all possible keys, see [kmsg.Key], for example [kmsg.Produce].
 //
 // If the control function returns true, then either the response is written
 // back to the client or, if the control function returns an error, the

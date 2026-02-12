@@ -5,20 +5,6 @@
         name: 'tempo_alerts',
         rules: [
           {
-            alert: 'TempoCompactorUnhealthy',
-            expr: |||
-              max by (%s) (tempo_ring_members{state="Unhealthy", name="%s", namespace=~"%s"}) > 0
-            ||| % [$._config.group_by_cluster, $._config.jobs.compactor, $._config.namespace],
-            'for': '15m',
-            labels: {
-              severity: 'critical',
-            },
-            annotations: {
-              message: 'There are {{ printf "%f" $value }} unhealthy compactor(s).',
-              runbook_url: 'https://github.com/grafana/tempo/tree/main/operations/tempo-mixin/runbook.md#TempoCompactorUnhealthy',
-            },
-          },
-          {
             alert: 'TempoDistributorUnhealthy',
             'for': '15m',
             expr: |||
@@ -30,20 +16,6 @@
             annotations: {
               message: 'There are {{ printf "%f" $value }} unhealthy distributor(s).',
               runbook_url: 'https://github.com/grafana/tempo/tree/main/operations/tempo-mixin/runbook.md#TempoDistributorUnhealthy',
-            },
-          },
-          {
-            alert: 'TempoIngesterUnhealthy',
-            'for': '15m',
-            expr: |||
-              max by (%s) (tempo_ring_members{state="Unhealthy", name="%s", namespace=~"%s"}) > 0
-            ||| % [$._config.group_by_cluster, $._config.jobs.ingester, $._config.namespace],
-            labels: {
-              severity: 'critical',
-            },
-            annotations: {
-              message: 'There are {{ printf "%f" $value }} unhealthy ingester(s).',
-              runbook_url: 'https://github.com/grafana/tempo/tree/main/operations/tempo-mixin/runbook.md#TempoIngesterUnhealthy',
             },
           },
           {
@@ -87,38 +59,6 @@
             annotations: {
               message: 'Greater than %s compactions have failed in the past hour.' % $._config.alerts.compactions_per_hour_failed,
               runbook_url: 'https://github.com/grafana/tempo/tree/main/operations/tempo-mixin/runbook.md#TempoCompactionsFailing',
-            },
-          },
-          {
-            // wait 5m for failed flushes to self-heal using retries
-            alert: 'TempoIngesterFlushesUnhealthy',
-            expr: |||
-              sum by (%s) (increase(tempo_ingester_failed_flushes_total{}[1h])) > %s and
-              sum by (%s) (increase(tempo_ingester_failed_flushes_total{}[5m])) > 0
-            ||| % [$._config.group_by_cluster, $._config.alerts.flushes_per_hour_failed, $._config.group_by_cluster],
-            'for': '5m',
-            labels: {
-              severity: 'warning',
-            },
-            annotations: {
-              message: 'Greater than %s flush retries have occurred in the past hour.' % $._config.alerts.flushes_per_hour_failed,
-              runbook_url: 'https://github.com/grafana/tempo/tree/main/operations/tempo-mixin/runbook.md#TempoIngesterFlushesFailing',
-            },
-          },
-          {
-            // wait 10m for failed flushes to self-heal using retries
-            alert: 'TempoIngesterFlushesFailing',
-            expr: |||
-              sum by (%s) (increase(tempo_ingester_flush_failed_retries_total{}[1h])) > %s and
-              sum by (%s) (increase(tempo_ingester_flush_failed_retries_total{}[5m])) > 0
-            ||| % [$._config.group_by_cluster, $._config.alerts.flushes_per_hour_failed, $._config.group_by_cluster],
-            'for': '5m',
-            labels: {
-              severity: 'critical',
-            },
-            annotations: {
-              message: 'Greater than %s flush retries have failed in the past hour.' % $._config.alerts.flushes_per_hour_failed,
-              runbook_url: 'https://github.com/grafana/tempo/tree/main/operations/tempo-mixin/runbook.md#TempoIngesterFlushesFailing',
             },
           },
           {
@@ -220,25 +160,9 @@
               runbook_url: 'https://github.com/grafana/tempo/tree/main/operations/tempo-mixin/runbook.md#TempoTenantIndexFailures',
             },
           },
-          // ingesters
-          {
-            alert: 'TempoProvisioningTooManyWrites',
-            // 30MB/s written to the WAL per ingester max
-            expr: |||
-              avg by (%s) (rate(tempo_ingester_bytes_received_total{job=~".+/ingester"}[5m])) / 1024 / 1024 > 30
-            ||| % $._config.group_by_cluster,
-            'for': '15m',
-            labels: {
-              severity: 'warning',
-            },
-            annotations: {
-              message: 'Ingesters in {{ $labels.%s }}/{{ $labels.namespace }} are receiving more data/second than desired, add more ingesters.' % $._config.per_cluster_label,
-              runbook_url: 'https://github.com/grafana/tempo/tree/main/operations/tempo-mixin/runbook.md#TempoProvisioningTooManyWrites',
-            },
-          },
           // compactors
           {
-            alert: 'TempoCompactorsTooManyOutstandingBlocks',
+            alert: 'TempoCompactionTooManyOutstandingBlocks',
             expr: |||
               sum by (%s) (tempodb_compaction_outstanding_blocks{container="compactor", namespace=~"%s"}) / ignoring(tenant) group_left count(tempo_build_info{container="compactor", namespace=~"%s"}) by (%s) > %d
             ||| % [$._config.group_by_tenant, $._config.namespace, $._config.namespace, $._config.group_by_cluster, $._config.alerts.outstanding_blocks_warning],
@@ -248,11 +172,11 @@
             },
             annotations: {
               message: "There are too many outstanding compaction blocks in {{ $labels.%s }}/{{ $labels.namespace }} for tenant {{ $labels.tenant }}, increase compactor's CPU or add more compactors." % $._config.per_cluster_label,
-              runbook_url: 'https://github.com/grafana/tempo/tree/main/operations/tempo-mixin/runbook.md#TempoCompactorsTooManyOutstandingBlocks',
+              runbook_url: 'https://github.com/grafana/tempo/tree/main/operations/tempo-mixin/runbook.md#TempoCompactionTooManyOutstandingBlocks',
             },
           },
           {
-            alert: 'TempoCompactorsTooManyOutstandingBlocks',
+            alert: 'TempoCompactionTooManyOutstandingBlocks',
             expr: |||
               sum by (%s) (tempodb_compaction_outstanding_blocks{container="compactor", namespace=~"%s"}) / ignoring(tenant) group_left count(tempo_build_info{container="compactor", namespace=~"%s"}) by (%s) > %d
             ||| % [$._config.group_by_tenant, $._config.namespace, $._config.namespace, $._config.group_by_cluster, $._config.alerts.outstanding_blocks_critical],
@@ -262,21 +186,7 @@
             },
             annotations: {
               message: "There are too many outstanding compaction blocks in {{ $labels.%s }}/{{ $labels.namespace }} for tenant {{ $labels.tenant }}, increase compactor's CPU or add more compactors." % $._config.per_cluster_label,
-              runbook_url: 'https://github.com/grafana/tempo/tree/main/operations/tempo-mixin/runbook.md#TempoCompactorsTooManyOutstandingBlocks',
-            },
-          },
-          {
-            alert: 'TempoIngesterReplayErrors',
-            'for': '5m',
-            expr: |||
-              sum by (%s) (increase(tempo_ingester_replay_errors_total{namespace=~"%s"}[5m])) > 0
-            ||| % [$._config.group_by_tenant, $._config.namespace],
-            labels: {
-              severity: 'critical',
-            },
-            annotations: {
-              message: 'Tempo ingester has encountered errors while replaying a block on startup in {{ $labels.%s }}/{{ $labels.namespace }} for tenant {{ $labels.tenant }}' % $._config.per_cluster_label,
-              runbook_url: 'https://github.com/grafana/tempo/tree/main/operations/tempo-mixin/runbook.md#TempoIngesterReplayErrors',
+              runbook_url: 'https://github.com/grafana/tempo/tree/main/operations/tempo-mixin/runbook.md#TempoCompactionTooManyOutstandingBlocks',
             },
           },
           {
@@ -434,6 +344,148 @@
             annotations: {
               message: 'Tempo vulture error rate is {{ printf "%0.2f" $value }} for error type {{ $labels.error }} in {{ $labels.cluster }}/{{ $labels.namespace }}',
               runbook_url: 'https://github.com/grafana/tempo/tree/main/operations/tempo-mixin/runbook.md#TempoVultureHighErrorRate',
+            },
+          },
+
+          {
+            alert: 'TempoMemcachedErrorsElevated',
+            expr: |||
+              sum(rate(tempo_memcache_request_duration_seconds_count{status_code="500"}[5m])) by (cluster, namespace, name)
+              /
+              sum(rate(tempo_memcache_request_duration_seconds_count{}[5m])) by (cluster, namespace, name) > 0.2
+            |||,
+            'for': '10m',
+            labels: {
+              severity: 'warning',
+            },
+            annotations: {
+              message: 'Tempo memcached error rate is {{ printf "%0.2f" $value }} for role {{ $labels.name }} in {{ $labels.cluster }}/{{ $labels.namespace }}.',
+              runbook_url: 'https://github.com/grafana/tempo/tree/main/operations/tempo-mixin/runbook.md#TempoMemcachedErrorsElevated',
+            },
+          },
+
+          {
+            alert: 'TempoBlockBuildersPartitionsMismatch',
+            expr: |||
+              max(tempo_partition_ring_partitions{name=~"livestore-partitions", state=~"Active|Inactive"}) by (namespace,cluster)
+              >
+              sum(tempo_block_builder_owned_partitions) by(namespace,cluster)
+            |||,
+            labels: {
+              severity: 'critical',
+            },
+            annotations: {
+              message: 'Tempo block-builder partitions mismatch in {{ $labels.cluster }}/{{ $labels.namespace }}.',
+              runbook_url: 'https://github.com/grafana/tempo/tree/main/operations/tempo-mixin/runbook.md#TempoBlockBuildersPartitionsMismatch',
+            },
+            'for': '10m',
+          },
+
+          {
+            alert: 'TempoLiveStoresPartitionsUnowned',
+            expr: |||
+              max by(namespace, cluster) (
+                tempo_partition_ring_partitions{name=~"livestore-partitions", state=~"Active|Inactive"}
+              )
+              >
+              count(count by (partition,namespace,cluster) (
+                tempo_live_store_partition_owned{}
+              )) by (namespace, cluster)
+            |||,
+            labels: {
+              severity: 'critical',
+            },
+            annotations: {
+              message: 'Some live-store partitions are unowned in {{ $labels.cluster }}/{{ $labels.namespace }}.',
+              runbook_url: 'https://github.com/grafana/tempo/tree/main/operations/tempo-mixin/runbook.md#TempoLiveStoresPartitionsUnowned',
+            },
+            'for': '10m',
+          },
+          // Zone severely degraded (60% down)
+          {
+            alert: 'TempoLiveStoreZoneSeverelyDegraded',
+            expr: |||
+              abs(
+                (
+                  count by (namespace, cluster, zone) (tempo_live_store_partition_owned)
+                  /
+                  on(namespace, cluster)
+                  group_left()
+                  max by (namespace, cluster) (count by (namespace, cluster, zone) (tempo_live_store_partition_owned))
+                 ) - 1
+               ) > 0.6
+            |||,
+            labels: {
+              severity: 'critical',
+            },
+            annotations: {
+              message: 'Live-store zone {{ $labels.zone }} owns far fewer partitions than peers in {{ $labels.cluster }}/{{ $labels.namespace }}.',
+              runbook_url: 'https://github.com/grafana/tempo/tree/main/operations/tempo-mixin/runbook.md#TempoLiveStoreZoneSeverelyDegraded',
+            },
+            'for': '10m',
+          },
+
+
+          {
+            alert: 'TempoDistributorUsageTrackerErrors',
+            expr: |||
+              sum by (cluster, namespace, tenant, reason)(rate(tempo_distributor_usage_tracker_errors_total{}[5m])) > 0
+            |||,
+            'for': '30m',
+            labels: {
+              severity: 'critical',
+            },
+            annotations: {
+              message: 'Tempo distributor usage tracker errors for tenant {{ $labels.tenant }} in {{ $labels.cluster }}/{{ $labels.namespace }} (reason: {{ $labels.reason }}).',
+              runbook_url: 'https://github.com/grafana/tempo/tree/main/operations/tempo-mixin/runbook.md#TempoDistributorUsageTrackerErrors',
+            },
+          },
+          {
+            alert: 'TempoMetricsGeneratorProcessorUpdatesFailing',
+            expr: |||
+              sum by (cluster, namespace, tenant) (
+                increase(tempo_metrics_generator_active_processors_update_failed_total{namespace=~"%s"}[5m])
+              ) > 0
+            ||| % $._config.namespace,
+            'for': '15m',
+            labels: {
+              severity: 'critical',
+            },
+            annotations: {
+              message: 'Metrics-generator processor updates are failing for tenant {{ $labels.tenant }} in {{ $labels.cluster }}/{{ $labels.namespace }}.',
+              runbook_url: 'https://github.com/grafana/tempo/tree/main/operations/tempo-mixin/runbook.md#TempoMetricsGeneratorProcessorUpdatesFailing',
+            },
+          },
+          {
+            alert: 'TempoMetricsGeneratorServiceGraphsDroppingSpans',
+            // 99.5
+            expr: |||
+              sum by (cluster, namespace, tenant) (increase(tempo_metrics_generator_processor_service_graphs_dropped_spans{namespace=~"%s"}[1h]))
+              /
+              sum by (cluster, namespace, tenant) (increase(tempo_metrics_generator_spans_received_total{namespace=~"%s"}[1h]))
+              > 0.005
+            ||| % [$._config.namespace, $._config.namespace],
+            'for': '15m',
+            labels: {
+              severity: 'warning',
+            },
+            annotations: {
+              message: 'Metrics-generator service-graphs processor is dropping {{ $value | humanizePercentage }} spans for tenant {{ $labels.tenant }} in {{ $labels.cluster }}/{{ $labels.namespace }}.',
+              runbook_url: 'https://github.com/grafana/tempo/tree/main/operations/tempo-mixin/runbook.md#TempoMetricsGeneratorServiceGraphsDroppingSpans',
+            },
+          },
+          {
+            alert: 'TempoMetricsGeneratorCollectionsFailing',
+            expr: |||
+              sum by (cluster, namespace, tenant, pod, job) (increase(tempo_metrics_generator_registry_collections_failed_total{namespace=~"%s"}[5m])) > 2
+            ||| % $._config.namespace,
+            'for': '5m',
+            labels: {
+              severity: 'critical',
+            },
+            annotations: {
+              message: 'Metrics-generator collections are failing for tenant {{ $labels.tenant }} in {{ $labels.cluster }}/{{ $labels.namespace }}.',
+              runbook_url: 'https://github.com/grafana/tempo/tree/main/operations/tempo-mixin/runbook.md#TempoMetricsGeneratorCollectionsFailing',
             },
           },
         ],

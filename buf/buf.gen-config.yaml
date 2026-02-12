@@ -1,0 +1,8 @@
+version: v2
+modules:
+  - path: pkg/.patched-proto
+  - path: pkg/tempopb
+  - path: vendor
+  - path: vendor/github.com/gogo/protobuf
+  - path: tempodb/backend
+  - path: modules/frontend/v1/frontendv1pb

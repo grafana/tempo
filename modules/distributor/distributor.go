@@ -72,6 +72,11 @@ var (
 		Name:      "distributor_metrics_generator_pushes_failures_total",
 		Help:      "The total number of failed span pushes sent to metrics-generators.",
 	}, []string{"metrics_generator"})
+	metricGeneratorTenantRingSize = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: "tempo",
+		Name:      "distributor_metrics_generator_tenant_ring_size",
+		Help:      "The number of generator instances in the ring for a tenant",
+	}, []string{"tenant"})
 	metricSpansIngested = promauto.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "tempo",
 		Name:      "distributor_spans_received_total",
@@ -114,8 +119,8 @@ var (
 	metricAttributesTruncated = promauto.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "tempo",
 		Name:      "distributor_attributes_truncated_total",
-		Help:      "The total number of attribute keys or values truncated per tenant",
-	}, []string{"tenant"})
+		Help:      "The total number of attribute keys or values truncated per tenant and scope",
+	}, []string{"tenant", "scope"})
 	metricKafkaRecordsPerRequest = promauto.NewHistogram(prometheus.HistogramOpts{
 		Namespace: "tempo",
 		Subsystem: "distributor",
@@ -148,6 +153,18 @@ type rebatchedTrace struct {
 	start     uint32 // unix epoch seconds
 	end       uint32 // unix epoch seconds
 	spanCount int
+}
+
+type truncatedAttributesCount struct {
+	Resource int
+	Scope    int
+	Span     int
+	Event    int
+	Link     int
+}
+
+func (c truncatedAttributesCount) Total() int {
+	return c.Resource + c.Scope + c.Span + c.Event + c.Link
 }
 
 // Distributor coordinates replicates and distribution of log streams.
@@ -185,6 +202,10 @@ type Distributor struct {
 	usage *usage.Tracker
 
 	logger log.Logger
+
+	// TracePushMiddlewares are hooks called when a trace push request is received.
+	// Middleware errors are logged but don't fail the push (fail open behavior).
+	tracePushMiddlewares []TracePushMiddleware
 
 	// For testing functionality that relies on timing without having to sleep in unit tests.
 	sleep func(time.Duration)
@@ -262,6 +283,7 @@ func New(
 		partitionRing:        partitionRing,
 		overrides:            o,
 		traceEncoder:         model.MustNewSegmentDecoder(model.CurrentEncoding),
+		tracePushMiddlewares: cfg.TracePushMiddlewares,
 		logger:               logger,
 		sleep:                time.Sleep,
 		now:                  time.Now,
@@ -408,8 +430,15 @@ func (d *Distributor) extractBasicInfo(ctx context.Context, traces ptrace.Traces
 func (d *Distributor) PushTraces(ctx context.Context, traces ptrace.Traces) (*tempopb.PushResponse, error) {
 	reqStart := time.Now()
 
-	ctx, span := tracer.Start(ctx, "distributor.PushBytes")
+	ctx, span := tracer.Start(ctx, "distributor.PushTraces")
 	defer span.End()
+
+	// Call trace push middlewares
+	for _, mw := range d.tracePushMiddlewares {
+		if err := mw(ctx, traces); err != nil {
+			_ = level.Warn(d.logger).Log("msg", "trace push middleware failed", "err", err)
+		}
+	}
 
 	userID, spanCount, size, err := d.extractBasicInfo(ctx, traces)
 	if err != nil {
@@ -465,14 +494,18 @@ func (d *Distributor) PushTraces(ctx context.Context, traces ptrace.Traces) (*te
 
 	maxAttributeBytes := d.getMaxAttributeBytes(userID)
 
-	ringTokens, rebatchedTraces, truncatedAttributeCount, err := requestsByTraceID(batches, userID, spanCount, maxAttributeBytes)
+	ringTokens, rebatchedTraces, truncatedAttributesCount, err := requestsByTraceID(batches, userID, spanCount, maxAttributeBytes)
 	if err != nil {
 		logDiscardedResourceSpans(batches, userID, &d.cfg.LogDiscardedSpans, d.logger)
 		return nil, err
 	}
 
-	if truncatedAttributeCount > 0 {
-		metricAttributesTruncated.WithLabelValues(userID).Add(float64(truncatedAttributeCount))
+	if truncatedAttributesCount.Total() > 0 {
+		metricAttributesTruncated.WithLabelValues(userID, "resource").Add(float64(truncatedAttributesCount.Resource))
+		metricAttributesTruncated.WithLabelValues(userID, "scope").Add(float64(truncatedAttributesCount.Scope))
+		metricAttributesTruncated.WithLabelValues(userID, "span").Add(float64(truncatedAttributesCount.Span))
+		metricAttributesTruncated.WithLabelValues(userID, "event").Add(float64(truncatedAttributesCount.Event))
+		metricAttributesTruncated.WithLabelValues(userID, "link").Add(float64(truncatedAttributesCount.Link))
 	}
 
 	if d.cfg.IngesterWritePathEnabled {
@@ -576,7 +609,11 @@ func (d *Distributor) sendToGenerators(ctx context.Context, userID string, keys 
 	// If an instance is unhealthy write to the next one (i.e. write extend is enabled)
 	op := ring.Write
 
-	readRing := d.generatorsRing.ShuffleShard(userID, d.overrides.MetricsGeneratorRingSize(userID))
+	ringSize := d.overrides.MetricsGeneratorRingSize(userID)
+
+	metricGeneratorTenantRingSize.WithLabelValues(userID).Set(float64(ringSize))
+
+	readRing := d.generatorsRing.ShuffleShard(userID, ringSize)
 
 	err := ring.DoBatchWithOptions(ctx, op, readRing, keys, func(generator ring.InstanceDesc, indexes []int) error {
 		localCtx, cancel := context.WithTimeout(ctx, d.generatorClientCfg.RemoteTimeout)
@@ -692,17 +729,17 @@ func (d *Distributor) sendToKafka(ctx context.Context, userID string, keys []uin
 
 // requestsByTraceID takes an incoming tempodb.PushRequest and creates a set of keys for the hash ring
 // and traces to pass onto the ingesters.
-func requestsByTraceID(batches []*v1.ResourceSpans, userID string, spanCount, maxSpanAttrSize int) ([]uint32, []*rebatchedTrace, int, error) {
+func requestsByTraceID(batches []*v1.ResourceSpans, userID string, spanCount, maxSpanAttrSize int) ([]uint32, []*rebatchedTrace, truncatedAttributesCount, error) {
 	const tracesPerBatch = 20 // p50 of internal env
 	tracesByID := make(map[uint64]*rebatchedTrace, tracesPerBatch)
-	truncatedAttributeCount := 0
+	truncatedCount := truncatedAttributesCount{}
 	currentTime := uint32(time.Now().Unix())
 	for _, b := range batches {
 		spansByILS := make(map[uint64]*v1.ScopeSpans)
 		// check resource for large attributes
 		if maxSpanAttrSize > 0 && b.Resource != nil {
 			resourceAttrTruncatedCount := processAttributes(b.Resource.Attributes, maxSpanAttrSize)
-			truncatedAttributeCount += resourceAttrTruncatedCount
+			truncatedCount.Resource += resourceAttrTruncatedCount
 		}
 
 		for _, ils := range b.ScopeSpans {
@@ -710,33 +747,33 @@ func requestsByTraceID(batches []*v1.ResourceSpans, userID string, spanCount, ma
 			// check instrumentation for large attributes
 			if maxSpanAttrSize > 0 && ils.Scope != nil {
 				scopeAttrTruncatedCount := processAttributes(ils.Scope.Attributes, maxSpanAttrSize)
-				truncatedAttributeCount += scopeAttrTruncatedCount
+				truncatedCount.Scope += scopeAttrTruncatedCount
 			}
 
 			for _, span := range ils.Spans {
 				// check spans for large attributes
 				if maxSpanAttrSize > 0 {
 					spanAttrTruncatedCount := processAttributes(span.Attributes, maxSpanAttrSize)
-					truncatedAttributeCount += spanAttrTruncatedCount
+					truncatedCount.Span += spanAttrTruncatedCount
 
 					// check large attributes for events and links
 					for _, event := range span.Events {
 						eventAttrTruncatedCount := processAttributes(event.Attributes, maxSpanAttrSize)
-						truncatedAttributeCount += eventAttrTruncatedCount
+						truncatedCount.Event += eventAttrTruncatedCount
 					}
 
 					for _, link := range span.Links {
 						linkAttrTruncatedCount := processAttributes(link.Attributes, maxSpanAttrSize)
-						truncatedAttributeCount += linkAttrTruncatedCount
+						truncatedCount.Link += linkAttrTruncatedCount
 					}
 				}
 				traceID := span.TraceId
 				if !validation.ValidTraceID(traceID) {
-					return nil, nil, 0, status.Errorf(codes.InvalidArgument, "trace ids must be 128 bit, received %d bits", len(traceID)*8)
+					return nil, nil, truncatedAttributesCount{}, status.Errorf(codes.InvalidArgument, "trace ids must be 128 bit, received %d bits", len(traceID)*8)
 				}
 
 				if !validation.ValidSpanID(span.SpanId) {
-					return nil, nil, 0, status.Errorf(codes.InvalidArgument, "span ids must be 64 bit and not all zero, received %d bits", len(span.SpanId)*8)
+					return nil, nil, truncatedAttributesCount{}, status.Errorf(codes.InvalidArgument, "span ids must be 64 bit and not all zero, received %d bits", len(span.SpanId)*8)
 				}
 
 				traceKey := util.HashForTraceID(traceID)
@@ -809,7 +846,7 @@ func requestsByTraceID(batches []*v1.ResourceSpans, userID string, spanCount, ma
 		traces = append(traces, tr)
 	}
 
-	return ringTokens, traces, truncatedAttributeCount, nil
+	return ringTokens, traces, truncatedCount, nil
 }
 
 // find and truncate the span attributes that are too large
@@ -1058,3 +1095,8 @@ func (d *Distributor) RetryInfoEnabled(ctx context.Context) (bool, error) {
 	// cluster level is enabled, check per-tenant override and respect that.
 	return d.overrides.IngestionRetryInfoEnabled(userID), nil
 }
+
+// TracePushMiddleware is a hook called when a trace push request is received.
+// Middlewares are invoked after the request is decoded but before it's processed.
+// Errors returned by middleware are logged but don't fail the push (fail open behavior).
+type TracePushMiddleware func(ctx context.Context, td ptrace.Traces) error

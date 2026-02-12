@@ -16,8 +16,8 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	ver "github.com/prometheus/client_golang/prometheus/collectors/version"
 	"github.com/prometheus/common/version"
+	"go.yaml.in/yaml/v2"
 	"google.golang.org/grpc/encoding"
-	"gopkg.in/yaml.v2"
 
 	"github.com/grafana/tempo/cmd/tempo/app"
 	"github.com/grafana/tempo/pkg/gogocodec"
@@ -59,6 +59,9 @@ func main() {
 		fmt.Println(version.Print(appName))
 		os.Exit(0)
 	}
+
+	// Init automemlimit if enabled
+	app.InitAutoMemLimit(config)
 
 	// Init the logger which will honor the log level set in config.Server
 	if reflect.DeepEqual(&config.Server.LogLevel, &dslog.Level{}) {

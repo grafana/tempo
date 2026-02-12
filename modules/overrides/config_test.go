@@ -12,7 +12,7 @@ import (
 	"github.com/prometheus/common/model"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"gopkg.in/yaml.v2"
+	"go.yaml.in/yaml/v2"
 
 	"github.com/grafana/tempo/modules/overrides/histograms"
 	"github.com/grafana/tempo/modules/overrides/userconfigurable/client"
@@ -349,7 +349,7 @@ func ensureAllFieldsPopulated(t *testing.T, o LegacyOverrides) {
 		fieldName := structType.Field(i).Name
 
 		// Skip certain fields that can be zero in valid configs
-		skip := []string{"IngestionArtificialDelay"}
+		skip := []string{"IngestionArtificialDelay", "MetricsGeneratorSpanNameSanitization"}
 		if slices.Contains(skip, fieldName) {
 			continue
 		}
@@ -433,6 +433,7 @@ func generateTestLegacyOverrides() LegacyOverrides {
 		MetricsGeneratorProcessorServiceGraphsEnableClientServerPrefix:              boolPtr(true),
 		MetricsGeneratorProcessorServiceGraphsEnableMessagingSystemLatencyHistogram: boolPtr(true),
 		MetricsGeneratorProcessorServiceGraphsEnableVirtualNodeLabel:                boolPtr(true),
+		MetricsGeneratorProcessorServiceGraphsSpanMultiplierKey:                     "custom_key",
 		MetricsGeneratorProcessorSpanMetricsHistogramBuckets:                        []float64{1.0, 2.0, 5.0},
 		MetricsGeneratorProcessorSpanMetricsDimensions:                              []string{"dimension-1", "dimension-2"},
 		MetricsGeneratorProcessorSpanMetricsIntrinsicDimensions:                     map[string]bool{"dim-1": true, "dim-2": false},
@@ -462,6 +463,7 @@ func generateTestLegacyOverrides() LegacyOverrides {
 		MetricsGeneratorProcessorSpanMetricsEnableTargetInfo:             boolPtr(true),
 		MetricsGeneratorProcessorSpanMetricsTargetInfoExcludedDimensions: []string{"excluded-dim-1", "excluded-dim-2"},
 		MetricsGeneratorProcessorSpanMetricsEnableInstanceLabel:          boolPtr(false),
+		MetricsGeneratorProcessorSpanMetricsSpanMultiplierKey:            "custom_key",
 		MetricsGeneratorProcessorLocalBlocksMaxLiveTraces:                100,
 		MetricsGeneratorProcessorLocalBlocksMaxBlockDuration:             10 * time.Minute,
 		MetricsGeneratorProcessorLocalBlocksMaxBlockBytes:                1024 * 1024,
@@ -474,6 +476,7 @@ func generateTestLegacyOverrides() LegacyOverrides {
 		MetricsGeneratorNativeHistogramBucketFactor:                      1.5,
 		MetricsGeneratorNativeHistogramMaxBucketNumber:                   200,
 		MetricsGeneratorNativeHistogramMinResetDuration:                  10 * time.Minute,
+		MetricsGeneratorSpanNameSanitization:                             "",
 
 		BlockRetention:     model.Duration(7 * 24 * time.Hour),
 		CompactionDisabled: true,

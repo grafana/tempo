@@ -2,9 +2,11 @@ package livestore
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/go-kit/log"
@@ -41,6 +43,8 @@ const (
 	droppedRecordReasonDecodingFailed   = "decoding_failed"
 	droppedRecordReasonInstanceNotFound = "instance_not_found"
 )
+
+var ErrStarting = errors.New("live-store is starting")
 
 var (
 	// Queue management metrics
@@ -93,6 +97,19 @@ var (
 		Name:      "records_dropped_total",
 		Help:      "The total number of kafka records dropped per tenant.",
 	}, []string{"tenant", "reason"})
+
+	// Readiness metrics
+	metricCatchUpDuration = promauto.NewGauge(prometheus.GaugeOpts{
+		Namespace: "tempo_live_store",
+		Name:      "catch_up_duration_seconds",
+		Help:      "Time spent catching up at startup",
+	})
+
+	metricReady = promauto.NewGauge(prometheus.GaugeOpts{
+		Namespace: "tempo_live_store",
+		Name:      "ready",
+		Help:      "1 if ready to serve queries, 0 otherwise",
+	})
 )
 
 type LiveStore struct {
@@ -120,12 +137,14 @@ type LiveStore struct {
 	overrides    overrides.Interface
 
 	// Background processing
-	ctx             context.Context // context for the service. all background processes should exit if this is cancelled
-	cancel          func()
-	wg              sync.WaitGroup
-	completeQueues  *flushqueues.ExclusiveQueues[*completeOp]
-	startupComplete chan struct{} // channel to signal that the starting function has finished. allows background processes to block until the service is fully started
-	lagCancel       context.CancelFunc
+	ctx                 context.Context // context for the service. all background processes should exit if this is cancelled
+	cancel              func()
+	wg                  sync.WaitGroup
+	completeQueues      *flushqueues.ExclusiveQueues[*completeOp]
+	startupComplete     chan struct{} // channel to signal that the starting function has finished. allows background processes to block until the service is fully started
+	lagCancel           context.CancelFunc
+	readyErr            atomic.Pointer[error] // nil when ready to serve queries
+	lastRecordTimeNanos atomic.Int64          // stores timestamp of last consumed record as UnixNano, -1 means not set
 }
 
 func New(cfg Config, overridesService overrides.Interface, logger log.Logger, reg prometheus.Registerer, singlePartition bool) (*LiveStore, error) {
@@ -143,6 +162,11 @@ func New(cfg Config, overridesService overrides.Interface, logger log.Logger, re
 		completeQueues:  flushqueues.New[*completeOp](cfg.CompleteBlockConcurrency, metricCompleteQueueLength),
 		startupComplete: make(chan struct{}),
 	}
+
+	// Initialize ready state to starting
+	s.readyErr.Store(&ErrStarting)
+	metricReady.Set(0)
+	s.lastRecordTimeNanos.Store(-1)
 
 	var err error
 	if singlePartition {
@@ -260,6 +284,11 @@ func (s *LiveStore) starting(ctx context.Context) error {
 		}
 	}
 
+	forceFromLookback := len(s.getInstances()) == 0
+	if forceFromLookback {
+		level.Info(s.logger).Log("msg", "no local data found after reload, will force reading from lookback period")
+	}
+
 	err = services.StartAndAwaitRunning(ctx, s.ingestPartitionLifecycler)
 	if err != nil {
 		return fmt.Errorf("failed to start partition lifecycler: %w", err)
@@ -285,7 +314,7 @@ func (s *LiveStore) starting(ctx context.Context) error {
 	}
 
 	lookbackPeriod := 2 * s.cfg.CompleteBlockTimeout
-	s.reader, err = NewPartitionReaderForPusher(s.client, s.ingestPartitionID, s.cfg.IngestConfig.Kafka, s.cfg.CommitInterval, lookbackPeriod, s.consume, s.logger, s.reg)
+	s.reader, err = NewPartitionReaderForPusher(s.client, s.ingestPartitionID, s.cfg.IngestConfig.Kafka, s.cfg.CommitInterval, lookbackPeriod, forceFromLookback, s.consume, s.logger, s.reg)
 	if err != nil {
 		return fmt.Errorf("failed to create partition reader: %w", err)
 	}
@@ -316,6 +345,16 @@ func (s *LiveStore) starting(ctx context.Context) error {
 	// allow background processes to start
 	s.startAllBackgroundProcesses()
 
+	// Wait for catch-up before marking ready (if enabled)
+	if err := s.waitForCatchUp(ctx); err != nil {
+		return fmt.Errorf("failed to catch up: %w", err)
+	}
+
+	// Mark as ready at end of starting()
+	s.readyErr.Store(nil)
+	metricReady.Set(1)
+	level.Info(s.logger).Log("msg", "live-store ready to serve queries")
+
 	return nil
 }
 
@@ -331,6 +370,7 @@ func (s *LiveStore) running(ctx context.Context) error {
 func (s *LiveStore) stopping(error) error {
 	// Stop the kafka lag background worker.
 	s.lagCancel()
+	metricReady.Set(0)
 
 	// Stop consuming
 	err := services.StopAndAwaitTerminated(context.Background(), s.reader)
@@ -366,6 +406,113 @@ func (s *LiveStore) stopping(error) error {
 	return nil
 }
 
+func (s *LiveStore) waitForCatchUp(ctx context.Context) error {
+	// If disabled (ReadinessTargetLag == 0), mark ready immediately
+	// This preserves backward compatibility
+	if s.cfg.ReadinessTargetLag == 0 {
+		level.Info(s.logger).Log("msg", "catch-up waiting disabled (readiness_target_lag=0)")
+		return nil
+	}
+
+	startTime := time.Now()
+
+	ticker := time.NewTicker(time.Second) // Check every second
+	defer ticker.Stop()
+
+	level.Info(s.logger).Log(
+		"msg", "waiting for Kafka catch-up",
+		"target_lag", s.cfg.ReadinessTargetLag,
+		"max_wait", s.cfg.ReadinessMaxWait,
+	)
+
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-ticker.C:
+			elapsed := time.Since(startTime)
+
+			// Check max wait timeout
+			if elapsed >= s.cfg.ReadinessMaxWait {
+				level.Warn(s.logger).Log(
+					"msg", "max catch-up wait exceeded, proceeding anyway",
+					"elapsed", elapsed,
+					"max_wait", s.cfg.ReadinessMaxWait,
+				)
+				metricCatchUpDuration.Set(elapsed.Seconds())
+				return nil
+			}
+
+			// Calculate current lag
+			lag := s.calculateTimeLag(1000)
+			if lag == nil {
+				level.Debug(s.logger).Log("msg", "catch-up lag could not be determined, waiting")
+				continue
+			}
+
+			level.Debug(s.logger).Log(
+				"msg", "catch-up progress",
+				"current_lag", *lag,
+				"target_lag", s.cfg.ReadinessTargetLag,
+				"elapsed", elapsed,
+			)
+
+			if *lag <= s.cfg.ReadinessTargetLag {
+				level.Info(s.logger).Log(
+					"msg", "caught up with Kafka",
+					"final_lag", *lag,
+					"target_lag", s.cfg.ReadinessTargetLag,
+					"elapsed", elapsed,
+				)
+				metricCatchUpDuration.Set(elapsed.Seconds())
+				return nil
+			}
+		}
+	}
+}
+
+// Calculate lag based on parameters populated by PartitionReader
+// Edge cases:
+// - empty partition = no lag
+// - nothing has been fetched yet = indeterminate
+// - we know the watermark but nothing has been consumed yet = indeterminate
+//
+// It takes lagShortcutThreshold to shortcut calculations if the lag is close to the end of the partition.
+// To disable the shortcut, set lagShortcutThreshold to a negative value.
+func (s *LiveStore) calculateTimeLag(lagShortcutThreshold int64) *time.Duration {
+	// Use cached high watermark from fetch responses (avoids extra API call)
+	lag := s.reader.lag.Load()
+	zero := time.Duration(0)
+
+	// If we haven't performed any fetches yet, we can't determine lag
+	if lag < 0 {
+		level.Debug(s.logger).Log("msg", "High watermark not set yet")
+		return nil
+	}
+
+	// Check if we are near end or partition is empty
+	// Arbitrary value picked to shortcut calculations
+	if lagShortcutThreshold >= 0 && lag <= lagShortcutThreshold {
+		level.Debug(s.logger).Log(
+			"msg", "At or close to partition end",
+			"lag", lag)
+		return &zero
+	}
+
+	nanos := s.lastRecordTimeNanos.Load()
+	if nanos < 0 {
+		level.Debug(s.logger).Log("msg", "No last record yet")
+		// Haven't consumed records - check if offset at end
+		return nil // Not caught up yet, can't determine lag
+	}
+
+	// Potential race condition that can result in negative lag?
+	// Assuming strictly monotonic timestamps in Kafka, can't cause an issue
+	lastRecordTime := time.Unix(0, nanos)
+	recordLag := time.Since(lastRecordTime)
+	return &recordLag
+}
+
 func (s *LiveStore) consume(ctx context.Context, rs recordIter, now time.Time) (*kadm.Offset, error) {
 	defer s.decoder.Reset()
 	_, span := tracer.Start(ctx, "LiveStore.consume")
@@ -382,6 +529,7 @@ func (s *LiveStore) consume(ctx context.Context, rs recordIter, now time.Time) (
 
 		if record.Timestamp.Before(cutoff) {
 			metricRecordsDropped.WithLabelValues(tenant, droppedRecordReasonTooOld).Inc()
+			lastRecord = record
 			continue
 		}
 
@@ -391,6 +539,7 @@ func (s *LiveStore) consume(ctx context.Context, rs recordIter, now time.Time) (
 			metricRecordsDropped.WithLabelValues(tenant, droppedRecordReasonDecodingFailed).Inc()
 			level.Error(s.logger).Log("msg", "failed to decoded record", "tenant", tenant, "err", err)
 			span.RecordError(err)
+			lastRecord = record
 			continue
 		}
 
@@ -400,6 +549,7 @@ func (s *LiveStore) consume(ctx context.Context, rs recordIter, now time.Time) (
 			metricRecordsDropped.WithLabelValues(tenant, droppedRecordReasonInstanceNotFound).Inc()
 			level.Error(s.logger).Log("msg", "failed to get instance for tenant", "tenant", tenant, "err", err)
 			span.RecordError(err)
+			lastRecord = record
 			continue
 		}
 
@@ -420,6 +570,9 @@ func (s *LiveStore) consume(ctx context.Context, rs recordIter, now time.Time) (
 	if lastRecord == nil {
 		return nil, nil
 	}
+
+	// Store the timestamp of the last consumed record for lag calculation
+	s.lastRecordTimeNanos.Store(lastRecord.Timestamp.UnixNano())
 
 	offset := kadm.NewOffsetFromRecord(lastRecord)
 	return &offset, nil
@@ -508,6 +661,14 @@ func (s *LiveStore) cutOneInstanceToWal(inst *instance, immediate bool) {
 	}
 }
 
+// CheckReady returns nil if the live-store is ready to serve queries
+func (s *LiveStore) CheckReady(_ context.Context) error {
+	if err := s.readyErr.Load(); err != nil {
+		return *err
+	}
+	return nil
+}
+
 // OnRingInstanceRegister implements ring.BasicLifecyclerDelegate
 func (s *LiveStore) OnRingInstanceRegister(_ *ring.BasicLifecycler, _ ring.Desc, _ bool, _ string, _ ring.InstanceDesc) (ring.InstanceState, ring.Tokens) {
 	return ring.ACTIVE, nil // no tokens needed for the livestore ring, we just need to be in the ring for service discovery
@@ -534,6 +695,9 @@ func (s *LiveStore) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDReq
 
 // SearchRecent implements tempopb.Querier
 func (s *LiveStore) SearchRecent(ctx context.Context, req *tempopb.SearchRequest) (*tempopb.SearchResponse, error) {
+	if s.isLagged(int64(req.End) * 1e9) { // convert seconds to nanoseconds
+		return nil, errLagged
+	}
 	return withInstance(ctx, s, func(inst *instance) (*tempopb.SearchResponse, error) {
 		return inst.Search(ctx, req)
 	})
@@ -584,9 +748,25 @@ func (s *LiveStore) GetMetrics(_ context.Context, _ *tempopb.SpanMetricsRequest)
 
 // QueryRange implements tempopb.MetricsGeneratorServer
 func (s *LiveStore) QueryRange(ctx context.Context, req *tempopb.QueryRangeRequest) (*tempopb.QueryRangeResponse, error) {
+	if s.isLagged(int64(req.End)) { // end param is already nanos, no need to convert
+		return nil, errLagged
+	}
 	return withInstance(ctx, s, func(inst *instance) (*tempopb.QueryRangeResponse, error) {
 		return inst.QueryRange(ctx, req)
 	})
+}
+
+var errLagged = errors.New("cannot guarantee complete results")
+
+func (s *LiveStore) isLagged(endNanos int64) bool {
+	if !s.cfg.FailOnHighLag { // if config disabled, never lagged
+		return false
+	}
+	lag := s.calculateTimeLag(0)
+	if lag == nil { // lag is unknown
+		return true // prefer error over potentially incomplete results
+	}
+	return time.Since(time.Unix(0, endNanos)) < *lag
 }
 
 // withInstance extracts the tenant ID from the context, gets the instance,
@@ -594,6 +774,11 @@ func (s *LiveStore) QueryRange(ctx context.Context, req *tempopb.QueryRangeReque
 // doesn't exist, it returns the zero value.
 func withInstance[T any](ctx context.Context, s *LiveStore, fn func(*instance) (*T, error)) (*T, error) {
 	var defaultValue T
+
+	// Check readiness before processing query
+	if err := s.CheckReady(ctx); err != nil {
+		return &defaultValue, err
+	}
 
 	instanceID, err := validation.ExtractValidTenantID(ctx)
 	if err != nil {

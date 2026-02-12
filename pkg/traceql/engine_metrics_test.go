@@ -15,47 +15,73 @@ import (
 )
 
 func TestDefaultQueryRangeStep(t *testing.T) {
+	day := 24 * time.Hour
 	tc := []struct {
-		start, end time.Time
-		expected   time.Duration
+		window   time.Duration
+		expected time.Duration
 	}{
-		{time.Unix(0, 0), time.Unix(100, 0), time.Second},
-		{time.Unix(0, 0), time.Unix(600, 0), 2 * time.Second},
-		{time.Unix(0, 0), time.Unix(3600, 0), 15 * time.Second},
+		{59 * time.Second, 200 * time.Millisecond},
+		{time.Minute, time.Second},
+		{5 * time.Minute, 1 * time.Second},
+		{15 * time.Minute, 3 * time.Second},
+		{30 * time.Minute, 5 * time.Second},
+		{time.Hour, 15 * time.Second},
+		{3 * time.Hour, 45 * time.Second},
+		{6 * time.Hour, time.Minute},
+		{12 * time.Hour, 3 * time.Minute},
+		{day - time.Second, 5 * time.Minute}, // 23:59:59 - edge case - ensure this is treated the same as 24 hours
+		{day, 5 * time.Minute},
+		{2 * day, 10 * time.Minute},
+		{7 * day, 40 * time.Minute},
+		{14 * day, time.Hour},
+		{30 * day, 3 * time.Hour},
 	}
 
 	for _, c := range tc {
-		require.Equal(t, c.expected, time.Duration(DefaultQueryRangeStep(uint64(c.start.UnixNano()), uint64(c.end.UnixNano()))))
+		t.Run(c.window.String(), func(t *testing.T) {
+			require.Equal(t, c.expected, time.Duration(DefaultQueryRangeStep(0, uint64(c.window.Nanoseconds()))))
+		})
 	}
 }
 
 func TestStepRangeToIntervals(t *testing.T) {
 	tc := []struct {
 		start, end, step uint64
+		instant          bool
 		expected         int
 	}{
 		{
-			start:    0,
-			end:      1,
+			start:    10,
+			end:      11,
 			step:     1,
-			expected: 1, // end-start == step -> instant query, only one interval
+			instant:  false,
+			expected: 1,
 		},
 		{
 			start:    0,
 			end:      3,
 			step:     1,
+			instant:  false,
 			expected: 3, // 1, 2, 3
 		},
 		{
 			start:    0,
 			end:      10,
 			step:     3,
+			instant:  false,
 			expected: 4, // 3, 6, 9, 12
+		},
+		{
+			start:    0,
+			end:      10,
+			step:     3,
+			instant:  true,
+			expected: 1, // for instant queries, always only one interval
 		},
 	}
 
 	for _, c := range tc {
-		mapper := NewIntervalMapper(c.start, c.end, c.step)
+		mapper := NewIntervalMapper(c.start, c.end, c.step, c.instant)
 		require.Equal(t, c.expected, mapper.IntervalCount())
 	}
 }
@@ -64,16 +90,15 @@ func TestTimestampOf(t *testing.T) {
 	tc := []struct {
 		interval         int
 		start, end, step uint64
+		instant          bool
 		expected         uint64
 	}{
-		{
-			expected: 0,
-		},
 		{
 			interval: 2,
 			start:    10, // aligned to 9
 			step:     3,
 			end:      100,
+			instant:  false,
 			expected: 18, // 12, 15, 18 <-- intervals
 		},
 		// start <= step
@@ -82,6 +107,7 @@ func TestTimestampOf(t *testing.T) {
 			start:    1,
 			end:      10,
 			step:     1,
+			instant:  false,
 			expected: 2,
 		},
 		{
@@ -89,6 +115,7 @@ func TestTimestampOf(t *testing.T) {
 			start:    1,
 			end:      5,
 			step:     1,
+			instant:  false,
 			expected: 3,
 		},
 		{
@@ -96,6 +123,7 @@ func TestTimestampOf(t *testing.T) {
 			start:    1,
 			end:      5,
 			step:     1,
+			instant:  false,
 			expected: 6,
 		},
 		// start > step
@@ -104,6 +132,7 @@ func TestTimestampOf(t *testing.T) {
 			start:    10,
 			end:      50,
 			step:     10,
+			instant:  false,
 			expected: 20,
 		},
 		{
@@ -111,6 +140,7 @@ func TestTimestampOf(t *testing.T) {
 			start:    10,
 			end:      50,
 			step:     10,
+			instant:  false,
 			expected: 40, // 3rd interval: (10;20] (20;30] (30;40]
 		},
 		{
@@ -118,12 +148,37 @@ func TestTimestampOf(t *testing.T) {
 			start:    10,
 			end:      50,
 			step:     10,
+			instant:  false,
 			expected: 50,
+		},
+		{
+			interval: 0,
+			start:    10,
+			end:      20,
+			step:     10,
+			instant:  false,
+			expected: 20,
+		},
+		{
+			interval: 0,
+			start:    10,
+			end:      20,
+			step:     10,
+			instant:  true,
+			expected: 20,
+		},
+		{
+			interval: 0,
+			start:    10,
+			end:      15,
+			step:     100,
+			instant:  true,
+			expected: 15, // not aligned
 		},
 	}
 
 	for _, c := range tc {
-		mapper := NewIntervalMapper(c.start, c.end, c.step)
+		mapper := NewIntervalMapper(c.start, c.end, c.step, c.instant)
 		assert.Equal(t, c.expected, mapper.TimestampOf(c.interval), "interval: %d, start: %d, end: %d, step: %d", c.interval, c.start, c.end, c.step)
 	}
 }
@@ -134,7 +189,7 @@ func TestTimestampOfIntervals(t *testing.T) {
 	end := uint64(100)
 	step := uint64(10)
 
-	mapper := NewIntervalMapper(start, end, step)
+	mapper := NewIntervalMapper(start, end, step, false)
 	intervals := mapper.IntervalCount()
 	for i := range intervals {
 		ts := mapper.TimestampOf(i)
@@ -145,21 +200,57 @@ func TestTimestampOfIntervals(t *testing.T) {
 func TestIntervalOf(t *testing.T) {
 	tc := []struct {
 		ts, start, end, step uint64
+		instant              bool
 		expected             int
 	}{
 		// start <= step
-		{expected: -1},
+		{
+			start:    1,
+			step:     1,
+			expected: -1,
+		},
+		{
+			start:    9,
+			step:     10,
+			expected: -1,
+		},
 		{
 			ts:       0,
 			end:      1,
 			step:     1,
-			expected: 0, // corner case. TODO: should we return -1?
+			instant:  false,
+			expected: -1,
+		},
+		{
+			ts:       0,
+			start:    0,
+			end:      1,
+			step:     1,
+			instant:  true,
+			expected: 0, // start and end are inclusive for instant queries
+		},
+		{
+			ts:       10,
+			start:    0,
+			end:      10,
+			step:     100,
+			instant:  true,
+			expected: 0, // start and end are inclusive for instant queries
+		},
+		{
+			ts:       98,
+			start:    0,
+			end:      10,
+			step:     99,
+			instant:  true,
+			expected: -1, // outside of range, range is not aligned
 		},
 		{
 			ts:       10,
 			start:    1,
 			end:      10,
 			step:     1,
+			instant:  false,
 			expected: 8, // 9th interval: (9;10]
 		},
 		{
@@ -167,6 +258,7 @@ func TestIntervalOf(t *testing.T) {
 			start:    1,
 			end:      5,
 			step:     1,
+			instant:  false,
 			expected: -1, // should be excluded
 		},
 		{
@@ -174,6 +266,7 @@ func TestIntervalOf(t *testing.T) {
 			start:    1,
 			end:      5,
 			step:     1,
+			instant:  false,
 			expected: 0, // 2nd interval: (1;2]
 		},
 		// start > step
@@ -182,6 +275,7 @@ func TestIntervalOf(t *testing.T) {
 			start:    10,
 			end:      50,
 			step:     10,
+			instant:  false,
 			expected: 0, // first interval: (10;20]
 		},
 		{
@@ -189,6 +283,7 @@ func TestIntervalOf(t *testing.T) {
 			start:    10,
 			end:      50,
 			step:     10,
+			instant:  false,
 			expected: -1, // should be excluded
 		},
 		{
@@ -196,6 +291,7 @@ func TestIntervalOf(t *testing.T) {
 			start:    10,
 			end:      50,
 			step:     10,
+			instant:  false,
 			expected: -1, // should be excluded
 		},
 		{
@@ -203,6 +299,7 @@ func TestIntervalOf(t *testing.T) {
 			start:    10,
 			end:      50,
 			step:     10,
+			instant:  false,
 			expected: 0, // first interval: (10;20]
 		},
 		{
@@ -210,6 +307,7 @@ func TestIntervalOf(t *testing.T) {
 			start:    10,
 			end:      50,
 			step:     10,
+			instant:  false,
 			expected: 1, // second interval: (20;30]
 		},
 		{
@@ -217,12 +315,13 @@ func TestIntervalOf(t *testing.T) {
 			start:    10,
 			end:      50,
 			step:     10,
+			instant:  false,
 			expected: 3, // 4th interval: (40;50]
 		},
 	}
 
 	for _, c := range tc {
-		mapper := NewIntervalMapper(c.start, c.end, c.step)
+		mapper := NewIntervalMapper(c.start, c.end, c.step, c.instant)
 		assert.Equal(t, c.expected, mapper.Interval(c.ts), "ts: %d, start: %d, end: %d, step: %d", c.ts, c.start, c.end, c.step)
 	}
 }
@@ -273,7 +372,8 @@ func TestTrimToBlockOverlap(t *testing.T) {
 			// Left border is able to be extended.
 			"2024-01-01T01:00:00.123Z", "2024-01-01T02:00:00.123Z", time.Hour,
 			"2024-01-01T01:30:00.123Z", "2024-01-01T02:30:00.123Z",
-			"2024-01-01T01:00:00.123Z", "2024-01-01T02:00:00.123Z", time.Hour,
+			// we subtract a nanosecond to the start to make sure it's before the block start
+			"2024-01-01T01:30:00.122999999Z", "2024-01-01T02:00:00.123Z", 30*time.Minute + time.Nanosecond,
 		},
 	}
 
@@ -283,10 +383,14 @@ func TestTrimToBlockOverlap(t *testing.T) {
 		start2, _ := time.Parse(time.RFC3339Nano, c.start2)
 		end2, _ := time.Parse(time.RFC3339Nano, c.end2)
 
+		req := &tempopb.QueryRangeRequest{
+			Start: uint64(start1.UnixNano()),
+			End:   uint64(end1.UnixNano()),
+			Step:  uint64(c.step.Nanoseconds()),
+		}
+
 		actualStart, actualEnd, actualStep := TrimToBlockOverlap(
-			uint64(start1.UnixNano()),
-			uint64(end1.UnixNano()),
-			uint64(c.step.Nanoseconds()),
+			req,
 			start2,
 			end2,
 		)
@@ -375,6 +479,45 @@ func TestCompileMetricsQueryRange(t *testing.T) {
 				require.EqualError(t, err, c.expectedErr.Error())
 			}
 		})
+	}
+}
+
+func TestCompileMetricsQueryRangeExemplarsHint(t *testing.T) {
+	defaultExempalars := 5
+
+	tcs := []struct {
+		q             string
+		expectedCount int
+	}{
+		{
+			q:             "{} | rate() with(exemplars=10)",
+			expectedCount: 10,
+		},
+		{
+			q:             "{} | rate() with(exemplars=false)",
+			expectedCount: 0,
+		},
+		{
+			q:             "{} | rate() with(exemplars=true)",
+			expectedCount: defaultExempalars,
+		},
+		{
+			q:             "{} | rate()",
+			expectedCount: defaultExempalars,
+		},
+	}
+
+	for _, tc := range tcs {
+		eval, err := NewEngine().CompileMetricsQueryRange(&tempopb.QueryRangeRequest{
+			Query: tc.q,
+			Start: 1,
+			End:   2,
+			Step:  1,
+		}, 5, 0, false)
+
+		require.NoError(t, err)
+		require.NotNil(t, eval)
+		require.Equal(t, tc.expectedCount, eval.maxExemplars)
 	}
 }
 
@@ -794,6 +937,7 @@ func TestCountOverTimeInstantNs(t *testing.T) {
 		Step:  uint64(step),
 		Query: "{ } | count_over_time()",
 	}
+	req.SetInstant(true)
 
 	in := []Span{
 		// outside of the range but within the range for ms. Should be ignored.
@@ -840,6 +984,7 @@ func TestAvgOverTimeInstantNs(t *testing.T) {
 		Step:  uint64(step),
 		Query: "{ } | avg_over_time(span:duration)",
 	}
+	req.SetInstant(true)
 
 	in := []Span{
 		// outside of the range but within the range for ms. Should be ignored.
@@ -886,6 +1031,7 @@ func TestCountOverTimeInstantNsWithCutoff(t *testing.T) {
 		Step:  uint64(step),
 		Query: "{ } | count_over_time()",
 	}
+	req.SetInstant(true)
 
 	cutoff := 2*time.Second + 300*time.Nanosecond
 	// from start to cutoff
@@ -987,6 +1133,115 @@ func TestCountOverTimeInstantNsWithCutoff(t *testing.T) {
 		requireEqualSeriesSets(t, out, layer3.Results())
 		require.Equal(t, len(layer3.Results()), layer3.Length())
 	})
+}
+
+func TestRateCutoff(t *testing.T) {
+	start := 1*time.Second + 300*time.Nanosecond // additional 300ns that can be accidentally dropped by ms conversion
+	end := 3 * time.Second
+	step := end - start
+	cutoff := 2*time.Second + 300*time.Nanosecond
+
+	req := tempopb.QueryRangeRequest{
+		Start: uint64(start),
+		End:   uint64(end),
+		Step:  uint64(step),
+		Query: "{ } | rate()",
+	}
+	for _, tc := range []struct {
+		name           string
+		setInstant     func(req tempopb.QueryRangeRequest) tempopb.QueryRangeRequest
+		expectedResult []float64
+	}{
+		{
+			"legacy request (no instant param)",
+			func(req tempopb.QueryRangeRequest) tempopb.QueryRangeRequest {
+				req.Step = req.End - req.Start
+				return req
+			},
+			// BUG: without instant query provided, instant rate is calculated incorrectly as sum of rates for each sub-interval
+			[]float64{(4 / (cutoff - start).Seconds()) + (4 / (end - cutoff).Seconds())},
+		},
+		{
+			"instant query",
+			func(req tempopb.QueryRangeRequest) tempopb.QueryRangeRequest {
+				req.SetInstant(true)
+				return req
+			},
+			[]float64{8 / step.Seconds()},
+		},
+		{
+			"not instant query",
+			func(req tempopb.QueryRangeRequest) tempopb.QueryRangeRequest {
+				req.SetInstant(false)
+				return req
+			},
+			// consumes all spans due to step alignment
+			[]float64{11 / step.Seconds(), 3 / step.Seconds()},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			req = tc.setInstant(req)
+
+			// from start to cutoff
+			req1 := req
+			req1.End = uint64(cutoff)
+			req1 = tc.setInstant(req1)
+			// from cutoff to end
+			req2 := req
+			req2.Start = uint64(cutoff)
+			req2 = tc.setInstant(req2)
+
+			in1 := []Span{
+				// outside of the range but within the range for ms. Should be ignored for instant queries.
+				newMockSpan(nil).WithStartTime(uint64(start - 20*time.Nanosecond)).WithDuration(1),
+				newMockSpan(nil).WithStartTime(uint64(start - time.Nanosecond)).WithDuration(1),
+
+				// within the range
+				newMockSpan(nil).WithStartTime(uint64(start)).WithDuration(1),
+				newMockSpan(nil).WithStartTime(uint64(start + time.Nanosecond)).WithDuration(1),
+				newMockSpan(nil).WithStartTime(uint64(cutoff - time.Nanosecond)).WithDuration(1),
+				newMockSpan(nil).WithStartTime(uint64(cutoff)).WithDuration(1),
+
+				// outside of cutoff
+				newMockSpan(nil).WithStartTime(uint64(cutoff + time.Nanosecond)).WithDuration(1),
+			}
+
+			in2 := []Span{
+				// outside of cutoff
+				newMockSpan(nil).WithStartTime(uint64(cutoff - time.Nanosecond)).WithDuration(1),
+
+				// within the range
+				newMockSpan(nil).WithStartTime(uint64(cutoff)).WithDuration(1),
+				newMockSpan(nil).WithStartTime(uint64(cutoff + time.Nanosecond)).WithDuration(1),
+				newMockSpan(nil).WithStartTime(uint64(end - time.Nanosecond)).WithDuration(1),
+				newMockSpan(nil).WithStartTime(uint64(end)).WithDuration(10),
+
+				// outside of the range but within the range for ms. Should be ignored for instant queries.
+				newMockSpan(nil).WithStartTime(uint64(end + time.Nanosecond)).WithDuration(1),
+				newMockSpan(nil).WithStartTime(uint64(end + 20*time.Nanosecond)).WithDuration(1),
+			}
+
+			// expectedValue := 8 * float64(time.Second.Nanoseconds()) / float64(step.Nanoseconds())
+			out := []TimeSeries{
+				{
+					Labels: []Label{
+						{Name: "__name__", Value: NewStaticString("rate")},
+					},
+					Values:    tc.expectedResult,
+					Exemplars: make([]Exemplar, 0),
+				},
+			}
+
+			res1, err := processLayer1AndLayer2(&req1, in1)
+			require.NoError(t, err)
+			res2, err := processLayer1AndLayer2(&req2, in2)
+			require.NoError(t, err)
+			res, seriesCount, err := processLayer3(&req, res1, res2)
+			require.NoError(t, err)
+			require.Equal(t, len(res), seriesCount)
+			requireEqualSeriesSets(t, out, res)
+		})
+	}
 }
 
 func TestMinOverTimeForDuration(t *testing.T) {
@@ -1253,6 +1508,43 @@ func TestAvgOverTimeForDurationWithoutAggregation(t *testing.T) {
 	assert.Equal(t, 100., avg.Values[0]*float64(time.Second))
 	assert.Equal(t, 200., avg.Values[1]*float64(time.Second))
 	assert.Equal(t, 200., avg.Values[2]*float64(time.Second))
+}
+
+func TestAvgOverTimeCombine(t *testing.T) {
+	req := &tempopb.QueryRangeRequest{
+		Start: 1,
+		End:   uint64(3 * time.Second),
+		Step:  uint64(1 * time.Second),
+		Query: "{ } | avg_over_time(duration)",
+	}
+
+	// Three set of spans with different data for a single time interval
+	// Each set will be passed to level 2 independently
+	in1 := []Span{
+		newMockSpan(nil).WithStartTime(uint64(1 * time.Second)).WithDuration(uint64(100 * time.Second)),
+	}
+
+	in2 := []Span{
+		newMockSpan(nil).WithStartTime(uint64(1 * time.Second)).WithDuration(uint64(200 * time.Second)),
+		newMockSpan(nil).WithStartTime(uint64(1 * time.Second)).WithDuration(uint64(400 * time.Second)),
+	}
+
+	in3 := []Span{
+		newMockSpan(nil).WithStartTime(uint64(1 * time.Second)).WithDuration(uint64(500 * time.Second)),
+		newMockSpan(nil).WithStartTime(uint64(1 * time.Second)).WithDuration(uint64(600 * time.Second)),
+		newMockSpan(nil).WithStartTime(uint64(1 * time.Second)).WithDuration(uint64(700 * time.Second)),
+	}
+
+	result, seriesCount, err := runTraceQLMetric(req, in1, in2, in3)
+	require.NoError(t, err)
+	require.Equal(t, len(result), seriesCount)
+
+	avg := result[LabelsFromArgs("__name__", "avg_over_time").MapKey()]
+
+	expectedResult := (100 + 200 + 400 + 500 + 600 + 700) / 6.
+	assert.Equal(t, expectedResult, avg.Values[0])
+	assert.True(t, math.IsNaN(avg.Values[1]), "expected NaN, got %f", avg.Values[1])
+	assert.True(t, math.IsNaN(avg.Values[2]), "expected NaN, got %f", avg.Values[2])
 }
 
 func TestAvgOverTimeForSpanAttribute(t *testing.T) {
@@ -1909,6 +2201,7 @@ func TestSecondStageTopKInstant(t *testing.T) {
 		Step:  uint64(7 * time.Second),
 		Query: "{ } | rate() by (span.foo) | topk(2)",
 	}
+	req.SetInstant(true)
 
 	in := make([]Span, 0)
 	// 15 spans, at different start times across 3 series
@@ -1987,6 +2280,7 @@ func TestSecondStageBottomKInstant(t *testing.T) {
 		Step:  end - start,
 		Query: "{ } | rate() by (span.foo) | bottomk(2)",
 	}
+	req.SetInstant(true)
 
 	in := make([]Span, 0)
 	// 15 spans, at different start times across 3 series
@@ -2558,7 +2852,7 @@ func processLayer1AndLayer2(req *tempopb.QueryRangeRequest, in ...[]Span) (Serie
 	return layer2.Results(), nil
 }
 
-func processLayer3(req *tempopb.QueryRangeRequest, res SeriesSet) (SeriesSet, int, error) {
+func processLayer3(req *tempopb.QueryRangeRequest, results ...SeriesSet) (SeriesSet, int, error) {
 	e := NewEngine()
 
 	layer3, err := e.CompileMetricsQueryRangeNonRaw(req, AggregateModeFinal)
@@ -2566,7 +2860,9 @@ func processLayer3(req *tempopb.QueryRangeRequest, res SeriesSet) (SeriesSet, in
 		return nil, 0, err
 	}
 
-	layer3.ObserveSeries(res.ToProto(req))
+	for _, res := range results {
+		layer3.ObserveSeries(res.ToProto(req))
+	}
 	return layer3.Results(), layer3.Length(), nil
 }
 

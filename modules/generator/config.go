@@ -131,6 +131,10 @@ func (cfg *Config) Validate() error {
 		}
 	}
 
+	if err := cfg.Storage.Validate(); err != nil {
+		return err
+	}
+
 	if !slices.Contains(validCodecs, cfg.Codec) {
 		return fmt.Errorf("invalid codec: %s, valid choices are %s", cfg.Codec, validCodecs)
 	}
@@ -234,13 +238,17 @@ func (cfg *ProcessorConfig) copyWithOverrides(o metricsGeneratorOverrides, userI
 		copyCfg.SpanMetrics.HistogramOverride = registry.HistogramModeToValue[string(histograms)]
 	}
 
-	copyCfg.SpanMetrics.DimensionMappings = o.MetricsGeneratorProcessorSpanMetricsDimensionMappings(userID)
+	if dimensionMappings := o.MetricsGeneratorProcessorSpanMetricsDimensionMappings(userID); dimensionMappings != nil {
+		copyCfg.SpanMetrics.DimensionMappings = dimensionMappings
+	}
 
 	if enableTargetInfo, ok := o.MetricsGeneratorProcessorSpanMetricsEnableTargetInfo(userID); ok {
 		copyCfg.SpanMetrics.EnableTargetInfo = enableTargetInfo
 	}
 
-	copyCfg.SpanMetrics.TargetInfoExcludedDimensions = o.MetricsGeneratorProcessorSpanMetricsTargetInfoExcludedDimensions(userID)
+	if targetInfoExcludedDimensions := o.MetricsGeneratorProcessorSpanMetricsTargetInfoExcludedDimensions(userID); targetInfoExcludedDimensions != nil {
+		copyCfg.SpanMetrics.TargetInfoExcludedDimensions = targetInfoExcludedDimensions
+	}
 
 	if EnableInstanceLabel, ok := o.MetricsGeneratorProcessorSpanMetricsEnableInstanceLabel(userID); ok {
 		copyCfg.SpanMetrics.EnableInstanceLabel = EnableInstanceLabel
@@ -264,6 +272,14 @@ func (cfg *ProcessorConfig) copyWithOverrides(o metricsGeneratorOverrides, userI
 
 	if hostInfoMetricName := o.MetricsGeneratorProcessorHostInfoMetricName(userID); hostInfoMetricName != "" {
 		copyCfg.HostInfo.MetricName = o.MetricsGeneratorProcessorHostInfoMetricName(userID)
+	}
+
+	if spanMultiplierKey := o.MetricsGeneratorProcessorServiceGraphsSpanMultiplierKey(userID); spanMultiplierKey != "" {
+		copyCfg.ServiceGraphs.SpanMultiplierKey = spanMultiplierKey
+	}
+
+	if spanMultiplierKey := o.MetricsGeneratorProcessorSpanMetricsSpanMultiplierKey(userID); spanMultiplierKey != "" {
+		copyCfg.SpanMetrics.SpanMultiplierKey = spanMultiplierKey
 	}
 
 	copySubprocessors := make(map[spanmetrics.Subprocessor]bool)

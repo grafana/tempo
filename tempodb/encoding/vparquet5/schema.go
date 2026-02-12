@@ -60,29 +60,29 @@ const (
 	DefinitionLevelResourceSpansILSSpanEventAttrs = 5
 	DefinitionLevelResourceSpansILSSpanLinkAttrs  = 5
 
-	FieldResourceAttrKey        = "rs.list.element.Resource.Attrs.list.element.Key"
-	FieldResourceAttrIsArray    = "rs.list.element.Resource.Attrs.list.element.IsArray"
-	FieldResourceAttrVal        = "rs.list.element.Resource.Attrs.list.element.Value.list.element"
-	FieldResourceAttrValInt     = "rs.list.element.Resource.Attrs.list.element.ValueInt.list.element"
-	FieldResourceAttrValDouble  = "rs.list.element.Resource.Attrs.list.element.ValueDouble.list.element"
-	FieldResourceAttrValBool    = "rs.list.element.Resource.Attrs.list.element.ValueBool.list.element"
-	FieldResourceDedicatedAttrs = "rs.list.element.Resource.DedicatedAttributes"
+	FieldResourceAttrKey        = "rs.Resource.Attrs.Key"
+	FieldResourceAttrIsArray    = "rs.Resource.Attrs.IsArray"
+	FieldResourceAttrVal        = "rs.Resource.Attrs.Value"
+	FieldResourceAttrValInt     = "rs.Resource.Attrs.ValueInt"
+	FieldResourceAttrValDouble  = "rs.Resource.Attrs.ValueDouble"
+	FieldResourceAttrValBool    = "rs.Resource.Attrs.ValueBool"
+	FieldResourceDedicatedAttrs = "rs.Resource.DedicatedAttributes"
 
-	FieldSpanAttrKey        = "rs.list.element.ss.list.element.Spans.list.element.Attrs.list.element.Key"
-	FieldSpanAttrIsArray    = "rs.list.element.ss.list.element.Spans.list.element.Attrs.list.element.IsArray"
-	FieldSpanAttrVal        = "rs.list.element.ss.list.element.Spans.list.element.Attrs.list.element.Value.list.element"
-	FieldSpanAttrValInt     = "rs.list.element.ss.list.element.Spans.list.element.Attrs.list.element.ValueInt.list.element"
-	FieldSpanAttrValDouble  = "rs.list.element.ss.list.element.Spans.list.element.Attrs.list.element.ValueDouble.list.element"
-	FieldSpanAttrValBool    = "rs.list.element.ss.list.element.Spans.list.element.Attrs.list.element.ValueBool.list.element"
-	FieldSpanDedicatedAttrs = "rs.list.element.ss.list.element.Spans.list.element.DedicatedAttributes"
+	FieldSpanAttrKey        = "rs.ss.Spans.Attrs.Key"
+	FieldSpanAttrIsArray    = "rs.ss.Spans.Attrs.IsArray"
+	FieldSpanAttrVal        = "rs.ss.Spans.Attrs.Value"
+	FieldSpanAttrValInt     = "rs.ss.Spans.Attrs.ValueInt"
+	FieldSpanAttrValDouble  = "rs.ss.Spans.Attrs.ValueDouble"
+	FieldSpanAttrValBool    = "rs.ss.Spans.Attrs.ValueBool"
+	FieldSpanDedicatedAttrs = "rs.ss.Spans.DedicatedAttributes"
 
-	FieldEventAttrKey        = "rs.list.element.ss.list.element.Spans.list.element.Events.list.element.Attrs.list.element.Key"
-	FieldEventAttrIsArray    = "rs.list.element.ss.list.element.Spans.list.element.Events.list.element.Attrs.list.element.IsArray"
-	FieldEventAttrVal        = "rs.list.element.ss.list.element.Spans.list.element.Events.list.element.Attrs.list.element.Value.list.element"
-	FieldEventAttrValInt     = "rs.list.element.ss.list.element.Spans.list.element.Events.list.element.Attrs.list.element.ValueInt.list.element"
-	FieldEventAttrValDouble  = "rs.list.element.ss.list.element.Spans.list.element.Events.list.element.Attrs.list.element.ValueDouble.list.element"
-	FieldEventAttrValBool    = "rs.list.element.ss.list.element.Spans.list.element.Events.list.element.Attrs.list.element.ValueBool.list.element"
-	FieldEventDedicatedAttrs = "rs.list.element.ss.list.element.Spans.list.element.Events.list.element.DedicatedAttributes"
+	FieldEventAttrKey        = "rs.ss.Spans.Events.Attrs.Key"
+	FieldEventAttrIsArray    = "rs.ss.Spans.Events.Attrs.IsArray"
+	FieldEventAttrVal        = "rs.ss.Spans.Events.Attrs.Value"
+	FieldEventAttrValInt     = "rs.ss.Spans.Events.Attrs.ValueInt"
+	FieldEventAttrValDouble  = "rs.ss.Spans.Events.Attrs.ValueDouble"
+	FieldEventAttrValBool    = "rs.ss.Spans.Events.Attrs.ValueBool"
+	FieldEventDedicatedAttrs = "rs.ss.Spans.Events.DedicatedAttributes"
 )
 
 const (
@@ -101,15 +101,15 @@ var (
 	labelMappings = map[string]string{
 		LabelRootSpanName:    "RootSpanName",
 		LabelRootServiceName: "RootServiceName",
-		LabelServiceName:     "rs.list.element.Resource.ServiceName",
-		LabelName:            "rs.list.element.ss.list.element.Spans.list.element.Name",
-		LabelStatusCode:      "rs.list.element.ss.list.element.Spans.list.element.StatusCode",
+		LabelServiceName:     "rs.Resource.ServiceName",
+		LabelName:            "rs.ss.Spans.Name",
+		LabelStatusCode:      "rs.ss.Spans.StatusCode",
 	}
 	// the two below are used in tag name search. they only include
 	// custom attributes that are mapped to parquet "special" columns
 	// TODO there is just one column left in this mapping, can this be replaced?
 	traceqlResourceLabelMappings = map[string]string{
-		LabelServiceName: "rs.list.element.Resource.ServiceName",
+		LabelServiceName: "rs.Resource.ServiceName",
 	}
 )
 
@@ -117,10 +117,10 @@ type Attribute struct {
 	Key string `parquet:",snappy,dict"`
 
 	IsArray          bool      `parquet:",snappy"`
-	Value            []string  `parquet:",snappy,dict,list"`
-	ValueInt         []int64   `parquet:",snappy,list"`
-	ValueDouble      []float64 `parquet:",snappy,list"`
-	ValueBool        []bool    `parquet:",snappy,list"`
+	Value            []string  `parquet:",snappy,dict,"`
+	ValueInt         []int64   `parquet:",snappy,"`
+	ValueDouble      []float64 `parquet:",snappy,"`
+	ValueBool        []bool    `parquet:",snappy,"`
 	ValueUnsupported *string   `parquet:",snappy,optional"`
 }
 
@@ -136,6 +136,16 @@ type DedicatedAttributes struct {
 	String08 []string `parquet:",snappy,optional,dict"`
 	String09 []string `parquet:",snappy,optional,dict"`
 	String10 []string `parquet:",snappy,optional,dict"`
+	String11 []string `parquet:",snappy,optional,dict"`
+	String12 []string `parquet:",snappy,optional,dict"`
+	String13 []string `parquet:",snappy,optional,dict"`
+	String14 []string `parquet:",snappy,optional,dict"`
+	String15 []string `parquet:",snappy,optional,dict"`
+	String16 []string `parquet:",snappy,optional,dict"`
+	String17 []string `parquet:",snappy,optional,dict"`
+	String18 []string `parquet:",snappy,optional,dict"`
+	String19 []string `parquet:",snappy,optional,dict"`
+	String20 []string `parquet:",snappy,optional,dict"`
 	Int01    []int64  `parquet:",snappy,optional"`
 	Int02    []int64  `parquet:",snappy,optional"`
 	Int03    []int64  `parquet:",snappy,optional"`
@@ -154,6 +164,16 @@ func (da *DedicatedAttributes) Reset() {
 	da.String08 = da.String08[:0]
 	da.String09 = da.String09[:0]
 	da.String10 = da.String10[:0]
+	da.String11 = da.String11[:0]
+	da.String12 = da.String12[:0]
+	da.String13 = da.String13[:0]
+	da.String14 = da.String14[:0]
+	da.String15 = da.String15[:0]
+	da.String16 = da.String16[:0]
+	da.String17 = da.String17[:0]
+	da.String18 = da.String18[:0]
+	da.String19 = da.String19[:0]
+	da.String20 = da.String20[:0]
 	da.Int01 = da.Int01[:0]
 	da.Int02 = da.Int02[:0]
 	da.Int03 = da.Int03[:0]
@@ -164,7 +184,7 @@ func (da *DedicatedAttributes) Reset() {
 type Event struct {
 	TimeSinceStartNano     uint64      `parquet:",delta"`
 	Name                   string      `parquet:",snappy,dict"`
-	Attrs                  []Attribute `parquet:",list"`
+	Attrs                  []Attribute `parquet:","`
 	DroppedAttributesCount int32       `parquet:",snappy,delta"`
 
 	DedicatedAttributes DedicatedAttributes `parquet:""`
@@ -174,7 +194,7 @@ type Link struct {
 	TraceID                []byte      `parquet:","`
 	SpanID                 []byte      `parquet:","`
 	TraceState             string      `parquet:",snappy"`
-	Attrs                  []Attribute `parquet:",list"`
+	Attrs                  []Attribute `parquet:","`
 	DroppedAttributesCount int32       `parquet:",snappy,delta"`
 }
 
@@ -188,6 +208,7 @@ type Span struct {
 	ParentID               int32       `parquet:",delta"` // can be zero for non-root spans, use IsRoot to check for root spans
 	NestedSetLeft          int32       `parquet:",delta"` // doubles as numeric ID and is used to fill ParentID of child spans
 	NestedSetRight         int32       `parquet:",delta"`
+	ChildCount             int32       `parquet:",delta"` // number of direct children of this span
 	Name                   string      `parquet:",snappy,dict"`
 	Kind                   int         `parquet:",delta"`
 	TraceState             string      `parquet:",snappy"`
@@ -195,11 +216,11 @@ type Span struct {
 	DurationNano           uint64      `parquet:",delta"`
 	StatusCode             int         `parquet:",delta"`
 	StatusMessage          string      `parquet:",snappy"`
-	Attrs                  []Attribute `parquet:",list"`
+	Attrs                  []Attribute `parquet:","`
 	DroppedAttributesCount int32       `parquet:",snappy,delta"`
-	Events                 []Event     `parquet:",list"`
+	Events                 []Event     `parquet:","`
 	DroppedEventsCount     int32       `parquet:",snappy"`
-	Links                  []Link      `parquet:",list"`
+	Links                  []Link      `parquet:","`
 	DroppedLinksCount      int32       `parquet:",snappy"`
 
 	// Dynamically assignable dedicated attribute columns
@@ -223,20 +244,20 @@ func (s *Span) IsRoot() bool {
 type InstrumentationScope struct {
 	Name                   string      `parquet:",snappy,dict"`
 	Version                string      `parquet:",snappy,dict"`
-	Attrs                  []Attribute `parquet:",list"`
+	Attrs                  []Attribute `parquet:","`
 	DroppedAttributesCount int32       `parquet:",snappy,delta"`
 }
 
 type ScopeSpans struct {
 	Scope     InstrumentationScope `parquet:""`
-	Spans     []Span               `parquet:",list"`
+	Spans     []Span               `parquet:","`
 	SpanCount int32                `parquet:",delta"`
 }
 
 type Resource struct {
 	ServiceName string `parquet:",snappy,dict"`
 
-	Attrs                  []Attribute `parquet:",list"`
+	Attrs                  []Attribute `parquet:","`
 	DroppedAttributesCount int32       `parquet:",snappy,delta"`
 
 	// Dynamically assignable dedicated attribute columns
@@ -245,12 +266,13 @@ type Resource struct {
 
 type ResourceSpans struct {
 	Resource   Resource     `parquet:""`
-	ScopeSpans []ScopeSpans `parquet:"ss,list"`
+	ScopeSpans []ScopeSpans `parquet:"ss"`
 }
 
 type ServiceStats struct {
-	SpanCount  uint32 `parquet:",delta"`
-	ErrorCount uint32 `parquet:",delta"`
+	ServiceName string `parquet:",snappy,dict"`
+	SpanCount   uint32 `parquet:",delta"`
+	ErrorCount  uint32 `parquet:",delta"`
 }
 
 type Trace struct {
@@ -261,14 +283,14 @@ type Trace struct {
 	TraceIDText string `parquet:",snappy"`
 
 	// Trace-level attributes for searching
-	StartTimeUnixNano uint64                  `parquet:",delta"`
-	EndTimeUnixNano   uint64                  `parquet:",delta"`
-	DurationNano      uint64                  `parquet:",delta"`
-	RootServiceName   string                  `parquet:",dict"`
-	RootSpanName      string                  `parquet:",dict"`
-	ServiceStats      map[string]ServiceStats `parquet:""`
+	StartTimeUnixNano uint64         `parquet:",delta"`
+	EndTimeUnixNano   uint64         `parquet:",delta"`
+	DurationNano      uint64         `parquet:",delta"`
+	RootServiceName   string         `parquet:",dict"`
+	RootSpanName      string         `parquet:",dict"`
+	ServiceStats      []ServiceStats `parquet:""`
 
-	ResourceSpans []ResourceSpans `parquet:"rs,list"`
+	ResourceSpans []ResourceSpans `parquet:"rs"`
 }
 
 func attrToParquet(a *v1.KeyValue, p *Attribute) {

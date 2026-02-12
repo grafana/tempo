@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -146,15 +147,20 @@ func TestObjectConfigAttributes(t *testing.T) {
 }
 
 func TestRetry_MarkBlockCompacted(t *testing.T) {
-	var count int32
+	var reqCounts sync.Map
+
 	server := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/b/blerg":
 			_, _ = w.Write([]byte(`{}`))
 		default:
-			// First two requests fail, third succeeds.
-			if atomic.LoadInt32(&count) < 2 {
-				atomic.AddInt32(&count, 1)
+			val, _ := reqCounts.LoadOrStore(r.URL.Path, &atomic.Int32{})
+			if atomicCounter, ok := val.(*atomic.Int32); ok {
+				atomicCounter.Add(1)
+			}
+
+			// First two requests fail, third succeeds for each path.
+			if val.(*atomic.Int32).Load() <= 2 {
 				w.WriteHeader(503)
 				return
 			}
@@ -168,6 +174,7 @@ func TestRetry_MarkBlockCompacted(t *testing.T) {
 		BucketName: "blerg",
 		Insecure:   true,
 		Endpoint:   server.URL,
+		MaxRetries: 3,
 	})
 	require.NoError(t, err)
 
@@ -175,7 +182,87 @@ func TestRetry_MarkBlockCompacted(t *testing.T) {
 	require.NoError(t, err)
 
 	require.NoError(t, c.MarkBlockCompacted(id, "tenant"))
-	require.Equal(t, int32(2), atomic.LoadInt32(&count))
+
+	reqCounts.Range(func(key, value any) bool {
+		urlPath := key.(string)
+		require.Equal(t, int32(3), value.(*atomic.Int32).Load(), "should attempt 3 times for %s", urlPath)
+		return true
+	})
+}
+
+func TestRetry_ClearBlock(t *testing.T) {
+	var reqCounts sync.Map
+
+	type requestInfo struct {
+		method string
+		count  int32
+	}
+
+	server := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/b/blerg":
+			_, _ = w.Write([]byte(`{}`))
+		default:
+			// Increment the request count for this path
+
+			val, _ := reqCounts.LoadOrStore(r.URL.Path, &requestInfo{method: r.Method})
+			info := val.(*requestInfo)
+			count := atomic.AddInt32(&info.count, 1)
+
+			// First two requests fail, third succeeds for each path.
+			if count <= 2 {
+				atomic.AddInt32(&count, 1)
+				w.WriteHeader(503)
+				return
+			}
+
+			switch r.Method {
+			case http.MethodDelete:
+				_, _ = w.Write([]byte(`{"done": true}`))
+			case http.MethodGet:
+				_, _ = w.Write([]byte(`
+				{
+            "kind": "storage#objects",
+            "items": [
+                {"name": "tenant/8d1b6283-ec0c-11f0-b403-c4c6e623a3a3/meta.json", "bucket": "blerg", "size": "123"},
+                {"name": "tenant/8d1b6283-ec0c-11f0-b403-c4c6e623a3a3/compacted.meta.json", "bucket": "blerg", "size": "124"}
+            ]
+        }
+				`))
+
+			}
+		}
+	}))
+	server.StartTLS()
+	t.Cleanup(server.Close)
+
+	_, _, c, err := New(&Config{
+		BucketName: "blerg",
+		Insecure:   true,
+		Endpoint:   server.URL,
+		MaxRetries: 3,
+	})
+	require.NoError(t, err)
+
+	id, err := uuid.NewUUID()
+	require.NoError(t, err)
+
+	require.NoError(t, c.ClearBlock(id, "tenant"))
+
+	reqCounts.Range(func(key, value any) bool {
+		urlPath := key.(string)
+		info := value.(*requestInfo)
+
+		require.Equal(t, int32(3), atomic.LoadInt32(&info.count), "should attempt 3 times for %s", urlPath)
+
+		if strings.HasSuffix(urlPath, "meta.json") {
+			require.Equal(t, http.MethodDelete, info.method, "should be delete method for %s", urlPath)
+		} else {
+			require.Equal(t, http.MethodGet, info.method, "should be delete method for %s", urlPath)
+		}
+
+		return true
+	})
 }
 
 func fakeServer(t *testing.T, returnIn time.Duration, counter *int32) *httptest.Server {

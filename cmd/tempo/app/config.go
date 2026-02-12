@@ -13,7 +13,6 @@ import (
 	"github.com/grafana/tempo/modules/backendworker"
 	"github.com/grafana/tempo/modules/blockbuilder"
 	"github.com/grafana/tempo/modules/cache"
-	"github.com/grafana/tempo/modules/compactor"
 	"github.com/grafana/tempo/modules/distributor"
 	"github.com/grafana/tempo/modules/frontend"
 	"github.com/grafana/tempo/modules/generator"
@@ -31,10 +30,15 @@ import (
 	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/tempodb"
 	"github.com/grafana/tempo/tempodb/backend"
-	"github.com/grafana/tempo/tempodb/encoding/common"
 )
 
 const defaultGRPCCompression = "snappy"
+
+// MemoryConfig configures memory management settings
+type MemoryConfig struct {
+	AutoMemLimitEnabled bool    `yaml:"automemlimit_enabled"`
+	AutoMemLimitRatio   float64 `yaml:"automemlimit_ratio"`
+}
 
 // Config is the root config for App.
 type Config struct {
@@ -47,6 +51,7 @@ type Config struct {
 	EnableGoRuntimeMetrics bool          `yaml:"enable_go_runtime_metrics,omitempty"`
 	PartitionRingLiveStore bool          `yaml:"partition_ring_live_store,omitempty"` // todo: remove after rhythm migration
 
+	Memory                MemoryConfig                   `yaml:"memory,omitempty"`
 	Server                server.Config                  `yaml:"server,omitempty"`
 	InternalServer        internalserver.Config          `yaml:"internal_server,omitempty"`
 	Distributor           distributor.Config             `yaml:"distributor,omitempty"`
@@ -55,7 +60,6 @@ type Config struct {
 	LiveStoreClient       livestore_client.Config        `yaml:"live_store_client,omitempty"`
 	Querier               querier.Config                 `yaml:"querier,omitempty"`
 	Frontend              frontend.Config                `yaml:"query_frontend,omitempty"`
-	Compactor             compactor.Config               `yaml:"compactor,omitempty"`
 	Ingester              ingester.Config                `yaml:"ingester,omitempty"`
 	Generator             generator.Config               `yaml:"metrics_generator,omitempty"`
 	Ingest                ingest.Config                  `yaml:"ingest,omitempty"`
@@ -83,6 +87,12 @@ func (c *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
 	c.Target = SingleBinary
 	c.StreamOverHTTPEnabled = false
 	c.PartitionRingLiveStore = false
+
+	// Memory settings
+	c.Memory = MemoryConfig{
+		AutoMemLimitEnabled: false,
+		AutoMemLimitRatio:   0.8,
+	}
 
 	// global settings
 	f.StringVar(&c.Target, "target", SingleBinary, "target module")
@@ -149,7 +159,6 @@ func (c *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
 	c.BlockBuilder.RegisterFlagsAndApplyDefaults(util.PrefixConfig(prefix, "block-builder"), f)
 	c.Querier.RegisterFlagsAndApplyDefaults(util.PrefixConfig(prefix, "querier"), f)
 	c.Frontend.RegisterFlagsAndApplyDefaults(util.PrefixConfig(prefix, "frontend"), f)
-	c.Compactor.RegisterFlagsAndApplyDefaults(util.PrefixConfig(prefix, "compactor"), f)
 	c.StorageConfig.RegisterFlagsAndApplyDefaults(util.PrefixConfig(prefix, "storage"), f)
 	c.UsageReport.RegisterFlagsAndApplyDefaults(util.PrefixConfig(prefix, "reporting"), f)
 	c.CacheProvider.RegisterFlagsAndApplyDefaults(util.PrefixConfig(prefix, "cache"), f)
@@ -170,16 +179,12 @@ func (c *Config) CheckConfig() []ConfigWarning {
 		warnings = append(warnings, warnCompleteBlockTimeout)
 	}
 
-	if c.Compactor.Compactor.BlockRetention < c.StorageConfig.Trace.BlocklistPoll {
+	if c.BackendWorker.Compactor.BlockRetention < c.StorageConfig.Trace.BlocklistPoll {
 		warnings = append(warnings, warnBlockRetention)
 	}
 
-	if c.Compactor.Compactor.RetentionConcurrency == 0 {
+	if c.BackendWorker.Compactor.RetentionConcurrency == 0 {
 		warnings = append(warnings, warnRetentionConcurrency)
-	}
-
-	if c.StorageConfig.Trace.Backend == backend.S3 && c.Compactor.Compactor.FlushSizeBytes < 5242880 {
-		warnings = append(warnings, warnStorageTraceBackendS3)
 	}
 
 	if c.StorageConfig.Trace.BlocklistPollConcurrency == 0 {
@@ -202,32 +207,18 @@ func (c *Config) CheckConfig() []ConfigWarning {
 		warnings = append(warnings, warnMCPServerEnabled)
 	}
 
-	if err := c.StorageConfig.Trace.Block.DedicatedColumns.Validate(); err != nil {
+	dcWarnings, dcErr := c.StorageConfig.Trace.Block.DedicatedColumns.Validate()
+	if dcErr != nil {
 		warnings = append(warnings, ConfigWarning{
-			Message: err.Error(),
+			Message: dcErr.Error(),
 			Explain: "Tempo will not start with an invalid dedicated attribute column configuration",
 		})
 	}
-
-	// check v2 specific settings
-	if c.StorageConfig.Trace.Block.Version != "v2" && c.StorageConfig.Trace.Block.IndexDownsampleBytes != common.DefaultIndexDownSampleBytes {
-		warnings = append(warnings, newV2Warning("v2_index_downsample_bytes"))
-	}
-
-	if c.StorageConfig.Trace.Block.Version != "v2" && c.StorageConfig.Trace.Block.IndexPageSizeBytes != common.DefaultIndexPageSizeBytes {
-		warnings = append(warnings, newV2Warning("v2_index_page_size_bytes"))
-	}
-
-	if c.StorageConfig.Trace.Block.Version != "v2" && c.Compactor.Compactor.ChunkSizeBytes != tempodb.DefaultChunkSizeBytes {
-		warnings = append(warnings, newV2Warning("v2_in_buffer_bytes"))
-	}
-
-	if c.StorageConfig.Trace.Block.Version != "v2" && c.Compactor.Compactor.FlushSizeBytes != tempodb.DefaultFlushSizeBytes {
-		warnings = append(warnings, newV2Warning("v2_out_buffer_bytes"))
-	}
-
-	if c.StorageConfig.Trace.Block.Version != "v2" && c.Compactor.Compactor.IteratorBufferSize != tempodb.DefaultIteratorBufferSize {
-		warnings = append(warnings, newV2Warning("v2_prefetch_traces_count"))
+	for _, warning := range dcWarnings {
+		warnings = append(warnings, ConfigWarning{
+			Message: warning.Error(),
+			Explain: "Dedicated attribute column configuration contains an invalid configuration that will be ignored",
+		})
 	}
 
 	if c.tracesAndOverridesStorageConflict() {
@@ -258,6 +249,10 @@ func (c *Config) CheckConfig() []ConfigWarning {
 		warnings = append(warnings, warnBackendSchedulerPruneAgeLessThanBlocklistPoll)
 	}
 
+	if len(c.BlockBuilder.AssignedPartitionsMap) > 0 && c.BlockBuilder.PartitionsPerInstance > 0 {
+		warnings = append(warnings, warnPartitionAssigmentCollision)
+	}
+
 	return warnings
 }
 
@@ -273,16 +268,12 @@ var (
 		Explain: "You may receive 404s between the time the ingesters have flushed a trace and the querier is aware of the new block",
 	}
 	warnBlockRetention = ConfigWarning{
-		Message: "compactor.compaction.compacted_block_timeout < storage.trace.blocklist_poll",
-		Explain: "Queriers and Compactors may attempt to read a block that no longer exists",
+		Message: "backend_worker.compaction.compacted_block_timeout < storage.trace.blocklist_poll",
+		Explain: "Queriers and Backend-workers may attempt to read a block that no longer exists",
 	}
 	warnRetentionConcurrency = ConfigWarning{
-		Message: "c.Compactor.Compactor.RetentionConcurrency must be greater than zero. Using default.",
+		Message: "backend_worker.Compactor.RetentionConcurrency must be greater than zero. Using default.",
 		Explain: fmt.Sprintf("default=%d", tempodb.DefaultRetentionConcurrency),
-	}
-	warnStorageTraceBackendS3 = ConfigWarning{
-		Message: "c.Compactor.Compactor.FlushSizeBytes < 5242880",
-		Explain: "Compaction flush size should be 5MB or higher for S3 backend",
 	}
 	warnBlocklistPollConcurrency = ConfigWarning{
 		Message: "c.StorageConfig.Trace.BlocklistPollConcurrency must be greater than zero. Using default.",
@@ -334,14 +325,12 @@ var (
 		Message: "c.BackendScheduler.Work.PruneAge must be greater than 2x the storage.trace.blocklist_poll duration",
 		Explain: "The backend scheduler needs not to prune work faster than the block list poll duration to avoid losing track of blocks which may have been have been compacted, but whose status has not been rediscovered during polling.",
 	}
-)
 
-func newV2Warning(setting string) ConfigWarning {
-	return ConfigWarning{
-		Message: "c.StorageConfig.Trace.Block.Version != \"v2\" but " + setting + " is set",
-		Explain: "This setting is only used in v2 blocks",
+	warnPartitionAssigmentCollision = ConfigWarning{
+		Message: "Block-builder partition assigment is configured by c.BlockBuilder.PartitionAssigment and c.BlockBuilder.PartitionsPerInstance",
+		Explain: "When both parameters are used c.BlockBuilder.PartitionAssigment takes precedence over c.BlockBuilder.PartitionsPerInstance",
 	}
-}
+)
 
 func (c *Config) tracesAndOverridesStorageConflict() bool {
 	traceStorage := c.StorageConfig.Trace

@@ -139,7 +139,7 @@ func (s Static) EncodeToString(quotes bool) string {
 func arrayToString[T any](array []T, quoted bool) string {
 	tmpl := "%v"
 	if quoted {
-		tmpl = `"%v"`
+		tmpl = "`%v`"
 	}
 
 	var s strings.Builder
@@ -178,6 +178,10 @@ func (a Attribute) String() string {
 	// Top-level attributes get a "." but top-level intrinsics don't
 	if scope == "" && a.Intrinsic == IntrinsicNone && len(att) > 0 {
 		scope += "."
+	}
+
+	if ContainsNonAttributeRune(att) {
+		att = "\"" + att + "\""
 	}
 
 	return scope + att

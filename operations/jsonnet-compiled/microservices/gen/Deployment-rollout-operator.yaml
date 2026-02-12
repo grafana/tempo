@@ -1,0 +1,48 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: rollout-operator
+  namespace: tracing
+spec:
+  minReadySeconds: 10
+  replicas: 1
+  revisionHistoryLimit: 10
+  selector:
+    matchLabels:
+      name: rollout-operator
+  strategy:
+    rollingUpdate:
+      maxSurge: 0
+      maxUnavailable: 1
+  template:
+    metadata:
+      labels:
+        name: rollout-operator
+    spec:
+      containers:
+      - args:
+        - -kubernetes.namespace=tracing
+        - -server-tls.enabled=true
+        - -use-zone-tracker=true
+        - -zone-tracker.config-map-name=rollout-operator-zone-tracker
+        image: grafana/rollout-operator:v0.33.0
+        imagePullPolicy: IfNotPresent
+        name: rollout-operator
+        ports:
+        - containerPort: 8001
+          name: http-metrics
+        - containerPort: 8443
+          name: https
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: 8001
+          initialDelaySeconds: 5
+          timeoutSeconds: 1
+        resources:
+          limits:
+            memory: 200Mi
+          requests:
+            cpu: 100m
+            memory: 100Mi
+      serviceAccountName: rollout-operator

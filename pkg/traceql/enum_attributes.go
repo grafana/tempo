@@ -157,7 +157,7 @@ func (i Intrinsic) String() string {
 	case IntrinsicKind:
 		return "kind"
 	case IntrinsicChildCount:
-		return "childCount"
+		return "span:childCount"
 	case IntrinsicEventName:
 		return "event:name"
 	case IntrinsicEventTimeSinceStart:
@@ -229,8 +229,6 @@ func intrinsicFromString(s string) Intrinsic {
 		return IntrinsicStatusMessage
 	case "kind":
 		return IntrinsicKind
-	case "childCount":
-		return IntrinsicChildCount
 	case "event:name":
 		return IntrinsicEventName
 	case "event:timeSinceStart":
@@ -265,6 +263,8 @@ func intrinsicFromString(s string) Intrinsic {
 		return IntrinsicName
 	case "span:kind":
 		return IntrinsicKind
+	case "span:childCount":
+		return IntrinsicChildCount
 	case "trace:rootName":
 		return IntrinsicTraceRootSpan
 	case "trace:rootService":

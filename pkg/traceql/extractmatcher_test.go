@@ -145,6 +145,11 @@ func TestExtractMatchers(t *testing.T) {
 			query:    `{.service_name = "foo" && .foo=} | select(.bar, .baz)`,
 			expected: `{.service_name = "foo"}`,
 		},
+		{
+			name:     "whitespace in value",
+			query:    `{ .foo = " b a r " }   `,
+			expected: `{.foo = " b a r "}`,
+		},
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {

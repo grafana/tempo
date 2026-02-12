@@ -105,6 +105,7 @@ func TestLexerScopedIntrinsic(t *testing.T) {
 		{`span:statusMessage`, []int{SPAN_COLON, STATUS_MESSAGE}},
 		{`span:id`, []int{SPAN_COLON, ID}},
 		{`span:parentID`, []int{SPAN_COLON, PARENT_ID}},
+		{`span:childCount`, []int{SPAN_COLON, CHILDCOUNT}},
 		// event scoped intrinsics
 		{`event:name`, []int{EVENT_COLON, NAME}},
 		{`event:timeSinceStart`, []int{EVENT_COLON, TIMESINCESTART}},
@@ -225,6 +226,50 @@ func testLexer(t *testing.T, tcs []lexerTestCase) {
 				actual = append(actual, tok)
 			}
 
+			require.Equal(t, tc.expected, actual)
+		})
+	}
+}
+
+func TestContainsNonAttributeRune(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected bool
+	}{
+		// Valid attribute names (no non-attribute runes)
+		{"foo", false},
+		{"foo-bar", false},
+		{"foo+bar", false},
+		{"foo3", false},
+		{"count", false},
+		{"foo.bar.baz", false},
+		{"service_name", false},
+
+		// Invalid attribute names (contains non-attribute runes)
+		{"foo bar", true}, // space
+		{"foo{bar", true}, // {
+		{"foo}bar", true}, // }
+		{"foo(bar", true}, // (
+		{"foo)bar", true}, // )
+		{"foo=bar", true}, // =
+		{"foo~bar", true}, // ~
+		{"foo!bar", true}, // !
+		{"foo<bar", true}, // <
+		{"foo>bar", true}, // >
+		{"foo&bar", true}, // &
+		{"foo|bar", true}, // |
+		{"foo^bar", true}, // ^
+		{"foo,bar", true}, // ,
+		{" foo", true},    // leading space
+		{"foo ", true},    // trailing space
+
+		// Edge cases
+		{"", false}, // empty string
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.input, func(t *testing.T) {
+			actual := ContainsNonAttributeRune(tc.input)
 			require.Equal(t, tc.expected, actual)
 		})
 	}
