@@ -29,7 +29,7 @@ type labelCardinalityState struct {
 
 // PerLabelLimiter caps the number of distinct values any single label can have.
 // When a label's estimated cardinality exceeds maxCardinality, its value is replaced
-// with __cardinality_overflow__ while all other labels are preserved.
+// with '__cardinality_overflow__' while all other labels are preserved.
 //
 // This is conceptually a limiter, not a sanitizer - it enforces a cardinality ceiling
 // rather than normalizing label values (like DrainSanitizer does for span names).

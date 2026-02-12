@@ -121,7 +121,7 @@ func TestPerLabelLimiter_OverflowMetrics(t *testing.T) {
 	s := NewPerLabelLimiter("test-metrics", testMaxCardinality(5), 15*time.Minute)
 	s.overflowCounter = overflowCounter
 
-	// Push enough distinct values to exceed limit
+	// Push enough distinct values to exceed the limit
 	for i := 0; i < 20; i++ {
 		lbls := labels.FromStrings("__name__", "m", "url", fmt.Sprintf("/path/%d", i))
 		s.Limit(lbls)
