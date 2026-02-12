@@ -198,9 +198,10 @@ func rebuildQuery(tokens []token, remove []bool) string {
 		}
 		b.WriteString(tokenRepr(t))
 		prevIdx = i
-		if t.typ == OPEN_BRACE {
+		switch t.typ {
+		case OPEN_BRACE:
 			braceDepth++
-		} else if t.typ == CLOSE_BRACE {
+		case CLOSE_BRACE:
 			braceDepth--
 		}
 	}
