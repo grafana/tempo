@@ -1988,6 +1988,14 @@ overrides:
       # receiver must be configured to ingest native histograms.
       [generate_native_histograms: <classic|native|both> | default = classic]
 
+      # Enables span name sanitization using DRAIN clustering to reduce cardinality.
+      # Similar span names are clustered together (e.g., "GET /users/123" becomes "GET /users/<*>").
+      # Options:
+      #   - "" (empty string): Disabled (default)
+      #   - "dry_run": Produces a demand metric for the sanitized cardinality without applying changes
+      #   - "enabled": Applies DRAIN clustering to span names
+      [span_name_sanitization: <string> | default = ""]
+
       # Distributor -> metrics-generator forwarder related overrides
       forwarder:
         # Spans are stored in a queue in the distributor before being sent to the metrics-generators.
@@ -2014,7 +2022,7 @@ overrides:
           [intrinsic_dimensions: <map string to bool>]
           [filter_policies: [
             [
-              include/exclude:
+              include/include_any/exclude:
                 match_type: <string> # options: strict, regexp
                 attributes:
                   - key: <string>

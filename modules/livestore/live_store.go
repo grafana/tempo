@@ -284,6 +284,11 @@ func (s *LiveStore) starting(ctx context.Context) error {
 		}
 	}
 
+	forceFromLookback := len(s.getInstances()) == 0
+	if forceFromLookback {
+		level.Info(s.logger).Log("msg", "no local data found after reload, will force reading from lookback period")
+	}
+
 	err = services.StartAndAwaitRunning(ctx, s.ingestPartitionLifecycler)
 	if err != nil {
 		return fmt.Errorf("failed to start partition lifecycler: %w", err)
@@ -309,7 +314,7 @@ func (s *LiveStore) starting(ctx context.Context) error {
 	}
 
 	lookbackPeriod := 2 * s.cfg.CompleteBlockTimeout
-	s.reader, err = NewPartitionReaderForPusher(s.client, s.ingestPartitionID, s.cfg.IngestConfig.Kafka, s.cfg.CommitInterval, lookbackPeriod, s.consume, s.logger, s.reg)
+	s.reader, err = NewPartitionReaderForPusher(s.client, s.ingestPartitionID, s.cfg.IngestConfig.Kafka, s.cfg.CommitInterval, lookbackPeriod, forceFromLookback, s.consume, s.logger, s.reg)
 	if err != nil {
 		return fmt.Errorf("failed to create partition reader: %w", err)
 	}
@@ -443,7 +448,7 @@ func (s *LiveStore) waitForCatchUp(ctx context.Context) error {
 			}
 
 			// Calculate current lag
-			lag := s.calculateTimeLag()
+			lag := s.calculateTimeLag(1000)
 			if lag == nil {
 				level.Debug(s.logger).Log("msg", "catch-up lag could not be determined, waiting")
 				continue
@@ -475,7 +480,10 @@ func (s *LiveStore) waitForCatchUp(ctx context.Context) error {
 // - empty partition = no lag
 // - nothing has been fetched yet = indeterminate
 // - we know the watermark but nothing has been consumed yet = indeterminate
-func (s *LiveStore) calculateTimeLag() *time.Duration {
+//
+// It takes lagShortcutThreshold to shortcut calculations if the lag is close to the end of the partition.
+// To disable the shortcut, set lagShortcutThreshold to a negative value.
+func (s *LiveStore) calculateTimeLag(lagShortcutThreshold int64) *time.Duration {
 	// Use cached high watermark from fetch responses (avoids extra API call)
 	lag := s.reader.lag.Load()
 	zero := time.Duration(0)
@@ -488,7 +496,7 @@ func (s *LiveStore) calculateTimeLag() *time.Duration {
 
 	// Check if we are near end or partition is empty
 	// Arbitrary value picked to shortcut calculations
-	if lag <= 1000 {
+	if lagShortcutThreshold >= 0 && lag <= lagShortcutThreshold {
 		level.Debug(s.logger).Log(
 			"msg", "At or close to partition end",
 			"lag", lag)
@@ -691,6 +699,9 @@ func (s *LiveStore) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDReq
 
 // SearchRecent implements tempopb.Querier
 func (s *LiveStore) SearchRecent(ctx context.Context, req *tempopb.SearchRequest) (*tempopb.SearchResponse, error) {
+	if s.isLagged(int64(req.End) * 1e9) { // convert seconds to nanoseconds
+		return nil, errLagged
+	}
 	return withInstance(ctx, s, func(inst *instance) (*tempopb.SearchResponse, error) {
 		return inst.Search(ctx, req)
 	})
@@ -741,9 +752,25 @@ func (s *LiveStore) GetMetrics(_ context.Context, _ *tempopb.SpanMetricsRequest)
 
 // QueryRange implements tempopb.MetricsGeneratorServer
 func (s *LiveStore) QueryRange(ctx context.Context, req *tempopb.QueryRangeRequest) (*tempopb.QueryRangeResponse, error) {
+	if s.isLagged(int64(req.End)) { // end param is already nanos, no need to convert
+		return nil, errLagged
+	}
 	return withInstance(ctx, s, func(inst *instance) (*tempopb.QueryRangeResponse, error) {
 		return inst.QueryRange(ctx, req)
 	})
+}
+
+var errLagged = errors.New("cannot guarantee complete results")
+
+func (s *LiveStore) isLagged(endNanos int64) bool {
+	if !s.cfg.FailOnHighLag { // if config disabled, never lagged
+		return false
+	}
+	lag := s.calculateTimeLag(0)
+	if lag == nil { // lag is unknown
+		return true // prefer error over potentially incomplete results
+	}
+	return time.Since(time.Unix(0, endNanos)) < *lag
 }
 
 // withInstance extracts the tenant ID from the context, gets the instance,

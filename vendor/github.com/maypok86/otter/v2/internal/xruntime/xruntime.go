@@ -19,14 +19,11 @@ import (
 	"math/rand/v2"
 	"runtime"
 	"time"
-	"unsafe"
-
-	"golang.org/x/sys/cpu"
 )
 
 const (
 	// CacheLineSize is useful for preventing false sharing.
-	CacheLineSize = unsafe.Sizeof(cpu.CacheLinePad{})
+	CacheLineSize = 64
 
 	MaxDuration = time.Duration(math.MaxInt64)
 )

@@ -273,12 +273,13 @@ func TestSpanMetrics_applyFilterPolicy(t *testing.T) {
 			filterPolicies: nil,
 		},
 		{
-			name:   "non nil policy with nil include/exclude fails",
-			err:    fmt.Errorf("invalid filter policy; policies must have at least an `include` or `exclude`: {<nil> <nil>}"),
+			name:   "non nil policy with nil include/includeAny/exclude fails",
+			err:    fmt.Errorf("invalid filter policy; policies must have at least an `include`, `includeAny` or `exclude`: {<nil> <nil> <nil>}"),
 			expect: false,
 			filterPolicies: []config.FilterPolicy{{
-				Include: nil,
-				Exclude: nil,
+				Include:    nil,
+				IncludeAny: nil,
+				Exclude:    nil,
 			}},
 		},
 		{
@@ -459,6 +460,248 @@ func TestSpanMetrics_applyFilterPolicy(t *testing.T) {
 					Code: tracev1.Status_STATUS_CODE_OK,
 				},
 				Name: "test",
+			},
+		},
+
+		{
+			name:   "a matching includeAny policy for internal span kind for allowed service",
+			expect: true,
+			filterPolicies: []config.FilterPolicy{
+				{
+					// include only server kind
+					Include: &config.PolicyMatch{
+						MatchType: config.Strict,
+						Attributes: []config.MatchPolicyAttribute{
+							{Key: "kind", Value: "SPAN_KIND_SERVER"},
+						},
+					},
+					// Allow internal spans for "auth-service"
+					IncludeAny: &config.PolicyMatch{
+						MatchType: config.Strict,
+						Attributes: []config.MatchPolicyAttribute{
+							{Key: "kind", Value: "SPAN_KIND_INTERNAL"},
+							{Key: "resource.service.name", Value: "auth-service"},
+						},
+					},
+				},
+			},
+			resource: &v1.Resource{
+				Attributes: []*commonv1.KeyValue{
+					{Key: "service.name", Value: &commonv1.AnyValue{Value: &commonv1.AnyValue_StringValue{StringValue: "auth-service"}}},
+				},
+			},
+			span: &tracev1.Span{
+				Kind: tracev1.Span_SPAN_KIND_INTERNAL,
+				Name: "check-token",
+			},
+		},
+		{
+			name:   "a matching span across multiple includeAny policies",
+			expect: true,
+			filterPolicies: []config.FilterPolicy{
+				{
+					IncludeAny: &config.PolicyMatch{
+						MatchType: config.Strict,
+						Attributes: []config.MatchPolicyAttribute{
+							{Key: "kind", Value: "SPAN_KIND_INTERNAL"},
+							{Key: "resource.service.name", Value: "auth-service"},
+						},
+					},
+				},
+				{
+					IncludeAny: &config.PolicyMatch{
+						MatchType: config.Strict,
+						Attributes: []config.MatchPolicyAttribute{
+							{Key: "kind", Value: "SPAN_KIND_INTERNAL"},
+							{Key: "resource.service.name", Value: "payments-service"},
+						},
+					},
+				},
+			},
+			resource: &v1.Resource{
+				Attributes: []*commonv1.KeyValue{
+					{Key: "service.name", Value: &commonv1.AnyValue{Value: &commonv1.AnyValue_StringValue{StringValue: "payments-service"}}},
+				},
+			},
+			span: &tracev1.Span{
+				Kind: tracev1.Span_SPAN_KIND_INTERNAL,
+				Name: "charge-card",
+			},
+		},
+		{
+			name:   "a non matching includeAny policy with no other include policy",
+			expect: false,
+			filterPolicies: []config.FilterPolicy{
+				{ // Allow internal spans for "auth-service"
+					IncludeAny: &config.PolicyMatch{
+						MatchType: config.Strict,
+						Attributes: []config.MatchPolicyAttribute{
+							{Key: "kind", Value: "SPAN_KIND_INTERNAL"},
+							{Key: "resource.service.name", Value: "auth-service"},
+						},
+					},
+				},
+			},
+			resource: &v1.Resource{
+				Attributes: []*commonv1.KeyValue{
+					{Key: "service.name", Value: &commonv1.AnyValue{Value: &commonv1.AnyValue_StringValue{StringValue: "distributor"}}},
+				},
+			},
+			span: &tracev1.Span{
+				Kind: tracev1.Span_SPAN_KIND_INTERNAL,
+				Name: "check-token",
+			},
+		},
+		{
+			name:   "a non matching includeAny policy rejects internal span for non-allowed service",
+			expect: false,
+			filterPolicies: []config.FilterPolicy{
+				{
+					Include: &config.PolicyMatch{
+						MatchType: config.Strict,
+						Attributes: []config.MatchPolicyAttribute{
+							{Key: "kind", Value: "SPAN_KIND_SERVER"},
+						},
+					},
+					IncludeAny: &config.PolicyMatch{
+						MatchType: config.Strict,
+						Attributes: []config.MatchPolicyAttribute{
+							{Key: "kind", Value: "SPAN_KIND_INTERNAL"},
+							{Key: "resource.service.name", Value: "auth-service"},
+						},
+					},
+				},
+			},
+			resource: &v1.Resource{
+				Attributes: []*commonv1.KeyValue{
+					{Key: "service.name", Value: &commonv1.AnyValue{Value: &commonv1.AnyValue_StringValue{StringValue: "noisy-service"}}},
+				},
+			},
+			span: &tracev1.Span{
+				Kind: tracev1.Span_SPAN_KIND_INTERNAL,
+				Name: "random-log",
+			},
+		},
+		{
+			name:   "a matching includeAny is excluded by a Exclude policy",
+			expect: false,
+			filterPolicies: []config.FilterPolicy{
+				{
+					IncludeAny: &config.PolicyMatch{
+						MatchType: config.Strict,
+						Attributes: []config.MatchPolicyAttribute{
+							{Key: "kind", Value: "SPAN_KIND_INTERNAL"},
+							{Key: "resource.service.name", Value: "auth-service"},
+						},
+					},
+					Exclude: &config.PolicyMatch{
+						MatchType: config.Strict,
+						Attributes: []config.MatchPolicyAttribute{
+							{Key: "resource.env", Value: "dev"},
+						},
+					},
+				},
+			},
+			resource: &v1.Resource{
+				Attributes: []*commonv1.KeyValue{
+					{Key: "service.name", Value: &commonv1.AnyValue{Value: &commonv1.AnyValue_StringValue{StringValue: "auth-service"}}},
+					{Key: "env", Value: &commonv1.AnyValue{Value: &commonv1.AnyValue_StringValue{StringValue: "dev"}}},
+				},
+			},
+			span: &tracev1.Span{
+				Kind: tracev1.Span_SPAN_KIND_INTERNAL,
+				Name: "check-token",
+			},
+		},
+		{
+			name:   "a matching includeAny policy with regex match type",
+			expect: true,
+			filterPolicies: []config.FilterPolicy{
+				{
+					IncludeAny: &config.PolicyMatch{
+						MatchType: config.Regex,
+						Attributes: []config.MatchPolicyAttribute{
+							{Key: "kind", Value: "SPAN_KIND_.*"},
+							{Key: "resource.service.name", Value: "auth-.*"},
+						},
+					},
+				},
+			},
+			resource: &v1.Resource{
+				Attributes: []*commonv1.KeyValue{
+					{Key: "service.name", Value: &commonv1.AnyValue{Value: &commonv1.AnyValue_StringValue{StringValue: "auth-service"}}},
+				},
+			},
+			span: &tracev1.Span{
+				Kind: tracev1.Span_SPAN_KIND_INTERNAL,
+				Name: "check-token",
+			},
+		},
+		{
+			name:   "include exclude and includeAny policy where includeAny matches",
+			expect: true,
+			filterPolicies: []config.FilterPolicy{
+				{
+					Include: &config.PolicyMatch{
+						MatchType: config.Strict,
+						Attributes: []config.MatchPolicyAttribute{
+							{Key: "kind", Value: "SPAN_KIND_SERVER"},
+						},
+					},
+					IncludeAny: &config.PolicyMatch{
+						MatchType: config.Strict,
+						Attributes: []config.MatchPolicyAttribute{
+							{Key: "kind", Value: "SPAN_KIND_INTERNAL"},
+							{Key: "resource.service.name", Value: "auth-service"},
+						},
+					},
+					Exclude: &config.PolicyMatch{
+						MatchType: config.Strict,
+						Attributes: []config.MatchPolicyAttribute{
+							{Key: "resource.env", Value: "dev"},
+						},
+					},
+				},
+			},
+			resource: &v1.Resource{
+				Attributes: []*commonv1.KeyValue{
+					{Key: "service.name", Value: &commonv1.AnyValue{Value: &commonv1.AnyValue_StringValue{StringValue: "auth-service"}}},
+					{Key: "env", Value: &commonv1.AnyValue{Value: &commonv1.AnyValue_StringValue{StringValue: "prod"}}},
+				},
+			},
+			span: &tracev1.Span{
+				Kind: tracev1.Span_SPAN_KIND_INTERNAL,
+				Name: "check-token",
+			},
+		},
+		{
+			name:   "allows server spans even if IncludeAny is present",
+			expect: true,
+			filterPolicies: []config.FilterPolicy{
+				{
+					Include: &config.PolicyMatch{
+						MatchType: config.Strict,
+						Attributes: []config.MatchPolicyAttribute{
+							{Key: "kind", Value: "SPAN_KIND_SERVER"},
+						},
+					},
+					IncludeAny: &config.PolicyMatch{
+						MatchType: config.Strict,
+						Attributes: []config.MatchPolicyAttribute{
+							{Key: "kind", Value: "SPAN_KIND_INTERNAL"},
+							{Key: "resource.service.name", Value: "auth-service"},
+						},
+					},
+				},
+			},
+			resource: &v1.Resource{
+				Attributes: []*commonv1.KeyValue{
+					{Key: "service.name", Value: &commonv1.AnyValue{Value: &commonv1.AnyValue_StringValue{StringValue: "any-service"}}},
+				},
+			},
+			span: &tracev1.Span{
+				Kind: tracev1.Span_SPAN_KIND_SERVER,
+				Name: "get-user",
 			},
 		},
 	}

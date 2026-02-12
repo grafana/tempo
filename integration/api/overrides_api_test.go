@@ -678,6 +678,111 @@ func TestOverridesAPI_DELETE(t *testing.T) {
 	})
 }
 
+func TestOverridesAPI_SpanNameSanitization(t *testing.T) {
+	util.RunIntegrationTests(t, util.TestHarnessConfig{
+		ConfigOverlay:  configOverrides,
+		DeploymentMode: util.DeploymentModeSingleBinary,
+		Backends:       util.BackendObjectStorageS3,
+	}, func(h *util.TempoHarness) {
+		t.Run("sets span_name_sanitization via POST and verifies GET response", func(t *testing.T) {
+			apiClient := h.APIClientHTTP("tenant-span-name-sanitization-1")
+
+			// Create overrides with span_name_sanitization set to "enabled"
+			limits := &client.Limits{
+				MetricsGenerator: client.LimitsMetricsGenerator{
+					SpanNameSanitization: stringPtr("enabled"),
+				},
+			}
+			setEtag, err := apiClient.SetOverrides(limits, "0")
+			require.NoError(t, err)
+			require.NotEmpty(t, setEtag)
+
+			// Verify GET response contains the value
+			returnedLimits, etag, err := apiClient.GetOverrides()
+			require.NoError(t, err)
+			require.Equal(t, setEtag, etag)
+			spanNameSanitization, ok := returnedLimits.GetMetricsGenerator().GetSpanNameSanitization()
+			require.True(t, ok)
+			require.Equal(t, "enabled", spanNameSanitization)
+		})
+
+		t.Run("sets span_name_sanitization via PATCH and verifies GET response", func(t *testing.T) {
+			apiClient := h.APIClientHTTP("tenant-span-name-sanitization-2")
+
+			// Create initial config
+			initialLimits := &client.Limits{
+				MetricsGenerator: client.LimitsMetricsGenerator{
+					DisableCollection: boolPtr(true),
+				},
+			}
+			_, err := apiClient.SetOverrides(initialLimits, "0")
+			require.NoError(t, err)
+
+			// PATCH with span_name_sanitization set to "dry_run"
+			patch := &client.Limits{
+				MetricsGenerator: client.LimitsMetricsGenerator{
+					SpanNameSanitization: stringPtr("dry_run"),
+				},
+			}
+			returnedLimits, _, err := apiClient.PatchOverrides(patch)
+			require.NoError(t, err)
+
+			// Verify PATCH response contains the value
+			spanNameSanitization, ok := returnedLimits.GetMetricsGenerator().GetSpanNameSanitization()
+			require.True(t, ok)
+			require.Equal(t, "dry_run", spanNameSanitization)
+
+			// Verify GET response also contains the value
+			getLimits, _, err := apiClient.GetOverrides()
+			require.NoError(t, err)
+			spanNameSanitization, ok = getLimits.GetMetricsGenerator().GetSpanNameSanitization()
+			require.True(t, ok)
+			require.Equal(t, "dry_run", spanNameSanitization)
+		})
+
+		t.Run("returns 400 for invalid span_name_sanitization value via POST", func(t *testing.T) {
+			apiClient := h.APIClientHTTP("tenant-span-name-sanitization-invalid-1")
+
+			// Try to set invalid span_name_sanitization value
+			limits := &client.Limits{
+				MetricsGenerator: client.LimitsMetricsGenerator{
+					SpanNameSanitization: stringPtr("invalid"),
+				},
+			}
+			_, err := apiClient.SetOverrides(limits, "0")
+			require.Error(t, err)
+			require.ErrorContains(t, err, "400")
+			require.ErrorContains(t, err, "span_name_sanitization")
+			require.ErrorContains(t, err, "not valid")
+		})
+
+		t.Run("returns 400 for invalid span_name_sanitization value via PATCH", func(t *testing.T) {
+			apiClient := h.APIClientHTTP("tenant-span-name-sanitization-invalid-2")
+
+			// Create initial config
+			initialLimits := &client.Limits{
+				MetricsGenerator: client.LimitsMetricsGenerator{
+					DisableCollection: boolPtr(true),
+				},
+			}
+			_, err := apiClient.SetOverrides(initialLimits, "0")
+			require.NoError(t, err)
+
+			// Try to PATCH with invalid span_name_sanitization value
+			patch := &client.Limits{
+				MetricsGenerator: client.LimitsMetricsGenerator{
+					SpanNameSanitization: stringPtr("invalid"),
+				},
+			}
+			_, _, err = apiClient.PatchOverrides(patch)
+			require.Error(t, err)
+			require.ErrorContains(t, err, "400")
+			require.ErrorContains(t, err, "span_name_sanitization")
+			require.ErrorContains(t, err, "not valid")
+		})
+	})
+}
+
 // Helper functions for overrides API tests
 
 func printLimits(limits *client.Limits, version string) {
@@ -709,4 +814,8 @@ func keys(m map[string]struct{}) []string {
 		keys = append(keys, k)
 	}
 	return keys
+}
+
+func stringPtr(s string) *string {
+	return &s
 }

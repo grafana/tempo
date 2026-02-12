@@ -57,7 +57,7 @@ func (m *mockLimiter) OnPruneStaleSeries() {
 }
 
 func buildTestLabels(names []string, values []string) labels.Labels {
-	builder := NewLabelBuilder(0, 0, &noopSanitizer{})
+	builder := NewLabelBuilder(0, 0, newTestDrainSanitizer(SpanNameSanitizationDisabled))
 	for i := range names {
 		builder.Add(names[i], values[i])
 	}
