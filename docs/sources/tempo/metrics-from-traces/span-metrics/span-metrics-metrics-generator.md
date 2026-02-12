@@ -230,7 +230,7 @@ To do so you can configure any of the following processors, in any order or comb
 
 - `include`: Defines a matching criteria that all spans must meet. If multiple include policies are defined, a span must match all of them to be included (logical AND).
 
-- `include_only`: If a span matches any include_only policy, it is immediately included, bypassing the stricter `include` requirements (logical OR). This is ideal for capturing specific internal spans without opening the floodgates for all internal telemetry.
+- `include_any`: If a span matches any include_any policy, it is immediately included, bypassing the stricter `include` requirements (logical OR). This is ideal for capturing specific internal spans without opening the floodgates for all internal telemetry.
 
 - `exclude`: If a span matches any exclude policy, it is rejected, even if it matched an inclusion rule.
 
@@ -326,7 +326,7 @@ metrics_generator:
               - key: resource.location
                 value: eu-.*
         # Exception Rule: Allow INTERNAL spans for auth-service specifically
-        - include_only:
+        - include_any:
             match_type: strict
             attributes:
               - key: kind

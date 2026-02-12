@@ -7,13 +7,13 @@ import (
 )
 
 type SpanFilter struct {
-	include     []*splitPolicy
-	includeOnly []*splitPolicy
-	exclude     []*splitPolicy
+	include    []*splitPolicy
+	includeAny []*splitPolicy
+	exclude    []*splitPolicy
 
-	hasInclude     bool
-	hasIncludeOnly bool
-	hasExclude     bool
+	hasInclude    bool
+	hasIncludeAny bool
+	hasExclude    bool
 }
 
 // NewSpanFilter returns a SpanFilter that will filter spans based on the given filter policies.
@@ -35,14 +35,14 @@ func NewSpanFilter(filterPolicies []config.FilterPolicy) (*SpanFilter, error) {
 			sf.hasInclude = true
 		}
 
-		includeOnly, err := getSplitPolicy(policy.IncludeOnly)
+		includeAny, err := getSplitPolicy(policy.IncludeAny)
 		if err != nil {
 			return nil, err
 		}
 
-		if includeOnly != nil {
-			sf.includeOnly = append(sf.includeOnly, includeOnly)
-			sf.hasIncludeOnly = true
+		if includeAny != nil {
+			sf.includeAny = append(sf.includeAny, includeAny)
+			sf.hasIncludeAny = true
 		}
 
 		exclude, err := getSplitPolicy(policy.Exclude)
@@ -61,7 +61,7 @@ func NewSpanFilter(filterPolicies []config.FilterPolicy) (*SpanFilter, error) {
 // ApplyFilterPolicy returns true if the span should be included in the metrics.
 func (f *SpanFilter) ApplyFilterPolicy(rs *v1.Resource, span *tracev1.Span) bool {
 	// With no filter policies specified, all spans are included.
-	if !f.hasInclude && !f.hasIncludeOnly && !f.hasExclude {
+	if !f.hasInclude && !f.hasIncludeAny && !f.hasExclude {
 		return true
 	}
 
@@ -69,7 +69,7 @@ func (f *SpanFilter) ApplyFilterPolicy(rs *v1.Resource, span *tracev1.Span) bool
 		return false
 	}
 
-	if f.hasIncludeOnly && f.isIncludedOnly(rs, span) {
+	if f.hasIncludeAny && f.isIncludedOnly(rs, span) {
 		return true
 	}
 
@@ -77,16 +77,16 @@ func (f *SpanFilter) ApplyFilterPolicy(rs *v1.Resource, span *tracev1.Span) bool
 		return f.isIncluded(rs, span)
 	}
 
-	// If we have an include_only but NO standard include, and we reached
-	// here, it means include_only didn't match. -> return false.
+	// If we have an include_any but NO standard include, and we reached
+	// here, it means include_any didn't match. -> return false.
 	// IF NO inclusion rules exist at all -> return true.
-	return !f.hasIncludeOnly
+	return !f.hasIncludeAny
 }
 
 // This is different than the isIncluded. It's a VIP pass,working as an OR expression.
 // if ANY policy matches the span is included
 func (f *SpanFilter) isIncludedOnly(rs *v1.Resource, span *tracev1.Span) bool {
-	for _, policy := range f.includeOnly {
+	for _, policy := range f.includeAny {
 		if policy.Match(rs, span) {
 			return true
 		}

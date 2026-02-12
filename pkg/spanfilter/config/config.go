@@ -7,9 +7,9 @@ import (
 )
 
 type FilterPolicy struct {
-	Include     *PolicyMatch `yaml:"include" json:"include,omitempty"`
-	IncludeOnly *PolicyMatch `yaml:"include_only" json:"include_only,omitempty"`
-	Exclude     *PolicyMatch `yaml:"exclude" json:"exclude,omitempty"`
+	Include    *PolicyMatch `yaml:"include" json:"include,omitempty"`
+	IncludeAny *PolicyMatch `yaml:"include_any" json:"include_any,omitempty"`
+	Exclude    *PolicyMatch `yaml:"exclude" json:"exclude,omitempty"`
 }
 
 type MatchType string
@@ -36,8 +36,8 @@ type MatchPolicyAttribute struct {
 }
 
 func ValidateFilterPolicy(policy FilterPolicy) error {
-	if policy.Include == nil && policy.IncludeOnly == nil && policy.Exclude == nil {
-		return fmt.Errorf("invalid filter policy; policies must have at least an `include`, `includeOnly` or `exclude`: %v", policy)
+	if policy.Include == nil && policy.IncludeAny == nil && policy.Exclude == nil {
+		return fmt.Errorf("invalid filter policy; policies must have at least an `include`, `includeAny` or `exclude`: %v", policy)
 	}
 
 	if policy.Include != nil {
@@ -46,9 +46,9 @@ func ValidateFilterPolicy(policy FilterPolicy) error {
 		}
 	}
 
-	if policy.IncludeOnly != nil {
-		if err := ValidatePolicyMatch(policy.IncludeOnly); err != nil {
-			return fmt.Errorf("invalid includeOnly policy: %w", err)
+	if policy.IncludeAny != nil {
+		if err := ValidatePolicyMatch(policy.IncludeAny); err != nil {
+			return fmt.Errorf("invalid includeAny policy: %w", err)
 		}
 	}
 
