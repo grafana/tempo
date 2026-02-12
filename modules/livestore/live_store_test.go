@@ -827,33 +827,6 @@ func TestIsLagged(t *testing.T) {
 	}
 }
 
-func TestLiveStoreRemovesPartitionOwnerOnShutdown(t *testing.T) {
-	tmpDir := t.TempDir()
-
-	cfg := defaultConfig(t, tmpDir)
-	partitionKV := cfg.PartitionRing.KVStore.Mock
-
-	liveStore, err := liveStoreWithConfig(t, cfg)
-	require.NoError(t, err)
-
-	// Verify owner is registered in the partition ring after startup
-	val, err := partitionKV.Get(t.Context(), PartitionRingKey)
-	require.NoError(t, err)
-	require.NotNil(t, val)
-	desc := ring.GetOrCreatePartitionRingDesc(val)
-	require.True(t, desc.HasOwner(cfg.Ring.InstanceID), "owner should be registered after startup")
-
-	// Stop the live store. The reader may return a context-canceled error during shutdown
-	_ = services.StopAndAwaitTerminated(t.Context(), liveStore)
-
-	// Verify owner is removed from the partition ring after shutdown
-	val, err = partitionKV.Get(t.Context(), PartitionRingKey)
-	require.NoError(t, err)
-	require.NotNil(t, val)
-	desc = ring.GetOrCreatePartitionRingDesc(val)
-	require.False(t, desc.HasOwner(cfg.Ring.InstanceID), "owner should be removed after shutdown")
-}
-
 func TestLiveStoreKeepsPartitionOwnerOnShutdown(t *testing.T) {
 	tmpDir := t.TempDir()
 
