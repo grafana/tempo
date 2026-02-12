@@ -36,7 +36,7 @@ func TestPerLabelLimiter_UnderLimit(t *testing.T) {
 	}
 
 	// Trigger maintenance to update overLimit flags
-	triggerMaintenance(s)
+	triggerDemandUpdate(s)
 
 	// Still under limit, should pass through
 	lbls := labels.FromStrings("__name__", "foo", "method", "GET")
@@ -54,7 +54,7 @@ func TestPerLabelLimiter_HighCardinalityOverflows(t *testing.T) {
 	}
 
 	// Trigger maintenance to update overLimit flags
-	triggerMaintenance(s)
+	triggerDemandUpdate(s)
 
 	// Now the url should overflow but the method should be preserved
 	lbls := labels.FromStrings("__name__", "http_requests", "method", "GET", "url", "/users/999")
@@ -73,7 +73,7 @@ func TestPerLabelLimiter_MultipleHighCardinalityOverflows(t *testing.T) {
 		s.Limit(lbls)
 	}
 
-	triggerMaintenance(s)
+	triggerDemandUpdate(s)
 
 	lbls := labels.FromStrings("__name__", "m", "method", "GET", "url", "/p/999", "user_id", "u999")
 	result := s.Limit(lbls)
@@ -96,7 +96,7 @@ func TestPerLabelLimiter_MetadataLabelsNeverOverflows(t *testing.T) {
 		s.Limit(lbls)
 	}
 
-	triggerMaintenance(s)
+	triggerDemandUpdate(s)
 
 	lbls := labels.FromStrings("__name__", "metric_999", "__type__", "type_999", "__unit__", "unit_999", "url", "/path/999")
 	result := s.Limit(lbls)
@@ -104,6 +104,58 @@ func TestPerLabelLimiter_MetadataLabelsNeverOverflows(t *testing.T) {
 	require.Equal(t, "type_999", result.Get("__type__"), "__type__ should never overflow")
 	require.Equal(t, "unit_999", result.Get("__unit__"), "__unit__ should never overflow")
 	require.Equal(t, overflowValue, result.Get("url"), "non-metadata label should overflow")
+}
+
+// TestPerLabelLimiter_RecoveryAfterOverflow verifies that a label
+// recovers from overflow once the user reduces cardinality and the old
+// high-cardinality sketches rotate out of the sliding window.
+func TestPerLabelLimiter_RecoveryAfterOverflow(t *testing.T) {
+	staleDuration := 15 * time.Minute
+	s := NewPerLabelLimiter("test", testMaxCardinality(5), staleDuration)
+
+	// Phase 1: Push high-cardinality data to trigger overflow
+	for i := 0; i < 10; i++ {
+		lbls := labels.FromStrings("__name__", "http_requests", "url", fmt.Sprintf("/users/%d", i))
+		s.Limit(lbls)
+	}
+	triggerDemandUpdate(s)
+
+	// Verify that overflow happens
+	lbls := labels.FromStrings("__name__", "http_requests", "url", "/users/999")
+	result := s.Limit(lbls)
+	require.Equal(t, overflowValue, result.Get("url"), "should overflow while cardinality is high")
+
+	// Phase 2: Simulate time passing - Advance the sketch enough times to fully rotate
+	// out all old high-cardinality data from the sketch ring and prune it.
+	// With staleDuration=15m and sketchDuration=5m, sketchesLength=4, so prune it 4 times
+	for i := 0; i < 4; i++ {
+		triggerPrune(s)
+	}
+
+	// Phase 3: Push only low-cardinality data (within limit)
+	for i := 0; i < 3; i++ {
+		lbls := labels.FromStrings("__name__", "http_requests", "url", fmt.Sprintf("/api/v1/resource_%d", i))
+		s.Limit(lbls)
+	}
+
+	// Trigger maintenance to re-evaluate overLimit from the now-low estimate
+	triggerDemandUpdate(s)
+
+	// Verify recovery - label values should pass through again
+	lbls = labels.FromStrings("__name__", "http_requests", "url", "/api/v1/healthy")
+	result = s.Limit(lbls)
+	require.Equal(t, "/api/v1/healthy", result.Get("url"), "should recover after cardinality drops below limit")
+
+	// Phase 4: Cardinality explodes again - verify overflow kicks back in
+	for i := 0; i < 10; i++ {
+		lbls := labels.FromStrings("__name__", "http_requests", "url", fmt.Sprintf("/new_endpoint/%d", i))
+		s.Limit(lbls)
+	}
+	triggerDemandUpdate(s)
+
+	lbls = labels.FromStrings("__name__", "http_requests", "url", "/new_endpoint/999")
+	result = s.Limit(lbls)
+	require.Equal(t, overflowValue, result.Get("url"), "should overflow again after cardinality increases")
 }
 
 func TestPerLabelLimiter_OverflowMetrics(t *testing.T) {
@@ -116,7 +168,7 @@ func TestPerLabelLimiter_OverflowMetrics(t *testing.T) {
 		s.Limit(lbls)
 	}
 
-	triggerMaintenance(s)
+	triggerDemandUpdate(s)
 
 	// Now limit - should increment the counter
 	lbls := labels.FromStrings("__name__", "m", "url", "/path/new")
@@ -151,7 +203,7 @@ func TestPerLabelLimiter_ConcurrentAccess(t *testing.T) {
 	wg.Wait()
 
 	// After all goroutines finish, trigger maintenance and verify the state is consistent
-	triggerMaintenance(s)
+	triggerDemandUpdate(s)
 
 	s.mtx.Lock()
 	state, ok := s.labelsState["label"]
@@ -160,10 +212,19 @@ func TestPerLabelLimiter_ConcurrentAccess(t *testing.T) {
 	require.Greater(t, state.sketch.Estimate(), uint64(0), "sketch should have recorded values")
 }
 
-// triggerMaintenance force runs doPeriodicMaintenance and evaluates overLimit from current sketch estimates.
-func triggerMaintenance(s *PerLabelLimiter) {
+// triggerDemandUpdate force runs the demand-update path of doPeriodicMaintenance,
+// re-evaluating overLimit from current sketch estimates.
+func triggerDemandUpdate(s *PerLabelLimiter) {
 	ch := make(chan time.Time, 1)
 	s.demandUpdateChan = ch
+	ch <- time.Now()
+	s.doPeriodicMaintenance()
+}
+
+// triggerPrune force runs the prune path of doPeriodicMaintenance, advancing the sketch ring by one step.
+func triggerPrune(s *PerLabelLimiter) {
+	ch := make(chan time.Time, 1)
+	s.pruneChan = ch
 	ch <- time.Now()
 	s.doPeriodicMaintenance()
 }
