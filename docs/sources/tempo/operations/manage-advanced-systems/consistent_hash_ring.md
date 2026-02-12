@@ -13,7 +13,7 @@ Tempo uses the [Consistent Hash Ring](https://cortexmetrics.io/docs/architecture
 By default, the ring is gossiped between all Tempo components.
 However, it can be configured to use [Consul](https://www.consul.io/) or [Etcd](https://etcd.io/), if desired.
 
-There are four consistent hash rings: distributor, ingester, metrics-generator, and compactor.
+There are three consistent hash rings: distributor, ingester, and metrics-generator.
 Each hash ring exists for a distinct reason.
 
 ## Distributor
@@ -43,14 +43,6 @@ This ring is used by the distributors to load balance traffic into the ingesters
 This ring is used by distributors to load balance traffic to the metrics-generators. When spans are received, the trace ID is hashed, and the traces are sent to the appropriate metrics-generators based on token ownership in the ring.
 Queriers also use this ring to generate TraceQL metrics from recent traces.
 
-## Compactor
-
-**Participants:** Compactors
-
-**Used by:** Compactors
-
-This ring is used by the compactors to shard compaction jobs. Jobs are hashed into the ring and the owning compactor is the only one allowed to compact a specific set of blocks to prevent race conditions on compaction.
-
 ## Interacting with the rings
 
 Web pages are available at the following endpoints. They show every ring member, their tokens and includes the ability to "Forget" a ring member. "Forgetting" is useful when a
@@ -79,14 +71,6 @@ Unhealthy ingesters will cause writes to fail. If the ingester is really gone, f
 **Path:** `/metrics-generator/ring`
 
 Unhealthy metrics-generators will cause writes to fail. If the metrics-generator is really gone, forget it immediately.
-
-### Compactor
-
-**Available on:** Compactors
-
-**Path:** `/compactor/ring`
-
-Unhealthy compactors will allow the blocklist to grow significantly. If the compactor is really gone, forget it immediately.
 
 ## Configuring the rings
 

@@ -5,6 +5,9 @@ import (
 	"fmt"
 	"strings"
 	"text/scanner"
+
+	"github.com/go-kit/log/level"
+	"github.com/grafana/tempo/pkg/util/log"
 )
 
 func init() {
@@ -18,6 +21,10 @@ func init() {
 }
 
 func Parse(s string) (expr *RootExpr, err error) {
+	return parseWithOptimizationOption(s, true)
+}
+
+func parseWithOptimizationOption(s string, astOptimization bool) (expr *RootExpr, err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			var ok bool
@@ -43,6 +50,12 @@ func Parse(s string) (expr *RootExpr, err error) {
 	}
 	if e != 0 {
 		return nil, fmt.Errorf("unknown parse error: %d", e)
+	}
+
+	hintSkipOptimization, _ := l.expr.Hints.GetBool(HintSkipOptimization, true)
+	if astOptimization && !hintSkipOptimization {
+		l.expr = ApplyDefaultASTRewrites(l.expr)
+		level.Debug(log.Logger).Log("msg", "optimize AST for TraceQL query", "query", s, "optimizedQuery", l.expr.String(), "optimizationCount", l.expr.OptimizationCount)
 	}
 
 	return l.expr, nil

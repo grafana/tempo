@@ -30,6 +30,7 @@ func Test_limitsFromOverrides(t *testing.T) {
 				NativeHistogramMaxBucketNumber:  160,
 				NativeHistogramBucketFactor:     1.2,
 				NativeHistogramMinResetDuration: 10 * time.Minute,
+				SpanNameSanitization:            "enabled",
 				Processor: overrides.ProcessorOverrides{
 					ServiceGraphs: overrides.ServiceGraphsOverrides{
 						HistogramBuckets:         []float64{0.1, 0.2, 0.5},
@@ -91,6 +92,7 @@ func Test_limitsFromOverrides(t *testing.T) {
     "native_histogram_max_bucket_number": 160,
     "native_histogram_bucket_factor": 1.2,
     "native_histogram_min_reset_duration": "10m0s",
+    "span_name_sanitization": "enabled",
     "processor": {
       "service_graphs": {
         "dimensions": [

@@ -1,7 +1,8 @@
 ---
 title: Tempo Vulture
 description: Guide to using Tempo Vulture for data integrity testing
-keywords: ["tempo", "vulture", "tempo-vulture", "testing", "validation", "monitoring"]
+keywords:
+  ["tempo", "vulture", "tempo-vulture", "testing", "validation", "monitoring"]
 weight: 850
 ---
 
@@ -45,35 +46,35 @@ Configure Tempo Vulture using command-line flags.
 
 ### Required flags
 
-| Flag | Description | Example |
-|------|-------------|---------|
-| `--tempo-query-url` | The URL (scheme://hostname) at which to query Tempo | `http://tempo:3200` |
-| `--tempo-push-url` | The URL (scheme://hostname:port) at which to push traces to Tempo | `http://tempo:4317` |
+| Flag                | Description                                                       | Example             |
+| ------------------- | ----------------------------------------------------------------- | ------------------- |
+| `--tempo-query-url` | The URL (scheme://hostname) at which to query Tempo               | `http://tempo:3200` |
+| `--tempo-push-url`  | The URL (scheme://hostname:port) at which to push traces to Tempo | `http://tempo:4317` |
 
 ### Optional flags
 
-| Flag | Default | Description |
-|------|---------|-------------|
-| `--tempo-org-id` | `""` | The org ID to use when querying Tempo (for multi-tenant deployments) |
-| `--tempo-push-tls` | `false` | Whether to use TLS when pushing spans to Tempo |
-| `--tempo-write-backoff-duration` | `15s` | Time to pause between write operations |
-| `--tempo-long-write-backoff-duration` | `1m` | Time to pause between long write operations |
-| `--tempo-read-backoff-duration` | `30s` | Time to pause between read operations |
-| `--tempo-search-backoff-duration` | `1m` | Time to pause between search operations. Set to `0s` to disable search validation |
-| `--tempo-metrics-backoff-duration` | `0s` | Time to pause between TraceQL metrics operations. Set to `0s` to disable |
-| `--tempo-retention-duration` | `336h` | The block retention that Tempo is using |
-| `--tempo-recent-traces-backoff-duration` | `14m` | Cutoff between recent and old traces query checks |
-| `--tempo-query-livestore` | `false` | Whether to query live stores |
-| `--prometheus-listen-address` | `:80` | Address to listen on for Prometheus scrapes |
-| `--prometheus-path` | `/metrics` | Path to publish Prometheus metrics |
+| Flag                                     | Default    | Description                                                                       |
+| ---------------------------------------- | ---------- | --------------------------------------------------------------------------------- |
+| `--tempo-org-id`                         | `""`       | The org ID to use when querying Tempo (for multi-tenant deployments)              |
+| `--tempo-push-tls`                       | `false`    | Whether to use TLS when pushing spans to Tempo                                    |
+| `--tempo-write-backoff-duration`         | `15s`      | Time to pause between write operations                                            |
+| `--tempo-long-write-backoff-duration`    | `1m`       | Time to pause between long write operations                                       |
+| `--tempo-read-backoff-duration`          | `30s`      | Time to pause between read operations                                             |
+| `--tempo-search-backoff-duration`        | `1m`       | Time to pause between search operations. Set to `0s` to disable search validation |
+| `--tempo-metrics-backoff-duration`       | `0s`       | Time to pause between TraceQL metrics operations. Set to `0s` to disable          |
+| `--tempo-retention-duration`             | `336h`     | The block retention that Tempo is using                                           |
+| `--tempo-recent-traces-backoff-duration` | `14m`      | Cutoff between recent and old traces query checks                                 |
+| `--tempo-query-livestore`                | `false`    | Whether to query live stores                                                      |
+| `--prometheus-listen-address`            | `:80`      | Address to listen on for Prometheus scrapes                                       |
+| `--prometheus-path`                      | `/metrics` | Path to publish Prometheus metrics                                                |
 
 ### Validation mode flags
 
-| Flag | Default | Description |
-|------|---------|-------------|
-| `--validation-mode` | `false` | Run in validation mode: execute a fixed number of cycles and exit |
-| `--validation-cycles` | `3` | Number of write/read cycles to perform in validation mode |
-| `--validation-timeout` | `5m` | Maximum time to run validation mode before timing out |
+| Flag                   | Default | Description                                                       |
+| ---------------------- | ------- | ----------------------------------------------------------------- |
+| `--validation-mode`    | `false` | Run in validation mode: execute a fixed number of cycles and exit |
+| `--validation-cycles`  | `3`     | Number of write/read cycles to perform in validation mode         |
+| `--validation-timeout` | `5m`    | Maximum time to run validation mode before timing out             |
 
 ## Continuous mode
 
@@ -95,12 +96,13 @@ docker run grafana/tempo-vulture:latest \
 
 Tempo Vulture exposes the following key metrics:
 
-| Metric | Type | Description |
-|--------|------|-------------|
-| `tempo_vulture_trace_total` | Counter | Total number of trace operations performed |
+| Metric                            | Type    | Description                                |
+| --------------------------------- | ------- | ------------------------------------------ |
+| `tempo_vulture_trace_total`       | Counter | Total number of trace operations performed |
 | `tempo_vulture_trace_error_total` | Counter | Total number of trace errors by error type |
 
 Error types include:
+
 - `incorrectresult`: Retrieved trace doesn't match the expected trace
 - `incorrect_metrics_result`: Metrics query returned unexpected results
 - `missingspans`: Trace has missing spans
@@ -129,19 +131,20 @@ Instead of running continuously, it executes a fixed number of write/read cycles
 {{< admonition type="warning" >}}
 Running Vulture as a Deployment while in validation mode causes problems in Kubernetes. Because Deployments expect long-running processes, a container that finishes its task and exits triggers a `CrashLoopBackOff` (even with exit code `0`). Run validation mode as a Job instead.
 {{< /admonition >}}
+
 ### Exit codes
 
-| Exit code | Meaning |
-|-----------|---------|
-| `0` | All validations passed |
-| `1` | One or more validations failed, or configuration error |
+| Exit code | Meaning                                                |
+| --------- | ------------------------------------------------------ |
+| `0`       | All validations passed                                 |
+| `1`       | One or more validations failed, or configuration error |
 
 ### Environment variables
 
 Validation mode requires authentication:
 
-| Variable | Description |
-|----------|-------------|
+| Variable                    | Description                                                                     |
+| --------------------------- | ------------------------------------------------------------------------------- |
 | `TEMPO_ACCESS_POLICY_TOKEN` | Access policy token for authenticating with Tempo (required in validation mode) |
 
 ### Example

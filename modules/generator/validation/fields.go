@@ -9,6 +9,8 @@ import (
 	"github.com/grafana/tempo/modules/generator/processor"
 	"github.com/grafana/tempo/modules/generator/registry"
 	"github.com/grafana/tempo/pkg/sharedconfig"
+	"github.com/grafana/tempo/pkg/spanfilter"
+	filterconfig "github.com/grafana/tempo/pkg/spanfilter/config"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/model"
 	"github.com/prometheus/prometheus/util/strutil"
@@ -30,6 +32,14 @@ var SupportedIntrinsicDimensionsSet map[string]struct{}
 
 var SupportedProcessorsSet map[string]struct{}
 
+var SupportedSpanNameSanitizationModes = []string{
+	registry.SpanNameSanitizationDisabled,
+	registry.SpanNameSanitizationDryRun,
+	registry.SpanNameSanitizationEnabled,
+}
+
+var SupportedSpanNameSanitizationModesSet map[string]struct{}
+
 var SupportedHistogramModesSet map[string]struct{}
 
 func init() {
@@ -44,6 +54,10 @@ func init() {
 	SupportedHistogramModesSet = make(map[string]struct{})
 	for mode := range registry.HistogramModeToValue {
 		SupportedHistogramModesSet[mode] = struct{}{}
+	}
+	SupportedSpanNameSanitizationModesSet = make(map[string]struct{})
+	for _, mode := range SupportedSpanNameSanitizationModes {
+		SupportedSpanNameSanitizationModesSet[mode] = struct{}{}
 	}
 }
 
@@ -64,6 +78,13 @@ func ValidateCollectionInterval(collectionInterval time.Duration) error {
 func ValidateIngestionTimeRangeSlack(ingestionTimeRangeSlack time.Duration) error {
 	if ingestionTimeRangeSlack < 0 || ingestionTimeRangeSlack > 12*time.Hour {
 		return fmt.Errorf("metrics_generator.ingestion_time_range_slack \"%s\" is outside acceptable range of 0s to 12h", ingestionTimeRangeSlack.String())
+	}
+	return nil
+}
+
+func ValidateSpanNameSanitization(mode string) error {
+	if _, ok := SupportedSpanNameSanitizationModesSet[mode]; !ok {
+		return fmt.Errorf("span_name_sanitization \"%s\" is not valid, valid values: %v", mode, SupportedSpanNameSanitizationModes)
 	}
 	return nil
 }
@@ -188,6 +209,14 @@ func ValidateDimensionMappings(dimensionMappings []sharedconfig.DimensionMapping
 		}
 	}
 	return nil
+}
+
+func ValidateFilterPolicies(policies []filterconfig.FilterPolicy) error {
+	// config.ValidateFilterPolicy only does shallow structural validation.
+	// NewSpanFilter does full validation including attribute parsing, scope checks, and regex compilation.
+	// The filter itself is discarded, we only care about the error because we are checking if the policies are valid.
+	_, err := spanfilter.NewSpanFilter(policies)
+	return err
 }
 
 func ValidateServiceGraphsDimensions(dimensions []string) error {

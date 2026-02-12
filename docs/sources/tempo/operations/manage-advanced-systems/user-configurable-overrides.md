@@ -72,6 +72,7 @@ metrics_generator:
   [native_histogram_max_bucket_number: <int> | default = 100]
   [native_histogram_bucket_factor: <float> | default = 1.1]
   [native_histogram_min_reset_duration: <duration> | default = 15m]
+  [span_name_sanitization: <string>]
 
   processor:
 
@@ -91,7 +92,7 @@ metrics_generator:
       [intrinsic_dimensions: <map string to bool>]
       [filter_policies: [
         [
-          include/exclude:
+          include/include_any/exclude:
             match_type: <string> # options: strict, regexp
             attributes:
               - key: <string>
