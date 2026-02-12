@@ -6,7 +6,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/prometheus/client_golang/prometheus"
 	io_prometheus_client "github.com/prometheus/client_model/go"
 	"github.com/prometheus/prometheus/model/labels"
 	"github.com/stretchr/testify/require"
@@ -45,11 +44,11 @@ func TestPerLabelLimiter_UnderLimit(t *testing.T) {
 	require.Equal(t, "GET", result.Get("method"))
 }
 
-func TestPerLabelLimiter_SelectiveOverflow(t *testing.T) {
+func TestPerLabelLimiter_HighCardinalityOverflows(t *testing.T) {
 	s := NewPerLabelLimiter("test", testMaxCardinality(5), 15*time.Minute)
 
-	// Push many distinct url values but few method values
-	for i := 0; i < 20; i++ {
+	// Push distinct url values but few method values
+	for i := 0; i < 10; i++ {
 		lbls := labels.FromStrings("__name__", "http_requests", "method", "GET", "url", fmt.Sprintf("/users/%d", i))
 		s.Limit(lbls)
 	}
@@ -61,24 +60,72 @@ func TestPerLabelLimiter_SelectiveOverflow(t *testing.T) {
 	lbls := labels.FromStrings("__name__", "http_requests", "method", "GET", "url", "/users/999")
 	result := s.Limit(lbls)
 	require.Equal(t, "GET", result.Get("method"), "low-cardinality label should be preserved")
-	require.Equal(t, overflowValue, result.Get("url"), "high-cardinality label should overflow")
+	require.Equal(t, overflowValue, result.Get("url"), "high-cardinality label should have overflow value")
 	require.Equal(t, "http_requests", result.Get("__name__"), "__name__ should be preserved")
 }
 
-func TestPerLabelLimiter_MetricNamePreserved(t *testing.T) {
-	s := NewPerLabelLimiter("test", testMaxCardinality(1), 15*time.Minute)
+func TestPerLabelLimiter_MultipleHighCardinalityOverflows(t *testing.T) {
+	s := NewPerLabelLimiter("test", testMaxCardinality(5), 15*time.Minute)
 
-	// Push multiple distinct metric names - __name__ should never be overflowed
-	for i := 0; i < 20; i++ {
-		lbls := labels.FromStrings("__name__", fmt.Sprintf("metric_%d", i))
+	// Push many distinct values for BOTH url and user_id
+	for i := 0; i < 10; i++ {
+		lbls := labels.FromStrings("__name__", "m", "method", "GET", "url", fmt.Sprintf("/p/%d", i), "user_id", fmt.Sprintf("u%d", i))
 		s.Limit(lbls)
 	}
 
 	triggerMaintenance(s)
 
-	lbls := labels.FromStrings("__name__", "metric_999")
+	lbls := labels.FromStrings("__name__", "m", "method", "GET", "url", "/p/999", "user_id", "u999")
 	result := s.Limit(lbls)
-	require.Equal(t, "metric_999", result.Get("__name__"))
+	require.Equal(t, "GET", result.Get("method"), "low-cardinality label preserved")
+	require.Equal(t, overflowValue, result.Get("url"), "high-cardinality url overflows")
+	require.Equal(t, overflowValue, result.Get("user_id"), "high-cardinality user_id overflows")
+}
+
+func TestPerLabelLimiter_MetadataLabelsNeverOverflows(t *testing.T) {
+	s := NewPerLabelLimiter("test", testMaxCardinality(5), 15*time.Minute)
+
+	// Push many distinct values for all metadata labels to exceed the limit
+	for i := 0; i < 10; i++ {
+		lbls := labels.FromStrings(
+			"__name__", fmt.Sprintf("metric_%d", i),
+			"__type__", fmt.Sprintf("type_%d", i),
+			"__unit__", fmt.Sprintf("unit_%d", i),
+			"url", fmt.Sprintf("/path/%d", i),
+		)
+		s.Limit(lbls)
+	}
+
+	triggerMaintenance(s)
+
+	lbls := labels.FromStrings("__name__", "metric_999", "__type__", "type_999", "__unit__", "unit_999", "url", "/path/999")
+	result := s.Limit(lbls)
+	require.Equal(t, "metric_999", result.Get("__name__"), "__name__ should never overflow")
+	require.Equal(t, "type_999", result.Get("__type__"), "__type__ should never overflow")
+	require.Equal(t, "unit_999", result.Get("__unit__"), "__unit__ should never overflow")
+	require.Equal(t, overflowValue, result.Get("url"), "non-metadata label should overflow")
+}
+
+func TestPerLabelLimiter_OverflowMetrics(t *testing.T) {
+	tenant := "test-overflow-metrics"
+	s := NewPerLabelLimiter(tenant, testMaxCardinality(5), 15*time.Minute)
+
+	// Push enough distinct values to exceed the limit
+	for i := 0; i < 10; i++ {
+		lbls := labels.FromStrings("__name__", "m", "url", fmt.Sprintf("/path/%d", i))
+		s.Limit(lbls)
+	}
+
+	triggerMaintenance(s)
+
+	// Now limit - should increment the counter
+	lbls := labels.FromStrings("__name__", "m", "url", "/path/new")
+	result := s.Limit(lbls)
+	require.Equal(t, overflowValue, result.Get("url"))
+
+	var m io_prometheus_client.Metric
+	require.NoError(t, metricCardinalityLimitOverflows.WithLabelValues(tenant).Write(&m))
+	require.Equal(t, float64(1), m.GetCounter().GetValue())
 }
 
 // TestPerLabelLimiter_ConcurrentAccess verifies Limit() is safe to call
@@ -103,7 +150,7 @@ func TestPerLabelLimiter_ConcurrentAccess(t *testing.T) {
 	}
 	wg.Wait()
 
-	// After all goroutines finish, trigger maintenance and verify state is consistent
+	// After all goroutines finish, trigger maintenance and verify the state is consistent
 	triggerMaintenance(s)
 
 	s.mtx.Lock()
@@ -113,59 +160,10 @@ func TestPerLabelLimiter_ConcurrentAccess(t *testing.T) {
 	require.Greater(t, state.sketch.Estimate(), uint64(0), "sketch should have recorded values")
 }
 
-func TestPerLabelLimiter_OverflowMetrics(t *testing.T) {
-	overflowCounter := prometheus.NewCounter(prometheus.CounterOpts{
-		Name: "test_overflow_counter",
-	})
-
-	s := NewPerLabelLimiter("test-metrics", testMaxCardinality(5), 15*time.Minute)
-	s.overflowCounter = overflowCounter
-
-	// Push enough distinct values to exceed the limit
-	for i := 0; i < 20; i++ {
-		lbls := labels.FromStrings("__name__", "m", "url", fmt.Sprintf("/path/%d", i))
-		s.Limit(lbls)
-	}
-
-	// Force overLimit
-	s.mtx.Lock()
-	s.labelsState["url"].overLimit = true
-	s.mtx.Unlock()
-
-	// Now limit - should increment the counter
-	lbls := labels.FromStrings("__name__", "m", "url", "/path/new")
-	result := s.Limit(lbls)
-	require.Equal(t, overflowValue, result.Get("url"))
-
-	var m io_prometheus_client.Metric
-	require.NoError(t, overflowCounter.Write(&m))
-	require.Equal(t, float64(1), m.GetCounter().GetValue())
-}
-
-func TestPerLabelLimiter_MultipleLabelsOverflow(t *testing.T) {
-	s := NewPerLabelLimiter("test", testMaxCardinality(5), 15*time.Minute)
-
-	// Push many distinct values for BOTH url and user_id
-	for i := 0; i < 20; i++ {
-		lbls := labels.FromStrings("__name__", "m", "method", "GET", "url", fmt.Sprintf("/p/%d", i), "user_id", fmt.Sprintf("u%d", i))
-		s.Limit(lbls)
-	}
-
-	triggerMaintenance(s)
-
-	lbls := labels.FromStrings("__name__", "m", "method", "GET", "url", "/p/999", "user_id", "u999")
-	result := s.Limit(lbls)
-	require.Equal(t, "GET", result.Get("method"), "low-cardinality label preserved")
-	require.Equal(t, overflowValue, result.Get("url"), "high-cardinality url overflows")
-	require.Equal(t, overflowValue, result.Get("user_id"), "high-cardinality user_id overflows")
-}
-
-// triggerMaintenance forces overLimit flags to be re-evaluated from current sketch estimates.
+// triggerMaintenance force runs doPeriodicMaintenance and evaluates overLimit from current sketch estimates.
 func triggerMaintenance(s *PerLabelLimiter) {
-	s.mtx.Lock()
-	for _, state := range s.labelsState {
-		est := state.sketch.Estimate()
-		state.overLimit = est > s.maxCardinalityFunc(s.tenant)
-	}
-	s.mtx.Unlock()
+	ch := make(chan time.Time, 1)
+	s.demandUpdateChan = ch
+	ch <- time.Now()
+	s.doPeriodicMaintenance()
 }
