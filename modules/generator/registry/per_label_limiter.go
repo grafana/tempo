@@ -2,6 +2,7 @@ package registry
 
 import (
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/cespare/xxhash/v2"
@@ -11,7 +12,10 @@ import (
 	"github.com/prometheus/prometheus/schema"
 )
 
-const overflowValue = "__cardinality_overflow__"
+const (
+	overflowValue        = "__cardinality_overflow__"
+	demandUpdateInterval = 15 * time.Second
+)
 
 var metricLabelValuesLimited = promauto.NewCounterVec(prometheus.CounterOpts{
 	Namespace: "tempo",
@@ -45,6 +49,7 @@ type PerLabelLimiter struct {
 	mtx                sync.Mutex
 	tenant             string
 	maxCardinalityFunc maxCardinalityFunc
+	maxCardinality     atomic.Uint64 // refreshed on demand update tick, read atomically in Limit() hot path
 
 	labelsState   map[string]*labelCardinalityState
 	staleDuration time.Duration
@@ -54,22 +59,25 @@ type PerLabelLimiter struct {
 }
 
 func NewPerLabelLimiter(tenant string, maxCardinalityF maxCardinalityFunc, staleDuration time.Duration) *PerLabelLimiter {
-	return &PerLabelLimiter{
+	pll := &PerLabelLimiter{
 		tenant:             tenant,
 		maxCardinalityFunc: maxCardinalityF,
 		labelsState:        make(map[string]*labelCardinalityState),
 		staleDuration:      staleDuration,
-		demandUpdateChan:   time.Tick(15 * time.Second),
-		pruneChan:          time.Tick(5 * time.Minute),
+		demandUpdateChan:   time.Tick(demandUpdateInterval),
+		pruneChan:          time.Tick(removeStaleSeriesInterval),
 	}
+	// init on New, config is refreshed on demand update tick
+	pll.maxCardinality.Store(maxCardinalityF(tenant))
+	return pll
 }
 
 // Limit applies the per-label cardinality limit to the given labels.
 // Labels whose estimated cardinality exceeds the configured max have their
 // value replaced with __cardinality_overflow__.
 func (s *PerLabelLimiter) Limit(lbls labels.Labels) labels.Labels {
-	// MaxCardinalityPerLabel is zero, so limiter is disabled, return labels as is
-	if s.maxCardinalityFunc(s.tenant) == 0 {
+	// maxCardinality is zero, so limiter is disabled, return labels as is
+	if s.maxCardinality.Load() == 0 {
 		return lbls
 	}
 
@@ -78,7 +86,9 @@ func (s *PerLabelLimiter) Limit(lbls labels.Labels) labels.Labels {
 	s.mtx.Lock()
 	defer s.mtx.Unlock()
 
-	builder := labels.NewBuilder(lbls)
+	// Defer builder creation until we actually need to modify a label.
+	// In the common case (no overflow), we avoid the allocations entirely.
+	var builder *labels.Builder
 	lbls.Range(func(l labels.Label) {
 		// skip over the metadata labels
 		if schema.IsMetadataLabel(l.Name) {
@@ -94,15 +104,25 @@ func (s *PerLabelLimiter) Limit(lbls labels.Labels) labels.Labels {
 		//
 		// If we inserted the overflowValue, then the estimate would drop and cause oscillation:
 		// over limit -> Add overflowValue -> estimate drops -> under limit -> real values -> over limit ->...
+		// Insert acquires its own internal mu lock on the sketch.
 		state.sketch.Insert(xxhash.Sum64String(l.Value))
 
-		// we are over limit, limit and capture the metric
+		// we are over the limit, replace label value and capture the metric
 		if state.overLimit {
+			// Lazy init: only create once, so previous Set calls are preserved
+			// when multiple labels overflow in the same series
+			if builder == nil {
+				builder = labels.NewBuilder(lbls)
+			}
 			builder.Set(l.Name, overflowValue)
 			metricLabelValuesLimited.WithLabelValues(s.tenant, l.Name).Inc()
 		}
 	})
 
+	// No labels were limited, return the original labels as is.
+	if builder == nil {
+		return lbls
+	}
 	return builder.Labels()
 }
 
@@ -125,16 +145,21 @@ func (s *PerLabelLimiter) getOrCreateState(labelName string) *labelCardinalitySt
 func (s *PerLabelLimiter) doPeriodicMaintenance() {
 	select {
 	case <-s.demandUpdateChan:
+		// fetch once per tick and cache atomically, the limit is the same for all labels in a tenant
+		maxCardinality := s.maxCardinalityFunc(s.tenant)
+		s.maxCardinality.Store(maxCardinality)
+
 		s.mtx.Lock()
 		for labelName, state := range s.labelsState {
 			estimate := state.sketch.Estimate()
-			state.overLimit = estimate > s.maxCardinalityFunc(s.tenant)
-			// also update the demand metric when we refresh the estimate
+			state.overLimit = estimate > maxCardinality
 			metricLabelCardinalityDemand.WithLabelValues(s.tenant, labelName).Set(float64(estimate))
 		}
 		s.mtx.Unlock()
 	case <-s.pruneChan:
 		s.mtx.Lock()
+		// label names come from config and are mostly stable, so stale entries
+		// in labelsState are unlikely to grow unboundedly, so we don't clean up.
 		for _, state := range s.labelsState {
 			state.sketch.Advance()
 		}

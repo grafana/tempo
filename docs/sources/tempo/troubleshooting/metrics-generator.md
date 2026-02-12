@@ -154,7 +154,7 @@ To view the estimated cardinality demand per label:
 tempo_metrics_generator_registry_label_cardinality_demand_estimate{}
 ```
 
-Use this metric to identify which labels have high cardinality, how far they exceed the configured limit, and to choose anappropriate 
+Use this metric to identify which labels have high cardinality, how far they exceed the configured limit, and to choose an appropriate
 `max_cardinality_per_label` value. To observe actual demand before enforcing a limit, deploy with a high `max_cardinality_per_label` value first.
 
 Configure the per-label cardinality limit:
