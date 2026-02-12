@@ -31,9 +31,9 @@ func TestExtractMatchers(t *testing.T) {
 			expected: "{.http.status_code = 200}",
 		},
 		{
-			name:     "invalid query",
+			name:     "reversed operands with missing closing bracket",
 			query:    "{ 2 = .b ",
-			expected: "{}",
+			expected: "{.b = 2}",
 		},
 		{
 			name:     "long query",
@@ -125,10 +125,53 @@ func TestExtractMatchers(t *testing.T) {
 			query:    `{ event:name = "exception" }`,
 			expected: `{event:name = "exception"}`,
 		},
+		{
+			name:     "structural operators with incomplete in first matcher",
+			query:    `{ .foo = "bar" && .baaz = } >> { .bar = "foo" }`,
+			expected: `{}`,
+		},
+		{
+			name:     "structural operators with incomplete in second matcher",
+			query:    `{ .foo = "bar" } >> { .bar = }`,
+			expected: `{}`,
+		},
+		{
+			name:     "metrics query",
+			query:    `{.service_name = "foo" && .foo=} | rate() by (.bar)`,
+			expected: `{.service_name = "foo"}`,
+		},
+		{
+			name:     "query with select",
+			query:    `{.service_name = "foo" && .foo=} | select(.bar, .baz)`,
+			expected: `{.service_name = "foo"}`,
+		},
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			assert.Equal(t, tc.expected, ExtractMatchers(tc.query))
+		})
+	}
+}
+
+func TestExtractConditions(t *testing.T) {
+	testCases := []struct {
+		name  string
+		query string
+		count int // expected number of conditions, 0 means nil
+	}{
+		{name: "empty", query: "", count: 0},
+		{name: "empty braces", query: " { } ", count: 0},
+		{name: "simple", query: `{.service_name = "foo"}`, count: 1},
+		{name: "incomplete", query: `{ .http.status_code = 200 && .http.method = }`, count: 1},
+		{name: "invalid", query: "{ invalid syntax }", count: 0},
+		{name: "OR conditions", query: `{ (.foo = "bar" || .baz = "qux") }`, count: 0},
+		{name: "structural", query: `{ .foo = "bar" } >> { .bar = "baz" }`, count: 0},
+		{name: "multiple conditions", query: `{.a = 1 && .b = "two" && .c > 3}`, count: 3},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			conditions := ExtractConditions(tc.query)
+			assert.Equal(t, tc.count, len(conditions))
 		})
 	}
 }
