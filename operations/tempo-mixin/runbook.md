@@ -27,14 +27,6 @@ Consider the following resolutions:
 - Increase the queue_depth size to do more work per querier
 - Adjust compaction settings to reduce the number of blocks
 
-## TempoCompactorUnhealthy
-
-This can happen when we have unhealthy compactor sticking around in the ring.
-
-If this occurs access the [ring page](https://grafana.com/docs/tempo/latest/operations/consistent_hash_ring/) at `/compactor/ring`.
-Use the "Forget" button to forget and remove any unhealthy compactors from the ring. An unhealthy compactor or two has no immediate impact. Long term,
-however, it will cause the blocklist to grow unnecessarily long.
-
 ## TempoDistributorUnhealthy
 
 This can happen when we have unhealthy distributor sticking around in the ring.
@@ -42,13 +34,6 @@ This can happen when we have unhealthy distributor sticking around in the ring.
 If this occurs access the [ring page](https://grafana.com/docs/tempo/latest/operations/consistent_hash_ring/) at `/distributor/ring`.
 Use the "Forget" button to forget and remove any unhealthy distributors from the ring. An unhealthy distributor or two has virtually no impact except to slightly
 increase the amount of memberlist traffic propagated by the cluster.
-
-## TempoIngesterUnhealthy
-
-This can happen when we have unhealthy ingesters sticking around in the ring.
-
-If this occurs, access the [ring page](https://grafana.com/docs/tempo/latest/operations/consistent_hash_ring/) at `/ingester/ring`.
-Use the "Forget" button to forget and remove any unhealthy ingesters from the ring.
 
 ## TempoLiveStoreUnhealthy
 
@@ -66,48 +51,15 @@ Use the "Forget" button to forget and remove any unhealthy metrics-generators fr
 
 ## TempoCompactionsFailing
 
-Check to determine the cause for the failures.  Intermittent failures require no immediate action, because the compactors will
+Check to determine the cause for the failures.  Intermittent failures require no immediate action, because the backend scheduller will
 reattempt the compaction, and any partially written data is ignored and expected to be cleaned up automatically with bucket cleanup
 rules in GCS/S3/etc.
 
 The most common cause for a failing compaction is an OOM from compacting an extremely large trace.  The memory limit should be
 increased until it is enough to get past the trace, and must remain increased until the trace goes out of retention and is
-deleted, or else there is the risk of the trace causing OOMs later.  Ingester limits should be reviewed and possibly reduced.
+deleted, or else there is the risk of the trace causing OOMs later. Ingestion limits should be reviewed and possibly reduced.
 If a block continues to cause problems and cannot be resolved it can be deleted manually.
 
-## TempoIngesterFlushesFailing
-
-How it **works**:
-- Tempo ingesters flush blocks that have been completed to the backend
-- If flushing fails, the ingester will keep retrying until restarted
-- Blocks that have been flushed successfully will be deleted from the ingester, by default after 15m
-
-Failed flushes could be caused by any number of different things: bad block,
-permissions issues, rate limiting, failing backend, etc. Tempo will continue to
-retry sending the blocks until it succeeds, but at some point your WAL files
-will start failing to write due to out of disk issues.
-
-Known issue: this can trigger during a rollout of the ingesters, see [tempo#1035](https://github.com/grafana/tempo/issues/1035).
-
-How to **investigate**:
-- To check which ingesters are failing to flush and look for a pattern, you can use:
-  ```
-  sum(rate(tempo_ingester_failed_flushes_total{cluster="...", container="ingester"}[5m])) by (pod)
-  ```
-- If retries are failing it means that blocks are being reattempted. If this is only occurring to one block it strongly suggests block corruption:
-  ```
-  increase(tempo_ingester_flush_failed_retries_total) > 0
-  ```
-- Check the logs for errors
-
-If a single block can not be flushed, this block might be corrupted. A corrupted or bad block might be missing some files or a file
-might be empty, compare this block with other blocks in the WAL to verify.
-After inspecting the block, consider moving this file out of the WAL or outright deleting it. Restart the ingester to stop the retry
-attempts. Removing blocks from a single ingester will not cause data loss if replication is used and the other ingesters are flushing
-their blocks successfully. By default, the WAL is at `/var/tempo/wal/blocks`.
-
-If multiple blocks can not be flushed, the local WAL disk of the ingester will be filling up. Consider increasing the amount of disk
-space available to the ingester.
 
 ## TempoPollsFailing
 
@@ -138,11 +90,10 @@ failed to write tenant index
 See [Polling Issues](#polling-issues) below for general information.
 
 If a cluster has no tenant index builders for a given tenant then nothing is refreshing the per tenant index. This can be dangerous
-b/c other components will not be aware there is an issue as they repeatedly download a stale tenant index. In Tempo the compactors
+b/c other components will not be aware there is an issue as they repeatedly download a stale tenant index. In Tempo the backend scheduler and backend workers
 play the role of building the tenant index. Ways to address this issue in order of preference:
 
-- Find and [forget all unhealthy compactors](#tempocompactorunhealthy).
-- Increase the number of compactors that attempt to build the index.
+- Increase the number of backend workers that attempt to build the index.
   ```
   storage:
     trace:
@@ -155,9 +106,9 @@ play the role of building the tenant index. Ways to address this issue in order 
 
 See [Polling Issues](#polling-issues) below for general information.
 
-If the tenant indexes are too old we need to review the compactor logs to determine why they are failing to update. Compactors
+If the tenant indexes are too old we need to review the backend scheduler/worker logs to determine why they are failing to update. Workers
 with `tempodb_blocklist_tenant_index_builder` for the offending tenant set to 1 are expected to be creating the indexes for that
-tenant and should be checked first. If no compactors are creating tenant indexes refer to [TempoNoTenantIndexBuilders](#temponotenantindexbuilders)
+tenant and should be checked first. If no woerkers are creating tenant indexes refer to [TempoNoTenantIndexBuilders](#temponotenantindexbuilders)
 above.
 
 Additionally the metric `tempodb_blocklist_tenant_index_age_seconds` can be grouped by the `tenant` label. If only one (or few)
@@ -169,7 +120,7 @@ In the case of all polling issues intermittent issues are not concerning. Sustai
 
 Failure to poll just means that the component is not aware of the current state of the backend but will continue working
 otherwise.  Queriers, for instance, will start returning 404s as their internal representation of the backend grows stale.
-Compactors will attempt to compact blocks that don't exist.
+Backend workers will attempt to compact blocks that don't exist.
 
 If persistent backend issues are preventing any fixes to polling then reads will start to fail, but writes will remain fine.
 Alert your users accordingly!
@@ -185,7 +136,7 @@ to pull is to simply delete stale tenant indexes as all components will fallback
 
 ## TempoBlockListRisingQuickly
 
-The block list needs to remain under control to keep query performance acceptable.  If the block list is rising too quickly, this might indicate the compactors are under scaled.  Add more compactors until the block list is back under control and holding mostly steady.
+The block list needs to remain under control to keep query performance acceptable.  If the block list is rising too quickly, this might indicate the backend workers are under scaled.  Add more workers until the block list is back under control and holding mostly steady.
 
 
 ### TempoBadOverrides
@@ -193,22 +144,8 @@ The block list needs to remain under control to keep query performance acceptabl
 Fix the overrides!  Overrides are loaded by the distributors so hopefully there is
 some meaningful logging there.
 
-## TempoProvisioningTooManyWrites
 
-This alert fires if the average number of samples ingested / sec in ingesters is above our target.
-
-How to fix:
-
-1. Scale up ingesters
-  - To compute the desired number of ingesters to satisfy the average samples
-    rate you can run the following query, replacing <namespace> with the namespace
-    to analyse and <target> with the target number of samples/sec per ingester
-    (check out the alert threshold to see the current target):
-    ```
-    sum(rate(tempo_ingester_bytes_received_total{namespace="<namespace>"}[$__rate_interval])) / (<target> * 0.9)
-    ```
-
-## TempoCompactorsTooManyOutstandingBlocks
+## TempoCompactionTooManyOutstandingBlocks
 
 This alert fires when there are too many blocks to be compacted for a long period of time.
 The alert does not require immediate action, but is a symptom that compaction is underscaled
@@ -216,31 +153,15 @@ and could affect the read path in particular.
 
 How to fix:
 
-Compaction's bottleneck is most commonly CPU time, so adding more compactors is the most effective measure.
+Compaction's bottleneck is most commonly CPU time, so adding more backend workers is the most effective measure.
 
-After compaction has been scaled out, it'll take a time for compactors to catch
+After compaction has been scaled out, it'll take a time for backend workers to catch
 up with their outstanding blocks.
 Take a look at `tempodb_compaction_outstanding_blocks` and check if blocks start
 going down. If not, further scaling may be necessary.
 
 Since the number of blocks is elevated, it may also be necessary to review the queue-related
 settings to prevent [trace lookup failures](#trace-lookup-failures).
-
-## TempoIngesterReplayErrors
-
-
-This alert fires when an ingester has encountered an error while replaying a block on startup.
-
-How to fix:
-
-Check the ingester logs for errors to identify the culprit ingester, tenant, and block ID.
-
-If an ingester is restarted unexpectedly while writing a block to disk, the files might be corrupted.
-The error "Unexpected error reloading meta for local block. Ignoring and continuing." indicates there was an error parsing the
-meta.json.  Repair the meta.json and then restart the ingester to successfully recover the block. Or if
-it is not able to be repaired then the block files can be simply deleted as the ingester has already started
-without it.  As long as the replication factor is 2 or higher, then there will be no data loss as the
-same data was also written to another ingester.
 
 ## TempoPartitionLag
 
@@ -260,7 +181,7 @@ This alert fires when a Kafka partition in a consumer group is lagging behind th
 
 3. Possible resolutions:
    - For the metric generators scale up the consumer group by adding more instances
-   - Scale up the block-builder instances to match the ingester partitions.
+   - Scale up the block-builder instances to match the live-store partitions.
    - For the block-builder consider to reduce the cycle-time
    - Increase resources (CPU/memory) for the consumer instances
    - Check for and fix any bottlenecks in the processing pipeline

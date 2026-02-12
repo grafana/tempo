@@ -30,6 +30,7 @@
 
 ### 3.0 Cleanup
 
+* [CHANGE] **BREAKING CHANGE** Remove ingesters and compactor alerts [#6369](https://github.com/grafana/tempo/pull/6369) (@javiermolinar)
 * [CHANGE] **BREAKING CHANGE** Removed `v2` block encoding and compactor component. [#6273](https://github.com/grafana/tempo/pull/6273) (@joe-elliott)
   This includes the removal of the following CLI commands which were `v2` specific: `list block`, `list index`, `view index`, `gen index`, `gen bloom`.
 * [CHANGE] **BREAKING CHANGE** Sets the `all` target to be 3.0 compatible and removes the `scalable-single-binary` target [#6283](https://github.com/grafana/tempo/pull/6283) (@joe-elliott)
