@@ -123,18 +123,29 @@ overrides:
 
 ### Per-label cardinality limiting
 
-The per-label cardinality sanitizer caps the number of distinct values any single label can have. When a label exceeds the configured threshold, its value is replaced with `__cardinality_overflow__` while all other labels are preserved.
+The per-label cardinality limiter caps the number of distinct values any single label can have. When a label exceeds the configured threshold, its value is replaced with `__cardinality_overflow__` while all other labels that are under the limit are preserved.
 
-For example, a high-cardinality `url` label is overflowed while `method` is kept:
+For example, if the `url` label exceeds the cardinality limit:
 
+Before:
 ```
-{service="foo", method="GET", url="/users/123"} → {service="foo", method="GET", url="__cardinality_overflow__"}
+{service="foo", method="GET", url="/users/1"}
+{service="foo", method="GET", url="/users/2"}
+{service="foo", method="GET", url="/users/3"}
+...
 ```
+
+After:
+```
+{service="foo", method="GET", url="__cardinality_overflow__"}
+```
+
+Once the limiter kicks in, new `url` values are replaced with `__cardinality_overflow__`. Labels that remain under the limit, like `method`, are unaffected.
 
 To detect if per-label cardinality limiting is active:
 
 ```promql
-sum(rate(tempo_metrics_generator_registry_cardinality_limit_overflows_total{}[1m]))
+sum by (tenant, label_name) (rate(tempo_metrics_generator_registry_label_values_limited_total{}[5m]))
 ```
 
 Configure the per-label cardinality limit:
@@ -148,11 +159,17 @@ overrides:
 
 A value of `0` (default) disables the limit.
 
-This setting works alongside both `max_active_series` and entity-based limiting.
+This setting works alongside both active series limiting (`max_active_series`) and entity-based limiting (`max_active_entities`).
+The per-label limiter runs during label construction, preventing any single high-cardinality label from consuming the entire active series or entity budget.
 
-The per-label cardinality sanitizer runs first during label construction, capping cardinality of the individual label's values. The active series or entity limiter enforces a hard ceiling on total series or entities.
+The per-label limiter uses HyperLogLog sketches to estimate cardinality, so the limit is approximate with a 3.25% standard error. Estimates are
+re-evaluated every few seconds, which means there may be a brief delay between a label crossing the threshold and the limiter taking effect.
 
-The per-label limit prevents a single high-cardinality label from consuming the entire series/entity budget, while the series/entity limiter guards against combinatorial explosion across multiple labels and series.
+If a high-cardinality label's cardinality is later reduced (for example, by fixing instrumentation), the limiter automatically recovers
+and allows label values through again. No configuration changes are needed.
+
+Recovery is not immediate. The limiter tracks cardinality over a sliding window (based on the registry's `stale_duration`). It takes at least that 
+duration or longer for existing high-cardinality labels to age out before the label values are allowed through again.
 
 ### Estimate active series demand
 
