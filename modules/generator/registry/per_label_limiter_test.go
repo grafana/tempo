@@ -3,6 +3,7 @@ package registry
 import (
 	"fmt"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -245,6 +246,125 @@ func TestPerLabelLimiter_ConcurrentAccess(t *testing.T) {
 	require.True(t, ok, "label state should exist after concurrent inserts")
 	// Estimate may be less than 1000 because prune ticks rotate out sketch data during the test
 	require.Greater(t, state.sketch.Estimate(), uint64(0), "sketch should have recorded values")
+}
+
+func BenchmarkPerLabelLimiter_Limit(b *testing.B) {
+	b.Run("disabled", func(b *testing.B) {
+		s := NewPerLabelLimiter("bench", testMaxCardinality(0), 15*time.Minute)
+		lbls := labels.FromStrings("__name__", "http_requests", "method", "GET", "url", "/api/v1/users")
+		b.ReportAllocs()
+		// Reset timer so setup (limiter creation, label generation, warmup) isn't measured
+		b.ResetTimer()
+		for i := 0; i < b.N; i++ {
+			s.Limit(lbls)
+		}
+	})
+
+	b.Run("under_limit", func(b *testing.B) {
+		s := NewPerLabelLimiter("bench", testMaxCardinality(1000), 15*time.Minute)
+		// Pre-generate distinct labels to simulate real traffic with unique values
+		n := 500
+		allLbls := make([]labels.Labels, n)
+		for i := 0; i < n; i++ {
+			allLbls[i] = labels.FromStrings("__name__", "http_requests", "method", "GET", "url", fmt.Sprintf("/api/v1/users/%d", i))
+		}
+		s.Limit(allLbls[0])
+		triggerDemandUpdate(s)
+		b.ReportAllocs()
+		b.ResetTimer()
+		for i := 0; i < b.N; i++ {
+			s.Limit(allLbls[i%n])
+		}
+	})
+
+	b.Run("over_limit", func(b *testing.B) {
+		s := NewPerLabelLimiter("bench", testMaxCardinality(5), 15*time.Minute)
+		n := 500
+		allLbls := make([]labels.Labels, n)
+		for i := 0; i < n; i++ {
+			allLbls[i] = labels.FromStrings("__name__", "http_requests", "method", "GET", "url", fmt.Sprintf("/api/v1/users/%d", i))
+		}
+		for i := 0; i < 20; i++ {
+			s.Limit(allLbls[i])
+		}
+		triggerDemandUpdate(s)
+		b.ReportAllocs()
+		b.ResetTimer()
+		for i := 0; i < b.N; i++ {
+			s.Limit(allLbls[i%n])
+		}
+	})
+
+	b.Run("many_labels_under_limit", func(b *testing.B) {
+		s := NewPerLabelLimiter("bench", testMaxCardinality(1000), 15*time.Minute)
+		n := 500
+		allLbls := make([]labels.Labels, n)
+		for i := 0; i < n; i++ {
+			allLbls[i] = labels.FromStrings(
+				"__name__", "http_requests",
+				"method", "GET",
+				"url", fmt.Sprintf("/api/v1/users/%d", i),
+				"status_code", "200",
+				"service", "frontend",
+				"region", "us-east-1",
+				"instance", fmt.Sprintf("pod-%d", i),
+			)
+		}
+		s.Limit(allLbls[0])
+		triggerDemandUpdate(s)
+		b.ReportAllocs()
+		b.ResetTimer()
+		for i := 0; i < b.N; i++ {
+			s.Limit(allLbls[i%n])
+		}
+	})
+
+	b.Run("many_labels_over_limit", func(b *testing.B) {
+		s := NewPerLabelLimiter("bench", testMaxCardinality(5), 15*time.Minute)
+		n := 500
+		allLbls := make([]labels.Labels, n)
+		for i := 0; i < n; i++ {
+			allLbls[i] = labels.FromStrings(
+				"__name__", "http_requests",
+				"method", fmt.Sprintf("m%d", i),
+				"url", fmt.Sprintf("/path/%d", i),
+				"status_code", fmt.Sprintf("%d", i),
+				"service", fmt.Sprintf("svc%d", i),
+				"region", fmt.Sprintf("r%d", i),
+				"instance", fmt.Sprintf("pod%d", i),
+			)
+		}
+		// Warm up to trigger overflow on all labels
+		for i := 0; i < 20; i++ {
+			s.Limit(allLbls[i])
+		}
+		triggerDemandUpdate(s)
+		b.ReportAllocs()
+		b.ResetTimer()
+		for i := 0; i < b.N; i++ {
+			s.Limit(allLbls[i%n])
+		}
+	})
+
+	b.Run("parallel", func(b *testing.B) {
+		s := NewPerLabelLimiter("bench", testMaxCardinality(1000), 15*time.Minute)
+		n := 500
+		allLbls := make([]labels.Labels, n)
+		for i := 0; i < n; i++ {
+			allLbls[i] = labels.FromStrings("__name__", "http_requests", "method", "GET", "url", fmt.Sprintf("/api/v1/users/%d", i))
+		}
+		s.Limit(allLbls[0])
+		triggerDemandUpdate(s)
+		b.ReportAllocs()
+		b.ResetTimer()
+		var counter atomic.Int64
+		b.RunParallel(func(pb *testing.PB) {
+			for pb.Next() {
+				i := int(counter.Add(1))
+				s.Limit(allLbls[i%n])
+			}
+		})
+	})
 }
 
 // triggerDemandUpdate force runs the demand-update path of doPeriodicMaintenance,
