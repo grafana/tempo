@@ -699,3 +699,130 @@ func pushToLiveStore(t *testing.T, liveStore *LiveStore) ([]byte, *tempopb.Trace
 
 	return id, expectedTrace
 }
+
+func TestIsLagged(t *testing.T) {
+	now := time.Now()
+	testCases := []struct {
+		name           string
+		failOnHighLag  bool
+		readerLag      int64
+		lastRecordNano int64
+		end            time.Time
+		expectedLagged bool
+		description    string
+	}{
+		{
+			name:           "config disabled - never lagged",
+			failOnHighLag:  false,
+			readerLag:      50000000,                             // high lag
+			lastRecordNano: now.Add(-100 * time.Hour).UnixNano(), // high lag
+			end:            now.Add(-1 * time.Second),
+			expectedLagged: false,
+			description:    "When FailOnHighLag is disabled, isLagged should always return false",
+		},
+		{
+			name:           "lag unknown - should be lagged",
+			failOnHighLag:  true,
+			readerLag:      -1,                                   // lag unknown
+			lastRecordNano: now.Add(-100 * time.Hour).UnixNano(), // high lag
+			end:            now,
+			expectedLagged: true,
+			description:    "When lag is unknown (nil), prefer error over potentially incomplete results",
+		},
+		{
+			name:           "no last record - should be lagged",
+			failOnHighLag:  true,
+			readerLag:      10, // low lag
+			lastRecordNano: -1, // no last record yet
+			end:            now,
+			expectedLagged: true,
+			description:    "When no last record yet, should not be lagged",
+		},
+		{
+			name:           "no lag - recent request - not lagged",
+			failOnHighLag:  true,
+			readerLag:      100,            // low lag
+			lastRecordNano: now.UnixNano(), // no lag
+			end:            now.Add(-1 * time.Second),
+			expectedLagged: false,
+			description:    "When lag is low (near zero), recent requests should not be lagged",
+		},
+		{
+			name:           "high lag - recent request - should be lagged",
+			failOnHighLag:  true,
+			readerLag:      5000,                                  // high lag
+			lastRecordNano: now.Add(-10 * time.Second).UnixNano(), // 10 seconds ago
+			end:            now.Add(-5 * time.Second),             // 5 seconds ago
+			expectedLagged: true,
+			description:    "When lag is high and request is within the lag period, should be lagged",
+		},
+		{
+			name:           "high lag - old request - not lagged",
+			failOnHighLag:  true,
+			readerLag:      5000,                                  // high lag
+			lastRecordNano: now.Add(-10 * time.Second).UnixNano(), // 10 seconds ago
+			end:            now.Add(-100 * time.Second),           // 100 seconds ago (well before lag)
+			expectedLagged: false,
+			description:    "When lag is high but request is old (outside lag period), should not be lagged",
+		},
+		{
+			name:           "high lag - request at boundary",
+			failOnHighLag:  true,
+			readerLag:      5000,                                  // high lag
+			lastRecordNano: now.Add(-10 * time.Second).UnixNano(), // last record was 10s ago
+			end:            now.Add(-10 * time.Second),            // request end is 10s ago
+			expectedLagged: false,
+			description:    "When request end time is equals the calculated lag, should not be lagged",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			tmpDir := t.TempDir()
+			ls, err := defaultLiveStore(t, tmpDir)
+			require.NoError(t, err)
+
+			ls.cfg.FailOnHighLag = tc.failOnHighLag
+			ls.reader.lag.Store(tc.readerLag)
+			ls.lastRecordTimeNanos.Store(tc.lastRecordNano)
+
+			t.Run("isLagged", func(t *testing.T) {
+				result := ls.isLagged(tc.end.UnixNano())
+				require.Equal(t, tc.expectedLagged, result, tc.description)
+			})
+
+			t.Run("SearchRecent", func(t *testing.T) {
+				ctx := user.InjectOrgID(t.Context(), testTenantID)
+				resp, err := ls.SearchRecent(ctx, &tempopb.SearchRequest{
+					Query: "{}",
+					Start: uint32(now.Add(-5 * time.Hour).Second()),
+					End:   uint32(tc.end.Unix()),
+				})
+
+				if tc.expectedLagged {
+					require.ErrorIs(t, err, errLagged)
+					require.Nil(t, resp)
+				} else {
+					require.NoError(t, err)
+					require.NotNil(t, resp)
+				}
+			})
+
+			t.Run("QueryRange", func(t *testing.T) {
+				ctx := user.InjectOrgID(t.Context(), testTenantID)
+				resp, err := ls.QueryRange(ctx, &tempopb.QueryRangeRequest{
+					Query: "{} | rate()",
+					Start: uint64(now.Add(-5 * time.Hour).UnixNano()),
+					End:   uint64(tc.end.UnixNano()),
+				})
+				if tc.expectedLagged {
+					require.ErrorIs(t, err, errLagged)
+					require.Nil(t, resp)
+				} else {
+					require.NoError(t, err)
+					require.NotNil(t, resp)
+				}
+			})
+		})
+	}
+}

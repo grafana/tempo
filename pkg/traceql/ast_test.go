@@ -145,7 +145,7 @@ func TestStatic_String(t *testing.T) {
 		{arg: []int{1, 2, 3}, want: "[1, 2, 3]"},
 		{arg: []float64{1.1, 3.3}, want: "[1.1, 3.3]"},
 		{arg: []bool{true, true, false}, want: "[true, true, false]"},
-		{arg: []string{"aa", "bb"}, want: `["aa", "bb"]`},
+		{arg: []string{"aa", "bb"}, want: "[`aa`, `bb`]"},
 	}
 
 	for _, tt := range tests {
@@ -634,6 +634,46 @@ func TestStatic_divideBy(t *testing.T) {
 			s := tt.s.divideBy(tt.f)
 			assert.Equal(t, tt.want, s, "s.divideBy(f)")
 		})
+	}
+}
+
+func TestStatic_append(t *testing.T) {
+	tests := []struct {
+		s1, s2, want Static
+	}{
+		// int
+		{s1: NewStaticInt(1), s2: NewStaticInt(2), want: NewStaticIntArray([]int{1, 2})},
+		{s1: NewStaticInt(1), s2: NewStaticIntArray([]int{2, 3}), want: NewStaticIntArray([]int{1, 2, 3})},
+		{s1: NewStaticIntArray([]int{1, 2}), s2: NewStaticInt(3), want: NewStaticIntArray([]int{1, 2, 3})},
+		{s1: NewStaticIntArray([]int{1, 2}), s2: NewStaticIntArray([]int{3, 4}), want: NewStaticIntArray([]int{1, 2, 3, 4})},
+		{s1: NewStaticIntArray([]int{1, 2}), s2: NewStaticDuration(1 * time.Second), want: NewStaticNil()},
+		{s1: NewStaticIntArray([]int{1, 2}), s2: NewStaticString("1"), want: NewStaticNil()},
+		// float
+		{s1: NewStaticFloat(1.1), s2: NewStaticFloat(2.2), want: NewStaticFloatArray([]float64{1.1, 2.2})},
+		{s1: NewStaticFloat(1.1), s2: NewStaticFloatArray([]float64{2.2, 3.3}), want: NewStaticFloatArray([]float64{1.1, 2.2, 3.3})},
+		{s1: NewStaticFloatArray([]float64{1.1, 2.2}), s2: NewStaticFloat(3.3), want: NewStaticFloatArray([]float64{1.1, 2.2, 3.3})},
+		{s1: NewStaticFloatArray([]float64{1.1, 2.2}), s2: NewStaticFloatArray([]float64{3.3, 4.4}), want: NewStaticFloatArray([]float64{1.1, 2.2, 3.3, 4.4})},
+		{s1: NewStaticFloatArray([]float64{1.1, 2.2}), s2: NewStaticDuration(1 * time.Second), want: NewStaticNil()},
+		{s1: NewStaticFloatArray([]float64{1.1, 2.2}), s2: NewStaticString("1.1"), want: NewStaticNil()},
+		// string
+		{s1: NewStaticString("1"), s2: NewStaticString("2"), want: NewStaticStringArray([]string{"1", "2"})},
+		{s1: NewStaticString("1"), s2: NewStaticStringArray([]string{"2", "3"}), want: NewStaticStringArray([]string{"1", "2", "3"})},
+		{s1: NewStaticStringArray([]string{"1", "2"}), s2: NewStaticString("3"), want: NewStaticStringArray([]string{"1", "2", "3"})},
+		{s1: NewStaticStringArray([]string{"1", "2"}), s2: NewStaticStringArray([]string{"3", "4"}), want: NewStaticStringArray([]string{"1", "2", "3", "4"})},
+		{s1: NewStaticStringArray([]string{"1", "2"}), s2: NewStaticInt(1), want: NewStaticNil()},
+		// bool
+		{s1: NewStaticBool(true), s2: NewStaticBool(false), want: NewStaticBooleanArray([]bool{true, false})},
+		{s1: NewStaticBool(true), s2: NewStaticBooleanArray([]bool{false, true}), want: NewStaticBooleanArray([]bool{true, false, true})},
+		{s1: NewStaticBooleanArray([]bool{true, false}), s2: NewStaticBool(true), want: NewStaticBooleanArray([]bool{true, false, true})},
+		{s1: NewStaticBooleanArray([]bool{true, false}), s2: NewStaticBooleanArray([]bool{true, false}), want: NewStaticBooleanArray([]bool{true, false, true, false})},
+		{s1: NewStaticBooleanArray([]bool{true, false}), s2: NewStaticInt(1), want: NewStaticNil()},
+	}
+	for _, tt := range tests {
+		res, ok := tt.s1.append(tt.s2)
+		assert.Equal(t, tt.want, res)
+		if res.IsNil() {
+			assert.False(t, ok)
+		}
 	}
 }
 

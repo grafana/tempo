@@ -347,6 +347,78 @@ func TestMetricsAggregate_extractConditions(t *testing.T) {
 	}
 }
 
+func TestBinaryOperation_extractConditions(t *testing.T) {
+	tests := []struct {
+		name string
+		op   *BinaryOperation
+		want []Condition
+	}{
+		{
+			name: "string array equal",
+			op:   &BinaryOperation{Op: OpEqual, LHS: NewAttribute("attr"), RHS: NewStaticStringArray([]string{"a", "b"})},
+			want: []Condition{
+				newCondition(NewAttribute("attr"), OpEqual, NewStaticStringArray([]string{"a", "b"})),
+			},
+		},
+		{
+			name: "string IN array",
+			op:   &BinaryOperation{Op: OpIn, LHS: NewAttribute("attr"), RHS: NewStaticStringArray([]string{"a", "b"})},
+			want: []Condition{
+				newCondition(NewAttribute("attr"), OpIn, NewStaticStringArray([]string{"a", "b"})),
+			},
+		},
+		{
+			name: "int array equal",
+			op:   &BinaryOperation{Op: OpEqual, LHS: NewAttribute("attr"), RHS: NewStaticIntArray([]int{1, 2, 3})},
+			want: []Condition{
+				newCondition(NewAttribute("attr"), OpEqual, NewStaticIntArray([]int{1, 2, 3})),
+			},
+		},
+		{
+			name: "int IN array",
+			op:   &BinaryOperation{Op: OpIn, LHS: NewAttribute("attr"), RHS: NewStaticIntArray([]int{1, 2, 3})},
+			want: []Condition{
+				newCondition(NewAttribute("attr"), OpIn, NewStaticIntArray([]int{1, 2, 3})),
+			},
+		},
+		{
+			name: "string array not regex",
+			op:   &BinaryOperation{Op: OpNotRegex, LHS: NewAttribute("attr"), RHS: NewStaticStringArray([]string{"a.*", "b.*"})},
+			want: []Condition{
+				newCondition(NewAttribute("attr"), OpNotRegex, NewStaticStringArray([]string{"a.*", "b.*"})),
+			},
+		},
+		{
+			name: "string array MATCH ANY regex",
+			op:   &BinaryOperation{Op: OpRegexMatchAny, LHS: NewAttribute("attr"), RHS: NewStaticStringArray([]string{"a.*", "b.*"})},
+			want: []Condition{
+				newCondition(NewAttribute("attr"), OpRegexMatchAny, NewStaticStringArray([]string{"a.*", "b.*"})),
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := &FetchSpansRequest{
+				AllConditions: true,
+			}
+			tt.op.extractConditions(req)
+			require.Equal(t, tt.want, req.Conditions)
+			require.Equal(t, true, req.AllConditions, "allConditions should be true")
+		})
+
+		t.Run(tt.name+" inverted", func(t *testing.T) {
+			req := &FetchSpansRequest{
+				AllConditions: true,
+			}
+			tt.op.RHS, tt.op.LHS = tt.op.LHS, tt.op.RHS
+			tt.op.extractConditions(req)
+			require.Equal(t, tt.want, req.Conditions)
+			require.Equal(t, true, req.AllConditions, "allConditions should be true")
+		})
+	}
+}
+
 func TestUnaryOperation_extractConditions(t *testing.T) {
 	tests := []struct {
 		query         string

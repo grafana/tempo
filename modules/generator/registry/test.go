@@ -39,7 +39,9 @@ func (t *TestRegistry) NewGauge(name string) Gauge {
 }
 
 func (t *TestRegistry) NewLabelBuilder() LabelBuilder {
-	return NewLabelBuilder(0, 0)
+	nds := NewDrainSanitizer("test", func(string) string { return SpanNameSanitizationDisabled }, 0)
+
+	return NewLabelBuilder(0, 0, nds)
 }
 
 func (t *TestRegistry) NewHistogram(name string, buckets []float64, histogramOverrides HistogramMode) Histogram {

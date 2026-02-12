@@ -7,7 +7,6 @@ import (
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/modules/overrides/userconfigurable/api"
 	"github.com/grafana/tempo/modules/overrides/userconfigurable/client"
-	filterconfig "github.com/grafana/tempo/pkg/spanfilter/config"
 )
 
 type runtimeConfigValidator struct {
@@ -33,6 +32,12 @@ func (r *runtimeConfigValidator) Validate(config *overrides.Overrides) (warnings
 
 	if config.MetricsGenerator.GenerateNativeHistograms != "" {
 		if err := validation.ValidateHistogramMode(string(config.MetricsGenerator.GenerateNativeHistograms)); err != nil {
+			return warnings, err
+		}
+	}
+
+	if config.MetricsGenerator.SpanNameSanitization != "" {
+		if err := validation.ValidateSpanNameSanitization(config.MetricsGenerator.SpanNameSanitization); err != nil {
 			return warnings, err
 		}
 	}
@@ -112,10 +117,8 @@ func (v *overridesValidator) Validate(limits *client.Limits) error {
 	}
 
 	if filterPolicies, ok := limits.GetMetricsGenerator().GetProcessor().GetSpanMetrics().GetFilterPolicies(); ok {
-		for _, fp := range filterPolicies {
-			if err := filterconfig.ValidateFilterPolicy(fp); err != nil {
-				return err
-			}
+		if err := validation.ValidateFilterPolicies(filterPolicies); err != nil {
+			return err
 		}
 	}
 
@@ -169,6 +172,12 @@ func (v *overridesValidator) Validate(limits *client.Limits) error {
 
 	if histogramMode, ok := limits.GetMetricsGenerator().GetGenerateNativeHistograms(); ok {
 		if err := validation.ValidateHistogramMode(string(histogramMode)); err != nil {
+			return err
+		}
+	}
+
+	if spanNameSanitization, ok := limits.GetMetricsGenerator().GetSpanNameSanitization(); ok {
+		if err := validation.ValidateSpanNameSanitization(spanNameSanitization); err != nil {
 			return err
 		}
 	}
