@@ -826,3 +826,62 @@ func TestIsLagged(t *testing.T) {
 		})
 	}
 }
+
+func TestLiveStoreKeepsPartitionOwnerOnShutdown(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	cfg := defaultConfig(t, tmpDir)
+	cfg.RemoveOwnerOnShutdown = false
+	partitionKV := cfg.PartitionRing.KVStore.Mock
+
+	liveStore, err := liveStoreWithConfig(t, cfg)
+	require.NoError(t, err)
+
+	// Verify owner is registered in the partition ring after startup
+	val, err := partitionKV.Get(t.Context(), PartitionRingKey)
+	require.NoError(t, err)
+	require.NotNil(t, val)
+	desc := ring.GetOrCreatePartitionRingDesc(val)
+	require.True(t, desc.HasOwner(cfg.Ring.InstanceID), "owner should be registered after startup")
+
+	// Stop the live store
+	_ = services.StopAndAwaitTerminated(t.Context(), liveStore)
+
+	// Verify owner is still registered after shutdown when RemoveOwnerOnShutdown is false
+	val, err = partitionKV.Get(t.Context(), PartitionRingKey)
+	require.NoError(t, err)
+	require.NotNil(t, val)
+	desc = ring.GetOrCreatePartitionRingDesc(val)
+	require.True(t, desc.HasOwner(cfg.Ring.InstanceID), "owner should remain registered after shutdown when RemoveOwnerOnShutdown is false")
+}
+
+func TestLiveStoreDownscaleOverridesConfig(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	cfg := defaultConfig(t, tmpDir)
+	cfg.RemoveOwnerOnShutdown = false
+	partitionKV := cfg.PartitionRing.KVStore.Mock
+
+	liveStore, err := liveStoreWithConfig(t, cfg)
+	require.NoError(t, err)
+
+	// Verify owner is registered in the partition ring after startup
+	val, err := partitionKV.Get(t.Context(), PartitionRingKey)
+	require.NoError(t, err)
+	require.NotNil(t, val)
+	desc := ring.GetOrCreatePartitionRingDesc(val)
+	require.True(t, desc.HasOwner(cfg.Ring.InstanceID), "owner should be registered after startup")
+
+	// Simulate downscale API call which explicitly sets remove owner on shutdown
+	liveStore.setPrepareShutdown()
+
+	// Stop the live store
+	_ = services.StopAndAwaitTerminated(t.Context(), liveStore)
+
+	// Verify owner is removed even though config says not to, because downscale overrides
+	val, err = partitionKV.Get(t.Context(), PartitionRingKey)
+	require.NoError(t, err)
+	require.NotNil(t, val)
+	desc = ring.GetOrCreatePartitionRingDesc(val)
+	require.False(t, desc.HasOwner(cfg.Ring.InstanceID), "owner should be removed after shutdown when downscale was triggered")
+}
