@@ -148,6 +148,15 @@ To detect if per-label cardinality limiting is active:
 sum by (tenant, label_name) (rate(tempo_metrics_generator_registry_label_values_limited_total{}[5m]))
 ```
 
+To view the estimated cardinality demand per label:
+
+```promql
+tempo_metrics_generator_registry_label_cardinality_demand_estimate{}
+```
+
+Use this metric to identify which labels have high cardinality, how far they exceed the configured limit, and to choose anappropriate 
+`max_cardinality_per_label` value. To observe actual demand before enforcing a limit, deploy with a high `max_cardinality_per_label` value first.
+
 Configure the per-label cardinality limit:
 
 ```yaml

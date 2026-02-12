@@ -13,11 +13,17 @@ import (
 
 const overflowValue = "__cardinality_overflow__"
 
-var metricCardinalityLimitOverflows = promauto.NewCounterVec(prometheus.CounterOpts{
+var metricLabelValuesLimited = promauto.NewCounterVec(prometheus.CounterOpts{
 	Namespace: "tempo",
-	Name:      "metrics_generator_registry_cardinality_limit_overflows_total",
-	Help:      "Total number of label values replaced with __cardinality_overflow__ by the per-label cardinality limiter",
-}, []string{"tenant"})
+	Name:      "metrics_generator_registry_label_values_limited_total",
+	Help:      "Total number of times a label value was limited due to exceeding the per-label cardinality limit",
+}, []string{"tenant", "label_name"})
+
+var metricLabelCardinalityDemand = promauto.NewGaugeVec(prometheus.GaugeOpts{
+	Namespace: "tempo",
+	Name:      "metrics_generator_registry_label_cardinality_demand_estimate",
+	Help:      "Estimated cardinality demand (distinct value count) for each label, each tenant",
+}, []string{"tenant", "label_name"})
 
 // maxCardinalityFunc returns the MaxCardinalityPerLabel config value for the tenant.
 type maxCardinalityFunc func(tenant string) uint64
@@ -43,8 +49,6 @@ type PerLabelLimiter struct {
 	labelsState   map[string]*labelCardinalityState
 	staleDuration time.Duration
 
-	overflowCounter prometheus.Counter
-
 	demandUpdateChan <-chan time.Time
 	pruneChan        <-chan time.Time
 }
@@ -55,7 +59,6 @@ func NewPerLabelLimiter(tenant string, maxCardinalityF maxCardinalityFunc, stale
 		maxCardinalityFunc: maxCardinalityF,
 		labelsState:        make(map[string]*labelCardinalityState),
 		staleDuration:      staleDuration,
-		overflowCounter:    metricCardinalityLimitOverflows.WithLabelValues(tenant),
 		demandUpdateChan:   time.Tick(15 * time.Second),
 		pruneChan:          time.Tick(5 * time.Minute),
 	}
@@ -84,14 +87,19 @@ func (s *PerLabelLimiter) Limit(lbls labels.Labels) labels.Labels {
 
 		state := s.getOrCreateState(l.Name)
 
-		// Always insert the ORIGINAL value hash to track true demand.
-		// If we inserted the overflow value, the estimate would drop to 1
-		// and cause oscillation: over->overflow->estimate drops->under->real values->over->...
+		// we always insert the ORIGINAL value to hash even while overflowing,
+		// which prevents the estimate from artificially dropping.
+		// It will make sure that recovery (label going back under limit) only happens when the
+		// actual incoming data has lower cardinality AND the old sketches have been rotated out.
+		//
+		// If we inserted the overflowValue, then the estimate would drop and cause oscillation:
+		// over limit -> Add overflowValue -> estimate drops -> under limit -> real values -> over limit ->...
 		state.sketch.Insert(xxhash.Sum64String(l.Value))
 
+		// we are over limit, limit and capture the metric
 		if state.overLimit {
 			builder.Set(l.Name, overflowValue)
-			s.overflowCounter.Inc()
+			metricLabelValuesLimited.WithLabelValues(s.tenant, l.Name).Inc()
 		}
 	})
 
@@ -118,8 +126,11 @@ func (s *PerLabelLimiter) doPeriodicMaintenance() {
 	select {
 	case <-s.demandUpdateChan:
 		s.mtx.Lock()
-		for _, state := range s.labelsState {
-			state.overLimit = state.sketch.Estimate() > s.maxCardinalityFunc(s.tenant)
+		for labelName, state := range s.labelsState {
+			estimate := state.sketch.Estimate()
+			state.overLimit = estimate > s.maxCardinalityFunc(s.tenant)
+			// also update the demand metric when we refresh the estimate
+			metricLabelCardinalityDemand.WithLabelValues(s.tenant, labelName).Set(float64(estimate))
 		}
 		s.mtx.Unlock()
 	case <-s.pruneChan:

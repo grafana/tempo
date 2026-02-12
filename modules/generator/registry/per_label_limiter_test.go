@@ -176,8 +176,13 @@ func TestPerLabelLimiter_OverflowMetrics(t *testing.T) {
 	require.Equal(t, overflowValue, result.Get("url"))
 
 	var m io_prometheus_client.Metric
-	require.NoError(t, metricCardinalityLimitOverflows.WithLabelValues(tenant).Write(&m))
+	require.NoError(t, metricLabelValuesLimited.WithLabelValues(tenant, "url").Write(&m))
 	require.Equal(t, float64(1), m.GetCounter().GetValue())
+
+	// Verify demand estimate gauge was updated during triggerDemandUpdate
+	var g io_prometheus_client.Metric
+	require.NoError(t, metricLabelCardinalityDemand.WithLabelValues(tenant, "url").Write(&g))
+	require.GreaterOrEqual(t, g.GetGauge().GetValue(), float64(10), "demand estimate should reflect the distinct values pushed")
 }
 
 // TestPerLabelLimiter_ConcurrentAccess verifies Limit() is safe to call
