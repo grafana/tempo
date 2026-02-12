@@ -823,7 +823,7 @@ func TestManagedRegistry_cardinalitySanitizer(t *testing.T) {
 	cfg := &Config{
 		StaleDuration: 15 * time.Minute,
 	}
-	reg := New(cfg, &mockOverrides{maxCardinalityPerLabel: 5}, "test-card", appender, log.NewNopLogger(), noopLimiter)
+	reg := New(cfg, &mockOverrides{maxCardinalityPerLabel: 5}, "test", appender, log.NewNopLogger(), noopLimiter)
 	defer reg.Close()
 
 	counter := reg.NewCounter("http_requests")
@@ -837,23 +837,29 @@ func TestManagedRegistry_cardinalitySanitizer(t *testing.T) {
 		return lbls
 	}
 
-	// Push 20 series with high-cardinality url but low-cardinality method
-	for i := 0; i < 20; i++ {
+	// Push 10 series with high-cardinality url but low-cardinality method
+	for i := 0; i < 10; i++ {
 		counter.Inc(buildLabels("GET", fmt.Sprintf("/users/%d", i)), 1.0)
 	}
 
 	// Force the per-label limiter to re-evaluate overLimit flags.
-	triggerMaintenance(reg.perLabelLimiter.(*PerLabelLimiter))
+	triggerDemandUpdate(reg.perLabelLimiter.(*PerLabelLimiter))
 
-	// Push more series after maintenance has flagged url as over limit
-	for i := 20; i < 30; i++ {
+	// Before the overflow kicks in, we should have exactly 10 series
+	// we got 10 active series while the `maxCardinalityPerLabel` is 5 because we added 10 active series
+	// before demand update was executed.
+	require.Equal(t, uint32(10), reg.activeSeries(), "10 pre-overflow series")
+
+	// Push 10 more series after maintenance has flagged url as over limit
+	// no new values of label `url` will be added.
+	for i := 0; i < 10; i++ {
 		counter.Inc(buildLabels("GET", fmt.Sprintf("/users/%d", i)), 1.0)
 	}
 
 	reg.CollectMetrics(context.Background())
 
-	// Verify: url should have overflowed to __cardinality_overflow__ for post-maintenance series
-	// while method remains "GET"
+	// Verify: 'url' should have overflowed to __cardinality_overflow__ for post-maintenance series
+	// while the method remains "GET"
 	foundOverflow := false
 	for _, s := range appender.samples {
 		if s.l.Get("url") == "__cardinality_overflow__" {
@@ -863,7 +869,7 @@ func TestManagedRegistry_cardinalitySanitizer(t *testing.T) {
 	}
 	require.True(t, foundOverflow, "expected at least one series with url=__cardinality_overflow__")
 
-	// Verify active series is bounded — overflow collapses many url values into one
+	// Verify active series: 10 pre-overflow series + 1 collapsed overflow series = 11
 	activeSeries := reg.activeSeries()
-	require.Less(t, activeSeries, uint32(30), "active series should be bounded by cardinality limiter")
+	require.Equal(t, uint32(11), activeSeries, "10 pre-overflow + 1 overflow series")
 }
