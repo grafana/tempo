@@ -105,7 +105,7 @@ func TestValidateFilterPolicies(t *testing.T) {
 			name:       "no include or exclude",
 			policies:   []filterconfig.FilterPolicy{{}},
 			expErr:     true,
-			expErrText: "must have at least an `include` or `exclude`",
+			expErrText: "must have at least an `include`, `includeAny` or `exclude`",
 		},
 		{
 			name: "invalid match type on include",
@@ -240,7 +240,7 @@ func TestValidateFilterPolicies(t *testing.T) {
 				{},
 			},
 			expErr:     true,
-			expErrText: "must have at least an `include` or `exclude`",
+			expErrText: "must have at least an `include`, `includeAny` or `exclude`",
 		},
 	}
 
