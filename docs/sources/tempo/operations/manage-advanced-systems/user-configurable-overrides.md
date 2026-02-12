@@ -92,7 +92,7 @@ metrics_generator:
       [intrinsic_dimensions: <map string to bool>]
       [filter_policies: [
         [
-          include/exclude:
+          include/include_any/exclude:
             match_type: <string> # options: strict, regexp
             attributes:
               - key: <string>
