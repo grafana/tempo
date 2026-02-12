@@ -69,7 +69,7 @@ func (f *SpanFilter) ApplyFilterPolicy(rs *v1.Resource, span *tracev1.Span) bool
 		return false
 	}
 
-	if f.hasIncludeAny && f.isIncludedOnly(rs, span) {
+	if f.hasIncludeAny && f.isIncludedAny(rs, span) {
 		return true
 	}
 
@@ -85,7 +85,7 @@ func (f *SpanFilter) ApplyFilterPolicy(rs *v1.Resource, span *tracev1.Span) bool
 
 // This is different than the isIncluded. It's a VIP pass,working as an OR expression.
 // if ANY policy matches the span is included
-func (f *SpanFilter) isIncludedOnly(rs *v1.Resource, span *tracev1.Span) bool {
+func (f *SpanFilter) isIncludedAny(rs *v1.Resource, span *tracev1.Span) bool {
 	for _, policy := range f.includeAny {
 		if policy.Match(rs, span) {
 			return true
