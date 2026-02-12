@@ -30,20 +30,28 @@ func normalizePipelineElement(e PipelineElement) {
 	case *SpansetFilter:
 		normalizeFieldExpr(n.Expression)
 
-	case SpansetOperation:
+	case *SpansetOperation:
 		normalizePipelineElement(n.LHS)
 		normalizePipelineElement(n.RHS)
 
-	case ScalarFilter:
+		if n.Op != OpAnd && n.Op != OpOr {
+			return
+		}
+
+		if n.LHS.String() > n.RHS.String() {
+			n.LHS, n.RHS = n.RHS, n.LHS
+		}
+
+	case *ScalarFilter:
 		normalizeScalarExpr(n.LHS)
 		normalizeScalarExpr(n.RHS)
 
-	case Aggregate:
+	case *Aggregate:
 		if n.e != nil {
 			normalizeFieldExpr(n.e)
 		}
 
-	case GroupOperation:
+	case *GroupOperation:
 		normalizeFieldExpr(n.Expression)
 	}
 }
