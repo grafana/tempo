@@ -186,12 +186,21 @@ func TestPerLabelLimiter_OverflowMetrics(t *testing.T) {
 }
 
 // TestPerLabelLimiter_ConcurrentAccess verifies Limit() is safe to call
-// from multiple goroutines. Run with -race to detect unsynchronized access.
+// from multiple goroutines while doPeriodicMaintenance fires concurrently.
+// Run with -race to detect unsynchronized access.
 func TestPerLabelLimiter_ConcurrentAccess(t *testing.T) {
 	s := NewPerLabelLimiter("test", testMaxCardinality(10), 15*time.Minute)
 
+	// Replace tickers with channels we control, so doPeriodicMaintenance
+	// actually runs its demand-update and prune paths during the test.
+	demandCh := make(chan time.Time, 10)
+	pruneCh := make(chan time.Time, 10)
+	s.demandUpdateChan = demandCh
+	s.pruneChan = pruneCh
+
 	var wg sync.WaitGroup
-	wg.Add(10)
+	wg.Add(12) // 10 Limit() goroutines + 1 demand update ticker + 1 prune ticker
+
 	for g := 0; g < 10; g++ {
 		go func(id int) {
 			defer wg.Done()
@@ -205,6 +214,26 @@ func TestPerLabelLimiter_ConcurrentAccess(t *testing.T) {
 			}
 		}(g)
 	}
+
+	// Feed demand update ticks concurrently - picked up by doPeriodicMaintenance
+	// inside Limit() calls, exercising the full code path.
+	go func() {
+		defer wg.Done()
+		for i := 0; i < 10; i++ {
+			demandCh <- time.Now()
+			time.Sleep(time.Millisecond)
+		}
+	}()
+
+	// Feed prune ticks concurrently
+	go func() {
+		defer wg.Done()
+		for i := 0; i < 5; i++ {
+			pruneCh <- time.Now()
+			time.Sleep(time.Millisecond)
+		}
+	}()
+
 	wg.Wait()
 
 	// After all goroutines finish, trigger maintenance and verify the state is consistent
@@ -214,6 +243,7 @@ func TestPerLabelLimiter_ConcurrentAccess(t *testing.T) {
 	state, ok := s.labelsState["label"]
 	s.mtx.Unlock()
 	require.True(t, ok, "label state should exist after concurrent inserts")
+	// Estimate may be less than 1000 because prune ticks rotate out sketch data during the test
 	require.Greater(t, state.sketch.Estimate(), uint64(0), "sketch should have recorded values")
 }
 
