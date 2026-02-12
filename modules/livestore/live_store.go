@@ -46,6 +46,34 @@ const (
 
 var ErrStarting = errors.New("live-store is starting")
 
+// isValidTenantID validates tenant IDs used in metric labels to prevent cardinality explosion.
+// This is a security-critical function that protects against metric label injection attacks.
+//
+// Valid tenant IDs:
+// - Length: 1-64 characters
+// - Characters: alphanumeric, hyphens, underscores, and dots
+// - Dots allow Grafana Cloud tenant IDs like "org-123.production"
+//
+// Examples:
+// - Valid: "tenant-1", "org_123", "acme.prod", "dev-team-a"
+// - Invalid: "", "a"*65, "tenant$", "../etc/passwd"
+func isValidTenantID(tenant string) bool {
+	if len(tenant) == 0 || len(tenant) > 64 {
+		return false
+	}
+
+	for _, c := range tenant {
+		if !((c >= 'a' && c <= 'z') ||
+			(c >= 'A' && c <= 'Z') ||
+			(c >= '0' && c <= '9') ||
+			c == '-' || c == '_' || c == '.') {
+			return false
+		}
+	}
+
+	return true
+}
+
 var (
 	// Queue management metrics
 	metricCompleteQueueLength = promauto.NewGauge(prometheus.GaugeOpts{
@@ -145,28 +173,34 @@ type LiveStore struct {
 	lagCancel           context.CancelFunc
 	readyErr            atomic.Pointer[error] // nil when ready to serve queries
 	lastRecordTimeNanos atomic.Int64          // stores timestamp of last consumed record as UnixNano, -1 means not set
+
+	// Circuit breaker for invalid tenant validation
+	invalidTenantCount atomic.Int64
+	invalidTenantLimit int64
 }
 
 func New(cfg Config, overridesService overrides.Interface, logger log.Logger, reg prometheus.Registerer, singlePartition bool) (*LiveStore, error) {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	s := &LiveStore{
-		cfg:             cfg,
-		logger:          logger,
-		reg:             reg,
-		decoder:         ingest.NewDecoder(),
-		ctx:             ctx,
-		cancel:          cancel,
-		instances:       make(map[string]*instance),
-		overrides:       overridesService,
-		completeQueues:  flushqueues.New[*completeOp](cfg.CompleteBlockConcurrency, metricCompleteQueueLength),
-		startupComplete: make(chan struct{}),
+		cfg:                cfg,
+		logger:             logger,
+		reg:                reg,
+		decoder:            ingest.NewDecoder(),
+		ctx:                ctx,
+		cancel:             cancel,
+		instances:          make(map[string]*instance),
+		overrides:          overridesService,
+		completeQueues:     flushqueues.New[*completeOp](cfg.CompleteBlockConcurrency, metricCompleteQueueLength),
+		startupComplete:    make(chan struct{}),
+		invalidTenantLimit: 1000, // Allow 1000 invalid attempts before triggering circuit breaker
 	}
 
 	// Initialize ready state to starting
 	s.readyErr.Store(&ErrStarting)
 	metricReady.Set(0)
 	s.lastRecordTimeNanos.Store(-1)
+	s.invalidTenantCount.Store(0)
 
 	var err error
 	if singlePartition {
@@ -581,6 +615,22 @@ func (s *LiveStore) getInstance(tenantID string) (*instance, bool) {
 }
 
 func (s *LiveStore) getOrCreateInstance(tenantID string) (*instance, error) {
+	// Circuit breaker check
+	if s.invalidTenantCount.Load() >= s.invalidTenantLimit {
+		return nil, fmt.Errorf("too many invalid tenant IDs, possible attack")
+	}
+
+	// Validate tenant ID
+	if !isValidTenantID(tenantID) {
+		s.invalidTenantCount.Add(1)
+		level.Warn(s.logger).Log(
+			"msg", "rejected invalid tenant ID",
+			"tenant", tenantID,
+			"invalid_count", s.invalidTenantCount.Load(),
+		)
+		return nil, fmt.Errorf("invalid tenant ID: %s", tenantID)
+	}
+
 	s.instancesMtx.RLock()
 	inst, ok := s.instances[tenantID]
 	s.instancesMtx.RUnlock()
