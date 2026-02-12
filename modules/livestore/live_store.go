@@ -368,9 +368,11 @@ func (s *LiveStore) running(ctx context.Context) error {
 }
 
 func (s *LiveStore) stopping(error) error {
-	// Remove partition owner from ring on shutdown so stale entries don't persist.
+	// Remove partition owner from ring on shutdown if configured.
 	// On startup, createPartitionAndRegisterOwner() re-registers the owner immediately.
-	s.ingestPartitionLifecycler.SetRemoveOwnerOnShutdown(true)
+	if s.cfg.RemoveOwnerOnShutdown {
+		s.ingestPartitionLifecycler.SetRemoveOwnerOnShutdown(true)
+	}
 
 	// Stop the kafka lag background worker.
 	s.lagCancel()
