@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"runtime/debug"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -682,14 +683,26 @@ func (s *LiveStore) OnRingInstanceHeartbeat(*ring.BasicLifecycler, *ring.Desc, *
 }
 
 // FindTraceByID implements tempopb.Querier
-func (s *LiveStore) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDRequest) (*tempopb.TraceByIDResponse, error) {
+func (s *LiveStore) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDRequest) (resp *tempopb.TraceByIDResponse, retErr error) {
+	defer func() {
+		if r := recover(); r != nil {
+			level.Error(s.logger).Log("msg", "panic in FindTraceByID", "panic", r, "stack", string(debug.Stack()))
+			retErr = fmt.Errorf("internal error in FindTraceByID: %v", r)
+		}
+	}()
 	return withInstance(ctx, s, func(inst *instance) (*tempopb.TraceByIDResponse, error) {
 		return inst.FindByTraceID(ctx, req.TraceID, req.AllowPartialTrace)
 	})
 }
 
 // SearchRecent implements tempopb.Querier
-func (s *LiveStore) SearchRecent(ctx context.Context, req *tempopb.SearchRequest) (*tempopb.SearchResponse, error) {
+func (s *LiveStore) SearchRecent(ctx context.Context, req *tempopb.SearchRequest) (resp *tempopb.SearchResponse, retErr error) {
+	defer func() {
+		if r := recover(); r != nil {
+			level.Error(s.logger).Log("msg", "panic in SearchRecent", "panic", r, "stack", string(debug.Stack()))
+			retErr = fmt.Errorf("internal error in SearchRecent: %v", r)
+		}
+	}()
 	if s.isLagged(int64(req.End) * 1e9) { // convert seconds to nanoseconds
 		return nil, errLagged
 	}
@@ -704,28 +717,52 @@ func (s *LiveStore) SearchBlock(_ context.Context, _ *tempopb.SearchBlockRequest
 }
 
 // SearchTags implements tempopb.Querier
-func (s *LiveStore) SearchTags(ctx context.Context, req *tempopb.SearchTagsRequest) (*tempopb.SearchTagsResponse, error) {
+func (s *LiveStore) SearchTags(ctx context.Context, req *tempopb.SearchTagsRequest) (resp *tempopb.SearchTagsResponse, retErr error) {
+	defer func() {
+		if r := recover(); r != nil {
+			level.Error(s.logger).Log("msg", "panic in SearchTags", "panic", r, "stack", string(debug.Stack()))
+			retErr = fmt.Errorf("internal error in SearchTags: %v", r)
+		}
+	}()
 	return withInstance(ctx, s, func(inst *instance) (*tempopb.SearchTagsResponse, error) {
 		return inst.SearchTags(ctx, req.Scope)
 	})
 }
 
 // SearchTagsV2 implements tempopb.Querier
-func (s *LiveStore) SearchTagsV2(ctx context.Context, req *tempopb.SearchTagsRequest) (*tempopb.SearchTagsV2Response, error) {
+func (s *LiveStore) SearchTagsV2(ctx context.Context, req *tempopb.SearchTagsRequest) (resp *tempopb.SearchTagsV2Response, retErr error) {
+	defer func() {
+		if r := recover(); r != nil {
+			level.Error(s.logger).Log("msg", "panic in SearchTagsV2", "panic", r, "stack", string(debug.Stack()))
+			retErr = fmt.Errorf("internal error in SearchTagsV2: %v", r)
+		}
+	}()
 	return withInstance(ctx, s, func(inst *instance) (*tempopb.SearchTagsV2Response, error) {
 		return inst.SearchTagsV2(ctx, req)
 	})
 }
 
 // SearchTagValues implements tempopb.Querier
-func (s *LiveStore) SearchTagValues(ctx context.Context, req *tempopb.SearchTagValuesRequest) (*tempopb.SearchTagValuesResponse, error) {
+func (s *LiveStore) SearchTagValues(ctx context.Context, req *tempopb.SearchTagValuesRequest) (resp *tempopb.SearchTagValuesResponse, retErr error) {
+	defer func() {
+		if r := recover(); r != nil {
+			level.Error(s.logger).Log("msg", "panic in SearchTagValues", "panic", r, "stack", string(debug.Stack()))
+			retErr = fmt.Errorf("internal error in SearchTagValues: %v", r)
+		}
+	}()
 	return withInstance(ctx, s, func(inst *instance) (*tempopb.SearchTagValuesResponse, error) {
 		return inst.SearchTagValues(ctx, req)
 	})
 }
 
 // SearchTagValuesV2 implements tempopb.Querier
-func (s *LiveStore) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTagValuesRequest) (*tempopb.SearchTagValuesV2Response, error) {
+func (s *LiveStore) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTagValuesRequest) (resp *tempopb.SearchTagValuesV2Response, retErr error) {
+	defer func() {
+		if r := recover(); r != nil {
+			level.Error(s.logger).Log("msg", "panic in SearchTagValuesV2", "panic", r, "stack", string(debug.Stack()))
+			retErr = fmt.Errorf("internal error in SearchTagValuesV2: %v", r)
+		}
+	}()
 	return withInstance(ctx, s, func(inst *instance) (*tempopb.SearchTagValuesV2Response, error) {
 		return inst.SearchTagValuesV2(ctx, req)
 	})
@@ -742,7 +779,13 @@ func (s *LiveStore) GetMetrics(_ context.Context, _ *tempopb.SpanMetricsRequest)
 }
 
 // QueryRange implements tempopb.MetricsGeneratorServer
-func (s *LiveStore) QueryRange(ctx context.Context, req *tempopb.QueryRangeRequest) (*tempopb.QueryRangeResponse, error) {
+func (s *LiveStore) QueryRange(ctx context.Context, req *tempopb.QueryRangeRequest) (resp *tempopb.QueryRangeResponse, retErr error) {
+	defer func() {
+		if r := recover(); r != nil {
+			level.Error(s.logger).Log("msg", "panic in QueryRange", "panic", r, "stack", string(debug.Stack()))
+			retErr = fmt.Errorf("internal error in QueryRange: %v", r)
+		}
+	}()
 	if s.isLagged(int64(req.End)) { // end param is already nanos, no need to convert
 		return nil, errLagged
 	}
