@@ -158,3 +158,14 @@ func (j *Job) SetCompactionOutput(blocks []string) {
 		return
 	}
 }
+
+// GetRedactionBlockID returns the block ID for redaction jobs, or empty string otherwise.
+func (j *Job) GetRedactionBlockID() string {
+	j.mtx.Lock()
+	defer j.mtx.Unlock()
+
+	if j.Type != tempopb.JobType_JOB_TYPE_REDACTION || j.JobDetail.Redaction == nil {
+		return ""
+	}
+	return j.JobDetail.Redaction.BlockId
+}
