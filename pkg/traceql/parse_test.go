@@ -1720,6 +1720,14 @@ func TestMetricsSecondStageErrors(t *testing.T) {
 			in:  "{} | rate() | bottomk(-1)",
 			err: newParseError("syntax error: unexpected -, expecting INTEGER", 1, 23),
 		},
+		{
+			in:  "{} > 10",
+			err: newParseError("syntax error: unexpected INTEGER, expecting { or (", 1, 6),
+		},
+		{
+			in:  "{} = 10",
+			err: newParseError("syntax error: unexpected =, expecting with", 1, 4),
+		},
 	}
 
 	for _, tc := range tests {
@@ -1774,6 +1782,99 @@ func TestParseRewrites(t *testing.T) {
 			actual, err := Parse(tc.query)
 			require.NoError(t, err)
 			require.Equal(t, tc.want, actual.String())
+		})
+	}
+}
+
+func TestMetricsFilter(t *testing.T) {
+	tests := []struct {
+		in       string
+		expected *RootExpr
+	}{
+		{
+			in: `{ } | rate() > 10`,
+			expected: newRootExprWithMetricsTwoStage(
+				newPipeline(newSpansetFilter(NewStaticBool(true))),
+				newMetricsAggregate(metricsAggregateRate, nil),
+				newMetricsFilter(OpGreater, 10),
+			),
+		},
+		{
+			in: `{ } | rate() by(name) >= 5.5`,
+			expected: newRootExprWithMetricsTwoStage(
+				newPipeline(newSpansetFilter(NewStaticBool(true))),
+				newMetricsAggregate(metricsAggregateRate, []Attribute{
+					NewIntrinsic(IntrinsicName),
+				}),
+				newMetricsFilter(OpGreaterEqual, 5.5),
+			),
+		},
+		{
+			in: `{ } | count_over_time() < 100`,
+			expected: newRootExprWithMetricsTwoStage(
+				newPipeline(newSpansetFilter(NewStaticBool(true))),
+				newMetricsAggregate(metricsAggregateCountOverTime, nil),
+				newMetricsFilter(OpLess, 100),
+			),
+		},
+		{
+			in: `{ } | rate() <= 0.5`,
+			expected: newRootExprWithMetricsTwoStage(
+				newPipeline(newSpansetFilter(NewStaticBool(true))),
+				newMetricsAggregate(metricsAggregateRate, nil),
+				newMetricsFilter(OpLessEqual, 0.5),
+			),
+		},
+		{
+			in: `{ } | rate() = 42`,
+			expected: newRootExprWithMetricsTwoStage(
+				newPipeline(newSpansetFilter(NewStaticBool(true))),
+				newMetricsAggregate(metricsAggregateRate, nil),
+				newMetricsFilter(OpEqual, 42),
+			),
+		},
+		{
+			in: `{ } | rate() != 0`,
+			expected: newRootExprWithMetricsTwoStage(
+				newPipeline(newSpansetFilter(NewStaticBool(true))),
+				newMetricsAggregate(metricsAggregateRate, nil),
+				newMetricsFilter(OpNotEqual, 0),
+			),
+		},
+		{
+			in: `{ } | rate() > -3`,
+			expected: newRootExprWithMetricsTwoStage(
+				newPipeline(newSpansetFilter(NewStaticBool(true))),
+				newMetricsAggregate(metricsAggregateRate, nil),
+				newMetricsFilter(OpGreater, -3),
+			),
+		},
+		{
+			in: `{ } | rate() > -2.5`,
+			expected: newRootExprWithMetricsTwoStage(
+				newPipeline(newSpansetFilter(NewStaticBool(true))),
+				newMetricsAggregate(metricsAggregateRate, nil),
+				newMetricsFilter(OpGreater, -2.5),
+			),
+		},
+		{
+			in: `{ } | rate() > 10 with(foo="bar")`,
+			expected: newRootExprWithMetricsTwoStage(
+				newPipeline(newSpansetFilter(NewStaticBool(true))),
+				newMetricsAggregate(metricsAggregateRate, nil),
+				newMetricsFilter(OpGreater, 10),
+			).withHints(newHints([]*Hint{
+				newHint("foo", NewStaticString("bar")),
+			})),
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.in, func(t *testing.T) {
+			actual, err := Parse(tc.in)
+
+			require.NoError(t, err)
+			require.Equal(t, tc.expected, actual)
 		})
 	}
 }

@@ -2300,6 +2300,74 @@ func TestSecondStageBottomKInstant(t *testing.T) {
 	require.Equal(t, 1, len(result[LabelsFromArgs("span.foo", "baz").MapKey()].Values))
 }
 
+func TestSecondStageMetricsComparison(t *testing.T) {
+	req := &tempopb.QueryRangeRequest{
+		Start: 1,
+		End:   uint64(8 * time.Second),
+		Step:  uint64(1 * time.Second),
+	}
+
+	in := make([]Span, 0)
+	// 15 spans, at different start times across 3 series
+	in = append(in, generateSpans(7, []int{1, 2, 3, 4, 5, 6, 7, 8}, "bar")...)
+	in = append(in, generateSpans(5, []int{1, 2, 3, 4, 5, 6, 7, 8}, "baz")...)
+	in = append(in, generateSpans(3, []int{1, 2, 3, 4, 5, 6, 7, 8}, "quax")...)
+
+	for _, tc := range []struct {
+		name           string
+		query          string
+		expectedLabel  string
+		expectedValues []float64
+	}{
+		{
+			name:           "greater than",
+			query:          "{ } | rate() by (span.foo) > 5",
+			expectedLabel:  "bar",
+			expectedValues: []float64{7, 7, 7, 7, 7, 7, 7, 7},
+		},
+		{
+			name:           "greater than or equal",
+			query:          "{ } | rate() by (span.foo) >= 7",
+			expectedLabel:  "bar",
+			expectedValues: []float64{7, 7, 7, 7, 7, 7, 7, 7},
+		},
+		{
+			name:           "equal",
+			query:          "{ } | rate() by (span.foo) = 5",
+			expectedLabel:  "baz",
+			expectedValues: []float64{5, 5, 5, 5, 5, 5, 5, 5},
+		},
+		{
+			name:           "less than or equal",
+			query:          "{ } | rate() by (span.foo) <= 3",
+			expectedLabel:  "quax",
+			expectedValues: []float64{3, 3, 3, 3, 3, 3, 3, 3},
+		},
+		{
+			name:           "less than",
+			query:          "{ } | rate() by (span.foo) < 5",
+			expectedLabel:  "quax",
+			expectedValues: []float64{3, 3, 3, 3, 3, 3, 3, 3},
+		},
+		{
+			name:           "samples",
+			query:          "{ } | rate() by (span.foo) < 5 with (sample=0.5)",
+			expectedLabel:  "quax",
+			expectedValues: []float64{3, 3, 3, 3, 3, 3, 3, 3},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			req := req
+			req.Query = tc.query
+			result, _, err := runTraceQLMetric(req, in)
+			require.NoError(t, err)
+			require.Equal(t, 1, len(result))
+			resultBar := result[LabelsFromArgs("span.foo", tc.expectedLabel).MapKey()]
+			require.Equal(t, tc.expectedValues, resultBar.Values)
+		})
+	}
+}
+
 func TestProcessTopK(t *testing.T) {
 	tests := []struct {
 		name     string
