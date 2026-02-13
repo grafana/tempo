@@ -9,8 +9,10 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 )
 
-var ErrTooManyItems = errors.New("too many items")
-var ErrDroppedSpanSide = errors.New("dropped span side")
+var (
+	ErrTooManyItems    = errors.New("too many items")
+	ErrDroppedSpanSide = errors.New("dropped span side")
+)
 
 var _ Store = (*store)(nil)
 

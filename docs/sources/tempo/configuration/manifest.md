@@ -595,6 +595,7 @@ metrics_generator:
                 - db.namespace
                 - db.name
                 - db.system
+            filter_policies: []
         span_metrics:
             histogram_buckets:
                 - 0.002
