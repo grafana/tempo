@@ -10,10 +10,10 @@ import (
 	"github.com/prometheus/prometheus/storage"
 )
 
-// noopLabelLimiter is a no-op LabelLimiter for tests that don't need per-label limiting.
-type noopLabelLimiter struct{}
-
-func (noopLabelLimiter) Limit(lbls labels.Labels) labels.Labels { return lbls }
+// newTestLabelLimiter returns a PerLabelLimiter with limiting disabled (maxCardinality=0).
+func newTestLabelLimiter() *PerLabelLimiter {
+	return NewPerLabelLimiter("test", func(string) uint64 { return 0 }, 0)
+}
 
 // TestRegistry is a simple implementation of Registry intended for tests. It is not concurrent-safe.
 type TestRegistry struct {
@@ -46,7 +46,7 @@ func (t *TestRegistry) NewGauge(name string) Gauge {
 func (t *TestRegistry) NewLabelBuilder() LabelBuilder {
 	nds := NewDrainSanitizer("test", func(string) string { return SpanNameSanitizationDisabled }, 0)
 
-	return NewLabelBuilder(0, 0, nds, noopLabelLimiter{})
+	return NewLabelBuilder(0, 0, nds, newTestLabelLimiter())
 }
 
 func (t *TestRegistry) NewHistogram(name string, buckets []float64, histogramOverrides HistogramMode) Histogram {

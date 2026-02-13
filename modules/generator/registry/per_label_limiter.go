@@ -13,7 +13,10 @@ import (
 )
 
 const (
-	overflowValue        = "__cardinality_overflow__"
+	overflowValue = "__cardinality_overflow__"
+	// demandUpdateInterval controls how often the cardinality estimate from HLL
+	// is refreshed and the overLimit flag and demand gauge are updated.
+	// kept at 15s to limit lock contention with Limit() (hot path) which shares the same mutex
 	demandUpdateInterval = 15 * time.Second
 )
 
@@ -141,7 +144,7 @@ func (s *PerLabelLimiter) getOrCreateState(labelName string) *labelCardinalitySt
 // demand updates (every 15s) and pruning (every 5m). This blocks Limit()
 // callers for the duration. In practice this is fast, so it's acceptable.
 // If it becomes a problem, snapshot the labelsState slice under the lock
-// and do sketch operations outside it.
+// and do sketch operations outside it, and then update the labelsState under lock.
 func (s *PerLabelLimiter) doPeriodicMaintenance() {
 	select {
 	case <-s.demandUpdateChan:
