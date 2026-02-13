@@ -67,6 +67,8 @@ import (
 %type <scalarFilterOperation> scalarFilterOperation
 %type <metricsAggregation> metricsAggregation
 %type <metricsSecondStage> metricsSecondStage
+%type <scalarFilterOperation> metricsFilterOperation
+%type <metricsSecondStage> metricsFilter
 
 %type <scalarPipelineExpressionFilter> scalarPipelineExpressionFilter
 %type <scalarPipelineExpression> scalarPipelineExpression
@@ -128,6 +130,7 @@ root:
   | spansetPipeline PIPE metricsAggregation     { yylex.(*lexer).expr = newRootExprWithMetrics($1, $3) }
   // note: would only work for single metrics pipeline and not for multiple metrics pipelines before the fucntions
   | spansetPipeline PIPE metricsAggregation PIPE metricsSecondStage  { yylex.(*lexer).expr = newRootExprWithMetricsTwoStage($1, $3, $5) }
+  | spansetPipeline PIPE metricsAggregation metricsFilter            { yylex.(*lexer).expr = newRootExprWithMetricsTwoStage($1, $3, $4) }
   | root hints                                  { yylex.(*lexer).expr.withHints($2) }
   ;
 
@@ -329,6 +332,25 @@ metricsAggregation:
 metricsSecondStage:
     TOPK OPEN_PARENS INTEGER CLOSE_PARENS                        { $$ = newTopKBottomK(OpTopK, $3) }
     | BOTTOMK OPEN_PARENS INTEGER CLOSE_PARENS                   { $$ = newTopKBottomK(OpBottomK, $3) }
+  ;
+
+// **********************
+// Metrics Filter (comparison operators applied to metrics results)
+// **********************
+metricsFilterOperation:
+    EQ         { $$ = OpEqual        }
+  | NEQ        { $$ = OpNotEqual     }
+  | LT         { $$ = OpLess         }
+  | LTE        { $$ = OpLessEqual    }
+  | GT         { $$ = OpGreater      }
+  | GTE        { $$ = OpGreaterEqual }
+  ;
+
+metricsFilter:
+    metricsFilterOperation INTEGER       { $$ = newMetricsFilter($1, float64($2)) }
+  | metricsFilterOperation FLOAT         { $$ = newMetricsFilter($1, $2) }
+  | metricsFilterOperation SUB INTEGER   { $$ = newMetricsFilter($1, float64(-$3)) }
+  | metricsFilterOperation SUB FLOAT     { $$ = newMetricsFilter($1, -$3) }
   ;
 
 // **********************
