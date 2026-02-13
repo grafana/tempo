@@ -21,6 +21,7 @@ import (
 	"github.com/grafana/tempo/modules/generator/registry"
 	"github.com/grafana/tempo/modules/generator/validation"
 	"github.com/grafana/tempo/pkg/cache/reclaimable"
+	"github.com/grafana/tempo/pkg/spanfilter"
 	"github.com/grafana/tempo/pkg/tempopb"
 	v1_common "github.com/grafana/tempo/pkg/tempopb/common/v1"
 	v1_trace "github.com/grafana/tempo/pkg/tempopb/trace/v1"
@@ -81,6 +82,7 @@ type Processor struct {
 	serviceGraphRequestClientSecondsHistogram          registry.Histogram
 	serviceGraphRequestMessagingSystemSecondsHistogram registry.Histogram
 	sanitizeCache                                      reclaimable.Cache[string, string]
+	filter                                             *spanfilter.SpanFilter
 
 	metricDroppedSpans prometheus.Counter
 	metricTotalEdges   prometheus.Counter
@@ -95,6 +97,11 @@ func New(cfg Config, tenant string, reg registry.Registry, logger log.Logger, in
 	}
 
 	sanitizeCache := reclaimable.New(validation.SanitizeLabelName, 10000)
+	filter, err := spanfilter.NewSpanFilter(cfg.FilterPolicies)
+	if err != nil {
+		level.Error(logger).Log("msg", "invalid service graphs filter policies; using empty filter", "err", err)
+		filter, _ = spanfilter.NewSpanFilter(nil)
+	}
 
 	p := &Processor{
 		Cfg:      cfg,
@@ -107,6 +114,7 @@ func New(cfg Config, tenant string, reg registry.Registry, logger log.Logger, in
 		serviceGraphRequestClientSecondsHistogram:          reg.NewHistogram(metricRequestClientSeconds, cfg.HistogramBuckets, cfg.HistogramOverride),
 		serviceGraphRequestMessagingSystemSecondsHistogram: reg.NewHistogram(metricRequestMessagingSystemSeconds, cfg.HistogramBuckets, cfg.HistogramOverride),
 		sanitizeCache: sanitizeCache,
+		filter:        filter,
 
 		metricDroppedSpans: metricDroppedSpans.WithLabelValues(tenant),
 		metricTotalEdges:   metricTotalEdges.WithLabelValues(tenant),
@@ -165,6 +173,10 @@ func (p *Processor) consume(resourceSpans []*v1_trace.ResourceSpans) (err error)
 
 		for _, ils := range rs.ScopeSpans {
 			for _, span := range ils.Spans {
+				if !p.filter.ApplyFilterPolicy(rs.Resource, span) {
+					continue
+				}
+
 				connectionType := store.Unknown
 				spanMultiplier := processor_util.GetSpanMultiplier(p.Cfg.SpanMultiplierKey, span, rs.Resource)
 				switch span.Kind {

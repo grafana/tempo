@@ -65,11 +65,19 @@ func (s *store) tryEvictHead() bool {
 	}
 
 	s.onExpire(headEdge)
-	delete(s.m, headEdge.key)
-	s.returnEdge(headEdge)
-	s.l.Remove(head)
+	s.deleteEdge(head)
 
 	return true
+}
+
+// deleteEdge removes an edge from the map/list and returns it to the pool.
+//
+// Must be called holding lock.
+func (s *store) deleteEdge(ele *list.Element) {
+	edge := ele.Value.(*Edge)
+	delete(s.m, edge.key)
+	s.l.Remove(ele)
+	s.returnEdge(edge)
 }
 
 // UpsertEdge fetches an Edge from the store and updates it using the given callback. If the Edge
@@ -85,9 +93,7 @@ func (s *store) UpsertEdge(key string, update Callback) (isNew bool, err error) 
 
 		if edge.isComplete() {
 			s.onComplete(edge)
-			s.returnEdge(edge)
-			delete(s.m, key)
-			s.l.Remove(storedEdge)
+			s.deleteEdge(storedEdge)
 		}
 
 		return false, nil

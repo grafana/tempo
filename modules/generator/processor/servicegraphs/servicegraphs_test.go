@@ -12,6 +12,7 @@ import (
 	"github.com/go-kit/log"
 	"github.com/gogo/protobuf/jsonpb"
 	"github.com/grafana/tempo/modules/generator/registry"
+	filterconfig "github.com/grafana/tempo/pkg/spanfilter/config"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/util/test"
 	"github.com/prometheus/client_golang/prometheus"
@@ -207,6 +208,111 @@ func TestServiceGraphs_failedRequests(t *testing.T) {
 
 	assert.Equal(t, 1.0, testRegistry.Query(`traces_service_graph_request_total`, serverToDatabaseLabels))
 	assert.Equal(t, 1.0, testRegistry.Query(`traces_service_graph_request_failed_total`, serverToDatabaseLabels))
+}
+
+func TestServiceGraphs_applyFilterPolicy(t *testing.T) {
+	cases := []struct {
+		name                     string
+		filterPolicies           []filterconfig.FilterPolicy
+		expectedRequesterServer  float64
+		expectedServerDatabase   float64
+		expectedRequesterMessage float64
+	}{
+		{
+			name:                     "no_filters",
+			filterPolicies:           nil,
+			expectedRequesterServer:  1.0,
+			expectedServerDatabase:   1.0,
+			expectedRequesterMessage: 1.0,
+		},
+		{
+			name: "include_requester_only",
+			filterPolicies: []filterconfig.FilterPolicy{
+				{
+					Include: &filterconfig.PolicyMatch{
+						MatchType: filterconfig.Strict,
+						Attributes: []filterconfig.MatchPolicyAttribute{
+							{Key: "resource.service.name", Value: "mythical-requester"},
+						},
+					},
+				},
+			},
+			expectedRequesterServer:  0.0,
+			expectedServerDatabase:   0.0,
+			expectedRequesterMessage: 0.0,
+		},
+		{
+			name: "include_server_only",
+			filterPolicies: []filterconfig.FilterPolicy{
+				{
+					Include: &filterconfig.PolicyMatch{
+						MatchType: filterconfig.Strict,
+						Attributes: []filterconfig.MatchPolicyAttribute{
+							{Key: "resource.service.name", Value: "mythical-server"},
+						},
+					},
+				},
+			},
+			expectedRequesterServer:  0.0,
+			expectedServerDatabase:   1.0,
+			expectedRequesterMessage: 0.0,
+		},
+		{
+			name: "exclude_requester",
+			filterPolicies: []filterconfig.FilterPolicy{
+				{
+					Exclude: &filterconfig.PolicyMatch{
+						MatchType: filterconfig.Strict,
+						Attributes: []filterconfig.MatchPolicyAttribute{
+							{Key: "resource.service.name", Value: "mythical-requester"},
+						},
+					},
+				},
+			},
+			expectedRequesterServer:  0.0,
+			expectedServerDatabase:   1.0,
+			expectedRequesterMessage: 0.0,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			testRegistry := registry.NewTestRegistry()
+
+			cfg := Config{}
+			cfg.RegisterFlagsAndApplyDefaults("", nil)
+			cfg.HistogramBuckets = []float64{0.04}
+			cfg.EnableMessagingSystemLatencyHistogram = true
+			cfg.FilterPolicies = tc.filterPolicies
+
+			p := New(cfg, "test", testRegistry, log.NewNopLogger(), prometheus.NewCounter(prometheus.CounterOpts{}))
+			defer p.Shutdown(context.Background())
+
+			request, err := loadTestData("testdata/trace-with-queue-database.json")
+			require.NoError(t, err)
+
+			p.PushSpans(context.Background(), request)
+
+			requesterToServerLabels := labels.FromMap(map[string]string{
+				"client": "mythical-requester",
+				"server": "mythical-server",
+			})
+			serverToDatabaseLabels := labels.FromMap(map[string]string{
+				"client":          "mythical-server",
+				"server":          "postgres",
+				"connection_type": "database",
+			})
+			requesterToRecorderLabels := labels.FromMap(map[string]string{
+				"client":          "mythical-requester",
+				"server":          "mythical-recorder",
+				"connection_type": "messaging_system",
+			})
+
+			assert.Equal(t, tc.expectedRequesterServer, testRegistry.Query(`traces_service_graph_request_total`, requesterToServerLabels))
+			assert.Equal(t, tc.expectedServerDatabase, testRegistry.Query(`traces_service_graph_request_total`, serverToDatabaseLabels))
+			assert.Equal(t, tc.expectedRequesterMessage, testRegistry.Query(`traces_service_graph_request_total`, requesterToRecorderLabels))
+		})
+	}
 }
 
 func TestServiceGraphs_tooManySpansErr(t *testing.T) {
