@@ -23,16 +23,28 @@ const (
 	ShardMask = ShardCount - 1 // 0xFF
 )
 
+// pendingBlockKey returns a stable key for the blocks-pending index (tenant + blockID).
+func pendingBlockKey(tenantID, blockID string) string {
+	return tenantID + "\x00" + blockID
+}
+
 // Shard represents a single shard containing a subset of jobs
 type Shard struct {
-	Jobs map[string]*Job `json:"jobs"`
-	mtx  sync.Mutex
+	Jobs    map[string]*Job `json:"jobs"`
+	Pending map[string]*Job `json:"pending_jobs,omitempty"`
+	mtx     sync.Mutex
 }
 
 type Work struct {
 	Shards [ShardCount]*Shard `json:"shards"`
 	cfg    Config
 	mtx    sync.Mutex // Protects the entire Work structure during Marshal/Unmarshal
+
+	// pendingBlocks indexes (tenantID, blockID) -> jobID for fast BlockPending lookup
+	// Not persisted; rebuilt on LoadFromLocal and in Unmarshal from Shard.Pending.
+	pendingBlocks          map[string]string `json:"-"`
+	currentRedactionTenant string            `json:"-"`
+	pendingMtx             sync.Mutex        `json:"-"`
 }
 
 func New(cfg Config) Interface {
@@ -43,9 +55,11 @@ func New(cfg Config) Interface {
 	// Initialize all shards
 	for i := range ShardCount {
 		sw.Shards[i] = &Shard{
-			Jobs: make(map[string]*Job),
+			Jobs:    make(map[string]*Job),
+			Pending: make(map[string]*Job),
 		}
 	}
+	sw.pendingBlocks = make(map[string]string)
 
 	return sw
 }
@@ -110,6 +124,7 @@ func (w *Work) LoadFromLocal(_ context.Context, localPath string) error {
 		}
 	}
 
+	w.rebuildPendingBlocksIndex()
 	return nil
 }
 
@@ -336,12 +351,31 @@ func (w *Work) Unmarshal(data []byte) error {
 	for i := range ShardCount {
 		if w.Shards[i] == nil {
 			w.Shards[i] = &Shard{
-				Jobs: make(map[string]*Job),
+				Jobs:    make(map[string]*Job),
+				Pending: make(map[string]*Job),
 			}
-		} else if w.Shards[i].Jobs == nil {
-			w.Shards[i].Jobs = make(map[string]*Job)
+		} else {
+			if w.Shards[i].Jobs == nil {
+				w.Shards[i].Jobs = make(map[string]*Job)
+			}
+			if w.Shards[i].Pending == nil {
+				w.Shards[i].Pending = make(map[string]*Job)
+			}
 		}
 	}
+
+	// Rebuild index; Unmarshal holds all shard locks so we only take pendingMtx.
+	w.pendingMtx.Lock()
+	w.pendingBlocks = make(map[string]string)
+	for i := range ShardCount {
+		for _, j := range w.Shards[i].Pending {
+			if j.Type == tempopb.JobType_JOB_TYPE_REDACTION && j.JobDetail.Redaction != nil {
+				key := pendingBlockKey(j.JobDetail.Tenant, j.JobDetail.Redaction.BlockId)
+				w.pendingBlocks[key] = j.ID
+			}
+		}
+	}
+	w.pendingMtx.Unlock()
 
 	return nil
 }
@@ -470,4 +504,193 @@ func (w *Work) flushShards(localPath string, shards map[int]bool) error {
 
 func FileNameForShard(shardID uint8) string {
 	return fmt.Sprintf("shard_%03d.json", shardID)
+}
+
+// rebuildPendingBlocksIndex rebuilds the pendingBlocks index from all shards' Pending maps.
+// Caller must hold w.mtx (e.g. during LoadFromLocal). LoadFromLocal does not hold shard locks here.
+func (w *Work) rebuildPendingBlocksIndex() {
+	w.pendingMtx.Lock()
+	defer w.pendingMtx.Unlock()
+
+	w.pendingBlocks = make(map[string]string)
+	for i := range ShardCount {
+		shard := w.Shards[i]
+		shard.mtx.Lock()
+		for _, j := range shard.Pending {
+			if j.Type == tempopb.JobType_JOB_TYPE_REDACTION && j.JobDetail.Redaction != nil {
+				key := pendingBlockKey(j.JobDetail.Tenant, j.JobDetail.Redaction.BlockId)
+				w.pendingBlocks[key] = j.ID
+			}
+		}
+		shard.mtx.Unlock()
+	}
+}
+
+// AddPendingJobs adds jobs to the appropriate shards' Pending maps and updates the blocks-pending index.
+func (w *Work) AddPendingJobs(jobs []*Job) error {
+	if len(jobs) == 0 {
+		return nil
+	}
+
+	w.pendingMtx.Lock()
+	defer w.pendingMtx.Unlock()
+
+	for _, j := range jobs {
+		if j == nil {
+			continue
+		}
+		shard := w.getShard(j.ID)
+		shard.mtx.Lock()
+		if _, ok := shard.Pending[j.ID]; ok {
+			shard.mtx.Unlock()
+			continue
+		}
+		j.CreatedTime = time.Now()
+		j.Status = tempopb.JobStatus_JOB_STATUS_UNSPECIFIED
+		shard.Pending[j.ID] = j
+		if j.Type == tempopb.JobType_JOB_TYPE_REDACTION && j.JobDetail.Redaction != nil {
+			key := pendingBlockKey(j.JobDetail.Tenant, j.JobDetail.Redaction.BlockId)
+			w.pendingBlocks[key] = j.ID
+		}
+		shard.mtx.Unlock()
+	}
+	return nil
+}
+
+// RemovePending removes a job from the appropriate shard's Pending map and the blocks-pending index.
+func (w *Work) RemovePending(jobID string) {
+	shard := w.getShard(jobID)
+	shard.mtx.Lock()
+	j, ok := shard.Pending[jobID]
+	shard.mtx.Unlock()
+	if !ok {
+		return
+	}
+
+	w.pendingMtx.Lock()
+	defer w.pendingMtx.Unlock()
+
+	shard.mtx.Lock()
+	delete(shard.Pending, jobID)
+	if j.Type == tempopb.JobType_JOB_TYPE_REDACTION && j.JobDetail.Redaction != nil {
+		key := pendingBlockKey(j.JobDetail.Tenant, j.JobDetail.Redaction.BlockId)
+		delete(w.pendingBlocks, key)
+	}
+	shard.mtx.Unlock()
+}
+
+// ListPendingJobs returns all pending jobs for the given tenant and job type across all shards.
+func (w *Work) ListPendingJobs(tenantID string, jobType tempopb.JobType) []*Job {
+	var out []*Job
+	for i := range ShardCount {
+		shard := w.Shards[i]
+		shard.mtx.Lock()
+		for _, j := range shard.Pending {
+			if j.JobDetail.Tenant == tenantID && j.Type == jobType {
+				out = append(out, j)
+			}
+		}
+		shard.mtx.Unlock()
+	}
+	return out
+}
+
+// HasPendingJobs returns true if there are any pending jobs for the given tenant and job type.
+func (w *Work) HasPendingJobs(tenantID string, jobType tempopb.JobType) bool {
+	return len(w.ListPendingJobs(tenantID, jobType)) > 0
+}
+
+// BlockPending returns true if the given (tenantID, blockID) has a pending job
+func (w *Work) BlockPending(tenantID, blockID string) bool {
+	w.pendingMtx.Lock()
+	_, ok := w.pendingBlocks[pendingBlockKey(tenantID, blockID)]
+	w.pendingMtx.Unlock()
+	return ok
+}
+
+// PopNextPendingJob removes and returns one pending job of the given type. For redaction, it drains
+// one tenant at a time (returns jobs for the same tenant until none remain, then switches to another).
+func (w *Work) PopNextPendingJob(jobType tempopb.JobType) *Job {
+	if jobType != tempopb.JobType_JOB_TYPE_REDACTION {
+		return w.popAnyPendingJob(jobType)
+	}
+	return w.popNextPendingRedactionJob()
+}
+
+func (w *Work) popAnyPendingJob(jobType tempopb.JobType) *Job {
+	for i := range ShardCount {
+		shard := w.Shards[i]
+		shard.mtx.Lock()
+		for id, j := range shard.Pending {
+			if j.Type == jobType {
+				delete(shard.Pending, id)
+				shard.mtx.Unlock()
+				w.removePendingBlockIndex(j)
+				return j
+			}
+		}
+		shard.mtx.Unlock()
+	}
+	return nil
+}
+
+func (w *Work) popNextPendingRedactionJob() *Job {
+	w.pendingMtx.Lock()
+	currentTenant := w.currentRedactionTenant
+	w.pendingMtx.Unlock()
+
+	// Try current tenant first
+	if currentTenant != "" {
+		if j := w.popOnePendingJobForTenant(currentTenant, tempopb.JobType_JOB_TYPE_REDACTION); j != nil {
+			return j
+		}
+		w.pendingMtx.Lock()
+		w.currentRedactionTenant = ""
+		w.pendingMtx.Unlock()
+	}
+
+	// Find any tenant with pending redaction and set as current
+	for i := range ShardCount {
+		shard := w.Shards[i]
+		shard.mtx.Lock()
+		for _, j := range shard.Pending {
+			if j.Type == tempopb.JobType_JOB_TYPE_REDACTION && j.JobDetail.Tenant != "" {
+				tenant := j.JobDetail.Tenant
+				shard.mtx.Unlock()
+				w.pendingMtx.Lock()
+				w.currentRedactionTenant = tenant
+				w.pendingMtx.Unlock()
+				return w.popOnePendingJobForTenant(tenant, tempopb.JobType_JOB_TYPE_REDACTION)
+			}
+		}
+		shard.mtx.Unlock()
+	}
+	return nil
+}
+
+func (w *Work) popOnePendingJobForTenant(tenantID string, jobType tempopb.JobType) *Job {
+	for i := range ShardCount {
+		shard := w.Shards[i]
+		shard.mtx.Lock()
+		for id, j := range shard.Pending {
+			if j.JobDetail.Tenant == tenantID && j.Type == jobType {
+				delete(shard.Pending, id)
+				shard.mtx.Unlock()
+				w.removePendingBlockIndex(j)
+				return j
+			}
+		}
+		shard.mtx.Unlock()
+	}
+	return nil
+}
+
+func (w *Work) removePendingBlockIndex(j *Job) {
+	if j.Type != tempopb.JobType_JOB_TYPE_REDACTION || j.JobDetail.Redaction == nil {
+		return
+	}
+	w.pendingMtx.Lock()
+	defer w.pendingMtx.Unlock()
+	key := pendingBlockKey(j.JobDetail.Tenant, j.JobDetail.Redaction.BlockId)
+	delete(w.pendingBlocks, key)
 }
