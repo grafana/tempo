@@ -1959,6 +1959,18 @@ overrides:
       # This setting only applies when limiter_type is set to "entity".
       [max_active_entities: <int>]
 
+      # Maximum number of distinct values any single label can have. When a label exceeds the
+      # configured threshold, all new label value is replaced with `__cardinality_overflow__`.
+      # All other labels that is under the limit are preserved
+      # If the limit is reached, no new label values will be added to the limit label.
+      # The amount of limited entities can be observed with the metric:
+      #   tempo_metrics_generator_registry_label_values_limited_total
+      # To view the estimated cardinality demand per label:
+      #   tempo_metrics_generator_registry_label_cardinality_demand_estimate
+      # This setting only applies when limiter_type is set to "entity".
+      # A value of 0 disables this limiter.
+      [max_cardinality_per_label:  <uint64> | default = 0]
+
       # Per-user configuration of the collection interval. A value of 0 means the global default is
       # used set in the metrics_generator config block.
       [collection_interval: <duration>]

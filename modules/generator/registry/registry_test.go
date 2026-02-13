@@ -57,7 +57,7 @@ func (m *mockLimiter) OnPruneStaleSeries() {
 }
 
 func buildTestLabels(names []string, values []string) labels.Labels {
-	builder := NewLabelBuilder(0, 0, newTestDrainSanitizer(SpanNameSanitizationDisabled))
+	builder := NewLabelBuilder(0, 0, newTestDrainSanitizer(SpanNameSanitizationDisabled), newTestLabelLimiter())
 	for i := range names {
 		builder.Add(names[i], values[i])
 	}
@@ -484,6 +484,7 @@ type mockOverrides struct {
 	nativeHistogramMaxBucketNumber  uint32
 	nativeHistogramBucketFactor     float64
 	nativeHistogramMinResetDuration time.Duration
+	maxCardinalityPerLabel          uint64
 }
 
 var _ Overrides = (*mockOverrides)(nil)
@@ -526,6 +527,10 @@ func (m *mockOverrides) MetricsGeneratorNativeHistogramMinResetDuration(string) 
 
 func (m *mockOverrides) MetricsGeneratorSpanNameSanitization(string) string {
 	return SpanNameSanitizationDisabled
+}
+
+func (m *mockOverrides) MetricsGeneratorMaxCardinalityPerLabel(string) uint64 {
+	return m.maxCardinalityPerLabel
 }
 
 func mustGetHostname() string {
@@ -810,4 +815,61 @@ func TestManagedRegistry_entityDemandWithMultipleMetrics(t *testing.T) {
 	diff := float64(entityDemand-50) / 50.0
 	assert.Less(t, math.Abs(diff), 0.15, "entity demand should be ~50 since same entities used across metrics")
 	assert.Less(t, entityDemand, uint64(70), "entity demand should not triple-count entities across metrics")
+}
+
+func TestManagedRegistry_cardinalitySanitizer(t *testing.T) {
+	appender := &capturingAppender{}
+
+	cfg := &Config{
+		StaleDuration: 15 * time.Minute,
+	}
+	reg := New(cfg, &mockOverrides{maxCardinalityPerLabel: 5}, "test", appender, log.NewNopLogger(), noopLimiter)
+	defer reg.Close()
+
+	counter := reg.NewCounter("http_requests")
+
+	// Helper to build labels through the registry's label builder (which applies the sanitizer)
+	buildLabels := func(method, url string) labels.Labels {
+		b := reg.NewLabelBuilder()
+		b.Add("method", method)
+		b.Add("url", url)
+		lbls, _ := b.CloseAndBuildLabels()
+		return lbls
+	}
+
+	// Push 10 series with high-cardinality url but low-cardinality method
+	for i := 0; i < 10; i++ {
+		counter.Inc(buildLabels("GET", fmt.Sprintf("/users/%d", i)), 1.0)
+	}
+
+	// Force the per-label limiter to re-evaluate overLimit flags.
+	triggerDemandUpdate(reg.perLabelLimiter.(*PerLabelLimiter))
+
+	// Before the overflow kicks in, we should have exactly 10 series
+	// we got 10 active series while the `maxCardinalityPerLabel` is 5 because we added 10 active series
+	// before demand update was executed.
+	require.Equal(t, uint32(10), reg.activeSeries(), "10 pre-overflow series")
+
+	// Push 10 more series after maintenance has flagged url as over limit
+	// no new values of label `url` will be added.
+	for i := 0; i < 10; i++ {
+		counter.Inc(buildLabels("GET", fmt.Sprintf("/users/%d", i)), 1.0)
+	}
+
+	reg.CollectMetrics(context.Background())
+
+	// Verify: 'url' should have overflowed to __cardinality_overflow__ for post-maintenance series
+	// while the method remains "GET"
+	foundOverflow := false
+	for _, s := range appender.samples {
+		if s.l.Get("url") == "__cardinality_overflow__" {
+			foundOverflow = true
+			require.Equal(t, "GET", s.l.Get("method"), "method should be preserved when url overflows")
+		}
+	}
+	require.True(t, foundOverflow, "expected at least one series with url=__cardinality_overflow__")
+
+	// Verify active series: 10 pre-overflow series + 1 collapsed overflow series = 11
+	activeSeries := reg.activeSeries()
+	require.Equal(t, uint32(11), activeSeries, "10 pre-overflow + 1 overflow series")
 }

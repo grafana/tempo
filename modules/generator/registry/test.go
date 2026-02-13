@@ -10,6 +10,11 @@ import (
 	"github.com/prometheus/prometheus/storage"
 )
 
+// newTestLabelLimiter returns a PerLabelLimiter with limiting disabled (maxCardinality=0).
+func newTestLabelLimiter() *PerLabelLimiter {
+	return NewPerLabelLimiter("test", func(string) uint64 { return 0 }, 0)
+}
+
 // TestRegistry is a simple implementation of Registry intended for tests. It is not concurrent-safe.
 type TestRegistry struct {
 	// "metric{labels}" -> value
@@ -41,7 +46,7 @@ func (t *TestRegistry) NewGauge(name string) Gauge {
 func (t *TestRegistry) NewLabelBuilder() LabelBuilder {
 	nds := NewDrainSanitizer("test", func(string) string { return SpanNameSanitizationDisabled }, 0)
 
-	return NewLabelBuilder(0, 0, nds)
+	return NewLabelBuilder(0, 0, nds, newTestLabelLimiter())
 }
 
 func (t *TestRegistry) NewHistogram(name string, buckets []float64, histogramOverrides HistogramMode) Histogram {

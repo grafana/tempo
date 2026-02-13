@@ -156,6 +156,10 @@ func (m *mockOverrides) MetricsGeneratorSpanNameSanitization(string) string {
 	return ""
 }
 
+func (m *mockOverrides) MetricsGeneratorMaxCardinalityPerLabel(string) uint64 {
+	return 0
+}
+
 // MetricsGeneratorProcessorSpanMetricsEnableTargetInfo enables target_info metrics
 func (m *mockOverrides) MetricsGeneratorProcessorSpanMetricsEnableTargetInfo(string) (bool, bool) {
 	spanMetricsEnableTargetInfo := m.spanMetricsEnableTargetInfo

@@ -159,6 +159,7 @@ type MetricsGeneratorOverrides struct {
 	NativeHistogramMaxBucketNumber  uint32        `yaml:"native_histogram_max_bucket_number,omitempty" json:"native_histogram_max_bucket_number,omitempty"`
 	NativeHistogramMinResetDuration time.Duration `yaml:"native_histogram_min_reset_duration,omitempty" json:"native_histogram_min_reset_duration,omitempty"`
 	SpanNameSanitization            string        `yaml:"span_name_sanitization,omitempty" json:"span_name_sanitization,omitempty"`
+	MaxCardinalityPerLabel          uint64        `yaml:"max_cardinality_per_label,omitempty" json:"max_cardinality_per_label,omitempty"`
 }
 
 type ReadOverrides struct {

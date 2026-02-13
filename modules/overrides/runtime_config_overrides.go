@@ -420,7 +420,7 @@ func (o *runtimeConfigOverridesManager) MetricsGeneratorMaxActiveSeries(userID s
 	return o.getOverridesForUser(userID).MetricsGenerator.MaxActiveSeries
 }
 
-// MetricsGeneratorMaxEntities is the maximum amount of entities in the metrics-generator registry
+// MetricsGeneratorMaxActiveEntities is the maximum number of entities in the metrics-generator registry
 // for this tenant. Note this is a local limit enforced in every instance separately.
 // Requires the generator's limiter type to be set to "entity".
 func (o *runtimeConfigOverridesManager) MetricsGeneratorMaxActiveEntities(userID string) uint32 {
@@ -468,6 +468,13 @@ func (o *runtimeConfigOverridesManager) MetricsGeneratorSpanNameSanitization(use
 		return mode
 	}
 	return o.defaultLimits.MetricsGenerator.SpanNameSanitization
+}
+
+// MetricsGeneratorMaxCardinalityPerLabel is the maximum number of distinct values any single
+// label can have before values are replaced with __cardinality_overflow__.
+// 0 disables the limit.
+func (o *runtimeConfigOverridesManager) MetricsGeneratorMaxCardinalityPerLabel(userID string) uint64 {
+	return o.getOverridesForUser(userID).MetricsGenerator.MaxCardinalityPerLabel
 }
 
 // MetricsGeneratorTraceIDLabelName is the label name used for the trace ID in metrics.

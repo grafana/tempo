@@ -33,8 +33,9 @@ func (p *safeBuilderPool) Put(builder *labels.Builder) {
 var builderPool = newSafeBuilderPool()
 
 type labelBuilder struct {
-	builder   *labels.Builder
-	sanitizer Sanitizer
+	builder         *labels.Builder
+	sanitizer       Sanitizer
+	perLabelLimiter LabelLimiter
 
 	maxLabelNameLength  int
 	maxLabelValueLength int
@@ -42,11 +43,12 @@ type labelBuilder struct {
 
 var _ LabelBuilder = (*labelBuilder)(nil)
 
-func NewLabelBuilder(maxLabelNameLength int, maxLabelValueLength int, sanitizer Sanitizer) LabelBuilder {
+func NewLabelBuilder(maxLabelNameLength int, maxLabelValueLength int, sanitizer Sanitizer, perLabelLimiter LabelLimiter) LabelBuilder {
 	builder := builderPool.Get()
 	return &labelBuilder{
 		builder:             builder,
 		sanitizer:           sanitizer,
+		perLabelLimiter:     perLabelLimiter,
 		maxLabelNameLength:  maxLabelNameLength,
 		maxLabelValueLength: maxLabelValueLength,
 	}
@@ -63,16 +65,20 @@ func (b *labelBuilder) Add(name, value string) {
 }
 
 func (b *labelBuilder) CloseAndBuildLabels() (labels.Labels, bool) {
-	labels := b.sanitizer.Sanitize(b.builder.Labels())
+	// We always run sanitizer first and then run per label limiter to ensure that
+	// per label limits are always applied after sanitizer.
+	// Pipeline: sanitize labels --> per-label cardinality limit --> entity/series limit
+	lbls := b.sanitizer.Sanitize(b.builder.Labels())
+	lbls = b.perLabelLimiter.Limit(lbls)
 	// it's no longer safe to use the builder after this point, so we drop our
 	// reference to it. this may cause a nil panic if the builder is used after
 	// this point, but it's better than memory corruption.
 	builderPool.Put(b.builder)
 	b.builder = nil
 
-	if !labels.IsValid(model.UTF8Validation) {
-		return labels, false
+	if !lbls.IsValid(model.UTF8Validation) {
+		return lbls, false
 	}
 
-	return labels, true
+	return lbls, true
 }
