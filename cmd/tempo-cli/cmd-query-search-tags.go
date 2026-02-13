@@ -5,7 +5,6 @@ import (
 	"errors"
 	"io"
 	"path"
-	"time"
 
 	"github.com/grafana/dskit/user"
 	"google.golang.org/grpc"
@@ -16,8 +15,8 @@ import (
 
 type querySearchTagsCmd struct {
 	HostPort string `arg:"" help:"tempo host and port. scheme and path will be provided based on query type. e.g. localhost:3200"`
-	Start    string `arg:"" optional:"" help:"start time in ISO8601 format"`
-	End      string `arg:"" optional:"" help:"end time in ISO8601 format"`
+	Start    string `arg:"" optional:"" help:"start time in RFC3339 (e.g. 2006-01-02T15:04:05Z07:00) or relative (e.g. now-1h) format"`
+	End      string `arg:"" optional:"" help:"end time in RFC3339 (e.g. 2006-01-02T15:04:05Z07:00) or relative (e.g. now) format"`
 
 	OrgID      string `help:"optional orgID"`
 	UseGRPC    bool   `help:"stream search results over GRPC"`
@@ -29,7 +28,7 @@ func (cmd *querySearchTagsCmd) Run(_ *globalOptions) error {
 	var start, end int64
 
 	if cmd.Start != "" {
-		startDate, err := time.Parse(time.RFC3339, cmd.Start)
+		startDate, err := parseTime(cmd.Start)
 		if err != nil {
 			return err
 		}
@@ -37,7 +36,7 @@ func (cmd *querySearchTagsCmd) Run(_ *globalOptions) error {
 	}
 
 	if cmd.End != "" {
-		endDate, err := time.Parse(time.RFC3339, cmd.End)
+		endDate, err := parseTime(cmd.End)
 		if err != nil {
 			return err
 		}
