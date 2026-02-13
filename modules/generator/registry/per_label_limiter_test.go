@@ -25,6 +25,71 @@ func TestPerLabelLimiter_Disabled(t *testing.T) {
 	require.Equal(t, lbls, result)
 }
 
+// TestPerLabelLimiter_RuntimeEnableDisable verifies that toggling max_cardinality_per_label at runtime
+// via overrides takes effect without restarting the generator.
+func TestPerLabelLimiter_RuntimeEnableDisable(t *testing.T) {
+	tenant := "test-runtime-toggle"
+	var maxCardinality atomic.Uint64
+	maxCardinality.Store(0) // start disabled
+
+	s := NewPerLabelLimiter(tenant, func(string) uint64 {
+		return maxCardinality.Load()
+	}, 15*time.Minute)
+
+	// Phase 1: Disabled - all labels pass through
+	for i := 0; i < 10; i++ {
+		lbls := labels.FromStrings("__name__", "m", "url", fmt.Sprintf("/path/%d", i))
+		result := s.Limit(lbls)
+		require.Equal(t, fmt.Sprintf("/path/%d", i), result.Get("url"), "should pass through when disabled")
+	}
+
+	// when disabled, Limit() returns before inserting into sketches, so labelsState
+	// is empty, which means no demand gauge was published as well.
+	triggerDemandUpdate(s)
+	s.mtx.Lock()
+	labelsStateLen := len(s.labelsState)
+	s.mtx.Unlock()
+	require.Equal(t, 0, labelsStateLen, "no label state should exist when disabled")
+
+	// Phase 2: Enable at runtime by changing the override
+	maxCardinality.Store(5)
+	triggerDemandUpdate(s)
+
+	// Push more distinct values - should overflow now
+	for i := 0; i < 10; i++ {
+		lbls := labels.FromStrings("__name__", "m", "url", fmt.Sprintf("/path/%d", i))
+		s.Limit(lbls)
+	}
+	triggerDemandUpdate(s)
+
+	// demand gauge should be published when enabled
+	var g io_prometheus_client.Metric
+	require.NoError(t, metricLabelCardinalityDemand.WithLabelValues(tenant, "url").Write(&g))
+	require.Greater(t, g.GetGauge().GetValue(), float64(5), "demand gauge should be published when enabled")
+
+	lbls := labels.FromStrings("__name__", "m", "url", "/path/999")
+	result := s.Limit(lbls)
+	require.Equal(t, overflowValue, result.Get("url"), "should overflow after runtime enable")
+
+	// capture the demand gauge value before disabling
+	var before io_prometheus_client.Metric
+	require.NoError(t, metricLabelCardinalityDemand.WithLabelValues(tenant, "url").Write(&before))
+	demandBefore := before.GetGauge().GetValue()
+
+	// Phase 3: Disable again at runtime
+	maxCardinality.Store(0)
+	triggerDemandUpdate(s)
+
+	lbls = labels.FromStrings("__name__", "m", "url", "/path/new/10000")
+	result = s.Limit(lbls)
+	require.Equal(t, "/path/new/10000", result.Get("url"), "should pass through after runtime disable")
+
+	// demand gauge should be stale (not updated) after disabling
+	var after io_prometheus_client.Metric
+	require.NoError(t, metricLabelCardinalityDemand.WithLabelValues(tenant, "url").Write(&after))
+	require.Equal(t, demandBefore, after.GetGauge().GetValue(), "demand gauge should not be updated when disabled")
+}
+
 func TestPerLabelLimiter_UnderLimit(t *testing.T) {
 	s := NewPerLabelLimiter("test", testMaxCardinality(100), 15*time.Minute)
 

@@ -79,12 +79,15 @@ func NewPerLabelLimiter(tenant string, maxCardinalityF maxCardinalityFunc, stale
 // Labels whose estimated cardinality exceeds the configured max have their
 // value replaced with __cardinality_overflow__.
 func (s *PerLabelLimiter) Limit(lbls labels.Labels) labels.Labels {
+	// do maintenance check as the first thing to ensure maxCardinality
+	// is refreshed from runtime overrides. without this,
+	// a limiter that starts disabled would never be enabled without restart.
+	s.doPeriodicMaintenance()
+
 	// maxCardinality is zero, so limiter is disabled, return labels as is
 	if s.maxCardinality.Load() == 0 {
 		return lbls
 	}
-
-	s.doPeriodicMaintenance()
 
 	s.mtx.Lock()
 	defer s.mtx.Unlock()
@@ -148,10 +151,18 @@ func (s *PerLabelLimiter) getOrCreateState(labelName string) *labelCardinalitySt
 func (s *PerLabelLimiter) doPeriodicMaintenance() {
 	select {
 	case <-s.demandUpdateChan:
+		// step 1: refresh maxCardinality config from override
 		// fetch once per tick and cache atomically, the limit is the same for all labels in a tenant
 		maxCardinality := s.maxCardinalityFunc(s.tenant)
 		s.maxCardinality.Store(maxCardinality)
 
+		// if the check is disabled, skip the demand update and, exit early.
+		// no data is being inserted into the sketch, so nothing to estimate or publish
+		if maxCardinality == 0 {
+			return
+		}
+
+		// step 2: update estimate and publish demand estimate metric
 		s.mtx.Lock()
 		for labelName, state := range s.labelsState {
 			estimate := state.sketch.Estimate()
