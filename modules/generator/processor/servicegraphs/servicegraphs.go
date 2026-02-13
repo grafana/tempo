@@ -91,7 +91,7 @@ type Processor struct {
 	logger             log.Logger
 }
 
-func New(cfg Config, tenant string, reg registry.Registry, logger log.Logger, invalidUTF8Counter prometheus.Counter) gen.Processor {
+func New(cfg Config, tenant string, reg registry.Registry, logger log.Logger, invalidUTF8Counter prometheus.Counter) (gen.Processor, error) {
 	if cfg.EnableVirtualNodeLabel {
 		cfg.Dimensions = append(cfg.Dimensions, virtualNodeLabel)
 	}
@@ -99,8 +99,7 @@ func New(cfg Config, tenant string, reg registry.Registry, logger log.Logger, in
 	sanitizeCache := reclaimable.New(validation.SanitizeLabelName, 10000)
 	filter, err := spanfilter.NewSpanFilter(cfg.FilterPolicies)
 	if err != nil {
-		level.Error(logger).Log("msg", "invalid service graphs filter policies; using empty filter", "err", err)
-		filter, _ = spanfilter.NewSpanFilter(nil)
+		return nil, err
 	}
 
 	p := &Processor{
@@ -141,7 +140,7 @@ func New(cfg Config, tenant string, reg registry.Registry, logger log.Logger, in
 		}()
 	}
 
-	return p
+	return p, nil
 }
 
 func (p *Processor) Name() string {

@@ -339,7 +339,10 @@ func (i *instance) addProcessor(processorName string, cfg ProcessorConfig) error
 		}
 	case processor.ServiceGraphsName:
 		invalidUTF8Counter := metricSpansDiscarded.WithLabelValues(i.instanceID, reasonInvalidUTF8, processor.ServiceGraphsName)
-		newProcessor = servicegraphs.New(cfg.ServiceGraphs, i.instanceID, i.registry, i.logger, invalidUTF8Counter)
+		newProcessor, err = servicegraphs.New(cfg.ServiceGraphs, i.instanceID, i.registry, i.logger, invalidUTF8Counter)
+		if err != nil {
+			return err
+		}
 	case processor.LocalBlocksName:
 		p, err := localblocks.New(cfg.LocalBlocks, i.instanceID, i.traceWAL, i.writer, i.overrides)
 		if err != nil {
