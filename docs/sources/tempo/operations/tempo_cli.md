@@ -102,8 +102,8 @@ Arguments:
 
 - `host-port` A host/port combination for Tempo. The scheme is inferred from the options.
 - `trace-ql` TraceQL query.
-- `start` Start of the time range to search: (YYYY-MM-DDThh:mm:ss)
-- `end` End of the time range to search: (YYYY-MM-DDThh:mm:ss)
+- `start` Start of the time range to search in RFC3339 format (e.g. `2024-01-01T00:00:00Z`) or relative (e.g. `now-1h`)
+- `end` End of the time range to search in RFC3339 format (e.g. `2024-01-01T01:00:00Z`) or relative (e.g. `now`)
 
 Options:
 
@@ -118,16 +118,22 @@ Options:
 Set the `stream_over_http_enabled` flag to true in the Tempo configuration to enable streaming over HTTP. For more information, refer to [Tempo GRPC API documentation](../../api_docs/).
 {{< /admonition >}}
 
-Example searching for error spans:
+Example searching for error spans using relative time:
 
 ```bash
-tempo-cli query api search localhost:3200 '{status = error}' 2024-01-01T00:00:00 2024-01-01T01:00:00
+tempo-cli query api search localhost:3200 '{status = error}' now-1h now
+```
+
+Example searching for error spans using absolute time:
+
+```bash
+tempo-cli query api search localhost:3200 '{status = error}' 2024-01-01T00:00:00Z 2024-01-01T01:00:00Z
 ```
 
 Example using GRPC streaming with organization ID:
 
 ```bash
-tempo-cli query api search --use-grpc --org-id my-org localhost:3200 '{span.http.status_code >= 400}' 2024-01-01T00:00:00 2024-01-01T01:00:00
+tempo-cli query api search --use-grpc --org-id my-org localhost:3200 '{span.http.status_code >= 400}' now-1h now
 ```
 
 ### Search tags
@@ -141,8 +147,8 @@ tempo-cli query api search-tags <host-port> [<start> <end>]
 Arguments:
 
 - `host-port` A host/port combination for Tempo. The scheme will be inferred based on the options provided.
-- `start` Start of the time range to search: (YYYY-MM-DDThh:mm:ss)
-- `end` End of the time range to search: (YYYY-MM-DDThh:mm:ss)
+- `start` Start of the time range to search in RFC3339 format (e.g. `2024-01-01T00:00:00Z`) or relative (e.g. `now-1h`)
+- `end` End of the time range to search in RFC3339 format (e.g. `2024-01-01T01:00:00Z`) or relative (e.g. `now`)
 
 Options:
 
@@ -161,10 +167,16 @@ Example:
 tempo-cli query api search-tags localhost:3200
 ```
 
-Example with time range:
+Example with relative time range:
 
 ```bash
-tempo-cli query api search-tags localhost:3200 2024-01-01T00:00:00 2024-01-02T00:00:00
+tempo-cli query api search-tags localhost:3200 now-1h now
+```
+
+Example with absolute time range:
+
+```bash
+tempo-cli query api search-tags localhost:3200 2024-01-01T00:00:00Z 2024-01-02T00:00:00Z
 ```
 
 ### Search tag values
@@ -179,8 +191,8 @@ Arguments:
 
 - `host-port` A host/port combination for Tempo. The scheme is inferred from the options.
 - `tag` The fully qualified TraceQL tag to search for. For example, `resource.service.name`.
-- `start` Start of the time range to search: (YYYY-MM-DDThh:mm:ss)
-- `end` End of the time range to search: (YYYY-MM-DDThh:mm:ss)
+- `start` Start of the time range to search in RFC3339 format (e.g. `2024-01-01T00:00:00Z`) or relative (e.g. `now-1h`)
+- `end` End of the time range to search in RFC3339 format (e.g. `2024-01-01T01:00:00Z`) or relative (e.g. `now`)
 
 Options:
 
@@ -218,8 +230,8 @@ Arguments:
 
 - `host-port` A host/port combination for Tempo. The scheme will be inferred based on the options provided.
 - `trace-ql metrics query` TraceQL metrics query.
-- `start` Start of the time range to search: (YYYY-MM-DDThh:mm:ss)
-- `end` End of the time range to search: (YYYY-MM-DDThh:mm:ss)
+- `start` Start of the time range to search in RFC3339 format (e.g. `2024-01-01T00:00:00Z`) or relative (e.g. `now-1h`)
+- `end` End of the time range to search in RFC3339 format (e.g. `2024-01-01T01:00:00Z`) or relative (e.g. `now`)
 
 Options:
 
@@ -236,13 +248,13 @@ Set the `stream_over_http_enabled` flag to true in the Tempo configuration to en
 Example range query for request rates by service:
 
 ```bash
-tempo-cli query api metrics localhost:3200 '{} | rate() by (resource.service.name)' 2024-01-01T00:00:00 2024-01-01T01:00:00
+tempo-cli query api metrics localhost:3200 '{} | rate() by (resource.service.name)' now-1h now
 ```
 
 Example instant query for current error rates:
 
 ```bash
-tempo-cli query api metrics --instant localhost:3200 '{status = error} | rate()' 2024-01-01T00:00:00 2024-01-01T01:00:00
+tempo-cli query api metrics --instant localhost:3200 '{status = error} | rate()' now-1h now
 ```
 
 ## Query trace-id command
@@ -460,18 +472,24 @@ Arguments:
 
 - `name` Name of the attribute to search for, for example, `http.method`.
 - `value` Value of the attribute to search for, for example, `GET`.
-- `start` Start of the time range to search: (YYYY-MM-DDThh:mm:ss)
-- `end` End of the time range to search: (YYYY-MM-DDThh:mm:ss)
+- `start` Start of the time range to search in RFC3339 format (e.g. `2024-01-01T00:00:00Z`) or relative (e.g. `now-1h`)
+- `end` End of the time range to search in RFC3339 format (e.g. `2024-01-01T01:00:00Z`) or relative (e.g. `now`)
 - `tenant-id` Tenant to search.
 
 Options:
 
 - [Backend options](#backend-options)
 
-Example:
+Example using relative time:
 
 ```bash
-tempo-cli query search http.method GET 2024-01-01T00:00:00 2024-01-01T00:05:00 single-tenant --backend=gcs --bucket=tempo-trace-data
+tempo-cli query search http.method GET now-1h now single-tenant --backend=gcs --bucket=tempo-trace-data
+```
+
+Example using absolute time:
+
+```bash
+tempo-cli query search http.method GET 2024-01-01T00:00:00Z 2024-01-01T00:05:00Z single-tenant --backend=gcs --bucket=tempo-trace-data
 ```
 
 ## Parquet convert A to B command
