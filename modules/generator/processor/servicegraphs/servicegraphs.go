@@ -34,6 +34,16 @@ var (
 		Name:      "metrics_generator_processor_service_graphs_dropped_spans",
 		Help:      "Number of spans dropped when trying to add edges",
 	}, []string{"tenant"})
+	metricDroppedEdges = promauto.NewCounterVec(prometheus.CounterOpts{
+		Namespace: "tempo",
+		Name:      "metrics_generator_processor_service_graphs_dropped_edges",
+		Help:      "Number of edges dropped due to matching a dropped span side counterpart",
+	}, []string{"tenant"})
+	metricDroppedSpanSideCacheOverflows = promauto.NewCounterVec(prometheus.CounterOpts{
+		Namespace: "tempo",
+		Name:      "metrics_generator_processor_service_graphs_dropped_span_side_cache_overflow_total",
+		Help:      "Number of dropped span side cache insertions skipped because the cache reached max items",
+	}, []string{"tenant"})
 	metricTotalEdges = promauto.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "tempo",
 		Name:      "metrics_generator_processor_service_graphs_edges",
@@ -84,14 +94,17 @@ type Processor struct {
 	sanitizeCache                                      reclaimable.Cache[string, string]
 	filter                                             *spanfilter.SpanFilter
 
-	metricDroppedSpans prometheus.Counter
-	metricTotalEdges   prometheus.Counter
-	metricExpiredEdges prometheus.Counter
-	invalidUTF8Counter prometheus.Counter
-	logger             log.Logger
+	filteredSpansCounter                prometheus.Counter
+	metricDroppedSpans                  prometheus.Counter
+	metricDroppedEdges                  prometheus.Counter
+	metricDroppedSpanSideCacheOverflows prometheus.Counter
+	metricTotalEdges                    prometheus.Counter
+	metricExpiredEdges                  prometheus.Counter
+	invalidUTF8Counter                  prometheus.Counter
+	logger                              log.Logger
 }
 
-func New(cfg Config, tenant string, reg registry.Registry, logger log.Logger, invalidUTF8Counter prometheus.Counter) (gen.Processor, error) {
+func New(cfg Config, tenant string, reg registry.Registry, logger log.Logger, filteredSpansCounter, invalidUTF8Counter prometheus.Counter) (gen.Processor, error) {
 	if cfg.EnableVirtualNodeLabel {
 		cfg.Dimensions = append(cfg.Dimensions, virtualNodeLabel)
 	}
@@ -115,14 +128,17 @@ func New(cfg Config, tenant string, reg registry.Registry, logger log.Logger, in
 		sanitizeCache: sanitizeCache,
 		filter:        filter,
 
-		metricDroppedSpans: metricDroppedSpans.WithLabelValues(tenant),
-		metricTotalEdges:   metricTotalEdges.WithLabelValues(tenant),
-		metricExpiredEdges: metricExpiredEdges.WithLabelValues(tenant),
-		invalidUTF8Counter: invalidUTF8Counter,
-		logger:             log.With(logger, "component", "service-graphs"),
+		filteredSpansCounter:                filteredSpansCounter,
+		metricDroppedSpans:                  metricDroppedSpans.WithLabelValues(tenant),
+		metricDroppedEdges:                  metricDroppedEdges.WithLabelValues(tenant),
+		metricDroppedSpanSideCacheOverflows: metricDroppedSpanSideCacheOverflows.WithLabelValues(tenant),
+		metricTotalEdges:                    metricTotalEdges.WithLabelValues(tenant),
+		metricExpiredEdges:                  metricExpiredEdges.WithLabelValues(tenant),
+		invalidUTF8Counter:                  invalidUTF8Counter,
+		logger:                              log.With(logger, "component", "service-graphs"),
 	}
 
-	p.store = store.NewStore(cfg.Wait, cfg.MaxItems, p.onComplete, p.onExpire)
+	p.store = store.NewStore(cfg.Wait, cfg.MaxItems, p.onComplete, p.onExpire, p.metricDroppedSpanSideCacheOverflows)
 
 	expirationTicker := time.NewTicker(2 * time.Second)
 	for i := 0; i < cfg.Workers; i++ {
@@ -173,6 +189,7 @@ func (p *Processor) consume(resourceSpans []*v1_trace.ResourceSpans) (err error)
 		for _, ils := range rs.ScopeSpans {
 			for _, span := range ils.Spans {
 				if !p.filter.ApplyFilterPolicy(rs.Resource, span) {
+					p.filteredSpansCounter.Inc()
 					continue
 				}
 
@@ -185,7 +202,7 @@ func (p *Processor) consume(resourceSpans []*v1_trace.ResourceSpans) (err error)
 					fallthrough
 				case v1_trace.Span_SPAN_KIND_CLIENT:
 					key := buildKey(hex.EncodeToString(span.TraceId), hex.EncodeToString(span.SpanId))
-					isNew, err = p.store.UpsertEdge(key, func(e *store.Edge) {
+					isNew, err = p.store.UpsertEdge(key, store.ClientSide, func(e *store.Edge) {
 						e.TraceID = tempo_util.TraceIDToHexString(span.TraceId)
 						e.ConnectionType = connectionType
 						e.ClientService = svcName
@@ -204,7 +221,7 @@ func (p *Processor) consume(resourceSpans []*v1_trace.ResourceSpans) (err error)
 					fallthrough
 				case v1_trace.Span_SPAN_KIND_SERVER:
 					key := buildKey(hex.EncodeToString(span.TraceId), hex.EncodeToString(span.ParentSpanId))
-					isNew, err = p.store.UpsertEdge(key, func(e *store.Edge) {
+					isNew, err = p.store.UpsertEdge(key, store.ServerSide, func(e *store.Edge) {
 						e.TraceID = tempo_util.TraceIDToHexString(span.TraceId)
 						e.ConnectionType = connectionType
 						e.ServerService = svcName
@@ -220,14 +237,15 @@ func (p *Processor) consume(resourceSpans []*v1_trace.ResourceSpans) (err error)
 					continue
 				}
 
-				if errors.Is(err, store.ErrTooManyItems) {
+				switch {
+				case errors.Is(err, store.ErrTooManyItems):
 					totalDroppedSpans++
 					p.metricDroppedSpans.Inc()
 					continue
-				}
-
-				// UpsertEdge will only return ErrTooManyItems
-				if err != nil {
+				case errors.Is(err, store.ErrDroppedSpanSide):
+					p.metricDroppedEdges.Inc()
+					continue
+				case err != nil:
 					return err
 				}
 

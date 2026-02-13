@@ -2,6 +2,7 @@ package servicegraphs
 
 import (
 	"context"
+	"encoding/hex"
 	"errors"
 	"math"
 	"os"
@@ -11,9 +12,13 @@ import (
 
 	"github.com/go-kit/log"
 	"github.com/gogo/protobuf/jsonpb"
+	"github.com/grafana/tempo/modules/generator/processor/servicegraphs/store"
 	"github.com/grafana/tempo/modules/generator/registry"
 	filterconfig "github.com/grafana/tempo/pkg/spanfilter/config"
 	"github.com/grafana/tempo/pkg/tempopb"
+	"github.com/grafana/tempo/pkg/tempopb/common/v1"
+	resourcev1 "github.com/grafana/tempo/pkg/tempopb/resource/v1"
+	tracev1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 	"github.com/grafana/tempo/pkg/util/test"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/prometheus/model/labels"
@@ -47,7 +52,7 @@ func TestServiceGraphs(t *testing.T) {
 	cfg.Dimensions = []string{"beast", "god"}
 	cfg.EnableMessagingSystemLatencyHistogram = true
 
-	p, err := New(cfg, "test", testRegistry, log.NewNopLogger(), prometheus.NewCounter(prometheus.CounterOpts{}))
+	p, err := New(cfg, "test", testRegistry, log.NewNopLogger(), prometheus.NewCounter(prometheus.CounterOpts{}), prometheus.NewCounter(prometheus.CounterOpts{}))
 	require.NoError(t, err)
 	defer p.Shutdown(context.Background())
 
@@ -130,7 +135,7 @@ func TestServiceGraphs_prefixDimensions(t *testing.T) {
 	cfg.Dimensions = []string{"beast", "god"}
 	cfg.EnableClientServerPrefix = true
 
-	p, err := New(cfg, "test", testRegistry, log.NewNopLogger(), prometheus.NewCounter(prometheus.CounterOpts{}))
+	p, err := New(cfg, "test", testRegistry, log.NewNopLogger(), prometheus.NewCounter(prometheus.CounterOpts{}), prometheus.NewCounter(prometheus.CounterOpts{}))
 	require.NoError(t, err)
 	defer p.Shutdown(context.Background())
 
@@ -162,7 +167,7 @@ func TestServiceGraphs_MessagingSystemLatencyHistogram(t *testing.T) {
 	cfg.Dimensions = []string{"beast", "god"}
 	cfg.EnableMessagingSystemLatencyHistogram = true
 
-	p, err := New(cfg, "test", testRegistry, log.NewNopLogger(), prometheus.NewCounter(prometheus.CounterOpts{}))
+	p, err := New(cfg, "test", testRegistry, log.NewNopLogger(), prometheus.NewCounter(prometheus.CounterOpts{}), prometheus.NewCounter(prometheus.CounterOpts{}))
 	require.NoError(t, err)
 	defer p.Shutdown(context.Background())
 
@@ -187,7 +192,7 @@ func TestServiceGraphs_failedRequests(t *testing.T) {
 	cfg := Config{}
 	cfg.RegisterFlagsAndApplyDefaults("", nil)
 
-	p, err := New(cfg, "test", testRegistry, log.NewNopLogger(), prometheus.NewCounter(prometheus.CounterOpts{}))
+	p, err := New(cfg, "test", testRegistry, log.NewNopLogger(), prometheus.NewCounter(prometheus.CounterOpts{}), prometheus.NewCounter(prometheus.CounterOpts{}))
 	require.NoError(t, err)
 	defer p.Shutdown(context.Background())
 
@@ -289,7 +294,7 @@ func TestServiceGraphs_applyFilterPolicy(t *testing.T) {
 			cfg.EnableMessagingSystemLatencyHistogram = true
 			cfg.FilterPolicies = tc.filterPolicies
 
-			p, err := New(cfg, "test", testRegistry, log.NewNopLogger(), prometheus.NewCounter(prometheus.CounterOpts{}))
+			p, err := New(cfg, "test", testRegistry, log.NewNopLogger(), prometheus.NewCounter(prometheus.CounterOpts{}), prometheus.NewCounter(prometheus.CounterOpts{}))
 			require.NoError(t, err)
 			defer p.Shutdown(context.Background())
 
@@ -326,7 +331,7 @@ func TestServiceGraphs_tooManySpansErr(t *testing.T) {
 	cfg := Config{}
 	cfg.RegisterFlagsAndApplyDefaults("", nil)
 	cfg.MaxItems = 1
-	p, err := New(cfg, "test", &testRegistry, log.NewNopLogger(), prometheus.NewCounter(prometheus.CounterOpts{}))
+	p, err := New(cfg, "test", &testRegistry, log.NewNopLogger(), prometheus.NewCounter(prometheus.CounterOpts{}), prometheus.NewCounter(prometheus.CounterOpts{}))
 	require.NoError(t, err)
 	defer p.Shutdown(context.Background())
 
@@ -347,7 +352,7 @@ func TestServiceGraphs_virtualNodes(t *testing.T) {
 	cfg.HistogramBuckets = []float64{0.04}
 	cfg.Wait = time.Nanosecond
 
-	p, err := New(cfg, "test", testRegistry, log.NewNopLogger(), prometheus.NewCounter(prometheus.CounterOpts{}))
+	p, err := New(cfg, "test", testRegistry, log.NewNopLogger(), prometheus.NewCounter(prometheus.CounterOpts{}), prometheus.NewCounter(prometheus.CounterOpts{}))
 	require.NoError(t, err)
 	defer p.Shutdown(context.Background())
 
@@ -396,7 +401,7 @@ func TestServiceGraphs_virtualNodesExtraLabelsForUninstrumentedServices(t *testi
 	cfg.EnableVirtualNodeLabel = true
 	cfg.Wait = time.Nanosecond
 
-	p, err := New(cfg, "test", testRegistry, log.NewNopLogger(), prometheus.NewCounter(prometheus.CounterOpts{}))
+	p, err := New(cfg, "test", testRegistry, log.NewNopLogger(), prometheus.NewCounter(prometheus.CounterOpts{}), prometheus.NewCounter(prometheus.CounterOpts{}))
 	require.NoError(t, err)
 	defer p.Shutdown(context.Background())
 
@@ -440,7 +445,7 @@ func TestServiceGraphs_expiredEdges(t *testing.T) {
 
 	const tenant = "expired-edge-test"
 
-	p, err := New(cfg, tenant, testRegistry, log.NewNopLogger(), prometheus.NewCounter(prometheus.CounterOpts{}))
+	p, err := New(cfg, tenant, testRegistry, log.NewNopLogger(), prometheus.NewCounter(prometheus.CounterOpts{}), prometheus.NewCounter(prometheus.CounterOpts{}))
 	require.NoError(t, err)
 	defer p.Shutdown(context.Background())
 
@@ -468,6 +473,60 @@ func TestServiceGraphs_expiredEdges(t *testing.T) {
 	droppedSpans, err := test.GetCounterVecValue(metricDroppedSpans, tenant)
 	require.NoError(t, err)
 	assert.Equal(t, 0.0, droppedSpans)
+}
+
+func TestServiceGraphs_droppedEdgesMetric(t *testing.T) {
+	testRegistry := registry.NewTestRegistry()
+
+	cfg := Config{}
+	cfg.RegisterFlagsAndApplyDefaults("", nil)
+
+	const tenant = "dropped-edge-test"
+
+	p, err := New(cfg, tenant, testRegistry, log.NewNopLogger(), prometheus.NewCounter(prometheus.CounterOpts{}), prometheus.NewCounter(prometheus.CounterOpts{}))
+	require.NoError(t, err)
+	defer p.Shutdown(context.Background())
+
+	traceID := []byte{0x01}
+	spanID := []byte{0x02}
+	key := buildKey(hex.EncodeToString(traceID), hex.EncodeToString(spanID))
+	p.(*Processor).store.AddDroppedSpanSide(key, store.ServerSide)
+
+	request := &tempopb.PushSpansRequest{
+		Batches: []*tracev1.ResourceSpans{
+			{
+				Resource: &resourcev1.Resource{
+					Attributes: []*v1.KeyValue{
+						{
+							Key: "service.name",
+							Value: &v1.AnyValue{
+								Value: &v1.AnyValue_StringValue{StringValue: "svc-a"},
+							},
+						},
+					},
+				},
+				ScopeSpans: []*tracev1.ScopeSpans{
+					{
+						Spans: []*tracev1.Span{
+							{
+								TraceId:           traceID,
+								SpanId:            spanID,
+								Kind:              tracev1.Span_SPAN_KIND_CLIENT,
+								StartTimeUnixNano: 1,
+								EndTimeUnixNano:   2,
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	p.PushSpans(context.Background(), request)
+
+	droppedEdges, err := test.GetCounterVecValue(metricDroppedEdges, tenant)
+	require.NoError(t, err)
+	assert.Equal(t, 1.0, droppedEdges)
 }
 
 func TestServiceGraphs_databaseVirtualNodes(t *testing.T) {
@@ -589,7 +648,7 @@ func TestServiceGraphs_databaseVirtualNodes(t *testing.T) {
 			cfg.HistogramBuckets = []float64{0.04}
 			cfg.EnableMessagingSystemLatencyHistogram = true
 
-			p, err := New(cfg, "test", testRegistry, log.NewNopLogger(), prometheus.NewCounter(prometheus.CounterOpts{}))
+			p, err := New(cfg, "test", testRegistry, log.NewNopLogger(), prometheus.NewCounter(prometheus.CounterOpts{}), prometheus.NewCounter(prometheus.CounterOpts{}))
 			require.NoError(t, err)
 			defer p.Shutdown(context.Background())
 
@@ -627,7 +686,7 @@ func TestServiceGraphs_prefixDimensionsAndEnableExtraLabels(t *testing.T) {
 	cfg.EnableClientServerPrefix = true
 	cfg.EnableVirtualNodeLabel = true
 
-	p, err := New(cfg, "test", testRegistry, log.NewNopLogger(), prometheus.NewCounter(prometheus.CounterOpts{}))
+	p, err := New(cfg, "test", testRegistry, log.NewNopLogger(), prometheus.NewCounter(prometheus.CounterOpts{}), prometheus.NewCounter(prometheus.CounterOpts{}))
 	require.NoError(t, err)
 	defer p.Shutdown(context.Background())
 
@@ -669,7 +728,7 @@ func TestServiceGraphs_DatabaseNameAttributes(t *testing.T) {
 	cfg.Dimensions = []string{"beast", "god"}
 	cfg.DatabaseNameAttributes = []string{"db.system"}
 
-	p, err := New(cfg, "test", testRegistry, log.NewNopLogger(), prometheus.NewCounter(prometheus.CounterOpts{}))
+	p, err := New(cfg, "test", testRegistry, log.NewNopLogger(), prometheus.NewCounter(prometheus.CounterOpts{}), prometheus.NewCounter(prometheus.CounterOpts{}))
 	require.NoError(t, err)
 	defer p.Shutdown(context.Background())
 
@@ -698,7 +757,7 @@ func BenchmarkServiceGraphs(b *testing.B) {
 	cfg.HistogramBuckets = []float64{0.04}
 	cfg.Dimensions = []string{"beast", "god"}
 
-	p, err := New(cfg, "test", testRegistry, log.NewNopLogger(), prometheus.NewCounter(prometheus.CounterOpts{}))
+	p, err := New(cfg, "test", testRegistry, log.NewNopLogger(), prometheus.NewCounter(prometheus.CounterOpts{}), prometheus.NewCounter(prometheus.CounterOpts{}))
 	require.NoError(b, err)
 	defer p.Shutdown(context.Background())
 

@@ -5,9 +5,12 @@ import (
 	"errors"
 	"sync"
 	"time"
+
+	"github.com/prometheus/client_golang/prometheus"
 )
 
 var ErrTooManyItems = errors.New("too many items")
+var ErrDroppedSpanSide = errors.New("dropped span side")
 
 var _ Store = (*store)(nil)
 
@@ -22,6 +25,8 @@ type store struct {
 
 	ttl      time.Duration
 	maxItems int
+
+	droppedSpanSideOverflowCounter prometheus.Counter
 }
 
 type droppedSpanSideKey struct {
@@ -32,7 +37,7 @@ type droppedSpanSideKey struct {
 // NewStore creates a Store to build service graphs. The store caches edges, each representing a
 // request between two services. Once an edge is complete its metrics can be collected. Edges that
 // have not found their pair are deleted after ttl time.
-func NewStore(ttl time.Duration, maxItems int, onComplete, onExpire Callback) Store {
+func NewStore(ttl time.Duration, maxItems int, onComplete, onExpire Callback, droppedSpanSideOverflowCounter prometheus.Counter) Store {
 	s := &store{
 		l: list.New(),
 		m: make(map[string]*list.Element),
@@ -43,6 +48,8 @@ func NewStore(ttl time.Duration, maxItems int, onComplete, onExpire Callback) St
 
 		ttl:      ttl,
 		maxItems: maxItems,
+
+		droppedSpanSideOverflowCounter: droppedSpanSideOverflowCounter,
 	}
 
 	return s
@@ -90,7 +97,7 @@ func (s *store) deleteEdge(ele *list.Element) {
 // UpsertEdge fetches an Edge from the store and updates it using the given callback. If the Edge
 // doesn't exist yet, it creates a new one with the default TTL.
 // If the Edge is complete after applying the callback, it's completed and removed.
-func (s *store) UpsertEdge(key string, update Callback) (isNew bool, err error) {
+func (s *store) UpsertEdge(key string, side Side, update Callback) (isNew bool, err error) {
 	s.mtx.Lock()
 	defer s.mtx.Unlock()
 
@@ -104,6 +111,10 @@ func (s *store) UpsertEdge(key string, update Callback) (isNew bool, err error) 
 		}
 
 		return false, nil
+	}
+
+	if s.hasDroppedCounterpart(key, side) {
+		return true, ErrDroppedSpanSide
 	}
 
 	edge := s.grabEdge(key)
@@ -145,7 +156,6 @@ func (s *store) AddDroppedSpanSide(key string, side Side) {
 
 	// This cache is best-effort metadata for dropped-span correlation.
 	// Fail-safe behavior when full: ignore new entries rather than bubbling errors into ingestion.
-	// TODO: emit an overflow metric when dropping new entries due to maxItems.
 	k := droppedSpanSideKey{
 		key:  key,
 		side: side,
@@ -158,6 +168,7 @@ func (s *store) AddDroppedSpanSide(key string, side Side) {
 	}
 
 	if len(s.d) >= s.maxItems {
+		s.droppedSpanSideOverflowCounter.Inc()
 		return
 	}
 
@@ -182,6 +193,16 @@ func (s *store) expireDroppedSpanSides() {
 			delete(s.d, k)
 		}
 	}
+}
+
+func (s *store) hasDroppedCounterpart(key string, side Side) bool {
+	counterpart := ClientSide
+	if side == ClientSide {
+		counterpart = ServerSide
+	}
+
+	_, ok := s.d[droppedSpanSideKey{key: key, side: counterpart}]
+	return ok
 }
 
 var edgePool = sync.Pool{
