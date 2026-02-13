@@ -239,9 +239,6 @@ Install the `k.libsonnet`, Jsonnet, and Memcachd libraries.
         _config+:: {
             namespace: 'tempo',
 
-            compactor+: {
-                replicas: 1,
-            },
             query_frontend+: {
                 replicas: 2,
             },
@@ -255,6 +252,13 @@ Install the `k.libsonnet`, Jsonnet, and Memcachd libraries.
                 replicas: 2,
                 pvc_size: '10Gi',
                 pvc_storage_class: 'standard',
+            },
+            backend_scheduler+: {
+                pvc_size: '1Gi',
+                pvc_storage_class: 'standard',
+            },
+            backend_worker+: {
+                replicas: 1,
             },
             distributor+: {
                 replicas: 3,

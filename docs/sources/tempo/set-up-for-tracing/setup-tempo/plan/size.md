@@ -71,11 +71,21 @@ Query-Frontend:
 - CPU: dependent on trace size and queries
 - Mem: 4-20GB, dependent on trace size and queries
 
-Compactor:
+Backend-scheduler:
 
-- 1 replica per every 3-5 MB/s of received traffic.
-- CPU: 1 core (compactors are primarily I/O bound, therefore do not require much CPU)
-- Mem: 4-20GB, determined by trace composition
+<!-- TODO: Add sizing guidance for backend-scheduler based on production data -->
+- 1 replica (only one scheduler should be running at a time)
+- CPU: TBD
+- Mem: TBD
+- The backend-scheduler coordinates compaction and retention jobs for backend-workers
+
+Backend-worker:
+
+<!-- TODO: Add sizing guidance for backend-workers based on production data -->
+- Sizing guidelines to be determined based on compaction workload
+- CPU: TBD
+- Mem: TBD
+- Backend-workers execute compaction and retention jobs assigned by the backend-scheduler
 
 ## Performance tuning resources
 

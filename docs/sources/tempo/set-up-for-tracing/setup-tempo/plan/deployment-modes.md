@@ -28,7 +28,7 @@ Refer to the [Command line flags](../../command-line-flags/) documentation for m
 ## Monolithic mode
 
 Monolithic mode uses a single Tempo binary that runs all of the separate components within a single process.
-This means that a single instance handles the distributor, block-builder, live-store, querier, query-frontend, and compactor roles.
+This means that a single instance handles the distributor, block-builder, live-store, querier, query-frontend, backend-scheduler, and backend-worker roles.
 The instance writes to and reads from a Kafka-compatible system for trace ingestion and retrieval.
 
 Monolithic mode handles modest volumes of trace data without issues given a modest amount of resource.
