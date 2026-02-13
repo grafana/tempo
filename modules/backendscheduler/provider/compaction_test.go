@@ -259,6 +259,87 @@ func TestCompactionProvider_RecentJobsCache(t *testing.T) {
 	require.Len(t, provider.outstandingJobs, 2, "Jobs with empty input should not be added to cache")
 }
 
+// TestCompactionProvider_SkipsBlocksPendingRedaction verifies that newBlockSelector excludes
+// blocks that have a pending redaction job (BlockPending), so compaction does not pick them.
+func TestCompactionProvider_SkipsBlocksPendingRedaction(t *testing.T) {
+	const testTenant = "test-tenant"
+	cfg := CompactionConfig{}
+	cfg.RegisterFlagsAndApplyDefaults("", &flag.FlagSet{})
+	cfg.MaxJobsPerTenant = 1000
+	cfg.MeasureInterval = 100 * time.Millisecond
+	cfg.MinCycleInterval = 100 * time.Millisecond
+
+	tmpDir := t.TempDir()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	store, _, ww := newStore(ctx, t, tmpDir)
+	defer store.Shutdown()
+
+	writeTenantBlocks(ctx, t, backend.NewWriter(ww), testTenant, 5)
+	time.Sleep(150 * time.Millisecond)
+
+	blockMetas := store.BlockMetas(testTenant)
+	require.GreaterOrEqual(t, len(blockMetas), 2, "need at least 2 blocks to mark pending")
+
+	// Mark first two blocks as pending redaction
+	pendingBlock1 := blockMetas[0].BlockID.String()
+	pendingBlock2 := blockMetas[1].BlockID.String()
+
+	w := work.New(work.Config{})
+	pendingJobs := []*work.Job{
+		{
+			ID:   "redact-1",
+			Type: tempopb.JobType_JOB_TYPE_REDACTION,
+			JobDetail: tempopb.JobDetail{
+				Tenant: testTenant,
+				Redaction: &tempopb.RedactionDetail{
+					BlockId:  pendingBlock1,
+					TraceIds: nil,
+				},
+			},
+		},
+		{
+			ID:   "redact-2",
+			Type: tempopb.JobType_JOB_TYPE_REDACTION,
+			JobDetail: tempopb.JobDetail{
+				Tenant: testTenant,
+				Redaction: &tempopb.RedactionDetail{
+					BlockId:  pendingBlock2,
+					TraceIds: nil,
+				},
+			},
+		},
+	}
+	require.NoError(t, w.AddPendingJobs(pendingJobs))
+
+	limits, err := overrides.NewOverrides(overrides.Config{Defaults: overrides.Overrides{}}, nil, prometheus.DefaultRegisterer)
+	require.NoError(t, err)
+
+	p := NewCompactionProvider(
+		cfg,
+		test.NewTestingLogger(t),
+		store,
+		limits,
+		w,
+	)
+
+	selector, blocklistLen := p.newBlockSelector(testTenant)
+	require.NotNil(t, selector)
+	// Should exclude the 2 pending blocks
+	require.Equal(t, len(blockMetas)-2, blocklistLen, "blocklist should exclude the two blocks with pending redaction")
+
+	metas := collectAllMetas(selector)
+	// No pending block should appear in the selector output
+	pending1UUID := backend.MustParse(pendingBlock1)
+	pending2UUID := backend.MustParse(pendingBlock2)
+	for _, m := range metas {
+		require.NotEqual(t, pending1UUID, m.BlockID, "block with pending redaction should not be selectable for compaction")
+		require.NotEqual(t, pending2UUID, m.BlockID, "block with pending redaction should not be selectable for compaction")
+	}
+}
+
 func TestCompactionProvider_RecentJobsCachePreventseDuplicatesAndCleansUp(t *testing.T) {
 	const tenant = "test-tenant"
 	cfg := CompactionConfig{}
