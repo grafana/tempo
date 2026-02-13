@@ -236,99 +236,114 @@ Install the `k.libsonnet`, Jsonnet, and Memcachd libraries.
                containerPort.new('otlp-grpc', 4317),
            ]),
 
-       _config+:: {
-           namespace: 'tempo',
+        _config+:: {
+            namespace: 'tempo',
 
-           compactor+: {
-               replicas: 1,
-           },
-           query_frontend+: {
-               replicas: 2,
-           },
-           querier+: {
-               replicas: 3,
-           },
-           ingester+: {
-               replicas: 3,
-               pvc_size: '10Gi',
-               pvc_storage_class: 'standard',
-           },
-           distributor+: {
-               replicas: 3,
-               receivers: {
-                   jaeger: {
-                       protocols: {
-                           grpc: {
-                               endpoint: '0.0.0.0:14250',
-                           },
-                       },
-                   },
-                   otlp: {
-                       protocols: {
-                           grpc: {
-                               endpoint: '0.0.0.0:4317',
-                           },
-                       },
-                   },
-               },
-           },
+            compactor+: {
+                replicas: 1,
+            },
+            query_frontend+: {
+                replicas: 2,
+            },
+            querier+: {
+                replicas: 3,
+            },
+            block_builder+: {
+                replicas: 2,
+            },
+            live_store+: {
+                replicas: 2,
+                pvc_size: '10Gi',
+                pvc_storage_class: 'standard',
+            },
+            distributor+: {
+                replicas: 3,
+                receivers: {
+                    jaeger: {
+                        protocols: {
+                            grpc: {
+                                endpoint: '0.0.0.0:14250',
+                            },
+                        },
+                    },
+                    otlp: {
+                        protocols: {
+                            grpc: {
+                                endpoint: '0.0.0.0:4317',
+                            },
+                        },
+                    },
+                },
+            },
 
-           metrics_generator+: {
-               replicas: 1,
-               ephemeral_storage_request_size: '10Gi',
-               ephemeral_storage_limit_size: '11Gi',
-               pvc_size: '10Gi',
-               pvc_storage_class: 'standard',
-           },
-           memcached+: {
-               replicas: 3,
-           },
+            metrics_generator+: {
+                replicas: 1,
+                ephemeral_storage_request_size: '10Gi',
+                ephemeral_storage_limit_size: '11Gi',
+                pvc_size: '10Gi',
+                pvc_storage_class: 'standard',
+            },
+            memcached+: {
+                replicas: 3,
+            },
 
-           bucket: 'tempo-data',
-           backend: 's3',
-       },
+            bucket: 'tempo-data',
+            backend: 's3',
+        },
 
-       tempo_config+:: {
-           storage+: {
-               trace+: {
-                   s3: {
-                       bucket: $._config.bucket,
-                       access_key: 'minio',
-                       secret_key: 'minio123',
-                       endpoint: 'minio:9000',
-                       insecure: true,
-                   },
-               },
-           },
-           metrics_generator+: {
-               processor: {
-                   span_metrics: {},
-                   service_graphs: {},
-               },
+        tempo_config+:: {
+            storage+: {
+                trace+: {
+                    s3: {
+                        bucket: $._config.bucket,
+                        access_key: 'minio',
+                        secret_key: 'minio123',
+                        endpoint: 'minio:9000',
+                        insecure: true,
+                    },
+                },
+            },
+            partition_ring_live_store: true,
+            distributor+: {
+                ingester_write_path_enabled: false,
+                kafka_write_path_enabled: true,
+            },
+            ingest+: {
+                enabled: true,
+                kafka+: {
+                    address: 'kafka:9092',
+                    topic: 'tempo-ingest',
+                },
+            },
+            querier+: {
+                query_live_store: true,
+            },
+            block_builder+: {
+                consume_cycle_duration: '30s',
+            },
+            metrics_generator+: {
+                processor: {
+                    span_metrics: {},
+                    service_graphs: {},
+                },
 
-               registry+: {
-                   external_labels: {
-                       source: 'tempo',
-                   },
-               },
-           },
-           overrides+: {
-               metrics_generator_processors: ['service-graphs', 'span-metrics'],
-           },
-       },
+                registry+: {
+                    external_labels: {
+                        source: 'tempo',
+                    },
+                },
+            },
+            overrides+: {
+                metrics_generator_processors: ['service-graphs', 'span-metrics'],
+            },
+        },
+    }
+    EOF
+    ```
 
-       tempo_ingester_container+:: {
-         securityContext+: {
-           runAsUser: 0,
-         },
-       },
-
-       local statefulSet = $.apps.v1.statefulSet,
-       tempo_ingester_statefulset+:
-           statefulSet.mixin.spec.withPodManagementPolicy('Parallel'),
-   }
-   EOF
-   ```
+{{< admonition type="note" >}}
+This configuration requires a Kafka-compatible system. You'll need to deploy Kafka (or a compatible system like Redpanda) before deploying Tempo. Update the `kafka.address` in the configuration to point to your Kafka instance.
+{{< /admonition >}}
 
 ### Optional: Enable metrics-generator
 
@@ -357,14 +372,14 @@ Enabling metrics generation and remote writing them to Grafana Cloud Metrics pro
 
 ### Optional: Reduce component system requirements
 
-Smaller ingestion and query volumes could allow the use of smaller resources. If you wish to lower the resources allocated to components, then you can do this via a container configuration. For example, to change the CPU and memory resource allocation for the ingesters.
+Smaller ingestion and query volumes could allow the use of smaller resources. If you wish to lower the resources allocated to components, then you can do this via a container configuration. For example, to change the CPU and memory resource allocation for the block-builders or live-stores.
 
 To change the resources requirements, follow these steps:
 
 1. Open the `environments/tempo/main.jsonnet` file.
-2. Add a new configuration block for the appropriate component (in this case, the ingesters):
+2. Add a new configuration block for the appropriate component (in this case, the block-builder):
    ```jsonnet
-   tempo_ingester_container+:: {
+   tempo_block_builder_container+:: {
        resources+: {
            limits+: {
                cpu: '3',
@@ -376,7 +391,7 @@ To change the resources requirements, follow these steps:
            },
        },
    },
-````
+```
 
 3. Save the changes to the file.
 
@@ -392,10 +407,10 @@ Lowering these requirements can impact overall performance.
    ```
 
 {{< admonition type="note" >}}
-If the ingesters don’t start after deploying Tempo with the Tanka command, this may be related to the storage class selected for the Write Ahead Logs. If this is the case, add an appropriate storage class to the ingester configuration. For example, to add a standard instead of fast storage class, add the following to the `config` (not `tempo_config`) section in the previous step:
+If the live-stores don't start after deploying Tempo with the Tanka command, this may be related to the storage class selected for persistent storage. If this is the case, add an appropriate storage class to the live-store configuration. For example, to add a standard instead of fast storage class, add the following to the `_config` (not `tempo_config`) section in the previous step:
 
 ```bash
-  ingester+: {
+  live_store+: {
     pvc_storage_class: 'standard',
   },
 ```

@@ -31,12 +31,32 @@ Distributor:
 - 1 replica per every 10MB/s of received traffic
 - CPU: 2 cores
 - Mem: 2 GB
+- Note: In v3.0, distributors write to Kafka. Resource requirements may vary based on Kafka configuration.
 
-Ingester:
+Block-builder:
 
-- 1 replica per every 3-5MB/s of received traffic.
-- CPU: 2.5 cores
-- Mem: 4-20GB, determined by trace composition
+<!-- TODO: Add sizing guidance for block-builders based on production data -->
+- Sizing guidelines to be determined based on ingestion rate
+- CPU: TBD
+- Mem: TBD
+- Block-builders consume from Kafka to build blocks for long-term storage
+
+Live-store:
+
+<!-- TODO: Add sizing guidance for live-stores based on production data -->
+- Sizing guidelines to be determined based on query patterns and retention window
+- CPU: TBD
+- Mem: TBD
+- Live-stores consume from Kafka to serve recent trace data queries
+- Typically deployed across multiple availability zones for high availability
+
+Kafka:
+
+<!-- TODO: Add Kafka cluster sizing guidance -->
+- Sizing depends on ingestion rate, retention window, and replication factor
+- Storage: Plan for at least N hours/days of trace data retention in Kafka
+- CPU and memory requirements depend on the Kafka-compatible system chosen (Kafka, Redpanda, WarpStream)
+- Refer to your Kafka provider's documentation for detailed sizing guidance
 
 Querier:
 
