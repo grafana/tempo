@@ -1,5 +1,12 @@
 package store
 
+type Side string
+
+const (
+	ClientSide Side = "client"
+	ServerSide Side = "server"
+)
+
 type Callback func(e *Edge)
 
 // Store is an interface for building service graphs.

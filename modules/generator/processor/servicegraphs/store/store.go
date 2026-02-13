@@ -150,18 +150,17 @@ func (s *store) Expire() {
 	s.expireDroppedSpanSides()
 }
 
+// This cache is best-effort metadata for dropped-span correlation.
 func (s *store) AddDroppedSpanSide(key string, side Side) {
 	s.mtx.Lock()
 	defer s.mtx.Unlock()
 
-	// This cache is best-effort metadata for dropped-span correlation.
-	// Fail-safe behavior when full: ignore new entries rather than bubbling errors into ingestion.
 	k := droppedSpanSideKey{
 		key:  key,
 		side: side,
 	}
 
-	// Refresh TTL for existing entries without consuming additional capacity.
+	// Refresh TTL for existing entries
 	if _, ok := s.d[k]; ok {
 		s.d[k] = time.Now().Add(s.ttl).UnixNano()
 		return

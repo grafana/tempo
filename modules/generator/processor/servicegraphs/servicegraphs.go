@@ -189,6 +189,19 @@ func (p *Processor) consume(resourceSpans []*v1_trace.ResourceSpans) (err error)
 		for _, ils := range rs.ScopeSpans {
 			for _, span := range ils.Spans {
 				if !p.filter.ApplyFilterPolicy(rs.Resource, span) {
+					switch span.Kind {
+					case v1_trace.Span_SPAN_KIND_PRODUCER, v1_trace.Span_SPAN_KIND_CLIENT:
+						key := buildKey(hex.EncodeToString(span.TraceId), hex.EncodeToString(span.SpanId))
+						p.store.AddDroppedSpanSide(key, store.ClientSide)
+					case v1_trace.Span_SPAN_KIND_CONSUMER, v1_trace.Span_SPAN_KIND_SERVER:
+						// Root server spans have no parent span ID and cannot match a client counterpart.
+						if len(span.ParentSpanId) == 0 {
+							break
+						}
+						key := buildKey(hex.EncodeToString(span.TraceId), hex.EncodeToString(span.ParentSpanId))
+						p.store.AddDroppedSpanSide(key, store.ServerSide)
+					}
+
 					p.filteredSpansCounter.Inc()
 					continue
 				}
