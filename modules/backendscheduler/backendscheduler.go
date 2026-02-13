@@ -99,6 +99,14 @@ func New(cfg Config, store storage.Store, overrides overrides.Interface, reader 
 			),
 			jobs: nil, // Will be set in running
 		},
+		{
+			provider: provider.NewRedactionProvider(
+				s.cfg.ProviderConfig.Redaction,
+				log.Logger,
+				s.work,
+			),
+			jobs: nil, // Will be set in running
+		},
 	}
 
 	s.Service = services.NewBasicService(s.starting, s.running, s.stopping)
