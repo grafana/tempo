@@ -193,6 +193,9 @@ func (cfg *ProcessorConfig) copyWithOverrides(o metricsGeneratorOverrides, userI
 	if peerAttrs := o.MetricsGeneratorProcessorServiceGraphsPeerAttributes(userID); peerAttrs != nil {
 		copyCfg.ServiceGraphs.PeerAttributes = peerAttrs
 	}
+	if filterPolicies := o.MetricsGeneratorProcessorServiceGraphsFilterPolicies(userID); filterPolicies != nil {
+		copyCfg.ServiceGraphs.FilterPolicies = filterPolicies
+	}
 	if buckets := o.MetricsGeneratorProcessorSpanMetricsHistogramBuckets(userID); buckets != nil {
 		copyCfg.SpanMetrics.HistogramBuckets = buckets
 	}

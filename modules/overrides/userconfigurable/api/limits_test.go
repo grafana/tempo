@@ -36,6 +36,7 @@ func Test_limitsFromOverrides(t *testing.T) {
 						HistogramBuckets:         []float64{0.1, 0.2, 0.5},
 						Dimensions:               []string{"my-dim1", "my-dim2"},
 						PeerAttributes:           []string{"db.name"},
+						FilterPolicies:           []filterconfig.FilterPolicy{{Exclude: &filterconfig.PolicyMatch{MatchType: filterconfig.Regex, Attributes: []filterconfig.MatchPolicyAttribute{{Key: "resource.service.name", Value: "unknown_service:myservice"}}}}},
 						EnableClientServerPrefix: boolPtr(true),
 					},
 					SpanMetrics: overrides.SpanMetricsOverrides{
@@ -102,6 +103,19 @@ func Test_limitsFromOverrides(t *testing.T) {
         "enable_client_server_prefix": true,
         "peer_attributes": [
           "db.name"
+        ],
+        "filter_policies": [
+          {
+            "exclude": {
+              "match_type": "regex",
+              "attributes": [
+                {
+                  "key": "resource.service.name",
+                  "value": "unknown_service:myservice"
+                }
+              ]
+            }
+          }
         ],
         "histogram_buckets": [
           0.1,

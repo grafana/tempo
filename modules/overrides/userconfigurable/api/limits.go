@@ -36,6 +36,7 @@ func limitsFromOverrides(overrides overrides.Interface, userID string) *client.L
 					Dimensions:               strArrPtr(overrides.MetricsGeneratorProcessorServiceGraphsDimensions(userID)),
 					EnableClientServerPrefix: boolPtr(overrides.MetricsGeneratorProcessorServiceGraphsEnableClientServerPrefix(userID)),
 					PeerAttributes:           strArrPtr(overrides.MetricsGeneratorProcessorServiceGraphsPeerAttributes(userID)),
+					FilterPolicies:           filterPoliciesPtr(overrides.MetricsGeneratorProcessorServiceGraphsFilterPolicies(userID)),
 					HistogramBuckets:         floatArrPtr(overrides.MetricsGeneratorProcessorServiceGraphsHistogramBuckets(userID)),
 				},
 				SpanMetrics: client.LimitsMetricsGeneratorProcessorSpanMetrics{

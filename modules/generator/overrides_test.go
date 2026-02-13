@@ -17,6 +17,7 @@ type mockOverrides struct {
 	serviceGraphsHistogramBuckets                      []float64
 	serviceGraphsDimensions                            []string
 	serviceGraphsPeerAttributes                        []string
+	serviceGraphsFilterPolicies                        []filterconfig.FilterPolicy
 	serviceGraphsEnableClientServerPrefix              bool
 	serviceGraphsEnableMessagingSystemLatencyHistogram *bool
 	serviceGraphsEnableVirtualNodeLabel                *bool
@@ -93,6 +94,10 @@ func (m *mockOverrides) MetricsGeneratorProcessorServiceGraphsDimensions(string)
 
 func (m *mockOverrides) MetricsGeneratorProcessorServiceGraphsPeerAttributes(string) []string {
 	return m.serviceGraphsPeerAttributes
+}
+
+func (m *mockOverrides) MetricsGeneratorProcessorServiceGraphsFilterPolicies(string) []filterconfig.FilterPolicy {
+	return m.serviceGraphsFilterPolicies
 }
 
 func (m *mockOverrides) MetricsGeneratorProcessorSpanMetricsHistogramBuckets(string) []float64 {
