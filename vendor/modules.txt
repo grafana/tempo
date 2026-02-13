@@ -140,7 +140,7 @@ github.com/IBM/sarama
 # github.com/KimMachineGun/automemlimit v0.7.5
 ## explicit; go 1.22.0
 github.com/KimMachineGun/automemlimit/memlimit
-# github.com/alecthomas/kong v1.13.0
+# github.com/alecthomas/kong v1.14.0
 ## explicit; go 1.20
 github.com/alecthomas/kong
 # github.com/alecthomas/participle/v2 v2.1.4
