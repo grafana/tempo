@@ -197,9 +197,9 @@ func (s *store) expireDroppedSpanSides() {
 }
 
 func (s *store) hasDroppedCounterpart(key string, side Side) bool {
-	counterpart := ClientSide
-	if side == ClientSide {
-		counterpart = ServerSide
+	counterpart := Client
+	if side == Client {
+		counterpart = Server
 	}
 
 	_, ok := s.d[droppedSpanSideKey{key: key, side: counterpart}]

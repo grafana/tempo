@@ -28,7 +28,7 @@ func TestStoreUpsertEdge(t *testing.T) {
 	assert.Equal(t, 0, s.len())
 
 	// Insert first half of an edge
-	isNew, err := s.UpsertEdge(keyStr, ClientSide, func(e *Edge) {
+	isNew, err := s.UpsertEdge(keyStr, Client, func(e *Edge) {
 		e.ClientService = clientService
 	})
 	require.NoError(t, err)
@@ -41,7 +41,7 @@ func TestStoreUpsertEdge(t *testing.T) {
 	assert.Equal(t, 0, onExpireCount)
 
 	// Insert the second half of an edge
-	isNew, err = s.UpsertEdge(keyStr, ServerSide, func(e *Edge) {
+	isNew, err = s.UpsertEdge(keyStr, Server, func(e *Edge) {
 		assert.Equal(t, clientService, e.ClientService)
 		e.ServerService = "server"
 	})
@@ -54,7 +54,7 @@ func TestStoreUpsertEdge(t *testing.T) {
 	assert.Equal(t, 0, onExpireCount)
 
 	// Insert an edge that will immediately expire
-	isNew, err = s.UpsertEdge(keyStr, ClientSide, func(e *Edge) {
+	isNew, err = s.UpsertEdge(keyStr, Client, func(e *Edge) {
 		e.ClientService = clientService
 		e.expiration = 0
 	})
@@ -78,20 +78,20 @@ func TestStoreUpsertEdge_errTooManyItems(t *testing.T) {
 	s := storeInterface.(*store)
 	assert.Equal(t, 0, s.len())
 
-	isNew, err := s.UpsertEdge("key-1", ClientSide, func(e *Edge) {
+	isNew, err := s.UpsertEdge("key-1", Client, func(e *Edge) {
 		e.ClientService = clientService
 	})
 	require.NoError(t, err)
 	require.Equal(t, true, isNew)
 	assert.Equal(t, 1, s.len())
 
-	_, err = s.UpsertEdge("key-2", ClientSide, func(e *Edge) {
+	_, err = s.UpsertEdge("key-2", Client, func(e *Edge) {
 		e.ClientService = clientService
 	})
 	require.ErrorIs(t, err, ErrTooManyItems)
 	assert.Equal(t, 1, s.len())
 
-	isNew, err = s.UpsertEdge("key-1", ClientSide, func(e *Edge) {
+	isNew, err = s.UpsertEdge("key-1", Client, func(e *Edge) {
 		e.ClientService = clientService
 	})
 	require.NoError(t, err)
@@ -121,7 +121,7 @@ func TestStoreExpire(t *testing.T) {
 	s := storeInterface.(*store)
 
 	for key := range keys {
-		isNew, err := s.UpsertEdge(key, ClientSide, noopCallback)
+		isNew, err := s.UpsertEdge(key, Client, noopCallback)
 		require.NoError(t, err)
 		require.Equal(t, true, isNew)
 	}
@@ -156,7 +156,7 @@ func TestStore_concurrency(t *testing.T) {
 			key[i] = letters[rand.Intn(len(letters))]
 		}
 
-		_, err := s.UpsertEdge(string(key), ClientSide, func(e *Edge) {
+		_, err := s.UpsertEdge(string(key), Client, func(e *Edge) {
 			e.ClientService = string(key)
 		})
 		assert.NoError(t, err)
@@ -174,7 +174,7 @@ func TestStore_AddDroppedSpanSide(t *testing.T) {
 	s := NewStore(time.Hour, 10, noopCallback, noopCallback, newTestCounter())
 
 	const key = "trace-span"
-	const side = ClientSide
+	const side = Client
 	assert.False(t, s.HasDroppedSpanSide(key, side))
 
 	s.AddDroppedSpanSide(key, side)
@@ -184,13 +184,13 @@ func TestStore_AddDroppedSpanSide(t *testing.T) {
 func TestStore_AddDroppedSpanSide_respectsMaxItems(t *testing.T) {
 	s := NewStore(time.Hour, 2, noopCallback, noopCallback, newTestCounter())
 
-	s.AddDroppedSpanSide("k1", ClientSide)
-	s.AddDroppedSpanSide("k2", ClientSide)
-	s.AddDroppedSpanSide("k3", ClientSide)
+	s.AddDroppedSpanSide("k1", Client)
+	s.AddDroppedSpanSide("k2", Client)
+	s.AddDroppedSpanSide("k3", Client)
 
-	assert.True(t, s.HasDroppedSpanSide("k1", ClientSide))
-	assert.True(t, s.HasDroppedSpanSide("k2", ClientSide))
-	assert.False(t, s.HasDroppedSpanSide("k3", ClientSide))
+	assert.True(t, s.HasDroppedSpanSide("k1", Client))
+	assert.True(t, s.HasDroppedSpanSide("k2", Client))
+	assert.False(t, s.HasDroppedSpanSide("k3", Client))
 }
 
 func TestStore_AddDroppedSpanSide_overflowMetricIncrementsAtCapacity(t *testing.T) {
@@ -200,10 +200,10 @@ func TestStore_AddDroppedSpanSide_overflowMetricIncrementsAtCapacity(t *testing.
 	})
 	s := NewStore(time.Hour, 2, noopCallback, noopCallback, overflowCounter)
 
-	s.AddDroppedSpanSide("k1", ClientSide)
-	s.AddDroppedSpanSide("k2", ClientSide)
-	s.AddDroppedSpanSide("k1", ClientSide) // refresh existing, should not overflow
-	s.AddDroppedSpanSide("k3", ClientSide) // overflow
+	s.AddDroppedSpanSide("k1", Client)
+	s.AddDroppedSpanSide("k2", Client)
+	s.AddDroppedSpanSide("k1", Client) // refresh existing, should not overflow
+	s.AddDroppedSpanSide("k3", Client) // overflow
 
 	assert.Equal(t, float64(1), testutil.ToFloat64(overflowCounter))
 }
@@ -213,13 +213,13 @@ func TestStore_AddDroppedSpanSide_expiresWithTTL(t *testing.T) {
 		s := NewStore(time.Second, 10, noopCallback, noopCallback, newTestCounter())
 
 		const key = "k-expire"
-		s.AddDroppedSpanSide(key, ClientSide)
-		assert.True(t, s.HasDroppedSpanSide(key, ClientSide))
+		s.AddDroppedSpanSide(key, Client)
+		assert.True(t, s.HasDroppedSpanSide(key, Client))
 
 		time.Sleep(2 * time.Second)
 		s.Expire()
 
-		assert.False(t, s.HasDroppedSpanSide(key, ClientSide))
+		assert.False(t, s.HasDroppedSpanSide(key, Client))
 	})
 }
 
@@ -227,10 +227,10 @@ func TestStore_AddDroppedSpanSide_sidesAreIndependent(t *testing.T) {
 	s := NewStore(time.Hour, 10, noopCallback, noopCallback, newTestCounter())
 
 	const key = "k-side"
-	s.AddDroppedSpanSide(key, ClientSide)
+	s.AddDroppedSpanSide(key, Client)
 
-	assert.True(t, s.HasDroppedSpanSide(key, ClientSide))
-	assert.False(t, s.HasDroppedSpanSide(key, ServerSide))
+	assert.True(t, s.HasDroppedSpanSide(key, Client))
+	assert.False(t, s.HasDroppedSpanSide(key, Server))
 }
 
 func TestStore_AddDroppedSpanSide_refreshesTTL(t *testing.T) {
@@ -238,18 +238,18 @@ func TestStore_AddDroppedSpanSide_refreshesTTL(t *testing.T) {
 		s := NewStore(time.Second, 10, noopCallback, noopCallback, newTestCounter())
 
 		const key = "k-refresh"
-		s.AddDroppedSpanSide(key, ClientSide)
+		s.AddDroppedSpanSide(key, Client)
 
 		time.Sleep(500 * time.Millisecond)
-		s.AddDroppedSpanSide(key, ClientSide)
+		s.AddDroppedSpanSide(key, Client)
 
 		time.Sleep(700 * time.Millisecond)
 		s.Expire()
-		assert.True(t, s.HasDroppedSpanSide(key, ClientSide))
+		assert.True(t, s.HasDroppedSpanSide(key, Client))
 
 		time.Sleep(500 * time.Millisecond)
 		s.Expire()
-		assert.False(t, s.HasDroppedSpanSide(key, ClientSide))
+		assert.False(t, s.HasDroppedSpanSide(key, Client))
 	})
 }
 
@@ -257,23 +257,23 @@ func TestStore_AddDroppedSpanSide_refreshAllowedAtMaxItems(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		s := NewStore(time.Second, 2, noopCallback, noopCallback, newTestCounter())
 
-		s.AddDroppedSpanSide("k1", ClientSide)
-		s.AddDroppedSpanSide("k2", ClientSide)
+		s.AddDroppedSpanSide("k1", Client)
+		s.AddDroppedSpanSide("k2", Client)
 		time.Sleep(700 * time.Millisecond)
 		// At capacity: this should refresh k1, not be blocked.
-		s.AddDroppedSpanSide("k1", ClientSide)
+		s.AddDroppedSpanSide("k1", Client)
 		// Still at capacity: new key should be rejected.
-		s.AddDroppedSpanSide("k3", ClientSide)
+		s.AddDroppedSpanSide("k3", Client)
 
-		assert.True(t, s.HasDroppedSpanSide("k1", ClientSide))
-		assert.True(t, s.HasDroppedSpanSide("k2", ClientSide))
-		assert.False(t, s.HasDroppedSpanSide("k3", ClientSide))
+		assert.True(t, s.HasDroppedSpanSide("k1", Client))
+		assert.True(t, s.HasDroppedSpanSide("k2", Client))
+		assert.False(t, s.HasDroppedSpanSide("k3", Client))
 
 		time.Sleep(500 * time.Millisecond)
 		s.Expire()
 		// k2 should be expired; k1 should remain because it was refreshed.
-		assert.True(t, s.HasDroppedSpanSide("k1", ClientSide))
-		assert.False(t, s.HasDroppedSpanSide("k2", ClientSide))
+		assert.True(t, s.HasDroppedSpanSide("k1", Client))
+		assert.False(t, s.HasDroppedSpanSide("k2", Client))
 	})
 }
 
@@ -281,15 +281,15 @@ func TestStore_ExpireDroppedSpanSide_mixedTTL(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		s := NewStore(time.Second, 10, noopCallback, noopCallback, newTestCounter())
 
-		s.AddDroppedSpanSide("old", ClientSide)
+		s.AddDroppedSpanSide("old", Client)
 		time.Sleep(700 * time.Millisecond)
-		s.AddDroppedSpanSide("new", ClientSide)
+		s.AddDroppedSpanSide("new", Client)
 
 		time.Sleep(500 * time.Millisecond)
 		s.Expire()
 
-		assert.False(t, s.HasDroppedSpanSide("old", ClientSide))
-		assert.True(t, s.HasDroppedSpanSide("new", ClientSide))
+		assert.False(t, s.HasDroppedSpanSide("old", Client))
+		assert.True(t, s.HasDroppedSpanSide("new", Client))
 	})
 }
 
@@ -298,8 +298,8 @@ func TestStore_ExpireDroppedSpanSide_doesNotAffectEdges(t *testing.T) {
 		si := NewStore(time.Second, 10, noopCallback, noopCallback, newTestCounter())
 		s := si.(*store)
 
-		s.AddDroppedSpanSide("d1", ClientSide)
-		_, err := s.UpsertEdge("e1", ClientSide, func(e *Edge) {
+		s.AddDroppedSpanSide("d1", Client)
+		_, err := s.UpsertEdge("e1", Client, func(e *Edge) {
 			e.ClientService = clientService
 		})
 		require.NoError(t, err)
@@ -308,7 +308,7 @@ func TestStore_ExpireDroppedSpanSide_doesNotAffectEdges(t *testing.T) {
 		time.Sleep(2 * time.Second)
 		s.Expire()
 
-		assert.False(t, s.HasDroppedSpanSide("d1", ClientSide))
+		assert.False(t, s.HasDroppedSpanSide("d1", Client))
 		// Edge should also be expired by normal edge-expire path.
 		assert.Equal(t, 0, s.len())
 	})
@@ -319,9 +319,9 @@ func TestStore_UpsertEdge_newEdgeWithDroppedCounterpart_returnsErrDroppedSpanSid
 	s := si.(*store)
 
 	const key = "trace-span"
-	s.AddDroppedSpanSide(key, ServerSide)
+	s.AddDroppedSpanSide(key, Server)
 
-	isNew, err := s.UpsertEdge(key, ClientSide, func(e *Edge) {
+	isNew, err := s.UpsertEdge(key, Client, func(e *Edge) {
 		e.ClientService = clientService
 	})
 
@@ -337,7 +337,7 @@ func BenchmarkStoreUpsertEdge(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		key := fmt.Sprintf("key-%d", i)
-		_, err := s.UpsertEdge(key, ClientSide, func(e *Edge) {
+		_, err := s.UpsertEdge(key, Client, func(e *Edge) {
 			e.ClientService = clientService
 		})
 		require.NoError(b, err)

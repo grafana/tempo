@@ -3,8 +3,8 @@ package store
 type Side string
 
 const (
-	ClientSide Side = "client"
-	ServerSide Side = "server"
+	Client Side = "client"
+	Server Side = "server"
 )
 
 type Callback func(e *Edge)

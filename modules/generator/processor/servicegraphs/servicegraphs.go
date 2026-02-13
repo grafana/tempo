@@ -203,7 +203,7 @@ func (p *Processor) consume(resourceSpans []*v1_trace.ResourceSpans) (err error)
 					fallthrough
 				case v1_trace.Span_SPAN_KIND_CLIENT:
 					key := buildKey(hex.EncodeToString(span.TraceId), hex.EncodeToString(span.SpanId))
-					isNew, err = p.store.UpsertEdge(key, store.ClientSide, func(e *store.Edge) {
+					isNew, err = p.store.UpsertEdge(key, store.Client, func(e *store.Edge) {
 						e.TraceID = tempo_util.TraceIDToHexString(span.TraceId)
 						e.ConnectionType = connectionType
 						e.ClientService = svcName
@@ -222,7 +222,7 @@ func (p *Processor) consume(resourceSpans []*v1_trace.ResourceSpans) (err error)
 					fallthrough
 				case v1_trace.Span_SPAN_KIND_SERVER:
 					key := buildKey(hex.EncodeToString(span.TraceId), hex.EncodeToString(span.ParentSpanId))
-					isNew, err = p.store.UpsertEdge(key, store.ServerSide, func(e *store.Edge) {
+					isNew, err = p.store.UpsertEdge(key, store.Server, func(e *store.Edge) {
 						e.TraceID = tempo_util.TraceIDToHexString(span.TraceId)
 						e.ConnectionType = connectionType
 						e.ServerService = svcName
@@ -448,7 +448,7 @@ func (p *Processor) onExpire(e *store.Edge) {
 func (p *Processor) addDroppedSpanSide(span *v1_trace.Span) {
 	if isClient(span.Kind) {
 		key := buildKey(hex.EncodeToString(span.TraceId), hex.EncodeToString(span.SpanId))
-		p.store.AddDroppedSpanSide(key, store.ClientSide)
+		p.store.AddDroppedSpanSide(key, store.Client)
 		return
 	}
 
@@ -459,7 +459,7 @@ func (p *Processor) addDroppedSpanSide(span *v1_trace.Span) {
 		}
 
 		key := buildKey(hex.EncodeToString(span.TraceId), hex.EncodeToString(span.ParentSpanId))
-		p.store.AddDroppedSpanSide(key, store.ServerSide)
+		p.store.AddDroppedSpanSide(key, store.Server)
 	}
 }
 
