@@ -21,6 +21,7 @@ import (
 	"github.com/grafana/tempo/pkg/util/log"
 	"github.com/grafana/tempo/tempodb"
 	"github.com/grafana/tempo/tempodb/backend"
+	"github.com/grafana/tempo/tempodb/encoding/common"
 	"github.com/prometheus/client_golang/prometheus"
 	"google.golang.org/grpc/codes"
 )
@@ -265,6 +266,8 @@ func (w *BackendWorker) processJobs(ctx context.Context) error {
 		return w.processCompactionJob(ctx, resp)
 	case tempopb.JobType_JOB_TYPE_RETENTION:
 		return w.processRetentionJob(ctx, resp)
+	case tempopb.JobType_JOB_TYPE_REDACTION:
+		return w.processRedactionJob(ctx, resp)
 	default:
 		return fmt.Errorf("unknown job type: %s", resp.Type.String())
 	}
@@ -343,6 +346,66 @@ func (w *BackendWorker) processRetentionJob(ctx context.Context, resp *tempopb.N
 	}
 
 	return nil
+}
+
+func (w *BackendWorker) processRedactionJob(ctx context.Context, resp *tempopb.NextJobResponse) error {
+	tenantID := resp.Detail.Tenant
+	if tenantID == "" {
+		metricWorkerBadJobsReceived.WithLabelValues("no_tenant").Inc()
+		return w.failJob(ctx, resp.JobId, "received redaction job with empty tenant")
+	}
+	if resp.Detail.Redaction == nil {
+		return w.failJob(ctx, resp.JobId, "received redaction job with nil redaction detail")
+	}
+
+	blockIDStr := resp.Detail.Redaction.BlockId
+	if blockIDStr == "" {
+		return w.failJob(ctx, resp.JobId, "received redaction job with empty block_id")
+	}
+
+	blockMetas := w.store.BlockMetas(tenantID)
+	var meta *backend.BlockMeta
+	for _, m := range blockMetas {
+		if m.BlockID.String() == blockIDStr {
+			meta = m
+			break
+		}
+	}
+	if meta == nil {
+		// Block no longer present (e.g. already compacted); complete successfully (no-op)
+		level.Debug(log.Logger).Log("msg", "redaction block not found, completing as no-op", "job_id", resp.JobId, "block_id", blockIDStr)
+		return w.completeJob(ctx, resp.JobId)
+	}
+
+	traceIDs := make([]common.ID, 0, len(resp.Detail.Redaction.TraceIds))
+	for _, b := range resp.Detail.Redaction.TraceIds {
+		if len(b) > 0 {
+			traceIDs = append(traceIDs, common.ID(b))
+		}
+	}
+
+	rewrote, _, err := w.store.RedactBlock(ctx, meta, tenantID, traceIDs)
+	if err != nil {
+		return w.failJob(ctx, resp.JobId, fmt.Sprintf("redact block: %v", err))
+	}
+
+	if rewrote {
+		level.Debug(log.Logger).Log("msg", "redaction block rewritten", "job_id", resp.JobId, "block_id", blockIDStr)
+	}
+	return w.completeJob(ctx, resp.JobId)
+}
+
+func (w *BackendWorker) completeJob(ctx context.Context, jobID string) error {
+	return w.callSchedulerWithBackoff(ctx, func(ctx context.Context) error {
+		_, err := w.backendScheduler.UpdateJob(ctx, &tempopb.UpdateJobStatusRequest{
+			JobId:  jobID,
+			Status: tempopb.JobStatus_JOB_STATUS_SUCCEEDED,
+		})
+		if err != nil {
+			return fmt.Errorf("failed marking job %q as complete: %w", jobID, err)
+		}
+		return nil
+	})
 }
 
 func (w *BackendWorker) stopping(_ error) error {
