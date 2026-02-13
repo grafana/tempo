@@ -458,6 +458,18 @@ func (m *mockScheduler) ListJobs() []*work.Job {
 	return m.jobs
 }
 
-// func (m *mockScheduler) addJob(job *work.Job) {
-// 	m.jobs = append(m.jobs, job)
-// }
+func (m *mockScheduler) ListPendingJobs(_ string, _ tempopb.JobType) []*work.Job {
+	return nil
+}
+
+func (m *mockScheduler) HasPendingJobs(_ string, _ tempopb.JobType) bool {
+	return false
+}
+
+func (m *mockScheduler) BlockPending(_, _ string) bool {
+	return false
+}
+
+func (m *mockScheduler) PopNextPendingJob(_ tempopb.JobType) *work.Job {
+	return nil
+}
