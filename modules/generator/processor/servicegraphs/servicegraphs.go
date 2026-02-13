@@ -36,7 +36,7 @@ var (
 	}, []string{"tenant"})
 	metricDroppedEdges = promauto.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "tempo",
-		Name:      "metrics_generator_processor_service_graphs_dropped_edges",
+		Name:      "metrics_generator_processor_service_graphs_dropped_edges_total",
 		Help:      "Number of edges dropped due to matching a dropped span side counterpart",
 	}, []string{"tenant"})
 	metricDroppedSpanSideCacheOverflows = promauto.NewCounterVec(prometheus.CounterOpts{
