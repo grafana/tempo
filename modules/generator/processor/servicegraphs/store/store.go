@@ -15,12 +15,18 @@ type store struct {
 	l   *list.List
 	mtx sync.Mutex
 	m   map[string]*list.Element
+	d   map[droppedSpanSideKey]int64
 
 	onComplete Callback
 	onExpire   Callback
 
 	ttl      time.Duration
 	maxItems int
+}
+
+type droppedSpanSideKey struct {
+	key  string
+	side Side
 }
 
 // NewStore creates a Store to build service graphs. The store caches edges, each representing a
@@ -30,6 +36,7 @@ func NewStore(ttl time.Duration, maxItems int, onComplete, onExpire Callback) St
 	s := &store{
 		l: list.New(),
 		m: make(map[string]*list.Element),
+		d: make(map[droppedSpanSideKey]int64),
 
 		onComplete: onComplete,
 		onExpire:   onExpire,
@@ -127,6 +134,53 @@ func (s *store) Expire() {
 	defer s.mtx.Unlock()
 
 	for s.tryEvictHead() {
+	}
+
+	s.expireDroppedSpanSides()
+}
+
+func (s *store) AddDroppedSpanSide(key string, side Side) {
+	s.mtx.Lock()
+	defer s.mtx.Unlock()
+
+	// This cache is best-effort metadata for dropped-span correlation.
+	// Fail-safe behavior when full: ignore new entries rather than bubbling errors into ingestion.
+	// TODO: emit an overflow metric when dropping new entries due to maxItems.
+	k := droppedSpanSideKey{
+		key:  key,
+		side: side,
+	}
+
+	// Refresh TTL for existing entries without consuming additional capacity.
+	if _, ok := s.d[k]; ok {
+		s.d[k] = time.Now().Add(s.ttl).UnixNano()
+		return
+	}
+
+	if len(s.d) >= s.maxItems {
+		return
+	}
+
+	s.d[k] = time.Now().Add(s.ttl).UnixNano()
+}
+
+func (s *store) HasDroppedSpanSide(key string, side Side) bool {
+	s.mtx.Lock()
+	defer s.mtx.Unlock()
+
+	_, ok := s.d[droppedSpanSideKey{
+		key:  key,
+		side: side,
+	}]
+	return ok
+}
+
+func (s *store) expireDroppedSpanSides() {
+	now := time.Now().UnixNano()
+	for k, expiration := range s.d {
+		if now >= expiration {
+			delete(s.d, k)
+		}
 	}
 }
 

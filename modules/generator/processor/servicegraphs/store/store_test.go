@@ -5,6 +5,7 @@ import (
 	"math/rand"
 	"reflect"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/stretchr/testify/assert"
@@ -165,6 +166,135 @@ func TestStore_concurrency(t *testing.T) {
 
 	time.Sleep(100 * time.Millisecond)
 	close(end)
+}
+
+func TestStore_AddDroppedSpanSide(t *testing.T) {
+	s := NewStore(time.Hour, 10, noopCallback, noopCallback)
+
+	const key = "trace-span"
+	const side = ClientSide
+	assert.False(t, s.HasDroppedSpanSide(key, side))
+
+	s.AddDroppedSpanSide(key, side)
+	assert.True(t, s.HasDroppedSpanSide(key, side))
+}
+
+func TestStore_AddDroppedSpanSide_respectsMaxItems(t *testing.T) {
+	s := NewStore(time.Hour, 2, noopCallback, noopCallback)
+
+	s.AddDroppedSpanSide("k1", ClientSide)
+	s.AddDroppedSpanSide("k2", ClientSide)
+	s.AddDroppedSpanSide("k3", ClientSide)
+
+	assert.True(t, s.HasDroppedSpanSide("k1", ClientSide))
+	assert.True(t, s.HasDroppedSpanSide("k2", ClientSide))
+	assert.False(t, s.HasDroppedSpanSide("k3", ClientSide))
+}
+
+func TestStore_AddDroppedSpanSide_expiresWithTTL(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		s := NewStore(time.Second, 10, noopCallback, noopCallback)
+
+		const key = "k-expire"
+		s.AddDroppedSpanSide(key, ClientSide)
+		assert.True(t, s.HasDroppedSpanSide(key, ClientSide))
+
+		time.Sleep(2 * time.Second)
+		s.Expire()
+
+		assert.False(t, s.HasDroppedSpanSide(key, ClientSide))
+	})
+}
+
+func TestStore_AddDroppedSpanSide_sidesAreIndependent(t *testing.T) {
+	s := NewStore(time.Hour, 10, noopCallback, noopCallback)
+
+	const key = "k-side"
+	s.AddDroppedSpanSide(key, ClientSide)
+
+	assert.True(t, s.HasDroppedSpanSide(key, ClientSide))
+	assert.False(t, s.HasDroppedSpanSide(key, ServerSide))
+}
+
+func TestStore_AddDroppedSpanSide_refreshesTTL(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		s := NewStore(time.Second, 10, noopCallback, noopCallback)
+
+		const key = "k-refresh"
+		s.AddDroppedSpanSide(key, ClientSide)
+
+		time.Sleep(500 * time.Millisecond)
+		s.AddDroppedSpanSide(key, ClientSide)
+
+		time.Sleep(700 * time.Millisecond)
+		s.Expire()
+		assert.True(t, s.HasDroppedSpanSide(key, ClientSide))
+
+		time.Sleep(500 * time.Millisecond)
+		s.Expire()
+		assert.False(t, s.HasDroppedSpanSide(key, ClientSide))
+	})
+}
+
+func TestStore_AddDroppedSpanSide_refreshAllowedAtMaxItems(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		s := NewStore(time.Second, 2, noopCallback, noopCallback)
+
+		s.AddDroppedSpanSide("k1", ClientSide)
+		s.AddDroppedSpanSide("k2", ClientSide)
+		time.Sleep(700 * time.Millisecond)
+		// At capacity: this should refresh k1, not be blocked.
+		s.AddDroppedSpanSide("k1", ClientSide)
+		// Still at capacity: new key should be rejected.
+		s.AddDroppedSpanSide("k3", ClientSide)
+
+		assert.True(t, s.HasDroppedSpanSide("k1", ClientSide))
+		assert.True(t, s.HasDroppedSpanSide("k2", ClientSide))
+		assert.False(t, s.HasDroppedSpanSide("k3", ClientSide))
+
+		time.Sleep(500 * time.Millisecond)
+		s.Expire()
+		// k2 should be expired; k1 should remain because it was refreshed.
+		assert.True(t, s.HasDroppedSpanSide("k1", ClientSide))
+		assert.False(t, s.HasDroppedSpanSide("k2", ClientSide))
+	})
+}
+
+func TestStore_ExpireDroppedSpanSide_mixedTTL(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		s := NewStore(time.Second, 10, noopCallback, noopCallback)
+
+		s.AddDroppedSpanSide("old", ClientSide)
+		time.Sleep(700 * time.Millisecond)
+		s.AddDroppedSpanSide("new", ClientSide)
+
+		time.Sleep(500 * time.Millisecond)
+		s.Expire()
+
+		assert.False(t, s.HasDroppedSpanSide("old", ClientSide))
+		assert.True(t, s.HasDroppedSpanSide("new", ClientSide))
+	})
+}
+
+func TestStore_ExpireDroppedSpanSide_doesNotAffectEdges(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		si := NewStore(time.Second, 10, noopCallback, noopCallback)
+		s := si.(*store)
+
+		s.AddDroppedSpanSide("d1", ClientSide)
+		_, err := s.UpsertEdge("e1", func(e *Edge) {
+			e.ClientService = clientService
+		})
+		require.NoError(t, err)
+		assert.Equal(t, 1, s.len())
+
+		time.Sleep(2 * time.Second)
+		s.Expire()
+
+		assert.False(t, s.HasDroppedSpanSide("d1", ClientSide))
+		// Edge should also be expired by normal edge-expire path.
+		assert.Equal(t, 0, s.len())
+	})
 }
 
 func BenchmarkStoreUpsertEdge(b *testing.B) {
