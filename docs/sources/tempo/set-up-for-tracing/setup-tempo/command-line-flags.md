@@ -67,7 +67,8 @@ Refer to the [Plan your Tempo deployment](../plan/) documentation for informatio
 
 ## Module configuration
 
-You can use additional flags to configuring individual Tempo modules, such as the distributor, ingester, querier, and their components. These flags follow a pattern like `--<module>.<setting>` and are extensively documented in the configuration file format.
+You can use additional flags to configure individual Tempo modules, such as the distributor, block-builder, live-store, querier, and their components.
+These flags follow a pattern like `--<module>.<setting>` and are extensively documented in the configuration file format.
 
 Use the configuration file approach described in the [Configuration documentation](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/).
 The documentation has a comprehensive list of all configuration options.
