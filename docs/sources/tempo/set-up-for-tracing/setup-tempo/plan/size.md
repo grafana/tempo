@@ -31,32 +31,19 @@ Distributor:
 - 1 replica per every 10MB/s of received traffic
 - CPU: 2 cores
 - Mem: 2 GB
-- Note: In v3.0, distributors write to Kafka. Resource requirements may vary based on Kafka configuration.
-
-Block-builder:
-
-<!-- TODO: Add sizing guidance for block-builders based on production data -->
-- Sizing guidelines to be determined based on ingestion rate
-- CPU: TBD
-- Mem: TBD
-- Block-builders consume from Kafka to build blocks for long-term storage
 
 Live-store:
 
-<!-- TODO: Add sizing guidance for live-stores based on production data -->
-- Sizing guidelines to be determined based on query patterns and retention window
-- CPU: TBD
-- Mem: TBD
-- Live-stores consume from Kafka to serve recent trace data queries
+- 1 replica per every 6-10MB/s of received traffic
+- CPU: 1 core
+- Mem: 4-20GB, determined by trace composition
 - Typically deployed across multiple availability zones for high availability
 
-Kafka:
+Block-builder:
 
-<!-- TODO: Add Kafka cluster sizing guidance -->
-- Sizing depends on ingestion rate, retention window, and replication factor
-- Storage: Plan for at least N hours/days of trace data retention in Kafka
-- CPU and memory requirements depend on the Kafka-compatible system chosen (Kafka, Redpanda, WarpStream)
-- Refer to your Kafka provider's documentation for detailed sizing guidance
+- 1 replica per partition
+- CPU: 0.5 cores
+- Mem: 5-10GB, determined by trace composition
 
 Querier:
 
@@ -73,19 +60,15 @@ Query-Frontend:
 
 Backend-scheduler:
 
-<!-- TODO: Add sizing guidance for backend-scheduler based on production data -->
 - 1 replica (only one scheduler should be running at a time)
-- CPU: TBD
-- Mem: TBD
-- The backend-scheduler coordinates compaction and retention jobs for backend-workers
+- CPU: 0.5 cores
+- Mem: 1-2GB
 
 Backend-worker:
 
-<!-- TODO: Add sizing guidance for backend-workers based on production data -->
 - Sizing guidelines to be determined based on compaction workload
-- CPU: TBD
-- Mem: TBD
-- Backend-workers execute compaction and retention jobs assigned by the backend-scheduler
+- CPU: 0.5 cores
+- Mem: 1-2GB
 
 ## Performance tuning resources
 
