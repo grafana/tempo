@@ -124,7 +124,7 @@ require (
 	go.opentelemetry.io/proto/otlp v1.9.0
 	go.yaml.in/yaml/v2 v2.4.3
 	golang.org/x/net v0.50.0
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20260128011058-8636f8732409
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20260209200024-4cfbd4190f57
 )
 
 require (
