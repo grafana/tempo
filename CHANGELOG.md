@@ -3,6 +3,7 @@
 * [BUGFIX] Fix query-frontend unable to convert dedicated column blob option [#6377](https://github.com/grafana/tempo/pull/6377) (@stoewer)
 * [BUGFIX] Fix issue with additional matched spans in queries with only resource attributes [#6432](https://github.com/grafana/tempo/pull/6432) (@stoewer)
 * [CHANGE] Upgrade Tempo to Go 1.25.7 [#6449](https://github.com/grafana/tempo/pull/6449) (@zalegrala)
+* [BUGFIX] Fix live-store deadlock occurring after a complete block failure [#6338](https://github.com/grafana/tempo/pull/6338) (@ruslan-mikhailov)
 
 # v2.10.0
 

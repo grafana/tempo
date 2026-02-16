@@ -16,18 +16,19 @@ import (
 )
 
 const (
-	maxBackoff       = 120 * time.Second
-	initialBackoff   = 30 * time.Second
-	maxFlushAttempts = 10
+	defaultInitialBackoff = 30 * time.Second
+	defaultMaxBackoff     = 120 * time.Second
+	maxFlushAttempts      = 10
 )
 
 type completeOp struct {
 	tenantID string
 	blockID  uuid.UUID
 
-	at       time.Time
-	attempts int
-	bo       time.Duration
+	at         time.Time
+	attempts   int
+	bo         time.Duration
+	maxBackoff time.Duration
 }
 
 func (o *completeOp) Key() string { return o.tenantID + "/" + o.blockID.String() }
@@ -36,8 +37,8 @@ func (o *completeOp) Priority() int64 { return -o.at.Unix() }
 
 func (o *completeOp) backoff() time.Duration {
 	o.bo *= 2
-	if o.bo > maxBackoff {
-		o.bo = maxBackoff
+	if o.bo > o.maxBackoff {
+		o.bo = o.maxBackoff
 	}
 
 	return o.bo
@@ -111,7 +112,7 @@ func (s *LiveStore) globalCompleteLoop(idx int) {
 			go func() {
 				time.Sleep(delay)
 
-				if err := s.enqueueOp(op); err != nil {
+				if err := s.requeueOp(op); err != nil {
 					_ = level.Error(s.logger).Log("msg", "failed to requeue block for flushing", "tenant", op.tenantID, "block", op.blockID, "err", err)
 				}
 			}()
@@ -161,8 +162,9 @@ func (s *LiveStore) enqueueCompleteOp(tenantID string, blockID uuid.UUID, jitter
 		tenantID: tenantID,
 		blockID:  blockID,
 		// Initial priority and backoff
-		at: time.Now(),
-		bo: initialBackoff,
+		at:         time.Now(),
+		bo:         s.cfg.initialBackoff,
+		maxBackoff: s.cfg.maxBackoff,
 	}
 
 	if jitter {
@@ -190,6 +192,15 @@ func (s *LiveStore) enqueueOp(op *completeOp) error {
 
 	level.Debug(s.logger).Log("msg", "enqueueing complete op", "tenant", op.tenantID, "block", op.blockID, "attempts", op.attempts)
 	return s.completeQueues.Enqueue(op)
+}
+
+func (s *LiveStore) requeueOp(op *completeOp) error {
+	if s.completeQueues.IsStopped() {
+		return fmt.Errorf("complete queues are stopped, cannot requeue operation for block %s", op.blockID.String())
+	}
+
+	level.Debug(s.logger).Log("msg", "requeueing complete op", "tenant", op.tenantID, "block", op.blockID, "attempts", op.attempts)
+	return s.completeQueues.Requeue(op)
 }
 
 func observeFailedOp(op *completeOp) {
