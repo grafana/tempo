@@ -23,6 +23,7 @@ const (
 	configQueryRangeMaxSeries         = "config-query-range-max-series.yaml"
 	configQueryRangeMaxSeriesDisabled = "config-query-range-max-series-disabled.yaml"
 	configQueryRangeExemplars         = "config-query-range-exemplars.yaml"
+	configQueryRangeEndCutoff         = "config-query-range-end-cutoff.yaml"
 )
 
 type queryRangeRequest struct {
@@ -691,6 +692,63 @@ func TestQueryRangeTypeHandling(t *testing.T) {
 			require.NotNil(t, queryRangeRes)
 			require.Equal(t, tempopb.PartialStatus_COMPLETE, queryRangeRes.GetStatus())
 			require.Equal(t, 2, len(queryRangeRes.GetSeries()))
+		})
+	})
+}
+
+func TestQueryRangeEndCutoff(t *testing.T) {
+	util.RunIntegrationTests(t, util.TestHarnessConfig{
+		ConfigOverlay: configQueryRangeEndCutoff,
+	}, func(h *util.TempoHarness) {
+		h.WaitTracesWritable(t)
+
+		ticker := time.NewTicker(500 * time.Millisecond)
+		defer ticker.Stop()
+		timer := time.NewTimer(10 * time.Second)
+		defer timer.Stop()
+
+		tracesSent := 0
+	sendLoop:
+		for {
+			select {
+			case <-ticker.C:
+				require.NoError(t, h.WriteJaegerBatch(util.MakeThriftBatch(), ""))
+				tracesSent++
+			case <-timer.C:
+				break sendLoop
+			}
+		}
+
+		h.WaitTracesQueryable(t, tracesSent)
+
+		// Query with end=now, which should be adjusted by query_end_cutoff (5s)
+		cutoff := 5 * time.Second
+		now := time.Now()
+
+		req := queryRangeRequest{
+			Query:     "{} | count_over_time()",
+			Start:     now.Add(-15 * time.Second),
+			End:       now,
+			Step:      time.Second.String(),
+			Exemplars: 100,
+		}
+
+		callQueryRange(t, h, req, func(queryRangeRes *tempopb.QueryRangeResponse, err error) {
+			require.NoError(t, err)
+			require.NotNil(t, queryRangeRes)
+			require.Equal(t, 1, len(queryRangeRes.GetSeries()))
+
+			series := queryRangeRes.GetSeries()[0]
+			samples := series.GetSamples()
+			require.Greater(t, len(samples), 0, "Expected at least one sample")
+
+			// The cutoff should be applied, so the last sample should be at least 'cutoff' seconds before now
+			maxAllowedTimestamp := now.Add(-cutoff).UnixMilli()
+			for _, sample := range samples {
+				assert.LessOrEqual(t, sample.TimestampMs, maxAllowedTimestamp,
+					"Sample timestamp %d is after cutoff %d (diff: %d ms)",
+					sample.TimestampMs, maxAllowedTimestamp, sample.TimestampMs-maxAllowedTimestamp)
+			}
 		})
 	})
 }
