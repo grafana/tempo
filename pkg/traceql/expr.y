@@ -349,8 +349,10 @@ metricsFilterOperation:
 metricsFilter:
     metricsFilterOperation INTEGER       { $$ = newMetricsFilter($1, float64($2)) }
   | metricsFilterOperation FLOAT         { $$ = newMetricsFilter($1, $2) }
+  | metricsFilterOperation DURATION      { $$ = newMetricsFilter($1, float64($2) / float64(time.Second)) }
   | metricsFilterOperation SUB INTEGER   { $$ = newMetricsFilter($1, float64(-$3)) }
   | metricsFilterOperation SUB FLOAT     { $$ = newMetricsFilter($1, -$3) }
+  | metricsFilterOperation SUB DURATION  { $$ = newMetricsFilter($1, float64(-$3) / float64(time.Second)) }
   ;
 
 // **********************
