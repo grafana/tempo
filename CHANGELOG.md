@@ -1,4 +1,5 @@
 ## main / unreleased
+* [BUGFIX] Correct avg_over_time calculation [#6252](https://github.com/grafana/tempo/pull/6252) (@ruslan-mikhailov)
 
 * [BUGFIX] Fix query-frontend unable to convert dedicated column blob option [#6377](https://github.com/grafana/tempo/pull/6377) (@stoewer)
 * [BUGFIX] Fix issue with additional matched spans in queries with only resource attributes [#6432](https://github.com/grafana/tempo/pull/6432) (@stoewer)
