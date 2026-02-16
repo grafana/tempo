@@ -307,20 +307,11 @@ Install the `k.libsonnet`, Jsonnet, and Memcachd libraries.
                     },
                 },
             },
-            partition_ring_live_store: true,
-            distributor+: {
-                ingester_write_path_enabled: false,
-                kafka_write_path_enabled: true,
-            },
             ingest+: {
-                enabled: true,
                 kafka+: {
                     address: 'kafka:9092',
                     topic: 'tempo-ingest',
                 },
-            },
-            querier+: {
-                query_live_store: true,
             },
             block_builder+: {
                 consume_cycle_duration: '30s',
