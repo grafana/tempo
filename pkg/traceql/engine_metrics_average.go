@@ -268,6 +268,7 @@ func (k *averageSeries) addWeigthedMean(interval int, mean float64, weight float
 	meanDelta -= currentMean.compensation
 
 	currentMean.add(meanDelta)
+	currentMean.weight = sumWeights
 	k.values[interval] = currentMean
 }
 

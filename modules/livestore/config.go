@@ -50,6 +50,9 @@ type Config struct {
 
 	// testing config
 	holdAllBackgroundProcesses bool `yaml:"-"` // if this is set to true, the live store will never release its background processes
+
+	initialBackoff time.Duration `yaml:"-"` // default initial backoff for complete operations
+	maxBackoff     time.Duration `yaml:"-"` // default max backoff for complete operations
 }
 
 type MetricsConfig struct {
@@ -82,6 +85,9 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 	cfg.MaxBlockBytes = 100 * 1024 * 1024
 
 	cfg.CommitInterval = 5 * time.Second
+
+	cfg.initialBackoff = defaultInitialBackoff
+	cfg.maxBackoff = defaultMaxBackoff
 
 	// Initialize block config with defaults
 	cfg.BlockConfig.RegisterFlagsAndApplyDefaults(prefix+".block", f)
