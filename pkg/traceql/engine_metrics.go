@@ -158,6 +158,19 @@ func AlignRequest(req *tempopb.QueryRangeRequest) {
 	}
 }
 
+func AlignEndToLeft(req *tempopb.QueryRangeRequest) {
+	if IsInstant(req) {
+		return
+	}
+
+	if req.Step == 0 {
+		return
+	}
+
+	mod := req.End % req.Step
+	req.End -= mod
+}
+
 // Start time is rounded down to next step
 func alignStart(start, _, step uint64, instant bool) uint64 {
 	if step == 0 {
