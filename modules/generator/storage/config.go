@@ -2,8 +2,10 @@ package storage
 
 import (
 	"flag"
+	"fmt"
 	"time"
 
+	"github.com/prometheus/common/model"
 	prometheus_config "github.com/prometheus/prometheus/config"
 	"github.com/prometheus/prometheus/tsdb/agent"
 	"github.com/prometheus/prometheus/util/compression"
@@ -24,6 +26,19 @@ type Config struct {
 	// Prometheus remote write config
 	// https://prometheus.io/docs/prometheus/latest/configuration/configuration/#remote_write
 	RemoteWrite []prometheus_config.RemoteWriteConfig `yaml:"remote_write,omitempty"`
+}
+
+// Validate initializes and validates the remote write configurations. This must
+// be called once at startup before any tenant storage instances are created, so
+// that NameValidationScheme is set on all write relabel configs. Without this,
+// relabeling panics with "Invalid name validation scheme requested: unset".
+func (cfg *Config) Validate() error {
+	for i := range cfg.RemoteWrite {
+		if err := cfg.RemoteWrite[i].Validate(model.UTF8Validation); err != nil {
+			return fmt.Errorf("invalid remote write config %q: %w", cfg.RemoteWrite[i].Name, err)
+		}
+	}
+	return nil
 }
 
 func (cfg *Config) RegisterFlagsAndApplyDefaults(string, *flag.FlagSet) {
