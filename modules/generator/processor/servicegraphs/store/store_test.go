@@ -177,7 +177,8 @@ func TestStore_AddDroppedSpanSide(t *testing.T) {
 	const side = Client
 	assert.False(t, s.HasDroppedSpanSide(key, side))
 
-	s.AddDroppedSpanSide(key, side)
+	droppedCounterpart := s.AddDroppedSpanSide(key, side)
+	assert.False(t, droppedCounterpart)
 	assert.True(t, s.HasDroppedSpanSide(key, side))
 }
 
@@ -231,6 +232,33 @@ func TestStore_AddDroppedSpanSide_sidesAreIndependent(t *testing.T) {
 
 	assert.True(t, s.HasDroppedSpanSide(key, Client))
 	assert.False(t, s.HasDroppedSpanSide(key, Server))
+}
+
+func TestStore_AddDroppedSpanSide_dropsExistingCounterpartEdge(t *testing.T) {
+	si := NewStore(time.Hour, 10, noopCallback, noopCallback, newTestCounter())
+	s := si.(*store)
+
+	_, err := s.UpsertEdge("k1", Client, func(e *Edge) {
+		e.ClientService = clientService
+	})
+	require.NoError(t, err)
+
+	_, err = s.UpsertEdge("k2", Client, func(e *Edge) {
+		e.ClientService = clientService
+	})
+	require.NoError(t, err)
+
+	assert.Equal(t, 2, s.len())
+
+	// Server side for k1 was filtered/dropped; existing client-side edge for k1 should be removed.
+	droppedCounterpart := s.AddDroppedSpanSide("k1", Server)
+	assert.True(t, droppedCounterpart)
+
+	assert.Equal(t, 1, s.len())
+	_, foundK1 := s.m["k1"]
+	assert.False(t, foundK1)
+	_, foundK2 := s.m["k2"]
+	assert.True(t, foundK2)
 }
 
 func TestStore_AddDroppedSpanSide_refreshesTTL(t *testing.T) {

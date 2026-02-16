@@ -448,7 +448,9 @@ func (p *Processor) onExpire(e *store.Edge) {
 func (p *Processor) addDroppedSpanSide(span *v1_trace.Span) {
 	if isClient(span.Kind) {
 		key := buildKey(hex.EncodeToString(span.TraceId), hex.EncodeToString(span.SpanId))
-		p.store.AddDroppedSpanSide(key, store.Client)
+		if p.store.AddDroppedSpanSide(key, store.Client) {
+			p.metricDroppedEdges.Inc()
+		}
 		return
 	}
 
@@ -459,7 +461,9 @@ func (p *Processor) addDroppedSpanSide(span *v1_trace.Span) {
 		}
 
 		key := buildKey(hex.EncodeToString(span.TraceId), hex.EncodeToString(span.ParentSpanId))
-		p.store.AddDroppedSpanSide(key, store.Server)
+		if p.store.AddDroppedSpanSide(key, store.Server) {
+			p.metricDroppedEdges.Inc()
+		}
 	}
 }
 

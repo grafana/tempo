@@ -617,6 +617,94 @@ func TestServiceGraphs_droppedEdgesMetric_fromFilteredCounterpart(t *testing.T) 
 	assert.Equal(t, 1.0, droppedEdges)
 }
 
+func TestServiceGraphs_droppedEdgesMetric_whenFilteredSpanDropsBufferedCounterpart(t *testing.T) {
+	testRegistry := registry.NewTestRegistry()
+
+	cfg := Config{}
+	cfg.RegisterFlagsAndApplyDefaults("", nil)
+	cfg.FilterPolicies = []filterconfig.FilterPolicy{
+		{
+			Exclude: &filterconfig.PolicyMatch{
+				MatchType: filterconfig.Strict,
+				Attributes: []filterconfig.MatchPolicyAttribute{
+					{Key: "resource.service.name", Value: "svc-a"},
+				},
+			},
+		},
+	}
+
+	const tenant = "dropped-edge-filtered-buffered-counterpart-test"
+
+	p, err := New(cfg, tenant, testRegistry, log.NewNopLogger(), prometheus.NewCounter(prometheus.CounterOpts{}), prometheus.NewCounter(prometheus.CounterOpts{}))
+	require.NoError(t, err)
+	defer p.Shutdown(context.Background())
+
+	traceID := []byte{0x11}
+	clientSpanID := []byte{0x22}
+
+	request := &tempopb.PushSpansRequest{
+		Batches: []*tracev1.ResourceSpans{
+			{
+				Resource: &resourcev1.Resource{
+					Attributes: []*v1.KeyValue{
+						{
+							Key: "service.name",
+							Value: &v1.AnyValue{
+								Value: &v1.AnyValue_StringValue{StringValue: "svc-b"},
+							},
+						},
+					},
+				},
+				ScopeSpans: []*tracev1.ScopeSpans{
+					{
+						Spans: []*tracev1.Span{
+							{
+								TraceId:           traceID,
+								ParentSpanId:      clientSpanID,
+								SpanId:            []byte{0x33},
+								Kind:              tracev1.Span_SPAN_KIND_SERVER,
+								StartTimeUnixNano: 3,
+								EndTimeUnixNano:   4,
+							},
+						},
+					},
+				},
+			},
+			{
+				Resource: &resourcev1.Resource{
+					Attributes: []*v1.KeyValue{
+						{
+							Key: "service.name",
+							Value: &v1.AnyValue{
+								Value: &v1.AnyValue_StringValue{StringValue: "svc-a"},
+							},
+						},
+					},
+				},
+				ScopeSpans: []*tracev1.ScopeSpans{
+					{
+						Spans: []*tracev1.Span{
+							{
+								TraceId:           traceID,
+								SpanId:            clientSpanID,
+								Kind:              tracev1.Span_SPAN_KIND_CLIENT,
+								StartTimeUnixNano: 1,
+								EndTimeUnixNano:   2,
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	p.PushSpans(context.Background(), request)
+
+	droppedEdges, err := test.GetCounterVecValue(metricDroppedEdges, tenant)
+	require.NoError(t, err)
+	assert.Equal(t, 1.0, droppedEdges)
+}
+
 func TestServiceGraphs_filteredRootServerSpanDoesNotAddDroppedCounterpart(t *testing.T) {
 	testRegistry := registry.NewTestRegistry()
 

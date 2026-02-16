@@ -87,7 +87,6 @@ func (s *store) tryEvictHead() bool {
 }
 
 // deleteEdge removes an edge from the map/list and returns it to the pool.
-//
 // Must be called holding lock.
 func (s *store) deleteEdge(ele *list.Element) {
 	edge := ele.Value.(*Edge)
@@ -153,9 +152,20 @@ func (s *store) Expire() {
 }
 
 // This cache is best-effort metadata for dropped-span correlation.
-func (s *store) AddDroppedSpanSide(key string, side Side) {
+func (s *store) AddDroppedSpanSide(key string, side Side) bool {
 	s.mtx.Lock()
 	defer s.mtx.Unlock()
+
+	droppedCounterpartEdge := false
+	if storedEdge, ok := s.m[key]; ok {
+		edge := storedEdge.Value.(*Edge)
+		// If a counterpart edge is already buffered, drop it immediately instead of
+		// waiting for TTL expiration.
+		if !edge.isComplete() && getEdgeSide(edge) != side {
+			s.deleteEdge(storedEdge)
+			droppedCounterpartEdge = true
+		}
+	}
 
 	k := droppedSpanSideKey{
 		key:  key,
@@ -165,15 +175,16 @@ func (s *store) AddDroppedSpanSide(key string, side Side) {
 	// Refresh TTL for existing entries
 	if _, ok := s.d[k]; ok {
 		s.d[k] = time.Now().Add(s.ttl).UnixNano()
-		return
+		return droppedCounterpartEdge
 	}
 
 	if len(s.d) >= s.maxItems {
 		s.droppedSpanSideOverflowCounter.Inc()
-		return
+		return droppedCounterpartEdge
 	}
 
 	s.d[k] = time.Now().Add(s.ttl).UnixNano()
+	return droppedCounterpartEdge
 }
 
 func (s *store) HasDroppedSpanSide(key string, side Side) bool {
@@ -226,4 +237,11 @@ func (s *store) grabEdge(key string) *Edge {
 // returnEdge returns an Edge to the pool.
 func (s *store) returnEdge(e *Edge) {
 	edgePool.Put(e)
+}
+
+func getEdgeSide(e *Edge) Side {
+	if e.ServerService != "" {
+		return Server
+	}
+	return Client
 }
