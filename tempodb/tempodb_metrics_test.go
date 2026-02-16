@@ -654,8 +654,8 @@ var queryRangeTestCases = []struct {
 		},
 	},
 	{
-		name: "max_over_time_lt_filter",
-		req:  requestWithDefaultRange("{ } | max_over_time(duration) < 30"),
+		name: "max_over_time_lt_filter_seconds",
+		req:  requestWithDefaultRange("{ } | max_over_time(duration) < 30s"),
 		expectedL1: []*tempopb.TimeSeries{
 			{
 				Labels: []common_v1.KeyValue{tempopb.MakeKeyValueString("__name__", "max_over_time")},
@@ -679,7 +679,7 @@ var queryRangeTestCases = []struct {
 	},
 	{
 		name: "max_over_time_lte_filter",
-		req:  requestWithDefaultRange("{ } | max_over_time(duration) <= 30"),
+		req:  requestWithDefaultRange("{ } | max_over_time(duration) <= 30s"),
 		expectedL1: []*tempopb.TimeSeries{
 			{
 				Labels: []common_v1.KeyValue{tempopb.MakeKeyValueString("__name__", "max_over_time")},

@@ -1810,6 +1810,14 @@ func TestMetricsFilter(t *testing.T) {
 			),
 		},
 		{
+			in: `{ } | rate() > 10s`,
+			expected: newRootExprWithMetricsTwoStage(
+				newPipeline(newSpansetFilter(NewStaticBool(true))),
+				newMetricsAggregate(metricsAggregateRate, nil),
+				newMetricsFilter(OpGreater, 10),
+			),
+		},
+		{
 			in: `{ } | count_over_time() < 100`,
 			expected: newRootExprWithMetricsTwoStage(
 				newPipeline(newSpansetFilter(NewStaticBool(true))),
