@@ -169,6 +169,8 @@ func grpcTransportCredentials(secure bool) (opt grpc.DialOption, err error) {
 // - relative: "now", "now-1h", "now-30m", "now-3h30m"
 // - RFC3339: "2024-01-01T00:00:00Z"
 func parseTime(s string) (time.Time, error) {
+	s = strings.TrimSpace(s)
+
 	if strings.HasPrefix(s, "now") {
 		return parseRelativeTime(s)
 	}

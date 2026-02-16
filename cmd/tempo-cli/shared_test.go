@@ -76,6 +76,31 @@ func TestParseTime(t *testing.T) {
 			input:   "now-abc",
 			wantErr: true,
 		},
+		{
+			name:     "leading spaces are trimmed",
+			input:    "  now-1h",
+			expected: now.Add(-1 * time.Hour),
+		},
+		{
+			name:     "trailing spaces are trimmed",
+			input:    "now-1h  ",
+			expected: now.Add(-1 * time.Hour),
+		},
+		{
+			name:     "now with leading space",
+			input:    " now",
+			expected: now,
+		},
+		{
+			name:     "now with trailing spaces",
+			input:    "now   ",
+			expected: now,
+		},
+		{
+			name:     "RFC3339 with surrounding spaces",
+			input:    " 2024-03-15T10:30:00Z ",
+			expected: time.Date(2024, 3, 15, 10, 30, 0, 0, time.UTC),
+		},
 	}
 
 	for _, tt := range tests {
