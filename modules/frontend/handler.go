@@ -11,6 +11,7 @@ import (
 
 	"github.com/grafana/dskit/flagext"
 	"github.com/grafana/dskit/grpcutil"
+	"github.com/grafana/tempo/pkg/api"
 	"github.com/grafana/tempo/pkg/util"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
@@ -43,9 +44,9 @@ type handler struct {
 }
 
 // newHandler creates a handler
-func newHandler(LogQueryRequestHeaders flagext.StringSliceCSV, rt http.RoundTripper, logger log.Logger) http.Handler {
+func newHandler(logQueryRequestHeaders flagext.StringSliceCSV, rt http.RoundTripper, logger log.Logger) http.Handler {
 	return &handler{
-		logQueryRequestHeaders: LogQueryRequestHeaders,
+		logQueryRequestHeaders: logQueryRequestHeaders,
 		roundTripper:           rt,
 		logger:                 logger,
 	}
@@ -60,13 +61,12 @@ func (f *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	start := time.Now()
 	orgID, _ := user.ExtractOrgID(ctx)
+	pluginID := r.Header.Get(api.HeaderPluginID)
 	traceID, _ := tracing.ExtractTraceID(ctx)
 
 	// add orgid to existing spans
 	span := trace.SpanFromContext(r.Context())
-	if span != nil {
-		span.SetAttributes(attribute.String("orgID", orgID))
-	}
+	setRequestSpanAttributes(span, orgID, pluginID)
 
 	resp, err := f.roundTripper.RoundTrip(r)
 	elapsed := time.Since(start)
@@ -133,6 +133,17 @@ func (f *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		"status", statusCode,
 	)
 	level.Info(f.logger).Log(logMessage...)
+}
+
+func setRequestSpanAttributes(span trace.Span, orgID, pluginID string) {
+	if span == nil {
+		return
+	}
+
+	span.SetAttributes(attribute.String("orgID", orgID))
+	if pluginID != "" {
+		span.SetAttributes(attribute.String("pluginID", pluginID))
+	}
 }
 
 func formatRequestHeaders(h *http.Header, headersToLog []string) (fields []interface{}) {
