@@ -131,6 +131,7 @@ root:
   // note: would only work for single metrics pipeline and not for multiple metrics pipelines before the fucntions
   | spansetPipeline PIPE metricsAggregation PIPE metricsSecondStage  { yylex.(*lexer).expr = newRootExprWithMetricsTwoStage($1, $3, $5) }
   | spansetPipeline PIPE metricsAggregation metricsFilter            { yylex.(*lexer).expr = newRootExprWithMetricsTwoStage($1, $3, $4) }
+  | spansetPipeline PIPE metricsAggregation PIPE metricsSecondStage metricsFilter { yylex.(*lexer).expr = newRootExprWithMetricsTwoStage($1, $3, newChainedSecondStage($5, $6)) }
   | root hints                                  { yylex.(*lexer).expr.withHints($2) }
   ;
 

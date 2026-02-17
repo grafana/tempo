@@ -515,3 +515,37 @@ func (m *MetricsFilter) compare(v float64) bool {
 }
 
 var _ secondStageElement = (*MetricsFilter)(nil)
+
+// ChainedSecondStage chains two second stage elements together.
+// The first element is processed, then its output is passed to the second.
+// Example: {status=error} | rate() | topk(5) > 10
+type ChainedSecondStage struct {
+	first  secondStageElement
+	second secondStageElement
+}
+
+func newChainedSecondStage(first, second secondStageElement) *ChainedSecondStage {
+	return &ChainedSecondStage{first: first, second: second}
+}
+
+func (c *ChainedSecondStage) String() string {
+	return fmt.Sprintf("%s %s", c.first.String(), c.second.String())
+}
+
+func (c *ChainedSecondStage) validate() error {
+	if err := c.first.validate(); err != nil {
+		return err
+	}
+	return c.second.validate()
+}
+
+func (c *ChainedSecondStage) init(req *tempopb.QueryRangeRequest) {
+	c.first.init(req)
+	c.second.init(req)
+}
+
+func (c *ChainedSecondStage) process(input SeriesSet) SeriesSet {
+	return c.second.process(c.first.process(input))
+}
+
+var _ secondStageElement = (*ChainedSecondStage)(nil)
