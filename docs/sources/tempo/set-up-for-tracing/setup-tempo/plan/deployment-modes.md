@@ -9,8 +9,11 @@ weight: 200
 
 Tempo can be deployed in _monolithic_ or _microservices_ modes.
 
-_Monolithic mode_ was previously called _single binary mode_. Similarly _scalable monolithic mode_ was previously called _scalable single binary mode_. The scalable single binary mode has been removed in Tempo 3.0.
-While the documentation reflects this change, some URL names and deployment tooling may not yet reflect this change.
+_Monolithic mode_ was previously called _single binary mode_.
+
+{{< admonition type="note" >}}
+Tempo v3.0 requires a Kafka-compatible system for both monolithic and microservices modes. The previous _scalable monolithic mode_ (also known as _scalable single binary mode_ or SSB) has been removed in v3.0.
+{{< /admonition >}}
 
 The deployment mode is determined by the runtime configuration `target`, or
 by using the `-target` flag on the command line. The default target is `all`,
@@ -24,8 +27,9 @@ Refer to the [Command line flags](../../command-line-flags/) documentation for m
 
 ## Monolithic mode
 
-Monolithic mode uses a single Tempo binary is executed, which runs all of the separate components within a single running process.
-This means that a single instance both ingests, stores, compacts and queries trace data.
+Monolithic mode uses a single Tempo binary that runs all of the separate components within a single process.
+This means that a single instance handles the distributor, block-builder, live-store, querier, query-frontend, backend-scheduler, and backend-worker roles.
+The instance writes to and reads from a Kafka-compatible system for trace ingestion and retrieval.
 
 Monolithic mode handles modest volumes of trace data without issues given a modest amount of resource.
 
@@ -58,9 +62,9 @@ Each instance of a component is a single process, therefore dedicating themselve
 
 This allows for:
 
-- A more resilient deployment that includes data replication factors. Components can be run over multiple nodes, such as in a Kubernetes cluster, ensuring that catastrophic failure of one node does not have a failure impact for the system as a whole. For example, by default, three independent ingesters are all sent the same span data by a distributor. If two of those ingesters fail, the data is still processed and stored by an ingester.
-- Horizontal scaling up and down of clusters. For example, an organization may see upticks in traffic in certain periods (say, Black Friday), and need to scale up the amount of trace data being ingested for a week. Microservices mode allows them to temporarily scale up the number of ingesters, queriers, etc. that they may need with no adverse impact on the overall system which may not be as simple with Monolithic mode.
-- However, there is an increased TCO and maintenance cost that goes along with Microservices mode. Whilst it is more flexible, it requires more attention to run proficiently. Microservices mode is the default deployment for Tempo and Grafana Enterprise Traces (GET) via the tempo-distributed Helm Chart.
+- A more resilient deployment with high availability. Components can be run over multiple nodes, such as in a Kubernetes cluster, ensuring that catastrophic failure of one node does not have a failure impact for the system as a whole. Durability is provided by Kafka, which serves as the write-ahead log. Live-stores can be deployed across multiple availability zones for query availability.
+- Horizontal scaling up and down of clusters. For example, an organization may see upticks in traffic in certain periods (say, Black Friday), and need to scale up the amount of trace data being ingested for a week. Microservices mode allows them to temporarily scale up the number of block-builders, live-stores, queriers, etc. that they may need with no adverse impact on the overall system.
+- However, microservices mode has an increased TCO and maintenance cost compared to monolithic mode. While it is more flexible and scalable, it requires more attention to run proficiently. Microservices mode is the default deployment for Tempo and Grafana Enterprise Traces (GET) via the tempo-distributed Helm Chart.
 
 The configuration associated with each component's deployment specifies a
 `target`. For example, to deploy a `querier`, the configuration would contain
