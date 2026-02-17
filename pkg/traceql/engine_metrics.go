@@ -1486,8 +1486,17 @@ func NewSimpleCombiner(req *tempopb.QueryRangeRequest, op SimpleAggregationOp, e
 		initWithNaN = true
 	default:
 		// Simple addition aggregator. It adds existing values with the new sample.
-		f = func(existingValue float64, newValue float64) float64 { return existingValue + newValue }
-		initWithNaN = false
+		// NaN is used to represent "no data" and should be preserved if no actual data comes in.
+		f = func(existingValue float64, newValue float64) float64 {
+			if math.IsNaN(newValue) {
+				return existingValue // Skip NaN values during aggregation
+			}
+			if math.IsNaN(existingValue) {
+				return newValue // Replace initial NaN with actual data
+			}
+			return existingValue + newValue
+		}
+		initWithNaN = true
 
 	}
 	return &SimpleAggregator{
@@ -1770,7 +1779,7 @@ func (h *HistogramAggregator) Combine(in []*tempopb.TimeSeries) {
 		b := bucket.Float()
 
 		for _, sample := range ts.Samples {
-			if sample.Value == 0 {
+			if sample.Value == 0 || math.IsNaN(sample.Value) {
 				continue
 			}
 			j := h.intervalMapper.IntervalMs(sample.TimestampMs)
