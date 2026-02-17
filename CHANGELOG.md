@@ -1,11 +1,14 @@
-## main / unreleased
+# v2.10.1
+
+* [CHANGE] Upgrade Tempo to Go 1.25.7 [#6449](https://github.com/grafana/tempo/pull/6449) (@zalegrala)
 * [BUGFIX] Correct avg_over_time calculation [#6252](https://github.com/grafana/tempo/pull/6252) (@ruslan-mikhailov)
+* [BUGFIX] Correct instant query calculation for rate() [#6205](https://github.com/grafana/tempo/pull/6205) (@ruslan-mikhailov)
 * [BUGFIX] Fix query-frontend unable to convert dedicated column blob option [#6377](https://github.com/grafana/tempo/pull/6377) (@stoewer)
 * [BUGFIX] Fix issue with additional matched spans in queries with only resource attributes [#6432](https://github.com/grafana/tempo/pull/6432) (@stoewer)
-* [CHANGE] Upgrade Tempo to Go 1.25.7 [#6449](https://github.com/grafana/tempo/pull/6449) (@zalegrala)
-* [BUGFIX] Correct instant query calculation for rate() [#6205](https://github.com/grafana/tempo/pull/6205) (@ruslan-mikhailov)
 * [BUGFIX] Fix live-store deadlock occurring after a complete block failure [#6338](https://github.com/grafana/tempo/pull/6338) (@ruslan-mikhailov)
 * [BUGFIX] Fix query_end_cutoff param for query range [#6360](https://github.com/grafana/tempo/pull/6360) (@ruslan-mikhailov)
+* [BUGFIX] Fix dimension_mappings being unconditionally overwritten by overrides, causing them to be set to nil when set through static config but not in overrides [#6390](https://github.com/grafana/tempo/pull/6390) (@carles-grafana)
+* [BUGFIX] Fix metrics generator panic when write_relabel_configs is set, caused by uninitialized NameValidationScheme after Prometheus dependency upgrade [#6399](https://github.com/grafana/tempo/pull/6399) (@carles-grafana)
 
 # v2.10.0
 
