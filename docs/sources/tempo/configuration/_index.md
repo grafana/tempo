@@ -1910,6 +1910,11 @@ overrides:
       #  in the front-end configuration is used.
       [max_metrics_duration: <duration> | default = 0s]
 
+      # Per-user option to left-pad trace IDs with zeros to 32 hex characters in search API responses.
+      # When enabled, trace IDs like "8efff798038103d269b633813fc703" will be returned as
+      # "008efff798038103d269b633813fc703" to comply with the OpenTelemetry and W3C Trace Context specifications.
+      [left_pad_trace_ids: <bool> | default = false]
+
     # Compaction related overrides
     compaction:
       # Per-user block retention. If this value is set to 0 (default),
