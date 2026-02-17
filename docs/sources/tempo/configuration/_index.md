@@ -2021,7 +2021,7 @@ overrides:
                   - key: <string>
                     value: <any>
             ]
-          ]
+          ]]
         # Configuration for the span-metrics processor
         span_metrics:
           [histogram_buckets: <list of float>]
