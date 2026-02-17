@@ -753,7 +753,7 @@ func metadataMockedHandler(t *testing.T) http.HandlerFunc {
 			type xmlCreds struct {
 				AccessKey    string    `xml:"AccessKeyId" json:"accessKey,omitempty"`
 				SecretKey    string    `xml:"SecretAccessKey" json:"secretKey,omitempty"`
-				Expiration   time.Time `xml:"Expiration" json:"expiration"`
+				Expiration   time.Time `xml:"Expiration" json:"expiration,omitempty"`
 				SessionToken string    `xml:"SessionToken" json:"sessionToken,omitempty"`
 			}
 
