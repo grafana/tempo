@@ -17,13 +17,14 @@ import (
 	"github.com/grafana/tempo/modules/frontend/pipeline"
 	"google.golang.org/grpc/codes"
 
+	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/pkg/api"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/traceql"
 )
 
 // newSearchStreamingGRPCHandler returns a handler that streams results from the HTTP handler
-func newSearchStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.PipelineResponse], apiPrefix string, logger log.Logger, dataAccessController DataAccessController) streamingSearchHandler {
+func newSearchStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.PipelineResponse], apiPrefix string, o overrides.Interface, logger log.Logger, dataAccessController DataAccessController) streamingSearchHandler {
 	postSLOHook := searchSLOPostHook(cfg.Search.SLO)
 	downstreamPath := path.Join(apiPrefix, api.PathSearch)
 
@@ -54,7 +55,7 @@ func newSearchStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripper[c
 		tenant, _ := user.ExtractOrgID(ctx)
 		start := time.Now()
 
-		comb, err := newCombiner(req, cfg.Search.Sharder, api.MarshallingFormatProtobuf)
+		comb, err := newCombiner(req, cfg.Search.Sharder, api.MarshallingFormatProtobuf, o.LeftPadTraceIDs(tenant))
 		if err != nil {
 			level.Error(logger).Log("msg", "search streaming: could not create combiner", "err", err)
 			return status.Error(codes.InvalidArgument, err.Error())
@@ -82,7 +83,7 @@ func newSearchStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripper[c
 }
 
 // newSearchHTTPHandler returns a handler that returns a single response from the HTTP handler
-func newSearchHTTPHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.PipelineResponse], logger log.Logger, dataAccessController DataAccessController) http.RoundTripper {
+func newSearchHTTPHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.PipelineResponse], o overrides.Interface, logger log.Logger, dataAccessController DataAccessController) http.RoundTripper {
 	postSLOHook := searchSLOPostHook(cfg.Search.SLO)
 
 	return RoundTripperFunc(func(req *http.Request) (*http.Response, error) {
@@ -109,7 +110,7 @@ func newSearchHTTPHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.P
 		// check marshalling format
 		marshallingFormat := api.MarshalingFormatFromAcceptHeader(req.Header)
 
-		comb, err := newCombiner(searchReq, cfg.Search.Sharder, marshallingFormat)
+		comb, err := newCombiner(searchReq, cfg.Search.Sharder, marshallingFormat, o.LeftPadTraceIDs(tenant))
 		if err != nil {
 			level.Error(logger).Log("msg", "search: could not create combiner", "err", err)
 			return httpInvalidRequest(err), nil
@@ -136,7 +137,7 @@ func newSearchHTTPHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.P
 	})
 }
 
-func newCombiner(req *tempopb.SearchRequest, cfg SearchSharderConfig, marshalingFormat api.MarshallingFormat) (combiner.GRPCCombiner[*tempopb.SearchResponse], error) {
+func newCombiner(req *tempopb.SearchRequest, cfg SearchSharderConfig, marshalingFormat api.MarshallingFormat, padTraceIDs bool) (combiner.GRPCCombiner[*tempopb.SearchResponse], error) {
 	limit, err := adjustLimit(req.Limit, cfg.DefaultLimit, cfg.MaxLimit)
 	if err != nil {
 		return nil, err
@@ -155,7 +156,7 @@ func newCombiner(req *tempopb.SearchRequest, cfg SearchSharderConfig, marshaling
 		}
 	}
 
-	return combiner.NewTypedSearch(int(limit), mostRecent, marshalingFormat), nil
+	return combiner.NewTypedSearch(int(limit), mostRecent, marshalingFormat, padTraceIDs), nil
 }
 
 // adjusts the limit based on provided config
