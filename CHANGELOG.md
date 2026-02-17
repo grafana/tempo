@@ -26,13 +26,6 @@
 * [ENHANCEMENT] Add `fail_on_high_lag` parameter to allow live-store to fail if it is lagged [#6363](https://github.com/grafana/tempo/pull/6363) (@ruslan-mikhailov)
 * [BUGFIX] Force live-store to rehydrate from Kafka lookback period when local data is missing (e.g. PVC wipe, new node) instead of resuming from the committed consumer group offset [#6428](https://github.com/grafana/tempo/pull/6428) (@oleg-kozlyuk-grafana)
 * [ENHANCEMENT] Add new metric for generator ring size: `tempo_distributor_metrics_generator_tenant_ring_size` [#5686](https://github.com/grafana/tempo/pull/5686) (@zalegrala)
-* [BUGFIX] Fix query-frontend unable to convert dedicated column blob option [#6377](https://github.com/grafana/tempo/pull/6377) (@stoewer)
-* [BUGFIX] Correct avg_over_time calculation [#6252](https://github.com/grafana/tempo/pull/6252) (@ruslan-mikhailov)
-* [BUGFIX] Correct instant query calculation for rate() [#6205](https://github.com/grafana/tempo/pull/6205) (@ruslan-mikhailov)
-* [BUGFIX] Fix live-store deadlock occurring after a complete block failure [#6338](https://github.com/grafana/tempo/pull/6338) (@ruslan-mikhailov)
-* [BUGFIX] Fix query_end_cutoff param for query range [#6360](https://github.com/grafana/tempo/pull/6360) (@ruslan-mikhailov)
-* [BUGFIX] generator: fix dimension_mappings and target_info_excluded_dimensions being unconditionally overwritten even when overrides were nil [#6390](https://github.com/grafana/tempo/pull/6390) (@carles-grafana)
-* [BUGFIX] generator: fix panic when `write_relabel_configs` is configured on remote write endpoints [#6396](https://github.com/grafana/tempo/pull/6396) (@carles-grafana)
 * [BUGFIX] fix: reload span_name_sanitization overrides during runtime [#6435](https://github.com/grafana/tempo/pull/6435) (@electron0zero)
 
 ### 3.0 Cleanup
@@ -42,6 +35,18 @@
   This includes the removal of the following CLI commands which were `v2` specific: `list block`, `list index`, `view index`, `gen index`, `gen bloom`.
 * [CHANGE] **BREAKING CHANGE** Sets the `all` target to be 3.0 compatible and removes the `scalable-single-binary` target [#6283](https://github.com/grafana/tempo/pull/6283) (@joe-elliott)
 * [CHANGE] Expose otlp http and grpc ports for Docker examples [#6296](https://github.com/grafana/tempo/pull/6296) (@javiermolinar)
+
+# v2.10.1
+
+* [CHANGE] Upgrade Tempo to Go 1.25.7 [#6449](https://github.com/grafana/tempo/pull/6449) (@zalegrala)
+* [BUGFIX] Fix query-frontend unable to convert dedicated column blob option [#6377](https://github.com/grafana/tempo/pull/6377) (@stoewer)
+* [BUGFIX] Correct avg_over_time calculation [#6252](https://github.com/grafana/tempo/pull/6252) (@ruslan-mikhailov)
+* [BUGFIX] Correct instant query calculation for rate() [#6205](https://github.com/grafana/tempo/pull/6205) (@ruslan-mikhailov)
+* [BUGFIX] Fix issue with additional matched spans in queries with only resource attributes [#6432](https://github.com/grafana/tempo/pull/6432) (@stoewer)
+* [BUGFIX] Fix live-store deadlock occurring after a complete block failure [#6338](https://github.com/grafana/tempo/pull/6338) (@ruslan-mikhailov)
+* [BUGFIX] Fix query_end_cutoff param for query range [#6360](https://github.com/grafana/tempo/pull/6360) (@ruslan-mikhailov)
+* [BUGFIX] generator: fix dimension_mappings and target_info_excluded_dimensions being unconditionally overwritten even when overrides were nil [#6390](https://github.com/grafana/tempo/pull/6390) (@carles-grafana)
+* [BUGFIX] generator: fix panic when `write_relabel_configs` is configured on remote write endpoints [#6396](https://github.com/grafana/tempo/pull/6396) (@carles-grafana)
 
 # v2.10.0
 
