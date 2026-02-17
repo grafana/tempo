@@ -968,7 +968,6 @@ func TestPollNotification(t *testing.T) {
 
 	wg := &sync.WaitGroup{}
 	for range 10 {
-
 		wg.Go(func() {
 			<-r.PollNotification(ctx)
 			require.Greater(t, time.Since(start), sleepTime, "PollNotification should not return before the first PollNow call")

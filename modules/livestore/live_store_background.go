@@ -61,7 +61,6 @@ func (s *LiveStore) stopAllBackgroundProcesses() {
 
 func (s *LiveStore) runInBackground(fn func()) {
 	s.wg.Go(func() {
-
 		select {
 		case <-s.startupComplete:
 		case <-s.ctx.Done():

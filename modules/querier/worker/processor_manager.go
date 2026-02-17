@@ -69,7 +69,6 @@ func (pm *processorManager) concurrency(n int) {
 		pm.cancels = append(pm.cancels, cancel)
 
 		pm.wg.Go(func() {
-
 			pm.currentProcessors.Inc()
 			defer pm.currentProcessors.Dec()
 

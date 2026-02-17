@@ -271,7 +271,6 @@ func TestOverloadingASmallPool(t *testing.T) {
 			}
 			payloads := []any{1, 2}
 			_, _, _ = p.RunJobs(context.Background(), payloads, fn)
-
 		})
 	}
 

@@ -132,7 +132,6 @@ func TestProcessorDoesNotRace(t *testing.T) {
 
 	concurrent := func(f func()) {
 		wg.Go(func() {
-
 			for {
 				select {
 				case <-end:

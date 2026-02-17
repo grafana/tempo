@@ -136,7 +136,6 @@ func TestGenericCombinerHoldsErrors(t *testing.T) {
 
 	for range 10 {
 		wg.Go(func() {
-
 			for range 10000 {
 				err := combiner.AddResponse(newTestResponse(t))
 				require.NoError(t, err)

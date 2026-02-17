@@ -165,7 +165,6 @@ func TestAsyncResponseFansIn(t *testing.T) {
 
 	actual := 0
 	wg.Go(func() {
-
 		for {
 			resp, done, err := rootResp.Next(context.Background())
 			if done {
