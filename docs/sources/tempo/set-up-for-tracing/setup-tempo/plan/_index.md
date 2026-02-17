@@ -10,7 +10,7 @@ weight: 200
 
 Before you deploy Tempo, you should consider how you plan to use traces and Tempo as well as any special requirements for Tempo 3.0. 
 
-## Prerequisites
+## Considerations for Tempo 3.0
 
 Before planning your Tempo deployment, be aware that Tempo v3.0 requires:
 
