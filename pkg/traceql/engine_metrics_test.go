@@ -8,6 +8,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/grafana/tempo/pkg/tempopb"
 	commonv1proto "github.com/grafana/tempo/pkg/tempopb/common/v1"
 	"github.com/stretchr/testify/assert"
@@ -1381,14 +1383,14 @@ func TestMinOverTimeForSpanAttribute(t *testing.T) {
 
 	// Test that NaN values are not included in the samples after casting to proto
 	ts := result.ToProto(req)
-	fooBarSamples := []tempopb.Sample{{TimestampMs: 1000, Value: 100}, {TimestampMs: 2000, Value: 200}}
-	fooBazSamples := []tempopb.Sample{{TimestampMs: 1000, Value: 204}, {TimestampMs: 3000, Value: 200}}
+	fooBarSamples := []tempopb.Sample{{TimestampMs: 1000, Value: 100}, {TimestampMs: 2000, Value: 200}, {TimestampMs: 3000, Value: math.NaN()}}
+	fooBazSamples := []tempopb.Sample{{TimestampMs: 1000, Value: 204}, {TimestampMs: 2000, Value: math.NaN()}, {TimestampMs: 3000, Value: 200}}
 
 	for _, s := range ts {
 		if LabelsFromProto(s.Labels).String() == "{\"span.foo\"=\"bar\"}" {
-			assert.Equal(t, fooBarSamples, s.Samples)
+			assert.True(t, cmp.Equal(fooBarSamples, s.Samples, cmpopts.EquateNaNs()), "expected %v, got %v", fooBarSamples, s.Samples)
 		} else {
-			assert.Equal(t, fooBazSamples, s.Samples)
+			assert.True(t, cmp.Equal(fooBazSamples, s.Samples, cmpopts.EquateNaNs()), "expected %v, got %v", fooBazSamples, s.Samples)
 		}
 	}
 }
@@ -1606,14 +1608,14 @@ func TestAvgOverTimeForSpanAttribute(t *testing.T) {
 
 	// Test that NaN values are not included in the samples after casting to proto
 	ts := result.ToProto(req)
-	fooBarSamples := []tempopb.Sample{{TimestampMs: 1000, Value: 234}, {TimestampMs: 2000, Value: 200}}
-	fooBazSamples := []tempopb.Sample{{TimestampMs: 3000, Value: 250}}
+	fooBarSamples := []tempopb.Sample{{TimestampMs: 1000, Value: 234}, {TimestampMs: 2000, Value: 200}, {TimestampMs: 3000, Value: math.NaN()}}
+	fooBazSamples := []tempopb.Sample{{TimestampMs: 1000, Value: math.NaN()}, {TimestampMs: 2000, Value: math.NaN()}, {TimestampMs: 3000, Value: 250}}
 
 	for _, s := range ts {
 		if LabelsFromProto(s.Labels).String() == "{\"span.foo\"=\"bar\"}" {
-			assert.Equal(t, fooBarSamples, s.Samples)
+			assert.True(t, cmp.Equal(fooBarSamples, s.Samples, cmpopts.EquateNaNs()), "expected %v, got %v", fooBarSamples, s.Samples)
 		} else {
-			assert.Equal(t, fooBazSamples, s.Samples)
+			assert.True(t, cmp.Equal(fooBazSamples, s.Samples, cmpopts.EquateNaNs()), "expected %v, got %v", fooBazSamples, s.Samples)
 		}
 	}
 }
@@ -1935,14 +1937,14 @@ func TestMaxOverTimeForSpanAttribute(t *testing.T) {
 
 	// Test that NaN values are not included in the samples after casting to proto
 	ts := result.ToProto(req)
-	fooBarSamples := []tempopb.Sample{{TimestampMs: 1000, Value: 404}, {TimestampMs: 2000, Value: 403}}
-	fooBazSamples := []tempopb.Sample{{TimestampMs: 1000, Value: 204}, {TimestampMs: 3000, Value: 500}}
+	fooBarSamples := []tempopb.Sample{{TimestampMs: 1000, Value: 404}, {TimestampMs: 2000, Value: 403}, {TimestampMs: 3000, Value: math.NaN()}}
+	fooBazSamples := []tempopb.Sample{{TimestampMs: 1000, Value: 204}, {TimestampMs: 2000, Value: math.NaN()}, {TimestampMs: 3000, Value: 500}}
 
 	for _, s := range ts {
 		if LabelsFromProto(s.Labels).String() == "{\"span.foo\"=\"bar\"}" {
-			assert.Equal(t, fooBarSamples, s.Samples)
+			assert.True(t, cmp.Equal(fooBarSamples, s.Samples, cmpopts.EquateNaNs()), "expected %v, got %v", fooBarSamples, s.Samples)
 		} else {
-			assert.Equal(t, fooBazSamples, s.Samples)
+			assert.True(t, cmp.Equal(fooBazSamples, s.Samples, cmpopts.EquateNaNs()), "expected %v, got %v", fooBazSamples, s.Samples)
 		}
 	}
 }
@@ -2051,14 +2053,14 @@ func TestSumOverTimeForSpanAttribute(t *testing.T) {
 
 	// Test that NaN values are not included in the samples after casting to proto
 	ts := result.ToProto(req)
-	fooBarSamples := []tempopb.Sample{{TimestampMs: 1000, Value: 1200}, {TimestampMs: 2000, Value: 2400}}
-	fooBazSamples := []tempopb.Sample{{TimestampMs: 1000, Value: 200}, {TimestampMs: 3000, Value: 1700}}
+	fooBarSamples := []tempopb.Sample{{TimestampMs: 1000, Value: 1200}, {TimestampMs: 2000, Value: 2400}, {TimestampMs: 3000, Value: math.NaN()}}
+	fooBazSamples := []tempopb.Sample{{TimestampMs: 1000, Value: 200}, {TimestampMs: 2000, Value: math.NaN()}, {TimestampMs: 3000, Value: 1700}}
 
 	for _, s := range ts {
 		if LabelsFromProto(s.Labels).String() == "{\"span.foo\"=\"bar\"}" {
-			assert.Equal(t, fooBarSamples, s.Samples)
+			assert.True(t, cmp.Equal(fooBarSamples, s.Samples, cmpopts.EquateNaNs()), "expected %v, got %v", fooBarSamples, s.Samples)
 		} else {
-			assert.Equal(t, fooBazSamples, s.Samples)
+			assert.True(t, cmp.Equal(fooBazSamples, s.Samples, cmpopts.EquateNaNs()), "expected %v, got %v", fooBazSamples, s.Samples)
 		}
 	}
 }
@@ -3613,4 +3615,61 @@ func TestLog2QuantileWithBucket(t *testing.T) {
 				"Log2QuantileWithBucket should return same value as Log2Quantile")
 		})
 	}
+}
+
+func TestSeriesToProtoWithNaN(t *testing.T) {
+	// Test that NaN values are included in the output
+	start := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
+	step := 10 * time.Second
+	req := &tempopb.QueryRangeRequest{
+		Start: uint64(start.UnixNano()),
+		End:   uint64(start.Add(30 * time.Second).UnixNano()),
+		Step:  uint64(step.Nanoseconds()),
+	}
+
+	// Create a series with some NaN values
+	seriesSet := SeriesSet{
+		{}: TimeSeries{
+			Labels: Labels{
+				{Name: "service", Value: NewStaticString("test")},
+			},
+			Values: []float64{1.0, math.NaN(), 3.0},
+		},
+	}
+
+	result := seriesSet.ToProto(req)
+
+	require.Len(t, result, 1, "Should have 1 series")
+	require.Len(t, result[0].Samples, 3, "Should have 3 samples including NaN")
+
+	// Verify values
+	require.Equal(t, 1.0, result[0].Samples[0].Value)
+	require.True(t, math.IsNaN(result[0].Samples[1].Value), "Second sample should be NaN")
+	require.Equal(t, 3.0, result[0].Samples[2].Value)
+}
+
+func TestSeriesToProtoAllNaN(t *testing.T) {
+	// Test that a series with all NaN values is excluded from output
+	// (series with only NaN values represent "no data" and should not be included)
+	start := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
+	step := 10 * time.Second
+	req := &tempopb.QueryRangeRequest{
+		Start: uint64(start.UnixNano()),
+		End:   uint64(start.Add(30 * time.Second).UnixNano()),
+		Step:  uint64(step.Nanoseconds()),
+	}
+
+	// Create a series with all NaN values
+	seriesSet := SeriesSet{
+		{}: TimeSeries{
+			Labels: Labels{
+				{Name: "service", Value: NewStaticString("test")},
+			},
+			Values: []float64{math.NaN(), math.NaN(), math.NaN()},
+		},
+	}
+
+	result := seriesSet.ToProto(req)
+
+	require.Len(t, result, 0, "Should have 0 series because all values are NaN")
 }
