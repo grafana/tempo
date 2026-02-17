@@ -188,6 +188,11 @@ func (p *Processor) consume(resourceSpans []*v1_trace.ResourceSpans) (err error)
 
 		for _, ils := range rs.ScopeSpans {
 			for _, span := range ils.Spans {
+				// Non-edge spans are ignored by this processor, so skip filter evaluation too.
+				if !isClient(span.Kind) && !isServer(span.Kind) {
+					continue
+				}
+
 				if !p.filter.ApplyFilterPolicy(rs.Resource, span) {
 					p.addDroppedSpanSide(span)
 					p.filteredSpansCounter.Inc()
@@ -233,9 +238,6 @@ func (p *Processor) consume(resourceSpans []*v1_trace.ResourceSpans) (err error)
 						e.SpanMultiplier = spanMultiplier
 						p.upsertPeerNode(e, span.Attributes)
 					})
-				default:
-					// this span is not part of an edge
-					continue
 				}
 
 				switch {
