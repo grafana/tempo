@@ -1943,7 +1943,7 @@ func runCompleteBlockSearchTest(t *testing.T, blockVersion string, runners ...ru
 
 	totalTraces := 50
 	wantTrIdx := rand.Intn(totalTraces)
-	for i := 0; i < totalTraces; i++ {
+	for i := range totalTraces {
 		var tr *tempopb.Trace
 		var id []byte
 		if i == wantTrIdx {
@@ -2045,7 +2045,7 @@ func runEventLinkInstrumentationSearchTest(t *testing.T, blockVersion string) {
 
 	totalTraces := 50
 	wantTrIdx := rand.Intn(totalTraces)
-	for i := 0; i < totalTraces; i++ {
+	for i := range totalTraces {
 		var tr *tempopb.Trace
 		var id []byte
 		if i == wantTrIdx {
@@ -2709,7 +2709,7 @@ func TestSearchByShortTraceID(t *testing.T) {
 
 		totalTraces := 50
 		wantTrIdx := rand.Intn(totalTraces) // nolint:gosec // G404: Use of weak random number generator
-		for i := 0; i < totalTraces; i++ {
+		for i := range totalTraces {
 			var tr *tempopb.Trace
 			var id []byte
 			if i == wantTrIdx {

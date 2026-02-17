@@ -2,6 +2,7 @@ package registry
 
 import (
 	"context"
+	"maps"
 	"os"
 	"sync"
 	"time"
@@ -116,9 +117,7 @@ func New(cfg *Config, overrides Overrides, tenant string, appendable storage.App
 	instanceCtx, cancel := context.WithCancel(context.Background())
 
 	externalLabels := make(map[string]string)
-	for k, v := range cfg.ExternalLabels {
-		externalLabels[k] = v
-	}
+	maps.Copy(externalLabels, cfg.ExternalLabels)
 	hostname, _ := os.Hostname()
 	externalLabels["__metrics_gen_instance"] = hostname
 

@@ -254,11 +254,8 @@ func TestCombineResults(t *testing.T) {
 			// confirm that the SpanSet on tc.existing is contained in the slice of SpanSets
 			// then nil out. the actual spanset chosen is based on map iteration order
 			found := len(tc.existing.SpanSets) == 0
-			for _, ss := range tc.existing.SpanSets {
-				if ss == tc.existing.SpanSet {
-					found = true
-					break
-				}
+			if slices.Contains(tc.existing.SpanSets, tc.existing.SpanSet) {
+				found = true
 			}
 			require.True(t, found)
 			tc.expected.SpanSet = nil
@@ -276,7 +273,7 @@ func TestCombinerKeepsMostRecent(t *testing.T) {
 
 	// make traces
 	traces := make([]*Spanset, totalTraces)
-	for i := 0; i < totalTraces; i++ {
+	for i := range totalTraces {
 		traceID, err := util.HexStringToTraceID(fmt.Sprintf("%d", i))
 		require.NoError(t, err)
 
@@ -298,7 +295,7 @@ func TestCombinerKeepsMostRecent(t *testing.T) {
 	})
 
 	// add to combiner
-	for i := 0; i < totalTraces; i++ {
+	for i := range totalTraces {
 		combiner.addSpanset(traces[i])
 	}
 

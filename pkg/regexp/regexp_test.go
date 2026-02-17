@@ -1,6 +1,7 @@
 package regexp
 
 import (
+	"slices"
 	"testing"
 	"unsafe"
 
@@ -118,13 +119,7 @@ func TestCheatToSeeInternalsSafety(t *testing.T) {
 
 		expectedOptions := []string{"option1", "option2", "option3"}
 		for _, expected := range expectedOptions {
-			found := false
-			for _, actual := range cheat.setMatches {
-				if actual == expected {
-					found = true
-					break
-				}
-			}
+			found := slices.Contains(cheat.setMatches, expected)
 			if !found {
 				t.Logf("expected option %q not found in setMatches %v", expected, cheat.setMatches)
 			}

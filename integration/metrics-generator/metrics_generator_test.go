@@ -50,7 +50,7 @@ func TestMetricsGeneratorRemoteWrite(t *testing.T) {
 					OperationName: "lb-get",
 					StartTime:     time.Now().UnixMicro(),
 					Duration:      int64(2 * time.Second / time.Microsecond),
-					Tags:          []*thrift.Tag{{Key: "span.kind", VStr: stringPtr("client")}},
+					Tags:          []*thrift.Tag{{Key: "span.kind", VStr: new("client")}},
 				},
 			},
 		}, ""))
@@ -66,7 +66,7 @@ func TestMetricsGeneratorRemoteWrite(t *testing.T) {
 					OperationName: "app-handle",
 					StartTime:     time.Now().UnixMicro(),
 					Duration:      int64(1 * time.Second / time.Microsecond),
-					Tags:          []*thrift.Tag{{Key: "span.kind", VStr: stringPtr("server")}},
+					Tags:          []*thrift.Tag{{Key: "span.kind", VStr: new("server")}},
 				},
 			},
 		}, ""))
@@ -83,7 +83,7 @@ func TestMetricsGeneratorRemoteWrite(t *testing.T) {
 					OperationName: "app-handle",
 					StartTime:     time.Now().Add(-5 * time.Minute).UnixMicro(),
 					Duration:      int64(1 * time.Second / time.Microsecond),
-					Tags:          []*thrift.Tag{{Key: "span.kind", VStr: stringPtr("server")}},
+					Tags:          []*thrift.Tag{{Key: "span.kind", VStr: new("server")}},
 				},
 			},
 		}, ""))
@@ -100,7 +100,7 @@ func TestMetricsGeneratorRemoteWrite(t *testing.T) {
 					OperationName: "app-handle",
 					StartTime:     time.Now().Add(10 * 24 * time.Hour).UnixMicro(),
 					Duration:      int64(1 * time.Second / time.Microsecond),
-					Tags:          []*thrift.Tag{{Key: "span.kind", VStr: stringPtr("server")}},
+					Tags:          []*thrift.Tag{{Key: "span.kind", VStr: new("server")}},
 				},
 			},
 		}, ""))
@@ -117,7 +117,7 @@ func TestMetricsGeneratorRemoteWrite(t *testing.T) {
 					OperationName: "\xff\xff",
 					StartTime:     time.Now().UnixMicro(),
 					Duration:      int64(2 * time.Second / time.Microsecond),
-					Tags:          []*thrift.Tag{{Key: "span.kind", VStr: stringPtr("server")}},
+					Tags:          []*thrift.Tag{{Key: "span.kind", VStr: new("server")}},
 				},
 			},
 		}, ""))
@@ -209,7 +209,7 @@ func TestMetricsGeneratorTargetInfoEnabled(t *testing.T) {
 		require.NoError(t, h.WriteJaegerBatch(&thrift.Batch{
 			Process: &thrift.Process{
 				ServiceName: "lb",
-				Tags:        []*thrift.Tag{{Key: "target_info", VStr: stringPtr("lb")}},
+				Tags:        []*thrift.Tag{{Key: "target_info", VStr: new("lb")}},
 			},
 			Spans: []*thrift.Span{
 				{
@@ -220,7 +220,7 @@ func TestMetricsGeneratorTargetInfoEnabled(t *testing.T) {
 					OperationName: "lb-get",
 					StartTime:     time.Now().UnixMicro(),
 					Duration:      int64(2 * time.Second / time.Microsecond),
-					Tags:          []*thrift.Tag{{Key: "span.kind", VStr: stringPtr("client")}},
+					Tags:          []*thrift.Tag{{Key: "span.kind", VStr: new("client")}},
 				},
 			},
 		}, ""))
@@ -228,7 +228,7 @@ func TestMetricsGeneratorTargetInfoEnabled(t *testing.T) {
 		require.NoError(t, h.WriteJaegerBatch(&thrift.Batch{
 			Process: &thrift.Process{
 				ServiceName: "app",
-				Tags:        []*thrift.Tag{{Key: "target_info", VStr: stringPtr("app")}},
+				Tags:        []*thrift.Tag{{Key: "target_info", VStr: new("app")}},
 			},
 			Spans: []*thrift.Span{
 				{
@@ -239,7 +239,7 @@ func TestMetricsGeneratorTargetInfoEnabled(t *testing.T) {
 					OperationName: "app-handle",
 					StartTime:     time.Now().UnixMicro(),
 					Duration:      int64(1 * time.Second / time.Microsecond),
-					Tags:          []*thrift.Tag{{Key: "span.kind", VStr: stringPtr("server")}},
+					Tags:          []*thrift.Tag{{Key: "span.kind", VStr: new("server")}},
 				},
 			},
 		}, ""))
@@ -309,8 +309,8 @@ func TestMetricsGeneratorMessagingSystemLatencyHistogramEnabled(t *testing.T) {
 					StartTime:     producerStart.UnixMicro(),
 					Duration:      int64(producerDuration / time.Microsecond),
 					Tags: []*thrift.Tag{
-						{Key: "span.kind", VStr: stringPtr("producer")},
-						{Key: "messaging.system", VStr: stringPtr("kafka")},
+						{Key: "span.kind", VStr: new("producer")},
+						{Key: "messaging.system", VStr: new("kafka")},
 					},
 				},
 			},
@@ -329,8 +329,8 @@ func TestMetricsGeneratorMessagingSystemLatencyHistogramEnabled(t *testing.T) {
 					StartTime:     consumerStart.UnixMicro(),
 					Duration:      int64(consumerDuration / time.Microsecond),
 					Tags: []*thrift.Tag{
-						{Key: "span.kind", VStr: stringPtr("consumer")},
-						{Key: "messaging.system", VStr: stringPtr("kafka")},
+						{Key: "span.kind", VStr: new("consumer")},
+						{Key: "messaging.system", VStr: new("kafka")},
 					},
 				},
 			},
@@ -412,6 +412,7 @@ outer:
 	return sum
 }
 
+//go:fix inline
 func stringPtr(s string) *string {
-	return &s
+	return new(s)
 }

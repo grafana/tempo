@@ -52,7 +52,7 @@ func (r *RandomBatcher) GenerateBatch(spanCount int64) *v1_trace.ResourceSpans {
 		},
 	}
 
-	for i := int64(0); i < spanCount; i++ {
+	for range spanCount {
 		s := <-r.spanReceiverChan
 		batch.ScopeSpans = append(batch.ScopeSpans, &v1_trace.ScopeSpans{
 			Scope: &v1_common.InstrumentationScope{

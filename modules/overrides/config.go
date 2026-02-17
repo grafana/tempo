@@ -120,10 +120,10 @@ type HostInfoOverrides struct {
 }
 
 type ProcessorOverrides struct {
-	ServiceGraphs ServiceGraphsOverrides `yaml:"service_graphs,omitempty" json:"service_graphs,omitempty"`
-	SpanMetrics   SpanMetricsOverrides   `yaml:"span_metrics,omitempty" json:"span_metrics,omitempty"`
-	LocalBlocks   LocalBlocksOverrides   `yaml:"local_blocks,omitempty" json:"local_blocks,omitempty"`
-	HostInfo      HostInfoOverrides      `yaml:"host_info,omitempty" json:"host_info,omitempty"`
+	ServiceGraphs ServiceGraphsOverrides `yaml:"service_graphs,omitempty" json:"service_graphs"`
+	SpanMetrics   SpanMetricsOverrides   `yaml:"span_metrics,omitempty" json:"span_metrics"`
+	LocalBlocks   LocalBlocksOverrides   `yaml:"local_blocks,omitempty" json:"local_blocks"`
+	HostInfo      HostInfoOverrides      `yaml:"host_info,omitempty" json:"host_info"`
 }
 
 type RemoteWriteHeaders map[string]config.Secret
@@ -152,8 +152,8 @@ type MetricsGeneratorOverrides struct {
 
 	RemoteWriteHeaders RemoteWriteHeaders `yaml:"remote_write_headers,omitempty" json:"remote_write_headers,omitempty"`
 
-	Forwarder      ForwarderOverrides `yaml:"forwarder,omitempty" json:"forwarder,omitempty"`
-	Processor      ProcessorOverrides `yaml:"processor,omitempty" json:"processor,omitempty"`
+	Forwarder      ForwarderOverrides `yaml:"forwarder,omitempty" json:"forwarder"`
+	Processor      ProcessorOverrides `yaml:"processor,omitempty" json:"processor"`
 	IngestionSlack time.Duration      `yaml:"ingestion_time_range_slack" json:"ingestion_time_range_slack,omitempty"`
 
 	NativeHistogramBucketFactor     float64       `yaml:"native_histogram_bucket_factor,omitempty" json:"native_histogram_bucket_factor,omitempty"`
@@ -200,24 +200,24 @@ type CostAttributionOverrides struct {
 
 type Overrides struct {
 	// Ingestion enforced overrides.
-	Ingestion IngestionOverrides `yaml:"ingestion,omitempty" json:"ingestion,omitempty"`
+	Ingestion IngestionOverrides `yaml:"ingestion,omitempty" json:"ingestion"`
 	// Read enforced overrides.
-	Read ReadOverrides `yaml:"read,omitempty" json:"read,omitempty"`
+	Read ReadOverrides `yaml:"read,omitempty" json:"read"`
 	// Compaction enforced overrides.
-	Compaction CompactionOverrides `yaml:"compaction,omitempty" json:"compaction,omitempty"`
+	Compaction CompactionOverrides `yaml:"compaction,omitempty" json:"compaction"`
 	// MetricsGenerator enforced overrides.
-	MetricsGenerator MetricsGeneratorOverrides `yaml:"metrics_generator,omitempty" json:"metrics_generator,omitempty"`
+	MetricsGenerator MetricsGeneratorOverrides `yaml:"metrics_generator,omitempty" json:"metrics_generator"`
 	// Forwarders
 	Forwarders []string `yaml:"forwarders,omitempty" json:"forwarders,omitempty"`
 	// Global enforced overrides.
-	Global GlobalOverrides `yaml:"global,omitempty" json:"global,omitempty"`
+	Global GlobalOverrides `yaml:"global,omitempty" json:"global"`
 	// Storage enforced overrides.
-	Storage         StorageOverrides         `yaml:"storage,omitempty" json:"storage,omitempty"`
-	CostAttribution CostAttributionOverrides `yaml:"cost_attribution,omitempty" json:"cost_attribution,omitempty"`
+	Storage         StorageOverrides         `yaml:"storage,omitempty" json:"storage"`
+	CostAttribution CostAttributionOverrides `yaml:"cost_attribution,omitempty" json:"cost_attribution"`
 }
 
 type Config struct {
-	Defaults Overrides `yaml:"defaults,omitempty" json:"defaults,omitempty"`
+	Defaults Overrides `yaml:"defaults,omitempty" json:"defaults"`
 
 	// Configuration for overrides module
 	PerTenantOverrideConfig string         `yaml:"per_tenant_override_config" json:"per_tenant_override_config"`
@@ -229,7 +229,7 @@ type Config struct {
 	ExpandEnv  bool       `yaml:"-" json:"-"`
 }
 
-func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
+func (c *Config) UnmarshalYAML(unmarshal func(any) error) error {
 	// Note: this implementation relies on callers using yaml.UnmarshalStrict. In non-strict mode
 	// unmarshal() will not return an error for legacy configuration and we return immediately.
 

@@ -41,7 +41,7 @@ func TestBackendBlockFindTraceByID(t *testing.T) {
 	// Therefore it is important that the test data here has
 	// full-length trace IDs.
 	var traces []*Trace
-	for i := 0; i < 16; i++ {
+	for range 16 {
 		bar := "bar"
 		traces = append(traces, &Trace{
 			TraceID: test.ValidTraceID(nil),

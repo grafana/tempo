@@ -78,10 +78,7 @@ func (r *BufferedReaderAt) populate(buf *readerBuffer) (int, error) {
 
 func calculateBounds(offset, length int64, bufferSize int, readerAtSize int64) (newOffset, newLength int64) {
 	// Increase to minimim read size
-	sz := length
-	if sz < int64(bufferSize) {
-		sz = int64(bufferSize)
-	}
+	sz := max(length, int64(bufferSize))
 
 	// Don't read larger than entire contents
 	if sz > readerAtSize {

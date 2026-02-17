@@ -446,7 +446,7 @@ func handleError(w http.ResponseWriter, err error) {
 func writeFormattedContentForRequest(w http.ResponseWriter, req *http.Request, m proto.Message, span oteltrace.Span) {
 	// Check for both explicit nil and typed nil pointers (e.g., (*tempopb.SearchResponse)(nil))
 	// A typed nil pointer is not equal to nil when passed as an interface, so we need reflection
-	if m == nil || (reflect.ValueOf(m).Kind() == reflect.Ptr && reflect.ValueOf(m).IsNil()) {
+	if m == nil || (reflect.ValueOf(m).Kind() == reflect.Pointer && reflect.ValueOf(m).IsNil()) {
 		http.Error(w, "internal error: nil response", http.StatusInternalServerError)
 		if span != nil {
 			span.RecordError(fmt.Errorf("nil response in writeFormattedContentForRequest"))

@@ -1103,7 +1103,7 @@ func BenchmarkTestsByRequestID(b *testing.B) {
 	}
 	ils := make([][]*v1.ScopeSpans, batches)
 
-	for i := 0; i < batches; i++ {
+	for i := range batches {
 		for _, t := range traces {
 			ils[i] = append(ils[i], t.ResourceSpans[i].ScopeSpans...)
 		}
@@ -2131,7 +2131,7 @@ func setupDependencies(t *testing.T, limits overrides.Config) (Config, ingester_
 
 	// Mock the ingesters ring
 	ingesters := map[string]*mockIngester{}
-	for i := 0; i < numIngesters; i++ {
+	for i := range numIngesters {
 		ingesters[fmt.Sprintf("ingester%d", i)] = &mockIngester{
 			pushBytes:   pushBytesNoOp,
 			pushBytesV2: pushBytesNoOp,

@@ -51,7 +51,7 @@ func TestLiveStoreReadinessWithCatchUp(t *testing.T) {
 		h.WaitTracesWritable(t)
 
 		// Write some traces to create Kafka lag
-		for i := 0; i < 5; i++ {
+		for range 5 {
 			info := tempoUtil.NewTraceInfo(time.Now(), "")
 			require.NoError(t, h.WriteTraceInfo(info, ""))
 		}
@@ -63,7 +63,7 @@ func TestLiveStoreReadinessWithCatchUp(t *testing.T) {
 		require.NoError(t, liveStoreA.Stop())
 
 		// Write more traces during downtime to create lag
-		for i := 0; i < 3; i++ {
+		for range 3 {
 			require.NoError(t, h.WriteTraceInfo(tempoUtil.NewTraceInfo(time.Now(), ""), ""))
 			time.Sleep(100 * time.Millisecond)
 		}
@@ -109,7 +109,7 @@ func TestLiveStoreReadinessMaxWaitTimeout(t *testing.T) {
 		h.WaitTracesWritable(t)
 
 		// Write some traces
-		for i := 0; i < 3; i++ {
+		for range 3 {
 			info := tempoUtil.NewTraceInfo(time.Now(), "")
 			require.NoError(t, h.WriteTraceInfo(info, ""))
 		}
@@ -123,7 +123,7 @@ func TestLiveStoreReadinessMaxWaitTimeout(t *testing.T) {
 		// Write many traces during downtime to create significant lag
 		// With readiness_target_lag=100ms and readiness_max_wait=5s,
 		// the LiveStore should become ready after 5s even if lag is high
-		for i := 0; i < 50; i++ {
+		for range 50 {
 			require.NoError(t, h.WriteTraceInfo(tempoUtil.NewTraceInfo(time.Now(), ""), ""))
 			time.Sleep(200 * time.Millisecond) // Create lag that exceeds target
 		}
@@ -167,7 +167,7 @@ func TestLiveStoreReadinessRestartWithLag(t *testing.T) {
 		h.WaitTracesWritable(t)
 
 		// Write initial traces
-		for i := 0; i < 3; i++ {
+		for range 3 {
 			info := tempoUtil.NewTraceInfo(time.Now(), "")
 			require.NoError(t, h.WriteTraceInfo(info, ""))
 		}
@@ -182,7 +182,7 @@ func TestLiveStoreReadinessRestartWithLag(t *testing.T) {
 		require.NoError(t, liveStoreA.Stop())
 
 		// Write traces during downtime to accumulate lag
-		for i := 0; i < 10; i++ {
+		for range 10 {
 			require.NoError(t, h.WriteTraceInfo(tempoUtil.NewTraceInfo(time.Now(), ""), ""))
 			time.Sleep(100 * time.Millisecond)
 		}

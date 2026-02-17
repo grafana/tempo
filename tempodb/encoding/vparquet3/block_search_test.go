@@ -91,7 +91,7 @@ func TestBackendBlockSearch(t *testing.T) {
 	total := 1000
 	insertAt := rand.Intn(total)
 	allTraces := make([]*Trace, 0, total)
-	for i := 0; i < total; i++ {
+	for i := range total {
 		if i == insertAt {
 			allTraces = append(allTraces, wantTr)
 			continue
@@ -346,13 +346,13 @@ func makeTraces() ([]*Trace, map[string]string, map[string]string, map[string]st
 	spanAttrVals["dedicated.span.4"] = *dedicatedSpanAttrs.String04
 	spanAttrVals["dedicated.span.5"] = *dedicatedSpanAttrs.String05
 
-	for i := 0; i < 10; i++ {
+	for range 10 {
 		tr := &Trace{
 			RootServiceName: "rootsvc",
 			RootSpanName:    "rootspan",
 		}
 
-		for j := 0; j < 3; j++ {
+		for range 3 {
 			key := test.RandomString()
 			val := test.RandomString()
 			resourceAttrVals[key] = val
@@ -382,7 +382,7 @@ func makeTraces() ([]*Trace, map[string]string, map[string]string, map[string]st
 			}
 			tr.ResourceSpans = append(tr.ResourceSpans, rs)
 
-			for k := 0; k < 10; k++ {
+			for range 10 {
 				key := test.RandomString()
 				val := test.RandomString()
 				spanAttrVals[key] = val

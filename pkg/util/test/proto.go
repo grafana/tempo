@@ -4,7 +4,7 @@ import v1 "go.opentelemetry.io/proto/otlp/trace/v1"
 
 func MakeProtoSpans(count int) []*v1.ResourceSpans {
 	spans := make([]*v1.ResourceSpans, 0)
-	for i := 0; i < count; i++ {
+	for range count {
 		spans = append(spans, MakeProtoSpan())
 	}
 	return spans

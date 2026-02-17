@@ -207,12 +207,12 @@ func cutTestBlocks(t testing.TB, w tempodb.Writer, tenantID string, blockCount i
 	dec := model.MustNewSegmentDecoder(model.CurrentEncoding)
 
 	wal := w.WAL()
-	for i := 0; i < blockCount; i++ {
+	for i := range blockCount {
 		meta := &backend.BlockMeta{BlockID: backend.NewUUID(), TenantID: tenantID}
 		head, err := wal.NewBlock(meta, model.CurrentEncoding)
 		require.NoError(t, err)
 
-		for j := 0; j < recordCount; j++ {
+		for j := range recordCount {
 			id := makeTraceID(i, j)
 			tr := test.MakeTrace(1, id)
 			now := uint32(time.Now().Unix())

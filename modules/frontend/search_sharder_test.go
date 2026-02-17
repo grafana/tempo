@@ -1113,7 +1113,7 @@ func TestBackendShards(t *testing.T) {
 
 	// create 4 metas with 2 records each for all the above test cases to use. 8 jobs total
 	metas := make([]*backend.BlockMeta, 0, 4)
-	for i := 0; i < 4; i++ {
+	for i := range 4 {
 		metas = append(metas, &backend.BlockMeta{
 			StartTime:    time.Unix(int64(i*10), 0),        // block 0 starts at 0
 			EndTime:      time.Unix(int64(i*10)+10, 0),     // block 0 ends a 10

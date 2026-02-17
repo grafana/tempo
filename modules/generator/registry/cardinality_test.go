@@ -59,7 +59,7 @@ func TestCardinalityEstimateAccuracy(t *testing.T) {
 	c := NewCardinality(15*time.Minute, 5*time.Minute)
 	const inserts = 100_000
 
-	for i := 0; i < inserts; i++ {
+	for i := range inserts {
 		c.Insert(testHashUint64(uint64(i)))
 	}
 
@@ -77,7 +77,7 @@ func TestCardinalityAdvanceEvictsStaleData(t *testing.T) {
 
 	c := NewCardinality(15*time.Minute, 5*time.Minute)
 
-	for i := 0; i < 1_000; i++ {
+	for i := range 1_000 {
 		c.Insert(testHashUint64(uint64(i)))
 	}
 
@@ -166,13 +166,13 @@ func TestCardinalityConcurrentInsertEstimate(t *testing.T) {
 	c := NewCardinality(15*time.Minute, 5*time.Minute)
 
 	var writerWG sync.WaitGroup
-	for w := 0; w < writers; w++ {
+	for w := range writers {
 		writerWG.Add(1)
 		w := w
 		go func() {
 			defer writerWG.Done()
 			base := uint64(w * perWriter)
-			for i := 0; i < perWriter; i++ {
+			for i := range perWriter {
 				c.Insert(testHashUint64(base + uint64(i)))
 			}
 		}()
@@ -180,14 +180,12 @@ func TestCardinalityConcurrentInsertEstimate(t *testing.T) {
 
 	var readerWG sync.WaitGroup
 	const readers = 4
-	for r := 0; r < readers; r++ {
-		readerWG.Add(1)
-		go func() {
-			defer readerWG.Done()
-			for i := 0; i < estimateIters; i++ {
+	for range readers {
+		readerWG.Go(func() {
+			for range estimateIters {
 				_ = c.Estimate()
 			}
-		}()
+		})
 	}
 
 	writerWG.Wait()
@@ -218,7 +216,7 @@ func BenchmarkCardinalityInsert(b *testing.B) {
 
 func BenchmarkCardinalityEstimate(b *testing.B) {
 	c := NewCardinality(15*time.Minute, 5*time.Minute)
-	for i := 0; i < 1<<16; i++ {
+	for i := range 1 << 16 {
 		c.Insert(uint64(i))
 	}
 

@@ -2040,7 +2040,7 @@ func processTopK(input SeriesSet, valueLength, limit int) SeriesSet {
 	heap.Init(h)
 
 	// process each timestamp
-	for i := 0; i < valueLength; i++ {
+	for i := range valueLength {
 		// process each series for this timestamp
 		for key, series := range input {
 			if i >= len(series.Values) {
@@ -2095,7 +2095,7 @@ func processBottomK(input SeriesSet, valueLength, limit int) SeriesSet {
 	heap.Init(h)
 
 	// Process each timestamp
-	for i := 0; i < valueLength; i++ {
+	for i := range valueLength {
 		// Process each series for this timestamp
 		for key, series := range input {
 			if i >= len(series.Values) {

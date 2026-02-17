@@ -29,7 +29,7 @@ func NewAsyncSharderFunc(ctx context.Context, concurrentReqs, totalReqs int, req
 	go func() {
 		defer asyncResp.SendComplete()
 
-		for i := 0; i < totalReqs; i++ {
+		for i := range totalReqs {
 			req := reqFn(i)
 			// else check for a request to pass down the pipeline
 			if req == nil {
@@ -70,10 +70,8 @@ func NewAsyncSharderChan(ctx context.Context, concurrentReqs int, reqs <-chan Re
 	wg := &sync.WaitGroup{}
 	asyncResp := newAsyncResponse()
 
-	for i := 0; i < concurrentReqs; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+	for range concurrentReqs {
+		wg.Go(func() {
 			for req := range reqs {
 				if err := req.Context().Err(); err != nil {
 					asyncResp.SendError(err)
@@ -88,7 +86,7 @@ func NewAsyncSharderChan(ctx context.Context, concurrentReqs int, reqs <-chan Re
 
 				asyncResp.Send(ctx, resp)
 			}
-		}()
+		})
 	}
 
 	go func() {

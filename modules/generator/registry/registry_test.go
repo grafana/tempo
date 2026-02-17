@@ -380,7 +380,7 @@ func TestHistogramOverridesConfig(t *testing.T) {
 	cases := []struct {
 		name                string
 		nativeHistogramMode HistogramMode
-		typeOfHistogram     interface{}
+		typeOfHistogram     any
 	}{
 		{
 			"classic",
@@ -550,7 +550,7 @@ func TestManagedRegistry_demandTracking(t *testing.T) {
 	counter := registry.NewCounter("my_counter")
 
 	// Add series with unique label combinations
-	for i := 0; i < 100; i++ {
+	for i := range 100 {
 		lbls := buildTestLabels([]string{"label"}, []string{fmt.Sprintf("value-%d", i)})
 		counter.Inc(lbls, 1.0)
 	}
@@ -598,7 +598,7 @@ func TestManagedRegistry_demandExceedsMax(t *testing.T) {
 	counter := registry.NewCounter("my_counter")
 
 	// Add series which should all be rejected
-	for i := 0; i < 100; i++ {
+	for i := range 100 {
 		lbls := buildTestLabels([]string{"label"}, []string{fmt.Sprintf("value-%d", i)})
 		counter.Inc(lbls, 1.0)
 	}
@@ -635,7 +635,7 @@ func TestManagedRegistry_demandDecaysOverTime(t *testing.T) {
 	counter := registry.NewCounter("my_counter")
 
 	// Add series
-	for i := 0; i < 50; i++ {
+	for i := range 50 {
 		lbls := buildTestLabels([]string{"label"}, []string{fmt.Sprintf("value-%d", i)})
 		counter.Inc(lbls, 1.0)
 	}
@@ -656,7 +656,7 @@ func TestManagedRegistry_demandDecaysOverTime(t *testing.T) {
 	registry.metricsMtx.RLock()
 	for _, m := range registry.metrics {
 		// Advance enough times to clear the sliding window
-		for i := 0; i < 5; i++ {
+		for range 5 {
 			m.removeStaleSeries(time.Now().Add(time.Hour).UnixMilli())
 		}
 	}
@@ -688,7 +688,7 @@ func TestManagedRegistry_entityDemandTracking(t *testing.T) {
 	counter := registry.NewCounter("my_counter")
 
 	// Add series with unique label combinations (entities)
-	for i := 0; i < 100; i++ {
+	for i := range 100 {
 		lbls := buildTestLabels([]string{"label"}, []string{fmt.Sprintf("value-%d", i)})
 		counter.Inc(lbls, 1.0)
 	}
@@ -725,7 +725,7 @@ func TestManagedRegistry_entityDemandExceedsMax(t *testing.T) {
 	counter := registry.NewCounter("my_counter")
 
 	// Add series which should all be rejected
-	for i := 0; i < 100; i++ {
+	for i := range 100 {
 		lbls := buildTestLabels([]string{"label"}, []string{fmt.Sprintf("value-%d", i)})
 		counter.Inc(lbls, 1.0)
 	}
@@ -759,7 +759,7 @@ func TestManagedRegistry_entityDemandDecaysOverTime(t *testing.T) {
 	counter := registry.NewCounter("my_counter")
 
 	// Add entities
-	for i := 0; i < 50; i++ {
+	for i := range 50 {
 		lbls := buildTestLabels([]string{"label"}, []string{fmt.Sprintf("value-%d", i)})
 		counter.Inc(lbls, 1.0)
 	}
@@ -771,7 +771,7 @@ func TestManagedRegistry_entityDemandDecaysOverTime(t *testing.T) {
 	assert.Greater(t, initialEntityDemand, uint64(0), "initial entity demand should be non-zero")
 
 	// Advance the entity demand cardinality tracker multiple times to evict old data
-	for i := 0; i < int(removeStaleSeriesInterval/time.Minute)+1; i++ {
+	for range int(removeStaleSeriesInterval/time.Minute) + 1 {
 		registry.entityDemand.Advance()
 	}
 
@@ -799,7 +799,7 @@ func TestManagedRegistry_entityDemandWithMultipleMetrics(t *testing.T) {
 
 	// Add the same entity across multiple metrics
 	// Since entity demand is based on label hash (not metric name), same labels should count as one entity
-	for i := 0; i < 50; i++ {
+	for i := range 50 {
 		lbls := buildTestLabels([]string{"label"}, []string{fmt.Sprintf("value-%d", i)})
 		counter1.Inc(lbls, 1.0)
 		counter2.Inc(lbls, 2.0)
@@ -838,7 +838,7 @@ func TestManagedRegistry_cardinalitySanitizer(t *testing.T) {
 	}
 
 	// Push 10 series with high-cardinality url but low-cardinality method
-	for i := 0; i < 10; i++ {
+	for i := range 10 {
 		counter.Inc(buildLabels("GET", fmt.Sprintf("/users/%d", i)), 1.0)
 	}
 
@@ -852,7 +852,7 @@ func TestManagedRegistry_cardinalitySanitizer(t *testing.T) {
 
 	// Push 10 more series after maintenance has flagged url as over limit
 	// no new values of label `url` will be added.
-	for i := 0; i < 10; i++ {
+	for i := range 10 {
 		counter.Inc(buildLabels("GET", fmt.Sprintf("/users/%d", i)), 1.0)
 	}
 

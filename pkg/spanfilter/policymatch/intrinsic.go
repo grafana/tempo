@@ -41,7 +41,7 @@ type IntrinsicFilter struct {
 }
 
 // NewStrictIntrinsicFilter returns a new IntrinsicFilter that matches spans based on the given intrinsic and value.
-func NewStrictIntrinsicFilter(intrinsic traceql.Intrinsic, value interface{}) (IntrinsicFilter, error) {
+func NewStrictIntrinsicFilter(intrinsic traceql.Intrinsic, value any) (IntrinsicFilter, error) {
 	switch intrinsic {
 	case traceql.IntrinsicKind:
 		if v, ok := value.(string); ok {
@@ -85,7 +85,7 @@ func NewNameIntrinsicFilter(value string) IntrinsicFilter {
 }
 
 // NewRegexpIntrinsicFilter returns a new IntrinsicFilter that matches spans based on the given regex and intrinsic.
-func NewRegexpIntrinsicFilter(intrinsic traceql.Intrinsic, value interface{}) (IntrinsicFilter, error) {
+func NewRegexpIntrinsicFilter(intrinsic traceql.Intrinsic, value any) (IntrinsicFilter, error) {
 	var (
 		stringValue string
 		ok          bool

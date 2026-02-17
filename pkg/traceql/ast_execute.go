@@ -927,7 +927,7 @@ func uniqueSpans(ss1 []*Spanset, ss2 []*Spanset) []Span {
 
 func intPow(m, n int) int {
 	result := 1
-	for i := 0; i < n; i++ {
+	for range n {
 		result *= m
 	}
 	return result

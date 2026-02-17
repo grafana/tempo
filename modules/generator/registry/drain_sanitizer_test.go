@@ -128,10 +128,10 @@ func TestDrainSanitizer_ConcurrentAccess(t *testing.T) {
 	numCallsPerGoroutine := 100
 
 	wg.Add(numGoroutines)
-	for i := 0; i < numGoroutines; i++ {
+	for i := range numGoroutines {
 		go func(id int) {
 			defer wg.Done()
-			for j := 0; j < numCallsPerGoroutine; j++ {
+			for j := range numCallsPerGoroutine {
 				lbls := labels.FromStrings("span_name", "GET /api/users/123", "id", string(rune(id*1000+j)))
 				result := sanitizer.Sanitize(lbls)
 				// Should always return valid labels

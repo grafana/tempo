@@ -67,11 +67,11 @@ func (h seriesHeap) Less(i, j int) bool {
 
 func (h seriesHeap) Swap(i, j int) { h[i], h[j] = h[j], h[i] }
 
-func (h *seriesHeap) Push(x interface{}) {
+func (h *seriesHeap) Push(x any) {
 	*h = append(*h, x.(seriesValue))
 }
 
-func (h *seriesHeap) Pop() interface{} {
+func (h *seriesHeap) Pop() any {
 	old := *h
 	n := len(old)
 	x := old[n-1]
@@ -90,11 +90,11 @@ func (h reverseSeriesHeap) Less(i, j int) bool {
 
 func (h reverseSeriesHeap) Swap(i, j int) { h[i], h[j] = h[j], h[i] }
 
-func (h *reverseSeriesHeap) Push(x interface{}) {
+func (h *reverseSeriesHeap) Push(x any) {
 	*h = append(*h, x.(seriesValue))
 }
 
-func (h *reverseSeriesHeap) Pop() interface{} {
+func (h *reverseSeriesHeap) Pop() any {
 	old := *h
 	n := len(old)
 	x := old[n-1]

@@ -2,6 +2,7 @@ package collector
 
 import (
 	"fmt"
+	"slices"
 	"strconv"
 	"sync"
 	"testing"
@@ -90,11 +91,11 @@ func readDistinctStringDiff(t *testing.T, d *DistinctString) []string {
 func TestDistinctStringCollectorIsSafe(t *testing.T) {
 	d := NewDistinctString(0, 0, 0) // no limit
 	var wg sync.WaitGroup
-	for i := 0; i < 10; i++ {
+	for i := range 10 {
 		wg.Add(1)
 		go func(id int) {
 			defer wg.Done()
-			for j := 0; j < 100; j++ {
+			for j := range 100 {
 				d.Collect(fmt.Sprintf("goroutine-%d-string-%d", id, j))
 			}
 		}(i)
@@ -110,9 +111,9 @@ func BenchmarkDistinctStringCollect(b *testing.B) {
 	numIngesters := 100
 	numTagValuesPerIngester := 10_000
 	ingesterStrings := make([][]string, numIngesters)
-	for i := 0; i < numIngesters; i++ {
+	for i := range numIngesters {
 		strings := make([]string, numTagValuesPerIngester)
-		for j := 0; j < numTagValuesPerIngester; j++ {
+		for j := range numTagValuesPerIngester {
 			strings[j] = fmt.Sprintf("string_%d_%d", i, j)
 		}
 		ingesterStrings[i] = strings
@@ -131,10 +132,8 @@ func BenchmarkDistinctStringCollect(b *testing.B) {
 			for n := 0; n < b.N; n++ {
 				distinctStrings := NewDistinctString(lim, 0, 0)
 				for _, values := range ingesterStrings {
-					for _, v := range values {
-						if distinctStrings.Collect(v) {
-							break // stop early if limit is reached
-						}
+					if slices.ContainsFunc(values, distinctStrings.Collect) {
+						// stop early if limit is reached
 					}
 				}
 			}
@@ -143,8 +142,8 @@ func BenchmarkDistinctStringCollect(b *testing.B) {
 		b.Run("duplicates_limit:"+strconv.Itoa(lim), func(b *testing.B) {
 			for n := 0; n < b.N; n++ {
 				distinctStrings := NewDistinctString(lim, 0, 0)
-				for i := 0; i < numIngesters; i++ {
-					for j := 0; j < numTagValuesPerIngester; j++ {
+				for i := range numIngesters {
+					for range numTagValuesPerIngester {
 						// collect first item to simulate duplicates
 						if distinctStrings.Collect(ingesterStrings[i][0]) {
 							break // stop early if limit is reached

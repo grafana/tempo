@@ -306,16 +306,16 @@ func combineSpansets(existing *tempopb.SpanSet, incoming *tempopb.SpanSet) {
 }
 
 func spansetID(ss *tempopb.SpanSet) string {
-	id := ""
+	var id strings.Builder
 
 	for _, s := range ss.Attributes {
 		// any attributes that start with "by" are considered to be part of the spanset identity
 		if strings.HasPrefix(s.Key, "by") {
-			id += s.Key + s.Value.String()
+			id.WriteString(s.Key + s.Value.String())
 		}
 	}
 
-	return id
+	return id.String()
 }
 
 type QueryRangeCombiner struct {

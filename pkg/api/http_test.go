@@ -789,7 +789,7 @@ func Test_determineBounds(t *testing.T) {
 			},
 			start: time.Time{},
 			end:   time.Time{},
-			wantErr: func(t assert.TestingT, err error, i ...interface{}) bool {
+			wantErr: func(t assert.TestingT, err error, i ...any) bool {
 				return assert.ErrorContains(t, err, "could not parse 'end' parameter:", i...)
 			},
 		},
@@ -803,7 +803,7 @@ func Test_determineBounds(t *testing.T) {
 			},
 			start: time.Time{},
 			end:   time.Time{},
-			wantErr: func(t assert.TestingT, err error, i ...interface{}) bool {
+			wantErr: func(t assert.TestingT, err error, i ...any) bool {
 				return assert.ErrorContains(t, err, "could not parse 'start' parameter:", i...)
 			},
 		},
@@ -817,7 +817,7 @@ func Test_determineBounds(t *testing.T) {
 			},
 			start: time.Time{},
 			end:   time.Time{},
-			wantErr: func(t assert.TestingT, err error, i ...interface{}) bool {
+			wantErr: func(t assert.TestingT, err error, i ...any) bool {
 				return assert.ErrorContains(t, err, "could not parse 'since' parameter:", i...)
 			},
 		},

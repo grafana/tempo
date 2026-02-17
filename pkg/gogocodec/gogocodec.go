@@ -43,7 +43,7 @@ func (c *GogoCodec) Name() string {
 }
 
 // Marshal implements encoding.Codec
-func (c *GogoCodec) Marshal(v interface{}) ([]byte, error) {
+func (c *GogoCodec) Marshal(v any) ([]byte, error) {
 	t := reflect.TypeOf(v)
 	elem := t.Elem()
 	// use gogo proto only for Tempo/Cortex/Jaeger/etcd types
@@ -54,7 +54,7 @@ func (c *GogoCodec) Marshal(v interface{}) ([]byte, error) {
 }
 
 // Unmarshal implements encoding.Codec
-func (c *GogoCodec) Unmarshal(data []byte, v interface{}) error {
+func (c *GogoCodec) Unmarshal(data []byte, v any) error {
 	t := reflect.TypeOf(v)
 	elem := t.Elem()
 	// use gogo proto only for Tempo/Cortex/Jaeger/etcd types

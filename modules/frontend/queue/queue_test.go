@@ -32,8 +32,7 @@ func TestGetNextForQuerierOneUser(t *testing.T) {
 	t.Parallel()
 	messages := 10
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 	stop := make(chan struct{})
 	requestsPulled := atomic.NewInt32(0)
 
@@ -45,7 +44,7 @@ func TestGetNextForQuerierOneUser(t *testing.T) {
 	})
 	close(start)
 
-	for j := 0; j < messages; j++ {
+	for range messages {
 		err := q.EnqueueRequest("test", &mockRequest{})
 		require.NoError(t, err)
 	}
@@ -62,8 +61,7 @@ func TestGetNextForQuerierRandomUsers(t *testing.T) {
 	t.Parallel()
 	messages := 100
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 	stop := make(chan struct{})
 	requestsPulled := atomic.NewInt32(0)
 
@@ -74,7 +72,7 @@ func TestGetNextForQuerierRandomUsers(t *testing.T) {
 	})
 	close(start)
 
-	for j := 0; j < messages; j++ {
+	for range messages {
 		err := q.EnqueueRequest(test.RandomString(), &mockRequest{})
 		require.NoError(t, err)
 	}
@@ -91,8 +89,7 @@ func TestGetNextBatches(t *testing.T) {
 	t.Parallel()
 	messages := 10
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 	stop := make(chan struct{})
 	requestsPulled := atomic.NewInt32(0)
 
@@ -103,7 +100,7 @@ func TestGetNextBatches(t *testing.T) {
 	})
 	close(start)
 
-	for j := 0; j < messages; j++ {
+	for range messages {
 		err := q.EnqueueRequest("user", &mockRequest{})
 		require.NoError(t, err)
 	}
@@ -146,7 +143,7 @@ func benchmarkGetNextForQuerier(b *testing.B, listeners int, messages int) {
 	req := &mockRequest{}
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		for j := 0; j < messages; j++ {
+		for range messages {
 			err := q.EnqueueRequest(user, req)
 			if err != nil {
 				panic(err)
@@ -177,7 +174,7 @@ func queueWithListeners(ctx context.Context, listeners int, batchSize int, liste
 	q := NewRequestQueue(100_000, g, b, c)
 	start := make(chan struct{})
 
-	for i := 0; i < listeners; i++ {
+	for range listeners {
 		go func() {
 			var r []Request
 			var err error
@@ -313,7 +310,7 @@ func TestContextCond(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		cancel()
 
-		for i := 0; i < goroutines; i++ {
+		for range goroutines {
 			go func() {
 				<-release
 
@@ -411,7 +408,7 @@ func assertChanReceived(t *testing.T, c chan struct{}, timeout time.Duration, ms
 	}
 }
 
-func assertChanNotReceived(t *testing.T, c chan struct{}, wait time.Duration, msg string, args ...interface{}) {
+func assertChanNotReceived(t *testing.T, c chan struct{}, wait time.Duration, msg string, args ...any) {
 	t.Helper()
 
 	select {

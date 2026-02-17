@@ -2172,10 +2172,10 @@ func BenchmarkUniqueSpans(b *testing.B) {
 			b.Run(fmt.Sprintf("%d|%d", rhs, lhs), func(b *testing.B) {
 				lhsSpansets := []*Spanset{{Spans: make([]Span, lhs)}}
 				rhsSpansets := []*Spanset{{Spans: make([]Span, rhs)}}
-				for j := 0; j < lhs; j++ {
+				for j := range lhs {
 					lhsSpansets[0].Spans[j] = &mockSpan{id: []byte{byte(j)}}
 				}
-				for j := 0; j < rhs; j++ {
+				for j := range rhs {
 					rhsSpansets[0].Spans[j] = &mockSpan{id: []byte{byte(j)}}
 				}
 				b.ResetTimer()

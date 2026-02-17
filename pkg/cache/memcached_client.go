@@ -211,7 +211,7 @@ func (c *memcachedClient) dialViaCircuitBreaker(network, address string, timeout
 	}
 	c.Unlock()
 
-	conn, err := cb.Execute(func() (interface{}, error) {
+	conn, err := cb.Execute(func() (any, error) {
 		return c.DialTimeout(network, address, timeout)
 	})
 	if err != nil {

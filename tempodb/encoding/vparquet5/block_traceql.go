@@ -829,7 +829,7 @@ func (s *span) attributesMatched() int {
 // to be fully effective it needs to catch spans thrown away in the query engine. perhaps filter spans
 // can return a slice of dropped and kept spansets?
 var spanPool = sync.Pool{
-	New: func() interface{} {
+	New: func() any {
 		return &span{rowNum: parquetquery.EmptyRowNumber()}
 	},
 }
@@ -1094,7 +1094,7 @@ func checkConditions(conditions []traceql.Condition) error {
 		}
 
 		for i := 1; i < opCount; i++ {
-			if reflect.TypeOf(cond.Operands[0]) != reflect.TypeOf(cond.Operands[i]) {
+			if reflect.TypeFor[traceql.Static]() != reflect.TypeFor[traceql.Static]() {
 				return fmt.Errorf("operands must be of the same type. condition: %+v", cond)
 			}
 		}
@@ -3432,7 +3432,7 @@ func (c *batchCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 		// If not filtering, then skip this work.
 		var spans []struct {
 			Key   string
-			Value interface{}
+			Value any
 		}
 		if mightFilter {
 			spans = res.OtherEntries[:0]
@@ -3673,7 +3673,7 @@ type event struct {
 }
 
 var eventPool = sync.Pool{
-	New: func() interface{} {
+	New: func() any {
 		return &event{}
 	},
 }
@@ -3779,7 +3779,7 @@ type link struct {
 }
 
 var linkPool = sync.Pool{
-	New: func() interface{} {
+	New: func() any {
 		return &link{}
 	},
 }

@@ -55,7 +55,7 @@ func testAppendBlockStartEnd(t *testing.T, e encoding.VersionedEncoding) {
 	blockStart := uint32(time.Now().Add(-time.Minute).Unix())
 	blockEnd := uint32(time.Now().Add(time.Minute).Unix())
 
-	for i := 0; i < 10; i++ {
+	for range 10 {
 		id := make([]byte, 16)
 		_, err := crand.Read(id)
 		require.NoError(t, err)
@@ -378,7 +378,7 @@ func runWALTestWithAppendMode(t testing.TB, encoding string, appendTrace bool, r
 	objects := 250
 	objs := make([]*tempopb.Trace, 0, objects)
 	ids := make([][]byte, 0, objects)
-	for i := 0; i < objects; i++ {
+	for i := range objects {
 		id := make([]byte, 16)
 		_, err = crand.Read(id)
 		require.NoError(t, err)
@@ -526,7 +526,7 @@ func runWALBenchmarkWithAppendMode(b *testing.B, encoding string, flushCount int
 	traces := make([]*tempopb.Trace, 0, objects)
 	objs := make([][]byte, 0, objects)
 	ids := make([][]byte, 0, objects)
-	for i := 0; i < objects; i++ {
+	for range objects {
 		id := make([]byte, 16)
 		_, err = crand.Read(id)
 		require.NoError(b, err)
@@ -548,7 +548,7 @@ func runWALBenchmarkWithAppendMode(b *testing.B, encoding string, flushCount int
 
 	b.ResetTimer()
 
-	for flush := 0; flush < flushCount; flush++ {
+	for range flushCount {
 
 		for i := range traces {
 			if appendTrace {

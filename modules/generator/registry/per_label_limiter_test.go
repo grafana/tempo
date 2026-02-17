@@ -37,7 +37,7 @@ func TestPerLabelLimiter_RuntimeEnableDisable(t *testing.T) {
 	}, 15*time.Minute)
 
 	// Phase 1: Disabled - all labels pass through
-	for i := 0; i < 10; i++ {
+	for i := range 10 {
 		lbls := labels.FromStrings("__name__", "m", "url", fmt.Sprintf("/path/%d", i))
 		result := s.Limit(lbls)
 		require.Equal(t, fmt.Sprintf("/path/%d", i), result.Get("url"), "should pass through when disabled")
@@ -56,7 +56,7 @@ func TestPerLabelLimiter_RuntimeEnableDisable(t *testing.T) {
 	triggerDemandUpdate(s)
 
 	// Push more distinct values - should overflow now
-	for i := 0; i < 10; i++ {
+	for i := range 10 {
 		lbls := labels.FromStrings("__name__", "m", "url", fmt.Sprintf("/path/%d", i))
 		s.Limit(lbls)
 	}
@@ -94,7 +94,7 @@ func TestPerLabelLimiter_UnderLimit(t *testing.T) {
 	s := NewPerLabelLimiter("test", testMaxCardinality(100), 15*time.Minute)
 
 	// Insert a few distinct values - well under the limit
-	for i := 0; i < 5; i++ {
+	for i := range 5 {
 		lbls := labels.FromStrings("__name__", "foo", "method", fmt.Sprintf("m%d", i))
 		result := s.Limit(lbls)
 		// Before the first maintenance tick, overLimit is false (default), so everything passes through
@@ -114,7 +114,7 @@ func TestPerLabelLimiter_HighCardinalityOverflows(t *testing.T) {
 	s := NewPerLabelLimiter("test", testMaxCardinality(5), 15*time.Minute)
 
 	// Push distinct url values but few method values
-	for i := 0; i < 10; i++ {
+	for i := range 10 {
 		lbls := labels.FromStrings("__name__", "http_requests", "method", "GET", "url", fmt.Sprintf("/users/%d", i))
 		s.Limit(lbls)
 	}
@@ -134,7 +134,7 @@ func TestPerLabelLimiter_MultipleHighCardinalityOverflows(t *testing.T) {
 	s := NewPerLabelLimiter("test", testMaxCardinality(5), 15*time.Minute)
 
 	// Push many distinct values for BOTH url and user_id
-	for i := 0; i < 10; i++ {
+	for i := range 10 {
 		lbls := labels.FromStrings("__name__", "m", "method", "GET", "url", fmt.Sprintf("/p/%d", i), "user_id", fmt.Sprintf("u%d", i))
 		s.Limit(lbls)
 	}
@@ -152,7 +152,7 @@ func TestPerLabelLimiter_MetadataLabelsNeverOverflows(t *testing.T) {
 	s := NewPerLabelLimiter("test", testMaxCardinality(5), 15*time.Minute)
 
 	// Push many distinct values for all metadata labels to exceed the limit
-	for i := 0; i < 10; i++ {
+	for i := range 10 {
 		lbls := labels.FromStrings(
 			"__name__", fmt.Sprintf("metric_%d", i),
 			"__type__", fmt.Sprintf("type_%d", i),
@@ -180,7 +180,7 @@ func TestPerLabelLimiter_RecoveryAfterOverflow(t *testing.T) {
 	s := NewPerLabelLimiter("test", testMaxCardinality(5), staleDuration)
 
 	// Phase 1: Push high-cardinality data to trigger overflow
-	for i := 0; i < 10; i++ {
+	for i := range 10 {
 		lbls := labels.FromStrings("__name__", "http_requests", "url", fmt.Sprintf("/users/%d", i))
 		s.Limit(lbls)
 	}
@@ -194,12 +194,12 @@ func TestPerLabelLimiter_RecoveryAfterOverflow(t *testing.T) {
 	// Phase 2: Simulate time passing - Advance the sketch enough times to fully rotate
 	// out all old high-cardinality data from the sketch ring and prune it.
 	// With staleDuration=15m and sketchDuration=5m, sketchesLength=4, so prune it 4 times
-	for i := 0; i < 4; i++ {
+	for range 4 {
 		triggerPrune(s)
 	}
 
 	// Phase 3: Push only low-cardinality data (within limit)
-	for i := 0; i < 3; i++ {
+	for i := range 3 {
 		lbls := labels.FromStrings("__name__", "http_requests", "url", fmt.Sprintf("/api/v1/resource_%d", i))
 		s.Limit(lbls)
 	}
@@ -213,7 +213,7 @@ func TestPerLabelLimiter_RecoveryAfterOverflow(t *testing.T) {
 	require.Equal(t, "/api/v1/healthy", result.Get("url"), "should recover after cardinality drops below limit")
 
 	// Phase 4: Cardinality explodes again - verify overflow kicks back in
-	for i := 0; i < 10; i++ {
+	for i := range 10 {
 		lbls := labels.FromStrings("__name__", "http_requests", "url", fmt.Sprintf("/new_endpoint/%d", i))
 		s.Limit(lbls)
 	}
@@ -229,7 +229,7 @@ func TestPerLabelLimiter_OverflowMetrics(t *testing.T) {
 	s := NewPerLabelLimiter(tenant, testMaxCardinality(5), 15*time.Minute)
 
 	// Push enough distinct values to exceed the limit
-	for i := 0; i < 10; i++ {
+	for i := range 10 {
 		lbls := labels.FromStrings("__name__", "m", "url", fmt.Sprintf("/path/%d", i))
 		s.Limit(lbls)
 	}
@@ -267,10 +267,10 @@ func TestPerLabelLimiter_ConcurrentAccess(t *testing.T) {
 	var wg sync.WaitGroup
 	wg.Add(12) // 10 Limit() goroutines + 1 demand update ticker + 1 prune ticker
 
-	for g := 0; g < 10; g++ {
+	for g := range 10 {
 		go func(id int) {
 			defer wg.Done()
-			for i := 0; i < 100; i++ {
+			for i := range 100 {
 				lbls := labels.FromStrings("__name__", "m", "label", fmt.Sprintf("g%d-v%d", id, i))
 				result := s.Limit(lbls)
 				require.Equal(t, "m", result.Get("__name__"), "metric name must be preserved")
@@ -285,7 +285,7 @@ func TestPerLabelLimiter_ConcurrentAccess(t *testing.T) {
 	// inside Limit() calls, exercising the full code path.
 	go func() {
 		defer wg.Done()
-		for i := 0; i < 10; i++ {
+		for range 10 {
 			demandCh <- time.Now()
 			time.Sleep(time.Millisecond)
 		}
@@ -294,7 +294,7 @@ func TestPerLabelLimiter_ConcurrentAccess(t *testing.T) {
 	// Feed prune ticks concurrently
 	go func() {
 		defer wg.Done()
-		for i := 0; i < 5; i++ {
+		for range 5 {
 			pruneCh <- time.Now()
 			time.Sleep(time.Millisecond)
 		}
@@ -330,7 +330,7 @@ func BenchmarkPerLabelLimiter_Limit(b *testing.B) {
 		// Pre-generate distinct labels to simulate real traffic with unique values
 		n := 500
 		allLbls := make([]labels.Labels, n)
-		for i := 0; i < n; i++ {
+		for i := range n {
 			allLbls[i] = labels.FromStrings("__name__", "http_requests", "method", "GET", "url", fmt.Sprintf("/api/v1/users/%d", i))
 		}
 		s.Limit(allLbls[0])
@@ -346,10 +346,10 @@ func BenchmarkPerLabelLimiter_Limit(b *testing.B) {
 		s := NewPerLabelLimiter("bench", testMaxCardinality(5), 15*time.Minute)
 		n := 500
 		allLbls := make([]labels.Labels, n)
-		for i := 0; i < n; i++ {
+		for i := range n {
 			allLbls[i] = labels.FromStrings("__name__", "http_requests", "method", "GET", "url", fmt.Sprintf("/api/v1/users/%d", i))
 		}
-		for i := 0; i < 20; i++ {
+		for i := range 20 {
 			s.Limit(allLbls[i])
 		}
 		triggerDemandUpdate(s)
@@ -364,7 +364,7 @@ func BenchmarkPerLabelLimiter_Limit(b *testing.B) {
 		s := NewPerLabelLimiter("bench", testMaxCardinality(1000), 15*time.Minute)
 		n := 500
 		allLbls := make([]labels.Labels, n)
-		for i := 0; i < n; i++ {
+		for i := range n {
 			allLbls[i] = labels.FromStrings(
 				"__name__", "http_requests",
 				"method", "GET",
@@ -388,7 +388,7 @@ func BenchmarkPerLabelLimiter_Limit(b *testing.B) {
 		s := NewPerLabelLimiter("bench", testMaxCardinality(5), 15*time.Minute)
 		n := 500
 		allLbls := make([]labels.Labels, n)
-		for i := 0; i < n; i++ {
+		for i := range n {
 			allLbls[i] = labels.FromStrings(
 				"__name__", "http_requests",
 				"method", fmt.Sprintf("m%d", i),
@@ -400,7 +400,7 @@ func BenchmarkPerLabelLimiter_Limit(b *testing.B) {
 			)
 		}
 		// Warm up to trigger overflow on all labels
-		for i := 0; i < 20; i++ {
+		for i := range 20 {
 			s.Limit(allLbls[i])
 		}
 		triggerDemandUpdate(s)
@@ -415,7 +415,7 @@ func BenchmarkPerLabelLimiter_Limit(b *testing.B) {
 		s := NewPerLabelLimiter("bench", testMaxCardinality(1000), 15*time.Minute)
 		n := 500
 		allLbls := make([]labels.Labels, n)
-		for i := 0; i < n; i++ {
+		for i := range n {
 			allLbls[i] = labels.FromStrings("__name__", "http_requests", "method", "GET", "url", fmt.Sprintf("/api/v1/users/%d", i))
 		}
 		s.Limit(allLbls[0])

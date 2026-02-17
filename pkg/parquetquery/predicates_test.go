@@ -338,7 +338,7 @@ func BenchmarkSubstringPredicate(b *testing.B) {
 	p := NewSubstringPredicate("abc")
 
 	s := make([]parquet.Value, 1000)
-	for i := 0; i < 1000; i++ {
+	for i := range 1000 {
 		s[i] = parquet.ValueOf(uuid.New().String())
 	}
 
@@ -355,7 +355,7 @@ func BenchmarkStringInPredicate(b *testing.B) {
 	p := NewStringInPredicate([]string{"abc"})
 
 	s := make([]parquet.Value, 1000)
-	for i := 0; i < 1000; i++ {
+	for i := range 1000 {
 		s[i] = parquet.ValueOf(uuid.New().String())
 	}
 
@@ -373,7 +373,7 @@ func BenchmarkRegexInPredicate(b *testing.B) {
 	require.NoError(b, err)
 
 	s := make([]parquet.Value, 1000)
-	for i := 0; i < 1000; i++ {
+	for i := range 1000 {
 		s[i] = parquet.ValueOf(uuid.New().String())
 	}
 

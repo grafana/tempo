@@ -351,7 +351,7 @@ func (rw *readerWriter) Find(ctx context.Context, tenantID string, id common.ID,
 	// gather appropriate blocks
 	blocklist := rw.blocklist.Metas(tenantID)
 	compactedBlocklist := rw.blocklist.CompactedMetas(tenantID)
-	copiedBlocklist := make([]interface{}, 0, len(blocklist))
+	copiedBlocklist := make([]any, 0, len(blocklist))
 	blocksSearched := 0
 	compactedBlocksSearched := 0
 
@@ -375,7 +375,7 @@ func (rw *readerWriter) Find(ctx context.Context, tenantID string, id common.ID,
 		rw.cfg.Search.ApplyToOptions(&opts)
 	}
 
-	partialTraces, funcErrs, err := rw.pool.RunJobs(ctx, copiedBlocklist, func(ctx context.Context, payload interface{}) (interface{}, error) {
+	partialTraces, funcErrs, err := rw.pool.RunJobs(ctx, copiedBlocklist, func(ctx context.Context, payload any) (any, error) {
 		meta := payload.(*backend.BlockMeta)
 		block, err := encoding.OpenBlock(meta, rw.r)
 		if err != nil {

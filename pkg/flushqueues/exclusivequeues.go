@@ -21,7 +21,7 @@ func New[T Op](queues int, metric prometheus.Gauge) *ExclusiveQueues[T] {
 		index:  atomic.NewInt32(0),
 	}
 
-	for j := 0; j < queues; j++ {
+	for j := range queues {
 		f.queues[j] = NewPriorityQueue[T](metric)
 	}
 
@@ -60,7 +60,7 @@ func (f *ExclusiveQueues[T]) Clear(op T) {
 func (f *ExclusiveQueues[T]) IsEmpty() bool {
 	length := 0
 
-	f.activeKeys.Range(func(_, _ interface{}) bool {
+	f.activeKeys.Range(func(_, _ any) bool {
 		length++
 		return false
 	})

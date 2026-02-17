@@ -2876,7 +2876,7 @@ func randFloat(minimum, maximum float64) float64 {
 
 func generateSpans(count int, startTimes []int, value string) []Span {
 	spans := make([]Span, 0)
-	for i := 0; i < count; i++ {
+	for i := range count {
 		for _, t := range startTimes {
 			sTime := uint64(time.Duration(t) * time.Second)
 			spans = append(spans, newMockSpan(nil).WithStartTime(sTime).WithSpanString("foo", value).WithDuration(128*uint64(i+1)))
@@ -3043,7 +3043,7 @@ func generateTestTimeSeries(seriesCount, samplesCount, exemplarCount int, start,
 
 	timeRange := end - start
 
-	for i := 0; i < seriesCount; i++ {
+	for i := range seriesCount {
 		// Create unique labels for each series
 		labels := []commonv1proto.KeyValue{
 			{
@@ -3065,7 +3065,7 @@ func generateTestTimeSeries(seriesCount, samplesCount, exemplarCount int, start,
 		}
 
 		samples := make([]tempopb.Sample, samplesCount)
-		for j := 0; j < samplesCount; j++ {
+		for j := range samplesCount {
 			// Distribute samples evenly across the time range
 			offset := (uint64(j) * timeRange) / uint64(samplesCount)
 			ts := time.Unix(0, int64(start+offset)).UnixMilli()
@@ -3077,7 +3077,7 @@ func generateTestTimeSeries(seriesCount, samplesCount, exemplarCount int, start,
 
 		// Create exemplars
 		exemplars := make([]tempopb.Exemplar, exemplarCount)
-		for j := 0; j < exemplarCount; j++ {
+		for j := range exemplarCount {
 			// Distribute exemplars evenly across the time range
 			offset := (uint64(j) * timeRange) / uint64(exemplarCount)
 			ts := time.Unix(0, int64(start+offset)).UnixMilli()

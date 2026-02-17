@@ -461,9 +461,7 @@ func (q *Querier) forIngesterRings(ctx context.Context, userID string, getReplic
 		}
 		pool := q.ingesterPools[i]
 
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			results, err := forOneIngesterRing(ctx, replicationSet, f, pool, q.cfg.ExtraQueryDelay)
 			mtx.Lock()
 			defer mtx.Unlock()
@@ -474,7 +472,7 @@ func (q *Querier) forIngesterRings(ctx context.Context, userID string, getReplic
 			}
 
 			overallResults = append(overallResults, results...)
-		}()
+		})
 	}
 
 	wg.Wait()
@@ -490,7 +488,7 @@ func forOneIngesterRing(ctx context.Context, replicationSet ring.ReplicationSet,
 	ctx, span := tracer.Start(ctx, "Querier.forOneIngesterRing")
 	defer span.End()
 
-	doFunc := func(funcCtx context.Context, ingester *ring.InstanceDesc) (interface{}, error) {
+	doFunc := func(funcCtx context.Context, ingester *ring.InstanceDesc) (any, error) {
 		if funcCtx.Err() != nil {
 			_ = level.Warn(log.Logger).Log("funcCtx.Err()", funcCtx.Err().Error())
 			return nil, funcCtx.Err()
@@ -538,7 +536,7 @@ func (q *Querier) forGivenGenerators(ctx context.Context, f forEachGeneratorFn) 
 		return nil, fmt.Errorf("error finding generators: %w", err)
 	}
 
-	doFunc := func(funcCtx context.Context, generator *ring.InstanceDesc) (interface{}, error) {
+	doFunc := func(funcCtx context.Context, generator *ring.InstanceDesc) (any, error) {
 		if funcCtx.Err() != nil {
 			_ = level.Warn(log.Logger).Log("funcCtx.Err()", funcCtx.Err().Error())
 			return nil, funcCtx.Err()

@@ -131,9 +131,7 @@ func TestProcessorDoesNotRace(t *testing.T) {
 	)
 
 	concurrent := func(f func()) {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 
 			for {
 				select {
@@ -143,7 +141,7 @@ func TestProcessorDoesNotRace(t *testing.T) {
 					f()
 				}
 			}
-		}()
+		})
 	}
 
 	concurrent(func() {

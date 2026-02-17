@@ -94,10 +94,7 @@ func (r *PartitionReader) running(ctx context.Context) error {
 			// Get the committed offset value
 			committedAt := offset.EpochOffset().Offset
 			if committedAt >= 0 {
-				lag := endOffset.Offset - committedAt
-				if lag < 0 {
-					lag = 0
-				}
+				lag := max(endOffset.Offset-committedAt, 0)
 				r.lag.Store(lag)
 				level.Debug(r.logger).Log("msg", "initial lag calculated", "lag", lag, "committed", committedAt, "end", endOffset.Offset)
 			}
@@ -145,10 +142,7 @@ func (r *PartitionReader) running(ctx context.Context) error {
 					var lag int64
 					if owm != nil {
 						committedOffset = owm.At
-						lag = partition.HighWatermark - committedOffset
-						if lag < 0 {
-							lag = 0
-						}
+						lag = max(partition.HighWatermark-committedOffset, 0)
 					} // else offset is not yet set due to no new records, therefore lag is 0
 					r.lag.Store(lag)
 				}

@@ -153,7 +153,7 @@ func makeThriftBatchWithSpanCountForServiceAndOp(n int, name, service string) *t
 	var spans []*thrift.Span
 	traceIDLow := rand.Int63()
 	traceIDHigh := rand.Int63()
-	for i := 0; i < n; i++ {
+	for range n {
 		spans = append(spans, &thrift.Span{
 			TraceIdLow:    traceIDLow,
 			TraceIdHigh:   traceIDHigh,

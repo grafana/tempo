@@ -342,7 +342,7 @@ func Test_histogram_concurrencyDataRace(t *testing.T) {
 		}
 	}
 
-	for i := 0; i < 4; i++ {
+	for range 4 {
 		go accessor(func() {
 			h.ObserveWithExemplar(buildTestLabels([]string{"label"}, []string{"value-1"}), 1.0, "", 1.0)
 			h.ObserveWithExemplar(buildTestLabels([]string{"label"}, []string{"value-2"}), 1.5, "", 1.0)
@@ -380,10 +380,8 @@ func Test_histogram_concurrencyCorrectness(t *testing.T) {
 
 	totalCount := atomic.NewUint64(0)
 
-	for i := 0; i < 4; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+	for range 4 {
+		wg.Go(func() {
 			for {
 				select {
 				case <-end:
@@ -393,7 +391,7 @@ func Test_histogram_concurrencyCorrectness(t *testing.T) {
 					totalCount.Inc()
 				}
 			}
-		}()
+		})
 	}
 
 	time.Sleep(200 * time.Millisecond)
@@ -445,7 +443,7 @@ func Test_histogram_demandTracking(t *testing.T) {
 	assert.Equal(t, 0, h.countSeriesDemand())
 
 	// Add some histogram series (each histogram creates multiple series)
-	for i := 0; i < 20; i++ {
+	for i := range 20 {
 		lbls := buildTestLabels([]string{"label"}, []string{fmt.Sprintf("value-%d", i)})
 		h.ObserveWithExemplar(lbls, 1.5, "", 1.0)
 	}
@@ -491,7 +489,7 @@ func Test_histogram_demandVsActiveSeries(t *testing.T) {
 	h := newHistogram("my_histogram", []float64{1.0, 2.0}, lifecycler, "", nil, 15*time.Minute)
 
 	// Add some histogram series
-	for i := 0; i < 10; i++ {
+	for i := range 10 {
 		lbls := buildTestLabels([]string{"label"}, []string{fmt.Sprintf("value-%d", i)})
 		h.ObserveWithExemplar(lbls, 1.5, "", 1.0)
 	}

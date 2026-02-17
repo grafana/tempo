@@ -133,10 +133,7 @@ func (s *adaptiveSampler) recompute() {
 }
 
 func rateFor(proportion float64) int {
-	l := int(math.Ceil(proportion * 10))
-	if l > 10 {
-		l = 10
-	}
+	l := min(int(math.Ceil(proportion*10)), 10)
 	return l
 }
 

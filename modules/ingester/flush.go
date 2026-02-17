@@ -140,10 +140,8 @@ func (o *flushOp) Priority() int64 {
 // cutToWalLoop kicks off a goroutine for the passed instance that will periodically cut traces to WAL.
 // it signals completion through cutToWalWg, waits for cutToWalStart and stops on cutToWalStop.
 func (i *Ingester) cutToWalLoop(instance *instance) {
-	i.cutToWalWg.Add(1)
 
-	go func() {
-		defer i.cutToWalWg.Done()
+	i.cutToWalWg.Go(func() {
 
 		// wait for the signal to start. we need the wal to be completely replayed
 		// before we start cutting to WAL
@@ -165,7 +163,7 @@ func (i *Ingester) cutToWalLoop(instance *instance) {
 				return
 			}
 		}
-	}()
+	})
 }
 
 // cutAllInstancesToWal periodically schedules series for flushing and garbage collects instances with no series

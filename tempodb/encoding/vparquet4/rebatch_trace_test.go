@@ -13,21 +13,21 @@ func TestRebatchTrace(t *testing.T) {
 		// setup distinct resources
 		r1 = Resource{
 			ServiceName: "service1",
-			Cluster:     ptr("cluster1"),
+			Cluster:     new("cluster1"),
 		}
 		r2 = Resource{
 			ServiceName: "service1",
-			Cluster:     ptr("cluster1"),
+			Cluster:     new("cluster1"),
 			Attrs:       []Attribute{{Key: "res.attr.1", Value: []string{"res.val.1"}}},
 		}
 		r3 = Resource{
 			ServiceName: "service1",
-			Cluster:     ptr("cluster2"),
+			Cluster:     new("cluster2"),
 		}
 		r4 = Resource{
 			ServiceName:         "service1",
-			Cluster:             ptr("cluster1"),
-			DedicatedAttributes: DedicatedAttributes{String01: ptr("string01")},
+			Cluster:             new("cluster1"),
+			DedicatedAttributes: DedicatedAttributes{String01: new("string01")},
 		}
 		// setup distinct instrumentation scopes
 		s1 = InstrumentationScope{
@@ -192,7 +192,7 @@ var testSpanCount = 0
 
 func makeTestSpans(t testing.TB, n int) []Span {
 	spans := make([]Span, 0, n)
-	for i := 0; i < n; i++ {
+	for range n {
 		testSpanCount++
 
 		spanID := make([]byte, 8)

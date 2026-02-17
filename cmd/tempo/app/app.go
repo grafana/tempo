@@ -141,7 +141,7 @@ func (t *App) setupAuthMiddleware() {
 		}
 
 		t.cfg.Server.GRPCMiddleware = []grpc.UnaryServerInterceptor{
-			func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (resp interface{}, err error) {
+			func(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (resp any, err error) {
 				if ignoredMethods[info.FullMethod] {
 					return handler(ctx, req)
 				}
@@ -149,7 +149,7 @@ func (t *App) setupAuthMiddleware() {
 			},
 		}
 		t.cfg.Server.GRPCStreamMiddleware = []grpc.StreamServerInterceptor{
-			func(srv interface{}, ss grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
+			func(srv any, ss grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
 				if ignoredMethods[info.FullMethod] {
 					return handler(srv, ss)
 				}
@@ -279,7 +279,7 @@ func (t *App) writeStatusVersion(w io.Writer) error {
 }
 
 func (t *App) writeStatusConfig(w io.Writer, r *http.Request) error {
-	var output interface{}
+	var output any
 
 	mode := r.URL.Query().Get("mode")
 	switch mode {
@@ -390,7 +390,7 @@ func (t *App) readyHandler(sm *services.Manager, shutdownRequested *atomic.Bool)
 func (t *App) writeRuntimeConfig(w io.Writer, r *http.Request) error {
 	// Querier and query-frontend services do not run the overrides module
 	if t.Overrides == nil {
-		_, err := w.Write([]byte(fmt.Sprintf("overrides module not loaded in %s\n", t.cfg.Target)))
+		_, err := w.Write(fmt.Appendf(nil, "overrides module not loaded in %s\n", t.cfg.Target))
 		return err
 	}
 	return t.Overrides.WriteStatusRuntimeConfig(w, r)
@@ -552,7 +552,7 @@ func (t *App) writeStatusEndpoints(w io.Writer) error {
 	x.AppendSeparator()
 	x.Render()
 
-	_, err = w.Write([]byte(fmt.Sprintf("\nAPI documentation: %s\n\n", apiDocs)))
+	_, err = w.Write(fmt.Appendf(nil, "\nAPI documentation: %s\n\n", apiDocs))
 	if err != nil {
 		return fmt.Errorf("error writing status endpoints: %w", err)
 	}

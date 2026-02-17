@@ -29,7 +29,7 @@ func NewRateLimitedLogger(logsPerSecond int, logger gkLog.Logger) *RateLimitedLo
 	}
 }
 
-func (l *RateLimitedLogger) Log(keyvals ...interface{}) {
+func (l *RateLimitedLogger) Log(keyvals ...any) {
 	if !l.limiter.AllowN(time.Now(), 1) {
 		metricDropedLines.Inc()
 		return

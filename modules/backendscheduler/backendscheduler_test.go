@@ -393,7 +393,7 @@ func TestProviderBasedScheduling(t *testing.T) {
 
 	// Request jobs and verify they're coming from providers
 	var compactionJobs, retentionJobs int
-	for i := 0; i < 10; i++ {
+	for i := range 10 {
 		resp, err := s.Next(ctx, &tempopb.NextJobRequest{
 			WorkerId: "test-worker-" + strconv.Itoa(i),
 		})

@@ -121,7 +121,7 @@ func createTestBlock(t testing.TB, ctx context.Context, cfg *common.BlockConfig,
 
 	sb := newStreamingBlock(ctx, cfg, inMeta, r, w, tempo_io.NewBufferedWriter)
 
-	for i := 0; i < traceCount; i++ {
+	for range traceCount {
 		id := make([]byte, 16)
 		_, err := crand.Read(id)
 		require.NoError(t, err)

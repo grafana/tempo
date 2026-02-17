@@ -44,6 +44,7 @@ func Test_job(t *testing.T) {
 	require.InDelta(t, 260*time.Millisecond, jobTimes[3], float64(10*time.Millisecond))
 }
 
+//go:fix inline
 func durationPtr(d time.Duration) *time.Duration {
-	return &d
+	return new(d)
 }

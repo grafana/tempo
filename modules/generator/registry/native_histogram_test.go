@@ -709,7 +709,7 @@ func Test_nativeHistogram_demandTracking(t *testing.T) {
 	assert.Equal(t, 0, h.countSeriesDemand())
 
 	// Add some histogram series
-	for i := 0; i < 20; i++ {
+	for i := range 20 {
 		lbls := buildTestLabels([]string{"label"}, []string{fmt.Sprintf("value-%d", i)})
 		h.ObserveWithExemplar(lbls, 1.5, "", 1.0)
 	}
@@ -759,7 +759,7 @@ func Test_nativeHistogram_demandVsActiveSeries(t *testing.T) {
 	h := newNativeHistogram("my_histogram", []float64{1.0, 2.0}, lifecycler, "", HistogramModeNative, nil, testTenant, &mockOverrides{}, 15*time.Minute)
 
 	// Add some histogram series
-	for i := 0; i < 10; i++ {
+	for i := range 10 {
 		lbls := buildTestLabels([]string{"label"}, []string{fmt.Sprintf("value-%d", i)})
 		h.ObserveWithExemplar(lbls, 1.5, "", 1.0)
 	}

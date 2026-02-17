@@ -3,6 +3,7 @@ package forwarder
 import (
 	"context"
 	"fmt"
+	"maps"
 	"sync"
 	"time"
 
@@ -170,9 +171,7 @@ func (m *Manager) updateQueueLists() {
 		}
 	}
 
-	for tenantID, ql := range queueListsToAdd {
-		m.tenantToQueueList[tenantID] = ql
-	}
+	maps.Copy(m.tenantToQueueList, queueListsToAdd)
 }
 
 func (m *Manager) shutdown() error {

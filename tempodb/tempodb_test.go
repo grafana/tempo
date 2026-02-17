@@ -76,8 +76,7 @@ func testConfig(t *testing.T, blocklistPoll time.Duration, opts ...testConfigOpt
 func TestDB(t *testing.T) {
 	r, w, c, _ := testConfig(t, 0)
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
 	err := c.EnableCompaction(ctx, &CompactorConfig{
 		MaxCompactionRange:      time.Hour,
@@ -102,7 +101,7 @@ func TestDB(t *testing.T) {
 	numMsgs := 10
 	reqs := make([]*tempopb.Trace, numMsgs)
 	ids := make([]common.ID, numMsgs)
-	for i := 0; i < numMsgs; i++ {
+	for i := range numMsgs {
 		ids[i] = test.ValidTraceID(nil)
 		reqs[i] = test.MakeTrace(10, ids[i])
 		writeTraceToWal(t, head, dec, ids[i], reqs[i], 0, 0)
@@ -139,8 +138,7 @@ func TestBlockSharding(t *testing.T) {
 	// search with different shards and check if its respecting the params
 	r, w, _, _ := testConfig(t, 0)
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
 	r.EnablePolling(ctx, &mockJobSharder{}, false)
 
@@ -209,8 +207,7 @@ func TestBlockCleanup(t *testing.T) {
 
 	r.EnablePolling(context.Background(), &mockJobSharder{}, false)
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
 	blockID := backend.NewUUID()
 
@@ -512,7 +509,7 @@ func TestSearchCompactedBlocks(t *testing.T) {
 	numMsgs := 10
 	reqs := make([]*tempopb.Trace, 0, numMsgs)
 	ids := make([][]byte, 0, numMsgs)
-	for i := 0; i < numMsgs; i++ {
+	for range numMsgs {
 		id := test.ValidTraceID(nil)
 		req := test.MakeTrace(rand.Int()%1000, id)
 		writeTraceToWal(t, head, dec, id, req, 0, 0)
@@ -598,7 +595,7 @@ func testCompleteBlock(t *testing.T, from, to string) {
 	numMsgs := 100
 	reqs := make([]*tempopb.Trace, 0, numMsgs)
 	ids := make([][]byte, 0, numMsgs)
-	for i := 0; i < numMsgs; i++ {
+	for range numMsgs {
 		id := test.ValidTraceID(nil)
 		req := test.MakeTrace(rand.Int()%10, id)
 		trace.SortTrace(req)
@@ -733,7 +730,7 @@ func benchmarkCompleteBlock(b *testing.B, e encoding.VersionedEncoding) {
 	blk, err := wal.NewBlock(meta, model.CurrentEncoding)
 	require.NoError(b, err)
 
-	for i := 0; i < traceCount; i++ {
+	for i := range traceCount {
 		id := test.ValidTraceID(nil)
 		req := test.MakeTrace(10, id)
 		writeTraceToWal(b, blk, dec, id, req, 0, 0)
@@ -874,8 +871,7 @@ func TestNoCompactFlag(t *testing.T) {
 				c.Block.CreateWithNoCompactFlag = tc.createWithNoCompactFlag
 			})
 
-			ctx, cancel := context.WithCancel(context.Background())
-			defer cancel()
+			ctx := t.Context()
 
 			err := c.EnableCompaction(ctx, &CompactorConfig{
 				MaxCompactionRange:      time.Hour,
@@ -973,12 +969,10 @@ func TestPollNotification(t *testing.T) {
 	wg := &sync.WaitGroup{}
 	for range 10 {
 
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			<-r.PollNotification(ctx)
 			require.Greater(t, time.Since(start), sleepTime, "PollNotification should not return before the first PollNow call")
-		}()
+		})
 	}
 
 	time.Sleep(sleepTime)

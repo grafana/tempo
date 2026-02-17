@@ -21,7 +21,7 @@ func TestLocalEntityLimiter(t *testing.T) {
 	overflowLabels := labels.FromStrings("metric_overflow", "true")
 
 	var firstHash uint64
-	for i := 0; i < 10; i++ {
+	for i := range 10 {
 		testLabels := labels.FromStrings("test", string(rune('a'+i)))
 		hash := testLabels.Hash()
 		if i == 0 {
@@ -98,7 +98,7 @@ func TestLocalEntityLimiter_TrackEntities_NoMaxEntities(t *testing.T) {
 	}
 	limitLogger := tempo_log.NewRateLimitedLogger(1, log.NewNopLogger())
 	limiter := New(maxFunc, "test", limitLogger)
-	for i := 0; i < 10; i++ {
+	for i := range 10 {
 		testLabels := labels.FromStrings("test", string(rune('a'+i)))
 		returnedLabels, _ := limiter.OnAdd(testLabels.Hash(), 1, testLabels)
 		require.Equal(t, testLabels, returnedLabels, "entity should be accepted when max is 0")
@@ -118,7 +118,7 @@ func TestLocalEntityLimiter_Metrics(t *testing.T) {
 	}, "test", limitLogger)
 
 	overflowLabels := labels.FromStrings("metric_overflow", "true")
-	for i := 0; i < 10; i++ {
+	for i := range 10 {
 		testLabels := labels.FromStrings("test", string(rune('a'+i)))
 		returnedLabels, _ := limiter.OnAdd(testLabels.Hash(), 1, testLabels)
 		require.Equal(t, testLabels, returnedLabels, "entity should be accepted")
@@ -140,7 +140,7 @@ func TestLocalEntityLimiter_Metrics(t *testing.T) {
 	currentLimit = 0
 
 	var deleteHash uint64
-	for i := 0; i < 10; i++ {
+	for i := range 10 {
 		testLabels := labels.FromStrings("test", string(rune('a'+i+10)))
 		hash := testLabels.Hash()
 		if i == 0 {

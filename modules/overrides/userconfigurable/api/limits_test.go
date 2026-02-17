@@ -37,14 +37,14 @@ func Test_limitsFromOverrides(t *testing.T) {
 						Dimensions:               []string{"my-dim1", "my-dim2"},
 						PeerAttributes:           []string{"db.name"},
 						FilterPolicies:           []filterconfig.FilterPolicy{{Exclude: &filterconfig.PolicyMatch{MatchType: filterconfig.Regex, Attributes: []filterconfig.MatchPolicyAttribute{{Key: "resource.service.name", Value: "unknown_service:myservice"}}}}},
-						EnableClientServerPrefix: boolPtr(true),
+						EnableClientServerPrefix: new(true),
 					},
 					SpanMetrics: overrides.SpanMetricsOverrides{
 						Dimensions:          []string{"your-dim1", "your-dim2"},
 						IntrinsicDimensions: map[string]bool{"service": true, "span_name": false},
 						DimensionMappings:   []sharedconfig.DimensionMappings{{Name: "env", SourceLabel: []string{"k8s.namespace", "foo"}, Join: "/"}},
-						EnableTargetInfo:    boolPtr(true),
-						EnableInstanceLabel: boolPtr(true),
+						EnableTargetInfo:    new(true),
+						EnableInstanceLabel: new(true),
 						FilterPolicies: []filterconfig.FilterPolicy{
 							{
 								Exclude: &filterconfig.PolicyMatch{

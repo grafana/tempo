@@ -193,10 +193,7 @@ func queryBucketForSummary(ctx context.Context, percentage float32, r backend.Re
 	// get top 5 most frequent service names
 	topFiveSortedPL := sortServiceNames(serviceNameMap)
 	topFiveServiceName := make([]string, 5)
-	length := len(topFiveSortedPL)
-	if length > 5 {
-		length = 5
-	}
+	length := min(len(topFiveSortedPL), 5)
 	for index := 0; index < length; index++ {
 		topFiveServiceName[index] = topFiveSortedPL[index].Key
 	}

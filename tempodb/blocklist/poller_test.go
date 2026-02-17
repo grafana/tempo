@@ -174,8 +174,7 @@ func TestTenantIndexBuilder(t *testing.T) {
 			}, &mockJobSharder{
 				owns: true,
 			}, r, c, w, log.NewNopLogger())
-			ctx, cancel := context.WithCancel(context.Background())
-			defer cancel()
+			ctx := t.Context()
 			actualList, actualCompactedList, err := poller.Do(ctx, b)
 
 			// confirm return as expected
@@ -283,8 +282,7 @@ func TestTenantIndexFallback(t *testing.T) {
 				owns: tc.isTenantIndexBuilder,
 			}, r, c, w, log.NewNopLogger())
 
-			ctx, cancel := context.WithCancel(context.Background())
-			defer cancel()
+			ctx := t.Context()
 			_, _, err := poller.Do(ctx, b)
 
 			assert.Equal(t, tc.expectsError, err != nil)
@@ -758,8 +756,7 @@ func TestPollTolerateConsecutiveErrors(t *testing.T) {
 				EmptyTenantDeletionAge:    testEmptyTenantIndexAge,
 			}, s, r, c, w, log.NewLogfmtLogger(os.Stdout))
 
-			ctx, cancel := context.WithCancel(context.Background())
-			defer cancel()
+			ctx := t.Context()
 			_, _, err := poller.Do(ctx, b)
 
 			if tc.expectedError != nil {
@@ -1299,7 +1296,7 @@ func writeNewBlocksForTenant(ctx context.Context, b *testing.B, w backend.Writer
 
 func newBlockMetas(count int, tenantID string) []*backend.BlockMeta {
 	metas := make([]*backend.BlockMeta, count)
-	for i := 0; i < count; i++ {
+	for i := range count {
 		metas[i] = &backend.BlockMeta{
 			BlockID:  backend.NewUUID(),
 			TenantID: tenantID,
@@ -1311,7 +1308,7 @@ func newBlockMetas(count int, tenantID string) []*backend.BlockMeta {
 
 func newCompactedMetas(count int) []*backend.CompactedBlockMeta {
 	metas := make([]*backend.CompactedBlockMeta, count)
-	for i := 0; i < count; i++ {
+	for i := range count {
 		metas[i] = &backend.CompactedBlockMeta{
 			BlockMeta: backend.BlockMeta{
 				BlockID: backend.NewUUID(),
@@ -1339,7 +1336,7 @@ func newPerTenant(tenantCount, blockCount int) PerTenant {
 		id        string
 		tenant    string
 	)
-	for i := 0; i < tenantCount; i++ {
+	for i := range tenantCount {
 		tenant = fmt.Sprintf("tenant-%d", i)
 		metas = newBlockMetas(blockCount, tenant)
 		id = randString(5)
@@ -1353,7 +1350,7 @@ func newPerTenantCompacted(tenantCount, blockCount int) PerTenantCompacted {
 	perTenantCompacted := make(PerTenantCompacted)
 	var metas []*backend.CompactedBlockMeta
 	var id string
-	for i := 0; i < tenantCount; i++ {
+	for range tenantCount {
 		metas = newCompactedMetas(blockCount)
 		id = randString(5)
 		perTenantCompacted[id] = metas

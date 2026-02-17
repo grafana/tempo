@@ -2,6 +2,7 @@ package collector
 
 import (
 	"fmt"
+	"slices"
 	"sort"
 	"strconv"
 	"testing"
@@ -91,9 +92,9 @@ func BenchmarkDistinctValueCollect(b *testing.B) {
 	numIngesters := 100
 	numTagValuesPerIngester := 10_000
 	ingesterTagValues := make([][]tempopb.TagValue, numIngesters)
-	for i := 0; i < numIngesters; i++ {
+	for i := range numIngesters {
 		tagValues := make([]tempopb.TagValue, numTagValuesPerIngester)
-		for j := 0; j < numTagValuesPerIngester; j++ {
+		for j := range numTagValuesPerIngester {
 			tagValues[j] = tempopb.TagValue{
 				Type:  "string",
 				Value: fmt.Sprintf("value_%d_%d", i, j),
@@ -115,10 +116,8 @@ func BenchmarkDistinctValueCollect(b *testing.B) {
 			for n := 0; n < b.N; n++ {
 				distinctValues := NewDistinctValue(lim, 0, 0, func(v tempopb.TagValue) int { return len(v.Type) + len(v.Value) })
 				for _, tagValues := range ingesterTagValues {
-					for _, v := range tagValues {
-						if distinctValues.Collect(v) {
-							break // stop early if limit is reached
-						}
+					if slices.ContainsFunc(tagValues, distinctValues.Collect) {
+						// stop early if limit is reached
 					}
 				}
 			}
@@ -127,8 +126,8 @@ func BenchmarkDistinctValueCollect(b *testing.B) {
 		b.Run("duplicates_limit:"+strconv.Itoa(lim), func(b *testing.B) {
 			for n := 0; n < b.N; n++ {
 				distinctValues := NewDistinctValue(lim, 0, 0, func(v tempopb.TagValue) int { return len(v.Type) + len(v.Value) })
-				for i := 0; i < numIngesters; i++ {
-					for j := 0; j < numTagValuesPerIngester; j++ {
+				for i := range numIngesters {
+					for range numTagValuesPerIngester {
 						// collect first item to simulate duplicates
 						if distinctValues.Collect(ingesterTagValues[i][0]) {
 							break // stop early if limit is reached

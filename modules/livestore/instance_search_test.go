@@ -454,7 +454,7 @@ func TestSearchTagsV2Limits(t *testing.T) {
 			// push traces
 			uniqueKeys := map[string]struct{}{}
 			numTraces := 10
-			for i := 0; i < numTraces; i++ {
+			for range numTraces {
 				id := test.ValidTraceID(nil)
 				trace := test.MakeTrace(1, id)
 
@@ -603,7 +603,7 @@ func pushTracesToInstance(t *testing.T, i *instance, numTraces int) ([]*tempopb.
 	var ids [][]byte
 	var traces []*tempopb.Trace
 
-	for j := 0; j < numTraces; j++ {
+	for range numTraces {
 		id := make([]byte, 16)
 		_, err := crand.Read(id)
 		require.NoError(t, err)
@@ -638,7 +638,7 @@ func writeTracesForSearch(t *testing.T, i *instance, spanName, tagKey, tagValue 
 	expectedLinkTagValues := make([]string, 0, numTraces)
 
 	now := time.Now()
-	for j := 0; j < numTraces; j++ {
+	for j := range numTraces {
 		id := make([]byte, 16)
 		_, err := crand.Read(id)
 		require.NoError(t, err)
@@ -717,9 +717,7 @@ func TestInstanceSearchDoesNotRace(t *testing.T) {
 	wg := sync.WaitGroup{}
 
 	concurrent := func(f func()) {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			for {
 				select {
 				case <-end:
@@ -728,7 +726,7 @@ func TestInstanceSearchDoesNotRace(t *testing.T) {
 					f()
 				}
 			}
-		}()
+		})
 	}
 
 	concurrent(func() {
@@ -806,7 +804,7 @@ func TestInstanceSearchMetrics(t *testing.T) {
 
 	numTraces := uint32(500)
 	numBytes := uint64(0)
-	for j := uint32(0); j < numTraces; j++ {
+	for range numTraces {
 		id := test.ValidTraceID(nil)
 
 		// Trace bytes have to be pushed as raw tempopb.Trace bytes

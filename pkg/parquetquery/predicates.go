@@ -54,14 +54,14 @@ func NewByteInPredicate(bb [][]byte) Predicate {
 }
 
 func (p *ByteInPredicate) String() string {
-	var strs string
+	var strs strings.Builder
 	for i, s := range p.values {
 		if i > 0 {
-			strs += ", "
+			strs.WriteString(", ")
 		}
-		strs += string(s)
+		strs.WriteString(string(s))
 	}
-	return fmt.Sprintf("ByteInPredicate{%s}", strs)
+	return fmt.Sprintf("ByteInPredicate{%s}", strs.String())
 }
 
 func (p *ByteInPredicate) KeepColumnChunk(cc *ColumnChunkHelper) bool {
@@ -127,14 +127,14 @@ func NewByteNotInPredicate(bb [][]byte) Predicate {
 }
 
 func (p *ByteNotInPredicate) String() string {
-	var strs string
+	var strs strings.Builder
 	for i, s := range p.values {
 		if i > 0 {
-			strs += ", "
+			strs.WriteString(", ")
 		}
-		strs += string(s)
+		strs.WriteString(string(s))
 	}
-	return fmt.Sprintf("ByteNotInPredicate{%s}", strs)
+	return fmt.Sprintf("ByteNotInPredicate{%s}", strs.String())
 }
 
 func (p *ByteNotInPredicate) KeepColumnChunk(cc *ColumnChunkHelper) bool {
@@ -499,7 +499,7 @@ func (p *InstrumentedPredicate) KeepValue(v pq.Value) bool {
 // matches were found.
 func keepDictionary(dict pq.Dictionary, keepValue func(pq.Value) bool) bool {
 	l := dict.Len()
-	for i := 0; i < l; i++ {
+	for i := range l {
 		dictionaryEntry := dict.Index(int32(i))
 		if keepValue(dictionaryEntry) {
 			return true

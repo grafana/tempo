@@ -34,23 +34,23 @@ func TestBackendBlockSearch(t *testing.T) {
 			{
 				Resource: Resource{
 					ServiceName:      "myservice",
-					Cluster:          ptr("cluster"),
-					Namespace:        ptr("namespace"),
-					Pod:              ptr("pod"),
-					Container:        ptr("container"),
-					K8sClusterName:   ptr("k8scluster"),
-					K8sNamespaceName: ptr("k8snamespace"),
-					K8sPodName:       ptr("k8spod"),
-					K8sContainerName: ptr("k8scontainer"),
+					Cluster:          new("cluster"),
+					Namespace:        new("namespace"),
+					Pod:              new("pod"),
+					Container:        new("container"),
+					K8sClusterName:   new("k8scluster"),
+					K8sNamespaceName: new("k8snamespace"),
+					K8sPodName:       new("k8spod"),
+					K8sContainerName: new("k8scontainer"),
 					Attrs: []Attribute{
 						attr("bat", "baz"),
 					},
 					DedicatedAttributes: DedicatedAttributes{
-						String01: ptr("dedicated-resource-attr-value-1"),
-						String02: ptr("dedicated-resource-attr-value-2"),
-						String03: ptr("dedicated-resource-attr-value-3"),
-						String04: ptr("dedicated-resource-attr-value-4"),
-						String05: ptr("dedicated-resource-attr-value-5"),
+						String01: new("dedicated-resource-attr-value-1"),
+						String02: new("dedicated-resource-attr-value-2"),
+						String03: new("dedicated-resource-attr-value-3"),
+						String04: new("dedicated-resource-attr-value-4"),
+						String05: new("dedicated-resource-attr-value-5"),
 					},
 				},
 				ScopeSpans: []ScopeSpans{
@@ -58,9 +58,9 @@ func TestBackendBlockSearch(t *testing.T) {
 						Spans: []Span{
 							{
 								Name:           "hello",
-								HttpMethod:     ptr("get"),
-								HttpUrl:        ptr("url/hello/world"),
-								HttpStatusCode: ptr(int64(500)),
+								HttpMethod:     new("get"),
+								HttpUrl:        new("url/hello/world"),
+								HttpStatusCode: new(int64(500)),
 								SpanID:         []byte{},
 								ParentSpanID:   []byte{},
 								StatusCode:     int(v1.Status_STATUS_CODE_ERROR),
@@ -68,11 +68,11 @@ func TestBackendBlockSearch(t *testing.T) {
 									attr("foo", "bar"),
 								},
 								DedicatedAttributes: DedicatedAttributes{
-									String01: ptr("dedicated-span-attr-value-1"),
-									String02: ptr("dedicated-span-attr-value-2"),
-									String03: ptr("dedicated-span-attr-value-3"),
-									String04: ptr("dedicated-span-attr-value-4"),
-									String05: ptr("dedicated-span-attr-value-5"),
+									String01: new("dedicated-span-attr-value-1"),
+									String02: new("dedicated-span-attr-value-2"),
+									String03: new("dedicated-span-attr-value-3"),
+									String04: new("dedicated-span-attr-value-4"),
+									String05: new("dedicated-span-attr-value-5"),
 								},
 							},
 						},
@@ -86,7 +86,7 @@ func TestBackendBlockSearch(t *testing.T) {
 	total := 1000
 	insertAt := rand.Intn(total)
 	allTraces := make([]*Trace, 0, total)
-	for i := 0; i < total; i++ {
+	for i := range total {
 		if i == insertAt {
 			allTraces = append(allTraces, wantTr)
 			continue
@@ -304,11 +304,11 @@ func makeTraces() ([]*Trace, map[string]string, map[string]string, map[string]st
 	resourceAttrVals[LabelK8sContainerName] = "k8scon"
 
 	dedicatedResourceAttrs := DedicatedAttributes{
-		String01: ptr("dedicated-resource-attr-value-1"),
-		String02: ptr("dedicated-resource-attr-value-2"),
-		String03: ptr("dedicated-resource-attr-value-3"),
-		String04: ptr("dedicated-resource-attr-value-4"),
-		String05: ptr("dedicated-resource-attr-value-5"),
+		String01: new("dedicated-resource-attr-value-1"),
+		String02: new("dedicated-resource-attr-value-2"),
+		String03: new("dedicated-resource-attr-value-3"),
+		String04: new("dedicated-resource-attr-value-4"),
+		String05: new("dedicated-resource-attr-value-5"),
 	}
 	resourceAttrVals["dedicated.resource.1"] = *dedicatedResourceAttrs.String01
 	resourceAttrVals["dedicated.resource.2"] = *dedicatedResourceAttrs.String02
@@ -327,11 +327,11 @@ func makeTraces() ([]*Trace, map[string]string, map[string]string, map[string]st
 	spanAttrVals[LabelHTTPStatusCode] = "404"
 
 	dedicatedSpanAttrs := DedicatedAttributes{
-		String01: ptr("dedicated-span-attr-value-1"),
-		String02: ptr("dedicated-span-attr-value-2"),
-		String03: ptr("dedicated-span-attr-value-3"),
-		String04: ptr("dedicated-span-attr-value-4"),
-		String05: ptr("dedicated-span-attr-value-5"),
+		String01: new("dedicated-span-attr-value-1"),
+		String02: new("dedicated-span-attr-value-2"),
+		String03: new("dedicated-span-attr-value-3"),
+		String04: new("dedicated-span-attr-value-4"),
+		String05: new("dedicated-span-attr-value-5"),
 	}
 	spanAttrVals["dedicated.span.1"] = *dedicatedSpanAttrs.String01
 	spanAttrVals["dedicated.span.2"] = *dedicatedSpanAttrs.String02
@@ -339,13 +339,13 @@ func makeTraces() ([]*Trace, map[string]string, map[string]string, map[string]st
 	spanAttrVals["dedicated.span.4"] = *dedicatedSpanAttrs.String04
 	spanAttrVals["dedicated.span.5"] = *dedicatedSpanAttrs.String05
 
-	for i := 0; i < 10; i++ {
+	for range 10 {
 		tr := &Trace{
 			RootServiceName: "rootsvc",
 			RootSpanName:    "rootspan",
 		}
 
-		for j := 0; j < 3; j++ {
+		for range 3 {
 			key := test.RandomString()
 			val := test.RandomString()
 			resourceAttrVals[key] = val
@@ -353,14 +353,14 @@ func makeTraces() ([]*Trace, map[string]string, map[string]string, map[string]st
 			rs := ResourceSpans{
 				Resource: Resource{
 					ServiceName:      "servicename",
-					Cluster:          ptr("cluster"),
-					Namespace:        ptr("ns"),
-					Pod:              ptr("pod"),
-					Container:        ptr("con"),
-					K8sClusterName:   ptr("kclust"),
-					K8sNamespaceName: ptr("kns"),
-					K8sPodName:       ptr("kpod"),
-					K8sContainerName: ptr("k8scon"),
+					Cluster:          new("cluster"),
+					Namespace:        new("ns"),
+					Pod:              new("pod"),
+					Container:        new("con"),
+					K8sClusterName:   new("kclust"),
+					K8sNamespaceName: new("kns"),
+					K8sPodName:       new("kpod"),
+					K8sContainerName: new("k8scon"),
 					Attrs: []Attribute{
 						attr(key, val),
 					},
@@ -372,7 +372,7 @@ func makeTraces() ([]*Trace, map[string]string, map[string]string, map[string]st
 			}
 			tr.ResourceSpans = append(tr.ResourceSpans, rs)
 
-			for k := 0; k < 10; k++ {
+			for range 10 {
 				key := test.RandomString()
 				val := test.RandomString()
 				spanAttrVals[key] = val
@@ -380,8 +380,8 @@ func makeTraces() ([]*Trace, map[string]string, map[string]string, map[string]st
 				sts := int64(404)
 				span := Span{
 					Name:           "span",
-					HttpMethod:     ptr("method"),
-					HttpUrl:        ptr("url"),
+					HttpMethod:     new("method"),
+					HttpUrl:        new("url"),
 					HttpStatusCode: &sts,
 					StatusCode:     2,
 					Attrs: []Attribute{

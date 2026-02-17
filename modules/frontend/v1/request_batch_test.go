@@ -20,7 +20,7 @@ func TestRequestBatchBasics(t *testing.T) {
 
 	const totalRequests = 3
 
-	for i := byte(0); i < totalRequests; i++ {
+	for i := range byte(totalRequests) {
 		req := httptest.NewRequest("GET", "http://example.com", bytes.NewReader([]byte{i}))
 		_ = rb.add(&request{
 			request: pipeline.NewHTTPRequest(req),
@@ -54,7 +54,7 @@ func TestRequestBatchContextError(t *testing.T) {
 	prequest := pipeline.NewHTTPRequest(req)
 	prequest.SetContext(ctx)
 
-	for i := 0; i < totalRequests-1; i++ {
+	for range totalRequests - 1 {
 		_ = rb.add(&request{request: prequest})
 	}
 
@@ -85,17 +85,15 @@ func TestDoneChanCloses(_ *testing.T) {
 	prequest := pipeline.NewHTTPRequest(req)
 	prequest.SetContext(cancelCtx)
 
-	for i := 0; i < totalRequests-1; i++ {
+	for range totalRequests - 1 {
 		_ = rb.add(&request{request: prequest})
 	}
 
 	wg := &sync.WaitGroup{}
-	wg.Add(1)
-	go func() {
+	wg.Go(func() {
 		done := rb.doneChan(make(<-chan struct{}))
 		<-done
-		wg.Done()
-	}()
+	})
 
 	cancel()
 	wg.Wait()
@@ -108,7 +106,7 @@ func TestDoneChanClosesOnStop(_ *testing.T) {
 	const totalRequests = 3
 	req := httptest.NewRequest("GET", "http://example.com", nil)
 
-	for i := 0; i < totalRequests-1; i++ {
+	for range totalRequests - 1 {
 		_ = rb.add(&request{
 			request: pipeline.NewHTTPRequest(req),
 		})
@@ -116,12 +114,10 @@ func TestDoneChanClosesOnStop(_ *testing.T) {
 
 	stop := make(chan struct{})
 	wg := &sync.WaitGroup{}
-	wg.Add(1)
-	go func() {
+	wg.Go(func() {
 		done := rb.doneChan(stop)
 		<-done
-		wg.Done()
-	}()
+	})
 
 	close(stop)
 	wg.Wait()
@@ -134,15 +130,13 @@ func TestErrorsPropagateUpstream(t *testing.T) {
 	const totalRequests = 3
 	wg := &sync.WaitGroup{}
 
-	for i := 0; i < totalRequests-1; i++ {
+	for range totalRequests - 1 {
 		errChan := make(chan error)
 
-		wg.Add(1)
-		go func() {
+		wg.Go(func() {
 			err := <-errChan
 			require.ErrorContains(t, err, "foo")
-			wg.Done()
-		}()
+		})
 		req := httptest.NewRequest("GET", "http://example.com", nil)
 		_ = rb.add(&request{
 			request: pipeline.NewHTTPRequest(req),
@@ -161,7 +155,7 @@ func TestResponsesPropagateUpstream(t *testing.T) {
 	const totalRequests = 3
 	wg := &sync.WaitGroup{}
 
-	for i := int32(0); i < totalRequests; i++ {
+	for i := range int32(totalRequests) {
 		responseChan := make(chan *http.Response)
 
 		wg.Add(1)
@@ -183,7 +177,7 @@ func TestResponsesPropagateUpstream(t *testing.T) {
 	require.Error(t, err)
 
 	responses := make([]*httpgrpc.HTTPResponse, totalRequests)
-	for i := int32(0); i < totalRequests; i++ {
+	for i := range int32(totalRequests) {
 		responses[i] = &httpgrpc.HTTPResponse{
 			Code: i,
 		}

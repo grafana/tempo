@@ -124,7 +124,7 @@ func testColumnIterator(t *testing.T, makeIter makeTestIterFn) {
 	iter := makeIter(pf, idx, nil, "A")
 	defer iter.Close()
 
-	for i := 0; i < count; i++ {
+	for i := range count {
 		res, err := iter.Next()
 		require.NoError(t, err)
 		require.NotNil(t, res, "i=%d", i)
@@ -210,7 +210,7 @@ func TestSyncIteratorPropagatesErrors(t *testing.T) {
 
 	rows := []T{}
 	count := 10_000
-	for i := 0; i < count; i++ {
+	for i := range count {
 		rows = append(rows, T{i})
 	}
 
@@ -271,7 +271,7 @@ func createTestFile(t testing.TB, count int) *parquet.File {
 	type T struct{ A int }
 
 	rows := []T{}
-	for i := 0; i < count; i++ {
+	for i := range count {
 		rows = append(rows, T{i})
 	}
 
@@ -374,7 +374,7 @@ func BenchmarkIteratorResultAppend(b *testing.B) {
 				},
 				OtherEntries: []struct {
 					Key   string
-					Value interface{}
+					Value any
 				}{
 					{Key: "B", Value: "test"},
 				},

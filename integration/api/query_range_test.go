@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"math"
+	"strings"
 	"testing"
 	"time"
 
@@ -666,7 +667,7 @@ func TestQueryRangeTypeHandling(t *testing.T) {
 		t1.Spans[0].Tags = append(t1.Spans[0].Tags, &jaeger.Tag{
 			Key:   "foo",
 			VType: jaeger.TagType_STRING,
-			VStr:  strptr("123"),
+			VStr:  new("123"),
 		})
 		require.NoError(t, h.WriteJaegerBatch(t1, ""))
 
@@ -806,12 +807,14 @@ func callQueryRange(t *testing.T, h *util.TempoHarness, req queryRangeRequest, f
 	fn(finalResponse, finalError)
 }
 
+//go:fix inline
 func strptr(s string) *string {
-	return &s
+	return new(s)
 }
 
+//go:fix inline
 func int64ptr(i int64) *int64 {
-	return &i
+	return new(i)
 }
 
 // naiveQueryRangeCombine makes assumptions about the data being sent from Tempo. it assumes that labels orders are always
@@ -853,9 +856,9 @@ func naiveQueryRangeCombine(rNew, rInto *tempopb.QueryRangeResponse) {
 }
 
 func keyFromLabels(labels []v1.KeyValue) string {
-	key := ""
+	var key strings.Builder
 	for _, label := range labels {
-		key += label.Key + "=" + label.Value.GetStringValue() + ","
+		key.WriteString(label.Key + "=" + label.Value.GetStringValue() + ",")
 	}
-	return key
+	return key.String()
 }

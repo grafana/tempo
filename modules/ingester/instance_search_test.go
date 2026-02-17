@@ -542,7 +542,7 @@ func writeTracesForSearch(t *testing.T, i *instance, spanName, tagKey, tagValue 
 	expectedLinkTagValues := make([]string, 0, numTraces)
 
 	now := time.Now()
-	for j := 0; j < numTraces; j++ {
+	for j := range numTraces {
 		id := make([]byte, 16)
 		_, err := crand.Read(id)
 		require.NoError(t, err)
@@ -640,9 +640,7 @@ func TestInstanceSearchDoesNotRace(t *testing.T) {
 	wg := sync.WaitGroup{}
 
 	concurrent := func(f func()) {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			for {
 				select {
 				case <-end:
@@ -651,7 +649,7 @@ func TestInstanceSearchDoesNotRace(t *testing.T) {
 					f()
 				}
 			}
-		}()
+		})
 	}
 
 	concurrent(func() {
@@ -735,9 +733,7 @@ func TestWALBlockDeletedDuringSearch(t *testing.T) {
 	wg := sync.WaitGroup{}
 
 	concurrent := func(f func()) {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			for {
 				select {
 				case <-end:
@@ -746,10 +742,10 @@ func TestWALBlockDeletedDuringSearch(t *testing.T) {
 					f()
 				}
 			}
-		}()
+		})
 	}
 
-	for j := 0; j < 500; j++ {
+	for range 500 {
 		id := make([]byte, 16)
 		_, err := crand.Read(id)
 		require.NoError(t, err)
@@ -797,7 +793,7 @@ func TestInstanceSearchMetrics(t *testing.T) {
 
 	numTraces := uint32(500)
 	numBytes := uint64(0)
-	for j := uint32(0); j < numTraces; j++ {
+	for range numTraces {
 		id := test.ValidTraceID(nil)
 
 		// Trace bytes have to be pushed in the expected data encoding
@@ -857,9 +853,7 @@ func BenchmarkInstanceSearchUnderLoad(b *testing.B) {
 	wg := sync.WaitGroup{}
 
 	concurrent := func(f func()) {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			for {
 				select {
 				case <-end:
@@ -868,12 +862,12 @@ func BenchmarkInstanceSearchUnderLoad(b *testing.B) {
 					f()
 				}
 			}
-		}()
+		})
 	}
 
 	// Push data
 	var tracesPushed atomic.Int32
-	for j := 0; j < 2; j++ {
+	for range 2 {
 		concurrent(func() {
 			id := test.ValidTraceID(nil)
 
@@ -908,7 +902,7 @@ func BenchmarkInstanceSearchUnderLoad(b *testing.B) {
 	var bytesInspected atomic.Uint64
 	var tracesInspected atomic.Uint32
 
-	for j := 0; j < 2; j++ {
+	for range 2 {
 		concurrent(func() {
 			// time.Sleep(1 * time.Millisecond)
 			req := &tempopb.SearchRequest{}

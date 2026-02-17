@@ -201,7 +201,7 @@ func TestBackendNilKeyBlockSearchTraceQL(t *testing.T) {
 	numOfSpansWithEvents := 0
 	numOfSpansWithLinks := 0
 
-	for i := 0; i < numTraces; i++ {
+	for i := range numTraces {
 		if i == wantTraceIdx {
 			traces = append(traces, fullyPopulatedTestTrace(wantTraceID))
 			continue
@@ -376,7 +376,7 @@ func TestBackendNilValueBlockSearchTraceQL(t *testing.T) {
 	wantTraceIdx := rand.Intn(numTraces)
 	wantTraceID := test.ValidTraceID(nil)
 
-	for i := 0; i < numTraces; i++ {
+	for i := range numTraces {
 		if i == wantTraceIdx {
 			wantTrace := &Trace{
 				TraceID: wantTraceID,
@@ -558,7 +558,7 @@ func TestBackendBlockSearchTraceQL(t *testing.T) {
 	wantTraceIdx := rand.Intn(numTraces)
 	wantTraceID := test.ValidTraceID(nil)
 
-	for i := 0; i < numTraces; i++ {
+	for i := range numTraces {
 		if i == wantTraceIdx {
 			traces = append(traces, fullyPopulatedTestTrace(wantTraceID))
 			continue
@@ -910,7 +910,7 @@ func TestBackendBlockSearchTraceQLEvents(t *testing.T) {
 	wantTraceIdx := rand.Intn(numTraces)
 	wantTraceID := test.ValidTraceID(nil)
 
-	for i := 0; i < numTraces; i++ {
+	for i := range numTraces {
 		if i == wantTraceIdx {
 			// this trace has one span with two identical events
 			traces = append(traces, fullyPopulatedTestTrace(wantTraceID))
@@ -1372,7 +1372,7 @@ func TestBackendBlockSelectAll(t *testing.T) {
 	// add support for arrays/kvlists in the fetch layer.
 	trimForSelectAll(wantTrace)
 
-	for i := 0; i < numTraces; i++ {
+	for i := range numTraces {
 		if i == wantTraceIdx {
 			traces = append(traces, wantTrace)
 			continue
@@ -1992,8 +1992,9 @@ func errorRate(baselineResults, testResults traceql.SeriesSet) (err float64, wor
 	return
 }
 
+//go:fix inline
 func ptr[T any](v T) *T {
-	return &v
+	return new(v)
 }
 
 func attr(key string, val any) Attribute {
@@ -2697,7 +2698,7 @@ func BenchmarkSiblingOf(b *testing.B) {
 
 			// create 1k s1 with random siblings
 			s1 := make([]traceql.Span, totalSpans)
-			for i := 0; i < totalSpans; i++ {
+			for i := range totalSpans {
 				s1[i] = &span{nestedSetParent: rand.Int31n(10)}
 			}
 			// copy the same slice to s2

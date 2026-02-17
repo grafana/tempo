@@ -106,8 +106,8 @@ func (m *mockGRPCStreaming[T]) Send(r T) error {
 func (m *mockGRPCStreaming[T]) Context() context.Context     { return m.ctx }
 func (m *mockGRPCStreaming[T]) SendHeader(metadata.MD) error { return nil }
 func (m *mockGRPCStreaming[T]) SetHeader(metadata.MD) error  { return nil }
-func (m *mockGRPCStreaming[T]) SendMsg(interface{}) error    { return nil }
-func (m *mockGRPCStreaming[T]) RecvMsg(interface{}) error    { return nil }
+func (m *mockGRPCStreaming[T]) SendMsg(any) error            { return nil }
+func (m *mockGRPCStreaming[T]) RecvMsg(any) error            { return nil }
 func (m *mockGRPCStreaming[T]) SetTrailer(metadata.MD)       {}
 
 func newMockStreamingServer[T proto.Message](orgID string, cb func(int, T)) *mockGRPCStreaming[T] {
@@ -771,7 +771,7 @@ func BenchmarkSearchPipeline(b *testing.B) {
 	rdr := &mockReader{
 		metas: make([]*backend.BlockMeta, 0, totalBlocks),
 	}
-	for i := 0; i < totalBlocks; i++ {
+	for i := range totalBlocks {
 		rdr.metas = append(rdr.metas, &backend.BlockMeta{
 			StartTime:    time.Unix(15, 0),
 			EndTime:      time.Unix(16, 0),

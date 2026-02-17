@@ -64,10 +64,9 @@ func newCardinality(precision uint8, staleTime, sketchDuration time.Duration) *C
 		sketchDuration = 5 * time.Minute
 	}
 
-	sketchesLength := int((staleTime + sketchDuration) / sketchDuration) // ceil
-	if sketchesLength < 2 {
-		sketchesLength = 2
-	}
+	sketchesLength := max(
+		// ceil
+		int((staleTime+sketchDuration)/sketchDuration), 2)
 
 	sketches := make([]*hll.Sketch, sketchesLength)
 	for i := range sketches {

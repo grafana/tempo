@@ -14,7 +14,7 @@ func TestShardedBloom(t *testing.T) {
 	var err error
 	const numTraces = 10000
 	traceIDs := make([][]byte, 0)
-	for i := 0; i < numTraces; i++ {
+	for range numTraces {
 		id := make([]byte, 16)
 		_, err = crand.Read(id)
 		assert.NoError(t, err)
@@ -92,7 +92,6 @@ func TestShardedBloomFalsePositive(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt // capture range variable, needed for running test cases in parallel
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -142,7 +141,6 @@ func TestBloomShardCount(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt // capture range variable, needed for running test cases in parallel
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 

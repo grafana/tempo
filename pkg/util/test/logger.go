@@ -36,13 +36,13 @@ func (l *TestingLogger) WithT(t testing.TB) log.Logger {
 	return child
 }
 
-func (l *TestingLogger) Log(keyvals ...interface{}) error {
+func (l *TestingLogger) Log(keyvals ...any) error {
 	if l.done.Load() {
 		return nil
 	}
 
 	// Prepend log with timestamp.
-	keyvals = append([]interface{}{time.Now().String()}, keyvals...)
+	keyvals = append([]any{time.Now().String()}, keyvals...)
 
 	l.mtx.Lock()
 	defer l.mtx.Unlock()

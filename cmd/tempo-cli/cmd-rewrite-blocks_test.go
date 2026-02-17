@@ -78,7 +78,7 @@ func generateTestBlocks(t *testing.T, tempDir string, tenantID string, blockCoun
 		BloomShardSizeBytes: 100 * 1024,
 	}
 
-	for bn := 0; bn < blockCount; bn++ {
+	for range blockCount {
 		traces := newTestTraces(traceCount)
 		iter := &testIterator{traces: traces}
 		meta := backend.NewBlockMeta(tenantID, uuid.New(), vparquet4.VersionString)
@@ -179,7 +179,7 @@ type testIterator struct {
 func newTestTraces(traceCount int) []testTrace {
 	traces := make([]testTrace, 0, traceCount)
 
-	for i := 0; i < traceCount; i++ {
+	for i := range traceCount {
 		traceID := test.ValidTraceID(nil)
 		trace := test.MakeTraceWithTags(traceID, "megaservice", int64(i))
 		traces = append(traces, testTrace{traceID: traceID, trace: trace})

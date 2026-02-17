@@ -105,7 +105,7 @@ func TestStoreExpire(t *testing.T) {
 	const testSize = 100
 
 	keys := map[string]bool{}
-	for i := 0; i < testSize; i++ {
+	for i := range testSize {
 		keys[fmt.Sprintf("key-%d", i)] = true
 	}
 

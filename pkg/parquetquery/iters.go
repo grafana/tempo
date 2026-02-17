@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"math"
+	"strings"
 	"sync"
 
 	"github.com/grafana/tempo/pkg/parquetquery/intern"
@@ -186,7 +187,7 @@ type IteratorResult struct {
 	}
 	OtherEntries []struct {
 		Key   string
-		Value interface{}
+		Value any
 	}
 }
 
@@ -219,14 +220,14 @@ func (r *IteratorResult) AppendValue(k string, v pq.Value) {
 	}{k, v})
 }
 
-func (r *IteratorResult) AppendOtherValue(k string, v interface{}) {
+func (r *IteratorResult) AppendOtherValue(k string, v any) {
 	r.OtherEntries = append(r.OtherEntries, struct {
 		Key   string
-		Value interface{}
+		Value any
 	}{k, v})
 }
 
-func (r *IteratorResult) OtherValueFromKey(k string) interface{} {
+func (r *IteratorResult) OtherValueFromKey(k string) any {
 	for _, e := range r.OtherEntries {
 		if e.Key == k {
 			return e.Value
@@ -283,7 +284,7 @@ type Iterator interface {
 }
 
 var syncIteratorPool = sync.Pool{
-	New: func() interface{} {
+	New: func() any {
 		return []pq.Value{}
 	},
 }
@@ -951,11 +952,11 @@ func NewJoinIterator(definitionLevel int, iters []Iterator, pred GroupPredicate,
 }
 
 func (j *JoinIterator) String() string {
-	var iters string
+	var iters strings.Builder
 	for _, iter := range j.iters {
-		iters += "\n\t" + util.TabOut(iter)
+		iters.WriteString("\n\t" + util.TabOut(iter))
 	}
-	return fmt.Sprintf("JoinIterator: %d: %s\t%s)", j.definitionLevel, j.pred, iters)
+	return fmt.Sprintf("JoinIterator: %d: %s\t%s)", j.definitionLevel, j.pred, iters.String())
 }
 
 func (j *JoinIterator) Next() (*IteratorResult, error) {
@@ -1163,15 +1164,17 @@ func NewLeftJoinIterator(definitionLevel int, required, optional []Iterator, pre
 }
 
 func (j *LeftJoinIterator) String() string {
-	srequired := "required: "
+	var srequired strings.Builder
+	srequired.WriteString("required: ")
 	for _, r := range j.required {
-		srequired += "\n\t" + util.TabOut(r)
+		srequired.WriteString("\n\t" + util.TabOut(r))
 	}
-	soptional := "optional: "
+	var soptional strings.Builder
+	soptional.WriteString("optional: ")
 	for _, o := range j.optional {
-		soptional += "\n\t" + util.TabOut(o)
+		soptional.WriteString("\n\t" + util.TabOut(o))
 	}
-	return fmt.Sprintf("LeftJoinIterator: %d: %s\n%s\n%s", j.definitionLevel, j.pred, srequired, soptional)
+	return fmt.Sprintf("LeftJoinIterator: %d: %s\n%s\n%s", j.definitionLevel, j.pred, srequired.String(), soptional.String())
 }
 
 func (j *LeftJoinIterator) Next() (*IteratorResult, error) {
@@ -1410,11 +1413,11 @@ func NewUnionIterator(definitionLevel int, iters []Iterator, pred GroupPredicate
 }
 
 func (u *UnionIterator) String() string {
-	var iters string
+	var iters strings.Builder
 	for _, iter := range u.iters {
-		iters += "\n\t" + util.TabOut(iter)
+		iters.WriteString("\n\t" + util.TabOut(iter))
 	}
-	return fmt.Sprintf("UnionIterator: %d: %s\t%s)", u.definitionLevel, u.pred, iters)
+	return fmt.Sprintf("UnionIterator: %d: %s\t%s)", u.definitionLevel, u.pred, iters.String())
 }
 
 func (u *UnionIterator) Next() (*IteratorResult, error) {

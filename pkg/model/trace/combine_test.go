@@ -70,7 +70,7 @@ func TestCombinerChecksMaxBytes(t *testing.T) {
 		curSize := 0
 
 		// attempt up to 20 traces to exceed max bytes
-		for i := 0; i < 20; i++ {
+		for range 20 {
 			tr := test.MakeTraceWithSpanCount(1, 1, []byte{0x01})
 			curSize += tr.Size()
 
@@ -91,7 +91,7 @@ func TestCombinerReturnsAPartialTrace(t *testing.T) {
 		curSize := 0
 
 		// attempt up to 20 traces to exceed max bytes
-		for i := 0; i < 20; i++ {
+		for range 20 {
 			tr := test.MakeTraceWithSpanCount(1, 1, []byte{0x01})
 			curSize += tr.Size()
 
@@ -109,15 +109,13 @@ func TestCombinerParallel(t *testing.T) {
 	// Ensure that the combiner is safe for parallel use.
 	c := NewCombiner(0, false)
 	var wg sync.WaitGroup
-	for i := 0; i < 10; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			for j := 0; j < 100; j++ {
+	for range 10 {
+		wg.Go(func() {
+			for range 100 {
 				_, err := c.Consume(test.MakeTraceWithSpanCount(1, 1, []byte{0x01}))
 				require.NoError(t, err)
 			}
-		}()
+		})
 	}
 	wg.Wait()
 }
@@ -133,7 +131,7 @@ func TestTokenForIDCollision(t *testing.T) {
 	IDs := [][]byte{}
 
 	spanID := make([]byte, 8)
-	for i := 0; i < n; i++ {
+	for range n {
 		_, err := crand.Read(spanID)
 		require.NoError(t, err)
 
@@ -206,7 +204,7 @@ func BenchmarkCombine(b *testing.B) {
 						// this must be done each time.
 						b.StopTimer()
 						var traces []*tempopb.Trace
-						for i := 0; i < p; i++ {
+						for range p {
 							traces = append(traces, test.MakeTraceWithSpanCount(requests, spansEach, id))
 						}
 						b.StartTimer()

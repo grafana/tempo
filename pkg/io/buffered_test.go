@@ -102,7 +102,7 @@ func TestBufferedReaderAt(t *testing.T) {
 func TestBufferedReaderConcurrencyAndFuzz(t *testing.T) {
 	const minLen = 100
 
-	for i := 0; i < 100; i++ {
+	for range 100 {
 		inputLen := rand.Intn(1024) + minLen
 		input := make([]byte, inputLen)
 		inputReader := bytes.NewReader(input)
@@ -114,7 +114,7 @@ func TestBufferedReaderConcurrencyAndFuzz(t *testing.T) {
 
 		r := NewBufferedReaderAt(inputReader, int64(len(input)), 50, 1)
 
-		for i := 0; i < 1000; i++ {
+		for range 1000 {
 			go func() {
 				length := rand.Intn(minLen)
 				offset := rand.Intn(len(input) - length)

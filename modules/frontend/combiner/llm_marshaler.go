@@ -27,9 +27,9 @@ type LLMTrace struct {
 }
 
 type LLMService struct {
-	ServiceName string                 `json:"serviceName,omitempty"`
-	Resource    map[string]interface{} `json:"resource,omitempty"`
-	Scopes      []LLMScope             `json:"scopes,omitempty"`
+	ServiceName string         `json:"serviceName,omitempty"`
+	Resource    map[string]any `json:"resource,omitempty"`
+	Scopes      []LLMScope     `json:"scopes,omitempty"`
 }
 
 type LLMScope struct {
@@ -39,29 +39,29 @@ type LLMScope struct {
 }
 
 type LLMSpan struct {
-	SpanID            string                 `json:"spanId"`
-	Name              string                 `json:"name"`
-	ParentSpanID      string                 `json:"parentSpanId,omitempty"`
-	Kind              string                 `json:"kind,omitempty"`
-	StartTimeUnixNano string                 `json:"startTimeUnixNano,omitempty"`
-	EndTimeUnixNano   string                 `json:"endTimeUnixNano,omitempty"`
-	DurationMs        float64                `json:"durationMs,omitempty"`
-	Attributes        map[string]interface{} `json:"attributes,omitempty"`
-	Events            []LLMEvent             `json:"events,omitempty"`
-	Links             []LLMLink              `json:"links,omitempty"`
-	Status            LLMStatus              `json:"status"`
+	SpanID            string         `json:"spanId"`
+	Name              string         `json:"name"`
+	ParentSpanID      string         `json:"parentSpanId,omitempty"`
+	Kind              string         `json:"kind,omitempty"`
+	StartTimeUnixNano string         `json:"startTimeUnixNano,omitempty"`
+	EndTimeUnixNano   string         `json:"endTimeUnixNano,omitempty"`
+	DurationMs        float64        `json:"durationMs,omitempty"`
+	Attributes        map[string]any `json:"attributes,omitempty"`
+	Events            []LLMEvent     `json:"events,omitempty"`
+	Links             []LLMLink      `json:"links,omitempty"`
+	Status            LLMStatus      `json:"status"`
 }
 
 type LLMEvent struct {
-	Name         string                 `json:"name"`
-	TimeUnixNano string                 `json:"timeUnixNano,omitempty"`
-	Attributes   map[string]interface{} `json:"attributes,omitempty"`
+	Name         string         `json:"name"`
+	TimeUnixNano string         `json:"timeUnixNano,omitempty"`
+	Attributes   map[string]any `json:"attributes,omitempty"`
 }
 
 type LLMLink struct {
-	TraceID    string                 `json:"traceId"`
-	SpanID     string                 `json:"spanId"`
-	Attributes map[string]interface{} `json:"attributes,omitempty"`
+	TraceID    string         `json:"traceId"`
+	SpanID     string         `json:"spanId"`
+	Attributes map[string]any `json:"attributes,omitempty"`
 }
 
 type LLMStatus struct {
@@ -261,8 +261,8 @@ func simplifySpan(span *tracev1.Span) LLMSpan {
 }
 
 // flattenAttributes converts []*KeyValue to a flat map[string]interface{}
-func flattenAttributes(attrs []*commonv1.KeyValue) map[string]interface{} {
-	result := make(map[string]interface{})
+func flattenAttributes(attrs []*commonv1.KeyValue) map[string]any {
+	result := make(map[string]any)
 	for _, attr := range attrs {
 		if attr.Value != nil {
 			result[attr.Key] = extractAnyValue(attr.Value)
@@ -272,7 +272,7 @@ func flattenAttributes(attrs []*commonv1.KeyValue) map[string]interface{} {
 }
 
 // extractAnyValue extracts the actual value from an AnyValue wrapper
-func extractAnyValue(av *commonv1.AnyValue) interface{} {
+func extractAnyValue(av *commonv1.AnyValue) any {
 	switch v := av.Value.(type) {
 	case *commonv1.AnyValue_StringValue:
 		return v.StringValue
@@ -286,16 +286,16 @@ func extractAnyValue(av *commonv1.AnyValue) interface{} {
 		return hex.EncodeToString(v.BytesValue)
 	case *commonv1.AnyValue_ArrayValue:
 		if v.ArrayValue == nil {
-			return []interface{}{}
+			return []any{}
 		}
-		arr := make([]interface{}, 0, len(v.ArrayValue.Values))
+		arr := make([]any, 0, len(v.ArrayValue.Values))
 		for _, item := range v.ArrayValue.Values {
 			arr = append(arr, extractAnyValue(item))
 		}
 		return arr
 	case *commonv1.AnyValue_KvlistValue:
 		if v.KvlistValue == nil {
-			return map[string]interface{}{}
+			return map[string]any{}
 		}
 		return flattenAttributes(v.KvlistValue.Values)
 	default:

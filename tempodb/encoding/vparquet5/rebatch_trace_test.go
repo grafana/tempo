@@ -188,7 +188,7 @@ var testSpanCount = 0
 
 func makeTestSpans(t testing.TB, n int) []Span {
 	spans := make([]Span, 0, n)
-	for i := 0; i < n; i++ {
+	for range n {
 		testSpanCount++
 
 		spanID := make([]byte, 8)

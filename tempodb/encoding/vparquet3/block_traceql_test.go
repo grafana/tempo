@@ -193,7 +193,7 @@ func TestBackendNilKeyBlockSearchTraceQL(t *testing.T) {
 	wantTraceIdx := rand.Intn(numTraces)
 	wantTraceID := test.ValidTraceID(nil)
 	numSpansExpected := 0
-	for i := 0; i < numTraces; i++ {
+	for i := range numTraces {
 		if i == wantTraceIdx {
 			traces = append(traces, fullyPopulatedTestTrace(wantTraceID))
 			continue
@@ -320,7 +320,7 @@ func TestBackendNilValueBlockSearchTraceQL(t *testing.T) {
 	wantTraceIdx := rand.Intn(numTraces)
 	wantTraceID := test.ValidTraceID(nil)
 
-	for i := 0; i < numTraces; i++ {
+	for i := range numTraces {
 		if i == wantTraceIdx {
 			wantTrace := &Trace{
 				TraceID: wantTraceID,
@@ -352,9 +352,9 @@ func TestBackendNilValueBlockSearchTraceQL(t *testing.T) {
 										Name:                   "hello",
 										StartTimeUnixNano:      uint64(100 * time.Second),
 										DurationNano:           uint64(100 * time.Second),
-										HttpMethod:             ptr("get"),
-										HttpUrl:                ptr("url/hello/world"),
-										HttpStatusCode:         ptr(int64(500)),
+										HttpMethod:             new("get"),
+										HttpUrl:                new("url/hello/world"),
+										HttpStatusCode:         new(int64(500)),
 										StatusCode:             int(v1.Status_STATUS_CODE_ERROR),
 										StatusMessage:          v1.Status_STATUS_CODE_ERROR.String(),
 										TraceState:             "tracestate",
@@ -362,11 +362,11 @@ func TestBackendNilValueBlockSearchTraceQL(t *testing.T) {
 										DroppedAttributesCount: 42,
 										DroppedEventsCount:     43,
 										DedicatedAttributes: DedicatedAttributes{
-											String01: ptr("dedicated-span-attr-value-1"),
-											String02: ptr("dedicated-span-attr-value-2"),
-											String03: ptr("dedicated-span-attr-value-3"),
-											String04: ptr("dedicated-span-attr-value-4"),
-											String05: ptr("dedicated-span-attr-value-5"),
+											String01: new("dedicated-span-attr-value-1"),
+											String02: new("dedicated-span-attr-value-2"),
+											String03: new("dedicated-span-attr-value-3"),
+											String04: new("dedicated-span-attr-value-4"),
+											String05: new("dedicated-span-attr-value-5"),
 										},
 										Attrs: []Attribute{
 											// BUG - at least one generic attr is required to satisfy
@@ -381,24 +381,24 @@ func TestBackendNilValueBlockSearchTraceQL(t *testing.T) {
 					{
 						Resource: Resource{
 							ServiceName:      "myservice",
-							Cluster:          ptr("cluster"),
-							Namespace:        ptr("namespace"),
-							Pod:              ptr("pod"),
-							Container:        ptr("container"),
-							K8sClusterName:   ptr("k8scluster"),
-							K8sNamespaceName: ptr("k8snamespace"),
-							K8sPodName:       ptr("k8spod"),
-							K8sContainerName: ptr("k8scontainer"),
+							Cluster:          new("cluster"),
+							Namespace:        new("namespace"),
+							Pod:              new("pod"),
+							Container:        new("container"),
+							K8sClusterName:   new("k8scluster"),
+							K8sNamespaceName: new("k8snamespace"),
+							K8sPodName:       new("k8spod"),
+							K8sContainerName: new("k8scontainer"),
 							Attrs: []Attribute{
-								{Key: "foo", Value: ptr("abc")},
-								{Key: LabelServiceName, ValueInt: ptr(int64(123))}, // Different type than dedicated column
+								{Key: "foo", Value: new("abc")},
+								{Key: LabelServiceName, ValueInt: new(int64(123))}, // Different type than dedicated column
 							},
 							DedicatedAttributes: DedicatedAttributes{
-								String01: ptr("dedicated-resource-attr-value-1"),
-								String02: ptr("dedicated-resource-attr-value-2"),
-								String03: ptr("dedicated-resource-attr-value-3"),
-								String04: ptr("dedicated-resource-attr-value-4"),
-								String05: ptr("dedicated-resource-attr-value-5"),
+								String01: new("dedicated-resource-attr-value-1"),
+								String02: new("dedicated-resource-attr-value-2"),
+								String03: new("dedicated-resource-attr-value-3"),
+								String04: new("dedicated-resource-attr-value-4"),
+								String05: new("dedicated-resource-attr-value-5"),
 							},
 						},
 						ScopeSpans: []ScopeSpans{
@@ -522,7 +522,7 @@ func TestBackendBlockSearchTraceQL(t *testing.T) {
 	wantTraceIdx := rand.Intn(numTraces)
 	wantTraceID := test.ValidTraceID(nil)
 
-	for i := 0; i < numTraces; i++ {
+	for i := range numTraces {
 		if i == wantTraceIdx {
 			traces = append(traces, fullyPopulatedTestTrace(wantTraceID))
 			continue
@@ -902,26 +902,26 @@ func fullyPopulatedTestTraceWithOption(id common.ID, parentIDTest bool) *Trace {
 			{
 				Resource: Resource{
 					ServiceName:      "myservice",
-					Cluster:          ptr("cluster"),
-					Namespace:        ptr("namespace"),
-					Pod:              ptr("pod"),
-					Container:        ptr("container"),
-					K8sClusterName:   ptr("k8scluster"),
-					K8sNamespaceName: ptr("k8snamespace"),
-					K8sPodName:       ptr("k8spod"),
-					K8sContainerName: ptr("k8scontainer"),
+					Cluster:          new("cluster"),
+					Namespace:        new("namespace"),
+					Pod:              new("pod"),
+					Container:        new("container"),
+					K8sClusterName:   new("k8scluster"),
+					K8sNamespaceName: new("k8snamespace"),
+					K8sPodName:       new("k8spod"),
+					K8sContainerName: new("k8scontainer"),
 					Attrs: []Attribute{
-						{Key: "foo", Value: ptr("abc")},
-						{Key: LabelServiceName, ValueInt: ptr(int64(123))}, // Different type than dedicated column
-						{Key: "asdf", ValueInt: ptr(int64(1234))},          // Different type than dedicated column
-						{Key: "other", ValueInt: ptr(int64(1234))},         // Different type than dedicated column
+						{Key: "foo", Value: new("abc")},
+						{Key: LabelServiceName, ValueInt: new(int64(123))}, // Different type than dedicated column
+						{Key: "asdf", ValueInt: new(int64(1234))},          // Different type than dedicated column
+						{Key: "other", ValueInt: new(int64(1234))},         // Different type than dedicated column
 					},
 					DedicatedAttributes: DedicatedAttributes{
-						String01: ptr("dedicated-resource-attr-value-1"),
-						String02: ptr("dedicated-resource-attr-value-2"),
-						String03: ptr("dedicated-resource-attr-value-3"),
-						String04: ptr("dedicated-resource-attr-value-4"),
-						String05: ptr("dedicated-resource-attr-value-5"),
+						String01: new("dedicated-resource-attr-value-1"),
+						String02: new("dedicated-resource-attr-value-2"),
+						String03: new("dedicated-resource-attr-value-3"),
+						String04: new("dedicated-resource-attr-value-4"),
+						String05: new("dedicated-resource-attr-value-5"),
 					},
 				},
 				ScopeSpans: []ScopeSpans{
@@ -932,9 +932,9 @@ func fullyPopulatedTestTraceWithOption(id common.ID, parentIDTest bool) *Trace {
 								Name:                   "hello",
 								StartTimeUnixNano:      uint64(100 * time.Second),
 								DurationNano:           uint64(100 * time.Second),
-								HttpMethod:             ptr("get"),
-								HttpUrl:                ptr("url/hello/world"),
-								HttpStatusCode:         ptr(int64(500)),
+								HttpMethod:             new("get"),
+								HttpUrl:                new("url/hello/world"),
+								HttpStatusCode:         new(int64(500)),
 								ParentSpanID:           parentID,
 								StatusCode:             int(v1.Status_STATUS_CODE_ERROR),
 								StatusMessage:          v1.Status_STATUS_CODE_ERROR.String(),
@@ -943,15 +943,15 @@ func fullyPopulatedTestTraceWithOption(id common.ID, parentIDTest bool) *Trace {
 								DroppedAttributesCount: 42,
 								DroppedEventsCount:     43,
 								Attrs: []Attribute{
-									{Key: "foo", Value: ptr("def")},
-									{Key: "bar", ValueInt: ptr(int64(123))},
-									{Key: "float", ValueDouble: ptr(456.78)},
-									{Key: "bool", ValueBool: ptr(false)},
+									{Key: "foo", Value: new("def")},
+									{Key: "bar", ValueInt: new(int64(123))},
+									{Key: "float", ValueDouble: new(456.78)},
+									{Key: "bool", ValueBool: new(false)},
 
 									// Edge-cases
-									{Key: LabelName, Value: ptr("Bob")},                    // Conflicts with intrinsic but still looked up by .name
-									{Key: LabelServiceName, Value: ptr("spanservicename")}, // Overrides resource-level dedicated column
-									{Key: LabelHTTPStatusCode, Value: ptr("500ouch")},      // Different type than dedicated column
+									{Key: LabelName, Value: new("Bob")},                    // Conflicts with intrinsic but still looked up by .name
+									{Key: LabelServiceName, Value: new("spanservicename")}, // Overrides resource-level dedicated column
+									{Key: LabelHTTPStatusCode, Value: new("500ouch")},      // Different type than dedicated column
 								},
 								Events: []Event{
 									{TimeUnixNano: 1, Name: "e1", Attrs: []EventAttribute{
@@ -962,11 +962,11 @@ func fullyPopulatedTestTraceWithOption(id common.ID, parentIDTest bool) *Trace {
 								},
 								Links: linkBytes,
 								DedicatedAttributes: DedicatedAttributes{
-									String01: ptr("dedicated-span-attr-value-1"),
-									String02: ptr("dedicated-span-attr-value-2"),
-									String03: ptr("dedicated-span-attr-value-3"),
-									String04: ptr("dedicated-span-attr-value-4"),
-									String05: ptr("dedicated-span-attr-value-5"),
+									String01: new("dedicated-span-attr-value-1"),
+									String02: new("dedicated-span-attr-value-2"),
+									String03: new("dedicated-span-attr-value-3"),
+									String04: new("dedicated-span-attr-value-4"),
+									String05: new("dedicated-span-attr-value-5"),
 								},
 							},
 						},
@@ -976,24 +976,24 @@ func fullyPopulatedTestTraceWithOption(id common.ID, parentIDTest bool) *Trace {
 			{
 				Resource: Resource{
 					ServiceName:      "service2",
-					Cluster:          ptr("cluster2"),
-					Namespace:        ptr("namespace2"),
-					Pod:              ptr("pod2"),
-					Container:        ptr("container2"),
-					K8sClusterName:   ptr("k8scluster2"),
-					K8sNamespaceName: ptr("k8snamespace2"),
-					K8sPodName:       ptr("k8spod2"),
-					K8sContainerName: ptr("k8scontainer2"),
+					Cluster:          new("cluster2"),
+					Namespace:        new("namespace2"),
+					Pod:              new("pod2"),
+					Container:        new("container2"),
+					K8sClusterName:   new("k8scluster2"),
+					K8sNamespaceName: new("k8snamespace2"),
+					K8sPodName:       new("k8spod2"),
+					K8sContainerName: new("k8scontainer2"),
 					Attrs: []Attribute{
-						{Key: "foo", Value: ptr("abc2")},
-						{Key: LabelServiceName, ValueInt: ptr(int64(1234))}, // Different type than dedicated column
+						{Key: "foo", Value: new("abc2")},
+						{Key: LabelServiceName, ValueInt: new(int64(1234))}, // Different type than dedicated column
 					},
 					DedicatedAttributes: DedicatedAttributes{
-						String01: ptr("dedicated-resource-attr-value-6"),
-						String02: ptr("dedicated-resource-attr-value-7"),
-						String03: ptr("dedicated-resource-attr-value-8"),
-						String04: ptr("dedicated-resource-attr-value-9"),
-						String05: ptr("dedicated-resource-attr-value-10"),
+						String01: new("dedicated-resource-attr-value-6"),
+						String02: new("dedicated-resource-attr-value-7"),
+						String03: new("dedicated-resource-attr-value-8"),
+						String04: new("dedicated-resource-attr-value-9"),
+						String05: new("dedicated-resource-attr-value-10"),
 					},
 				},
 				ScopeSpans: []ScopeSpans{
@@ -1004,9 +1004,9 @@ func fullyPopulatedTestTraceWithOption(id common.ID, parentIDTest bool) *Trace {
 								Name:                   "world",
 								StartTimeUnixNano:      uint64(200 * time.Second),
 								DurationNano:           uint64(200 * time.Second),
-								HttpMethod:             ptr("PUT"),
-								HttpUrl:                ptr("url/hello/world/2"),
-								HttpStatusCode:         ptr(int64(501)),
+								HttpMethod:             new("PUT"),
+								HttpUrl:                new("url/hello/world/2"),
+								HttpStatusCode:         new(int64(501)),
 								StatusCode:             int(v1.Status_STATUS_CODE_OK),
 								StatusMessage:          v1.Status_STATUS_CODE_OK.String(),
 								TraceState:             "tracestate2",
@@ -1014,15 +1014,15 @@ func fullyPopulatedTestTraceWithOption(id common.ID, parentIDTest bool) *Trace {
 								DroppedAttributesCount: 45,
 								DroppedEventsCount:     46,
 								Attrs: []Attribute{
-									{Key: "foo", Value: ptr("ghi")},
-									{Key: "bar", ValueInt: ptr(int64(1234))},
-									{Key: "float", ValueDouble: ptr(456.789)},
-									{Key: "bool", ValueBool: ptr(true)},
+									{Key: "foo", Value: new("ghi")},
+									{Key: "bar", ValueInt: new(int64(1234))},
+									{Key: "float", ValueDouble: new(456.789)},
+									{Key: "bool", ValueBool: new(true)},
 
 									// Edge-cases
-									{Key: LabelName, Value: ptr("Bob2")},                    // Conflicts with intrinsic but still looked up by .name
-									{Key: LabelServiceName, Value: ptr("spanservicename2")}, // Overrides resource-level dedicated column
-									{Key: LabelHTTPStatusCode, Value: ptr("500ouch2")},      // Different type than dedicated column
+									{Key: LabelName, Value: new("Bob2")},                    // Conflicts with intrinsic but still looked up by .name
+									{Key: LabelServiceName, Value: new("spanservicename2")}, // Overrides resource-level dedicated column
+									{Key: LabelHTTPStatusCode, Value: new("500ouch2")},      // Different type than dedicated column
 								},
 							},
 						},
@@ -1931,7 +1931,7 @@ func BenchmarkSiblingOf(b *testing.B) {
 
 			// create 1k s1 with random siblings
 			s1 := make([]traceql.Span, totalSpans)
-			for i := 0; i < totalSpans; i++ {
+			for i := range totalSpans {
 				s1[i] = &span{nestedSetParent: rand.Int31n(10)}
 			}
 			// copy the same slice to s2
@@ -2082,6 +2082,7 @@ func randomTree(count int) []traceql.Span {
 	return nodes
 }
 
+//go:fix inline
 func ptr[T any](v T) *T {
-	return &v
+	return new(v)
 }

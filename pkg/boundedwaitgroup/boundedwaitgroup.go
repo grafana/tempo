@@ -21,7 +21,7 @@ func (bwg *BoundedWaitGroup) Add(delta int) {
 	for i := 0; i > delta; i-- {
 		<-bwg.ch
 	}
-	for i := 0; i < delta; i++ {
+	for range delta {
 		bwg.ch <- struct{}{}
 	}
 	bwg.wg.Add(delta)

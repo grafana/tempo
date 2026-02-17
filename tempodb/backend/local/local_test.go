@@ -33,7 +33,7 @@ func TestReadWrite(t *testing.T) {
 	blockID := uuid.New()
 	tenantIDs := []string{"fake"}
 
-	for i := 0; i < 10; i++ {
+	for range 10 {
 		tenantIDs = append(tenantIDs, fmt.Sprintf("%d", rand.Int()))
 	}
 

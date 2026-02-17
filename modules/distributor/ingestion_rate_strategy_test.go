@@ -95,7 +95,6 @@ func TestIngestionRateStrategy(t *testing.T) {
 	}
 
 	for testName, testData := range tests {
-		testData := testData
 
 		t.Run(testName, func(t *testing.T) {
 			var strategy limiter.RateLimiterStrategy
@@ -216,7 +215,6 @@ func TestIngestionRateStrategyAllowN(t *testing.T) {
 	}
 
 	for testName, testData := range tests {
-		testData := testData
 
 		t.Run(testName, func(t *testing.T) {
 			var strategy limiter.RateLimiterStrategy

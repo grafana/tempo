@@ -24,11 +24,11 @@ import (
 
 // Copied from Cortex
 func TestConfigTagsYamlMatchJson(t *testing.T) {
-	overrides := reflect.TypeOf(LegacyOverrides{})
+	overrides := reflect.TypeFor[LegacyOverrides]()
 	n := overrides.NumField()
 	var mismatch []string
 
-	for i := 0; i < n; i++ {
+	for i := range n {
 		field := overrides.Field(i)
 
 		// Note that we aren't requiring YAML and JSON tags to match, just that
@@ -273,8 +273,8 @@ func rvCountFields(rv reflect.Value) int {
 	}
 
 	n := 0
-	for i := 0; i < rv.NumField(); i++ {
-		fv := rv.Field(i)
+	for _, fv := range rv.Fields() {
+		fv := fv
 		if fv.Kind() == reflect.Struct {
 			n += rvCountFields(fv)
 		} else {
@@ -367,7 +367,7 @@ func ensureAllFieldsPopulated(t *testing.T, o LegacyOverrides) {
 // isZeroValue checks if a reflect.Value is the zero value for its type
 func isZeroValue(v reflect.Value) bool {
 	// Handle nil interfaces and pointers
-	if (v.Kind() == reflect.Interface || v.Kind() == reflect.Ptr) && v.IsNil() {
+	if (v.Kind() == reflect.Interface || v.Kind() == reflect.Pointer) && v.IsNil() {
 		return true
 	}
 
@@ -383,8 +383,8 @@ func isZeroValue(v reflect.Value) bool {
 		}
 
 		allZero := true
-		for i := 0; i < v.NumField(); i++ {
-			if !isZeroValue(v.Field(i)) {
+		for _, field := range v.Fields() {
+			if !isZeroValue(field) {
 				allZero = false
 				break
 			}
@@ -432,9 +432,9 @@ func generateTestLegacyOverrides() LegacyOverrides {
 		MetricsGeneratorProcessorServiceGraphsDimensions:                            []string{"dimension-1", "dimension-2"},
 		MetricsGeneratorProcessorServiceGraphsPeerAttributes:                        []string{"attribute-1", "attribute-2"},
 		MetricsGeneratorProcessorServiceGraphsFilterPolicies:                        []filterconfig.FilterPolicy{{Exclude: &filterconfig.PolicyMatch{MatchType: "strict", Attributes: []filterconfig.MatchPolicyAttribute{{Key: "resource.service.name", Value: "my-service"}}}}},
-		MetricsGeneratorProcessorServiceGraphsEnableClientServerPrefix:              boolPtr(true),
-		MetricsGeneratorProcessorServiceGraphsEnableMessagingSystemLatencyHistogram: boolPtr(true),
-		MetricsGeneratorProcessorServiceGraphsEnableVirtualNodeLabel:                boolPtr(true),
+		MetricsGeneratorProcessorServiceGraphsEnableClientServerPrefix:              new(true),
+		MetricsGeneratorProcessorServiceGraphsEnableMessagingSystemLatencyHistogram: new(true),
+		MetricsGeneratorProcessorServiceGraphsEnableVirtualNodeLabel:                new(true),
 		MetricsGeneratorProcessorServiceGraphsSpanMultiplierKey:                     "custom_key",
 		MetricsGeneratorProcessorSpanMetricsHistogramBuckets:                        []float64{1.0, 2.0, 5.0},
 		MetricsGeneratorProcessorSpanMetricsDimensions:                              []string{"dimension-1", "dimension-2"},
@@ -462,9 +462,9 @@ func generateTestLegacyOverrides() LegacyOverrides {
 				Join:        "join-1",
 			},
 		},
-		MetricsGeneratorProcessorSpanMetricsEnableTargetInfo:             boolPtr(true),
+		MetricsGeneratorProcessorSpanMetricsEnableTargetInfo:             new(true),
 		MetricsGeneratorProcessorSpanMetricsTargetInfoExcludedDimensions: []string{"excluded-dim-1", "excluded-dim-2"},
-		MetricsGeneratorProcessorSpanMetricsEnableInstanceLabel:          boolPtr(false),
+		MetricsGeneratorProcessorSpanMetricsEnableInstanceLabel:          new(false),
 		MetricsGeneratorProcessorSpanMetricsSpanMultiplierKey:            "custom_key",
 		MetricsGeneratorProcessorLocalBlocksMaxLiveTraces:                100,
 		MetricsGeneratorProcessorLocalBlocksMaxBlockDuration:             10 * time.Minute,
@@ -514,8 +514,10 @@ func generateTestLegacyOverrides() LegacyOverrides {
 }
 
 // Helper function to create a duration pointer
+//
+//go:fix inline
 func durationPtr(d time.Duration) *time.Duration {
-	return &d
+	return new(d)
 }
 
 // Helper function to create ListToMap

@@ -24,7 +24,7 @@ func TestResults(t *testing.T) {
 	opts := goleak.IgnoreCurrent()
 
 	ret := []byte{0x01, 0x02}
-	fn := func(_ context.Context, payload interface{}) (interface{}, error) {
+	fn := func(_ context.Context, payload any) (any, error) {
 		i := payload.(int)
 
 		if i == 3 {
@@ -32,7 +32,7 @@ func TestResults(t *testing.T) {
 		}
 		return nil, nil
 	}
-	payloads := []interface{}{1, 2, 3, 4, 5}
+	payloads := []any{1, 2, 3, 4, 5}
 
 	msg, funcErrs, err := p.RunJobs(context.Background(), payloads, fn)
 	assert.NoError(t, err)
@@ -54,10 +54,10 @@ func TestNoResults(t *testing.T) {
 	})
 	opts := goleak.IgnoreCurrent()
 
-	fn := func(_ context.Context, _ interface{}) (interface{}, error) {
+	fn := func(_ context.Context, _ any) (any, error) {
 		return nil, nil
 	}
-	payloads := []interface{}{1, 2, 3, 4, 5}
+	payloads := []any{1, 2, 3, 4, 5}
 
 	msg, funcErrs, err := p.RunJobs(context.Background(), payloads, fn)
 	assert.Nil(t, msg)
@@ -79,10 +79,10 @@ func TestMultipleHits(t *testing.T) {
 	opts := goleak.IgnoreCurrent()
 
 	ret := []byte{0x01, 0x02}
-	fn := func(_ context.Context, _ interface{}) (interface{}, error) {
+	fn := func(_ context.Context, _ any) (any, error) {
 		return ret, nil
 	}
-	payloads := []interface{}{1, 2, 3, 4, 5}
+	payloads := []any{1, 2, 3, 4, 5}
 
 	msg, funcErrs, err := p.RunJobs(context.Background(), payloads, fn)
 	require.Len(t, msg, 5)
@@ -107,7 +107,7 @@ func TestError(t *testing.T) {
 	opts := goleak.IgnoreCurrent()
 
 	ret := fmt.Errorf("blerg")
-	fn := func(_ context.Context, payload interface{}) (interface{}, error) {
+	fn := func(_ context.Context, payload any) (any, error) {
 		i := payload.(int)
 
 		if i == 3 {
@@ -115,7 +115,7 @@ func TestError(t *testing.T) {
 		}
 		return nil, nil
 	}
-	payloads := []interface{}{1, 2, 3, 4, 5}
+	payloads := []any{1, 2, 3, 4, 5}
 
 	msg, funcErrs, err := p.RunJobs(context.Background(), payloads, fn)
 	assert.Nil(t, msg)
@@ -137,10 +137,10 @@ func TestMultipleErrors(t *testing.T) {
 	opts := goleak.IgnoreCurrent()
 
 	ret := fmt.Errorf("blerg")
-	fn := func(_ context.Context, _ interface{}) (interface{}, error) {
+	fn := func(_ context.Context, _ any) (any, error) {
 		return nil, ret
 	}
-	payloads := []interface{}{1, 2, 3, 4, 5}
+	payloads := []any{1, 2, 3, 4, 5}
 
 	var expErr []error
 	for range payloads {
@@ -166,10 +166,10 @@ func TestTooManyJobs(t *testing.T) {
 	})
 	opts := goleak.IgnoreCurrent()
 
-	fn := func(_ context.Context, _ interface{}) (interface{}, error) {
+	fn := func(_ context.Context, _ any) (any, error) {
 		return nil, nil
 	}
-	payloads := []interface{}{1, 2, 3, 4, 5}
+	payloads := []any{1, 2, 3, 4, 5}
 
 	msg, funcErrs, err := p.RunJobs(context.Background(), payloads, fn)
 	assert.Nil(t, msg)
@@ -191,7 +191,7 @@ func TestOneWorker(t *testing.T) {
 	opts := goleak.IgnoreCurrent()
 
 	ret := []byte{0x01, 0x02, 0x03}
-	fn := func(_ context.Context, payload interface{}) (interface{}, error) {
+	fn := func(_ context.Context, payload any) (any, error) {
 		i := payload.(int)
 
 		if i == 3 {
@@ -199,7 +199,7 @@ func TestOneWorker(t *testing.T) {
 		}
 		return nil, nil
 	}
-	payloads := []interface{}{1, 2, 3, 4, 5}
+	payloads := []any{1, 2, 3, 4, 5}
 
 	msg, funcErrs, err := p.RunJobs(context.Background(), payloads, fn)
 	assert.NoError(t, err)
@@ -223,11 +223,10 @@ func TestGoingHam(t *testing.T) {
 
 	wg := &sync.WaitGroup{}
 
-	for i := 0; i < 1000; i++ {
-		wg.Add(1)
-		go func() {
+	for range 1000 {
+		wg.Go(func() {
 			ret := []byte{0x01, 0x03, 0x04}
-			fn := func(_ context.Context, payload interface{}) (interface{}, error) {
+			fn := func(_ context.Context, payload any) (any, error) {
 				i := payload.(int)
 
 				time.Sleep(time.Duration(rand.Uint32()%100) * time.Millisecond)
@@ -236,15 +235,14 @@ func TestGoingHam(t *testing.T) {
 				}
 				return nil, nil
 			}
-			payloads := []interface{}{1, 2, 3, 4, 5}
+			payloads := []any{1, 2, 3, 4, 5}
 
 			msg, funcErrs, err := p.RunJobs(context.Background(), payloads, fn)
 			assert.NoError(t, err)
 			assert.Nil(t, funcErrs)
 			require.Len(t, msg, 1)
 			assert.Equal(t, ret, msg[0])
-			wg.Done()
-		}()
+		})
 	}
 
 	wg.Wait()
@@ -265,18 +263,16 @@ func TestOverloadingASmallPool(t *testing.T) {
 
 	wg := &sync.WaitGroup{}
 
-	for i := 0; i < 50; i++ {
-		wg.Add(1)
-		go func() {
-			fn := func(_ context.Context, _ interface{}) (interface{}, error) {
+	for range 50 {
+		wg.Go(func() {
+			fn := func(_ context.Context, _ any) (any, error) {
 				time.Sleep(time.Duration(rand.Uint32()%100) * time.Millisecond)
 				return nil, nil
 			}
-			payloads := []interface{}{1, 2}
+			payloads := []any{1, 2}
 			_, _, _ = p.RunJobs(context.Background(), payloads, fn)
 
-			wg.Done()
-		}()
+		})
 	}
 
 	wg.Wait()
@@ -294,7 +290,7 @@ func TestShutdown(t *testing.T) {
 	})
 
 	ret := []byte{0x01, 0x03, 0x04}
-	fn := func(_ context.Context, payload interface{}) (interface{}, error) {
+	fn := func(_ context.Context, payload any) (any, error) {
 		i := payload.(int)
 
 		if i == 3 {
@@ -302,7 +298,7 @@ func TestShutdown(t *testing.T) {
 		}
 		return nil, nil
 	}
-	payloads := []interface{}{1, 2, 3, 4, 5, 1, 2, 3, 4, 5, 1, 2, 3, 4, 5, 1, 2, 3, 4, 5, 1, 2, 3, 4, 5, 1, 2, 3, 4, 5}
+	payloads := []any{1, 2, 3, 4, 5, 1, 2, 3, 4, 5, 1, 2, 3, 4, 5, 1, 2, 3, 4, 5, 1, 2, 3, 4, 5, 1, 2, 3, 4, 5}
 	_, _, _ = p.RunJobs(context.Background(), payloads, fn)
 	p.Shutdown()
 	goleak.VerifyNone(t, prePoolOpts)
@@ -324,10 +320,10 @@ func TestDataEncodings(t *testing.T) {
 	opts := goleak.IgnoreCurrent()
 
 	ret := []byte{0x01, 0x02}
-	fn := func(_ context.Context, _ interface{}) (interface{}, error) {
+	fn := func(_ context.Context, _ any) (any, error) {
 		return ret, nil
 	}
-	payloads := []interface{}{1, 2, 3, 4, 5}
+	payloads := []any{1, 2, 3, 4, 5}
 
 	msg, funcErrs, err := p.RunJobs(context.Background(), payloads, fn)
 	require.Len(t, msg, 5)
@@ -357,14 +353,14 @@ func TestCancellation(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	ret := []byte{0x01, 0x02}
-	fn := func(_ context.Context, _ interface{}) (interface{}, error) {
+	fn := func(_ context.Context, _ any) (any, error) {
 		callCount++
 		if callCount >= cancelAfter {
 			cancel()
 		}
 		return ret, nil
 	}
-	payloads := []interface{}{1, 2, 3, 4, 5, 6, 7}
+	payloads := []any{1, 2, 3, 4, 5, 6, 7}
 
 	results, funcErrs, err := p.RunJobs(ctx, payloads, fn)
 	require.Len(t, results, 2)

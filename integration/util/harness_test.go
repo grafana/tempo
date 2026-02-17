@@ -65,9 +65,9 @@ func TestMergeMaps(t *testing.T) {
 
 func TestToMapAnyAny(t *testing.T) {
 	// Test map[interface{}]interface{} conversion
-	input := map[interface{}]interface{}{
+	input := map[any]any{
 		"key1": "value1",
-		"key2": map[interface{}]interface{}{
+		"key2": map[any]any{
 			"nested": "value",
 		},
 	}

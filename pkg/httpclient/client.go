@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"net/http"
 	"net/url"
 	"path"
@@ -583,11 +584,7 @@ func (c *Client) getURLWithQueryParams(endpoint string, queryParams map[string]s
 // Values from the second map overwrite duplicates.
 func mergeMaps[K comparable, V any](a, b map[K]V) map[K]V {
 	newMap := make(map[K]V, len(a)+len(b))
-	for k, v := range a {
-		newMap[k] = v
-	}
-	for k, v := range b {
-		newMap[k] = v
-	}
+	maps.Copy(newMap, a)
+	maps.Copy(newMap, b)
 	return newMap
 }

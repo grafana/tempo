@@ -1065,7 +1065,7 @@ func BenchmarkBlockBuilder(b *testing.B) {
 		// Send more data
 		b.StopTimer()
 		size := 0
-		for i := 0; i < 1000; i++ {
+		for range 1000 {
 			for _, r := range testkafka.SendReq(ctx, b, client, ingest.Encode, util.FakeTenantID) {
 				size += len(r.Value)
 			}

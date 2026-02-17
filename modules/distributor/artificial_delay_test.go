@@ -119,6 +119,7 @@ func (m *MockTimeSource) Add(d time.Duration) {
 	m.CurrentTime = m.CurrentTime.Add(d)
 }
 
+//go:fix inline
 func durationPtr(d time.Duration) *time.Duration {
-	return &d
+	return new(d)
 }

@@ -36,7 +36,7 @@ type perTenantOverrides struct {
 	ConfigType ConfigType `yaml:"-"` // ConfigType is the type of overrides config we are using: legacy or new
 }
 
-func (o *perTenantOverrides) UnmarshalYAML(unmarshal func(interface{}) error) error {
+func (o *perTenantOverrides) UnmarshalYAML(unmarshal func(any) error) error {
 	// Note: this implementation relies on callers using yaml.UnmarshalStrict. In non-strict mode
 	// unmarshal() will not return an error for legacy configuration and we return immediately.
 
@@ -68,8 +68,8 @@ func (o *perTenantOverrides) forUser(userID string) *Overrides {
 }
 
 // loadPerTenantOverrides is of type runtimeconfig.Loader
-func loadPerTenantOverrides(validator Validator, typ ConfigType, expandEnv bool) func(r io.Reader) (interface{}, error) {
-	return func(r io.Reader) (interface{}, error) {
+func loadPerTenantOverrides(validator Validator, typ ConfigType, expandEnv bool) func(r io.Reader) (any, error) {
+	return func(r io.Reader) (any, error) {
 		overrides := &perTenantOverrides{}
 
 		if expandEnv {
@@ -225,7 +225,7 @@ func (o *runtimeConfigOverridesManager) WriteStatusRuntimeConfig(w io.Writer, r 
 	if o.tenantOverrides() != nil {
 		tenantOverrides = *o.tenantOverrides()
 	}
-	var output interface{}
+	var output any
 	cfg := statusRuntimeConfig{
 		Defaults:           o.defaultLimits,
 		PerTenantOverrides: tenantOverrides,
