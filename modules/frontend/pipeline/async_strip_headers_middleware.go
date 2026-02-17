@@ -1,6 +1,8 @@
 package pipeline
 
 import (
+	"net/http"
+
 	"github.com/grafana/tempo/modules/frontend/combiner"
 )
 
@@ -17,7 +19,7 @@ func NewStripHeadersWare(allowList []string) AsyncMiddleware[combiner.PipelineRe
 	// build allowed map
 	allowed := make(map[string]struct{}, len(allowList))
 	for _, header := range allowList {
-		allowed[header] = struct{}{}
+		allowed[http.CanonicalHeaderKey(header)] = struct{}{}
 	}
 
 	return AsyncMiddlewareFunc[combiner.PipelineResponse](func(next AsyncRoundTripper[combiner.PipelineResponse]) AsyncRoundTripper[combiner.PipelineResponse] {
@@ -36,7 +38,7 @@ func (c stripHeadersWare) RoundTrip(req Request) (Responses[combiner.PipelineRes
 	} else {
 		// clear out headers not in allow list
 		for header := range httpReq.Header {
-			if _, ok := c.allowed[header]; !ok {
+			if _, ok := c.allowed[http.CanonicalHeaderKey(header)]; !ok {
 				delete(httpReq.Header, header)
 			}
 		}

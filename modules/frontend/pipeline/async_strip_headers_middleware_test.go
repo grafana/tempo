@@ -29,6 +29,12 @@ func TestStripHeaders(t *testing.T) {
 			headers:  map[string][]string{"header1": {"value1"}, "header2": {"value2"}},
 			expected: map[string][]string{"header1": {"value1"}},
 		},
+		{
+			name:     "allow list is case-insensitive",
+			allow:    []string{"x-plugin-id", "AUTHORIZATION"},
+			headers:  map[string][]string{"X-Plugin-Id": {"grafana-assistant"}, "authorization": {"Bearer abc"}, "X-Drop-Me": {"nope"}},
+			expected: map[string][]string{"X-Plugin-Id": {"grafana-assistant"}, "authorization": {"Bearer abc"}},
+		},
 	}
 
 	for _, tc := range tcs {
