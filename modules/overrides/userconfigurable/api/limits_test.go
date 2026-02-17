@@ -178,3 +178,58 @@ func Test_limitsFromOverrides(t *testing.T) {
 }`
 	assert.Equal(t, expectedJSON, string(limitsJSON))
 }
+
+func Test_limitsFromOverrides_EmptyOrNilFilterPoliciesDontCrash(t *testing.T) {
+	userID := "foo"
+
+	testCases := []struct {
+		name                 string
+		serviceGraphPolicies []filterconfig.FilterPolicy
+		spanMetricsPolicies  []filterconfig.FilterPolicy
+	}{
+		{
+			name: "nil filter policies for both processors",
+		},
+		{
+			name:                 "empty service graph filter policies",
+			serviceGraphPolicies: []filterconfig.FilterPolicy{},
+		},
+		{
+			name:                "empty span metrics filter policies",
+			spanMetricsPolicies: []filterconfig.FilterPolicy{},
+		},
+		{
+			name:                 "empty filter policies for both processors",
+			serviceGraphPolicies: []filterconfig.FilterPolicy{},
+			spanMetricsPolicies:  []filterconfig.FilterPolicy{},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg := overrides.Config{
+				Defaults: overrides.Overrides{
+					MetricsGenerator: overrides.MetricsGeneratorOverrides{
+						Processor: overrides.ProcessorOverrides{
+							ServiceGraphs: overrides.ServiceGraphsOverrides{
+								FilterPolicies: tc.serviceGraphPolicies,
+							},
+							SpanMetrics: overrides.SpanMetricsOverrides{
+								FilterPolicies: tc.spanMetricsPolicies,
+							},
+						},
+					},
+				},
+			}
+
+			assert.NotPanics(t, func() {
+				overridesInt, err := overrides.NewOverrides(cfg, nil, prometheus.NewRegistry())
+				assert.NoError(t, err)
+
+				limits := limitsFromOverrides(overridesInt, userID)
+				_, err = json.Marshal(limits)
+				assert.NoError(t, err)
+			})
+		})
+	}
+}
