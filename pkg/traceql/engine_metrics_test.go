@@ -3673,3 +3673,126 @@ func TestSeriesToProtoAllNaN(t *testing.T) {
 
 	require.Len(t, result, 0, "Should have 0 series because all values are NaN")
 }
+
+func TestSimpleAggregatorNaNHandling(t *testing.T) {
+	req := &tempopb.QueryRangeRequest{
+		Start: uint64(0),
+		End:   uint64(30 * time.Second),
+		Step:  uint64(10 * time.Second),
+	}
+
+	t.Run("default aggregator preserves NaN for empty buckets", func(t *testing.T) {
+		// Default aggregator (used by rate, count_over_time)
+		agg := NewSimpleCombiner(req, sumAggregation, 10)
+
+		// Create time series with some NaN values
+		series := []*tempopb.TimeSeries{
+			{
+				Labels: []commonv1proto.KeyValue{
+					{Key: "__name__", Value: &commonv1proto.AnyValue{Value: &commonv1proto.AnyValue_StringValue{StringValue: "test"}}},
+				},
+				Samples: []tempopb.Sample{
+					{TimestampMs: 10_000, Value: 5.0},
+					{TimestampMs: 20_000, Value: math.NaN()}, // NaN should be preserved (no data for this bucket)
+					{TimestampMs: 30_000, Value: 10.0},
+				},
+			},
+		}
+
+		agg.Combine(series)
+		results := agg.Results()
+
+		require.Len(t, results, 1)
+		for _, ts := range results {
+			// Values should not be corrupted by NaN
+			assert.Equal(t, 5.0, ts.Values[0])
+			assert.True(t, math.IsNaN(ts.Values[1])) // NaN is preserved (indicates no data)
+			assert.Equal(t, 10.0, ts.Values[2])
+		}
+	})
+
+	t.Run("sumOverTime aggregator skips NaN samples", func(t *testing.T) {
+		agg := NewSimpleCombiner(req, sumOverTimeAggregation, 10)
+
+		// First series with valid values
+		series1 := []*tempopb.TimeSeries{
+			{
+				Labels: []commonv1proto.KeyValue{
+					{Key: "__name__", Value: &commonv1proto.AnyValue{Value: &commonv1proto.AnyValue_StringValue{StringValue: "sum_over_time"}}},
+				},
+				Samples: []tempopb.Sample{
+					{TimestampMs: 10_000, Value: 100.0},
+					{TimestampMs: 20_000, Value: 200.0},
+					{TimestampMs: 30_000, Value: 300.0},
+				},
+			},
+		}
+
+		// Second series with NaN values mixed in
+		series2 := []*tempopb.TimeSeries{
+			{
+				Labels: []commonv1proto.KeyValue{
+					{Key: "__name__", Value: &commonv1proto.AnyValue{Value: &commonv1proto.AnyValue_StringValue{StringValue: "sum_over_time"}}},
+				},
+				Samples: []tempopb.Sample{
+					{TimestampMs: 10_000, Value: math.NaN()}, // Should be skipped
+					{TimestampMs: 20_000, Value: 50.0},
+					{TimestampMs: 30_000, Value: math.NaN()}, // Should be skipped
+				},
+			},
+		}
+
+		agg.Combine(series1)
+		agg.Combine(series2)
+		results := agg.Results()
+
+		require.Len(t, results, 1)
+		for _, ts := range results {
+			// NaN values should be skipped, not corrupt the sum
+			assert.Equal(t, 100.0, ts.Values[0]) // 100 + NaN(skipped) = 100
+			assert.Equal(t, 250.0, ts.Values[1]) // 200 + 50 = 250
+			assert.Equal(t, 300.0, ts.Values[2]) // 300 + NaN(skipped) = 300
+		}
+	})
+}
+
+// TestSumOverTimeNaNHandling verifies that spans without the requested attribute
+// (which produce NaN) don't corrupt the sum of valid values.
+func TestSumOverTimeNaNHandling(t *testing.T) {
+	start := 1 * time.Second
+	end := 3 * time.Second
+	step := end - start
+	req := &tempopb.QueryRangeRequest{
+		Start: uint64(start),
+		End:   uint64(end),
+		Step:  uint64(step),
+		Query: "{ } | sum_over_time(span.myvalue)",
+	}
+	req.SetInstant(true)
+
+	in := []Span{
+		// Spans WITH the attribute - these should be summed
+		newMockSpan(nil).WithStartTime(uint64(start)).WithSpanFloat("myvalue", 10.0),
+		newMockSpan(nil).WithStartTime(uint64(start+100*time.Millisecond)).WithSpanFloat("myvalue", 20.0),
+		newMockSpan(nil).WithStartTime(uint64(start+200*time.Millisecond)).WithSpanFloat("myvalue", 30.0),
+
+		// Spans WITHOUT the attribute - these produce NaN and should be skipped
+		newMockSpan(nil).WithStartTime(uint64(start + 300*time.Millisecond)).WithDuration(1),
+		newMockSpan(nil).WithStartTime(uint64(start + 400*time.Millisecond)).WithDuration(1),
+	}
+
+	out := []TimeSeries{
+		{
+			Labels: []Label{
+				{Name: "__name__", Value: NewStaticString("sum_over_time")},
+			},
+			Values:    []float64{60.0}, // 10 + 20 + 30 = 60, NaN values skipped
+			Exemplars: make([]Exemplar, 0),
+		},
+	}
+
+	result, seriesCount, err := runTraceQLMetric(req, in)
+	require.NoError(t, err)
+	require.Equal(t, len(result), seriesCount)
+	requireEqualSeriesSets(t, out, result)
+}

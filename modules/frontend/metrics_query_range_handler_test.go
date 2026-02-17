@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"math"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -15,6 +16,8 @@ import (
 
 	"github.com/gogo/protobuf/jsonpb"
 	"github.com/gogo/protobuf/proto"
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/grafana/dskit/user"
 	"github.com/grafana/tempo/modules/frontend/pipeline"
 	"github.com/grafana/tempo/modules/overrides"
@@ -105,7 +108,7 @@ func TestQueryRangeHandlerSucceeds(t *testing.T) {
 					},
 					{
 						TimestampMs: 1300_000,
-						Value:       0,
+						Value:       math.NaN(),
 					},
 				},
 			},
@@ -115,7 +118,7 @@ func TestQueryRangeHandlerSucceeds(t *testing.T) {
 	actualResp := &tempopb.QueryRangeResponse{}
 	err := jsonpb.Unmarshal(httpResp.Body, actualResp)
 	require.NoError(t, err)
-	require.Equal(t, expectedResp, actualResp)
+	require.True(t, cmp.Equal(expectedResp, actualResp, cmpopts.EquateNaNs()), "expected %v, got %v", expectedResp, actualResp)
 }
 
 func TestQueryRangeAccessesCache(t *testing.T) {
