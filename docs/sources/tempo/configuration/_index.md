@@ -2036,7 +2036,7 @@ overrides:
                   - key: <string>
                     value: <any>
             ]
-          ]
+          ]]
           [dimension_mappings: <list of map>]
           # Enable target_info metrics
           [enable_target_info: <bool>]
