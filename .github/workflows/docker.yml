@@ -59,7 +59,7 @@ jobs:
       - name: docker-build
         run: |
           TAG_ARCH="$TAG-${{ matrix.runner_arch.arch }}"
-          docker build -f cmd/${{ matrix.component }}/Dockerfile -t grafana/${{ matrix.component }}:$TAG_ARCH .
+          docker build --provenance false --platform linux/${{ matrix.runner_arch.arch }} -f cmd/${{ matrix.component }}/Dockerfile -t grafana/${{ matrix.component }}:$TAG_ARCH .
 
       - name: Login to DockerHub
         uses: grafana/shared-workflows/actions/dockerhub-login@081a366728379fd0426b9cfef190e9a21c2d5418 # dockerhub-login/v1.0.3
