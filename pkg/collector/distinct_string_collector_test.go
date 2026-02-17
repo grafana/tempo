@@ -134,6 +134,7 @@ func BenchmarkDistinctStringCollect(b *testing.B) {
 				for _, values := range ingesterStrings {
 					if slices.ContainsFunc(values, distinctStrings.Collect) {
 						// stop early if limit is reached
+						break
 					}
 				}
 			}

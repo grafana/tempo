@@ -17,7 +17,7 @@ var fakeHTTPAuthMiddleware = middleware.Func(func(next http.Handler) http.Handle
 	})
 })
 
-var fakeGRPCAuthUniaryMiddleware = func(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
+var fakeGRPCAuthUniaryMiddleware = func(ctx context.Context, req any, _ *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
 	ctx = user.InjectOrgID(ctx, util.FakeTenantID)
 	return handler(ctx, req)
 }

@@ -7,7 +7,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"slices"
 	"sync"
 
 	"github.com/gogo/protobuf/proto"
@@ -522,10 +521,6 @@ func (i *instance) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTag
 			}
 		}
 
-		// now add values to the central collector to make sure they are included in the response.
-		if slices.ContainsFunc(values, valueCollector.Collect) {
-			// we have reached the limit, so stop
-		}
 		return nil
 	}
 

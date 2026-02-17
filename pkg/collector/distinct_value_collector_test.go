@@ -118,6 +118,7 @@ func BenchmarkDistinctValueCollect(b *testing.B) {
 				for _, tagValues := range ingesterTagValues {
 					if slices.ContainsFunc(tagValues, distinctValues.Collect) {
 						// stop early if limit is reached
+						break
 					}
 				}
 			}
