@@ -8,6 +8,18 @@ weight: 200
 
 # Plan your Tempo deployment
 
+Before you deploy Tempo, you should consider how you plan to use traces and Tempo as well as any special requirements for Tempo 3.0. 
+
+## Considerations for Tempo 3.0
+
+Before planning your Tempo deployment, be aware that Tempo v3.0 requires:
+
+- **Kafka-compatible system**: Tempo requires a Kafka-compatible system (such as Apache Kafka, Redpanda, or WarpStream) for both monolithic and microservices modes. Kafka serves as the durable write-ahead log that decouples write and read paths.
+- **Object storage**: Tempo stores trace data in object storage (S3, GCS, or Azure Storage).
+
+Include these infrastructure components in your deployment planning and resource estimation.
+
+## Develop a deployment plan 
 To plan your Grafana Tempo deployment, you should:
 
 1. Identify your use case

@@ -84,8 +84,8 @@ To learn more about instrumentation, refer to the [Set up instrumentation](./ins
 After you instrument your application for tracing, the traces are sent
 to a backend for storage and visualization. You can build a tracing pipeline that
 offloads spans from your application, buffers them, and forwards them to a backend.
-Tracing pipelines are optional since most clients can send directly to Tempo.
-The pipelines become more critical the larger and more robust your tracing system is.
+While applications can send traces directly to Tempo, using a pipeline (like Grafana Alloy or the OpenTelemetry Collector) is strongly recommended for production deployments.
+Pipelines provide important benefits such as batching, retry logic, and decoupling your application from backend availability.
 
 Grafana Alloy is a service that's deployed close to the application, either on the same node or
 within the same cluster (in Kubernetes) to quickly offload traces from the application and forward them to

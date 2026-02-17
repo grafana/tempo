@@ -32,11 +32,18 @@ Distributor:
 - CPU: 2 cores
 - Mem: 2 GB
 
-Ingester:
+Live-store:
 
-- 1 replica per every 3-5MB/s of received traffic.
-- CPU: 2.5 cores
+- 1 replica per every 6-10MB/s of received traffic
+- CPU: 1 core
 - Mem: 4-20GB, determined by trace composition
+- Typically deployed across multiple availability zones for high availability
+
+Block-builder:
+
+- 1 replica per partition
+- CPU: 0.5 cores
+- Mem: 5-10GB, determined by trace composition
 
 Querier:
 
@@ -51,11 +58,17 @@ Query-Frontend:
 - CPU: dependent on trace size and queries
 - Mem: 4-20GB, dependent on trace size and queries
 
-Compactor:
+Backend-scheduler:
 
-- 1 replica per every 3-5 MB/s of received traffic.
-- CPU: 1 core (compactors are primarily I/O bound, therefore do not require much CPU)
-- Mem: 4-20GB, determined by trace composition
+- 1 replica (only one scheduler should be running at a time)
+- CPU: 0.5 cores
+- Mem: 1-2GB
+
+Backend-worker:
+
+- Sizing guidelines to be determined based on compaction workload
+- CPU: 0.5 cores
+- Mem: 1-2GB
 
 ## Performance tuning resources
 
