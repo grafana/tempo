@@ -21,7 +21,7 @@ You'll need:
 - Microservice deployments require the Tempo querier URL, for example: `http://tempo-cluster-query-frontend.tempo.svc.cluster.local:3100/`
 - [OpenTelemetry telemetrygen](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/cmd/telemetrygen) for generating tracing data
 
-Refer to [Deploy Grafana on Kubernetes](https://grafana.com/docs/grafana/<GRAANA_VERSION>/setup-grafana/installation/kubernetes/) if you are using Kubernetes.
+Refer to [Deploy Grafana on Kubernetes](https://grafana.com/docs/grafana/<GRAFANA_VERSION>/setup-grafana/installation/kubernetes/) if you are using Kubernetes.
 Otherwise, refer to [Install Grafana](/docs/grafana/<GRAFANA_VERSION>/setup-grafana/installation/) for more information.
 
 ## Configure Grafana Alloy to remote-write to Tempo
