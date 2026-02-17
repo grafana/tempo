@@ -84,7 +84,15 @@ metrics_generator:
       [enable_messaging_system_latency_histogram: <bool>]
       [enable_virtual_node_label: <bool>]
       [span_multiplier_key: <string>]
-
+      [filter_policies: [
+        [
+          include/include_any/exclude:
+            match_type: <string> # options: strict, regexp
+            attributes:
+              - key: <string>
+                value: <any>
+        ]
+      ]]
     span_metrics:
       [histogram_buckets: <list of float>]
       [dimensions: <list of string>]

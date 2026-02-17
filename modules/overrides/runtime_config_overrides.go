@@ -511,6 +511,11 @@ func (o *runtimeConfigOverridesManager) MetricsGeneratorProcessorServiceGraphsPe
 	return o.getOverridesForUser(userID).MetricsGenerator.Processor.ServiceGraphs.PeerAttributes
 }
 
+// MetricsGeneratorProcessorServiceGraphsFilterPolicies controls the filter policies that are added to the servicegraphs processor.
+func (o *runtimeConfigOverridesManager) MetricsGeneratorProcessorServiceGraphsFilterPolicies(userID string) []filterconfig.FilterPolicy {
+	return o.getOverridesForUser(userID).MetricsGenerator.Processor.ServiceGraphs.FilterPolicies
+}
+
 // MetricsGeneratorProcessorServiceGraphsEnableClientServerPrefix enables "client" and "server" prefix
 func (o *runtimeConfigOverridesManager) MetricsGeneratorProcessorServiceGraphsEnableClientServerPrefix(userID string) bool {
 	EnableClientServerPrefix := o.getOverridesForUser(userID).MetricsGenerator.Processor.ServiceGraphs.EnableClientServerPrefix

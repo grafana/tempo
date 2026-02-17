@@ -431,6 +431,7 @@ func generateTestLegacyOverrides() LegacyOverrides {
 		MetricsGeneratorProcessorServiceGraphsHistogramBuckets:                      []float64{1.0, 2.0, 5.0},
 		MetricsGeneratorProcessorServiceGraphsDimensions:                            []string{"dimension-1", "dimension-2"},
 		MetricsGeneratorProcessorServiceGraphsPeerAttributes:                        []string{"attribute-1", "attribute-2"},
+		MetricsGeneratorProcessorServiceGraphsFilterPolicies:                        []filterconfig.FilterPolicy{{Exclude: &filterconfig.PolicyMatch{MatchType: "strict", Attributes: []filterconfig.MatchPolicyAttribute{{Key: "resource.service.name", Value: "my-service"}}}}},
 		MetricsGeneratorProcessorServiceGraphsEnableClientServerPrefix:              boolPtr(true),
 		MetricsGeneratorProcessorServiceGraphsEnableMessagingSystemLatencyHistogram: boolPtr(true),
 		MetricsGeneratorProcessorServiceGraphsEnableVirtualNodeLabel:                boolPtr(true),

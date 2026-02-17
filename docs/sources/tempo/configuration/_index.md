@@ -2025,7 +2025,15 @@ overrides:
           [peer_attributes: <list of string>]
           [enable_client_server_prefix: <bool>]
           [enable_messaging_system_latency_histogram: <bool>]
-
+          [filter_policies: [
+            [
+              include/include_any/exclude:
+                match_type: <string> # options: strict, regexp
+                attributes:
+                  - key: <string>
+                    value: <any>
+            ]
+          ]]
         # Configuration for the span-metrics processor
         span_metrics:
           [histogram_buckets: <list of float>]
@@ -2040,7 +2048,7 @@ overrides:
                   - key: <string>
                     value: <any>
             ]
-          ]
+          ]]
           [dimension_mappings: <list of map>]
           # Enable target_info metrics
           [enable_target_info: <bool>]

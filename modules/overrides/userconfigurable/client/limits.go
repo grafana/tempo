@@ -156,13 +156,14 @@ func (l *LimitsMetricsGeneratorProcessor) GetHostInfo() *LimitsMetricGeneratorPr
 }
 
 type LimitsMetricsGeneratorProcessorServiceGraphs struct {
-	Dimensions                            *[]string  `yaml:"dimensions,omitempty" json:"dimensions,omitempty"`
-	EnableClientServerPrefix              *bool      `yaml:"enable_client_server_prefix,omitempty" json:"enable_client_server_prefix,omitempty"`
-	EnableMessagingSystemLatencyHistogram *bool      `yaml:"enable_messaging_system_latency_histogram,omitempty" json:"enable_messaging_system_latency_histogram,omitempty"`
-	EnableVirtualNodeLabel                *bool      `yaml:"enable_virtual_node_label,omitempty" json:"enable_virtual_node_label,omitempty"`
-	PeerAttributes                        *[]string  `yaml:"peer_attributes,omitempty" json:"peer_attributes,omitempty"`
-	HistogramBuckets                      *[]float64 `yaml:"histogram_buckets,omitempty" json:"histogram_buckets,omitempty"`
-	SpanMultiplierKey                     *string    `yaml:"span_multiplier_key,omitempty" json:"span_multiplier_key,omitempty"`
+	Dimensions                            *[]string                    `yaml:"dimensions,omitempty" json:"dimensions,omitempty"`
+	EnableClientServerPrefix              *bool                        `yaml:"enable_client_server_prefix,omitempty" json:"enable_client_server_prefix,omitempty"`
+	EnableMessagingSystemLatencyHistogram *bool                        `yaml:"enable_messaging_system_latency_histogram,omitempty" json:"enable_messaging_system_latency_histogram,omitempty"`
+	EnableVirtualNodeLabel                *bool                        `yaml:"enable_virtual_node_label,omitempty" json:"enable_virtual_node_label,omitempty"`
+	PeerAttributes                        *[]string                    `yaml:"peer_attributes,omitempty" json:"peer_attributes,omitempty"`
+	FilterPolicies                        *[]filterconfig.FilterPolicy `yaml:"filter_policies,omitempty" json:"filter_policies,omitempty"`
+	HistogramBuckets                      *[]float64                   `yaml:"histogram_buckets,omitempty" json:"histogram_buckets,omitempty"`
+	SpanMultiplierKey                     *string                      `yaml:"span_multiplier_key,omitempty" json:"span_multiplier_key,omitempty"`
 }
 
 func (l *LimitsMetricsGeneratorProcessorServiceGraphs) GetDimensions() ([]string, bool) {
@@ -189,6 +190,13 @@ func (l *LimitsMetricsGeneratorProcessorServiceGraphs) GetEnableVirtualNodeLabel
 func (l *LimitsMetricsGeneratorProcessorServiceGraphs) GetPeerAttributes() ([]string, bool) {
 	if l != nil && l.PeerAttributes != nil {
 		return *l.PeerAttributes, true
+	}
+	return nil, false
+}
+
+func (l *LimitsMetricsGeneratorProcessorServiceGraphs) GetFilterPolicies() ([]filterconfig.FilterPolicy, bool) {
+	if l != nil && l.FilterPolicies != nil {
+		return *l.FilterPolicies, true
 	}
 	return nil, false
 }

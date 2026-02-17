@@ -91,6 +91,7 @@ func TestUserConfigOverridesManager_allFields(t *testing.T) {
 	assert.Empty(t, mgr.MetricsGeneratorProcessorServiceGraphsDimensions(tenant1))
 	assert.Empty(t, false, mgr.MetricsGeneratorProcessorServiceGraphsEnableClientServerPrefix(tenant1))
 	assert.Empty(t, mgr.MetricsGeneratorProcessorServiceGraphsPeerAttributes(tenant1))
+	assert.Empty(t, mgr.MetricsGeneratorProcessorServiceGraphsFilterPolicies(tenant1))
 	assert.Empty(t, mgr.MetricsGeneratorProcessorServiceGraphsHistogramBuckets(tenant1))
 	assert.Empty(t, mgr.MetricsGeneratorProcessorSpanMetricsDimensions(tenant1))
 	enableTargetInfoValue, enableTargetInfoIsSet := mgr.MetricsGeneratorProcessorSpanMetricsEnableTargetInfo(tenant1)
@@ -124,8 +125,21 @@ func TestUserConfigOverridesManager_allFields(t *testing.T) {
 					EnableClientServerPrefix: boolPtr(true),
 					EnableVirtualNodeLabel:   boolPtr(true),
 					PeerAttributes:           &[]string{"attribute"},
-					HistogramBuckets:         &[]float64{1, 2, 3, 4, 5},
-					SpanMultiplierKey:        strPtr("custom_key"),
+					FilterPolicies: &[]filterconfig.FilterPolicy{
+						{
+							Exclude: &filterconfig.PolicyMatch{
+								MatchType: filterconfig.Strict,
+								Attributes: []filterconfig.MatchPolicyAttribute{
+									{
+										Key:   "resource.service.name",
+										Value: "mythical-requester",
+									},
+								},
+							},
+						},
+					},
+					HistogramBuckets:  &[]float64{1, 2, 3, 4, 5},
+					SpanMultiplierKey: strPtr("custom_key"),
 				},
 				SpanMetrics: userconfigurableoverrides.LimitsMetricsGeneratorProcessorSpanMetrics{
 					Dimensions:          &[]string{"sm-dimension"},
@@ -185,6 +199,11 @@ func TestUserConfigOverridesManager_allFields(t *testing.T) {
 	assert.Equal(t, true, enableVirtualNodeLabelIsSet)
 	assert.Equal(t, []string{"attribute"}, mgr.MetricsGeneratorProcessorServiceGraphsPeerAttributes(tenant1))
 	assert.Equal(t, []float64{1, 2, 3, 4, 5}, mgr.MetricsGeneratorProcessorServiceGraphsHistogramBuckets(tenant1))
+	serviceGraphFilterPolicies := mgr.MetricsGeneratorProcessorServiceGraphsFilterPolicies(tenant1)
+	assert.NotEmpty(t, serviceGraphFilterPolicies)
+	assert.Equal(t, filterconfig.Strict, serviceGraphFilterPolicies[0].Exclude.MatchType)
+	assert.Equal(t, "resource.service.name", serviceGraphFilterPolicies[0].Exclude.Attributes[0].Key)
+	assert.Equal(t, "mythical-requester", serviceGraphFilterPolicies[0].Exclude.Attributes[0].Value)
 	assert.Equal(t, []string{"sm-dimension"}, mgr.MetricsGeneratorProcessorSpanMetricsDimensions(tenant1))
 	assert.Equal(t, map[string]bool{"service": true, "span_name": false}, mgr.MetricsGeneratorProcessorSpanMetricsIntrinsicDimensions(tenant1))
 	assert.Equal(t, []sharedconfig.DimensionMappings{{Name: "svc", SourceLabel: []string{"service"}, Join: ""}}, mgr.MetricsGeneratorProcessorSpanMetricsDimensionMappings(tenant1))
@@ -539,6 +558,7 @@ func TestUserConfigOverridesManager_MergeRuntimeConfig(t *testing.T) {
 	assert.Equal(t, mgr.MetricsGeneratorProcessorServiceGraphsHistogramBuckets(tenantID), baseMgr.MetricsGeneratorProcessorServiceGraphsHistogramBuckets(tenantID))
 	assert.Equal(t, mgr.MetricsGeneratorProcessorServiceGraphsDimensions(tenantID), baseMgr.MetricsGeneratorProcessorServiceGraphsDimensions(tenantID))
 	assert.Equal(t, mgr.MetricsGeneratorProcessorServiceGraphsPeerAttributes(tenantID), baseMgr.MetricsGeneratorProcessorServiceGraphsPeerAttributes(tenantID))
+	assert.Equal(t, mgr.MetricsGeneratorProcessorServiceGraphsFilterPolicies(tenantID), baseMgr.MetricsGeneratorProcessorServiceGraphsFilterPolicies(tenantID))
 	assert.Equal(t, mgr.MetricsGeneratorProcessorSpanMetricsHistogramBuckets(tenantID), baseMgr.MetricsGeneratorProcessorSpanMetricsHistogramBuckets(tenantID))
 	assert.Equal(t, mgr.MetricsGeneratorProcessorSpanMetricsDimensions(tenantID), baseMgr.MetricsGeneratorProcessorSpanMetricsDimensions(tenantID))
 	assert.Equal(t, map[string]bool{"service": true}, mgr.MetricsGeneratorProcessorSpanMetricsIntrinsicDimensions(tenantID))
