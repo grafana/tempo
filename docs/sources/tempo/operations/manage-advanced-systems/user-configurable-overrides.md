@@ -93,7 +93,7 @@ metrics_generator:
                 value: <any>
         ]
       ]
-      span_metrics:
+    span_metrics:
       [histogram_buckets: <list of float>]
       [dimensions: <list of string>]
       [dimension_mappings: <list of mappings {name: <string>, source_labels: <list of string>, join: <string>}>]
