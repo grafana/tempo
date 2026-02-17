@@ -39,22 +39,35 @@ This document details release procedures for Tempo.
 
 # Patch Releases
 
-Patches release should be cut for serious bug fixes or security issues.
+Patch releases should be cut for serious bug fixes or security issues.
 
-- A release branch should exist per instructions above. It will be named:
+## 1. Check out the release branch
+A release branch should already exist from the minor release. Check it out:
   `git checkout release-vX.Y`
-- Commits should already have been backported to this branch using backport automation, but if 
-  you need to add more you can cherry-pick them:
-   `git cherry-pick <commit hash>`
-- Push the commit  
-  `git push`
-- Create and push a tag to initiate the release. This will be pushed to the release branch.
-  `git tag -a v1.0.1`  
-  `git push origin v1.0.1`  
-  This triggers the build.
-- Submit a PR to main cleaning up the changelog and moving those entries in the patch release under "main/unreleased" 
-  to be under the newly minted version.
-- In [github releases](https://github.com/grafana/tempo/releases) there should be a "Draft" release.
-  Pretty up the changelog, add it to the release notes and hit "Publish release". Make sure that
-  "Set as the latest release" is checked.
-- Submit a PR to the Helm repo as described above.
+
+## 2. Backport fixes
+Backport fixes to the release branch. This is currently a manual process.
+You need to cherry-pick each commit and open a PR to be merged into the release branch.
+  `git cherry-pick <commit hash>`
+
+## 3. Update the changelog
+- Verify all backported fixes have entries in the CHANGELOG. Cross-reference the commits on the release branch since the last tag (`git log --oneline $(git describe --tags --abbrev=0)..release-vX.Y`) against the CHANGELOG entries.
+- Add any missing entries and update the heading from `main / unreleased` to the new patch version (e.g. `v2.10.1`).
+- Open a PR with the changelog update to the release branch.
+
+## 4. Create and push the tag
+Tag the release branch and push. This triggers the `release` and `docker` workflows in GitHub Actions.
+  `git tag -a vX.Y.Z -m "vX.Y.Z"`
+  `git push origin vX.Y.Z`
+
+## 5. Verify CI
+Check that all workflows triggered by the tag succeeded:
+- `release` — creates the GitHub Release draft and binaries
+- `docker` — builds per-arch images and creates multi-arch manifests
+- `publish-technical-documentation-release` — syncs docs (may show as failed if docs are already up to date; this is harmless)
+
+## 6. Publish the GitHub Release
+In [GitHub Releases](https://github.com/grafana/tempo/releases) there should be a "Draft" release. Add the changelog entries to the release notes. Make sure "Set as the latest release" is checked and hit "Publish release".
+
+## 7. Submit a changelog PR to main
+Submit a PR to `main` moving the relevant entries from "main/unreleased" to be under the newly minted version.
