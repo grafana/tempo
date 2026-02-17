@@ -27,6 +27,17 @@ For detailed information about any release, refer to the [Release notes](https:/
 You can check your configuration options using the [`status` API endpoint](https://grafana.com/docs/tempo/<TEMPO_VERSION>/api_docs/#status) in your Tempo installation.
 {{< /admonition >}}
 
+<!-- TODO: Add "Upgrade to Tempo 3.0" section here. Key points to cover:
+- Kafka requirement (BREAKING CHANGE) - Kafka-compatible system now required for all deployment modes
+- Scalable monolithic mode (SSB) removed (BREAKING CHANGE)
+- New architecture components: block-builders and live-stores replace ingesters
+- Configuration changes: Remove ingester configs, add kafka configs
+- Distributors now write to Kafka instead of ingesters
+- No downgrade path from 3.0 to 2.x
+- Update deployment manifests (Helm, Tanka, etc.)
+- Resource planning for Kafka infrastructure
+-->
+
 ## Upgrade to Tempo 2.10
 
 When upgrading to Tempo 2.10, be aware of these considerations and breaking changes.
