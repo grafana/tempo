@@ -1679,6 +1679,42 @@ func TestMetricsSecondStage(t *testing.T) {
 				newHint("foo", NewStaticString("bar")),
 			})),
 		},
+		// Combined second stage tests (topk/bottomk with filter)
+		{
+			in: `{ } | rate() | topk(5) > 10`,
+			expected: newRootExprWithMetricsTwoStage(
+				newPipeline(newSpansetFilter(NewStaticBool(true))),
+				newMetricsAggregate(metricsAggregateRate, nil),
+				newChainedSecondStage(
+					newTopKBottomK(OpTopK, 5),
+					newMetricsFilter(OpGreater, 10),
+				),
+			),
+		},
+		{
+			in: `{ } | rate() by(name) | bottomk(3) >= 5.5`,
+			expected: newRootExprWithMetricsTwoStage(
+				newPipeline(newSpansetFilter(NewStaticBool(true))),
+				newMetricsAggregate(metricsAggregateRate, []Attribute{
+					NewIntrinsic(IntrinsicName),
+				}),
+				newChainedSecondStage(
+					newTopKBottomK(OpBottomK, 3),
+					newMetricsFilter(OpGreaterEqual, 5.5),
+				),
+			),
+		},
+		{
+			in: `{ } | count_over_time() | topk(10) != 0`,
+			expected: newRootExprWithMetricsTwoStage(
+				newPipeline(newSpansetFilter(NewStaticBool(true))),
+				newMetricsAggregate(metricsAggregateCountOverTime, nil),
+				newChainedSecondStage(
+					newTopKBottomK(OpTopK, 10),
+					newMetricsFilter(OpNotEqual, 0),
+				),
+			),
+		},
 	}
 
 	for _, tc := range tests {
