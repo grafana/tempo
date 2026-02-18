@@ -1317,7 +1317,7 @@ func TestMinOverTimeWithNoMatch(t *testing.T) {
 	require.NoError(t, err)
 
 	// Test that empty timeseries are not included
-	ts := result.ToProto(req, false)
+	ts := result.ToProto(req, true)
 
 	assert.True(t, len(ts) == 0)
 	require.Equal(t, 0, seriesCount)
@@ -1382,7 +1382,7 @@ func TestMinOverTimeForSpanAttribute(t *testing.T) {
 	assert.True(t, math.IsNaN(fooBar.Values[2]))
 
 	// Test that NaN values are not included in the samples after casting to proto
-	ts := result.ToProto(req, false)
+	ts := result.ToProto(req, true)
 	fooBarSamples := []tempopb.Sample{{TimestampMs: 1000, Value: 100}, {TimestampMs: 2000, Value: 200}, {TimestampMs: 3000, Value: math.NaN()}}
 	fooBazSamples := []tempopb.Sample{{TimestampMs: 1000, Value: 204}, {TimestampMs: 2000, Value: math.NaN()}, {TimestampMs: 3000, Value: 200}}
 
@@ -1607,7 +1607,7 @@ func TestAvgOverTimeForSpanAttribute(t *testing.T) {
 	assert.True(t, math.IsNaN(fooBar.Values[2]))
 
 	// Test that NaN values are not included in the samples after casting to proto
-	ts := result.ToProto(req, false)
+	ts := result.ToProto(req, true)
 	fooBarSamples := []tempopb.Sample{{TimestampMs: 1000, Value: 234}, {TimestampMs: 2000, Value: 200}, {TimestampMs: 3000, Value: math.NaN()}}
 	fooBazSamples := []tempopb.Sample{{TimestampMs: 1000, Value: math.NaN()}, {TimestampMs: 2000, Value: math.NaN()}, {TimestampMs: 3000, Value: 250}}
 
@@ -1649,7 +1649,7 @@ func TestAvgOverTimeWithNoMatch(t *testing.T) {
 	require.Equal(t, len(result), seriesCount)
 
 	// Test that empty timeseries are not included
-	ts := result.ToProto(req, false)
+	ts := result.ToProto(req, true)
 
 	assert.True(t, len(ts) == 0)
 }
@@ -1872,7 +1872,7 @@ func TestMaxOverTimeWithNoMatch(t *testing.T) {
 	require.Equal(t, len(result), seriesCount)
 
 	// Test that empty timeseries are not included
-	ts := result.ToProto(req, false)
+	ts := result.ToProto(req, true)
 
 	assert.True(t, len(ts) == 0)
 }
@@ -1936,7 +1936,7 @@ func TestMaxOverTimeForSpanAttribute(t *testing.T) {
 	assert.True(t, math.IsNaN(fooBar.Values[2]))
 
 	// Test that NaN values are not included in the samples after casting to proto
-	ts := result.ToProto(req, false)
+	ts := result.ToProto(req, true)
 	fooBarSamples := []tempopb.Sample{{TimestampMs: 1000, Value: 404}, {TimestampMs: 2000, Value: 403}, {TimestampMs: 3000, Value: math.NaN()}}
 	fooBazSamples := []tempopb.Sample{{TimestampMs: 1000, Value: 204}, {TimestampMs: 2000, Value: math.NaN()}, {TimestampMs: 3000, Value: 500}}
 
@@ -2052,7 +2052,7 @@ func TestSumOverTimeForSpanAttribute(t *testing.T) {
 	assert.True(t, math.IsNaN(fooBar.Values[2]))
 
 	// Test that NaN values are not included in the samples after casting to proto
-	ts := result.ToProto(req, false)
+	ts := result.ToProto(req, true)
 	fooBarSamples := []tempopb.Sample{{TimestampMs: 1000, Value: 1200}, {TimestampMs: 2000, Value: 2400}, {TimestampMs: 3000, Value: math.NaN()}}
 	fooBazSamples := []tempopb.Sample{{TimestampMs: 1000, Value: 200}, {TimestampMs: 2000, Value: math.NaN()}, {TimestampMs: 3000, Value: 1700}}
 
@@ -2093,7 +2093,7 @@ func TestSumOverTimeWithNoMatch(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, len(result), seriesCount)
 	// Test that empty timeseries are not included
-	ts := result.ToProto(req, false)
+	ts := result.ToProto(req, true)
 
 	assert.True(t, len(ts) == 0)
 }
@@ -3637,7 +3637,7 @@ func TestSeriesToProtoWithNaN(t *testing.T) {
 		},
 	}
 
-	result := seriesSet.ToProto(req, false)
+	result := seriesSet.ToProto(req, true)
 
 	require.Len(t, result, 1, "Should have 1 series")
 	require.Len(t, result[0].Samples, 3, "Should have 3 samples including NaN")

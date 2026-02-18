@@ -965,7 +965,7 @@ func TestTempoDBQueryRange(t *testing.T) {
 			evalLevel3, err := e.CompileMetricsQueryRangeNonRaw(tc.req, traceql.AggregateModeFinal)
 			require.NoError(t, err)
 			evalLevel3.ObserveSeries(actual)
-			actual = evalLevel3.Results().ToProto(tc.req, false)
+			actual = evalLevel3.Results().ToProto(tc.req, true)
 			sortTimeSeries(actual)
 
 			if tc.expectedL3 != nil {
@@ -1013,7 +1013,7 @@ func TestTempoDBQueryRange(t *testing.T) {
 		evalLevel3, err := e.CompileMetricsQueryRangeNonRaw(req, traceql.AggregateModeFinal)
 		require.NoError(t, err)
 		evalLevel3.ObserveSeries(actual)
-		actual = evalLevel3.Results().ToProto(req, false)
+		actual = evalLevel3.Results().ToProto(req, true)
 
 		targetTs = filterTimeSeriesByLabel(actual, labelName)
 		sortTimeSeries(targetTs)
