@@ -27,7 +27,7 @@ func forPartitionRingReplicaSets[R any, TClient any](ctx context.Context, q *Que
 
 	quorumConfig := q.queryQuorumConfigForReplicationSets(ctx, replicationSets)
 
-	return concurrency.ForEachJobMergeResults[ring.ReplicationSet, R](ctx, replicationSets, 0, func(ctx context.Context, set ring.ReplicationSet) ([]R, error) {
+	return concurrency.ForEachJobMergeResults(ctx, replicationSets, 0, func(ctx context.Context, set ring.ReplicationSet) ([]R, error) {
 		return ring.DoUntilQuorum(ctx, set, quorumConfig, wrappedF, cleanup)
 	})
 }

@@ -43,11 +43,6 @@ import (
 var tracer = otel.Tracer("modules/querier")
 
 var (
-	metricIngesterClients = promauto.NewGauge(prometheus.GaugeOpts{
-		Namespace: "tempo",
-		Name:      "querier_ingester_clients",
-		Help:      "The current number of ingester clients.",
-	})
 	metricMetricsGeneratorClients = promauto.NewGauge(prometheus.GaugeOpts{
 		Namespace: "tempo",
 		Name:      "querier_metrics_generator_clients",
@@ -63,7 +58,6 @@ var (
 type (
 	forEachFn          func(ctx context.Context, client tempopb.QuerierClient) (any, error)
 	forEachGeneratorFn func(ctx context.Context, client tempopb.MetricsGeneratorClient) (any, error)
-	replicationSetFn   func(r ring.ReadRing) (ring.ReplicationSet, error)
 )
 
 // Querier handlers queries.
