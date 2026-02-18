@@ -159,7 +159,7 @@ func (a *MetricsAggregate) init(q *tempopb.QueryRangeRequest, mode AggregateMode
 		}
 	} else {
 		innerAggFunc = func() RangeAggregator {
-			return NewStepAggregator(q.Start, q.End, q.Step, innerAgg)
+			return NewStepAggregator(q, innerAgg)
 		}
 	}
 
@@ -249,7 +249,7 @@ func exemplarAttribute(a Attribute) func(Span) (float64, uint64) {
 func (a *MetricsAggregate) initSum(q *tempopb.QueryRangeRequest) {
 	// Currently all metrics are summed by job to produce
 	// intermediate results. This will change when adding min/max/topk/etc
-	a.seriesAgg = NewSimpleCombiner(q, a.simpleAggregationOp, maxExemplars)
+	a.seriesAgg = NewSimpleCombiner(q, a.simpleAggregationOp)
 }
 
 func (a *MetricsAggregate) initFinal(q *tempopb.QueryRangeRequest) {
@@ -258,7 +258,7 @@ func (a *MetricsAggregate) initFinal(q *tempopb.QueryRangeRequest) {
 		a.seriesAgg = NewHistogramAggregator(q, a.floats, q.Exemplars)
 	default:
 		// These are simple additions by series
-		a.seriesAgg = NewSimpleCombiner(q, a.simpleAggregationOp, q.Exemplars)
+		a.seriesAgg = NewSimpleCombiner(q, a.simpleAggregationOp)
 	}
 }
 

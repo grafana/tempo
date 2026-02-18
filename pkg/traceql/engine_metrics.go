@@ -22,7 +22,6 @@ const (
 	internalLabelMetaType = "__meta_type"
 	internalMetaTypeCount = "__count"
 	internalLabelBucket   = "__bucket"
-	maxExemplars          = 100
 	maxExemplarsPerBucket = 2
 	// NormalNaN is a quiet NaN. This is also math.NaN().
 	normalNaN uint64 = 0x7ff8000000000001
@@ -535,9 +534,9 @@ type StepAggregator struct {
 
 var _ RangeAggregator = (*StepAggregator)(nil)
 
-func NewStepAggregator(start, end, step uint64, innerAgg func() VectorAggregator) *StepAggregator {
+func NewStepAggregator(q *tempopb.QueryRangeRequest, innerAgg func() VectorAggregator) *StepAggregator {
 	const instant = false // never used for instant queries
-	mapper := NewIntervalMapper(start, end, step, instant)
+	mapper := NewIntervalMapper(q.Start, q.End, q.Step, instant)
 	intervals := mapper.IntervalCount()
 	vectors := make([]VectorAggregator, intervals)
 	for i := range vectors {
@@ -547,8 +546,8 @@ func NewStepAggregator(start, end, step uint64, innerAgg func() VectorAggregator
 	return &StepAggregator{
 		intervalMapper:  mapper,
 		vectors:         vectors,
-		exemplars:       make([]Exemplar, 0, maxExemplars),
-		exemplarBuckets: newExemplarBucketSet(maxExemplars, start, end, step, instant),
+		exemplars:       make([]Exemplar, 0, q.Exemplars),
+		exemplarBuckets: newExemplarBucketSet(q.Exemplars, q.Start, q.End, q.Step, instant),
 	}
 }
 
@@ -1465,7 +1464,7 @@ type SimpleAggregator struct {
 	initWithNaN     bool
 }
 
-func NewSimpleCombiner(req *tempopb.QueryRangeRequest, op SimpleAggregationOp, exemplars uint32) *SimpleAggregator {
+func NewSimpleCombiner(req *tempopb.QueryRangeRequest, op SimpleAggregationOp) *SimpleAggregator {
 	var initWithNaN bool
 	var f func(existingValue float64, newValue float64) float64
 	switch op {
@@ -1488,7 +1487,7 @@ func NewSimpleCombiner(req *tempopb.QueryRangeRequest, op SimpleAggregationOp, e
 	}
 	return &SimpleAggregator{
 		ss:              make(SeriesSet),
-		exemplarBuckets: newExemplarBucketSet(exemplars, req.Start, req.End, req.Step, IsInstant(req)),
+		exemplarBuckets: newExemplarBucketSet(req.Exemplars, req.Start, req.End, req.Step, IsInstant(req)),
 		intervalMapper:  NewIntervalMapperFromReq(req),
 		aggregationFunc: f,
 		initWithNaN:     initWithNaN,

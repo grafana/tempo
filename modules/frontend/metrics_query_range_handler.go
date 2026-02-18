@@ -75,6 +75,14 @@ func newQueryRangeStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripp
 		tenant, _ := user.ExtractOrgID(ctx)
 		start := time.Now()
 
+		// Normalize exemplars before combiner creation: 0 (unspecified) or above the configured
+		// maximum defaults to MaxExemplars. The sharder applies the same normalization to sub-requests,
+		// but runs after the combiner is created, so we must mirror it here.
+		if cfg.Metrics.Sharder.MaxExemplars > 0 {
+			if req.Exemplars == 0 || int(req.Exemplars) > cfg.Metrics.Sharder.MaxExemplars {
+				req.Exemplars = uint32(cfg.Metrics.Sharder.MaxExemplars) //nolint:gosec // G115
+			}
+		}
 		var finalResponse *tempopb.QueryRangeResponse
 		c, err := combiner.NewTypedQueryRange(req, cfg.Metrics.Sharder.MaxResponseSeries)
 		if err != nil {
@@ -148,6 +156,14 @@ func newMetricsQueryRangeHTTPHandler(cfg Config, next pipeline.AsyncRoundTripper
 		}
 		req = api.BuildQueryRangeRequest(req, queryRangeReq, "")
 
+		// Normalize exemplars before combiner creation: 0 (unspecified) or above the configured
+		// maximum defaults to MaxExemplars. The sharder applies the same normalization to sub-requests,
+		// but runs after the combiner is created, so we must mirror it here.
+		if cfg.Metrics.Sharder.MaxExemplars > 0 {
+			if queryRangeReq.Exemplars == 0 || int(queryRangeReq.Exemplars) > cfg.Metrics.Sharder.MaxExemplars {
+				queryRangeReq.Exemplars = uint32(cfg.Metrics.Sharder.MaxExemplars) //nolint:gosec // G115
+			}
+		}
 		// build and use roundtripper
 		combiner, err := combiner.NewTypedQueryRange(queryRangeReq, cfg.Metrics.Sharder.MaxResponseSeries)
 		if err != nil {
