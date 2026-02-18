@@ -59,7 +59,7 @@ grpc_client_config:
 
 The configuration block needs to be set at the following configuration locations.
 
-- `ingester_client.grpc_client_config`
+- `live_store_client.grpc_client_config`
 - `metrics_generator_client.grpc_client_config`
 - `querier.query-frontend.grpc_client_config`
 
@@ -106,14 +106,6 @@ In this example, the Tempo components share a single TLS certificate.
 Note that the `tls_server_name` configuration must match the certificate.
 
 ```yaml
-compactor:
-  extraVolumeMounts:
-    - mountPath: /tls
-      name: tempo-distributed-tls
-  extraVolumes:
-    - name: tempo-distributed-tls
-      secret:
-        secretName: tempo-distributed-tls
 distributor:
   extraVolumeMounts:
     - mountPath: /tls
@@ -122,7 +114,31 @@ distributor:
     - name: tempo-distributed-tls
       secret:
         secretName: tempo-distributed-tls
-ingester:
+blockBuilder:
+  extraVolumeMounts:
+    - mountPath: /tls
+      name: tempo-distributed-tls
+  extraVolumes:
+    - name: tempo-distributed-tls
+      secret:
+        secretName: tempo-distributed-tls
+liveStore:
+  extraVolumeMounts:
+    - mountPath: /tls
+      name: tempo-distributed-tls
+  extraVolumes:
+    - name: tempo-distributed-tls
+      secret:
+        secretName: tempo-distributed-tls
+backendScheduler:
+  extraVolumeMounts:
+    - mountPath: /tls
+      name: tempo-distributed-tls
+  extraVolumes:
+    - name: tempo-distributed-tls
+      secret:
+        secretName: tempo-distributed-tls
+backendWorker:
   extraVolumeMounts:
     - mountPath: /tls
       name: tempo-distributed-tls
@@ -186,7 +202,7 @@ tempo:
                 ca_file: /tls/ca.crt
                 cert_file: /tls/tls.crt
                 key_file: /tls/tls.key
-    ingester_client:
+    live_store_client:
       grpc_client_config:
         tls_ca_path: /tls/ca.crt
         tls_cert_path: /tls/tls.crt

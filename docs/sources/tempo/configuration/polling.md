@@ -36,28 +36,20 @@ storage:
 ```
 
 Due to the mechanics of the [tenant index](../../operations/monitor/polling/), the blocklist will be stale by
-at most 2 times the configured `blocklist_poll` duration. There are two configuration options that need to be balanced
-against the `blockist_poll` to handle this:
+at most 2 times the configured `blocklist_poll` duration. There are two mechanisms that handle this:
 
-The ingester `complete_block_timeout` is used to hold a block in the ingester for a given period of time after
-it has been flushed. This allows the ingester to return traces to the queriers while they are still unaware
-of the newly flushed blocks.
-
-```
-ingester:
-  # How long to hold a complete block in the ingester after it has been flushed to the backend. Default is 15m
-  [complete_block_timeout: <duration>]
-```
+Live-stores serve recent trace data directly from Kafka, covering the gap between when a block-builder flushes a new block and when queriers discover it through polling. This means recently ingested data is always available for queries regardless of blocklist staleness.
 
 The compaction `compacted_block_retention` is used to keep a block in the backend for a given period of time
 after it has been compacted and the data is no longer needed. This allows queriers with a stale blocklist to access
-these blocks successfully until they complete their polling cycles and have up to date blocklists. Like the
-`complete_block_timeout`, this should be at a minimum 2x the configured `blocklist_poll` duration.
+these blocks successfully until they complete their polling cycles and have up-to-date blocklists.
+This should be at a minimum 2x the configured `blocklist_poll` duration.
 
 ```
-compaction:
-  # How long to leave a block in the backend after it has been compacted successfully. Default is 1h
-  [compacted_block_retention: <duration>]
+backend_worker:
+  compaction:
+    # How long to leave a block in the backend after it has been compacted successfully. Default is 1h
+    [compacted_block_retention: <duration>]
 ```
 
 Additionally, the querier `blocklist_poll` duration needs to be greater than or equal to the worker
