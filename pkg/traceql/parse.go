@@ -21,10 +21,10 @@ func init() {
 }
 
 func Parse(s string) (expr *RootExpr, err error) {
-	return parseWithOptimizationOption(s, true)
+	return ParseWithOptimizationOption(s, true)
 }
 
-func parseWithOptimizationOption(s string, astOptimization bool) (expr *RootExpr, err error) {
+func ParseWithOptimizationOption(s string, astOptimization bool) (expr *RootExpr, err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			var ok bool
