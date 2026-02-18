@@ -1,0 +1,29 @@
+target: federated-query-frontend
+stream_over_http_enabled: true
+
+server:
+  http_listen_port: 3200
+
+query_frontend:
+  max_batch_size: 10
+
+
+federated_frontend:
+  concurrent_requests: 4
+  instances:
+  - name: tempo1
+    endpoint: http://e2e_Federation-tempo1:3200
+    timeout: 30s
+  - name: tempo2
+    endpoint: http://e2e_Federation-tempo2:3200
+    timeout: 30s
+storage:
+  trace:
+    backend: local
+    local:
+      path: /tmp/tempo/traces
+
+overrides:
+  defaults:
+    metrics_generator:
+      processors: []

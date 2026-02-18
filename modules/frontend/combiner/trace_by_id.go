@@ -87,10 +87,23 @@ func (c *TraceByIDCombiner) AddResponse(r PipelineResponse) error {
 
 	// Unmarshal the body
 	resp := &tempopb.TraceByIDResponse{}
-	err = resp.Unmarshal(buff)
-	if err != nil {
-		c.statusMessage = internalErrorMsg
-		return fmt.Errorf("error unmarshalling response body: %w", err)
+
+	switch res.Header.Get(api.HeaderContentType) {
+	case api.HeaderAcceptProtobuf:
+		err = resp.Unmarshal(buff)
+		if err != nil {
+			c.statusMessage = internalErrorMsg
+			return fmt.Errorf("error unmarshalling response body: %w", err)
+		}
+	default:
+		// Assume json and Unmarshal
+		respTrace := &tempopb.Trace{}
+		err = tempopb.UnmarshalFromJSONV1(buff, respTrace)
+		resp.Trace = respTrace
+		if err != nil {
+			c.statusMessage = internalErrorMsg
+			return fmt.Errorf("error unmarshalling response body from json: %w", err)
+		}
 	}
 
 	// Consume the trace

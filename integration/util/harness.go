@@ -234,6 +234,7 @@ func runTempoHarness(t *testing.T, harnessCfg TestHarnessConfig, requestedBacken
 
 	// bail out here if we don't need any tempo components
 	if harnessCfg.DeploymentMode == DeploymentModeNone {
+		testFunc(harness)
 		return
 	}
 
