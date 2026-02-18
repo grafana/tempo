@@ -46,8 +46,6 @@ func (q *Querier) TraceByIDHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	ctx = injectRecentDataTarget(ctx, api.ParseRecentDataTargetHeader(r))
-
 	// validate request
 	blockStart, blockEnd, queryMode, timeStart, timeEnd, rf1After, err := api.ValidateAndSanitizeRequest(r)
 	if err != nil {
@@ -99,8 +97,6 @@ func (q *Querier) TraceByIDHandlerV2(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	ctx = injectRecentDataTarget(ctx, api.ParseRecentDataTargetHeader(r))
-
 	// validate request
 	blockStart, blockEnd, queryMode, timeStart, timeEnd, rf1After, err := api.ValidateAndSanitizeRequest(r)
 	if err != nil {
@@ -138,8 +134,6 @@ func (q *Querier) SearchHandler(w http.ResponseWriter, r *http.Request) {
 	// Enforce the query timeout while querying backends
 	ctx, cancel := context.WithDeadline(r.Context(), time.Now().Add(q.cfg.Search.QueryTimeout))
 	defer cancel()
-
-	ctx = injectRecentDataTarget(ctx, api.ParseRecentDataTargetHeader(r))
 
 	ctx, span := tracer.Start(ctx, "Querier.SearchHandler")
 	defer span.End()
@@ -188,8 +182,6 @@ func (q *Querier) SearchTagsHandler(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithDeadline(r.Context(), time.Now().Add(q.cfg.Search.QueryTimeout))
 	defer cancel()
 
-	ctx = injectRecentDataTarget(ctx, api.ParseRecentDataTargetHeader(r))
-
 	ctx, span := tracer.Start(ctx, "Querier.SearchTagsHandler")
 	defer span.End()
 
@@ -226,8 +218,6 @@ func (q *Querier) SearchTagsV2Handler(w http.ResponseWriter, r *http.Request) {
 	// Enforce the query timeout while querying backends
 	ctx, cancel := context.WithDeadline(r.Context(), time.Now().Add(q.cfg.Search.QueryTimeout))
 	defer cancel()
-
-	ctx = injectRecentDataTarget(ctx, api.ParseRecentDataTargetHeader(r))
 
 	ctx, span := tracer.Start(ctx, "Querier.SearchTagsHandler")
 	defer span.End()
@@ -268,8 +258,6 @@ func (q *Querier) SearchTagValuesHandler(w http.ResponseWriter, r *http.Request)
 	ctx, cancel := context.WithDeadline(r.Context(), time.Now().Add(q.cfg.Search.QueryTimeout))
 	defer cancel()
 
-	ctx = injectRecentDataTarget(ctx, api.ParseRecentDataTargetHeader(r))
-
 	ctx, span := tracer.Start(ctx, "Querier.SearchTagValuesHandler")
 	defer span.End()
 
@@ -308,8 +296,6 @@ func (q *Querier) SearchTagValuesV2Handler(w http.ResponseWriter, r *http.Reques
 	// Enforce the query timeout while querying backends
 	ctx, cancel := context.WithDeadline(r.Context(), time.Now().Add(q.cfg.Search.QueryTimeout))
 	defer cancel()
-
-	ctx = injectRecentDataTarget(ctx, api.ParseRecentDataTargetHeader(r))
 
 	ctx, span := tracer.Start(ctx, "Querier.SearchTagValuesV2Handler")
 	defer span.End()
