@@ -200,7 +200,7 @@ func (p *Processor) queryRangeCompleteBlock(ctx context.Context, b *ingester.Loc
 		return nil, err
 	}
 
-	results := eval.Results().ToProto(&req)
+	results := eval.Results().ToProto(&req, false)
 
 	if name != "" {
 		err = p.queryRangeCacheSet(ctx, m, name, &tempopb.QueryRangeResponse{

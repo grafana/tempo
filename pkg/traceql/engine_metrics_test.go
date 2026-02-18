@@ -1097,14 +1097,14 @@ func TestCountOverTimeInstantNsWithCutoff(t *testing.T) {
 		for _, s := range in1 {
 			layer1.metricsPipeline.observe(s)
 		}
-		res1 := layer1.Results().ToProto(&req1)
+		res1 := layer1.Results().ToProto(&req1, false)
 
 		layer1, err = e.CompileMetricsQueryRange(&req2, 0, 0, false)
 		require.NoError(t, err)
 		for _, s := range in2 {
 			layer1.metricsPipeline.observe(s)
 		}
-		res2 := layer1.Results().ToProto(&req2)
+		res2 := layer1.Results().ToProto(&req2, false)
 
 		// merge in L2
 		layer2.metricsPipeline.observeSeries(res1)
@@ -1128,8 +1128,8 @@ func TestCountOverTimeInstantNsWithCutoff(t *testing.T) {
 		layer3, err := e.CompileMetricsQueryRangeNonRaw(req, AggregateModeFinal)
 		require.NoError(t, err)
 
-		layer3.ObserveSeries(res1.ToProto(req))
-		layer3.ObserveSeries(res2.ToProto(req))
+		layer3.ObserveSeries(res1.ToProto(req, false))
+		layer3.ObserveSeries(res2.ToProto(req, false))
 
 		require.NoError(t, err)
 		requireEqualSeriesSets(t, out, layer3.Results())
@@ -1317,7 +1317,7 @@ func TestMinOverTimeWithNoMatch(t *testing.T) {
 	require.NoError(t, err)
 
 	// Test that empty timeseries are not included
-	ts := result.ToProto(req)
+	ts := result.ToProto(req, false)
 
 	assert.True(t, len(ts) == 0)
 	require.Equal(t, 0, seriesCount)
@@ -1382,7 +1382,7 @@ func TestMinOverTimeForSpanAttribute(t *testing.T) {
 	assert.True(t, math.IsNaN(fooBar.Values[2]))
 
 	// Test that NaN values are not included in the samples after casting to proto
-	ts := result.ToProto(req)
+	ts := result.ToProto(req, false)
 	fooBarSamples := []tempopb.Sample{{TimestampMs: 1000, Value: 100}, {TimestampMs: 2000, Value: 200}, {TimestampMs: 3000, Value: math.NaN()}}
 	fooBazSamples := []tempopb.Sample{{TimestampMs: 1000, Value: 204}, {TimestampMs: 2000, Value: math.NaN()}, {TimestampMs: 3000, Value: 200}}
 
@@ -1607,7 +1607,7 @@ func TestAvgOverTimeForSpanAttribute(t *testing.T) {
 	assert.True(t, math.IsNaN(fooBar.Values[2]))
 
 	// Test that NaN values are not included in the samples after casting to proto
-	ts := result.ToProto(req)
+	ts := result.ToProto(req, false)
 	fooBarSamples := []tempopb.Sample{{TimestampMs: 1000, Value: 234}, {TimestampMs: 2000, Value: 200}, {TimestampMs: 3000, Value: math.NaN()}}
 	fooBazSamples := []tempopb.Sample{{TimestampMs: 1000, Value: math.NaN()}, {TimestampMs: 2000, Value: math.NaN()}, {TimestampMs: 3000, Value: 250}}
 
@@ -1649,7 +1649,7 @@ func TestAvgOverTimeWithNoMatch(t *testing.T) {
 	require.Equal(t, len(result), seriesCount)
 
 	// Test that empty timeseries are not included
-	ts := result.ToProto(req)
+	ts := result.ToProto(req, false)
 
 	assert.True(t, len(ts) == 0)
 }
@@ -1700,16 +1700,16 @@ func TestObserveSeriesAverageOverTimeForSpanAttribute(t *testing.T) {
 		layer1A.metricsPipeline.observe(s)
 	}
 
-	layer2A.ObserveSeries(layer1A.Results().ToProto(req))
+	layer2A.ObserveSeries(layer1A.Results().ToProto(req, false))
 
 	for _, s := range in2 {
 		layer1B.metricsPipeline.observe(s)
 	}
 
-	layer2B.ObserveSeries(layer1B.Results().ToProto(req))
+	layer2B.ObserveSeries(layer1B.Results().ToProto(req, false))
 
-	layer3.ObserveSeries(layer2A.Results().ToProto(req))
-	layer3.ObserveSeries(layer2B.Results().ToProto(req))
+	layer3.ObserveSeries(layer2A.Results().ToProto(req, false))
+	layer3.ObserveSeries(layer2B.Results().ToProto(req, false))
 
 	result := layer3.Results()
 
@@ -1775,16 +1775,16 @@ func TestObserveSeriesAverageOverTimeForSpanAttributeWithTruncation(t *testing.T
 		layer1A.metricsPipeline.observe(s)
 	}
 
-	layer2A.ObserveSeries(layer1A.Results().ToProto(req))
+	layer2A.ObserveSeries(layer1A.Results().ToProto(req, false))
 
 	for _, s := range in2 {
 		layer1B.metricsPipeline.observe(s)
 	}
 
-	layer2B.ObserveSeries(layer1B.Results().ToProto(req))
+	layer2B.ObserveSeries(layer1B.Results().ToProto(req, false))
 
-	layer3.ObserveSeries(layer2A.Results().ToProto(req))
-	layer2bResults := layer2B.Results().ToProto(req)
+	layer3.ObserveSeries(layer2A.Results().ToProto(req, false))
+	layer2bResults := layer2B.Results().ToProto(req, false)
 	truncated2bResults := make([]*tempopb.TimeSeries, 0, len(layer2bResults)-1)
 	for _, ts := range layer2bResults {
 		if !LabelsFromProto(ts.Labels).Has(internalLabelMetaType) {
@@ -1872,7 +1872,7 @@ func TestMaxOverTimeWithNoMatch(t *testing.T) {
 	require.Equal(t, len(result), seriesCount)
 
 	// Test that empty timeseries are not included
-	ts := result.ToProto(req)
+	ts := result.ToProto(req, false)
 
 	assert.True(t, len(ts) == 0)
 }
@@ -1936,7 +1936,7 @@ func TestMaxOverTimeForSpanAttribute(t *testing.T) {
 	assert.True(t, math.IsNaN(fooBar.Values[2]))
 
 	// Test that NaN values are not included in the samples after casting to proto
-	ts := result.ToProto(req)
+	ts := result.ToProto(req, false)
 	fooBarSamples := []tempopb.Sample{{TimestampMs: 1000, Value: 404}, {TimestampMs: 2000, Value: 403}, {TimestampMs: 3000, Value: math.NaN()}}
 	fooBazSamples := []tempopb.Sample{{TimestampMs: 1000, Value: 204}, {TimestampMs: 2000, Value: math.NaN()}, {TimestampMs: 3000, Value: 500}}
 
@@ -2052,7 +2052,7 @@ func TestSumOverTimeForSpanAttribute(t *testing.T) {
 	assert.True(t, math.IsNaN(fooBar.Values[2]))
 
 	// Test that NaN values are not included in the samples after casting to proto
-	ts := result.ToProto(req)
+	ts := result.ToProto(req, false)
 	fooBarSamples := []tempopb.Sample{{TimestampMs: 1000, Value: 1200}, {TimestampMs: 2000, Value: 2400}, {TimestampMs: 3000, Value: math.NaN()}}
 	fooBazSamples := []tempopb.Sample{{TimestampMs: 1000, Value: 200}, {TimestampMs: 2000, Value: math.NaN()}, {TimestampMs: 3000, Value: 1700}}
 
@@ -2093,7 +2093,7 @@ func TestSumOverTimeWithNoMatch(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, len(result), seriesCount)
 	// Test that empty timeseries are not included
-	ts := result.ToProto(req)
+	ts := result.ToProto(req, false)
 
 	assert.True(t, len(ts) == 0)
 }
@@ -2848,7 +2848,7 @@ func processLayer1AndLayer2(req *tempopb.QueryRangeRequest, in ...[]Span) (Serie
 		res := layer1.Results()
 		// Pass layer 1 to layer 2
 		// These are partial counts over time by bucket
-		layer2.metricsPipeline.observeSeries(res.ToProto(req))
+		layer2.metricsPipeline.observeSeries(res.ToProto(req, false))
 	}
 
 	return layer2.Results(), nil
@@ -2863,7 +2863,7 @@ func processLayer3(req *tempopb.QueryRangeRequest, results ...SeriesSet) (Series
 	}
 
 	for _, res := range results {
-		layer3.ObserveSeries(res.ToProto(req))
+		layer3.ObserveSeries(res.ToProto(req, false))
 	}
 	return layer3.Results(), layer3.Length(), nil
 }
@@ -3637,7 +3637,7 @@ func TestSeriesToProtoWithNaN(t *testing.T) {
 		},
 	}
 
-	result := seriesSet.ToProto(req)
+	result := seriesSet.ToProto(req, false)
 
 	require.Len(t, result, 1, "Should have 1 series")
 	require.Len(t, result[0].Samples, 3, "Should have 3 samples including NaN")
@@ -3669,7 +3669,7 @@ func TestSeriesToProtoAllNaN(t *testing.T) {
 		},
 	}
 
-	result := seriesSet.ToProto(req)
+	result := seriesSet.ToProto(req, false)
 
 	require.Len(t, result, 0, "Should have 0 series because all values are NaN")
 }

@@ -935,7 +935,7 @@ func TestTempoDBQueryRange(t *testing.T) {
 			err = eval.Do(ctx, f, 0, 0, 0)
 			require.NoError(t, err)
 
-			actual := eval.Results().ToProto(tc.req)
+			actual := eval.Results().ToProto(tc.req, false)
 			expected := tc.expectedL1
 
 			// Slice order is not deterministic, so we sort the slices before comparing
@@ -950,7 +950,7 @@ func TestTempoDBQueryRange(t *testing.T) {
 			require.NoError(t, err)
 			evalLevel2.ObserveSeries(actual)
 			evalLevel2.ObserveSeries(actual) // emulate merging from two sources
-			actual = evalLevel2.Results().ToProto(tc.req)
+			actual = evalLevel2.Results().ToProto(tc.req, false)
 			sortTimeSeries(actual)
 
 			if tc.expectedL2 != nil {
@@ -965,7 +965,7 @@ func TestTempoDBQueryRange(t *testing.T) {
 			evalLevel3, err := e.CompileMetricsQueryRangeNonRaw(tc.req, traceql.AggregateModeFinal)
 			require.NoError(t, err)
 			evalLevel3.ObserveSeries(actual)
-			actual = evalLevel3.Results().ToProto(tc.req)
+			actual = evalLevel3.Results().ToProto(tc.req, false)
 			sortTimeSeries(actual)
 
 			if tc.expectedL3 != nil {
@@ -992,7 +992,7 @@ func TestTempoDBQueryRange(t *testing.T) {
 		err = eval.Do(ctx, f, 0, 0, 0)
 		require.NoError(t, err)
 
-		actual := eval.Results().ToProto(req)
+		actual := eval.Results().ToProto(req, false)
 
 		const labelName = `resource.service.name`
 		targetTs := filterTimeSeriesByLabel(actual, labelName)
@@ -1003,7 +1003,7 @@ func TestTempoDBQueryRange(t *testing.T) {
 		evalLevel2, err := e.CompileMetricsQueryRangeNonRaw(req, traceql.AggregateModeSum)
 		require.NoError(t, err)
 		evalLevel2.ObserveSeries(actual)
-		actual = evalLevel2.Results().ToProto(req)
+		actual = evalLevel2.Results().ToProto(req, false)
 
 		targetTs = filterTimeSeriesByLabel(actual, labelName)
 		sortTimeSeries(targetTs)
@@ -1013,7 +1013,7 @@ func TestTempoDBQueryRange(t *testing.T) {
 		evalLevel3, err := e.CompileMetricsQueryRangeNonRaw(req, traceql.AggregateModeFinal)
 		require.NoError(t, err)
 		evalLevel3.ObserveSeries(actual)
-		actual = evalLevel3.Results().ToProto(req)
+		actual = evalLevel3.Results().ToProto(req, false)
 
 		targetTs = filterTimeSeriesByLabel(actual, labelName)
 		sortTimeSeries(targetTs)
