@@ -17,6 +17,8 @@ import (
 	"github.com/grafana/tempo/pkg/api"
 	"github.com/grafana/tempo/pkg/model/trace"
 	"github.com/grafana/tempo/pkg/tempopb"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 const (
@@ -345,6 +347,10 @@ func (q *Querier) SpanMetricsSummaryHandler(w http.ResponseWriter, r *http.Reque
 
 	resp, err := q.SpanMetricsSummary(ctx, req)
 	if err != nil {
+		if status.Code(err) == codes.Unimplemented {
+			http.Error(w, err.Error(), http.StatusGone)
+			return
+		}
 		handleError(w, err)
 		return
 	}

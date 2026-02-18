@@ -38,6 +38,8 @@ import (
 	"github.com/grafana/tempo/pkg/validation"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding/common"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 var tracer = otel.Tracer("modules/querier")
@@ -54,6 +56,8 @@ var (
 		Help:      "The current number of livestore clients.",
 	})
 )
+
+const spanMetricsSummaryDeprecationMessage = "Span metrics summary endpoint is deprecated; use /api/metrics/query_range"
 
 type (
 	forEachFn          func(ctx context.Context, client tempopb.QuerierClient) (any, error)
@@ -622,71 +626,9 @@ outer:
 }
 
 func (q *Querier) SpanMetricsSummary(ctx context.Context, req *tempopb.SpanMetricsSummaryRequest) (*tempopb.SpanMetricsSummaryResponse, error) {
-	genReq := &tempopb.SpanMetricsRequest{
-		Query:   req.Query,
-		GroupBy: req.GroupBy,
-		Start:   req.Start,
-		End:     req.End,
-		Limit:   0,
-	}
-
-	results, err := q.forGivenGenerators(ctx, func(ctx context.Context, client tempopb.MetricsGeneratorClient) (any, error) {
-		return client.GetMetrics(ctx, genReq)
-	})
-	if err != nil {
-		return nil, fmt.Errorf("error querying generators in Querier.SpanMetricsSummary: %w", err)
-	}
-
-	// Combine the results
-	yyy := make(map[traceqlmetrics.MetricKeys]*traceqlmetrics.LatencyHistogram)
-	xxx := make(map[traceqlmetrics.MetricKeys]*tempopb.SpanMetricsSummary)
-
-	var h *traceqlmetrics.LatencyHistogram
-	var s traceqlmetrics.MetricSeries
-	for _, result := range results {
-		r := result.(*tempopb.SpanMetricsResponse)
-
-		for _, m := range r.Metrics {
-			s = protoToMetricSeries(m.Series)
-			k := s.MetricKeys()
-
-			if _, ok := xxx[k]; !ok {
-				xxx[k] = &tempopb.SpanMetricsSummary{Series: m.Series}
-			}
-
-			xxx[k].ErrorSpanCount += m.Errors
-
-			var b [64]int
-			for _, l := range m.GetLatencyHistogram() {
-				// Reconstitude the bucket
-				b[l.Bucket] += int(l.Count)
-				// Add to the total
-				xxx[k].SpanCount += l.Count
-			}
-
-			// Combine the histogram
-			h = traceqlmetrics.New(b)
-			if _, ok := yyy[k]; !ok {
-				yyy[k] = h
-			} else {
-				yyy[k].Combine(*h)
-			}
-		}
-	}
-
-	for s, h := range yyy {
-		xxx[s].P50 = h.Percentile(0.5)
-		xxx[s].P90 = h.Percentile(0.9)
-		xxx[s].P95 = h.Percentile(0.95)
-		xxx[s].P99 = h.Percentile(0.99)
-	}
-
-	resp := &tempopb.SpanMetricsSummaryResponse{}
-	for _, x := range xxx {
-		resp.Summaries = append(resp.Summaries, x)
-	}
-
-	return resp, nil
+	_ = ctx
+	_ = req
+	return nil, status.Error(codes.Unimplemented, spanMetricsSummaryDeprecationMessage)
 }
 
 func valuesToV2Response(distinctValues *collector.DistinctValue[tempopb.TagValue], bytesRead uint64) *tempopb.SearchTagValuesV2Response {
