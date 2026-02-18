@@ -246,6 +246,51 @@ func BenchmarkSpanIDAndKindToToken(b *testing.B) {
 	}
 }
 
+func TestPadTraceIDString(t *testing.T) {
+	tc := []struct {
+		name     string
+		id       string
+		expected string
+	}{
+		{
+			name:     "empty string",
+			id:       "",
+			expected: "00000000000000000000000000000000",
+		},
+		{
+			name:     "short id - leading zeros stripped",
+			id:       "8efff798038103d269b633813fc703",
+			expected: "008efff798038103d269b633813fc703",
+		},
+		{
+			name:     "single char",
+			id:       "1",
+			expected: "00000000000000000000000000000001",
+		},
+		{
+			name:     "already 32 chars",
+			id:       "1234567890abcdef1234567890abcdef",
+			expected: "1234567890abcdef1234567890abcdef",
+		},
+		{
+			name:     "64-bit id (16 chars)",
+			id:       "1234567890abcdef",
+			expected: "00000000000000001234567890abcdef",
+		},
+		{
+			name:     "longer than 32 chars is unchanged",
+			id:       "1234567890abcdef1234567890abcdef00",
+			expected: "1234567890abcdef1234567890abcdef00",
+		},
+	}
+
+	for _, tt := range tc {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.expected, PadTraceIDString(tt.id))
+		})
+	}
+}
+
 func TestEqualHexStringTraceIDs(t *testing.T) {
 	a := "82f6471b46d25e23418a0a99d4c2cda"
 	b := "082f6471b46d25e23418a0a99d4c2cda"

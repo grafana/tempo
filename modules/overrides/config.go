@@ -173,6 +173,10 @@ type ReadOverrides struct {
 	MaxMetricsDuration model.Duration `yaml:"max_metrics_duration,omitempty" json:"max_metrics_duration,omitempty"`
 
 	UnsafeQueryHints bool `yaml:"unsafe_query_hints,omitempty" json:"unsafe_query_hints,omitempty"`
+
+	// LeftPadTraceIDs left-pads trace IDs in search responses to 32 hex characters with zeros.
+	// This produces W3C/OpenTelemetry compliant trace IDs (32-hex-character lowercase strings).
+	LeftPadTraceIDs bool `yaml:"left_pad_trace_ids,omitempty" json:"left_pad_trace_ids,omitempty"`
 }
 
 type CompactionOverrides struct {

@@ -26,33 +26,33 @@ func TestSearchProgressShouldQuitAnyProtobuf(t *testing.T) {
 
 func testSearchProgressShouldQuitAny(t *testing.T, marshalingFormat api.MarshallingFormat) {
 	// new combiner should not quit
-	c := NewSearch(0, false, marshalingFormat)
+	c := NewSearch(0, false, marshalingFormat, false)
 	should := c.ShouldQuit()
 	require.False(t, should)
 
 	// 500 response should quit
-	c = NewSearch(0, false, marshalingFormat)
+	c = NewSearch(0, false, marshalingFormat, false)
 	err := c.AddResponse(toHTTPResponseWithFormat(t, &tempopb.SearchResponse{}, 500, nil, marshalingFormat))
 	require.NoError(t, err)
 	should = c.ShouldQuit()
 	require.True(t, should)
 
 	// 429 response should quit
-	c = NewSearch(0, false, marshalingFormat)
+	c = NewSearch(0, false, marshalingFormat, false)
 	err = c.AddResponse(toHTTPResponseWithFormat(t, &tempopb.SearchResponse{}, 429, nil, marshalingFormat))
 	require.NoError(t, err)
 	should = c.ShouldQuit()
 	require.True(t, should)
 
 	// unparseable body should not quit, but should return an error
-	c = NewSearch(0, false, marshalingFormat)
+	c = NewSearch(0, false, marshalingFormat, false)
 	err = c.AddResponse(&testPipelineResponse{r: &http.Response{Body: io.NopCloser(strings.NewReader("foo")), StatusCode: 200}})
 	require.Error(t, err)
 	should = c.ShouldQuit()
 	require.False(t, should)
 
 	// under limit should not quit
-	c = NewSearch(2, false, marshalingFormat)
+	c = NewSearch(2, false, marshalingFormat, false)
 	err = c.AddResponse(toHTTPResponseWithFormat(t, &tempopb.SearchResponse{
 		Traces: []*tempopb.TraceSearchMetadata{
 			{
@@ -65,7 +65,7 @@ func testSearchProgressShouldQuitAny(t *testing.T, marshalingFormat api.Marshall
 	require.False(t, should)
 
 	// over limit should quit
-	c = NewSearch(1, false, marshalingFormat)
+	c = NewSearch(1, false, marshalingFormat, false)
 	err = c.AddResponse(toHTTPResponseWithFormat(t, &tempopb.SearchResponse{
 		Traces: []*tempopb.TraceSearchMetadata{
 			{
@@ -91,33 +91,33 @@ func TestSearchProgressShouldQuitMostRecentProtobuf(t *testing.T) {
 
 func testSearchProgressShouldQuitMostRecent(t *testing.T, marshalingFormat api.MarshallingFormat) {
 	// new combiner should not quit
-	c := NewSearch(0, true, marshalingFormat)
+	c := NewSearch(0, true, marshalingFormat, false)
 	should := c.ShouldQuit()
 	require.False(t, should)
 
 	// 500 response should quit
-	c = NewSearch(0, true, marshalingFormat)
+	c = NewSearch(0, true, marshalingFormat, false)
 	err := c.AddResponse(toHTTPResponseWithFormat(t, &tempopb.SearchResponse{}, 500, nil, marshalingFormat))
 	require.NoError(t, err)
 	should = c.ShouldQuit()
 	require.True(t, should)
 
 	// 429 response should quit
-	c = NewSearch(0, true, marshalingFormat)
+	c = NewSearch(0, true, marshalingFormat, false)
 	err = c.AddResponse(toHTTPResponseWithFormat(t, &tempopb.SearchResponse{}, 429, nil, marshalingFormat))
 	require.NoError(t, err)
 	should = c.ShouldQuit()
 	require.True(t, should)
 
 	// unparseable body should not quit, but should return an error
-	c = NewSearch(0, true, marshalingFormat)
+	c = NewSearch(0, true, marshalingFormat, false)
 	err = c.AddResponse(&testPipelineResponse{r: &http.Response{Body: io.NopCloser(strings.NewReader("foo")), StatusCode: 200}})
 	require.Error(t, err)
 	should = c.ShouldQuit()
 	require.False(t, should)
 
 	// under limit should not quit
-	c = NewSearch(2, true, marshalingFormat)
+	c = NewSearch(2, true, marshalingFormat, false)
 	err = c.AddResponse(toHTTPResponseWithFormat(t, &tempopb.SearchResponse{
 		Traces: []*tempopb.TraceSearchMetadata{
 			{
@@ -130,7 +130,7 @@ func testSearchProgressShouldQuitMostRecent(t *testing.T, marshalingFormat api.M
 	require.False(t, should)
 
 	// over limit but no search job response, should not quit
-	c = NewSearch(1, true, marshalingFormat)
+	c = NewSearch(1, true, marshalingFormat, false)
 	err = c.AddResponse(toHTTPResponseWithFormat(t, &tempopb.SearchResponse{
 		Traces: []*tempopb.TraceSearchMetadata{
 			{
@@ -198,7 +198,7 @@ func testSearchCombinesResults(t *testing.T, marshalingFormat api.MarshallingFor
 		start := time.Date(1, 2, 3, 4, 5, 6, 7, time.UTC)
 		traceID := "traceID"
 
-		c := NewSearch(10, keepMostRecent, marshalingFormat)
+		c := NewSearch(10, keepMostRecent, marshalingFormat, false)
 		sr := toHTTPResponseWithFormat(t, &tempopb.SearchResponse{
 			Traces: []*tempopb.TraceSearchMetadata{
 				{
@@ -420,7 +420,7 @@ func testSearchResponseCombiner(t *testing.T, marshalingFormat api.MarshallingFo
 
 		for _, tc := range tests {
 			t.Run(tc.name, func(t *testing.T) {
-				combiner := NewTypedSearch(20, keepMostRecent, marshalingFormat)
+				combiner := NewTypedSearch(20, keepMostRecent, marshalingFormat, false)
 
 				err := combiner.AddResponse(tc.response1)
 				require.NoError(t, err)
@@ -691,7 +691,7 @@ func testCombinerShards(t *testing.T, marshalingFormat api.MarshallingFormat) {
 
 	// apply tests one at a time to the combiner and check expected results
 
-	combiner := NewTypedSearch(5, true, marshalingFormat)
+	combiner := NewTypedSearch(5, true, marshalingFormat, false)
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			if tc.pipelineResponse != nil {
@@ -702,6 +702,88 @@ func testCombinerShards(t *testing.T, marshalingFormat api.MarshallingFormat) {
 			resp, err := combiner.GRPCDiff()
 			require.NoError(t, err)
 			require.Equal(t, tc.expected, resp)
+		})
+	}
+}
+
+func TestSearchCombinerPadTraceIDs(t *testing.T) {
+	tests := []struct {
+		name          string
+		padTraceIDs   bool
+		marshalingFmt api.MarshallingFormat
+		inputTraceIDs []string
+		expectedIDs   []string
+		useDiff       bool
+	}{
+		{
+			name:          "padding enabled with JSON format",
+			padTraceIDs:   true,
+			marshalingFmt: api.MarshallingFormatJSON,
+			inputTraceIDs: []string{"8efff798038103d269b633813fc703"},
+			expectedIDs:   []string{"008efff798038103d269b633813fc703"},
+		},
+		{
+			name:          "padding enabled with JSON format - 64-bit trace ID",
+			padTraceIDs:   true,
+			marshalingFmt: api.MarshallingFormatJSON,
+			inputTraceIDs: []string{"1234567890abcdef"},
+			expectedIDs:   []string{"00000000000000001234567890abcdef"},
+		},
+		{
+			name:          "padding disabled with JSON format",
+			padTraceIDs:   false,
+			marshalingFmt: api.MarshallingFormatJSON,
+			inputTraceIDs: []string{"8efff798038103d269b633813fc703"},
+			expectedIDs:   []string{"8efff798038103d269b633813fc703"},
+		},
+		{
+			name:          "padding enabled with protobuf format",
+			padTraceIDs:   true,
+			marshalingFmt: api.MarshallingFormatProtobuf,
+			inputTraceIDs: []string{"8efff798038103d269b633813fc703"},
+			expectedIDs:   []string{"008efff798038103d269b633813fc703"},
+		},
+		{
+			name:          "padding enabled - already 32 chars",
+			padTraceIDs:   true,
+			marshalingFmt: api.MarshallingFormatJSON,
+			inputTraceIDs: []string{"1234567890abcdef1234567890abcdef"},
+			expectedIDs:   []string{"1234567890abcdef1234567890abcdef"},
+		},
+		{
+			name:          "padding enabled via diff",
+			padTraceIDs:   true,
+			marshalingFmt: api.MarshallingFormatJSON,
+			inputTraceIDs: []string{"8efff798038103d269b633813fc703"},
+			expectedIDs:   []string{"008efff798038103d269b633813fc703"},
+			useDiff:       true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			traces := make([]*tempopb.TraceSearchMetadata, 0, len(tc.inputTraceIDs))
+			for _, id := range tc.inputTraceIDs {
+				traces = append(traces, &tempopb.TraceSearchMetadata{TraceID: id})
+			}
+
+			c := NewTypedSearch(10, false, tc.marshalingFmt, tc.padTraceIDs)
+			err := c.AddResponse(toHTTPResponseWithFormat(t, &tempopb.SearchResponse{Traces: traces}, 200, nil, tc.marshalingFmt))
+			require.NoError(t, err)
+
+			var resp *tempopb.SearchResponse
+			if tc.useDiff {
+				resp, err = c.GRPCDiff()
+			} else {
+				resp, err = c.GRPCFinal()
+			}
+			require.NoError(t, err)
+			require.NotNil(t, resp)
+			require.Len(t, resp.Traces, len(tc.expectedIDs))
+
+			for i, expectedID := range tc.expectedIDs {
+				require.Equal(t, expectedID, resp.Traces[i].TraceID)
+			}
 		})
 	}
 }

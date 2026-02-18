@@ -374,6 +374,10 @@ func (o *runtimeConfigOverridesManager) UnsafeQueryHints(userID string) bool {
 	return o.getOverridesForUser(userID).Read.UnsafeQueryHints
 }
 
+func (o *runtimeConfigOverridesManager) LeftPadTraceIDs(userID string) bool {
+	return o.getOverridesForUser(userID).Read.LeftPadTraceIDs
+}
+
 func (o *runtimeConfigOverridesManager) CostAttributionMaxCardinality(userID string) uint64 {
 	return o.getOverridesForUser(userID).CostAttribution.MaxCardinality
 }
