@@ -1,5 +1,5 @@
-# cel.dev/expr v0.24.0
-## explicit; go 1.22.0
+# cel.dev/expr v0.25.1
+## explicit; go 1.23.0
 cel.dev/expr
 # cloud.google.com/go v0.123.0
 ## explicit; go 1.24.0
@@ -373,7 +373,7 @@ github.com/cloudwego/base64x/internal/native
 github.com/cloudwego/base64x/internal/native/avx2
 github.com/cloudwego/base64x/internal/native/sse
 github.com/cloudwego/base64x/internal/rt
-# github.com/cncf/xds/go v0.0.0-20251022180443-0feb69152e9f
+# github.com/cncf/xds/go v0.0.0-20251210132809-ee656c7534f5
 ## explicit; go 1.24
 github.com/cncf/xds/go/udpa/annotations
 github.com/cncf/xds/go/udpa/type/v1
@@ -442,7 +442,7 @@ github.com/elastic/go-grok/patterns
 github.com/elastic/lunes
 github.com/elastic/lunes/dev-tools/mage
 github.com/elastic/lunes/dev-tools/mage/gotool
-# github.com/envoyproxy/go-control-plane/envoy v1.35.0
+# github.com/envoyproxy/go-control-plane/envoy v1.36.0
 ## explicit; go 1.23.0
 github.com/envoyproxy/go-control-plane/envoy/admin/v3
 github.com/envoyproxy/go-control-plane/envoy/annotations
@@ -450,6 +450,7 @@ github.com/envoyproxy/go-control-plane/envoy/config/accesslog/v3
 github.com/envoyproxy/go-control-plane/envoy/config/bootstrap/v3
 github.com/envoyproxy/go-control-plane/envoy/config/cluster/v3
 github.com/envoyproxy/go-control-plane/envoy/config/common/matcher/v3
+github.com/envoyproxy/go-control-plane/envoy/config/common/mutation_rules/v3
 github.com/envoyproxy/go-control-plane/envoy/config/core/v3
 github.com/envoyproxy/go-control-plane/envoy/config/endpoint/v3
 github.com/envoyproxy/go-control-plane/envoy/config/listener/v3
@@ -482,7 +483,7 @@ github.com/envoyproxy/go-control-plane/envoy/type/matcher/v3
 github.com/envoyproxy/go-control-plane/envoy/type/metadata/v3
 github.com/envoyproxy/go-control-plane/envoy/type/tracing/v3
 github.com/envoyproxy/go-control-plane/envoy/type/v3
-# github.com/envoyproxy/protoc-gen-validate v1.2.1
+# github.com/envoyproxy/protoc-gen-validate v1.3.0
 ## explicit; go 1.21.1
 github.com/envoyproxy/protoc-gen-validate/validate
 # github.com/evanphx/json-patch v5.9.11+incompatible
@@ -1951,8 +1952,8 @@ go.opentelemetry.io/contrib/bridges/otelzap
 # go.opentelemetry.io/contrib/bridges/prometheus v0.63.0
 ## explicit; go 1.23.0
 go.opentelemetry.io/contrib/bridges/prometheus
-# go.opentelemetry.io/contrib/detectors/gcp v1.38.0
-## explicit; go 1.23.8
+# go.opentelemetry.io/contrib/detectors/gcp v1.39.0
+## explicit; go 1.24.0
 go.opentelemetry.io/contrib/detectors/gcp
 # go.opentelemetry.io/contrib/exporters/autoexport v0.63.0
 ## explicit; go 1.23.0
@@ -2358,7 +2359,7 @@ google.golang.org/genproto/googleapis/api/monitoredres
 google.golang.org/genproto/googleapis/rpc/code
 google.golang.org/genproto/googleapis/rpc/errdetails
 google.golang.org/genproto/googleapis/rpc/status
-# google.golang.org/grpc v1.78.0
+# google.golang.org/grpc v1.79.0
 ## explicit; go 1.24.0
 google.golang.org/grpc
 google.golang.org/grpc/attributes
