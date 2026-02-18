@@ -49,14 +49,14 @@ func TestGeneratorSpanMetrics_subprocessorConcurrency(t *testing.T) {
 		PerTenantOverridePeriod: model.Duration(time.Second),
 	}
 
-	require.NoError(t, os.WriteFile(overridesFile, []byte(fmt.Sprintf(`
+	require.NoError(t, os.WriteFile(overridesFile, fmt.Appendf(nil, `
 overrides:
   %s:
     metrics_generator:
       collection_interval: 1s
       processors:
         - %s
-`, user1, processor.SpanMetricsName)), 0o700))
+`, user1, processor.SpanMetricsName), 0o700))
 
 	o, err := overrides.NewOverrides(overridesConfig, nil, prometheus.NewRegistry())
 	require.NoError(t, err)
@@ -95,14 +95,14 @@ overrides:
 	verifySubprocessors(t, instance2, allSubprocessors)
 
 	// Change overrides for user1
-	require.NoError(t, os.WriteFile(overridesFile, []byte(fmt.Sprintf(`
+	require.NoError(t, os.WriteFile(overridesFile, fmt.Appendf(nil, `
 overrides:
   %s:
     metrics_generator:
       collection_interval: 1s
       processors:
         - %s
-`, user1, spanmetrics.Count.String())), 0o700))
+`, user1, spanmetrics.Count.String()), 0o700))
 	time.Sleep(15 * time.Second) // Wait for overrides to be applied. Reload is hardcoded to 10s :(
 
 	// Only Count should be enabled for user1
@@ -143,7 +143,7 @@ func newTestLogger(t *testing.T) log.Logger {
 	return testLogger{t: t}
 }
 
-func (l testLogger) Log(keyvals ...interface{}) error {
+func (l testLogger) Log(keyvals ...any) error {
 	l.t.Log(keyvals...)
 	return nil
 }
@@ -165,7 +165,7 @@ func BenchmarkPushSpans(b *testing.B) {
 				"span-metrics":   {},
 				"service-graphs": {},
 			},
-			spanMetricsEnableTargetInfo:             boolPtr(true),
+			spanMetricsEnableTargetInfo:             new(true),
 			spanMetricsTargetInfoExcludedDimensions: []string{"excluded}"},
 		}
 	)
@@ -301,7 +301,7 @@ func BenchmarkCollect(b *testing.B) {
 				"service-graphs": {},
 			},
 			spanMetricsDimensions:                   []string{"k8s.cluster.name", "k8s.namespace.name"},
-			spanMetricsEnableTargetInfo:             boolPtr(true),
+			spanMetricsEnableTargetInfo:             new(true),
 			spanMetricsTargetInfoExcludedDimensions: []string{"excluded}"},
 			nativeHistograms:                        histograms.HistogramMethodBoth,
 		}

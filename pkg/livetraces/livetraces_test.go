@@ -25,7 +25,7 @@ func TestLiveTracesSizesAndLen(t *testing.T) {
 	expectedSz := uint64(0)
 	expectedLen := uint64(0)
 
-	for i := 0; i < 100; i++ {
+	for range 100 {
 		id := test.ValidTraceID(nil)
 		tr := test.MakeTrace(rand.IntN(5)+1, id)
 
@@ -154,7 +154,7 @@ func BenchmarkLiveTracesWrite(b *testing.B) {
 	lt := New(func(rs *v1.ResourceSpans) uint64 { return uint64(rs.Size()) }, 0, 0, testTenantID)
 
 	var traces []*tempopb.Trace
-	for i := 0; i < 100_000; i++ {
+	for range 100_000 {
 		traces = append(traces, test.MakeTrace(1, nil))
 	}
 
@@ -170,7 +170,7 @@ func BenchmarkLiveTracesWrite(b *testing.B) {
 func BenchmarkLiveTracesRead(b *testing.B) {
 	lt := New(func(rs *v1.ResourceSpans) uint64 { return uint64(rs.Size()) }, 0, 0, testTenantID)
 
-	for i := 0; i < 100_000; i++ {
+	for range 100_000 {
 		tr := test.MakeTrace(1, nil)
 		lt.Push(tr.ResourceSpans[0].ScopeSpans[0].Spans[0].TraceId, tr.ResourceSpans[0], 0)
 	}

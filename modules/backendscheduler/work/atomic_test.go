@@ -25,7 +25,7 @@ func TestAtomicWriteFileStress(t *testing.T) {
 	for i := range largeData {
 		largeData[i] = byte('A' + (i % 26))
 	}
-	testData := []byte(fmt.Sprintf(`{"large_data": "%s", "id": "test"}`, string(largeData)))
+	testData := fmt.Appendf(nil, `{"large_data": "%s", "id": "test"}`, string(largeData))
 
 	// High concurrency stress test
 	var wg sync.WaitGroup

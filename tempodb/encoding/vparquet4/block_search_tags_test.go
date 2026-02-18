@@ -2,6 +2,7 @@ package vparquet4
 
 import (
 	"context"
+	"maps"
 	"testing"
 
 	"github.com/grafana/tempo/pkg/collector"
@@ -52,15 +53,9 @@ func TestBackendBlockSearchTagValues(t *testing.T) {
 
 	// concat all attrs and test
 	attrs := map[string]string{}
-	for k, v := range intrinsics {
-		attrs[k] = v
-	}
-	for k, v := range resourceAttrs {
-		attrs[k] = v
-	}
-	for k, v := range spanAttrs {
-		attrs[k] = v
-	}
+	maps.Copy(attrs, intrinsics)
+	maps.Copy(attrs, resourceAttrs)
+	maps.Copy(attrs, spanAttrs)
 
 	ctx := context.Background()
 	for tag, val := range attrs {

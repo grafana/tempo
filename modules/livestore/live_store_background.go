@@ -60,10 +60,7 @@ func (s *LiveStore) stopAllBackgroundProcesses() {
 }
 
 func (s *LiveStore) runInBackground(fn func()) {
-	s.wg.Add(1)
-	go func() {
-		defer s.wg.Done()
-
+	s.wg.Go(func() {
 		select {
 		case <-s.startupComplete:
 		case <-s.ctx.Done():
@@ -71,7 +68,7 @@ func (s *LiveStore) runInBackground(fn func()) {
 		}
 
 		fn()
-	}()
+	})
 }
 
 func (s *LiveStore) globalCompleteLoop(idx int) {

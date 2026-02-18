@@ -124,13 +124,13 @@ func testCompactionRoundtrip(t *testing.T, targetBlockVersion string) {
 	allReqs := make([]*tempopb.Trace, 0, blockCount*recordCount)
 	allIDs := make([]common.ID, 0, blockCount*recordCount)
 
-	for i := 0; i < blockCount; i++ {
+	for range blockCount {
 		blockID := backend.NewUUID()
 		meta := &backend.BlockMeta{BlockID: blockID, TenantID: testTenantID}
 		head, err := wal.NewBlock(meta, model.CurrentEncoding)
 		require.NoError(t, err)
 
-		for j := 0; j < recordCount; j++ {
+		for range recordCount {
 			id := test.ValidTraceID(nil)
 			req := test.MakeTrace(10, id)
 
@@ -273,12 +273,12 @@ func testSameIDCompaction(t *testing.T, targetBlockVersion string) {
 	allReqs := make([][][]byte, 0, recordCount)
 	allIDs := make([][]byte, 0, recordCount)
 	sharded := 0
-	for i := 0; i < recordCount; i++ {
+	for range recordCount {
 		id := test.ValidTraceID(nil)
 
 		requestShards := rand.Intn(blockCount) + 1
 		reqs := make([][]byte, 0, requestShards)
-		for j := 0; j < requestShards; j++ {
+		for range requestShards {
 			buff, err := dec.PrepareForWrite(test.MakeTrace(1, id), 0, 0)
 			require.NoError(t, err)
 
@@ -296,13 +296,13 @@ func testSameIDCompaction(t *testing.T, targetBlockVersion string) {
 	}
 
 	// and write them to different blocks
-	for i := 0; i < blockCount; i++ {
+	for i := range blockCount {
 		blockID := backend.NewUUID()
 		meta := &backend.BlockMeta{BlockID: blockID, TenantID: testTenantID}
 		head, err := wal.NewBlock(meta, v1.Encoding)
 		require.NoError(t, err)
 
-		for j := 0; j < recordCount; j++ {
+		for j := range recordCount {
 			req := allReqs[j]
 			id := allIDs[j]
 
@@ -423,8 +423,8 @@ func TestCompactionUpdatesBlocklist(t *testing.T) {
 	require.Equal(t, blockCount, len(rw.blocklist.CompactedMetas(testTenantID)))
 
 	// Make sure all expected traces are found.
-	for i := 0; i < blockCount; i++ {
-		for j := 0; j < recordCount; j++ {
+	for i := range blockCount {
+		for j := range recordCount {
 			trace, failedBlocks, err := rw.Find(context.TODO(), testTenantID, makeTraceID(i, j), BlockIDMin, BlockIDMax, 0, 0, common.DefaultSearchOptions())
 			require.NotNil(t, trace)
 			require.Greater(t, len(trace), 0)
@@ -681,7 +681,7 @@ func testCompactionDropsTraces(t *testing.T, targetBlockVersion string) {
 	head, err := wal.NewBlock(meta, v1.Encoding)
 	require.NoError(t, err)
 
-	for j := 0; j < recordCount; j++ {
+	for range recordCount {
 		id := test.ValidTraceID(nil)
 		allIDs = append(allIDs, id)
 
@@ -859,12 +859,12 @@ func cutTestBlocks(t testing.TB, w Writer, tenantID string, blockCount int, reco
 	dec := model.MustNewSegmentDecoder(model.CurrentEncoding)
 
 	wal := w.WAL()
-	for i := 0; i < blockCount; i++ {
+	for i := range blockCount {
 		meta := &backend.BlockMeta{BlockID: backend.NewUUID(), TenantID: tenantID}
 		head, err := wal.NewBlock(meta, model.CurrentEncoding)
 		require.NoError(t, err)
 
-		for j := 0; j < recordCount; j++ {
+		for j := range recordCount {
 			id := makeTraceID(i, j)
 			tr := test.MakeTrace(1, id)
 			now := uint32(time.Now().Unix())

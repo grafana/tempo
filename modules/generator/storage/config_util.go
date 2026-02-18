@@ -2,6 +2,7 @@ package storage
 
 import (
 	"log/slog"
+	"maps"
 	"strings"
 
 	"github.com/grafana/dskit/user"
@@ -23,9 +24,7 @@ func generateTenantRemoteWriteConfigs(inputs []prometheus_config.RemoteWriteConf
 		output.Headers = copyMap(output.Headers)
 
 		// Inject/overwrite custom headers from runtime overrides
-		for k, v := range headers {
-			output.Headers[k] = v
-		}
+		maps.Copy(output.Headers, headers)
 
 		// Inject X-Scope-OrgID header in multi-tenant setups if not set already
 		if tenant != util.FakeTenantID && addOrgIDHeader {
@@ -62,9 +61,7 @@ func generateTenantRemoteWriteConfigs(inputs []prometheus_config.RemoteWriteConf
 func copyMap(m map[string]string) map[string]string {
 	newMap := make(map[string]string, len(m))
 
-	for k, v := range m {
-		newMap[k] = v
-	}
+	maps.Copy(newMap, m)
 
 	return newMap
 }

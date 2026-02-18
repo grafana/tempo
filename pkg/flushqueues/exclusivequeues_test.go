@@ -92,7 +92,7 @@ func TestMultipleQueues(t *testing.T) {
 	q := New[mockOp](totalQueues, gauge)
 
 	// add stuff to the queue and confirm the length matches expected
-	for i := 0; i < totalItems; i++ {
+	for i := range totalItems {
 		op := mockOp{
 			key: uuid.New().String(),
 		}
@@ -106,7 +106,7 @@ func TestMultipleQueues(t *testing.T) {
 	}
 
 	// each queue should have 1 thing
-	for i := 0; i < totalQueues; i++ {
+	for i := range totalQueues {
 		op := q.Dequeue(i)
 		assert.NotNil(t, op)
 

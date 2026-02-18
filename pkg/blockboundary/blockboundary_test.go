@@ -49,7 +49,7 @@ func TestCreateBlockBoundaries(t *testing.T) {
 
 			if len(tt.expected) > 0 {
 				require.Len(t, bb, len(tt.expected))
-				for i := 0; i < len(bb); i++ {
+				for i := range bb {
 					require.Equal(t, tt.expected[i], bb[i])
 				}
 			}

@@ -22,7 +22,7 @@ func CreateBlockBoundaries(queryShards int) [][]byte {
 	// numLarger is the number of buckets that have to be bumped by 1
 	numLarger := (math.MaxUint64 % uint64(queryShards))
 	boundary := uint64(0)
-	for i := 0; i < queryShards; i++ {
+	for i := range queryShards {
 		binary.BigEndian.PutUint64(blockBoundaries[i][:8], boundary)
 		binary.BigEndian.PutUint64(blockBoundaries[i][8:], 0)
 

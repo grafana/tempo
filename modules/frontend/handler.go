@@ -71,7 +71,7 @@ func (f *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	resp, err := f.roundTripper.RoundTrip(r)
 	elapsed := time.Since(start)
 
-	logMessage := []interface{}{
+	logMessage := []any{
 		"msg", "query stats",
 		"tenant", orgID,
 		"method", r.Method,
@@ -135,7 +135,7 @@ func (f *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	level.Info(f.logger).Log(logMessage...)
 }
 
-func formatRequestHeaders(h *http.Header, headersToLog []string) (fields []interface{}) {
+func formatRequestHeaders(h *http.Header, headersToLog []string) (fields []any) {
 	for _, s := range headersToLog {
 		if v := h.Get(s); v != "" {
 			fields = append(fields, fmt.Sprintf("header_%s", strings.ReplaceAll(strings.ToLower(s), "-", "_")), v)

@@ -556,7 +556,7 @@ func (t *topN[T]) get(n int, cb func(key T)) {
 		return t.entries[i].total > t.entries[j].total // Sort descending
 	})
 
-	for i := 0; i < n; i++ {
+	for i := range n {
 		cb(t.entries[i].key)
 	}
 }

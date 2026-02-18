@@ -4,6 +4,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"maps"
 	"os"
 	"slices"
 	"time"
@@ -286,9 +287,7 @@ func (cfg *ProcessorConfig) copyWithOverrides(o metricsGeneratorOverrides, userI
 	}
 
 	copySubprocessors := make(map[spanmetrics.Subprocessor]bool)
-	for sp, enabled := range cfg.SpanMetrics.Subprocessors {
-		copySubprocessors[sp] = enabled
-	}
+	maps.Copy(copySubprocessors, cfg.SpanMetrics.Subprocessors)
 	copyCfg.SpanMetrics.Subprocessors = copySubprocessors
 
 	return copyCfg, nil

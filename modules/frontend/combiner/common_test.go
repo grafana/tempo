@@ -110,16 +110,14 @@ func TestGenericCombiner(t *testing.T) {
 
 	wg := sync.WaitGroup{}
 
-	for i := 0; i < 10; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			for j := 0; j < 10000; j++ {
+	for range 10 {
+		wg.Go(func() {
+			for range 10000 {
 
 				err := combiner.AddResponse(newTestResponse(t))
 				require.NoError(t, err)
 			}
-		}()
+		})
 	}
 
 	wg.Wait()
@@ -136,25 +134,20 @@ func TestGenericCombinerHoldsErrors(t *testing.T) {
 	combiner := newTestCombiner()
 	wg := sync.WaitGroup{}
 
-	for j := 0; j < 10; j++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-
-			for i := 0; i < 10000; i++ {
+	for range 10 {
+		wg.Go(func() {
+			for range 10000 {
 				err := combiner.AddResponse(newTestResponse(t))
 				require.NoError(t, err)
 			}
-		}()
+		})
 	}
 
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
+	wg.Go(func() {
 		time.Sleep(time.Millisecond)
 		err := combiner.AddResponse(newFailedTestResponse())
 		require.NoError(t, err)
-	}()
+	})
 
 	wg.Wait()
 	resp, err := combiner.HTTPFinal()
@@ -168,9 +161,7 @@ func TestGenericCombinerDoesntRace(t *testing.T) {
 	wg := sync.WaitGroup{}
 
 	concurrent := func(f func()) {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			for {
 				select {
 				case <-end:
@@ -179,7 +170,7 @@ func TestGenericCombinerDoesntRace(t *testing.T) {
 					f()
 				}
 			}
-		}()
+		})
 	}
 	concurrent(func() {
 		_ = combiner.AddResponse(newTestResponse(t))

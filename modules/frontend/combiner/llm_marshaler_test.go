@@ -95,7 +95,7 @@ func TestTraceByIDResponseToSimplifiedJSON(t *testing.T) {
 			Services: []LLMService{
 				{
 					ServiceName: "test-service",
-					Resource: map[string]interface{}{
+					Resource: map[string]any{
 						"host.name": "localhost",
 					},
 					Scopes: []LLMScope{
@@ -111,7 +111,7 @@ func TestTraceByIDResponseToSimplifiedJSON(t *testing.T) {
 									StartTimeUnixNano: "1000000000",
 									EndTimeUnixNano:   "2000000000",
 									DurationMs:        1000.0,
-									Attributes: map[string]interface{}{
+									Attributes: map[string]any{
 										"http.method":      "GET",
 										"http.status_code": float64(200),
 										"error":            false,
@@ -120,7 +120,7 @@ func TestTraceByIDResponseToSimplifiedJSON(t *testing.T) {
 										{
 											Name:         "test-event",
 											TimeUnixNano: "1500000000",
-											Attributes: map[string]interface{}{
+											Attributes: map[string]any{
 												"event.type": "log",
 											},
 										},
@@ -129,7 +129,7 @@ func TestTraceByIDResponseToSimplifiedJSON(t *testing.T) {
 										{
 											TraceID: "a1a2a3a4a5a6a7a8a9aaabacadaeafb0",
 											SpanID:  "b1b2b3b4b5b6b7b8",
-											Attributes: map[string]interface{}{
+											Attributes: map[string]any{
 												"link.type": "parent",
 											},
 										},

@@ -450,12 +450,12 @@ func (dcs *DedicatedColumns) Unmarshal(data []byte) error {
 }
 
 func (b *CompactedBlockMeta) UnmarshalJSON(data []byte) error {
-	var msg interface{}
+	var msg any
 	err := json.Unmarshal(data, &msg)
 	if err != nil {
 		return err
 	}
-	msgMap := msg.(map[string]interface{})
+	msgMap := msg.(map[string]any)
 
 	if v, ok := msgMap["compactedTime"]; ok {
 		b.CompactedTime, err = time.Parse(time.RFC3339, v.(string))

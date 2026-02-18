@@ -43,7 +43,7 @@ func TestPoolGet(t *testing.T) {
 		},
 	}
 	for _, c := range cases {
-		for i := 0; i < 10; i++ {
+		for range 10 {
 			ret := testPool.Get(c.size)
 			require.Equal(t, c.expectedCap, cap(ret))
 			putBucket := testPool.Put(ret)
@@ -58,7 +58,7 @@ func TestPoolGet(t *testing.T) {
 func TestPoolSlicesAreAlwaysLargeEnough(t *testing.T) {
 	testPool := NewPool("foo", 100, 200, 5)
 
-	for i := 0; i < 10000; i++ {
+	for range 10000 {
 		size := rand.Intn(1000)
 		externalSlice := make([]byte, 0, size)
 		testPool.Put(externalSlice)

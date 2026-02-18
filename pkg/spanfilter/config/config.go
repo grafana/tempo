@@ -31,8 +31,8 @@ type PolicyMatch struct {
 }
 
 type MatchPolicyAttribute struct {
-	Key   string      `yaml:"key" json:"key"`
-	Value interface{} `yaml:"value" json:"value"`
+	Key   string `yaml:"key" json:"key"`
+	Value any    `yaml:"value" json:"value"`
 }
 
 func ValidateFilterPolicy(policy FilterPolicy) error {

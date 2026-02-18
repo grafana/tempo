@@ -8,6 +8,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"sync"
 	"time"
 
@@ -546,10 +547,8 @@ func (i *instance) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTag
 		}
 
 		// now add values to the central collector to make sure they are included in the response.
-		for _, v := range values {
-			if vCollector.Collect(v) {
-				return errComplete
-			}
+		if slices.ContainsFunc(values, vCollector.Collect) {
+			return errComplete
 		}
 		return nil
 	}

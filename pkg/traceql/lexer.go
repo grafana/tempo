@@ -208,10 +208,11 @@ func (l *lexer) Lex(lval *yySymType) int {
 	// this is only to disamgiguate tokens with common prefixes. it will not find 3+ token combinations
 	// with no valid prefixes
 	multiTok := -1
-	tokStrNext := l.TokenText()
+	var tokStrNext strings.Builder
+	tokStrNext.WriteString(l.TokenText())
 	for {
-		tokStrNext += string(l.Peek())
-		tok, ok := tokens[tokStrNext]
+		tokStrNext.WriteString(string(l.Peek()))
+		tok, ok := tokens[tokStrNext.String()]
 		if ok {
 			multiTok = tok
 			l.Next()

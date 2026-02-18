@@ -77,7 +77,7 @@ func TestInstance(t *testing.T) {
 	})
 
 	// Wait until remote.Storage has tried at least once to send data
-	test.Poll(t, 30*time.Second, true, func() interface{} {
+	test.Poll(t, 30*time.Second, true, func() any {
 		mockServer.mtx.Lock()
 		defer mockServer.mtx.Unlock()
 
@@ -120,7 +120,7 @@ func TestInstance_multiTenancy(t *testing.T) {
 
 	var instances []Storage
 
-	for i := 0; i < 3; i++ {
+	for i := range 3 {
 		instance, err := New(&cfg, &mockOverrides{}, strconv.Itoa(i), &noopRegisterer{}, logger)
 		assert.NoError(t, err)
 		instances = append(instances, instance)
@@ -148,7 +148,7 @@ func TestInstance_multiTenancy(t *testing.T) {
 	})
 
 	// Wait until every tenant received at least one request
-	test.Poll(t, 45*time.Second, true, func() interface{} {
+	test.Poll(t, 45*time.Second, true, func() any {
 		mockServer.mtx.Lock()
 		defer mockServer.mtx.Unlock()
 
@@ -241,7 +241,7 @@ func TestInstance_remoteWriteHeaders(t *testing.T) {
 	})
 
 	// Wait until remote.Storage has tried at least once to send data
-	test.Poll(t, 30*time.Second, true, func() interface{} {
+	test.Poll(t, 30*time.Second, true, func() any {
 		mockServer.mtx.Lock()
 		defer mockServer.mtx.Unlock()
 

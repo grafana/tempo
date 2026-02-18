@@ -15,7 +15,7 @@ func TestQueryBuilder(t *testing.T) {
 	qb := newQueryBuilder("")
 	params := url.Values{}
 
-	for i := 0; i < numParams; i++ {
+	for range numParams {
 		key := test.RandomString()
 		value := test.RandomString()
 

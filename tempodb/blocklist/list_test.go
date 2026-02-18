@@ -1,7 +1,7 @@
 package blocklist
 
 import (
-	"sort"
+	"slices"
 	"testing"
 
 	"github.com/google/uuid"
@@ -110,7 +110,7 @@ func TestApplyPollResults(t *testing.T) {
 			l.ApplyPollResults(tc.metas, tc.compacted)
 
 			actualTenants := l.Tenants()
-			sort.Slice(actualTenants, func(i, j int) bool { return actualTenants[i] < actualTenants[j] })
+			slices.Sort(actualTenants)
 			assert.Equal(t, tc.expectedTenants, actualTenants)
 			for tenant, expected := range tc.metas {
 				actual := l.Metas(tenant)
@@ -484,7 +484,7 @@ func TestUpdatesSaved(t *testing.T) {
 		actualMetas := l.metas
 		actualCompacted := l.compactedMetas
 
-		sort.Slice(actualTenants, func(i, j int) bool { return actualTenants[i] < actualTenants[j] })
+		slices.Sort(actualTenants)
 		assert.Equal(t, tc.expectedTenants, actualTenants)
 		assert.Equal(t, tc.expectedMetas, actualMetas)
 
@@ -518,10 +518,10 @@ func BenchmarkUpdate(b *testing.B) {
 		}
 	)
 
-	for i := 0; i < numBlocks; i++ {
+	for range numBlocks {
 		existing = append(existing, meta(uuid.NewString()))
 	}
-	for i := 0; i < numCompacted; i++ {
+	for range numCompacted {
 		compacted = append(compacted, compactedMeta(uuid.NewString()))
 	}
 

@@ -78,16 +78,14 @@ func consumeAndCombineResponses(ctx context.Context, consumers int, resps Respon
 	}
 
 	for i := 0; i < consumers; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			for resp := range respChan {
 				err := c.AddResponse(resp)
 				if err != nil {
 					setErr(err)
 				}
 			}
-		}()
+		})
 	}
 
 	for {

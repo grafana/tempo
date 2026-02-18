@@ -14,7 +14,7 @@ type safeBuilderPool struct {
 func newSafeBuilderPool() *safeBuilderPool {
 	return &safeBuilderPool{
 		pool: sync.Pool{
-			New: func() interface{} {
+			New: func() any {
 				return labels.NewBuilder(labels.New())
 			},
 		},

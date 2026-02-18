@@ -199,7 +199,7 @@ func MakeTrace(requests int, traceID []byte) *tempopb.Trace {
 		ResourceSpans: make([]*v1_trace.ResourceSpans, 0),
 	}
 
-	for i := 0; i < requests; i++ {
+	for range requests {
 		trace.ResourceSpans = append(trace.ResourceSpans, MakeBatch(rand.Int()%20+1, traceID)) // nolint:gosec // G404: Use of weak random number generator
 	}
 

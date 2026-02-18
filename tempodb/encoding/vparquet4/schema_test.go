@@ -58,7 +58,7 @@ func TestProtoToParquetEmptyTrace(t *testing.T) {
 
 func TestProtoParquetRando(t *testing.T) {
 	trp := &Trace{}
-	for i := 0; i < 100; i++ {
+	for range 100 {
 		batches := rand.Intn(15)
 		id := test.ValidTraceID(nil)
 		expectedTrace := test.AddDedicatedAttributes(test.MakeTrace(batches, id))
@@ -324,14 +324,14 @@ func TestTraceToParquet(t *testing.T) {
 				ResourceSpans: []ResourceSpans{{
 					Resource: Resource{
 						ServiceName:      "service-a",
-						Cluster:          ptr("cluster-a"),
-						Namespace:        ptr("namespace-a"),
-						Pod:              ptr("pod-a"),
-						Container:        ptr("container-a"),
-						K8sClusterName:   ptr("k8s-cluster-a"),
-						K8sNamespaceName: ptr("k8s-namespace-a"),
-						K8sPodName:       ptr("k8s-pod-a"),
-						K8sContainerName: ptr("k8s-container-a"),
+						Cluster:          new("cluster-a"),
+						Namespace:        new("namespace-a"),
+						Pod:              new("pod-a"),
+						Container:        new("container-a"),
+						K8sClusterName:   new("k8s-cluster-a"),
+						K8sNamespaceName: new("k8s-namespace-a"),
+						K8sPodName:       new("k8s-pod-a"),
+						K8sContainerName: new("k8s-container-a"),
 						Attrs: []Attribute{
 							attr("res.attr", 123),
 							attr("res.string.array", []string{"one", "two", "three"}),
@@ -340,11 +340,11 @@ func TestTraceToParquet(t *testing.T) {
 							attr("res.bool.array", []bool{true, false, true, true}),
 						},
 						DedicatedAttributes: DedicatedAttributes{
-							String01: ptr("dedicated-resource-attr-value-1"),
-							String02: ptr("dedicated-resource-attr-value-2"),
-							String03: ptr("dedicated-resource-attr-value-3"),
-							String04: ptr("dedicated-resource-attr-value-4"),
-							String05: ptr("dedicated-resource-attr-value-5"),
+							String01: new("dedicated-resource-attr-value-1"),
+							String02: new("dedicated-resource-attr-value-2"),
+							String03: new("dedicated-resource-attr-value-3"),
+							String04: new("dedicated-resource-attr-value-4"),
+							String05: new("dedicated-resource-attr-value-5"),
 						},
 					},
 					ScopeSpans: []ScopeSpans{{
@@ -366,25 +366,25 @@ func TestTraceToParquet(t *testing.T) {
 							NestedSetLeft:  1,
 							NestedSetRight: 2,
 							ParentID:       -1,
-							HttpMethod:     ptr("POST"),
-							HttpUrl:        ptr("https://example.com"),
-							HttpStatusCode: ptr(int64(201)),
+							HttpMethod:     new("POST"),
+							HttpUrl:        new("https://example.com"),
+							HttpStatusCode: new(int64(201)),
 							Attrs: []Attribute{
 								attr("span.attr", "aaa"),
 								attr("span.string.array", []string{"one", "two"}),
 								attr("span.int.array", []int64{1, 2, 3}),
 								attr("span.double.array", []float64{1.1, 2.2}),
 								attr("span.bool.array", []bool{true, false, true, false}),
-								{Key: "span.unsupported.array", ValueUnsupported: ptr("{\"arrayValue\":{\"values\":[{\"boolValue\":true},{\"intValue\":\"1\"},{\"boolValue\":true}]}}"), IsArray: false},
-								{Key: "span.unsupported.kvlist", ValueUnsupported: ptr("{\"kvlistValue\":{\"values\":[{\"key\":\"key-a\",\"value\":{\"stringValue\":\"val-a\"}},{\"key\":\"key-b\",\"value\":{\"stringValue\":\"val-b\"}}]}}"), IsArray: false},
+								{Key: "span.unsupported.array", ValueUnsupported: new("{\"arrayValue\":{\"values\":[{\"boolValue\":true},{\"intValue\":\"1\"},{\"boolValue\":true}]}}"), IsArray: false},
+								{Key: "span.unsupported.kvlist", ValueUnsupported: new("{\"kvlistValue\":{\"values\":[{\"key\":\"key-a\",\"value\":{\"stringValue\":\"val-a\"}},{\"key\":\"key-b\",\"value\":{\"stringValue\":\"val-b\"}}]}}"), IsArray: false},
 							},
 							DroppedAttributesCount: 0,
 							DedicatedAttributes: DedicatedAttributes{
-								String01: ptr("dedicated-span-attr-value-1"),
-								String02: ptr("dedicated-span-attr-value-2"),
-								String03: ptr("dedicated-span-attr-value-3"),
-								String04: ptr("dedicated-span-attr-value-4"),
-								String05: ptr("dedicated-span-attr-value-5"),
+								String01: new("dedicated-span-attr-value-1"),
+								String02: new("dedicated-span-attr-value-2"),
+								String03: new("dedicated-span-attr-value-3"),
+								String04: new("dedicated-span-attr-value-4"),
+								String05: new("dedicated-span-attr-value-5"),
 							},
 						}},
 					}},
@@ -983,7 +983,7 @@ func sortAttributesTempopb(t *tempopb.Trace) {
 }
 
 // traceEqual asserts similar to assert.Equal but treats empty / nil slices and maps as equal
-func traceEqual(t *testing.T, expected, actual *Trace, messages ...interface{}) {
+func traceEqual(t *testing.T, expected, actual *Trace, messages ...any) {
 	sortAttributes(expected)
 	sortAttributes(actual)
 

@@ -118,7 +118,7 @@ func TestPollerOwnership(t *testing.T) {
 				tenantExpected := map[string][]uuid.UUID{}
 
 				// Push some data to a few tenants
-				for i := 0; i < tenantCount; i++ {
+				for i := range tenantCount {
 					testTenant := tenant + strconv.Itoa(i)
 					tenantExpected[testTenant] = pushBlocksToTenant(t, testTenant, bb, w)
 

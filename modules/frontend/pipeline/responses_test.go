@@ -157,19 +157,14 @@ func TestAsyncResponseFansIn(t *testing.T) {
 	rootResp := newAsyncResponse()
 
 	expected := 0
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
+	wg.Go(func() {
 		defer rootResp.SendComplete()
 
 		expected = addResponses(rootResp)
-	}()
+	})
 
 	actual := 0
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-
+	wg.Go(func() {
 		for {
 			resp, done, err := rootResp.Next(context.Background())
 			if done {
@@ -179,7 +174,7 @@ func TestAsyncResponseFansIn(t *testing.T) {
 			require.NoError(t, err)
 			require.NotNil(t, resp)
 		}
-	}()
+	})
 
 	wg.Wait()
 	require.Equal(t, expected, actual)
@@ -194,7 +189,7 @@ func addResponses(r *asyncResponse) int {
 
 	ctx := context.Background()
 	r.Send(ctx, childResponse)
-	for i := 0; i < responsesToAdd; i++ {
+	for range responsesToAdd {
 		childResponse.Send(ctx, NewHTTPToAsyncResponse(&http.Response{}))
 	}
 
@@ -406,7 +401,7 @@ func (s sharder) RoundTrip(r Request) (Responses[combiner.PipelineResponse], err
 
 	reqCh := make(chan Request)
 	go func() {
-		for i := 0; i < total; i++ {
+		for range total {
 			reqCh <- r
 		}
 		close(reqCh)

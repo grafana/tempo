@@ -46,7 +46,7 @@ func TestAsyncSharders(t *testing.T) {
 			responseFn: func(next AsyncRoundTripper[combiner.PipelineResponse]) *asyncResponse {
 				reqChan := make(chan Request)
 				go func() {
-					for i := 0; i < expectedRequestCount; i++ {
+					for range expectedRequestCount {
 						reqChan <- NewHTTPRequest(&http.Request{})
 					}
 					close(reqChan)

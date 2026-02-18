@@ -18,7 +18,7 @@ type PerTrackerConfig struct {
 }
 
 type Config struct {
-	CostAttribution PerTrackerConfig `yaml:"cost_attribution,omitempty" json:"cost_attribution,omitempty"`
+	CostAttribution PerTrackerConfig `yaml:"cost_attribution,omitempty" json:"cost_attribution"`
 }
 
 func (c *Config) RegisterFlagsAndApplyDefaults(_ string, _ *flag.FlagSet) {

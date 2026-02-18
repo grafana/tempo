@@ -1073,7 +1073,7 @@ type attrStats struct {
 }
 
 var statsPool = sync.Pool{
-	New: func() interface{} {
+	New: func() any {
 		return &attrStats{}
 	},
 }

@@ -351,9 +351,8 @@ func (b *Backend) FindTraces(req *storage_v1.FindTracesRequest, stream storage_v
 	results := make(chan jobResult, len(resp.TraceIDs))
 	var workersDone sync.WaitGroup
 	// Start workers
-	for w := 0; w < numWorkers; w++ {
-		workersDone.Add(1)
-		go func() { defer workersDone.Done(); worker(b, jobs, results) }()
+	for range numWorkers {
+		workersDone.Go(func() { ; worker(b, jobs, results) })
 	}
 
 	// for every traceID, get the full trace

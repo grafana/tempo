@@ -15,7 +15,7 @@ var memberlistStatusPageHTML string
 
 func memberlistStatusHandler(httpPathPrefix string, kvs *memberlist.KVInitService) http.Handler {
 	templ := template.New("memberlist_status")
-	templ.Funcs(map[string]interface{}{
+	templ.Funcs(map[string]any{
 		"AddPathPrefix": func(link string) string { return path.Join(httpPathPrefix, link) },
 		"StringsJoin":   strings.Join,
 	})

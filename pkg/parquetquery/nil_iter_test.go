@@ -19,7 +19,7 @@ func TestNilIterator(t *testing.T) {
 	defer iter.Close()
 
 	matchedRow := []int{}
-	for i := 0; i < count; i++ {
+	for i := range count {
 		if i%3 != 0 {
 			matchedRow = append(matchedRow, i)
 		}

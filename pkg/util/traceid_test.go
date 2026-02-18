@@ -182,7 +182,7 @@ func TestSpanIDAndKindToToken(t *testing.T) {
 		tokenIDOnly := SpanIDToUint64(tt.spanID)
 		tokensForKind := map[uint64]struct{}{}
 
-		for kind := 0; kind < 8; kind++ {
+		for kind := range 8 {
 			token := SpanIDAndKindToToken(tt.spanID, kind)
 
 			_, exists := tokensForKind[token]
@@ -211,7 +211,7 @@ func BenchmarkSpanIDAndKindToToken(b *testing.B) {
 
 	randomTestCasesSpanID := func(n int, idLen int) []testDataSpanID {
 		testCases := make([]testDataSpanID, 0, n)
-		for i := 0; i < n; i++ {
+		for range n {
 			id := make([]byte, idLen)
 			for j := range id {
 				id[j] = byte(rand.Intn(256))

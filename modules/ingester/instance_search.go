@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"sync"
 
 	"github.com/gogo/protobuf/proto"
@@ -520,12 +521,9 @@ func (i *instance) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTag
 				_ = level.Warn(log.Logger).Log("msg", "SetDiskCache failed", "err", err2)
 			}
 		}
-
 		// now add values to the central collector to make sure they are included in the response.
-		for _, v := range values {
-			if valueCollector.Collect(v) {
-				break // we have reached the limit, so stop
-			}
+		if slices.ContainsFunc(values, valueCollector.Collect) {
+			return nil
 		}
 		return nil
 	}

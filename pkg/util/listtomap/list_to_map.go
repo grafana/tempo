@@ -16,7 +16,7 @@ var (
 )
 
 // MarshalYAML implements the Marshal interface of the yaml pkg.
-func (l ListToMap) MarshalYAML() (interface{}, error) {
+func (l ListToMap) MarshalYAML() (any, error) {
 	list := make([]string, 0, len(l))
 	for k := range l {
 		list = append(list, k)
@@ -29,7 +29,7 @@ func (l ListToMap) MarshalYAML() (interface{}, error) {
 }
 
 // UnmarshalYAML implements the Unmarshaler interface of the yaml pkg.
-func (l *ListToMap) UnmarshalYAML(unmarshal func(interface{}) error) error {
+func (l *ListToMap) UnmarshalYAML(unmarshal func(any) error) error {
 	list := make([]string, 0)
 	err := unmarshal(&list)
 	if err != nil {

@@ -183,7 +183,7 @@ func TestQueue_Push_ReturnsErrorWhenPushingItemsToFullQueueWithStoppedWorkers(t 
 	q := newQueue(t, size, workerCount, processFunc)
 
 	// When
-	for i := 0; i < size; i++ {
+	for range size {
 		require.NoError(t, q.Push(context.Background(), nil))
 	}
 

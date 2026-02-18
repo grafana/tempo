@@ -58,7 +58,7 @@ type generatorForwarder struct {
 
 	o                 overrides.Interface
 	overridesInterval time.Duration
-	shutdown          chan interface{}
+	shutdown          chan any
 }
 
 func newGeneratorForwarder(logger log.Logger, fn forwardFunc, o overrides.Interface) *generatorForwarder {
@@ -69,7 +69,7 @@ func newGeneratorForwarder(logger log.Logger, fn forwardFunc, o overrides.Interf
 		forwardFunc:       fn,
 		o:                 o,
 		overridesInterval: time.Minute,
-		shutdown:          make(chan interface{}),
+		shutdown:          make(chan any),
 	}
 
 	rf.Service = services.NewIdleService(rf.start, rf.stop)

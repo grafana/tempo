@@ -13,7 +13,7 @@ func TestBoundedWaitGroupExecutesCorrectNumberOfTimes(t *testing.T) {
 	run := func(capacity uint, runs int) (executed int32) {
 		executed = 0
 		bg := New(capacity)
-		for i := 0; i < runs; i++ {
+		for range runs {
 			bg.Add(1)
 			go func() {
 				defer bg.Done()
@@ -37,7 +37,7 @@ func TestBoundedWaitGroupDoesntExceedCapacity(t *testing.T) {
 
 	bg := New(capacity)
 
-	for i := 0; i < 100; i++ {
+	for range 100 {
 		bg.Add(1)
 		go func() {
 			defer bg.Done()

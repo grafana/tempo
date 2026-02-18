@@ -29,16 +29,16 @@ var (
 	})
 )
 
-type JobFunc func(ctx context.Context, payload interface{}) (interface{}, error)
+type JobFunc func(ctx context.Context, payload any) (any, error)
 
 type result struct {
-	data interface{}
+	data any
 	err  error
 }
 
 type job struct {
 	ctx     context.Context
-	payload interface{}
+	payload any
 	fn      JobFunc
 
 	wg        *sync.WaitGroup
@@ -78,7 +78,7 @@ func NewPool(cfg *Config) *Pool {
 	return p
 }
 
-func (p *Pool) RunJobs(ctx context.Context, payloads []interface{}, fn JobFunc) ([]interface{}, []error, error) {
+func (p *Pool) RunJobs(ctx context.Context, payloads []any, fn JobFunc) ([]any, []error, error) {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
@@ -122,7 +122,7 @@ func (p *Pool) RunJobs(ctx context.Context, payloads []interface{}, fn JobFunc) 
 	close(resultsCh)
 
 	// read all from results channel
-	var data []interface{}
+	var data []any
 	var funcErrs []error
 	for result := range resultsCh {
 		if result.err != nil {

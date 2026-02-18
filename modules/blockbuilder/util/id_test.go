@@ -16,7 +16,7 @@ func TestDeterministicIDGenerator(t *testing.T) {
 	gen := NewDeterministicIDGenerator(util.FakeTenantID, 0, uint64(ts))
 
 	firstPassIDs := make(map[backend.UUID]struct{})
-	for seq := int64(0); seq < 10; seq++ {
+	for range int64(10) {
 		id := gen.NewID()
 		firstPassIDs[id] = struct{}{}
 	}
@@ -28,7 +28,7 @@ func TestDeterministicIDGenerator(t *testing.T) {
 	}
 
 	gen = NewDeterministicIDGenerator(util.FakeTenantID, 0, uint64(ts))
-	for seq := int64(0); seq < 10; seq++ {
+	for range int64(10) {
 		id := gen.NewID()
 		if _, ok := firstPassIDs[id]; !ok {
 			t.Errorf("ID %s not found in first pass IDs", id)
@@ -43,7 +43,7 @@ func TestDeterministicIDGeneratorWithDifferentTenants(t *testing.T) {
 	gen1 := NewDeterministicIDGenerator("tenant-1", seed, uint64(ts))
 	gen2 := NewDeterministicIDGenerator("tenant-2", seed, uint64(ts))
 
-	for i := 0; i < 10; i++ {
+	for range 10 {
 		assert.NotEqualf(t, gen1.NewID(), gen2.NewID(), "IDs should be different")
 	}
 }
@@ -55,7 +55,7 @@ func FuzzDeterministicIDGenerator(f *testing.F) {
 	f.Fuzz(func(t *testing.T, tenantID string, seed1, seed2 uint64) {
 		gen := NewDeterministicIDGenerator(tenantID, seed1, seed2)
 
-		for i := 0; i < 3; i++ {
+		for range 3 {
 			id := gen.NewID()
 			_, err := uuid.Parse(id.String())
 			if err != nil {

@@ -352,10 +352,9 @@ func TestRunValidation(t *testing.T) {
 			assert.Equal(t, tt.expectedTotalTraces, result.TotalTraces, "unexpected total traces")
 
 			// Check success count calculation
-			expectedSuccessCount := (result.TotalTraces * 1) - len(result.Failures) // 1 validation per trace (no search)
-			if expectedSuccessCount < 0 {
-				expectedSuccessCount = 0
-			}
+			expectedSuccessCount := max(
+				// 1 validation per trace (no search)
+				(result.TotalTraces*1)-len(result.Failures), 0)
 			assert.Equal(t, expectedSuccessCount, result.SuccessCount, "unexpected success count")
 
 			// Verify write attempts

@@ -74,7 +74,7 @@ func TestPartialReplay(t *testing.T) {
 	count := 10
 	ids := make([]common.ID, count)
 	trs := make([]*tempopb.Trace, count)
-	for i := 0; i < count; i++ {
+	for i := range count {
 		ids[i] = test.ValidTraceID(nil)
 		trs[i] = test.MakeTrace(10, ids[i])
 		trace.SortTrace(trs[i])
@@ -304,7 +304,7 @@ func testWalBlock(t *testing.T, f func(w *walBlock, ids []common.ID, trs []*temp
 	count := 30
 	ids := make([]common.ID, count)
 	trs := make([]*tempopb.Trace, count)
-	for i := 0; i < count; i++ {
+	for i := range count {
 		ids[i] = test.ValidTraceID(nil)
 		trs[i] = test.MakeTrace(10, ids[i])
 		trace.SortTrace(trs[i])

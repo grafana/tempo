@@ -20,28 +20,34 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+//go:fix inline
 func strPtr(s string) *string {
-	return &s
+	return new(s)
 }
 
+//go:fix inline
 func float64Ptr(f float64) *float64 {
-	return &f
+	return new(f)
 }
 
+//go:fix inline
 func boolMapPtr(m map[string]bool) *map[string]bool {
-	return &m
+	return new(m)
 }
 
+//go:fix inline
 func strArrPtr(s []string) *[]string {
-	return &s
+	return new(s)
 }
 
+//go:fix inline
 func dimensionMappingsPtr(d []sharedconfig.DimensionMappings) *[]sharedconfig.DimensionMappings {
-	return &d
+	return new(d)
 }
 
+//go:fix inline
 func histogramMethodPtr(h histograms.HistogramMethod) *histograms.HistogramMethod {
-	return &h
+	return new(h)
 }
 
 func Test_runtimeOverridesValidator(t *testing.T) {
@@ -409,7 +415,7 @@ func Test_overridesValidator(t *testing.T) {
 			cfg:  Config{},
 			limits: client.Limits{
 				MetricsGenerator: client.LimitsMetricsGenerator{
-					TraceIDLabelName: strPtr(""),
+					TraceIDLabelName: new(""),
 				},
 			},
 		},
@@ -418,7 +424,7 @@ func Test_overridesValidator(t *testing.T) {
 			cfg:  Config{},
 			limits: client.Limits{
 				MetricsGenerator: client.LimitsMetricsGenerator{
-					TraceIDLabelName: strPtr("trace-id"),
+					TraceIDLabelName: new("trace-id"),
 				},
 			},
 			expErr: "trace_id_label_name \"trace-id\" is not a valid Prometheus label name",
@@ -511,7 +517,7 @@ func Test_overridesValidator(t *testing.T) {
 			cfg:  Config{},
 			limits: client.Limits{
 				MetricsGenerator: client.LimitsMetricsGenerator{
-					NativeHistogramBucketFactor: float64Ptr(1.5),
+					NativeHistogramBucketFactor: new(1.5),
 				},
 			},
 		},
@@ -541,7 +547,7 @@ func Test_overridesValidator(t *testing.T) {
 				MetricsGenerator: client.LimitsMetricsGenerator{
 					Processor: client.LimitsMetricsGeneratorProcessor{
 						SpanMetrics: client.LimitsMetricsGeneratorProcessorSpanMetrics{
-							IntrinsicDimensions: boolMapPtr(map[string]bool{
+							IntrinsicDimensions: new(map[string]bool{
 								processor.DimService:  true,
 								processor.DimSpanKind: false,
 							}),
@@ -557,7 +563,7 @@ func Test_overridesValidator(t *testing.T) {
 				MetricsGenerator: client.LimitsMetricsGenerator{
 					Processor: client.LimitsMetricsGeneratorProcessor{
 						SpanMetrics: client.LimitsMetricsGeneratorProcessorSpanMetrics{
-							IntrinsicDimensions: boolMapPtr(map[string]bool{
+							IntrinsicDimensions: new(map[string]bool{
 								"not_supported": true,
 							}),
 						},
@@ -592,7 +598,7 @@ func Test_overridesValidator(t *testing.T) {
 				MetricsGenerator: client.LimitsMetricsGenerator{
 					Processor: client.LimitsMetricsGeneratorProcessor{
 						HostInfo: client.LimitsMetricGeneratorProcessorHostInfo{
-							HostIdentifiers: strArrPtr([]string{"host.id", "k8s.node.name"}),
+							HostIdentifiers: new([]string{"host.id", "k8s.node.name"}),
 						},
 					},
 				},
@@ -605,7 +611,7 @@ func Test_overridesValidator(t *testing.T) {
 				MetricsGenerator: client.LimitsMetricsGenerator{
 					Processor: client.LimitsMetricsGeneratorProcessor{
 						HostInfo: client.LimitsMetricGeneratorProcessorHostInfo{
-							MetricName: strPtr("custom_host_info"),
+							MetricName: new("custom_host_info"),
 						},
 					},
 				},
@@ -618,7 +624,7 @@ func Test_overridesValidator(t *testing.T) {
 				MetricsGenerator: client.LimitsMetricsGenerator{
 					Processor: client.LimitsMetricsGeneratorProcessor{
 						HostInfo: client.LimitsMetricGeneratorProcessorHostInfo{
-							MetricName: strPtr(""),
+							MetricName: new(""),
 						},
 					},
 				},
@@ -632,7 +638,7 @@ func Test_overridesValidator(t *testing.T) {
 				MetricsGenerator: client.LimitsMetricsGenerator{
 					Processor: client.LimitsMetricsGeneratorProcessor{
 						SpanMetrics: client.LimitsMetricsGeneratorProcessorSpanMetrics{
-							DimensionMappings: dimensionMappingsPtr([]sharedconfig.DimensionMappings{
+							DimensionMappings: new([]sharedconfig.DimensionMappings{
 								{
 									Name:        "",
 									SourceLabel: []string{"foo"},
@@ -651,7 +657,7 @@ func Test_overridesValidator(t *testing.T) {
 				MetricsGenerator: client.LimitsMetricsGenerator{
 					Processor: client.LimitsMetricsGeneratorProcessor{
 						SpanMetrics: client.LimitsMetricsGeneratorProcessorSpanMetrics{
-							DimensionMappings: dimensionMappingsPtr([]sharedconfig.DimensionMappings{
+							DimensionMappings: new([]sharedconfig.DimensionMappings{
 								{
 									Name:        "my_label",
 									SourceLabel: []string{},
@@ -670,7 +676,7 @@ func Test_overridesValidator(t *testing.T) {
 				MetricsGenerator: client.LimitsMetricsGenerator{
 					Processor: client.LimitsMetricsGeneratorProcessor{
 						SpanMetrics: client.LimitsMetricsGeneratorProcessorSpanMetrics{
-							DimensionMappings: dimensionMappingsPtr([]sharedconfig.DimensionMappings{
+							DimensionMappings: new([]sharedconfig.DimensionMappings{
 								{
 									Name:        "my_label",
 									SourceLabel: []string{"foo", "bar"},
@@ -689,7 +695,7 @@ func Test_overridesValidator(t *testing.T) {
 				MetricsGenerator: client.LimitsMetricsGenerator{
 					Processor: client.LimitsMetricsGeneratorProcessor{
 						ServiceGraphs: client.LimitsMetricsGeneratorProcessorServiceGraphs{
-							Dimensions: strArrPtr([]string{"http.method", "db.system"}),
+							Dimensions: new([]string{"http.method", "db.system"}),
 						},
 					},
 				},
@@ -702,7 +708,7 @@ func Test_overridesValidator(t *testing.T) {
 				MetricsGenerator: client.LimitsMetricsGenerator{
 					Processor: client.LimitsMetricsGeneratorProcessor{
 						ServiceGraphs: client.LimitsMetricsGeneratorProcessorServiceGraphs{
-							Dimensions: strArrPtr([]string{"my_label", "my.label"}), // both sanitize to "my_label"
+							Dimensions: new([]string{"my_label", "my.label"}), // both sanitize to "my_label"
 						},
 					},
 				},
@@ -716,7 +722,7 @@ func Test_overridesValidator(t *testing.T) {
 				MetricsGenerator: client.LimitsMetricsGenerator{
 					Processor: client.LimitsMetricsGeneratorProcessor{
 						SpanMetrics: client.LimitsMetricsGeneratorProcessorSpanMetrics{
-							Dimensions: strArrPtr([]string{"http.method", "db.system"}),
+							Dimensions: new([]string{"http.method", "db.system"}),
 						},
 					},
 				},
@@ -729,11 +735,11 @@ func Test_overridesValidator(t *testing.T) {
 				MetricsGenerator: client.LimitsMetricsGenerator{
 					Processor: client.LimitsMetricsGeneratorProcessor{
 						SpanMetrics: client.LimitsMetricsGeneratorProcessorSpanMetrics{
-							Dimensions: strArrPtr([]string{"http.method"}),
-							IntrinsicDimensions: boolMapPtr(map[string]bool{
+							Dimensions: new([]string{"http.method"}),
+							IntrinsicDimensions: new(map[string]bool{
 								processor.DimService: true,
 							}),
-							DimensionMappings: dimensionMappingsPtr([]sharedconfig.DimensionMappings{
+							DimensionMappings: new([]sharedconfig.DimensionMappings{
 								{
 									Name:        "combined",
 									SourceLabel: []string{"foo", "bar"},
@@ -751,8 +757,8 @@ func Test_overridesValidator(t *testing.T) {
 				MetricsGenerator: client.LimitsMetricsGenerator{
 					Processor: client.LimitsMetricsGeneratorProcessor{
 						SpanMetrics: client.LimitsMetricsGeneratorProcessorSpanMetrics{
-							Dimensions: strArrPtr([]string{"service"}), // becomes __service to avoid collision
-							IntrinsicDimensions: boolMapPtr(map[string]bool{
+							Dimensions: new([]string{"service"}), // becomes __service to avoid collision
+							IntrinsicDimensions: new(map[string]bool{
 								processor.DimService: true,
 							}),
 						},
@@ -767,7 +773,7 @@ func Test_overridesValidator(t *testing.T) {
 				MetricsGenerator: client.LimitsMetricsGenerator{
 					Processor: client.LimitsMetricsGeneratorProcessor{
 						SpanMetrics: client.LimitsMetricsGeneratorProcessorSpanMetrics{
-							Dimensions: strArrPtr([]string{"my_label", "my.label"}), // both sanitize to "my_label"
+							Dimensions: new([]string{"my_label", "my.label"}), // both sanitize to "my_label"
 						},
 					},
 				},
@@ -781,8 +787,8 @@ func Test_overridesValidator(t *testing.T) {
 				MetricsGenerator: client.LimitsMetricsGenerator{
 					Processor: client.LimitsMetricsGeneratorProcessor{
 						SpanMetrics: client.LimitsMetricsGeneratorProcessorSpanMetrics{
-							Dimensions: strArrPtr([]string{"my_label"}),
-							DimensionMappings: dimensionMappingsPtr([]sharedconfig.DimensionMappings{
+							Dimensions: new([]string{"my_label"}),
+							DimensionMappings: new([]sharedconfig.DimensionMappings{
 								{
 									Name:        "my_label", // collides with dimension
 									SourceLabel: []string{"foo"},
@@ -801,7 +807,7 @@ func Test_overridesValidator(t *testing.T) {
 				MetricsGenerator: client.LimitsMetricsGenerator{
 					Processor: client.LimitsMetricsGeneratorProcessor{
 						SpanMetrics: client.LimitsMetricsGeneratorProcessorSpanMetrics{
-							DimensionMappings: dimensionMappingsPtr([]sharedconfig.DimensionMappings{
+							DimensionMappings: new([]sharedconfig.DimensionMappings{
 								{
 									Name:        "combined",
 									SourceLabel: []string{"foo"},
@@ -822,7 +828,7 @@ func Test_overridesValidator(t *testing.T) {
 			cfg:  Config{},
 			limits: client.Limits{
 				MetricsGenerator: client.LimitsMetricsGenerator{
-					SpanNameSanitization: strPtr(""),
+					SpanNameSanitization: new(""),
 				},
 			},
 		},
@@ -831,7 +837,7 @@ func Test_overridesValidator(t *testing.T) {
 			cfg:  Config{},
 			limits: client.Limits{
 				MetricsGenerator: client.LimitsMetricsGenerator{
-					SpanNameSanitization: strPtr("dry_run"),
+					SpanNameSanitization: new("dry_run"),
 				},
 			},
 		},
@@ -840,7 +846,7 @@ func Test_overridesValidator(t *testing.T) {
 			cfg:  Config{},
 			limits: client.Limits{
 				MetricsGenerator: client.LimitsMetricsGenerator{
-					SpanNameSanitization: strPtr("enabled"),
+					SpanNameSanitization: new("enabled"),
 				},
 			},
 		},
@@ -849,7 +855,7 @@ func Test_overridesValidator(t *testing.T) {
 			cfg:  Config{},
 			limits: client.Limits{
 				MetricsGenerator: client.LimitsMetricsGenerator{
-					SpanNameSanitization: strPtr("invalid"),
+					SpanNameSanitization: new("invalid"),
 				},
 			},
 			expErr: "span_name_sanitization \"invalid\" is not valid, valid values: [ dry_run enabled]",

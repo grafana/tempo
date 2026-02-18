@@ -159,7 +159,7 @@ func generateRequest(entries, lineLength int) *tempopb.PushBytesRequest {
 		Ids:    make([][]byte, entries),
 	}
 
-	for i := 0; i < entries; i++ {
+	for i := range entries {
 		stream.Traces[i].Slice = generateRandomString(lineLength)
 		stream.Ids[i] = generateRandomString(lineLength)
 	}

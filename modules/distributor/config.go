@@ -13,15 +13,15 @@ import (
 	"github.com/grafana/tempo/pkg/util"
 )
 
-var defaultReceivers = map[string]interface{}{
-	"jaeger": map[string]interface{}{
-		"protocols": map[string]interface{}{
+var defaultReceivers = map[string]any{
+	"jaeger": map[string]any{
+		"protocols": map[string]any{
 			"grpc":        nil,
 			"thrift_http": nil,
 		},
 	},
-	"otlp": map[string]interface{}{
-		"protocols": map[string]interface{}{
+	"otlp": map[string]any{
+		"protocols": map[string]any{
 			"grpc": nil,
 		},
 	},
@@ -34,7 +34,7 @@ type Config struct {
 	// receivers map for shim.
 	//  This receivers node is equivalent in format to the receiver node in the
 	//  otel collector: https://github.com/open-telemetry/opentelemetry-collector/tree/main/receiver
-	Receivers           map[string]interface{}    `yaml:"receivers"`
+	Receivers           map[string]any            `yaml:"receivers"`
 	OverrideRingKey     string                    `yaml:"override_ring_key"`
 	LogReceivedSpans    LogSpansConfig            `yaml:"log_received_spans,omitempty"`
 	LogDiscardedSpans   LogSpansConfig            `yaml:"log_discarded_spans,omitempty"`

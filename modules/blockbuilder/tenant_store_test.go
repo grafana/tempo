@@ -167,7 +167,7 @@ func writeHistoricalData(t *testing.T, count int, startTime time.Time, cycleDura
 	ts, err := getTenantStore(t, startTime, cycleDuration, slackDuration)
 	require.NoError(t, err)
 
-	for i := 0; i < count; i++ {
+	for range count {
 		req := test.MakePushBytesRequest(t, 3, nil, uint64(traceStart.UnixNano()), uint64(traceEnd.UnixNano()))
 		for j := range req.Traces {
 			err = ts.AppendTrace(req.Ids[j], req.Traces[j].Slice, startTime)

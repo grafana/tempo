@@ -13,7 +13,7 @@ func combineTraces(traces ...*Trace) *Trace {
 	}
 
 	c := NewCombiner()
-	for i := 0; i < len(traces); i++ {
+	for i := range traces {
 		c.ConsumeWithFinal(traces[i], i == len(traces)-1)
 	}
 	res, _, _ := c.Result() // for now ignore the connected return. see comment in walBlock.Iterator()

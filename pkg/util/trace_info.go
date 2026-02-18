@@ -59,7 +59,7 @@ func NewTraceInfo(timestamp time.Time, tempoOrgID string) *TraceInfo {
 // different trace seeds are used.
 func NewTraceInfos(timestamp time.Time, count int, tempoOrgID string) []*TraceInfo {
 	infos := make([]*TraceInfo, 0, count)
-	for i := 0; i < count; i++ {
+	for i := range count {
 		ts := timestamp.Add(time.Duration(i) * time.Nanosecond)
 		infos = append(infos, NewTraceInfo(ts, tempoOrgID))
 	}
@@ -161,7 +161,7 @@ func (t *TraceInfo) makeThriftBatch(traceIDHigh, traceIDLow int64) *jaeger.Batch
 	count := t.generateRandomInt(1, 5)
 	lastSpanID, nextSpanID := int64(0), int64(0)
 	// Each span has the previous span as parent, creating a tree with a single branch per batch.
-	for i := int64(0); i < count; i++ {
+	for range count {
 		nextSpanID = t.r.Int63()
 
 		spans = append(spans, &jaeger.Span{
@@ -194,7 +194,7 @@ func (t *TraceInfo) makeJaegerBatch(TraceIDHigh, TraceIDLow int64) *jaeger.Batch
 	count := t.generateRandomInt(1, 5)
 	lastSpanID, nextSpanID := int64(0), int64(0)
 	// Each span has the previous span as parent, creating a tree with a single branch per batch.
-	for i := int64(0); i < count; i++ {
+	for range count {
 		nextSpanID = t.r.Int63()
 
 		spans = append(spans, &jaeger.Span{
@@ -243,7 +243,7 @@ func (t *TraceInfo) generateRandomJaegerTags() []*jaeger.Tag {
 func (t *TraceInfo) generateRandomTagsWithPrefix(prefix string) []*jaeger.Tag {
 	var tags []*jaeger.Tag
 	count := t.generateRandomInt(1, 5)
-	for i := int64(0); i < count; i++ {
+	for i := range count {
 		value := t.generateRandomString()
 		tags = append(tags, &jaeger.Tag{
 			Key:  fmt.Sprintf("%s-%d", prefix, i),
@@ -256,7 +256,7 @@ func (t *TraceInfo) generateRandomTagsWithPrefix(prefix string) []*jaeger.Tag {
 func (t *TraceInfo) generateRandomJaegerTagsWithPrefix(prefix string) []*jaeger.Tag {
 	var tags []*jaeger.Tag
 	count := t.generateRandomInt(1, 5)
-	for i := int64(0); i < count; i++ {
+	for i := range count {
 		value := t.generateRandomString()
 		tags = append(tags, &jaeger.Tag{
 			Key:  fmt.Sprintf("%s-%d", prefix, i),
@@ -269,7 +269,7 @@ func (t *TraceInfo) generateRandomJaegerTagsWithPrefix(prefix string) []*jaeger.
 func (t *TraceInfo) generateRandomLogs() []*jaeger.Log {
 	var logs []*jaeger.Log
 	count := t.generateRandomInt(1, 5)
-	for i := int64(0); i < count; i++ {
+	for range count {
 		logs = append(logs, &jaeger.Log{
 			Timestamp: t.timestamp.UnixMicro(),
 			Fields:    t.generateRandomTags(),
@@ -282,7 +282,7 @@ func (t *TraceInfo) generateRandomLogs() []*jaeger.Log {
 func (t *TraceInfo) generateRandomJaegerLogs() []*jaeger.Log {
 	var logs []*jaeger.Log
 	count := t.generateRandomInt(1, 5)
-	for i := int64(0); i < count; i++ {
+	for range count {
 		logs = append(logs, &jaeger.Log{
 			Timestamp: t.timestamp.UnixMicro(),
 			Fields:    t.generateRandomJaegerTags(),

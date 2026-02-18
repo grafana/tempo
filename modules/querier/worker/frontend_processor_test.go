@@ -38,7 +38,7 @@ func TestRunRequests(t *testing.T) {
 
 	totalRequests := byte(10)
 	reqs := []*httpgrpc.HTTPRequest{}
-	for i := byte(0); i < totalRequests; i++ {
+	for i := range totalRequests {
 		reqs = append(reqs, &httpgrpc.HTTPRequest{
 			Body: []byte{i},
 		})

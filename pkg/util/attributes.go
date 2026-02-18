@@ -2,6 +2,7 @@ package util
 
 import (
 	"strconv"
+	"strings"
 
 	v1common "github.com/grafana/tempo/pkg/tempopb/common/v1"
 )
@@ -13,21 +14,23 @@ func StringifyAnyValue(anyValue *v1common.AnyValue) string {
 	case *v1common.AnyValue_IntValue:
 		return strconv.FormatInt(anyValue.GetIntValue(), 10)
 	case *v1common.AnyValue_ArrayValue:
-		arrStr := "["
+		var arrStr strings.Builder
+		arrStr.WriteString("[")
 		for _, v := range anyValue.GetArrayValue().Values {
-			arrStr += StringifyAnyValue(v)
+			arrStr.WriteString(StringifyAnyValue(v))
 		}
-		arrStr += "]"
-		return arrStr
+		arrStr.WriteString("]")
+		return arrStr.String()
 	case *v1common.AnyValue_DoubleValue:
 		return strconv.FormatFloat(anyValue.GetDoubleValue(), 'f', -1, 64)
 	case *v1common.AnyValue_KvlistValue:
-		mapStr := "{"
+		var mapStr strings.Builder
+		mapStr.WriteString("{")
 		for _, kv := range anyValue.GetKvlistValue().Values {
-			mapStr += kv.Key + ":" + StringifyAnyValue(kv.Value)
+			mapStr.WriteString(kv.Key + ":" + StringifyAnyValue(kv.Value))
 		}
-		mapStr += "}"
-		return mapStr
+		mapStr.WriteString("}")
+		return mapStr.String()
 	case *v1common.AnyValue_StringValue:
 		return anyValue.GetStringValue()
 	}

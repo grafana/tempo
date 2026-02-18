@@ -227,7 +227,7 @@ func Test_gauge_concurrencyDataRace(t *testing.T) {
 		}
 	}
 
-	for i := 0; i < 4; i++ {
+	for range 4 {
 		go accessor(func() {
 			c.Inc(buildTestLabels([]string{"label"}, []string{"value-1"}), 1.0)
 			c.Inc(buildTestLabels([]string{"label"}, []string{"value-2"}), 1.0)
@@ -265,10 +265,8 @@ func Test_gauge_concurrencyCorrectness(t *testing.T) {
 
 	totalCount := atomic.NewUint64(0)
 
-	for i := 0; i < 4; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+	for range 4 {
+		wg.Go(func() {
 			for {
 				select {
 				case <-end:
@@ -278,7 +276,7 @@ func Test_gauge_concurrencyCorrectness(t *testing.T) {
 					totalCount.Inc()
 				}
 			}
-		}()
+		})
 	}
 
 	time.Sleep(200 * time.Millisecond)
@@ -300,7 +298,7 @@ func Test_gauge_demandTracking(t *testing.T) {
 	assert.Equal(t, 0, g.countSeriesDemand())
 
 	// Add some series
-	for i := 0; i < 50; i++ {
+	for i := range 50 {
 		lbls := buildTestLabels([]string{"label"}, []string{fmt.Sprintf("value-%d", i)})
 		g.Inc(lbls, 1.0)
 	}
@@ -330,7 +328,7 @@ func Test_gauge_demandVsActiveSeries(t *testing.T) {
 	g := newGauge("my_gauge", lifecycler, map[string]string{}, 15*time.Minute)
 
 	// Add series up to a point
-	for i := 0; i < 30; i++ {
+	for i := range 30 {
 		lbls := buildTestLabels([]string{"label"}, []string{fmt.Sprintf("value-%d", i)})
 		g.Set(lbls, float64(i))
 	}
@@ -360,7 +358,7 @@ func Test_gauge_demandDecay(t *testing.T) {
 	g := newGauge("my_gauge", lifecycler, map[string]string{}, 15*time.Minute)
 
 	// Add series
-	for i := 0; i < 40; i++ {
+	for i := range 40 {
 		lbls := buildTestLabels([]string{"label"}, []string{fmt.Sprintf("value-%d", i)})
 		g.Inc(lbls, 1.0)
 	}
@@ -369,7 +367,7 @@ func Test_gauge_demandDecay(t *testing.T) {
 	assert.Greater(t, initialDemand, 0)
 
 	// Advance the cardinality tracker enough times to clear the window
-	for i := 0; i < 5; i++ {
+	for range 5 {
 		g.removeStaleSeries(time.Now().Add(time.Hour).UnixMilli())
 	}
 

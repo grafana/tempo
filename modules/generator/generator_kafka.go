@@ -3,8 +3,9 @@ package generator
 import (
 	"context"
 	"errors"
-	"sort"
+	"slices"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/go-kit/log/level"
@@ -162,7 +163,7 @@ func (g *Generator) handlePartitionsAssigned(m map[string][]int32) {
 	defer g.partitionMtx.Unlock()
 
 	g.assignedPartitions = append(g.assignedPartitions, assigned...)
-	sort.Slice(g.assignedPartitions, func(i, j int) bool { return g.assignedPartitions[i] < g.assignedPartitions[j] })
+	slices.Sort(g.assignedPartitions)
 }
 
 func (g *Generator) handlePartitionsRevoked(partitions map[string][]int32) {
@@ -171,7 +172,7 @@ func (g *Generator) handlePartitionsRevoked(partitions map[string][]int32) {
 	g.partitionMtx.Lock()
 	defer g.partitionMtx.Unlock()
 
-	sort.Slice(revoked, func(i, j int) bool { return revoked[i] < revoked[j] })
+	slices.Sort(revoked)
 	// Remove revoked partitions
 	g.assignedPartitions = revokePartitions(g.assignedPartitions, revoked)
 
@@ -183,15 +184,16 @@ func formatInt32Slice(slice []int32) string {
 	if len(slice) == 0 {
 		return "[]"
 	}
-	result := "["
+	var result strings.Builder
+	result.WriteString("[")
 	for i, v := range slice {
 		if i > 0 {
-			result += ","
+			result.WriteString(",")
 		}
-		result += strconv.Itoa(int(v))
+		result.WriteString(strconv.Itoa(int(v)))
 	}
-	result += "]"
-	return result
+	result.WriteString("]")
+	return result.String()
 }
 
 // Helper function to revoke partitions

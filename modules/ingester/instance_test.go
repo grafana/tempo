@@ -89,7 +89,7 @@ func TestInstanceFind(t *testing.T) {
 	err := i.CutCompleteTraces(0, 0, true)
 	require.NoError(t, err)
 
-	for j := 0; j < numTraces; j++ {
+	for j := range numTraces {
 		traceBytes, err := model.MustNewSegmentDecoder(model.CurrentEncoding).PrepareForWrite(traces[j], 0, 0)
 		require.NoError(t, err)
 
@@ -130,7 +130,7 @@ func pushTracesToInstance(t *testing.T, i *instance, numTraces int) ([]*tempopb.
 	var ids [][]byte
 	var traces []*tempopb.Trace
 
-	for j := 0; j < numTraces; j++ {
+	for range numTraces {
 		id := make([]byte, 16)
 		_, err := crand.Read(id)
 		require.NoError(t, err)
@@ -166,9 +166,7 @@ func TestInstanceDoesNotRace(t *testing.T) {
 	)
 
 	concurrent := func(f func()) {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			for {
 				select {
 				case <-end:
@@ -177,7 +175,7 @@ func TestInstanceDoesNotRace(t *testing.T) {
 					f()
 				}
 			}
-		}()
+		})
 	}
 	concurrent(func() {
 		request := makeRequest([]byte{})
@@ -557,7 +555,7 @@ func TestInstanceMetrics(t *testing.T) {
 
 	// Push some traces
 	count := 100
-	for j := 0; j < count; j++ {
+	for j := range count {
 		request := makeRequest([]byte{})
 		response := i.PushBytesRequest(context.Background(), request)
 		errored, _, _ := CheckPushBytesError(response)
@@ -661,7 +659,7 @@ func TestInstancePartialSuccess(t *testing.T) {
 
 	count := 5
 	ids := make([][]byte, 0, count)
-	for j := 0; j < count; j++ {
+	for range count {
 		id := make([]byte, 16)
 		_, err := crand.Read(id)
 		require.NoError(t, err)
@@ -845,7 +843,7 @@ func TestInstanceClearOldBlocks(t *testing.T) {
 
 			// Create several complete blocks.
 			numBlocks := 3
-			for i := 0; i < numBlocks; i++ {
+			for range numBlocks {
 				request := makeRequest([]byte{})
 				instance.PushBytesRequest(ctx, request)
 
@@ -1004,7 +1002,7 @@ func TestInstanceSearchCompleteParquet(t *testing.T) {
 
 func benchmarkInstanceSearch(b testing.TB, writes int, reads int) {
 	instance, _ := defaultInstance(b)
-	for i := 0; i < writes; i++ {
+	for i := range writes {
 		request := makeRequest(nil)
 		response := instance.PushBytesRequest(context.Background(), request)
 		errored, _, _ := CheckPushBytesError(response)
@@ -1037,7 +1035,7 @@ func benchmarkInstanceSearch(b testing.TB, writes int, reads int) {
 		return
 	}
 
-	for i := 0; i < reads; i++ {
+	for range reads {
 		resp, err := instance.SearchTags(ctx, "")
 		require.NoError(b, err)
 		require.NotNil(b, resp)
@@ -1097,9 +1095,7 @@ func BenchmarkInstanceContention(t *testing.B) {
 	i, ingester := defaultInstance(t)
 
 	concurrent := func(f func()) {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			for {
 				select {
 				case <-end:
@@ -1108,7 +1104,7 @@ func BenchmarkInstanceContention(t *testing.B) {
 					f()
 				}
 			}
-		}()
+		})
 	}
 	concurrent(func() {
 		request := makeRequestWithByteLimit(10_000, nil)

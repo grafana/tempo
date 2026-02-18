@@ -564,7 +564,7 @@ func defaultIngesterWithPush(t testing.TB, tmpDir string, push func(testing.TB, 
 	traces := make([]*tempopb.Trace, 0)
 
 	traceIDs := make([][]byte, 0)
-	for i := 0; i < 10; i++ {
+	for range 10 {
 		id := make([]byte, 16)
 		_, err := rand.Read(id)
 		require.NoError(t, err)

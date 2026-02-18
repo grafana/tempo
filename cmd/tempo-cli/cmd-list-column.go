@@ -66,7 +66,7 @@ func (cmd *listColumnCmd) Run(ctx *globalOptions) error {
 			vr := pg.Values()
 			for {
 				x, err := vr.ReadValues(buffer)
-				for y := 0; y < x; y++ {
+				for y := range x {
 					fmt.Println(buffer[y].Bytes())
 				}
 

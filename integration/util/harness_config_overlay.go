@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"html/template"
+	"maps"
 	"os"
 	"path/filepath"
 	"testing"
@@ -189,9 +190,7 @@ func mergeMaps(base, overlay map[any]any) map[any]any {
 	result := make(map[any]any)
 
 	// Copy all base values
-	for k, v := range base {
-		result[k] = v
-	}
+	maps.Copy(result, base)
 
 	// Overlay values, recursively merging nested maps
 	for k, v := range overlay {

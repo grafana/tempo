@@ -154,7 +154,7 @@ func (i *instance) addTraceError(errorsByTrace []tempopb.PushErrorReason, pushEr
 		if len(errorsByTrace) == 0 {
 			errorsByTrace = make([]tempopb.PushErrorReason, 0, numTraces)
 			// because this is the first error, fill list with NO_ERROR for the traces before this one
-			for k := 0; k < traceIndex; k++ {
+			for range traceIndex {
 				errorsByTrace = append(errorsByTrace, tempopb.PushErrorReason_NO_ERROR)
 			}
 		}

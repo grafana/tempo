@@ -58,7 +58,7 @@ func TestProtoToParquetEmptyTrace(t *testing.T) {
 
 func TestProtoParquetRando(t *testing.T) {
 	trp := &Trace{}
-	for i := 0; i < 100; i++ {
+	for range 100 {
 		batches := rand.Intn(15)
 		id := test.ValidTraceID(nil)
 		expectedTrace := test.AddDedicatedAttributes(test.MakeTrace(batches, id))
@@ -378,8 +378,8 @@ func TestTraceToParquet(t *testing.T) {
 								attr("http.method", "POST"),
 								attr("http.url", "https://example.com"),
 								attr("http.status_code", 201),
-								{Key: "span.unsupported.array", ValueUnsupported: ptr("{\"arrayValue\":{\"values\":[{\"boolValue\":true},{\"intValue\":\"1\"},{\"boolValue\":true}]}}"), IsArray: false},
-								{Key: "span.unsupported.kvlist", ValueUnsupported: ptr("{\"kvlistValue\":{\"values\":[{\"key\":\"key-a\",\"value\":{\"stringValue\":\"val-a\"}},{\"key\":\"key-b\",\"value\":{\"stringValue\":\"val-b\"}}]}}"), IsArray: false},
+								{Key: "span.unsupported.array", ValueUnsupported: new("{\"arrayValue\":{\"values\":[{\"boolValue\":true},{\"intValue\":\"1\"},{\"boolValue\":true}]}}"), IsArray: false},
+								{Key: "span.unsupported.kvlist", ValueUnsupported: new("{\"kvlistValue\":{\"values\":[{\"key\":\"key-a\",\"value\":{\"stringValue\":\"val-a\"}},{\"key\":\"key-b\",\"value\":{\"stringValue\":\"val-b\"}}]}}"), IsArray: false},
 							},
 							DroppedAttributesCount: 0,
 							DedicatedAttributes: DedicatedAttributes{
@@ -1004,7 +1004,7 @@ func sortAttributesTempopb(t *tempopb.Trace) {
 }
 
 // traceEqual asserts similar to assert.Equal but treats empty / nil slices and maps as equal
-func traceEqual(t *testing.T, expected, actual *Trace, messages ...interface{}) {
+func traceEqual(t *testing.T, expected, actual *Trace, messages ...any) {
 	sortAttributes(expected)
 	sortAttributes(actual)
 

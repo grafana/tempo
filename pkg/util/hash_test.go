@@ -38,7 +38,7 @@ func TestHashForCollisionRate(t *testing.T) {
 		IDs    = make([][]byte, 0, n)
 	)
 
-	for i := 0; i < n; i++ {
+	for range n {
 		traceID := make([]byte, 16)
 		_, err := rand.Read(traceID)
 		require.NoError(t, err)

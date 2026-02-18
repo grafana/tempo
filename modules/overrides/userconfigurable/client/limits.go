@@ -11,8 +11,8 @@ import (
 
 type Limits struct {
 	Forwarders       *[]string              `yaml:"forwarders,omitempty" json:"forwarders,omitempty"`
-	CostAttribution  CostAttribution        `yaml:"cost_attribution,omitempty" json:"cost_attribution,omitempty"`
-	MetricsGenerator LimitsMetricsGenerator `yaml:"metrics_generator,omitempty" json:"metrics_generator,omitempty"`
+	CostAttribution  CostAttribution        `yaml:"cost_attribution,omitempty" json:"cost_attribution"`
+	MetricsGenerator LimitsMetricsGenerator `yaml:"metrics_generator,omitempty" json:"metrics_generator"`
 }
 
 func (l *Limits) GetForwarders() ([]string, bool) {
@@ -48,7 +48,7 @@ type LimitsMetricsGenerator struct {
 	NativeHistogramMinResetDuration *Duration                   `yaml:"native_histogram_min_reset_duration,omitempty" json:"native_histogram_min_reset_duration,omitempty"`
 	SpanNameSanitization            *string                     `yaml:"span_name_sanitization,omitempty" json:"span_name_sanitization,omitempty"`
 
-	Processor LimitsMetricsGeneratorProcessor `yaml:"processor,omitempty" json:"processor,omitempty"`
+	Processor LimitsMetricsGeneratorProcessor `yaml:"processor,omitempty" json:"processor"`
 }
 
 func (l *LimitsMetricsGenerator) GetProcessors() (listtomap.ListToMap, bool) {
@@ -129,9 +129,9 @@ func (l *LimitsMetricsGenerator) GetSpanNameSanitization() (string, bool) {
 }
 
 type LimitsMetricsGeneratorProcessor struct {
-	ServiceGraphs LimitsMetricsGeneratorProcessorServiceGraphs `yaml:"service_graphs,omitempty" json:"service_graphs,omitempty"`
-	SpanMetrics   LimitsMetricsGeneratorProcessorSpanMetrics   `yaml:"span_metrics,omitempty" json:"span_metrics,omitempty"`
-	HostInfo      LimitsMetricGeneratorProcessorHostInfo       `yaml:"host_info,omitempty" json:"host_info,omitempty"`
+	ServiceGraphs LimitsMetricsGeneratorProcessorServiceGraphs `yaml:"service_graphs,omitempty" json:"service_graphs"`
+	SpanMetrics   LimitsMetricsGeneratorProcessorSpanMetrics   `yaml:"span_metrics,omitempty" json:"span_metrics"`
+	HostInfo      LimitsMetricGeneratorProcessorHostInfo       `yaml:"host_info,omitempty" json:"host_info"`
 }
 
 func (l *LimitsMetricsGeneratorProcessor) GetServiceGraphs() *LimitsMetricsGeneratorProcessorServiceGraphs {

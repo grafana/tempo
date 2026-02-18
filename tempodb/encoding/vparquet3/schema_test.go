@@ -51,7 +51,7 @@ func TestProtoToParquetEmptyTrace(t *testing.T) {
 
 func TestProtoParquetRando(t *testing.T) {
 	trp := &Trace{}
-	for i := 0; i < 100; i++ {
+	for range 100 {
 		batches := rand.Intn(15)
 		id := test.ValidTraceID(nil)
 		expectedTrace := test.AddDedicatedAttributes(test.MakeTrace(batches, id))

@@ -142,7 +142,7 @@ var _ confmap.Provider = (*mapProvider)(nil)
 
 // mapProvider is a confmap.Provider that returns a single confmap.Retrieved instance with a fixed map.
 type mapProvider struct {
-	raw map[string]interface{}
+	raw map[string]any
 }
 
 func (m *mapProvider) Retrieve(context.Context, string, confmap.WatcherFunc) (*confmap.Retrieved, error) {
@@ -153,7 +153,7 @@ func (m *mapProvider) Scheme() string { return "mock" }
 
 func (m *mapProvider) Shutdown(context.Context) error { return nil }
 
-func New(receiverCfg map[string]interface{}, pusher TracesPusher, middleware Middleware, retryAfterDuration time.Duration, logLevel dslog.Level, reg prometheus.Registerer) (services.Service, error) {
+func New(receiverCfg map[string]any, pusher TracesPusher, middleware Middleware, retryAfterDuration time.Duration, logLevel dslog.Level, reg prometheus.Registerer) (services.Service, error) {
 	shim := &receiversShim{
 		pusher: pusher,
 		logger: log.NewRateLimitedLogger(logsPerSecond, level.Error(log.Logger)),
@@ -202,14 +202,14 @@ func New(receiverCfg map[string]interface{}, pusher TracesPusher, middleware Mid
 	// Define a factory function to create the mock provider
 	mockProviderFactory := confmap.NewProviderFactory(func(confmap.ProviderSettings) confmap.Provider {
 		return &mapProvider{
-			raw: map[string]interface{}{
+			raw: map[string]any{
 				"receivers": receiverCfg,
-				"exporters": map[string]interface{}{
-					"nop": map[string]interface{}{},
+				"exporters": map[string]any{
+					"nop": map[string]any{},
 				},
-				"service": map[string]interface{}{
-					"pipelines": map[string]interface{}{
-						"traces": map[string]interface{}{
+				"service": map[string]any{
+					"pipelines": map[string]any{
+						"traces": map[string]any{
 							"exporters": []string{"nop"}, // nop exporter to avoid errors
 							"receivers": receivers,
 						},

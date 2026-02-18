@@ -178,8 +178,8 @@ func extractExemplarsValue(t *testing.T, uri string) int {
 	require.True(t, strings.Contains(uri, "exemplars="), "Request should contain exemplars parameter")
 	exemplarsParam := ""
 	for param := range strings.SplitSeq(uri, "&") {
-		if strings.HasPrefix(param, "exemplars=") {
-			exemplarsParam = strings.TrimPrefix(param, "exemplars=")
+		if after, ok := strings.CutPrefix(param, "exemplars="); ok {
+			exemplarsParam = after
 			break
 		}
 	}

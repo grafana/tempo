@@ -210,7 +210,7 @@ func Test_counter_concurrencyDataRace(t *testing.T) {
 		}
 	}
 
-	for i := 0; i < 4; i++ {
+	for range 4 {
 		go accessor(func() {
 			c.Inc(buildTestLabels([]string{"label"}, []string{"value-1"}), 1.0)
 			c.Inc(buildTestLabels([]string{"label"}, []string{"value-2"}), 1.0)
@@ -248,10 +248,8 @@ func Test_counter_concurrencyCorrectness(t *testing.T) {
 
 	totalCount := atomic.NewFloat64(0)
 
-	for i := 0; i < 4; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+	for range 4 {
+		wg.Go(func() {
 			for {
 				select {
 				case <-end:
@@ -261,7 +259,7 @@ func Test_counter_concurrencyCorrectness(t *testing.T) {
 					totalCount.Add(1)
 				}
 			}
-		}()
+		})
 	}
 
 	time.Sleep(200 * time.Millisecond)
@@ -305,7 +303,7 @@ func Test_counter_demandTracking(t *testing.T) {
 	assert.Equal(t, 0, c.countSeriesDemand())
 
 	// Add some series
-	for i := 0; i < 50; i++ {
+	for i := range 50 {
 		lbls := buildTestLabels([]string{"label"}, []string{fmt.Sprintf("value-%d", i)})
 		c.Inc(lbls, 1.0)
 	}
@@ -335,7 +333,7 @@ func Test_counter_demandVsActiveSeries(t *testing.T) {
 	c := newCounter("my_counter", lifecycler, map[string]string{}, 15*time.Minute)
 
 	// Add series up to a point
-	for i := 0; i < 30; i++ {
+	for i := range 30 {
 		lbls := buildTestLabels([]string{"label"}, []string{fmt.Sprintf("value-%d", i)})
 		c.Inc(lbls, 1.0)
 	}
@@ -364,7 +362,7 @@ func Test_counter_demandDecay(t *testing.T) {
 	c := newCounter("my_counter", noopLimiter, map[string]string{}, 15*time.Minute)
 
 	// Add series
-	for i := 0; i < 40; i++ {
+	for i := range 40 {
 		lbls := buildTestLabels([]string{"label"}, []string{fmt.Sprintf("value-%d", i)})
 		c.Inc(lbls, 1.0)
 	}
@@ -373,7 +371,7 @@ func Test_counter_demandDecay(t *testing.T) {
 	assert.Greater(t, initialDemand, 0)
 
 	// Advance the cardinality tracker enough times to clear the window
-	for i := 0; i < 5; i++ {
+	for range 5 {
 		c.removeStaleSeries(time.Now().UnixMilli())
 	}
 

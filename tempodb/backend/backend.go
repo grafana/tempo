@@ -36,7 +36,7 @@ type CacheInfo struct {
 }
 
 // AppendTracker is an empty interface usable by the backend to track a long running append operation
-type AppendTracker interface{}
+type AppendTracker any
 
 // Writer is a collection of methods to write data to tempodb backends
 type Writer interface {

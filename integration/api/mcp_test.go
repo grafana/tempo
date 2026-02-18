@@ -114,7 +114,7 @@ func assertTraceOverMCP(t *testing.T, mcpClient mcpclient.MCPClient, traceID str
 	resp, err := mcpClient.CallTool(context.Background(), mcp.CallToolRequest{
 		Params: mcp.CallToolParams{
 			Name:      "get-trace",
-			Arguments: map[string]interface{}{"trace_id": traceID},
+			Arguments: map[string]any{"trace_id": traceID},
 		},
 	})
 	require.NoError(t, err)

@@ -3,6 +3,8 @@ package regexp
 import (
 	"fmt"
 	"regexp"
+	"slices"
+	"strings"
 	"unsafe"
 
 	"github.com/prometheus/prometheus/model/labels"
@@ -34,11 +36,8 @@ func NewRegexp(regexps []string, shouldMatch bool) (*Regexp, error) {
 	// only memoize if there's a unoptimized matcher
 	// TODO: should we limit memoization to N values?
 	var matches map[string]bool
-	for _, m := range matchers {
-		if shouldMemoize(m) {
-			matches = make(map[string]bool)
-			break
-		}
+	if slices.ContainsFunc(matchers, shouldMemoize) {
+		matches = make(map[string]bool)
 	}
 
 	return &Regexp{
@@ -82,12 +81,12 @@ func (r *Regexp) Reset() {
 }
 
 func (r *Regexp) String() string {
-	var strings string
+	var strings strings.Builder
 	for _, m := range r.matchers {
-		strings += fmt.Sprintf("%s, ", m.GetRegexString())
+		strings.WriteString(fmt.Sprintf("%s, ", m.GetRegexString()))
 	}
 
-	return strings
+	return strings.String()
 }
 
 // cheatToSeeInternals is a struct that mirrors the memory layout of labels.FastRegexMatcher

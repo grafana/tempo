@@ -112,7 +112,7 @@ func TestForwarder_shutdown(t *testing.T) {
 		require.NoError(t, f.stop(nil))
 	}()
 
-	for i := 0; i < 100; i++ {
+	for range 100 {
 		f.SendTraces(context.Background(), tenantID, keys, rebatchedTraces)
 	}
 }

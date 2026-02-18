@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"sort"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -97,7 +97,7 @@ func (rw *readerWriter) compactOneTenant(ctx context.Context) {
 
 	// Iterate through tenants each cycle
 	// Sort tenants for stability (since original map does not guarantee order)
-	sort.Slice(tenants, func(i, j int) bool { return tenants[i] < tenants[j] })
+	slices.Sort(tenants)
 	rw.compactorTenantOffset = (rw.compactorTenantOffset + 1) % uint(len(tenants))
 
 	// Select the next tenant to run compaction for
@@ -333,7 +333,7 @@ func (rw *readerWriter) CompactWithConfig(ctx context.Context, blockMetas []*bac
 
 	metricCompactionBlocks.WithLabelValues(compactionLevelLabel).Add(float64(len(blockMetas)))
 
-	logArgs := []interface{}{
+	logArgs := []any{
 		"msg",
 		"compaction complete",
 		"elapsed",

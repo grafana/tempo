@@ -12,12 +12,12 @@ type Duration struct {
 
 // MarshalJSON implements json.Marshaler.
 func (d *Duration) MarshalJSON() ([]byte, error) {
-	return []byte(fmt.Sprintf(`"%s"`, d.String())), nil
+	return fmt.Appendf(nil, `"%s"`, d.String()), nil
 }
 
 // UnmarshalJSON implements json.Unmarshaler.
 func (d *Duration) UnmarshalJSON(input []byte) error {
-	var unmarshalledJSON interface{}
+	var unmarshalledJSON any
 
 	err := json.Unmarshal(input, &unmarshalledJSON)
 	if err != nil {

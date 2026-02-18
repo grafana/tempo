@@ -111,19 +111,19 @@ func TestUserConfigOverridesManager_allFields(t *testing.T) {
 		Forwarders: &[]string{"my-forwarder"},
 		MetricsGenerator: userconfigurableoverrides.LimitsMetricsGenerator{
 			Processors:                      map[string]struct{}{"service-graphs": {}},
-			DisableCollection:               boolPtr(true),
+			DisableCollection:               new(true),
 			CollectionInterval:              &userconfigurableoverrides.Duration{Duration: 60 * time.Second},
-			TraceIDLabelName:                strPtr("trace_id"),
+			TraceIDLabelName:                new("trace_id"),
 			IngestionSlack:                  &userconfigurableoverrides.Duration{Duration: 45 * time.Second},
-			GenerateNativeHistograms:        (*histograms.HistogramMethod)(strPtr("native")),
+			GenerateNativeHistograms:        (*histograms.HistogramMethod)(new("native")),
 			NativeHistogramMaxBucketNumber:  func(u uint32) *uint32 { return &u }(101),
 			NativeHistogramBucketFactor:     func(f float64) *float64 { return &f }(1.4),
 			NativeHistogramMinResetDuration: &userconfigurableoverrides.Duration{Duration: 5 * time.Minute},
 			Processor: userconfigurableoverrides.LimitsMetricsGeneratorProcessor{
 				ServiceGraphs: userconfigurableoverrides.LimitsMetricsGeneratorProcessorServiceGraphs{
 					Dimensions:               &[]string{"sg-dimension"},
-					EnableClientServerPrefix: boolPtr(true),
-					EnableVirtualNodeLabel:   boolPtr(true),
+					EnableClientServerPrefix: new(true),
+					EnableVirtualNodeLabel:   new(true),
 					PeerAttributes:           &[]string{"attribute"},
 					FilterPolicies: &[]filterconfig.FilterPolicy{
 						{
@@ -139,18 +139,18 @@ func TestUserConfigOverridesManager_allFields(t *testing.T) {
 						},
 					},
 					HistogramBuckets:  &[]float64{1, 2, 3, 4, 5},
-					SpanMultiplierKey: strPtr("custom_key"),
+					SpanMultiplierKey: new("custom_key"),
 				},
 				SpanMetrics: userconfigurableoverrides.LimitsMetricsGeneratorProcessorSpanMetrics{
 					Dimensions:          &[]string{"sm-dimension"},
-					IntrinsicDimensions: mapBoolPtr(map[string]bool{"service": true, "span_name": false}),
+					IntrinsicDimensions: new(map[string]bool{"service": true, "span_name": false}),
 					DimensionMappings: &[]sharedconfig.DimensionMappings{{
 						Name:        "svc",
 						SourceLabel: []string{"service"},
 						Join:        "",
 					}},
-					EnableTargetInfo:    boolPtr(true),
-					EnableInstanceLabel: boolPtr(false),
+					EnableTargetInfo:    new(true),
+					EnableInstanceLabel: new(false),
 					FilterPolicies: &[]filterconfig.FilterPolicy{
 						{
 							Include: &filterconfig.PolicyMatch{
@@ -175,7 +175,7 @@ func TestUserConfigOverridesManager_allFields(t *testing.T) {
 					},
 					HistogramBuckets:             &[]float64{10, 20, 30, 40, 50},
 					TargetInfoExcludedDimensions: &[]string{"some-label"},
-					SpanMultiplierKey:            strPtr("custom_key"),
+					SpanMultiplierKey:            new("custom_key"),
 				},
 			},
 		},
@@ -244,7 +244,7 @@ func TestUserConfigOverridesManager_MetricsGeneratorSpanNameSanitization(t *test
 	// Set user-configurable override for tenant1
 	mgr.tenantLimits[tenant1] = &userconfigurableoverrides.Limits{
 		MetricsGenerator: userconfigurableoverrides.LimitsMetricsGenerator{
-			SpanNameSanitization: strPtr("enabled"),
+			SpanNameSanitization: new("enabled"),
 		},
 	}
 
@@ -257,7 +257,7 @@ func TestUserConfigOverridesManager_MetricsGeneratorSpanNameSanitization(t *test
 	// Update override for tenant1
 	mgr.tenantLimits[tenant1] = &userconfigurableoverrides.Limits{
 		MetricsGenerator: userconfigurableoverrides.LimitsMetricsGenerator{
-			SpanNameSanitization: strPtr("strict"),
+			SpanNameSanitization: new("strict"),
 		},
 	}
 
@@ -377,7 +377,7 @@ func TestUserConfigOverridesManager_WriteStatusRuntimeConfig(t *testing.T) {
 			require.Contains(t, data, "my-other-forwarder")
 
 			// Verify the YAML output can be unmarshalled back
-			var config map[string]interface{}
+			var config map[string]any
 			require.NoError(t, yaml.UnmarshalStrict(w.Body.Bytes(), &config))
 
 			require.Contains(t, config, "defaults")
@@ -479,12 +479,14 @@ func (b *badClient) Delete(context.Context, string, backend.Version) error {
 func (b badClient) Shutdown() {
 }
 
+//go:fix inline
 func boolPtr(b bool) *bool {
-	return &b
+	return new(b)
 }
 
+//go:fix inline
 func mapBoolPtr(m map[string]bool) *map[string]bool {
-	return &m
+	return new(m)
 }
 
 // TestUserConfigOverridesManager_MergeRuntimeConfig tests that per tenant runtime overrides
@@ -505,13 +507,13 @@ func TestUserConfigOverridesManager_MergeRuntimeConfig(t *testing.T) {
 		Forwarders: &[]string{"my-other-forwarder"},
 		MetricsGenerator: userconfigurableoverrides.LimitsMetricsGenerator{
 			Processors:                      map[string]struct{}{"local-blocks": {}},
-			TraceIDLabelName:                strPtr("custom_trace_id"),
+			TraceIDLabelName:                new("custom_trace_id"),
 			IngestionSlack:                  &userconfigurableoverrides.Duration{Duration: time.Minute},
 			NativeHistogramBucketFactor:     func(f float64) *float64 { return &f }(2.1),
 			NativeHistogramMinResetDuration: &userconfigurableoverrides.Duration{Duration: 2 * time.Minute},
 			Processor: userconfigurableoverrides.LimitsMetricsGeneratorProcessor{
 				SpanMetrics: userconfigurableoverrides.LimitsMetricsGeneratorProcessorSpanMetrics{
-					IntrinsicDimensions: mapBoolPtr(map[string]bool{"service": true}),
+					IntrinsicDimensions: new(map[string]bool{"service": true}),
 					DimensionMappings: &[]sharedconfig.DimensionMappings{{
 						Name:        "svc",
 						SourceLabel: []string{"service"},
@@ -623,7 +625,7 @@ func perTenantRuntimeOverrides(tenantID string) *perTenantOverrides {
 							HistogramBuckets:         []float64{0.002, 0.004, 0.008, 0.016, 0.032, 0.064},
 							Dimensions:               []string{"k8s.cluster-name", "k8s.namespace.name", "http.method", "http.route", "http.status_code", "service.version"},
 							PeerAttributes:           []string{"foo", "bar"},
-							EnableClientServerPrefix: boolPtr(true),
+							EnableClientServerPrefix: new(true),
 						},
 						SpanMetrics: SpanMetricsOverrides{
 							HistogramBuckets:             []float64{0.002, 0.004, 0.008, 0.016, 0.032, 0.064},
@@ -631,9 +633,9 @@ func perTenantRuntimeOverrides(tenantID string) *perTenantOverrides {
 							IntrinsicDimensions:          map[string]bool{"foo": true, "bar": true},
 							FilterPolicies:               []filterconfig.FilterPolicy{{Exclude: &filterconfig.PolicyMatch{MatchType: filterconfig.Regex, Attributes: []filterconfig.MatchPolicyAttribute{{Key: "resource.service.name", Value: "unknown_service:myservice"}}}}},
 							DimensionMappings:            []sharedconfig.DimensionMappings{{Name: "foo", SourceLabel: []string{"bar"}, Join: "baz"}},
-							EnableTargetInfo:             boolPtr(true),
+							EnableTargetInfo:             new(true),
 							TargetInfoExcludedDimensions: []string{"bar", "namespace", "env"},
-							EnableInstanceLabel:          boolPtr(false),
+							EnableInstanceLabel:          new(false),
 						},
 						LocalBlocks: LocalBlocksOverrides{
 							MaxLiveTraces:        100,
@@ -665,6 +667,7 @@ func perTenantRuntimeOverrides(tenantID string) *perTenantOverrides {
 	return pto
 }
 
+//go:fix inline
 func strPtr(s string) *string {
-	return &s
+	return new(s)
 }

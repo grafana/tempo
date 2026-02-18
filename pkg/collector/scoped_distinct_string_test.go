@@ -160,11 +160,11 @@ func TestScopedDistinctStringCollectorIsSafe(t *testing.T) {
 	d := NewScopedDistinctString(0, 0, 0) // no limit
 
 	var wg sync.WaitGroup
-	for i := 0; i < 10; i++ {
+	for i := range 10 {
 		wg.Add(1)
 		go func(id int) {
 			defer wg.Done()
-			for j := 0; j < 100; j++ {
+			for j := range 100 {
 				d.Collect(fmt.Sprintf("scope-%d", id), fmt.Sprintf("goroutine-%d-string-%d", id, j))
 			}
 		}(i)
@@ -187,9 +187,9 @@ func BenchmarkScopedDistinctStringCollect(b *testing.B) {
 	ingesterTags := make([]map[string][]string, numIngesters)
 	scopeTypes := []string{"resource", "span", "event", "instrumentation"}
 
-	for i := 0; i < numIngesters; i++ {
+	for i := range numIngesters {
 		tags := make(map[string][]string)
-		for j := 0; j < numTagsPerIngester; j++ {
+		for j := range numTagsPerIngester {
 			scope := scopeTypes[j%len(scopeTypes)]
 			value := fmt.Sprintf("tag_%d_%d", i, j)
 			tags[scope] = append(tags[scope], value)
@@ -224,7 +224,7 @@ func BenchmarkScopedDistinctStringCollect(b *testing.B) {
 		b.Run("duplicates_limit:"+strconv.Itoa(lim), func(b *testing.B) {
 			for n := 0; n < b.N; n++ {
 				scopedDistinctStrings := NewScopedDistinctString(lim, 0, 0)
-				for i := 0; i < numIngesters; i++ {
+				for i := range numIngesters {
 					for scope := range ingesterTags[i] {
 						// collect first item to simulate duplicates
 						if scopedDistinctStrings.Collect(scope, ingesterTags[i][scope][0]) {

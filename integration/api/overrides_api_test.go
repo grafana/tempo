@@ -30,7 +30,7 @@ func TestOverridesWithObjectStorage(t *testing.T) {
 		// Create overrides
 		initialLimits := &client.Limits{
 			MetricsGenerator: client.LimitsMetricsGenerator{
-				DisableCollection: boolPtr(true),
+				DisableCollection: new(true),
 			},
 		}
 
@@ -93,10 +93,10 @@ func TestOverridesWithObjectStorage(t *testing.T) {
 			MetricsGenerator: client.LimitsMetricsGenerator{
 				GenerateNativeHistograms:       histogramModePtr(histograms.HistogramMethodNative),
 				NativeHistogramMaxBucketNumber: uint32Ptr(200),
-				DisableCollection:              boolPtr(true),
+				DisableCollection:              new(true),
 				Processor: client.LimitsMetricsGeneratorProcessor{
 					SpanMetrics: client.LimitsMetricsGeneratorProcessorSpanMetrics{
-						EnableInstanceLabel: boolPtr(false),
+						EnableInstanceLabel: new(false),
 					},
 				},
 			},
@@ -145,7 +145,7 @@ func TestOverridesWithObjectStorage(t *testing.T) {
 		// Recreate overrides - PATCH
 		patch = &client.Limits{
 			MetricsGenerator: client.LimitsMetricsGenerator{
-				DisableCollection: boolPtr(true),
+				DisableCollection: new(true),
 			},
 		}
 
@@ -179,7 +179,7 @@ func TestOverridesAPI_GET(t *testing.T) {
 					Dimensions: &map[string]string{"host.name": "host_name"},
 				},
 				MetricsGenerator: client.LimitsMetricsGenerator{
-					DisableCollection: boolPtr(false),
+					DisableCollection: new(false),
 				},
 			}
 			setEtag, err := apiClient.SetOverrides(initialLimits, "0")
@@ -221,7 +221,7 @@ func TestOverridesAPI_POST(t *testing.T) {
 
 			limits := &client.Limits{
 				MetricsGenerator: client.LimitsMetricsGenerator{
-					DisableCollection: boolPtr(true),
+					DisableCollection: new(true),
 				},
 				CostAttribution: client.CostAttribution{
 					Dimensions: &map[string]string{"host.name": "host_name"},
@@ -266,7 +266,7 @@ func TestOverridesAPI_POST(t *testing.T) {
 			// Create initial config
 			limits := &client.Limits{
 				MetricsGenerator: client.LimitsMetricsGenerator{
-					DisableCollection: boolPtr(false),
+					DisableCollection: new(false),
 				},
 			}
 			etag, err := apiClient.SetOverrides(limits, "0")
@@ -300,7 +300,7 @@ func TestOverridesAPI_POST(t *testing.T) {
 			// create initial config
 			initialLimits := &client.Limits{
 				MetricsGenerator: client.LimitsMetricsGenerator{
-					DisableCollection: boolPtr(true),
+					DisableCollection: new(true),
 				},
 			}
 			setEtag, err := apiClient.SetOverrides(initialLimits, "0")
@@ -343,7 +343,7 @@ func TestOverridesAPI_PATCH(t *testing.T) {
 
 			patch := &client.Limits{
 				MetricsGenerator: client.LimitsMetricsGenerator{
-					DisableCollection: boolPtr(true),
+					DisableCollection: new(true),
 				},
 			}
 			returnedLimits, etag, err := apiClient.PatchOverrides(patch)
@@ -368,7 +368,7 @@ func TestOverridesAPI_PATCH(t *testing.T) {
 			// create initial config with processors
 			initialLimits := &client.Limits{
 				MetricsGenerator: client.LimitsMetricsGenerator{
-					DisableCollection: boolPtr(true),
+					DisableCollection: new(true),
 					Processors:        map[string]struct{}{"span-metrics": {}},
 				},
 			}
@@ -380,7 +380,7 @@ func TestOverridesAPI_PATCH(t *testing.T) {
 				MetricsGenerator: client.LimitsMetricsGenerator{
 					Processor: client.LimitsMetricsGeneratorProcessor{
 						SpanMetrics: client.LimitsMetricsGeneratorProcessorSpanMetrics{
-							EnableInstanceLabel: boolPtr(false),
+							EnableInstanceLabel: new(false),
 						},
 					},
 				},
@@ -530,7 +530,7 @@ func TestOverridesAPI_PATCH(t *testing.T) {
 			// Create initial config with POST
 			initialLimits := &client.Limits{
 				MetricsGenerator: client.LimitsMetricsGenerator{
-					DisableCollection: boolPtr(true),
+					DisableCollection: new(true),
 				},
 			}
 			setEtag, err := apiClient.SetOverrides(initialLimits, "0")
@@ -560,13 +560,13 @@ func TestOverridesAPI_PATCH(t *testing.T) {
 			// Create comprehensive config via PATCH
 			patch := &client.Limits{
 				MetricsGenerator: client.LimitsMetricsGenerator{
-					DisableCollection:              boolPtr(true),
+					DisableCollection:              new(true),
 					GenerateNativeHistograms:       histogramModePtr(histograms.HistogramMethodNative),
 					NativeHistogramMaxBucketNumber: uint32Ptr(200),
 					Processors:                     map[string]struct{}{"span-metrics": {}},
 					Processor: client.LimitsMetricsGeneratorProcessor{
 						SpanMetrics: client.LimitsMetricsGeneratorProcessorSpanMetrics{
-							EnableInstanceLabel: boolPtr(false),
+							EnableInstanceLabel: new(false),
 						},
 					},
 				},
@@ -610,7 +610,7 @@ func TestOverridesAPI_DELETE(t *testing.T) {
 			// create initial config
 			limits := &client.Limits{
 				MetricsGenerator: client.LimitsMetricsGenerator{
-					DisableCollection: boolPtr(true),
+					DisableCollection: new(true),
 				},
 			}
 			setEtag, err := apiClient.SetOverrides(limits, "0")
@@ -658,7 +658,7 @@ func TestOverridesAPI_DELETE(t *testing.T) {
 			// create config
 			limits := &client.Limits{
 				MetricsGenerator: client.LimitsMetricsGenerator{
-					DisableCollection: boolPtr(false),
+					DisableCollection: new(false),
 				},
 			}
 			setEtag, err := apiClient.SetOverrides(limits, "0")
@@ -690,7 +690,7 @@ func TestOverridesAPI_SpanNameSanitization(t *testing.T) {
 			// Create overrides with span_name_sanitization set to "enabled"
 			limits := &client.Limits{
 				MetricsGenerator: client.LimitsMetricsGenerator{
-					SpanNameSanitization: stringPtr("enabled"),
+					SpanNameSanitization: new("enabled"),
 				},
 			}
 			setEtag, err := apiClient.SetOverrides(limits, "0")
@@ -712,7 +712,7 @@ func TestOverridesAPI_SpanNameSanitization(t *testing.T) {
 			// Create initial config
 			initialLimits := &client.Limits{
 				MetricsGenerator: client.LimitsMetricsGenerator{
-					DisableCollection: boolPtr(true),
+					DisableCollection: new(true),
 				},
 			}
 			_, err := apiClient.SetOverrides(initialLimits, "0")
@@ -721,7 +721,7 @@ func TestOverridesAPI_SpanNameSanitization(t *testing.T) {
 			// PATCH with span_name_sanitization set to "dry_run"
 			patch := &client.Limits{
 				MetricsGenerator: client.LimitsMetricsGenerator{
-					SpanNameSanitization: stringPtr("dry_run"),
+					SpanNameSanitization: new("dry_run"),
 				},
 			}
 			returnedLimits, _, err := apiClient.PatchOverrides(patch)
@@ -746,7 +746,7 @@ func TestOverridesAPI_SpanNameSanitization(t *testing.T) {
 			// Try to set invalid span_name_sanitization value
 			limits := &client.Limits{
 				MetricsGenerator: client.LimitsMetricsGenerator{
-					SpanNameSanitization: stringPtr("invalid"),
+					SpanNameSanitization: new("invalid"),
 				},
 			}
 			_, err := apiClient.SetOverrides(limits, "0")
@@ -762,7 +762,7 @@ func TestOverridesAPI_SpanNameSanitization(t *testing.T) {
 			// Create initial config
 			initialLimits := &client.Limits{
 				MetricsGenerator: client.LimitsMetricsGenerator{
-					DisableCollection: boolPtr(true),
+					DisableCollection: new(true),
 				},
 			}
 			_, err := apiClient.SetOverrides(initialLimits, "0")
@@ -771,7 +771,7 @@ func TestOverridesAPI_SpanNameSanitization(t *testing.T) {
 			// Try to PATCH with invalid span_name_sanitization value
 			patch := &client.Limits{
 				MetricsGenerator: client.LimitsMetricsGenerator{
-					SpanNameSanitization: stringPtr("invalid"),
+					SpanNameSanitization: new("invalid"),
 				},
 			}
 			_, _, err = apiClient.PatchOverrides(patch)
@@ -796,16 +796,19 @@ func printLimits(limits *client.Limits, version string) {
 	fmt.Printf("* Overrides (version = %s): %+v\n", version, str)
 }
 
+//go:fix inline
 func boolPtr(b bool) *bool {
-	return &b
+	return new(b)
 }
 
+//go:fix inline
 func histogramModePtr(h histograms.HistogramMethod) *histograms.HistogramMethod {
-	return &h
+	return new(h)
 }
 
+//go:fix inline
 func uint32Ptr(u uint32) *uint32 {
-	return &u
+	return new(u)
 }
 
 func keys(m map[string]struct{}) []string {
@@ -816,6 +819,7 @@ func keys(m map[string]struct{}) []string {
 	return keys
 }
 
+//go:fix inline
 func stringPtr(s string) *string {
-	return &s
+	return new(s)
 }

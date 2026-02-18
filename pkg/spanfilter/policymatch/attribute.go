@@ -83,7 +83,7 @@ type AttributeFilter struct {
 }
 
 // NewAttributeFilter returns a new AttributeFilter based on the match type.
-func NewAttributeFilter(matchType config.MatchType, key string, value interface{}) (AttributeFilter, error) {
+func NewAttributeFilter(matchType config.MatchType, key string, value any) (AttributeFilter, error) {
 	if matchType == config.Regex {
 		return NewRegexpAttributeFilter(key, value)
 	}
@@ -91,7 +91,7 @@ func NewAttributeFilter(matchType config.MatchType, key string, value interface{
 }
 
 // NewStrictAttributeFilter returns a new AttributeFilter that matches against the given value.
-func NewStrictAttributeFilter(key string, value interface{}) (AttributeFilter, error) {
+func NewStrictAttributeFilter(key string, value any) (AttributeFilter, error) {
 	switch v := value.(type) {
 	case string:
 		return AttributeFilter{
@@ -129,7 +129,7 @@ func NewStrictAttributeFilter(key string, value interface{}) (AttributeFilter, e
 }
 
 // NewRegexpAttributeFilter returns a new AttributeFilter that matches against the given regex value.
-func NewRegexpAttributeFilter(key string, regex interface{}) (AttributeFilter, error) {
+func NewRegexpAttributeFilter(key string, regex any) (AttributeFilter, error) {
 	filter := AttributeFilter{
 		key: key,
 		typ: RegexAttributeFilter,

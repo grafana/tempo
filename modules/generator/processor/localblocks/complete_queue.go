@@ -83,7 +83,7 @@ func startCompleteQueue(concurrency uint) {
 	completeQueueRefs++
 	if completeQueueRefs == 1 {
 		completeQueue = flushqueues.NewPriorityQueue[*completeOp](metricCompleteQueueLength)
-		for i := uint(0); i < concurrency; i++ {
+		for range concurrency {
 			go completeLoop(completeQueue)
 		}
 	}

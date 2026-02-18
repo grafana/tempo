@@ -38,7 +38,7 @@ func TestLiveStoreBasicConsume(t *testing.T) {
 
 	// Push 10 traces and store their IDs and expected traces
 	expectedTraces := make(map[string]*tempopb.Trace)
-	for i := 0; i < 10; i++ {
+	for range 10 {
 		expectedID, expectedTrace := pushToLiveStore(t, liveStore)
 		expectedTraces[string(expectedID)] = expectedTrace
 	}
@@ -433,11 +433,11 @@ func TestLiveStoreQueryMethodsBeforeStarted(t *testing.T) {
 
 	testCases := []struct {
 		name     string
-		callFunc func() (interface{}, error)
+		callFunc func() (any, error)
 	}{
 		{
 			name: "SearchRecent",
-			callFunc: func() (interface{}, error) {
+			callFunc: func() (any, error) {
 				return liveStore.SearchRecent(ctx, &tempopb.SearchRequest{
 					Query: "{}",
 				})
@@ -445,7 +445,7 @@ func TestLiveStoreQueryMethodsBeforeStarted(t *testing.T) {
 		},
 		{
 			name: "SearchTags",
-			callFunc: func() (interface{}, error) {
+			callFunc: func() (any, error) {
 				return liveStore.SearchTags(ctx, &tempopb.SearchTagsRequest{
 					Scope: "span",
 				})
@@ -453,7 +453,7 @@ func TestLiveStoreQueryMethodsBeforeStarted(t *testing.T) {
 		},
 		{
 			name: "SearchTagsV2",
-			callFunc: func() (interface{}, error) {
+			callFunc: func() (any, error) {
 				return liveStore.SearchTagsV2(ctx, &tempopb.SearchTagsRequest{
 					Scope: "span",
 				})
@@ -461,7 +461,7 @@ func TestLiveStoreQueryMethodsBeforeStarted(t *testing.T) {
 		},
 		{
 			name: "SearchTagValues",
-			callFunc: func() (interface{}, error) {
+			callFunc: func() (any, error) {
 				return liveStore.SearchTagValues(ctx, &tempopb.SearchTagValuesRequest{
 					TagName: "foo",
 				})
@@ -469,7 +469,7 @@ func TestLiveStoreQueryMethodsBeforeStarted(t *testing.T) {
 		},
 		{
 			name: "SearchTagValuesV2",
-			callFunc: func() (interface{}, error) {
+			callFunc: func() (any, error) {
 				return liveStore.SearchTagValuesV2(ctx, &tempopb.SearchTagValuesRequest{
 					TagName: "foo",
 				})
@@ -477,7 +477,7 @@ func TestLiveStoreQueryMethodsBeforeStarted(t *testing.T) {
 		},
 		{
 			name: "QueryRange",
-			callFunc: func() (interface{}, error) {
+			callFunc: func() (any, error) {
 				return liveStore.QueryRange(ctx, &tempopb.QueryRangeRequest{
 					Query: "{} | count_over_time()",
 					Start: uint64(time.Now().Add(-time.Hour).UnixNano()),

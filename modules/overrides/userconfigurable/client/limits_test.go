@@ -11,12 +11,14 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+//go:fix inline
 func strPtr(s string) *string {
-	return &s
+	return new(s)
 }
 
+//go:fix inline
 func mapBoolPtr(m map[string]bool) *map[string]bool {
-	return &m
+	return new(m)
 }
 
 func TestLimits_parseJson(t *testing.T) {
@@ -85,21 +87,21 @@ func TestLimits_parseJson(t *testing.T) {
 				MetricsGenerator: LimitsMetricsGenerator{
 					Processors:                      map[string]struct{}{"service-graphs": {}},
 					CollectionInterval:              &Duration{Duration: 30 * time.Second},
-					TraceIDLabelName:                strPtr("my_trace_id"),
+					TraceIDLabelName:                new("my_trace_id"),
 					IngestionSlack:                  &Duration{Duration: 45 * time.Second},
 					NativeHistogramBucketFactor:     func(f float64) *float64 { return &f }(1.2),
 					NativeHistogramMinResetDuration: &Duration{Duration: 10 * time.Minute},
 					NativeHistogramMaxBucketNumber:  func(u uint32) *uint32 { return &u }(101),
-					GenerateNativeHistograms:        (*histograms.HistogramMethod)(strPtr("native")),
+					GenerateNativeHistograms:        (*histograms.HistogramMethod)(new("native")),
 					Processor: LimitsMetricsGeneratorProcessor{
 						ServiceGraphs: LimitsMetricsGeneratorProcessorServiceGraphs{
 							Dimensions:        &[]string{"cluster"},
-							SpanMultiplierKey: strPtr("custom_key"),
+							SpanMultiplierKey: new("custom_key"),
 						},
 						SpanMetrics: LimitsMetricsGeneratorProcessorSpanMetrics{
 							Dimensions:          &[]string{"cluster"},
 							HistogramBuckets:    &[]float64{0.1, 0.2, 0.5},
-							IntrinsicDimensions: mapBoolPtr(map[string]bool{"service": true}),
+							IntrinsicDimensions: new(map[string]bool{"service": true}),
 							DimensionMappings: &[]sharedconfig.DimensionMappings{
 								{
 									Name:        "foo",
@@ -112,11 +114,11 @@ func TestLimits_parseJson(t *testing.T) {
 									Join:        "",
 								},
 							},
-							SpanMultiplierKey: strPtr("custom_key"),
+							SpanMultiplierKey: new("custom_key"),
 						},
 						HostInfo: LimitsMetricGeneratorProcessorHostInfo{
 							HostIdentifiers: &[]string{"k8s.node.name", "host.id"},
-							MetricName:      strPtr("traces_host_info"),
+							MetricName:      new("traces_host_info"),
 						},
 					},
 				},
@@ -131,7 +133,7 @@ func TestLimits_parseJson(t *testing.T) {
 }`,
 			Limits{
 				MetricsGenerator: LimitsMetricsGenerator{
-					SpanNameSanitization: strPtr("enabled"),
+					SpanNameSanitization: new("enabled"),
 				},
 			},
 		},
