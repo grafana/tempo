@@ -36,14 +36,32 @@ storage:
 ```
 
 Due to the mechanics of the [tenant index](../../operations/monitor/polling/), the blocklist will be stale by
-at most 2 times the configured `blocklist_poll` duration. There are two mechanisms that handle this:
+at most 2 times the configured `blocklist_poll` duration.
 
-Live-stores serve recent trace data directly from Kafka, covering the gap between when a block-builder flushes a new block and when queriers discover it through polling. This means recently ingested data is always available for queries regardless of blocklist staleness.
+## How blocks reach object storage
 
-The compaction `compacted_block_retention` is used to keep a block in the backend for a given period of time
-after it has been compacted and the data is no longer needed. This allows queriers with a stale blocklist to access
-these blocks successfully until they complete their polling cycles and have up-to-date blocklists.
-This should be at a minimum 2x the configured `blocklist_poll` duration.
+Block-builders consume trace data from Kafka and organize spans into blocks based on a configurable time window.
+Once a block is complete, the block-builder flushes it to object storage.
+After the block is written, queriers won't discover it until their next polling cycle completes.
+
+## Handling blocklist staleness
+
+Two mechanisms ensure data availability despite blocklist staleness:
+
+**Live-stores cover the recent data gap.** Live-stores serve recent trace data directly from Kafka, covering the window between when a block-builder flushes a new block and when queriers discover it through polling.
+The query-frontend uses `query_backend_after` to control when backend storage is searched:
+
+- Time ranges more recent than `query_backend_after` are searched only in live-stores.
+- Time ranges older than `query_backend_after` are searched in backend storage.
+
+```
+query_frontend:
+    search:
+        # Time after which the query-frontend starts searching backend storage. Default is 15m.
+        [query_backend_after: <duration>]
+```
+
+**Compacted block retention prevents premature deletion.** The `compacted_block_retention` keeps a block in object storage for a period of time after it has been compacted and the data has been merged into a new block. This allows queriers with a stale blocklist to still access these blocks until they complete their polling cycles and have up-to-date blocklists. This should be at a minimum 2x the configured `blocklist_poll` duration.
 
 ```
 backend_worker:
