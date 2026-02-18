@@ -65,7 +65,8 @@
       volume.fromConfigMap(tempo_config_volume, $.tempo_metrics_generator_configmap.metadata.name),
       volume.fromConfigMap(tempo_overrides_config_volume, $._config.overrides_configmap_name),
       volume.fromEmptyDir(tempo_data_volume),
-    ])
+    ]) +
+    deployment.spec.template.spec.securityContext.withFsGroup(10001)  // 10001 is the UID of the tempo user
   ,
 
   newGeneratorStatefulSet(name, container, with_anti_affinity=true)::
