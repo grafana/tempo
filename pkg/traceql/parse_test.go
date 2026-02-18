@@ -1824,8 +1824,9 @@ func TestParseRewrites(t *testing.T) {
 
 func TestMetricsFilter(t *testing.T) {
 	tests := []struct {
-		in       string
-		expected *RootExpr
+		in          string
+		expected    *RootExpr
+		expectedStr string
 	}{
 		{
 			in: `{ } | rate() > 10`,
@@ -1834,6 +1835,7 @@ func TestMetricsFilter(t *testing.T) {
 				newMetricsAggregate(metricsAggregateRate, nil),
 				newMetricsFilter(OpGreater, 10),
 			),
+			expectedStr: `{ true } | rate() > 10`,
 		},
 		{
 			in: `{ } | rate() by(name) >= 5.5`,
@@ -1844,6 +1846,7 @@ func TestMetricsFilter(t *testing.T) {
 				}),
 				newMetricsFilter(OpGreaterEqual, 5.5),
 			),
+			expectedStr: `{ true } | rate()by(name) >= 5.5`,
 		},
 		{
 			in: `{ } | rate() > 10s`,
@@ -1852,6 +1855,7 @@ func TestMetricsFilter(t *testing.T) {
 				newMetricsAggregate(metricsAggregateRate, nil),
 				newMetricsFilter(OpGreater, 10),
 			),
+			expectedStr: `{ true } | rate() > 10`,
 		},
 		{
 			in: `{ } | count_over_time() < 100`,
@@ -1860,6 +1864,7 @@ func TestMetricsFilter(t *testing.T) {
 				newMetricsAggregate(metricsAggregateCountOverTime, nil),
 				newMetricsFilter(OpLess, 100),
 			),
+			expectedStr: `{ true } | count_over_time() < 100`,
 		},
 		{
 			in: `{ } | rate() <= 0.5`,
@@ -1868,6 +1873,7 @@ func TestMetricsFilter(t *testing.T) {
 				newMetricsAggregate(metricsAggregateRate, nil),
 				newMetricsFilter(OpLessEqual, 0.5),
 			),
+			expectedStr: `{ true } | rate() <= 0.5`,
 		},
 		{
 			in: `{ } | rate() = 42`,
@@ -1876,6 +1882,7 @@ func TestMetricsFilter(t *testing.T) {
 				newMetricsAggregate(metricsAggregateRate, nil),
 				newMetricsFilter(OpEqual, 42),
 			),
+			expectedStr: `{ true } | rate() = 42`,
 		},
 		{
 			in: `{ } | rate() != 0`,
@@ -1884,6 +1891,7 @@ func TestMetricsFilter(t *testing.T) {
 				newMetricsAggregate(metricsAggregateRate, nil),
 				newMetricsFilter(OpNotEqual, 0),
 			),
+			expectedStr: `{ true } | rate() != 0`,
 		},
 		{
 			in: `{ } | rate() > -3`,
@@ -1892,6 +1900,7 @@ func TestMetricsFilter(t *testing.T) {
 				newMetricsAggregate(metricsAggregateRate, nil),
 				newMetricsFilter(OpGreater, -3),
 			),
+			expectedStr: `{ true } | rate() > -3`,
 		},
 		{
 			in: `{ } | rate() > -2.5`,
@@ -1900,6 +1909,7 @@ func TestMetricsFilter(t *testing.T) {
 				newMetricsAggregate(metricsAggregateRate, nil),
 				newMetricsFilter(OpGreater, -2.5),
 			),
+			expectedStr: `{ true } | rate() > -2.5`,
 		},
 		{
 			in: `{ } | rate() > 10 with(foo="bar")`,
@@ -1910,6 +1920,7 @@ func TestMetricsFilter(t *testing.T) {
 			).withHints(newHints([]*Hint{
 				newHint("foo", NewStaticString("bar")),
 			})),
+			expectedStr: "{ true } | rate() > 10 with(foo=`bar`)",
 		},
 	}
 
@@ -1919,6 +1930,8 @@ func TestMetricsFilter(t *testing.T) {
 
 			require.NoError(t, err)
 			require.Equal(t, tc.expected, actual)
+			q := actual.String()
+			require.Equal(t, tc.expectedStr, q, "stringified query should match expected string")
 		})
 	}
 }
