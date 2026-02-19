@@ -47,7 +47,8 @@ After the block is written, queriers won't discover it until their next polling 
 ## Handling blocklist staleness
 
 Two mechanisms ensure data availability despite blocklist staleness:
-
+- Live-stores cover the recent data gap
+- Compacted block retention prevents premature deletion
 
 ### Live-stores cover the recent data gap
 
