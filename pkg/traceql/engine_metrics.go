@@ -32,22 +32,44 @@ func DefaultQueryRangeStep(start, end uint64) uint64 {
 	delta := time.Duration(end - start)
 
 	// Try to get this many data points
-	// Our baseline is is 1 hour @ 15s intervals
+	// Our baseline is 1 hour @ 15s intervals == 240 data points
 	baseline := delta / 240
 
-	// Round down in intervals of 5s
-	interval := baseline / (5 * time.Second) * (5 * time.Second)
-
-	if interval < 5*time.Second {
-		// Round down in intervals of 1s
-		interval = baseline / time.Second * time.Second
+	// Edge case - when the time window is less than 1 minute, Grafana
+	// shows millisconds precision. In this case we can use a step in the millisecond range.
+	// In all other cases, the minimum step will be 1s.
+	if delta < time.Minute {
+		g := 50 * time.Millisecond
+		if baseline > g {
+			rounded := baseline / g * g
+			return uint64(rounded.Nanoseconds())
+		}
+		// Minimum granularity.
+		return uint64(g.Nanoseconds())
 	}
 
-	if interval < time.Second {
-		return uint64(time.Second.Nanoseconds())
+	// Default granularities. These match the timestamp
+	// precisions in vParquet5 and later block formats.
+	granularities := []time.Duration{
+		time.Hour,
+		5 * time.Minute,
+		time.Minute,
+		15 * time.Second,
+		5 * time.Second,
+		time.Second,
 	}
 
-	return uint64(interval.Nanoseconds())
+	for _, g := range granularities {
+		if baseline > g {
+			// Round down to nearest multiple of this granularity.
+			// This means that we err on the side of more data points.
+			rounded := baseline / g * g
+			return uint64(rounded.Nanoseconds())
+		}
+	}
+
+	// Default minimum granularity.
+	return uint64(time.Second.Nanoseconds())
 }
 
 // TrimToBlockOverlap returns the overlap between the given time range and block.  It is used to
@@ -156,6 +178,19 @@ func AlignRequest(req *tempopb.QueryRangeRequest) {
 	if req.Start > req.Step { // to avoid overflow
 		req.Start -= req.Step // force to have additional initial bucket
 	}
+}
+
+func AlignEndToLeft(req *tempopb.QueryRangeRequest) {
+	if IsInstant(req) {
+		return
+	}
+
+	if req.Step == 0 {
+		return
+	}
+
+	mod := req.End % req.Step
+	req.End -= mod
 }
 
 // Start time is rounded down to next step

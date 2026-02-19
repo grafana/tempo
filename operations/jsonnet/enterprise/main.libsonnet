@@ -53,11 +53,6 @@ tempo {
         },
       },
     },
-    ingester+: {
-      replicas: 3,
-      pvc_size: '50Gi',
-      pvc_storage_class: 'fast',
-    },
   },
 
   tempo_config+:: {
@@ -116,7 +111,6 @@ tempo {
     'gateway.proxy.admin-api.url': 'http://admin-api:%s' % $._config.port,
     'gateway.proxy.compactor.url': 'http://compactor:%s' % $._config.port,
     'gateway.proxy.distributor.url': 'h2c://distributor:%s' % $._config.otlp_port,
-    'gateway.proxy.ingester.url': 'http://ingester:%s' % $._config.port,
     'gateway.proxy.querier.url': 'http://querier:%s' % $._config.port,
     'gateway.proxy.query-frontend.url': 'http://query-frontend:%s' % $._config.port,
     'mem-ballast-size-mbs': $._config.ballast_size_mbs,

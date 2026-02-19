@@ -541,8 +541,12 @@ func sliceDecoder(r *Registry) MapperFunc {
 		if ctx.Value.Flag != nil {
 			t := ctx.Scan.Pop()
 			// If decoding a flag, we need a value.
+			tail := ""
+			if sep != -1 {
+				tail += string(sep) + "..."
+			}
 			if t.IsEOL() {
-				return fmt.Errorf("missing value, expecting \"<arg>%c...\"", sep)
+				return fmt.Errorf("missing value, expecting \"<arg>%s\"", tail)
 			}
 			switch v := t.Value.(type) {
 			case string:

@@ -41,6 +41,7 @@ func (c *Overrides) toLegacy() LegacyOverrides {
 		MetricsGeneratorProcessorServiceGraphsHistogramBuckets:                      c.MetricsGenerator.Processor.ServiceGraphs.HistogramBuckets,
 		MetricsGeneratorProcessorServiceGraphsDimensions:                            c.MetricsGenerator.Processor.ServiceGraphs.Dimensions,
 		MetricsGeneratorProcessorServiceGraphsPeerAttributes:                        c.MetricsGenerator.Processor.ServiceGraphs.PeerAttributes,
+		MetricsGeneratorProcessorServiceGraphsFilterPolicies:                        c.MetricsGenerator.Processor.ServiceGraphs.FilterPolicies,
 		MetricsGeneratorProcessorServiceGraphsEnableClientServerPrefix:              c.MetricsGenerator.Processor.ServiceGraphs.EnableClientServerPrefix,
 		MetricsGeneratorProcessorServiceGraphsEnableMessagingSystemLatencyHistogram: c.MetricsGenerator.Processor.ServiceGraphs.EnableMessagingSystemLatencyHistogram,
 		MetricsGeneratorProcessorServiceGraphsEnableVirtualNodeLabel:                c.MetricsGenerator.Processor.ServiceGraphs.EnableVirtualNodeLabel,
@@ -66,6 +67,8 @@ func (c *Overrides) toLegacy() LegacyOverrides {
 		MetricsGeneratorNativeHistogramBucketFactor:                                 c.MetricsGenerator.NativeHistogramBucketFactor,
 		MetricsGeneratorNativeHistogramMaxBucketNumber:                              c.MetricsGenerator.NativeHistogramMaxBucketNumber,
 		MetricsGeneratorNativeHistogramMinResetDuration:                             c.MetricsGenerator.NativeHistogramMinResetDuration,
+		MetricsGeneratorSpanNameSanitization:                                        c.MetricsGenerator.SpanNameSanitization,
+		MetricsGeneratorMaxCardinalityPerLabel:                                      c.MetricsGenerator.MaxCardinalityPerLabel,
 
 		BlockRetention:     c.Compaction.BlockRetention,
 		CompactionWindow:   c.Compaction.CompactionWindow,
@@ -76,6 +79,7 @@ func (c *Overrides) toLegacy() LegacyOverrides {
 		MaxSearchDuration:          c.Read.MaxSearchDuration,
 		MaxMetricsDuration:         c.Read.MaxMetricsDuration,
 		UnsafeQueryHints:           c.Read.UnsafeQueryHints,
+		LeftPadTraceIDs:            c.Read.LeftPadTraceIDs,
 
 		MaxBytesPerTrace: c.Global.MaxBytesPerTrace,
 
@@ -117,6 +121,8 @@ type LegacyOverrides struct {
 	MetricsGeneratorNativeHistogramBucketFactor                                 float64                          `yaml:"metrics_generator_native_histogram_bucket_factor,omitempty" json:"metrics_generator_native_histogram_bucket_factor,omitempty"`
 	MetricsGeneratorNativeHistogramMaxBucketNumber                              uint32                           `yaml:"metrics_generator_native_histogram_max_bucket_number,omitempty" json:"metrics_generator_native_histogram_max_bucket_number,omitempty"`
 	MetricsGeneratorNativeHistogramMinResetDuration                             time.Duration                    `yaml:"metrics_generator_native_histogram_min_reset_duration,omitempty" json:"native_histogram_min_reset_duration,omitempty"`
+	MetricsGeneratorSpanNameSanitization                                        string                           `yaml:"metrics_generator_span_name_sanitization" json:"metrics_generator_span_name_sanitization"`
+	MetricsGeneratorMaxCardinalityPerLabel                                      uint64                           `yaml:"metrics_generator_max_cardinality_per_label,omitempty" json:"metrics_generator_max_cardinality_per_label,omitempty"`
 	MetricsGeneratorTraceIDLabelName                                            string                           `yaml:"metrics_generator_trace_id_label_name" json:"metrics_generator_trace_id_label_name"`
 	MetricsGeneratorForwarderQueueSize                                          int                              `yaml:"metrics_generator_forwarder_queue_size" json:"metrics_generator_forwarder_queue_size"`
 	MetricsGeneratorForwarderWorkers                                            int                              `yaml:"metrics_generator_forwarder_workers" json:"metrics_generator_forwarder_workers"`
@@ -124,6 +130,7 @@ type LegacyOverrides struct {
 	MetricsGeneratorProcessorServiceGraphsHistogramBuckets                      []float64                        `yaml:"metrics_generator_processor_service_graphs_histogram_buckets" json:"metrics_generator_processor_service_graphs_histogram_buckets"`
 	MetricsGeneratorProcessorServiceGraphsDimensions                            []string                         `yaml:"metrics_generator_processor_service_graphs_dimensions" json:"metrics_generator_processor_service_graphs_dimensions"`
 	MetricsGeneratorProcessorServiceGraphsPeerAttributes                        []string                         `yaml:"metrics_generator_processor_service_graphs_peer_attributes" json:"metrics_generator_processor_service_graphs_peer_attributes"`
+	MetricsGeneratorProcessorServiceGraphsFilterPolicies                        []filterconfig.FilterPolicy      `yaml:"metrics_generator_processor_service_graphs_filter_policies" json:"metrics_generator_processor_service_graphs_filter_policies"`
 	MetricsGeneratorProcessorServiceGraphsEnableClientServerPrefix              *bool                            `yaml:"metrics_generator_processor_service_graphs_enable_client_server_prefix" json:"metrics_generator_processor_service_graphs_enable_client_server_prefix"`
 	MetricsGeneratorProcessorServiceGraphsEnableMessagingSystemLatencyHistogram *bool                            `yaml:"metrics_generator_processor_service_graphs_enable_messaging_system_latency_histogram" json:"metrics_generator_processor_service_graphs_enable_messaging_system_latency_histogram"`
 	MetricsGeneratorProcessorServiceGraphsEnableVirtualNodeLabel                *bool                            `yaml:"metrics_generator_processor_service_graphs_enable_virtual_node_label" json:"metrics_generator_processor_service_graphs_enable_virtual_node_label"`
@@ -160,6 +167,7 @@ type LegacyOverrides struct {
 	MaxSearchDuration  model.Duration `yaml:"max_search_duration" json:"max_search_duration"`
 	MaxMetricsDuration model.Duration `yaml:"max_metrics_duration" json:"max_metrics_duration"`
 	UnsafeQueryHints   bool           `yaml:"unsafe_query_hints" json:"unsafe_query_hints"`
+	LeftPadTraceIDs    bool           `yaml:"left_pad_trace_ids" json:"left_pad_trace_ids"`
 
 	// MaxBytesPerTrace is enforced in the Ingester, Compactor, Querier (Search). It
 	//  is not used when doing a trace by id lookup.
@@ -190,6 +198,7 @@ func (l *LegacyOverrides) toNewLimits() Overrides {
 			MaxSearchDuration:          l.MaxSearchDuration,
 			MaxMetricsDuration:         l.MaxMetricsDuration,
 			UnsafeQueryHints:           l.UnsafeQueryHints,
+			LeftPadTraceIDs:            l.LeftPadTraceIDs,
 		},
 		Compaction: CompactionOverrides{
 			BlockRetention:     l.BlockRetention,
@@ -216,6 +225,7 @@ func (l *LegacyOverrides) toNewLimits() Overrides {
 					HistogramBuckets:                      l.MetricsGeneratorProcessorServiceGraphsHistogramBuckets,
 					Dimensions:                            l.MetricsGeneratorProcessorServiceGraphsDimensions,
 					PeerAttributes:                        l.MetricsGeneratorProcessorServiceGraphsPeerAttributes,
+					FilterPolicies:                        l.MetricsGeneratorProcessorServiceGraphsFilterPolicies,
 					EnableClientServerPrefix:              l.MetricsGeneratorProcessorServiceGraphsEnableClientServerPrefix,
 					EnableMessagingSystemLatencyHistogram: l.MetricsGeneratorProcessorServiceGraphsEnableMessagingSystemLatencyHistogram,
 					EnableVirtualNodeLabel:                l.MetricsGeneratorProcessorServiceGraphsEnableVirtualNodeLabel,
@@ -248,6 +258,8 @@ func (l *LegacyOverrides) toNewLimits() Overrides {
 			NativeHistogramBucketFactor:     l.MetricsGeneratorNativeHistogramBucketFactor,
 			NativeHistogramMaxBucketNumber:  l.MetricsGeneratorNativeHistogramMaxBucketNumber,
 			NativeHistogramMinResetDuration: l.MetricsGeneratorNativeHistogramMinResetDuration,
+			SpanNameSanitization:            l.MetricsGeneratorSpanNameSanitization,
+			MaxCardinalityPerLabel:          l.MetricsGeneratorMaxCardinalityPerLabel,
 		},
 		Forwarders: l.Forwarders,
 		Global: GlobalOverrides{

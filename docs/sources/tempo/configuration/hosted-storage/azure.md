@@ -148,6 +148,29 @@ queryFrontend:
           key: tempo-traces-key
 ```
 
+### Azure Workload Identity
+
+Here is an example configuration using Azure Workload Identity.
+
+```yaml
+tempo:
+  podLabels:
+    "azure.workload.identity/use": "true"
+serviceAccount:
+  name: tempo
+  annotations:
+    "azure.workload.identity/client-id": <AZURE-APP-CLIENT-ID>
+  labels:
+    "azure.workload.identity/use": "true"
+storage:
+  trace:
+    backend: azure
+    azure:
+      container_name: <AZURE-STORAGE-CONTAINER-NAME>
+      storage_account_name: <AZURE-STORAGE-ACCOUNT-NAME>
+      use_federated_token: true
+```
+
 #### Use `local_blocks` and `metrics-generator`
 
 [//]: # "Shared content for localblocks and metrics-generator in Azure blob storage"

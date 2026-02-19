@@ -7,7 +7,6 @@ import (
 	"io"
 	"net/http"
 	"path"
-	"time"
 
 	"google.golang.org/grpc"
 
@@ -20,9 +19,9 @@ import (
 
 type metricsQueryCmd struct {
 	HostPort string `arg:"" help:"tempo host and port. scheme and path will be provided based on query type. e.g. localhost:3200"`
-	TraceQL  string `arg:"" optional:"" help:"traceql query"`
-	Start    string `arg:"" optional:"" help:"start time in ISO8601 format"`
-	End      string `arg:"" optional:"" help:"end time in ISO8601 format"`
+	TraceQL  string `arg:"" optional:"" help:"TraceQL query string"`
+	Start    string `arg:"" optional:"" help:"start time in RFC3339 (e.g. 2006-01-02T15:04:05Z07:00) or relative (e.g. now-1h) format"`
+	End      string `arg:"" optional:"" help:"end time in RFC3339 (e.g. 2006-01-02T15:04:05Z07:00) or relative (e.g. now) format"`
 
 	OrgID      string `help:"optional orgID"`
 	UseGRPC    bool   `help:"stream search results over GRPC"`
@@ -32,13 +31,13 @@ type metricsQueryCmd struct {
 }
 
 func (cmd *metricsQueryCmd) Run(_ *globalOptions) error {
-	startDate, err := time.Parse(time.RFC3339, cmd.Start)
+	startDate, err := parseTime(cmd.Start)
 	if err != nil {
 		return err
 	}
 	start := startDate.UnixNano()
 
-	endDate, err := time.Parse(time.RFC3339, cmd.End)
+	endDate, err := parseTime(cmd.End)
 	if err != nil {
 		return err
 	}

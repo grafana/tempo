@@ -102,10 +102,6 @@ func New(cfg Config, next pipeline.RoundTripper, o overrides.Interface, reader t
 		return nil, fmt.Errorf("frontend search target bytes per request should be greater than 0")
 	}
 
-	if cfg.Search.Sharder.QueryIngestersUntil < cfg.Search.Sharder.QueryBackendAfter {
-		return nil, fmt.Errorf("query backend after should be less than or equal to query ingester until")
-	}
-
 	if cfg.Search.Sharder.MostRecentShards <= 0 {
 		return nil, fmt.Errorf("most recent shards must be greater than 0")
 	}
@@ -229,7 +225,9 @@ func New(cfg Config, next pipeline.RoundTripper, o overrides.Interface, reader t
 	queryRangePipeline := pipeline.Build(
 		[]pipeline.AsyncMiddleware[combiner.PipelineResponse]{
 			headerStripWare,
-			adjustEndWareNanos,
+			// due to alignments and combiner, it needs to be done in handler
+			// TODO: initialise combiner after middlewares and uncomment
+			// adjustEndWareNanos,
 			urlDenyListWare,
 			queryValidatorWare,
 			pipeline.NewWeightRequestWare(pipeline.TraceQLMetrics, cfg.Weights),
@@ -256,7 +254,7 @@ func New(cfg Config, next pipeline.RoundTripper, o overrides.Interface, reader t
 
 	traces := newTraceIDHandler(cfg, tracePipeline, o, combiner.NewTypedTraceByID, logger, dataAccessController)
 	tracesV2 := newTraceIDV2Handler(cfg, tracePipeline, o, combiner.NewTypedTraceByIDV2, logger, dataAccessController)
-	search := newSearchHTTPHandler(cfg, searchPipeline, logger, dataAccessController)
+	search := newSearchHTTPHandler(cfg, searchPipeline, o, logger, dataAccessController)
 	searchTags := newTagsHTTPHandler(cfg, searchTagsPipeline, o, logger, dataAccessController)
 	searchTagsV2 := newTagsV2HTTPHandler(cfg, searchTagsPipeline, o, logger, dataAccessController)
 	searchTagValues := newTagValuesHTTPHandler(cfg, searchTagValuesPipeline, o, logger, dataAccessController)
@@ -279,7 +277,7 @@ func New(cfg Config, next pipeline.RoundTripper, o overrides.Interface, reader t
 		MetricsQueryRangeHandler:   newHandler(cfg.Config.LogQueryRequestHeaders, queryRange, logger),
 
 		// grpc/streaming
-		streamingSearch:       newSearchStreamingGRPCHandler(cfg, searchPipeline, apiPrefix, logger, dataAccessController),
+		streamingSearch:       newSearchStreamingGRPCHandler(cfg, searchPipeline, apiPrefix, o, logger, dataAccessController),
 		streamingTags:         newTagsStreamingGRPCHandler(cfg, searchTagsPipeline, apiPrefix, o, logger, dataAccessController),
 		streamingTagsV2:       newTagsV2StreamingGRPCHandler(cfg, searchTagsPipeline, apiPrefix, o, logger, dataAccessController),
 		streamingTagValues:    newTagValuesStreamingGRPCHandler(cfg, searchTagValuesPipeline, apiPrefix, o, logger, dataAccessController),

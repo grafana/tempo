@@ -215,7 +215,7 @@ distributor:
         cost_attribution:
             max_cardinality: 10000
             stale_duration: 15m0s
-    ingester_write_path_enabled: true
+    ingester_write_path_enabled: false
     kafka_write_path_enabled: false
     kafka_config:
         address: ""
@@ -400,7 +400,6 @@ query_frontend:
         max_result_limit: 0
         max_duration: 168h0m0s
         query_backend_after: 15m0s
-        query_ingesters_until: 30m0s
         ingester_shards: 3
         most_recent_shards: 200
         default_spans_per_span_set: 3
@@ -595,6 +594,7 @@ metrics_generator:
                 - db.namespace
                 - db.name
                 - db.system
+            filter_policies: []
         span_metrics:
             histogram_buckets:
                 - 0.002
@@ -1345,7 +1345,6 @@ live_store:
     wal:
         path: /var/tempo/live-store/traces
         ingestion_time_range_slack: 2m0s
-        version: vParquet4
     query_block_concurrency: 10
     complete_block_timeout: 1h0m0s
     complete_block_concurrency: 2
@@ -1421,4 +1420,6 @@ live_store:
               options: []
     readiness_target_lag: 0s
     readiness_max_wait: 30m0s
+    fail_on_high_lag: false
+    remove_owner_on_shutdown: true
 ```

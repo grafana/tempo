@@ -1075,7 +1075,7 @@ func TestLiveStoreQueryRange(t *testing.T) {
 	mover, err := overrides.NewOverrides(overrides.Config{}, nil, prometheus.DefaultRegisterer)
 	require.NoError(t, err)
 	// Create instance
-	inst, err := newInstance(tenant, cfg, w, mover, log.NewNopLogger())
+	inst, err := newInstance(tenant, cfg, w, encoding.DefaultEncoding(), mover, log.NewNopLogger())
 	require.NoError(t, err)
 
 	// Create test spans

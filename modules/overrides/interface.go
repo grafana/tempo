@@ -59,6 +59,7 @@ type Interface interface {
 	MetricsGeneratorProcessorServiceGraphsHistogramBuckets(userID string) []float64
 	MetricsGeneratorProcessorServiceGraphsDimensions(userID string) []string
 	MetricsGeneratorProcessorServiceGraphsPeerAttributes(userID string) []string
+	MetricsGeneratorProcessorServiceGraphsFilterPolicies(userID string) []config.FilterPolicy
 	MetricsGeneratorProcessorSpanMetricsHistogramBuckets(userID string) []float64
 	MetricsGeneratorProcessorSpanMetricsDimensions(userID string) []string
 	MetricsGeneratorProcessorSpanMetricsIntrinsicDimensions(userID string) map[string]bool
@@ -83,12 +84,15 @@ type Interface interface {
 	MetricsGeneratorNativeHistogramBucketFactor(userID string) float64
 	MetricsGeneratorNativeHistogramMaxBucketNumber(userID string) uint32
 	MetricsGeneratorNativeHistogramMinResetDuration(userID string) time.Duration
+	MetricsGeneratorSpanNameSanitization(userID string) string
+	MetricsGeneratorMaxCardinalityPerLabel(userID string) uint64
 	BlockRetention(userID string) time.Duration
 	CompactionDisabled(userID string) bool
 	MaxSearchDuration(userID string) time.Duration
 	MaxMetricsDuration(userID string) time.Duration
 	DedicatedColumns(userID string) backend.DedicatedColumns
 	UnsafeQueryHints(userID string) bool
+	LeftPadTraceIDs(userID string) bool
 	CostAttributionMaxCardinality(userID string) uint64
 	CostAttributionDimensions(userID string) map[string]string
 

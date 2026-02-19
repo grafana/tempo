@@ -227,7 +227,7 @@ func (s searchTagSharder) RoundTrip(pipelineRequest pipeline.Request) (pipeline.
 			" received start=%d end=%d", maxDuration, searchReq.start(), searchReq.end())), nil
 	}
 
-	// build request to search ingester based on query_ingesters_until config and time range
+	// build request to search ingester based on query_backend_after config and time range
 	// pass subCtx in requests, so we can cancel and exit early
 	ingesterReq, err := s.ingesterRequest(tenantID, pipelineRequest, searchReq)
 	if err != nil {
@@ -337,7 +337,7 @@ func (s searchTagSharder) ingesterRequest(tenantID string, parent pipeline.Reque
 	}
 
 	now := time.Now()
-	ingesterUntil := uint32(now.Add(-s.cfg.QueryIngestersUntil).Unix())
+	ingesterUntil := uint32(now.Add(-s.cfg.QueryBackendAfter).Unix())
 
 	// if there's no overlap between the query and ingester range just return nil
 	if searchReq.end() < ingesterUntil {

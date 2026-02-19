@@ -166,13 +166,13 @@ func parseTagItems(tagString string, chr tagChars) (map[string][]string, error) 
 	return d, nil
 }
 
-func getTagInfo(ft reflect.StructField) (string, tagChars) {
-	s, ok := ft.Tag.Lookup("kong")
+func getTagInfo(tag reflect.StructTag) (string, tagChars) {
+	s, ok := tag.Lookup("kong")
 	if ok {
 		return s, kongChars
 	}
 
-	return string(ft.Tag), bareChars
+	return string(tag), bareChars
 }
 
 func newEmptyTag() *Tag {
@@ -204,10 +204,26 @@ func parseTag(parent reflect.Value, ft reflect.StructField) (*Tag, error) {
 		t.Ignored = true
 		return t, nil
 	}
-	items, err := parseTagItems(getTagInfo(ft))
+	items := map[string][]string{}
+	// First use a [Signature] if present
+	signatureTag, ok := maybeGetSignature(ft.Type)
+	if ok {
+		signatureItems, err := parseTagItems(getTagInfo(signatureTag))
+		if err != nil {
+			return nil, err
+		}
+		items = signatureItems
+	}
+	// Next overlay the field's tags.
+	fieldItems, err := parseTagItems(getTagInfo(ft.Tag))
 	if err != nil {
 		return nil, err
 	}
+	for key, value := range fieldItems {
+		// Prepend field tag values
+		items[key] = append(value, items[key]...)
+	}
+
 	t := &Tag{
 		items: items,
 	}
@@ -383,4 +399,35 @@ func (t *Tag) GetSep(k string, dflt rune) (rune, error) {
 		return r, fmt.Errorf(`%v:"%v" is more than a single rune`, k, tv)
 	}
 	return r, nil
+}
+
+// Signature allows flags, args and commands to supply a default set of tags,
+// that can be overridden by the field itself.
+type Signature interface {
+	// Signature returns default tags for the flag, arg or command.
+	//
+	// eg. `name:"migrate" help:"Run migrations" aliases:"mig,mg"`.
+	Signature() string
+}
+
+var signatureOverrideType = reflect.TypeOf((*Signature)(nil)).Elem()
+
+func maybeGetSignature(t reflect.Type) (reflect.StructTag, bool) {
+	ut := t
+	if ut.Kind() == reflect.Pointer {
+		ut = ut.Elem()
+	}
+	ptr := reflect.New(ut)
+	var sig string
+	for _, v := range []reflect.Value{ptr, ptr.Elem()} {
+		if v.Type().Implements(signatureOverrideType) {
+			sig = v.Interface().(Signature).Signature() //nolint:forcetypeassert
+			break
+		}
+	}
+	sig = strings.TrimSpace(sig)
+	if sig == "" {
+		return "", false
+	}
+	return reflect.StructTag(sig), true
 }

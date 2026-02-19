@@ -147,6 +147,65 @@ func TestProcessorConfig_copyWithOverrides(t *testing.T) {
 		}, copied.SpanMetrics.FilterPolicies)
 	})
 
+	t.Run("servicegraphs nil policy overrides", func(t *testing.T) {
+		o := &mockOverrides{
+			serviceGraphsFilterPolicies: nil,
+		}
+
+		copied, err := original.copyWithOverrides(o, "tenant")
+		require.NoError(t, err)
+
+		assert.Equal(t, *original, copied)
+	})
+
+	t.Run("servicegraphs empty policy overrides", func(t *testing.T) {
+		o := &mockOverrides{
+			serviceGraphsFilterPolicies: []config.FilterPolicy{},
+		}
+
+		copied, err := original.copyWithOverrides(o, "tenant")
+		require.NoError(t, err)
+
+		assert.NotEqual(t, *original, copied)
+		assert.Equal(t, []config.FilterPolicy{}, copied.ServiceGraphs.FilterPolicies)
+	})
+
+	t.Run("servicegraphs policy overrides", func(t *testing.T) {
+		o := &mockOverrides{
+			serviceGraphsFilterPolicies: []config.FilterPolicy{
+				{
+					Exclude: &config.PolicyMatch{
+						MatchType: config.Strict,
+						Attributes: []config.MatchPolicyAttribute{
+							{
+								Key:   "resource.service.name",
+								Value: "mythical-requester",
+							},
+						},
+					},
+				},
+			},
+		}
+
+		copied, err := original.copyWithOverrides(o, "tenant")
+		require.NoError(t, err)
+
+		assert.NotEqual(t, *original, copied)
+		assert.Equal(t, []config.FilterPolicy{
+			{
+				Exclude: &config.PolicyMatch{
+					MatchType: config.Strict,
+					Attributes: []config.MatchPolicyAttribute{
+						{
+							Key:   "resource.service.name",
+							Value: "mythical-requester",
+						},
+					},
+				},
+			},
+		}, copied.ServiceGraphs.FilterPolicies)
+	})
+
 	t.Run("span multiplier key overrides", func(t *testing.T) {
 		o := &mockOverrides{
 			serviceGraphsSpanMultiplierKey: "custom_key",

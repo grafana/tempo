@@ -50,10 +50,12 @@ func newMetrics(reg prometheus.Registerer) localSeriesLimiterMetrics {
 
 var metrics = newMetrics(prometheus.DefaultRegisterer)
 
+type maxSeriesFunc func(tenant string) uint32
+
 type LocalSeriesLimiter struct {
 	tenant                   string
 	activeSeries             atomic.Uint32
-	maxSeriesFunc            func(tenant string) uint32
+	maxSeriesFunc            maxSeriesFunc
 	limitLogger              *tempo_log.RateLimitedLogger
 	metricTotalSeriesLimited prometheus.Counter
 	metricActiveSeries       prometheus.Gauge
@@ -67,10 +69,10 @@ type LocalSeriesLimiter struct {
 
 var _ registry.Limiter = (*LocalSeriesLimiter)(nil)
 
-func New(maxSeriesFunc func(tenant string) uint32, tenant string, limitLogger *tempo_log.RateLimitedLogger) *LocalSeriesLimiter {
+func New(maxSeriesF maxSeriesFunc, tenant string, limitLogger *tempo_log.RateLimitedLogger) *LocalSeriesLimiter {
 	l := &LocalSeriesLimiter{
 		tenant:                   tenant,
-		maxSeriesFunc:            maxSeriesFunc,
+		maxSeriesFunc:            maxSeriesF,
 		limitLogger:              limitLogger,
 		metricTotalSeriesLimited: metrics.totalSeriesLimited.WithLabelValues(tenant),
 		metricActiveSeries:       metrics.activeSeries.WithLabelValues(tenant),

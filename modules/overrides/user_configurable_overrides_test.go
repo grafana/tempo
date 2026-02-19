@@ -91,6 +91,7 @@ func TestUserConfigOverridesManager_allFields(t *testing.T) {
 	assert.Empty(t, mgr.MetricsGeneratorProcessorServiceGraphsDimensions(tenant1))
 	assert.Empty(t, false, mgr.MetricsGeneratorProcessorServiceGraphsEnableClientServerPrefix(tenant1))
 	assert.Empty(t, mgr.MetricsGeneratorProcessorServiceGraphsPeerAttributes(tenant1))
+	assert.Empty(t, mgr.MetricsGeneratorProcessorServiceGraphsFilterPolicies(tenant1))
 	assert.Empty(t, mgr.MetricsGeneratorProcessorServiceGraphsHistogramBuckets(tenant1))
 	assert.Empty(t, mgr.MetricsGeneratorProcessorSpanMetricsDimensions(tenant1))
 	enableTargetInfoValue, enableTargetInfoIsSet := mgr.MetricsGeneratorProcessorSpanMetricsEnableTargetInfo(tenant1)
@@ -124,8 +125,21 @@ func TestUserConfigOverridesManager_allFields(t *testing.T) {
 					EnableClientServerPrefix: boolPtr(true),
 					EnableVirtualNodeLabel:   boolPtr(true),
 					PeerAttributes:           &[]string{"attribute"},
-					HistogramBuckets:         &[]float64{1, 2, 3, 4, 5},
-					SpanMultiplierKey:        strPtr("custom_key"),
+					FilterPolicies: &[]filterconfig.FilterPolicy{
+						{
+							Exclude: &filterconfig.PolicyMatch{
+								MatchType: filterconfig.Strict,
+								Attributes: []filterconfig.MatchPolicyAttribute{
+									{
+										Key:   "resource.service.name",
+										Value: "mythical-requester",
+									},
+								},
+							},
+						},
+					},
+					HistogramBuckets:  &[]float64{1, 2, 3, 4, 5},
+					SpanMultiplierKey: strPtr("custom_key"),
 				},
 				SpanMetrics: userconfigurableoverrides.LimitsMetricsGeneratorProcessorSpanMetrics{
 					Dimensions:          &[]string{"sm-dimension"},
@@ -185,6 +199,11 @@ func TestUserConfigOverridesManager_allFields(t *testing.T) {
 	assert.Equal(t, true, enableVirtualNodeLabelIsSet)
 	assert.Equal(t, []string{"attribute"}, mgr.MetricsGeneratorProcessorServiceGraphsPeerAttributes(tenant1))
 	assert.Equal(t, []float64{1, 2, 3, 4, 5}, mgr.MetricsGeneratorProcessorServiceGraphsHistogramBuckets(tenant1))
+	serviceGraphFilterPolicies := mgr.MetricsGeneratorProcessorServiceGraphsFilterPolicies(tenant1)
+	assert.NotEmpty(t, serviceGraphFilterPolicies)
+	assert.Equal(t, filterconfig.Strict, serviceGraphFilterPolicies[0].Exclude.MatchType)
+	assert.Equal(t, "resource.service.name", serviceGraphFilterPolicies[0].Exclude.Attributes[0].Key)
+	assert.Equal(t, "mythical-requester", serviceGraphFilterPolicies[0].Exclude.Attributes[0].Value)
 	assert.Equal(t, []string{"sm-dimension"}, mgr.MetricsGeneratorProcessorSpanMetricsDimensions(tenant1))
 	assert.Equal(t, map[string]bool{"service": true, "span_name": false}, mgr.MetricsGeneratorProcessorSpanMetricsIntrinsicDimensions(tenant1))
 	assert.Equal(t, []sharedconfig.DimensionMappings{{Name: "svc", SourceLabel: []string{"service"}, Join: ""}}, mgr.MetricsGeneratorProcessorSpanMetricsDimensionMappings(tenant1))
@@ -207,6 +226,49 @@ func TestUserConfigOverridesManager_allFields(t *testing.T) {
 	assert.Equal(t, "SPAN_KIND_CONSUMER", filterPolicies[0].Exclude.Attributes[0].Value)
 	assert.Equal(t, "custom_key", mgr.MetricsGeneratorProcessorServiceGraphsSpanMultiplierKey(tenant1))
 	assert.Equal(t, "custom_key", mgr.MetricsGeneratorProcessorSpanMetricsSpanMultiplierKey(tenant1))
+}
+
+func TestUserConfigOverridesManager_MetricsGeneratorSpanNameSanitization(t *testing.T) {
+	defaultLimits := Overrides{
+		MetricsGenerator: MetricsGeneratorOverrides{
+			SpanNameSanitization: "disabled",
+		},
+	}
+	_, mgr, cleanup := localUserConfigOverrides(t, defaultLimits, nil)
+	defer cleanup()
+
+	// Test fallback behavior - tenant without override should return default value
+	assert.Equal(t, "disabled", mgr.MetricsGeneratorSpanNameSanitization(tenant1))
+	assert.Equal(t, "disabled", mgr.MetricsGeneratorSpanNameSanitization(tenant2))
+
+	// Set user-configurable override for tenant1
+	mgr.tenantLimits[tenant1] = &userconfigurableoverrides.Limits{
+		MetricsGenerator: userconfigurableoverrides.LimitsMetricsGenerator{
+			SpanNameSanitization: strPtr("enabled"),
+		},
+	}
+
+	// Test tenant override behavior - tenant1 should return override value
+	assert.Equal(t, "enabled", mgr.MetricsGeneratorSpanNameSanitization(tenant1))
+
+	// Test fallback behavior - tenant2 without override should still return default value
+	assert.Equal(t, "disabled", mgr.MetricsGeneratorSpanNameSanitization(tenant2))
+
+	// Update override for tenant1
+	mgr.tenantLimits[tenant1] = &userconfigurableoverrides.Limits{
+		MetricsGenerator: userconfigurableoverrides.LimitsMetricsGenerator{
+			SpanNameSanitization: strPtr("strict"),
+		},
+	}
+
+	// Test updated override value
+	assert.Equal(t, "strict", mgr.MetricsGeneratorSpanNameSanitization(tenant1))
+
+	// Remove override for tenant1
+	delete(mgr.tenantLimits, tenant1)
+
+	// Test fallback behavior after removal - should return default value again
+	assert.Equal(t, "disabled", mgr.MetricsGeneratorSpanNameSanitization(tenant1))
 }
 
 func TestUserConfigOverridesManager_populateFromBackend(t *testing.T) {
@@ -496,6 +558,7 @@ func TestUserConfigOverridesManager_MergeRuntimeConfig(t *testing.T) {
 	assert.Equal(t, mgr.MetricsGeneratorProcessorServiceGraphsHistogramBuckets(tenantID), baseMgr.MetricsGeneratorProcessorServiceGraphsHistogramBuckets(tenantID))
 	assert.Equal(t, mgr.MetricsGeneratorProcessorServiceGraphsDimensions(tenantID), baseMgr.MetricsGeneratorProcessorServiceGraphsDimensions(tenantID))
 	assert.Equal(t, mgr.MetricsGeneratorProcessorServiceGraphsPeerAttributes(tenantID), baseMgr.MetricsGeneratorProcessorServiceGraphsPeerAttributes(tenantID))
+	assert.Equal(t, mgr.MetricsGeneratorProcessorServiceGraphsFilterPolicies(tenantID), baseMgr.MetricsGeneratorProcessorServiceGraphsFilterPolicies(tenantID))
 	assert.Equal(t, mgr.MetricsGeneratorProcessorSpanMetricsHistogramBuckets(tenantID), baseMgr.MetricsGeneratorProcessorSpanMetricsHistogramBuckets(tenantID))
 	assert.Equal(t, mgr.MetricsGeneratorProcessorSpanMetricsDimensions(tenantID), baseMgr.MetricsGeneratorProcessorSpanMetricsDimensions(tenantID))
 	assert.Equal(t, map[string]bool{"service": true}, mgr.MetricsGeneratorProcessorSpanMetricsIntrinsicDimensions(tenantID))

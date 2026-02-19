@@ -9,13 +9,6 @@
       http_listen_port: $._config.port,
     },
     distributor: {},
-    ingester: {
-      lifecycler: {
-        ring: {
-          replication_factor: 3,
-        },
-      },
-    },
     storage: {
       trace: {
         blocklist_poll: '0',
@@ -60,8 +53,6 @@
       receivers+: $._config.distributor.receivers,
     },
   },
-
-  tempo_ingester_config:: $.tempo_config {},
 
   tempo_metrics_generator_config:: $.tempo_config {
     metrics_generator+: {
@@ -116,12 +107,6 @@
     configMap.new('tempo-distributor') +
     configMap.withData({
       'tempo.yaml': k.util.manifestYaml($.tempo_distributor_config),
-    }),
-
-  tempo_ingester_configmap:
-    configMap.new('tempo-ingester') +
-    configMap.withData({
-      'tempo.yaml': k.util.manifestYaml($.tempo_ingester_config),
     }),
 
   tempo_metrics_generator_configmap:

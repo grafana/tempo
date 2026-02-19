@@ -131,6 +131,10 @@ func (cfg *Config) Validate() error {
 		}
 	}
 
+	if err := cfg.Storage.Validate(); err != nil {
+		return err
+	}
+
 	if !slices.Contains(validCodecs, cfg.Codec) {
 		return fmt.Errorf("invalid codec: %s, valid choices are %s", cfg.Codec, validCodecs)
 	}
@@ -188,6 +192,9 @@ func (cfg *ProcessorConfig) copyWithOverrides(o metricsGeneratorOverrides, userI
 	}
 	if peerAttrs := o.MetricsGeneratorProcessorServiceGraphsPeerAttributes(userID); peerAttrs != nil {
 		copyCfg.ServiceGraphs.PeerAttributes = peerAttrs
+	}
+	if filterPolicies := o.MetricsGeneratorProcessorServiceGraphsFilterPolicies(userID); filterPolicies != nil {
+		copyCfg.ServiceGraphs.FilterPolicies = filterPolicies
 	}
 	if buckets := o.MetricsGeneratorProcessorSpanMetricsHistogramBuckets(userID); buckets != nil {
 		copyCfg.SpanMetrics.HistogramBuckets = buckets

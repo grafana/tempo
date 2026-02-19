@@ -24,11 +24,19 @@ func limitsFromOverrides(overrides overrides.Interface, userID string) *client.L
 			NativeHistogramMaxBucketNumber:  uint32Ptr(overrides.MetricsGeneratorNativeHistogramMaxBucketNumber(userID)),
 			NativeHistogramBucketFactor:     floatPtr(overrides.MetricsGeneratorNativeHistogramBucketFactor(userID)),
 			NativeHistogramMinResetDuration: timePtr(overrides.MetricsGeneratorNativeHistogramMinResetDuration(userID)),
+			SpanNameSanitization: func() *string {
+				s := overrides.MetricsGeneratorSpanNameSanitization(userID)
+				if s == "" {
+					return nil
+				}
+				return &s
+			}(),
 			Processor: client.LimitsMetricsGeneratorProcessor{
 				ServiceGraphs: client.LimitsMetricsGeneratorProcessorServiceGraphs{
 					Dimensions:               strArrPtr(overrides.MetricsGeneratorProcessorServiceGraphsDimensions(userID)),
 					EnableClientServerPrefix: boolPtr(overrides.MetricsGeneratorProcessorServiceGraphsEnableClientServerPrefix(userID)),
 					PeerAttributes:           strArrPtr(overrides.MetricsGeneratorProcessorServiceGraphsPeerAttributes(userID)),
+					FilterPolicies:           filterPoliciesPtr(overrides.MetricsGeneratorProcessorServiceGraphsFilterPolicies(userID)),
 					HistogramBuckets:         floatArrPtr(overrides.MetricsGeneratorProcessorServiceGraphsHistogramBuckets(userID)),
 				},
 				SpanMetrics: client.LimitsMetricsGeneratorProcessorSpanMetrics{

@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/grafana/tempo/modules/generator/registry"
+	filterconfig "github.com/grafana/tempo/pkg/spanfilter/config"
 	"github.com/prometheus/client_golang/prometheus"
 	semconv "go.opentelemetry.io/otel/semconv/v1.25.0"
 	semconvnew "go.opentelemetry.io/otel/semconv/v1.34.0"
@@ -50,6 +51,9 @@ type Config struct {
 
 	// DatabaseNameAttributes the list of attribute names used to identify the database name from span attributes.
 	DatabaseNameAttributes []string `yaml:"database_name_attributes"`
+
+	// FilterPolicies is a list of policies that will be applied to spans for inclusion or exclusion.
+	FilterPolicies []filterconfig.FilterPolicy `yaml:"filter_policies"`
 }
 
 func (cfg *Config) RegisterFlagsAndApplyDefaults(string, *flag.FlagSet) {

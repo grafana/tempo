@@ -349,7 +349,7 @@ func ensureAllFieldsPopulated(t *testing.T, o LegacyOverrides) {
 		fieldName := structType.Field(i).Name
 
 		// Skip certain fields that can be zero in valid configs
-		skip := []string{"IngestionArtificialDelay"}
+		skip := []string{"IngestionArtificialDelay", "MetricsGeneratorSpanNameSanitization"}
 		if slices.Contains(skip, fieldName) {
 			continue
 		}
@@ -420,6 +420,7 @@ func generateTestLegacyOverrides() LegacyOverrides {
 		MetricsGeneratorProcessors:                                                  makeListToMap([]string{"processor-1", "processor-2"}),
 		MetricsGeneratorMaxActiveSeries:                                             1000,
 		MetricsGeneratorMaxActiveEntities:                                           100,
+		MetricsGeneratorMaxCardinalityPerLabel:                                      500,
 		MetricsGeneratorCollectionInterval:                                          10 * time.Second,
 		MetricsGeneratorDisableCollection:                                           false,
 		MetricsGeneratorGenerateNativeHistograms:                                    histograms.HistogramMethodNative,
@@ -430,6 +431,7 @@ func generateTestLegacyOverrides() LegacyOverrides {
 		MetricsGeneratorProcessorServiceGraphsHistogramBuckets:                      []float64{1.0, 2.0, 5.0},
 		MetricsGeneratorProcessorServiceGraphsDimensions:                            []string{"dimension-1", "dimension-2"},
 		MetricsGeneratorProcessorServiceGraphsPeerAttributes:                        []string{"attribute-1", "attribute-2"},
+		MetricsGeneratorProcessorServiceGraphsFilterPolicies:                        []filterconfig.FilterPolicy{{Exclude: &filterconfig.PolicyMatch{MatchType: "strict", Attributes: []filterconfig.MatchPolicyAttribute{{Key: "resource.service.name", Value: "my-service"}}}}},
 		MetricsGeneratorProcessorServiceGraphsEnableClientServerPrefix:              boolPtr(true),
 		MetricsGeneratorProcessorServiceGraphsEnableMessagingSystemLatencyHistogram: boolPtr(true),
 		MetricsGeneratorProcessorServiceGraphsEnableVirtualNodeLabel:                boolPtr(true),
@@ -476,6 +478,7 @@ func generateTestLegacyOverrides() LegacyOverrides {
 		MetricsGeneratorNativeHistogramBucketFactor:                      1.5,
 		MetricsGeneratorNativeHistogramMaxBucketNumber:                   200,
 		MetricsGeneratorNativeHistogramMinResetDuration:                  10 * time.Minute,
+		MetricsGeneratorSpanNameSanitization:                             "",
 
 		BlockRetention:     model.Duration(7 * 24 * time.Hour),
 		CompactionDisabled: true,

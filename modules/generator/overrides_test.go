@@ -17,6 +17,7 @@ type mockOverrides struct {
 	serviceGraphsHistogramBuckets                      []float64
 	serviceGraphsDimensions                            []string
 	serviceGraphsPeerAttributes                        []string
+	serviceGraphsFilterPolicies                        []filterconfig.FilterPolicy
 	serviceGraphsEnableClientServerPrefix              bool
 	serviceGraphsEnableMessagingSystemLatencyHistogram *bool
 	serviceGraphsEnableVirtualNodeLabel                *bool
@@ -95,6 +96,10 @@ func (m *mockOverrides) MetricsGeneratorProcessorServiceGraphsPeerAttributes(str
 	return m.serviceGraphsPeerAttributes
 }
 
+func (m *mockOverrides) MetricsGeneratorProcessorServiceGraphsFilterPolicies(string) []filterconfig.FilterPolicy {
+	return m.serviceGraphsFilterPolicies
+}
+
 func (m *mockOverrides) MetricsGeneratorProcessorSpanMetricsHistogramBuckets(string) []float64 {
 	return m.spanMetricsHistogramBuckets
 }
@@ -150,6 +155,14 @@ func (m *mockOverrides) MetricsGeneratorNativeHistogramMaxBucketNumber(string) u
 
 func (m *mockOverrides) MetricsGeneratorNativeHistogramMinResetDuration(string) time.Duration {
 	return m.nativeHistogramMinResetDuration
+}
+
+func (m *mockOverrides) MetricsGeneratorSpanNameSanitization(string) string {
+	return ""
+}
+
+func (m *mockOverrides) MetricsGeneratorMaxCardinalityPerLabel(string) uint64 {
+	return 0
 }
 
 // MetricsGeneratorProcessorSpanMetricsEnableTargetInfo enables target_info metrics

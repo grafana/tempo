@@ -1025,7 +1025,12 @@ func TestProcessAttributes(t *testing.T) {
 
 	_, rebatchedTrace, truncatedCount, _ := requestsByTraceID(trace.ResourceSpans, "test", spanCount*batchCount, maxAttrByte)
 	// 2 at resource level, 2 at span level, 2 at event level, 2 at link level, 2 at scope level
-	assert.Equal(t, 10, truncatedCount)
+	assert.Equal(t, 10, truncatedCount.Total())
+	assert.Equal(t, 2, truncatedCount.Resource)
+	assert.Equal(t, 2, truncatedCount.Scope)
+	assert.Equal(t, 2, truncatedCount.Span)
+	assert.Equal(t, 2, truncatedCount.Event)
+	assert.Equal(t, 2, truncatedCount.Link)
 	for _, rT := range rebatchedTrace {
 		for _, resource := range rT.trace.ResourceSpans {
 			// find large resource attributes

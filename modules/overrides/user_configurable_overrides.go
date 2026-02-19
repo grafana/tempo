@@ -261,6 +261,13 @@ func (o *userConfigurableOverridesManager) MetricsGeneratorTraceIDLabelName(user
 	return o.Interface.MetricsGeneratorTraceIDLabelName(userID)
 }
 
+func (o *userConfigurableOverridesManager) MetricsGeneratorSpanNameSanitization(userID string) string {
+	if spanNameSanitization, ok := o.getTenantLimits(userID).GetMetricsGenerator().GetSpanNameSanitization(); ok {
+		return spanNameSanitization
+	}
+	return o.Interface.MetricsGeneratorSpanNameSanitization(userID)
+}
+
 func (o *userConfigurableOverridesManager) MetricsGeneratorGenerateNativeHistograms(userID string) histograms.HistogramMethod {
 	if method, ok := o.getTenantLimits(userID).GetMetricsGenerator().GetGenerateNativeHistograms(); ok {
 		return method
@@ -322,6 +329,13 @@ func (o *userConfigurableOverridesManager) MetricsGeneratorProcessorServiceGraph
 		return peerAttributes
 	}
 	return o.Interface.MetricsGeneratorProcessorServiceGraphsPeerAttributes(userID)
+}
+
+func (o *userConfigurableOverridesManager) MetricsGeneratorProcessorServiceGraphsFilterPolicies(userID string) []filterconfig.FilterPolicy {
+	if filterPolicies, ok := o.getTenantLimits(userID).GetMetricsGenerator().GetProcessor().GetServiceGraphs().GetFilterPolicies(); ok {
+		return filterPolicies
+	}
+	return o.Interface.MetricsGeneratorProcessorServiceGraphsFilterPolicies(userID)
 }
 
 func (o *userConfigurableOverridesManager) MetricsGeneratorProcessorServiceGraphsHistogramBuckets(userID string) []float64 {

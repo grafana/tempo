@@ -14,7 +14,7 @@ spec:
   template:
     metadata:
       annotations:
-        config_hash: ed52925df90ea6223cb56ddc2bd40cd5
+        config_hash: 42cd6f6d5e54ec2a274f12dc9d7e8d7b
       labels:
         app: block-builder
         name: block-builder

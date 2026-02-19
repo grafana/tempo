@@ -121,6 +121,65 @@ overrides:
       max_active_entities: 0
 ```
 
+### Per-label cardinality limiting
+
+The per-label cardinality limiter caps the number of distinct values any single label can have. When a label exceeds the configured threshold, its value is replaced with `__cardinality_overflow__` while all other labels that are under the limit are preserved.
+
+For example, if the `url` label exceeds the cardinality limit:
+
+Before:
+```
+{service="foo", method="GET", url="/users/1"}
+{service="foo", method="GET", url="/users/2"}
+{service="foo", method="GET", url="/users/3"}
+...
+```
+
+After:
+```
+{service="foo", method="GET", url="__cardinality_overflow__"}
+```
+
+Once the limiter kicks in, new `url` values are replaced with `__cardinality_overflow__`. Labels that remain under the limit, like `method`, are unaffected.
+
+To detect if per-label cardinality limiting is active:
+
+```promql
+sum by (tenant, label_name) (rate(tempo_metrics_generator_registry_label_values_limited_total{}[5m]))
+```
+
+To view the estimated cardinality demand per label:
+
+```promql
+tempo_metrics_generator_registry_label_cardinality_demand_estimate{}
+```
+
+Use this metric to identify which labels have high cardinality, how far they exceed the configured limit, and to choose an appropriate
+`max_cardinality_per_label` value. To observe actual demand before enforcing a limit, deploy with a high `max_cardinality_per_label` value first.
+
+Configure the per-label cardinality limit:
+
+```yaml
+overrides:
+  defaults:
+    metrics_generator:
+      max_cardinality_per_label: 0
+```
+
+A value of `0` (default) disables the limit.
+
+This setting works alongside both active series limiting (`max_active_series`) and entity-based limiting (`max_active_entities`).
+The per-label limiter runs during label construction, preventing any single high-cardinality label from consuming the entire active series or entity budget.
+
+The per-label limiter uses HyperLogLog sketches to estimate cardinality, so the limit is approximate with a 3.25% standard error. Estimates are
+re-evaluated every few seconds, which means there may be a brief delay between a label crossing the threshold and the limiter taking effect.
+
+If a high-cardinality label's cardinality is later reduced (for example, by fixing instrumentation), the limiter automatically recovers
+and allows label values through again. No configuration changes are needed.
+
+Recovery is not immediate. The limiter tracks cardinality over a sliding window (based on the registry's `stale_duration`). It takes at least that 
+duration or longer for existing high-cardinality labels to age out before the label values are allowed through again.
+
 ### Estimate active series demand
 
 When the active series limit is reached, the `tempo_metrics_generator_registry_active_series` metric no longer reflects the true demand. Use the `tempo_metrics_generator_registry_active_series_demand_estimate` metric to estimate what the active series count would be without the limit:
