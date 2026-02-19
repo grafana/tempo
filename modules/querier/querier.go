@@ -38,8 +38,6 @@ import (
 	"github.com/grafana/tempo/pkg/validation"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding/common"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 )
 
 var tracer = otel.Tracer("modules/querier")
@@ -56,8 +54,6 @@ var (
 		Help:      "The current number of livestore clients.",
 	})
 )
-
-const spanMetricsSummaryDeprecationMessage = "Span metrics summary endpoint is deprecated; use /api/metrics/query_range"
 
 type (
 	forEachFn          func(ctx context.Context, client tempopb.QuerierClient) (any, error)
@@ -623,12 +619,6 @@ outer:
 	}
 
 	return valuesToV2Response(distinctValues, inspectedBytes), nil
-}
-
-func (q *Querier) SpanMetricsSummary(ctx context.Context, req *tempopb.SpanMetricsSummaryRequest) (*tempopb.SpanMetricsSummaryResponse, error) {
-	_ = ctx
-	_ = req
-	return nil, status.Error(codes.Unimplemented, spanMetricsSummaryDeprecationMessage)
 }
 
 func valuesToV2Response(distinctValues *collector.DistinctValue[tempopb.TagValue], bytesRead uint64) *tempopb.SearchTagValuesV2Response {
