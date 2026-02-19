@@ -36,7 +36,7 @@ storage:
 ```
 
 Due to the mechanics of the [tenant index](../../operations/monitor/polling/), the blocklist will be stale by
-at most 2 times the configured `blocklist_poll` duration.
+at most twice the configured `blocklist_poll` duration.
 
 ## How blocks reach object storage
 
