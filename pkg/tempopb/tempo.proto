@@ -43,7 +43,6 @@ service StreamingQuerier {
 }
 
 service Metrics {
-  rpc SpanMetricsSummary(SpanMetricsSummaryRequest) returns (SpanMetricsSummaryResponse) {}
   rpc QueryRange(QueryRangeRequest) returns (QueryRangeResponse) {}
 }
 

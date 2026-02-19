@@ -135,25 +135,6 @@ func TestFrontendBadConfigFails(t *testing.T) {
 	f, err = New(Config{
 		TraceByID: TraceByIDConfig{
 			QueryShards: maxQueryShards,
-			SLO:         testSLOcfg,
-		},
-		Search: SearchConfig{
-			Sharder: SearchSharderConfig{
-				ConcurrentRequests:    defaultConcurrentRequests,
-				TargetBytesPerRequest: defaultTargetBytesPerRequest,
-				MostRecentShards:      defaultMostRecentShards,
-				QueryIngestersUntil:   time.Minute,
-				QueryBackendAfter:     time.Hour,
-			},
-			SLO: testSLOcfg,
-		},
-	}, nil, nil, nil, nil, "", fakeHTTPAuthMiddleware, nil, log.NewNopLogger(), nil)
-	assert.EqualError(t, err, "query backend after should be less than or equal to query ingester until")
-	assert.Nil(t, f)
-
-	f, err = New(Config{
-		TraceByID: TraceByIDConfig{
-			QueryShards: maxQueryShards,
 		},
 		Search: SearchConfig{
 			Sharder: SearchSharderConfig{

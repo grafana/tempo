@@ -209,75 +209,75 @@ func TestTagsIngesterRequest(t *testing.T) {
 	startPart := "&start="
 
 	tests := []struct {
-		request             string
-		queryIngestersUntil time.Duration
-		expectedURI         string
-		expectedError       error
-		start               int
-		end                 int
+		request           string
+		queryBackendAfter time.Duration
+		expectedURI       string
+		expectedError     error
+		start             int
+		end               int
 	}{
-		// start/end is outside queryIngestersUntil
+		// start/end is outside queryBackendAfter
 		{
-			request:             "/?start=10&end=20",
-			queryIngestersUntil: 10 * time.Minute,
-			expectedURI:         "",
-			start:               10,
-			end:                 20,
+			request:           "/?start=10&end=20",
+			queryBackendAfter: 10 * time.Minute,
+			expectedURI:       "",
+			start:             10,
+			end:               20,
 		},
 		// start/end is inside queryBackendAfter
 		{
-			request:             urlStartReq + strconv.Itoa(tenMinutesAgo) + "&end=" + strconv.Itoa(now),
-			queryIngestersUntil: 30 * time.Minute,
-			expectedURI:         "/querier?end=" + strconv.Itoa(now) + startPart + strconv.Itoa(tenMinutesAgo),
-			start:               tenMinutesAgo,
-			end:                 now,
+			request:           urlStartReq + strconv.Itoa(tenMinutesAgo) + "&end=" + strconv.Itoa(now),
+			queryBackendAfter: 30 * time.Minute,
+			expectedURI:       "/querier?end=" + strconv.Itoa(now) + startPart + strconv.Itoa(tenMinutesAgo),
+			start:             tenMinutesAgo,
+			end:               now,
 		},
-		// backendAfter/ingsetersUntil = 0 results in no ingester query
+		// queryBackendAfter = 0 results in no ingester query
 		{
 			request: urlStartReq + strconv.Itoa(tenMinutesAgo) + "&end=" + strconv.Itoa(now),
 			start:   tenMinutesAgo,
 			end:     now,
 		},
-		// start/end = 20 - 10 mins ago - break across query ingesters until
+		// start/end = 20 - 10 mins ago - break across query backend after
 		//  ingester start/End = 15 - 10 mins ago
 		{
-			request:             urlStartReq + strconv.Itoa(twentyMinutesAgo) + "&end=" + strconv.Itoa(tenMinutesAgo),
-			queryIngestersUntil: 15 * time.Minute,
-			expectedURI:         "/querier?end=" + strconv.Itoa(tenMinutesAgo) + startPart + strconv.Itoa(fifteenMinutesAgo),
-			start:               twentyMinutesAgo,
-			end:                 tenMinutesAgo,
+			request:           urlStartReq + strconv.Itoa(twentyMinutesAgo) + "&end=" + strconv.Itoa(tenMinutesAgo),
+			queryBackendAfter: 15 * time.Minute,
+			expectedURI:       "/querier?end=" + strconv.Itoa(tenMinutesAgo) + startPart + strconv.Itoa(fifteenMinutesAgo),
+			start:             twentyMinutesAgo,
+			end:               tenMinutesAgo,
 		},
 		// start/end = 10 - now mins ago - break across query backend after
 		//  ingester start/End = 10 - now mins ago
 		//  backend start/End = 15 - 10 mins ago
 		{
-			request:             urlStartReq + strconv.Itoa(tenMinutesAgo) + "&end=" + strconv.Itoa(now),
-			queryIngestersUntil: 15 * time.Minute,
-			expectedURI:         "/querier?end=" + strconv.Itoa(now) + startPart + strconv.Itoa(tenMinutesAgo),
-			start:               tenMinutesAgo,
-			end:                 now,
+			request:           urlStartReq + strconv.Itoa(tenMinutesAgo) + "&end=" + strconv.Itoa(now),
+			queryBackendAfter: 15 * time.Minute,
+			expectedURI:       "/querier?end=" + strconv.Itoa(now) + startPart + strconv.Itoa(tenMinutesAgo),
+			start:             tenMinutesAgo,
+			end:               now,
 		},
-		// start/end = 20 - now mins ago - break across both query ingesters until and backend after
+		// start/end = 20 - now mins ago - break across query backend after
 		//  ingester start/End = 15 - now mins ago
 		//  backend start/End = 20 - 5 mins ago
 		{
-			request:             urlStartReq + strconv.Itoa(twentyMinutesAgo) + "&end=" + strconv.Itoa(now),
-			queryIngestersUntil: 15 * time.Minute,
-			expectedURI:         "/querier?end=" + strconv.Itoa(now) + startPart + strconv.Itoa(fifteenMinutesAgo),
-			start:               twentyMinutesAgo,
-			end:                 now,
+			request:           urlStartReq + strconv.Itoa(twentyMinutesAgo) + "&end=" + strconv.Itoa(now),
+			queryBackendAfter: 15 * time.Minute,
+			expectedURI:       "/querier?end=" + strconv.Itoa(now) + startPart + strconv.Itoa(fifteenMinutesAgo),
+			start:             twentyMinutesAgo,
+			end:               now,
 		},
 		{
-			request:             "/?",
-			queryIngestersUntil: 15 * time.Minute,
-			expectedURI:         "/querier?end=0&start=0",
+			request:           "/?",
+			queryBackendAfter: 15 * time.Minute,
+			expectedURI:       "/querier?end=0&start=0",
 		},
 	}
 
 	for _, tc := range tests {
 		s := &searchTagSharder{
 			cfg: SearchSharderConfig{
-				QueryIngestersUntil: tc.queryIngestersUntil,
+				QueryBackendAfter: tc.queryBackendAfter,
 			},
 		}
 

@@ -744,16 +744,11 @@ query_frontend:
         # (default: 168h)
         [max_duration: <duration>]
 
-        # query_backend_after and query_ingesters_until together control where the query-frontend searches for traces.
-        # Time ranges before query_ingesters_until will be searched in the ingesters only.
-        # Time ranges after query_backend_after will be searched in the backend/object storage only.
-        # Time ranges from query_backend_after through query_ingesters_until will be queried from both locations.
-        # query_backend_after must be less than or equal to query_ingesters_until.
+        # query_backend_after controls where the query-frontend searches for traces.
+        # Time ranges newer than query_backend_after will be searched in the live-stores only.
+        # Time ranges older than query_backend_after will be searched in the backend/object storage only.
         # (default: 15m)
         [query_backend_after: <duration>]
-
-        # (default: 30m)
-        [query_ingesters_until: <duration>]
 
         # If set to a non-zero value, it's value will be used to decide if query is within SLO or not.
         # Query is within SLO if it returned 200 within duration_slo seconds OR processed throughput_slo bytes/s data.
