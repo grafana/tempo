@@ -48,7 +48,10 @@ After the block is written, queriers won't discover it until their next polling 
 
 Two mechanisms ensure data availability despite blocklist staleness:
 
-**Live-stores cover the recent data gap.** Live-stores serve recent trace data directly from Kafka, covering the window between when a block-builder flushes a new block and when queriers discover it through polling.
+
+### Live-stores cover the recent data gap
+
+Live-stores serve recent trace data directly from Kafka, covering the window between when a block-builder flushes a new block and when queriers discover it through polling.
 The query-frontend uses `query_backend_after` to control when backend storage is searched:
 
 - Time ranges more recent than `query_backend_after` are searched only in live-stores.
