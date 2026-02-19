@@ -343,7 +343,7 @@ type SeriesMapKey [maxGroupBys]SeriesMapLabel
 // text description: {x="a",y="b"} for convenience.
 type SeriesSet map[SeriesMapKey]TimeSeries
 
-func (set SeriesSet) ToProto(req *tempopb.QueryRangeRequest) []*tempopb.TimeSeries {
+func (set SeriesSet) ToProto(req *tempopb.QueryRangeRequest, withNaN bool) []*tempopb.TimeSeries {
 	mapper := NewIntervalMapperFromReq(req)
 	resp := make([]*tempopb.TimeSeries, 0, len(set))
 
@@ -360,11 +360,16 @@ func (set SeriesSet) ToProto(req *tempopb.QueryRangeRequest) []*tempopb.TimeSeri
 
 		intervals := mapper.IntervalCount()
 		samples := make([]tempopb.Sample, 0, intervals)
+		hasNonNaN := false
 		for i, value := range s.Values {
 			// todo: this loop should be able to be restructured to directly pass over
 			// the desired intervals
-			if i >= intervals || math.IsNaN(value) {
+			if i >= intervals || (!withNaN && math.IsNaN(value)) {
 				continue
+			}
+
+			if !math.IsNaN(value) {
+				hasNonNaN = true
 			}
 
 			ts := mapper.TimestampOf(i)
@@ -373,8 +378,8 @@ func (set SeriesSet) ToProto(req *tempopb.QueryRangeRequest) []*tempopb.TimeSeri
 				Value:       value,
 			})
 		}
-		// Do not include empty TimeSeries
-		if len(samples) == 0 {
+		// Do not include TimeSeries with only NaN values (no actual data)
+		if (withNaN && !hasNonNaN) || len(samples) == 0 {
 			continue
 		}
 

@@ -517,7 +517,9 @@ func TestQueryRangeExemplars(t *testing.T) {
 func sumSamples(samples []tempopb.Sample) float64 {
 	var sum float64
 	for _, sample := range samples {
-		sum += sample.Value
+		if !math.IsNaN(sample.Value) {
+			sum += sample.Value
+		}
 	}
 	return sum
 }
