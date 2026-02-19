@@ -170,6 +170,15 @@ backendWorker:
           key: tempo-traces-key
 ```
 
+#### Use `metrics-generator` with Azure storage
+
+[//]: # "Shared content for metrics-generator in Azure blob storage"
+[//]: # "This content is located in /tempo/docs/sources/shared/azure-metrics-generator.md"
+
+{{< docs/shared source="tempo" lookup="azure-metrics-generator.md" version="<TEMPO_VERSION>" >}}
+
+For more information, refer to [Configure TraceQL metrics](https://grafana.com/docs/tempo/next/metrics-from-traces/metrics-queries/configure-traceql-metrics).
+
 ## Additional configuration options
 
 The following sections provide additional configuration options for Azure blob storage.
