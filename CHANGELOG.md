@@ -33,6 +33,7 @@
 
 ### 3.0 Cleanup
 
+* [CHANGE] **BREAKING CHANGE** Remove ingesters [#6504](https://github.com/grafana/tempo/pull/6504) (@javiermolinar)
 * [CHANGE] Decouple livestore from metrics-generator [#6506](https://github.com/grafana/tempo/pull/6506) (@javiermolinar)
 * [CHANGE] **BREAKING CHANGE** Remove ingesters and compactor alerts [#6369](https://github.com/grafana/tempo/pull/6369) (@javiermolinar)
 * [CHANGE] **BREAKING CHANGE** Removed `v2` block encoding and compactor component. [#6273](https://github.com/grafana/tempo/pull/6273) (@joe-elliott)

@@ -7,7 +7,6 @@
     memcachedExporter: 'prom/memcached-exporter:v0.15.5',
 
     tempo_distributor: self.tempo,
-    tempo_ingester: self.tempo,
     tempo_querier: self.tempo,
     tempo_query_frontend: self.tempo,
     tempo_metrics_generator: self.tempo,
@@ -25,7 +24,6 @@
     variables_expansion: false,
     variables_expansion_env_mixin: null,
     node_selector: null,
-    ingester_allow_multiple_replicas_on_same_node: false,
 
     // Enable concurrent rollout of block-builder through the usage of the rollout operator.
     // This feature modifies the block-builder StatefulSet which cannot be altered, so if it already exists it has to be deleted and re-applied again in order to be enabled.
@@ -61,21 +59,6 @@
         limits: {
           cpu: '1',
           memory: '2Gi',
-        },
-      },
-    },
-    ingester: {
-      pvc_size: error 'Must specify an ingester pvc size',
-      pvc_storage_class: error 'Must specify an ingester pvc storage class',
-      replicas: 3,
-      resources: {
-        requests: {
-          cpu: '3',
-          memory: '3Gi',
-        },
-        limits: {
-          cpu: '5',
-          memory: '5Gi',
         },
       },
     },

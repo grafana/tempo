@@ -18,7 +18,7 @@ spec:
   template:
     metadata:
       annotations:
-        config_hash: 96a49bace28831351f5e1c9f6671556a
+        config_hash: a5b7fad9d4b66ac43fbbccf8f3b51ab0
       labels:
         app: query-frontend
         name: query-frontend
