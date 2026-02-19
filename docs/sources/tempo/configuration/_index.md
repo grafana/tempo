@@ -22,8 +22,9 @@ The Tempo configuration options include:
   - [Distributor](#distributor)
     - [Set max attribute size to help control out of memory errors](#set-max-attribute-size-to-help-control-out-of-memory-errors)
     - [gRPC compression](#grpc-compression)
-  - [Ingester](#ingester)
-    - [Ingester configuration block](#ingester-configuration-block)
+  - [Ingest](#ingest)
+  - [Block-builder](#block-builder)
+  - [Live-store](#live-store)
   - [Metrics-generator](#metrics-generator)
   - [Query-frontend](#query-frontend)
     - [Limit query size to improve performance and stability](#limit-query-size-to-improve-performance-and-stability)
@@ -160,7 +161,7 @@ memory:
 
 For more information on configuration options, refer to [this file](https://github.com/grafana/tempo/blob/main/modules/distributor/config.go).
 
-Distributors receive spans and forward them to the appropriate ingesters.
+Distributors receive spans and forward them to Kafka.
 
 The following configuration enables all available receivers with their default configuration. For a production deployment, enable only the receivers you need.
 Additional documentation and more advanced configuration options are available in [the receiver README](https://github.com/open-telemetry/opentelemetry-collector/blob/main/receiver/README.md).
@@ -256,11 +257,6 @@ distributor:
         [root_only: <boolean> | default = false]
 
     # Optional.
-    # Disables write extension with inactive ingesters. Use this along with ingester.lifecycler.unregister_on_shutdown = true
-    #  note that setting these two config values reduces tolerance to failures on rollout b/c there is always one guaranteed to be failing replica
-    [extend_writes: <bool>]
-
-    # Optional.
     # Configures the time to retry after returned to the client when Tempo returns a GRPC ResourceExhausted. This parameter
     # defaults to 0 which means that by default ResourceExhausted is not retried. Set this to a duration such as `1s` to
     # instruct the client how to retry.
@@ -312,17 +308,17 @@ For a discussion on alternatives, refer to [this discussion thread](https://gith
 Disabling compression may provide some performance boosts.
 Benchmark testing suggested that without compression, queriers and distributors used less CPU and memory.
 
-However, you may notice an increase in ingester data and network traffic especially for larger clusters.
+However, you may notice an increase in network traffic especially for larger clusters.
 This increased data can impact billing for Grafana Cloud.
 
-You can configure the gRPC compression in the `querier`, `ingester`, and `metrics_generator` clients of the distributor.
+You can configure the gRPC compression in the `querier`, `live_store`, and `metrics_generator` clients.
 
 To disable compression, remove `snappy` from the `grpc_compression` lines.
 
 To re-enable the compression, use `snappy` with the following settings:
 
 ```yaml
-ingester_client:
+live_store_client:
   grpc_client_config:
     grpc_compression: "snappy"
 metrics_generator_client:
@@ -334,60 +330,117 @@ querier:
       grpc_compression: "snappy"
 ```
 
-## Ingester
+## Ingest
 
-For more information on configuration options, refer to [this file](https://github.com/grafana/tempo/blob/main/modules/ingester/config.go).
-
-The ingester is responsible for batching up traces and pushing them to [TempoDB](#storage).
-
-A live, or active, trace is a trace that has received a new batch of spans in more than a configured amount of time (default 10 seconds, set by `ingester.trace_idle_period`).
-After 10 seconds (or the configured amount of time), the trace is flushed to disk and appended to the WAL.
-When Tempo receives a new batch, a new live trace is created in memory.
-
-Refer to [Data quality metrics](../troubleshooting/querying/long-running-traces) for information about `trace_idle_period` and warning metrics like `disconnected_trace_flushed_to_wal`.
-
-### Ingester configuration block
+The ingest configuration controls the Kafka-compatible system that Tempo uses as a durable queue for trace data.
+For more information on configuration options, refer to [this file](https://github.com/grafana/tempo/blob/main/pkg/ingest/config.go).
 
 ```yaml
-# Ingester configuration block
-ingester:
+# Ingest configuration block
+ingest:
 
-    # Lifecycler is responsible for managing the lifecycle of entries in the ring.
-    # For a complete list of config options check the lifecycler section under the ingester config at the following link -
-    # https://cortexmetrics.io/docs/configuration/configuration-file/#ingester_config
-    lifecycler:
-        ring:
-            # number of replicas of each span to make while pushing to the backend
-            replication_factor: 3
-            # set sidecar proxy port
-            [port: <int>]
+    # Enable the Kafka ingest path.
+    [enabled: <bool> | default = false]
 
-    # amount of time a trace must be idle before flushing it to the wal.
-    # (default: 5s)
-    [trace_idle_period: <duration>]
+    kafka:
+        # The Kafka backend address.
+        [address: <string> | default = "localhost:9092"]
 
-    # amount of time after which a trace is flushed to the wal regardless of idle period
-    # (default: 30s)
-    [trace_live_period: <duration>]
+        # The Kafka topic name.
+        [topic: <string>]
 
-    # how often to sweep all tenants and move traces from live -> wal -> completed blocks.
-    # (default: 10s)
-    [flush_check_period: <duration>]
+        # The Kafka client ID.
+        [client_id: <string>]
 
-    # maximum size of a block before cutting it
-    # (default: 524288000 = 500MB)
-    [max_block_bytes: <int>]
+        # The maximum time allowed to open a connection to a Kafka broker.
+        [dial_timeout: <duration> | default = 2s]
 
-    # maximum length of time before cutting a block
-    # (default: 30m)
-    [max_block_duration: <duration>]
+        # How long to wait for an incoming write request to be successfully committed to the Kafka backend.
+        [write_timeout: <duration> | default = 10s]
 
-    # duration to keep blocks in the ingester after they have been flushed
-    # (default: 15m)
-    [ complete_block_timeout: <duration>]
+        # The SASL username for authentication.
+        [sasl_username: <string>]
 
-    # Flush all traces to backend when ingester is stopped
-    [flush_all_on_shutdown: <bool> | default = false]
+        # The SASL password for authentication.
+        [sasl_password: <string>]
+
+        # Enable auto-creation of Kafka topic if it doesn't exist.
+        [auto_create_topic_enabled: <bool> | default = true]
+
+        # Default number of partitions for auto-created topics.
+        [auto_create_topic_default_partitions: <int> | default = 1000]
+
+        # The maximum size of a Kafka record data that should be generated by the producer.
+        [producer_max_record_size_bytes: <int>]
+
+        # The maximum size of buffered and unacknowledged produced records sent to Kafka. 0 to disable.
+        [producer_max_buffered_bytes: <int> | default = 1073741824]
+```
+
+## Block-builder
+
+The block-builder consumes trace data from Kafka and builds blocks for long-term object storage.
+For more information on configuration options, refer to [this file](https://github.com/grafana/tempo/blob/main/modules/blockbuilder/config.go).
+
+```yaml
+# Block-builder configuration block
+block_builder:
+
+    # Interval between consumption cycles.
+    [consume_cycle_duration: <duration> | default = 5m]
+
+    # Maximum number of bytes that can be consumed in a single cycle. 0 to disable.
+    [max_consuming_bytes: <uint64> | default = 5000000000]
+```
+
+## Live-store
+
+The live-store consumes trace data from Kafka and serves recent data queries.
+For more information on configuration options, refer to [this file](https://github.com/grafana/tempo/blob/main/modules/livestore/config.go).
+
+```yaml
+# Live-store configuration block
+live_store:
+
+    # Ring configuration for the live-store.
+    ring: <ring config>
+
+    # How often the partition reader commits to Kafka. 0s means synchronous commits.
+    [commit_interval: <duration> | default = 5s]
+
+    # How often to sweep all tenants and move traces from live -> wal -> completed blocks.
+    [flush_check_period: <duration> | default = 10s]
+
+    # Amount of time a trace must be idle before flushing it to the WAL.
+    [max_trace_idle: <duration> | default = 5s]
+
+    # Amount of time after which a trace is flushed to the WAL regardless of idle period.
+    [max_trace_live: <duration> | default = 30s]
+
+    # Maximum size of live traces in bytes. 0 to disable.
+    [max_live_traces_bytes: <uint64> | default = 250000000]
+
+    # Maximum size of a block before cutting it.
+    [max_block_bytes: <uint64> | default = 104857600]
+
+    # Maximum length of time before cutting a block.
+    [max_block_duration: <duration> | default = 30m]
+
+    # Duration to keep blocks in the live-store after they have been completed.
+    [complete_block_timeout: <duration> | default = 1h]
+
+    # Target consumer lag threshold before the live-store is considered ready to serve queries.
+    # Set to 0 to disable readiness waiting.
+    [readiness_target_lag: <duration> | default = 0]
+
+    # Maximum time to wait for catching up at startup. Only used if readiness_target_lag > 0.
+    [readiness_max_wait: <duration> | default = 30m]
+
+    # Fail on search and metrics requests if lag is high and live-store cannot guarantee completeness.
+    [fail_on_high_lag: <bool> | default = false]
+
+    # Remove partition owner from the ring on shutdown.
+    [remove_owner_on_shutdown: <bool> | default = true]
 ```
 
 ## Metrics-generator
@@ -405,8 +458,6 @@ If you want to enable metrics-generator for your Grafana Cloud account, refer to
 
 You can limit spans with end times that occur within a configured duration to be considered in metrics generation using `metrics_ingestion_time_range_slack`.
 In Grafana Cloud, this value defaults to 30 seconds so all spans sent to the metrics-generation more than 30 seconds in the past are discarded or rejected.
-
-For more information about the `local-blocks` configuration option, refer to [TraceQL metrics](https://grafana.com/docs/tempo/<TEMPO_VERSION>/metrics-from-traces/metrics-queries/configure-traceql-metrics/#activate-and-configure-the-local-blocks-processor).
 
 ```yaml
 # Metrics-generator configuration block
@@ -546,53 +597,6 @@ metrics_generator:
 
             # Add instance label to all span metrics series when enable_target_info is true
             [enable_instance_label: <bool> | default = true]
-
-        local_blocks:
-
-            # Block configuration
-            block: <Block config>
-
-            # Search configuration
-            search: <Search config>
-
-            # How often to run the flush loop to cut idle traces and blocks
-            [flush_check_period: <duration> | default = 10s]
-
-            # A trace is considered complete after this period of inactivity (no new spans received)
-            [trace_idle_period: <duration> | default = 5s]
-
-            # A trace is flushed after this period regardless of whether it is still receiving spans or not
-            [trace_live_period: <duration> | default = 30s]
-
-            # Maximum duration which the head block can be appended to, before cutting it.
-            [max_block_duration: <duration> | default = 1m]
-
-            # Maximum size of the head block, before cutting it
-            [max_block_bytes: <uint64> | default = 500000000]
-
-            # Duration to keep blocks in the ingester after they have been flushed
-            [complete_block_timeout: <duration> | default = 1h]
-
-            # Maximum amount of live traces
-            # If this value is exceeded, traces will be dropped with reason: `live_traces_exceeded`
-            # A value of 0 disables this limit.
-            [max_live_traces: <uint64>]
-
-            # Whether server spans should be filtered in or not.
-            # If enabled, only parent spans or spans with the SpanKind of `server` will be retained
-            [filter_server_spans: <bool> | default = true]
-
-            # Whether server spans should be flushed to storage.
-            # Setting `flush_to_storage` to `true` ensures that metrics blocks are flushed to storage so TraceQL metrics queries against historical data.
-            [flush_to_storage: <bool> | default = false]
-
-            # Number of blocks that are allowed to be processed concurrently.
-            [concurrent_blocks: <uint> | default = 10]
-
-            # A tuning factor that controls whether the trace-level timestamp columns are used in a metrics query.
-            # If a block overlaps the time window by less than this ratio, then the columns are skipped.
-            # A value of 1.0 will always load the columns, and 0.0 will never load any.
-            [time_overlap_cutoff: <float64> | default = 0.2]
 
     # Registry configuration
     registry:
@@ -744,16 +748,11 @@ query_frontend:
         # (default: 168h)
         [max_duration: <duration>]
 
-        # query_backend_after and query_ingesters_until together control where the query-frontend searches for traces.
-        # Time ranges before query_ingesters_until will be searched in the ingesters only.
-        # Time ranges after query_backend_after will be searched in the backend/object storage only.
-        # Time ranges from query_backend_after through query_ingesters_until will be queried from both locations.
-        # query_backend_after must be less than or equal to query_ingesters_until.
+        # Controls when the query-frontend starts searching backend storage.
+        # Time ranges more recent than this value are searched only in live-stores.
+        # Time ranges older than this value are searched in backend/object storage.
         # (default: 15m)
         [query_backend_after: <duration>]
-
-        # (default: 30m)
-        [query_ingesters_until: <duration>]
 
         # If set to a non-zero value, it's value will be used to decide if query is within SLO or not.
         # Query is within SLO if it returned 200 within duration_slo seconds OR processed throughput_slo bytes/s data.
@@ -768,7 +767,7 @@ query_frontend:
         # searches with (most_recent=true).
         [most_recent_shards: <int> | default = 200]
 
-        # The number of shards to break ingester queries into.
+        # The number of shards to break live-store queries into.
         [ingester_shards: <int> | default = 3]
 
         # The default number of spans to return per span set when not specified in the request.
@@ -904,21 +903,6 @@ querier:
     # This value controls the overall number of simultaneous subqueries that the querier will service at once. It does
     # not distinguish between the types of queries.
     [max_concurrent_queries: <int> | default = 20]
-
-    # If shuffle sharding is enabled, queriers fetch in-memory traces from the minimum set of required ingesters,
-    # selecting only ingesters which might have received series since now - <ingester flush period>. Otherwise, the
-    # request is sent to all ingesters.
-    [shuffle_sharding_ingesters_enabled: <bool> | default = true]
-
-    # Lookback period to include ingesters that were part of the shuffle sharded subring.
-    [shuffle_sharding_ingesters_lookback_period: <duration> | default = 1hr]
-
-    # The query frontend sends sharded requests to ingesters and querier (/api/traces/<id>)
-    # By default, all healthy ingesters are queried for the trace id.
-    # When true the querier will hash the trace id in the same way that distributors do and then
-    # only query those ingesters who own the trace id hash as determined by the ring.
-    # If this parameter is set, the number of 404s could increase during rollout or scaling of ingesters.
-    [query_relevant_ingesters: <bool> | default = false]
 
     trace_by_id:
         # Timeout for trace lookup requests
@@ -1532,9 +1516,6 @@ memberlist:
     # is not needed.
     [rejoin_interval: <duration> | default = 0s]
 
-    # How long to keep LEFT ingesters in the ring.
-    [left_ingesters_timeout: <duration> | default = 5m]
-
     # Timeout for leaving memberlist cluster.
     [leave_timeout: <duration> | default = 5s]
 
@@ -1844,7 +1825,7 @@ overrides:
     ingestion:
 
       # Specifies whether the ingestion rate limits should be applied by each instance
-      # of the distributor and ingester individually, or the limits are to be shared
+      # of the distributor individually, or the limits are to be shared
       # across all instances. See the "override strategies" section for an example.
       # Only applies to rate_limit_bytes.
       [rate_strategy: <global|local> | default = local]
@@ -1863,20 +1844,18 @@ overrides:
       # Ignores rate strategy and is always local.
       [burst_size_bytes: <int> | default = 20000000 (20MB) ]
 
-      # Maximum number of active traces per user, per ingester.
+      # Maximum number of active traces per user, per live-store.
       # A value of 0 disables the check.
       # Results in errors like
       #    LIVE_TRACES_EXCEEDED: max live traces per tenant exceeded:
       #    per-user traces limit (local: 10000 global: 0 actual local: 1) exceeded
-      # This override limit is used by the ingester.
       [max_traces_per_user: <int> | default = 10000]
 
       # Maximum number of active traces per user, across the cluster.
       # A value of 0 disables the check.
       [max_global_traces_per_user: <int> | default = 0]
 
-      # Shuffle sharding shards used for this user. A value of 0 uses all ingesters in the ring.
-      # Should not be lower than RF.
+      # Shuffle sharding shards used for this user. A value of 0 uses all partitions.
       [tenant_shard_size: <int> | default = 0]
 
       # Maximum bytes any attribute can be for both keys and values.
@@ -1891,14 +1870,12 @@ overrides:
       # Maximum size in bytes of a tag-values query. Tag-values query is used mainly
       # to populate the autocomplete dropdown. This limit protects the system from
       # tags with high cardinality or large values such as HTTP URLs or SQL queries.
-      # This override limit is used by the ingester and the querier.
       # A value of 0 disables the limit.
       [max_bytes_per_tag_values_query: <int> | default = 1000000 (1MB) ]
 
       # Maximum number of blocks to be inspected for a tag values query. Tag-values
       # query is used mainly to populate the autocomplete dropdown. This limit
-      # protects the system from long block lists in the ingesters.
-      # This override limit is used by the ingester and the querier.
+      # protects the system from long block lists.
       # A value of 0 disables the limit.
       [max_blocks_per_tag_values_query: <int> | default = 0 (disabled) ]
 
@@ -1940,7 +1917,6 @@ overrides:
       # supported:
       #  - service-graphs
       #  - span-metrics
-      #  - local-blocks
       [processors: <list of strings>]
 
       # Maximum number of active series in the registry, per instance of the metrics-generator. A
@@ -2048,17 +2024,6 @@ overrides:
           [target_info_excluded_dimensions: <list of string>]
           # add instance label to all span metrics series when enable_target_info is true
           [enable_instance_label: <bool> | default = true]
-
-        # Configuration for the local-blocks processor
-        local-blocks:
-          [max_live_traces: <int>]
-          [max_block_duration: <duration>]
-          [max_block_bytes: <int>]
-          [flush_check_period: <duration>]
-          [trace_idle_period: <duration>]
-          [complete_block_timeout: <duration>]
-          [concurrent_blocks: <duration>]
-          [filter_server_spans: <bool>]
 
     # Generic forwarding configuration
 
