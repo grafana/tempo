@@ -61,7 +61,11 @@ query_frontend:
         [query_backend_after: <duration>]
 ```
 
-**Compacted block retention prevents premature deletion.** The `compacted_block_retention` keeps a block in object storage for a period of time after it has been compacted and the data has been merged into a new block. This allows queriers with a stale blocklist to still access these blocks until they complete their polling cycles and have up-to-date blocklists. This should be at a minimum 2x the configured `blocklist_poll` duration.
+### Compacted block retention prevents premature deletion
+
+The `compacted_block_retention` keeps a block in object storage for a period of time after it has been compacted and the data has been merged into a new block.
+This allows queriers with a stale blocklist to still access these blocks until they complete their polling cycles and have up-to-date blocklists.
+At a minimum, this should be twice the configured `blocklist_poll` duration.
 
 ```
 backend_worker:
