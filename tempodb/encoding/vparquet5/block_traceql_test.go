@@ -568,8 +568,6 @@ func searchesThatMatch(t *testing.T, traceIDText string) []struct {
 		name string
 		req  traceql.FetchSpansRequest
 	}{
-		{"Resource Not Exists", traceql.MustExtractFetchSpansRequestWithMetadata(`{resource.xyz = nil}`)},
-		{"Resource IN", traceql.MustExtractFetchSpansRequestWithMetadata(`{resource.` + LabelK8sNamespaceName + `= "k8snamespace" || resource.` + LabelK8sNamespaceName + ` = "othernamespace"}`)},
 		{"empty request", traceql.FetchSpansRequest{}},
 		{
 			"Time range inside trace",
@@ -707,13 +705,6 @@ func searchesThatMatch(t *testing.T, traceIDText string) []struct {
 			),
 		},
 		// Special operators at different scopes.
-		// Span
-		{"In", traceql.MustExtractFetchSpansRequestWithMetadata(`{` + LabelName + `= "hello" || ` + LabelName + ` = "world"}`)},
-		{"Not In", traceql.MustExtractFetchSpansRequestWithMetadata(`{` + LabelName + `!= "world" && ` + LabelName + ` != "bar"}`)},
-		{"Regex Match Any", traceql.MustExtractFetchSpansRequestWithMetadata(`{` + LabelName + ` =~ "hello" || ` + LabelName + ` =~ "world"}`)},
-		{"Regex Match None", traceql.MustExtractFetchSpansRequestWithMetadata(`{` + LabelName + ` !~ "xyz" && ` + LabelName + ` !~ "bar"}`)},
-		{"Exists", traceql.MustExtractFetchSpansRequestWithMetadata(`{span.foo != nil}`)},
-		{"Not Exists", traceql.MustExtractFetchSpansRequestWithMetadata(`{span.xyz = nil}`)},
 		// Resource
 		{"Resource IN", traceql.MustExtractFetchSpansRequestWithMetadata(`{resource.` + LabelK8sNamespaceName + `= "k8snamespace" || resource.` + LabelK8sNamespaceName + ` = "othernamespace"}`)},
 		{"Resource Not In", traceql.MustExtractFetchSpansRequestWithMetadata(`{resource.` + LabelK8sNamespaceName + `!= "othernamespace" && resource.` + LabelK8sNamespaceName + ` != "foo"}`)},
@@ -721,6 +712,20 @@ func searchesThatMatch(t *testing.T, traceIDText string) []struct {
 		{"Resource Regex Match None", traceql.MustExtractFetchSpansRequestWithMetadata(`{resource.` + LabelK8sNamespaceName + ` !~ "bar.*" && resource.` + LabelK8sNamespaceName + ` !~ "foo.*"}`)},
 		{"Resource Exists", traceql.MustExtractFetchSpansRequestWithMetadata(`{resource.` + LabelK8sNamespaceName + ` != nil}`)},
 		{"Resource Not Exists", traceql.MustExtractFetchSpansRequestWithMetadata(`{resource.xyz = nil}`)},
+		// Instrumentation
+		{"Instrumentation IN", traceql.MustExtractFetchSpansRequestWithMetadata(`{instrumentation.scope-attr-str = "scope-attr-1" || instrumentation.scope-attr-str = "other-val"}`)},
+		{"Instrumentation Not In", traceql.MustExtractFetchSpansRequestWithMetadata(`{instrumentation.scope-attr-str != "other-val" && instrumentation.scope-attr-str != "another-val"}`)},
+		{"Instrumentation Regex Match Any", traceql.MustExtractFetchSpansRequestWithMetadata(`{instrumentation.scope-attr-str =~ "scope-attr-.*" || instrumentation.scope-attr-str =~ "foobar.*"}`)},
+		{"Instrumentation Regex Match None", traceql.MustExtractFetchSpansRequestWithMetadata(`{instrumentation.scope-attr-str !~ "nope.*" && instrumentation.scope-attr-str !~ "fail.*"}`)},
+		{"Instrumentation Exists", traceql.MustExtractFetchSpansRequestWithMetadata(`{instrumentation.scope-attr-str != nil}`)},
+		{"Instrumentation Not Exists", traceql.MustExtractFetchSpansRequestWithMetadata(`{instrumentation.doesnotexist = nil}`)},
+		// Span
+		{"In", traceql.MustExtractFetchSpansRequestWithMetadata(`{` + LabelName + `= "hello" || ` + LabelName + ` = "world"}`)},
+		{"Not In", traceql.MustExtractFetchSpansRequestWithMetadata(`{` + LabelName + `!= "world" && ` + LabelName + ` != "bar"}`)},
+		{"Regex Match Any", traceql.MustExtractFetchSpansRequestWithMetadata(`{` + LabelName + ` =~ "hello" || ` + LabelName + ` =~ "world"}`)},
+		{"Regex Match None", traceql.MustExtractFetchSpansRequestWithMetadata(`{` + LabelName + ` !~ "xyz" && ` + LabelName + ` !~ "bar"}`)},
+		{"Exists", traceql.MustExtractFetchSpansRequestWithMetadata(`{span.foo != nil}`)},
+		{"Not Exists", traceql.MustExtractFetchSpansRequestWithMetadata(`{span.xyz = nil}`)},
 		// Event
 		{"Event IN", traceql.MustExtractFetchSpansRequestWithMetadata(`{event.message = "exception" || event.message = "test"}`)},
 		{"Event Not In", traceql.MustExtractFetchSpansRequestWithMetadata(`{event.message != "foo" && event.message != "bar"}`)},

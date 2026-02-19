@@ -781,7 +781,6 @@ func createEventIterators(
 	var (
 		columnSelectAs    = map[string]string{}
 		columnPredicates  = map[string][]parquetquery.Predicate{}
-		iters             []parquetquery.Iterator
 		genericConditions []traceql.Condition
 		columnMapping     = dedicatedColumnsToColumnMapping(dedicatedColumns, backend.DedicatedColumnScopeEvent)
 	)
@@ -802,7 +801,7 @@ func createEventIterators(
 			columnSelectAs[columnPath] = cond.Attribute.Name
 			return true
 		case traceql.OpNotExists:
-			iters = append(iters, makeIter(columnPath, parquetquery.NewNilValuePredicate(), cond.Attribute.Name))
+			optional = append(optional, makeIter(columnPath, parquetquery.NewNilValuePredicate(), cond.Attribute.Name))
 			return true
 		default:
 			return false
@@ -849,7 +848,7 @@ func createEventIterators(
 		if cond.Op == traceql.OpNotExists {
 			// Generic attr doesn't exist
 			pred := parquetquery.NewIncludeNilStringEqualPredicate([]byte(cond.Attribute.Name))
-			iters = append(iters, makeNilIter(columnPathEventAttrKey, pred, cond.Attribute.Name))
+			optional = append(optional, makeNilIter(columnPathEventAttrKey, pred, cond.Attribute.Name))
 			continue
 		}
 

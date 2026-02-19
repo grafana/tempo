@@ -54,6 +54,42 @@ func (c *NilSyncIterator) Next() (*IteratorResult, error) {
 	return c.makeResult(rn, v), nil
 }
 
+func (c *NilSyncIterator) SeekTo(to RowNumber, definitionLevel int) (*IteratorResult, error) {
+	for {
+		if done := c.seekRowGroup(to, definitionLevel); done {
+			return nil, nil
+		}
+
+		done, err := c.seekPages(to, definitionLevel)
+		if err != nil {
+			return nil, err
+		}
+		if done {
+			// This row group is exhausted try the next one.
+			continue
+		}
+
+		c.seekWithinPage(to, definitionLevel)
+		break
+	}
+
+	// The row group and page have been selected to where this value is possibly
+	// located. Now scan through the page and look for it.
+	for {
+		rn, v, err := c.next()
+		if err != nil {
+			return nil, err
+		}
+		if !rn.Valid() {
+			return nil, nil
+		}
+
+		if CompareRowNumbers(definitionLevel, rn, to) >= 0 {
+			return c.makeResult(rn, v), nil
+		}
+	}
+}
+
 func (c *NilSyncIterator) next() (RowNumber, *pq.Value, error) {
 	var lastValue *pq.Value
 	lastRowNumber := EmptyRowNumber()
