@@ -132,8 +132,8 @@ type LiveStore struct {
 	reader *PartitionReader
 
 	// Multi-tenant instances
-	instancesMtx sync.RWMutex
-	instances    map[string]*instance
+	instancesMtx          sync.RWMutex
+	instances             map[string]*instance
 	wal                   *wal.WAL
 	completeBlockEncoding encoding.VersionedEncoding
 	overrides             overrides.Interface
@@ -159,17 +159,17 @@ func New(cfg Config, overridesService overrides.Interface, logger log.Logger, re
 	ctx, cancel := context.WithCancel(context.Background())
 
 	s := &LiveStore{
-		cfg:                    cfg,
-		logger:                 logger,
-		reg:                    reg,
-		decoder:                ingest.NewDecoder(),
-		completeBlockEncoding:  completeBlockEncoding,
-		ctx:                    ctx,
-		cancel:                 cancel,
-		instances:              make(map[string]*instance),
-		overrides:              overridesService,
-		completeQueues:         flushqueues.New[*completeOp](cfg.CompleteBlockConcurrency, metricCompleteQueueLength),
-		startupComplete:        make(chan struct{}),
+		cfg:                   cfg,
+		logger:                logger,
+		reg:                   reg,
+		decoder:               ingest.NewDecoder(),
+		completeBlockEncoding: completeBlockEncoding,
+		ctx:                   ctx,
+		cancel:                cancel,
+		instances:             make(map[string]*instance),
+		overrides:             overridesService,
+		completeQueues:        flushqueues.New[*completeOp](cfg.CompleteBlockConcurrency, metricCompleteQueueLength),
+		startupComplete:       make(chan struct{}),
 	}
 
 	// Initialize ready state to starting

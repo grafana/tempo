@@ -115,19 +115,19 @@ func newInstance(instanceID string, cfg Config, wal *wal.WAL, completeBlockEncod
 	logger = log.With(logger, "tenant", instanceID)
 
 	i := &instance{
-		tenantID:               instanceID,
-		logger:                 logger,
-		Cfg:                    cfg,
-		wal:                    wal,
+		tenantID:              instanceID,
+		logger:                logger,
+		Cfg:                   cfg,
+		wal:                   wal,
 		completeBlockEncoding: completeBlockEncoding,
-		walBlocks:          map[uuid.UUID]common.WALBlock{},
-		completeBlocks:     map[uuid.UUID]*ingester.LocalBlock{},
-		liveTraces:         livetraces.New[*v1.ResourceSpans](func(rs *v1.ResourceSpans) uint64 { return uint64(rs.Size()) }, cfg.MaxTraceIdle, cfg.MaxTraceLive, instanceID),
-		traceSizes:         tracesizes.New(),
-		maxTraceLogger:     util_log.NewRateLimitedLogger(maxTraceLogLinesPerSecond, level.Warn(logger)),
-		overrides:          overrides,
-		tracesCreatedTotal: metricTracesCreatedTotal.WithLabelValues(instanceID),
-		bytesReceivedTotal: metricBytesReceivedTotal,
+		walBlocks:             map[uuid.UUID]common.WALBlock{},
+		completeBlocks:        map[uuid.UUID]*ingester.LocalBlock{},
+		liveTraces:            livetraces.New[*v1.ResourceSpans](func(rs *v1.ResourceSpans) uint64 { return uint64(rs.Size()) }, cfg.MaxTraceIdle, cfg.MaxTraceLive, instanceID),
+		traceSizes:            tracesizes.New(),
+		maxTraceLogger:        util_log.NewRateLimitedLogger(maxTraceLogLinesPerSecond, level.Warn(logger)),
+		overrides:             overrides,
+		tracesCreatedTotal:    metricTracesCreatedTotal.WithLabelValues(instanceID),
+		bytesReceivedTotal:    metricBytesReceivedTotal,
 		// blockOffsetMeta:   make(map[uuid.UUID]offsetMetadata),
 	}
 
