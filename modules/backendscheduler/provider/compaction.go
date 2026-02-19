@@ -441,11 +441,15 @@ func (p *CompactionProvider) newBlockSelector(tenantID string) (blockselector.Co
 	}
 	p.outstandingJobsMtx.Unlock()
 
+	// Skip blocks that are pending redaction (or other pending work)
 	for _, block := range fullBlocklist {
-		if _, ok := inProgressBlockIDs[block.BlockID]; !ok {
-			// Include blocks that are not already in the input list from another job or recent jobs
-			blocklist = append(blocklist, block)
+		if _, ok := inProgressBlockIDs[block.BlockID]; ok {
+			continue
 		}
+		if p.sched.BlockPending(tenantID, block.BlockID.String()) {
+			continue
+		}
+		blocklist = append(blocklist, block)
 	}
 
 	if window == 0 {
