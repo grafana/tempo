@@ -36,7 +36,6 @@ type SearchSharderConfig struct {
 	MaxDuration           time.Duration `yaml:"max_duration"`
 	// QueryBackendAfter determines when to query backend storage vs ingesters only.
 	QueryBackendAfter      time.Duration `yaml:"query_backend_after,omitempty"`
-	QueryIngestersUntil    time.Duration `yaml:"query_ingesters_until,omitempty"`
 	IngesterShards         int           `yaml:"ingester_shards,omitempty"`
 	MostRecentShards       int           `yaml:"most_recent_shards,omitempty"`
 	DefaultSpansPerSpanSet uint32        `yaml:"default_spans_per_span_set,omitempty"`
@@ -115,7 +114,7 @@ func (s asyncSearchSharder) RoundTrip(pipelineRequest pipeline.Request) (pipelin
 	// buffer of shards+1 allows us to insert ingestReq and metrics
 	reqCh := make(chan pipeline.Request, s.cfg.IngesterShards+1)
 
-	// build request to search ingesters based on query_ingesters_until config and time range
+	// build request to search ingesters based on query_backend_after config and time range
 	// pass subCtx in requests so we can cancel and exit early
 	jobMetrics, err := s.ingesterRequests(tenantID, pipelineRequest, *searchReq, reqCh)
 	if err != nil {
@@ -203,7 +202,7 @@ func (s *asyncSearchSharder) ingesterRequests(tenantID string, parent pipeline.R
 		return resp, buildIngesterRequest(tenantID, parent, &searchReq, reqCh)
 	}
 
-	ingesterUntil := uint32(time.Now().Add(-s.cfg.QueryIngestersUntil).Unix())
+	ingesterUntil := uint32(time.Now().Add(-s.cfg.QueryBackendAfter).Unix())
 
 	// if there's no overlap between the query and ingester range just return nil
 	if searchReq.End < ingesterUntil {

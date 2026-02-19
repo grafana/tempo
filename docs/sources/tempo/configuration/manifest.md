@@ -400,7 +400,6 @@ query_frontend:
         max_result_limit: 0
         max_duration: 168h0m0s
         query_backend_after: 15m0s
-        query_ingesters_until: 30m0s
         ingester_shards: 3
         most_recent_shards: 200
         default_spans_per_span_set: 3
