@@ -3,10 +3,6 @@ data:
   tempo.yaml: |
     distributor: {}
     http_api_prefix: ""
-    ingester:
-        lifecycler:
-            ring:
-                replication_factor: 3
     memberlist:
         abort_if_cluster_join_fails: false
         bind_port: 7946
