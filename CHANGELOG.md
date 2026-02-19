@@ -32,6 +32,7 @@
 
 ### 3.0 Cleanup
 
+* [CHANGE] **BREAKING CHANGE** Remove ingesters [#6504](https://github.com/grafana/tempo/pull/6504) (@javiermolinar)
 * [CHANGE] **BREAKING CHANGE** Remove ingesters and compactor alerts [#6369](https://github.com/grafana/tempo/pull/6369) (@javiermolinar)
 * [CHANGE] **BREAKING CHANGE** Removed `v2` block encoding and compactor component. [#6273](https://github.com/grafana/tempo/pull/6273) (@joe-elliott)
   This includes the removal of the following CLI commands which were `v2` specific: `list block`, `list index`, `view index`, `gen index`, `gen bloom`.
