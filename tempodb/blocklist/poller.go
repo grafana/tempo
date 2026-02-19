@@ -77,6 +77,14 @@ var (
 		Name:      "blocklist_tenant_index_age_seconds",
 		Help:      "Age in seconds of the last pulled tenant index.",
 	}, []string{"tenant"})
+	metricBackendBloomBytes = promauto.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Namespace: "tempodb",
+			Name:      "backend_bloom_filter_bytes_total",
+			Help:      "Total size in bytes of bloom filters stored in the backend.",
+		},
+		[]string{"tenant", "block_status"},
+	)
 )
 
 // Config is used to configure the poller
@@ -228,7 +236,10 @@ func (p *Poller) Do(parentCtx context.Context, previous *List) (PerTenant, PerTe
 				metricBackendObjects.WithLabelValues(tenantID, blockStatusLiveLabel).Set(float64(backendMetaMetrics.blockMetaTotalObjects))
 				metricBackendObjects.WithLabelValues(tenantID, blockStatusCompactedLabel).Set(float64(backendMetaMetrics.compactedBlockMetaTotalObjects))
 				metricBackendBytes.WithLabelValues(tenantID, blockStatusLiveLabel).Set(float64(backendMetaMetrics.blockMetaTotalBytes))
+				metricBackendBloomBytes.WithLabelValues(tenantID, blockStatusLiveLabel).Set(float64(backendMetaMetrics.blockMetaBloomBytes))
 				metricBackendBytes.WithLabelValues(tenantID, blockStatusCompactedLabel).Set(float64(backendMetaMetrics.compactedBlockMetaTotalBytes))
+				metricBackendBloomBytes.WithLabelValues(tenantID, blockStatusCompactedLabel).Set(float64(backendMetaMetrics.compactedBlockMetaBloomBytes))
+
 				return
 			}
 			metricBlocklistLength.DeleteLabelValues(tenantID)
@@ -590,6 +601,8 @@ type backendMetaMetrics struct {
 	compactedBlockMetaTotalObjects int
 	blockMetaTotalBytes            uint64
 	compactedBlockMetaTotalBytes   uint64
+	blockMetaBloomBytes            uint64
+	compactedBlockMetaBloomBytes   uint64
 }
 
 func sumTotalBackendMetaMetrics(
@@ -600,15 +613,19 @@ func sumTotalBackendMetaMetrics(
 	var sumTotalObjectsCBM int
 	var sumTotalBytesBM uint64
 	var sumTotalBytesCBM uint64
+	var sumBloomBytesBM uint64
+	var sumBloomBytesCBM uint64
 
 	for _, bm := range blockMeta {
 		sumTotalObjectsBM += int(bm.TotalObjects)
 		sumTotalBytesBM += bm.Size_
+		sumBloomBytesBM += bm.BloomFilterBytes
 	}
 
 	for _, cbm := range compactedBlockMeta {
 		sumTotalObjectsCBM += int(cbm.TotalObjects)
 		sumTotalBytesCBM += cbm.Size_
+		sumBloomBytesCBM += cbm.BloomFilterBytes
 	}
 
 	return backendMetaMetrics{
@@ -616,5 +633,7 @@ func sumTotalBackendMetaMetrics(
 		compactedBlockMetaTotalObjects: sumTotalObjectsCBM,
 		blockMetaTotalBytes:            sumTotalBytesBM,
 		compactedBlockMetaTotalBytes:   sumTotalBytesCBM,
+		blockMetaBloomBytes:            sumBloomBytesBM,
+		compactedBlockMetaBloomBytes:   sumBloomBytesCBM,
 	}
 }
