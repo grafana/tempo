@@ -568,6 +568,8 @@ func searchesThatMatch(t *testing.T, traceIDText string) []struct {
 		name string
 		req  traceql.FetchSpansRequest
 	}{
+		{"Resource Not Exists", traceql.MustExtractFetchSpansRequestWithMetadata(`{resource.xyz = nil}`)},
+		{"Resource IN", traceql.MustExtractFetchSpansRequestWithMetadata(`{resource.` + LabelK8sNamespaceName + `= "k8snamespace" || resource.` + LabelK8sNamespaceName + ` = "othernamespace"}`)},
 		{"empty request", traceql.FetchSpansRequest{}},
 		{
 			"Time range inside trace",
@@ -704,6 +706,28 @@ func searchesThatMatch(t *testing.T, traceIDText string) []struct {
 				parse(t, `{`+LabelDuration+` < 100s }`), // No match
 			),
 		},
+		// Special operators at different scopes.
+		// Span
+		{"In", traceql.MustExtractFetchSpansRequestWithMetadata(`{` + LabelName + `= "hello" || ` + LabelName + ` = "world"}`)},
+		{"Not In", traceql.MustExtractFetchSpansRequestWithMetadata(`{` + LabelName + `!= "world" && ` + LabelName + ` != "bar"}`)},
+		{"Regex Match Any", traceql.MustExtractFetchSpansRequestWithMetadata(`{` + LabelName + ` =~ "hello" || ` + LabelName + ` =~ "world"}`)},
+		{"Regex Match None", traceql.MustExtractFetchSpansRequestWithMetadata(`{` + LabelName + ` !~ "xyz" && ` + LabelName + ` !~ "bar"}`)},
+		{"Exists", traceql.MustExtractFetchSpansRequestWithMetadata(`{span.foo != nil}`)},
+		{"Not Exists", traceql.MustExtractFetchSpansRequestWithMetadata(`{span.xyz = nil}`)},
+		// Resource
+		{"Resource IN", traceql.MustExtractFetchSpansRequestWithMetadata(`{resource.` + LabelK8sNamespaceName + `= "k8snamespace" || resource.` + LabelK8sNamespaceName + ` = "othernamespace"}`)},
+		{"Resource Not In", traceql.MustExtractFetchSpansRequestWithMetadata(`{resource.` + LabelK8sNamespaceName + `!= "othernamespace" && resource.` + LabelK8sNamespaceName + ` != "foo"}`)},
+		{"Resource Regex Match Any", traceql.MustExtractFetchSpansRequestWithMetadata(`{resource.` + LabelK8sNamespaceName + ` =~ "k8s.*" || resource.` + LabelK8sNamespaceName + ` =~ "prod.*"}`)},
+		{"Resource Regex Match None", traceql.MustExtractFetchSpansRequestWithMetadata(`{resource.` + LabelK8sNamespaceName + ` !~ "bar.*" && resource.` + LabelK8sNamespaceName + ` !~ "foo.*"}`)},
+		{"Resource Exists", traceql.MustExtractFetchSpansRequestWithMetadata(`{resource.` + LabelK8sNamespaceName + ` != nil}`)},
+		{"Resource Not Exists", traceql.MustExtractFetchSpansRequestWithMetadata(`{resource.xyz = nil}`)},
+		// Event
+		{"Event IN", traceql.MustExtractFetchSpansRequestWithMetadata(`{event.message = "exception" || event.message = "test"}`)},
+		{"Event Not In", traceql.MustExtractFetchSpansRequestWithMetadata(`{event.message != "foo" && event.message != "bar"}`)},
+		{"Event Regex Match Any", traceql.MustExtractFetchSpansRequestWithMetadata(`{event.message =~ "exc.*" || event.message =~ "test.*"}`)},
+		{"EventRegex Match None", traceql.MustExtractFetchSpansRequestWithMetadata(`{event.message !~ "zzz.*" && event.message !~ "fail.*"}`)},
+		{"EventExists", traceql.MustExtractFetchSpansRequestWithMetadata(`{event.message != nil}`)},
+		{"Event Not Exists", traceql.MustExtractFetchSpansRequestWithMetadata(`{event.xyz = nil}`)},
 		// Edge cases
 		{"Almost conflicts with intrinsic but still works", traceql.MustExtractFetchSpansRequestWithMetadata(`{.name = "Bob"}`)},
 		{"service.name doesn't match type of dedicated column", traceql.MustExtractFetchSpansRequestWithMetadata(`{resource.` + LabelServiceName + ` = 123}`)},
@@ -754,7 +778,6 @@ func searchesThatDontMatch(t *testing.T) []struct {
 	}{
 		// TODO - Should the below query return data or not?  It does match the resource
 		// makeReq(parse(t, `{.foo = "abc"}`)),                           // This should not return results because the span has overridden this attribute to "def".
-		{"Regex IN", traceql.MustExtractFetchSpansRequestWithMetadata(`{.foo =~ "xyz.*"}`)},
 		{"String Not Regex", traceql.MustExtractFetchSpansRequestWithMetadata(`{.foo !~ ".*"}`)},
 		{"Bool not match", traceql.MustExtractFetchSpansRequestWithMetadata(`{span.bool = true && name = "hello"}`)}, // name = "hello" only matches the first span
 		{"Intrinsic: duration", traceql.MustExtractFetchSpansRequestWithMetadata(`{` + LabelDuration + ` >  1000s}`)},
