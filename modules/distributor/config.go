@@ -88,7 +88,7 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 	cfg.RetryAfterOnResourceExhausted = 0
 	cfg.OverrideRingKey = distributorRingKey
 	cfg.ExtendWrites = true
-	cfg.IngesterWritePathEnabled = true
+	cfg.IngesterWritePathEnabled = false
 
 	cfg.MaxAttributeBytes = 2048 // 2KB
 
