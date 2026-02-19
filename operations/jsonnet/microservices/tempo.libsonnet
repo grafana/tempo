@@ -2,7 +2,6 @@
 (import 'configmap.libsonnet') +
 (import 'config.libsonnet') +
 (import 'distributor.libsonnet') +
-(import 'ingester.libsonnet') +
 (import 'generator.libsonnet') +
 (import 'frontend.libsonnet') +
 (import 'querier.libsonnet') +
@@ -12,7 +11,6 @@
 (import 'backend-worker.libsonnet') +
 (import 'vulture.libsonnet') +
 (import 'memcached.libsonnet') +
-(import 'multi-zone.libsonnet') +
 (import 'memberlist.libsonnet') +
 (import 'vertical-pod-autoscaler.libsonnet') +
 (import 'pod-disruption-budget.libsonnet') +

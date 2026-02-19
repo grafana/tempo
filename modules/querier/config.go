@@ -24,7 +24,9 @@ type Config struct {
 	ShuffleShardingIngestersLookbackPeriod time.Duration `yaml:"shuffle_sharding_ingesters_lookback_period"`
 	QueryRelevantIngesters                 bool          `yaml:"query_relevant_ingesters"`
 	SecondaryIngesterRing                  string        `yaml:"secondary_ingester_ring,omitempty"`
-	QueryLiveStore                         bool          `yaml:"query_live_store,omitempty"` // todo: remove after rhythm migration
+	// Deprecated: kept only for config compatibility. Querier always uses
+	// partition-ring query path when available.
+	QueryLiveStore bool `yaml:"query_live_store,omitempty"`
 }
 
 type SearchConfig struct {

@@ -16,8 +16,17 @@ TOOLS_IMAGE_TAG ?= main-36bd1c7
 
 GOTOOLS ?= $(shell cd $(TOOL_DIR) && go list -e -f '{{ .Imports }}' -tags tools |tr -d '[]')
 
-TOOLS_CMD = docker run --rm -t -v ${PWD}:/tools $(TOOLS_IMAGE):$(TOOLS_IMAGE_TAG)
-LINT_CMD =  docker run --rm -t -v ${PWD}:/tools -v ${PWD}/.cache/golangci-lint:/root/.cache/golangci-lint $(TOOLS_IMAGE):$(TOOLS_IMAGE_TAG)
+# Mount the git common directory to the tools container.
+# This is needed when using git worktrees.
+GIT_COMMON_DIR := $(shell git rev-parse --git-common-dir 2>/dev/null)
+ifneq ($(strip $(GIT_COMMON_DIR)),)
+  ifneq ($(GIT_COMMON_DIR),.git)
+    WORKTREE_DOCKER_MOUNT := -v $(GIT_COMMON_DIR):$(GIT_COMMON_DIR)
+  endif
+endif
+
+TOOLS_CMD = docker run --rm -t -v ${PWD}:/tools $(WORKTREE_DOCKER_MOUNT) $(TOOLS_IMAGE):$(TOOLS_IMAGE_TAG)
+LINT_CMD =  docker run --rm -t -v ${PWD}:/tools $(WORKTREE_DOCKER_MOUNT) -v ${PWD}/.cache/golangci-lint:/root/.cache/golangci-lint $(TOOLS_IMAGE):$(TOOLS_IMAGE_TAG)
 
 .PHONY: tools-image-build
 tools-image-build:

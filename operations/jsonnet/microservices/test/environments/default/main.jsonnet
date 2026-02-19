@@ -9,10 +9,6 @@ tempo {
     cluster: 'k3d',
     namespace: 'default',
     querier+: {},
-    ingester+: {
-      pvc_size: '5Gi',
-      pvc_storage_class: 'local-path',
-    },
     distributor+: {
       receivers: {
         opencensus: null,
@@ -82,20 +78,6 @@ tempo {
       containerPort.new('opencensus', 55678),
       containerPort.new('jaeger-http', 14268),
     ]),
-
-  tempo_ingester_container+::
-    k.util.resourcesRequests('500m', '500Mi'),
-
-  // clear affinity so we can run multiple ingesters on a single node
-  tempo_ingester_statefulset+: {
-    spec+: {
-      template+: {
-        spec+: {
-          affinity: {},
-        },
-      },
-    },
-  },
 
   tempo_querier_container+::
     k.util.resourcesRequests('500m', '500Mi'),

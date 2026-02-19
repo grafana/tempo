@@ -87,11 +87,6 @@ tempo
         enabled: true,
       },
     },
-    ingester+: {
-      replicas: 10,
-      pvc_size: '10Gi',
-      pvc_storage_class: 'fast',
-    },
     distributor+: {
       replicas: 5,
       receivers: {
@@ -141,9 +136,5 @@ tempo
     // zpdb_custom_resource_definition_enabled: false,
     // replica_template_custom_resource_definition_enabled: false,
   },
-
-  local statefulSet = $.apps.v1.statefulSet,
-  tempo_ingester_statefulset:
-    if !$._config.multi_zone_ingester_enabled then super.tempo_ingester_statefulset + statefulSet.mixin.spec.withPodManagementPolicy('Parallel') else null,
 
 }

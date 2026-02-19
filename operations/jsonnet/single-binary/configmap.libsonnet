@@ -9,8 +9,6 @@
     distributor: {
       receivers: $._config.receivers,
     },
-    ingester: {
-    },
     memberlist: {
       abort_if_cluster_join_fails: false,
       bind_port: 7946,
