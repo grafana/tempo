@@ -483,8 +483,8 @@ func (i *instance) completeBlock(ctx context.Context, id uuid.UUID) error {
 	}
 	delete(i.walBlocks, (uuid.UUID)(walBlock.BlockMeta().BlockID))
 
-	if i.replayedWALBlockCount.Load() > 0 {
-		i.replayedWALBlockCount.Add(-1)
+	if newVal := i.replayedWALBlockCount.Add(-1); newVal < 0 {
+		i.replayedWALBlockCount.Store(0)
 	}
 
 	level.Info(i.logger).Log("msg", "completed block", "id", id.String())
