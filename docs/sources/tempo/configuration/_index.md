@@ -745,7 +745,7 @@ query_frontend:
         [max_duration: <duration>]
 
         # query_backend_after controls where the query-frontend searches for traces.
-        # Time ranges newer than query_backend_after will be searched in the ingesters only.
+        # Time ranges newer than query_backend_after will be searched in the live-stores only.
         # Time ranges older than query_backend_after will be searched in the backend/object storage only.
         # (default: 15m)
         [query_backend_after: <duration>]
