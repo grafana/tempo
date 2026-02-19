@@ -16,6 +16,7 @@ import (
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/util/test"
+	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/grafana/tempo/tempodb/wal"
 )
 
@@ -40,7 +41,7 @@ func setupTest(t *testing.T) *testSetup {
 	// Setup WAL config
 	w, err := wal.New(&wal.Config{
 		Filepath: tmpDir,
-		Version:  "vParquet4",
+		Version:  encoding.DefaultEncoding().Version(),
 	})
 	require.NoError(t, err)
 
@@ -52,7 +53,9 @@ func setupTest(t *testing.T) *testSetup {
 	// Create instance
 	cfg := Config{}
 	cfg.RegisterFlagsAndApplyDefaults("", &flag.FlagSet{})
-	instance, err := newInstance(testTenant, cfg, w, o, log.NewNopLogger())
+	enc, err := encoding.FromVersionForWrites(cfg.WAL.Version)
+	require.NoError(t, err)
+	instance, err := newInstance(testTenant, cfg, w, enc, o, log.NewNopLogger())
 	require.NoError(t, err)
 
 	return &testSetup{

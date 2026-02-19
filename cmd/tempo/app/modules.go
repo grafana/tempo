@@ -709,8 +709,10 @@ func (t *App) initLiveStore() (services.Service, error) {
 	// Always use partition 0. This is for small installs or local/debugging setups.
 	singlePartition := IsSingleBinary(t.cfg.Target)
 
+	// Inject config from other locations.
 	t.cfg.LiveStore.IngestConfig = t.cfg.Ingest
 	t.cfg.LiveStore.Ring.ListenPort = t.cfg.Server.GRPCListenPort
+	t.cfg.LiveStore.GlobalBlockConfig = t.cfg.StorageConfig.Trace.Block
 
 	var err error
 	t.liveStore, err = livestore.New(t.cfg.LiveStore, t.Overrides, log.Logger, prometheus.DefaultRegisterer, singlePartition)

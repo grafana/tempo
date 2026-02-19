@@ -48,12 +48,16 @@ type Config struct {
 	// Block configuration
 	BlockConfig common.BlockConfig `yaml:"block_config"`
 
+	// GlobalBlockConfig is the main storage trace block config (storage.trace.block). Used as fallback
+	// when block_config.version and wal.version are not set. This config is injected by the application when creating the LiveStore.
+	GlobalBlockConfig *common.BlockConfig `yaml:"-"`
+
 	// ReadinessTargetLag is the target consumer lag threshold before the live-store
 	// is considered ready to serve queries. The live-store will wait until lag drops
 	// below this value. Set to 0 to disable readiness waiting (default, backward compatible).
 	ReadinessTargetLag time.Duration `yaml:"readiness_target_lag"`
 
-	// ReadinessMaxWait is the maximum time to wait for catching up at startup.
+	// ReadinessMaxWait is the maximum time to wait for catching up a˛t startup.
 	// If this timeout is exceeded, the live-store becomes ready anyway.
 	// Only used if ReadinessTargetLag > 0. Default: 30m.
 	ReadinessMaxWait time.Duration `yaml:"readiness_max_wait"`
@@ -127,7 +131,6 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 	f.BoolVar(&cfg.RemoveOwnerOnShutdown, prefix+".remove-owner-on-shutdown", cfg.RemoveOwnerOnShutdown, "Remove partition owner from the ring on shutdown.")
 
 	cfg.WAL.RegisterFlags(f) // WAL config has no flags, only defaults
-	cfg.WAL.Version = encoding.DefaultEncoding().Version()
 	f.StringVar(&cfg.WAL.Filepath, prefix+".wal.path", "/var/tempo/live-store/traces", "Path at which store WAL blocks.")
 	f.StringVar(&cfg.ShutdownMarkerDir, prefix+".shutdown_marker_dir", "/var/tempo/live-store/shutdown-marker", "Path to the shutdown marker directory.")
 }
@@ -177,5 +180,49 @@ func (cfg *Config) Validate() error {
 		return fmt.Errorf("block_config validation failed: %w", err)
 	}
 
-	return cfg.WAL.Validate()
+	if err := cfg.WAL.Validate(); err != nil {
+		return err
+	}
+
+	// Validate that resolved block and WAL versions are valid for creating new blocks (e.g. reject "preview").
+	if _, _, err := coalesceBlockVersions(cfg); err != nil {
+		return err
+	}
+	return nil
+}
+
+// coalesceBlockVersions resolves complete block and WAL encodings from configs.
+// Starts with the default version and overrides as each layer is checked (global block config, then block_config, then for WAL also wal.version).
+// Returns an error if any resolved version isn't writable.
+func coalesceBlockVersions(cfg *Config) (completeBlockEncoding, walEncoding encoding.VersionedEncoding, err error) {
+	var (
+		blockVer = encoding.DefaultEncoding().Version()
+		walVer   = encoding.DefaultEncoding().Version()
+	)
+
+	if cfg.GlobalBlockConfig != nil && cfg.GlobalBlockConfig.Version != "" {
+		blockVer = cfg.GlobalBlockConfig.Version
+		walVer = cfg.GlobalBlockConfig.Version
+	}
+
+	if cfg.BlockConfig.Version != "" {
+		blockVer = cfg.BlockConfig.Version
+		walVer = cfg.BlockConfig.Version
+	}
+
+	if cfg.WAL.Version != "" {
+		walVer = cfg.WAL.Version
+	}
+
+	completeBlockEncoding, err = encoding.FromVersionForWrites(blockVer)
+	if err != nil {
+		return nil, nil, fmt.Errorf("complete block version %q: %w", blockVer, err)
+	}
+
+	walEncoding, err = encoding.FromVersionForWrites(walVer)
+	if err != nil {
+		return nil, nil, fmt.Errorf("wal version %q: %w", walVer, err)
+	}
+
+	return completeBlockEncoding, walEncoding, nil
 }

@@ -541,11 +541,11 @@ func TestRequeueOnError(t *testing.T) {
 	inst, err := liveStore.getOrCreateInstance(testTenantID)
 	require.NoError(t, err)
 	enc := erroredEnc{
-		VersionedEncoding: inst.enc,
+		VersionedEncoding: inst.completeBlockEncoding,
 		mx:                sync.Mutex{},
 	}
 	enc.SetError(errors.New("forced error"))
-	inst.enc = &enc
+	inst.completeBlockEncoding = &enc
 
 	// push data
 	expectedID, expectedTrace := pushToLiveStore(t, liveStore)
@@ -559,7 +559,7 @@ func TestRequeueOnError(t *testing.T) {
 	// wait for the first backoff that should not be successful
 	time.Sleep(initialBackoff * 2)
 	requireInstanceState(t, inst, instanceState{liveTraces: 0, walBlocks: 1, completeBlocks: 0})
-	// now enc does not error and block should be flushed successfully
+	// now completeBlockEncoding does not error and block should be flushed successfully
 	enc.SetError(nil)
 	time.Sleep(initialBackoff * 8)
 	requireInstanceState(t, inst, instanceState{liveTraces: 0, walBlocks: 0, completeBlocks: 1})
