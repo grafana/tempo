@@ -176,6 +176,10 @@ func (cfg *Config) Validate() error {
 		return fmt.Errorf("max_trace_idle (%s) cannot be greater than max_trace_live (%s)", cfg.MaxTraceIdle, cfg.MaxTraceLive)
 	}
 
+	if _, _, err := coalesceBlockVersions(cfg); err != nil {
+		return err
+	}
+
 	if err := common.ValidateConfig(&cfg.BlockConfig); err != nil {
 		return fmt.Errorf("block_config validation failed: %w", err)
 	}
@@ -184,10 +188,6 @@ func (cfg *Config) Validate() error {
 		return err
 	}
 
-	// Validate that resolved block and WAL versions are valid for creating new blocks (e.g. reject "preview").
-	if _, _, err := coalesceBlockVersions(cfg); err != nil {
-		return err
-	}
 	return nil
 }
 
@@ -223,6 +223,10 @@ func coalesceBlockVersions(cfg *Config) (completeBlockEncoding, walEncoding enco
 	if err != nil {
 		return nil, nil, fmt.Errorf("wal version %q: %w", walVer, err)
 	}
+
+	// Inject final coalesced versions back into the configs.
+	cfg.BlockConfig.Version = blockVer
+	cfg.WAL.Version = walVer
 
 	return completeBlockEncoding, walEncoding, nil
 }

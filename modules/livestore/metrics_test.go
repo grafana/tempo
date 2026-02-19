@@ -16,7 +16,6 @@ import (
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/util/test"
-	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/grafana/tempo/tempodb/wal"
 )
 
@@ -38,24 +37,26 @@ func setupTest(t *testing.T) *testSetup {
 	t.Helper()
 	tmpDir := t.TempDir()
 
-	// Setup WAL config
-	w, err := wal.New(&wal.Config{
-		Filepath: tmpDir,
-		Version:  encoding.DefaultEncoding().Version(),
-	})
-	require.NoError(t, err)
-
 	// Create overrides with a separate registry to avoid conflicts
 	registry := prometheus.NewRegistry()
 	o, err := overrides.NewOverrides(overrides.Config{}, nil, registry)
 	require.NoError(t, err)
 
 	// Create instance
-	cfg := Config{}
+	cfg := &Config{}
 	cfg.RegisterFlagsAndApplyDefaults("", &flag.FlagSet{})
-	enc, err := encoding.FromVersionForWrites(cfg.WAL.Version)
+
+	blockEnc, walEnc, err := coalesceBlockVersions(cfg)
 	require.NoError(t, err)
-	instance, err := newInstance(testTenant, cfg, w, enc, o, log.NewNopLogger())
+
+	// Setup WAL config
+	w, err := wal.New(&wal.Config{
+		Filepath: tmpDir,
+		Version:  walEnc.Version(),
+	})
+	require.NoError(t, err)
+
+	instance, err := newInstance(testTenant, *cfg, w, blockEnc, o, log.NewNopLogger())
 	require.NoError(t, err)
 
 	return &testSetup{
