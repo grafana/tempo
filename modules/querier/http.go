@@ -17,6 +17,8 @@ import (
 	"github.com/grafana/tempo/pkg/api"
 	"github.com/grafana/tempo/pkg/model/trace"
 	"github.com/grafana/tempo/pkg/tempopb"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 const (
@@ -45,8 +47,6 @@ func (q *Querier) TraceByIDHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-
-	ctx = injectRecentDataTarget(ctx, api.ParseRecentDataTargetHeader(r))
 
 	// validate request
 	blockStart, blockEnd, queryMode, timeStart, timeEnd, rf1After, err := api.ValidateAndSanitizeRequest(r)
@@ -99,8 +99,6 @@ func (q *Querier) TraceByIDHandlerV2(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	ctx = injectRecentDataTarget(ctx, api.ParseRecentDataTargetHeader(r))
-
 	// validate request
 	blockStart, blockEnd, queryMode, timeStart, timeEnd, rf1After, err := api.ValidateAndSanitizeRequest(r)
 	if err != nil {
@@ -138,8 +136,6 @@ func (q *Querier) SearchHandler(w http.ResponseWriter, r *http.Request) {
 	// Enforce the query timeout while querying backends
 	ctx, cancel := context.WithDeadline(r.Context(), time.Now().Add(q.cfg.Search.QueryTimeout))
 	defer cancel()
-
-	ctx = injectRecentDataTarget(ctx, api.ParseRecentDataTargetHeader(r))
 
 	ctx, span := tracer.Start(ctx, "Querier.SearchHandler")
 	defer span.End()
@@ -188,8 +184,6 @@ func (q *Querier) SearchTagsHandler(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithDeadline(r.Context(), time.Now().Add(q.cfg.Search.QueryTimeout))
 	defer cancel()
 
-	ctx = injectRecentDataTarget(ctx, api.ParseRecentDataTargetHeader(r))
-
 	ctx, span := tracer.Start(ctx, "Querier.SearchTagsHandler")
 	defer span.End()
 
@@ -226,8 +220,6 @@ func (q *Querier) SearchTagsV2Handler(w http.ResponseWriter, r *http.Request) {
 	// Enforce the query timeout while querying backends
 	ctx, cancel := context.WithDeadline(r.Context(), time.Now().Add(q.cfg.Search.QueryTimeout))
 	defer cancel()
-
-	ctx = injectRecentDataTarget(ctx, api.ParseRecentDataTargetHeader(r))
 
 	ctx, span := tracer.Start(ctx, "Querier.SearchTagsHandler")
 	defer span.End()
@@ -268,8 +260,6 @@ func (q *Querier) SearchTagValuesHandler(w http.ResponseWriter, r *http.Request)
 	ctx, cancel := context.WithDeadline(r.Context(), time.Now().Add(q.cfg.Search.QueryTimeout))
 	defer cancel()
 
-	ctx = injectRecentDataTarget(ctx, api.ParseRecentDataTargetHeader(r))
-
 	ctx, span := tracer.Start(ctx, "Querier.SearchTagValuesHandler")
 	defer span.End()
 
@@ -308,8 +298,6 @@ func (q *Querier) SearchTagValuesV2Handler(w http.ResponseWriter, r *http.Reques
 	// Enforce the query timeout while querying backends
 	ctx, cancel := context.WithDeadline(r.Context(), time.Now().Add(q.cfg.Search.QueryTimeout))
 	defer cancel()
-
-	ctx = injectRecentDataTarget(ctx, api.ParseRecentDataTargetHeader(r))
 
 	ctx, span := tracer.Start(ctx, "Querier.SearchTagValuesV2Handler")
 	defer span.End()
@@ -359,6 +347,10 @@ func (q *Querier) SpanMetricsSummaryHandler(w http.ResponseWriter, r *http.Reque
 
 	resp, err := q.SpanMetricsSummary(ctx, req)
 	if err != nil {
+		if status.Code(err) == codes.Unimplemented {
+			http.Error(w, err.Error(), http.StatusGone)
+			return
+		}
 		handleError(w, err)
 		return
 	}

@@ -34,7 +34,6 @@ import (
 	"github.com/grafana/tempo/modules/frontend/interceptor"
 	frontend_v1pb "github.com/grafana/tempo/modules/frontend/v1/frontendv1pb"
 	"github.com/grafana/tempo/modules/generator"
-	"github.com/grafana/tempo/modules/ingester"
 	"github.com/grafana/tempo/modules/overrides"
 	userconfigurableoverridesapi "github.com/grafana/tempo/modules/overrides/userconfigurable/api"
 	"github.com/grafana/tempo/modules/querier"
@@ -66,16 +65,13 @@ const (
 	CacheProvider  string = "cache-provider"
 
 	// rings
-	IngesterRing          string = "ring"
-	SecondaryIngesterRing string = "secondary-ring"
-	MetricsGeneratorRing  string = "metrics-generator-ring"
-	LiveStoreRing         string = "live-store-ring"
-	PartitionRing         string = "partition-ring"
-	GeneratorRingWatcher  string = "generator-ring-watcher"
+	MetricsGeneratorRing string = "metrics-generator-ring"
+	LiveStoreRing        string = "live-store-ring"
+	PartitionRing        string = "partition-ring"
+	GeneratorRingWatcher string = "generator-ring-watcher"
 
 	// individual targets
 	Distributor                   string = "distributor"
-	Ingester                      string = "ingester"
 	MetricsGenerator              string = "metrics-generator"
 	MetricsGeneratorNoLocalBlocks string = "metrics-generator-no-local-blocks"
 	Querier                       string = "querier"
@@ -89,10 +85,8 @@ const (
 	SingleBinary string = "all"
 
 	// ring names
-	ringIngester          string = "ingester"
-	ringMetricsGenerator  string = "metrics-generator"
-	ringSecondaryIngester string = "secondary-ingester"
-	ringLiveStore         string = "live-store"
+	ringMetricsGenerator string = "metrics-generator"
+	ringLiveStore        string = "live-store"
 )
 
 func IsSingleBinary(target string) bool {
@@ -161,28 +155,12 @@ func (t *App) initInternalServer() (services.Service, error) {
 	return s, nil
 }
 
-func (t *App) initIngesterRing() (services.Service, error) {
-	return t.initReadRing(t.cfg.Ingester.LifecyclerConfig.RingConfig, ringIngester, t.cfg.Ingester.OverrideRingKey)
-}
-
 func (t *App) initGeneratorRing() (services.Service, error) {
 	return t.initReadRing(t.cfg.Generator.Ring.ToRingConfig(), ringMetricsGenerator, t.cfg.Generator.OverrideRingKey)
 }
 
 func (t *App) initLiveStoreRing() (services.Service, error) {
 	return t.initReadRing(t.cfg.LiveStore.Ring.ToRingConfig(), ringLiveStore, ringLiveStore)
-}
-
-// initSecondaryIngesterRing is an optional ring for the queriers. This secondary ring is useful in edge cases and should
-// not be used generally. Use this if you need one set of queries to query 2 different sets of ingesters.
-func (t *App) initSecondaryIngesterRing() (services.Service, error) {
-	// if no secondary ring is configured, then bail by returning a dummy service
-	if t.cfg.Querier.SecondaryIngesterRing == "" {
-		return services.NewIdleService(nil, nil), nil
-	}
-
-	// note that this is using the same cnofig as above. both rings have to be configured the same
-	return t.initReadRing(t.cfg.Ingester.LifecyclerConfig.RingConfig, ringSecondaryIngester, t.cfg.Querier.SecondaryIngesterRing)
 }
 
 func (t *App) initReadRing(cfg ring.Config, name, key string) (*ring.Ring, error) {
@@ -198,11 +176,6 @@ func (t *App) initReadRing(cfg ring.Config, name, key string) (*ring.Ring, error
 }
 
 func (t *App) initPartitionRing() (services.Service, error) {
-	if !t.cfg.Ingest.Enabled {
-		return nil, nil
-	}
-
-	// choose the correct partition ring based on config
 	var (
 		heartbeatTimeout time.Duration
 		readRing         ring.InstanceRingReader
@@ -211,19 +184,11 @@ func (t *App) initPartitionRing() (services.Service, error) {
 		kvConfig         kv.Config
 	)
 
-	// default to ingester but use live-store if configured
-	heartbeatTimeout = t.cfg.Ingester.LifecyclerConfig.RingConfig.HeartbeatTimeout
-	readRing = t.readRings[ringIngester]
-	ringName = ingester.PartitionRingName
-	ringKey = ingester.PartitionRingKey
-	kvConfig = t.cfg.Ingester.IngesterPartitionRing.KVStore
-	if t.cfg.PartitionRingLiveStore {
-		heartbeatTimeout = t.cfg.LiveStore.Ring.HeartbeatTimeout
-		readRing = t.readRings[ringLiveStore]
-		ringName = livestore.PartitionRingName
-		ringKey = livestore.PartitionRingKey
-		kvConfig = t.cfg.LiveStore.PartitionRing.KVStore
-	}
+	heartbeatTimeout = t.cfg.LiveStore.Ring.HeartbeatTimeout
+	readRing = t.readRings[ringLiveStore]
+	ringName = livestore.PartitionRingName
+	ringKey = livestore.PartitionRingKey
+	kvConfig = t.cfg.LiveStore.PartitionRing.KVStore
 
 	kvClient, err := kv.NewClient(kvConfig, ring.GetPartitionRingCodec(), kv.RegistererWithKVName(prometheus.DefaultRegisterer, ringName+"-watcher"), util_log.Logger)
 	if err != nil {
@@ -285,12 +250,13 @@ func (t *App) initOverridesAPI() (services.Service, error) {
 
 func (t *App) initDistributor() (services.Service, error) {
 	t.cfg.Distributor.KafkaConfig = t.cfg.Ingest.Kafka
+	t.cfg.Distributor.IngesterWritePathEnabled = false
 	t.cfg.Distributor.KafkaWritePathEnabled = t.cfg.Ingest.Enabled // TODO: Don't mix config params
 
-	// todo: make ingester client a module instead of passing the config everywhere
+	// todo: make write-path client a module instead of passing the config everywhere
 	distributor, err := distributor.New(t.cfg.Distributor,
 		t.cfg.IngesterClient,
-		t.readRings[ringIngester],
+		t.readRings[ringLiveStore],
 		t.cfg.GeneratorClient,
 		t.readRings[ringMetricsGenerator],
 		t.partitionRing,
@@ -311,31 +277,6 @@ func (t *App) initDistributor() (services.Service, error) {
 	}
 
 	return t.distributor, nil
-}
-
-func (t *App) initIngester() (services.Service, error) {
-	t.cfg.Ingester.LifecyclerConfig.ListenPort = t.cfg.Server.GRPCListenPort
-	t.cfg.Ingester.DedicatedColumns = t.cfg.StorageConfig.Trace.Block.DedicatedColumns
-	t.cfg.Ingester.IngestStorageConfig = t.cfg.Ingest
-
-	// In SingleBinary mode don't try to discover partition from host name. Always use
-	// partition 0. This is for small installs or local/debugging setups.
-	singlePartition := IsSingleBinary(t.cfg.Target)
-
-	ingester, err := ingester.New(t.cfg.Ingester, t.store, t.Overrides, prometheus.DefaultRegisterer, singlePartition)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create ingester: %w", err)
-	}
-	t.ingester = ingester
-
-	tempopb.RegisterPusherServer(t.Server.GRPC(), t.ingester)
-	tempopb.RegisterQuerierServer(t.Server.GRPC(), t.ingester)
-	t.Server.HTTPRouter().Path("/flush").Handler(http.HandlerFunc(t.ingester.FlushHandler))
-	t.Server.HTTPRouter().Path("/shutdown").Handler(http.HandlerFunc(t.ingester.ShutdownHandler))
-	t.Server.HTTPRouter().Methods(http.MethodGet, http.MethodPost, http.MethodDelete).
-		Path("/ingester/prepare-partition-downscale").
-		Handler(http.HandlerFunc(t.ingester.PreparePartitionDownscaleHandler))
-	return t.ingester, nil
 }
 
 func (t *App) initGenerator() (services.Service, error) {
@@ -460,20 +401,14 @@ func (t *App) initQuerier() (services.Service, error) {
 		t.store.EnablePolling(context.Background(), nil, false)
 	}
 
-	ingesterRings := []ring.ReadRing{t.readRings[ringIngester]}
-	if ring := t.readRings[ringSecondaryIngester]; ring != nil {
-		ingesterRings = append(ingesterRings, ring)
-	}
+	liveStoreRing := t.readRings[ringLiveStore]
 
 	querier, err := querier.New(
 		t.cfg.Querier,
-		t.cfg.IngesterClient,
-		ingesterRings,
+		liveStoreRing,
 		t.cfg.GeneratorClient,
 		t.readRings[ringMetricsGenerator],
-		t.cfg.Querier.QueryLiveStore,
 		t.cfg.LiveStoreClient,
-		t.readRings[ringLiveStore],
 		t.partitionRing,
 		t.cfg.Frontend.TraceByID.ExternalEnabled,
 		t.store,
@@ -637,8 +572,6 @@ func (t *App) initMemberlistKV() (services.Service, error) {
 	dnsProvider := dns.NewProvider(log.Logger, dnsProviderReg, dns.GolangResolverType)
 	t.MemberlistKV = memberlist.NewKVInitService(&t.cfg.MemberlistKV, log.Logger, dnsProvider, reg)
 
-	t.cfg.Ingester.LifecyclerConfig.RingConfig.KVStore.MemberlistKV = t.MemberlistKV.GetMemberlistKV
-	t.cfg.Ingester.IngesterPartitionRing.KVStore.MemberlistKV = t.MemberlistKV.GetMemberlistKV
 	t.cfg.Generator.Ring.KVStore.MemberlistKV = t.MemberlistKV.GetMemberlistKV
 	t.cfg.Distributor.DistributorRing.KVStore.MemberlistKV = t.MemberlistKV.GetMemberlistKV
 	t.cfg.BackendWorker.Ring.KVStore.MemberlistKV = t.MemberlistKV.GetMemberlistKV
@@ -659,7 +592,7 @@ func (t *App) initUsageReport() (services.Service, error) {
 	}
 
 	t.cfg.UsageReport.Leader = false
-	if t.isModuleActive(Ingester) {
+	if t.isModuleActive(LiveStore) {
 		t.cfg.UsageReport.Leader = true
 	}
 
@@ -686,7 +619,7 @@ func (t *App) initUsageReport() (services.Service, error) {
 		return nil, fmt.Errorf("failed to initialize usage report: %w", err)
 	}
 
-	ur, err := usagestats.NewReporter(t.cfg.UsageReport, t.cfg.Ingester.LifecyclerConfig.RingConfig.KVStore, reader, writer, util_log.Logger, prometheus.DefaultRegisterer)
+	ur, err := usagestats.NewReporter(t.cfg.UsageReport, t.cfg.LiveStore.Ring.KVStore, reader, writer, util_log.Logger, prometheus.DefaultRegisterer)
 	if err != nil {
 		level.Info(util_log.Logger).Log("msg", "failed to initialize usage report", "err", err)
 		return nil, nil
@@ -814,17 +747,14 @@ func (t *App) setupModuleManager() error {
 	mm.RegisterModule(OverridesAPI, t.initOverridesAPI)
 	mm.RegisterModule(UsageReport, t.initUsageReport)
 	mm.RegisterModule(CacheProvider, t.initCacheProvider, modules.UserInvisibleModule)
-	mm.RegisterModule(IngesterRing, t.initIngesterRing, modules.UserInvisibleModule)
 	mm.RegisterModule(MetricsGeneratorRing, t.initGeneratorRing, modules.UserInvisibleModule)
 	mm.RegisterModule(GeneratorRingWatcher, t.initGeneratorRingWatcher, modules.UserInvisibleModule)
 	mm.RegisterModule(LiveStoreRing, t.initLiveStoreRing, modules.UserInvisibleModule)
-	mm.RegisterModule(SecondaryIngesterRing, t.initSecondaryIngesterRing, modules.UserInvisibleModule)
 	mm.RegisterModule(PartitionRing, t.initPartitionRing, modules.UserInvisibleModule)
 
 	mm.RegisterModule(Common, nil, modules.UserInvisibleModule)
 
 	mm.RegisterModule(Distributor, t.initDistributor)
-	mm.RegisterModule(Ingester, t.initIngester)
 	mm.RegisterModule(Querier, t.initQuerier)
 	mm.RegisterModule(QueryFrontend, t.initQueryFrontend)
 	mm.RegisterModule(MetricsGenerator, t.initGenerator)
@@ -839,28 +769,25 @@ func (t *App) setupModuleManager() error {
 	deps := map[string][]string{
 		// InternalServer: nil,
 		// CacheProvider:  nil,
-		Store:                 {CacheProvider},
-		Server:                {InternalServer},
-		Overrides:             {Server},
-		OverridesAPI:          {Server, Overrides},
-		MemberlistKV:          {Server},
-		UsageReport:           {MemberlistKV},
-		IngesterRing:          {Server, MemberlistKV},
-		SecondaryIngesterRing: {Server, MemberlistKV},
-		MetricsGeneratorRing:  {Server, MemberlistKV},
-		LiveStoreRing:         {Server, MemberlistKV},
-		PartitionRing:         {MemberlistKV, Server, IngesterRing, LiveStoreRing},
-		GeneratorRingWatcher:  {MemberlistKV},
+		Store:                {CacheProvider},
+		Server:               {InternalServer},
+		Overrides:            {Server},
+		OverridesAPI:         {Server, Overrides},
+		MemberlistKV:         {Server},
+		UsageReport:          {MemberlistKV},
+		MetricsGeneratorRing: {Server, MemberlistKV},
+		LiveStoreRing:        {Server, MemberlistKV},
+		PartitionRing:        {MemberlistKV, Server, LiveStoreRing},
+		GeneratorRingWatcher: {MemberlistKV},
 
 		Common: {UsageReport, Server, Overrides},
 
 		// individual targets
 		QueryFrontend:                 {Common, Store, OverridesAPI},
-		Distributor:                   {Common, IngesterRing, MetricsGeneratorRing, PartitionRing},
-		Ingester:                      {Common, Store, MemberlistKV, PartitionRing},
+		Distributor:                   {Common, LiveStoreRing, MetricsGeneratorRing, PartitionRing},
 		MetricsGenerator:              {Common, OptionalStore, MemberlistKV, PartitionRing},
 		MetricsGeneratorNoLocalBlocks: {Common, GeneratorRingWatcher},
-		Querier:                       {Common, Store, IngesterRing, MetricsGeneratorRing, SecondaryIngesterRing, PartitionRing},
+		Querier:                       {Common, Store, LiveStoreRing, MetricsGeneratorRing, PartitionRing},
 		BlockBuilder:                  {Common, Store, MemberlistKV, PartitionRing},
 		BackendScheduler:              {Common, Store},
 		BackendWorker:                 {Common, Store, MemberlistKV},

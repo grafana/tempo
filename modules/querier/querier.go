@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"net/http"
 	"sort"
-	"sync"
 	"time"
 
 	"github.com/go-kit/log/level"
@@ -23,7 +22,6 @@ import (
 	"go.uber.org/multierr"
 
 	generator_client "github.com/grafana/tempo/modules/generator/client"
-	ingester_client "github.com/grafana/tempo/modules/ingester/client"
 	livestore_client "github.com/grafana/tempo/modules/livestore/client"
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/modules/querier/external"
@@ -36,36 +34,17 @@ import (
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/traceql"
 	"github.com/grafana/tempo/pkg/traceqlmetrics"
-	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/pkg/util/log"
 	"github.com/grafana/tempo/pkg/validation"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding/common"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 var tracer = otel.Tracer("modules/querier")
 
-type contextKey string
-
-const recentDataTargetContextKey contextKey = "recent-data-target"
-
-func extractRecentDataTarget(ctx context.Context) string {
-	if val := ctx.Value(recentDataTargetContextKey); val != nil {
-		return val.(string)
-	}
-	return ""
-}
-
-func injectRecentDataTarget(ctx context.Context, target string) context.Context {
-	return context.WithValue(ctx, recentDataTargetContextKey, target)
-}
-
 var (
-	metricIngesterClients = promauto.NewGauge(prometheus.GaugeOpts{
-		Namespace: "tempo",
-		Name:      "querier_ingester_clients",
-		Help:      "The current number of ingester clients.",
-	})
 	metricMetricsGeneratorClients = promauto.NewGauge(prometheus.GaugeOpts{
 		Namespace: "tempo",
 		Name:      "querier_metrics_generator_clients",
@@ -78,10 +57,11 @@ var (
 	})
 )
 
+const spanMetricsSummaryDeprecationMessage = "Span metrics summary endpoint is deprecated; use /api/metrics/query_range"
+
 type (
 	forEachFn          func(ctx context.Context, client tempopb.QuerierClient) (any, error)
 	forEachGeneratorFn func(ctx context.Context, client tempopb.MetricsGeneratorClient) (any, error)
-	replicationSetFn   func(r ring.ReadRing) (ring.ReplicationSet, error)
 )
 
 // Querier handlers queries.
@@ -90,16 +70,10 @@ type Querier struct {
 
 	cfg Config
 
-	ingesterPools []*ring_client.Pool
-	ingesterRings []ring.ReadRing
-
 	generatorPool *ring_client.Pool
-	generatorRing ring.ReadRing
 
-	queryPartitionRing bool // todo: remove after rhythm migration
-	liveStorePool      *ring_client.Pool
-	liveStoreRing      ring.ReadRing
-	partitionRing      *ring.PartitionInstanceRing
+	liveStorePool *ring_client.Pool
+	partitionRing *ring.PartitionInstanceRing
 
 	engine *traceql.Engine
 	store  storage.Store
@@ -113,36 +87,21 @@ type Querier struct {
 
 // New makes a new Querier.
 //
-// Note on queryPartitionRing:
-// Pre rhyhtm we would would use the ingester or generator read rings to query recent data. This is signalled by passing queryPartitionRing as false.
-// In this case the partition ring contains ingesters, but we still query through the ingester read ring.
-//
-// Post rhythm we will query the live store for all recent data. This is signalled by passing queryPartitionRing as true.
-// In this case the partition ring contains live stores and we can query through it directly. Once the migration is complete we will be able to remove all
-// generator and ingester rings and configs from the querier.
+// Recent data is queried via the partition ring.
 func New(
 	cfg Config,
 
-	// pre-rhythm rings and client configs
-	ingesterClientConfig ingester_client.Config,
-	ingesterRings []ring.ReadRing,
+	liveStoreRing ring.ReadRing,
 	generatorClientConfig generator_client.Config,
 	generatorRing ring.ReadRing,
 
-	// post-rhyhtm ring and client config
-	queryPartitionRing bool, // todo: remove after rhythm migration
 	liveStoreClientConfig livestore_client.Config,
-	liveStoreRing ring.ReadRing,
 	partitionRing *ring.PartitionInstanceRing,
 
 	queryExternal bool,
 	store storage.Store,
 	limits overrides.Interface,
 ) (*Querier, error) {
-	var ingesterClientFactory ring_client.PoolAddrFunc = func(addr string) (ring_client.PoolClient, error) {
-		return ingester_client.New(addr, ingesterClientConfig)
-	}
-
 	var generatorClientFactory ring_client.PoolAddrFunc = func(addr string) (ring_client.PoolClient, error) {
 		return generator_client.New(addr, generatorClientConfig)
 	}
@@ -151,31 +110,15 @@ func New(
 		return livestore_client.New(addr, liveStoreClientConfig)
 	}
 
-	ingesterPools := make([]*ring_client.Pool, 0, len(ingesterRings))
-	for i, ring := range ingesterRings {
-		pool := ring_client.NewPool(fmt.Sprintf("querier_pool_%d", i),
-			ingesterClientConfig.PoolConfig,
-			ring_client.NewRingServiceDiscovery(ring),
-			ingesterClientFactory,
-			metricIngesterClients,
-			log.Logger)
-		ingesterPools = append(ingesterPools, pool)
-	}
-
 	q := &Querier{
-		cfg:           cfg,
-		ingesterRings: ingesterRings,
-		ingesterPools: ingesterPools,
-		generatorRing: generatorRing,
+		cfg: cfg,
 		generatorPool: ring_client.NewPool("querier_to_generator_pool",
 			generatorClientConfig.PoolConfig,
 			ring_client.NewRingServiceDiscovery(generatorRing),
 			generatorClientFactory,
 			metricMetricsGeneratorClients,
 			log.Logger),
-		queryPartitionRing: queryPartitionRing,
-		partitionRing:      partitionRing,
-		liveStoreRing:      liveStoreRing,
+		partitionRing: partitionRing,
 		liveStorePool: ring_client.NewPool("querier_to_livestore_pool",
 			liveStoreClientConfig.PoolConfig,
 			ring_client.NewRingServiceDiscovery(liveStoreRing),
@@ -211,10 +154,7 @@ func (q *Querier) CreateAndRegisterWorker(handler http.Handler) error {
 		return fmt.Errorf("failed to create frontend worker: %w", err)
 	}
 
-	subservices := []services.Service{worker, q.generatorPool}
-	for _, pool := range q.ingesterPools {
-		subservices = append(subservices, pool)
-	}
+	subservices := []services.Service{worker, q.generatorPool, q.liveStorePool}
 	err = q.RegisterSubservices(subservices...)
 	if err != nil {
 		return fmt.Errorf("failed to register generator pool sub-service: %w", err)
@@ -284,22 +224,14 @@ func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDReque
 	var inspectedBytes uint64
 
 	if req.QueryMode == QueryModeIngesters || req.QueryMode == QueryModeAll {
-		var getRSFn replicationSetFn
-		if q.cfg.QueryRelevantIngesters {
-			traceKey := util.TokenFor(userID, req.TraceID)
-			getRSFn = func(r ring.ReadRing) (ring.ReplicationSet, error) {
-				return r.Get(traceKey, ring.Read, nil, nil, nil)
-			}
-		}
-
-		// get responses from all ingesters in parallel
-		span.AddEvent("searching ingesters")
+		// Get responses from all live stores in parallel.
+		span.AddEvent("searching live-stores")
 		forEach := func(funcCtx context.Context, client tempopb.QuerierClient) (any, error) {
 			return client.FindTraceByID(funcCtx, req)
 		}
-		partialTraces, err := q.forIngesterRings(ctx, userID, getRSFn, forEach)
+		partialTraces, err := q.forLiveStoreRing(ctx, forEach)
 		if err != nil {
-			return nil, fmt.Errorf("error querying ingesters in Querier.FindTraceByID: %w", err)
+			return nil, fmt.Errorf("error querying live-stores in Querier.FindTraceByID: %w", err)
 		}
 
 		var spanCountTotal, traceCountTotal int64
@@ -315,7 +247,7 @@ func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDReque
 
 			spanCount, err := combiner.Consume(resp.Trace)
 			if err != nil {
-				return nil, fmt.Errorf("error combining ingester results in Querier.FindTraceByID: %w", err)
+				return nil, fmt.Errorf("error combining live-store results in Querier.FindTraceByID: %w", err)
 			}
 
 			spanCountTotal += int64(spanCount)
@@ -325,7 +257,7 @@ func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDReque
 			}
 		}
 
-		span.AddEvent("done searching ingesters", oteltrace.WithAttributes(
+		span.AddEvent("done searching live-stores", oteltrace.WithAttributes(
 			attribute.Bool("found", found),
 			attribute.Int64("combinedSpans", spanCountTotal),
 			attribute.Int64("combinedTraces", traceCountTotal),
@@ -408,108 +340,22 @@ func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDReque
 	return resp, nil
 }
 
-// forIngesterRings runs f, in parallel, for given ingesters
-func (q *Querier) forIngesterRings(ctx context.Context, userID string, getReplicationSet replicationSetFn, f forEachFn) ([]any, error) {
+// forLiveStoreRing runs f, in parallel, for instances selected from the live-store ring.
+func (q *Querier) forLiveStoreRing(ctx context.Context, f forEachFn) ([]any, error) {
 	if ctx.Err() != nil {
-		_ = level.Debug(log.Logger).Log("forIngesterRings context error", "ctx.Err()", ctx.Err().Error())
+		_ = level.Debug(log.Logger).Log("forLiveStoreRing context error", "ctx.Err()", ctx.Err().Error())
 		return nil, ctx.Err()
 	}
 
-	recentDataTarget := extractRecentDataTarget(ctx)
-
-	if q.queryPartitionRing || recentDataTarget == "live-store" {
-		// todo: note that on this path we ignore getReplicationSet. can we integrate it into the partition ring query
-		// or should we remove the QueryRelevantIngesters config option that only applied to find trace by id
-		rs, err := q.partitionRing.GetReplicationSetsForOperation(ring.Read)
-		if err != nil {
-			return nil, fmt.Errorf("error finding partition ring replicas: %w", err)
-		}
-		return forPartitionRingReplicaSets(ctx, q, rs, f)
+	if q.partitionRing == nil {
+		return nil, errors.New("forLiveStoreRing: partition ring is not configured")
 	}
 
-	// if we have no configured ingester rings this will fail silently. let's return an actual error instead
-	if len(q.ingesterRings) == 0 {
-		return nil, errors.New("forIngesterRings: no ingester rings configured")
+	rs, err := q.partitionRing.GetReplicationSetsForOperation(ring.Read)
+	if err != nil {
+		return nil, fmt.Errorf("error finding partition ring replicas: %w", err)
 	}
-
-	// if a nil replicationSetFn is passed, that means to just use a standard Read ring
-	if getReplicationSet == nil {
-		getReplicationSet = func(r ring.ReadRing) (ring.ReplicationSet, error) {
-			return r.GetReplicationSetForOperation(ring.Read)
-		}
-	}
-
-	var mtx sync.Mutex
-	var wg sync.WaitGroup
-
-	var overallErr error
-	var overallResults []any
-
-	for i, ingesterRing := range q.ingesterRings {
-		if q.cfg.ShuffleShardingIngestersEnabled {
-			ingesterRing = ingesterRing.ShuffleShardWithLookback(
-				userID,
-				q.limits.IngestionTenantShardSize(userID),
-				q.cfg.ShuffleShardingIngestersLookbackPeriod,
-				time.Now(),
-			)
-		}
-
-		replicationSet, err := getReplicationSet(ingesterRing)
-		if err != nil {
-			return nil, fmt.Errorf("forIngesterRings: error getting replication set for ring (%d): %w", i, err)
-		}
-		pool := q.ingesterPools[i]
-
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			results, err := forOneIngesterRing(ctx, replicationSet, f, pool, q.cfg.ExtraQueryDelay)
-			mtx.Lock()
-			defer mtx.Unlock()
-
-			if err != nil {
-				overallErr = multierr.Combine(overallErr, err)
-				return
-			}
-
-			overallResults = append(overallResults, results...)
-		}()
-	}
-
-	wg.Wait()
-
-	if overallErr != nil {
-		return nil, overallErr
-	}
-
-	return overallResults, nil
-}
-
-func forOneIngesterRing(ctx context.Context, replicationSet ring.ReplicationSet, f forEachFn, pool *ring_client.Pool, extraQueryDelay time.Duration) ([]any, error) {
-	ctx, span := tracer.Start(ctx, "Querier.forOneIngesterRing")
-	defer span.End()
-
-	doFunc := func(funcCtx context.Context, ingester *ring.InstanceDesc) (interface{}, error) {
-		if funcCtx.Err() != nil {
-			_ = level.Warn(log.Logger).Log("funcCtx.Err()", funcCtx.Err().Error())
-			return nil, funcCtx.Err()
-		}
-
-		client, err := pool.GetClientFor(ingester.Addr)
-		if err != nil {
-			return nil, fmt.Errorf("failed to get client for %s: %w", ingester.Addr, err)
-		}
-
-		result, err := f(funcCtx, client.(tempopb.QuerierClient))
-		if err != nil {
-			return nil, fmt.Errorf("failed to execute f() for %s: %w", ingester.Addr, err)
-		}
-
-		return result, nil
-	}
-
-	return replicationSet.Do(ctx, extraQueryDelay, doFunc)
+	return forPartitionRingReplicaSets(ctx, q, rs, f)
 }
 
 // forGivenGenerators runs f, in parallel, for given generators
@@ -522,60 +368,26 @@ func (q *Querier) forGivenGenerators(ctx context.Context, f forEachGeneratorFn) 
 	ctx, span := tracer.Start(ctx, "Querier.forGivenGenerators")
 	defer span.End()
 
-	recentDataTarget := extractRecentDataTarget(ctx)
-
-	if q.queryPartitionRing || recentDataTarget == "live-store" {
-		rs, err := q.partitionRing.GetReplicationSetsForOperation(ring.Read)
-		if err != nil {
-			return nil, fmt.Errorf("error finding partition ring replicas: %w", err)
-		}
-		return forPartitionRingReplicaSets(ctx, q, rs, f)
+	if q.partitionRing == nil {
+		return nil, errors.New("forGivenGenerators: partition ring is not configured")
 	}
-
-	// Get results from all generators
-	replicationSet, err := q.generatorRing.GetReplicationSetForOperation(ring.Read)
+	rs, err := q.partitionRing.GetReplicationSetsForOperation(ring.Read)
 	if err != nil {
-		return nil, fmt.Errorf("error finding generators: %w", err)
+		return nil, fmt.Errorf("error finding partition ring replicas: %w", err)
 	}
-
-	doFunc := func(funcCtx context.Context, generator *ring.InstanceDesc) (interface{}, error) {
-		if funcCtx.Err() != nil {
-			_ = level.Warn(log.Logger).Log("funcCtx.Err()", funcCtx.Err().Error())
-			return nil, funcCtx.Err()
-		}
-
-		client, err := q.generatorPool.GetClientFor(generator.Addr)
-		if err != nil {
-			return nil, fmt.Errorf("failed to get client for %s: %w", generator.Addr, err)
-		}
-
-		result, err := f(funcCtx, client.(tempopb.MetricsGeneratorClient))
-		if err != nil {
-			return nil, fmt.Errorf("failed to execute f() for %s: %w", generator.Addr, err)
-		}
-
-		return result, nil
-	}
-
-	results, err := replicationSet.Do(ctx, q.cfg.ExtraQueryDelay, doFunc)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get response from generators: %w", err)
-	}
-
-	return results, nil
+	return forPartitionRingReplicaSets(ctx, q, rs, f)
 }
 
 func (q *Querier) SearchRecent(ctx context.Context, req *tempopb.SearchRequest) (*tempopb.SearchResponse, error) {
-	userID, err := validation.ExtractValidTenantID(ctx)
-	if err != nil {
+	if _, err := validation.ExtractValidTenantID(ctx); err != nil {
 		return nil, fmt.Errorf("error extracting org id in Querier.SearchRecent: %w", err)
 	}
 
-	results, err := q.forIngesterRings(ctx, userID, nil, func(ctx context.Context, client tempopb.QuerierClient) (any, error) {
+	results, err := q.forLiveStoreRing(ctx, func(ctx context.Context, client tempopb.QuerierClient) (any, error) {
 		return client.SearchRecent(ctx, req)
 	})
 	if err != nil {
-		return nil, fmt.Errorf("error querying ingesters in Querier.SearchRecent: %w", err)
+		return nil, fmt.Errorf("error querying live-stores in Querier.SearchRecent: %w", err)
 	}
 
 	return q.postProcessIngesterSearchResults(req, results), nil
@@ -627,11 +439,11 @@ func (q *Querier) SearchTags(ctx context.Context, req *tempopb.SearchTagsRequest
 	distinctValues := collector.NewDistinctString(maxDataSize, req.MaxTagsPerScope, req.StaleValuesThreshold)
 	var inspectedBytes uint64
 
-	results, err := q.forIngesterRings(ctx, userID, nil, func(ctx context.Context, client tempopb.QuerierClient) (any, error) {
+	results, err := q.forLiveStoreRing(ctx, func(ctx context.Context, client tempopb.QuerierClient) (any, error) {
 		return client.SearchTags(ctx, req)
 	})
 	if err != nil {
-		return nil, fmt.Errorf("error querying ingesters in Querier.SearchTags: %w", err)
+		return nil, fmt.Errorf("error querying live-stores in Querier.SearchTags: %w", err)
 	}
 
 outer:
@@ -669,12 +481,12 @@ func (q *Querier) SearchTagsV2(ctx context.Context, req *tempopb.SearchTagsReque
 	distinctValues := collector.NewScopedDistinctString(maxBytesPerTag, req.MaxTagsPerScope, req.StaleValuesThreshold)
 	var inspectedBytes uint64
 
-	// Get results from all ingesters
-	results, err := q.forIngesterRings(ctx, orgID, nil, func(ctx context.Context, client tempopb.QuerierClient) (any, error) {
+	// Get results from all live stores.
+	results, err := q.forLiveStoreRing(ctx, func(ctx context.Context, client tempopb.QuerierClient) (any, error) {
 		return client.SearchTagsV2(ctx, req)
 	})
 	if err != nil {
-		return nil, fmt.Errorf("error querying ingesters in Querier.SearchTags: %w", err)
+		return nil, fmt.Errorf("error querying live-stores in Querier.SearchTags: %w", err)
 	}
 
 outer:
@@ -728,11 +540,11 @@ func (q *Querier) SearchTagValues(ctx context.Context, req *tempopb.SearchTagVal
 		distinctValues.Collect(v)
 	}
 
-	results, err := q.forIngesterRings(ctx, userID, nil, func(ctx context.Context, client tempopb.QuerierClient) (any, error) {
+	results, err := q.forLiveStoreRing(ctx, func(ctx context.Context, client tempopb.QuerierClient) (any, error) {
 		return client.SearchTagValues(ctx, req)
 	})
 	if err != nil {
-		return nil, fmt.Errorf("error querying ingesters in Querier.SearchTagValues: %w", err)
+		return nil, fmt.Errorf("error querying live-stores in Querier.SearchTagValues: %w", err)
 	}
 
 outer:
@@ -784,11 +596,11 @@ func (q *Querier) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTagV
 		return valuesToV2Response(distinctValues, 0), nil
 	}
 
-	results, err := q.forIngesterRings(ctx, userID, nil, func(ctx context.Context, client tempopb.QuerierClient) (any, error) {
+	results, err := q.forLiveStoreRing(ctx, func(ctx context.Context, client tempopb.QuerierClient) (any, error) {
 		return client.SearchTagValuesV2(ctx, req)
 	})
 	if err != nil {
-		return nil, fmt.Errorf("error querying ingesters in Querier.SearchTagValues: %w", err)
+		return nil, fmt.Errorf("error querying live-stores in Querier.SearchTagValues: %w", err)
 	}
 
 outer:
@@ -814,71 +626,9 @@ outer:
 }
 
 func (q *Querier) SpanMetricsSummary(ctx context.Context, req *tempopb.SpanMetricsSummaryRequest) (*tempopb.SpanMetricsSummaryResponse, error) {
-	genReq := &tempopb.SpanMetricsRequest{
-		Query:   req.Query,
-		GroupBy: req.GroupBy,
-		Start:   req.Start,
-		End:     req.End,
-		Limit:   0,
-	}
-
-	results, err := q.forGivenGenerators(ctx, func(ctx context.Context, client tempopb.MetricsGeneratorClient) (any, error) {
-		return client.GetMetrics(ctx, genReq)
-	})
-	if err != nil {
-		return nil, fmt.Errorf("error querying generators in Querier.SpanMetricsSummary: %w", err)
-	}
-
-	// Combine the results
-	yyy := make(map[traceqlmetrics.MetricKeys]*traceqlmetrics.LatencyHistogram)
-	xxx := make(map[traceqlmetrics.MetricKeys]*tempopb.SpanMetricsSummary)
-
-	var h *traceqlmetrics.LatencyHistogram
-	var s traceqlmetrics.MetricSeries
-	for _, result := range results {
-		r := result.(*tempopb.SpanMetricsResponse)
-
-		for _, m := range r.Metrics {
-			s = protoToMetricSeries(m.Series)
-			k := s.MetricKeys()
-
-			if _, ok := xxx[k]; !ok {
-				xxx[k] = &tempopb.SpanMetricsSummary{Series: m.Series}
-			}
-
-			xxx[k].ErrorSpanCount += m.Errors
-
-			var b [64]int
-			for _, l := range m.GetLatencyHistogram() {
-				// Reconstitude the bucket
-				b[l.Bucket] += int(l.Count)
-				// Add to the total
-				xxx[k].SpanCount += l.Count
-			}
-
-			// Combine the histogram
-			h = traceqlmetrics.New(b)
-			if _, ok := yyy[k]; !ok {
-				yyy[k] = h
-			} else {
-				yyy[k].Combine(*h)
-			}
-		}
-	}
-
-	for s, h := range yyy {
-		xxx[s].P50 = h.Percentile(0.5)
-		xxx[s].P90 = h.Percentile(0.9)
-		xxx[s].P95 = h.Percentile(0.95)
-		xxx[s].P99 = h.Percentile(0.99)
-	}
-
-	resp := &tempopb.SpanMetricsSummaryResponse{}
-	for _, x := range xxx {
-		resp.Summaries = append(resp.Summaries, x)
-	}
-
-	return resp, nil
+	_ = ctx
+	_ = req
+	return nil, status.Error(codes.Unimplemented, spanMetricsSummaryDeprecationMessage)
 }
 
 func valuesToV2Response(distinctValues *collector.DistinctValue[tempopb.TagValue], bytesRead uint64) *tempopb.SearchTagValuesV2Response {
