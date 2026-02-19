@@ -1567,7 +1567,9 @@ func tagValuesRunner(t *testing.T, _ *tempopb.Trace, _ *tempopb.TraceSearchMetad
 				return bb.FetchTagValues(ctx, req, cb, mc.Add, common.DefaultSearchOptions())
 			})
 
-			err := e.ExecuteTagValues(ctx, tc.tag, tc.query, traceql.MakeCollectTagValueFunc(valueCollector.Collect), fetcher)
+			conditions, _ := traceql.ExtractConditions(tc.query)
+
+			err := e.ExecuteTagValues(ctx, tc.tag, conditions, traceql.MakeCollectTagValueFunc(valueCollector.Collect), fetcher)
 			if errors.Is(err, util.ErrUnsupported) {
 				return
 			}
@@ -1638,7 +1640,8 @@ func tagNamesRunner(t *testing.T, _ *tempopb.Trace, _ *tempopb.TraceSearchMetada
 			})
 
 			valueCollector := collector.NewScopedDistinctString(0, 0, 0)
-			err := e.ExecuteTagNames(ctx, traceql.AttributeScopeFromString(tc.scope), tc.query, func(tag string, scope traceql.AttributeScope) bool {
+			conditions, _ := traceql.ExtractConditions(tc.query)
+			err := e.ExecuteTagNames(ctx, traceql.AttributeScopeFromString(tc.scope), conditions, func(tag string, scope traceql.AttributeScope) bool {
 				return valueCollector.Collect(scope.String(), tag)
 			}, fetcher)
 			if errors.Is(err, util.ErrUnsupported) {
@@ -2670,7 +2673,8 @@ func TestSearchForTagsAndTagValues(t *testing.T) {
 	tag, err := traceql.ParseIdentifier("span.intTag")
 	require.NoError(t, err)
 
-	err = traceql.NewEngine().ExecuteTagValues(context.Background(), tag, `{resource.service.name="test-service-2"}`, traceql.MakeCollectTagValueFunc(valueCollector.Collect), f)
+	conditions, _ := traceql.ExtractConditions(`{resource.service.name="test-service-2"}`)
+	err = traceql.NewEngine().ExecuteTagValues(context.Background(), tag, conditions, traceql.MakeCollectTagValueFunc(valueCollector.Collect), f)
 	require.NoError(t, err)
 
 	actual := valueCollector.Values()
