@@ -85,12 +85,12 @@ func TestQuerierParseSearchRequest(t *testing.T) {
 		{
 			name:     "negative limit",
 			urlQuery: "limit=-5",
-			err:      "invalid limit: must be a positive number",
+			err:      `invalid limit: strconv.ParseUint: parsing "-5": invalid syntax`,
 		},
 		{
 			name:     "non-numeric limit",
 			urlQuery: "limit=five",
-			err:      "invalid limit: strconv.Atoi: parsing \"five\": invalid syntax",
+			err:      `invalid limit: strconv.ParseUint: parsing "five": invalid syntax`,
 		},
 		{
 			name:     "minDuration and maxDuration",
@@ -205,12 +205,12 @@ func TestQuerierParseSearchRequest(t *testing.T) {
 		{
 			name:     "negative spss",
 			urlQuery: "spss=-2",
-			err:      "invalid spss: must be a non-negative number",
+			err:      `invalid spss: strconv.ParseUint: parsing "-2": invalid syntax`,
 		},
 		{
 			name:     "non-numeric spss",
 			urlQuery: "spss=four",
-			err:      "invalid spss: strconv.Atoi: parsing \"four\": invalid syntax",
+			err:      `invalid spss: strconv.ParseUint: parsing "four": invalid syntax`,
 		},
 		{
 			name:     "only spss",
