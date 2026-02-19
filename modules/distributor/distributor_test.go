@@ -1191,32 +1191,6 @@ func TestProcessAttributesDetail(t *testing.T) {
 	assert.Equal(t, 3000, detail.origSize)
 }
 
-func BenchmarkProcessAttributes(b *testing.B) {
-	const maxAttrSize = 2048
-	const numAttrs = 100
-
-	makeAttrs := func() []*v1_common.KeyValue {
-		attrs := make([]*v1_common.KeyValue, numAttrs)
-		for i := range attrs {
-			attrs[i] = test.MakeAttribute("key", strings.Repeat("v", 5000))
-		}
-		return attrs
-	}
-
-	b.Run("truncation_no_detail", func(b *testing.B) {
-		for i := 0; i < b.N; i++ {
-			processAttributes(makeAttrs(), maxAttrSize, nil, "span")
-		}
-	})
-
-	b.Run("truncation_with_detail", func(b *testing.B) {
-		for i := 0; i < b.N; i++ {
-			detail := truncatedAttrInfo{}
-			processAttributes(makeAttrs(), maxAttrSize, &detail, "span")
-		}
-	})
-}
-
 func BenchmarkTestsByRequestID(b *testing.B) {
 	spansPer := 5000
 	batches := 100
