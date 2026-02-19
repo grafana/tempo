@@ -46,9 +46,21 @@ func removeIncompleteMatchers(s string) string {
 		return ""
 	}
 
+	pipeIdx := -1
+	for i, t := range tokens {
+		if t.typ == PIPE {
+			pipeIdx = i
+			break
+		}
+	}
+
+	if pipeIdx != -1 {
+		tokens = tokens[:pipeIdx] // Only clean the part before the first pipe (matchers)
+	}
+
 	remove := make([]bool, len(tokens))
 	markIncompleteMatchers(tokens, remove)
-	cleanDanglingConnectors(tokens, remove)
+	cleanDanglingConnectorsAndParens(tokens, remove)
 
 	return rebuildQuery(tokens, remove)
 }
@@ -147,22 +159,46 @@ func skipAttribute(tokens []token, idx *int) {
 
 // cleanDanglingConnectors removes AND/OR tokens left dangling after incomplete
 // matcher removal (e.g. adjacent to braces or other connectors).
-func cleanDanglingConnectors(tokens []token, remove []bool) {
+func cleanDanglingConnectorsAndParens(tokens []token, remove []bool) {
 	changed := true
 	for changed {
 		changed = false
 		for i := range tokens {
-			if remove[i] || !isConnector(tokens[i].typ) {
+			if remove[i] {
 				continue
 			}
-			prev := findAdjacentToken(tokens, remove, i, -1)
-			next := findAdjacentToken(tokens, remove, i, 1)
 
-			if prev == -1 || tokens[prev].typ == OPEN_BRACE ||
-				next == -1 || tokens[next].typ == CLOSE_BRACE ||
-				isConnector(tokens[prev].typ) || isConnector(tokens[next].typ) {
-				remove[i] = true
-				changed = true
+			switch tokens[i].typ {
+			case AND, OR:
+				// Remove connectors with no valid expression on either side
+				prev := findAdjacentToken(tokens, remove, i, -1)
+				next := findAdjacentToken(tokens, remove, i, 1)
+
+				if prev == -1 || tokens[prev].typ == OPEN_BRACE || tokens[prev].typ == OPEN_PARENS ||
+					next == -1 || tokens[next].typ == CLOSE_BRACE || tokens[next].typ == CLOSE_PARENS ||
+					isConnector(tokens[prev].typ) || isConnector(tokens[next].typ) {
+					remove[i] = true
+					changed = true
+				}
+			case OPEN_PARENS:
+				// check if all tokens inside the parens are removed, if so remove the parens too
+				closeParensIdx := findNextCloseParens(tokens, remove, i+1)
+				if closeParensIdx != -1 {
+					allRemoved := true
+					for j := i + 1; j < closeParensIdx; j++ {
+						if !remove[j] {
+							allRemoved = false
+							break
+						}
+					}
+					if allRemoved {
+						remove[i] = true
+						remove[closeParensIdx] = true
+						changed = true
+					}
+				}
+			default:
+				continue
 			}
 		}
 	}
@@ -183,6 +219,24 @@ func findAdjacentToken(tokens []token, remove []bool, from, dir int) int {
 	return -1
 }
 
+func findNextCloseParens(tokens []token, remove []bool, from int) int {
+	depth := 0
+	for j := from; j < len(tokens); j++ {
+		if remove[j] {
+			continue
+		}
+		if tokens[j].typ == OPEN_PARENS {
+			depth++
+		} else if tokens[j].typ == CLOSE_PARENS {
+			if depth == 0 {
+				return j
+			}
+			depth--
+		}
+	}
+	return -1
+}
+
 // rebuildQuery reconstructs a query string from remaining (non-removed) tokens,
 // balancing any unclosed braces.
 func rebuildQuery(tokens []token, remove []bool) string {
@@ -198,9 +252,10 @@ func rebuildQuery(tokens []token, remove []bool) string {
 		}
 		b.WriteString(tokenRepr(t))
 		prevIdx = i
-		if t.typ == OPEN_BRACE {
+		switch t.typ {
+		case OPEN_BRACE:
 			braceDepth++
-		} else if t.typ == CLOSE_BRACE {
+		case CLOSE_BRACE:
 			braceDepth--
 		}
 	}
@@ -223,107 +278,16 @@ func isScopeToken(typ int) bool {
 // Explicit mappings are needed for multi-character tokens where scanner.TokenText()
 // only returns the last scanned character (e.g. "&&" → "&").
 func tokenRepr(t token) string {
+	// check existing token in TokenMap first
+	for str, tok := range TokenMap {
+		if tok == t.typ {
+			return str
+		}
+	}
+
 	switch t.typ {
 	case STRING:
 		return strconv.Quote(t.str)
-	// Connectors
-	case AND:
-		return "&&"
-	case OR:
-		return "||"
-	// Comparison operators
-	case EQ:
-		return "="
-	case NEQ:
-		return "!="
-	case LT:
-		return "<"
-	case LTE:
-		return "<="
-	case GT:
-		return ">"
-	case GTE:
-		return ">="
-	case RE:
-		return "=~"
-	case NRE:
-		return "!~"
-	// Structural
-	case OPEN_BRACE:
-		return "{"
-	case CLOSE_BRACE:
-		return "}"
-	case OPEN_PARENS:
-		return "("
-	case CLOSE_PARENS:
-		return ")"
-	case PIPE:
-		return "|"
-	// Scope tokens
-	case DOT:
-		return "."
-	case SPAN_DOT:
-		return "span."
-	case RESOURCE_DOT:
-		return "resource."
-	case EVENT_DOT:
-		return "event."
-	case LINK_DOT:
-		return "link."
-	case INSTRUMENTATION_DOT:
-		return "instrumentation."
-	case PARENT_DOT:
-		return "parent."
-	case EVENT_COLON:
-		return "event:"
-	case LINK_COLON:
-		return "link:"
-	case TRACE_COLON:
-		return "trace:"
-	case SPAN_COLON:
-		return "span:"
-	case INSTRUMENTATION_COLON:
-		return "instrumentation:"
-	// Arithmetic
-	case ADD:
-		return "+"
-	case SUB:
-		return "-"
-	case MUL:
-		return "*"
-	case DIV:
-		return "/"
-	case MOD:
-		return "%"
-	case POW:
-		return "^"
-	case NOT:
-		return "!"
-	// Spanset structural operators
-	case DESC:
-		return ">>"
-	case ANCE:
-		return "<<"
-	case SIBL:
-		return "~"
-	case NOT_CHILD:
-		return "!>"
-	case NOT_PARENT:
-		return "!<"
-	case NOT_DESC:
-		return "!>>"
-	case NOT_ANCE:
-		return "!<<"
-	case UNION_CHILD:
-		return "&>"
-	case UNION_PARENT:
-		return "&<"
-	case UNION_DESC:
-		return "&>>"
-	case UNION_ANCE:
-		return "&<<"
-	case UNION_SIBL:
-		return "&~"
 	default:
 		return t.str
 	}

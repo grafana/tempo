@@ -235,7 +235,7 @@ func (i *instance) SearchTagsV2(ctx context.Context, req *tempopb.SearchTagsRequ
 	mc := collector.NewMetricsCollector()
 
 	engine := traceql.NewEngine()
-	conditions := traceql.ExtractConditions(req.Query)
+	conditions, _ := traceql.ExtractConditions(req.Query)
 
 	searchBlock := func(ctx context.Context, s common.Searcher, spanName string) error {
 		ctx, span := tracer.Start(ctx, "instance.SearchTagsV2."+spanName)
@@ -421,7 +421,7 @@ func (i *instance) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTag
 		return &tempopb.SearchTagValuesV2Response{}, nil
 	}
 
-	conditions := traceql.ExtractConditions(req.Query)
+	conditions, _ := traceql.ExtractConditions(req.Query)
 	// cacheKey will be same for all blocks in a request so only compute it once
 	// NOTE: cacheKey tag name and query, so if we start respecting start and end, add them to the cacheKey
 	cacheKey := searchTagValuesV2CacheKey(req, limit, "cache_search_tagvaluesv2")

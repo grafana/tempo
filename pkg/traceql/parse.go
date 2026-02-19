@@ -15,7 +15,7 @@ func init() {
 	// yyDebug = 3
 	// replaces constants with actual identifiers in error messages
 	//   i.e. "expecting OPEN_BRACE" => "expecting {"
-	for str, tok := range tokens {
+	for str, tok := range TokenMap {
 		yyToknames[tok-yyPrivate+1] = str
 	}
 }

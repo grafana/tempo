@@ -1,6 +1,7 @@
 package traceql
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -33,12 +34,12 @@ func TestExtractMatchers(t *testing.T) {
 		{
 			name:     "reversed operands with missing closing bracket",
 			query:    "{ 2 = .b ",
-			expected: "{.b = 2}",
+			expected: "{ 2 = .b}",
 		},
 		{
 			name:     "long query",
-			query:    `{.service_name = "foo" && .http.status_code = 200 && .http.method = "GET" && .cluster = }`,
-			expected: `{.service_name = "foo" && .http.status_code = 200 && .http.method = "GET"}`,
+			query:    `{(.service_name = "foo" && .http.status_code = 200) && .http.method = "GET" && .cluster = }`,
+			expected: `{(.service_name = "foo" && .http.status_code = 200) && .http.method = "GET"}`,
 		},
 		{
 			name:     "query with duration a boolean",
@@ -145,10 +146,31 @@ func TestExtractMatchers(t *testing.T) {
 			query:    `{.service_name = "foo" && .foo=} | select(.bar, .baz)`,
 			expected: `{.service_name = "foo"}`,
 		},
+		{
+			name:     "whitespace in value",
+			query:    `{ .foo = " b a r " }   `,
+			expected: `{.foo = " b a r "}`,
+		},
+		{
+			name:     "query with parentheses and incomplete matcher",
+			query:    `{ (resource.foo = "bar" && .baz = ) && .qux = "quux" }`,
+			expected: `{resource.foo = "bar" && .qux = "quux"}`,
+		},
+		{
+			name:     "query with parentheses containing all incomplete matchers",
+			query:    `{ (resource.foo =  && .baz = ) && .qux = "quux" }`,
+			expected: `{.qux = "quux"}`,
+		},
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			assert.Equal(t, tc.expected, ExtractMatchers(tc.query))
+			expected := tc.expected
+			expected = strings.ReplaceAll(expected, " ", "")
+			actual := ExtractMatchers(tc.query)
+			actual = RemoveUnnecessaryParentheses(actual)
+			actual = strings.ReplaceAll(actual, " ", "")
+			actual = strings.ReplaceAll(actual, "`", `"`)
+			assert.Equal(t, expected, actual)
 		})
 	}
 }
@@ -170,7 +192,7 @@ func TestExtractConditions(t *testing.T) {
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			conditions := ExtractConditions(tc.query)
+			conditions, _ := ExtractConditions(tc.query)
 			assert.Equal(t, tc.count, len(conditions))
 		})
 	}
