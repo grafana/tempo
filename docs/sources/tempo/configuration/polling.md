@@ -36,28 +36,46 @@ storage:
 ```
 
 Due to the mechanics of the [tenant index](../../operations/monitor/polling/), the blocklist will be stale by
-at most 2 times the configured `blocklist_poll` duration. There are two configuration options that need to be balanced
-against the `blockist_poll` to handle this:
+at most twice the configured `blocklist_poll` duration.
 
-The ingester `complete_block_timeout` is used to hold a block in the ingester for a given period of time after
-it has been flushed. This allows the ingester to return traces to the queriers while they are still unaware
-of the newly flushed blocks.
+## How blocks reach object storage
+
+Block-builders consume trace data from Kafka and organize spans into blocks based on a configurable time window.
+Once a block is complete, the block-builder flushes it to object storage.
+After the block is written, queriers won't discover it until their next polling cycle completes.
+
+## Handling blocklist staleness
+
+Two mechanisms ensure data availability despite blocklist staleness:
+- Live-stores cover the recent data gap
+- Compacted block retention prevents premature deletion
+
+### Live-stores cover the recent data gap
+
+Live-stores serve recent trace data directly from Kafka, covering the window between when a block-builder flushes a new block and when queriers discover it through polling.
+The query-frontend uses `query_backend_after` to control when backend storage is searched:
+
+- Time ranges more recent than `query_backend_after` are searched only in live-stores.
+- Time ranges older than `query_backend_after` are searched in backend storage.
 
 ```
-ingester:
-  # How long to hold a complete block in the ingester after it has been flushed to the backend. Default is 15m
-  [complete_block_timeout: <duration>]
+query_frontend:
+    search:
+        # Time after which the query-frontend starts searching backend storage. Default is 15m.
+        [query_backend_after: <duration>]
 ```
 
-The compaction `compacted_block_retention` is used to keep a block in the backend for a given period of time
-after it has been compacted and the data is no longer needed. This allows queriers with a stale blocklist to access
-these blocks successfully until they complete their polling cycles and have up to date blocklists. Like the
-`complete_block_timeout`, this should be at a minimum 2x the configured `blocklist_poll` duration.
+### Compacted block retention prevents premature deletion
+
+The `compacted_block_retention` keeps a block in object storage for a period of time after it has been compacted and the data has been merged into a new block.
+This allows queriers with a stale blocklist to still access these blocks until they complete their polling cycles and have up-to-date blocklists.
+At a minimum, this should be twice the configured `blocklist_poll` duration.
 
 ```
-compaction:
-  # How long to leave a block in the backend after it has been compacted successfully. Default is 1h
-  [compacted_block_retention: <duration>]
+backend_worker:
+  compaction:
+    # How long to leave a block in the backend after it has been compacted successfully. Default is 1h
+    [compacted_block_retention: <duration>]
 ```
 
 Additionally, the querier `blocklist_poll` duration needs to be greater than or equal to the worker
