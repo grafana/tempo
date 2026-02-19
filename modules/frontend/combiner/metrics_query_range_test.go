@@ -653,3 +653,76 @@ func TestTrimSeriesToCompletedWindow_MultipleSeries(t *testing.T) {
 		{TimestampMs: 18000, Value: 6.0},
 	}, series[1].Exemplars)
 }
+
+func TestQueryRangeResponseWithNaN(t *testing.T) {
+	// Test that NaN values are correctly marshaled to JSON
+	start := uint64(1100 * time.Second)
+	end := uint64(1300 * time.Second)
+	step := traceql.DefaultQueryRangeStep(start, end)
+
+	req := &tempopb.QueryRangeRequest{
+		Query: "{} | rate()",
+		Start: start,
+		End:   end,
+		Step:  step,
+	}
+
+	queryRangeCombiner, err := NewQueryRange(req, 100)
+	require.NoError(t, err)
+
+	// Add metadata
+	metadata := &QueryRangeJobResponse{
+		JobMetadata: shardtracker.JobMetadata{
+			TotalBlocks: 1,
+			TotalJobs:   1,
+			TotalBytes:  100,
+			Shards: []shardtracker.Shard{
+				{
+					TotalJobs:               1,
+					CompletedThroughSeconds: 1200,
+				},
+			},
+		},
+	}
+	err = queryRangeCombiner.AddResponse(metadata)
+	require.NoError(t, err)
+
+	// Add a response with NaN values
+	bar := &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "bar"}}
+	resp := &tempopb.QueryRangeResponse{
+		Metrics: &tempopb.SearchMetrics{
+			InspectedTraces: 1,
+			InspectedBytes:  1,
+		},
+		Series: []*tempopb.TimeSeries{
+			{
+				Labels: []v1.KeyValue{
+					{Key: "foo", Value: bar},
+				},
+				Samples: []tempopb.Sample{
+					{TimestampMs: 1110_000, Value: 1.0},
+					{TimestampMs: 1120_000, Value: math.NaN()},
+					{TimestampMs: 1130_000, Value: 3.0},
+				},
+			},
+		},
+	}
+
+	err = queryRangeCombiner.AddResponse(toHTTPResponseWithFormat(t, resp, 200, 0, api.HeaderAcceptJSON))
+	require.NoError(t, err)
+
+	// Get the HTTP response (which marshals to JSON)
+	httpResp, err := queryRangeCombiner.HTTPFinal()
+	require.NoError(t, err)
+	require.Equal(t, 200, httpResp.StatusCode)
+
+	// Read and verify the body contains "NaN" as a string
+	body, err := api.ReadBodyToBuffer(httpResp)
+	require.NoError(t, err)
+	bodyStr := body.String()
+
+	// The jsonpb marshaler should output NaN as "NaN" (quoted string)
+	require.Contains(t, bodyStr, `"NaN"`, "Response should contain NaN as a string")
+	require.Contains(t, bodyStr, `"value":1`, "Response should contain normal value 1")
+	require.Contains(t, bodyStr, `"value":3`, "Response should contain normal value 3")
+}

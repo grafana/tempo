@@ -1,10 +1,12 @@
 package traceql
 
 import (
+	"math"
 	"testing"
 	"time"
 
 	"github.com/grafana/tempo/pkg/tempopb"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -247,4 +249,24 @@ func TestCompareScalesResults(t *testing.T) {
 	}
 
 	requireEqualSeriesSets(t, expected, ss)
+}
+
+func TestTopNNaNHandling(t *testing.T) {
+	top := topN[string]{}
+
+	// Add entries with some NaN values in the slices
+	top.add("series1", []float64{10.0, 20.0, math.NaN(), 30.0})
+	top.add("series2", []float64{math.NaN(), math.NaN(), math.NaN()}) // All NaN = sum 0
+	top.add("series3", []float64{5.0, 5.0, 5.0})                      // sum = 15
+
+	// Get top 2 - should be series1 (sum=60) and series3 (sum=15)
+	var results []string
+	top.get(2, func(key string) {
+		results = append(results, key)
+	})
+
+	require.Len(t, results, 2)
+	// series1 has highest sum (60), series3 has second (15), series2 has 0
+	assert.Contains(t, results, "series1")
+	assert.Contains(t, results, "series3")
 }
