@@ -1345,7 +1345,6 @@ live_store:
     wal:
         path: /var/tempo/live-store/traces
         ingestion_time_range_slack: 2m0s
-        version: vParquet4
     query_block_concurrency: 10
     complete_block_timeout: 1h0m0s
     complete_block_concurrency: 2

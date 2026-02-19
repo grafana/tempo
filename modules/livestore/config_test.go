@@ -7,6 +7,10 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/grafana/tempo/tempodb/encoding"
+	"github.com/grafana/tempo/tempodb/encoding/common"
+	"github.com/grafana/tempo/tempodb/encoding/vparquet5"
 )
 
 func TestConfigValidate(t *testing.T) {
@@ -128,6 +132,20 @@ func TestConfigValidate(t *testing.T) {
 			},
 			expectedErr: "max_trace_idle (20s) cannot be greater than max_trace_live (10s)",
 		},
+		{
+			name: "unsupported wal version fails",
+			modifyConfig: func(cfg *Config) {
+				cfg.WAL.Version = "preview"
+			},
+			expectedErr: "preview",
+		},
+		{
+			name: "unsupported block version fails",
+			modifyConfig: func(cfg *Config) {
+				cfg.BlockConfig.Version = "preview"
+			},
+			expectedErr: "preview",
+		},
 	}
 
 	for _, tt := range tests {
@@ -145,6 +163,89 @@ func TestConfigValidate(t *testing.T) {
 				require.Error(t, err)
 				assert.Contains(t, err.Error(), tt.expectedErr)
 			}
+		})
+	}
+}
+
+func TestCoalesceBlockVersions(t *testing.T) {
+	defaultVer := encoding.DefaultEncoding().Version()
+
+	tests := []struct {
+		name                    string
+		modifyConfig            func(*Config)
+		expectedCompleteVersion string
+		expectedWalVersion      string
+		expectedErr             string
+	}{
+		{
+			name: "uses specific versions when set",
+			modifyConfig: func(cfg *Config) {
+				cfg.BlockConfig.Version = vparquet5.VersionString
+				cfg.WAL.Version = vparquet5.VersionString
+			},
+			expectedCompleteVersion: vparquet5.VersionString,
+			expectedWalVersion:      vparquet5.VersionString,
+		},
+		{
+			name: "fallback to GlobalBlockConfig when empty",
+			modifyConfig: func(cfg *Config) {
+				cfg.BlockConfig.Version = ""
+				cfg.WAL.Version = ""
+				cfg.GlobalBlockConfig = &common.BlockConfig{Version: vparquet5.VersionString}
+			},
+			expectedCompleteVersion: vparquet5.VersionString,
+			expectedWalVersion:      vparquet5.VersionString,
+		},
+		{
+			name: "use default when all version fields empty",
+			modifyConfig: func(cfg *Config) {
+				cfg.BlockConfig.Version = ""
+				cfg.WAL.Version = ""
+			},
+			expectedCompleteVersion: defaultVer,
+			expectedWalVersion:      defaultVer,
+		},
+		{
+			name: "wal fallback to block version when empty",
+			modifyConfig: func(cfg *Config) {
+				cfg.BlockConfig.Version = vparquet5.VersionString
+				cfg.WAL.Version = ""
+			},
+			expectedCompleteVersion: vparquet5.VersionString,
+			expectedWalVersion:      vparquet5.VersionString,
+		},
+		{
+			name: "unsupported wal version returns error",
+			modifyConfig: func(cfg *Config) {
+				cfg.WAL.Version = "preview"
+			},
+			expectedErr: "preview",
+		},
+		{
+			name: "unsupported block version returns error",
+			modifyConfig: func(cfg *Config) {
+				cfg.BlockConfig.Version = "preview"
+			},
+			expectedErr: "preview",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := Config{}
+			cfg.RegisterFlagsAndApplyDefaults("", flag.NewFlagSet("", flag.PanicOnError))
+			tt.modifyConfig(&cfg)
+
+			completeEnc, walEnc, err := coalesceBlockVersions(&cfg)
+
+			if tt.expectedErr != "" {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tt.expectedErr)
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, tt.expectedCompleteVersion, completeEnc.Version())
+			assert.Equal(t, tt.expectedWalVersion, walEnc.Version())
 		})
 	}
 }

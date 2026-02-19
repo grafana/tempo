@@ -37,22 +37,26 @@ func setupTest(t *testing.T) *testSetup {
 	t.Helper()
 	tmpDir := t.TempDir()
 
-	// Setup WAL config
-	w, err := wal.New(&wal.Config{
-		Filepath: tmpDir,
-		Version:  "vParquet4",
-	})
-	require.NoError(t, err)
-
 	// Create overrides with a separate registry to avoid conflicts
 	registry := prometheus.NewRegistry()
 	o, err := overrides.NewOverrides(overrides.Config{}, nil, registry)
 	require.NoError(t, err)
 
 	// Create instance
-	cfg := Config{}
+	cfg := &Config{}
 	cfg.RegisterFlagsAndApplyDefaults("", &flag.FlagSet{})
-	instance, err := newInstance(testTenant, cfg, w, o, log.NewNopLogger())
+
+	blockEnc, walEnc, err := coalesceBlockVersions(cfg)
+	require.NoError(t, err)
+
+	// Setup WAL config
+	w, err := wal.New(&wal.Config{
+		Filepath: tmpDir,
+		Version:  walEnc.Version(),
+	})
+	require.NoError(t, err)
+
+	instance, err := newInstance(testTenant, *cfg, w, blockEnc, o, log.NewNopLogger())
 	require.NoError(t, err)
 
 	return &testSetup{
