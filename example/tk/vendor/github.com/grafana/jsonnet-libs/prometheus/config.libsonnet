@@ -85,6 +85,19 @@
   //     global: true,
   //     cluster_name: 'us-central1',
   //     cluster_dns_tld: 'local',
+  //
+  //     // for alertmanagers that are reachable over the Internet
+  //     external: true,
+  //     // for mTLS-protected alertmanagers
+  //     tls_config: {
+  //       client_cert_file: '/tls/client/tls.crt',
+  //       client_key_file: '/tls/client/tls.key',
+  //     },
+  //     // for statically-configured alertmanagers
+  //     static_endpoints: [
+  //       'alertmanager-0.example.com',
+  //       'alertmanager-1.example.com',
+  //     ]
   //   },
   // }
   withAlertmanagers(alertmanagers, cluster_name):: {
@@ -127,17 +140,25 @@
               then {
                 api_version: 'v2',
                 path_prefix: alertmanager.path,
+                [if std.get(alertmanager, 'external', false) then 'scheme']: 'https',
+                [if std.objectHas(alertmanager, 'tls_config') then 'tls_config']: {
+                  cert_file: alertmanager.tls_config.client_cert_file,
+                  key_file: alertmanager.tls_config.client_key_file,
+                },
                 static_configs: [{
-                  targets: [
-                    'alertmanager-%d.alertmanager.%s.svc.%s.%s:%s' % [
-                      i,
-                      alertmanager.namespace,
-                      alertmanager.cluster_name,
-                      alertmanager.cluster_dns_tld,
-                      alertmanager.port,
-                    ]
-                    for i in std.range(0, alertmanager.replicas - 1)
-                  ],
+                  targets:
+                    if std.objectHas(alertmanager, 'static_endpoints')
+                    then alertmanager.static_endpoints
+                    else [
+                      'alertmanager-%d.alertmanager.%s.svc.%s.%s:%s' % [
+                        i,
+                        alertmanager.namespace,
+                        alertmanager.cluster_name,
+                        alertmanager.cluster_dns_tld,
+                        alertmanager.port,
+                      ]
+                      for i in std.range(0, alertmanager.replicas - 1)
+                    ],
                 }],
               }
               else {}
