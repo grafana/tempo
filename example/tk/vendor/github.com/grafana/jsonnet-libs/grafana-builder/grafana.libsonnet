@@ -72,13 +72,14 @@ local utils = import 'mixin-utils/utils.libsonnet';
       },
     },
 
-    addShowNativeLatencyVariable():: self {
+    addShowNativeLatencyVariable(default='classic'):: self {
+      assert default == 'classic' || default == 'native' : 'default for nativeLatencyVariable must be "classic" or "native" (actual: %s)' % default,
       templating+: {
         list+: [{
           current: {
             selected: true,
-            text: 'classic',
-            value: '1',
+            text: default,
+            value: (if default == 'classic' then '1' else '-1'),
           },
           description: 'Choose between showing latencies based on low precision classic or high precision native histogram metrics.',
           hide: 0,
@@ -89,12 +90,12 @@ local utils = import 'mixin-utils/utils.libsonnet';
           query: 'native : -1,classic : 1',
           options: [
             {
-              selected: false,
+              selected: (default == 'native'),
               text: 'native',
               value: '-1',
             },
             {
-              selected: true,
+              selected: (default == 'classic'),
               text: 'classic',
               value: '1',
             },
