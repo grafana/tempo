@@ -47,7 +47,6 @@ import (
 	"github.com/grafana/tempo/pkg/usagestats"
 	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/pkg/util/log"
-	util_log "github.com/grafana/tempo/pkg/util/log"
 )
 
 const (
@@ -221,11 +220,12 @@ func (t *App) Run() error {
 		for m, s := range serviceMap {
 			if s == service {
 				err := service.FailureCase()
-				if errors.Is(err, modules.ErrStopProcess) {
+				switch {
+				case errors.Is(err, modules.ErrStopProcess):
 					level.Info(log.Logger).Log("msg", "received stop signal via return error", "module", m, "err", err)
-				} else if errors.Is(err, context.Canceled) {
+				case errors.Is(err, context.Canceled):
 					return
-				} else if err != nil {
+				case err != nil:
 					level.Error(log.Logger).Log("msg", "module failed", "module", m, "err", err)
 				}
 				return
@@ -329,7 +329,7 @@ func (t *App) writeStatusConfig(w io.Writer, r *http.Request) error {
 func (t *App) readyHandler(sm *services.Manager, shutdownRequested *atomic.Bool) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if shutdownRequested.Load() {
-			level.Debug(util_log.Logger).Log("msg", "application is stopping")
+			level.Debug(log.Logger).Log("msg", "application is stopping")
 			http.Error(w, "Application is stopping", http.StatusServiceUnavailable)
 			return
 		}
@@ -390,7 +390,7 @@ func (t *App) readyHandler(sm *services.Manager, shutdownRequested *atomic.Bool)
 func (t *App) writeRuntimeConfig(w io.Writer, r *http.Request) error {
 	// Querier and query-frontend services do not run the overrides module
 	if t.Overrides == nil {
-		_, err := w.Write([]byte(fmt.Sprintf("overrides module not loaded in %s\n", t.cfg.Target)))
+		_, err := fmt.Fprintf(w, "overrides module not loaded in %s\n", t.cfg.Target)
 		return err
 	}
 	return t.Overrides.WriteStatusRuntimeConfig(w, r)
@@ -514,7 +514,7 @@ func (t *App) writeStatusEndpoints(w io.Writer) error {
 
 	endpoints := []endpoint{}
 
-	err := t.Server.HTTPRouter().Walk(func(route *mux.Route, router *mux.Router, ancestors []*mux.Route) error {
+	err := t.Server.HTTPRouter().Walk(func(route *mux.Route, _ *mux.Router, _ []*mux.Route) error {
 		e := endpoint{}
 
 		pathTemplate, err := route.GetPathTemplate()
@@ -535,7 +535,7 @@ func (t *App) writeStatusEndpoints(w io.Writer) error {
 		return fmt.Errorf("error walking routes: %w", err)
 	}
 
-	sort.Slice(endpoints[:], func(i, j int) bool {
+	sort.Slice(endpoints, func(i, j int) bool {
 		return endpoints[i].name < endpoints[j].name
 	})
 
@@ -552,7 +552,7 @@ func (t *App) writeStatusEndpoints(w io.Writer) error {
 	x.AppendSeparator()
 	x.Render()
 
-	_, err = w.Write([]byte(fmt.Sprintf("\nAPI documentation: %s\n\n", apiDocs)))
+	_, err = fmt.Fprintf(w, "\nAPI documentation: %s\n\n", apiDocs)
 	if err != nil {
 		return fmt.Errorf("error writing status endpoints: %w", err)
 	}
@@ -561,7 +561,7 @@ func (t *App) writeStatusEndpoints(w io.Writer) error {
 }
 
 func (t *App) buildinfoHandler() http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
+	return func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		err := json.NewEncoder(w).Encode(build.GetVersion())
 

@@ -515,7 +515,7 @@ func Test_Histograms(t *testing.T) {
 	}
 }
 
-func collectMetricsAndAssertSeries(t *testing.T, m metric, collectionTimeMs int64, expectedSeries int, appender storage.Appender) {
+func collectMetricsAndAssertSeries(t *testing.T, m metric, collectionTimeMs int64, _ int, appender storage.Appender) {
 	err := m.collectMetrics(appender, collectionTimeMs)
 	require.NoError(t, err)
 }
@@ -536,7 +536,7 @@ func assertAppenderSamples(t *testing.T, appender *capturingAppender, expectedSa
 		// 	assert.Equal(t, expected, appender.samples[i])
 		// }
 
-		sort.Slice(expectedSamples[:], func(i, j int) bool {
+		sort.Slice(expectedSamples, func(i, j int) bool {
 			return expectedSamples[i].l.String() < expectedSamples[j].l.String()
 		})
 		// t.Log("Expected samples:")
@@ -544,7 +544,7 @@ func assertAppenderSamples(t *testing.T, appender *capturingAppender, expectedSa
 		// 	t.Log(" - ", expectedSample.l, expectedSample.v, expectedSample.t)
 		// }
 
-		sort.Slice(appender.samples[:], func(i, j int) bool {
+		sort.Slice(appender.samples, func(i, j int) bool {
 			return appender.samples[i].l.String() < appender.samples[j].l.String()
 		})
 
@@ -569,11 +569,11 @@ func assertAppenderSamples(t *testing.T, appender *capturingAppender, expectedSa
 func assertAppenderExemplars(t *testing.T, appender *capturingAppender, expected []exemplarSample) {
 	t.Run("Exemplars", func(t *testing.T) {
 		require.Len(t, appender.exemplars, len(expected))
-		sort.Slice(expected[:], func(i, j int) bool {
+		sort.Slice(expected, func(i, j int) bool {
 			return expected[i].l.String() < expected[j].l.String()
 		})
 
-		sort.Slice(appender.exemplars[:], func(i, j int) bool {
+		sort.Slice(appender.exemplars, func(i, j int) bool {
 			return appender.exemplars[i].l.String() < appender.exemplars[j].l.String()
 		})
 

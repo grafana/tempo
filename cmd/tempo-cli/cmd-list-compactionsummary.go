@@ -104,11 +104,11 @@ func displayCompactionSummary(results []blockStats) {
 			case "blocks":
 				s = fmt.Sprintf("%d (%d %%)", len(resultsByLevel[l]), len(resultsByLevel[l])*100/len(results))
 			case "total":
-				s = fmt.Sprintf("%s objects (%s)", humanize.Comma(int64(countSum)), humanize.Bytes(sizeSum))
+				s = fmt.Sprintf("%s objects (%s)", humanize.Comma(countSum), humanize.Bytes(sizeSum))
 			case "smallest block":
-				s = fmt.Sprintf("%s objects (%s)", humanize.Comma(int64(countMin)), humanize.Bytes(sizeMin))
+				s = fmt.Sprintf("%s objects (%s)", humanize.Comma(countMin), humanize.Bytes(sizeMin))
 			case "largest block":
-				s = fmt.Sprintf("%s objects (%s)", humanize.Comma(int64(countMax)), humanize.Bytes(sizeMax))
+				s = fmt.Sprintf("%s objects (%s)", humanize.Comma(countMax), humanize.Bytes(sizeMax))
 			case "earliest":
 				s = fmt.Sprint(time.Since(oldest).Round(time.Second), " ago")
 			case "latest":

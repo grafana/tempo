@@ -43,7 +43,6 @@ import (
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/usagestats"
 	"github.com/grafana/tempo/pkg/util/log"
-	util_log "github.com/grafana/tempo/pkg/util/log"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/backend/azure"
 	"github.com/grafana/tempo/tempodb/backend/gcs"
@@ -190,12 +189,12 @@ func (t *App) initPartitionRing() (services.Service, error) {
 	ringKey = livestore.PartitionRingKey
 	kvConfig = t.cfg.LiveStore.PartitionRing.KVStore
 
-	kvClient, err := kv.NewClient(kvConfig, ring.GetPartitionRingCodec(), kv.RegistererWithKVName(prometheus.DefaultRegisterer, ringName+"-watcher"), util_log.Logger)
+	kvClient, err := kv.NewClient(kvConfig, ring.GetPartitionRingCodec(), kv.RegistererWithKVName(prometheus.DefaultRegisterer, ringName+"-watcher"), log.Logger)
 	if err != nil {
 		return nil, fmt.Errorf("creating KV store for %s partitions ring watcher: %w", ringName, err)
 	}
 
-	t.partitionRingWatcher = ring.NewPartitionRingWatcher(ringName, ringKey, kvClient, util_log.Logger, prometheus.WrapRegistererWithPrefix("tempo_", prometheus.DefaultRegisterer))
+	t.partitionRingWatcher = ring.NewPartitionRingWatcher(ringName, ringKey, kvClient, log.Logger, prometheus.WrapRegistererWithPrefix("tempo_", prometheus.DefaultRegisterer))
 	t.partitionRing = ring.NewPartitionInstanceRing(t.partitionRingWatcher, readRing, heartbeatTimeout)
 
 	// Expose a web page to view the partitions ring state.
@@ -345,7 +344,7 @@ func (t *App) initGeneratorRingWatcher() (services.Service, error) {
 	reg := prometheus.DefaultRegisterer
 
 	kvRegisterer := kv.RegistererWithKVName(reg, t.cfg.Generator.OverrideRingKey+"-watcher")
-	kvClient, err := kv.NewClient(t.cfg.Generator.Ring.KVStore, ring.GetPartitionRingCodec(), kvRegisterer, util_log.Logger)
+	kvClient, err := kv.NewClient(t.cfg.Generator.Ring.KVStore, ring.GetPartitionRingCodec(), kvRegisterer, log.Logger)
 	if err != nil {
 		return nil, fmt.Errorf("creating KV store for generator partition ring watcher: %w", err)
 	}
@@ -354,7 +353,7 @@ func (t *App) initGeneratorRingWatcher() (services.Service, error) {
 		t.cfg.Generator.OverrideRingKey,
 		t.cfg.Generator.OverrideRingKey,
 		kvClient,
-		util_log.Logger,
+		log.Logger,
 		prometheus.WrapRegistererWithPrefix("tempo_", reg),
 	)
 
@@ -615,9 +614,9 @@ func (t *App) initUsageReport() (services.Service, error) {
 		return nil, fmt.Errorf("failed to initialize usage report: %w", err)
 	}
 
-	ur, err := usagestats.NewReporter(t.cfg.UsageReport, t.cfg.LiveStore.Ring.KVStore, reader, writer, util_log.Logger, prometheus.DefaultRegisterer)
+	ur, err := usagestats.NewReporter(t.cfg.UsageReport, t.cfg.LiveStore.Ring.KVStore, reader, writer, log.Logger, prometheus.DefaultRegisterer)
 	if err != nil {
-		level.Info(util_log.Logger).Log("msg", "failed to initialize usage report", "err", err)
+		level.Info(log.Logger).Log("msg", "failed to initialize usage report", "err", err)
 		return nil, nil
 	}
 	t.usageReport = ur
@@ -625,7 +624,7 @@ func (t *App) initUsageReport() (services.Service, error) {
 }
 
 func (t *App) initCacheProvider() (services.Service, error) {
-	c, err := cache.NewProvider(&t.cfg.CacheProvider, util_log.Logger)
+	c, err := cache.NewProvider(&t.cfg.CacheProvider, log.Logger)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create cache provider: %w", err)
 	}
@@ -838,14 +837,14 @@ func addHTTPAPIPrefix(cfg *Config, apiPath string) string {
 }
 
 func echoHandler() http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
+	return func(w http.ResponseWriter, _ *http.Request) {
 		http.Error(w, "echo", http.StatusOK)
 	}
 }
 
 func usageStatsHandler(urCfg usagestats.Config) http.HandlerFunc {
 	if !urCfg.Enabled {
-		return func(w http.ResponseWriter, r *http.Request) {
+		return func(w http.ResponseWriter, _ *http.Request) {
 			http.Error(w, "usage-stats is not enabled", http.StatusOK)
 		}
 	}
@@ -853,12 +852,12 @@ func usageStatsHandler(urCfg usagestats.Config) http.HandlerFunc {
 	// usage stats is Enabled, build and return usage stats json
 	reportStr, err := jsoniter.MarshalToString(usagestats.BuildStats())
 	if err != nil {
-		return func(w http.ResponseWriter, r *http.Request) {
+		return func(w http.ResponseWriter, _ *http.Request) {
 			http.Error(w, "error building usage report", http.StatusInternalServerError)
 		}
 	}
 
-	return func(w http.ResponseWriter, r *http.Request) {
+	return func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = io.WriteString(w, reportStr)

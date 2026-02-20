@@ -112,7 +112,7 @@ func createHTTPClient(cfg *Config) (*http.Client, error) {
 	}
 
 	config := &tls.Config{
-		InsecureSkipVerify: cfg.TLS.InsecureSkipVerify,
+		InsecureSkipVerify: cfg.TLS.InsecureSkipVerify, // #nosec G402
 		ServerName:         cfg.TLS.ServerName,
 	}
 

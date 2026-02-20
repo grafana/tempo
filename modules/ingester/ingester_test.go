@@ -206,7 +206,7 @@ func TestWalDropsZeroLength(t *testing.T) {
 	}
 
 	// create new ingester. we should have no tenants b/c we all our wals should have been 0 length
-	ingester, _, _ = defaultIngesterWithPush(t, tmpDir, func(t testing.TB, i *Ingester, rs *v1.ResourceSpans, b []byte) {})
+	ingester, _, _ = defaultIngesterWithPush(t, tmpDir, func(_ testing.TB, _ *Ingester, _ *v1.ResourceSpans, _ []byte) {})
 	require.Equal(t, 0, len(ingester.instances))
 }
 

@@ -112,11 +112,12 @@ func TestStatic_Float(t *testing.T) {
 			static := newStatic(tt.arg)
 			f := static.Float()
 
-			if static.Type == TypeFloat {
+			switch {
+			case static.Type == TypeFloat:
 				assert.Equal(t, tt.arg, f)
-			} else if math.IsNaN(tt.want) {
+			case math.IsNaN(tt.want):
 				assert.True(t, math.IsNaN(f))
-			} else {
+			default:
 				assert.Equal(t, tt.want, f)
 			}
 		})

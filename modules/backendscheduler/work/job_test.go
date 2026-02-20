@@ -8,8 +8,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-var tenant = "test"
-
 func TestStatus(t *testing.T) {
 	j := &Job{
 		ID: uuid.NewString(),

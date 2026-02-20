@@ -29,25 +29,25 @@ type DistinctValue[T comparable] struct {
 // staleValueThreshold introduces a stop condition that is triggered when the number of  found cache hits overcomes the limit
 // For ease of use, maxDataSize=0 and maxValues are interpreted as unlimited.
 // Use NewDistinctValueWithDiff to enable diff support, but that one is slightly slower.
-func NewDistinctValue[T comparable](maxDataSize int, maxValues uint32, staleValueThreshold uint32, len func(T) int) *DistinctValue[T] {
+func NewDistinctValue[T comparable](maxDataSize int, maxValues uint32, staleValueThreshold uint32, lenFn func(T) int) *DistinctValue[T] {
 	return &DistinctValue[T]{
 		values:       make(map[T]struct{}),
 		maxDataSize:  maxDataSize,
 		diffEnabled:  false, // disable diff to make it faster
-		len:          len,
+		len:          lenFn,
 		maxValues:    maxValues,
 		maxCacheHits: staleValueThreshold,
 	}
 }
 
 // NewDistinctValueWithDiff is like NewDistinctValue but with diff support enabled.
-func NewDistinctValueWithDiff[T comparable](maxDataSize int, maxValues uint32, staleValueThreshold uint32, len func(T) int) *DistinctValue[T] {
+func NewDistinctValueWithDiff[T comparable](maxDataSize int, maxValues uint32, staleValueThreshold uint32, lenFn func(T) int) *DistinctValue[T] {
 	return &DistinctValue[T]{
 		values:       make(map[T]struct{}),
 		new:          make(map[T]struct{}),
 		maxDataSize:  maxDataSize,
 		diffEnabled:  true,
-		len:          len,
+		len:          lenFn,
 		maxValues:    maxValues,
 		maxCacheHits: staleValueThreshold,
 	}

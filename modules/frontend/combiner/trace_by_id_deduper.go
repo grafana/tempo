@@ -2,7 +2,7 @@ package combiner
 
 import (
 	"encoding/binary"
-	"fmt"
+	"errors"
 
 	"github.com/grafana/tempo/pkg/tempopb"
 	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
@@ -125,5 +125,5 @@ func (s *spanIDDeduper) makeUniqueSpanID() (uint64, error) {
 			return id, nil
 		}
 	}
-	return 0, fmt.Errorf(warningTooManySpans)
+	return 0, errors.New(warningTooManySpans)
 }

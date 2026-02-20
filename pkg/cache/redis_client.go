@@ -72,7 +72,7 @@ func NewRedisClient(cfg *RedisConfig) *RedisClient {
 		MaxConnAge:       cfg.MaxConnAge,
 	}
 	if cfg.EnableTLS {
-		opt.TLSConfig = &tls.Config{InsecureSkipVerify: cfg.InsecureSkipVerify}
+		opt.TLSConfig = &tls.Config{InsecureSkipVerify: cfg.InsecureSkipVerify} // #nosec G402
 	}
 	return &RedisClient{
 		expiration: cfg.Expiration,

@@ -278,7 +278,7 @@ func Test_counter_concurrencyCorrectness(t *testing.T) {
 	collectMetricAndAssert(t, c, collectionTimeMs, 1, expectedSamples, nil)
 }
 
-func collectMetricAndAssert(t *testing.T, m metric, collectionTimeMs int64, expectedActiveSeries int, expectedSamples []sample, expectedExemplars []exemplarSample) {
+func collectMetricAndAssert(t *testing.T, m metric, collectionTimeMs int64, _ int, expectedSamples []sample, expectedExemplars []exemplarSample) {
 	appender := &capturingAppender{}
 
 	err := m.collectMetrics(appender, collectionTimeMs)

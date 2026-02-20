@@ -219,6 +219,6 @@ func ValidateFilterPolicies(policies []filterconfig.FilterPolicy) error {
 	return err
 }
 
-func ValidateServiceGraphsDimensions(dimensions []string) error {
+func ValidateServiceGraphsDimensions(_ []string) error {
 	return nil
 }

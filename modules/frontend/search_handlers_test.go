@@ -260,7 +260,7 @@ func runnerRequests(t *testing.T, f *QueryFrontend) {
 
 			// grpc
 			actualResp = nil
-			err = f.streamingSearch(tc.request, newMockStreamingServer(tenant, func(i int, sr *tempopb.SearchResponse) {
+			err = f.streamingSearch(tc.request, newMockStreamingServer(tenant, func(_ int, sr *tempopb.SearchResponse) {
 				actualResp = sr
 			}))
 
@@ -408,7 +408,7 @@ func TestSearchLimitHonored(t *testing.T) {
 
 			// grpc
 			distinctTraces := map[string]struct{}{}
-			err = f.streamingSearch(tc.request, newMockStreamingServer(tenant, func(i int, sr *tempopb.SearchResponse) {
+			err = f.streamingSearch(tc.request, newMockStreamingServer(tenant, func(_ int, sr *tempopb.SearchResponse) {
 				// combine
 				for _, t := range sr.Traces {
 					distinctTraces[t.TraceID] = struct{}{}

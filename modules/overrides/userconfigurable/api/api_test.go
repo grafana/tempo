@@ -292,10 +292,10 @@ func TestUserConfigOverridesAPI_patchOverridesHandler_noVersionConflict(t *testi
 	testClient := &testClient{}
 	overridesAPI.client = testClient
 
-	testClient.get = func(ctx context.Context, userID string) (*client.Limits, backend.Version, error) {
+	testClient.get = func(_ context.Context, _ string) (*client.Limits, backend.Version, error) {
 		return &client.Limits{}, "1", nil
 	}
-	testClient.set = func(ctx context.Context, userID string, limits *client.Limits, version backend.Version) (backend.Version, error) {
+	testClient.set = func(_ context.Context, _ string, limits *client.Limits, version backend.Version) (backend.Version, error) {
 		// Must pass in version from get
 		assert.Equal(t, backend.Version("1"), version)
 		assert.NotNil(t, limits)
@@ -333,10 +333,10 @@ func TestUserConfigOverridesAPI_patchOverridesHandler_versionConflict(t *testing
 	testClient := &testClient{}
 	overridesAPI.client = testClient
 
-	testClient.get = func(ctx context.Context, userID string) (*client.Limits, backend.Version, error) {
+	testClient.get = func(_ context.Context, _ string) (*client.Limits, backend.Version, error) {
 		return &client.Limits{}, "1", nil
 	}
-	testClient.set = func(ctx context.Context, userID string, limits *client.Limits, version backend.Version) (backend.Version, error) {
+	testClient.set = func(_ context.Context, _ string, _ *client.Limits, _ backend.Version) (backend.Version, error) {
 		// Someone else changed the file!
 		return "", backend.ErrVersionDoesNotMatch
 	}

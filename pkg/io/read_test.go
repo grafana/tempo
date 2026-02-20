@@ -1,4 +1,4 @@
-package io
+package io //nolint:revive
 
 import (
 	"bytes"

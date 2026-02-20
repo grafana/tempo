@@ -24,7 +24,7 @@ func (f RequestHandlerFunc) Handle(c context.Context, r *httpgrpc.HTTPRequest) (
 }
 
 func TestRunRequests(t *testing.T) {
-	handler := func(ctx context.Context, r *httpgrpc.HTTPRequest) (*httpgrpc.HTTPResponse, error) {
+	handler := func(_ context.Context, r *httpgrpc.HTTPRequest) (*httpgrpc.HTTPResponse, error) {
 		time.Sleep(time.Millisecond)
 		return &httpgrpc.HTTPResponse{
 			Body: r.Body,

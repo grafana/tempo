@@ -155,7 +155,7 @@ func queryBucketForSummary(ctx context.Context, percentage float32, r backend.Re
 		for _, b := range q.trace.ResourceSpans {
 			size += b.Size()
 			for _, attr := range b.Resource.Attributes {
-				if "service.name" == attr.Key {
+				if attr.Key == "service.name" {
 					serviceNameMap[attr.Value.GetStringValue()]++
 					break
 				}

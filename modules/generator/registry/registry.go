@@ -62,10 +62,7 @@ type ManagedRegistry struct {
 	metricSeriesDemand prometheus.Gauge
 	metricEntityDemand prometheus.Gauge
 
-	metricTotalSeriesAdded   prometheus.Counter
-	metricTotalSeriesRemoved prometheus.Counter
-	metricTotalSeriesLimited prometheus.Counter
-	metricTotalCollections   prometheus.Counter
+	metricTotalCollections prometheus.Counter
 }
 
 // metric is the interface for a metric that is managed by ManagedRegistry.
