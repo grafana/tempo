@@ -8,8 +8,8 @@
           "subdir": "grafana-builder"
         }
       },
-      "version": "167b75f241cb61513b399cad7f87052108a26b85",
-      "sum": "EEPwMLfUIJT9iEUI/gCW9x6PxWoTBPSJOfabTF4rp1M="
+      "version": "dedb779b9d7ddb6fe84043b8db1b1a9cd7250d94",
+      "sum": "+slXP8gi75OS343Khtz3i7va9csGTLhPoLUVu8vRuRc="
     },
     {
       "source": {
@@ -18,8 +18,8 @@
           "subdir": "mixin-utils"
         }
       },
-      "version": "167b75f241cb61513b399cad7f87052108a26b85",
-      "sum": "Qg992ZB0jkrS+YLq0Q7RV1fSHa8+hQT0jbpTyCGE2NI="
+      "version": "dedb779b9d7ddb6fe84043b8db1b1a9cd7250d94",
+      "sum": "Yqni3FxJzw4DMlXBFf2mmKU5UEPOzWw0FmIlZbv+89Q="
     }
   ],
   "legacyImports": false
