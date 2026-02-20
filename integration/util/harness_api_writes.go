@@ -14,9 +14,11 @@ import (
 	"go.opentelemetry.io/collector/component/componenttest"
 	"go.opentelemetry.io/collector/config/configgrpc"
 	"go.opentelemetry.io/collector/config/configopaque"
+	"go.opentelemetry.io/collector/config/configoptional"
 	"go.opentelemetry.io/collector/config/configtls"
 	"go.opentelemetry.io/collector/consumer"
 	"go.opentelemetry.io/collector/exporter"
+	"go.opentelemetry.io/collector/exporter/exporterhelper"
 	"go.opentelemetry.io/collector/exporter/otlpexporter"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	mnoop "go.opentelemetry.io/otel/metric/noop"
@@ -127,12 +129,12 @@ func newOtelGRPCExporterWithAuth(endpoint, orgID, basicAuthToken string, useTLS 
 	otlpCfg := exporterCfg.(*otlpexporter.Config)
 
 	// Configure headers for authentication (gRPC metadata format)
-	headers := make(map[string]configopaque.String)
+	var headers configopaque.MapList
 	if orgID != "" {
-		headers[xScopeOrgIDHeader] = configopaque.String(orgID)
+		headers.Set(xScopeOrgIDHeader, configopaque.String(orgID))
 	}
 	if basicAuthToken != "" {
-		headers[authorizationHeader] = configopaque.String("Basic " + basicAuthToken)
+		headers.Set(authorizationHeader, configopaque.String("Basic "+basicAuthToken))
 	}
 
 	otlpCfg.ClientConfig = configgrpc.ClientConfig{
@@ -146,7 +148,7 @@ func newOtelGRPCExporterWithAuth(endpoint, orgID, basicAuthToken string, useTLS 
 	// Disable retries to get immediate error feedback
 	otlpCfg.RetryConfig.Enabled = false
 	// Disable queueing
-	otlpCfg.QueueConfig.Enabled = false
+	otlpCfg.QueueConfig = configoptional.None[exporterhelper.QueueBatchConfig]()
 	// beef up the timeout to 30 seconds to avoid flakes
 	otlpCfg.TimeoutConfig.Timeout = 30 * time.Second
 

@@ -19,6 +19,20 @@ const (
 	EarliestOffset = "earliest"
 )
 
+// GroupRebalanceStrategy defines the strategy to use for partition assignment.
+type GroupRebalanceStrategy string
+
+const (
+	// RangeBalanceStrategy assigns partitions on a per-topic basis.
+	RangeBalanceStrategy GroupRebalanceStrategy = "range"
+	// RoundRobinBalanceStrategy assigns partitions to all consumers in a round-robin fashion.
+	RoundRobinBalanceStrategy GroupRebalanceStrategy = "roundrobin"
+	// StickyBalanceStrategy attempts to preserve previous assignments when rebalancing.
+	StickyBalanceStrategy GroupRebalanceStrategy = "sticky"
+	// CooperativeStickyBalanceStrategy is similar to sticky but uses cooperative rebalancing.
+	CooperativeStickyBalanceStrategy GroupRebalanceStrategy = "cooperative-sticky"
+)
+
 type ClientConfig struct {
 	// Brokers holds the list of Kafka bootstrap servers (default localhost:9092).
 	Brokers []string `mapstructure:"brokers"`
@@ -62,14 +76,18 @@ type ClientConfig struct {
 	//
 	// NOTE: this is experimental and may be removed in a future release.
 	UseLeaderEpoch bool `mapstructure:"use_leader_epoch"`
+
+	// ConnIdleTimeout specifies the time after which idle connections are not reused and may be closed.
+	ConnIdleTimeout time.Duration `mapstructure:"conn_idle_timeout"`
 }
 
 func NewDefaultClientConfig() ClientConfig {
 	return ClientConfig{
-		Brokers:        []string{"localhost:9092"},
-		ClientID:       "otel-collector",
-		Metadata:       NewDefaultMetadataConfig(),
-		UseLeaderEpoch: true,
+		Brokers:         []string{"localhost:9092"},
+		ClientID:        "otel-collector",
+		Metadata:        NewDefaultMetadataConfig(),
+		UseLeaderEpoch:  true,
+		ConnIdleTimeout: 9 * time.Minute,
 	}
 }
 
@@ -81,6 +99,9 @@ func (c ClientConfig) Validate() error {
 		if _, err := sarama.ParseKafkaVersion(c.ProtocolVersion); err != nil {
 			return fmt.Errorf("invalid protocol version: %w", err)
 		}
+	}
+	if c.ConnIdleTimeout <= 0 {
+		return fmt.Errorf("conn_idle_timeout (%s) must be positive", c.ConnIdleTimeout)
 	}
 	return nil
 }
@@ -109,10 +130,7 @@ type ConsumerConfig struct {
 	// The minimum bytes per fetch from Kafka (default "1")
 	MinFetchSize int32 `mapstructure:"min_fetch_size"`
 
-	// The default bytes per fetch from Kafka (default "1048576")
-	DefaultFetchSize int32 `mapstructure:"default_fetch_size"`
-
-	// The maximum bytes per fetch from Kafka (default "0", no limit)
+	// The maximum bytes per fetch from Kafka (default "1048576")
 	MaxFetchSize int32 `mapstructure:"max_fetch_size"`
 
 	// The maximum amount of time to wait for MinFetchSize bytes to be
@@ -123,10 +141,11 @@ type ConsumerConfig struct {
 	// per partition (default "1048576")
 	MaxPartitionFetchSize int32 `mapstructure:"max_partition_fetch_size"`
 
-	// RebalanceStrategy specifies the strategy to use for partition assignment.
-	// Possible values are "range", "roundrobin", and "sticky".
-	// Defaults to "range".
-	GroupRebalanceStrategy string `mapstructure:"group_rebalance_strategy,omitempty"`
+	// GroupRebalanceStrategy specifies the strategy to use for partition assignment.
+	// Possible values are "range", "roundrobin", "sticky", and "cooperative-sticky".
+	//
+	// Defaults to "cooperative-sticky"
+	GroupRebalanceStrategy GroupRebalanceStrategy `mapstructure:"group_rebalance_strategy,omitempty"`
 
 	// GroupInstanceID specifies the ID of the consumer
 	GroupInstanceID string `mapstructure:"group_instance_id,omitempty"`
@@ -143,9 +162,8 @@ func NewDefaultConsumerConfig() ConsumerConfig {
 			Interval: time.Second,
 		},
 		MinFetchSize:          1,
-		MaxFetchSize:          0,
+		MaxFetchSize:          1048576,
 		MaxFetchWait:          250 * time.Millisecond,
-		DefaultFetchSize:      1048576,
 		MaxPartitionFetchSize: 1048576,
 	}
 }
@@ -163,15 +181,35 @@ func (c ConsumerConfig) Validate() error {
 
 	if c.GroupRebalanceStrategy != "" {
 		switch c.GroupRebalanceStrategy {
-		case sarama.RangeBalanceStrategyName, sarama.RoundRobinBalanceStrategyName, sarama.StickyBalanceStrategyName:
+		case RangeBalanceStrategy, RoundRobinBalanceStrategy, StickyBalanceStrategy, CooperativeStickyBalanceStrategy:
 			// Valid
 		default:
 			return fmt.Errorf(
-				"rebalance_strategy should be one of 'range', 'roundrobin', or 'sticky'. configured value %v",
+				"rebalance_strategy should be one of '%s', '%s', '%s', or '%s'. configured value %v",
+				RangeBalanceStrategy, RoundRobinBalanceStrategy, StickyBalanceStrategy, CooperativeStickyBalanceStrategy,
 				c.GroupRebalanceStrategy,
 			)
 		}
 	}
+
+	// Validate fetch size constraints
+	if c.MinFetchSize < 0 {
+		return fmt.Errorf("min_fetch_size (%d) must be non-negative", c.MinFetchSize)
+	}
+	if c.MaxFetchSize < 0 {
+		return fmt.Errorf("max_fetch_size (%d) must be non-negative", c.MaxFetchSize)
+	}
+	if c.MaxPartitionFetchSize < 0 {
+		return fmt.Errorf("max_partition_fetch_size (%d) must be non-negative", c.MaxPartitionFetchSize)
+	}
+	if c.MaxFetchSize < c.MinFetchSize {
+		return fmt.Errorf(
+			"max_fetch_size (%d) cannot be less than min_fetch_size (%d)",
+			c.MaxFetchSize,
+			c.MinFetchSize,
+		)
+	}
+
 	return nil
 }
 
@@ -202,7 +240,7 @@ type ProducerConfig struct {
 	RequiredAcks RequiredAcks `mapstructure:"required_acks"`
 
 	// Compression Codec used to produce messages
-	// https://pkg.go.dev/github.com/IBM/sarama@v1.30.0#CompressionCodec
+	// https://pkg.go.dev/github.com/twmb/franz-go/pkg/kgo#CompressionCodec
 	// The options are: 'none' (default), 'gzip', 'snappy', 'lz4', and 'zstd'
 	Compression string `mapstructure:"compression"`
 
@@ -210,13 +248,17 @@ type ProducerConfig struct {
 	CompressionParams configcompression.CompressionParams `mapstructure:"compression_params"`
 
 	// The maximum number of messages the producer will send in a single
-	// broker request. Defaults to 0 for unlimited. Similar to
+	// broker request. Defaults to 10000 (franz-go default). Similar to
 	// `queue.buffering.max.messages` in the JVM producer.
 	FlushMaxMessages int `mapstructure:"flush_max_messages"`
 
 	// Whether or not to allow automatic topic creation.
 	// (default enabled).
 	AllowAutoTopicCreation bool `mapstructure:"allow_auto_topic_creation"`
+
+	// Linger controls the linger time for the producer.
+	// (default 10ms).
+	Linger time.Duration `mapstructure:"linger"`
 }
 
 func NewDefaultProducerConfig() ProducerConfig {
@@ -224,8 +266,9 @@ func NewDefaultProducerConfig() ProducerConfig {
 		MaxMessageBytes:        1000000,
 		RequiredAcks:           WaitForLocal,
 		Compression:            "none",
-		FlushMaxMessages:       0,
+		FlushMaxMessages:       10000,
 		AllowAutoTopicCreation: true,
+		Linger:                 10 * time.Millisecond,
 	}
 }
 
@@ -233,17 +276,22 @@ func (c ProducerConfig) Validate() error {
 	switch c.Compression {
 	case "none", "gzip", "snappy", "lz4", "zstd":
 		ct := configcompression.Type(c.Compression)
-		if !ct.IsCompressed() {
-			return nil
-		}
-		if err := ct.ValidateParams(c.CompressionParams); err != nil {
-			return err
+		if ct.IsCompressed() {
+			if err := ct.ValidateParams(c.CompressionParams); err != nil {
+				return err
+			}
 		}
 	default:
 		return fmt.Errorf(
 			"compression should be one of 'none', 'gzip', 'snappy', 'lz4', or 'zstd'. configured value is %q",
 			c.Compression,
 		)
+	}
+	if c.MaxMessageBytes < 0 {
+		return fmt.Errorf("max_message_bytes (%d) must be non-negative", c.MaxMessageBytes)
+	}
+	if c.FlushMaxMessages < 1 {
+		return fmt.Errorf("flush_max_messages (%d) must be at least 1", c.FlushMaxMessages)
 	}
 	return nil
 }
@@ -393,6 +441,8 @@ func (c SASLConfig) Validate() error {
 type AWSMSKConfig struct {
 	// Region is the AWS region the MSK cluster is based in
 	Region string `mapstructure:"region"`
+	// prevent unkeyed literal initialization
+	_ struct{}
 }
 
 // KerberosConfig defines kerberos configuration.
