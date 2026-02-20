@@ -71,7 +71,6 @@ An example report output looks like this:
     "storage_block_encoding": "zstd",
     "storage_block_search_encoding": "snappy",
     "storage_cache": "",
-    "receiver_enabled_opencensus": 0,
     "feature_enabled_auth_stats": 0,
     "frontend_version": "v1",
     "storage_backend": "local",
