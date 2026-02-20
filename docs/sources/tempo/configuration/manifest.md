@@ -397,7 +397,7 @@ query_frontend:
         concurrent_jobs: 1000
         target_bytes_per_job: 104857600
         default_result_limit: 20
-        max_result_limit: 0
+        max_result_limit: 262144
         max_duration: 168h0m0s
         query_backend_after: 15m0s
         ingester_shards: 3
