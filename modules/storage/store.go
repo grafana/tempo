@@ -61,7 +61,7 @@ func (s *store) starting(_ context.Context) error {
 }
 
 func (s *store) stopping(_ error) error {
-	s.Reader.Shutdown()
+	s.Shutdown()
 
 	return nil
 }

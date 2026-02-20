@@ -37,7 +37,7 @@ func TestInterceptorsCancelContextForStreaming(t *testing.T) {
 		require.NoError(t, serv.Serve(listener))
 	}()
 
-	conn, err := grpc.Dial(listener.Addr().String(), grpc.WithTransportCredentials(insecure.NewCredentials()), grpc.WithDefaultCallOptions(grpc.MaxCallRecvMsgSize(10e6), grpc.MaxCallSendMsgSize(10e6)))
+	conn, err := grpc.Dial(listener.Addr().String(), grpc.WithTransportCredentials(insecure.NewCredentials()), grpc.WithDefaultCallOptions(grpc.MaxCallRecvMsgSize(10e6), grpc.MaxCallSendMsgSize(10e6))) //nolint:staticcheck
 	require.NoError(t, err)
 	defer func() {
 		require.NoError(t, conn.Close())

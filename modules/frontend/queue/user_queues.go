@@ -105,7 +105,7 @@ func (q *queues) getNextQueueForQuerier(lastUserIndex int) (chan Request, string
 	uid := lastUserIndex
 
 	for iters := 0; iters < len(q.users); iters++ {
-		uid = uid + 1
+		uid++
 
 		// Don't use "mod len(q.users)", as that could skip users at the beginning of the list
 		// for example when q.users has shrunk since last call.

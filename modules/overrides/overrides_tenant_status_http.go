@@ -58,11 +58,12 @@ func TenantStatusHandler(o Interface) http.HandlerFunc {
 		default:
 			util.WriteTextResponse(w, "Internal error happened when retrieving runtime overrides")
 		}
-		if slices.Contains(runtimeTenants, page.Tenant) {
+		switch {
+		case slices.Contains(runtimeTenants, page.Tenant):
 			page.RuntimeOverridesSource = page.Tenant
-		} else if slices.Contains(runtimeTenants, wildcardTenant) {
+		case slices.Contains(runtimeTenants, wildcardTenant):
 			page.RuntimeOverridesSource = wildcardTenant
-		} else {
+		default:
 			page.RuntimeOverridesSource = "default overrides"
 		}
 

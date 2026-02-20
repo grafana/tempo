@@ -67,8 +67,7 @@ func (p *RetentionProvider) Start(ctx context.Context) <-chan *work.Job {
 func (p *RetentionProvider) nextRetentionJob() *work.Job {
 	// Check if we already have a retention job running
 	for _, j := range p.sched.ListJobs() {
-		switch j.GetType() {
-		case tempopb.JobType_JOB_TYPE_RETENTION:
+		if j.GetType() == tempopb.JobType_JOB_TYPE_RETENTION {
 			switch j.GetStatus() {
 			case tempopb.JobStatus_JOB_STATUS_RUNNING, tempopb.JobStatus_JOB_STATUS_UNSPECIFIED:
 				return nil

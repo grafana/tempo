@@ -188,7 +188,7 @@ func main() {
 		panic(err)
 	}
 	startTime := time.Now()
-	r := rand.New(rand.NewSource(startTime.Unix()))
+	r := rand.New(rand.NewSource(startTime.Unix())) //nolint:gosec // G404: vulture timing doesn't need crypto randomness
 	interval := vultureConfig.tempoWriteBackoffDuration
 
 	selectRecentTimestamp := func(now time.Time) (newStart, ts time.Time, skip bool) {
@@ -247,7 +247,12 @@ func main() {
 	}, logger)
 
 	http.Handle(prometheusPath, promhttp.Handler())
-	log.Fatal(http.ListenAndServe(prometheusListenAddress, nil))
+	srv := &http.Server{
+		Addr:         prometheusListenAddress,
+		ReadTimeout:  30 * time.Second,
+		WriteTimeout: 30 * time.Second,
+	}
+	log.Fatal(srv.ListenAndServe())
 }
 
 func createHTTPClient(queryURL string, orgID string, queryLiveStores bool) *httpclient.Client {

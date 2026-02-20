@@ -381,7 +381,7 @@ func (i *Ingester) enqueue(op *flushOp, jitter bool) {
 	delay := time.Duration(0)
 
 	if jitter {
-		delay = time.Duration(rand.Float32() * float32(flushJitter))
+		delay = time.Duration(rand.Float32() * float32(flushJitter)) //nolint:gosec // G404: flush jitter doesn't need crypto randomness
 	}
 
 	op.at = time.Now().Add(delay)

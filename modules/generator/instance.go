@@ -511,8 +511,7 @@ func (i *instance) QueryRange(ctx context.Context, req *tempopb.QueryRangeReques
 
 	i.processorsMtx.RLock()
 	for _, processor := range i.processors {
-		switch p := processor.(type) {
-		case *localblocks.Processor:
+		if p, ok := processor.(*localblocks.Processor); ok {
 			processors = append(processors, p)
 		}
 	}

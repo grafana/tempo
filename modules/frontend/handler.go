@@ -43,9 +43,9 @@ type handler struct {
 }
 
 // newHandler creates a handler
-func newHandler(LogQueryRequestHeaders flagext.StringSliceCSV, rt http.RoundTripper, logger log.Logger) http.Handler {
+func newHandler(logQueryRequestHeaders flagext.StringSliceCSV, rt http.RoundTripper, logger log.Logger) http.Handler {
 	return &handler{
-		logQueryRequestHeaders: LogQueryRequestHeaders,
+		logQueryRequestHeaders: logQueryRequestHeaders,
 		roundTripper:           rt,
 		logger:                 logger,
 	}
@@ -158,11 +158,12 @@ func copyHeader(dst, src http.Header) {
 // httpgrpc errors can bubble up to here and should be translated to http errors. It returns
 // httpgrpc error.
 func writeError(w http.ResponseWriter, err error) error {
-	if grpcutil.IsCanceled(err) {
+	switch {
+	case grpcutil.IsCanceled(err):
 		err = errCanceled
-	} else if errors.Is(err, context.DeadlineExceeded) {
+	case errors.Is(err, context.DeadlineExceeded):
 		err = errDeadlineExceeded
-	} else if util.IsRequestBodyTooLarge(err) {
+	case util.IsRequestBodyTooLarge(err):
 		err = errRequestEntityTooLarge
 	}
 	httpgrpc.WriteError(w, err)

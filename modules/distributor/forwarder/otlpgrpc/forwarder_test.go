@@ -113,7 +113,7 @@ func (fatalError) Error() string   { return "context dialer error" }
 func (fatalError) Temporary() bool { return false }
 
 func newFailingContextDialer() contextDialer {
-	return func(ctx context.Context, s string) (net.Conn, error) {
+	return func(_ context.Context, _ string) (net.Conn, error) {
 		return nil, fatalError{}
 	}
 }
@@ -162,7 +162,7 @@ func Test_Forwarder_Dial_ReturnsNoErrorWithWorkingDialer(t *testing.T) {
 	d := newContextDialer(l)
 
 	// When
-	err := f.Dial(context.Background(), grpc.WithContextDialer(d), grpc.WithBlock())
+	err := f.Dial(context.Background(), grpc.WithContextDialer(d), grpc.WithBlock()) //nolint:staticcheck
 
 	// Then
 	require.NoError(t, err)
@@ -182,8 +182,8 @@ func Test_Forwarder_Dial_ReturnsErrorWithFailingContextDialer(t *testing.T) {
 	err := f.Dial(
 		context.Background(),
 		grpc.WithContextDialer(d),
-		grpc.WithBlock(),
-		grpc.FailOnNonTempDialError(true),
+		grpc.WithBlock(),                  //nolint:staticcheck
+		grpc.FailOnNonTempDialError(true), //nolint:staticcheck
 	)
 
 	// Then
@@ -203,13 +203,13 @@ func Test_Forwarder_Dial_ReturnsErrorWithCancelledContext(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	// Ensure the server is ready
-	err := f.Dial(ctx, grpc.WithContextDialer(d), grpc.WithBlock(), grpc.FailOnNonTempDialError(true))
+	err := f.Dial(ctx, grpc.WithContextDialer(d), grpc.WithBlock(), grpc.FailOnNonTempDialError(true)) //nolint:staticcheck
 	require.NoError(t, err)
 
 	cancel()
 
 	// When
-	err = f.Dial(ctx, grpc.WithContextDialer(d), grpc.WithBlock(), grpc.FailOnNonTempDialError(true))
+	err = f.Dial(ctx, grpc.WithContextDialer(d), grpc.WithBlock(), grpc.FailOnNonTempDialError(true)) //nolint:staticcheck
 
 	// Then
 	require.Error(t, err)
@@ -227,13 +227,13 @@ func Test_Forwarder_Dial_ReturnsErrorWhenCalledSecondTime(t *testing.T) {
 	d := newContextDialer(l)
 
 	// When
-	err := f.Dial(context.Background(), grpc.WithContextDialer(d), grpc.WithBlock())
+	err := f.Dial(context.Background(), grpc.WithContextDialer(d), grpc.WithBlock()) //nolint:staticcheck
 
 	// Then
 	require.NoError(t, err)
 
 	// When
-	err = f.Dial(context.Background(), grpc.WithContextDialer(d), grpc.WithBlock())
+	err = f.Dial(context.Background(), grpc.WithContextDialer(d), grpc.WithBlock()) //nolint:staticcheck
 
 	// Then
 	require.Error(t, err)
@@ -250,7 +250,7 @@ func Test_Forwarder_ForwardTraces_ReturnsNoErrorAndSentTracesMatchReceivedTraces
 	srv := &mockGRPCServer{}
 	l := newListener(t, srv)
 	d := newContextDialer(l)
-	err := f.Dial(context.Background(), grpc.WithContextDialer(d), grpc.WithBlock())
+	err := f.Dial(context.Background(), grpc.WithContextDialer(d), grpc.WithBlock()) //nolint:staticcheck
 	require.NoError(t, err)
 	traces := ptrace.NewTraces()
 	traces.ResourceSpans().AppendEmpty().SetSchemaUrl("testURL")
@@ -275,7 +275,7 @@ func Test_Forwarder_ForwardTraces_ReturnsErrorWithNoOrgIDInContext(t *testing.T)
 	srv := &mockGRPCServer{}
 	l := newListener(t, srv)
 	d := newContextDialer(l)
-	err := f.Dial(context.Background(), grpc.WithContextDialer(d), grpc.WithBlock())
+	err := f.Dial(context.Background(), grpc.WithContextDialer(d), grpc.WithBlock()) //nolint:staticcheck
 	require.NoError(t, err)
 	traces := ptrace.NewTraces()
 	traces.ResourceSpans().AppendEmpty().SetSchemaUrl("testURL")
@@ -299,7 +299,7 @@ func Test_Forwarder_Shutdown_CallsCloseOnConnection(t *testing.T) {
 	srv := &mockGRPCServer{}
 	l := newListener(t, srv)
 	d, conn := newContextDialerWithCountingConn(l)
-	err = f.Dial(context.Background(), grpc.WithContextDialer(d), grpc.WithBlock())
+	err = f.Dial(context.Background(), grpc.WithContextDialer(d), grpc.WithBlock()) //nolint:staticcheck
 	require.NoError(t, err)
 
 	// When

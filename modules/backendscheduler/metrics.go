@@ -53,15 +53,6 @@ var (
 		Name:      "backend_scheduler_work_flushes_total",
 		Help:      "The number of times the work cache was flushed to backend storage",
 	})
-	metricWorkCacheFileSize = promauto.NewHistogram(prometheus.HistogramOpts{
-		Namespace:                       "tempo",
-		Name:                            "backend_scheduler_work_cache_file_size_bytes",
-		Help:                            "Size of the work cache file in bytes",
-		Buckets:                         prometheus.ExponentialBuckets(1024, 2, 16), // 1KB to 32MB
-		NativeHistogramBucketFactor:     1.1,
-		NativeHistogramMaxBucketNumber:  100,
-		NativeHistogramMinResetDuration: 1 * time.Hour,
-	})
 	metricJobDuration = promauto.NewHistogramVec(prometheus.HistogramOpts{
 		Namespace:                       "tempo",
 		Name:                            "backend_scheduler_job_duration_seconds",

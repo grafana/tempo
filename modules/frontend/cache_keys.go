@@ -33,8 +33,8 @@ func cacheKey(prefix string, tenant string, queryHash uint64, start, end time.Ti
 
 	// unless the search range completely encapsulates the block range we can't cache. this is b/c different search ranges will return different results
 	// for a given block unless the search range covers the entire block
-	if !(start.Before(meta.StartTime) && // search start is before block start
-		end.After(meta.EndTime)) { // search end is after block end
+	if !start.Before(meta.StartTime) || // search start is not before block start
+		!end.After(meta.EndTime) { // search end is not after block end
 		return ""
 	}
 

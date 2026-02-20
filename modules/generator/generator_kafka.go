@@ -203,15 +203,16 @@ func revokePartitions(assigned, revoked []int32) []int32 {
 
 	// Traverse both slices
 	for i < len(assigned) && j < len(revoked) {
-		if assigned[i] < revoked[j] {
+		switch {
+		case assigned[i] < revoked[j]:
 			// If element in assigned is smaller, it's not in revoked, retain it
 			assigned[k] = assigned[i]
 			k++
 			i++
-		} else if assigned[i] > revoked[j] {
+		case assigned[i] > revoked[j]:
 			// If element in revoked is smaller, move the pointer j
 			j++
-		} else {
+		default:
 			// If both elements are equal, skip the element from assigned
 			i++
 		}

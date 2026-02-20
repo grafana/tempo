@@ -124,7 +124,7 @@ func (f *Forwarder) newTraceOTLPGRPCClientAndConn(ctx context.Context, endpoint 
 		grpc.WithStatsHandler(otelgrpc.NewClientHandler()),
 	)
 
-	grpcClientConn, err := grpc.DialContext(ctx, endpoint, opts...)
+	grpcClientConn, err := grpc.DialContext(ctx, endpoint, opts...) //nolint:staticcheck
 	if err != nil {
 		return nil, nil, err
 	}

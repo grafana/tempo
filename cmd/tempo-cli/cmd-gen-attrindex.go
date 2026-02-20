@@ -61,12 +61,13 @@ func (cmd *attrIndexCmd) Run(_ *globalOptions) error {
 		index := generateCombinedIndex(stats)
 		err = writeAttributeIndex(cmd.In, index)
 	} else if len(cmd.IndexTypes) == 1 {
-		if cmd.IndexTypes[0] == "rows" {
+		switch cmd.IndexTypes[0] {
+		case "rows":
 			fmt.Println("Generating inverted index with rows")
 
 			index := generateRowsIndex(stats)
 			err = writeAttributeIndex(cmd.In, index)
-		} else if cmd.IndexTypes[0] == "codes" {
+		case "codes":
 			fmt.Println("Generating index with key/value codes")
 
 			index := generateCodesIndex(stats)
@@ -622,16 +623,17 @@ type valueInfo[T comparable] struct {
 
 func (fs *fileStats) addAttributes(row pq.RowNumber, scope scopeMask, attrs []vp4.Attribute) {
 	for _, attr := range attrs {
-		if attr.IsArray {
+		switch {
+		case attr.IsArray:
 			fs.addAttribute(row, scope, attr.Key, attr.Value)
 			fs.Arrays++
-		} else if len(attr.Value) > 0 {
+		case len(attr.Value) > 0:
 			fs.addAttribute(row, scope, attr.Key, attr.Value[0])
-		} else if len(attr.ValueInt) > 0 {
+		case len(attr.ValueInt) > 0:
 			fs.addAttribute(row, scope, attr.Key, attr.ValueInt[0])
-		} else if len(attr.ValueDouble) > 0 {
+		case len(attr.ValueDouble) > 0:
 			fs.addAttribute(row, scope, attr.Key, attr.ValueDouble[0])
-		} else if len(attr.ValueBool) > 0 {
+		case len(attr.ValueBool) > 0:
 			fs.addAttribute(row, scope, attr.Key, attr.ValueBool[0])
 		}
 	}
@@ -825,13 +827,13 @@ func toSlice[T any](val any) []T {
 	switch v := val.(type) {
 	case []T:
 		return v
-	case T:
-		return []T{v}
 	case *T:
 		if v == nil {
 			return nil
 		}
 		return []T{*v}
+	case T:
+		return []T{v}
 	default:
 		panic(fmt.Sprintf("unexpected type %T", v))
 	}
