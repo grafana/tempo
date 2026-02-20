@@ -123,9 +123,6 @@ func TestInvalidTenants(t *testing.T) {
 				assertHTTP400(t, err)
 
 				if !tc.multitenant {
-					_, err := apiClient.MetricsSummary("{}", "name", 0, 0)
-					assertHTTP400(t, err)
-
 					_, err = apiClient.MetricsQueryRange("{} | count_over_time()", 0, 0, "", 0)
 					assertHTTP400(t, err)
 				}

@@ -706,7 +706,7 @@ query_frontend:
     # Set a maximum timeout for all api queries at which point the frontend will cancel queued jobs
     # and return cleanly. HTTP will return a 503 and GRPC will return a context canceled error.
     # This timeout impacts all http and grpc streaming queries as part of the Tempo api surface such as
-    # search, metrics summary, tags and tag values lookups, etc.
+    # search, metrics queries, tags and tag values lookups, etc.
     # Generally it is preferred to let the client cancel context. This is a failsafe to prevent a client
     # from imposing more work on Tempo than desired.
     # (default: 0)

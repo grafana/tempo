@@ -19,7 +19,6 @@ Tempo supports multi-tenant queries for search, search-tags, and trace-by-ID sea
 TraceQL metrics queries (for example, query range and instant endpoints that use TraceQLMetrics) also support cross-tenant queries.
 
 These operations can be federated across multiple tenants when you specify more than one tenant ID in the `X-Scope-OrgID` header.
-Metrics summary APIs remain single-tenant only, even when `multi_tenant_queries_enabled` is set to `true`.
 
 To perform multi-tenant queries, send tenant IDs separated by a `|` character in the `X-Scope-OrgID` header, for example, `foo|bar`.
 
