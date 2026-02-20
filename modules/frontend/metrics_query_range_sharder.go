@@ -115,7 +115,7 @@ func (s queryRangeSharder) RoundTrip(pipelineRequest pipeline.Request) (pipeline
 	}
 
 	traceql.AlignRequest(req)
-	
+
 	// Instant queries must not compute exemplars
 	if s.instantMode {
 		req.Exemplars = 0
