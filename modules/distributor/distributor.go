@@ -44,11 +44,14 @@ import (
 	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 	"github.com/grafana/tempo/pkg/usagestats"
 	"github.com/grafana/tempo/pkg/util"
+	tempo_log "github.com/grafana/tempo/pkg/util/log"
 	"github.com/grafana/tempo/pkg/validation"
 )
 
 const (
 	distributorRingKey = "distributor"
+
+	truncationLogsPerSecond = 1
 )
 
 var (
@@ -167,6 +170,13 @@ func (c truncatedAttributesCount) Total() int {
 	return c.Resource + c.Scope + c.Span + c.Event + c.Link
 }
 
+type truncatedAttrInfo struct {
+	scope    string
+	name     string
+	field    string // "key" or "value"
+	origSize int    // original byte length before truncation; 0 means no example captured yet
+}
+
 // Distributor coordinates replicates and distribution of log streams.
 type Distributor struct {
 	services.Service
@@ -206,6 +216,8 @@ type Distributor struct {
 	// TracePushMiddlewares are hooks called when a trace push request is received.
 	// Middleware errors are logged but don't fail the push (fail open behavior).
 	tracePushMiddlewares []TracePushMiddleware
+
+	truncationLogger *tempo_log.RateLimitedLogger
 
 	// For testing functionality that relies on timing without having to sleep in unit tests.
 	sleep func(time.Duration)
@@ -284,6 +296,7 @@ func New(
 		overrides:            o,
 		traceEncoder:         model.MustNewSegmentDecoder(model.CurrentEncoding),
 		tracePushMiddlewares: cfg.TracePushMiddlewares,
+		truncationLogger:     tempo_log.NewRateLimitedLogger(truncationLogsPerSecond, level.Warn(logger)),
 		logger:               logger,
 		sleep:                time.Sleep,
 		now:                  time.Now,
@@ -494,7 +507,7 @@ func (d *Distributor) PushTraces(ctx context.Context, traces ptrace.Traces) (*te
 
 	maxAttributeBytes := d.getMaxAttributeBytes(userID)
 
-	ringTokens, rebatchedTraces, truncatedAttributesCount, err := requestsByTraceID(batches, userID, spanCount, maxAttributeBytes)
+	ringTokens, rebatchedTraces, truncatedAttributesCount, truncationExample, err := requestsByTraceID(batches, userID, spanCount, maxAttributeBytes)
 	if err != nil {
 		logDiscardedResourceSpans(batches, userID, &d.cfg.LogDiscardedSpans, d.logger)
 		return nil, err
@@ -506,6 +519,17 @@ func (d *Distributor) PushTraces(ctx context.Context, traces ptrace.Traces) (*te
 		metricAttributesTruncated.WithLabelValues(userID, "span").Add(float64(truncatedAttributesCount.Span))
 		metricAttributesTruncated.WithLabelValues(userID, "event").Add(float64(truncatedAttributesCount.Event))
 		metricAttributesTruncated.WithLabelValues(userID, "link").Add(float64(truncatedAttributesCount.Link))
+
+		if truncationExample != nil {
+			d.truncationLogger.Log("msg", "attributes truncated",
+				"tenant", userID,
+				"total_truncated", truncatedAttributesCount.Total(),
+				"max_size_bytes", maxAttributeBytes,
+				"example_scope", truncationExample.scope,
+				"example_name", truncationExample.name,
+				"example_field", truncationExample.field,
+				"example_orig_size", truncationExample.origSize)
+		}
 	}
 
 	if d.cfg.IngesterWritePathEnabled {
@@ -727,53 +751,53 @@ func (d *Distributor) sendToKafka(ctx context.Context, userID string, keys []uin
 	}, ring.DoBatchOptions{})
 }
 
-// requestsByTraceID takes an incoming tempodb.PushRequest and creates a set of keys for the hash ring
-// and traces to pass onto the ingesters.
-func requestsByTraceID(batches []*v1.ResourceSpans, userID string, spanCount, maxSpanAttrSize int) ([]uint32, []*rebatchedTrace, truncatedAttributesCount, error) {
+// requestsByTraceID groups ResourceSpans by trace ID, producing hash-ring tokens and
+// rebatched traces for the ingesters. It truncates oversized attributes and returns
+// the first truncation example (if any) for diagnostic logging.
+func requestsByTraceID(batches []*v1.ResourceSpans, userID string, spanCount, maxSpanAttrSize int) ([]uint32, []*rebatchedTrace, truncatedAttributesCount, *truncatedAttrInfo, error) {
 	const tracesPerBatch = 20 // p50 of internal env
 	tracesByID := make(map[uint64]*rebatchedTrace, tracesPerBatch)
 	truncatedCount := truncatedAttributesCount{}
+
+	// truncationExample captures one example of a truncated attribute for rate-limited logging.
+	var truncationExample truncatedAttrInfo
+
 	currentTime := uint32(time.Now().Unix())
 	for _, b := range batches {
 		spansByILS := make(map[uint64]*v1.ScopeSpans)
 		// check resource for large attributes
 		if maxSpanAttrSize > 0 && b.Resource != nil {
-			resourceAttrTruncatedCount := processAttributes(b.Resource.Attributes, maxSpanAttrSize)
-			truncatedCount.Resource += resourceAttrTruncatedCount
+			truncatedCount.Resource += processAttributes(b.Resource.Attributes, maxSpanAttrSize, &truncationExample, "resource")
 		}
 
 		for _, ils := range b.ScopeSpans {
 
 			// check instrumentation for large attributes
 			if maxSpanAttrSize > 0 && ils.Scope != nil {
-				scopeAttrTruncatedCount := processAttributes(ils.Scope.Attributes, maxSpanAttrSize)
-				truncatedCount.Scope += scopeAttrTruncatedCount
+				truncatedCount.Scope += processAttributes(ils.Scope.Attributes, maxSpanAttrSize, &truncationExample, "scope")
 			}
 
 			for _, span := range ils.Spans {
 				// check spans for large attributes
 				if maxSpanAttrSize > 0 {
-					spanAttrTruncatedCount := processAttributes(span.Attributes, maxSpanAttrSize)
-					truncatedCount.Span += spanAttrTruncatedCount
+					truncatedCount.Span += processAttributes(span.Attributes, maxSpanAttrSize, &truncationExample, "span")
 
 					// check large attributes for events and links
 					for _, event := range span.Events {
-						eventAttrTruncatedCount := processAttributes(event.Attributes, maxSpanAttrSize)
-						truncatedCount.Event += eventAttrTruncatedCount
+						truncatedCount.Event += processAttributes(event.Attributes, maxSpanAttrSize, &truncationExample, "event")
 					}
 
 					for _, link := range span.Links {
-						linkAttrTruncatedCount := processAttributes(link.Attributes, maxSpanAttrSize)
-						truncatedCount.Link += linkAttrTruncatedCount
+						truncatedCount.Link += processAttributes(link.Attributes, maxSpanAttrSize, &truncationExample, "link")
 					}
 				}
 				traceID := span.TraceId
 				if !validation.ValidTraceID(traceID) {
-					return nil, nil, truncatedAttributesCount{}, status.Errorf(codes.InvalidArgument, "trace ids must be 128 bit, received %d bits", len(traceID)*8)
+					return nil, nil, truncatedAttributesCount{}, nil, status.Errorf(codes.InvalidArgument, "trace ids must be 128 bit, received %d bits", len(traceID)*8)
 				}
 
 				if !validation.ValidSpanID(span.SpanId) {
-					return nil, nil, truncatedAttributesCount{}, status.Errorf(codes.InvalidArgument, "span ids must be 64 bit and not all zero, received %d bits", len(span.SpanId)*8)
+					return nil, nil, truncatedAttributesCount{}, nil, status.Errorf(codes.InvalidArgument, "span ids must be 64 bit and not all zero, received %d bits", len(span.SpanId)*8)
 				}
 
 				traceKey := util.HashForTraceID(traceID)
@@ -846,21 +870,32 @@ func requestsByTraceID(batches []*v1.ResourceSpans, userID string, spanCount, ma
 		traces = append(traces, tr)
 	}
 
-	return ringTokens, traces, truncatedCount, nil
+	if truncationExample.origSize > 0 {
+		return ringTokens, traces, truncatedCount, &truncationExample, nil
+	}
+	return ringTokens, traces, truncatedCount, nil, nil
 }
 
-// find and truncate the span attributes that are too large
-func processAttributes(attributes []*v1_common.KeyValue, maxAttrSize int) int {
+// processAttributes finds and truncates attribute keys/values that exceed maxAttrSize.
+func processAttributes(attributes []*v1_common.KeyValue, maxAttrSize int, truncationExample *truncatedAttrInfo, scope string) int {
 	count := 0
 	for _, attr := range attributes {
 		if len(attr.Key) > maxAttrSize {
+			origSize := len(attr.Key)
 			attr.Key = attr.Key[:maxAttrSize]
+			if truncationExample != nil && truncationExample.origSize == 0 { // only capture the first truncation
+				// name is the truncated prefix; origSize records the full original length.
+				*truncationExample = truncatedAttrInfo{scope: scope, name: attr.Key, field: "key", origSize: origSize}
+			}
 			count++
 		}
 
 		switch value := attr.GetValue().Value.(type) {
 		case *v1_common.AnyValue_StringValue:
 			if len(value.StringValue) > maxAttrSize {
+				if truncationExample != nil && truncationExample.origSize == 0 { // only capture the first truncation
+					*truncationExample = truncatedAttrInfo{scope: scope, name: attr.Key, field: "value", origSize: len(value.StringValue)}
+				}
 				value.StringValue = value.StringValue[:maxAttrSize]
 				count++
 			}
