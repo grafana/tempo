@@ -8,6 +8,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"math"
 	"time"
 
 	"go.opentelemetry.io/collector/pdata/pcommon"
@@ -111,6 +112,8 @@ func PathGetSetter[K Context](path ottl.Path[K]) (ottl.GetSetter[K], error) {
 			}
 		}
 		return accessStatus[K](), nil
+	case "flags":
+		return accessFlags[K](), nil
 	default:
 		return nil, ctxerror.New(path.Name(), path.String(), Name, DocRef)
 	}
@@ -548,6 +551,27 @@ func accessStatusMessage[K Context]() ottl.StandardGetSetter[K] {
 			if str, ok := val.(string); ok {
 				tCtx.GetSpan().Status().SetMessage(str)
 			}
+			return nil
+		},
+	}
+}
+
+func accessFlags[K Context]() ottl.StandardGetSetter[K] {
+	return ottl.StandardGetSetter[K]{
+		Getter: func(_ context.Context, tCtx K) (any, error) {
+			return int64(tCtx.GetSpan().Flags()), nil
+		},
+		Setter: func(_ context.Context, tCtx K, val any) error {
+			value, err := ctxutil.ExpectType[int64](val)
+			if err != nil {
+				return err
+			}
+
+			if value < 0 || value > math.MaxUint32 {
+				return fmt.Errorf("value %d is out of range for uint32", value)
+			}
+
+			tCtx.GetSpan().SetFlags(uint32(value))
 			return nil
 		},
 	}

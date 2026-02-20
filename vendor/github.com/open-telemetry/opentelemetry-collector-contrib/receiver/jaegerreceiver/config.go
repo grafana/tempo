@@ -105,7 +105,7 @@ func (cfg *Config) Validate() error {
 
 	if cfg.ThriftHTTP.HasValue() {
 		httpConfig := cfg.ThriftHTTP.Get()
-		if err := checkPortFromEndpoint(httpConfig.Endpoint); err != nil {
+		if err := checkPortFromEndpoint(httpConfig.NetAddr.Endpoint); err != nil {
 			return fmt.Errorf("invalid port number for the Thrift HTTP endpoint: %w", err)
 		}
 	}

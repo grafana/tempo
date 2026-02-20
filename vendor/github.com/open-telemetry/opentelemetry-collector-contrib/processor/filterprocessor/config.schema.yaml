@@ -1,0 +1,146 @@
+$defs:
+  log_filters:
+    description: LogFilters filters by Log properties.
+    type: object
+    properties:
+      exclude:
+        description: Exclude match properties describe logs that should be excluded from the Collector Service pipeline, all other logs should be included. If both Include and Exclude are specified, Include filtering occurs first.
+        x-pointer: true
+        $ref: log_match_properties
+      include:
+        description: Include match properties describe logs that should be included in the Collector Service pipeline, all other logs should be dropped from further processing. If both Include and Exclude are specified, Include filtering occurs first.
+        x-pointer: true
+        $ref: log_match_properties
+      log_record:
+        description: LogConditions is a list of OTTL conditions for an ottllog context. If any condition resolves to true, the log event will be dropped. Supports `and`, `or`, and `()`
+        type: array
+        items:
+          type: string
+      resource:
+        description: ResourceConditions is a list of OTTL conditions for an ottlresource context. If any condition resolves to true, the whole resource will be dropped. Supports `and`, `or`, and `()`
+        type: array
+        items:
+          type: string
+  log_match_properties:
+    description: LogMatchProperties specifies the set of properties in a log to match against and the type of string pattern matching to use.
+    type: object
+    properties:
+      bodies:
+        description: LogBodies is a list of strings that the LogRecord's body field must match against.
+        type: array
+        items:
+          type: string
+      match_type:
+        description: LogMatchType specifies the type of matching desired
+        $ref: log_match_type
+      record_attributes:
+        description: RecordAttributes defines a list of possible record attributes to match logs against. A match occurs if any record attribute matches at least one expression in this given list.
+        type: array
+        items:
+          $ref: github.com/open-telemetry/opentelemetry-collector-contrib/internal/filter/filterconfig.attribute
+      resource_attributes:
+        description: ResourceAttributes defines a list of possible resource attributes to match logs against. A match occurs if any resource attribute matches all expressions in this given list.
+        type: array
+        items:
+          $ref: github.com/open-telemetry/opentelemetry-collector-contrib/internal/filter/filterconfig.attribute
+      severity_number:
+        description: SeverityNumberProperties defines how to match against a log record's SeverityNumber, if defined.
+        x-pointer: true
+        $ref: log_severity_number_match_properties
+      severity_texts:
+        description: SeverityTexts is a list of strings that the LogRecord's severity text field must match against.
+        type: array
+        items:
+          type: string
+  log_match_type:
+    description: LogMatchType specifies the strategy for matching against `plog.Log`s.
+    type: string
+  log_severity_number_match_properties:
+    type: object
+    properties:
+      match_undefined:
+        description: MatchUndefined lets logs records with "unknown" severity match. If MinSeverity is not set, this field is ignored, as fields are not matched based on severity.
+        type: boolean
+      min:
+        description: 'Min is the minimum severity needed for the log record to match. This corresponds to the short names specified here: https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/logs/data-model.md#displaying-severity this field is case-insensitive ("INFO" == "info")'
+        type: string
+  metric_filters:
+    description: MetricFilters filters by Metric properties.
+    type: object
+    properties:
+      datapoint:
+        description: DataPointConditions is a list of OTTL conditions for an ottldatapoint context. If any condition resolves to true, the datapoint will be dropped. Supports `and`, `or`, and `()`
+        type: array
+        items:
+          type: string
+      exclude:
+        description: Exclude match properties describe metrics that should be excluded from the Collector Service pipeline, all other metrics should be included. If both Include and Exclude are specified, Include filtering occurs first.
+        x-pointer: true
+        $ref: github.com/open-telemetry/opentelemetry-collector-contrib/internal/filter/filterconfig.metric_match_properties
+      include:
+        description: Include match properties describe metrics that should be included in the Collector Service pipeline, all other metrics should be dropped from further processing. If both Include and Exclude are specified, Include filtering occurs first.
+        x-pointer: true
+        $ref: github.com/open-telemetry/opentelemetry-collector-contrib/internal/filter/filterconfig.metric_match_properties
+      metric:
+        description: MetricConditions is a list of OTTL conditions for an ottlmetric context. If any condition resolves to true, the metric will be dropped. Supports `and`, `or`, and `()`
+        type: array
+        items:
+          type: string
+      regexp:
+        description: RegexpConfig specifies options for the regexp match type
+        x-pointer: true
+        $ref: github.com/open-telemetry/opentelemetry-collector-contrib/internal/filter/filterset/regexp.config
+      resource:
+        description: ResourceConditions is a list of OTTL conditions for an ottlresource context. If any condition resolves to true, the whole resource will be dropped. Supports `and`, `or`, and `()`
+        type: array
+        items:
+          type: string
+  profile_filters:
+    description: ProfileFilters filters by OTTL conditions
+    type: object
+    properties:
+      profile:
+        description: ProfileConditions is a list of OTTL conditions for an ottlprofile context. If any condition resolves to true, the profile will be dropped. Supports `and`, `or`, and `()`
+        type: array
+        items:
+          type: string
+      resource:
+        description: ResourceConditions is a list of OTTL conditions for an ottlresource context. If any condition resolves to true, the whole resource will be dropped. Supports `and`, `or`, and `()`
+        type: array
+        items:
+          type: string
+  trace_filters:
+    description: TraceFilters filters by OTTL conditions
+    type: object
+    properties:
+      resource:
+        description: ResourceConditions is a list of OTTL conditions for an ottlresource context. If any condition resolves to true, the whole resource will be dropped. Supports `and`, `or`, and `()`
+        type: array
+        items:
+          type: string
+      span:
+        description: SpanConditions is a list of OTTL conditions for an ottlspan context. If any condition resolves to true, the span will be dropped. Supports `and`, `or`, and `()`
+        type: array
+        items:
+          type: string
+      spanevent:
+        description: SpanEventConditions is a list of OTTL conditions for an ottlspanevent context. If any condition resolves to true, the span event will be dropped. Supports `and`, `or`, and `()`
+        type: array
+        items:
+          type: string
+description: Config defines configuration for Resource processor.
+type: object
+properties:
+  error_mode:
+    description: ErrorMode determines how the processor reacts to errors that occur while processing an OTTL condition. Valid values are `ignore` and `propagate`. `ignore` means the processor ignores errors returned by conditions and continues on to the next condition. This is the recommended mode. `propagate` means the processor returns the error up the pipeline.  This will result in the payload being dropped from the collector. The default value is `propagate`.
+    $ref: github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl.error_mode
+  logs:
+    $ref: log_filters
+  metrics:
+    $ref: metric_filters
+  profiles:
+    $ref: profile_filters
+  spans:
+    $ref: github.com/open-telemetry/opentelemetry-collector-contrib/internal/filter/filterconfig.match_config
+  traces:
+    $ref: trace_filters
