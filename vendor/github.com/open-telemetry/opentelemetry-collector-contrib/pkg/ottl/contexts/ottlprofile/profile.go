@@ -6,6 +6,7 @@ package ottlprofile // import "github.com/open-telemetry/opentelemetry-collector
 import (
 	"errors"
 	"fmt"
+	"sync"
 
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/pdata/pcommon"
@@ -22,15 +23,21 @@ import (
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl/contexts/internal/logprofile"
 )
 
+var tcPool = sync.Pool{
+	New: func() any {
+		return &TransformContext{cache: pcommon.NewMap()}
+	},
+}
+
 // ContextName is the name of the context for profiles.
 // Experimental: *NOTE* this constant is subject to change or removal in the future.
 const ContextName = ctxprofile.Name
 
 var (
-	_ ctxresource.Context     = TransformContext{}
-	_ ctxscope.Context        = TransformContext{}
-	_ ctxprofile.Context      = TransformContext{}
-	_ zapcore.ObjectMarshaler = TransformContext{}
+	_ ctxresource.Context     = (*TransformContext)(nil)
+	_ ctxscope.Context        = (*TransformContext)(nil)
+	_ ctxprofile.Context      = (*TransformContext)(nil)
+	_ zapcore.ObjectMarshaler = (*TransformContext)(nil)
 )
 
 // TransformContext represents a profile and its associated hierarchy.
@@ -45,7 +52,7 @@ type TransformContext struct {
 }
 
 // MarshalLogObject serializes the profile into a zapcore.ObjectEncoder for logging.
-func (tCtx TransformContext) MarshalLogObject(encoder zapcore.ObjectEncoder) error {
+func (tCtx *TransformContext) MarshalLogObject(encoder zapcore.ObjectEncoder) error {
 	err := encoder.AddObject("resource", logging.Resource(tCtx.resource))
 	err = errors.Join(err, encoder.AddObject("scope", logging.InstrumentationScope(tCtx.instrumentationScope)))
 	err = errors.Join(err, encoder.AddObject("profile", logprofile.Profile{Profile: tCtx.profile, Dictionary: tCtx.dictionary}))
@@ -57,6 +64,8 @@ func (tCtx TransformContext) MarshalLogObject(encoder zapcore.ObjectEncoder) err
 type TransformContextOption func(*TransformContext)
 
 // NewTransformContext creates a new TransformContext with the provided parameters.
+//
+// Deprecated: [v0.145.0] Use NewTransformContextPtr.
 func NewTransformContext(profile pprofile.Profile, dictionary pprofile.ProfilesDictionary, instrumentationScope pcommon.InstrumentationScope, resource pcommon.Resource, scopeProfiles pprofile.ScopeProfiles, resourceProfiles pprofile.ResourceProfiles, options ...TransformContextOption) TransformContext {
 	tc := TransformContext{
 		profile:              profile,
@@ -73,38 +82,67 @@ func NewTransformContext(profile pprofile.Profile, dictionary pprofile.ProfilesD
 	return tc
 }
 
+// NewTransformContextPtr returns a new TransformContext with the provided parameters from a pool of contexts.
+// Caller must call TransformContext.Close on the returned TransformContext.
+func NewTransformContextPtr(resourceProfiles pprofile.ResourceProfiles, scopeProfiles pprofile.ScopeProfiles, profile pprofile.Profile, dictionary pprofile.ProfilesDictionary, options ...TransformContextOption) *TransformContext {
+	tCtx := tcPool.Get().(*TransformContext)
+	tCtx.profile = profile
+	tCtx.dictionary = dictionary
+	tCtx.instrumentationScope = scopeProfiles.Scope()
+	tCtx.resource = resourceProfiles.Resource()
+	tCtx.scopeProfiles = scopeProfiles
+	tCtx.resourceProfiles = resourceProfiles
+	for _, opt := range options {
+		opt(tCtx)
+	}
+	return tCtx
+}
+
+// Close the current TransformContext.
+// After this function returns this instance cannot be used.
+func (tCtx *TransformContext) Close() {
+	tCtx.profile = pprofile.NewProfile()
+	tCtx.dictionary = pprofile.NewProfilesDictionary()
+	tCtx.instrumentationScope = pcommon.InstrumentationScope{}
+	tCtx.resource = pcommon.Resource{}
+	tCtx.cache.Clear()
+	tCtx.scopeProfiles = pprofile.ScopeProfiles{}
+	tCtx.resourceProfiles = pprofile.ResourceProfiles{}
+	tcPool.Put(tCtx)
+}
+
 // GetProfile returns the profile from the TransformContext.
-func (tCtx TransformContext) GetProfile() pprofile.Profile {
+func (tCtx *TransformContext) GetProfile() pprofile.Profile {
 	return tCtx.profile
 }
 
 // GetProfilesDictionary returns the profiles dictionary from the TransformContext.
-func (tCtx TransformContext) GetProfilesDictionary() pprofile.ProfilesDictionary {
+func (tCtx *TransformContext) GetProfilesDictionary() pprofile.ProfilesDictionary {
 	return tCtx.dictionary
 }
 
 // GetInstrumentationScope returns the instrumentation scope from the TransformContext.
-func (tCtx TransformContext) GetInstrumentationScope() pcommon.InstrumentationScope {
+func (tCtx *TransformContext) GetInstrumentationScope() pcommon.InstrumentationScope {
 	return tCtx.instrumentationScope
 }
 
 // GetResource returns the resource from the TransformContext.
-func (tCtx TransformContext) GetResource() pcommon.Resource {
+func (tCtx *TransformContext) GetResource() pcommon.Resource {
 	return tCtx.resource
 }
 
 // GetScopeSchemaURLItem returns the scope schema URL item from the TransformContext.
-func (tCtx TransformContext) GetScopeSchemaURLItem() ctxcommon.SchemaURLItem {
+func (tCtx *TransformContext) GetScopeSchemaURLItem() ctxcommon.SchemaURLItem {
 	return tCtx.scopeProfiles
 }
 
 // GetResourceSchemaURLItem returns the resource schema URL item from the TransformContext.
-func (tCtx TransformContext) GetResourceSchemaURLItem() ctxcommon.SchemaURLItem {
+func (tCtx *TransformContext) GetResourceSchemaURLItem() ctxcommon.SchemaURLItem {
 	return tCtx.resourceProfiles
 }
 
 // NewParser creates a new profile parser with the provided functions and options.
-func NewParser(functions map[string]ottl.Factory[TransformContext], telemetrySettings component.TelemetrySettings, options ...ottl.Option[TransformContext]) (ottl.Parser[TransformContext], error) {
+func NewParser(functions map[string]ottl.Factory[*TransformContext], telemetrySettings component.TelemetrySettings, options ...ottl.Option[*TransformContext]) (ottl.Parser[*TransformContext], error) {
 	return ctxcommon.NewParser(
 		functions,
 		telemetrySettings,
@@ -119,9 +157,9 @@ func NewParser(functions map[string]ottl.Factory[TransformContext], telemetrySet
 // otherwise an error is reported.
 //
 // Experimental: *NOTE* this option is subject to change or removal in the future.
-func EnablePathContextNames() ottl.Option[TransformContext] {
-	return func(p *ottl.Parser[TransformContext]) {
-		ottl.WithPathContextNames[TransformContext]([]string{
+func EnablePathContextNames() ottl.Option[*TransformContext] {
+	return func(p *ottl.Parser[*TransformContext]) {
+		ottl.WithPathContextNames[*TransformContext]([]string{
 			ctxprofile.Name,
 			ctxscope.LegacyName,
 			ctxscope.Name,
@@ -131,17 +169,17 @@ func EnablePathContextNames() ottl.Option[TransformContext] {
 }
 
 // StatementSequenceOption represents an option for configuring a statement sequence.
-type StatementSequenceOption func(*ottl.StatementSequence[TransformContext])
+type StatementSequenceOption func(*ottl.StatementSequence[*TransformContext])
 
 // WithStatementSequenceErrorMode sets the error mode for a statement sequence.
 func WithStatementSequenceErrorMode(errorMode ottl.ErrorMode) StatementSequenceOption {
-	return func(s *ottl.StatementSequence[TransformContext]) {
-		ottl.WithStatementSequenceErrorMode[TransformContext](errorMode)(s)
+	return func(s *ottl.StatementSequence[*TransformContext]) {
+		ottl.WithStatementSequenceErrorMode[*TransformContext](errorMode)(s)
 	}
 }
 
 // NewStatementSequence creates a new statement sequence with the provided statements and options.
-func NewStatementSequence(statements []*ottl.Statement[TransformContext], telemetrySettings component.TelemetrySettings, options ...StatementSequenceOption) ottl.StatementSequence[TransformContext] {
+func NewStatementSequence(statements []*ottl.Statement[*TransformContext], telemetrySettings component.TelemetrySettings, options ...StatementSequenceOption) ottl.StatementSequence[*TransformContext] {
 	s := ottl.NewStatementSequence(statements, telemetrySettings)
 	for _, op := range options {
 		op(&s)
@@ -150,17 +188,17 @@ func NewStatementSequence(statements []*ottl.Statement[TransformContext], teleme
 }
 
 // ConditionSequenceOption represents an option for configuring a condition sequence.
-type ConditionSequenceOption func(*ottl.ConditionSequence[TransformContext])
+type ConditionSequenceOption func(*ottl.ConditionSequence[*TransformContext])
 
 // WithConditionSequenceErrorMode sets the error mode for a condition sequence.
 func WithConditionSequenceErrorMode(errorMode ottl.ErrorMode) ConditionSequenceOption {
-	return func(c *ottl.ConditionSequence[TransformContext]) {
-		ottl.WithConditionSequenceErrorMode[TransformContext](errorMode)(c)
+	return func(c *ottl.ConditionSequence[*TransformContext]) {
+		ottl.WithConditionSequenceErrorMode[*TransformContext](errorMode)(c)
 	}
 }
 
 // NewConditionSequence creates a new condition sequence with the provided conditions and options.
-func NewConditionSequence(conditions []*ottl.Condition[TransformContext], telemetrySettings component.TelemetrySettings, options ...ConditionSequenceOption) ottl.ConditionSequence[TransformContext] {
+func NewConditionSequence(conditions []*ottl.Condition[*TransformContext], telemetrySettings component.TelemetrySettings, options ...ConditionSequenceOption) ottl.ConditionSequence[*TransformContext] {
 	c := ottl.NewConditionSequence(conditions, telemetrySettings)
 	for _, op := range options {
 		op(&c)
@@ -175,19 +213,19 @@ func parseEnum(val *ottl.EnumSymbol) (*ottl.Enum, error) {
 	return nil, errors.New("enum symbol not provided")
 }
 
-func getCache(tCtx TransformContext) pcommon.Map {
+func getCache(tCtx *TransformContext) pcommon.Map {
 	return tCtx.cache
 }
 
-func pathExpressionParser(cacheGetter ctxcache.Getter[TransformContext]) ottl.PathExpressionParser[TransformContext] {
+func pathExpressionParser(cacheGetter ctxcache.Getter[*TransformContext]) ottl.PathExpressionParser[*TransformContext] {
 	return ctxcommon.PathExpressionParser(
 		ctxprofile.Name,
 		ctxprofile.DocRef,
 		cacheGetter,
-		map[string]ottl.PathExpressionParser[TransformContext]{
-			ctxresource.Name:    ctxresource.PathGetSetter[TransformContext],
-			ctxscope.Name:       ctxscope.PathGetSetter[TransformContext],
-			ctxscope.LegacyName: ctxscope.PathGetSetter[TransformContext],
-			ctxprofile.Name:     ctxprofile.PathGetSetter[TransformContext],
+		map[string]ottl.PathExpressionParser[*TransformContext]{
+			ctxresource.Name:    ctxresource.PathGetSetter[*TransformContext],
+			ctxscope.Name:       ctxscope.PathGetSetter[*TransformContext],
+			ctxscope.LegacyName: ctxscope.PathGetSetter[*TransformContext],
+			ctxprofile.Name:     ctxprofile.PathGetSetter[*TransformContext],
 		})
 }
