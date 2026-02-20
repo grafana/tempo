@@ -94,7 +94,7 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(string, *flag.FlagSet) {
 		Sharder: SearchSharderConfig{
 			QueryBackendAfter:      15 * time.Minute,
 			DefaultLimit:           20,
-			MaxLimit:               0,
+			MaxLimit:               256 * 1024,
 			MaxDuration:            168 * time.Hour, // 1 week
 			ConcurrentRequests:     defaultConcurrentRequests,
 			TargetBytesPerRequest:  defaultTargetBytesPerRequest,
