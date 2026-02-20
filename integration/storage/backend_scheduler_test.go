@@ -94,19 +94,19 @@ func TestBackendScheduler(t *testing.T) {
 
 				totalBlocksWritten += tc.tenantCount * tc.blockCount
 
-				if _, ok := accumulant[tenant]; !ok {
-					accumulant[tenant] = &expectations{}
-				}
-
-				accumulant[tenant].blocks += tc.expectedBlocks
-				accumulant[tenant].outstanding += tc.expectedOutstandingBlocks
-
 				// Check the metrics for each tenant
 				for _, tenantID := range tenants {
 					tenantMatcher := e2e.WithLabelMatchers(&labels.Matcher{Type: labels.MatchEqual, Name: "tenant", Value: tenantID})
 
-					expectedBlocks := accumulant[tenant].blocks
-					expectedOutstanding := accumulant[tenant].outstanding
+					if _, ok := accumulant[tenantID]; !ok {
+						accumulant[tenantID] = &expectations{}
+					}
+
+					accumulant[tenantID].blocks += tc.expectedBlocks
+					accumulant[tenantID].outstanding += tc.expectedOutstandingBlocks
+
+					expectedBlocks := accumulant[tenantID].blocks
+					expectedOutstanding := accumulant[tenantID].outstanding
 					totalOutstanding += expectedOutstanding
 
 					t.Logf("Waiting for %d blocks in the blocklist for tenant: %s", expectedBlocks, tenantID)
