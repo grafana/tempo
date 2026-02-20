@@ -202,7 +202,7 @@ type averageSeries struct {
 	Exemplars []Exemplar
 }
 
-func newAverageSeries(l int, lenExemplars int, labels Labels) averageSeries {
+func newAverageSeries(l int, lenExemplars uint32, labels Labels) averageSeries {
 	s := averageSeries{
 		values:    make([]averageValue, l),
 		labels:    labels,
@@ -301,7 +301,7 @@ func (b *averageOverTimeSeriesAggregator) Combine(in []*tempopb.TimeSeries) {
 			countPosMapper[key] = i
 		} else if !ok {
 			lbls := getLabels(ts.Labels, "")
-			s := newAverageSeries(b.len, len(ts.Exemplars), lbls)
+			s := newAverageSeries(b.len, uint32(len(ts.Exemplars)), lbls)
 			b.weightedAverageSeries[key] = &s
 		}
 	}
@@ -583,7 +583,7 @@ func (g *avgOverTimeSpanAggregator[F, S]) getSeries(span Span) avgOverTimeSeries
 		intervals := g.intervalMapper.IntervalCount()
 		s = avgOverTimeSeries[S]{
 			vals:            g.buf.vals,
-			average:         newAverageSeries(intervals, int(g.exemplars), nil),
+			average:         newAverageSeries(intervals, g.exemplars, nil),
 			exemplarBuckets: newExemplarBucketSet(g.exemplars, g.start, g.end, g.step, g.instant),
 			initialized:     true,
 		}
