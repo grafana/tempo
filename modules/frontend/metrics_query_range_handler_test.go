@@ -592,6 +592,26 @@ func TestQueryRangeHandlerExemplarNormalization(t *testing.T) {
 		}
 	})
 
+	t.Run("client requests exemplars but MaxExemplars is zero disables them", func(t *testing.T) {
+		f := frontendWithSettings(t, &mockRoundTripper{
+			responseFn: func() proto.Message { return mockResp },
+		}, nil, nil, nil, func(c *Config, _ *overrides.Config) {
+			c.Metrics.Sharder.Interval = time.Hour
+			c.Metrics.Sharder.MaxExemplars = 0
+		})
+
+		httpResp := httptest.NewRecorder()
+		f.MetricsQueryRangeHandler.ServeHTTP(httpResp, makeRequest(5)) // client requests exemplars
+		require.Equal(t, 200, httpResp.Code)
+
+		actualResp := &tempopb.QueryRangeResponse{}
+		require.NoError(t, jsonpb.Unmarshal(httpResp.Body, actualResp))
+
+		for _, s := range actualResp.Series {
+			assert.Empty(t, s.Exemplars, "exemplars should be empty when MaxExemplars is zero even if client requests them")
+		}
+	})
+
 	t.Run("client-specified exemplars capped to cfg.MaxExemplars", func(t *testing.T) {
 		f := frontendWithSettings(t, &mockRoundTripper{
 			responseFn: func() proto.Message { return mockResp },

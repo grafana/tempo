@@ -308,6 +308,17 @@ func TestExemplarsCutoff(t *testing.T) {
 		expectedAfterCut  uint32
 	}{
 		{
+			// Instant queries zero exemplars before calling exemplarsCutoff; both sides must be 0.
+			name: "zero exemplars (instant mode) spanning cutoff",
+			req: tempopb.QueryRangeRequest{
+				Start:     uint64(cutoff.Add(-20 * time.Minute).UnixNano()),
+				End:       uint64(now.UnixNano()),
+				Exemplars: 0,
+			},
+			expectedBeforeCut: 0,
+			expectedAfterCut:  0,
+		},
+		{
 			// When all data is after the cutoff, all exemplars should go to the 'after' portion
 			name: "all data after cutoff",
 			req: tempopb.QueryRangeRequest{
