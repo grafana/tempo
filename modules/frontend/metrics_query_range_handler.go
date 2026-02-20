@@ -51,6 +51,12 @@ func newQueryRangeStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripp
 			return err
 		}
 
+		// Normalize exemplars before combiner creation: 0 (unspecified) or above the configured
+		// maximum defaults to MaxExemplars.
+		if req.Exemplars == 0 || req.Exemplars > cfg.Metrics.Sharder.MaxExemplars {
+			req.Exemplars = cfg.Metrics.Sharder.MaxExemplars
+		}
+
 		traceql.AlignRequest(req)
 
 		// the end time cutoff is applied here because it has to be done before combiner creation
@@ -131,6 +137,12 @@ func newMetricsQueryRangeHTTPHandler(cfg Config, next pipeline.AsyncRoundTripper
 
 		if err := validateQueryRangeReq(cfg, queryRangeReq); err != nil {
 			return httpInvalidRequest(err), nil
+		}
+
+		// Normalize exemplars before combiner creation: 0 (unspecified) or above the configured
+		// maximum defaults to MaxExemplars.
+		if queryRangeReq.Exemplars == 0 || queryRangeReq.Exemplars > cfg.Metrics.Sharder.MaxExemplars {
+			queryRangeReq.Exemplars = cfg.Metrics.Sharder.MaxExemplars
 		}
 
 		traceql.AlignRequest(queryRangeReq)
