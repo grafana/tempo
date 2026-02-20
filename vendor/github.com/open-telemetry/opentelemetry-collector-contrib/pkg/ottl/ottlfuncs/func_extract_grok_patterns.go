@@ -17,7 +17,7 @@ import (
 
 type ExtractGrokPatternsArguments[K any] struct {
 	Target             ottl.StringGetter[K]
-	Pattern            string
+	Pattern            ottl.StringGetter[K]
 	NamedCapturesOnly  ottl.Optional[bool]
 	PatternDefinitions ottl.Optional[[]string]
 }
@@ -36,7 +36,7 @@ func createExtractGrokPatternsFunction[K any](_ ottl.FunctionContext, oArgs ottl
 	return extractGrokPatterns(args.Target, args.Pattern, args.NamedCapturesOnly, args.PatternDefinitions)
 }
 
-func extractGrokPatterns[K any](target ottl.StringGetter[K], pattern string, nco ottl.Optional[bool], patternDefinitions ottl.Optional[[]string]) (ottl.ExprFunc[K], error) {
+func extractGrokPatterns[K any](target, pattern ottl.StringGetter[K], nco ottl.Optional[bool], patternDefinitions ottl.Optional[[]string]) (ottl.ExprFunc[K], error) {
 	g, err := grok.NewComplete()
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize grok parser: %w", err)
@@ -65,16 +65,37 @@ func extractGrokPatterns[K any](target ottl.StringGetter[K], pattern string, nco
 			}
 		}
 	}
-	err = g.Compile(pattern, namedCapturesOnly)
-	if err != nil {
-		return nil, fmt.Errorf("the pattern supplied to ExtractGrokPatterns is not a valid pattern: %w", err)
+
+	literalPattern, ok := ottl.GetLiteralValue(pattern)
+	compiled := false
+	if ok {
+		err = g.Compile(literalPattern, namedCapturesOnly)
+		if err != nil {
+			return nil, fmt.Errorf(invalidRegexErrMsg, "ExtractGrokPatterns", literalPattern, err)
+		}
+		compiled = true
 	}
 
-	if namedCapturesOnly && !g.HasCaptureGroups() {
+	if compiled && namedCapturesOnly && !g.HasCaptureGroups() {
 		return nil, errors.New("at least 1 named capture group must be supplied in the given regex")
 	}
 
 	return func(ctx context.Context, tCtx K) (any, error) {
+		if !compiled {
+			patternVal, err := pattern.Get(ctx, tCtx)
+			if err != nil {
+				return nil, err
+			}
+			err = g.Compile(patternVal, namedCapturesOnly)
+			if err != nil {
+				return nil, fmt.Errorf(invalidRegexErrMsg, "ExtractGrokPatterns", patternVal, err)
+			}
+		}
+
+		if namedCapturesOnly && !g.HasCaptureGroups() {
+			return nil, errors.New("at least 1 named capture group must be supplied in the given regex")
+		}
+
 		val, err := target.Get(ctx, tCtx)
 		if err != nil {
 			return nil, err

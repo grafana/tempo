@@ -103,6 +103,10 @@ type Int64Counter struct {
 	metrics *metrics
 }
 
+func (r Int64Counter) Enabled(_ context.Context) bool {
+	return r.Name != ""
+}
+
 func (r Int64Counter) Add(_ context.Context, value int64, options ...metric.AddOption) {
 	// don't do anything for metrics that we don't care
 	if r.Name == "" {

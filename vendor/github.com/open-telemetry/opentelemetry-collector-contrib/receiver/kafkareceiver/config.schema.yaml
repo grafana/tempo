@@ -1,0 +1,93 @@
+$defs:
+  header_extraction:
+    type: object
+    properties:
+      extract_headers:
+        type: boolean
+      headers:
+        type: array
+        items:
+          type: string
+  message_marking:
+    type: object
+    properties:
+      after:
+        description: If true, the messages are marked after the pipeline execution
+        type: boolean
+      on_error:
+        description: 'If false, only the successfully processed messages are marked. This only applies to non-permanent errors. It has no impact if After is set to false. Note: this can block the entire partition in case a message processing returns a non-permanent error.'
+        type: boolean
+      on_permanent_error:
+        description: 'If false, only the successfully processed messages are marked. This only applies to permanent errors. It has no impact if After is set to false. Default value inherits from OnError for backward compatibility. Note: this can block the entire partition in case a message processing returns a permanent error.'
+        type: boolean
+  metric_config:
+    description: MetricConfig provides common config for a particular metric.
+    type: object
+    properties:
+      enabled:
+        type: boolean
+  metrics_config:
+    description: MetricsConfig provides config for optional receiver metrics.
+    type: object
+    properties:
+      kafka_receiver_records_delay:
+        description: KafkaReceiverRecordsDelay controls whether the metric kafka_receiver_records_delay that measures the time in seconds between producing and receiving a batch of records will be reported or not. This metric is not reported by default because it may slow down high-volume consuming.
+        $ref: metric_config
+  telemetry_config:
+    type: object
+    properties:
+      metrics:
+        $ref: metrics_config
+  topic_encoding_config:
+    description: TopicEncodingConfig holds signal-specific topic and encoding configuration.
+    type: object
+    properties:
+      encoding:
+        description: Encoding holds the expected encoding of messages for the signal type Defaults to "otlp_proto".
+        type: string
+      exclude_topic:
+        description: 'Deprecated [v0.142.0]: Use ExcludeTopics'
+        type: string
+      exclude_topics:
+        description: Optional exclude topics option, used only in regex mode.
+        type: array
+        items:
+          type: string
+      topic:
+        description: 'Deprecated [v0.142.0]: Use Topics'
+        type: string
+      topics:
+        description: 'Topics holds the name of the Kafka topics from which messages of the signal type should be consumed. The default depends on the signal type: - "otlp_spans" for traces - "otlp_metrics" for metrics - "otlp_logs" for logs - "otlp_profiles" for profiles'
+        type: array
+        items:
+          type: string
+description: Config defines configuration for Kafka receiver.
+type: object
+properties:
+  error_backoff:
+    description: ErrorBackoff controls backoff/retry behavior when the next consumer returns an error.
+    $ref: go.opentelemetry.io/collector/config/configretry.back_off_config
+  header_extraction:
+    description: HeaderExtraction controls extraction of headers from Kafka records.
+    $ref: header_extraction
+  logs:
+    description: Logs holds configuration about how logs should be consumed.
+    $ref: topic_encoding_config
+  message_marking:
+    description: MessageMarking controls the way the messages are marked as consumed.
+    $ref: message_marking
+  metrics:
+    description: Metrics holds configuration about how metrics should be consumed.
+    $ref: topic_encoding_config
+  profiles:
+    description: Profiles holds configuration about how profiles should be consumed.
+    $ref: topic_encoding_config
+  telemetry:
+    description: Telemetry controls optional telemetry configuration.
+    $ref: telemetry_config
+  traces:
+    description: Traces holds configuration about how traces should be consumed.
+    $ref: topic_encoding_config
+allOf:
+  - $ref: github.com/open-telemetry/opentelemetry-collector-contrib/pkg/kafka/configkafka.client_config
+  - $ref: github.com/open-telemetry/opentelemetry-collector-contrib/pkg/kafka/configkafka.consumer_config
