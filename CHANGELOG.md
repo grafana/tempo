@@ -2,6 +2,8 @@
 
 # v2.10.4
 
+* [CHANGE] **BREAKING CHANGE** Remove Opencensus receiver [#6523](https://github.com/grafana/tempo/pull/6523) (@javiermolinar)
+
 * [ENHANCEMENT] Add flag for enabling MCP server. [#6903](https://github.com/grafana/tempo/pull/6903) (@tiffanyfay)
 
 # v2.10.3

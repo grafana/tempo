@@ -16,7 +16,6 @@ tempo {
     },
     distributor+: {
       receivers: {
-        opencensus: null,
         jaeger: {
           protocols: {
             thrift_http: null,
@@ -82,7 +81,6 @@ tempo {
   tempo_distributor_container+::
     k.util.resourcesRequests('500m', '500Mi') +
     container.withPortsMixin([
-      containerPort.new('opencensus', 55678),
       containerPort.new('jaeger-http', 14268),
     ]),
 

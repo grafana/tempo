@@ -167,7 +167,6 @@ distributor:
                 thrift_binary:
                 thrift_compact:
         zipkin:
-        opencensus:
         kafka:
 
     # Optional.
