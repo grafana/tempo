@@ -33,6 +33,16 @@ const (
 	QueryModeExternal  = "external"
 )
 
+func setRequestSpanAttributes(span oteltrace.Span, r *http.Request) {
+	if span == nil || r == nil {
+		return
+	}
+
+	if pluginID := r.Header.Get(api.HeaderPluginID); pluginID != "" {
+		span.SetAttributes(attribute.String("pluginID", pluginID))
+	}
+}
+
 // TraceByIDHandler is a http.HandlerFunc to retrieve traces
 func (q *Querier) TraceByIDHandler(w http.ResponseWriter, r *http.Request) {
 	// Enforce the query timeout while querying backends
@@ -41,6 +51,7 @@ func (q *Querier) TraceByIDHandler(w http.ResponseWriter, r *http.Request) {
 
 	ctx, span := tracer.Start(ctx, "Querier.TraceByIDHandler")
 	defer span.End()
+	setRequestSpanAttributes(span, r)
 
 	byteID, err := api.ParseTraceID(r)
 	if err != nil {
@@ -92,6 +103,7 @@ func (q *Querier) TraceByIDHandlerV2(w http.ResponseWriter, r *http.Request) {
 
 	ctx, span := tracer.Start(ctx, "Querier.TraceByIDHandlerV2")
 	defer span.End()
+	setRequestSpanAttributes(span, r)
 
 	byteID, err := api.ParseTraceID(r)
 	if err != nil {
@@ -139,6 +151,7 @@ func (q *Querier) SearchHandler(w http.ResponseWriter, r *http.Request) {
 
 	ctx, span := tracer.Start(ctx, "Querier.SearchHandler")
 	defer span.End()
+	setRequestSpanAttributes(span, r)
 
 	span.SetAttributes(attribute.String("requestURI", r.RequestURI))
 	span.SetAttributes(attribute.Bool("isSearchBlock", isSearchBlock))
@@ -186,6 +199,7 @@ func (q *Querier) SearchTagsHandler(w http.ResponseWriter, r *http.Request) {
 
 	ctx, span := tracer.Start(ctx, "Querier.SearchTagsHandler")
 	defer span.End()
+	setRequestSpanAttributes(span, r)
 
 	var resp *tempopb.SearchTagsResponse
 	if !isSearchBlock {
@@ -223,6 +237,7 @@ func (q *Querier) SearchTagsV2Handler(w http.ResponseWriter, r *http.Request) {
 
 	ctx, span := tracer.Start(ctx, "Querier.SearchTagsHandler")
 	defer span.End()
+	setRequestSpanAttributes(span, r)
 
 	var resp *tempopb.SearchTagsV2Response
 	if !isSearchBlock {
@@ -262,6 +277,7 @@ func (q *Querier) SearchTagValuesHandler(w http.ResponseWriter, r *http.Request)
 
 	ctx, span := tracer.Start(ctx, "Querier.SearchTagValuesHandler")
 	defer span.End()
+	setRequestSpanAttributes(span, r)
 
 	var resp *tempopb.SearchTagValuesResponse
 	if !isSearchBlock {
@@ -301,6 +317,7 @@ func (q *Querier) SearchTagValuesV2Handler(w http.ResponseWriter, r *http.Reques
 
 	ctx, span := tracer.Start(ctx, "Querier.SearchTagValuesV2Handler")
 	defer span.End()
+	setRequestSpanAttributes(span, r)
 
 	var resp *tempopb.SearchTagValuesV2Response
 	var err error
@@ -338,6 +355,7 @@ func (q *Querier) SpanMetricsSummaryHandler(w http.ResponseWriter, r *http.Reque
 
 	ctx, span := tracer.Start(ctx, "Querier.SpanMetricsSummaryHandler")
 	defer span.End()
+	setRequestSpanAttributes(span, r)
 
 	req, err := api.ParseSpanMetricsSummaryRequest(r)
 	if err != nil {
@@ -370,6 +388,7 @@ func (q *Querier) QueryRangeHandler(w http.ResponseWriter, r *http.Request) {
 
 	ctx, span := tracer.Start(ctx, "Querier.QueryRangeHandler")
 	defer span.End()
+	setRequestSpanAttributes(span, r)
 
 	// Special error handling to update the span.
 	defer func() {

@@ -3,13 +3,16 @@ package frontend
 import (
 	"context"
 	"net/http"
+	"strings"
 
+	"github.com/grafana/tempo/pkg/api"
 	"google.golang.org/grpc/metadata"
 )
 
 var copyHeaders = []string{
 	"Authorization",
 	"X-Scope-OrgID",
+	api.HeaderPluginID,
 }
 
 func headersFromGrpcContext(ctx context.Context) (hs http.Header) {
@@ -22,8 +25,8 @@ func headersFromGrpcContext(ctx context.Context) (hs http.Header) {
 	}
 
 	for _, h := range copyHeaders {
-		if v := md.Get(h); len(v) > 0 {
-			hs[h] = v
+		if v := md.Get(strings.ToLower(h)); len(v) > 0 {
+			hs[http.CanonicalHeaderKey(h)] = v
 		}
 	}
 

@@ -62,6 +62,7 @@ const (
 
 	HeaderAccept           = "Accept"
 	HeaderContentType      = "Content-Type"
+	HeaderPluginID         = "X-Plugin-Id"
 	HeaderAcceptProtobuf   = "application/protobuf"
 	HeaderAcceptJSON       = "application/json"
 	HeaderAcceptLLM        = "application/vnd.grafana.llm"
