@@ -1,17 +1,20 @@
 local g = import 'grafana-builder/grafana.libsonnet';
 
 {
+  isNativeClassicQuery(query):: if std.isObject(query) then std.objectHas(query, 'native') && std.objectHas(query, 'classic') else false,
+
   // The ncHistogramQuantile (native classic histogram quantile) function is
   // used to calculate histogram quantiles from native histograms or classic
   // histograms. Metric name should be provided without _bucket suffix.
   // If from_recording is true, the function will assume :sum_rate metric
   // suffix and no rate needed.
-  ncHistogramQuantile(percentile, metric, selector, sum_by=[], rate_interval='$__rate_interval', multiplier='', from_recording=false)::
+  ncHistogramQuantile(percentile, metric, selector, sum_by=[], rate_interval='$__rate_interval', multiplier='', from_recording=false, offset='')::
+    local offsetStr = if offset == '' then '' else ' offset ' + offset;
     local classicSumBy = if std.length(sum_by) > 0 then ' by (%(lbls)s) ' % { lbls: std.join(',', ['le'] + sum_by) } else ' by (le) ';
     local nativeSumBy = if std.length(sum_by) > 0 then ' by (%(lbls)s) ' % { lbls: std.join(',', sum_by) } else ' ';
     local multiplierStr = if multiplier == '' then '' else ' * %s' % multiplier;
     local rateOpen = if from_recording then '' else 'rate(';
-    local rateClose = if from_recording then '' else '[%s])' % rate_interval;
+    local rateClose = if from_recording then offsetStr else '[%s]%s)' % [rate_interval, offsetStr];
     {
       classic: 'histogram_quantile(%(percentile)s, sum%(classicSumBy)s(%(rateOpen)s%(metric)s_bucket%(suffix)s{%(selector)s}%(rateClose)s))%(multiplierStr)s' % {
         classicSumBy: classicSumBy,
@@ -42,53 +45,48 @@ local g = import 'grafana-builder/grafana.libsonnet';
   // classic histograms. Metric name should be provided without _sum suffix.
   // If from_recording is true, the function will assume :sum_rate metric
   // suffix and no rate needed.
-  ncHistogramSumRate(metric, selector, rate_interval='$__rate_interval', from_recording=false)::
-    local rateOpen = if from_recording then '' else 'rate(';
-    local rateClose = if from_recording then '' else '[%s])' % rate_interval;
-    {
-      classic: '%(rateOpen)s%(metric)s_sum%(suffix)s{%(selector)s}%(rateClose)s' % {
-        metric: metric,
-        rateInterval: rate_interval,
-        rateOpen: rateOpen,
-        rateClose: rateClose,
-        selector: selector,
-        suffix: if from_recording then ':sum_rate' else '',
-      },
-      native: 'histogram_sum(%(rateOpen)s%(metric)s%(suffix)s{%(selector)s}%(rateClose)s)' % {
-        metric: metric,
-        rateInterval: rate_interval,
-        rateOpen: rateOpen,
-        rateClose: rateClose,
-        selector: selector,
-        suffix: if from_recording then ':sum_rate' else '',
-      },
-    },
-
+  ncHistogramSumRate(metric, selector, rate_interval='$__rate_interval', from_recording=false, offset='')::
+    $.ncHistogramChange('sum', 'rate', metric, selector, rate_interval, from_recording, offset),
 
   // The ncHistogramCountRate (native classic histogram count rate) function is
   // used to calculate the histogram rate of count from native histograms or
   // classic histograms. Metric name should be provided without _count suffix.
   // If from_recording is true, the function will assume :sum_rate metric
   // suffix and no rate needed.
-  ncHistogramCountRate(metric, selector, rate_interval='$__rate_interval', from_recording=false)::
-    local rateOpen = if from_recording then '' else 'rate(';
-    local rateClose = if from_recording then '' else '[%s])' % rate_interval;
+  ncHistogramCountRate(metric, selector, rate_interval='$__rate_interval', from_recording=false, offset='')::
+    $.ncHistogramChange('count', 'rate', metric, selector, rate_interval, from_recording, offset),
+
+  // The ncHistogramCountIncrease (native classic histogram count rate) function is
+  // used to calculate the histogram increase of count from native histograms or
+  // classic histograms. Metric name should be provided without _count suffix.
+  ncHistogramCountIncrease(metric, selector, rate_interval='$__rate_interval', offset='')::
+    $.ncHistogramChange('count', 'increase', metric, selector, rate_interval, false, offset),
+
+  // ncHistogramChange is a helper function to generate queries for either
+  // histogram sum or count changes over time using the specified function
+  // (e.g., rate, increase). Metric name should be provided without _sum or
+  // _count suffix.
+  ncHistogramChange(sum_or_count, func_name, metric, selector, rate_interval, from_recording, offset)::
+    local offsetStr = if offset == '' then '' else ' offset ' + offset;
+    local funcOpen = if from_recording then '' else '%s(' % func_name;
+    local funcClose = if from_recording then offsetStr else '[%s]%s)' % [rate_interval, offsetStr];
+    local suffix = if from_recording then ':sum_%s' % func_name else '';
     {
-      classic: '%(rateOpen)s%(metric)s_count%(suffix)s{%(selector)s}%(rateClose)s' % {
+      classic: '%(funcOpen)s%(metric)s_%(sum_or_count)s%(suffix)s{%(selector)s}%(funcClose)s' % {
         metric: metric,
-        rateInterval: rate_interval,
-        rateOpen: rateOpen,
-        rateClose: rateClose,
+        sum_or_count: sum_or_count,
+        funcOpen: funcOpen,
+        funcClose: funcClose,
         selector: selector,
-        suffix: if from_recording then ':sum_rate' else '',
+        suffix: suffix,
       },
-      native: 'histogram_count(%(rateOpen)s%(metric)s%(suffix)s{%(selector)s}%(rateClose)s)' % {
+      native: 'histogram_%(sum_or_count)s(%(funcOpen)s%(metric)s%(suffix)s{%(selector)s}%(funcClose)s)' % {
         metric: metric,
-        rateInterval: rate_interval,
-        rateOpen: rateOpen,
-        rateClose: rateClose,
+        sum_or_count: sum_or_count,
+        funcOpen: funcOpen,
+        funcClose: funcClose,
         selector: selector,
-        suffix: if from_recording then ':sum_rate' else '',
+        suffix: suffix,
       },
     },
 
@@ -98,24 +96,27 @@ local g = import 'grafana-builder/grafana.libsonnet';
   // classic histograms.
   // If from_recording is true, the function will assume :sum_rate metric
   // suffix and no rate needed.
-  ncHistogramAverageRate(metric, selector, rate_interval='$__rate_interval', multiplier='', from_recording=false)::
+  ncHistogramAverageRate(metric, selector, rate_interval='$__rate_interval', multiplier='', from_recording=false, sum_by=[], offset='')::
+    local sumBy = if std.length(sum_by) > 0 then ' by (%s) ' % std.join(', ', sum_by) else '';
     local multiplierStr = if multiplier == '' then '' else '%s * ' % multiplier;
     {
       classic: |||
-        %(multiplier)ssum(%(sumMetricQuery)s) /
-        sum(%(countMetricQuery)s)
+        %(multiplier)ssum%(sumBy)s(%(sumMetricQuery)s) /
+        sum%(sumBy)s(%(countMetricQuery)s)
       ||| % {
-        sumMetricQuery: $.ncHistogramSumRate(metric, selector, rate_interval, from_recording).classic,
-        countMetricQuery: $.ncHistogramCountRate(metric, selector, rate_interval, from_recording).classic,
+        sumMetricQuery: $.ncHistogramSumRate(metric, selector, rate_interval, from_recording, offset).classic,
+        countMetricQuery: $.ncHistogramCountRate(metric, selector, rate_interval, from_recording, offset).classic,
         multiplier: multiplierStr,
+        sumBy: sumBy,
       },
       native: |||
-        %(multiplier)ssum(%(sumMetricQuery)s) /
-        sum(%(countMetricQuery)s)
+        %(multiplier)ssum%(sumBy)s(%(sumMetricQuery)s) /
+        sum%(sumBy)s(%(countMetricQuery)s)
       ||| % {
-        sumMetricQuery: $.ncHistogramSumRate(metric, selector, rate_interval, from_recording).native,
-        countMetricQuery: $.ncHistogramCountRate(metric, selector, rate_interval, from_recording).native,
+        sumMetricQuery: $.ncHistogramSumRate(metric, selector, rate_interval, from_recording, offset).native,
+        countMetricQuery: $.ncHistogramCountRate(metric, selector, rate_interval, from_recording, offset).native,
         multiplier: multiplierStr,
+        sumBy: sumBy,
       },
     },
 
@@ -143,24 +144,40 @@ local g = import 'grafana-builder/grafana.libsonnet';
   // The "le" value matcher for classic histograms can handle both Prometheus
   // or OpenMetrics formats, where whole numbers may or may not have ".0" at
   // the end.
-  ncHistogramLeRate(metric, selector, le, rate_interval='$__rate_interval')::
+  ncHistogramLeRate(metric, selector, le, rate_interval='$__rate_interval', sum_by=[], offset='')::
+    local sumBy = if std.length(sum_by) > 0 then ' by (%(lbls)s) ' % { lbls: std.join(', ', sum_by) } else ' ';
+    local offsetStr = if offset == '' then '' else ' offset ' + offset;
     local isWholeNumber(str) = str != '' && std.foldl(function(acc, c) acc && (c == '0' || c == '1' || c == '2' || c == '3' || c == '4' || c == '5' || c == '6' || c == '7' || c == '8' || c == '9'), std.stringChars(str), true);
     {
-      native: 'histogram_fraction(0, %(le)s, rate(%(metric)s{%(selector)s}[%(rateInterval)s]))*histogram_count(rate(%(metric)s{%(selector)s}[%(rateInterval)s]))' % {
+      native: '(histogram_fraction(0, %(le)s, sum%(sumBy)s(rate(%(metric)s{%(selector)s}[%(rateInterval)s]%(offset)s))) < +Inf)*histogram_count(sum%(sumBy)s(rate(%(metric)s{%(selector)s}[%(rateInterval)s]%(offset)s)))' % {
         le: if isWholeNumber(le) then le + '.0' else le,  // Treated as float number.
         metric: metric,
+        offset: offsetStr,
         rateInterval: rate_interval,
         selector: selector,
+        sumBy: sumBy,
       },
-      classic: 'rate(%(metric)s_bucket{%(selector)s, le=~"%(le)s"}[%(rateInterval)s])' % {
+      classic: 'sum%(sumBy)s(rate(%(metric)s_bucket{%(selector)s, %(le)s}[%(rateInterval)s]%(offset)s))' % {
         // le is treated as string, thus it needs to account for Prometheus text format not having '.0', but OpenMetrics having it.
         // Also the resulting string in yaml is stored directly, so the \\ needs to be escaped to \\\\.
-        le: if isWholeNumber(le) then '%(le)s|%(le)s\\\\.0' % { le: le } else le,
+        le: if isWholeNumber(le) then 'le=~"%(le)s|%(le)s\\\\.0"' % { le: le } else 'le="%s"' % le,
         metric: metric,
+        offset: offsetStr,
         rateInterval: rate_interval,
         selector: selector,
+        sumBy: sumBy,
       },
     },
+
+  // ncHistogramApplyTemplate (native classic histogram template applier)
+  // Takes a template like 'label_replace(%s, "x", "$1", "y", ".*")'
+  // with a single substitution and applies to both the classic and native
+  // histogram query.
+  ncHistogramApplyTemplate(template, query):: {
+    assert $.isNativeClassicQuery(query),
+    native: template % query.native,
+    classic: template % query.classic,
+  },
 
   // ncHistogramComment (native classic histogram comment) helps attach
   // comments to the query and also keep multiline strings where applicable.
@@ -175,10 +192,17 @@ local g = import 'grafana-builder/grafana.libsonnet';
 
   // showClassicHistogramQuery wraps a query defined as map {classic: q, native: q}, and compares the classic query
   // to dashboard variable which should take -1 or +1 as values in order to hide or show the classic query.
-  showClassicHistogramQuery(query, dashboard_variable='latency_metrics'):: '%s < ($%s * +Inf)' % [query.classic, dashboard_variable],
+  // If "disable" is true it ignores the dashboard variable and shows the classic query.
+  showClassicHistogramQuery(query, dashboard_variable='latency_metrics', disable=false)::
+    local testAgainst = if disable then '1' else '$%s' % dashboard_variable;
+    '(%s) and on() (vector(%s) == 1)' % [query.classic, testAgainst],
+
   // showNativeHistogramQuery wraps a query defined as map {classic: q, native: q}, and compares the native query
   // to dashboard variable which should take -1 or +1 as values in order to show or hide the native query.
-  showNativeHistogramQuery(query, dashboard_variable='latency_metrics'):: '%s < ($%s * -Inf)' % [query.native, dashboard_variable],
+  // If "disable" is true it ignores the dashboard variable and hides the native query.
+  showNativeHistogramQuery(query, dashboard_variable='latency_metrics', disable=false)::
+    local testAgainst = if disable then '1' else '$%s' % dashboard_variable;
+    '(%s) and on() (vector(%s) == -1)' % [query.native, testAgainst],
 
   histogramRules(metric, labels, interval='1m', record_native=false)::
     local vars = {
@@ -387,18 +411,41 @@ local g = import 'grafana-builder/grafana.libsonnet';
       for group in groups
     ],
 
-  removeRuleGroup(ruleName):: {
-    local removeRuleGroup(rule) = if rule.name == ruleName then null else rule,
-    local currentRuleGroups = super.groups,
-    groups: std.prune(std.map(removeRuleGroup, currentRuleGroups)),
+  // withLabels adds custom labels to all alert rules in a group or groups
+  // Parameters:
+  //   labels: A map of label names to values to add to each alert
+  //   groups: The alert groups to modify
+  //   filter_func: Optional function that returns true for alerts that should be modified
+  withLabels(labels, groups, filter_func=null)::
+    local defaultFilter = function(rule) true;
+    local filterToUse = if filter_func != null then filter_func else defaultFilter;
+
+    std.map(
+      function(group)
+        group {
+          rules: std.map(
+            function(rule)
+              if std.objectHas(rule, 'alert') && filterToUse(rule)
+              then rule {
+                labels+: labels,
+              }
+              else rule,
+            group.rules
+          ),
+        },
+      groups
+    ),
+
+  removeRuleGroup(groupName):: {
+    groups: std.filter(function(group) group.name != groupName, super.groups),
   },
 
   removeAlertRuleGroup(ruleName):: {
-    prometheusAlerts+:: $.removeRuleGroup(ruleName),
+    prometheusAlerts+: $.removeRuleGroup(ruleName),
   },
 
   removeRecordingRuleGroup(ruleName):: {
-    prometheusRules+:: $.removeRuleGroup(ruleName),
+    prometheusRules+: $.removeRuleGroup(ruleName),
   },
 
   overrideAlerts(overrides):: {
@@ -407,19 +454,20 @@ local g = import 'grafana-builder/grafana.libsonnet';
       then rule + overrides[rule.alert]
       else rule,
     local overrideInGroup(group) = group { rules: std.map(overrideRule, super.rules) },
-    prometheusAlerts+:: {
+    prometheusAlerts+: {
       groups: std.map(overrideInGroup, super.groups),
     },
   },
 
   removeAlerts(alerts):: {
-    local removeRule(rule) =
-      if 'alert' in rule && std.objectHas(alerts, rule.alert)
-      then {}
-      else rule,
-    local removeInGroup(group) = group { rules: std.map(removeRule, super.rules) },
-    prometheusAlerts+:: {
-      groups: std.prune(std.map(removeInGroup, super.groups)),
+    local alertNames =
+      if std.isObject(alerts)
+      then std.objectFields(alerts)
+      else alerts,
+    local removeRule(rule) = !std.member(alertNames, std.get(rule, 'alert', '')),
+    local removeInGroup(group) = group { rules: std.filter(removeRule, super.rules) },
+    prometheusAlerts+: {
+      groups: std.map(removeInGroup, super.groups),
     },
   },
 }
