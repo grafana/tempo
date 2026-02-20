@@ -257,6 +257,9 @@ func ParseSearchRequestWithDefault(r *http.Request, defaultSpansPerSpanSet uint3
 	if s, ok := extractQueryParam(vals, urlParamLimit); ok {
 		limit, err := strconv.ParseUint(s, 10, 32)
 		if err != nil {
+			if len(s) > 0 && s[0] == '-' {
+				return nil, errors.New("invalid limit: must be a positive number")
+			}
 			return nil, fmt.Errorf("invalid limit: %w", err)
 		}
 		if limit == 0 {
@@ -268,6 +271,9 @@ func ParseSearchRequestWithDefault(r *http.Request, defaultSpansPerSpanSet uint3
 	if s, ok := extractQueryParam(vals, urlParamSpansPerSpanSet); ok {
 		spansPerSpanSet, err := strconv.ParseUint(s, 10, 32)
 		if err != nil {
+			if len(s) > 0 && s[0] == '-' {
+				return nil, errors.New("invalid spss: must be a non-negative number")
+			}
 			return nil, fmt.Errorf("invalid spss: %w", err)
 		}
 		req.SpansPerSpanSet = uint32(spansPerSpanSet)
