@@ -28,7 +28,6 @@ func (c *BlockConfig) RegisterFlags(f *flag.FlagSet) {
 func (c *BlockConfig) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
 	f.Uint64Var(&c.MaxBlockBytes, prefix+".max-block-bytes", 20*1024*1024, "Maximum size of a block.") // TODO - Review default
 
-	c.BlockCfg.Version = encoding.DefaultEncoding().Version()
 	c.BlockCfg.RegisterFlagsAndApplyDefaults(prefix, f)
 }
 
@@ -41,6 +40,10 @@ type Config struct {
 
 	BlockConfig BlockConfig `yaml:"block" doc:"Configuration for the block builder."`
 	WAL         wal.Config  `yaml:"wal" doc:"Configuration for the write ahead log."`
+
+	// GlobalBlockConfig is the main storage trace block config (storage.trace.block). Used as fallback
+	// when block.version is not set. This config is injected by the application when creating the BlockBuilder.
+	GlobalBlockConfig *common.BlockConfig `yaml:"-"`
 
 	// This config is dynamically injected because defined outside the ingester config.
 	IngestStorageConfig ingest.Config `yaml:"-"`
@@ -64,12 +67,8 @@ func (c *Config) AssignedPartitions() []int32 {
 }
 
 func (c *Config) Validate() error {
-	if _, err := encoding.FromVersionForWrites(c.BlockConfig.BlockCfg.Version); err != nil {
-		return fmt.Errorf("block version validation failed: %w", err)
-	}
-
-	if c.BlockConfig.BlockCfg.Version != c.WAL.Version {
-		c.WAL.Version = c.BlockConfig.BlockCfg.Version
+	if _, err := coalesceBlockVersion(c); err != nil {
+		return err
 	}
 
 	if err := common.ValidateConfig(&c.BlockConfig.BlockCfg); err != nil {
@@ -106,8 +105,33 @@ func (c *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
 
 	c.BlockConfig.RegisterFlagsAndApplyDefaults(prefix+".block", f)
 	c.WAL.RegisterFlags(f)
-	c.WAL.Version = c.BlockConfig.BlockCfg.Version
 	f.StringVar(&c.WAL.Filepath, prefix+".wal.path", "/var/tempo/block-builder/traces", "Path at which store WAL blocks.")
+}
+
+// coalesceBlockVersion resolves the block encoding from configs.
+// Starts with the default version and overrides as each layer is checked (global block config, then block_config).
+// The WAL version always follows the block version.
+// Returns an error if the resolved version isn't writable.
+func coalesceBlockVersion(cfg *Config) (encoding.VersionedEncoding, error) {
+	ver := encoding.DefaultEncoding().Version()
+
+	if cfg.GlobalBlockConfig != nil && cfg.GlobalBlockConfig.Version != "" {
+		ver = cfg.GlobalBlockConfig.Version
+	}
+
+	if cfg.BlockConfig.BlockCfg.Version != "" {
+		ver = cfg.BlockConfig.BlockCfg.Version
+	}
+
+	enc, err := encoding.FromVersionForWrites(ver)
+	if err != nil {
+		return nil, fmt.Errorf("block version validation failed: %w", err)
+	}
+
+	cfg.BlockConfig.BlockCfg.Version = ver
+	cfg.WAL.Version = ver
+
+	return enc, nil
 }
 
 type partitionAssignmentVar struct {
