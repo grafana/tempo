@@ -93,6 +93,72 @@ func TestConfig_validate(t *testing.T) {
 	}
 }
 
+func TestCoalesceBlockVersion(t *testing.T) {
+	defaultVer := encoding.DefaultEncoding().Version()
+
+	tests := []struct {
+		name            string
+		modifyConfig    func(*Config)
+		expectedVersion string
+		expectedErr     string
+	}{
+		{
+			name:            "uses default when all version fields are empty",
+			modifyConfig:    func(_ *Config) {},
+			expectedVersion: defaultVer,
+		},
+		{
+			name: "fallback to GlobalBlockConfig when block_config version is empty",
+			modifyConfig: func(cfg *Config) {
+				cfg.GlobalBlockConfig = &common.BlockConfig{Version: encoding.LatestEncoding().Version()}
+			},
+			expectedVersion: encoding.LatestEncoding().Version(),
+		},
+		{
+			name: "block_config version overrides GlobalBlockConfig",
+			modifyConfig: func(cfg *Config) {
+				cfg.GlobalBlockConfig = &common.BlockConfig{Version: "vParquet4"}
+				cfg.BlockConfig.BlockCfg.Version = encoding.LatestEncoding().Version()
+			},
+			expectedVersion: encoding.LatestEncoding().Version(),
+		},
+		{
+			name: "WAL version follows block version",
+			modifyConfig: func(cfg *Config) {
+				cfg.GlobalBlockConfig = &common.BlockConfig{Version: encoding.LatestEncoding().Version()}
+			},
+			expectedVersion: encoding.LatestEncoding().Version(),
+		},
+		{
+			name: "unsupported block version returns error",
+			modifyConfig: func(cfg *Config) {
+				cfg.BlockConfig.BlockCfg.Version = "preview"
+			},
+			expectedErr: "preview",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := &Config{}
+			cfg.RegisterFlagsAndApplyDefaults("", flag.NewFlagSet("", flag.PanicOnError))
+			tt.modifyConfig(cfg)
+
+			enc, err := coalesceBlockVersion(cfg)
+
+			if tt.expectedErr != "" {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tt.expectedErr)
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, tt.expectedVersion, enc.Version())
+			assert.Equal(t, tt.expectedVersion, cfg.BlockConfig.BlockCfg.Version)
+			assert.Equal(t, tt.expectedVersion, cfg.WAL.Version)
+		})
+	}
+}
+
 func TestConfig_partitionAssignment(t *testing.T) {
 	instanceID := "block-builder-42"
 	for _, tc := range []struct {
