@@ -21,7 +21,6 @@ import (
 	oteltrace "go.opentelemetry.io/otel/trace"
 	"go.uber.org/multierr"
 
-	generator_client "github.com/grafana/tempo/modules/generator/client"
 	livestore_client "github.com/grafana/tempo/modules/livestore/client"
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/modules/querier/external"
@@ -43,11 +42,6 @@ import (
 var tracer = otel.Tracer("modules/querier")
 
 var (
-	metricMetricsGeneratorClients = promauto.NewGauge(prometheus.GaugeOpts{
-		Namespace: "tempo",
-		Name:      "querier_metrics_generator_clients",
-		Help:      "The current number of generator clients.",
-	})
 	metricMetricsLiveStoreClients = promauto.NewGauge(prometheus.GaugeOpts{
 		Namespace: "tempo",
 		Name:      "querier_livestore_clients",
@@ -56,8 +50,8 @@ var (
 )
 
 type (
-	forEachFn          func(ctx context.Context, client tempopb.QuerierClient) (any, error)
-	forEachGeneratorFn func(ctx context.Context, client tempopb.MetricsGeneratorClient) (any, error)
+	forEachFn        func(ctx context.Context, client tempopb.QuerierClient) (any, error)
+	forEachMetricsFn func(ctx context.Context, client tempopb.MetricsClient) (any, error)
 )
 
 // Querier handlers queries.
@@ -65,8 +59,6 @@ type Querier struct {
 	services.Service
 
 	cfg Config
-
-	generatorPool *ring_client.Pool
 
 	liveStorePool *ring_client.Pool
 	partitionRing *ring.PartitionInstanceRing
@@ -88,9 +80,6 @@ func New(
 	cfg Config,
 
 	liveStoreRing ring.ReadRing,
-	generatorClientConfig generator_client.Config,
-	generatorRing ring.ReadRing,
-
 	liveStoreClientConfig livestore_client.Config,
 	partitionRing *ring.PartitionInstanceRing,
 
@@ -98,22 +87,12 @@ func New(
 	store storage.Store,
 	limits overrides.Interface,
 ) (*Querier, error) {
-	var generatorClientFactory ring_client.PoolAddrFunc = func(addr string) (ring_client.PoolClient, error) {
-		return generator_client.New(addr, generatorClientConfig)
-	}
-
 	var liveStoreClientFactory ring_client.PoolAddrFunc = func(addr string) (ring_client.PoolClient, error) {
 		return livestore_client.New(addr, liveStoreClientConfig)
 	}
 
 	q := &Querier{
-		cfg: cfg,
-		generatorPool: ring_client.NewPool("querier_to_generator_pool",
-			generatorClientConfig.PoolConfig,
-			ring_client.NewRingServiceDiscovery(generatorRing),
-			generatorClientFactory,
-			metricMetricsGeneratorClients,
-			log.Logger),
+		cfg:           cfg,
 		partitionRing: partitionRing,
 		liveStorePool: ring_client.NewPool("querier_to_livestore_pool",
 			liveStoreClientConfig.PoolConfig,
@@ -150,10 +129,10 @@ func (q *Querier) CreateAndRegisterWorker(handler http.Handler) error {
 		return fmt.Errorf("failed to create frontend worker: %w", err)
 	}
 
-	subservices := []services.Service{worker, q.generatorPool, q.liveStorePool}
+	subservices := []services.Service{worker, q.liveStorePool}
 	err = q.RegisterSubservices(subservices...)
 	if err != nil {
-		return fmt.Errorf("failed to register generator pool sub-service: %w", err)
+		return fmt.Errorf("failed to register live-store pool sub-service: %w", err)
 	}
 
 	return nil
@@ -343,6 +322,9 @@ func (q *Querier) forLiveStoreRing(ctx context.Context, f forEachFn) ([]any, err
 		return nil, ctx.Err()
 	}
 
+	ctx, span := tracer.Start(ctx, "Querier.forLiveStoreRing")
+	defer span.End()
+
 	if q.partitionRing == nil {
 		return nil, errors.New("forLiveStoreRing: partition ring is not configured")
 	}
@@ -354,18 +336,18 @@ func (q *Querier) forLiveStoreRing(ctx context.Context, f forEachFn) ([]any, err
 	return forPartitionRingReplicaSets(ctx, q, rs, f)
 }
 
-// forGivenGenerators runs f, in parallel, for given generators
-func (q *Querier) forGivenGenerators(ctx context.Context, f forEachGeneratorFn) ([]any, error) {
+// forLiveStoreMetricsRing runs f, in parallel, for instances selected from the live-store ring.
+func (q *Querier) forLiveStoreMetricsRing(ctx context.Context, f forEachMetricsFn) ([]any, error) {
 	if ctx.Err() != nil {
-		_ = level.Debug(log.Logger).Log("foreGivenGenerators context error", "ctx.Err()", ctx.Err().Error())
+		_ = level.Debug(log.Logger).Log("forLiveStoreMetricsRing context error", "ctx.Err()", ctx.Err().Error())
 		return nil, ctx.Err()
 	}
 
-	ctx, span := tracer.Start(ctx, "Querier.forGivenGenerators")
+	ctx, span := tracer.Start(ctx, "Querier.forLiveStoreMetricsRing")
 	defer span.End()
 
 	if q.partitionRing == nil {
-		return nil, errors.New("forGivenGenerators: partition ring is not configured")
+		return nil, errors.New("forLiveStoreMetricsRing: partition ring is not configured")
 	}
 	rs, err := q.partitionRing.GetReplicationSetsForOperation(ring.Read)
 	if err != nil {
