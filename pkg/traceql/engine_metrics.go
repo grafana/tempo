@@ -1370,6 +1370,7 @@ func (e *MetricsEvaluator) Do(ctx context.Context, f SpansetFetcher, fetcherStar
 	return nil
 }
 
+// DoSpansOnly is the same as Do but using the new span-only fetch layer.
 func (e *MetricsEvaluator) DoSpansOnly(ctx context.Context, f SpansetFetcher, fetcherStart, fetcherEnd uint64, maxSeries int) error {
 	// Make a copy of the request so we can modify it.
 	storageReq := *e.storageReq
@@ -1406,44 +1407,47 @@ func (e *MetricsEvaluator) DoSpansOnly(ctx context.Context, f SpansetFetcher, fe
 
 	for {
 		done, err := func() (done bool, err error) {
+			s, err := fetch.Results.Next(ctx)
+			if err != nil {
+				return true, err
+			}
+			if s == nil {
+				return true, nil
+			}
+
+			// Acquire lock while doing engine work. It is
+			// not locked above while doing storage work.
+			// TODO(mdisibio): Removed batching so that the mutex lock is not held during
+			// storage work and allows the secondPass callback to be called. However this
+			// represents ~20% performance loss, so we need to re-add batching.
 			e.mtx.Lock()
 			defer e.mtx.Unlock()
 
-			for i := 0; i < 100; i++ {
-				s, err := fetch.Results.Next(ctx)
-				if err != nil {
-					return true, err
+			if e.checkTime {
+				st := s.StartTimeUnixNanos()
+				if st <= e.start || st > e.end {
+					return false, nil
 				}
-				if s == nil {
-					return true, nil
-				}
+			}
 
-				if e.checkTime {
-					st := s.StartTimeUnixNanos()
-					if st <= e.start || st > e.end {
-						continue
+			if e.storageReq.SpanSampler != nil {
+				e.storageReq.SpanSampler.Measured()
+			}
+
+			e.metricsPipeline.observe(s)
+			e.spansTotal++
+
+			if e.maxExemplars > 0 && e.exemplarCount < e.maxExemplars {
+				traceID, ok := s.AttributeFor(IntrinsicTraceIDAttribute)
+				if ok {
+					if e.sampleExemplar(traceID.valBytes) {
+						e.metricsPipeline.observeExemplar(s)
 					}
 				}
+			}
 
-				if e.storageReq.SpanSampler != nil {
-					e.storageReq.SpanSampler.Measured()
-				}
-
-				e.metricsPipeline.observe(s)
-				e.spansTotal++
-
-				if e.maxExemplars > 0 && e.exemplarCount < e.maxExemplars {
-					traceID, ok := s.AttributeFor(IntrinsicTraceIDAttribute)
-					if ok {
-						if e.sampleExemplar(traceID.valBytes) {
-							e.metricsPipeline.observeExemplar(s)
-						}
-					}
-				}
-
-				if maxSeries > 0 && e.metricsPipeline.length() >= maxSeries {
-					return true, nil
-				}
+			if maxSeries > 0 && e.metricsPipeline.length() >= maxSeries {
+				return true, nil
 			}
 			return
 		}()
