@@ -2,6 +2,8 @@ package work
 
 import (
 	"context"
+
+	"github.com/grafana/tempo/pkg/tempopb"
 )
 
 // Interface defines the common interface for work management
@@ -18,6 +20,14 @@ type Interface interface {
 	// Job queries
 	ListJobs() []*Job
 	GetJobForWorker(ctx context.Context, workerID string) *Job
+
+	// Pending job management (e.g. redaction queue)
+	AddPendingJobs(jobs []*Job) error
+	RemovePending(jobID string)
+	ListPendingJobs(tenantID string, jobType tempopb.JobType) []*Job
+	HasPendingJobs(tenantID string, jobType tempopb.JobType) bool
+	BlockPending(tenantID, blockID string) bool
+	PopNextPendingJob(jobType tempopb.JobType) *Job
 
 	// Maintenance
 	Prune(ctx context.Context)

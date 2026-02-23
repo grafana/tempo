@@ -19,6 +19,7 @@ enum JobType {
   JOB_TYPE_UNSPECIFIED = 0;
   JOB_TYPE_COMPACTION = 1;
   JOB_TYPE_RETENTION = 2;
+  JOB_TYPE_REDACTION = 3;
 }
 
 enum JobStatus {
@@ -41,6 +42,17 @@ message RetentionDetail {
   option (gogoproto.compare) = true;
 }
 
+// RedactionDetail contains fields for redaction jobs (one job per block).
+// TraceIds are the trace IDs to redact from the block. Future extension may add
+// traceql/attribute-based redaction.
+message RedactionDetail {
+  option (gogoproto.equal) = true;
+  option (gogoproto.compare) = true;
+
+  string block_id = 1;       // block to redact
+  repeated bytes trace_ids = 2;  // trace IDs to remove from the block
+}
+
 // JobDetail contains the specific details for each job type
 message JobDetail {
   option (gogoproto.equal) = true;  // Keep equal but remove compare
@@ -49,7 +61,7 @@ message JobDetail {
   // oneof detail {
     CompactionDetail compaction = 2;
     RetentionDetail retention = 3;
-    // CleanupDetail cleanup = 4;
+    RedactionDetail redaction = 4;
   // }
 }
 
