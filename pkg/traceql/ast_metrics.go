@@ -356,6 +356,7 @@ type secondStageElement interface {
 	Element
 	init(req *tempopb.QueryRangeRequest)
 	process(input SeriesSet) SeriesSet
+	separator() string
 }
 
 type SecondStageOp int
@@ -390,6 +391,10 @@ func newTopKBottomK(op SecondStageOp, limit int) *TopKBottomK {
 
 func (m *TopKBottomK) String() string {
 	return fmt.Sprintf("%s(%d)", m.op.String(), m.limit)
+}
+
+func (m *TopKBottomK) separator() string {
+	return " | "
 }
 
 func (m *TopKBottomK) validate() error {
@@ -443,6 +448,10 @@ func (m *MetricsFilter) String() string {
 		return fmt.Sprintf("%s %d", opStr, int(m.value))
 	}
 	return fmt.Sprintf("%s %g", opStr, m.value)
+}
+
+func (m *MetricsFilter) separator() string {
+	return " "
 }
 
 func (m *MetricsFilter) validate() error {
@@ -529,7 +538,11 @@ func newChainedSecondStage(first, second secondStageElement) *ChainedSecondStage
 }
 
 func (c *ChainedSecondStage) String() string {
-	return fmt.Sprintf("%s %s", c.first.String(), c.second.String())
+	return fmt.Sprintf("%s%s%s", c.first.String(), c.second.separator(), c.second.String())
+}
+
+func (c *ChainedSecondStage) separator() string {
+	return c.first.separator()
 }
 
 func (c *ChainedSecondStage) validate() error {
