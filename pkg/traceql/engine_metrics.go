@@ -990,6 +990,7 @@ func (e *Engine) CompileMetricsQueryRange(req *tempopb.QueryRangeRequest, timeOv
 
 	// the exemplars hint supports both bool and int. first we test for the integer value. if
 	// its not present then we look to see if the user provided `with(exemplars=false)`
+	exemplars := int(req.Exemplars)
 	if v, ok := expr.Hints.GetInt(HintExemplars, allowUnsafeQueryHints); ok {
 		exemplars = v
 	} else if v, ok := expr.Hints.GetBool(HintExemplars, allowUnsafeQueryHints); ok {

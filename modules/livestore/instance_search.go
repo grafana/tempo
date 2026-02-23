@@ -652,7 +652,7 @@ func (i *instance) QueryRange(ctx context.Context, req *tempopb.QueryRangeReques
 	// These aren't cached and we put them all into the same evaluator
 	// for efficiency.
 	// TODO MRD look into how to propagate unsafe query hints.
-	rawEval, err := e.CompileMetricsQueryRange(req, int(req.Exemplars), i.Cfg.Metrics.TimeOverlapCutoff, false)
+	rawEval, err := e.CompileMetricsQueryRange(req, i.Cfg.Metrics.TimeOverlapCutoff, false)
 	if err != nil {
 		return nil, err
 	}
@@ -699,7 +699,7 @@ func (i *instance) QueryRange(ctx context.Context, req *tempopb.QueryRangeReques
 		}
 
 		if localBlock, ok := b.(*ingester.LocalBlock); ok {
-			resp, err := i.queryRangeCompleteBlock(ctx, localBlock, *req, timeOverlapCutoff, unsafe, int(req.Exemplars))
+			resp, err := i.queryRangeCompleteBlock(ctx, localBlock, *req, timeOverlapCutoff, unsafe)
 			if err != nil {
 				return err
 			}
@@ -754,7 +754,7 @@ func (i *instance) queryRangeWALBlock(ctx context.Context, b common.WALBlock, ev
 	return eval.Do(ctx, fetcher, uint64(m.StartTime.UnixNano()), uint64(m.EndTime.UnixNano()), maxSeries)
 }
 
-func (i *instance) queryRangeCompleteBlock(ctx context.Context, b *ingester.LocalBlock, req tempopb.QueryRangeRequest, timeOverlapCutoff float64, unsafe bool, exemplars int) ([]*tempopb.TimeSeries, error) {
+func (i *instance) queryRangeCompleteBlock(ctx context.Context, b *ingester.LocalBlock, req tempopb.QueryRangeRequest, timeOverlapCutoff float64, unsafe bool) ([]*tempopb.TimeSeries, error) {
 	m := b.BlockMeta()
 	ctx, span := tracer.Start(ctx, "instance.QueryRange.CompleteBlock", oteltrace.WithAttributes(
 		attribute.String("block", m.BlockID.String()),
@@ -784,7 +784,7 @@ func (i *instance) queryRangeCompleteBlock(ctx context.Context, b *ingester.Loca
 	}
 
 	// Not in cache or not cacheable, so execute
-	eval, err := traceql.NewEngine().CompileMetricsQueryRange(&req, exemplars, timeOverlapCutoff, unsafe)
+	eval, err := traceql.NewEngine().CompileMetricsQueryRange(&req, timeOverlapCutoff, unsafe)
 	if err != nil {
 		return nil, err
 	}
