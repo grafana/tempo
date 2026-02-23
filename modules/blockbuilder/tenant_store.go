@@ -147,6 +147,10 @@ func (s *tenantStore) Flush(ctx context.Context, r tempodb.Reader, w tempodb.Wri
 		return err
 	}
 
+	if n := iter.DedupedSpans(); n > 0 {
+		metricDedupedSpans.WithLabelValues(s.tenantID).Add(float64(n))
+	}
+
 	// Update meta timestamps which couldn't be known until we unmarshaled
 	// all of the traces.
 	start, end := iter.MinMaxTimestamps()

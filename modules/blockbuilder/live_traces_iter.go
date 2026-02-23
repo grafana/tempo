@@ -8,6 +8,7 @@ import (
 
 	"github.com/grafana/tempo/pkg/livetraces"
 	"github.com/grafana/tempo/pkg/tempopb"
+	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 )
 
@@ -28,12 +29,13 @@ type chEntry struct {
 // Tracks the min/max timestamps seen across all traces that can be accessed
 // once all traces are iterated (unmarshaled), since this can't be known upfront.
 type liveTracesIter struct {
-	mtx        sync.Mutex
-	liveTraces *livetraces.LiveTraces[[]byte]
-	ch         chan []chEntry
-	chBuf      []chEntry
-	cancel     func()
-	start, end uint64
+	mtx          sync.Mutex
+	liveTraces   *livetraces.LiveTraces[[]byte]
+	ch           chan []chEntry
+	chBuf        []chEntry
+	cancel       func()
+	start, end   uint64
+	dedupedSpans int
 }
 
 func newLiveTracesIter(liveTraces *livetraces.LiveTraces[[]byte]) *liveTracesIter {
@@ -109,6 +111,24 @@ func (i *liveTracesIter) iter(ctx context.Context) {
 				}
 			}
 
+			// Deduplicate spans within the trace
+			seen := make(map[uint64]struct{})
+			for _, rs := range tr.ResourceSpans {
+				for _, ss := range rs.ScopeSpans {
+					unique := ss.Spans[:0]
+					for _, s := range ss.Spans {
+						token := util.SpanIDAndKindToToken(s.SpanId, int(s.Kind))
+						if _, ok := seen[token]; !ok {
+							seen[token] = struct{}{}
+							unique = append(unique, s)
+						} else {
+							i.dedupedSpans++
+						}
+					}
+					ss.Spans = unique
+				}
+			}
+
 			// Update block timestamp bounds
 			for _, b := range tr.ResourceSpans {
 				for _, ss := range b.ScopeSpans {
@@ -149,6 +169,15 @@ func (i *liveTracesIter) MinMaxTimestamps() (uint64, uint64) {
 	defer i.mtx.Unlock()
 
 	return i.start, i.end
+}
+
+// DedupedSpans returns the total number of duplicate spans that were removed
+// across all traces. The iterator must be exhausted before this can be accessed.
+func (i *liveTracesIter) DedupedSpans() int {
+	i.mtx.Lock()
+	defer i.mtx.Unlock()
+
+	return i.dedupedSpans
 }
 
 func (i *liveTracesIter) Close() {
