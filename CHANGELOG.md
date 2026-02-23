@@ -11,7 +11,7 @@
 * [CHANGE] Remove all traces of ingesters from the dashboards [#6352](https://github.com/grafana/tempo/pull/6352) (@javiermolinar)
 * [CHANGE] **BREAKING CHANGE** tempo-cli: Support relative time (now, now-1h) for start/end args and standardize on RFC3339 in all commands. [#6458](https://github.com/grafana/tempo/pull/6458) (@electron0zero)
   `query search` command no longer accepts timestamps without timezone (e.g. `2024-01-01T00:00:00`), use RFC3339 (e.g. `2024-01-01T00:00:00Z`) or relative time instead.
-* [CHANGE] **BREAKING CHANGE** Consolidate read configuration for recent data cutoff. `query_frontend.search.query_ingesters_until` is removed in favor of only `query_frontend.search.query_backend_after`. [#](https://github.com/grafana/tempo/pull/) (@mapno)
+* [CHANGE] **BREAKING CHANGE** Consolidate read configuration for recent data cutoff. `query_frontend.search.query_ingesters_until` is removed in favor of only `query_frontend.search.query_backend_after`. [#6507](https://github.com/grafana/tempo/pull/6507) (@mapno)
 * [FEATURE] Add new include_any filter policy for spanmetrics filter [#6392](https://github.com/grafana/tempo/pull/6392) (@javiermolinar)
 * [FEATURE] Add span_multiplier_key to overrides. This allows tenants to specify the attribute key used for span multiplier values to compensate for head-based sampling. [#6260](https://github.com/grafana/tempo/pull/6260) (@carles-grafana)
 * [FEATURE] **BREAKING CHANGE** Optimize TraceQL AST by rewriting conditions on the same attribute to their array equivalent [#6353](https://github.com/grafana/tempo/pull/6353) (@stoewer)
@@ -1437,7 +1437,7 @@ Additionally, default label `span_status` is renamed to `status_code`.
 * [BUGFIX] Ensure that the admin client jsonnet has correct S3 bucket property. (@hedss)
 * [BUGFIX] Publish tenant index age correctly for tenant index writers. [#1146](https://github.com/grafana/tempo/pull/1146) (@joe-elliott)
 * [BUGFIX] Ingester startup panic `slice bounds out of range` [#1195](https://github.com/grafana/tempo/issues/1195) (@mdisibio)
-* [BUGFIX] Update goreleaser install method to `go install`. [#](https://github.com/grafana/tempo/) (@mapno)
+* [BUGFIX] Update goreleaser install method to `go install`. [#1222](https://github.com/grafana/tempo/pull/1222) (@mapno)
 * [BUGFIX] tempo-mixin: remove TempoDB Access panel from `Tempo / Reads`, metrics don't exist anymore [#1218](https://github.com/grafana/tempo/issues/1218) (@kvrhdn)
 
 ## v1.2.1 / 2021-11-15
