@@ -324,29 +324,32 @@ func ExtractFetchSpansRequest(query string) (FetchSpansRequest, error) {
 }
 
 type SpansetFetcherWrapper struct {
-	f  func(ctx context.Context, req FetchSpansRequest) (FetchSpansResponse, error)
-	f2 func(ctx context.Context, req FetchSpansRequest) (FetchSpansOnlyResponse, error)
+	fetchSpansetsFn func(ctx context.Context, req FetchSpansRequest) (FetchSpansResponse, error)
+	fetchSpansFn    func(ctx context.Context, req FetchSpansRequest) (FetchSpansOnlyResponse, error)
 }
 
 var _ SpansetFetcher = (*SpansetFetcherWrapper)(nil)
 
-func NewSpansetFetcherWrapper(f func(ctx context.Context, req FetchSpansRequest) (FetchSpansResponse, error)) SpansetFetcher {
-	return SpansetFetcherWrapper{f, nil}
+func NewSpansetFetcherWrapper(fetchSpanSetsFn func(ctx context.Context, req FetchSpansRequest) (FetchSpansResponse, error)) SpansetFetcher {
+	return SpansetFetcherWrapper{fetchSpanSetsFn, nil}
 }
 
-func NewSpansetFetcherWrapperBoth(f func(ctx context.Context, req FetchSpansRequest) (FetchSpansResponse, error), f2 func(ctx context.Context, req FetchSpansRequest) (FetchSpansOnlyResponse, error)) SpansetFetcher {
-	return SpansetFetcherWrapper{f, f2}
+func NewSpansetFetcherWrapperBoth(
+	fetchSpanSetsFn func(ctx context.Context, req FetchSpansRequest) (FetchSpansResponse, error),
+	fetchSpansFn func(ctx context.Context, req FetchSpansRequest) (FetchSpansOnlyResponse, error),
+) SpansetFetcher {
+	return SpansetFetcherWrapper{fetchSpanSetsFn, fetchSpansFn}
 }
 
 func (s SpansetFetcherWrapper) Fetch(ctx context.Context, request FetchSpansRequest) (FetchSpansResponse, error) {
-	return s.f(ctx, request)
+	return s.fetchSpansetsFn(ctx, request)
 }
 
 func (s SpansetFetcherWrapper) FetchSpans(ctx context.Context, request FetchSpansRequest) (FetchSpansOnlyResponse, error) {
-	if s.f2 == nil {
+	if s.fetchSpansFn == nil {
 		return FetchSpansOnlyResponse{}, util.ErrUnsupported
 	}
-	return s.f2(ctx, request)
+	return s.fetchSpansFn(ctx, request)
 }
 
 type FetchTagsCallback func(tag string, scope AttributeScope) bool
