@@ -67,18 +67,6 @@ func CompareRowNumbers(upToDefinitionLevel int, a, b RowNumber) int {
 	return 0
 }
 
-func CompareRowNumbersLossy(upToDefinitionLevel int, a, b RowNumber) int {
-	for i := 0; i <= upToDefinitionLevel; i++ {
-		if a[i] != -1 && a[i] < b[i] {
-			return -1
-		}
-		if a[i] > b[i] && b[i] != -1 {
-			return 1
-		}
-	}
-	return 0
-}
-
 // EqualRowNumber compares the sequences of row numbers in a and b
 // for partial equality. A little faster than CompareRowNumbers(d,a,b)==0
 func EqualRowNumber(upToDefinitionLevel int, a, b RowNumber) bool {
