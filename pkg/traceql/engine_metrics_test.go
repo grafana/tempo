@@ -513,7 +513,7 @@ func TestCompileMetricsQueryRangeExemplarsHint(t *testing.T) {
 			Start:     1,
 			End:       2,
 			Step:      1,
-			Exemplars: defaultExempalars,
+			Exemplars: uint32(defaultExempalars),
 		}, 0, false)
 
 		require.NoError(t, err)
