@@ -41,13 +41,11 @@ import (
 
 var tracer = otel.Tracer("modules/querier")
 
-var (
-	metricMetricsLiveStoreClients = promauto.NewGauge(prometheus.GaugeOpts{
-		Namespace: "tempo",
-		Name:      "querier_livestore_clients",
-		Help:      "The current number of livestore clients.",
-	})
-)
+var metricMetricsLiveStoreClients = promauto.NewGauge(prometheus.GaugeOpts{
+	Namespace: "tempo",
+	Name:      "querier_livestore_clients",
+	Help:      "The current number of livestore clients.",
+})
 
 type (
 	forEachFn        func(ctx context.Context, client tempopb.QuerierClient) (any, error)
