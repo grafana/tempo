@@ -1828,6 +1828,45 @@ func TestMetricsSecondStage(t *testing.T) {
 			})),
 			expectedStr: `{ true } | count_over_time() | topk(10) != 0 with(sample=0.1)`,
 		},
+		// Combined: filter then topk/bottomk (e.g. {} | rate() > 10 | topk(5))
+		{
+			in: `{ } | rate() > 10 | topk(5)`,
+			expected: newRootExprWithMetricsTwoStage(
+				newPipeline(newSpansetFilter(NewStaticBool(true))),
+				newMetricsAggregate(metricsAggregateRate, nil),
+				newChainedSecondStage(
+					newMetricsFilter(OpGreater, 10),
+					newTopKBottomK(OpTopK, 5),
+				),
+			),
+			expectedStr: `{ true } | rate() > 10 | topk(5)`,
+		},
+		{
+			in: `{ } | rate() by(name) >= 5.5 | bottomk(3)`,
+			expected: newRootExprWithMetricsTwoStage(
+				newPipeline(newSpansetFilter(NewStaticBool(true))),
+				newMetricsAggregate(metricsAggregateRate, []Attribute{
+					NewIntrinsic(IntrinsicName),
+				}),
+				newChainedSecondStage(
+					newMetricsFilter(OpGreaterEqual, 5.5),
+					newTopKBottomK(OpBottomK, 3),
+				),
+			),
+			expectedStr: `{ true } | rate()by(name) >= 5.5 | bottomk(3)`,
+		},
+		{
+			in: `{ } | count_over_time() != 0 | topk(10)`,
+			expected: newRootExprWithMetricsTwoStage(
+				newPipeline(newSpansetFilter(NewStaticBool(true))),
+				newMetricsAggregate(metricsAggregateCountOverTime, nil),
+				newChainedSecondStage(
+					newMetricsFilter(OpNotEqual, 0),
+					newTopKBottomK(OpTopK, 10),
+				),
+			),
+			expectedStr: `{ true } | count_over_time() != 0 | topk(10)`,
+		},
 	}
 
 	for _, tc := range tests {
