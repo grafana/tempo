@@ -951,7 +951,7 @@ func (e *Engine) CompileMetricsQueryRangeNonRaw(req *tempopb.QueryRangeRequest, 
 // Dedupe spans parameter is an indicator of whether to expected duplicates in the datasource. For
 // example if the datasource is replication factor=1 or only a single block then we know there
 // aren't duplicates, and we can make some optimizations.
-func (e *Engine) CompileMetricsQueryRange(req *tempopb.QueryRangeRequest, exemplars int, timeOverlapCutoff float64, allowUnsafeQueryHints bool) (*MetricsEvaluator, error) {
+func (e *Engine) CompileMetricsQueryRange(req *tempopb.QueryRangeRequest, timeOverlapCutoff float64, allowUnsafeQueryHints bool) (*MetricsEvaluator, error) {
 	if req.Start <= 0 {
 		return nil, fmt.Errorf("start required")
 	}
@@ -976,6 +976,7 @@ func (e *Engine) CompileMetricsQueryRange(req *tempopb.QueryRangeRequest, exempl
 
 	// the exemplars hint supports both bool and int. first we test for the integer value. if
 	// its not present then we look to see if the user provided `with(exemplars=false)`
+	exemplars := int(req.Exemplars)
 	if v, ok := expr.Hints.GetInt(HintExemplars, allowUnsafeQueryHints); ok {
 		exemplars = v
 	} else if v, ok := expr.Hints.GetBool(HintExemplars, allowUnsafeQueryHints); ok {

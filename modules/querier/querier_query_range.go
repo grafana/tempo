@@ -100,7 +100,7 @@ func (q *Querier) queryBlock(ctx context.Context, req *tempopb.QueryRangeRequest
 		timeOverlapCutoff = v
 	}
 
-	eval, err := traceql.NewEngine().CompileMetricsQueryRange(req, int(req.Exemplars), timeOverlapCutoff, unsafe)
+	eval, err := traceql.NewEngine().CompileMetricsQueryRange(req, timeOverlapCutoff, unsafe)
 	if err != nil {
 		return nil, err
 	}
