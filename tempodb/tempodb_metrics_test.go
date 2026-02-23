@@ -101,6 +101,33 @@ var queryRangeTestCases = []struct {
 		},
 	},
 	{
+		name: "rate with sampling",
+		req:  requestWithDefaultRange("{ } | rate() with (sample=0.75)"),
+		expectedL1: []*tempopb.TimeSeries{
+			{
+				Labels: []common_v1.KeyValue{tempopb.MakeKeyValueString("__name__", "rate")},
+				Samples: []tempopb.Sample{
+					{TimestampMs: 15_000, Value: 1.0},        // Interval (0, 15], 15 spans at 1-15
+					{TimestampMs: 30_000, Value: 1.0},        // Interval (15, 30], 15 spans
+					{TimestampMs: 45_000, Value: 1.0},        // Interval (30, 45], 15 spans
+					{TimestampMs: 60_000, Value: 5.0 / 15.0}, // Interval (45, 50], 5 spans
+				},
+			},
+		},
+		expectedL2: []*tempopb.TimeSeries{
+			{
+				Labels: []common_v1.KeyValue{tempopb.MakeKeyValueString("__name__", "rate")},
+				// with two sources rate will be doubled
+				Samples: []tempopb.Sample{
+					{TimestampMs: 15_000, Value: 2 * 15.0 / 15.0},
+					{TimestampMs: 30_000, Value: 2 * 1.0},
+					{TimestampMs: 45_000, Value: 2 * 1.0},
+					{TimestampMs: 60_000, Value: 2 * 5.0 / 15.0},
+				},
+			},
+		},
+	},
+	{
 		name: "rate_no_spans",
 		req:  requestWithDefaultRange(`{ .service.name="does_not_exist" } | rate()`),
 		expectedL1: []*tempopb.TimeSeries{
@@ -729,6 +756,31 @@ var queryRangeTestCases = []struct {
 	{
 		name: "max_over_time_topk_gt_filter",
 		req:  requestWithDefaultRange("{ } | max_over_time(duration) | topk(1) > 30"),
+		expectedL1: []*tempopb.TimeSeries{
+			{
+				Labels: []common_v1.KeyValue{tempopb.MakeKeyValueString("__name__", "max_over_time")},
+				Samples: []tempopb.Sample{
+					{TimestampMs: 15_000, Value: 15},
+					{TimestampMs: 30_000, Value: 30},
+					{TimestampMs: 45_000, Value: 45},
+					{TimestampMs: 60_000, Value: 50},
+				},
+			},
+		},
+		expectedL2: nil,
+		expectedL3: []*tempopb.TimeSeries{
+			{
+				Labels: []common_v1.KeyValue{tempopb.MakeKeyValueString("__name__", "max_over_time")},
+				Samples: []tempopb.Sample{
+					{TimestampMs: 45_000, Value: 45},
+					{TimestampMs: 60_000, Value: 50},
+				},
+			},
+		},
+	},
+	{
+		name: "max_over_time_gt_filter",
+		req:  requestWithDefaultRange("{ } | max_over_time(duration) > 30 with (sample=0.75)"),
 		expectedL1: []*tempopb.TimeSeries{
 			{
 				Labels: []common_v1.KeyValue{tempopb.MakeKeyValueString("__name__", "max_over_time")},
