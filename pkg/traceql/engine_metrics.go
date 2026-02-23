@@ -12,9 +12,11 @@ import (
 	"sync"
 	"time"
 
+	"github.com/go-kit/log/level"
 	"github.com/grafana/tempo/pkg/tempopb"
 	commonv1proto "github.com/grafana/tempo/pkg/tempopb/common/v1"
 	"github.com/grafana/tempo/pkg/util"
+	"github.com/grafana/tempo/pkg/util/log"
 	"github.com/prometheus/prometheus/model/labels"
 )
 
@@ -23,6 +25,9 @@ const (
 	internalMetaTypeCount = "__count"
 	internalLabelBucket   = "__bucket"
 	maxExemplarsPerBucket = 2
+	// maxExemplars is a safety cap applied at the engine entry points to bound memory
+	// usage regardless of what the caller requests.
+	maxExemplars uint32 = 100000
 	// NormalNaN is a quiet NaN. This is also math.NaN().
 	normalNaN uint64 = 0x7ff8000000000001
 )
@@ -930,6 +935,11 @@ func (u *UngroupedAggregator) Series() SeriesSet {
 }
 
 func (e *Engine) CompileMetricsQueryRangeNonRaw(req *tempopb.QueryRangeRequest, mode AggregateMode) (*MetricsFrontendEvaluator, error) {
+	if req.Exemplars > maxExemplars {
+		level.Warn(log.Logger).Log("msg", "capping exemplars to safety limit", "requested", req.Exemplars, "cap", maxExemplars)
+		req.Exemplars = maxExemplars
+	}
+
 	if req.Start <= 0 {
 		return nil, fmt.Errorf("start required")
 	}
@@ -973,6 +983,11 @@ func (e *Engine) CompileMetricsQueryRangeNonRaw(req *tempopb.QueryRangeRequest, 
 // example if the datasource is replication factor=1 or only a single block then we know there
 // aren't duplicates, and we can make some optimizations.
 func (e *Engine) CompileMetricsQueryRange(req *tempopb.QueryRangeRequest, timeOverlapCutoff float64, allowUnsafeQueryHints bool) (*MetricsEvaluator, error) {
+	if req.Exemplars > maxExemplars {
+		level.Warn(log.Logger).Log("msg", "capping exemplars to safety limit", "requested", req.Exemplars, "cap", maxExemplars)
+		req.Exemplars = maxExemplars
+	}
+
 	if req.Start <= 0 {
 		return nil, fmt.Errorf("start required")
 	}

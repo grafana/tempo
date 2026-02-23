@@ -522,6 +522,60 @@ func TestCompileMetricsQueryRangeExemplarsHint(t *testing.T) {
 	}
 }
 
+func TestCompileMetricsQueryRangeExemplarsSafetyCap(t *testing.T) {
+	tcs := []struct {
+		name      string
+		exemplars uint32
+		expected  int
+	}{
+		{"below cap", maxExemplars - 1, int(maxExemplars - 1)},
+		{"at cap", maxExemplars, int(maxExemplars)},
+		{"above cap", maxExemplars + 1, int(maxExemplars)},
+	}
+
+	for _, tc := range tcs {
+		t.Run(tc.name, func(t *testing.T) {
+			req := &tempopb.QueryRangeRequest{
+				Query:     "{} | rate()",
+				Start:     1,
+				End:       2,
+				Step:      1,
+				Exemplars: tc.exemplars,
+			}
+			eval, err := NewEngine().CompileMetricsQueryRange(req, 0, false)
+			require.NoError(t, err)
+			require.Equal(t, tc.expected, eval.maxExemplars)
+		})
+	}
+}
+
+func TestCompileMetricsQueryRangeNonRawExemplarsSafetyCap(t *testing.T) {
+	tcs := []struct {
+		name      string
+		exemplars uint32
+		expected  uint32
+	}{
+		{"below cap", maxExemplars - 1, maxExemplars - 1},
+		{"at cap", maxExemplars, maxExemplars},
+		{"above cap", maxExemplars + 1, maxExemplars},
+	}
+
+	for _, tc := range tcs {
+		t.Run(tc.name, func(t *testing.T) {
+			req := &tempopb.QueryRangeRequest{
+				Query:     "{} | rate()",
+				Start:     1,
+				End:       2,
+				Step:      1,
+				Exemplars: tc.exemplars,
+			}
+			_, err := NewEngine().CompileMetricsQueryRangeNonRaw(req, AggregateModeSum)
+			require.NoError(t, err)
+			require.Equal(t, tc.expected, req.Exemplars)
+		})
+	}
+}
+
 func TestCompileMetricsQueryRangeFetchSpansRequest(t *testing.T) {
 	tc := map[string]struct {
 		q           string
