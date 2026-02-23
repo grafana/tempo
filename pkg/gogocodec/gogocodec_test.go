@@ -13,6 +13,24 @@ import (
 	"github.com/grafana/tempo/pkg/tempopb"
 )
 
+type mockOTELProtoMessage struct {
+	Val byte
+}
+
+func (m *mockOTELProtoMessage) SizeProto() int {
+	return 1
+}
+
+func (m *mockOTELProtoMessage) MarshalProto(buf []byte) int {
+	buf[0] = m.Val
+	return 1
+}
+
+func (m *mockOTELProtoMessage) UnmarshalProto(buf []byte) error {
+	m.Val = buf[0]
+	return nil
+}
+
 func TestCodecMarshallAndUnmarshall_tempo_type(t *testing.T) {
 	// marshal a tempo object using the custom codec
 	c := NewCodec()
@@ -65,4 +83,33 @@ func TestWireCompatibility(t *testing.T) {
 	err = c.Unmarshal(data2, req2)
 	require.NoError(t, err)
 	assert.Equal(t, req1, req2)
+}
+
+func TestCodecMarshallAndUnmarshall_otel_proto_type(t *testing.T) {
+	c := NewCodec()
+
+	req1 := &mockOTELProtoMessage{Val: 42}
+	data, err := c.Marshal(req1)
+	require.NoError(t, err)
+
+	req2 := &mockOTELProtoMessage{}
+	err = c.Unmarshal(data, req2)
+	require.NoError(t, err)
+	assert.Equal(t, req1, req2)
+}
+
+func TestCodecMarshal_unsupported_type(t *testing.T) {
+	c := NewCodec()
+
+	_, err := c.Marshal(struct{}{})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "unsupported marshal type")
+}
+
+func TestCodecUnmarshal_unsupported_type(t *testing.T) {
+	c := NewCodec()
+
+	err := c.Unmarshal([]byte{0x01}, struct{}{})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "unsupported unmarshal type")
 }
