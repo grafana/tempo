@@ -363,7 +363,9 @@ func (r *receiversShim) ConsumeTraces(ctx context.Context, td ptrace.Traces) err
 }
 
 // GetExtensions implements component.Host
-func (r *receiversShim) GetExtensions() map[component.ID]component.Component { return nil }
+func (r *receiversShim) GetExtensions() map[component.ID]component.Component {
+	return map[component.ID]component.Component{}
+}
 
 // observability shims
 func newLogger(level dslog.Level) *zap.Logger {

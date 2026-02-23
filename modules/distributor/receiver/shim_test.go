@@ -196,11 +196,11 @@ type mockHost struct{}
 var _ component.Host = (*mockHost)(nil)
 
 func (m *mockHost) GetFactory(component.Kind, component.Type) component.Factory {
-	panic("implement me")
+	return nil
 }
 
 func (m *mockHost) GetExtensions() map[component.ID]component.Component {
-	panic("implement me")
+	return map[component.ID]component.Component{}
 }
 
 type capturingPusher struct {
