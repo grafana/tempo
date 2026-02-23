@@ -1226,9 +1226,10 @@ func BenchmarkBackendBlockQueryRange(b *testing.B) {
 						Start:     uint64(st.UnixNano()),
 						End:       uint64(end.UnixNano()),
 						MaxSeries: 100,
+						Exemplars: 4,
 					}
 
-					eval, err := e.CompileMetricsQueryRange(req, 4, 0, false)
+					eval, err := e.CompileMetricsQueryRange(req, 0, false)
 					require.NoError(b, err)
 
 					b.ResetTimer()
