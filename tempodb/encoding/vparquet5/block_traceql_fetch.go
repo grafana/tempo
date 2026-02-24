@@ -69,6 +69,9 @@ func (i *spanOnlyIterator) Close() {
 }
 
 func create(makeIter, makeNilIter makeIterFn,
+	// driver is iterator 0, and defines the rows for the LeftJoinIterator and Collector.  Collector.Reset()
+	// is called once for each row returned by the driver. Because we want spans, this is always something at the
+	// the span level, like StartTimeUnixNanos for metrics, or the virtual row number iterator for other cases.
 	driver parquetquery.Iterator,
 	conditions []traceql.Condition,
 	secondPass traceql.SecondPassFn,
@@ -99,7 +102,7 @@ func create(makeIter, makeNilIter makeIterFn,
 		return nil, nil, err
 	}
 
-	spanDriver, spanIters, spanOptional, err := createSpanIterators(makeIter, makeNilIter, driver == nil, catConditions.span, allConditions, selectAll, dedicatedColumns, sampler)
+	alternateDriver, spanIters, spanOptional, err := createSpanIterators(makeIter, makeNilIter, driver == nil, catConditions.span, allConditions, selectAll, dedicatedColumns, sampler)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -154,13 +157,13 @@ func create(makeIter, makeNilIter makeIterFn,
 		parquetquery.WithName(debugName),
 	}
 
-	// Given driver or created span drivers are always first.
-	// To get the collection level.
-	if driver != nil {
+	// Use either the given driver or created alternate.
+	// Divers are always first, which has special meaning to the LeftJoinIterator.
+	switch {
+	case driver != nil:
 		options = append(options, parquetquery.WithIterator(DefinitionLevelResourceSpansILSSpan, driver, false, traceql.AttributeScopeSpan))
-	}
-	if spanDriver != nil {
-		options = append(options, parquetquery.WithIterator(DefinitionLevelResourceSpansILSSpan, spanDriver, false, traceql.AttributeScopeSpan))
+	case alternateDriver != nil:
+		options = append(options, parquetquery.WithIterator(DefinitionLevelResourceSpansILSSpan, alternateDriver, false, traceql.AttributeScopeSpan))
 	}
 
 	for _, iter := range traceIters {
