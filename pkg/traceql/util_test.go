@@ -116,6 +116,16 @@ func TestBucketSetSingleExemplar(t *testing.T) {
 	assert.True(t, s.addAndTest(tsMilli), "ts=%d should not be added to bucket", 100)
 }
 
+func TestBucketSetLargeExemplarsShortRange(t *testing.T) {
+	// exemplars=10000 → buckets=5000, but the range is only 1 second (1000ms interval).
+	// Without the guard, bucketWidth=0 causes a divide-by-zero in bucket().
+	s := newBucketSet(10000, 0, uint64(time.Second.Nanoseconds())) //nolint: gosec // G115
+	assert.NotPanics(t, func() {
+		s.addAndTest(500) // 500ms into the range
+	})
+	assert.False(t, s.testTotal(), "should not be full after one exemplar")
+}
+
 func TestBucketSetZeroExemplars(t *testing.T) {
 	// exemplars=0 means collection is disabled: testTotal() should always return true
 	// and no exemplars should ever be accepted.

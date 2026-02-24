@@ -93,7 +93,7 @@ func newBucketSet(exemplars uint32, start, end uint64) *limitedBucketSet {
 	end /= uint64(time.Millisecond.Nanoseconds())   //nolint: gosec // G115
 
 	interval := end - start
-	bucketWidth := interval / uint64(buckets)
+	bucketWidth := max(interval/uint64(buckets), 1)
 
 	return &limitedBucketSet{
 		sz:          int(buckets),
