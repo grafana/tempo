@@ -79,10 +79,10 @@ To do this, you need to create a configuration that can be used by Alloy to rece
    Ensure that you use the specific namespace you've installed Tempo in for the OTLP exporter. In the line:
 
    ```yaml
-   endpoint = "http://tempo-cluster-distributor.tempo.svc.cluster.local:3100"
+   endpoint = "http://tempo-cluster-distributor.tempo.svc.cluster.local:4317"
    ```
 
-   change `tempo` to reference the namespace where Tempo is installed, for example: `http://tempo-cluster-distributor.my-tempo-namespaces.svc.cluster.local:3100`.
+   change `tempo` to reference the namespace where Tempo is installed, for example: `http://tempo-cluster-distributor.my-tempo-namespace.svc.cluster.local:4317`.
 
 1. Deploy Alloy using Helm:
    ```bash
