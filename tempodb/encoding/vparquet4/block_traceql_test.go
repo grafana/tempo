@@ -1676,9 +1676,10 @@ func BenchmarkBackendBlockQueryRange(b *testing.B) {
 				Start:     st,
 				End:       end,
 				MaxSeries: 1000,
+				Exemplars: 2,
 			}
 
-			eval, err := e.CompileMetricsQueryRange(req, 2, 0, false)
+			eval, err := e.CompileMetricsQueryRange(req, 0, false)
 			require.NoError(b, err)
 
 			b.ResetTimer()
@@ -1749,9 +1750,10 @@ func TestSamplingError(t *testing.T) {
 			End:       end,
 			Step:      uint64(time.Second * 15),
 			MaxSeries: 1000,
+			Exemplars: 2,
 		}
 
-		eval, err := e.CompileMetricsQueryRange(req, 2, 0, false)
+		eval, err := e.CompileMetricsQueryRange(req, 0, false)
 		require.NoError(t, err)
 
 		err = eval.Do(ctx, f, st, end, int(req.MaxSeries))

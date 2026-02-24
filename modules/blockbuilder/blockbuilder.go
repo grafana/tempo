@@ -178,7 +178,7 @@ func (b *BlockBuilder) starting(ctx context.Context) (err error) {
 	level.Info(b.logger).Log("msg", "block builder starting")
 	topic := b.cfg.IngestStorageConfig.Kafka.Topic
 
-	b.enc, err = encoding.FromVersionForWrites(b.cfg.BlockConfig.BlockCfg.Version)
+	b.enc, err = coalesceBlockVersion(&b.cfg)
 	if err != nil {
 		return fmt.Errorf("failed to create encoding: %w", err)
 	}

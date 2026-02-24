@@ -930,9 +930,8 @@ func TestTempoDBQueryRange(t *testing.T) {
 	})
 
 	for _, tc := range queryRangeTestCases {
-
 		runTestWithHint := func(t *testing.T, queryHint string) {
-			eval, err := e.CompileMetricsQueryRange(tc.req, 0, 0, false)
+			eval, err := e.CompileMetricsQueryRange(tc.req, 0, false)
 			require.NoError(t, err)
 
 			err = eval.Do(ctx, f, 0, 0, 0)
@@ -996,7 +995,7 @@ func TestTempoDBQueryRange(t *testing.T) {
 		req := requestWithDefaultRange(`{} | compare({ .service.name="even" })`)
 
 		// Level 1
-		eval, err := e.CompileMetricsQueryRange(req, 0, 0, false)
+		eval, err := e.CompileMetricsQueryRange(req, 0, false)
 		require.NoError(t, err)
 
 		err = eval.Do(ctx, f, 0, 0, 0)

@@ -162,9 +162,7 @@ traces:
   jaeger:
     thriftHttp:
       enabled: false
-  opencensus:
-    enabled: false
-```
+ ```
 
 {{< /collapse >}}
 
@@ -250,7 +248,7 @@ For more information about the local-blocks processor, refer to [Configure Trace
 The Helm chart values in your `custom.yaml` file are configured to use OTLP.
 If you are using other receivers, then you need to configure them.
 
-You can configure Tempo to receive data from OTLP, Jaeger, Zipkin, Kafka, and OpenCensus.
+You can configure Tempo to receive data from OTLP, Jaeger, Zipkin and Kafka.
 The following example enables OTLP on the distributor.
 For other options, refer to the [distributor documentation](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration#distributor)
 

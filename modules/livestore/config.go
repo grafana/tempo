@@ -191,42 +191,29 @@ func (cfg *Config) Validate() error {
 	return nil
 }
 
-// coalesceBlockVersions resolves complete block and WAL encodings from configs.
-// Starts with the default version and overrides as each layer is checked (global block config, then block_config, then for WAL also wal.version).
+// coalesceBlockVersions resolves complete block and WAL encodings from configs
+// using the shared encoding.CoalesceVersion helper.
+// Block priority: default < storage.trace.block < live_store.block_config.
+// WAL priority:   default < storage.trace.block < live_store.block_config < live_store.wal.version.
 // Returns an error if any resolved version isn't writable.
 func coalesceBlockVersions(cfg *Config) (completeBlockEncoding, walEncoding encoding.VersionedEncoding, err error) {
-	var (
-		blockVer = encoding.DefaultEncoding().Version()
-		walVer   = encoding.DefaultEncoding().Version()
-	)
-
-	if cfg.GlobalBlockConfig != nil && cfg.GlobalBlockConfig.Version != "" {
-		blockVer = cfg.GlobalBlockConfig.Version
-		walVer = cfg.GlobalBlockConfig.Version
+	globalVer := ""
+	if cfg.GlobalBlockConfig != nil {
+		globalVer = cfg.GlobalBlockConfig.Version
 	}
 
-	if cfg.BlockConfig.Version != "" {
-		blockVer = cfg.BlockConfig.Version
-		walVer = cfg.BlockConfig.Version
-	}
-
-	if cfg.WAL.Version != "" {
-		walVer = cfg.WAL.Version
-	}
-
-	completeBlockEncoding, err = encoding.FromVersionForWrites(blockVer)
+	completeBlockEncoding, err = encoding.CoalesceVersion(globalVer, cfg.BlockConfig.Version)
 	if err != nil {
-		return nil, nil, fmt.Errorf("complete block version %q: %w", blockVer, err)
+		return nil, nil, fmt.Errorf("complete block version: %w", err)
 	}
 
-	walEncoding, err = encoding.FromVersionForWrites(walVer)
+	walEncoding, err = encoding.CoalesceVersion(globalVer, cfg.BlockConfig.Version, cfg.WAL.Version)
 	if err != nil {
-		return nil, nil, fmt.Errorf("wal version %q: %w", walVer, err)
+		return nil, nil, fmt.Errorf("wal version: %w", err)
 	}
 
-	// Inject final coalesced versions back into the configs.
-	cfg.BlockConfig.Version = blockVer
-	cfg.WAL.Version = walVer
+	cfg.BlockConfig.Version = completeBlockEncoding.Version()
+	cfg.WAL.Version = walEncoding.Version()
 
 	return completeBlockEncoding, walEncoding, nil
 }

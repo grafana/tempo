@@ -397,7 +397,7 @@ query_frontend:
         concurrent_jobs: 1000
         target_bytes_per_job: 104857600
         default_result_limit: 20
-        max_result_limit: 0
+        max_result_limit: 262144
         max_duration: 168h0m0s
         query_backend_after: 15m0s
         ingester_shards: 3
@@ -782,7 +782,7 @@ block_builder:
         max_block_bytes: 20971520
         bloom_filter_false_positive: 0.01
         bloom_filter_shard_size_bytes: 102400
-        version: vParquet4
+        version: ""
         parquet_row_group_size_bytes: 100000000
         parquet_dedicated_columns:
             - scope: resource
@@ -844,7 +844,6 @@ block_builder:
     wal:
         path: /var/tempo/block-builder/traces
         ingestion_time_range_slack: 2m0s
-        version: vParquet4
 storage:
     trace:
         pool:

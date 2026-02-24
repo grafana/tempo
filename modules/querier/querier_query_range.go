@@ -29,12 +29,12 @@ func (q *Querier) queryRangeRecent(ctx context.Context, req *tempopb.QueryRangeR
 		return nil, err
 	}
 
-	results, err := q.forGivenGenerators(ctx, func(ctx context.Context, client tempopb.MetricsGeneratorClient) (any, error) {
+	results, err := q.forLiveStoreMetricsRing(ctx, func(ctx context.Context, client tempopb.MetricsClient) (any, error) {
 		return client.QueryRange(ctx, req)
 	})
 	if err != nil {
-		_ = level.Error(log.Logger).Log("msg", "error querying generators in Querier.queryRangeRecent", "err", err)
-		return nil, fmt.Errorf("error querying generators in Querier.queryRangeRecent: %w", err)
+		_ = level.Error(log.Logger).Log("msg", "error querying live-stores in Querier.queryRangeRecent", "err", err)
+		return nil, fmt.Errorf("error querying live-stores in Querier.queryRangeRecent: %w", err)
 	}
 
 	for _, result := range results {
@@ -93,7 +93,7 @@ func (q *Querier) queryBlock(ctx context.Context, req *tempopb.QueryRangeRequest
 		timeOverlapCutoff = v
 	}
 
-	eval, err := traceql.NewEngine().CompileMetricsQueryRange(req, int(req.Exemplars), timeOverlapCutoff, unsafe)
+	eval, err := traceql.NewEngine().CompileMetricsQueryRange(req, timeOverlapCutoff, unsafe)
 	if err != nil {
 		return nil, err
 	}

@@ -17,8 +17,6 @@ import (
 	"github.com/grafana/tempo/pkg/api"
 	"github.com/grafana/tempo/pkg/model/trace"
 	"github.com/grafana/tempo/pkg/tempopb"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 )
 
 const (
@@ -324,33 +322,6 @@ func (q *Querier) SearchTagValuesV2Handler(w http.ResponseWriter, r *http.Reques
 	}
 
 	if err != nil {
-		handleError(w, err)
-		return
-	}
-
-	writeFormattedContentForRequest(w, r, resp, span)
-}
-
-func (q *Querier) SpanMetricsSummaryHandler(w http.ResponseWriter, r *http.Request) {
-	// Enforce the query timeout while querying backends
-	ctx, cancel := context.WithDeadline(r.Context(), time.Now().Add(q.cfg.Search.QueryTimeout))
-	defer cancel()
-
-	ctx, span := tracer.Start(ctx, "Querier.SpanMetricsSummaryHandler")
-	defer span.End()
-
-	req, err := api.ParseSpanMetricsSummaryRequest(r)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-
-	resp, err := q.SpanMetricsSummary(ctx, req)
-	if err != nil {
-		if status.Code(err) == codes.Unimplemented {
-			http.Error(w, err.Error(), http.StatusGone)
-			return
-		}
 		handleError(w, err)
 		return
 	}

@@ -78,7 +78,6 @@ const (
 	PathBuildInfo           = "/api/status/buildinfo"
 	PathUsageStats          = "/status/usage-stats"
 	PathSpanMetrics         = "/api/metrics"
-	PathSpanMetricsSummary  = "/api/metrics/summary"
 	PathMetricsQueryInstant = "/api/metrics/query"
 	PathMetricsQueryRange   = "/api/metrics/query_range"
 	PathMCP                 = "/api/mcp"
@@ -299,44 +298,6 @@ func ParseSearchRequestWithDefault(r *http.Request, defaultSpansPerSpanSet uint3
 
 func ParseSpanMetricsRequest(r *http.Request) (*tempopb.SpanMetricsRequest, error) {
 	req := &tempopb.SpanMetricsRequest{}
-	vals := r.URL.Query()
-
-	groupBy := vals.Get(urlParamGroupBy)
-	req.GroupBy = groupBy
-
-	query := vals.Get(urlParamQuery)
-	req.Query = query
-
-	l := vals.Get(urlParamLimit)
-	if l != "" {
-		limit, err := strconv.Atoi(l)
-		if err != nil {
-			return nil, fmt.Errorf("invalid limit: %w", err)
-		}
-		req.Limit = uint64(limit)
-	}
-
-	if s, ok := extractQueryParam(vals, urlParamStart); ok {
-		start, err := strconv.ParseInt(s, 10, 32)
-		if err != nil {
-			return nil, fmt.Errorf("invalid start: %w", err)
-		}
-		req.Start = uint32(start)
-	}
-
-	if s, ok := extractQueryParam(vals, urlParamEnd); ok {
-		end, err := strconv.ParseInt(s, 10, 32)
-		if err != nil {
-			return nil, fmt.Errorf("invalid end: %w", err)
-		}
-		req.End = uint32(end)
-	}
-
-	return req, nil
-}
-
-func ParseSpanMetricsSummaryRequest(r *http.Request) (*tempopb.SpanMetricsSummaryRequest, error) {
-	req := &tempopb.SpanMetricsSummaryRequest{}
 	vals := r.URL.Query()
 
 	groupBy := vals.Get(urlParamGroupBy)

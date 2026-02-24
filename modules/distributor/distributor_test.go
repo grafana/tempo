@@ -941,7 +941,7 @@ func TestRequestsByTraceID(t *testing.T) {
 			if tt.emptyTenant {
 				tenant = ""
 			}
-			ringTokens, rebatchedTraces, _, err := requestsByTraceID(tt.batches, tenant, 1, 1000)
+			ringTokens, rebatchedTraces, _, _, err := requestsByTraceID(tt.batches, tenant, 1, 1000)
 			require.Equal(t, len(ringTokens), len(rebatchedTraces))
 
 			for i, expectedID := range tt.expectedIDs {
@@ -1023,7 +1023,7 @@ func TestProcessAttributes(t *testing.T) {
 		},
 	}
 
-	_, rebatchedTrace, truncatedCount, _ := requestsByTraceID(trace.ResourceSpans, "test", spanCount*batchCount, maxAttrByte)
+	_, rebatchedTrace, truncatedCount, _, _ := requestsByTraceID(trace.ResourceSpans, "test", spanCount*batchCount, maxAttrByte)
 	// 2 at resource level, 2 at span level, 2 at event level, 2 at link level, 2 at scope level
 	assert.Equal(t, 10, truncatedCount.Total())
 	assert.Equal(t, 2, truncatedCount.Resource)
@@ -1092,6 +1092,105 @@ func TestProcessAttributes(t *testing.T) {
 	}
 }
 
+func TestRequestsByTraceID_TruncationDetail(t *testing.T) {
+	longString := strings.Repeat("t", 5000)
+	maxAttrByte := 1000
+
+	// No truncation — detail should be nil
+	trace := test.MakeTraceWithSpanCount(1, 1, []byte{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F, 0x10})
+	_, _, truncatedCount, detail, err := requestsByTraceID(trace.ResourceSpans, "test", 1, maxAttrByte)
+	require.NoError(t, err)
+	assert.Equal(t, 0, truncatedCount.Total())
+	assert.Nil(t, detail)
+
+	// With truncation — detail is always populated
+	trace = test.MakeTraceWithSpanCount(1, 1, []byte{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F, 0x10})
+	trace.ResourceSpans[0].Resource.Attributes = append(trace.ResourceSpans[0].Resource.Attributes,
+		test.MakeAttribute("oversized", longString))
+	_, _, truncatedCount, detail, err = requestsByTraceID(trace.ResourceSpans, "test", 1, maxAttrByte)
+	require.NoError(t, err)
+	assert.Greater(t, truncatedCount.Total(), 0)
+	require.NotNil(t, detail)
+	assert.Equal(t, "resource", detail.scope)
+	assert.Equal(t, "value", detail.field)
+	assert.Equal(t, "oversized", detail.name)
+	assert.Equal(t, 5000, detail.origSize)
+
+	// maxSpanAttrSize == 0 — no truncation, no detail
+	trace = test.MakeTraceWithSpanCount(1, 1, []byte{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F, 0x10})
+	trace.ResourceSpans[0].Resource.Attributes = append(trace.ResourceSpans[0].Resource.Attributes,
+		test.MakeAttribute("oversized", longString))
+	_, _, truncatedCount, detail, err = requestsByTraceID(trace.ResourceSpans, "test", 1, 0)
+	require.NoError(t, err)
+	assert.Equal(t, 0, truncatedCount.Total())
+	assert.Nil(t, detail)
+}
+
+func TestProcessAttributesDetail(t *testing.T) {
+	// Without detail — nil detail, truncation still happens
+	attributes := []*v1_common.KeyValue{
+		test.MakeAttribute("key", strings.Repeat("v", 5000)),
+	}
+	count := processAttributes(attributes, 2048, nil, "span")
+	assert.Equal(t, 1, count)
+	assert.Equal(t, 2048, len(attributes[0].Value.GetStringValue()))
+
+	// Value truncation — detail captured deterministically
+	attributes = []*v1_common.KeyValue{
+		test.MakeAttribute("key", strings.Repeat("v", 5000)),
+	}
+	detail := truncatedAttrInfo{}
+	count = processAttributes(attributes, 2048, &detail, "span")
+	assert.Equal(t, 1, count)
+	assert.Equal(t, "key", detail.name)
+	assert.Equal(t, "span", detail.scope)
+	assert.Equal(t, "value", detail.field)
+	assert.Equal(t, 5000, detail.origSize)
+
+	// Key truncation — detail captured deterministically
+	attributes = []*v1_common.KeyValue{
+		test.MakeAttribute(strings.Repeat("k", 5000), "short"),
+	}
+	detail = truncatedAttrInfo{}
+	count = processAttributes(attributes, 2048, &detail, "resource")
+	assert.Equal(t, 1, count)
+	assert.Equal(t, "key", detail.field)
+	assert.Equal(t, "resource", detail.scope)
+	assert.Equal(t, 5000, detail.origSize)
+	assert.Equal(t, strings.Repeat("k", 2048), detail.name) // truncated prefix, not full original
+
+	// Only the first truncation is captured (first of two values)
+	attributes = []*v1_common.KeyValue{
+		test.MakeAttribute("key1", strings.Repeat("v", 5000)),
+		test.MakeAttribute("key2", strings.Repeat("v", 6000)),
+	}
+	detail = truncatedAttrInfo{}
+	count = processAttributes(attributes, 2048, &detail, "span")
+	assert.Equal(t, 2, count)
+	assert.Equal(t, "key1", detail.name)
+	assert.Equal(t, 5000, detail.origSize)
+
+	// Both key AND value oversized — key wins (checked first)
+	attributes = []*v1_common.KeyValue{
+		test.MakeAttribute(strings.Repeat("k", 5000), strings.Repeat("v", 6000)),
+	}
+	detail = truncatedAttrInfo{}
+	count = processAttributes(attributes, 2048, &detail, "span")
+	assert.Equal(t, 2, count)
+	assert.Equal(t, "key", detail.field)
+	assert.Equal(t, 5000, detail.origSize)
+
+	// Already-captured detail (origSize > 0) is not overwritten
+	detail = truncatedAttrInfo{scope: "resource", name: "first", field: "value", origSize: 3000}
+	attributes = []*v1_common.KeyValue{
+		test.MakeAttribute("key2", strings.Repeat("v", 6000)),
+	}
+	count = processAttributes(attributes, 2048, &detail, "span")
+	assert.Equal(t, 1, count)
+	assert.Equal(t, "first", detail.name)
+	assert.Equal(t, 3000, detail.origSize)
+}
+
 func BenchmarkTestsByRequestID(b *testing.B) {
 	spansPer := 5000
 	batches := 100
@@ -1114,7 +1213,7 @@ func BenchmarkTestsByRequestID(b *testing.B) {
 
 	for i := 0; i < b.N; i++ {
 		for _, blerg := range ils {
-			_, _, _, err := requestsByTraceID([]*v1.ResourceSpans{
+			_, _, _, _, err := requestsByTraceID([]*v1.ResourceSpans{
 				{
 					ScopeSpans: blerg,
 				},
@@ -2424,7 +2523,7 @@ func TestRequestsByTraceID_SpanIDValidation(t *testing.T) {
 				},
 			},
 		}
-		_, _, _, err := requestsByTraceID(batches, "test-tenant", 1, 1000)
+		_, _, _, _, err := requestsByTraceID(batches, "test-tenant", 1, 1000)
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "span ids must be 64 bit")
 	}
@@ -2444,7 +2543,7 @@ func TestRequestsByTraceID_SpanIDValidation(t *testing.T) {
 			},
 		},
 	}
-	_, _, _, err := requestsByTraceID(batches, "test-tenant", 1, 1000)
+	_, _, _, _, err := requestsByTraceID(batches, "test-tenant", 1, 1000)
 	require.NoError(t, err)
 }
 

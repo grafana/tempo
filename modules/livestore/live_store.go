@@ -759,7 +759,9 @@ func (s *LiveStore) PushSpans(_ context.Context, _ *tempopb.PushSpansRequest) (*
 
 // GetMetrics implements tempopb.MetricsGeneratorServer
 func (s *LiveStore) GetMetrics(_ context.Context, _ *tempopb.SpanMetricsRequest) (*tempopb.SpanMetricsResponse, error) {
-	return nil, fmt.Errorf("GetMetrics not implemented in livestore") // todo: this is metrics summary, are we allowed to remove this or do we need to continue to support?
+	// Keep this stub until r241 is fully rolled out. After that, we can remove
+	// GetMetrics here by switching LiveStore from MetricsGenerator to MetricsService.
+	return nil, fmt.Errorf("GetMetrics not implemented in livestore")
 }
 
 // QueryRange implements tempopb.MetricsGeneratorServer

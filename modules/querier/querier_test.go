@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/grafana/dskit/user"
-	generator_client "github.com/grafana/tempo/modules/generator/client"
 	livestore_client "github.com/grafana/tempo/modules/livestore/client"
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/pkg/api"
@@ -18,15 +17,13 @@ import (
 	v1_trace "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 )
 
 func TestVirtualTagsDoesntHitBackend(t *testing.T) {
 	o, err := overrides.NewOverrides(overrides.Config{}, nil, prometheus.DefaultRegisterer)
 	require.NoError(t, err)
 
-	q, err := New(Config{}, nil, generator_client.Config{}, nil, livestore_client.Config{}, nil, false, nil, o)
+	q, err := New(Config{}, nil, livestore_client.Config{}, nil, false, nil, o)
 	require.NoError(t, err)
 
 	ctx := user.InjectOrgID(context.Background(), "blerg")
@@ -164,7 +161,7 @@ func TestFindTraceByID_ExternalMode(t *testing.T) {
 	o, err := overrides.NewOverrides(overrides.Config{}, nil, prometheus.DefaultRegisterer)
 	require.NoError(t, err)
 
-	q, err := New(cfg, nil, generator_client.Config{}, nil, livestore_client.Config{}, nil, true, nil, o)
+	q, err := New(cfg, nil, livestore_client.Config{}, nil, true, nil, o)
 	require.NoError(t, err)
 
 	ctx := user.InjectOrgID(context.Background(), userID)
@@ -181,34 +178,4 @@ func TestFindTraceByID_ExternalMode(t *testing.T) {
 	require.Len(t, resp.Trace.ResourceSpans[0].ScopeSpans, 1)
 	require.Len(t, resp.Trace.ResourceSpans[0].ScopeSpans[0].Spans, 1)
 	require.Equal(t, "external-span", resp.Trace.ResourceSpans[0].ScopeSpans[0].Spans[0].Name)
-}
-
-func TestSpanMetricsSummary_Deprecated(t *testing.T) {
-	o, err := overrides.NewOverrides(overrides.Config{}, nil, prometheus.DefaultRegisterer)
-	require.NoError(t, err)
-
-	q, err := New(Config{}, nil, generator_client.Config{}, nil, livestore_client.Config{}, nil, false, nil, o)
-	require.NoError(t, err)
-
-	resp, err := q.SpanMetricsSummary(context.Background(), &tempopb.SpanMetricsSummaryRequest{})
-	require.Nil(t, resp)
-	require.Error(t, err)
-	require.Equal(t, codes.Unimplemented, status.Code(err))
-	require.Contains(t, err.Error(), spanMetricsSummaryDeprecationMessage)
-}
-
-func TestSpanMetricsSummaryHandler_Deprecated(t *testing.T) {
-	o, err := overrides.NewOverrides(overrides.Config{}, nil, prometheus.DefaultRegisterer)
-	require.NoError(t, err)
-
-	q, err := New(Config{Search: SearchConfig{QueryTimeout: time.Second}}, nil, generator_client.Config{}, nil, livestore_client.Config{}, nil, false, nil, o)
-	require.NoError(t, err)
-
-	req := httptest.NewRequest(http.MethodGet, "/api/metrics/summary?q={}", nil)
-	rec := httptest.NewRecorder()
-
-	q.SpanMetricsSummaryHandler(rec, req)
-
-	require.Equal(t, http.StatusGone, rec.Code)
-	require.Contains(t, rec.Body.String(), spanMetricsSummaryDeprecationMessage)
 }

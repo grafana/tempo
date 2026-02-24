@@ -182,7 +182,7 @@ func TestOne(t *testing.T) {
 			Step:  uint64(1 * time.Second),
 		}
 	)
-	eval, err := traceql.NewEngine().CompileMetricsQueryRange(req, 1, 0, false)
+	eval, err := traceql.NewEngine().CompileMetricsQueryRange(req, 1, false)
 	require.NoError(t, err)
 	fetchSpansRequest := eval.FetchSpansRequest()
 
@@ -1862,9 +1862,10 @@ func BenchmarkBackendBlockQueryRange(b *testing.B) {
 				Start:     st,
 				End:       end,
 				MaxSeries: 1000,
+				Exemplars: 2,
 			}
 
-			eval, err := e.CompileMetricsQueryRange(req, 2, 0, false)
+			eval, err := e.CompileMetricsQueryRange(req, 0, false)
 			require.NoError(b, err)
 
 			b.ResetTimer()
@@ -1987,9 +1988,10 @@ func TestSamplingError(t *testing.T) {
 			End:       end,
 			Step:      uint64(time.Second * 15),
 			MaxSeries: 1000,
+			Exemplars: 2,
 		}
 
-		eval, err := e.CompileMetricsQueryRange(req, 2, 0, false)
+		eval, err := e.CompileMetricsQueryRange(req, 0, false)
 		require.NoError(t, err)
 
 		err = eval.Do(ctx, f, st, end, int(req.MaxSeries))
