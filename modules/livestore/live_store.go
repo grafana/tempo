@@ -21,6 +21,7 @@ import (
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/util/shutdownmarker"
 	"github.com/grafana/tempo/pkg/validation"
+	"github.com/grafana/tempo/tempodb/backend/local"
 	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/grafana/tempo/tempodb/wal"
 	"github.com/prometheus/client_golang/prometheus"
@@ -135,6 +136,7 @@ type LiveStore struct {
 	instancesMtx          sync.RWMutex
 	instances             map[string]*instance
 	wal                   *wal.WAL
+	localBackend          *local.Backend
 	completeBlockEncoding encoding.VersionedEncoding
 	overrides             overrides.Interface
 
@@ -280,6 +282,7 @@ func (s *LiveStore) starting(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("failed to create WAL: %w", err)
 	}
+	s.localBackend = s.wal.LocalBackend()
 
 	err = s.reloadBlocks()
 	if err != nil {
@@ -388,18 +391,27 @@ func (s *LiveStore) stopping(error) error {
 	s.lagCancel()
 	metricReady.Set(0)
 
-	// Stop consuming
+	// Stop consuming. Context cancellation during reader shutdown is expected
+	// when the reader hasn't fully initialized (e.g. fast test teardown).
 	err := services.StopAndAwaitTerminated(context.Background(), s.reader)
 	if err != nil {
 		level.Warn(s.logger).Log("msg", "failed to stop reader", "err", err)
-		return err
+		if !errors.Is(err, context.Canceled) {
+			return err
+		}
 	}
 
 	// Reset lag metrics for our partition when stopping
 	ingest.ResetLagMetricsForRevokedPartitions(s.cfg.IngestConfig.Kafka.ConsumerGroup, []int32{s.ingestPartitionID})
 
-	// Flush all data to disk
-	s.cutAllInstancesToWal()
+	// Flush all pending data to complete blocks
+	s.cutAllInstances()
+	// Create blocks from any remaining pending traces
+	for _, inst := range s.getInstances() {
+		if err := inst.createBlockFromPending(context.Background()); err != nil {
+			level.Warn(s.logger).Log("msg", "failed to create block from pending on shutdown", "tenant", inst.tenantID, "err", err)
+		}
+	}
 
 	// Remove the shutdown marker if it exists since we are shutting down
 	shutdownMarkerPath := shutdownmarker.GetPath(s.cfg.ShutdownMarkerDir)
@@ -619,7 +631,7 @@ func (s *LiveStore) getOrCreateInstance(tenantID string) (*instance, error) {
 	}
 
 	// Create new instance
-	inst, err := newInstance(tenantID, s.cfg, s.wal, s.completeBlockEncoding, s.overrides, s.logger)
+	inst, err := newInstance(tenantID, s.cfg, s.localBackend, s.completeBlockEncoding, s.overrides, s.logger)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create instance for tenant %s: %w", tenantID, err)
 	}
@@ -627,7 +639,7 @@ func (s *LiveStore) getOrCreateInstance(tenantID string) (*instance, error) {
 	s.instances[tenantID] = inst
 
 	s.runInBackground(func() {
-		s.perTenantCutToWalLoop(inst)
+		s.perTenantCutLoop(inst)
 	})
 	s.runInBackground(func() {
 		s.perTenantCleanupLoop(inst)
@@ -646,33 +658,23 @@ func (s *LiveStore) getInstances() []*instance {
 	return instances
 }
 
-func (s *LiveStore) cutAllInstancesToWal() {
+func (s *LiveStore) cutAllInstances() {
 	instances := s.getInstances()
 
 	for _, instance := range instances {
-		s.cutOneInstanceToWal(instance, true)
+		s.cutOneInstance(instance, true)
 	}
 }
 
-func (s *LiveStore) cutOneInstanceToWal(inst *instance, immediate bool) {
-	// Regular trace cuts (live traces -> head block)
-	err := inst.cutIdleTraces(immediate)
-	if err != nil {
-		level.Error(s.logger).Log("msg", "failed to cut idle traces", "tenant", inst.tenantID, "err", err)
-	}
+func (s *LiveStore) cutOneInstance(inst *instance, immediate bool) {
+	// Cut idle traces from liveTraces to pendingTraces
+	inst.cutIdleTraces(immediate)
 
-	// Regular block cuts
-	blockID, err := inst.cutBlocks(immediate)
-	if err != nil {
-		level.Error(s.logger).Log("msg", "failed to cut blocks", "tenant", inst.tenantID, "err", err)
-	}
-
-	// If head block is cut, enqueue complete operation
-	if blockID != uuid.Nil {
-		err = s.enqueueCompleteOp(inst.tenantID, blockID, false)
+	// Check if pending traces should be flushed to a complete block
+	if inst.shouldCreateBlock(immediate) {
+		err := s.enqueueCompleteOp(inst.tenantID, uuid.Nil, false)
 		if err != nil {
 			level.Error(s.logger).Log("msg", "failed to enqueue complete operation", "tenant", inst.tenantID, "err", err)
-			return
 		}
 	}
 }

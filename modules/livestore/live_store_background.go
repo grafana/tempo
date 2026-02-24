@@ -83,7 +83,7 @@ func (s *LiveStore) globalCompleteLoop(idx int) {
 		op.attempts++
 
 		if op.attempts > maxFlushAttempts {
-			level.Error(s.logger).Log("msg", "failed to complete operation", "tenant", op.tenantID, "block", op.blockID, "attempts", op.attempts)
+			level.Error(s.logger).Log("msg", "failed to complete operation", "tenant", op.tenantID, "attempts", op.attempts)
 			observeFailedOp(op)
 			continue
 		}
@@ -96,12 +96,12 @@ func (s *LiveStore) globalCompleteLoop(idx int) {
 			return
 		}
 
-		err = inst.completeBlock(s.ctx, op.blockID)
+		err = inst.createBlockFromPending(s.ctx)
 		duration := time.Since(start)
 		metricCompletionDuration.Observe(duration.Seconds())
 
 		if err != nil {
-			level.Error(s.logger).Log("msg", "failed to complete block", "tenant", op.tenantID, "block", op.blockID, "err", err)
+			level.Error(s.logger).Log("msg", "failed to create block from pending", "tenant", op.tenantID, "err", err)
 			observeFailedOp(op)
 
 			delay := op.backoff()
@@ -113,7 +113,7 @@ func (s *LiveStore) globalCompleteLoop(idx int) {
 				time.Sleep(delay)
 
 				if err := s.requeueOp(op); err != nil {
-					_ = level.Error(s.logger).Log("msg", "failed to requeue block for flushing", "tenant", op.tenantID, "block", op.blockID, "err", err)
+					_ = level.Error(s.logger).Log("msg", "failed to requeue block for flushing", "tenant", op.tenantID, "err", err)
 				}
 			}()
 		} else {
@@ -123,15 +123,14 @@ func (s *LiveStore) globalCompleteLoop(idx int) {
 	}
 }
 
-func (s *LiveStore) perTenantCutToWalLoop(instance *instance) {
-	// ticker
+func (s *LiveStore) perTenantCutLoop(instance *instance) {
 	ticker := time.NewTicker(s.cfg.InstanceFlushPeriod)
 	defer ticker.Stop()
 
 	for {
 		select {
 		case <-ticker.C:
-			s.cutOneInstanceToWal(instance, false)
+			s.cutOneInstance(instance, false)
 		case <-s.ctx.Done():
 			return
 		}
@@ -212,49 +211,11 @@ func observeFailedOp(op *completeOp) {
 
 func (s *LiveStore) reloadBlocks() error {
 	// ------------------------------------
-	// wal blocks
-	// ------------------------------------
-	level.Info(s.logger).Log("msg", "reloading wal blocks")
-	walBlocks, err := s.wal.RescanBlocks(0, s.logger)
-	if err != nil {
-		return fmt.Errorf("failed to rescan wal blocks: %w", err)
-	}
-
-	for _, blk := range walBlocks {
-		err := func() error {
-			meta := blk.BlockMeta()
-
-			inst, err := s.getOrCreateInstance(meta.TenantID)
-			if err != nil {
-				return fmt.Errorf("failed to get or create instance for tenant %s: %w", meta.TenantID, err)
-			}
-
-			inst.blocksMtx.Lock()
-			defer inst.blocksMtx.Unlock()
-
-			level.Info(s.logger).Log("msg", "reloaded wal block", "block", meta.BlockID.String())
-			inst.walBlocks[(uuid.UUID)(meta.BlockID)] = blk
-
-			level.Info(s.logger).Log("msg", "queueing replayed wal block for completion", "block", meta.BlockID.String())
-			if err := s.enqueueCompleteOp(meta.TenantID, uuid.UUID(meta.BlockID), true); err != nil {
-				return fmt.Errorf("failed to enqueue wal block for completion for tenant %s: %w", meta.TenantID, err)
-			}
-
-			level.Info(s.logger).Log("msg", "reloaded wal blocks", "tenant", inst.tenantID, "count", len(inst.walBlocks))
-
-			return nil
-		}()
-		if err != nil {
-			return err
-		}
-	}
-
-	// ------------------------------------
 	// Complete blocks
 	// ------------------------------------
 	var (
 		ctx = s.ctx
-		l   = s.wal.LocalBackend()
+		l   = s.localBackend
 		r   = backend.NewReader(l)
 	)
 

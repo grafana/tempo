@@ -96,46 +96,39 @@ func TestInstanceLimits(t *testing.T) {
 		pushTrace(t.Context(), t, instance, batch1, id)
 
 		// cut idle traces but we retain the too large trace in traceSizes
-		err := instance.cutIdleTraces(true)
-		require.NoError(t, err)
+		instance.cutIdleTraces(true)
 
 		// Second push with same id will fail b/c we are still tracking in traceSizes
 		pushTrace(t.Context(), t, instance, batch2, id)
 		require.Equal(t, uint64(0), instance.liveTraces.Len())
 		require.Equal(t, instance.liveTraces.Size(), uint64(0))
 
-		err = services.StopAndAwaitTerminated(t.Context(), ls)
+		err := services.StopAndAwaitTerminated(t.Context(), ls)
 		require.NoError(t, err)
 	})
 
-	// bytes - second push succeeds after cutIdleTraces and 2x cutBlocks
-	t.Run("bytes - second push succeeds after cutting head block 2x", func(t *testing.T) {
+	// bytes - second push succeeds after cutIdleTraces and 2x createBlockFromPending
+	t.Run("bytes - second push succeeds after creating blocks 2x", func(t *testing.T) {
 		instance, ls := instanceWithPushLimits(t, maxBytes, maxTraces)
 
 		id := test.ValidTraceID(nil)
 		// First push fits
 		pushTrace(t.Context(), t, instance, batch1, id)
 
-		// cut idle traces but we retain the too large trace in traceSizes
-		err := instance.cutIdleTraces(true)
-		require.NoError(t, err)
-		blockID, err := instance.cutBlocks(true) // this won't clear the trace b/c the trace must not be seen for 2 head block cuts to be fully removed from live traces
-		require.NoError(t, err)
-		err = instance.completeBlock(context.Background(), blockID)
+		// cut idle traces and create block - we retain the too large trace in traceSizes
+		instance.cutIdleTraces(true)
+		err := instance.createBlockFromPending(context.Background())
 		require.NoError(t, err)
 
-		// push a second trace so cutIdle/cutBlocks goes through
+		// push a second trace so the next cycle goes through
 		secondID := test.ValidTraceID(nil)
 		pushTrace(t.Context(), t, instance, batch1, secondID)
 
-		err = instance.cutIdleTraces(true)
-		require.NoError(t, err)
-		blockID, err = instance.cutBlocks(true) // this will clear the trace b/c the trace has not been seen for 2 head block cuts
-		require.NoError(t, err)
-		err = instance.completeBlock(context.Background(), blockID)
+		instance.cutIdleTraces(true)
+		err = instance.createBlockFromPending(context.Background())
 		require.NoError(t, err)
 
-		// Second push with same id will succeed b/c we have gone through one block flush cycles w/o seeing it
+		// Second push with same id will succeed b/c we have gone through block flush cycles w/o seeing it
 		pushTrace(t.Context(), t, instance, batch1, id)
 		require.Equal(t, uint64(1), instance.liveTraces.Len())
 		require.LessOrEqual(t, instance.liveTraces.Size(), uint64(maxBytes))
@@ -229,7 +222,7 @@ func TestInstanceBackpressure(t *testing.T) {
 	require.Nil(t, res.Trace)
 
 	// Free up space for the blocked push
-	require.NoError(t, instance.cutIdleTraces(true))
+	instance.cutIdleTraces(true)
 
 	// Wait for push to complete with timeout
 	select {

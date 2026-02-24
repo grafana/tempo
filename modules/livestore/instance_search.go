@@ -52,12 +52,10 @@ type block interface {
 // blockFn defines a function that processes a single block
 type blockFn func(ctx context.Context, meta *backend.BlockMeta, b block) error
 
-// iterateBlocks provides a way to iterate over all blocks (head, wal, complete)
-// using concurrent processing with bounded concurrency.
+// iterateBlocks provides a way to iterate over all searchable sources
+// (liveTraces, pendingTraces, completeBlocks) using concurrent processing
+// with bounded concurrency.
 func (i *instance) iterateBlocks(ctx context.Context, reqStart, reqEnd time.Time, fn blockFn) error {
-	i.blocksMtx.RLock()
-	defer i.blocksMtx.RUnlock()
-
 	var anyErr atomic.Error
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
@@ -77,14 +75,24 @@ func (i *instance) iterateBlocks(ctx context.Context, reqStart, reqEnd time.Time
 		anyErr.Store(err)
 	}
 
-	if i.headBlock != nil {
-		meta := i.headBlock.BlockMeta()
-		if includeBlock(meta, reqStart, reqEnd) {
-			ctx, span := tracer.Start(ctx, "process.headBlock")
-			span.SetAttributes(attribute.String("blockID", meta.BlockID.String()))
+	// Snapshot liveTraces under lock and search as a proto searcher
+	i.liveTracesMtx.Lock()
+	liveSnapshot := make(map[uint64]*traceSnapshot, len(i.liveTraces.Traces))
+	for token, lt := range i.liveTraces.Traces {
+		liveSnapshot[token] = &traceSnapshot{
+			id:      lt.ID,
+			batches: lt.Batches,
+		}
+	}
+	i.liveTracesMtx.Unlock()
 
-			if err := fn(ctx, meta, i.headBlock); err != nil {
-				handleErr(fmt.Errorf("processing head block (%s): %w", meta.BlockID, err))
+	if len(liveSnapshot) > 0 {
+		liveSearcher := newProtoSearcherFromLiveTraces(liveSnapshot)
+		meta := liveSearcher.BlockMeta()
+		if includeBlock(meta, reqStart, reqEnd) {
+			ctx, span := tracer.Start(ctx, "process.liveTraces")
+			if err := fn(ctx, meta, liveSearcher); err != nil {
+				handleErr(fmt.Errorf("processing live traces: %w", err))
 			}
 			span.End()
 		}
@@ -94,36 +102,28 @@ func (i *instance) iterateBlocks(ctx context.Context, reqStart, reqEnd time.Time
 		return err
 	}
 
-	wg := boundedwaitgroup.New(i.Cfg.QueryBlockConcurrency)
-
-	// Process wal blocks
-	for _, b := range i.walBlocks {
-		if ctx.Err() != nil {
-			continue
-		}
-
-		meta := b.BlockMeta()
-		if !includeBlock(meta, reqStart, reqEnd) {
-			continue
-		}
-
-		wg.Add(1)
-		go func(block common.WALBlock) {
-			defer wg.Done()
-
-			if ctx.Err() != nil {
-				return
+	// Snapshot pendingTraces and search as a proto searcher
+	pendingSnapshot := i.pendingTraces.Snapshot()
+	if len(pendingSnapshot) > 0 {
+		pendingSearcher := newProtoSearcherFromPending(pendingSnapshot)
+		meta := pendingSearcher.BlockMeta()
+		if includeBlock(meta, reqStart, reqEnd) {
+			ctx, span := tracer.Start(ctx, "process.pendingTraces")
+			if err := fn(ctx, meta, pendingSearcher); err != nil {
+				handleErr(fmt.Errorf("processing pending traces: %w", err))
 			}
-
-			ctx, span := tracer.Start(ctx, "process.walBlock")
-			span.SetAttributes(attribute.String("blockID", meta.BlockID.String()))
-			defer span.End()
-
-			if err := fn(ctx, meta, block); err != nil {
-				handleErr(fmt.Errorf("processing wal block (%s): %w", meta.BlockID, err))
-			}
-		}(b)
+			span.End()
+		}
 	}
+
+	if err := anyErr.Load(); err != nil {
+		return err
+	}
+
+	i.blocksMtx.RLock()
+	defer i.blocksMtx.RUnlock()
+
+	wg := boundedwaitgroup.New(i.Cfg.QueryBlockConcurrency)
 
 	// Process complete blocks
 	for _, b := range i.completeBlocks {
@@ -205,7 +205,7 @@ func (i *instance) Search(ctx context.Context, req *tempopb.SearchRequest) (*tem
 		}
 
 		if api.IsTraceQLQuery(req) {
-			// note: we are creating new engine for each wal block,
+			// note: we are creating new engine for each block,
 			// and engine.ExecuteSearch is parsing the query for each block
 			resp, err = traceql.NewEngine().ExecuteSearch(ctx, req, traceql.NewSpansetFetcherWrapper(func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
 				return b.Fetch(ctx, req, opts)
@@ -594,8 +594,6 @@ func (i *instance) FindByTraceID(ctx context.Context, traceID []byte, allowParti
 	if liveTrace, ok := i.liveTraces.Traces[util.HashForTraceID(traceID)]; ok {
 		tempTrace := &tempopb.Trace{}
 		tempTrace.ResourceSpans = liveTrace.Batches
-		// Previously there was some logic here to add inspected bytes in the ingester. But its hard to do with the different
-		// live traces format and feels inaccurate.
 		_, err := combiner.Consume(tempTrace)
 		if err != nil {
 			i.liveTracesMtx.Unlock()
@@ -603,6 +601,20 @@ func (i *instance) FindByTraceID(ctx context.Context, traceID []byte, allowParti
 		}
 	}
 	i.liveTracesMtx.Unlock()
+
+	// Check pending traces
+	pendingSnapshot := i.pendingTraces.Snapshot()
+	for _, pt := range pendingSnapshot {
+		if bytes.Equal(pt.ID, traceID) || traceMatchesID(pt.Batches, traceID) {
+			tempTrace := &tempopb.Trace{
+				ResourceSpans: pt.Batches,
+			}
+			_, err := combiner.Consume(tempTrace)
+			if err != nil {
+				return nil, fmt.Errorf("unable to unmarshal pendingTrace: %w", err)
+			}
+		}
+	}
 
 	search := func(ctx context.Context, _ *backend.BlockMeta, b block) error {
 		trace, err := b.FindTraceByID(ctx, traceID, searchOpts)
@@ -627,8 +639,25 @@ func (i *instance) FindByTraceID(ctx context.Context, traceID []byte, allowParti
 		return nil
 	}
 
-	err := i.iterateBlocks(ctx, time.Unix(0, 0), time.Unix(0, 0), search)
-	if err != nil {
+	// Only search complete blocks (liveTraces and pending were already searched above)
+	i.blocksMtx.RLock()
+	wg := boundedwaitgroup.New(i.Cfg.QueryBlockConcurrency)
+	var anyErr atomic.Error
+
+	for _, b := range i.completeBlocks {
+		meta := b.BlockMeta()
+		wg.Add(1)
+		go func(block *ingester.LocalBlock) {
+			defer wg.Done()
+			if err := search(ctx, meta, block); err != nil {
+				anyErr.Store(err)
+			}
+		}(b)
+	}
+	i.blocksMtx.RUnlock()
+	wg.Wait()
+
+	if err := anyErr.Load(); err != nil {
 		level.Error(i.logger).Log("msg", "error in FindTraceByID", "err", err)
 		return nil, fmt.Errorf("error searching for trace: %w", err)
 	}
@@ -686,8 +715,13 @@ func (i *instance) QueryRange(ctx context.Context, req *tempopb.QueryRangeReques
 	maxSeriesReached.Store(false)
 
 	search := func(ctx context.Context, _ *backend.BlockMeta, b block) error {
-		if walBlock, ok := b.(common.WALBlock); ok {
-			err := i.queryRangeWALBlock(ctx, walBlock, rawEval, maxSeries)
+		// Proto-based sources (protoSearcher) feed into rawEval via Fetch
+		if _, ok := b.(*protoSearcher); ok {
+			fetcher := traceql.NewSpansetFetcherWrapper(func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
+				return b.Fetch(ctx, req, common.DefaultSearchOptions())
+			})
+			m := b.(*protoSearcher).BlockMeta()
+			err := rawEval.Do(ctx, fetcher, uint64(m.StartTime.UnixNano()), uint64(m.EndTime.UnixNano()), maxSeries)
 			if err != nil {
 				return err
 			}
@@ -737,21 +771,6 @@ func (i *instance) QueryRange(ctx context.Context, req *tempopb.QueryRangeReques
 	return &tempopb.QueryRangeResponse{
 		Series: rr,
 	}, nil
-}
-
-func (i *instance) queryRangeWALBlock(ctx context.Context, b common.WALBlock, eval *traceql.MetricsEvaluator, maxSeries int) error {
-	m := b.BlockMeta()
-	ctx, span := tracer.Start(ctx, "instance.QueryRange.WALBlock", oteltrace.WithAttributes(
-		attribute.String("block", m.BlockID.String()),
-		attribute.Int64("blockSize", int64(m.Size_)),
-	))
-	defer span.End()
-
-	fetcher := traceql.NewSpansetFetcherWrapper(func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
-		return b.Fetch(ctx, req, common.DefaultSearchOptions())
-	})
-
-	return eval.Do(ctx, fetcher, uint64(m.StartTime.UnixNano()), uint64(m.EndTime.UnixNano()), maxSeries)
 }
 
 func (i *instance) queryRangeCompleteBlock(ctx context.Context, b *ingester.LocalBlock, req tempopb.QueryRangeRequest, timeOverlapCutoff float64, unsafe bool) ([]*tempopb.TimeSeries, error) {
@@ -816,7 +835,7 @@ func (i *instance) queryRangeCacheGet(ctx context.Context, m *backend.BlockMeta,
 	name := fmt.Sprintf("cache_query_range_%v.buf", hash)
 
 	keyPath := backend.KeyPathForBlock((uuid.UUID)(m.BlockID), m.TenantID)
-	reader, size, err := i.wal.LocalBackend().Read(ctx, name, keyPath, nil)
+	reader, size, err := i.localBackend.Read(ctx, name, keyPath, nil)
 	if err != nil {
 		if errors.Is(err, backend.ErrDoesNotExist) {
 			// Not cached, but return the name/keypath so it can be set after
@@ -847,7 +866,7 @@ func (i *instance) queryRangeCacheSet(ctx context.Context, m *backend.BlockMeta,
 	}
 
 	keyPath := backend.KeyPathForBlock((uuid.UUID)(m.BlockID), m.TenantID)
-	return i.wal.LocalBackend().Write(ctx, name, keyPath, bytes.NewReader(data), int64(len(data)), nil)
+	return i.localBackend.Write(ctx, name, keyPath, bytes.NewReader(data), int64(len(data)), nil)
 }
 
 func queryRangeHashForBlock(req tempopb.QueryRangeRequest) uint64 {
@@ -855,11 +874,6 @@ func queryRangeHashForBlock(req tempopb.QueryRangeRequest) uint64 {
 	h = fnv1a.AddUint64(h, req.Start)
 	h = fnv1a.AddUint64(h, req.End)
 	h = fnv1a.AddUint64(h, req.Step)
-
-	// TODO - caching for WAL blocks
-	// Including trace count means we can safely cache results
-	// for wal blocks which might receive new data
-	// h = fnv1a.AddUint64(h, m.TotalObjects)
 
 	return h
 }

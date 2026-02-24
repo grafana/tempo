@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/go-kit/log"
-	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	dto "github.com/prometheus/client_model/go"
 	"github.com/stretchr/testify/assert"
@@ -16,7 +15,7 @@ import (
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/util/test"
-	"github.com/grafana/tempo/tempodb/wal"
+	"github.com/grafana/tempo/tempodb/backend/local"
 )
 
 const (
@@ -25,11 +24,11 @@ const (
 
 // testSetup holds common test resources
 type testSetup struct {
-	tmpDir    string
-	wal       *wal.WAL
-	overrides overrides.Interface
-	instance  *instance
-	cleanup   func()
+	tmpDir       string
+	localBackend *local.Backend
+	overrides    overrides.Interface
+	instance     *instance
+	cleanup      func()
 }
 
 // setupTest creates a test instance with all required dependencies
@@ -46,25 +45,24 @@ func setupTest(t *testing.T) *testSetup {
 	cfg := &Config{}
 	cfg.RegisterFlagsAndApplyDefaults("", &flag.FlagSet{})
 
-	blockEnc, walEnc, err := coalesceBlockVersions(cfg)
+	blockEnc, _, err := coalesceBlockVersions(cfg)
 	require.NoError(t, err)
 
-	// Setup WAL config
-	w, err := wal.New(&wal.Config{
-		Filepath: tmpDir,
-		Version:  walEnc.Version(),
+	// Setup local backend for block storage
+	localBackend, err := local.NewBackend(&local.Config{
+		Path: tmpDir,
 	})
 	require.NoError(t, err)
 
-	instance, err := newInstance(testTenant, *cfg, w, blockEnc, o, log.NewNopLogger())
+	instance, err := newInstance(testTenant, *cfg, localBackend, blockEnc, o, log.NewNopLogger())
 	require.NoError(t, err)
 
 	return &testSetup{
-		tmpDir:    tmpDir,
-		wal:       w,
-		overrides: o,
-		instance:  instance,
-		cleanup:   func() {},
+		tmpDir:       tmpDir,
+		localBackend: localBackend,
+		overrides:    o,
+		instance:     instance,
+		cleanup:      func() {},
 	}
 }
 
@@ -130,8 +128,7 @@ func TestMetrics_PushBytesTracking(t *testing.T) {
 		"bytes received should increase by trace data size")
 
 	// Check live traces metric after cutting
-	err = setup.instance.cutIdleTraces(true) // immediate cut
-	require.NoError(t, err)
+	setup.instance.cutIdleTraces(true) // immediate cut
 
 	// Verify traces were created
 	finalTracesCreated, err := test.GetCounterValue(setup.instance.tracesCreatedTotal)
@@ -156,20 +153,14 @@ func TestMetrics_CompletionFlow(t *testing.T) {
 	}
 	setup.instance.pushBytes(t.Context(), time.Now(), req)
 
-	// Cut traces to head block
-	err = setup.instance.cutIdleTraces(true)
-	require.NoError(t, err)
-
-	// Cut block to prepare for completion
-	blockID, err := setup.instance.cutBlocks(true)
-	require.NoError(t, err)
-	assert.NotEqual(t, uuid.Nil, blockID, "should generate a valid block ID")
+	// Cut traces to pending
+	setup.instance.cutIdleTraces(true)
 
 	// Record initial completion size histogram count
 	initialCompletionSize := getHistogramCount(t, metricCompletionSize)
 
-	// Complete the block
-	err = setup.instance.completeBlock(context.Background(), blockID)
+	// Create complete block from pending
+	err = setup.instance.createBlockFromPending(context.Background())
 	require.NoError(t, err)
 
 	// Verify completion size metric was updated
