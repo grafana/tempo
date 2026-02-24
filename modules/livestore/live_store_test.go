@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/go-kit/log"
+	"github.com/grafana/dskit/kv"
 	"github.com/gogo/protobuf/proto"
 	"github.com/grafana/dskit/kv/consul"
 	"github.com/grafana/dskit/ring"
@@ -837,22 +838,12 @@ func TestLiveStoreKeepsPartitionOwnerOnShutdown(t *testing.T) {
 	liveStore, err := liveStoreWithConfig(t, cfg)
 	require.NoError(t, err)
 
-	// Verify owner is registered in the partition ring after startup
-	val, err := partitionKV.Get(t.Context(), PartitionRingKey)
-	require.NoError(t, err)
-	require.NotNil(t, val)
-	desc := ring.GetOrCreatePartitionRingDesc(val)
-	require.True(t, desc.HasOwner(cfg.Ring.InstanceID), "owner should be registered after startup")
+	requirePartitionOwnerEventually(t, partitionKV, cfg.Ring.InstanceID, true, "owner should be registered after startup")
 
 	// Stop the live store
 	_ = services.StopAndAwaitTerminated(t.Context(), liveStore)
 
-	// Verify owner is still registered after shutdown when RemoveOwnerOnShutdown is false
-	val, err = partitionKV.Get(t.Context(), PartitionRingKey)
-	require.NoError(t, err)
-	require.NotNil(t, val)
-	desc = ring.GetOrCreatePartitionRingDesc(val)
-	require.True(t, desc.HasOwner(cfg.Ring.InstanceID), "owner should remain registered after shutdown when RemoveOwnerOnShutdown is false")
+	requirePartitionOwnerEventually(t, partitionKV, cfg.Ring.InstanceID, true, "owner should remain registered after shutdown when RemoveOwnerOnShutdown is false")
 }
 
 func TestLiveStoreDownscaleOverridesConfig(t *testing.T) {
@@ -865,12 +856,7 @@ func TestLiveStoreDownscaleOverridesConfig(t *testing.T) {
 	liveStore, err := liveStoreWithConfig(t, cfg)
 	require.NoError(t, err)
 
-	// Verify owner is registered in the partition ring after startup
-	val, err := partitionKV.Get(t.Context(), PartitionRingKey)
-	require.NoError(t, err)
-	require.NotNil(t, val)
-	desc := ring.GetOrCreatePartitionRingDesc(val)
-	require.True(t, desc.HasOwner(cfg.Ring.InstanceID), "owner should be registered after startup")
+	requirePartitionOwnerEventually(t, partitionKV, cfg.Ring.InstanceID, true, "owner should be registered after startup")
 
 	// Simulate downscale API call which explicitly sets remove owner on shutdown
 	liveStore.setPrepareShutdown()
@@ -878,10 +864,19 @@ func TestLiveStoreDownscaleOverridesConfig(t *testing.T) {
 	// Stop the live store
 	_ = services.StopAndAwaitTerminated(t.Context(), liveStore)
 
-	// Verify owner is removed even though config says not to, because downscale overrides
-	val, err = partitionKV.Get(t.Context(), PartitionRingKey)
-	require.NoError(t, err)
-	require.NotNil(t, val)
-	desc = ring.GetOrCreatePartitionRingDesc(val)
-	require.False(t, desc.HasOwner(cfg.Ring.InstanceID), "owner should be removed after shutdown when downscale was triggered")
+	requirePartitionOwnerEventually(t, partitionKV, cfg.Ring.InstanceID, false, "owner should be removed after shutdown when downscale was triggered")
+}
+
+func requirePartitionOwnerEventually(t *testing.T, partitionKV kv.Client, instanceID string, expected bool, msg string) {
+	t.Helper()
+
+	require.Eventually(t, func() bool {
+		val, err := partitionKV.Get(t.Context(), PartitionRingKey)
+		if err != nil {
+			return false
+		}
+
+		desc := ring.GetOrCreatePartitionRingDesc(val)
+		return desc.HasOwner(instanceID) == expected
+	}, 5*time.Second, 10*time.Millisecond, msg)
 }
