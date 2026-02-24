@@ -31,7 +31,7 @@ func CheckNoChanges() error {
 		return fmt.Errorf("failed running go mod tidy, please fix the issues reported: %w", err)
 	}
 	fmt.Println(">> fmt - git diff")
-	err = sh.RunV("git", "diff")
+	err = sh.RunV("git", "--no-pager", "diff")
 	if err != nil {
 		return fmt.Errorf("failed running git diff, please fix the issues reported: %w", err)
 	}

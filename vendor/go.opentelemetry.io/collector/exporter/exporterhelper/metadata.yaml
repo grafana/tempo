@@ -33,6 +33,16 @@ telemetry:
         value_type: int
         monotonic: true
 
+    exporter_enqueue_failed_profile_samples:
+      enabled: true
+      stability:
+        level: development
+      description: Number of profile samples failed to be added to the sending queue.
+      unit: "{samples}"
+      sum:
+        value_type: int
+        monotonic: true
+
     exporter_enqueue_failed_spans:
       enabled: true
       stability:
@@ -46,6 +56,8 @@ telemetry:
     exporter_queue_batch_send_size:
       enabled: true
       description: Number of units in the batch
+      stability:
+        level: development
       unit: "{units}"
       histogram:
         value_type: int
@@ -78,6 +90,8 @@ telemetry:
     exporter_queue_batch_send_size_bytes:
       enabled: true
       description: Number of bytes in batch that was sent. Only available on detailed level.
+      stability:
+        level: development
       unit: By
       histogram:
         value_type: int
@@ -139,6 +153,16 @@ telemetry:
         value_type: int
         monotonic: true
 
+    exporter_send_failed_profile_samples:
+      enabled: true
+      stability:
+        level: development
+      description: Number of profile samples in failed attempts to send to destination.
+      unit: "{samples}"
+      sum:
+        value_type: int
+        monotonic: true
+
     exporter_send_failed_spans:
       enabled: true
       stability:
@@ -165,6 +189,16 @@ telemetry:
         level: alpha
       description: Number of metric points successfully sent to destination.
       unit: "{datapoints}"
+      sum:
+        value_type: int
+        monotonic: true
+
+    exporter_sent_profile_samples:
+      enabled: true
+      stability:
+        level: development
+      description: Number of profile samples successfully sent to destination.
+      unit: "{samples}"
       sum:
         value_type: int
         monotonic: true

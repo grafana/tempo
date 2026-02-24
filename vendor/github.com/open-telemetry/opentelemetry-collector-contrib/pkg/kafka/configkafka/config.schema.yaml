@@ -1,0 +1,215 @@
+$defs:
+  authentication_config:
+    description: AuthenticationConfig defines authentication-related configuration.
+    type: object
+    properties:
+      kerberos:
+        description: Kerberos holds Kerberos authentication configuration.
+        x-pointer: true
+        $ref: kerberos_config
+      plain_text:
+        description: 'PlainText is an alias for SASL/PLAIN authentication. Deprecated [v0.123.0]: use SASL with Mechanism set to PLAIN instead.'
+        x-pointer: true
+        $ref: plain_text_config
+      sasl:
+        description: SASL holds SASL authentication configuration.
+        x-pointer: true
+        $ref: sasl_config
+      tls:
+        description: 'TLS holds TLS configuration for connecting to Kafka brokers. Deprecated [v0.124.0]: use ClientConfig.TLS instead. This will be used only if ClientConfig.TLS is not set.'
+        x-pointer: true
+        $ref: go.opentelemetry.io/collector/config/configtls.client_config
+  auto_commit_config:
+    type: object
+    properties:
+      enable:
+        description: Whether or not to auto-commit updated offsets back to the broker. (default enabled).
+        type: boolean
+      interval:
+        description: How frequently to commit updated offsets. Ineffective unless auto-commit is enabled (default 1s)
+        type: string
+        format: duration
+  awsmsk_config:
+    description: AWSMSKConfig defines the additional SASL authentication measures needed to use the AWS_MSK_IAM_OAUTHBEARER mechanism
+    type: object
+    properties:
+      region:
+        description: Region is the AWS region the MSK cluster is based in
+        type: string
+  client_config:
+    type: object
+    properties:
+      auth:
+        description: Authentication holds Kafka authentication details.
+        $ref: authentication_config
+      brokers:
+        description: Brokers holds the list of Kafka bootstrap servers (default localhost:9092).
+        type: array
+        items:
+          type: string
+      client_id:
+        description: ClientID holds the client ID advertised to Kafka, which can be used for enforcing ACLs, throttling quotas, and more (default "otel-collector")
+        type: string
+      metadata:
+        description: Metadata holds metadata-related configuration for producers and consumers.
+        $ref: metadata_config
+      protocol_version:
+        description: ProtocolVersion defines the Kafka protocol version that the client will assume it is running against.
+        type: string
+      rack_id:
+        description: RackID provides the rack identifier for this client to enable rack-aware replica selection when supported by the brokers. This maps to Kafka's standard "client.rack" setting. By default, this is empty.
+        type: string
+      resolve_canonical_bootstrap_servers_only:
+        description: ResolveCanonicalBootstrapServersOnly configures the Kafka client to perform a DNS lookup on each of the provided brokers, and then perform a reverse lookup on the resulting IPs to obtain the canonical hostnames to use as the bootstrap servers. This can be required in SASL environments.
+        type: boolean
+      tls:
+        description: TLS holds TLS-related configuration for connecting to Kafka brokers. By default the client will use an insecure connection unless SASL/AWS_MSK_IAM_OAUTHBEARER auth is configured.
+        x-pointer: true
+        $ref: go.opentelemetry.io/collector/config/configtls.client_config
+      use_leader_epoch:
+        description: 'When enabled, the consumer uses the leader epoch returned by brokers (KIP-320) to detect log truncation. Setting this to false clears the leader epoch from fetch offsets, disabling KIP-320. Disabling can improve compatibility with brokers that don’t fully support leader epochs (e.g., Azure Event Hubs), at the cost of losing automatic log-truncation safety. NOTE: this is experimental and may be removed in a future release.'
+        type: boolean
+  consumer_config:
+    type: object
+    properties:
+      autocommit:
+        description: AutoCommit controls the auto-commit functionality of the consumer.
+        $ref: auto_commit_config
+      group_id:
+        description: GroupID specifies the ID of the consumer group that will be consuming messages from (default "otel-collector").
+        type: string
+      group_instance_id:
+        description: GroupInstanceID specifies the ID of the consumer
+        type: string
+      group_rebalance_strategy:
+        description: GroupRebalanceStrategy specifies the strategy to use for partition assignment. Possible values are "range", "roundrobin", "sticky", and "cooperative-sticky". Defaults to "cooperative-sticky"
+        $ref: group_rebalance_strategy
+      heartbeat_interval:
+        description: HeartbeatInterval controls the Kafka consumer group coordination heartbeat interval. Heartbeats ensure the consumer's session remains active.
+        type: string
+        format: duration
+      initial_offset:
+        description: InitialOffset specifies the initial offset to use if no offset was previously committed. Must be `latest` or `earliest` (default "latest").
+        type: string
+      max_fetch_size:
+        description: The maximum bytes per fetch from Kafka (default "1048576")
+        type: integer
+        x-customType: int32
+      max_fetch_wait:
+        description: The maximum amount of time to wait for MinFetchSize bytes to be available before the broker returns a response (default 250ms)
+        type: string
+        format: duration
+      max_partition_fetch_size:
+        description: MaxPartitionFetchSize defines the maximum number of bytes to fetch per partition (default "1048576")
+        type: integer
+        x-customType: int32
+      min_fetch_size:
+        description: The minimum bytes per fetch from Kafka (default "1")
+        type: integer
+        x-customType: int32
+      session_timeout:
+        description: SessionTimeout controls the Kafka consumer group session timeout. The session timeout is used to detect the consumer's liveness.
+        type: string
+        format: duration
+  group_rebalance_strategy:
+    description: GroupRebalanceStrategy defines the strategy to use for partition assignment.
+    type: string
+  kerberos_config:
+    description: KerberosConfig defines kerberos configuration.
+    type: object
+    properties:
+      config_file:
+        type: string
+      disable_fast_negotiation:
+        type: boolean
+      keytab_file:
+        type: string
+      password:
+        type: string
+      realm:
+        type: string
+      service_name:
+        type: string
+      use_keytab:
+        type: boolean
+      username:
+        type: string
+  metadata_config:
+    type: object
+    properties:
+      full:
+        description: Whether to maintain a full set of metadata for all topics, or just the minimal set that has been necessary so far. The full set is simpler and usually more convenient, but can take up a substantial amount of memory if you have many topics and partitions. Defaults to true.
+        type: boolean
+      refresh_interval:
+        description: RefreshInterval controls the frequency at which cluster metadata is refreshed. Defaults to 10 minutes.
+        type: string
+        format: duration
+      retry:
+        description: Retry configuration for metadata. This configuration is useful to avoid race conditions when broker is starting at the same time as collector.
+        $ref: metadata_retry_config
+  metadata_retry_config:
+    description: MetadataRetryConfig defines retry configuration for Metadata.
+    type: object
+    properties:
+      backoff:
+        description: How long to wait for leader election to occur before retrying (default 250ms). Similar to the JVM's `retry.backoff.ms`.
+        type: string
+        format: duration
+      max:
+        description: The total number of times to retry a metadata request when the cluster is in the middle of a leader election or at startup (default 3).
+        type: integer
+  plain_text_config:
+    description: PlainTextConfig defines plaintext authentication.
+    type: object
+    properties:
+      password:
+        type: string
+      username:
+        type: string
+  producer_config:
+    type: object
+    properties:
+      allow_auto_topic_creation:
+        description: Whether or not to allow automatic topic creation. (default enabled).
+        type: boolean
+      compression:
+        description: 'Compression Codec used to produce messages https://pkg.go.dev/github.com/twmb/franz-go/pkg/kgo#CompressionCodec The options are: ''none'' (default), ''gzip'', ''snappy'', ''lz4'', and ''zstd'''
+        type: string
+      compression_params:
+        description: CompressionParams defines compression parameters for the producer.
+        $ref: go.opentelemetry.io/collector/config/configcompression.compression_params
+      flush_max_messages:
+        description: The maximum number of messages the producer will send in a single broker request. Defaults to 10000 (franz-go default). Similar to `queue.buffering.max.messages` in the JVM producer.
+        type: integer
+      linger:
+        description: Linger controls the linger time for the producer. (default 10ms).
+        type: string
+        format: duration
+      max_message_bytes:
+        description: Maximum message bytes the producer will accept to produce (default 1000000)
+        type: integer
+      required_acks:
+        description: 'RequiredAcks holds the number acknowledgements required before producing returns successfully. See: https://docs.confluent.io/platform/current/installation/configuration/producer-configs.html#acks Acceptable values are: 0 (NoResponse)   Does not wait for any acknowledgements. 1 (WaitForLocal) Waits for only the leader to write the record to its local log, but does not wait for followers to acknowledge. (default) -1 (WaitForAll)   Waits for all in-sync replicas to acknowledge. In YAML configuration, "all" is accepted as an alias for -1.'
+        $ref: required_acks
+  required_acks:
+    description: RequiredAcks defines record acknowledgement behavior for producers.
+    type: integer
+  sasl_config:
+    description: SASLConfig defines the configuration for the SASL authentication.
+    type: object
+    properties:
+      aws_msk:
+        description: AWSMSK holds configuration specific to AWS MSK.
+        $ref: awsmsk_config
+      mechanism:
+        description: 'SASL Mechanism to be used, possible values are: (PLAIN, AWS_MSK_IAM_OAUTHBEARER, SCRAM-SHA-256 or SCRAM-SHA-512).'
+        type: string
+      password:
+        description: Password to be used on authentication
+        type: string
+      username:
+        description: Username to be used on authentication
+        type: string
+      version:
+        description: 'SASL Protocol Version to be used, possible values are: (0, 1). Defaults to 0.'
+        type: integer

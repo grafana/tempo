@@ -59,7 +59,7 @@ const (
 	severityNumberStatement = `((severity_number == SEVERITY_NUMBER_UNSPECIFIED and %v) or (severity_number != SEVERITY_NUMBER_UNSPECIFIED and severity_number >= %d))`
 )
 
-func NewLogSkipExprBridge(mc *filterconfig.MatchConfig) (expr.BoolExpr[ottllog.TransformContext], error) {
+func NewLogSkipExprBridge(mc *filterconfig.MatchConfig) (expr.BoolExpr[*ottllog.TransformContext], error) {
 	statements := make([]string, 0, 2)
 	if mc.Include != nil {
 		if err := mc.Include.ValidateForLogs(); err != nil {
@@ -86,7 +86,7 @@ func NewLogSkipExprBridge(mc *filterconfig.MatchConfig) (expr.BoolExpr[ottllog.T
 	return NewBoolExprForLog(statements, StandardLogFuncs(), ottl.PropagateError, component.TelemetrySettings{Logger: zap.NewNop()})
 }
 
-func NewResourceSkipExprBridge(mc *filterconfig.MatchConfig) (expr.BoolExpr[ottlresource.TransformContext], error) {
+func NewResourceSkipExprBridge(mc *filterconfig.MatchConfig) (expr.BoolExpr[*ottlresource.TransformContext], error) {
 	statements := make([]string, 0, 2)
 	if mc.Include != nil {
 		// OTTL treats resource attributes as attributes for the resource context.
@@ -115,7 +115,7 @@ func NewResourceSkipExprBridge(mc *filterconfig.MatchConfig) (expr.BoolExpr[ottl
 	return NewBoolExprForResource(statements, StandardResourceFuncs(), ottl.PropagateError, component.TelemetrySettings{Logger: zap.NewNop()})
 }
 
-func NewSpanSkipExprBridge(mc *filterconfig.MatchConfig) (expr.BoolExpr[ottlspan.TransformContext], error) {
+func NewSpanSkipExprBridge(mc *filterconfig.MatchConfig) (expr.BoolExpr[*ottlspan.TransformContext], error) {
 	statements := make([]string, 0, 2)
 	if mc.Include != nil {
 		statement, err := createStatement(*mc.Include)
@@ -348,7 +348,7 @@ func createSeverityNumberConditions(severityNumberProperties *filterconfig.LogSe
 	return &severityNumberCondition
 }
 
-func NewMetricSkipExprBridge(include, exclude *filterconfig.MetricMatchProperties) (expr.BoolExpr[ottlmetric.TransformContext], error) {
+func NewMetricSkipExprBridge(include, exclude *filterconfig.MetricMatchProperties) (expr.BoolExpr[*ottlmetric.TransformContext], error) {
 	statements := make([]string, 0, 2)
 	if include != nil {
 		statement, err := createMetricStatement(*include)
