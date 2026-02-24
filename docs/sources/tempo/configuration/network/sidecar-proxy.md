@@ -55,7 +55,7 @@ live_store:
        instance_port: 12345
 ```
 
-Now, the live-store is listening for regular traffic on port 9095, but other components will route traffic to it on port 12345.
+Now, the live-store is listening for regular traffic on port 9095, but other components route traffic to it on port 12345.
 
 ## Metrics-generator proxy
 
