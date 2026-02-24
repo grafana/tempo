@@ -36,26 +36,27 @@ The architecture mirrors that of the OpenTelemetry Collector's [design](https://
 
 Refer to the [components reference](https://grafana.com/docs/alloy/latest/reference/components/) for all available configuration options.
 
-```mermaid
-flowchart LR
-    subgraph receivers [Receivers]
-        OTLP
-        Jaeger
-        Zipkin
-        Kafka
-    end
-    subgraph processors [Processors]
-        Batch
-        Attributes
-        K8sAttributes["K8s Attributes"]
-        TailSampling["Tail Sampling"]
-    end
-    subgraph exporters [Exporters]
-        OTLPExporter["OTLP to Tempo"]
-        OTLPHTTPExporter["OTLP/HTTP to Tempo"]
-    end
-    receivers --> processors --> exporters
-```
+<p align="center"><img src="alloy-pipeline-architecture.svg" alt="Alloy tracing pipeline architecture showing receivers, processors, and exporters"></p>
+
+[//]: # 'Mermaid source for the diagram above (kept for future reference):'
+[//]: # 'flowchart LR'
+[//]: # '    subgraph receivers [Receivers]'
+[//]: # '        OTLP'
+[//]: # '        Jaeger'
+[//]: # '        Zipkin'
+[//]: # '        Kafka'
+[//]: # '    end'
+[//]: # '    subgraph processors [Processors]'
+[//]: # '        Batch'
+[//]: # '        Attributes'
+[//]: # '        K8sAttributes["K8s Attributes"]'
+[//]: # '        TailSampling["Tail Sampling"]'
+[//]: # '    end'
+[//]: # '    subgraph exporters [Exporters]'
+[//]: # '        OTLPExporter["OTLP to Tempo"]'
+[//]: # '        OTLPHTTPExporter["OTLP/HTTP to Tempo"]'
+[//]: # '    end'
+[//]: # '    receivers --> processors --> exporters'
 
 This lets you configure multiple distinct tracing
 pipelines, each of which collects separate spans and sends them to different

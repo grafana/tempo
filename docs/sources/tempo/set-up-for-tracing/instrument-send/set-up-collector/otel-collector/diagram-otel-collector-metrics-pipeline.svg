@@ -1,0 +1,54 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 240">
+  <style>
+    text { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+  </style>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#78909C"/>
+    </marker>
+  </defs>
+
+  <rect width="100%" height="100%" fill="#FFFFFF"/>
+
+  <!-- OTLP Receiver -->
+  <rect x="10" y="94" width="120" height="52" rx="6" fill="#E3F2FD" stroke="#1565C0" stroke-width="1.5"/>
+  <text x="70" y="116" text-anchor="middle" font-size="11" font-weight="500" fill="#333">OTLP</text>
+  <text x="70" y="130" text-anchor="middle" font-size="11" font-weight="500" fill="#333">Receiver</text>
+
+  <!-- Shared branch line -->
+  <line x1="130" y1="120" x2="170" y2="120" stroke="#78909C" stroke-width="1.5"/>
+
+  <!-- Branch to top: spanmetrics -->
+  <path d="M 170 120 V 55 H 225" fill="none" stroke="#78909C" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+  <!-- Branch to bottom: tail_sampling -->
+  <path d="M 170 120 V 185 H 225" fill="none" stroke="#78909C" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+  <!-- spanmetrics connector -->
+  <rect x="225" y="29" width="145" height="52" rx="6" fill="#E3F2FD" stroke="#1565C0" stroke-width="1.5"/>
+  <text x="297" y="51" text-anchor="middle" font-size="11" font-weight="500" fill="#333">spanmetrics</text>
+  <text x="297" y="65" text-anchor="middle" font-size="11" font-weight="500" fill="#333">connector</text>
+
+  <!-- Arrow: metrics -->
+  <line x1="370" y1="55" x2="465" y2="55" stroke="#78909C" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <text x="417" y="45" text-anchor="middle" font-size="9" fill="#78909C" font-style="italic">metrics</text>
+
+  <!-- Prometheus Remote Write -->
+  <rect x="470" y="29" width="150" height="52" rx="6" fill="#E8F5E9" stroke="#2E7D32" stroke-width="1.5"/>
+  <text x="545" y="51" text-anchor="middle" font-size="11" font-weight="500" fill="#333">Prometheus</text>
+  <text x="545" y="65" text-anchor="middle" font-size="11" font-weight="500" fill="#333">Remote Write</text>
+
+  <!-- tail_sampling processor -->
+  <rect x="225" y="159" width="145" height="52" rx="6" fill="#E3F2FD" stroke="#1565C0" stroke-width="1.5"/>
+  <text x="297" y="181" text-anchor="middle" font-size="11" font-weight="500" fill="#333">tail_sampling</text>
+  <text x="297" y="195" text-anchor="middle" font-size="11" font-weight="500" fill="#333">processor</text>
+
+  <!-- Arrow: sampled traces -->
+  <line x1="370" y1="185" x2="465" y2="185" stroke="#78909C" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <text x="417" y="175" text-anchor="middle" font-size="9" fill="#78909C" font-style="italic">sampled traces</text>
+
+  <!-- OTLP Exporter (to Tempo) -->
+  <rect x="470" y="159" width="150" height="52" rx="6" fill="#EDE7F6" stroke="#7B1FA2" stroke-width="1.5"/>
+  <text x="545" y="181" text-anchor="middle" font-size="11" font-weight="500" fill="#333">OTLP Exporter</text>
+  <text x="545" y="195" text-anchor="middle" font-size="10" fill="#666">(to Tempo)</text>
+</svg>

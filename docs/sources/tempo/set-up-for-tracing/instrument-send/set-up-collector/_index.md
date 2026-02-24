@@ -36,6 +36,8 @@ Refer to [Collect and forward data with Alloy](https://grafana.com/docs/alloy/<A
 
 The OpenTelemetry project maintainers and the Cloud Native Computing Foundation maintain the upstream OpenTelemetry Collector. This is a community-supported project.
 
+Refer to the [OpenTelemetry Collector documentation](/docs/tempo/<TEMPO_VERSION>/set-up-for-tracing/instrument-send/set-up-collector/otel-collector/) for Tempo-specific configuration guidance, including examples for sending traces to Tempo using OTLP.
+
 Refer to the [Install the Collector documentation](https://opentelemetry.io/docs/collector/installation/) for instructions on installation.
 
-Refer to the [OpenTelemetry Collector documentation](https://github.com/grafana/opentelemetry-docs/blob/main/docs/sources/collector/opentelemetry-collector) to use the upstream OpenTelemetry Collector with Grafana Labs products.
+Refer to the [Grafana OpenTelemetry Collector documentation](https://grafana.com/docs/opentelemetry/collector/opentelemetry-collector/) to use the upstream OpenTelemetry Collector with Grafana Labs products.
