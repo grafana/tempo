@@ -931,6 +931,9 @@ func TestTempoDBQueryRange(t *testing.T) {
 
 	for _, tc := range queryRangeTestCases {
 		runTestWithHint := func(t *testing.T, queryHint string) {
+			if len(queryHint) > 0 {
+				tc.req.Query += " with(" + queryHint + ")"
+			}
 			eval, err := e.CompileMetricsQueryRange(tc.req, 0, false)
 			require.NoError(t, err)
 
