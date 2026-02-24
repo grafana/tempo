@@ -108,28 +108,22 @@ func (c *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
 	f.StringVar(&c.WAL.Filepath, prefix+".wal.path", "/var/tempo/block-builder/traces", "Path at which store WAL blocks.")
 }
 
-// coalesceBlockVersion resolves the block encoding from configs.
-// Starts with the default version and overrides as each layer is checked (global block config, then block_config).
-// The WAL version always follows the block version.
-// Returns an error if the resolved version isn't writable.
+// coalesceBlockVersion resolves the block encoding version using the shared
+// encoding.CoalesceVersion helper. Priority: default < storage.trace.block < block_builder.block.
+// The WAL version always follows the resolved block version.
 func coalesceBlockVersion(cfg *Config) (encoding.VersionedEncoding, error) {
-	ver := encoding.DefaultEncoding().Version()
-
-	if cfg.GlobalBlockConfig != nil && cfg.GlobalBlockConfig.Version != "" {
-		ver = cfg.GlobalBlockConfig.Version
+	globalVer := ""
+	if cfg.GlobalBlockConfig != nil {
+		globalVer = cfg.GlobalBlockConfig.Version
 	}
 
-	if cfg.BlockConfig.BlockCfg.Version != "" {
-		ver = cfg.BlockConfig.BlockCfg.Version
-	}
-
-	enc, err := encoding.FromVersionForWrites(ver)
+	enc, err := encoding.CoalesceVersion(globalVer, cfg.BlockConfig.BlockCfg.Version)
 	if err != nil {
 		return nil, fmt.Errorf("block version validation failed: %w", err)
 	}
 
-	cfg.BlockConfig.BlockCfg.Version = ver
-	cfg.WAL.Version = ver
+	cfg.BlockConfig.BlockCfg.Version = enc.Version()
+	cfg.WAL.Version = enc.Version()
 
 	return enc, nil
 }
