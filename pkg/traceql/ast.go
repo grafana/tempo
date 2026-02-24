@@ -439,9 +439,9 @@ func (f *SpansetFilter) evaluate(input []*Spanset) ([]*Spanset, error) {
 
 	fork := func(i int) {
 		if !forked {
-			// First we are working the output, so copy all previously identical spansets into the output.
+			// The output is being intially forked, so copy all previously identical spansets into the output.
 			if i > 0 {
-				outputBuffer = append(outputBuffer, input[:i-1]...)
+				outputBuffer = append(outputBuffer, input[:i]...)
 			}
 		}
 		forked = true
