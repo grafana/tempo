@@ -60,7 +60,7 @@ services:
       - alloy
 
   alloy:
-    image: grafana/alloy:v1.13.0@sha256:6616111d70b3c75d5aa177e0584a523403eaba0eb3b177cb387302c2206d5221
+    image: grafana/alloy:v1.13.1@sha256:03529aec781901a72a354809650028435043406e707c6fb8953dc6e48f97727d
     volumes:
       - ./config.alloy:/etc/alloy/config.alloy
     command:

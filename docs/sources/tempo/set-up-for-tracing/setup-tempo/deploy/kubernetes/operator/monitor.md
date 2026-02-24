@@ -14,7 +14,7 @@ You can configure the Tempo Operator to monitor TempoStack instances (including 
 
 ## Monitor TempoStack instances
 
-The Tempo Operator supports monitoring and alerting of each Tempo component (distributor, ingester, etc.).
+The Tempo Operator supports monitoring and alerting of each Tempo component (distributor, block-builder, live-store, querier, etc.).
 To enable metrics and alerting, the [Prometheus Operator](https://github.com/prometheus-operator/prometheus-operator) or a comparable solution which discovers `ServiceMonitor` and `PrometheusRule` objects must be installed and configured in the cluster.
 
 The configuration for monitoring `TempoStack` instances is exposed in the CR:

@@ -373,6 +373,7 @@ func (t *App) initBlockBuilder() (services.Service, error) {
 
 	t.cfg.BlockBuilder.IngestStorageConfig = t.cfg.Ingest
 	t.cfg.BlockBuilder.IngestStorageConfig.Kafka.ConsumerGroup = blockbuilder.ConsumerGroup
+	t.cfg.BlockBuilder.GlobalBlockConfig = t.cfg.StorageConfig.Trace.Block
 
 	if IsSingleBinary(t.cfg.Target) && len(t.cfg.BlockBuilder.AssignedPartitionsMap) == 0 {
 		// In SingleBinary mode always use partition 0. This is for small installs or local/debugging setups.
@@ -406,8 +407,6 @@ func (t *App) initQuerier() (services.Service, error) {
 	querier, err := querier.New(
 		t.cfg.Querier,
 		liveStoreRing,
-		t.cfg.GeneratorClient,
-		t.readRings[ringMetricsGenerator],
 		t.cfg.LiveStoreClient,
 		t.partitionRing,
 		t.cfg.Frontend.TraceByID.ExternalEnabled,
@@ -785,7 +784,7 @@ func (t *App) setupModuleManager() error {
 		Distributor:                   {Common, LiveStoreRing, MetricsGeneratorRing, PartitionRing},
 		MetricsGenerator:              {Common, OptionalStore, MemberlistKV, PartitionRing},
 		MetricsGeneratorNoLocalBlocks: {Common, GeneratorRingWatcher},
-		Querier:                       {Common, Store, LiveStoreRing, MetricsGeneratorRing, PartitionRing},
+		Querier:                       {Common, Store, LiveStoreRing, PartitionRing},
 		BlockBuilder:                  {Common, Store, MemberlistKV, PartitionRing},
 		BackendScheduler:              {Common, Store},
 		BackendWorker:                 {Common, Store, MemberlistKV},
