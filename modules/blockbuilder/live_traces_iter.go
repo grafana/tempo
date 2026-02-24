@@ -112,22 +112,7 @@ func (i *liveTracesIter) iter(ctx context.Context) {
 			}
 
 			// Deduplicate spans within the trace
-			seen := make(map[uint64]struct{})
-			for _, rs := range tr.ResourceSpans {
-				for _, ss := range rs.ScopeSpans {
-					unique := ss.Spans[:0]
-					for _, s := range ss.Spans {
-						token := util.SpanIDAndKindToToken(s.SpanId, int(s.Kind))
-						if _, ok := seen[token]; !ok {
-							seen[token] = struct{}{}
-							unique = append(unique, s)
-						} else {
-							i.dedupedSpans++
-						}
-					}
-					ss.Spans = unique
-				}
-			}
+			i.dedupedSpans += dedupeTrace(tr)
 
 			// Update block timestamp bounds
 			for _, b := range tr.ResourceSpans {
@@ -182,6 +167,29 @@ func (i *liveTracesIter) DedupedSpans() int {
 
 func (i *liveTracesIter) Close() {
 	i.cancel()
+}
+
+// dedupeTrace removes duplicate spans in-place from tr, deduplicating by span ID and kind.
+// Returns the number of removed duplicate spans.
+func dedupeTrace(tr *tempopb.Trace) int {
+	seen := make(map[uint64]struct{})
+	deduped := 0
+	for _, rs := range tr.ResourceSpans {
+		for _, ss := range rs.ScopeSpans {
+			unique := ss.Spans[:0]
+			for _, s := range ss.Spans {
+				token := util.SpanIDAndKindToToken(s.SpanId, int(s.Kind))
+				if _, ok := seen[token]; !ok {
+					seen[token] = struct{}{}
+					unique = append(unique, s)
+				} else {
+					deduped++
+				}
+			}
+			ss.Spans = unique
+		}
+	}
+	return deduped
 }
 
 var _ common.Iterator = (*liveTracesIter)(nil)
