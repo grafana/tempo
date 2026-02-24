@@ -126,7 +126,12 @@
     statefulSet.mixin.spec.updateStrategy.withType('OnDelete') +
     statefulSet.mixin.spec.template.spec.withTerminationGracePeriodSeconds(1200) +
     (
-      if $._config.live_store.replicas > 0 then $.removeReplicasFromSpec else statefulSet.mixin.spec.withReplicas(0)
+      if $._config.live_store.replicas > 0 then {
+        spec+: {
+          // Remove the "replicas" field so that it isn't reconciled.
+          replicas+:: null,
+        },
+      } else statefulSet.mixin.spec.withReplicas(0)
     ) +  // Zone-aware live-store statefulsets follow the replicas in the ReplicaTemplate
     (if !std.isObject($._config.node_selector) then {} else statefulSet.mixin.spec.template.spec.withNodeSelectorMixin($._config.node_selector)) +
     statefulSet.spec.template.spec.securityContext.withFsGroup(10001) +  // 10001 is the UID of the tempo user
