@@ -5,8 +5,8 @@ import (
 	"context"
 	"time"
 
-	v1 "github.com/grafana/tempo/pkg/tempopb/common/v1"
 	"github.com/grafana/tempo/pkg/tempopb"
+	v1 "github.com/grafana/tempo/pkg/tempopb/common/v1"
 	trace_v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 	"github.com/grafana/tempo/pkg/traceql"
 	"github.com/grafana/tempo/tempodb/backend"
