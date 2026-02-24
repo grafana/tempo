@@ -718,20 +718,6 @@ func createSpanIterators(
 		optional = append(optional, attrIter)
 	}
 
-	/*if len(innerIterators) != 0 {
-		required = innerIterators
-	}*/
-
-	/*minCount := 0
-	if allConditions {
-		// The final number of expected attributes.
-		distinct := map[string]struct{}{}
-		for _, cond := range conditions {
-			distinct[cond.Attribute.Name] = struct{}{}
-		}
-		minCount = len(distinct)
-	}*/
-
 	// This is an optimization for when all of the span conditions must be met.
 	// We simply move all iterators into the required list.
 	if allConditions {
@@ -739,21 +725,17 @@ func createSpanIterators(
 		optional = nil
 	}
 
-	// if there are no direct conditions imposed on the span/span attributes level we are purposefully going to request the "Kind" column
-	//  b/c it is extremely cheap to retrieve. retrieving matching spans in this case will allow aggregates such as "count" to be computed
-	//  how do we know to pull duration for things like | avg(duration) > 1s? look at avg(span.http.status_code) it pushes a column request down here
-	//  the entire engine is built around spans. we have to return at least one entry for every span to the layers above for things to work
-	// TODO: note that if the query is { kind = client } the fetch layer will actually create two iterators over the kind column. this is evidence
-	//  this spaniterator code could be tightened up
-	// Also note that this breaks optimizations related to requireAtLeastOneMatch and requireAtLeastOneMatchOverall b/c it will add a kind attribute
-	//  to the span attributes map in spanCollector
+	// The driver is iterator 0, and defines the rows returned to the collector.  Reset()
+	// is called for every row returned by the driver. Because we want spans, we always use
+	// either a span intrinsic like StartTimeUnixNanos for metrics, or the virtual row number
+	// iterator for other cases.
 	if needDriver {
 		if len(required) == 0 {
 			var pred parquetquery.Predicate
 			if sampler != nil {
 				pred = newSamplingPredicate(sampler, nil)
 			}
-			driver = makeIter(columnPathSpanStatusCode, pred, "")
+			driver = newVirtualRowNumberIterator(makeIter(columnPathScopeSpansSpanCount, pred, "spanCount"), DefinitionLevelResourceSpansILSSpan)
 		} else {
 			// use the first required iterator as the driver
 			driver = required[0]
