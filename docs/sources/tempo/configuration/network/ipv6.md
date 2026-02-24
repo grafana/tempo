@@ -47,7 +47,7 @@ server:
 
 ## Kubernetes service configuration
 
-Each service fronting the workloads will need to be configured with `spec.ipFamilies` and `spec.ipFamilyPolicy` set. See this `backend-worker` example.
+Each service fronting the workloads needs to be configured with `spec.ipFamilies` and `spec.ipFamilyPolicy` set. Refer to this `backend-worker` example:
 
 ```yaml
 apiVersion: v1
