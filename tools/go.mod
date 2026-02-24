@@ -3,7 +3,7 @@ module github.com/grafana/tempo/tools
 go 1.26.0
 
 require (
-	github.com/golangci/golangci-lint/v2 v2.10.0
+	github.com/golangci/golangci-lint/v2 v2.10.1
 	github.com/google/go-jsonnet v0.21.0
 	github.com/grafana/tanka v0.36.3
 	github.com/jsonnet-bundler/jsonnet-bundler v0.6.0
