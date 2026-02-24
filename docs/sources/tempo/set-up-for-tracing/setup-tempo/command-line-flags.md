@@ -46,7 +46,6 @@ Valid target values:
 | `backend-scheduler` | Schedules and coordinates backend query jobs across workers. |
 | `backend-worker` | Executes query jobs assigned by the backend scheduler. |
 | `live-store` | Serves recently ingested data from Kafka for real-time queries. |
-| `metrics-generator-no-local-blocks` | Runs the metrics generator without local block storage. |
 
 {{< admonition type="note" >}}
   In Tempo 3.0, the `ingester`, `compactor`, and `scalable-single-binary` targets were removed as as part of the [Project Rhythm architecture](/docs/tempo/<TEMPO_VERSION>/introduction/architecture/#project-rhythm).
