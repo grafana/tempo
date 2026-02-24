@@ -133,6 +133,20 @@ func OpenBlock(meta *backend.BlockMeta, r backend.Reader) (common.BackendBlock, 
 	return v.OpenBlock(meta, r)
 }
 
+// CoalesceVersion resolves a block encoding version from a chain of version
+// strings ordered lowest to highest priority. Empty strings are skipped.
+// Falls back to DefaultEncoding if all are empty.
+// Returns the validated VersionedEncoding suitable for writes.
+func CoalesceVersion(versions ...string) (VersionedEncoding, error) {
+	ver := DefaultEncoding().Version()
+	for _, v := range versions {
+		if v != "" {
+			ver = v
+		}
+	}
+	return FromVersionForWrites(ver)
+}
+
 // CopyBlock from one backend to another. It automatically chooses the encoding for the given block.
 func CopyBlock(ctx context.Context, meta *backend.BlockMeta, from backend.Reader, to backend.Writer) error {
 	v, err := FromVersion(meta.Version)
