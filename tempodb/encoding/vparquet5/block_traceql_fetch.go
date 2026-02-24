@@ -407,16 +407,6 @@ func createResourceIterators(
 		optional = append(optional, attrIter)
 	}
 
-	/*minCount := 0
-	if allConditions {
-		// The final number of expected attributes
-		distinct := map[string]struct{}{}
-		for _, cond := range conditions {
-			distinct[cond.Attribute.Name] = struct{}{}
-		}
-		minCount = len(distinct)
-	}*/
-
 	// This is an optimization for when all of the resource conditions must be met.
 	// We simply move all iterators into the required list.
 	if allConditions {
@@ -1434,10 +1424,8 @@ func (c *spanCollector2) Collect(res *parquetquery.IteratorResult, param any) {
 				x.s = traceql.NewStaticString(unsafeToString(kv.Value.Bytes()))
 			default:
 				if kv.Value.IsNull() {
-					// Throwing away nulls.
-					// should we preserve nils here?
-					// return
-					// sp.addSpanAttr(newSpanAttr(kv.Key), traceql.NewStaticString("nil"))
+					// Enter placeholder string that indicates a nil check passed.
+					// This is used for queries with span.attr=nil and passes the min attributes check.
 					x.s = traceql.NewStaticString("nil")
 				} else {
 					panic("unhandled attribute value kind: " + kv.Value.Kind().String())
