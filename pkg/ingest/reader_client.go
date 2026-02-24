@@ -36,7 +36,9 @@ func NewReaderClient(kafkaCfg KafkaConfig, metrics *kprom.Metrics, logger log.Lo
 		return nil, errors.Wrap(err, "creating kafka client")
 	}
 	if kafkaCfg.AutoCreateTopicEnabled {
-		kafkaCfg.SetDefaultNumberOfPartitionsForAutocreatedTopics(logger)
+		if err := kafkaCfg.EnsureTopicPartitions(logger); err != nil {
+			level.Error(logger).Log("msg", "failed to ensure topic partitions", "err", err)
+		}
 	}
 	return client, nil
 }

@@ -14,6 +14,7 @@ import (
 	"github.com/grafana/dskit/backoff"
 	"github.com/grafana/dskit/flagext"
 	"github.com/twmb/franz-go/pkg/kadm"
+	"github.com/twmb/franz-go/pkg/kerr"
 	"github.com/twmb/franz-go/pkg/kgo"
 )
 
@@ -162,34 +163,91 @@ func (cfg *KafkaConfig) GetConsumerGroup(instanceID string, partitionID int32) s
 	return strings.ReplaceAll(cfg.ConsumerGroup, "<partition>", strconv.Itoa(int(partitionID)))
 }
 
-// SetDefaultNumberOfPartitionsForAutocreatedTopics tries to set num.partitions config option on brokers.
-// This is best-effort, if setting the option fails, error is logged, but not returned.
-func (cfg KafkaConfig) SetDefaultNumberOfPartitionsForAutocreatedTopics(logger log.Logger) {
+// EnsureTopicPartitions ensures the configured topic exists with the desired number of partitions.
+// If the topic doesn't exist and auto-creation is enabled, it creates the topic.
+// If the topic exists with fewer partitions than desired, it increases the partition count.
+func (cfg KafkaConfig) EnsureTopicPartitions(logger log.Logger) error {
 	if cfg.AutoCreateTopicDefaultPartitions <= 0 {
-		return
+		level.Info(logger).Log("msg", "skipping topic partition setup", "reason", "auto_create_topic_default_partitions <= 0")
+		return nil
 	}
 
-	cl, err := kgo.NewClient(commonKafkaClientOptions(cfg, nil, logger)...)
+	// Create admin client WITHOUT auto-creation enabled to prevent Kafka from auto-creating
+	// the topic with default partitions before we explicitly create it with the desired count
+	adminCfg := cfg
+	adminCfg.AutoCreateTopicEnabled = false
+	cl, err := kgo.NewClient(commonKafkaClientOptions(adminCfg, nil, logger)...)
 	if err != nil {
-		level.Error(logger).Log("msg", "failed to create kafka client", "err", err)
-		return
+		return fmt.Errorf("failed to create kafka client: %w", err)
 	}
 
 	adm := kadm.NewClient(cl)
 	defer adm.Close()
 
-	defaultNumberOfPartitions := fmt.Sprintf("%d", cfg.AutoCreateTopicDefaultPartitions)
-	_, err = adm.AlterBrokerConfigsState(context.Background(), []kadm.AlterConfig{
-		{
-			Op:    kadm.SetConfig,
-			Name:  "num.partitions",
-			Value: &defaultNumberOfPartitions,
-		},
-	})
-	if err != nil {
-		level.Error(logger).Log("msg", "failed to alter default number of partitions", "err", err)
-		return
+	ctx := context.Background()
+
+	// Try to create the topic. As of Kafka 2.4, we can pass -1 for replication factor
+	// and the broker will use its default configuration.
+	const defaultReplication = -1
+	resp, err := adm.CreateTopic(ctx, int32(cfg.AutoCreateTopicDefaultPartitions), defaultReplication, nil, cfg.Topic)
+	if err == nil {
+		err = resp.Err
 	}
 
-	level.Info(logger).Log("msg", "configured Kafka-wide default number of partitions for auto-created topics (num.partitions)", "value", cfg.AutoCreateTopicDefaultPartitions)
+	if err != nil {
+		// If topic already exists, check and update partition count if needed
+		if errors.Is(err, kerr.TopicAlreadyExists) {
+			td, err := adm.ListTopics(ctx, cfg.Topic)
+			if err == nil {
+				err = td.Error()
+			}
+			if err != nil {
+				return fmt.Errorf("failed to list topic %s: %w", cfg.Topic, err)
+			}
+
+			currentPartitionCount := len(td[cfg.Topic].Partitions.Numbers())
+			if cfg.AutoCreateTopicDefaultPartitions == currentPartitionCount {
+				// Topic already exists with correct partitions, nothing to do
+				return nil
+			}
+
+			if cfg.AutoCreateTopicDefaultPartitions < currentPartitionCount {
+				// Topic has more partitions than desired, nothing to do
+				return nil
+			}
+
+			// Current partition count is less than desired, increase it
+			resp, err := adm.UpdatePartitions(ctx, cfg.AutoCreateTopicDefaultPartitions, cfg.Topic)
+			if err == nil {
+				err = resp.Error()
+			}
+			if err != nil {
+				return fmt.Errorf("failed to update partitions for topic %s to new value %d: %w", cfg.Topic, cfg.AutoCreateTopicDefaultPartitions, err)
+			}
+			return nil
+		}
+		return fmt.Errorf("failed to create topic %s: %w", cfg.Topic, err)
+	}
+
+	// Wait for topic to be visible in metadata before returning to avoid race conditions
+	// where producer starts before metadata has propagated
+	for i := 0; i < 10; i++ {
+		td, err := adm.ListTopics(ctx, cfg.Topic)
+		if err == nil {
+			err = td.Error()
+		}
+		if err == nil && len(td[cfg.Topic].Partitions) == cfg.AutoCreateTopicDefaultPartitions {
+			break
+		}
+		level.Info(logger).Log("msg", "topic not yet visible, retrying", "topic", cfg.Topic, "attempt", i+1)
+		time.Sleep(100 * time.Millisecond)
+	}
+
+	// Give coordinator a moment to initialize for new topics.
+	// This simple 2-second wait prevents coordinator-not-available errors in E2E tests
+	// when topics are created with many partitions. The coordinator needs time to initialize
+	// before consumers can successfully fetch offsets.
+	// See: commit a03809a80 "Add simple 2-second wait for coordinator after topic creation"
+	time.Sleep(2 * time.Second)
+	return nil
 }
