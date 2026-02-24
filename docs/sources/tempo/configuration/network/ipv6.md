@@ -24,7 +24,7 @@ memberlist:
     - '::'
   bind_port: 7946
 
-compactor:
+backend_worker:
   ring:
     kvstore:
       store: memberlist
@@ -34,8 +34,8 @@ metrics_generator:
   ring:
     enable_inet6: true
 
-ingester:
-  lifecycler:
+live_store:
+  ring:
     enable_inet6: true
 
 server:
@@ -47,15 +47,15 @@ server:
 
 ## Kubernetes service configuration
 
-Each service fronting the workloads will need to be configured with with `spec.ipFamilies` and `spec.ipFamilyPolicy` set. See this `compactor` example.
+Each service fronting the workloads needs to be configured with `spec.ipFamilies` and `spec.ipFamilyPolicy` set. Refer to this `backend-worker` example:
 
 ```yaml
 apiVersion: v1
 kind: Service
 metadata:
   labels:
-    name: compactor
-  name: compactor
+    name: backend-worker
+  name: backend-worker
   namespace: trace
 spec:
   clusterIP: fccb::31a7
@@ -66,13 +66,13 @@ spec:
     - IPv6
   ipFamilyPolicy: SingleStack
   ports:
-    - name: compactor-http-metrics
+    - name: backend-worker-http-metrics
       port: 3200
       protocol: TCP
       targetPort: 3200
   selector:
-    app: compactor
-    name: compactor
+    app: backend-worker
+    name: backend-worker
   sessionAffinity: None
   type: ClusterIP
 ```
@@ -80,7 +80,7 @@ spec:
 You can check the listening service from within a pod.
 
 ```sh
-❯ k exec -it compactor-55c778b8d9-2kch2 -- sh
+❯ k exec -it backend-worker-55c778b8d9-2kch2 -- sh
 / # apk add iproute2
 OK: 12 MiB in 27 packages
 / # ss -ltn -f inet
