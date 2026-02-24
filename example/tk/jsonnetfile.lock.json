@@ -8,8 +8,8 @@
           "subdir": "grafana"
         }
       },
-      "version": "57b0b85dc1d7ed5e30c2e41f3bd26744b8aef519",
-      "sum": "Y5nheroSOIwmE+djEVPq4OvvTxKenzdHhpEwaR3Ebjs="
+      "version": "dedb779b9d7ddb6fe84043b8db1b1a9cd7250d94",
+      "sum": "3M7sG0jR2K2L4Y8GCD+dEOjhzvAhtERr5TRRAE+DrhI="
     },
     {
       "source": {
@@ -18,8 +18,8 @@
           "subdir": "grafana-builder"
         }
       },
-      "version": "57b0b85dc1d7ed5e30c2e41f3bd26744b8aef519",
-      "sum": "yxqWcq/N3E/a/XreeU6EuE6X7kYPnG0AspAQFKOjASo="
+      "version": "dedb779b9d7ddb6fe84043b8db1b1a9cd7250d94",
+      "sum": "+slXP8gi75OS343Khtz3i7va9csGTLhPoLUVu8vRuRc="
     },
     {
       "source": {
@@ -28,7 +28,7 @@
           "subdir": "ksonnet-util"
         }
       },
-      "version": "57b0b85dc1d7ed5e30c2e41f3bd26744b8aef519",
+      "version": "dedb779b9d7ddb6fe84043b8db1b1a9cd7250d94",
       "sum": "0y3AFX9LQSpfWTxWKSwoLgbt0Wc9nnCwhMH2szKzHv0="
     },
     {
@@ -38,7 +38,7 @@
           "subdir": "kube-state-metrics/"
         }
       },
-      "version": "57b0b85dc1d7ed5e30c2e41f3bd26744b8aef519",
+      "version": "dedb779b9d7ddb6fe84043b8db1b1a9cd7250d94",
       "sum": "q1YzD+I4InDdfQP6k93W9Lw5U1jpll3gVaS9rUzLR7U="
     },
     {
@@ -48,8 +48,18 @@
           "subdir": "memcached"
         }
       },
-      "version": "57b0b85dc1d7ed5e30c2e41f3bd26744b8aef519",
-      "sum": "Cc715Y3rgTuimgDFIw+FaKzXSJGRYwt1pFTMbdrNBD8="
+      "version": "dedb779b9d7ddb6fe84043b8db1b1a9cd7250d94",
+      "sum": "zNTCDRaCqJUHjQSQRsxGR3jLrMP9tU7YNQb13dbm1bU="
+    },
+    {
+      "source": {
+        "git": {
+          "remote": "https://github.com/grafana/jsonnet-libs.git",
+          "subdir": "mixin-utils"
+        }
+      },
+      "version": "dedb779b9d7ddb6fe84043b8db1b1a9cd7250d94",
+      "sum": "Yqni3FxJzw4DMlXBFf2mmKU5UEPOzWw0FmIlZbv+89Q="
     },
     {
       "source": {
@@ -58,8 +68,8 @@
           "subdir": "prometheus"
         }
       },
-      "version": "57b0b85dc1d7ed5e30c2e41f3bd26744b8aef519",
-      "sum": "b4scQI+UtFxkVgzzD3dfbPMwI7EVtyjv1uETEmizM8M="
+      "version": "dedb779b9d7ddb6fe84043b8db1b1a9cd7250d94",
+      "sum": "kodkOiyJMjsaEsQCIfBhJPknBZayEj0yQJq50ad9VWo="
     },
     {
       "source": {
@@ -68,7 +78,7 @@
           "subdir": "tanka-util"
         }
       },
-      "version": "57b0b85dc1d7ed5e30c2e41f3bd26744b8aef519",
+      "version": "dedb779b9d7ddb6fe84043b8db1b1a9cd7250d94",
       "sum": "ShSIissXdvCy1izTCDZX6tY7qxCoepE5L+WJ52Hw7ZQ="
     },
     {

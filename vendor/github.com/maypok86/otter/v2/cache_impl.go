@@ -94,7 +94,8 @@ type cache[K comparable, V any] struct {
 	executor           func(fn func())
 	singleflight       *group[K, V]
 	evictionMutex      sync.Mutex
-	doneClose          chan struct{}
+	doneStop           chan struct{}
+	stopOnce           sync.Once
 	weigher            func(key K, value V) uint32
 	onDeletion         func(e DeletionEvent[K, V])
 	onAtomicDeletion   func(e DeletionEvent[K, V])
@@ -190,7 +191,7 @@ func newCache[K comparable, V any](o *Options[K, V]) *cache[K, V] {
 		c.clock.Init()
 	}
 	if c.withExpiration {
-		c.doneClose = make(chan struct{})
+		c.doneStop = make(chan struct{})
 		go c.periodicCleanUp()
 	}
 
@@ -414,7 +415,7 @@ func (c *cache[K, V]) calcExpiresAtAfterWrite(n, old node.Node[K, V], nowNano in
 	entry := c.nodeToEntry(n, nowNano)
 	currentDuration := entry.ExpiresAfter()
 	var expiresAfter time.Duration
-	if old == nil {
+	if old == nil || old.HasExpired(nowNano) {
 		expiresAfter = c.expiryCalculator.ExpireAfterCreate(entry)
 	} else {
 		expiresAfter = c.expiryCalculator.ExpireAfterUpdate(entry, old.Value())
@@ -1271,7 +1272,7 @@ func (c *cache[K, V]) periodicCleanUp() {
 	tick := c.clock.Tick(time.Second)
 	for {
 		select {
-		case <-c.doneClose:
+		case <-c.doneStop:
 			return
 		case <-tick:
 			c.CleanUp()
@@ -1708,13 +1709,15 @@ func (c *cache[K, V]) GetMaximum() uint64 {
 	return result
 }
 
-// close discards all entries in the cache and stop all goroutines.
-//
-// NOTE: this operation must be performed when no requests are made to the cache otherwise the behavior is undefined.
-func (c *cache[K, V]) close() {
-	if c.withExpiration {
-		c.doneClose <- struct{}{}
-	}
+func (c *cache[K, V]) StopAllGoroutines() bool {
+	var stopped bool
+	c.stopOnce.Do(func() {
+		if c.withExpiration {
+			c.doneStop <- struct{}{}
+			stopped = true
+		}
+	})
+	return stopped
 }
 
 // EstimatedSize returns the approximate number of entries in this cache. The value returned is an estimate; the

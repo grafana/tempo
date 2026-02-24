@@ -77,13 +77,3 @@ To learn about how to use Tanka and to configure the spec.json file, see Using J
    # Apply the changes to your Kubernetes cluster:
    kubectl apply -k manifests/
    ```
-6. Multizone ingesters
-   To use multizone ingesters use following config fields
-   ```
-    _config+: {
-        multi_zone_ingester_enabled: false,
-        multi_zone_ingester_migration_enabled: false,
-        multi_zone_ingester_replicas: 0,
-        multi_zone_ingester_max_unavailable: 25,
-   }
-   ```

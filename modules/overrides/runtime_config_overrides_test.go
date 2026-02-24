@@ -683,6 +683,86 @@ func TestNativeHistogramOverrides(t *testing.T) {
 	}
 }
 
+func TestMetricsGeneratorMaxCardinalityPerLabel(t *testing.T) {
+	tests := []struct {
+		name               string
+		defaultLimits      Overrides
+		perTenantOverrides *perTenantOverrides
+		expected           map[string]uint64
+	}{
+		{
+			name: "default enabled, no tenant override",
+			defaultLimits: Overrides{
+				MetricsGenerator: MetricsGeneratorOverrides{
+					MaxCardinalityPerLabel: 100,
+				},
+			},
+			expected: map[string]uint64{"user1": 100, "user2": 100},
+		},
+		{
+			name:          "default disabled, tenant enables",
+			defaultLimits: Overrides{},
+			perTenantOverrides: &perTenantOverrides{
+				TenantLimits: map[string]*Overrides{
+					"user1": {
+						MetricsGenerator: MetricsGeneratorOverrides{
+							MaxCardinalityPerLabel: 50,
+						},
+					},
+				},
+			},
+			expected: map[string]uint64{"user1": 50, "user2": 0},
+		},
+		{
+			name: "default enabled, tenant disables with 0",
+			defaultLimits: Overrides{
+				MetricsGenerator: MetricsGeneratorOverrides{
+					MaxCardinalityPerLabel: 100,
+				},
+			},
+			perTenantOverrides: &perTenantOverrides{
+				TenantLimits: map[string]*Overrides{
+					"user1": {
+						MetricsGenerator: MetricsGeneratorOverrides{
+							MaxCardinalityPerLabel: 0,
+						},
+					},
+				},
+			},
+			expected: map[string]uint64{"user1": 0, "user2": 100},
+		},
+		{
+			name: "default enabled, tenant overrides with higher value",
+			defaultLimits: Overrides{
+				MetricsGenerator: MetricsGeneratorOverrides{
+					MaxCardinalityPerLabel: 100,
+				},
+			},
+			perTenantOverrides: &perTenantOverrides{
+				TenantLimits: map[string]*Overrides{
+					"user1": {
+						MetricsGenerator: MetricsGeneratorOverrides{
+							MaxCardinalityPerLabel: 500,
+						},
+					},
+				},
+			},
+			expected: map[string]uint64{"user1": 500, "user2": 100},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			overrides, cleanup := createAndInitializeRuntimeOverridesManager(t, tt.defaultLimits, toYamlBytes(t, tt.perTenantOverrides))
+			defer cleanup()
+
+			for user, expected := range tt.expected {
+				require.Equal(t, expected, overrides.MetricsGeneratorMaxCardinalityPerLabel(user), "user: %s", user)
+			}
+		})
+	}
+}
+
 func createAndInitializeRuntimeOverridesManager(t *testing.T, defaultLimits Overrides, perTenantOverrides []byte) (Service, func()) {
 	cfg := Config{
 		Defaults: defaultLimits,

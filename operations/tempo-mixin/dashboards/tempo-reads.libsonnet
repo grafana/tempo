@@ -115,6 +115,17 @@ dashboard_utils {
           $.panel('Latency') +
           $.latencyPanel('tempodb_backend_request_duration_seconds', '{%s,operation="GET"}' % $.jobMatcher($._config.jobs.querier))
         )
+      )
+      .addRow(
+        g.row('External Requests')
+        .addPanel(
+          $.panel('QPS') +
+          $.qpsPanel('tempo_querier_external_endpoint_request_duration_seconds_count{%s}' % $.jobMatcher($._config.jobs.querier))
+        )
+        .addPanel(
+          $.panel('Latency') +
+          $.latencyPanel('tempo_querier_external_endpoint_request_duration_seconds', '{%s}' % $.jobMatcher($._config.jobs.querier))
+        )
       ),
   },
 }

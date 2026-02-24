@@ -929,7 +929,7 @@ func TestTempoDBQueryRange(t *testing.T) {
 	for _, tc := range queryRangeTestCases {
 		t.Run(tc.name, func(t *testing.T) {
 			e := traceql.NewEngine()
-			eval, err := e.CompileMetricsQueryRange(tc.req, 0, 0, false)
+			eval, err := e.CompileMetricsQueryRange(tc.req, 0, false)
 			require.NoError(t, err)
 
 			err = eval.Do(ctx, f, 0, 0, 0)
@@ -986,7 +986,7 @@ func TestTempoDBQueryRange(t *testing.T) {
 		e := traceql.NewEngine()
 
 		// Level 1
-		eval, err := e.CompileMetricsQueryRange(req, 0, 0, false)
+		eval, err := e.CompileMetricsQueryRange(req, 0, false)
 		require.NoError(t, err)
 
 		err = eval.Do(ctx, f, 0, 0, 0)

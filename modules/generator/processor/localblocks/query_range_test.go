@@ -198,7 +198,7 @@ func TestProcessor(t *testing.T) {
 			req.Start, req.End, req.Step = traceql.TrimToBlockOverlap(req, block.BlockMeta().StartTime, block.BlockMeta().EndTime)
 
 			e := traceql.NewEngine()
-			rawEval, err := e.CompileMetricsQueryRange(req, int(req.Exemplars), 0, false)
+			rawEval, err := e.CompileMetricsQueryRange(req, 0, false)
 			require.NoError(t, err)
 			jobEval, err := traceql.NewEngine().CompileMetricsQueryRangeNonRaw(req, traceql.AggregateModeSum)
 			require.NoError(t, err)

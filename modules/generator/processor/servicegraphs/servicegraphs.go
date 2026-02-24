@@ -21,6 +21,7 @@ import (
 	"github.com/grafana/tempo/modules/generator/registry"
 	"github.com/grafana/tempo/modules/generator/validation"
 	"github.com/grafana/tempo/pkg/cache/reclaimable"
+	"github.com/grafana/tempo/pkg/spanfilter"
 	"github.com/grafana/tempo/pkg/tempopb"
 	v1_common "github.com/grafana/tempo/pkg/tempopb/common/v1"
 	v1_trace "github.com/grafana/tempo/pkg/tempopb/trace/v1"
@@ -32,6 +33,16 @@ var (
 		Namespace: "tempo",
 		Name:      "metrics_generator_processor_service_graphs_dropped_spans",
 		Help:      "Number of spans dropped when trying to add edges",
+	}, []string{"tenant"})
+	metricDroppedEdges = promauto.NewCounterVec(prometheus.CounterOpts{
+		Namespace: "tempo",
+		Name:      "metrics_generator_processor_service_graphs_dropped_edges_total",
+		Help:      "Number of edges dropped due to matching a dropped span side counterpart",
+	}, []string{"tenant"})
+	metricDroppedSpanSideCacheOverflows = promauto.NewCounterVec(prometheus.CounterOpts{
+		Namespace: "tempo",
+		Name:      "metrics_generator_processor_service_graphs_dropped_span_side_cache_overflow_total",
+		Help:      "Number of dropped span side cache insertions skipped because the cache reached max items",
 	}, []string{"tenant"})
 	metricTotalEdges = promauto.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "tempo",
@@ -81,20 +92,28 @@ type Processor struct {
 	serviceGraphRequestClientSecondsHistogram          registry.Histogram
 	serviceGraphRequestMessagingSystemSecondsHistogram registry.Histogram
 	sanitizeCache                                      reclaimable.Cache[string, string]
+	filter                                             *spanfilter.SpanFilter
 
-	metricDroppedSpans prometheus.Counter
-	metricTotalEdges   prometheus.Counter
-	metricExpiredEdges prometheus.Counter
-	invalidUTF8Counter prometheus.Counter
-	logger             log.Logger
+	filteredSpansCounter                prometheus.Counter
+	metricDroppedSpans                  prometheus.Counter
+	metricDroppedEdges                  prometheus.Counter
+	metricDroppedSpanSideCacheOverflows prometheus.Counter
+	metricTotalEdges                    prometheus.Counter
+	metricExpiredEdges                  prometheus.Counter
+	invalidUTF8Counter                  prometheus.Counter
+	logger                              log.Logger
 }
 
-func New(cfg Config, tenant string, reg registry.Registry, logger log.Logger, invalidUTF8Counter prometheus.Counter) gen.Processor {
+func New(cfg Config, tenant string, reg registry.Registry, logger log.Logger, filteredSpansCounter, invalidUTF8Counter prometheus.Counter) (gen.Processor, error) {
 	if cfg.EnableVirtualNodeLabel {
 		cfg.Dimensions = append(cfg.Dimensions, virtualNodeLabel)
 	}
 
 	sanitizeCache := reclaimable.New(validation.SanitizeLabelName, 10000)
+	filter, err := spanfilter.NewSpanFilter(cfg.FilterPolicies)
+	if err != nil {
+		return nil, err
+	}
 
 	p := &Processor{
 		Cfg:      cfg,
@@ -107,15 +126,19 @@ func New(cfg Config, tenant string, reg registry.Registry, logger log.Logger, in
 		serviceGraphRequestClientSecondsHistogram:          reg.NewHistogram(metricRequestClientSeconds, cfg.HistogramBuckets, cfg.HistogramOverride),
 		serviceGraphRequestMessagingSystemSecondsHistogram: reg.NewHistogram(metricRequestMessagingSystemSeconds, cfg.HistogramBuckets, cfg.HistogramOverride),
 		sanitizeCache: sanitizeCache,
+		filter:        filter,
 
-		metricDroppedSpans: metricDroppedSpans.WithLabelValues(tenant),
-		metricTotalEdges:   metricTotalEdges.WithLabelValues(tenant),
-		metricExpiredEdges: metricExpiredEdges.WithLabelValues(tenant),
-		invalidUTF8Counter: invalidUTF8Counter,
-		logger:             log.With(logger, "component", "service-graphs"),
+		filteredSpansCounter:                filteredSpansCounter,
+		metricDroppedSpans:                  metricDroppedSpans.WithLabelValues(tenant),
+		metricDroppedEdges:                  metricDroppedEdges.WithLabelValues(tenant),
+		metricDroppedSpanSideCacheOverflows: metricDroppedSpanSideCacheOverflows.WithLabelValues(tenant),
+		metricTotalEdges:                    metricTotalEdges.WithLabelValues(tenant),
+		metricExpiredEdges:                  metricExpiredEdges.WithLabelValues(tenant),
+		invalidUTF8Counter:                  invalidUTF8Counter,
+		logger:                              log.With(logger, "component", "service-graphs"),
 	}
 
-	p.store = store.NewStore(cfg.Wait, cfg.MaxItems, p.onComplete, p.onExpire)
+	p.store = store.NewStore(cfg.Wait, cfg.MaxItems, p.onComplete, p.onExpire, p.metricDroppedSpanSideCacheOverflows)
 
 	expirationTicker := time.NewTicker(2 * time.Second)
 	for i := 0; i < cfg.Workers; i++ {
@@ -133,7 +156,7 @@ func New(cfg Config, tenant string, reg registry.Registry, logger log.Logger, in
 		}()
 	}
 
-	return p
+	return p, nil
 }
 
 func (p *Processor) Name() string {
@@ -165,6 +188,17 @@ func (p *Processor) consume(resourceSpans []*v1_trace.ResourceSpans) (err error)
 
 		for _, ils := range rs.ScopeSpans {
 			for _, span := range ils.Spans {
+				// Non-edge spans are ignored by this processor, so skip filter evaluation too.
+				if !isClient(span.Kind) && !isServer(span.Kind) {
+					continue
+				}
+
+				if !p.filter.ApplyFilterPolicy(rs.Resource, span) {
+					p.addDroppedSpanSide(span)
+					p.filteredSpansCounter.Inc()
+					continue
+				}
+
 				connectionType := store.Unknown
 				spanMultiplier := processor_util.GetSpanMultiplier(p.Cfg.SpanMultiplierKey, span, rs.Resource)
 				switch span.Kind {
@@ -174,7 +208,7 @@ func (p *Processor) consume(resourceSpans []*v1_trace.ResourceSpans) (err error)
 					fallthrough
 				case v1_trace.Span_SPAN_KIND_CLIENT:
 					key := buildKey(hex.EncodeToString(span.TraceId), hex.EncodeToString(span.SpanId))
-					isNew, err = p.store.UpsertEdge(key, func(e *store.Edge) {
+					isNew, err = p.store.UpsertEdge(key, store.Client, func(e *store.Edge) {
 						e.TraceID = tempo_util.TraceIDToHexString(span.TraceId)
 						e.ConnectionType = connectionType
 						e.ClientService = svcName
@@ -193,7 +227,7 @@ func (p *Processor) consume(resourceSpans []*v1_trace.ResourceSpans) (err error)
 					fallthrough
 				case v1_trace.Span_SPAN_KIND_SERVER:
 					key := buildKey(hex.EncodeToString(span.TraceId), hex.EncodeToString(span.ParentSpanId))
-					isNew, err = p.store.UpsertEdge(key, func(e *store.Edge) {
+					isNew, err = p.store.UpsertEdge(key, store.Server, func(e *store.Edge) {
 						e.TraceID = tempo_util.TraceIDToHexString(span.TraceId)
 						e.ConnectionType = connectionType
 						e.ServerService = svcName
@@ -204,19 +238,17 @@ func (p *Processor) consume(resourceSpans []*v1_trace.ResourceSpans) (err error)
 						e.SpanMultiplier = spanMultiplier
 						p.upsertPeerNode(e, span.Attributes)
 					})
-				default:
-					// this span is not part of an edge
-					continue
 				}
 
-				if errors.Is(err, store.ErrTooManyItems) {
+				switch {
+				case errors.Is(err, store.ErrTooManyItems):
 					totalDroppedSpans++
 					p.metricDroppedSpans.Inc()
 					continue
-				}
-
-				// UpsertEdge will only return ErrTooManyItems
-				if err != nil {
+				case errors.Is(err, store.ErrDroppedSpanSide):
+					p.metricDroppedEdges.Inc()
+					continue
+				case err != nil:
 					return err
 				}
 
@@ -413,6 +445,36 @@ func (p *Processor) onExpire(e *store.Edge) {
 	if !wasCounted {
 		p.metricExpiredEdges.Inc()
 	}
+}
+
+func (p *Processor) addDroppedSpanSide(span *v1_trace.Span) {
+	if isClient(span.Kind) {
+		key := buildKey(hex.EncodeToString(span.TraceId), hex.EncodeToString(span.SpanId))
+		if p.store.AddDroppedSpanSide(key, store.Client) {
+			p.metricDroppedEdges.Inc()
+		}
+		return
+	}
+
+	if isServer(span.Kind) {
+		// Root server spans have no parent span ID and cannot match a client counterpart.
+		if len(span.ParentSpanId) == 0 {
+			return
+		}
+
+		key := buildKey(hex.EncodeToString(span.TraceId), hex.EncodeToString(span.ParentSpanId))
+		if p.store.AddDroppedSpanSide(key, store.Server) {
+			p.metricDroppedEdges.Inc()
+		}
+	}
+}
+
+func isClient(kind v1_trace.Span_SpanKind) bool {
+	return kind == v1_trace.Span_SPAN_KIND_CLIENT || kind == v1_trace.Span_SPAN_KIND_PRODUCER
+}
+
+func isServer(kind v1_trace.Span_SpanKind) bool {
+	return kind == v1_trace.Span_SPAN_KIND_SERVER || kind == v1_trace.Span_SPAN_KIND_CONSUMER
 }
 
 func (p *Processor) spanFailed(span *v1_trace.Span) bool {

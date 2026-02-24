@@ -15,17 +15,32 @@ import (
 )
 
 func TestDefaultQueryRangeStep(t *testing.T) {
+	day := 24 * time.Hour
 	tc := []struct {
-		start, end time.Time
-		expected   time.Duration
+		window   time.Duration
+		expected time.Duration
 	}{
-		{time.Unix(0, 0), time.Unix(100, 0), time.Second},
-		{time.Unix(0, 0), time.Unix(600, 0), 2 * time.Second},
-		{time.Unix(0, 0), time.Unix(3600, 0), 15 * time.Second},
+		{59 * time.Second, 200 * time.Millisecond},
+		{time.Minute, time.Second},
+		{5 * time.Minute, 1 * time.Second},
+		{15 * time.Minute, 3 * time.Second},
+		{30 * time.Minute, 5 * time.Second},
+		{time.Hour, 15 * time.Second},
+		{3 * time.Hour, 45 * time.Second},
+		{6 * time.Hour, time.Minute},
+		{12 * time.Hour, 3 * time.Minute},
+		{day - time.Second, 5 * time.Minute}, // 23:59:59 - edge case - ensure this is treated the same as 24 hours
+		{day, 5 * time.Minute},
+		{2 * day, 10 * time.Minute},
+		{7 * day, 40 * time.Minute},
+		{14 * day, time.Hour},
+		{30 * day, 3 * time.Hour},
 	}
 
 	for _, c := range tc {
-		require.Equal(t, c.expected, time.Duration(DefaultQueryRangeStep(uint64(c.start.UnixNano()), uint64(c.end.UnixNano()))))
+		t.Run(c.window.String(), func(t *testing.T) {
+			require.Equal(t, c.expected, time.Duration(DefaultQueryRangeStep(0, uint64(c.window.Nanoseconds()))))
+		})
 	}
 }
 
@@ -458,7 +473,7 @@ func TestCompileMetricsQueryRange(t *testing.T) {
 				Start: c.start,
 				End:   c.end,
 				Step:  c.step,
-			}, 0, 0, false)
+			}, 0, false)
 
 			if c.expectedErr != nil {
 				require.EqualError(t, err, c.expectedErr.Error())
@@ -494,11 +509,12 @@ func TestCompileMetricsQueryRangeExemplarsHint(t *testing.T) {
 
 	for _, tc := range tcs {
 		eval, err := NewEngine().CompileMetricsQueryRange(&tempopb.QueryRangeRequest{
-			Query: tc.q,
-			Start: 1,
-			End:   2,
-			Step:  1,
-		}, 5, 0, false)
+			Query:     tc.q,
+			Start:     1,
+			End:       2,
+			Step:      1,
+			Exemplars: uint32(defaultExempalars),
+		}, 0, false)
 
 		require.NoError(t, err)
 		require.NotNil(t, eval)
@@ -615,7 +631,7 @@ func TestCompileMetricsQueryRangeFetchSpansRequest(t *testing.T) {
 				Start: 1,
 				End:   2,
 				Step:  3,
-			}, 0, 0, false)
+			}, 0, false)
 			require.NoError(t, err)
 
 			// Nil out func to Equal works
@@ -1075,14 +1091,14 @@ func TestCountOverTimeInstantNsWithCutoff(t *testing.T) {
 		require.NoError(t, err)
 
 		// process different series in L1
-		layer1, err := e.CompileMetricsQueryRange(&req1, 0, 0, false)
+		layer1, err := e.CompileMetricsQueryRange(&req1, 0, false)
 		require.NoError(t, err)
 		for _, s := range in1 {
 			layer1.metricsPipeline.observe(s)
 		}
 		res1 := layer1.Results().ToProto(&req1)
 
-		layer1, err = e.CompileMetricsQueryRange(&req2, 0, 0, false)
+		layer1, err = e.CompileMetricsQueryRange(&req2, 0, false)
 		require.NoError(t, err)
 		for _, s := range in2 {
 			layer1.metricsPipeline.observe(s)
@@ -1673,8 +1689,8 @@ func TestObserveSeriesAverageOverTimeForSpanAttribute(t *testing.T) {
 	}
 
 	e := NewEngine()
-	layer1A, _ := e.CompileMetricsQueryRange(req, 0, 0, false)
-	layer1B, _ := e.CompileMetricsQueryRange(req, 0, 0, false)
+	layer1A, _ := e.CompileMetricsQueryRange(req, 0, false)
+	layer1B, _ := e.CompileMetricsQueryRange(req, 0, false)
 	layer2A, _ := e.CompileMetricsQueryRangeNonRaw(req, AggregateModeSum)
 	layer2B, _ := e.CompileMetricsQueryRangeNonRaw(req, AggregateModeSum)
 	layer3, _ := e.CompileMetricsQueryRangeNonRaw(req, AggregateModeFinal)
@@ -1748,8 +1764,8 @@ func TestObserveSeriesAverageOverTimeForSpanAttributeWithTruncation(t *testing.T
 	}
 
 	e := NewEngine()
-	layer1A, _ := e.CompileMetricsQueryRange(req, 0, 0, false)
-	layer1B, _ := e.CompileMetricsQueryRange(req, 0, 0, false)
+	layer1A, _ := e.CompileMetricsQueryRange(req, 0, false)
+	layer1B, _ := e.CompileMetricsQueryRange(req, 0, false)
 	layer2A, _ := e.CompileMetricsQueryRangeNonRaw(req, AggregateModeSum)
 	layer2B, _ := e.CompileMetricsQueryRangeNonRaw(req, AggregateModeSum)
 	layer3, _ := e.CompileMetricsQueryRangeNonRaw(req, AggregateModeFinal)
@@ -2821,7 +2837,7 @@ func processLayer1AndLayer2(req *tempopb.QueryRangeRequest, in ...[]Span) (Serie
 	}
 
 	for _, spanSet := range in {
-		layer1, err := e.CompileMetricsQueryRange(req, 0, 0, false)
+		layer1, err := e.CompileMetricsQueryRange(req, 0, false)
 		if err != nil {
 			return nil, err
 		}

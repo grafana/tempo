@@ -464,8 +464,7 @@ func (m *Map[K, V, N]) copyBucketWithDestLock(b *bucketPadded, destTable *mapTab
 		}
 		if next := b.next.Load(); next == nil {
 			rootb.mu.Unlock()
-			//nolint:nakedret // it's ok
-			return
+			return copied
 		} else {
 			b = next
 		}
@@ -490,8 +489,7 @@ func (m *Map[K, V, N]) copyBucket(b *bucketPadded, destTable *mapTable[K]) (copi
 		}
 		if next := b.next.Load(); next == nil {
 			rootb.mu.Unlock()
-			//nolint:nakedret // it's ok
-			return
+			return copied
 		} else {
 			b = next
 		}

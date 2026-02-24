@@ -66,11 +66,6 @@ func (m *MockHTTPClient) GetOverrides() (*userconfigurableoverrides.Limits, stri
 }
 
 //nolint:all
-func (m *MockHTTPClient) MetricsSummary(_ string, _ string, _ int64, _ int64) (*tempopb.SpanMetricsSummaryResponse, error) {
-	panic("unimplemented")
-}
-
-//nolint:all
 func (m *MockHTTPClient) MetricsQueryRange(_ string, _, _ int64, _ string, _ int) (*tempopb.QueryRangeResponse, error) {
 	if m.err != nil {
 		return nil, m.err

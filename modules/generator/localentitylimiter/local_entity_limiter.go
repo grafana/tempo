@@ -52,11 +52,13 @@ func newMetrics(reg prometheus.Registerer) localEntityLimiterMetrics {
 
 var metrics = newMetrics(prometheus.DefaultRegisterer)
 
+type maxEntityFunc func(tenant string) uint32
+
 type LocalEntityLimiter struct {
 	tenant             string
 	entityActiveSeries map[uint64]uint32
 	mtx                sync.Mutex
-	maxEntityFunc      func(tenant string) uint32
+	maxEntityFunc      maxEntityFunc
 	limitLogger        *tempo_log.RateLimitedLogger
 
 	metricTotalEntitiesLimited prometheus.Counter
@@ -69,11 +71,11 @@ type LocalEntityLimiter struct {
 	overflowEntityHash uint64
 }
 
-func New(maxEntityFunc func(tenant string) uint32, tenant string, limitLogger *tempo_log.RateLimitedLogger) *LocalEntityLimiter {
+func New(maxEntityF maxEntityFunc, tenant string, limitLogger *tempo_log.RateLimitedLogger) *LocalEntityLimiter {
 	l := &LocalEntityLimiter{
 		tenant:             tenant,
 		entityActiveSeries: make(map[uint64]uint32),
-		maxEntityFunc:      maxEntityFunc,
+		maxEntityFunc:      maxEntityF,
 		limitLogger:        limitLogger,
 
 		metricTotalEntitiesLimited: metrics.totalEntitiesLimited.WithLabelValues(tenant),

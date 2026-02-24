@@ -7,11 +7,13 @@ import (
 	"fmt"
 	"sort"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gogo/protobuf/jsonpb"
 	"github.com/gogo/protobuf/proto"
 	"github.com/google/uuid"
+	"github.com/prometheus/common/model"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
@@ -161,4 +163,43 @@ func grpcTransportCredentials(secure bool) (opt grpc.DialOption, err error) {
 	}
 
 	return grpc.WithTransportCredentials(creds), nil
+}
+
+// parseTime parses a time string that can be:
+// - relative: "now", "now-1h", "now-30m", "now-3h30m"
+// - RFC3339: "2024-01-01T00:00:00Z"
+func parseTime(s string) (time.Time, error) {
+	s = strings.TrimSpace(s)
+
+	if strings.HasPrefix(s, "now") {
+		return parseRelativeTime(s)
+	}
+
+	if t, err := time.Parse(time.RFC3339, s); err == nil {
+		return t, nil
+	}
+
+	return time.Time{}, fmt.Errorf("failed to parse time: %q use relative (now, now-1h) or absolute RFC3339 (2006-01-02T15:04:05Z07:00) format", s)
+}
+
+func parseRelativeTime(s string) (time.Time, error) {
+	now := time.Now()
+	s = strings.TrimSpace(s)
+
+	if s == "now" {
+		return now, nil
+	}
+
+	// expect "now-<duration>"
+	if !strings.HasPrefix(s, "now-") {
+		return time.Time{}, fmt.Errorf("invalid relative time %q: expected format like now-1h", s)
+	}
+
+	durStr := s[len("now-"):]
+	d, err := model.ParseDuration(durStr)
+	if err != nil {
+		return time.Time{}, fmt.Errorf("failed to parse duration %q: %w", durStr, err)
+	}
+
+	return now.Add(-time.Duration(d)), nil
 }

@@ -28,8 +28,6 @@ service Querier {
   rpc SearchTagsV2(SearchTagsRequest) returns (SearchTagsV2Response) {}
   rpc SearchTagValues(SearchTagValuesRequest) returns (SearchTagValuesResponse) {}
   rpc SearchTagValuesV2(SearchTagValuesRequest) returns (SearchTagValuesV2Response) {}
-  // rpc SpanMetricsSummary(SpanMetricsSummaryRequest) returns
-  // (SpanMetricsSummaryResponse) {};
 }
 
 service StreamingQuerier {
@@ -43,7 +41,6 @@ service StreamingQuerier {
 }
 
 service Metrics {
-  rpc SpanMetricsSummary(SpanMetricsSummaryRequest) returns (SpanMetricsSummaryResponse) {}
   rpc QueryRange(QueryRangeRequest) returns (QueryRangeResponse) {}
 }
 
@@ -340,14 +337,6 @@ message SpanMetricsRequest {
   uint32 end = 5;
 }
 
-message SpanMetricsSummaryRequest {
-  string query = 1;
-  string groupBy = 2;
-  uint64 limit = 3;
-  uint32 start = 4;
-  uint32 end = 5;
-}
-
 message SpanMetricsResponse {
   bool estimated = 1;
   uint64 spanCount = 2;
@@ -369,20 +358,6 @@ message SpanMetrics {
   repeated RawHistogram latency_histogram = 1;
   repeated KeyValue series = 2;
   uint64 errors = 3;
-}
-
-message SpanMetricsSummary {
-  uint64 spanCount = 1;
-  uint64 errorSpanCount = 2;
-  repeated KeyValue series = 3;
-  uint64 p99 = 4;
-  uint64 p95 = 5;
-  uint64 p90 = 6;
-  uint64 p50 = 7;
-}
-
-message SpanMetricsSummaryResponse {
-  repeated SpanMetricsSummary summaries = 1;
 }
 
 message TraceQLStatic {

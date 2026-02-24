@@ -3,11 +3,9 @@ package frontend
 import (
 	"context"
 	"fmt"
-	"io"
 	"net/http"
 	"path"
 	"sort"
-	"strings"
 	"time"
 
 	"github.com/go-kit/log"
@@ -49,7 +47,7 @@ type (
 )
 
 type QueryFrontend struct {
-	TraceByIDHandler, TraceByIDHandlerV2, SearchHandler, MetricsSummaryHandler                 http.Handler
+	TraceByIDHandler, TraceByIDHandlerV2, SearchHandler                                        http.Handler
 	SearchTagsHandler, SearchTagsV2Handler, SearchTagsValuesHandler, SearchTagsValuesV2Handler http.Handler
 	MetricsQueryInstantHandler, MetricsQueryRangeHandler                                       http.Handler
 	MCPHandler                                                                                 http.Handler
@@ -72,7 +70,6 @@ type DataAccessController interface {
 	HandleHTTPTagValuesV2Req(r *http.Request) error
 	HandleHTTPQueryRangeReq(r *http.Request) error
 	HandleHTTPQueryInstantReq(r *http.Request) error
-	HandleHTTPMetricsSummaryReq(r *http.Request) error
 	HandleHTTPTraceByIDReq(r *http.Request) (combiner.TraceRedactor, error)
 
 	HandleGRPCSearchReq(c context.Context, r *tempopb.SearchRequest) error
@@ -100,10 +97,6 @@ func New(cfg Config, next pipeline.RoundTripper, o overrides.Interface, reader t
 
 	if cfg.Search.Sharder.TargetBytesPerRequest <= 0 {
 		return nil, fmt.Errorf("frontend search target bytes per request should be greater than 0")
-	}
-
-	if cfg.Search.Sharder.QueryIngestersUntil < cfg.Search.Sharder.QueryBackendAfter {
-		return nil, fmt.Errorf("query backend after should be less than or equal to query ingester until")
 	}
 
 	if cfg.Search.Sharder.MostRecentShards <= 0 {
@@ -212,19 +205,6 @@ func New(cfg Config, next pipeline.RoundTripper, o overrides.Interface, reader t
 		[]pipeline.Middleware{cacheWare, statusCodeWare, retryWare},
 		next)
 
-	// metrics summary
-	metricsPipeline := pipeline.Build(
-		[]pipeline.AsyncMiddleware[combiner.PipelineResponse]{
-			urlDenyListWare,
-			adjustEndWareNanos,
-			queryValidatorWare,
-			pipeline.NewWeightRequestWare(pipeline.Default, cfg.Weights),
-			multiTenantUnsupportedMiddleware(cfg, logger),
-			tenantValidatorWare,
-		},
-		[]pipeline.Middleware{statusCodeWare, retryWare},
-		next)
-
 	// traceql metrics
 	queryRangePipeline := pipeline.Build(
 		[]pipeline.AsyncMiddleware[combiner.PipelineResponse]{
@@ -258,12 +238,11 @@ func New(cfg Config, next pipeline.RoundTripper, o overrides.Interface, reader t
 
 	traces := newTraceIDHandler(cfg, tracePipeline, o, combiner.NewTypedTraceByID, logger, dataAccessController)
 	tracesV2 := newTraceIDV2Handler(cfg, tracePipeline, o, combiner.NewTypedTraceByIDV2, logger, dataAccessController)
-	search := newSearchHTTPHandler(cfg, searchPipeline, logger, dataAccessController)
+	search := newSearchHTTPHandler(cfg, searchPipeline, o, logger, dataAccessController)
 	searchTags := newTagsHTTPHandler(cfg, searchTagsPipeline, o, logger, dataAccessController)
 	searchTagsV2 := newTagsV2HTTPHandler(cfg, searchTagsPipeline, o, logger, dataAccessController)
 	searchTagValues := newTagValuesHTTPHandler(cfg, searchTagValuesPipeline, o, logger, dataAccessController)
 	searchTagValuesV2 := newTagValuesV2HTTPHandler(cfg, searchTagValuesV2Pipeline, o, logger, dataAccessController)
-	metrics := newMetricsSummaryHandler(metricsPipeline, logger, dataAccessController)
 	queryInstant := newMetricsQueryInstantHTTPHandler(cfg, queryInstantPipeline, logger, dataAccessController) // Reuses the same pipeline
 	queryRange := newMetricsQueryRangeHTTPHandler(cfg, queryRangePipeline, logger, dataAccessController)
 
@@ -276,12 +255,11 @@ func New(cfg Config, next pipeline.RoundTripper, o overrides.Interface, reader t
 		SearchTagsV2Handler:        newHandler(cfg.Config.LogQueryRequestHeaders, searchTagsV2, logger),
 		SearchTagsValuesHandler:    newHandler(cfg.Config.LogQueryRequestHeaders, searchTagValues, logger),
 		SearchTagsValuesV2Handler:  newHandler(cfg.Config.LogQueryRequestHeaders, searchTagValuesV2, logger),
-		MetricsSummaryHandler:      newHandler(cfg.Config.LogQueryRequestHeaders, metrics, logger),
 		MetricsQueryInstantHandler: newHandler(cfg.Config.LogQueryRequestHeaders, queryInstant, logger),
 		MetricsQueryRangeHandler:   newHandler(cfg.Config.LogQueryRequestHeaders, queryRange, logger),
 
 		// grpc/streaming
-		streamingSearch:       newSearchStreamingGRPCHandler(cfg, searchPipeline, apiPrefix, logger, dataAccessController),
+		streamingSearch:       newSearchStreamingGRPCHandler(cfg, searchPipeline, apiPrefix, o, logger, dataAccessController),
 		streamingTags:         newTagsStreamingGRPCHandler(cfg, searchTagsPipeline, apiPrefix, o, logger, dataAccessController),
 		streamingTagsV2:       newTagsV2StreamingGRPCHandler(cfg, searchTagsPipeline, apiPrefix, o, logger, dataAccessController),
 		streamingTagValues:    newTagValuesStreamingGRPCHandler(cfg, searchTagValuesPipeline, apiPrefix, o, logger, dataAccessController),
@@ -335,51 +313,6 @@ func (q *QueryFrontend) MetricsQueryInstant(req *tempopb.QueryInstantRequest, sr
 	return q.streamingQueryInstant(req, srv)
 }
 
-// newSpanMetricsMiddleware creates a new frontend middleware to handle metrics-generator requests.
-func newMetricsSummaryHandler(next pipeline.AsyncRoundTripper[combiner.PipelineResponse], logger log.Logger, dataAccessController DataAccessController) http.RoundTripper {
-	return RoundTripperFunc(func(req *http.Request) (*http.Response, error) {
-		tenant, err := user.ExtractOrgID(req.Context())
-		if err != nil {
-			level.Error(logger).Log("msg", "metrics summary: failed to extract tenant id", "err", err)
-			return &http.Response{
-				StatusCode: http.StatusBadRequest,
-				Status:     http.StatusText(http.StatusBadRequest),
-				Body:       io.NopCloser(strings.NewReader(err.Error())),
-			}, nil
-		}
-		if dataAccessController != nil {
-			if err := dataAccessController.HandleHTTPMetricsSummaryReq(req); err != nil {
-				level.Error(logger).Log("msg", "metrics summary: add filter failed", "err", err)
-				return httpInvalidRequest(err), nil
-			}
-		}
-		prepareRequestForQueriers(req, tenant)
-		// This API is always json because it only ever has 1 job and this
-		// lets us return the response as-is.
-		req.Header.Set(api.HeaderAccept, api.HeaderAcceptJSON)
-
-		level.Info(logger).Log(
-			"msg", "metrics summary request",
-			"tenant", tenant,
-			"path", req.URL.Path)
-
-		resps, err := next.RoundTrip(pipeline.NewHTTPRequest(req))
-		if err != nil {
-			return nil, err
-		}
-
-		resp, _, err := resps.Next(req.Context()) // metrics path will only ever have one response
-
-		level.Info(logger).Log(
-			"msg", "metrics summary response",
-			"tenant", tenant,
-			"path", req.URL.Path,
-			"err", err)
-
-		return resp.HTTPResponse(), err
-	})
-}
-
 // cloneRequestforQueriers returns a cloned pipeline.Request from the passed pipeline.Request ready for queriers. The caller is given an opportunity
 // to modify the internal http.Request before it is returned using the modHTTP param. If modHTTP is nil, the internal http.Request is returned.
 func cloneRequestforQueriers(parent pipeline.Request, tenant string, modHTTP func(*http.Request) (*http.Request, error)) (pipeline.Request, error) {
@@ -430,14 +363,6 @@ func prepareRequestForQueriers(req *http.Request, tenant string) {
 func multiTenantMiddleware(cfg Config, logger log.Logger) pipeline.AsyncMiddleware[combiner.PipelineResponse] {
 	if cfg.MultiTenantQueriesEnabled {
 		return pipeline.NewMultiTenantMiddleware(logger)
-	}
-
-	return pipeline.NewNoopMiddleware()
-}
-
-func multiTenantUnsupportedMiddleware(cfg Config, logger log.Logger) pipeline.AsyncMiddleware[combiner.PipelineResponse] {
-	if cfg.MultiTenantQueriesEnabled {
-		return pipeline.NewMultiTenantUnsupportedMiddleware(logger)
 	}
 
 	return pipeline.NewNoopMiddleware()

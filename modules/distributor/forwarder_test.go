@@ -30,7 +30,7 @@ func TestForwarder(t *testing.T) {
 	require.NoError(t, err)
 
 	b := test.MakeBatch(10, id)
-	keys, rebatchedTraces, _, err := requestsByTraceID([]*v1.ResourceSpans{b}, tenantID, 10, 1000)
+	keys, rebatchedTraces, _, _, err := requestsByTraceID([]*v1.ResourceSpans{b}, tenantID, 10, 1000)
 	require.NoError(t, err)
 
 	o, err := overrides.NewOverrides(oCfg, nil, prometheus.DefaultRegisterer)
@@ -81,7 +81,7 @@ func TestForwarder_shutdown(t *testing.T) {
 	require.NoError(t, err)
 
 	b := test.MakeBatch(10, id)
-	keys, rebatchedTraces, _, err := requestsByTraceID([]*v1.ResourceSpans{b}, tenantID, 10, 1000)
+	keys, rebatchedTraces, _, _, err := requestsByTraceID([]*v1.ResourceSpans{b}, tenantID, 10, 1000)
 	require.NoError(t, err)
 
 	o, err := overrides.NewOverrides(oCfg, nil, prometheus.DefaultRegisterer)

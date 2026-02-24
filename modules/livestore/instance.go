@@ -88,8 +88,8 @@ type instance struct {
 	Cfg Config
 
 	// WAL and encoding
-	wal *wal.WAL
-	enc encoding.VersionedEncoding
+	wal                   *wal.WAL
+	completeBlockEncoding encoding.VersionedEncoding
 
 	// Block management
 	blocksMtx      sync.RWMutex
@@ -111,24 +111,23 @@ type instance struct {
 	overrides overrides.Interface
 }
 
-func newInstance(instanceID string, cfg Config, wal *wal.WAL, overrides overrides.Interface, logger log.Logger) (*instance, error) {
-	enc := encoding.DefaultEncoding()
+func newInstance(instanceID string, cfg Config, wal *wal.WAL, completeBlockEncoding encoding.VersionedEncoding, overrides overrides.Interface, logger log.Logger) (*instance, error) {
 	logger = log.With(logger, "tenant", instanceID)
 
 	i := &instance{
-		tenantID:           instanceID,
-		logger:             logger,
-		Cfg:                cfg,
-		wal:                wal,
-		enc:                enc,
-		walBlocks:          map[uuid.UUID]common.WALBlock{},
-		completeBlocks:     map[uuid.UUID]*ingester.LocalBlock{},
-		liveTraces:         livetraces.New[*v1.ResourceSpans](func(rs *v1.ResourceSpans) uint64 { return uint64(rs.Size()) }, cfg.MaxTraceIdle, cfg.MaxTraceLive, instanceID),
-		traceSizes:         tracesizes.New(),
-		maxTraceLogger:     util_log.NewRateLimitedLogger(maxTraceLogLinesPerSecond, level.Warn(logger)),
-		overrides:          overrides,
-		tracesCreatedTotal: metricTracesCreatedTotal.WithLabelValues(instanceID),
-		bytesReceivedTotal: metricBytesReceivedTotal,
+		tenantID:              instanceID,
+		logger:                logger,
+		Cfg:                   cfg,
+		wal:                   wal,
+		completeBlockEncoding: completeBlockEncoding,
+		walBlocks:             map[uuid.UUID]common.WALBlock{},
+		completeBlocks:        map[uuid.UUID]*ingester.LocalBlock{},
+		liveTraces:            livetraces.New[*v1.ResourceSpans](func(rs *v1.ResourceSpans) uint64 { return uint64(rs.Size()) }, cfg.MaxTraceIdle, cfg.MaxTraceLive, instanceID),
+		traceSizes:            tracesizes.New(),
+		maxTraceLogger:        util_log.NewRateLimitedLogger(maxTraceLogLinesPerSecond, level.Warn(logger)),
+		overrides:             overrides,
+		tracesCreatedTotal:    metricTracesCreatedTotal.WithLabelValues(instanceID),
+		bytesReceivedTotal:    metricBytesReceivedTotal,
 		// blockOffsetMeta:   make(map[uuid.UUID]offsetMetadata),
 	}
 
@@ -443,14 +442,14 @@ func (i *instance) completeBlock(ctx context.Context, id uuid.UUID) error {
 	}
 	defer iter.Close()
 
-	newMeta, err := i.enc.CreateBlock(ctx, &i.Cfg.BlockConfig, walBlock.BlockMeta(), iter, reader, writer)
+	newMeta, err := i.completeBlockEncoding.CreateBlock(ctx, &i.Cfg.BlockConfig, walBlock.BlockMeta(), iter, reader, writer)
 	if err != nil {
 		level.Error(i.logger).Log("msg", "failed to create complete block", "id", id, "err", err)
 		span.RecordError(err)
 		return err
 	}
 
-	newBlock, err := i.enc.OpenBlock(newMeta, reader)
+	newBlock, err := i.completeBlockEncoding.OpenBlock(newMeta, reader)
 	if err != nil {
 		level.Error(i.logger).Log("msg", "failed to open complete block", "id", id, "err", err)
 		span.RecordError(err)

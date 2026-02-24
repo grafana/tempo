@@ -40,11 +40,12 @@ type PartitionReader struct {
 	client *kgo.Client
 	adm    *kadm.Client
 
-	lookbackPeriod  time.Duration
-	commitInterval  time.Duration
-	wg              sync.WaitGroup
-	offsetWatermark atomic.Pointer[kadm.Offset]
-	lag             atomic.Int64
+	lookbackPeriod    time.Duration
+	commitInterval    time.Duration
+	forceFromLookback bool
+	wg                sync.WaitGroup
+	offsetWatermark   atomic.Pointer[kadm.Offset]
+	lag               atomic.Int64
 
 	consume consumeFn
 	metrics partitionReaderMetrics
@@ -52,23 +53,24 @@ type PartitionReader struct {
 	logger log.Logger
 }
 
-func NewPartitionReaderForPusher(client *kgo.Client, partitionID int32, cfg ingest.KafkaConfig, commitInterval time.Duration, lookbackPeriod time.Duration, consume consumeFn, logger log.Logger, reg prometheus.Registerer) (*PartitionReader, error) {
+func NewPartitionReaderForPusher(client *kgo.Client, partitionID int32, cfg ingest.KafkaConfig, commitInterval time.Duration, lookbackPeriod time.Duration, forceFromLookback bool, consume consumeFn, logger log.Logger, reg prometheus.Registerer) (*PartitionReader, error) {
 	metrics := newPartitionReaderMetrics(partitionID, reg)
-	return newPartitionReader(client, partitionID, cfg, commitInterval, lookbackPeriod, consume, logger, metrics)
+	return newPartitionReader(client, partitionID, cfg, commitInterval, lookbackPeriod, forceFromLookback, consume, logger, metrics)
 }
 
-func newPartitionReader(client *kgo.Client, partitionID int32, cfg ingest.KafkaConfig, commitInterval time.Duration, lookbackPeriod time.Duration, consume consumeFn, logger log.Logger, metrics partitionReaderMetrics) (*PartitionReader, error) {
+func newPartitionReader(client *kgo.Client, partitionID int32, cfg ingest.KafkaConfig, commitInterval time.Duration, lookbackPeriod time.Duration, forceFromLookback bool, consume consumeFn, logger log.Logger, metrics partitionReaderMetrics) (*PartitionReader, error) {
 	r := &PartitionReader{
-		partitionID:    partitionID,
-		consumerGroup:  cfg.ConsumerGroup,
-		topic:          cfg.Topic,
-		client:         client,
-		adm:            kadm.NewClient(client),
-		lookbackPeriod: lookbackPeriod,
-		commitInterval: commitInterval,
-		consume:        consume,
-		metrics:        metrics,
-		logger:         log.With(logger, "partition", partitionID),
+		partitionID:       partitionID,
+		consumerGroup:     cfg.ConsumerGroup,
+		topic:             cfg.Topic,
+		client:            client,
+		adm:               kadm.NewClient(client),
+		lookbackPeriod:    lookbackPeriod,
+		commitInterval:    commitInterval,
+		forceFromLookback: forceFromLookback,
+		consume:           consume,
+		metrics:           metrics,
+		logger:            log.With(logger, "partition", partitionID),
 	}
 	r.lag.Store(-1)
 	r.Service = services.NewBasicService(r.start, r.running, r.stop)
@@ -265,7 +267,11 @@ func (r *PartitionReader) fetchLastCommittedOffset(ctx context.Context) (kgo.Off
 		return kgo.NewOffset(), errors.Wrap(err, "unable to fetch group offsets")
 	}
 	offset, found := offsets.Lookup(r.topic, r.partitionID)
-	if !found { // No committed offset found for this partition
+	if !found || r.forceFromLookback {
+		if r.forceFromLookback && found {
+			level.Info(r.logger).Log("msg", "ignoring committed offset due to missing local data, using lookback period",
+				"lookback", r.lookbackPeriod, "committed_offset", offset.At)
+		}
 		if r.lookbackPeriod == 0 {
 			return kgo.NewOffset().AtEnd(), nil
 		}

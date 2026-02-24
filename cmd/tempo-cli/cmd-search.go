@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"time"
 
 	"github.com/google/uuid"
 
@@ -17,8 +16,7 @@ import (
 )
 
 const (
-	layoutString = "2006-01-02T15:04:05"
-	limit        = 20
+	limit = 20
 )
 
 type searchBlocksCmd struct {
@@ -26,8 +24,8 @@ type searchBlocksCmd struct {
 
 	Name     string `arg:"" help:"attribute name to search for"`
 	Value    string `arg:"" help:"attribute value to search for"`
-	Start    string `arg:"" help:"start of time range to search (YYYY-MM-DDThh:mm:ss)"`
-	End      string `arg:"" help:"end of time range to search (YYYY-MM-DDThh:mm:ss)"`
+	Start    string `arg:"" help:"start time in RFC3339 (e.g. 2006-01-02T15:04:05Z07:00) or relative (e.g. now-1h) format"`
+	End      string `arg:"" help:"end time in RFC3339 (e.g. 2006-01-02T15:04:05Z07:00) or relative (e.g. now) format"`
 	TenantID string `arg:"" help:"tenant ID to search"`
 }
 
@@ -37,11 +35,11 @@ func (cmd *searchBlocksCmd) Run(opts *globalOptions) error {
 		return err
 	}
 
-	startTime, err := time.Parse(layoutString, cmd.Start)
+	startTime, err := parseTime(cmd.Start)
 	if err != nil {
 		return err
 	}
-	endTime, err := time.Parse(layoutString, cmd.End)
+	endTime, err := parseTime(cmd.End)
 	if err != nil {
 		return err
 	}

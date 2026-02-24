@@ -49,7 +49,7 @@ func (o *BinaryOperation) extractConditions(request *FetchSpansRequest) {
 		switch r := o.RHS.(type) {
 		case Static:
 			switch {
-			case (r.Type == TypeNil && o.Op == OpNotEqual) || !o.Op.isBoolean(): // the fetch layer can't build predicates on operators that are not boolean
+			case (o.RHS.(Static).Type == TypeNil && o.Op == OpNotEqual) || !o.Op.isBoolean(): // the fetch layer can't build predicates on operators that are not boolean
 				request.appendCondition(Condition{
 					Attribute: l,
 					Op:        OpNone,
@@ -71,19 +71,19 @@ func (o *BinaryOperation) extractConditions(request *FetchSpansRequest) {
 		case Attribute:
 			// Both sides are attributes, just fetch both
 			request.appendCondition(Condition{
-				Attribute: l,
+				Attribute: o.LHS.(Attribute),
 				Op:        OpNone,
 				Operands:  nil,
 			})
 			request.appendCondition(Condition{
-				Attribute: r,
+				Attribute: o.RHS.(Attribute),
 				Op:        OpNone,
 				Operands:  nil,
 			})
 		default:
 			// Just fetch LHS and try to do something smarter with RHS
 			request.appendCondition(Condition{
-				Attribute: l,
+				Attribute: o.LHS.(Attribute),
 				Op:        OpNone,
 				Operands:  nil,
 			})
@@ -92,11 +92,10 @@ func (o *BinaryOperation) extractConditions(request *FetchSpansRequest) {
 	case Static:
 		switch r := o.RHS.(type) {
 		case Static:
-			// 2 statics, don't need to send any conditions
-			return
+			return // if both are Static, don't need to send any conditions
 		case Attribute:
 			switch {
-			case (l.Type == TypeNil && o.Op == OpNotEqual) || !o.Op.isBoolean(): // the fetch layer can't build predicates on operators that are not boolean
+			case (o.LHS.(Static).Type == TypeNil && o.Op == OpNotEqual) || !o.Op.isBoolean(): // the fetch layer can't build predicates on operators that are not boolean
 				request.appendCondition(Condition{
 					Attribute: r,
 					Op:        OpNone,
@@ -112,10 +111,9 @@ func (o *BinaryOperation) extractConditions(request *FetchSpansRequest) {
 				request.appendCondition(Condition{
 					Attribute: r,
 					Op:        o.Op,
-					Operands:  []Static{o.LHS.(Static)},
+					Operands:  []Static{l},
 				})
 			}
-
 		default:
 			o.RHS.extractConditions(request)
 		}

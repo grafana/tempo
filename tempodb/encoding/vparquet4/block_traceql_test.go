@@ -124,8 +124,23 @@ func TestCreateIntPredicateFromFloat(t *testing.T) {
 	f(`{.attr < -9.223372036854777e+18}`, `nil`)
 	f(`{.attr <= -9.223372036854777e+18}`, `nil`)
 
-	fe(`{.attr = 1}`, `operand is not float: 1`)
-	fe(`{.attr =~ -1.2}`, `operator not supported for integers: =~`)
+	fe(`{.attr = 1}`, `operand is not float or float array: 1`)
+	fe(`{.attr = 1 || .attr = 2}`, `operand is not float or float array: [1, 2]`)
+	fe(`{.attr =~ -1.2}`, `operator not supported for floats: =~`)
+
+	// arrays
+	{
+		p, err := createIntPredicateFromFloat(traceql.OpEqual, traceql.Operands{traceql.NewStaticFloatArray([]float64{1.0, 2.0})})
+		require.NoError(t, err)
+		require.NotNil(t, p)
+		require.Equal(t, "IntInPredicate{[1 2]}", p.String())
+	}
+	{
+		p, err := createIntPredicateFromFloat(traceql.OpNotEqual, traceql.Operands{traceql.NewStaticFloatArray([]float64{1.0, 2.0})})
+		require.NoError(t, err)
+		require.NotNil(t, p)
+		require.Equal(t, "IntNotInPredicate{[1 2]}", p.String())
+	}
 }
 
 func TestCreateNumericPredicate(t *testing.T) {
@@ -149,7 +164,7 @@ func TestCreateNumericPredicate(t *testing.T) {
 
 	t.Run("it forwards errors", func(t *testing.T) {
 		_, err := createDurationPredicate(traceql.OpGreater, traceql.Operands{traceql.NewStaticBool(true)})
-		require.EqualError(t, err, `operand is not int, duration, status or kind: true`)
+		require.EqualError(t, err, `operand is not int, int array, duration, status or kind: true`)
 	})
 }
 
@@ -1661,9 +1676,10 @@ func BenchmarkBackendBlockQueryRange(b *testing.B) {
 				Start:     st,
 				End:       end,
 				MaxSeries: 1000,
+				Exemplars: 2,
 			}
 
-			eval, err := e.CompileMetricsQueryRange(req, 2, 0, false)
+			eval, err := e.CompileMetricsQueryRange(req, 0, false)
 			require.NoError(b, err)
 
 			b.ResetTimer()
@@ -1734,9 +1750,10 @@ func TestSamplingError(t *testing.T) {
 			End:       end,
 			Step:      uint64(time.Second * 15),
 			MaxSeries: 1000,
+			Exemplars: 2,
 		}
 
-		eval, err := e.CompileMetricsQueryRange(req, 2, 0, false)
+		eval, err := e.CompileMetricsQueryRange(req, 0, false)
 		require.NoError(t, err)
 
 		err = eval.Do(ctx, f, st, end, int(req.MaxSeries))

@@ -18,6 +18,7 @@ type Overrides interface {
 	MetricsGeneratorNativeHistogramMaxBucketNumber(userID string) uint32
 	MetricsGeneratorNativeHistogramMinResetDuration(userID string) time.Duration
 	MetricsGeneratorSpanNameSanitization(userID string) string
+	MetricsGeneratorMaxCardinalityPerLabel(userID string) uint64
 }
 
 var _ Overrides = (overrides.Interface)(nil)

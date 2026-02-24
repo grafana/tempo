@@ -71,6 +71,7 @@ var (
 const (
 	reasonOutsideTimeRangeSlack = "outside_metrics_ingestion_slack"
 	reasonSpanMetricsFiltered   = "span_metrics_filtered"
+	reasonServiceGraphsFiltered = "service_graphs_filtered"
 	reasonInvalidUTF8           = "invalid_utf8"
 )
 
@@ -338,8 +339,12 @@ func (i *instance) addProcessor(processorName string, cfg ProcessorConfig) error
 			return err
 		}
 	case processor.ServiceGraphsName:
+		filteredSpansCounter := metricSpansDiscarded.WithLabelValues(i.instanceID, reasonServiceGraphsFiltered, processor.ServiceGraphsName)
 		invalidUTF8Counter := metricSpansDiscarded.WithLabelValues(i.instanceID, reasonInvalidUTF8, processor.ServiceGraphsName)
-		newProcessor = servicegraphs.New(cfg.ServiceGraphs, i.instanceID, i.registry, i.logger, invalidUTF8Counter)
+		newProcessor, err = servicegraphs.New(cfg.ServiceGraphs, i.instanceID, i.registry, i.logger, filteredSpansCounter, invalidUTF8Counter)
+		if err != nil {
+			return err
+		}
 	case processor.LocalBlocksName:
 		p, err := localblocks.New(cfg.LocalBlocks, i.instanceID, i.traceWAL, i.writer, i.overrides)
 		if err != nil {
@@ -542,7 +547,7 @@ func (i *instance) QueryRange(ctx context.Context, req *tempopb.QueryRangeReques
 	// Compile the raw version of the query for head and wal blocks
 	// These aren't cached and we put them all into the same evaluator
 	// for efficiency.
-	rawEval, err := e.CompileMetricsQueryRange(req, int(req.Exemplars), timeOverlapCutoff, unsafe)
+	rawEval, err := e.CompileMetricsQueryRange(req, timeOverlapCutoff, unsafe)
 	if err != nil {
 		return nil, err
 	}

@@ -40,8 +40,6 @@
     withInet6():: {
       tempo_distributor_service+:
         service.mixin.spec.withIpFamilies(['IPv6']),
-      tempo_ingester_service+:
-        service.mixin.spec.withIpFamilies(['IPv6']),
       tempo_querier_service+:
         service.mixin.spec.withIpFamilies(['IPv6']),
       tempo_query_frontend_service+:
@@ -89,14 +87,6 @@
         },
       },
 
-      tempo_ingester_config+: {
-        ingester+: {
-          lifecycler+: {
-            enable_inet6: true,
-          },
-        },
-      },
-
       tempo_live_store_config+: {
         live_store+: {
           ring+: {
@@ -118,11 +108,6 @@
       tempo_metrics_generator_statefulset+:
         statefulset.spec.template.spec.withInitContainers([
           $.tempo_chown_container('metrics-generator-data'),
-        ]),
-
-      tempo_ingester_statefulset+:
-        statefulset.spec.template.spec.withInitContainers([
-          $.tempo_chown_container('ingester-data'),
         ]),
 
       tempo_live_store_zone_a_statefulset+:

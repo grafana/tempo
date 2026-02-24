@@ -83,13 +83,14 @@ type ForwarderOverrides struct {
 }
 
 type ServiceGraphsOverrides struct {
-	HistogramBuckets                      []float64 `yaml:"histogram_buckets,omitempty" json:"histogram_buckets,omitempty"`
-	Dimensions                            []string  `yaml:"dimensions,omitempty" json:"dimensions,omitempty"`
-	PeerAttributes                        []string  `yaml:"peer_attributes,omitempty" json:"peer_attributes,omitempty"`
-	EnableClientServerPrefix              *bool     `yaml:"enable_client_server_prefix,omitempty" json:"enable_client_server_prefix,omitempty"`
-	EnableMessagingSystemLatencyHistogram *bool     `yaml:"enable_messaging_system_latency_histogram,omitempty" json:"enable_messaging_system_latency_histogram,omitempty"`
-	EnableVirtualNodeLabel                *bool     `yaml:"enable_virtual_node_label,omitempty" json:"enable_virtual_node_label,omitempty"`
-	SpanMultiplierKey                     string    `yaml:"span_multiplier_key,omitempty" json:"span_multiplier_key,omitempty"`
+	HistogramBuckets                      []float64                   `yaml:"histogram_buckets,omitempty" json:"histogram_buckets,omitempty"`
+	Dimensions                            []string                    `yaml:"dimensions,omitempty" json:"dimensions,omitempty"`
+	PeerAttributes                        []string                    `yaml:"peer_attributes,omitempty" json:"peer_attributes,omitempty"`
+	FilterPolicies                        []filterconfig.FilterPolicy `yaml:"filter_policies,omitempty" json:"filter_policies,omitempty"`
+	EnableClientServerPrefix              *bool                       `yaml:"enable_client_server_prefix,omitempty" json:"enable_client_server_prefix,omitempty"`
+	EnableMessagingSystemLatencyHistogram *bool                       `yaml:"enable_messaging_system_latency_histogram,omitempty" json:"enable_messaging_system_latency_histogram,omitempty"`
+	EnableVirtualNodeLabel                *bool                       `yaml:"enable_virtual_node_label,omitempty" json:"enable_virtual_node_label,omitempty"`
+	SpanMultiplierKey                     string                      `yaml:"span_multiplier_key,omitempty" json:"span_multiplier_key,omitempty"`
 }
 
 type SpanMetricsOverrides struct {
@@ -159,6 +160,7 @@ type MetricsGeneratorOverrides struct {
 	NativeHistogramMaxBucketNumber  uint32        `yaml:"native_histogram_max_bucket_number,omitempty" json:"native_histogram_max_bucket_number,omitempty"`
 	NativeHistogramMinResetDuration time.Duration `yaml:"native_histogram_min_reset_duration,omitempty" json:"native_histogram_min_reset_duration,omitempty"`
 	SpanNameSanitization            string        `yaml:"span_name_sanitization,omitempty" json:"span_name_sanitization,omitempty"`
+	MaxCardinalityPerLabel          uint64        `yaml:"max_cardinality_per_label,omitempty" json:"max_cardinality_per_label,omitempty"`
 }
 
 type ReadOverrides struct {
@@ -171,6 +173,10 @@ type ReadOverrides struct {
 	MaxMetricsDuration model.Duration `yaml:"max_metrics_duration,omitempty" json:"max_metrics_duration,omitempty"`
 
 	UnsafeQueryHints bool `yaml:"unsafe_query_hints,omitempty" json:"unsafe_query_hints,omitempty"`
+
+	// LeftPadTraceIDs left-pads trace IDs in search responses to 32 hex characters with zeros.
+	// This produces W3C/OpenTelemetry compliant trace IDs (32-hex-character lowercase strings).
+	LeftPadTraceIDs bool `yaml:"left_pad_trace_ids,omitempty" json:"left_pad_trace_ids,omitempty"`
 }
 
 type CompactionOverrides struct {

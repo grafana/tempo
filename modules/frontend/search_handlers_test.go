@@ -494,7 +494,6 @@ func TestSearchFailurePropagatesFromQueriers(t *testing.T) {
 					ConcurrentRequests:    defaultConcurrentRequests,
 					TargetBytesPerRequest: defaultTargetBytesPerRequest,
 					MostRecentShards:      defaultMostRecentShards,
-					QueryIngestersUntil:   100 * time.Hour,
 					QueryBackendAfter:     100 * time.Hour,
 					IngesterShards:        1,
 				},
@@ -545,7 +544,6 @@ func TestSearchFailurePropagatesFromQueriers(t *testing.T) {
 					ConcurrentRequests:    defaultConcurrentRequests,
 					TargetBytesPerRequest: defaultTargetBytesPerRequest,
 					MostRecentShards:      defaultMostRecentShards,
-					QueryIngestersUntil:   100 * time.Hour,
 					QueryBackendAfter:     100 * time.Hour,
 					IngesterShards:        1,
 				},
@@ -881,7 +879,6 @@ func frontendWithSettings(t require.TestingT, next pipeline.RoundTripper, rdr te
 					TargetBytesPerRequest: defaultTargetBytesPerRequest,
 					MostRecentShards:      defaultMostRecentShards,
 					QueryBackendAfter:     30 * time.Minute,
-					QueryIngestersUntil:   30 * time.Minute,
 					IngesterShards:        1,
 				},
 

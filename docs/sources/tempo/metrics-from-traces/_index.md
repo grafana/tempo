@@ -11,9 +11,8 @@ aliases:
 Metrics provide a powerful insight into the systems you are monitoring with your observability strategy.
 Instead of running an additional service to generate metrics, you can use Grafana Tempo to generate metrics from traces.
 
-Grafana Tempo can generate metrics from tracing data using the metrics-generator, TraceQL metrics (experimental), and the metrics summary API (deprecated).
+Grafana Tempo can generate metrics from tracing data using the metrics-generator and TraceQL metrics.
 Refer to the table for a summary of these metrics and their capabilities.
-Metrics summary isn't included in the table because it's deprecated.
 
 |                | Metrics-generator                                                                                                                                                                                                                                                                                                                               | TraceQL metrics                                                                                                                                                                                                                                                                                 |
 | -------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -95,22 +94,3 @@ Refer to these resources for additional information:
 - [Configure TraceQL metrics](https://grafana.com/docs/tempo/<TEMPO_VERSION>/metrics-from-traces/metrics-queries/configure-traceql-metrics/)
 - [TraceQL metrics queries](https://grafana.com/docs/tempo/<TEMPO_VERSION>/metrics-from-traces/metrics-queries/)
 - [TraceQL metrics functions](https://grafana.com/docs/tempo/<TEMPO_VERSION>/metrics-from-traces/metrics-queries/functions/)
-
-## Metrics summary API (deprecated)
-
-{{< admonition type="warning" >}}
-The metrics summary API is deprecated as of Tempo 2.7. Features powered by the metrics summary API, like the [Aggregate by table](https://grafana.com/docs/grafana/<GRAFANA_VERSION>/datasources/tempo/query-editor/traceql-search/#optional-use-aggregate-by), are also deprecated in Grafana Cloud and Grafana 11.3 and later.
-It will be removed in a future release.
-{{< /admonition >}}
-
-The metrics summary API was an early capability in Tempo for generating ad hoc RED metrics at query time.
-This data was displayed in the Aggregate by table in Grafana Explore, where you could see request rate, error rate, and latency values of your system over the last hour, computed from your trace data.
-Those values were broken down by any and all attributes attached to your traces.
-
-When you used the “Aggregate by” option, Grafana made a call to Tempo’s metrics summary API, which returned these RED metrics based on spans of `kind=server` seen in the last hour.
-
-The metrics summary API returns RED metrics for `kind=server` spans sent to Tempo in the last hour.
-The metrics summary feature creates metrics from trace data without using metrics-generator.
-
-The metrics summary API and the Aggregate by table have been deprecated in favor of TraceQL metrics.
-For more information, refer to [Deprecation in favor of TraceQL metrics](https://grafana.com/docs/tempo/<TEMPO_VERSION>/api_docs/metrics-summary/#deprecation-in-favor-of-traceql-metrics).

@@ -71,7 +71,6 @@ An example report output looks like this:
     "storage_block_encoding": "zstd",
     "storage_block_search_encoding": "snappy",
     "storage_cache": "",
-    "receiver_enabled_opencensus": 0,
     "feature_enabled_auth_stats": 0,
     "frontend_version": "v1",
     "storage_backend": "local",
@@ -139,7 +138,7 @@ Tempo maintainers commit to keeping the list of tracked information updated over
   - **`memstats`**: Memory usage statistics, including heap and stack usage, garbage collection metrics, and total allocations.
   - **`num_cpu`**: The number of logical CPU cores available.
   - **`feature_enabled_multitenancy`**: Indicates if multitenancy is enabled (`1`) or not (`0`).
-  - **`receiver_enabled_jaeger`**, **`receiver_enabled_opencensus`**, **`receiver_enabled_otlp`**, **`receiver_enabled_kafka`**, **`receiver_enabled_zipkin`**: Flags indicating if each trace receiver is enabled (`1`) or not (`0`).
+  - **`receiver_enabled_jaeger`**, **`receiver_enabled_otlp`**, **`receiver_enabled_kafka`**, **`receiver_enabled_zipkin`**: Flags indicating if each trace receiver is enabled (`1`) or not (`0`).
   - **`storage_block_encoding`**, **`storage_block_search_encoding`**, **`storage_wal_encoding`**, **`storage_wal_search_encoding`**: The encoding or compression algorithms used for storage blocks and write-ahead logs.
   - **`storage_cache`**: The cache backend used for storage, if any.
   - **`feature_enabled_auth_stats`**: Indicates if authentication statistics are enabled.

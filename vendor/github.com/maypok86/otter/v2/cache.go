@@ -91,7 +91,7 @@ func New[K comparable, V any](o *Options[K, V]) (*Cache[K, V], error) {
 		cache: cacheImpl,
 	}
 	runtime.AddCleanup(c, func(cacheImpl *cache[K, V]) {
-		cacheImpl.close()
+		cacheImpl.StopAllGoroutines()
 	}, cacheImpl)
 
 	return c, nil
@@ -463,6 +463,19 @@ func (c *Cache[K, V]) Hottest() iter.Seq[Entry[K, V]] {
 // maintenance will be halted.
 func (c *Cache[K, V]) Coldest() iter.Seq[Entry[K, V]] {
 	return c.cache.Coldest()
+}
+
+// StopAllGoroutines stops all goroutines launched by the cache.
+// It returns true if the call stops goroutines, false if goroutines have already been stopped.
+//
+// NOTE: In the vast majority of cases, you do not need to call this method, and it will be called automatically.
+// However, it can sometimes be useful, for example when using synctest.
+// You can think of this method as analogous to the Stop method of [time.Timer].
+//
+// NOTE: This method only stops the goroutines and does not invalidate entries in the cache.
+// To invalidate entries, you can use the Invalidate / InvalidateAll methods.
+func (c *Cache[K, V]) StopAllGoroutines() bool {
+	return c.cache.StopAllGoroutines()
 }
 
 func (c *Cache[K, V]) has(key K) bool {

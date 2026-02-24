@@ -374,6 +374,10 @@ func (o *runtimeConfigOverridesManager) UnsafeQueryHints(userID string) bool {
 	return o.getOverridesForUser(userID).Read.UnsafeQueryHints
 }
 
+func (o *runtimeConfigOverridesManager) LeftPadTraceIDs(userID string) bool {
+	return o.getOverridesForUser(userID).Read.LeftPadTraceIDs
+}
+
 func (o *runtimeConfigOverridesManager) CostAttributionMaxCardinality(userID string) uint64 {
 	return o.getOverridesForUser(userID).CostAttribution.MaxCardinality
 }
@@ -420,7 +424,7 @@ func (o *runtimeConfigOverridesManager) MetricsGeneratorMaxActiveSeries(userID s
 	return o.getOverridesForUser(userID).MetricsGenerator.MaxActiveSeries
 }
 
-// MetricsGeneratorMaxEntities is the maximum amount of entities in the metrics-generator registry
+// MetricsGeneratorMaxActiveEntities is the maximum number of entities in the metrics-generator registry
 // for this tenant. Note this is a local limit enforced in every instance separately.
 // Requires the generator's limiter type to be set to "entity".
 func (o *runtimeConfigOverridesManager) MetricsGeneratorMaxActiveEntities(userID string) uint32 {
@@ -470,6 +474,13 @@ func (o *runtimeConfigOverridesManager) MetricsGeneratorSpanNameSanitization(use
 	return o.defaultLimits.MetricsGenerator.SpanNameSanitization
 }
 
+// MetricsGeneratorMaxCardinalityPerLabel is the maximum number of distinct values any single
+// label can have before values are replaced with __cardinality_overflow__.
+// 0 disables the limit.
+func (o *runtimeConfigOverridesManager) MetricsGeneratorMaxCardinalityPerLabel(userID string) uint64 {
+	return o.getOverridesForUser(userID).MetricsGenerator.MaxCardinalityPerLabel
+}
+
 // MetricsGeneratorTraceIDLabelName is the label name used for the trace ID in metrics.
 // "TraceID" is used if no value is provided.
 func (o *runtimeConfigOverridesManager) MetricsGeneratorTraceIDLabelName(userID string) string {
@@ -502,6 +513,11 @@ func (o *runtimeConfigOverridesManager) MetricsGeneratorProcessorServiceGraphsDi
 // MetricsGeneratorProcessorServiceGraphsPeerAttributes controls the attributes that are used to build virtual nodes
 func (o *runtimeConfigOverridesManager) MetricsGeneratorProcessorServiceGraphsPeerAttributes(userID string) []string {
 	return o.getOverridesForUser(userID).MetricsGenerator.Processor.ServiceGraphs.PeerAttributes
+}
+
+// MetricsGeneratorProcessorServiceGraphsFilterPolicies controls the filter policies that are added to the servicegraphs processor.
+func (o *runtimeConfigOverridesManager) MetricsGeneratorProcessorServiceGraphsFilterPolicies(userID string) []filterconfig.FilterPolicy {
+	return o.getOverridesForUser(userID).MetricsGenerator.Processor.ServiceGraphs.FilterPolicies
 }
 
 // MetricsGeneratorProcessorServiceGraphsEnableClientServerPrefix enables "client" and "server" prefix
