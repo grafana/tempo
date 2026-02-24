@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/grafana/dskit/user"
-	generator_client "github.com/grafana/tempo/modules/generator/client"
 	livestore_client "github.com/grafana/tempo/modules/livestore/client"
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/pkg/api"
@@ -24,7 +23,7 @@ func TestVirtualTagsDoesntHitBackend(t *testing.T) {
 	o, err := overrides.NewOverrides(overrides.Config{}, nil, prometheus.DefaultRegisterer)
 	require.NoError(t, err)
 
-	q, err := New(Config{}, nil, generator_client.Config{}, nil, livestore_client.Config{}, nil, false, nil, o)
+	q, err := New(Config{}, nil, livestore_client.Config{}, nil, false, nil, o)
 	require.NoError(t, err)
 
 	ctx := user.InjectOrgID(context.Background(), "blerg")
@@ -162,7 +161,7 @@ func TestFindTraceByID_ExternalMode(t *testing.T) {
 	o, err := overrides.NewOverrides(overrides.Config{}, nil, prometheus.DefaultRegisterer)
 	require.NoError(t, err)
 
-	q, err := New(cfg, nil, generator_client.Config{}, nil, livestore_client.Config{}, nil, true, nil, o)
+	q, err := New(cfg, nil, livestore_client.Config{}, nil, true, nil, o)
 	require.NoError(t, err)
 
 	ctx := user.InjectOrgID(context.Background(), userID)
