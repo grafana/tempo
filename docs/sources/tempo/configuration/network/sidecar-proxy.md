@@ -15,7 +15,7 @@ Common examples include Envoy, Nginx, Traefik, or service meshes like Istio and 
 
 Tempo pods communicate using gRPC.
 
-The different components like distributors, live-stores, and block-builders find each other by a shared ring with the list of pods, their roles, and their addresses.
+The different components, like distributors, live-stores, and block-builders, find each other by a shared ring with the list of pods, their roles, and their addresses.
 Pods advertise their address and listening port into the ring when they start, and deregister themselves when they exit.
 
 The overall network looks like this:
