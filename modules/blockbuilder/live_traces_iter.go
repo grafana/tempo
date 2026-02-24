@@ -35,7 +35,7 @@ type liveTracesIter struct {
 	chBuf        []chEntry
 	cancel       func()
 	start, end   uint64
-	dedupedSpans int
+	dedupedSpans uint32
 }
 
 func newLiveTracesIter(liveTraces *livetraces.LiveTraces[[]byte]) *liveTracesIter {
@@ -158,7 +158,7 @@ func (i *liveTracesIter) MinMaxTimestamps() (uint64, uint64) {
 
 // DedupedSpans returns the total number of duplicate spans that were removed
 // across all traces. The iterator must be exhausted before this can be accessed.
-func (i *liveTracesIter) DedupedSpans() int {
+func (i *liveTracesIter) DedupedSpans() uint32 {
 	i.mtx.Lock()
 	defer i.mtx.Unlock()
 
@@ -171,9 +171,9 @@ func (i *liveTracesIter) Close() {
 
 // dedupeTrace removes duplicate spans in-place from tr, deduplicating by span ID and kind.
 // Returns the number of removed duplicate spans.
-func dedupeTrace(tr *tempopb.Trace) int {
+func dedupeTrace(tr *tempopb.Trace) uint32 {
 	seen := make(map[uint64]struct{})
-	deduped := 0
+	var deduped uint32
 	for _, rs := range tr.ResourceSpans {
 		for _, ss := range rs.ScopeSpans {
 			unique := ss.Spans[:0]

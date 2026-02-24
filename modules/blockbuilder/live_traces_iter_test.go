@@ -43,5 +43,5 @@ func TestLiveTracesIter_DedupSpans(t *testing.T) {
 		}
 	}
 	require.Equal(t, spanCount, total)
-	require.Equal(t, spanCount, iter.DedupedSpans())
+	require.Equal(t, uint32(spanCount), iter.DedupedSpans())
 }
