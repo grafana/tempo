@@ -130,3 +130,7 @@ func (r Int64Counter) Add(_ context.Context, value int64, options ...metric.AddO
 		r.metrics.receiverRefusedSpans.WithLabelValues(receiver, transport).Add(float64(value))
 	}
 }
+
+func (r Int64Counter) Enabled(_ context.Context) bool {
+	return true
+}
