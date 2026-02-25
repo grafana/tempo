@@ -9,6 +9,36 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// TestAvgOverTimeExemplarLimit verifies that avgOverTimeSpanAggregator caps
+// per-series exemplar collection at req.Exemplars (set via q.Exemplars).
+func TestAvgOverTimeExemplarLimit(t *testing.T) {
+	const limit = uint32(5)
+	req := &tempopb.QueryRangeRequest{
+		Start:     uint64(1 * time.Second),
+		End:       uint64(100 * time.Second),
+		Step:      uint64(10 * time.Second),
+		Query:     "{ } | avg_over_time(duration) by (span.service)",
+		Exemplars: limit,
+	}
+
+	a := newAverageOverTimeMetricsAggregator(IntrinsicDurationAttribute, []Attribute{NewAttribute("service")})
+	a.init(req, AggregateModeRaw)
+
+	// Send limit*3 spans, all for service=a, with distinct timestamps spread across the range.
+	for i := 0; i < int(limit)*3; i++ {
+		ts := uint64(i+1) * uint64(time.Second)
+		span := newMockSpan(nil).WithStartTime(ts).WithSpanString("service", "a").WithDuration(uint64(time.Second))
+		a.observe(span)
+		a.observeExemplar(span)
+	}
+
+	result := a.result(1.0)
+	serviceA, ok := result[LabelsFromArgs(".service", "a").MapKey()]
+	require.True(t, ok, "series for service=a must exist")
+	require.LessOrEqual(t, len(serviceA.Exemplars), int(limit), "exemplars must be capped at req.Exemplars")
+	require.Greater(t, len(serviceA.Exemplars), 0, "at least one exemplar must be collected")
+}
+
 func TestAvgOverTime(t *testing.T) {
 	req := &tempopb.QueryRangeRequest{
 		Start: 1,
