@@ -12,7 +12,7 @@ Tempo can be deployed in _monolithic_ or _microservices_ modes.
 _Monolithic mode_ was previously called _single binary mode_.
 
 {{< admonition type="note" >}}
-Tempo v3.0 requires a Kafka-compatible system for both monolithic and microservices modes. The previous _scalable monolithic mode_ (also known as _scalable single binary mode_ or SSB) has been removed in v3.0.
+Tempo v3.0 requires a Kafka-compatible system for both monolithic and microservices modes. The previous _scalable monolithic mode_ (formerly called _scalable single binary mode_ or SSB) has been removed in v3.0.
 {{< /admonition >}}
 
 The deployment mode is determined by the runtime configuration `target`, or
