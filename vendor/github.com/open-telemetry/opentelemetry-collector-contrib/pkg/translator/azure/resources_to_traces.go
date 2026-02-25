@@ -8,10 +8,10 @@ import (
 	"encoding/hex"
 	"net/url"
 
-	jsoniter "github.com/json-iterator/go"
+	json "github.com/goccy/go-json"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
-	conventions "go.opentelemetry.io/collector/semconv/v1.13.0"
+	conventions "go.opentelemetry.io/otel/semconv/v1.38.0"
 	"go.uber.org/zap"
 )
 
@@ -71,7 +71,7 @@ func (r TracesUnmarshaler) UnmarshalTraces(buf []byte) (ptrace.Traces, error) {
 	t := ptrace.NewTraces()
 
 	var azureTraces azureTracesRecords
-	decoder := jsoniter.NewDecoder(bytes.NewReader(buf))
+	decoder := json.NewDecoder(bytes.NewReader(buf))
 	err := decoder.Decode(&azureTraces)
 	if err != nil {
 		return t, err
@@ -79,17 +79,18 @@ func (r TracesUnmarshaler) UnmarshalTraces(buf []byte) (ptrace.Traces, error) {
 
 	resourceTraces := t.ResourceSpans().AppendEmpty()
 	resource := resourceTraces.Resource()
-	resource.Attributes().PutStr(conventions.AttributeTelemetrySDKName, scopeName)
-	resource.Attributes().PutStr(conventions.AttributeTelemetrySDKLanguage, conventions.AttributeTelemetrySDKLanguageGo)
-	resource.Attributes().PutStr(conventions.AttributeTelemetrySDKVersion, r.Version)
-	resource.Attributes().PutStr(conventions.AttributeCloudProvider, conventions.AttributeCloudProviderAzure)
+	resource.Attributes().PutStr(string(conventions.TelemetrySDKNameKey), scopeName)
+	resource.Attributes().PutStr(string(conventions.TelemetrySDKLanguageKey), conventions.TelemetrySDKLanguageGo.Value.AsString())
+	resource.Attributes().PutStr(string(conventions.TelemetrySDKVersionKey), r.Version)
+	resource.Attributes().PutStr(string(conventions.CloudProviderKey), conventions.CloudProviderAzure.Value.AsString())
 
 	scopeSpans := resourceTraces.ScopeSpans().AppendEmpty()
 
 	spans := scopeSpans.Spans()
 
 	resourceID := ""
-	for _, azureTrace := range azureTraces.Records {
+	for i := range azureTraces.Records {
+		azureTrace := &azureTraces.Records[i]
 		if resourceID == "" && azureTrace.ResourceID != "" {
 			resourceID = azureTrace.ResourceID
 		}

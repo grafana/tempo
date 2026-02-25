@@ -10,6 +10,7 @@ import (
 
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl/contexts/internal/ctxerror"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl/contexts/internal/ctxutil"
 )
 
 func PathGetSetter[K Context](path ottl.Path[K]) (ottl.GetSetter[K], error) {
@@ -31,6 +32,11 @@ func PathGetSetter[K Context](path ottl.Path[K]) (ottl.GetSetter[K], error) {
 		return accessIsMonotonic[K](), nil
 	case "data_points":
 		return accessDataPoints[K](), nil
+	case "metadata":
+		if path.Keys() == nil {
+			return accessMetadata[K](), nil
+		}
+		return accessMetadataKey[K](path.Keys()), nil
 	default:
 		return nil, ctxerror.New(path.Name(), path.String(), Name, DocRef)
 	}
@@ -42,9 +48,11 @@ func accessName[K Context]() ottl.StandardGetSetter[K] {
 			return tCtx.GetMetric().Name(), nil
 		},
 		Setter: func(_ context.Context, tCtx K, val any) error {
-			if str, ok := val.(string); ok {
-				tCtx.GetMetric().SetName(str)
+			str, err := ctxutil.ExpectType[string](val)
+			if err != nil {
+				return err
 			}
+			tCtx.GetMetric().SetName(str)
 			return nil
 		},
 	}
@@ -56,9 +64,11 @@ func accessDescription[K Context]() ottl.StandardGetSetter[K] {
 			return tCtx.GetMetric().Description(), nil
 		},
 		Setter: func(_ context.Context, tCtx K, val any) error {
-			if str, ok := val.(string); ok {
-				tCtx.GetMetric().SetDescription(str)
+			str, err := ctxutil.ExpectType[string](val)
+			if err != nil {
+				return err
 			}
+			tCtx.GetMetric().SetDescription(str)
 			return nil
 		},
 	}
@@ -70,9 +80,11 @@ func accessUnit[K Context]() ottl.StandardGetSetter[K] {
 			return tCtx.GetMetric().Unit(), nil
 		},
 		Setter: func(_ context.Context, tCtx K, val any) error {
-			if str, ok := val.(string); ok {
-				tCtx.GetMetric().SetUnit(str)
+			str, err := ctxutil.ExpectType[string](val)
+			if err != nil {
+				return err
 			}
+			tCtx.GetMetric().SetUnit(str)
 			return nil
 		},
 	}
@@ -106,16 +118,18 @@ func accessAggTemporality[K Context]() ottl.StandardGetSetter[K] {
 			return nil, nil
 		},
 		Setter: func(_ context.Context, tCtx K, val any) error {
-			if newAggTemporality, ok := val.(int64); ok {
-				metric := tCtx.GetMetric()
-				switch metric.Type() {
-				case pmetric.MetricTypeSum:
-					metric.Sum().SetAggregationTemporality(pmetric.AggregationTemporality(newAggTemporality))
-				case pmetric.MetricTypeHistogram:
-					metric.Histogram().SetAggregationTemporality(pmetric.AggregationTemporality(newAggTemporality))
-				case pmetric.MetricTypeExponentialHistogram:
-					metric.ExponentialHistogram().SetAggregationTemporality(pmetric.AggregationTemporality(newAggTemporality))
-				}
+			newAggTemporality, err := ctxutil.ExpectType[int64](val)
+			if err != nil {
+				return err
+			}
+			metric := tCtx.GetMetric()
+			switch metric.Type() {
+			case pmetric.MetricTypeSum:
+				metric.Sum().SetAggregationTemporality(pmetric.AggregationTemporality(newAggTemporality))
+			case pmetric.MetricTypeHistogram:
+				metric.Histogram().SetAggregationTemporality(pmetric.AggregationTemporality(newAggTemporality))
+			case pmetric.MetricTypeExponentialHistogram:
+				metric.ExponentialHistogram().SetAggregationTemporality(pmetric.AggregationTemporality(newAggTemporality))
 			}
 			return nil
 		},
@@ -132,11 +146,13 @@ func accessIsMonotonic[K Context]() ottl.StandardGetSetter[K] {
 			return nil, nil
 		},
 		Setter: func(_ context.Context, tCtx K, val any) error {
-			if newIsMonotonic, ok := val.(bool); ok {
-				metric := tCtx.GetMetric()
-				if metric.Type() == pmetric.MetricTypeSum {
-					metric.Sum().SetIsMonotonic(newIsMonotonic)
-				}
+			newIsMonotonic, err := ctxutil.ExpectType[bool](val)
+			if err != nil {
+				return err
+			}
+			metric := tCtx.GetMetric()
+			if metric.Type() == pmetric.MetricTypeSum {
+				metric.Sum().SetIsMonotonic(newIsMonotonic)
 			}
 			return nil
 		},
@@ -165,27 +181,59 @@ func accessDataPoints[K Context]() ottl.StandardGetSetter[K] {
 			metric := tCtx.GetMetric()
 			switch metric.Type() {
 			case pmetric.MetricTypeSum:
-				if newDataPoints, ok := val.(pmetric.NumberDataPointSlice); ok {
-					newDataPoints.CopyTo(metric.Sum().DataPoints())
+				newDataPoints, err := ctxutil.ExpectType[pmetric.NumberDataPointSlice](val)
+				if err != nil {
+					return err
 				}
+				newDataPoints.CopyTo(metric.Sum().DataPoints())
 			case pmetric.MetricTypeGauge:
-				if newDataPoints, ok := val.(pmetric.NumberDataPointSlice); ok {
-					newDataPoints.CopyTo(metric.Gauge().DataPoints())
+				newDataPoints, err := ctxutil.ExpectType[pmetric.NumberDataPointSlice](val)
+				if err != nil {
+					return err
 				}
+				newDataPoints.CopyTo(metric.Gauge().DataPoints())
 			case pmetric.MetricTypeHistogram:
-				if newDataPoints, ok := val.(pmetric.HistogramDataPointSlice); ok {
-					newDataPoints.CopyTo(metric.Histogram().DataPoints())
+				newDataPoints, err := ctxutil.ExpectType[pmetric.HistogramDataPointSlice](val)
+				if err != nil {
+					return err
 				}
+				newDataPoints.CopyTo(metric.Histogram().DataPoints())
 			case pmetric.MetricTypeExponentialHistogram:
-				if newDataPoints, ok := val.(pmetric.ExponentialHistogramDataPointSlice); ok {
-					newDataPoints.CopyTo(metric.ExponentialHistogram().DataPoints())
+				newDataPoints, err := ctxutil.ExpectType[pmetric.ExponentialHistogramDataPointSlice](val)
+				if err != nil {
+					return err
 				}
+				newDataPoints.CopyTo(metric.ExponentialHistogram().DataPoints())
 			case pmetric.MetricTypeSummary:
-				if newDataPoints, ok := val.(pmetric.SummaryDataPointSlice); ok {
-					newDataPoints.CopyTo(metric.Summary().DataPoints())
+				newDataPoints, err := ctxutil.ExpectType[pmetric.SummaryDataPointSlice](val)
+				if err != nil {
+					return err
 				}
+				newDataPoints.CopyTo(metric.Summary().DataPoints())
 			}
 			return nil
+		},
+	}
+}
+
+func accessMetadata[K Context]() ottl.StandardGetSetter[K] {
+	return ottl.StandardGetSetter[K]{
+		Getter: func(_ context.Context, tCtx K) (any, error) {
+			return tCtx.GetMetric().Metadata(), nil
+		},
+		Setter: func(_ context.Context, tCtx K, val any) error {
+			return ctxutil.SetMap(tCtx.GetMetric().Metadata(), val)
+		},
+	}
+}
+
+func accessMetadataKey[K Context](keys []ottl.Key[K]) ottl.StandardGetSetter[K] {
+	return ottl.StandardGetSetter[K]{
+		Getter: func(ctx context.Context, tCtx K) (any, error) {
+			return ctxutil.GetMapValue(ctx, tCtx, tCtx.GetMetric().Metadata(), keys)
+		},
+		Setter: func(ctx context.Context, tCtx K, val any) error {
+			return ctxutil.SetMapValue(ctx, tCtx, tCtx.GetMetric().Metadata(), keys, val)
 		},
 	}
 }

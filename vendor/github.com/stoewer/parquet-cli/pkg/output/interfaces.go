@@ -35,7 +35,7 @@ type SerializableIterator interface {
 	NextSerializable() (any, error)
 }
 
-// Text represents a multi line text that can be printed but is not a table or another
+// Text represents a multi-line text that can be printed but is not a table or another
 // structured format such as JSON or YAML.
 type Text interface {
 	Text() (string, error)

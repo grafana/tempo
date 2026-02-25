@@ -11,6 +11,7 @@ import (
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/pdata/plog"
 	"go.opentelemetry.io/collector/pdata/pmetric"
+	"go.opentelemetry.io/collector/pdata/pprofile"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	"go.opentelemetry.io/collector/receiver"
 
@@ -20,12 +21,15 @@ import (
 	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/kafkareceiver/internal/unmarshaler"
 )
 
-var errUnknownEncodingExtension = errors.New("unknown encoding extension")
+var (
+	errUnknownEncodingExtension = errors.New("unknown encoding extension")
+	errInvalidComponentType     = errors.New("invalid component type")
+)
 
 func newTracesUnmarshaler(encoding string, _ receiver.Settings, host component.Host) (ptrace.Unmarshaler, error) {
 	// Extensions take precedence.
 	if unmarshaler, err := loadEncodingExtension[ptrace.Unmarshaler](host, encoding, "traces"); err != nil {
-		if !errors.Is(err, errUnknownEncodingExtension) {
+		if !errors.Is(err, errInvalidComponentType) && !errors.Is(err, errUnknownEncodingExtension) {
 			return nil, err
 		}
 	} else {
@@ -53,7 +57,7 @@ func newTracesUnmarshaler(encoding string, _ receiver.Settings, host component.H
 func newLogsUnmarshaler(encoding string, set receiver.Settings, host component.Host) (plog.Unmarshaler, error) {
 	// Extensions take precedence.
 	if unmarshaler, err := loadEncodingExtension[plog.Unmarshaler](host, encoding, "logs"); err != nil {
-		if !errors.Is(err, errUnknownEncodingExtension) {
+		if !errors.Is(err, errInvalidComponentType) && !errors.Is(err, errUnknownEncodingExtension) {
 			return nil, err
 		}
 	} else {
@@ -91,7 +95,7 @@ func newLogsUnmarshaler(encoding string, set receiver.Settings, host component.H
 func newMetricsUnmarshaler(encoding string, _ receiver.Settings, host component.Host) (pmetric.Unmarshaler, error) {
 	// Extensions take precedence.
 	if unmarshaler, err := loadEncodingExtension[pmetric.Unmarshaler](host, encoding, "metrics"); err != nil {
-		if !errors.Is(err, errUnknownEncodingExtension) {
+		if !errors.Is(err, errInvalidComponentType) && !errors.Is(err, errUnknownEncodingExtension) {
 			return nil, err
 		}
 	} else {
@@ -124,12 +128,29 @@ func loadEncodingExtension[T any](host component.Host, encoding, signalType stri
 	return unmarshaler, nil
 }
 
-// encodingToComponentID converts an encoding string to a component ID using the given encoding as type.
-func encodingToComponentID(encoding string) (*component.ID, error) {
-	componentType, err := component.NewType(encoding)
-	if err != nil {
-		return nil, fmt.Errorf("invalid component type: %w", err)
+func newProfilesUnmarshaler(encoding string, _ receiver.Settings, host component.Host) (pprofile.Unmarshaler, error) {
+	// Extensions take precedence.
+	if unmarshaler, err := loadEncodingExtension[pprofile.Unmarshaler](host, encoding, "profiles"); err != nil {
+		if !errors.Is(err, errInvalidComponentType) && !errors.Is(err, errUnknownEncodingExtension) {
+			return nil, err
+		}
+	} else {
+		return unmarshaler, nil
 	}
-	id := component.NewID(componentType)
+	switch encoding {
+	case "otlp_proto":
+		return &pprofile.ProtoUnmarshaler{}, nil
+	case "otlp_json":
+		return &pprofile.JSONUnmarshaler{}, nil
+	}
+	return nil, fmt.Errorf("unrecognized profiles encoding %q", encoding)
+}
+
+// encodingToComponentID attempts to parse the encoding string as a component ID.
+func encodingToComponentID(encoding string) (*component.ID, error) {
+	var id component.ID
+	if err := id.UnmarshalText([]byte(encoding)); err != nil {
+		return nil, fmt.Errorf("%w: %w", errInvalidComponentType, err)
+	}
 	return &id, nil
 }

@@ -120,7 +120,7 @@ func (b3 propagator) Inject(ctx context.Context, carrier propagation.TextMapCarr
 }
 
 // Extract extracts a context from the carrier if it contains B3 headers.
-func (b3 propagator) Extract(ctx context.Context, carrier propagation.TextMapCarrier) context.Context {
+func (propagator) Extract(ctx context.Context, carrier propagation.TextMapCarrier) context.Context {
 	var (
 		sc  trace.SpanContext
 		err error
@@ -293,13 +293,13 @@ func extractSingle(ctx context.Context, contextHeader string) (context.Context, 
 			}
 			pos += separatorWidth // {traceID}-{spanID}-
 
-			switch {
-			case headerLen == pos+samplingWidth:
+			switch headerLen {
+			case pos + samplingWidth:
 				sampling = string(contextHeader[pos])
-			case headerLen == pos+parentSpanIDWidth:
+			case pos + parentSpanIDWidth:
 				// {traceID}-{spanID}-{parentSpanID} is invalid.
 				return ctx, empty, errInvalidScopeParentSingle
-			case headerLen == pos+samplingWidth+separatorWidth+parentSpanIDWidth:
+			case pos + samplingWidth + separatorWidth + parentSpanIDWidth:
 				sampling = string(contextHeader[pos])
 				pos += samplingWidth + separatorWidth // {traceID}-{spanID}-{sampling}-
 

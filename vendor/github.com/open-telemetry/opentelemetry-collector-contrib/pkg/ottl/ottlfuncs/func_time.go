@@ -33,7 +33,7 @@ func createTimeFunction[K any](_ ottl.FunctionContext, oArgs ottl.Arguments) (ot
 	return Time(args.Time, args.Format, args.Location, args.Locale)
 }
 
-func Time[K any](inputTime ottl.StringGetter[K], format string, location ottl.Optional[string], locale ottl.Optional[string]) (ottl.ExprFunc[K], error) {
+func Time[K any](inputTime ottl.StringGetter[K], format string, location, locale ottl.Optional[string]) (ottl.ExprFunc[K], error) {
 	if format == "" {
 		return nil, errors.New("format cannot be nil")
 	}
@@ -56,11 +56,14 @@ func Time[K any](inputTime ottl.StringGetter[K], format string, location ottl.Op
 	var inputTimeLocale *string
 	if !locale.IsEmpty() {
 		l := locale.Get()
-		if err = timeutils.ValidateLocale(l); err != nil {
+		err = timeutils.ValidateLocale(l)
+		if err != nil {
 			return nil, err
 		}
 		inputTimeLocale = &l
 	}
+
+	ctimeSubstitutes := timeutils.GetStrptimeNativeSubstitutes(format)
 
 	return func(ctx context.Context, tCtx K) (any, error) {
 		t, err := inputTime.Get(ctx, tCtx)
@@ -77,6 +80,10 @@ func Time[K any](inputTime ottl.StringGetter[K], format string, location ottl.Op
 			timestamp, err = timeutils.ParseGotime(gotimeFormat, t, loc)
 		}
 		if err != nil {
+			var timeErr *time.ParseError
+			if errors.As(err, &timeErr) {
+				return nil, timeutils.ToStrptimeParseError(timeErr, format, ctimeSubstitutes)
+			}
 			return nil, err
 		}
 		return timestamp, nil

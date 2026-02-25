@@ -45,7 +45,7 @@ func createConvertTextToElementsXMLFunction[K any](_ ottl.FunctionContext, oArgs
 }
 
 // convertTextToElementsXML returns a string that is a result of wrapping any extraneous text nodes with a dedicated element.
-func convertTextToElementsXML[K any](target ottl.StringGetter[K], xPath string, elementName string) ottl.ExprFunc[K] {
+func convertTextToElementsXML[K any](target ottl.StringGetter[K], xPath, elementName string) ottl.ExprFunc[K] {
 	return func(ctx context.Context, tCtx K) (any, error) {
 		var doc *xmlquery.Node
 		if targetVal, err := target.Get(ctx, tCtx); err != nil {

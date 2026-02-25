@@ -155,7 +155,7 @@ type agentHandler struct {
 }
 
 // EmitZipkinBatch is unsupported agent's
-func (h *agentHandler) EmitZipkinBatch(context.Context, []*zipkincore.Span) (err error) {
+func (*agentHandler) EmitZipkinBatch(context.Context, []*zipkincore.Span) (err error) {
 	panic("unsupported receiver")
 }
 
@@ -188,7 +188,7 @@ func (jr *jReceiver) PostSpans(ctx context.Context, r *api_v2.PostSpansRequest) 
 }
 
 func (jr *jReceiver) startAgent() error {
-	if jr.config.ThriftBinaryUDP != nil {
+	if jr.config.ThriftBinaryUDP.HasValue() {
 		obsrecv, err := receiverhelper.NewObsReport(receiverhelper.ObsReportSettings{
 			ReceiverID:             jr.id,
 			Transport:              agentTransportBinary,
@@ -202,16 +202,17 @@ func (jr *jReceiver) startAgent() error {
 			nextConsumer: jr.nextConsumer,
 			obsrecv:      obsrecv,
 		}
-		processor, err := jr.buildProcessor(jr.config.ThriftBinaryUDP.Endpoint, jr.config.ThriftBinaryUDP.ServerConfigUDP, apacheThrift.NewTBinaryProtocolFactoryConf(nil), h)
+		binaryUDPConfig := jr.config.ThriftBinaryUDP.Get()
+		processor, err := jr.buildProcessor(binaryUDPConfig.Endpoint, binaryUDPConfig.ServerConfigUDP, apacheThrift.NewTBinaryProtocolFactoryConf(nil), h)
 		if err != nil {
 			return err
 		}
 		jr.agentProcessors = append(jr.agentProcessors, processor)
 
-		jr.settings.Logger.Info("Starting UDP server for Binary Thrift", zap.String("endpoint", jr.config.ThriftBinaryUDP.Endpoint))
+		jr.settings.Logger.Info("Starting UDP server for Binary Thrift", zap.String("endpoint", binaryUDPConfig.Endpoint))
 	}
 
-	if jr.config.ThriftCompactUDP != nil {
+	if jr.config.ThriftCompactUDP.HasValue() {
 		obsrecv, err := receiverhelper.NewObsReport(receiverhelper.ObsReportSettings{
 			ReceiverID:             jr.id,
 			Transport:              agentTransportCompact,
@@ -224,13 +225,14 @@ func (jr *jReceiver) startAgent() error {
 			nextConsumer: jr.nextConsumer,
 			obsrecv:      obsrecv,
 		}
-		processor, err := jr.buildProcessor(jr.config.ThriftCompactUDP.Endpoint, jr.config.ThriftCompactUDP.ServerConfigUDP, apacheThrift.NewTCompactProtocolFactoryConf(nil), h)
+		compactUDPConfig := jr.config.ThriftCompactUDP.Get()
+		processor, err := jr.buildProcessor(compactUDPConfig.Endpoint, compactUDPConfig.ServerConfigUDP, apacheThrift.NewTCompactProtocolFactoryConf(nil), h)
 		if err != nil {
 			return err
 		}
 		jr.agentProcessors = append(jr.agentProcessors, processor)
 
-		jr.settings.Logger.Info("Starting UDP server for Compact Thrift", zap.String("endpoint", jr.config.ThriftCompactUDP.Endpoint))
+		jr.settings.Logger.Info("Starting UDP server for Compact Thrift", zap.String("endpoint", compactUDPConfig.Endpoint))
 	}
 
 	jr.goroutines.Add(len(jr.agentProcessors))
@@ -251,7 +253,8 @@ func (jr *jReceiver) buildProcessor(address string, cfg ServerConfigUDP, factory
 		return nil, err
 	}
 	if cfg.SocketBufferSize > 0 {
-		if err = transport.SetSocketBufferSize(cfg.SocketBufferSize); err != nil {
+		err = transport.SetSocketBufferSize(cfg.SocketBufferSize)
+		if err != nil {
 			return nil, err
 		}
 	}
@@ -263,7 +266,7 @@ func (jr *jReceiver) buildProcessor(address string, cfg ServerConfigUDP, factory
 	return processor, nil
 }
 
-func (jr *jReceiver) decodeThriftHTTPBody(r *http.Request) (*jaeger.Batch, *httpError) {
+func (*jReceiver) decodeThriftHTTPBody(r *http.Request) (*jaeger.Batch, *httpError) {
 	bodyBytes, err := io.ReadAll(r.Body)
 	r.Body.Close()
 	if err != nil {
@@ -319,54 +322,55 @@ func (jr *jReceiver) HandleThriftHTTPBatch(w http.ResponseWriter, r *http.Reques
 }
 
 func (jr *jReceiver) startCollector(ctx context.Context, host component.Host) error {
-	if jr.config.ThriftHTTP != nil {
-		cln, err := jr.config.ThriftHTTP.ToListener(ctx)
+	if jr.config.ThriftHTTP.HasValue() {
+		httpConfig := jr.config.ThriftHTTP.Get()
+		cln, err := httpConfig.ToListener(ctx)
 		if err != nil {
 			return fmt.Errorf("failed to bind to Collector address %q: %w",
-				jr.config.ThriftHTTP.Endpoint, err)
+				httpConfig.NetAddr.Endpoint, err)
 		}
 
 		nr := mux.NewRouter()
 		nr.HandleFunc("/api/traces", jr.HandleThriftHTTPBatch).Methods(http.MethodPost)
-		jr.collectorServer, err = jr.config.ThriftHTTP.ToServer(ctx, host, jr.settings.TelemetrySettings, nr)
+		jr.collectorServer, err = httpConfig.ToServer(ctx, host.GetExtensions(), jr.settings.TelemetrySettings, nr)
 		if err != nil {
 			return err
 		}
 
-		jr.settings.Logger.Info("Starting HTTP server for Jaeger Thrift", zap.String("endpoint", jr.config.ThriftHTTP.Endpoint))
+		jr.settings.Logger.Info(
+			"Starting HTTP server for Jaeger Thrift",
+			zap.String("endpoint", httpConfig.NetAddr.Endpoint),
+		)
 
-		jr.goroutines.Add(1)
-		go func() {
-			defer jr.goroutines.Done()
+		jr.goroutines.Go(func() {
 			if errHTTP := jr.collectorServer.Serve(cln); !errors.Is(errHTTP, http.ErrServerClosed) && errHTTP != nil {
 				componentstatus.ReportStatus(host, componentstatus.NewFatalErrorEvent(errHTTP))
 			}
-		}()
+		})
 	}
 
-	if jr.config.GRPC != nil {
+	if jr.config.GRPC.HasValue() {
+		grpcConfig := jr.config.GRPC.Get()
 		var err error
-		jr.grpc, err = jr.config.GRPC.ToServer(ctx, host, jr.settings.TelemetrySettings)
+		jr.grpc, err = grpcConfig.ToServer(ctx, host.GetExtensions(), jr.settings.TelemetrySettings)
 		if err != nil {
 			return fmt.Errorf("failed to build the options for the Jaeger gRPC Collector: %w", err)
 		}
 
-		ln, err := jr.config.GRPC.NetAddr.Listen(ctx)
+		ln, err := grpcConfig.NetAddr.Listen(ctx)
 		if err != nil {
-			return fmt.Errorf("failed to bind to gRPC address %q: %w", jr.config.GRPC.NetAddr, err)
+			return fmt.Errorf("failed to bind to gRPC address %q: %w", grpcConfig.NetAddr, err)
 		}
 
 		api_v2.RegisterCollectorServiceServer(jr.grpc, jr)
 
-		jr.settings.Logger.Info("Starting gRPC server for Jaeger Protobuf", zap.String("endpoint", jr.config.GRPC.NetAddr.Endpoint))
+		jr.settings.Logger.Info("Starting gRPC server for Jaeger Protobuf", zap.String("endpoint", grpcConfig.NetAddr.Endpoint))
 
-		jr.goroutines.Add(1)
-		go func() {
-			defer jr.goroutines.Done()
+		jr.goroutines.Go(func() {
 			if errGrpc := jr.grpc.Serve(ln); !errors.Is(errGrpc, grpc.ErrServerStopped) && errGrpc != nil {
 				componentstatus.ReportStatus(host, componentstatus.NewFatalErrorEvent(errGrpc))
 			}
-		}()
+		})
 	}
 
 	return nil

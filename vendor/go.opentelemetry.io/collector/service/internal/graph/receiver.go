@@ -11,12 +11,14 @@ import (
 	"go.opentelemetry.io/collector/consumer"
 	"go.opentelemetry.io/collector/consumer/xconsumer"
 	"go.opentelemetry.io/collector/internal/fanoutconsumer"
-	"go.opentelemetry.io/collector/internal/telemetry"
 	"go.opentelemetry.io/collector/pipeline"
 	"go.opentelemetry.io/collector/pipeline/xpipeline"
 	"go.opentelemetry.io/collector/receiver"
 	"go.opentelemetry.io/collector/service/internal/attribute"
 	"go.opentelemetry.io/collector/service/internal/builders"
+	"go.opentelemetry.io/collector/service/internal/componentattribute"
+	"go.opentelemetry.io/collector/service/internal/metadata"
+	"go.opentelemetry.io/collector/service/internal/obsconsumer"
 )
 
 // A receiver instance can be shared by multiple pipelines of the same type.
@@ -42,36 +44,53 @@ func (n *receiverNode) buildComponent(ctx context.Context,
 	builder *builders.ReceiverBuilder,
 	nexts []baseConsumer,
 ) error {
-	set := receiver.Settings{ID: n.componentID, TelemetrySettings: tel, BuildInfo: info}
-	if telemetry.NewPipelineTelemetryGate.IsEnabled() {
-		set.TelemetrySettings = telemetry.WithAttributeSet(set.TelemetrySettings, *n.Set())
+	set := receiver.Settings{
+		ID:                n.componentID,
+		TelemetrySettings: componentattribute.TelemetrySettingsWithAttributes(tel, *n.Set()),
+		BuildInfo:         info,
 	}
-	var err error
+
+	tb, err := metadata.NewTelemetryBuilder(set.TelemetrySettings)
+	if err != nil {
+		return err
+	}
+
+	producedSettings := obsconsumer.Settings{
+		ItemCounter: tb.ReceiverProducedItems,
+		SizeCounter: tb.ReceiverProducedSize,
+		Logger:      set.Logger,
+	}
+
 	switch n.pipelineType {
 	case pipeline.SignalTraces:
 		var consumers []consumer.Traces
 		for _, next := range nexts {
 			consumers = append(consumers, next.(consumer.Traces))
 		}
-		n.Component, err = builder.CreateTraces(ctx, set, fanoutconsumer.NewTraces(consumers))
+		n.Component, err = builder.CreateTraces(ctx, set,
+			obsconsumer.NewTraces(fanoutconsumer.NewTraces(consumers), producedSettings),
+		)
 	case pipeline.SignalMetrics:
 		var consumers []consumer.Metrics
 		for _, next := range nexts {
 			consumers = append(consumers, next.(consumer.Metrics))
 		}
-		n.Component, err = builder.CreateMetrics(ctx, set, fanoutconsumer.NewMetrics(consumers))
+		n.Component, err = builder.CreateMetrics(ctx, set,
+			obsconsumer.NewMetrics(fanoutconsumer.NewMetrics(consumers), producedSettings))
 	case pipeline.SignalLogs:
 		var consumers []consumer.Logs
 		for _, next := range nexts {
 			consumers = append(consumers, next.(consumer.Logs))
 		}
-		n.Component, err = builder.CreateLogs(ctx, set, fanoutconsumer.NewLogs(consumers))
+		n.Component, err = builder.CreateLogs(ctx, set,
+			obsconsumer.NewLogs(fanoutconsumer.NewLogs(consumers), producedSettings))
 	case xpipeline.SignalProfiles:
 		var consumers []xconsumer.Profiles
 		for _, next := range nexts {
 			consumers = append(consumers, next.(xconsumer.Profiles))
 		}
-		n.Component, err = builder.CreateProfiles(ctx, set, fanoutconsumer.NewProfiles(consumers))
+		n.Component, err = builder.CreateProfiles(ctx, set,
+			obsconsumer.NewProfiles(fanoutconsumer.NewProfiles(consumers), producedSettings))
 	default:
 		return fmt.Errorf("error creating receiver %q for data type %q is not supported", set.ID, n.pipelineType)
 	}

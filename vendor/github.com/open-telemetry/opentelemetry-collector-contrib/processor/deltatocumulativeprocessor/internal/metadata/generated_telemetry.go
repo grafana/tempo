@@ -7,11 +7,10 @@ import (
 	"errors"
 	"sync"
 
+	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/metric/embedded"
 	"go.opentelemetry.io/otel/trace"
-
-	"go.opentelemetry.io/collector/component"
 )
 
 func Meter(settings component.TelemetrySettings) metric.Meter {
@@ -25,18 +24,13 @@ func Tracer(settings component.TelemetrySettings) trace.Tracer {
 // TelemetryBuilder provides an interface for components to report telemetry
 // as defined in metadata and user config.
 type TelemetryBuilder struct {
-	meter                                 metric.Meter
-	mu                                    sync.Mutex
-	registrations                         []metric.Registration
-	DeltatocumulativeDatapointsDropped    metric.Int64Counter
-	DeltatocumulativeDatapointsLinear     metric.Int64Counter
-	DeltatocumulativeDatapointsProcessed  metric.Int64Counter
-	DeltatocumulativeGapsLength           metric.Int64Counter
-	DeltatocumulativeStreamsEvicted       metric.Int64Counter
-	DeltatocumulativeStreamsLimit         metric.Int64Gauge
-	DeltatocumulativeStreamsMaxStale      metric.Int64Gauge
-	DeltatocumulativeStreamsTracked       metric.Int64UpDownCounter
-	DeltatocumulativeStreamsTrackedLinear metric.Int64ObservableUpDownCounter
+	meter                            metric.Meter
+	mu                               sync.Mutex
+	registrations                    []metric.Registration
+	DeltatocumulativeDatapoints      metric.Int64Counter
+	DeltatocumulativeStreamsLimit    metric.Int64Gauge
+	DeltatocumulativeStreamsMaxStale metric.Int64Gauge
+	DeltatocumulativeStreamsTracked  metric.Int64ObservableUpDownCounter
 }
 
 // TelemetryBuilderOption applies changes to default builder.
@@ -50,12 +44,12 @@ func (tbof telemetryBuilderOptionFunc) apply(mb *TelemetryBuilder) {
 	tbof(mb)
 }
 
-// RegisterDeltatocumulativeStreamsTrackedLinearCallback sets callback for observable DeltatocumulativeStreamsTrackedLinear metric.
-func (builder *TelemetryBuilder) RegisterDeltatocumulativeStreamsTrackedLinearCallback(cb metric.Int64Callback) error {
+// RegisterDeltatocumulativeStreamsTrackedCallback sets callback for observable DeltatocumulativeStreamsTracked metric.
+func (builder *TelemetryBuilder) RegisterDeltatocumulativeStreamsTrackedCallback(cb metric.Int64Callback) error {
 	reg, err := builder.meter.RegisterCallback(func(ctx context.Context, o metric.Observer) error {
-		cb(ctx, &observerInt64{inst: builder.DeltatocumulativeStreamsTrackedLinear, obs: o})
+		cb(ctx, &observerInt64{inst: builder.DeltatocumulativeStreamsTracked, obs: o})
 		return nil
-	}, builder.DeltatocumulativeStreamsTrackedLinear)
+	}, builder.DeltatocumulativeStreamsTracked)
 	if err != nil {
 		return err
 	}
@@ -93,57 +87,27 @@ func NewTelemetryBuilder(settings component.TelemetrySettings, options ...Teleme
 	}
 	builder.meter = Meter(settings)
 	var err, errs error
-	builder.DeltatocumulativeDatapointsDropped, err = builder.meter.Int64Counter(
-		"otelcol_deltatocumulative.datapoints.dropped",
-		metric.WithDescription("number of datapoints dropped due to given 'reason'"),
+	builder.DeltatocumulativeDatapoints, err = builder.meter.Int64Counter(
+		"otelcol_deltatocumulative_datapoints",
+		metric.WithDescription("total number of datapoints processed. may have 'error' attribute, if processing failed [Development]"),
 		metric.WithUnit("{datapoint}"),
-	)
-	errs = errors.Join(errs, err)
-	builder.DeltatocumulativeDatapointsLinear, err = builder.meter.Int64Counter(
-		"otelcol_deltatocumulative.datapoints.linear",
-		metric.WithDescription("total number of datapoints processed. may have 'error' attribute, if processing failed"),
-		metric.WithUnit("{datapoint}"),
-	)
-	errs = errors.Join(errs, err)
-	builder.DeltatocumulativeDatapointsProcessed, err = builder.meter.Int64Counter(
-		"otelcol_deltatocumulative.datapoints.processed",
-		metric.WithDescription("number of datapoints processed"),
-		metric.WithUnit("{datapoint}"),
-	)
-	errs = errors.Join(errs, err)
-	builder.DeltatocumulativeGapsLength, err = builder.meter.Int64Counter(
-		"otelcol_deltatocumulative.gaps.length",
-		metric.WithDescription("total duration where data was expected but not received"),
-		metric.WithUnit("s"),
-	)
-	errs = errors.Join(errs, err)
-	builder.DeltatocumulativeStreamsEvicted, err = builder.meter.Int64Counter(
-		"otelcol_deltatocumulative.streams.evicted",
-		metric.WithDescription("number of streams evicted"),
-		metric.WithUnit("{stream}"),
 	)
 	errs = errors.Join(errs, err)
 	builder.DeltatocumulativeStreamsLimit, err = builder.meter.Int64Gauge(
-		"otelcol_deltatocumulative.streams.limit",
-		metric.WithDescription("upper limit of tracked streams"),
+		"otelcol_deltatocumulative_streams_limit",
+		metric.WithDescription("upper limit of tracked streams [Development]"),
 		metric.WithUnit("{stream}"),
 	)
 	errs = errors.Join(errs, err)
 	builder.DeltatocumulativeStreamsMaxStale, err = builder.meter.Int64Gauge(
-		"otelcol_deltatocumulative.streams.max_stale",
-		metric.WithDescription("duration after which streams inactive streams are dropped"),
+		"otelcol_deltatocumulative_streams_max_stale",
+		metric.WithDescription("duration after which streams inactive streams are dropped [Development]"),
 		metric.WithUnit("s"),
 	)
 	errs = errors.Join(errs, err)
-	builder.DeltatocumulativeStreamsTracked, err = builder.meter.Int64UpDownCounter(
-		"otelcol_deltatocumulative.streams.tracked",
-		metric.WithDescription("number of streams tracked"),
-		metric.WithUnit("{dps}"),
-	)
-	errs = errors.Join(errs, err)
-	builder.DeltatocumulativeStreamsTrackedLinear, err = builder.meter.Int64ObservableUpDownCounter(
-		"otelcol_deltatocumulative.streams.tracked.linear",
-		metric.WithDescription("number of streams tracked"),
+	builder.DeltatocumulativeStreamsTracked, err = builder.meter.Int64ObservableUpDownCounter(
+		"otelcol_deltatocumulative_streams_tracked",
+		metric.WithDescription("number of streams tracked [Development]"),
 		metric.WithUnit("{dps}"),
 	)
 	errs = errors.Join(errs, err)

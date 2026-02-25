@@ -1,13 +1,18 @@
+display_name: Filter Processor
 type: filter
+
+description: The Filter Processor allows dropping spans, span events, metrics, datapoints, and logs from the collector.
 
 status:
   class: processor
   stability:
     alpha: [traces, metrics, logs]
+    development: [profiles]
   distributions: [core, contrib, k8s]
   warnings: [Orphaned Telemetry, Other]
   codeowners:
-    active: [TylerHelmuth, boostchicken]
+    active: [TylerHelmuth, evan-bradley, edmocosta, bogdandrutu]
+    emeritus: [boostchicken]
 tests:
   config:
 
@@ -20,6 +25,7 @@ telemetry:
       sum:
         value_type: int
         monotonic: true
+      stability: development
     processor_filter_logs.filtered:
       enabled: true
       description: Number of logs dropped by the filter processor
@@ -27,6 +33,15 @@ telemetry:
       sum:
         value_type: int
         monotonic: true
+      stability: development
+    processor_filter_profiles.filtered:
+      enabled: true
+      description: Number of profiles dropped by the filter processor
+      unit: "1"
+      sum:
+        value_type: int
+        monotonic: true
+      stability: development
     processor_filter_spans.filtered:
       enabled: true
       description: Number of spans dropped by the filter processor
@@ -34,3 +49,4 @@ telemetry:
       sum:
         value_type: int
         monotonic: true
+      stability: development

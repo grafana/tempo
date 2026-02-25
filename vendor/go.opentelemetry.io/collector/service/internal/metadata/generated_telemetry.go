@@ -28,12 +28,24 @@ type TelemetryBuilder struct {
 	meter                             metric.Meter
 	mu                                sync.Mutex
 	registrations                     []metric.Registration
+	ConnectorConsumedItems            metric.Int64Counter
+	ConnectorConsumedSize             metric.Int64Counter
+	ConnectorProducedItems            metric.Int64Counter
+	ConnectorProducedSize             metric.Int64Counter
+	ExporterConsumedItems             metric.Int64Counter
+	ExporterConsumedSize              metric.Int64Counter
 	ProcessCPUSeconds                 metric.Float64ObservableCounter
 	ProcessMemoryRss                  metric.Int64ObservableGauge
 	ProcessRuntimeHeapAllocBytes      metric.Int64ObservableGauge
 	ProcessRuntimeTotalAllocBytes     metric.Int64ObservableCounter
 	ProcessRuntimeTotalSysMemoryBytes metric.Int64ObservableGauge
 	ProcessUptime                     metric.Float64ObservableCounter
+	ProcessorConsumedItems            metric.Int64Counter
+	ProcessorConsumedSize             metric.Int64Counter
+	ProcessorProducedItems            metric.Int64Counter
+	ProcessorProducedSize             metric.Int64Counter
+	ReceiverProducedItems             metric.Int64Counter
+	ReceiverProducedSize              metric.Int64Counter
 }
 
 // TelemetryBuilderOption applies changes to default builder.
@@ -175,40 +187,112 @@ func NewTelemetryBuilder(settings component.TelemetrySettings, options ...Teleme
 	}
 	builder.meter = Meter(settings)
 	var err, errs error
+	builder.ConnectorConsumedItems, err = builder.meter.Int64Counter(
+		"otelcol.connector.consumed.items",
+		metric.WithDescription("Number of items passed to the connector. [Development]"),
+		metric.WithUnit("{item}"),
+	)
+	errs = errors.Join(errs, err)
+	builder.ConnectorConsumedSize, err = builder.meter.Int64Counter(
+		"otelcol.connector.consumed.size",
+		metric.WithDescription("Size of items passed to the connector, based on ProtoMarshaler.Sizer. [Development]"),
+		metric.WithUnit("{item}"),
+	)
+	errs = errors.Join(errs, err)
+	builder.ConnectorProducedItems, err = builder.meter.Int64Counter(
+		"otelcol.connector.produced.items",
+		metric.WithDescription("Number of items emitted from the connector. [Development]"),
+		metric.WithUnit("{item}"),
+	)
+	errs = errors.Join(errs, err)
+	builder.ConnectorProducedSize, err = builder.meter.Int64Counter(
+		"otelcol.connector.produced.size",
+		metric.WithDescription("Size of items emitted from the connector, based on ProtoMarshaler.Sizer. [Development]"),
+		metric.WithUnit("{item}"),
+	)
+	errs = errors.Join(errs, err)
+	builder.ExporterConsumedItems, err = builder.meter.Int64Counter(
+		"otelcol.exporter.consumed.items",
+		metric.WithDescription("Number of items passed to the exporter. [Development]"),
+		metric.WithUnit("{item}"),
+	)
+	errs = errors.Join(errs, err)
+	builder.ExporterConsumedSize, err = builder.meter.Int64Counter(
+		"otelcol.exporter.consumed.size",
+		metric.WithDescription("Size of items passed to the exporter, based on ProtoMarshaler.Sizer. [Development]"),
+		metric.WithUnit("{item}"),
+	)
+	errs = errors.Join(errs, err)
 	builder.ProcessCPUSeconds, err = builder.meter.Float64ObservableCounter(
 		"otelcol_process_cpu_seconds",
-		metric.WithDescription("Total CPU user and system time in seconds [alpha]"),
+		metric.WithDescription("Total CPU user and system time in seconds [Alpha]"),
 		metric.WithUnit("s"),
 	)
 	errs = errors.Join(errs, err)
 	builder.ProcessMemoryRss, err = builder.meter.Int64ObservableGauge(
 		"otelcol_process_memory_rss",
-		metric.WithDescription("Total physical memory (resident set size) [alpha]"),
+		metric.WithDescription("Total physical memory (resident set size) [Alpha]"),
 		metric.WithUnit("By"),
 	)
 	errs = errors.Join(errs, err)
 	builder.ProcessRuntimeHeapAllocBytes, err = builder.meter.Int64ObservableGauge(
 		"otelcol_process_runtime_heap_alloc_bytes",
-		metric.WithDescription("Bytes of allocated heap objects (see 'go doc runtime.MemStats.HeapAlloc') [alpha]"),
+		metric.WithDescription("Bytes of allocated heap objects (see 'go doc runtime.MemStats.HeapAlloc') [Alpha]"),
 		metric.WithUnit("By"),
 	)
 	errs = errors.Join(errs, err)
 	builder.ProcessRuntimeTotalAllocBytes, err = builder.meter.Int64ObservableCounter(
 		"otelcol_process_runtime_total_alloc_bytes",
-		metric.WithDescription("Cumulative bytes allocated for heap objects (see 'go doc runtime.MemStats.TotalAlloc') [alpha]"),
+		metric.WithDescription("Cumulative bytes allocated for heap objects (see 'go doc runtime.MemStats.TotalAlloc') [Alpha]"),
 		metric.WithUnit("By"),
 	)
 	errs = errors.Join(errs, err)
 	builder.ProcessRuntimeTotalSysMemoryBytes, err = builder.meter.Int64ObservableGauge(
 		"otelcol_process_runtime_total_sys_memory_bytes",
-		metric.WithDescription("Total bytes of memory obtained from the OS (see 'go doc runtime.MemStats.Sys') [alpha]"),
+		metric.WithDescription("Total bytes of memory obtained from the OS (see 'go doc runtime.MemStats.Sys') [Alpha]"),
 		metric.WithUnit("By"),
 	)
 	errs = errors.Join(errs, err)
 	builder.ProcessUptime, err = builder.meter.Float64ObservableCounter(
 		"otelcol_process_uptime",
-		metric.WithDescription("Uptime of the process [alpha]"),
+		metric.WithDescription("Uptime of the process [Alpha]"),
 		metric.WithUnit("s"),
+	)
+	errs = errors.Join(errs, err)
+	builder.ProcessorConsumedItems, err = builder.meter.Int64Counter(
+		"otelcol.processor.consumed.items",
+		metric.WithDescription("Number of items passed to the processor. [Development]"),
+		metric.WithUnit("{item}"),
+	)
+	errs = errors.Join(errs, err)
+	builder.ProcessorConsumedSize, err = builder.meter.Int64Counter(
+		"otelcol.processor.consumed.size",
+		metric.WithDescription("Size of items passed to the processor, based on ProtoMarshaler.Sizer. [Development]"),
+		metric.WithUnit("{item}"),
+	)
+	errs = errors.Join(errs, err)
+	builder.ProcessorProducedItems, err = builder.meter.Int64Counter(
+		"otelcol.processor.produced.items",
+		metric.WithDescription("Number of items emitted from the processor. [Development]"),
+		metric.WithUnit("{item}"),
+	)
+	errs = errors.Join(errs, err)
+	builder.ProcessorProducedSize, err = builder.meter.Int64Counter(
+		"otelcol.processor.produced.size",
+		metric.WithDescription("Size of items emitted from the processor, based on ProtoMarshaler.Sizer. [Development]"),
+		metric.WithUnit("{item}"),
+	)
+	errs = errors.Join(errs, err)
+	builder.ReceiverProducedItems, err = builder.meter.Int64Counter(
+		"otelcol.receiver.produced.items",
+		metric.WithDescription("Number of items emitted from the receiver. [Development]"),
+		metric.WithUnit("{item}"),
+	)
+	errs = errors.Join(errs, err)
+	builder.ReceiverProducedSize, err = builder.meter.Int64Counter(
+		"otelcol.receiver.produced.size",
+		metric.WithDescription("Size of items emitted from the receiver, based on ProtoMarshaler.Sizer. [Development]"),
+		metric.WithUnit("{item}"),
 	)
 	errs = errors.Join(errs, err)
 	return &builder, errs

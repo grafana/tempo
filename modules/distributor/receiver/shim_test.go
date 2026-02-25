@@ -38,7 +38,8 @@ import (
 // These tests use the OpenTelemetry Collector Exporters to validate the different protocols
 func TestShim_integration(t *testing.T) {
 	randomTraces := testdata.GenerateTraces(5)
-	headers := map[string]configopaque.String{generator.NoGenerateMetricsContextKey: "true"}
+	var headers configopaque.MapList
+	headers.Set(generator.NoGenerateMetricsContextKey, "true")
 
 	testCases := []struct {
 		name              string
@@ -195,11 +196,11 @@ type mockHost struct{}
 var _ component.Host = (*mockHost)(nil)
 
 func (m *mockHost) GetFactory(component.Kind, component.Type) component.Factory {
-	panic("implement me")
+	return nil
 }
 
 func (m *mockHost) GetExtensions() map[component.ID]component.Component {
-	panic("implement me")
+	return map[component.ID]component.Component{}
 }
 
 type capturingPusher struct {

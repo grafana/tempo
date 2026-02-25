@@ -18,7 +18,7 @@ const (
 )
 
 type MergeMapsArguments[K any] struct {
-	Target   ottl.PMapGetter[K]
+	Target   ottl.PMapGetSetter[K]
 	Source   ottl.PMapGetter[K]
 	Strategy string
 }
@@ -43,7 +43,7 @@ func createMergeMapsFunction[K any](_ ottl.FunctionContext, oArgs ottl.Arguments
 //	insert: Insert the value from `source` into `target` where the key does not already exist.
 //	update: Update the entry in `target` with the value from `source` where the key does exist
 //	upsert: Performs insert or update. Insert the value from `source` into `target` where the key does not already exist and update the entry in `target` with the value from `source` where the key does exist.
-func mergeMaps[K any](target ottl.PMapGetter[K], source ottl.PMapGetter[K], strategy string) (ottl.ExprFunc[K], error) {
+func mergeMaps[K any](target ottl.PMapGetSetter[K], source ottl.PMapGetter[K], strategy string) (ottl.ExprFunc[K], error) {
 	if strategy != INSERT && strategy != UPDATE && strategy != UPSERT {
 		return nil, fmt.Errorf("invalid value for strategy, %v, must be 'insert', 'update' or 'upsert'", strategy)
 	}
@@ -79,6 +79,6 @@ func mergeMaps[K any](target ottl.PMapGetter[K], source ottl.PMapGetter[K], stra
 		default:
 			return nil, fmt.Errorf("unknown strategy, %v", strategy)
 		}
-		return nil, nil
+		return nil, target.Set(ctx, tCtx, targetMap)
 	}, nil
 }

@@ -6,7 +6,8 @@ import (
 )
 
 type ParserOptions struct {
-	Decoder *DecoderOptions
+	Decoder         *DecoderOptions
+	WithLineNumbers bool
 }
 
 func (options ParserOptions) apply(parser *parser) {

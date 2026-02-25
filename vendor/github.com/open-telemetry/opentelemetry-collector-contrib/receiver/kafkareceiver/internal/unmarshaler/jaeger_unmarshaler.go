@@ -20,7 +20,7 @@ var (
 
 type JaegerProtoSpanUnmarshaler struct{}
 
-func (j JaegerProtoSpanUnmarshaler) UnmarshalTraces(bytes []byte) (ptrace.Traces, error) {
+func (JaegerProtoSpanUnmarshaler) UnmarshalTraces(bytes []byte) (ptrace.Traces, error) {
 	span := &jaegerproto.Span{}
 	err := span.Unmarshal(bytes)
 	if err != nil {
@@ -31,7 +31,7 @@ func (j JaegerProtoSpanUnmarshaler) UnmarshalTraces(bytes []byte) (ptrace.Traces
 
 type JaegerJSONSpanUnmarshaler struct{}
 
-func (j JaegerJSONSpanUnmarshaler) UnmarshalTraces(data []byte) (ptrace.Traces, error) {
+func (JaegerJSONSpanUnmarshaler) UnmarshalTraces(data []byte) (ptrace.Traces, error) {
 	span := &jaegerproto.Span{}
 	err := jsonpb.Unmarshal(bytes.NewReader(data), span)
 	if err != nil {

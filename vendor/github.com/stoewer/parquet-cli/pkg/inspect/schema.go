@@ -156,9 +156,9 @@ func fieldsFromSchema(schema *parquet.Schema) []fieldWithPath {
 
 func fieldsFromPathRecursive(field parquet.Field, path []string, result []fieldWithPath) []fieldWithPath {
 	cpy := path[:len(path):len(path)]
-	path = append(cpy, field.Name())
+	cpy = append(cpy, field.Name())
 
-	result = append(result, fieldWithPath{Field: field, Path: path})
+	result = append(result, fieldWithPath{Field: field, Path: cpy})
 
 	for _, child := range field.Fields() {
 		result = fieldsFromPathRecursive(child, path, result)

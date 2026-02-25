@@ -1,25 +1,27 @@
 // Copyright The OpenTelemetry Authors
 // SPDX-License-Identifier: Apache-2.0
 
+// Package otelconf provides an OpenTelemetry declarative configuration SDK.
 package otelconf // import "go.opentelemetry.io/contrib/otelconf/v0.3.0"
 
 import (
 	"context"
-	"crypto/tls"
-	"crypto/x509"
 	"errors"
 	"fmt"
-	"os"
-
-	"gopkg.in/yaml.v3"
 
 	"go.opentelemetry.io/otel/baggage"
 	"go.opentelemetry.io/otel/log"
 	nooplog "go.opentelemetry.io/otel/log/noop"
 	"go.opentelemetry.io/otel/metric"
 	noopmetric "go.opentelemetry.io/otel/metric/noop"
+	sdklog "go.opentelemetry.io/otel/sdk/log"
+	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/trace"
 	nooptrace "go.opentelemetry.io/otel/trace/noop"
+	yaml "go.yaml.in/yaml/v3"
+
+	"go.opentelemetry.io/contrib/otelconf/internal/provider"
 )
 
 const (
@@ -31,8 +33,11 @@ const (
 )
 
 type configOptions struct {
-	ctx                 context.Context
-	opentelemetryConfig OpenTelemetryConfiguration
+	ctx                   context.Context
+	opentelemetryConfig   OpenTelemetryConfiguration
+	loggerProviderOptions []sdklog.LoggerProviderOption
+	meterProviderOptions  []sdkmetric.Option
+	tracerProviderOptions []sdktrace.TracerProviderOption
 }
 
 type shutdownFunc func(context.Context) error
@@ -74,12 +79,14 @@ var noopSDK = SDK{
 	loggerProvider: nooplog.LoggerProvider{},
 	meterProvider:  noopmetric.MeterProvider{},
 	tracerProvider: nooptrace.TracerProvider{},
-	shutdown:       func(ctx context.Context) error { return nil },
+	shutdown:       func(context.Context) error { return nil },
 }
 
 // NewSDK creates SDK providers based on the configuration model.
 func NewSDK(opts ...ConfigurationOption) (SDK, error) {
-	o := configOptions{}
+	o := configOptions{
+		ctx: context.Background(),
+	}
 	for _, opt := range opts {
 		o = opt.apply(o)
 	}
@@ -142,42 +149,47 @@ func WithOpenTelemetryConfiguration(cfg OpenTelemetryConfiguration) Configuratio
 	})
 }
 
+// WithLoggerProviderOptions appends LoggerProviderOptions used for constructing
+// the LoggerProvider. OpenTelemetryConfiguration takes precedence over these options.
+func WithLoggerProviderOptions(opts ...sdklog.LoggerProviderOption) ConfigurationOption {
+	return configurationOptionFunc(func(c configOptions) configOptions {
+		c.loggerProviderOptions = append(c.loggerProviderOptions, opts...)
+		return c
+	})
+}
+
+// WithMeterProviderOptions appends metric.Options used for constructing the
+// MeterProvider. OpenTelemetryConfiguration takes precedence over these options.
+func WithMeterProviderOptions(opts ...sdkmetric.Option) ConfigurationOption {
+	return configurationOptionFunc(func(c configOptions) configOptions {
+		c.meterProviderOptions = append(c.meterProviderOptions, opts...)
+		return c
+	})
+}
+
+// WithTracerProviderOptions appends TracerProviderOptions used for constructing
+// the TracerProvider. OpenTelemetryConfiguration takes precedence over these options.
+func WithTracerProviderOptions(opts ...sdktrace.TracerProviderOption) ConfigurationOption {
+	return configurationOptionFunc(func(c configOptions) configOptions {
+		c.tracerProviderOptions = append(c.tracerProviderOptions, opts...)
+		return c
+	})
+}
+
 // ParseYAML parses a YAML configuration file into an OpenTelemetryConfiguration.
 func ParseYAML(file []byte) (*OpenTelemetryConfiguration, error) {
+	file, err := provider.ReplaceEnvVars(file)
+	if err != nil {
+		return nil, err
+	}
+
 	var cfg OpenTelemetryConfiguration
-	err := yaml.Unmarshal(file, &cfg)
+	err = yaml.Unmarshal(file, &cfg)
 	if err != nil {
 		return nil, err
 	}
 
 	return &cfg, nil
-}
-
-// createTLSConfig creates a tls.Config from certificate files.
-func createTLSConfig(caCertFile *string, clientCertFile *string, clientKeyFile *string) (*tls.Config, error) {
-	tlsConfig := &tls.Config{}
-	if caCertFile != nil {
-		caText, err := os.ReadFile(*caCertFile)
-		if err != nil {
-			return nil, err
-		}
-		certPool := x509.NewCertPool()
-		if !certPool.AppendCertsFromPEM(caText) {
-			return nil, errors.New("could not create certificate authority chain from certificate")
-		}
-		tlsConfig.RootCAs = certPool
-	}
-	if clientCertFile != nil {
-		if clientKeyFile == nil {
-			return nil, errors.New("client certificate was provided but no client key was provided")
-		}
-		clientCert, err := tls.LoadX509KeyPair(*clientCertFile, *clientKeyFile)
-		if err != nil {
-			return nil, fmt.Errorf("could not use client certificate: %w", err)
-		}
-		tlsConfig.Certificates = []tls.Certificate{clientCert}
-	}
-	return tlsConfig, nil
 }
 
 // createHeadersConfig combines the two header config fields. Headers take precedence over headersList.

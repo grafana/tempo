@@ -5,16 +5,15 @@ package azure // import "github.com/open-telemetry/opentelemetry-collector-contr
 
 import (
 	"bytes"
-	"encoding/json"
 	"errors"
 	"strconv"
 	"time"
 
-	jsoniter "github.com/json-iterator/go"
+	"github.com/goccy/go-json"
 	"github.com/relvacode/iso8601"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/plog"
-	conventions "go.opentelemetry.io/collector/semconv/v1.13.0"
+	conventions "go.opentelemetry.io/otel/semconv/v1.38.0"
 	"go.uber.org/zap"
 	"golang.org/x/exp/slices"
 )
@@ -64,7 +63,7 @@ type azureLogRecord struct {
 	CallerIPAddress   *string      `json:"callerIpAddress"`
 	CorrelationID     *string      `json:"correlationId"`
 	Identity          *any         `json:"identity"`
-	Level             *json.Number `json:"Level"`
+	Level             any          `json:"Level"`
 	Location          *string      `json:"location"`
 	Properties        *any         `json:"properties"`
 }
@@ -81,14 +80,15 @@ func (r ResourceLogsUnmarshaler) UnmarshalLogs(buf []byte) (plog.Logs, error) {
 	l := plog.NewLogs()
 
 	var azureLogs azureRecords
-	decoder := jsoniter.NewDecoder(bytes.NewReader(buf))
+	decoder := json.NewDecoder(bytes.NewReader(buf))
 	if err := decoder.Decode(&azureLogs); err != nil {
 		return l, err
 	}
 
 	var resourceIDs []string
 	azureResourceLogs := make(map[string][]azureLogRecord)
-	for _, azureLog := range azureLogs.Records {
+	for i := range azureLogs.Records {
+		azureLog := azureLogs.Records[i]
 		azureResourceLogs[azureLog.ResourceID] = append(azureResourceLogs[azureLog.ResourceID], azureLog)
 		keyExists := slices.Contains(resourceIDs, azureLog.ResourceID)
 		if !keyExists {
@@ -105,7 +105,7 @@ func (r ResourceLogsUnmarshaler) UnmarshalLogs(buf []byte) (plog.Logs, error) {
 		scopeLogs.Scope().SetVersion(r.Version)
 		logRecords := scopeLogs.LogRecords()
 
-		for i := 0; i < len(logs); i++ {
+		for i := range logs {
 			log := logs[i]
 			nanos, err := getTimestamp(log, r.TimeFormats...)
 			if err != nil {
@@ -117,9 +117,14 @@ func (r ResourceLogsUnmarshaler) UnmarshalLogs(buf []byte) (plog.Logs, error) {
 			lr.SetTimestamp(nanos)
 
 			if log.Level != nil {
-				severity := asSeverity(*log.Level)
+				severity := asSeverity(log.Level)
 				lr.SetSeverityNumber(severity)
-				lr.SetSeverityText(log.Level.String())
+				switch s := log.Level.(type) {
+				case string:
+					lr.SetSeverityText(s)
+				case float64:
+					lr.SetSeverityText(strconv.FormatFloat(s, 'f', -1, 64))
+				}
 			}
 
 			if err := lr.Attributes().FromRaw(extractRawAttributes(log)); err != nil {
@@ -164,22 +169,27 @@ func asTimestamp(s string, formats ...string) (pcommon.Timestamp, error) {
 // asSeverity converts the Azure log level to equivalent
 // OpenTelemetry severity numbers. If the log level is not
 // valid, then the 'Unspecified' value is returned.
-func asSeverity(number json.Number) plog.SeverityNumber {
-	switch number.String() {
-	case "Informational":
-		return plog.SeverityNumberInfo
-	case "Warning":
-		return plog.SeverityNumberWarn
-	case "Error":
-		return plog.SeverityNumberError
-	case "Critical":
-		return plog.SeverityNumberFatal
-	default:
-		levelNumber, _ := number.Int64()
-		if levelNumber > 0 {
-			return plog.SeverityNumber(levelNumber)
+func asSeverity(number any) plog.SeverityNumber {
+	switch l := number.(type) {
+	case string:
+		switch l {
+		case "Informational":
+			return plog.SeverityNumberInfo
+		case "Warning":
+			return plog.SeverityNumberWarn
+		case "Error":
+			return plog.SeverityNumberError
+		case "Critical":
+			return plog.SeverityNumberFatal
+		default:
+			return plog.SeverityNumberUnspecified
 		}
-
+	case float64:
+		if l > 0 {
+			return plog.SeverityNumber(l)
+		}
+		return plog.SeverityNumberUnspecified
+	default:
 		return plog.SeverityNumberUnspecified
 	}
 }
@@ -208,10 +218,10 @@ func extractRawAttributes(log azureLogRecord) map[string]any {
 	setIf(attrs, azureResultType, log.ResultType)
 	setIf(attrs, azureTenantID, log.TenantID)
 
-	setIf(attrs, conventions.AttributeCloudRegion, log.Location)
-	attrs[conventions.AttributeCloudProvider] = conventions.AttributeCloudProviderAzure
+	setIf(attrs, string(conventions.CloudRegionKey), log.Location)
+	attrs[string(conventions.CloudProviderKey)] = conventions.CloudProviderAzure.Value.AsString()
 
-	setIf(attrs, conventions.AttributeNetSockPeerAddr, log.CallerIPAddress)
+	setIf(attrs, string(conventions.NetworkPeerAddressKey), log.CallerIPAddress)
 	return attrs
 }
 

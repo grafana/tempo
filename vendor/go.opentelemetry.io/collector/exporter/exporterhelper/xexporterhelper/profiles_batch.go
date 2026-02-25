@@ -6,6 +6,7 @@ package xexporterhelper // import "go.opentelemetry.io/collector/exporter/export
 import (
 	"context"
 	"errors"
+	"fmt"
 
 	"go.opentelemetry.io/collector/exporter/exporterhelper"
 	"go.opentelemetry.io/collector/exporter/exporterhelper/internal/sizer"
@@ -13,7 +14,10 @@ import (
 )
 
 // MergeSplit splits and/or merges the profiles into multiple requests based on the MaxSizeConfig.
-func (req *profilesRequest) MergeSplit(_ context.Context, maxSize int, szt exporterhelper.RequestSizerType, r2 exporterhelper.Request) ([]exporterhelper.Request, error) {
+//
+// Following the OTLP 1.7.0 upgrade, this is currently a noop.
+// See https://github.com/open-telemetry/opentelemetry-collector/issues/13106
+func (req *profilesRequest) MergeSplit(_ context.Context, maxSize int, szt exporterhelper.RequestSizerType, r2 Request) ([]Request, error) {
 	var sz sizer.ProfilesSizer
 	switch szt {
 	case exporterhelper.RequestSizerTypeItems:
@@ -24,38 +28,45 @@ func (req *profilesRequest) MergeSplit(_ context.Context, maxSize int, szt expor
 		return nil, errors.New("unknown sizer type")
 	}
 
-	if r2 != nil {
+	if r2 != nil && r2.ItemsCount() > 0 {
 		req2, ok := r2.(*profilesRequest)
 		if !ok {
 			return nil, errors.New("invalid input type")
 		}
-		req2.mergeTo(req, sz)
+		err := req2.mergeTo(req, sz)
+		if err != nil {
+			return nil, fmt.Errorf("failed merging profiles; %w", err)
+		}
 	}
 
 	// If no limit we can simply merge the new request into the current and return.
 	if maxSize == 0 {
-		return []exporterhelper.Request{req}, nil
+		return []Request{req}, nil
 	}
-	return req.split(maxSize, sz), nil
+	return req.split(maxSize, sz)
 }
 
-func (req *profilesRequest) mergeTo(dst *profilesRequest, sz sizer.ProfilesSizer) {
+func (req *profilesRequest) mergeTo(dst *profilesRequest, sz sizer.ProfilesSizer) error {
 	if sz != nil {
 		dst.setCachedSize(dst.size(sz) + req.size(sz))
 		req.setCachedSize(0)
 	}
-	req.pd.ResourceProfiles().MoveAndAppendTo(dst.pd.ResourceProfiles())
+	return req.pd.MergeTo(dst.pd)
 }
 
-func (req *profilesRequest) split(maxSize int, sz sizer.ProfilesSizer) []exporterhelper.Request {
-	var res []exporterhelper.Request
+func (req *profilesRequest) split(maxSize int, sz sizer.ProfilesSizer) ([]Request, error) {
+	var res []Request
 	for req.size(sz) > maxSize {
 		pd, rmSize := extractProfiles(req.pd, maxSize, sz)
+		if pd.SampleCount() == 0 {
+			return res, fmt.Errorf("one sample size is greater than max size, dropping items: %d", req.pd.SampleCount())
+		}
 		req.setCachedSize(req.size(sz) - rmSize)
 		res = append(res, newProfilesRequest(pd))
 	}
+
 	res = append(res, req)
-	return res
+	return res, nil
 }
 
 // extractProfiles extracts a new profiles with a maximum number of samples.
@@ -63,6 +74,8 @@ func extractProfiles(srcProfiles pprofile.Profiles, capacity int, sz sizer.Profi
 	destProfiles := pprofile.NewProfiles()
 	capacityLeft := capacity - sz.ProfilesSize(destProfiles)
 	removedSize := 0
+
+	srcProfiles.Dictionary().CopyTo(destProfiles.Dictionary())
 	srcProfiles.ResourceProfiles().RemoveIf(func(srcRP pprofile.ResourceProfiles) bool {
 		// If the no more capacity left just return.
 		if capacityLeft == 0 {

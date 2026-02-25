@@ -1,13 +1,12 @@
 // Copyright The OpenTelemetry Authors
 // SPDX-License-Identifier: Apache-2.0
 
+// Package otelconf provides an OpenTelemetry declarative configuration SDK.
 package otelconf // import "go.opentelemetry.io/contrib/otelconf/v0.2.0"
 
 import (
 	"context"
 	"errors"
-
-	"gopkg.in/yaml.v3"
 
 	"go.opentelemetry.io/otel/log"
 	nooplog "go.opentelemetry.io/otel/log/noop"
@@ -15,6 +14,9 @@ import (
 	noopmetric "go.opentelemetry.io/otel/metric/noop"
 	"go.opentelemetry.io/otel/trace"
 	nooptrace "go.opentelemetry.io/otel/trace/noop"
+	yaml "go.yaml.in/yaml/v3"
+
+	"go.opentelemetry.io/contrib/otelconf/internal/provider"
 )
 
 const (
@@ -69,7 +71,7 @@ var noopSDK = SDK{
 	loggerProvider: nooplog.LoggerProvider{},
 	meterProvider:  noopmetric.MeterProvider{},
 	tracerProvider: nooptrace.TracerProvider{},
-	shutdown:       func(ctx context.Context) error { return nil },
+	shutdown:       func(context.Context) error { return nil },
 }
 
 // NewSDK creates SDK providers based on the configuration model.
@@ -142,8 +144,13 @@ func WithOpenTelemetryConfiguration(cfg OpenTelemetryConfiguration) Configuratio
 
 // ParseYAML parses a YAML configuration file into an OpenTelemetryConfiguration.
 func ParseYAML(file []byte) (*OpenTelemetryConfiguration, error) {
+	file, err := provider.ReplaceEnvVars(file)
+	if err != nil {
+		return nil, err
+	}
+
 	var cfg OpenTelemetryConfiguration
-	err := yaml.Unmarshal(file, &cfg)
+	err = yaml.Unmarshal(file, &cfg)
 	if err != nil {
 		return nil, err
 	}

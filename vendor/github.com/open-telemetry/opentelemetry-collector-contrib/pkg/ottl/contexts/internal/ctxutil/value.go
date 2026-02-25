@@ -59,9 +59,21 @@ func SetValue(value pcommon.Value, val any) error {
 			err = SetValue(pval, a)
 		}
 	case pcommon.Slice:
-		v.CopyTo(value.SetEmptySlice())
+		var dest pcommon.Slice
+		if value.Type() == pcommon.ValueTypeSlice {
+			dest = value.Slice()
+		} else {
+			dest = value.SetEmptySlice()
+		}
+		v.CopyTo(dest)
 	case pcommon.Map:
-		v.CopyTo(value.SetEmptyMap())
+		var dest pcommon.Map
+		if value.Type() == pcommon.ValueTypeMap {
+			dest = value.Map()
+		} else {
+			dest = value.SetEmptyMap()
+		}
+		v.CopyTo(dest)
 	case map[string]any:
 		err = value.FromRaw(v)
 	}
@@ -71,19 +83,12 @@ func SetValue(value pcommon.Value, val any) error {
 func getIndexableValue[K any](ctx context.Context, tCtx K, value pcommon.Value, keys []ottl.Key[K]) (any, error) {
 	val := value
 	var ok bool
-	for index := 0; index < len(keys); index++ {
+	for index := range keys {
 		switch val.Type() {
 		case pcommon.ValueTypeMap:
-			s, err := keys[index].String(ctx, tCtx)
+			s, err := GetMapKeyName(ctx, tCtx, keys[index])
 			if err != nil {
 				return nil, err
-			}
-			if s == nil {
-				resString, err := FetchValueFromExpression[K, string](ctx, tCtx, keys[index])
-				if err != nil {
-					return nil, fmt.Errorf("unable to resolve a string index in map: %w", err)
-				}
-				s = resString
 			}
 			val, ok = val.Map().Get(*s)
 			if !ok {
@@ -113,31 +118,12 @@ func getIndexableValue[K any](ctx context.Context, tCtx K, value pcommon.Value, 
 }
 
 func SetIndexableValue[K any](ctx context.Context, tCtx K, currentValue pcommon.Value, val any, keys []ottl.Key[K]) error {
-	var newValue pcommon.Value
-	switch val.(type) {
-	case []string, []bool, []int64, []float64, [][]byte, []any:
-		newValue = pcommon.NewValueSlice()
-	default:
-		newValue = pcommon.NewValueEmpty()
-	}
-	err := SetValue(newValue, val)
-	if err != nil {
-		return err
-	}
-
-	for index := 0; index < len(keys); index++ {
+	for index := range keys {
 		switch currentValue.Type() {
 		case pcommon.ValueTypeMap:
-			s, err := keys[index].String(ctx, tCtx)
+			s, err := GetMapKeyName(ctx, tCtx, keys[index])
 			if err != nil {
 				return err
-			}
-			if s == nil {
-				resString, err := FetchValueFromExpression[K, string](ctx, tCtx, keys[index])
-				if err != nil {
-					return fmt.Errorf("unable to resolve a string index in map: %w", err)
-				}
-				s = resString
 			}
 			potentialValue, ok := currentValue.Map().Get(*s)
 			if !ok {
@@ -199,6 +185,6 @@ func SetIndexableValue[K any](ctx context.Context, tCtx K, currentValue pcommon.
 			return fmt.Errorf("type %v does not support string indexing", currentValue.Type())
 		}
 	}
-	newValue.CopyTo(currentValue)
-	return nil
+
+	return SetValue(currentValue, val)
 }

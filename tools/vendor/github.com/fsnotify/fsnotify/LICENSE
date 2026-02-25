@@ -1,5 +1,15 @@
+<<<<<<< HEAD:tools/vendor/github.com/fsnotify/fsnotify/LICENSE
 Copyright © 2012 The Go Authors. All rights reserved.
 Copyright © fsnotify Authors. All rights reserved.
+=======
+BSD 2-Clause License
+
+Copyright (c) 2012-2014, Yann Collet
+Copyright (c) 2019, Jeff Wendling
+All rights reserved.
+>>>>>>> 8b16fbefd (chore: update otel deps to v1.52 (#6524)):vendor/github.com/zeebo/xxh3/LICENSE
+
+xxHash Library
 
 Redistribution and use in source and binary forms, with or without modification,
 are permitted provided that the following conditions are met:

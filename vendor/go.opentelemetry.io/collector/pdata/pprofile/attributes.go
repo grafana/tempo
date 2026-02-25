@@ -5,7 +5,6 @@ package pprofile // import "go.opentelemetry.io/collector/pdata/pprofile"
 
 import (
 	"errors"
-	"fmt"
 	"math"
 
 	"go.opentelemetry.io/collector/pdata/pcommon"
@@ -17,52 +16,39 @@ type attributable interface {
 
 // FromAttributeIndices builds a [pcommon.Map] containing the attributes of a
 // record.
-// The record can by any struct that implements an `AttributeIndices` method.
+// The record can be any struct that implements an `AttributeIndices` method.
 // Updates made to the return map will not be applied back to the record.
-func FromAttributeIndices(table AttributeTableSlice, record attributable) pcommon.Map {
+func FromAttributeIndices(table KeyValueAndUnitSlice, record attributable, dic ProfilesDictionary) pcommon.Map {
 	m := pcommon.NewMap()
 	m.EnsureCapacity(record.AttributeIndices().Len())
 
 	for i := 0; i < record.AttributeIndices().Len(); i++ {
 		kv := table.At(int(record.AttributeIndices().At(i)))
-		kv.Value().CopyTo(m.PutEmpty(kv.Key()))
+		key := dic.StringTable().At(int(kv.KeyStrindex()))
+		kv.Value().CopyTo(m.PutEmpty(key))
 	}
 
 	return m
 }
 
-// AddAttribute updates an AttributeTable and a record's AttributeIndices to
-// add a new attribute.
-// The record can by any struct that implements an `AttributeIndices` method.
-func AddAttribute(table AttributeTableSlice, record attributable, key string, value pcommon.Value) error {
-	for i := range table.Len() {
-		a := table.At(i)
+var errTooManyAttributeTableEntries = errors.New("too many entries in AttributeTable")
 
-		if a.Key() == key && a.Value().Equal(value) {
-			if i >= math.MaxInt32 {
-				return fmt.Errorf("Attribute %s=%#v has too high an index to be added to AttributeIndices", key, value)
+// SetAttribute updates an AttributeTable, adding or providing a value and
+// returns its index.
+func SetAttribute(table KeyValueAndUnitSlice, attr KeyValueAndUnit) (int32, error) {
+	for j, a := range table.All() {
+		if a.Equal(attr) {
+			if j > math.MaxInt32 {
+				return 0, errTooManyAttributeTableEntries
 			}
-
-			for j := range record.AttributeIndices().Len() {
-				v := record.AttributeIndices().At(j)
-				if v == int32(i) { //nolint:gosec // overflow checked
-					return nil
-				}
-			}
-
-			record.AttributeIndices().Append(int32(i)) //nolint:gosec // overflow checked
-			return nil
+			return int32(j), nil
 		}
 	}
 
 	if table.Len() >= math.MaxInt32 {
-		return errors.New("AttributeTable can't take more attributes")
+		return 0, errTooManyAttributeTableEntries
 	}
-	table.EnsureCapacity(table.Len() + 1)
-	entry := table.AppendEmpty()
-	entry.SetKey(key)
-	value.CopyTo(entry.Value())
-	record.AttributeIndices().Append(int32(table.Len()) - 1) //nolint:gosec // overflow checked
 
-	return nil
+	attr.CopyTo(table.AppendEmpty())
+	return int32(table.Len() - 1), nil
 }

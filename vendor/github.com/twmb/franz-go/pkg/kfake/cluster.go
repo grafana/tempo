@@ -93,6 +93,7 @@ func NewCluster(opts ...Opt) (*Cluster, error) {
 		logger:          new(nopLogger),
 		clusterID:       "kfake",
 		defaultNumParts: 10,
+		listenFn:        net.Listen,
 
 		minSessionTimeout: 6 * time.Second,
 		maxSessionTimeout: 5 * time.Minute,
@@ -172,7 +173,7 @@ func NewCluster(opts ...Opt) (*Cluster, error) {
 			port = cfg.ports[i]
 		}
 		var ln net.Listener
-		ln, err = newListener(port, c.cfg.tls)
+		ln, err = newListener(port, c.cfg.tls, c.cfg.listenFn)
 		if err != nil {
 			return nil, err
 		}
@@ -228,8 +229,8 @@ func (c *Cluster) Close() {
 	}
 }
 
-func newListener(port int, tc *tls.Config) (net.Listener, error) {
-	l, err := net.Listen("tcp", fmt.Sprintf("127.0.0.1:%d", port))
+func newListener(port int, tc *tls.Config, fn func(network, address string) (net.Listener, error)) (net.Listener, error) {
+	l, err := fn("tcp", fmt.Sprintf("127.0.0.1:%d", port))
 	if err != nil {
 		return nil, err
 	}
@@ -442,7 +443,7 @@ outer:
 // Control is a function to call on any client request the cluster handles.
 //
 // If the control function returns true, then either the response is written
-// back to the client or, if there the control function returns an error, the
+// back to the client or, if the control function returns an error, the
 // client connection is closed. If both returns are nil, then the cluster will
 // loop continuing to read from the client and the client will likely have a
 // read timeout at some point.
@@ -464,10 +465,11 @@ func (c *Cluster) Control(fn func(kmsg.Request) (kmsg.Response, error, bool)) {
 }
 
 // Control is a function to call on a specific request key that the cluster
-// handles.
+// handles. If the key is -1, then the control function is run on all requests.
+// For all possible keys, see [kmsg.Key], for example [kmsg.Produce].
 //
 // If the control function returns true, then either the response is written
-// back to the client or, if there the control function returns an error, the
+// back to the client or, if the control function returns an error, the
 // client connection is closed. If both returns are nil, then the cluster will
 // loop continuing to read from the client and the client will likely have a
 // read timeout at some point.
@@ -940,7 +942,7 @@ func (c *Cluster) admin(fn func()) {
 
 // MoveTopicPartition simulates the rebalancing of a partition to an alternative
 // broker. This returns an error if the topic, partition, or node does not exit.
-func (c *Cluster) MoveTopicPartition(topic string, partition int32, nodeID int32) error {
+func (c *Cluster) MoveTopicPartition(topic string, partition, nodeID int32) error {
 	var err error
 	c.admin(func() {
 		var br *broker
@@ -1033,7 +1035,7 @@ func (c *Cluster) AddNode(nodeID int32, port int) (int32, int, error) {
 			port = 0
 		}
 		var ln net.Listener
-		if ln, err = newListener(port, c.cfg.tls); err != nil {
+		if ln, err = newListener(port, c.cfg.tls, c.cfg.listenFn); err != nil {
 			return
 		}
 		_, strPort, _ := net.SplitHostPort(ln.Addr().String())

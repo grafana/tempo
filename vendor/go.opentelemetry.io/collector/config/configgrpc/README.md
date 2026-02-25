@@ -27,6 +27,7 @@ README](../configtls/README.md).
 - [`read_buffer_size`](https://godoc.org/google.golang.org/grpc#ReadBufferSize)
 - [`write_buffer_size`](https://godoc.org/google.golang.org/grpc#WriteBufferSize)
 - [`auth`](../configauth/README.md)
+- [`middlewares`](../configmiddleware/README.md)
 
 Please note that [`per_rpc_auth`](https://pkg.go.dev/google.golang.org/grpc#PerRPCCredentials) which allows the credentials to send for every RPC is now moved to become an [extension](https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/extension/bearertokenauthextension). Note that this feature isn't about sending the headers only during the initial connection as an `authorization` header under the `headers` would do: this is sent for every RPC performed during an established connection.
 
@@ -34,7 +35,7 @@ Example:
 
 ```yaml
 exporters:
-  otlp:
+  otlp_grpc:
     endpoint: otelcol2:55690
     auth:
       authenticator: some-authenticator-extension
@@ -92,8 +93,9 @@ Compression ratios will vary in practice as they are highly dependent on the dat
 [Receivers](https://github.com/open-telemetry/opentelemetry-collector/blob/main/receiver/README.md)
 leverage server configuration.
 
-Note that transport configuration can also be configured. For more information,
-see [confignet README](../confignet/README.md).
+Note that transport configuration can also be configured. The default transport
+type is TCP. For more information, see [confignet
+README](../confignet/README.md).
 
 - [`keepalive`](https://godoc.org/google.golang.org/grpc/keepalive#ServerParameters)
   - [`enforcement_policy`](https://godoc.org/google.golang.org/grpc/keepalive#EnforcementPolicy)
@@ -111,3 +113,4 @@ see [confignet README](../confignet/README.md).
 - [`tls`](../configtls/README.md)
 - [`write_buffer_size`](https://godoc.org/google.golang.org/grpc#WriteBufferSize)
 - [`auth`](../configauth/README.md)
+- [`middlewares`](../configmiddleware/README.md)

@@ -8,9 +8,11 @@ import (
 
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/consumer"
+	"go.opentelemetry.io/collector/consumer/xconsumer"
 	"go.opentelemetry.io/collector/receiver"
+	"go.opentelemetry.io/collector/receiver/xreceiver"
 
-	"github.com/open-telemetry/opentelemetry-collector-contrib/internal/kafka/configkafka"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/kafka/configkafka"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/kafkareceiver/internal/metadata"
 )
 
@@ -23,40 +25,47 @@ const (
 
 	defaultTracesTopic    = "otlp_spans"
 	defaultTracesEncoding = "otlp_proto"
+
+	defaultProfilesTopic    = "otlp_profiles"
+	defaultProfilesEncoding = "otlp_proto"
 )
 
 // NewFactory creates Kafka receiver factory.
 func NewFactory() receiver.Factory {
-	return receiver.NewFactory(
+	return xreceiver.NewFactory(
 		metadata.Type,
-		func() component.Config {
-			return createDefaultConfig()
-		},
-		receiver.WithTraces(createTracesReceiver, metadata.TracesStability),
-		receiver.WithMetrics(createMetricsReceiver, metadata.MetricsStability),
-		receiver.WithLogs(createLogsReceiver, metadata.LogsStability),
+		createDefaultConfig,
+		xreceiver.WithTraces(createTracesReceiver, metadata.TracesStability),
+		xreceiver.WithMetrics(createMetricsReceiver, metadata.MetricsStability),
+		xreceiver.WithLogs(createLogsReceiver, metadata.LogsStability),
+		xreceiver.WithProfiles(createProfilesReceiver, metadata.ProfilesStability),
 	)
 }
 
-func createDefaultConfig() *Config {
+func createDefaultConfig() component.Config {
 	return &Config{
 		ClientConfig:   configkafka.NewDefaultClientConfig(),
 		ConsumerConfig: configkafka.NewDefaultConsumerConfig(),
 		Logs: TopicEncodingConfig{
-			Topic:    defaultLogsTopic,
+			Topics:   []string{defaultLogsTopic},
 			Encoding: defaultLogsEncoding,
 		},
 		Metrics: TopicEncodingConfig{
-			Topic:    defaultMetricsTopic,
+			Topics:   []string{defaultMetricsTopic},
 			Encoding: defaultMetricsEncoding,
 		},
 		Traces: TopicEncodingConfig{
-			Topic:    defaultTracesTopic,
+			Topics:   []string{defaultTracesTopic},
 			Encoding: defaultTracesEncoding,
 		},
+		Profiles: TopicEncodingConfig{
+			Topics:   []string{defaultProfilesTopic},
+			Encoding: defaultProfilesEncoding,
+		},
 		MessageMarking: MessageMarking{
-			After:   false,
-			OnError: false,
+			After:            false,
+			OnError:          false,
+			OnPermanentError: false,
 		},
 		HeaderExtraction: HeaderExtraction{
 			ExtractHeaders: false,
@@ -70,11 +79,7 @@ func createTracesReceiver(
 	cfg component.Config,
 	nextConsumer consumer.Traces,
 ) (receiver.Traces, error) {
-	r, err := newTracesReceiver(cfg.(*Config), set, nextConsumer)
-	if err != nil {
-		return nil, err
-	}
-	return r, nil
+	return newTracesReceiver(cfg.(*Config), set, nextConsumer)
 }
 
 func createMetricsReceiver(
@@ -83,11 +88,7 @@ func createMetricsReceiver(
 	cfg component.Config,
 	nextConsumer consumer.Metrics,
 ) (receiver.Metrics, error) {
-	r, err := newMetricsReceiver(cfg.(*Config), set, nextConsumer)
-	if err != nil {
-		return nil, err
-	}
-	return r, nil
+	return newMetricsReceiver(cfg.(*Config), set, nextConsumer)
 }
 
 func createLogsReceiver(
@@ -96,9 +97,14 @@ func createLogsReceiver(
 	cfg component.Config,
 	nextConsumer consumer.Logs,
 ) (receiver.Logs, error) {
-	r, err := newLogsReceiver(cfg.(*Config), set, nextConsumer)
-	if err != nil {
-		return nil, err
-	}
-	return r, nil
+	return newLogsReceiver(cfg.(*Config), set, nextConsumer)
+}
+
+func createProfilesReceiver(
+	_ context.Context,
+	set receiver.Settings,
+	cfg component.Config,
+	nextConsumer xconsumer.Profiles,
+) (xreceiver.Profiles, error) {
+	return newProfilesReceiver(cfg.(*Config), set, nextConsumer)
 }

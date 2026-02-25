@@ -14,7 +14,7 @@ import (
 )
 
 type LimitArguments[K any] struct {
-	Target       ottl.PMapGetter[K]
+	Target       ottl.PMapGetSetter[K]
 	Limit        int64
 	PriorityKeys []string
 }
@@ -33,7 +33,7 @@ func createLimitFunction[K any](_ ottl.FunctionContext, oArgs ottl.Arguments) (o
 	return limit(args.Target, args.Limit, args.PriorityKeys)
 }
 
-func limit[K any](target ottl.PMapGetter[K], limit int64, priorityKeys []string) (ottl.ExprFunc[K], error) {
+func limit[K any](target ottl.PMapGetSetter[K], limit int64, priorityKeys []string) (ottl.ExprFunc[K], error) {
 	if limit < 0 {
 		return nil, fmt.Errorf("invalid limit for limit function, %d cannot be negative", limit)
 	}
@@ -77,6 +77,6 @@ func limit[K any](target ottl.PMapGetter[K], limit int64, priorityKeys []string)
 		})
 		// TODO: Write log when limiting is performed
 		// https://github.com/open-telemetry/opentelemetry-collector-contrib/issues/9730
-		return nil, nil
+		return nil, target.Set(ctx, tCtx, val)
 	}, nil
 }

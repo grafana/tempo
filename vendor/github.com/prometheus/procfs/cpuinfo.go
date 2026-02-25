@@ -12,6 +12,7 @@
 // limitations under the License.
 
 //go:build linux
+// +build linux
 
 package procfs
 
@@ -501,7 +502,7 @@ func parseCPUInfoRISCV(info []byte) ([]CPUInfo, error) {
 	return cpuinfo, nil
 }
 
-func parseCPUInfoDummy(_ []byte) ([]CPUInfo, error) { //nolint:unused
+func parseCPUInfoDummy(_ []byte) ([]CPUInfo, error) { // nolint:unused,deadcode
 	return nil, errors.New("not implemented")
 }
 

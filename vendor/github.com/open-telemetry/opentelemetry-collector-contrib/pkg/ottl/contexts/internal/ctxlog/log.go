@@ -75,6 +75,8 @@ func PathGetSetter[K Context](path ottl.Path[K]) (ottl.GetSetter[K], error) {
 			return nil, ctxerror.New(nextPath.Name(), path.String(), Name, DocRef)
 		}
 		return accessSpanID[K](), nil
+	case "event_name":
+		return accessEventName[K](), nil
 	default:
 		return nil, ctxerror.New(path.Name(), path.String(), Name, DocRef)
 	}
@@ -86,9 +88,11 @@ func accessTimeUnixNano[K Context]() ottl.StandardGetSetter[K] {
 			return tCtx.GetLogRecord().Timestamp().AsTime().UnixNano(), nil
 		},
 		Setter: func(_ context.Context, tCtx K, val any) error {
-			if i, ok := val.(int64); ok {
-				tCtx.GetLogRecord().SetTimestamp(pcommon.NewTimestampFromTime(time.Unix(0, i)))
+			i, err := ctxutil.ExpectType[int64](val)
+			if err != nil {
+				return err
 			}
+			tCtx.GetLogRecord().SetTimestamp(pcommon.NewTimestampFromTime(time.Unix(0, i)))
 			return nil
 		},
 	}
@@ -100,9 +104,11 @@ func accessObservedTimeUnixNano[K Context]() ottl.StandardGetSetter[K] {
 			return tCtx.GetLogRecord().ObservedTimestamp().AsTime().UnixNano(), nil
 		},
 		Setter: func(_ context.Context, tCtx K, val any) error {
-			if i, ok := val.(int64); ok {
-				tCtx.GetLogRecord().SetObservedTimestamp(pcommon.NewTimestampFromTime(time.Unix(0, i)))
+			i, err := ctxutil.ExpectType[int64](val)
+			if err != nil {
+				return err
 			}
+			tCtx.GetLogRecord().SetObservedTimestamp(pcommon.NewTimestampFromTime(time.Unix(0, i)))
 			return nil
 		},
 	}
@@ -114,9 +120,11 @@ func accessTime[K Context]() ottl.StandardGetSetter[K] {
 			return tCtx.GetLogRecord().Timestamp().AsTime(), nil
 		},
 		Setter: func(_ context.Context, tCtx K, val any) error {
-			if i, ok := val.(time.Time); ok {
-				tCtx.GetLogRecord().SetTimestamp(pcommon.NewTimestampFromTime(i))
+			i, err := ctxutil.ExpectType[time.Time](val)
+			if err != nil {
+				return err
 			}
+			tCtx.GetLogRecord().SetTimestamp(pcommon.NewTimestampFromTime(i))
 			return nil
 		},
 	}
@@ -128,9 +136,11 @@ func accessObservedTime[K Context]() ottl.StandardGetSetter[K] {
 			return tCtx.GetLogRecord().ObservedTimestamp().AsTime(), nil
 		},
 		Setter: func(_ context.Context, tCtx K, val any) error {
-			if i, ok := val.(time.Time); ok {
-				tCtx.GetLogRecord().SetObservedTimestamp(pcommon.NewTimestampFromTime(i))
+			i, err := ctxutil.ExpectType[time.Time](val)
+			if err != nil {
+				return err
 			}
+			tCtx.GetLogRecord().SetObservedTimestamp(pcommon.NewTimestampFromTime(i))
 			return nil
 		},
 	}
@@ -142,9 +152,11 @@ func accessSeverityNumber[K Context]() ottl.StandardGetSetter[K] {
 			return int64(tCtx.GetLogRecord().SeverityNumber()), nil
 		},
 		Setter: func(_ context.Context, tCtx K, val any) error {
-			if i, ok := val.(int64); ok {
-				tCtx.GetLogRecord().SetSeverityNumber(plog.SeverityNumber(i))
+			i, err := ctxutil.ExpectType[int64](val)
+			if err != nil {
+				return err
 			}
+			tCtx.GetLogRecord().SetSeverityNumber(plog.SeverityNumber(i))
 			return nil
 		},
 	}
@@ -156,9 +168,11 @@ func accessSeverityText[K Context]() ottl.StandardGetSetter[K] {
 			return tCtx.GetLogRecord().SeverityText(), nil
 		},
 		Setter: func(_ context.Context, tCtx K, val any) error {
-			if s, ok := val.(string); ok {
-				tCtx.GetLogRecord().SetSeverityText(s)
+			s, err := ctxutil.ExpectType[string](val)
+			if err != nil {
+				return err
 			}
+			tCtx.GetLogRecord().SetSeverityText(s)
 			return nil
 		},
 	}
@@ -208,9 +222,11 @@ func accessStringBody[K Context]() ottl.StandardGetSetter[K] {
 			return tCtx.GetLogRecord().Body().AsString(), nil
 		},
 		Setter: func(_ context.Context, tCtx K, val any) error {
-			if str, ok := val.(string); ok {
-				tCtx.GetLogRecord().Body().SetStr(str)
+			str, err := ctxutil.ExpectType[string](val)
+			if err != nil {
+				return err
 			}
+			tCtx.GetLogRecord().Body().SetStr(str)
 			return nil
 		},
 	}
@@ -244,9 +260,11 @@ func accessDroppedAttributesCount[K Context]() ottl.StandardGetSetter[K] {
 			return int64(tCtx.GetLogRecord().DroppedAttributesCount()), nil
 		},
 		Setter: func(_ context.Context, tCtx K, val any) error {
-			if i, ok := val.(int64); ok {
-				tCtx.GetLogRecord().SetDroppedAttributesCount(uint32(i))
+			i, err := ctxutil.ExpectType[int64](val)
+			if err != nil {
+				return err
 			}
+			tCtx.GetLogRecord().SetDroppedAttributesCount(uint32(i))
 			return nil
 		},
 	}
@@ -258,9 +276,11 @@ func accessFlags[K Context]() ottl.StandardGetSetter[K] {
 			return int64(tCtx.GetLogRecord().Flags()), nil
 		},
 		Setter: func(_ context.Context, tCtx K, val any) error {
-			if i, ok := val.(int64); ok {
-				tCtx.GetLogRecord().SetFlags(plog.LogRecordFlags(i))
+			i, err := ctxutil.ExpectType[int64](val)
+			if err != nil {
+				return err
 			}
+			tCtx.GetLogRecord().SetFlags(plog.LogRecordFlags(i))
 			return nil
 		},
 	}
@@ -272,9 +292,11 @@ func accessTraceID[K Context]() ottl.StandardGetSetter[K] {
 			return tCtx.GetLogRecord().TraceID(), nil
 		},
 		Setter: func(_ context.Context, tCtx K, val any) error {
-			if newTraceID, ok := val.(pcommon.TraceID); ok {
-				tCtx.GetLogRecord().SetTraceID(newTraceID)
+			newTraceID, err := ctxutil.ExpectType[pcommon.TraceID](val)
+			if err != nil {
+				return err
 			}
+			tCtx.GetLogRecord().SetTraceID(newTraceID)
 			return nil
 		},
 	}
@@ -287,13 +309,15 @@ func accessStringTraceID[K Context]() ottl.StandardGetSetter[K] {
 			return hex.EncodeToString(id[:]), nil
 		},
 		Setter: func(_ context.Context, tCtx K, val any) error {
-			if str, ok := val.(string); ok {
-				id, err := ctxcommon.ParseTraceID(str)
-				if err != nil {
-					return err
-				}
-				tCtx.GetLogRecord().SetTraceID(id)
+			str, err := ctxutil.ExpectType[string](val)
+			if err != nil {
+				return err
 			}
+			id, err := ctxcommon.ParseTraceID(str)
+			if err != nil {
+				return err
+			}
+			tCtx.GetLogRecord().SetTraceID(id)
 			return nil
 		},
 	}
@@ -305,9 +329,11 @@ func accessSpanID[K Context]() ottl.StandardGetSetter[K] {
 			return tCtx.GetLogRecord().SpanID(), nil
 		},
 		Setter: func(_ context.Context, tCtx K, val any) error {
-			if newSpanID, ok := val.(pcommon.SpanID); ok {
-				tCtx.GetLogRecord().SetSpanID(newSpanID)
+			newSpanID, err := ctxutil.ExpectType[pcommon.SpanID](val)
+			if err != nil {
+				return err
 			}
+			tCtx.GetLogRecord().SetSpanID(newSpanID)
 			return nil
 		},
 	}
@@ -320,13 +346,31 @@ func accessStringSpanID[K Context]() ottl.StandardGetSetter[K] {
 			return hex.EncodeToString(id[:]), nil
 		},
 		Setter: func(_ context.Context, tCtx K, val any) error {
-			if str, ok := val.(string); ok {
-				id, err := ctxcommon.ParseSpanID(str)
-				if err != nil {
-					return err
-				}
-				tCtx.GetLogRecord().SetSpanID(id)
+			str, err := ctxutil.ExpectType[string](val)
+			if err != nil {
+				return err
 			}
+			id, err := ctxcommon.ParseSpanID(str)
+			if err != nil {
+				return err
+			}
+			tCtx.GetLogRecord().SetSpanID(id)
+			return nil
+		},
+	}
+}
+
+func accessEventName[K Context]() ottl.StandardGetSetter[K] {
+	return ottl.StandardGetSetter[K]{
+		Getter: func(_ context.Context, tCtx K) (any, error) {
+			return tCtx.GetLogRecord().EventName(), nil
+		},
+		Setter: func(_ context.Context, tCtx K, val any) error {
+			v, err := ctxutil.ExpectType[string](val)
+			if err != nil {
+				return err
+			}
+			tCtx.GetLogRecord().SetEventName(v)
 			return nil
 		},
 	}

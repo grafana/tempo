@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"unicode/utf8"
 
 	"go.opentelemetry.io/collector/pdata/pcommon"
 
@@ -66,7 +67,7 @@ func createParseCSVFunction[K any](_ ottl.FunctionContext, oArgs ottl.Arguments)
 
 	delimiter := parseCSVDefaultDelimiter
 	if !args.Delimiter.IsEmpty() {
-		delimiter = []rune(args.Delimiter.Get())[0]
+		delimiter, _ = utf8.DecodeRuneInString(args.Delimiter.Get())
 	}
 
 	// headerDelimiter defaults to the chosen delimter,

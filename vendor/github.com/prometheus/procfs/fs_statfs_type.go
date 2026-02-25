@@ -12,6 +12,7 @@
 // limitations under the License.
 
 //go:build freebsd || linux
+// +build freebsd linux
 
 package procfs
 

@@ -18,12 +18,16 @@ const (
 	AcceptedSpansKey = "accepted_spans"
 	// RefusedSpansKey used to identify spans refused (ie.: not ingested) by the Collector.
 	RefusedSpansKey = "refused_spans"
+	// FailedSpansKey used to identify spans failed to be processed by the Collector.
+	FailedSpansKey = "failed_spans"
 
 	// AcceptedMetricPointsKey used to identify metric points accepted by the Collector.
 	AcceptedMetricPointsKey = "accepted_metric_points"
 	// RefusedMetricPointsKey used to identify metric points refused (ie.: not ingested) by the
 	// Collector.
 	RefusedMetricPointsKey = "refused_metric_points"
+	// FailedMetricPointKey used to identify metric points failed to be processed by the Collector.
+	FailedMetricPointsKey = "failed_metric_points"
 
 	// AcceptedLogRecordsKey used to identify log records accepted by the Collector.
 	AcceptedLogRecordsKey = "accepted_log_records"
@@ -31,7 +35,18 @@ const (
 	// Collector.
 	RefusedLogRecordsKey = "refused_log_records"
 
+	// FailedLogRecordsKey used to identify log records failed to be processed by the Collector.
+	FailedLogRecordsKey = "failed_log_records"
+
+	// AcceptedProfileSamplesKey used to identify profile samples accepted by the Collector.
+	AcceptedProfileSamplesKey = "accepted_profile_samples"
+	// RefusedProfileSamplesKey used to identify profile samples refused (ie.: not ingested) by the Collector.
+	RefusedProfileSamplesKey = "refused_profile_samples"
+	// FailedProfileSamplesKey used to identify profile samples failed to be processed by the Collector.
+	FailedProfileSamplesKey = "failed_profile_samples"
+
 	ReceiveTraceDataOperationSuffix = SpanNameSep + "TraceDataReceived"
 	ReceiverMetricsOperationSuffix  = SpanNameSep + "MetricsReceived"
 	ReceiverLogsOperationSuffix     = SpanNameSep + "LogsReceived"
+	ReceiverProfilesOperationSuffix = SpanNameSep + "ProfilesReceived"
 )

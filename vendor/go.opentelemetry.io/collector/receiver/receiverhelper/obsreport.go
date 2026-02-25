@@ -14,7 +14,9 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"go.opentelemetry.io/collector/component"
+	"go.opentelemetry.io/collector/consumer/consumererror"
 	"go.opentelemetry.io/collector/pipeline"
+	"go.opentelemetry.io/collector/pipeline/xpipeline"
 	"go.opentelemetry.io/collector/receiver"
 	"go.opentelemetry.io/collector/receiver/receiverhelper/internal"
 	"go.opentelemetry.io/collector/receiver/receiverhelper/internal/metadata"
@@ -42,6 +44,9 @@ type ObsReportSettings struct {
 	// operations without a corresponding new context per operation.
 	LongLivedCtx           bool
 	ReceiverCreateSettings receiver.Settings
+
+	// prevent unkeyed literal initialization
+	_ struct{}
 }
 
 // NewObsReport creates a new ObsReport.
@@ -122,6 +127,24 @@ func (rec *ObsReport) EndMetricsOp(
 	rec.endOp(receiverCtx, format, numReceivedPoints, err, pipeline.SignalMetrics)
 }
 
+// StartProfilesOp is called when a request is received from a client.
+// The returned context should be used in other calls to the obsreport functions
+// dealing with the same receive operation.
+func (rec *ObsReport) StartProfilesOp(operationCtx context.Context) context.Context {
+	return rec.startOp(operationCtx, internal.ReceiverProfilesOperationSuffix)
+}
+
+// EndProfilesOp completes the receive operation that was started with
+// StartProfilesOp.
+func (rec *ObsReport) EndProfilesOp(
+	receiverCtx context.Context,
+	format string,
+	numReceivedProfileSamples int,
+	err error,
+) {
+	rec.endOp(receiverCtx, format, numReceivedProfileSamples, err, xpipeline.SignalProfiles)
+}
+
 // startOp creates the span used to trace the operation. Returning
 // the updated context with the created span.
 func (rec *ObsReport) startOp(receiverCtx context.Context, operationSuffix string) context.Context {
@@ -157,34 +180,67 @@ func (rec *ObsReport) endOp(
 ) {
 	numAccepted := numReceivedItems
 	numRefused := 0
+	numFailedErrors := 0
 	if err != nil {
 		numAccepted = 0
-		numRefused = numReceivedItems
+		// If gate is enabled, we distinguish between refused and failed.
+		if NewReceiverMetricsGate.IsEnabled() {
+			if consumererror.IsDownstream(err) {
+				numRefused = numReceivedItems
+			} else {
+				numFailedErrors = numReceivedItems
+			}
+		} else {
+			// When the gate is disabled, all errors are considered "refused".
+			numRefused = numReceivedItems
+		}
 	}
 
 	span := trace.SpanFromContext(receiverCtx)
 
-	rec.recordMetrics(receiverCtx, signal, numAccepted, numRefused)
+	rec.recordMetrics(receiverCtx, signal, numAccepted, numRefused, numFailedErrors)
+
+	// The new otelcol_receiver_requests metric is only emitted when the feature gate is enabled.
+	if NewReceiverMetricsGate.IsEnabled() {
+		var outcome string
+		switch {
+		case err == nil:
+			outcome = "success"
+		case consumererror.IsDownstream(err):
+			outcome = "refused"
+		default:
+			outcome = "failure"
+		}
+		rec.telemetryBuilder.ReceiverRequests.Add(receiverCtx, 1, rec.otelAttrs, metric.WithAttributeSet(attribute.NewSet(attribute.String("outcome", outcome))))
+	}
 
 	// end span according to errors
 	if span.IsRecording() {
-		var acceptedItemsKey, refusedItemsKey string
+		var acceptedItemsKey, refusedItemsKey, failedItemsKey string
 		switch signal {
 		case pipeline.SignalTraces:
 			acceptedItemsKey = internal.AcceptedSpansKey
 			refusedItemsKey = internal.RefusedSpansKey
+			failedItemsKey = internal.FailedSpansKey
 		case pipeline.SignalMetrics:
 			acceptedItemsKey = internal.AcceptedMetricPointsKey
 			refusedItemsKey = internal.RefusedMetricPointsKey
+			failedItemsKey = internal.FailedMetricPointsKey
 		case pipeline.SignalLogs:
 			acceptedItemsKey = internal.AcceptedLogRecordsKey
 			refusedItemsKey = internal.RefusedLogRecordsKey
+			failedItemsKey = internal.FailedLogRecordsKey
+		case xpipeline.SignalProfiles:
+			acceptedItemsKey = internal.AcceptedProfileSamplesKey
+			refusedItemsKey = internal.RefusedProfileSamplesKey
+			failedItemsKey = internal.FailedProfileSamplesKey
 		}
 
 		span.SetAttributes(
 			attribute.String(internal.FormatKey, format),
 			attribute.Int64(acceptedItemsKey, int64(numAccepted)),
 			attribute.Int64(refusedItemsKey, int64(numRefused)),
+			attribute.Int64(failedItemsKey, int64(numFailedErrors)),
 		)
 		if err != nil {
 			span.SetStatus(codes.Error, err.Error())
@@ -193,20 +249,28 @@ func (rec *ObsReport) endOp(
 	span.End()
 }
 
-func (rec *ObsReport) recordMetrics(receiverCtx context.Context, signal pipeline.Signal, numAccepted, numRefused int) {
-	var acceptedMeasure, refusedMeasure metric.Int64Counter
+func (rec *ObsReport) recordMetrics(receiverCtx context.Context, signal pipeline.Signal, numAccepted, numRefused, numFailedErrors int) {
+	var acceptedMeasure, refusedMeasure, failedMeasure metric.Int64Counter
 	switch signal {
 	case pipeline.SignalTraces:
 		acceptedMeasure = rec.telemetryBuilder.ReceiverAcceptedSpans
 		refusedMeasure = rec.telemetryBuilder.ReceiverRefusedSpans
+		failedMeasure = rec.telemetryBuilder.ReceiverFailedSpans
 	case pipeline.SignalMetrics:
 		acceptedMeasure = rec.telemetryBuilder.ReceiverAcceptedMetricPoints
 		refusedMeasure = rec.telemetryBuilder.ReceiverRefusedMetricPoints
+		failedMeasure = rec.telemetryBuilder.ReceiverFailedMetricPoints
 	case pipeline.SignalLogs:
 		acceptedMeasure = rec.telemetryBuilder.ReceiverAcceptedLogRecords
 		refusedMeasure = rec.telemetryBuilder.ReceiverRefusedLogRecords
+		failedMeasure = rec.telemetryBuilder.ReceiverFailedLogRecords
+	case xpipeline.SignalProfiles:
+		acceptedMeasure = rec.telemetryBuilder.ReceiverAcceptedProfileSamples
+		refusedMeasure = rec.telemetryBuilder.ReceiverRefusedProfileSamples
+		failedMeasure = rec.telemetryBuilder.ReceiverFailedProfileSamples
 	}
 
 	acceptedMeasure.Add(receiverCtx, int64(numAccepted), rec.otelAttrs)
 	refusedMeasure.Add(receiverCtx, int64(numRefused), rec.otelAttrs)
+	failedMeasure.Add(receiverCtx, int64(numFailedErrors), rec.otelAttrs)
 }

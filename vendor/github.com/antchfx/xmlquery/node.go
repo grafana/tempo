@@ -31,12 +31,20 @@ const (
 	AttributeNode
 	// NotationNode is a directive represents in document (for example, <!text...>).
 	NotationNode
+	// ProcessingInstruction represents an XML processing instruction (e.g., <?target instruction?>).
+	ProcessingInstruction
 )
 
 type Attr struct {
 	Name         xml.Name
 	Value        string
 	NamespaceURI string
+}
+
+// ProcInstData represents an XML processing instruction.
+type ProcInstData struct {
+	Target string
+	Inst   string
 }
 
 // A Node consists of a NodeType and some Data (tag name for
@@ -49,8 +57,10 @@ type Node struct {
 	Prefix       string
 	NamespaceURI string
 	Attr         []Attr
+	ProcInst     *ProcInstData
 
-	level int // node level in the tree
+	level      int // node level in the tree
+	LineNumber int // line number where this node appears in the source XML
 }
 
 type outputConfiguration struct {
@@ -122,6 +132,11 @@ func (n *Node) Level() int {
 	return n.level
 }
 
+// GetLineNumber returns the line number where this node appears in the source XML.
+func (n *Node) GetLineNumber() int {
+	return n.LineNumber
+}
+
 // InnerText returns the text between the start and end tags of the object.
 func (n *Node) InnerText() string {
 	var output func(*strings.Builder, *Node)
@@ -140,6 +155,16 @@ func (n *Node) InnerText() string {
 	var b strings.Builder
 	output(&b, n)
 	return b.String()
+}
+
+// ChildNodes returns all the child nodes of the current node,
+// including text, comments, and char data.
+func (n *Node) ChildNodes() []*Node {
+	var list []*Node
+	for child := n.FirstChild; child != nil; child = child.NextSibling {
+		list = append(list, child)
+	}
+	return list
 }
 
 func (n *Node) sanitizedData(preserveSpaces bool) string {
@@ -245,6 +270,13 @@ func outputXML(w io.Writer, n *Node, preserveSpaces bool, config *outputConfigur
 		if err != nil {
 			return
 		}
+	case ProcessingInstruction:
+		if len(n.ProcInst.Inst) > 0 {
+			_, err = fmt.Fprintf(w, "<?%s %s?>", n.ProcInst.Target, n.ProcInst.Inst)
+		} else {
+			_, err = fmt.Fprintf(w, "<?%s?>", n.ProcInst.Target)
+		}
+		return
 	default:
 		if err = indent.Open(); err != nil {
 			return
@@ -321,7 +353,7 @@ func (n *Node) OutputXML(self bool) string {
 // OutputXMLWithOptions returns the text that including tags name.
 func (n *Node) OutputXMLWithOptions(opts ...OutputOption) string {
 	var b strings.Builder
-	n.WriteWithOptions(&b, opts...)
+	_ = n.WriteWithOptions(&b, opts...)
 	return b.String()
 }
 
@@ -362,36 +394,53 @@ func (n *Node) WriteWithOptions(writer io.Writer, opts ...OutputOption) (err err
 }
 
 // AddAttr adds a new attribute specified by 'key' and 'val' to a node 'n'.
-func AddAttr(n *Node, key, val string) {
+// Returns false if the attribute already exists.
+func AddAttr(n *Node, key, val string) bool {
+	if n.HasAttr(key) {
+		return false
+	}
 	attr := Attr{
 		Name:  newXMLName(key),
 		Value: val,
 	}
 	n.Attr = append(n.Attr, attr)
+	return true
+}
+
+// HasAttr determines if an attribute exists.
+func (n *Node) HasAttr(key string) bool {
+	name := newXMLName(key)
+	for _, attr := range n.Attr {
+		if attr.Name == name {
+			return true
+		}
+	}
+	return false
 }
 
 // SetAttr allows an attribute value with the specified name to be changed.
 // If the attribute did not previously exist, it will be created.
-func (n *Node) SetAttr(key, value string) {
+func (n *Node) SetAttr(key, value string) bool {
 	name := newXMLName(key)
 	for i, attr := range n.Attr {
 		if attr.Name == name {
 			n.Attr[i].Value = value
-			return
+			return true
 		}
 	}
-	AddAttr(n, key, value)
+	return AddAttr(n, key, value)
 }
 
 // RemoveAttr removes the attribute with the specified name.
-func (n *Node) RemoveAttr(key string) {
+func (n *Node) RemoveAttr(key string) bool {
 	name := newXMLName(key)
 	for i, attr := range n.Attr {
 		if attr.Name == name {
 			n.Attr = append(n.Attr[:i], n.Attr[i+1:]...)
-			return
+			return true
 		}
 	}
+	return false
 }
 
 // AddChild adds a new node 'n' to a node 'parent' as its last child.

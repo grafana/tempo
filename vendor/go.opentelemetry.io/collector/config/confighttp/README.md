@@ -15,6 +15,7 @@ configuration. For more information, see [configtls
 README](../configtls/README.md).
 
 - `endpoint`: address:port
+- `proxy_url`: Proxy URL to use for HTTP requests
 - [`tls`](../configtls/README.md)
 - [`headers`](https://pkg.go.dev/net/http#Request): name/value pairs added to the HTTP request headers
   - certain headers such as Content-Length and Connection are automatically written when needed and values in Header may be ignored.
@@ -48,22 +49,26 @@ README](../configtls/README.md).
       - SpeedBestCompression: `11`
     - `snappy`
       No compression levels supported yet
+    - `x-snappy-framed` (When feature gate `confighttp.framedSnappy` is enabled)
+      No compression levels supported yet
 - [`max_idle_conns`](https://golang.org/pkg/net/http/#Transport)
 - [`max_idle_conns_per_host`](https://golang.org/pkg/net/http/#Transport)
 - [`max_conns_per_host`](https://golang.org/pkg/net/http/#Transport)
 - [`idle_conn_timeout`](https://golang.org/pkg/net/http/#Transport)
 - [`auth`](../configauth/README.md)
 - [`disable_keep_alives`](https://golang.org/pkg/net/http/#Transport)
+- [`force_attempt_http2`](https://golang.org/pkg/net/http/#Transport)
 - [`http2_read_idle_timeout`](https://pkg.go.dev/golang.org/x/net/http2#Transport)
 - [`http2_ping_timeout`](https://pkg.go.dev/golang.org/x/net/http2#Transport)
 - [`cookies`](https://pkg.go.dev/net/http#CookieJar)
   - [`enabled`] if enabled, the client will store cookies from server responses and reuse them in subsequent requests.
+- [`middlewares`](../configmiddleware/README.md)
 
 Example:
 
 ```yaml
 exporter:
-  otlphttp:
+  otlp_http:
     endpoint: otelcol2:55690
     auth:
       authenticator: some-authenticator-extension
@@ -102,11 +107,21 @@ will not be enabled.
   header, allowing clients to cache the response to CORS preflight requests. If
   not set, browsers use a default of 5 seconds.
 - `endpoint`: Valid value syntax available [here](https://github.com/grpc/grpc/blob/master/doc/naming.md)
+- `transport`: The transport protocol to use. Defaults to `tcp`. See the [confignet README](../confignet/README.md) for more information.
 - `max_request_body_size`: configures the maximum allowed body size in bytes for a single request. Default: `20971520` (20MiB)
+- `include_metadata`: propagates the client metadata from the incoming requests to the downstream consumers. Default: `false`
+- `response_headers`: Additional headers attached to each HTTP response sent to the client. Header values are opaque since they may be sensitive
 - `compression_algorithms`: configures the list of compression algorithms the server can accept. Default: ["", "gzip", "zstd", "zlib", "snappy", "deflate", "lz4"]
+  - `x-snappy-framed` can be used if feature gate `confighttp.snappyFramed` is enabled.
+- `read_timeout`: maximum duration for reading the entire request, including the body. A zero or negative value means there will be no timeout. Default: `0` (no timeout)
+- `read_header_timeout`: amount of time allowed to read request headers. If zero, the value of `read_timeout` is used. If both are zero, there is no timeout. Default: `1m`
+- `write_timeout`: maximum duration before timing out writes of the response. A zero or negative value means there will be no timeout. Default: `30s`
+- `idle_timeout`: maximum amount of time to wait for the next request when keep-alives are enabled. If zero, the value of `read_timeout` is used. If both are zero, there is no timeout. Default: `1m`
+- `keep_alives_enabled`: controls whether HTTP keep-alives are enabled. Default: `true`
 - [`tls`](../configtls/README.md)
 - [`auth`](../configauth/README.md)
   - `request_params`: a list of query parameter names to add to the auth context, along with the HTTP headers
+- [`middlewares`](../configmiddleware/README.md)
 
 You can enable [`attribute processor`][attribute-processor] to append any http header to span's attribute using custom key. You also need to enable the "include_metadata"
 

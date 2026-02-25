@@ -10,57 +10,71 @@ import (
 	"go.opentelemetry.io/collector/pdata/pprofile"
 )
 
-var (
-	profileStartTimestamp = pcommon.NewTimestampFromTime(time.Date(2020, 2, 11, 20, 26, 12, 321, time.UTC))
-	profileEndTimestamp   = pcommon.NewTimestampFromTime(time.Date(2020, 2, 11, 20, 26, 13, 789, time.UTC))
-)
+var profileStartTimestamp = pcommon.NewTimestampFromTime(time.Date(2020, 2, 11, 20, 26, 12, 321, time.UTC))
 
 // GenerateProfiles generates dummy profiling data for tests
 func GenerateProfiles(profilesCount int) pprofile.Profiles {
 	td := pprofile.NewProfiles()
 	initResource(td.ResourceProfiles().AppendEmpty().Resource())
 	ss := td.ResourceProfiles().At(0).ScopeProfiles().AppendEmpty().Profiles()
+
+	dic := td.Dictionary()
+	dic.StringTable().Append("")
+	dic.StringTable().Append("key")
+
+	attr := dic.AttributeTable().AppendEmpty()
+	attr.SetKeyStrindex(1)
+	attr.Value().SetStr("value")
+	attr2 := dic.AttributeTable().AppendEmpty()
+	attr.SetKeyStrindex(1)
+	attr2.Value().SetStr("value")
+
 	ss.EnsureCapacity(profilesCount)
-	for i := 0; i < profilesCount; i++ {
+	for i := range profilesCount {
 		switch i % 2 {
 		case 0:
-			fillProfileOne(ss.AppendEmpty())
+			fillProfileOne(dic, ss.AppendEmpty())
 		case 1:
-			fillProfileTwo(ss.AppendEmpty())
+			fillProfileTwo(dic, ss.AppendEmpty())
 		}
 	}
+
 	return td
 }
 
-func fillProfileOne(profile pprofile.Profile) {
+func fillProfileOne(dic pprofile.ProfilesDictionary, profile pprofile.Profile) {
 	profile.SetProfileID([16]byte{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F, 0x10})
 	profile.SetTime(profileStartTimestamp)
-	profile.SetDuration(profileEndTimestamp)
+	profile.SetDurationNano(uint64(time.Second.Nanoseconds()))
 	profile.SetDroppedAttributesCount(1)
 
-	attr := profile.AttributeTable().AppendEmpty()
-	attr.SetKey("key")
-	attr.Value().SetStr("value")
+	loc := pprofile.NewLocation()
+	loc.SetAddress(1)
+	locID, _ := pprofile.SetLocation(dic.LocationTable(), loc)
+	stack := pprofile.NewStack()
+	stack.LocationIndices().Append(locID)
+	stackID, _ := pprofile.SetStack(dic.StackTable(), stack)
 
-	sample := profile.Sample().AppendEmpty()
-	sample.SetLocationsStartIndex(2)
-	sample.SetLocationsLength(10)
-	sample.Value().Append(4)
+	sample := profile.Samples().AppendEmpty()
+	sample.SetStackIndex(stackID)
+	sample.Values().Append(4)
 	sample.AttributeIndices().Append(0)
 }
 
-func fillProfileTwo(profile pprofile.Profile) {
+func fillProfileTwo(dic pprofile.ProfilesDictionary, profile pprofile.Profile) {
 	profile.SetProfileID([16]byte{0x02, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F, 0x10})
 	profile.SetTime(profileStartTimestamp)
-	profile.SetDuration(profileEndTimestamp)
+	profile.SetDurationNano(uint64(time.Second.Nanoseconds()))
 
-	attr := profile.AttributeTable().AppendEmpty()
-	attr.SetKey("key")
-	attr.Value().SetStr("value")
+	loc := pprofile.NewLocation()
+	loc.SetAddress(2)
+	locID, _ := pprofile.SetLocation(dic.LocationTable(), loc)
+	stack := pprofile.NewStack()
+	stack.LocationIndices().Append(locID)
+	stackID, _ := pprofile.SetStack(dic.StackTable(), stack)
 
-	sample := profile.Sample().AppendEmpty()
-	sample.SetLocationsStartIndex(7)
-	sample.SetLocationsLength(20)
-	sample.Value().Append(9)
+	sample := profile.Samples().AppendEmpty()
+	sample.SetStackIndex(stackID)
+	sample.Values().Append(9)
 	sample.AttributeIndices().Append(0)
 }

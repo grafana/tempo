@@ -1,9 +1,8 @@
 package iter
 
 import (
+	"errors"
 	"sync"
-
-	"github.com/sourcegraph/conc/internal/multierror"
 )
 
 // Mapper is an Iterator with a result type R. It can be used to configure
@@ -49,17 +48,16 @@ func (m Mapper[T, R]) MapErr(input []T, f func(*T) (R, error)) ([]R, error) {
 	var (
 		res    = make([]R, len(input))
 		errMux sync.Mutex
-		errs   error
+		errs   []error
 	)
 	Iterator[T](m).ForEachIdx(input, func(i int, t *T) {
 		var err error
 		res[i], err = f(t)
 		if err != nil {
 			errMux.Lock()
-			// TODO: use stdlib errors once multierrors land in go 1.20
-			errs = multierror.Join(errs, err)
+			errs = append(errs, err)
 			errMux.Unlock()
 		}
 	})
-	return res, errs
+	return res, errors.Join(errs...)
 }
