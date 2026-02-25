@@ -43,6 +43,7 @@ Confirm the following before you start:
 Tempo 2.x and 3.0 handle trace ingestion differently. Understanding these changes helps you plan your configuration and deployment.
 
 In Tempo 2.x, distributors forward spans directly to ingesters over gRPC. Ingesters batch spans in memory, build blocks, and flush them to object storage. Queriers read both from ingesters (for recent data) and from object storage (for historical data).
+For more information about the Tempo 2.x architecture, refer to [Tempo 2.x architecture](https://grafana.com/docs/tempo/v2.10.x/introduction/architecture/).
 
 In Tempo 3.0, distributors write spans to Kafka. Two components consume from Kafka independently:
 
