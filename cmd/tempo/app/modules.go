@@ -407,8 +407,6 @@ func (t *App) initQuerier() (services.Service, error) {
 	querier, err := querier.New(
 		t.cfg.Querier,
 		liveStoreRing,
-		t.cfg.GeneratorClient,
-		t.readRings[ringMetricsGenerator],
 		t.cfg.LiveStoreClient,
 		t.partitionRing,
 		t.cfg.Frontend.TraceByID.ExternalEnabled,
@@ -786,7 +784,7 @@ func (t *App) setupModuleManager() error {
 		Distributor:                   {Common, LiveStoreRing, MetricsGeneratorRing, PartitionRing},
 		MetricsGenerator:              {Common, OptionalStore, MemberlistKV, PartitionRing},
 		MetricsGeneratorNoLocalBlocks: {Common, GeneratorRingWatcher},
-		Querier:                       {Common, Store, LiveStoreRing, MetricsGeneratorRing, PartitionRing},
+		Querier:                       {Common, Store, LiveStoreRing, PartitionRing},
 		BlockBuilder:                  {Common, Store, MemberlistKV, PartitionRing},
 		BackendScheduler:              {Common, Store},
 		BackendWorker:                 {Common, Store, MemberlistKV},
