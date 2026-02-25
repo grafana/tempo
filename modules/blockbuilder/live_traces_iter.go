@@ -90,6 +90,12 @@ func (i *liveTracesIter) iter(ctx context.Context) {
 		return bytes.Compare(a.id, b.id)
 	})
 
+	// h and buffer are reused across all spans to avoid repeated allocations.
+	h := util.NewTokenHasher()
+	buffer := make([]byte, 4)
+	// seen is reused across traces to avoid repeated allocations.
+	seen := make(map[uint64]struct{}, 1024)
+
 	// Begin sending to channel in chunks to reduce channel overhead.
 	seq := slices.Chunk(entries, 10)
 	for entries := range seq {
@@ -111,13 +117,18 @@ func (i *liveTracesIter) iter(ctx context.Context) {
 				}
 			}
 
-			// Deduplicate spans within the trace
-			i.dedupedSpans += dedupeTrace(tr)
-
-			// Update block timestamp bounds
-			for _, b := range tr.ResourceSpans {
-				for _, ss := range b.ScopeSpans {
+			// Deduplicate spans and update block timestamp bounds in one pass.
+			for _, rs := range tr.ResourceSpans {
+				for _, ss := range rs.ScopeSpans {
+					unique := ss.Spans[:0]
 					for _, s := range ss.Spans {
+						token := util.TokenForID(h, buffer, int32(s.Kind), s.SpanId)
+						if _, ok := seen[token]; ok {
+							i.dedupedSpans++
+							continue
+						}
+						seen[token] = struct{}{}
+						unique = append(unique, s)
 						if i.start == 0 || s.StartTimeUnixNano < i.start {
 							i.start = s.StartTimeUnixNano
 						}
@@ -125,8 +136,10 @@ func (i *liveTracesIter) iter(ctx context.Context) {
 							i.end = s.EndTimeUnixNano
 						}
 					}
+					ss.Spans = unique
 				}
 			}
+			clear(seen)
 
 			tempopb.ReuseByteSlices(entry.Batches)
 			delete(i.liveTraces.Traces, e.hash)
@@ -167,29 +180,6 @@ func (i *liveTracesIter) DedupedSpans() uint32 {
 
 func (i *liveTracesIter) Close() {
 	i.cancel()
-}
-
-// dedupeTrace removes duplicate spans in-place from tr, deduplicating by span ID and kind.
-// Returns the number of removed duplicate spans.
-func dedupeTrace(tr *tempopb.Trace) uint32 {
-	seen := make(map[uint64]struct{})
-	var deduped uint32
-	for _, rs := range tr.ResourceSpans {
-		for _, ss := range rs.ScopeSpans {
-			unique := ss.Spans[:0]
-			for _, s := range ss.Spans {
-				token := util.SpanIDAndKindToToken(s.SpanId, int(s.Kind))
-				if _, ok := seen[token]; !ok {
-					seen[token] = struct{}{}
-					unique = append(unique, s)
-				} else {
-					deduped++
-				}
-			}
-			ss.Spans = unique
-		}
-	}
-	return deduped
 }
 
 var _ common.Iterator = (*liveTracesIter)(nil)
