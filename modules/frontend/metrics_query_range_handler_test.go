@@ -508,6 +508,133 @@ func TestQueryRangeHandlerWithEndCutoff(t *testing.T) {
 	})
 }
 
+// TestQueryRangeHandlerExemplarNormalization verifies that exemplars from shard responses are
+// kept in the final response when the client omits req.Exemplars (sends 0). Before the fix,
+// the frontend combiner was created with req.Exemplars=0 which caused it to immediately discard
+// all exemplars returned by backend shards.
+func TestQueryRangeHandlerExemplarNormalization(t *testing.T) {
+	start := uint64(1100 * time.Second)
+	end := uint64(1200 * time.Second)
+	step := uint64(100 * time.Second)
+	// Exemplar timestamp in the middle of the query range (milliseconds)
+	exemplarTS := int64(1150 * 1000)
+
+	mockResp := &tempopb.QueryRangeResponse{
+		Metrics: &tempopb.SearchMetrics{InspectedTraces: 1, InspectedBytes: 1},
+		Series: []*tempopb.TimeSeries{
+			{
+				Labels: []v1.KeyValue{
+					{Key: "foo", Value: &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "bar"}}},
+				},
+				Samples: []tempopb.Sample{
+					{TimestampMs: 1100_000, Value: 1},
+					{TimestampMs: 1200_000, Value: 2},
+				},
+				Exemplars: []tempopb.Exemplar{
+					{TimestampMs: exemplarTS, Value: 1.5},
+				},
+			},
+		},
+	}
+
+	makeRequest := func(exemplars uint32) *http.Request {
+		httpReq := httptest.NewRequest("GET", api.PathMetricsQueryRange, nil)
+		httpReq = api.BuildQueryRangeRequest(httpReq, &tempopb.QueryRangeRequest{
+			Query:     "{} | rate()",
+			Start:     start,
+			End:       end,
+			Step:      step,
+			Exemplars: exemplars,
+		}, "")
+		ctx := user.InjectOrgID(httpReq.Context(), "foo")
+		return httpReq.WithContext(ctx)
+	}
+
+	t.Run("client omits exemplars defaults to cfg.MaxExemplars", func(t *testing.T) {
+		f := frontendWithSettings(t, &mockRoundTripper{
+			responseFn: func() proto.Message { return mockResp },
+		}, nil, nil, nil, func(c *Config, _ *overrides.Config) {
+			c.Metrics.Sharder.Interval = time.Hour
+			c.Metrics.Sharder.MaxExemplars = 10
+		})
+
+		httpResp := httptest.NewRecorder()
+		f.MetricsQueryRangeHandler.ServeHTTP(httpResp, makeRequest(0))
+		require.Equal(t, 200, httpResp.Code)
+
+		actualResp := &tempopb.QueryRangeResponse{}
+		require.NoError(t, jsonpb.Unmarshal(httpResp.Body, actualResp))
+
+		var total int
+		for _, s := range actualResp.Series {
+			total += len(s.Exemplars)
+		}
+		assert.Greater(t, total, 0, "exemplars should be kept when client omits exemplars and MaxExemplars > 0")
+	})
+
+	t.Run("exemplars disabled when cfg.MaxExemplars is zero", func(t *testing.T) {
+		f := frontendWithSettings(t, &mockRoundTripper{
+			responseFn: func() proto.Message { return mockResp },
+		}, nil, nil, nil, func(c *Config, _ *overrides.Config) {
+			c.Metrics.Sharder.Interval = time.Hour
+			c.Metrics.Sharder.MaxExemplars = 0
+		})
+
+		httpResp := httptest.NewRecorder()
+		f.MetricsQueryRangeHandler.ServeHTTP(httpResp, makeRequest(0))
+		require.Equal(t, 200, httpResp.Code)
+
+		actualResp := &tempopb.QueryRangeResponse{}
+		require.NoError(t, jsonpb.Unmarshal(httpResp.Body, actualResp))
+
+		for _, s := range actualResp.Series {
+			assert.Empty(t, s.Exemplars, "exemplars should be empty when MaxExemplars is disabled")
+		}
+	})
+
+	t.Run("client requests exemplars but MaxExemplars is zero disables them", func(t *testing.T) {
+		f := frontendWithSettings(t, &mockRoundTripper{
+			responseFn: func() proto.Message { return mockResp },
+		}, nil, nil, nil, func(c *Config, _ *overrides.Config) {
+			c.Metrics.Sharder.Interval = time.Hour
+			c.Metrics.Sharder.MaxExemplars = 0
+		})
+
+		httpResp := httptest.NewRecorder()
+		f.MetricsQueryRangeHandler.ServeHTTP(httpResp, makeRequest(5)) // client requests exemplars
+		require.Equal(t, 200, httpResp.Code)
+
+		actualResp := &tempopb.QueryRangeResponse{}
+		require.NoError(t, jsonpb.Unmarshal(httpResp.Body, actualResp))
+
+		for _, s := range actualResp.Series {
+			assert.Empty(t, s.Exemplars, "exemplars should be empty when MaxExemplars is zero even if client requests them")
+		}
+	})
+
+	t.Run("client-specified exemplars capped to cfg.MaxExemplars", func(t *testing.T) {
+		f := frontendWithSettings(t, &mockRoundTripper{
+			responseFn: func() proto.Message { return mockResp },
+		}, nil, nil, nil, func(c *Config, _ *overrides.Config) {
+			c.Metrics.Sharder.Interval = time.Hour
+			c.Metrics.Sharder.MaxExemplars = 10
+		})
+
+		httpResp := httptest.NewRecorder()
+		f.MetricsQueryRangeHandler.ServeHTTP(httpResp, makeRequest(1000)) // request more than cfg cap
+		require.Equal(t, 200, httpResp.Code)
+
+		actualResp := &tempopb.QueryRangeResponse{}
+		require.NoError(t, jsonpb.Unmarshal(httpResp.Body, actualResp))
+
+		var total int
+		for _, s := range actualResp.Series {
+			total += len(s.Exemplars)
+		}
+		assert.Greater(t, total, 0, "exemplars should be kept when client requests more than cfg cap")
+	})
+}
+
 // mockRoundTripperWithCapture is a mitm helper that captures query range requests
 type mockRoundTripperWithCapture struct {
 	rt  mockRoundTripper

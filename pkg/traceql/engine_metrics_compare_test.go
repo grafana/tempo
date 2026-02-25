@@ -123,6 +123,37 @@ func TestCompare(t *testing.T) {
 	requireEqualSeriesSets(t, expected, ss)
 }
 
+// TestMetricsCompareObserveExemplarLimit verifies that MetricsCompare.observeExemplar
+// caps baseline and selection exemplars at m.maxExemplars (set from req.Exemplars).
+func TestMetricsCompareObserveExemplarLimit(t *testing.T) {
+	const limit = 5
+	req := &tempopb.QueryRangeRequest{
+		Start:     1,
+		End:       uint64(100 * time.Second),
+		Step:      uint64(10 * time.Second),
+		Query:     `{ } | compare({ .service="selected" })`,
+		Exemplars: limit,
+	}
+
+	a := newMetricsCompare(newSpansetFilter(
+		newBinaryOperation(OpEqual,
+			NewAttribute("service"),
+			NewStaticString("selected"),
+		)), 10, 0, 0)
+	a.init(req, AggregateModeRaw)
+
+	// Alternate baseline and selection spans so both slices fill up.
+	for i := 0; i < limit*3; i++ {
+		ts := uint64(i+1) * uint64(time.Second)
+		a.observeExemplar(newMockSpan(nil).WithStartTime(ts).WithSpanString("service", "baseline"))
+		a.observeExemplar(newMockSpan(nil).WithStartTime(ts).WithSpanString("service", "selected"))
+	}
+
+	require.LessOrEqual(t, len(a.baselineExemplars), limit, "baseline exemplars must not exceed req.Exemplars")
+	require.LessOrEqual(t, len(a.selectionExemplars), limit, "selection exemplars must not exceed req.Exemplars")
+	require.Greater(t, len(a.baselineExemplars)+len(a.selectionExemplars), 0, "some exemplars must be collected")
+}
+
 func TestCompareScalesResults(t *testing.T) {
 	// Test that the compare function correctly multiplies results based on sampling multiplier
 	// The multiplication happens in result() method: s.Values[i] *= multiplier

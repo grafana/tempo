@@ -48,7 +48,7 @@ type QueryRangeSharderConfig struct {
 	// QueryBackendAfter determines when to query backend storage vs ingesters only.
 	QueryBackendAfter time.Duration `yaml:"query_backend_after,omitempty"`
 	Interval          time.Duration `yaml:"interval,omitempty"`
-	MaxExemplars      int           `yaml:"max_exemplars,omitempty"`
+	MaxExemplars      uint32        `yaml:"max_exemplars,omitempty"`
 	MaxResponseSeries int           `yaml:"max_response_series,omitempty"`
 	StreamingShards   int           `yaml:"streaming_shards,omitempty"`
 }
@@ -116,15 +116,10 @@ func (s queryRangeSharder) RoundTrip(pipelineRequest pipeline.Request) (pipeline
 
 	traceql.AlignRequest(req)
 
-	var maxExemplars uint32
 	// Instant queries must not compute exemplars
-	if !s.instantMode && s.cfg.MaxExemplars > 0 {
-		maxExemplars = req.Exemplars
-		if maxExemplars == 0 || maxExemplars > uint32(s.cfg.MaxExemplars) {
-			maxExemplars = uint32(s.cfg.MaxExemplars) // Enforce configuration
-		}
+	if s.instantMode {
+		req.Exemplars = 0
 	}
-	req.Exemplars = maxExemplars
 
 	// if a limit is being enforced, honor the request if it is less than the limit
 	// else set it to max limit
