@@ -63,24 +63,26 @@ For a detailed description of each component, refer to [Tempo architecture](/doc
 
 Before deploying Tempo 3.0, create the Kafka topic and review the configuration changes you need to make.
 
-A Kafka topic is a named channel that organizes messages within a Kafka cluster. Producers write messages to a topic, and consumers read messages from it.
-A topic is divided into partitions, which are ordered, append-only logs. Partitions allow multiple consumers to read from the same topic in parallel, where each partition is consumed by a different instance.
-Tempo uses a single Kafka topic for all trace data, configured through `ingest.kafka.topic` in the configuration file.
-
-For more information about Kafka topics, refer to the [Kafka topic configuration reference](https://kafka.apache.org/documentation/#topicconfigs).
+A Kafka topic is a named channel that organizes messages within a Kafka cluster. Producers write
+messages to a topic, and consumers read messages from it.
+A topic is divided into partitions, which are ordered, append-only logs. Partitions allow multiple
+consumers to read from the same topic in parallel, where each partition is consumed by a different
+instance.
 
 ### Configure the Kafka topic
 
-Tempo uses a single Kafka topic for trace data. Tempo can rely on Kafka auto-topic-creation or create it manually with settings that match your throughput.
+Tempo uses a single Kafka topic for all trace data, configured through `ingest.kafka.topic`.
+You can let Tempo auto-create the topic or create it manually with settings that match your throughput.
+For more information about Kafka topics, refer to the [Kafka topic configuration reference](https://kafka.apache.org/documentation/#topicconfigs).
 
-To let Tempo create the topic automatically, enable auto-creation in the `ingest` block:
+To let Tempo create the topic automatically, enable auto-creation in the `ingest` block.
 
 ```yaml
 ingest:
   enabled: true
   kafka:
     address: <KAFKA_BROKER_ADDRESS>
-    topic: <KAFKA_TOPIC>
+    topic: <KAFKA_TOPIC_NAME>
     auto_create_topic_enabled: true
     auto_create_topic_default_partitions: 1000
 ```
