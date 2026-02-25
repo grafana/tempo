@@ -201,7 +201,7 @@ func (i *instance) updateSubprocessors(desiredProcessors map[string]struct{}, de
 }
 
 func (i *instance) updateProcessors() error {
-	desiredProcessors := i.overrides.MetricsGeneratorProcessors(i.instanceID)
+	desiredProcessors := i.filterSupportedProcessors(i.overrides.MetricsGeneratorProcessors(i.instanceID))
 	desiredCfg, err := i.cfg.Processor.copyWithOverrides(i.overrides, i.instanceID)
 	if err != nil {
 		return err
@@ -251,6 +251,21 @@ func (i *instance) updateProcessors() error {
 	i.updateProcessorMetrics()
 
 	return nil
+}
+
+func (i *instance) filterSupportedProcessors(processors map[string]struct{}) map[string]struct{} {
+	filtered := make(map[string]struct{}, len(processors))
+
+	for processorName := range processors {
+		if _, ok := validation.SupportedProcessorsSet[processorName]; ok {
+			filtered[processorName] = struct{}{}
+			continue
+		}
+
+		level.Warn(i.logger).Log("msg", "ignoring unknown metrics-generator processor", "tenant", i.instanceID, "processor", processorName)
+	}
+
+	return filtered
 }
 
 // diffProcessors compares the existing processors with the desired processors and config.

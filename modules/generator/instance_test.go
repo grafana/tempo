@@ -164,16 +164,27 @@ func Test_instance_updateProcessors(t *testing.T) {
 		assert.Equal(t, instance.processors[processor.ServiceGraphsName].Name(), processor.ServiceGraphsName)
 	})
 
-	t.Run("add unknown processor", func(t *testing.T) {
+	t.Run("ignore unknown processor", func(t *testing.T) {
 		overrides.processors = map[string]struct{}{
 			"span-metricsss": {}, // typo in the overrides
 		}
 		err := instance.updateProcessors()
-		assert.Error(t, err)
+		assert.NoError(t, err)
 
-		// existing processors should not be removed when adding a new processor fails
+		// unknown processors are ignored and therefore the desired processor set is empty.
+		assert.Len(t, instance.processors, 0)
+	})
+
+	t.Run("ignore removed local-blocks processor and keep valid processors", func(t *testing.T) {
+		overrides.processors = map[string]struct{}{
+			"local-blocks":              {},
+			processor.ServiceGraphsName: {},
+		}
+		err := instance.updateProcessors()
+		assert.NoError(t, err)
+
 		assert.Len(t, instance.processors, 1)
-		assert.Equal(t, instance.processors[processor.ServiceGraphsName].Name(), processor.ServiceGraphsName)
+		assert.Equal(t, processor.ServiceGraphsName, instance.processors[processor.ServiceGraphsName].Name())
 	})
 
 	t.Run("add spanmetrics processor", func(t *testing.T) {
