@@ -302,93 +302,101 @@ func TestAsyncResponsesDoesNotLeak(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// http
 			t.Run("http", func(t *testing.T) {
-				leakOpts := goleak.IgnoreCurrent()
-				ctx, cancel := context.WithCancel(context.Background())
-				defer cancel()
-				req, err := http.NewRequestWithContext(ctx, "GET", "http://foo.com", nil)
-				require.NoError(t, err)
+				synctest.Test(t, func(t *testing.T) {
+					leakOpts := goleak.IgnoreCurrent()
+					ctx, cancel := context.WithCancel(context.Background())
+					defer cancel()
+					req, err := http.NewRequestWithContext(ctx, "GET", "http://foo.com", nil)
+					require.NoError(t, err)
 
-				bridge := &pipelineBridge{
-					next: tc.finalRT(cancel),
-				}
-				httpCollector := NewHTTPCollector(sharder{next: bridge}, 0, combiner.NewSearch(0, false, api.HeaderAcceptJSON, false))
+					bridge := &pipelineBridge{
+						next: tc.finalRT(cancel),
+					}
+					httpCollector := NewHTTPCollector(sharder{next: bridge}, 0, combiner.NewSearch(0, false, api.HeaderAcceptJSON, false))
 
-				_, _ = httpCollector.RoundTrip(req)
+					_, _ = httpCollector.RoundTrip(req)
 
-				if tc.cleanup != nil {
-					tc.cleanup()
-				}
+					if tc.cleanup != nil {
+						tc.cleanup()
+					}
 
-				goleak.VerifyNone(t, leakOpts)
+					goleak.VerifyNone(t, leakOpts)
+				})
 			})
 
 			// grpc
 			t.Run("grpc", func(t *testing.T) {
-				leakOpts := goleak.IgnoreCurrent()
-				ctx, cancel := context.WithCancel(context.Background())
-				defer cancel()
-				req, err := http.NewRequestWithContext(ctx, "GET", "http://foo.com", nil)
-				require.NoError(t, err)
+				synctest.Test(t, func(t *testing.T) {
+					leakOpts := goleak.IgnoreCurrent()
+					ctx, cancel := context.WithCancel(context.Background())
+					defer cancel()
+					req, err := http.NewRequestWithContext(ctx, "GET", "http://foo.com", nil)
+					require.NoError(t, err)
 
-				bridge := &pipelineBridge{
-					next: tc.finalRT(cancel),
-				}
-				grpcCollector := NewGRPCCollector[*tempopb.SearchResponse](sharder{next: bridge}, 0, combiner.NewTypedSearch(0, false, api.HeaderAcceptJSON, false), func(_ *tempopb.SearchResponse) error { return nil })
+					bridge := &pipelineBridge{
+						next: tc.finalRT(cancel),
+					}
+					grpcCollector := NewGRPCCollector[*tempopb.SearchResponse](sharder{next: bridge}, 0, combiner.NewTypedSearch(0, false, api.HeaderAcceptJSON, false), func(_ *tempopb.SearchResponse) error { return nil })
 
-				_ = grpcCollector.RoundTrip(req)
+					_ = grpcCollector.RoundTrip(req)
 
-				if tc.cleanup != nil {
-					tc.cleanup()
-				}
+					if tc.cleanup != nil {
+						tc.cleanup()
+					}
 
-				goleak.VerifyNone(t, leakOpts)
+					goleak.VerifyNone(t, leakOpts)
+				})
 			})
 
 			// multiple sharder tiers
 			t.Run("func -> chan sharder", func(t *testing.T) {
-				leakOpts := goleak.IgnoreCurrent()
-				ctx, cancel := context.WithCancel(context.Background())
-				defer cancel()
-				req, err := http.NewRequestWithContext(ctx, "GET", "http://foo.com", nil)
-				require.NoError(t, err)
+				synctest.Test(t, func(t *testing.T) {
+					leakOpts := goleak.IgnoreCurrent()
+					ctx, cancel := context.WithCancel(context.Background())
+					defer cancel()
+					req, err := http.NewRequestWithContext(ctx, "GET", "http://foo.com", nil)
+					require.NoError(t, err)
 
-				bridge := &pipelineBridge{
-					next: tc.finalRT(cancel),
-				}
+					bridge := &pipelineBridge{
+						next: tc.finalRT(cancel),
+					}
 
-				s := sharder{next: sharder{next: bridge}, funcSharder: true}
-				grpcCollector := NewGRPCCollector[*tempopb.SearchResponse](s, 0, combiner.NewTypedSearch(0, false, api.HeaderAcceptJSON, false), func(_ *tempopb.SearchResponse) error { return nil })
+					s := sharder{next: sharder{next: bridge}, funcSharder: true}
+					grpcCollector := NewGRPCCollector[*tempopb.SearchResponse](s, 0, combiner.NewTypedSearch(0, false, api.HeaderAcceptJSON, false), func(_ *tempopb.SearchResponse) error { return nil })
 
-				_ = grpcCollector.RoundTrip(req)
+					_ = grpcCollector.RoundTrip(req)
 
-				if tc.cleanup != nil {
-					tc.cleanup()
-				}
+					if tc.cleanup != nil {
+						tc.cleanup()
+					}
 
-				goleak.VerifyNone(t, leakOpts)
+					goleak.VerifyNone(t, leakOpts)
+				})
 			})
 
 			t.Run("chan -> func sharder", func(t *testing.T) {
-				leakOpts := goleak.IgnoreCurrent()
-				ctx, cancel := context.WithCancel(context.Background())
-				defer cancel()
-				req, err := http.NewRequestWithContext(ctx, "GET", "http://foo.com", nil)
-				require.NoError(t, err)
+				synctest.Test(t, func(t *testing.T) {
+					leakOpts := goleak.IgnoreCurrent()
+					ctx, cancel := context.WithCancel(context.Background())
+					defer cancel()
+					req, err := http.NewRequestWithContext(ctx, "GET", "http://foo.com", nil)
+					require.NoError(t, err)
 
-				bridge := &pipelineBridge{
-					next: tc.finalRT(cancel),
-				}
+					bridge := &pipelineBridge{
+						next: tc.finalRT(cancel),
+					}
 
-				s := sharder{next: sharder{next: bridge, funcSharder: true}}
-				grpcCollector := NewGRPCCollector[*tempopb.SearchResponse](s, 0, combiner.NewTypedSearch(0, false, api.HeaderAcceptJSON, false), func(_ *tempopb.SearchResponse) error { return nil })
+					s := sharder{next: sharder{next: bridge, funcSharder: true}}
+					grpcCollector := NewGRPCCollector[*tempopb.SearchResponse](s, 0, combiner.NewTypedSearch(0, false, api.HeaderAcceptJSON, false), func(_ *tempopb.SearchResponse) error { return nil })
 
-				_ = grpcCollector.RoundTrip(req)
+					_ = grpcCollector.RoundTrip(req)
 
-				if tc.cleanup != nil {
-					tc.cleanup()
-				}
+					if tc.cleanup != nil {
+						tc.cleanup()
+					}
 
-				goleak.VerifyNone(t, leakOpts)
+					goleak.VerifyNone(t, leakOpts)
+				})
 			})
 		})
 	}

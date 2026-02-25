@@ -28,7 +28,7 @@ func Test_job(t *testing.T) {
 				jobTimes = append(jobTimes, diff)
 				fmt.Println(diff)
 
-				*interval = *interval + (20 * time.Millisecond)
+				*interval += 20 * time.Millisecond
 			},
 			func() time.Duration {
 				return *interval
