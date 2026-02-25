@@ -525,40 +525,47 @@ func (m *MetricsFilter) compare(v float64) bool {
 
 var _ secondStageElement = (*MetricsFilter)(nil)
 
-// ChainedSecondStage chains two second stage elements together.
-// The first element is processed, then its output is passed to the second.
+// ChainedSecondStage chains multiple second stage elements together.
+// Elements are processed in order, each receiving the output of the previous.
 // Example: {status=error} | rate() | topk(5) > 10
-type ChainedSecondStage struct {
-	first  secondStageElement
-	second secondStageElement
+type ChainedSecondStage []secondStageElement
+
+func newChainedSecondStage(first, second secondStageElement) ChainedSecondStage {
+	return ChainedSecondStage{first, second}
 }
 
-func newChainedSecondStage(first, second secondStageElement) *ChainedSecondStage {
-	return &ChainedSecondStage{first: first, second: second}
-}
-
-func (c *ChainedSecondStage) String() string {
-	return fmt.Sprintf("%s%s%s", c.first.String(), c.second.separator(), c.second.String())
-}
-
-func (c *ChainedSecondStage) separator() string {
-	return c.first.separator()
-}
-
-func (c *ChainedSecondStage) validate() error {
-	if err := c.first.validate(); err != nil {
-		return err
+func (c ChainedSecondStage) String() string {
+	s := c[0].String()
+	for _, e := range c[1:] {
+		s += e.separator() + e.String()
 	}
-	return c.second.validate()
+	return s
 }
 
-func (c *ChainedSecondStage) init(req *tempopb.QueryRangeRequest) {
-	c.first.init(req)
-	c.second.init(req)
+func (c ChainedSecondStage) separator() string {
+	return c[0].separator()
 }
 
-func (c *ChainedSecondStage) process(input SeriesSet) SeriesSet {
-	return c.second.process(c.first.process(input))
+func (c ChainedSecondStage) validate() error {
+	for _, e := range c {
+		if err := e.validate(); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
-var _ secondStageElement = (*ChainedSecondStage)(nil)
+func (c ChainedSecondStage) init(req *tempopb.QueryRangeRequest) {
+	for _, e := range c {
+		e.init(req)
+	}
+}
+
+func (c ChainedSecondStage) process(input SeriesSet) SeriesSet {
+	for _, e := range c {
+		input = e.process(input)
+	}
+	return input
+}
+
+var _ secondStageElement = (ChainedSecondStage)(nil)
