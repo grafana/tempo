@@ -1867,6 +1867,19 @@ func TestMetricsSecondStage(t *testing.T) {
 			),
 			expectedStr: `{ true } | count_over_time() != 0 | topk(10)`,
 		},
+		{
+			in: `{ } | count_over_time() | topk(1) != 0 | topk(10)`,
+			expected: newRootExprWithMetricsTwoStage(
+				newPipeline(newSpansetFilter(NewStaticBool(true))),
+				newMetricsAggregate(metricsAggregateCountOverTime, nil),
+				newChainedSecondStage(
+					newTopKBottomK(OpTopK, 1),
+					newMetricsFilter(OpNotEqual, 0),
+					newTopKBottomK(OpTopK, 10),
+				),
+			),
+			expectedStr: `{ true } | count_over_time() | topk(1) != 0 | topk(10)`,
+		},
 	}
 
 	for _, tc := range tests {

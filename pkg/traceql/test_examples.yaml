@@ -187,6 +187,7 @@ valid:
   - '{} | rate() | topk(5) >= 10'
   - '{} | rate() | topk(5) < 10'
   - '{} | rate() | topk(5) <= 10'
+  - '{} | rate() > 0 | topk(5) <= 10'
   - '{} | count_over_time() | topk(10) = 0 with(sample=0.1)'
   - '{} | count_over_time() | topk(10) != 0 with(sample=0.1)'
   - '{} | count_over_time() | topk(10) >= 0 with(sample=0.1)'
