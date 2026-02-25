@@ -635,6 +635,97 @@ func TestQueryRangeHandlerExemplarNormalization(t *testing.T) {
 	})
 }
 
+func TestNormalizeRequestExemplars(t *testing.T) {
+	const maxExemplars = uint32(20)
+
+	tcs := []struct {
+		name          string
+		query         string
+		reqExemplars  uint32
+		wantExemplars uint32
+		wantErr       bool
+	}{
+		// no hint: 0 (unspecified) defaults to maxExemplars
+		{
+			name:          "no hint, unspecified defaults to max",
+			query:         "{} | rate()",
+			reqExemplars:  0,
+			wantExemplars: maxExemplars,
+		},
+		// no hint: explicit value is preserved
+		{
+			name:          "no hint, explicit value preserved",
+			query:         "{} | rate()",
+			reqExemplars:  10,
+			wantExemplars: 10,
+		},
+		// no hint: value above max is capped
+		{
+			name:          "no hint, above max capped",
+			query:         "{} | rate()",
+			reqExemplars:  maxExemplars + 5,
+			wantExemplars: maxExemplars,
+		},
+		// hint int: overrides req.Exemplars
+		{
+			name:          "hint int overrides req value",
+			query:         "{} | rate() with(exemplars=7)",
+			reqExemplars:  10,
+			wantExemplars: 7,
+		},
+		// hint int: overrides unspecified (0) req value without applying default
+		{
+			name:          "hint int=0 disables exemplars",
+			query:         "{} | rate() with(exemplars=0)",
+			reqExemplars:  0,
+			wantExemplars: 0,
+		},
+		// hint int: capped to maxExemplars when above max
+		{
+			name:          "hint int above max is capped",
+			query:         "{} | rate() with(exemplars=9999)",
+			reqExemplars:  0,
+			wantExemplars: maxExemplars,
+		},
+		// hint bool=false: disables exemplars regardless of req value
+		{
+			name:          "hint false disables exemplars",
+			query:         "{} | rate() with(exemplars=false)",
+			reqExemplars:  10,
+			wantExemplars: 0,
+		},
+		// hint bool=true: no-op, falls through to req.Exemplars / default path
+		{
+			name:          "hint true is no-op, falls through to default",
+			query:         "{} | rate() with(exemplars=true)",
+			reqExemplars:  0,
+			wantExemplars: maxExemplars,
+		},
+		// invalid query returns an error
+		{
+			name:    "invalid query returns error",
+			query:   "this is not valid traceql",
+			wantErr: true,
+		},
+	}
+
+	for _, tc := range tcs {
+		t.Run(tc.name, func(t *testing.T) {
+			req := &tempopb.QueryRangeRequest{
+				Query:     tc.query,
+				Exemplars: tc.reqExemplars,
+			}
+			err := normalizeRequestExemplars(req, maxExemplars)
+			if tc.wantErr {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, tc.wantExemplars, req.Exemplars)
+		})
+	}
+}
+
 // mockRoundTripperWithCapture is a mitm helper that captures query range requests
 type mockRoundTripperWithCapture struct {
 	rt  mockRoundTripper
