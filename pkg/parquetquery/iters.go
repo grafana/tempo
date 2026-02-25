@@ -78,12 +78,6 @@ func EqualRowNumber(upToDefinitionLevel int, a, b RowNumber) bool {
 		}
 	}
 	return true
-
-	// Dynamically create 2 byte slices covering the content
-	// and try to use hw acceleration to compare them.
-	/*as := unsafe.Slice((*byte)(unsafe.Pointer(&a[0])), (upToDefinitionLevel+1)*4)
-	bs := unsafe.Slice((*byte)(unsafe.Pointer(&b[0])), (upToDefinitionLevel+1)*4)
-	return bytes.Equal(as, bs)*/
 }
 
 func truncateRowNumberSlow(definitionLevelToKeep int, t RowNumber) RowNumber {
