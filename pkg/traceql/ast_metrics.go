@@ -530,8 +530,16 @@ var _ secondStageElement = (*MetricsFilter)(nil)
 // Example: {status=error} | rate() | topk(5) > 10
 type ChainedSecondStage []secondStageElement
 
-func newChainedSecondStage(first, second secondStageElement) ChainedSecondStage {
-	return ChainedSecondStage{first, second}
+func newChainedSecondStage(elements ...secondStageElement) ChainedSecondStage {
+	return ChainedSecondStage(elements)
+}
+
+// secondStagePipeline unwraps single-element chains to avoid unnecessary wrapping.
+func secondStagePipeline(c ChainedSecondStage) secondStageElement {
+	if len(c) == 1 {
+		return c[0]
+	}
+	return c
 }
 
 func (c ChainedSecondStage) String() string {

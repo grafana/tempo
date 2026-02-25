@@ -32,6 +32,7 @@ import (
     aggregate Aggregate
     metricsAggregation firstStageElement
     metricsSecondStage secondStageElement
+    metricsSecondStagePipeline ChainedSecondStage
 
     fieldExpression FieldExpression
     static Static
@@ -67,6 +68,7 @@ import (
 %type <scalarFilterOperation> scalarFilterOperation
 %type <metricsAggregation> metricsAggregation
 %type <metricsSecondStage> metricsSecondStage
+%type <metricsSecondStagePipeline> metricsSecondStagePipeline
 %type <scalarFilterOperation> metricsFilterOperation
 %type <metricsSecondStage> metricsFilter
 
@@ -124,16 +126,12 @@ import (
 // Pipeline
 // **********************
 root:
-    spansetPipeline                             { yylex.(*lexer).expr = newRootExpr($1) }
-  | spansetPipelineExpression                   { yylex.(*lexer).expr = newRootExpr($1) }
-  | scalarPipelineExpressionFilter              { yylex.(*lexer).expr = newRootExpr($1) } 
-  | spansetPipeline PIPE metricsAggregation     { yylex.(*lexer).expr = newRootExprWithMetrics($1, $3) }
-  // note: would only work for single metrics pipeline and not for multiple metrics pipelines before the fucntions
-  | spansetPipeline PIPE metricsAggregation PIPE metricsSecondStage  { yylex.(*lexer).expr = newRootExprWithMetricsTwoStage($1, $3, $5) }
-  | spansetPipeline PIPE metricsAggregation metricsFilter            { yylex.(*lexer).expr = newRootExprWithMetricsTwoStage($1, $3, $4) }
-  | spansetPipeline PIPE metricsAggregation PIPE metricsSecondStage metricsFilter { yylex.(*lexer).expr = newRootExprWithMetricsTwoStage($1, $3, newChainedSecondStage($5, $6)) }
-  | spansetPipeline PIPE metricsAggregation metricsFilter PIPE metricsSecondStage { yylex.(*lexer).expr = newRootExprWithMetricsTwoStage($1, $3, newChainedSecondStage($4, $6)) }
-  | root hints                                  { yylex.(*lexer).expr.withHints($2) }
+    spansetPipeline                                                       { yylex.(*lexer).expr = newRootExpr($1) }
+  | spansetPipelineExpression                                             { yylex.(*lexer).expr = newRootExpr($1) }
+  | scalarPipelineExpressionFilter                                        { yylex.(*lexer).expr = newRootExpr($1) } 
+  | spansetPipeline PIPE metricsAggregation                               { yylex.(*lexer).expr = newRootExprWithMetrics($1, $3) }
+  | spansetPipeline PIPE metricsAggregation metricsSecondStagePipeline    { yylex.(*lexer).expr = newRootExprWithMetricsTwoStage($1, $3, secondStagePipeline($4)) }
+  | root hints                                                            { yylex.(*lexer).expr.withHints($2) }
   ;
 
 // **********************
@@ -355,6 +353,16 @@ metricsFilter:
   | metricsFilterOperation SUB INTEGER   { $$ = newMetricsFilter($1, float64(-$3)) }
   | metricsFilterOperation SUB FLOAT     { $$ = newMetricsFilter($1, -$3) }
   | metricsFilterOperation SUB DURATION  { $$ = newMetricsFilter($1, float64(-$3) / float64(time.Second)) }
+  ;
+
+// **********************
+// Metrics Second Stage Pipeline (chains of second stage elements)
+// **********************
+metricsSecondStagePipeline:
+    PIPE metricsSecondStage                              { $$ = ChainedSecondStage{$2} }
+  | metricsFilter                                        { $$ = ChainedSecondStage{$1} }
+  | metricsSecondStagePipeline PIPE metricsSecondStage   { $$ = append($1, $3) }
+  | metricsSecondStagePipeline metricsFilter             { $$ = append($1, $2) }
   ;
 
 // **********************
