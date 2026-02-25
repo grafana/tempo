@@ -225,18 +225,7 @@ func BenchmarkPushSpans(b *testing.B) {
 }
 
 func TestGetOrCreateInstance_FailureCaching(t *testing.T) {
-	cfg := &Config{}
-	cfg.RegisterFlagsAndApplyDefaults("", &flag.FlagSet{})
-	cfg.Storage.Path = t.TempDir()
-
-	g := &Generator{
-		cfg:             cfg,
-		overrides:       &mockOverrides{processors: map[string]struct{}{"invalid-processor": {}}}, // will fail
-		instances:       map[string]*instance{},
-		failedInstances: map[string]time.Time{},
-		logger:          newTestLogger(t),
-		reg:             prometheus.NewRegistry(),
-	}
+	g := newGeneratorWithFailingInstanceCreation(t)
 
 	// First call should fail and cache the failure
 	_, err := g.getOrCreateInstance("tenant-1")
@@ -254,18 +243,7 @@ func TestGetOrCreateInstance_FailureCaching(t *testing.T) {
 }
 
 func TestGetOrCreateInstance_FailureCachingExpiry(t *testing.T) {
-	cfg := &Config{}
-	cfg.RegisterFlagsAndApplyDefaults("", &flag.FlagSet{})
-	cfg.Storage.Path = t.TempDir()
-
-	g := &Generator{
-		cfg:             cfg,
-		overrides:       &mockOverrides{processors: map[string]struct{}{"invalid-processor": {}}}, // will fail
-		instances:       map[string]*instance{},
-		failedInstances: map[string]time.Time{},
-		logger:          newTestLogger(t),
-		reg:             prometheus.NewRegistry(),
-	}
+	g := newGeneratorWithFailingInstanceCreation(t)
 
 	// First call should fail and cache the failure
 	_, err := g.getOrCreateInstance("tenant-1")
@@ -281,6 +259,27 @@ func TestGetOrCreateInstance_FailureCachingExpiry(t *testing.T) {
 	_, err = g.getOrCreateInstance("tenant-1")
 	require.Error(t, err)
 	require.NotErrorIs(t, err, errInstanceCreationBackoff)
+}
+
+func newGeneratorWithFailingInstanceCreation(t *testing.T) *Generator {
+	t.Helper()
+
+	cfg := &Config{}
+	cfg.RegisterFlagsAndApplyDefaults("", &flag.FlagSet{})
+
+	// Force instance creation to fail by making storage path a file instead of a directory.
+	badPath := filepath.Join(t.TempDir(), "not-a-dir")
+	require.NoError(t, os.WriteFile(badPath, []byte("x"), 0o600))
+	cfg.Storage.Path = badPath
+
+	return &Generator{
+		cfg:             cfg,
+		overrides:       &mockOverrides{processors: map[string]struct{}{processor.SpanMetricsName: {}}},
+		instances:       map[string]*instance{},
+		failedInstances: map[string]time.Time{},
+		logger:          newTestLogger(t),
+		reg:             prometheus.NewRegistry(),
+	}
 }
 
 func BenchmarkCollect(b *testing.B) {
