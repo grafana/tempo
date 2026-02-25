@@ -9,6 +9,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/grafana/tempo/modules/frontend/combiner"
@@ -126,26 +127,31 @@ func TestAsyncResponseHonorsContextFailure(t *testing.T) {
 }
 
 func TestAsyncResponseReturnsSentErrors(t *testing.T) {
-	asyncR := newAsyncResponse()
-	expectedErr := errors.New("foo")
-	// send a real response and an error and confirm errors are preferred
-	go func() {
-		asyncR.SendError(expectedErr)
-	}()
-	go func() {
-		asyncR.Send(context.Background(), NewSuccessfulResponse("foo"))
-	}()
-	time.Sleep(100 * time.Millisecond)
-	actual, done, actualErr := asyncR.Next(context.Background())
-	require.True(t, done)
-	require.Equal(t, expectedErr, actualErr)
-	require.Nil(t, actual)
+	synctest.Test(t, func(t *testing.T) {
+		asyncR := newAsyncResponse()
+		expectedErr := errors.New("foo")
+		sendCtx, cancelSend := context.WithCancel(context.Background())
+		defer cancelSend()
 
-	// make sure that responses continues to return the error
-	actual, done, actualErr = asyncR.Next(context.Background())
-	require.True(t, done)
-	require.Equal(t, expectedErr, actualErr)
-	require.Nil(t, actual)
+		// send a real response and an error and confirm errors are preferred
+		go func() {
+			asyncR.SendError(expectedErr)
+		}()
+		go func() {
+			asyncR.Send(sendCtx, NewSuccessfulResponse("foo"))
+		}()
+		time.Sleep(100 * time.Millisecond)
+		actual, done, actualErr := asyncR.Next(context.Background())
+		require.True(t, done)
+		require.Equal(t, expectedErr, actualErr)
+		require.Nil(t, actual)
+
+		// make sure that responses continues to return the error
+		actual, done, actualErr = asyncR.Next(context.Background())
+		require.True(t, done)
+		require.Equal(t, expectedErr, actualErr)
+		require.Nil(t, actual)
+	})
 }
 
 func TestAsyncResponseFansIn(t *testing.T) {

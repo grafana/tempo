@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/go-kit/log"
@@ -203,19 +204,21 @@ func Test_NextReport(t *testing.T) {
 }
 
 func TestWrongKV(t *testing.T) {
-	objectClient, err := local.NewBackend(&local.Config{
-		Path: t.TempDir(),
-	})
-	require.NoError(t, err)
+	synctest.Test(t, func(t *testing.T) {
+		objectClient, err := local.NewBackend(&local.Config{
+			Path: t.TempDir(),
+		})
+		require.NoError(t, err)
 
-	r, err := NewReporter(Config{Leader: true, Enabled: true}, kv.Config{
-		Store: "",
-	}, objectClient, objectClient, log.NewNopLogger(), prometheus.NewPedanticRegistry())
-	require.NoError(t, err)
-	ctx, cancel := context.WithCancel(context.Background())
-	go func() {
-		<-time.After(1 * time.Second)
-		cancel()
-	}()
-	require.Equal(t, context.Canceled, r.running(ctx))
+		r, err := NewReporter(Config{Leader: true, Enabled: true}, kv.Config{
+			Store: "",
+		}, objectClient, objectClient, log.NewNopLogger(), prometheus.NewPedanticRegistry())
+		require.NoError(t, err)
+		ctx, cancel := context.WithCancel(context.Background())
+		go func() {
+			<-time.After(1 * time.Second)
+			cancel()
+		}()
+		require.Equal(t, context.Canceled, r.running(ctx))
+	})
 }
