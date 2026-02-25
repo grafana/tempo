@@ -147,7 +147,9 @@ func (s *tenantStore) Flush(ctx context.Context, r tempodb.Reader, w tempodb.Wri
 		return err
 	}
 
-	if n := iter.DedupedSpans(); n > 0 {
+	if n, err := iter.DedupedSpans(); err != nil {
+		level.Error(s.logger).Log("msg", "failed to get deduped spans count", "err", err)
+	} else if n > 0 {
 		metricDedupedSpans.WithLabelValues(s.tenantID).Add(float64(n))
 	}
 

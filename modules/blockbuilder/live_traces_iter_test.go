@@ -43,5 +43,28 @@ func TestLiveTracesIter_DedupSpans(t *testing.T) {
 		}
 	}
 	require.Equal(t, spanCount, total)
-	require.Equal(t, uint32(spanCount), iter.DedupedSpans())
+	n, err := iter.DedupedSpans()
+	require.NoError(t, err)
+	require.Equal(t, uint32(spanCount), n)
+}
+
+func TestLiveTracesIter_DedupedSpans_ErrorWhenNotExhausted(t *testing.T) {
+	// Push 11 traces so iter() produces 2 chunks (chunk size is 10).
+	// Without reading from the channel the buffer fills after the first chunk,
+	// causing iter() to block on the second send. Cancelling via Close() makes
+	// it exit early without setting exhausted, so DedupedSpans returns an error.
+	lt := livetraces.New(func(b []byte) uint64 { return uint64(len(b)) }, 0, 0, "test-tenant")
+	for j := 0; j < 11; j++ {
+		traceID := generateTraceID(t)
+		tr := test.MakeTraceWithSpanCount(1, 1, traceID)
+		trBytes, err := tr.Marshal()
+		require.NoError(t, err)
+		lt.Push(traceID, trBytes, 0)
+	}
+
+	iter := newLiveTracesIter(lt)
+	iter.Close() // cancel before exhausting
+
+	_, err := iter.DedupedSpans() // blocks until iter() exits, then returns error
+	require.Error(t, err)
 }

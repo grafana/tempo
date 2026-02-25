@@ -3,6 +3,7 @@ package blockbuilder
 import (
 	"bytes"
 	"context"
+	"errors"
 	"slices"
 	"sync"
 
@@ -36,6 +37,7 @@ type liveTracesIter struct {
 	cancel       func()
 	start, end   uint64
 	dedupedSpans uint32
+	exhausted    bool
 }
 
 func newLiveTracesIter(liveTraces *livetraces.LiveTraces[[]byte]) *liveTracesIter {
@@ -157,6 +159,8 @@ func (i *liveTracesIter) iter(ctx context.Context) {
 			return
 		}
 	}
+
+	i.exhausted = true
 }
 
 // MinMaxTimestamps returns the earliest start, and latest end span timestamps,
@@ -170,12 +174,15 @@ func (i *liveTracesIter) MinMaxTimestamps() (uint64, uint64) {
 }
 
 // DedupedSpans returns the total number of duplicate spans that were removed
-// across all traces. The iterator must be exhausted before this can be accessed.
-func (i *liveTracesIter) DedupedSpans() uint32 {
+// across all traces. Returns an error if the iterator has not been fully exhausted.
+func (i *liveTracesIter) DedupedSpans() (uint32, error) {
 	i.mtx.Lock()
 	defer i.mtx.Unlock()
 
-	return i.dedupedSpans
+	if !i.exhausted {
+		return 0, errors.New("iterator must be exhausted before calling DedupedSpans")
+	}
+	return i.dedupedSpans, nil
 }
 
 func (i *liveTracesIter) Close() {
