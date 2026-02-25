@@ -1114,8 +1114,7 @@ func BenchmarkBackendBlockTraceQL(b *testing.B) {
 	}
 }
 
-// BenchmarkBackendBlockGetMetrics This doesn't really belong here but I can't think of
-// a better place that has access to all of the packages, especially the backend.
+// BenchmarkBackendBlockQueryRange benchmarks TraceQL metrics query range execution against a backend block.
 func BenchmarkBackendBlockQueryRange(b *testing.B) {
 	testCases := []string{
 		"{} | rate()",
