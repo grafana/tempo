@@ -16,7 +16,6 @@ import (
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/component/componentstatus"
 	"go.opentelemetry.io/collector/consumer/consumererror"
-	"go.opentelemetry.io/collector/featuregate"
 	"go.opentelemetry.io/collector/receiver"
 	"go.opentelemetry.io/collector/receiver/receiverhelper"
 	"go.opentelemetry.io/otel/attribute"
@@ -27,30 +26,16 @@ import (
 	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/kafkareceiver/internal/metadata"
 )
 
-// franzGoConsumerFeatureGateName is the name of the feature gate for franz-go consumer
-const franzGoConsumerFeatureGateName = "receiver.kafkareceiver.UseFranzGo"
-
-// franzGoConsumerFeatureGate is a feature gate that controls whether the Kafka receiver
-// uses the franz-go client or the Sarama client for consuming messages. When enabled,
-// the Kafka receiver will use the franz-go client, which is more performant and has
-// better support for modern Kafka features.
-var franzGoConsumerFeatureGate = featuregate.GlobalRegistry().MustRegister(
-	franzGoConsumerFeatureGateName, featuregate.StageBeta,
-	featuregate.WithRegisterDescription("When enabled, the Kafka receiver will use the franz-go client to consume messages."),
-	featuregate.WithRegisterFromVersion("v0.129.0"),
-)
-
 type topicPartition struct {
 	topic     string
 	partition int32
 }
 
 // franzConsumer implements a Kafka consumer using the franz-go client library.
-// It provides the same interface as the original kafkaConsumer but uses franz-go
-// for better performance and modern Kafka feature support.
 type franzConsumer struct {
 	config           *Config
 	topics           []string
+	excludeTopics    []string
 	settings         receiver.Settings
 	telemetryBuilder *metadata.TelemetryBuilder
 	newConsumeFn     newConsumeMessageFunc
@@ -65,7 +50,7 @@ type franzConsumer struct {
 	obsrecv     *receiverhelper.ObsReport
 	assignments map[topicPartition]*pc
 
-	// ---- status reporting (parity with Sarama) ----
+	// ---- status reporting ----
 	host         component.Host
 	stoppingOnce sync.Once
 	stoppedOnce  sync.Once
@@ -123,6 +108,7 @@ func newFranzKafkaConsumer(
 	config *Config,
 	set receiver.Settings,
 	topics []string,
+	excludeTopics []string,
 	newConsumeFn newConsumeMessageFunc,
 ) (*franzConsumer, error) {
 	telemetryBuilder, err := metadata.NewTelemetryBuilder(set.TelemetrySettings)
@@ -133,6 +119,7 @@ func newFranzKafkaConsumer(
 	return &franzConsumer{
 		config:           config,
 		topics:           topics,
+		excludeTopics:    excludeTopics,
 		newConsumeFn:     newConsumeFn,
 		settings:         set,
 		telemetryBuilder: telemetryBuilder,
@@ -171,7 +158,7 @@ func (c *franzConsumer) Start(ctx context.Context, host component.Host) error {
 		close(c.started)
 	}
 
-	// Parity with Sarama: report "Starting" as soon as Start() is called.
+	// Report "Starting" as soon as Start() is called.
 	c.host = host
 	c.reportStatus(componentstatus.StatusStarting)
 
@@ -209,9 +196,11 @@ func (c *franzConsumer) Start(ctx context.Context, host component.Host) error {
 	// Create franz-go consumer client
 	client, err := kafka.NewFranzConsumerGroup(
 		ctx,
+		host,
 		c.config.ClientConfig,
 		c.config.ConsumerConfig,
 		c.topics,
+		c.excludeTopics,
 		c.settings.Logger,
 		opts...,
 	)
@@ -231,7 +220,7 @@ func (c *franzConsumer) Start(ctx context.Context, host component.Host) error {
 }
 
 func (c *franzConsumer) consumeLoop(ctx context.Context) {
-	// Parity with Sarama: when the loop exits, report Stopped.
+	// When the loop exits, report Stopped.
 	defer func() {
 		c.stoppedOnce.Do(func() { c.reportStatus(componentstatus.StatusStopped) })
 		close(c.consumerClosed)
@@ -267,7 +256,7 @@ func (c *franzConsumer) consume(ctx context.Context, size int) bool {
 			zap.String("topic", topic),
 			zap.Int64("partition", int64(partition)),
 		)
-		// Parity with Sarama: report recoverable error while consuming.
+		// Report recoverable error while consuming.
 		c.reportRecoverable(err)
 		if !hasError {
 			hasError = true
@@ -332,11 +321,9 @@ func (c *franzConsumer) consume(ctx context.Context, size int) bool {
 						zap.Error(err),
 						zap.Int64("offset", msg.Offset),
 					)
-					// To keep both Sarama and Franz implementations consistent,
-					// we pause consumption for partitions that have fatal errors,
+					// Pause consumption for partitions that have fatal errors,
 					// which isn't ideal since there needs to be some sort of manual
-					// intervention to unlock the partition. But this is already
-					// mentioned in the docs and also happens with Sarama.
+					// intervention to unlock the partition.
 					isPermanent := consumererror.IsPermanent(err)
 					shouldMark := (!isPermanent && c.config.MessageMarking.OnError) || (isPermanent && c.config.MessageMarking.OnPermanentError)
 
@@ -386,7 +373,7 @@ func (c *franzConsumer) consume(ctx context.Context, size int) bool {
 	if !c.config.AutoCommit.Enable {
 		if err := c.client.CommitMarkedOffsets(ctx); err != nil {
 			c.settings.Logger.Error("failed to commit offsets", zap.Error(err))
-			// Surface as recoverable error (parity with Sarama’s loop error reporting).
+			// Surface as recoverable error.
 			c.reportRecoverable(err)
 		}
 	}
@@ -394,7 +381,7 @@ func (c *franzConsumer) consume(ctx context.Context, size int) bool {
 }
 
 func (c *franzConsumer) Shutdown(ctx context.Context) error {
-	// Parity with Sarama: report Stopping at shutdown start.
+	// Report Stopping at shutdown start.
 	c.stoppingOnce.Do(func() { c.reportStatus(componentstatus.StatusStopping) })
 
 	if !c.triggerShutdown() {
@@ -498,11 +485,9 @@ func (c *franzConsumer) lost(ctx context.Context, _ *kgo.Client,
 				pc.cancelContext(errors.New(
 					"stopping processing: partition reassigned or lost",
 				))
-				wg.Add(1)
-				go func() {
-					defer wg.Done()
+				wg.Go(func() {
 					pc.wait()
-				}()
+				})
 				c.telemetryBuilder.KafkaReceiverPartitionClose.Add(context.Background(), 1)
 			}
 		}
@@ -516,7 +501,7 @@ func (c *franzConsumer) lost(ctx context.Context, _ *kgo.Client,
 	// away from this consumer.
 	if err := c.client.CommitMarkedOffsets(ctx); err != nil {
 		c.settings.Logger.Error("failed to commit marked offsets", zap.Error(err))
-		// Parity with Sarama: report recoverable error on commit errors.
+		// Report recoverable error on commit errors.
 		c.reportRecoverable(err)
 	}
 }

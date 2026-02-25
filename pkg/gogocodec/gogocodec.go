@@ -9,6 +9,7 @@
 package gogocodec
 
 import (
+	"fmt"
 	"reflect"
 	"strings"
 
@@ -23,7 +24,6 @@ const (
 	jaegerProtoGenPkgPath   = "github.com/jaegertracing/jaeger-idl/proto-gen"
 	jaegerModelPkgPath      = "github.com/jaegertracing/jaeger-idl/model"
 	jaegerStorageV1PkgPath  = "github.com/grafana/tempo/cmd/tempo-query/jaeger/storage_v1"
-	otelProtoPkgPath        = "go.opentelemetry.io/collector"
 	// etcd path can be removed once upgrade to grpc >v1.38 is released (tentatively next release from v3.5.1)
 	etcdAPIProtoPkgPath = "go.etcd.io/etcd/api/v3"
 )
@@ -32,6 +32,15 @@ const (
 type GogoCodec struct{}
 
 var _ encoding.Codec = (*GogoCodec)(nil)
+
+// This mirrors OTEL collector's internal, unexported otelEncoder interface:
+// go.opentelemetry.io/collector/pdata/internal/otelgrpc/encoding.go
+// We cannot import it here because it's unexported and under an internal package.
+type otelProtoMessage interface {
+	SizeProto() int
+	MarshalProto([]byte) int
+	UnmarshalProto([]byte) error
+}
 
 func NewCodec() *GogoCodec {
 	return &GogoCodec{}
@@ -43,25 +52,46 @@ func (c *GogoCodec) Name() string {
 }
 
 // Marshal implements encoding.Codec
-func (c *GogoCodec) Marshal(v interface{}) ([]byte, error) {
-	t := reflect.TypeOf(v)
-	elem := t.Elem()
-	// use gogo proto only for Tempo/Cortex/Jaeger/etcd types
-	if useGogo(elem) {
-		return gogoproto.Marshal(v.(gogoproto.Message))
+func (c *GogoCodec) Marshal(v any) ([]byte, error) {
+	if m, ok := v.(otelProtoMessage); ok {
+		size := m.SizeProto()
+		buf := make([]byte, size)
+		n := m.MarshalProto(buf)
+		return buf[:n], nil
 	}
-	return proto.Marshal(v.(proto.Message))
+
+	// use gogo proto only for Tempo/Cortex/Jaeger/etcd types
+	if useGogo(reflect.TypeOf(v)) {
+		if msg, ok := v.(gogoproto.Message); ok {
+			return gogoproto.Marshal(msg)
+		}
+	}
+
+	msg, ok := v.(proto.Message)
+	if !ok {
+		return nil, fmt.Errorf("gogocodec: unsupported marshal type %T", v)
+	}
+	return proto.Marshal(msg)
 }
 
 // Unmarshal implements encoding.Codec
-func (c *GogoCodec) Unmarshal(data []byte, v interface{}) error {
-	t := reflect.TypeOf(v)
-	elem := t.Elem()
-	// use gogo proto only for Tempo/Cortex/Jaeger/etcd types
-	if useGogo(elem) {
-		return gogoproto.Unmarshal(data, v.(gogoproto.Message))
+func (c *GogoCodec) Unmarshal(data []byte, v any) error {
+	if m, ok := v.(otelProtoMessage); ok {
+		return m.UnmarshalProto(data)
 	}
-	return proto.Unmarshal(data, v.(proto.Message))
+
+	// use gogo proto only for Tempo/Cortex/Jaeger/etcd types
+	if useGogo(reflect.TypeOf(v)) {
+		if msg, ok := v.(gogoproto.Message); ok {
+			return gogoproto.Unmarshal(data, msg)
+		}
+	}
+
+	msg, ok := v.(proto.Message)
+	if !ok {
+		return fmt.Errorf("gogocodec: unsupported unmarshal type %T", v)
+	}
+	return proto.Unmarshal(data, msg)
 }
 
 // useGogo checks if the element belongs to Tempo/Cortex/Jaeger/etcd packages
@@ -69,6 +99,12 @@ func useGogo(t reflect.Type) bool {
 	if t == nil {
 		return false
 	}
+	for t.Kind() == reflect.Pointer {
+		t = t.Elem()
+		if t == nil {
+			return false
+		}
+	}
 	pkgPath := t.PkgPath()
-	return strings.HasPrefix(pkgPath, frontendProtoGenPkgPath) || strings.HasPrefix(pkgPath, tempoProtoGenPkgPath) || strings.HasPrefix(pkgPath, jaegerProtoGenPkgPath) || strings.HasPrefix(pkgPath, jaegerModelPkgPath) || strings.HasPrefix(pkgPath, jaegerStorageV1PkgPath) || strings.HasPrefix(pkgPath, otelProtoPkgPath) || strings.HasPrefix(pkgPath, etcdAPIProtoPkgPath)
+	return strings.HasPrefix(pkgPath, frontendProtoGenPkgPath) || strings.HasPrefix(pkgPath, tempoProtoGenPkgPath) || strings.HasPrefix(pkgPath, jaegerProtoGenPkgPath) || strings.HasPrefix(pkgPath, jaegerModelPkgPath) || strings.HasPrefix(pkgPath, jaegerStorageV1PkgPath) || strings.HasPrefix(pkgPath, etcdAPIProtoPkgPath)
 }

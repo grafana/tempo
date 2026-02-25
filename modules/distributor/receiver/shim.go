@@ -25,6 +25,7 @@ import (
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	"go.opentelemetry.io/collector/receiver"
 	"go.opentelemetry.io/collector/receiver/otlpreceiver"
+	"go.opentelemetry.io/collector/service/telemetry/otelconftelemetry"
 	"go.opentelemetry.io/otel"
 	otelcodes "go.opentelemetry.io/otel/codes"
 	"go.uber.org/multierr"
@@ -234,6 +235,7 @@ func New(receiverCfg map[string]interface{}, pusher TracesPusher, middleware Mid
 	conf, err := pro.Get(context.Background(), otelcol.Factories{
 		Receivers: receiverFactories,
 		Exporters: map[component.Type]exporter.Factory{component.MustNewType("nop"): exportertest.NewNopFactory()}, // nop exporter to avoid errors
+		Telemetry: otelconftelemetry.NewFactory(),
 	})
 	if err != nil {
 		return nil, err
@@ -361,7 +363,9 @@ func (r *receiversShim) ConsumeTraces(ctx context.Context, td ptrace.Traces) err
 }
 
 // GetExtensions implements component.Host
-func (r *receiversShim) GetExtensions() map[component.ID]component.Component { return nil }
+func (r *receiversShim) GetExtensions() map[component.ID]component.Component {
+	return map[component.ID]component.Component{}
+}
 
 // observability shims
 func newLogger(level dslog.Level) *zap.Logger {
