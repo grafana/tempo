@@ -280,11 +280,6 @@ func (t *App) initDistributor() (services.Service, error) {
 }
 
 func (t *App) initGenerator() (services.Service, error) {
-	if t.cfg.Generator.Processor.LocalBlocks.FlushToStorage &&
-		t.store == nil {
-		return nil, fmt.Errorf("generator.processor.local-blocks.flush-to-storage is enabled but no storage backend is configured")
-	}
-
 	t.cfg.Generator.Ring.ListenPort = t.cfg.Server.GRPCListenPort
 
 	t.cfg.Generator.Ingest = t.cfg.Ingest
@@ -323,10 +318,7 @@ func (t *App) initGeneratorNoLocalBlocks() (services.Service, error) {
 	if !t.cfg.Ingest.Enabled {
 		return nil, errors.New("ingest storage must be enabled to run metrics generator in this mode")
 	}
-	// The localblocks processor is disabled in this mode.
-	t.cfg.Generator.DisableLocalBlocks = true
-	// The store is used only by the localblocks processor. We don't need it when
-	// running with that processor disabled so we keep the default zero value.
+	// The store is not required in this mode.
 	var store tempo_storage.Store
 	// In this mode, the generator does not need to become available to serve
 	// queries, so we can skip setting up a gRPC server.
@@ -521,8 +513,7 @@ func (t *App) initQueryFrontend() (services.Service, error) {
 var staticFiles embed.FS
 
 func (t *App) initOptionalStore() (services.Service, error) {
-	// Used by the local-blocs processor to flush RF1 blocks to storage.
-	// Only initialize if it's configured.
+	// Only initialize if a trace storage backend is configured.
 	if t.cfg.StorageConfig.Trace.Backend == "" {
 		return services.NewIdleService(nil, nil), nil
 	}

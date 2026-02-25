@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/grafana/tempo/modules/generator/processor/hostinfo"
-	"github.com/grafana/tempo/modules/generator/processor/localblocks"
 	"github.com/grafana/tempo/modules/generator/processor/servicegraphs"
 	"github.com/grafana/tempo/modules/generator/processor/spanmetrics"
 	"github.com/grafana/tempo/modules/generator/registry"
@@ -62,9 +61,6 @@ type Config struct {
 
 	// Codec controls which decoder to use for data consumed from Kafka.
 	Codec string `yaml:"codec"`
-	// DisableLocalBlocks controls whether the local blocks processor should be run.
-	// When this flag is enabled, the processor is never instantiated.
-	DisableLocalBlocks bool `yaml:"disable_local_blocks"`
 	// DisableGRPC controls whether to run a gRPC server with the metrics generator endpoints.
 	DisableGRPC bool `yaml:"disable_grpc"`
 
@@ -151,22 +147,17 @@ func (cfg *Config) Validate() error {
 type ProcessorConfig struct {
 	ServiceGraphs servicegraphs.Config `yaml:"service_graphs"`
 	SpanMetrics   spanmetrics.Config   `yaml:"span_metrics"`
-	LocalBlocks   localblocks.Config   `yaml:"local_blocks"`
 	HostInfo      hostinfo.Config      `yaml:"host_info"`
 }
 
 func (cfg *ProcessorConfig) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
 	cfg.ServiceGraphs.RegisterFlagsAndApplyDefaults(prefix, f)
 	cfg.SpanMetrics.RegisterFlagsAndApplyDefaults(prefix, f)
-	cfg.LocalBlocks.RegisterFlagsAndApplyDefaults(prefix, f)
 	cfg.HostInfo.RegisterFlagsAndApplyDefaults(prefix, f)
 }
 
 func (cfg *ProcessorConfig) Validate() error {
 	var errs []error
-	if err := cfg.LocalBlocks.Validate(); err != nil {
-		errs = append(errs, err)
-	}
 	if err := validation.ValidateHostInfoHostIdentifiers(cfg.HostInfo.HostIdentifiers); err != nil {
 		errs = append(errs, err)
 	}
@@ -210,30 +201,6 @@ func (cfg *ProcessorConfig) copyWithOverrides(o metricsGeneratorOverrides, userI
 	}
 	if filterPolicies := o.MetricsGeneratorProcessorSpanMetricsFilterPolicies(userID); filterPolicies != nil {
 		copyCfg.SpanMetrics.FilterPolicies = filterPolicies
-	}
-
-	if max := o.MetricsGeneratorProcessorLocalBlocksMaxLiveTraces(userID); max > 0 {
-		copyCfg.LocalBlocks.MaxLiveTraces = max
-	}
-
-	if max := o.MetricsGeneratorProcessorLocalBlocksMaxBlockDuration(userID); max > 0 {
-		copyCfg.LocalBlocks.MaxBlockDuration = max
-	}
-
-	if max := o.MetricsGeneratorProcessorLocalBlocksMaxBlockBytes(userID); max > 0 {
-		copyCfg.LocalBlocks.MaxBlockBytes = max
-	}
-
-	if period := o.MetricsGeneratorProcessorLocalBlocksFlushCheckPeriod(userID); period > 0 {
-		copyCfg.LocalBlocks.FlushCheckPeriod = period
-	}
-
-	if period := o.MetricsGeneratorProcessorLocalBlocksTraceIdlePeriod(userID); period > 0 {
-		copyCfg.LocalBlocks.TraceIdlePeriod = period
-	}
-
-	if timeout := o.MetricsGeneratorProcessorLocalBlocksCompleteBlockTimeout(userID); timeout > 0 {
-		copyCfg.LocalBlocks.CompleteBlockTimeout = timeout
 	}
 
 	if histograms := o.MetricsGeneratorGenerateNativeHistograms(userID); histograms != "" {

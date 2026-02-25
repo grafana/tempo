@@ -19,7 +19,6 @@ import (
 var SupportedProcessors = []string{
 	processor.ServiceGraphsName,
 	processor.SpanMetricsName,
-	processor.LocalBlocksName,
 	processor.SpanMetricsCountName,
 	processor.SpanMetricsLatencyName,
 	processor.SpanMetricsSizeName,
