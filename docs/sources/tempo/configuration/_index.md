@@ -1274,6 +1274,22 @@ storage:
             # The maximum number of requests to execute when hedging. Requires hedge_requests_at to be set.
             [hedge_requests_up_to: <int>]
 
+            # Optional. Default is 10 (minio default)
+            # Example: "max_retry: 10"
+            # The maximum number of retry attempts on failed S3 requests. Set to 1 to disable retries.
+            [max_retry: <int>]
+
+            # Optional. Default is 200ms (minio default)
+            # Example: "retry_unit: 200ms"
+            # The baseline time after which a retry is attempted on failed S3 requests. This time is
+            # doubled each retry until it hits retry_cap, after which it remains at retry_cap.
+            [retry_unit: <duration>]
+
+            # Optional. Default is 1s (minio default)
+            # Example: "retry_cap: 1s"
+            # The maximum duration to wait between retry attempts on failed S3 requests.
+            [retry_cap: <duration>]
+
             # Optional
             # Example: "tags: {'key': 'value'}"
             # A map of key value strings for user tags to store on the S3 objects. This helps set up filters in S3 lifecycles.
