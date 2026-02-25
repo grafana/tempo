@@ -11,13 +11,16 @@ versionDate: 2026-02-25
 
 # Migrate from Tempo 2.x to 3.0
 
-Grafana Tempo 3.0 introduces a new architecture that replaces ingesters with a Kafka-based ingest path. Distributors write trace data to Kafka, and two new components consume from it. Block-builders create blocks for long-term object storage, and live-stores serve recent-data queries.
+Grafana Tempo 3.0 introduces a new architecture that replaces ingesters with an Apache Kafka-based ingest path. Distributors write trace data to Kafka, and two new components consume from it. Block-builders create blocks for long-term object storage, and live-stores serve recent-data queries.
+Refer to [the Kafka Introduction](https://kafka.apache.org/42/getting-started/introduction/) for more information about Kafka. 
 
 This guide walks you through migrating a self-managed Grafana Tempo deployment from 2.x to 3.0.
 Because the architecture change is fundamental, this is a migration rather than an in-place upgrade.
 You deploy a new Tempo 3.0 instance alongside your existing 2.x deployment, switch traffic, and decommission the old deployment.
 
+{{< admonition type="warning" >}}
 There's no downgrade path from 3.0 to 2.x. Once you begin writing blocks with Tempo 3.0, you can't revert to a 2.x deployment.
+{{< /admonition >}}
 
 The active migration steps take approximately 1-2 hours to complete, followed by a one-week validation period before final decommission.
 
@@ -58,11 +61,11 @@ For a detailed description of each component, refer to [Tempo architecture](/doc
 
 ## Prepare for migration
 
-Before deploying Tempo 3.0, prepare the Kafka topic and review the configuration changes you need to make.
+Before deploying Tempo 3.0, create the Kafka topic and review the configuration changes you need to make.
 
 ### Configure the Kafka topic
 
-Tempo uses a single Kafka topic for trace data. You can let Tempo auto-create the topic, or create it manually with settings that match your throughput.
+Tempo uses a single Kafka topic for trace data. Tempo can rely on Kafka auto-topic-creation or create it manually with settings that match your throughput.
 
 If you create the topic manually, set the partition count based on your expected parallelism. Each partition supports approximately one block-builder or live-store instance. For most deployments, the default of 1000 partitions provides sufficient headroom. For sizing guidance, refer to [Size your cluster](/docs/tempo/<TEMPO_VERSION>/set-up-for-tracing/setup-tempo/plan/size/).
 
