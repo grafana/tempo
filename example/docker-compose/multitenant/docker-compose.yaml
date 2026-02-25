@@ -28,7 +28,7 @@ services:
       - tempo
 
   otel-collector:
-    image: otel/opentelemetry-collector:0.145.0@sha256:8cad95dd3fe0304fbc5652373cc392be4ac915c4c210d2c425d3f1a1f7c3c3ca
+    image: otel/opentelemetry-collector:0.146.1@sha256:23f75833cfcf0ebdde9b2e1ba41616b9092294af6947f2feea1b4ebc393030f5
     command: [ "--config=/etc/otel-collector.yaml" ]
     volumes:
       - ./otel-collector.yaml:/etc/otel-collector.yaml
