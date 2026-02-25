@@ -19,29 +19,31 @@ func (b *backendBlock) FetchSpans(ctx context.Context, req traceql.FetchSpansReq
 	if err != nil {
 		return traceql.FetchSpansOnlyResponse{}, err
 	}
-
-	var (
-		rgs         = rowGroupsFromFile(pf, opts)
-		makeIter    = makeIterFunc(ctx, rgs, pf)
-		makeNilIter = makeNilIterFunc(ctx, rgs, pf)
-	)
-
-	iter, span, err := create(makeIter, makeNilIter, nil, req.Conditions, req.SecondPass, req.StartTimeUnixNanos, req.EndTimeUnixNanos, req.AllConditions, false, b.meta.DedicatedColumns, req.SpanSampler)
+	iter, err := fetchSpans(ctx, req, pf, rowGroupsFromFile(pf, opts), b.meta.DedicatedColumns)
 	if err != nil {
 		return traceql.FetchSpansOnlyResponse{}, err
 	}
-
-	if len(req.SecondPassConditions) > 0 || req.SecondPassSelectAll {
-		iter, span, err = create(makeIter, makeNilIter, iter, req.SecondPassConditions, nil, 0, 0, false, req.SecondPassSelectAll, b.meta.DedicatedColumns, nil)
-		if err != nil {
-			return traceql.FetchSpansOnlyResponse{}, err
-		}
-	}
-
 	return traceql.FetchSpansOnlyResponse{
-		Results: &spanOnlyIterator{iter: iter, span: span},
+		Results: iter,
 		Bytes:   func() uint64 { return rr.BytesRead() },
 	}, nil
+}
+
+// fetchSpans is the core logic for span-only fetch, like fetch is for Fetch. Callers open the parquet file and pass row groups.
+func fetchSpans(ctx context.Context, req traceql.FetchSpansRequest, pf *parquet.File, rowGroups []parquet.RowGroup, dc backend.DedicatedColumns) (*spanOnlyIterator, error) {
+	makeIter := makeIterFunc(ctx, rowGroups, pf)
+	makeNilIter := makeNilIterFunc(ctx, rowGroups, pf)
+	iter, span, err := create(makeIter, makeNilIter, nil, req.Conditions, req.SecondPass, req.StartTimeUnixNanos, req.EndTimeUnixNanos, req.AllConditions, false, dc, req.SpanSampler)
+	if err != nil {
+		return nil, err
+	}
+	if len(req.SecondPassConditions) > 0 || req.SecondPassSelectAll {
+		iter, span, err = create(makeIter, makeNilIter, iter, req.SecondPassConditions, nil, 0, 0, false, req.SecondPassSelectAll, dc, nil)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return &spanOnlyIterator{iter: iter, span: span}, nil
 }
 
 type spanOnlyIterator struct {

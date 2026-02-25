@@ -240,9 +240,13 @@ func (s *Spanset) clone() *Spanset {
 	return &ss
 }
 
-type SpansetIterator interface {
-	Next(context.Context) (*Spanset, error)
+type CommonIterator[T any] interface {
+	Next(context.Context) (T, error)
 	Close()
+}
+
+type SpansetIterator interface {
+	CommonIterator[*Spanset]
 }
 
 type FetchSpansResponse struct {
@@ -252,8 +256,7 @@ type FetchSpansResponse struct {
 }
 
 type SpanIterator interface {
-	Next(context.Context) (Span, error)
-	Close()
+	CommonIterator[Span]
 }
 
 type FetchSpansOnlyResponse struct {
