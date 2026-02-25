@@ -12,7 +12,6 @@ import (
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
 	tempo_log "github.com/grafana/tempo/pkg/util/log"
-	"github.com/grafana/tempo/tempodb"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 
@@ -85,7 +84,6 @@ type instance struct {
 
 	traceWAL      *wal.WAL
 	traceQueryWAL *wal.WAL
-	writer        tempodb.Writer
 
 	// processorsMtx protects the processors map, not the processors itself
 	processorsMtx sync.RWMutex
@@ -98,7 +96,7 @@ type instance struct {
 	logger log.Logger
 }
 
-func newInstance(cfg *Config, instanceID string, overrides metricsGeneratorOverrides, wal storage.Storage, logger log.Logger, traceWAL, rf1TraceWAL *wal.WAL, writer tempodb.Writer) (*instance, error) {
+func newInstance(cfg *Config, instanceID string, overrides metricsGeneratorOverrides, wal storage.Storage, logger log.Logger, traceWAL, rf1TraceWAL *wal.WAL) (*instance, error) {
 	logger = log.With(logger, "tenant", instanceID)
 
 	limitLogger := tempo_log.NewRateLimitedLogger(1, level.Warn(logger))
@@ -121,7 +119,6 @@ func newInstance(cfg *Config, instanceID string, overrides metricsGeneratorOverr
 		wal:           wal,
 		traceWAL:      traceWAL,
 		traceQueryWAL: rf1TraceWAL,
-		writer:        writer,
 
 		processors: make(map[string]processor.Processor),
 
