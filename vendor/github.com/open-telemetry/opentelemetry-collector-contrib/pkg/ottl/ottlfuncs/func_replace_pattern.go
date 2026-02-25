@@ -13,9 +13,14 @@ import (
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl"
 )
 
+var (
+	validRegex   = regexp.MustCompile(`^(.*?%s.*?)$`)
+	invalidRegex = regexp.MustCompile(`%[^s]`)
+)
+
 type ReplacePatternArguments[K any] struct {
 	Target            ottl.GetSetter[K]
-	RegexPattern      string
+	RegexPattern      ottl.StringGetter[K]
 	Replacement       ottl.StringGetter[K]
 	Function          ottl.Optional[ottl.FunctionGetter[K]]
 	ReplacementFormat ottl.Optional[ottl.StringGetter[K]]
@@ -41,11 +46,6 @@ func createReplacePatternFunction[K any](_ ottl.FunctionContext, oArgs ottl.Argu
 
 func validFormatString(formatString string) bool {
 	// Check for exactly one %s and no other invalid format specifiers
-	validPattern := `^(.*?%s.*?)$`
-	validRegex := regexp.MustCompile(validPattern)
-	invalidPattern := `%[^s]`
-	invalidRegex := regexp.MustCompile(invalidPattern)
-
 	return validRegex.MatchString(formatString) && !invalidRegex.MatchString(formatString)
 }
 
@@ -98,10 +98,10 @@ func applyOptReplaceFunction[K any](ctx context.Context, tCtx K, compiledPattern
 	return updatedString, nil
 }
 
-func replacePattern[K any](target ottl.GetSetter[K], regexPattern string, replacement ottl.StringGetter[K], fn ottl.Optional[ottl.FunctionGetter[K]], replacementFormat ottl.Optional[ottl.StringGetter[K]]) (ottl.ExprFunc[K], error) {
-	compiledPattern, err := regexp.Compile(regexPattern)
+func replacePattern[K any](target ottl.GetSetter[K], regexPattern, replacement ottl.StringGetter[K], fn ottl.Optional[ottl.FunctionGetter[K]], replacementFormat ottl.Optional[ottl.StringGetter[K]]) (ottl.ExprFunc[K], error) {
+	compiledPattern, err := newDynamicRegex("replace_pattern", regexPattern)
 	if err != nil {
-		return nil, fmt.Errorf("the regex pattern supplied to replace_pattern is not a valid pattern: %w", err)
+		return nil, err
 	}
 	return func(ctx context.Context, tCtx K) (any, error) {
 		originalVal, err := target.Get(ctx, tCtx)
@@ -117,10 +117,14 @@ func replacePattern[K any](target ottl.GetSetter[K], regexPattern string, replac
 			return nil, err
 		}
 		if originalValStr, ok := originalVal.(string); ok {
-			if compiledPattern.MatchString(originalValStr) {
+			cp, err := compiledPattern.compile(ctx, tCtx)
+			if err != nil {
+				return nil, err
+			}
+			if cp.MatchString(originalValStr) {
 				if !fn.IsEmpty() {
 					var updatedString string
-					updatedString, err = applyOptReplaceFunction[K](ctx, tCtx, compiledPattern, fn, originalValStr, replacementVal, replacementFormat)
+					updatedString, err = applyOptReplaceFunction[K](ctx, tCtx, cp, fn, originalValStr, replacementVal, replacementFormat)
 					if err != nil {
 						return nil, err
 					}
@@ -129,7 +133,7 @@ func replacePattern[K any](target ottl.GetSetter[K], regexPattern string, replac
 						return nil, err
 					}
 				} else {
-					updatedStr := compiledPattern.ReplaceAllString(originalValStr, replacementVal)
+					updatedStr := cp.ReplaceAllString(originalValStr, replacementVal)
 					err = target.Set(ctx, tCtx, updatedStr)
 					if err != nil {
 						return nil, err

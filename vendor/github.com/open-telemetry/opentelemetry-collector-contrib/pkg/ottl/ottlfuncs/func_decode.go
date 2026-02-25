@@ -17,7 +17,7 @@ import (
 
 type DecodeArguments[K any] struct {
 	Target   ottl.Getter[K]
-	Encoding string
+	Encoding ottl.StringGetter[K]
 }
 
 func NewDecodeFactory[K any]() ottl.Factory[K] {
@@ -30,12 +30,16 @@ func createDecodeFunction[K any](_ ottl.FunctionContext, oArgs ottl.Arguments) (
 		return nil, errors.New("DecodeFactory args must be of type *DecodeArguments[K]")
 	}
 
-	return Decode(args.Target, args.Encoding)
+	return Decode(args.Target, args.Encoding), nil
 }
 
-func Decode[K any](target ottl.Getter[K], encoding string) (ottl.ExprFunc[K], error) {
+func Decode[K any](target ottl.Getter[K], encoding ottl.StringGetter[K]) ottl.ExprFunc[K] {
 	return func(ctx context.Context, tCtx K) (any, error) {
 		val, err := target.Get(ctx, tCtx)
+		if err != nil {
+			return nil, err
+		}
+		encodingVal, err := encoding.Get(ctx, tCtx)
 		if err != nil {
 			return nil, err
 		}
@@ -60,7 +64,7 @@ func Decode[K any](target ottl.Getter[K], encoding string) (ottl.ExprFunc[K], er
 			return nil, fmt.Errorf("unsupported type provided to Decode function: %T", v)
 		}
 
-		switch encoding {
+		switch encodingVal {
 		// base64 is not in IANA index, so we have to deal with this encoding separately
 		case "base64":
 			return decodeBase64(base64.StdEncoding, stringValue)
@@ -71,7 +75,7 @@ func Decode[K any](target ottl.Getter[K], encoding string) (ottl.ExprFunc[K], er
 		case "base64-raw-url":
 			return decodeBase64(base64.RawURLEncoding, stringValue)
 		default:
-			e, err := textutils.LookupEncoding(encoding)
+			e, err := textutils.LookupEncoding(encodingVal)
 			if err != nil {
 				return nil, err
 			}
@@ -83,7 +87,7 @@ func Decode[K any](target ottl.Getter[K], encoding string) (ottl.ExprFunc[K], er
 
 			return decodedString, nil
 		}
-	}, nil
+	}
 }
 
 func decodeBase64(encoding *base64.Encoding, stringValue string) (any, error) {

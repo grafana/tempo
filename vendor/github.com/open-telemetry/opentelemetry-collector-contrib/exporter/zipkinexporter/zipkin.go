@@ -59,7 +59,7 @@ func createZipkinExporter(cfg *Config, settings component.TelemetrySettings) (*z
 
 // start creates the http client
 func (ze *zipkinExporter) start(ctx context.Context, host component.Host) (err error) {
-	ze.client, err = ze.clientSettings.ToClient(ctx, host, ze.settings)
+	ze.client, err = ze.clientSettings.ToClient(ctx, host.GetExtensions(), ze.settings)
 	return err
 }
 

@@ -22,11 +22,11 @@ var UseOTTLBridge = featuregate.GlobalRegistry().MustRegister(
 // NewSkipExpr creates a BoolExpr that on evaluation returns true if a metric should NOT be processed or kept.
 // The logic determining if a metric should be processed is based on include and exclude settings.
 // Include properties are checked before exclude settings are checked.
-func NewSkipExpr(include, exclude *filterconfig.MetricMatchProperties) (expr.BoolExpr[ottlmetric.TransformContext], error) {
+func NewSkipExpr(include, exclude *filterconfig.MetricMatchProperties) (expr.BoolExpr[*ottlmetric.TransformContext], error) {
 	if UseOTTLBridge.IsEnabled() {
 		return filterottl.NewMetricSkipExprBridge(include, exclude)
 	}
-	var matchers []expr.BoolExpr[ottlmetric.TransformContext]
+	var matchers []expr.BoolExpr[*ottlmetric.TransformContext]
 	inclExpr, err := newExpr(include)
 	if err != nil {
 		return nil, err
@@ -46,7 +46,7 @@ func NewSkipExpr(include, exclude *filterconfig.MetricMatchProperties) (expr.Boo
 
 // NewMatcher constructs a metric Matcher. If an 'expr' match type is specified,
 // returns an expr matcher, otherwise a name matcher.
-func newExpr(mp *filterconfig.MetricMatchProperties) (expr.BoolExpr[ottlmetric.TransformContext], error) {
+func newExpr(mp *filterconfig.MetricMatchProperties) (expr.BoolExpr[*ottlmetric.TransformContext], error) {
 	if mp == nil {
 		return nil, nil
 	}

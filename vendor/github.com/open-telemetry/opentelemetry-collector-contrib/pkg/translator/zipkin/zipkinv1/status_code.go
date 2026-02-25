@@ -10,7 +10,8 @@ import (
 
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
-	conventions "go.opentelemetry.io/otel/semconv/v1.15.0"
+	conventionsv125 "go.opentelemetry.io/otel/semconv/v1.25.0"
+	conventions "go.opentelemetry.io/otel/semconv/v1.38.0"
 
 	"github.com/open-telemetry/opentelemetry-collector-contrib/internal/coreinternal/tracetranslator"
 )
@@ -93,7 +94,7 @@ func (m *statusMapper) fromAttribute(key string, attrib pcommon.Value) bool {
 		m.fromCensus.message = attrib.Str()
 		return true
 
-	case string(conventions.OtelStatusCodeKey):
+	case string(conventions.OTelStatusCodeKey):
 		// Keep the code as is, even if unknown. Since we are allowed to receive unknown values for enums.
 		code, err := attribToStatusCode(attrib)
 		if err == nil {
@@ -101,11 +102,11 @@ func (m *statusMapper) fromAttribute(key string, attrib pcommon.Value) bool {
 		}
 		return true
 
-	case string(conventions.OtelStatusDescriptionKey):
+	case string(conventions.OTelStatusDescriptionKey):
 		m.fromStatus.message = attrib.Str()
 		return true
 
-	case string(conventions.HTTPStatusCodeKey):
+	case string(conventionsv125.HTTPStatusCodeKey):
 		httpCode, err := attribToStatusCode(attrib)
 		if err == nil {
 			code := statusCodeFromHTTP(httpCode)

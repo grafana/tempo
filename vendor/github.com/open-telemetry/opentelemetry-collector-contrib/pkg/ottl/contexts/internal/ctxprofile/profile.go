@@ -25,7 +25,7 @@ func PathGetSetter[K Context](path ottl.Path[K]) (ottl.GetSetter[K], error) {
 	}
 	switch path.Name() {
 	case "sample_type":
-		return accessSampleType[K](), nil
+		return accessSampleType(path)
 	case "sample":
 		return accessSample[K](), nil
 	case "time_unix_nano":
@@ -37,11 +37,9 @@ func PathGetSetter[K Context](path ottl.Path[K]) (ottl.GetSetter[K], error) {
 	case "duration":
 		return accessDuration[K](), nil
 	case "period_type":
-		return accessPeriodType[K](), nil
+		return accessPeriodType[K](path)
 	case "period":
 		return accessPeriod[K](), nil
-	case "comment_string_indices":
-		return accessCommentStringIndices[K](), nil
 	case "profile_id":
 		nextPath := path.Next()
 		if nextPath != nil {
@@ -75,11 +73,11 @@ func PathGetSetter[K Context](path ottl.Path[K]) (ottl.GetSetter[K], error) {
 func accessSample[K Context]() ottl.StandardGetSetter[K] {
 	return ottl.StandardGetSetter[K]{
 		Getter: func(_ context.Context, tCtx K) (any, error) {
-			return tCtx.GetProfile().Sample(), nil
+			return tCtx.GetProfile().Samples(), nil
 		},
 		Setter: func(_ context.Context, tCtx K, val any) error {
 			if v, ok := val.(pprofile.SampleSlice); ok {
-				v.CopyTo(tCtx.GetProfile().Sample())
+				v.CopyTo(tCtx.GetProfile().Samples())
 			}
 			return nil
 		},
@@ -117,11 +115,14 @@ func accessTime[K Context]() ottl.StandardGetSetter[K] {
 func accessDurationUnixNano[K Context]() ottl.StandardGetSetter[K] {
 	return ottl.StandardGetSetter[K]{
 		Getter: func(_ context.Context, tCtx K) (any, error) {
-			return tCtx.GetProfile().Duration().AsTime().UnixNano(), nil
+			return int64(tCtx.GetProfile().DurationNano()), nil
 		},
 		Setter: func(_ context.Context, tCtx K, val any) error {
 			if t, ok := val.(int64); ok {
-				tCtx.GetProfile().SetDuration(pcommon.NewTimestampFromTime(time.Unix(0, t)))
+				if t < 0 {
+					return errors.New("duration_unix_nano must be non-negative")
+				}
+				tCtx.GetProfile().SetDurationNano(uint64(t))
 			}
 			return nil
 		},
@@ -131,29 +132,25 @@ func accessDurationUnixNano[K Context]() ottl.StandardGetSetter[K] {
 func accessDuration[K Context]() ottl.StandardGetSetter[K] {
 	return ottl.StandardGetSetter[K]{
 		Getter: func(_ context.Context, tCtx K) (any, error) {
-			return tCtx.GetProfile().Duration().AsTime(), nil
+			return int64(tCtx.GetProfile().DurationNano()), nil
 		},
 		Setter: func(_ context.Context, tCtx K, val any) error {
-			if t, ok := val.(time.Time); ok {
-				tCtx.GetProfile().SetDuration(pcommon.NewTimestampFromTime(t))
+			if t, ok := val.(int64); ok {
+				if t < 0 {
+					return errors.New("duration_unix_nano must be non-negative")
+				}
+				tCtx.GetProfile().SetDurationNano(uint64(t))
 			}
 			return nil
 		},
 	}
 }
 
-func accessPeriodType[K Context]() ottl.StandardGetSetter[K] {
-	return ottl.StandardGetSetter[K]{
-		Getter: func(_ context.Context, tCtx K) (any, error) {
-			return tCtx.GetProfile().PeriodType(), nil
-		},
-		Setter: func(_ context.Context, tCtx K, val any) error {
-			if v, ok := val.(pprofile.ValueType); ok {
-				v.CopyTo(tCtx.GetProfile().PeriodType())
-			}
-			return nil
-		},
+func accessPeriodType[K Context](path ottl.Path[K]) (ottl.GetSetter[K], error) {
+	periodTypeTarget := func(tCtx K) pprofile.ValueType {
+		return tCtx.GetProfile().PeriodType()
 	}
+	return valueTypeGetterSetter(path, periodTypeTarget)
 }
 
 func accessPeriod[K Context]() ottl.StandardGetSetter[K] {
@@ -170,29 +167,11 @@ func accessPeriod[K Context]() ottl.StandardGetSetter[K] {
 	}
 }
 
-func accessCommentStringIndices[K Context]() ottl.StandardGetSetter[K] {
-	return ottl.StandardGetSetter[K]{
-		Getter: func(_ context.Context, tCtx K) (any, error) {
-			return ctxutil.GetCommonIntSliceValues[int32](tCtx.GetProfile().CommentStrindices()), nil
-		},
-		Setter: func(_ context.Context, tCtx K, val any) error {
-			return ctxutil.SetCommonIntSliceValues[int32](tCtx.GetProfile().CommentStrindices(), val)
-		},
+func accessSampleType[K Context](path ottl.Path[K]) (ottl.GetSetter[K], error) {
+	sampleTypeTarget := func(tCtx K) pprofile.ValueType {
+		return tCtx.GetProfile().SampleType()
 	}
-}
-
-func accessSampleType[K Context]() ottl.StandardGetSetter[K] {
-	return ottl.StandardGetSetter[K]{
-		Getter: func(_ context.Context, tCtx K) (any, error) {
-			return tCtx.GetProfile().SampleType(), nil
-		},
-		Setter: func(_ context.Context, tCtx K, val any) error {
-			if v, ok := val.(pprofile.ValueType); ok {
-				v.CopyTo(tCtx.GetProfile().SampleType())
-			}
-			return nil
-		},
-	}
+	return valueTypeGetterSetter(path, sampleTypeTarget)
 }
 
 func accessProfileID[K Context]() ottl.StandardGetSetter[K] {

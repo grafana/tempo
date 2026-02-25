@@ -402,7 +402,7 @@ func stream(vs *ViewStream) sdkmetric.Stream {
 }
 
 func attributeFilter(attributeKeys []string) attribute.Filter {
-	var attrKeys []attribute.Key
+	attrKeys := make([]attribute.Key, 0, len(attributeKeys))
 	for _, attrStr := range attributeKeys {
 		attrKeys = append(attrKeys, attribute.Key(attrStr))
 	}

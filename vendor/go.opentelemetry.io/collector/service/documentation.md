@@ -10,94 +10,106 @@ The following telemetry is emitted by this component.
 
 Number of items passed to the connector.
 
-| Unit | Metric Type | Value Type | Monotonic |
-| ---- | ----------- | ---------- | --------- |
-| {item} | Sum | Int | true |
+| Unit | Metric Type | Value Type | Monotonic | Stability |
+| ---- | ----------- | ---------- | --------- | --------- |
+| {item} | Sum | Int | true | Development |
 
 ### otelcol.connector.produced.items
 
 Number of items emitted from the connector.
 
-| Unit | Metric Type | Value Type | Monotonic |
-| ---- | ----------- | ---------- | --------- |
-| {item} | Sum | Int | true |
+| Unit | Metric Type | Value Type | Monotonic | Stability |
+| ---- | ----------- | ---------- | --------- | --------- |
+| {item} | Sum | Int | true | Development |
 
 ### otelcol.exporter.consumed.items
 
 Number of items passed to the exporter.
 
-| Unit | Metric Type | Value Type | Monotonic |
-| ---- | ----------- | ---------- | --------- |
-| {item} | Sum | Int | true |
+| Unit | Metric Type | Value Type | Monotonic | Stability |
+| ---- | ----------- | ---------- | --------- | --------- |
+| {item} | Sum | Int | true | Development |
 
 ### otelcol_process_cpu_seconds
 
-Total CPU user and system time in seconds [alpha]
+Total CPU user and system time in seconds
 
 | Unit | Metric Type | Value Type | Monotonic | Stability |
 | ---- | ----------- | ---------- | --------- | --------- |
-| s | Sum | Double | true | alpha |
+| s | Sum | Double | true | Alpha |
 
 ### otelcol_process_memory_rss
 
-Total physical memory (resident set size) [alpha]
+Total physical memory (resident set size)
 
 | Unit | Metric Type | Value Type | Stability |
 | ---- | ----------- | ---------- | --------- |
-| By | Gauge | Int | alpha |
+| By | Gauge | Int | Alpha |
 
 ### otelcol_process_runtime_heap_alloc_bytes
 
-Bytes of allocated heap objects (see 'go doc runtime.MemStats.HeapAlloc') [alpha]
+Bytes of allocated heap objects (see 'go doc runtime.MemStats.HeapAlloc')
 
 | Unit | Metric Type | Value Type | Stability |
 | ---- | ----------- | ---------- | --------- |
-| By | Gauge | Int | alpha |
+| By | Gauge | Int | Alpha |
 
 ### otelcol_process_runtime_total_alloc_bytes
 
-Cumulative bytes allocated for heap objects (see 'go doc runtime.MemStats.TotalAlloc') [alpha]
+Cumulative bytes allocated for heap objects (see 'go doc runtime.MemStats.TotalAlloc')
 
 | Unit | Metric Type | Value Type | Monotonic | Stability |
 | ---- | ----------- | ---------- | --------- | --------- |
-| By | Sum | Int | true | alpha |
+| By | Sum | Int | true | Alpha |
 
 ### otelcol_process_runtime_total_sys_memory_bytes
 
-Total bytes of memory obtained from the OS (see 'go doc runtime.MemStats.Sys') [alpha]
+Total bytes of memory obtained from the OS (see 'go doc runtime.MemStats.Sys')
 
 | Unit | Metric Type | Value Type | Stability |
 | ---- | ----------- | ---------- | --------- |
-| By | Gauge | Int | alpha |
+| By | Gauge | Int | Alpha |
 
 ### otelcol_process_uptime
 
-Uptime of the process [alpha]
+Uptime of the process
 
 | Unit | Metric Type | Value Type | Monotonic | Stability |
 | ---- | ----------- | ---------- | --------- | --------- |
-| s | Sum | Double | true | alpha |
+| s | Sum | Double | true | Alpha |
 
 ### otelcol.processor.consumed.items
 
 Number of items passed to the processor.
 
-| Unit | Metric Type | Value Type | Monotonic |
-| ---- | ----------- | ---------- | --------- |
-| {item} | Sum | Int | true |
+| Unit | Metric Type | Value Type | Monotonic | Stability |
+| ---- | ----------- | ---------- | --------- | --------- |
+| {item} | Sum | Int | true | Development |
 
 ### otelcol.processor.produced.items
 
 Number of items emitted from the processor.
 
-| Unit | Metric Type | Value Type | Monotonic |
-| ---- | ----------- | ---------- | --------- |
-| {item} | Sum | Int | true |
+| Unit | Metric Type | Value Type | Monotonic | Stability |
+| ---- | ----------- | ---------- | --------- | --------- |
+| {item} | Sum | Int | true | Development |
 
 ### otelcol.receiver.produced.items
 
 Number of items emitted from the receiver.
 
-| Unit | Metric Type | Value Type | Monotonic |
-| ---- | ----------- | ---------- | --------- |
-| {item} | Sum | Int | true |
+| Unit | Metric Type | Value Type | Monotonic | Stability |
+| ---- | ----------- | ---------- | --------- | --------- |
+| {item} | Sum | Int | true | Development |
+
+## Feature Gates
+
+This component has the following feature gates:
+
+| Feature Gate | Stage | Description | From Version | To Version | Reference |
+| ------------ | ----- | ----------- | ------------ | ---------- | --------- |
+| `service.AllowNoPipelines` | alpha | Allow starting the Collector without starting any pipelines. | v0.122.0 | N/A | [Link](https://github.com/open-telemetry/opentelemetry-collector/pull/12613) |
+| `service.profilesSupport` | alpha | Controls whether profiles support can be enabled | v0.112.0 | N/A | [Link](https://github.com/open-telemetry/opentelemetry-collector/pull/11477) |
+| `telemetry.UseLocalHostAsDefaultMetricsAddress` | beta | Controls whether default Prometheus metrics server use localhost as the default host for their endpoints | v0.111.0 | N/A | [Link](https://github.com/open-telemetry/opentelemetry-collector/pull/11251) |
+
+For more information about feature gates, see the [Feature Gates](https://github.com/open-telemetry/opentelemetry-collector/blob/main/featuregate/README.md) documentation.

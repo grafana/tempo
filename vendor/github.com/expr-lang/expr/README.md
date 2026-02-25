@@ -1,8 +1,5 @@
 <h1><a href="https://expr-lang.org"><img src="https://expr-lang.org/img/logo.png" alt="Zx logo" height="48"align="right"></a> Expr</h1>
 
-> [!IMPORTANT]
-> The repository [github.com/antonmedv/expr](https://github.com/antonmedv/expr) moved to [github.com/**expr-lang**/expr](https://github.com/expr-lang/expr).
-
 [![test](https://github.com/expr-lang/expr/actions/workflows/test.yml/badge.svg)](https://github.com/expr-lang/expr/actions/workflows/test.yml) 
 [![Go Report Card](https://goreportcard.com/badge/github.com/expr-lang/expr)](https://goreportcard.com/report/github.com/expr-lang/expr) 
 [![Fuzzing Status](https://oss-fuzz-build-logs.storage.googleapis.com/badges/expr.svg)](https://bugs.chromium.org/p/oss-fuzz/issues/list?sort=-opened&can=1&q=proj:expr)
@@ -149,9 +146,9 @@ func main() {
 * [GoDaddy](https://godaddy.com) employs Expr for the customization of its GoDaddy Pro product.
 * [ByteDance](https://bytedance.com) incorporates Expr into its internal business rule engine.
 * [Aviasales](https://aviasales.ru) utilizes Expr as a business rule engine for its flight search engine.
-* [Wish.com](https://www.wish.com) employs Expr in its decision-making rule engine for the Wish Assistant.
-* [Naoma.AI](https://www.naoma.ai) uses Expr as a part of its call scoring engine.
+* [Alibaba](https://alibaba.com) uses Expr in a web framework for building recommendation services.
 * [Argo](https://argoproj.github.io) integrates Expr into Argo Rollouts and Argo Workflows for Kubernetes.
+* [Wish.com](https://www.wish.com) employs Expr in its decision-making rule engine for the Wish Assistant.
 * [OpenTelemetry](https://opentelemetry.io) integrates Expr into the OpenTelemetry Collector.
 * [Philips Labs](https://github.com/philips-labs/tabia) employs Expr in Tabia, a tool designed to collect insights on their code bases.
 * [CrowdSec](https://crowdsec.net) incorporates Expr into its security automation tool.
@@ -172,6 +169,8 @@ func main() {
 * [FastSchema](https://github.com/fastschema/fastschema) - A BaaS leveraging Expr for its customizable and dynamic Access Control system.
 * [WunderGraph Cosmo](https://github.com/wundergraph/cosmo) - GraphQL Federeration Router uses Expr to customize Middleware behaviour
 * [SOLO](https://solo.one) uses Expr interally to allow dynamic code execution with custom defined functions.
+* [Naoma.AI](https://www.naoma.ai) uses Expr as a part of its call scoring engine.
+* [GlassFlow.dev](https://github.com/glassflow/clickhouse-etl) uses Expr to do realtime data transformation in ETL pipelines
 
 [Add your company too](https://github.com/expr-lang/expr/edit/master/README.md)
 

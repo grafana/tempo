@@ -9,6 +9,7 @@ import (
 
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/config/confighttp"
+	"go.opentelemetry.io/collector/config/configoptional"
 	"go.opentelemetry.io/collector/config/configretry"
 	"go.opentelemetry.io/collector/exporter"
 	"go.opentelemetry.io/collector/exporter/exporterhelper"
@@ -38,7 +39,7 @@ func createDefaultConfig() component.Config {
 	defaultClientHTTPSettings.WriteBufferSize = 512 * 1024
 	return &Config{
 		BackOffConfig:      configretry.NewDefaultBackOffConfig(),
-		QueueSettings:      exporterhelper.NewDefaultQueueConfig(),
+		QueueSettings:      configoptional.Some(exporterhelper.NewDefaultQueueConfig()),
 		ClientConfig:       defaultClientHTTPSettings,
 		Format:             defaultFormat,
 		DefaultServiceName: defaultServiceName,
