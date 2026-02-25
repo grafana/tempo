@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"path"
 	"sync"
 	"time"
 
@@ -27,7 +26,6 @@ import (
 	"github.com/grafana/tempo/pkg/ingest"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/validation"
-	tempodb_wal "github.com/grafana/tempo/tempodb/wal"
 )
 
 const (
@@ -345,32 +343,7 @@ func (g *Generator) createInstance(id string) (*instance, error) {
 		return nil, err
 	}
 
-	// Create traces wal if configured
-	var tracesWAL, tracesQueryWAL *tempodb_wal.WAL
-
-	if g.cfg.TracesWAL.Filepath != "" {
-		// Create separate wals per tenant by prefixing path with tenant ID
-		cfg := g.cfg.TracesWAL
-		cfg.Filepath = path.Join(cfg.Filepath, id)
-		tracesWAL, err = tempodb_wal.New(&cfg)
-		if err != nil {
-			_ = wal.Close()
-			return nil, err
-		}
-	}
-
-	if g.cfg.TracesQueryWAL.Filepath != "" {
-		// Create separate wals per tenant by prefixing path with tenant ID
-		cfg := g.cfg.TracesQueryWAL
-		cfg.Filepath = path.Join(cfg.Filepath, id)
-		tracesQueryWAL, err = tempodb_wal.New(&cfg)
-		if err != nil {
-			_ = wal.Close()
-			return nil, err
-		}
-	}
-
-	inst, err := newInstance(g.cfg, id, g.overrides, wal, g.logger, tracesWAL, tracesQueryWAL)
+	inst, err := newInstance(g.cfg, id, g.overrides, wal, g.logger)
 	if err != nil {
 		_ = wal.Close()
 		return nil, err

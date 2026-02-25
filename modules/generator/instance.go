@@ -26,7 +26,6 @@ import (
 	"github.com/grafana/tempo/modules/generator/validation"
 	"github.com/grafana/tempo/pkg/tempopb"
 	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
-	"github.com/grafana/tempo/tempodb/wal"
 
 	"go.uber.org/atomic"
 )
@@ -82,9 +81,6 @@ type instance struct {
 	registry *registry.ManagedRegistry
 	wal      storage.Storage
 
-	traceWAL      *wal.WAL
-	traceQueryWAL *wal.WAL
-
 	// processorsMtx protects the processors map, not the processors itself
 	processorsMtx sync.RWMutex
 	// processors is a map of processor name -> processor, only one instance of a processor can be
@@ -96,7 +92,7 @@ type instance struct {
 	logger log.Logger
 }
 
-func newInstance(cfg *Config, instanceID string, overrides metricsGeneratorOverrides, wal storage.Storage, logger log.Logger, traceWAL, rf1TraceWAL *wal.WAL) (*instance, error) {
+func newInstance(cfg *Config, instanceID string, overrides metricsGeneratorOverrides, wal storage.Storage, logger log.Logger) (*instance, error) {
 	logger = log.With(logger, "tenant", instanceID)
 
 	limitLogger := tempo_log.NewRateLimitedLogger(1, level.Warn(logger))
@@ -115,10 +111,8 @@ func newInstance(cfg *Config, instanceID string, overrides metricsGeneratorOverr
 		instanceID: instanceID,
 		overrides:  overrides,
 
-		registry:      registry.New(&cfg.Registry, overrides, instanceID, wal, logger, limiter),
-		wal:           wal,
-		traceWAL:      traceWAL,
-		traceQueryWAL: rf1TraceWAL,
+		registry: registry.New(&cfg.Registry, overrides, instanceID, wal, logger, limiter),
+		wal:      wal,
 
 		processors: make(map[string]processor.Processor),
 
