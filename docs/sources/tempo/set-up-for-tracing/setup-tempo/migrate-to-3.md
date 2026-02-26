@@ -38,7 +38,7 @@ Confirm the following before you start:
 - You have access to the same object storage bucket or container used by your 2.x deployment.
 - You control the traffic routing layer (load balancer, DNS, or reverse proxy) that directs trace clients to Tempo.
 - You have your Tempo 2.x configuration file and any per-tenant overrides available.
-- If you're running scalable monolithic mode (SSB), plan to switch to either monolithic or microservices mode. SSB has been removed in Tempo 3.0.
+- If you're running scalable monolithic mode (previously known as scalable single binary mode or SSB), plan to switch to either monolithic or microservices mode. SSB has been removed in Tempo 3.0.
 - You've reviewed the [Upgrade your Tempo installation](/docs/tempo/<TEMPO_VERSION>/set-up-for-tracing/setup-tempo/upgrade/) page for breaking changes and removed configuration parameters.
 
 ## Review the architecture changes
@@ -112,20 +112,18 @@ ingest:
     topic: <KAFKA_TOPIC>
 ```
 
-The `block_builder:` block to configure how blocks are built:
+The `live_store:` block uses sensible defaults and doesn't require overrides for most deployments.
+
+In microservices mode, the `block_builder:` block requires `partitions_per_instance` to control how many Kafka partitions each block-builder instance consumes from:
 
 ```yaml
 block_builder:
-  consume_cycle_duration: 5m
+  partitions_per_instance: <NUMBER_OF_PARTITIONS>
 ```
 
-The `live_store:` block to configure recent-data serving:
+Set this value based on the total number of Kafka partitions divided by the number of block-builder instances. In monolithic mode, partition assignment is handled automatically.
 
-```yaml
-live_store:
-  max_block_duration: 30m
-  complete_block_timeout: 1h
-```
+For the full list of options and defaults, refer to the [Block-builder](/docs/tempo/<TEMPO_VERSION>/configuration/#block-builder) and [Live-store](/docs/tempo/<TEMPO_VERSION>/configuration/#live-store) configuration reference.
 
 If your Kafka cluster requires authentication, add the Simple Authentication and Security Layer (SASL) credentials:
 
@@ -139,15 +137,34 @@ ingest:
     sasl_password: <PASSWORD>
 ```
 
-Your existing `server:`, `distributor:`, `querier:`, `query_frontend:`, `compactor:`, `storage:`, `memberlist:`, and `overrides:` blocks carry over unchanged. Copy them from your 2.x configuration into your 3.0 configuration file.
+Your existing `server:`, `distributor:`, `querier:`, `query_frontend:`, `storage:`, `memberlist:`, and `overrides:` blocks carry over unchanged. Copy them from your 2.x configuration into your 3.0 configuration file.
 
-If you use the metrics-generator, note that it also consumes from Kafka in Tempo 3.0. Ensure the metrics-generator configuration includes the same `ingest:` block so it can connect to your Kafka cluster.
+**Disable compaction in the initial 3.0 deployment.** In Tempo 3.0, compaction is handled by backend-workers coordinated by the backend-scheduler. Only one set of compaction components can safely write to shared storage at a time. Because the 2.x compactors are still running during the parallel operation period, the 3.0 backend-workers must be disabled to prevent data corruption.
 
-For the full list of configuration parameters, refer to the [Ingest](/docs/tempo/<TEMPO_VERSION>/configuration/#ingest), [Block-builder](/docs/tempo/<TEMPO_VERSION>/configuration/#block-builder), and [Live-store](/docs/tempo/<TEMPO_VERSION>/configuration/#live-store) configuration reference.
+For Helm, set `backendScheduler.replicas` and `backendWorker.replicas` to `0` in your values file:
+
+```yaml
+backendScheduler:
+  replicas: 0
+backendWorker:
+  replicas: 0
+```
+
+For Docker Compose, remove or comment out the `backend-scheduler` and `backend-worker` services in your compose file.
+
+You re-enable backend-workers in the 3.0 deployment after the 2.x deployment stops writing blocks. Refer to [Clean up the Tempo 2.x deployment](#clean-up-the-tempo-2x-deployment).
+
+If you use the metrics-generator, note that it also consumes from Kafka in Tempo 3.0.
+Ensure the metrics-generator configuration includes the same `ingest:` block so it can connect to your Kafka cluster.
+For more information about the metrics-generator, refer to [Metrics-generator](/docs/tempo/<TEMPO_VERSION>/metrics-from-traces/metrics-generator/).
+
+For the full list of configuration parameters, refer to the [Ingest](/docs/tempo/<TEMPO_VERSION>/configuration/#ingest), [Block-builder](/docs/tempo/<TEMPO_VERSION>/configuration/#block-builder), [metrics-generator](/docs/tempo/<TEMPO_VERSION>/configuration/#metrics-generator) and [Live-store](/docs/tempo/<TEMPO_VERSION>/configuration/#live-store) configuration reference.
 
 ## Deploy Tempo 3.0
 
 Deploy a new Tempo 3.0 instance alongside your existing 2.x deployment. Both deployments use the same object storage.
+
+For a complete example configuration, refer to the [`tempo.yaml` example](https://github.com/grafana/tempo/blob/main/example/docker-compose/single-binary/tempo.yaml) in the Tempo repository.
 
 To deploy and validate Tempo 3.0:
 
@@ -156,13 +173,15 @@ To deploy and validate Tempo 3.0:
    For Helm (monolithic):
 
    ```bash
-   helm upgrade --install tempo grafana/tempo -f tempo-values.yaml
+   helm upgrade --install tempo grafana/tempo -f <TEMPO_3_VALUES_FILE>.yaml
    ```
+
+   For detailed Helm deployment instructions, refer to [Deploy with Helm](/docs/tempo/<TEMPO_VERSION>/set-up-for-tracing/setup-tempo/deploy/kubernetes/helm-chart/).
 
    For Helm (microservices):
 
    ```bash
-   helm upgrade --install tempo grafana/tempo-distributed -f tempo-values.yaml
+   helm upgrade --install tempo grafana/tempo-distributed -f <TEMPO_3_VALUES_FILE>.yaml
    ```
 
    For Docker Compose:
@@ -171,24 +190,11 @@ To deploy and validate Tempo 3.0:
    docker compose up -d
    ```
 
-   For detailed deployment instructions, refer to [Deploy with Helm](/docs/tempo/<TEMPO_VERSION>/set-up-for-tracing/setup-tempo/deploy/kubernetes/helm-chart/) or [Deploy with Docker Compose](/docs/tempo/<TEMPO_VERSION>/set-up-for-tracing/setup-tempo/deploy/locally/docker-compose/). For a complete example configuration, refer to the [`tempo.yaml` example](https://github.com/grafana/tempo/blob/main/example/docker-compose/single-binary/tempo.yaml) in the Tempo repository.
+   For detailed Docker Compose deployment instructions, refer to the [`example` directory](https://github.com/grafana/tempo/tree/main/example/docker-compose) in the Tempo repository.
 
 1. Point the 3.0 deployment at the same object storage bucket or container as your 2.x deployment. This lets the new deployment query historical blocks immediately.
 
-1. Scale compactors to zero in the 3.0 deployment. Only one set of compactors can safely write to shared storage at a time. Running two sets risks data corruption.
-
-   For Helm, set `compactor.replicas` to `0` in your values file:
-
-   ```yaml
-   compactor:
-     replicas: 0
-   ```
-
-   For Docker Compose, stop the compactor service:
-
-   ```bash
-   docker compose stop compactor
-   ```
+1. Confirm that compaction is disabled in the 3.0 deployment (backend-scheduler and backend-worker scaled to zero), as described in [Review configuration changes](#review-configuration-changes).
 
 1. Validate that the 3.0 deployment can query historical data. Run a trace lookup against the 3.0 query frontend:
 
@@ -230,19 +236,19 @@ To clean up the 2.x deployment:
 
 1. Wait for the 2.x ingesters to flush all in-memory traces to object storage. With default settings (`max_block_duration` of 30 minutes and `complete_block_timeout` of 15 minutes), this takes up to approximately 45 minutes. If you've customized these values, add your `max_block_duration` and `complete_block_timeout` together to estimate the wait.
 
-1. Scale compactors back up in the 3.0 deployment as soon as the 2.x deployment stops writing blocks. The blocklist poll interval (default 5 minutes) controls how quickly queriers discover new blocks. Running without compaction for extended periods can cause the blocklist to grow.
+1. Scale backend-workers back up in the 3.0 deployment as soon as the 2.x deployment stops writing blocks. The blocklist poll interval (default 5 minutes) controls how quickly queriers discover new blocks. Running without compaction for extended periods can cause the blocklist to grow.
 
-   For Helm, set `compactor.replicas` back to your desired count. For Docker Compose, restart the compactor service:
+   For Helm, set `backendScheduler.replicas` and `backendWorker.replicas` back to your desired counts. For Docker Compose, add the `backend-scheduler` and `backend-worker` services back to your compose file and restart:
 
    ```bash
-   docker compose start compactor
+   docker compose up -d backend-scheduler backend-worker-0
    ```
 
 1. Keep the 2.x deployment idle for at least one week. This provides a fallback period to verify the 3.0 deployment is stable.
 
 1. After the validation period, scale all 2.x components to zero and decommission the old infrastructure. Don't delete the shared object storage.
 
-1. Review your compactor replica count. The overlap period may have produced additional blocks that require compaction. Once the backlog clears, reduce compactors to your steady-state configuration.
+1. Review your backend-worker replica count. The overlap period may have produced additional blocks that require compaction. Once the backlog clears, reduce backend-workers to your steady-state configuration.
 
 ## Verify the migration
 
@@ -253,7 +259,7 @@ After completing the migration, confirm the following:
 - Live-stores are serving recent-data queries. Verify that `tempo_live_store_ready` equals `1` and `tempo_live_store_records_processed_total` is increasing. Confirm `tempo_live_store_records_dropped_total` is at zero.
 - Kafka lag is within an acceptable range. Check `tempo_ingest_group_partition_lag_seconds`.
 - Historical queries return results from object storage.
-- Compactors are running in the 3.0 deployment and compacting blocks.
+- Backend-workers are running in the 3.0 deployment and compacting blocks.
 - If you use the metrics-generator, it's producing metrics from Kafka-sourced trace data.
 
 ## Roll back
@@ -288,7 +294,7 @@ To resolve this issue:
 
 - Verify that `ingest.kafka.address` in your configuration points to the correct broker address.
 - Confirm the broker is reachable from the Tempo deployment. Check network connectivity and firewall rules.
-- If you use SASL authentication, verify that both `sasl_username` and `sasl_password` are set. Setting only one produces the error `"the SASL username and password must be both configured"`.
+- If you use SASL authentication, verify that both `sasl_username` and `sasl_password` are set. Setting only one produces the error `"the SASL username and password must be both configured to enable SASL authentication"`.
 
 ### Block-builder not consuming
 
