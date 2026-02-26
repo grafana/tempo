@@ -83,6 +83,7 @@
       ephemeral_storage_limit_size: error 'Must specify a metrics generator ephemeral_storage_limit size',
       replicas: 0,
       // deployment_max_unavailable: max unavailable during rolling update (default 1).
+      // Accepts an integer or a percentage string, e.g. deployment_max_unavailable: '25%'.
       // Rolling (1): 2 rebalances per pod. All-at-once (replicas): fewer total rebalances;
       // first new pod briefly holds all partitions until others rejoin.
       deployment_max_unavailable: 1,
