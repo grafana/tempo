@@ -6,7 +6,6 @@
 # provide the PR number. Note: running twice on the same PR will post a
 # failure comment on the original PR (no deduplication).
 name: Backport PR Creator
-run-name: ${{ inputs.pr_number && format('Backport PR #{0} (manual)', inputs.pr_number) || format('Backport {0}', github.sha) }}
 
 on:
   push:
