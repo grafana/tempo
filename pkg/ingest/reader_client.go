@@ -123,7 +123,7 @@ func LeaveConsumerGroupByInstanceID(ctx context.Context, client *kgo.Client, gro
 		return nil
 	}
 	req := kmsg.NewPtrLeaveGroupRequest()
-	req.Version = 4 // flexible version for Members with InstanceID
+	req.Version = 4 // v3+ for Members[].InstanceID (KIP-345); using v4 as the minimum flexible version
 	req.Group = group
 	member := kmsg.NewLeaveGroupRequestMember()
 	member.InstanceID = &instanceID
