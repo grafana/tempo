@@ -20,6 +20,7 @@ import (
 	"github.com/grafana/tempo/pkg/api"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/traceql"
+	"github.com/grafana/tempo/pkg/util/tracing"
 )
 
 // newQueryRangeStreamingGRPCHandler returns a handler that streams results from the HTTP handler
@@ -79,6 +80,7 @@ func newQueryRangeStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripp
 
 		httpReq = httpReq.WithContext(ctx)
 		tenant, _ := user.ExtractOrgID(ctx)
+		traceID, _ := tracing.ExtractTraceID(ctx)
 		start := time.Now()
 
 		var finalResponse *tempopb.QueryRangeResponse
@@ -101,7 +103,7 @@ func newQueryRangeStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripp
 			bytesProcessed = finalResponse.Metrics.InspectedBytes
 		}
 		postSLOHook(nil, tenant, bytesProcessed, duration, err)
-		logQueryRangeResult(logger, tenant, duration.Seconds(), req, finalResponse, err)
+		logQueryRangeResult(logger, tenant, traceID, duration.Seconds(), req, finalResponse, err)
 		return err
 	}
 }
@@ -115,6 +117,7 @@ func newMetricsQueryRangeHTTPHandler(cfg Config, next pipeline.AsyncRoundTripper
 		if errResp != nil {
 			return errResp, nil
 		}
+		traceID, _ := tracing.ExtractTraceID(req.Context())
 		start := time.Now()
 
 		if dataAccessController != nil {
@@ -180,16 +183,17 @@ func newMetricsQueryRangeHTTPHandler(cfg Config, next pipeline.AsyncRoundTripper
 
 		duration := time.Since(start)
 		postSLOHook(resp, tenant, bytesProcessed, duration, err)
-		logQueryRangeResult(logger, tenant, duration.Seconds(), queryRangeReq, queryRangeResp, err)
+		logQueryRangeResult(logger, tenant, traceID, duration.Seconds(), queryRangeReq, queryRangeResp, err)
 		return resp, err
 	})
 }
 
-func logQueryRangeResult(logger log.Logger, tenantID string, durationSeconds float64, req *tempopb.QueryRangeRequest, resp *tempopb.QueryRangeResponse, err error) {
+func logQueryRangeResult(logger log.Logger, tenantID string, traceID string, durationSeconds float64, req *tempopb.QueryRangeRequest, resp *tempopb.QueryRangeResponse, err error) {
 	if resp == nil {
 		level.Info(logger).Log(
 			"msg", "query range response - no resp",
 			"tenant", tenantID,
+			"traceID", traceID,
 			"duration_seconds", durationSeconds,
 			"error", err)
 
@@ -200,6 +204,7 @@ func logQueryRangeResult(logger log.Logger, tenantID string, durationSeconds flo
 		level.Info(logger).Log(
 			"msg", "query range response - no metrics",
 			"tenant", tenantID,
+			"traceID", traceID,
 			"query", req.Query,
 			"range_nanos", req.End-req.Start,
 			"duration_seconds", durationSeconds,
@@ -210,6 +215,7 @@ func logQueryRangeResult(logger log.Logger, tenantID string, durationSeconds flo
 	level.Info(logger).Log(
 		"msg", "query range response",
 		"tenant", tenantID,
+		"traceID", traceID,
 		"query", req.Query,
 		"range_nanos", req.End-req.Start,
 		"max_series", req.MaxSeries,
