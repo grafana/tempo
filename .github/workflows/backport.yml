@@ -122,6 +122,11 @@ jobs:
           token: ${{ steps.app-token.outputs.token }}
           fetch-depth: 0
 
+      - name: Configure git identity
+        run: |
+          git config --global user.email "132647405+grafana-delivery-bot[bot]@users.noreply.github.com"
+          git config --global user.name "grafana-delivery-bot[bot]"
+
       - name: Run backport
         uses: grafana/grafana-github-actions-go/backport@main
         with:
