@@ -91,6 +91,11 @@ type Generator struct {
 	partitionRing      ring.PartitionRingReader
 	partitionMtx       sync.RWMutex
 	assignedPartitions []int32
+
+	// leaveGroupFn is called by stopKafka when LeaveConsumerGroupOnShutdown is
+	// true. If nil, defaults to ingest.LeaveConsumerGroupByInstanceID. Can be
+	// overridden in tests.
+	leaveGroupFn func(ctx context.Context) error
 }
 
 // New makes a new Generator.
