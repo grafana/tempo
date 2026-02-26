@@ -98,6 +98,9 @@
 * [BUGFIX] vulture: fix for recent traces when query_end_cutoff is enabled [#7018](https://github.com/grafana/tempo/pull/7018) (@ruslan-mikhailov)
 * [ENHANCEMENT] metrics-generator: add `leave_consumer_group_on_shutdown` to send LeaveGroup on shutdown for immediate partition reassignment instead of waiting for session timeout [#6575](https://github.com/grafana/tempo/pull/6575) (@zalegrala)
 * [ENHANCEMENT] metrics-generator: improve Kafka partition lag reporting to use live group membership when available and correctly handle rebalancing state [#6575](https://github.com/grafana/tempo/pull/6575) (@zalegrala)
+* [BUGFIX] fix: compactor deduped spans metric uses wrong type (gauge instead of counter) [#6558](https://github.com/grafana/tempo/issues/6558) (@bejaratommy)
+* [ENHANCEMENT] metrics-generator: add `leave_consumer_group_on_shutdown` to send LeaveGroup on shutdown for immediate partition reassignment instead of waiting for session timeout [#6575](https://github.com/grafana/tempo/pull/6575) (@zalegrala)
+* [ENHANCEMENT] metrics-generator: improve Kafka partition lag reporting to use live group membership when available and correctly handle rebalancing state [#6575](https://github.com/grafana/tempo/pull/6575) (@zalegrala)
 
 ### 3.0 Cleanup
 
