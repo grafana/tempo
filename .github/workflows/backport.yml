@@ -37,18 +37,22 @@ jobs:
         id: find-pr
         env:
           GH_TOKEN: ${{ github.token }}
+          EVENT_NAME: ${{ github.event_name }}
+          INPUT_PR_NUMBER: ${{ inputs.pr_number }}
+          REPO: ${{ github.repository }}
+          SHA: ${{ github.sha }}
         run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            PR_NUMBER="${{ inputs.pr_number }}"
+          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+            PR_NUMBER="$INPUT_PR_NUMBER"
           else
             PR_NUMBER=$(gh api \
-              "repos/${{ github.repository }}/commits/${{ github.sha }}/pulls" \
+              "repos/${REPO}/commits/${SHA}/pulls" \
               --header "Accept: application/vnd.github+json" \
               --jq '.[0].number // empty')
           fi
 
           if [ -z "$PR_NUMBER" ]; then
-            echo "No PR found for commit ${{ github.sha }}, skipping backport."
+            echo "No PR found for commit ${SHA}, skipping backport."
           else
             echo "Found PR number: $PR_NUMBER"
           fi
@@ -59,9 +63,11 @@ jobs:
         if: steps.find-pr.outputs.pr_number != ''
         env:
           GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ steps.find-pr.outputs.pr_number }}
+          REPO: ${{ github.repository }}
         run: |
-          COUNT=$(gh pr view "${{ steps.find-pr.outputs.pr_number }}" \
-            --repo "${{ github.repository }}" \
+          COUNT=$(gh pr view "$PR_NUMBER" \
+            --repo "$REPO" \
             --json labels \
             --jq '[.labels[].name | select(startswith("backport release-"))] | length')
 
