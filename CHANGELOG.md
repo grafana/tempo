@@ -76,6 +76,8 @@
 * [BUGFIX] metrics-generator: Fix `target_info` being skipped when resource attributes have empty values [#6774](https://github.com/grafana/tempo/pull/6774) (@carles-grafana)
 * [BUGFIX] metrics-generator: Drain old series on metric replacement to prevent limiter leak and permanent overflow [#6653](https://github.com/grafana/tempo/pull/6653) (@carles-grafana)
 * [BUGFIX] live-store: fixed unsuccessful deregistering from membership/partition rings during shutdown [#6848](https://github.com/grafana/tempo/pull/6848) (@zhxiaogg)
+* [ENHANCEMENT] metrics-generator: add `leave_consumer_group_on_shutdown` to send LeaveGroup on shutdown for immediate partition reassignment instead of waiting for session timeout [#6575](https://github.com/grafana/tempo/pull/6575) (@zalegrala)
+* [ENHANCEMENT] metrics-generator: improve Kafka partition lag reporting to use live group membership when available and correctly handle rebalancing state [#6575](https://github.com/grafana/tempo/pull/6575) (@zalegrala)
 
 ### 3.0 Cleanup
 
