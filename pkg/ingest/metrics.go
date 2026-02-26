@@ -69,7 +69,7 @@ func ExportPartitionLagMetrics(ctx context.Context, kclient *kgo.Client, log log
 				assignedPartitions := getAssignedActivePartitions()
 				boff.Reset()
 				for boff.Ongoing() {
-					lag, err = getGroupLag(ctx, admClient, partitionClient, group, assignedPartitions)
+					lag, err = getGroupLag(ctx, admClient, partitionClient, group, topic, assignedPartitions)
 					if err == nil {
 						break
 					}
@@ -119,7 +119,15 @@ func ResetLagMetricsForRevokedPartitions(group string, partitions []int32) {
 // the lag is the difference between the last produced offset and the offset committed in the consumer group.
 // Otherwise, if the block builder didn't commit an offset for a given partition yet (e.g. block builder is
 // running for the first time), then the lag is the difference between the last produced offset and fallbackOffsetMillis.
-func getGroupLag(ctx context.Context, admClient *kadm.Client, partitionClient *PartitionOffsetClient, group string, assignedPartitions []int32) (kadm.GroupLag, error) {
+//
+// When the group has current members (DescribeGroups), we use CalculateGroupLagWithStartOffsets so lag is
+// computed for each member's assignment. When the group has no members (e.g. rebalancing, or block-builder
+// which does not use consumer groups), we compute lag manually for (topic, assignedPartitions) so that
+// newly assigned partitions (e.g. after a rebalance) report correct lag.
+func getGroupLag(ctx context.Context, admClient *kadm.Client, partitionClient *PartitionOffsetClient, group, topic string, assignedPartitions []int32) (kadm.GroupLag, error) {
+	if len(assignedPartitions) == 0 {
+		return kadm.GroupLag{}, nil
+	}
 	offsets, err := admClient.FetchOffsets(ctx, group)
 	if err != nil {
 		if !errors.Is(err, kerr.GroupIDNotFound) {
@@ -139,10 +147,43 @@ func getGroupLag(ctx context.Context, admClient *kadm.Client, partitionClient *P
 		return nil, err
 	}
 
-	descrGroup := kadm.DescribedGroup{
-		// "Empty" is the state that indicates that the group doesn't have active consumer members; this is always the case for block-builder,
-		// because we don't use group consumption.
-		State: "Empty",
+	// Prefer the real group description so lag is computed for all members' assignments.
+	if described, err := admClient.DescribeGroups(ctx, group); err == nil {
+		if g, ok := described[group]; ok && len(g.Members) > 0 {
+			return kadm.CalculateGroupLagWithStartOffsets(g, offsets, startOffsets, endOffsets), nil
+		}
 	}
-	return kadm.CalculateGroupLagWithStartOffsets(descrGroup, offsets, startOffsets, endOffsets), nil
+
+	// No members (rebalancing, or group not using consumer protocol). Compute lag for our assigned partitions
+	// so that when assignment lands on this instance (e.g. after abandoned partitions time out), lag is correct.
+	tcommit := offsets[topic]
+	tstart := startOffsets[topic]
+	tend := endOffsets[topic]
+	if tend == nil {
+		return kadm.GroupLag{}, nil
+	}
+	result := make(kadm.GroupLag)
+	result[topic] = make(map[int32]kadm.GroupMemberLag)
+	for _, p := range assignedPartitions {
+		pend, ok := tend[p]
+		if !ok || pend.Err != nil {
+			continue
+		}
+		lag := int64(-1)
+		if tcommit != nil {
+			if pcommit, ok := tcommit[p]; ok && pcommit.Err == nil && pcommit.At >= 0 {
+				lag = pend.Offset - pcommit.At
+			}
+		}
+		if lag < 0 && tstart != nil {
+			if pstart, ok := tstart[p]; ok && pstart.Err == nil {
+				lag = pend.Offset - pstart.Offset
+			}
+		}
+		if lag < 0 {
+			lag = 0
+		}
+		result[topic][p] = kadm.GroupMemberLag{Topic: topic, Partition: p, Lag: lag}
+	}
+	return result, nil
 }
