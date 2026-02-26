@@ -397,6 +397,7 @@ func TestLiveStoreQueryMethodsBeforeStarted(t *testing.T) {
 	cfg.IngestConfig.Kafka.ConsumerGroup = "test-consumer-group"
 
 	cfg.holdAllBackgroundProcesses = true
+	cfg.FailOnHighLag = true
 
 	cfg.Ring.RegisterFlagsAndApplyDefaults("", flag.NewFlagSet("", flag.ContinueOnError))
 	mockParititionStore, _ := consul.NewInMemoryClient(
@@ -501,6 +502,37 @@ func TestLiveStoreQueryMethodsBeforeStarted(t *testing.T) {
 			require.NotNil(t, resp)
 		})
 	}
+}
+
+func TestLiveStoreQueryMethodsAfterStopping(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	liveStore, err := defaultLiveStore(t, tmpDir)
+	require.NoError(t, err)
+	require.NotNil(t, liveStore)
+
+	// Error expected from Kafka reader shutdown; we only care about query behavior after stopping begins.
+	_ = liveStore.stopping(nil)
+
+	ctx := user.InjectOrgID(context.Background(), testTenantID)
+
+	searchResp, err := liveStore.SearchRecent(ctx, &tempopb.SearchRequest{
+		Query: "{}",
+		End:   uint32(time.Now().Unix()),
+	})
+	require.Error(t, err)
+	require.ErrorIs(t, err, ErrStopping)
+	require.NotNil(t, searchResp)
+
+	rangeResp, err := liveStore.QueryRange(ctx, &tempopb.QueryRangeRequest{
+		Query: "{} | count_over_time()",
+		Start: uint64(time.Now().Add(-time.Hour).UnixNano()),
+		End:   uint64(time.Now().UnixNano()),
+		Step:  uint64(time.Second),
+	})
+	require.Error(t, err)
+	require.ErrorIs(t, err, ErrStopping)
+	require.NotNil(t, rangeResp)
 }
 
 // erroredEnc is a wrapper around a VersionedEncoding that returns given error on CreateBlock
