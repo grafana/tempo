@@ -537,10 +537,10 @@ func TestQueryRangeHandlerExemplarNormalization(t *testing.T) {
 		},
 	}
 
-	makeRequest := func(exemplars uint32) *http.Request {
+	makeRequestWithQuery := func(query string, exemplars uint32) *http.Request {
 		httpReq := httptest.NewRequest("GET", api.PathMetricsQueryRange, nil)
 		httpReq = api.BuildQueryRangeRequest(httpReq, &tempopb.QueryRangeRequest{
-			Query:     "{} | rate()",
+			Query:     query,
 			Start:     start,
 			End:       end,
 			Step:      step,
@@ -548,6 +548,9 @@ func TestQueryRangeHandlerExemplarNormalization(t *testing.T) {
 		}, "")
 		ctx := user.InjectOrgID(httpReq.Context(), "foo")
 		return httpReq.WithContext(ctx)
+	}
+	makeRequest := func(exemplars uint32) *http.Request {
+		return makeRequestWithQuery("{} | rate()", exemplars)
 	}
 
 	t.Run("client omits exemplars defaults to cfg.MaxExemplars", func(t *testing.T) {
@@ -632,6 +635,19 @@ func TestQueryRangeHandlerExemplarNormalization(t *testing.T) {
 			total += len(s.Exemplars)
 		}
 		assert.Greater(t, total, 0, "exemplars should be kept when client requests more than cfg cap")
+	})
+
+	t.Run("invalid query returns 400", func(t *testing.T) {
+		f := frontendWithSettings(t, &mockRoundTripper{
+			responseFn: func() proto.Message { return mockResp },
+		}, nil, nil, nil, func(c *Config, _ *overrides.Config) {
+			c.Metrics.Sharder.Interval = time.Hour
+			c.Metrics.Sharder.MaxExemplars = 10
+		})
+
+		httpResp := httptest.NewRecorder()
+		f.MetricsQueryRangeHandler.ServeHTTP(httpResp, makeRequestWithQuery("this is not valid traceql", 0))
+		require.Equal(t, http.StatusBadRequest, httpResp.Code)
 	})
 }
 
@@ -724,6 +740,19 @@ func TestNormalizeRequestExemplars(t *testing.T) {
 			require.Equal(t, tc.wantExemplars, req.Exemplars)
 		})
 	}
+}
+
+func TestQueryRangeGRPCHandlerInvalidQueryReturnsError(t *testing.T) {
+	f := frontendWithSettings(t, &mockRoundTripper{}, nil, nil, nil)
+
+	srv := newMockStreamingServer[*tempopb.QueryRangeResponse]("foo", nil)
+	err := f.MetricsQueryRange(&tempopb.QueryRangeRequest{
+		Query: "this is not valid traceql",
+		Start: 1,
+		End:   2,
+		Step:  1,
+	}, srv)
+	require.Error(t, err)
 }
 
 // mockRoundTripperWithCapture is a mitm helper that captures query range requests
