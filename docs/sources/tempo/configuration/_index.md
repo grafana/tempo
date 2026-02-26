@@ -385,11 +385,28 @@ For more information on configuration options, refer to [this file](https://gith
 # Block-builder configuration block
 block_builder:
 
+    # Instance id.
+    [instance_id: <string> | default = <hostname>]
+
+    # Map of instance names to partition IDs assigned to each block builder.
+    [assigned_partitions: <map of string to list of int>]
+
+    # Number of partitions assigned to this block builder.
+    [partitions_per_instance: <int> | default = 0]
+
     # Interval between consumption cycles.
     [consume_cycle_duration: <duration> | default = 5m]
 
     # Maximum number of bytes that can be consumed in a single cycle. 0 to disable.
     [max_consuming_bytes: <uint64> | default = 5000000000]
+
+    # Block configuration for the block builder.
+    block: <Block config>
+      [max_block_bytes: <uint64> | default = 20971520]
+
+    # Write ahead log configuration for the block builder.
+    wal: <WAL config>
+      [path: <string> | default = "/var/tempo/block-builder/traces"]
 ```
 
 ## Live-store
