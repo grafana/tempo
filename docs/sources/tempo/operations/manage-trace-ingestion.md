@@ -7,7 +7,7 @@ weight: 250
 
 # Manage trace ingestion
 
-In Tempo, distributors validate incoming spans against ingestion limits before writing them to Kafka.
+In Grafana Tempo, distributors validate incoming spans against ingestion limits before writing them to Kafka.
 If limits are too low for your workload, spans are refused and data is lost.
 If limits are unchecked, ingestion volume can grow beyond what you intend to pay for.
 
