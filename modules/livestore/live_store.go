@@ -45,7 +45,10 @@ const (
 	droppedRecordReasonInstanceNotFound = "instance_not_found"
 )
 
-var ErrStarting = errors.New("live-store is starting")
+var (
+	ErrStarting = errors.New("live-store is starting")
+	ErrStopping = errors.New("live-store is stopping")
+)
 
 var (
 	// Queue management metrics
@@ -377,6 +380,10 @@ func (s *LiveStore) running(ctx context.Context) error {
 }
 
 func (s *LiveStore) stopping(error) error {
+	// Fail queries immediately while internals are being torn down.
+	s.readyErr.Store(&ErrStopping)
+	metricReady.Set(0)
+
 	// Remove partition owner from ring on shutdown if configured.
 	// On startup, createPartitionAndRegisterOwner() re-registers the owner immediately.
 	if s.cfg.RemoveOwnerOnShutdown {
@@ -386,7 +393,6 @@ func (s *LiveStore) stopping(error) error {
 
 	// Stop the kafka lag background worker.
 	s.lagCancel()
-	metricReady.Set(0)
 
 	// Stop consuming
 	err := services.StopAndAwaitTerminated(context.Background(), s.reader)
@@ -496,6 +502,11 @@ func (s *LiveStore) waitForCatchUp(ctx context.Context) error {
 // It takes lagShortcutThreshold to shortcut calculations if the lag is close to the end of the partition.
 // To disable the shortcut, set lagShortcutThreshold to a negative value.
 func (s *LiveStore) calculateTimeLag(lagShortcutThreshold int64) *time.Duration {
+	if s.reader == nil {
+		level.Debug(s.logger).Log("msg", "Partition reader not initialized")
+		return nil
+	}
+
 	// Use cached high watermark from fetch responses (avoids extra API call)
 	lag := s.reader.lag.Load()
 	zero := time.Duration(0)
@@ -711,6 +722,12 @@ func (s *LiveStore) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDReq
 
 // SearchRecent implements tempopb.Querier
 func (s *LiveStore) SearchRecent(ctx context.Context, req *tempopb.SearchRequest) (*tempopb.SearchResponse, error) {
+	// CheckReady before isLagged to avoid nil dereference on s.reader during startup/shutdown.
+	// withInstance also checks readiness, but that runs after isLagged.
+	if err := s.CheckReady(ctx); err != nil {
+		return &tempopb.SearchResponse{}, err
+	}
+
 	if s.isLagged(int64(req.End) * 1e9) { // convert seconds to nanoseconds
 		return nil, errLagged
 	}
@@ -766,6 +783,12 @@ func (s *LiveStore) GetMetrics(_ context.Context, _ *tempopb.SpanMetricsRequest)
 
 // QueryRange implements tempopb.MetricsGeneratorServer
 func (s *LiveStore) QueryRange(ctx context.Context, req *tempopb.QueryRangeRequest) (*tempopb.QueryRangeResponse, error) {
+	// CheckReady before isLagged to avoid nil dereference on s.reader during startup/shutdown.
+	// withInstance also checks readiness, but that runs after isLagged.
+	if err := s.CheckReady(ctx); err != nil {
+		return &tempopb.QueryRangeResponse{}, err
+	}
+
 	if s.isLagged(int64(req.End)) { // end param is already nanos, no need to convert
 		return nil, errLagged
 	}
