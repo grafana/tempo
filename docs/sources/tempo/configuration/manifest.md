@@ -751,6 +751,7 @@ metrics_generator:
     limiter_type: series
     ingest_concurrency: 16
     instance_id: hostname
+    leave_consumer_group_on_shutdown: false
 ingest:
     enabled: false
     kafka:
