@@ -71,17 +71,15 @@ func (b *ShardedBloomFilter) Marshal() ([][]byte, error) {
 }
 
 func (b *ShardedBloomFilter) SerializedSizeBytes() (uint64, error) {
-	var total uint64
-
-	for _, f := range b.blooms {
-		buf := &bytes.Buffer{}
-		_, err := f.WriteTo(buf)
-		if err != nil {
-			return 0, err
-		}
-		total += uint64(buf.Len())
+	blooms, err := b.Marshal()
+	if err != nil {
+		return 0, err
 	}
 
+	var total uint64
+	for _, bloom := range blooms {
+		total += uint64(len(bloom))
+	}
 	return total, nil
 }
 
