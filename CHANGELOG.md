@@ -20,6 +20,7 @@
   Adds `max_cardinality_per_label` per per-tenant override and new metrics to estimate per label cardinality demand estimate.
 * [ENHANCEMENT] Add new alerts and runbooks entries [#6276](https://github.com/grafana/tempo/pull/6276) (@javiermolinar)
 * [ENHANCEMENT] Double the maximum number of dedicated string columns in vParquet5 and update tempo-cli to determine the optimum number for the data [#6282](https://github.com/grafana/tempo/pull/6282) (@mdisibio)
+* [ENHANCEMENT] TraceQL metrics - experimental faster read path for most metrics queries, accessible behind the query hint `new=true` [#6359](https://github.com/grafana/tempo/pull/6359) (@mdisibio)
 * [ENHANCEMENT] Improve attribute truncating observability [#6400](https://github.com/grafana/tempo/pull/6400) (@javiermolinar)
 * [ENHANCEMENT] Log truncated oversized attributes [#6467](https://github.com/grafana/tempo/pull/6467) (@carles-grafana)
 * [ENHANCEMENT] Remove live-store partition owner from ring on shutdown to prevent stale owner entries [#6409](https://github.com/grafana/tempo/pull/6409) (@oleg-kozlyuk-grafana)
