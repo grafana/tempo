@@ -29,7 +29,7 @@ func TestLeaveConsumerGroupByInstanceID_NoOp(t *testing.T) {
 	addr := fake.ListenAddrs()[0]
 
 	var leaveGroupCalled atomic.Int32
-	fake.ControlKey(int16(kmsg.LeaveGroup), func(req kmsg.Request) (kmsg.Response, error, bool) {
+	fake.ControlKey(int16(kmsg.LeaveGroup), func(_ kmsg.Request) (kmsg.Response, error, bool) {
 		leaveGroupCalled.Inc()
 		return nil, nil, false
 	})
