@@ -1,45 +1,99 @@
-# This checks merged PRs for labels like "backport release-x.y"
-# and opens a new PR backporting the same commit to the release branch.
-# This workflow also runs when the PR is labeled or opened, but will
-# will only check a few things and detect that the PR is not yet merged.
-# At this time only squashed PRs are supported since the cherry-pick
-# command does not include "-m <n>" arg required for merge commits.
+# This triggers on every push to main and finds the PR that was merged.
+# If the PR has any "backport release-*" labels, it opens a backport PR
+# targeting each labeled release branch.
+#
+# Manual re-trigger: Go to Actions → Backport PR Creator → Run workflow,
+# provide the PR number. Note: running twice on the same PR will post a
+# failure comment on the original PR (no deduplication).
 name: Backport PR Creator
+
 on:
-  pull_request:
-    types:
-      - closed
-      - labeled
+  push:
+    branches:
+      - automate-backport-process
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: 'PR number to backport (required for manual trigger)'
+        required: true
+        type: string
 
 permissions: {}
 
 jobs:
-  main:
-    # skip it in all forks, only run in grafana/tempo.
+  find-pr:
+    name: Find PR and check backport labels
+    # skip in forks — only run in grafana/tempo
     if: github.repository == 'grafana/tempo'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      pr_number: ${{ steps.find-pr.outputs.pr_number }}
+      has_backport_labels: ${{ steps.check-labels.outputs.has_backport_labels }}
+    steps:
+      - name: Find PR number
+        id: find-pr
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            PR_NUMBER="${{ inputs.pr_number }}"
+          else
+            PR_NUMBER=$(gh api \
+              "repos/${{ github.repository }}/commits/${{ github.sha }}/pulls" \
+              --header "Accept: application/vnd.github+json" \
+              --jq '.[0].number // empty')
+          fi
+
+          if [ -z "$PR_NUMBER" ]; then
+            echo "No PR found for commit ${{ github.sha }}, skipping backport."
+          else
+            echo "Found PR number: $PR_NUMBER"
+          fi
+          echo "pr_number=${PR_NUMBER}" >> "$GITHUB_OUTPUT"
+
+      - name: Check for backport labels
+        id: check-labels
+        if: steps.find-pr.outputs.pr_number != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          COUNT=$(gh pr view "${{ steps.find-pr.outputs.pr_number }}" \
+            --repo "${{ github.repository }}" \
+            --json labels \
+            --jq '[.labels[].name | select(startswith("backport release-"))] | length')
+
+          if [ "$COUNT" -gt "0" ]; then
+            echo "Found $COUNT backport label(s), will run backport."
+            echo "has_backport_labels=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "No backport labels found, skipping backport."
+            echo "has_backport_labels=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  backport:
+    name: Backport PR
+    needs: find-pr
+    if: |
+      needs.find-pr.outputs.pr_number != '' &&
+      needs.find-pr.outputs.has_backport_labels == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: read
       id-token: write
       pull-requests: write
     steps:
-      - name: Checkout Actions
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
-        with:
-          repository: "grafana/grafana-github-actions"
-          path: ./actions
-          ref: main
-          persist-credentials: false
-      - name: Install Actions
-        run: npm install --production --prefix ./actions
       - name: Get Github App secrets from vault
         id: get-secrets
-        uses: grafana/shared-workflows/actions/get-vault-secrets@e6dde86ffefaa91fc693b8cb4209cf9428a661d1 #get-vault-secrets 1.3.0
+        uses: grafana/shared-workflows/actions/get-vault-secrets@e6dde86ffefaa91fc693b8cb4209cf9428a661d1 # get-vault-secrets 1.3.0
         with:
           export_env: false
           repo_secrets: |
             APP_ID=tempo-ci-app:app-id
             PRIVATE_KEY=tempo-ci-app:private-key
+
       - name: Generate GitHub App token
         id: app-token
         uses: actions/create-github-app-token@29824e69f54612133e76f7eaac726eef6c875baf # v2.2.1
@@ -48,9 +102,12 @@ jobs:
           private-key: ${{ fromJSON(steps.get-secrets.outputs.secrets).PRIVATE_KEY }}
           owner: ${{ github.repository_owner }}
           repositories: tempo
+
       - name: Run backport
-        uses: ./actions/backport
+        uses: grafana/grafana-github-actions-go/backport@main
         with:
           token: ${{ steps.app-token.outputs.token }}
           labelsToAdd: "backport"
-          title: "[{{base}}] {{originalTitle}}"
+          pr_number: ${{ needs.find-pr.outputs.pr_number }}
+          repo_owner: ${{ github.repository_owner }}
+          repo_name: ${{ github.event.repository.name }}
