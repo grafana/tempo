@@ -606,13 +606,14 @@ Arguments:
 Options:
 
 - [Backend options](#backend-options)
-- `--num-attr <value>` Number of attributes to output (default: 15)
+- `--num-attr <value>` Number of attributes to output (default: 20)
 - `--num-int-attr <value>` Number of integer attributes to display. If set to 0, uses the `--num-attr` value (default: 5)
 - `--blob-threshold <value>` Mark attributes as blob candidates when their dictionary size per row group exceeds this value. Set to 0 to disable. (default: 4MiB)
 - `--include-well-known` Include well-known attributes in the analysis. Enable when generating dedicated columns for vParquet5 or higher. (default: false)
 - `--generate-jsonnet` Generate Jsonnet overrides for dedicated columns
 - `--generate-cli-args` Generate command-line arguments for the parquet conversion command
 - `--int-percent-threshold <value>` Threshold for integer attributes in dedicated columns (default: 0.05)
+- `--str-percent-threshold <value>` Threshold for string attributes in dedicated columns (default: 0.03)
 - `--simple-summary` Print only a single line of top attributes (default: false)
 - `--print-full-summary` Print full summary of the analysed block (default: true)
 
@@ -642,7 +643,7 @@ Arguments:
 Options:
 
 - [Backend options](#backend-options)
-- `--num-attr <value>` Number of attributes to output (default: 15)
+- `--num-attr <value>` Number of attributes to output (default: 20)
 - `--num-int-attr <value>` Number of integer attributes to display. If set to 0, uses the `--num-attr` value (default: 5)
 - `--min-compaction-level <value>` Minimum compaction level to include in the analysis (default: 3)
 - `--max-blocks <value>` Maximum number of blocks to analyze (default: 10)
@@ -653,6 +654,7 @@ Options:
 - `--jsonnet` Generate Jsonnet overrides for dedicated columns
 - `--cli` Generate command-line arguments for the parquet conversion command
 - `--int-percent-threshold <value>` Threshold for integer attributes in dedicated columns (default: 0.05)
+- `--str-percent-threshold <value>` Threshold for string attributes in dedicated columns (default: 0.03)
 - `--simple-summary` Print only a single line of top attributes (default: false)
 - `--print-full-summary` Print full summary of the analysed block (default: true)
 
@@ -686,9 +688,10 @@ Options:
 - `--block-id <value>` Specific block ID to analyse. If not provided, analyzes multiple blocks.
 - `--min-compaction-level <value>` Minimum compaction level to analyse (default: 3)
 - `--max-blocks <value>` Maximum number of blocks to analyse (default: 10)
-- `--num-attr <value>` Number of attributes to display (default: 10)
-- `--num-int-attr <value>` Number of integer attributes to display. If set to 0, uses the `--num-attr` value (default: 0)
+- `--num-attr <value>` Number of attributes to display (default: 20)
+- `--num-int-attr <value>` Number of integer attributes to display. If set to 0, uses the `--num-attr` value (default: 5)
 - `--int-percent-threshold <value>` Threshold for integer attributes put in dedicated columns (default: 0.05)
+- `--str-percent-threshold <value>` Threshold for string attributes in dedicated columns (default: 0.03)
 - `--include-well-known` Include well-known attributes in the analysis (default: true)
 - `--blob-threshold <value>` Convert column to blob when dictionary size reaches this value (default: 4MiB)
 - `--max-start-time <value>` Oldest start time for a block to be processed. RFC3339 format.
