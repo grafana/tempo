@@ -37,6 +37,7 @@
 * [BUGFIX] fix: live store honor the config options for block and WAL versions [#6509](https://github.com/grafana/tempo/pull/6509) (@mdisibio)
 * [BUGFIX] fix: block builder honor the global storage block config for block and WAL versions [#6451](https://github.com/grafana/tempo/issues/6451) (@Harry-kp)
 * [BUGFIX] fix: normalize allowlist headers when building the allowlist map [#6481](https://github.com/grafana/tempo/pull/6481) (@javiermolinar)
+* [BUGFIX] livestore: avoid panic on query lag checks during startup/shutdown [#6567](https://github.com/grafana/tempo/pull/6567) (@carles-grafana)
 
 ### 3.0 Cleanup
 
