@@ -37,6 +37,7 @@
 * [BUGFIX] fix: live store honor the config options for block and WAL versions [#6509](https://github.com/grafana/tempo/pull/6509) (@mdisibio)
 * [BUGFIX] fix: block builder honor the global storage block config for block and WAL versions [#6451](https://github.com/grafana/tempo/issues/6451) (@Harry-kp)
 * [BUGFIX] fix: normalize allowlist headers when building the allowlist map [#6481](https://github.com/grafana/tempo/pull/6481) (@javiermolinar)
+* [CHANGE] **BREAKING CHANGE** Rename block-builder fetch metrics from `tempo_block_builder_fetch_bytes_total` and `tempo_block_builder_fetch_records_total` (gauges) to `tempo_block_builder_queue_fetch_bytes_total` and `tempo_block_builder_queue_fetch_records_total` (counters).
 
 ### 3.0 Cleanup
 
