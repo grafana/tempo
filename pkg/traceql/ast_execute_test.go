@@ -2223,3 +2223,61 @@ func TestNotParentWithEmptyLHS(t *testing.T) {
 	expected := NewStaticString("list-articles")
 	require.True(t, nameStatic.Equals(&expected))
 }
+
+func TestIntDivisionByZero(t *testing.T) {
+	testCases := []struct {
+		query string
+		input []*Spanset
+	}{
+		{
+			"{ 5 / 0 = 1 }",
+			[]*Spanset{{Spans: []Span{&mockSpan{id: []byte{1}}}}},
+		},
+		{
+			"{ 5 % 0 = 1 }",
+			[]*Spanset{{Spans: []Span{&mockSpan{id: []byte{1}}}}},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.query, func(t *testing.T) {
+			ast, err := Parse(tc.query)
+			require.NoError(t, err)
+
+			require.NotPanics(t, func() {
+				_, err = ast.Pipeline.evaluate(tc.input)
+			})
+			require.Error(t, err)
+		})
+	}
+}
+
+func TestFloatDivisionByZero(t *testing.T) {
+	testCases := []struct {
+		query string
+		input []*Spanset
+	}{
+		{
+			"{ 5.0 / 0.0 = 1.0 }",
+			[]*Spanset{{Spans: []Span{&mockSpan{id: []byte{1}}}}},
+		},
+		{
+			"{ 5.0 % 0.0 = 1.0 }",
+			[]*Spanset{{Spans: []Span{&mockSpan{id: []byte{1}}}}},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.query, func(t *testing.T) {
+			ast, err := Parse(tc.query)
+			require.NoError(t, err)
+
+			var result []*Spanset
+			require.NotPanics(t, func() {
+				result, err = ast.Pipeline.evaluate(tc.input)
+			})
+			require.NoError(t, err)
+			require.Empty(t, result, "found spans?")
+		})
+	}
+}
