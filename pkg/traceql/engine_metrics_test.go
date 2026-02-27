@@ -482,44 +482,20 @@ func TestCompileMetricsQueryRange(t *testing.T) {
 	}
 }
 
-func TestCompileMetricsQueryRangeExemplarsHint(t *testing.T) {
-	defaultExempalars := 5
+func TestCompileMetricsQueryRangeExemplars(t *testing.T) {
+	// The exemplars hint is resolved at the frontend handler level via normalizeRequestExemplars
+	// before the request reaches CompileMetricsQueryRange, which uses req.Exemplars directly.
+	eval, err := NewEngine().CompileMetricsQueryRange(&tempopb.QueryRangeRequest{
+		Query:     "{} | rate()",
+		Start:     1,
+		End:       2,
+		Step:      1,
+		Exemplars: 5,
+	}, 0, false)
 
-	tcs := []struct {
-		q             string
-		expectedCount int
-	}{
-		{
-			q:             "{} | rate() with(exemplars=10)",
-			expectedCount: 10,
-		},
-		{
-			q:             "{} | rate() with(exemplars=false)",
-			expectedCount: 0,
-		},
-		{
-			q:             "{} | rate() with(exemplars=true)",
-			expectedCount: defaultExempalars,
-		},
-		{
-			q:             "{} | rate()",
-			expectedCount: defaultExempalars,
-		},
-	}
-
-	for _, tc := range tcs {
-		eval, err := NewEngine().CompileMetricsQueryRange(&tempopb.QueryRangeRequest{
-			Query:     tc.q,
-			Start:     1,
-			End:       2,
-			Step:      1,
-			Exemplars: uint32(defaultExempalars),
-		}, 0, false)
-
-		require.NoError(t, err)
-		require.NotNil(t, eval)
-		require.Equal(t, tc.expectedCount, eval.maxExemplars)
-	}
+	require.NoError(t, err)
+	require.NotNil(t, eval)
+	require.Equal(t, 5, eval.maxExemplars)
 }
 
 func TestCompileMetricsQueryRangeExemplarsSafetyCap(t *testing.T) {
