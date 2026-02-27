@@ -1,72 +1,128 @@
 package traceql
 
 import (
-	"regexp"
 	"strings"
 )
 
-// TODO: Support spaces, quotes
-//  See: https://github.com/grafana/grafana/issues/77394
-
-// Regex to extract matchers from a query string
-// This regular expression matches a string that contains three groups separated by operators.
-// The first group matches one or more Unicode letters, digits, underscores, or periods. It essentially matches variable names or identifiers
-// The second group is a comparison operator, which can be one of several possibilities, including =, >, <, and !=.
-// The third group is one of several possible values:
-//  1. A double-quoted string consisting of one or more Unicode characters, including letters, digits, punctuation, diacritical marks, and symbols,
-//  2. A sequence of one or more digits, which can represent numeric values, possibly with units like 's', 'm', or 'h'.
-//  3. The boolean values "true" or "false".
-//
-// Example: "http.status_code = 200" from the query "{ .http.status_code = 200 && .http.method = }"
-var matchersRegexp = regexp.MustCompile(`[\p{L}\p{N}._\-:" ]+\s*(=|<=|>=|=~|!=|>|<|!~)\s*(?:"[\p{L}\p{N}\p{P}\p{M}\p{S}\p{Z}]+"|true|false|[a-z]+|[0-9smh]+)`)
-
-// TODO: Merge into a single regular expression
-
-// Regex to extract selectors from a query string
-// This regular expression matches a string that contains a single spanset filter and no OR `||` conditions.
-// Examples
-//
-//	Query                                    |  Match
-//
-// { .bar = "foo" }                          |   Yes
-// { .bar =~ "foo|bar" }                     |   Yes
-// { .bar = "foo" && .foo = "bar" }          |   Yes
-// { .bar = "foo" || .foo = "bar" }          |   No
-// { .bar = "foo" } && { .foo = "bar" }      |   No
-// { .bar = "foo" } || { .foo = "bar" }      |   No
-var singleFilterRegexp = regexp.MustCompile(`^(\{[^|{}]*[^|{}]}?|\{[^|{}]*=~[^{}]*})$`)
-
 const emptyQuery = "{}"
 
-// ExtractMatchers extracts matchers from a query string and returns a string that can be parsed by the storage layer.
-func ExtractMatchers(query string) string {
+// ExtractConditions extracts filter conditions from a query string.
+// It parses the query using the lenient parser (which handles incomplete matchers like `.foo=`)
+// and walks the AST to extract conditions. Conditions with OpNone (from incomplete matchers) are filtered out.
+//
+// Returns nil if:
+//   - The query is empty
+//   - Parsing fails completely
+//   - The query contains structural operators (multiple spansets)
+//   - The conditions use OR (AllConditions is false)
+//   - No valid matchers can be extracted
+func ExtractConditions(query string) ([]Condition, *SpansetFilter) {
 	query = strings.TrimSpace(query)
-
 	if len(query) == 0 {
-		return emptyQuery
+		return nil, nil
 	}
 
-	selector := singleFilterRegexp.FindString(query)
-	if len(selector) == 0 {
-		return emptyQuery
+	expr, err := ParseLenient(query)
+	if err != nil {
+		return nil, nil
 	}
 
-	matchers := matchersRegexp.FindAllString(query, -1)
+	// Find the first SpansetFilter in the pipeline.
+	// Returns nil for structural operators (SpansetOperation) indicating multiple spansets.
+	filter := findSpansetFilter(expr.Pipeline)
+	if filter == nil {
+		return nil, nil
+	}
 
-	var q strings.Builder
-	q.WriteString("{")
-	for i, m := range matchers {
-		m = strings.TrimSpace(m)
-		if i > 0 {
-			q.WriteString(" && ")
+	// Extract conditions from the AST. AllConditions is set to false by
+	// extractConditions when OR operators are present.
+	req := &FetchSpansRequest{AllConditions: true}
+	filter.Expression.extractConditions(req)
+
+	if !req.AllConditions || len(req.Conditions) == 0 {
+		return nil, nil
+	}
+
+	// Filter out OpNone conditions (incomplete matchers)
+	conditions := make([]Condition, 0, len(req.Conditions))
+	for _, cond := range req.Conditions {
+		if cond.Op != OpNone {
+			conditions = append(conditions, cond)
 		}
-		q.WriteString(m)
 	}
-	q.WriteString("}")
 
-	return q.String()
+	if len(conditions) == 0 {
+		return nil, nil
+	}
+
+	return conditions, filter
 }
 
-func IsEmptyQuery(query string) bool {
-	return query == emptyQuery || len(query) == 0
+// ExtractMatchers extracts matchers from a query string and returns a string
+// that can be parsed by the storage layer. It uses ExtractConditions internally.
+func ExtractMatchers(query string) string {
+	_, filter := ExtractConditions(query)
+	if filter == nil {
+		return emptyQuery
+	}
+
+	return filter.String()
+}
+
+func RemoveUnnecessaryParentheses(query string) string {
+	findNextCloseParens := func(s string, start int) int {
+		depth := 0
+		for i := start; i < len(s); i++ {
+			switch s[i] {
+			case '(':
+				depth++
+			case ')':
+				if depth == 0 {
+					return i
+				}
+				depth--
+			}
+		}
+		return -1
+	}
+	for char := 0; char < len(query); char++ {
+		if query[char] == '(' {
+			closeParensIdx := findNextCloseParens(query, char+1)
+			if closeParensIdx != -1 && closeParensIdx != char+1 {
+				// Check if the parentheses are around a simple matcher (e.g., (.foo = "bar"))
+				inside := query[char+1 : closeParensIdx]
+				if !strings.Contains(inside, "&&") && !strings.Contains(inside, "||") {
+					if !strings.Contains(inside, "=") && !strings.Contains(inside, ">") &&
+						!strings.Contains(inside, "<") && !strings.Contains(inside, "!") &&
+						!strings.Contains(inside, "~") {
+						continue
+					}
+					// Remove the parentheses
+					query = query[:char] + inside + query[closeParensIdx+1:]
+					// Move back the index to account for removed parentheses
+					char -= 1
+				}
+			}
+		}
+	}
+	return query
+}
+
+// findSpansetFilter returns the first SpansetFilter in the pipeline.
+// Returns nil if the pipeline contains structural operators (SpansetOperation)
+// which indicate multiple spansets.
+func findSpansetFilter(p Pipeline) *SpansetFilter {
+	if len(p.Elements) == 0 {
+		return nil
+	}
+
+	switch e := p.Elements[0].(type) {
+	case *SpansetFilter:
+		return e
+	case Pipeline:
+		return findSpansetFilter(e)
+	default:
+		// SpansetOperation, ScalarFilter, etc. - not a simple spanset filter
+		return nil
+	}
 }

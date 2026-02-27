@@ -562,14 +562,13 @@ func TestExamplesInEngine(t *testing.T) {
 	}
 }
 
-func TestExecuteTagNames_InvalidQuery(t *testing.T) {
+func TestExecuteTagNames_NilConditions(t *testing.T) {
 	e := NewEngine()
 
-	invalidQuery := "{ invalid syntax }"
 	err := e.ExecuteTagNames(
 		context.Background(),
 		AttributeScopeSpan,
-		invalidQuery,
+		nil,
 		func(string, AttributeScope) bool {
 			return false
 		},
@@ -643,9 +642,10 @@ func TestExecuteTagValues(t *testing.T) {
 	}
 
 	type testCase struct {
-		name             string
-		attribute, query string
-		expectedValues   []tempopb.TagValue
+		name           string
+		attribute      string
+		query          string // used to derive conditions and for the mock fetcher
+		expectedValues []tempopb.TagValue
 	}
 
 	for _, tc := range []testCase{
@@ -697,7 +697,10 @@ func TestExecuteTagValues(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			distinctValues := collector.NewDistinctValue(100_000, 0, 0, func(v tempopb.TagValue) int { return len(v.Type) + len(v.Value) })
 
-			// Ugly hack to make the mock fetcher work with a bad query
+			// Derive conditions from the query, just like callers do
+			conditions, _ := ExtractConditions(tc.query)
+
+			// The mock fetcher needs a parseable query for its internal evaluation
 			fetcherQuery := tc.query
 			if _, err := Parse(tc.query); err != nil {
 				fetcherQuery = "{}"
@@ -705,7 +708,7 @@ func TestExecuteTagValues(t *testing.T) {
 
 			tag, err := ParseIdentifier(tc.attribute)
 			assert.NoError(t, err)
-			assert.NoError(t, e.ExecuteTagValues(context.Background(), tag, tc.query, MakeCollectTagValueFunc(distinctValues.Collect), mockSpansetFetcher(fetcherQuery)))
+			assert.NoError(t, e.ExecuteTagValues(context.Background(), tag, conditions, MakeCollectTagValueFunc(distinctValues.Collect), mockSpansetFetcher(fetcherQuery)))
 			values := distinctValues.Values()
 			sort.Slice(values, func(i, j int) bool {
 				return values[i].Value < values[j].Value
