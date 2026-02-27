@@ -9,8 +9,8 @@ aliases:
 
 # Grafana Alloy
 
-Grafana Alloy offers native pipelines for OTel, Prometheus, Pyroscope, Loki, and many other metrics, logs, traces, and profile tools.
-In addition, you can use Alloy pipelines to do other tasks, such as configure alert rules in Loki and Mimir. Alloy is fully compatible with the OTel Collector, Prometheus Agent, and Promtail.
+Grafana Alloy offers native pipelines for OpenTelemetry, Prometheus, Pyroscope, Loki, and many other metrics, logs, traces, and profile tools.
+In addition, you can use Alloy pipelines to do other tasks, such as configure alert rules in Loki and Mimir. Alloy is fully compatible with the OpenTelemetry Collector and Prometheus Agent.
 
 You can use Alloy to collect and forward traces to Tempo.
 Using Alloy provides a hassle-free option, especially when dealing with multiple applications or microservices, allowing you to centralize the tracing process without changing your application's codebase.
@@ -32,11 +32,31 @@ For more information, refer to the [Introduction to Grafana Alloy](https://grafa
 
 Grafana Alloy can run a set of tracing pipelines to collect data from your applications and write it to Tempo.
 Pipelines are built using OpenTelemetry, and consist of `receivers`, `processors`, and `exporters`.
-The architecture mirrors that of the OTel Collector's [design](https://github.com/open-telemetry/opentelemetry-collector/blob/846b971758c92b833a9efaf742ec5b3e2fbd0c89/docs/design.md).
+The architecture mirrors that of the OpenTelemetry Collector's [design](https://opentelemetry.io/docs/collector/architecture/).
 
 Refer to the [components reference](https://grafana.com/docs/alloy/latest/reference/components/) for all available configuration options.
 
-<p align="center"><img src="https://raw.githubusercontent.com/open-telemetry/opentelemetry-collector/846b971758c92b833a9efaf742ec5b3e2fbd0c89/docs/images/design-pipelines.png" alt="Tracing pipeline architecture"></p>
+<p align="center"><img src="alloy-pipeline-architecture.svg" alt="Alloy tracing pipeline architecture showing receivers, processors, and exporters"></p>
+
+[//]: # 'Mermaid source for the diagram above (kept for future reference):'
+[//]: # 'flowchart LR'
+[//]: # '    subgraph receivers [Receivers]'
+[//]: # '        OTLP'
+[//]: # '        Jaeger'
+[//]: # '        Zipkin'
+[//]: # '        Kafka'
+[//]: # '    end'
+[//]: # '    subgraph processors [Processors]'
+[//]: # '        Batch'
+[//]: # '        Attributes'
+[//]: # '        K8sAttributes["K8s Attributes"]'
+[//]: # '        TailSampling["Tail Sampling"]'
+[//]: # '    end'
+[//]: # '    subgraph exporters [Exporters]'
+[//]: # '        OTLPExporter["OTLP to Tempo"]'
+[//]: # '        OTLPHTTPExporter["OTLP/HTTP to Tempo"]'
+[//]: # '    end'
+[//]: # '    receivers --> processors --> exporters'
 
 This lets you configure multiple distinct tracing
 pipelines, each of which collects separate spans and sends them to different
@@ -47,7 +67,7 @@ backends.
 <!-- vale Grafana.Parentheses = NO -->
 
 Grafana Alloy supports multiple ingestion receivers:
-OTLP (OpenTelemetry), Jaeger, Zipkin and Kafka.
+OTLP (OpenTelemetry), Jaeger, Zipkin, and [Kafka](https://grafana.com/docs/alloy/<ALLOY_VERSION>/reference/components/otelcol/otelcol.receiver.kafka/).
 
 <!-- vale Grafana.Parentheses = YES -->
 
@@ -61,6 +81,38 @@ To use Alloy for tracing, you need to:
 3. Set up any additional features
 
 Refer to [Collect and forward data with Grafana Alloy](https://grafana.com/docs/alloy/<ALLOY_VERSION>/collect/) for examples of collecting data.
+
+### Example configuration
+
+The following example configures Alloy to receive traces over both OTLP gRPC (port 4317) and OTLP HTTP (port 4318), then export them to Tempo:
+
+```alloy
+otelcol.receiver.otlp "default" {
+  grpc {
+    endpoint = "0.0.0.0:4317"
+  }
+  http {
+    endpoint = "0.0.0.0:4318"
+  }
+
+  output {
+    traces = [otelcol.exporter.otlp.default.input]
+  }
+}
+
+otelcol.exporter.otlp "default" {
+  client {
+    endpoint = env("TEMPO_ENDPOINT")
+  }
+}
+```
+
+{{< admonition type="note" >}}
+When running Alloy in Docker or Kubernetes, set the receiver endpoint to `0.0.0.0:<port>` as shown above.
+The default binds to `localhost`, which prevents other containers or Pods from sending traces to Alloy.
+{{< /admonition >}}
+
+Refer to the `otelcol.receiver.otlp` block in the [components reference](https://grafana.com/docs/alloy/<ALLOY_VERSION>/reference/components/otelcol/otelcol.receiver.otlp/) for all available receiver options.
 
 ## Set up pipeline processing
 
@@ -148,7 +200,7 @@ To read more about this processor, refer to [Service graphs](/docs/tempo/<TEMPO_
 ## Export spans
 
 Alloy can export traces to multiple different backends for every tracing pipeline.
-Exporting is built using OpenTelemetry Collector's [OTLP exporter](https://github.com/open-telemetry/opentelemetry-collector/blob/846b971758c92b833a9efaf742ec5b3e2fbd0c89/exporter/otlpexporter/README.md).
+Exporting is built using the OpenTelemetry Collector's [OTLP exporter](https://opentelemetry.io/docs/collector/components/exporter/).
 Alloy supports exporting tracing in OTLP format.
 
 Aside from endpoint and authentication, the exporter also provides mechanisms for retrying on failure,

@@ -8,15 +8,15 @@ labels:
     - alloy
 ---
 
-[//]: # 'This file describes how to configure Alloy to remote-write to Tempo.'
-[//]: # 'This shared file is included in these locations:'
-[//]: # '/tempo/docs/sources/tempo/set-up-for-tracing/validate/set-up-test-app.md'
-[//]: # '/tempo/docs/sources/tempo/set-up-for-tracing/instrument-send/set-up-collector/grafana-alloy.md'
-[//]: # 'This file is used in the following versions:'
-[//]: # 'next'
-[//]: # 'latest'
-[//]: # 'If you make changes to this file, verify that the meaning and content are not changed in any place where the file is included.'
-[//]: # 'Any links should be fully qualified and not relative.'
+[//]: # "This file describes how to configure Alloy to remote-write to Tempo."
+[//]: # "This shared file is included in these locations:"
+[//]: # "/tempo/docs/sources/tempo/set-up-for-tracing/validate/set-up-test-app.md"
+[//]: # "/tempo/docs/sources/tempo/set-up-for-tracing/instrument-send/set-up-collector/grafana-alloy.md"
+[//]: # "This file is used in the following versions:"
+[//]: # "next"
+[//]: # "latest"
+[//]: # "If you make changes to this file, verify that the meaning and content are not changed in any place where the file is included."
+[//]: # "Any links should be fully qualified and not relative."
 
 <!-- Use Alloy to remote-write traces to Tempo shared file. -->
 
@@ -64,7 +64,7 @@ To do this, you need to create a configuration that can be used by Alloy to rece
              // Define the client for exporting.
              client {
                  // Send to the locally running Tempo instance, on port 4317 (OTLP gRPC).
-                 endpoint = "http://tempo-cluster-distributor.tempo.svc.cluster.local:4317"
+                 endpoint = "tempo-cluster-distributor.tempo.svc.cluster.local:4317"
                  // Disable TLS for OTLP remote write.
                  tls {
                      // The connection is insecure.
@@ -79,10 +79,10 @@ To do this, you need to create a configuration that can be used by Alloy to rece
    Ensure that you use the specific namespace you've installed Tempo in for the OTLP exporter. In the line:
 
    ```yaml
-   endpoint = "http://tempo-cluster-distributor.tempo.svc.cluster.local:3100"
+   endpoint = "tempo-cluster-distributor.tempo.svc.cluster.local:4317"
    ```
 
-   change `tempo` to reference the namespace where Tempo is installed, for example: `http://tempo-cluster-distributor.my-tempo-namespaces.svc.cluster.local:3100`.
+   change `tempo` to reference the namespace where Tempo is installed, for example: `tempo-cluster-distributor.my-tempo-namespace.svc.cluster.local:4317`.
 
 1. Deploy Alloy using Helm:
    ```bash

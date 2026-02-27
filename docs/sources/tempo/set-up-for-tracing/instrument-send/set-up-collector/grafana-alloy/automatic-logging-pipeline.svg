@@ -1,0 +1,83 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 250" font-family="'Inter', 'Helvetica Neue', Arial, sans-serif" font-size="13" shape-rendering="geometricPrecision">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 7" refX="10" refY="3.5" markerWidth="10" markerHeight="7" orient="auto-start-auto">
+      <path d="M 0 0 L 10 3.5 L 0 7 z" fill="#3a414a"/>
+    </marker>
+    <marker id="arrow-orange" viewBox="0 0 10 7" refX="10" refY="3.5" markerWidth="10" markerHeight="7" orient="auto-start-auto">
+      <path d="M 0 0 L 10 3.5 L 0 7 z" fill="#ff9830"/>
+    </marker>
+    <marker id="arrow-blue" viewBox="0 0 10 7" refX="10" refY="3.5" markerWidth="10" markerHeight="7" orient="auto-start-auto">
+      <path d="M 0 0 L 10 3.5 L 0 7 z" fill="#3871dc"/>
+    </marker>
+  </defs>
+
+  <rect width="720" height="250" rx="8" fill="#fff"/>
+
+  <!-- Alloy boundary -->
+  <rect x="130" y="16" width="400" height="196" rx="6" fill="none" stroke="#ccc" stroke-width="1" stroke-dasharray="6 3"/>
+  <text x="140" y="36" font-size="11" fill="#888" font-weight="600">GRAFANA ALLOY</text>
+
+  <!-- App -->
+  <rect x="16" y="88" width="80" height="44" rx="5" fill="#e8f0fe" stroke="#3871dc" stroke-width="1.5"/>
+  <text x="56" y="114" text-anchor="middle" font-weight="600" fill="#3871dc">App</text>
+
+  <!-- OTLP Receiver -->
+  <rect x="148" y="88" width="120" height="44" rx="5" fill="#f2f3f5" stroke="#3a414a" stroke-width="1.5"/>
+  <text x="208" y="106" text-anchor="middle" font-size="11" fill="#666">otelcol.receiver</text>
+  <text x="208" y="122" text-anchor="middle" font-weight="600" fill="#3a414a">.otlp</text>
+
+  <!-- Spanlogs Connector -->
+  <rect x="330" y="42" width="180" height="44" rx="5" fill="#fff3e0" stroke="#ff9830" stroke-width="1.5"/>
+  <text x="420" y="60" text-anchor="middle" font-size="11" fill="#996020">otelcol.connector</text>
+  <text x="420" y="76" text-anchor="middle" font-weight="600" fill="#b36b00">.spanlogs</text>
+
+  <!-- OTLP Exporter -->
+  <rect x="330" y="136" width="180" height="44" rx="5" fill="#f2f3f5" stroke="#3a414a" stroke-width="1.5"/>
+  <text x="420" y="154" text-anchor="middle" font-size="11" fill="#666">otelcol.exporter</text>
+  <text x="420" y="170" text-anchor="middle" font-weight="600" fill="#3a414a">.otlp</text>
+
+  <!-- Loki -->
+  <rect x="584" y="42" width="80" height="44" rx="5" fill="#fff8e1" stroke="#ff9830" stroke-width="1.5"/>
+  <text x="624" y="69" text-anchor="middle" font-weight="600" fill="#b36b00">Loki</text>
+
+  <!-- Tempo -->
+  <rect x="584" y="136" width="80" height="44" rx="5" fill="#e8f0fe" stroke="#3871dc" stroke-width="1.5"/>
+  <text x="624" y="163" text-anchor="middle" font-weight="600" fill="#3871dc">Tempo</text>
+
+  <!-- App to Receiver -->
+  <line x1="96" y1="110" x2="148" y2="110" stroke="#3a414a" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+  <!-- Receiver to Spanlogs (upper fork) -->
+  <path d="M 268 100 L 290 100 L 290 64 L 330 64" fill="none" stroke="#ff9830" stroke-width="1.5" marker-end="url(#arrow-orange)"/>
+
+  <!-- Receiver to OTLP Exporter (lower fork) -->
+  <path d="M 268 120 L 290 120 L 290 158 L 330 158" fill="none" stroke="#3871dc" stroke-width="1.5" marker-end="url(#arrow-blue)"/>
+
+  <!-- Spanlogs to Loki -->
+  <line x1="510" y1="64" x2="584" y2="64" stroke="#ff9830" stroke-width="1.5" marker-end="url(#arrow-orange)"/>
+
+  <!-- OTLP Exporter to Tempo -->
+  <line x1="510" y1="158" x2="584" y2="158" stroke="#3871dc" stroke-width="1.5" marker-end="url(#arrow-blue)"/>
+
+  <!-- Fork labels with white backgrounds -->
+  <!-- Upper fork label -->
+  <rect x="296" y="68" width="28" height="14" rx="2" fill="#fff"/>
+  <text x="310" y="79" text-anchor="middle" font-size="11" fill="#ff9830" font-style="italic">traces</text>
+
+  <!-- Lower fork label -->
+  <rect x="296" y="140" width="28" height="14" rx="2" fill="#fff"/>
+  <text x="310" y="151" text-anchor="middle" font-size="11" fill="#3871dc" font-style="italic">traces</text>
+
+  <!-- Right-side labels: left-aligned with consistent padding from boundary -->
+  <!-- Spanlogs to Loki label -->
+  <rect x="536" y="48" width="30" height="14" rx="2" fill="#fff"/>
+  <text x="538" y="59" text-anchor="start" font-size="11" fill="#ff9830" font-style="italic">logs</text>
+
+  <!-- Exporter to Tempo label -->
+  <rect x="536" y="142" width="38" height="14" rx="2" fill="#fff"/>
+  <text x="538" y="153" text-anchor="start" font-size="11" fill="#3871dc" font-style="italic">traces</text>
+
+  <!-- Caption -->
+  <text x="360" y="236" text-anchor="middle" font-size="11" fill="#666">Traces fan out to both the spanlogs connector</text>
+  <text x="360" y="248" text-anchor="middle" font-size="11" fill="#666">and the trace exporter.</text>
+</svg>
