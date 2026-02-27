@@ -75,7 +75,7 @@
      "stack": true,
      "targets": [
       {
-       "expr": "sum (rate(tempo_block_builder_fetch_records_total{cluster=~\"$cluster\", job=~\"($namespace)/block-builder\"}[$__rate_interval]))",
+       "expr": "sum (rate(tempo_block_builder_queue_fetch_records_total{cluster=~\"$cluster\", job=~\"($namespace)/block-builder\"}[$__rate_interval]))",
        "format": "time_series",
        "interval": "1m",
        "legendFormat": "sucessful",
@@ -139,7 +139,7 @@
      "stack": true,
      "targets": [
       {
-       "expr": "sum by (pod) (rate(tempo_block_builder_fetch_records_total{cluster=~\"$cluster\", job=~\"($namespace)/block-builder\"}[$__rate_interval]))",
+       "expr": "sum by (pod) (rate(tempo_block_builder_queue_fetch_records_total{cluster=~\"$cluster\", job=~\"($namespace)/block-builder\"}[$__rate_interval]))",
        "format": "time_series",
        "interval": "1m",
        "legendFormat": "{{pod}}",
@@ -196,7 +196,7 @@
      "stack": true,
      "targets": [
       {
-       "expr": "sum by (partition) (rate(tempo_block_builder_fetch_records_total{cluster=~\"$cluster\", job=~\"($namespace)/block-builder\"}[$__rate_interval]))",
+       "expr": "sum by (partition) (rate(tempo_block_builder_queue_fetch_records_total{cluster=~\"$cluster\", job=~\"($namespace)/block-builder\"}[$__rate_interval]))",
        "format": "time_series",
        "interval": "1m",
        "legendFormat": "{{partition}}",
@@ -265,7 +265,7 @@
      "stack": true,
      "targets": [
       {
-       "expr": "sum (rate(tempo_block_builder_fetch_bytes_total{cluster=~\"$cluster\", job=~\"($namespace)/block-builder\"}[$__rate_interval]))",
+       "expr": "sum (rate(tempo_block_builder_queue_fetch_bytes_total{cluster=~\"$cluster\", job=~\"($namespace)/block-builder\"}[$__rate_interval]))",
        "format": "time_series",
        "interval": "1m",
        "legendFormat": "readed",
@@ -340,7 +340,7 @@
      "stack": true,
      "targets": [
       {
-       "expr": "sum by (pod) (rate(tempo_block_builder_fetch_bytes_total{cluster=~\"$cluster\", job=~\"($namespace)/block-builder\"}[$__rate_interval]))",
+       "expr": "sum by (pod) (rate(tempo_block_builder_queue_fetch_bytes_total{cluster=~\"$cluster\", job=~\"($namespace)/block-builder\"}[$__rate_interval]))",
        "format": "time_series",
        "interval": "1m",
        "legendFormat": "{{pod}}",
@@ -415,7 +415,7 @@
      "stack": true,
      "targets": [
       {
-       "expr": "sum by (partition) (rate(tempo_block_builder_fetch_bytes_total{cluster=~\"$cluster\", job=~\"($namespace)/block-builder\"}[$__rate_interval]))",
+       "expr": "sum by (partition) (rate(tempo_block_builder_queue_fetch_bytes_total{cluster=~\"$cluster\", job=~\"($namespace)/block-builder\"}[$__rate_interval]))",
        "format": "time_series",
        "interval": "1m",
        "legendFormat": "{{partition}}",
