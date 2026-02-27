@@ -635,14 +635,8 @@ func (o *BinaryOperation) execute(span Span) (Static, error) {
 	case OpSub:
 		result = NewStaticFloat(lhs.Float() - rhs.Float())
 	case OpDiv:
-		if rhs.Float() == 0 {
-			return NewStaticNil(), errors.New("division by zero")
-		}
 		result = NewStaticFloat(lhs.Float() / rhs.Float())
 	case OpMod:
-		if rhs.Float() == 0 {
-			return NewStaticNil(), errors.New("modulo by zero")
-		}
 		result = NewStaticFloat(math.Mod(lhs.Float(), rhs.Float()))
 	case OpMult:
 		result = NewStaticFloat(lhs.Float() * rhs.Float())
@@ -767,14 +761,8 @@ func binOpExecuteScalar(op Operator, lhs, rhs Static, expressions []*regexp.Rege
 	case OpSub:
 		return NewStaticFloat(lhs.Float() - rhs.Float()), expressions, nil
 	case OpDiv:
-		if rhs.Float() == 0 {
-			return NewStaticNil(), expressions, errors.New("division by zero")
-		}
 		return NewStaticFloat(lhs.Float() / rhs.Float()), expressions, nil
 	case OpMod:
-		if rhs.Float() == 0 {
-			return NewStaticNil(), expressions, errors.New("modulo by zero")
-		}
 		return NewStaticFloat(math.Mod(lhs.Float(), rhs.Float())), expressions, nil
 	case OpMult:
 		return NewStaticFloat(lhs.Float() * rhs.Float()), expressions, nil
