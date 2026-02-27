@@ -10,6 +10,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"math"
 	"path"
 	"sort"
 	"strconv"
@@ -1249,7 +1250,9 @@ func TestLiveStoreQueryRange(t *testing.T) {
 			for _, ts := range results.Series {
 				var sum float64
 				for _, val := range ts.Samples {
-					sum += val.Value
+					if !math.IsNaN(val.Value) {
+						sum += val.Value
+					}
 				}
 				require.InDelta(t, tc.expectedSpans, sum, 0.000001)
 				require.Equal(t, tc.expectedExemplars, len(ts.Exemplars))

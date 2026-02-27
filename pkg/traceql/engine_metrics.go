@@ -364,11 +364,16 @@ func (set SeriesSet) ToProto(req *tempopb.QueryRangeRequest) []*tempopb.TimeSeri
 
 		intervals := mapper.IntervalCount()
 		samples := make([]tempopb.Sample, 0, intervals)
+		hasNonNaN := false
 		for i, value := range s.Values {
 			// todo: this loop should be able to be restructured to directly pass over
 			// the desired intervals
-			if i >= intervals || math.IsNaN(value) {
+			if i >= intervals {
 				continue
+			}
+
+			if !math.IsNaN(value) {
+				hasNonNaN = true
 			}
 
 			ts := mapper.TimestampOf(i)
@@ -377,8 +382,8 @@ func (set SeriesSet) ToProto(req *tempopb.QueryRangeRequest) []*tempopb.TimeSeri
 				Value:       value,
 			})
 		}
-		// Do not include empty TimeSeries
-		if len(samples) == 0 {
+		// Do not include TimeSeries with only NaN values (no actual data)
+		if !hasNonNaN {
 			continue
 		}
 
@@ -1496,8 +1501,17 @@ func NewSimpleCombiner(req *tempopb.QueryRangeRequest, op SimpleAggregationOp) *
 		initWithNaN = true
 	default:
 		// Simple addition aggregator. It adds existing values with the new sample.
-		f = func(existingValue float64, newValue float64) float64 { return existingValue + newValue }
-		initWithNaN = false
+		// NaN is used to represent "no data" and should be preserved if no actual data comes in.
+		f = func(existingValue float64, newValue float64) float64 {
+			if math.IsNaN(newValue) {
+				return existingValue // Skip NaN values during aggregation
+			}
+			if math.IsNaN(existingValue) {
+				return newValue // Replace initial NaN with actual data
+			}
+			return existingValue + newValue
+		}
+		initWithNaN = true
 
 	}
 	return &SimpleAggregator{
@@ -1780,7 +1794,7 @@ func (h *HistogramAggregator) Combine(in []*tempopb.TimeSeries) {
 		b := bucket.Float()
 
 		for _, sample := range ts.Samples {
-			if sample.Value == 0 {
+			if sample.Value == 0 || math.IsNaN(sample.Value) {
 				continue
 			}
 			j := h.intervalMapper.IntervalMs(sample.TimestampMs)

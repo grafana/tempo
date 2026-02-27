@@ -447,7 +447,7 @@ func (b *BaselineAggregator) Combine(ss []*tempopb.TimeSeries) {
 
 		for _, sample := range s.Samples {
 			j := b.intervalMapper.IntervalMs(sample.TimestampMs)
-			if j >= 0 && j < len(ts.series.Values) {
+			if j >= 0 && j < len(ts.series.Values) && !math.IsNaN(sample.Value) {
 				ts.series.Values[j] += sample.Value
 			}
 		}
@@ -535,7 +535,9 @@ type topN[T any] struct {
 func (t *topN[T]) add(key T, values []float64) {
 	sum := 0.0
 	for _, v := range values {
-		sum += v
+		if !math.IsNaN(v) {
+			sum += v
+		}
 	}
 	t.entries = append(t.entries, struct {
 		key   T

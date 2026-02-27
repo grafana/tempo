@@ -2,6 +2,7 @@ package localblocks
 
 import (
 	"flag"
+	"math"
 	"path"
 	"testing"
 	"time"
@@ -211,7 +212,9 @@ func TestProcessor(t *testing.T) {
 			for _, ts := range results {
 				var sum float64
 				for _, val := range ts.Values {
-					sum += val
+					if !math.IsNaN(val) {
+						sum += val
+					}
 				}
 				require.InDelta(t, tc.expectedSpans, sum, 0.000001)
 				require.Equal(t, tc.expectedExemplars, len(ts.Exemplars))

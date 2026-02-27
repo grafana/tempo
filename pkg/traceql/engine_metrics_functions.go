@@ -5,6 +5,9 @@ import "math"
 func sumOverTime() func(curr float64, n float64) (res float64) {
 	var comp float64 // Kahan compensation
 	return func(sum, inc float64) (res float64) {
+		if math.IsNaN(inc) {
+			return sum // Skip NaN values
+		}
 		if math.IsNaN(sum) {
 			return inc
 		}
