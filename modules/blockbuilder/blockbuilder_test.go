@@ -124,6 +124,48 @@ func TestBlockbuilder_getAssignedPartitions(t *testing.T) {
 	assert.Equal(t, []int32{0, 2}, partitions)
 }
 
+func TestBlockbuilder_fetchMetricsIncrement(t *testing.T) {
+	ctx, cancel := context.WithCancelCause(context.Background())
+	t.Cleanup(func() { cancel(errors.New("test done")) })
+
+	k, address := testkafka.CreateCluster(t, 1, testTopic)
+	kafkaCommits := atomic.NewInt32(0)
+	k.ControlKey(kmsg.OffsetCommit, func(kmsg.Request) (kmsg.Response, error, bool) {
+		kafkaCommits.Inc()
+		return nil, nil, false
+	})
+
+	store := newStore(ctx, t)
+	cfg := blockbuilderConfig(t, address, []int32{0})
+
+	recordsStart, err := test.GetCounterVecValue(metricFetchRecordsTotal, "0")
+	require.NoError(t, err)
+	bytesStart, err := test.GetCounterVecValue(metricFetchBytesTotal, "0")
+	require.NoError(t, err)
+
+	b, err := New(cfg, testLogger(t), newPartitionRingReader(), &mockOverrides{}, store)
+	require.NoError(t, err)
+	require.NoError(t, services.StartAndAwaitRunning(ctx, b))
+	t.Cleanup(func() {
+		require.NoError(t, services.StopAndAwaitTerminated(ctx, b))
+	})
+
+	client := testkafka.NewKafkaClient(t, cfg.IngestStorageConfig.Kafka.Address, cfg.IngestStorageConfig.Kafka.Topic)
+	testkafka.SendReq(ctx, t, client, ingest.Encode, util.FakeTenantID)
+
+	require.Eventually(t, func() bool {
+		return kafkaCommits.Load() > 0
+	}, time.Minute, time.Second)
+
+	recordsEnd, err := test.GetCounterVecValue(metricFetchRecordsTotal, "0")
+	require.NoError(t, err)
+	require.Greater(t, recordsEnd-recordsStart, float64(0))
+
+	bytesEnd, err := test.GetCounterVecValue(metricFetchBytesTotal, "0")
+	require.NoError(t, err)
+	require.Greater(t, bytesEnd-bytesStart, float64(0))
+}
+
 // Starting with a pre-existing commit,
 // the block-builder resumes from the last known position, consuming new records,
 // and ensures all of them are properly committed and flushed into blocks.
