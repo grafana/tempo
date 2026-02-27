@@ -169,13 +169,18 @@ func getGroupLag(ctx context.Context, admClient *kadm.Client, partitionClient *P
 		if !ok || pend.Err != nil {
 			continue
 		}
-		lag := int64(-1)
+		lag := int64(0)
+		hasCommit := false
 		if tcommit != nil {
 			if pcommit, ok := tcommit[p]; ok && pcommit.Err == nil && pcommit.At >= 0 {
 				lag = pend.Offset - pcommit.At
+				hasCommit = true
 			}
 		}
-		if lag < 0 && tstart != nil {
+		// Only fall back to start offset when no committed offset exists.
+		// If a commit exists but lag is negative (e.g. after log truncation),
+		// clamp to zero rather than reporting a spuriously large lag.
+		if !hasCommit && tstart != nil {
 			if pstart, ok := tstart[p]; ok && pstart.Err == nil {
 				lag = pend.Offset - pstart.Offset
 			}
