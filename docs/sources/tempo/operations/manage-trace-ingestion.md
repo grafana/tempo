@@ -7,11 +7,13 @@ weight: 250
 
 # Manage trace ingestion
 
+If you are seeing `RATE_LIMITED`, `LIVE_TRACES_EXCEEDED`, or `TRACE_TOO_LARGE` errors in your distributor logs, or if your trace storage costs are rising unexpectedly, this page can help.
+
 In Grafana Tempo, distributors validate incoming spans against ingestion limits before writing them to Kafka.
 If limits are too low for your workload, spans are refused and data is lost.
 If limits are unchecked, ingestion volume can grow beyond what you intend to pay for.
 
-This page helps you with three tasks:
+This page covers three tasks:
 
 - [Size ingestion limits](#size-ingestion-limits-for-your-workload) when deploying or reviewing your configuration.
 - [Find and fix refused spans](#find-and-fix-refused-spans) when you are actively losing data.
@@ -25,7 +27,7 @@ Tempo enforces three ingestion limits. Understanding what the defaults mean for 
 
 ### Rate limit
 
-`rate_limit_bytes` (default: 15,000,000) sets the sustained byte rate each distributor allows per tenant, measured in bytes per second.
+`rate_limit_bytes` (default: `15,000,000`) sets the sustained byte rate each distributor allows per tenant, measured in bytes per second.
 For a typical span size of around 500 bytes, the default accommodates roughly 30,000 spans per second per distributor.
 
 How this scales depends on your `rate_strategy`:
@@ -33,22 +35,24 @@ How this scales depends on your `rate_strategy`:
 - **`local`** (default): each distributor enforces the limit independently. With three distributors, the effective cluster limit is approximately 90,000 spans per second.
 - **`global`**: the configured rate is shared across all distributors. The total cluster rate equals the configured value regardless of how many distributors you run.
 
-`burst_size_bytes` (default: 20,000,000) allows temporary spikes above the sustained rate, for example during application deployments. The burst allowance is always applied locally, regardless of rate strategy.
+`burst_size_bytes` (default: `20,000,000`) allows temporary spikes above the sustained rate, for example during application deployments. The burst allowance is always applied locally, regardless of rate strategy.
 
 ### Live trace limit
 
-`max_traces_per_user` (default: 10,000) caps the number of concurrently active traces per tenant on each live-store.
+`max_traces_per_user` (default: `10,000`) caps the number of concurrently active traces per tenant on each live-store.
 If your services produce many short-lived traces in parallel, you may need to raise this.
 
 `max_global_traces_per_user` (default: 0, disabled) sets a cluster-wide cap instead of a per-instance cap.
 
 ### Per-trace size limit
 
-`max_bytes_per_trace` (default: 5,000,000) caps the total size of a single trace.
+`max_bytes_per_trace` (default: `5,000,000`) caps the total size of a single trace.
 Traces that exceed this limit are partially dropped.
 Unusually large traces often indicate a retry loop or misconfigured instrumentation rather than normal application behavior.
 
 ### Example configuration
+
+To estimate the rate limit you need, multiply your average span size by your peak spans-per-second across all services for a given tenant.
 
 The following example raises the defaults for a high-throughput workload:
 
@@ -79,11 +83,11 @@ The error message tells you which limit was exceeded.
 
 The following table lists the three error types, what each one means, and how to fix it.
 
-| Error | Cause | Fix |
-|---|---|---|
-| `RATE_LIMITED` | The tenant's byte rate exceeded `rate_limit_bytes`. | Raise `rate_limit_bytes`, or add distributors if using `rate_strategy: local`. If volume is genuinely higher than intended, reduce it upstream with [sampling](https://grafana.com/docs/tempo/<TEMPO_VERSION>/set-up-for-tracing/instrument-send/set-up-collector/tail-sampling/). |
-| `LIVE_TRACES_EXCEEDED` | The number of concurrent active traces on a live-store exceeded `max_traces_per_user`. | Raise `max_traces_per_user`, or set `max_global_traces_per_user` to distribute the limit across the cluster. |
-| `TRACE_TOO_LARGE` | A single trace exceeded `max_bytes_per_trace` (default 5 MB). | Raise `max_bytes_per_trace` in the `global` overrides. Also investigate why the trace is so large. Common causes include retry loops and misconfigured instrumentation. |
+| Error                  | Cause                                                                                  | Fix                                                                                                                                                                                                                                                                                |
+| ---------------------- | -------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `RATE_LIMITED`         | The tenant's byte rate exceeded `rate_limit_bytes`.                                    | Raise `rate_limit_bytes`, or add distributors if using `rate_strategy: local`. If volume is genuinely higher than intended, reduce it upstream with [sampling](https://grafana.com/docs/tempo/<TEMPO_VERSION>/set-up-for-tracing/instrument-send/set-up-collector/tail-sampling/). |
+| `LIVE_TRACES_EXCEEDED` | The number of concurrent active traces on a live-store exceeded `max_traces_per_user`. | Raise `max_traces_per_user`, or set `max_global_traces_per_user` to distribute the limit across the cluster.                                                                                                                                                                       |
+| `TRACE_TOO_LARGE`      | A single trace exceeded `max_bytes_per_trace` (default 5 MB).                          | Raise `max_bytes_per_trace` in the `global` overrides. Also investigate why the trace is so large. Common causes include retry loops and misconfigured instrumentation.                                                                                                            |
 
 ### Check which limit is being hit
 
@@ -147,7 +151,13 @@ overrides:
 
 After enabling cost attribution, the distributor exposes the `tempo_usage_tracker_bytes_received_total` metric on the `/usage_metrics` endpoint, labeled by the dimensions you configured.
 
-Use the following query to find which services are sending the most data:
+You can query this endpoint directly:
+
+```bash
+curl http://<distributor-host>:3200/usage_metrics
+```
+
+If you scrape this endpoint with Prometheus, you can use the following query to find which services are sending the most data:
 
 ```promql
 topk(10,
