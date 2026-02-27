@@ -60,14 +60,7 @@ func (g *Generator) stopKafka() {
 	if g.cfg.LeaveConsumerGroupOnShutdown && g.cfg.InstanceID != "" {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
-		fn := g.leaveGroupFn
-		if fn == nil {
-			fn = func(ctx context.Context) error {
-				return ingest.LeaveConsumerGroupByInstanceID(ctx, g.kafkaClient.Client,
-					g.cfg.Ingest.Kafka.ConsumerGroup, g.cfg.InstanceID, g.logger)
-			}
-		}
-		if err := fn(ctx); err != nil {
+		if err := g.leaveGroupFn(ctx); err != nil {
 			level.Warn(g.logger).Log("msg", "failed to leave Kafka consumer group by instance ID (partitions may reassign after session timeout)", "err", err)
 		}
 	}

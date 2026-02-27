@@ -105,6 +105,10 @@ func New(cfg *Config, overrides metricsGeneratorOverrides, reg prometheus.Regist
 		reg:           reg,
 		logger:        logger,
 	}
+	g.leaveGroupFn = func(ctx context.Context) error {
+		return ingest.LeaveConsumerGroupByInstanceID(ctx, g.kafkaClient.Client,
+			g.cfg.Ingest.Kafka.ConsumerGroup, g.cfg.InstanceID, g.logger)
+	}
 
 	g.Service = services.NewBasicService(g.starting, g.running, g.stopping)
 	return g, nil
