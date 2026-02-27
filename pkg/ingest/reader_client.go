@@ -3,6 +3,7 @@
 package ingest
 
 import (
+	"context"
 	"sync"
 	"time"
 
@@ -11,7 +12,9 @@ import (
 	"github.com/grafana/dskit/ring"
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/twmb/franz-go/pkg/kerr"
 	"github.com/twmb/franz-go/pkg/kgo"
+	"github.com/twmb/franz-go/pkg/kmsg"
 	"github.com/twmb/franz-go/plugin/kprom"
 )
 
@@ -110,10 +113,46 @@ func (c *Client) monitorPartitions() {
 	}
 }
 
+// LeaveConsumerGroupByInstanceID sends a LeaveGroup request for the given
+// instance ID so the coordinator can rebalance without waiting for session
+// timeout. Use this on shutdown when using static membership (InstanceID):
+// franz-go does not send LeaveGroup on Close() when InstanceID is set.
+// Requires Kafka 2.4+. No-op if instanceID is empty.
+func LeaveConsumerGroupByInstanceID(ctx context.Context, client *kgo.Client, group, instanceID string, logger log.Logger) error {
+	if instanceID == "" {
+		return nil
+	}
+	req := kmsg.NewPtrLeaveGroupRequest()
+	req.Version = 4 // v3+ for Members[].InstanceID (KIP-345); using v4 as the minimum flexible version
+	req.Group = group
+	member := kmsg.NewLeaveGroupRequestMember()
+	member.InstanceID = &instanceID
+	req.Members = append(req.Members, member)
+	resp, err := req.RequestWith(ctx, client)
+	if err != nil {
+		return err
+	}
+	if err := kerr.ErrorForCode(resp.ErrorCode); err != nil {
+		return err
+	}
+	level.Info(logger).Log("msg", "left Kafka consumer group by instance ID", "group", group, "instance_id", instanceID)
+	return nil
+}
+
 func (c *Client) Close() {
 	close(c.stopCh)  // Signal the monitor goroutine to stop
 	c.wg.Wait()      // Wait for the monitor goroutine to exit
 	c.Client.Close() // Close the underlying client
+}
+
+// NewClientForTesting wraps a *kgo.Client in an ingest.Client without starting
+// the partition monitor goroutine. For use in unit tests only.
+func NewClientForTesting(client *kgo.Client) *Client {
+	return &Client{
+		Client: client,
+		stopCh: make(chan struct{}),
+		logger: log.NewNopLogger(),
+	}
 }
 
 func NewReaderClientMetrics(component string, reg prometheus.Registerer) *kprom.Metrics {
