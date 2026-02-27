@@ -24,7 +24,7 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/gorilla/mux v1.8.1
 	github.com/grafana/dskit v0.0.0-20251031165806-a6f15387939b
-	github.com/grafana/e2e v0.1.2-0.20251205060319-9884d3ffb1bf
+	github.com/grafana/e2e e558763e8376
 	github.com/hashicorp/go-hclog v1.6.3 // indirect
 	github.com/jedib0t/go-pretty/v6 v6.7.8
 	github.com/json-iterator/go v1.1.12
