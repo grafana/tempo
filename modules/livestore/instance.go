@@ -7,6 +7,7 @@ import (
 	"errors"
 	"sort"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/go-kit/log"
@@ -92,11 +93,12 @@ type instance struct {
 	completeBlockEncoding encoding.VersionedEncoding
 
 	// Block management
-	blocksMtx      sync.RWMutex
-	headBlock      common.WALBlock
-	walBlocks      map[uuid.UUID]common.WALBlock
-	completeBlocks map[uuid.UUID]*ingester.LocalBlock
-	lastCutTime    time.Time
+	blocksMtx             sync.RWMutex
+	headBlock             common.WALBlock
+	walBlocks             map[uuid.UUID]common.WALBlock
+	completeBlocks        map[uuid.UUID]*ingester.LocalBlock
+	lastCutTime           time.Time
+	replayedWALBlockCount atomic.Int32 // tracks replayed WAL blocks to exclude from backpressure
 
 	// Live traces
 	liveTracesMtx  sync.Mutex
@@ -160,12 +162,13 @@ func (i *instance) backpressure(ctx context.Context) bool {
 		}
 	}
 
-	// Check outstanding wal blocks
+	// Check outstanding wal blocks, excluding replayed blocks already on disk
 	i.blocksMtx.RLock()
 	count := len(i.walBlocks)
 	i.blocksMtx.RUnlock()
 
-	if count > 1 {
+	adjustedCount := count - int(i.replayedWALBlockCount.Load())
+	if adjustedCount > 1 {
 		// There are multiple outstanding WAL blocks that need completion
 		// so wait a bit.
 		select {
@@ -478,6 +481,10 @@ func (i *instance) completeBlock(ctx context.Context, id uuid.UUID) error {
 		span.RecordError(err)
 	}
 	delete(i.walBlocks, (uuid.UUID)(walBlock.BlockMeta().BlockID))
+
+	if newVal := i.replayedWALBlockCount.Add(-1); newVal < 0 {
+		i.replayedWALBlockCount.Store(0)
+	}
 
 	level.Info(i.logger).Log("msg", "completed block", "id", id.String())
 	span.AddEvent("block completed successfully")
