@@ -336,6 +336,9 @@ func aggregateScope(pf *parquet.File, meta *backend.BlockMeta, paths scopeAttrib
 	res.dedicated = make(map[string]struct{})
 
 	for i, c := range strings {
+		if i >= len(paths.dedicatedColsPaths) {
+			break
+		}
 		cardinality, err := aggregateStringColumn(pf, paths.dedicatedColsPaths[i])
 		if err != nil {
 			return res, err
@@ -364,6 +367,9 @@ func aggregateScope(pf *parquet.File, meta *backend.BlockMeta, paths scopeAttrib
 	}
 
 	for i, c := range ints {
+		if i >= len(paths.dedicatedColsPathsInt) {
+			break
+		}
 		path := paths.dedicatedColsPathsInt[i]
 		count, err := aggregateIntegerColumn(pf, path)
 		if err != nil {
