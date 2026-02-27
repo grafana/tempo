@@ -925,10 +925,17 @@ func uniqueSpans(ss1 []*Spanset, ss2 []*Spanset) []Span {
 	return output
 }
 
-func intPow(m, n int) int {
+func intPow(base, exp int) int {
+	if exp < 0 {
+		return 0
+	}
 	result := 1
-	for i := 0; i < n; i++ {
-		result *= m
+	for exp > 0 {
+		if exp&1 == 1 {
+			result *= base
+		}
+		base *= base
+		exp >>= 1
 	}
 	return result
 }
