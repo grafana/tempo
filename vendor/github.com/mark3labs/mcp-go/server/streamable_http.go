@@ -345,7 +345,7 @@ func (s *StreamableHTTPServer) handlePost(w http.ResponseWriter, r *http.Request
 		sessionID = r.Header.Get(HeaderKeySessionID)
 		isTerminated, err := sessionIdManager.Validate(sessionID)
 		if err != nil {
-			http.Error(w, "Invalid session ID", http.StatusBadRequest)
+			http.Error(w, "Invalid session ID", http.StatusNotFound)
 			return
 		}
 		if isTerminated {
@@ -443,9 +443,32 @@ func (s *StreamableHTTPServer) handlePost(w http.ResponseWriter, r *http.Request
 
 	// Write response
 	mu.Lock()
-	defer mu.Unlock()
-	// close the done chan before unlock
-	defer close(done)
+
+drainLoop:
+	for {
+		select {
+		case nt := <-session.notificationChannel:
+			if !upgradedHeader {
+				w.Header().Set("Content-Type", "text/event-stream")
+				w.Header().Set("Connection", "keep-alive")
+				w.Header().Set("Cache-Control", "no-cache")
+				w.WriteHeader(http.StatusOK)
+				upgradedHeader = true
+			}
+			if err := writeSSEEvent(w, nt); err != nil {
+				s.logger.Errorf("Failed to write SSE event during drain: %v", err)
+			}
+			if flusher, ok := w.(http.Flusher); ok {
+				flusher.Flush()
+			}
+		default:
+			break drainLoop
+		}
+	}
+
+	// close the done chan before unlocking to signal the goroutine to stop
+	close(done)
+	mu.Unlock()
 	if ctx.Err() != nil {
 		return
 	}
@@ -499,13 +522,21 @@ func (s *StreamableHTTPServer) handleGet(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	sessionID := r.Header.Get(HeaderKeySessionID)
-	// the specification didn't say we should validate the session id
+	// Check streaming support in the responseWriter. This can happen if the responseWriter has been overridden.
+	// If not supported, return 405 early.
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		http.Error(w, "Streaming unsupported", http.StatusMethodNotAllowed)
+		return
+	}
 
+	sessionID := r.Header.Get(HeaderKeySessionID)
+	// The MCP specification doesn't require validating session ID for GET requests.
+	// If no session ID is provided by the client, generate one using the configured SessionIdManager
+	// so that custom session id generators are honored consistently across POST/GET flows.
 	if sessionID == "" {
-		// It's a stateless server,
-		// but the MCP server requires a unique ID for registering, so we use a random one
-		sessionID = uuid.New().String()
+		sessionIdManager := s.sessionIdManagerResolver.ResolveSessionIdManager(r)
+		sessionID = sessionIdManager.Generate()
 	}
 
 	// Get or create session atomically to prevent TOCTOU races
@@ -532,11 +563,6 @@ func (s *StreamableHTTPServer) handleGet(w http.ResponseWriter, r *http.Request)
 	w.Header().Set("Connection", "keep-alive")
 	w.WriteHeader(http.StatusOK)
 
-	flusher, ok := w.(http.Flusher)
-	if !ok {
-		http.Error(w, "Streaming unsupported", http.StatusInternalServerError)
-		return
-	}
 	flusher.Flush()
 
 	// Start notification handler for this session
@@ -672,6 +698,8 @@ func (s *StreamableHTTPServer) handleDelete(w http.ResponseWriter, r *http.Reque
 	s.sessionLogLevels.delete(sessionID)
 	// remove current session's requstID information
 	s.sessionRequestIDs.Delete(sessionID)
+	s.activeSessions.Delete(sessionID)
+	s.server.UnregisterSession(r.Context(), sessionID)
 
 	w.WriteHeader(http.StatusOK)
 }
@@ -706,7 +734,7 @@ func (s *StreamableHTTPServer) handleSamplingResponse(w http.ResponseWriter, r *
 	sessionIdManager := s.sessionIdManagerResolver.ResolveSessionIdManager(r)
 	isTerminated, err := sessionIdManager.Validate(sessionID)
 	if err != nil {
-		http.Error(w, "Invalid session ID", http.StatusBadRequest)
+		http.Error(w, "Invalid session ID", http.StatusNotFound)
 		return err
 	}
 	if isTerminated {
