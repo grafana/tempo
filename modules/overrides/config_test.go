@@ -143,12 +143,6 @@ metrics_generator_processor_span_metrics_dimension_mappings:
       - 'bar'
     join: 'baz'
 metrics_generator_processor_span_metrics_enable_target_info: true
-metrics_generator_processor_local_blocks_max_live_traces: 8
-metrics_generator_processor_local_blocks_max_block_duration: 9s
-metrics_generator_processor_local_blocks_max_block_bytes: 10
-metrics_generator_processor_local_blocks_flush_check_period: 11s
-metrics_generator_processor_local_blocks_trace_idle_period: 12s
-metrics_generator_processor_local_blocks_complete_block_timeout: 13s
 metrics_generator_generate_native_histograms: true
 metrics_generator_native_histogram_bucket_factor: 1.1
 metrics_generator_native_histogram_max_bucket_number: 100
@@ -233,13 +227,6 @@ defaults:
           - bar
           join: baz
         enable_target_info: true
-      local_blocks:
-        max_live_traces: 8
-        max_block_duration: 9s
-        max_block_bytes: 10
-        flush_check_period: 11s
-        trace_idle_period: 12s
-        complete_block_timeout: 13s
   forwarders:
   - foo
   global:
@@ -466,12 +453,6 @@ func generateTestLegacyOverrides() LegacyOverrides {
 		MetricsGeneratorProcessorSpanMetricsTargetInfoExcludedDimensions: []string{"excluded-dim-1", "excluded-dim-2"},
 		MetricsGeneratorProcessorSpanMetricsEnableInstanceLabel:          boolPtr(false),
 		MetricsGeneratorProcessorSpanMetricsSpanMultiplierKey:            "custom_key",
-		MetricsGeneratorProcessorLocalBlocksMaxLiveTraces:                100,
-		MetricsGeneratorProcessorLocalBlocksMaxBlockDuration:             10 * time.Minute,
-		MetricsGeneratorProcessorLocalBlocksMaxBlockBytes:                1024 * 1024,
-		MetricsGeneratorProcessorLocalBlocksFlushCheckPeriod:             30 * time.Second,
-		MetricsGeneratorProcessorLocalBlocksTraceIdlePeriod:              5 * time.Minute,
-		MetricsGeneratorProcessorLocalBlocksCompleteBlockTimeout:         30 * time.Minute,
 		MetricsGeneratorProcessorHostInfoHostIdentifiers:                 []string{"host-id-1", "host-id-2"},
 		MetricsGeneratorProcessorHostInfoMetricName:                      "host_info",
 		MetricsGeneratorIngestionSlack:                                   1 * time.Minute,

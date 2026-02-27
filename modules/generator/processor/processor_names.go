@@ -11,6 +11,5 @@ const (
 const (
 	SpanMetricsName   = "span-metrics"
 	ServiceGraphsName = "service-graphs"
-	LocalBlocksName   = "local-blocks"
 	HostInfoName      = "host-info"
 )

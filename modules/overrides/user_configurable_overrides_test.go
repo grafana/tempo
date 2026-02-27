@@ -504,7 +504,7 @@ func TestUserConfigOverridesManager_MergeRuntimeConfig(t *testing.T) {
 	mgr.tenantLimits[tenantID] = &userconfigurableoverrides.Limits{
 		Forwarders: &[]string{"my-other-forwarder"},
 		MetricsGenerator: userconfigurableoverrides.LimitsMetricsGenerator{
-			Processors:                      map[string]struct{}{"local-blocks": {}},
+			Processors:                      map[string]struct{}{"span-metrics": {}},
 			TraceIDLabelName:                strPtr("custom_trace_id"),
 			IngestionSlack:                  &userconfigurableoverrides.Duration{Duration: time.Minute},
 			NativeHistogramBucketFactor:     func(f float64) *float64 { return &f }(2.1),
@@ -528,7 +528,7 @@ func TestUserConfigOverridesManager_MergeRuntimeConfig(t *testing.T) {
 	assert.NotEqual(t, mgr.Forwarders(tenantID), baseMgr.Forwarders(tenantID))
 
 	// Processors will be the merged result between runtime and user-configurable overrides
-	assert.Equal(t, mgr.MetricsGeneratorProcessors(tenantID), map[string]struct{}{"local-blocks": {}, "service-graphs": {}, "span-metrics": {}, "host-info": {}})
+	assert.Equal(t, mgr.MetricsGeneratorProcessors(tenantID), map[string]struct{}{"service-graphs": {}, "span-metrics": {}, "host-info": {}})
 
 	// For the remaining settings runtime overrides will bubble up
 	assert.Equal(t, mgr.IngestionRateStrategy(), baseMgr.IngestionRateStrategy())
@@ -566,12 +566,6 @@ func TestUserConfigOverridesManager_MergeRuntimeConfig(t *testing.T) {
 	assert.Equal(t, []sharedconfig.DimensionMappings{{Name: "svc", SourceLabel: []string{"service"}, Join: ""}}, mgr.MetricsGeneratorProcessorSpanMetricsDimensionMappings(tenantID))
 	assert.NotEqual(t, baseMgr.MetricsGeneratorProcessorSpanMetricsDimensionMappings(tenantID), mgr.MetricsGeneratorProcessorSpanMetricsDimensionMappings(tenantID))
 	assert.Equal(t, mgr.MetricsGeneratorProcessorSpanMetricsFilterPolicies(tenantID), baseMgr.MetricsGeneratorProcessorSpanMetricsFilterPolicies(tenantID))
-	assert.Equal(t, mgr.MetricsGeneratorProcessorLocalBlocksMaxLiveTraces(tenantID), baseMgr.MetricsGeneratorProcessorLocalBlocksMaxLiveTraces(tenantID))
-	assert.Equal(t, mgr.MetricsGeneratorProcessorLocalBlocksMaxBlockDuration(tenantID), baseMgr.MetricsGeneratorProcessorLocalBlocksMaxBlockDuration(tenantID))
-	assert.Equal(t, mgr.MetricsGeneratorProcessorLocalBlocksMaxBlockBytes(tenantID), baseMgr.MetricsGeneratorProcessorLocalBlocksMaxBlockBytes(tenantID))
-	assert.Equal(t, mgr.MetricsGeneratorProcessorLocalBlocksTraceIdlePeriod(tenantID), baseMgr.MetricsGeneratorProcessorLocalBlocksTraceIdlePeriod(tenantID))
-	assert.Equal(t, mgr.MetricsGeneratorProcessorLocalBlocksFlushCheckPeriod(tenantID), baseMgr.MetricsGeneratorProcessorLocalBlocksFlushCheckPeriod(tenantID))
-	assert.Equal(t, mgr.MetricsGeneratorProcessorLocalBlocksCompleteBlockTimeout(tenantID), baseMgr.MetricsGeneratorProcessorLocalBlocksCompleteBlockTimeout(tenantID))
 	baseEnableTargetInfoValue, baseEnableTargetInfoIsSet := mgr.MetricsGeneratorProcessorSpanMetricsEnableTargetInfo(tenantID)
 	overrideEnableTargetInfoValue, overrideEnableTargetInfoIsSet := baseMgr.MetricsGeneratorProcessorSpanMetricsEnableTargetInfo(tenantID)
 	assert.Equal(t, overrideEnableTargetInfoValue, baseEnableTargetInfoValue)
@@ -634,14 +628,6 @@ func perTenantRuntimeOverrides(tenantID string) *perTenantOverrides {
 							EnableTargetInfo:             boolPtr(true),
 							TargetInfoExcludedDimensions: []string{"bar", "namespace", "env"},
 							EnableInstanceLabel:          boolPtr(false),
-						},
-						LocalBlocks: LocalBlocksOverrides{
-							MaxLiveTraces:        100,
-							MaxBlockDuration:     100 * time.Second,
-							MaxBlockBytes:        4000,
-							FlushCheckPeriod:     10 * time.Second,
-							TraceIdlePeriod:      20 * time.Second,
-							CompleteBlockTimeout: 30 * time.Second,
 						},
 						HostInfo: HostInfoOverrides{
 							HostIdentifiers: []string{"host.name"},

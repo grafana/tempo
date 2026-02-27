@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/grafana/tempo/modules/generator/processor/hostinfo"
-	"github.com/grafana/tempo/modules/generator/processor/localblocks"
 	"github.com/grafana/tempo/modules/generator/processor/servicegraphs"
 	"github.com/grafana/tempo/modules/generator/processor/spanmetrics"
 	"github.com/grafana/tempo/modules/generator/registry"
@@ -17,8 +16,6 @@ import (
 	"github.com/grafana/tempo/modules/generator/validation"
 	"github.com/grafana/tempo/pkg/ingest"
 	"github.com/grafana/tempo/pkg/ring"
-	"github.com/grafana/tempo/tempodb/encoding"
-	"github.com/grafana/tempo/tempodb/wal"
 	"go.uber.org/multierr"
 )
 
@@ -48,12 +45,10 @@ var validCodecs = []string{codecPushBytes, codecOTLP}
 
 // Config for a generator.
 type Config struct {
-	Ring           ring.Config     `yaml:"ring"`
-	Processor      ProcessorConfig `yaml:"processor"`
-	Registry       registry.Config `yaml:"registry"`
-	Storage        storage.Config  `yaml:"storage"`
-	TracesWAL      wal.Config      `yaml:"traces_storage"`
-	TracesQueryWAL wal.Config      `yaml:"traces_query_storage"`
+	Ring      ring.Config     `yaml:"ring"`
+	Processor ProcessorConfig `yaml:"processor"`
+	Registry  registry.Config `yaml:"registry"`
+	Storage   storage.Config  `yaml:"storage"`
 	// MetricsIngestionSlack is the max amount of time passed since a span's end time
 	// for the span to be considered in metrics generation
 	MetricsIngestionSlack time.Duration `yaml:"metrics_ingestion_time_range_slack"`
@@ -62,9 +57,6 @@ type Config struct {
 
 	// Codec controls which decoder to use for data consumed from Kafka.
 	Codec string `yaml:"codec"`
-	// DisableLocalBlocks controls whether the local blocks processor should be run.
-	// When this flag is enabled, the processor is never instantiated.
-	DisableLocalBlocks bool `yaml:"disable_local_blocks"`
 	// DisableGRPC controls whether to run a gRPC server with the metrics generator endpoints.
 	DisableGRPC bool `yaml:"disable_grpc"`
 
@@ -84,10 +76,6 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 	cfg.Processor.RegisterFlagsAndApplyDefaults(prefix, f)
 	cfg.Registry.RegisterFlagsAndApplyDefaults(prefix, f)
 	cfg.Storage.RegisterFlagsAndApplyDefaults(prefix, f)
-	cfg.TracesWAL.RegisterFlags(f)
-	cfg.TracesWAL.Version = encoding.DefaultEncoding().Version()
-	cfg.TracesQueryWAL.RegisterFlags(f)
-	cfg.TracesQueryWAL.Version = encoding.DefaultEncoding().Version()
 	cfg.Ingest.RegisterFlagsAndApplyDefaults(prefix, f)
 	cfg.IngestConcurrency = 16
 
@@ -119,18 +107,6 @@ func (cfg *Config) Validate() error {
 		return err
 	}
 
-	// Only validate if being used
-	if cfg.TracesWAL.Filepath != "" {
-		if err := cfg.TracesWAL.Validate(); err != nil {
-			return err
-		}
-	}
-	if cfg.TracesQueryWAL.Filepath != "" {
-		if err := cfg.TracesQueryWAL.Validate(); err != nil {
-			return err
-		}
-	}
-
 	if err := cfg.Storage.Validate(); err != nil {
 		return err
 	}
@@ -151,22 +127,17 @@ func (cfg *Config) Validate() error {
 type ProcessorConfig struct {
 	ServiceGraphs servicegraphs.Config `yaml:"service_graphs"`
 	SpanMetrics   spanmetrics.Config   `yaml:"span_metrics"`
-	LocalBlocks   localblocks.Config   `yaml:"local_blocks"`
 	HostInfo      hostinfo.Config      `yaml:"host_info"`
 }
 
 func (cfg *ProcessorConfig) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
 	cfg.ServiceGraphs.RegisterFlagsAndApplyDefaults(prefix, f)
 	cfg.SpanMetrics.RegisterFlagsAndApplyDefaults(prefix, f)
-	cfg.LocalBlocks.RegisterFlagsAndApplyDefaults(prefix, f)
 	cfg.HostInfo.RegisterFlagsAndApplyDefaults(prefix, f)
 }
 
 func (cfg *ProcessorConfig) Validate() error {
 	var errs []error
-	if err := cfg.LocalBlocks.Validate(); err != nil {
-		errs = append(errs, err)
-	}
 	if err := validation.ValidateHostInfoHostIdentifiers(cfg.HostInfo.HostIdentifiers); err != nil {
 		errs = append(errs, err)
 	}
@@ -210,30 +181,6 @@ func (cfg *ProcessorConfig) copyWithOverrides(o metricsGeneratorOverrides, userI
 	}
 	if filterPolicies := o.MetricsGeneratorProcessorSpanMetricsFilterPolicies(userID); filterPolicies != nil {
 		copyCfg.SpanMetrics.FilterPolicies = filterPolicies
-	}
-
-	if max := o.MetricsGeneratorProcessorLocalBlocksMaxLiveTraces(userID); max > 0 {
-		copyCfg.LocalBlocks.MaxLiveTraces = max
-	}
-
-	if max := o.MetricsGeneratorProcessorLocalBlocksMaxBlockDuration(userID); max > 0 {
-		copyCfg.LocalBlocks.MaxBlockDuration = max
-	}
-
-	if max := o.MetricsGeneratorProcessorLocalBlocksMaxBlockBytes(userID); max > 0 {
-		copyCfg.LocalBlocks.MaxBlockBytes = max
-	}
-
-	if period := o.MetricsGeneratorProcessorLocalBlocksFlushCheckPeriod(userID); period > 0 {
-		copyCfg.LocalBlocks.FlushCheckPeriod = period
-	}
-
-	if period := o.MetricsGeneratorProcessorLocalBlocksTraceIdlePeriod(userID); period > 0 {
-		copyCfg.LocalBlocks.TraceIdlePeriod = period
-	}
-
-	if timeout := o.MetricsGeneratorProcessorLocalBlocksCompleteBlockTimeout(userID); timeout > 0 {
-		copyCfg.LocalBlocks.CompleteBlockTimeout = timeout
 	}
 
 	if histograms := o.MetricsGeneratorGenerateNativeHistograms(userID); histograms != "" {

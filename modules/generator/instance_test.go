@@ -39,10 +39,10 @@ func Test_instance_concurrency(t *testing.T) {
 	cfg := &Config{}
 	cfg.RegisterFlagsAndApplyDefaults("", &flag.FlagSet{})
 
-	instance1, err := newInstance(cfg, "test", overrides, &noopStorage{}, log.NewNopLogger(), nil, nil, nil)
+	instance1, err := newInstance(cfg, "test", overrides, &noopStorage{}, log.NewNopLogger())
 	assert.NoError(t, err)
 
-	instance2, err := newInstance(cfg, "test", overrides, &noopStorage{}, log.NewNopLogger(), nil, nil, nil)
+	instance2, err := newInstance(cfg, "test", overrides, &noopStorage{}, log.NewNopLogger())
 	assert.NoError(t, err)
 
 	end := make(chan struct{})
@@ -97,7 +97,7 @@ func TestInstancePushSpansSkipProcessors(t *testing.T) {
 
 	cfg := &Config{}
 	cfg.RegisterFlagsAndApplyDefaults("", &flag.FlagSet{})
-	i, err := newInstance(cfg, tenantID, overrides, &noopStorage{}, log.NewNopLogger(), nil, nil, nil)
+	i, err := newInstance(cfg, tenantID, overrides, &noopStorage{}, log.NewNopLogger())
 	require.NoError(t, err)
 
 	req := test.MakeBatch(1, nil)
@@ -144,7 +144,7 @@ func Test_instance_updateProcessors(t *testing.T) {
 	logger := log.NewLogfmtLogger(log.NewSyncWriter(os.Stdout))
 	overrides := mockOverrides{}
 
-	instance, err := newInstance(&cfg, "test", &overrides, &noopStorage{}, logger, nil, nil, nil)
+	instance, err := newInstance(&cfg, "test", &overrides, &noopStorage{}, logger)
 	assert.NoError(t, err)
 
 	// stop the update goroutine
@@ -164,16 +164,27 @@ func Test_instance_updateProcessors(t *testing.T) {
 		assert.Equal(t, instance.processors[processor.ServiceGraphsName].Name(), processor.ServiceGraphsName)
 	})
 
-	t.Run("add unknown processor", func(t *testing.T) {
+	t.Run("ignore unknown processor", func(t *testing.T) {
 		overrides.processors = map[string]struct{}{
 			"span-metricsss": {}, // typo in the overrides
 		}
 		err := instance.updateProcessors()
-		assert.Error(t, err)
+		assert.NoError(t, err)
 
-		// existing processors should not be removed when adding a new processor fails
+		// unknown processors are ignored and therefore the desired processor set is empty.
+		assert.Len(t, instance.processors, 0)
+	})
+
+	t.Run("ignore removed local-blocks processor and keep valid processors", func(t *testing.T) {
+		overrides.processors = map[string]struct{}{
+			"local-blocks":              {},
+			processor.ServiceGraphsName: {},
+		}
+		err := instance.updateProcessors()
+		assert.NoError(t, err)
+
 		assert.Len(t, instance.processors, 1)
-		assert.Equal(t, instance.processors[processor.ServiceGraphsName].Name(), processor.ServiceGraphsName)
+		assert.Equal(t, processor.ServiceGraphsName, instance.processors[processor.ServiceGraphsName].Name())
 	})
 
 	t.Run("add spanmetrics processor", func(t *testing.T) {

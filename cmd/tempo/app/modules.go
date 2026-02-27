@@ -57,7 +57,6 @@ const (
 	Server         string = "server"
 	InternalServer string = "internal-server"
 	Store          string = "store"
-	OptionalStore  string = "optional-store"
 	MemberlistKV   string = "memberlist-kv"
 	UsageReport    string = "usage-report"
 	Overrides      string = "overrides"
@@ -280,17 +279,12 @@ func (t *App) initDistributor() (services.Service, error) {
 }
 
 func (t *App) initGenerator() (services.Service, error) {
-	if t.cfg.Generator.Processor.LocalBlocks.FlushToStorage &&
-		t.store == nil {
-		return nil, fmt.Errorf("generator.processor.local-blocks.flush-to-storage is enabled but no storage backend is configured")
-	}
-
 	t.cfg.Generator.Ring.ListenPort = t.cfg.Server.GRPCListenPort
 
 	t.cfg.Generator.Ingest = t.cfg.Ingest
 	t.cfg.Generator.Ingest.Kafka.ConsumerGroup = generator.ConsumerGroup
 
-	genSvc, err := generator.New(&t.cfg.Generator, t.Overrides, prometheus.DefaultRegisterer, t.partitionRing, t.store, log.Logger)
+	genSvc, err := generator.New(&t.cfg.Generator, t.Overrides, prometheus.DefaultRegisterer, t.partitionRing, log.Logger)
 	if errors.Is(err, generator.ErrUnconfigured) && t.cfg.Target != MetricsGenerator { // just warn if we're not running the metrics-generator
 		level.Warn(log.Logger).Log("msg", "metrics-generator is not configured.", "err", err)
 		return services.NewIdleService(nil, nil), nil
@@ -323,17 +317,12 @@ func (t *App) initGeneratorNoLocalBlocks() (services.Service, error) {
 	if !t.cfg.Ingest.Enabled {
 		return nil, errors.New("ingest storage must be enabled to run metrics generator in this mode")
 	}
-	// The localblocks processor is disabled in this mode.
-	t.cfg.Generator.DisableLocalBlocks = true
-	// The store is used only by the localblocks processor. We don't need it when
-	// running with that processor disabled so we keep the default zero value.
-	var store tempo_storage.Store
 	// In this mode, the generator does not need to become available to serve
 	// queries, so we can skip setting up a gRPC server.
 	t.cfg.Generator.DisableGRPC = true
 
 	var err error
-	t.generator, err = generator.New(&t.cfg.Generator, t.Overrides, reg, t.generatorRingWatcher, store, log.Logger)
+	t.generator, err = generator.New(&t.cfg.Generator, t.Overrides, reg, t.generatorRingWatcher, log.Logger)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create metrics-generator: %w", err)
 	}
@@ -519,16 +508,6 @@ func (t *App) initQueryFrontend() (services.Service, error) {
 
 //go:embed static
 var staticFiles embed.FS
-
-func (t *App) initOptionalStore() (services.Service, error) {
-	// Used by the local-blocs processor to flush RF1 blocks to storage.
-	// Only initialize if it's configured.
-	if t.cfg.StorageConfig.Trace.Backend == "" {
-		return services.NewIdleService(nil, nil), nil
-	}
-
-	return t.initStore()
-}
 
 func (t *App) initStore() (services.Service, error) {
 	// the only component that needs a functioning tempodb pool are the queriers. all other components will just spin up
@@ -736,7 +715,6 @@ func (t *App) setupModuleManager() error {
 	const Common = "common"
 
 	mm.RegisterModule(Store, t.initStore, modules.UserInvisibleModule)
-	mm.RegisterModule(OptionalStore, t.initOptionalStore, modules.UserInvisibleModule)
 	mm.RegisterModule(Server, t.initServer, modules.UserInvisibleModule)
 	mm.RegisterModule(InternalServer, t.initInternalServer, modules.UserInvisibleModule)
 	mm.RegisterModule(MemberlistKV, t.initMemberlistKV, modules.UserInvisibleModule)
@@ -782,7 +760,7 @@ func (t *App) setupModuleManager() error {
 		// individual targets
 		QueryFrontend:                 {Common, Store, OverridesAPI},
 		Distributor:                   {Common, LiveStoreRing, MetricsGeneratorRing, PartitionRing},
-		MetricsGenerator:              {Common, OptionalStore, MemberlistKV, PartitionRing},
+		MetricsGenerator:              {Common, MemberlistKV, PartitionRing},
 		MetricsGeneratorNoLocalBlocks: {Common, GeneratorRingWatcher},
 		Querier:                       {Common, Store, LiveStoreRing, PartitionRing},
 		BlockBuilder:                  {Common, Store, MemberlistKV, PartitionRing},

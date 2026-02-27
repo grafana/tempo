@@ -723,12 +723,12 @@ func TestQueryRangeEndCutoff(t *testing.T) {
 
 		// Query with end=now, which should be adjusted by query_end_cutoff (5s)
 		cutoff := 5 * time.Second
-		now := time.Now()
+		queryNow := time.Now()
 
 		req := queryRangeRequest{
 			Query:     "{} | count_over_time()",
-			Start:     now.Add(-15 * time.Second),
-			End:       now,
+			Start:     queryNow.Add(-15 * time.Second),
+			End:       queryNow,
 			Step:      time.Second.String(),
 			Exemplars: 100,
 		}
@@ -742,8 +742,8 @@ func TestQueryRangeEndCutoff(t *testing.T) {
 			samples := series.GetSamples()
 			require.Greater(t, len(samples), 0, "Expected at least one sample")
 
-			// The cutoff should be applied, so the last sample should be at least 'cutoff' seconds before now
-			maxAllowedTimestamp := now.Add(-cutoff).UnixMilli()
+			// The cutoff should be applied, so samples should be at least 'cutoff' seconds before the time we receive the response.
+			maxAllowedTimestamp := time.Now().Add(-cutoff).UnixMilli()
 			for _, sample := range samples {
 				assert.LessOrEqual(t, sample.TimestampMs, maxAllowedTimestamp,
 					"Sample timestamp %d is after cutoff %d (diff: %d ms)",

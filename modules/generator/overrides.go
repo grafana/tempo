@@ -27,12 +27,6 @@ type metricsGeneratorOverrides interface {
 	MetricsGeneratorProcessorSpanMetricsDimensions(userID string) []string
 	MetricsGeneratorProcessorSpanMetricsIntrinsicDimensions(userID string) map[string]bool
 	MetricsGeneratorProcessorSpanMetricsFilterPolicies(userID string) []filterconfig.FilterPolicy
-	MetricsGeneratorProcessorLocalBlocksMaxLiveTraces(userID string) uint64
-	MetricsGeneratorProcessorLocalBlocksMaxBlockDuration(userID string) time.Duration
-	MetricsGeneratorProcessorLocalBlocksMaxBlockBytes(userID string) uint64
-	MetricsGeneratorProcessorLocalBlocksTraceIdlePeriod(userID string) time.Duration
-	MetricsGeneratorProcessorLocalBlocksFlushCheckPeriod(userID string) time.Duration
-	MetricsGeneratorProcessorLocalBlocksCompleteBlockTimeout(userID string) time.Duration
 	MetricsGeneratorProcessorSpanMetricsDimensionMappings(userID string) []sharedconfig.DimensionMappings
 	MetricsGeneratorProcessorSpanMetricsEnableTargetInfo(userID string) (bool, bool)
 	MetricsGeneratorProcessorServiceGraphsEnableClientServerPrefix(userID string) bool

@@ -55,12 +55,6 @@ func (c *Overrides) toLegacy() LegacyOverrides {
 		MetricsGeneratorProcessorSpanMetricsTargetInfoExcludedDimensions:            c.MetricsGenerator.Processor.SpanMetrics.TargetInfoExcludedDimensions,
 		MetricsGeneratorProcessorSpanMetricsEnableInstanceLabel:                     c.MetricsGenerator.Processor.SpanMetrics.EnableInstanceLabel,
 		MetricsGeneratorProcessorSpanMetricsSpanMultiplierKey:                       c.MetricsGenerator.Processor.SpanMetrics.SpanMultiplierKey,
-		MetricsGeneratorProcessorLocalBlocksMaxLiveTraces:                           c.MetricsGenerator.Processor.LocalBlocks.MaxLiveTraces,
-		MetricsGeneratorProcessorLocalBlocksMaxBlockDuration:                        c.MetricsGenerator.Processor.LocalBlocks.MaxBlockDuration,
-		MetricsGeneratorProcessorLocalBlocksMaxBlockBytes:                           c.MetricsGenerator.Processor.LocalBlocks.MaxBlockBytes,
-		MetricsGeneratorProcessorLocalBlocksFlushCheckPeriod:                        c.MetricsGenerator.Processor.LocalBlocks.FlushCheckPeriod,
-		MetricsGeneratorProcessorLocalBlocksTraceIdlePeriod:                         c.MetricsGenerator.Processor.LocalBlocks.TraceIdlePeriod,
-		MetricsGeneratorProcessorLocalBlocksCompleteBlockTimeout:                    c.MetricsGenerator.Processor.LocalBlocks.CompleteBlockTimeout,
 		MetricsGeneratorProcessorHostInfoHostIdentifiers:                            c.MetricsGenerator.Processor.HostInfo.HostIdentifiers,
 		MetricsGeneratorProcessorHostInfoMetricName:                                 c.MetricsGenerator.Processor.HostInfo.MetricName,
 		MetricsGeneratorIngestionSlack:                                              c.MetricsGenerator.IngestionSlack,
@@ -144,12 +138,6 @@ type LegacyOverrides struct {
 	MetricsGeneratorProcessorSpanMetricsTargetInfoExcludedDimensions            []string                         `yaml:"metrics_generator_processor_span_metrics_target_info_excluded_dimensions" json:"metrics_generator_processor_span_metrics_target_info_excluded_dimensions"`
 	MetricsGeneratorProcessorSpanMetricsEnableInstanceLabel                     *bool                            `yaml:"metrics_generator_processor_span_metrics_enable_instance_label" json:"metrics_generator_processor_span_metrics_enable_instance_label"`
 	MetricsGeneratorProcessorSpanMetricsSpanMultiplierKey                       string                           `yaml:"metrics_generator_processor_span_metrics_span_multiplier_key" json:"metrics_generator_processor_span_metrics_span_multiplier_key"`
-	MetricsGeneratorProcessorLocalBlocksMaxLiveTraces                           uint64                           `yaml:"metrics_generator_processor_local_blocks_max_live_traces" json:"metrics_generator_processor_local_blocks_max_live_traces"`
-	MetricsGeneratorProcessorLocalBlocksMaxBlockDuration                        time.Duration                    `yaml:"metrics_generator_processor_local_blocks_max_block_duration" json:"metrics_generator_processor_local_blocks_max_block_duration"`
-	MetricsGeneratorProcessorLocalBlocksMaxBlockBytes                           uint64                           `yaml:"metrics_generator_processor_local_blocks_max_block_bytes" json:"metrics_generator_processor_local_blocks_max_block_bytes"`
-	MetricsGeneratorProcessorLocalBlocksFlushCheckPeriod                        time.Duration                    `yaml:"metrics_generator_processor_local_blocks_flush_check_period" json:"metrics_generator_processor_local_blocks_flush_check_period"`
-	MetricsGeneratorProcessorLocalBlocksTraceIdlePeriod                         time.Duration                    `yaml:"metrics_generator_processor_local_blocks_trace_idle_period" json:"metrics_generator_processor_local_blocks_trace_idle_period"`
-	MetricsGeneratorProcessorLocalBlocksCompleteBlockTimeout                    time.Duration                    `yaml:"metrics_generator_processor_local_blocks_complete_block_timeout" json:"metrics_generator_processor_local_blocks_complete_block_timeout"`
 	MetricsGeneratorProcessorHostInfoHostIdentifiers                            []string                         `yaml:"metrics_generator_processor_host_info_host_identifiers" json:"metrics_generator_processor_host_info_host_identifiers"`
 	MetricsGeneratorProcessorHostInfoMetricName                                 string                           `yaml:"metrics_generator_processor_host_info_metric_name" json:"metrics_generator_processor_host_info_metric_name"`
 	MetricsGeneratorIngestionSlack                                              time.Duration                    `yaml:"metrics_generator_ingestion_time_range_slack" json:"metrics_generator_ingestion_time_range_slack,omitempty"`
@@ -241,14 +229,6 @@ func (l *LegacyOverrides) toNewLimits() Overrides {
 					TargetInfoExcludedDimensions: l.MetricsGeneratorProcessorSpanMetricsTargetInfoExcludedDimensions,
 					EnableInstanceLabel:          l.MetricsGeneratorProcessorSpanMetricsEnableInstanceLabel,
 					SpanMultiplierKey:            l.MetricsGeneratorProcessorSpanMetricsSpanMultiplierKey,
-				},
-				LocalBlocks: LocalBlocksOverrides{
-					MaxLiveTraces:        l.MetricsGeneratorProcessorLocalBlocksMaxLiveTraces,
-					MaxBlockDuration:     l.MetricsGeneratorProcessorLocalBlocksMaxBlockDuration,
-					MaxBlockBytes:        l.MetricsGeneratorProcessorLocalBlocksMaxBlockBytes,
-					FlushCheckPeriod:     l.MetricsGeneratorProcessorLocalBlocksFlushCheckPeriod,
-					TraceIdlePeriod:      l.MetricsGeneratorProcessorLocalBlocksTraceIdlePeriod,
-					CompleteBlockTimeout: l.MetricsGeneratorProcessorLocalBlocksCompleteBlockTimeout,
 				},
 				HostInfo: HostInfoOverrides{
 					HostIdentifiers: l.MetricsGeneratorProcessorHostInfoHostIdentifiers,

@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"path"
 	"sync"
 	"time"
 
@@ -24,11 +23,9 @@ import (
 	"google.golang.org/grpc/metadata"
 
 	"github.com/grafana/tempo/modules/generator/storage"
-	objStorage "github.com/grafana/tempo/modules/storage"
 	"github.com/grafana/tempo/pkg/ingest"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/validation"
-	tempodb_wal "github.com/grafana/tempo/tempodb/wal"
 )
 
 const (
@@ -73,8 +70,6 @@ type Generator struct {
 	subservices        *services.Manager
 	subservicesWatcher *services.FailureWatcher
 
-	store objStorage.Store
-
 	// When set to true, the generator will refuse incoming pushes
 	// and will flush any remaining metrics.
 	readOnly atomic.Bool
@@ -94,7 +89,7 @@ type Generator struct {
 }
 
 // New makes a new Generator.
-func New(cfg *Config, overrides metricsGeneratorOverrides, reg prometheus.Registerer, partitionRing ring.PartitionRingReader, store objStorage.Store, logger log.Logger) (*Generator, error) {
+func New(cfg *Config, overrides metricsGeneratorOverrides, reg prometheus.Registerer, partitionRing ring.PartitionRingReader, logger log.Logger) (*Generator, error) {
 	if cfg.Storage.Path == "" {
 		return nil, ErrUnconfigured
 	}
@@ -115,7 +110,6 @@ func New(cfg *Config, overrides metricsGeneratorOverrides, reg prometheus.Regist
 		instances:       map[string]*instance{},
 		failedInstances: map[string]time.Time{},
 
-		store:         store,
 		partitionRing: partitionRing,
 		reg:           reg,
 		logger:        logger,
@@ -349,32 +343,7 @@ func (g *Generator) createInstance(id string) (*instance, error) {
 		return nil, err
 	}
 
-	// Create traces wal if configured
-	var tracesWAL, tracesQueryWAL *tempodb_wal.WAL
-
-	if g.cfg.TracesWAL.Filepath != "" {
-		// Create separate wals per tenant by prefixing path with tenant ID
-		cfg := g.cfg.TracesWAL
-		cfg.Filepath = path.Join(cfg.Filepath, id)
-		tracesWAL, err = tempodb_wal.New(&cfg)
-		if err != nil {
-			_ = wal.Close()
-			return nil, err
-		}
-	}
-
-	if g.cfg.TracesQueryWAL.Filepath != "" {
-		// Create separate wals per tenant by prefixing path with tenant ID
-		cfg := g.cfg.TracesQueryWAL
-		cfg.Filepath = path.Join(cfg.Filepath, id)
-		tracesQueryWAL, err = tempodb_wal.New(&cfg)
-		if err != nil {
-			_ = wal.Close()
-			return nil, err
-		}
-	}
-
-	inst, err := newInstance(g.cfg, id, g.overrides, wal, g.logger, tracesWAL, tracesQueryWAL, g.store)
+	inst, err := newInstance(g.cfg, id, g.overrides, wal, g.logger)
 	if err != nil {
 		_ = wal.Close()
 		return nil, err
