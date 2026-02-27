@@ -273,7 +273,7 @@ func makeBackendBlockWithTracesWithDedicatedColumns(t *testing.T, trs []*Trace, 
 	meta.TotalObjects = 1
 	meta.DedicatedColumns = dc
 
-	s := newStreamingBlock(ctx, cfg, meta, r, w, tempo_io.NewBufferedWriter)
+	s, newMeta := newStreamingBlock(ctx, cfg, meta, r, w, tempo_io.NewBufferedWriter)
 
 	for i, tr := range trs {
 		err = s.Add(tr, 0, 0)
@@ -287,7 +287,7 @@ func makeBackendBlockWithTracesWithDedicatedColumns(t *testing.T, trs []*Trace, 
 	_, err = s.Complete()
 	require.NoError(t, err)
 
-	b := newBackendBlock(s.meta, r)
+	b := newBackendBlock(newMeta, r)
 
 	return b
 }
