@@ -821,6 +821,83 @@ func (s *span) attributesMatched() int {
 	return count
 }
 
+func (s *span) hasAtLeast(numAttributes int) bool {
+	count := 0
+	if s.startTimeUnixNanos != 0 {
+		count++
+		if count >= numAttributes {
+			return true
+		}
+	}
+	// don't count duration nanos b/c it is added to the attributes as well as the span struct
+	// if s.durationNanos != 0 {
+	// 	count++
+	// }
+	if len(s.id) > 0 {
+		count++
+		if count >= numAttributes {
+			return true
+		}
+	}
+	if s.nestedSetLeft > 0 || s.nestedSetRight > 0 || s.nestedSetParent != 0 { // nestedSetParent can be -1 meaning it is a root span
+		count++
+		if count >= numAttributes {
+			return true
+		}
+	}
+	// todo: attributesMatced is called a lot. we could cache this count on set
+	for _, st := range s.spanAttrs {
+		if st.s.Type != traceql.TypeNil {
+			count++
+			if count >= numAttributes {
+				return true
+			}
+		}
+	}
+	for _, st := range s.resourceAttrs {
+		if st.s.Type != traceql.TypeNil {
+			count++
+			if count >= numAttributes {
+				return true
+			}
+		}
+	}
+	for _, st := range s.traceAttrs {
+		if st.s.Type != traceql.TypeNil {
+			count++
+			if count >= numAttributes {
+				return true
+			}
+		}
+	}
+	for _, st := range s.eventAttrs {
+		if st.s.Type != traceql.TypeNil {
+			count++
+			if count >= numAttributes {
+				return true
+			}
+		}
+	}
+	for _, st := range s.linkAttrs {
+		if st.s.Type != traceql.TypeNil {
+			count++
+			if count >= numAttributes {
+				return true
+			}
+		}
+	}
+	for _, st := range s.instrumentationAttrs {
+		if st.s.Type != traceql.TypeNil {
+			count++
+			if count >= numAttributes {
+				return true
+			}
+		}
+	}
+
+	return false
+}
+
 // todo: this sync pool currently massively reduces allocations by pooling spans for certain queries.
 // it currently catches spans discarded:
 // - in the span collector
@@ -1434,39 +1511,6 @@ func (i *spansetIterator) Next(context.Context) (*traceql.Spanset, error) {
 
 func (i *spansetIterator) Close() {
 	i.iter.Close()
-}
-
-// mergeSpansetIterator iterates through a slice of spansetIterators exhausting them
-// in order
-type mergeSpansetIterator struct {
-	iters []traceql.SpansetIterator
-}
-
-var _ traceql.SpansetIterator = (*mergeSpansetIterator)(nil)
-
-func (i *mergeSpansetIterator) Next(ctx context.Context) (*traceql.Spanset, error) {
-	for len(i.iters) > 0 {
-		spanset, err := i.iters[0].Next(ctx)
-		if err != nil {
-			return nil, err
-		}
-		if spanset == nil {
-			// This iter is exhausted, pop it
-			i.iters[0].Close()
-			i.iters = i.iters[1:]
-			continue
-		}
-		return spanset, nil
-	}
-
-	return nil, nil
-}
-
-func (i *mergeSpansetIterator) Close() {
-	// Close any outstanding iters
-	for _, iter := range i.iters {
-		iter.Close()
-	}
 }
 
 // fetch is the core logic for executing the given conditions against the parquet columns. The algorithm

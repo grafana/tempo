@@ -979,9 +979,6 @@ func (e *Engine) CompileMetricsQueryRangeNonRaw(req *tempopb.QueryRangeRequest, 
 }
 
 // CompileMetricsQueryRange returns an evaluator that can be reused across multiple data sources.
-// Dedupe spans parameter is an indicator of whether to expected duplicates in the datasource. For
-// example if the datasource is replication factor=1 or only a single block then we know there
-// aren't duplicates, and we can make some optimizations.
 func (e *Engine) CompileMetricsQueryRange(req *tempopb.QueryRangeRequest, timeOverlapCutoff float64, allowUnsafeQueryHints bool) (*MetricsEvaluator, error) {
 	if req.Exemplars > maxExemplars {
 		level.Warn(log.Logger).Log("msg", "capping exemplars to safety limit", "requested", req.Exemplars, "cap", maxExemplars)
@@ -1005,6 +1002,8 @@ func (e *Engine) CompileMetricsQueryRange(req *tempopb.QueryRangeRequest, timeOv
 	if err != nil {
 		return nil, fmt.Errorf("compiling query: %w", err)
 	}
+
+	needsFullTrace := expr.NeedsFullTrace()
 
 	if metricsPipeline == nil {
 		return nil, fmt.Errorf("not a metrics query")
@@ -1068,7 +1067,12 @@ func (e *Engine) CompileMetricsQueryRange(req *tempopb.QueryRangeRequest, timeOv
 		metricsPipeline:   metricsPipeline,
 		timeOverlapCutoff: timeOverlapCutoff,
 		maxExemplars:      exemplars,
+		needsFullTrace:    needsFullTrace,
 		exemplarMap:       make(map[string]struct{}, exemplars), // TODO: Lazy, use bloom filter, CM sketch or something
+	}
+
+	if b, ok := expr.Hints.GetBool("new", true); ok {
+		me.newFetch = b
 	}
 
 	// If the request range is fully aligned to the step, then we can use lower
@@ -1119,13 +1123,15 @@ func (e *Engine) CompileMetricsQueryRange(req *tempopb.QueryRangeRequest, timeOv
 		storageReq.SecondPassConditions = append(storageReq.SecondPassConditions, meta...)
 	}
 	// Setup second pass callback.  It might be optimized away
+	ssBuf := make([]*Spanset, 1)
 	storageReq.SecondPass = func(s *Spanset) ([]*Spanset, error) {
 		// The traceql engine isn't thread-safe.
 		// But parallelization is required for good metrics performance.
 		// So we do external locking here.
 		me.mtx.Lock()
 		defer me.mtx.Unlock()
-		return eval([]*Spanset{s})
+		ssBuf[0] = s
+		return eval(ssBuf)
 	}
 
 	optimize(storageReq)
@@ -1231,6 +1237,8 @@ func lookup(needles []Attribute, haystack Span) Static {
 type MetricsEvaluator struct {
 	start, end                      uint64
 	checkTime                       bool
+	needsFullTrace                  bool
+	newFetch                        bool
 	maxExemplars, exemplarCount     int
 	exemplarMap                     map[string]struct{}
 	timeOverlapCutoff               float64
@@ -1238,6 +1246,10 @@ type MetricsEvaluator struct {
 	metricsPipeline                 firstStageElement
 	spansTotal, spansDeduped, bytes uint64
 	mtx                             sync.Mutex
+}
+
+func (e *MetricsEvaluator) FetchSpansRequest() FetchSpansRequest {
+	return *e.storageReq
 }
 
 func timeRangeOverlap(reqStart, reqEnd, dataStart, dataEnd uint64) float64 {
@@ -1255,6 +1267,17 @@ func timeRangeOverlap(reqStart, reqEnd, dataStart, dataEnd uint64) float64 {
 // uses the known time range of the data for last-minute optimizations. Time range is unix nanos
 
 func (e *MetricsEvaluator) Do(ctx context.Context, f SpansetFetcher, fetcherStart, fetcherEnd uint64, maxSeries int) error {
+	if !e.needsFullTrace && e.newFetch {
+		// The query can operate at a span level so attempt.
+		// This is faster. If not supported then fallback to spanset level.
+		err := e.DoSpansOnly(ctx, f, fetcherStart, fetcherEnd, maxSeries)
+		if !errors.Is(err, util.ErrUnsupported) {
+			// We ran successfully or some other error.
+			// In the case of unsupported, keep going and use original SpansetFetcher.
+			return err
+		}
+	}
+
 	// Make a copy of the request so we can modify it.
 	storageReq := *e.storageReq
 
@@ -1351,6 +1374,102 @@ func (e *MetricsEvaluator) Do(ctx context.Context, f SpansetFetcher, fetcherStar
 		ss.Release()
 
 		if maxSeries > 0 && seriesCount >= maxSeries {
+			break
+		}
+	}
+
+	e.mtx.Lock()
+	defer e.mtx.Unlock()
+	e.bytes += fetch.Bytes()
+
+	return nil
+}
+
+// DoSpansOnly is the same as Do but using the new span-only fetch layer.
+func (e *MetricsEvaluator) DoSpansOnly(ctx context.Context, f SpansetFetcher, fetcherStart, fetcherEnd uint64, maxSeries int) error {
+	// Make a copy of the request so we can modify it.
+	storageReq := *e.storageReq
+
+	if fetcherStart > 0 && fetcherEnd > 0 &&
+		// exclude special case for a block with the same start and end
+		fetcherStart != fetcherEnd {
+		// Dynamically decide whether to use the trace-level timestamp columns
+		// for filtering.
+		overlap := timeRangeOverlap(e.start, e.end, fetcherStart, fetcherEnd)
+
+		if overlap == 0.0 {
+			// This shouldn't happen but might as well check.
+			// No overlap == nothing to do
+			return nil
+		}
+
+		// Our heuristic is if the overlap between the given fetcher (i.e. block)
+		// and the request is less than X%, use them.  Above X%, the cost of loading
+		// them doesn't outweight the benefits. The default 20% was measured in
+		// local benchmarking.
+		if overlap < e.timeOverlapCutoff {
+			storageReq.StartTimeUnixNanos = e.start
+			storageReq.EndTimeUnixNanos = e.end // Should this be exclusive?
+		}
+	}
+
+	fetch, err := f.FetchSpans(ctx, storageReq)
+	if err != nil {
+		return err
+	}
+
+	defer fetch.Results.Close()
+
+	for {
+		done, err := func() (done bool, err error) {
+			s, err := fetch.Results.Next(ctx)
+			if err != nil {
+				return true, err
+			}
+			if s == nil {
+				return true, nil
+			}
+
+			// Acquire lock while doing engine work. It is
+			// not locked above while doing storage work.
+			// TODO(mdisibio): Removed batching so that the mutex lock is not held during
+			// storage work and allows the secondPass callback to be called. However this
+			// represents ~20% performance loss, so we need to re-add batching.
+			e.mtx.Lock()
+			defer e.mtx.Unlock()
+
+			if e.checkTime {
+				st := s.StartTimeUnixNanos()
+				if st <= e.start || st > e.end {
+					return false, nil
+				}
+			}
+
+			if e.storageReq.SpanSampler != nil {
+				e.storageReq.SpanSampler.Measured()
+			}
+
+			e.metricsPipeline.observe(s)
+			e.spansTotal++
+
+			if e.maxExemplars > 0 && e.exemplarCount < e.maxExemplars {
+				traceID, ok := s.AttributeFor(IntrinsicTraceIDAttribute)
+				if ok {
+					if e.sampleExemplar(traceID.valBytes) {
+						e.metricsPipeline.observeExemplar(s)
+					}
+				}
+			}
+
+			if maxSeries > 0 && e.metricsPipeline.length() >= maxSeries {
+				return true, nil
+			}
+			return
+		}()
+		if err != nil {
+			return err
+		}
+		if done {
 			break
 		}
 	}

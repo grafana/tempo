@@ -88,7 +88,11 @@ func TestVirtualRowNumberIterator_SeekTo(t *testing.T) {
 		{ResourceSpans: []ResourceSpans{{ScopeSpans: []ScopeSpans{{SpanCount: 3, Spans: make([]Span, 3)}}}}},
 		{ResourceSpans: []ResourceSpans{{ScopeSpans: []ScopeSpans{{SpanCount: 0, Spans: make([]Span, 0)}}}}},
 		{ResourceSpans: []ResourceSpans{{ScopeSpans: []ScopeSpans{{SpanCount: 1, Spans: make([]Span, 1)}}}}},
-		{ResourceSpans: []ResourceSpans{{ScopeSpans: []ScopeSpans{{SpanCount: 4, Spans: make([]Span, 4)}, {SpanCount: 5, Spans: make([]Span, 5)}, {SpanCount: 6, Spans: make([]Span, 6)}}}}},
+		{ResourceSpans: []ResourceSpans{{ScopeSpans: []ScopeSpans{
+			{SpanCount: 4, Spans: make([]Span, 4)},
+			{SpanCount: 5, Spans: make([]Span, 5)},
+			{SpanCount: 6, Spans: make([]Span, 6)},
+		}}}},
 	}
 	seekPositions := []struct {
 		seekRow      pq.RowNumber
@@ -144,19 +148,19 @@ func TestVirtualRowNumberIterator_SeekTo(t *testing.T) {
 	for _, seekPos := range seekPositions {
 		res, err := iter.SeekTo(seekPos.seekRow, seekPos.seekLevel)
 		require.NoError(t, err)
-		require.Equal(t, seekPos.expectedRow, res.RowNumber)
+		require.Equal(t, seekPos.expectedRow, res.RowNumber, "virtual iter")
 
 		exp, err := expectIter.SeekTo(seekPos.seekRow, seekPos.seekLevel)
 		require.NoError(t, err)
-		require.Equal(t, exp.RowNumber, res.RowNumber)
+		require.Equal(t, exp.RowNumber, res.RowNumber, "real iter")
 
 		res, err = iter.Next()
 		require.NoError(t, err)
-		require.Equal(t, seekPos.expectedNext, res.RowNumber)
+		require.Equal(t, seekPos.expectedNext, res.RowNumber, "virtual iter")
 
 		exp, err = expectIter.Next()
 		require.NoError(t, err)
-		require.Equal(t, exp.RowNumber, res.RowNumber)
+		require.Equal(t, exp.RowNumber, res.RowNumber, "real iter")
 	}
 }
 

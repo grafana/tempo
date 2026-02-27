@@ -8,6 +8,8 @@ import (
 	"sync"
 
 	"github.com/google/uuid"
+	"github.com/grafana/tempo/pkg/traceql"
+	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 	"go.opentelemetry.io/otel"
@@ -74,4 +76,8 @@ func (b *backendBlock) Validate(ctx context.Context) error {
 	}
 
 	return nil
+}
+
+func (b *backendBlock) FetchSpans(_ context.Context, _ traceql.FetchSpansRequest, _ common.SearchOptions) (traceql.FetchSpansOnlyResponse, error) {
+	return traceql.FetchSpansOnlyResponse{}, util.ErrUnsupported
 }

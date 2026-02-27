@@ -4,6 +4,7 @@ import (
 	"context"
 	"sync"
 
+	"github.com/grafana/tempo/pkg/traceql"
 	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding/common"
@@ -38,4 +39,8 @@ func (b *backendBlock) BlockMeta() *backend.BlockMeta {
 
 func (b *backendBlock) Validate(context.Context) error {
 	return util.ErrUnsupported
+}
+
+func (b *backendBlock) FetchSpans(_ context.Context, _ traceql.FetchSpansRequest, _ common.SearchOptions) (traceql.FetchSpansOnlyResponse, error) {
+	return traceql.FetchSpansOnlyResponse{}, util.ErrUnsupported
 }

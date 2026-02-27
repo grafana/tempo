@@ -338,11 +338,16 @@ func BenchmarkWalTraceQL(b *testing.B) {
 	require.NoError(b, err)
 	require.NoError(b, warn)
 
+	fetcher := traceql.NewSpansetFetcherWrapper(func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
+		return w.Fetch(ctx, req, common.DefaultSearchOptions())
+	})
+	require.NoError(b, err)
+
 	for _, q := range reqs {
 		req := traceql.MustExtractFetchSpansRequestWithMetadata(q)
 		b.Run(q, func(b *testing.B) {
 			for i := 0; i < b.N; i++ {
-				resp, err := w.Fetch(context.TODO(), req, common.DefaultSearchOptions())
+				resp, err := fetcher.Fetch(context.TODO(), req)
 				require.NoError(b, err)
 
 				for {
