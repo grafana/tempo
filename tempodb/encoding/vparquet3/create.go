@@ -35,7 +35,7 @@ func (b *backendWriter) Close() error {
 }
 
 func CreateBlock(ctx context.Context, cfg *common.BlockConfig, meta *backend.BlockMeta, i common.Iterator, r backend.Reader, to backend.Writer) (*backend.BlockMeta, error) {
-	s := newStreamingBlock(ctx, cfg, meta, r, to, tempo_io.NewBufferedWriter)
+	s, newMeta := newStreamingBlock(ctx, cfg, meta, r, to, tempo_io.NewBufferedWriter)
 
 	var next func(context.Context) (common.ID, parquet.Row, error)
 
@@ -55,7 +55,7 @@ func CreateBlock(ctx context.Context, cfg *common.BlockConfig, meta *backend.Blo
 			// Copy ID to allow it to escape the iterator.
 			id = append([]byte(nil), id...)
 
-			trp, _ = traceToParquet(meta, id, tr, trp) // this logic only executes when we are transitioning from one block version to another. just ignore connected here
+			trp, _ = traceToParquet(newMeta, id, tr, trp) // this logic only executes when we are transitioning from one block version to another. just ignore connected here
 
 			row := sch.Deconstruct(completeBlockRowPool.Get(), trp)
 
@@ -88,7 +88,7 @@ func CreateBlock(ctx context.Context, cfg *common.BlockConfig, meta *backend.Blo
 		return nil, err
 	}
 
-	return s.meta, nil
+	return newMeta, nil
 }
 
 type streamingBlock struct {
@@ -108,7 +108,7 @@ type streamingBlock struct {
 	currentBufferedBytes  int
 }
 
-func newStreamingBlock(ctx context.Context, cfg *common.BlockConfig, meta *backend.BlockMeta, r backend.Reader, to backend.Writer, createBufferedWriter func(w io.Writer) tempo_io.BufferedWriteFlusher) *streamingBlock {
+func newStreamingBlock(ctx context.Context, cfg *common.BlockConfig, meta *backend.BlockMeta, r backend.Reader, to backend.Writer, createBufferedWriter func(w io.Writer) tempo_io.BufferedWriteFlusher) (*streamingBlock, *backend.BlockMeta) {
 	newMeta := backend.NewBlockMeta(meta.TenantID, (uuid.UUID)(meta.BlockID), VersionString)
 	newMeta.StartTime = meta.StartTime
 	newMeta.EndTime = meta.EndTime
@@ -136,7 +136,7 @@ func newStreamingBlock(ctx context.Context, cfg *common.BlockConfig, meta *backe
 		index: &index{},
 
 		withNoCompactFlag: cfg.CreateWithNoCompactFlag,
-	}
+	}, newMeta
 }
 
 func (b *streamingBlock) Add(tr *Trace, start, end uint32) error {
