@@ -63,9 +63,9 @@ var (
 		Name:      "compaction_outstanding_blocks",
 		Help:      "Number of blocks remaining to be compacted before next maintenance cycle",
 	}, []string{"tenant"})
-	metricDedupedSpans = promauto.NewGaugeVec(prometheus.GaugeOpts{
+	metricDedupedSpans = promauto.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "tempodb",
-		Name:      "compaction_spans_combined_total",
+		Name:      "compaction_deduped_spans_total",
 		Help:      "Number of spans that are deduped per replication factor.",
 	}, []string{"replication_factor"})
 

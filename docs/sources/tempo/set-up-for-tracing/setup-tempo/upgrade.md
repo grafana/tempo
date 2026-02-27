@@ -27,6 +27,18 @@ For detailed information about any release, refer to the [Release notes](https:/
 You can check your configuration options using the [`status` API endpoint](https://grafana.com/docs/tempo/<TEMPO_VERSION>/api_docs/#status) in your Tempo installation.
 {{< /admonition >}}
 
+## Upcoming metric changes
+
+### Compactor deduped spans metric renamed
+
+The compactor deduped spans metric has been renamed and its type corrected:
+
+- Removed: `tempodb_compaction_spans_combined_total` (gauge)
+- Added: `tempodb_compaction_deduped_spans_total` (counter)
+
+Update dashboards, alerts, and recording rules to use the new metric name.
+There is no dual-emission compatibility period for this change.
+
 ## Upgrade to Tempo 2.10
 
 When upgrading to Tempo 2.10, be aware of these considerations and breaking changes.

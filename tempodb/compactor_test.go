@@ -504,6 +504,89 @@ func TestCompactionMetrics(t *testing.T) {
 	assert.Greater(t, bytesEnd, bytesStart) // calculating the exact bytes requires knowledge of the bytes as written in the blocks.  just make sure it goes up
 }
 
+func TestCompactionDedupedSpansMetric(t *testing.T) {
+	tempDir := t.TempDir()
+
+	r, w, c, err := New(&Config{
+		Backend: backend.Local,
+		Pool: &pool.Config{
+			MaxWorkers: 10,
+			QueueDepth: 100,
+		},
+		Local: &local.Config{
+			Path: path.Join(tempDir, "traces"),
+		},
+		Block: &common.BlockConfig{
+			BloomFP:             .01,
+			BloomShardSizeBytes: 100_000,
+			Version:             encoding.DefaultEncoding().Version(),
+		},
+		WAL: &wal.Config{
+			Filepath: path.Join(tempDir, "wal"),
+		},
+		BlocklistPoll: 0,
+	}, nil, log.NewNopLogger())
+	require.NoError(t, err)
+
+	ctx := context.Background()
+	err = c.EnableCompaction(ctx, &CompactorConfig{
+		MaxCompactionRange:      24 * time.Hour,
+		BlockRetention:          0,
+		CompactedBlockRetention: 0,
+	}, &mockSharder{}, &mockOverrides{})
+	require.NoError(t, err)
+
+	r.EnablePolling(ctx, &mockJobSharder{}, true)
+
+	wal := w.WAL()
+	dec := model.MustNewSegmentDecoder(v1.Encoding)
+
+	headA, err := wal.NewBlock(&backend.BlockMeta{BlockID: backend.NewUUID(), TenantID: testTenantID}, v1.Encoding)
+	require.NoError(t, err)
+	headB, err := wal.NewBlock(&backend.BlockMeta{BlockID: backend.NewUUID(), TenantID: testTenantID}, v1.Encoding)
+	require.NoError(t, err)
+
+	for i := 0; i < 20; i++ {
+		id := test.ValidTraceID(nil)
+
+		traceA := test.MakeTrace(1, id)
+		traceB := proto.Clone(traceA).(*tempopb.Trace)
+		traceB.ResourceSpans[0].ScopeSpans[0].Spans[0].Status.Message = fmt.Sprintf("dedupe-%d", i)
+
+		buffA, err := dec.PrepareForWrite(traceA, 0, 0)
+		require.NoError(t, err)
+		objA, err := dec.ToObject([][]byte{buffA})
+		require.NoError(t, err)
+
+		buffB, err := dec.PrepareForWrite(traceB, 0, 0)
+		require.NoError(t, err)
+		objB, err := dec.ToObject([][]byte{buffB})
+		require.NoError(t, err)
+
+		require.NoError(t, headA.Append(id, objA, 0, 0, true))
+		require.NoError(t, headB.Append(id, objB, 0, 0, true))
+	}
+
+	_, err = w.CompleteBlock(ctx, headA)
+	require.NoError(t, err)
+	_, err = w.CompleteBlock(ctx, headB)
+	require.NoError(t, err)
+
+	rw := r.(*readerWriter)
+	rw.pollBlocklist(ctx)
+	require.Len(t, rw.blocklist.Metas(testTenantID), 2)
+
+	dedupedStart, err := test.GetCounterVecValue(metricDedupedSpans, "0")
+	require.NoError(t, err)
+
+	err = rw.compactOneJob(ctx, rw.blocklist.Metas(testTenantID), testTenantID)
+	require.NoError(t, err)
+
+	dedupedEnd, err := test.GetCounterVecValue(metricDedupedSpans, "0")
+	require.NoError(t, err)
+	require.Greater(t, dedupedEnd-dedupedStart, float64(0))
+}
+
 func TestCompactionIteratesThroughTenants(t *testing.T) {
 	tempDir := t.TempDir()
 

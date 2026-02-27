@@ -36,6 +36,7 @@
 * [BUGFIX] fix: live store honor the config options for block and WAL versions [#6509](https://github.com/grafana/tempo/pull/6509) (@mdisibio)
 * [BUGFIX] fix: block builder honor the global storage block config for block and WAL versions [#6451](https://github.com/grafana/tempo/issues/6451) (@Harry-kp)
 * [BUGFIX] fix: normalize allowlist headers when building the allowlist map [#6481](https://github.com/grafana/tempo/pull/6481) (@javiermolinar)
+* [CHANGE] **BREAKING CHANGE** Rename compactor deduped spans metric from `tempodb_compaction_spans_combined_total` (gauge) to `tempodb_compaction_deduped_spans_total` (counter). [#6558](https://github.com/grafana/tempo/issues/6558)
 
 ### 3.0 Cleanup
 
