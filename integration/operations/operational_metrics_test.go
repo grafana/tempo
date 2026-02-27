@@ -63,6 +63,8 @@ func TestWriteMetrics(t *testing.T) {
 		blockbuilder := h.Services[util.ServiceBlockBuilder]
 		assertMetricEquals(t, blockbuilder, "tempo_block_builder_flushed_blocks", float64(1), nil)
 		assertMetricEquals(t, blockbuilder, "tempo_block_builder_owned_partitions", float64(1), nil)
+		assertMetricGreater(t, blockbuilder, "tempo_block_builder_queue_fetch_records_total", float64(0), nil)
+		assertMetricGreater(t, blockbuilder, "tempo_block_builder_queue_fetch_bytes_total", float64(0), nil)
 	})
 }
 

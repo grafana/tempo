@@ -16,7 +16,7 @@ dashboard_utils {
           ) +
           $.queryPanel(
             [
-              'sum (rate(tempo_block_builder_fetch_records_total{%(job)s}[$__rate_interval]))' % { job: $.jobMatcher($._config.jobs.block_builder) },
+              'sum (rate(tempo_block_builder_queue_fetch_records_total{%(job)s}[$__rate_interval]))' % { job: $.jobMatcher($._config.jobs.block_builder) },
               'sum (rate(tempo_block_builder_fetch_errors_total{%(job)s}[$__rate_interval]))' % { job: $.jobMatcher($._config.jobs.block_builder) },
             ],
             ['sucessful', 'read errors']
@@ -31,7 +31,7 @@ dashboard_utils {
             'Overview of per-second rate of records fetched from Kafka split by pods.',
           ) +
           $.queryPanel(
-            'sum by (pod) (rate(tempo_block_builder_fetch_records_total{%(job)s}[$__rate_interval]))' % { job: $.jobMatcher($._config.jobs.block_builder) },
+            'sum by (pod) (rate(tempo_block_builder_queue_fetch_records_total{%(job)s}[$__rate_interval]))' % { job: $.jobMatcher($._config.jobs.block_builder) },
             '{{pod}}'
           ) +
           $.stack
@@ -45,7 +45,7 @@ dashboard_utils {
             'Overview of per-second rate of records fetched from Kafka split by partition.',
           ) +
           $.queryPanel(
-            'sum by (partition) (rate(tempo_block_builder_fetch_records_total{%(job)s}[$__rate_interval]))' % { job: $.jobMatcher($._config.jobs.block_builder) },
+            'sum by (partition) (rate(tempo_block_builder_queue_fetch_records_total{%(job)s}[$__rate_interval]))' % { job: $.jobMatcher($._config.jobs.block_builder) },
             '{{partition}}'
           ) +
           $.stack
@@ -62,7 +62,7 @@ dashboard_utils {
             'Overview of per-second rate of bytes readed from Kafka.',
           ) +
           $.queryPanel(
-            'sum (rate(tempo_block_builder_fetch_bytes_total{%(job)s}[$__rate_interval]))' % { job: $.jobMatcher($._config.jobs.block_builder) }, 'readed'
+            'sum (rate(tempo_block_builder_queue_fetch_bytes_total{%(job)s}[$__rate_interval]))' % { job: $.jobMatcher($._config.jobs.block_builder) }, 'readed'
 
           ) {
             yaxes: $.yaxes('binBps'),
@@ -78,7 +78,7 @@ dashboard_utils {
             'Overview of per-second rate of bytes readed from Kafka split by pods.',
           ) +
           $.queryPanel(
-            'sum by (pod) (rate(tempo_block_builder_fetch_bytes_total{%(job)s}[$__rate_interval]))' % { job: $.jobMatcher($._config.jobs.block_builder) },
+            'sum by (pod) (rate(tempo_block_builder_queue_fetch_bytes_total{%(job)s}[$__rate_interval]))' % { job: $.jobMatcher($._config.jobs.block_builder) },
             '{{pod}}'
           ) {
             yaxes: $.yaxes('binBps'),
@@ -94,7 +94,7 @@ dashboard_utils {
             'Overview of per-second rate of bytes readed from Kafka split by partition.',
           ) +
           $.queryPanel(
-            'sum by (partition) (rate(tempo_block_builder_fetch_bytes_total{%(job)s}[$__rate_interval]))' % { job: $.jobMatcher($._config.jobs.block_builder) },
+            'sum by (partition) (rate(tempo_block_builder_queue_fetch_bytes_total{%(job)s}[$__rate_interval]))' % { job: $.jobMatcher($._config.jobs.block_builder) },
             '{{partition}}'
           ) {
             yaxes: $.yaxes('binBps'),
