@@ -124,7 +124,7 @@ func (q *Querier) queryBlock(ctx context.Context, req *tempopb.QueryRangeRequest
 	}
 
 	response := &tempopb.QueryRangeResponse{
-		Series: res.ToProto(req),
+		Series: res.ToProto(req, false),
 		Metrics: &tempopb.SearchMetrics{
 			InspectedBytes: inspectedBytes,
 			InspectedSpans: spansTotal,

@@ -369,7 +369,7 @@ func (q *QueryRangeCombiner) Combine(resp *tempopb.QueryRangeResponse) {
 
 func (q *QueryRangeCombiner) Response() *tempopb.QueryRangeResponse {
 	response := &tempopb.QueryRangeResponse{
-		Series:  q.eval.Results().ToProto(q.req),
+		Series:  q.eval.Results().ToProto(q.req, true),
 		Metrics: q.metrics,
 	}
 	if q.maxSeriesReached {

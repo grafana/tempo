@@ -721,11 +721,11 @@ func (i *instance) QueryRange(ctx context.Context, req *tempopb.QueryRangeReques
 	}
 
 	// Combine the raw results into the job results
-	walResults := rawEval.Results().ToProto(req)
+	walResults := rawEval.Results().ToProto(req, false)
 	jobEval.ObserveSeries(walResults)
 
 	r := jobEval.Results()
-	rr := r.ToProto(req)
+	rr := r.ToProto(req, false)
 
 	if maxSeriesReached.Load() {
 		return &tempopb.QueryRangeResponse{
@@ -796,7 +796,7 @@ func (i *instance) queryRangeCompleteBlock(ctx context.Context, b *ingester.Loca
 		return nil, err
 	}
 
-	results := eval.Results().ToProto(&req)
+	results := eval.Results().ToProto(&req, false)
 
 	if name != "" {
 		err = i.queryRangeCacheSet(ctx, m, name, &tempopb.QueryRangeResponse{

@@ -566,11 +566,11 @@ func (i *instance) QueryRange(ctx context.Context, req *tempopb.QueryRangeReques
 		}
 	}
 	// Combine the raw results into the job results
-	walResults := rawEval.Results().ToProto(req)
+	walResults := rawEval.Results().ToProto(req, false)
 	jobEval.ObserveSeries(walResults)
 
 	r := jobEval.Results()
-	rr := r.ToProto(req)
+	rr := r.ToProto(req, false)
 
 	maxSeries := int(req.MaxSeries)
 	if maxSeries > 0 && len(rr) > maxSeries {
