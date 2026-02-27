@@ -114,7 +114,19 @@ func (l *LocalSeriesLimiter) OnUpdate(uint64, uint32) {
 	// No-op, we rely on OnDelete to clean up the series
 }
 
-func (l *LocalSeriesLimiter) OnDelete(_ uint64, seriesCount uint32) {
+func (l *LocalSeriesLimiter) OnDelete(hash uint64, seriesCount uint32) {
+	// Overflow series are never counted in activeSeries, so deleting them must
+	// not decrement the active series counter.
+	if hash == l.overflowEntityHash {
+		return
+	}
+
+	activeSeries := l.activeSeries.Load()
+	// Clamp delete count to avoid uint32 underflow if we receive a mismatched delete.
+	if seriesCount > activeSeries {
+		seriesCount = activeSeries
+	}
+
 	l.activeSeries.Sub(seriesCount)
 	l.metricActiveSeries.Set(float64(l.activeSeries.Load()))
 	l.metricTotalSeriesRemoved.Add(float64(seriesCount))
