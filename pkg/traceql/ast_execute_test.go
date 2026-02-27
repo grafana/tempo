@@ -2223,3 +2223,50 @@ func TestNotParentWithEmptyLHS(t *testing.T) {
 	expected := NewStaticString("list-articles")
 	require.True(t, nameStatic.Equals(&expected))
 }
+
+func TestDivisionByZero(t *testing.T) {
+	testCases := []struct {
+		query string
+		input []*Spanset
+	}{
+		// Integer division by zero
+		{
+			"{ 5 / 0 = 1 }",
+			[]*Spanset{{Spans: []Span{&mockSpan{id: []byte{1}}}}},
+		},
+		// Integer modulo by zero
+		{
+			"{ 5 % 0 = 1 }",
+			[]*Spanset{{Spans: []Span{&mockSpan{id: []byte{1}}}}},
+		},
+		// Float division by zero
+		{
+			"{ 5.0 / 0.0 = 1.0 }",
+			[]*Spanset{{Spans: []Span{&mockSpan{id: []byte{1}}}}},
+		},
+		// Float modulo by zero
+		{
+			"{ 5.0 % 0.0 = 1.0 }",
+			[]*Spanset{{Spans: []Span{&mockSpan{id: []byte{1}}}}},
+		},
+		// Attribute divided by zero
+		{
+			"{ .foo / 0 = 1 }",
+			[]*Spanset{{Spans: []Span{
+				&mockSpan{id: []byte{1}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticInt(5)}},
+			}}},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.query, func(t *testing.T) {
+			ast, err := Parse(tc.query)
+			require.NoError(t, err)
+
+			require.NotPanics(t, func() {
+				_, err = ast.Pipeline.evaluate(tc.input)
+			})
+			require.Error(t, err)
+		})
+	}
+}
