@@ -5,7 +5,9 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"sync"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/go-kit/log"
@@ -125,41 +127,81 @@ func Test_LeaderElectionWithBrokenSeedFile(t *testing.T) {
 }
 
 func Test_ReportLoop(t *testing.T) {
-	// stub
-	reportCheckInterval = 100 * time.Millisecond
-	reportInterval = time.Second
-	stabilityCheckInterval = 100 * time.Millisecond
+	origReportCheckInterval := reportCheckInterval
+	origReportInterval := reportInterval
+	origStabilityCheckInterval := stabilityCheckInterval
+	origStabilityMinimumRequired := stabilityMinimumRequired
+	origUsageStatsURL := usageStatsURL
+	defer func() {
+		reportCheckInterval = origReportCheckInterval
+		reportInterval = origReportInterval
+		stabilityCheckInterval = origStabilityCheckInterval
+		stabilityMinimumRequired = origStabilityMinimumRequired
+		usageStatsURL = origUsageStatsURL
+	}()
 
-	totalReport := 0
-	clusterIDs := []string{}
+	reportCheckInterval = 10 * time.Millisecond
+	reportInterval = 50 * time.Millisecond
+	stabilityCheckInterval = 10 * time.Millisecond
+	stabilityMinimumRequired = 1
+
+	const targetReports = 5
+	var (
+		mtx         sync.Mutex
+		totalReport int
+		clusterIDs  []string
+	)
+	reportsDone := make(chan struct{})
 	server := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 		var received Report
-		totalReport++
 		require.NoError(t, jsoniter.NewDecoder(r.Body).Decode(&received))
+
+		mtx.Lock()
+		totalReport++
 		clusterIDs = append(clusterIDs, received.ClusterID)
+		shouldClose := totalReport >= targetReports
+		mtx.Unlock()
+
+		if shouldClose {
+			select {
+			case <-reportsDone:
+			default:
+				close(reportsDone)
+			}
+		}
+
 		rw.WriteHeader(http.StatusOK)
 	}))
+	defer server.Close()
 	usageStatsURL = server.URL
 
 	objectClient, err := local.NewBackend(&local.Config{
 		Path: t.TempDir(),
 	})
-
 	require.NoError(t, err)
 
 	r, err := NewReporter(Config{Leader: true, Enabled: true}, kv.Config{
 		Store: "inmemory",
 	}, objectClient, objectClient, log.NewNopLogger(), prometheus.NewPedanticRegistry())
 	require.NoError(t, err)
+
 	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 	r.initLeader(ctx)
 
 	go func() {
-		<-time.After(6*time.Second + (stabilityCheckInterval * time.Duration(stabilityMinimumRequired+1)))
+		select {
+		case <-reportsDone:
+		case <-time.After(2 * time.Second):
+		}
 		cancel()
 	}()
-	require.Equal(t, nil, r.running(ctx))
-	require.GreaterOrEqual(t, totalReport, 5)
+
+	require.NoError(t, r.running(ctx))
+
+	mtx.Lock()
+	defer mtx.Unlock()
+	require.GreaterOrEqual(t, totalReport, targetReports)
 	first := clusterIDs[0]
 	for _, uid := range clusterIDs {
 		require.Equal(t, first, uid)
@@ -203,19 +245,21 @@ func Test_NextReport(t *testing.T) {
 }
 
 func TestWrongKV(t *testing.T) {
-	objectClient, err := local.NewBackend(&local.Config{
-		Path: t.TempDir(),
-	})
-	require.NoError(t, err)
+	synctest.Test(t, func(t *testing.T) {
+		objectClient, err := local.NewBackend(&local.Config{
+			Path: t.TempDir(),
+		})
+		require.NoError(t, err)
 
-	r, err := NewReporter(Config{Leader: true, Enabled: true}, kv.Config{
-		Store: "",
-	}, objectClient, objectClient, log.NewNopLogger(), prometheus.NewPedanticRegistry())
-	require.NoError(t, err)
-	ctx, cancel := context.WithCancel(context.Background())
-	go func() {
-		<-time.After(1 * time.Second)
-		cancel()
-	}()
-	require.Equal(t, context.Canceled, r.running(ctx))
+		r, err := NewReporter(Config{Leader: true, Enabled: true}, kv.Config{
+			Store: "",
+		}, objectClient, objectClient, log.NewNopLogger(), prometheus.NewPedanticRegistry())
+		require.NoError(t, err)
+		ctx, cancel := context.WithCancel(context.Background())
+		go func() {
+			<-time.After(1 * time.Second)
+			cancel()
+		}()
+		require.Equal(t, context.Canceled, r.running(ctx))
+	})
 }
