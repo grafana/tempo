@@ -7,6 +7,8 @@ import (
 	"unsafe"
 )
 
+const staticNilStr = "nil"
+
 func (r RootExpr) String() string {
 	s := strings.Builder{}
 	s.WriteString(r.Pipeline.String())
@@ -88,7 +90,7 @@ func (s Static) String() string {
 func (s Static) EncodeToString(quotes bool) string {
 	switch s.Type {
 	case TypeNil:
-		return "nil"
+		return staticNilStr
 	case TypeInt:
 		i, _ := s.Int()
 		return strconv.Itoa(i)

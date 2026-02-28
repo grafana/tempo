@@ -329,17 +329,18 @@ func TestInstanceLimits(t *testing.T) {
 
 			for j, push := range tt.pushes {
 				response := i.PushBytesRequest(context.Background(), push.req)
-				if push.expectsError && push.errorReason == traceTooLarge {
+				switch {
+				case push.expectsError && push.errorReason == traceTooLarge:
 					errored, maxLiveCount, traceTooLargeCount := CheckPushBytesError(response)
 					require.True(t, errored)
 					require.Zero(t, maxLiveCount, "push %d failed: %w", j, err)
 					require.NotZero(t, traceTooLargeCount, "push %d failed: %w", j, err)
-				} else if push.expectsError && push.errorReason == maxLiveTraces {
+				case push.expectsError && push.errorReason == maxLiveTraces:
 					errored, maxLiveCount, traceTooLargeCount := CheckPushBytesError(response)
 					require.True(t, errored)
 					require.NotZero(t, maxLiveCount, "push %d failed: %w", j, err)
 					require.Zero(t, traceTooLargeCount, "push %d failed: %w", j, err)
-				} else {
+				default:
 					errored, _, _ := CheckPushBytesError(response)
 					require.False(t, errored, "push %d failed: %w", j, err)
 				}

@@ -92,7 +92,7 @@ func TestMultiTenancyMiddleware(t *testing.T) {
 
 	t.Run("returns error if org id cannot be extracted", func(t *testing.T) {
 		// no need to assert anything, because the wrapped function is never called
-		consumer := newAssertingConsumer(t, func(t *testing.T, ctx context.Context) {})
+		consumer := newAssertingConsumer(t, func(_ *testing.T, _ context.Context) {})
 		ctx := context.Background()
 		require.EqualError(t, m.Wrap(consumer).ConsumeTraces(ctx, ptrace.Traces{}), "no org id")
 	})

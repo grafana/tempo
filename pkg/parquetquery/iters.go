@@ -822,12 +822,12 @@ func (c *SyncIterator) next() (RowNumber, *pq.Value, error) {
 	}
 }
 
-func (c *SyncIterator) setRowGroup(rg pq.RowGroup, min, max RowNumber, cc *ColumnChunkHelper) {
+func (c *SyncIterator) setRowGroup(rg pq.RowGroup, minRN, maxRN RowNumber, cc *ColumnChunkHelper) {
 	c.closeCurrRowGroup()
-	c.curr = min
+	c.curr = minRN
 	c.currRowGroup = rg
-	c.currRowGroupMin = min
-	c.currRowGroupMax = max
+	c.currRowGroupMin = minRN
+	c.currRowGroupMax = maxRN
 	c.currChunk = cc
 }
 

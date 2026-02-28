@@ -306,8 +306,7 @@ func (a Attribute) validate() error {
 	if a.Parent {
 		return newUnsupportedError("parent")
 	}
-	switch a.Intrinsic {
-	case IntrinsicParent:
+	if a.Intrinsic == IntrinsicParent {
 		return newUnsupportedError(fmt.Sprintf("intrinsic (%v)", a.Intrinsic))
 	}
 

@@ -422,7 +422,7 @@ func (p *Poller) pollUnknown(
 			defer bg.Done()
 
 			if p.cfg.PollJitterMs > 0 {
-				time.Sleep(time.Duration(rand.Intn(p.cfg.PollJitterMs)) * time.Millisecond)
+				time.Sleep(time.Duration(rand.Intn(p.cfg.PollJitterMs)) * time.Millisecond) // #nosec G404
 			}
 
 			m, cm, pollBlockErr := p.pollBlock(derivedCtx, tenantID, id, compacted)

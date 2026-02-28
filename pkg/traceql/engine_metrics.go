@@ -290,7 +290,7 @@ func (ls Labels) String() string {
 		case TypeString:
 			s := l.Value.EncodeToString(false)
 			switch s {
-			case "nil":
+			case staticNilStr:
 				promValue = "<nil>"
 			case "":
 				promValue = "<empty>"
@@ -1335,7 +1335,7 @@ func (e *MetricsEvaluator) Do(ctx context.Context, f SpansetFetcher, fetcherStar
 
 			// Reservoir sampling - select a random span for exemplar
 			// Each span has a 1/validSpansCount probability of being selected
-			if validSpansCount == 1 || rand.Intn(validSpansCount) == 0 {
+			if validSpansCount == 1 || rand.Intn(validSpansCount) == 0 { //nolint:gosec // G404: reservoir sampling doesn't need crypto randomness
 				randomSpanIndex = i
 			}
 		}

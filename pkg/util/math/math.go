@@ -1,4 +1,4 @@
-package math
+package math //nolint:revive
 
 // Max returns the maximum of two ints
 func Max(a, b int) int {

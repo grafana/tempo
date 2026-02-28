@@ -53,8 +53,8 @@ func (cmd *listColumnCmd) Run(ctx *globalOptions) error {
 			return err
 		}
 		numPages := idx.NumPages()
-		fmt.Println("Min Value of rowgroup", idx.MinValue(0).Bytes())
-		fmt.Println("Max Value of rowgroup", idx.MaxValue(numPages-1).Bytes())
+		fmt.Println("Min Value of rowgroup", string(idx.MinValue(0).Bytes()))
+		fmt.Println("Max Value of rowgroup", string(idx.MaxValue(numPages-1).Bytes()))
 
 		buffer := make([]parquet.Value, 10000)
 		for {
@@ -67,7 +67,7 @@ func (cmd *listColumnCmd) Run(ctx *globalOptions) error {
 			for {
 				x, err := vr.ReadValues(buffer)
 				for y := 0; y < x; y++ {
-					fmt.Println(buffer[y].Bytes())
+					fmt.Println(string(buffer[y].Bytes()))
 				}
 
 				// check for EOF after processing any returned data

@@ -36,8 +36,8 @@ func TestCompactionProvider(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	var (
-		ctx, cancel  = context.WithTimeout(context.Background(), 5*time.Second)
-		store, _, ww = newStore(ctx, t, tmpDir)
+		ctx, cancel = context.WithTimeout(context.Background(), 5*time.Second)
+		store, ww   = newStore(ctx, t, tmpDir)
 	)
 
 	defer func() {
@@ -108,8 +108,8 @@ func TestCompactionProvider_EmptyStart(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	var (
-		ctx, cancel  = context.WithTimeout(context.Background(), 5*time.Second)
-		store, _, ww = newStore(ctx, t, tmpDir)
+		ctx, cancel = context.WithTimeout(context.Background(), 5*time.Second)
+		store, ww   = newStore(ctx, t, tmpDir)
 	)
 
 	defer func() {
@@ -270,8 +270,8 @@ func TestCompactionProvider_RecentJobsCachePreventseDuplicatesAndCleansUp(t *tes
 	tmpDir := t.TempDir()
 
 	var (
-		ctx, cancel  = context.WithTimeout(context.Background(), 5*time.Second)
-		store, _, ww = newStore(ctx, t, tmpDir)
+		ctx, cancel = context.WithTimeout(context.Background(), 5*time.Second)
+		store, ww   = newStore(ctx, t, tmpDir)
 	)
 
 	defer func() {
@@ -376,13 +376,13 @@ func TestCompactionProvider_RecentJobsCachePreventseDuplicatesAndCleansUp(t *tes
 	}
 }
 
-func newStore(ctx context.Context, t testing.TB, tmpDir string) (storage.Store, backend.RawReader, backend.RawWriter) {
-	rr, ww, _, err := local.New(&local.Config{
+func newStore(ctx context.Context, t testing.TB, tmpDir string) (storage.Store, backend.RawWriter) {
+	_, ww, _, err := local.New(&local.Config{
 		Path: tmpDir + "/traces",
 	})
 	require.NoError(t, err)
 
-	return newStoreWithLogger(ctx, t, test.NewTestingLogger(t), tmpDir), rr, ww
+	return newStoreWithLogger(ctx, t, test.NewTestingLogger(t), tmpDir), ww
 }
 
 func newStoreWithLogger(ctx context.Context, t testing.TB, log log.Logger, tmpDir string) storage.Store {

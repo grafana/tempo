@@ -52,7 +52,7 @@ func main() {
 	}
 	newManifest := Manifest + "```yaml\n" + string(newConfigBytes) + "```\n"
 
-	err = os.WriteFile(ManifestPath, []byte(newManifest), 0o644)
+	err = os.WriteFile(ManifestPath, []byte(newManifest), 0o600)
 	if err != nil {
 		panic(err)
 	}

@@ -257,7 +257,7 @@ func (w *querierWorker) connect(ctx context.Context, address string) (*grpc.Clie
 		return nil, err
 	}
 
-	conn, err := grpc.DialContext(ctx, address, opts...)
+	conn, err := grpc.DialContext(ctx, address, opts...) //nolint:staticcheck
 	if err != nil {
 		return nil, err
 	}

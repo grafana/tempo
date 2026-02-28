@@ -278,8 +278,8 @@ type IntBetweenPredicate struct {
 
 var _ Predicate = (*IntBetweenPredicate)(nil)
 
-func NewIntBetweenPredicate(min, max int64) *IntBetweenPredicate {
-	return &IntBetweenPredicate{min, max}
+func NewIntBetweenPredicate(minVal, maxVal int64) *IntBetweenPredicate {
+	return &IntBetweenPredicate{minVal, maxVal}
 }
 
 func (p *IntBetweenPredicate) String() string {
@@ -321,7 +321,7 @@ func (p *IntBetweenPredicate) KeepPage(page pq.Page) bool {
 // the column chunk or page also include bounds metadata.
 type GenericPredicate[T any] struct {
 	Fn      func(T) bool
-	RangeFn func(min, max T) bool
+	RangeFn func(minVal, maxVal T) bool
 	Extract func(pq.Value) T
 }
 
@@ -363,8 +363,8 @@ func (p *GenericPredicate[T]) KeepColumnChunk(c *ColumnChunkHelper) bool {
 
 func (p *GenericPredicate[T]) KeepPage(page pq.Page) bool {
 	if p.RangeFn != nil {
-		if min, max, ok := page.Bounds(); ok {
-			return p.RangeFn(p.Extract(min), p.Extract(max))
+		if minVal, maxVal, ok := page.Bounds(); ok {
+			return p.RangeFn(p.Extract(minVal), p.Extract(maxVal))
 		}
 	}
 

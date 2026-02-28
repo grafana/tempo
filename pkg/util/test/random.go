@@ -75,7 +75,7 @@ func (r *RandomBatcher) randomSpanGenerator(ctx context.Context) {
 	rising := true
 	length := minSpanCount
 
-	rr := rand.New(rand.NewSource(time.Now().UnixNano()))
+	rr := rand.New(rand.NewSource(time.Now().UnixNano())) //nolint:gosec // G404: test data doesn't need crypto randomness
 
 	for {
 		select {
@@ -120,7 +120,7 @@ func (r *RandomBatcher) randomSpanGenerator(ctx context.Context) {
 }
 
 func (r *RandomBatcher) randomAnyValueGenerator(ctx context.Context) {
-	rr := rand.New(rand.NewSource(time.Now().UnixNano()))
+	rr := rand.New(rand.NewSource(time.Now().UnixNano())) //nolint:gosec // G404: test data doesn't need crypto randomness
 
 	var anyValue *v1_common.AnyValue
 
@@ -177,11 +177,11 @@ func (r *RandomBatcher) randomSpanAttributeGenerator(ctx context.Context) {
 	}
 }
 
-func (r *RandomBatcher) randomStringGenerator(ctx context.Context, min, max int) {
+func (r *RandomBatcher) randomStringGenerator(ctx context.Context, minVal, maxVal int) {
 	letters := []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890")
 
 	rising := true
-	length := min
+	length := minVal
 	for {
 		select {
 		case <-ctx.Done():
@@ -189,7 +189,7 @@ func (r *RandomBatcher) randomStringGenerator(ctx context.Context, min, max int)
 		default:
 			s := make([]rune, length)
 			for i := range s {
-				s[i] = letters[rand.Intn(len(letters))]
+				s[i] = letters[rand.Intn(len(letters))] //nolint:gosec // G404: test data doesn't need crypto randomness
 			}
 
 			r.stringReceiverChan <- string(s)
@@ -201,9 +201,9 @@ func (r *RandomBatcher) randomStringGenerator(ctx context.Context, min, max int)
 			}
 
 			switch length {
-			case max:
+			case maxVal:
 				rising = false
-			case min:
+			case minVal:
 				rising = true
 			}
 		}

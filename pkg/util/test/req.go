@@ -102,7 +102,7 @@ func makeSpanWithAttributeCount(traceID []byte, count int, startTime uint64, end
 	// add event
 	if rand.Intn(3) == 0 { // nolint:gosec // G404: Use of weak random number generator
 		s.Events = append(s.Events, &v1_trace.Span_Event{
-			TimeUnixNano:           s.StartTimeUnixNano + uint64(rand.Intn(1*1000*1000)), // 1ms
+			TimeUnixNano:           s.StartTimeUnixNano + uint64(rand.Intn(1*1000*1000)), //nolint:gosec // G404: test data doesn't need crypto randomness
 			Name:                   "event",
 			DroppedAttributesCount: rand.Uint32(), // nolint:gosec // G404: Use of weak random number generator
 			Attributes: []*v1_common.KeyValue{
@@ -439,8 +439,8 @@ func MakeTraceWithTags(traceID []byte, service string, intValue int64) *tempopb.
 						StartTimeUnixNano:      uint64(now.UnixNano()),
 						EndTimeUnixNano:        uint64(now.Add(time.Second).UnixNano()),
 						Attributes:             attributes,
-						DroppedLinksCount:      rand.Uint32(),
-						DroppedAttributesCount: rand.Uint32(),
+						DroppedLinksCount:      rand.Uint32(), //nolint:gosec // G404: test data doesn't need crypto randomness
+						DroppedAttributesCount: rand.Uint32(), //nolint:gosec // G404: test data doesn't need crypto randomness
 					},
 				},
 			},

@@ -1,4 +1,4 @@
-package sort
+package sort //nolint:revive
 
 // SearchWithErrors is forked from https://golang.org/src/sort/search.go
 // but with added support for errors
