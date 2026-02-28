@@ -90,7 +90,12 @@ func TestQuerierParseSearchRequest(t *testing.T) {
 		{
 			name:     "non-numeric limit",
 			urlQuery: "limit=five",
-			err:      "invalid limit: strconv.Atoi: parsing \"five\": invalid syntax",
+			err:      `invalid limit: strconv.ParseUint: parsing "five": invalid syntax`,
+		},
+		{
+			name:     "limit overflow uint32",
+			urlQuery: "limit=4294967296",
+			err:      `invalid limit: strconv.ParseUint: parsing "4294967296": value out of range`,
 		},
 		{
 			name:     "minDuration and maxDuration",
@@ -210,7 +215,12 @@ func TestQuerierParseSearchRequest(t *testing.T) {
 		{
 			name:     "non-numeric spss",
 			urlQuery: "spss=four",
-			err:      "invalid spss: strconv.Atoi: parsing \"four\": invalid syntax",
+			err:      `invalid spss: strconv.ParseUint: parsing "four": invalid syntax`,
+		},
+		{
+			name:     "spss overflow uint32",
+			urlQuery: "spss=4294967296",
+			err:      `invalid spss: strconv.ParseUint: parsing "4294967296": value out of range`,
 		},
 		{
 			name:     "only spss",
@@ -727,6 +737,20 @@ func TestQueryRangeRoundtrip(t *testing.T) {
 	actualReq, err := ParseQueryRangeRequest(httpReq)
 	require.NoError(t, err)
 	assert.Equal(t, req, actualReq)
+}
+
+func TestParseSpanMetricsRequestOverflow(t *testing.T) {
+	// uint64 overflow: 18446744073709551616 = math.MaxUint64 + 1
+	r := httptest.NewRequest("GET", "/?q={}&groupBy=name&limit=18446744073709551616", nil)
+	_, err := ParseSpanMetricsRequest(r)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "invalid limit")
+
+	// negative limit should fail
+	r = httptest.NewRequest("GET", "/?q={}&groupBy=name&limit=-1", nil)
+	_, err = ParseSpanMetricsRequest(r)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "invalid limit")
 }
 
 func Test_determineBounds(t *testing.T) {
