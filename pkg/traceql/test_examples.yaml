@@ -171,6 +171,42 @@ valid:
   - '{} | count_over_time() by (name) | bottomk(10) with(sample=0.1)'
   - '{} | quantile_over_time(duration, 0, 0.9, 1) by (span.http.path) | bottomk(10)'
   - '{} | avg_over_time(duration) by (span:name) | bottomk(10)'
+  # metrics filter (comparison on metrics results)
+  - '{} | rate() > 10'
+  - '{} | rate() by (span.client_ip) >= 5.5'
+  - '{} | count_over_time() by (name) < 100'
+  - '{} | rate() by (span.client_ip) <= 0.5'
+  - '{} | rate() = 42'
+  - '{} | rate() != 0'
+  - '{} | rate() > -3'
+  - '{} | rate() by (span.client_ip) > 10 with(sample=0.1)'
+  # second stage combined
+  - '{} | rate() | topk(5) = 10'
+  - '{} | rate() | topk(5) != 10'
+  - '{} | rate() | topk(5) > 10'
+  - '{} | rate() | topk(5) >= 10'
+  - '{} | rate() | topk(5) < 10'
+  - '{} | rate() | topk(5) <= 10'
+  - '{} | rate() > 0 | topk(5) <= 10'
+  - '{} | count_over_time() | topk(10) = 0 with(sample=0.1)'
+  - '{} | count_over_time() | topk(10) != 0 with(sample=0.1)'
+  - '{} | count_over_time() | topk(10) >= 0 with(sample=0.1)'
+  - '{} | count_over_time() | topk(10) > 0 with(sample=0.1)'
+  - '{} | count_over_time() | topk(10) < 0 with(sample=0.1)'
+  - '{} | count_over_time() | topk(10) <= 0 with(sample=0.1)'
+  - '{} | rate() = 10 | topk(5)'
+  - '{} | rate() != 10 | topk(5)'
+  - '{} | rate() > 10 | topk(5)'
+  - '{} | rate() >= 10 | topk(5)'
+  - '{} | rate() < 10 | topk(5)'
+  - '{} | rate() <= 10 | topk(5)'
+  - '{} | rate() by (name) >= 5.5 | bottomk(3)'
+  - '{} | count_over_time() = 0 | topk(10) with(sample=0.1)'
+  - '{} | count_over_time() != 0 | topk(10) with(sample=0.1)'
+  - '{} | count_over_time() >= 0 | topk(10) with(sample=0.1)'
+  - '{} | count_over_time() > 0 | topk(10) with(sample=0.1)'
+  - '{} | count_over_time() < 0 | topk(10) with(sample=0.1)'
+  - '{} | count_over_time() <= 0 | topk(10) with(sample=0.1)'
   # undocumented - nested set
   - '{ nestedSetLeft > 3 }'
   - '{ } >> { kind = server } | select(nestedSetLeft, nestedSetRight, nestedSetParent)'
@@ -193,6 +229,7 @@ parse_fails:
   - '{ (.a < 3 }'
   - '{ attribute = 4 }'           # custom attribute not prefixed with ., span., resource. or parent.
   - '{ .attribute == 4 }'         # invalid operator
+  - '{} | rate() == 42'
   - '{ span. }'
   # spanset expressions
   - '{ true } + { true }'
@@ -251,6 +288,9 @@ parse_fails:
   - '{} | bottomk(10) with(sample=0.1)'
   - '{} | rate() | topk(-1)'
   - '{} | rate() | bottomk(-1)'
+  # invalid metrics filter (comparison without metrics pipeline)
+  - '{} > 10'
+  - '{} == 10'
 
 # validate_fails parse correctly and return an error **besides unsupported** when calling .validate()
 validate_fails:
@@ -326,6 +366,10 @@ validate_fails:
   # compare function with second stage functions is not valid
   - '{} | compare({status=error}) | topk(10)'
   - '{} | compare({status=error}) | bottomk(10)'
+  - '{} | compare({status=error}) > 10'
+  - '{} | compare({status=error}) >= 10'
+  - '{} | compare({status=error}) < 10'
+  - '{} | compare({status=error}) <= 10'
 
 # unsupported parse correctly and return an unsupported error when calling .validate()
 unsupported:

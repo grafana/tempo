@@ -33,8 +33,9 @@ func TestPipelineErrors(t *testing.T) {
 
 func TestPipelineOperatorPrecedence(t *testing.T) {
 	tests := []struct {
-		in       string
-		expected SpansetOperation
+		in          string
+		expected    SpansetOperation
+		expectedStr string
 	}{
 		{
 			in: "({ .a } | { .b }) > ({ .a } | { .b }) && ({ .a } | { .b })",
@@ -54,6 +55,7 @@ func TestPipelineOperatorPrecedence(t *testing.T) {
 					newSpansetFilter(NewAttribute("b")),
 				),
 			),
+			expectedStr: "(({ .a }|{ .b }) > ({ .a }|{ .b })) && ({ .a }|{ .b })",
 		},
 		{
 			in: "({ .a } | { .b }) > (({ .a } | { .b }) && ({ .a } | { .b }))",
@@ -73,6 +75,7 @@ func TestPipelineOperatorPrecedence(t *testing.T) {
 					),
 				),
 			),
+			expectedStr: "({ .a }|{ .b }) > (({ .a }|{ .b }) && ({ .a }|{ .b }))",
 		},
 		{
 			in: "({ .a } | { .b }) < (({ .a } | { .b }) && ({ .a } | { .b }))",
@@ -92,6 +95,7 @@ func TestPipelineOperatorPrecedence(t *testing.T) {
 					),
 				),
 			),
+			expectedStr: "({ .a }|{ .b }) < (({ .a }|{ .b }) && ({ .a }|{ .b }))",
 		},
 	}
 
@@ -101,14 +105,16 @@ func TestPipelineOperatorPrecedence(t *testing.T) {
 
 			require.NoError(t, err)
 			require.Equal(t, newRootExpr(newPipeline(tc.expected)), actual)
+			require.Equal(t, tc.expectedStr, actual.String())
 		})
 	}
 }
 
 func TestPipelineSpansetOperators(t *testing.T) {
 	tests := []struct {
-		in       string
-		expected SpansetOperation
+		in          string
+		expected    SpansetOperation
+		expectedStr string
 	}{
 		{
 			in: "({ .a } | { .b }) > ({ .a } | { .b })",
@@ -122,6 +128,7 @@ func TestPipelineSpansetOperators(t *testing.T) {
 					newSpansetFilter(NewAttribute("b")),
 				),
 			),
+			expectedStr: "({ .a }|{ .b }) > ({ .a }|{ .b })",
 		},
 		{
 			in: "({ .a } | { .b }) < ({ .a } | { .b })",
@@ -135,6 +142,7 @@ func TestPipelineSpansetOperators(t *testing.T) {
 					newSpansetFilter(NewAttribute("b")),
 				),
 			),
+			expectedStr: "({ .a }|{ .b }) < ({ .a }|{ .b })",
 		},
 		{
 			in: "({ .a } | { .b }) ~ ({ .a } | { .b })",
@@ -148,6 +156,7 @@ func TestPipelineSpansetOperators(t *testing.T) {
 					newSpansetFilter(NewAttribute("b")),
 				),
 			),
+			expectedStr: "({ .a }|{ .b }) ~ ({ .a }|{ .b })",
 		},
 		{
 			in: "({ .a } | { .b }) && ({ .a } | { .b })",
@@ -161,6 +170,7 @@ func TestPipelineSpansetOperators(t *testing.T) {
 					newSpansetFilter(NewAttribute("b")),
 				),
 			),
+			expectedStr: "({ .a }|{ .b }) && ({ .a }|{ .b })",
 		},
 		{
 			in: "({ .a } | { .b }) >> ({ .a } | { .b })",
@@ -174,6 +184,7 @@ func TestPipelineSpansetOperators(t *testing.T) {
 					newSpansetFilter(NewAttribute("b")),
 				),
 			),
+			expectedStr: "({ .a }|{ .b }) >> ({ .a }|{ .b })",
 		},
 		{
 			in: "({ .a } | { .b }) << ({ .a } | { .b })",
@@ -187,6 +198,7 @@ func TestPipelineSpansetOperators(t *testing.T) {
 					newSpansetFilter(NewAttribute("b")),
 				),
 			),
+			expectedStr: "({ .a }|{ .b }) << ({ .a }|{ .b })",
 		},
 		{
 			in: "({ .a } | { .b }) !> ({ .a } | { .b })",
@@ -200,6 +212,7 @@ func TestPipelineSpansetOperators(t *testing.T) {
 					newSpansetFilter(NewAttribute("b")),
 				),
 			),
+			expectedStr: "({ .a }|{ .b }) !> ({ .a }|{ .b })",
 		},
 		{
 			in: "({ .a } | { .b }) !< ({ .a } | { .b })",
@@ -213,6 +226,7 @@ func TestPipelineSpansetOperators(t *testing.T) {
 					newSpansetFilter(NewAttribute("b")),
 				),
 			),
+			expectedStr: "({ .a }|{ .b }) !< ({ .a }|{ .b })",
 		},
 		{
 			in: "({ .a } | { .b }) !~ ({ .a } | { .b })",
@@ -226,6 +240,7 @@ func TestPipelineSpansetOperators(t *testing.T) {
 					newSpansetFilter(NewAttribute("b")),
 				),
 			),
+			expectedStr: "({ .a }|{ .b }) !~ ({ .a }|{ .b })",
 		},
 		{
 			in: "({ .a } | { .b }) !>> ({ .a } | { .b })",
@@ -239,6 +254,7 @@ func TestPipelineSpansetOperators(t *testing.T) {
 					newSpansetFilter(NewAttribute("b")),
 				),
 			),
+			expectedStr: "({ .a }|{ .b }) !>> ({ .a }|{ .b })",
 		},
 		{
 			in: "({ .a } | { .b }) !<< ({ .a } | { .b })",
@@ -252,6 +268,7 @@ func TestPipelineSpansetOperators(t *testing.T) {
 					newSpansetFilter(NewAttribute("b")),
 				),
 			),
+			expectedStr: "({ .a }|{ .b }) !<< ({ .a }|{ .b })",
 		},
 		{
 			in: "({ .a } | { .b }) &> ({ .a } | { .b })",
@@ -265,6 +282,7 @@ func TestPipelineSpansetOperators(t *testing.T) {
 					newSpansetFilter(NewAttribute("b")),
 				),
 			),
+			expectedStr: "({ .a }|{ .b }) &> ({ .a }|{ .b })",
 		},
 		{
 			in: "({ .a } | { .b }) &< ({ .a } | { .b })",
@@ -278,6 +296,7 @@ func TestPipelineSpansetOperators(t *testing.T) {
 					newSpansetFilter(NewAttribute("b")),
 				),
 			),
+			expectedStr: "({ .a }|{ .b }) &< ({ .a }|{ .b })",
 		},
 		{
 			in: "({ .a } | { .b }) &~ ({ .a } | { .b })",
@@ -291,6 +310,7 @@ func TestPipelineSpansetOperators(t *testing.T) {
 					newSpansetFilter(NewAttribute("b")),
 				),
 			),
+			expectedStr: "({ .a }|{ .b }) &~ ({ .a }|{ .b })",
 		},
 		{
 			in: "({ .a } | { .b }) &>> ({ .a } | { .b })",
@@ -304,6 +324,7 @@ func TestPipelineSpansetOperators(t *testing.T) {
 					newSpansetFilter(NewAttribute("b")),
 				),
 			),
+			expectedStr: "({ .a }|{ .b }) &>> ({ .a }|{ .b })",
 		},
 		{
 			in: "({ .a } | { .b }) &<< ({ .a } | { .b })",
@@ -317,6 +338,7 @@ func TestPipelineSpansetOperators(t *testing.T) {
 					newSpansetFilter(NewAttribute("b")),
 				),
 			),
+			expectedStr: "({ .a }|{ .b }) &<< ({ .a }|{ .b })",
 		},
 	}
 
@@ -326,14 +348,16 @@ func TestPipelineSpansetOperators(t *testing.T) {
 
 			require.NoError(t, err)
 			require.Equal(t, newRootExpr(newPipeline(tc.expected)), actual)
+			require.Equal(t, tc.expectedStr, actual.String())
 		})
 	}
 }
 
 func TestPipelineScalarOperators(t *testing.T) {
 	tests := []struct {
-		in       string
-		expected ScalarFilter
+		in          string
+		expected    ScalarFilter
+		expectedStr string
 	}{
 		{
 			in: "({ .a } | count()) = ({ .a } | count())",
@@ -347,6 +371,7 @@ func TestPipelineScalarOperators(t *testing.T) {
 					newAggregate(aggregateCount, nil),
 				),
 			),
+			expectedStr: "({ .a }|count()) = ({ .a }|count())",
 		},
 		{
 			in: "({ .a } | count()) != ({ .a } | count())",
@@ -360,6 +385,7 @@ func TestPipelineScalarOperators(t *testing.T) {
 					newAggregate(aggregateCount, nil),
 				),
 			),
+			expectedStr: "({ .a }|count()) != ({ .a }|count())",
 		},
 		{
 			in: "({ .a } | count()) < ({ .a } | count())",
@@ -373,6 +399,7 @@ func TestPipelineScalarOperators(t *testing.T) {
 					newAggregate(aggregateCount, nil),
 				),
 			),
+			expectedStr: "({ .a }|count()) < ({ .a }|count())",
 		},
 		{
 			in: "({ .a } | count()) <= ({ .a } | count())",
@@ -386,6 +413,7 @@ func TestPipelineScalarOperators(t *testing.T) {
 					newAggregate(aggregateCount, nil),
 				),
 			),
+			expectedStr: "({ .a }|count()) <= ({ .a }|count())",
 		},
 		{
 			in: "({ .a } | count()) >= ({ .a } | count())",
@@ -399,6 +427,7 @@ func TestPipelineScalarOperators(t *testing.T) {
 					newAggregate(aggregateCount, nil),
 				),
 			),
+			expectedStr: "({ .a }|count()) >= ({ .a }|count())",
 		},
 	}
 
@@ -408,14 +437,16 @@ func TestPipelineScalarOperators(t *testing.T) {
 
 			require.NoError(t, err)
 			require.Equal(t, newRootExpr(newPipeline(tc.expected)), actual)
+			require.Equal(t, tc.expectedStr, actual.String())
 		})
 	}
 }
 
 func TestPipelines(t *testing.T) {
 	tests := []struct {
-		in       string
-		expected Pipeline
+		in          string
+		expected    Pipeline
+		expectedStr string
 	}{
 		{
 			in: "{ .a } | { .b }",
@@ -423,6 +454,7 @@ func TestPipelines(t *testing.T) {
 				newSpansetFilter(NewAttribute("a")),
 				newSpansetFilter(NewAttribute("b")),
 			),
+			expectedStr: "{ .a }|{ .b }",
 		},
 		{
 			in: "{ .a } | count() > 1",
@@ -430,6 +462,7 @@ func TestPipelines(t *testing.T) {
 				newSpansetFilter(NewAttribute("a")),
 				newScalarFilter(OpGreater, newAggregate(aggregateCount, nil), NewStaticInt(1)),
 			),
+			expectedStr: "{ .a }|(count()) > 1",
 		},
 		{
 			in: "{ .a } | by(.namespace) | coalesce() | avg(duration) = 1s ",
@@ -439,6 +472,7 @@ func TestPipelines(t *testing.T) {
 				newCoalesceOperation(),
 				newScalarFilter(OpEqual, newAggregate(aggregateAvg, NewIntrinsic(IntrinsicDuration)), NewStaticDuration(time.Second)),
 			),
+			expectedStr: "{ .a }|by(.namespace)|coalesce()|(avg(duration)) = 1s",
 		},
 	}
 
@@ -448,6 +482,7 @@ func TestPipelines(t *testing.T) {
 
 			require.NoError(t, err)
 			require.Equal(t, newRootExpr(tc.expected), actual)
+			require.Equal(t, tc.expectedStr, actual.String())
 		})
 	}
 }
@@ -473,11 +508,12 @@ func TestGroupCoalesceErrors(t *testing.T) {
 
 func TestGroupCoalesceOperation(t *testing.T) {
 	tests := []struct {
-		in       string
-		expected Pipeline
+		in          string
+		expected    Pipeline
+		expectedStr string
 	}{
-		{in: "by(.a) | coalesce()", expected: newPipeline(newGroupOperation(NewAttribute("a")), newCoalesceOperation())},
-		{in: "by(.a + .b)", expected: newPipeline(newGroupOperation(newBinaryOperation(OpAdd, NewAttribute("a"), NewAttribute("b"))))},
+		{in: "by(.a) | coalesce()", expected: newPipeline(newGroupOperation(NewAttribute("a")), newCoalesceOperation()), expectedStr: "by(.a)|coalesce()"},
+		{in: "by(.a + .b)", expected: newPipeline(newGroupOperation(newBinaryOperation(OpAdd, NewAttribute("a"), NewAttribute("b")))), expectedStr: "by(.a + .b)"},
 	}
 
 	for _, tc := range tests {
@@ -486,6 +522,7 @@ func TestGroupCoalesceOperation(t *testing.T) {
 
 			require.NoError(t, err)
 			require.Equal(t, newRootExpr(tc.expected), actual)
+			require.Equal(t, tc.expectedStr, actual.String())
 		})
 	}
 }
@@ -510,11 +547,12 @@ func TestSelectErrors(t *testing.T) {
 
 func TestSelectOperation(t *testing.T) {
 	tests := []struct {
-		in       string
-		expected Pipeline
+		in          string
+		expected    Pipeline
+		expectedStr string
 	}{
-		{in: "select(.a)", expected: newPipeline(newSelectOperation([]Attribute{NewAttribute("a")}))},
-		{in: "select(.a,.b)", expected: newPipeline(newSelectOperation([]Attribute{NewAttribute("a"), NewAttribute("b")}))},
+		{in: "select(.a)", expected: newPipeline(newSelectOperation([]Attribute{NewAttribute("a")})), expectedStr: "select(.a)"},
+		{in: "select(.a,.b)", expected: newPipeline(newSelectOperation([]Attribute{NewAttribute("a"), NewAttribute("b")})), expectedStr: "select(.a, .b)"},
 	}
 
 	for _, tc := range tests {
@@ -523,6 +561,7 @@ func TestSelectOperation(t *testing.T) {
 
 			require.NoError(t, err)
 			require.Equal(t, newRootExpr(tc.expected), actual)
+			require.Equal(t, tc.expectedStr, actual.String())
 		})
 	}
 }
@@ -546,8 +585,9 @@ func TestSpansetExpressionErrors(t *testing.T) {
 
 func TestSpansetExpressionPrecedence(t *testing.T) {
 	tests := []struct {
-		in       string
-		expected SpansetOperation
+		in          string
+		expected    SpansetOperation
+		expectedStr string
 	}{
 		{
 			in: "{ true } && { false } >> { `a` }",
@@ -555,6 +595,7 @@ func TestSpansetExpressionPrecedence(t *testing.T) {
 				newSpansetFilter(NewStaticBool(true)),
 				newSpansetOperation(OpSpansetDescendant, newSpansetFilter(NewStaticBool(false)), newSpansetFilter(NewStaticString("a"))),
 			),
+			expectedStr: "({ true }) && (({ false }) >> ({ `a` }))",
 		},
 		{
 			in: "{ true } >> { false } && { `a` }",
@@ -562,6 +603,7 @@ func TestSpansetExpressionPrecedence(t *testing.T) {
 				newSpansetOperation(OpSpansetDescendant, newSpansetFilter(NewStaticBool(true)), newSpansetFilter(NewStaticBool(false))),
 				newSpansetFilter(NewStaticString("a")),
 			),
+			expectedStr: "(({ true }) >> ({ false })) && ({ `a` })",
 		},
 		{
 			in: "({ true } >> { false }) && { `a` }",
@@ -569,6 +611,7 @@ func TestSpansetExpressionPrecedence(t *testing.T) {
 				newSpansetOperation(OpSpansetDescendant, newSpansetFilter(NewStaticBool(true)), newSpansetFilter(NewStaticBool(false))),
 				newSpansetFilter(NewStaticString("a")),
 			),
+			expectedStr: "(({ true }) >> ({ false })) && ({ `a` })",
 		},
 		{
 			in: "{ true } >> { false } ~ { `a` }",
@@ -576,6 +619,7 @@ func TestSpansetExpressionPrecedence(t *testing.T) {
 				newSpansetOperation(OpSpansetDescendant, newSpansetFilter(NewStaticBool(true)), newSpansetFilter(NewStaticBool(false))),
 				newSpansetFilter(NewStaticString("a")),
 			),
+			expectedStr: "(({ true }) >> ({ false })) ~ ({ `a` })",
 		},
 		{
 			in: "{ true } ~ { false } >> { `a` }",
@@ -583,6 +627,7 @@ func TestSpansetExpressionPrecedence(t *testing.T) {
 				newSpansetOperation(OpSpansetSibling, newSpansetFilter(NewStaticBool(true)), newSpansetFilter(NewStaticBool(false))),
 				newSpansetFilter(NewStaticString("a")),
 			),
+			expectedStr: "(({ true }) ~ ({ false })) >> ({ `a` })",
 		},
 	}
 
@@ -592,34 +637,36 @@ func TestSpansetExpressionPrecedence(t *testing.T) {
 
 			require.NoError(t, err)
 			require.Equal(t, newRootExpr(newPipeline(tc.expected)), actual)
+			require.Equal(t, tc.expectedStr, actual.String())
 		})
 	}
 }
 
 func TestSpansetExpressionOperators(t *testing.T) {
 	tests := []struct {
-		in       string
-		expected SpansetOperation
+		in          string
+		expected    SpansetOperation
+		expectedStr string
 	}{
-		{in: "{ true } && { false }", expected: newSpansetOperation(OpSpansetAnd, newSpansetFilter(NewStaticBool(true)), newSpansetFilter(NewStaticBool(false)))},
-		{in: "{ true } > { false }", expected: newSpansetOperation(OpSpansetChild, newSpansetFilter(NewStaticBool(true)), newSpansetFilter(NewStaticBool(false)))},
-		{in: "{ true } < { false }", expected: newSpansetOperation(OpSpansetParent, newSpansetFilter(NewStaticBool(true)), newSpansetFilter(NewStaticBool(false)))},
-		{in: "{ true } >> { false }", expected: newSpansetOperation(OpSpansetDescendant, newSpansetFilter(NewStaticBool(true)), newSpansetFilter(NewStaticBool(false)))},
-		{in: "{ true } << { false }", expected: newSpansetOperation(OpSpansetAncestor, newSpansetFilter(NewStaticBool(true)), newSpansetFilter(NewStaticBool(false)))},
-		{in: "{ true } || { false }", expected: newSpansetOperation(OpSpansetUnion, newSpansetFilter(NewStaticBool(true)), newSpansetFilter(NewStaticBool(false)))},
-		{in: "{ true } ~ { false }", expected: newSpansetOperation(OpSpansetSibling, newSpansetFilter(NewStaticBool(true)), newSpansetFilter(NewStaticBool(false)))},
+		{in: "{ true } && { false }", expected: newSpansetOperation(OpSpansetAnd, newSpansetFilter(NewStaticBool(true)), newSpansetFilter(NewStaticBool(false))), expectedStr: "({ true }) && ({ false })"},
+		{in: "{ true } > { false }", expected: newSpansetOperation(OpSpansetChild, newSpansetFilter(NewStaticBool(true)), newSpansetFilter(NewStaticBool(false))), expectedStr: "({ true }) > ({ false })"},
+		{in: "{ true } < { false }", expected: newSpansetOperation(OpSpansetParent, newSpansetFilter(NewStaticBool(true)), newSpansetFilter(NewStaticBool(false))), expectedStr: "({ true }) < ({ false })"},
+		{in: "{ true } >> { false }", expected: newSpansetOperation(OpSpansetDescendant, newSpansetFilter(NewStaticBool(true)), newSpansetFilter(NewStaticBool(false))), expectedStr: "({ true }) >> ({ false })"},
+		{in: "{ true } << { false }", expected: newSpansetOperation(OpSpansetAncestor, newSpansetFilter(NewStaticBool(true)), newSpansetFilter(NewStaticBool(false))), expectedStr: "({ true }) << ({ false })"},
+		{in: "{ true } || { false }", expected: newSpansetOperation(OpSpansetUnion, newSpansetFilter(NewStaticBool(true)), newSpansetFilter(NewStaticBool(false))), expectedStr: "({ true }) || ({ false })"},
+		{in: "{ true } ~ { false }", expected: newSpansetOperation(OpSpansetSibling, newSpansetFilter(NewStaticBool(true)), newSpansetFilter(NewStaticBool(false))), expectedStr: "({ true }) ~ ({ false })"},
 		// this test was added to highlight the one shift/reduce conflict in the grammar. this could also be parsed as two spanset pipelines &&ed together.
-		{in: "({ true }) && ({ false })", expected: newSpansetOperation(OpSpansetAnd, newSpansetFilter(NewStaticBool(true)), newSpansetFilter(NewStaticBool(false)))},
-		{in: "{ true } !> { false }", expected: newSpansetOperation(OpSpansetNotChild, newSpansetFilter(NewStaticBool(true)), newSpansetFilter(NewStaticBool(false)))},
-		{in: "{ true } !< { false }", expected: newSpansetOperation(OpSpansetNotParent, newSpansetFilter(NewStaticBool(true)), newSpansetFilter(NewStaticBool(false)))},
-		{in: "{ true } !>> { false }", expected: newSpansetOperation(OpSpansetNotDescendant, newSpansetFilter(NewStaticBool(true)), newSpansetFilter(NewStaticBool(false)))},
-		{in: "{ true } !<< { false }", expected: newSpansetOperation(OpSpansetNotAncestor, newSpansetFilter(NewStaticBool(true)), newSpansetFilter(NewStaticBool(false)))},
-		{in: "{ true } !~ { false }", expected: newSpansetOperation(OpSpansetNotSibling, newSpansetFilter(NewStaticBool(true)), newSpansetFilter(NewStaticBool(false)))},
-		{in: "{ true } &> { false }", expected: newSpansetOperation(OpSpansetUnionChild, newSpansetFilter(NewStaticBool(true)), newSpansetFilter(NewStaticBool(false)))},
-		{in: "{ true } &< { false }", expected: newSpansetOperation(OpSpansetUnionParent, newSpansetFilter(NewStaticBool(true)), newSpansetFilter(NewStaticBool(false)))},
-		{in: "{ true } &>> { false }", expected: newSpansetOperation(OpSpansetUnionDescendant, newSpansetFilter(NewStaticBool(true)), newSpansetFilter(NewStaticBool(false)))},
-		{in: "{ true } &<< { false }", expected: newSpansetOperation(OpSpansetUnionAncestor, newSpansetFilter(NewStaticBool(true)), newSpansetFilter(NewStaticBool(false)))},
-		{in: "{ true } &~ { false }", expected: newSpansetOperation(OpSpansetUnionSibling, newSpansetFilter(NewStaticBool(true)), newSpansetFilter(NewStaticBool(false)))},
+		{in: "({ true }) && ({ false })", expected: newSpansetOperation(OpSpansetAnd, newSpansetFilter(NewStaticBool(true)), newSpansetFilter(NewStaticBool(false))), expectedStr: "({ true }) && ({ false })"},
+		{in: "{ true } !> { false }", expected: newSpansetOperation(OpSpansetNotChild, newSpansetFilter(NewStaticBool(true)), newSpansetFilter(NewStaticBool(false))), expectedStr: "({ true }) !> ({ false })"},
+		{in: "{ true } !< { false }", expected: newSpansetOperation(OpSpansetNotParent, newSpansetFilter(NewStaticBool(true)), newSpansetFilter(NewStaticBool(false))), expectedStr: "({ true }) !< ({ false })"},
+		{in: "{ true } !>> { false }", expected: newSpansetOperation(OpSpansetNotDescendant, newSpansetFilter(NewStaticBool(true)), newSpansetFilter(NewStaticBool(false))), expectedStr: "({ true }) !>> ({ false })"},
+		{in: "{ true } !<< { false }", expected: newSpansetOperation(OpSpansetNotAncestor, newSpansetFilter(NewStaticBool(true)), newSpansetFilter(NewStaticBool(false))), expectedStr: "({ true }) !<< ({ false })"},
+		{in: "{ true } !~ { false }", expected: newSpansetOperation(OpSpansetNotSibling, newSpansetFilter(NewStaticBool(true)), newSpansetFilter(NewStaticBool(false))), expectedStr: "({ true }) !~ ({ false })"},
+		{in: "{ true } &> { false }", expected: newSpansetOperation(OpSpansetUnionChild, newSpansetFilter(NewStaticBool(true)), newSpansetFilter(NewStaticBool(false))), expectedStr: "({ true }) &> ({ false })"},
+		{in: "{ true } &< { false }", expected: newSpansetOperation(OpSpansetUnionParent, newSpansetFilter(NewStaticBool(true)), newSpansetFilter(NewStaticBool(false))), expectedStr: "({ true }) &< ({ false })"},
+		{in: "{ true } &>> { false }", expected: newSpansetOperation(OpSpansetUnionDescendant, newSpansetFilter(NewStaticBool(true)), newSpansetFilter(NewStaticBool(false))), expectedStr: "({ true }) &>> ({ false })"},
+		{in: "{ true } &<< { false }", expected: newSpansetOperation(OpSpansetUnionAncestor, newSpansetFilter(NewStaticBool(true)), newSpansetFilter(NewStaticBool(false))), expectedStr: "({ true }) &<< ({ false })"},
+		{in: "{ true } &~ { false }", expected: newSpansetOperation(OpSpansetUnionSibling, newSpansetFilter(NewStaticBool(true)), newSpansetFilter(NewStaticBool(false))), expectedStr: "({ true }) &~ ({ false })"},
 	}
 
 	for _, tc := range tests {
@@ -628,6 +675,7 @@ func TestSpansetExpressionOperators(t *testing.T) {
 
 			require.NoError(t, err)
 			require.Equal(t, newRootExpr(newPipeline(tc.expected)), actual)
+			require.Equal(t, tc.expectedStr, actual.String())
 		})
 	}
 }
@@ -654,8 +702,9 @@ func TestScalarExpressionErrors(t *testing.T) {
 
 func TestScalarExpressionPrecedence(t *testing.T) {
 	tests := []struct {
-		in       string
-		expected ScalarFilter
+		in          string
+		expected    ScalarFilter
+		expectedStr string
 	}{
 		{
 			in: "avg(.foo) > count() + sum(.bar)",
@@ -666,6 +715,7 @@ func TestScalarExpressionPrecedence(t *testing.T) {
 					newAggregate(aggregateSum, NewAttribute("bar")),
 				),
 			),
+			expectedStr: "(avg(.foo)) > ((count()) + (sum(.bar)))",
 		},
 		{
 			in: "avg(.foo) + count() > sum(.bar)",
@@ -676,6 +726,7 @@ func TestScalarExpressionPrecedence(t *testing.T) {
 				),
 				newAggregate(aggregateSum, NewAttribute("bar")),
 			),
+			expectedStr: "((avg(.foo)) + (count())) > (sum(.bar))",
 		},
 	}
 
@@ -685,20 +736,22 @@ func TestScalarExpressionPrecedence(t *testing.T) {
 
 			require.NoError(t, err)
 			require.Equal(t, newRootExpr(newPipeline(tc.expected)), actual)
+			require.Equal(t, tc.expectedStr, actual.String())
 		})
 	}
 }
 
 func TestScalarExpressionOperators(t *testing.T) {
 	tests := []struct {
-		in       string
-		expected ScalarFilter
+		in          string
+		expected    ScalarFilter
+		expectedStr string
 	}{
-		{in: "count() > 1", expected: newScalarFilter(OpGreater, newAggregate(aggregateCount, nil), NewStaticInt(1))},
-		{in: "max(.a) > 1", expected: newScalarFilter(OpGreater, newAggregate(aggregateMax, NewAttribute("a")), NewStaticInt(1))},
-		{in: "min(1) > 1", expected: newScalarFilter(OpGreater, newAggregate(aggregateMin, NewStaticInt(1)), NewStaticInt(1))},
-		{in: "sum(true) > 1", expected: newScalarFilter(OpGreater, newAggregate(aggregateSum, NewStaticBool(true)), NewStaticInt(1))},
-		{in: "avg(`c`) > 1", expected: newScalarFilter(OpGreater, newAggregate(aggregateAvg, NewStaticString("c")), NewStaticInt(1))},
+		{in: "count() > 1", expected: newScalarFilter(OpGreater, newAggregate(aggregateCount, nil), NewStaticInt(1)), expectedStr: "(count()) > 1"},
+		{in: "max(.a) > 1", expected: newScalarFilter(OpGreater, newAggregate(aggregateMax, NewAttribute("a")), NewStaticInt(1)), expectedStr: "(max(.a)) > 1"},
+		{in: "min(1) > 1", expected: newScalarFilter(OpGreater, newAggregate(aggregateMin, NewStaticInt(1)), NewStaticInt(1)), expectedStr: "(min(1)) > 1"},
+		{in: "sum(true) > 1", expected: newScalarFilter(OpGreater, newAggregate(aggregateSum, NewStaticBool(true)), NewStaticInt(1)), expectedStr: "(sum(true)) > 1"},
+		{in: "avg(`c`) > 1", expected: newScalarFilter(OpGreater, newAggregate(aggregateAvg, NewStaticString("c")), NewStaticInt(1)), expectedStr: "(avg(`c`)) > 1"},
 	}
 
 	for _, tc := range tests {
@@ -707,6 +760,7 @@ func TestScalarExpressionOperators(t *testing.T) {
 
 			require.NoError(t, err)
 			require.Equal(t, newRootExpr(newPipeline(tc.expected)), actual)
+			require.Equal(t, tc.expectedStr, actual.String())
 		})
 	}
 }
@@ -733,110 +787,128 @@ func TestSpansetFilterErrors(t *testing.T) {
 
 func TestSpansetFilterOperatorPrecedence(t *testing.T) {
 	tests := []struct {
-		in       string
-		expected FieldExpression
+		in          string
+		expected    FieldExpression
+		expectedStr string
 	}{
 		{
 			in: "{ .a * .b + .c }",
 			expected: newBinaryOperation(OpAdd,
 				newBinaryOperation(OpMult, NewAttribute("a"), NewAttribute("b")),
 				NewAttribute("c")),
+			expectedStr: "{ (.a * .b) + .c }",
 		},
 		{
 			in: "{ .a + .b * .c }",
 			expected: newBinaryOperation(OpAdd,
 				NewAttribute("a"),
 				newBinaryOperation(OpMult, NewAttribute("b"), NewAttribute("c"))),
+			expectedStr: "{ .a + (.b * .c) }",
 		},
 		{
 			in: "{ ( .a + .b ) * .c }",
 			expected: newBinaryOperation(OpMult,
 				newBinaryOperation(OpAdd, NewAttribute("a"), NewAttribute("b")),
 				NewAttribute("c")),
+			expectedStr: "{ (.a + .b) * .c }",
 		},
 		{
 			in: "{ .a + .b ^ .c }",
 			expected: newBinaryOperation(OpAdd,
 				NewAttribute("a"),
 				newBinaryOperation(OpPower, NewAttribute("b"), NewAttribute("c"))),
+			expectedStr: "{ .a + (.b ^ .c) }",
 		},
 		{
 			in: "{ .a = .b + .c }",
 			expected: newBinaryOperation(OpEqual,
 				NewAttribute("a"),
 				newBinaryOperation(OpAdd, NewAttribute("b"), NewAttribute("c"))),
+			expectedStr: "{ .a = (.b + .c) }",
 		},
 		{
 			in: "{ .a + .b = .c }",
 			expected: newBinaryOperation(OpEqual,
 				newBinaryOperation(OpAdd, NewAttribute("a"), NewAttribute("b")),
 				NewAttribute("c")),
+			expectedStr: "{ (.a + .b) = .c }",
 		},
 		{
 			in: "{ .c - -.a + .b }",
 			expected: newBinaryOperation(OpAdd,
 				newBinaryOperation(OpSub, NewAttribute("c"), newUnaryOperation(OpSub, NewAttribute("a"))),
 				NewAttribute("b")),
+			expectedStr: "{ (.c - (-.a)) + .b }",
 		},
 		{
 			in: "{ .c - -( .a + .b ) }",
 			expected: newBinaryOperation(OpSub,
 				NewAttribute("c"),
 				newUnaryOperation(OpSub, newBinaryOperation(OpAdd, NewAttribute("a"), NewAttribute("b")))),
+			expectedStr: "{ .c - (-(.a + .b)) }",
 		},
 		{
 			in: "{ .a && .b = .c }",
 			expected: newBinaryOperation(OpAnd,
 				NewAttribute("a"),
 				newBinaryOperation(OpEqual, NewAttribute("b"), NewAttribute("c"))),
+			expectedStr: "{ .a && (.b = .c) }",
 		},
 		{
 			in: "{ .a = .b && .c }",
 			expected: newBinaryOperation(OpAnd,
 				newBinaryOperation(OpEqual, NewAttribute("a"), NewAttribute("b")),
 				NewAttribute("c")),
+			expectedStr: "{ (.a = .b) && .c }",
 		},
 		{
 			in: "{ .a = !.b && .c }",
 			expected: newBinaryOperation(OpAnd,
 				newBinaryOperation(OpEqual, NewAttribute("a"), newUnaryOperation(OpNot, NewAttribute("b"))),
 				NewAttribute("c")),
+			expectedStr: "{ (.a = (!.b)) && .c }",
 		},
 		{
 			in: "{ .a = !( .b && .c ) }",
 			expected: newBinaryOperation(OpEqual,
 				NewAttribute("a"),
 				newUnaryOperation(OpNot, newBinaryOperation(OpAnd, NewAttribute("b"), NewAttribute("c")))),
+			expectedStr: "{ .a = (!(.b && .c)) }",
 		},
 		{
 			in: "{ .a = .b || .c = .d}",
 			expected: newBinaryOperation(OpOr,
 				newBinaryOperation(OpEqual, NewAttribute("a"), NewAttribute("b")),
 				newBinaryOperation(OpEqual, NewAttribute("c"), NewAttribute("d"))),
+			expectedStr: "{ (.a = .b) || (.c = .d) }",
 		},
 		{
 			in: "{ !.a = .b }",
 			expected: newBinaryOperation(OpEqual,
 				newUnaryOperation(OpNot, NewAttribute("a")),
 				NewAttribute("b")),
+			expectedStr: "{ (!.a) = .b }",
 		},
 		{
 			in: "{ !(.a = .b) }",
 			expected: newUnaryOperation(OpNot, newBinaryOperation(OpEqual,
 				NewAttribute("a"),
 				NewAttribute("b"))),
+			expectedStr: "{ !(.a = .b) }",
 		},
 		{
 			in: "{ -.a = .b }",
 			expected: newBinaryOperation(OpEqual,
 				newUnaryOperation(OpSub, NewAttribute("a")),
 				NewAttribute("b")),
+			expectedStr: "{ (-.a) = .b }",
 		},
 		{
 			in: "{ -(.a = .b) }",
 			expected: newUnaryOperation(OpSub, newBinaryOperation(OpEqual,
 				NewAttribute("a"),
 				NewAttribute("b"))),
+			expectedStr: "{ -(.a = .b) }",
 		},
 	}
 
@@ -846,41 +918,43 @@ func TestSpansetFilterOperatorPrecedence(t *testing.T) {
 
 			require.NoError(t, err)
 			require.Equal(t, newRootExpr(newPipeline(newSpansetFilter(tc.expected))), actual)
+			require.Equal(t, tc.expectedStr, actual.String())
 		})
 	}
 }
 
 func TestSpansetFilterStatics(t *testing.T) {
 	tests := []struct {
-		in       string
-		expected FieldExpression
+		in          string
+		expected    FieldExpression
+		expectedStr string
 	}{
-		{in: "{ true }", expected: NewStaticBool(true)},
-		{in: "{ false }", expected: NewStaticBool(false)},
-		{in: `{ "true" }`, expected: NewStaticString("true")},
-		{in: `{ "true\"" }`, expected: NewStaticString("true\"")},
-		{in: "{ `foo` }", expected: NewStaticString("foo")},
-		{in: "{ .foo }", expected: NewAttribute("foo")},
-		{in: "{ duration }", expected: NewIntrinsic(IntrinsicDuration)},
-		{in: "{ name }", expected: NewIntrinsic(IntrinsicName)},
-		{in: "{ parent }", expected: NewIntrinsic(IntrinsicParent)},
-		{in: "{ status }", expected: NewIntrinsic(IntrinsicStatus)},
-		{in: "{ statusMessage }", expected: NewIntrinsic(IntrinsicStatusMessage)},
-		{in: "{ 4321 }", expected: NewStaticInt(4321)},
-		{in: "{ maxInt }", expected: NewStaticInt(math.MaxInt)},
-		{in: "{ minInt }", expected: NewStaticInt(math.MinInt)},
-		{in: "{ 1.234 }", expected: NewStaticFloat(1.234)},
-		{in: "{ 3h }", expected: NewStaticDuration(3 * time.Hour)},
-		{in: "{ 1.5m }", expected: NewStaticDuration(1*time.Minute + 30*time.Second)},
-		{in: "{ error }", expected: NewStaticStatus(StatusError)},
-		{in: "{ ok }", expected: NewStaticStatus(StatusOk)},
-		{in: "{ unset }", expected: NewStaticStatus(StatusUnset)},
-		{in: "{ unspecified }", expected: NewStaticKind(KindUnspecified)},
-		{in: "{ internal }", expected: NewStaticKind(KindInternal)},
-		{in: "{ client }", expected: NewStaticKind(KindClient)},
-		{in: "{ server }", expected: NewStaticKind(KindServer)},
-		{in: "{ producer }", expected: NewStaticKind(KindProducer)},
-		{in: "{ consumer }", expected: NewStaticKind(KindConsumer)},
+		{in: "{ true }", expected: NewStaticBool(true), expectedStr: "{ true }"},
+		{in: "{ false }", expected: NewStaticBool(false), expectedStr: "{ false }"},
+		{in: `{ "true" }`, expected: NewStaticString("true"), expectedStr: "{ `true` }"},
+		{in: `{ "true\"" }`, expected: NewStaticString("true\""), expectedStr: "{ `true\"` }"},
+		{in: "{ `foo` }", expected: NewStaticString("foo"), expectedStr: "{ `foo` }"},
+		{in: "{ .foo }", expected: NewAttribute("foo"), expectedStr: "{ .foo }"},
+		{in: "{ duration }", expected: NewIntrinsic(IntrinsicDuration), expectedStr: "{ duration }"},
+		{in: "{ name }", expected: NewIntrinsic(IntrinsicName), expectedStr: "{ name }"},
+		{in: "{ parent }", expected: NewIntrinsic(IntrinsicParent), expectedStr: "{ parent }"},
+		{in: "{ status }", expected: NewIntrinsic(IntrinsicStatus), expectedStr: "{ status }"},
+		{in: "{ statusMessage }", expected: NewIntrinsic(IntrinsicStatusMessage), expectedStr: "{ statusMessage }"},
+		{in: "{ 4321 }", expected: NewStaticInt(4321), expectedStr: "{ 4321 }"},
+		{in: "{ maxInt }", expected: NewStaticInt(math.MaxInt), expectedStr: "{ 9223372036854775807 }"},
+		{in: "{ minInt }", expected: NewStaticInt(math.MinInt), expectedStr: "{ -9223372036854775808 }"},
+		{in: "{ 1.234 }", expected: NewStaticFloat(1.234), expectedStr: "{ 1.234 }"},
+		{in: "{ 3h }", expected: NewStaticDuration(3 * time.Hour), expectedStr: "{ 3h0m0s }"},
+		{in: "{ 1.5m }", expected: NewStaticDuration(1*time.Minute + 30*time.Second), expectedStr: "{ 1m30s }"},
+		{in: "{ error }", expected: NewStaticStatus(StatusError), expectedStr: "{ error }"},
+		{in: "{ ok }", expected: NewStaticStatus(StatusOk), expectedStr: "{ ok }"},
+		{in: "{ unset }", expected: NewStaticStatus(StatusUnset), expectedStr: "{ unset }"},
+		{in: "{ unspecified }", expected: NewStaticKind(KindUnspecified), expectedStr: "{ unspecified }"},
+		{in: "{ internal }", expected: NewStaticKind(KindInternal), expectedStr: "{ internal }"},
+		{in: "{ client }", expected: NewStaticKind(KindClient), expectedStr: "{ client }"},
+		{in: "{ server }", expected: NewStaticKind(KindServer), expectedStr: "{ server }"},
+		{in: "{ producer }", expected: NewStaticKind(KindProducer), expectedStr: "{ producer }"},
+		{in: "{ consumer }", expected: NewStaticKind(KindConsumer), expectedStr: "{ consumer }"},
 	}
 
 	for _, tc := range tests {
@@ -889,6 +963,7 @@ func TestSpansetFilterStatics(t *testing.T) {
 
 			require.NoError(t, err)
 			require.Equal(t, newRootExpr(newPipeline(newSpansetFilter(tc.expected))), actual)
+			require.Equal(t, tc.expectedStr, actual.String())
 		})
 	}
 }
@@ -1458,14 +1533,16 @@ func TestEmptyQuery(t *testing.T) {
 			actual, err := Parse(tc.in)
 			require.NoError(t, err, tc.in)
 			require.Equal(t, newRootExpr(newPipeline(newSpansetFilter(NewStaticBool(true)))), actual, tc.in)
+			require.Equal(t, "{ true }", actual.String())
 		})
 	}
 }
 
 func TestHints(t *testing.T) {
 	tests := []struct {
-		in       string
-		expected *RootExpr
+		in          string
+		expected    *RootExpr
+		expectedStr string
 	}{
 		{
 			in: `{ } | rate() with(foo="bar")`,
@@ -1475,6 +1552,7 @@ func TestHints(t *testing.T) {
 			).withHints(newHints([]*Hint{
 				newHint("foo", NewStaticString("bar")),
 			})),
+			expectedStr: "{ true } | rate() with(foo=`bar`)",
 		},
 		{
 			in: `{ } | rate() with(foo=0.5)`,
@@ -1484,6 +1562,7 @@ func TestHints(t *testing.T) {
 			).withHints(newHints([]*Hint{
 				newHint("foo", NewStaticFloat(0.5)),
 			})),
+			expectedStr: "{ true } | rate() with(foo=0.5)",
 		},
 	}
 
@@ -1493,6 +1572,7 @@ func TestHints(t *testing.T) {
 
 			require.NoError(t, err)
 			require.Equal(t, tc.expected, actual)
+			require.Equal(t, tc.expectedStr, actual.String())
 		})
 	}
 }
@@ -1523,8 +1603,9 @@ func TestReallyLongQuery(t *testing.T) {
 
 func TestMetrics(t *testing.T) {
 	tests := []struct {
-		in       string
-		expected *RootExpr
+		in          string
+		expected    *RootExpr
+		expectedStr string
 	}{
 		{
 			in: `{ } | rate()`,
@@ -1532,6 +1613,7 @@ func TestMetrics(t *testing.T) {
 				newPipeline(newSpansetFilter(NewStaticBool(true))),
 				newMetricsAggregate(metricsAggregateRate, nil),
 			),
+			expectedStr: `{ true } | rate()`,
 		},
 		{
 			in: `{ } | count_over_time() by(name, span.http.status_code)`,
@@ -1542,6 +1624,7 @@ func TestMetrics(t *testing.T) {
 					NewScopedAttribute(AttributeScopeSpan, false, "http.status_code"),
 				}),
 			),
+			expectedStr: `{ true } | count_over_time()by(name,span.http.status_code)`,
 		},
 		{
 			in: `{ } | min_over_time(duration) by(name, span.http.status_code)`,
@@ -1554,6 +1637,7 @@ func TestMetrics(t *testing.T) {
 						NewScopedAttribute(AttributeScopeSpan, false, "http.status_code"),
 					}),
 			),
+			expectedStr: `{ true } | min_over_time(duration)by(name,span.http.status_code)`,
 		},
 		{
 			in: `{ } | max_over_time(duration) by(name, span.http.status_code)`,
@@ -1566,6 +1650,7 @@ func TestMetrics(t *testing.T) {
 						NewScopedAttribute(AttributeScopeSpan, false, "http.status_code"),
 					}),
 			),
+			expectedStr: `{ true } | max_over_time(duration)by(name,span.http.status_code)`,
 		},
 		{
 			in: `{ } | avg_over_time(duration) by(name, span.http.status_code)`,
@@ -1578,6 +1663,7 @@ func TestMetrics(t *testing.T) {
 						NewScopedAttribute(AttributeScopeSpan, false, "http.status_code"),
 					}),
 			),
+			expectedStr: `{ true } | avg_over_time(duration)by(name,span.http.status_code)`,
 		},
 		{
 			in: `{ } | sum_over_time(duration) by(name, span.http.status_code)`,
@@ -1590,6 +1676,7 @@ func TestMetrics(t *testing.T) {
 						NewScopedAttribute(AttributeScopeSpan, false, "http.status_code"),
 					}),
 			),
+			expectedStr: `{ true } | sum_over_time(duration)by(name,span.http.status_code)`,
 		},
 		{
 			in: `{ } | quantile_over_time(duration, 0, 0.90, 0.95, 1) by(name, span.http.status_code)`,
@@ -1603,6 +1690,7 @@ func TestMetrics(t *testing.T) {
 						NewScopedAttribute(AttributeScopeSpan, false, "http.status_code"),
 					}),
 			),
+			expectedStr: `{ true } | quantile_over_time(duration,0.00000,0.90000,0.95000,1.00000)by(name,span.http.status_code)`,
 		},
 	}
 
@@ -1612,14 +1700,16 @@ func TestMetrics(t *testing.T) {
 
 			require.NoError(t, err)
 			require.Equal(t, tc.expected, actual)
+			require.Equal(t, tc.expectedStr, actual.String())
 		})
 	}
 }
 
 func TestMetricsSecondStage(t *testing.T) {
 	tests := []struct {
-		in       string
-		expected *RootExpr
+		in          string
+		expected    *RootExpr
+		expectedStr string
 	}{
 		{
 			in: `{ } | rate() | topk(10)`,
@@ -1628,6 +1718,7 @@ func TestMetricsSecondStage(t *testing.T) {
 				newMetricsAggregate(metricsAggregateRate, nil),
 				newTopKBottomK(OpTopK, 10),
 			),
+			expectedStr: `{ true } | rate() | topk(10)`,
 		},
 		{
 			in: `{ } | count_over_time() by(name, span.http.status_code) | topk(10)`,
@@ -1639,6 +1730,7 @@ func TestMetricsSecondStage(t *testing.T) {
 				}),
 				newTopKBottomK(OpTopK, 10),
 			),
+			expectedStr: `{ true } | count_over_time()by(name,span.http.status_code) | topk(10)`,
 		},
 		{
 			in: `{ } | rate() | topk(10) with(foo="bar")`,
@@ -1649,6 +1741,7 @@ func TestMetricsSecondStage(t *testing.T) {
 			).withHints(newHints([]*Hint{
 				newHint("foo", NewStaticString("bar")),
 			})),
+			expectedStr: "{ true } | rate() | topk(10) with(foo=`bar`)",
 		},
 		{
 			in: `{ } | rate() | bottomk(10)`,
@@ -1657,6 +1750,7 @@ func TestMetricsSecondStage(t *testing.T) {
 				newMetricsAggregate(metricsAggregateRate, nil),
 				newTopKBottomK(OpBottomK, 10),
 			),
+			expectedStr: `{ true } | rate() | bottomk(10)`,
 		},
 		{
 			in: `{ } | count_over_time() by(name, span.http.status_code) | bottomk(10)`,
@@ -1668,6 +1762,7 @@ func TestMetricsSecondStage(t *testing.T) {
 				}),
 				newTopKBottomK(OpBottomK, 10),
 			),
+			expectedStr: `{ true } | count_over_time()by(name,span.http.status_code) | bottomk(10)`,
 		},
 		{
 			in: `{ } | rate() | bottomk(10) with(foo="bar")`,
@@ -1678,6 +1773,112 @@ func TestMetricsSecondStage(t *testing.T) {
 			).withHints(newHints([]*Hint{
 				newHint("foo", NewStaticString("bar")),
 			})),
+			expectedStr: "{ true } | rate() | bottomk(10) with(foo=`bar`)",
+		},
+		// Combined second stage tests (topk/bottomk with filter)
+		{
+			in: `{ } | rate() | topk(5) > 10`,
+			expected: newRootExprWithMetricsTwoStage(
+				newPipeline(newSpansetFilter(NewStaticBool(true))),
+				newMetricsAggregate(metricsAggregateRate, nil),
+				newChainedSecondStage(
+					newTopKBottomK(OpTopK, 5),
+					newMetricsFilter(OpGreater, 10),
+				),
+			),
+			expectedStr: `{ true } | rate() | topk(5) > 10`,
+		},
+		{
+			in: `{ } | rate() by(name) | bottomk(3) >= 5.5`,
+			expected: newRootExprWithMetricsTwoStage(
+				newPipeline(newSpansetFilter(NewStaticBool(true))),
+				newMetricsAggregate(metricsAggregateRate, []Attribute{
+					NewIntrinsic(IntrinsicName),
+				}),
+				newChainedSecondStage(
+					newTopKBottomK(OpBottomK, 3),
+					newMetricsFilter(OpGreaterEqual, 5.5),
+				),
+			),
+			expectedStr: `{ true } | rate()by(name) | bottomk(3) >= 5.5`,
+		},
+		{
+			in: `{ } | count_over_time() | topk(10) != 0`,
+			expected: newRootExprWithMetricsTwoStage(
+				newPipeline(newSpansetFilter(NewStaticBool(true))),
+				newMetricsAggregate(metricsAggregateCountOverTime, nil),
+				newChainedSecondStage(
+					newTopKBottomK(OpTopK, 10),
+					newMetricsFilter(OpNotEqual, 0),
+				),
+			),
+			expectedStr: `{ true } | count_over_time() | topk(10) != 0`,
+		},
+		{
+			in: `{ } | count_over_time() | topk(10) != 0 with (sample=0.1)`,
+			expected: newRootExprWithMetricsTwoStage(
+				newPipeline(newSpansetFilter(NewStaticBool(true))),
+				newMetricsAggregate(metricsAggregateCountOverTime, nil),
+				newChainedSecondStage(
+					newTopKBottomK(OpTopK, 10),
+					newMetricsFilter(OpNotEqual, 0),
+				),
+			).withHints(newHints([]*Hint{
+				newHint("sample", NewStaticFloat(0.1)),
+			})),
+			expectedStr: `{ true } | count_over_time() | topk(10) != 0 with(sample=0.1)`,
+		},
+		// Combined: filter then topk/bottomk (e.g. {} | rate() > 10 | topk(5))
+		{
+			in: `{ } | rate() > 10 | topk(5)`,
+			expected: newRootExprWithMetricsTwoStage(
+				newPipeline(newSpansetFilter(NewStaticBool(true))),
+				newMetricsAggregate(metricsAggregateRate, nil),
+				newChainedSecondStage(
+					newMetricsFilter(OpGreater, 10),
+					newTopKBottomK(OpTopK, 5),
+				),
+			),
+			expectedStr: `{ true } | rate() > 10 | topk(5)`,
+		},
+		{
+			in: `{ } | rate() by(name) >= 5.5 | bottomk(3)`,
+			expected: newRootExprWithMetricsTwoStage(
+				newPipeline(newSpansetFilter(NewStaticBool(true))),
+				newMetricsAggregate(metricsAggregateRate, []Attribute{
+					NewIntrinsic(IntrinsicName),
+				}),
+				newChainedSecondStage(
+					newMetricsFilter(OpGreaterEqual, 5.5),
+					newTopKBottomK(OpBottomK, 3),
+				),
+			),
+			expectedStr: `{ true } | rate()by(name) >= 5.5 | bottomk(3)`,
+		},
+		{
+			in: `{ } | count_over_time() != 0 | topk(10)`,
+			expected: newRootExprWithMetricsTwoStage(
+				newPipeline(newSpansetFilter(NewStaticBool(true))),
+				newMetricsAggregate(metricsAggregateCountOverTime, nil),
+				newChainedSecondStage(
+					newMetricsFilter(OpNotEqual, 0),
+					newTopKBottomK(OpTopK, 10),
+				),
+			),
+			expectedStr: `{ true } | count_over_time() != 0 | topk(10)`,
+		},
+		{
+			in: `{ } | count_over_time() | topk(1) != 0 | topk(10)`,
+			expected: newRootExprWithMetricsTwoStage(
+				newPipeline(newSpansetFilter(NewStaticBool(true))),
+				newMetricsAggregate(metricsAggregateCountOverTime, nil),
+				newChainedSecondStage(
+					newTopKBottomK(OpTopK, 1),
+					newMetricsFilter(OpNotEqual, 0),
+					newTopKBottomK(OpTopK, 10),
+				),
+			),
+			expectedStr: `{ true } | count_over_time() | topk(1) != 0 | topk(10)`,
 		},
 	}
 
@@ -1687,6 +1888,7 @@ func TestMetricsSecondStage(t *testing.T) {
 
 			require.NoError(t, err)
 			require.Equal(t, tc.expected, actual)
+			require.Equal(t, tc.expectedStr, actual.String())
 		})
 	}
 }
@@ -1719,6 +1921,14 @@ func TestMetricsSecondStageErrors(t *testing.T) {
 		{
 			in:  "{} | rate() | bottomk(-1)",
 			err: newParseError("syntax error: unexpected -, expecting INTEGER", 1, 23),
+		},
+		{
+			in:  "{} > 10",
+			err: newParseError("syntax error: unexpected INTEGER, expecting { or (", 1, 6),
+		},
+		{
+			in:  "{} = 10",
+			err: newParseError("syntax error: unexpected =, expecting with", 1, 4),
 		},
 	}
 
@@ -1774,6 +1984,120 @@ func TestParseRewrites(t *testing.T) {
 			actual, err := Parse(tc.query)
 			require.NoError(t, err)
 			require.Equal(t, tc.want, actual.String())
+		})
+	}
+}
+
+func TestMetricsFilter(t *testing.T) {
+	tests := []struct {
+		in          string
+		expected    *RootExpr
+		expectedStr string
+	}{
+		{
+			in: `{ } | rate() > 10`,
+			expected: newRootExprWithMetricsTwoStage(
+				newPipeline(newSpansetFilter(NewStaticBool(true))),
+				newMetricsAggregate(metricsAggregateRate, nil),
+				newMetricsFilter(OpGreater, 10),
+			),
+			expectedStr: `{ true } | rate() > 10`,
+		},
+		{
+			in: `{ } | rate() by(name) >= 5.5`,
+			expected: newRootExprWithMetricsTwoStage(
+				newPipeline(newSpansetFilter(NewStaticBool(true))),
+				newMetricsAggregate(metricsAggregateRate, []Attribute{
+					NewIntrinsic(IntrinsicName),
+				}),
+				newMetricsFilter(OpGreaterEqual, 5.5),
+			),
+			expectedStr: `{ true } | rate()by(name) >= 5.5`,
+		},
+		{
+			in: `{ } | rate() > 10s`,
+			expected: newRootExprWithMetricsTwoStage(
+				newPipeline(newSpansetFilter(NewStaticBool(true))),
+				newMetricsAggregate(metricsAggregateRate, nil),
+				newMetricsFilter(OpGreater, 10),
+			),
+			expectedStr: `{ true } | rate() > 10`,
+		},
+		{
+			in: `{ } | count_over_time() < 100`,
+			expected: newRootExprWithMetricsTwoStage(
+				newPipeline(newSpansetFilter(NewStaticBool(true))),
+				newMetricsAggregate(metricsAggregateCountOverTime, nil),
+				newMetricsFilter(OpLess, 100),
+			),
+			expectedStr: `{ true } | count_over_time() < 100`,
+		},
+		{
+			in: `{ } | rate() <= 0.5`,
+			expected: newRootExprWithMetricsTwoStage(
+				newPipeline(newSpansetFilter(NewStaticBool(true))),
+				newMetricsAggregate(metricsAggregateRate, nil),
+				newMetricsFilter(OpLessEqual, 0.5),
+			),
+			expectedStr: `{ true } | rate() <= 0.5`,
+		},
+		{
+			in: `{ } | rate() = 42`,
+			expected: newRootExprWithMetricsTwoStage(
+				newPipeline(newSpansetFilter(NewStaticBool(true))),
+				newMetricsAggregate(metricsAggregateRate, nil),
+				newMetricsFilter(OpEqual, 42),
+			),
+			expectedStr: `{ true } | rate() = 42`,
+		},
+		{
+			in: `{ } | rate() != 0`,
+			expected: newRootExprWithMetricsTwoStage(
+				newPipeline(newSpansetFilter(NewStaticBool(true))),
+				newMetricsAggregate(metricsAggregateRate, nil),
+				newMetricsFilter(OpNotEqual, 0),
+			),
+			expectedStr: `{ true } | rate() != 0`,
+		},
+		{
+			in: `{ } | rate() > -3`,
+			expected: newRootExprWithMetricsTwoStage(
+				newPipeline(newSpansetFilter(NewStaticBool(true))),
+				newMetricsAggregate(metricsAggregateRate, nil),
+				newMetricsFilter(OpGreater, -3),
+			),
+			expectedStr: `{ true } | rate() > -3`,
+		},
+		{
+			in: `{ } | rate() > -2.5`,
+			expected: newRootExprWithMetricsTwoStage(
+				newPipeline(newSpansetFilter(NewStaticBool(true))),
+				newMetricsAggregate(metricsAggregateRate, nil),
+				newMetricsFilter(OpGreater, -2.5),
+			),
+			expectedStr: `{ true } | rate() > -2.5`,
+		},
+		{
+			in: `{ } | rate() > 10 with(foo="bar")`,
+			expected: newRootExprWithMetricsTwoStage(
+				newPipeline(newSpansetFilter(NewStaticBool(true))),
+				newMetricsAggregate(metricsAggregateRate, nil),
+				newMetricsFilter(OpGreater, 10),
+			).withHints(newHints([]*Hint{
+				newHint("foo", NewStaticString("bar")),
+			})),
+			expectedStr: "{ true } | rate() > 10 with(foo=`bar`)",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.in, func(t *testing.T) {
+			actual, err := Parse(tc.in)
+
+			require.NoError(t, err)
+			require.Equal(t, tc.expected, actual)
+			q := actual.String()
+			require.Equal(t, tc.expectedStr, q, "stringified query should match expected string")
 		})
 	}
 }
