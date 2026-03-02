@@ -185,7 +185,11 @@ Tempo also generates these metrics server-side through the [metrics-generator](/
 However, collector-side generation is useful when tail sampling is active, because tail sampling can discard traces before they reach Tempo.
 By generating metrics in the collector, you ensure complete metrics coverage regardless of which traces are ultimately stored.
 
-You don't need to disable the Tempo metrics-generator to use the collector `spanmetrics` connector. Both can run simultaneously since they produce differently-named metrics. However, running both increases active series, storage, and compute overhead. In Grafana Cloud, extra active series can impact billing. If you use tail sampling, collector-side generation ensures complete metrics coverage because it sees all spans before sampling discards any. Without tail sampling, the Tempo [metrics-generator](/docs/tempo/<TEMPO_VERSION>/metrics-from-traces/span-metrics/span-metrics-metrics-generator/) alone is typically sufficient and avoids the overhead of duplicate metric generation.
+You don't need to disable the Tempo metrics-generator to use the collector `spanmetrics` connector. Both can run simultaneously since they produce differently-named metrics. 
+However, running both increases active series, storage, and compute overhead. 
+In Grafana Cloud, extra active series can impact billing. 
+If you use tail sampling, collector-side generation ensures complete metrics coverage because it sees all spans before sampling discards any. 
+Without tail sampling, the Tempo [metrics-generator](/docs/tempo/<TEMPO_VERSION>/metrics-from-traces/span-metrics/span-metrics-metrics-generator/) alone is typically sufficient and avoids the overhead of duplicate metric generation.
 
 ![OpenTelemetry Collector metrics pipeline showing spans branching to the `spanmetrics` connector and tail sampling processor](diagram-otel-collector-metrics-pipeline.svg)
 
