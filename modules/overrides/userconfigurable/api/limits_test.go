@@ -24,7 +24,7 @@ func Test_limitsFromOverrides(t *testing.T) {
 				Processors:                      map[string]struct{}{"service-graphs": {}},
 				CollectionInterval:              15 * time.Second,
 				IngestionSlack:                  time.Minute,
-				DisableCollection:               true,
+				DisableCollection:               boolPtr(true),
 				TraceIDLabelName:                "trace_id",
 				GenerateNativeHistograms:        histograms.HistogramMethodBoth,
 				NativeHistogramMaxBucketNumber:  160,

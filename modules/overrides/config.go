@@ -61,6 +61,25 @@ var metricLimitsDesc = prometheus.NewDesc(
 	nil,
 )
 
+func ptrTo[T any](v T) *T { return &v }
+
+// nonZeroPtrTo returns a pointer to v if v is non-zero, otherwise nil.
+// Used for legacy config conversion where zero values mean "not set".
+func nonZeroPtrTo[T comparable](v T) *T {
+	var zero T
+	if v == zero {
+		return nil
+	}
+	return &v
+}
+
+func derefOr[T any](p *T, fallback T) T {
+	if p != nil {
+		return *p
+	}
+	return fallback
+}
+
 type IngestionOverrides struct {
 	// Distributor enforced limits.
 	RateStrategy   string `yaml:"rate_strategy,omitempty" json:"rate_strategy,omitempty"`
@@ -74,7 +93,7 @@ type IngestionOverrides struct {
 	TenantShardSize   int            `yaml:"tenant_shard_size,omitempty" json:"tenant_shard_size,omitempty"`
 	MaxAttributeBytes int            `yaml:"max_attribute_bytes,omitempty" json:"max_attribute_bytes,omitempty"`
 	ArtificialDelay   *time.Duration `yaml:"artificial_delay,omitempty" json:"artificial_delay,omitempty"`
-	RetryInfoEnabled  bool           `yaml:"retry_info_enabled,omitempty" json:"retry_info_enabled,omitempty"`
+	RetryInfoEnabled  *bool          `yaml:"retry_info_enabled,omitempty" json:"retry_info_enabled,omitempty"`
 }
 
 type ForwarderOverrides struct {
@@ -146,7 +165,7 @@ type MetricsGeneratorOverrides struct {
 	MaxActiveSeries          uint32                     `yaml:"max_active_series,omitempty" json:"max_active_series,omitempty"`
 	MaxActiveEntities        uint32                     `yaml:"max_active_entities,omitempty" json:"max_active_entities,omitempty"`
 	CollectionInterval       time.Duration              `yaml:"collection_interval,omitempty" json:"collection_interval,omitempty"`
-	DisableCollection        bool                       `yaml:"disable_collection,omitempty" json:"disable_collection,omitempty"`
+	DisableCollection        *bool                      `yaml:"disable_collection,omitempty" json:"disable_collection,omitempty"`
 	GenerateNativeHistograms histograms.HistogramMethod `yaml:"generate_native_histograms" json:"generate_native_histograms,omitempty"`
 	TraceIDLabelName         string                     `yaml:"trace_id_label_name,omitempty" json:"trace_id_label_name,omitempty"`
 
@@ -160,7 +179,7 @@ type MetricsGeneratorOverrides struct {
 	NativeHistogramMaxBucketNumber  uint32        `yaml:"native_histogram_max_bucket_number,omitempty" json:"native_histogram_max_bucket_number,omitempty"`
 	NativeHistogramMinResetDuration time.Duration `yaml:"native_histogram_min_reset_duration,omitempty" json:"native_histogram_min_reset_duration,omitempty"`
 	SpanNameSanitization            string        `yaml:"span_name_sanitization,omitempty" json:"span_name_sanitization,omitempty"`
-	MaxCardinalityPerLabel          uint64        `yaml:"max_cardinality_per_label,omitempty" json:"max_cardinality_per_label,omitempty"`
+	MaxCardinalityPerLabel          *uint64       `yaml:"max_cardinality_per_label,omitempty" json:"max_cardinality_per_label,omitempty"`
 }
 
 type ReadOverrides struct {
@@ -172,18 +191,18 @@ type ReadOverrides struct {
 	MaxSearchDuration  model.Duration `yaml:"max_search_duration,omitempty" json:"max_search_duration,omitempty"`
 	MaxMetricsDuration model.Duration `yaml:"max_metrics_duration,omitempty" json:"max_metrics_duration,omitempty"`
 
-	UnsafeQueryHints bool `yaml:"unsafe_query_hints,omitempty" json:"unsafe_query_hints,omitempty"`
+	UnsafeQueryHints *bool `yaml:"unsafe_query_hints,omitempty" json:"unsafe_query_hints,omitempty"`
 
 	// LeftPadTraceIDs left-pads trace IDs in search responses to 32 hex characters with zeros.
 	// This produces W3C/OpenTelemetry compliant trace IDs (32-hex-character lowercase strings).
-	LeftPadTraceIDs bool `yaml:"left_pad_trace_ids,omitempty" json:"left_pad_trace_ids,omitempty"`
+	LeftPadTraceIDs *bool `yaml:"left_pad_trace_ids,omitempty" json:"left_pad_trace_ids,omitempty"`
 }
 
 type CompactionOverrides struct {
 	// Backend-worker/scheduler enforced overrides.
 	BlockRetention     model.Duration `yaml:"block_retention,omitempty" json:"block_retention,omitempty"`
 	CompactionWindow   model.Duration `yaml:"compaction_window,omitempty" json:"compaction_window,omitempty"`
-	CompactionDisabled bool           `yaml:"compaction_disabled,omitempty" json:"compaction_disabled,omitempty"`
+	CompactionDisabled *bool          `yaml:"compaction_disabled,omitempty" json:"compaction_disabled,omitempty"`
 }
 
 type GlobalOverrides struct {
@@ -278,7 +297,7 @@ func (c *Config) RegisterFlagsAndApplyDefaults(f *flag.FlagSet) {
 	c.Defaults.MetricsGenerator.GenerateNativeHistograms = histograms.HistogramMethodClassic
 
 	// Distributor LegacyOverrides
-	c.Defaults.Ingestion.RetryInfoEnabled = true // enabled in overrides by default but it's disabled with RetryAfterOnResourceExhausted = 0
+	c.Defaults.Ingestion.RetryInfoEnabled = ptrTo(true) // enabled in overrides by default but it's disabled with RetryAfterOnResourceExhausted = 0
 	f.StringVar(&c.Defaults.Ingestion.RateStrategy, "distributor.rate-limit-strategy", "local", "Whether the various ingestion rate limits should be applied individually to each distributor instance (local), or evenly shared across the cluster (global).")
 	f.IntVar(&c.Defaults.Ingestion.RateLimitBytes, "distributor.ingestion-rate-limit-bytes", 15e6, "Per-user ingestion rate limit in bytes per second.")
 	f.IntVar(&c.Defaults.Ingestion.BurstSizeBytes, "distributor.ingestion-burst-size-bytes", 20e6, "Per-user ingestion burst size in bytes. Should be set to the expected size (in bytes) of a single push request.")

@@ -613,7 +613,7 @@ func perTenantRuntimeOverrides(tenantID string) *perTenantOverrides {
 					Processors:         listtomap.ListToMap{"span-metrics": {}, "service-graphs": {}, "host-info": {}},
 					MaxActiveSeries:    60000,
 					CollectionInterval: 15 * time.Second,
-					DisableCollection:  false,
+					DisableCollection:  ptrTo(false),
 					Forwarder: ForwarderOverrides{
 						QueueSize: 400,
 						Workers:   3,

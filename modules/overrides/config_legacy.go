@@ -23,7 +23,7 @@ func (c *Overrides) toLegacy() LegacyOverrides {
 		MaxGlobalTracesPerUser:     c.Ingestion.MaxGlobalTracesPerUser,
 		IngestionMaxAttributeBytes: c.Ingestion.MaxAttributeBytes,
 		IngestionArtificialDelay:   c.Ingestion.ArtificialDelay,
-		IngestionRetryInfoEnabled:  c.Ingestion.RetryInfoEnabled,
+		IngestionRetryInfoEnabled:  derefOr(c.Ingestion.RetryInfoEnabled, false),
 
 		Forwarders: c.Forwarders,
 
@@ -32,7 +32,7 @@ func (c *Overrides) toLegacy() LegacyOverrides {
 		MetricsGeneratorMaxActiveSeries:                                             c.MetricsGenerator.MaxActiveSeries,
 		MetricsGeneratorMaxActiveEntities:                                           c.MetricsGenerator.MaxActiveEntities,
 		MetricsGeneratorCollectionInterval:                                          c.MetricsGenerator.CollectionInterval,
-		MetricsGeneratorDisableCollection:                                           c.MetricsGenerator.DisableCollection,
+		MetricsGeneratorDisableCollection:                                           derefOr(c.MetricsGenerator.DisableCollection, false),
 		MetricsGeneratorGenerateNativeHistograms:                                    c.MetricsGenerator.GenerateNativeHistograms,
 		MetricsGeneratorTraceIDLabelName:                                            c.MetricsGenerator.TraceIDLabelName,
 		MetricsGeneratorRemoteWriteHeaders:                                          c.MetricsGenerator.RemoteWriteHeaders,
@@ -68,18 +68,18 @@ func (c *Overrides) toLegacy() LegacyOverrides {
 		MetricsGeneratorNativeHistogramMaxBucketNumber:                              c.MetricsGenerator.NativeHistogramMaxBucketNumber,
 		MetricsGeneratorNativeHistogramMinResetDuration:                             c.MetricsGenerator.NativeHistogramMinResetDuration,
 		MetricsGeneratorSpanNameSanitization:                                        c.MetricsGenerator.SpanNameSanitization,
-		MetricsGeneratorMaxCardinalityPerLabel:                                      c.MetricsGenerator.MaxCardinalityPerLabel,
+		MetricsGeneratorMaxCardinalityPerLabel:                                      derefOr(c.MetricsGenerator.MaxCardinalityPerLabel, 0),
 
 		BlockRetention:     c.Compaction.BlockRetention,
 		CompactionWindow:   c.Compaction.CompactionWindow,
-		CompactionDisabled: c.Compaction.CompactionDisabled,
+		CompactionDisabled: derefOr(c.Compaction.CompactionDisabled, false),
 
 		MaxBytesPerTagValuesQuery:  c.Read.MaxBytesPerTagValuesQuery,
 		MaxBlocksPerTagValuesQuery: c.Read.MaxBlocksPerTagValuesQuery,
 		MaxSearchDuration:          c.Read.MaxSearchDuration,
 		MaxMetricsDuration:         c.Read.MaxMetricsDuration,
-		UnsafeQueryHints:           c.Read.UnsafeQueryHints,
-		LeftPadTraceIDs:            c.Read.LeftPadTraceIDs,
+		UnsafeQueryHints:           derefOr(c.Read.UnsafeQueryHints, false),
+		LeftPadTraceIDs:            derefOr(c.Read.LeftPadTraceIDs, false),
 
 		MaxBytesPerTrace: c.Global.MaxBytesPerTrace,
 
@@ -190,19 +190,19 @@ func (l *LegacyOverrides) toNewLimits() Overrides {
 			TenantShardSize:        l.IngestionTenantShardSize,
 			MaxAttributeBytes:      l.IngestionMaxAttributeBytes,
 			ArtificialDelay:        l.IngestionArtificialDelay,
-			RetryInfoEnabled:       l.IngestionRetryInfoEnabled,
+			RetryInfoEnabled:       nonZeroPtrTo(l.IngestionRetryInfoEnabled),
 		},
 		Read: ReadOverrides{
 			MaxBytesPerTagValuesQuery:  l.MaxBytesPerTagValuesQuery,
 			MaxBlocksPerTagValuesQuery: l.MaxBlocksPerTagValuesQuery,
 			MaxSearchDuration:          l.MaxSearchDuration,
 			MaxMetricsDuration:         l.MaxMetricsDuration,
-			UnsafeQueryHints:           l.UnsafeQueryHints,
-			LeftPadTraceIDs:            l.LeftPadTraceIDs,
+			UnsafeQueryHints:           nonZeroPtrTo(l.UnsafeQueryHints),
+			LeftPadTraceIDs:            nonZeroPtrTo(l.LeftPadTraceIDs),
 		},
 		Compaction: CompactionOverrides{
 			BlockRetention:     l.BlockRetention,
-			CompactionDisabled: l.CompactionDisabled,
+			CompactionDisabled: nonZeroPtrTo(l.CompactionDisabled),
 			CompactionWindow:   l.CompactionWindow,
 		},
 		MetricsGenerator: MetricsGeneratorOverrides{
@@ -211,7 +211,7 @@ func (l *LegacyOverrides) toNewLimits() Overrides {
 			MaxActiveSeries:          l.MetricsGeneratorMaxActiveSeries,
 			MaxActiveEntities:        l.MetricsGeneratorMaxActiveEntities,
 			CollectionInterval:       l.MetricsGeneratorCollectionInterval,
-			DisableCollection:        l.MetricsGeneratorDisableCollection,
+			DisableCollection:        nonZeroPtrTo(l.MetricsGeneratorDisableCollection),
 			TraceIDLabelName:         l.MetricsGeneratorTraceIDLabelName,
 			IngestionSlack:           l.MetricsGeneratorIngestionSlack,
 			RemoteWriteHeaders:       l.MetricsGeneratorRemoteWriteHeaders,
@@ -259,7 +259,7 @@ func (l *LegacyOverrides) toNewLimits() Overrides {
 			NativeHistogramMaxBucketNumber:  l.MetricsGeneratorNativeHistogramMaxBucketNumber,
 			NativeHistogramMinResetDuration: l.MetricsGeneratorNativeHistogramMinResetDuration,
 			SpanNameSanitization:            l.MetricsGeneratorSpanNameSanitization,
-			MaxCardinalityPerLabel:          l.MetricsGeneratorMaxCardinalityPerLabel,
+			MaxCardinalityPerLabel:          nonZeroPtrTo(l.MetricsGeneratorMaxCardinalityPerLabel),
 		},
 		Forwarders: l.Forwarders,
 		Global: GlobalOverrides{

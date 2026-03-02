@@ -175,7 +175,7 @@ func TestRuntimeConfigOverrides(t *testing.T) {
 			expectedMaxBytesPerTrace:    map[string]int{"user1": 8, "user2": 13},
 			expectedIngestionBurstSpans: map[string]int{"user1": 9, "user2": 14},
 			expectedIngestionRateSpans:  map[string]int{"user1": 10, "user2": 15},
-			expectedMaxSearchDuration:   map[string]int{"user1": 0, "user2": int(16 * time.Second)},
+			expectedMaxSearchDuration:   map[string]int{"user1": int(16 * time.Second), "user2": int(16 * time.Second)}, // user1 inherits from wildcard for unset fields
 		},
 	}
 
@@ -696,7 +696,7 @@ func TestMetricsGeneratorMaxCardinalityPerLabel(t *testing.T) {
 			name: "default enabled, no tenant override",
 			defaultLimits: Overrides{
 				MetricsGenerator: MetricsGeneratorOverrides{
-					MaxCardinalityPerLabel: 100,
+					MaxCardinalityPerLabel: ptrTo(uint64(100)),
 				},
 			},
 			expected: map[string]uint64{"user1": 100, "user2": 100},
@@ -708,7 +708,7 @@ func TestMetricsGeneratorMaxCardinalityPerLabel(t *testing.T) {
 				TenantLimits: map[string]*Overrides{
 					"user1": {
 						MetricsGenerator: MetricsGeneratorOverrides{
-							MaxCardinalityPerLabel: 50,
+							MaxCardinalityPerLabel: ptrTo(uint64(50)),
 						},
 					},
 				},
@@ -719,14 +719,14 @@ func TestMetricsGeneratorMaxCardinalityPerLabel(t *testing.T) {
 			name: "default enabled, tenant disables with 0",
 			defaultLimits: Overrides{
 				MetricsGenerator: MetricsGeneratorOverrides{
-					MaxCardinalityPerLabel: 100,
+					MaxCardinalityPerLabel: ptrTo(uint64(100)),
 				},
 			},
 			perTenantOverrides: &perTenantOverrides{
 				TenantLimits: map[string]*Overrides{
 					"user1": {
 						MetricsGenerator: MetricsGeneratorOverrides{
-							MaxCardinalityPerLabel: 0,
+							MaxCardinalityPerLabel: ptrTo(uint64(0)),
 						},
 					},
 				},
@@ -737,14 +737,14 @@ func TestMetricsGeneratorMaxCardinalityPerLabel(t *testing.T) {
 			name: "default enabled, tenant overrides with higher value",
 			defaultLimits: Overrides{
 				MetricsGenerator: MetricsGeneratorOverrides{
-					MaxCardinalityPerLabel: 100,
+					MaxCardinalityPerLabel: ptrTo(uint64(100)),
 				},
 			},
 			perTenantOverrides: &perTenantOverrides{
 				TenantLimits: map[string]*Overrides{
 					"user1": {
 						MetricsGenerator: MetricsGeneratorOverrides{
-							MaxCardinalityPerLabel: 500,
+							MaxCardinalityPerLabel: ptrTo(uint64(500)),
 						},
 					},
 				},
@@ -822,15 +822,15 @@ func TestOverrideFallbackChain(t *testing.T) {
 			TenantShardSize:        5,
 			MaxAttributeBytes:      6000,
 			ArtificialDelay:        &artificialDelay,
-			RetryInfoEnabled:       true,
+			RetryInfoEnabled:       ptrTo(true),
 		},
 		Read: ReadOverrides{
 			MaxBytesPerTagValuesQuery:  7000,
 			MaxBlocksPerTagValuesQuery: 8,
 			MaxSearchDuration:          model.Duration(9 * time.Minute),
 			MaxMetricsDuration:         model.Duration(10 * time.Minute),
-			UnsafeQueryHints:           true,
-			LeftPadTraceIDs:            true,
+			UnsafeQueryHints:           ptrTo(true),
+			LeftPadTraceIDs:            ptrTo(true),
 		},
 		Global: GlobalOverrides{
 			MaxBytesPerTrace: 9000,
@@ -838,7 +838,7 @@ func TestOverrideFallbackChain(t *testing.T) {
 		Compaction: CompactionOverrides{
 			CompactionWindow:   model.Duration(10 * time.Minute),
 			BlockRetention:     model.Duration(720 * time.Hour),
-			CompactionDisabled: true,
+			CompactionDisabled: ptrTo(true),
 		},
 		Forwarders: []string{"default-forwarder"},
 		MetricsGenerator: MetricsGeneratorOverrides{
@@ -847,11 +847,11 @@ func TestOverrideFallbackChain(t *testing.T) {
 			MaxActiveSeries:                 12000,
 			MaxActiveEntities:               13000,
 			CollectionInterval:              14 * time.Second,
-			DisableCollection:               true,
+			DisableCollection:               ptrTo(true),
 			IngestionSlack:                  15 * time.Minute,
 			TraceIDLabelName:                "default_trace_id",
 			SpanNameSanitization:            "default_mode",
-			MaxCardinalityPerLabel:          16000,
+			MaxCardinalityPerLabel:          ptrTo(uint64(16000)),
 			NativeHistogramBucketFactor:     1.5,
 			NativeHistogramMaxBucketNumber:  100,
 			NativeHistogramMinResetDuration: 17 * time.Minute,
@@ -930,15 +930,15 @@ func TestOverrideFallbackChain(t *testing.T) {
 			TenantShardSize:        50,
 			MaxAttributeBytes:      600,
 			ArtificialDelay:        &tenant1ArtificialDelay,
-			RetryInfoEnabled:       true,
+			RetryInfoEnabled:       ptrTo(true),
 		},
 		Read: ReadOverrides{
 			MaxBytesPerTagValuesQuery:  700,
 			MaxBlocksPerTagValuesQuery: 80,
 			MaxSearchDuration:          model.Duration(90 * time.Minute),
 			MaxMetricsDuration:         model.Duration(100 * time.Minute),
-			UnsafeQueryHints:           true,
-			LeftPadTraceIDs:            true,
+			UnsafeQueryHints:           ptrTo(true),
+			LeftPadTraceIDs:            ptrTo(true),
 		},
 		Global: GlobalOverrides{
 			MaxBytesPerTrace: 900,
@@ -946,7 +946,7 @@ func TestOverrideFallbackChain(t *testing.T) {
 		Compaction: CompactionOverrides{
 			CompactionWindow:   model.Duration(100 * time.Minute),
 			BlockRetention:     model.Duration(100 * time.Hour),
-			CompactionDisabled: true,
+			CompactionDisabled: ptrTo(true),
 		},
 		Forwarders: []string{"tenant1-forwarder"},
 		MetricsGenerator: MetricsGeneratorOverrides{
@@ -955,11 +955,11 @@ func TestOverrideFallbackChain(t *testing.T) {
 			MaxActiveSeries:                 1200,
 			MaxActiveEntities:               1300,
 			CollectionInterval:              140 * time.Second,
-			DisableCollection:               true,
+			DisableCollection:               ptrTo(true),
 			IngestionSlack:                  150 * time.Minute,
 			TraceIDLabelName:                "tenant1_trace_id",
 			SpanNameSanitization:            "tenant1_mode",
-			MaxCardinalityPerLabel:          1600,
+			MaxCardinalityPerLabel:          ptrTo(uint64(1600)),
 			NativeHistogramBucketFactor:     2.0,
 			NativeHistogramMaxBucketNumber:  200,
 			NativeHistogramMinResetDuration: 170 * time.Minute,
@@ -1314,9 +1314,9 @@ func TestOverrideFallbackChain(t *testing.T) {
 		{
 			name:            "MetricsGeneratorRemoteWriteHeaders",
 			tenant1Got:      overrides.MetricsGeneratorRemoteWriteHeaders("tenant1"),
-			tenant1Expected: map[string]string{"X-Tenant1": "t1-val"},
+			tenant1Expected: map[string]string{"X-Tenant1": "<secret>"}, // config.Secret masks values after YAML round-trip
 			tenant2Got:      overrides.MetricsGeneratorRemoteWriteHeaders("tenant2"),
-			tenant2Expected: map[string]string{"X-Default": "default-val"},
+			tenant2Expected: map[string]string{"X-Default": "default-val"}, // from raw defaults struct, not YAML round-tripped
 		},
 		{
 			name:            "MetricsGeneratorForwarderQueueSize",
@@ -1569,9 +1569,9 @@ func TestOverrideFallbackChain(t *testing.T) {
 		{
 			name:            "DedicatedColumns",
 			tenant1Got:      overrides.DedicatedColumns("tenant1"),
-			tenant1Expected: backend.DedicatedColumns{{Scope: "span", Name: "tenant1-col", Type: "int"}},
+			tenant1Expected: backend.DedicatedColumns{{Scope: "span", Name: "tenant1-col", Type: "int", Options: backend.DedicatedColumnOptions{}}}, // YAML round-trip converts nil Options to empty
 			tenant2Got:      overrides.DedicatedColumns("tenant2"),
-			tenant2Expected: backend.DedicatedColumns{{Scope: "resource", Name: "default-col", Type: "string"}},
+			tenant2Expected: backend.DedicatedColumns{{Scope: "resource", Name: "default-col", Type: "string"}}, // from raw defaults struct, nil Options
 		},
 	}
 

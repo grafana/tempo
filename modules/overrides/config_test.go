@@ -117,7 +117,6 @@ metrics_generator_ring_size: 3
 metrics_generator_processors: ['span-metrics']
 metrics_generator_max_active_series: 4
 metrics_generator_collection_interval: 5s
-metrics_generator_disable_collection: false
 metrics_generator_forwarder_queue_size: 6
 metrics_generator_forwarder_workers: 7
 metrics_generator_remote_write_headers:
@@ -192,7 +191,6 @@ defaults:
     - span-metrics
     max_active_series: 4
     collection_interval: 5s
-    disable_collection: false
     remote_write_headers:
       tenant-id: foo
     forwarder:
