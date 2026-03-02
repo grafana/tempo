@@ -2,7 +2,7 @@
 title: Set up OpenTelemetry Collector
 menuTitle: OpenTelemetry Collector
 description: Configure the upstream OpenTelemetry Collector to send traces to Tempo.
-weight: 500
+weight: 550
 ---
 
 # OpenTelemetry Collector
@@ -26,15 +26,6 @@ Pipelines consist of `receivers`, `processors`, and `exporters`, all configured 
 
 ![OpenTelemetry Collector architecture showing the data flow from an application through the collector pipeline to Tempo](diagram-otel-collector-architecture.svg)
 
-{{/* Mermaid source (not rendered by Hugo):
-flowchart LR
-    App["Application\n(OpenTelemetry SDK)"] -->|"OTLP"| Receiver["OpenTelemetry Collector\nReceiver"]
-    Receiver --> Processor["Processors\n(batch, attributes)"]
-    Processor --> Exporter["OTLP Exporter"]
-    Exporter -->|"gRPC :4317\nor HTTP :4318"| Distributor["Tempo\nDistributor"]
-    Distributor --> Storage["Tempo\nBackend Storage"]
-*/}}
-
 This architecture lets you configure multiple distinct tracing pipelines, each of which collects separate spans and sends them to different backends.
 
 For more information, refer to the [OpenTelemetry Collector configuration documentation](https://opentelemetry.io/docs/collector/configuration/).
@@ -47,6 +38,7 @@ Before you set up the OpenTelemetry Collector to send traces to Tempo, you need:
   The [contrib distribution](https://github.com/open-telemetry/opentelemetry-collector-contrib) is recommended because it includes additional processors and exporters such as `k8sattributes`, `tail_sampling`, and the `spanmetrics` connector.
 - A running Tempo instance with the distributor OTLP endpoints accessible.
   By default, Tempo accepts OTLP traces on port `4317` (gRPC) and port `4318` (HTTP).
+- For Grafana Cloud Traces, use the `otlphttp` exporter. Grafana Cloud supports the OTLP HTTP endpoint only. Refer to [Send data to the Grafana Cloud OTLP endpoint](https://grafana.com/docs/grafana-cloud/send-data/otlp/send-data-otlp/) for connection and authentication details.
 
 ## Set up the OpenTelemetry Collector to receive traces
 
@@ -132,6 +124,7 @@ Several processors can manipulate attributes:
 
 - The [`attributes` processor](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/processor/attributesprocessor) inserts, updates, deletes, or hashes span attributes.
 - The [`transform` processor](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/processor/transformprocessor) applies transformations using the OpenTelemetry Transformation Language (OTTL).
+- The [`resourcedetection` processor](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/processor/resourcedetectionprocessor) automatically detects resource information from the host environment, including Docker, cloud providers (AWS, GCP, Azure), and Kubernetes.
 
 ### Attach metadata with Kubernetes attributes
 
@@ -192,24 +185,19 @@ Tempo also generates these metrics server-side through the [metrics-generator](/
 However, collector-side generation is useful when tail sampling is active, because tail sampling can discard traces before they reach Tempo.
 By generating metrics in the collector, you ensure complete metrics coverage regardless of which traces are ultimately stored.
 
-![OpenTelemetry Collector metrics pipeline showing spans branching to the spanmetrics connector and tail sampling processor](diagram-otel-collector-metrics-pipeline.svg)
+You don't need to disable the Tempo metrics-generator to use the collector `spanmetrics` connector. Both can run simultaneously since they produce differently-named metrics. However, running both increases active series, storage, and compute overhead. In Grafana Cloud, extra active series can impact billing. If you use tail sampling, collector-side generation ensures complete metrics coverage because it sees all spans before sampling discards any. Without tail sampling, the Tempo [metrics-generator](/docs/tempo/<TEMPO_VERSION>/metrics-from-traces/span-metrics/span-metrics-metrics-generator/) alone is typically sufficient and avoids the overhead of duplicate metric generation.
 
-{{/* Mermaid source (not rendered by Hugo):
-flowchart LR
-    Receiver["OTLP\nReceiver"] --> SpanMetrics["spanmetrics\nconnector"]
-    SpanMetrics -->|"metrics"| MetricsExporter["Prometheus\nRemote Write"]
-    Receiver --> TailSampling["tail_sampling\nprocessor"]
-    TailSampling -->|"sampled traces"| OTLPExporter["OTLP Exporter\n(to Tempo)"]
-*/}}
+![OpenTelemetry Collector metrics pipeline showing spans branching to the `spanmetrics` connector and tail sampling processor](diagram-otel-collector-metrics-pipeline.svg)
 
 Metrics are generated from all traces before tail sampling discards any, ensuring complete metrics coverage even when not all traces are stored in Tempo.
+You can export the generated metrics using Prometheus remote write, OTLP, or any other supported metrics exporter.
 
 Refer to the [`spanmetrics` connector documentation](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/connector/spanmetricsconnector) for configuration details.
 
 ### Service graph metrics
 
 Service graph metrics represent the relationships between services within a distributed system.
-The OpenTelemetry Collector contrib distribution includes a service graph connector that builds a map of services by analyzing traces, with the objective of finding edges, which are spans with a parent-child relationship that represent a request between two services.
+The OpenTelemetry Collector contrib distribution includes a [service graph connector](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/connector/servicegraphconnector) that builds a map of services by analyzing traces, with the objective of finding edges, which are spans with a parent-child relationship that represent a request between two services.
 
 Refer to [Service graphs](/docs/tempo/<TEMPO_VERSION>/metrics-from-traces/service_graphs/) for more information.
 

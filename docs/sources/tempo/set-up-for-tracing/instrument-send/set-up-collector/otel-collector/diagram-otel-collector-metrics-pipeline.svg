@@ -33,10 +33,10 @@
   <line x1="370" y1="55" x2="465" y2="55" stroke="#78909C" stroke-width="1.5" marker-end="url(#arrow)"/>
   <text x="417" y="45" text-anchor="middle" font-size="9" fill="#78909C" font-style="italic">metrics</text>
 
-  <!-- Prometheus Remote Write -->
+  <!-- Metrics Exporter -->
   <rect x="470" y="29" width="150" height="52" rx="6" fill="#E8F5E9" stroke="#2E7D32" stroke-width="1.5"/>
-  <text x="545" y="51" text-anchor="middle" font-size="11" font-weight="500" fill="#333">Prometheus</text>
-  <text x="545" y="65" text-anchor="middle" font-size="11" font-weight="500" fill="#333">Remote Write</text>
+  <text x="545" y="51" text-anchor="middle" font-size="11" font-weight="500" fill="#333">Metrics</text>
+  <text x="545" y="65" text-anchor="middle" font-size="11" font-weight="500" fill="#333">Exporter</text>
 
   <!-- tail_sampling processor -->
   <rect x="225" y="159" width="145" height="52" rx="6" fill="#E3F2FD" stroke="#1565C0" stroke-width="1.5"/>

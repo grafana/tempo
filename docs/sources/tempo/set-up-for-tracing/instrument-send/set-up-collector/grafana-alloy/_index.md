@@ -1,7 +1,7 @@
 ---
 title: Grafana Alloy
 description: Configure the Grafana Alloy to work with Tempo
-weight: 550
+weight: 500
 aliases:
   - ../../../configuration/grafana-alloy/ # /docs/tempo/latest/configuration/grafana-alloy/
   - ../../../configuration/grafana-agent/ # /docs/tempo/latest/configuration/grafana-agent/
@@ -38,25 +38,25 @@ Refer to the [components reference](https://grafana.com/docs/alloy/latest/refere
 
 <p align="center"><img src="alloy-pipeline-architecture.svg" alt="Alloy tracing pipeline architecture showing receivers, processors, and exporters"></p>
 
-[//]: # 'Mermaid source for the diagram above (kept for future reference):'
-[//]: # 'flowchart LR'
-[//]: # '    subgraph receivers [Receivers]'
-[//]: # '        OTLP'
-[//]: # '        Jaeger'
-[//]: # '        Zipkin'
-[//]: # '        Kafka'
-[//]: # '    end'
-[//]: # '    subgraph processors [Processors]'
-[//]: # '        Batch'
-[//]: # '        Attributes'
+[//]: # "Mermaid source for the diagram above (kept for future reference):"
+[//]: # "flowchart LR"
+[//]: # "    subgraph receivers [Receivers]"
+[//]: # "        OTLP"
+[//]: # "        Jaeger"
+[//]: # "        Zipkin"
+[//]: # "        Kafka"
+[//]: # "    end"
+[//]: # "    subgraph processors [Processors]"
+[//]: # "        Batch"
+[//]: # "        Attributes"
 [//]: # '        K8sAttributes["K8s Attributes"]'
 [//]: # '        TailSampling["Tail Sampling"]'
-[//]: # '    end'
-[//]: # '    subgraph exporters [Exporters]'
+[//]: # "    end"
+[//]: # "    subgraph exporters [Exporters]"
 [//]: # '        OTLPExporter["OTLP to Tempo"]'
 [//]: # '        OTLPHTTPExporter["OTLP/HTTP to Tempo"]'
-[//]: # '    end'
-[//]: # '    receivers --> processors --> exporters'
+[//]: # "    end"
+[//]: # "    receivers --> processors --> exporters"
 
 This lets you configure multiple distinct tracing
 pipelines, each of which collects separate spans and sends them to different
