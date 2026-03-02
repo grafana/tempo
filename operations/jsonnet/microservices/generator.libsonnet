@@ -46,6 +46,10 @@
     $.util.readinessProbe +
     (if $._config.variables_expansion then container.withArgsMixin(['-config.expand-env=true']) else {}),
 
+  // Deployment rollout strategy for Kafka ingest.
+  // Rolling (max_unavailable=1): each pod leave+rejoin = 2 rebalances per pod.
+  // All-at-once (max_unavailable=replicas): first pod briefly holds all partitions;
+  // each subsequent pod triggers one incremental rebalance.
   tempo_metrics_generator_deployment:
     deployment.new(
       target_name,
@@ -57,7 +61,7 @@
       },
     ) +
     deployment.mixin.spec.strategy.rollingUpdate.withMaxSurge(3) +
-    deployment.mixin.spec.strategy.rollingUpdate.withMaxUnavailable(1) +
+    deployment.mixin.spec.strategy.rollingUpdate.withMaxUnavailable($._config.metrics_generator.deployment_max_unavailable) +
     deployment.mixin.spec.template.metadata.withAnnotations({
       config_hash: std.md5(std.toString($.tempo_metrics_generator_configmap.data['tempo.yaml'])),
     }) +

@@ -76,6 +76,13 @@ type Config struct {
 	Ingest            ingest.Config `yaml:"-"`
 	IngestConcurrency uint          `yaml:"ingest_concurrency"`
 	InstanceID        string        `yaml:"instance_id" doc:"default=<hostname>" category:"advanced"`
+
+	// LeaveConsumerGroupOnShutdown, when true, sends LeaveGroup to the Kafka coordinator
+	// on shutdown so partitions are reassigned immediately rather than waiting for session
+	// timeout (~3 min). Defaults to false so operators can control rollout behaviour
+	// explicitly; set to true when deploying as a Deployment (random pod names) to avoid
+	// the session-timeout delay on partition reassignment. Requires Kafka ingest enabled.
+	LeaveConsumerGroupOnShutdown bool `yaml:"leave_consumer_group_on_shutdown" category:"advanced"`
 }
 
 // RegisterFlagsAndApplyDefaults registers the flags.
@@ -104,6 +111,7 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 		os.Exit(1)
 	}
 	f.StringVar(&cfg.InstanceID, prefix+".instance-id", hostname, "Instance id.")
+	f.BoolVar(&cfg.LeaveConsumerGroupOnShutdown, prefix+".leave-consumer-group-on-shutdown", false, "If true, send LeaveGroup to Kafka on shutdown for immediate partition reassignment. Default false; set to true for Deployment rollouts where pod names change on each restart.")
 }
 
 func (cfg *Config) Validate() error {

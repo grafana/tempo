@@ -22,6 +22,16 @@ var metricEnqueueTime = promauto.NewCounter(prometheus.CounterOpts{
 	Help:      "The total amount of time spent waiting to enqueue for processing",
 })
 
+// metricAssignedPartitions tracks the number of Kafka partitions currently assigned to this
+// generator instance. A value of 0 for an extended period indicates a misconfiguration
+// (e.g. more generator replicas than topic partitions, or a stuck rebalance).
+var metricAssignedPartitions = promauto.NewGauge(prometheus.GaugeOpts{
+	Namespace: "tempo",
+	Subsystem: "metrics_generator",
+	Name:      "assigned_partitions",
+	Help:      "Number of Kafka partitions currently assigned to this generator instance.",
+})
+
 func (g *Generator) startKafka() {
 	g.kafkaCh = make(chan *kgo.Record, g.cfg.IngestConcurrency)
 	// Create context that will be used to stop the goroutines.
@@ -43,6 +53,18 @@ func (g *Generator) stopKafka() {
 	g.kafkaStop()
 	g.kafkaWG.Wait()
 	close(g.kafkaCh)
+	// When enabled, with static membership (InstanceID) franz-go does not send
+	// LeaveGroup on Close(); explicitly leave by instance ID so the coordinator
+	// can rebalance immediately. When disabled, avoid two rebalances (leave then
+	// join) e.g. when all replicas go down then up together.
+	if g.cfg.LeaveConsumerGroupOnShutdown && g.cfg.InstanceID != "" {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		if err := g.leaveGroupFn(ctx); err != nil {
+			level.Warn(g.logger).Log("msg", "failed to leave Kafka consumer group by instance ID (partitions may reassign after session timeout)", "err", err)
+		}
+	}
+	g.kafkaClient.Close()
 }
 
 func (g *Generator) listenKafka(ctx context.Context) {
@@ -161,8 +183,12 @@ func (g *Generator) handlePartitionsAssigned(m map[string][]int32) {
 	g.partitionMtx.Lock()
 	defer g.partitionMtx.Unlock()
 
+	// In cooperative (incremental) rebalancing this callback fires with only
+	// newly added partitions; stable partitions are not re-reported. Append
+	// rather than replace so we don't lose partitions that weren't moved.
 	g.assignedPartitions = append(g.assignedPartitions, assigned...)
 	sort.Slice(g.assignedPartitions, func(i, j int) bool { return g.assignedPartitions[i] < g.assignedPartitions[j] })
+	metricAssignedPartitions.Set(float64(len(g.assignedPartitions)))
 }
 
 func (g *Generator) handlePartitionsRevoked(partitions map[string][]int32) {
@@ -174,6 +200,7 @@ func (g *Generator) handlePartitionsRevoked(partitions map[string][]int32) {
 	sort.Slice(revoked, func(i, j int) bool { return revoked[i] < revoked[j] })
 	// Remove revoked partitions
 	g.assignedPartitions = revokePartitions(g.assignedPartitions, revoked)
+	metricAssignedPartitions.Set(float64(len(g.assignedPartitions)))
 
 	ingest.ResetLagMetricsForRevokedPartitions(g.cfg.Ingest.Kafka.ConsumerGroup, revoked)
 }
