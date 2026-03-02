@@ -49,15 +49,15 @@ services:
     depends_on:
       - redpanda
 
-  # ingest pipeline
-  k6-tracing:
-    image: ghcr.io/grafana/xk6-client-tracing:v0.0.9
-    environment:
-      - ENDPOINT=alloy:4317
-    restart: always
-    depends_on:
-      - tempo
-      - alloy
+  # # ingest pipeline
+  # k6-tracing:
+  #   image: ghcr.io/grafana/xk6-client-tracing:v0.0.9
+  #   environment:
+  #     - ENDPOINT=alloy:4317
+  #   restart: always
+  #   depends_on:
+  #     - tempo
+  #     - alloy
 
   alloy:
     image: grafana/alloy:v1.13.1@sha256:03529aec781901a72a354809650028435043406e707c6fb8953dc6e48f97727d
@@ -89,17 +89,17 @@ services:
     ports:
       - "9090:9090"
 
-  grafana:
-    image: grafana/grafana:12.3.3@sha256:9e1e77ade304069aee3196e9a4f210830e96e80ce9a2640891eccc324b152faf
-    volumes:
-      - ./grafana-datasources.yaml:/etc/grafana/provisioning/datasources/datasources.yaml
-    environment:
-      - GF_AUTH_ANONYMOUS_ENABLED=true
-      - GF_AUTH_ANONYMOUS_ORG_ROLE=Admin
-      - GF_AUTH_DISABLE_LOGIN_FORM=true
-      - GF_FEATURE_TOGGLES_ENABLE=traceqlEditor metricsSummary
-    ports:
-      - "3000:3000"
+  # grafana:
+  #   image: grafana/grafana:12.3.3@sha256:9e1e77ade304069aee3196e9a4f210830e96e80ce9a2640891eccc324b152faf
+  #   volumes:
+  #     - ./grafana-datasources.yaml:/etc/grafana/provisioning/datasources/datasources.yaml
+  #   environment:
+  #     - GF_AUTH_ANONYMOUS_ENABLED=true
+  #     - GF_AUTH_ANONYMOUS_ORG_ROLE=Admin
+  #     - GF_AUTH_DISABLE_LOGIN_FORM=true
+  #     - GF_FEATURE_TOGGLES_ENABLE=traceqlEditor metricsSummary
+  #   ports:
+  #     - "3000:3000"
 
   vulture:
     image: grafana/tempo-vulture:latest
