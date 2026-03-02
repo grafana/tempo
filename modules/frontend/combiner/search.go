@@ -43,7 +43,7 @@ func NewSearch(limit int, keepMostRecent bool, marshalingFormat api.MarshallingF
 		httpStatusCode: 200,
 		new:            func() *tempopb.SearchResponse { return &tempopb.SearchResponse{} },
 		current:        &tempopb.SearchResponse{Metrics: &tempopb.SearchMetrics{}},
-		combine: func(partial *tempopb.SearchResponse, final *tempopb.SearchResponse, resp PipelineResponse) error {
+		combine: func(partial *tempopb.SearchResponse, _ *tempopb.SearchResponse, resp PipelineResponse) error {
 			requestIdx, ok := resp.RequestData().(int)
 			if ok && keepMostRecent {
 				completedThroughTracker.AddShardIdx(requestIdx)
@@ -60,7 +60,7 @@ func NewSearch(limit int, keepMostRecent bool, marshalingFormat api.MarshallingF
 
 			return nil
 		},
-		metadata: func(resp PipelineResponse, final *tempopb.SearchResponse) error {
+		metadata: func(resp PipelineResponse, _ *tempopb.SearchResponse) error {
 			if sj, ok := resp.(*SearchJobResponse); ok && sj != nil {
 				sjMetrics := &tempopb.SearchMetrics{
 					TotalBlocks:     uint32(sj.TotalBlocks), //nolint:gosec
@@ -86,7 +86,7 @@ func NewSearch(limit int, keepMostRecent bool, marshalingFormat api.MarshallingF
 			}
 			return final, nil
 		},
-		diff: func(current *tempopb.SearchResponse) (*tempopb.SearchResponse, error) {
+		diff: func(_ *tempopb.SearchResponse) (*tempopb.SearchResponse, error) {
 			// wipe out any existing traces and recreate from the map
 			diff := &tempopb.SearchResponse{
 				Traces:  make([]*tempopb.TraceSearchMetadata, 0, len(diffTraces)),

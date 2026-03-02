@@ -370,7 +370,7 @@ func TestManager_ForTenant_List_ForwardTraces_ReturnsNoErrorAndCorrectlyForwards
 	// Step 2 - Remove one forwarder, simulate "tick" and verify that remaining forwarders receive the trace.
 	idx := slices.Index(o.tenantIDToForwarders["testTenantID"], "testForwarder2")
 	require.NotEqual(t, -1, idx)
-	slices.Delete(o.tenantIDToForwarders["testTenantID"], idx, idx)
+	o.tenantIDToForwarders["testTenantID"] = slices.Delete(o.tenantIDToForwarders["testTenantID"], idx, idx)
 	manager.updateQueueLists()
 
 	// When

@@ -137,7 +137,7 @@ func (b *cooperativeActiveStickyBalancer) Balance(balancer *kgo.ConsumerBalancer
 					found := false
 					for j, t := range meta.Topics {
 						if t.Topic == topic {
-							meta.Topics[j].Partitions = append(t.Partitions, p)
+							meta.Topics[j].Partitions = append(meta.Topics[j].Partitions, p)
 							found = true
 							break
 						}

@@ -100,7 +100,7 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 
 	hostname, err := os.Hostname()
 	if err != nil {
-		fmt.Printf("failed to get hostname: %v", err)
+		fmt.Fprintf(os.Stderr, "failed to get hostname: %v\n", err)
 		os.Exit(1)
 	}
 	f.StringVar(&cfg.InstanceID, prefix+".instance-id", hostname, "Instance id.")
@@ -212,16 +212,16 @@ func (cfg *ProcessorConfig) copyWithOverrides(o metricsGeneratorOverrides, userI
 		copyCfg.SpanMetrics.FilterPolicies = filterPolicies
 	}
 
-	if max := o.MetricsGeneratorProcessorLocalBlocksMaxLiveTraces(userID); max > 0 {
-		copyCfg.LocalBlocks.MaxLiveTraces = max
+	if val := o.MetricsGeneratorProcessorLocalBlocksMaxLiveTraces(userID); val > 0 {
+		copyCfg.LocalBlocks.MaxLiveTraces = val
 	}
 
-	if max := o.MetricsGeneratorProcessorLocalBlocksMaxBlockDuration(userID); max > 0 {
-		copyCfg.LocalBlocks.MaxBlockDuration = max
+	if val := o.MetricsGeneratorProcessorLocalBlocksMaxBlockDuration(userID); val > 0 {
+		copyCfg.LocalBlocks.MaxBlockDuration = val
 	}
 
-	if max := o.MetricsGeneratorProcessorLocalBlocksMaxBlockBytes(userID); max > 0 {
-		copyCfg.LocalBlocks.MaxBlockBytes = max
+	if val := o.MetricsGeneratorProcessorLocalBlocksMaxBlockBytes(userID); val > 0 {
+		copyCfg.LocalBlocks.MaxBlockBytes = val
 	}
 
 	if period := o.MetricsGeneratorProcessorLocalBlocksFlushCheckPeriod(userID); period > 0 {

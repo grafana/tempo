@@ -18,12 +18,6 @@ import (
 	"github.com/grafana/tempo/tempodb/backend/s3"
 )
 
-const (
-	dataFilename    = "data"
-	indexFilename   = "index"
-	bloomFilePrefix = "bloom-"
-)
-
 type globalOptions struct {
 	ConfigFile string `type:"path" short:"c" help:"Path to tempo config file"`
 }

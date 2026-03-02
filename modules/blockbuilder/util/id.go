@@ -1,7 +1,7 @@
 package util
 
 import (
-	"crypto/sha1"
+	"crypto/sha1" // #nosec G401 G505
 	"encoding/binary"
 	"hash"
 
@@ -32,7 +32,7 @@ func NewDeterministicIDGenerator(tenantID string, seeds ...uint64) *Deterministi
 	return &DeterministicIDGenerator{
 		buf:  newBuf([]byte(tenantID), seeds),
 		seq:  atomic.NewUint64(0),
-		hash: sha1.New(),
+		hash: sha1.New(), // #nosec G401
 	}
 }
 

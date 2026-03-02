@@ -259,19 +259,21 @@ func (l *lexer) Error(msg string) {
 func parseAttribute(s *scanner.Scanner) (string, error) {
 	var sb strings.Builder
 	r := s.Peek()
+loop:
 	for {
-		if r == '"' {
+		switch {
+		case r == '"':
 			// consume quoted attribute parts
 			str, err := parseQuotedAtrribute(s)
 			if err != nil {
 				return "", err
 			}
 			sb.WriteString(str)
-		} else if isAttributeRune(r) {
+		case isAttributeRune(r):
 			// if outside quote consume everything until we find a character that ends the attribute.
 			sb.WriteRune(s.Next())
-		} else {
-			break
+		default:
+			break loop
 		}
 
 		r = s.Peek()
@@ -284,11 +286,13 @@ func parseQuotedAtrribute(s *scanner.Scanner) (string, error) {
 	var sb strings.Builder
 	s.Next() // consume first quote
 	r := s.Peek()
+loop:
 	for ; r != scanner.EOF; r = s.Peek() {
-		if r == '"' {
+		switch r {
+		case '"':
 			s.Next()
-			break
-		} else if r == '\\' {
+			break loop
+		case '\\':
 			s.Next()
 			if strings.ContainsRune(escapeRunes, s.Peek()) {
 				sb.WriteRune(s.Peek())
@@ -296,7 +300,7 @@ func parseQuotedAtrribute(s *scanner.Scanner) (string, error) {
 			} else {
 				return "", errors.New("invalid escape sequence")
 			}
-		} else {
+		default:
 			sb.WriteRune(r)
 			s.Next()
 		}

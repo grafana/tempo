@@ -42,7 +42,7 @@ func durationWithJitter(input time.Duration, variancePerc float64) time.Duration
 		return 0
 	}
 
-	jitter := rand.Int63n(variance*2) - variance
+	jitter := rand.Int63n(variance*2) - variance // #nosec G404
 
 	return input + time.Duration(jitter)
 }

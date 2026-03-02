@@ -863,7 +863,7 @@ func (o UnaryOperation) execute(span Span) (Static, error) {
 		return NewStaticBool(static.Type != TypeNil), nil
 	}
 	if o.Op == OpNotExists {
-		staticNilString := NewStaticString("nil")
+		staticNilString := NewStaticString(staticNilStr)
 		return NewStaticBool(static.Equals(&staticNilString)), nil
 	}
 

@@ -1,3 +1,4 @@
+//nolint:revive // package name intentionally matches stdlib io for extension
 package io
 
 import (

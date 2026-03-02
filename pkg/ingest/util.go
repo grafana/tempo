@@ -37,7 +37,7 @@ func IngesterPartitionID(ingesterID string) (int32, error) {
 		return 0, fmt.Errorf("no ingester sequence number in ingester ID %s", ingesterID)
 	}
 
-	return int32(ingesterSeq), nil
+	return int32(ingesterSeq), nil // #nosec G109
 }
 
 func LiveStoreConsumerGroupID(instanceID string) (string, error) {

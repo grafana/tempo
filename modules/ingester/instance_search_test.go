@@ -183,7 +183,7 @@ func TestInstanceSearchWithStartAndEnd(t *testing.T) {
 		return sr
 	}
 
-	searchAndAssert := func(req *tempopb.SearchRequest, inspectedTraces uint32) {
+	searchAndAssert := func(req *tempopb.SearchRequest, _ uint32) {
 		sr := search(req, 0, 0)
 		assert.Len(t, sr.Traces, len(ids))
 		checkEqual(t, ids, sr)
@@ -549,7 +549,7 @@ func writeTracesForSearch(t *testing.T, i *instance, spanName, tagKey, tagValue 
 
 		tv := tagValue
 		if postFixValue {
-			tv = tv + strconv.Itoa(j)
+			tv += strconv.Itoa(j)
 		}
 		kv := &v1.KeyValue{Key: tagKey, Value: &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: tv}}}
 		eTv := "event-" + tv

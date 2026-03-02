@@ -265,9 +265,9 @@ func (u *Tracker) Observe(tenant string, batches []*v1.ResourceSpans) {
 		return
 	}
 
-	max := u.maxFn(tenant)
-	if max == 0 {
-		max = u.cfg.MaxCardinality
+	maxVal := u.maxFn(tenant)
+	if maxVal == 0 {
+		maxVal = u.cfg.MaxCardinality
 	}
 
 	u.mtx.Lock()
@@ -362,7 +362,7 @@ func (u *Tracker) Observe(tenant string, batches []*v1.ResourceSpans) {
 				// The difficulty is tracking bucket dirty status while
 				// resetting to batch values and recording the span values.
 				if bucket == nil || !slices.Equal(buffer2, last) {
-					bucket = data.getSeries(buffer2, max)
+					bucket = data.getSeries(buffer2, maxVal)
 					copy(last, buffer2)
 				}
 				bucket.Inc(uint64(sz), now)
