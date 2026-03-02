@@ -92,7 +92,7 @@ require (
 	github.com/open-telemetry/opentelemetry-collector-contrib/receiver/jaegerreceiver v0.146.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/receiver/kafkareceiver v0.146.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/receiver/zipkinreceiver v0.146.0
-	github.com/parquet-go/parquet-go v0.27.0
+	github.com/parquet-go/parquet-go v0.28.0
 	github.com/twmb/franz-go v1.20.7
 	github.com/twmb/franz-go/pkg/kadm v1.17.2
 	github.com/twmb/franz-go/pkg/kfake v0.0.0-20260121195810-e0832fcbdccb
