@@ -234,9 +234,10 @@ func (s *LiveStore) reloadBlocks() error {
 
 			level.Info(s.logger).Log("msg", "reloaded wal block", "block", meta.BlockID.String())
 			inst.walBlocks[(uuid.UUID)(meta.BlockID)] = blk
+			inst.replayedWALBlockCount.Add(1)
 
 			level.Info(s.logger).Log("msg", "queueing replayed wal block for completion", "block", meta.BlockID.String())
-			if err := s.enqueueCompleteOp(meta.TenantID, uuid.UUID(meta.BlockID), true); err != nil {
+			if err := s.enqueueCompleteOp(meta.TenantID, uuid.UUID(meta.BlockID), false); err != nil {
 				return fmt.Errorf("failed to enqueue wal block for completion for tenant %s: %w", meta.TenantID, err)
 			}
 

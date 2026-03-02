@@ -308,6 +308,16 @@ func (s *LiveStore) starting(ctx context.Context) error {
 		return fmt.Errorf("failed to start livestore lifecycler: %w", err)
 	}
 
+	// Register completion workers and unblock background processes before starting
+	// the Kafka reader so replayed WAL blocks can begin draining immediately.
+	for i := range s.cfg.CompleteBlockConcurrency {
+		idx := i
+		s.runInBackground(func() {
+			s.globalCompleteLoop(idx)
+		})
+	}
+	s.startAllBackgroundProcesses()
+
 	s.client, err = ingest.NewReaderClient(
 		s.cfg.IngestConfig.Kafka,
 		ingest.NewReaderClientMetrics(liveStoreServiceName, s.reg),
@@ -343,16 +353,6 @@ func (s *LiveStore) starting(ctx context.Context) error {
 		func() []int32 { return []int32{s.ingestPartitionID} },
 		s.client.ForceMetadataRefresh,
 	)
-
-	for i := range s.cfg.CompleteBlockConcurrency {
-		idx := i
-		s.runInBackground(func() {
-			s.globalCompleteLoop(idx)
-		})
-	}
-
-	// allow background processes to start
-	s.startAllBackgroundProcesses()
 
 	// Wait for catch-up before marking ready (if enabled)
 	if err := s.waitForCatchUp(ctx); err != nil {
