@@ -17,7 +17,7 @@ Using Alloy provides a hassle-free option, especially when dealing with multiple
 
 You can use Alloy as an alternative to either of these solutions or combine it into a hybrid system of multiple collectors and agents.
 You can deploy Alloy anywhere within your IT infrastructure and pair it with your Grafana LGTM stack, a telemetry backend from Grafana Cloud, or any other compatible backend from any other vendor.
-Alloy is flexible, and you can easily configure it to fit your needs for on-premise, cloud-only, or a mix of both.
+You can configure Alloy to fit your needs for on-premise, cloud-only, or a mix of both.
 
 <p align="center"><img src="/media/docs/tempo/intro/tempo-auto-log.svg" alt="Automatic logging overview"></p>
 
@@ -37,7 +37,6 @@ The architecture mirrors that of the OpenTelemetry Collector's [design](https://
 Refer to the [components reference](https://grafana.com/docs/alloy/latest/reference/components/) for all available configuration options.
 
 <p align="center"><img src="alloy-pipeline-architecture.svg" alt="Alloy tracing pipeline architecture showing receivers, processors, and exporters"></p>
-
 
 This lets you configure multiple distinct tracing
 pipelines, each of which collects separate spans and sends them to different
