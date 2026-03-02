@@ -277,7 +277,7 @@ func TestMetricsGeneratorOverrides(t *testing.T) {
 				MetricsGenerator: MetricsGeneratorOverrides{
 					Processor: ProcessorOverrides{
 						SpanMetrics: SpanMetricsOverrides{
-							EnableTargetInfo: boolPtr(true),
+							EnableTargetInfo: ptrTo(true),
 							DimensionMappings: []sharedconfig.DimensionMappings{
 								{
 									Name:        "test-name",
@@ -285,7 +285,7 @@ func TestMetricsGeneratorOverrides(t *testing.T) {
 									Join:        "/",
 								},
 							},
-							EnableInstanceLabel: boolPtr(false),
+							EnableInstanceLabel: ptrTo(false),
 						},
 					},
 				},
@@ -318,7 +318,7 @@ func TestMetricsGeneratorOverrides(t *testing.T) {
 						MetricsGenerator: MetricsGeneratorOverrides{
 							Processor: ProcessorOverrides{
 								SpanMetrics: SpanMetricsOverrides{
-									EnableTargetInfo: boolPtr(true),
+									EnableTargetInfo: ptrTo(true),
 									DimensionMappings: []sharedconfig.DimensionMappings{
 										{
 											Name:        "test-name",
@@ -326,7 +326,7 @@ func TestMetricsGeneratorOverrides(t *testing.T) {
 											Join:        "/",
 										},
 									},
-									EnableInstanceLabel: boolPtr(false),
+									EnableInstanceLabel: ptrTo(false),
 								},
 							},
 						},
@@ -352,7 +352,7 @@ func TestMetricsGeneratorOverrides(t *testing.T) {
 				MetricsGenerator: MetricsGeneratorOverrides{
 					Processor: ProcessorOverrides{
 						SpanMetrics: SpanMetricsOverrides{
-							EnableTargetInfo: boolPtr(false),
+							EnableTargetInfo: ptrTo(false),
 							DimensionMappings: []sharedconfig.DimensionMappings{
 								{
 									Name:        "test-name",
@@ -370,7 +370,7 @@ func TestMetricsGeneratorOverrides(t *testing.T) {
 						MetricsGenerator: MetricsGeneratorOverrides{
 							Processor: ProcessorOverrides{
 								SpanMetrics: SpanMetricsOverrides{
-									EnableTargetInfo: boolPtr(true),
+									EnableTargetInfo: ptrTo(true),
 									DimensionMappings: []sharedconfig.DimensionMappings{
 										{
 											Name:        "another-name",
@@ -387,7 +387,7 @@ func TestMetricsGeneratorOverrides(t *testing.T) {
 						MetricsGenerator: MetricsGeneratorOverrides{
 							Processor: ProcessorOverrides{
 								SpanMetrics: SpanMetricsOverrides{
-									EnableTargetInfo: boolPtr(false),
+									EnableTargetInfo: ptrTo(false),
 									DimensionMappings: []sharedconfig.DimensionMappings{
 										{
 											Name:        "id-name",
@@ -866,9 +866,9 @@ func TestOverrideFallbackChain(t *testing.T) {
 					HistogramBuckets:                      []float64{1, 2, 5, 10},
 					Dimensions:                            []string{"default-sg-dim"},
 					PeerAttributes:                        []string{"default-peer-attr"},
-					EnableClientServerPrefix:              boolPtr(true),
-					EnableMessagingSystemLatencyHistogram: boolPtr(true),
-					EnableVirtualNodeLabel:                boolPtr(true),
+					EnableClientServerPrefix:              ptrTo(true),
+					EnableMessagingSystemLatencyHistogram: ptrTo(true),
+					EnableVirtualNodeLabel:                ptrTo(true),
 					SpanMultiplierKey:                     "default-sg-multiplier",
 				},
 				SpanMetrics: SpanMetricsOverrides{
@@ -876,9 +876,9 @@ func TestOverrideFallbackChain(t *testing.T) {
 					Dimensions:                   []string{"default-sm-dim"},
 					IntrinsicDimensions:          map[string]bool{"service": true},
 					DimensionMappings:            []sharedconfig.DimensionMappings{{Name: "default-mapping", SourceLabel: []string{"service.name"}, Join: "/"}},
-					EnableTargetInfo:             boolPtr(true),
+					EnableTargetInfo:             ptrTo(true),
 					TargetInfoExcludedDimensions: []string{"default-excluded"},
-					EnableInstanceLabel:          boolPtr(false),
+					EnableInstanceLabel:          ptrTo(false),
 					SpanMultiplierKey:            "default-sm-multiplier",
 				},
 				LocalBlocks: LocalBlocksOverrides{
@@ -974,9 +974,9 @@ func TestOverrideFallbackChain(t *testing.T) {
 					HistogramBuckets:                      []float64{10, 20, 50},
 					Dimensions:                            []string{"tenant1-sg-dim"},
 					PeerAttributes:                        []string{"tenant1-peer-attr"},
-					EnableClientServerPrefix:              boolPtr(false),
-					EnableMessagingSystemLatencyHistogram: boolPtr(false),
-					EnableVirtualNodeLabel:                boolPtr(false),
+					EnableClientServerPrefix:              ptrTo(false),
+					EnableMessagingSystemLatencyHistogram: ptrTo(false),
+					EnableVirtualNodeLabel:                ptrTo(false),
 					SpanMultiplierKey:                     "tenant1-sg-multiplier",
 				},
 				SpanMetrics: SpanMetricsOverrides{
@@ -984,9 +984,9 @@ func TestOverrideFallbackChain(t *testing.T) {
 					Dimensions:                   []string{"tenant1-sm-dim"},
 					IntrinsicDimensions:          map[string]bool{"span_kind": true},
 					DimensionMappings:            []sharedconfig.DimensionMappings{{Name: "tenant1-mapping", SourceLabel: []string{"service.namespace"}, Join: "-"}},
-					EnableTargetInfo:             boolPtr(false),
+					EnableTargetInfo:             ptrTo(false),
 					TargetInfoExcludedDimensions: []string{"tenant1-excluded"},
-					EnableInstanceLabel:          boolPtr(true),
+					EnableInstanceLabel:          ptrTo(true),
 					SpanMultiplierKey:            "tenant1-sm-multiplier",
 				},
 				LocalBlocks: LocalBlocksOverrides{

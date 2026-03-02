@@ -61,10 +61,12 @@ var metricLimitsDesc = prometheus.NewDesc(
 	nil,
 )
 
+// ptrTo returns a pointer to the given value.
 func ptrTo[T any](v T) *T { return &v }
 
 // nonZeroPtrTo returns a pointer to v if v is non-zero, otherwise nil.
-// Used for legacy config conversion where zero values mean "not set".
+// Used for legacy config conversion where value types (bool, uint64) cannot
+// distinguish "explicitly set to zero/false" from "absent".
 func nonZeroPtrTo[T comparable](v T) *T {
 	var zero T
 	if v == zero {
@@ -73,6 +75,7 @@ func nonZeroPtrTo[T comparable](v T) *T {
 	return &v
 }
 
+// derefOr dereferences a pointer, returning fallback if the pointer is nil.
 func derefOr[T any](p *T, fallback T) T {
 	if p != nil {
 		return *p

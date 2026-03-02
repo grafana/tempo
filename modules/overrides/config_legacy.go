@@ -179,6 +179,11 @@ type LegacyOverrides struct {
 	DedicatedColumns backend.DedicatedColumns `yaml:"parquet_dedicated_columns" json:"parquet_dedicated_columns"`
 }
 
+// toNewLimits converts legacy overrides to the new format.
+// Note: nonZeroPtrTo is used for pointer fields because legacy uses value types (bool, uint64)
+// and cannot distinguish "explicitly set to false/0" from "absent". Zero values are treated
+// as "not set" (nil) in the new format. This means an explicit `disable_collection: false`
+// in legacy YAML will be converted to nil, not *false.
 func (l *LegacyOverrides) toNewLimits() Overrides {
 	return Overrides{
 		Ingestion: IngestionOverrides{
