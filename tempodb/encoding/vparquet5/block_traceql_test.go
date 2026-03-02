@@ -169,27 +169,35 @@ func TestCreateNumericPredicate(t *testing.T) {
 }
 
 func TestOne(t *testing.T) {
-	wantTr := fullyPopulatedTestTrace(nil)
-	b := makeBackendBlockWithTraces(t, []*Trace{wantTr})
-	ctx := context.Background()
-	q := `{ resource.region != nil || resource.service.name = "bar" }`
-	// q := `{ resource.str-array =~ "value.*" }`
-	req := traceql.MustExtractFetchSpansRequestWithMetadata(q)
+	var (
+		ctx    = t.Context()
+		wantTr = fullyPopulatedTestTrace(nil)
+		b      = makeBackendBlockWithTraces(t, []*Trace{wantTr})
+		// q      = `{ resource.service.name="foo" } | quantile_over_time(duration, 0.5) by (span.bar)`
+		q   = `{} | rate()`
+		req = &tempopb.QueryRangeRequest{
+			Query: q,
+			Start: uint64(1000 * time.Second),
+			End:   uint64(1001 * time.Second),
+			Step:  uint64(1 * time.Second),
+		}
+	)
+	eval, err := traceql.NewEngine().CompileMetricsQueryRange(req, 1, false)
+	require.NoError(t, err)
+	fetchSpansRequest := eval.FetchSpansRequest()
 
-	req.StartTimeUnixNanos = uint64(1000 * time.Second)
-	req.EndTimeUnixNanos = uint64(1001 * time.Second)
-
-	resp, err := b.Fetch(ctx, req, common.DefaultSearchOptions())
+	spanOnly, err := b.FetchSpans(ctx, fetchSpansRequest, common.DefaultSearchOptions())
 	require.NoError(t, err, "search request:", req)
 
-	spanSet, err := resp.Results.Next(ctx)
+	spanset, err := b.Fetch(ctx, fetchSpansRequest, common.DefaultSearchOptions())
 	require.NoError(t, err, "search request:", req)
 
 	t.Log(q)
+	t.Log("-----------Fetch-----------")
+	t.Log(spanset.Results.(*spansetIterator).iter)
+	t.Log("-----------FetchSpans-----------")
+	t.Log(spanOnly.Results.(*spanOnlyIterator).iter)
 	t.Log("-----------")
-	t.Log(resp.Results.(*spansetIterator).iter)
-	t.Log("-----------")
-	t.Log(spanSet)
 }
 
 func TestBackendNilKeyBlockSearchTraceQL(t *testing.T) {
@@ -552,28 +560,11 @@ func TestBackendNilValueBlockSearchTraceQL(t *testing.T) {
 	}
 }
 
-func TestBackendBlockSearchTraceQL(t *testing.T) {
-	numTraces := 250
-	traces := make([]*Trace, 0, numTraces)
-	wantTraceIdx := rand.Intn(numTraces)
-	wantTraceID := test.ValidTraceID(nil)
-
-	for i := 0; i < numTraces; i++ {
-		if i == wantTraceIdx {
-			traces = append(traces, fullyPopulatedTestTrace(wantTraceID))
-			continue
-		}
-
-		id := test.ValidTraceID(nil)
-		tr, _ := traceToParquet(&backend.BlockMeta{}, id, test.MakeTrace(1, id), nil)
-		traces = append(traces, tr)
-	}
-
-	b := makeBackendBlockWithTraces(t, traces)
-	ctx := context.Background()
-	traceIDText := util.TraceIDToHexString(wantTraceID)
-
-	searchesThatMatch := []struct {
+func searchesThatMatch(t *testing.T, traceIDText string) []struct {
+	name string
+	req  traceql.FetchSpansRequest
+} {
+	return []struct {
 		name string
 		req  traceql.FetchSpansRequest
 	}{
@@ -713,6 +704,35 @@ func TestBackendBlockSearchTraceQL(t *testing.T) {
 				parse(t, `{`+LabelDuration+` < 100s }`), // No match
 			),
 		},
+		// Special operators at different scopes.
+		// Resource
+		{"Resource IN", traceql.MustExtractFetchSpansRequestWithMetadata(`{resource.` + LabelK8sNamespaceName + `= "k8snamespace" || resource.` + LabelK8sNamespaceName + ` = "othernamespace"}`)},
+		{"Resource Not In", traceql.MustExtractFetchSpansRequestWithMetadata(`{resource.` + LabelK8sNamespaceName + `!= "othernamespace" && resource.` + LabelK8sNamespaceName + ` != "foo"}`)},
+		{"Resource Regex Match Any", traceql.MustExtractFetchSpansRequestWithMetadata(`{resource.` + LabelK8sNamespaceName + ` =~ "k8s.*" || resource.` + LabelK8sNamespaceName + ` =~ "prod.*"}`)},
+		{"Resource Regex Match None", traceql.MustExtractFetchSpansRequestWithMetadata(`{resource.` + LabelK8sNamespaceName + ` !~ "bar.*" && resource.` + LabelK8sNamespaceName + ` !~ "foo.*"}`)},
+		{"Resource Exists", traceql.MustExtractFetchSpansRequestWithMetadata(`{resource.` + LabelK8sNamespaceName + ` != nil}`)},
+		{"Resource Not Exists", traceql.MustExtractFetchSpansRequestWithMetadata(`{resource.xyz = nil}`)},
+		// Instrumentation
+		{"Instrumentation IN", traceql.MustExtractFetchSpansRequestWithMetadata(`{instrumentation.scope-attr-str = "scope-attr-1" || instrumentation.scope-attr-str = "other-val"}`)},
+		{"Instrumentation Not In", traceql.MustExtractFetchSpansRequestWithMetadata(`{instrumentation.scope-attr-str != "other-val" && instrumentation.scope-attr-str != "another-val"}`)},
+		{"Instrumentation Regex Match Any", traceql.MustExtractFetchSpansRequestWithMetadata(`{instrumentation.scope-attr-str =~ "scope-attr-.*" || instrumentation.scope-attr-str =~ "foobar.*"}`)},
+		{"Instrumentation Regex Match None", traceql.MustExtractFetchSpansRequestWithMetadata(`{instrumentation.scope-attr-str !~ "nope.*" && instrumentation.scope-attr-str !~ "fail.*"}`)},
+		{"Instrumentation Exists", traceql.MustExtractFetchSpansRequestWithMetadata(`{instrumentation.scope-attr-str != nil}`)},
+		{"Instrumentation Not Exists", traceql.MustExtractFetchSpansRequestWithMetadata(`{instrumentation.doesnotexist = nil}`)},
+		// Span
+		{"In", traceql.MustExtractFetchSpansRequestWithMetadata(`{` + LabelName + `= "hello" || ` + LabelName + ` = "world"}`)},
+		{"Not In", traceql.MustExtractFetchSpansRequestWithMetadata(`{` + LabelName + `!= "world" && ` + LabelName + ` != "bar"}`)},
+		{"Regex Match Any", traceql.MustExtractFetchSpansRequestWithMetadata(`{` + LabelName + ` =~ "hello" || ` + LabelName + ` =~ "world"}`)},
+		{"Regex Match None", traceql.MustExtractFetchSpansRequestWithMetadata(`{` + LabelName + ` !~ "xyz" && ` + LabelName + ` !~ "bar"}`)},
+		{"Exists", traceql.MustExtractFetchSpansRequestWithMetadata(`{span.foo != nil}`)},
+		{"Not Exists", traceql.MustExtractFetchSpansRequestWithMetadata(`{span.xyz = nil}`)},
+		// Event
+		{"Event IN", traceql.MustExtractFetchSpansRequestWithMetadata(`{event.message = "exception" || event.message = "test"}`)},
+		{"Event Not In", traceql.MustExtractFetchSpansRequestWithMetadata(`{event.message != "foo" && event.message != "bar"}`)},
+		{"Event Regex Match Any", traceql.MustExtractFetchSpansRequestWithMetadata(`{event.message =~ "exc.*" || event.message =~ "test.*"}`)},
+		{"EventRegex Match None", traceql.MustExtractFetchSpansRequestWithMetadata(`{event.message !~ "zzz.*" && event.message !~ "fail.*"}`)},
+		{"EventExists", traceql.MustExtractFetchSpansRequestWithMetadata(`{event.message != nil}`)},
+		{"Event Not Exists", traceql.MustExtractFetchSpansRequestWithMetadata(`{event.xyz = nil}`)},
 		// Edge cases
 		{"Almost conflicts with intrinsic but still works", traceql.MustExtractFetchSpansRequestWithMetadata(`{.name = "Bob"}`)},
 		{"service.name doesn't match type of dedicated column", traceql.MustExtractFetchSpansRequestWithMetadata(`{resource.` + LabelServiceName + ` = 123}`)},
@@ -751,41 +771,18 @@ func TestBackendBlockSearchTraceQL(t *testing.T) {
 			},
 		},
 	}
+}
 
-	for _, tc := range searchesThatMatch {
-		t.Run(tc.name, func(t *testing.T) {
-			req := tc.req
-			if req.SecondPass == nil {
-				req.SecondPass = func(s *traceql.Spanset) ([]*traceql.Spanset, error) { return []*traceql.Spanset{s}, nil }
-				req.SecondPassConditions = traceql.SearchMetaConditions()
-			}
-
-			resp, err := b.Fetch(ctx, req, common.DefaultSearchOptions())
-			require.NoError(t, err, "search request:%v", req)
-
-			found := false
-			for {
-				spanSet, err := resp.Results.Next(ctx)
-				require.NoError(t, err, "search request:%v", req)
-				if spanSet == nil {
-					break
-				}
-				found = bytes.Equal(spanSet.TraceID, wantTraceID)
-				if found {
-					break
-				}
-			}
-			require.True(t, found, "search request:%v", req)
-		})
-	}
-
-	searchesThatDontMatch := []struct {
+func searchesThatDontMatch(t *testing.T) []struct {
+	name string
+	req  traceql.FetchSpansRequest
+} {
+	return []struct {
 		name string
 		req  traceql.FetchSpansRequest
 	}{
 		// TODO - Should the below query return data or not?  It does match the resource
 		// makeReq(parse(t, `{.foo = "abc"}`)),                           // This should not return results because the span has overridden this attribute to "def".
-		{"Regex IN", traceql.MustExtractFetchSpansRequestWithMetadata(`{.foo =~ "xyz.*"}`)},
 		{"String Not Regex", traceql.MustExtractFetchSpansRequestWithMetadata(`{.foo !~ ".*"}`)},
 		{"Bool not match", traceql.MustExtractFetchSpansRequestWithMetadata(`{span.bool = true && name = "hello"}`)}, // name = "hello" only matches the first span
 		{"Intrinsic: duration", traceql.MustExtractFetchSpansRequestWithMetadata(`{` + LabelDuration + ` >  1000s}`)},
@@ -880,8 +877,59 @@ func TestBackendBlockSearchTraceQL(t *testing.T) {
 			},
 		},
 	}
+}
 
-	for _, tc := range searchesThatDontMatch {
+func TestBackendBlockSearchTraceQL(t *testing.T) {
+	var (
+		ctx          = t.Context()
+		numTraces    = 250
+		traces       = make([]*Trace, 0, numTraces)
+		wantTraceIdx = rand.Intn(numTraces)
+		wantTraceID  = test.ValidTraceID(nil)
+		traceIDText  = util.TraceIDToHexString(wantTraceID)
+	)
+
+	for i := 0; i < numTraces; i++ {
+		if i == wantTraceIdx {
+			traces = append(traces, fullyPopulatedTestTrace(wantTraceID))
+			continue
+		}
+
+		id := test.ValidTraceID(nil)
+		tr, _ := traceToParquet(&backend.BlockMeta{}, id, test.MakeTrace(1, id), nil)
+		traces = append(traces, tr)
+	}
+
+	b := makeBackendBlockWithTraces(t, traces)
+
+	for _, tc := range searchesThatMatch(t, traceIDText) {
+		t.Run(tc.name, func(t *testing.T) {
+			req := tc.req
+			if req.SecondPass == nil {
+				req.SecondPass = func(s *traceql.Spanset) ([]*traceql.Spanset, error) { return []*traceql.Spanset{s}, nil }
+				req.SecondPassConditions = traceql.SearchMetaConditions()
+			}
+
+			resp, err := b.Fetch(ctx, req, common.DefaultSearchOptions())
+			require.NoError(t, err, "search request:%v", req)
+
+			found := false
+			for {
+				spanSet, err := resp.Results.Next(ctx)
+				require.NoError(t, err, "search request:%v", req)
+				if spanSet == nil {
+					break
+				}
+				if bytes.Equal(spanSet.TraceID, wantTraceID) {
+					found = true
+					break
+				}
+			}
+			require.True(t, found, "search request:%v", req)
+		})
+	}
+
+	for _, tc := range searchesThatDontMatch(t) {
 		t.Run(tc.name, func(t *testing.T) {
 			req := tc.req
 			if req.SecondPass == nil {
@@ -1624,10 +1672,6 @@ func BenchmarkBackendBlockTraceQL(b *testing.B) {
 	_, _, err := block.openForSearch(ctx, opts)
 	require.NoError(b, err)
 
-	f := traceql.NewSpansetFetcherWrapper(func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
-		return block.Fetch(ctx, req, opts)
-	})
-
 	for _, tc := range testCases {
 		b.Run(tc.name, func(b *testing.B) {
 			b.ResetTimer()
@@ -1635,6 +1679,16 @@ func BenchmarkBackendBlockTraceQL(b *testing.B) {
 			matches := 0
 
 			for b.Loop() {
+
+				f := traceql.NewSpansetFetcherWrapperBoth(
+					func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
+						return block.Fetch(ctx, req, opts)
+					},
+					func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansOnlyResponse, error) {
+						return block.FetchSpans(ctx, req, opts)
+					},
+				)
+
 				resp, err := e.ExecuteSearch(ctx, &tempopb.SearchRequest{Query: tc.query}, f, false)
 				require.NoError(b, err)
 				require.NotNil(b, resp)
@@ -1759,6 +1813,7 @@ func BenchmarkIterators(b *testing.B) {
 func BenchmarkBackendBlockQueryRange(b *testing.B) {
 	testCases := []string{
 		"{} | rate()",
+		"{} | rate() with(new=true)",
 		"{} | rate() with(sample=true)",
 		"{} | rate() by (span.http.status_code)",
 		"{} | rate() by (resource.service.name)",
@@ -1787,20 +1842,20 @@ func BenchmarkBackendBlockQueryRange(b *testing.B) {
 		ctx   = b.Context()
 		opts  = common.DefaultSearchOptions()
 		block = blockForBenchmarks(b)
+		st    = uint64(block.meta.StartTime.UnixNano())
+		end   = uint64(block.meta.EndTime.UnixNano())
+		f     = traceql.NewSpansetFetcherWrapperBoth(
+			func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
+				return block.Fetch(ctx, req, opts)
+			},
+			func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansOnlyResponse, error) {
+				return block.FetchSpans(ctx, req, opts)
+			},
+		)
 	)
-
-	_, _, err := block.openForSearch(ctx, opts)
-	require.NoError(b, err)
-
-	f := traceql.NewSpansetFetcherWrapper(func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
-		return block.Fetch(ctx, req, opts)
-	})
 
 	for _, tc := range testCases {
 		b.Run(tc, func(b *testing.B) {
-			st := uint64(block.meta.StartTime.UnixNano())
-			end := uint64(block.meta.EndTime.UnixNano())
-
 			req := &tempopb.QueryRangeRequest{
 				Query:     tc,
 				Step:      uint64(time.Minute),
@@ -1825,6 +1880,7 @@ func BenchmarkBackendBlockQueryRange(b *testing.B) {
 			bytes, spansTotal, _ := eval.Metrics()
 			b.ReportMetric(float64(bytes)/float64(b.N)/1024.0/1024.0, "MB_io/op")
 			b.ReportMetric(float64(spansTotal)/float64(b.N), "spans/op")
+			b.ReportMetric(float64(spansTotal)/float64(b.Elapsed().Seconds()), "spans/s")
 		})
 	}
 }
@@ -1913,9 +1969,14 @@ func TestSamplingError(t *testing.T) {
 	_, _, err := block.openForSearch(ctx, opts)
 	require.NoError(t, err)
 
-	f := traceql.NewSpansetFetcherWrapper(func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
-		return block.Fetch(ctx, req, opts)
-	})
+	f := traceql.NewSpansetFetcherWrapperBoth(
+		func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
+			return block.Fetch(ctx, req, opts)
+		},
+		func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansOnlyResponse, error) {
+			return block.FetchSpans(ctx, req, opts)
+		},
+	)
 
 	executeQuery := func(t *testing.T, q string) (results traceql.SeriesSet, spanCount int) {
 		st := uint64(block.meta.StartTime.UnixNano())

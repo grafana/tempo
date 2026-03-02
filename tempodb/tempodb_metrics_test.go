@@ -20,7 +20,7 @@ import (
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/backend/local"
 	"github.com/grafana/tempo/tempodb/encoding/common"
-	"github.com/grafana/tempo/tempodb/encoding/vparquet4"
+	"github.com/grafana/tempo/tempodb/encoding/vparquet5"
 	"github.com/grafana/tempo/tempodb/wal"
 	"github.com/stretchr/testify/require"
 )
@@ -143,7 +143,7 @@ var queryRangeTestCases = []struct {
 		},
 	},
 	{
-		name: "count_over_time",
+		name: "count_over_time_by",
 		req:  requestWithDefaultRange(`{ } | count_over_time() by (.service.name)`),
 		expectedL1: []*tempopb.TimeSeries{
 			{
@@ -820,8 +820,10 @@ var expectedCompareTs = []*tempopb.TimeSeries{
 //   - Level 3: Final aggregation results
 func TestTempoDBQueryRange(t *testing.T) {
 	var (
+		ctx          = t.Context()
 		tempDir      = t.TempDir()
-		blockVersion = vparquet4.VersionString
+		blockVersion = vparquet5.VersionString
+		e            = traceql.NewEngine()
 	)
 
 	dc := backend.DedicatedColumns{
@@ -854,14 +856,13 @@ func TestTempoDBQueryRange(t *testing.T) {
 	}, nil, log.NewNopLogger())
 	require.NoError(t, err)
 
-	err = c.EnableCompaction(context.Background(), &CompactorConfig{
+	err = c.EnableCompaction(ctx, &CompactorConfig{
 		MaxCompactionRange:      time.Hour,
 		BlockRetention:          0,
 		CompactedBlockRetention: 0,
 	}, &mockSharder{}, &mockOverrides{})
 	require.NoError(t, err)
 
-	ctx := context.Background()
 	r.EnablePolling(ctx, &mockJobSharder{}, false)
 
 	// Write to wal
@@ -919,16 +920,20 @@ func TestTempoDBQueryRange(t *testing.T) {
 	}
 
 	// Complete block
-	block, err := w.CompleteBlock(context.Background(), head)
+	block, err := w.CompleteBlock(ctx, head)
 	require.NoError(t, err)
 
-	f := traceql.NewSpansetFetcherWrapper(func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
+	f := traceql.NewSpansetFetcherWrapperBoth(func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
 		return block.Fetch(ctx, req, common.DefaultSearchOptions())
+	}, func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansOnlyResponse, error) {
+		return block.FetchSpans(ctx, req, common.DefaultSearchOptions())
 	})
 
 	for _, tc := range queryRangeTestCases {
-		t.Run(tc.name, func(t *testing.T) {
-			e := traceql.NewEngine()
+		runTestWithHint := func(t *testing.T, queryHint string) {
+			if len(queryHint) > 0 {
+				tc.req.Query += " with(" + queryHint + ")"
+			}
 			eval, err := e.CompileMetricsQueryRange(tc.req, 0, false)
 			require.NoError(t, err)
 
@@ -976,6 +981,14 @@ func TestTempoDBQueryRange(t *testing.T) {
 			if diff := cmp.Diff(expected, actual, floatComparer); diff != "" {
 				t.Errorf("Unexpected results for Level 3 processing. Query: %v\n Diff: %v", tc.req.Query, diff)
 			}
+		}
+
+		t.Run(tc.name, func(t *testing.T) {
+			runTestWithHint(t, "")
+		})
+
+		t.Run(tc.name+"/new", func(t *testing.T) {
+			runTestWithHint(t, "new=true")
 		})
 	}
 
@@ -983,7 +996,6 @@ func TestTempoDBQueryRange(t *testing.T) {
 		// compare operation generates enormous amount of time series,
 		// so we filter by service.name to test at least part of the results
 		req := requestWithDefaultRange(`{} | compare({ .service.name="even" })`)
-		e := traceql.NewEngine()
 
 		// Level 1
 		eval, err := e.CompileMetricsQueryRange(req, 0, false)
