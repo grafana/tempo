@@ -48,6 +48,7 @@
 * [CHANGE] **BREAKING CHANGE** Sets the `all` target to be 3.0 compatible and removes the `scalable-single-binary` target [#6283](https://github.com/grafana/tempo/pull/6283) (@joe-elliott)
 * [CHANGE] **BREAKING CHANGE** Clean up enterprise jsonnet [#6505](https://github.com/grafana/tempo/pull/6505) (@javiermolinar)
 * [CHANGE] Expose otlp http and grpc ports for Docker examples [#6296](https://github.com/grafana/tempo/pull/6296) (@javiermolinar)
+* [CHANGE] Comment out k6-tracing and grafana services in single-binary compose [#6594](https://github.com/grafana/tempo/pull/6594) (@javiermolinar)
 
 # v2.10.1
 
