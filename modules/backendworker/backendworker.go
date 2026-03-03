@@ -381,9 +381,9 @@ func (w *BackendWorker) processRedactionJob(ctx context.Context, resp *tempopb.N
 		}
 	}
 	if meta == nil {
-		// Block no longer present (e.g. already compacted); complete successfully (no-op)
+		// Block no longer present (e.g. already compacted away); treat as clean.
 		level.Debug(log.Logger).Log("msg", "redaction block not found, completing as no-op", "job_id", resp.JobId, "block_id", blockIDStr)
-		return w.completeJob(ctx, resp.JobId)
+		return w.completeRedactionJob(ctx, resp.JobId, false, 0)
 	}
 
 	traceIDs := make([]common.ID, 0, len(resp.Detail.Redaction.TraceIds))
@@ -393,25 +393,27 @@ func (w *BackendWorker) processRedactionJob(ctx context.Context, resp *tempopb.N
 		}
 	}
 
-	rewrote, _, err := w.store.RedactBlock(ctx, meta, tenantID, traceIDs)
+	rewrote, tracesFound, _, err := w.store.RedactBlock(ctx, meta, tenantID, traceIDs)
 	if err != nil {
 		return w.failJob(ctx, resp.JobId, fmt.Sprintf("redact block: %v", err))
 	}
 
-	if rewrote {
-		level.Debug(log.Logger).Log("msg", "redaction block rewritten", "job_id", resp.JobId, "block_id", blockIDStr)
-	}
-	return w.completeJob(ctx, resp.JobId)
+	level.Debug(log.Logger).Log("msg", "redaction block processed", "job_id", resp.JobId, "block_id", blockIDStr, "rewrote", rewrote, "traces_found", tracesFound)
+	return w.completeRedactionJob(ctx, resp.JobId, rewrote, tracesFound)
 }
 
-func (w *BackendWorker) completeJob(ctx context.Context, jobID string) error {
+func (w *BackendWorker) completeRedactionJob(ctx context.Context, jobID string, blockRewrote bool, tracesFound int) error {
 	return w.callSchedulerWithBackoff(ctx, func(ctx context.Context) error {
 		_, err := w.backendScheduler.UpdateJob(ctx, &tempopb.UpdateJobStatusRequest{
 			JobId:  jobID,
 			Status: tempopb.JobStatus_JOB_STATUS_SUCCEEDED,
+			Redaction: &tempopb.RedactionResult{
+				BlockRewrote: blockRewrote,
+				TracesFound:  int32(tracesFound),
+			},
 		})
 		if err != nil {
-			return fmt.Errorf("failed marking job %q as complete: %w", jobID, err)
+			return fmt.Errorf("failed marking redaction job %q as complete: %w", jobID, err)
 		}
 		return nil
 	})
