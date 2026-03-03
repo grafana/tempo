@@ -95,6 +95,7 @@ func New(cfg Config, store storage.Store, overrides overrides.Interface, reader 
 			provider: provider.NewRetentionProvider(
 				s.cfg.ProviderConfig.Retention,
 				log.Logger,
+				s.store,
 				s.work,
 			),
 			jobs: nil, // Will be set in running
@@ -245,52 +246,68 @@ func (s *BackendScheduler) Next(ctx context.Context, req *tempopb.NextJobRequest
 	timeoutCtx, cancel := context.WithTimeout(ctx, s.cfg.JobTimeout)
 	defer cancel()
 
-	// Try to get a job from the merged channel
-	select {
-	case j := <-s.mergedJobs:
-		if j == nil {
-			// Channel closed, no jobs available
+	// Loop so that stale jobs (whose preconditions no longer hold) can be
+	// silently discarded and we immediately try the next one, rather than
+	// handing an invalid job to a worker.
+	for {
+		select {
+		case j := <-s.mergedJobs:
+			if j == nil {
+				// Channel closed, no jobs available
+				metricJobsNotFound.WithLabelValues(req.WorkerId).Inc()
+				return &tempopb.NextJobResponse{}, status.Error(codes.Internal, ErrNilJob.Error())
+			}
+
+			span.AddEvent("job received", trace.WithAttributes(
+				attribute.String("job_id", j.GetID()),
+			))
+
+			// For per-tenant retention jobs: a pending redaction may have been
+			// added after the provider emitted the job.  Drop it and try again
+			// rather than running retention over a tenant that is mid-redaction.
+			if j.GetType() == tempopb.JobType_JOB_TYPE_RETENTION && j.Tenant() != "" {
+				if s.work.HasPendingJobs(j.Tenant(), tempopb.JobType_JOB_TYPE_REDACTION) {
+					level.Debug(log.Logger).Log("msg", "dropping stale retention job: tenant has pending redaction",
+						"job_id", j.ID, "tenant", j.Tenant())
+					metricJobsDropped.WithLabelValues(j.Tenant(), j.GetType().String()).Inc()
+					continue
+				}
+			}
+
+			resp := &tempopb.NextJobResponse{
+				JobId:  j.ID,
+				Type:   j.Type,
+				Detail: j.JobDetail,
+			}
+
+			j.SetWorkerID(req.WorkerId)
+			err := s.work.AddJob(j)
+			if err != nil {
+				return &tempopb.NextJobResponse{}, status.Error(codes.Internal, err.Error())
+			}
+
+			s.work.StartJob(j.ID)
+			metricJobsActive.WithLabelValues(j.JobDetail.Tenant, j.GetType().String()).Inc()
+
+			err = s.work.FlushToLocal(ctx, s.cfg.LocalWorkPath, []string{j.ID})
+			if err != nil {
+				// Fail without returning the job if we can't update the job cache
+				return &tempopb.NextJobResponse{}, status.Error(codes.Internal, ErrFlushFailed.Error())
+			}
+
+			span.SetAttributes(attribute.String("job_id", j.ID))
+
+			metricJobsCreated.WithLabelValues(resp.Detail.Tenant, resp.Type.String()).Inc()
+
+			level.Info(log.Logger).Log("msg", "assigned job to worker", "job_id", j.ID, "worker", req.WorkerId)
+
+			return resp, nil
+		case <-timeoutCtx.Done():
+			span.SetAttributes(attribute.Int("job_q_depth", len(s.mergedJobs)))
 			metricJobsNotFound.WithLabelValues(req.WorkerId).Inc()
-			return &tempopb.NextJobResponse{}, status.Error(codes.Internal, ErrNilJob.Error())
+
+			return &tempopb.NextJobResponse{}, status.Error(codes.NotFound, ErrNoJobsFound.Error())
 		}
-
-		span.AddEvent("job received", trace.WithAttributes(
-			attribute.String("job_id", j.GetID()),
-		))
-
-		resp := &tempopb.NextJobResponse{
-			JobId:  j.ID,
-			Type:   j.Type,
-			Detail: j.JobDetail,
-		}
-
-		j.SetWorkerID(req.WorkerId)
-		err := s.work.AddJob(j)
-		if err != nil {
-			return &tempopb.NextJobResponse{}, status.Error(codes.Internal, err.Error())
-		}
-
-		s.work.StartJob(j.ID)
-		metricJobsActive.WithLabelValues(j.JobDetail.Tenant, j.GetType().String()).Inc()
-
-		err = s.work.FlushToLocal(ctx, s.cfg.LocalWorkPath, []string{j.ID})
-		if err != nil {
-			// Fail without returning the job if we can't update the job cache
-			return &tempopb.NextJobResponse{}, status.Error(codes.Internal, ErrFlushFailed.Error())
-		}
-
-		span.SetAttributes(attribute.String("job_id", j.ID))
-
-		metricJobsCreated.WithLabelValues(resp.Detail.Tenant, resp.Type.String()).Inc()
-
-		level.Info(log.Logger).Log("msg", "assigned job to worker", "job_id", j.ID, "worker", req.WorkerId)
-
-		return resp, nil
-	case <-timeoutCtx.Done():
-		span.SetAttributes(attribute.Int("job_q_depth", len(s.mergedJobs)))
-		metricJobsNotFound.WithLabelValues(req.WorkerId).Inc()
-
-		return &tempopb.NextJobResponse{}, status.Error(codes.NotFound, ErrNoJobsFound.Error())
 	}
 }
 
