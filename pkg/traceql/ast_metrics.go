@@ -3,6 +3,7 @@ package traceql
 import (
 	"fmt"
 	"math"
+	"strings"
 	"time"
 
 	"github.com/grafana/tempo/pkg/tempopb"
@@ -356,7 +357,6 @@ type secondStageElement interface {
 	Element
 	init(req *tempopb.QueryRangeRequest)
 	process(input SeriesSet) SeriesSet
-	separator() string
 }
 
 type SecondStageOp int
@@ -391,10 +391,6 @@ func newTopKBottomK(op SecondStageOp, limit int) *TopKBottomK {
 
 func (m *TopKBottomK) String() string {
 	return fmt.Sprintf("%s(%d)", m.op.String(), m.limit)
-}
-
-func (m *TopKBottomK) separator() string {
-	return " | "
 }
 
 func (m *TopKBottomK) validate() error {
@@ -448,10 +444,6 @@ func (m *MetricsFilter) String() string {
 		return fmt.Sprintf("%s %d", opStr, int(m.value))
 	}
 	return fmt.Sprintf("%s %g", opStr, m.value)
-}
-
-func (m *MetricsFilter) separator() string {
-	return " "
 }
 
 func (m *MetricsFilter) validate() error {
@@ -526,34 +518,27 @@ var _ secondStageElement = (*MetricsFilter)(nil)
 // ChainedSecondStage chains multiple second stage elements together.
 // Elements are processed in order, each receiving the output of the previous.
 // Example: {status=error} | rate() | topk(5) > 10
-type ChainedSecondStage []secondStageElement
-
-func newChainedSecondStage(elements ...secondStageElement) ChainedSecondStage {
-	return ChainedSecondStage(elements)
+type ChainedSecondStage struct {
+	elements   []secondStageElement
+	separators []string
 }
 
-// secondStagePipeline unwraps single-element chains to avoid unnecessary wrapping.
-func secondStagePipeline(c ChainedSecondStage) secondStageElement {
-	if len(c) == 1 {
-		return c[0]
-	}
-	return c
+func (c *ChainedSecondStage) Append(element secondStageElement, separator string) {
+	c.elements = append(c.elements, element)
+	c.separators = append(c.separators, separator)
 }
 
 func (c ChainedSecondStage) String() string {
-	s := c[0].String()
-	for _, e := range c[1:] {
-		s += e.separator() + e.String()
+	b := strings.Builder{}
+	for i := range c.elements {
+		b.WriteString(c.separators[i])
+		b.WriteString(c.elements[i].String())
 	}
-	return s
-}
-
-func (c ChainedSecondStage) separator() string {
-	return c[0].separator()
+	return b.String()
 }
 
 func (c ChainedSecondStage) validate() error {
-	for _, e := range c {
+	for _, e := range c.elements {
 		if err := e.validate(); err != nil {
 			return err
 		}
@@ -562,16 +547,16 @@ func (c ChainedSecondStage) validate() error {
 }
 
 func (c ChainedSecondStage) init(req *tempopb.QueryRangeRequest) {
-	for _, e := range c {
+	for _, e := range c.elements {
 		e.init(req)
 	}
 }
 
 func (c ChainedSecondStage) process(input SeriesSet) SeriesSet {
-	for _, e := range c {
+	for _, e := range c.elements {
 		input = e.process(input)
 	}
 	return input
 }
 
-var _ secondStageElement = (ChainedSecondStage)(nil)
+var _ secondStageElement = ChainedSecondStage{}

@@ -15,7 +15,6 @@ func (r RootExpr) String() string {
 		s.WriteString(r.MetricsPipeline.String())
 	}
 	if r.MetricsSecondStage != nil {
-		s.WriteString(r.MetricsSecondStage.separator())
 		s.WriteString(r.MetricsSecondStage.String())
 	}
 	if r.Hints != nil {

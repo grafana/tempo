@@ -130,7 +130,7 @@ root:
   | spansetPipelineExpression                                             { yylex.(*lexer).expr = newRootExpr($1) }
   | scalarPipelineExpressionFilter                                        { yylex.(*lexer).expr = newRootExpr($1) } 
   | spansetPipeline PIPE metricsAggregation                               { yylex.(*lexer).expr = newRootExprWithMetrics($1, $3) }
-  | spansetPipeline PIPE metricsAggregation metricsSecondStagePipeline    { yylex.(*lexer).expr = newRootExprWithMetricsTwoStage($1, $3, secondStagePipeline($4)) }
+  | spansetPipeline PIPE metricsAggregation metricsSecondStagePipeline    { yylex.(*lexer).expr = newRootExprWithMetricsTwoStage($1, $3, $4) }
   | root hints                                                            { yylex.(*lexer).expr.withHints($2) }
   ;
 
@@ -359,10 +359,10 @@ metricsFilter:
 // Metrics Second Stage Pipeline (chains of second stage elements)
 // **********************
 metricsSecondStagePipeline:
-    PIPE metricsSecondStage                              { $$ = ChainedSecondStage{$2} }
-  | metricsFilter                                        { $$ = ChainedSecondStage{$1} }
-  | metricsSecondStagePipeline PIPE metricsSecondStage   { $$ = append($1, $3) }
-  | metricsSecondStagePipeline metricsFilter             { $$ = append($1, $2) }
+    PIPE metricsSecondStage                              { $$.Append($2, " | ") }
+  | metricsFilter                                        { $$.Append($1, " ") }
+  | metricsSecondStagePipeline PIPE metricsSecondStage   { $$ = $1; $$.Append($3, " | ") }
+  | metricsSecondStagePipeline metricsFilter             { $$ = $1; $$.Append($2, " ") }
   ;
 
 // **********************
