@@ -13,6 +13,7 @@ import (
 
 	"github.com/go-kit/log/level"
 	"github.com/gogo/status"
+	"github.com/google/uuid"
 	"github.com/grafana/dskit/services"
 	"github.com/grafana/tempo/modules/backendscheduler/provider"
 	"github.com/grafana/tempo/modules/backendscheduler/work"
@@ -126,6 +127,11 @@ func (s *BackendScheduler) starting(ctx context.Context) error {
 		return fmt.Errorf("failed to load work cache: %w", err)
 	}
 
+	// Load the batch manifest (best-effort; missing file means no active redaction batches).
+	if err := s.work.LoadBatchesFromLocal(ctx, s.cfg.LocalWorkPath); err != nil {
+		level.Info(log.Logger).Log("msg", "no batch manifest found at startup", "err", err)
+	}
+
 	wg := sync.WaitGroup{}
 
 	for i := range s.providers {
@@ -202,6 +208,10 @@ func (s *BackendScheduler) stopping(_ error) error {
 		return fmt.Errorf("failed to flush work cache on shutdown: %w", err)
 	}
 
+	if err := s.work.FlushBatchesToLocal(context.Background(), s.cfg.LocalWorkPath); err != nil {
+		level.Warn(log.Logger).Log("msg", "failed to flush batch manifest on shutdown", "err", err)
+	}
+
 	err = s.flushWorkCacheToBackend(context.Background())
 	if err != nil {
 		return fmt.Errorf("failed to flush work cache to backend on shutdown: %w", err)
@@ -274,6 +284,21 @@ func (s *BackendScheduler) Next(ctx context.Context, req *tempopb.NextJobRequest
 				}
 			}
 
+			// For redaction jobs: resolve trace IDs from the batch manifest.
+			// If the batch no longer exists (cancelled or already cleaned up), drop the job.
+			if j.GetType() == tempopb.JobType_JOB_TYPE_REDACTION {
+				batch := s.work.GetBatch(j.Tenant())
+				if batch == nil {
+					level.Debug(log.Logger).Log("msg", "dropping redaction job: batch no longer exists",
+						"job_id", j.ID, "tenant", j.Tenant())
+					metricJobsDropped.WithLabelValues(j.Tenant(), j.GetType().String()).Inc()
+					continue
+				}
+				if j.JobDetail.Redaction != nil {
+					j.JobDetail.Redaction.TraceIds = batch.TraceIds
+				}
+			}
+
 			resp := &tempopb.NextJobResponse{
 				JobId:  j.ID,
 				Type:   j.Type,
@@ -335,6 +360,18 @@ func (s *BackendScheduler) UpdateJob(ctx context.Context, req *tempopb.UpdateJob
 			s.work.SetJobCompactionOutput(req.JobId, req.Compaction.Output)
 		}
 
+		if j.GetType() == tempopb.JobType_JOB_TYPE_REDACTION {
+			if req.Redaction != nil {
+				level.Info(log.Logger).Log("msg", "redaction job result",
+					"job_id", req.JobId,
+					"tenant", j.Tenant(),
+					"block_id", j.JobDetail.GetRedaction().GetBlockId(),
+					"block_rewrote", req.Redaction.BlockRewrote,
+					"traces_found", req.Redaction.TracesFound)
+			}
+			s.cleanupBatchIfDone(ctx, j.Tenant())
+		}
+
 		err := s.work.FlushToLocal(ctx, s.cfg.LocalWorkPath, []string{req.JobId})
 		if err != nil {
 			// Fail without returning the job if we can't update the job cache.
@@ -364,6 +401,152 @@ func (s *BackendScheduler) UpdateJob(ctx context.Context, req *tempopb.UpdateJob
 	return &tempopb.UpdateJobStatusResponse{
 		Success: true,
 	}, nil
+}
+
+// SubmitRedaction implements the BackendSchedulerServer interface. It accepts the tenant and
+// trace IDs to redact, snapshots the tenant's block list, and enqueues one pending job per
+// block. Trace IDs are stored in a shared batch manifest rather than in each job to avoid
+// copying the list across potentially millions of pending jobs.
+func (s *BackendScheduler) SubmitRedaction(ctx context.Context, req *tempopb.SubmitRedactionRequest) (*tempopb.SubmitRedactionResponse, error) {
+	_, span := tracer.Start(ctx, "SubmitRedaction")
+	defer span.End()
+
+	if req.TenantId == "" {
+		return nil, status.Error(codes.InvalidArgument, "tenant_id is required")
+	}
+	if len(req.TraceIds) == 0 {
+		return nil, status.Error(codes.InvalidArgument, "trace_ids must not be empty")
+	}
+
+	if s.work.HasActiveBatchForTenant(req.TenantId) {
+		return nil, status.Error(codes.AlreadyExists, "a redaction is already in progress for this tenant")
+	}
+
+	batchID := uuid.New().String()
+	span.SetAttributes(
+		attribute.String("tenant", req.TenantId),
+		attribute.String("batch_id", batchID),
+		attribute.Int("trace_count", len(req.TraceIds)),
+	)
+
+	// Snapshot the block list for this tenant. One pending job is created per block;
+	// the worker checks whether the block actually contains any of the trace IDs.
+	metas := s.store.BlockMetas(req.TenantId)
+	if len(metas) == 0 {
+		return nil, status.Error(codes.NotFound, "no blocks found for tenant")
+	}
+
+	// Build a set of block IDs that are inputs to active compaction jobs. These blocks
+	// may disappear before a redaction worker can process them — and more importantly,
+	// their contents will have been merged into a new block that we would not redact.
+	// Mirrors the filtering in CompactionProvider.newBlockSelector.
+	inCompaction := make(map[string]struct{})
+	for _, j := range s.work.ListJobs() {
+		if j.Tenant() != req.TenantId || j.GetType() != tempopb.JobType_JOB_TYPE_COMPACTION {
+			continue
+		}
+		for _, blockID := range j.GetCompactionInput() {
+			inCompaction[blockID] = struct{}{}
+		}
+	}
+
+	filtered := metas[:0:0]
+	for _, meta := range metas {
+		if _, skip := inCompaction[meta.BlockID.String()]; skip {
+			continue
+		}
+		filtered = append(filtered, meta)
+	}
+	skippedBlocks := len(metas) - len(filtered)
+	if skippedBlocks > 0 {
+		level.Warn(log.Logger).Log("msg", "skipping blocks in active compaction jobs during redaction submission",
+			"tenant", req.TenantId,
+			"skipped_blocks", skippedBlocks,
+			"total_blocks", len(metas))
+	}
+	metas = filtered
+
+	if len(metas) == 0 {
+		return nil, status.Error(codes.NotFound, "no eligible blocks found for tenant after filtering compaction-in-progress blocks")
+	}
+
+	jobs := make([]*work.Job, 0, len(metas))
+	for _, meta := range metas {
+		jobs = append(jobs, &work.Job{
+			ID:   uuid.New().String(),
+			Type: tempopb.JobType_JOB_TYPE_REDACTION,
+			JobDetail: tempopb.JobDetail{
+				Tenant:  req.TenantId,
+				BatchId: batchID,
+				Redaction: &tempopb.RedactionDetail{
+					BlockId: meta.BlockID.String(),
+					// TraceIds intentionally empty here — populated from batch in Next().
+				},
+			},
+		})
+	}
+
+	batch := &tempopb.RedactionBatch{
+		BatchId:           batchID,
+		TenantId:          req.TenantId,
+		TraceIds:          req.TraceIds,
+		CreatedAtUnixNano: time.Now().UnixNano(),
+	}
+
+	// Store batch first, then jobs. On job failure, roll back the batch so the
+	// tenant is not permanently locked out of future submissions.
+	if err := s.work.AddBatch(batch); err != nil {
+		return nil, status.Error(codes.Internal, err.Error())
+	}
+	if err := s.work.AddPendingJobs(jobs); err != nil {
+		s.work.RemoveBatch(req.TenantId)
+		return nil, status.Error(codes.Internal, err.Error())
+	}
+
+	// Persist batch manifest and affected shards. Both are best-effort here;
+	// the data is safely in memory and will be flushed again on shutdown.
+	if err := s.work.FlushBatchesToLocal(ctx, s.cfg.LocalWorkPath); err != nil {
+		level.Warn(log.Logger).Log("msg", "failed to flush batch manifest", "err", err)
+	}
+	affectedIDs := make([]string, len(jobs))
+	for i, j := range jobs {
+		affectedIDs[i] = j.ID
+	}
+	if err := s.work.FlushToLocal(ctx, s.cfg.LocalWorkPath, affectedIDs); err != nil {
+		level.Warn(log.Logger).Log("msg", "failed to flush job shards", "err", err)
+	}
+
+	level.Info(log.Logger).Log("msg", "redaction batch submitted",
+		"tenant", req.TenantId,
+		"batch_id", batchID,
+		"jobs_created", len(jobs),
+		"blocks_skipped_compacting", skippedBlocks,
+		"trace_count", len(req.TraceIds))
+
+	return &tempopb.SubmitRedactionResponse{
+		BatchId:     batchID,
+		JobsCreated: int32(len(jobs)),
+	}, nil
+}
+
+// cleanupBatchIfDone removes the batch manifest for a tenant once all of its redaction
+// jobs have completed or failed (no pending, no running).
+func (s *BackendScheduler) cleanupBatchIfDone(ctx context.Context, tenantID string) {
+	if s.work.HasPendingJobs(tenantID, tempopb.JobType_JOB_TYPE_REDACTION) {
+		return
+	}
+	for _, j := range s.work.ListJobs() {
+		if j.Tenant() == tenantID &&
+			j.GetType() == tempopb.JobType_JOB_TYPE_REDACTION &&
+			j.GetStatus() == tempopb.JobStatus_JOB_STATUS_RUNNING {
+			return
+		}
+	}
+	s.work.RemoveBatch(tenantID)
+	if err := s.work.FlushBatchesToLocal(ctx, s.cfg.LocalWorkPath); err != nil {
+		level.Warn(log.Logger).Log("msg", "failed to flush batch manifest after cleanup", "tenant", tenantID, "err", err)
+	}
+	level.Info(log.Logger).Log("msg", "redaction batch completed, manifest removed", "tenant", tenantID)
 }
 
 func (s *BackendScheduler) replayWorkOnBlocklist(ctx context.Context) error {
@@ -463,35 +646,49 @@ func foundMetaInMetas(metas []*backend.BlockMeta, u backend.UUID) (*backend.Bloc
 }
 
 func (s *BackendScheduler) StatusHandler(w http.ResponseWriter, _ *http.Request) {
-	x := table.NewWriter()
-	x.AppendHeader(table.Row{"tenant", "jobID", "type", "input", "output", "status", "worker", "created", "start", "end"})
+	// Active jobs table
+	active := table.NewWriter()
+	active.SetTitle("Active Jobs")
+	active.AppendHeader(table.Row{"tenant", "job_id", "type", "status", "worker", "created", "start", "end"})
 
 	jobs := s.work.ListJobs()
-
-	// sort jobs by creation time
 	sort.Slice(jobs, func(i, j int) bool {
 		return jobs[i].GetCreatedTime().After(jobs[j].GetCreatedTime())
 	})
-
 	for _, j := range jobs {
-		x.AppendRows([]table.Row{
-			{
-				j.Tenant(),
-				j.GetID(),
-				j.GetType().String(),
-				j.GetCompactionInput(),
-				j.GetCompactionOutput(),
-				j.GetStatus().String(),
-				j.GetWorkerID(),
-				j.GetCreatedTime(),
-				j.GetStartTime(),
-				j.GetEndTime(),
-			},
+		active.AppendRow(table.Row{
+			j.Tenant(),
+			j.GetID(),
+			j.GetType().String(),
+			j.GetStatus().String(),
+			j.GetWorkerID(),
+			j.GetCreatedTime().Format(time.RFC3339),
+			j.GetStartTime().Format(time.RFC3339),
+			j.GetEndTime().Format(time.RFC3339),
 		})
 	}
 
-	x.AppendSeparator()
+	// Pending jobs table (redaction queue)
+	pending := table.NewWriter()
+	pending.SetTitle("Pending Jobs")
+	pending.AppendHeader(table.Row{"tenant", "job_id", "type", "block_id", "batch_id"})
+
+	for _, j := range s.work.ListAllPendingJobs() {
+		blockID := ""
+		if j.JobDetail.Redaction != nil {
+			blockID = j.JobDetail.Redaction.BlockId
+		}
+		pending.AppendRow(table.Row{
+			j.Tenant(),
+			j.GetID(),
+			j.GetType().String(),
+			blockID,
+			j.JobDetail.BatchId,
+		})
+	}
 
 	w.WriteHeader(http.StatusOK)
-	_, _ = io.WriteString(w, x.Render())
+	_, _ = io.WriteString(w, active.Render())
+	_, _ = io.WriteString(w, "\n\n")
+	_, _ = io.WriteString(w, pending.Render())
 }
