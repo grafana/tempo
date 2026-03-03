@@ -44,6 +44,9 @@ type genericCombiner[T TResponse] struct {
 	diff     func(T) (T, error)
 	quit     func(T) bool
 
+	// Segment one response into smaller ones, that fit within the given max size.
+	segment func(T, int) ([]T, error)
+
 	// Used to determine the response code and when to stop
 	httpStatusCode int
 	httpRespBody   string
@@ -219,6 +222,17 @@ func (c *genericCombiner[T]) GRPCDiff() (T, error) {
 	// clone the diff to prevent race conditions with marshalling this data
 	diffClone := proto.Clone(diff)
 	return diffClone.(T), nil
+}
+
+func (c *genericCombiner[T]) GRPCSegment(response T, maxSize int) ([]T, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	if c.segment == nil {
+		return []T{response}, nil
+	}
+
+	return c.segment(response, maxSize)
 }
 
 func (c *genericCombiner[T]) erroredResponse() (*http.Response, error) {

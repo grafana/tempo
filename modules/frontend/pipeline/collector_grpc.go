@@ -3,9 +3,11 @@ package pipeline
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"time"
 
+	"github.com/gogo/protobuf/proto"
 	"github.com/gogo/status"
 	"github.com/grafana/tempo/modules/frontend/combiner"
 	"google.golang.org/grpc/codes"
@@ -61,10 +63,7 @@ func (c GRPCCollector[T]) RoundTrip(req *http.Request) error {
 			if err != nil {
 				return err
 			}
-			err = c.send(resp)
-			if err != nil {
-				return err
-			}
+			return c.sendSegmented(req, resp, 4000000)
 		}
 
 		return nil
@@ -82,15 +81,28 @@ func (c GRPCCollector[T]) RoundTrip(req *http.Request) error {
 		return grpcError(err)
 	}
 	span.AddEvent("final combiner.GRPCDiff() done")
-	// check and return the context errors, like ctx cancelled, etc
-	if req.Context().Err() != nil {
-		return grpcError(req.Context().Err())
-	}
-	err = c.send(resp)
-	if err != nil {
-		return grpcError(err)
-	}
 
+	return c.sendSegmented(req, resp, 4000000)
+}
+
+func (c GRPCCollector[T]) sendSegmented(req *http.Request, resp T, maxSize int) error {
+	// Split the response into smaller packets and send individually.
+	grpcPackets, err := c.combiner.GRPCSegment(resp, maxSize)
+	if err != nil {
+		return err
+	}
+	for _, packet := range grpcPackets {
+		// While sending, check and return the context errors, like ctx cancelled, etc
+		if req.Context().Err() != nil {
+			return grpcError(req.Context().Err())
+		}
+
+		err = c.send(packet)
+		if err != nil {
+			return grpcError(err)
+		}
+		fmt.Println("sent packet", proto.Size(packet))
+	}
 	return nil
 }
 

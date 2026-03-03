@@ -148,6 +148,9 @@ func NewQueryRange(req *tempopb.QueryRangeRequest, maxSeriesLimit int) (Combiner
 			// will return an empty response
 			return combiner.MaxSeriesReached() && completionTracker.CompletedThroughSeconds() != shardtracker.TimestampUnknown
 		},
+		segment: func(resp *tempopb.QueryRangeResponse, maxSize int) ([]*tempopb.QueryRangeResponse, error) {
+			return segmentResponseToMaxPacketSize(resp, maxSize), nil
+		},
 	}
 
 	initHTTPCombiner(c, api.HeaderAcceptJSON)
@@ -161,6 +164,46 @@ func NewTypedQueryRange(req *tempopb.QueryRangeRequest, maxSeries int) (GRPCComb
 		return nil, err
 	}
 	return c.(GRPCCombiner[*tempopb.QueryRangeResponse]), nil
+}
+
+// segmentResponseToMaxPacketSize splits resp into one or more QueryRangeResponse values, each within
+// maxSize bytes (by proto Size()), accounting for the response object itself. Metrics are included
+// in every segment; Status and Message are set on the last segment.
+func segmentResponseToMaxPacketSize(resp *tempopb.QueryRangeResponse, maxSize int) []*tempopb.QueryRangeResponse {
+	// If not configured return as-is.
+	if maxSize <= 0 {
+		return []*tempopb.QueryRangeResponse{resp}
+	}
+	var out []*tempopb.QueryRangeResponse
+	var current *tempopb.QueryRangeResponse
+	var currentSz int
+
+	startNextPacket := func() {
+		current = &tempopb.QueryRangeResponse{
+			Metrics: resp.Metrics,
+			Status:  resp.Status,
+			Message: resp.Message,
+		}
+		currentSz = current.Size()
+		out = append(out, current)
+	}
+
+	startNextPacket()
+
+	for _, s := range resp.Series {
+		seriesSz := s.Size()
+
+		// Start a new packet if there isn't room for this series,
+		// unless it's the first one, that way we always try to fit at least one.
+		if len(current.Series) > 0 && currentSz+seriesSz > maxSize {
+			startNextPacket()
+		}
+
+		current.Series = append(current.Series, s)
+		currentSz += seriesSz
+	}
+
+	return out
 }
 
 // trimSeriesToCompletedWindow filters series samples and exemplars to only include
