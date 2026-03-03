@@ -470,15 +470,13 @@ func (m *MetricsFilter) process(input SeriesSet) SeriesSet {
 
 	for key, series := range input {
 		hasValue := false
-		newValues := make([]float64, len(series.Values))
 
 		for i, v := range series.Values {
 			if math.IsNaN(v) || !m.compare(v) {
-				newValues[i] = math.NaN()
+				series.Values[i] = math.NaN()
 				continue
 			}
 
-			newValues[i] = v
 			hasValue = true
 		}
 
@@ -494,7 +492,7 @@ func (m *MetricsFilter) process(input SeriesSet) SeriesSet {
 		}
 		result[key] = TimeSeries{
 			Labels:    series.Labels,
-			Values:    newValues,
+			Values:    series.Values,
 			Exemplars: exemplars,
 		}
 	}
