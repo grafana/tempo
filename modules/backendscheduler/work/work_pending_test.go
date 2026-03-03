@@ -8,15 +8,14 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func createRedactionJob(id, tenantID, blockID string, traceIDs [][]byte) *Job {
+func createRedactionJob(id, tenantID, blockID string) *Job {
 	return &Job{
 		ID:   id,
 		Type: tempopb.JobType_JOB_TYPE_REDACTION,
 		JobDetail: tempopb.JobDetail{
 			Tenant: tenantID,
 			Redaction: &tempopb.RedactionDetail{
-				BlockId:  blockID,
-				TraceIds: traceIDs,
+				BlockId: blockID,
 			},
 		},
 	}
@@ -27,9 +26,9 @@ func TestAddPendingJobs(t *testing.T) {
 
 	t.Run("add and list", func(t *testing.T) {
 		jobs := []*Job{
-			createRedactionJob("r1", "tenant-a", "block-1", nil),
-			createRedactionJob("r2", "tenant-a", "block-2", nil),
-			createRedactionJob("r3", "tenant-b", "block-1", nil),
+			createRedactionJob("r1", "tenant-a", "block-1"),
+			createRedactionJob("r2", "tenant-a", "block-2"),
+			createRedactionJob("r3", "tenant-b", "block-1"),
 		}
 		err := w.AddPendingJobs(jobs)
 		require.NoError(t, err)
@@ -45,7 +44,7 @@ func TestAddPendingJobs(t *testing.T) {
 
 	t.Run("idempotent add same job id", func(t *testing.T) {
 		w2 := New(Config{}).(*Work)
-		j := createRedactionJob("same-id", "t", "b", nil)
+		j := createRedactionJob("same-id", "t", "b")
 		require.NoError(t, w2.AddPendingJobs([]*Job{j}))
 		require.NoError(t, w2.AddPendingJobs([]*Job{j})) // same job again
 		require.Len(t, w2.ListPendingJobs("t", tempopb.JobType_JOB_TYPE_REDACTION), 1)
@@ -58,7 +57,7 @@ func TestBlockPending(t *testing.T) {
 	require.False(t, w.BlockPending("tenant-a", "block-1"))
 
 	jobs := []*Job{
-		createRedactionJob("r1", "tenant-a", "block-1", nil),
+		createRedactionJob("r1", "tenant-a", "block-1"),
 	}
 	require.NoError(t, w.AddPendingJobs(jobs))
 
@@ -73,8 +72,8 @@ func TestBlockPending(t *testing.T) {
 func TestRemovePending(t *testing.T) {
 	w := New(Config{}).(*Work)
 	jobs := []*Job{
-		createRedactionJob("r1", "tenant-a", "block-1", nil),
-		createRedactionJob("r2", "tenant-a", "block-2", nil),
+		createRedactionJob("r1", "tenant-a", "block-1"),
+		createRedactionJob("r2", "tenant-a", "block-2"),
 	}
 	require.NoError(t, w.AddPendingJobs(jobs))
 	require.Len(t, w.ListPendingJobs("tenant-a", tempopb.JobType_JOB_TYPE_REDACTION), 2)
@@ -92,9 +91,9 @@ func TestRemovePending(t *testing.T) {
 func TestPopNextPendingRedactionJob_DrainsOneTenant(t *testing.T) {
 	w := New(Config{}).(*Work)
 	jobs := []*Job{
-		createRedactionJob("r-a1", "tenant-a", "block-1", nil),
-		createRedactionJob("r-a2", "tenant-a", "block-2", nil),
-		createRedactionJob("r-b1", "tenant-b", "block-1", nil),
+		createRedactionJob("r-a1", "tenant-a", "block-1"),
+		createRedactionJob("r-a2", "tenant-a", "block-2"),
+		createRedactionJob("r-b1", "tenant-b", "block-1"),
 	}
 	require.NoError(t, w.AddPendingJobs(jobs))
 
@@ -121,8 +120,8 @@ func TestPendingRoundTrip_FlushAndLoad(t *testing.T) {
 	w := New(Config{}).(*Work)
 
 	jobs := []*Job{
-		createRedactionJob("r1", "tenant-a", "block-1", nil),
-		createRedactionJob("r2", "tenant-a", "block-2", nil),
+		createRedactionJob("r1", "tenant-a", "block-1"),
+		createRedactionJob("r2", "tenant-a", "block-2"),
 	}
 	require.NoError(t, w.AddPendingJobs(jobs))
 	jobIDs := []string{"r1", "r2"}
@@ -140,8 +139,8 @@ func TestPendingRoundTrip_FlushAndLoad(t *testing.T) {
 func TestPendingRoundTrip_MarshalUnmarshal(t *testing.T) {
 	w := New(Config{}).(*Work)
 	jobs := []*Job{
-		createRedactionJob("r1", "tenant-a", "block-1", nil),
-		createRedactionJob("r2", "tenant-b", "block-1", nil),
+		createRedactionJob("r1", "tenant-a", "block-1"),
+		createRedactionJob("r2", "tenant-b", "block-1"),
 	}
 	require.NoError(t, w.AddPendingJobs(jobs))
 
@@ -165,7 +164,7 @@ func TestPendingAndActiveJobs_Isolated(t *testing.T) {
 	require.NoError(t, w.AddJob(active))
 
 	// Add to Pending
-	pending := createRedactionJob("pending-1", "tenant-a", "block-1", nil)
+	pending := createRedactionJob("pending-1", "tenant-a", "block-1")
 	require.NoError(t, w.AddPendingJobs([]*Job{pending}))
 
 	require.Len(t, w.ListJobs(), 1)
@@ -179,7 +178,7 @@ func TestLoadFromLocal_RebuildsPendingIndex(t *testing.T) {
 	tmpDir := t.TempDir()
 	w := New(Config{}).(*Work)
 	jobs := []*Job{
-		createRedactionJob("r1", "t", "b1", nil),
+		createRedactionJob("r1", "t", "b1"),
 	}
 	require.NoError(t, w.AddPendingJobs(jobs))
 	require.NoError(t, w.FlushToLocal(ctx, tmpDir, []string{"r1"}))

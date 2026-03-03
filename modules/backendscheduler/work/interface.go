@@ -25,9 +25,18 @@ type Interface interface {
 	AddPendingJobs(jobs []*Job) error
 	RemovePending(jobID string)
 	ListPendingJobs(tenantID string, jobType tempopb.JobType) []*Job
+	ListAllPendingJobs() []*Job
 	HasPendingJobs(tenantID string, jobType tempopb.JobType) bool
 	BlockPending(tenantID, blockID string) bool
 	PopNextPendingJob(jobType tempopb.JobType) *Job
+
+	// Batch management -- shared trace ID list for redaction jobs to avoid per-job copies.
+	AddBatch(batch *tempopb.RedactionBatch) error
+	GetBatch(tenantID string) *tempopb.RedactionBatch
+	RemoveBatch(tenantID string)
+	HasActiveBatchForTenant(tenantID string) bool
+	FlushBatchesToLocal(ctx context.Context, localPath string) error
+	LoadBatchesFromLocal(ctx context.Context, localPath string) error
 
 	// Maintenance
 	Prune(ctx context.Context)
