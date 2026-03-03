@@ -387,7 +387,7 @@ func (s *LiveStore) stopping(error) error {
 		s.ingestPartitionLifecycler.SetRemoveOwnerOnShutdown(true)
 	}
 
-	// Reject new queries once ring removal has been signaled.
+	// Reject new queries early in shutdown, before tearing down the reader.
 	s.readyErr.Store(&ErrStopping)
 	metricReady.Set(0)
 

@@ -540,6 +540,40 @@ func TestLiveStoreQueryMethodsAfterStopping(t *testing.T) {
 	require.NotNil(t, rangeResp)
 }
 
+func TestLiveStoreQueryMethodsAfterStoppingWithFailOnHighLag(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	liveStore, err := defaultLiveStore(t, tmpDir)
+	require.NoError(t, err)
+	require.NotNil(t, liveStore)
+
+	liveStore.cfg.FailOnHighLag = true
+
+	// Error expected from Kafka reader shutdown; we only care about query behavior after stopping begins.
+	_ = liveStore.stopping(nil)
+
+	ctx := user.InjectOrgID(context.Background(), testTenantID)
+
+	// After stopping, the reader is non-nil but stopped. With FailOnHighLag=true,
+	// isLagged() runs calculateTimeLag() on the stopped reader. Depending on stale
+	// lag values it may return true (errLagged) or false (falls through to
+	// withInstance → CheckReady → ErrStopping). Either way, query must not panic
+	// and must return an error.
+	_, err = liveStore.SearchRecent(ctx, &tempopb.SearchRequest{
+		Query: "{}",
+		End:   uint32(time.Now().Unix()),
+	})
+	require.Error(t, err)
+
+	_, err = liveStore.QueryRange(ctx, &tempopb.QueryRangeRequest{
+		Query: "{} | count_over_time()",
+		Start: uint64(time.Now().Add(-time.Hour).UnixNano()),
+		End:   uint64(time.Now().UnixNano()),
+		Step:  uint64(time.Second),
+	})
+	require.Error(t, err)
+}
+
 // erroredEnc is a wrapper around a VersionedEncoding that returns given error on CreateBlock
 // if error is not nil. Otherwise, it calls the original CreateBlock method.
 type erroredEnc struct {
