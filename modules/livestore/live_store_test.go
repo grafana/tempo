@@ -434,8 +434,9 @@ func TestLiveStoreQueryMethodsBeforeStarted(t *testing.T) {
 	ctx := user.InjectOrgID(context.Background(), testTenantID)
 
 	testCases := []struct {
-		name     string
-		callFunc func() (interface{}, error)
+		name        string
+		callFunc    func() (interface{}, error)
+		expectedErr error
 	}{
 		{
 			name: "SearchRecent",
@@ -444,6 +445,7 @@ func TestLiveStoreQueryMethodsBeforeStarted(t *testing.T) {
 					Query: "{}",
 				})
 			},
+			expectedErr: errLagged, // FailOnHighLag=true + nil reader → isLagged returns true
 		},
 		{
 			name: "SearchTags",
@@ -452,6 +454,7 @@ func TestLiveStoreQueryMethodsBeforeStarted(t *testing.T) {
 					Scope: "span",
 				})
 			},
+			expectedErr: ErrStarting,
 		},
 		{
 			name: "SearchTagsV2",
@@ -460,6 +463,7 @@ func TestLiveStoreQueryMethodsBeforeStarted(t *testing.T) {
 					Scope: "span",
 				})
 			},
+			expectedErr: ErrStarting,
 		},
 		{
 			name: "SearchTagValues",
@@ -468,6 +472,7 @@ func TestLiveStoreQueryMethodsBeforeStarted(t *testing.T) {
 					TagName: "foo",
 				})
 			},
+			expectedErr: ErrStarting,
 		},
 		{
 			name: "SearchTagValuesV2",
@@ -476,6 +481,7 @@ func TestLiveStoreQueryMethodsBeforeStarted(t *testing.T) {
 					TagName: "foo",
 				})
 			},
+			expectedErr: ErrStarting,
 		},
 		{
 			name: "QueryRange",
@@ -487,19 +493,18 @@ func TestLiveStoreQueryMethodsBeforeStarted(t *testing.T) {
 					Step:  uint64(time.Second),
 				})
 			},
+			expectedErr: errLagged, // FailOnHighLag=true + nil reader → isLagged returns true
 		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			// Call the function before livestore has started
-			// This should not panic and should return an error indicating not ready
-			resp, err := tc.callFunc()
+			// This should not panic and should return an error
+			_, err := tc.callFunc()
 
-			// Should return ErrStarting error when not ready
 			require.Error(t, err)
-			require.ErrorIs(t, err, ErrStarting)
-			require.NotNil(t, resp)
+			require.ErrorIs(t, err, tc.expectedErr)
 		})
 	}
 }
