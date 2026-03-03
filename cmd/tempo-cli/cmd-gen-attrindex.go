@@ -10,7 +10,6 @@ import (
 	"math"
 	"os"
 	"path/filepath"
-
 	"sort"
 	"strings"
 	"text/tabwriter"

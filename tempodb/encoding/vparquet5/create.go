@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"io"
 
-
 	"github.com/google/uuid"
 	"github.com/grafana/tempo/pkg/dataquality"
 	tempo_io "github.com/grafana/tempo/pkg/io"
