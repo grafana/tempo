@@ -327,8 +327,17 @@ func (w *BackendWorker) processCompactionJob(ctx context.Context, resp *tempopb.
 }
 
 func (w *BackendWorker) processRetentionJob(ctx context.Context, resp *tempopb.NextJobResponse) error {
-	level.Debug(log.Logger).Log("msg", "received retention job", "job_id", resp.JobId, "tenant", resp.Detail.Tenant)
-	w.store.RetainWithConfig(ctx, &w.cfg.Compactor, ownsEverythingSharder{}, w)
+	tenantID := resp.Detail.Tenant
+	level.Debug(log.Logger).Log("msg", "received retention job", "job_id", resp.JobId, "tenant", tenantID)
+
+	// Per-tenant path (new behaviour): run retention for only the specified tenant.
+	// Fallback path (rollout compatibility): if tenant is empty this is a legacy
+	// global job emitted by an older scheduler binary; retain all tenants as before.
+	if tenantID != "" {
+		w.store.RetainTenantWithConfig(ctx, tenantID, &w.cfg.Compactor, ownsEverythingSharder{}, w)
+	} else {
+		w.store.RetainWithConfig(ctx, &w.cfg.Compactor, ownsEverythingSharder{}, w)
+	}
 
 	err := w.callSchedulerWithBackoff(ctx, func(ctx context.Context) error {
 		_, err := w.backendScheduler.UpdateJob(ctx, &tempopb.UpdateJobStatusRequest{

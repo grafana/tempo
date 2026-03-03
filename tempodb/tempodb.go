@@ -120,6 +120,7 @@ type Compactor interface {
 	CompactWithConfig(ctx context.Context, metas []*backend.BlockMeta, tenantID string, cfg *CompactorConfig, sharder CompactorSharder, overrides CompactorOverrides) ([]*backend.BlockMeta, error)
 	MarkBlocklistCompacted(tenantID string, outputIDs, inputIDs []*backend.BlockMeta) error
 	RetainWithConfig(ctx context.Context, cfg *CompactorConfig, sharder CompactorSharder, overrides CompactorOverrides)
+	RetainTenantWithConfig(ctx context.Context, tenantID string, cfg *CompactorConfig, sharder CompactorSharder, overrides CompactorOverrides)
 
 	RedactBlock(ctx context.Context, meta *backend.BlockMeta, tenantID string, traceIDs []common.ID) (rewrote bool, newMeta *backend.BlockMeta, err error)
 }
