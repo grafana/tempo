@@ -10,7 +10,7 @@ import (
 	"math"
 	"os"
 	"path/filepath"
-	"runtime"
+
 	"sort"
 	"strings"
 	"text/tabwriter"
@@ -119,7 +119,6 @@ func (cmd *attrIndexCmd) collectAttributeStats() (*fileStats, error) {
 			}
 			break
 		}
-		runtime.GC() // after reading the new traces to the buffer GC can free the old ones
 
 		if readCount > 0 {
 			cmd.collectAttributeStatsForTraces(&stats, traceBuffer[:readCount])
