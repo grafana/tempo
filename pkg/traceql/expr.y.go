@@ -1001,7 +1001,7 @@ yydefault:
 	case 5:
 		yyDollar = yyS[yypt-4 : yypt+1]
 		{
-			yylex.(*lexer).expr = newRootExprWithMetricsTwoStage(yyDollar[1].spansetPipeline, yyDollar[3].metricsAggregation, secondStagePipeline(yyDollar[4].metricsSecondStagePipeline))
+			yylex.(*lexer).expr = newRootExprWithMetricsTwoStage(yyDollar[1].spansetPipeline, yyDollar[3].metricsAggregation, yyDollar[4].metricsSecondStagePipeline)
 		}
 	case 6:
 		yyDollar = yyS[yypt-2 : yypt+1]
@@ -1676,22 +1676,24 @@ yydefault:
 	case 140:
 		yyDollar = yyS[yypt-2 : yypt+1]
 		{
-			yyVAL.metricsSecondStagePipeline = ChainedSecondStage{yyDollar[2].metricsSecondStage}
+			yyVAL.metricsSecondStagePipeline.Append(yyDollar[2].metricsSecondStage, " | ")
 		}
 	case 141:
 		yyDollar = yyS[yypt-1 : yypt+1]
 		{
-			yyVAL.metricsSecondStagePipeline = ChainedSecondStage{yyDollar[1].metricsSecondStage}
+			yyVAL.metricsSecondStagePipeline.Append(yyDollar[1].metricsSecondStage, " ")
 		}
 	case 142:
 		yyDollar = yyS[yypt-3 : yypt+1]
 		{
-			yyVAL.metricsSecondStagePipeline = append(yyDollar[1].metricsSecondStagePipeline, yyDollar[3].metricsSecondStage)
+			yyVAL.metricsSecondStagePipeline = yyDollar[1].metricsSecondStagePipeline
+			yyVAL.metricsSecondStagePipeline.Append(yyDollar[3].metricsSecondStage, " | ")
 		}
 	case 143:
 		yyDollar = yyS[yypt-2 : yypt+1]
 		{
-			yyVAL.metricsSecondStagePipeline = append(yyDollar[1].metricsSecondStagePipeline, yyDollar[2].metricsSecondStage)
+			yyVAL.metricsSecondStagePipeline = yyDollar[1].metricsSecondStagePipeline
+			yyVAL.metricsSecondStagePipeline.Append(yyDollar[2].metricsSecondStage, " ")
 		}
 	case 144:
 		yyDollar = yyS[yypt-3 : yypt+1]
