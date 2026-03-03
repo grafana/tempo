@@ -105,7 +105,7 @@ func NewQueryRange(req *tempopb.QueryRangeRequest, maxSeriesLimit int) (Combiner
 			// Check if any shards have completed
 			completedThrough := completionTracker.CompletedThroughSeconds()
 
-			// If no shards have completed yet or the completedThrough is the same as the lastCompletedThrough, return empty response
+			// If we are still waiting for new data, then send an interim empty diff.
 			if completedThrough == shardtracker.TimestampUnknown || completedThrough == lastCompletedThrough {
 				return &tempopb.QueryRangeResponse{
 					Series:  []*tempopb.TimeSeries{},
@@ -119,7 +119,6 @@ func NewQueryRange(req *tempopb.QueryRangeRequest, maxSeriesLimit int) (Combiner
 			}
 
 			// only trim the response if we're not at the end of the stream. for the final response, we'll send all the data.
-			// TODO: why aren't we using .GRPCFinal() correctly instead of doing this? also it looks like TimestampAlways is never set? so I don't think this ever works the way it's intended to.
 			if completedThrough != shardtracker.TimestampAlways {
 				trimSeriesToCompletedWindow(resp.Series, lastCompletedThrough, completedThrough)
 			}
@@ -174,6 +173,7 @@ func segmentResponseToMaxPacketSize(resp *tempopb.QueryRangeResponse, maxSize in
 	if maxSize <= 0 {
 		return []*tempopb.QueryRangeResponse{resp}
 	}
+
 	var out []*tempopb.QueryRangeResponse
 	var current *tempopb.QueryRangeResponse
 	var currentSz int
@@ -181,8 +181,6 @@ func segmentResponseToMaxPacketSize(resp *tempopb.QueryRangeResponse, maxSize in
 	startNextPacket := func() {
 		current = &tempopb.QueryRangeResponse{
 			Metrics: resp.Metrics,
-			Status:  resp.Status,
-			Message: resp.Message,
 		}
 		currentSz = current.Size()
 		out = append(out, current)
@@ -201,6 +199,12 @@ func segmentResponseToMaxPacketSize(resp *tempopb.QueryRangeResponse, maxSize in
 
 		current.Series = append(current.Series, s)
 		currentSz += seriesSz
+	}
+
+	// Attach real status and message only to the last packet
+	if len(out) > 0 {
+		out[len(out)-1].Status = resp.Status
+		out[len(out)-1].Message = resp.Message
 	}
 
 	return out

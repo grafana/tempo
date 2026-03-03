@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"reflect"
 	"strings"
 	"sync"
 	"unsafe"
@@ -229,7 +230,7 @@ func (c *genericCombiner[T]) GRPCSegment(response T, maxSize int) ([]T, error) {
 	defer c.mu.Unlock()
 
 	if c.segment == nil {
-		return []T{response}, nil
+		return nil, errors.New("grpc response segmentation not supported for response type: " + reflect.TypeOf(response).String())
 	}
 
 	return c.segment(response, maxSize)

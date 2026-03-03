@@ -3,30 +3,29 @@ package pipeline
 import (
 	"context"
 	"errors"
-	"fmt"
 	"net/http"
 	"time"
 
-	"github.com/gogo/protobuf/proto"
 	"github.com/gogo/status"
 	"github.com/grafana/tempo/modules/frontend/combiner"
 	"google.golang.org/grpc/codes"
 )
 
 type GRPCCollector[T combiner.TResponse] struct {
-	next      AsyncRoundTripper[combiner.PipelineResponse]
-	combiner  combiner.GRPCCombiner[T]
-	consumers int
-
-	send func(T) error
+	next           AsyncRoundTripper[combiner.PipelineResponse]
+	combiner       combiner.GRPCCombiner[T]
+	consumers      int
+	maxSegmentSize int
+	send           func(T) error
 }
 
-func NewGRPCCollector[T combiner.TResponse](next AsyncRoundTripper[combiner.PipelineResponse], consumers int, combiner combiner.GRPCCombiner[T], send func(T) error) *GRPCCollector[T] {
+func NewGRPCCollector[T combiner.TResponse](next AsyncRoundTripper[combiner.PipelineResponse], consumers int, maxSegmentSize int, combiner combiner.GRPCCombiner[T], send func(T) error) *GRPCCollector[T] {
 	return &GRPCCollector[T]{
-		next:      next,
-		combiner:  combiner,
-		consumers: consumers,
-		send:      send,
+		next:           next,
+		combiner:       combiner,
+		consumers:      consumers,
+		maxSegmentSize: maxSegmentSize,
+		send:           send,
 	}
 }
 
@@ -63,7 +62,8 @@ func (c GRPCCollector[T]) RoundTrip(req *http.Request) error {
 			if err != nil {
 				return err
 			}
-			return c.sendSegmented(req, resp, 4000000)
+
+			return c.sendSegmented(req, resp, c.maxSegmentSize)
 		}
 
 		return nil
@@ -76,21 +76,27 @@ func (c GRPCCollector[T]) RoundTrip(req *http.Request) error {
 	span.AddEvent("consumeAndCombineResponses done")
 
 	// send the final diff if there is anything left
-	resp, err := c.combiner.GRPCDiff()
+	resp, err := c.combiner.GRPCFinal()
 	if err != nil {
 		return grpcError(err)
 	}
 	span.AddEvent("final combiner.GRPCDiff() done")
 
-	return c.sendSegmented(req, resp, 4000000)
+	return c.sendSegmented(req, resp, c.maxSegmentSize)
 }
 
 func (c GRPCCollector[T]) sendSegmented(req *http.Request, resp T, maxSize int) error {
+	// If no max, then send as-is.
+	if maxSize <= 0 {
+		return c.send(resp)
+	}
+
 	// Split the response into smaller packets and send individually.
 	grpcPackets, err := c.combiner.GRPCSegment(resp, maxSize)
 	if err != nil {
 		return err
 	}
+
 	for _, packet := range grpcPackets {
 		// While sending, check and return the context errors, like ctx cancelled, etc
 		if req.Context().Err() != nil {
@@ -101,7 +107,6 @@ func (c GRPCCollector[T]) sendSegmented(req *http.Request, resp T, maxSize int) 
 		if err != nil {
 			return grpcError(err)
 		}
-		fmt.Println("sent packet", proto.Size(packet))
 	}
 	return nil
 }
