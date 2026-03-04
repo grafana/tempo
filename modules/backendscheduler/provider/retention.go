@@ -10,6 +10,7 @@ import (
 	"github.com/go-kit/log/level"
 	"github.com/google/uuid"
 	"github.com/grafana/tempo/modules/backendscheduler/work"
+	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/pkg/tempopb"
 )
 
@@ -28,10 +29,11 @@ func (cfg *RetentionConfig) RegisterFlagsAndApplyDefaults(prefix string, f *flag
 }
 
 type RetentionProvider struct {
-	cfg    RetentionConfig
-	store  TenantLister
-	sched  Scheduler
-	logger kitlogger.Logger
+	cfg       RetentionConfig
+	store     TenantLister
+	overrides overrides.Interface
+	sched     Scheduler
+	logger    kitlogger.Logger
 
 	// pendingChannelTenants tracks tenants whose retention job has been sent to
 	// the jobs channel but has not yet been picked up by Next() and recorded in
@@ -45,10 +47,11 @@ type RetentionProvider struct {
 	pendingChannelTenants map[string]string // tenant → job ID
 }
 
-func NewRetentionProvider(cfg RetentionConfig, logger kitlogger.Logger, store TenantLister, scheduler Scheduler) *RetentionProvider {
+func NewRetentionProvider(cfg RetentionConfig, logger kitlogger.Logger, store TenantLister, overrides overrides.Interface, scheduler Scheduler) *RetentionProvider {
 	return &RetentionProvider{
 		cfg:                   cfg,
 		store:                 store,
+		overrides:             overrides,
 		sched:                 scheduler,
 		logger:                logger,
 		pendingChannelTenants: make(map[string]string),
@@ -91,6 +94,9 @@ func (p *RetentionProvider) emitRetentionJobs(ctx context.Context, jobs chan<- *
 	}
 
 	for _, tenantID := range p.store.Tenants() {
+		if p.overrides.CompactionDisabled(tenantID) {
+			continue
+		}
 		if _, running := runningTenants[tenantID]; running {
 			continue
 		}

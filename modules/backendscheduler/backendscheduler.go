@@ -97,6 +97,7 @@ func New(cfg Config, store storage.Store, overrides overrides.Interface, reader 
 				s.cfg.ProviderConfig.Retention,
 				log.Logger,
 				s.store,
+				s.overrides,
 				s.work,
 			),
 			jobs: nil, // Will be set in running
