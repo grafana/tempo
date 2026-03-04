@@ -99,6 +99,13 @@ type BackendBlock interface {
 	Validate(ctx context.Context) error
 }
 
+// ScanBackendOpener is an optional interface that a BackendBlock may implement
+// to provide a plan-based ScanBackend for use with the plan translator.
+// Only blocks whose storage format supports the plan node approach implement this.
+type ScanBackendOpener interface {
+	OpenScanBackend(ctx context.Context, opts SearchOptions) (ScanBackend, func(), error)
+}
+
 // WALBlock represents a Write-Ahead Log (WAL) block interface that extends the BackendBlock interface.
 // It provides methods to append traces, manage ingestion slack, flush data, and iterate over the block's data.
 type WALBlock interface {

@@ -92,6 +92,12 @@ type Reader interface {
 
 	// TODO(suraj): use common.MetricsCallback in Fetch and remove the Bytes callback from traceql.FetchSpansResponse
 	Fetch(ctx context.Context, meta *backend.BlockMeta, req traceql.FetchSpansRequest, opts common.SearchOptions) (traceql.FetchSpansResponse, error)
+
+	// OpenScanBackend opens a block and returns a plan-based ScanBackend for it.
+	// Only blocks whose storage encoding implements common.ScanBackendOpener are supported;
+	// other encodings return (nil, nil, nil) indicating the plan path is unavailable.
+	// The caller must invoke the returned cleanup function when done.
+	OpenScanBackend(ctx context.Context, meta *backend.BlockMeta, opts common.SearchOptions) (common.ScanBackend, func(), error)
 	FetchTagValues(ctx context.Context, meta *backend.BlockMeta, req traceql.FetchTagValuesRequest, cb traceql.FetchTagValuesCallback, mcb common.MetricsCallback, opts common.SearchOptions) error
 	FetchTagNames(ctx context.Context, meta *backend.BlockMeta, req traceql.FetchTagsRequest, cb traceql.FetchTagsCallback, mcb common.MetricsCallback, opts common.SearchOptions) error
 
@@ -536,6 +542,25 @@ func (rw *readerWriter) Fetch(ctx context.Context, meta *backend.BlockMeta, req 
 
 	rw.cfg.Search.ApplyToOptions(&opts)
 	return block.Fetch(ctx, req, opts)
+}
+
+// OpenScanBackend implements Reader.OpenScanBackend.
+// It opens the block and, if the block's encoding supports it, returns a ScanBackend.
+// If the block does not implement common.ScanBackendOpener, it returns (nil, nil, nil).
+func (rw *readerWriter) OpenScanBackend(ctx context.Context, meta *backend.BlockMeta, opts common.SearchOptions) (common.ScanBackend, func(), error) {
+	block, err := encoding.OpenBlock(meta, rw.r)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	rw.cfg.Search.ApplyToOptions(&opts)
+
+	opener, ok := block.(common.ScanBackendOpener)
+	if !ok {
+		// Block encoding does not support plan-based scanning.
+		return nil, nil, nil
+	}
+	return opener.OpenScanBackend(ctx, opts)
 }
 
 func (rw *readerWriter) FetchTagValues(ctx context.Context, meta *backend.BlockMeta, req traceql.FetchTagValuesRequest, cb traceql.FetchTagValuesCallback, mcb common.MetricsCallback, opts common.SearchOptions) error {

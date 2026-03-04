@@ -48,6 +48,11 @@ type MetricsConfig struct {
 	// between 0.0 and 1.0.  If a block overlaps the time window by less than this value,
 	// then we skip the columns. A value of 1.0 will always load the columns, and 0.0 never.
 	TimeOverlapCutoff float64 `yaml:"time_overlap_cutoff,omitempty"`
+
+	// EnablePlanBasedExecution switches the block-level metrics query path to use
+	// the logical plan tree executor instead of the legacy CompileMetricsQueryRange path.
+	// Defaults to false; set to true to opt in during evaluation.
+	EnablePlanBasedExecution bool `yaml:"enable_plan_based_execution,omitempty"`
 }
 
 type PartitionRingConfig struct {

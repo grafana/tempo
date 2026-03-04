@@ -93,6 +93,47 @@ func (q *Querier) queryBlock(ctx context.Context, req *tempopb.QueryRangeRequest
 		timeOverlapCutoff = v
 	}
 
+	// --- Plan-based path ---
+	// Only active when EnablePlanBasedExecution is set; falls through to the
+	// legacy CompileMetricsQueryRange path on any error or when disabled.
+	if q.cfg.Metrics.EnablePlanBasedExecution {
+		if scanBackend, cleanup, sbErr := q.store.OpenScanBackend(ctx, meta, opts); sbErr == nil && scanBackend != nil {
+			defer cleanup()
+			if plan, planErr := traceql.BuildPlan(expr, req); planErr == nil {
+				if planEval, translateErr := common.Translate(ctx, plan, scanBackend, opts); translateErr == nil {
+					fetchStart := uint64(meta.StartTime.UnixNano())
+					fetchEnd := uint64(meta.EndTime.UnixNano())
+					if doErr := planEval.Do(ctx, fetchStart, fetchEnd, int(req.MaxSeries)); doErr == nil {
+						res := planEval.Results()
+						exceeded := req.MaxSeries > 0 && len(res) > int(req.MaxSeries)
+						if exceeded {
+							limited := make(traceql.SeriesSet, int(req.MaxSeries))
+							for k, v := range res {
+								if len(limited) >= int(req.MaxSeries) {
+									break
+								}
+								limited[k] = v
+							}
+							res = limited
+						}
+						_, spansTotal, _ := planEval.Metrics()
+						response := &tempopb.QueryRangeResponse{
+							Series: res.ToProto(req),
+							Metrics: &tempopb.SearchMetrics{
+								InspectedSpans: spansTotal,
+							},
+						}
+						if exceeded {
+							response.Status = tempopb.PartialStatus_PARTIAL
+						}
+						return response, nil
+					}
+				}
+			}
+		}
+	}
+	// --- End plan-based path ---
+
 	eval, err := traceql.NewEngine().CompileMetricsQueryRange(req, timeOverlapCutoff, unsafe)
 	if err != nil {
 		return nil, err

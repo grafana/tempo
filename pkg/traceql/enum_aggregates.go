@@ -62,6 +62,12 @@ const (
 	metricsAggregateHistogramOverTime
 )
 
+// Exported aliases for use outside the traceql package (e.g. plan translator).
+const (
+	MetricsAggregateRate          = metricsAggregateRate
+	MetricsAggregateCountOverTime = metricsAggregateCountOverTime
+)
+
 func (a MetricsAggregateOp) String() string {
 	switch a {
 	case metricsAggregateRate:
