@@ -191,7 +191,7 @@ func segmentResponseToMaxPacketSize(resp *tempopb.QueryRangeResponse, maxSize in
 	for _, s := range resp.Series {
 		seriesSz := s.Size()
 
-		// Start a new packet if there isn't room for this series,
+		// Start a new packet if there isn't room for this entry,
 		// unless it's the first one, that way we always try to fit at least one.
 		if len(current.Series) > 0 && currentSz+seriesSz > maxSize {
 			startNextPacket()
