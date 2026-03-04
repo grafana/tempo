@@ -536,8 +536,7 @@ func (w *Work) rebuildPendingIndexes() {
 		shard := w.Shards[i]
 		shard.mtx.Lock()
 		for _, j := range shard.Pending {
-			if j.Type == tempopb.JobType_JOB_TYPE_REDACTION && j.JobDetail.Redaction != nil {
-				key := pendingBlockKey(j.JobDetail.Tenant, j.JobDetail.Redaction.BlockId)
+			if key := j.PendingBlockKey(); key != "" {
 				w.pendingBlocks[key] = j.ID
 			}
 			tenant := j.JobDetail.Tenant
@@ -572,8 +571,7 @@ func (w *Work) AddPendingJobs(jobs []*Job) error {
 		j.CreatedTime = time.Now()
 		j.Status = tempopb.JobStatus_JOB_STATUS_UNSPECIFIED
 		shard.Pending[j.ID] = j
-		if j.Type == tempopb.JobType_JOB_TYPE_REDACTION && j.JobDetail.Redaction != nil {
-			key := pendingBlockKey(j.JobDetail.Tenant, j.JobDetail.Redaction.BlockId)
+		if key := j.PendingBlockKey(); key != "" {
 			w.pendingBlocks[key] = j.ID
 		}
 		shard.mtx.Unlock()
@@ -603,8 +601,7 @@ func (w *Work) RemovePending(jobID string) {
 
 	shard.mtx.Lock()
 	delete(shard.Pending, jobID)
-	if j.Type == tempopb.JobType_JOB_TYPE_REDACTION && j.JobDetail.Redaction != nil {
-		key := pendingBlockKey(j.JobDetail.Tenant, j.JobDetail.Redaction.BlockId)
+	if key := j.PendingBlockKey(); key != "" {
 		delete(w.pendingBlocks, key)
 	}
 	shard.mtx.Unlock()
