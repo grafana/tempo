@@ -76,10 +76,9 @@ type TraceByIDConfig struct {
 }
 
 type MetricsConfig struct {
-	Sharder           QueryRangeSharderConfig `yaml:",inline"`
-	SLO               SLOConfig               `yaml:",inline"`
-	MaxIntervals      uint64                  `yaml:"max_intervals,omitempty"`
-	MaxGRPCPacketSize int                     `yaml:"max_grpc_packet_size,omitempty"`
+	Sharder      QueryRangeSharderConfig `yaml:",inline"`
+	SLO          SLOConfig               `yaml:",inline"`
+	MaxIntervals uint64                  `yaml:"max_intervals,omitempty"`
 }
 
 type SLOConfig struct {
@@ -128,8 +127,7 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(string, *flag.FlagSet) {
 			MaxResponseSeries:     0,
 			StreamingShards:       defaultStreamingShards,
 		},
-		SLO:               slo,
-		MaxGRPCPacketSize: 4000000, // Slightly less than the deafult gRPC max packet size of 4MiB to allow for minor size estimation differences
+		SLO: slo,
 	}
 	cfg.Weights = pipeline.WeightsConfig{
 		RequestWithWeights:   true,
