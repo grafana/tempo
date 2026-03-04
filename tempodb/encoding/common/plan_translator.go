@@ -54,7 +54,7 @@ func (t *translator) translate(n traceql.PlanNode) (Evaluatable, error) {
 	case *traceql.GroupByNode,
 		*traceql.CoalesceNode,
 		*traceql.SpansetFilterNode,
-		*traceql.StructuralOpNode:
+		*traceql.SpansetRelationNode:
 		iter, err := t.translateToIter(n)
 		if err != nil {
 			return nil, err
@@ -107,16 +107,12 @@ func (t *translator) translateToIter(n traceql.PlanNode) (traceql.SpansetIterato
 		}
 		return traceql.CoalesceSpansetIter(child), nil
 
-	case *traceql.StructuralOpNode:
-		left, err := t.translateToIter(node.Children()[0])
+	case *traceql.SpansetRelationNode:
+		child, err := t.translateToIter(node.Children()[0])
 		if err != nil {
 			return nil, err
 		}
-		right, err := t.translateToIter(node.Children()[1])
-		if err != nil {
-			return nil, err
-		}
-		return traceql.StructuralOpSpansetIter(node.Op, left, right), nil
+		return traceql.RelationSpansetIter(node.Expr, child), nil
 
 	case *traceql.ProjectNode:
 		return t.translateProjectToIter(node)

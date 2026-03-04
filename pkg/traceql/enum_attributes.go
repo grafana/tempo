@@ -211,6 +211,12 @@ func (i Intrinsic) String() string {
 		return "nestedSetRight"
 	case IntrinsicNestedSetParent:
 		return "nestedSetParent"
+	case IntrinsicStructuralDescendant:
+		return "structural:descendant"
+	case IntrinsicStructuralSibling:
+		return "structural:sibling"
+	case IntrinsicStructuralChild:
+		return "structural:child"
 	}
 
 	return fmt.Sprintf("intrinsic(%d)", i)

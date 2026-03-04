@@ -22,6 +22,8 @@ func BuildPlan(expr *RootExpr, req *tempopb.QueryRangeRequest) (PlanNode, error)
 func DefaultRuleSet() *RuleSet {
 	return NewRuleSet(
 		PredicatePushdownRule(),
+		OrPredicatePushdownRule(),
+		UnscopedAttributePushdownRule(),
 		ConditionMergeRule(),
 		SecondPassEliminatorRule(),
 	)
@@ -99,17 +101,8 @@ func (b *planBuilder) buildPipeline(p Pipeline, base PlanNode) (PlanNode, error)
 			}
 
 		case SpansetOperation:
-			// Structural op: LHS and RHS are each SpansetExpressions (Pipelines or filters).
-			left, err := b.buildSpansetExpression(e.LHS)
-			if err != nil {
-				return nil, err
-			}
-			right, err := b.buildSpansetExpression(e.RHS)
-			if err != nil {
-				return nil, err
-			}
-			structOp := spansetOpToStructuralOp(e.Op)
-			plan = NewStructuralOpNode(structOp, left, right)
+			base := b.buildSpansetOperationBase(e)
+			plan = NewSpansetRelationNode(e, base)
 
 		case Pipeline:
 			// Sub-pipeline: recurse.
@@ -133,15 +126,8 @@ func (b *planBuilder) buildSpansetExpression(e SpansetExpression) (PlanNode, err
 	case *SpansetFilter:
 		return b.buildPipeline(newPipeline(expr), b.buildBaseScanTree())
 	case SpansetOperation:
-		left, err := b.buildSpansetExpression(expr.LHS)
-		if err != nil {
-			return nil, err
-		}
-		right, err := b.buildSpansetExpression(expr.RHS)
-		if err != nil {
-			return nil, err
-		}
-		return NewStructuralOpNode(spansetOpToStructuralOp(expr.Op), left, right), nil
+		base := b.buildSpansetOperationBase(expr)
+		return NewSpansetRelationNode(expr, base), nil
 	default:
 		return nil, fmt.Errorf("plan_builder: unsupported spanset expression type %T", e)
 	}
@@ -174,20 +160,29 @@ func (b *planBuilder) buildMetricsPipeline(m firstStageElement, child PlanNode) 
 	}
 }
 
-// spansetOpToStructuralOp maps an AST SpansetOperation operator to a StructuralOp.
-func spansetOpToStructuralOp(op Operator) StructuralOp {
-	switch op {
-	case OpSpansetParent, OpSpansetNotParent, OpSpansetUnionParent:
-		return StructuralOpParent
-	case OpSpansetAncestor, OpSpansetNotAncestor, OpSpansetUnionAncestor:
-		return StructuralOpAncestor
-	case OpSpansetSibling, OpSpansetNotSibling, OpSpansetUnionSibling:
-		return StructuralOpSibling
-	case OpSpansetDescendant, OpSpansetNotDescendant, OpSpansetUnionDescendant:
-		return StructuralOpDescendant
-	case OpSpansetChild, OpSpansetNotChild, OpSpansetUnionChild:
-		return StructuralOpChild
-	default:
-		return StructuralOpParent
+// buildSpansetOperationBase builds a single scan tree whose conditions cover
+// every attribute needed to evaluate op — from both LHS and RHS sides.
+// AllConditions is always false because a single span cannot satisfy predicates
+// from both sides of a structural / union relationship simultaneously.
+func (b *planBuilder) buildSpansetOperationBase(op SpansetOperation) PlanNode {
+	req := &FetchSpansRequest{}
+	op.extractConditions(req)
+
+	var spanConds, resConds, traceConds []Condition
+	for _, c := range req.Conditions {
+		switch {
+		case c.Attribute.Intrinsic != IntrinsicNone:
+			traceConds = append(traceConds, c)
+		case c.Attribute.Scope == AttributeScopeResource:
+			resConds = append(resConds, c)
+		default: // span-scope or unscoped
+			spanConds = append(spanConds, c)
+		}
 	}
+
+	span := NewSpanScanNode(spanConds, nil)
+	instr := NewInstrumentationScopeScanNode(nil, span)
+	res := NewResourceScanNode(resConds, instr)
+	// AllConditions=false: a span need only satisfy one side's conditions.
+	return NewTraceScanNode(traceConds, false, res)
 }

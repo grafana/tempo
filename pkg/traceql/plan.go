@@ -7,22 +7,38 @@ import (
 	"github.com/grafana/tempo/pkg/tempopb"
 )
 
-// conditionStrings formats a slice of Conditions as human-readable predicates,
-// e.g. ["span.http.status_code >= 500", "span.status (fetch)"].
-func conditionStrings(conds []Condition) []string {
-	out := make([]string, 0, len(conds))
+// scanNodeString formats a scan node's conditions into a display string that
+// separates filter conditions (Op != None) from fetch-only conditions (Op == None).
+// Examples:
+//
+//	"filter=[span.http.method = `GET`], fetch=[structural:descendant]"
+//	"filter=[span.http.method = `GET`]"
+//	"fetch=[structural:descendant]"
+//	""  (no conditions)
+func scanNodeString(name string, conds []Condition) string {
+	var filter, fetch []string
 	for _, c := range conds {
 		if c.Op == OpNone {
-			out = append(out, c.Attribute.String())
+			fetch = append(fetch, c.Attribute.String())
 		} else {
 			parts := []string{c.Attribute.String(), c.Op.String()}
 			for _, o := range c.Operands {
 				parts = append(parts, o.String())
 			}
-			out = append(out, strings.Join(parts, " "))
+			filter = append(filter, strings.Join(parts, " "))
 		}
 	}
-	return out
+	if len(filter) == 0 && len(fetch) == 0 {
+		return name
+	}
+	var parts []string
+	if len(filter) > 0 {
+		parts = append(parts, "filter=["+strings.Join(filter, ", ")+"]")
+	}
+	if len(fetch) > 0 {
+		parts = append(parts, "fetch=["+strings.Join(fetch, ", ")+"]")
+	}
+	return name + "(" + strings.Join(parts, ", ") + ")"
 }
 
 // PlanNode is a node in the logical query plan tree.
@@ -84,10 +100,8 @@ func (n *TraceScanNode) Children() []PlanNode {
 }
 func (n *TraceScanNode) Accept(v PlanVisitor) { WalkPlan(n, v) }
 func (n *TraceScanNode) String() string {
-	if len(n.Conditions) == 0 {
-		return "TraceScan"
-	}
-	return fmt.Sprintf("TraceScan(%s)", strings.Join(conditionStrings(n.Conditions), ", "))
+	base := scanNodeString("TraceScan", n.Conditions)
+	return fmt.Sprintf("%s[allConds=%v]", base, n.AllConditions)
 }
 
 // WithChild returns a shallow copy with the child replaced.
@@ -114,12 +128,7 @@ func (n *ResourceScanNode) Children() []PlanNode {
 	return nil
 }
 func (n *ResourceScanNode) Accept(v PlanVisitor) { WalkPlan(n, v) }
-func (n *ResourceScanNode) String() string {
-	if len(n.Conditions) == 0 {
-		return "ResourceScan"
-	}
-	return fmt.Sprintf("ResourceScan(%s)", strings.Join(conditionStrings(n.Conditions), ", "))
-}
+func (n *ResourceScanNode) String() string { return scanNodeString("ResourceScan", n.Conditions) }
 
 func (n *ResourceScanNode) WithChild(child PlanNode) *ResourceScanNode {
 	cp := *n
@@ -145,10 +154,7 @@ func (n *InstrumentationScopeScanNode) Children() []PlanNode {
 }
 func (n *InstrumentationScopeScanNode) Accept(v PlanVisitor) { WalkPlan(n, v) }
 func (n *InstrumentationScopeScanNode) String() string {
-	if len(n.Conditions) == 0 {
-		return "InstrumentationScopeScan"
-	}
-	return fmt.Sprintf("InstrumentationScopeScan(%s)", strings.Join(conditionStrings(n.Conditions), ", "))
+	return scanNodeString("InstrumentationScopeScan", n.Conditions)
 }
 
 func (n *InstrumentationScopeScanNode) WithChild(child PlanNode) *InstrumentationScopeScanNode {
@@ -174,12 +180,7 @@ func (n *SpanScanNode) Children() []PlanNode {
 	return nil
 }
 func (n *SpanScanNode) Accept(v PlanVisitor) { WalkPlan(n, v) }
-func (n *SpanScanNode) String() string {
-	if len(n.Conditions) == 0 {
-		return "SpanScan"
-	}
-	return fmt.Sprintf("SpanScan(%s)", strings.Join(conditionStrings(n.Conditions), ", "))
-}
+func (n *SpanScanNode) String() string { return scanNodeString("SpanScan", n.Conditions) }
 
 func (n *SpanScanNode) WithChild(child PlanNode) *SpanScanNode {
 	cp := *n
@@ -303,37 +304,32 @@ func (n *CoalesceNode) Children() []PlanNode {
 func (n *CoalesceNode) Accept(v PlanVisitor) { WalkPlan(n, v) }
 func (n *CoalesceNode) String() string       { return "Coalesce" }
 
-// StructuralOp represents a structural relationship (>>, >, ~, <<, <) between two spansets.
-type StructuralOp int
-
-const (
-	StructuralOpParent     StructuralOp = iota // >>
-	StructuralOpAncestor                       // >
-	StructuralOpSibling                        // ~
-	StructuralOpDescendant                     // <<
-	StructuralOpChild                          // <
-)
-
-// StructuralOpNode evaluates a structural relationship between two spansets.
-type StructuralOpNode struct {
-	Op    StructuralOp
-	left  PlanNode
-	right PlanNode
+// SpansetRelationNode evaluates a full SpansetOperation (structural or union)
+// in-memory against a single child scan. It matches the engine's single-scan model.
+type SpansetRelationNode struct {
+	Expr  SpansetOperation
+	child PlanNode
 }
 
-func NewStructuralOpNode(op StructuralOp, left, right PlanNode) *StructuralOpNode {
-	return &StructuralOpNode{Op: op, left: left, right: right}
+func NewSpansetRelationNode(expr SpansetOperation, child PlanNode) *SpansetRelationNode {
+	return &SpansetRelationNode{Expr: expr, child: child}
 }
 
-func (n *StructuralOpNode) Children() []PlanNode { return []PlanNode{n.left, n.right} }
-func (n *StructuralOpNode) Accept(v PlanVisitor) { WalkPlan(n, v) }
-func (n *StructuralOpNode) String() string {
-	// TraceQL syntax: child(>), parent(<), descendant(>>), ancestor(<<), sibling(~)
-	names := [...]string{"parent(<)", "ancestor(<<)", "sibling(~)", "descendant(>>)", "child(>)"}
-	if int(n.Op) < len(names) {
-		return "StructuralOp " + names[n.Op]
+func (n *SpansetRelationNode) Children() []PlanNode {
+	if n.child != nil {
+		return []PlanNode{n.child}
 	}
-	return fmt.Sprintf("StructuralOp(%d)", n.Op)
+	return nil
+}
+func (n *SpansetRelationNode) Accept(v PlanVisitor) { WalkPlan(n, v) }
+func (n *SpansetRelationNode) String() string {
+	return fmt.Sprintf("SpansetRelation(%s)", n.Expr.String())
+}
+
+func (n *SpansetRelationNode) WithChild(child PlanNode) *SpansetRelationNode {
+	cp := *n
+	cp.child = child
+	return &cp
 }
 
 // --- ProjectNode: second-pass fetch boundary ---

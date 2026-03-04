@@ -1,9 +1,17 @@
 package traceql
 
-// PredicatePushdownRule pushes conditions from a SpansetFilterNode that wraps
-// only a trivial (always-true) expression down into the child SpanScanNode,
-// eliminating the filter node entirely. More sophisticated pushdown (arbitrary
-// FieldExpression → Condition extraction) is a follow-up.
+// PredicatePushdownRule pushes definite-scope predicates from a SpansetFilterNode
+// into the appropriate scan node, eliminating the filter entirely.
+//
+// Handles three cases:
+//  1. Always-true static expression (e.g. "{}") — pushed into SpanScan.
+//  2. A single BinaryOperation (attr op static) where attr is span-scope,
+//     resource-scope, or a scoped intrinsic — pushed into SpanScan or ResourceScan.
+//  3. An AND of multiple such operations — each operand pushed to its scan level.
+//
+// True unscoped user attributes (.foo) are NOT handled here; they are handled
+// by UnscopedAttributePushdownRule, which pushes fetch-only conditions to both
+// scan levels and keeps the filter for correct evaluation.
 func PredicatePushdownRule() Rule {
 	return FuncRule("predicate-pushdown", func(n PlanNode) (PlanNode, bool) {
 		filter, ok := n.(*SpansetFilterNode)
@@ -13,18 +21,180 @@ func PredicatePushdownRule() Rule {
 		if !isSimplePerSpanFilter(filter.Expression) {
 			return n, false
 		}
-		// Extract conditions from the filter's FieldExpression and push them
-		// into the first SpanScanNode in the subtree below.
-		req := &FetchSpansRequest{}
+
+		// Extract conditions. Start with AllConditions=true so that AND
+		// expressions (which never call the OpOr branch) keep it true.
+		req := &FetchSpansRequest{AllConditions: true}
 		filter.Expression.extractConditions(req)
 
-		scan := firstSpanScanNode(filter.child)
-		if scan == nil {
+		// Partition conditions by scan-level destination.
+		var spanConds, resourceConds []Condition
+		for _, c := range req.Conditions {
+			switch c.Attribute.Scope {
+			case AttributeScopeSpan:
+				spanConds = append(spanConds, c)
+			case AttributeScopeResource:
+				resourceConds = append(resourceConds, c)
+			default:
+				// AttributeScopeNone — always an intrinsic here because
+				// isSimplePerSpanFilter excludes unscoped user attributes.
+				// Push to SpanScan; the storage layer maps intrinsics to
+				// their actual scope via intrinsicColumnLookups.
+				spanConds = append(spanConds, c)
+			}
+		}
+
+		if len(spanConds) > 0 {
+			spanScan := firstSpanScanNode(filter.child)
+			if spanScan == nil {
+				return n, false
+			}
+			spanScan.Conditions = append(spanConds, spanScan.Conditions...)
+		}
+
+		if len(resourceConds) > 0 {
+			resourceScan := firstResourceScanNode(filter.child)
+			if resourceScan == nil {
+				return n, false
+			}
+			resourceScan.Conditions = append(resourceConds, resourceScan.Conditions...)
+		}
+
+		// Propagate AllConditions to the TraceScanNode when conditions were pushed.
+		if len(req.Conditions) > 0 {
+			if trace := firstTraceScanNode(filter.child); trace != nil {
+				trace.AllConditions = req.AllConditions
+			}
+		}
+
+		// Remove the filter node — its predicate is now encoded in the scans.
+		return filter.child, true
+	})
+}
+
+// OrPredicatePushdownRule adds fetch-only (OpNone) conditions for each simple
+// leaf predicate found inside an OR expression, routing span-scope attributes
+// to SpanScanNode and resource-scope attributes to ResourceScanNode.
+// The SpansetFilterNode is kept because OR semantics require in-memory
+// evaluation — the scan layer cannot express OR across different scopes or
+// even across two columns at the same scope.
+//
+// Conditions are pushed as OpNone rather than with their original Op to avoid
+// incorrect row exclusion: pushing a real filter predicate at ResourceScan
+// level would drop entire resources before the span-branch of the OR is
+// evaluated.
+func OrPredicatePushdownRule() Rule {
+	return FuncRule("or-predicate-pushdown", func(n PlanNode) (PlanNode, bool) {
+		filter, ok := n.(*SpansetFilterNode)
+		if !ok || filter.Expression == nil {
 			return n, false
 		}
-		scan.Conditions = append(req.Conditions, scan.Conditions...)
-		// Remove the filter node — its predicate is now encoded in the scan.
-		return filter.child, true
+		if !containsOr(filter.Expression.Expression) {
+			return n, false
+		}
+
+		req := &FetchSpansRequest{AllConditions: false}
+		filter.Expression.extractConditions(req)
+
+		var spanConds, resourceConds []Condition
+		for _, c := range req.Conditions {
+			fetch := Condition{Attribute: c.Attribute, Op: OpNone}
+			switch c.Attribute.Scope {
+			case AttributeScopeSpan:
+				spanConds = append(spanConds, fetch)
+			case AttributeScopeResource:
+				resourceConds = append(resourceConds, fetch)
+			default:
+				if c.Attribute.Intrinsic != IntrinsicNone {
+					spanConds = append(spanConds, fetch)
+				}
+			}
+		}
+
+		changed := false
+		if len(spanConds) > 0 {
+			if spanScan := firstSpanScanNode(filter.child); spanScan != nil {
+				for _, c := range spanConds {
+					if !hasConditionForAttr(spanScan.Conditions, c.Attribute) {
+						spanScan.Conditions = append(spanScan.Conditions, c)
+						changed = true
+					}
+				}
+			}
+		}
+		if len(resourceConds) > 0 {
+			if resourceScan := firstResourceScanNode(filter.child); resourceScan != nil {
+				for _, c := range resourceConds {
+					if !hasConditionForAttr(resourceScan.Conditions, c.Attribute) {
+						resourceScan.Conditions = append(resourceScan.Conditions, c)
+						changed = true
+					}
+				}
+			}
+		}
+		// Keep the filter — OR semantics require in-memory evaluation.
+		return n, changed
+	})
+}
+
+// containsOr reports whether e contains at least one OpOr binary operation.
+func containsOr(e FieldExpression) bool {
+	switch expr := e.(type) {
+	case *BinaryOperation:
+		if expr.Op == OpOr {
+			return true
+		}
+		return containsOr(expr.LHS) || containsOr(expr.RHS)
+	case UnaryOperation:
+		return containsOr(expr.Expression)
+	}
+	return false
+}
+
+// UnscopedAttributePushdownRule adds fetch-only conditions for unscoped user
+// attributes (.foo) to both SpanScanNode and ResourceScanNode so the storage
+// layer pre-fetches the attribute at both levels. The SpansetFilterNode is kept
+// because unscoped attributes require OR semantics (span OR resource level),
+// which cannot be expressed as a scan-level filter.
+//
+// This rule is separate from PredicatePushdownRule so it can be
+// enabled or disabled independently.
+func UnscopedAttributePushdownRule() Rule {
+	return FuncRule("unscoped-attribute-pushdown", func(n PlanNode) (PlanNode, bool) {
+		filter, ok := n.(*SpansetFilterNode)
+		if !ok || filter.Expression == nil {
+			return n, false
+		}
+
+		// Collect unscoped user attributes referenced in the expression.
+		var attrs []Attribute
+		collectUnscopedUserAttrs(filter.Expression.Expression, &attrs)
+		if len(attrs) == 0 {
+			return n, false
+		}
+
+		// Push OpNone (fetch-only) conditions to both scan levels.
+		// OpNone tells the storage layer to fetch the attribute without filtering.
+		changed := false
+		if spanScan := firstSpanScanNode(filter.child); spanScan != nil {
+			for _, attr := range attrs {
+				if !hasConditionForAttr(spanScan.Conditions, attr) {
+					spanScan.Conditions = append(spanScan.Conditions, Condition{Attribute: attr, Op: OpNone})
+					changed = true
+				}
+			}
+		}
+		if resourceScan := firstResourceScanNode(filter.child); resourceScan != nil {
+			for _, attr := range attrs {
+				if !hasConditionForAttr(resourceScan.Conditions, attr) {
+					resourceScan.Conditions = append(resourceScan.Conditions, Condition{Attribute: attr, Op: OpNone})
+					changed = true
+				}
+			}
+		}
+
+		// Keep the filter node — it performs the actual predicate evaluation.
+		return n, changed
 	})
 }
 
@@ -69,36 +239,93 @@ func SecondPassEliminatorRule() Rule {
 	})
 }
 
-// isSimplePerSpanFilter returns true if the SpansetFilter contains only
-// simple span-scope predicates that can be evaluated at the scan level.
-// Currently recognises two cases:
-//   1. A trivially-true static expression (e.g. "{}") — no conditions needed.
-//   2. A BinaryOperation whose both sides are a span-scope Attribute and a Static.
+// isSimplePerSpanFilter returns true if the SpansetFilter expression can be fully
+// pushed into scan nodes with the filter node eliminated. See isPushable.
 func isSimplePerSpanFilter(f *SpansetFilter) bool {
 	if f == nil {
 		return false
 	}
-	switch e := f.Expression.(type) {
+	return isPushable(f.Expression)
+}
+
+// isPushable returns true if e can be completely encoded as scan conditions,
+// allowing the enclosing SpansetFilterNode to be eliminated.
+//
+// Accepted forms:
+//   - Always-true Static
+//   - BinaryOperation(attr op static) where attr is span-scope, resource-scope,
+//     or a scoped intrinsic (Scope=None but Intrinsic≠None)
+//   - AND of any combination of the above (recursively)
+//
+// True unscoped user attributes (Scope=None, Intrinsic=None) are excluded
+// because the storage layer applies them with OR semantics across scan levels,
+// which cannot be fully encoded as a filter condition.
+func isPushable(e FieldExpression) bool {
+	switch expr := e.(type) {
 	case Static:
-		// Always-true empty filter — safe to push down.
-		b, ok := e.Bool()
+		b, ok := expr.Bool()
 		return ok && b
 	case *BinaryOperation:
-		return isSimpleBinaryOp(e)
+		if expr.Op == OpAnd {
+			return isPushable(expr.LHS) && isPushable(expr.RHS)
+		}
+		return isSimpleBinaryOp(expr)
 	}
 	return false
 }
 
+// isSimpleBinaryOp returns true when op is a (attr, static) or (static, attr)
+// comparison whose attribute has a definite scan-level scope: span, resource,
+// or a scoped intrinsic (Scope=None, Intrinsic≠None).
+//
+// True unscoped user attributes (Scope=None, Intrinsic=None) return false —
+// they require OR semantics and are handled by UnscopedAttributePushdownRule.
 func isSimpleBinaryOp(op *BinaryOperation) bool {
+	isAcceptableScope := func(attr Attribute) bool {
+		switch attr.Scope {
+		case AttributeScopeSpan, AttributeScopeResource:
+			return true
+		case AttributeScopeNone:
+			// Intrinsics have a known scope resolved by the storage layer.
+			return attr.Intrinsic != IntrinsicNone
+		}
+		return false
+	}
 	lAttr, lIsAttr := op.LHS.(Attribute)
 	_, rIsStatic := op.RHS.(Static)
 	if lIsAttr && rIsStatic {
-		return lAttr.Scope == AttributeScopeSpan || lAttr.Scope == AttributeScopeNone
+		return isAcceptableScope(lAttr)
 	}
 	rAttr, rIsAttr := op.RHS.(Attribute)
 	_, lIsStatic := op.LHS.(Static)
 	if rIsAttr && lIsStatic {
-		return rAttr.Scope == AttributeScopeSpan || rAttr.Scope == AttributeScopeNone
+		return isAcceptableScope(rAttr)
+	}
+	return false
+}
+
+// collectUnscopedUserAttrs walks e and appends every Attribute that is an
+// unscoped user attribute (Scope=None, Intrinsic=None).
+func collectUnscopedUserAttrs(e FieldExpression, attrs *[]Attribute) {
+	switch expr := e.(type) {
+	case Attribute:
+		if expr.Scope == AttributeScopeNone && expr.Intrinsic == IntrinsicNone {
+			*attrs = append(*attrs, expr)
+		}
+	case *BinaryOperation:
+		collectUnscopedUserAttrs(expr.LHS, attrs)
+		collectUnscopedUserAttrs(expr.RHS, attrs)
+	case UnaryOperation:
+		collectUnscopedUserAttrs(expr.Expression, attrs)
+	}
+}
+
+// hasConditionForAttr reports whether conds already contains a condition for attr.
+func hasConditionForAttr(conds []Condition, attr Attribute) bool {
+	for _, c := range conds {
+		if c.Attribute == attr {
+			return true
+		}
 	}
 	return false
 }
@@ -114,6 +341,46 @@ func firstSpanScanNode(n PlanNode) *SpanScanNode {
 			}
 			if s, ok := node.(*SpanScanNode); ok {
 				result = s
+				return false
+			}
+			return true
+		},
+		post: func(PlanNode) {},
+	})
+	return result
+}
+
+// firstResourceScanNode returns the first *ResourceScanNode found by walking
+// the subtree, or nil if none exists.
+func firstResourceScanNode(n PlanNode) *ResourceScanNode {
+	var result *ResourceScanNode
+	WalkPlan(n, &funcVisitor{
+		pre: func(node PlanNode) bool {
+			if result != nil {
+				return false
+			}
+			if r, ok := node.(*ResourceScanNode); ok {
+				result = r
+				return false
+			}
+			return true
+		},
+		post: func(PlanNode) {},
+	})
+	return result
+}
+
+// firstTraceScanNode returns the first *TraceScanNode found by walking the
+// subtree, or nil if none exists.
+func firstTraceScanNode(n PlanNode) *TraceScanNode {
+	var result *TraceScanNode
+	WalkPlan(n, &funcVisitor{
+		pre: func(node PlanNode) bool {
+			if result != nil {
+				return false
+			}
+			if t, ok := node.(*TraceScanNode); ok {
+				result = t
 				return false
 			}
 			return true

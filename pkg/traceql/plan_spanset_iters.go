@@ -3,7 +3,6 @@ package traceql
 import (
 	"bytes"
 	"context"
-	"fmt"
 )
 
 // FilterSpansetIter returns a SpansetIterator that applies filter to every
@@ -134,110 +133,34 @@ func (c *coalesceSpansetIter) Next(ctx context.Context) (*Spanset, error) {
 
 func (c *coalesceSpansetIter) Close() { c.child.Close() }
 
-// StructuralOpSpansetIter returns a SpansetIterator that merge-joins two
-// independently-scanned SpansetIterators by trace ID and evaluates the given
-// structural relationship for each matching pair.
-// Reuses the Span.DescendantOf / ChildOf / SiblingOf interface methods.
-func StructuralOpSpansetIter(op StructuralOp, left, right SpansetIterator) SpansetIterator {
-	return &structuralOpSpansetIter{op: op, left: left, right: right}
+// RelationSpansetIter evaluates a SpansetOperation in-memory for each spanset
+// produced by child, forwarding non-empty results.
+// It reuses SpansetOperation.evaluate, matching the current engine strategy.
+func RelationSpansetIter(expr SpansetOperation, child SpansetIterator) SpansetIterator {
+	return &relationSpansetIter{expr: expr, child: child}
 }
 
-type structuralOpSpansetIter struct {
-	op          StructuralOp
-	left, right SpansetIterator
-	// pending: one buffered spanset from the side that is ahead after an
-	// out-of-sync advance.
-	leftPending  *Spanset
-	rightPending *Spanset
-	// reusable buffer for relationship functions
-	matchBuf []Span
+type relationSpansetIter struct {
+	expr  SpansetOperation
+	child SpansetIterator
 }
 
-func (s *structuralOpSpansetIter) next(ctx context.Context, iter SpansetIterator, pending **Spanset) (*Spanset, error) {
-	if *pending != nil {
-		ss := *pending
-		*pending = nil
-		return ss, nil
-	}
-	return iter.Next(ctx)
-}
-
-func (s *structuralOpSpansetIter) Next(ctx context.Context) (*Spanset, error) {
+func (e *relationSpansetIter) Next(ctx context.Context) (*Spanset, error) {
 	for {
-		lss, err := s.next(ctx, s.left, &s.leftPending)
+		ss, err := e.child.Next(ctx)
+		if err != nil || ss == nil {
+			return nil, err
+		}
+		result, err := e.expr.evaluate([]*Spanset{ss})
 		if err != nil {
 			return nil, err
 		}
-		if lss == nil {
-			return nil, nil // left exhausted → done
+		if len(result) > 0 {
+			return result[0], nil
 		}
-
-		rss, err := s.next(ctx, s.right, &s.rightPending)
-		if err != nil {
-			return nil, err
-		}
-		if rss == nil {
-			return nil, nil // right exhausted → done
-		}
-
-		cmp := bytes.Compare(lss.TraceID, rss.TraceID)
-		switch {
-		case cmp < 0:
-			// Left is behind — discard left, keep right pending.
-			lss.Release()
-			s.rightPending = rss
-			continue
-		case cmp > 0:
-			// Right is behind — discard right, keep left pending.
-			rss.Release()
-			s.leftPending = lss
-			continue
-		}
-
-		// Same trace — evaluate structural relationship.
-		matching, err := s.evalRelationship(lss, rss)
-		if err != nil {
-			return nil, err
-		}
-		lss.Release()
-		if len(matching) == 0 {
-			rss.Release()
-			continue
-		}
-		out := rss.clone()
-		out.Spans = append([]Span(nil), matching...)
-		return out, nil
+		ss.Release()
 	}
 }
 
-// evalRelationship applies the StructuralOp relationship function.
-// It mirrors the logic in SpansetOperation.evaluate / joinSpansets, calling
-// the same exported Span interface methods.
-func (s *structuralOpSpansetIter) evalRelationship(lss, rss *Spanset) ([]Span, error) {
-	if len(rss.Spans) == 0 {
-		return nil, nil
-	}
-	lspans := lss.Spans
-	rspans := rss.Spans
-	s.matchBuf = s.matchBuf[:0]
+func (e *relationSpansetIter) Close() { e.child.Close() }
 
-	switch s.op {
-	case StructuralOpDescendant: // >>
-		return rspans[0].DescendantOf(lspans, rspans, false, false, false, s.matchBuf), nil
-	case StructuralOpAncestor: // <<
-		return rspans[0].DescendantOf(lspans, rspans, false, true, false, s.matchBuf), nil
-	case StructuralOpChild: // >
-		return rspans[0].ChildOf(lspans, rspans, false, false, false, s.matchBuf), nil
-	case StructuralOpParent: // <
-		return rspans[0].ChildOf(lspans, rspans, false, true, false, s.matchBuf), nil
-	case StructuralOpSibling: // ~
-		return rspans[0].SiblingOf(lspans, rspans, false, false, s.matchBuf), nil
-	default:
-		return nil, fmt.Errorf("plan_spanset_iters: unsupported structural op %d", s.op)
-	}
-}
-
-func (s *structuralOpSpansetIter) Close() {
-	s.left.Close()
-	s.right.Close()
-}

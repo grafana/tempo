@@ -160,11 +160,13 @@ func (rs *RuleSet) rewriteChildren(n PlanNode, changed bool) (PlanNode, bool) {
 			n = &CountOverTimeNode{By: node.By, child: newChild}
 			return n, true
 		}
-	case *StructuralOpNode:
-		leftNew, leftChanged := rs.applyOnce(node.left)
-		rightNew, rightChanged := rs.applyOnce(node.right)
-		if leftChanged || rightChanged {
-			return &StructuralOpNode{Op: node.Op, left: leftNew, right: rightNew}, true
+	case *SpansetRelationNode:
+		if node.child == nil {
+			return n, changed
+		}
+		newChild, childChanged := rs.applyOnce(node.child)
+		if childChanged {
+			return node.WithChild(newChild), true
 		}
 	}
 	return n, changed

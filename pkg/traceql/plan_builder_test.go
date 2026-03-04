@@ -149,8 +149,44 @@ func TestBuildPlan_HasScanTree(t *testing.T) {
 	}
 }
 
+// TestBuildPlan_SpansetOperation_SingleScan verifies that a structural query
+// generates a SpansetRelationNode (single scan) rather than a StructuralOpNode
+// (two scans).
+func TestBuildPlan_SpansetOperation_SingleScan(t *testing.T) {
+	expr, err := Parse(`{ span.http.method = "GET" } >> { span.db.system = "postgresql" }`)
+	require.NoError(t, err)
+
+	plan, err := BuildPlan(expr, nil)
+	require.NoError(t, err)
+
+	t.Logf("plan:\n%s", planTreeString(plan))
+
+	// Root must be SpansetRelationNode, NOT StructuralOpNode.
+	exprNode, ok := plan.(*SpansetRelationNode)
+	require.True(t, ok, "expected SpansetRelationNode at root, got %T", plan)
+	require.Equal(t, OpSpansetDescendant, exprNode.Expr.Op)
+
+	// Must have exactly ONE child (single scan tree).
+	require.Len(t, exprNode.Children(), 1)
+
+	// Single scan: both span predicates must be present somewhere.
+	var spanScan *SpanScanNode
+	WalkPlan(plan, &funcVisitor{
+		pre: func(n PlanNode) bool {
+			if s, ok := n.(*SpanScanNode); ok {
+				spanScan = s
+			}
+			return true
+		},
+		post: func(PlanNode) {},
+	})
+	require.NotNil(t, spanScan)
+	require.GreaterOrEqual(t, len(spanScan.Conditions), 2,
+		"conditions from both LHS and RHS must be in the merged scan")
+}
+
 // TestBuildPlan_StructuralMetrics_ShowTree exercises a query that combines a
-// structural operator, a compound AND predicate (not pushable), a simple
+// structural operator, a compound AND predicate (now pushable), a simple
 // predicate (pushable), and a metrics aggregation with a by-clause.
 //
 // Query:
@@ -162,16 +198,11 @@ func TestBuildPlan_HasScanTree(t *testing.T) {
 // Expected plan after optimizer:
 //
 //	└── CountOverTime by(resource.service.name)
-//	    └── StructuralOp descendant(>>)
-//	        ├── SpansetFilter(...)               ← compound AND stays (not pushable)
-//	        │   └── TraceScan
-//	        │       └── ResourceScan
-//	        │           └── InstrumentationScopeScan
-//	        │               └── SpanScan         ← no conditions pushed
-//	        └── TraceScan                        ← simple predicate was pushed
+//	    └── SpansetExpr(>>)
+//	        └── TraceScan                        ← single merged scan
 //	            └── ResourceScan
 //	                └── InstrumentationScopeScan
-//	                    └── SpanScan(span.db.system = "postgresql")
+//	                    └── SpanScan(span.http.method, span.http.status_code, span.db.system)
 func TestBuildPlan_StructuralMetrics_ShowTree(t *testing.T) {
 	const query = `{ span.http.method = "GET" && span.http.status_code >= 500 } >> { span.db.system = "postgresql" } | count_over_time() by (resource.service.name)`
 
@@ -191,69 +222,25 @@ func TestBuildPlan_StructuralMetrics_ShowTree(t *testing.T) {
 	require.Len(t, cot.By, 1)
 	require.Equal(t, "resource.service.name", cot.By[0].String())
 
-	// --- child: StructuralOpNode(parent >>) ---
-	structOp, ok := cot.Children()[0].(*StructuralOpNode)
-	require.True(t, ok, "expected StructuralOpNode as CountOverTime child, got %T", cot.Children()[0])
-	require.Equal(t, StructuralOpDescendant, structOp.Op)
+	// --- child: SpansetRelationNode (single-scan strategy) ---
+	exprNode, ok := cot.Children()[0].(*SpansetRelationNode)
+	require.True(t, ok, "expected SpansetRelationNode as CountOverTime child, got %T", cot.Children()[0])
+	require.Equal(t, OpSpansetDescendant, exprNode.Expr.Op)
 
-	left, right := structOp.Children()[0], structOp.Children()[1]
-
-	// --- left branch: compound AND keeps a SpansetFilterNode ---
-	// isSimplePerSpanFilter rejects BinaryOperation(AND), so the filter node survives.
-	var leftFilter *SpansetFilterNode
-	WalkPlan(left, &funcVisitor{
-		pre: func(n PlanNode) bool {
-			if f, ok := n.(*SpansetFilterNode); ok {
-				leftFilter = f
-			}
-			return true
-		},
-		post: func(PlanNode) {},
-	})
-	require.NotNil(t, leftFilter, "left branch: expected SpansetFilterNode (compound AND can't be pushed down)")
-
-	// The SpanScan on the left should have no pushed-down conditions.
-	var leftSpanScan *SpanScanNode
-	WalkPlan(left, &funcVisitor{
+	// Single scan: all predicates (from both LHS and RHS) merged into one SpanScan.
+	var spanScan *SpanScanNode
+	WalkPlan(exprNode, &funcVisitor{
 		pre: func(n PlanNode) bool {
 			if s, ok := n.(*SpanScanNode); ok {
-				leftSpanScan = s
+				spanScan = s
 			}
 			return true
 		},
 		post: func(PlanNode) {},
 	})
-	require.NotNil(t, leftSpanScan)
-	require.Empty(t, leftSpanScan.Conditions, "left SpanScan: compound AND must not be pushed down")
-
-	// --- right branch: simple equality pushed into SpanScan ---
-	// isSimplePerSpanFilter accepts BinaryOperation(span attr, static), so the
-	// SpansetFilterNode is eliminated and its predicate lives in SpanScan.
-	var rightFilter *SpansetFilterNode
-	WalkPlan(right, &funcVisitor{
-		pre: func(n PlanNode) bool {
-			if f, ok := n.(*SpansetFilterNode); ok {
-				rightFilter = f
-			}
-			return true
-		},
-		post: func(PlanNode) {},
-	})
-	require.Nil(t, rightFilter, "right branch: SpansetFilterNode should be eliminated by predicate pushdown")
-
-	var rightSpanScan *SpanScanNode
-	WalkPlan(right, &funcVisitor{
-		pre: func(n PlanNode) bool {
-			if s, ok := n.(*SpanScanNode); ok {
-				rightSpanScan = s
-			}
-			return true
-		},
-		post: func(PlanNode) {},
-	})
-	require.NotNil(t, rightSpanScan)
-	require.NotEmpty(t, rightSpanScan.Conditions, "right SpanScan: span.db.system predicate must be pushed down")
-	require.Equal(t, "span.db.system", rightSpanScan.Conditions[0].Attribute.String())
+	require.NotNil(t, spanScan)
+	require.GreaterOrEqual(t, len(spanScan.Conditions), 3,
+		"merged scan must contain predicates from both sides of >>")
 }
 
 // TestBuildPlan_MetricsQuery_ShowTree compiles a TraceQL metric query and
@@ -314,11 +301,34 @@ func TestBuildPlan_MetricsQuery_ShowTree(t *testing.T) {
 	require.NotEmpty(t, spanScan.Conditions, "expected http.status_code predicate pushed into SpanScanNode")
 }
 
-// TestStructuralOp_EvalCrossCheck verifies that the plan's two-scan strategy
-// (StructuralOpSpansetIter fed by two independent iterators) produces the same
-// evaluation result as pipeline.evaluate() — the current single-scan strategy.
+// TestBuildPlan_PipelineAB_ShowTree shows the logical plan for { A } | { B }.
+// The pipe operator sequences two filter stages; this test prints the tree so
+// we can see what shape the plan builder and optimizer produce.
+func TestBuildPlan_PipelineAB_ShowTree(t *testing.T) {
+	const query = `{ span.http.method = "GET" } | { span.db.system = "postgresql" }`
+
+	expr, err := Parse(query)
+	require.NoError(t, err)
+
+	plan, err := BuildPlan(expr, nil)
+	require.NoError(t, err)
+
+	t.Logf("Plan for %q:\n%s", query, planTreeString(plan))
+}
+
+func TestBuildPlan_PipelineSpanResource_ShowTree(t *testing.T) {
+	const query = `{ span.name = "checkout" } | { resource.service.name = "frontend" }`
+	expr, err := Parse(query)
+	require.NoError(t, err)
+	plan, err := BuildPlan(expr, nil)
+	require.NoError(t, err)
+	t.Logf("Plan for %q:\n%s", query, planTreeString(plan))
+}
+
+// TestStructuralOp_EvalCrossCheck verifies that RelationSpansetIter (the plan's
+// single-scan strategy) produces the same result as pipeline.evaluate().
 //
-// Trace layout used by both strategies:
+// Trace layout:
 //
 //	Trace 1 (traceID {1})
 //	  httpSpan  left=1 right=6  span.http.method="GET" span.http.status_code=503  ← matches LHS
@@ -357,142 +367,36 @@ func TestStructuralOp_EvalCrossCheck(t *testing.T) {
 		WithSpanString("db.system", "postgresql").
 		WithNestedSetInfo(1, 2, 3)
 
-	// --- Strategy 1: pipeline.evaluate() (current single-scan approach) ---
-	// All spans from each trace arrive in one spanset; evaluate() handles filtering
-	// and the structural join internally.
 	ast, err := Parse(query)
 	require.NoError(t, err)
 
-	singleScanResult, err := ast.Pipeline.evaluate([]*Spanset{
+	spansets := []*Spanset{
 		{TraceID: traceID1, Spans: []Span{httpSpan, dbChild, dbOrphan}},
 		{TraceID: traceID2, Spans: []Span{httpPost, dbChild2}},
-	})
+	}
+
+	// --- Strategy 1: pipeline.evaluate() ---
+	pipelineResult, err := ast.Pipeline.evaluate(spansets)
 	require.NoError(t, err)
+	require.Len(t, pipelineResult, 1, "only trace1 should match")
+	require.Len(t, pipelineResult[0].Spans, 1, "only dbChild survives")
+	require.Equal(t, dbChild.id, pipelineResult[0].Spans[0].ID())
 
-	t.Logf("pipeline.evaluate: %d spanset(s)", len(singleScanResult))
-	for i, ss := range singleScanResult {
-		t.Logf("  [%d] traceID=%v  spans=%d", i, ss.TraceID, len(ss.Spans))
-		for j, s := range ss.Spans {
-			t.Logf("    span[%d] id=%v", j, s.ID())
-		}
-	}
+	// --- Strategy 2: RelationSpansetIter (plan's single-scan strategy) ---
+	// All spans per trace arrive in one spanset; RelationSpansetIter calls
+	// SpansetOperation.evaluate in-memory, matching pipeline.evaluate exactly.
+	op, ok := ast.Pipeline.Elements[0].(SpansetOperation)
+	require.True(t, ok)
 
-	require.Len(t, singleScanResult, 1, "only trace1 should match")
-	require.Len(t, singleScanResult[0].Spans, 1, "only dbChild survives")
-	require.Equal(t, dbChild.id, singleScanResult[0].Spans[0].ID())
-
-	// --- Strategy 2: StructuralOpSpansetIter (plan's two-scan approach) ---
-	// Left iterator is pre-filtered to LHS-matching spans; right to RHS-matching spans.
-	// The iterator merge-joins by traceID and evaluates the structural relationship.
-	//
-	// Note: trace2 has no entry in left because httpPost doesn't match LHS.
-	leftIter := &sliceSpansetIter{spansets: []*Spanset{
-		{TraceID: traceID1, Spans: []Span{httpSpan}},
+	childIter := &sliceSpansetIter{spansets: []*Spanset{
+		{TraceID: traceID1, Spans: []Span{httpSpan, dbChild, dbOrphan}},
+		{TraceID: traceID2, Spans: []Span{httpPost, dbChild2}},
 	}}
-	rightIter := &sliceSpansetIter{spansets: []*Spanset{
-		{TraceID: traceID1, Spans: []Span{dbChild, dbOrphan}},
-		{TraceID: traceID2, Spans: []Span{dbChild2}},
-	}}
+	exprResult := drainIter(t, RelationSpansetIter(op, childIter))
 
-	iter := StructuralOpSpansetIter(StructuralOpDescendant, leftIter, rightIter)
-	defer iter.Close()
-
-	var twoScanResult []*Spanset
-	for {
-		ss, err := iter.Next(context.Background())
-		require.NoError(t, err)
-		if ss == nil {
-			break
-		}
-		twoScanResult = append(twoScanResult, ss)
-	}
-
-	t.Logf("StructuralOpSpansetIter: %d spanset(s)", len(twoScanResult))
-	for i, ss := range twoScanResult {
-		t.Logf("  [%d] traceID=%v  spans=%d", i, ss.TraceID, len(ss.Spans))
-		for j, s := range ss.Spans {
-			t.Logf("    span[%d] id=%v", j, s.ID())
-		}
-	}
-
-	require.Len(t, twoScanResult, 1, "only trace1 should match")
-	require.Len(t, twoScanResult[0].Spans, 1, "only dbChild survives")
-	require.Equal(t, dbChild.id, twoScanResult[0].Spans[0].ID())
-}
-
-// TestStructuralOp_MismatchedOrder documents the merge-join ordering requirement.
-//
-// StructuralOpSpansetIter is a merge-join: when left.TraceID < right.TraceID it
-// discards the left spanset and advances; when left > right it discards right.
-// This only produces correct results when BOTH iterators emit spansets in the
-// same sorted order (both ascending or both descending).
-//
-// If the orders differ the join silently drops matches:
-//
-//	left  (reversed):  [trace2, trace1]
-//	right (normal):    [trace1, trace2]
-//
-//	step 1: left=trace2, right=trace1 → cmp>0 → discard right(trace1!), keep left pending
-//	step 2: left=trace2(pending), right=trace2 → cmp==0 → evaluate trace2 (no match)
-//	step 3: left exhausted → done
-//
-//	trace1 — the only real match — was silently discarded.
-func TestStructuralOp_MismatchedOrder(t *testing.T) {
-	traceID1 := []byte{1}
-	traceID2 := []byte{2}
-
-	// Trace 1: GET parent → postgresql child (structural match).
-	httpSpan1 := newMockSpan([]byte{1, 1}).
-		WithSpanString("http.method", "GET").
-		WithNestedSetInfo(0, 1, 6)
-	dbChild1 := newMockSpan([]byte{1, 2}).
-		WithSpanString("db.system", "postgresql").
-		WithNestedSetInfo(1, 2, 5) // descendant: 2>1 && 2<6 ✓
-
-	// Trace 2: GET parent → postgresql child (also a structural match).
-	httpSpan2 := newMockSpan([]byte{2, 1}).
-		WithSpanString("http.method", "GET").
-		WithNestedSetInfo(0, 1, 6)
-	dbChild2 := newMockSpan([]byte{2, 2}).
-		WithSpanString("db.system", "postgresql").
-		WithNestedSetInfo(1, 2, 5) // descendant ✓
-
-	t.Run("same order (ascending) — both matches found", func(t *testing.T) {
-		left := &sliceSpansetIter{spansets: []*Spanset{
-			{TraceID: traceID1, Spans: []Span{httpSpan1}},
-			{TraceID: traceID2, Spans: []Span{httpSpan2}},
-		}}
-		right := &sliceSpansetIter{spansets: []*Spanset{
-			{TraceID: traceID1, Spans: []Span{dbChild1}},
-			{TraceID: traceID2, Spans: []Span{dbChild2}},
-		}}
-		results := drainIter(t, StructuralOpSpansetIter(StructuralOpDescendant, left, right))
-		require.Len(t, results, 2, "both traces match")
-	})
-
-	t.Run("mismatched order — match silently dropped", func(t *testing.T) {
-		// Left emits trace2 first, right emits trace1 first.
-		//
-		// merge-join step 1: left=trace2, right=trace1 → cmp>0
-		//   → right(trace1) discarded, left(trace2) held as pending
-		// merge-join step 2: left=trace2(pending), right=trace2 → cmp==0
-		//   → evaluate trace2, return match
-		// merge-join step 3: left=trace1, right=nil → right exhausted → done
-		//
-		// trace1 is never joined: its left side arrives after right is exhausted.
-		left := &sliceSpansetIter{spansets: []*Spanset{
-			{TraceID: traceID2, Spans: []Span{httpSpan2}}, // trace2 first
-			{TraceID: traceID1, Spans: []Span{httpSpan1}}, // trace1 second
-		}}
-		right := &sliceSpansetIter{spansets: []*Spanset{
-			{TraceID: traceID1, Spans: []Span{dbChild1}}, // trace1 first
-			{TraceID: traceID2, Spans: []Span{dbChild2}}, // trace2 second
-		}}
-		results := drainIter(t, StructuralOpSpansetIter(StructuralOpDescendant, left, right))
-		// Only trace2 is returned; trace1 was silently dropped.
-		require.Len(t, results, 1, "mismatched order drops trace1")
-		require.Equal(t, traceID2, results[0].TraceID)
-	})
+	require.Len(t, exprResult, 1, "only trace1 should match")
+	require.Len(t, exprResult[0].Spans, 1, "only dbChild survives")
+	require.Equal(t, dbChild.id, exprResult[0].Spans[0].ID())
 }
 
 func drainIter(t *testing.T, iter SpansetIterator) []*Spanset {

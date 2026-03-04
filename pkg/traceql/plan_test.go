@@ -83,12 +83,3 @@ func TestWalkPlanSkipChildren(t *testing.T) {
 	require.Equal(t, []string{trace.String(), res.String()}, visited)
 }
 
-// TestStructuralOpNodeChildren verifies that StructuralOpNode returns both children.
-func TestStructuralOpNodeChildren(t *testing.T) {
-	left := NewSpanScanNode(nil, nil)
-	right := NewSpanScanNode(nil, nil)
-	op := NewStructuralOpNode(StructuralOpParent, left, right)
-
-	require.Equal(t, []PlanNode{left, right}, op.Children())
-	require.Contains(t, op.String(), "StructuralOp")
-}
