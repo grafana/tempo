@@ -121,8 +121,6 @@ func segmentSearchTagValuesResponse(response *tempopb.SearchTagValuesResponse, m
 	var current *tempopb.SearchTagValuesResponse
 	var currentSz int
 
-	stringSize := func(s string) int { return len(s) }
-
 	startNextPacket := func() {
 		current = &tempopb.SearchTagValuesResponse{
 			TagValues: nil,
@@ -135,7 +133,7 @@ func segmentSearchTagValuesResponse(response *tempopb.SearchTagValuesResponse, m
 	startNextPacket()
 
 	for _, v := range response.TagValues {
-		itemSz := stringSize(v)
+		itemSz := protoStringSize(v)
 		// Start a new packet if there isn't room for this entry,
 		// unless it's the first one, that way we always try to fit at least one.
 		if len(current.TagValues) > 0 && currentSz+itemSz > maxSize {

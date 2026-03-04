@@ -4,6 +4,8 @@ import (
 	"github.com/grafana/tempo/pkg/api"
 	"github.com/grafana/tempo/pkg/collector"
 	"github.com/grafana/tempo/pkg/tempopb"
+
+	math_bits "math/bits"
 )
 
 var (
@@ -142,7 +144,7 @@ func segmentSearchTagsResponse(response *tempopb.SearchTagsResponse, maxSize int
 	startNextPacket()
 
 	for _, name := range response.TagNames {
-		sz := len(name)
+		sz := protoStringSize(name)
 		// Start a new packet if there isn't room for this entry,
 		// unless it's the first one, that way we always try to fit at least one.
 		if len(current.TagNames) > 0 && currentSz+sz > maxSize {
@@ -153,6 +155,15 @@ func segmentSearchTagsResponse(response *tempopb.SearchTagsResponse, maxSize int
 	}
 
 	return out
+}
+
+// protoStringSize returns the size in bytes of a string in a repeated string field.
+// Size is 1 byte for the field number, the string content itself, and then the string length encoded as varint.
+func protoStringSize(s string) int {
+	l := len(s)
+	// Calculation copied from sovTempo in tempopb.
+	varIntSize := (math_bits.Len64(uint64(l)|1) + 6) / 7
+	return 1 + l + varIntSize
 }
 
 // segmentSearchTagsV2Response splits response into one or more SearchTagsV2Response values, each within
@@ -184,7 +195,7 @@ func segmentSearchTagsV2Response(response *tempopb.SearchTagsV2Response, maxSize
 		current.Scopes = append(current.Scopes, dest)
 
 		for _, tag := range scope.Tags {
-			sz := len(tag)
+			sz := protoStringSize(tag)
 
 			// Start a new packet if there isn't room for this entry,
 			// unless it's the first one, that way we always try to fit at least one.
