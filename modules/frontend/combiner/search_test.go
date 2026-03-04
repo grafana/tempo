@@ -787,3 +787,40 @@ func TestSearchCombinerPadTraceIDs(t *testing.T) {
 		})
 	}
 }
+
+func TestSegmentSearchResponse(t *testing.T) {
+	input := &tempopb.SearchResponse{
+		Metrics: &tempopb.SearchMetrics{},
+		Traces: []*tempopb.TraceSearchMetadata{
+			{
+				TraceID: "a",
+				SpanSet: &tempopb.SpanSet{
+					Spans: []*tempopb.Span{
+						{SpanID: "1", Name: "span1", StartTimeUnixNano: 1000, DurationNanos: 100},
+						{SpanID: "2", Name: "span2", StartTimeUnixNano: 2000, DurationNanos: 200},
+						{SpanID: "3", Name: "span3", StartTimeUnixNano: 3000, DurationNanos: 300},
+					},
+				},
+			},
+			{
+				TraceID: "b",
+				SpanSet: &tempopb.SpanSet{
+					Spans: []*tempopb.Span{
+						{SpanID: "4", Name: "span4", StartTimeUnixNano: 4000, DurationNanos: 400},
+						{SpanID: "5", Name: "span5", StartTimeUnixNano: 5000, DurationNanos: 500},
+					},
+				},
+			},
+		},
+	}
+	const maxSize = 1
+	out, err := segmentSearchResponse(input, maxSize)
+	require.NoError(t, err)
+	require.Len(t, out, 2)
+	require.Len(t, out[0].Traces, 1)
+	require.Len(t, out[1].Traces, 1)
+	require.Equal(t, input.Traces[0], out[0].Traces[0])
+	require.Equal(t, input.Traces[1], out[1].Traces[0])
+	require.Equal(t, input.Metrics, out[0].Metrics)
+	require.Equal(t, input.Metrics, out[1].Metrics)
+}

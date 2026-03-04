@@ -359,3 +359,69 @@ func testGRPCCombiner[T proto.Message](t *testing.T, combiner GRPCCombiner[T], r
 	sort(actualFinal)
 	require.Equal(t, expectedFinal, actualFinal)
 }
+
+func TestSegmentSearchTagsResponse(t *testing.T) {
+	input := &tempopb.SearchTagsResponse{
+		Metrics:  &tempopb.MetadataMetrics{},
+		TagNames: []string{"a", "b"},
+	}
+	const maxSize = 1
+	out := segmentSearchTagsResponse(input, maxSize)
+	require.Len(t, out, 2)
+	require.Len(t, out[0].TagNames, 1)
+	require.Len(t, out[1].TagNames, 1)
+	require.Equal(t, input.TagNames[0], out[0].TagNames[0])
+	require.Equal(t, input.TagNames[1], out[1].TagNames[0])
+	require.Equal(t, input.Metrics, out[0].Metrics)
+	require.Equal(t, input.Metrics, out[1].Metrics)
+}
+
+func TestSegmentSearchTagsV2Response(t *testing.T) {
+	// One scope with 2 tags, small maxSize -> multiple segments (scope repeated per segment with 1 tag each).
+	input := &tempopb.SearchTagsV2Response{
+		Metrics: &tempopb.MetadataMetrics{},
+		Scopes:  []*tempopb.SearchTagsV2Scope{{Name: "s1", Tags: []string{"a", "b"}}},
+	}
+	const maxSize = 1
+	out := segmentSearchTagsV2Response(input, maxSize)
+	require.Len(t, out, 2)
+	require.Equal(t, input.Scopes[0].Tags[0:1], out[0].Scopes[0].Tags)
+	require.Equal(t, input.Scopes[0].Tags[1:2], out[1].Scopes[0].Tags)
+	require.Equal(t, input.Metrics, out[0].Metrics)
+	require.Equal(t, input.Metrics, out[1].Metrics)
+}
+
+func TestSegmentSearchTagValuesResponse(t *testing.T) {
+	input := &tempopb.SearchTagValuesResponse{
+		Metrics:   &tempopb.MetadataMetrics{},
+		TagValues: []string{"a", "b"},
+	}
+	const maxSize = 1
+	out := segmentSearchTagValuesResponse(input, maxSize)
+	require.Len(t, out, 2)
+	require.Len(t, out[0].TagValues, 1)
+	require.Len(t, out[1].TagValues, 1)
+	require.Equal(t, input.TagValues[0], out[0].TagValues[0])
+	require.Equal(t, input.TagValues[1], out[1].TagValues[0])
+	require.Equal(t, input.Metrics, out[0].Metrics)
+	require.Equal(t, input.Metrics, out[1].Metrics)
+}
+
+func TestSegmentSearchTagValuesV2Response(t *testing.T) {
+	input := &tempopb.SearchTagValuesV2Response{
+		Metrics: &tempopb.MetadataMetrics{},
+		TagValues: []*tempopb.TagValue{
+			{Type: "string", Value: "a"},
+			{Type: "string", Value: "b"},
+		},
+	}
+	const maxSize = 1
+	out := segmentSearchTagValuesV2Response(input, maxSize)
+	require.Len(t, out, 2)
+	require.Len(t, out[0].TagValues, 1)
+	require.Len(t, out[1].TagValues, 1)
+	require.Equal(t, input.TagValues[0], out[0].TagValues[0])
+	require.Equal(t, input.TagValues[1], out[1].TagValues[0])
+	require.Equal(t, input.Metrics, out[0].Metrics)
+	require.Equal(t, input.Metrics, out[1].Metrics)
+}

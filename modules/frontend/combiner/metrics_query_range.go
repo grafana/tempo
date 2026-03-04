@@ -148,7 +148,7 @@ func NewQueryRange(req *tempopb.QueryRangeRequest, maxSeriesLimit int) (Combiner
 			return combiner.MaxSeriesReached() && completionTracker.CompletedThroughSeconds() != shardtracker.TimestampUnknown
 		},
 		segment: func(resp *tempopb.QueryRangeResponse, maxSize int) ([]*tempopb.QueryRangeResponse, error) {
-			return segmentResponseToMaxPacketSize(resp, maxSize), nil
+			return segmentQueryRangeResponseToMaxPacketSize(resp, maxSize), nil
 		},
 	}
 
@@ -165,10 +165,10 @@ func NewTypedQueryRange(req *tempopb.QueryRangeRequest, maxSeries int) (GRPCComb
 	return c.(GRPCCombiner[*tempopb.QueryRangeResponse]), nil
 }
 
-// segmentResponseToMaxPacketSize splits resp into one or more QueryRangeResponse values, each within
+// segmentQueryRangeResponseToMaxPacketSize splits resp into one or more QueryRangeResponse values, each within
 // maxSize bytes (by proto Size()), accounting for the response object itself. Metrics are included
 // in every segment; Status and Message are set on the last segment.
-func segmentResponseToMaxPacketSize(resp *tempopb.QueryRangeResponse, maxSize int) []*tempopb.QueryRangeResponse {
+func segmentQueryRangeResponseToMaxPacketSize(resp *tempopb.QueryRangeResponse, maxSize int) []*tempopb.QueryRangeResponse {
 	// If not configured return as-is.
 	if maxSize <= 0 {
 		return []*tempopb.QueryRangeResponse{resp}

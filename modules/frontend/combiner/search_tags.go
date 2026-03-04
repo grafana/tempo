@@ -192,7 +192,7 @@ func segmentSearchTagsV2Response(response *tempopb.SearchTagsV2Response, maxSize
 
 			// Start a new packet if there isn't room for this entry,
 			// unless it's the first one, that way we always try to fit at least one.
-			if len(current.Scopes) > 0 && currentSz+sz > maxSize {
+			if len(dest.Tags) > 0 && currentSz+sz > maxSize {
 				startNextPacket()
 
 				// Restart current scope in this new packet.
@@ -200,7 +200,6 @@ func segmentSearchTagsV2Response(response *tempopb.SearchTagsV2Response, maxSize
 				current.Scopes = append(current.Scopes, dest)
 			}
 
-			// Keep populating current scope, or create a new one if in a new packet.
 			dest.Tags = append(dest.Tags, tag)
 			currentSz += sz
 		}
