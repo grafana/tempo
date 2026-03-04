@@ -328,7 +328,8 @@ func NewStructuralOpNode(op StructuralOp, left, right PlanNode) *StructuralOpNod
 func (n *StructuralOpNode) Children() []PlanNode { return []PlanNode{n.left, n.right} }
 func (n *StructuralOpNode) Accept(v PlanVisitor) { WalkPlan(n, v) }
 func (n *StructuralOpNode) String() string {
-	names := [...]string{"parent(>>)", "ancestor(>)", "sibling(~)", "descendant(<<)", "child(<)"}
+	// TraceQL syntax: child(>), parent(<), descendant(>>), ancestor(<<), sibling(~)
+	names := [...]string{"parent(<)", "ancestor(<<)", "sibling(~)", "descendant(>>)", "child(>)"}
 	if int(n.Op) < len(names) {
 		return "StructuralOp " + names[n.Op]
 	}
