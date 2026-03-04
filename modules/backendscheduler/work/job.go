@@ -169,3 +169,23 @@ func (j *Job) GetRedactionBlockID() string {
 	}
 	return j.JobDetail.Redaction.BlockId
 }
+
+// PendingBlockKey returns the blocks-pending index key for this job, or empty
+// string if this job type does not claim a block. The key is used by Work to
+// maintain the pendingBlocks index so that BlockPending can be answered in O(1).
+// Adding a new job type that needs block-pending tracking only requires a new
+// branch here; work.go stays type-agnostic.
+func (j *Job) PendingBlockKey() string {
+	j.mtx.Lock()
+	defer j.mtx.Unlock()
+
+	switch j.Type {
+	case tempopb.JobType_JOB_TYPE_REDACTION:
+		if j.JobDetail.Redaction == nil {
+			return ""
+		}
+		return j.JobDetail.Tenant + "\x00" + j.JobDetail.Redaction.BlockId
+	default:
+		return ""
+	}
+}
