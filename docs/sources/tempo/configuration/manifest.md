@@ -424,6 +424,7 @@ query_frontend:
         max_regex_conditions: 1
     mcp_server:
         enabled: false
+    max_grpc_streaming_packet_size: 2097152
     max_query_expression_size_bytes: 131072
     rf1_after: 0001-01-01T00:00:00Z
 ingester:
