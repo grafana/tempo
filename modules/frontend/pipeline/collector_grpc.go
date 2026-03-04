@@ -80,7 +80,7 @@ func (c GRPCCollector[T]) RoundTrip(req *http.Request) error {
 	if err != nil {
 		return grpcError(err)
 	}
-	span.AddEvent("final combiner.GRPCDiff() done")
+	span.AddEvent("combiner.GRPCFinal() done")
 
 	return c.sendSegmented(req, resp, c.maxSegmentSize)
 }
