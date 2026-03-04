@@ -9,7 +9,9 @@ import (
 
 	"github.com/go-kit/log"
 	"github.com/grafana/tempo/modules/backendscheduler/work"
+	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/pkg/tempopb"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
 )
 
@@ -34,7 +36,9 @@ func TestRetentionProvider(t *testing.T) {
 
 	logger := log.NewLogfmtLogger(os.Stderr)
 
-	p := NewRetentionProvider(cfg, logger, tenants, w)
+	limits, err := overrides.NewOverrides(overrides.Config{Defaults: overrides.Overrides{}}, nil, prometheus.NewRegistry())
+	require.NoError(t, err)
+	p := NewRetentionProvider(cfg, logger, tenants, limits, w)
 
 	jobChan := p.Start(ctx)
 
@@ -83,7 +87,9 @@ func TestRetentionProviderSkipsRedactionPending(t *testing.T) {
 	tenants := &staticTenantLister{tenants: []string{"tenant-a", "tenant-b"}}
 	logger := log.NewLogfmtLogger(os.Stderr)
 
-	p := NewRetentionProvider(cfg, logger, tenants, w)
+	limits, err := overrides.NewOverrides(overrides.Config{Defaults: overrides.Overrides{}}, nil, prometheus.NewRegistry())
+	require.NoError(t, err)
+	p := NewRetentionProvider(cfg, logger, tenants, limits, w)
 	jobChan := p.Start(ctx)
 
 	seen := make(map[string]bool)
@@ -126,7 +132,9 @@ func TestRetentionProviderRolloutCompat(t *testing.T) {
 	tenants := &staticTenantLister{tenants: []string{"tenant-a"}}
 	logger := log.NewLogfmtLogger(os.Stderr)
 
-	p := NewRetentionProvider(cfg, logger, tenants, w)
+	limits, err := overrides.NewOverrides(overrides.Config{Defaults: overrides.Overrides{}}, nil, prometheus.NewRegistry())
+	require.NoError(t, err)
+	p := NewRetentionProvider(cfg, logger, tenants, limits, w)
 	jobChan := p.Start(ctx)
 
 	var receivedJobs []*work.Job
