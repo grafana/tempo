@@ -60,7 +60,7 @@ overrides:
         max_bytes_per_trace: 1.5e+07
 ```
 
-Refer to the [Standard overrides](# https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/#standard-overrides) documentation for more information.
+Refer to the [Standard overrides](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/#standard-overrides) documentation for more information.
 
 If you have long-running batch job traces, consider using span links to break them apart.
 
