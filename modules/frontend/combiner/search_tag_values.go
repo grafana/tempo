@@ -44,9 +44,7 @@ func NewSearchTagValues(maxDataBytes int, maxTagsValues uint32, staleValueThresh
 
 			return response, nil
 		},
-		segment: func(response *tempopb.SearchTagValuesResponse, maxSize int) ([]*tempopb.SearchTagValuesResponse, error) {
-			return segmentSearchTagValuesResponse(response, maxSize), nil
-		},
+		segment: segmentSearchTagValuesResponse,
 	}
 	initHTTPCombiner(c, marshalingFormat)
 	return c
@@ -102,9 +100,7 @@ func NewSearchTagValuesV2(maxDataBytes int, maxTagsValues uint32, staleValueThre
 
 			return response, nil
 		},
-		segment: func(response *tempopb.SearchTagValuesV2Response, maxSize int) ([]*tempopb.SearchTagValuesV2Response, error) {
-			return segmentSearchTagValuesV2Response(response, maxSize), nil
-		},
+		segment: segmentSearchTagValuesV2Response,
 	}
 	initHTTPCombiner(c, marshalingFormat)
 	return c

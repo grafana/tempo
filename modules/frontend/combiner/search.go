@@ -132,9 +132,7 @@ func NewSearch(limit int, keepMostRecent bool, marshalingFormat api.MarshallingF
 
 			return metadataCombiner.IsCompleteFor(completedThroughSeconds)
 		},
-		segment: func(response *tempopb.SearchResponse, maxSize int) ([]*tempopb.SearchResponse, error) {
-			return segmentSearchResponse(response, maxSize)
-		},
+		segment: segmentSearchResponse,
 	}
 	initHTTPCombiner(c, marshalingFormat)
 	return c
@@ -161,9 +159,9 @@ func padTraceIDsInResponse(traces []*tempopb.TraceSearchMetadata) {
 
 // segmentSearchResponse splits response into one or more SearchResponse values, each within
 // maxSize bytes (by proto Size()). Metrics are included in every segment.
-func segmentSearchResponse(response *tempopb.SearchResponse, maxSize int) ([]*tempopb.SearchResponse, error) {
+func segmentSearchResponse(response *tempopb.SearchResponse, maxSize int) []*tempopb.SearchResponse {
 	if maxSize <= 0 {
-		return []*tempopb.SearchResponse{response}, nil
+		return []*tempopb.SearchResponse{response}
 	}
 
 	var out []*tempopb.SearchResponse
@@ -193,5 +191,5 @@ func segmentSearchResponse(response *tempopb.SearchResponse, maxSize int) ([]*te
 		currentSz += traceSz
 	}
 
-	return out, nil
+	return out
 }

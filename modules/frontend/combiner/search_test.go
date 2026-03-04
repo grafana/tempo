@@ -814,8 +814,7 @@ func TestSegmentSearchResponse(t *testing.T) {
 		},
 	}
 	const maxSize = 1
-	out, err := segmentSearchResponse(input, maxSize)
-	require.NoError(t, err)
+	out := segmentSearchResponse(input, maxSize)
 	require.Len(t, out, 2)
 	require.Len(t, out[0].Traces, 1)
 	require.Len(t, out[1].Traces, 1)

@@ -46,9 +46,7 @@ func NewSearchTags(maxDataBytes int, maxTagsPerScope uint32, staleValueThreshold
 			response.Metrics = metricsCombiner.Metrics
 			return response, nil
 		},
-		segment: func(response *tempopb.SearchTagsResponse, maxSize int) ([]*tempopb.SearchTagsResponse, error) {
-			return segmentSearchTagsResponse(response, maxSize), nil
-		},
+		segment: segmentSearchTagsResponse,
 	}
 	initHTTPCombiner(c, marshalingFormat)
 	return c
@@ -107,9 +105,7 @@ func NewSearchTagsV2(maxDataBytes int, maxTagsPerScope uint32, staleValueThresho
 			response.Metrics = metricsCombiner.Metrics
 			return response, nil
 		},
-		segment: func(response *tempopb.SearchTagsV2Response, maxSize int) ([]*tempopb.SearchTagsV2Response, error) {
-			return segmentSearchTagsV2Response(response, maxSize), nil
-		},
+		segment: segmentSearchTagsV2Response,
 	}
 	initHTTPCombiner(c, marshalingFormat)
 	return c

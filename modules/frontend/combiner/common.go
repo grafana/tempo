@@ -46,7 +46,7 @@ type genericCombiner[T TResponse] struct {
 	quit     func(T) bool
 
 	// Segment one response into smaller ones, that fit within the given max size.
-	segment func(T, int) ([]T, error)
+	segment func(T, int) []T
 
 	// Used to determine the response code and when to stop
 	httpStatusCode int
@@ -233,7 +233,7 @@ func (c *genericCombiner[T]) GRPCSegment(response T, maxSize int) ([]T, error) {
 		return nil, errors.New("grpc response segmentation not supported for response type: " + reflect.TypeOf(response).String())
 	}
 
-	return c.segment(response, maxSize)
+	return c.segment(response, maxSize), nil
 }
 
 func (c *genericCombiner[T]) erroredResponse() (*http.Response, error) {

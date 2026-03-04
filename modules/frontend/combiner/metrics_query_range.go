@@ -147,9 +147,7 @@ func NewQueryRange(req *tempopb.QueryRangeRequest, maxSeriesLimit int) (Combiner
 			// will return an empty response
 			return combiner.MaxSeriesReached() && completionTracker.CompletedThroughSeconds() != shardtracker.TimestampUnknown
 		},
-		segment: func(resp *tempopb.QueryRangeResponse, maxSize int) ([]*tempopb.QueryRangeResponse, error) {
-			return segmentQueryRangeResponseToMaxPacketSize(resp, maxSize), nil
-		},
+		segment: segmentQueryRangeResponseToMaxPacketSize,
 	}
 
 	initHTTPCombiner(c, api.HeaderAcceptJSON)
