@@ -45,7 +45,10 @@ const (
 	droppedRecordReasonInstanceNotFound = "instance_not_found"
 )
 
-var ErrStarting = errors.New("live-store is starting")
+var (
+	ErrStarting = errors.New("live-store is starting")
+	ErrStopping = errors.New("live-store is stopping")
+)
 
 var (
 	// Queue management metrics
@@ -384,9 +387,12 @@ func (s *LiveStore) stopping(error) error {
 		s.ingestPartitionLifecycler.SetRemoveOwnerOnShutdown(true)
 	}
 
+	// Reject new queries early in shutdown, before tearing down the reader.
+	s.readyErr.Store(&ErrStopping)
+	metricReady.Set(0)
+
 	// Stop the kafka lag background worker.
 	s.lagCancel()
-	metricReady.Set(0)
 
 	// Stop consuming
 	err := services.StopAndAwaitTerminated(context.Background(), s.reader)
@@ -496,6 +502,13 @@ func (s *LiveStore) waitForCatchUp(ctx context.Context) error {
 // It takes lagShortcutThreshold to shortcut calculations if the lag is close to the end of the partition.
 // To disable the shortcut, set lagShortcutThreshold to a negative value.
 func (s *LiveStore) calculateTimeLag(lagShortcutThreshold int64) *time.Duration {
+	// reader is nil only before starting() creates it. After stopping(), reader
+	// is a stopped service but not nil, and its atomic fields remain safe to read.
+	if s.reader == nil {
+		level.Debug(s.logger).Log("msg", "Partition reader not initialized")
+		return nil
+	}
+
 	// Use cached high watermark from fetch responses (avoids extra API call)
 	lag := s.reader.lag.Load()
 	zero := time.Duration(0)

@@ -3,6 +3,7 @@ package traceql
 import (
 	"fmt"
 	"math"
+	"strings"
 	"time"
 
 	"github.com/grafana/tempo/pkg/tempopb"
@@ -421,3 +422,141 @@ func (m *TopKBottomK) process(input SeriesSet) SeriesSet {
 }
 
 var _ secondStageElement = (*TopKBottomK)(nil)
+
+// MetricsFilter implements second stage comparison filtering on metrics results.
+// It filters data points that don't match the comparison condition, setting them to NaN.
+// Series with all NaN values after filtering are removed.
+// Example: {status=error} | rate() by (svc) > 10
+type MetricsFilter struct {
+	op    Operator
+	value float64
+}
+
+func newMetricsFilter(op Operator, value float64) *MetricsFilter {
+	return &MetricsFilter{op: op, value: value}
+}
+
+func (m *MetricsFilter) String() string {
+	opStr := m.op.String()
+
+	// Format value to distinguish int from float for round-trip fidelity
+	if m.value == float64(int(m.value)) && !math.IsInf(m.value, 0) && !math.IsNaN(m.value) {
+		return fmt.Sprintf("%s %d", opStr, int(m.value))
+	}
+	return fmt.Sprintf("%s %g", opStr, m.value)
+}
+
+func (m *MetricsFilter) validate() error {
+	switch m.op {
+	case OpGreater, OpGreaterEqual, OpLess, OpLessEqual, OpEqual, OpNotEqual:
+		return nil
+	default:
+		return fmt.Errorf("unsupported metrics filter operation: %s", m.op.String())
+	}
+}
+
+func (m *MetricsFilter) init(_ *tempopb.QueryRangeRequest) {}
+
+func (m *MetricsFilter) process(input SeriesSet) SeriesSet {
+	result := make(SeriesSet, len(input))
+
+	for key, series := range input {
+		hasValue := false
+
+		for i, v := range series.Values {
+			if math.IsNaN(v) || !m.compare(v) {
+				series.Values[i] = math.NaN()
+				continue
+			}
+
+			hasValue = true
+		}
+
+		if !hasValue {
+			continue
+		}
+
+		exemplars := make([]Exemplar, 0, len(series.Exemplars))
+		for i, e := range series.Exemplars {
+			if !math.IsNaN(e.Value) && m.compare(e.Value) {
+				exemplars = append(exemplars, series.Exemplars[i])
+			}
+		}
+		result[key] = TimeSeries{
+			Labels:    series.Labels,
+			Values:    series.Values,
+			Exemplars: exemplars,
+		}
+	}
+
+	return result
+}
+
+// compare performs the comparison.
+// the function is inlined and more efficient than a pre-calculate function
+func (m *MetricsFilter) compare(v float64) bool {
+	switch m.op {
+	case OpGreater:
+		return v > m.value
+	case OpGreaterEqual:
+		return v >= m.value
+	case OpLess:
+		return v < m.value
+	case OpLessEqual:
+		return v <= m.value
+	case OpEqual:
+		return v == m.value
+	case OpNotEqual:
+		return v != m.value
+	default:
+		return false
+	}
+}
+
+var _ secondStageElement = (*MetricsFilter)(nil)
+
+// ChainedSecondStage chains multiple second stage elements together.
+// Elements are processed in order, each receiving the output of the previous.
+// Example: {status=error} | rate() | topk(5) > 10
+type ChainedSecondStage struct {
+	elements   []secondStageElement
+	separators []string
+}
+
+func (c *ChainedSecondStage) Append(element secondStageElement, separator string) {
+	c.elements = append(c.elements, element)
+	c.separators = append(c.separators, separator)
+}
+
+func (c ChainedSecondStage) String() string {
+	b := strings.Builder{}
+	for i := range c.elements {
+		b.WriteString(c.separators[i])
+		b.WriteString(c.elements[i].String())
+	}
+	return b.String()
+}
+
+func (c ChainedSecondStage) validate() error {
+	for _, e := range c.elements {
+		if err := e.validate(); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (c ChainedSecondStage) init(req *tempopb.QueryRangeRequest) {
+	for _, e := range c.elements {
+		e.init(req)
+	}
+}
+
+func (c ChainedSecondStage) process(input SeriesSet) SeriesSet {
+	for _, e := range c.elements {
+		input = e.process(input)
+	}
+	return input
+}
+
+var _ secondStageElement = ChainedSecondStage{}

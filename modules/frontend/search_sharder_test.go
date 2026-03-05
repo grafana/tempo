@@ -675,7 +675,22 @@ func TestIngesterRequests(t *testing.T) {
 					}
 
 					if key == "start" || key == "end" {
-						require.Equal(t, v, values[key])
+						// check the time difference between the expected and actual
+						// start/end times is within a tolerance for the use of time.Now()
+						// in the code compared to when the tests check the values.
+						// Use 2s tolerance because timestamps are truncated to Unix seconds,
+						// so crossing a second boundary causes a 1s difference.
+						const tolerance = 2 * time.Second
+
+						actual := timeFrom(t, values[key][0])
+						expected := timeFrom(t, v[0])
+
+						diff := expected.Sub(actual)
+						assert.LessOrEqual(t, diff, tolerance)
+
+						diff = actual.Sub(expected)
+						assert.LessOrEqual(t, diff, tolerance)
+
 						continue
 					}
 
@@ -685,6 +700,12 @@ func TestIngesterRequests(t *testing.T) {
 			}
 		}
 	})
+}
+
+func timeFrom(t *testing.T, n string) time.Time {
+	i, err := strconv.ParseInt(n, 10, 32)
+	require.NoError(t, err)
+	return time.Unix(i, 0)
 }
 
 func TestBackendRange(t *testing.T) {
