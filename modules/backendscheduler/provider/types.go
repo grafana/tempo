@@ -22,5 +22,6 @@ type Scheduler interface {
 	ListPendingJobs(tenantID string, jobType tempopb.JobType) []*work.Job
 	HasPendingJobs(tenantID string, jobType tempopb.JobType) bool
 	BlockPending(tenantID, blockID string) bool
+	HasActiveBatchForTenant(tenantID string) bool
 	PopNextPendingJob(jobType tempopb.JobType) *work.Job
 }

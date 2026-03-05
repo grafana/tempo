@@ -15,10 +15,16 @@ import (
 type RedactionConfig struct {
 	// PollInterval is how often to try popping a pending redaction job when the queue is empty.
 	PollInterval time.Duration `yaml:"poll_interval"`
+	// RescanDelay is how long to wait after submission before rescanning for output blocks
+	// produced by compaction jobs that were active at submission time. Should be set to at
+	// least 2× the tempodb blocklist_poll interval so the new blocks are visible. The
+	// scheduler's work.prune_age must exceed this value.
+	RescanDelay time.Duration `yaml:"rescan_delay"`
 }
 
 func (cfg *RedactionConfig) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
 	f.DurationVar(&cfg.PollInterval, prefix+"backend-scheduler.redaction-provider.poll-interval", 2*time.Second, "Interval at which to check for pending redaction jobs when the queue is empty")
+	f.DurationVar(&cfg.RescanDelay, prefix+"backend-scheduler.redaction-provider.rescan-delay", 5*time.Minute, "How long to wait before rescanning for output blocks from compaction jobs active at submission time")
 }
 
 // RedactionProvider drains the pending redaction queue and sends jobs to the scheduler.

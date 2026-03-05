@@ -169,6 +169,16 @@ func (p *CompactionProvider) Start(ctx context.Context) <-chan *work.Job {
 				continue
 			}
 
+			// Re-check after job creation: a batch may have been submitted while we were
+			// draining the selector that was built before the submission. Discard the job
+			// before it enters the recent-jobs cache or the channel.
+			if p.sched.HasActiveBatchForTenant(p.curTenant.Value()) {
+				level.Info(p.logger).Log("msg", "redaction batch submitted for tenant since selector was built; abandoning remaining compaction jobs", "tenant", p.curTenant.Value())
+				span.AddEvent("tenant has active redaction batch")
+				reset()
+				continue
+			}
+
 			// Job successfully created, add to recent jobs cache before we send it.
 			p.addToRecentJobs(ctx, job)
 
@@ -393,6 +403,22 @@ func (p *CompactionProvider) measureTenants() {
 }
 
 func (p *CompactionProvider) newBlockSelector(tenantID string) (blockselector.CompactionBlockSelector, int) {
+	// Do not start new compaction jobs for a tenant with an active redaction batch.
+	// Compacting blocks during a live batch would produce output blocks not yet
+	// covered by any pending redaction job. This guarantees that at most one rescan
+	// is needed per batch: once the originally-skipped compaction jobs finish and
+	// the rescan fires, no further compaction can have created uncovered blocks.
+	if p.sched.HasActiveBatchForTenant(tenantID) {
+		return blockselector.NewTimeWindowBlockSelector(nil,
+			p.cfg.Compactor.MaxCompactionRange,
+			p.cfg.Compactor.MaxCompactionObjects,
+			p.cfg.Compactor.MaxBlockBytes,
+			p.cfg.MinInputBlocks,
+			p.cfg.MaxInputBlocks,
+			p.cfg.MaxCompactionLevel,
+		), 0
+	}
+
 	var (
 		fullBlocklist = p.store.BlockMetas(tenantID)
 		window        = p.overrides.MaxCompactionRange(tenantID)

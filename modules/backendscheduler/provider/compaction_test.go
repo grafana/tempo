@@ -551,6 +551,10 @@ func (m *mockScheduler) BlockPending(_, _ string) bool {
 	return false
 }
 
+func (m *mockScheduler) HasActiveBatchForTenant(_ string) bool {
+	return false
+}
+
 func (m *mockScheduler) PopNextPendingJob(_ tempopb.JobType) *work.Job {
 	return nil
 }

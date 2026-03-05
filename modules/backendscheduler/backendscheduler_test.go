@@ -337,6 +337,100 @@ func (ownsEverythingSharder) Owns(_ string) bool {
 	return true
 }
 
+func TestSubmitRedactionAndRescan(t *testing.T) {
+	cfg := Config{}
+	cfg.RegisterFlagsAndApplyDefaults("", &flag.FlagSet{})
+	// RescanDelay = 0: RescanAfterUnixNano is set to time.Now() at submission,
+	// so checkPendingRescans fires as soon as we call it (with a brief sleep).
+	cfg.ProviderConfig.Redaction.RescanDelay = 0
+
+	tmpDir := t.TempDir()
+	cfg.LocalWorkPath = tmpDir
+
+	var (
+		ctx, cancel   = context.WithCancel(context.Background())
+		store, rr, ww = newStore(ctx, t, tmpDir)
+	)
+	defer func() {
+		cancel()
+		store.Shutdown()
+	}()
+
+	limits, err := overrides.NewOverrides(overrides.Config{Defaults: overrides.Overrides{}}, nil, prometheus.NewRegistry())
+	require.NoError(t, err)
+
+	testTenant := "tenant-redact"
+
+	// Write 5 blocks and wait for the blocklist poll to pick them up.
+	blockIDs := writeTenantBlocks(ctx, t, backend.NewWriter(ww), testTenant, 5)
+	time.Sleep(300 * time.Millisecond)
+
+	s, err := New(cfg, store, limits, rr, ww)
+	require.NoError(t, err)
+	// Do NOT call s.starting — it would launch the RedactionProvider goroutine which
+	// immediately drains pending jobs, racing with our BlockPending assertions below.
+	// The store blocklist is already populated via newStore + time.Sleep above.
+
+	// Simulate a running compaction job covering the first two blocks.
+	// SubmitRedaction checks all compaction jobs regardless of status, so adding
+	// one to the work cache is sufficient to trigger the skip logic.
+	compJob := &work.Job{
+		ID:   uuid.New().String(),
+		Type: tempopb.JobType_JOB_TYPE_COMPACTION,
+		JobDetail: tempopb.JobDetail{
+			Tenant: testTenant,
+			Compaction: &tempopb.CompactionDetail{
+				Input: []string{blockIDs[0].String(), blockIDs[1].String()},
+			},
+		},
+	}
+	require.NoError(t, s.work.AddJob(compJob))
+	s.work.StartJob(compJob.ID)
+
+	// Submit the redaction. Blocks 0 and 1 are in active compaction and must be
+	// skipped; blocks 2, 3, 4 must receive pending jobs.
+	resp, err := s.SubmitRedaction(ctx, &tempopb.SubmitRedactionRequest{
+		TenantId: testTenant,
+		TraceIds: [][]byte{[]byte(uuid.New().String())},
+	})
+	require.NoError(t, err)
+	require.NotNil(t, resp)
+	require.Equal(t, int32(3), resp.JobsCreated)
+
+	// Blocks in active compaction must NOT have pending redaction jobs.
+	require.False(t, s.work.BlockPending(testTenant, blockIDs[0].String()))
+	require.False(t, s.work.BlockPending(testTenant, blockIDs[1].String()))
+
+	// Remaining blocks must have pending redaction jobs.
+	require.True(t, s.work.BlockPending(testTenant, blockIDs[2].String()))
+	require.True(t, s.work.BlockPending(testTenant, blockIDs[3].String()))
+	require.True(t, s.work.BlockPending(testTenant, blockIDs[4].String()))
+
+	// The batch must record the skipped compaction job ID and a rescan deadline.
+	batch := s.work.GetBatch(testTenant)
+	require.NotNil(t, batch)
+	require.Equal(t, []string{compJob.ID}, batch.SkippedCompactionJobIds)
+	require.Positive(t, batch.RescanAfterUnixNano)
+
+	// Mark the compaction job done and record one output block.
+	outputBlock := uuid.New().String()
+	s.work.SetJobCompactionOutput(compJob.ID, []string{outputBlock})
+	s.work.CompleteJob(compJob.ID)
+
+	// Trigger the rescan. RescanDelay is 0, so after a brief sleep the
+	// rescan deadline is in the past and checkPendingRescans fires.
+	time.Sleep(time.Millisecond)
+	s.checkPendingRescans(ctx)
+
+	// The compaction output block must now have a pending redaction job.
+	require.True(t, s.work.BlockPending(testTenant, outputBlock))
+
+	// The rescan deadline must have been cleared.
+	batch = s.work.GetBatch(testTenant)
+	require.NotNil(t, batch)
+	require.Zero(t, batch.RescanAfterUnixNano)
+}
+
 func TestProviderBasedScheduling(t *testing.T) {
 	cfg := Config{}
 	cfg.RegisterFlagsAndApplyDefaults("", &flag.FlagSet{})
