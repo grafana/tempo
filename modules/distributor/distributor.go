@@ -318,22 +318,24 @@ func New(
 		d.usage = tracker
 	}
 
-	var generatorsPoolFactory ring_client.PoolAddrFunc = func(addr string) (ring_client.PoolClient, error) {
-		return generator_client.New(addr, generatorClientCfg)
+	if d.pushSpansToGenerator {
+		var generatorsPoolFactory ring_client.PoolAddrFunc = func(addr string) (ring_client.PoolClient, error) {
+			return generator_client.New(addr, generatorClientCfg)
+		}
+		d.generatorsPool = ring_client.NewPool(
+			"distributor_metrics_generator_pool",
+			generatorClientCfg.PoolConfig,
+			ring_client.NewRingServiceDiscovery(generatorsRing),
+			generatorsPoolFactory,
+			metricGeneratorClients,
+			logger,
+		)
+
+		subservices = append(subservices, d.generatorsPool)
+
+		d.generatorForwarder = newGeneratorForwarder(logger, d.sendToGenerators, o)
+		subservices = append(subservices, d.generatorForwarder)
 	}
-	d.generatorsPool = ring_client.NewPool(
-		"distributor_metrics_generator_pool",
-		generatorClientCfg.PoolConfig,
-		ring_client.NewRingServiceDiscovery(generatorsRing),
-		generatorsPoolFactory,
-		metricGeneratorClients,
-		logger,
-	)
-
-	subservices = append(subservices, d.generatorsPool)
-
-	d.generatorForwarder = newGeneratorForwarder(logger, d.sendToGenerators, o)
-	subservices = append(subservices, d.generatorForwarder)
 
 	forwardersManager, err := forwarder.NewManager(d.cfg.Forwarders, logger, o, loggingLevel)
 	if err != nil {
