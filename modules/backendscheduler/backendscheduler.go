@@ -191,6 +191,7 @@ func (s *BackendScheduler) running(ctx context.Context) error {
 			return nil
 		case <-maintenanceTicker.C:
 			s.work.Prune(ctx)
+			s.checkPendingRescans(ctx)
 		case <-backendFlushTicker.C:
 			err = s.flushWorkCacheToBackend(ctx)
 			metricWorkFlushes.Inc()
@@ -437,23 +438,27 @@ func (s *BackendScheduler) SubmitRedaction(ctx context.Context, req *tempopb.Sub
 		return nil, status.Error(codes.NotFound, "no blocks found for tenant")
 	}
 
-	// Build a set of block IDs that are inputs to active compaction jobs. These blocks
-	// may disappear before a redaction worker can process them — and more importantly,
-	// their contents will have been merged into a new block that we would not redact.
+	// Build a map of block ID -> compaction job ID for all active compaction jobs.
+	// These blocks may disappear before a redaction worker can process them - and
+	// more importantly, their contents will be merged into a new output block that
+	// we would not otherwise redact. We record the job IDs so that the maintenance
+	// loop can look up their output blocks once compaction finishes.
 	// Mirrors the filtering in CompactionProvider.newBlockSelector.
-	inCompaction := make(map[string]struct{})
+	inCompactionJob := make(map[string]string) // blockID -> compaction job ID
 	for _, j := range s.work.ListJobs() {
 		if j.Tenant() != req.TenantId || j.GetType() != tempopb.JobType_JOB_TYPE_COMPACTION {
 			continue
 		}
 		for _, blockID := range j.GetCompactionInput() {
-			inCompaction[blockID] = struct{}{}
+			inCompactionJob[blockID] = j.ID
 		}
 	}
 
+	skippedJobSet := make(map[string]struct{})
 	filtered := metas[:0:0]
 	for _, meta := range metas {
-		if _, skip := inCompaction[meta.BlockID.String()]; skip {
+		if jobID, skip := inCompactionJob[meta.BlockID.String()]; skip {
+			skippedJobSet[jobID] = struct{}{}
 			continue
 		}
 		filtered = append(filtered, meta)
@@ -463,6 +468,7 @@ func (s *BackendScheduler) SubmitRedaction(ctx context.Context, req *tempopb.Sub
 		level.Warn(log.Logger).Log("msg", "skipping blocks in active compaction jobs during redaction submission",
 			"tenant", req.TenantId,
 			"skipped_blocks", skippedBlocks,
+			"skipped_compaction_jobs", len(skippedJobSet),
 			"total_blocks", len(metas))
 	}
 	metas = filtered
@@ -492,6 +498,14 @@ func (s *BackendScheduler) SubmitRedaction(ctx context.Context, req *tempopb.Sub
 		TenantId:          req.TenantId,
 		TraceIds:          req.TraceIds,
 		CreatedAtUnixNano: time.Now().UnixNano(),
+	}
+	if len(skippedJobSet) > 0 {
+		skippedJobIDs := make([]string, 0, len(skippedJobSet))
+		for id := range skippedJobSet {
+			skippedJobIDs = append(skippedJobIDs, id)
+		}
+		batch.SkippedCompactionJobIds = skippedJobIDs
+		batch.RescanAfterUnixNano = time.Now().Add(s.cfg.ProviderConfig.Redaction.RescanDelay).UnixNano()
 	}
 
 	// Store batch first, then jobs. On job failure, roll back the batch so the
@@ -531,7 +545,7 @@ func (s *BackendScheduler) SubmitRedaction(ctx context.Context, req *tempopb.Sub
 }
 
 // cleanupBatchIfDone removes the batch manifest for a tenant once all of its redaction
-// jobs have completed or failed (no pending, no running).
+// jobs have completed or failed (no pending, no running) and no rescan is pending.
 func (s *BackendScheduler) cleanupBatchIfDone(ctx context.Context, tenantID string) {
 	if s.work.HasPendingJobs(tenantID, tempopb.JobType_JOB_TYPE_REDACTION) {
 		return
@@ -543,11 +557,118 @@ func (s *BackendScheduler) cleanupBatchIfDone(ctx context.Context, tenantID stri
 			return
 		}
 	}
+	// Do not remove the batch if a rescan is still pending; the maintenance tick
+	// will call checkPendingRescans which will add new pending jobs and clear the flag.
+	if batch := s.work.GetBatch(tenantID); batch != nil && batch.RescanAfterUnixNano > 0 {
+		return
+	}
 	s.work.RemoveBatch(tenantID)
 	if err := s.work.FlushBatchesToLocal(ctx, s.cfg.LocalWorkPath); err != nil {
 		level.Warn(log.Logger).Log("msg", "failed to flush batch manifest after cleanup", "tenant", tenantID, "err", err)
 	}
 	level.Info(log.Logger).Log("msg", "redaction batch completed, manifest removed", "tenant", tenantID)
+}
+
+// checkPendingRescans is called on each maintenance tick. It looks for batches whose
+// rescan window has elapsed, looks up the output blocks from the skipped compaction
+// jobs, and enqueues new pending redaction jobs for those blocks.
+func (s *BackendScheduler) checkPendingRescans(ctx context.Context) {
+	now := time.Now().UnixNano()
+	for _, batch := range s.work.ListBatches() {
+		if batch.RescanAfterUnixNano == 0 || now < batch.RescanAfterUnixNano {
+			continue
+		}
+		s.performRescan(ctx, batch)
+	}
+}
+
+// performRescan handles one batch that is ready for a rescan. It looks up the output
+// blocks produced by previously skipped compaction jobs and enqueues redaction jobs
+// for them. If none are found (e.g. the compaction jobs were already pruned), it logs
+// a warning and clears the rescan state so cleanup can proceed.
+func (s *BackendScheduler) performRescan(ctx context.Context, batch *tempopb.RedactionBatch) {
+	tenantID := batch.TenantId
+	batchID := batch.BatchId
+
+	// Build a lookup set of the skipped compaction job IDs.
+	skippedSet := make(map[string]struct{}, len(batch.SkippedCompactionJobIds))
+	for _, id := range batch.SkippedCompactionJobIds {
+		skippedSet[id] = struct{}{}
+	}
+
+	// Collect output block IDs from the skipped compaction jobs.
+	var outputBlockIDs []string
+	for _, j := range s.work.ListJobs() {
+		if _, ok := skippedSet[j.ID]; !ok {
+			continue
+		}
+		outputBlockIDs = append(outputBlockIDs, j.GetCompactionOutput()...)
+	}
+
+	// Clear the rescan state before adding new jobs so that cleanupBatchIfDone
+	// can proceed if we end up with nothing to enqueue.
+	s.work.ClearBatchRescan(tenantID)
+
+	if len(outputBlockIDs) == 0 {
+		level.Warn(log.Logger).Log(
+			"msg", "redaction rescan: no output blocks found for skipped compaction jobs; they may have been pruned — operator should resubmit if traces are still present",
+			"tenant", tenantID,
+			"batch_id", batchID,
+			"skipped_jobs", len(skippedSet),
+		)
+		// Nothing to enqueue; let cleanupBatchIfDone handle the batch.
+		s.cleanupBatchIfDone(ctx, tenantID)
+		return
+	}
+
+	// Create pending jobs for output blocks, skipping any already pending.
+	jobs := make([]*work.Job, 0, len(outputBlockIDs))
+	for _, blockID := range outputBlockIDs {
+		if s.work.BlockPending(tenantID, blockID) {
+			continue
+		}
+		jobs = append(jobs, &work.Job{
+			ID:   uuid.New().String(),
+			Type: tempopb.JobType_JOB_TYPE_REDACTION,
+			JobDetail: tempopb.JobDetail{
+				Tenant:  tenantID,
+				BatchId: batchID,
+				Redaction: &tempopb.RedactionDetail{
+					BlockId: blockID,
+				},
+			},
+		})
+	}
+
+	level.Info(log.Logger).Log(
+		"msg", "redaction rescan: enqueuing jobs for compacted output blocks",
+		"tenant", tenantID,
+		"batch_id", batchID,
+		"output_blocks", len(outputBlockIDs),
+		"jobs_added", len(jobs),
+	)
+
+	if len(jobs) == 0 {
+		// All output blocks are already pending (e.g. a duplicate rescan).
+		s.cleanupBatchIfDone(ctx, tenantID)
+		return
+	}
+
+	if err := s.work.AddPendingJobs(jobs); err != nil {
+		level.Error(log.Logger).Log("msg", "redaction rescan: failed to add pending jobs", "tenant", tenantID, "err", err)
+		return
+	}
+
+	if err := s.work.FlushBatchesToLocal(ctx, s.cfg.LocalWorkPath); err != nil {
+		level.Warn(log.Logger).Log("msg", "redaction rescan: failed to flush batch manifest", "tenant", tenantID, "err", err)
+	}
+	affectedIDs := make([]string, len(jobs))
+	for i, j := range jobs {
+		affectedIDs[i] = j.ID
+	}
+	if err := s.work.FlushToLocal(ctx, s.cfg.LocalWorkPath, affectedIDs); err != nil {
+		level.Warn(log.Logger).Log("msg", "redaction rescan: failed to flush job shards", "tenant", tenantID, "err", err)
+	}
 }
 
 func (s *BackendScheduler) replayWorkOnBlocklist(ctx context.Context) error {

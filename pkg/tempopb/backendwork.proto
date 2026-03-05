@@ -135,6 +135,14 @@ message RedactionBatch {
   string tenant_id = 2;
   repeated bytes trace_ids = 3;
   int64 created_at_unix_nano = 4;
+  // skipped_compaction_job_ids holds the IDs of compaction jobs whose input
+  // blocks were skipped at submission time because they were actively compacting.
+  // At rescan time the scheduler looks up these jobs and creates redaction jobs
+  // for their output blocks.
+  repeated string skipped_compaction_job_ids = 5;
+  // rescan_after_unix_nano is the earliest time at which the scheduler should
+  // perform the rescan described above. Zero means no rescan is pending.
+  int64 rescan_after_unix_nano = 6;
 }
 
 // RedactionBatches is the top-level container written to batches.pb.

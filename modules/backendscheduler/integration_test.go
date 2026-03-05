@@ -5,6 +5,7 @@ import (
 	"flag"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/grafana/tempo/modules/backendscheduler/work"
@@ -54,6 +55,8 @@ func TestShardedIntegration(t *testing.T) {
 			testJobOperations(ctx, t, scheduler)
 
 			testPersistenceAndRecovery(ctx, t, scheduler, cfg, store, limits, rr, ww)
+
+			testSubmitRedactionPersistence(ctx, t, scheduler, cfg, store, limits, rr, ww)
 		})
 	}
 }
@@ -115,6 +118,36 @@ func testJobOperations(ctx context.Context, t *testing.T, scheduler *BackendSche
 	require.Equal(t, jobCount, totalJobs)
 
 	t.Logf("Shard distribution stats: %+v", stats)
+}
+
+func testSubmitRedactionPersistence(ctx context.Context, t *testing.T, scheduler *BackendScheduler, cfg Config, store storage.Store, limits overrides.Interface, rr backend.RawReader, ww backend.RawWriter) {
+	testTenant := "tenant-redact-persist"
+
+	// Write blocks and wait for the blocklist poll.
+	blockIDs := writeTenantBlocks(ctx, t, backend.NewWriter(ww), testTenant, 3)
+	time.Sleep(300 * time.Millisecond)
+
+	resp, err := scheduler.SubmitRedaction(ctx, &tempopb.SubmitRedactionRequest{
+		TenantId: testTenant,
+		TraceIds: [][]byte{[]byte(uuid.New().String())},
+	})
+	require.NoError(t, err)
+	require.EqualValues(t, 3, resp.JobsCreated)
+
+	// Flush batch manifest and job shards to disk.
+	require.NoError(t, scheduler.work.FlushBatchesToLocal(ctx, scheduler.cfg.LocalWorkPath))
+	require.NoError(t, scheduler.work.FlushToLocal(ctx, scheduler.cfg.LocalWorkPath, nil))
+
+	// Reload into a new scheduler instance (simulating a restart).
+	newSched, err := New(cfg, store, limits, rr, ww)
+	require.NoError(t, err)
+	require.NoError(t, newSched.starting(ctx))
+
+	// Batch and all pending block jobs must survive the reload.
+	require.True(t, newSched.work.HasActiveBatchForTenant(testTenant))
+	for _, id := range blockIDs {
+		require.True(t, newSched.work.BlockPending(testTenant, id.String()), "block %s must be pending after reload", id)
+	}
 }
 
 func testPersistenceAndRecovery(ctx context.Context, t *testing.T, originalScheduler *BackendScheduler, cfg Config, store storage.Store, limits overrides.Interface, rr backend.RawReader, ww backend.RawWriter) {
