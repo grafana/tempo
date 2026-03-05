@@ -404,36 +404,6 @@ func (g *Generator) OnRingInstanceStopping(*ring.BasicLifecycler) {
 func (g *Generator) OnRingInstanceHeartbeat(*ring.BasicLifecycler, *ring.Desc, *ring.InstanceDesc) {
 }
 
-func (g *Generator) GetMetrics(ctx context.Context, req *tempopb.SpanMetricsRequest) (*tempopb.SpanMetricsResponse, error) {
-	instanceID, err := validation.ExtractValidTenantID(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	// return empty if we don't have an instance
-	instance, ok := g.getInstanceByID(instanceID)
-	if !ok || instance == nil {
-		return &tempopb.SpanMetricsResponse{}, nil
-	}
-
-	return instance.GetMetrics(ctx, req)
-}
-
-func (g *Generator) QueryRange(ctx context.Context, req *tempopb.QueryRangeRequest) (*tempopb.QueryRangeResponse, error) {
-	instanceID, err := validation.ExtractValidTenantID(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	// return empty if we don't have an instance
-	instance, ok := g.getInstanceByID(instanceID)
-	if !ok || instance == nil {
-		return &tempopb.QueryRangeResponse{}, nil
-	}
-
-	return instance.QueryRange(ctx, req)
-}
-
 // ExtractNoGenerateMetrics checks for presence of context keys that indicate no
 // span-derived metrics should be generated for the request. If any such context
 // key is present, this will return true, otherwise it will return false.
