@@ -1,6 +1,7 @@
 package vparquet5
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -9,6 +10,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -264,10 +266,67 @@ func (w *walBlockFlush) rowIterator() (*rowIterator, error) {
 	}
 
 	pf := file.parquetFile
-
 	idx, _, _ := parquetquery.GetColumnIndexByPath(pf, TraceIDColumnName)
-	r := parquet.NewReader(pf)
-	return newRowIterator(r, file, w.ids.EntriesSortedByID(), idx), nil
+	r := parquet.NewReader(pf) //nolint:all //deprecated
+
+	entries := w.ids.EntriesSortedByID()
+
+	// Sort by physical row number for sequential I/O instead of
+	// random seeking by trace ID order.
+	sort.Slice(entries, func(i, j int) bool {
+		return entries[i].Entry < entries[j].Entry
+	})
+
+	// Read all rows sequentially into memory. We use a pooled buffer
+	// for reading but copy to a right-sized slice immediately, so the
+	// 3.2MB pool entry is returned and reused for the next row.
+	readBuf := completeBlockRowPool.Get()
+	defer completeBlockRowPool.Put(readBuf)
+
+	rows := make([]readRow, 0, len(entries))
+	for _, entry := range entries {
+		err := r.SeekToRow(entry.Entry)
+		if err != nil {
+			r.Close()
+			file.Close()
+			return nil, fmt.Errorf("error seeking to row %d: %w", entry.Entry, err)
+		}
+
+		readBuf = readBuf[:0]
+		pqRows := []parquet.Row{readBuf}
+		_, err = r.ReadRows(pqRows)
+		if err != nil && !errors.Is(err, io.EOF) {
+			r.Close()
+			file.Close()
+			return nil, fmt.Errorf("error reading row: %w", err)
+		}
+		readBuf = pqRows[0]
+
+		var id common.ID
+		for _, v := range readBuf {
+			if v.Column() == idx {
+				id = v.ByteArray()
+				break
+			}
+		}
+
+		// Copy to a right-sized slice (~16KB typical vs 3.2MB pool entry)
+		row := make(parquet.Row, len(readBuf))
+		copy(row, readBuf)
+
+		rows = append(rows, readRow{id: id, row: row})
+	}
+
+	// Close file immediately — all data is now in memory
+	r.Close()
+	file.Close()
+
+	// Re-sort by trace ID for the multiblock merge iterator
+	sort.Slice(rows, func(i, j int) bool {
+		return bytes.Compare(rows[i].id, rows[j].id) < 0
+	})
+
+	return newRowIterator(rows), nil
 }
 
 type pageFile struct {
@@ -912,67 +971,46 @@ func parseName(filename string) (uuid.UUID, string, string, error) {
 	return id, tenant, version, nil
 }
 
-// rowIterator is used to iterate a parquet file and implement iterIterator
-// traces are iterated according to the given row numbers, because there is
-// not a guarantee that the underlying parquet file is sorted
-type rowIterator struct {
-	reader       *parquet.Reader //nolint:all //deprecated
-	pageFile     *pageFile
-	rowNumbers   []common.IDMapEntry[int64]
-	traceIDIndex int
+// readRow holds a pre-read parquet row and its trace ID.
+type readRow struct {
+	id  common.ID
+	row parquet.Row
 }
 
-func newRowIterator(r *parquet.Reader, pageFile *pageFile, rowNumbers []common.IDMapEntry[int64], traceIDIndex int) *rowIterator { //nolint:all //deprecated
-	return &rowIterator{
-		reader:       r,
-		pageFile:     pageFile,
-		rowNumbers:   rowNumbers,
-		traceIDIndex: traceIDIndex,
-	}
+// rowIterator iterates pre-read parquet rows sorted by trace ID.
+// Rows are read eagerly and sequentially from the WAL page file during
+// construction (avoiding random-seek decompression overhead), then the
+// file is closed immediately. Each row is copied to a right-sized slice
+// so the heap stays compact and GC-friendly.
+type rowIterator struct {
+	rows   []readRow
+	cursor int
+}
+
+func newRowIterator(rows []readRow) *rowIterator {
+	return &rowIterator{rows: rows}
 }
 
 func (i *rowIterator) peekNextID(context.Context) (common.ID, error) { //nolint:unused //this is being marked as unused, but it's required to satisfy the bookmarkIterator interface
-	if len(i.rowNumbers) == 0 {
+	if i.cursor >= len(i.rows) {
 		return nil, nil
 	}
 
-	return i.rowNumbers[0].ID, nil
+	return i.rows[i.cursor].id, nil
 }
 
 func (i *rowIterator) Next(context.Context) (common.ID, parquet.Row, error) {
-	if len(i.rowNumbers) == 0 {
+	if i.cursor >= len(i.rows) {
 		return nil, nil, nil
 	}
 
-	nextRowNumber := i.rowNumbers[0]
-	i.rowNumbers = i.rowNumbers[1:]
-
-	err := i.reader.SeekToRow(nextRowNumber.Entry)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	rows := []parquet.Row{completeBlockRowPool.Get()}
-	_, err = i.reader.ReadRows(rows)
-	if err != nil && !errors.Is(err, io.EOF) {
-		return nil, nil, err
-	}
-
-	row := rows[0]
-	var id common.ID
-	for _, v := range row {
-		if v.Column() == i.traceIDIndex {
-			id = v.ByteArray()
-			break
-		}
-	}
-
-	return id, row, nil
+	r := i.rows[i.cursor]
+	i.cursor++
+	return r.id, r.row, nil
 }
 
 func (i *rowIterator) Close() {
-	i.reader.Close()
-	i.pageFile.Close()
+	i.rows = nil
 }
 
 var _ common.Iterator = (*commonIterator)(nil)

@@ -16,6 +16,7 @@ import (
 	"github.com/grafana/tempo/pkg/traceql"
 	"github.com/grafana/tempo/pkg/util/test"
 	"github.com/grafana/tempo/tempodb/backend"
+	"github.com/grafana/tempo/tempodb/backend/local"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 
 	"github.com/stretchr/testify/assert"
@@ -325,6 +326,111 @@ func testWalBlock(t *testing.T, f func(w *walBlock, ids []common.ID, trs []*temp
 	require.NoError(t, w.Flush())
 
 	f(w, ids, trs)
+}
+
+func BenchmarkWalBlockIterator(b *testing.B) {
+	for _, tc := range []struct {
+		name           string
+		tracesPerFlush int
+		flushes        int
+		spansPerTrace  int
+	}{
+		{"10traces_5flushes_10spans", 10, 5, 10},
+		{"100traces_10flushes_10spans", 100, 10, 10},
+		{"100traces_50flushes_10spans", 100, 50, 10},
+		// {"100traces_50flushes_100spans", 100, 50, 100},
+	} {
+		b.Run(tc.name, func(b *testing.B) {
+			w := createBenchWALBlock(b, tc.tracesPerFlush, tc.flushes, tc.spansPerTrace)
+			b.ResetTimer()
+			b.ReportAllocs()
+
+			for i := 0; i < b.N; i++ {
+				iter, err := w.Iterator()
+				require.NoError(b, err)
+
+				for {
+					id, tr, err := iter.Next(context.Background())
+					require.NoError(b, err)
+					if id == nil || tr == nil {
+						break
+					}
+				}
+				iter.Close()
+			}
+		})
+	}
+}
+
+func BenchmarkWalBlockCompleteBlock(b *testing.B) {
+	for _, tc := range []struct {
+		name           string
+		tracesPerFlush int
+		flushes        int
+		spansPerTrace  int
+	}{
+		{"10traces_5flushes_10spans", 10, 5, 10},
+		{"100traces_10flushes_10spans", 100, 10, 10},
+		{"100traces_50flushes_10spans", 100, 50, 10},
+		// {"100traces_50flushes_100spans", 100, 50, 100},
+	} {
+		b.Run(tc.name, func(b *testing.B) {
+			w := createBenchWALBlock(b, tc.tracesPerFlush, tc.flushes, tc.spansPerTrace)
+
+			cfg := &common.BlockConfig{
+				BloomFP:             0.01,
+				BloomShardSizeBytes: 100 * 1024,
+				RowGroupSizeBytes:   100_000_000,
+			}
+
+			b.ResetTimer()
+			b.ReportAllocs()
+
+			for i := 0; i < b.N; i++ {
+				dir := b.TempDir()
+				rawR, rawW, _, err := local.New(&local.Config{Path: dir})
+				require.NoError(b, err)
+				r := backend.NewReader(rawR)
+				wr := backend.NewWriter(rawW)
+
+				iter, err := w.Iterator()
+				require.NoError(b, err)
+
+				_, err = CreateBlock(context.Background(), cfg, w.BlockMeta(), iter, r, wr)
+				require.NoError(b, err)
+				iter.Close()
+			}
+		})
+	}
+}
+
+func createBenchWALBlock(b *testing.B, tracesPerFlush, flushes, spansPerTrace int) *walBlock {
+	b.Helper()
+
+	meta := backend.NewBlockMeta("fake", uuid.New(), VersionString)
+	w, err := createWALBlock(meta, b.TempDir(), model.CurrentEncoding, 0)
+	require.NoError(b, err)
+
+	decoder := model.MustNewSegmentDecoder(model.CurrentEncoding)
+
+	for f := 0; f < flushes; f++ {
+		for t := 0; t < tracesPerFlush; t++ {
+			id := test.ValidTraceID(nil)
+			tr := test.MakeTrace(spansPerTrace, id)
+			trace.SortTrace(tr)
+
+			b1, err := decoder.PrepareForWrite(tr, 0, 0)
+			require.NoError(b, err)
+			b2, err := decoder.ToObject([][]byte{b1})
+			require.NoError(b, err)
+
+			err = w.Append(id, b2, 0, 0, true)
+			require.NoError(b, err)
+		}
+		require.NoError(b, w.Flush())
+	}
+
+	return w
 }
 
 func BenchmarkWalTraceQL(b *testing.B) {
