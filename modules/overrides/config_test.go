@@ -117,7 +117,6 @@ metrics_generator_ring_size: 3
 metrics_generator_processors: ['span-metrics']
 metrics_generator_max_active_series: 4
 metrics_generator_collection_interval: 5s
-metrics_generator_disable_collection: false
 metrics_generator_forwarder_queue_size: 6
 metrics_generator_forwarder_workers: 7
 metrics_generator_remote_write_headers:
@@ -192,7 +191,6 @@ defaults:
     - span-metrics
     max_active_series: 4
     collection_interval: 5s
-    disable_collection: false
     remote_write_headers:
       tenant-id: foo
     forwarder:
@@ -432,9 +430,9 @@ func generateTestLegacyOverrides() LegacyOverrides {
 		MetricsGeneratorProcessorServiceGraphsDimensions:                            []string{"dimension-1", "dimension-2"},
 		MetricsGeneratorProcessorServiceGraphsPeerAttributes:                        []string{"attribute-1", "attribute-2"},
 		MetricsGeneratorProcessorServiceGraphsFilterPolicies:                        []filterconfig.FilterPolicy{{Exclude: &filterconfig.PolicyMatch{MatchType: "strict", Attributes: []filterconfig.MatchPolicyAttribute{{Key: "resource.service.name", Value: "my-service"}}}}},
-		MetricsGeneratorProcessorServiceGraphsEnableClientServerPrefix:              boolPtr(true),
-		MetricsGeneratorProcessorServiceGraphsEnableMessagingSystemLatencyHistogram: boolPtr(true),
-		MetricsGeneratorProcessorServiceGraphsEnableVirtualNodeLabel:                boolPtr(true),
+		MetricsGeneratorProcessorServiceGraphsEnableClientServerPrefix:              ptrTo(true),
+		MetricsGeneratorProcessorServiceGraphsEnableMessagingSystemLatencyHistogram: ptrTo(true),
+		MetricsGeneratorProcessorServiceGraphsEnableVirtualNodeLabel:                ptrTo(true),
 		MetricsGeneratorProcessorServiceGraphsSpanMultiplierKey:                     "custom_key",
 		MetricsGeneratorProcessorSpanMetricsHistogramBuckets:                        []float64{1.0, 2.0, 5.0},
 		MetricsGeneratorProcessorSpanMetricsDimensions:                              []string{"dimension-1", "dimension-2"},
@@ -462,9 +460,9 @@ func generateTestLegacyOverrides() LegacyOverrides {
 				Join:        "join-1",
 			},
 		},
-		MetricsGeneratorProcessorSpanMetricsEnableTargetInfo:             boolPtr(true),
+		MetricsGeneratorProcessorSpanMetricsEnableTargetInfo:             ptrTo(true),
 		MetricsGeneratorProcessorSpanMetricsTargetInfoExcludedDimensions: []string{"excluded-dim-1", "excluded-dim-2"},
-		MetricsGeneratorProcessorSpanMetricsEnableInstanceLabel:          boolPtr(false),
+		MetricsGeneratorProcessorSpanMetricsEnableInstanceLabel:          ptrTo(false),
 		MetricsGeneratorProcessorSpanMetricsSpanMultiplierKey:            "custom_key",
 		MetricsGeneratorProcessorLocalBlocksMaxLiveTraces:                100,
 		MetricsGeneratorProcessorLocalBlocksMaxBlockDuration:             10 * time.Minute,

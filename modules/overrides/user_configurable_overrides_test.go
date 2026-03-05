@@ -111,7 +111,7 @@ func TestUserConfigOverridesManager_allFields(t *testing.T) {
 		Forwarders: &[]string{"my-forwarder"},
 		MetricsGenerator: userconfigurableoverrides.LimitsMetricsGenerator{
 			Processors:                      map[string]struct{}{"service-graphs": {}},
-			DisableCollection:               boolPtr(true),
+			DisableCollection:               ptrTo(true),
 			CollectionInterval:              &userconfigurableoverrides.Duration{Duration: 60 * time.Second},
 			TraceIDLabelName:                strPtr("trace_id"),
 			IngestionSlack:                  &userconfigurableoverrides.Duration{Duration: 45 * time.Second},
@@ -122,8 +122,8 @@ func TestUserConfigOverridesManager_allFields(t *testing.T) {
 			Processor: userconfigurableoverrides.LimitsMetricsGeneratorProcessor{
 				ServiceGraphs: userconfigurableoverrides.LimitsMetricsGeneratorProcessorServiceGraphs{
 					Dimensions:               &[]string{"sg-dimension"},
-					EnableClientServerPrefix: boolPtr(true),
-					EnableVirtualNodeLabel:   boolPtr(true),
+					EnableClientServerPrefix: ptrTo(true),
+					EnableVirtualNodeLabel:   ptrTo(true),
 					PeerAttributes:           &[]string{"attribute"},
 					FilterPolicies: &[]filterconfig.FilterPolicy{
 						{
@@ -149,8 +149,8 @@ func TestUserConfigOverridesManager_allFields(t *testing.T) {
 						SourceLabel: []string{"service"},
 						Join:        "",
 					}},
-					EnableTargetInfo:    boolPtr(true),
-					EnableInstanceLabel: boolPtr(false),
+					EnableTargetInfo:    ptrTo(true),
+					EnableInstanceLabel: ptrTo(false),
 					FilterPolicies: &[]filterconfig.FilterPolicy{
 						{
 							Include: &filterconfig.PolicyMatch{
@@ -479,9 +479,6 @@ func (b *badClient) Delete(context.Context, string, backend.Version) error {
 func (b badClient) Shutdown() {
 }
 
-func boolPtr(b bool) *bool {
-	return &b
-}
 
 func mapBoolPtr(m map[string]bool) *map[string]bool {
 	return &m
@@ -613,7 +610,7 @@ func perTenantRuntimeOverrides(tenantID string) *perTenantOverrides {
 					Processors:         listtomap.ListToMap{"span-metrics": {}, "service-graphs": {}, "host-info": {}},
 					MaxActiveSeries:    60000,
 					CollectionInterval: 15 * time.Second,
-					DisableCollection:  false,
+					DisableCollection:  ptrTo(false),
 					Forwarder: ForwarderOverrides{
 						QueueSize: 400,
 						Workers:   3,
@@ -623,7 +620,7 @@ func perTenantRuntimeOverrides(tenantID string) *perTenantOverrides {
 							HistogramBuckets:         []float64{0.002, 0.004, 0.008, 0.016, 0.032, 0.064},
 							Dimensions:               []string{"k8s.cluster-name", "k8s.namespace.name", "http.method", "http.route", "http.status_code", "service.version"},
 							PeerAttributes:           []string{"foo", "bar"},
-							EnableClientServerPrefix: boolPtr(true),
+							EnableClientServerPrefix: ptrTo(true),
 						},
 						SpanMetrics: SpanMetricsOverrides{
 							HistogramBuckets:             []float64{0.002, 0.004, 0.008, 0.016, 0.032, 0.064},
@@ -631,9 +628,9 @@ func perTenantRuntimeOverrides(tenantID string) *perTenantOverrides {
 							IntrinsicDimensions:          map[string]bool{"foo": true, "bar": true},
 							FilterPolicies:               []filterconfig.FilterPolicy{{Exclude: &filterconfig.PolicyMatch{MatchType: filterconfig.Regex, Attributes: []filterconfig.MatchPolicyAttribute{{Key: "resource.service.name", Value: "unknown_service:myservice"}}}}},
 							DimensionMappings:            []sharedconfig.DimensionMappings{{Name: "foo", SourceLabel: []string{"bar"}, Join: "baz"}},
-							EnableTargetInfo:             boolPtr(true),
+							EnableTargetInfo:             ptrTo(true),
 							TargetInfoExcludedDimensions: []string{"bar", "namespace", "env"},
-							EnableInstanceLabel:          boolPtr(false),
+							EnableInstanceLabel:          ptrTo(false),
 						},
 						LocalBlocks: LocalBlocksOverrides{
 							MaxLiveTraces:        100,
