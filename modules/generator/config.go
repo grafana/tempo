@@ -59,6 +59,9 @@ type Config struct {
 	Codec string `yaml:"codec"`
 	// DisableGRPC controls whether to run a gRPC server with the metrics generator endpoints.
 	DisableGRPC bool `yaml:"disable_grpc"`
+	// ConsumeFromKafka controls whether the generator should consume spans from Kafka.
+	// This is wired by deployment model in app init and not user configurable.
+	ConsumeFromKafka bool `yaml:"-"`
 
 	// LimiterType configures the type of limiter to use.
 	// Defaults to "series". Available options are "series" and "entity".
@@ -95,8 +98,10 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 }
 
 func (cfg *Config) Validate() error {
-	if err := cfg.Ingest.Validate(); err != nil {
-		return err
+	if cfg.ConsumeFromKafka {
+		if err := cfg.Ingest.Validate(); err != nil {
+			return err
+		}
 	}
 
 	if cfg.IngestConcurrency == 0 {

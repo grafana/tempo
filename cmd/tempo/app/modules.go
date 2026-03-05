@@ -248,9 +248,13 @@ func (t *App) initOverridesAPI() (services.Service, error) {
 }
 
 func (t *App) initDistributor() (services.Service, error) {
+	singleBinary := IsSingleBinary(t.cfg.Target)
+
 	t.cfg.Distributor.KafkaConfig = t.cfg.Ingest.Kafka
 	t.cfg.Distributor.IngesterWritePathEnabled = false
-	t.cfg.Distributor.KafkaWritePathEnabled = t.cfg.Ingest.Enabled // TODO: Don't mix config params
+	t.cfg.Distributor.KafkaWritePathEnabled = false
+	t.cfg.Distributor.PushSpansToKafka = true
+	t.cfg.Distributor.PushSpansToGenerator = singleBinary
 
 	// todo: make write-path client a module instead of passing the config everywhere
 	distributor, err := distributor.New(t.cfg.Distributor,
@@ -279,7 +283,11 @@ func (t *App) initDistributor() (services.Service, error) {
 }
 
 func (t *App) initGenerator() (services.Service, error) {
+	singleBinary := IsSingleBinary(t.cfg.Target)
+
 	t.cfg.Generator.Ring.ListenPort = t.cfg.Server.GRPCListenPort
+	t.cfg.Generator.DisableGRPC = !singleBinary
+	t.cfg.Generator.ConsumeFromKafka = !singleBinary
 
 	t.cfg.Generator.Ingest = t.cfg.Ingest
 	t.cfg.Generator.Ingest.Kafka.ConsumerGroup = generator.ConsumerGroup
@@ -300,8 +308,8 @@ func (t *App) initGenerator() (services.Service, error) {
 	queryRangeHandler := t.HTTPAuthMiddleware.Wrap(http.HandlerFunc(t.generator.QueryRangeHandler))
 	t.Server.HTTPRouter().Handle(path.Join(api.PathPrefixGenerator, addHTTPAPIPrefix(&t.cfg, api.PathMetricsQueryRange)), queryRangeHandler)
 
-	if !IsSingleBinary(t.cfg.Target) {
-		tempopb.RegisterMetricsGeneratorServer(t.Server.GRPC(), t.generator) // todo: this can be removed before 3.0 but needs to exist as long as we have any deployments anywhere on the traditional arch
+	if singleBinary {
+		tempopb.RegisterMetricsGeneratorServer(t.Server.GRPC(), t.generator)
 	}
 
 	return t.generator, nil
@@ -311,12 +319,8 @@ func (t *App) initGeneratorNoLocalBlocks() (services.Service, error) {
 	reg := prometheus.DefaultRegisterer
 
 	t.cfg.Generator.Ingest = t.cfg.Ingest
+	t.cfg.Generator.ConsumeFromKafka = true
 
-	// In this mode, the generator runs as a stateless queue consumer that reads from
-	// Kafka and remote writes to a Prometheus-compatible metrics store.
-	if !t.cfg.Ingest.Enabled {
-		return nil, errors.New("ingest storage must be enabled to run metrics generator in this mode")
-	}
 	// In this mode, the generator does not need to become available to serve
 	// queries, so we can skip setting up a gRPC server.
 	t.cfg.Generator.DisableGRPC = true
@@ -356,10 +360,6 @@ func (t *App) initGeneratorRingWatcher() (services.Service, error) {
 }
 
 func (t *App) initBlockBuilder() (services.Service, error) {
-	if !t.cfg.Ingest.Enabled {
-		return services.NewIdleService(nil, nil), nil
-	}
-
 	t.cfg.BlockBuilder.IngestStorageConfig = t.cfg.Ingest
 	t.cfg.BlockBuilder.IngestStorageConfig.Kafka.ConsumerGroup = blockbuilder.ConsumerGroup
 	t.cfg.BlockBuilder.GlobalBlockConfig = t.cfg.StorageConfig.Trace.Block
@@ -675,10 +675,6 @@ func (t *App) initBackendWorker() (services.Service, error) {
 }
 
 func (t *App) initLiveStore() (services.Service, error) {
-	if !t.cfg.Ingest.Enabled {
-		return services.NewIdleService(nil, nil), nil
-	}
-
 	// In SingleBinary mode don't try to discover partition from host name.
 	// Always use partition 0. This is for small installs or local/debugging setups.
 	singlePartition := IsSingleBinary(t.cfg.Target)

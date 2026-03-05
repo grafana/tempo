@@ -1985,7 +1985,7 @@ func TestPushTracesSkipMetricsGenerationIngestStorage(t *testing.T) {
 	distributorCfg, ingesterClientCfg, overridesSvc, _,
 		ingesterRing, limits, middleware := setupDependencies(t, limitCfg)
 
-	distributorCfg.KafkaWritePathEnabled = true
+	distributorCfg.PushSpansToKafka = true
 	distributorCfg.KafkaConfig = ingest.KafkaConfig{}
 	distributorCfg.KafkaConfig.RegisterFlags(&flag.FlagSet{})
 	distributorCfg.KafkaConfig.Address = kafka.ListenAddrs()[0]

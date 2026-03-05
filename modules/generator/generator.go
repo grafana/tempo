@@ -176,7 +176,7 @@ func (g *Generator) starting(ctx context.Context) (err error) {
 		}
 	}
 
-	if g.cfg.Ingest.Enabled {
+	if g.cfg.ConsumeFromKafka {
 		g.kafkaClient, err = ingest.NewGroupReaderClient(
 			g.cfg.Ingest.Kafka,
 			g.partitionRing,
@@ -207,7 +207,7 @@ func (g *Generator) starting(ctx context.Context) (err error) {
 }
 
 func (g *Generator) running(ctx context.Context) error {
-	if g.cfg.Ingest.Enabled {
+	if g.cfg.ConsumeFromKafka {
 		g.startKafka()
 	}
 
@@ -236,7 +236,7 @@ func (g *Generator) stopping(_ error) error {
 	g.stopIncomingRequests()
 
 	// Stop reading from queue and wait for outstanding data to be processed and committed
-	if g.cfg.Ingest.Enabled {
+	if g.cfg.ConsumeFromKafka {
 		g.stopKafka()
 	}
 
