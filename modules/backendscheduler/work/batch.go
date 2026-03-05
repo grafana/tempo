@@ -58,15 +58,17 @@ func (b *batchStore) hasActive(tenantID string) bool {
 
 // flush writes all active batches to batches.pb in localPath using proto encoding.
 func (b *batchStore) flush(localPath string) error {
+	// Hold the read lock through Marshal so that clearRescan mutations cannot race
+	// with field reads inside proto.Marshal.
 	b.mu.RLock()
 	batches := make([]*tempopb.RedactionBatch, 0, len(b.byTenant))
 	for _, batch := range b.byTenant {
 		batches = append(batches, batch)
 	}
-	b.mu.RUnlock()
-
 	msg := &tempopb.RedactionBatches{Batches: batches}
 	data, err := msg.Marshal()
+	b.mu.RUnlock()
+
 	if err != nil {
 		return fmt.Errorf("marshal batches: %w", err)
 	}
@@ -76,6 +78,27 @@ func (b *batchStore) flush(localPath string) error {
 		return fmt.Errorf("mkdir %s: %w", localPath, err)
 	}
 	return atomicWriteFile(data, path, batchesFileName)
+}
+
+// list returns all active batches.
+func (b *batchStore) list() []*tempopb.RedactionBatch {
+	b.mu.RLock()
+	defer b.mu.RUnlock()
+	out := make([]*tempopb.RedactionBatch, 0, len(b.byTenant))
+	for _, batch := range b.byTenant {
+		out = append(out, batch)
+	}
+	return out
+}
+
+// clearRescan zeroes the rescan fields on the batch for tenantID under the write lock.
+func (b *batchStore) clearRescan(tenantID string) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	if batch, ok := b.byTenant[tenantID]; ok {
+		batch.SkippedCompactionJobIds = nil
+		batch.RescanAfterUnixNano = 0
+	}
 }
 
 // load reads batches.pb from localPath. Missing file is not an error (clean start).
@@ -127,4 +150,12 @@ func (w *Work) FlushBatchesToLocal(_ context.Context, localPath string) error {
 
 func (w *Work) LoadBatchesFromLocal(_ context.Context, localPath string) error {
 	return w.batches.load(localPath)
+}
+
+func (w *Work) ListBatches() []*tempopb.RedactionBatch {
+	return w.batches.list()
+}
+
+func (w *Work) ClearBatchRescan(tenantID string) {
+	w.batches.clearRescan(tenantID)
 }

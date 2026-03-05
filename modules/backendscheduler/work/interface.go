@@ -35,6 +35,8 @@ type Interface interface {
 	GetBatch(tenantID string) *tempopb.RedactionBatch
 	RemoveBatch(tenantID string)
 	HasActiveBatchForTenant(tenantID string) bool
+	ListBatches() []*tempopb.RedactionBatch
+	ClearBatchRescan(tenantID string)
 	FlushBatchesToLocal(ctx context.Context, localPath string) error
 	LoadBatchesFromLocal(ctx context.Context, localPath string) error
 

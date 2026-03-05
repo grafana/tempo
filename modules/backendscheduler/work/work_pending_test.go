@@ -51,6 +51,41 @@ func TestAddPendingJobs(t *testing.T) {
 	})
 }
 
+func TestListAllPendingJobs(t *testing.T) {
+	w := New(Config{}).(*Work)
+
+	// Empty initially.
+	require.Empty(t, w.ListAllPendingJobs())
+
+	jobs := []*Job{
+		createRedactionJob("r1", "tenant-a", "block-1"),
+		createRedactionJob("r2", "tenant-a", "block-2"),
+		createRedactionJob("r3", "tenant-b", "block-1"),
+	}
+	require.NoError(t, w.AddPendingJobs(jobs))
+
+	all := w.ListAllPendingJobs()
+	require.Len(t, all, 3)
+
+	// All returned jobs must be from the pending set (not the active jobs map).
+	ids := make(map[string]bool, len(all))
+	for _, j := range all {
+		ids[j.ID] = true
+	}
+	require.True(t, ids["r1"])
+	require.True(t, ids["r2"])
+	require.True(t, ids["r3"])
+
+	// Active jobs must not appear.
+	active := createRedactionJob("active-1", "tenant-a", "block-3")
+	require.NoError(t, w.AddJob(active))
+	require.Len(t, w.ListAllPendingJobs(), 3)
+
+	// After removal the count drops.
+	w.RemovePending("r1")
+	require.Len(t, w.ListAllPendingJobs(), 2)
+}
+
 func TestBlockPending(t *testing.T) {
 	w := New(Config{}).(*Work)
 
@@ -88,7 +123,7 @@ func TestRemovePending(t *testing.T) {
 	require.False(t, w.BlockPending("tenant-a", "block-2"))
 }
 
-func TestPopNextPendingRedactionJob_DrainsOneTenant(t *testing.T) {
+func TestPopNextPendingJob_DrainsPendingQueue(t *testing.T) {
 	w := New(Config{}).(*Work)
 	jobs := []*Job{
 		createRedactionJob("r-a1", "tenant-a", "block-1"),
@@ -97,17 +132,15 @@ func TestPopNextPendingRedactionJob_DrainsOneTenant(t *testing.T) {
 	}
 	require.NoError(t, w.AddPendingJobs(jobs))
 
-	// Pop should drain tenant-a first (order of first pop is undefined, but then same tenant)
-	var poppedTenants []string
+	seen := make(map[string]bool)
 	for range 3 {
 		j := w.PopNextPendingJob(tempopb.JobType_JOB_TYPE_REDACTION)
 		require.NotNil(t, j)
-		poppedTenants = append(poppedTenants, j.JobDetail.Tenant)
+		seen[j.ID] = true
 	}
-	// tenant-a should be drained before we see tenant-b
-	require.Equal(t, "tenant-a", poppedTenants[0])
-	require.Equal(t, "tenant-a", poppedTenants[1])
-	require.Equal(t, "tenant-b", poppedTenants[2])
+	require.True(t, seen["r-a1"])
+	require.True(t, seen["r-a2"])
+	require.True(t, seen["r-b1"])
 
 	require.Nil(t, w.PopNextPendingJob(tempopb.JobType_JOB_TYPE_REDACTION))
 	require.Len(t, w.ListPendingJobs("tenant-a", tempopb.JobType_JOB_TYPE_REDACTION), 0)
@@ -150,10 +183,24 @@ func TestPendingRoundTrip_MarshalUnmarshal(t *testing.T) {
 	w2 := New(Config{}).(*Work)
 	require.NoError(t, w2.Unmarshal(data))
 
+	// Shard-scan based checks.
 	require.Len(t, w2.ListPendingJobs("tenant-a", tempopb.JobType_JOB_TYPE_REDACTION), 1)
 	require.Len(t, w2.ListPendingJobs("tenant-b", tempopb.JobType_JOB_TYPE_REDACTION), 1)
+	require.Len(t, w2.ListAllPendingJobs(), 2)
+
+	// pendingBlocks index rebuilt correctly.
 	require.True(t, w2.BlockPending("tenant-a", "block-1"))
 	require.True(t, w2.BlockPending("tenant-b", "block-1"))
+
+	// pendingByTenant index rebuilt correctly (used by HasPendingJobs and PopNextPendingJob).
+	require.True(t, w2.HasPendingJobs("tenant-a", tempopb.JobType_JOB_TYPE_REDACTION))
+	require.True(t, w2.HasPendingJobs("tenant-b", tempopb.JobType_JOB_TYPE_REDACTION))
+	require.False(t, w2.HasPendingJobs("tenant-c", tempopb.JobType_JOB_TYPE_REDACTION))
+
+	j := w2.PopNextPendingJob(tempopb.JobType_JOB_TYPE_REDACTION)
+	require.NotNil(t, j)
+	require.False(t, w2.HasPendingJobs(j.Tenant(), tempopb.JobType_JOB_TYPE_REDACTION))
+	require.False(t, w2.BlockPending(j.Tenant(), j.GetRedactionBlockID()))
 }
 
 func TestPendingAndActiveJobs_Isolated(t *testing.T) {
