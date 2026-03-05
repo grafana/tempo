@@ -696,7 +696,6 @@ func (t *App) initLiveStore() (services.Service, error) {
 
 	tempopb.RegisterQuerierServer(t.Server.GRPC(), t.liveStore)
 	tempopb.RegisterMetricsServer(t.Server.GRPC(), t.liveStore)
-	tempopb.RegisterMetricsGeneratorServer(t.Server.GRPC(), t.liveStore)
 
 	t.Server.HTTPRouter().Methods(http.MethodGet, http.MethodPost, http.MethodDelete).
 		Path("/live-store/prepare-partition-downscale").
