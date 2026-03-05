@@ -251,8 +251,6 @@ func (t *App) initDistributor() (services.Service, error) {
 	singleBinary := IsSingleBinary(t.cfg.Target)
 
 	t.cfg.Distributor.KafkaConfig = t.cfg.Ingest.Kafka
-	t.cfg.Distributor.IngesterWritePathEnabled = false
-	t.cfg.Distributor.KafkaWritePathEnabled = false
 	t.cfg.Distributor.PushSpansToKafka = true
 	t.cfg.Distributor.PushSpansToGenerator = singleBinary
 
