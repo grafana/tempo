@@ -962,6 +962,183 @@ func TestBackendBlockSearchTraceQLEvents(t *testing.T) {
 	}
 }
 
+// TestPlanBasedSearch verifies the plan-based search path produces correct
+// results against real parquet data. It creates a block with a known trace,
+// runs several TraceQL queries through the plan-based path (BuildPlan →
+// TranslateSearch), and verifies the results match expectations.
+func TestPlanBasedSearch(t *testing.T) {
+	numTraces := 50
+	traces := make([]*Trace, 0, numTraces)
+	wantTraceIdx := rand.Intn(numTraces)
+	wantTraceID := test.ValidTraceID(nil)
+
+	for i := 0; i < numTraces; i++ {
+		if i == wantTraceIdx {
+			traces = append(traces, fullyPopulatedTestTrace(wantTraceID))
+			continue
+		}
+		id := test.ValidTraceID(nil)
+		tr, _ := traceToParquet(&backend.BlockMeta{}, id, test.MakeTrace(1, id), nil)
+		traces = append(traces, tr)
+	}
+
+	b := makeBackendBlockWithTraces(t, traces)
+	ctx := context.Background()
+	wantTraceIDHex := util.TraceIDToHexString(wantTraceID)
+
+	// Open scan backend for plan-based path
+	scanBackend, cleanup, err := b.OpenScanBackend(ctx, common.DefaultSearchOptions())
+	require.NoError(t, err)
+	require.NotNil(t, scanBackend)
+	defer cleanup()
+
+	searchesThatMatch := []struct {
+		name  string
+		query string
+	}{
+		{"Intrinsic: name", `{name = "hello"}`},
+		{"Intrinsic: duration", `{duration = 100s}`},
+		{"Intrinsic: status = error", `{status = error}`},
+		{"Span attribute: http.status_code", `{span.http.status_code = 500}`},
+		{"Resource attribute: cluster", `{resource.cluster = "cluster"}`},
+		{"Unscoped attribute: foo", `{.foo = "def"}`},
+	}
+
+	for _, tc := range searchesThatMatch {
+		t.Run("match/"+tc.name, func(t *testing.T) {
+			expr, err := traceql.Parse(tc.query)
+			require.NoError(t, err)
+
+			plan, err := traceql.BuildSearchTracePlan(expr)
+			require.NoError(t, err)
+
+			searchEval, err := common.TranslateSearch(ctx, plan, scanBackend, common.DefaultSearchOptions(), 20)
+			require.NoError(t, err)
+
+			err = searchEval.Do(ctx)
+			require.NoError(t, err)
+
+			resp := searchEval.Response()
+			require.NotNil(t, resp)
+
+			var found *tempopb.TraceSearchMetadata
+			for _, tr := range resp.Traces {
+				if tr.TraceID == wantTraceIDHex {
+					found = tr
+					break
+				}
+			}
+			require.NotNil(t, found, "plan-based search should find trace for query: %s", tc.query)
+			require.Equal(t, "RootService", found.RootServiceName)
+			require.Equal(t, "RootSpan", found.RootTraceName)
+		})
+	}
+
+	searchesThatDontMatch := []struct {
+		name  string
+		query string
+	}{
+		{"Intrinsic: wrong name", `{name = "nothello"}`},
+		{"Intrinsic: duration too long", `{duration > 1000s}`},
+		{"Span attribute: wrong status_code", `{span.http.status_code = 200}`},
+		{"Resource attribute: wrong cluster", `{resource.cluster = "notcluster"}`},
+	}
+
+	for _, tc := range searchesThatDontMatch {
+		t.Run("nomatch/"+tc.name, func(t *testing.T) {
+			expr, err := traceql.Parse(tc.query)
+			require.NoError(t, err)
+
+			plan, err := traceql.BuildSearchTracePlan(expr)
+			require.NoError(t, err)
+
+			searchEval, err := common.TranslateSearch(ctx, plan, scanBackend, common.DefaultSearchOptions(), 20)
+			require.NoError(t, err)
+
+			err = searchEval.Do(ctx)
+			require.NoError(t, err)
+
+			resp := searchEval.Response()
+			require.NotNil(t, resp)
+
+			for _, tr := range resp.Traces {
+				require.NotEqual(t, wantTraceIDHex, tr.TraceID, "plan-based search should NOT find trace for query: %s", tc.query)
+			}
+		})
+	}
+}
+
+// TestPlanBasedSearch_GroupBy verifies the end-to-end plan-based search path
+// for a query containing a by() clause.
+//
+// The fullyPopulatedTestTrace has two resource spans:
+//   - resource.service.name = "myservice"  →  span with http.status_code = 500
+//   - resource.service.name = "service2"   →  span with http.status_code = 501
+//
+// Query: { span.http.status_code >= 500 } | by(resource.service.name)
+//
+// Expected: the trace is found; the result carries two SpanSets (one per
+// service); each SpanSet has the group attribute set; and trace-level metadata
+// (TraceID, RootServiceName) is populated on every group.
+func TestPlanBasedSearch_GroupBy(t *testing.T) {
+	traceID := test.ValidTraceID(nil)
+	tr := fullyPopulatedTestTrace(traceID)
+	b := makeBackendBlockWithTraces(t, []*Trace{tr})
+	ctx := context.Background()
+	traceIDHex := util.TraceIDToHexString(traceID)
+
+	scanBackend, cleanup, err := b.OpenScanBackend(ctx, common.DefaultSearchOptions())
+	require.NoError(t, err)
+	defer cleanup()
+
+	const query = `{ span.http.status_code >= 500 } | by(resource.service.name)`
+	expr, err := traceql.Parse(query)
+	require.NoError(t, err)
+
+	plan, err := traceql.BuildSearchTracePlan(expr)
+	require.NoError(t, err)
+
+	searchEval, err := common.TranslateSearch(ctx, plan, scanBackend, common.DefaultSearchOptions(), 20)
+	require.NoError(t, err)
+
+	err = searchEval.Do(ctx)
+	require.NoError(t, err)
+
+	resp := searchEval.Response()
+	require.NotNil(t, resp)
+
+	// The trace must appear in results.
+	var found *tempopb.TraceSearchMetadata
+	for _, tr := range resp.Traces {
+		if tr.TraceID == traceIDHex {
+			found = tr
+			break
+		}
+	}
+	require.NotNil(t, found, "expected trace %s to be found for query: %s", traceIDHex, query)
+
+	// Trace-level metadata must be populated (set by lateMaterializeIter before GroupBy).
+	require.Equal(t, "RootService", found.RootServiceName)
+	require.Equal(t, "RootSpan", found.RootTraceName)
+	require.NotZero(t, found.DurationMs)
+
+	// The query groups by service.name; both services match (status_code 500 and 501).
+	// Each group becomes a separate SpanSet entry in the result.
+	require.Len(t, found.SpanSets, 2, "expected two SpanSets (one per service)")
+
+	// Collect the group attribute values across all SpanSets.
+	services := make(map[string]bool)
+	for _, ss := range found.SpanSets {
+		for _, attr := range ss.Attributes {
+			if attr.Key == `by(resource.service.name)` {
+				services[attr.Value.GetStringValue()] = true
+			}
+		}
+	}
+	require.True(t, services["myservice"], "expected a SpanSet for myservice")
+	require.True(t, services["service2"], "expected a SpanSet for service2")
+}
+
 func makeReq(conditions ...traceql.Condition) traceql.FetchSpansRequest {
 	return traceql.FetchSpansRequest{
 		Conditions: conditions,

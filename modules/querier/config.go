@@ -30,7 +30,8 @@ type Config struct {
 }
 
 type SearchConfig struct {
-	QueryTimeout time.Duration `yaml:"query_timeout"`
+	QueryTimeout            time.Duration `yaml:"query_timeout"`
+	EnablePlanBasedExecution bool          `yaml:"enable_plan_based_execution,omitempty"`
 }
 
 type TraceByIDConfig struct {
@@ -51,7 +52,7 @@ type MetricsConfig struct {
 
 	// EnablePlanBasedExecution switches the block-level metrics query path to use
 	// the logical plan tree executor instead of the legacy CompileMetricsQueryRange path.
-	// Defaults to false; set to true to opt in during evaluation.
+	// Defaults to true; set to false to fall back to the legacy path.
 	EnablePlanBasedExecution bool `yaml:"enable_plan_based_execution,omitempty"`
 }
 
@@ -76,6 +77,7 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 	cfg.Search.QueryTimeout = 30 * time.Second
 	cfg.Metrics.ConcurrentBlocks = 2
 	cfg.Metrics.TimeOverlapCutoff = 0.2
+	cfg.Metrics.EnablePlanBasedExecution = true
 	cfg.Worker = worker.Config{
 		MatchMaxConcurrency:   true,
 		MaxConcurrentRequests: cfg.MaxConcurrentQueries,

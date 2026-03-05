@@ -64,6 +64,8 @@ type span struct {
 	cbSpanset      *traceql.Spanset
 }
 
+func (s *span) RowNum() parquetquery.RowNumber { return s.rowNum }
+
 func (s *span) Release() {
 	putSpan(s)
 }

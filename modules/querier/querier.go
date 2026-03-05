@@ -645,6 +645,23 @@ func (q *Querier) SearchBlock(ctx context.Context, req *tempopb.SearchBlockReque
 	opts.TotalPages = int(req.PagesToSearch)
 	opts.MaxBytes = q.limits.MaxBytesPerTrace(tenantID)
 
+	// --- Plan-based search path ---
+	if api.IsTraceQLQuery(req.SearchReq) && q.cfg.Search.EnablePlanBasedExecution {
+		if expr, parseErr := traceql.Parse(req.SearchReq.Query); parseErr == nil {
+			if scanBackend, cleanup, sbErr := q.store.OpenScanBackend(ctx, meta, opts); sbErr == nil && scanBackend != nil {
+				defer cleanup()
+				if plan, planErr := traceql.BuildSearchTracePlan(expr); planErr == nil {
+					if searchEval, tErr := common.TranslateSearch(ctx, plan, scanBackend, opts, int(req.SearchReq.Limit)); tErr == nil {
+						if doErr := searchEval.Do(ctx); doErr == nil {
+							return searchEval.Response(), nil
+						}
+					}
+				}
+			}
+		}
+	}
+	// --- End plan-based search path ---
+
 	if api.IsTraceQLQuery(req.SearchReq) {
 		fetcher := traceql.NewSpansetFetcherWrapper(func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
 			return q.store.Fetch(ctx, meta, req, opts)

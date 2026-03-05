@@ -50,6 +50,7 @@ func PredicatePushdownRule() Rule {
 				return n, false
 			}
 			spanScan.Conditions = append(spanConds, spanScan.Conditions...)
+			spanScan.AllConditions = req.AllConditions
 		}
 
 		if len(resourceConds) > 0 {
@@ -58,6 +59,7 @@ func PredicatePushdownRule() Rule {
 				return n, false
 			}
 			resourceScan.Conditions = append(resourceConds, resourceScan.Conditions...)
+			resourceScan.AllConditions = req.AllConditions
 		}
 
 		// Propagate AllConditions to the TraceScanNode when conditions were pushed.
@@ -194,6 +196,109 @@ func UnscopedAttributePushdownRule() Rule {
 		}
 
 		// Keep the filter node — it performs the actual predicate evaluation.
+		return n, changed
+	})
+}
+
+// GroupByHoistRule hoists a GroupByNode above a ProjectNode when the
+// GroupByNode is the direct child of the ProjectNode:
+//
+//	Before: ProjectNode(cols, child=GroupByNode(by, child=X), fetchTree=F)
+//	After:  GroupByNode(by, child=ProjectNode(cols, child=X, fetchTree=F))
+//
+// This is required for correct late-materialization in search queries.
+// lateMaterializeIter drives on a forward-only fetch iterator and performs
+// exactly one SeekTo per spanset. GroupByNode can emit multiple spansets for
+// the same trace (one per group value), which would require seeking backward
+// to the same trace row — something a forward iterator cannot do.
+// By hoisting GroupByNode above ProjectNode, metadata is fetched 1-to-1 per
+// trace first; GroupByNode then partitions the already-enriched spansets.
+func GroupByHoistRule() Rule {
+	return FuncRule("group-by-hoist", func(n PlanNode) (PlanNode, bool) {
+		proj, ok := n.(*ProjectNode)
+		if !ok {
+			return n, false
+		}
+		group, ok := proj.child.(*GroupByNode)
+		if !ok {
+			return n, false
+		}
+		// Sink ProjectNode below GroupByNode, keeping the same fetchTree.
+		newProj := NewProjectNode(proj.Columns, group.child, proj.fetchTree)
+		return group.WithChild(newProj), true
+	})
+}
+
+// GroupByFetchRule adds OpNone (fetch-only) conditions for the GroupByNode's
+// By expression to the appropriate scan nodes below it, so the storage layer
+// pre-fetches the group-by attribute.
+//
+//   - resource-scoped attributes → ResourceScanNode
+//   - span-scoped attributes     → SpanScanNode
+//   - unscoped user attributes   → both (OR semantics, same as UnscopedAttributePushdownRule)
+//   - scoped intrinsics          → SpanScanNode (storage layer resolves actual column)
+//
+// AllConditions on scan nodes is intentionally NOT changed. In the legacy
+// engine GroupOperation.extractConditions forced AllConditions=false because it
+// mixed fetch-only and filter conditions in the same request. In the plan-based
+// approach they are kept separate: filter predicates already control selectivity
+// and OpNone conditions are purely additive fetches.
+func GroupByFetchRule() Rule {
+	return FuncRule("group-by-fetch", func(n PlanNode) (PlanNode, bool) {
+		group, ok := n.(*GroupByNode)
+		if !ok {
+			return n, false
+		}
+		req := &FetchSpansRequest{AllConditions: false}
+		group.By.extractConditions(req)
+		if len(req.Conditions) == 0 {
+			return n, false
+		}
+
+		changed := false
+		for _, c := range req.Conditions {
+			fetch := Condition{Attribute: c.Attribute, Op: OpNone}
+			switch c.Attribute.Scope {
+			case AttributeScopeResource:
+				if res := firstResourceScanNode(group.child); res != nil {
+					if !hasConditionForAttr(res.Conditions, c.Attribute) {
+						res.Conditions = append(res.Conditions, fetch)
+						changed = true
+					}
+				}
+			case AttributeScopeSpan:
+				if span := firstSpanScanNode(group.child); span != nil {
+					if !hasConditionForAttr(span.Conditions, c.Attribute) {
+						span.Conditions = append(span.Conditions, fetch)
+						changed = true
+					}
+				}
+			case AttributeScopeNone:
+				if c.Attribute.Intrinsic != IntrinsicNone {
+					// Scoped intrinsic: storage maps it to the real column.
+					if span := firstSpanScanNode(group.child); span != nil {
+						if !hasConditionForAttr(span.Conditions, c.Attribute) {
+							span.Conditions = append(span.Conditions, fetch)
+							changed = true
+						}
+					}
+				} else {
+					// Unscoped user attribute: push to both levels (OR semantics).
+					if span := firstSpanScanNode(group.child); span != nil {
+						if !hasConditionForAttr(span.Conditions, c.Attribute) {
+							span.Conditions = append(span.Conditions, fetch)
+							changed = true
+						}
+					}
+					if res := firstResourceScanNode(group.child); res != nil {
+						if !hasConditionForAttr(res.Conditions, c.Attribute) {
+							res.Conditions = append(res.Conditions, fetch)
+							changed = true
+						}
+					}
+				}
+			}
+		}
 		return n, changed
 	})
 }

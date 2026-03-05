@@ -281,6 +281,8 @@ func (s *span) AttributeFor(a traceql.Attribute) (traceql.Static, bool) {
 	return traceql.StaticNil, false
 }
 
+func (s *span) RowNum() parquetquery.RowNumber { return s.rowNum }
+
 func (s *span) ID() []byte {
 	return s.id
 }

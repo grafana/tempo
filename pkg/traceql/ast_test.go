@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grafana/tempo/pkg/parquetquery"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -1006,6 +1007,8 @@ func (m *mockSpan) AllAttributesFunc(cb func(Attribute, Static)) {
 		cb(k, v)
 	}
 }
+
+func (m *mockSpan) RowNum() parquetquery.RowNumber { return parquetquery.EmptyRowNumber() }
 
 func (m *mockSpan) ID() []byte {
 	return m.id

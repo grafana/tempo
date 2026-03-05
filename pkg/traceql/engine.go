@@ -156,7 +156,7 @@ func (e *Engine) ExecuteSearch(ctx context.Context, searchReq *tempopb.SearchReq
 			break
 		}
 
-		combiner.addSpanset(spanset)
+		combiner.AddSpanset(spanset)
 		if combiner.IsCompleteFor(TimestampNever) {
 			break
 		}
@@ -300,7 +300,7 @@ func (e *Engine) createAutocompleteRequest(tag Attribute, pipeline Pipeline) Fet
 	return autocompleteReq
 }
 
-func asTraceSearchMetadata(spanset *Spanset) *tempopb.TraceSearchMetadata {
+func AsTraceSearchMetadata(spanset *Spanset) *tempopb.TraceSearchMetadata {
 	metadata := &tempopb.TraceSearchMetadata{
 		TraceID:           util.TraceIDToHexString(spanset.TraceID),
 		RootServiceName:   spanset.RootServiceName,

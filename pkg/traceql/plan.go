@@ -113,8 +113,9 @@ func (n *TraceScanNode) WithChild(child PlanNode) *TraceScanNode {
 
 // ResourceScanNode maps to the resource-level parquet iterator.
 type ResourceScanNode struct {
-	Conditions []Condition
-	child      PlanNode
+	Conditions    []Condition
+	AllConditions bool
+	child         PlanNode
 }
 
 func NewResourceScanNode(conditions []Condition, child PlanNode) *ResourceScanNode {
@@ -165,8 +166,9 @@ func (n *InstrumentationScopeScanNode) WithChild(child PlanNode) *Instrumentatio
 
 // SpanScanNode maps to the span-level parquet iterator.
 type SpanScanNode struct {
-	Conditions []Condition
-	child      PlanNode
+	Conditions    []Condition
+	AllConditions bool
+	child         PlanNode
 }
 
 func NewSpanScanNode(conditions []Condition, child PlanNode) *SpanScanNode {
@@ -334,23 +336,29 @@ func (n *SpansetRelationNode) WithChild(child PlanNode) *SpansetRelationNode {
 
 // --- ProjectNode: second-pass fetch boundary ---
 
-// ProjectNode triggers a second-pass parquet fetch for additional columns
-// on surviving spans. It is placed above the scan tree but below engine nodes
-// so that grouping happens after the fetch.
+// ProjectNode is a late materialization operator. It has two logical sides:
+// - child (driving side): filtered spans with row numbers from the first pass
+// - fetchTree (fetch side): scan tree with OpNone conditions for metadata columns
+// The output is driving-side results enriched with fetch-side data.
 type ProjectNode struct {
-	Columns []Attribute
-	child   PlanNode
+	Columns   []Attribute
+	child     PlanNode
+	fetchTree PlanNode
 }
 
-func NewProjectNode(columns []Attribute, child PlanNode) *ProjectNode {
-	return &ProjectNode{Columns: columns, child: child}
+func NewProjectNode(columns []Attribute, child PlanNode, fetchTree PlanNode) *ProjectNode {
+	return &ProjectNode{Columns: columns, child: child, fetchTree: fetchTree}
 }
 
 func (n *ProjectNode) Children() []PlanNode {
+	var ch []PlanNode
 	if n.child != nil {
-		return []PlanNode{n.child}
+		ch = append(ch, n.child)
 	}
-	return nil
+	if n.fetchTree != nil {
+		ch = append(ch, n.fetchTree)
+	}
+	return ch
 }
 func (n *ProjectNode) Accept(v PlanVisitor) { WalkPlan(n, v) }
 func (n *ProjectNode) String() string       { return fmt.Sprintf("Project(%v)", n.Columns) }
@@ -359,6 +367,63 @@ func (n *ProjectNode) WithChild(child PlanNode) *ProjectNode {
 	cp := *n
 	cp.child = child
 	return &cp
+}
+
+// FetchTree returns the fetch-side scan tree (may be nil).
+func (n *ProjectNode) FetchTree() PlanNode { return n.fetchTree }
+
+// IntrinsicLevel returns the scan level for an intrinsic attribute.
+// This determines which scan node in the plan tree should carry the condition.
+func IntrinsicLevel(i Intrinsic) AttributeScope {
+	switch i {
+	case IntrinsicTraceRootService, IntrinsicTraceRootSpan, IntrinsicTraceDuration,
+		IntrinsicTraceID, IntrinsicTraceStartTime, IntrinsicServiceStats:
+		return AttributeScopeNone // trace level (above resource)
+	case IntrinsicEventName, IntrinsicEventTimeSinceStart:
+		return AttributeScopeEvent
+	case IntrinsicLinkTraceID, IntrinsicLinkSpanID:
+		return AttributeScopeLink
+	case IntrinsicInstrumentationName, IntrinsicInstrumentationVersion:
+		return AttributeScopeInstrumentation
+	default:
+		return AttributeScopeSpan // span level is the default
+	}
+}
+
+// BuildFetchScanTree creates a minimal scan tree with the given columns
+// placed as OpNone (fetch-only) conditions at the correct scan levels.
+func BuildFetchScanTree(columns []Attribute) *TraceScanNode {
+	var traceConds, resConds, spanConds []Condition
+	for _, col := range columns {
+		cond := Condition{Attribute: col, Op: OpNone}
+		if col.Intrinsic != IntrinsicNone {
+			level := IntrinsicLevel(col.Intrinsic)
+			switch level {
+			case AttributeScopeSpan:
+				spanConds = append(spanConds, cond)
+			case AttributeScopeResource:
+				resConds = append(resConds, cond)
+			default:
+				// Trace-level intrinsics (AttributeScopeNone) go on TraceScanNode
+				traceConds = append(traceConds, cond)
+			}
+		} else {
+			// Scoped attributes
+			switch col.Scope {
+			case AttributeScopeResource:
+				resConds = append(resConds, cond)
+			case AttributeScopeSpan:
+				spanConds = append(spanConds, cond)
+			default:
+				traceConds = append(traceConds, cond)
+			}
+		}
+	}
+
+	span := &SpanScanNode{Conditions: spanConds}
+	instrScope := &InstrumentationScopeScanNode{child: span}
+	resource := &ResourceScanNode{Conditions: resConds, child: instrScope}
+	return &TraceScanNode{Conditions: traceConds, child: resource}
 }
 
 // --- Metrics nodes (purely logical aggregation config) ---

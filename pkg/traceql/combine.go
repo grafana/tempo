@@ -18,7 +18,7 @@ type MetadataCombiner interface {
 	Metadata() []*tempopb.TraceSearchMetadata
 	MetadataAfter(ts uint32) []*tempopb.TraceSearchMetadata
 
-	addSpanset(*Spanset)
+	AddSpanset(*Spanset)
 }
 
 const TimestampNever = uint32(math.MaxUint32)
@@ -45,10 +45,10 @@ func newAnyCombiner(limit int) *anyCombiner {
 
 // addSpanset adds a new spanset to the combiner. It only performs the asTraceSearchMetadata
 // conversion if the spanset will be added
-func (c *anyCombiner) addSpanset(ss *Spanset) {
+func (c *anyCombiner) AddSpanset(ss *Spanset) {
 	// if it's already in the list, then we should add it
 	if _, ok := c.trs[util.TraceIDToHexString(ss.TraceID)]; ok {
-		c.AddMetadata(asTraceSearchMetadata(ss))
+		c.AddMetadata(AsTraceSearchMetadata(ss))
 		return
 	}
 
@@ -57,7 +57,7 @@ func (c *anyCombiner) addSpanset(ss *Spanset) {
 		return
 	}
 
-	c.AddMetadata(asTraceSearchMetadata(ss))
+	c.AddMetadata(AsTraceSearchMetadata(ss))
 }
 
 // AddMetadata adds the new metadata to the map. if it already exists
@@ -122,23 +122,23 @@ func newMostRecentCombiner(limit int) *mostRecentCombiner {
 
 // addSpanset adds a new spanset to the combiner. It only performs the asTraceSearchMetadata
 // conversion if the spanset will be added
-func (c *mostRecentCombiner) addSpanset(ss *Spanset) {
+func (c *mostRecentCombiner) AddSpanset(ss *Spanset) {
 	// if we're not configured to keep most recent then just add it
 	if c.keepMostRecent == 0 || c.Count() < c.keepMostRecent {
-		c.AddMetadata(asTraceSearchMetadata(ss))
+		c.AddMetadata(AsTraceSearchMetadata(ss))
 		return
 	}
 
 	// else let's see if it's worth converting this to a metadata and adding it
 	// if it's already in the list, then we should add it
 	if _, ok := c.trs[util.TraceIDToHexString(ss.TraceID)]; ok {
-		c.AddMetadata(asTraceSearchMetadata(ss))
+		c.AddMetadata(AsTraceSearchMetadata(ss))
 		return
 	}
 
 	// if it's within range
 	if c.OldestTimestampNanos() <= ss.StartTimeUnixNanos {
-		c.AddMetadata(asTraceSearchMetadata(ss))
+		c.AddMetadata(AsTraceSearchMetadata(ss))
 		return
 	}
 

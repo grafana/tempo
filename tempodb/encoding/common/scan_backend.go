@@ -58,4 +58,14 @@ type ScanBackend interface {
 		node *traceql.LinkScanNode,
 		child parquetquery.Iterator,
 	) (parquetquery.Iterator, error)
+
+	// TraceIterRaw is like TraceIter but returns the raw parquetquery.Iterator
+	// without wrapping in SpansetIterator. Used by the fetch side of
+	// ProjectNode where SeekTo capability is needed.
+	TraceIterRaw(
+		ctx context.Context,
+		node *traceql.TraceScanNode,
+		primary parquetquery.Iterator,
+		child parquetquery.Iterator,
+	) (parquetquery.Iterator, error)
 }

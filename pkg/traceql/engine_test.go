@@ -204,7 +204,7 @@ func TestEngine_Execute(t *testing.T) {
 	assert.Equal(t, uint64(100_00), response.Metrics.InspectedBytes)
 }
 
-func TestEngine_asTraceSearchMetadata(t *testing.T) {
+func TestEngine_AsTraceSearchMetadata(t *testing.T) {
 	now := time.Now()
 
 	traceID, err := util.HexStringToTraceID("123456789abcdef")
@@ -253,7 +253,7 @@ func TestEngine_asTraceSearchMetadata(t *testing.T) {
 		},
 	}
 
-	traceSearchMetadata := asTraceSearchMetadata(spanSet)
+	traceSearchMetadata := AsTraceSearchMetadata(spanSet)
 
 	expectedSpanset := &tempopb.SpanSet{
 		Matched: 2,

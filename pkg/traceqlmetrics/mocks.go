@@ -3,6 +3,7 @@ package traceqlmetrics
 import (
 	"context"
 
+	"github.com/grafana/tempo/pkg/parquetquery"
 	"github.com/grafana/tempo/pkg/traceql"
 )
 
@@ -46,6 +47,7 @@ func (m *mockSpan) WithErr() *mockSpan {
 }
 
 func (m *mockSpan) AllAttributes() map[traceql.Attribute]traceql.Static { return m.attrs }
+func (m *mockSpan) RowNum() parquetquery.RowNumber                       { return parquetquery.EmptyRowNumber() }
 func (m *mockSpan) ID() []byte                                          { return nil }
 func (m *mockSpan) StartTimeUnixNanos() uint64                          { return m.start }
 func (m *mockSpan) DurationNanos() uint64                               { return m.duration }

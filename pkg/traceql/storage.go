@@ -3,6 +3,8 @@ package traceql
 import (
 	"context"
 	"time"
+
+	"github.com/grafana/tempo/pkg/parquetquery"
 )
 
 type Operands []Static
@@ -31,6 +33,17 @@ func SearchMetaConditions() []Condition {
 		{Attribute: NewIntrinsic(IntrinsicDuration), Op: OpNone},
 		{Attribute: NewIntrinsic(IntrinsicServiceStats), Op: OpNone},
 	}
+}
+
+// SearchMetaColumns returns the metadata attributes needed for search results.
+// These are the same attributes as SearchMetaConditions but as []Attribute.
+func SearchMetaColumns() []Attribute {
+	conds := SearchMetaConditions()
+	cols := make([]Attribute, len(conds))
+	for i, c := range conds {
+		cols[i] = c.Attribute
+	}
+	return cols
 }
 
 func ExemplarMetaConditions(cb func() bool) []Condition {
@@ -171,6 +184,9 @@ type Span interface {
 	ID() []byte
 	StartTimeUnixNanos() uint64
 	DurationNanos() uint64
+	// RowNum returns the parquet row number for this span.
+	// Used by late materialization to seek fetch iterators.
+	RowNum() parquetquery.RowNumber
 
 	// SiblingOf returns all spans on the RHS side that have siblings in the LHS. If falseForAll is true
 	// then the returned spans will be those that do not have siblings in the LHS. buffer is an optional

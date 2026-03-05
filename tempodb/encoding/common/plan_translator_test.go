@@ -42,6 +42,13 @@ func (m *mockBackend) LinkIter(_ context.Context, _ *traceql.LinkScanNode, child
 	return child, nil
 }
 
+func (m *mockBackend) TraceIterRaw(_ context.Context, _ *traceql.TraceScanNode, _ parquetquery.Iterator, child parquetquery.Iterator) (parquetquery.Iterator, error) {
+	if child != nil {
+		return child, nil
+	}
+	return &mockIter{}, nil
+}
+
 type mockIter struct{}
 
 func (m *mockIter) String() string { return "mockIter" }
@@ -53,10 +60,6 @@ func (m *mockIter) SeekTo(_ parquetquery.RowNumber, _ int) (*parquetquery.Iterat
 }
 func (m *mockIter) Close() {}
 
-type mockSpansetIter struct{}
-
-func (m *mockSpansetIter) Next(_ context.Context) (*traceql.Spanset, error) { return nil, nil }
-func (m *mockSpansetIter) Close()                                            {}
 
 // TestTranslate_SimpleScanTree verifies that Translate calls each ScanBackend
 // method exactly once for a minimal scan-only plan (no engine nodes above the

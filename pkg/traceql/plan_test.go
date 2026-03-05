@@ -24,7 +24,7 @@ func TestScanNodeChildren(t *testing.T) {
 func TestEngineNodes(t *testing.T) {
 	filter := NewSpansetFilterNode(&SpansetFilter{}, NewSpanScanNode(nil, nil))
 	group := NewGroupByNode(NewScopedAttribute(AttributeScopeResource, false, "service.name"), filter)
-	proj := NewProjectNode([]Attribute{NewScopedAttribute(AttributeScopeSpan, false, "region")}, group)
+	proj := NewProjectNode([]Attribute{NewScopedAttribute(AttributeScopeSpan, false, "region")}, group, nil)
 	rate := NewRateNode(nil, proj)
 
 	require.Equal(t, []PlanNode{group}, proj.Children())
@@ -81,5 +81,75 @@ func TestWalkPlanSkipChildren(t *testing.T) {
 	WalkPlan(trace, v)
 
 	require.Equal(t, []string{trace.String(), res.String()}, visited)
+}
+
+func TestProjectNodeTwoChildren(t *testing.T) {
+	drivingChild := &SpanScanNode{Conditions: []Condition{{Attribute: NewScopedAttribute(AttributeScopeSpan, false, "http.status_code"), Op: OpGreater}}}
+	fetchSpan := &SpanScanNode{Conditions: []Condition{{Attribute: NewIntrinsic(IntrinsicSpanID), Op: OpNone}}}
+	fetchTree := &TraceScanNode{child: &ResourceScanNode{child: &InstrumentationScopeScanNode{child: fetchSpan}}}
+
+	proj := NewProjectNode([]Attribute{NewIntrinsic(IntrinsicSpanID)}, drivingChild, fetchTree)
+	children := proj.Children()
+
+	require.Len(t, children, 2)
+	require.Equal(t, drivingChild, children[0])
+	require.Equal(t, fetchTree, children[1])
+	require.Contains(t, proj.String(), "Project")
+}
+
+func TestBuildFetchScanTree(t *testing.T) {
+	columns := []Attribute{
+		NewIntrinsic(IntrinsicTraceRootService), // trace level
+		NewIntrinsic(IntrinsicTraceRootSpan),    // trace level
+		NewIntrinsic(IntrinsicSpanID),           // span level
+		NewIntrinsic(IntrinsicDuration),         // span level
+		NewIntrinsic(IntrinsicServiceStats),     // trace level
+	}
+
+	tree := BuildFetchScanTree(columns)
+
+	// Root is TraceScanNode with trace-level conditions
+	require.NotNil(t, tree)
+	traceConds := tree.Conditions
+	var traceAttrs []Intrinsic
+	for _, c := range traceConds {
+		require.Equal(t, OpNone, c.Op)
+		traceAttrs = append(traceAttrs, c.Attribute.Intrinsic)
+	}
+	require.Contains(t, traceAttrs, IntrinsicTraceRootService)
+	require.Contains(t, traceAttrs, IntrinsicTraceRootSpan)
+	require.Contains(t, traceAttrs, IntrinsicServiceStats)
+
+	// Trace → Resource → InstrScope → Span
+	require.Len(t, tree.Children(), 1)
+	resNode, ok := tree.Children()[0].(*ResourceScanNode)
+	require.True(t, ok)
+
+	require.Len(t, resNode.Children(), 1)
+	instrNode, ok := resNode.Children()[0].(*InstrumentationScopeScanNode)
+	require.True(t, ok)
+
+	require.Len(t, instrNode.Children(), 1)
+	spanNode, ok := instrNode.Children()[0].(*SpanScanNode)
+	require.True(t, ok)
+
+	var spanAttrs []Intrinsic
+	for _, c := range spanNode.Conditions {
+		require.Equal(t, OpNone, c.Op)
+		spanAttrs = append(spanAttrs, c.Attribute.Intrinsic)
+	}
+	require.Contains(t, spanAttrs, IntrinsicSpanID)
+	require.Contains(t, spanAttrs, IntrinsicDuration)
+}
+
+func TestSearchMetaColumns(t *testing.T) {
+	cols := SearchMetaColumns()
+	require.Len(t, cols, 9)
+
+	// Verify they match SearchMetaConditions attributes
+	conds := SearchMetaConditions()
+	for i, col := range cols {
+		require.Equal(t, conds[i].Attribute, col)
+	}
 }
 

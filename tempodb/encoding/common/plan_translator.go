@@ -183,22 +183,51 @@ func (t *translator) buildInnerChain(n traceql.PlanNode) (parquetquery.Iterator,
 	}
 }
 
-// translateProject builds first-pass evaluatable from ProjectNode's child and
-// wraps it in a ProjectEvaluatable that drives a second-pass fetch for
-// ProjectNode.Columns on surviving spans.
+// translateProject builds an Evaluatable from ProjectNode using the iterator path.
 func (t *translator) translateProject(node *traceql.ProjectNode) (Evaluatable, error) {
-	firstPass, err := t.translate(node.Children()[0])
+	iter, err := t.translateProjectToIter(node)
 	if err != nil {
 		return nil, err
 	}
-	return newProjectEvaluatable(node, firstPass, t), nil
+	return newSpansetEvaluatable(iter), nil
 }
 
-// translateProjectToIter is the iterator-path equivalent of translateProject.
-// Blocked: building a row-number-based parquetquery.Iterator for the second
-// pass requires a ScanBackend extension that is out of scope for this PR.
-func (t *translator) translateProjectToIter(_ *traceql.ProjectNode) (traceql.SpansetIterator, error) {
-	return nil, fmt.Errorf("plan_translator: ProjectNode second-pass fetch not yet implemented")
+// translateProjectToIter builds a lateMaterializeIter that wraps:
+// - driving side: SpansetIterator from child plan
+// - fetch side: parquetquery.Iterator chain from fetchTree
+func (t *translator) translateProjectToIter(node *traceql.ProjectNode) (traceql.SpansetIterator, error) {
+	drivingIter, err := t.translateToIter(node.Children()[0])
+	if err != nil {
+		return nil, err
+	}
+
+	fetchTree := node.FetchTree()
+	if fetchTree == nil {
+		return drivingIter, nil
+	}
+
+	fetchTraceScan, ok := fetchTree.(*traceql.TraceScanNode)
+	if !ok {
+		return nil, fmt.Errorf("plan_translator: ProjectNode fetchTree must be *TraceScanNode, got %T", fetchTree)
+	}
+
+	// Build fetch-side pq.Iterator chain
+	var fetchChild parquetquery.Iterator
+	if len(fetchTraceScan.Children()) > 0 {
+		fetchChild, err = t.buildInnerChain(fetchTraceScan.Children()[0])
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	fetchPqIter, err := t.backend.TraceIterRaw(t.ctx, fetchTraceScan, nil, fetchChild)
+	if err != nil {
+		return nil, err
+	}
+
+	// DefinitionLevel 0 = trace level: the fetch iterator operates per-trace,
+	// producing a full spanset with metadata in OtherEntries["spanset"].
+	return newLateMaterializeIter(drivingIter, fetchPqIter, 0), nil
 }
 
 // ---------------------------------------------------------------------------
@@ -343,11 +372,75 @@ func (e *spansetEvaluatable) Results() traceql.SeriesSet { return nil }
 func (e *spansetEvaluatable) Metrics() (uint64, uint64, error) { return 0, 0, nil }
 
 // ---------------------------------------------------------------------------
-// projectEvaluatable — second-pass fetch (blocked pending ScanBackend extension)
+// SearchEvaluatable — search-specific evaluatable
 // ---------------------------------------------------------------------------
 
-func newProjectEvaluatable(_ *traceql.ProjectNode, _ Evaluatable, _ *translator) Evaluatable {
-	// Blocked: requires a row-number-based parquetquery.Iterator from the first
-	// pass, which needs a new ScanBackend API.  Tracked as a follow-up.
-	panic("plan_translator: ProjectEvaluatable not yet implemented")
+// SearchEvaluatable is the result of translating a plan tree for search.
+// Call Do to drive execution; Response returns the accumulated search results.
+type SearchEvaluatable interface {
+	Do(ctx context.Context) error
+	Response() *tempopb.SearchResponse
 }
+
+// searchEvaluatable iterates spansets from the plan, converts them to
+// trace metadata, and collects results up to the limit.
+type searchEvaluatable struct {
+	iter     traceql.SpansetIterator
+	limit    int
+	combiner traceql.MetadataCombiner
+}
+
+func newSearchEvaluatable(iter traceql.SpansetIterator, limit int) SearchEvaluatable {
+	return &searchEvaluatable{
+		iter:     iter,
+		limit:    limit,
+		combiner: traceql.NewMetadataCombiner(limit, false),
+	}
+}
+
+func (e *searchEvaluatable) Do(ctx context.Context) error {
+	defer e.iter.Close()
+	for {
+		ss, err := e.iter.Next(ctx)
+		if err != nil {
+			return err
+		}
+		if ss == nil {
+			return nil
+		}
+
+		e.combiner.AddSpanset(ss)
+
+		if e.combiner.IsCompleteFor(traceql.TimestampNever) {
+			return nil
+		}
+	}
+}
+
+func (e *searchEvaluatable) Response() *tempopb.SearchResponse {
+	return &tempopb.SearchResponse{
+		Traces:  e.combiner.Metadata(),
+		Metrics: &tempopb.SearchMetrics{},
+	}
+}
+
+// TranslateSearch converts a plan tree into a SearchEvaluatable.
+// The plan must already contain a ProjectNode at the root (built by
+// BuildSearchTracePlan) that carries the fetch-side scan tree for late
+// materialization of search metadata columns.
+func TranslateSearch(
+	ctx context.Context,
+	plan traceql.PlanNode,
+	backend ScanBackend,
+	opts SearchOptions,
+	limit int,
+) (SearchEvaluatable, error) {
+	t := &translator{ctx: ctx, backend: backend, opts: opts}
+	iter, err := t.translateToIter(plan)
+	if err != nil {
+		return nil, err
+	}
+
+	return newSearchEvaluatable(iter, limit), nil
+}
+

@@ -53,7 +53,7 @@ func (b *blockScanBackend) SpanIter(
 	if child != nil {
 		inner = []parquetquery.Iterator{child}
 	}
-	return createSpanIterator(b.makeIter, b.makeNilIter, inner, node.Conditions, false, b.dedicatedColumns, false, nil)
+	return createSpanIterator(b.makeIter, b.makeNilIter, inner, node.Conditions, node.AllConditions, b.dedicatedColumns, false, nil)
 }
 
 // InstrumentationScopeIter delegates to createInstrumentationIterator.
@@ -72,7 +72,7 @@ func (b *blockScanBackend) ResourceIter(
 	child parquetquery.Iterator,
 ) (parquetquery.Iterator, error) {
 	// requireAtLeastOneMatchOverall is false — the TraceScanNode handles that.
-	return createResourceIterator(b.makeIter, b.makeNilIter, child, node.Conditions, false, false, b.dedicatedColumns, false)
+	return createResourceIterator(b.makeIter, b.makeNilIter, child, node.Conditions, false, node.AllConditions, b.dedicatedColumns, false)
 }
 
 // TraceIter delegates to createTraceIterator and wraps the result in a spansetIterator.
@@ -119,6 +119,21 @@ func (b *backendBlock) OpenScanBackend(ctx context.Context, opts common.SearchOp
 	}
 	cleanup := func() { _ = rr }
 	return backend, cleanup, nil
+}
+
+// TraceIterRaw is like TraceIter but returns the raw parquetquery.Iterator
+// without wrapping in SpansetIterator. Used by the fetch side of ProjectNode.
+func (b *blockScanBackend) TraceIterRaw(
+	ctx context.Context,
+	node *traceql.TraceScanNode,
+	primary parquetquery.Iterator,
+	child parquetquery.Iterator,
+) (parquetquery.Iterator, error) {
+	source := child
+	if primary != nil {
+		source = primary
+	}
+	return createTraceIterator(b.makeIter, source, node.Conditions, 0, 0, node.AllConditions, false, nil)
 }
 
 // LinkIter delegates to createLinkIterator.

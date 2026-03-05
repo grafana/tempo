@@ -289,7 +289,7 @@ func TestCombinerKeepsMostRecent(t *testing.T) {
 	// save off the most recent and reverse b/c the combiner returns most recent first
 	expected := make([]*tempopb.TraceSearchMetadata, 0, keepMostRecent)
 	for i := totalTraces - keepMostRecent; i < totalTraces; i++ {
-		expected = append(expected, asTraceSearchMetadata(traces[i]))
+		expected = append(expected, AsTraceSearchMetadata(traces[i]))
 	}
 	slices.Reverse(expected)
 
@@ -299,7 +299,7 @@ func TestCombinerKeepsMostRecent(t *testing.T) {
 
 	// add to combiner
 	for i := 0; i < totalTraces; i++ {
-		combiner.addSpanset(traces[i])
+		combiner.AddSpanset(traces[i])
 	}
 
 	// test that the most recent are kept

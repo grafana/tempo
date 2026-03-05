@@ -191,6 +191,162 @@ func TestUnscopedAttributePushdownRule_SkipsDefiniteScope(t *testing.T) {
 	require.False(t, changed, "span-scope attribute must be ignored by UnscopedAttributePushdownRule")
 }
 
+// TestGroupByHoistRule verifies that a GroupByNode inside a ProjectNode is
+// hoisted above the ProjectNode, keeping the fetchTree on the ProjectNode.
+func TestGroupByHoistRule(t *testing.T) {
+	byAttr := NewScopedAttribute(AttributeScopeResource, false, "service.name")
+	spanScan := NewSpanScanNode(nil, nil)
+	instrScan := NewInstrumentationScopeScanNode(nil, spanScan)
+	resScan := NewResourceScanNode(nil, instrScan)
+	traceScan := NewTraceScanNode(nil, false, resScan)
+	groupNode := NewGroupByNode(byAttr, traceScan)
+	fetchTree := NewTraceScanNode(nil, false, nil)
+	col := NewScopedAttribute(AttributeScopeResource, false, "service.name")
+	projNode := NewProjectNode([]Attribute{col}, groupNode, fetchTree)
+
+	rule := GroupByHoistRule()
+	result, changed := rule.Apply(projNode)
+
+	require.True(t, changed, "expected hoist to fire")
+	group, ok := result.(*GroupByNode)
+	require.True(t, ok, "expected GroupByNode at root after hoist, got %T", result)
+
+	proj, ok := group.Children()[0].(*ProjectNode)
+	require.True(t, ok, "expected ProjectNode as GroupByNode child, got %T", group.Children()[0])
+	// fetchTree must be preserved on the ProjectNode.
+	require.NotNil(t, proj.FetchTree(), "ProjectNode must retain the fetchTree after hoist")
+	// The original scan tree must be the ProjectNode's child.
+	_, ok = proj.Children()[0].(*TraceScanNode)
+	require.True(t, ok, "expected TraceScanNode as ProjectNode child after hoist, got %T", proj.Children()[0])
+}
+
+// TestGroupByHoistRule_NoProjectNode verifies the rule is a no-op when the
+// root is not a ProjectNode.
+func TestGroupByHoistRule_NoProjectNode(t *testing.T) {
+	byAttr := NewScopedAttribute(AttributeScopeResource, false, "service.name")
+	groupNode := NewGroupByNode(byAttr, NewSpanScanNode(nil, nil))
+
+	rule := GroupByHoistRule()
+	_, changed := rule.Apply(groupNode)
+
+	require.False(t, changed, "rule must not fire when root is not ProjectNode")
+}
+
+// TestGroupByHoistRule_NoGroupByChild verifies the rule is a no-op when the
+// ProjectNode's child is not a GroupByNode.
+func TestGroupByHoistRule_NoGroupByChild(t *testing.T) {
+	col := NewScopedAttribute(AttributeScopeSpan, false, "foo")
+	proj := NewProjectNode([]Attribute{col}, NewSpanScanNode(nil, nil), nil)
+
+	rule := GroupByHoistRule()
+	_, changed := rule.Apply(proj)
+
+	require.False(t, changed, "rule must not fire when ProjectNode child is not GroupByNode")
+}
+
+// TestGroupByFetchRule_Resource verifies that a resource-scoped group-by
+// attribute is pushed as an OpNone condition into the ResourceScanNode.
+func TestGroupByFetchRule_Resource(t *testing.T) {
+	byAttr := NewScopedAttribute(AttributeScopeResource, false, "service.name")
+	spanScan := NewSpanScanNode(nil, nil)
+	instrScan := NewInstrumentationScopeScanNode(nil, spanScan)
+	resScan := NewResourceScanNode(nil, instrScan)
+	traceScan := NewTraceScanNode(nil, false, resScan)
+	groupNode := NewGroupByNode(byAttr, traceScan)
+
+	rule := GroupByFetchRule()
+	result, changed := rule.Apply(groupNode)
+
+	require.True(t, changed, "expected fetch rule to fire")
+	_, ok := result.(*GroupByNode)
+	require.True(t, ok)
+
+	require.Len(t, resScan.Conditions, 1, "resource.service.name must be added to ResourceScan")
+	require.Equal(t, OpNone, resScan.Conditions[0].Op, "condition must be OpNone (fetch-only)")
+	require.Equal(t, "resource.service.name", resScan.Conditions[0].Attribute.String())
+	// SpanScan must be untouched.
+	require.Empty(t, spanScan.Conditions)
+}
+
+// TestGroupByFetchRule_Span verifies that a span-scoped group-by attribute is
+// pushed into SpanScanNode.
+func TestGroupByFetchRule_Span(t *testing.T) {
+	byAttr := NewScopedAttribute(AttributeScopeSpan, false, "http.method")
+	spanScan := NewSpanScanNode(nil, nil)
+	instrScan := NewInstrumentationScopeScanNode(nil, spanScan)
+	resScan := NewResourceScanNode(nil, instrScan)
+	traceScan := NewTraceScanNode(nil, false, resScan)
+	groupNode := NewGroupByNode(byAttr, traceScan)
+
+	rule := GroupByFetchRule()
+	_, changed := rule.Apply(groupNode)
+
+	require.True(t, changed)
+	require.Len(t, spanScan.Conditions, 1, "span.http.method must be added to SpanScan")
+	require.Equal(t, OpNone, spanScan.Conditions[0].Op)
+	require.Empty(t, resScan.Conditions)
+}
+
+// TestGroupByFetchRule_Unscoped verifies that an unscoped group-by attribute is
+// pushed to both SpanScan and ResourceScan (OR semantics).
+func TestGroupByFetchRule_Unscoped(t *testing.T) {
+	byAttr := NewAttribute("region") // Scope=None, Intrinsic=None
+	spanScan := NewSpanScanNode(nil, nil)
+	instrScan := NewInstrumentationScopeScanNode(nil, spanScan)
+	resScan := NewResourceScanNode(nil, instrScan)
+	traceScan := NewTraceScanNode(nil, false, resScan)
+	groupNode := NewGroupByNode(byAttr, traceScan)
+
+	rule := GroupByFetchRule()
+	_, changed := rule.Apply(groupNode)
+
+	require.True(t, changed)
+	require.Len(t, spanScan.Conditions, 1, "unscoped attr must be added to SpanScan")
+	require.Equal(t, OpNone, spanScan.Conditions[0].Op)
+	require.Len(t, resScan.Conditions, 1, "unscoped attr must be added to ResourceScan")
+	require.Equal(t, OpNone, resScan.Conditions[0].Op)
+}
+
+// TestGroupByFetchRule_Idempotent verifies that applying the rule twice does
+// not duplicate conditions (fixpoint safety).
+func TestGroupByFetchRule_Idempotent(t *testing.T) {
+	byAttr := NewScopedAttribute(AttributeScopeResource, false, "service.name")
+	spanScan := NewSpanScanNode(nil, nil)
+	instrScan := NewInstrumentationScopeScanNode(nil, spanScan)
+	resScan := NewResourceScanNode(nil, instrScan)
+	traceScan := NewTraceScanNode(nil, false, resScan)
+	groupNode := NewGroupByNode(byAttr, traceScan)
+
+	rule := GroupByFetchRule()
+	result, _ := rule.Apply(groupNode)
+	_, changed2 := rule.Apply(result)
+
+	require.False(t, changed2, "second application must be a no-op")
+	require.Len(t, resScan.Conditions, 1, "no duplicate conditions")
+}
+
+// TestGroupByFetchRule_AllConditionsUnchanged verifies that GroupByFetchRule
+// does not set AllConditions to false. Unlike the legacy engine (which forced
+// AllConditions=false to avoid requiring the fetch-only group-by attribute as
+// a filter), the plan-based approach keeps filter and fetch-only conditions
+// separate, so AllConditions from the filter pushdown remains valid.
+func TestGroupByFetchRule_AllConditionsUnchanged(t *testing.T) {
+	byAttr := NewScopedAttribute(AttributeScopeResource, false, "service.name")
+	spanScan := NewSpanScanNode(
+		[]Condition{{Attribute: NewScopedAttribute(AttributeScopeSpan, false, "http.status_code"), Op: OpEqual}},
+		nil,
+	)
+	instrScan := NewInstrumentationScopeScanNode(nil, spanScan)
+	resScan := NewResourceScanNode(nil, instrScan)
+	traceScan := NewTraceScanNode(nil, true, resScan) // AllConditions=true from filter pushdown
+	groupNode := NewGroupByNode(byAttr, traceScan)
+
+	rule := GroupByFetchRule()
+	rule.Apply(groupNode)
+
+	require.True(t, traceScan.AllConditions, "GroupByFetchRule must not change AllConditions on TraceScanNode")
+}
+
 // TestConditionMergeRule verifies that two adjacent SpanScanNodes merge into one.
 func TestConditionMergeRule(t *testing.T) {
 	cond1 := Condition{Attribute: NewScopedAttribute(AttributeScopeSpan, false, "status")}
@@ -229,7 +385,7 @@ func TestConditionMergeRule_ResourceMerge(t *testing.T) {
 func TestSecondPassEliminatorRule(t *testing.T) {
 	col := NewScopedAttribute(AttributeScopeSpan, false, "region")
 	scan := NewSpanScanNode([]Condition{{Attribute: col}}, nil)
-	proj := NewProjectNode([]Attribute{col}, scan)
+	proj := NewProjectNode([]Attribute{col}, scan, nil)
 
 	rule := SecondPassEliminatorRule()
 	result, changed := rule.Apply(proj)
@@ -245,7 +401,7 @@ func TestSecondPassEliminatorRule_Kept(t *testing.T) {
 	col := NewScopedAttribute(AttributeScopeSpan, false, "region")
 	// Scan does NOT have the column.
 	scan := NewSpanScanNode(nil, nil)
-	proj := NewProjectNode([]Attribute{col}, scan)
+	proj := NewProjectNode([]Attribute{col}, scan, nil)
 
 	rule := SecondPassEliminatorRule()
 	_, changed := rule.Apply(proj)

@@ -94,8 +94,8 @@ func (q *Querier) queryBlock(ctx context.Context, req *tempopb.QueryRangeRequest
 	}
 
 	// --- Plan-based path ---
-	// Only active when EnablePlanBasedExecution is set; falls through to the
-	// legacy CompileMetricsQueryRange path on any error or when disabled.
+	// Active by default; falls through to the legacy CompileMetricsQueryRange
+	// path on any error or when explicitly disabled.
 	if q.cfg.Metrics.EnablePlanBasedExecution {
 		if scanBackend, cleanup, sbErr := q.store.OpenScanBackend(ctx, meta, opts); sbErr == nil && scanBackend != nil {
 			defer cleanup()

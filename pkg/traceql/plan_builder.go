@@ -18,9 +18,40 @@ func BuildPlan(expr *RootExpr, req *tempopb.QueryRangeRequest) (PlanNode, error)
 	return DefaultRuleSet().Optimize(plan), nil
 }
 
+// BuildSearchTracePlan builds a plan for a search-traces query.
+//
+// Unlike BuildPlan (which is for metrics queries), this function builds the
+// full plan — scan tree, pipeline, and search-metadata ProjectNode — and then
+// runs the optimizer once on the complete tree. Running the optimizer after
+// the ProjectNode is in place lets GroupByHoistRule correctly hoist a
+// GroupByNode above the ProjectNode when the query contains a by() clause.
+//
+// The ProjectNode carries OpNone conditions for the search metadata columns
+// (TraceID, RootServiceName, etc.). lateMaterializeIter uses its fetch side
+// to enrich each driving spanset with that metadata before GroupByNode (if
+// present) partitions the enriched spansets by the group-by attribute.
+func BuildSearchTracePlan(expr *RootExpr) (PlanNode, error) {
+	b := &planBuilder{}
+
+	plan, err := b.buildPipeline(expr.Pipeline, b.buildBaseScanTree())
+	if err != nil {
+		return nil, err
+	}
+
+	// Wrap with the search-metadata ProjectNode before the optimizer runs,
+	// so GroupByHoistRule can see and reorder ProjectNode vs GroupByNode.
+	metaCols := SearchMetaColumns()
+	fetchTree := BuildFetchScanTree(metaCols)
+	plan = NewProjectNode(metaCols, plan, fetchTree)
+
+	return DefaultRuleSet().Optimize(plan), nil
+}
+
 // DefaultRuleSet returns the built-in optimization rules.
 func DefaultRuleSet() *RuleSet {
 	return NewRuleSet(
+		GroupByHoistRule(),
+		GroupByFetchRule(),
 		PredicatePushdownRule(),
 		OrPredicatePushdownRule(),
 		UnscopedAttributePushdownRule(),
@@ -93,11 +124,11 @@ func (b *planBuilder) buildPipeline(p Pipeline, base PlanNode) (PlanNode, error)
 			// ProjectNode must be placed BELOW GroupByNode (so grouping happens after the fetch).
 			if groupNode != nil {
 				// Insert ProjectNode between groupNode and its current child.
-				proj := NewProjectNode(e.attrs, groupNode.child)
+				proj := NewProjectNode(e.attrs, groupNode.child, nil)
 				plan = groupNode.WithChild(proj)
 				groupNode = plan.(*GroupByNode) // keep tracking the (new) group node
 			} else {
-				plan = NewProjectNode(e.attrs, plan)
+				plan = NewProjectNode(e.attrs, plan, nil)
 			}
 
 		case SpansetOperation:

@@ -33,9 +33,18 @@ func (g GroupOperation) evaluate(ss []*Spanset) ([]*Spanset, error) {
 			// Check if the result already has a group in the map
 			group, ok := groups[result.MapKey()]
 			if !ok {
-				// If not, create a new group and add it to the map
-				group = &Spanset{}
-				// copy all existing attributes forward
+				// If not, create a new group and add it to the map.
+				// Copy trace-level metadata so each group carries the identity of
+				// the originating trace (needed by MetadataCombiner, AsTraceSearchMetadata, etc.).
+				group = &Spanset{
+					TraceID:            spanset.TraceID,
+					RootSpanName:       spanset.RootSpanName,
+					RootServiceName:    spanset.RootServiceName,
+					StartTimeUnixNanos: spanset.StartTimeUnixNanos,
+					DurationNanos:      spanset.DurationNanos,
+					ServiceStats:       spanset.ServiceStats,
+				}
+				// copy all existing spanset-level attributes forward
 				group.Attributes = append(group.Attributes, spanset.Attributes...)
 				group.AddAttribute(g.String(), result)
 				groups[result.MapKey()] = group
