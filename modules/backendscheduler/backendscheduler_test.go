@@ -337,6 +337,73 @@ func (ownsEverythingSharder) Owns(_ string) bool {
 	return true
 }
 
+func TestSubmitRedactionValidation(t *testing.T) {
+	cfg := Config{}
+	cfg.RegisterFlagsAndApplyDefaults("", &flag.FlagSet{})
+	tmpDir := t.TempDir()
+	cfg.LocalWorkPath = tmpDir
+
+	var (
+		ctx, cancel   = context.WithCancel(context.Background())
+		store, rr, ww = newStore(ctx, t, tmpDir)
+	)
+	defer func() {
+		cancel()
+		store.Shutdown()
+	}()
+
+	limits, err := overrides.NewOverrides(overrides.Config{Defaults: overrides.Overrides{}}, nil, prometheus.NewRegistry())
+	require.NoError(t, err)
+
+	s, err := New(cfg, store, limits, rr, ww)
+	require.NoError(t, err)
+
+	testTenant := "tenant-validation"
+	writeTenantBlocks(ctx, t, backend.NewWriter(ww), testTenant, 1)
+	time.Sleep(300 * time.Millisecond)
+
+	validReq := &tempopb.SubmitRedactionRequest{
+		TenantId: testTenant,
+		TraceIds: [][]byte{[]byte(uuid.New().String())},
+	}
+
+	tests := []struct {
+		name     string
+		req      *tempopb.SubmitRedactionRequest
+		wantCode codes.Code
+	}{
+		{
+			name:     "missing tenant_id",
+			req:      &tempopb.SubmitRedactionRequest{TraceIds: [][]byte{[]byte("trace1")}},
+			wantCode: codes.InvalidArgument,
+		},
+		{
+			name:     "empty trace_ids",
+			req:      &tempopb.SubmitRedactionRequest{TenantId: testTenant},
+			wantCode: codes.InvalidArgument,
+		},
+		{
+			name:     "duplicate submission",
+			req:      validReq,
+			wantCode: codes.AlreadyExists,
+		},
+	}
+
+	// Seed an active batch so the duplicate-submission case fires.
+	_, err = s.SubmitRedaction(ctx, validReq)
+	require.NoError(t, err)
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := s.SubmitRedaction(ctx, tt.req)
+			require.Error(t, err)
+			st, ok := status.FromError(err)
+			require.True(t, ok)
+			require.Equal(t, tt.wantCode, st.Code())
+		})
+	}
+}
+
 func TestSubmitRedactionAndRescan(t *testing.T) {
 	cfg := Config{}
 	cfg.RegisterFlagsAndApplyDefaults("", &flag.FlagSet{})

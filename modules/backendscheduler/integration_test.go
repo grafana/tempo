@@ -139,9 +139,13 @@ func testSubmitRedactionPersistence(ctx context.Context, t *testing.T, scheduler
 	require.NoError(t, scheduler.work.FlushToLocal(ctx, scheduler.cfg.LocalWorkPath, nil))
 
 	// Reload into a new scheduler instance (simulating a restart).
+	// We load work + batches directly rather than calling starting() to avoid the
+	// race where the RedactionProvider goroutine drains pending jobs before we
+	// can assert on BlockPending.
 	newSched, err := New(cfg, store, limits, rr, ww)
 	require.NoError(t, err)
-	require.NoError(t, newSched.starting(ctx))
+	require.NoError(t, newSched.work.LoadFromLocal(ctx, cfg.LocalWorkPath))
+	require.NoError(t, newSched.work.LoadBatchesFromLocal(ctx, cfg.LocalWorkPath))
 
 	// Batch and all pending block jobs must survive the reload.
 	require.True(t, newSched.work.HasActiveBatchForTenant(testTenant))
