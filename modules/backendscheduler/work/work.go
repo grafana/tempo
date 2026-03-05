@@ -632,15 +632,6 @@ func (w *Work) ListAllPendingJobs() []*Job {
 	return out
 }
 
-// hasPendingJobs returns true if there are any pending jobs for the given tenant and job type.
-// O(1) via the pendingByTenant index. Caller must not hold pendingMtx.
-func (w *Work) hasPendingJobs(tenantID string, jobType tempopb.JobType) bool {
-	w.pendingMtx.Lock()
-	count := len(w.pendingByTenant[tenantID][jobType])
-	w.pendingMtx.Unlock()
-	return count > 0
-}
-
 // PopNextPendingJob removes and returns one pending job of the given type,
 // selecting from any tenant with pending work. Uses the pendingByTenant index
 // for O(tenants) selection and O(1) dequeue, skipping stale entries.
