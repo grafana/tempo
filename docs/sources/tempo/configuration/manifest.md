@@ -1176,6 +1176,7 @@ backend_scheduler:
             min_cycle_interval: 30s
         redaction:
             poll_interval: 2s
+            rescan_delay: 5m0s
     job_timeout: 15s
     local_work_path: /var/tempo
 backend_scheduler_client:
