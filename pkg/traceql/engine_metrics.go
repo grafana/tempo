@@ -1010,17 +1010,6 @@ func (e *Engine) CompileMetricsQueryRange(req *tempopb.QueryRangeRequest, timeOv
 		return nil, fmt.Errorf("not a metrics query")
 	}
 
-	// the exemplars hint supports both bool and int. first we test for the integer value. if
-	// its not present then we look to see if the user provided `with(exemplars=false)`
-	exemplars := int(req.Exemplars)
-	if v, ok := expr.Hints.GetInt(HintExemplars, allowUnsafeQueryHints); ok {
-		exemplars = v
-	} else if v, ok := expr.Hints.GetBool(HintExemplars, allowUnsafeQueryHints); ok {
-		if !v {
-			exemplars = 0
-		}
-	}
-
 	// Debug sampling hints, remove once we settle on approach.
 	if traceSample, traceSampleOk := expr.Hints.GetFloat(HintTraceSample, allowUnsafeQueryHints); traceSampleOk {
 		storageReq.TraceSampler = newProbablisticSampler(traceSample)
@@ -1067,8 +1056,8 @@ func (e *Engine) CompileMetricsQueryRange(req *tempopb.QueryRangeRequest, timeOv
 		storageReq:        storageReq,
 		metricsPipeline:   metricsPipeline,
 		timeOverlapCutoff: timeOverlapCutoff,
-		maxExemplars:      exemplars,
-		exemplarMap:       make(map[string]struct{}, exemplars), // TODO: Lazy, use bloom filter, CM sketch or something
+		maxExemplars:      int(req.Exemplars),
+		exemplarMap:       make(map[string]struct{}, req.Exemplars), // TODO: Lazy, use bloom filter, CM sketch or something
 	}
 
 	// If the request range is fully aligned to the step, then we can use lower

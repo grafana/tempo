@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/grafana/tempo/pkg/tempopb"
+	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/pkg/util/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -126,7 +127,7 @@ func TestTokenForIDCollision(t *testing.T) {
 	// Estimate the hash collision rate of tokenForID.
 
 	n := 1_000_000
-	h := newHash()
+	h := util.NewTokenHasher()
 	buf := make([]byte, 4)
 
 	tokens := map[token]struct{}{}
@@ -140,7 +141,7 @@ func TestTokenForIDCollision(t *testing.T) {
 		cpy := append([]byte(nil), spanID...)
 		IDs = append(IDs, cpy)
 
-		tokens[tokenForID(h, buf, 0, spanID)] = struct{}{}
+		tokens[token(util.TokenForID(h, buf, 0, spanID))] = struct{}{}
 	}
 
 	// Ensure no duplicate span IDs accidentally generated
@@ -160,17 +161,6 @@ func TestTokenForIDCollision(t *testing.T) {
 
 	// There shouldn't be any collisions.
 	require.Equal(t, n, len(tokens))
-}
-
-func BenchmarkTokenForID(b *testing.B) {
-	h := newHash()
-	id := []byte{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08}
-	buffer := make([]byte, 4)
-
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		_ = tokenForID(h, buffer, 0, id)
-	}
 }
 
 func BenchmarkCombine(b *testing.B) {
