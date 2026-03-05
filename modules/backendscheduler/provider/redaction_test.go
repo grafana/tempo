@@ -48,9 +48,9 @@ func TestRedactionProvider_DrainsPendingQueue(t *testing.T) {
 		}
 	}
 
-	// Both jobs should have been popped (tenant-a drained first)
+	// Both jobs should have been popped from the pending queue.
 	require.Len(t, received, 2)
-	require.Empty(t, w.ListPendingJobs("tenant-a", tempopb.JobType_JOB_TYPE_REDACTION))
+	require.Empty(t, w.ListAllPendingJobs())
 }
 
 func createRedactionJob(id, tenantID, blockID string, traceIDs [][]byte) *work.Job {

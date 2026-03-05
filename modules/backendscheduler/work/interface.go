@@ -23,12 +23,26 @@ type Interface interface {
 
 	// Pending job management (e.g. redaction queue)
 	AddPendingJobs(jobs []*Job) error
-	RemovePending(jobID string)
-	ListPendingJobs(tenantID string, jobType tempopb.JobType) []*Job
 	ListAllPendingJobs() []*Job
-	HasPendingJobs(tenantID string, jobType tempopb.JobType) bool
-	BlockPending(tenantID, blockID string) bool
 	PopNextPendingJob(jobType tempopb.JobType) *Job
+
+	// RegisterInFlight registers a job as in-flight before it enters the channel
+	// pipeline. Cleared automatically by AddJob when promoted to active.
+	RegisterInFlight(job *Job)
+
+	// HasJobsForTenant returns true if there are any jobs of the given type in any
+	// state (pending queue, in-flight channel, or active map) for the tenant.
+	HasJobsForTenant(tenantID string, jobType tempopb.JobType) bool
+
+	// IsBlockBusy returns true if the block is currently referenced by any job in
+	// any state (pending, in-flight, or active). Used to skip blocks in selectors
+	// and rescans.
+	IsBlockBusy(tenantID, blockID string) bool
+
+	// BlocksUnderCompaction returns a map of blockID -> jobID for all blocks
+	// currently being compacted for the tenant, across active and in-flight states.
+	// Used by SubmitRedaction to build the skip+rescan set.
+	BlocksUnderCompaction(tenantID string) map[string]string
 
 	// Batch management -- shared trace ID list for redaction jobs to avoid per-job copies.
 	AddBatch(batch *tempopb.RedactionBatch) error

@@ -393,6 +393,8 @@ func (w *BackendWorker) processRedactionJob(ctx context.Context, resp *tempopb.N
 		}
 	}
 
+	level.Debug(log.Logger).Log("msg", "processing redaction job", "job_id", resp.JobId, "block_id", blockIDStr, "trace_ids_count", len(traceIDs))
+
 	rewrote, tracesFound, _, err := w.store.RedactBlock(ctx, meta, tenantID, traceIDs)
 	if err != nil {
 		return w.failJob(ctx, resp.JobId, fmt.Sprintf("redact block: %v", err))

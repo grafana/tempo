@@ -267,9 +267,10 @@ func TestBackendScheduler(t *testing.T) {
 	})
 }
 
-// TestBackendSchedulerRedaction verifies that the scheduler accepts a SubmitRedaction
-// call over gRPC, fans out one pending job per block, and correctly rejects a
-// duplicate submission for the same tenant.
+// TestBackendSchedulerRedaction verifies the end-to-end redaction flow:
+//   - SubmitRedaction fans out one pending job per block
+//   - Duplicate submissions are rejected with AlreadyExists
+//   - After the worker processes all jobs, the trace is no longer findable
 func TestBackendSchedulerRedaction(t *testing.T) {
 	util.RunIntegrationTests(t, util.TestHarnessConfig{
 		Components:    util.ComponentsBackendWork,
@@ -289,11 +290,12 @@ func TestBackendSchedulerRedaction(t *testing.T) {
 		// Stop the worker so pending redaction jobs are not drained before we assert.
 		require.NoError(t, h.TestScenario.Stop(worker))
 
-		// Write a small number of blocks for a single tenant.
-		tempodbWriter := setupBackendWithEndpoint(t, &cfg.StorageConfig.Trace, objStorage.HTTPEndpoint())
+		// Write a small number of blocks each containing the same trace ID.
+		tempodbReader, tempodbWriter := setupBackendReaderWriterWithEndpoint(t, &cfg.StorageConfig.Trace, objStorage.HTTPEndpoint())
 		const blockCount = 3
-		tenants := populateBackend(ctx, t, tempodbWriter, 1, blockCount, 1)
-		testTenant := tenants[0]
+		testTenant := tenant + "0"
+		traceID := test.ValidTraceID(nil)
+		populateBackendWithTrace(ctx, t, tempodbWriter, testTenant, blockCount, traceID)
 
 		// Wait until the scheduler's blocklist reflects all written blocks.
 		tenantMatcher := e2e.WithLabelMatchers(&labels.Matcher{
@@ -307,6 +309,13 @@ func TestBackendSchedulerRedaction(t *testing.T) {
 			printMetricValue(t, fmt.Sprintf("%d", blockCount), "tempodb_blocklist_length"),
 		))
 
+		// Verify the trace is findable before redaction by querying object storage directly.
+		tempodbReader.EnablePolling(ctx, nil, false)
+		trs, failedBlocks, err := tempodbReader.Find(ctx, testTenant, traceID, tempodb.BlockIDMin, tempodb.BlockIDMax, 0, 0, common.DefaultSearchOptions())
+		require.NoError(t, err)
+		require.Empty(t, failedBlocks, "no blocks should fail lookup")
+		require.NotEmpty(t, trs, "trace must be findable in all blocks before redaction")
+
 		// Dial the scheduler's gRPC endpoint and build a client.
 		conn, err := grpc.NewClient(
 			scheduler.Endpoint(9095),
@@ -317,7 +326,6 @@ func TestBackendSchedulerRedaction(t *testing.T) {
 		schedulerClient := tempopb.NewBackendSchedulerClient(conn)
 
 		// Submit a redaction — expect one pending job per block.
-		traceID := test.ValidTraceID(nil)
 		resp, err := schedulerClient.SubmitRedaction(ctx, &tempopb.SubmitRedactionRequest{
 			TenantId: testTenant,
 			TraceIds: [][]byte{traceID},
@@ -334,6 +342,36 @@ func TestBackendSchedulerRedaction(t *testing.T) {
 		st, ok := grpcstatus.FromError(err)
 		require.True(t, ok)
 		require.Equal(t, codes.AlreadyExists, st.Code())
+
+		// Start the worker to process redaction jobs.
+		require.NoError(t, h.TestScenario.StartAndWaitReady(worker))
+
+		// Wait until all redaction jobs have been completed.
+		jobTypeMatcher := e2e.WithLabelMatchers(&labels.Matcher{
+			Type: labels.MatchEqual, Name: "job_type", Value: "JOB_TYPE_REDACTION",
+		})
+		require.NoError(t, scheduler.WaitSumMetricsWithOptions(
+			e2e.Equals(float64(blockCount)),
+			[]string{"tempo_backend_scheduler_jobs_completed_total"},
+			e2e.WaitMissingMetrics,
+			jobTypeMatcher,
+			printMetricValue(t, fmt.Sprintf("%d", blockCount), "tempo_backend_scheduler_jobs_completed_total"),
+		))
+
+		// RedactBlock marks the original block as compacted and writes a new block
+		// without the trace. Find() includes recently-compacted blocks for a lookback
+		// window of 2 × blocklist_poll (2 s here = 4 s window). Sleep past that
+		// window so the old block is excluded, then poll twice to ensure the new
+		// block is visible and the old one has fully aged out.
+		time.Sleep(6 * time.Second)
+		tempodbReader.PollNow(ctx)
+		tempodbReader.PollNow(ctx)
+
+		// The trace must no longer be present in any block.
+		trs, failedBlocks, err = tempodbReader.Find(ctx, testTenant, traceID, tempodb.BlockIDMin, tempodb.BlockIDMax, 0, 0, common.DefaultSearchOptions())
+		require.NoError(t, err)
+		require.Empty(t, failedBlocks, "no blocks should fail lookup after redaction")
+		require.Empty(t, trs, "trace must not be findable in any block after redaction")
 	})
 }
 
@@ -352,6 +390,11 @@ func printMetricValue(t *testing.T, expectedValue string, metric string) e2e.Met
 }
 
 func setupBackendWithEndpoint(t testing.TB, cfg *tempodb.Config, endpoint string) tempodb.Writer {
+	_, w := setupBackendReaderWriterWithEndpoint(t, cfg, endpoint)
+	return w
+}
+
+func setupBackendReaderWriterWithEndpoint(t testing.TB, cfg *tempodb.Config, endpoint string) (tempodb.Reader, tempodb.Writer) {
 	cfg.Block = &common.BlockConfig{
 		BloomFP:             .01,
 		BloomShardSizeBytes: 100_000,
@@ -372,10 +415,28 @@ func setupBackendWithEndpoint(t testing.TB, cfg *tempodb.Config, endpoint string
 		cfg.GCS.Endpoint = endpoint
 	}
 
-	_, w, _, err := tempodb.New(cfg, nil, log.NewNopLogger())
+	r, w, _, err := tempodb.New(cfg, nil, log.NewNopLogger())
 	require.NoError(t, err)
 
-	return w
+	return r, w
+}
+
+func populateBackendWithTrace(ctx context.Context, t testing.TB, w tempodb.Writer, tenantID string, blockCount int, traceID common.ID) {
+	walInstance := w.WAL()
+	dec := model.MustNewSegmentDecoder(model.CurrentEncoding)
+
+	for range blockCount {
+		blockID := backend.NewUUID()
+		meta := &backend.BlockMeta{BlockID: blockID, TenantID: tenantID}
+		head, err := walInstance.NewBlock(meta, model.CurrentEncoding)
+		require.NoError(t, err)
+
+		req := test.MakeTrace(10, traceID)
+		writeTraceToWal(t, head, dec, traceID, req, 0, 0)
+
+		_, err = w.CompleteBlock(ctx, head)
+		require.NoError(t, err)
+	}
 }
 
 func populateBackend(ctx context.Context, t testing.TB, w tempodb.Writer, tenantCount, blockCount, recordCount int) []string {

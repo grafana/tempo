@@ -186,81 +186,9 @@ func TestCompactionProvider_EmptyStart(t *testing.T) {
 	}
 }
 
-func TestCompactionProvider_RecentJobsCache(t *testing.T) {
-	// Create a test provider
-	provider := &CompactionProvider{
-		logger:          log.NewNopLogger(),
-		sched:           &mockScheduler{},
-		outstandingJobs: make(map[string][]backend.UUID),
-	}
-
-	var (
-		block1 = backend.NewUUID()
-		block2 = backend.NewUUID()
-		block3 = backend.NewUUID()
-		block4 = backend.NewUUID()
-	)
-
-	// Cache starts empty
-	require.Len(t, provider.outstandingJobs, 0, "Cache should start empty")
-
-	job1 := &work.Job{
-		ID:   "job1",
-		Type: tempopb.JobType_JOB_TYPE_COMPACTION,
-		JobDetail: tempopb.JobDetail{
-			Compaction: &tempopb.CompactionDetail{
-				Input: []string{block1.String(), block2.String()},
-			},
-		},
-	}
-
-	ctx := context.Background()
-
-	provider.addToRecentJobs(ctx, job1)
-	require.Len(t, provider.outstandingJobs, 1, "Cache should contain one job")
-	require.Contains(t, provider.outstandingJobs, "job1", "Cache should contain job1")
-	require.Equal(t, []backend.UUID{block1, block2}, provider.outstandingJobs["job1"], "Cache should contain correct blocks")
-
-	job2 := &work.Job{
-		ID:   "job2",
-		Type: tempopb.JobType_JOB_TYPE_COMPACTION,
-		JobDetail: tempopb.JobDetail{
-			Compaction: &tempopb.CompactionDetail{
-				Input: []string{block3.String(), block4.String()},
-			},
-		},
-	}
-
-	provider.addToRecentJobs(ctx, job2)
-	require.Len(t, provider.outstandingJobs, 2, "Cache should contain two jobs")
-	require.Equal(t, []backend.UUID{block3, block4}, provider.outstandingJobs["job2"], "Cache should contain correct blocks for job2")
-
-	// Non-compaction job should not be added to cache
-	retentionJob := &work.Job{
-		ID:   "retention1",
-		Type: tempopb.JobType_JOB_TYPE_RETENTION,
-	}
-
-	provider.addToRecentJobs(ctx, retentionJob)
-	require.Len(t, provider.outstandingJobs, 2, "Non-compaction jobs should not be added to cache")
-
-	// Empty compaction input should not be added
-	emptyJob := &work.Job{
-		ID:   "empty-job",
-		Type: tempopb.JobType_JOB_TYPE_COMPACTION,
-		JobDetail: tempopb.JobDetail{
-			Compaction: &tempopb.CompactionDetail{
-				Input: []string{}, // Empty input
-			},
-		},
-	}
-
-	provider.addToRecentJobs(ctx, emptyJob)
-	require.Len(t, provider.outstandingJobs, 2, "Jobs with empty input should not be added to cache")
-}
 
 // TestCompactionProvider_SkipsBlocksPendingRedaction verifies that newBlockSelector excludes
-// blocks that have a pending redaction job (BlockPending), so compaction does not pick them.
+// blocks that are busy (pending redaction), so compaction does not pick them.
 func TestCompactionProvider_SkipsBlocksPendingRedaction(t *testing.T) {
 	const testTenant = "test-tenant"
 	cfg := CompactionConfig{}
@@ -340,7 +268,7 @@ func TestCompactionProvider_SkipsBlocksPendingRedaction(t *testing.T) {
 	}
 }
 
-func TestCompactionProvider_RecentJobsCachePreventseDuplicatesAndCleansUp(t *testing.T) {
+func TestCompactionProvider_InFlightJobsPreventDuplicates(t *testing.T) {
 	const tenant = "test-tenant"
 	cfg := CompactionConfig{}
 	cfg.RegisterFlagsAndApplyDefaults("", &flag.FlagSet{})
@@ -400,60 +328,36 @@ func TestCompactionProvider_RecentJobsCachePreventseDuplicatesAndCleansUp(t *tes
 		require.Greater(t, len(job.GetCompactionInput()), 0)
 		require.Equal(t, tenant, job.Tenant(), "Job tenant should match the test tenant")
 		require.NotEqual(t, "", job.ID)
-
-		// // Check that the newBlockSelector does not include the input blocks
-		// twbs, _ := p.newBlockSelector(tenant)
-		// require.NotNil(t, twbs)
-		//
-		// metas := collectAllMetas(twbs)
-		//
-		// // All blocks which have been received were addded to the work queue.
-		// // New instances of the block selector should yield zero blocks.
-		// require.Len(t, metas, 0)
 	}
 
-	// Verify that all received jobs are present in the recent jobs cache
-	require.Len(t, p.outstandingJobs, len(receivedJobs), "Recent jobs cache should contain all received jobs")
+	// All received jobs should have their blocks reported as busy (registered in-flight
+	// before entering the channel pipeline).
 	for _, job := range receivedJobs {
-		require.Contains(t, p.outstandingJobs, job.ID, "Recent jobs cache should contain job %s", job.ID)
-
-		require.Equal(t, len(job.GetCompactionInput()), len(p.outstandingJobs[job.ID]), "Recent jobs cache should contain correct number of blocks for job %s", job.ID)
 		for _, blockID := range job.GetCompactionInput() {
-			u := backend.MustParse(blockID)
-			require.Equal(t, u.String(), blockID, "Block ID %s should match the UUID format", blockID)
+			require.True(t, w.IsBlockBusy(tenant, blockID), "block should be busy while job is in-flight")
 		}
 	}
 
-	// Now add a job to the work queue and verify it is removed from the recent jobs cache
+	// Add the first job to the work queue; its blocks move from in-flight to active.
 	firstJob := receivedJobs[0]
 	err = w.AddJob(firstJob)
 	require.NoError(t, err, "should be able to add first job to work queue")
 
-	// Get a new block selector for the tenant
+	// After AddJob, first job's blocks are in the active map — still reported as busy.
+	for _, blockID := range firstJob.GetCompactionInput() {
+		require.True(t, w.IsBlockBusy(tenant, blockID), "block should be busy while job is active")
+	}
+
+	// Get a new block selector for the tenant and verify the first job's blocks are excluded.
 	twbs, _ := p.newBlockSelector(tenant)
 	require.NotNil(t, twbs)
 
-	// Verify the recent jobs cache was cleaned up
-	require.NotContains(t, p.outstandingJobs, firstJob.ID, "Job should be removed from recent jobs cache after being added to work queue")
-
 	metas := collectAllMetas(twbs)
-	// Verify that the blocks in the first job are not present in the metas
 	for _, blockID := range firstJob.GetCompactionInput() {
 		u := backend.MustParse(blockID)
 		meta, found := foundMetaInMetas(metas, u)
 		require.False(t, found, "Block %s from job %s should not be present in the block selector after being added to work queue", blockID, firstJob.ID)
 		require.Nil(t, meta, "Block %s from job %s should not be present in the block selector after being added to work queue", blockID, firstJob.ID)
-	}
-
-	// Verify that the remaining jobs are still in the cache
-	for _, job := range receivedJobs[1:] {
-		require.Contains(t, p.outstandingJobs, job.ID, "Recent jobs cache should still contain job %s", job.ID)
-		require.Equal(t, len(job.GetCompactionInput()), len(p.outstandingJobs[job.ID]), "Recent jobs cache should contain correct number of blocks for job %s", job.ID)
-		for _, blockID := range job.GetCompactionInput() {
-			u := backend.MustParse(blockID)
-			require.Equal(t, u.String(), blockID, "Block ID %s should match the UUID format", blockID)
-		}
-
 	}
 }
 
@@ -539,22 +443,24 @@ func (m *mockScheduler) ListJobs() []*work.Job {
 	return m.jobs
 }
 
-func (m *mockScheduler) ListPendingJobs(_ string, _ tempopb.JobType) []*work.Job {
-	return nil
-}
-
-func (m *mockScheduler) HasPendingJobs(_ string, _ tempopb.JobType) bool {
-	return false
-}
-
-func (m *mockScheduler) BlockPending(_, _ string) bool {
-	return false
-}
-
 func (m *mockScheduler) HasActiveBatchForTenant(_ string) bool {
 	return false
 }
 
 func (m *mockScheduler) PopNextPendingJob(_ tempopb.JobType) *work.Job {
+	return nil
+}
+
+func (m *mockScheduler) RegisterInFlight(_ *work.Job) {}
+
+func (m *mockScheduler) HasJobsForTenant(_ string, _ tempopb.JobType) bool {
+	return false
+}
+
+func (m *mockScheduler) IsBlockBusy(_, _ string) bool {
+	return false
+}
+
+func (m *mockScheduler) BlocksUnderCompaction(_ string) map[string]string {
 	return nil
 }
