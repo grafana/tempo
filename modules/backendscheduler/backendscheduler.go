@@ -60,6 +60,11 @@ func (s *BackendScheduler) ListJobs() []*work.Job {
 	return s.work.ListJobs()
 }
 
+// RegisterInFlight delegates to work.Work, satisfying the provider.Scheduler interface.
+func (s *BackendScheduler) RegisterInFlight(job *work.Job) {
+	s.work.RegisterInFlight(job)
+}
+
 // New creates a new BackendScheduler
 func New(cfg Config, store storage.Store, overrides overrides.Interface, reader backend.RawReader, writer backend.RawWriter) (*BackendScheduler, error) {
 	err := ValidateConfig(&cfg)
@@ -274,30 +279,39 @@ func (s *BackendScheduler) Next(ctx context.Context, req *tempopb.NextJobRequest
 				attribute.String("job_id", j.GetID()),
 			))
 
-			// For per-tenant retention jobs: a pending redaction may have been
-			// added after the provider emitted the job.  Drop it and try again
-			// rather than running retention over a tenant that is mid-redaction.
-			if j.GetType() == tempopb.JobType_JOB_TYPE_RETENTION && j.Tenant() != "" {
-				if s.work.HasPendingJobs(j.Tenant(), tempopb.JobType_JOB_TYPE_REDACTION) {
-					level.Debug(log.Logger).Log("msg", "dropping stale retention job: tenant has pending redaction",
-						"job_id", j.ID, "tenant", j.Tenant())
-					metricJobsDropped.WithLabelValues(j.Tenant(), j.GetType().String()).Inc()
-					continue
+			// All current job types require a tenant. Legacy global retention jobs
+			// emitted by old scheduler binaries have an empty tenant and bypass
+			// the per-type precondition checks.
+			if j.Tenant() == "" {
+				level.Debug(log.Logger).Log("msg", "legacy global job without tenant, passing through",
+					"job_id", j.ID, "type", j.GetType().String())
+			} else {
+				drop := false
+				switch j.GetType() {
+				case tempopb.JobType_JOB_TYPE_RETENTION:
+					// A redaction may have been submitted after this job was emitted.
+					// Drop and retry to avoid running retention over a mid-redaction tenant.
+					if s.work.HasJobsForTenant(j.Tenant(), tempopb.JobType_JOB_TYPE_REDACTION) {
+						level.Debug(log.Logger).Log("msg", "dropping stale retention job: tenant has pending redaction",
+							"job_id", j.ID, "tenant", j.Tenant())
+						metricJobsDropped.WithLabelValues(j.Tenant(), j.GetType().String()).Inc()
+						drop = true
+					}
+				case tempopb.JobType_JOB_TYPE_REDACTION:
+					// Resolve trace IDs from the batch manifest.
+					// Drop if the batch no longer exists (cancelled or already cleaned up).
+					batch := s.work.GetBatch(j.Tenant())
+					if batch == nil {
+						level.Debug(log.Logger).Log("msg", "dropping redaction job: batch no longer exists",
+							"job_id", j.ID, "tenant", j.Tenant())
+						metricJobsDropped.WithLabelValues(j.Tenant(), j.GetType().String()).Inc()
+						drop = true
+					} else if j.JobDetail.Redaction != nil {
+						j.JobDetail.Redaction.TraceIds = batch.TraceIds
+					}
 				}
-			}
-
-			// For redaction jobs: resolve trace IDs from the batch manifest.
-			// If the batch no longer exists (cancelled or already cleaned up), drop the job.
-			if j.GetType() == tempopb.JobType_JOB_TYPE_REDACTION {
-				batch := s.work.GetBatch(j.Tenant())
-				if batch == nil {
-					level.Debug(log.Logger).Log("msg", "dropping redaction job: batch no longer exists",
-						"job_id", j.ID, "tenant", j.Tenant())
-					metricJobsDropped.WithLabelValues(j.Tenant(), j.GetType().String()).Inc()
+				if drop {
 					continue
-				}
-				if j.JobDetail.Redaction != nil {
-					j.JobDetail.Redaction.TraceIds = batch.TraceIds
 				}
 			}
 
@@ -438,21 +452,13 @@ func (s *BackendScheduler) SubmitRedaction(ctx context.Context, req *tempopb.Sub
 		return nil, status.Error(codes.NotFound, "no blocks found for tenant")
 	}
 
-	// Build a map of block ID -> compaction job ID for all active compaction jobs.
-	// These blocks may disappear before a redaction worker can process them - and
-	// more importantly, their contents will be merged into a new output block that
-	// we would not otherwise redact. We record the job IDs so that the maintenance
-	// loop can look up their output blocks once compaction finishes.
-	// Mirrors the filtering in CompactionProvider.newBlockSelector.
-	inCompactionJob := make(map[string]string) // blockID -> compaction job ID
-	for _, j := range s.work.ListJobs() {
-		if j.Tenant() != req.TenantId || j.GetType() != tempopb.JobType_JOB_TYPE_COMPACTION {
-			continue
-		}
-		for _, blockID := range j.GetCompactionInput() {
-			inCompactionJob[blockID] = j.ID
-		}
-	}
+	// Build a map of block ID -> compaction job ID for all blocks currently being
+	// compacted (active or in-flight). These blocks may disappear before a
+	// redaction worker can process them — their contents will be merged into a
+	// new output block not yet covered by any pending redaction job. We record
+	// the job IDs so the maintenance loop can look up output blocks once
+	// compaction finishes. Mirrors the filtering in CompactionProvider.newBlockSelector.
+	inCompactionJob := s.work.BlocksUnderCompaction(req.TenantId)
 
 	skippedJobSet := make(map[string]struct{})
 	filtered := metas[:0:0]
@@ -472,10 +478,6 @@ func (s *BackendScheduler) SubmitRedaction(ctx context.Context, req *tempopb.Sub
 			"total_blocks", len(metas))
 	}
 	metas = filtered
-
-	if len(metas) == 0 {
-		return nil, status.Error(codes.NotFound, "no eligible blocks found for tenant after filtering compaction-in-progress blocks")
-	}
 
 	jobs := make([]*work.Job, 0, len(metas))
 	for _, meta := range metas {
@@ -545,17 +547,14 @@ func (s *BackendScheduler) SubmitRedaction(ctx context.Context, req *tempopb.Sub
 }
 
 // cleanupBatchIfDone removes the batch manifest for a tenant once all of its redaction
-// jobs have completed or failed (no pending, no running) and no rescan is pending.
+// jobs have completed or failed (no pending, no in-flight, no running) and no rescan
+// is pending. "In-flight" means a job has been popped from the pending queue and is
+// travelling through the provider channel pipeline but has not yet been promoted to
+// the active job map; we must not discard the batch while such jobs are outstanding
+// or they will be dropped by Next() when they find no batch to resolve trace IDs from.
 func (s *BackendScheduler) cleanupBatchIfDone(ctx context.Context, tenantID string) {
-	if s.work.HasPendingJobs(tenantID, tempopb.JobType_JOB_TYPE_REDACTION) {
+	if s.work.HasJobsForTenant(tenantID, tempopb.JobType_JOB_TYPE_REDACTION) {
 		return
-	}
-	for _, j := range s.work.ListJobs() {
-		if j.Tenant() == tenantID &&
-			j.GetType() == tempopb.JobType_JOB_TYPE_REDACTION &&
-			j.GetStatus() == tempopb.JobStatus_JOB_STATUS_RUNNING {
-			return
-		}
 	}
 	// Do not remove the batch if a rescan is still pending; the maintenance tick
 	// will call checkPendingRescans which will add new pending jobs and clear the flag.
@@ -624,7 +623,7 @@ func (s *BackendScheduler) performRescan(ctx context.Context, batch *tempopb.Red
 	// Create pending jobs for output blocks, skipping any already pending.
 	jobs := make([]*work.Job, 0, len(outputBlockIDs))
 	for _, blockID := range outputBlockIDs {
-		if s.work.BlockPending(tenantID, blockID) {
+		if s.work.IsBlockBusy(tenantID, blockID) {
 			continue
 		}
 		jobs = append(jobs, &work.Job{

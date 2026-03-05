@@ -16,12 +16,22 @@ type Provider interface {
 // Scheduler interface defines the methods providers need from the scheduler
 type Scheduler interface {
 	ListJobs() []*work.Job
-
-	// Pending job queries.  Compaction uses BlockPending to skip blocks that are
-	// pending redaction; retention uses HasPendingJobs to skip tenants.
-	ListPendingJobs(tenantID string, jobType tempopb.JobType) []*work.Job
-	HasPendingJobs(tenantID string, jobType tempopb.JobType) bool
-	BlockPending(tenantID, blockID string) bool
 	HasActiveBatchForTenant(tenantID string) bool
 	PopNextPendingJob(jobType tempopb.JobType) *work.Job
+
+	// RegisterInFlight makes a job visible to other components before it is
+	// promoted to the active map via AddJob.
+	RegisterInFlight(job *work.Job)
+
+	// HasJobsForTenant returns true if there are any jobs of the given type in
+	// any state (pending, in-flight, or active) for the tenant.
+	HasJobsForTenant(tenantID string, jobType tempopb.JobType) bool
+
+	// IsBlockBusy returns true if the block is referenced by any job in any
+	// state. Used to skip blocks in selectors and rescans.
+	IsBlockBusy(tenantID, blockID string) bool
+
+	// BlocksUnderCompaction returns a blockID -> jobID map for all blocks being
+	// compacted for the tenant across active and in-flight states.
+	BlocksUnderCompaction(tenantID string) map[string]string
 }

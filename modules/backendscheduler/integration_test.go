@@ -33,6 +33,9 @@ func TestShardedIntegration(t *testing.T) {
 			cfg := Config{}
 			cfg.RegisterFlagsAndApplyDefaults("", &flag.FlagSet{})
 			cfg.LocalWorkPath = tmpDir + "/work"
+			// Prevent the compaction provider from picking up test blocks as in-flight
+			// compaction jobs (which would filter them from SubmitRedaction's view).
+			cfg.ProviderConfig.Compaction.MinInputBlocks = 100
 
 			var (
 				ctx, cancel   = context.WithCancel(context.Background())
@@ -141,7 +144,7 @@ func testSubmitRedactionPersistence(ctx context.Context, t *testing.T, scheduler
 	// Reload into a new scheduler instance (simulating a restart).
 	// We load work + batches directly rather than calling starting() to avoid the
 	// race where the RedactionProvider goroutine drains pending jobs before we
-	// can assert on BlockPending.
+	// can assert on IsBlockBusy.
 	newSched, err := New(cfg, store, limits, rr, ww)
 	require.NoError(t, err)
 	require.NoError(t, newSched.work.LoadFromLocal(ctx, cfg.LocalWorkPath))
@@ -150,7 +153,7 @@ func testSubmitRedactionPersistence(ctx context.Context, t *testing.T, scheduler
 	// Batch and all pending block jobs must survive the reload.
 	require.True(t, newSched.work.HasActiveBatchForTenant(testTenant))
 	for _, id := range blockIDs {
-		require.True(t, newSched.work.BlockPending(testTenant, id.String()), "block %s must be pending after reload", id)
+		require.True(t, newSched.work.IsBlockBusy(testTenant, id.String()), "block %s must be busy after reload", id)
 	}
 }
 

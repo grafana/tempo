@@ -435,7 +435,7 @@ func TestSubmitRedactionAndRescan(t *testing.T) {
 	s, err := New(cfg, store, limits, rr, ww)
 	require.NoError(t, err)
 	// Do NOT call s.starting — it would launch the RedactionProvider goroutine which
-	// immediately drains pending jobs, racing with our BlockPending assertions below.
+	// immediately drains pending jobs, racing with our IsBlockBusy assertions below.
 	// The store blocklist is already populated via newStore + time.Sleep above.
 
 	// Simulate a running compaction job covering the first two blocks.
@@ -464,14 +464,20 @@ func TestSubmitRedactionAndRescan(t *testing.T) {
 	require.NotNil(t, resp)
 	require.Equal(t, int32(3), resp.JobsCreated)
 
+	// Build a map of blocks that received pending redaction jobs.
+	pendingBlockSet := make(map[string]bool)
+	for _, j := range s.work.ListAllPendingJobs() {
+		pendingBlockSet[j.GetRedactionBlockID()] = true
+	}
+
 	// Blocks in active compaction must NOT have pending redaction jobs.
-	require.False(t, s.work.BlockPending(testTenant, blockIDs[0].String()))
-	require.False(t, s.work.BlockPending(testTenant, blockIDs[1].String()))
+	require.False(t, pendingBlockSet[blockIDs[0].String()], "block 0 in active compaction should not have pending redaction")
+	require.False(t, pendingBlockSet[blockIDs[1].String()], "block 1 in active compaction should not have pending redaction")
 
 	// Remaining blocks must have pending redaction jobs.
-	require.True(t, s.work.BlockPending(testTenant, blockIDs[2].String()))
-	require.True(t, s.work.BlockPending(testTenant, blockIDs[3].String()))
-	require.True(t, s.work.BlockPending(testTenant, blockIDs[4].String()))
+	require.True(t, pendingBlockSet[blockIDs[2].String()], "block 2 should have pending redaction")
+	require.True(t, pendingBlockSet[blockIDs[3].String()], "block 3 should have pending redaction")
+	require.True(t, pendingBlockSet[blockIDs[4].String()], "block 4 should have pending redaction")
 
 	// The batch must record the skipped compaction job ID and a rescan deadline.
 	batch := s.work.GetBatch(testTenant)
@@ -490,7 +496,7 @@ func TestSubmitRedactionAndRescan(t *testing.T) {
 	s.checkPendingRescans(ctx)
 
 	// The compaction output block must now have a pending redaction job.
-	require.True(t, s.work.BlockPending(testTenant, outputBlock))
+	require.True(t, s.work.IsBlockBusy(testTenant, outputBlock))
 
 	// The rescan deadline must have been cleared.
 	batch = s.work.GetBatch(testTenant)

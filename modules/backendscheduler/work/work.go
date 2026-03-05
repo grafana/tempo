@@ -40,15 +40,26 @@ type Work struct {
 	cfg    Config
 	mtx    sync.Mutex // Protects the entire Work structure during Marshal/Unmarshal
 
-	// pendingBlocks indexes (tenantID, blockID) -> jobID for fast BlockPending lookup.
+	// pendingBlocks indexes (tenantID, blockID) -> jobID for fast pending-block lookup.
 	// Not persisted; rebuilt on LoadFromLocal and in Unmarshal from Shard.Pending.
 	pendingBlocks map[string]string `json:"-"`
 
 	// pendingByTenant indexes tenant -> job type -> ordered queue of job IDs for O(1)
-	// HasPendingJobs checks and O(1) PopNextPendingJob dequeues.
+	// HasJobsForTenant checks and O(1) PopNextPendingJob dequeues.
 	// Not persisted; rebuilt on LoadFromLocal and Unmarshal.
 	pendingByTenant map[string]map[tempopb.JobType][]string `json:"-"`
 	pendingMtx      sync.Mutex                              `json:"-"`
+
+	// redactionInFlight counts redaction jobs per tenant that have been popped from
+	// the pending queue by PopNextPendingJob but not yet promoted to the active map
+	// via AddJob. Not persisted; reset to 0 on restart (channels are empty after
+	// restart so the count is naturally 0). Guarded by pendingMtx.
+	redactionInFlight map[string]int `json:"-"`
+
+	// inFlightJobs tracks jobs registered by providers before they enter the channel
+	// pipeline. Cleared in AddJob when the job is promoted to active. Not persisted.
+	// Guarded by pendingMtx.
+	inFlightJobs map[string]*Job `json:"-"`
 
 	// batches holds the active redaction batch per tenant (trace ID list shared across jobs).
 	batches *batchStore `json:"-"`
@@ -68,6 +79,8 @@ func New(cfg Config) Interface {
 	}
 	sw.pendingBlocks = make(map[string]string)
 	sw.pendingByTenant = make(map[string]map[tempopb.JobType][]string)
+	sw.redactionInFlight = make(map[string]int)
+	sw.inFlightJobs = make(map[string]*Job)
 	sw.batches = newBatchStore()
 
 	return sw
@@ -91,7 +104,29 @@ func (w *Work) AddJob(j *Job) error {
 	j.Status = tempopb.JobStatus_JOB_STATUS_UNSPECIFIED
 
 	shard.Jobs[j.ID] = j
+
+	w.pendingMtx.Lock()
+	// Clear in-flight registration now that the job is promoted to active.
+	delete(w.inFlightJobs, j.ID)
+	// If this redaction job was previously in-flight (popped from pending but not
+	// yet active), decrement the counter now that it has been promoted to active.
+	if j.GetType() == tempopb.JobType_JOB_TYPE_REDACTION {
+		if w.redactionInFlight[j.Tenant()] > 0 {
+			w.redactionInFlight[j.Tenant()]--
+		}
+	}
+	w.pendingMtx.Unlock()
+
 	return nil
+}
+
+// RegisterInFlight registers a job as in-flight before it enters the channel pipeline.
+// Call this immediately after creating a job, before sending it to the jobs channel.
+// The registration is cleared automatically when AddJob promotes the job to active.
+func (w *Work) RegisterInFlight(job *Job) {
+	w.pendingMtx.Lock()
+	w.inFlightJobs[job.ID] = job
+	w.pendingMtx.Unlock()
 }
 
 // FlushToLocal writes the work cache to local storage using sharding optimizations
@@ -583,64 +618,6 @@ func (w *Work) AddPendingJobs(jobs []*Job) error {
 	return nil
 }
 
-// RemovePending removes a job from the appropriate shard's Pending map and the blocks-pending index.
-func (w *Work) RemovePending(jobID string) {
-	shard := w.getShard(jobID)
-	shard.mtx.Lock()
-	j, ok := shard.Pending[jobID]
-	shard.mtx.Unlock()
-	if !ok {
-		return
-	}
-
-	w.pendingMtx.Lock()
-	defer w.pendingMtx.Unlock()
-
-	shard.mtx.Lock()
-	delete(shard.Pending, jobID)
-	if key := j.PendingBlockKey(); key != "" {
-		delete(w.pendingBlocks, key)
-	}
-	shard.mtx.Unlock()
-
-	// Maintain per-tenant queue index. O(N) filter is acceptable — RemovePending is
-	// a rare explicit-cancellation path, not the hot pop path.
-	tenant := j.JobDetail.Tenant
-	if typeMap, ok := w.pendingByTenant[tenant]; ok {
-		queue := typeMap[j.Type]
-		newQueue := queue[:0]
-		for _, id := range queue {
-			if id != jobID {
-				newQueue = append(newQueue, id)
-			}
-		}
-		if len(newQueue) == 0 {
-			delete(typeMap, j.Type)
-			if len(typeMap) == 0 {
-				delete(w.pendingByTenant, tenant)
-			}
-		} else {
-			typeMap[j.Type] = newQueue
-		}
-	}
-}
-
-// ListPendingJobs returns all pending jobs for the given tenant and job type across all shards.
-func (w *Work) ListPendingJobs(tenantID string, jobType tempopb.JobType) []*Job {
-	var out []*Job
-	for i := range ShardCount {
-		shard := w.Shards[i]
-		shard.mtx.Lock()
-		for _, j := range shard.Pending {
-			if j.JobDetail.Tenant == tenantID && j.Type == jobType {
-				out = append(out, j)
-			}
-		}
-		shard.mtx.Unlock()
-	}
-	return out
-}
-
 // ListAllPendingJobs returns all pending jobs across all shards and tenants.
 func (w *Work) ListAllPendingJobs() []*Job {
 	var out []*Job
@@ -655,21 +632,13 @@ func (w *Work) ListAllPendingJobs() []*Job {
 	return out
 }
 
-// HasPendingJobs returns true if there are any pending jobs for the given tenant and job type.
-// O(1) via the pendingByTenant index.
-func (w *Work) HasPendingJobs(tenantID string, jobType tempopb.JobType) bool {
+// hasPendingJobs returns true if there are any pending jobs for the given tenant and job type.
+// O(1) via the pendingByTenant index. Caller must not hold pendingMtx.
+func (w *Work) hasPendingJobs(tenantID string, jobType tempopb.JobType) bool {
 	w.pendingMtx.Lock()
 	count := len(w.pendingByTenant[tenantID][jobType])
 	w.pendingMtx.Unlock()
 	return count > 0
-}
-
-// BlockPending returns true if the given (tenantID, blockID) has a pending job
-func (w *Work) BlockPending(tenantID, blockID string) bool {
-	w.pendingMtx.Lock()
-	_, ok := w.pendingBlocks[pendingBlockKey(tenantID, blockID)]
-	w.pendingMtx.Unlock()
-	return ok
 }
 
 // PopNextPendingJob removes and returns one pending job of the given type,
@@ -711,10 +680,142 @@ func (w *Work) PopNextPendingJob(jobType tempopb.JobType) *Job {
 
 		if j != nil {
 			w.removePendingBlockIndex(j)
+			// Track that this redaction job is now in-flight: it has been removed
+			// from the pending queue but not yet promoted to the active map.
+			if j.GetType() == tempopb.JobType_JOB_TYPE_REDACTION {
+				w.pendingMtx.Lock()
+				w.redactionInFlight[j.Tenant()]++
+				w.pendingMtx.Unlock()
+			}
 			return j
 		}
-		// j was already removed by RemovePending; try again.
+		// j is nil: stale index entry, skip and retry.
 	}
+}
+
+// hasRedactionInFlight returns true if there are redaction jobs for the tenant
+// that have been popped from the pending queue but not yet promoted to active.
+// Caller must hold pendingMtx.
+func (w *Work) hasRedactionInFlight(tenantID string) bool {
+	return w.redactionInFlight[tenantID] > 0
+}
+
+// HasJobsForTenant returns true if there are any jobs of the given type in any
+// state (pending queue, in-flight channel, or active map) for the tenant.
+func (w *Work) HasJobsForTenant(tenantID string, jobType tempopb.JobType) bool {
+	w.pendingMtx.Lock()
+	hasPending := len(w.pendingByTenant[tenantID][jobType]) > 0
+	hasInFlight := false
+	if jobType == tempopb.JobType_JOB_TYPE_REDACTION {
+		hasInFlight = w.hasRedactionInFlight(tenantID)
+	}
+	if !hasInFlight {
+		for _, j := range w.inFlightJobs {
+			if j.Tenant() == tenantID && j.GetType() == jobType {
+				hasInFlight = true
+				break
+			}
+		}
+	}
+	w.pendingMtx.Unlock()
+
+	if hasPending || hasInFlight {
+		return true
+	}
+
+	for i := range ShardCount {
+		shard := w.Shards[i]
+		shard.mtx.Lock()
+		for _, j := range shard.Jobs {
+			if j.Tenant() == tenantID && j.GetType() == jobType {
+				switch j.GetStatus() {
+				case tempopb.JobStatus_JOB_STATUS_RUNNING,
+					tempopb.JobStatus_JOB_STATUS_UNSPECIFIED:
+					shard.mtx.Unlock()
+					return true
+				}
+			}
+		}
+		shard.mtx.Unlock()
+	}
+	return false
+}
+
+// IsBlockBusy returns true if the block is currently referenced by any job in
+// any state (pending, in-flight, or active). Used to skip blocks in selectors
+// and rescans.
+func (w *Work) IsBlockBusy(tenantID, blockID string) bool {
+	key := pendingBlockKey(tenantID, blockID)
+
+	w.pendingMtx.Lock()
+	_, inPending := w.pendingBlocks[key]
+	if inPending {
+		w.pendingMtx.Unlock()
+		return true
+	}
+	for _, j := range w.inFlightJobs {
+		if j.Tenant() == tenantID && jobReferencesBlock(j, blockID) {
+			w.pendingMtx.Unlock()
+			return true
+		}
+	}
+	w.pendingMtx.Unlock()
+
+	for i := range ShardCount {
+		shard := w.Shards[i]
+		shard.mtx.Lock()
+		for _, j := range shard.Jobs {
+			if j.Tenant() == tenantID && jobReferencesBlock(j, blockID) {
+				shard.mtx.Unlock()
+				return true
+			}
+		}
+		shard.mtx.Unlock()
+	}
+	return false
+}
+
+// BlocksUnderCompaction returns a map of blockID -> jobID for all blocks
+// currently being compacted for the tenant, across active and in-flight states.
+func (w *Work) BlocksUnderCompaction(tenantID string) map[string]string {
+	result := make(map[string]string)
+
+	w.pendingMtx.Lock()
+	for _, j := range w.inFlightJobs {
+		if j.Tenant() == tenantID && j.GetType() == tempopb.JobType_JOB_TYPE_COMPACTION {
+			for _, blockID := range j.GetCompactionInput() {
+				result[blockID] = j.ID
+			}
+		}
+	}
+	w.pendingMtx.Unlock()
+
+	for i := range ShardCount {
+		shard := w.Shards[i]
+		shard.mtx.Lock()
+		for _, j := range shard.Jobs {
+			if j.Tenant() == tenantID && j.GetType() == tempopb.JobType_JOB_TYPE_COMPACTION {
+				for _, blockID := range j.GetCompactionInput() {
+					result[blockID] = j.ID
+				}
+			}
+		}
+		shard.mtx.Unlock()
+	}
+
+	return result
+}
+
+// jobReferencesBlock returns true if the job references the given block ID
+// (as a compaction input or redaction target).
+func jobReferencesBlock(j *Job, blockID string) bool {
+	for _, bid := range j.GetCompactionInput() {
+		if bid == blockID {
+			return true
+		}
+	}
+	redactionBlock := j.GetRedactionBlockID()
+	return redactionBlock != "" && redactionBlock == blockID
 }
 
 func (w *Work) removePendingBlockIndex(j *Job) {
