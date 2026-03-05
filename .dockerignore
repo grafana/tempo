@@ -3,3 +3,4 @@ example/
 integration/
 operations/
 opentelemetry-proto/
+.worktree

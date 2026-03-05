@@ -502,6 +502,9 @@ func (t *App) initQueryFrontend() (services.Service, error) {
 	// http mcp endpoint
 	t.Server.HTTPRouter().Handle(addHTTPAPIPrefix(&t.cfg, api.PathMCP), base.Wrap(queryFrontend.MCPHandler))
 
+	// http explain endpoint
+	t.Server.HTTPRouter().Handle(addHTTPAPIPrefix(&t.cfg, api.PathExplain), base.Wrap(queryFrontend.ExplainHandler))
+
 	// the query frontend needs to have knowledge of the blocks so it can shard search jobs
 	if t.cfg.Target == QueryFrontend {
 		t.store.EnablePolling(context.Background(), nil, false)

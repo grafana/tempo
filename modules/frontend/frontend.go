@@ -51,6 +51,7 @@ type QueryFrontend struct {
 	SearchTagsHandler, SearchTagsV2Handler, SearchTagsValuesHandler, SearchTagsValuesV2Handler http.Handler
 	MetricsQueryInstantHandler, MetricsQueryRangeHandler                                       http.Handler
 	MCPHandler                                                                                 http.Handler
+	ExplainHandler                                                                             http.Handler
 	cacheProvider                                                                              cache.Provider
 	streamingSearch                                                                            streamingSearchHandler
 	streamingTags                                                                              streamingTagsHandler
@@ -280,6 +281,8 @@ func New(cfg Config, next pipeline.RoundTripper, o overrides.Interface, reader t
 			http.NotFound(w, r)
 		})
 	}
+
+	f.ExplainHandler = newExplainHTTPHandler(logger)
 
 	return f, nil
 }
