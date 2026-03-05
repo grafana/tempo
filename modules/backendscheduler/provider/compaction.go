@@ -452,4 +452,3 @@ func (p *CompactionProvider) newBlockSelector(tenantID string) (blockselector.Co
 		p.cfg.MaxCompactionLevel,
 	), len(blocklist)
 }
-

@@ -186,7 +186,6 @@ func TestCompactionProvider_EmptyStart(t *testing.T) {
 	}
 }
 
-
 // TestCompactionProvider_SkipsBlocksPendingRedaction verifies that newBlockSelector excludes
 // blocks that are busy (pending redaction), so compaction does not pick them.
 func TestCompactionProvider_SkipsBlocksPendingRedaction(t *testing.T) {
