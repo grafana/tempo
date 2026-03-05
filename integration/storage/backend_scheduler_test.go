@@ -21,6 +21,10 @@ import (
 	io_prometheus_client "github.com/prometheus/client_model/go"
 	"github.com/prometheus/prometheus/model/labels"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/credentials/insecure"
+	grpcstatus "google.golang.org/grpc/status"
 )
 
 func TestBackendScheduler(t *testing.T) {
@@ -260,6 +264,76 @@ func TestBackendScheduler(t *testing.T) {
 				))
 			})
 		}
+	})
+}
+
+// TestBackendSchedulerRedaction verifies that the scheduler accepts a SubmitRedaction
+// call over gRPC, fans out one pending job per block, and correctly rejects a
+// duplicate submission for the same tenant.
+func TestBackendSchedulerRedaction(t *testing.T) {
+	util.RunIntegrationTests(t, util.TestHarnessConfig{
+		Components:    util.ComponentsBackendWork,
+		Backends:      util.BackendObjectStorageAll,
+		ConfigOverlay: "config-backend-scheduler.yaml",
+	}, func(h *util.TempoHarness) {
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		cfg, err := h.GetConfig()
+		require.NoError(t, err)
+
+		objStorage := h.Services[util.ServiceObjectStorage]
+		scheduler := h.Services[util.ServiceBackendScheduler]
+		worker := h.Services[util.ServiceBackendWorker]
+
+		// Stop the worker so pending redaction jobs are not drained before we assert.
+		require.NoError(t, h.TestScenario.Stop(worker))
+
+		// Write a small number of blocks for a single tenant.
+		tempodbWriter := setupBackendWithEndpoint(t, &cfg.StorageConfig.Trace, objStorage.HTTPEndpoint())
+		const blockCount = 3
+		tenants := populateBackend(ctx, t, tempodbWriter, 1, blockCount, 1)
+		testTenant := tenants[0]
+
+		// Wait until the scheduler's blocklist reflects all written blocks.
+		tenantMatcher := e2e.WithLabelMatchers(&labels.Matcher{
+			Type: labels.MatchEqual, Name: "tenant", Value: testTenant,
+		})
+		require.NoError(t, scheduler.WaitSumMetricsWithOptions(
+			e2e.Equals(float64(blockCount)),
+			[]string{"tempodb_blocklist_length"},
+			e2e.WaitMissingMetrics,
+			tenantMatcher,
+			printMetricValue(t, fmt.Sprintf("%d", blockCount), "tempodb_blocklist_length"),
+		))
+
+		// Dial the scheduler's gRPC endpoint and build a client.
+		conn, err := grpc.NewClient(
+			scheduler.Endpoint(9095),
+			grpc.WithTransportCredentials(insecure.NewCredentials()),
+		)
+		require.NoError(t, err)
+		defer conn.Close()
+		schedulerClient := tempopb.NewBackendSchedulerClient(conn)
+
+		// Submit a redaction — expect one pending job per block.
+		traceID := test.ValidTraceID(nil)
+		resp, err := schedulerClient.SubmitRedaction(ctx, &tempopb.SubmitRedactionRequest{
+			TenantId: testTenant,
+			TraceIds: [][]byte{traceID},
+		})
+		require.NoError(t, err)
+		require.Equal(t, int32(blockCount), resp.JobsCreated)
+
+		// A second submission for the same tenant must be rejected.
+		_, err = schedulerClient.SubmitRedaction(ctx, &tempopb.SubmitRedactionRequest{
+			TenantId: testTenant,
+			TraceIds: [][]byte{traceID},
+		})
+		require.Error(t, err)
+		st, ok := grpcstatus.FromError(err)
+		require.True(t, ok)
+		require.Equal(t, codes.AlreadyExists, st.Code())
 	})
 }
 
