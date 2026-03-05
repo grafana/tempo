@@ -433,33 +433,3 @@ func collectAllMetas(bs blockselector.CompactionBlockSelector) []*backend.BlockM
 	return metas
 }
 
-// mockScheduler implements the Scheduler interface for testing
-type mockScheduler struct {
-	jobs []*work.Job
-}
-
-func (m *mockScheduler) ListJobs() []*work.Job {
-	return m.jobs
-}
-
-func (m *mockScheduler) HasActiveBatchForTenant(_ string) bool {
-	return false
-}
-
-func (m *mockScheduler) PopNextPendingJob(_ tempopb.JobType) *work.Job {
-	return nil
-}
-
-func (m *mockScheduler) RegisterInFlight(_ *work.Job) {}
-
-func (m *mockScheduler) HasJobsForTenant(_ string, _ tempopb.JobType) bool {
-	return false
-}
-
-func (m *mockScheduler) IsBlockBusy(_, _ string) bool {
-	return false
-}
-
-func (m *mockScheduler) BlocksUnderCompaction(_ string) map[string]string {
-	return nil
-}

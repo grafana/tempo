@@ -21,11 +21,11 @@ func createRedactionJob(id, tenantID, blockID string) *Job {
 	}
 }
 
-// countPendingForTenant counts pending jobs matching the given tenant and job type.
-func countPendingForTenant(w *Work, tenantID string, jobType tempopb.JobType) int {
+// countPendingForTenant counts pending redaction jobs for the given tenant.
+func countPendingForTenant(w *Work, tenantID string) int {
 	count := 0
 	for _, j := range w.ListAllPendingJobs() {
-		if j.JobDetail.Tenant == tenantID && j.Type == jobType {
+		if j.JobDetail.Tenant == tenantID && j.Type == tempopb.JobType_JOB_TYPE_REDACTION {
 			count++
 		}
 	}
@@ -44,8 +44,8 @@ func TestAddPendingJobs(t *testing.T) {
 		err := w.AddPendingJobs(jobs)
 		require.NoError(t, err)
 
-		require.Equal(t, 2, countPendingForTenant(w, "tenant-a", tempopb.JobType_JOB_TYPE_REDACTION))
-		require.Equal(t, 1, countPendingForTenant(w, "tenant-b", tempopb.JobType_JOB_TYPE_REDACTION))
+		require.Equal(t, 2, countPendingForTenant(w, "tenant-a"))
+		require.Equal(t, 1, countPendingForTenant(w, "tenant-b"))
 		require.True(t, w.HasJobsForTenant("tenant-a", tempopb.JobType_JOB_TYPE_REDACTION))
 		require.True(t, w.HasJobsForTenant("tenant-b", tempopb.JobType_JOB_TYPE_REDACTION))
 		require.False(t, w.HasJobsForTenant("tenant-c", tempopb.JobType_JOB_TYPE_REDACTION))
@@ -56,7 +56,7 @@ func TestAddPendingJobs(t *testing.T) {
 		j := createRedactionJob("same-id", "t", "b")
 		require.NoError(t, w2.AddPendingJobs([]*Job{j}))
 		require.NoError(t, w2.AddPendingJobs([]*Job{j})) // same job again
-		require.Equal(t, 1, countPendingForTenant(w2, "t", tempopb.JobType_JOB_TYPE_REDACTION))
+		require.Equal(t, 1, countPendingForTenant(w2, "t"))
 	})
 }
 
@@ -156,7 +156,7 @@ func TestPendingRoundTrip_FlushAndLoad(t *testing.T) {
 	w2 := New(Config{}).(*Work)
 	require.NoError(t, w2.LoadFromLocal(ctx, tmpDir))
 
-	require.Equal(t, 2, countPendingForTenant(w2, "tenant-a", tempopb.JobType_JOB_TYPE_REDACTION))
+	require.Equal(t, 2, countPendingForTenant(w2, "tenant-a"))
 	require.True(t, w2.IsBlockBusy("tenant-a", "block-1"))
 	require.True(t, w2.IsBlockBusy("tenant-a", "block-2"))
 }
@@ -176,8 +176,8 @@ func TestPendingRoundTrip_MarshalUnmarshal(t *testing.T) {
 	require.NoError(t, w2.Unmarshal(data))
 
 	// Shard-scan based checks.
-	require.Equal(t, 1, countPendingForTenant(w2, "tenant-a", tempopb.JobType_JOB_TYPE_REDACTION))
-	require.Equal(t, 1, countPendingForTenant(w2, "tenant-b", tempopb.JobType_JOB_TYPE_REDACTION))
+	require.Equal(t, 1, countPendingForTenant(w2, "tenant-a"))
+	require.Equal(t, 1, countPendingForTenant(w2, "tenant-b"))
 	require.Len(t, w2.ListAllPendingJobs(), 2)
 
 	// pendingBlocks index rebuilt correctly.
@@ -192,7 +192,7 @@ func TestPendingRoundTrip_MarshalUnmarshal(t *testing.T) {
 	j := w2.PopNextPendingJob(tempopb.JobType_JOB_TYPE_REDACTION)
 	require.NotNil(t, j)
 	// After popping, the pending queue for this tenant is empty.
-	require.Zero(t, countPendingForTenant(w2, j.Tenant(), tempopb.JobType_JOB_TYPE_REDACTION))
+	require.Zero(t, countPendingForTenant(w2, j.Tenant()))
 	// The block is no longer in the pending index (removed on pop).
 	require.False(t, w2.IsBlockBusy(j.Tenant(), j.GetRedactionBlockID()))
 }
@@ -209,7 +209,7 @@ func TestPendingAndActiveJobs_Isolated(t *testing.T) {
 	require.NoError(t, w.AddPendingJobs([]*Job{pending}))
 
 	require.Len(t, w.ListJobs(), 1)
-	require.Equal(t, 1, countPendingForTenant(w, "tenant-a", tempopb.JobType_JOB_TYPE_REDACTION))
+	require.Equal(t, 1, countPendingForTenant(w, "tenant-a"))
 	require.NotNil(t, w.GetJob("active-1"))
 	require.Nil(t, w.GetJob("pending-1"))
 }
