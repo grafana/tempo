@@ -432,4 +432,3 @@ func collectAllMetas(bs blockselector.CompactionBlockSelector) []*backend.BlockM
 
 	return metas
 }
-
