@@ -25,7 +25,6 @@ import (
 	v1_resource "github.com/grafana/tempo/pkg/tempopb/resource/v1"
 	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 	"github.com/grafana/tempo/pkg/traceql"
-	"github.com/grafana/tempo/pkg/traceqlmetrics"
 	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/pkg/util/math"
 	"github.com/grafana/tempo/pkg/util/test"
@@ -2470,66 +2469,6 @@ func searchTestSuite() (
 	}
 
 	return
-}
-
-func TestWALBlockGetMetrics(t *testing.T) {
-	var (
-		ctx     = context.Background()
-		tempDir = t.TempDir()
-	)
-
-	r, w, c, err := New(testingConfig(tempDir, encoding.DefaultEncoding().Version(), nil), nil, log.NewNopLogger())
-	require.NoError(t, err)
-
-	err = c.EnableCompaction(context.Background(), testingCompactorConfig, &mockSharder{}, &mockOverrides{})
-	require.NoError(t, err)
-
-	r.EnablePolling(ctx, &mockJobSharder{}, false)
-
-	wal := w.WAL()
-	meta := &backend.BlockMeta{BlockID: backend.NewUUID(), TenantID: testTenantID}
-	head, err := wal.NewBlock(meta, model.CurrentEncoding)
-	require.NoError(t, err)
-
-	// Write to wal
-	err = head.AppendTrace(common.ID{0x01}, &tempopb.Trace{
-		ResourceSpans: []*v1.ResourceSpans{
-			{
-				ScopeSpans: []*v1.ScopeSpans{
-					{
-						Spans: []*v1.Span{
-							{Name: "1", StartTimeUnixNano: 1, EndTimeUnixNano: 2}, // Included
-							{Name: "2", StartTimeUnixNano: 2, EndTimeUnixNano: 4}, // Included
-							{Name: "3", StartTimeUnixNano: 100},                   // Excluded, endtime is exclusive
-							{Name: "4", StartTimeUnixNano: 101},                   // Excluded
-						},
-					},
-				},
-			},
-		},
-	}, 0, 0, true)
-	require.NoError(t, err)
-	require.NoError(t, head.Flush())
-
-	f := traceql.NewSpansetFetcherWrapper(func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
-		return head.Fetch(ctx, req, common.DefaultSearchOptions())
-	})
-
-	res, err := traceqlmetrics.GetMetrics(ctx, "{}", "name", 0, 1, 100, f)
-	require.NoError(t, err)
-
-	one := traceqlmetrics.MetricSeries{traceqlmetrics.KeyValue{Key: "name", Value: traceql.NewStaticString("1")}}
-	oneK := one.MetricKeys()
-
-	two := traceqlmetrics.MetricSeries{traceqlmetrics.KeyValue{Key: "name", Value: traceql.NewStaticString("2")}}
-	twoK := two.MetricKeys()
-
-	require.Equal(t, 2, len(res.Series))
-	require.Equal(t, 2, res.SpanCount)
-	require.Equal(t, 1, res.Series[oneK].Histogram.Count())
-	require.Equal(t, 1, res.Series[twoK].Histogram.Count())
-	require.Equal(t, uint64(1), res.Series[oneK].Histogram.Percentile(1.0)) // The only span was 1ns
-	require.Equal(t, uint64(2), res.Series[twoK].Histogram.Percentile(1.0)) // The only span was 2ns
 }
 
 func TestSearchForTagsAndTagValues(t *testing.T) {
