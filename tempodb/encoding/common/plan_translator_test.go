@@ -49,6 +49,8 @@ func (m *mockBackend) TraceIterRaw(_ context.Context, _ *traceql.TraceScanNode, 
 	return &mockIter{}, nil
 }
 
+func (m *mockBackend) SpanMerger() func(dst, src *traceql.Spanset) { return nil }
+
 type mockIter struct{}
 
 func (m *mockIter) String() string { return "mockIter" }

@@ -29,17 +29,23 @@ type lateMaterializeIter struct {
 	driving         traceql.SpansetIterator
 	fetcher         parquetquery.Iterator
 	definitionLevel int
+	// spanMerger, if non-nil, is called after trace-level metadata is merged to
+	// copy span-level data (SpanID, start time, duration, trace attrs) from the
+	// fetch Spanset's spans into the matching driving spans.
+	spanMerger func(dst, src *traceql.Spanset)
 }
 
 func newLateMaterializeIter(
 	driving traceql.SpansetIterator,
 	fetcher parquetquery.Iterator,
 	definitionLevel int,
+	spanMerger func(dst, src *traceql.Spanset),
 ) *lateMaterializeIter {
 	return &lateMaterializeIter{
 		driving:         driving,
 		fetcher:         fetcher,
 		definitionLevel: definitionLevel,
+		spanMerger:      spanMerger,
 	}
 }
 
@@ -71,7 +77,7 @@ func (it *lateMaterializeIter) Next(ctx context.Context) (*traceql.Spanset, erro
 
 	// Verify the fetched result is for the same trace row.
 	if parquetquery.EqualRowNumber(it.definitionLevel, res.RowNumber, rn) {
-		mergeSpansetMetadata(ss, res)
+		mergeSpansetMetadata(ss, res, it.spanMerger)
 	}
 
 	return ss, nil
@@ -86,7 +92,10 @@ func (it *lateMaterializeIter) Close() {
 // parquetquery.IteratorResult into the driving spanset. The fetch iterator
 // is built from a TraceScanNode, so its traceCollector stores a complete
 // *traceql.Spanset in OtherEntries under spansetOtherEntryKey.
-func mergeSpansetMetadata(dst *traceql.Spanset, res *parquetquery.IteratorResult) {
+// If spanMerger is non-nil it is called to merge span-level data from the
+// fetch Spanset's spans into the driving spans. The fetch Spanset is then
+// released back to the pool and its reference cleared from res.
+func mergeSpansetMetadata(dst *traceql.Spanset, res *parquetquery.IteratorResult, spanMerger func(dst, src *traceql.Spanset)) {
 	iface := res.OtherValueFromKey(spansetOtherEntryKey)
 	if iface == nil {
 		return
@@ -112,5 +121,24 @@ func mergeSpansetMetadata(dst *traceql.Spanset, res *parquetquery.IteratorResult
 	}
 	if len(dst.ServiceStats) == 0 && len(src.ServiceStats) > 0 {
 		dst.ServiceStats = src.ServiceStats
+	}
+
+	// Merge span-level data (SpanID, start time, duration, trace attrs) into
+	// matching driving spans before releasing the fetch Spanset.
+	if spanMerger != nil {
+		spanMerger(dst, src)
+	}
+
+	// Release the fetch Spanset and its spans back to the pool now that all
+	// needed data has been copied. Also clear the reference in the IteratorResult
+	// so that the next Reset() on it does not observe a stale released pointer.
+	if src.ReleaseFn != nil {
+		src.ReleaseFn(src)
+	}
+	for i, e := range res.OtherEntries {
+		if e.Key == spansetOtherEntryKey {
+			res.OtherEntries[i].Value = nil
+			break
+		}
 	}
 }

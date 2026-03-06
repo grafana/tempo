@@ -1749,6 +1749,12 @@ func flattenForSelectAll(tr *Trace, dcm dedicatedColumnMapping) *traceql.Spanset
 	return newSS
 }
 
+// BenchmarkBackendBlockTraceQL benchmarks TraceQL search against a local block.
+// Each query is run under two sub-benchmarks:
+//   - "existing" — the classic ExecuteSearch → block.Fetch path
+//   - "plan"     — the new BuildSearchTracePlan → TranslateSearch path
+//
+// Use -bench filtering to run only one path, e.g. -bench '.*/plan'.
 func BenchmarkBackendBlockTraceQL(b *testing.B) {
 	testCases := []struct {
 		name  string
@@ -1791,6 +1797,8 @@ func BenchmarkBackendBlockTraceQL(b *testing.B) {
 		// {"span dedicated", "{span.db.statement=~`.*bar.*`}"},
 	}
 
+	const limit = 0 // 0 = no limit, process the full block (matches existing path semantics)
+
 	var (
 		ctx  = b.Context()
 		opts = common.DefaultSearchOptions()
@@ -1807,25 +1815,92 @@ func BenchmarkBackendBlockTraceQL(b *testing.B) {
 
 	for _, tc := range testCases {
 		b.Run(tc.name, func(b *testing.B) {
-			b.ResetTimer()
-			bytesRead := 0
-			matches := 0
+			expr, err := traceql.Parse(tc.query)
+			require.NoError(b, err)
 
-			for b.Loop() {
-				resp, err := e.ExecuteSearch(ctx, &tempopb.SearchRequest{Query: tc.query}, f, false)
+			plan, err := traceql.BuildSearchTracePlan(expr)
+			require.NoError(b, err)
+
+			// Quick result-correctness check: fetch a small sample with both paths,
+			// assert same count, then spot-check full metadata at 3 positions.
+			b.Run("verify", func(b *testing.B) {
+				const verifyLimit = 20
+
+				existingResp, err := e.ExecuteSearch(ctx, &tempopb.SearchRequest{Query: tc.query, Limit: verifyLimit, SpansPerSpanSet: math.MaxUint32}, f, false)
 				require.NoError(b, err)
-				require.NotNil(b, resp)
 
-				for _, tr := range resp.Traces {
-					for _, ss := range tr.SpanSets {
-						matches += len(ss.Spans)
-					}
+				scanBackend, _, err := NewBlockScanBackendFromBlock(ctx, block, opts)
+				require.NoError(b, err)
+				eval, err := common.TranslateSearch(ctx, plan, scanBackend, opts, verifyLimit)
+				require.NoError(b, err)
+				require.NoError(b, eval.Do(ctx))
+				planResp := eval.Response()
+
+				require.Equal(b, len(existingResp.Traces), len(planResp.Traces),
+					"query %q: result count mismatch (existing=%d plan=%d)",
+					tc.query, len(existingResp.Traces), len(planResp.Traces))
+
+				// Sort both by TraceID for a stable comparison.
+				sort.Slice(existingResp.Traces, func(i, j int) bool {
+					return existingResp.Traces[i].TraceID < existingResp.Traces[j].TraceID
+				})
+				sort.Slice(planResp.Traces, func(i, j int) bool {
+					return planResp.Traces[i].TraceID < planResp.Traces[j].TraceID
+				})
+
+				// Spot-check up to 50 randomly sampled entries (or all if fewer).
+				n := len(existingResp.Traces)
+				checkN := min(50, n)
+				indices := rand.Perm(n)[:checkN]
+				for _, i := range indices {
+					eg, pl := existingResp.Traces[i], planResp.Traces[i]
+					require.Equal(b, eg.TraceID, pl.TraceID, "query %q [%d]: TraceID", tc.query, i)
+					require.Equal(b, eg.RootServiceName, pl.RootServiceName, "query %q [%d]: RootServiceName", tc.query, i)
+					require.Equal(b, eg.RootTraceName, pl.RootTraceName, "query %q [%d]: RootTraceName", tc.query, i)
+					require.Equal(b, eg.DurationMs, pl.DurationMs, "query %q [%d]: DurationMs", tc.query, i)
+					require.Equal(b, eg.StartTimeUnixNano, pl.StartTimeUnixNano, "query %q [%d]: StartTimeUnixNano", tc.query, i)
 				}
-				bytesRead += int(resp.Metrics.InspectedBytes)
-			}
-			b.SetBytes(int64(bytesRead) / int64(b.N))
-			b.ReportMetric(float64(bytesRead)/float64(b.N)/1000.0/1000.0, "MB_io/op")
-			b.ReportMetric(float64(matches)/float64(b.N), "spans/op")
+			})
+
+			b.Run("existing", func(b *testing.B) {
+				bytesRead := 0
+				matches := 0
+				for b.Loop() {
+					resp, err := e.ExecuteSearch(ctx, &tempopb.SearchRequest{Query: tc.query, SpansPerSpanSet: math.MaxUint32}, f, false)
+					require.NoError(b, err)
+					require.NotNil(b, resp)
+					for _, tr := range resp.Traces {
+						for _, ss := range tr.SpanSets {
+							matches += len(ss.Spans)
+						}
+					}
+					bytesRead += int(resp.Metrics.InspectedBytes)
+				}
+				b.SetBytes(int64(bytesRead) / int64(b.N))
+				b.ReportMetric(float64(bytesRead)/float64(b.N)/1000.0/1000.0, "MB_io/op")
+				b.ReportMetric(float64(matches)/float64(b.N), "spans/op")
+			})
+
+			b.Run("plan", func(b *testing.B) {
+				bytesRead := 0
+				matches := 0
+				for b.Loop() {
+					scanBackend, rr, err := NewBlockScanBackendFromBlock(ctx, block, opts)
+					require.NoError(b, err)
+					eval, err := common.TranslateSearch(ctx, plan, scanBackend, opts, limit)
+					require.NoError(b, err)
+					require.NoError(b, eval.Do(ctx))
+					for _, tr := range eval.Response().Traces {
+						for _, ss := range tr.SpanSets {
+							matches += len(ss.Spans)
+						}
+					}
+					bytesRead += int(rr.BytesRead())
+				}
+				b.SetBytes(int64(bytesRead) / int64(b.N))
+				b.ReportMetric(float64(bytesRead)/float64(b.N)/1000.0/1000.0, "MB_io/op")
+				b.ReportMetric(float64(matches)/float64(b.N), "spans/op")
+			})
 		})
 	}
 }

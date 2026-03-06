@@ -227,7 +227,7 @@ func (t *translator) translateProjectToIter(node *traceql.ProjectNode) (traceql.
 
 	// DefinitionLevel 0 = trace level: the fetch iterator operates per-trace,
 	// producing a full spanset with metadata in OtherEntries["spanset"].
-	return newLateMaterializeIter(drivingIter, fetchPqIter, 0), nil
+	return newLateMaterializeIter(drivingIter, fetchPqIter, 0, t.backend.SpanMerger()), nil
 }
 
 // ---------------------------------------------------------------------------

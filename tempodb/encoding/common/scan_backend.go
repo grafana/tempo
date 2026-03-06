@@ -59,6 +59,12 @@ type ScanBackend interface {
 		child parquetquery.Iterator,
 	) (parquetquery.Iterator, error)
 
+	// SpanMerger returns a function that merges span-level data from a fetch-side
+	// Spanset into the matching driving-side spans (matched by parquet row number).
+	// Called by lateMaterializeIter after trace-level metadata is merged.
+	// Backends that do not need span-level merging may return nil.
+	SpanMerger() func(dst, src *traceql.Spanset)
+
 	// TraceIterRaw is like TraceIter but returns the raw parquetquery.Iterator
 	// without wrapping in SpansetIterator. Used by the fetch side of
 	// ProjectNode where SeekTo capability is needed.

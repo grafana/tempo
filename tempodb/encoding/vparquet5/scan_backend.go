@@ -136,6 +136,54 @@ func (b *blockScanBackend) TraceIterRaw(
 	return createTraceIterator(b.makeIter, source, node.Conditions, 0, 0, node.AllConditions, false, nil)
 }
 
+// SpanMerger returns mergeSpanAttrs, which copies span-level data (SpanID,
+// start time, duration, trace-level attributes) from the fetch-side Spanset's
+// spans into the matching driving-side spans, matched by parquet row number.
+func (b *blockScanBackend) SpanMerger() func(dst, src *traceql.Spanset) {
+	return mergeSpanAttrs
+}
+
+// mergeSpanAttrs copies span-level data from the fetch Spanset's spans into
+// the matching driving spans. Spans are matched by parquet row number.
+// Called before the fetch Spanset is released back to the pool.
+func mergeSpanAttrs(dst, src *traceql.Spanset) {
+	if len(src.Spans) == 0 || len(dst.Spans) == 0 {
+		return
+	}
+
+	// Index fetch spans by row number.
+	fetchByRow := make(map[parquetquery.RowNumber]*span, len(src.Spans))
+	for _, s := range src.Spans {
+		if sp, ok := s.(*span); ok {
+			fetchByRow[sp.rowNum] = sp
+		}
+	}
+
+	// Merge into each driving span.
+	for _, dstS := range dst.Spans {
+		sp, ok := dstS.(*span)
+		if !ok {
+			continue
+		}
+		fetchSp, ok := fetchByRow[sp.rowNum]
+		if !ok {
+			continue
+		}
+		if len(sp.id) == 0 {
+			sp.id = fetchSp.id
+		}
+		if sp.startTimeUnixNanos == 0 {
+			sp.startTimeUnixNanos = fetchSp.startTimeUnixNanos
+		}
+		if sp.durationNanos == 0 {
+			sp.durationNanos = fetchSp.durationNanos
+		}
+		if len(sp.traceAttrs) == 0 && len(fetchSp.traceAttrs) > 0 {
+			sp.traceAttrs = append(sp.traceAttrs, fetchSp.traceAttrs...)
+		}
+	}
+}
+
 // LinkIter delegates to createLinkIterator.
 func (b *blockScanBackend) LinkIter(
 	ctx context.Context,

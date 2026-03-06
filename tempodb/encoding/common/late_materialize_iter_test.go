@@ -113,7 +113,7 @@ func TestLateMaterializeIter(t *testing.T) {
 		results: []*parquetquery.IteratorResult{fetchResult},
 	}
 
-	iter := newLateMaterializeIter(driving, fetchIter, 3)
+	iter := newLateMaterializeIter(driving, fetchIter, 3, nil)
 
 	ctx := context.Background()
 	ss, err := iter.Next(ctx)
