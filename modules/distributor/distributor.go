@@ -202,6 +202,9 @@ type Distributor struct {
 	kafkaProducer *ingest.Producer
 	partitionRing ring.PartitionRingReader
 
+	pushSpansToKafka     bool
+	pushSpansToGenerator bool
+
 	// Per-user rate limiter.
 	ingestionRateLimiter *limiter.RateLimiter
 
@@ -283,6 +286,9 @@ func New(
 
 	subservices = append(subservices, pool)
 
+	pushSpansToKafka := cfg.PushSpansToKafka
+	pushSpansToGenerator := cfg.PushSpansToGenerator
+
 	d := &Distributor{
 		cfg:                  cfg,
 		clientCfg:            clientCfg,
@@ -293,6 +299,8 @@ func New(
 		generatorClientCfg:   generatorClientCfg,
 		generatorsRing:       generatorsRing,
 		partitionRing:        partitionRing,
+		pushSpansToKafka:     pushSpansToKafka,
+		pushSpansToGenerator: pushSpansToGenerator,
 		overrides:            o,
 		traceEncoder:         model.MustNewSegmentDecoder(model.CurrentEncoding),
 		tracePushMiddlewares: cfg.TracePushMiddlewares,
@@ -310,22 +318,24 @@ func New(
 		d.usage = tracker
 	}
 
-	var generatorsPoolFactory ring_client.PoolAddrFunc = func(addr string) (ring_client.PoolClient, error) {
-		return generator_client.New(addr, generatorClientCfg)
+	if d.pushSpansToGenerator {
+		var generatorsPoolFactory ring_client.PoolAddrFunc = func(addr string) (ring_client.PoolClient, error) {
+			return generator_client.New(addr, generatorClientCfg)
+		}
+		d.generatorsPool = ring_client.NewPool(
+			"distributor_metrics_generator_pool",
+			generatorClientCfg.PoolConfig,
+			ring_client.NewRingServiceDiscovery(generatorsRing),
+			generatorsPoolFactory,
+			metricGeneratorClients,
+			logger,
+		)
+
+		subservices = append(subservices, d.generatorsPool)
+
+		d.generatorForwarder = newGeneratorForwarder(logger, d.sendToGenerators, o)
+		subservices = append(subservices, d.generatorForwarder)
 	}
-	d.generatorsPool = ring_client.NewPool(
-		"distributor_metrics_generator_pool",
-		generatorClientCfg.PoolConfig,
-		ring_client.NewRingServiceDiscovery(generatorsRing),
-		generatorsPoolFactory,
-		metricGeneratorClients,
-		logger,
-	)
-
-	subservices = append(subservices, d.generatorsPool)
-
-	d.generatorForwarder = newGeneratorForwarder(logger, d.sendToGenerators, o)
-	subservices = append(subservices, d.generatorForwarder)
 
 	forwardersManager, err := forwarder.NewManager(d.cfg.Forwarders, logger, o, loggingLevel)
 	if err != nil {
@@ -346,7 +356,7 @@ func New(
 	}
 	subservices = append(subservices, receivers)
 
-	if cfg.KafkaWritePathEnabled {
+	if d.pushSpansToKafka {
 		client, err := ingest.NewWriterClient(cfg.KafkaConfig, 10, logger, prometheus.WrapRegistererWithPrefix("tempo_distributor_", reg))
 		if err != nil {
 			return nil, fmt.Errorf("failed to create kafka writer client: %w", err)
@@ -543,17 +553,37 @@ func (d *Distributor) PushTraces(ctx context.Context, traces ptrace.Traces) (*te
 		_ = level.Warn(d.logger).Log("msg", "failed to forward batches for tenant=%s: %w", userID, err)
 	}
 
-	if d.kafkaProducer != nil {
-		err := d.sendToKafka(ctx, userID, ringTokens, rebatchedTraces)
-		if err != nil {
-			level.Error(d.logger).Log("msg", "failed to write to kafka", "err", err, "tenant", userID)
-			return nil, err
-		}
-	} else if len(d.overrides.MetricsGeneratorProcessors(userID)) > 0 { // See if we need to send to the generators
-		d.generatorForwarder.SendTraces(ctx, userID, ringTokens, rebatchedTraces)
+	if err := d.pushTracesKafka(ctx, userID, ringTokens, rebatchedTraces); err != nil {
+		level.Error(d.logger).Log("msg", "failed to write to kafka", "err", err, "tenant", userID)
+		return nil, err
+	}
+
+	// In single-binary mode we also push directly to metrics-generator over gRPC,
+	// while still writing to Kafka for live-store and block-builder.
+	if d.pushSpansToGenerator {
+		d.pushTracesGRPC(ctx, userID, ringTokens, rebatchedTraces)
 	}
 
 	return nil, nil // PushRequest is ignored, so no reason to create one
+}
+
+func (d *Distributor) pushTracesKafka(ctx context.Context, userID string, keys []uint32, traces []*rebatchedTrace) error {
+	if !d.pushSpansToKafka {
+		return nil
+	}
+
+	skipMetricsGeneration := generator.ExtractNoGenerateMetrics(ctx) || d.pushSpansToGenerator
+	return d.sendToKafka(ctx, userID, keys, traces, skipMetricsGeneration)
+}
+
+func (d *Distributor) pushTracesGRPC(ctx context.Context, userID string, keys []uint32, traces []*rebatchedTrace) {
+	if !d.pushSpansToGenerator {
+		return
+	}
+
+	if len(d.overrides.MetricsGeneratorProcessors(userID)) > 0 {
+		d.generatorForwarder.SendTraces(ctx, userID, keys, traces)
+	}
 }
 
 func (d *Distributor) sendToIngestersViaBytes(ctx context.Context, userID string, traces []*rebatchedTrace, keys []uint32) error {
@@ -682,7 +712,7 @@ func (d *Distributor) UsageTrackerHandler() http.Handler {
 	return nil
 }
 
-func (d *Distributor) sendToKafka(ctx context.Context, userID string, keys []uint32, traces []*rebatchedTrace) error {
+func (d *Distributor) sendToKafka(ctx context.Context, userID string, keys []uint32, traces []*rebatchedTrace, skipMetricsGeneration bool) error {
 	marshalledTraces := make([][]byte, len(traces))
 	for i, t := range traces {
 		b, err := proto.Marshal(t.trace)
@@ -704,7 +734,7 @@ func (d *Distributor) sendToKafka(ctx context.Context, userID string, keys []uin
 		req := &tempopb.PushBytesRequest{
 			Traces:                make([]tempopb.PreallocBytes, len(indexes)),
 			Ids:                   make([][]byte, len(indexes)),
-			SkipMetricsGeneration: generator.ExtractNoGenerateMetrics(ctx),
+			SkipMetricsGeneration: skipMetricsGeneration,
 		}
 
 		for i, j := range indexes {

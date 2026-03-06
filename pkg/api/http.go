@@ -56,10 +56,6 @@ const (
 	// search tags
 	urlParamScope = "scope"
 
-	// generator summary
-	urlParamGroupBy = "groupBy"
-	// urlParamMetric  = "metric"
-
 	HeaderAccept           = "Accept"
 	HeaderContentType      = "Content-Type"
 	HeaderAcceptProtobuf   = "application/protobuf"
@@ -67,8 +63,7 @@ const (
 	HeaderAcceptLLM        = "application/vnd.grafana.llm"
 	HeaderRecentDataTarget = "Recent-Data-Target"
 
-	PathPrefixQuerier   = "/querier"
-	PathPrefixGenerator = "/generator"
+	PathPrefixQuerier = "/querier"
 
 	PathTraces              = "/api/traces/{traceID}"
 	PathSearch              = "/api/search"
@@ -77,7 +72,6 @@ const (
 	PathEcho                = "/api/echo"
 	PathBuildInfo           = "/api/status/buildinfo"
 	PathUsageStats          = "/status/usage-stats"
-	PathSpanMetrics         = "/api/metrics"
 	PathMetricsQueryInstant = "/api/metrics/query"
 	PathMetricsQueryRange   = "/api/metrics/query_range"
 	PathMCP                 = "/api/mcp"
@@ -293,44 +287,6 @@ func ParseSearchRequestWithDefault(r *http.Request, defaultSpansPerSpanSet uint3
 	if req.End <= req.Start {
 		return nil, fmt.Errorf("http parameter start must be before end. received start=%d end=%d", req.Start, req.End)
 	}
-	return req, nil
-}
-
-func ParseSpanMetricsRequest(r *http.Request) (*tempopb.SpanMetricsRequest, error) {
-	req := &tempopb.SpanMetricsRequest{}
-	vals := r.URL.Query()
-
-	groupBy := vals.Get(urlParamGroupBy)
-	req.GroupBy = groupBy
-
-	query := vals.Get(urlParamQuery)
-	req.Query = query
-
-	l := vals.Get(urlParamLimit)
-	if l != "" {
-		limit, err := strconv.Atoi(l)
-		if err != nil {
-			return nil, fmt.Errorf("invalid limit: %w", err)
-		}
-		req.Limit = uint64(limit)
-	}
-
-	if s, ok := extractQueryParam(vals, urlParamStart); ok {
-		start, err := strconv.ParseInt(s, 10, 32)
-		if err != nil {
-			return nil, fmt.Errorf("invalid start: %w", err)
-		}
-		req.Start = uint32(start)
-	}
-
-	if s, ok := extractQueryParam(vals, urlParamEnd); ok {
-		end, err := strconv.ParseInt(s, 10, 32)
-		if err != nil {
-			return nil, fmt.Errorf("invalid end: %w", err)
-		}
-		req.End = uint32(end)
-	}
-
 	return req, nil
 }
 

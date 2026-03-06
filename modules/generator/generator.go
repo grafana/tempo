@@ -176,7 +176,7 @@ func (g *Generator) starting(ctx context.Context) (err error) {
 		}
 	}
 
-	if g.cfg.Ingest.Enabled {
+	if g.cfg.ConsumeFromKafka {
 		g.kafkaClient, err = ingest.NewGroupReaderClient(
 			g.cfg.Ingest.Kafka,
 			g.partitionRing,
@@ -207,7 +207,7 @@ func (g *Generator) starting(ctx context.Context) (err error) {
 }
 
 func (g *Generator) running(ctx context.Context) error {
-	if g.cfg.Ingest.Enabled {
+	if g.cfg.ConsumeFromKafka {
 		g.startKafka()
 	}
 
@@ -236,7 +236,7 @@ func (g *Generator) stopping(_ error) error {
 	g.stopIncomingRequests()
 
 	// Stop reading from queue and wait for outstanding data to be processed and committed
-	if g.cfg.Ingest.Enabled {
+	if g.cfg.ConsumeFromKafka {
 		g.stopKafka()
 	}
 
@@ -402,36 +402,6 @@ func (g *Generator) OnRingInstanceStopping(*ring.BasicLifecycler) {
 
 // OnRingInstanceHeartbeat implements ring.BasicLifecyclerDelegate
 func (g *Generator) OnRingInstanceHeartbeat(*ring.BasicLifecycler, *ring.Desc, *ring.InstanceDesc) {
-}
-
-func (g *Generator) GetMetrics(ctx context.Context, req *tempopb.SpanMetricsRequest) (*tempopb.SpanMetricsResponse, error) {
-	instanceID, err := validation.ExtractValidTenantID(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	// return empty if we don't have an instance
-	instance, ok := g.getInstanceByID(instanceID)
-	if !ok || instance == nil {
-		return &tempopb.SpanMetricsResponse{}, nil
-	}
-
-	return instance.GetMetrics(ctx, req)
-}
-
-func (g *Generator) QueryRange(ctx context.Context, req *tempopb.QueryRangeRequest) (*tempopb.QueryRangeResponse, error) {
-	instanceID, err := validation.ExtractValidTenantID(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	// return empty if we don't have an instance
-	instance, ok := g.getInstanceByID(instanceID)
-	if !ok || instance == nil {
-		return &tempopb.QueryRangeResponse{}, nil
-	}
-
-	return instance.QueryRange(ctx, req)
 }
 
 // ExtractNoGenerateMetrics checks for presence of context keys that indicate no

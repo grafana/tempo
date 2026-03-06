@@ -42,10 +42,15 @@ type Config struct {
 	Forwarders          forwarder.ConfigList      `yaml:"forwarders"`
 	Usage               usage.Config              `yaml:"usage,omitempty"`
 
-	// Migration to Kafka write path
-	IngesterWritePathEnabled bool               `yaml:"ingester_write_path_enabled"`
-	KafkaWritePathEnabled    bool               `yaml:"kafka_write_path_enabled"`
-	KafkaConfig              ingest.KafkaConfig `yaml:"kafka_config"`
+	// Deprecated: this field will be removed in a future release. Write path routing is set by deployment model.
+	IngesterWritePathEnabled bool `yaml:"ingester_write_path_enabled"`
+	// Deprecated: this field will be removed in a future release. Write path routing is set by deployment model.
+	KafkaWritePathEnabled bool               `yaml:"kafka_write_path_enabled"`
+	KafkaConfig           ingest.KafkaConfig `yaml:"kafka_config"`
+
+	// Internal routing toggles set by app wiring (not user-configurable).
+	PushSpansToKafka     bool `yaml:"-"`
+	PushSpansToGenerator bool `yaml:"-"`
 
 	// disables write extension with inactive ingesters. Use this along with ingester.lifecycler.unregister_on_shutdown = true
 	//  note that setting these two config values reduces tolerance to failures on rollout b/c there is always one guaranteed to be failing replica
@@ -104,7 +109,7 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 }
 
 func (cfg *Config) Validate() error {
-	if cfg.KafkaWritePathEnabled {
+	if cfg.PushSpansToKafka {
 		if err := cfg.KafkaConfig.Validate(); err != nil {
 			return err
 		}
