@@ -45,6 +45,13 @@ func init() {
 }
 
 func main() {
+	// Health check command — runs before any config parsing so it works in
+	// distroless containers without a shell.
+	// Usage: tempo -health [-health.url=http://localhost:3200/ready]
+	if CheckHealth(os.Args[1:]) {
+		os.Exit(RunHealthCheck(os.Args[1:]))
+	}
+
 	printVersion := flag.Bool("version", false, "Print this builds version information")
 	ballastMBs := flag.Int("mem-ballast-size-mbs", 0, "Size of memory ballast to allocate in MBs.")
 	mutexProfileFraction := flag.Int("mutex-profile-fraction", 0, "Override default mutex profiling fraction.")
