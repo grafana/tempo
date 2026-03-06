@@ -419,8 +419,9 @@ func newScanTree(spanScan *SpanScanNode, resourceScan *ResourceScanNode) (*Trace
 }
 
 // TestOrPredicatePushdownRule_SpanOnly verifies that a pure span-scope OR
-// expression gets OpNone fetch conditions pushed into SpanScan, while the
-// SpansetFilterNode is kept for in-memory evaluation.
+// expression gets real-operator conditions pushed into SpanScan so parquet can
+// skip non-matching row groups, while the SpansetFilterNode is kept for
+// in-memory evaluation.
 func TestOrPredicatePushdownRule_SpanOnly(t *testing.T) {
 	a := NewScopedAttribute(AttributeScopeSpan, false, "http.method")
 	b := NewScopedAttribute(AttributeScopeSpan, false, "http.status_code")
@@ -443,17 +444,26 @@ func TestOrPredicatePushdownRule_SpanOnly(t *testing.T) {
 	// Filter node is KEPT.
 	_, ok := result.(*SpansetFilterNode)
 	require.True(t, ok, "SpansetFilterNode must be kept for OR, got %T", result)
-	// Both span conditions pushed as OpNone.
+	// Both span conditions pushed with their real operators (not OpNone) so
+	// the parquet layer can skip row groups where neither predicate can match.
 	require.Len(t, spanScan.Conditions, 2, "both span attrs must be fetched")
+	condByAttr := make(map[string]Condition, len(spanScan.Conditions))
 	for _, c := range spanScan.Conditions {
-		require.Equal(t, OpNone, c.Op, "OR pushdown must use OpNone")
+		condByAttr[c.Attribute.String()] = c
 	}
+	methodCond, ok := condByAttr["span.http.method"]
+	require.True(t, ok, "span.http.method condition expected")
+	require.Equal(t, OpEqual, methodCond.Op, "http.method must use real OpEqual")
+	statusCond, ok := condByAttr["span.http.status_code"]
+	require.True(t, ok, "span.http.status_code condition expected")
+	require.Equal(t, OpGreater, statusCond.Op, "http.status_code must use real OpGreater")
 	// ResourceScan untouched.
 	require.Empty(t, resourceScan.Conditions)
 }
 
 // TestOrPredicatePushdownRule_MixedScope verifies that a mixed resource+span OR
-// routes resource attrs to ResourceScan and span attrs to SpanScan, all OpNone.
+// routes resource attrs to ResourceScan and span attrs to SpanScan, each with
+// its real operator.
 func TestOrPredicatePushdownRule_MixedScope(t *testing.T) {
 	spanAttr := NewScopedAttribute(AttributeScopeSpan, false, "name")
 	resAttr := NewScopedAttribute(AttributeScopeResource, false, "service.name")
@@ -476,15 +486,17 @@ func TestOrPredicatePushdownRule_MixedScope(t *testing.T) {
 	_, ok := result.(*SpansetFilterNode)
 	require.True(t, ok, "SpansetFilterNode must be kept")
 	require.Len(t, spanScan.Conditions, 1)
-	require.Equal(t, OpNone, spanScan.Conditions[0].Op)
+	require.Equal(t, OpEqual, spanScan.Conditions[0].Op, "span.name must use real OpEqual")
 	require.Equal(t, "span.name", spanScan.Conditions[0].Attribute.String())
 	require.Len(t, resourceScan.Conditions, 1)
-	require.Equal(t, OpNone, resourceScan.Conditions[0].Op)
+	require.Equal(t, OpEqual, resourceScan.Conditions[0].Op, "resource.service.name must use real OpEqual")
 	require.Equal(t, "resource.service.name", resourceScan.Conditions[0].Attribute.String())
 }
 
 // TestOrPredicatePushdownRule_Idempotent verifies that applying the rule twice
 // does not duplicate conditions (fixpoint safety).
+// span.foo=a || span.foo=b uses the same attribute with different values, so
+// resolveOrConditions collapses it to a single OpNone fetch condition.
 func TestOrPredicatePushdownRule_Idempotent(t *testing.T) {
 	spanAttr := NewScopedAttribute(AttributeScopeSpan, false, "foo")
 	or := &BinaryOperation{
@@ -505,6 +517,8 @@ func TestOrPredicatePushdownRule_Idempotent(t *testing.T) {
 
 	require.False(t, changed2, "second application must be a no-op")
 	require.Len(t, spanScan.Conditions, 1, "no duplicate conditions")
+	// Same attribute with different values → conflict → collapsed to OpNone.
+	require.Equal(t, OpNone, spanScan.Conditions[0].Op, "same-attr conflict must use OpNone")
 }
 
 // TestOrPredicatePushdownRule_NoOrSkips verifies that the rule does not fire
@@ -518,6 +532,48 @@ func TestOrPredicatePushdownRule_NoOrSkips(t *testing.T) {
 	_, changed := rule.Apply(filter)
 
 	require.False(t, changed, "non-OR expression must not trigger OrPredicatePushdownRule")
+}
+
+// TestOrPredicatePushdownRule_TraceLevelIntrinsic verifies that trace-level
+// intrinsics inside OR expressions are routed to TraceScanNode, not SpanScanNode.
+// Regression test for: { rootServiceName = `x` && (status = error || span.http.status_code = 500) }
+func TestOrPredicatePushdownRule_TraceLevelIntrinsic(t *testing.T) {
+	// Simulate: status = error || rootServiceName = `x`
+	// status is span-scope; rootServiceName is trace-scope (IntrinsicLevel == AttributeScopeNone)
+	statusAttr := NewIntrinsic(IntrinsicStatus)
+	rootSvcAttr := NewIntrinsic(IntrinsicTraceRootService)
+
+	orExpr := &BinaryOperation{
+		Op:  OpOr,
+		LHS: &BinaryOperation{Op: OpEqual, LHS: statusAttr, RHS: NewStaticString("error")},
+		RHS: &BinaryOperation{Op: OpEqual, LHS: rootSvcAttr, RHS: NewStaticString("svc")},
+	}
+
+	spanScan := NewSpanScanNode(nil, nil)
+	instr := NewInstrumentationScopeScanNode(nil, spanScan)
+	res := NewResourceScanNode(nil, instr)
+	traceScan := NewTraceScanNode(nil, false, res)
+	filter := NewSpansetFilterNode(newSpansetFilter(orExpr), traceScan)
+
+	rule := OrPredicatePushdownRule()
+	_, changed := rule.Apply(filter)
+
+	require.True(t, changed, "rule must fire for OR expression with trace-level intrinsic")
+
+	// rootServiceName must land on TraceScanNode
+	foundOnTrace := false
+	for _, c := range traceScan.Conditions {
+		if c.Attribute.Intrinsic == IntrinsicTraceRootService {
+			foundOnTrace = true
+		}
+	}
+	require.True(t, foundOnTrace, "rootServiceName must be pushed to TraceScanNode")
+
+	// rootServiceName must NOT land on SpanScanNode
+	for _, c := range spanScan.Conditions {
+		require.NotEqual(t, IntrinsicTraceRootService, c.Attribute.Intrinsic,
+			"rootServiceName must not be pushed to SpanScanNode")
+	}
 }
 
 // TestFetchTreeDeduplicationRule verifies that attributes already present in the

@@ -95,20 +95,64 @@ func OrPredicatePushdownRule() Rule {
 			return n, false
 		}
 
-		req := &FetchSpansRequest{AllConditions: false}
-		filter.Expression.extractConditions(req)
+		// Two categories of conditions to push:
+		//
+		// 1. Top-level AND conjuncts that contain no OR (simple, pushable):
+		//    push with their real operator as filter conditions so parquet can
+		//    skip non-matching rows early.
+		//
+		// 2. Conditions inside OR sub-expressions: push with their real operators
+		//    and AllConditions=false so the parquet layer can skip row groups where
+		//    none of the OR predicates can match. The SpansetFilterNode is kept for
+		//    in-memory correctness. When the same attribute appears in multiple OR
+		//    arms with different operands, it is collapsed to OpNone so all values
+		//    are fetched and the filter can evaluate correctly.
+		//
+		// PredicatePushdownRule cannot handle case 1 here because isSimplePerSpanFilter
+		// returns false for any expression that contains an OR anywhere.
+		filterConds := collectTopLevelAndConjuncts(filter.Expression.Expression)
+		orConds := resolveOrConditions(collectOrBranchConditions(filter.Expression.Expression))
 
-		var spanConds, resourceConds []Condition
-		for _, c := range req.Conditions {
-			fetch := Condition{Attribute: c.Attribute, Op: OpNone}
+		var spanConds, resourceConds, traceConds []Condition
+
+		// Push top-level AND conjuncts with real operators.
+		for _, c := range filterConds {
 			switch c.Attribute.Scope {
 			case AttributeScopeSpan:
-				spanConds = append(spanConds, fetch)
+				spanConds = append(spanConds, c)
 			case AttributeScopeResource:
-				resourceConds = append(resourceConds, fetch)
+				resourceConds = append(resourceConds, c)
 			default:
 				if c.Attribute.Intrinsic != IntrinsicNone {
-					spanConds = append(spanConds, fetch)
+					if IntrinsicLevel(c.Attribute.Intrinsic) == AttributeScopeNone {
+						traceConds = append(traceConds, c)
+					} else {
+						spanConds = append(spanConds, c)
+					}
+				}
+			}
+		}
+
+		// Push OR-branch conditions with their real operators so the parquet
+		// layer can skip row groups where none of the predicates can match.
+		for _, c := range orConds {
+			switch c.Attribute.Scope {
+			case AttributeScopeSpan:
+				spanConds = append(spanConds, c)
+			case AttributeScopeResource:
+				resourceConds = append(resourceConds, c)
+			default:
+				if c.Attribute.Intrinsic != IntrinsicNone {
+					// Route by actual scan level: trace-level intrinsics
+					// (rootServiceName, traceDuration, etc.) must go to
+					// TraceScanNode so traceCollector stamps them on spans.
+					// Span-level intrinsics (name, status, duration, etc.)
+					// go to SpanScanNode as usual.
+					if IntrinsicLevel(c.Attribute.Intrinsic) == AttributeScopeNone {
+						traceConds = append(traceConds, c)
+					} else {
+						spanConds = append(spanConds, c)
+					}
 				}
 			}
 		}
@@ -134,9 +178,167 @@ func OrPredicatePushdownRule() Rule {
 				}
 			}
 		}
+		if len(traceConds) > 0 {
+			if traceScan := firstTraceScanNode(filter.child); traceScan != nil {
+				for _, c := range traceConds {
+					if !hasConditionForAttr(traceScan.Conditions, c.Attribute) {
+						traceScan.Conditions = append(traceScan.Conditions, c)
+						changed = true
+					}
+				}
+			}
+		}
 		// Keep the filter — OR semantics require in-memory evaluation.
 		return n, changed
 	})
+}
+
+// collectTopLevelAndConjuncts returns Conditions for simple binary-op leaf
+// predicates (attr op static) that are reachable only through AND nodes from
+// the root — i.e. they are NOT inside any OR sub-expression. These are safe to
+// push as proper filter conditions (with real operators).
+func collectTopLevelAndConjuncts(e FieldExpression) []Condition {
+	var out []Condition
+	collectTopLevelAndConjunctsInto(e, &out)
+	return out
+}
+
+func collectTopLevelAndConjunctsInto(e FieldExpression, out *[]Condition) {
+	switch expr := e.(type) {
+	case *BinaryOperation:
+		if expr.Op == OpAnd {
+			// Recurse into both arms; stop if an arm contains an OR.
+			if !containsOr(expr.LHS) {
+				collectTopLevelAndConjunctsInto(expr.LHS, out)
+			}
+			if !containsOr(expr.RHS) {
+				collectTopLevelAndConjunctsInto(expr.RHS, out)
+			}
+		} else if expr.Op != OpOr {
+			// A leaf comparison (attr op static). Use isSimpleBinaryOp
+			// to filter out unsupported forms (attr op attr, etc.).
+			if isSimpleBinaryOp(expr) {
+				if attr, ok := expr.LHS.(Attribute); ok {
+					operands := []Static{}
+					if s, ok := expr.RHS.(Static); ok {
+						operands = []Static{s}
+					}
+					*out = append(*out, Condition{Attribute: attr, Op: expr.Op, Operands: operands})
+				}
+			}
+		}
+	}
+}
+
+// collectOrBranchConditions returns one Condition per simple leaf predicate
+// found inside at least one OR sub-expression. AND-conjuncts that are never
+// inside an OR are excluded so that PredicatePushdownRule can handle them.
+//
+// Simple (attr op static) leaves inside an OR use their real operator so the
+// parquet layer can skip row groups where the predicate cannot possibly match.
+// Complex leaves (inside a UnaryOperation, or attr-op-attr comparisons) fall
+// back to OpNone to safely fetch all values for in-memory evaluation.
+//
+// Callers should pass the result through resolveOrConditions before use to
+// collapse same-attribute conflicts to OpNone.
+func collectOrBranchConditions(e FieldExpression) []Condition {
+	var out []Condition
+	collectOrBranchConditionsInto(e, false, true, &out)
+	return out
+}
+
+// collectOrBranchConditionsInto is the recursive core of collectOrBranchConditions.
+//
+//   - inOr: true once we have entered at least one OR node.
+//   - canUseRealOp: false when an enclosing UnaryOperation or unsupported
+//     complex expression has blocked real-operator extraction; in that case
+//     any attribute found is emitted with OpNone.
+func collectOrBranchConditionsInto(e FieldExpression, inOr bool, canUseRealOp bool, out *[]Condition) {
+	switch expr := e.(type) {
+	case *BinaryOperation:
+		if expr.Op == OpOr {
+			// Propagate canUseRealOp: if a negation is wrapping this whole OR,
+			// real ops are already blocked.
+			collectOrBranchConditionsInto(expr.LHS, true, canUseRealOp, out)
+			collectOrBranchConditionsInto(expr.RHS, true, canUseRealOp, out)
+		} else if expr.Op == OpAnd {
+			collectOrBranchConditionsInto(expr.LHS, inOr, canUseRealOp, out)
+			collectOrBranchConditionsInto(expr.RHS, inOr, canUseRealOp, out)
+		} else if inOr && canUseRealOp && isSimpleBinaryOp(expr) {
+			// Simple (attr op static) directly inside an OR arm: emit with real op.
+			if attr, ok := expr.LHS.(Attribute); ok {
+				var operands []Static
+				if s, ok := expr.RHS.(Static); ok {
+					operands = []Static{s}
+				}
+				*out = append(*out, Condition{Attribute: attr, Op: expr.Op, Operands: operands})
+			} else if attr, ok := expr.RHS.(Attribute); ok {
+				var operands []Static
+				if s, ok := expr.LHS.(Static); ok {
+					operands = []Static{s}
+				}
+				*out = append(*out, Condition{Attribute: attr, Op: expr.Op, Operands: operands})
+			}
+		} else {
+			// Complex or not inside OR yet: recurse; children cannot use real ops.
+			collectOrBranchConditionsInto(expr.LHS, inOr, false, out)
+			collectOrBranchConditionsInto(expr.RHS, inOr, false, out)
+		}
+	case UnaryOperation:
+		// Inside a unary (e.g. NOT): real operators cannot be extracted safely.
+		collectOrBranchConditionsInto(expr.Expression, inOr, false, out)
+	case Attribute:
+		if inOr {
+			*out = append(*out, Condition{Attribute: expr, Op: OpNone})
+		}
+	}
+}
+
+// resolveOrConditions deduplicates conditions that share an attribute.
+// When the same attribute appears with conflicting operators or operands —
+// which happens in expressions like (span.foo = "a" || span.foo = "b") —
+// the conflicting group is collapsed to a single OpNone (fetch-only) condition,
+// which is always safe: the SpansetFilterNode evaluates the OR in memory.
+func resolveOrConditions(conds []Condition) []Condition {
+	if len(conds) <= 1 {
+		return conds
+	}
+	type entry struct {
+		cond     Condition
+		conflict bool
+	}
+	seen := make(map[Attribute]*entry, len(conds))
+	order := make([]Attribute, 0, len(conds))
+	for _, c := range conds {
+		if e, ok := seen[c.Attribute]; ok {
+			if !e.conflict && !conditionEqual(e.cond, c) {
+				e.conflict = true
+				e.cond = Condition{Attribute: c.Attribute, Op: OpNone}
+			}
+		} else {
+			seen[c.Attribute] = &entry{cond: c}
+			order = append(order, c.Attribute)
+		}
+	}
+	result := make([]Condition, 0, len(order))
+	for _, attr := range order {
+		result = append(result, seen[attr].cond)
+	}
+	return result
+}
+
+// conditionEqual reports whether two conditions are identical (same attribute,
+// operator, and operands). Used by resolveOrConditions to detect conflicts.
+func conditionEqual(a, b Condition) bool {
+	if a.Attribute != b.Attribute || a.Op != b.Op || len(a.Operands) != len(b.Operands) {
+		return false
+	}
+	for i := range a.Operands {
+		if !a.Operands[i].StrictEquals(&b.Operands[i]) {
+			return false
+		}
+	}
+	return true
 }
 
 // containsOr reports whether e contains at least one OpOr binary operation.
