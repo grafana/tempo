@@ -19,6 +19,7 @@ import (
 	"github.com/grafana/tempo/modules/generator/localserieslimiter"
 	"github.com/grafana/tempo/modules/generator/processor"
 	"github.com/grafana/tempo/modules/generator/processor/hostinfo"
+	"github.com/grafana/tempo/modules/generator/processor/secretdetection"
 	"github.com/grafana/tempo/modules/generator/processor/servicegraphs"
 	"github.com/grafana/tempo/modules/generator/processor/spanmetrics"
 	"github.com/grafana/tempo/modules/generator/registry"
@@ -295,6 +296,10 @@ func (i *instance) diffProcessors(desiredProcessors map[string]struct{}, desired
 			if !reflect.DeepEqual(p.Cfg, desiredCfg.HostInfo) {
 				toReplace = append(toReplace, processorName)
 			}
+		case *secretdetection.Processor:
+			if !reflect.DeepEqual(p.Cfg, desiredCfg.SecretDetection) {
+				toReplace = append(toReplace, processorName)
+			}
 		default:
 			level.Error(i.logger).Log(
 				"msg", fmt.Sprintf("processor does not exist, supported processors: [%s]", strings.Join(validation.SupportedProcessors, ", ")),
@@ -332,6 +337,11 @@ func (i *instance) addProcessor(processorName string, cfg ProcessorConfig) error
 	case processor.HostInfoName:
 		invalidUTF8Counter := metricSpansDiscarded.WithLabelValues(i.instanceID, reasonInvalidUTF8, processor.HostInfoName)
 		newProcessor, err = hostinfo.New(cfg.HostInfo, i.registry, i.logger, invalidUTF8Counter)
+		if err != nil {
+			return err
+		}
+	case processor.SecretDetectionName:
+		newProcessor, err = secretdetection.New(cfg.SecretDetection, i.instanceID, i.logger)
 		if err != nil {
 			return err
 		}
@@ -386,6 +396,8 @@ func (i *instance) pushSpans(ctx context.Context, req *tempopb.PushSpansRequest)
 
 	for _, proc := range i.processors {
 		switch proc.Name() {
+		case processor.SecretDetectionName:
+			proc.PushSpans(ctx, req)
 		case processor.SpanMetricsName, processor.ServiceGraphsName, processor.HostInfoName:
 			if req.SkipMetricsGeneration {
 				metricSkippedProcessorPushes.WithLabelValues(i.instanceID).Inc()
@@ -403,6 +415,8 @@ func (i *instance) pushSpansFromQueue(ctx context.Context, _ time.Time, req *tem
 
 	for _, proc := range i.processors {
 		switch proc.Name() {
+		case processor.SecretDetectionName:
+			proc.PushSpans(ctx, req)
 		case processor.SpanMetricsName, processor.ServiceGraphsName, processor.HostInfoName:
 			if req.SkipMetricsGeneration {
 				metricSkippedProcessorPushes.WithLabelValues(i.instanceID).Inc()

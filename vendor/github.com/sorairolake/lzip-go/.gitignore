@@ -1,0 +1,20 @@
+# SPDX-FileCopyrightText: 2024 Shun Sakai
+#
+# SPDX-License-Identifier: Apache-2.0 OR MIT
+
+# Binaries for programs and plugins
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+/glzip
+
+# Test binary, built with `go test -c`
+*.test
+
+# Generated man page
+glzip.1
+
+# GoReleaser
+dist/

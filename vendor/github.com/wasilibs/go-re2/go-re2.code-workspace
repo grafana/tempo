@@ -1,0 +1,24 @@
+{
+  "folders": [
+    {
+      "name": "/",
+      "path": "."
+    }
+  ],
+  "extensions": {
+    "recommendations": ["dbaeumer.vscode-eslint", "esbenp.prettier-vscode"]
+  },
+  "settings": {
+    "editor.formatOnSave": true,
+    "editor.tabSize": 2,
+    "eslint.workingDirectories": [{ "mode": "auto" }],
+    "go.lintFlags": ["--fix"],
+    "go.lintTool": "golangci-lint",
+    "gopls": {
+      "formatting.gofumpt": true
+    },
+    "[yaml]": {
+      "editor.defaultFormatter": "esbenp.prettier-vscode"
+    }
+  }
+}

@@ -9,7 +9,8 @@ const (
 )
 
 const (
-	SpanMetricsName   = "span-metrics"
-	ServiceGraphsName = "service-graphs"
-	HostInfoName      = "host-info"
+	SpanMetricsName     = "span-metrics"
+	ServiceGraphsName   = "service-graphs"
+	HostInfoName        = "host-info"
+	SecretDetectionName = "secret-detection"
 )
