@@ -85,12 +85,12 @@ func TestQuerierParseSearchRequest(t *testing.T) {
 		{
 			name:     "negative limit",
 			urlQuery: "limit=-5",
-			err:      "invalid limit: must be a positive number",
+			err:      "invalid limit: strconv.ParseUint: parsing \"-5\": invalid syntax",
 		},
 		{
 			name:     "non-numeric limit",
 			urlQuery: "limit=five",
-			err:      "invalid limit: strconv.Atoi: parsing \"five\": invalid syntax",
+			err:      "invalid limit: strconv.ParseUint: parsing \"five\": invalid syntax",
 		},
 		{
 			name:     "minDuration and maxDuration",
@@ -175,6 +175,31 @@ func TestQuerierParseSearchRequest(t *testing.T) {
 			err:      "http parameter start must be before end. received start=20 end=10",
 		},
 		{
+			name:     "negative start",
+			urlQuery: "start=-1&end=20",
+			err:      "invalid start: strconv.ParseUint: parsing \"-1\": invalid syntax",
+		},
+		{
+			name:     "start exceeds uint32",
+			urlQuery: "start=4294967296&end=4294967297",
+			err:      "invalid start: strconv.ParseUint: parsing \"4294967296\": value out of range",
+		},
+		{
+			name:     "negative end",
+			urlQuery: "start=10&end=-1",
+			err:      "invalid end: strconv.ParseUint: parsing \"-1\": invalid syntax",
+		},
+		{
+			name:     "limit exceeds uint32",
+			urlQuery: "limit=4294967298",
+			err:      "invalid limit: strconv.ParseUint: parsing \"4294967298\": value out of range",
+		},
+		{
+			name:     "spss exceeds uint32",
+			urlQuery: "spss=4294967296",
+			err:      "invalid spss: strconv.ParseUint: parsing \"4294967296\": value out of range",
+		},
+		{
 			name:     "top-level tags",
 			urlQuery: "service.name=bar",
 			expected: &tempopb.SearchRequest{
@@ -205,12 +230,12 @@ func TestQuerierParseSearchRequest(t *testing.T) {
 		{
 			name:     "negative spss",
 			urlQuery: "spss=-2",
-			err:      "invalid spss: must be a non-negative number",
+			err:      "invalid spss: strconv.ParseUint: parsing \"-2\": invalid syntax",
 		},
 		{
 			name:     "non-numeric spss",
 			urlQuery: "spss=four",
-			err:      "invalid spss: strconv.Atoi: parsing \"four\": invalid syntax",
+			err:      "invalid spss: strconv.ParseUint: parsing \"four\": invalid syntax",
 		},
 		{
 			name:     "only spss",
