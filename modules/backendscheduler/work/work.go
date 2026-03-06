@@ -831,18 +831,6 @@ func (w *Work) BlocksUnderCompaction(tenantID string) map[string]string {
 	return result
 }
 
-// jobReferencesBlock returns true if the job references the given block ID
-// (as a compaction input or redaction target).
-func jobReferencesBlock(j *Job, blockID string) bool {
-	for _, bid := range j.GetCompactionInput() {
-		if bid == blockID {
-			return true
-		}
-	}
-	redactionBlock := j.GetRedactionBlockID()
-	return redactionBlock != "" && redactionBlock == blockID
-}
-
 // runningBlockKeys returns pendingBlockKey strings for every block referenced by j.
 func runningBlockKeys(j *Job) []string {
 	tenant := j.Tenant()
