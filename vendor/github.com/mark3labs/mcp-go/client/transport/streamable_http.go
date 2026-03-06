@@ -87,6 +87,15 @@ func WithSession(sessionID string) StreamableHTTPCOption {
 	}
 }
 
+// WithStreamableHTTPHost sets a custom Host header for the StreamableHTTP client, enabling manual DNS resolution.
+// This allows connecting to an IP address while sending a specific Host header to the server.
+// For example, connecting to "http://192.168.1.100:8080/mcp" but sending Host: "api.example.com"
+func WithStreamableHTTPHost(host string) StreamableHTTPCOption {
+	return func(sc *StreamableHTTP) {
+		sc.host = host
+	}
+}
+
 // StreamableHTTP implements Streamable HTTP transport.
 //
 // It transmits JSON-RPC messages over individual HTTP requests. One message per request.
@@ -103,6 +112,7 @@ type StreamableHTTP struct {
 	httpClient          *http.Client
 	headers             map[string]string
 	headerFunc          HTTPHeaderFunc
+	host                string
 	logger              util.Logger
 	getListeningEnabled bool
 
@@ -119,11 +129,11 @@ type StreamableHTTP struct {
 	requestHandler RequestHandler
 	requestMu      sync.RWMutex
 
-	closed chan struct{}
+	closed    chan struct{}
+	closeOnce sync.Once
 
 	// OAuth support
 	oauthHandler *OAuthHandler
-	wg           sync.WaitGroup
 }
 
 // NewStreamableHTTP creates a new Streamable HTTP transport with the given server URL.
@@ -188,21 +198,14 @@ func (c *StreamableHTTP) Start(ctx context.Context) error {
 
 // Close closes the all the HTTP connections to the server.
 func (c *StreamableHTTP) Close() error {
-	select {
-	case <-c.closed:
-		return nil
-	default:
-	}
-	// Cancel all in-flight requests
-	close(c.closed)
+	c.closeOnce.Do(func() {
+		// Cancel all in-flight requests
+		close(c.closed)
 
-	sessionId := c.sessionID.Load().(string)
-	if sessionId != "" {
-		c.sessionID.Store("")
-		c.wg.Add(1)
-		// notify server session closed
-		go func() {
-			defer c.wg.Done()
+		sessionId := c.sessionID.Load().(string)
+		if sessionId != "" {
+			c.sessionID.Store("")
+			// notify server session closed
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
 			req, err := http.NewRequestWithContext(ctx, http.MethodDelete, c.serverURL.String(), nil)
@@ -217,15 +220,19 @@ func (c *StreamableHTTP) Close() error {
 					req.Header.Set(HeaderKeyProtocolVersion, version)
 				}
 			}
+
+			// Set custom Host header if provided
+			if c.host != "" {
+				req.Host = c.host
+			}
 			res, err := c.httpClient.Do(req)
 			if err != nil {
 				c.logger.Errorf("failed to send close request: %v", err)
 				return
 			}
 			res.Body.Close()
-		}()
-	}
-	c.wg.Wait()
+		}
+	})
 	return nil
 }
 
@@ -287,11 +294,14 @@ func (c *StreamableHTTP) SendRequest(
 	// Check if we got an error response
 	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusAccepted {
 
-		// Handle OAuth unauthorized error
-		if resp.StatusCode == http.StatusUnauthorized && c.oauthHandler != nil {
-			return nil, &OAuthAuthorizationRequiredError{
-				Handler: c.oauthHandler,
+		// Handle unauthorized error
+		if resp.StatusCode == http.StatusUnauthorized {
+			if c.oauthHandler != nil {
+				return nil, &OAuthAuthorizationRequiredError{
+					Handler: c.oauthHandler,
+				}
 			}
+			return nil, ErrUnauthorized
 		}
 
 		// handle error response
@@ -374,6 +384,11 @@ func (c *StreamableHTTP) sendHTTP(
 	}
 	for k, v := range c.headers {
 		req.Header.Set(k, v)
+	}
+
+	// Set custom Host header if provided
+	if c.host != "" {
+		req.Host = c.host
 	}
 
 	// Add OAuth authorization if configured
@@ -532,10 +547,10 @@ func (c *StreamableHTTP) readSSE(ctx context.Context, reader io.ReadCloser, hand
 				continue
 			}
 
-			if strings.HasPrefix(line, "event:") {
-				event = strings.TrimSpace(strings.TrimPrefix(line, "event:"))
-			} else if strings.HasPrefix(line, "data:") {
-				data = strings.TrimSpace(strings.TrimPrefix(line, "data:"))
+			if eventStr, ok := strings.CutPrefix(line, "event:"); ok {
+				event = strings.TrimSpace(eventStr)
+			} else if dataStr, ok := strings.CutPrefix(line, "data:"); ok {
+				data = strings.TrimSpace(dataStr)
 			}
 		}
 	}
@@ -558,14 +573,17 @@ func (c *StreamableHTTP) SendNotification(ctx context.Context, notification mcp.
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusAccepted {
-		// Handle OAuth unauthorized error
-		if resp.StatusCode == http.StatusUnauthorized && c.oauthHandler != nil {
+	switch resp.StatusCode {
+	case http.StatusOK, http.StatusAccepted, http.StatusNoContent:
+		return nil
+	case http.StatusUnauthorized:
+		if c.oauthHandler != nil {
 			return &OAuthAuthorizationRequiredError{
 				Handler: c.oauthHandler,
 			}
 		}
-
+		return ErrUnauthorized
+	default:
 		body, _ := io.ReadAll(resp.Body)
 		return fmt.Errorf(
 			"notification failed with status %d: %s",
@@ -573,8 +591,6 @@ func (c *StreamableHTTP) SendNotification(ctx context.Context, notification mcp.
 			body,
 		)
 	}
-
-	return nil
 }
 
 func (c *StreamableHTTP) SetNotificationHandler(handler func(mcp.JSONRPCNotification)) {
@@ -643,6 +659,7 @@ func (c *StreamableHTTP) listenForever(ctx context.Context) {
 var (
 	ErrSessionTerminated   = fmt.Errorf("session terminated (404). need to re-initialize")
 	ErrGetMethodNotAllowed = fmt.Errorf("GET method not allowed")
+	ErrUnauthorized        = fmt.Errorf("unauthorized (401)")
 
 	retryInterval = 1 * time.Second // a variable is convenient for testing
 )
