@@ -78,7 +78,6 @@ require (
 	github.com/axiomhq/hyperloglog v0.2.6
 	github.com/bytedance/sonic v1.15.0
 	github.com/evanphx/json-patch v5.9.11+incompatible
-	github.com/golang/groupcache v0.0.0-20241129210726-2c02b8208cf8
 	github.com/googleapis/gax-go/v2 v2.17.0
 	github.com/grafana/gomemcache v0.0.0-20251127154401-74f93547077b
 	github.com/grpc-ecosystem/go-grpc-middleware v1.4.0
@@ -216,6 +215,7 @@ require (
 	github.com/goccy/go-json v0.10.5 // indirect
 	github.com/gogo/googleapis v1.4.1 // indirect
 	github.com/golang-jwt/jwt/v5 v5.3.0 // indirect
+	github.com/golang/groupcache v0.0.0-20241129210726-2c02b8208cf8 // indirect
 	github.com/google/btree v1.1.3 // indirect
 	github.com/google/go-tpm v0.9.8 // indirect
 	github.com/google/s2a-go v0.1.9 // indirect
@@ -422,15 +422,15 @@ require (
 	google.golang.org/genproto v0.0.0-20260128011058-8636f8732409 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20260203192932-546029d2fa20 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
-	k8s.io/apimachinery v0.35.1 // indirect
+	k8s.io/apimachinery v0.35.2 // indirect
 	k8s.io/client-go v0.34.1 // indirect
 	k8s.io/klog/v2 v2.130.1 // indirect
 	k8s.io/utils v0.0.0-20251002143259-bc988d571ff4 // indirect
 )
 
 replace (
-	k8s.io/api => k8s.io/api v0.35.1
-	k8s.io/client-go => k8s.io/client-go v0.35.1
+	k8s.io/api => k8s.io/api v0.35.2
+	k8s.io/client-go => k8s.io/client-go v0.35.2
 )
 
 // Replace memberlist with our fork which includes some fixes that haven't been
