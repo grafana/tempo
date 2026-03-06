@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"runtime"
 	"sync"
 	"time"
 
@@ -185,7 +184,6 @@ func (c *Compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader,
 
 		// Flush existing block data if the next trace can't fit
 		if currentBlock.EstimatedBufferedBytes() > 0 && currentBlock.EstimatedBufferedBytes()+estimateMarshalledSizeFromParquetRow(lowestObject) > c.opts.BlockConfig.RowGroupSizeBytes {
-			runtime.GC()
 			err = c.appendBlock(ctx, currentBlock, l)
 			if err != nil {
 				return nil, fmt.Errorf("error writing partial block: %w", err)
@@ -202,7 +200,6 @@ func (c *Compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader,
 
 		// Flush again if block is already full.
 		if currentBlock.EstimatedBufferedBytes() > c.opts.BlockConfig.RowGroupSizeBytes {
-			runtime.GC()
 			err = c.appendBlock(ctx, currentBlock, l)
 			if err != nil {
 				return nil, fmt.Errorf("error writing partial block: %w", err)

@@ -45,7 +45,10 @@ const (
 	droppedRecordReasonInstanceNotFound = "instance_not_found"
 )
 
-var ErrStarting = errors.New("live-store is starting")
+var (
+	ErrStarting = errors.New("live-store is starting")
+	ErrStopping = errors.New("live-store is stopping")
+)
 
 var (
 	// Queue management metrics
@@ -384,9 +387,12 @@ func (s *LiveStore) stopping(error) error {
 		s.ingestPartitionLifecycler.SetRemoveOwnerOnShutdown(true)
 	}
 
+	// Reject new queries early in shutdown, before tearing down the reader.
+	s.readyErr.Store(&ErrStopping)
+	metricReady.Set(0)
+
 	// Stop the kafka lag background worker.
 	s.lagCancel()
-	metricReady.Set(0)
 
 	// Stop consuming
 	err := services.StopAndAwaitTerminated(context.Background(), s.reader)
@@ -496,6 +502,13 @@ func (s *LiveStore) waitForCatchUp(ctx context.Context) error {
 // It takes lagShortcutThreshold to shortcut calculations if the lag is close to the end of the partition.
 // To disable the shortcut, set lagShortcutThreshold to a negative value.
 func (s *LiveStore) calculateTimeLag(lagShortcutThreshold int64) *time.Duration {
+	// reader is nil only before starting() creates it. After stopping(), reader
+	// is a stopped service but not nil, and its atomic fields remain safe to read.
+	if s.reader == nil {
+		level.Debug(s.logger).Log("msg", "Partition reader not initialized")
+		return nil
+	}
+
 	// Use cached high watermark from fetch responses (avoids extra API call)
 	lag := s.reader.lag.Load()
 	zero := time.Duration(0)
@@ -752,19 +765,7 @@ func (s *LiveStore) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTa
 	})
 }
 
-// PushSpans implements tempopb.MetricsGeneratorServer
-func (s *LiveStore) PushSpans(_ context.Context, _ *tempopb.PushSpansRequest) (*tempopb.PushResponse, error) {
-	return nil, fmt.Errorf("PushSpans not implemented in livestore")
-}
-
-// GetMetrics implements tempopb.MetricsGeneratorServer
-func (s *LiveStore) GetMetrics(_ context.Context, _ *tempopb.SpanMetricsRequest) (*tempopb.SpanMetricsResponse, error) {
-	// Keep this stub until r241 is fully rolled out. After that, we can remove
-	// GetMetrics here by switching LiveStore from MetricsGenerator to MetricsService.
-	return nil, fmt.Errorf("GetMetrics not implemented in livestore")
-}
-
-// QueryRange implements tempopb.MetricsGeneratorServer
+// QueryRange implements tempopb.MetricsServer
 func (s *LiveStore) QueryRange(ctx context.Context, req *tempopb.QueryRangeRequest) (*tempopb.QueryRangeResponse, error) {
 	if s.isLagged(int64(req.End)) { // end param is already nanos, no need to convert
 		return nil, errLagged

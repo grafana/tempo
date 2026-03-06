@@ -25,10 +25,12 @@ type Config struct {
 
 type Client struct {
 	tempopb.QuerierClient
-	tempopb.MetricsGeneratorClient
+	tempopb.MetricsClient
 	grpc_health_v1.HealthClient
 	io.Closer
 }
+
+var _ tempopb.MetricsClient = (*Client)(nil)
 
 // RegisterFlags registers flags.
 func (cfg *Config) RegisterFlags(f *flag.FlagSet) {
@@ -58,10 +60,10 @@ func New(addr string, cfg Config) (*Client, error) {
 		return nil, err
 	}
 	return &Client{
-		QuerierClient:          tempopb.NewQuerierClient(conn),
-		MetricsGeneratorClient: tempopb.NewMetricsGeneratorClient(conn),
-		HealthClient:           grpc_health_v1.NewHealthClient(conn),
-		Closer:                 conn,
+		QuerierClient: tempopb.NewQuerierClient(conn),
+		MetricsClient: tempopb.NewMetricsClient(conn),
+		HealthClient:  grpc_health_v1.NewHealthClient(conn),
+		Closer:        conn,
 	}, nil
 }
 
