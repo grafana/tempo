@@ -35,6 +35,51 @@ func TestStatus(t *testing.T) {
 	require.True(t, j.IsComplete())
 }
 
+func TestGetRedactionBlockID(t *testing.T) {
+	cases := []struct {
+		name     string
+		jobType  tempopb.JobType
+		detail   tempopb.JobDetail
+		expected string
+	}{
+		{
+			name:    "redaction job returns block ID",
+			jobType: tempopb.JobType_JOB_TYPE_REDACTION,
+			detail: tempopb.JobDetail{
+				Tenant:    "tenant-a",
+				Redaction: &tempopb.RedactionDetail{BlockId: "block-123"},
+			},
+			expected: "block-123",
+		},
+		{
+			name:     "redaction job with nil detail returns empty string",
+			jobType:  tempopb.JobType_JOB_TYPE_REDACTION,
+			detail:   tempopb.JobDetail{Tenant: "tenant-a"},
+			expected: "",
+		},
+		{
+			name:    "non-redaction job returns empty string",
+			jobType: tempopb.JobType_JOB_TYPE_COMPACTION,
+			detail: tempopb.JobDetail{
+				Tenant:     "tenant-a",
+				Compaction: &tempopb.CompactionDetail{Input: []string{"block-123"}},
+			},
+			expected: "",
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			j := &Job{
+				ID:        uuid.NewString(),
+				Type:      tc.jobType,
+				JobDetail: tc.detail,
+			}
+			require.Equal(t, tc.expected, j.GetRedactionBlockID())
+		})
+	}
+}
+
 func TestCompactionDetail(t *testing.T) {
 	cases := []struct {
 		name     string
