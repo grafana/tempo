@@ -61,6 +61,11 @@ type Work struct {
 	// Guarded by pendingMtx.
 	inFlightJobs map[string]*Job `json:"-"`
 
+	// runningBlocks indexes (tenantID, blockID) for every block referenced by a
+	// currently RUNNING job. Guarded by pendingMtx. Not persisted; rebuilt by
+	// rebuildPendingIndexes after loading the work cache.
+	runningBlocks map[string]struct{} `json:"-"`
+
 	// batches holds the active redaction batch per tenant (trace ID list shared across jobs).
 	batches *batchStore `json:"-"`
 }
@@ -81,6 +86,7 @@ func New(cfg Config) Interface {
 	sw.pendingByTenant = make(map[string]map[tempopb.JobType][]string)
 	sw.redactionInFlight = make(map[string]int)
 	sw.inFlightJobs = make(map[string]*Job)
+	sw.runningBlocks = make(map[string]struct{})
 	sw.batches = newBatchStore()
 
 	return sw
@@ -126,6 +132,9 @@ func (w *Work) AddJob(j *Job) error {
 func (w *Work) RegisterInFlight(job *Job) {
 	w.pendingMtx.Lock()
 	w.inFlightJobs[job.ID] = job
+	for _, key := range runningBlockKeys(job) {
+		w.runningBlocks[key] = struct{}{}
+	}
 	w.pendingMtx.Unlock()
 }
 
@@ -308,10 +317,19 @@ func (w *Work) GetJobForWorker(ctx context.Context, workerID string) *Job {
 func (w *Work) CompleteJob(id string) {
 	shard := w.getShard(id)
 	shard.mtx.Lock()
-	defer shard.mtx.Unlock()
+	var j *Job
+	if jj, ok := shard.Jobs[id]; ok {
+		jj.Complete()
+		j = jj
+	}
+	shard.mtx.Unlock()
 
-	if j, ok := shard.Jobs[id]; ok {
-		j.Complete()
+	if j != nil {
+		w.pendingMtx.Lock()
+		for _, key := range runningBlockKeys(j) {
+			delete(w.runningBlocks, key)
+		}
+		w.pendingMtx.Unlock()
 	}
 }
 
@@ -319,10 +337,19 @@ func (w *Work) CompleteJob(id string) {
 func (w *Work) FailJob(id string) {
 	shard := w.getShard(id)
 	shard.mtx.Lock()
-	defer shard.mtx.Unlock()
+	var j *Job
+	if jj, ok := shard.Jobs[id]; ok {
+		jj.Fail()
+		j = jj
+	}
+	shard.mtx.Unlock()
 
-	if j, ok := shard.Jobs[id]; ok {
-		j.Fail()
+	if j != nil {
+		w.pendingMtx.Lock()
+		for _, key := range runningBlockKeys(j) {
+			delete(w.runningBlocks, key)
+		}
+		w.pendingMtx.Unlock()
 	}
 }
 
@@ -423,6 +450,19 @@ func (w *Work) Unmarshal(data []byte) error {
 				w.pendingByTenant[tenant] = make(map[tempopb.JobType][]string)
 			}
 			w.pendingByTenant[tenant][j.Type] = append(w.pendingByTenant[tenant][j.Type], j.ID)
+		}
+	}
+
+	w.runningBlocks = make(map[string]struct{})
+	for i := range ShardCount {
+		for _, j := range w.Shards[i].Jobs {
+			switch j.GetStatus() {
+			case tempopb.JobStatus_JOB_STATUS_UNSPECIFIED,
+				tempopb.JobStatus_JOB_STATUS_RUNNING:
+				for _, key := range runningBlockKeys(j) {
+					w.runningBlocks[key] = struct{}{}
+				}
+			}
 		}
 	}
 
@@ -555,8 +595,8 @@ func FileNameForShard(shardID uint8) string {
 	return fmt.Sprintf("shard_%03d.json", shardID)
 }
 
-// rebuildPendingIndexes rebuilds the pendingBlocks and pendingByTenant indexes from all shards'
-// Pending maps. Caller must hold w.mtx (e.g. during LoadFromLocal).
+// rebuildPendingIndexes rebuilds the pendingBlocks, pendingByTenant, and runningBlocks indexes
+// from all shards' Pending and Jobs maps. Caller must hold w.mtx (e.g. during LoadFromLocal).
 func (w *Work) rebuildPendingIndexes() {
 	w.pendingMtx.Lock()
 	defer w.pendingMtx.Unlock()
@@ -576,6 +616,22 @@ func (w *Work) rebuildPendingIndexes() {
 				w.pendingByTenant[tenant] = make(map[tempopb.JobType][]string)
 			}
 			w.pendingByTenant[tenant][j.Type] = append(w.pendingByTenant[tenant][j.Type], j.ID)
+		}
+		shard.mtx.Unlock()
+	}
+
+	w.runningBlocks = make(map[string]struct{})
+	for i := range ShardCount {
+		shard := w.Shards[i]
+		shard.mtx.Lock()
+		for _, j := range shard.Jobs {
+			switch j.GetStatus() {
+			case tempopb.JobStatus_JOB_STATUS_UNSPECIFIED,
+				tempopb.JobStatus_JOB_STATUS_RUNNING:
+				for _, key := range runningBlockKeys(j) {
+					w.runningBlocks[key] = struct{}{}
+				}
+			}
 		}
 		shard.mtx.Unlock()
 	}
@@ -732,38 +788,15 @@ func (w *Work) HasJobsForTenant(tenantID string, jobType tempopb.JobType) bool {
 	return false
 }
 
-// IsBlockBusy returns true if the block is currently referenced by any job in
-// any state (pending, in-flight, or active). Used to skip blocks in selectors
-// and rescans.
+// IsBlockBusy returns true if the block is currently referenced by any pending
+// or running job. Uses O(1) map lookups against pendingBlocks and runningBlocks.
 func (w *Work) IsBlockBusy(tenantID, blockID string) bool {
 	key := pendingBlockKey(tenantID, blockID)
-
 	w.pendingMtx.Lock()
 	_, inPending := w.pendingBlocks[key]
-	if inPending {
-		w.pendingMtx.Unlock()
-		return true
-	}
-	for _, j := range w.inFlightJobs {
-		if j.Tenant() == tenantID && jobReferencesBlock(j, blockID) {
-			w.pendingMtx.Unlock()
-			return true
-		}
-	}
+	_, inRunning := w.runningBlocks[key]
 	w.pendingMtx.Unlock()
-
-	for i := range ShardCount {
-		shard := w.Shards[i]
-		shard.mtx.Lock()
-		for _, j := range shard.Jobs {
-			if j.Tenant() == tenantID && jobReferencesBlock(j, blockID) {
-				shard.mtx.Unlock()
-				return true
-			}
-		}
-		shard.mtx.Unlock()
-	}
-	return false
+	return inPending || inRunning
 }
 
 // BlocksUnderCompaction returns a map of blockID -> jobID for all blocks
@@ -807,6 +840,19 @@ func jobReferencesBlock(j *Job, blockID string) bool {
 	}
 	redactionBlock := j.GetRedactionBlockID()
 	return redactionBlock != "" && redactionBlock == blockID
+}
+
+// runningBlockKeys returns pendingBlockKey strings for every block referenced by j.
+func runningBlockKeys(j *Job) []string {
+	tenant := j.Tenant()
+	var keys []string
+	for _, bid := range j.GetCompactionInput() {
+		keys = append(keys, pendingBlockKey(tenant, bid))
+	}
+	if bid := j.GetRedactionBlockID(); bid != "" {
+		keys = append(keys, pendingBlockKey(tenant, bid))
+	}
+	return keys
 }
 
 func (w *Work) removePendingBlockIndex(j *Job) {
