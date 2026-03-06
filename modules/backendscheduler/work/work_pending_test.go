@@ -8,6 +8,19 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func createCompactionJob(id, tenantID string, blockIDs []string) *Job {
+	return &Job{
+		ID:   id,
+		Type: tempopb.JobType_JOB_TYPE_COMPACTION,
+		JobDetail: tempopb.JobDetail{
+			Tenant: tenantID,
+			Compaction: &tempopb.CompactionDetail{
+				Input: blockIDs,
+			},
+		},
+	}
+}
+
 func createRedactionJob(id, tenantID, blockID string) *Job {
 	return &Job{
 		ID:   id,
@@ -212,6 +225,81 @@ func TestPendingAndActiveJobs_Isolated(t *testing.T) {
 	require.Equal(t, 1, countPendingForTenant(w, "tenant-a"))
 	require.NotNil(t, w.GetJob("active-1"))
 	require.Nil(t, w.GetJob("pending-1"))
+}
+
+func TestIsBlockBusyRunningLifecycle(t *testing.T) {
+	w := New(Config{}).(*Work)
+
+	// 1. AddPendingJobs → block is in pendingBlocks.
+	j := createRedactionJob("r1", "tenant-a", "block-1")
+	require.NoError(t, w.AddPendingJobs([]*Job{j}))
+	require.True(t, w.IsBlockBusy("tenant-a", "block-1"))
+
+	// 2. PopNextPendingJob → pendingBlocks cleared, runningBlocks not yet set (gap).
+	popped := w.PopNextPendingJob(tempopb.JobType_JOB_TYPE_REDACTION)
+	require.NotNil(t, popped)
+	require.False(t, w.IsBlockBusy("tenant-a", "block-1"))
+
+	// 3. RegisterInFlight → runningBlocks set.
+	w.RegisterInFlight(popped)
+	require.True(t, w.IsBlockBusy("tenant-a", "block-1"))
+
+	// Unrelated block/tenant must not be affected.
+	require.False(t, w.IsBlockBusy("tenant-a", "block-2"))
+	require.False(t, w.IsBlockBusy("tenant-b", "block-1"))
+
+	// 4. AddJob → inFlightJobs cleared, runningBlocks unchanged.
+	require.NoError(t, w.AddJob(popped))
+	require.True(t, w.IsBlockBusy("tenant-a", "block-1"))
+
+	// 5. StartJob → no index change.
+	w.StartJob(popped.ID)
+	require.True(t, w.IsBlockBusy("tenant-a", "block-1"))
+
+	// 6. CompleteJob → runningBlocks cleared; block no longer busy.
+	w.CompleteJob(popped.ID)
+	require.False(t, w.IsBlockBusy("tenant-a", "block-1"))
+}
+
+func TestIsBlockBusyCompactionLifecycle(t *testing.T) {
+	w := New(Config{}).(*Work)
+
+	blocks := []string{"block-a", "block-b", "block-c"}
+	j := createCompactionJob("c1", "tenant-x", blocks)
+
+	assertBusy := func(want bool) {
+		t.Helper()
+		for _, bid := range blocks {
+			require.Equal(t, want, w.IsBlockBusy("tenant-x", bid), "block %s", bid)
+		}
+	}
+
+	// Before registration nothing is busy.
+	assertBusy(false)
+
+	// RegisterInFlight → all input blocks marked running.
+	w.RegisterInFlight(j)
+	assertBusy(true)
+
+	// AddJob → inFlightJobs cleared, runningBlocks unchanged.
+	require.NoError(t, w.AddJob(j))
+	assertBusy(true)
+
+	// StartJob → no index change.
+	w.StartJob(j.ID)
+	assertBusy(true)
+
+	// CompleteJob → all blocks released.
+	w.CompleteJob(j.ID)
+	assertBusy(false)
+
+	// FailJob path: register a second job and verify FailJob also clears runningBlocks.
+	j2 := createCompactionJob("c2", "tenant-x", blocks)
+	w.RegisterInFlight(j2)
+	assertBusy(true)
+	require.NoError(t, w.AddJob(j2))
+	w.FailJob(j2.ID)
+	assertBusy(false)
 }
 
 func TestLoadFromLocal_RebuildsPendingIndex(t *testing.T) {
