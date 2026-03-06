@@ -1,6 +1,7 @@
 package traceql
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -31,14 +32,14 @@ func TestExtractMatchers(t *testing.T) {
 			expected: "{.http.status_code = 200}",
 		},
 		{
-			name:     "invalid query",
+			name:     "reversed operands with missing closing bracket",
 			query:    "{ 2 = .b ",
-			expected: "{}",
+			expected: "{ 2 = .b}",
 		},
 		{
 			name:     "long query",
-			query:    `{.service_name = "foo" && .http.status_code = 200 && .http.method = "GET" && .cluster = }`,
-			expected: `{.service_name = "foo" && .http.status_code = 200 && .http.method = "GET"}`,
+			query:    `{(.service_name = "foo" && .http.status_code = 200) && .http.method = "GET" && .cluster = }`,
+			expected: `{(.service_name = "foo" && .http.status_code = 200) && .http.method = "GET"}`,
 		},
 		{
 			name:     "query with duration a boolean",
@@ -126,14 +127,73 @@ func TestExtractMatchers(t *testing.T) {
 			expected: `{event:name = "exception"}`,
 		},
 		{
+			name:     "structural operators with incomplete in first matcher",
+			query:    `{ .foo = "bar" && .baaz = } >> { .bar = "foo" }`,
+			expected: `{}`,
+		},
+		{
+			name:     "structural operators with incomplete in second matcher",
+			query:    `{ .foo = "bar" } >> { .bar = }`,
+			expected: `{}`,
+		},
+		{
+			name:     "metrics query",
+			query:    `{.service_name = "foo" && .foo=} | rate() by (.bar)`,
+			expected: `{.service_name = "foo"}`,
+		},
+		{
+			name:     "query with select",
+			query:    `{.service_name = "foo" && .foo=} | select(.bar, .baz)`,
+			expected: `{.service_name = "foo"}`,
+		},
+		{
 			name:     "whitespace in value",
 			query:    `{ .foo = " b a r " }   `,
 			expected: `{.foo = " b a r "}`,
 		},
+		{
+			name:     "query with parentheses and incomplete matcher",
+			query:    `{ (resource.foo = "bar" && .baz = ) && .qux = "quux" }`,
+			expected: `{resource.foo = "bar" && .qux = "quux"}`,
+		},
+		{
+			name:     "query with parentheses containing all incomplete matchers",
+			query:    `{ (resource.foo =  && .baz = ) && .qux = "quux" }`,
+			expected: `{.qux = "quux"}`,
+		},
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			assert.Equal(t, tc.expected, ExtractMatchers(tc.query))
+			expected := tc.expected
+			expected = strings.ReplaceAll(expected, " ", "")
+			actual := ExtractMatchers(tc.query)
+			actual = RemoveUnnecessaryParentheses(actual)
+			actual = strings.ReplaceAll(actual, " ", "")
+			actual = strings.ReplaceAll(actual, "`", `"`)
+			assert.Equal(t, expected, actual)
+		})
+	}
+}
+
+func TestExtractConditions(t *testing.T) {
+	testCases := []struct {
+		name  string
+		query string
+		count int // expected number of conditions, 0 means nil
+	}{
+		{name: "empty", query: "", count: 0},
+		{name: "empty braces", query: " { } ", count: 0},
+		{name: "simple", query: `{.service_name = "foo"}`, count: 1},
+		{name: "incomplete", query: `{ .http.status_code = 200 && .http.method = }`, count: 1},
+		{name: "invalid", query: "{ invalid syntax }", count: 0},
+		{name: "OR conditions", query: `{ (.foo = "bar" || .baz = "qux") }`, count: 0},
+		{name: "structural", query: `{ .foo = "bar" } >> { .bar = "baz" }`, count: 0},
+		{name: "multiple conditions", query: `{.a = 1 && .b = "two" && .c > 3}`, count: 3},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			conditions, _ := ExtractConditions(tc.query)
+			assert.Equal(t, tc.count, len(conditions))
 		})
 	}
 }
