@@ -519,3 +519,83 @@ func TestOrPredicatePushdownRule_NoOrSkips(t *testing.T) {
 
 	require.False(t, changed, "non-OR expression must not trigger OrPredicatePushdownRule")
 }
+
+// TestFetchTreeDeduplicationRule verifies that attributes already present in the
+// drive tree are removed from the fetch tree.
+func TestFetchTreeDeduplicationRule(t *testing.T) {
+	durationAttr := NewIntrinsic(IntrinsicDuration)
+
+	// Drive tree: SpanScanNode already has duration as a filter condition.
+	driveSpan := NewSpanScanNode([]Condition{{Attribute: durationAttr, Op: OpGreater}}, nil)
+	driveInstr := NewInstrumentationScopeScanNode(nil, driveSpan)
+	driveRes := NewResourceScanNode(nil, driveInstr)
+	driveTrace := NewTraceScanNode(nil, true, driveRes)
+
+	// Fetch tree: SpanScanNode has duration as a fetch-only condition (redundant).
+	spanID := NewIntrinsic(IntrinsicSpanID)
+	fetchSpan := NewSpanScanNode([]Condition{
+		{Attribute: spanID, Op: OpNone},
+		{Attribute: durationAttr, Op: OpNone}, // should be removed
+	}, nil)
+	fetchInstr := NewInstrumentationScopeScanNode(nil, fetchSpan)
+	fetchRes := NewResourceScanNode(nil, fetchInstr)
+	fetchTrace := NewTraceScanNode(nil, false, fetchRes)
+
+	proj := NewProjectNode([]Attribute{durationAttr, spanID}, driveTrace, fetchTrace)
+
+	rule := FetchTreeDeduplicationRule()
+	_, changed := rule.Apply(proj)
+
+	require.True(t, changed, "expected fetch-tree-dedup to fire")
+	require.Len(t, fetchSpan.Conditions, 1, "duration should have been removed from fetch tree")
+	require.Equal(t, spanID, fetchSpan.Conditions[0].Attribute)
+}
+
+// TestFetchTreeDeduplicationRule_NoFetchTree verifies the rule skips nodes without a fetch tree.
+func TestFetchTreeDeduplicationRule_NoFetchTree(t *testing.T) {
+	driveSpan := NewSpanScanNode([]Condition{{Attribute: NewIntrinsic(IntrinsicDuration), Op: OpGreater}}, nil)
+	proj := NewProjectNode([]Attribute{NewIntrinsic(IntrinsicDuration)}, driveSpan, nil)
+
+	rule := FetchTreeDeduplicationRule()
+	_, changed := rule.Apply(proj)
+
+	require.False(t, changed, "rule must not fire when there is no fetch tree")
+}
+
+// TestFetchTreeDeduplicationRule_NoDriveConditions verifies the rule skips when the drive tree
+// has no conditions (nothing to deduplicate against).
+func TestFetchTreeDeduplicationRule_NoDriveConditions(t *testing.T) {
+	driveSpan := NewSpanScanNode(nil, nil)
+	fetchSpan := NewSpanScanNode([]Condition{{Attribute: NewIntrinsic(IntrinsicDuration), Op: OpNone}}, nil)
+	fetchTrace := NewTraceScanNode(nil, false, fetchSpan)
+	proj := NewProjectNode([]Attribute{NewIntrinsic(IntrinsicDuration)}, driveSpan, fetchTrace)
+
+	rule := FetchTreeDeduplicationRule()
+	_, changed := rule.Apply(proj)
+
+	require.False(t, changed, "rule must not fire when drive tree has no conditions")
+	require.Len(t, fetchSpan.Conditions, 1, "fetch tree must be unchanged")
+}
+
+// TestFetchTreeDeduplicationRule_Integrated verifies end-to-end that BuildSearchTracePlan
+// does not include duration in the fetch tree when it is already filtered in the drive tree.
+func TestFetchTreeDeduplicationRule_Integrated(t *testing.T) {
+	// { duration > 200ms } — duration is pushed into the drive SpanScanNode.
+	expr, err := Parse(`{ duration > 200ms }`)
+	require.NoError(t, err)
+
+	plan, err := BuildSearchTracePlan(expr)
+	require.NoError(t, err)
+
+	proj, ok := plan.(*ProjectNode)
+	require.True(t, ok, "expected ProjectNode at root")
+
+	fetchSpan := firstSpanScanNode(proj.FetchTree())
+	require.NotNil(t, fetchSpan)
+
+	durationAttr := NewIntrinsic(IntrinsicDuration)
+	for _, c := range fetchSpan.Conditions {
+		require.NotEqual(t, durationAttr, c.Attribute,
+			"duration must not appear in fetch tree when already filtered in drive tree")
+	}
+}

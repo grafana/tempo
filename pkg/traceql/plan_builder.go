@@ -56,6 +56,7 @@ func DefaultRuleSet() *RuleSet {
 		OrPredicatePushdownRule(),
 		UnscopedAttributePushdownRule(),
 		ConditionMergeRule(),
+		FetchTreeDeduplicationRule(),
 		SecondPassEliminatorRule(),
 	)
 }

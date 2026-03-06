@@ -329,6 +329,80 @@ func ConditionMergeRule() Rule {
 	})
 }
 
+// FetchTreeDeduplicationRule removes OpNone conditions from the fetch scan
+// tree that are already covered by conditions in the drive scan tree.
+// When the drive pass has already evaluated or fetched an attribute (either
+// as a filter or a fetch-only condition), the fetch pass does not need to
+// re-read it from storage.
+func FetchTreeDeduplicationRule() Rule {
+	return FuncRule("fetch-tree-dedup", func(n PlanNode) (PlanNode, bool) {
+		proj, ok := n.(*ProjectNode)
+		if !ok || proj.fetchTree == nil {
+			return n, false
+		}
+
+		// Collect all attributes already present in the drive tree's scan nodes.
+		driveAttrs := make(map[Attribute]struct{})
+		WalkPlan(proj.child, &funcVisitor{
+			pre: func(node PlanNode) bool {
+				switch s := node.(type) {
+				case *SpanScanNode:
+					for _, c := range s.Conditions {
+						driveAttrs[c.Attribute] = struct{}{}
+					}
+				case *ResourceScanNode:
+					for _, c := range s.Conditions {
+						driveAttrs[c.Attribute] = struct{}{}
+					}
+				case *TraceScanNode:
+					for _, c := range s.Conditions {
+						driveAttrs[c.Attribute] = struct{}{}
+					}
+				}
+				return true
+			},
+			post: func(PlanNode) {},
+		})
+
+		if len(driveAttrs) == 0 {
+			return n, false
+		}
+
+		// Remove those attributes from the fetch tree.
+		changed := false
+		WalkPlan(proj.fetchTree, &funcVisitor{
+			pre: func(node PlanNode) bool {
+				switch s := node.(type) {
+				case *SpanScanNode:
+					s.Conditions = filterOutAttrs(s.Conditions, driveAttrs, &changed)
+				case *ResourceScanNode:
+					s.Conditions = filterOutAttrs(s.Conditions, driveAttrs, &changed)
+				case *TraceScanNode:
+					s.Conditions = filterOutAttrs(s.Conditions, driveAttrs, &changed)
+				}
+				return true
+			},
+			post: func(PlanNode) {},
+		})
+
+		return n, changed
+	})
+}
+
+// filterOutAttrs returns a copy of conds with any condition whose attribute
+// appears in attrs removed, setting *changed to true for each removal.
+func filterOutAttrs(conds []Condition, attrs map[Attribute]struct{}, changed *bool) []Condition {
+	result := conds[:0]
+	for _, c := range conds {
+		if _, ok := attrs[c.Attribute]; ok {
+			*changed = true
+			continue
+		}
+		result = append(result, c)
+	}
+	return result
+}
+
 // SecondPassEliminatorRule removes a ProjectNode when all of its requested
 // columns are already present in the first-pass scan nodes below it.
 func SecondPassEliminatorRule() Rule {
