@@ -434,6 +434,9 @@ func (s *BackendScheduler) SubmitRedaction(ctx context.Context, req *tempopb.Sub
 	if len(req.TraceIds) == 0 {
 		return nil, status.Error(codes.InvalidArgument, "trace_ids must not be empty")
 	}
+	if s.overrides.CompactionDisabled(req.TenantId) {
+		return nil, status.Error(codes.FailedPrecondition, "compaction is disabled for this tenant")
+	}
 
 	if s.work.HasActiveBatchForTenant(req.TenantId) {
 		return nil, status.Error(codes.AlreadyExists, "a redaction is already in progress for this tenant")
