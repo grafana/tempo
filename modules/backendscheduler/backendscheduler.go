@@ -372,11 +372,12 @@ func (s *BackendScheduler) UpdateJob(ctx context.Context, req *tempopb.UpdateJob
 		metricJobsActive.WithLabelValues(j.JobDetail.Tenant, j.GetType().String()).Dec()
 		level.Info(log.Logger).Log("msg", "job completed", "job_id", req.JobId)
 
-		if req.Compaction != nil && req.Compaction.Output != nil {
-			s.work.SetJobCompactionOutput(req.JobId, req.Compaction.Output)
-		}
-
-		if j.GetType() == tempopb.JobType_JOB_TYPE_REDACTION {
+		switch j.GetType() {
+		case tempopb.JobType_JOB_TYPE_COMPACTION:
+			if req.Compaction != nil && req.Compaction.Output != nil {
+				s.work.SetJobCompactionOutput(req.JobId, req.Compaction.Output)
+			}
+		case tempopb.JobType_JOB_TYPE_REDACTION:
 			if req.Redaction != nil {
 				level.Info(log.Logger).Log("msg", "redaction job result",
 					"job_id", req.JobId,
