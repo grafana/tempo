@@ -2,6 +2,7 @@ package frontend
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"io"
 	"net/http"
@@ -18,6 +19,7 @@ import (
 	"github.com/grafana/tempo/modules/frontend/pipeline"
 	"github.com/grafana/tempo/pkg/api"
 	"github.com/grafana/tempo/pkg/tempopb"
+	"github.com/grafana/tempo/pkg/util/tracing"
 )
 
 func newQueryInstantStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.PipelineResponse], apiPrefix string, logger log.Logger, dataAccessController DataAccessController) streamingQueryInstantHandler {
@@ -81,7 +83,7 @@ func newQueryInstantStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTri
 			bytesProcessed = finalResponse.Metrics.InspectedBytes
 		}
 		postSLOHook(nil, tenant, bytesProcessed, duration, err)
-		logQueryInstantResult(logger, tenant, duration.Seconds(), req, finalResponse, err)
+		logQueryInstantResult(ctx, logger, tenant, duration.Seconds(), req, finalResponse, err)
 		return err
 	}
 }
@@ -176,7 +178,7 @@ func newMetricsQueryInstantHTTPHandler(cfg Config, next pipeline.AsyncRoundTripp
 			bytesProcessed = qiResp.Metrics.InspectedBytes
 		}
 		postSLOHook(resp, tenant, bytesProcessed, duration, err)
-		logQueryInstantResult(logger, tenant, duration.Seconds(), i, &qiResp, err)
+		logQueryInstantResult(req.Context(), logger, tenant, duration.Seconds(), i, &qiResp, err)
 
 		return resp, nil
 	})
@@ -201,11 +203,14 @@ func translateQueryRangeToInstant(input tempopb.QueryRangeResponse) tempopb.Quer
 	return output
 }
 
-func logQueryInstantResult(logger log.Logger, tenantID string, durationSeconds float64, req *tempopb.QueryInstantRequest, resp *tempopb.QueryInstantResponse, err error) {
+func logQueryInstantResult(ctx context.Context, logger log.Logger, tenantID string, durationSeconds float64, req *tempopb.QueryInstantRequest, resp *tempopb.QueryInstantResponse, err error) {
+	traceID, _ := tracing.ExtractTraceID(ctx)
+
 	if resp == nil {
 		level.Info(logger).Log(
 			"msg", "query instant results - no resp",
 			"tenant", tenantID,
+			"traceID", traceID,
 			"duration_seconds", durationSeconds,
 			"error", err)
 
@@ -216,6 +221,7 @@ func logQueryInstantResult(logger log.Logger, tenantID string, durationSeconds f
 		level.Info(logger).Log(
 			"msg", "query instant results - no metrics",
 			"tenant", tenantID,
+			"traceID", traceID,
 			"query", req.Query,
 			"range_nanos", req.End-req.Start,
 			"duration_seconds", durationSeconds,
@@ -226,6 +232,7 @@ func logQueryInstantResult(logger log.Logger, tenantID string, durationSeconds f
 	level.Info(logger).Log(
 		"msg", "query instant results",
 		"tenant", tenantID,
+		"traceID", traceID,
 		"query", req.Query,
 		"range_nanos", req.End-req.Start,
 		"duration_seconds", durationSeconds,
