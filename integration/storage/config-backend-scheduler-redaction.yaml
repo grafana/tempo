@@ -5,4 +5,4 @@ storage:
 backend_scheduler:
   provider:
     compaction:
-      measure_interval: 2s # short interval so the outstanding-blocks metric is populated within the test's 8s sleep
+      min_input_blocks: 100 # prevent compaction from running on the small test blocks before redaction jobs are processed

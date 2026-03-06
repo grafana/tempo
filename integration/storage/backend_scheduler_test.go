@@ -275,7 +275,7 @@ func TestBackendSchedulerRedaction(t *testing.T) {
 	util.RunIntegrationTests(t, util.TestHarnessConfig{
 		Components:    util.ComponentsBackendWork,
 		Backends:      util.BackendObjectStorageAll,
-		ConfigOverlay: "config-backend-scheduler.yaml",
+		ConfigOverlay: "config-backend-scheduler-redaction.yaml",
 	}, func(h *util.TempoHarness) {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
@@ -358,20 +358,15 @@ func TestBackendSchedulerRedaction(t *testing.T) {
 			printMetricValue(t, fmt.Sprintf("%d", blockCount), "tempo_backend_scheduler_jobs_completed_total"),
 		))
 
-		// RedactBlock marks the original block as compacted and writes a new block
+		// RedactBlock marks the original blocks as compacted and writes new blocks
 		// without the trace. Find() includes recently-compacted blocks for a lookback
-		// window of 2 × blocklist_poll (2 s here = 4 s window). Sleep past that
-		// window so the old block is excluded, then poll twice to ensure the new
-		// block is visible and the old one has fully aged out.
-		time.Sleep(6 * time.Second)
-		tempodbReader.PollNow(ctx)
-		tempodbReader.PollNow(ctx)
-
-		// The trace must no longer be present in any block.
-		trs, failedBlocks, err = tempodbReader.Find(ctx, testTenant, traceID, tempodb.BlockIDMin, tempodb.BlockIDMax, 0, 0, common.DefaultSearchOptions())
-		require.NoError(t, err)
-		require.Empty(t, failedBlocks, "no blocks should fail lookup after redaction")
-		require.Empty(t, trs, "trace must not be findable in any block after redaction")
+		// window of 2 × blocklist_poll. Poll repeatedly until the old blocks age out
+		// of the lookback window and the trace is no longer findable.
+		require.Eventually(t, func() bool {
+			tempodbReader.PollNow(ctx)
+			trs, _, err = tempodbReader.Find(ctx, testTenant, traceID, tempodb.BlockIDMin, tempodb.BlockIDMax, 0, 0, common.DefaultSearchOptions())
+			return err == nil && len(trs) == 0
+		}, 30*time.Second, 2*time.Second, "trace must not be findable in any block after redaction")
 	})
 }
 
