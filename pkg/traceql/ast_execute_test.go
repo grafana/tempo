@@ -2248,21 +2248,19 @@ func TestIntPow(t *testing.T) {
 		{"5^5", 5, 5, 3125},
 		{"7^7", 7, 7, 823543},
 		{"negative base", -2, 3, -8},
+		{"negative exponent rounds toward zero", 10, -1, 0},
+		{"negative exponent for one", 1, -3, 1},
+		{"negative exponent for negative one", -1, -3, -1},
 		{"large exponent", 2, 62, 1 << 62},
 		// These cases would hang with a naive O(n) loop.
 		// They must complete near-instantly or go test -timeout will kill them.
-		{"100 ^ 100", 100, 100, 0}, // overflows to 0 (100 is even, repeated squaring zeroes out)
-		{"maxint32 ^ 2", math.MaxInt32, 2, 4611686014132420609},
-		{"2 ^ maxint32", 2, math.MaxInt32, 0}, // overflows to 0
-		{"maxint32 ^ maxint32", math.MaxInt32, math.MaxInt32, -2147483649},
-		{"maxint64 ^ 2", math.MaxInt64, 2, func() int { n := math.MaxInt64; return n * n }()},
-		{"2 ^ maxint64", 2, math.MaxInt64, 0}, // overflows to 0
-		// MaxInt64 is odd, so MaxInt64^n for any n>=1 is always odd (product of
-		// odd numbers is odd). An odd number can never be 0 in two's complement.
-		// Squaring MaxInt64 (0x7fff...ffff) in wrapping arithmetic gives 1, and
-		// multiplying by MaxInt64 again gives MaxInt64, so the result cycles as
-		// MaxInt64 for any positive exponent.
-		{"maxint64 ^ maxint64", math.MaxInt64, math.MaxInt64, math.MaxInt64},
+		{"100 ^ 100", 100, 100, math.MinInt64},
+		{"maxint32 ^ 2", math.MaxInt32, 2, 4611686014132420608},
+		{"2 ^ maxint32", 2, math.MaxInt32, math.MinInt64},
+		{"maxint32 ^ maxint32", math.MaxInt32, math.MaxInt32, math.MinInt64},
+		{"maxint64 ^ 2", math.MaxInt64, 2, math.MinInt64},
+		{"2 ^ maxint64", 2, math.MaxInt64, math.MinInt64},
+		{"maxint64 ^ maxint64", math.MaxInt64, math.MaxInt64, math.MinInt64},
 	}
 
 	for _, tc := range tests {
