@@ -127,6 +127,38 @@ func buildSeriesForExemplarTest(start, end, step uint64, include func(i int) boo
 	return resp, expectedSeries
 }
 
+func TestSegmentQueryRangeResponseToMaxPacketSize(t *testing.T) {
+	// One input response with 2 series, arbitrarily small max size -> 2 output responses (first series in first, second series in second).
+	input := &tempopb.QueryRangeResponse{
+		Metrics: &tempopb.SearchMetrics{},
+		Series: []*tempopb.TimeSeries{
+			{
+				Labels: []v1.KeyValue{
+					{Key: "name", Value: &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "series0"}}},
+				},
+				Samples: []tempopb.Sample{{TimestampMs: 1000, Value: 1}},
+			},
+			{
+				Labels: []v1.KeyValue{
+					{Key: "name", Value: &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "series1"}}},
+				},
+				Samples: []tempopb.Sample{{TimestampMs: 2000, Value: 2}},
+			},
+		},
+	}
+
+	// Arbitrarily small max size so we get 2 segments (first series in first response, second in second).
+	const maxSize = 10
+	out := segmentQueryRangeResponseToMaxPacketSize(input, maxSize)
+
+	require.Len(t, out, 2, "expected 2 responses")
+	require.Equal(t, input.Series[0], out[0].Series[0])
+	require.Equal(t, input.Series[1], out[1].Series[0])
+	// Metrics repeated in each segment
+	require.Equal(t, input.Metrics, out[0].Metrics)
+	require.Equal(t, input.Metrics, out[1].Metrics)
+}
+
 func TestQueryRangemaxSeriesShouldQuit(t *testing.T) {
 	start := uint64(1100 * time.Second)
 	end := uint64(1300 * time.Second)
