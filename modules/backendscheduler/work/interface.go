@@ -26,9 +26,9 @@ type Interface interface {
 	ListAllPendingJobs() []*Job
 	PopNextPendingJob(jobType tempopb.JobType) *Job
 
-	// RegisterInFlight registers a job as in-flight before it enters the channel
-	// pipeline. Cleared automatically by AddJob when promoted to active.
-	RegisterInFlight(job *Job)
+	// RegisterJob registers a job before it enters the channel pipeline, making it
+	// visible to other components. Cleared automatically by AddJob when promoted to active.
+	RegisterJob(job *Job)
 
 	// HasJobsForTenant returns true if there are any jobs of the given type in any
 	// state (pending queue, in-flight channel, or active map) for the tenant.

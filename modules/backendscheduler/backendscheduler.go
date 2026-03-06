@@ -60,9 +60,9 @@ func (s *BackendScheduler) ListJobs() []*work.Job {
 	return s.work.ListJobs()
 }
 
-// RegisterInFlight delegates to work.Work, satisfying the provider.Scheduler interface.
-func (s *BackendScheduler) RegisterInFlight(job *work.Job) {
-	s.work.RegisterInFlight(job)
+// RegisterJob delegates to work.Work, satisfying the provider.Scheduler interface.
+func (s *BackendScheduler) RegisterJob(job *work.Job) {
+	s.work.RegisterJob(job)
 }
 
 // New creates a new BackendScheduler

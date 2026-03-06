@@ -56,10 +56,10 @@ type Work struct {
 	// restart so the count is naturally 0). Guarded by pendingMtx.
 	redactionInFlight map[string]int `json:"-"`
 
-	// inFlightJobs tracks jobs registered by providers before they enter the channel
+	// registeredJobs tracks jobs registered by providers before they enter the channel
 	// pipeline. Cleared in AddJob when the job is promoted to active. Not persisted.
 	// Guarded by pendingMtx.
-	inFlightJobs map[string]*Job `json:"-"`
+	registeredJobs map[string]*Job `json:"-"`
 
 	// runningBlocks indexes (tenantID, blockID) for every block referenced by a
 	// currently RUNNING job. Guarded by pendingMtx. Not persisted; rebuilt by
@@ -85,7 +85,7 @@ func New(cfg Config) Interface {
 	sw.pendingBlocks = make(map[string]string)
 	sw.pendingByTenant = make(map[string]map[tempopb.JobType][]string)
 	sw.redactionInFlight = make(map[string]int)
-	sw.inFlightJobs = make(map[string]*Job)
+	sw.registeredJobs = make(map[string]*Job)
 	sw.runningBlocks = make(map[string]struct{})
 	sw.batches = newBatchStore()
 
@@ -112,8 +112,8 @@ func (w *Work) AddJob(j *Job) error {
 	shard.Jobs[j.ID] = j
 
 	w.pendingMtx.Lock()
-	// Clear in-flight registration now that the job is promoted to active.
-	delete(w.inFlightJobs, j.ID)
+	// Clear registered job now that it is promoted to active.
+	delete(w.registeredJobs, j.ID)
 	// If this redaction job was previously in-flight (popped from pending but not
 	// yet active), decrement the counter now that it has been promoted to active.
 	if j.GetType() == tempopb.JobType_JOB_TYPE_REDACTION {
@@ -126,12 +126,13 @@ func (w *Work) AddJob(j *Job) error {
 	return nil
 }
 
-// RegisterInFlight registers a job as in-flight before it enters the channel pipeline.
+// RegisterJob registers a job before it enters the channel pipeline, making it
+// visible to other components (e.g. HasJobsForTenant, BlocksUnderCompaction).
 // Call this immediately after creating a job, before sending it to the jobs channel.
 // The registration is cleared automatically when AddJob promotes the job to active.
-func (w *Work) RegisterInFlight(job *Job) {
+func (w *Work) RegisterJob(job *Job) {
 	w.pendingMtx.Lock()
-	w.inFlightJobs[job.ID] = job
+	w.registeredJobs[job.ID] = job
 	for _, key := range runningBlockKeys(job) {
 		w.runningBlocks[key] = struct{}{}
 	}
@@ -748,7 +749,7 @@ func (w *Work) hasRedactionInFlight(tenantID string) bool {
 }
 
 // HasJobsForTenant returns true if there are any jobs of the given type in any
-// state (pending queue, in-flight channel, or active map) for the tenant.
+// state (pending queue, registered, or active map) for the tenant.
 func (w *Work) HasJobsForTenant(tenantID string, jobType tempopb.JobType) bool {
 	w.pendingMtx.Lock()
 	hasPending := len(w.pendingByTenant[tenantID][jobType]) > 0
@@ -757,7 +758,7 @@ func (w *Work) HasJobsForTenant(tenantID string, jobType tempopb.JobType) bool {
 		hasInFlight = w.hasRedactionInFlight(tenantID)
 	}
 	if !hasInFlight {
-		for _, j := range w.inFlightJobs {
+		for _, j := range w.registeredJobs {
 			if j.Tenant() == tenantID && j.GetType() == jobType {
 				hasInFlight = true
 				break
@@ -805,7 +806,7 @@ func (w *Work) BlocksUnderCompaction(tenantID string) map[string]string {
 	result := make(map[string]string)
 
 	w.pendingMtx.Lock()
-	for _, j := range w.inFlightJobs {
+	for _, j := range w.registeredJobs {
 		if j.Tenant() == tenantID && j.GetType() == tempopb.JobType_JOB_TYPE_COMPACTION {
 			for _, blockID := range j.GetCompactionInput() {
 				result[blockID] = j.ID

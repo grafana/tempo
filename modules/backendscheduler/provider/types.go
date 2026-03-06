@@ -19,9 +19,9 @@ type Scheduler interface {
 	HasActiveBatchForTenant(tenantID string) bool
 	PopNextPendingJob(jobType tempopb.JobType) *work.Job
 
-	// RegisterInFlight makes a job visible to other components before it is
+	// RegisterJob makes a job visible to other components before it is
 	// promoted to the active map via AddJob.
-	RegisterInFlight(job *work.Job)
+	RegisterJob(job *work.Job)
 
 	// HasJobsForTenant returns true if there are any jobs of the given type in
 	// any state (pending, in-flight, or active) for the tenant.
