@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/grafana/tempo/modules/generator/processor/hostinfo"
+	"github.com/grafana/tempo/modules/generator/processor/secretdetection"
 	"github.com/grafana/tempo/modules/generator/processor/servicegraphs"
 	"github.com/grafana/tempo/modules/generator/processor/spanmetrics"
 	"github.com/grafana/tempo/modules/generator/registry"
@@ -125,15 +126,17 @@ func (cfg *Config) Validate() error {
 }
 
 type ProcessorConfig struct {
-	ServiceGraphs servicegraphs.Config `yaml:"service_graphs"`
-	SpanMetrics   spanmetrics.Config   `yaml:"span_metrics"`
-	HostInfo      hostinfo.Config      `yaml:"host_info"`
+	ServiceGraphs   servicegraphs.Config   `yaml:"service_graphs"`
+	SpanMetrics     spanmetrics.Config     `yaml:"span_metrics"`
+	HostInfo        hostinfo.Config        `yaml:"host_info"`
+	SecretDetection secretdetection.Config `yaml:"secret_detection"`
 }
 
 func (cfg *ProcessorConfig) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
 	cfg.ServiceGraphs.RegisterFlagsAndApplyDefaults(prefix, f)
 	cfg.SpanMetrics.RegisterFlagsAndApplyDefaults(prefix, f)
 	cfg.HostInfo.RegisterFlagsAndApplyDefaults(prefix, f)
+	cfg.SecretDetection.RegisterFlagsAndApplyDefaults(prefix, f)
 }
 
 func (cfg *ProcessorConfig) Validate() error {
@@ -237,6 +240,17 @@ func (cfg *ProcessorConfig) copyWithOverrides(o metricsGeneratorOverrides, userI
 		copySubprocessors[sp] = enabled
 	}
 	copyCfg.SpanMetrics.Subprocessors = copySubprocessors
+
+	// Populate the secret detection config with the resolved span-metrics info.
+	// This is needed at runtime to determine if a secret-bearing attribute will
+	// appear in generated metrics, and also ensures diffProcessors can detect
+	// config changes that require processor replacement.
+	copyCfg.SecretDetection.SpanMetricsInfo = secretdetection.NewSpanMetricsInfo(
+		copyCfg.SpanMetrics.Dimensions,
+		copyCfg.SpanMetrics.DimensionMappings,
+		copyCfg.SpanMetrics.EnableTargetInfo,
+		copyCfg.SpanMetrics.TargetInfoExcludedDimensions,
+	)
 
 	return copyCfg, nil
 }

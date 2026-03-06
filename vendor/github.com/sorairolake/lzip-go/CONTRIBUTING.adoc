@@ -1,0 +1,61 @@
+// SPDX-FileCopyrightText: 2024 Shun Sakai
+//
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+
+= Contribution Guide
+:git-flow-url: https://nvie.com/posts/a-successful-git-branching-model/
+:commit-messages-guide-url: https://github.com/RomuloOliveira/commit-messages-guide
+:conventionalcommits-url: https://www.conventionalcommits.org/en/v1.0.0/
+
+Thank you for your interest in contributing to this project! If you would like
+to contribute to this project, please follow the instructions below if possible.
+
+== Branching model
+
+The branching model of this project is based on the {git-flow-url}[git-flow].
+
+== Style guides
+
+=== Commit message
+
+Please see the {commit-messages-guide-url}[Commit messages guide] and the
+{conventionalcommits-url}[Conventional Commits].
+
+== Submitting a pull request
+
+. Create a working branch from the `develop` branch. The branch name should be
+  something other than `develop` or `master`.
+. Create your patch. If your change is a feature or a bugfix, please add a test
+  case if possible. Note that the change must pass the CI.
+. Please update the copyright information if possible. This project is
+  compliant with version 3.2 of the
+  https://reuse.software/spec/[_REUSE Specification_].
+  https://github.com/fsfe/reuse-tool[`reuse`] is useful for updating the
+  copyright information.
+. Please update the link:CHANGELOG.adoc[Changelog] if possible.
+. Please read and agree to follow the link:CODE_OF_CONDUCT.md[Code of Conduct].
+
+== Development
+
+=== Useful development tools
+
+The https://github.com/casey/just[just] command runner can be used. Run
+`just --list` for more details.
+
+.Run tests
+[source,sh]
+----
+just test
+----
+
+.Run the formatter
+[source,sh]
+----
+just fmt
+----
+
+.Run the linter
+[source,sh]
+----
+just lint
+----
