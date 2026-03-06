@@ -240,15 +240,15 @@ func TestIsBlockBusyRunningLifecycle(t *testing.T) {
 	require.NotNil(t, popped)
 	require.False(t, w.IsBlockBusy("tenant-a", "block-1"))
 
-	// 3. RegisterInFlight → runningBlocks set.
-	w.RegisterInFlight(popped)
+	// 3. RegisterJob → runningBlocks set.
+	w.RegisterJob(popped)
 	require.True(t, w.IsBlockBusy("tenant-a", "block-1"))
 
 	// Unrelated block/tenant must not be affected.
 	require.False(t, w.IsBlockBusy("tenant-a", "block-2"))
 	require.False(t, w.IsBlockBusy("tenant-b", "block-1"))
 
-	// 4. AddJob → inFlightJobs cleared, runningBlocks unchanged.
+	// 4. AddJob → registeredJobs cleared, runningBlocks unchanged.
 	require.NoError(t, w.AddJob(popped))
 	require.True(t, w.IsBlockBusy("tenant-a", "block-1"))
 
@@ -277,11 +277,11 @@ func TestIsBlockBusyCompactionLifecycle(t *testing.T) {
 	// Before registration nothing is busy.
 	assertBusy(false)
 
-	// RegisterInFlight → all input blocks marked running.
-	w.RegisterInFlight(j)
+	// RegisterJob → all input blocks marked running.
+	w.RegisterJob(j)
 	assertBusy(true)
 
-	// AddJob → inFlightJobs cleared, runningBlocks unchanged.
+	// AddJob → registeredJobs cleared, runningBlocks unchanged.
 	require.NoError(t, w.AddJob(j))
 	assertBusy(true)
 
@@ -295,7 +295,7 @@ func TestIsBlockBusyCompactionLifecycle(t *testing.T) {
 
 	// FailJob path: register a second job and verify FailJob also clears runningBlocks.
 	j2 := createCompactionJob("c2", "tenant-x", blocks)
-	w.RegisterInFlight(j2)
+	w.RegisterJob(j2)
 	assertBusy(true)
 	require.NoError(t, w.AddJob(j2))
 	w.FailJob(j2.ID)

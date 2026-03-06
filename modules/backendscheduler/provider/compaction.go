@@ -173,9 +173,9 @@ func (p *CompactionProvider) Start(ctx context.Context) <-chan *work.Job {
 				continue
 			}
 
-			// Register the job as in-flight so SubmitRedaction can see its input blocks
+			// Register the job so SubmitRedaction can see its input blocks
 			// before the job is promoted to active via AddJob.
-			p.sched.RegisterInFlight(job)
+			p.sched.RegisterJob(job)
 
 			select {
 			case <-ctx.Done():

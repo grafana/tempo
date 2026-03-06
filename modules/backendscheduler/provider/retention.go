@@ -83,8 +83,8 @@ func (p *RetentionProvider) emitRetentionJobs(ctx context.Context, jobs chan<- *
 		if p.overrides.CompactionDisabled(tenantID) {
 			continue
 		}
-		// HasJobsForTenant covers pending queue, in-flight (RegisterInFlight), and
-		// active — so this catches jobs in the channel gap after RegisterInFlight.
+		// HasJobsForTenant covers pending queue, registered, and active — so this
+		// catches jobs in the channel gap after RegisterJob.
 		if p.sched.HasJobsForTenant(tenantID, tempopb.JobType_JOB_TYPE_RETENTION) {
 			continue
 		}
@@ -105,7 +105,7 @@ func (p *RetentionProvider) emitRetentionJobs(ctx context.Context, jobs chan<- *
 		// Register before the send so HasJobsForTenant returns true during the
 		// channel gap. Cleared automatically by AddJob when promoted to active.
 		// Mirrors the compaction provider pattern.
-		p.sched.RegisterInFlight(job)
+		p.sched.RegisterJob(job)
 
 		select {
 		case jobs <- job:
