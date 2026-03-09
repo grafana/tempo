@@ -84,7 +84,8 @@ Partitions have three states:
 - **Inactive** — Read-only mode. Inactive partitions are eventually deleted after a configured period of time.
 
 When a live-store starts, it checks if its partition already exists. If it does, the live-store joins as an owner. If not, it creates a new partition in pending state, waits for memberlist to propagate, then switches it to active.
-Scaling down requires first marking the partition as inactive while the live-store is still running. After enough time has passed for data to be flushed to object storage, the partition and live-store can be removed.
+Scaling down requires first marking the partition as inactive while the live-store is still running. After enough 
+time has passed for data to be available in object storage, the partition and live-store can be removed.
 
 For high availability, live-stores are typically deployed across multiple availability zones.
 Each Tempo partition is owned by one live-store per zone, so if a live-store in one zone becomes unavailable, the 

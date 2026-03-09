@@ -55,6 +55,12 @@ Unhealthy distributors have little impact but should be forgotten to reduce cost
 
 The partition ring shows partition ownership across live-stores. Unhealthy live-stores may cause recent data queries to degrade.
 
+### Live-store
+
+**Available on:** Distributors
+
+**Path:** `/live-store/ring`
+
 ## Configuring the rings
 
 Ring/Lifecycler configuration control how a component interacts with the ring. Refer to the [configuration](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/) topic for more details.
