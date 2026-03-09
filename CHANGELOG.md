@@ -1,5 +1,6 @@
 ## main / unreleased
 
+* [BUGFIX] Return a clear error at startup when the distributor has no write path configured, rather than silently dropping all traces. [#6628](https://github.com/grafana/tempo/pull/6628) (@areebahmeddd)
 * [BUGFIX] Apply exemplars hint end-to-end and fix safety cap bypass in metrics queries. [#6559](https://github.com/grafana/tempo/pull/6559) (@zhxiaogg)
 * [ENHANCEMENT] Used frontend MaxExemplars config as single source of truth for exemplar limits. Added a safety cap at the traceql engine entry points. [#6515](https://github.com/grafana/tempo/pull/6515) (@zhxiaogg)
 * [CHANGE] Set default `max_result_limit` for search to 256*1024 [#6525](https://github.com/grafana/tempo/pull/6525) (@zhxiaogg)
