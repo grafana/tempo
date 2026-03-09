@@ -696,7 +696,7 @@ func (q *Querier) internalTagsSearchBlockV2(ctx context.Context, req *tempopb.Se
 	opts.StartPage = int(req.StartPage)
 	opts.TotalPages = int(req.PagesToSearch)
 
-	conditions := traceql.ExtractConditions(req.SearchReq.Query)
+	conditions, _ := traceql.ExtractConditions(req.SearchReq.Query)
 	if len(conditions) == 0 {
 		return q.store.SearchTags(ctx, meta, req, opts)
 	}
@@ -809,7 +809,7 @@ func (q *Querier) internalTagValuesSearchBlockV2(ctx context.Context, req *tempo
 	opts.StartPage = int(req.StartPage)
 	opts.TotalPages = int(req.PagesToSearch)
 
-	conditions := traceql.ExtractConditions(req.SearchReq.Query)
+	conditions, _ := traceql.ExtractConditions(req.SearchReq.Query)
 	if len(conditions) == 0 {
 		return q.store.SearchTagValuesV2(ctx, meta, req.SearchReq, opts)
 	}

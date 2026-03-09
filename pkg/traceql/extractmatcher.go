@@ -1,7 +1,6 @@
 package traceql
 
 import (
-	"strconv"
 	"strings"
 )
 
@@ -17,22 +16,22 @@ const emptyQuery = "{}"
 //   - The query contains structural operators (multiple spansets)
 //   - The conditions use OR (AllConditions is false)
 //   - No valid matchers can be extracted
-func ExtractConditions(query string) []Condition {
+func ExtractConditions(query string) ([]Condition, *SpansetFilter) {
 	query = strings.TrimSpace(query)
 	if len(query) == 0 {
-		return nil
+		return nil, nil
 	}
 
 	expr, err := ParseLenient(query)
 	if err != nil {
-		return nil
+		return nil, nil
 	}
 
 	// Find the first SpansetFilter in the pipeline.
 	// Returns nil for structural operators (SpansetOperation) indicating multiple spansets.
 	filter := findSpansetFilter(expr.Pipeline)
 	if filter == nil {
-		return nil
+		return nil, nil
 	}
 
 	// Extract conditions from the AST. AllConditions is set to false by
@@ -41,7 +40,7 @@ func ExtractConditions(query string) []Condition {
 	filter.Expression.extractConditions(req)
 
 	if !req.AllConditions || len(req.Conditions) == 0 {
-		return nil
+		return nil, nil
 	}
 
 	// Filter out OpNone conditions (incomplete matchers)
@@ -53,98 +52,60 @@ func ExtractConditions(query string) []Condition {
 	}
 
 	if len(conditions) == 0 {
-		return nil
+		return nil, nil
 	}
 
-	return conditions
+	return conditions, filter
 }
 
 // ExtractMatchers extracts matchers from a query string and returns a string
 // that can be parsed by the storage layer. It uses ExtractConditions internally.
 func ExtractMatchers(query string) string {
-	conditions := ExtractConditions(query)
-	if len(conditions) == 0 {
+	_, filter := ExtractConditions(query)
+	if filter == nil {
 		return emptyQuery
 	}
 
-	var q strings.Builder
-	q.WriteString("{")
-
-	for i, cond := range conditions {
-		if i > 0 {
-			q.WriteString(" && ")
-		}
-
-		q.WriteString(formatAttribute(cond.Attribute))
-		q.WriteString(" ")
-		q.WriteString(cond.Op.String())
-		q.WriteString(" ")
-
-		if len(cond.Operands) > 0 {
-			q.WriteString(formatOperand(cond.Operands[0]))
-		}
-	}
-
-	q.WriteString("}")
-
-	return q.String()
+	return filter.String()
 }
 
-// formatAttribute returns the string representation of an attribute,
-// quoting the name if it contains special characters.
-func formatAttribute(attr Attribute) string {
-	scopes := []string{}
-	if attr.Parent {
-		scopes = append(scopes, "parent")
+func RemoveUnnecessaryParentheses(query string) string {
+	findNextCloseParens := func(s string, start int) int {
+		depth := 0
+		for i := start; i < len(s); i++ {
+			switch s[i] {
+			case '(':
+				depth++
+			case ')':
+				if depth == 0 {
+					return i
+				}
+				depth--
+			}
+		}
+		return -1
 	}
-
-	if attr.Scope != AttributeScopeNone {
-		scopes = append(scopes, attr.Scope.String())
-	}
-
-	att := attr.Name
-	if attr.Intrinsic != IntrinsicNone {
-		att = attr.Intrinsic.String()
-	} else if needsQuoting(att) {
-		att = strconv.Quote(att)
-	}
-
-	scope := ""
-	if len(scopes) > 0 {
-		scope = strings.Join(scopes, ".") + "."
-	}
-
-	// Top-level attributes get a "." but top-level intrinsics don't
-	if scope == "" && attr.Intrinsic == IntrinsicNone && len(att) > 0 {
-		scope += "."
-	}
-
-	return scope + att
-}
-
-// needsQuoting returns true if an attribute name contains characters
-// that require quoting (spaces or special characters).
-func needsQuoting(name string) bool {
-	if len(name) == 0 {
-		return false
-	}
-
-	for _, r := range name {
-		if !isAttributeRune(r) {
-			return true
+	for char := 0; char < len(query); char++ {
+		if query[char] == '(' {
+			closeParensIdx := findNextCloseParens(query, char+1)
+			if closeParensIdx != -1 && closeParensIdx != char+1 {
+				// Check if the parentheses are around a simple matcher (e.g., (.foo = "bar"))
+				inside := query[char+1 : closeParensIdx]
+				if !strings.Contains(inside, "&&") && !strings.Contains(inside, "||") {
+					if !strings.Contains(inside, "=") && !strings.Contains(inside, ">") &&
+						!strings.Contains(inside, "<") && !strings.Contains(inside, "!") &&
+						!strings.Contains(inside, "~") {
+						continue
+					}
+					// Remove the parentheses
+					query = query[:char] + inside + query[closeParensIdx+1:]
+					// Move back the index to account for removed parentheses
+					char -= 1
+				}
+			}
 		}
 	}
-	return false
-}
-
-// formatOperand returns the string representation of an operand,
-// using double quotes for string values instead of backticks.
-func formatOperand(operand Static) string {
-	if operand.Type == TypeString {
-		s := operand.EncodeToString(false)
-		return strconv.Quote(s)
-	}
-	return operand.String()
+	return query
 }
 
 // findSpansetFilter returns the first SpansetFilter in the pipeline.
