@@ -1,6 +1,7 @@
 package distributor
 
 import (
+	"errors"
 	"flag"
 	"time"
 
@@ -108,6 +109,17 @@ func (cfg *Config) Validate() error {
 		if err := cfg.KafkaConfig.Validate(); err != nil {
 			return err
 		}
+	}
+
+	if !cfg.IngesterWritePathEnabled && !cfg.KafkaWritePathEnabled {
+		return errors.New(
+			"distributor has no write path configured: both the ingester and Kafka write paths are disabled. " +
+				"As of this Tempo version, the classic ingester write path has been removed. " +
+				"Configure Kafka ingest storage by setting ingest.enabled: true along with " +
+				"ingest.kafka.address and ingest.kafka.topic. " +
+				"For a Kafka-free setup, use grafana/tempo:2.8.x or earlier. " +
+				"Migration guide: https://grafana.com/docs/tempo/latest/setup/migrate-to-ingest-storage/",
+		)
 	}
 
 	return nil
