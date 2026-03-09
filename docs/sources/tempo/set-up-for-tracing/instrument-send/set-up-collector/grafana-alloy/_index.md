@@ -9,8 +9,8 @@ aliases:
 
 # Grafana Alloy
 
-Grafana Alloy offers native pipelines for OpenTelemetry, Prometheus, Pyroscope, Loki, and many other metrics, logs, traces, and profile tools.
-In addition, you can use Alloy pipelines to do other tasks, such as configure alert rules in Loki and Mimir. Alloy is fully compatible with the OpenTelemetry Collector and Prometheus Agent.
+Grafana Alloy offers native pipelines for Tempo, OpenTelemetry, Prometheus, Pyroscope, Loki, and many other metrics, logs, traces, and profile tools.
+In addition, you can use Alloy pipelines to do other tasks, such as configure alert rules in Loki and Mimir. Alloy is compatible with the OpenTelemetry Collector and Prometheus Agent.
 
 You can use Alloy to collect and forward traces to Tempo.
 Using Alloy provides a hassle-free option, especially when dealing with multiple applications or microservices, allowing you to centralize the tracing process without changing your application's codebase.
