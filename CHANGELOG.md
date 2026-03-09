@@ -43,6 +43,7 @@
 * [BUGFIX] fix: compactor deduped spans metric uses wrong type (gauge instead of counter) [#6558](https://github.com/grafana/tempo/issues/6558) (@bejaratommy)
 * [BUGFIX] metrics-generator: Fix active-series counter underflow in local series limiter when overflow series are deleted [#6568](https://github.com/grafana/tempo/pull/6568) (@carles-grafana)
 * [ENHANCEMENT] Remove explicit `runtime.GC()` calls in vParquet5 compactor/block creation and CLI [#6603](https://github.com/grafana/tempo/pull/6603) (@oleg-kozlyuk-grafana)
+* [BUGFIX] fix(traceql): err on division by zero [#6580](https://github.com/grafana/tempo/pull/6580) (@Proximyst)
 
 ### 3.0 Cleanup
 

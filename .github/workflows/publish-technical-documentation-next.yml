@@ -20,11 +20,11 @@ jobs:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
           persist-credentials: false
-      - uses: grafana/writers-toolkit/publish-technical-documentation@3a5f900daffc465c2c7b12f6ed6d1f6168ba95c0
+      - uses: grafana/writers-toolkit/publish-technical-documentation@7cce806d24332c01694bfd305da3b412a0f58025
         with:
           source_directory: docs/sources/tempo
           website_directory: content/docs/tempo/next
-      - uses: grafana/writers-toolkit/publish-technical-documentation@3a5f900daffc465c2c7b12f6ed6d1f6168ba95c0
+      - uses: grafana/writers-toolkit/publish-technical-documentation@7cce806d24332c01694bfd305da3b412a0f58025
         with:
           source_directory: docs/sources/helm-charts/tempo-distributed
           website_directory: content/docs/helm-charts/tempo-distributed/next
