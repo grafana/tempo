@@ -37,8 +37,8 @@ Before you set up the OpenTelemetry Collector to send traces to Tempo, you need:
 - The OpenTelemetry Collector [installed](https://opentelemetry.io/docs/collector/installation/).
   The [contrib distribution](https://github.com/open-telemetry/opentelemetry-collector-contrib) is recommended because it includes additional processors and exporters such as `k8sattributes`, `tail_sampling`, and the `spanmetrics` connector.
 - A running Tempo instance with the distributor OTLP endpoints accessible.
-  By default, Tempo accepts OTLP traces on port `4317` (gRPC) and port `4318` (HTTP).
-- For Grafana Cloud Traces, use the `otlphttp` exporter. Grafana Cloud supports the OTLP HTTP endpoint only. Refer to [Send data to the Grafana Cloud OTLP endpoint](https://grafana.com/docs/grafana-cloud/send-data/otlp/send-data-otlp/) for connection and authentication details.
+  By default, Tempo accepts OTLP traces over gRPC on port `4317`. To also accept HTTP, configure the OTLP HTTP receiver on port `4318`.
+- For Grafana Cloud, use the `otlphttp` exporter. Refer to [Send data to the Grafana Cloud OTLP endpoint](https://grafana.com/docs/grafana-cloud/send-data/otlp/send-data-otlp/) for connection and authentication details.
 
 ## Set up the OpenTelemetry Collector to receive traces
 
@@ -88,9 +88,20 @@ For production TLS configuration, refer to [TLS configuration](#tls-configuratio
 
 ### Use OTLP/HTTP instead of gRPC
 
-To export traces over HTTP instead of gRPC, use the `otlphttp` exporter:
+To export traces over HTTP instead of gRPC, use the `otlphttp` exporter. The following example is a complete configuration:
 
 ```yaml
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+
+processors:
+  batch:
+
 exporters:
   otlphttp:
     endpoint: http://<TEMPO_HOST>:4318
@@ -193,7 +204,7 @@ Without tail sampling, the Tempo [metrics-generator](/docs/tempo/<TEMPO_VERSION>
 
 ![OpenTelemetry Collector metrics pipeline showing spans branching to the `spanmetrics` connector and tail sampling processor](diagram-otel-collector-metrics-pipeline.svg)
 
-Metrics are generated from all traces before tail sampling discards any, ensuring complete metrics coverage even when not all traces are stored in Tempo.
+To ensure complete metrics coverage, configure the `spanmetrics` connector before the `tail_sampling` processor in your pipeline. This ordering lets span metrics see all traces before tail sampling discards any.
 You can export the generated metrics using Prometheus remote write, OTLP, or any other supported metrics exporter.
 
 Refer to the [`spanmetrics` connector documentation](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/connector/spanmetricsconnector) for configuration details.

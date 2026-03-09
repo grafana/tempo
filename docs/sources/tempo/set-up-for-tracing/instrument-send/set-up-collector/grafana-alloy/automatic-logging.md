@@ -17,9 +17,13 @@ Grafana Alloy's automatic logging solves this by writing well-formatted log line
 Automatic logging lets you discover trace IDs through log messages.
 You can search for traces by key-value pairs in Loki and jump from a log message directly to the trace view in Grafana.
 
-While this approach is useful, it isn't as powerful as TraceQL.
-If you want to log the trace ID to enable moving from logs to traces, read on.
-To query traces directly, refer to the [TraceQL documentation](https://grafana.com/docs/tempo/<TEMPO_VERSION>/traceql/).
+## Automatic logging versus TraceQL
+
+Tempo's native search now provides the same trace discovery capabilities as automatic logging, without requiring a Loki instance or generating additional log volume.
+[TraceQL](https://grafana.com/docs/tempo/<TEMPO_VERSION>/traceql/) can search traces by service name, span name, duration, status, and custom attributes.
+For a visual, query-free approach, use [Traces Drilldown](https://grafana.com/docs/grafana/<GRAFANA_VERSION>/explore/simplified-exploration/traces/).
+
+Automatic logging is still useful if your workflow centers on Loki: trace IDs and span metadata appear alongside your application logs, letting you discover traces while investigating log data rather than switching to a separate trace search.
 
 ## Before you begin
 
@@ -180,6 +184,36 @@ To filter for slow requests from a specific service:
 ```logql
 {traces="root"} | logfmt | dur > 2s and svc="my-service"
 ```
+
+### TraceQL equivalents
+
+The following TraceQL queries provide the same trace discovery as the LogQL queries above, without requiring automatic logging or a Loki instance.
+
+To find all traces from a specific service:
+
+```traceql
+{ resource.service.name = "my-service" }
+```
+
+To find slow traces (duration over 2 seconds) from a specific service:
+
+```traceql
+{ resource.service.name = "my-service" && span:duration > 2s }
+```
+
+To find error traces:
+
+```traceql
+{ status = error }
+```
+
+To search by a specific attribute:
+
+```traceql
+{ span.http.method = "GET" && span.http.target = "/api/v1/query" }
+```
+
+Refer to [Construct TraceQL queries](https://grafana.com/docs/tempo/<TEMPO_VERSION>/traceql/construct-traceql-queries/) for the full query syntax.
 
 ### Navigate from logs to traces
 
