@@ -100,7 +100,7 @@ func RemoveUnnecessaryParentheses(query string) string {
 					// Remove the parentheses
 					query = query[:char] + inside + query[closeParensIdx+1:]
 					// Move back the index to account for removed parentheses
-					char -= 1
+					char--
 				}
 			}
 		}
