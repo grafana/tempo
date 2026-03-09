@@ -208,6 +208,8 @@ func (b *builder) processFilter(root *filterNode, flags flag, props *builderProp
 				switch qyFunc.Input.(type) {
 				case *filterQuery:
 					cond = &lastFuncQuery{Input: qyFunc.Input}
+				case *groupQuery:
+					cond = &lastFuncQuery{Input: qyFunc.Input}
 				}
 			}
 		}
@@ -689,9 +691,7 @@ func (b *builder) processNode(root node, flags flag, props *builderProp) (q quer
 			return
 		}
 		q = &groupQuery{Input: q}
-		if b.firstInput == nil {
-			b.firstInput = q
-		}
+		b.firstInput = q
 	}
 	b.parseDepth--
 	return
