@@ -470,7 +470,8 @@ Unlike functions, they do not modify any input telemetry and always return a val
 
 Available Converters:
 
-- [Base64Decode](#base64decode)
+- [Base64Decode](#base64decode-deprecated)
+- [Base64Encode](#base64encode)
 - [Bool](#bool)
 - [Decode](#decode)
 - [CommunityID](#communityid)
@@ -578,6 +579,28 @@ Examples:
 
 
 - `Base64Decode(resource.attributes["encoded field"])`
+
+### Base64Encode
+
+`Base64Encode(value, Optional[variant])`
+
+The `Base64Encode` Converter takes a string and returns a base64 encoded string.
+
+`value` is a string to encode.
+`variant` (optional) is the base64 encoding variant to use. Valid values are `base64` (standard, with padding), `base64-raw` (standard, no padding), `base64-url` (URL-safe, with padding), or `base64-raw-url` (URL-safe, no padding). Defaults to `base64` if not specified.
+
+Examples:
+
+- `Base64Encode("test string")`
+
+
+- `Base64Encode(resource.attributes["field"])`
+
+
+- `Base64Encode(body, "base64-url")`
+
+
+- `Base64Encode(attributes["data"], "base64-raw")`
 
 ### Bool
 
