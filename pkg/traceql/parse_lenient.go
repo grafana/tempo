@@ -225,9 +225,10 @@ func findNextCloseParens(tokens []token, remove []bool, from int) int {
 		if remove[j] {
 			continue
 		}
-		if tokens[j].typ == OPEN_PARENS {
+		switch tokens[j].typ {
+		case OPEN_PARENS:
 			depth++
-		} else if tokens[j].typ == CLOSE_PARENS {
+		case CLOSE_PARENS:
 			if depth == 0 {
 				return j
 			}
