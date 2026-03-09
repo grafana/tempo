@@ -1,0 +1,71 @@
+// SPDX-FileCopyrightText: 2024 Shun Sakai
+//
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+
+= Changelog
+:toc: preamble
+:project-url: https://github.com/sorairolake/lzip-go
+:compare-url: {project-url}/compare
+:issue-url: {project-url}/issues
+:pull-request-url: {project-url}/pull
+
+All notable changes to this project will be documented in this file.
+
+The format is based on https://keepachangelog.com/[Keep a Changelog], and this
+project adheres to https://semver.org/[Semantic Versioning].
+
+== {compare-url}/v0.3.4\...v0.3.5[0.3.5] - 2024-08-04
+
+=== Changed
+
+* Update man pages
+
+== {compare-url}/v0.3.3\...v0.3.4[0.3.4] - 2024-05-02
+
+=== Changed
+
+* Change to provide pre-built binaries ({pull-request-url}/21[#21])
+
+== {compare-url}/v0.3.2\...v0.3.3[0.3.3] - 2024-04-16
+
+=== Changed
+
+* Update document
+
+== {compare-url}/v0.3.1\...v0.3.2[0.3.2] - 2024-04-10
+
+=== Changed
+
+* Ungroup constants ({pull-request-url}/13[#13])
+
+== {compare-url}/v0.3.0\...v0.3.1[0.3.1] - 2024-04-08
+
+=== Changed
+
+* Update document for errors ({pull-request-url}/11[#11])
+
+== {compare-url}/v0.2.0\...v0.3.0[0.3.0] - 2024-04-07
+
+=== Changed
+
+* Change errors to include details ({pull-request-url}/8[#8])
+
+== {compare-url}/v0.1.0\...v0.2.0[0.2.0] - 2024-04-05
+
+=== Added
+
+* Add a simple command-line utility for reading and writing of lzip format
+  compressed files ({pull-request-url}/4[#4])
+
+=== Changed
+
+* Export constants regarding the dictionary size and the member size
+  ({pull-request-url}/3[#3])
+* Change the type of `WriterOptions.DictSize` from `int` to `uint32`
+  ({pull-request-url}/5[#5])
+
+== {project-url}/releases/tag/v0.1.0[0.1.0] - 2024-04-04
+
+=== Added
+
+* Initial release

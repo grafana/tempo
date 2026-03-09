@@ -1,0 +1,53 @@
+# SPDX-FileCopyrightText: 2024 Shun Sakai
+#
+# SPDX-License-Identifier: Apache-2.0 OR MIT
+
+version: 1
+
+before:
+  hooks:
+    - go mod tidy
+    - asciidoctor -b manpage docs/man/man1/glzip.1.adoc
+
+builds:
+  - main: ./cmd/glzip
+    binary: glzip
+    flags:
+      - -trimpath
+    ldflags:
+      - -s -w
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - darwin
+      - freebsd
+      - linux
+      - openbsd
+      - windows
+    goarch:
+      - amd64
+      - arm64
+
+archives:
+  - format: tar.zst
+    # use zip for windows archives
+    format_overrides:
+      - goos: windows
+        format: zip
+    files:
+      - AUTHORS.adoc
+      - CHANGELOG.adoc
+      - CONTRIBUTING.adoc
+      - docs/man/man1/glzip.1
+      - LICENSES/*
+      - README.md
+
+checksum:
+  algorithm: sha3-512
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"

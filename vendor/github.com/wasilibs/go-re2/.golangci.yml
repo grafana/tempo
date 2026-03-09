@@ -1,0 +1,19 @@
+linters:
+  enable:
+    - gci
+    - gofumpt
+linters-settings:
+  gci:
+    sections:
+      - standard
+      - default
+      - prefix(github.com/wasilibs/go-re2)
+issues:
+  exclude-rules:
+    - path: magefiles
+      linters:
+        - deadcode
+    - path: _test.go
+      linters:
+        # We have tests for deprecated methods
+        - staticcheck
