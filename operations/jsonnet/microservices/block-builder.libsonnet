@@ -23,6 +23,8 @@
     'mem-ballast-size-mbs': $._config.ballast_size_mbs,
   },
 
+  tempo_block_builder_follow_controller:: $.tempo_live_store_zone_a_statefulset,
+
   tempo_block_builder_container::
     container.new(target_name, $._images.tempo_block_builder) +
     container.withPorts($.tempo_block_builder_ports) +
@@ -42,6 +44,9 @@
     statefulset.spec.template.spec.securityContext.withFsGroup(10001) +  // 10001 is the UID of the tempo user
     statefulset.mixin.spec.template.metadata.withAnnotations({
       config_hash: std.md5(std.toString($.tempo_block_builder_configmap.data['tempo.yaml'])),
+      'grafana.com/rollout-mirror-replicas-from-resource-name': $.tempo_block_builder_follow_controller.metadata.name,
+      'grafana.com/rollout-mirror-replicas-from-resource-kind': $.tempo_block_builder_follow_controller.kind,
+      'grafana.com/rollout-mirror-replicas-from-resource-api-version': $.tempo_block_builder_follow_controller.apiVersion,
     }) +
     statefulset.mixin.spec.template.spec.withVolumes([
       volume.fromConfigMap(tempo_config_volume, $.tempo_block_builder_configmap.metadata.name),
