@@ -66,6 +66,18 @@ func newTenantStore(tenantID string, partitionID, startOffset uint64, startTime 
 	return s, nil
 }
 
+func (s *tenantStore) getDedicatedColumns() backend.DedicatedColumns {
+	if cols := s.overrides.DedicatedColumns(s.tenantID); cols != nil {
+		_, err := cols.Validate()
+		if err != nil {
+			level.Error(s.logger).Log("msg", "Unable to apply overrides for dedicated attribute columns. Columns invalid.", "error", err)
+			return s.cfg.DedicatedColumns
+		}
+		return cols
+	}
+	return s.cfg.DedicatedColumns
+}
+
 func (s *tenantStore) AppendTrace(traceID []byte, tr []byte, ts time.Time) error {
 	maxSz := s.overrides.MaxBytesPerTrace(s.tenantID)
 
@@ -123,7 +135,7 @@ func (s *tenantStore) Flush(ctx context.Context, r tempodb.Reader, w tempodb.Wri
 
 	// Initial meta for creating the block
 	meta := backend.NewBlockMeta(s.tenantID, (uuid.UUID)(blockID), s.enc.Version())
-	meta.DedicatedColumns = s.overrides.DedicatedColumns(s.tenantID)
+	meta.DedicatedColumns = s.getDedicatedColumns()
 	meta.ReplicationFactor = 1
 	meta.TotalObjects = int64(s.liveTraces.Len())
 
