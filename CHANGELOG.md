@@ -1,3 +1,7 @@
+## main / unreleased
+
+* [CHANGE] Set default `max_result_limit` for search to 256*1024 [#6525](https://github.com/grafana/tempo/pull/6525) (@zhxiaogg)
+
 # v2.10.1
 
 * [CHANGE] Upgrade Tempo to Go 1.25.7 [#6449](https://github.com/grafana/tempo/pull/6449) (@zalegrala)
