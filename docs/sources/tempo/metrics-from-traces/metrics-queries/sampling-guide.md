@@ -53,8 +53,7 @@ This behavior can be overridden to focus more on fixed span sampling using `with
 
 TraceQL metrics sampling requires:
 
-- Tempo 2.8+ with TraceQL metrics enabled
-- `local-blocks` processor configured in metrics-generator ([documentation](/docs/tempo/<TEMPO_VERSION>/metrics-from-traces/metrics-queries/configure-traceql-metrics/))
+- Tempo with TraceQL metrics enabled
 - Grafana 10.4+ or Grafana Cloud for UI integration
 
 You can use the TraceQL query editor in the Tempo data source in Grafana or Grafana Cloud to run the sample queries.
