@@ -12,8 +12,6 @@ keywords:
 
 # TraceQL metrics sampling
 
-{{< docs/shared source="tempo" lookup="traceql-metrics-admonition.md" version="<TEMPO_VERSION>" >}}
-
 TraceQL metrics sampling dynamically and automatically chooses how to sample your tracing data to give you the highest quality signal with examining as little data as possible.
 The overall performance improvement depends on the query. Heavy queries, such as `{ } | rate()`, show improvements of 2-4 times.
 
@@ -53,7 +51,7 @@ This behavior can be overridden to focus more on fixed span sampling using `with
 
 TraceQL metrics sampling requires:
 
-- Tempo with TraceQL metrics enabled
+- Tempo 3.0 or later
 - Grafana 10.4+ or Grafana Cloud for UI integration
 
 You can use the TraceQL query editor in the Tempo data source in Grafana or Grafana Cloud to run the sample queries.

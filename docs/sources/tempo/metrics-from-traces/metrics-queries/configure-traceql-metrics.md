@@ -13,9 +13,7 @@ keywords:
 
 # Configure TraceQL metrics
 
-{{< docs/shared source="tempo" lookup="traceql-metrics-admonition.md" version="<TEMPO_VERSION>" >}}
-
-TraceQL language provides metrics queries as an experimental feature.
+TraceQL language provides metrics queries as a feature.
 Metric queries extend trace queries by applying a function to trace query results.
 This powerful feature creates metrics from traces, much in the same way that LogQL metric queries create metrics from logs.
 
