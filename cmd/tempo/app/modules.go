@@ -64,7 +64,6 @@ const (
 	CacheProvider  string = "cache-provider"
 
 	// rings
-	MetricsGeneratorRing string = "metrics-generator-ring"
 	LiveStoreRing        string = "live-store-ring"
 	PartitionRing        string = "partition-ring"
 	GeneratorRingWatcher string = "generator-ring-watcher"
@@ -84,8 +83,7 @@ const (
 	SingleBinary string = "all"
 
 	// ring names
-	ringMetricsGenerator string = "metrics-generator"
-	ringLiveStore        string = "live-store"
+	ringLiveStore string = "live-store"
 )
 
 func IsSingleBinary(target string) bool {
@@ -152,10 +150,6 @@ func (t *App) initInternalServer() (services.Service, error) {
 	s := NewServerService(t.InternalServer, servicesToWaitFor)
 
 	return s, nil
-}
-
-func (t *App) initGeneratorRing() (services.Service, error) {
-	return t.initReadRing(t.cfg.Generator.Ring.ToRingConfig(), ringMetricsGenerator, t.cfg.Generator.OverrideRingKey)
 }
 
 func (t *App) initLiveStoreRing() (services.Service, error) {
@@ -252,14 +246,22 @@ func (t *App) initDistributor() (services.Service, error) {
 
 	t.cfg.Distributor.KafkaConfig = t.cfg.Ingest.Kafka
 	t.cfg.Distributor.PushSpansToKafka = true
-	t.cfg.Distributor.PushSpansToGenerator = singleBinary
+
+	var pushSpansToLocalGenerator distributor.PushSpansFunc
+	if singleBinary {
+		pushSpansToLocalGenerator = func(ctx context.Context, req *tempopb.PushSpansRequest) (*tempopb.PushResponse, error) {
+			if t.generator == nil {
+				return nil, errors.New("metrics-generator not initialized")
+			}
+			return t.generator.PushSpans(ctx, req)
+		}
+	}
 
 	// todo: make write-path client a module instead of passing the config everywhere
 	distributor, err := distributor.New(t.cfg.Distributor,
 		t.cfg.IngesterClient,
 		t.readRings[ringLiveStore],
-		t.cfg.GeneratorClient,
-		t.readRings[ringMetricsGenerator],
+		pushSpansToLocalGenerator,
 		t.partitionRing,
 		t.Overrides,
 		t.TracesConsumerMiddleware,
@@ -281,14 +283,12 @@ func (t *App) initDistributor() (services.Service, error) {
 }
 
 func (t *App) initGenerator() (services.Service, error) {
-	singleBinary := IsSingleBinary(t.cfg.Target)
-
-	t.cfg.Generator.Ring.ListenPort = t.cfg.Server.GRPCListenPort
-	t.cfg.Generator.DisableGRPC = !singleBinary
-	t.cfg.Generator.ConsumeFromKafka = !singleBinary
+	t.cfg.Generator.ConsumeFromKafka = !IsSingleBinary(t.cfg.Target)
 
 	t.cfg.Generator.Ingest = t.cfg.Ingest
-	t.cfg.Generator.Ingest.Kafka.ConsumerGroup = generator.ConsumerGroup
+	if t.cfg.Generator.ConsumeFromKafka {
+		t.cfg.Generator.Ingest.Kafka.ConsumerGroup = generator.ConsumerGroup
+	}
 
 	genSvc, err := generator.New(&t.cfg.Generator, t.Overrides, prometheus.DefaultRegisterer, t.partitionRing, log.Logger)
 	if errors.Is(err, generator.ErrUnconfigured) && t.cfg.Target != MetricsGenerator { // just warn if we're not running the metrics-generator
@@ -300,10 +300,6 @@ func (t *App) initGenerator() (services.Service, error) {
 	}
 	t.generator = genSvc
 
-	if singleBinary {
-		tempopb.RegisterMetricsGeneratorServer(t.Server.GRPC(), t.generator)
-	}
-
 	return t.generator, nil
 }
 
@@ -312,10 +308,6 @@ func (t *App) initGeneratorNoLocalBlocks() (services.Service, error) {
 
 	t.cfg.Generator.Ingest = t.cfg.Ingest
 	t.cfg.Generator.ConsumeFromKafka = true
-
-	// In this mode, the generator does not need to become available to serve
-	// queries, so we can skip setting up a gRPC server.
-	t.cfg.Generator.DisableGRPC = true
 
 	var err error
 	t.generator, err = generator.New(&t.cfg.Generator, t.Overrides, reg, t.generatorRingWatcher, log.Logger)
@@ -709,7 +701,6 @@ func (t *App) setupModuleManager() error {
 	mm.RegisterModule(OverridesAPI, t.initOverridesAPI)
 	mm.RegisterModule(UsageReport, t.initUsageReport)
 	mm.RegisterModule(CacheProvider, t.initCacheProvider, modules.UserInvisibleModule)
-	mm.RegisterModule(MetricsGeneratorRing, t.initGeneratorRing, modules.UserInvisibleModule)
 	mm.RegisterModule(GeneratorRingWatcher, t.initGeneratorRingWatcher, modules.UserInvisibleModule)
 	mm.RegisterModule(LiveStoreRing, t.initLiveStoreRing, modules.UserInvisibleModule)
 	mm.RegisterModule(PartitionRing, t.initPartitionRing, modules.UserInvisibleModule)
@@ -737,7 +728,6 @@ func (t *App) setupModuleManager() error {
 		OverridesAPI:         {Server, Overrides},
 		MemberlistKV:         {Server},
 		UsageReport:          {MemberlistKV},
-		MetricsGeneratorRing: {Server, MemberlistKV},
 		LiveStoreRing:        {Server, MemberlistKV},
 		PartitionRing:        {MemberlistKV, Server, LiveStoreRing},
 		GeneratorRingWatcher: {MemberlistKV},
@@ -746,7 +736,7 @@ func (t *App) setupModuleManager() error {
 
 		// individual targets
 		QueryFrontend:                 {Common, Store, OverridesAPI},
-		Distributor:                   {Common, LiveStoreRing, MetricsGeneratorRing, PartitionRing},
+		Distributor:                   {Common, LiveStoreRing, PartitionRing},
 		MetricsGenerator:              {Common, MemberlistKV, PartitionRing},
 		MetricsGeneratorNoLocalBlocks: {Common, GeneratorRingWatcher},
 		Querier:                       {Common, Store, LiveStoreRing, PartitionRing},

@@ -23,9 +23,6 @@ const (
 	// generatorRingKey is the default key under which we store the metric-generator's ring in the KVStore.
 	generatorRingKey = "metrics-generator"
 
-	// ringNameForServer is the name of the ring used by the metrics-generator server.
-	ringNameForServer = "metrics-generator"
-
 	ConsumerGroup = "metrics-generator"
 
 	// codecPushBytes refers to the codec used for decoding tempopb.PushBytesRequest
@@ -56,7 +53,7 @@ type Config struct {
 
 	// Codec controls which decoder to use for data consumed from Kafka.
 	Codec string `yaml:"codec"`
-	// DisableGRPC controls whether to run a gRPC server with the metrics generator endpoints.
+	// DisableGRPC is kept for one-release backward compatibility and ignored.
 	DisableGRPC bool `yaml:"disable_grpc"`
 	// ConsumeFromKafka controls whether the generator should consume spans from Kafka.
 	// This is wired by deployment model in app init and not user configurable.

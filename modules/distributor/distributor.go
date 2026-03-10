@@ -33,7 +33,6 @@ import (
 	"github.com/grafana/tempo/modules/distributor/receiver"
 	"github.com/grafana/tempo/modules/distributor/usage"
 	"github.com/grafana/tempo/modules/generator"
-	generator_client "github.com/grafana/tempo/modules/generator/client"
 	ingester_client "github.com/grafana/tempo/modules/ingester/client"
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/pkg/dataquality"
@@ -75,11 +74,6 @@ var (
 		Name:      "distributor_metrics_generator_pushes_failures_total",
 		Help:      "The total number of failed span pushes sent to metrics-generators.",
 	}, []string{"metrics_generator"})
-	metricGeneratorTenantRingSize = promauto.NewGaugeVec(prometheus.GaugeOpts{
-		Namespace: "tempo",
-		Name:      "distributor_metrics_generator_tenant_ring_size",
-		Help:      "The number of generator instances in the ring for a tenant",
-	}, []string{"tenant"})
 	metricSpansIngested = promauto.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "tempo",
 		Name:      "distributor_spans_received_total",
@@ -113,11 +107,6 @@ var (
 		Namespace: "tempo",
 		Name:      "distributor_ingester_clients",
 		Help:      "The current number of ingester clients.",
-	})
-	metricGeneratorClients = promauto.NewGauge(prometheus.GaugeOpts{
-		Namespace: "tempo",
-		Name:      "distributor_metrics_generator_clients",
-		Help:      "The current number of metrics-generator clients.",
 	})
 	metricAttributesTruncated = promauto.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "tempo",
@@ -158,6 +147,10 @@ type rebatchedTrace struct {
 	spanCount int
 }
 
+// PushSpansFunc is a callback used to push spans to a local metrics-generator
+// instance without gRPC/ring indirection (single-binary mode).
+type PushSpansFunc func(ctx context.Context, req *tempopb.PushSpansRequest) (*tempopb.PushResponse, error)
+
 type truncatedAttributesCount struct {
 	Resource int
 	Scope    int
@@ -190,10 +183,8 @@ type Distributor struct {
 	traceEncoder    model.SegmentDecoder
 
 	// metrics-generator
-	generatorClientCfg generator_client.Config
-	generatorsRing     ring.ReadRing
-	generatorsPool     *ring_client.Pool
-	generatorForwarder *generatorForwarder
+	generatorForwarder   *generatorForwarder
+	pushSpansToLocalFunc PushSpansFunc
 
 	// Generic Forwarder
 	forwardersManager *forwarder.Manager
@@ -202,8 +193,7 @@ type Distributor struct {
 	kafkaProducer *ingest.Producer
 	partitionRing ring.PartitionRingReader
 
-	pushSpansToKafka     bool
-	pushSpansToGenerator bool
+	pushSpansToKafka bool
 
 	// Per-user rate limiter.
 	ingestionRateLimiter *limiter.RateLimiter
@@ -232,8 +222,7 @@ func New(
 	cfg Config,
 	clientCfg ingester_client.Config,
 	ingestersRing ring.ReadRing,
-	generatorClientCfg generator_client.Config,
-	generatorsRing ring.ReadRing,
+	pushSpansToLocalFunc PushSpansFunc,
 	partitionRing ring.PartitionRingReader,
 	o overrides.Interface,
 	middleware receiver.Middleware,
@@ -287,7 +276,6 @@ func New(
 	subservices = append(subservices, pool)
 
 	pushSpansToKafka := cfg.PushSpansToKafka
-	pushSpansToGenerator := cfg.PushSpansToGenerator
 
 	d := &Distributor{
 		cfg:                  cfg,
@@ -296,11 +284,9 @@ func New(
 		pool:                 pool,
 		DistributorRing:      distributorRing,
 		ingestionRateLimiter: limiter.NewRateLimiter(ingestionRateStrategy, 10*time.Second),
-		generatorClientCfg:   generatorClientCfg,
-		generatorsRing:       generatorsRing,
+		pushSpansToLocalFunc: pushSpansToLocalFunc,
 		partitionRing:        partitionRing,
 		pushSpansToKafka:     pushSpansToKafka,
-		pushSpansToGenerator: pushSpansToGenerator,
 		overrides:            o,
 		traceEncoder:         model.MustNewSegmentDecoder(model.CurrentEncoding),
 		tracePushMiddlewares: cfg.TracePushMiddlewares,
@@ -318,21 +304,7 @@ func New(
 		d.usage = tracker
 	}
 
-	if d.pushSpansToGenerator {
-		var generatorsPoolFactory ring_client.PoolAddrFunc = func(addr string) (ring_client.PoolClient, error) {
-			return generator_client.New(addr, generatorClientCfg)
-		}
-		d.generatorsPool = ring_client.NewPool(
-			"distributor_metrics_generator_pool",
-			generatorClientCfg.PoolConfig,
-			ring_client.NewRingServiceDiscovery(generatorsRing),
-			generatorsPoolFactory,
-			metricGeneratorClients,
-			logger,
-		)
-
-		subservices = append(subservices, d.generatorsPool)
-
+	if d.pushSpansToLocalFunc != nil {
 		d.generatorForwarder = newGeneratorForwarder(logger, d.sendToGenerators, o)
 		subservices = append(subservices, d.generatorForwarder)
 	}
@@ -558,10 +530,10 @@ func (d *Distributor) PushTraces(ctx context.Context, traces ptrace.Traces) (*te
 		return nil, err
 	}
 
-	// In single-binary mode we also push directly to metrics-generator over gRPC,
+	// In single-binary mode we also push directly to metrics-generator in-process,
 	// while still writing to Kafka for live-store and block-builder.
-	if d.pushSpansToGenerator {
-		d.pushTracesGRPC(ctx, userID, ringTokens, rebatchedTraces)
+	if d.pushSpansToLocalFunc != nil {
+		d.pushTracesToGenerator(ctx, userID, ringTokens, rebatchedTraces)
 	}
 
 	return nil, nil // PushRequest is ignored, so no reason to create one
@@ -572,15 +544,11 @@ func (d *Distributor) pushTracesKafka(ctx context.Context, userID string, keys [
 		return nil
 	}
 
-	skipMetricsGeneration := generator.ExtractNoGenerateMetrics(ctx) || d.pushSpansToGenerator
+	skipMetricsGeneration := generator.ExtractNoGenerateMetrics(ctx) || d.pushSpansToLocalFunc != nil
 	return d.sendToKafka(ctx, userID, keys, traces, skipMetricsGeneration)
 }
 
-func (d *Distributor) pushTracesGRPC(ctx context.Context, userID string, keys []uint32, traces []*rebatchedTrace) {
-	if !d.pushSpansToGenerator {
-		return
-	}
-
+func (d *Distributor) pushTracesToGenerator(ctx context.Context, userID string, keys []uint32, traces []*rebatchedTrace) {
 	if len(d.overrides.MetricsGeneratorProcessors(userID)) > 0 {
 		d.generatorForwarder.SendTraces(ctx, userID, keys, traces)
 	}
@@ -659,44 +627,23 @@ func (d *Distributor) sendToIngestersViaBytes(ctx context.Context, userID string
 	return nil
 }
 
-func (d *Distributor) sendToGenerators(ctx context.Context, userID string, keys []uint32, traces []*rebatchedTrace, noGenerateMetrics bool) error {
-	// If an instance is unhealthy write to the next one (i.e. write extend is enabled)
-	op := ring.Write
+func (d *Distributor) sendToGenerators(ctx context.Context, userID string, _ []uint32, traces []*rebatchedTrace, noGenerateMetrics bool) error {
+	req := tempopb.PushSpansRequest{
+		Batches:               nil,
+		SkipMetricsGeneration: noGenerateMetrics,
+	}
+	for _, tr := range traces {
+		req.Batches = append(req.Batches, tr.trace.ResourceSpans...)
+	}
 
-	ringSize := d.overrides.MetricsGeneratorRingSize(userID)
-
-	metricGeneratorTenantRingSize.WithLabelValues(userID).Set(float64(ringSize))
-
-	readRing := d.generatorsRing.ShuffleShard(userID, ringSize)
-
-	err := ring.DoBatchWithOptions(ctx, op, readRing, keys, func(generator ring.InstanceDesc, indexes []int) error {
-		localCtx, cancel := context.WithTimeout(ctx, d.generatorClientCfg.RemoteTimeout)
-		defer cancel()
-		localCtx = user.InjectOrgID(localCtx, userID)
-
-		req := tempopb.PushSpansRequest{
-			Batches:               nil,
-			SkipMetricsGeneration: noGenerateMetrics,
-		}
-		for _, j := range indexes {
-			req.Batches = append(req.Batches, traces[j].trace.ResourceSpans...)
-		}
-
-		c, err := d.generatorsPool.GetClientFor(generator.Addr)
-		if err != nil {
-			return fmt.Errorf("failed to get client for generator: %w", err)
-		}
-
-		_, err = c.(tempopb.MetricsGeneratorClient).PushSpans(localCtx, &req)
-		metricGeneratorPushes.WithLabelValues(generator.Addr).Inc()
-		if err != nil {
-			metricGeneratorPushesFailures.WithLabelValues(generator.Addr).Inc()
-			return fmt.Errorf("failed to push spans to generator: %w", err)
-		}
-		return nil
-	}, ring.DoBatchOptions{})
-
-	return err
+	localCtx := user.InjectOrgID(ctx, userID)
+	_, err := d.pushSpansToLocalFunc(localCtx, &req)
+	metricGeneratorPushes.WithLabelValues("local").Inc()
+	if err != nil {
+		metricGeneratorPushesFailures.WithLabelValues("local").Inc()
+		return fmt.Errorf("failed to push spans to local generator: %w", err)
+	}
+	return nil
 }
 
 // Check implements the grpc healthcheck

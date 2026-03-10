@@ -14,10 +14,6 @@ service Pusher {
   rpc PushBytesV2(PushBytesRequest) returns (PushResponse) {}
 }
 
-service MetricsGenerator {
-  rpc PushSpans(PushSpansRequest) returns (PushResponse) {}
-}
-
 service Querier {
   rpc FindTraceByID(TraceByIDRequest) returns (TraceByIDResponse) {}
   rpc SearchRecent(SearchRequest) returns (SearchResponse) {}

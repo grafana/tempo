@@ -48,9 +48,8 @@ type Config struct {
 	KafkaWritePathEnabled bool               `yaml:"kafka_write_path_enabled"`
 	KafkaConfig           ingest.KafkaConfig `yaml:"kafka_config"`
 
-	// Internal routing toggles set by app wiring (not user-configurable).
-	PushSpansToKafka     bool `yaml:"-"`
-	PushSpansToGenerator bool `yaml:"-"`
+	// Internal routing toggle set by app wiring (not user-configurable).
+	PushSpansToKafka bool `yaml:"-"`
 
 	// disables write extension with inactive ingesters. Use this along with ingester.lifecycler.unregister_on_shutdown = true
 	//  note that setting these two config values reduces tolerance to failures on rollout b/c there is always one guaranteed to be failing replica

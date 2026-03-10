@@ -182,3 +182,4 @@ func TestConfig_CheckConfig(t *testing.T) {
 		})
 	}
 }
+
