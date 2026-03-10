@@ -362,7 +362,9 @@ func (t *App) initBlockBuilder() (services.Service, error) {
 
 	t.cfg.BlockBuilder.IngestStorageConfig = t.cfg.Ingest
 	t.cfg.BlockBuilder.IngestStorageConfig.Kafka.ConsumerGroup = blockbuilder.ConsumerGroup
-	t.cfg.BlockBuilder.GlobalBlockConfig = t.cfg.StorageConfig.Trace.Block
+	// Block config and WAL version are always sourced from storage.trace.block.
+	t.cfg.BlockBuilder.BlockConfig.BlockCfg = *t.cfg.StorageConfig.Trace.Block
+	t.cfg.BlockBuilder.WAL.Version = t.cfg.StorageConfig.Trace.Block.Version
 
 	if IsSingleBinary(t.cfg.Target) && len(t.cfg.BlockBuilder.AssignedPartitionsMap) == 0 {
 		// In SingleBinary mode always use partition 0. This is for small installs or local/debugging setups.
@@ -686,7 +688,9 @@ func (t *App) initLiveStore() (services.Service, error) {
 	// Inject config from other locations.
 	t.cfg.LiveStore.IngestConfig = t.cfg.Ingest
 	t.cfg.LiveStore.Ring.ListenPort = t.cfg.Server.GRPCListenPort
-	t.cfg.LiveStore.GlobalBlockConfig = t.cfg.StorageConfig.Trace.Block
+	// Block config and WAL version are always sourced from storage.trace.block.
+	t.cfg.LiveStore.BlockConfig = *t.cfg.StorageConfig.Trace.Block
+	t.cfg.LiveStore.WAL.Version = t.cfg.StorageConfig.Trace.Block.Version
 
 	var err error
 	t.liveStore, err = livestore.New(t.cfg.LiveStore, t.Overrides, log.Logger, prometheus.DefaultRegisterer, singlePartition)

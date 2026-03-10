@@ -47,7 +47,7 @@ type tenantStore struct {
 }
 
 func newTenantStore(tenantID string, partitionID, startOffset uint64, startTime time.Time, cycleDuration, slackDuration time.Duration, cfg BlockConfig, logger log.Logger, wal *wal.WAL, enc encoding.VersionedEncoding, o Overrides) (*tenantStore, error) {
-	cfg.BlockCfg.CreateWithNoCompactFlag = true // blockbuilder creates blocks with the nocompact flag set by default
+	cfg.CreateWithNoCompactFlag = true // blockbuilder creates blocks with the nocompact flag set by default
 
 	s := &tenantStore{
 		tenantID:      tenantID,
@@ -142,7 +142,7 @@ func (s *tenantStore) Flush(ctx context.Context, r tempodb.Reader, w tempodb.Wri
 		"meta", meta,
 	)
 
-	newMeta, err := s.enc.CreateBlock(ctx, &s.cfg.BlockCfg, meta, iter, reader, writer)
+	newMeta, err := s.enc.CreateBlock(ctx, &s.cfg.BlockConfig, meta, iter, reader, writer)
 	if err != nil {
 		return err
 	}

@@ -16,6 +16,7 @@ import (
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/util/test"
+	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/grafana/tempo/tempodb/wal"
 )
 
@@ -46,13 +47,18 @@ func setupTest(t *testing.T) *testSetup {
 	cfg := &Config{}
 	cfg.RegisterFlagsAndApplyDefaults("", &flag.FlagSet{})
 
-	blockEnc, walEnc, err := coalesceBlockVersions(cfg)
-	require.NoError(t, err)
+	// Use the default encoding for tests
+	blockEnc := encoding.DefaultEncoding()
+
+	// Populate block config with defaults, simulating what modules.go does by injecting storage.trace.block.
+	cfg.BlockConfig.RegisterFlagsAndApplyDefaults("", &flag.FlagSet{})
+	cfg.BlockConfig.Version = blockEnc.Version()
+	cfg.WAL.Version = blockEnc.Version()
 
 	// Setup WAL config
 	w, err := wal.New(&wal.Config{
 		Filepath: tmpDir,
-		Version:  walEnc.Version(),
+		Version:  blockEnc.Version(),
 	})
 	require.NoError(t, err)
 

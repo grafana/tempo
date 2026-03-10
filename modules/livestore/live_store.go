@@ -153,11 +153,10 @@ type LiveStore struct {
 }
 
 func New(cfg Config, overridesService overrides.Interface, logger log.Logger, reg prometheus.Registerer, singlePartition bool) (*LiveStore, error) {
-	completeBlockEncoding, walEncoding, encErr := coalesceBlockVersions(&cfg)
+	completeBlockEncoding, encErr := encoding.FromVersionForWrites(cfg.BlockConfig.Version)
 	if encErr != nil {
-		return nil, encErr
+		return nil, fmt.Errorf("block version validation failed: %w", encErr)
 	}
-	cfg.WAL.Version = walEncoding.Version()
 
 	ctx, cancel := context.WithCancel(context.Background())
 
