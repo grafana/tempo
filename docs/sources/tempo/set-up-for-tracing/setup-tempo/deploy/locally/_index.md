@@ -8,9 +8,10 @@ weight: 400
 
 This section provides instructions for deploying Tempo locally using Docker Compose.
 
+You can download the latest version from the [Tempo Releases page](https://github.com/grafana/tempo/releases).
+
 {{< section withDescriptions="true">}}
 
 {{< admonition type="note" >}}
-Grafana Tempo does not come with any included authentication layer. You must run an authenticating reverse proxy in front of your services to prevent unauthorized access to Tempo (for example, nginx). [Manage authentication](https://grafana.com/docs/tempo/<TEMPO_VERSION>/operations/authentication/) for more details
+Grafana Tempo doesn't come with any included authentication layer. You must run an authenticating reverse proxy in front of your services to prevent unauthorized access to Tempo (for example, nginx). [Manage authentication](https://grafana.com/docs/tempo/<TEMPO_VERSION>/operations/authentication/) for more details
 {{< /admonition >}}
-

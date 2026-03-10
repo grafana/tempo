@@ -30,6 +30,12 @@ The following configuration options can be modified:
   - `queue_size` (default = 1000): Maximum size the queue can accept. Measured in units defined by `sizer`
   - `batch`: see below.
 
+**Failure behavior**: If data cannot be added to the sending queue, it is typically dropped. This occurs when the queue has reached its configured capacity or, for persistent queues, when the underlying storage cannot accept additional data (for example, due to insufficient disk space or I/O errors).
+
+When `block_on_overflow` is enabled, the caller may instead wait until space becomes available, and the request may still be enqueued if capacity frees up before the timeout.
+
+If data is rejected before entering the queue, it does not reach the exporter retry logic. Such enqueue failures are reported by the `otelcol_exporter_enqueue_failed_*` metrics.
+
 #### Sending queue batch settings
 
 Batch settings are available in the sending queue. Batching is disabled, by default. To enable default
@@ -50,6 +56,18 @@ Available `batch::sizer` options:
 
 - `items`: number of the smallest parts of each signal (spans, metric data points, log records);
 - `bytes`: the size of serialized data in bytes (the least performant option).
+
+- `partition`: see below.
+
+The `batch::partition` configuration defines the partitioning of the batches.
+
+Available `batch::partition` options:
+
+- `metadata_keys`: a list of `client.Metadata` keys used to partition data into
+  separate batches. When empty, a single batcher instance is used. When set, one batcher will be used
+  per distinct combination of values for the listed metadata keys. Empty value and unset metadata are
+  treated as distinct cases. Entries are case-insensitive. Duplicated entries will trigger a validation error. Default is empty.
+
 ### Timeout
 
 - `timeout` (default = 5s): Time to wait per individual attempt to send data to a backend
