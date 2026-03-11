@@ -830,7 +830,6 @@ func (w *Work) TenantPending(tenantID string) bool {
 	return w.batches.hasActive(tenantID)
 }
 
-
 // runningBlockKeys returns pendingBlockKey strings for every block referenced by j.
 func runningBlockKeys(j *Job) []string {
 	tenant := j.Tenant()
