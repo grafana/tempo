@@ -75,7 +75,17 @@ Live-stores own the partition lifecycle within Tempo.
 While Kafka has its own concept of partitions, Tempo maintains a separate partition ring that tracks which Tempo 
 partitions are active and which live-stores own them.
 Tempo partitions map to Kafka partitions, but they are logically distinct. 
-The partition ring lets Tempo control partition states (pending, active, inactive) and ownership independently of Kafka's internal partition management.
+The partition ring lets Tempo control partition states and ownership independently of Kafka's internal partition management.
+
+Partitions have three states:
+
+- Pending: No writes or reads. This is the initial state when a new partition is created, waiting for live-stores to be added as owners.
+- Active: Normal read-write mode. Distributors send data to active partitions, and queriers read from them.
+- Inactive: Read-only mode. Inactive partitions are eventually deleted after a configured period of time.
+
+When a live-store starts, it checks if its partition already exists. If it does, the live-store joins as an owner. If not, it creates a new partition in pending state, waits for memberlist to propagate, then switches it to active.
+Scaling down requires first marking the partition as inactive while the live-store is still running. After enough 
+time has passed for data to be available in object storage, the partition and live-store can be removed.
 
 For high availability, live-stores are typically deployed across multiple availability zones.
 Each Tempo partition is owned by one live-store per zone, so if a live-store in one zone becomes unavailable, the 
