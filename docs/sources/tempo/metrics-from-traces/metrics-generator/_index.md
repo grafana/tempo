@@ -10,7 +10,7 @@ weight: 300
 # Metrics-generator
 
 Metrics-generator is an optional Tempo component that derives metrics from ingested traces.
-The metrics-generator consumes trace data from Kafka and writes metrics to a Prometheus data source using the Prometheus remote write protocol.
+The metrics-generator consumes trace data from Kafka and writes metrics to a Prometheus data source using the Prometheus remote-write protocol.
 
 ## Architecture
 
