@@ -14,5 +14,5 @@ A failure domain is whatever you define it to be, but commonly may be an availab
 
 When zone awareness is set up for live-stores, each Tempo partition is owned by one live-store per zone.
 This means that if a live-store in one zone becomes unavailable, the live-store in the other zone can continue serving queries for that partition.
-While data is replicated across zones (RF2), the read quorum is 1 — queriers only need a response from one live-store per partition.
+While data is replicated across zones (RF2), the read quorum is 1. The queriers only need a response from one live-store per partition.
 This provides high availability without requiring data deduplication on the read path.

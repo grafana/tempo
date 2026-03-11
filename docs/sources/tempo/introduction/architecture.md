@@ -79,9 +79,9 @@ The partition ring lets Tempo control partition states and ownership independent
 
 Partitions have three states:
 
-- **Pending** — No writes or reads. This is the initial state when a new partition is created, waiting for live-stores to be added as owners.
-- **Active** — Normal read-write mode. Distributors send data to active partitions, and queriers read from them.
-- **Inactive** — Read-only mode. Inactive partitions are eventually deleted after a configured period of time.
+- Pending: No writes or reads. This is the initial state when a new partition is created, waiting for live-stores to be added as owners.
+- Active: Normal read-write mode. Distributors send data to active partitions, and queriers read from them.
+- Inactive: Read-only mode. Inactive partitions are eventually deleted after a configured period of time.
 
 When a live-store starts, it checks if its partition already exists. If it does, the live-store joins as an owner. If not, it creates a new partition in pending state, waits for memberlist to propagate, then switches it to active.
 Scaling down requires first marking the partition as inactive while the live-store is still running. After enough 
