@@ -356,8 +356,20 @@ func (i *instance) writeHeadBlock(id []byte, liveTrace *livetraces.LiveTrace[*v1
 	return i.headBlock.AppendTrace(id, tr, startSeconds, endSeconds, false)
 }
 
+func (i *instance) getDedicatedColumns() backend.DedicatedColumns {
+	if cols := i.overrides.DedicatedColumns(i.tenantID); cols != nil {
+		_, err := cols.Validate()
+		if err != nil {
+			level.Error(i.logger).Log("msg", "Unable to apply overrides for dedicated attribute columns. Columns invalid.", "error", err)
+			return i.Cfg.BlockConfig.DedicatedColumns
+		}
+		return cols
+	}
+	return i.Cfg.BlockConfig.DedicatedColumns
+}
+
 func (i *instance) resetHeadBlock() error {
-	dedicatedColumns := i.overrides.DedicatedColumns(i.tenantID)
+	dedicatedColumns := i.getDedicatedColumns()
 
 	meta := &backend.BlockMeta{
 		BlockID:           backend.NewUUID(),
