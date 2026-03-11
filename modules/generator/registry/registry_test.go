@@ -826,7 +826,7 @@ func TestManagedRegistry_replaceMetricDrainsOldSeries(t *testing.T) {
 
 	var deletedSeriesCount int
 	trackingLimiter := &mockLimiter{
-		onAddFunc: func(hash uint64, count uint32, lbls labels.Labels) (labels.Labels, uint64) {
+		onAddFunc: func(hash uint64, _ uint32, lbls labels.Labels) (labels.Labels, uint64) {
 			return lbls, hash
 		},
 		onDeleteFunc: func(_ uint64, count uint32) {
@@ -868,7 +868,7 @@ func TestManagedRegistry_replaceHistogramDrainsWithMultiplier(t *testing.T) {
 
 	var deletedSeriesCount int
 	trackingLimiter := &mockLimiter{
-		onAddFunc: func(hash uint64, count uint32, lbls labels.Labels) (labels.Labels, uint64) {
+		onAddFunc: func(hash uint64, _ uint32, lbls labels.Labels) (labels.Labels, uint64) {
 			return lbls, hash
 		},
 		onDeleteFunc: func(_ uint64, count uint32) {
