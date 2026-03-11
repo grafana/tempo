@@ -50,6 +50,8 @@ spec:
         volumeMounts:
         - mountPath: /conf
           name: tempo-conf
+        - mountPath: /var/tempo
+          name: block-builder-data
         - mountPath: /overrides
           name: overrides
       securityContext:
@@ -62,5 +64,8 @@ spec:
       - configMap:
           name: tempo-overrides
         name: overrides
+      - emptyDir:
+          sizeLimit: 5Gi
+        name: block-builder-data
   updateStrategy:
     type: RollingUpdate

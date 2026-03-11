@@ -11,6 +11,7 @@
 
   local target_name = 'block-builder',
   local tempo_config_volume = 'tempo-conf',
+  local tempo_data_volume = 'block-builder-data',
   local tempo_overrides_config_volume = 'overrides',
 
   // Statefulset
@@ -31,6 +32,7 @@
     container.withArgs($.util.mapToFlags($.tempo_block_builder_args)) +
     container.withVolumeMounts([
       volumeMount.new(tempo_config_volume, '/conf'),
+      volumeMount.new(tempo_data_volume, '/var/tempo'),
       volumeMount.new(tempo_overrides_config_volume, '/overrides'),
     ]) +
     $.util.withResources($._config.block_builder.resources) +
@@ -51,6 +53,7 @@
     statefulset.mixin.spec.template.spec.withVolumes([
       volume.fromConfigMap(tempo_config_volume, $.tempo_block_builder_configmap.metadata.name),
       volume.fromConfigMap(tempo_overrides_config_volume, $._config.overrides_configmap_name),
+      volume.fromEmptyDir(tempo_data_volume) + volume.mixin.emptyDir.withSizeLimit($._config.block_builder.data_volume_size),
     ]) +
     statefulset.mixin.spec.withPodManagementPolicy('Parallel') +
     statefulset.mixin.spec.template.spec.withTerminationGracePeriodSeconds(terminationGracePeriod) +
