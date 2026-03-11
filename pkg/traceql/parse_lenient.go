@@ -147,10 +147,7 @@ func skipAttribute(tokens []token, idx *int) {
 		if i < len(tokens) && (tokens[i].typ == SPAN_DOT || tokens[i].typ == RESOURCE_DOT) {
 			i++
 		}
-	case RESOURCE_DOT, SPAN_DOT, EVENT_DOT, EVENT_COLON, LINK_DOT, LINK_COLON,
-		TRACE_COLON, SPAN_COLON, INSTRUMENTATION_DOT, INSTRUMENTATION_COLON:
-		i++
-	case DOT:
+	default:
 		i++
 	}
 	// i now points to the attribute name (IDENTIFIER or intrinsic)
@@ -269,10 +266,9 @@ func rebuildQuery(tokens []token, remove []bool) string {
 }
 
 func isScopeToken(typ int) bool {
-	return typ == DOT || typ == SPAN_DOT || typ == RESOURCE_DOT ||
-		typ == EVENT_DOT || typ == LINK_DOT || typ == INSTRUMENTATION_DOT ||
-		typ == PARENT_DOT || typ == EVENT_COLON || typ == LINK_COLON ||
-		typ == TRACE_COLON || typ == SPAN_COLON || typ == INSTRUMENTATION_COLON
+	return startsAttribute(typ) ||
+		typ == EVENT_COLON || typ == LINK_COLON || typ == TRACE_COLON ||
+		typ == SPAN_COLON || typ == INSTRUMENTATION_COLON
 }
 
 // tokenRepr returns the string representation of a token for query rebuilding.
@@ -295,11 +291,7 @@ func tokenRepr(t token) string {
 }
 
 func isAttributeToken(typ int) bool {
-	return typ == DOT || typ == IDENTIFIER || isIntrinsicToken(typ) ||
-		typ == PARENT_DOT || typ == RESOURCE_DOT || typ == SPAN_DOT ||
-		typ == EVENT_DOT || typ == LINK_DOT || typ == INSTRUMENTATION_DOT ||
-		typ == EVENT_COLON || typ == LINK_COLON || typ == TRACE_COLON ||
-		typ == SPAN_COLON || typ == INSTRUMENTATION_COLON
+	return typ == IDENTIFIER || isIntrinsicToken(typ) || isScopeToken(typ)
 }
 
 func isIntrinsicToken(typ int) bool {

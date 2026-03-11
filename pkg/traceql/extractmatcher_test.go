@@ -38,7 +38,7 @@ func TestExtractMatchers(t *testing.T) {
 		},
 		{
 			name:     "long query",
-			query:    `{(.service_name = "foo" && .http.status_code = 200) && .http.method = "GET" && .cluster = }`,
+			query:    `{.service_name = "foo" && .http.status_code = 200 && .http.method = "GET" && .cluster = }`,
 			expected: `{(.service_name = "foo" && .http.status_code = 200) && .http.method = "GET"}`,
 		},
 		{
