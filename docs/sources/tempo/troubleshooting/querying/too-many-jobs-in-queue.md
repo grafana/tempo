@@ -36,7 +36,7 @@ Possible reasons why the scheduler or worker may not be running are:
   - For detailed information, refer to the [Amazon S3 permissions](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/hosted-storage/s3/).
 - If there's a worker sitting idle while others are running, check the scheduler logs and worker metrics to diagnose the issue.
 - Check the following configuration parameters to ensure that there are correct settings:
-  - `max_block_bytes` to determine when the ingester cuts blocks. A good number is anywhere from 100MB to 2GB depending on the workload.
+  - `max_block_bytes` to determine the maximum size of a block. A good number is anywhere from 100MB to 2GB depending on the workload.
   - `max_compaction_objects` to determine the max number of objects in a compacted block. This should relatively high, generally in the millions.
   - `retention_duration` for how long traces should be retained in the backend.
 - Check the storage section of the configuration and increase `queue_depth`. Do bear in mind that a deeper queue could mean longer
