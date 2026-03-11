@@ -116,7 +116,7 @@ func createTestBlock(t testing.TB, ctx context.Context, cfg *common.BlockConfig,
 		DedicatedColumns:  dc,
 	}
 
-	sb := newStreamingBlock(ctx, cfg, inMeta, r, w, tempo_io.NewBufferedWriter)
+	sb, outMeta := newStreamingBlock(ctx, cfg, inMeta, r, w, tempo_io.NewBufferedWriter)
 
 	for i := 0; i < traceCount; i++ {
 		id := make([]byte, 16)
@@ -137,7 +137,7 @@ func createTestBlock(t testing.TB, ctx context.Context, cfg *common.BlockConfig,
 	_, err := sb.Complete()
 	require.NoError(t, err)
 
-	return sb.meta
+	return outMeta
 }
 
 func TestValueAlloc(_ *testing.T) {
