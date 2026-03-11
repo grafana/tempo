@@ -881,7 +881,7 @@ func blockbuilderConfig(t testing.TB, address string, assignedPartitions []int32
 	flagext.DefaultValues(&cfg.BlockConfig)
 
 	cfg.BlockConfig.BlockConfig.RegisterFlagsAndApplyDefaults("", &flag.FlagSet{})
-	cfg.BlockConfig.BlockConfig.Version = encoding.DefaultEncoding().Version()
+	cfg.BlockConfig.Version = encoding.DefaultEncoding().Version()
 
 	flagext.DefaultValues(&cfg.IngestStorageConfig.Kafka)
 	cfg.IngestStorageConfig.Kafka.Address = address

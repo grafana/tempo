@@ -25,7 +25,7 @@ func getTenantStore(t *testing.T, startTime time.Time, cycleDuration, slackDurat
 	blockCfg.RegisterFlagsAndApplyDefaults("", &flag.FlagSet{})
 	// Simulate modules.go injection of storage.trace.block config
 	blockCfg.BlockConfig.RegisterFlagsAndApplyDefaults("", &flag.FlagSet{})
-	blockCfg.BlockConfig.Version = encoding.DefaultEncoding().Version()
+	blockCfg.Version = encoding.DefaultEncoding().Version()
 
 	w, err := wal.New(&wal.Config{
 		Filepath:       tmpDir,
