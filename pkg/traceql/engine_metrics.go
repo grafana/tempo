@@ -12,9 +12,11 @@ import (
 	"sync"
 	"time"
 
+	"github.com/go-kit/log/level"
 	"github.com/grafana/tempo/pkg/tempopb"
 	commonv1proto "github.com/grafana/tempo/pkg/tempopb/common/v1"
 	"github.com/grafana/tempo/pkg/util"
+	"github.com/grafana/tempo/pkg/util/log"
 	"github.com/prometheus/prometheus/model/labels"
 )
 
@@ -22,8 +24,10 @@ const (
 	internalLabelMetaType = "__meta_type"
 	internalMetaTypeCount = "__count"
 	internalLabelBucket   = "__bucket"
-	maxExemplars          = 100
 	maxExemplarsPerBucket = 2
+	// maxExemplars is a safety cap applied at the engine entry points to bound memory
+	// usage regardless of what the caller requests.
+	maxExemplars uint32 = 100000
 	// NormalNaN is a quiet NaN. This is also math.NaN().
 	normalNaN uint64 = 0x7ff8000000000001
 )
@@ -535,9 +539,9 @@ type StepAggregator struct {
 
 var _ RangeAggregator = (*StepAggregator)(nil)
 
-func NewStepAggregator(start, end, step uint64, innerAgg func() VectorAggregator) *StepAggregator {
+func NewStepAggregator(q *tempopb.QueryRangeRequest, innerAgg func() VectorAggregator) *StepAggregator {
 	const instant = false // never used for instant queries
-	mapper := NewIntervalMapper(start, end, step, instant)
+	mapper := NewIntervalMapper(q.Start, q.End, q.Step, instant)
 	intervals := mapper.IntervalCount()
 	vectors := make([]VectorAggregator, intervals)
 	for i := range vectors {
@@ -547,8 +551,8 @@ func NewStepAggregator(start, end, step uint64, innerAgg func() VectorAggregator
 	return &StepAggregator{
 		intervalMapper:  mapper,
 		vectors:         vectors,
-		exemplars:       make([]Exemplar, 0, maxExemplars),
-		exemplarBuckets: newExemplarBucketSet(maxExemplars, start, end, step, instant),
+		exemplars:       make([]Exemplar, 0, q.Exemplars),
+		exemplarBuckets: newExemplarBucketSet(q.Exemplars, q.Start, q.End, q.Step, instant),
 	}
 }
 
@@ -931,6 +935,11 @@ func (u *UngroupedAggregator) Series() SeriesSet {
 }
 
 func (e *Engine) CompileMetricsQueryRangeNonRaw(req *tempopb.QueryRangeRequest, mode AggregateMode) (*MetricsFrontendEvaluator, error) {
+	if req.Exemplars > maxExemplars {
+		level.Warn(log.Logger).Log("msg", "capping exemplars to safety limit", "requested", req.Exemplars, "cap", maxExemplars)
+		req.Exemplars = maxExemplars
+	}
+
 	if req.Start <= 0 {
 		return nil, fmt.Errorf("start required")
 	}
@@ -971,6 +980,11 @@ func (e *Engine) CompileMetricsQueryRangeNonRaw(req *tempopb.QueryRangeRequest, 
 
 // CompileMetricsQueryRange returns an evaluator that can be reused across multiple data sources.
 func (e *Engine) CompileMetricsQueryRange(req *tempopb.QueryRangeRequest, timeOverlapCutoff float64, allowUnsafeQueryHints bool) (*MetricsEvaluator, error) {
+	if req.Exemplars > maxExemplars {
+		level.Warn(log.Logger).Log("msg", "capping exemplars to safety limit", "requested", req.Exemplars, "cap", maxExemplars)
+		req.Exemplars = maxExemplars
+	}
+
 	if req.Start <= 0 {
 		return nil, fmt.Errorf("start required")
 	}
@@ -993,17 +1007,6 @@ func (e *Engine) CompileMetricsQueryRange(req *tempopb.QueryRangeRequest, timeOv
 
 	if metricsPipeline == nil {
 		return nil, fmt.Errorf("not a metrics query")
-	}
-
-	// the exemplars hint supports both bool and int. first we test for the integer value. if
-	// its not present then we look to see if the user provided `with(exemplars=false)`
-	exemplars := int(req.Exemplars)
-	if v, ok := expr.Hints.GetInt(HintExemplars, allowUnsafeQueryHints); ok {
-		exemplars = v
-	} else if v, ok := expr.Hints.GetBool(HintExemplars, allowUnsafeQueryHints); ok {
-		if !v {
-			exemplars = 0
-		}
 	}
 
 	// Debug sampling hints, remove once we settle on approach.
@@ -1052,9 +1055,9 @@ func (e *Engine) CompileMetricsQueryRange(req *tempopb.QueryRangeRequest, timeOv
 		storageReq:        storageReq,
 		metricsPipeline:   metricsPipeline,
 		timeOverlapCutoff: timeOverlapCutoff,
-		maxExemplars:      exemplars,
+		maxExemplars:      int(req.Exemplars),
+		exemplarMap:       make(map[string]struct{}, req.Exemplars), // TODO: Lazy, use bloom filter, CM sketch or something
 		needsFullTrace:    needsFullTrace,
-		exemplarMap:       make(map[string]struct{}, exemplars), // TODO: Lazy, use bloom filter, CM sketch or something
 	}
 
 	if b, ok := expr.Hints.GetBool("new", true); ok {
@@ -1584,7 +1587,7 @@ type SimpleAggregator struct {
 	initWithNaN     bool
 }
 
-func NewSimpleCombiner(req *tempopb.QueryRangeRequest, op SimpleAggregationOp, exemplars uint32) *SimpleAggregator {
+func NewSimpleCombiner(req *tempopb.QueryRangeRequest, op SimpleAggregationOp) *SimpleAggregator {
 	var initWithNaN bool
 	var f func(existingValue float64, newValue float64) float64
 	switch op {
@@ -1607,7 +1610,7 @@ func NewSimpleCombiner(req *tempopb.QueryRangeRequest, op SimpleAggregationOp, e
 	}
 	return &SimpleAggregator{
 		ss:              make(SeriesSet),
-		exemplarBuckets: newExemplarBucketSet(exemplars, req.Start, req.End, req.Step, IsInstant(req)),
+		exemplarBuckets: newExemplarBucketSet(req.Exemplars, req.Start, req.End, req.Step, IsInstant(req)),
 		intervalMapper:  NewIntervalMapperFromReq(req),
 		aggregationFunc: f,
 		initWithNaN:     initWithNaN,

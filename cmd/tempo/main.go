@@ -46,6 +46,8 @@ func init() {
 
 func main() {
 	printVersion := flag.Bool("version", false, "Print this builds version information")
+	healthCheck := flag.Bool("health", false, "Run a health check against the /ready endpoint and exit")
+	healthURL := flag.String("health.url", defaultHealthURL, "URL to check when running health check")
 	ballastMBs := flag.Int("mem-ballast-size-mbs", 0, "Size of memory ballast to allocate in MBs.")
 	mutexProfileFraction := flag.Int("mutex-profile-fraction", 0, "Override default mutex profiling fraction.")
 	blockProfileThreshold := flag.Int("block-profile-threshold", 0, "Override default block profiling threshold.")
@@ -58,6 +60,9 @@ func main() {
 	if *printVersion {
 		fmt.Println(version.Print(appName))
 		os.Exit(0)
+	}
+	if *healthCheck {
+		os.Exit(RunHealthCheck(*healthURL))
 	}
 
 	// Init automemlimit if enabled

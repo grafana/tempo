@@ -18,8 +18,12 @@ import (
 	zipkinmodel "github.com/openzipkin/zipkin-go/model"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
-	conventions112 "go.opentelemetry.io/otel/semconv/v1.12.0"
-	conventions "go.opentelemetry.io/otel/semconv/v1.15.0"
+	conventionsv112 "go.opentelemetry.io/otel/semconv/v1.12.0"
+	conventionsv118 "go.opentelemetry.io/otel/semconv/v1.18.0"
+	conventionsv121 "go.opentelemetry.io/otel/semconv/v1.21.0"
+	conventionsv125 "go.opentelemetry.io/otel/semconv/v1.25.0"
+	conventionsv126 "go.opentelemetry.io/otel/semconv/v1.26.0"
+	conventions "go.opentelemetry.io/otel/semconv/v1.38.0"
 
 	"github.com/open-telemetry/opentelemetry-collector-contrib/internal/coreinternal/occonventions"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/internal/coreinternal/tracetranslator"
@@ -99,16 +103,16 @@ func getResourceSemanticConventionAttributeNames() []string {
 		string(conventions.AWSLogStreamARNsKey),
 		string(conventions.ContainerNameKey),
 		string(conventions.ContainerIDKey),
-		string(conventions.ContainerRuntimeKey),
+		string(conventionsv126.ContainerRuntimeKey),
 		string(conventions.ContainerImageNameKey),
-		string(conventions.ContainerImageTagKey),
-		string(conventions.DeploymentEnvironmentKey),
+		string(conventionsv121.ContainerImageTagKey),
+		string(conventionsv126.DeploymentEnvironmentKey),
 		string(conventions.DeviceIDKey),
 		string(conventions.DeviceModelIdentifierKey),
 		string(conventions.DeviceModelNameKey),
 		string(conventions.DeviceManufacturerKey),
 		string(conventions.FaaSNameKey),
-		string(conventions.FaaSIDKey),
+		string(conventionsv118.FaaSIDKey),
 		string(conventions.FaaSVersionKey),
 		string(conventions.FaaSInstanceKey),
 		string(conventions.FaaSMaxMemoryKey),
@@ -160,7 +164,7 @@ func getResourceSemanticConventionAttributeNames() []string {
 		string(conventions.TelemetrySDKNameKey),
 		string(conventions.TelemetrySDKLanguageKey),
 		string(conventions.TelemetrySDKVersionKey),
-		string(conventions.TelemetryAutoVersionKey),
+		string(conventionsv121.TelemetryAutoVersionKey),
 		string(conventions.WebEngineNameKey),
 		string(conventions.WebEngineVersionKey),
 		string(conventions.WebEngineDescriptionKey),
@@ -173,8 +177,8 @@ var nonSpanAttributes = func() map[string]struct{} {
 		attrs[key] = struct{}{}
 	}
 	attrs[zipkin.TagServiceNameSource] = struct{}{}
-	attrs[string(conventions.OtelLibraryNameKey)] = struct{}{}
-	attrs[string(conventions.OtelLibraryVersionKey)] = struct{}{}
+	attrs[string(conventionsv125.OTelLibraryNameKey)] = struct{}{}
+	attrs[string(conventionsv125.OTelLibraryVersionKey)] = struct{}{}
 	attrs[occonventions.AttributeProcessStartTime] = struct{}{}
 	attrs[occonventions.AttributeExporterVersion] = struct{}{}
 	attrs[string(conventions.ProcessPIDKey)] = struct{}{}
@@ -235,12 +239,12 @@ func zSpanToInternal(zspan *zipkinmodel.SpanModel, tags map[string]string, dest 
 }
 
 func populateSpanStatus(tags map[string]string, status ptrace.Status) {
-	if value, ok := tags[string(conventions.OtelStatusCodeKey)]; ok {
+	if value, ok := tags[string(conventions.OTelStatusCodeKey)]; ok {
 		status.SetCode(ptrace.StatusCode(statusCodeValue[value]))
-		delete(tags, string(conventions.OtelStatusCodeKey))
-		if value, ok := tags[string(conventions.OtelStatusDescriptionKey)]; ok {
+		delete(tags, string(conventions.OTelStatusCodeKey))
+		if value, ok := tags[string(conventions.OTelStatusDescriptionKey)]; ok {
 			status.SetMessage(value)
-			delete(tags, string(conventions.OtelStatusDescriptionKey))
+			delete(tags, string(conventions.OTelStatusDescriptionKey))
 		}
 	}
 
@@ -390,13 +394,13 @@ func zTagsToInternalAttrs(zspan *zipkinmodel.SpanModel, tags map[string]string, 
 	parseErr := tagsToAttributeMap(tags, dest, parseStringTags)
 	if zspan.LocalEndpoint != nil {
 		if zspan.LocalEndpoint.IPv4 != nil {
-			dest.PutStr(string(conventions112.NetHostIPKey), zspan.LocalEndpoint.IPv4.String())
+			dest.PutStr(string(conventionsv112.NetHostIPKey), zspan.LocalEndpoint.IPv4.String())
 		}
 		if zspan.LocalEndpoint.IPv6 != nil {
-			dest.PutStr(string(conventions112.NetHostIPKey), zspan.LocalEndpoint.IPv6.String())
+			dest.PutStr(string(conventionsv112.NetHostIPKey), zspan.LocalEndpoint.IPv6.String())
 		}
 		if zspan.LocalEndpoint.Port > 0 {
-			dest.PutInt(string(conventions.NetHostPortKey), int64(zspan.LocalEndpoint.Port))
+			dest.PutInt(string(conventionsv125.NetHostPortKey), int64(zspan.LocalEndpoint.Port))
 		}
 	}
 	if zspan.RemoteEndpoint != nil {
@@ -404,13 +408,13 @@ func zTagsToInternalAttrs(zspan *zipkinmodel.SpanModel, tags map[string]string, 
 			dest.PutStr(string(conventions.PeerServiceKey), zspan.RemoteEndpoint.ServiceName)
 		}
 		if zspan.RemoteEndpoint.IPv4 != nil {
-			dest.PutStr(string(conventions112.NetPeerIPKey), zspan.RemoteEndpoint.IPv4.String())
+			dest.PutStr(string(conventionsv112.NetPeerIPKey), zspan.RemoteEndpoint.IPv4.String())
 		}
 		if zspan.RemoteEndpoint.IPv6 != nil {
-			dest.PutStr(string(conventions112.NetPeerIPKey), zspan.RemoteEndpoint.IPv6.String())
+			dest.PutStr(string(conventionsv112.NetPeerIPKey), zspan.RemoteEndpoint.IPv6.String())
 		}
 		if zspan.RemoteEndpoint.Port > 0 {
-			dest.PutInt(string(conventions.NetPeerPortKey), int64(zspan.RemoteEndpoint.Port))
+			dest.PutInt(string(conventionsv125.NetPeerPortKey), int64(zspan.RemoteEndpoint.Port))
 		}
 	}
 	return parseErr
@@ -463,7 +467,7 @@ func populateResourceFromZipkinSpan(tags map[string]string, localServiceName str
 	delete(tags, zipkin.TagServiceNameSource)
 
 	for key := range nonSpanAttributes {
-		if key == string(conventions.OtelLibraryNameKey) || key == string(conventions.OtelLibraryVersionKey) {
+		if key == string(conventionsv125.OTelLibraryNameKey) || key == string(conventionsv125.OTelLibraryVersionKey) {
 			continue
 		}
 		if value, ok := tags[key]; ok {
@@ -477,13 +481,13 @@ func populateILFromZipkinSpan(tags map[string]string, instrLibName string, libra
 	if instrLibName == "" {
 		return
 	}
-	if value, ok := tags[string(conventions.OtelLibraryNameKey)]; ok {
+	if value, ok := tags[string(conventionsv125.OTelLibraryNameKey)]; ok {
 		library.SetName(value)
-		delete(tags, string(conventions.OtelLibraryNameKey))
+		delete(tags, string(conventionsv125.OTelLibraryNameKey))
 	}
-	if value, ok := tags[string(conventions.OtelLibraryVersionKey)]; ok {
+	if value, ok := tags[string(conventionsv125.OTelLibraryVersionKey)]; ok {
 		library.SetVersion(value)
-		delete(tags, string(conventions.OtelLibraryVersionKey))
+		delete(tags, string(conventionsv125.OTelLibraryVersionKey))
 	}
 }
 
@@ -504,7 +508,7 @@ func extractInstrumentationLibrary(zspan *zipkinmodel.SpanModel) string {
 	if zspan == nil || len(zspan.Tags) == 0 {
 		return ""
 	}
-	return zspan.Tags[string(conventions.OtelLibraryNameKey)]
+	return zspan.Tags[string(conventionsv125.OTelLibraryNameKey)]
 }
 
 func setTimestampsV2(zspan *zipkinmodel.SpanModel, dest ptrace.Span, destAttrs pcommon.Map) {

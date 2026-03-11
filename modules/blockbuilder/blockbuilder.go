@@ -84,6 +84,12 @@ var (
 		Name:      "owned_partitions",
 		Help:      "Indicates partition ownership by this block-builder (1 = owned).",
 	}, []string{"partition", "state"})
+	metricDedupedSpans = promauto.NewCounterVec(prometheus.CounterOpts{
+		Namespace: "tempo",
+		Subsystem: "block_builder",
+		Name:      "spans_deduped_total",
+		Help:      "Total number of duplicate spans removed during block building.",
+	}, []string{"tenant"})
 
 	tracer = otel.Tracer("modules/blockbuilder")
 

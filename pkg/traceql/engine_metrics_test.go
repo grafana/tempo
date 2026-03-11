@@ -482,43 +482,73 @@ func TestCompileMetricsQueryRange(t *testing.T) {
 	}
 }
 
-func TestCompileMetricsQueryRangeExemplarsHint(t *testing.T) {
-	defaultExempalars := 5
+func TestCompileMetricsQueryRangeExemplars(t *testing.T) {
+	// The exemplars hint is resolved at the frontend handler level via normalizeRequestExemplars
+	// before the request reaches CompileMetricsQueryRange, which uses req.Exemplars directly.
+	eval, err := NewEngine().CompileMetricsQueryRange(&tempopb.QueryRangeRequest{
+		Query:     "{} | rate()",
+		Start:     1,
+		End:       2,
+		Step:      1,
+		Exemplars: 5,
+	}, 0, false)
 
+	require.NoError(t, err)
+	require.NotNil(t, eval)
+	require.Equal(t, 5, eval.maxExemplars)
+}
+
+func TestCompileMetricsQueryRangeExemplarsSafetyCap(t *testing.T) {
 	tcs := []struct {
-		q             string
-		expectedCount int
+		name      string
+		exemplars uint32
+		expected  int
 	}{
-		{
-			q:             "{} | rate() with(exemplars=10)",
-			expectedCount: 10,
-		},
-		{
-			q:             "{} | rate() with(exemplars=false)",
-			expectedCount: 0,
-		},
-		{
-			q:             "{} | rate() with(exemplars=true)",
-			expectedCount: defaultExempalars,
-		},
-		{
-			q:             "{} | rate()",
-			expectedCount: defaultExempalars,
-		},
+		{"below cap", maxExemplars - 1, int(maxExemplars - 1)},
+		{"at cap", maxExemplars, int(maxExemplars)},
+		{"above cap", maxExemplars + 1, int(maxExemplars)},
 	}
 
 	for _, tc := range tcs {
-		eval, err := NewEngine().CompileMetricsQueryRange(&tempopb.QueryRangeRequest{
-			Query:     tc.q,
-			Start:     1,
-			End:       2,
-			Step:      1,
-			Exemplars: uint32(defaultExempalars),
-		}, 0, false)
+		t.Run(tc.name, func(t *testing.T) {
+			req := &tempopb.QueryRangeRequest{
+				Query:     "{} | rate()",
+				Start:     1,
+				End:       2,
+				Step:      1,
+				Exemplars: tc.exemplars,
+			}
+			eval, err := NewEngine().CompileMetricsQueryRange(req, 0, false)
+			require.NoError(t, err)
+			require.Equal(t, tc.expected, eval.maxExemplars)
+		})
+	}
+}
 
-		require.NoError(t, err)
-		require.NotNil(t, eval)
-		require.Equal(t, tc.expectedCount, eval.maxExemplars)
+func TestCompileMetricsQueryRangeNonRawExemplarsSafetyCap(t *testing.T) {
+	tcs := []struct {
+		name      string
+		exemplars uint32
+		expected  uint32
+	}{
+		{"below cap", maxExemplars - 1, maxExemplars - 1},
+		{"at cap", maxExemplars, maxExemplars},
+		{"above cap", maxExemplars + 1, maxExemplars},
+	}
+
+	for _, tc := range tcs {
+		t.Run(tc.name, func(t *testing.T) {
+			req := &tempopb.QueryRangeRequest{
+				Query:     "{} | rate()",
+				Start:     1,
+				End:       2,
+				Step:      1,
+				Exemplars: tc.exemplars,
+			}
+			_, err := NewEngine().CompileMetricsQueryRangeNonRaw(req, AggregateModeSum)
+			require.NoError(t, err)
+			require.Equal(t, tc.expected, req.Exemplars)
+		})
 	}
 }
 
@@ -2301,6 +2331,74 @@ func TestSecondStageBottomKInstant(t *testing.T) {
 	require.Equal(t, 1, len(result[LabelsFromArgs("span.foo", "baz").MapKey()].Values))
 }
 
+func TestSecondStageMetricsComparison(t *testing.T) {
+	req := &tempopb.QueryRangeRequest{
+		Start: 1,
+		End:   uint64(8 * time.Second),
+		Step:  uint64(1 * time.Second),
+	}
+
+	in := make([]Span, 0)
+	// 15 spans, at different start times across 3 series
+	in = append(in, generateSpans(7, []int{1, 2, 3, 4, 5, 6, 7, 8}, "bar")...)
+	in = append(in, generateSpans(5, []int{1, 2, 3, 4, 5, 6, 7, 8}, "baz")...)
+	in = append(in, generateSpans(3, []int{1, 2, 3, 4, 5, 6, 7, 8}, "quax")...)
+
+	for _, tc := range []struct {
+		name           string
+		query          string
+		expectedLabel  string
+		expectedValues []float64
+	}{
+		{
+			name:           "greater than",
+			query:          "{ } | rate() by (span.foo) > 5",
+			expectedLabel:  "bar",
+			expectedValues: []float64{7, 7, 7, 7, 7, 7, 7, 7},
+		},
+		{
+			name:           "greater than or equal",
+			query:          "{ } | rate() by (span.foo) >= 7",
+			expectedLabel:  "bar",
+			expectedValues: []float64{7, 7, 7, 7, 7, 7, 7, 7},
+		},
+		{
+			name:           "equal",
+			query:          "{ } | rate() by (span.foo) = 5",
+			expectedLabel:  "baz",
+			expectedValues: []float64{5, 5, 5, 5, 5, 5, 5, 5},
+		},
+		{
+			name:           "less than or equal",
+			query:          "{ } | rate() by (span.foo) <= 3",
+			expectedLabel:  "quax",
+			expectedValues: []float64{3, 3, 3, 3, 3, 3, 3, 3},
+		},
+		{
+			name:           "less than",
+			query:          "{ } | rate() by (span.foo) < 5",
+			expectedLabel:  "quax",
+			expectedValues: []float64{3, 3, 3, 3, 3, 3, 3, 3},
+		},
+		{
+			name:           "samples",
+			query:          "{ } | rate() by (span.foo) < 5 with (sample=0.5)",
+			expectedLabel:  "quax",
+			expectedValues: []float64{3, 3, 3, 3, 3, 3, 3, 3},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			req := req
+			req.Query = tc.query
+			result, _, err := runTraceQLMetric(req, in)
+			require.NoError(t, err)
+			require.Equal(t, 1, len(result))
+			resultBar := result[LabelsFromArgs("span.foo", tc.expectedLabel).MapKey()]
+			require.Equal(t, tc.expectedValues, resultBar.Values)
+		})
+	}
+}
+
 func TestProcessTopK(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -2746,12 +2844,64 @@ func TestTiesInBottomK(t *testing.T) {
 	})
 }
 
+// TestSimpleAggregatorExemplarLimit verifies that SimpleAggregator (used in AggregateModeSum)
+// respects req.Exemplars, including values above the old hardcoded limit of 100.
+func TestSimpleAggregatorExemplarLimit(t *testing.T) {
+	tcs := []struct {
+		name        string
+		exemplars   uint32
+		sendCount   int
+		minExpected int // at least this many exemplars must appear in the result
+	}{
+		{"below_old_limit", 50, 200, 1},
+		{"at_old_limit", 100, 200, 1},
+		// Proves the fix: before the change, this was capped at 100.
+		{"above_old_limit", 150, 200, 101},
+		{"large", 200, 300, 1},
+	}
+
+	for _, tc := range tcs {
+		t.Run(tc.name, func(t *testing.T) {
+			req := &tempopb.QueryRangeRequest{
+				Start:     uint64(1 * time.Second),
+				End:       uint64(time.Duration(tc.sendCount+1) * time.Second),
+				Step:      uint64(time.Second),
+				Exemplars: tc.exemplars,
+			}
+
+			agg := NewSimpleCombiner(req, sumAggregation)
+
+			// Build exemplars spread evenly across the time range (ms timestamps).
+			startMs := req.Start / uint64(time.Millisecond)
+			endMs := req.End / uint64(time.Millisecond)
+			exemplars := make([]tempopb.Exemplar, tc.sendCount)
+			for i := range exemplars {
+				ts := startMs + uint64(i)*(endMs-startMs)/uint64(tc.sendCount)
+				exemplars[i] = tempopb.Exemplar{TimestampMs: int64(ts), Value: float64(i)} //nolint: gosec // G115
+			}
+
+			agg.Combine([]*tempopb.TimeSeries{{
+				Labels:    []commonv1proto.KeyValue{{Key: "service", Value: &commonv1proto.AnyValue{Value: &commonv1proto.AnyValue_StringValue{StringValue: "test"}}}},
+				Samples:   []tempopb.Sample{{TimestampMs: int64(startMs), Value: 1.0}}, //nolint: gosec // G115
+				Exemplars: exemplars,
+			}})
+
+			total := 0
+			for _, ts := range agg.Results() {
+				total += len(ts.Exemplars)
+			}
+			require.LessOrEqual(t, total, int(tc.exemplars), "exemplar count must not exceed req.Exemplars")
+			require.GreaterOrEqual(t, total, tc.minExpected, "exemplar count must meet minimum expected")
+		})
+	}
+}
+
 func TestHistogramAggregator(t *testing.T) {
 	req := &tempopb.QueryRangeRequest{
 		Start:     uint64(time.Now().Add(-1 * time.Hour).UnixNano()),
 		End:       uint64(time.Now().UnixNano()),
 		Step:      uint64(15 * time.Second.Nanoseconds()),
-		Exemplars: maxExemplars,
+		Exemplars: 100,
 	}
 	const seriesCount = 6
 
@@ -2963,7 +3113,7 @@ func BenchmarkHistogramAggregator_Combine(b *testing.B) {
 		Start:     uint64(time.Now().Add(-1 * time.Hour).UnixNano()),
 		End:       uint64(time.Now().UnixNano()),
 		Step:      uint64(15 * time.Second.Nanoseconds()),
-		Exemplars: maxExemplars,
+		Exemplars: 100,
 	}
 	const seriesCount = 6
 
@@ -2995,7 +3145,7 @@ func BenchmarkHistogramAggregator_Results(b *testing.B) {
 		Start:     uint64(time.Now().Add(-1 * time.Hour).UnixNano()),
 		End:       uint64(time.Now().UnixNano()),
 		Step:      uint64(15 * time.Second.Nanoseconds()),
-		Exemplars: maxExemplars,
+		Exemplars: 100,
 	}
 
 	benchmarks := []struct {
