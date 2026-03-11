@@ -690,13 +690,6 @@ func (m *RedactionResult) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_RedactionResult proto.InternalMessageInfo
 
-func (m *RedactionResult) GetBlockRewrote() bool {
-	if m != nil {
-		return m.BlockRewrote
-	}
-	return false
-}
-
 func (m *RedactionResult) GetTracesFound() int32 {
 	if m != nil {
 		return m.TracesFound
@@ -1195,9 +1188,6 @@ func (this *RedactionResult) Equal(that interface{}) bool {
 	if that1 == nil {
 		return this == nil
 	} else if this == nil {
-		return false
-	}
-	if this.BlockRewrote != that1.BlockRewrote {
 		return false
 	}
 	if this.TracesFound != that1.TracesFound {
@@ -1864,16 +1854,6 @@ func (m *RedactionResult) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 	if m.TracesFound != 0 {
 		i = encodeVarintBackendwork(dAtA, i, uint64(m.TracesFound))
 		i--
-		dAtA[i] = 0x10
-	}
-	if m.BlockRewrote {
-		i--
-		if m.BlockRewrote {
-			dAtA[i] = 1
-		} else {
-			dAtA[i] = 0
-		}
-		i--
 		dAtA[i] = 0x8
 	}
 	return len(dAtA) - i, nil
@@ -2182,9 +2162,6 @@ func (m *RedactionResult) Size() (n int) {
 	}
 	var l int
 	_ = l
-	if m.BlockRewrote {
-		n += 2
-	}
 	if m.TracesFound != 0 {
 		n += 1 + sovBackendwork(uint64(m.TracesFound))
 	}
@@ -3483,26 +3460,6 @@ func (m *RedactionResult) Unmarshal(dAtA []byte) error {
 		}
 		switch fieldNum {
 		case 1:
-			if wireType != 0 {
-				return fmt.Errorf("proto: wrong wireType = %d for field BlockRewrote", wireType)
-			}
-			var v int
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowBackendwork
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				v |= int(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			m.BlockRewrote = bool(v != 0)
-		case 2:
 			if wireType != 0 {
 				return fmt.Errorf("proto: wrong wireType = %d for field TracesFound", wireType)
 			}

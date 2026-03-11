@@ -383,7 +383,7 @@ func (s *BackendScheduler) UpdateJob(ctx context.Context, req *tempopb.UpdateJob
 					"job_id", req.JobId,
 					"tenant", j.Tenant(),
 					"block_id", j.JobDetail.GetRedaction().GetBlockId(),
-					"block_rewrote", req.Redaction.BlockRewrote,
+					"block_rewrote", req.Redaction.TracesFound > 0,
 					"traces_found", req.Redaction.TracesFound)
 			}
 			s.cleanupBatchIfDone(ctx, j.Tenant())

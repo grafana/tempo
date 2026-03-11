@@ -383,7 +383,7 @@ func (w *BackendWorker) processRedactionJob(ctx context.Context, resp *tempopb.N
 	if meta == nil {
 		// Block no longer present (e.g. already compacted away); treat as clean.
 		level.Debug(log.Logger).Log("msg", "redaction block not found, completing as no-op", "job_id", resp.JobId, "block_id", blockIDStr)
-		return w.completeRedactionJob(ctx, resp.JobId, false, 0)
+		return w.completeRedactionJob(ctx, resp.JobId, 0)
 	}
 
 	traceIDs := make([]common.ID, 0, len(resp.Detail.Redaction.TraceIds))
@@ -395,23 +395,22 @@ func (w *BackendWorker) processRedactionJob(ctx context.Context, resp *tempopb.N
 
 	level.Debug(log.Logger).Log("msg", "processing redaction job", "job_id", resp.JobId, "block_id", blockIDStr, "trace_ids_count", len(traceIDs))
 
-	rewrote, tracesFound, _, err := w.store.RedactBlock(ctx, meta, tenantID, traceIDs)
+	_, tracesFound, _, err := w.store.RedactBlock(ctx, meta, tenantID, traceIDs)
 	if err != nil {
 		return w.failJob(ctx, resp.JobId, fmt.Sprintf("redact block: %v", err))
 	}
 
-	level.Debug(log.Logger).Log("msg", "redaction block processed", "job_id", resp.JobId, "block_id", blockIDStr, "rewrote", rewrote, "traces_found", tracesFound)
-	return w.completeRedactionJob(ctx, resp.JobId, rewrote, tracesFound)
+	level.Debug(log.Logger).Log("msg", "redaction block processed", "job_id", resp.JobId, "block_id", blockIDStr, "rewrote", tracesFound > 0, "traces_found", tracesFound)
+	return w.completeRedactionJob(ctx, resp.JobId, tracesFound)
 }
 
-func (w *BackendWorker) completeRedactionJob(ctx context.Context, jobID string, blockRewrote bool, tracesFound int) error {
+func (w *BackendWorker) completeRedactionJob(ctx context.Context, jobID string, tracesFound int) error {
 	return w.callSchedulerWithBackoff(ctx, func(ctx context.Context) error {
 		_, err := w.backendScheduler.UpdateJob(ctx, &tempopb.UpdateJobStatusRequest{
 			JobId:  jobID,
 			Status: tempopb.JobStatus_JOB_STATUS_SUCCEEDED,
 			Redaction: &tempopb.RedactionResult{
-				BlockRewrote: blockRewrote,
-				TracesFound:  int32(tracesFound),
+				TracesFound: int32(tracesFound),
 			},
 		})
 		if err != nil {

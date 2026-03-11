@@ -115,13 +115,9 @@ message SubmitRedactionResponse {
 message RedactionResult {
   option (gogoproto.equal) = true;
 
-  // block_rewrote is true when the block was rewritten because it contained one or
-  // more of the target trace IDs. False means the block was scanned and found clean.
-  bool block_rewrote = 1;
-
-  // traces_found is the number of target trace IDs that were actually present in this
-  // block. Zero when block_rewrote is false.
-  int32 traces_found = 2;
+  // traces_found is the number of target trace IDs that were present and removed
+  // from the block. Zero means the block was scanned and found clean.
+  int32 traces_found = 1;
 }
 
 // RedactionBatch holds the trace IDs for an in-flight redaction submission.
