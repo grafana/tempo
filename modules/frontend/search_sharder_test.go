@@ -891,7 +891,7 @@ func TestSearchSharderRoundTripBadRequest(t *testing.T) {
 	// bad request
 	req = httptest.NewRequest("GET", "/?start=asdf&end=1500", nil)
 	resp, err = testRT.RoundTrip(pipeline.NewHTTPRequest(req))
-	testBadRequestFromResponses(t, resp, err, "invalid start: strconv.ParseInt: parsing \"asdf\": invalid syntax")
+	testBadRequestFromResponses(t, resp, err, "invalid start: strconv.ParseUint: parsing \"asdf\": invalid syntax")
 
 	// test max duration error with overrides
 	o, err = overrides.NewOverrides(overrides.Config{
