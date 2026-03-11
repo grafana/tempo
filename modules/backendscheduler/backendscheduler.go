@@ -663,7 +663,8 @@ func (s *BackendScheduler) performRescan(ctx context.Context, batch *tempopb.Red
 
 		if len(stillRunningIDs) > 0 {
 			// Can't proceed inline: wait for next tick.
-			rearmIDs = append(stillRunningIDs, nextJobIDs...)
+			rearmIDs = append(rearmIDs, stillRunningIDs...)
+			rearmIDs = append(rearmIDs, nextJobIDs...)
 			resolved = true
 			break
 		}
