@@ -505,6 +505,94 @@ func TestSubmitRedactionAndRescan(t *testing.T) {
 	require.Zero(t, batch.RescanAfterUnixNano)
 }
 
+// TestRescanSkipsRunningJob verifies that performRescan does not drop blocks when the
+// skipped compaction job is still RUNNING at rescan time. The batch must be re-armed
+// at the same generation; only when the job completes and rescan fires again should the
+// output block receive a pending redaction job.
+func TestRescanSkipsRunningJob(t *testing.T) {
+	cfg := Config{}
+	cfg.RegisterFlagsAndApplyDefaults("", &flag.FlagSet{})
+	cfg.ProviderConfig.Redaction.RescanDelay = 0
+
+	tmpDir := t.TempDir()
+	cfg.LocalWorkPath = tmpDir
+
+	var (
+		ctx, cancel   = context.WithCancel(context.Background())
+		store, rr, ww = newStore(ctx, t, tmpDir)
+	)
+	defer func() {
+		cancel()
+		store.Shutdown()
+	}()
+
+	limits, err := overrides.NewOverrides(overrides.Config{Defaults: overrides.Overrides{}}, nil, prometheus.NewRegistry())
+	require.NoError(t, err)
+
+	testTenant := "tenant-rescan-running"
+
+	blockIDs := writeTenantBlocks(ctx, t, backend.NewWriter(ww), testTenant, 3)
+	time.Sleep(300 * time.Millisecond)
+
+	s, err := New(cfg, store, limits, rr, ww)
+	require.NoError(t, err)
+
+	// Simulate a running compaction job covering the first two blocks.
+	compJob := &work.Job{
+		ID:   uuid.New().String(),
+		Type: tempopb.JobType_JOB_TYPE_COMPACTION,
+		JobDetail: tempopb.JobDetail{
+			Tenant: testTenant,
+			Compaction: &tempopb.CompactionDetail{
+				Input: []string{blockIDs[0].String(), blockIDs[1].String()},
+			},
+		},
+	}
+	s.work.RegisterJob(compJob)
+	require.NoError(t, s.work.AddJob(compJob))
+	s.work.StartJob(compJob.ID)
+
+	// Submit the redaction; blocks 0+1 under compaction are skipped.
+	resp, err := s.SubmitRedaction(ctx, &tempopb.SubmitRedactionRequest{
+		TenantId: testTenant,
+		TraceIds: [][]byte{[]byte(uuid.New().String())},
+	})
+	require.NoError(t, err)
+	require.Equal(t, int32(1), resp.JobsCreated) // only block 2
+
+	batch := s.work.GetBatch(testTenant)
+	require.NotNil(t, batch)
+	require.Equal(t, []string{compJob.ID}, batch.SkippedCompactionJobIds)
+
+	// Fire rescan while the compaction job is still RUNNING (not complete).
+	// The batch must be re-armed with the same job ID and the same generation.
+	time.Sleep(time.Millisecond)
+	s.checkPendingRescans(ctx)
+
+	batch = s.work.GetBatch(testTenant)
+	require.NotNil(t, batch, "batch must not be removed while rescan is pending")
+	require.Equal(t, []string{compJob.ID}, batch.SkippedCompactionJobIds, "still-running job must remain in skipped list")
+	require.Positive(t, batch.RescanAfterUnixNano, "rescan deadline must be re-armed")
+
+	// The output block must not yet have a pending redaction job.
+	outputBlock := uuid.New().String()
+	require.False(t, s.work.IsBlockBusy(testTenant, outputBlock))
+
+	// Now complete the compaction job with one output block.
+	s.work.SetJobCompactionOutput(compJob.ID, []string{outputBlock})
+	s.work.CompleteJob(compJob.ID)
+
+	// Second rescan: job is now complete, output block must be enqueued.
+	time.Sleep(time.Millisecond)
+	s.checkPendingRescans(ctx)
+
+	require.True(t, s.work.IsBlockBusy(testTenant, outputBlock), "output block must have a pending redaction job after rescan")
+
+	batch = s.work.GetBatch(testTenant)
+	require.NotNil(t, batch)
+	require.Zero(t, batch.RescanAfterUnixNano, "rescan deadline must be cleared after successful enqueue")
+}
+
 func TestProviderBasedScheduling(t *testing.T) {
 	cfg := Config{}
 	cfg.RegisterFlagsAndApplyDefaults("", &flag.FlagSet{})
