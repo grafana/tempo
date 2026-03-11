@@ -185,6 +185,17 @@ test-e2e-util: tools docker-tempo ## Run unit tests on the e2e test harness
 .PHONY: test-all
 test-all: test-with-cover test-e2e ## Run all tests
 
+# e2e test dirs are created by the host test process but their contents are written by
+# Tempo containers running as UID 10001. Clean up in two steps: first empty the contents
+# as UID 10001, then remove the now-empty dirs as the host user.
+.PHONY: test-e2e-clean
+test-e2e-clean: ## Remove leftover e2e test directories owned by Docker container UIDs
+	docker run --rm -u 10001 \
+		-v "$(shell pwd)/integration:/integration:z" \
+		alpine find /integration -maxdepth 3 -name 'e2e_integration_test*' -type d \
+		  -exec sh -c 'find "$$1" -mindepth 1 -delete' _ {} \;
+	find $(shell pwd)/integration -maxdepth 3 -name 'e2e_integration_test*' -type d -prune -exec rm -rf '{}' +
+
 ##@ Linters/Formatters
 
 .PHONY: fmt check-fmt
