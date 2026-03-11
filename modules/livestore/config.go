@@ -100,12 +100,12 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 	cfg.Metrics.TimeOverlapCutoff = 0.2
 
 	// Set defaults for timing configuration (based on ingester defaults)
-	cfg.InstanceFlushPeriod = 10 * time.Second
+	cfg.InstanceFlushPeriod = 5 * time.Second
 	cfg.InstanceCleanupPeriod = 5 * time.Minute
 	cfg.MaxTraceLive = 30 * time.Second
 	cfg.MaxTraceIdle = 5 * time.Second
 	cfg.MaxLiveTracesBytes = 250_000_000 // 250MB
-	cfg.MaxBlockDuration = 30 * time.Minute
+	cfg.MaxBlockDuration = 1 * time.Minute
 	cfg.MaxBlockBytes = 100 * 1024 * 1024
 
 	cfg.CommitInterval = 5 * time.Second
