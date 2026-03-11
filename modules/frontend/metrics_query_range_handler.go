@@ -2,6 +2,7 @@ package frontend
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -16,6 +17,7 @@ import (
 	"github.com/grafana/dskit/user"
 	"github.com/grafana/tempo/modules/frontend/combiner"
 	"github.com/grafana/tempo/modules/frontend/pipeline"
+	"github.com/grafana/tempo/pkg/util/tracing"
 
 	"github.com/grafana/tempo/pkg/api"
 	"github.com/grafana/tempo/pkg/tempopb"
@@ -48,6 +50,10 @@ func newQueryRangeStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripp
 			req.SetInstant(false)
 		}
 		if err := validateQueryRangeReq(cfg, req); err != nil {
+			return err
+		}
+
+		if err := normalizeRequestExemplars(req, cfg.Metrics.Sharder.MaxExemplars); err != nil {
 			return err
 		}
 
@@ -95,7 +101,7 @@ func newQueryRangeStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripp
 			bytesProcessed = finalResponse.Metrics.InspectedBytes
 		}
 		postSLOHook(nil, tenant, bytesProcessed, duration, err)
-		logQueryRangeResult(logger, tenant, duration.Seconds(), req, finalResponse, err)
+		logQueryRangeResult(ctx, logger, tenant, duration.Seconds(), req, finalResponse, err)
 		return err
 	}
 }
@@ -130,6 +136,10 @@ func newMetricsQueryRangeHTTPHandler(cfg Config, next pipeline.AsyncRoundTripper
 		logQueryRangeRequest(logger, tenant, queryRangeReq)
 
 		if err := validateQueryRangeReq(cfg, queryRangeReq); err != nil {
+			return httpInvalidRequest(err), nil
+		}
+
+		if err := normalizeRequestExemplars(queryRangeReq, cfg.Metrics.Sharder.MaxExemplars); err != nil {
 			return httpInvalidRequest(err), nil
 		}
 
@@ -168,16 +178,41 @@ func newMetricsQueryRangeHTTPHandler(cfg Config, next pipeline.AsyncRoundTripper
 
 		duration := time.Since(start)
 		postSLOHook(resp, tenant, bytesProcessed, duration, err)
-		logQueryRangeResult(logger, tenant, duration.Seconds(), queryRangeReq, queryRangeResp, err)
+		logQueryRangeResult(req.Context(), logger, tenant, duration.Seconds(), queryRangeReq, queryRangeResp, err)
 		return resp, err
 	})
 }
 
-func logQueryRangeResult(logger log.Logger, tenantID string, durationSeconds float64, req *tempopb.QueryRangeRequest, resp *tempopb.QueryRangeResponse, err error) {
+// normalizeRequestExemplars resolves the final exemplar limit for a query range request.
+// It applies the exemplars hint from the TraceQL query if present, overriding the value
+// from the HTTP parameter. req.Exemplars is then capped to maxExemplars.
+// If no hint is set and req.Exemplars is 0 (unspecified), it defaults to maxExemplars.
+func normalizeRequestExemplars(req *tempopb.QueryRangeRequest, maxExemplars uint32) error {
+	expr, err := traceql.Parse(req.Query)
+	if err != nil {
+		return err
+	}
+	if v, ok := expr.Hints.GetInt(traceql.HintExemplars, false); ok {
+		req.Exemplars = uint32(max(v, 0)) //nolint: gosec // G115
+	} else if v, ok := expr.Hints.GetBool(traceql.HintExemplars, false); ok && !v {
+		req.Exemplars = 0
+	} else if req.Exemplars == 0 {
+		req.Exemplars = maxExemplars
+	}
+	if req.Exemplars > maxExemplars {
+		req.Exemplars = maxExemplars
+	}
+	return nil
+}
+
+func logQueryRangeResult(ctx context.Context, logger log.Logger, tenantID string, durationSeconds float64, req *tempopb.QueryRangeRequest, resp *tempopb.QueryRangeResponse, err error) {
+	traceID, _ := tracing.ExtractTraceID(ctx)
+
 	if resp == nil {
 		level.Info(logger).Log(
 			"msg", "query range response - no resp",
 			"tenant", tenantID,
+			"traceID", traceID,
 			"duration_seconds", durationSeconds,
 			"error", err)
 
@@ -188,6 +223,7 @@ func logQueryRangeResult(logger log.Logger, tenantID string, durationSeconds flo
 		level.Info(logger).Log(
 			"msg", "query range response - no metrics",
 			"tenant", tenantID,
+			"traceID", traceID,
 			"query", req.Query,
 			"range_nanos", req.End-req.Start,
 			"duration_seconds", durationSeconds,
@@ -198,6 +234,7 @@ func logQueryRangeResult(logger log.Logger, tenantID string, durationSeconds flo
 	level.Info(logger).Log(
 		"msg", "query range response",
 		"tenant", tenantID,
+		"traceID", traceID,
 		"query", req.Query,
 		"range_nanos", req.End-req.Start,
 		"max_series", req.MaxSeries,

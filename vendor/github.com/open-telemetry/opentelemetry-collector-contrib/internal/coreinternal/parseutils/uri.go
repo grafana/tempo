@@ -8,7 +8,7 @@ import (
 	"strconv"
 	"strings"
 
-	semconv "go.opentelemetry.io/otel/semconv/v1.27.0"
+	conventions "go.opentelemetry.io/otel/semconv/v1.38.0"
 )
 
 const (
@@ -54,21 +54,21 @@ func ParseURI(value string, semconvCompliant bool) (map[string]any, error) {
 
 // urlToMap converts a url.URL to a map, excludes any values that are not set.
 func urlToSemconvMap(parsedURI *url.URL, m map[string]any) (map[string]any, error) {
-	m[string(semconv.URLOriginalKey)] = parsedURI.String()
-	m[string(semconv.URLDomainKey)] = parsedURI.Hostname()
-	m[string(semconv.URLSchemeKey)] = parsedURI.Scheme
-	m[string(semconv.URLPathKey)] = parsedURI.Path
+	m[string(conventions.URLOriginalKey)] = parsedURI.String()
+	m[string(conventions.URLDomainKey)] = parsedURI.Hostname()
+	m[string(conventions.URLSchemeKey)] = parsedURI.Scheme
+	m[string(conventions.URLPathKey)] = parsedURI.Path
 
 	if portString := parsedURI.Port(); portString != "" {
 		port, err := strconv.Atoi(portString)
 		if err != nil {
 			return nil, err
 		}
-		m[string(semconv.URLPortKey)] = port
+		m[string(conventions.URLPortKey)] = port
 	}
 
 	if fragment := parsedURI.Fragment; fragment != "" {
-		m[string(semconv.URLFragmentKey)] = fragment
+		m[string(conventions.URLFragmentKey)] = fragment
 	}
 
 	if parsedURI.User != nil {
@@ -84,12 +84,12 @@ func urlToSemconvMap(parsedURI *url.URL, m map[string]any) (map[string]any, erro
 	}
 
 	if query := parsedURI.RawQuery; query != "" {
-		m[string(semconv.URLQueryKey)] = query
+		m[string(conventions.URLQueryKey)] = query
 	}
 
 	if periodIdx := strings.LastIndex(parsedURI.Path, "."); periodIdx != -1 {
 		if periodIdx < len(parsedURI.Path)-1 {
-			m[string(semconv.URLExtensionKey)] = parsedURI.Path[periodIdx+1:]
+			m[string(conventions.URLExtensionKey)] = parsedURI.Path[periodIdx+1:]
 		}
 	}
 

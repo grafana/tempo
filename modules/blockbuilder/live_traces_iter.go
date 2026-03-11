@@ -3,11 +3,13 @@ package blockbuilder
 import (
 	"bytes"
 	"context"
+	"errors"
 	"slices"
 	"sync"
 
 	"github.com/grafana/tempo/pkg/livetraces"
 	"github.com/grafana/tempo/pkg/tempopb"
+	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 )
 
@@ -28,12 +30,14 @@ type chEntry struct {
 // Tracks the min/max timestamps seen across all traces that can be accessed
 // once all traces are iterated (unmarshaled), since this can't be known upfront.
 type liveTracesIter struct {
-	mtx        sync.Mutex
-	liveTraces *livetraces.LiveTraces[[]byte]
-	ch         chan []chEntry
-	chBuf      []chEntry
-	cancel     func()
-	start, end uint64
+	mtx          sync.Mutex
+	liveTraces   *livetraces.LiveTraces[[]byte]
+	ch           chan []chEntry
+	chBuf        []chEntry
+	cancel       func()
+	start, end   uint64
+	dedupedSpans uint32
+	exhausted    bool
 }
 
 func newLiveTracesIter(liveTraces *livetraces.LiveTraces[[]byte]) *liveTracesIter {
@@ -88,6 +92,12 @@ func (i *liveTracesIter) iter(ctx context.Context) {
 		return bytes.Compare(a.id, b.id)
 	})
 
+	// h and buffer are reused across all spans to avoid repeated allocations.
+	h := util.NewTokenHasher()
+	buffer := make([]byte, 4)
+	// seen is reused across traces to avoid repeated allocations.
+	seen := make(map[uint64]struct{}, 1024)
+
 	// Begin sending to channel in chunks to reduce channel overhead.
 	seq := slices.Chunk(entries, 10)
 	for entries := range seq {
@@ -109,10 +119,18 @@ func (i *liveTracesIter) iter(ctx context.Context) {
 				}
 			}
 
-			// Update block timestamp bounds
-			for _, b := range tr.ResourceSpans {
-				for _, ss := range b.ScopeSpans {
+			// Deduplicate spans and update block timestamp bounds in one pass.
+			for _, rs := range tr.ResourceSpans {
+				for _, ss := range rs.ScopeSpans {
+					unique := ss.Spans[:0]
 					for _, s := range ss.Spans {
+						token := util.TokenForID(h, buffer, int32(s.Kind), s.SpanId)
+						if _, ok := seen[token]; ok {
+							i.dedupedSpans++
+							continue
+						}
+						seen[token] = struct{}{}
+						unique = append(unique, s)
 						if i.start == 0 || s.StartTimeUnixNano < i.start {
 							i.start = s.StartTimeUnixNano
 						}
@@ -120,8 +138,10 @@ func (i *liveTracesIter) iter(ctx context.Context) {
 							i.end = s.EndTimeUnixNano
 						}
 					}
+					ss.Spans = unique
 				}
 			}
+			clear(seen)
 
 			tempopb.ReuseByteSlices(entry.Batches)
 			delete(i.liveTraces.Traces, e.hash)
@@ -139,6 +159,8 @@ func (i *liveTracesIter) iter(ctx context.Context) {
 			return
 		}
 	}
+
+	i.exhausted = true
 }
 
 // MinMaxTimestamps returns the earliest start, and latest end span timestamps,
@@ -149,6 +171,18 @@ func (i *liveTracesIter) MinMaxTimestamps() (uint64, uint64) {
 	defer i.mtx.Unlock()
 
 	return i.start, i.end
+}
+
+// DedupedSpans returns the total number of duplicate spans that were removed
+// across all traces. Returns an error if the iterator has not been fully exhausted.
+func (i *liveTracesIter) DedupedSpans() (uint32, error) {
+	i.mtx.Lock()
+	defer i.mtx.Unlock()
+
+	if !i.exhausted {
+		return 0, errors.New("iterator must be exhausted before calling DedupedSpans")
+	}
+	return i.dedupedSpans, nil
 }
 
 func (i *liveTracesIter) Close() {

@@ -75,6 +75,7 @@ func newLogsReceiver(config *Config, set receiver.Settings, nextConsumer consume
 		if err != nil {
 			return nil, err
 		}
+
 		return func(ctx context.Context, message kafkaMessage, attrs attribute.Set) error {
 			return processMessage(ctx, message, config, set.Logger, telBldr,
 				&logsHandler{
@@ -87,7 +88,7 @@ func newLogsReceiver(config *Config, set receiver.Settings, nextConsumer consume
 			)
 		}, nil
 	}
-	return newReceiver(config, set, []string{config.Logs.Topic}, newConsumeMessageFunc)
+	return newReceiver(config, set, config.Logs.Topics, config.Logs.ExcludeTopics, newConsumeMessageFunc)
 }
 
 func newMetricsReceiver(config *Config, set receiver.Settings, nextConsumer consumer.Metrics) (receiver.Metrics, error) {
@@ -99,6 +100,7 @@ func newMetricsReceiver(config *Config, set receiver.Settings, nextConsumer cons
 		if err != nil {
 			return nil, err
 		}
+
 		return func(ctx context.Context, message kafkaMessage, attrs attribute.Set) error {
 			return processMessage(ctx, message, config, set.Logger, telBldr,
 				&metricsHandler{
@@ -111,7 +113,7 @@ func newMetricsReceiver(config *Config, set receiver.Settings, nextConsumer cons
 			)
 		}, nil
 	}
-	return newReceiver(config, set, []string{config.Metrics.Topic}, newConsumeMessageFunc)
+	return newReceiver(config, set, config.Metrics.Topics, config.Metrics.ExcludeTopics, newConsumeMessageFunc)
 }
 
 func newTracesReceiver(config *Config, set receiver.Settings, nextConsumer consumer.Traces) (receiver.Traces, error) {
@@ -123,6 +125,7 @@ func newTracesReceiver(config *Config, set receiver.Settings, nextConsumer consu
 		if err != nil {
 			return nil, err
 		}
+
 		return func(ctx context.Context, message kafkaMessage, attrs attribute.Set) error {
 			return processMessage(ctx, message, config, set.Logger, telBldr,
 				&tracesHandler{
@@ -135,7 +138,7 @@ func newTracesReceiver(config *Config, set receiver.Settings, nextConsumer consu
 			)
 		}, nil
 	}
-	return newReceiver(config, set, []string{config.Traces.Topic}, consumeFn)
+	return newReceiver(config, set, config.Traces.Topics, config.Traces.ExcludeTopics, consumeFn)
 }
 
 func newProfilesReceiver(config *Config, set receiver.Settings, nextConsumer xconsumer.Profiles) (xreceiver.Profiles, error) {
@@ -147,6 +150,7 @@ func newProfilesReceiver(config *Config, set receiver.Settings, nextConsumer xco
 		if err != nil {
 			return nil, err
 		}
+
 		return func(ctx context.Context, message kafkaMessage, attrs attribute.Set) error {
 			return processMessage(ctx, message, config, set.Logger, telBldr,
 				&profilesHandler{
@@ -159,22 +163,20 @@ func newProfilesReceiver(config *Config, set receiver.Settings, nextConsumer xco
 			)
 		}, nil
 	}
-	return newReceiver(config, set, []string{config.Profiles.Topic}, consumeFn)
+	return newReceiver(config, set, config.Profiles.Topics, config.Profiles.ExcludeTopics, consumeFn)
 }
 
 func newReceiver(
 	config *Config,
 	set receiver.Settings,
 	topics []string,
+	excludeTopics []string,
 	consumeFn func(host component.Host,
 		obsrecv *receiverhelper.ObsReport,
 		telBldr *metadata.TelemetryBuilder,
 	) (consumeMessageFunc, error),
 ) (component.Component, error) {
-	if franzGoConsumerFeatureGate.IsEnabled() {
-		return newFranzKafkaConsumer(config, set, topics, consumeFn)
-	}
-	return newSaramaConsumer(config, set, topics, consumeFn)
+	return newFranzKafkaConsumer(config, set, topics, excludeTopics, consumeFn)
 }
 
 type logsHandler struct {
@@ -320,11 +322,11 @@ func (h *profilesHandler) consumeData(ctx context.Context, data pprofile.Profile
 }
 
 func (h *profilesHandler) startObsReport(ctx context.Context) context.Context {
-	return h.obsrecv.StartTracesOp(ctx)
+	return h.obsrecv.StartProfilesOp(ctx)
 }
 
 func (h *profilesHandler) endObsReport(ctx context.Context, n int, err error) {
-	h.obsrecv.EndTracesOp(ctx, h.encoding, n, err)
+	h.obsrecv.EndProfilesOp(ctx, h.encoding, n, err)
 }
 
 func (*profilesHandler) getResources(data pprofile.Profiles) iter.Seq[pcommon.Resource] {

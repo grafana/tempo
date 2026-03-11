@@ -3,7 +3,7 @@ module github.com/grafana/tempo/tools
 go 1.26.0
 
 require (
-	github.com/golangci/golangci-lint/v2 v2.10.0
+	github.com/golangci/golangci-lint/v2 v2.10.1
 	github.com/google/go-jsonnet v0.21.0
 	github.com/grafana/tanka v0.36.3
 	github.com/jsonnet-bundler/jsonnet-bundler v0.6.0
@@ -247,7 +247,7 @@ require (
 	golang.org/x/crypto v0.48.0 // indirect
 	golang.org/x/exp/typeparams v0.0.0-20260209203927-2842357ff358 // indirect
 	golang.org/x/mod v0.33.0 // indirect
-	golang.org/x/net v0.50.0 // indirect
+	golang.org/x/net v0.51.0 // indirect
 	golang.org/x/sync v0.19.0 // indirect
 	golang.org/x/sys v0.41.0 // indirect
 	golang.org/x/telemetry v0.0.0-20260209163413-e7419c687ee4 // indirect

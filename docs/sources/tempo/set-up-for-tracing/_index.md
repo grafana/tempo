@@ -43,6 +43,7 @@ To set up for tracing, you need to:
    Check out the [examples](ref:examples) for ideas on how to get started.
 1. Deploy Tempo using the [Set up Tempo documentation](ref:setup).
    Tempo offers different deployment modes. Refer to the [Deployment documentation](ref:deploy) section for more information.
+   You can download the latest version from the [Tempo Releases page](https://github.com/grafana/tempo/releases).
 1. Instrument your application or service to emit traces. Use the [Set up instrumentation](./instrument-send/set-up-instrumentation/) documentation.
 1. Set up a collector, like Grafana Alloy or the OpenTelemetry Collector, to offload traces from your application and forward them to Tempo. Refer to the [Set up a collector](./instrument-send/set-up-collector/) documentation.
 

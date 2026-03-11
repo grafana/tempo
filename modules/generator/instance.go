@@ -12,7 +12,6 @@ import (
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
 	tempo_log "github.com/grafana/tempo/pkg/util/log"
-	"github.com/grafana/tempo/tempodb"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 
@@ -20,7 +19,6 @@ import (
 	"github.com/grafana/tempo/modules/generator/localserieslimiter"
 	"github.com/grafana/tempo/modules/generator/processor"
 	"github.com/grafana/tempo/modules/generator/processor/hostinfo"
-	"github.com/grafana/tempo/modules/generator/processor/localblocks"
 	"github.com/grafana/tempo/modules/generator/processor/servicegraphs"
 	"github.com/grafana/tempo/modules/generator/processor/spanmetrics"
 	"github.com/grafana/tempo/modules/generator/registry"
@@ -28,8 +26,6 @@ import (
 	"github.com/grafana/tempo/modules/generator/validation"
 	"github.com/grafana/tempo/pkg/tempopb"
 	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
-	"github.com/grafana/tempo/pkg/traceql"
-	"github.com/grafana/tempo/tempodb/wal"
 
 	"go.uber.org/atomic"
 )
@@ -85,23 +81,18 @@ type instance struct {
 	registry *registry.ManagedRegistry
 	wal      storage.Storage
 
-	traceWAL      *wal.WAL
-	traceQueryWAL *wal.WAL
-	writer        tempodb.Writer
-
 	// processorsMtx protects the processors map, not the processors itself
 	processorsMtx sync.RWMutex
 	// processors is a map of processor name -> processor, only one instance of a processor can be
 	// active at any time
-	processors            map[string]processor.Processor
-	queuebasedLocalBlocks *localblocks.Processor
+	processors map[string]processor.Processor
 
 	shutdownCh chan struct{}
 
 	logger log.Logger
 }
 
-func newInstance(cfg *Config, instanceID string, overrides metricsGeneratorOverrides, wal storage.Storage, logger log.Logger, traceWAL, rf1TraceWAL *wal.WAL, writer tempodb.Writer) (*instance, error) {
+func newInstance(cfg *Config, instanceID string, overrides metricsGeneratorOverrides, wal storage.Storage, logger log.Logger) (*instance, error) {
 	logger = log.With(logger, "tenant", instanceID)
 
 	limitLogger := tempo_log.NewRateLimitedLogger(1, level.Warn(logger))
@@ -120,11 +111,8 @@ func newInstance(cfg *Config, instanceID string, overrides metricsGeneratorOverr
 		instanceID: instanceID,
 		overrides:  overrides,
 
-		registry:      registry.New(&cfg.Registry, overrides, instanceID, wal, logger, limiter),
-		wal:           wal,
-		traceWAL:      traceWAL,
-		traceQueryWAL: rf1TraceWAL,
-		writer:        writer,
+		registry: registry.New(&cfg.Registry, overrides, instanceID, wal, logger, limiter),
+		wal:      wal,
 
 		processors: make(map[string]processor.Processor),
 
@@ -213,7 +201,7 @@ func (i *instance) updateSubprocessors(desiredProcessors map[string]struct{}, de
 }
 
 func (i *instance) updateProcessors() error {
-	desiredProcessors := i.filterDisabledProcessors(i.overrides.MetricsGeneratorProcessors(i.instanceID))
+	desiredProcessors := i.filterSupportedProcessors(i.overrides.MetricsGeneratorProcessors(i.instanceID))
 	desiredCfg, err := i.cfg.Processor.copyWithOverrides(i.overrides, i.instanceID)
 	if err != nil {
 		return err
@@ -265,19 +253,19 @@ func (i *instance) updateProcessors() error {
 	return nil
 }
 
-// filterDisabledProcessors removes processors that should never be instantiated
-// according to the generator's configuration from the given set of processors.
-func (i *instance) filterDisabledProcessors(processors map[string]struct{}) map[string]struct{} {
-	// If no processors are disabled, do not apply any filtering.
-	if !i.cfg.DisableLocalBlocks {
-		return processors
+func (i *instance) filterSupportedProcessors(processors map[string]struct{}) map[string]struct{} {
+	filtered := make(map[string]struct{}, len(processors))
+
+	for processorName := range processors {
+		if _, ok := validation.SupportedProcessorsSet[processorName]; ok {
+			filtered[processorName] = struct{}{}
+			continue
+		}
+
+		level.Warn(i.logger).Log("msg", "ignoring unknown metrics-generator processor", "tenant", i.instanceID, "processor", processorName)
 	}
 
-	// Otherwise, do not instantiate the localblocks processor.
-	filteredProcessors := maps.Clone(processors)
-	delete(filteredProcessors, processor.LocalBlocksName)
-
-	return filteredProcessors
+	return filtered
 }
 
 // diffProcessors compares the existing processors with the desired processors and config.
@@ -301,10 +289,6 @@ func (i *instance) diffProcessors(desiredProcessors map[string]struct{}, desired
 			}
 		case *servicegraphs.Processor:
 			if !reflect.DeepEqual(p.Cfg, desiredCfg.ServiceGraphs) {
-				toReplace = append(toReplace, processorName)
-			}
-		case *localblocks.Processor:
-			if !reflect.DeepEqual(p.Cfg, desiredCfg.LocalBlocks) {
 				toReplace = append(toReplace, processorName)
 			}
 		case *hostinfo.Processor:
@@ -345,23 +329,6 @@ func (i *instance) addProcessor(processorName string, cfg ProcessorConfig) error
 		if err != nil {
 			return err
 		}
-	case processor.LocalBlocksName:
-		p, err := localblocks.New(cfg.LocalBlocks, i.instanceID, i.traceWAL, i.writer, i.overrides)
-		if err != nil {
-			return err
-		}
-		newProcessor = p
-
-		// Add the non-flushing alternate if configured
-		if i.traceQueryWAL != nil {
-			nonFlushingConfig := cfg.LocalBlocks
-			nonFlushingConfig.FlushToStorage = false
-			nonFlushingConfig.AdjustTimeRangeForSlack = false
-			i.queuebasedLocalBlocks, err = localblocks.New(nonFlushingConfig, i.instanceID, i.traceQueryWAL, i.writer, i.overrides)
-			if err != nil {
-				return err
-			}
-		}
 	case processor.HostInfoName:
 		invalidUTF8Counter := metricSpansDiscarded.WithLabelValues(i.instanceID, reasonInvalidUTF8, processor.HostInfoName)
 		newProcessor, err = hostinfo.New(cfg.HostInfo, i.registry, i.logger, invalidUTF8Counter)
@@ -399,11 +366,6 @@ func (i *instance) removeProcessor(processorName string) {
 	delete(i.processors, processorName)
 
 	deletedProcessor.Shutdown(context.Background())
-
-	if processorName == processor.LocalBlocksName && i.queuebasedLocalBlocks != nil {
-		i.queuebasedLocalBlocks.Shutdown(context.Background())
-		i.queuebasedLocalBlocks = nil
-	}
 }
 
 // updateProcessorMetrics updates the active processor metrics. Must be called under a read lock.
@@ -424,8 +386,6 @@ func (i *instance) pushSpans(ctx context.Context, req *tempopb.PushSpansRequest)
 
 	for _, proc := range i.processors {
 		switch proc.Name() {
-		case processor.LocalBlocksName:
-			proc.PushSpans(ctx, req)
 		case processor.SpanMetricsName, processor.ServiceGraphsName, processor.HostInfoName:
 			if req.SkipMetricsGeneration {
 				metricSkippedProcessorPushes.WithLabelValues(i.instanceID).Inc()
@@ -436,16 +396,13 @@ func (i *instance) pushSpans(ctx context.Context, req *tempopb.PushSpansRequest)
 	}
 }
 
-func (i *instance) pushSpansFromQueue(ctx context.Context, ts time.Time, req *tempopb.PushSpansRequest) {
+func (i *instance) pushSpansFromQueue(ctx context.Context, _ time.Time, req *tempopb.PushSpansRequest) {
 	i.preprocessSpans(req)
 	i.processorsMtx.RLock()
 	defer i.processorsMtx.RUnlock()
 
 	for _, proc := range i.processors {
 		switch proc.Name() {
-		case processor.LocalBlocksName:
-			// don't push to this processor as queue consumer, instead use queue based local
-			// blocks if configured.
 		case processor.SpanMetricsName, processor.ServiceGraphsName, processor.HostInfoName:
 			if req.SkipMetricsGeneration {
 				metricSkippedProcessorPushes.WithLabelValues(i.instanceID).Inc()
@@ -453,11 +410,6 @@ func (i *instance) pushSpansFromQueue(ctx context.Context, ts time.Time, req *te
 			}
 			proc.PushSpans(ctx, req)
 		}
-	}
-
-	// Now we push to the non-flushing local blocks if present
-	if i.queuebasedLocalBlocks != nil {
-		i.queuebasedLocalBlocks.DeterministicPush(ts, req)
 	}
 }
 
@@ -494,95 +446,12 @@ func (i *instance) preprocessSpans(req *tempopb.PushSpansRequest) {
 	i.updatePushMetrics(size, spanCount, expiredSpanCount)
 }
 
-func (i *instance) GetMetrics(ctx context.Context, req *tempopb.SpanMetricsRequest) (resp *tempopb.SpanMetricsResponse, err error) {
-	for _, processor := range i.processors {
-		switch p := processor.(type) {
-		case *localblocks.Processor:
-			return p.GetMetrics(ctx, req)
-		default:
-		}
-	}
-
-	return nil, fmt.Errorf("localblocks processor not found")
+func (i *instance) GetMetrics(context.Context, *tempopb.SpanMetricsRequest) (*tempopb.SpanMetricsResponse, error) {
+	return nil, fmt.Errorf("metrics queries are no longer supported by metrics-generator")
 }
 
-func (i *instance) QueryRange(ctx context.Context, req *tempopb.QueryRangeRequest) (resp *tempopb.QueryRangeResponse, err error) {
-	var processors []*localblocks.Processor
-
-	i.processorsMtx.RLock()
-	for _, processor := range i.processors {
-		switch p := processor.(type) {
-		case *localblocks.Processor:
-			processors = append(processors, p)
-		}
-	}
-
-	if i.queuebasedLocalBlocks != nil {
-		processors = append(processors, i.queuebasedLocalBlocks)
-	}
-
-	i.processorsMtx.RUnlock()
-
-	if len(processors) == 0 {
-		return resp, fmt.Errorf("localblocks processor not found")
-	}
-
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
-
-	expr, err := traceql.Parse(req.Query)
-	if err != nil {
-		return nil, fmt.Errorf("compiling query: %w", err)
-	}
-
-	unsafe := i.overrides.UnsafeQueryHints(i.instanceID)
-
-	timeOverlapCutoff := i.cfg.Processor.LocalBlocks.Metrics.TimeOverlapCutoff
-	if v, ok := expr.Hints.GetFloat(traceql.HintTimeOverlapCutoff, unsafe); ok && v >= 0 && v <= 1.0 {
-		timeOverlapCutoff = v
-	}
-
-	e := traceql.NewEngine()
-
-	// Compile the raw version of the query for head and wal blocks
-	// These aren't cached and we put them all into the same evaluator
-	// for efficiency.
-	rawEval, err := e.CompileMetricsQueryRange(req, timeOverlapCutoff, unsafe)
-	if err != nil {
-		return nil, err
-	}
-
-	// This is a summation version of the query for complete blocks
-	// which can be cached. They are timeseries, so they need the job-level evaluator.
-	jobEval, err := traceql.NewEngine().CompileMetricsQueryRangeNonRaw(req, traceql.AggregateModeSum)
-	if err != nil {
-		return nil, err
-	}
-
-	for _, p := range processors {
-		err = p.QueryRange(ctx, *req, rawEval, jobEval)
-		if err != nil {
-			return nil, err
-		}
-	}
-	// Combine the raw results into the job results
-	walResults := rawEval.Results().ToProto(req)
-	jobEval.ObserveSeries(walResults)
-
-	r := jobEval.Results()
-	rr := r.ToProto(req)
-
-	maxSeries := int(req.MaxSeries)
-	if maxSeries > 0 && len(rr) > maxSeries {
-		return &tempopb.QueryRangeResponse{
-			Series: rr[:maxSeries],
-			Status: tempopb.PartialStatus_PARTIAL,
-		}, nil
-	}
-
-	return &tempopb.QueryRangeResponse{
-		Series: rr,
-	}, nil
+func (i *instance) QueryRange(context.Context, *tempopb.QueryRangeRequest) (*tempopb.QueryRangeResponse, error) {
+	return nil, fmt.Errorf("metrics queries are no longer supported by metrics-generator")
 }
 
 func (i *instance) updatePushMetrics(bytesIngested int, spanCount int, expiredSpanCount int) {

@@ -627,91 +627,6 @@ metrics_generator:
             filter_policies: []
             target_info_excluded_dimensions: []
             enable_instance_label: true
-        local_blocks:
-            block:
-                bloom_filter_false_positive: 0.01
-                bloom_filter_shard_size_bytes: 102400
-                version: vParquet4
-                parquet_row_group_size_bytes: 100000000
-                parquet_dedicated_columns:
-                    - scope: resource
-                      name: k8s.cluster.name
-                      type: string
-                      options: []
-                    - scope: resource
-                      name: k8s.namespace.name
-                      type: string
-                      options: []
-                    - scope: resource
-                      name: k8s.pod.name
-                      type: string
-                      options: []
-                    - scope: resource
-                      name: k8s.container.name
-                      type: string
-                      options: []
-                    - scope: span
-                      name: http.request.method
-                      type: string
-                      options: []
-                    - scope: span
-                      name: http.response.status_code
-                      type: int
-                      options: []
-                    - scope: span
-                      name: url.path
-                      type: string
-                      options: []
-                    - scope: span
-                      name: url.route
-                      type: string
-                      options: []
-                    - scope: span
-                      name: server.address
-                      type: string
-                      options: []
-                    - scope: span
-                      name: server.port
-                      type: int
-                      options: []
-                    - scope: span
-                      name: http.method
-                      type: string
-                      options: []
-                    - scope: span
-                      name: http.url
-                      type: string
-                      options: []
-                    - scope: span
-                      name: http.route
-                      type: string
-                      options: []
-                    - scope: span
-                      name: http.status_code
-                      type: int
-                      options: []
-            search:
-                chunk_size_bytes: 1000000
-                prefetch_trace_count: 1000
-                read_buffer_count: 32
-                read_buffer_size_bytes: 1048576
-                cache_control:
-                    footer: false
-                    column_index: false
-                    offset_index: false
-            flush_check_period: 10s
-            trace_idle_period: 5s
-            trace_live_period: 30s
-            max_block_duration: 1m0s
-            max_block_bytes: 500000000
-            concurrency: 4
-            complete_block_timeout: 1h0m0s
-            max_live_traces: 0
-            max_live_traces_bytes: 250000000
-            filter_server_spans: true
-            flush_to_storage: false
-            concurrent_blocks: 10
-            time_overlap_cutoff: 0.2
         host_info:
             host_identifiers:
                 - k8s.node.name
@@ -734,19 +649,10 @@ metrics_generator:
             no_lockfile: false
         remote_write_flush_deadline: 1m0s
         remote_write_add_org_id_header: true
-    traces_storage:
-        path: ""
-        ingestion_time_range_slack: 2m0s
-        version: vParquet4
-    traces_query_storage:
-        path: ""
-        ingestion_time_range_slack: 2m0s
-        version: vParquet4
     metrics_ingestion_time_range_slack: 30s
     query_timeout: 30s
     override_ring_key: metrics-generator
     codec: push-bytes
-    disable_local_blocks: false
     disable_grpc: false
     limiter_type: series
     ingest_concurrency: 16

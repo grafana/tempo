@@ -10,7 +10,7 @@ aliases:
 # Generic forwarding
 
 Generic forwarding allows asynchronous replication of ingested traces.
-The distributor writes received spans to both the ingester and defined endpoints, if enabled.
+The distributor writes received spans to both Kafka and defined endpoints, if enabled.
 This feature works in a best-effort manner, meaning that no retries happen if an error occurs during replication.
 
 {{< admonition type="warning" >}}

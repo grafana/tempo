@@ -20,7 +20,6 @@ import (
 	v1_common "github.com/grafana/tempo/pkg/tempopb/common/v1"
 	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 	"github.com/grafana/tempo/pkg/traceql"
-	"github.com/grafana/tempo/pkg/traceqlmetrics"
 	"github.com/grafana/tempo/pkg/util/test"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/backend/local"
@@ -1115,56 +1114,7 @@ func BenchmarkBackendBlockTraceQL(b *testing.B) {
 	}
 }
 
-// BenchmarkBackendBlockGetMetrics This doesn't really belong here but I can't think of
-// a better place that has access to all of the packages, especially the backend.
-func BenchmarkBackendBlockGetMetrics(b *testing.B) {
-	testCases := []struct {
-		query   string
-		groupby string
-	}{
-		{"{}", "name"},
-	}
-
-	ctx := context.TODO()
-	tenantID := "1"
-	blockID := uuid.MustParse("00145f38-6058-4e57-b1ba-334db8edce23")
-
-	r, _, _, err := local.New(&local.Config{
-		Path: path.Join("/Users/joe/testblock/"),
-	})
-	require.NoError(b, err)
-
-	rr := backend.NewReader(r)
-	meta, err := rr.BlockMeta(ctx, blockID, tenantID)
-	require.NoError(b, err)
-	require.Equal(b, VersionString, meta.Version)
-
-	opts := common.DefaultSearchOptions()
-	opts.StartPage = 10
-	opts.TotalPages = 10
-
-	block := newBackendBlock(meta, rr)
-	_, _, err = block.openForSearch(ctx, opts)
-	require.NoError(b, err)
-
-	for _, tc := range testCases {
-		b.Run(tc.query+"/"+tc.groupby, func(b *testing.B) {
-			b.ResetTimer()
-
-			for i := 0; i < b.N; i++ {
-				f := traceql.NewSpansetFetcherWrapper(func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
-					return block.Fetch(ctx, req, opts)
-				})
-
-				r, err := traceqlmetrics.GetMetrics(ctx, tc.query, tc.groupby, 0, 0, 0, f)
-
-				require.NoError(b, err)
-				require.NotNil(b, r)
-			}
-		})
-	}
-}
-
+// BenchmarkBackendBlockQueryRange benchmarks TraceQL metrics query range execution against a backend block.
 func BenchmarkBackendBlockQueryRange(b *testing.B) {
 	testCases := []string{
 		"{} | rate()",

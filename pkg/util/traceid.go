@@ -2,9 +2,12 @@ package util
 
 import (
 	"bytes"
+	"encoding/binary"
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"hash"
+	"hash/fnv"
 	"strings"
 	"unsafe"
 )
@@ -66,6 +69,23 @@ var spanKindFNVHashes = [...]uint64{
 	0xce2b8e7e8ef71b7e, // consumer
 	0x8d912f43d2348a3,  // spare 1
 	0x43869769eb4f75c8, // spare 2
+}
+
+// NewTokenHasher returns a new hash.Hash64 for use with TokenForID.
+func NewTokenHasher() hash.Hash64 {
+	return fnv.New64()
+}
+
+// TokenForID returns a token for use as a key in a hash map given a span ID and span kind.
+// h and buffer (must be at least 4 bytes) are provided by the caller for reuse across calls
+// to avoid repeated allocations. Use NewTokenHasher to create h.
+// kind is included because in zipkin traces the span id is shared between client and server spans.
+func TokenForID(h hash.Hash64, buffer []byte, kind int32, id []byte) uint64 {
+	binary.LittleEndian.PutUint32(buffer, uint32(kind))
+	h.Reset()
+	_, _ = h.Write(id)
+	_, _ = h.Write(buffer[:4])
+	return h.Sum64()
 }
 
 // SpanIDAndKindToToken converts a span ID into a token for use as key in a hash map. The token is generated such
