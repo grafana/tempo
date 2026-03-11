@@ -90,7 +90,6 @@ func (c *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
 	f.StringVar(&c.WAL.Filepath, prefix+".wal.path", "/var/tempo/block-builder/traces", "Path at which store WAL blocks.")
 }
 
-
 type partitionAssignmentVar struct {
 	p *map[string][]int32
 }

@@ -24,8 +24,8 @@ func TestConfig_validate(t *testing.T) {
 			}(),
 		},
 		{
-			name:                  "ValidConfig",
-			cfg:                   Config{PartitionsPerInstance: 5},
+			name: "ValidConfig",
+			cfg:  Config{PartitionsPerInstance: 5},
 		},
 		{
 			name:        "InvalidPartitionAssignment",
