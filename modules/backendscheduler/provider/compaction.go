@@ -166,7 +166,7 @@ func (p *CompactionProvider) Start(ctx context.Context) <-chan *work.Job {
 			// Re-check after job creation: a batch may have been submitted while we were
 			// draining the selector that was built before the submission. Discard the job
 			// before it enters the recent-jobs cache or the channel.
-			if p.sched.HasActiveBatchForTenant(p.curTenant.Value()) {
+			if p.sched.HasJobsForTenant(p.curTenant.Value(), tempopb.JobType_JOB_TYPE_REDACTION) || p.sched.TenantPending(p.curTenant.Value()) {
 				level.Info(p.logger).Log("msg", "redaction batch submitted for tenant since selector was built; abandoning remaining compaction jobs", "tenant", p.curTenant.Value())
 				span.AddEvent("tenant has active redaction batch")
 				reset()
@@ -403,7 +403,7 @@ func (p *CompactionProvider) newBlockSelector(tenantID string) (blockselector.Co
 	// covered by any pending redaction job. This guarantees that at most one rescan
 	// is needed per batch: once the originally-skipped compaction jobs finish and
 	// the rescan fires, no further compaction can have created uncovered blocks.
-	if p.sched.HasActiveBatchForTenant(tenantID) {
+	if p.sched.HasJobsForTenant(tenantID, tempopb.JobType_JOB_TYPE_REDACTION) || p.sched.TenantPending(tenantID) {
 		return blockselector.NewTimeWindowBlockSelector(nil,
 			p.cfg.Compactor.MaxCompactionRange,
 			p.cfg.Compactor.MaxCompactionObjects,
@@ -420,19 +420,14 @@ func (p *CompactionProvider) newBlockSelector(tenantID string) (blockselector.Co
 		blocklist     = make([]*backend.BlockMeta, 0, len(fullBlocklist))
 	)
 
-	// Build the set of blocks currently being compacted (active + in-flight).
-	// NOTE: We check compaction job input, not output, to allow output of one
-	// job to become input of another.
-	inCompactionBlocks := p.sched.BlocksUnderCompaction(tenantID)
+	// Take a single snapshot of all busy blocks for this tenant — one lock
+	// acquisition regardless of blocklist size.
+	busyBlocks := p.sched.BusyBlocksForTenant(tenantID)
 
-	// Build the filtered blocklist, skipping blocks that are already under
-	// compaction or otherwise busy (e.g. pending redaction).
+	// Build the filtered blocklist, skipping blocks already busy
+	// (pending redaction, active compaction input, etc.).
 	for _, block := range fullBlocklist {
-		blockIDStr := block.BlockID.String()
-		if _, ok := inCompactionBlocks[blockIDStr]; ok {
-			continue
-		}
-		if p.sched.IsBlockBusy(tenantID, blockIDStr) {
+		if _, ok := busyBlocks[block.BlockID.String()]; ok {
 			continue
 		}
 		blocklist = append(blocklist, block)

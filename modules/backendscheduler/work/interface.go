@@ -39,16 +39,21 @@ type Interface interface {
 	// and rescans.
 	IsBlockBusy(tenantID, blockID string) bool
 
-	// BlocksUnderCompaction returns a map of blockID -> jobID for all blocks
-	// currently being compacted for the tenant, across active and in-flight states.
-	// Used by SubmitRedaction to build the skip+rescan set.
-	BlocksUnderCompaction(tenantID string) map[string]string
+	// BusyBlocksForTenant returns a map of blockID -> jobID for every block
+	// currently referenced by a pending, registered, or active job for the tenant.
+	// Acquires pendingMtx exactly once and returns a snapshot.
+	BusyBlocksForTenant(tenantID string) map[string]string
+
+	// TenantPending returns true when an exclusive tenant operation exists whose
+	// full scope is not yet reflected in the job queue — e.g. a batch was just
+	// created or the system is in a rescan delay window. Distinct from
+	// CompactionDisabled; this reflects transient internal state.
+	TenantPending(tenantID string) bool
 
 	// Batch management -- shared trace ID list for redaction jobs to avoid per-job copies.
 	AddBatch(batch *tempopb.RedactionBatch) error
 	GetBatch(tenantID string) *tempopb.RedactionBatch
 	RemoveBatch(tenantID string)
-	HasActiveBatchForTenant(tenantID string) bool
 	ListBatches() []*tempopb.RedactionBatch
 	ClearBatchRescan(tenantID string)
 	FlushBatchesToLocal(ctx context.Context, localPath string) error

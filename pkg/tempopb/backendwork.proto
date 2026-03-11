@@ -139,6 +139,9 @@ message RedactionBatch {
   // rescan_after_unix_nano is the earliest time at which the scheduler should
   // perform the rescan described above. Zero means no rescan is pending.
   int64 rescan_after_unix_nano = 6;
+  // rescan_generation is incremented each time the scheduler re-arms the rescan
+  // timer because newly-produced output blocks are themselves being compacted.
+  int32 rescan_generation = 7;
 }
 
 // RedactionBatches is the top-level container written to batches.pb.

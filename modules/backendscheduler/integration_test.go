@@ -151,7 +151,7 @@ func testSubmitRedactionPersistence(ctx context.Context, t *testing.T, scheduler
 	require.NoError(t, newSched.work.LoadBatchesFromLocal(ctx, cfg.LocalWorkPath))
 
 	// Batch and all pending block jobs must survive the reload.
-	require.True(t, newSched.work.HasActiveBatchForTenant(testTenant))
+	require.True(t, newSched.work.TenantPending(testTenant))
 	for _, id := range blockIDs {
 		require.True(t, newSched.work.IsBlockBusy(testTenant, id.String()), "block %s must be busy after reload", id)
 	}

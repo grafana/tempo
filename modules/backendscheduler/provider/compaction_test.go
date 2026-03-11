@@ -186,9 +186,12 @@ func TestCompactionProvider_EmptyStart(t *testing.T) {
 	}
 }
 
-// TestCompactionProvider_SkipsBlocksPendingRedaction verifies that newBlockSelector excludes
-// blocks that are busy (pending redaction), so compaction does not pick them.
-func TestCompactionProvider_SkipsBlocksPendingRedaction(t *testing.T) {
+// TestCompactionProvider_SkipsAllCompactionDuringRedaction verifies that newBlockSelector
+// returns an empty selector when any redaction jobs exist for the tenant. Once a
+// SubmitRedaction call creates pending redaction jobs, all new compaction is gated until
+// the redaction batch completes. Busy-block filtering (BusyBlocksForTenant) handles
+// exclusion of specific blocks across non-redaction workloads.
+func TestCompactionProvider_SkipsAllCompactionDuringRedaction(t *testing.T) {
 	const testTenant = "test-tenant"
 	cfg := CompactionConfig{}
 	cfg.RegisterFlagsAndApplyDefaults("", &flag.FlagSet{})
@@ -210,7 +213,7 @@ func TestCompactionProvider_SkipsBlocksPendingRedaction(t *testing.T) {
 	blockMetas := store.BlockMetas(testTenant)
 	require.GreaterOrEqual(t, len(blockMetas), 2, "need at least 2 blocks to mark pending")
 
-	// Mark first two blocks as pending redaction
+	// Mark two blocks as having pending redaction jobs.
 	pendingBlock1 := blockMetas[0].BlockID.String()
 	pendingBlock2 := blockMetas[1].BlockID.String()
 
@@ -222,8 +225,7 @@ func TestCompactionProvider_SkipsBlocksPendingRedaction(t *testing.T) {
 			JobDetail: tempopb.JobDetail{
 				Tenant: testTenant,
 				Redaction: &tempopb.RedactionDetail{
-					BlockId:  pendingBlock1,
-					TraceIds: nil,
+					BlockId: pendingBlock1,
 				},
 			},
 		},
@@ -233,8 +235,7 @@ func TestCompactionProvider_SkipsBlocksPendingRedaction(t *testing.T) {
 			JobDetail: tempopb.JobDetail{
 				Tenant: testTenant,
 				Redaction: &tempopb.RedactionDetail{
-					BlockId:  pendingBlock2,
-					TraceIds: nil,
+					BlockId: pendingBlock2,
 				},
 			},
 		},
@@ -252,19 +253,12 @@ func TestCompactionProvider_SkipsBlocksPendingRedaction(t *testing.T) {
 		w,
 	)
 
+	// When redaction jobs exist the gate fires: all compaction is blocked, not just
+	// the two specific blocks.
 	selector, blocklistLen := p.newBlockSelector(testTenant)
 	require.NotNil(t, selector)
-	// Should exclude the 2 pending blocks
-	require.Equal(t, len(blockMetas)-2, blocklistLen, "blocklist should exclude the two blocks with pending redaction")
-
-	metas := collectAllMetas(selector)
-	// No pending block should appear in the selector output
-	pending1UUID := backend.MustParse(pendingBlock1)
-	pending2UUID := backend.MustParse(pendingBlock2)
-	for _, m := range metas {
-		require.NotEqual(t, pending1UUID, m.BlockID, "block with pending redaction should not be selectable for compaction")
-		require.NotEqual(t, pending2UUID, m.BlockID, "block with pending redaction should not be selectable for compaction")
-	}
+	require.Equal(t, 0, blocklistLen, "all compaction should be blocked while redaction jobs exist")
+	require.Empty(t, collectAllMetas(selector), "no blocks should be offered for compaction during redaction")
 }
 
 func TestCompactionProvider_InFlightJobsPreventDuplicates(t *testing.T) {

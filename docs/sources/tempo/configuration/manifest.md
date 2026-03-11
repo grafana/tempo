@@ -1022,6 +1022,7 @@ backend_scheduler:
         redaction:
             poll_interval: 2s
             rescan_delay: 5m0s
+            max_rescan_generations: 5
     job_timeout: 15s
     local_work_path: /var/tempo
 backend_scheduler_client:

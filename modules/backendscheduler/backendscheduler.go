@@ -438,7 +438,7 @@ func (s *BackendScheduler) SubmitRedaction(ctx context.Context, req *tempopb.Sub
 		return nil, status.Error(codes.FailedPrecondition, "compaction is disabled for this tenant")
 	}
 
-	if s.work.HasActiveBatchForTenant(req.TenantId) {
+	if s.work.TenantPending(req.TenantId) {
 		return nil, status.Error(codes.AlreadyExists, "a redaction is already in progress for this tenant")
 	}
 
@@ -456,18 +456,19 @@ func (s *BackendScheduler) SubmitRedaction(ctx context.Context, req *tempopb.Sub
 		return nil, status.Error(codes.NotFound, "no blocks found for tenant")
 	}
 
-	// Build a map of block ID -> compaction job ID for all blocks currently being
-	// compacted (active or in-flight). These blocks may disappear before a
-	// redaction worker can process them — their contents will be merged into a
-	// new output block not yet covered by any pending redaction job. We record
-	// the job IDs so the maintenance loop can look up output blocks once
-	// compaction finishes. Mirrors the filtering in CompactionProvider.newBlockSelector.
-	inCompactionJob := s.work.BlocksUnderCompaction(req.TenantId)
+	// Build a map of block ID -> job ID for all blocks currently referenced by
+	// any job. Blocks in active compaction may disappear before a redaction worker
+	// can process them — their contents will be merged into a new output block not
+	// yet covered by any pending redaction job. We record the job IDs so the
+	// maintenance loop can look up output blocks once compaction finishes.
+	// Since TenantPending returned false above, there are no active redaction jobs
+	// for this tenant, so busy blocks are exclusively from other providers.
+	busyBlocks := s.work.BusyBlocksForTenant(req.TenantId)
 
 	skippedJobSet := make(map[string]struct{})
 	filtered := metas[:0:0]
 	for _, meta := range metas {
-		if jobID, skip := inCompactionJob[meta.BlockID.String()]; skip {
+		if jobID, busy := busyBlocks[meta.BlockID.String()]; busy {
 			skippedJobSet[jobID] = struct{}{}
 			continue
 		}
@@ -587,11 +588,15 @@ func (s *BackendScheduler) checkPendingRescans(ctx context.Context) {
 
 // performRescan handles one batch that is ready for a rescan. It looks up the output
 // blocks produced by previously skipped compaction jobs and enqueues redaction jobs
-// for them. If none are found (e.g. the compaction jobs were already pruned), it logs
-// a warning and clears the rescan state so cleanup can proceed.
+// for them. If a newly-produced output block is itself still being compacted, the
+// covering compaction job is recorded and the rescan is re-armed for the next
+// maintenance tick (iterative multi-generation approach). If none are found (e.g.
+// the compaction jobs were already pruned), it logs a warning and clears the rescan
+// state so cleanup can proceed.
 func (s *BackendScheduler) performRescan(ctx context.Context, batch *tempopb.RedactionBatch) {
 	tenantID := batch.TenantId
 	batchID := batch.BatchId
+	maxGen := s.cfg.ProviderConfig.Redaction.MaxRescanGenerations
 
 	// Build a lookup set of the skipped compaction job IDs.
 	skippedSet := make(map[string]struct{}, len(batch.SkippedCompactionJobIds))
@@ -624,53 +629,91 @@ func (s *BackendScheduler) performRescan(ctx context.Context, batch *tempopb.Red
 		return
 	}
 
-	// Create pending jobs for output blocks, skipping any already pending.
+	// Separate output blocks into two sets:
+	//  - ready: not currently busy → enqueue a redaction job
+	//  - nextGenSkipped: covered by another job → re-arm for next generation
+	busyBlocks := s.work.BusyBlocksForTenant(tenantID)
+
 	jobs := make([]*work.Job, 0, len(outputBlockIDs))
+	nextGenSkippedSet := make(map[string]struct{})
 	for _, blockID := range outputBlockIDs {
-		if s.work.IsBlockBusy(tenantID, blockID) {
+		jobID, busy := busyBlocks[blockID]
+		if !busy {
+			jobs = append(jobs, &work.Job{
+				ID:   uuid.New().String(),
+				Type: tempopb.JobType_JOB_TYPE_REDACTION,
+				JobDetail: tempopb.JobDetail{
+					Tenant:  tenantID,
+					BatchId: batchID,
+					Redaction: &tempopb.RedactionDetail{
+						BlockId: blockID,
+					},
+				},
+			})
 			continue
 		}
-		jobs = append(jobs, &work.Job{
-			ID:   uuid.New().String(),
-			Type: tempopb.JobType_JOB_TYPE_REDACTION,
-			JobDetail: tempopb.JobDetail{
-				Tenant:  tenantID,
-				BatchId: batchID,
-				Redaction: &tempopb.RedactionDetail{
-					BlockId: blockID,
-				},
-			},
-		})
+		// Block is still being worked on — track the covering job for rescan.
+		nextGenSkippedSet[jobID] = struct{}{}
 	}
 
 	level.Info(log.Logger).Log(
 		"msg", "redaction rescan: enqueuing jobs for compacted output blocks",
 		"tenant", tenantID,
 		"batch_id", batchID,
+		"generation", batch.RescanGeneration,
 		"output_blocks", len(outputBlockIDs),
 		"jobs_added", len(jobs),
+		"next_gen_skipped_jobs", len(nextGenSkippedSet),
 	)
 
-	if len(jobs) == 0 {
+	// Re-arm the rescan if any output blocks are themselves still compacting.
+	if len(nextGenSkippedSet) > 0 {
+		if int(batch.RescanGeneration) >= maxGen {
+			level.Warn(log.Logger).Log(
+				"msg", "redaction rescan: depth exceeded — operator should resubmit if traces are still present",
+				"tenant", tenantID,
+				"batch_id", batchID,
+				"max_generations", maxGen,
+			)
+			// Fall through: enqueue whatever ready jobs we have and let cleanup proceed.
+		} else {
+			nextGenIDs := make([]string, 0, len(nextGenSkippedSet))
+			for id := range nextGenSkippedSet {
+				nextGenIDs = append(nextGenIDs, id)
+			}
+			updatedBatch := s.work.GetBatch(tenantID)
+			if updatedBatch != nil {
+				updatedBatch.SkippedCompactionJobIds = nextGenIDs
+				updatedBatch.RescanAfterUnixNano = time.Now().Add(s.cfg.ProviderConfig.Redaction.RescanDelay).UnixNano()
+				updatedBatch.RescanGeneration = batch.RescanGeneration + 1
+			}
+		}
+	}
+
+	if len(jobs) == 0 && len(nextGenSkippedSet) == 0 {
 		// All output blocks are already pending (e.g. a duplicate rescan).
 		s.cleanupBatchIfDone(ctx, tenantID)
 		return
 	}
 
-	if err := s.work.AddPendingJobs(jobs); err != nil {
-		level.Error(log.Logger).Log("msg", "redaction rescan: failed to add pending jobs", "tenant", tenantID, "err", err)
-		return
+	if len(jobs) > 0 {
+		if err := s.work.AddPendingJobs(jobs); err != nil {
+			level.Error(log.Logger).Log("msg", "redaction rescan: failed to add pending jobs", "tenant", tenantID, "err", err)
+			return
+		}
 	}
 
 	if err := s.work.FlushBatchesToLocal(ctx, s.cfg.LocalWorkPath); err != nil {
 		level.Warn(log.Logger).Log("msg", "redaction rescan: failed to flush batch manifest", "tenant", tenantID, "err", err)
 	}
-	affectedIDs := make([]string, len(jobs))
-	for i, j := range jobs {
-		affectedIDs[i] = j.ID
-	}
-	if err := s.work.FlushToLocal(ctx, s.cfg.LocalWorkPath, affectedIDs); err != nil {
-		level.Warn(log.Logger).Log("msg", "redaction rescan: failed to flush job shards", "tenant", tenantID, "err", err)
+	if len(jobs) > 0 {
+		affectedIDs := make([]string, len(jobs))
+		for i, j := range jobs {
+			affectedIDs[i] = j.ID
+		}
+		if err := s.work.FlushToLocal(ctx, s.cfg.LocalWorkPath, affectedIDs); err != nil {
+			level.Warn(log.Logger).Log("msg", "redaction rescan: failed to flush job shards", "tenant", tenantID, "err", err)
+		}
 	}
 }
 

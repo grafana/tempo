@@ -261,6 +261,49 @@ func TestIsBlockBusyRunningLifecycle(t *testing.T) {
 	require.False(t, w.IsBlockBusy("tenant-a", "block-1"))
 }
 
+func TestBusyBlocksForTenant(t *testing.T) {
+	w := New(Config{}).(*Work)
+
+	// Empty initially.
+	require.Empty(t, w.BusyBlocksForTenant("tenant-a"))
+
+	// Pending redaction job → block appears in snapshot.
+	j := createRedactionJob("r1", "tenant-a", "block-1")
+	require.NoError(t, w.AddPendingJobs([]*Job{j}))
+	busy := w.BusyBlocksForTenant("tenant-a")
+	require.Contains(t, busy, "block-1")
+	// Unrelated tenant must not bleed in.
+	require.Empty(t, w.BusyBlocksForTenant("tenant-b"))
+
+	// Popping removes the block from the pending index.
+	popped := w.PopNextPendingJob(tempopb.JobType_JOB_TYPE_REDACTION)
+	require.NotNil(t, popped)
+	// The gap between pop and RegisterJob: block is not in the snapshot.
+	require.NotContains(t, w.BusyBlocksForTenant("tenant-a"), "block-1")
+
+	// RegisterJob re-adds via runningBlocks.
+	w.RegisterJob(popped)
+	require.Contains(t, w.BusyBlocksForTenant("tenant-a"), "block-1")
+
+	// Promote to active via AddJob; block still covered by runningBlocks.
+	require.NoError(t, w.AddJob(popped))
+	require.Contains(t, w.BusyBlocksForTenant("tenant-a"), "block-1")
+
+	// CompleteJob releases runningBlocks.
+	w.CompleteJob(popped.ID)
+	require.NotContains(t, w.BusyBlocksForTenant("tenant-a"), "block-1")
+
+	// Compaction job: multiple input blocks tracked via runningBlocks.
+	cj := createCompactionJob("c1", "tenant-a", []string{"blk-x", "blk-y", "blk-z"})
+	w.RegisterJob(cj)
+	busyC := w.BusyBlocksForTenant("tenant-a")
+	require.Contains(t, busyC, "blk-x")
+	require.Contains(t, busyC, "blk-y")
+	require.Contains(t, busyC, "blk-z")
+	// Other tenant still empty.
+	require.Empty(t, w.BusyBlocksForTenant("tenant-b"))
+}
+
 func TestIsBlockBusyCompactionLifecycle(t *testing.T) {
 	w := New(Config{}).(*Work)
 

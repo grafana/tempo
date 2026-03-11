@@ -439,8 +439,8 @@ func TestSubmitRedactionAndRescan(t *testing.T) {
 	// The store blocklist is already populated via newStore + time.Sleep above.
 
 	// Simulate a running compaction job covering the first two blocks.
-	// SubmitRedaction checks all compaction jobs regardless of status, so adding
-	// one to the work cache is sufficient to trigger the skip logic.
+	// RegisterJob must be called before AddJob so the block keys are indexed in
+	// runningBlocks (matching production flow from the compaction provider).
 	compJob := &work.Job{
 		ID:   uuid.New().String(),
 		Type: tempopb.JobType_JOB_TYPE_COMPACTION,
@@ -451,6 +451,7 @@ func TestSubmitRedactionAndRescan(t *testing.T) {
 			},
 		},
 	}
+	s.work.RegisterJob(compJob)
 	require.NoError(t, s.work.AddJob(compJob))
 	s.work.StartJob(compJob.ID)
 

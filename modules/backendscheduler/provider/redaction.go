@@ -20,11 +20,16 @@ type RedactionConfig struct {
 	// least 2× the tempodb blocklist_poll interval so the new blocks are visible. The
 	// scheduler's work.prune_age must exceed this value.
 	RescanDelay time.Duration `yaml:"rescan_delay"`
+	// MaxRescanGenerations limits how many times the rescan loop may re-arm itself when
+	// newly-produced output blocks are themselves still being compacted. Each generation
+	// waits one RescanDelay before retrying.
+	MaxRescanGenerations int `yaml:"max_rescan_generations"`
 }
 
 func (cfg *RedactionConfig) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
 	f.DurationVar(&cfg.PollInterval, prefix+"backend-scheduler.redaction-provider.poll-interval", 2*time.Second, "Interval at which to check for pending redaction jobs when the queue is empty")
 	f.DurationVar(&cfg.RescanDelay, prefix+"backend-scheduler.redaction-provider.rescan-delay", 5*time.Minute, "How long to wait before rescanning for output blocks from compaction jobs active at submission time")
+	f.IntVar(&cfg.MaxRescanGenerations, prefix+"backend-scheduler.redaction-provider.max-rescan-generations", 5, "Maximum number of rescan generations before giving up and requiring operator resubmission")
 }
 
 // RedactionProvider drains the pending redaction queue and sends jobs to the scheduler.

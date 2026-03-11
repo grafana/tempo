@@ -140,10 +140,6 @@ func (w *Work) RemoveBatch(tenantID string) {
 	w.batches.remove(tenantID)
 }
 
-func (w *Work) HasActiveBatchForTenant(tenantID string) bool {
-	return w.batches.hasActive(tenantID)
-}
-
 func (w *Work) FlushBatchesToLocal(_ context.Context, localPath string) error {
 	return w.batches.flush(localPath)
 }

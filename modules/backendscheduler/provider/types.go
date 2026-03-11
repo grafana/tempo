@@ -16,7 +16,6 @@ type Provider interface {
 // Scheduler interface defines the methods providers need from the scheduler
 type Scheduler interface {
 	ListJobs() []*work.Job
-	HasActiveBatchForTenant(tenantID string) bool
 	PopNextPendingJob(jobType tempopb.JobType) *work.Job
 
 	// RegisterJob makes a job visible to other components before it is
@@ -27,11 +26,15 @@ type Scheduler interface {
 	// any state (pending, in-flight, or active) for the tenant.
 	HasJobsForTenant(tenantID string, jobType tempopb.JobType) bool
 
-	// IsBlockBusy returns true if the block is referenced by any job in any
-	// state. Used to skip blocks in selectors and rescans.
-	IsBlockBusy(tenantID, blockID string) bool
+	// BusyBlocksForTenant returns a map of blockID -> jobID for every block
+	// currently referenced by a pending, registered, or active job for the tenant.
+	// Acquires the internal lock exactly once and returns a snapshot.
+	BusyBlocksForTenant(tenantID string) map[string]string
 
-	// BlocksUnderCompaction returns a blockID -> jobID map for all blocks being
-	// compacted for the tenant across active and in-flight states.
-	BlocksUnderCompaction(tenantID string) map[string]string
+	// TenantPending returns true when an exclusive tenant operation exists whose
+	// full scope is not yet reflected in the job queue — e.g. a batch manifest
+	// was just created before jobs were enqueued, or the system is in a rescan
+	// delay window between generations. Distinct from CompactionDisabled (an
+	// operator override); this reflects transient internal Work state.
+	TenantPending(tenantID string) bool
 }
