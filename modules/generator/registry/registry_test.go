@@ -817,6 +817,91 @@ func TestManagedRegistry_entityDemandWithMultipleMetrics(t *testing.T) {
 	assert.Less(t, entityDemand, uint64(70), "entity demand should not triple-count entities across metrics")
 }
 
+func TestManagedRegistry_replaceMetricDrainsOldSeries(t *testing.T) {
+	appender := &capturingAppender{}
+
+	cfg := &Config{
+		StaleDuration: 15 * time.Minute,
+	}
+
+	var deletedSeriesCount int
+	trackingLimiter := &mockLimiter{
+		onAddFunc: func(hash uint64, count uint32, lbls labels.Labels) (labels.Labels, uint64) {
+			return lbls, hash
+		},
+		onDeleteFunc: func(_ uint64, count uint32) {
+			deletedSeriesCount += int(count)
+		},
+	}
+
+	reg := New(cfg, &mockOverrides{}, "test", appender, log.NewNopLogger(), trackingLimiter)
+	defer reg.Close()
+
+	// Create the first counter and add 50 series.
+	counter1 := reg.NewCounter("my_counter")
+	for i := 0; i < 50; i++ {
+		lbls := buildTestLabels([]string{"label"}, []string{fmt.Sprintf("value-%d", i)})
+		counter1.Inc(lbls, 1.0)
+	}
+
+	activeBefore := reg.activeSeries()
+	assert.Equal(t, uint32(50), activeBefore)
+
+	// Replacing the metric (same name) simulates a processor recreation.
+	// Before the fix, old series would leak from the limiter's active count.
+	_ = reg.NewCounter("my_counter")
+
+	// Old series must have been drained through OnDelete.
+	assert.Equal(t, 50, deletedSeriesCount, "old series should be cleaned up via OnDelete")
+
+	// Active series in the registry should now be 0 (old drained, new empty).
+	activeAfter := reg.activeSeries()
+	assert.Equal(t, uint32(0), activeAfter)
+}
+
+func TestManagedRegistry_replaceHistogramDrainsWithMultiplier(t *testing.T) {
+	appender := &capturingAppender{}
+
+	cfg := &Config{
+		StaleDuration: 15 * time.Minute,
+	}
+
+	var deletedSeriesCount int
+	trackingLimiter := &mockLimiter{
+		onAddFunc: func(hash uint64, count uint32, lbls labels.Labels) (labels.Labels, uint64) {
+			return lbls, hash
+		},
+		onDeleteFunc: func(_ uint64, count uint32) {
+			deletedSeriesCount += int(count)
+		},
+	}
+
+	reg := New(cfg, &mockOverrides{}, "test", appender, log.NewNopLogger(), trackingLimiter)
+	defer reg.Close()
+
+	buckets := []float64{1.0, 2.0, 5.0}
+	h := reg.NewHistogram("my_histogram", buckets, HistogramModeClassic)
+
+	// Each entity creates sum + count + len(buckets) + Inf = 2 + 3 + 1 = 6 series.
+	seriesPerEntity := 2 + len(buckets) + 1
+
+	for i := 0; i < 20; i++ {
+		lbls := buildTestLabels([]string{"label"}, []string{fmt.Sprintf("value-%d", i)})
+		h.ObserveWithExemplar(lbls, float64(i), "", 1.0)
+	}
+
+	activeBefore := reg.activeSeries()
+	assert.Equal(t, uint32(20*seriesPerEntity), activeBefore)
+
+	// Replace the histogram — old series must be drained with the correct multiplier.
+	_ = reg.NewHistogram("my_histogram", buckets, HistogramModeClassic)
+
+	assert.Equal(t, 20*seriesPerEntity, deletedSeriesCount, "histogram drain must use activeSeriesPerHistogramSerie multiplier")
+
+	activeAfter := reg.activeSeries()
+	assert.Equal(t, uint32(0), activeAfter)
+}
+
 func TestManagedRegistry_cardinalitySanitizer(t *testing.T) {
 	appender := &capturingAppender{}
 
