@@ -126,6 +126,11 @@
         statefulset.spec.template.spec.withInitContainers([
           $.tempo_chown_container('live-store-data'),
         ]),
+
+      tempo_block_builder_statefulset+:
+        statefulset.spec.template.spec.withInitContainers([
+          $.tempo_chown_container('block-builder-data'),
+        ]),
     },
   },
 }

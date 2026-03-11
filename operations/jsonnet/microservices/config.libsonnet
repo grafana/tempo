@@ -95,6 +95,7 @@
     },
     block_builder: {
       replicas: 0,
+      data_volume_size: '5Gi',
       resources: {
         requests: {
           cpu: '500m',
