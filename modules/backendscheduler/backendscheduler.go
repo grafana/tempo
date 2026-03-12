@@ -687,14 +687,12 @@ func (s *BackendScheduler) performRescan(ctx context.Context, batch *tempopb.Red
 		)
 	}
 
-	// Commit rescan state update.
-	s.work.ClearBatchRescan(tenantID)
+	// Commit rescan state update under the batch store's write lock.
+	var rescanAfterNano int64
 	if len(rearmIDs) > 0 {
-		if updatedBatch := s.work.GetBatch(tenantID); updatedBatch != nil {
-			updatedBatch.SkippedCompactionJobIds = rearmIDs
-			updatedBatch.RescanAfterUnixNano = time.Now().Add(s.cfg.ProviderConfig.Redaction.RescanDelay).UnixNano()
-		}
+		rescanAfterNano = time.Now().Add(s.cfg.ProviderConfig.Redaction.RescanDelay).UnixNano()
 	}
+	s.work.SetBatchRescan(tenantID, rearmIDs, rescanAfterNano)
 
 	if len(allReadyJobs) == 0 && len(rearmIDs) == 0 {
 		s.cleanupBatchIfDone(ctx, tenantID)

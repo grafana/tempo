@@ -56,6 +56,7 @@ type Interface interface {
 	RemoveBatch(tenantID string)
 	ListBatches() []*tempopb.RedactionBatch
 	ClearBatchRescan(tenantID string)
+	SetBatchRescan(tenantID string, skippedJobIDs []string, rescanAfterUnixNano int64)
 	FlushBatchesToLocal(ctx context.Context, localPath string) error
 	LoadBatchesFromLocal(ctx context.Context, localPath string) error
 

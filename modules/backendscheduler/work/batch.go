@@ -91,14 +91,20 @@ func (b *batchStore) list() []*tempopb.RedactionBatch {
 	return out
 }
 
-// clearRescan zeroes the rescan fields on the batch for tenantID under the write lock.
-func (b *batchStore) clearRescan(tenantID string) {
+// setRescan updates the rescan fields on the batch for tenantID under the write lock.
+// Pass nil ids and 0 afterNano to clear the rescan state.
+func (b *batchStore) setRescan(tenantID string, ids []string, afterNano int64) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	if batch, ok := b.byTenant[tenantID]; ok {
-		batch.SkippedCompactionJobIds = nil
-		batch.RescanAfterUnixNano = 0
+		batch.SkippedCompactionJobIds = ids
+		batch.RescanAfterUnixNano = afterNano
 	}
+}
+
+// clearRescan zeroes the rescan fields on the batch for tenantID under the write lock.
+func (b *batchStore) clearRescan(tenantID string) {
+	b.setRescan(tenantID, nil, 0)
 }
 
 // load reads batches.pb from localPath. Missing file is not an error (clean start).
@@ -154,4 +160,8 @@ func (w *Work) ListBatches() []*tempopb.RedactionBatch {
 
 func (w *Work) ClearBatchRescan(tenantID string) {
 	w.batches.clearRescan(tenantID)
+}
+
+func (w *Work) SetBatchRescan(tenantID string, skippedJobIDs []string, rescanAfterUnixNano int64) {
+	w.batches.setRescan(tenantID, skippedJobIDs, rescanAfterUnixNano)
 }
