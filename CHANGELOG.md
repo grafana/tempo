@@ -1,5 +1,7 @@
 ## main / unreleased
 
+# v2.10.2
+
 * [BUGFIX] Apply exemplars hint end-to-end and fix safety cap bypass in metrics queries. [#6559](https://github.com/grafana/tempo/pull/6559) (@zhxiaogg)
 * [ENHANCEMENT] Used frontend MaxExemplars config as single source of truth for exemplar limits. Added a safety cap at the traceql engine entry points. [#6515](https://github.com/grafana/tempo/pull/6515) (@zhxiaogg)
 * [CHANGE] Set default `max_result_limit` for search to 256*1024 [#6525](https://github.com/grafana/tempo/pull/6525) (@zhxiaogg)
