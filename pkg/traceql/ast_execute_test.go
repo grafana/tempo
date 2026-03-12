@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"math"
 	"sort"
 	"testing"
 	"time"
@@ -2222,6 +2223,52 @@ func TestNotParentWithEmptyLHS(t *testing.T) {
 	nameStatic, _ := out[0].Spans[0].AttributeFor(IntrinsicNameAttribute)
 	expected := NewStaticString("list-articles")
 	require.True(t, nameStatic.Equals(&expected))
+}
+
+func TestIntPow(t *testing.T) {
+	tests := []struct {
+		name string
+		base int
+		exp  int
+		want int
+	}{
+		{"(-1)^0", -1, 0, 1},
+		{"(-1)^1", -1, 1, -1},
+		{"(-1)^2", -1, 2, 1},
+		{"(-1)^3", -1, 3, -1},
+		{"(-123)^3", -123, 3, -1860867},
+		{"0^0", 0, 0, 1},
+		{"0^1", 0, 1, 0},
+		{"1^0", 1, 0, 1},
+		{"2^2", 2, 2, 4},
+		{"2^10", 2, 10, 1024},
+		{"3^3", 3, 3, 27},
+		{"7^3", 7, 3, 343},
+		{"3^7", 3, 7, 2187},
+		{"5^5", 5, 5, 3125},
+		{"7^7", 7, 7, 823543},
+		{"negative base", -2, 3, -8},
+		{"negative exponent rounds toward zero", 10, -1, 0},
+		{"negative exponent for one", 1, -3, 1},
+		{"negative exponent for negative one", -1, -3, -1},
+		{"large exponent", 2, 62, 1 << 62},
+		// These cases would hang with a naive O(n) loop.
+		// They must complete near-instantly or go test -timeout will kill them.
+		{"100 ^ 100", 100, 100, math.MinInt64},
+		{"maxint32 ^ 2", math.MaxInt32, 2, 4611686014132420608},
+		{"2 ^ maxint32", 2, math.MaxInt32, math.MinInt64},
+		{"maxint32 ^ maxint32", math.MaxInt32, math.MaxInt32, math.MinInt64},
+		{"maxint64 ^ 2", math.MaxInt64, 2, math.MinInt64},
+		{"2 ^ maxint64", 2, math.MaxInt64, math.MinInt64},
+		{"maxint64 ^ maxint64", math.MaxInt64, math.MaxInt64, math.MinInt64},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got := intPow(tc.base, tc.exp)
+			require.Equal(t, tc.want, got)
+		})
+	}
 }
 
 func TestIntDivisionByZero(t *testing.T) {
