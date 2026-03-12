@@ -157,6 +157,30 @@ tempo_metrics_generator_registry_label_cardinality_demand_estimate{}
 Use this metric to identify which labels have high cardinality, how far they exceed the configured limit, and to choose an appropriate
 `max_cardinality_per_label` value. To observe actual demand before enforcing a limit, deploy with a high `max_cardinality_per_label` value first.
 
+#### Understanding the `label_name` values in this metric
+
+This metric has a `label_name` label whose values represent every label tracked by the per-label cardinality limiter. These include all labels that flow through the metrics-generator registry, not just user-configured dimensions.
+
+**Built-in labels:**
+
+| Label             | Processor      | When added                                                       | Description                                               |
+|-------------------|----------------|------------------------------------------------------------------|-----------------------------------------------------------|
+| `service`         | span-metrics   | Always                                                           | The service name                                          |
+| `span_name`       | span-metrics   | Always                                                           | The operation or span name                                |
+| `span_kind`       | span-metrics   | Always                                                           | The span kind (SERVER, CLIENT, etc.)                      |
+| `status_code`     | span-metrics   | Always                                                           | The span status code                                      |
+| `job`             | span-metrics   | `enable_target_info` is `true`                                   | The job name, derived from resource attributes            |
+| `instance`        | span-metrics   | `enable_target_info` and `enable_instance_label` are both `true` | The instance ID, derived from resource attributes         |
+| `client`          | service-graphs | Always                                                           | The client service name                                   |
+| `server`          | service-graphs | Always                                                           | The server service name                                   |
+| `connection_type` | service-graphs | Always                                                           | The connection type (virtual, database, messaging_system) |
+
+**Configured labels:**
+
+- Span-metrics dimensions are added as-is. For example, `deployment.environment` becomes `deployment_environment`.
+- Service-graphs dimensions are prefixed with `client_` and `server_` when `enable_client_server_prefix` is `true`. For example, `deployment.environment` becomes `client_deployment_environment` and `server_deployment_environment`.
+- A configured dimension only appears if the corresponding attribute exists on incoming spans.
+
 Configure the per-label cardinality limit:
 
 ```yaml
