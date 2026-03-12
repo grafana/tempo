@@ -34,9 +34,9 @@ func TestDropTraceCmd(t *testing.T) {
 			TenantID:  "single-tenant",
 			DropTrace: true,
 		}
-		generateTestBlocks(t, cmd.backendOptions.Bucket, cmd.TenantID, blocksNum, tracesNum)
+		generateTestBlocks(t, cmd.Bucket, cmd.TenantID, blocksNum, tracesNum)
 
-		before := getAllTraceIDs(t, cmd.backendOptions.Bucket, cmd.TenantID)
+		before := getAllTraceIDs(t, cmd.Bucket, cmd.TenantID)
 
 		var expectedAfter, toRemove []string
 		for i, traceID := range before {
@@ -51,7 +51,7 @@ func TestDropTraceCmd(t *testing.T) {
 		err := cmd.Run(&globalOptions{})
 		require.NoError(t, err)
 
-		after := getAllTraceIDs(t, cmd.backendOptions.Bucket, cmd.TenantID)
+		after := getAllTraceIDs(t, cmd.Bucket, cmd.TenantID)
 
 		require.ElementsMatch(t, after, expectedAfter)
 	}
