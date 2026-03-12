@@ -256,11 +256,6 @@ distributor:
         [root_only: <boolean> | default = false]
 
     # Optional.
-    # Disables write extension with inactive ingesters. Use this along with ingester.lifecycler.unregister_on_shutdown = true
-    #  note that setting these two config values reduces tolerance to failures on rollout b/c there is always one guaranteed to be failing replica
-    [extend_writes: <bool>]
-
-    # Optional.
     # Configures the time to retry after returned to the client when Tempo returns a GRPC ResourceExhausted. This parameter
     # defaults to 0 which means that by default ResourceExhausted is not retried. Set this to a duration such as `1s` to
     # instruct the client how to retry.
@@ -315,16 +310,13 @@ Benchmark testing suggested that without compression, queriers and distributors 
 However, you may notice an increase in ingester data and network traffic especially for larger clusters.
 This increased data can impact billing for Grafana Cloud.
 
-You can configure the gRPC compression in the `querier`, `ingester`, and `metrics_generator` clients of the distributor.
+You can configure the gRPC compression in the `querier` and `metrics_generator` clients.
 
 To disable compression, remove `snappy` from the `grpc_compression` lines.
 
 To re-enable the compression, use `snappy` with the following settings:
 
 ```yaml
-ingester_client:
-  grpc_client_config:
-    grpc_compression: "snappy"
 metrics_generator_client:
   grpc_client_config:
     grpc_compression: "snappy"

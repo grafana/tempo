@@ -7,7 +7,6 @@ server:
   log_level: info
 
 distributor:
-  ingester_write_path_enabled: false
   kafka_write_path_enabled: true
   receivers:
     otlp:

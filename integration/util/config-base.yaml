@@ -25,7 +25,6 @@ query_frontend:
   rf1_after: "2025-01-01T00:00:00Z"
 
 distributor:
-  ingester_write_path_enabled: false
   kafka_write_path_enabled: true
   receivers:
     otlp:
@@ -101,7 +100,3 @@ backend_worker:
 #    kvstore:
 #       store: memberlist
 
-# the distributor still uses the ingester client timeouts when sending to kafka. this needs to be fixed for 3.0 but using
-# it for now to avoid flakes on the write path
-ingester_client:
-  remote_timeout: 30s

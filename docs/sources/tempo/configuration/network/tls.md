@@ -59,7 +59,6 @@ grpc_client_config:
 
 The configuration block needs to be set at the following configuration locations.
 
-- `ingester_client.grpc_client_config`
 - `metrics_generator_client.grpc_client_config`
 - `querier.query-frontend.grpc_client_config`
 
@@ -186,13 +185,6 @@ tempo:
                 ca_file: /tls/ca.crt
                 cert_file: /tls/tls.crt
                 key_file: /tls/tls.key
-    ingester_client:
-      grpc_client_config:
-        tls_ca_path: /tls/ca.crt
-        tls_cert_path: /tls/tls.crt
-        tls_enabled: true
-        tls_key_path: /tls/tls.key
-        tls_server_name: tempo-distributed.trace.svc.cluster.local
     cache:
       caches:
         - memcached:
