@@ -325,7 +325,7 @@ gen-proto:  ## Generate proto files
 	rm -rf $(PROTO_INTERMEDIATE_DIR)
 
 .PHONY: gen-traceql 
-gen-traceql: ## Generate traceql 
+gen-traceql: ## Generate traceql
 	docker run --rm -v${PWD}:/src/loki ${LOKI_BUILD_IMAGE} gen-traceql-local
 
 .PHONY: gen-traceql-local
