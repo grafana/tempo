@@ -138,6 +138,10 @@ func (w *Work) AddBatch(batch *tempopb.RedactionBatch) error {
 	return w.batches.add(batch)
 }
 
+// GetBatch returns a live pointer into batchStore. Callers must treat the returned
+// value as read-only; use SetBatchRescan to mutate rescan fields under the write lock.
+// TODO: return a copy or add narrower accessor methods so the read-only contract is
+// enforced by the type system rather than convention.
 func (w *Work) GetBatch(tenantID string) *tempopb.RedactionBatch {
 	return w.batches.get(tenantID)
 }
