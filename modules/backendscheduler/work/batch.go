@@ -102,11 +102,6 @@ func (b *batchStore) setRescan(tenantID string, ids []string, afterNano int64) {
 	}
 }
 
-// clearRescan zeroes the rescan fields on the batch for tenantID under the write lock.
-func (b *batchStore) clearRescan(tenantID string) {
-	b.setRescan(tenantID, nil, 0)
-}
-
 // load reads batches.pb from localPath. Missing file is not an error (clean start).
 func (b *batchStore) load(localPath string) error {
 	path := filepath.Join(localPath, batchesFileName)
