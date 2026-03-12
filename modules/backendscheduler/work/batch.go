@@ -158,10 +158,6 @@ func (w *Work) ListBatches() []*tempopb.RedactionBatch {
 	return w.batches.list()
 }
 
-func (w *Work) ClearBatchRescan(tenantID string) {
-	w.batches.clearRescan(tenantID)
-}
-
 func (w *Work) SetBatchRescan(tenantID string, skippedJobIDs []string, rescanAfterUnixNano int64) {
 	w.batches.setRescan(tenantID, skippedJobIDs, rescanAfterUnixNano)
 }
