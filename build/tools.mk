@@ -45,7 +45,7 @@ tools:
 
 tools-outdated:
 	@echo "=== [ tools-outdated   ]: Finding outdated tool deps with $(GO_MOD_OUTDATED)..."
-	@cd $(TOOL_DIR) && $(GO) list -u -m -json all | $(GO_MOD_OUTDATED) -direct -update
+	@cd $(TOOL_DIR) && $(GO) list -u -m -json all | $(GO_MOD_OUTDATED) -update
 
 tools-update:
 	@echo "=== [ tools-update     ]: Updating tools required by the project..."
