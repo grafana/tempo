@@ -157,11 +157,11 @@ tempo_metrics_generator_registry_label_cardinality_demand_estimate{}
 Use this metric to identify which labels have high cardinality, how far they exceed the configured limit, and to choose an appropriate
 `max_cardinality_per_label` value. To observe actual demand before enforcing a limit, deploy with a high `max_cardinality_per_label` value first.
 
-#### Understanding the `label_name` values in this metric
+#### Understand the `label_name` values in this metric
 
-This metric has a `label_name` label whose values represent every label tracked by the per-label cardinality limiter. These include all labels that flow through the metrics-generator registry, not just user-configured dimensions.
+The `label_name` label values represent every label tracked by the per-label cardinality limiter. These include all labels that flow through the metrics-generator registry, not just user-configured dimensions.
 
-**Built-in labels:**
+Built-in labels:
 
 | Label             | Processor      | When added                                                       | Description                                               |
 |-------------------|----------------|------------------------------------------------------------------|-----------------------------------------------------------|
@@ -175,7 +175,7 @@ This metric has a `label_name` label whose values represent every label tracked 
 | `server`          | service-graphs | Always                                                           | The server service name                                   |
 | `connection_type` | service-graphs | Always                                                           | The connection type (virtual, database, messaging_system) |
 
-**Configured labels:**
+Configured labels include:
 
 - Span-metrics dimensions are added as-is. For example, `deployment.environment` becomes `deployment_environment`.
 - Service-graphs dimensions are prefixed with `client_` and `server_` when `enable_client_server_prefix` is `true`. For example, `deployment.environment` becomes `client_deployment_environment` and `server_deployment_environment`.
