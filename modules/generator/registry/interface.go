@@ -9,8 +9,7 @@ type Registry interface {
 	NewLabelBuilder() LabelBuilder
 	// NewInfoMetricLabelBuilder returns a LabelBuilder that skips the per-label
 	// cardinality limiter and drain sanitizer.
-	// Use this for info metrics (target_info, host_info) whose labels are high cardinality by design and
-	// we include all the labels from traces
+	// Use this builder for info metrics (target_info, host_info) whose labels are high cardinality by design.
 	NewInfoMetricLabelBuilder() LabelBuilder
 	NewCounter(name string) Counter
 	NewHistogram(name string, buckets []float64, histogramOverride HistogramMode) Histogram
