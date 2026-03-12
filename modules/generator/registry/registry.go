@@ -209,11 +209,10 @@ func (r *ManagedRegistry) registerMetric(m metric) {
 	defer r.metricsMtx.Unlock()
 
 	if old, ok := r.metrics[m.name()]; ok {
-		seriesBefore := old.countActiveSeries()
+		level.Info(r.logger).Log("msg", "replacing metric, counters will be reset", "metric", m.name())
 		// Drain old series so the limiter's active count is properly decremented.
 		// Use a timestamp far in the future to force-remove all series.
 		old.removeStaleSeries(time.Now().Add(time.Hour).UnixMilli())
-		level.Info(r.logger).Log("msg", "replacing metric, counters will be reset", "metric", m.name(), "drained_series", seriesBefore)
 	}
 	r.metrics[m.name()] = m
 }
