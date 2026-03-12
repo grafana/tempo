@@ -49,7 +49,7 @@ func (t *TestRegistry) NewLabelBuilder() LabelBuilder {
 	return NewLabelBuilder(0, 0, nds, newTestLabelLimiter())
 }
 
-func (t *TestRegistry) NewLabelBuilderWithoutLimiter() LabelBuilder {
+func (t *TestRegistry) NewInfoMetricLabelBuilder() LabelBuilder {
 	return NewLabelBuilder(0, 0, noopSanitizer{}, noopLabelLimiter{})
 }
 

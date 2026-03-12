@@ -172,7 +172,7 @@ func (r *ManagedRegistry) NewLabelBuilder() LabelBuilder {
 	return NewLabelBuilder(r.cfg.MaxLabelNameLength, r.cfg.MaxLabelValueLength, r.sanitizer, r.perLabelLimiter)
 }
 
-func (r *ManagedRegistry) NewLabelBuilderWithoutLimiter() LabelBuilder {
+func (r *ManagedRegistry) NewInfoMetricLabelBuilder() LabelBuilder {
 	return NewLabelBuilder(r.cfg.MaxLabelNameLength, r.cfg.MaxLabelValueLength, noopSanitizer{}, noopLabelLimiter{})
 }
 
