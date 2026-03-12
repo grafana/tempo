@@ -24,7 +24,7 @@ type Interface interface {
 	// Pending job management (e.g. redaction queue)
 	AddPendingJobs(jobs []*Job) error
 	ListAllPendingJobs() []*Job
-	PopNextPendingJob(jobType tempopb.JobType) *Job
+	NextPendingJob(jobType tempopb.JobType) *Job
 
 	// RegisterJob registers a job before it enters the channel pipeline, making it
 	// visible to other components. Cleared automatically by AddJob when promoted to active.

@@ -104,7 +104,7 @@ func TestListAllPendingJobs(t *testing.T) {
 	require.Len(t, w.ListAllPendingJobs(), 3)
 
 	// After popping one job the count drops.
-	popped := w.PopNextPendingJob(tempopb.JobType_JOB_TYPE_REDACTION)
+	popped := w.NextPendingJob(tempopb.JobType_JOB_TYPE_REDACTION)
 	require.NotNil(t, popped)
 	require.Len(t, w.ListAllPendingJobs(), 2)
 }
@@ -124,12 +124,12 @@ func TestIsBlockBusy(t *testing.T) {
 	require.False(t, w.IsBlockBusy("tenant-b", "block-1"))
 
 	// Popping removes the block from the pending index.
-	popped := w.PopNextPendingJob(tempopb.JobType_JOB_TYPE_REDACTION)
+	popped := w.NextPendingJob(tempopb.JobType_JOB_TYPE_REDACTION)
 	require.NotNil(t, popped)
 	require.False(t, w.IsBlockBusy("tenant-a", "block-1"))
 }
 
-func TestPopNextPendingJob_DrainsPendingQueue(t *testing.T) {
+func TestNextPendingJob_DrainsPendingQueue(t *testing.T) {
 	w := New(Config{}).(*Work)
 	jobs := []*Job{
 		createRedactionJob("r-a1", "tenant-a", "block-1"),
@@ -140,7 +140,7 @@ func TestPopNextPendingJob_DrainsPendingQueue(t *testing.T) {
 
 	seen := make(map[string]bool)
 	for range 3 {
-		j := w.PopNextPendingJob(tempopb.JobType_JOB_TYPE_REDACTION)
+		j := w.NextPendingJob(tempopb.JobType_JOB_TYPE_REDACTION)
 		require.NotNil(t, j)
 		seen[j.ID] = true
 	}
@@ -148,7 +148,7 @@ func TestPopNextPendingJob_DrainsPendingQueue(t *testing.T) {
 	require.True(t, seen["r-a2"])
 	require.True(t, seen["r-b1"])
 
-	require.Nil(t, w.PopNextPendingJob(tempopb.JobType_JOB_TYPE_REDACTION))
+	require.Nil(t, w.NextPendingJob(tempopb.JobType_JOB_TYPE_REDACTION))
 	require.Empty(t, w.ListAllPendingJobs())
 }
 
@@ -197,12 +197,12 @@ func TestPendingRoundTrip_MarshalUnmarshal(t *testing.T) {
 	require.True(t, w2.IsBlockBusy("tenant-a", "block-1"))
 	require.True(t, w2.IsBlockBusy("tenant-b", "block-1"))
 
-	// pendingByTenant index rebuilt correctly (used by HasJobsForTenant and PopNextPendingJob).
+	// pendingByTenant index rebuilt correctly (used by HasJobsForTenant and NextPendingJob).
 	require.True(t, w2.HasJobsForTenant("tenant-a", tempopb.JobType_JOB_TYPE_REDACTION))
 	require.True(t, w2.HasJobsForTenant("tenant-b", tempopb.JobType_JOB_TYPE_REDACTION))
 	require.False(t, w2.HasJobsForTenant("tenant-c", tempopb.JobType_JOB_TYPE_REDACTION))
 
-	j := w2.PopNextPendingJob(tempopb.JobType_JOB_TYPE_REDACTION)
+	j := w2.NextPendingJob(tempopb.JobType_JOB_TYPE_REDACTION)
 	require.NotNil(t, j)
 	// After popping, the pending queue for this tenant is empty.
 	require.Zero(t, countPendingForTenant(w2, j.Tenant()))
@@ -235,8 +235,8 @@ func TestIsBlockBusyRunningLifecycle(t *testing.T) {
 	require.NoError(t, w.AddPendingJobs([]*Job{j}))
 	require.True(t, w.IsBlockBusy("tenant-a", "block-1"))
 
-	// 2. PopNextPendingJob → pendingBlocks cleared, runningBlocks not yet set (gap).
-	popped := w.PopNextPendingJob(tempopb.JobType_JOB_TYPE_REDACTION)
+	// 2. NextPendingJob → pendingBlocks cleared, runningBlocks not yet set (gap).
+	popped := w.NextPendingJob(tempopb.JobType_JOB_TYPE_REDACTION)
 	require.NotNil(t, popped)
 	require.False(t, w.IsBlockBusy("tenant-a", "block-1"))
 
@@ -276,7 +276,7 @@ func TestBusyBlocksForTenant(t *testing.T) {
 	require.Empty(t, w.BusyBlocksForTenant("tenant-b"))
 
 	// Popping removes the block from the pending index.
-	popped := w.PopNextPendingJob(tempopb.JobType_JOB_TYPE_REDACTION)
+	popped := w.NextPendingJob(tempopb.JobType_JOB_TYPE_REDACTION)
 	require.NotNil(t, popped)
 	// The gap between pop and RegisterJob: block is not in the snapshot.
 	require.NotContains(t, w.BusyBlocksForTenant("tenant-a"), "block-1")

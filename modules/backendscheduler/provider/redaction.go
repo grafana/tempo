@@ -65,7 +65,7 @@ func (p *RedactionProvider) Start(ctx context.Context) <-chan *work.Job {
 				level.Info(p.logger).Log("msg", "redaction provider stopping")
 				return
 			default:
-				job := p.sched.PopNextPendingJob(tempopb.JobType_JOB_TYPE_REDACTION)
+				job := p.sched.NextPendingJob(tempopb.JobType_JOB_TYPE_REDACTION)
 				if job != nil {
 					select {
 					case jobs <- job:

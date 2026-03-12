@@ -45,13 +45,13 @@ type Work struct {
 	pendingBlocks map[string]string `json:"-"`
 
 	// pendingByTenant indexes tenant -> job type -> ordered queue of job IDs for O(1)
-	// HasJobsForTenant checks and O(1) PopNextPendingJob dequeues.
+	// HasJobsForTenant checks and O(1) NextPendingJob dequeues.
 	// Not persisted; rebuilt on LoadFromLocal and Unmarshal.
 	pendingByTenant map[string]map[tempopb.JobType][]string `json:"-"`
 	pendingMtx      sync.Mutex                              `json:"-"`
 
 	// redactionInFlight counts redaction jobs per tenant that have been popped from
-	// the pending queue by PopNextPendingJob but not yet promoted to the active map
+	// the pending queue by NextPendingJob but not yet promoted to the active map
 	// via AddJob. Not persisted; reset to 0 on restart (channels are empty after
 	// restart so the count is naturally 0). Guarded by pendingMtx.
 	redactionInFlight map[string]int `json:"-"`
@@ -690,10 +690,10 @@ func (w *Work) ListAllPendingJobs() []*Job {
 	return out
 }
 
-// PopNextPendingJob removes and returns one pending job of the given type,
+// NextPendingJob removes and returns one pending job of the given type,
 // selecting from any tenant with pending work. Uses the pendingByTenant index
 // for O(tenants) selection and O(1) dequeue, skipping stale entries.
-func (w *Work) PopNextPendingJob(jobType tempopb.JobType) *Job {
+func (w *Work) NextPendingJob(jobType tempopb.JobType) *Job {
 	for {
 		w.pendingMtx.Lock()
 		var tenantID string

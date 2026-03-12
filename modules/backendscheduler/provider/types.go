@@ -16,7 +16,7 @@ type Provider interface {
 // Scheduler interface defines the methods providers need from the scheduler
 type Scheduler interface {
 	ListJobs() []*work.Job
-	PopNextPendingJob(jobType tempopb.JobType) *work.Job
+	NextPendingJob(jobType tempopb.JobType) *work.Job
 
 	// RegisterJob makes a job visible to other components before it is
 	// promoted to the active map via AddJob.
