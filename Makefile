@@ -20,7 +20,7 @@ GORELEASER := $(GOPATH)/bin/goreleaser
 # Build Images
 # https://hub.docker.com/repository/docker/grafana/tempo-ci-tools/
 # built by: .github/workflows/docker-ci-tools.yml
-TEMPO_CI_TOOLS_IMAGE ?= grafana/tempo-ci-tools:main-c2aa3e8
+TEMPO_CI_TOOLS_IMAGE ?= grafana/tempo-ci-tools:main-b5ffd5f
 DOCS_IMAGE ?= grafana/docs-base:latest
 
 # More exclusions can be added similar with: -not -path './testbed/*'
@@ -324,8 +324,6 @@ gen-proto:  ## Generate proto files
 	rm -rf $(PROTO_INTERMEDIATE_DIR)
 
 .PHONY: gen-traceql 
-gen-traceql: ## Generate traceql
-	docker run --rm -v${PWD}:/src/loki ${LOKI_BUILD_IMAGE} gen-traceql-local
 gen-traceql: tools-image ## Generate traceql
 	$(TOOLS_CMD) make gen-traceql-local
 
