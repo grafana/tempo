@@ -388,6 +388,9 @@ func TestLiveStoreQueryMethodsBeforeStarted(t *testing.T) {
 	cfg.WAL.Version = encoding.LatestEncoding().Version()
 	cfg.ShutdownMarkerDir = tmpDir
 
+	cfg.BlockConfig.RegisterFlagsAndApplyDefaults("", flag.NewFlagSet("", flag.ContinueOnError))
+	cfg.BlockConfig.Version = encoding.LatestEncoding().Version()
+
 	// Set up test Kafka configuration
 	const testTopic = "traces"
 	_, kafkaAddr := testkafka.CreateCluster(t, 1, testTopic)

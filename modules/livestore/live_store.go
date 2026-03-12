@@ -153,11 +153,10 @@ type LiveStore struct {
 }
 
 func New(cfg Config, overridesService overrides.Interface, logger log.Logger, reg prometheus.Registerer, singlePartition bool) (*LiveStore, error) {
-	completeBlockEncoding, walEncoding, encErr := coalesceBlockVersions(&cfg)
+	completeBlockEncoding, encErr := encoding.FromVersionForWrites(cfg.BlockConfig.Version)
 	if encErr != nil {
-		return nil, encErr
+		return nil, fmt.Errorf("block version validation failed: %w", encErr)
 	}
-	cfg.WAL.Version = walEncoding.Version()
 
 	ctx, cancel := context.WithCancel(context.Background())
 
@@ -765,19 +764,7 @@ func (s *LiveStore) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTa
 	})
 }
 
-// PushSpans implements tempopb.MetricsGeneratorServer
-func (s *LiveStore) PushSpans(_ context.Context, _ *tempopb.PushSpansRequest) (*tempopb.PushResponse, error) {
-	return nil, fmt.Errorf("PushSpans not implemented in livestore")
-}
-
-// GetMetrics implements tempopb.MetricsGeneratorServer
-func (s *LiveStore) GetMetrics(_ context.Context, _ *tempopb.SpanMetricsRequest) (*tempopb.SpanMetricsResponse, error) {
-	// Keep this stub until r241 is fully rolled out. After that, we can remove
-	// GetMetrics here by switching LiveStore from MetricsGenerator to MetricsService.
-	return nil, fmt.Errorf("GetMetrics not implemented in livestore")
-}
-
-// QueryRange implements tempopb.MetricsGeneratorServer
+// QueryRange implements tempopb.MetricsServer
 func (s *LiveStore) QueryRange(ctx context.Context, req *tempopb.QueryRangeRequest) (*tempopb.QueryRangeResponse, error) {
 	if s.isLagged(int64(req.End)) { // end param is already nanos, no need to convert
 		return nil, errLagged

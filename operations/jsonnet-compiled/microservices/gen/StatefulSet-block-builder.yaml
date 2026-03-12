@@ -15,6 +15,9 @@ spec:
     metadata:
       annotations:
         config_hash: a5b7fad9d4b66ac43fbbccf8f3b51ab0
+        grafana.com/rollout-mirror-replicas-from-resource-api-version: apps/v1
+        grafana.com/rollout-mirror-replicas-from-resource-kind: StatefulSet
+        grafana.com/rollout-mirror-replicas-from-resource-name: live-store-zone-a
       labels:
         app: block-builder
         name: block-builder
@@ -47,6 +50,8 @@ spec:
         volumeMounts:
         - mountPath: /conf
           name: tempo-conf
+        - mountPath: /var/tempo
+          name: block-builder-data
         - mountPath: /overrides
           name: overrides
       securityContext:
@@ -59,5 +64,8 @@ spec:
       - configMap:
           name: tempo-overrides
         name: overrides
+      - emptyDir:
+          sizeLimit: 5Gi
+        name: block-builder-data
   updateStrategy:
     type: RollingUpdate

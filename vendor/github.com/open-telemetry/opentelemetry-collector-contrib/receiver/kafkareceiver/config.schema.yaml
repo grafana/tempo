@@ -45,17 +45,11 @@ $defs:
       encoding:
         description: Encoding holds the expected encoding of messages for the signal type Defaults to "otlp_proto".
         type: string
-      exclude_topic:
-        description: 'Deprecated [v0.142.0]: Use ExcludeTopics'
-        type: string
       exclude_topics:
         description: Optional exclude topics option, used only in regex mode.
         type: array
         items:
           type: string
-      topic:
-        description: 'Deprecated [v0.142.0]: Use Topics'
-        type: string
       topics:
         description: 'Topics holds the name of the Kafka topics from which messages of the signal type should be consumed. The default depends on the signal type: - "otlp_spans" for traces - "otlp_metrics" for metrics - "otlp_logs" for logs - "otlp_profiles" for profiles'
         type: array

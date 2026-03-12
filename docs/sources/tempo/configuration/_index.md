@@ -1837,11 +1837,6 @@ The storage WAL configuration block.
 # This can result in trace not being found if the trace falls outside the slack configuration value as the
 # start and end times of the block will not be updated in this case.
 [ingestion_time_range_slack: <duration> | default = unset]
-
-# WAL file format version
-# Options: vParquet4
-# Deprecated options: v2, vParquet3
-[version: <string> | default = "vParquet4"]
 ```
 
 ## Overrides

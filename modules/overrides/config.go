@@ -105,15 +105,6 @@ type SpanMetricsOverrides struct {
 	SpanMultiplierKey            string                           `yaml:"span_multiplier_key,omitempty" json:"span_multiplier_key,omitempty"`
 }
 
-type LocalBlocksOverrides struct {
-	MaxLiveTraces        uint64        `yaml:"max_live_traces,omitempty" json:"max_live_traces,omitempty"`
-	MaxBlockDuration     time.Duration `yaml:"max_block_duration,omitempty" json:"max_block_duration,omitempty"`
-	MaxBlockBytes        uint64        `yaml:"max_block_bytes,omitempty" json:"max_block_bytes,omitempty"`
-	FlushCheckPeriod     time.Duration `yaml:"flush_check_period,omitempty" json:"flush_check_period,omitempty"`
-	TraceIdlePeriod      time.Duration `yaml:"trace_idle_period,omitempty" json:"trace_idle_period,omitempty"`
-	CompleteBlockTimeout time.Duration `yaml:"complete_block_timeout,omitempty" json:"complete_block_timeout,omitempty"`
-}
-
 type HostInfoOverrides struct {
 	HostIdentifiers []string `yaml:"host_identifiers,omitempty" json:"host_identifies,omitempty"`
 	MetricName      string   `yaml:"metric_name,omitempty" json:"metric_name,omitempty"`
@@ -122,7 +113,6 @@ type HostInfoOverrides struct {
 type ProcessorOverrides struct {
 	ServiceGraphs ServiceGraphsOverrides `yaml:"service_graphs,omitempty" json:"service_graphs,omitempty"`
 	SpanMetrics   SpanMetricsOverrides   `yaml:"span_metrics,omitempty" json:"span_metrics,omitempty"`
-	LocalBlocks   LocalBlocksOverrides   `yaml:"local_blocks,omitempty" json:"local_blocks,omitempty"`
 	HostInfo      HostInfoOverrides      `yaml:"host_info,omitempty" json:"host_info,omitempty"`
 }
 

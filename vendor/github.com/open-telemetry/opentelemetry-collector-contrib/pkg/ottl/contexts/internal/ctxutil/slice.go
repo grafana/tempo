@@ -23,7 +23,7 @@ var (
 	errMissingGetKey = errors.New("cannot get slice value without key")
 )
 
-func getSliceIndexFromKeys[K any](ctx context.Context, tCtx K, sliceLen int, keys []ottl.Key[K]) (int, error) {
+func GetSliceIndexFromKeys[K any](ctx context.Context, tCtx K, sliceLen int, keys []ottl.Key[K]) (int, error) {
 	i, err := keys[0].Int(ctx, tCtx)
 	if err != nil {
 		return 0, err
@@ -50,7 +50,7 @@ func GetSliceValue[K any](ctx context.Context, tCtx K, s pcommon.Slice, keys []o
 		return 0, errMissingGetKey
 	}
 
-	idx, err := getSliceIndexFromKeys(ctx, tCtx, s.Len(), keys)
+	idx, err := GetSliceIndexFromKeys(ctx, tCtx, s.Len(), keys)
 	if err != nil {
 		return nil, err
 	}
@@ -63,7 +63,7 @@ func SetSliceValue[K any](ctx context.Context, tCtx K, s pcommon.Slice, keys []o
 		return errMissingSetKey
 	}
 
-	idx, err := getSliceIndexFromKeys(ctx, tCtx, s.Len(), keys)
+	idx, err := GetSliceIndexFromKeys(ctx, tCtx, s.Len(), keys)
 	if err != nil {
 		return err
 	}
@@ -92,7 +92,7 @@ func GetCommonTypedSliceValue[K, V any](ctx context.Context, tCtx K, s CommonTyp
 		return *new(V), fmt.Errorf(typeNotIndexableError, s)
 	}
 
-	idx, err := getSliceIndexFromKeys(ctx, tCtx, s.Len(), keys)
+	idx, err := GetSliceIndexFromKeys(ctx, tCtx, s.Len(), keys)
 	if err != nil {
 		return *new(V), err
 	}
@@ -110,7 +110,7 @@ func SetCommonTypedSliceValue[K, V any](ctx context.Context, tCtx K, s CommonTyp
 		return fmt.Errorf(typeNotIndexableError, s)
 	}
 
-	idx, err := getSliceIndexFromKeys(ctx, tCtx, s.Len(), keys)
+	idx, err := GetSliceIndexFromKeys(ctx, tCtx, s.Len(), keys)
 	if err != nil {
 		return err
 	}
