@@ -47,6 +47,7 @@
 * [ENHANCEMENT] Remove explicit `runtime.GC()` calls in vParquet5 compactor/block creation and CLI [#6603](https://github.com/grafana/tempo/pull/6603) (@oleg-kozlyuk-grafana)
 * [BUGFIX] fix(traceql): err on division by zero [#6580](https://github.com/grafana/tempo/pull/6580) (@Proximyst)
 * [CHANGE] jsonnet: Add emptyDir data volume to block-builder StatefulSet [#6648](https://github.com/grafana/tempo/pull/6648) (@mapno)
+* [BUGFIX] fix: correct block-builder fetch metrics to use counters instead of gauges.
 
 ### 3.0 Cleanup
 
