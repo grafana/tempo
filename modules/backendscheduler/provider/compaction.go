@@ -166,7 +166,9 @@ func (p *CompactionProvider) Start(ctx context.Context) <-chan *work.Job {
 			// Re-check after job creation: a batch may have been submitted while we were
 			// draining the selector that was built before the submission. Discard the job
 			// before it enters the recent-jobs cache or the channel.
-			if p.sched.HasJobsForTenant(p.curTenant.Value(), tempopb.JobType_JOB_TYPE_REDACTION) || p.sched.TenantPending(p.curTenant.Value()) {
+			// TenantPending is true for the full batch lifetime (submission → cleanup),
+			// which subsumes the HasJobsForTenant(REDACTION) condition.
+			if p.sched.TenantPending(p.curTenant.Value()) {
 				level.Info(p.logger).Log("msg", "redaction batch submitted for tenant since selector was built; abandoning remaining compaction jobs", "tenant", p.curTenant.Value())
 				span.AddEvent("tenant has active redaction batch")
 				reset()
@@ -403,7 +405,7 @@ func (p *CompactionProvider) newBlockSelector(tenantID string) (blockselector.Co
 	// covered by any pending redaction job. This guarantees that at most one rescan
 	// is needed per batch: once the originally-skipped compaction jobs finish and
 	// the rescan fires, no further compaction can have created uncovered blocks.
-	if p.sched.HasJobsForTenant(tenantID, tempopb.JobType_JOB_TYPE_REDACTION) || p.sched.TenantPending(tenantID) {
+	if p.sched.TenantPending(tenantID) {
 		return blockselector.NewTimeWindowBlockSelector(nil,
 			p.cfg.Compactor.MaxCompactionRange,
 			p.cfg.Compactor.MaxCompactionObjects,
