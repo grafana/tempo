@@ -2,6 +2,7 @@ package registry
 
 import (
 	"context"
+	"math"
 	"os"
 	"sync"
 	"time"
@@ -222,8 +223,10 @@ func (r *ManagedRegistry) registerMetric(m metric) {
 	r.metricsMtx.Lock()
 	defer r.metricsMtx.Unlock()
 
-	if _, ok := r.metrics[m.name()]; ok {
+	if old, ok := r.metrics[m.name()]; ok {
 		level.Info(r.logger).Log("msg", "replacing metric, counters will be reset", "metric", m.name())
+		// Drain old series so the limiter's active count is properly decremented.
+		old.removeStaleSeries(math.MaxInt64)
 	}
 	r.metrics[m.name()] = m
 }
