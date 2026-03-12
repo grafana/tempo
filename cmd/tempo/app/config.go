@@ -18,7 +18,6 @@ import (
 	"github.com/grafana/tempo/modules/generator"
 	generator_client "github.com/grafana/tempo/modules/generator/client"
 	"github.com/grafana/tempo/modules/ingester"
-	ingester_client "github.com/grafana/tempo/modules/ingester/client"
 	"github.com/grafana/tempo/modules/livestore"
 	livestore_client "github.com/grafana/tempo/modules/livestore/client"
 	"github.com/grafana/tempo/modules/overrides"
@@ -55,7 +54,6 @@ type Config struct {
 	Server                server.Config                  `yaml:"server,omitempty"`
 	InternalServer        internalserver.Config          `yaml:"internal_server,omitempty"`
 	Distributor           distributor.Config             `yaml:"distributor,omitempty"`
-	IngesterClient        ingester_client.Config         `yaml:"ingester_client,omitempty"`
 	GeneratorClient       generator_client.Config        `yaml:"metrics_generator_client,omitempty"`
 	LiveStoreClient       livestore_client.Config        `yaml:"live_store_client,omitempty"`
 	Querier               querier.Config                 `yaml:"querier,omitempty"`
@@ -144,8 +142,6 @@ func (c *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
 	// Everything else
 	flagext.DefaultValues(&c.LiveStoreClient)
 	c.LiveStoreClient.GRPCClientConfig.GRPCCompression = defaultGRPCCompression
-	flagext.DefaultValues(&c.IngesterClient)
-	c.IngesterClient.GRPCClientConfig.GRPCCompression = defaultGRPCCompression
 	flagext.DefaultValues(&c.GeneratorClient)
 	c.GeneratorClient.GRPCClientConfig.GRPCCompression = defaultGRPCCompression
 	flagext.DefaultValues(&c.BackenSchedulerClient)

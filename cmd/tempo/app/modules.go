@@ -249,13 +249,10 @@ func (t *App) initOverridesAPI() (services.Service, error) {
 
 func (t *App) initDistributor() (services.Service, error) {
 	t.cfg.Distributor.KafkaConfig = t.cfg.Ingest.Kafka
-	t.cfg.Distributor.IngesterWritePathEnabled = false
 	t.cfg.Distributor.KafkaWritePathEnabled = t.cfg.Ingest.Enabled // TODO: Don't mix config params
 
 	// todo: make write-path client a module instead of passing the config everywhere
 	distributor, err := distributor.New(t.cfg.Distributor,
-		t.cfg.IngesterClient,
-		t.readRings[ringLiveStore],
 		t.cfg.GeneratorClient,
 		t.readRings[ringMetricsGenerator],
 		t.partitionRing,
@@ -762,7 +759,7 @@ func (t *App) setupModuleManager() error {
 
 		// individual targets
 		QueryFrontend:                 {Common, Store, OverridesAPI},
-		Distributor:                   {Common, LiveStoreRing, MetricsGeneratorRing, PartitionRing},
+		Distributor:                   {Common, MetricsGeneratorRing, PartitionRing},
 		MetricsGenerator:              {Common, MemberlistKV, PartitionRing},
 		MetricsGeneratorNoLocalBlocks: {Common, GeneratorRingWatcher},
 		Querier:                       {Common, Store, LiveStoreRing, PartitionRing},
