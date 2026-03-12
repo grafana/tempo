@@ -7,6 +7,10 @@ import (
 // Registry is a metrics store.
 type Registry interface {
 	NewLabelBuilder() LabelBuilder
+	// NewInfoMetricLabelBuilder returns a LabelBuilder that skips the per-label
+	// cardinality limiter and drain sanitizer.
+	// Use this builder for info metrics (target_info, host_info) whose labels are high cardinality by design.
+	NewInfoMetricLabelBuilder() LabelBuilder
 	NewCounter(name string) Counter
 	NewHistogram(name string, buckets []float64, histogramOverride HistogramMode) Histogram
 	NewGauge(name string) Gauge

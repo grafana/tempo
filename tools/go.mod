@@ -2,15 +2,17 @@ module github.com/grafana/tempo/tools
 
 go 1.26.0
 
-require (
-	github.com/golangci/golangci-lint/v2 v2.10.1
-	github.com/google/go-jsonnet v0.21.0
-	github.com/grafana/tanka v0.36.3
-	github.com/jsonnet-bundler/jsonnet-bundler v0.6.0
-	github.com/psampaz/go-mod-outdated v0.9.0
-	golang.org/x/tools v0.42.0
-	gotest.tools/gotestsum v1.13.0
-	mvdan.cc/gofumpt v0.9.2
+tool (
+	github.com/golangci/golangci-lint/v2/cmd/golangci-lint
+	github.com/google/go-jsonnet/cmd/jsonnet
+	github.com/google/go-jsonnet/cmd/jsonnetfmt
+	github.com/grafana/tanka/cmd/tk
+	github.com/jsonnet-bundler/jsonnet-bundler/cmd/jb
+	github.com/psampaz/go-mod-outdated
+	golang.org/x/tools/cmd/goimports
+	golang.org/x/tools/cmd/goyacc
+	gotest.tools/gotestsum
+	mvdan.cc/gofumpt
 )
 
 require (
@@ -106,6 +108,7 @@ require (
 	github.com/golangci/dupl v0.0.0-20250308024227-f665c8d69b32 // indirect
 	github.com/golangci/go-printf-func-name v0.1.1 // indirect
 	github.com/golangci/gofmt v0.0.0-20250106114630-d62b90e6713d // indirect
+	github.com/golangci/golangci-lint/v2 v2.10.1 // indirect
 	github.com/golangci/golines v0.15.0 // indirect
 	github.com/golangci/misspell v0.8.0 // indirect
 	github.com/golangci/plugin-module-register v0.1.2 // indirect
@@ -113,6 +116,7 @@ require (
 	github.com/golangci/swaggoswag v0.0.0-20250504205917-77f2aca3143e // indirect
 	github.com/golangci/unconvert v0.0.0-20250410112200-a129a6e6413e // indirect
 	github.com/google/go-cmp v0.7.0 // indirect
+	github.com/google/go-jsonnet v0.21.0 // indirect
 	github.com/google/shlex v0.0.0-20191202100458-e7afc7fbc510 // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/gordonklaus/ineffassign v0.2.0 // indirect
@@ -120,6 +124,7 @@ require (
 	github.com/gostaticanalysis/comment v1.5.0 // indirect
 	github.com/gostaticanalysis/forcetypeassert v0.2.0 // indirect
 	github.com/gostaticanalysis/nilerr v0.1.2 // indirect
+	github.com/grafana/tanka v0.36.3 // indirect
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.27.2 // indirect
 	github.com/hashicorp/errwrap v1.1.0 // indirect
 	github.com/hashicorp/go-immutable-radix/v2 v2.1.0 // indirect
@@ -133,6 +138,7 @@ require (
 	github.com/jgautheron/goconst v1.8.2 // indirect
 	github.com/jingyugao/rowserrcheck v1.1.1 // indirect
 	github.com/jjti/go-spancheck v0.6.5 // indirect
+	github.com/jsonnet-bundler/jsonnet-bundler v0.6.0 // indirect
 	github.com/julz/importas v0.2.0 // indirect
 	github.com/karamaru-alpha/copyloopvar v1.2.2 // indirect
 	github.com/kisielk/errcheck v1.9.0 // indirect
@@ -180,6 +186,7 @@ require (
 	github.com/prometheus/client_model v0.2.0 // indirect
 	github.com/prometheus/common v0.32.1 // indirect
 	github.com/prometheus/procfs v0.7.3 // indirect
+	github.com/psampaz/go-mod-outdated v0.9.0 // indirect
 	github.com/quasilyte/go-ruleguard v0.4.5 // indirect
 	github.com/quasilyte/go-ruleguard/dsl v0.3.23 // indirect
 	github.com/quasilyte/gogrep v0.5.0 // indirect
@@ -253,6 +260,7 @@ require (
 	golang.org/x/telemetry v0.0.0-20260209163413-e7419c687ee4 // indirect
 	golang.org/x/term v0.40.0 // indirect
 	golang.org/x/text v0.34.0 // indirect
+	golang.org/x/tools v0.42.0 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20250825161204-c5933d9347a5 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20250825161204-c5933d9347a5 // indirect
 	google.golang.org/grpc v1.75.0 // indirect
@@ -261,10 +269,12 @@ require (
 	gopkg.in/ini.v1 v1.67.0 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
+	gotest.tools/gotestsum v1.13.0 // indirect
 	honnef.co/go/tools v0.7.0 // indirect
 	k8s.io/apimachinery v0.34.3 // indirect
 	k8s.io/klog/v2 v2.130.1 // indirect
 	k8s.io/utils v0.0.0-20251002143259-bc988d571ff4 // indirect
+	mvdan.cc/gofumpt v0.9.2 // indirect
 	mvdan.cc/unparam v0.0.0-20251027182757-5beb8c8f8f15 // indirect
 	sigs.k8s.io/yaml v1.6.0 // indirect
 )

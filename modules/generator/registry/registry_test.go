@@ -12,6 +12,8 @@ import (
 
 	"github.com/go-kit/log"
 	"github.com/grafana/tempo/modules/overrides/histograms"
+	"github.com/prometheus/client_golang/prometheus"
+	io_prometheus_client "github.com/prometheus/client_model/go"
 	"github.com/prometheus/prometheus/model/labels"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -485,6 +487,7 @@ type mockOverrides struct {
 	nativeHistogramBucketFactor     float64
 	nativeHistogramMinResetDuration time.Duration
 	maxCardinalityPerLabel          uint64
+	spanNameSanitization            string
 }
 
 var _ Overrides = (*mockOverrides)(nil)
@@ -526,6 +529,9 @@ func (m *mockOverrides) MetricsGeneratorNativeHistogramMinResetDuration(string) 
 }
 
 func (m *mockOverrides) MetricsGeneratorSpanNameSanitization(string) string {
+	if m.spanNameSanitization != "" {
+		return m.spanNameSanitization
+	}
 	return SpanNameSanitizationDisabled
 }
 
@@ -872,4 +878,86 @@ func TestManagedRegistry_cardinalitySanitizer(t *testing.T) {
 	// Verify active series: 10 pre-overflow series + 1 collapsed overflow series = 11
 	activeSeries := reg.activeSeries()
 	require.Equal(t, uint32(11), activeSeries, "10 pre-overflow + 1 overflow series")
+}
+
+// TestManagedRegistry_InfoMetricLabelsNotInDemandEstimate verifies that labels from
+// info metrics (target_info, host_info) do not appear in the label_cardinality_demand_estimate metric.
+// Only labels from span-metrics and service-graphs (via NewLabelBuilder) should be tracked.
+func TestManagedRegistry_InfoMetricLabelsNotInDemandEstimate(t *testing.T) {
+	tenant := "test-demand"
+	cfg := &Config{
+		StaleDuration: 15 * time.Minute,
+	}
+	reg := New(cfg, &mockOverrides{
+		maxCardinalityPerLabel: 100,
+	}, tenant, &noopAppender{}, log.NewNopLogger(), noopLimiter)
+	defer reg.Close()
+
+	spanMetricsCounter := reg.NewCounter("span_metrics_calls_total")
+	targetInfoGauge := reg.NewGauge("target_info")
+	hostInfoGauge := reg.NewGauge("host_info")
+
+	// Simulate span-metrics data through NewLabelBuilder (per-label limiter active)
+	for i := 0; i < 10; i++ {
+		b := reg.NewLabelBuilder()
+		b.Add("service", fmt.Sprintf("svc-%d", i))
+		b.Add("span_name", fmt.Sprintf("GET /api/%d", i))
+		lbls, _ := b.CloseAndBuildLabels()
+		spanMetricsCounter.Inc(lbls, 1.0)
+	}
+
+	// Simulate target_info data through NewInfoMetricLabelBuilder (limiter bypassed)
+	for i := 0; i < 10; i++ {
+		b := reg.NewInfoMetricLabelBuilder()
+		b.Add("grafana_host_id", fmt.Sprintf("host-%d", i))
+		b.Add("k8s_pod_name", fmt.Sprintf("pod-%d", i))
+		b.Add("ci_github_workflow_job_id", fmt.Sprintf("job-%d", i))
+		lbls, _ := b.CloseAndBuildLabels()
+		targetInfoGauge.SetForTargetInfo(lbls, 1)
+	}
+
+	// Simulate host_info data through NewInfoMetricLabelBuilder (limiter bypassed)
+	for i := 0; i < 10; i++ {
+		b := reg.NewInfoMetricLabelBuilder()
+		b.Add("grafana_host_id", fmt.Sprintf("host-%d", i))
+		b.Add("host_source", "k8s.node.name")
+		lbls, _ := b.CloseAndBuildLabels()
+		hostInfoGauge.Set(lbls, 1)
+	}
+
+	// Trigger demand update so the limiter publishes the demand estimate metric
+	triggerDemandUpdate(reg.perLabelLimiter.(*PerLabelLimiter))
+
+	trackedLabels := collectDemandEstimateLabels(t, tenant)
+
+	// Only span-metrics labels should be present - no info metric labels at all
+	require.Len(t, trackedLabels, 2, "demand estimate should only contain span-metrics labels")
+	require.Equal(t, float64(10), trackedLabels["service"], "service should have demand of 10")
+	require.Equal(t, float64(10), trackedLabels["span_name"], "span_name should have demand of 10")
+}
+
+// collectDemandEstimateLabels returns all label_name -> demand values from the
+// tempo_metrics_generator_registry_label_cardinality_demand_estimate metric for the given tenant.
+func collectDemandEstimateLabels(t *testing.T, tenant string) map[string]float64 {
+	result := map[string]float64{}
+	ch := make(chan prometheus.Metric, 100)
+	metricLabelCardinalityDemand.Collect(ch)
+	close(ch)
+	for m := range ch {
+		var g io_prometheus_client.Metric
+		require.NoError(t, m.Write(&g))
+		var metricTenant, labelName string
+		for _, lbl := range g.GetLabel() {
+			switch lbl.GetName() {
+			case "tenant":
+				metricTenant = lbl.GetValue()
+			case "label_name":
+				labelName = lbl.GetValue()
+			}
+		}
+		if metricTenant == tenant {
+			result[labelName] = g.GetGauge().GetValue()
+		}
+	}
+	return result
 }
