@@ -42,33 +42,33 @@ type Work struct {
 
 	// pendingBlocks indexes (tenantID, blockID) -> jobID for fast pending-block lookup.
 	// Not persisted; rebuilt on LoadFromLocal and in Unmarshal from Shard.Pending.
-	pendingBlocks map[string]string `json:"-"`
+	pendingBlocks map[string]string
 
 	// pendingByTenant indexes tenant -> job type -> ordered queue of job IDs for O(1)
 	// HasJobsForTenant checks and O(1) NextPendingJob dequeues.
 	// Not persisted; rebuilt on LoadFromLocal and Unmarshal.
-	pendingByTenant map[string]map[tempopb.JobType][]string `json:"-"`
-	pendingMtx      sync.Mutex                              `json:"-"`
+	pendingByTenant map[string]map[tempopb.JobType][]string
+	pendingMtx      sync.Mutex
 
 	// redactionInFlight counts redaction jobs per tenant that have been popped from
 	// the pending queue by NextPendingJob but not yet promoted to the active map
 	// via AddJob. Not persisted; reset to 0 on restart (channels are empty after
 	// restart so the count is naturally 0). Guarded by pendingMtx.
-	redactionInFlight map[string]int `json:"-"`
+	redactionInFlight map[string]int
 
 	// registeredJobs tracks jobs registered by providers before they enter the channel
 	// pipeline. Cleared in AddJob when the job is promoted to active. Not persisted.
 	// Guarded by pendingMtx.
-	registeredJobs map[string]*Job `json:"-"`
+	registeredJobs map[string]*Job
 
 	// runningBlocks indexes (tenantID, blockID) -> *Job for every block referenced
 	// by a registered or active job. Populated by RegisterJob; entries persist until
 	// CompleteJob or FailJob. Guarded by pendingMtx. Not persisted; rebuilt by
 	// rebuildPendingIndexes after loading the work cache.
-	runningBlocks map[string]*Job `json:"-"`
+	runningBlocks map[string]*Job
 
 	// batches holds the active redaction batch per tenant (trace ID list shared across jobs).
-	batches *batchStore `json:"-"`
+	batches *batchStore
 }
 
 func New(cfg Config) Interface {
