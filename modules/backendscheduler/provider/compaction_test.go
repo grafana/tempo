@@ -241,6 +241,13 @@ func TestCompactionProvider_SkipsAllCompactionDuringRedaction(t *testing.T) {
 		},
 	}
 	require.NoError(t, w.AddPendingJobs(pendingJobs))
+	// In production, pending redaction jobs are always accompanied by a batch.
+	// TenantPending (the compaction guard) checks for an active batch, so the test
+	// must add one to match the production invariant.
+	require.NoError(t, w.AddBatch(&tempopb.RedactionBatch{
+		BatchId:  "batch-1",
+		TenantId: testTenant,
+	}))
 
 	limits, err := overrides.NewOverrides(overrides.Config{Defaults: overrides.Overrides{}}, nil, prometheus.DefaultRegisterer)
 	require.NoError(t, err)
@@ -253,8 +260,8 @@ func TestCompactionProvider_SkipsAllCompactionDuringRedaction(t *testing.T) {
 		w,
 	)
 
-	// When redaction jobs exist the gate fires: all compaction is blocked, not just
-	// the two specific blocks.
+	// When a redaction batch is active the gate fires: all compaction is blocked,
+	// not just the two specific blocks.
 	selector, blocklistLen := p.newBlockSelector(testTenant)
 	require.NotNil(t, selector)
 	require.Equal(t, 0, blocklistLen, "all compaction should be blocked while redaction jobs exist")
