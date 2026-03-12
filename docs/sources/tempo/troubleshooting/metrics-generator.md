@@ -159,7 +159,8 @@ Use this metric to identify which labels have high cardinality, how far they exc
 
 #### Understand the `label_name` values in this metric
 
-The `label_name` label values represent every label tracked by the per-label cardinality limiter. These include all labels that flow through the metrics-generator registry, not just user-configured dimensions.
+The `label_name` label values represent every label tracked by the per-label cardinality limiter.
+These include all labels that flow through the metrics-generator registry, not just user-configured dimensions.
 
 Built-in labels:
 
@@ -177,8 +178,10 @@ Built-in labels:
 
 Configured labels include:
 
-- Span-metrics dimensions are added as-is. For example, `deployment.environment` becomes `deployment_environment`.
-- Service-graphs dimensions are prefixed with `client_` and `server_` when `enable_client_server_prefix` is `true`. For example, `deployment.environment` becomes `client_deployment_environment` and `server_deployment_environment`.
+- Span-metrics dimensions are added as-is.
+  For example, `deployment.environment` becomes `deployment_environment`.
+- Service-graphs dimensions are prefixed with `client_` and `server_` when `enable_client_server_prefix` is `true`.
+  For example, `deployment.environment` becomes `client_deployment_environment` and `server_deployment_environment`.
 - A configured dimension only appears if the corresponding attribute exists on incoming spans.
 
 Configure the per-label cardinality limit:
