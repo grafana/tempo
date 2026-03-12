@@ -86,6 +86,16 @@ var _ Registry = (*ManagedRegistry)(nil)
 
 var OverflowEntity = labels.FromStrings("metric_overflow", "true")
 
+// noopLabelLimiter is a LabelLimiter that passes labels through unchanged.
+type noopLabelLimiter struct{}
+
+func (noopLabelLimiter) Limit(lbls labels.Labels) labels.Labels { return lbls }
+
+// noopSanitizer is a Sanitizer that passes labels through unchanged.
+type noopSanitizer struct{}
+
+func (noopSanitizer) Sanitize(lbls labels.Labels) labels.Labels { return lbls }
+
 // Limiter is used to limit the memory consumption of the registry.
 type Limiter interface {
 	// OnAdd is called when a new entity is created. It accepts the labels and returns
@@ -160,6 +170,10 @@ func New(cfg *Config, overrides Overrides, tenant string, appendable storage.App
 
 func (r *ManagedRegistry) NewLabelBuilder() LabelBuilder {
 	return NewLabelBuilder(r.cfg.MaxLabelNameLength, r.cfg.MaxLabelValueLength, r.sanitizer, r.perLabelLimiter)
+}
+
+func (r *ManagedRegistry) NewInfoMetricLabelBuilder() LabelBuilder {
+	return NewLabelBuilder(r.cfg.MaxLabelNameLength, r.cfg.MaxLabelValueLength, noopSanitizer{}, noopLabelLimiter{})
 }
 
 func (r *ManagedRegistry) OnAdd(labelHash uint64, seriesCount uint32, lbls labels.Labels) (labels.Labels, uint64) {
