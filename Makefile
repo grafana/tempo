@@ -18,7 +18,6 @@ GOPATH := $(shell go env GOPATH)
 GORELEASER := $(GOPATH)/bin/goreleaser
 
 # Build Images
-LOKI_BUILD_IMAGE ?= grafana/loki-build-image:0.34.6
 # https://hub.docker.com/repository/docker/grafana/tempo-ci-tools/
 # built by: .github/workflows/docker-ci-tools.yml
 TEMPO_CI_TOOLS_IMAGE ?= grafana/tempo-ci-tools:main-c2aa3e8
@@ -327,6 +326,8 @@ gen-proto:  ## Generate proto files
 .PHONY: gen-traceql 
 gen-traceql: ## Generate traceql
 	docker run --rm -v${PWD}:/src/loki ${LOKI_BUILD_IMAGE} gen-traceql-local
+gen-traceql: tools-image ## Generate traceql
+	$(TOOLS_CMD) make gen-traceql-local
 
 .PHONY: gen-traceql-local
 gen-traceql-local: ## Generate traceq local
