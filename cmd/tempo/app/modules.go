@@ -64,7 +64,6 @@ const (
 	CacheProvider  string = "cache-provider"
 
 	// rings
-	MetricsGeneratorRing string = "metrics-generator-ring"
 	LiveStoreRing        string = "live-store-ring"
 	PartitionRing        string = "partition-ring"
 	GeneratorRingWatcher string = "generator-ring-watcher"
@@ -84,8 +83,7 @@ const (
 	SingleBinary string = "all"
 
 	// ring names
-	ringMetricsGenerator string = "metrics-generator"
-	ringLiveStore        string = "live-store"
+	ringLiveStore string = "live-store"
 )
 
 func IsSingleBinary(target string) bool {
@@ -152,10 +150,6 @@ func (t *App) initInternalServer() (services.Service, error) {
 	s := NewServerService(t.InternalServer, servicesToWaitFor)
 
 	return s, nil
-}
-
-func (t *App) initGeneratorRing() (services.Service, error) {
-	return t.initReadRing(t.cfg.Generator.Ring.ToRingConfig(), ringMetricsGenerator, t.cfg.Generator.OverrideRingKey)
 }
 
 func (t *App) initLiveStoreRing() (services.Service, error) {
@@ -248,13 +242,26 @@ func (t *App) initOverridesAPI() (services.Service, error) {
 }
 
 func (t *App) initDistributor() (services.Service, error) {
+	singleBinary := IsSingleBinary(t.cfg.Target)
+
 	t.cfg.Distributor.KafkaConfig = t.cfg.Ingest.Kafka
-	t.cfg.Distributor.KafkaWritePathEnabled = t.cfg.Ingest.Enabled // TODO: Don't mix config params
+	t.cfg.Distributor.PushSpansToKafka = true
+
+	var pushSpansToLocalGenerator distributor.PushSpansFunc
+	if singleBinary {
+		pushSpansToLocalGenerator = func(ctx context.Context, req *tempopb.PushSpansRequest) (*tempopb.PushResponse, error) {
+			if t.generator == nil {
+				return nil, errors.New("metrics-generator not initialized")
+			}
+			return t.generator.PushSpans(ctx, req)
+		}
+	}
 
 	// todo: make write-path client a module instead of passing the config everywhere
 	distributor, err := distributor.New(t.cfg.Distributor,
-		t.cfg.GeneratorClient,
-		t.readRings[ringMetricsGenerator],
+		t.cfg.IngesterClient,
+		t.readRings[ringLiveStore],
+		pushSpansToLocalGenerator,
 		t.partitionRing,
 		t.Overrides,
 		t.TracesConsumerMiddleware,
@@ -276,7 +283,7 @@ func (t *App) initDistributor() (services.Service, error) {
 }
 
 func (t *App) initGenerator() (services.Service, error) {
-	t.cfg.Generator.Ring.ListenPort = t.cfg.Server.GRPCListenPort
+	t.cfg.Generator.ConsumeFromKafka = !IsSingleBinary(t.cfg.Target)
 
 	t.cfg.Generator.Ingest = t.cfg.Ingest
 	t.cfg.Generator.Ingest.Kafka.ConsumerGroup = generator.ConsumerGroup
@@ -291,16 +298,6 @@ func (t *App) initGenerator() (services.Service, error) {
 	}
 	t.generator = genSvc
 
-	spanStatsHandler := t.HTTPAuthMiddleware.Wrap(http.HandlerFunc(t.generator.SpanMetricsHandler))
-	t.Server.HTTPRouter().Handle(path.Join(api.PathPrefixGenerator, addHTTPAPIPrefix(&t.cfg, api.PathSpanMetrics)), spanStatsHandler)
-
-	queryRangeHandler := t.HTTPAuthMiddleware.Wrap(http.HandlerFunc(t.generator.QueryRangeHandler))
-	t.Server.HTTPRouter().Handle(path.Join(api.PathPrefixGenerator, addHTTPAPIPrefix(&t.cfg, api.PathMetricsQueryRange)), queryRangeHandler)
-
-	if !IsSingleBinary(t.cfg.Target) {
-		tempopb.RegisterMetricsGeneratorServer(t.Server.GRPC(), t.generator) // todo: this can be removed before 3.0 but needs to exist as long as we have any deployments anywhere on the traditional arch
-	}
-
 	return t.generator, nil
 }
 
@@ -308,15 +305,7 @@ func (t *App) initGeneratorNoLocalBlocks() (services.Service, error) {
 	reg := prometheus.DefaultRegisterer
 
 	t.cfg.Generator.Ingest = t.cfg.Ingest
-
-	// In this mode, the generator runs as a stateless queue consumer that reads from
-	// Kafka and remote writes to a Prometheus-compatible metrics store.
-	if !t.cfg.Ingest.Enabled {
-		return nil, errors.New("ingest storage must be enabled to run metrics generator in this mode")
-	}
-	// In this mode, the generator does not need to become available to serve
-	// queries, so we can skip setting up a gRPC server.
-	t.cfg.Generator.DisableGRPC = true
+	t.cfg.Generator.ConsumeFromKafka = true
 
 	var err error
 	t.generator, err = generator.New(&t.cfg.Generator, t.Overrides, reg, t.generatorRingWatcher, log.Logger)
@@ -353,10 +342,6 @@ func (t *App) initGeneratorRingWatcher() (services.Service, error) {
 }
 
 func (t *App) initBlockBuilder() (services.Service, error) {
-	if !t.cfg.Ingest.Enabled {
-		return services.NewIdleService(nil, nil), nil
-	}
-
 	t.cfg.BlockBuilder.IngestStorageConfig = t.cfg.Ingest
 	t.cfg.BlockBuilder.IngestStorageConfig.Kafka.ConsumerGroup = blockbuilder.ConsumerGroup
 	// Block config and WAL version are always sourced from storage.trace.block.
@@ -674,10 +659,6 @@ func (t *App) initBackendWorker() (services.Service, error) {
 }
 
 func (t *App) initLiveStore() (services.Service, error) {
-	if !t.cfg.Ingest.Enabled {
-		return services.NewIdleService(nil, nil), nil
-	}
-
 	// In SingleBinary mode don't try to discover partition from host name.
 	// Always use partition 0. This is for small installs or local/debugging setups.
 	singlePartition := IsSingleBinary(t.cfg.Target)
@@ -722,7 +703,6 @@ func (t *App) setupModuleManager() error {
 	mm.RegisterModule(OverridesAPI, t.initOverridesAPI)
 	mm.RegisterModule(UsageReport, t.initUsageReport)
 	mm.RegisterModule(CacheProvider, t.initCacheProvider, modules.UserInvisibleModule)
-	mm.RegisterModule(MetricsGeneratorRing, t.initGeneratorRing, modules.UserInvisibleModule)
 	mm.RegisterModule(GeneratorRingWatcher, t.initGeneratorRingWatcher, modules.UserInvisibleModule)
 	mm.RegisterModule(LiveStoreRing, t.initLiveStoreRing, modules.UserInvisibleModule)
 	mm.RegisterModule(PartitionRing, t.initPartitionRing, modules.UserInvisibleModule)
@@ -750,7 +730,6 @@ func (t *App) setupModuleManager() error {
 		OverridesAPI:         {Server, Overrides},
 		MemberlistKV:         {Server},
 		UsageReport:          {MemberlistKV},
-		MetricsGeneratorRing: {Server, MemberlistKV},
 		LiveStoreRing:        {Server, MemberlistKV},
 		PartitionRing:        {MemberlistKV, Server, LiveStoreRing},
 		GeneratorRingWatcher: {MemberlistKV},
@@ -759,7 +738,7 @@ func (t *App) setupModuleManager() error {
 
 		// individual targets
 		QueryFrontend:                 {Common, Store, OverridesAPI},
-		Distributor:                   {Common, MetricsGeneratorRing, PartitionRing},
+		Distributor:                   {Common, LiveStoreRing, PartitionRing},
 		MetricsGenerator:              {Common, MemberlistKV, PartitionRing},
 		MetricsGeneratorNoLocalBlocks: {Common, GeneratorRingWatcher},
 		Querier:                       {Common, Store, LiveStoreRing, PartitionRing},

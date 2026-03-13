@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/grafana/dskit/flagext"
+	ring_client "github.com/grafana/dskit/ring/client"
 	"github.com/grafana/tempo/pkg/ingest"
 
 	"github.com/grafana/tempo/modules/distributor/forwarder"
@@ -41,12 +42,25 @@ type Config struct {
 	Forwarders          forwarder.ConfigList      `yaml:"forwarders"`
 	Usage               usage.Config              `yaml:"usage,omitempty"`
 
+	// Deprecated: this field will be removed in a future release. Write path routing is set by deployment model.
+	IngesterWritePathEnabled bool `yaml:"ingester_write_path_enabled"`
+	// Deprecated: this field will be removed in a future release. Write path routing is set by deployment model.
 	KafkaWritePathEnabled bool               `yaml:"kafka_write_path_enabled"`
 	KafkaConfig           ingest.KafkaConfig `yaml:"kafka_config"`
+
+	// Internal routing toggle set by app wiring (not user-configurable).
+	PushSpansToKafka bool `yaml:"-"`
+
+	// disables write extension with inactive ingesters. Use this along with ingester.lifecycler.unregister_on_shutdown = true
+	//  note that setting these two config values reduces tolerance to failures on rollout b/c there is always one guaranteed to be failing replica
+	ExtendWrites bool `yaml:"extend_writes"`
 
 	// configures the distributor to indicate to the client that it should retry resource exhausted errors after the
 	// provided duration
 	RetryAfterOnResourceExhausted time.Duration `yaml:"retry_after_on_resource_exhausted"`
+
+	// For testing.
+	factory ring_client.PoolAddrFunc `yaml:"-"`
 
 	// TracePushMiddlewares are hooks called when a trace push request is received.
 	// Middleware errors are logged but don't fail the push (fail open behavior).
@@ -77,6 +91,8 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 
 	cfg.RetryAfterOnResourceExhausted = 0
 	cfg.OverrideRingKey = distributorRingKey
+	cfg.ExtendWrites = true
+	cfg.IngesterWritePathEnabled = false
 
 	cfg.MaxAttributeBytes = 2048 // 2KB
 
@@ -92,7 +108,7 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 }
 
 func (cfg *Config) Validate() error {
-	if cfg.KafkaWritePathEnabled {
+	if cfg.PushSpansToKafka {
 		if err := cfg.KafkaConfig.Validate(); err != nil {
 			return err
 		}

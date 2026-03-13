@@ -69,6 +69,7 @@ func TestConfig_CheckConfig(t *testing.T) {
 				},
 			},
 			expect: []ConfigWarning{
+				warnCompleteBlockTimeout,
 				warnBlockRetention,
 				warnRetentionConcurrency,
 				warnBlocklistPollConcurrency,

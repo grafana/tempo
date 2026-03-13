@@ -139,7 +139,7 @@ func printAsJSON(pb proto.Message) error {
 		return err
 	}
 
-	fmt.Println(string(traceJSON))
+	fmt.Println(traceJSON)
 	return nil
 }
 

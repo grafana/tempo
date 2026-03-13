@@ -50,3 +50,11 @@ To get an estimate, set the override to `true`, and run the metrics-generator as
 Then, check `tempo_metrics_generator_registry_active_series` for the calculated estimation of active series for your set-up.
 
 If your active series limit is already reached and `tempo_metrics_generator_registry_active_series` no longer reflects true demand, use the `tempo_metrics_generator_registry_active_series_demand_estimate` metric instead. This metric uses HyperLogLog estimation to approximate the actual cardinality even when limits are in effect.
+
+## Managing cardinality with limits
+
+For troubleshooting and managing cardinality limits at runtime, refer to the following sections in the [metrics-generator troubleshooting](https://grafana.com/docs/tempo/<TEMPO_VERSION>/troubleshooting/metrics-generator/) documentation:
+
+- [Max active series](https://grafana.com/docs/tempo/<TEMPO_VERSION>/troubleshooting/metrics-generator/#max-active-series) to detect and configure the active series limit
+- [Entity-based limiting](https://grafana.com/docs/tempo/<TEMPO_VERSION>/troubleshooting/metrics-generator/#entity-based-limiting) to limit by unique label combinations instead of individual series
+- [Per-label cardinality limiting](https://grafana.com/docs/tempo/<TEMPO_VERSION>/troubleshooting/metrics-generator/#per-label-cardinality-limiting) to limit cardinality (distinct values) per label
