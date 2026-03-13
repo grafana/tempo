@@ -30,3 +30,4 @@ operations/jsonnet/microservices/vendor/
 
 # Eval run outputs — not checked in
 evals-workspace/
+.claude/skills/evals-workspace/
