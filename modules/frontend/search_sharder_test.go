@@ -2,6 +2,7 @@ package frontend
 
 import (
 	"context"
+	"flag"
 	"fmt"
 	"io"
 	"math"
@@ -36,6 +37,14 @@ import (
 	"github.com/grafana/tempo/tempodb/blocklist"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 )
+
+func ptrTo[T any](v T) *T { return &v }
+
+func defaultOverridesConfig() overrides.Config {
+	cfg := overrides.Config{}
+	cfg.RegisterFlagsAndApplyDefaults(&flag.FlagSet{})
+	return cfg
+}
 
 var _ tempodb.Reader = (*mockReader)(nil)
 
@@ -807,7 +816,7 @@ func TestTotalJobsIncludesIngester(t *testing.T) {
 		}), nil
 	})
 
-	o, err := overrides.NewOverrides(overrides.Config{}, nil, prometheus.DefaultRegisterer)
+	o, err := overrides.NewOverrides(defaultOverridesConfig(), nil, prometheus.DefaultRegisterer)
 	require.NoError(t, err)
 
 	blockTime := time.Now().Add(-10 * time.Minute).Unix()
@@ -866,7 +875,7 @@ func TestSearchSharderRoundTripBadRequest(t *testing.T) {
 		return nil, nil
 	})
 
-	o, err := overrides.NewOverrides(overrides.Config{}, nil, prometheus.DefaultRegisterer)
+	o, err := overrides.NewOverrides(defaultOverridesConfig(), nil, prometheus.DefaultRegisterer)
 	require.NoError(t, err)
 
 	sharder := newAsyncSearchSharder(&mockReader{}, o, SearchSharderConfig{
@@ -901,13 +910,9 @@ func TestSearchSharderRoundTripBadRequest(t *testing.T) {
 	testBadRequestFromResponses(t, resp, err, "invalid start: strconv.ParseUint: parsing \"asdf\": invalid syntax")
 
 	// test max duration error with overrides
-	o, err = overrides.NewOverrides(overrides.Config{
-		Defaults: overrides.Overrides{
-			Read: overrides.ReadOverrides{
-				MaxSearchDuration: model.Duration(time.Minute),
-			},
-		},
-	}, nil, prometheus.DefaultRegisterer)
+	searchOverridesCfg := defaultOverridesConfig()
+	searchOverridesCfg.Defaults.Read.MaxSearchDuration = ptrTo(model.Duration(time.Minute))
+	o, err = overrides.NewOverrides(searchOverridesCfg, nil, prometheus.DefaultRegisterer)
 	require.NoError(t, err)
 
 	sharder = newAsyncSearchSharder(&mockReader{}, o, SearchSharderConfig{
@@ -962,7 +967,7 @@ func TestAdjustLimit(t *testing.T) {
 
 func TestMaxDuration(t *testing.T) {
 	//
-	o, err := overrides.NewOverrides(overrides.Config{}, nil, prometheus.DefaultRegisterer)
+	o, err := overrides.NewOverrides(defaultOverridesConfig(), nil, prometheus.DefaultRegisterer)
 	require.NoError(t, err)
 	sharder := asyncSearchSharder{
 		cfg: SearchSharderConfig{
@@ -973,13 +978,9 @@ func TestMaxDuration(t *testing.T) {
 	actual := sharder.maxDuration("test")
 	assert.Equal(t, 5*time.Minute, actual)
 
-	o, err = overrides.NewOverrides(overrides.Config{
-		Defaults: overrides.Overrides{
-			Read: overrides.ReadOverrides{
-				MaxSearchDuration: model.Duration(10 * time.Minute),
-			},
-		},
-	}, nil, prometheus.DefaultRegisterer)
+	searchOverridesCfg2 := defaultOverridesConfig()
+	searchOverridesCfg2.Defaults.Read.MaxSearchDuration = ptrTo(model.Duration(10 * time.Minute))
+	o, err = overrides.NewOverrides(searchOverridesCfg2, nil, prometheus.DefaultRegisterer)
 	require.NoError(t, err)
 	sharder = asyncSearchSharder{
 		cfg: SearchSharderConfig{
@@ -1206,7 +1207,7 @@ func TestSearchSharderReturnsConsistentShards(t *testing.T) {
 		{StartTime: now.Add(-35 * time.Minute), EndTime: now.Add(-30 * time.Minute), Size_: defaultTargetBytesPerRequest * 2, TotalRecords: 25, BlockID: backend.MustParse("00000000-0000-0000-0000-000000000006")},
 	}
 
-	o, err := overrides.NewOverrides(overrides.Config{}, nil, prometheus.DefaultRegisterer)
+	o, err := overrides.NewOverrides(defaultOverridesConfig(), nil, prometheus.DefaultRegisterer)
 	require.NoError(t, err)
 
 	const ingesterShards = 3
@@ -1392,7 +1393,7 @@ func TestDefaultSpansPerSpanSet(t *testing.T) {
 				return pipeline.NewAsyncResponse(nil), nil
 			})
 
-			o, err := overrides.NewOverrides(overrides.Config{}, nil, prometheus.DefaultRegisterer)
+			o, err := overrides.NewOverrides(defaultOverridesConfig(), nil, prometheus.DefaultRegisterer)
 			require.NoError(t, err)
 
 			sharder := newAsyncSearchSharder(&mockReader{}, o, SearchSharderConfig{

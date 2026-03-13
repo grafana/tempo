@@ -92,6 +92,7 @@ var (
 
 func newNativeHistogram(name string, buckets []float64, lifecycler Limiter, traceIDLabelName string, histogramOverride HistogramMode, externalLabels map[string]string, tenant string, overrides Overrides, staleDuration time.Duration) *nativeHistogram {
 	if traceIDLabelName == "" {
+		// TODO: this will never hit, we set the default to "traceID"
 		traceIDLabelName = "traceID"
 	}
 

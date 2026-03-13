@@ -29,6 +29,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func ptrTo[T any](v T) *T { return &v }
+
 const (
 	user1 = "user1"
 	user2 = "user2"
@@ -36,18 +38,12 @@ const (
 
 func TestGeneratorSpanMetrics_subprocessorConcurrency(t *testing.T) {
 	overridesFile := filepath.Join(t.TempDir(), "Overrides.yaml")
-	overridesConfig := overrides.Config{
-		Defaults: overrides.Overrides{
-			MetricsGenerator: overrides.MetricsGeneratorOverrides{
-				Processors: map[string]struct{}{
-					processor.SpanMetricsName: {},
-				},
-				CollectionInterval: 2 * time.Second,
-			},
-		},
-		PerTenantOverrideConfig: overridesFile,
-		PerTenantOverridePeriod: model.Duration(time.Second),
-	}
+	overridesConfig := overrides.Config{}
+	overridesConfig.RegisterFlagsAndApplyDefaults(&flag.FlagSet{})
+	overridesConfig.Defaults.MetricsGenerator.Processors = map[string]struct{}{processor.SpanMetricsName: {}}
+	overridesConfig.Defaults.MetricsGenerator.CollectionInterval = ptrTo(2 * time.Second)
+	overridesConfig.PerTenantOverrideConfig = overridesFile
+	overridesConfig.PerTenantOverridePeriod = model.Duration(time.Second)
 
 	require.NoError(t, os.WriteFile(overridesFile, []byte(fmt.Sprintf(`
 overrides:

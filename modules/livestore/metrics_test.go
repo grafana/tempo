@@ -40,7 +40,7 @@ func setupTest(t *testing.T) *testSetup {
 
 	// Create overrides with a separate registry to avoid conflicts
 	registry := prometheus.NewRegistry()
-	o, err := overrides.NewOverrides(overrides.Config{}, nil, registry)
+	o, err := overrides.NewOverrides(defaultOverridesConfig(), nil, registry)
 	require.NoError(t, err)
 
 	// Create instance
