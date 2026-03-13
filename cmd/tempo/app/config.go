@@ -56,7 +56,6 @@ type Config struct {
 	LiveStoreClient        livestore_client.Config        `yaml:"live_store_client,omitempty"`
 	Querier                querier.Config                 `yaml:"querier,omitempty"`
 	Frontend               frontend.Config                `yaml:"query_frontend,omitempty"`
-	Ingester               map[string]any                 `yaml:"ingester,omitempty"` // Deprecated: ignored, kept for config compatibility.
 	Generator              generator.Config               `yaml:"metrics_generator,omitempty"`
 	Ingest                 ingest.Config                  `yaml:"ingest,omitempty"`
 	BlockBuilder           blockbuilder.Config            `yaml:"block_builder,omitempty"`
