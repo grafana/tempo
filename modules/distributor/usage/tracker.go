@@ -267,6 +267,7 @@ func (u *Tracker) Observe(tenant string, batches []*v1.ResourceSpans) {
 
 	max := u.maxFn(tenant)
 	if max == 0 {
+		// TODO: this will never hit, we set the default to a non zero value
 		max = u.cfg.MaxCardinality
 	}
 
