@@ -45,6 +45,7 @@ var (
 )
 
 type Config struct {
+	// Deprecated: this field is ignored and will be removed in a future release.
 	Enabled bool        `yaml:"enabled"`
 	Kafka   KafkaConfig `yaml:"kafka"`
 }
@@ -54,10 +55,6 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 }
 
 func (cfg *Config) Validate() error {
-	if !cfg.Enabled {
-		return nil
-	}
-
 	return cfg.Kafka.Validate()
 }
 
