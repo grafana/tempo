@@ -12,14 +12,14 @@ import (
 func TestRuntimeConfigOverridesManager_GetRuntimeOverridesFor_runtimeConfigOverridesManager(t *testing.T) {
 	defaults := Overrides{
 		MetricsGenerator: MetricsGeneratorOverrides{
-			CollectionInterval: 60 * time.Second,
+			CollectionInterval: ptrTo(60 * time.Second),
 		},
 	}
 	tenantOverrides := &perTenantOverrides{
 		TenantLimits: map[string]*Overrides{
 			"foo": {
 				MetricsGenerator: MetricsGeneratorOverrides{
-					CollectionInterval: 15 * time.Second,
+					CollectionInterval: ptrTo(15 * time.Second),
 				},
 			},
 		},
@@ -30,24 +30,24 @@ func TestRuntimeConfigOverridesManager_GetRuntimeOverridesFor_runtimeConfigOverr
 
 	overrides := runtimeOverridesManager.GetRuntimeOverridesFor("default")
 	assert.NotNil(t, overrides)
-	assert.Equal(t, 60*time.Second, overrides.MetricsGenerator.CollectionInterval)
+	assert.Equal(t, ptrTo(60*time.Second), overrides.MetricsGenerator.CollectionInterval)
 
 	overrides = runtimeOverridesManager.GetRuntimeOverridesFor("foo")
 	assert.NotNil(t, overrides)
-	assert.Equal(t, 15*time.Second, overrides.MetricsGenerator.CollectionInterval)
+	assert.Equal(t, ptrTo(15*time.Second), overrides.MetricsGenerator.CollectionInterval)
 }
 
 func TestRuntimeConfigOverridesManager_GetRuntimeOverridesFor_userConfigurableOverridesManager(t *testing.T) {
 	defaults := Overrides{
 		MetricsGenerator: MetricsGeneratorOverrides{
-			CollectionInterval: 60 * time.Second,
+			CollectionInterval: ptrTo(60 * time.Second),
 		},
 	}
 	tenantOverrides := &perTenantOverrides{
 		TenantLimits: map[string]*Overrides{
 			"foo": {
 				MetricsGenerator: MetricsGeneratorOverrides{
-					CollectionInterval: 15 * time.Second,
+					CollectionInterval: ptrTo(15 * time.Second),
 				},
 			},
 		},
@@ -67,10 +67,10 @@ func TestRuntimeConfigOverridesManager_GetRuntimeOverridesFor_userConfigurableOv
 	overrides := userConfigurableOverridesManager.GetRuntimeOverridesFor("default")
 	assert.NotNil(t, overrides)
 	assert.Equal(t, 60*time.Second, userConfigurableOverridesManager.MetricsGeneratorCollectionInterval("default"))
-	assert.Equal(t, 60*time.Second, overrides.MetricsGenerator.CollectionInterval)
+	assert.Equal(t, ptrTo(60*time.Second), overrides.MetricsGenerator.CollectionInterval)
 
 	overrides = userConfigurableOverridesManager.GetRuntimeOverridesFor("foo")
 	assert.NotNil(t, overrides)
 	assert.Equal(t, 5*time.Minute, userConfigurableOverridesManager.MetricsGeneratorCollectionInterval("foo"))
-	assert.Equal(t, 15*time.Second, overrides.MetricsGenerator.CollectionInterval)
+	assert.Equal(t, ptrTo(15*time.Second), overrides.MetricsGenerator.CollectionInterval)
 }
