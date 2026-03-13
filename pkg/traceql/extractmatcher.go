@@ -16,7 +16,7 @@ const emptyQuery = "{}"
 //   - The query contains structural operators (multiple spansets)
 //   - The conditions use OR (AllConditions is false)
 //   - No valid matchers can be extracted
-func ExtractConditions(query string) ([]Condition, *SpansetFilter) {
+func ExtractConditions(query string) ([][]Condition, *SpansetFilter) {
 	query = strings.TrimSpace(query)
 	if len(query) == 0 {
 		return nil, nil
@@ -34,28 +34,7 @@ func ExtractConditions(query string) ([]Condition, *SpansetFilter) {
 		return nil, nil
 	}
 
-	// Extract conditions from the AST. AllConditions is set to false by
-	// extractConditions when OR operators are present.
-	req := &FetchSpansRequest{AllConditions: true}
-	filter.Expression.extractConditions(req)
-
-	if !req.AllConditions || len(req.Conditions) == 0 {
-		return nil, nil
-	}
-
-	// Filter out OpNone conditions (incomplete matchers)
-	conditions := make([]Condition, 0, len(req.Conditions))
-	for _, cond := range req.Conditions {
-		if cond.Op != OpNone {
-			conditions = append(conditions, cond)
-		}
-	}
-
-	if len(conditions) == 0 {
-		return nil, nil
-	}
-
-	return conditions, filter
+	return SplitReqConditions(filter.Expression), filter
 }
 
 // ExtractMatchers extracts matchers from a query string and returns a string
@@ -124,5 +103,123 @@ func findSpansetFilter(p Pipeline) *SpansetFilter {
 	default:
 		// SpansetOperation, ScalarFilter, etc. - not a simple spanset filter
 		return nil
+	}
+}
+
+type ConditionOperation struct {
+	Type       Operator
+	Conditions [][]Condition
+}
+
+func SplitReqConditions(expr FieldExpression) [][]Condition {
+	var ConditionOperations []ConditionOperation
+	flattenExprToOperations(expr, &ConditionOperations, nil, OpNone)
+
+	// the idea is every OR group of conditions we see, we will generate a new group
+	// ex. { (.attr1 = "a" || .attr2 = "b") && .attr3 = "c" }
+	// will generate 2 group, one for .attr1 = "a" && .attr3 = "c" and another for .attr2 = "b" && .attr3 = "c"
+	// each group will be an iterator, and the results of all iterators will be merged together
+
+	totalGroups := 1
+	for _, op := range ConditionOperations {
+		if op.Type == OpOr {
+			totalGroups *= len(op.Conditions)
+		}
+	}
+
+	// each group will be one iterator
+	conditionGroups := make([][]Condition, totalGroups)
+	repeats := 1
+	for _, op := range ConditionOperations {
+		opCondIdx := 0
+		repeated := 0
+		for i := 0; i < totalGroups; i++ {
+			if op.Type == OpOr {
+				conditionGroups[i] = append(conditionGroups[i], op.Conditions[opCondIdx]...)
+				repeated++
+				if repeated == repeats {
+					repeated = 0
+					opCondIdx++
+				}
+				if opCondIdx >= len(op.Conditions) {
+					opCondIdx = 0
+				}
+			} else {
+				for _, conds := range op.Conditions {
+					conditionGroups[i] = append(conditionGroups[i], conds...)
+				}
+			}
+		}
+		if op.Type == OpOr {
+			repeats *= len(op.Conditions)
+		}
+	}
+	return conditionGroups
+}
+
+func flattenExprToOperations(expr FieldExpression, operators *[]ConditionOperation, parentConditionOperation *ConditionOperation, parentOp Operator) {
+	switch e := expr.(type) {
+	case *BinaryOperation:
+		if e.Op == OpAnd || e.Op == OpOr {
+			if parentOp == OpOr {
+				if e.Op == OpAnd {
+					LHS := []ConditionOperation{}
+					RHS := []ConditionOperation{}
+					flattenExprToOperations(e.LHS, &LHS, nil, e.Op)
+					flattenExprToOperations(e.RHS, &RHS, nil, e.Op)
+					conditions := []Condition{}
+					for _, op := range LHS {
+						for _, conds := range op.Conditions {
+							conditions = append(conditions, conds...)
+						}
+					}
+					for _, op := range RHS {
+						for _, conds := range op.Conditions {
+							conditions = append(conditions, conds...)
+						}
+					}
+					parentConditionOperation.Conditions = append(parentConditionOperation.Conditions, conditions)
+					return
+				} else {
+					flattenExprToOperations(e.LHS, operators, parentConditionOperation, e.Op)
+					flattenExprToOperations(e.RHS, operators, parentConditionOperation, e.Op)
+					return
+				}
+			}
+			if e.Op == OpAnd {
+				LHS := []ConditionOperation{}
+				RHS := []ConditionOperation{}
+				flattenExprToOperations(e.LHS, &LHS, nil, e.Op)
+				flattenExprToOperations(e.RHS, &RHS, nil, e.Op)
+				*operators = append(*operators, LHS...)
+				*operators = append(*operators, RHS...)
+				return
+			}
+			if e.Op == OpOr {
+				SharedOperation := &ConditionOperation{Type: OpOr}
+				flattenExprToOperations(e.LHS, operators, SharedOperation, e.Op)
+				flattenExprToOperations(e.RHS, operators, SharedOperation, e.Op)
+				*operators = append(*operators, *SharedOperation)
+				return
+			}
+		} else {
+			req := &FetchSpansRequest{AllConditions: false}
+			expr.extractConditions(req)
+			if parentConditionOperation != nil {
+				parentConditionOperation.Conditions = append(parentConditionOperation.Conditions, req.Conditions)
+			} else {
+				*operators = append(*operators, ConditionOperation{Type: OpAnd, Conditions: [][]Condition{req.Conditions}})
+			}
+		}
+	case *UnaryOperation:
+		req := &FetchSpansRequest{AllConditions: false}
+		expr.extractConditions(req)
+		if parentConditionOperation != nil {
+			parentConditionOperation.Conditions = append(parentConditionOperation.Conditions, req.Conditions)
+		} else {
+			*operators = append(*operators, ConditionOperation{Type: OpAnd, Conditions: [][]Condition{req.Conditions}})
+		}
+	default:
+		// Handle other expression types if necessary
 	}
 }

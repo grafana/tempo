@@ -179,7 +179,7 @@ func (e *Engine) ExecuteSearch(ctx context.Context, searchReq *tempopb.SearchReq
 func (e *Engine) ExecuteTagValues(
 	ctx context.Context,
 	tag Attribute,
-	conditions []Condition,
+	conditionGroups [][]Condition,
 	cb FetchTagValuesCallback,
 	fetcher TagValuesFetcher,
 ) error {
@@ -188,23 +188,48 @@ func (e *Engine) ExecuteTagValues(
 
 	// If the tag we are fetching is already filtered in the query, then this is a noop.
 	// I.e. we are autocompleting resource.service.name and the query was {resource.service.name="foo"}
-	for _, c := range conditions {
-		if c.Attribute == tag && c.Op == OpEqual {
-			if len(c.Operands) > 0 {
-				cb(c.Operands[0])
+	if len(conditionGroups) == 1 {
+		for _, c := range conditionGroups[0] {
+			if c.Attribute == tag && c.Op == OpEqual {
+				if len(c.Operands) > 0 {
+					cb(c.Operands[0])
+				}
+				return nil
 			}
-			return nil
 		}
 	}
 
-	conditions = append(conditions, Condition{
-		Attribute: tag,
-		Op:        OpNone,
-	})
+	finalConditionGroups := make([][]Condition, 0, len(conditionGroups))
+	for _, group := range conditionGroups {
+		skip := false
+		for _, c := range group {
+			if c.Attribute == tag && c.Op == OpEqual {
+				if len(c.Operands) > 0 {
+					cb(c.Operands[0])
+				}
+				skip = true
+			}
+		}
+		if !skip {
+			finalConditionGroups = append(finalConditionGroups, group)
+		}
+	}
+
+	if len(finalConditionGroups) == 0 {
+		// no op
+		return nil
+	}
+
+	for i := range finalConditionGroups {
+		finalConditionGroups[i] = append(finalConditionGroups[i], Condition{
+			Attribute: tag,
+			Op:        OpNone,
+		})
+	}
 
 	autocompleteReq := FetchTagValuesRequest{
-		Conditions: conditions,
-		TagName:    tag,
+		ConditionGroups: finalConditionGroups,
+		TagName:         tag,
 	}
 
 	span.SetAttributes(attribute.String("autocompleteReq", fmt.Sprint(autocompleteReq)))
@@ -215,7 +240,7 @@ func (e *Engine) ExecuteTagValues(
 func (e *Engine) ExecuteTagNames(
 	ctx context.Context,
 	scope AttributeScope,
-	conditions []Condition,
+	conditionGroups [][]Condition,
 	cb FetchTagsCallback,
 	fetcher TagNamesFetcher,
 ) error {
@@ -223,8 +248,8 @@ func (e *Engine) ExecuteTagNames(
 	defer span.End()
 
 	autocompleteReq := FetchTagsRequest{
-		Conditions: conditions,
-		Scope:      scope,
+		ConditionGroups: conditionGroups,
+		Scope:           scope,
 	}
 
 	span.SetAttributes(attribute.String("autocompleteReq", fmt.Sprint(autocompleteReq)))

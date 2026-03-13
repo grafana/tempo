@@ -13,7 +13,7 @@ import (
 // query structure (ORs, ANDs, pipes, structural operators, etc.) and parses the
 // cleaned-up query.
 func ParseLenient(s string) (*RootExpr, error) {
-	expr, err := Parse(s)
+	expr, err := ParseWithOptimizationOption(s, false)
 	if err == nil {
 		return expr, nil
 	}
@@ -24,7 +24,7 @@ func ParseLenient(s string) (*RootExpr, error) {
 		return nil, err
 	}
 
-	result, cleanedErr := Parse(cleaned)
+	result, cleanedErr := ParseWithOptimizationOption(cleaned, false)
 	if cleanedErr != nil {
 		return nil, err // return original parse error
 	}

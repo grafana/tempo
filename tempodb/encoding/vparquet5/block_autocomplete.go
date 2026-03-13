@@ -46,21 +46,17 @@ func (r tagRequest) keysRequested(scope traceql.AttributeScope) bool {
 }
 
 func (b *backendBlock) FetchTagNames(ctx context.Context, req traceql.FetchTagsRequest, cb traceql.FetchTagsCallback, mcb common.MetricsCallback, opts common.SearchOptions) error {
-	err := checkConditions(req.Conditions)
-	if err != nil {
-		return errors.Wrap(err, "conditions invalid")
-	}
-
-	_, mingledConditions, err := categorizeConditions(req.Conditions)
-	if err != nil {
-		return err
-	}
-
-	// Last check. No conditions, use old path. It's much faster.
-	if len(req.Conditions) < 1 || mingledConditions {
+	if len(req.ConditionGroups) == 0 {
 		return b.SearchTags(ctx, req.Scope, func(t string, scope traceql.AttributeScope) {
 			cb(t, scope)
 		}, mcb, opts)
+	}
+
+	for _, condGroup := range req.ConditionGroups {
+		err := checkConditions(condGroup)
+		if err != nil {
+			return errors.Wrap(err, "conditions invalid")
+		}
 	}
 
 	pf, rr, err := b.openForSearch(ctx, opts)
@@ -71,40 +67,54 @@ func (b *backendBlock) FetchTagNames(ctx context.Context, req traceql.FetchTagsR
 	// report metrics with defer to handle early exit
 	defer mcb(rr.BytesRead())
 
-	// track sent tag names to avoid duplicates. this is a perf improvement
-	sentKeys := make(map[tagNameKey]struct{})
-	existsTagName := func(key tagNameKey) bool {
-		_, ok := sentKeys[key]
-		return ok
-	}
-
-	tr := tagRequest{
-		conditions:    req.Conditions,
-		scope:         req.Scope,
-		existsTagName: existsTagName,
-	}
-
-	iter, err := autocompleteIter(ctx, tr, pf, opts, b.meta.DedicatedColumns)
-	if err != nil {
-		return errors.Wrap(err, "creating fetch iter")
-	}
-	defer iter.Close()
-
-	for {
-		// Exhaust the iterator
-		res, err := iter.Next()
+	for _, condGroup := range req.ConditionGroups {
+		_, mingledConditions, err := categorizeConditions(condGroup)
 		if err != nil {
 			return err
 		}
-		if res == nil {
-			break
+
+		// Last check. No conditions, use old path. It's much faster.
+		if len(req.ConditionGroups) == 1 && len(condGroup) < 1 || mingledConditions {
+			return b.SearchTags(ctx, req.Scope, func(t string, scope traceql.AttributeScope) {
+				cb(t, scope)
+			}, mcb, opts)
 		}
-		for _, oe := range res.OtherEntries {
-			scope := oe.Value.(traceql.AttributeScope)
-			key := tagNameKey{name: oe.Key, scope: scope}
-			sentKeys[key] = struct{}{}
-			if cb(oe.Key, scope) {
-				return nil // We have enough values
+
+		// track sent tag names to avoid duplicates. this is a perf improvement
+		sentKeys := make(map[tagNameKey]struct{})
+		existsTagName := func(key tagNameKey) bool {
+			_, ok := sentKeys[key]
+			return ok
+		}
+
+		tr := tagRequest{
+			conditions:    condGroup,
+			scope:         req.Scope,
+			existsTagName: existsTagName,
+		}
+
+		iter, err := autocompleteIter(ctx, tr, pf, opts, b.meta.DedicatedColumns)
+		if err != nil {
+			return errors.Wrap(err, "creating fetch iter")
+		}
+		defer iter.Close()
+
+		for {
+			// Exhaust the iterator
+			res, err := iter.Next()
+			if err != nil {
+				return err
+			}
+			if res == nil {
+				break
+			}
+			for _, oe := range res.OtherEntries {
+				scope := oe.Value.(traceql.AttributeScope)
+				key := tagNameKey{name: oe.Key, scope: scope}
+				sentKeys[key] = struct{}{}
+				if cb(oe.Key, scope) {
+					return nil // We have enough values
+				}
 			}
 		}
 	}
@@ -182,19 +192,15 @@ func tagNamesForSpecialColumns(scope traceql.AttributeScope, pf *parquet.File, d
 }
 
 func (b *backendBlock) FetchTagValues(ctx context.Context, req traceql.FetchTagValuesRequest, cb traceql.FetchTagValuesCallback, mcb common.MetricsCallback, opts common.SearchOptions) error {
-	err := checkConditions(req.Conditions)
-	if err != nil {
-		return errors.Wrap(err, "conditions invalid")
-	}
-
-	_, mingledConditions, err := categorizeConditions(req.Conditions)
-	if err != nil {
-		return err
-	}
-
-	// Last check. No conditions, use old path. It's much faster.
-	if len(req.Conditions) <= 1 || mingledConditions { // <= 1 because we always have a "OpNone" condition for the tag name
+	if len(req.ConditionGroups) == 0 {
 		return b.SearchTagValuesV2(ctx, req.TagName, common.TagValuesCallbackV2(cb), mcb, common.DefaultSearchOptions())
+	}
+
+	for _, condGroup := range req.ConditionGroups {
+		err := checkConditions(condGroup)
+		if err != nil {
+			return errors.Wrap(err, "conditions invalid")
+		}
 	}
 
 	pf, rr, err := b.openForSearch(ctx, opts)
@@ -204,40 +210,52 @@ func (b *backendBlock) FetchTagValues(ctx context.Context, req traceql.FetchTagV
 	// report metrics with defer to handle early exit
 	defer mcb(rr.BytesRead())
 
-	// track sent tag values to avoid duplicates. this is a perf improvement
-	sentVals := make(map[traceql.StaticMapKey]struct{})
-	existsTagValue := func(val traceql.Static) bool {
-		mk := val.MapKey()
-		_, ok := sentVals[mk]
-		return ok
-	}
-
-	tr := tagRequest{
-		conditions:     req.Conditions,
-		tag:            req.TagName,
-		existsTagValue: existsTagValue,
-	}
-
-	iter, err := autocompleteIter(ctx, tr, pf, opts, b.meta.DedicatedColumns)
-	if err != nil {
-		return errors.Wrap(err, "creating fetch iter")
-	}
-	defer iter.Close()
-
-	for {
-		// Exhaust the iterator
-		res, err := iter.Next()
+	for _, condGroup := range req.ConditionGroups {
+		_, mingledConditions, err := categorizeConditions(condGroup)
 		if err != nil {
 			return err
 		}
-		if res == nil {
-			break
+
+		// Last check. No conditions, use old path. It's much faster.
+		if len(req.ConditionGroups) == 1 && len(condGroup) <= 1 || mingledConditions { // <= 1 because we always have a "OpNone" condition for the tag name
+			return b.SearchTagValuesV2(ctx, req.TagName, common.TagValuesCallbackV2(cb), mcb, common.DefaultSearchOptions())
 		}
-		for _, oe := range res.OtherEntries {
-			v := oe.Value.(traceql.Static)
-			sentVals[v.MapKey()] = struct{}{}
-			if cb(v) {
-				return nil // We have enough values
+
+		// track sent tag values to avoid duplicates. this is a perf improvement
+		sentVals := make(map[traceql.StaticMapKey]struct{})
+		existsTagValue := func(val traceql.Static) bool {
+			mk := val.MapKey()
+			_, ok := sentVals[mk]
+			return ok
+		}
+
+		tr := tagRequest{
+			conditions:     condGroup,
+			tag:            req.TagName,
+			existsTagValue: existsTagValue,
+		}
+
+		iter, err := autocompleteIter(ctx, tr, pf, opts, b.meta.DedicatedColumns)
+		if err != nil {
+			return errors.Wrap(err, "creating fetch iter")
+		}
+		defer iter.Close()
+
+		for {
+			// Exhaust the iterator
+			res, err := iter.Next()
+			if err != nil {
+				return err
+			}
+			if res == nil {
+				break
+			}
+			for _, oe := range res.OtherEntries {
+				v := oe.Value.(traceql.Static)
+				sentVals[v.MapKey()] = struct{}{}
+				if cb(v) {
+					return nil // We have enough values
+				}
 			}
 		}
 	}

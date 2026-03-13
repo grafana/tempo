@@ -217,3 +217,286 @@ func BenchmarkExtractMatchers(b *testing.B) {
 		})
 	}
 }
+
+func TestFlattenExprToOperations(t *testing.T) {
+
+	type testOperation struct {
+		opType Operator
+		cond   []int
+	}
+
+	testCases := []struct {
+		name, query string
+		expected    []testOperation
+	}{
+		{
+			name:     "three single condition ORs",
+			query:    `{ .attr = "123" || .service = "b" || .env = "staging" }`,
+			expected: []testOperation{{opType: OpOr, cond: []int{1, 1, 1}}},
+		},
+		{
+			name:     "one double condition ORs with two single condition ORs",
+			query:    `{ (.attr = "123" && .foo = "bar") || .service = "b" || .env = "staging" }`,
+			expected: []testOperation{{opType: OpOr, cond: []int{2, 1, 1}}},
+		},
+		{
+			name:     "one single condition AND three single condition ORs",
+			query:    `{ name = "abc" && (.attr = "123" || .service = "b" || .env = "staging") }`,
+			expected: []testOperation{{opType: OpAnd, cond: []int{1}}, {opType: OpOr, cond: []int{1, 1, 1}}},
+		},
+		{
+			name:     "one AND one double condition OR with two single condition ORs",
+			query:    `{ name = "abc" && ( (.attr = "123" && .foo = "bar") || .service = "b" || .env = "staging") }`,
+			expected: []testOperation{{opType: OpAnd, cond: []int{1}}, {opType: OpOr, cond: []int{2, 1, 1}}},
+		},
+		{
+			name:     "two ANDs one double condition OR with two single condition ORs",
+			query:    `{ name = "abc" && .attr = "abc" && ( (.attr = "123" && .foo = "bar") || .service = "b" || .env = "staging") }`,
+			expected: []testOperation{{opType: OpAnd, cond: []int{1}}, {opType: OpAnd, cond: []int{1}}, {opType: OpOr, cond: []int{2, 1, 1}}},
+		},
+		{
+			name:     "two AND with single condition OR in between",
+			query:    `{ .attr = "123" && (.service = "b" || .service = "a" ) && .env = "staging" }`,
+			expected: []testOperation{{opType: OpAnd, cond: []int{1}}, {opType: OpOr, cond: []int{1, 1}}, {opType: OpAnd, cond: []int{1}}},
+		},
+		{
+			name:     "two ANDs of single condition ORs",
+			query:    `{ ( .attr = "123" || .service = "b" ) && ( .service = "a" || .env = "staging" ) }`,
+			expected: []testOperation{{opType: OpOr, cond: []int{1, 1}}, {opType: OpOr, cond: []int{1, 1}}},
+		},
+		{
+			name:     "two ANDs of multiple conditions ORs",
+			query:    `{ ( .attr = "123" || .service = "b" ) && ( .service = "a" || ( .env = "staging" && .foo = "bar" ) ) }`,
+			expected: []testOperation{{opType: OpOr, cond: []int{1, 1}}, {opType: OpOr, cond: []int{1, 2}}},
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			var operations []ConditionOperation
+			expr, err := ParseWithOptimizationOption(tc.query, false)
+			assert.NoError(t, err)
+
+			flattenExprToOperations(expr.Pipeline.Elements[0].(*SpansetFilter).Expression, &operations, nil, OpNone)
+			assert.NoError(t, err)
+			assert.Equal(t, len(tc.expected), len(operations), "expected %d operations, got %d", len(tc.expected), len(operations))
+			for i, operationCount := range tc.expected {
+				assert.Equal(t, operationCount.opType, operations[i].Type, "expected operation type %v at index %d, got %v", operationCount.opType, i, operations[i].Type)
+				assert.Equal(t, len(operationCount.cond), len(operations[i].Conditions), "expected %d conditions at index %d, got %d", len(operationCount.cond), i, len(operations[i].Conditions))
+				for j, conditionCount := range operationCount.cond {
+					assert.Equal(t, conditionCount, len(operations[i].Conditions[j]), "expected %d conditions at index %d.%d, got %d", conditionCount, i, j, len(operations[i].Conditions[j]))
+				}
+			}
+		})
+	}
+}
+
+func TestSplitReqConditions(t *testing.T) {
+	testCases := []struct {
+		name, query string
+		expected    [][]Condition
+	}{
+		{
+			name:  "three single condition ORs",
+			query: `{ .attr = "123" || .service = "b" || .env = "staging" }`,
+			expected: [][]Condition{
+				{
+					newCondition(NewAttribute("attr"), OpEqual, NewStaticString("123")),
+				},
+				{
+					newCondition(NewAttribute("service"), OpEqual, NewStaticString("b")),
+				},
+				{
+					newCondition(NewAttribute("env"), OpEqual, NewStaticString("staging")),
+				},
+			},
+		},
+		{
+			name:  "one double condition ORs with two single condition ORs",
+			query: `{ (.attr = "123" && .foo = "bar") || .service = "b" || .env = "staging" }`,
+			expected: [][]Condition{
+				{
+					newCondition(NewAttribute("attr"), OpEqual, NewStaticString("123")),
+					newCondition(NewAttribute("foo"), OpEqual, NewStaticString("bar")),
+				},
+				{
+					newCondition(NewAttribute("service"), OpEqual, NewStaticString("b")),
+				},
+				{
+					newCondition(NewAttribute("env"), OpEqual, NewStaticString("staging")),
+				},
+			},
+		},
+		{
+			name:  "one single condition AND three single condition ORs",
+			query: `{ name = "abc" && (.attr = "123" || .service = "b" || .env = "staging") }`,
+			expected: [][]Condition{
+				{
+					newCondition(NewIntrinsic(IntrinsicName), OpEqual, NewStaticString("abc")),
+					newCondition(NewAttribute("attr"), OpEqual, NewStaticString("123")),
+				},
+				{
+					newCondition(NewIntrinsic(IntrinsicName), OpEqual, NewStaticString("abc")),
+					newCondition(NewAttribute("service"), OpEqual, NewStaticString("b")),
+				},
+				{
+					newCondition(NewIntrinsic(IntrinsicName), OpEqual, NewStaticString("abc")),
+					newCondition(NewAttribute("env"), OpEqual, NewStaticString("staging")),
+				},
+			},
+		},
+		{
+			name:  "one AND one double condition OR with two single condition ORs",
+			query: `{ name = "abc" && ( (.attr = "123" && .foo = "bar") || .service = "b" || .env = "staging") }`,
+			expected: [][]Condition{
+				{
+					newCondition(NewIntrinsic(IntrinsicName), OpEqual, NewStaticString("abc")),
+					newCondition(NewAttribute("attr"), OpEqual, NewStaticString("123")),
+					newCondition(NewAttribute("foo"), OpEqual, NewStaticString("bar")),
+				},
+				{
+					newCondition(NewIntrinsic(IntrinsicName), OpEqual, NewStaticString("abc")),
+					newCondition(NewAttribute("service"), OpEqual, NewStaticString("b")),
+				},
+				{
+					newCondition(NewIntrinsic(IntrinsicName), OpEqual, NewStaticString("abc")),
+					newCondition(NewAttribute("env"), OpEqual, NewStaticString("staging")),
+				},
+			},
+		},
+		{
+			name:  "two ANDs one double condition OR with two single condition ORs",
+			query: `{ name = "abc" && .attr = "abc" && ( (.attr = "123" && .foo = "bar") || .service = "b" || .env = "staging") }`,
+			expected: [][]Condition{
+				{
+					newCondition(NewIntrinsic(IntrinsicName), OpEqual, NewStaticString("abc")),
+					newCondition(NewAttribute("attr"), OpEqual, NewStaticString("abc")),
+					newCondition(NewAttribute("attr"), OpEqual, NewStaticString("123")),
+					newCondition(NewAttribute("foo"), OpEqual, NewStaticString("bar")),
+				},
+				{
+					newCondition(NewIntrinsic(IntrinsicName), OpEqual, NewStaticString("abc")),
+					newCondition(NewAttribute("attr"), OpEqual, NewStaticString("abc")),
+					newCondition(NewAttribute("service"), OpEqual, NewStaticString("b")),
+				},
+				{
+					newCondition(NewIntrinsic(IntrinsicName), OpEqual, NewStaticString("abc")),
+					newCondition(NewAttribute("attr"), OpEqual, NewStaticString("abc")),
+					newCondition(NewAttribute("env"), OpEqual, NewStaticString("staging")),
+				},
+			},
+		},
+		{
+			name:  "two AND with single condition OR in between",
+			query: `{ .attr = "123" && (.service = "b" || .service = "a" ) && .env = "staging" }`,
+			expected: [][]Condition{
+				{
+					newCondition(NewAttribute("attr"), OpEqual, NewStaticString("123")),
+					newCondition(NewAttribute("service"), OpEqual, NewStaticString("b")),
+					newCondition(NewAttribute("env"), OpEqual, NewStaticString("staging")),
+				},
+				{
+					newCondition(NewAttribute("attr"), OpEqual, NewStaticString("123")),
+					newCondition(NewAttribute("service"), OpEqual, NewStaticString("a")),
+					newCondition(NewAttribute("env"), OpEqual, NewStaticString("staging")),
+				},
+			},
+		},
+		{
+			name:  "two ANDs of single condition ORs",
+			query: `{ ( .attr = "123" || .service = "b" ) && ( .service = "a" || .env = "staging"  || .foo = "bar" ) }`,
+			expected: [][]Condition{
+				{
+					newCondition(NewAttribute("attr"), OpEqual, NewStaticString("123")),
+					newCondition(NewAttribute("service"), OpEqual, NewStaticString("a")),
+				},
+				{
+					newCondition(NewAttribute("service"), OpEqual, NewStaticString("b")),
+					newCondition(NewAttribute("service"), OpEqual, NewStaticString("a")),
+				},
+				{
+					newCondition(NewAttribute("attr"), OpEqual, NewStaticString("123")),
+					newCondition(NewAttribute("env"), OpEqual, NewStaticString("staging")),
+				},
+				{
+					newCondition(NewAttribute("service"), OpEqual, NewStaticString("b")),
+					newCondition(NewAttribute("env"), OpEqual, NewStaticString("staging")),
+				},
+				{
+					newCondition(NewAttribute("attr"), OpEqual, NewStaticString("123")),
+					newCondition(NewAttribute("foo"), OpEqual, NewStaticString("bar")),
+				},
+				{
+					newCondition(NewAttribute("service"), OpEqual, NewStaticString("b")),
+					newCondition(NewAttribute("foo"), OpEqual, NewStaticString("bar")),
+				},
+			},
+		},
+		{
+			name:  "two ANDs of multiple conditions ORs",
+			query: `{ ( .attr = "123" || .service = "b" ) && ( .service = "a" || ( .env = "staging" && .foo = "bar" ) ) }`,
+			expected: [][]Condition{
+				{
+					newCondition(NewAttribute("attr"), OpEqual, NewStaticString("123")),
+					newCondition(NewAttribute("service"), OpEqual, NewStaticString("a")),
+				},
+				{
+					newCondition(NewAttribute("service"), OpEqual, NewStaticString("b")),
+					newCondition(NewAttribute("service"), OpEqual, NewStaticString("a")),
+				},
+				{
+					newCondition(NewAttribute("attr"), OpEqual, NewStaticString("123")),
+					newCondition(NewAttribute("env"), OpEqual, NewStaticString("staging")),
+					newCondition(NewAttribute("foo"), OpEqual, NewStaticString("bar")),
+				},
+				{
+					newCondition(NewAttribute("service"), OpEqual, NewStaticString("b")),
+					newCondition(NewAttribute("env"), OpEqual, NewStaticString("staging")),
+					newCondition(NewAttribute("foo"), OpEqual, NewStaticString("bar")),
+				},
+			},
+		},
+		{
+			name:  "three ANDs of two single condition ORs",
+			query: `{ ( .attr = "123" || .service = "b" ) && .team = "dev" && ( .service = "a" || .env = "staging"  || .foo = "bar" ) }`,
+			expected: [][]Condition{
+				{
+					newCondition(NewAttribute("attr"), OpEqual, NewStaticString("123")),
+					newCondition(NewAttribute("team"), OpEqual, NewStaticString("dev")),
+					newCondition(NewAttribute("service"), OpEqual, NewStaticString("a")),
+				},
+				{
+					newCondition(NewAttribute("service"), OpEqual, NewStaticString("b")),
+					newCondition(NewAttribute("team"), OpEqual, NewStaticString("dev")),
+					newCondition(NewAttribute("service"), OpEqual, NewStaticString("a")),
+				},
+				{
+					newCondition(NewAttribute("attr"), OpEqual, NewStaticString("123")),
+					newCondition(NewAttribute("team"), OpEqual, NewStaticString("dev")),
+					newCondition(NewAttribute("env"), OpEqual, NewStaticString("staging")),
+				},
+				{
+					newCondition(NewAttribute("service"), OpEqual, NewStaticString("b")),
+					newCondition(NewAttribute("team"), OpEqual, NewStaticString("dev")),
+					newCondition(NewAttribute("env"), OpEqual, NewStaticString("staging")),
+				},
+				{
+					newCondition(NewAttribute("attr"), OpEqual, NewStaticString("123")),
+					newCondition(NewAttribute("team"), OpEqual, NewStaticString("dev")),
+					newCondition(NewAttribute("foo"), OpEqual, NewStaticString("bar")),
+				},
+				{
+					newCondition(NewAttribute("service"), OpEqual, NewStaticString("b")),
+					newCondition(NewAttribute("team"), OpEqual, NewStaticString("dev")),
+					newCondition(NewAttribute("foo"), OpEqual, NewStaticString("bar")),
+				},
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			conditions, _ := ExtractConditions(tc.query)
+			assert.Equal(t, tc.expected, conditions)
+		})
+	}
+}
