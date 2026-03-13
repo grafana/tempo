@@ -270,7 +270,7 @@ type perTenantLegacyOverrides struct {
 // Convert to a new Overrides format
 func (l *perTenantLegacyOverrides) toNewOverrides() perTenantOverrides {
 	overrides := perTenantOverrides{
-		TenantLimits: make(map[string]*Overrides, len(l.TenantLimits)),
+		TenantLimits: make(TenantOverrides, len(l.TenantLimits)),
 	}
 
 	for tenantID, legacyLimits := range l.TenantLimits {
