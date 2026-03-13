@@ -25,7 +25,6 @@ query_frontend:
   rf1_after: "2025-01-01T00:00:00Z"
 
 distributor:
-  kafka_write_path_enabled: true
   receivers:
     otlp:
       protocols:

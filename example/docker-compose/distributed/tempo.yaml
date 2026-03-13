@@ -5,7 +5,6 @@ server:
   http_listen_port: 3200
 
 distributor:
-  kafka_write_path_enabled: true
   receivers:
     otlp:
       protocols:

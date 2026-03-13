@@ -82,9 +82,6 @@ minio + metrics + load + kafka + tempo {
       },
     },
     partition_ring_live_store: true,
-    distributor+: {
-      kafka_write_path_enabled: true,
-    },
     ingest+: {
       enabled: true,
       kafka+: {

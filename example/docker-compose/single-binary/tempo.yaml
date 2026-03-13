@@ -6,7 +6,6 @@ server:
   log_level: info
 
 distributor:
-  kafka_write_path_enabled: true
   receivers:
     otlp:
       protocols:
