@@ -30,7 +30,7 @@ level=info ts=2024-08-19T16:06:25.881169385Z caller=distributor.go:767 msg=disca
 
 ## Rate limits exceeded
 
-The distributor checks ingestion rate limits before writing to Kafka. If you are refusing spans due to rate limits, you'll see logs like this at the distributor:
+The distributor checks ingestion rate limits before writing to Kafka. If spans are refused due to rate limits, you'll see logs like this at the distributor:
 
 ```
 msg="pusher failed to consume trace data" err="rpc error: code = ResourceExhausted desc = RATE_LIMITED: ingestion rate limit (15000000 bytes) exceeded while adding 10 bytes"
@@ -46,7 +46,7 @@ In this case, use available configuration options to [increase limits](https://g
 
 ## Trace limits
 
-Limits such as max trace size and max live traces per tenant are enforced asynchronously by the live-store and block-builder. These limits won't cause the distributor to refuse spans at ingestion time, but traces that exceed them will be discarded downstream.
+Limits such as max trace size and max live traces per tenant are enforced asynchronously by the live-store and block-builder. These limits won't cause the distributor to refuse spans at ingestion time. Traces that exceed them are discarded downstream.
 
 ## Client resets connection
 
