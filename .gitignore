@@ -27,7 +27,3 @@ integration/**/e2e_integration_test[0-9]*
 gh-token.txt
 .cache
 operations/jsonnet/microservices/vendor/
-
-# Eval run outputs — not checked in
-evals-workspace/
-.claude/skills/evals-workspace/
