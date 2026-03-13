@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"flag"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -27,13 +28,17 @@ import (
 func TestRuntimeConfigOverrides_loadPerTenantOverrides(t *testing.T) {
 	validator := &mockValidator{}
 
-	loader := loadPerTenantOverrides(validator, ConfigTypeNew, false)
+	// Use RegisterFlagsAndApplyDefaults to ensure all pointer fields are initialized,
+	// matching the production code path and preventing nil pointers in merged results.
+	cfg := Config{}
+	cfg.RegisterFlagsAndApplyDefaults(&flag.FlagSet{})
+	loader := loadPerTenantOverrides(validator, ConfigTypeNew, false, &cfg.Defaults)
 
 	perTenantOverrides := perTenantOverrides{
-		TenantLimits: map[string]*Overrides{
-			"foo": {Ingestion: IngestionOverrides{TenantShardSize: 6}},
-			"bar": {Ingestion: IngestionOverrides{TenantShardSize: 1}},
-			"bzz": {Ingestion: IngestionOverrides{TenantShardSize: 3}},
+		TenantLimits: TenantOverrides{
+			"foo": {Ingestion: IngestionOverrides{TenantShardSize: ptrTo(6)}},
+			"bar": {Ingestion: IngestionOverrides{TenantShardSize: ptrTo(1)}},
+			"bzz": {Ingestion: IngestionOverrides{TenantShardSize: ptrTo(3)}},
 		},
 	}
 	overridesBytes, err := yaml.Marshal(&perTenantOverrides)
@@ -45,7 +50,7 @@ func TestRuntimeConfigOverrides_loadPerTenantOverrides(t *testing.T) {
 
 	// load overrides - validator should reject bar
 	validator.f = func(overrides *Overrides) error {
-		if overrides.Ingestion.TenantShardSize == 1 {
+		if *overrides.Ingestion.TenantShardSize == 1 {
 			return errors.New("no")
 		}
 		return nil
@@ -56,6 +61,16 @@ func TestRuntimeConfigOverrides_loadPerTenantOverrides(t *testing.T) {
 }
 
 func TestRuntimeConfigOverrides(t *testing.T) {
+	// Build defaults from RegisterFlagsAndApplyDefaults and override the fields under test.
+	baseCfg := Config{}
+	baseCfg.RegisterFlagsAndApplyDefaults(&flag.FlagSet{})
+	defaultLimits := baseCfg.Defaults
+	defaultLimits.Ingestion.MaxGlobalTracesPerUser = ptrTo(1)
+	defaultLimits.Ingestion.MaxLocalTracesPerUser = ptrTo(2)
+	defaultLimits.Ingestion.BurstSizeBytes = ptrTo(4)
+	defaultLimits.Ingestion.RateLimitBytes = ptrTo(5)
+	defaultLimits.Global.MaxBytesPerTrace = ptrTo(3)
+
 	tests := []struct {
 		name                        string
 		defaultLimits               Overrides
@@ -68,18 +83,8 @@ func TestRuntimeConfigOverrides(t *testing.T) {
 		expectedMaxSearchDuration   map[string]int
 	}{
 		{
-			name: "limits only",
-			defaultLimits: Overrides{
-				Ingestion: IngestionOverrides{
-					MaxGlobalTracesPerUser: 1,
-					MaxLocalTracesPerUser:  2,
-					BurstSizeBytes:         4,
-					RateLimitBytes:         5,
-				},
-				Global: GlobalOverrides{
-					MaxBytesPerTrace: 3,
-				},
-			},
+			name:                        "limits only",
+			defaultLimits:               defaultLimits,
 			expectedMaxGlobalTraces:     map[string]int{"user1": 1, "user2": 1},
 			expectedMaxLocalTraces:      map[string]int{"user1": 2, "user2": 2},
 			expectedMaxBytesPerTrace:    map[string]int{"user1": 3, "user2": 3},
@@ -88,32 +93,22 @@ func TestRuntimeConfigOverrides(t *testing.T) {
 			expectedMaxSearchDuration:   map[string]int{"user1": 0, "user2": 0},
 		},
 		{
-			name: "basic Overrides",
-			defaultLimits: Overrides{
-				Ingestion: IngestionOverrides{
-					MaxGlobalTracesPerUser: 1,
-					MaxLocalTracesPerUser:  2,
-					BurstSizeBytes:         4,
-					RateLimitBytes:         5,
-				},
-				Global: GlobalOverrides{
-					MaxBytesPerTrace: 3,
-				},
-			},
+			name:          "basic Overrides",
+			defaultLimits: defaultLimits,
 			perTenantOverrides: &perTenantOverrides{
-				TenantLimits: map[string]*Overrides{
+				TenantLimits: TenantOverrides{
 					"user1": {
 						Ingestion: IngestionOverrides{
-							MaxGlobalTracesPerUser: 6,
-							MaxLocalTracesPerUser:  7,
-							BurstSizeBytes:         9,
-							RateLimitBytes:         10,
+							MaxGlobalTracesPerUser: ptrTo(6),
+							MaxLocalTracesPerUser:  ptrTo(7),
+							BurstSizeBytes:         ptrTo(9),
+							RateLimitBytes:         ptrTo(10),
 						},
 						Global: GlobalOverrides{
-							MaxBytesPerTrace: 8,
+							MaxBytesPerTrace: ptrTo(8),
 						},
 						Read: ReadOverrides{
-							MaxSearchDuration: model.Duration(11 * time.Second),
+							MaxSearchDuration: ptrTo(model.Duration(11 * time.Second)),
 						},
 					},
 				},
@@ -126,43 +121,33 @@ func TestRuntimeConfigOverrides(t *testing.T) {
 			expectedMaxSearchDuration:   map[string]int{"user1": int(11 * time.Second), "user2": 0},
 		},
 		{
-			name: "wildcard override",
-			defaultLimits: Overrides{
-				Ingestion: IngestionOverrides{
-					MaxGlobalTracesPerUser: 1,
-					MaxLocalTracesPerUser:  2,
-					BurstSizeBytes:         4,
-					RateLimitBytes:         5,
-				},
-				Global: GlobalOverrides{
-					MaxBytesPerTrace: 3,
-				},
-			},
+			name:          "wildcard override",
+			defaultLimits: defaultLimits,
 			perTenantOverrides: &perTenantOverrides{
-				TenantLimits: map[string]*Overrides{
+				TenantLimits: TenantOverrides{
 					"user1": {
 						Ingestion: IngestionOverrides{
-							MaxGlobalTracesPerUser: 6,
-							MaxLocalTracesPerUser:  7,
-							BurstSizeBytes:         9,
-							RateLimitBytes:         10,
+							MaxGlobalTracesPerUser: ptrTo(6),
+							MaxLocalTracesPerUser:  ptrTo(7),
+							BurstSizeBytes:         ptrTo(9),
+							RateLimitBytes:         ptrTo(10),
 						},
 						Global: GlobalOverrides{
-							MaxBytesPerTrace: 8,
+							MaxBytesPerTrace: ptrTo(8),
 						},
 					},
 					"*": {
 						Ingestion: IngestionOverrides{
-							MaxGlobalTracesPerUser: 11,
-							MaxLocalTracesPerUser:  12,
-							BurstSizeBytes:         14,
-							RateLimitBytes:         15,
+							MaxGlobalTracesPerUser: ptrTo(11),
+							MaxLocalTracesPerUser:  ptrTo(12),
+							BurstSizeBytes:         ptrTo(14),
+							RateLimitBytes:         ptrTo(15),
 						},
 						Global: GlobalOverrides{
-							MaxBytesPerTrace: 13,
+							MaxBytesPerTrace: ptrTo(13),
 						},
 						Read: ReadOverrides{
-							MaxSearchDuration: model.Duration(16 * time.Second),
+							MaxSearchDuration: ptrTo(model.Duration(16 * time.Second)),
 						},
 						CostAttribution: CostAttributionOverrides{Dimensions: map[string]string{"foo": "bar"}},
 					},
@@ -275,7 +260,7 @@ func TestMetricsGeneratorOverrides(t *testing.T) {
 				MetricsGenerator: MetricsGeneratorOverrides{
 					Processor: ProcessorOverrides{
 						SpanMetrics: SpanMetricsOverrides{
-							EnableTargetInfo: boolPtr(true),
+							EnableTargetInfo: ptrTo(true),
 							DimensionMappings: []sharedconfig.DimensionMappings{
 								{
 									Name:        "test-name",
@@ -283,7 +268,7 @@ func TestMetricsGeneratorOverrides(t *testing.T) {
 									Join:        "/",
 								},
 							},
-							EnableInstanceLabel: boolPtr(false),
+							EnableInstanceLabel: ptrTo(false),
 						},
 					},
 				},
@@ -311,12 +296,12 @@ func TestMetricsGeneratorOverrides(t *testing.T) {
 			name:          "basic Overrides",
 			defaultLimits: Overrides{},
 			perTenantOverrides: &perTenantOverrides{
-				TenantLimits: map[string]*Overrides{
+				TenantLimits: TenantOverrides{
 					"user1": {
 						MetricsGenerator: MetricsGeneratorOverrides{
 							Processor: ProcessorOverrides{
 								SpanMetrics: SpanMetricsOverrides{
-									EnableTargetInfo: boolPtr(true),
+									EnableTargetInfo: ptrTo(true),
 									DimensionMappings: []sharedconfig.DimensionMappings{
 										{
 											Name:        "test-name",
@@ -324,7 +309,7 @@ func TestMetricsGeneratorOverrides(t *testing.T) {
 											Join:        "/",
 										},
 									},
-									EnableInstanceLabel: boolPtr(false),
+									EnableInstanceLabel: ptrTo(false),
 								},
 							},
 						},
@@ -350,7 +335,7 @@ func TestMetricsGeneratorOverrides(t *testing.T) {
 				MetricsGenerator: MetricsGeneratorOverrides{
 					Processor: ProcessorOverrides{
 						SpanMetrics: SpanMetricsOverrides{
-							EnableTargetInfo: boolPtr(false),
+							EnableTargetInfo: ptrTo(false),
 							DimensionMappings: []sharedconfig.DimensionMappings{
 								{
 									Name:        "test-name",
@@ -363,12 +348,12 @@ func TestMetricsGeneratorOverrides(t *testing.T) {
 				},
 			},
 			perTenantOverrides: &perTenantOverrides{
-				TenantLimits: map[string]*Overrides{
+				TenantLimits: TenantOverrides{
 					"user1": {
 						MetricsGenerator: MetricsGeneratorOverrides{
 							Processor: ProcessorOverrides{
 								SpanMetrics: SpanMetricsOverrides{
-									EnableTargetInfo: boolPtr(true),
+									EnableTargetInfo: ptrTo(true),
 									DimensionMappings: []sharedconfig.DimensionMappings{
 										{
 											Name:        "another-name",
@@ -385,7 +370,7 @@ func TestMetricsGeneratorOverrides(t *testing.T) {
 						MetricsGenerator: MetricsGeneratorOverrides{
 							Processor: ProcessorOverrides{
 								SpanMetrics: SpanMetricsOverrides{
-									EnableTargetInfo: boolPtr(false),
+									EnableTargetInfo: ptrTo(false),
 									DimensionMappings: []sharedconfig.DimensionMappings{
 										{
 											Name:        "id-name",
@@ -635,7 +620,7 @@ func TestNativeHistogramOverrides(t *testing.T) {
 				MetricsGenerator: MetricsGeneratorOverrides{
 					NativeHistogramBucketFactor:     1.5,
 					NativeHistogramMaxBucketNumber:  20,
-					NativeHistogramMinResetDuration: 5 * time.Minute,
+					NativeHistogramMinResetDuration: ptrTo(5 * time.Minute),
 				},
 			},
 			nativeHistogramBucketFactor:     1.5,
@@ -643,21 +628,21 @@ func TestNativeHistogramOverrides(t *testing.T) {
 			nativeHistogramMinResetDuration: 5 * time.Minute,
 		},
 		{
-			name: "defaults only",
+			name: "per-tenant override",
 			defaultLimits: Overrides{
 				MetricsGenerator: MetricsGeneratorOverrides{
 					NativeHistogramBucketFactor:     1.5,
 					NativeHistogramMaxBucketNumber:  20,
-					NativeHistogramMinResetDuration: 5 * time.Minute,
+					NativeHistogramMinResetDuration: ptrTo(5 * time.Minute),
 				},
 			},
 			perTenantOverrides: &perTenantOverrides{
-				TenantLimits: map[string]*Overrides{
+				TenantLimits: TenantOverrides{
 					"user1": {
 						MetricsGenerator: MetricsGeneratorOverrides{
 							NativeHistogramBucketFactor:     2.0,
 							NativeHistogramMaxBucketNumber:  30,
-							NativeHistogramMinResetDuration: 10 * time.Minute,
+							NativeHistogramMinResetDuration: ptrTo(10 * time.Minute),
 						},
 					},
 				},
@@ -694,19 +679,23 @@ func TestMetricsGeneratorMaxCardinalityPerLabel(t *testing.T) {
 			name: "default enabled, no tenant override",
 			defaultLimits: Overrides{
 				MetricsGenerator: MetricsGeneratorOverrides{
-					MaxCardinalityPerLabel: 100,
+					MaxCardinalityPerLabel: ptrTo(uint64(100)),
 				},
 			},
 			expected: map[string]uint64{"user1": 100, "user2": 100},
 		},
 		{
-			name:          "default disabled, tenant enables",
-			defaultLimits: Overrides{},
+			name: "default disabled, tenant enables",
+			defaultLimits: Overrides{
+				MetricsGenerator: MetricsGeneratorOverrides{
+					MaxCardinalityPerLabel: ptrTo(uint64(0)),
+				},
+			},
 			perTenantOverrides: &perTenantOverrides{
-				TenantLimits: map[string]*Overrides{
+				TenantLimits: TenantOverrides{
 					"user1": {
 						MetricsGenerator: MetricsGeneratorOverrides{
-							MaxCardinalityPerLabel: 50,
+							MaxCardinalityPerLabel: ptrTo(uint64(50)),
 						},
 					},
 				},
@@ -717,14 +706,14 @@ func TestMetricsGeneratorMaxCardinalityPerLabel(t *testing.T) {
 			name: "default enabled, tenant disables with 0",
 			defaultLimits: Overrides{
 				MetricsGenerator: MetricsGeneratorOverrides{
-					MaxCardinalityPerLabel: 100,
+					MaxCardinalityPerLabel: ptrTo(uint64(100)),
 				},
 			},
 			perTenantOverrides: &perTenantOverrides{
-				TenantLimits: map[string]*Overrides{
+				TenantLimits: TenantOverrides{
 					"user1": {
 						MetricsGenerator: MetricsGeneratorOverrides{
-							MaxCardinalityPerLabel: 0,
+							MaxCardinalityPerLabel: ptrTo(uint64(0)),
 						},
 					},
 				},
@@ -735,14 +724,14 @@ func TestMetricsGeneratorMaxCardinalityPerLabel(t *testing.T) {
 			name: "default enabled, tenant overrides with higher value",
 			defaultLimits: Overrides{
 				MetricsGenerator: MetricsGeneratorOverrides{
-					MaxCardinalityPerLabel: 100,
+					MaxCardinalityPerLabel: ptrTo(uint64(100)),
 				},
 			},
 			perTenantOverrides: &perTenantOverrides{
-				TenantLimits: map[string]*Overrides{
+				TenantLimits: TenantOverrides{
 					"user1": {
 						MetricsGenerator: MetricsGeneratorOverrides{
-							MaxCardinalityPerLabel: 500,
+							MaxCardinalityPerLabel: ptrTo(uint64(500)),
 						},
 					},
 				},

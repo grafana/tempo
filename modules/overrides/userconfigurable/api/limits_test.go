@@ -2,6 +2,7 @@ package api
 
 import (
 	"encoding/json"
+	"flag"
 	"testing"
 	"time"
 
@@ -22,15 +23,15 @@ func Test_limitsFromOverrides(t *testing.T) {
 			Forwarders: []string{"my-forwarder"},
 			MetricsGenerator: overrides.MetricsGeneratorOverrides{
 				Processors:                      map[string]struct{}{"service-graphs": {}},
-				CollectionInterval:              15 * time.Second,
-				IngestionSlack:                  time.Minute,
-				DisableCollection:               true,
+				CollectionInterval:              ptrTo(15 * time.Second),
+				IngestionSlack:                  ptrTo(time.Minute),
+				DisableCollection:               boolPtr(true),
 				TraceIDLabelName:                "trace_id",
 				GenerateNativeHistograms:        histograms.HistogramMethodBoth,
 				NativeHistogramMaxBucketNumber:  160,
 				NativeHistogramBucketFactor:     1.2,
-				NativeHistogramMinResetDuration: 10 * time.Minute,
-				SpanNameSanitization:            "enabled",
+				NativeHistogramMinResetDuration: ptrTo(10 * time.Minute),
+				SpanNameSanitization:            ptrTo("enabled"),
 				Processor: overrides.ProcessorOverrides{
 					ServiceGraphs: overrides.ServiceGraphsOverrides{
 						HistogramBuckets:         []float64{0.1, 0.2, 0.5},
@@ -207,20 +208,11 @@ func Test_limitsFromOverrides_EmptyOrNilFilterPoliciesDontCrash(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			cfg := overrides.Config{
-				Defaults: overrides.Overrides{
-					MetricsGenerator: overrides.MetricsGeneratorOverrides{
-						Processor: overrides.ProcessorOverrides{
-							ServiceGraphs: overrides.ServiceGraphsOverrides{
-								FilterPolicies: tc.serviceGraphPolicies,
-							},
-							SpanMetrics: overrides.SpanMetricsOverrides{
-								FilterPolicies: tc.spanMetricsPolicies,
-							},
-						},
-					},
-				},
-			}
+			cfg := overrides.Config{}
+			// apply defaults to ensure no panic due to defaults
+			cfg.RegisterFlagsAndApplyDefaults(&flag.FlagSet{})
+			cfg.Defaults.MetricsGenerator.Processor.ServiceGraphs.FilterPolicies = tc.serviceGraphPolicies
+			cfg.Defaults.MetricsGenerator.Processor.SpanMetrics.FilterPolicies = tc.spanMetricsPolicies
 
 			assert.NotPanics(t, func() {
 				overridesInt, err := overrides.NewOverrides(cfg, nil, prometheus.NewRegistry())
