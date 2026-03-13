@@ -1,0 +1,44 @@
+{
+  "eval_id": 2,
+  "mode": "standalone",
+  "prompt_summary": "PR #6103 integer dedicated columns — add new configuration section",
+  "assertion_results": [
+    {
+      "text": "Output includes a 'Files changed' section listing at least one path under docs/sources/tempo/",
+      "passed": true,
+      "evidence": "Two files changed: docs/sources/tempo/operations/dedicated_columns.md (+51 lines) and docs/sources/tempo/configuration/_index.md (16 changes)"
+    },
+    {
+      "text": "Output includes a mapping of PR #6103 to the file(s) updated",
+      "passed": true,
+      "evidence": "response.md has a PR-to-doc mapping table with two rows for #6103, one per file changed"
+    },
+    {
+      "text": "Documented content includes a YAML configuration example",
+      "passed": true,
+      "evidence": "dedicated_columns.md now includes a full YAML block showing parquet_dedicated_columns with name/type/scope entries for integer attributes"
+    },
+    {
+      "text": "Content notes the minimum Tempo version or states 'introduced in Tempo X.Y'",
+      "passed": false,
+      "evidence": "Diff reviewed — no version callout added to either file. The skill instructions say to 'Call out defaults and version requirements when relevant'. Integer dedicated columns require vParquet5 but no version requirement was noted in the new content."
+    },
+    {
+      "text": "Output includes an 'Open items' section (even if empty)",
+      "passed": true,
+      "evidence": "Open items section has three substantive items: attribute limit verification, --include-well-known flag guidance, and vParquet5 confirmation"
+    },
+    {
+      "text": "Configuration field names in the example match code, not just the PR description",
+      "passed": true,
+      "evidence": "Agent explicitly corrected type options from 'string' to 'string, int' and scope options from 'resource, span' to 'resource, span, event'. These are code-verified corrections that the PR description alone would not have provided."
+    }
+  ],
+  "summary": {
+    "passed": 5,
+    "failed": 1,
+    "total": 6,
+    "pass_rate": 0.833
+  },
+  "notes": "High quality output overall. The CLI workflow, output example, YAML block, and configuration corrections are all substantive and accurate. The only failure is the missing version callout (vParquet5 requirement). This is also flagged as an open item (#3), which shows the agent is aware but didn't act on it — a skill instruction gap."
+}

@@ -1,0 +1,54 @@
+{
+  "eval_id": 4,
+  "mode": "workflow",
+  "prompt_summary": "Phase 1.5 for Tempo 3.0: classify #6103, #5962, #5840 and produce Phase 1.75 handoff",
+  "assertion_results": [
+    {
+      "text": "Output includes a markdown table with columns: PR, Title, Classification, Notes",
+      "passed": true,
+      "evidence": "Table present with all four required columns"
+    },
+    {
+      "text": "PR #5840 is classified as 'No docs required'",
+      "passed": true,
+      "evidence": "#5840 = 'No docs required' — Dependabot dep bump"
+    },
+    {
+      "text": "PR #6103 is classified as 'Docs needed'",
+      "passed": false,
+      "evidence": "Classified as 'Docs present' — agent found CLI flags and 5% threshold in tempo_cli.md and dedicated_columns.md. Eval 3 classified same PR as 'Docs update needed'. Inconsistency between runs is a real skill problem. Assertion also too strict ('Docs needed' vs 'Docs update needed' are both valid)."
+    },
+    {
+      "text": "PR #5962 is classified as 'Docs update needed' or 'Docs needed'",
+      "passed": true,
+      "evidence": "Classified as 'Docs update needed' with specific issues: header name discrepancy and missing MCP server auto-header note"
+    },
+    {
+      "text": "A gap summary section appears after the table",
+      "passed": true,
+      "evidence": "Gap summary present with prioritized sections"
+    },
+    {
+      "text": "The gap summary lists PRs with entirely missing docs before PRs that need updates",
+      "passed": true,
+      "evidence": "P1 = Docs update needed (#5962), P2 = Docs present (#6103, no action). Ordering is correct."
+    },
+    {
+      "text": "Notes column for each doc-work PR identifies a specific target file or section in docs/sources/tempo",
+      "passed": true,
+      "evidence": "#5962 notes reference api_docs/_index.md (lines 219 and 623) and mcp-server.md. #6103 notes reference tempo_cli.md and dedicated_columns.md."
+    },
+    {
+      "text": "Output is formatted so it can be passed directly to docs-pr-write without re-entry",
+      "passed": true,
+      "evidence": "'Summary for Phase 1.75' table present with PR, work required, and blocker columns. Directly consumable."
+    }
+  ],
+  "summary": {
+    "passed": 7,
+    "failed": 1,
+    "total": 8,
+    "pass_rate": 0.875
+  },
+  "notes": "Best result of the four evals. Workflow framing produced the most structured and usable output. The one failure (#6103 'Docs present' vs expected 'Docs needed') is partly an eval calibration issue and partly a real inconsistency — the same PR was classified as 'Docs update needed' in eval 3 and 'Docs present' in eval 4. This run-to-run variability on #6103 is the main actionable finding."
+}

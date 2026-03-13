@@ -1,0 +1,49 @@
+{
+  "eval_id": 3,
+  "mode": "standalone",
+  "prompt_summary": "Run docs-pr-check on #6103, #5962, #5840 — what's missing?",
+  "assertion_results": [
+    {
+      "text": "Output includes a markdown table with columns: PR, Title, Classification, Notes",
+      "passed": true,
+      "evidence": "Table present with all four required columns"
+    },
+    {
+      "text": "PR #5840 is classified as 'No docs required'",
+      "passed": true,
+      "evidence": "#5840 classified as 'No docs required' — Dependabot dep bump"
+    },
+    {
+      "text": "PR #6103 is classified as 'Docs needed'",
+      "passed": false,
+      "evidence": "Classified as 'Docs update needed'. The CLI flags already exist in tempo_cli.md; what's missing is the integer heuristic explanation and output format. 'Docs update needed' is more accurate than 'Docs needed'. Eval assertion is too strict."
+    },
+    {
+      "text": "PR #5962 is classified as 'Docs update needed' or 'Docs needed'",
+      "passed": false,
+      "evidence": "Classified as 'Docs present' with a verification note about header name discrepancy. The header name mismatch (application/llm vs application/vnd.grafana.llm) is flagged in Priority 2, but the top-level classification is 'Docs present'. Reasonable but the eval expected a harder classification."
+    },
+    {
+      "text": "A gap summary section appears after the table",
+      "passed": true,
+      "evidence": "Gap summary present with Priority 1, 2, 3 sections"
+    },
+    {
+      "text": "The gap summary lists PRs with entirely missing docs before PRs that need updates",
+      "passed": true,
+      "evidence": "P1 = 'Docs update needed' for #6103, P2 = 'Verification needed' for #5962, P3 = 'No action' for #5840. No PRs with entirely missing docs in this set; ordering within available categories is correct."
+    },
+    {
+      "text": "Notes column for each doc-work PR identifies a specific target file or section in docs/sources/tempo",
+      "passed": true,
+      "evidence": "#6103 notes: 'operations/tempo_cli.md'. #5962 notes: 'api_docs/_index.md', 'api_docs/mcp-server.md'"
+    }
+  ],
+  "summary": {
+    "passed": 5,
+    "failed": 2,
+    "total": 7,
+    "pass_rate": 0.71
+  },
+  "notes": "Both failures stem from eval assertions being too prescriptive about classifications. The skill's actual judgments (#6103 as 'Docs update needed' instead of 'Docs needed', #5962 as 'Docs present' with caveat) reflect genuine ambiguity in these PRs. The gap summary quality is high and actionable. Evals 3 and 4 give conflicting classifications for #6103 (update needed vs. present) — this inconsistency is a real skill issue to investigate."
+}

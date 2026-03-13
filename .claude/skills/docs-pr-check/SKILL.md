@@ -54,6 +54,8 @@ Classify as **no docs required** if the PR is:
 | Docs update needed | Existing docs are incomplete or don't reflect the new behavior | Update existing docs as part of the release |
 | No docs required | Internal change with no user-facing impact | No action needed |
 
+If docs exist but you identify any actionable gap, classify as **Docs update needed**, not **Docs present**.
+
 ### 4. For "docs needed" and "docs update needed" PRs, identify specific gaps
 
 Search `docs/sources/tempo` for the feature name to check if it's partially documented. Identify:

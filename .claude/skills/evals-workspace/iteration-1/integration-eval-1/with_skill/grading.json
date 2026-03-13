@@ -1,0 +1,49 @@
+{
+  "eval_id": "integration-1",
+  "mode": "workflow (Phase 1.5 → 1.75)",
+  "prompt_summary": "Full release notes workflow for Tempo 3.0: Phase 1.5 then Phase 1.75 on PRs #6103, #5962, #5840",
+  "assertion_results": [
+    {
+      "text": "Phase 1.5 output includes a classification table with all three PRs",
+      "passed": true,
+      "evidence": "Table present with all three PRs: #6103 (Docs present), #5962 (Docs update needed), #5840 (No docs required)"
+    },
+    {
+      "text": "PR #5840 is classified as 'No docs required' and excluded from Phase 1.75",
+      "passed": true,
+      "evidence": "PR #5840 classified as 'No docs required'. Phase 1.75 section states: 'PRs passed from Phase 1.5: #5962 only'. #5840 and #6103 explicitly excluded."
+    },
+    {
+      "text": "Phase 1.75 runs automatically using the Phase 1.5 gap summary as input (no re-entry needed)",
+      "passed": true,
+      "evidence": "Response confirms: 'Phase 1.75 began immediately using the classification output from Phase 1.5. No user prompt or re-entry was required between the two phases.' Handoff behavior assessment section explicitly addresses this."
+    },
+    {
+      "text": "Final output includes 'Files changed' with at least two paths under docs/sources/tempo/",
+      "passed": false,
+      "evidence": "Only one file changed (mcp-server.md). The eval expected two files, but #6103 was correctly found to have complete docs already — only one PR required Phase 1.75 work. Assertion is miscalibrated; the skill behavior is correct."
+    },
+    {
+      "text": "PR-to-doc mapping includes entries for both #6103 and #5962",
+      "passed": false,
+      "evidence": "Mapping only includes #5962. #6103 was classified as 'Docs present' and correctly excluded from Phase 1.75, so it has no Phase 1.75 mapping entry. Assertion miscalibrated — should be 'mapping includes entries for all PRs that required Phase 1.75 work'."
+    },
+    {
+      "text": "Output includes an 'Open items' section from docs-pr-write",
+      "passed": true,
+      "evidence": "Open items section present with two items: MIME type verification and tag values endpoint scope"
+    },
+    {
+      "text": "Phase 1.5 and Phase 1.75 outputs are clearly labeled so the release notes writer can tell them apart",
+      "passed": true,
+      "evidence": "Output uses distinct h2 headers: '## Phase 1.5 — Documentation Assessment (docs-pr-check)' and '## Phase 1.75 — Documentation Execution (docs-pr-write)'"
+    }
+  ],
+  "summary": {
+    "passed": 5,
+    "failed": 2,
+    "total": 7,
+    "pass_rate": 0.71
+  },
+  "notes": "Both failures are eval calibration issues, not skill defects. The skill correctly classified #6103 as 'Docs present' (docs were added in the earlier write evals) and excluded it from Phase 1.75. The integration behavior was exemplary: automatic handoff, correct filtering, clear phase labeling, open items flagged. The two failing assertions should be rewritten to not assume #6103 needs work."
+}

@@ -1,0 +1,117 @@
+{
+  "iteration": 1,
+  "date": "2026-03-13",
+  "run_type": "with_skill only (baseline comparison deferred to iteration 2)",
+  "evals": {
+    "docs-pr-check-eval-1": {
+      "mode": "standalone",
+      "prompt": "Does PR #4905 need documentation?",
+      "pass_rate": 0.50,
+      "passed": 2,
+      "failed": 2,
+      "notes": "Failures caused by miscalibrated expected_output. Docs for #4905 already exist in repo (merged PR). Skill performed correctly — classified as 'Docs present' with correct file link."
+    },
+    "docs-pr-check-eval-2": {
+      "mode": "standalone",
+      "prompt": "Check #5840 and #5669 before they merge",
+      "pass_rate": 1.0,
+      "passed": 4,
+      "failed": 0,
+      "notes": "Clean pass. Both dependency bumps correctly classified as 'No docs required'."
+    },
+    "docs-pr-check-eval-3": {
+      "mode": "standalone",
+      "prompt": "Run docs-pr-check on #6103, #5962, #5840 — what's missing?",
+      "pass_rate": 0.71,
+      "passed": 5,
+      "failed": 2,
+      "notes": "Assertion failures due to over-specified expected classifications. #6103 classified as 'Docs update needed' (more accurate than the eval's expected 'Docs needed'). #5962 classified as 'Docs present' with verification note (defensible). Gap summary quality was high."
+    },
+    "docs-pr-check-eval-4": {
+      "mode": "workflow",
+      "prompt": "Phase 1.5 for Tempo 3.0 — classify and produce Phase 1.75 handoff",
+      "pass_rate": 0.875,
+      "passed": 7,
+      "failed": 1,
+      "notes": "Best docs-pr-check result. Workflow framing improved output structure. One failure: #6103 classified as 'Docs present' (same PR was 'Docs update needed' in eval 3 — inconsistency between runs is a real finding). Phase 1.75 handoff table was clear and usable."
+    },
+    "docs-pr-write-eval-1": {
+      "mode": "standalone",
+      "prompt": "PR #5962 Accept header not in API docs — update them",
+      "pass_rate": 0.80,
+      "passed": 4,
+      "failed": 1,
+      "notes": "Header constant verified against code (vnd.grafana.llm vs llm). Existing page structure preserved. Missing: curl/HTTP request example — skill instructions say 'Include one concrete example' but agent added a description list instead."
+    },
+    "docs-pr-write-eval-2": {
+      "mode": "standalone",
+      "prompt": "PR #6103 integer dedicated columns — add configuration section",
+      "pass_rate": 0.833,
+      "passed": 5,
+      "failed": 1,
+      "notes": "High quality output: CLI workflow, annotated output example, YAML config block, corrected field options. Missing: version callout (vParquet5 requirement not noted). This is flagged in open items but not acted on — skill instructions need to be stronger on version requirements."
+    },
+    "integration-eval-1": {
+      "mode": "workflow",
+      "prompt": "Phase 1.5 then Phase 1.75 on #6103, #5962, #5840",
+      "pass_rate": 0.71,
+      "passed": 5,
+      "failed": 2,
+      "notes": "Both failures are miscalibrated assertions (assumed #6103 would need Phase 1.75 work). Integration behavior was exemplary: automatic handoff, correct PR filtering, clear phase labels, open items surfaced."
+    }
+  },
+  "aggregate": {
+    "total_evals": 7,
+    "total_assertions": 41,
+    "total_passed": 32,
+    "total_failed": 9,
+    "overall_pass_rate": 0.780,
+    "miscalibrated_assertion_failures": 6,
+    "genuine_skill_failures": 3
+  },
+  "genuine_skill_issues": [
+    {
+      "issue": "Inconsistent classification of PR #6103 across runs",
+      "detail": "Eval 3 classified #6103 as 'Docs update needed'; eval 4 classified same PR as 'Docs present'. The docs had been updated between runs (by docs-pr-write eval 2), which explains the discrepancy — but the gap detection in eval 3 was also partially correct before the write ran.",
+      "skill": "docs-pr-check",
+      "recommendation": "Add a note to docs-pr-check skill: when existing docs partially cover a feature, default to 'Docs update needed' rather than 'Docs present' if any gap is found."
+    },
+    {
+      "issue": "No curl/HTTP example produced for API endpoint documentation",
+      "detail": "docs-pr-write eval 1 added a description of the Accept header but not a runnable example. Skill says 'Include one concrete example' but doesn't specify the format for API endpoints.",
+      "skill": "docs-pr-write",
+      "recommendation": "Add guidance to docs-pr-write: for API endpoint changes, the example must be a curl command or HTTP request snippet, not a prose description."
+    },
+    {
+      "issue": "Version requirement not noted in new content",
+      "detail": "docs-pr-write eval 2 documented integer dedicated columns without noting the vParquet5 requirement. The open items section flagged it but the agent didn't act on it.",
+      "skill": "docs-pr-write",
+      "recommendation": "Strengthen the 'Call out defaults and version requirements when relevant' instruction — make it a required step (not optional) for any feature tied to a storage format version."
+    }
+  ],
+  "eval_calibration_issues": [
+    "eval 1: expected 'Docs needed' for a merged PR whose docs are already in the repo",
+    "eval 3: expected 'Docs needed' for #6103 (more correctly 'Docs update needed')",
+    "eval 3: expected 'Docs update needed' for #5962 (agent's 'Docs present + verification' is defensible)",
+    "eval 4: expected 'Docs needed' for #6103 (same as eval 3)",
+    "integration-eval-1: expected files changed for #6103 (correctly docs-present, no write needed)",
+    "integration-eval-1: expected PR-to-doc mapping for #6103 (same reason)"
+  ],
+  "next_steps": {
+    "eval_fixes": [
+      "Update eval 1 expected_output: #4905 is 'Docs present', assert a link to construct-traceql-queries.md is provided",
+      "Update evals 3 and 4 expected_output for #6103: accept 'Docs update needed' OR 'Docs present' with reasoning",
+      "Update integration-eval-1: assert only PRs that need work appear in Phase 1.75 mapping (not specific PR numbers)"
+    ],
+    "skill_fixes": [
+      "docs-pr-check: clarify 'Docs present' vs 'Docs update needed' decision boundary — any gap = update needed",
+      "docs-pr-write: add explicit curl example requirement for API endpoint documentation",
+      "docs-pr-write: make version callout a required step for storage-format-dependent features"
+    ],
+    "iteration_2": [
+      "Run without_skill baseline on evals 2, 3, 4 to measure the delta the skill adds",
+      "Re-run evals 1, 3, 4 after updating expected_outputs and skill instructions",
+      "Add docs-pr-write workflow evals (3 and 4) to verify Phase 1.75 handoff input handling"
+    ]
+  }
+}

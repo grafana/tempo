@@ -1,0 +1,20 @@
+{
+  "skill_name": "docs-pr-check + docs-pr-write (integration)",
+  "workflow_context": "These integration tests cover the full Phase 1.5 → Phase 1.75 handoff inside the Tempo release notes workflow (.agents/doc-agents/shared/release-notes-workflow.md). The agent runs docs-pr-check first, then uses that output as the input to docs-pr-write without human re-entry of the handoff data.",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "We're working on the Tempo 3.0 release notes. Phase 1 is complete. Run Phase 1.5 (docs-pr-check) on this curated PR list: #6103, #5962, #5840. Then immediately run Phase 1.75 (docs-pr-write) for any PRs that need documentation work. Target branch is main.",
+      "expected_output": "Phase 1.5 produces a classification table and gap summary. PRs #6103 and #5962 are flagged for docs work; #5840 is not. Phase 1.75 then runs docs-pr-write using the Phase 1.5 output as its handoff — without requiring the user to re-enter it. The final output includes: (1) the docs-pr-check classification table, (2) the docs-pr-write 'Files changed' list covering both #6103 and #5962, (3) a PR-to-doc mapping for both, and (4) an 'Open items' section.",
+      "assertions": [
+        "Phase 1.5 output includes a classification table with all three PRs",
+        "PR #5840 is classified as 'No docs required' and excluded from Phase 1.75",
+        "Phase 1.75 runs automatically using the Phase 1.5 gap summary as input (no re-entry needed)",
+        "Final output includes 'Files changed' with at least two paths under docs/sources/tempo/",
+        "PR-to-doc mapping includes entries for both #6103 and #5962",
+        "Output includes an 'Open items' section from docs-pr-write",
+        "Phase 1.5 and Phase 1.75 outputs are clearly labeled so the release notes writer can tell them apart"
+      ]
+    }
+  ]
+}

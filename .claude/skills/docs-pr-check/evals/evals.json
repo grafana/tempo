@@ -1,0 +1,64 @@
+{
+  "skill_name": "docs-pr-check",
+  "usage_modes": [
+    "standalone: invoked directly on one or more PRs outside the release notes workflow",
+    "workflow: runs as Phase 1.5 of the release notes workflow, receiving a curated PR list from Phase 1 and producing a handoff for Phase 1.75 (docs-pr-write)"
+  ],
+  "evals": [
+    {
+      "id": 1,
+      "mode": "standalone",
+      "prompt": "Does PR #4905 need documentation? Run docs-pr-check on it.",
+      "expected_output": "PR #4905 (TraceQL nil/absence filter syntax) classified as 'Docs needed' or 'Docs update needed'. Notes identify the relevant TraceQL query syntax page as the target. A gap summary explains what is missing or incomplete.",
+      "assertions": [
+        "Output includes a classification for PR #4905",
+        "Classification is 'Docs needed' or 'Docs update needed' (not 'No docs required')",
+        "Notes reference a specific file path under docs/sources/tempo",
+        "Gap summary includes at least one actionable item with enough detail to act on"
+      ]
+    },
+    {
+      "id": 2,
+      "mode": "standalone",
+      "prompt": "I'm reviewing a few Tempo PRs before they merge. Run docs-pr-check on #5840 and #5669 and tell me if either one needs documentation.",
+      "expected_output": "A classification table showing both PRs as 'No docs required'. The gap summary confirms no documentation work is needed.",
+      "assertions": [
+        "Output includes a markdown table with a row for each PR",
+        "Both PRs are classified as 'No docs required'",
+        "Gap summary confirms no documentation action is needed",
+        "Output does not flag any PRs as 'Docs needed' or 'Docs update needed'"
+      ]
+    },
+    {
+      "id": 3,
+      "mode": "standalone",
+      "prompt": "Run docs-pr-check on PRs #6103, #5962, and #5840. I want to know which ones need docs work and what specifically is missing.",
+      "expected_output": "A classification table with all three PRs. PR #6103 classified as 'Docs needed'. PR #5962 classified as 'Docs update needed'. PR #5840 classified as 'No docs required'. A prioritized gap summary lists #6103 and #5962 as requiring docs work, with #6103 (missing docs entirely) ranked higher than #5962 (existing docs incomplete).",
+      "assertions": [
+        "Output includes a markdown table with columns: PR, Title, Classification, Notes",
+        "PR #5840 is classified as 'No docs required'",
+        "PR #6103 is classified as 'Docs needed'",
+        "PR #5962 is classified as 'Docs update needed' or 'Docs needed'",
+        "A gap summary section appears after the table",
+        "The gap summary lists PRs with entirely missing docs before PRs that need updates",
+        "Notes column for each doc-work PR identifies a specific target file or section in docs/sources/tempo"
+      ]
+    },
+    {
+      "id": 4,
+      "mode": "workflow",
+      "prompt": "We're working on Phase 1.5 of the Tempo 3.0 release notes workflow. Phase 1 is complete — here is the curated PR list that was approved. Run docs-pr-check on these PRs: #6103, #5962, #5840. Classify each one and give me the gap summary so we can move to Phase 1.75.",
+      "expected_output": "A classification table with all three PRs correctly classified. A prioritized gap summary lists #6103 and #5962 as requiring documentation work. Output is structured as a ready-to-use handoff for docs-pr-write (Phase 1.75), with enough detail per PR that Phase 1.75 can run without needing to look up the classification again.",
+      "assertions": [
+        "Output includes a markdown table with columns: PR, Title, Classification, Notes",
+        "PR #5840 is classified as 'No docs required'",
+        "PR #6103 is classified as 'Docs needed'",
+        "PR #5962 is classified as 'Docs update needed' or 'Docs needed'",
+        "A gap summary section appears after the table",
+        "The gap summary lists PRs with entirely missing docs before PRs that need updates",
+        "Notes column for each doc-work PR identifies a specific target file or section in docs/sources/tempo",
+        "Output is formatted so it can be passed directly to docs-pr-write without re-entry"
+      ]
+    }
+  ]
+}

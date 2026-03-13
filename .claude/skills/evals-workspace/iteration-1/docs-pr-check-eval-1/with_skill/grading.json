@@ -1,0 +1,34 @@
+{
+  "eval_id": 1,
+  "mode": "standalone",
+  "prompt_summary": "Does PR #4905 need documentation?",
+  "assertion_results": [
+    {
+      "text": "Output includes a classification for PR #4905",
+      "passed": true,
+      "evidence": "Table present with #4905 classified as 'Docs present'"
+    },
+    {
+      "text": "Classification is 'Docs needed' or 'Docs update needed' (not 'No docs required')",
+      "passed": false,
+      "evidence": "Classified as 'Docs present' — docs were already merged into the repo. The expected_output in the eval was miscalibrated: since this is a merged PR, docs exist in the workspace. The skill's classification is factually correct."
+    },
+    {
+      "text": "Notes reference a specific file path under docs/sources/tempo",
+      "passed": true,
+      "evidence": "Notes reference docs/sources/tempo/traceql/construct-traceql-queries.md with a section anchor"
+    },
+    {
+      "text": "Gap summary includes at least one actionable item with enough detail to act on",
+      "passed": false,
+      "evidence": "Gap summary correctly states no gaps — docs are complete. Assertion fails but the skill output is accurate. Eval expected_output needs correction."
+    }
+  ],
+  "summary": {
+    "passed": 2,
+    "failed": 2,
+    "total": 4,
+    "pass_rate": 0.50
+  },
+  "notes": "The two failures are caused by a miscalibrated expected_output, not skill defects. PR #4905 docs ARE in the repo (merged PR). Eval needs updating to expect 'Docs present' and a link to the docs file. The skill performed correctly."
+}

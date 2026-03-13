@@ -71,8 +71,8 @@ When uncertain between two pages, choose the one closest to user workflow and cr
 For each required change:
 - Explain what changed in user terms
 - Add when/why to use it
-- Include one concrete example (`configuration`/query/API call)
-- Call out defaults and version requirements when relevant
+- Include one concrete, runnable example
+- Call out defaults and version requirements
 
 Keep content concise and avoid duplicating large reference material.
 
