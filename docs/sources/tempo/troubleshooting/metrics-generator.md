@@ -18,7 +18,7 @@ If everything seems acceptable from these two perspectives, consider the followi
 
 ## Kafka consumption
 
-In Tempo 3.0, metrics-generators consume trace data directly from Kafka rather than receiving pushes from distributors. If the generator is not producing metrics, start by verifying that it's consuming data from Kafka.
+In Tempo 3.0, metrics-generators consume trace data directly from Kafka rather than receiving pushes from distributors. If the generator is not producing metrics, start by verifying that it's consuming data from Kafka using the metrics below.
 
 ### Consumer lag
 

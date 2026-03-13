@@ -46,7 +46,8 @@ In this case, use available configuration options to [increase limits](https://g
 
 ## Trace limits
 
-Limits such as max trace size and max live traces per tenant are enforced asynchronously by the live-store and block-builder. These limits won't cause the distributor to refuse spans at ingestion time. Traces that exceed them are discarded downstream.
+Limits such as `max_bytes_per_trace` and `max_live_traces_bytes` are enforced asynchronously by the live-store and 
+block-builder. These limits won't cause the distributor to refuse spans at ingestion time. Traces that exceed them are discarded downstream.
 
 ## Client resets connection
 
