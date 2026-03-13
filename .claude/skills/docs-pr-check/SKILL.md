@@ -88,4 +88,3 @@ A prioritized list of documentation work needed, ordered by user impact:
 ## Reference
 
 - Workflow detail: `.agents/doc-agents/shared/release-notes-workflow.md` (Phases 1.5–1.75)
-- Verification checklist: `.agents/doc-agents/shared/verification-checklist.md`

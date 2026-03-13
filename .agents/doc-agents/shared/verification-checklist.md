@@ -1,5 +1,9 @@
 # Documentation Verification Checklist
 
+> **Intended use:** This file serves two purposes:
+> 1. **Human writers** — use as a full reference checklist when writing or reviewing documentation.
+> 2. **Agents (docs-pr-write Step 8 only)** — read this file to select the sections relevant to the change type, then present those sections to the user as a handoff checklist. Do not attempt to complete these items autonomously.
+
 Use this checklist when writing or updating documentation to ensure accuracy, consistency, and completeness.
 
 ## Pre-Writing

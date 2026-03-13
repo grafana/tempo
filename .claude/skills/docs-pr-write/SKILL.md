@@ -80,12 +80,13 @@ Keep content concise and avoid duplicating large reference material.
 
 Do not rely only on PR description text.
 
-Verify in code/`configuration` schema:
-- field names
-- default values
-- accepted enums/flags
-- endpoint paths/headers
-- query syntax
+Use the PR's changed file list as your guide to where to look. Only search within the `grafana/tempo` repository — do not search across other Grafana repositories.
+
+For each claim you document, verify in the file type most likely to be authoritative:
+
+- **Go files**: exact field name spelling in struct or constant, default value (`RegisterFlagsAndApplyDefaults`), accepted enum values
+- **Proto files**: API endpoint paths, request/response field names
+- **Helm/YAML files**: configuration keys and default values in deployment examples
 
 Correct docs if code and PR text differ.
 
@@ -105,6 +106,16 @@ Before returning:
 - Keep style aligned with existing Tempo docs pages
 - Keep language action-oriented and concise
 
+### 8. Hand off verification items to the user
+
+After completing all doc changes, output a "Before you submit" block. Select only the checklist sections from `.agents/doc-agents/shared/verification-checklist.md` that are relevant to what you just documented:
+
+- Configuration option added or changed → include **Codebase Verification** and **Configuration Reference Check**
+- New feature, query syntax, or API change → include **Version Compatibility**
+- Style or wording edit only → omit code verification items entirely
+
+Present the selected items as a short checklist for the user to complete before submitting the PR. Do not attempt to complete these items yourself.
+
 ## Return Format
 
 Return:
@@ -122,4 +133,4 @@ Return:
 
 - Triage skill: `.claude/skills/docs-pr-check/SKILL.md`
 - Workflow detail: `.agents/doc-agents/shared/release-notes-workflow.md`
-- Verification checklist: `.agents/doc-agents/shared/verification-checklist.md`
+- Verification checklist (Step 8 source): `.agents/doc-agents/shared/verification-checklist.md`

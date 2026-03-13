@@ -1,5 +1,7 @@
 # Documentation Best Practices
 
+> **For human writers only.** Do not include this file in agent or skill instructions. It is reference material for people, not a task list for agents.
+
 This guide captures best practices learned from documentation work, particularly around verifying accuracy, addressing user confusion, and maintaining consistency.
 
 ## Pre-Writing Checklist
