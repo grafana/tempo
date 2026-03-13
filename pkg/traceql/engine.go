@@ -179,50 +179,60 @@ func (e *Engine) ExecuteSearch(ctx context.Context, searchReq *tempopb.SearchReq
 func (e *Engine) ExecuteTagValues(
 	ctx context.Context,
 	tag Attribute,
-	query string,
+	conditionGroups [][]Condition,
 	cb FetchTagValuesCallback,
 	fetcher TagValuesFetcher,
 ) error {
 	ctx, span := tracer.Start(ctx, "traceql.Engine.ExecuteTagValues")
 	defer span.End()
 
-	span.SetAttributes(attribute.String("sanitized query", query))
-
-	rootExpr, err := Parse(query)
-	if err == nil {
-		// Query parses, now see if it's valid.
-		if err := rootExpr.validate(); err != nil {
-			// Invalid query - return nothing
-			span.RecordError(err)
-			return nil
-		}
-	} else {
-		// If the query has bad TraceQL, don't error out, return unfiltered results
-		var parseErr *ParseError
-		if errors.As(err, &parseErr) {
-			rootExpr, _ = Parse("{ true }")
-		} else {
-			return err
-		}
-	}
-
-	autocompleteReq := e.createAutocompleteRequest(tag, rootExpr.Pipeline)
-
-	span.SetAttributes(attribute.String("pipeline", rootExpr.Pipeline.String()))
-	span.SetAttributes(attribute.String("autocompleteReq", fmt.Sprint(autocompleteReq)))
-
 	// If the tag we are fetching is already filtered in the query, then this is a noop.
 	// I.e. we are autocompleting resource.service.name and the query was {resource.service.name="foo"}
-	for _, c := range autocompleteReq.Conditions {
-		if c.Attribute == tag && c.Op == OpEqual {
-			// If the tag is already filtered in the query,
-			// then we can just return the operand as the only value.
-			if len(c.Operands) > 0 {
-				cb(c.Operands[0])
+	if len(conditionGroups) == 1 {
+		for _, c := range conditionGroups[0] {
+			if c.Attribute == tag && c.Op == OpEqual {
+				if len(c.Operands) > 0 {
+					cb(c.Operands[0])
+				}
+				return nil
 			}
-			return nil
 		}
 	}
+
+	finalConditionGroups := make([][]Condition, 0, len(conditionGroups))
+	for _, group := range conditionGroups {
+		skip := false
+		for _, c := range group {
+			if c.Attribute == tag && c.Op == OpEqual {
+				if len(c.Operands) > 0 {
+					cb(c.Operands[0])
+				}
+				skip = true
+			}
+		}
+		if !skip {
+			finalConditionGroups = append(finalConditionGroups, group)
+		}
+	}
+
+	if len(finalConditionGroups) == 0 {
+		// no op
+		return nil
+	}
+
+	for i := range finalConditionGroups {
+		finalConditionGroups[i] = append(finalConditionGroups[i], Condition{
+			Attribute: tag,
+			Op:        OpNone,
+		})
+	}
+
+	autocompleteReq := FetchTagValuesRequest{
+		ConditionGroups: finalConditionGroups,
+		TagName:         tag,
+	}
+
+	span.SetAttributes(attribute.String("autocompleteReq", fmt.Sprint(autocompleteReq)))
 
 	return fetcher.Fetch(ctx, autocompleteReq, cb)
 }
@@ -230,74 +240,21 @@ func (e *Engine) ExecuteTagValues(
 func (e *Engine) ExecuteTagNames(
 	ctx context.Context,
 	scope AttributeScope,
-	query string,
+	conditionGroups [][]Condition,
 	cb FetchTagsCallback,
 	fetcher TagNamesFetcher,
 ) error {
 	ctx, span := tracer.Start(ctx, "traceql.Engine.ExecuteTagNames")
 	defer span.End()
 
-	span.SetAttributes(attribute.String("sanitized query", query))
-
-	var conditions []Condition
-	rootExpr, err := Parse(query)
-	// if the parse succeeded then use those conditions, otherwise pass in none. the next layer will handle it
-	if err == nil {
-		// Query parses now see if it's valid.
-		if err := rootExpr.validate(); err != nil {
-			// Invalid query - return nothing
-			span.RecordError(err)
-			return nil
-		}
-
-		// Query parses and is valid.
-		req := &FetchSpansRequest{}
-		rootExpr.Pipeline.extractConditions(req)
-		conditions = req.Conditions
-	}
-
 	autocompleteReq := FetchTagsRequest{
-		Conditions: conditions,
-		Scope:      scope,
+		ConditionGroups: conditionGroups,
+		Scope:           scope,
 	}
 
-	if rootExpr != nil {
-		span.SetAttributes(attribute.String("pipeline", rootExpr.Pipeline.String()))
-	}
 	span.SetAttributes(attribute.String("autocompleteReq", fmt.Sprint(autocompleteReq)))
 
 	return fetcher.Fetch(ctx, autocompleteReq, cb)
-}
-
-func (e *Engine) createAutocompleteRequest(tag Attribute, pipeline Pipeline) FetchTagValuesRequest {
-	req := FetchSpansRequest{
-		Conditions:    nil,
-		AllConditions: true,
-	}
-
-	// TODO: This is a hack. If the pipeline is empty, startTime is added as a condition
-	//  and breaks optimizations in block_autocomplete.go.
-	//  We only want the attribute we're searching for in the conditions.
-	if pipeline.String() == "{ true }" {
-		return FetchTagValuesRequest{
-			Conditions: []Condition{{Attribute: tag, Op: OpNone}},
-			TagName:    tag,
-		}
-	}
-
-	pipeline.extractConditions(&req)
-
-	req.Conditions = append(req.Conditions, Condition{
-		Attribute: tag,
-		Op:        OpNone,
-	})
-
-	autocompleteReq := FetchTagValuesRequest{
-		Conditions: req.Conditions,
-		TagName:    tag,
-	}
-
-	return autocompleteReq
 }
 
 func asTraceSearchMetadata(spanset *Spanset) *tempopb.TraceSearchMetadata {
