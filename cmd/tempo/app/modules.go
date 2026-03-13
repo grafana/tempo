@@ -286,9 +286,7 @@ func (t *App) initGenerator() (services.Service, error) {
 	t.cfg.Generator.ConsumeFromKafka = !IsSingleBinary(t.cfg.Target)
 
 	t.cfg.Generator.Ingest = t.cfg.Ingest
-	if t.cfg.Generator.ConsumeFromKafka {
-		t.cfg.Generator.Ingest.Kafka.ConsumerGroup = generator.ConsumerGroup
-	}
+	t.cfg.Generator.Ingest.Kafka.ConsumerGroup = generator.ConsumerGroup
 
 	genSvc, err := generator.New(&t.cfg.Generator, t.Overrides, prometheus.DefaultRegisterer, t.partitionRing, log.Logger)
 	if errors.Is(err, generator.ErrUnconfigured) && t.cfg.Target != MetricsGenerator { // just warn if we're not running the metrics-generator
