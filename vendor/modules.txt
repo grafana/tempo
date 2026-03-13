@@ -1147,6 +1147,9 @@ github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl/ottlfuncs
 # github.com/open-telemetry/opentelemetry-collector-contrib/pkg/pdatautil v0.147.0
 ## explicit; go 1.25.0
 github.com/open-telemetry/opentelemetry-collector-contrib/pkg/pdatautil
+# github.com/open-telemetry/opentelemetry-collector-contrib/pkg/sampling v0.147.0
+## explicit; go 1.25.0
+github.com/open-telemetry/opentelemetry-collector-contrib/pkg/sampling
 # github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/azure v0.147.0
 ## explicit; go 1.25.0
 github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/azure
