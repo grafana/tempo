@@ -29,7 +29,7 @@ jobs:
 
       - id: get-tag
         run: |
-          echo "tag=$(./tools/image-tag)" >> "$GITHUB_OUTPUT"
+          echo "tag=$(./tools/image-tag)-$(date +%Y%m%d-%H%M%S)" >> "$GITHUB_OUTPUT"
 
   docker-ci-tools:
     if: github.repository == 'grafana/tempo'
@@ -85,5 +85,5 @@ jobs:
           docker manifest create \
           	$IMAGE_NAME:latest            \
           	--amend $IMAGE_NAME:$TAG-amd64   \
-          	--amend $IMAGE_NAME:$TAG-arm64 
+          	--amend $IMAGE_NAME:$TAG-arm64
           docker manifest push $IMAGE_NAME:latest
