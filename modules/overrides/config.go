@@ -195,6 +195,7 @@ type MetricsGeneratorOverrides struct {
 	// IngestionSlack filters out spans older than this duration; 0 uses the static config default (default: 0)
 	IngestionSlack *time.Duration `yaml:"ingestion_time_range_slack" json:"ingestion_time_range_slack,omitempty"`
 
+	// FIXME: check if NativeHistogramBucketFactor and NativeHistogramMaxBucketNumber should be pointers??
 	// NativeHistogramBucketFactor is the growth factor between native histogram buckets (default: 1.1)
 	NativeHistogramBucketFactor float64 `yaml:"native_histogram_bucket_factor,omitempty" json:"native_histogram_bucket_factor,omitempty"`
 	// NativeHistogramMaxBucketNumber is the max number of native histogram buckets (default: 100)
@@ -362,6 +363,8 @@ func (c *Config) RegisterFlagsAndApplyDefaults(f *flag.FlagSet) {
 	// Ingester pointer fields
 	c.Defaults.Ingestion.TenantShardSize = ptrTo(0)
 	c.Defaults.Ingestion.MaxAttributeBytes = ptrTo(0)
+	// default to 0, no ArtificialDelay
+	c.Defaults.Ingestion.ArtificialDelay = ptrTo(time.Duration(0))
 
 	// Metrics-generator limits
 	c.Defaults.MetricsGenerator.RingSize = ptrTo(0)
