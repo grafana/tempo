@@ -958,6 +958,51 @@ func TestWriteStatusRuntimeConfigDiffMode(t *testing.T) {
 	require.Contains(t, output, "test-tenant", "diff output should contain tenant ID")
 }
 
+func TestDefaultOverridesValidation(t *testing.T) {
+	t.Run("valid defaults pass validation", func(t *testing.T) {
+		cfg := Config{}
+		cfg.RegisterFlagsAndApplyDefaults(&flag.FlagSet{})
+
+		validatorCalled := false
+		validator := &mockValidator{f: func(config *Overrides) error {
+			validatorCalled = true
+			require.Equal(t, cfg.Defaults.Ingestion.RateLimitBytes, config.Ingestion.RateLimitBytes)
+			require.Equal(t, cfg.Defaults.Global.MaxBytesPerTrace, config.Global.MaxBytesPerTrace)
+			return nil
+		}}
+
+		overrides, err := newRuntimeConfigOverrides(cfg, validator, prometheus.NewRegistry())
+		require.NoError(t, err)
+		require.NotNil(t, overrides)
+		require.True(t, validatorCalled, "validator should have been called with defaults")
+	})
+
+	t.Run("invalid defaults fail startup", func(t *testing.T) {
+		cfg := Config{}
+		cfg.RegisterFlagsAndApplyDefaults(&flag.FlagSet{})
+
+		validatorCalled := false
+		validator := &mockValidator{f: func(config *Overrides) error {
+			validatorCalled = true
+			return errors.New("invalid default config")
+		}}
+
+		_, err := newRuntimeConfigOverrides(cfg, validator, prometheus.NewRegistry())
+		require.True(t, validatorCalled, "validator should have been called with defaults")
+		require.ErrorContains(t, err, "validating default overrides failed")
+		require.ErrorContains(t, err, "invalid default config")
+	})
+
+	t.Run("nil validator skips validation", func(t *testing.T) {
+		cfg := Config{}
+		cfg.RegisterFlagsAndApplyDefaults(&flag.FlagSet{})
+
+		overrides, err := newRuntimeConfigOverrides(cfg, nil, prometheus.NewRegistry())
+		require.NoError(t, err)
+		require.NotNil(t, overrides)
+	})
+}
+
 func createAndInitializeRuntimeOverridesManager(t *testing.T, defaultLimits Overrides, perTenantOverrides []byte) (Service, func()) {
 	cfg := Config{
 		Defaults: defaultLimits,

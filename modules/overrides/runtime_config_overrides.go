@@ -138,11 +138,18 @@ type runtimeConfigOverridesManager struct {
 var _ Interface = (*runtimeConfigOverridesManager)(nil)
 
 func newRuntimeConfigOverrides(cfg Config, validator Validator, registerer prometheus.Registerer) (Service, error) {
-	// FIXME: validate cfg.Defaults through the Validator interface. Currently only per-tenant
-	// overrides are validated, so invalid defaults set via static YAML config slip through.
-
 	var manager *runtimeconfig.Manager
 	subservices := []services.Service(nil)
+
+	if validator != nil {
+		warnings, err := validator.Validate(&cfg.Defaults)
+		if err != nil {
+			return nil, fmt.Errorf("validating default overrides failed: %w", err)
+		}
+		for _, warning := range warnings {
+			level.Warn(log.Logger).Log("msg", "Default overrides validation warning", "warning", warning)
+		}
+	}
 
 	if cfg.PerTenantOverrideConfig != "" {
 		runtimeCfg := runtimeconfig.Config{
@@ -607,9 +614,9 @@ func (o *runtimeConfigOverridesManager) MetricsGeneratorProcessorSpanMetricsTarg
 
 func (o *runtimeConfigOverridesManager) MetricsGeneratorProcessorSpanMetricsEnableInstanceLabel(userID string) (bool, bool) {
 	// FIXME: see if we need to return two bools here??
-	EnableInstanceLabel := o.getOverridesForUser(userID).MetricsGenerator.Processor.SpanMetrics.EnableInstanceLabel
-	if EnableInstanceLabel != nil {
-		return *EnableInstanceLabel, true
+	enableInstanceLabel := o.getOverridesForUser(userID).MetricsGenerator.Processor.SpanMetrics.EnableInstanceLabel
+	if enableInstanceLabel != nil {
+		return *enableInstanceLabel, true
 	}
 	// should this default be somewhere else like the actual defaults instead of here??
 	return true, false // default to true
