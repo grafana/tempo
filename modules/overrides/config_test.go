@@ -246,7 +246,7 @@ user_configurable_overrides:
 func TestNumberOfOverrides(t *testing.T) {
 	// Asserts that the number of overrides in the new config is the same as the
 	// number of overrides in the legacy config.
-	assert.Equal(t, countOverrides(LegacyOverrides{}), countOverrides(Overrides{}))
+	require.Equal(t, countOverrides(LegacyOverrides{}), countOverrides(Overrides{}))
 }
 
 // countOverrides recursively counts the number of non-struct fields in a struct.
@@ -351,7 +351,7 @@ func ensureAllFieldsPopulated(t *testing.T, o LegacyOverrides) {
 	}
 }
 
-// isZeroValue checks if a reflect.Value is the zero value for its type
+// isZeroValue checks if a `reflect.Value` is the zero value for its type
 func isZeroValue(v reflect.Value) bool {
 	// Handle nil interfaces and pointers
 	if (v.Kind() == reflect.Interface || v.Kind() == reflect.Ptr) && v.IsNil() {
@@ -390,26 +390,26 @@ func isZeroValue(v reflect.Value) bool {
 func generateTestLegacyOverrides() LegacyOverrides {
 	// Create a predefined test fixture with values for all fields
 	return LegacyOverrides{
-		IngestionRateStrategy:      "local",
-		IngestionRateLimitBytes:    100,
-		IngestionBurstSizeBytes:    200,
-		IngestionTenantShardSize:   3,
-		IngestionMaxAttributeBytes: 1000,
+		IngestionRateStrategy:      LocalIngestionRateStrategy,
+		IngestionRateLimitBytes:    ptrTo(100),
+		IngestionBurstSizeBytes:    ptrTo(200),
+		IngestionTenantShardSize:   ptrTo(3),
+		IngestionMaxAttributeBytes: ptrTo(1000),
 		IngestionArtificialDelay:   durationPtr(5 * time.Minute),
-		IngestionRetryInfoEnabled:  true,
+		IngestionRetryInfoEnabled:  ptrTo(true),
 
-		MaxLocalTracesPerUser:  1000,
-		MaxGlobalTracesPerUser: 2000,
+		MaxLocalTracesPerUser:  ptrTo(1000),
+		MaxGlobalTracesPerUser: ptrTo(2000),
 
 		Forwarders: []string{"forwarder-1", "forwarder-2"},
 
-		MetricsGeneratorRingSize:                                                    3,
+		MetricsGeneratorRingSize:                                                    ptrTo(3),
 		MetricsGeneratorProcessors:                                                  makeListToMap([]string{"processor-1", "processor-2"}),
-		MetricsGeneratorMaxActiveSeries:                                             1000,
-		MetricsGeneratorMaxActiveEntities:                                           100,
-		MetricsGeneratorMaxCardinalityPerLabel:                                      500,
-		MetricsGeneratorCollectionInterval:                                          10 * time.Second,
-		MetricsGeneratorDisableCollection:                                           false,
+		MetricsGeneratorMaxActiveSeries:                                             ptrTo(uint32(1000)),
+		MetricsGeneratorMaxActiveEntities:                                           ptrTo(uint32(100)),
+		MetricsGeneratorMaxCardinalityPerLabel:                                      ptrTo(uint64(500)),
+		MetricsGeneratorCollectionInterval:                                          ptrTo(10 * time.Second),
+		MetricsGeneratorDisableCollection:                                           ptrTo(false),
 		MetricsGeneratorGenerateNativeHistograms:                                    histograms.HistogramMethodNative,
 		MetricsGeneratorTraceIDLabelName:                                            "trace_id",
 		MetricsGeneratorForwarderQueueSize:                                          100,
@@ -419,10 +419,10 @@ func generateTestLegacyOverrides() LegacyOverrides {
 		MetricsGeneratorProcessorServiceGraphsDimensions:                            []string{"dimension-1", "dimension-2"},
 		MetricsGeneratorProcessorServiceGraphsPeerAttributes:                        []string{"attribute-1", "attribute-2"},
 		MetricsGeneratorProcessorServiceGraphsFilterPolicies:                        []filterconfig.FilterPolicy{{Exclude: &filterconfig.PolicyMatch{MatchType: "strict", Attributes: []filterconfig.MatchPolicyAttribute{{Key: "resource.service.name", Value: "my-service"}}}}},
-		MetricsGeneratorProcessorServiceGraphsEnableClientServerPrefix:              boolPtr(true),
-		MetricsGeneratorProcessorServiceGraphsEnableMessagingSystemLatencyHistogram: boolPtr(true),
-		MetricsGeneratorProcessorServiceGraphsEnableVirtualNodeLabel:                boolPtr(true),
-		MetricsGeneratorProcessorServiceGraphsSpanMultiplierKey:                     "custom_key",
+		MetricsGeneratorProcessorServiceGraphsEnableClientServerPrefix:              ptrTo(true),
+		MetricsGeneratorProcessorServiceGraphsEnableMessagingSystemLatencyHistogram: ptrTo(true),
+		MetricsGeneratorProcessorServiceGraphsEnableVirtualNodeLabel:                ptrTo(true),
+		MetricsGeneratorProcessorServiceGraphsSpanMultiplierKey:                     ptrTo("custom_key"),
 		MetricsGeneratorProcessorServiceGraphsEnableTraceStateSpanMultiplier:        boolPtr(true),
 		MetricsGeneratorProcessorSpanMetricsHistogramBuckets:                        []float64{1.0, 2.0, 5.0},
 		MetricsGeneratorProcessorSpanMetricsDimensions:                              []string{"dimension-1", "dimension-2"},
@@ -453,31 +453,32 @@ func generateTestLegacyOverrides() LegacyOverrides {
 		MetricsGeneratorProcessorSpanMetricsEnableTargetInfo:               boolPtr(true),
 		MetricsGeneratorProcessorSpanMetricsTargetInfoExcludedDimensions:   []string{"excluded-dim-1", "excluded-dim-2"},
 		MetricsGeneratorProcessorSpanMetricsEnableInstanceLabel:            boolPtr(false),
-		MetricsGeneratorProcessorSpanMetricsSpanMultiplierKey:              "custom_key",
+		MetricsGeneratorProcessorSpanMetricsSpanMultiplierKey:              ptrTo("custom_key"),
 		MetricsGeneratorProcessorSpanMetricsEnableTraceStateSpanMultiplier: boolPtr(true),
 		MetricsGeneratorProcessorHostInfoHostIdentifiers:                   []string{"host-id-1", "host-id-2"},
 		MetricsGeneratorProcessorHostInfoMetricName:                        "host_info",
-		MetricsGeneratorIngestionSlack:                                     1 * time.Minute,
+		MetricsGeneratorIngestionSlack:                                     ptrTo(1 * time.Minute),
 		MetricsGeneratorNativeHistogramBucketFactor:                        1.5,
 		MetricsGeneratorNativeHistogramMaxBucketNumber:                     200,
-		MetricsGeneratorNativeHistogramMinResetDuration:                    10 * time.Minute,
-		MetricsGeneratorSpanNameSanitization:                               "",
+		MetricsGeneratorNativeHistogramMinResetDuration:                    ptrTo(10 * time.Minute),
+		MetricsGeneratorSpanNameSanitization:                               ptrTo(""),
 
-		BlockRetention:     model.Duration(7 * 24 * time.Hour),
-		CompactionDisabled: true,
-		CompactionWindow:   model.Duration(4 * time.Hour),
+		BlockRetention:     ptrTo(model.Duration(7 * 24 * time.Hour)),
+		CompactionDisabled: ptrTo(true),
+		CompactionWindow:   ptrTo(model.Duration(4 * time.Hour)),
 
-		MaxBytesPerTagValuesQuery:  1000,
-		MaxBlocksPerTagValuesQuery: 100,
+		MaxBytesPerTagValuesQuery:  ptrTo(1000),
+		MaxBlocksPerTagValuesQuery: ptrTo(100),
 
-		MaxSearchDuration:  model.Duration(10 * time.Minute),
-		MaxMetricsDuration: model.Duration(30 * time.Minute),
-		UnsafeQueryHints:   true,
+		MaxSearchDuration:  ptrTo(model.Duration(10 * time.Minute)),
+		MaxMetricsDuration: ptrTo(model.Duration(30 * time.Minute)),
+		UnsafeQueryHints:   ptrTo(true),
+		LeftPadTraceIDs:    ptrTo(true),
 
-		MaxBytesPerTrace: 10 * 1024 * 1024,
+		MaxBytesPerTrace: ptrTo(10 * 1024 * 1024),
 
 		CostAttribution: CostAttributionOverrides{
-			MaxCardinality: 1000,
+			MaxCardinality: ptrTo(uint64(1000)),
 			Dimensions:     map[string]string{"dim-1": "value-1", "dim-2": "value-2"},
 		},
 
