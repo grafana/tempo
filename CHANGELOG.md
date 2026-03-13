@@ -19,6 +19,7 @@
   `query search` command no longer accepts timestamps without timezone (e.g. `2024-01-01T00:00:00`), use RFC3339 (e.g. `2024-01-01T00:00:00Z`) or relative time instead.
 * [CHANGE] **BREAKING CHANGE** Consolidate read configuration for recent data cutoff. `query_frontend.search.query_ingesters_until` is removed in favor of only `query_frontend.search.query_backend_after`. [#6507](https://github.com/grafana/tempo/pull/6507) (@mapno)
 * [CHANGE] jsonnet: Add emptyDir data volume to block-builder StatefulSet [#6648](https://github.com/grafana/tempo/pull/6648) (@mapno)
+* [CHANGE] Remove deprecated block version examples [#6680](https://github.com/grafana/tempo/pull/6680) (@javiermolinar)
 * [FEATURE] Add new include_any filter policy for spanmetrics filter [#6392](https://github.com/grafana/tempo/pull/6392) (@javiermolinar)
 * [FEATURE] Add span_multiplier_key to overrides. This allows tenants to specify the attribute key used for span multiplier values to compensate for head-based sampling. [#6260](https://github.com/grafana/tempo/pull/6260) (@carles-grafana)
 * [FEATURE] **BREAKING CHANGE** Optimize TraceQL AST by rewriting conditions on the same attribute to their array equivalent [#6353](https://github.com/grafana/tempo/pull/6353) (@stoewer)
