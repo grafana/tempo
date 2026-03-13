@@ -165,6 +165,10 @@ func (c *Config) MultitenancyIsEnabled() bool {
 // CheckConfig checks if config values are suspect and returns a bundled list of warnings and explanation.
 func (c *Config) CheckConfig() []ConfigWarning {
 	var warnings []ConfigWarning
+	if c.LiveStore.CompleteBlockTimeout < c.StorageConfig.Trace.BlocklistPoll {
+		warnings = append(warnings, warnCompleteBlockTimeout)
+	}
+
 	if c.BackendWorker.Compactor.BlockRetention < c.StorageConfig.Trace.BlocklistPoll {
 		warnings = append(warnings, warnBlockRetention)
 	}
@@ -245,6 +249,10 @@ type ConfigWarning struct {
 }
 
 var (
+	warnCompleteBlockTimeout = ConfigWarning{
+		Message: "live_store.complete_block_timeout < storage.trace.blocklist_poll",
+		Explain: "You may receive 404s between the time the live-store has flushed a trace and the querier is aware of the new block",
+	}
 	warnBlockRetention = ConfigWarning{
 		Message: "backend_worker.compaction.compacted_block_timeout < storage.trace.blocklist_poll",
 		Explain: "Queriers and Backend-workers may attempt to read a block that no longer exists",
