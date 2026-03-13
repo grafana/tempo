@@ -107,6 +107,22 @@ func TestMergeOverrides(t *testing.T) {
 		require.Equal(t, map[string]string{"key2": "val2"}, result.CostAttribution.Dimensions, "other map replaces base map")
 	})
 
+	t.Run("zero for cannot override non-zero for non pointer types", func(t *testing.T) {
+		base := &Overrides{
+			MetricsGenerator: MetricsGeneratorOverrides{
+				Forwarder: ForwarderOverrides{QueueSize: 100, Workers: 2},
+			},
+		}
+		other := &Overrides{
+			MetricsGenerator: MetricsGeneratorOverrides{
+				Forwarder: ForwarderOverrides{QueueSize: 0, Workers: 0},
+			},
+		}
+		result := base.Merge(other)
+		require.Equal(t, 100, result.MetricsGenerator.Forwarder.QueueSize, "zero value type must not override non-zero base")
+		require.Equal(t, 2, result.MetricsGenerator.Forwarder.Workers, "zero value type must not override non-zero base")
+	})
+
 	t.Run("returns a new struct without mutating inputs", func(t *testing.T) {
 		base := &Overrides{
 			Ingestion: IngestionOverrides{
