@@ -16,7 +16,7 @@ func TestRuntimeConfigOverridesManager_GetRuntimeOverridesFor_runtimeConfigOverr
 		},
 	}
 	tenantOverrides := &perTenantOverrides{
-		TenantLimits: map[string]*Overrides{
+		TenantLimits: TenantOverrides{
 			"foo": {
 				MetricsGenerator: MetricsGeneratorOverrides{
 					CollectionInterval: ptrTo(15 * time.Second),
@@ -44,7 +44,7 @@ func TestRuntimeConfigOverridesManager_GetRuntimeOverridesFor_userConfigurableOv
 		},
 	}
 	tenantOverrides := &perTenantOverrides{
-		TenantLimits: map[string]*Overrides{
+		TenantLimits: TenantOverrides{
 			"foo": {
 				MetricsGenerator: MetricsGeneratorOverrides{
 					CollectionInterval: ptrTo(15 * time.Second),

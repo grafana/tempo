@@ -3,6 +3,7 @@ package overrides
 import (
 	"bytes"
 	"context"
+	"flag"
 	"testing"
 
 	"github.com/grafana/dskit/services"
@@ -58,7 +59,7 @@ func TestLegacyOverridesDisabledByDefault(t *testing.T) {
 func TestPerTenantLegacyOverridesDisabledByDefault(t *testing.T) {
 	legacyOverrides := &perTenantLegacyOverrides{
 		TenantLimits: map[string]*LegacyOverrides{
-			"tenant1": {MaxBytesPerTrace: 1000},
+			"tenant1": {MaxBytesPerTrace: ptrTo(1000)},
 		},
 	}
 	buff, err := yaml.Marshal(legacyOverrides)
@@ -79,9 +80,12 @@ func TestPerTenantLegacyOverridesDisabledByDefault(t *testing.T) {
 		},
 	}
 
+	cfg := Config{}
+	cfg.RegisterFlagsAndApplyDefaults(&flag.FlagSet{})
+
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			loader := loadPerTenantOverrides(&mockValidator{}, ConfigTypeNew, false, tc.enableLegacy)
+			loader := loadPerTenantOverrides(&mockValidator{}, ConfigTypeNew, false, tc.enableLegacy, &cfg.Defaults)
 			result, err := loader(bytes.NewReader(buff))
 			if tc.expectErr != "" {
 				require.Error(t, err)

@@ -3,6 +3,7 @@ package overrides
 import (
 	"context"
 	"errors"
+	"flag"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -35,7 +36,7 @@ const (
 func TestUserConfigOverridesManager(t *testing.T) {
 	defaultLimits := Overrides{
 		Global: GlobalOverrides{
-			MaxBytesPerTrace: 1024,
+			MaxBytesPerTrace: ptrTo(1024),
 		},
 		Forwarders: []string{"my-forwarder"},
 	}
@@ -77,14 +78,15 @@ func TestUserConfigOverridesManager(t *testing.T) {
 }
 
 func TestUserConfigOverridesManager_allFields(t *testing.T) {
-	defaultLimits := Overrides{}
-	_, mgr, cleanup := localUserConfigOverrides(t, defaultLimits, nil)
+	cfg := Config{}
+	cfg.RegisterFlagsAndApplyDefaults(&flag.FlagSet{})
+	_, mgr, cleanup := localUserConfigOverrides(t, cfg.Defaults, nil)
 	defer cleanup()
 
 	assert.Empty(t, mgr.Forwarders(tenant1))
 	assert.Empty(t, mgr.MetricsGeneratorProcessors(tenant1))
 	assert.Equal(t, false, mgr.MetricsGeneratorDisableCollection(tenant1))
-	assert.Empty(t, mgr.MetricsGeneratorGenerateNativeHistograms(tenant1))
+	assert.Equal(t, histograms.HistogramMethodClassic, mgr.MetricsGeneratorGenerateNativeHistograms(tenant1))
 	assert.Empty(t, mgr.MetricsGeneratorMaxActiveSeries(tenant1))
 	assert.Equal(t, 0*time.Second, mgr.MetricsGeneratorCollectionInterval(tenant1))
 	assert.Equal(t, time.Duration(0), mgr.MetricsGeneratorIngestionSlack(tenant1))
@@ -111,7 +113,7 @@ func TestUserConfigOverridesManager_allFields(t *testing.T) {
 		Forwarders: &[]string{"my-forwarder"},
 		MetricsGenerator: userconfigurableoverrides.LimitsMetricsGenerator{
 			Processors:                      map[string]struct{}{"service-graphs": {}},
-			DisableCollection:               boolPtr(true),
+			DisableCollection:               ptrTo(true),
 			CollectionInterval:              &userconfigurableoverrides.Duration{Duration: 60 * time.Second},
 			TraceIDLabelName:                strPtr("trace_id"),
 			IngestionSlack:                  &userconfigurableoverrides.Duration{Duration: 45 * time.Second},
@@ -122,8 +124,8 @@ func TestUserConfigOverridesManager_allFields(t *testing.T) {
 			Processor: userconfigurableoverrides.LimitsMetricsGeneratorProcessor{
 				ServiceGraphs: userconfigurableoverrides.LimitsMetricsGeneratorProcessorServiceGraphs{
 					Dimensions:               &[]string{"sg-dimension"},
-					EnableClientServerPrefix: boolPtr(true),
-					EnableVirtualNodeLabel:   boolPtr(true),
+					EnableClientServerPrefix: ptrTo(true),
+					EnableVirtualNodeLabel:   ptrTo(true),
 					PeerAttributes:           &[]string{"attribute"},
 					FilterPolicies: &[]filterconfig.FilterPolicy{
 						{
@@ -149,8 +151,8 @@ func TestUserConfigOverridesManager_allFields(t *testing.T) {
 						SourceLabel: []string{"service"},
 						Join:        "",
 					}},
-					EnableTargetInfo:    boolPtr(true),
-					EnableInstanceLabel: boolPtr(false),
+					EnableTargetInfo:    ptrTo(true),
+					EnableInstanceLabel: ptrTo(false),
 					FilterPolicies: &[]filterconfig.FilterPolicy{
 						{
 							Include: &filterconfig.PolicyMatch{
@@ -231,7 +233,7 @@ func TestUserConfigOverridesManager_allFields(t *testing.T) {
 func TestUserConfigOverridesManager_MetricsGeneratorSpanNameSanitization(t *testing.T) {
 	defaultLimits := Overrides{
 		MetricsGenerator: MetricsGeneratorOverrides{
-			SpanNameSanitization: "disabled",
+			SpanNameSanitization: ptrTo("disabled"),
 		},
 	}
 	_, mgr, cleanup := localUserConfigOverrides(t, defaultLimits, nil)
@@ -479,10 +481,6 @@ func (b *badClient) Delete(context.Context, string, backend.Version) error {
 func (b badClient) Shutdown() {
 }
 
-func boolPtr(b bool) *bool {
-	return &b
-}
-
 func mapBoolPtr(m map[string]bool) *map[string]bool {
 	return &m
 }
@@ -495,7 +493,9 @@ func TestUserConfigOverridesManager_MergeRuntimeConfig(t *testing.T) {
 	// setup per tenant runtime override for tenant "test"
 	pto := perTenantRuntimeOverrides(tenantID)
 
-	_, mgr, cleanup := localUserConfigOverrides(t, Overrides{}, toYamlBytes(t, pto))
+	defaultCfg := Config{}
+	defaultCfg.RegisterFlagsAndApplyDefaults(&flag.FlagSet{})
+	_, mgr, cleanup := localUserConfigOverrides(t, defaultCfg.Defaults, toYamlBytes(t, pto))
 	defer cleanup()
 	// mgr.Interface will call baseOverrides manager, which is runtime config overrides.
 	baseMgr := mgr.Interface
@@ -589,25 +589,25 @@ func perTenantRuntimeOverrides(tenantID string) *perTenantOverrides {
 			tenantID: {
 				Ingestion: IngestionOverrides{
 					RateStrategy:           LocalIngestionRateStrategy,
-					RateLimitBytes:         400,
-					BurstSizeBytes:         400,
-					MaxLocalTracesPerUser:  500,
-					MaxGlobalTracesPerUser: 5000,
+					RateLimitBytes:         ptrTo(400),
+					BurstSizeBytes:         ptrTo(400),
+					MaxLocalTracesPerUser:  ptrTo(500),
+					MaxGlobalTracesPerUser: ptrTo(5000),
 				},
 				Read: ReadOverrides{
-					MaxBytesPerTagValuesQuery:  1000,
-					MaxBlocksPerTagValuesQuery: 100,
-					MaxSearchDuration:          model.Duration(1000 * time.Hour),
+					MaxBytesPerTagValuesQuery:  ptrTo(1000),
+					MaxBlocksPerTagValuesQuery: ptrTo(100),
+					MaxSearchDuration:          ptrTo(model.Duration(1000 * time.Hour)),
 				},
 				Compaction: CompactionOverrides{
-					BlockRetention: model.Duration(360 * time.Hour),
+					BlockRetention: ptrTo(model.Duration(360 * time.Hour)),
 				},
 				MetricsGenerator: MetricsGeneratorOverrides{
-					RingSize:           2,
+					RingSize:           ptrTo(2),
 					Processors:         listtomap.ListToMap{"span-metrics": {}, "service-graphs": {}, "host-info": {}},
-					MaxActiveSeries:    60000,
-					CollectionInterval: 15 * time.Second,
-					DisableCollection:  false,
+					MaxActiveSeries:    ptrTo(uint32(60000)),
+					CollectionInterval: ptrTo(15 * time.Second),
+					DisableCollection:  ptrTo(false),
 					Forwarder: ForwarderOverrides{
 						QueueSize: 400,
 						Workers:   3,
@@ -617,7 +617,7 @@ func perTenantRuntimeOverrides(tenantID string) *perTenantOverrides {
 							HistogramBuckets:         []float64{0.002, 0.004, 0.008, 0.016, 0.032, 0.064},
 							Dimensions:               []string{"k8s.cluster-name", "k8s.namespace.name", "http.method", "http.route", "http.status_code", "service.version"},
 							PeerAttributes:           []string{"foo", "bar"},
-							EnableClientServerPrefix: boolPtr(true),
+							EnableClientServerPrefix: ptrTo(true),
 						},
 						SpanMetrics: SpanMetricsOverrides{
 							HistogramBuckets:             []float64{0.002, 0.004, 0.008, 0.016, 0.032, 0.064},
@@ -625,19 +625,19 @@ func perTenantRuntimeOverrides(tenantID string) *perTenantOverrides {
 							IntrinsicDimensions:          map[string]bool{"foo": true, "bar": true},
 							FilterPolicies:               []filterconfig.FilterPolicy{{Exclude: &filterconfig.PolicyMatch{MatchType: filterconfig.Regex, Attributes: []filterconfig.MatchPolicyAttribute{{Key: "resource.service.name", Value: "unknown_service:myservice"}}}}},
 							DimensionMappings:            []sharedconfig.DimensionMappings{{Name: "foo", SourceLabel: []string{"bar"}, Join: "baz"}},
-							EnableTargetInfo:             boolPtr(true),
+							EnableTargetInfo:             ptrTo(true),
 							TargetInfoExcludedDimensions: []string{"bar", "namespace", "env"},
-							EnableInstanceLabel:          boolPtr(false),
+							EnableInstanceLabel:          ptrTo(false),
 						},
 						HostInfo: HostInfoOverrides{
 							HostIdentifiers: []string{"host.name"},
 							MetricName:      "override_host_info",
 						},
 					},
-					IngestionSlack: 0,
+					IngestionSlack: ptrTo(time.Duration(0)),
 				},
 				Forwarders: []string{"fwd", "fwd-2"},
-				Global:     GlobalOverrides{MaxBytesPerTrace: 5000000},
+				Global:     GlobalOverrides{MaxBytesPerTrace: ptrTo(5000000)},
 				Storage: StorageOverrides{
 					DedicatedColumns: backend.DedicatedColumns{
 						{Scope: "resource", Name: "dedicated.resource.foo", Type: "string"},
