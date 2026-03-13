@@ -860,7 +860,6 @@ overrides:
             max_global_traces_per_user: 0
             tenant_shard_size: 0
             max_attribute_bytes: 0
-            artificial_delay: 0s
             retry_info_enabled: true
         read:
             max_bytes_per_tag_values_query: 1000000
