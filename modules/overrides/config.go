@@ -363,8 +363,8 @@ func (c *Config) RegisterFlagsAndApplyDefaults(f *flag.FlagSet) {
 	// Ingester pointer fields
 	c.Defaults.Ingestion.TenantShardSize = ptrTo(0)
 	c.Defaults.Ingestion.MaxAttributeBytes = ptrTo(0)
-	// default to 0, no ArtificialDelay
-	c.Defaults.Ingestion.ArtificialDelay = ptrTo(time.Duration(0))
+	// c.Defaults.Ingestion.ArtificialDelay is left nil by default. nil means "not set" in the override,
+	// so the distributor's own cfg.ArtificialDelay is used as the fallback.
 
 	// Metrics-generator limits
 	c.Defaults.MetricsGenerator.RingSize = ptrTo(0)
