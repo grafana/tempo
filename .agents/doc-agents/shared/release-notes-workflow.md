@@ -114,72 +114,13 @@ Using the curated PR list from Phase 0:
 
 For each PR, evaluate whether it needs documentation and whether that documentation exists. This is a critical review step that prevents features from shipping without adequate docs.
 
-Recommended execution: use `.claude/skills/docs-pr-check/SKILL.md` for this phase.
-
-#### Determine if a PR needs documentation
-
-Not every PR needs docs. Assess each PR against these criteria:
-
-- **Needs docs**: New user-facing feature, new configuration option, changed behavior, new API endpoint, new query syntax, breaking change, or migration step
-- **Doesn't need docs**: Internal refactor, test-only change, dependency bump, or performance optimization with no user-visible change
-
-#### Check if documentation is present
-
-For each PR that needs docs:
-
-1. **Check the PR checklist**: Is "Documentation added" checked?
-2. **Check the PR file list**: Are there changes to files under `docs/`?
-3. **Search existing docs**: Does `docs/sources/tempo` already cover this feature?
-4. **Assess completeness**: If docs exist, do they cover the new behavior, options, and examples?
-
-#### Classify each PR
-
-Classify each PR into one of these categories:
-
-| Category | Meaning | Action |
-|----------|---------|--------|
-| Docs present | PR includes documentation or existing docs cover the feature | Link to docs in release notes |
-| Docs needed | User-facing change with no documentation | Flag for documentation work alongside release notes |
-| Docs update needed | Existing docs are incomplete or don't reflect the new behavior | Update existing docs as part of the release |
-| No docs required | Internal change with no user-facing impact | Write a brief release notes entry if relevant; no docs needed |
-
-#### Track documentation gaps
-
-Maintain a running list of PRs where documentation is missing or incomplete. Use this list to:
-
-- Prioritize documentation work during the release notes process
-- Identify existing pages that need updates beyond just release notes
-- Flag gaps for the engineering team if clarification is needed
-
-#### Handoff to documentation writing
-
-When handing off from documentation assessment to documentation writing, include:
-
-- PR number
-- Classification (`docs present`, `docs needed`, `docs update needed`, `no docs required`)
-- Gap note (what is missing or incomplete)
-- Suggested target docs files, if known
-- Priority (high/medium/low) based on user impact
+Run `/docs-pr-check`. See [`.claude/skills/docs-pr-check/SKILL.md`](../../../.claude/skills/docs-pr-check/SKILL.md) for the full classification process, criteria, and return format.
 
 ### Phase 1.75: Documentation gap resolution
 
-For each PR classified as "docs needed" or "docs update needed":
+For each PR classified as "docs needed" or "docs update needed", create or update the required documentation pages.
 
-Recommended execution: use `.claude/skills/docs-pr-write/SKILL.md` for this phase.
-
-1. **Search for existing coverage**: Search `docs/sources/tempo` for the feature name to check if it's partially documented.
-
-2. **Identify specific gaps**:
-   - Feature mentioned but not explained?
-   - Missing examples?
-   - Configuration options not documented?
-   - Existing page that needs updating vs. entirely new content?
-
-3. **Plan documentation updates**:
-   - Release notes entry
-   - Updates to existing reference docs
-   - New examples in query/configuration guides
-   - New pages if the feature warrants standalone documentation
+Run `/docs-pr-write`. See [`.claude/skills/docs-pr-write/SKILL.md`](../../../.claude/skills/docs-pr-write/SKILL.md) for the full execution steps, validation process, and return format.
 
 ### Phase 2: Categorization
 

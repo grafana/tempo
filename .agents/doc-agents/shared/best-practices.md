@@ -123,15 +123,7 @@ When addressing GitHub issues or user feedback:
 
 ## Review Process
 
-Before submitting documentation:
-
-- [ ] All codebase claims verified
-- [ ] Configuration options match config reference
-- [ ] Style guide compliance checked
-- [ ] Examples tested for accuracy
-- [ ] User confusion points addressed
-- [ ] Related features explained
-- [ ] Version compatibility verified
+Before submitting documentation, use [`verification-checklist.md`](verification-checklist.md).
 
 ## Continuous Improvement
 
