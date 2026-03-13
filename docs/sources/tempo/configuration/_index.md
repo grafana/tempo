@@ -732,8 +732,8 @@ query_frontend:
 
         # The maximum allowed value of the limit parameter on search requests. If the search request limit parameter
         # exceeds the value configured here the frontend will return a 400.
-        # The default value of 0 disables this limit.
-        # (default: 0)
+        # The default value is 262144 (256*1024). Set to 0 to disable this limit.
+        # (default: 262144)
         [max_result_limit: <int>]
 
         # The maximum allowed time range for a search.
@@ -818,7 +818,8 @@ query_frontend:
         # 0 disables this limit.
         [max_duration: <duration> | default = 3h ]
 
-        # Maximun number of exemplars per range query. Limited to 100.
+        # Maximum number of exemplars per range query.
+        # Set to 0 to disable exemplars.
         [max_exemplars: <int> | default = 100 ]
 
         # Maximum number of time series returned for a metrics query.
