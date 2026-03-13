@@ -70,8 +70,6 @@ server:
     grpc_server_num_workers: 0
     grpc_server_stats_tracking_enabled: true
     grpc_server_recv_buffer_pools_enabled: false
-    grpc_server_read_buffer_size: 32768
-    grpc_server_write_buffer_size: 32768
     log_format: logfmt
     log_level: info
     log_source_ips_enabled: false
@@ -95,7 +93,6 @@ server:
             soft_validation: false
             excluded_paths: ""
             excluded_user_agents: ""
-    create_new_traces: false
 internal_server:
     http_listen_network: tcp
     http_listen_address: ""
@@ -146,8 +143,6 @@ internal_server:
     grpc_server_num_workers: 0
     grpc_server_stats_tracking_enabled: false
     grpc_server_recv_buffer_pools_enabled: false
-    grpc_server_read_buffer_size: 0
-    grpc_server_write_buffer_size: 0
     log_format: logfmt
     log_level: info
     log_source_ips_enabled: false
@@ -171,7 +166,6 @@ internal_server:
             soft_validation: false
             excluded_paths: ""
             excluded_user_agents: ""
-    create_new_traces: false
     enable: false
 distributor:
     ring:
@@ -240,14 +234,13 @@ distributor:
         max_consumer_lag_at_startup: 0s
         disable_kafka_telemetry: false
         consumer_group_lag_metric_update_interval: 0s
-    retry_after_on_resource_exhausted: 5s
+    retry_after_on_resource_exhausted: 0s
     max_attribute_bytes: 2048
 live_store_client:
     pool_config:
         checkinterval: 15s
         healthcheckenabled: true
         healthchecktimeout: 1s
-        healthcheckgraceperiod: 0s
         maxconcurrenthealthchecks: 0
     remote_timeout: 5s
     grpc_client_config:
@@ -349,7 +342,7 @@ query_frontend:
         concurrent_jobs: 1000
         target_bytes_per_job: 104857600
         max_duration: 24h0m0s
-        query_backend_after: 15m0s
+        query_backend_after: 30m0s
         interval: 5m0s
         max_exemplars: 100
         streaming_shards: 200
@@ -364,6 +357,7 @@ query_frontend:
     mcp_server:
         enabled: false
     max_query_expression_size_bytes: 131072
+    rf1_after: 0001-01-01T00:00:00Z
 metrics_generator:
     ring:
         kvstore:
@@ -494,11 +488,12 @@ metrics_generator:
     override_ring_key: metrics-generator
     ring_mode: partition
     codec: push-bytes
+    disable_grpc: false
     limiter_type: series
     ingest_concurrency: 16
     instance_id: hostname
-    leave_consumer_group_on_shutdown: false
 ingest:
+    enabled: false
     kafka:
         address: localhost:9092
         topic: ""
@@ -693,22 +688,55 @@ storage:
         cache_max_block_age: 0s
 overrides:
     defaults:
+        global:
+            max_bytes_per_trace: 5000000
         ingestion:
             rate_strategy: local
-            rate_limit_bytes: 30000000
-            burst_size_bytes: 30000000
+            rate_limit_bytes: 15000000
+            burst_size_bytes: 20000000
             max_traces_per_user: 10000
+            max_global_traces_per_user: 0
+            tenant_shard_size: 0
+            max_attribute_bytes: 0
             retry_info_enabled: true
         read:
             max_bytes_per_tag_values_query: 1000000
-            max_condition_groups_per_tag_query: 100
+            max_blocks_per_tag_values_query: 0
+            max_search_duration: 0s
+            max_metrics_duration: 0s
+            unsafe_query_hints: false
+            left_pad_trace_ids: false
         metrics_generator:
+            ring_size: 0
+            max_active_series: 0
+            max_active_entities: 0
+            collection_interval: 0s
+            disable_collection: false
             generate_native_histograms: classic
+            trace_id_label_name: traceID
+            forwarder:
+                queue_size: 100
+                workers: 2
+            processor:
+                service_graphs:
+                    enable_client_server_prefix: false
+                    span_multiplier_key: ""
+                span_metrics:
+                    span_multiplier_key: ""
+                host_info:
+                    metric_name: traces_host_info
+            ingestion_time_range_slack: 0s
             native_histogram_bucket_factor: 1.1
             native_histogram_max_bucket_number: 100
             native_histogram_min_reset_duration: 15m0s
-        global:
-            max_bytes_per_trace: 5000000
+            span_name_sanitization: ""
+            max_cardinality_per_label: 0
+        compaction:
+            block_retention: 0s
+            compaction_window: 0s
+            compaction_disabled: false
+        cost_attribution:
+            max_cardinality: 10000
     per_tenant_override_config: ""
     per_tenant_override_period: 10s
     user_configurable_overrides:
@@ -782,7 +810,6 @@ overrides:
                 hedge_requests_up_to: 2
         api:
             check_for_conflicting_runtime_overrides: false
-    enable_legacy_overrides: false
 memberlist:
     node_name: ""
     randomize_node_name: true
@@ -795,20 +822,17 @@ memberlist:
     dead_node_reclaim_time: 0s
     compression_enabled: false
     notify_interval: 0s
-    received_messages_queue_size: 1024
     advertise_addr: ""
     advertise_port: 7946
     cluster_label: ""
     cluster_label_verification_disabled: false
-    join_members: ""
+    join_members: []
     min_join_backoff: 1s
     max_join_backoff: 1m0s
     max_join_retries: 10
     abort_if_cluster_fast_join_fails: false
-    abort_if_cluster_fast_join_fails_min_nodes: 1
     abort_if_cluster_join_fails: false
     rejoin_interval: 0s
-    rejoin_seed_nodes: ""
     left_ingesters_timeout: 5m0s
     obsolete_entries_timeout: 30s
     leave_timeout: 20s
@@ -833,11 +857,6 @@ memberlist:
         enabled: false
         instance_availability_zone: ""
         role: member
-    propagation_delay_tracker:
-        enabled: false
-        beacon_interval: 1m0s
-        beacon_lifetime: 10m0s
-        log_beacons_latency_longer_than: 0s
 usage_report:
     reporting_enabled: true
     backoff:
@@ -874,10 +893,6 @@ backend_scheduler:
             max_input_blocks: 4
             max_compaction_level: 0
             min_cycle_interval: 30s
-        redaction:
-            poll_interval: 2s
-            rescan_delay: 5m0s
-            max_rescan_generations: 5
     job_timeout: 15s
     local_work_path: /var/tempo
 backend_scheduler_client:
@@ -1049,7 +1064,7 @@ live_store:
         path: /var/tempo/live-store/traces
         ingestion_time_range_slack: 2m0s
     query_block_concurrency: 10
-    complete_block_timeout: 20m0s
+    complete_block_timeout: 1h0m0s
     complete_block_concurrency: 2
     shutdown_marker_dir: /var/tempo/live-store/shutdown-marker
     flush_check_period: 5s
@@ -1057,8 +1072,8 @@ live_store:
     max_trace_live: 30s
     max_trace_idle: 5s
     max_live_traces_bytes: 250000000
-    max_block_duration: 30s
-    max_block_bytes: 52428800
+    max_block_duration: 1m0s
+    max_block_bytes: 104857600
     readiness_target_lag: 0s
     readiness_max_wait: 30m0s
     fail_on_high_lag: false
