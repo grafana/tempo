@@ -44,6 +44,7 @@ func NewSearchTagValues(maxDataBytes int, maxTagsValues uint32, staleValueThresh
 
 			return response, nil
 		},
+		segment: segmentSearchTagValuesResponse,
 	}
 	initHTTPCombiner(c, marshalingFormat)
 	return c
@@ -99,6 +100,7 @@ func NewSearchTagValuesV2(maxDataBytes int, maxTagsValues uint32, staleValueThre
 
 			return response, nil
 		},
+		segment: segmentSearchTagValuesV2Response,
 	}
 	initHTTPCombiner(c, marshalingFormat)
 	return c
@@ -106,4 +108,76 @@ func NewSearchTagValuesV2(maxDataBytes int, maxTagsValues uint32, staleValueThre
 
 func NewTypedSearchTagValuesV2(maxDataBytes int, maxTagsValues uint32, staleValueThreshold uint32, marshalingFormat api.MarshallingFormat) GRPCCombiner[*tempopb.SearchTagValuesV2Response] {
 	return NewSearchTagValuesV2(maxDataBytes, maxTagsValues, staleValueThreshold, marshalingFormat).(GRPCCombiner[*tempopb.SearchTagValuesV2Response])
+}
+
+// segmentSearchTagValuesResponse splits response into one or more SearchTagValuesResponse values, each within
+// maxSize bytes (by proto Size()). Metrics are included in every segment.
+func segmentSearchTagValuesResponse(response *tempopb.SearchTagValuesResponse, maxSize int) []*tempopb.SearchTagValuesResponse {
+	if maxSize <= 0 {
+		return []*tempopb.SearchTagValuesResponse{response}
+	}
+
+	var out []*tempopb.SearchTagValuesResponse
+	var current *tempopb.SearchTagValuesResponse
+	var currentSz int
+
+	startNextPacket := func() {
+		current = &tempopb.SearchTagValuesResponse{
+			TagValues: nil,
+			Metrics:   response.Metrics,
+		}
+		currentSz = current.Size()
+		out = append(out, current)
+	}
+
+	startNextPacket()
+
+	for _, v := range response.TagValues {
+		itemSz := protoStringSize(v)
+		// Start a new packet if there isn't room for this entry,
+		// unless it's the first one, that way we always try to fit at least one.
+		if len(current.TagValues) > 0 && currentSz+itemSz > maxSize {
+			startNextPacket()
+		}
+		current.TagValues = append(current.TagValues, v)
+		currentSz += itemSz
+	}
+
+	return out
+}
+
+// segmentSearchTagValuesV2Response splits response into one or more SearchTagValuesV2Response values, each within
+// maxSize bytes (by proto Size()). Metrics are included in every segment.
+func segmentSearchTagValuesV2Response(response *tempopb.SearchTagValuesV2Response, maxSize int) []*tempopb.SearchTagValuesV2Response {
+	if maxSize <= 0 {
+		return []*tempopb.SearchTagValuesV2Response{response}
+	}
+
+	var out []*tempopb.SearchTagValuesV2Response
+	var current *tempopb.SearchTagValuesV2Response
+	var currentSz int
+
+	startNextPacket := func() {
+		current = &tempopb.SearchTagValuesV2Response{
+			TagValues: nil,
+			Metrics:   response.Metrics,
+		}
+		currentSz = current.Size()
+		out = append(out, current)
+	}
+
+	startNextPacket()
+
+	for _, tv := range response.TagValues {
+		tvSz := tv.Size()
+		// Start a new packet if there isn't room for this entry,
+		// unless it's the first one, that way we always try to fit at least one.
+		if len(current.TagValues) > 0 && currentSz+tvSz > maxSize {
+			startNextPacket()
+		}
+		current.TagValues = append(current.TagValues, tv)
+		currentSz += tvSz
+	}
+
+	return out
 }

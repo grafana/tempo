@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"reflect"
 	"strings"
 	"sync"
 	"unsafe"
@@ -43,6 +44,9 @@ type genericCombiner[T TResponse] struct {
 	finalize func(T) (T, error)
 	diff     func(T) (T, error)
 	quit     func(T) bool
+
+	// Segment one response into smaller ones, that fit within the given max size.
+	segment func(T, int) []T
 
 	// Used to determine the response code and when to stop
 	httpStatusCode int
@@ -219,6 +223,17 @@ func (c *genericCombiner[T]) GRPCDiff() (T, error) {
 	// clone the diff to prevent race conditions with marshalling this data
 	diffClone := proto.Clone(diff)
 	return diffClone.(T), nil
+}
+
+func (c *genericCombiner[T]) GRPCSegment(response T, maxSize int) ([]T, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	if c.segment == nil {
+		return nil, errors.New("grpc response segmentation not supported for response type: " + reflect.TypeOf(response).String())
+	}
+
+	return c.segment(response, maxSize), nil
 }
 
 func (c *genericCombiner[T]) erroredResponse() (*http.Response, error) {
