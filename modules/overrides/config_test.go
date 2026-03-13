@@ -497,6 +497,64 @@ func generateTestLegacyOverrides() LegacyOverrides {
 	}
 }
 
+func TestYAMLRoundTripPointerTypes(t *testing.T) {
+	original := Overrides{
+		Ingestion: IngestionOverrides{
+			// ptrTo(nonzero) - should survive round-trip
+			RateLimitBytes: ptrTo(42),
+			// ptrTo(0) - should survive round-trip as non-nil with value 0
+			MaxLocalTracesPerUser: ptrTo(0),
+			// nil - should remain nil after round-trip
+			BurstSizeBytes: nil,
+		},
+		Global: GlobalOverrides{
+			MaxBytesPerTrace: ptrTo(0),
+		},
+		MetricsGenerator: MetricsGeneratorOverrides{
+			DisableCollection: ptrTo(false),
+			// ptrTo("") for string pointer
+			SpanNameSanitization: ptrTo(""),
+		},
+		Compaction: CompactionOverrides{
+			BlockRetention:     ptrTo(model.Duration(time.Hour)),
+			CompactionDisabled: ptrTo(true),
+			// nil
+			CompactionWindow: nil,
+		},
+	}
+
+	// Marshal to YAML
+	data, err := yaml.Marshal(original)
+	require.NoError(t, err)
+
+	// Unmarshal back
+	var restored Overrides
+	err = yaml.Unmarshal(data, &restored)
+	require.NoError(t, err)
+
+	// ptrTo(nonzero) fields preserved
+	require.NotNil(t, restored.Ingestion.RateLimitBytes)
+	require.Equal(t, 42, *restored.Ingestion.RateLimitBytes)
+
+	require.NotNil(t, restored.Compaction.BlockRetention)
+	require.Equal(t, model.Duration(time.Hour), *restored.Compaction.BlockRetention)
+
+	require.NotNil(t, restored.Compaction.CompactionDisabled)
+	require.Equal(t, true, *restored.Compaction.CompactionDisabled)
+
+	// nil fields remain nil (omitempty omits them, unmarshal leaves them nil)
+	require.Nil(t, restored.Ingestion.BurstSizeBytes, "nil pointer should remain nil after round-trip")
+	require.Nil(t, restored.Compaction.CompactionWindow, "nil pointer should remain nil after round-trip")
+
+	// ptrTo(0) survives YAML round-trip: omitempty with pointers only omits nil, not pointer-to-zero.
+	// This is the key property we depend on, a tenant can explicitly set
+	// a limit to 0 via YAML config, and the merge layer will preserve it.
+	require.NotNil(t, restored.Ingestion.MaxLocalTracesPerUser, "ptrTo(0) must survive YAML round-trip")
+	require.Equal(t, 0, *restored.Ingestion.MaxLocalTracesPerUser)
+	require.NotNil(t, restored.Global.MaxBytesPerTrace, "ptrTo(0) must survive YAML round-trip")
+	require.Equal(t, 0, *restored.Global.MaxBytesPerTrace)
+}
+
 // Helper function to create a duration pointer
 func durationPtr(d time.Duration) *time.Duration {
 	return &d
