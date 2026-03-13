@@ -52,5 +52,9 @@ func ValidateConfig(cfg *Config) error {
 		return fmt.Errorf("provider.compaction.measure_interval must be no more than half of work.prune_age; tenant measurement should happen at least twice as often as the work prune, got %s and %s", cfg.ProviderConfig.Compaction.MeasureInterval, cfg.Work.PruneAge/2)
 	}
 
+	if cfg.ProviderConfig.Redaction.RescanDelay > 0 && cfg.Work.PruneAge <= cfg.ProviderConfig.Redaction.RescanDelay {
+		return fmt.Errorf("work.prune_age must be greater than provider.redaction.rescan_delay so that compaction jobs are still in memory when a rescan fires; got prune_age=%s rescan_delay=%s", cfg.Work.PruneAge, cfg.ProviderConfig.Redaction.RescanDelay)
+	}
+
 	return nil
 }
