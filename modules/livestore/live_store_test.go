@@ -421,7 +421,7 @@ func TestLiveStoreQueryMethodsBeforeStarted(t *testing.T) {
 	cfg.PartitionRing.KVStore.Mock = mockParititionStore
 
 	// Create overrides
-	limits, err := overrides.NewOverrides(overrides.Config{}, nil, prometheus.DefaultRegisterer)
+	limits, err := overrides.NewOverrides(defaultOverridesConfig(), nil, prometheus.DefaultRegisterer)
 	require.NoError(t, err)
 
 	// Create metrics

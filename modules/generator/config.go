@@ -237,22 +237,9 @@ func (cfg *ProcessorConfig) copyWithOverrides(o metricsGeneratorOverrides, userI
 		copyCfg.HostInfo.HostIdentifiers = o.MetricsGeneratorProcessorHostInfoHostIdentifiers(userID)
 	}
 
-	if hostInfoMetricName := o.MetricsGeneratorProcessorHostInfoMetricName(userID); hostInfoMetricName != "" {
-		copyCfg.HostInfo.MetricName = o.MetricsGeneratorProcessorHostInfoMetricName(userID)
-	}
-
-	if spanMultiplierKey := o.MetricsGeneratorProcessorServiceGraphsSpanMultiplierKey(userID); spanMultiplierKey != "" {
-		copyCfg.ServiceGraphs.SpanMultiplierKey = spanMultiplierKey
-	}
-
-	if enableTraceStateSpanMultiplier, ok := o.MetricsGeneratorProcessorServiceGraphsEnableTraceStateSpanMultiplier(userID); ok {
-		copyCfg.ServiceGraphs.EnableTraceStateSpanMultiplier = enableTraceStateSpanMultiplier
-	}
-
-	if spanMultiplierKey := o.MetricsGeneratorProcessorSpanMetricsSpanMultiplierKey(userID); spanMultiplierKey != "" {
-		copyCfg.SpanMetrics.SpanMultiplierKey = spanMultiplierKey
-	}
-
+	copyCfg.HostInfo.MetricName = o.MetricsGeneratorProcessorHostInfoMetricName(userID)
+	copyCfg.ServiceGraphs.SpanMultiplierKey = o.MetricsGeneratorProcessorServiceGraphsSpanMultiplierKey(userID)
+	copyCfg.SpanMetrics.SpanMultiplierKey = o.MetricsGeneratorProcessorSpanMetricsSpanMultiplierKey(userID)
 	if enableTraceStateSpanMultiplier, ok := o.MetricsGeneratorProcessorSpanMetricsEnableTraceStateSpanMultiplier(userID); ok {
 		copyCfg.SpanMetrics.EnableTraceStateSpanMultiplier = enableTraceStateSpanMultiplier
 	}
