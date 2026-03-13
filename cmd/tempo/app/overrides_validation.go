@@ -29,7 +29,7 @@ func (r *runtimeConfigValidator) Validate(config *overrides.Overrides) (warnings
 		}
 	}
 
-	if *config.MetricsGenerator.SpanNameSanitization != "" {
+	if config.MetricsGenerator.SpanNameSanitization != nil && *config.MetricsGenerator.SpanNameSanitization != "" {
 		if err := validation.ValidateSpanNameSanitization(*config.MetricsGenerator.SpanNameSanitization); err != nil {
 			return warnings, err
 		}
