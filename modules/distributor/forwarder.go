@@ -99,11 +99,13 @@ func (f *generatorForwarder) SendTraces(ctx context.Context, tenantID string, ke
 func (f *generatorForwarder) getQueueConfig(tenantID string) (queueSize, workerCount int) {
 	queueSize = f.o.MetricsGeneratorForwarderQueueSize(tenantID)
 	if queueSize == 0 {
+		// TODO: this will never hit, we set the default to non zero?
 		queueSize = defaultQueueSize
 	}
 
 	workerCount = f.o.MetricsGeneratorForwarderWorkers(tenantID)
 	if workerCount == 0 {
+		// TODO: this will never hit, we set the default to non zero?
 		workerCount = defaultWorkerCount
 	}
 	return queueSize, workerCount

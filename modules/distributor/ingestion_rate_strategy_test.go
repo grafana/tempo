@@ -24,8 +24,8 @@ func TestIngestionRateStrategy(t *testing.T) {
 			limits: overrides.Overrides{
 				Ingestion: overrides.IngestionOverrides{
 					RateStrategy:   overrides.LocalIngestionRateStrategy,
-					RateLimitBytes: 5,
-					BurstSizeBytes: 2,
+					RateLimitBytes: ptrTo(5),
+					BurstSizeBytes: ptrTo(2),
 				},
 			},
 			ring:          nil,
@@ -36,8 +36,8 @@ func TestIngestionRateStrategy(t *testing.T) {
 			limits: overrides.Overrides{
 				Ingestion: overrides.IngestionOverrides{
 					RateStrategy:   overrides.GlobalIngestionRateStrategy,
-					RateLimitBytes: 5,
-					BurstSizeBytes: 2,
+					RateLimitBytes: ptrTo(5),
+					BurstSizeBytes: ptrTo(2),
 				},
 			},
 			ring:          createMockRingWithHealthyInstances(2),
@@ -48,8 +48,8 @@ func TestIngestionRateStrategy(t *testing.T) {
 			limits: overrides.Overrides{
 				Ingestion: overrides.IngestionOverrides{
 					RateStrategy:   overrides.GlobalIngestionRateStrategy,
-					RateLimitBytes: 10,
-					BurstSizeBytes: 8,
+					RateLimitBytes: ptrTo(10),
+					BurstSizeBytes: ptrTo(8),
 				},
 			},
 			ring:          createMockRingWithHealthyInstances(5),
@@ -60,8 +60,8 @@ func TestIngestionRateStrategy(t *testing.T) {
 			limits: overrides.Overrides{
 				Ingestion: overrides.IngestionOverrides{
 					RateStrategy:   overrides.GlobalIngestionRateStrategy,
-					RateLimitBytes: 100,
-					BurstSizeBytes: 50,
+					RateLimitBytes: ptrTo(100),
+					BurstSizeBytes: ptrTo(50),
 				},
 			},
 			ring:          createMockRingWithHealthyInstances(4),
@@ -72,8 +72,8 @@ func TestIngestionRateStrategy(t *testing.T) {
 			limits: overrides.Overrides{
 				Ingestion: overrides.IngestionOverrides{
 					RateStrategy:   overrides.GlobalIngestionRateStrategy,
-					RateLimitBytes: 1000,
-					BurstSizeBytes: 10000, // 10x the rate limit
+					RateLimitBytes: ptrTo(1000),
+					BurstSizeBytes: ptrTo(10000), // 10x the rate limit
 				},
 			},
 			ring:          createMockRingWithHealthyInstances(10),
@@ -84,8 +84,8 @@ func TestIngestionRateStrategy(t *testing.T) {
 			limits: overrides.Overrides{
 				Ingestion: overrides.IngestionOverrides{
 					RateStrategy:   overrides.GlobalIngestionRateStrategy,
-					RateLimitBytes: 200,
-					BurstSizeBytes: 0, // Zero burst size
+					RateLimitBytes: ptrTo(200),
+					BurstSizeBytes: ptrTo(0), // Zero burst size
 				},
 			},
 			ring:          createMockRingWithHealthyInstances(2),
@@ -133,8 +133,8 @@ func TestIngestionRateStrategyAllowN(t *testing.T) {
 			limits: overrides.Overrides{
 				Ingestion: overrides.IngestionOverrides{
 					RateStrategy:   overrides.LocalIngestionRateStrategy,
-					RateLimitBytes: 10,
-					BurstSizeBytes: 5,
+					RateLimitBytes: ptrTo(10),
+					BurstSizeBytes: ptrTo(5),
 				},
 			},
 			ring:             nil,
@@ -145,8 +145,8 @@ func TestIngestionRateStrategyAllowN(t *testing.T) {
 			limits: overrides.Overrides{
 				Ingestion: overrides.IngestionOverrides{
 					RateStrategy:   overrides.LocalIngestionRateStrategy,
-					RateLimitBytes: 10,
-					BurstSizeBytes: 20,
+					RateLimitBytes: ptrTo(10),
+					BurstSizeBytes: ptrTo(20),
 				},
 			},
 			ring:             nil,
@@ -157,8 +157,8 @@ func TestIngestionRateStrategyAllowN(t *testing.T) {
 			limits: overrides.Overrides{
 				Ingestion: overrides.IngestionOverrides{
 					RateStrategy:   overrides.LocalIngestionRateStrategy,
-					RateLimitBytes: 10,
-					BurstSizeBytes: 10,
+					RateLimitBytes: ptrTo(10),
+					BurstSizeBytes: ptrTo(10),
 				},
 			},
 			ring:             nil,
@@ -169,8 +169,8 @@ func TestIngestionRateStrategyAllowN(t *testing.T) {
 			limits: overrides.Overrides{
 				Ingestion: overrides.IngestionOverrides{
 					RateStrategy:   overrides.LocalIngestionRateStrategy,
-					RateLimitBytes: 10,
-					BurstSizeBytes: 5,
+					RateLimitBytes: ptrTo(10),
+					BurstSizeBytes: ptrTo(5),
 				},
 			},
 			ring:             nil,
@@ -181,8 +181,8 @@ func TestIngestionRateStrategyAllowN(t *testing.T) {
 			limits: overrides.Overrides{
 				Ingestion: overrides.IngestionOverrides{
 					RateStrategy:   overrides.GlobalIngestionRateStrategy,
-					RateLimitBytes: 20,
-					BurstSizeBytes: 10,
+					RateLimitBytes: ptrTo(20),
+					BurstSizeBytes: ptrTo(10),
 				},
 			},
 			ring:             createMockRingWithHealthyInstances(2),
@@ -193,8 +193,8 @@ func TestIngestionRateStrategyAllowN(t *testing.T) {
 			limits: overrides.Overrides{
 				Ingestion: overrides.IngestionOverrides{
 					RateStrategy:   overrides.GlobalIngestionRateStrategy,
-					RateLimitBytes: 20,
-					BurstSizeBytes: 20,
+					RateLimitBytes: ptrTo(20),
+					BurstSizeBytes: ptrTo(20),
 				},
 			},
 			ring:             createMockRingWithHealthyInstances(2),
@@ -205,8 +205,8 @@ func TestIngestionRateStrategyAllowN(t *testing.T) {
 			limits: overrides.Overrides{
 				Ingestion: overrides.IngestionOverrides{
 					RateStrategy:   overrides.GlobalIngestionRateStrategy,
-					RateLimitBytes: 20,
-					BurstSizeBytes: 10,
+					RateLimitBytes: ptrTo(20),
+					BurstSizeBytes: ptrTo(10),
 				},
 			},
 			ring:             createMockRingWithHealthyInstances(2),

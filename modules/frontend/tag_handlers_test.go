@@ -246,7 +246,7 @@ func TestSearchTagsV2Intrinsics(t *testing.T) {
 			}
 
 			f := frontendWithSettings(t, next, nil, nil, nil, func(_ *Config, overridesCfg *overrides.Config) {
-				overridesCfg.Defaults.Read.MaxBytesPerTagValuesQuery = tc.maxTagBytes
+				overridesCfg.Defaults.Read.MaxBytesPerTagValuesQuery = &tc.maxTagBytes
 			})
 
 			// http

@@ -3,6 +3,7 @@ package livestore
 import (
 	"bytes"
 	"context"
+	"flag"
 	"testing"
 	"time"
 
@@ -18,18 +19,20 @@ import (
 	"github.com/grafana/tempo/pkg/util/test"
 )
 
+func intPtr(v int) *int { return &v }
+
+func defaultOverridesConfig() overrides.Config {
+	cfg := overrides.Config{}
+	cfg.RegisterFlagsAndApplyDefaults(&flag.FlagSet{})
+	return cfg
+}
+
 func instanceWithPushLimits(t *testing.T, maxBytesPerTrace int, maxLiveTraces int) (*instance, *LiveStore) {
 	instance, ls := defaultInstance(t)
-	limits, err := overrides.NewOverrides(overrides.Config{
-		Defaults: overrides.Overrides{
-			Global: overrides.GlobalOverrides{
-				MaxBytesPerTrace: maxBytesPerTrace,
-			},
-			Ingestion: overrides.IngestionOverrides{
-				MaxLocalTracesPerUser: maxLiveTraces,
-			},
-		},
-	}, nil, prometheus.DefaultRegisterer)
+	cfg := defaultOverridesConfig()
+	cfg.Defaults.Global.MaxBytesPerTrace = intPtr(maxBytesPerTrace)
+	cfg.Defaults.Ingestion.MaxLocalTracesPerUser = intPtr(maxLiveTraces)
+	limits, err := overrides.NewOverrides(cfg, nil, prometheus.DefaultRegisterer)
 	require.NoError(t, err)
 	instance.overrides = limits
 

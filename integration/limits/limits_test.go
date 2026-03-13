@@ -200,7 +200,7 @@ func TestQueryLimits(t *testing.T) {
 		err := h.UpdateOverrides(map[string]*overrides.Overrides{
 			"single-tenant": {
 				Global: overrides.GlobalOverrides{
-					MaxBytesPerTrace: 1,
+					MaxBytesPerTrace: intPtr(1),
 				},
 			},
 		})
@@ -327,3 +327,5 @@ func TestQueryRateLimits(t *testing.T) {
 		require.ErrorContains(t, err, "code = ResourceExhausted")
 	})
 }
+
+func intPtr(v int) *int { return &v }
