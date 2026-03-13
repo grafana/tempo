@@ -681,22 +681,56 @@ storage:
         cache_max_block_age: 0s
 overrides:
     defaults:
+        global:
+            max_bytes_per_trace: 5000000
         ingestion:
             rate_strategy: local
             rate_limit_bytes: 15000000
             burst_size_bytes: 20000000
             max_traces_per_user: 10000
+            max_global_traces_per_user: 0
+            tenant_shard_size: 0
+            max_attribute_bytes: 0
+            artificial_delay: 0s
             retry_info_enabled: true
         read:
             max_bytes_per_tag_values_query: 1000000
+            max_blocks_per_tag_values_query: 0
+            max_search_duration: 0s
+            max_metrics_duration: 0s
+            unsafe_query_hints: false
+            left_pad_trace_ids: false
         metrics_generator:
+            ring_size: 0
+            max_active_series: 0
+            max_active_entities: 0
+            collection_interval: 0s
+            disable_collection: false
             generate_native_histograms: classic
+            trace_id_label_name: traceID
+            forwarder:
+                queue_size: 100
+                workers: 2
+            processor:
+                service_graphs:
+                    enable_client_server_prefix: false
+                    span_multiplier_key: ""
+                span_metrics:
+                    span_multiplier_key: ""
+                host_info:
+                    metric_name: traces_host_info
             ingestion_time_range_slack: 0s
             native_histogram_bucket_factor: 1.1
             native_histogram_max_bucket_number: 100
             native_histogram_min_reset_duration: 15m0s
-        global:
-            max_bytes_per_trace: 5000000
+            span_name_sanitization: ""
+            max_cardinality_per_label: 0
+        compaction:
+            block_retention: 0s
+            compaction_window: 0s
+            compaction_disabled: false
+        cost_attribution:
+            max_cardinality: 10000
     per_tenant_override_config: ""
     per_tenant_override_period: 10s
     user_configurable_overrides:
