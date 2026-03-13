@@ -6,6 +6,8 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	v1_common "github.com/grafana/tempo/pkg/tempopb/common/v1"
+	v1_resource "github.com/grafana/tempo/pkg/tempopb/resource/v1"
+	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 )
 
 func TestFindServiceName(t *testing.T) {
@@ -96,6 +98,166 @@ func TestFindServiceName(t *testing.T) {
 
 			assert.Equal(t, tc.expectedOk, ok)
 			assert.Equal(t, tc.expectedServiceName, svcName)
+		})
+	}
+}
+
+func TestGetSpanMultiplierFromTraceState(t *testing.T) {
+	tests := []struct {
+		name       string
+		traceState string
+		expected   float64
+	}{
+		{
+			name:       "empty tracestate",
+			traceState: "",
+			expected:   0,
+		},
+		{
+			name:       "th:0 means always sampled",
+			traceState: "ot=th:0",
+			expected:   1.0,
+		},
+		{
+			name:       "th:8 means 50% sampling, multiplier 2",
+			traceState: "ot=th:8",
+			expected:   2.0,
+		},
+		{
+			name:       "th:c means 25% sampling, multiplier 4",
+			traceState: "ot=th:c",
+			expected:   4.0,
+		},
+		{
+			name:       "th:fd70a4 means ~1% sampling, multiplier ~100",
+			traceState: "ot=th:fd70a4",
+			expected:   100.0,
+		},
+		{
+			name:       "multiple vendors in tracestate",
+			traceState: "vendor1=value1,ot=th:8,vendor2=value2",
+			expected:   2.0,
+		},
+		{
+			name:       "ot value with multiple subkeys",
+			traceState: "ot=rv:00112233445566;th:8",
+			expected:   2.0,
+		},
+		{
+			name:       "invalid hex in threshold",
+			traceState: "ot=th:xyz",
+			expected:   0,
+		},
+		{
+			name:       "no ot key",
+			traceState: "vendor1=value1,vendor2=value2",
+			expected:   0,
+		},
+		{
+			name:       "ot without th subkey",
+			traceState: "ot=rv:00112233445566",
+			expected:   0,
+		},
+		{
+			name:       "threshold too long",
+			traceState: "ot=th:123456789abcdef",
+			expected:   0,
+		},
+		{
+			name:       "empty threshold value",
+			traceState: "ot=th:",
+			expected:   0,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			span := &v1.Span{
+				TraceState: tc.traceState,
+			}
+			result := getSpanMultiplierFromTraceState(span)
+			assert.InDelta(t, tc.expected, result, 0.001, "tracestate: %s", tc.traceState)
+		})
+	}
+}
+
+func TestGetSpanMultiplier_WithTraceState(t *testing.T) {
+	ratioAttr := "sampling.ratio"
+
+	makeSpan := func(traceState string, attrVal float64) *v1.Span {
+		s := &v1.Span{
+			TraceState: traceState,
+		}
+		if attrVal > 0 {
+			s.Attributes = []*v1_common.KeyValue{
+				{
+					Key: ratioAttr,
+					Value: &v1_common.AnyValue{
+						Value: &v1_common.AnyValue_DoubleValue{DoubleValue: attrVal},
+					},
+				},
+			}
+		}
+		return s
+	}
+
+	rs := &v1_resource.Resource{}
+
+	tests := []struct {
+		name             string
+		enableTraceState bool
+		span             *v1.Span
+		ratioKey         string
+		expected         float64
+	}{
+		{
+			name:             "tracestate disabled, uses attribute",
+			enableTraceState: false,
+			span:             makeSpan("ot=th:8", 0.5),
+			ratioKey:         ratioAttr,
+			expected:         2.0,
+		},
+		{
+			name:             "tracestate enabled, tracestate wins over attribute",
+			enableTraceState: true,
+			span:             makeSpan("ot=th:c", 0.5),
+			ratioKey:         ratioAttr,
+			expected:         4.0, // from tracestate (25% sampling), not 2.0 from attribute
+		},
+		{
+			name:             "tracestate enabled but empty, falls back to attribute",
+			enableTraceState: true,
+			span:             makeSpan("", 0.5),
+			ratioKey:         ratioAttr,
+			expected:         2.0,
+		},
+		{
+			name:             "tracestate enabled but invalid, falls back to attribute",
+			enableTraceState: true,
+			span:             makeSpan("ot=th:xyz", 0.25),
+			ratioKey:         ratioAttr,
+			expected:         4.0,
+		},
+		{
+			name:             "tracestate enabled, no attribute, no tracestate",
+			enableTraceState: true,
+			span:             makeSpan("", 0),
+			ratioKey:         "",
+			expected:         1.0,
+		},
+		{
+			name:             "tracestate disabled, ignores tracestate",
+			enableTraceState: false,
+			span:             makeSpan("ot=th:8", 0),
+			ratioKey:         "",
+			expected:         1.0,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			result := GetSpanMultiplier(tc.ratioKey, tc.span, rs, tc.enableTraceState)
+			assert.InDelta(t, tc.expected, result, 0.001)
 		})
 	}
 }

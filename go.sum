@@ -723,6 +723,8 @@ github.com/open-telemetry/opentelemetry-collector-contrib/pkg/pdatatest v0.147.0
 github.com/open-telemetry/opentelemetry-collector-contrib/pkg/pdatatest v0.147.0/go.mod h1:NMXNbNZ4aEhyW0Oe4BfbGLLOI8Y9FmB/unZp01HUlKU=
 github.com/open-telemetry/opentelemetry-collector-contrib/pkg/pdatautil v0.147.0 h1:EYy8gmyjGLS0iYV7ksOOHrjZgiTjbWU26vziBAt4jKI=
 github.com/open-telemetry/opentelemetry-collector-contrib/pkg/pdatautil v0.147.0/go.mod h1:VDqy65biIJI9iYN9rrVi2nm9KAvSfq+6Fzrm8WyL4Qw=
+github.com/open-telemetry/opentelemetry-collector-contrib/pkg/sampling v0.147.0 h1:giBpdFTrjPFKwqSmLljq1E47JKwY9/73Ll/3EZVZihQ=
+github.com/open-telemetry/opentelemetry-collector-contrib/pkg/sampling v0.147.0/go.mod h1:Lbs/2bXiy9UVh3M3H2mNXk396ffeMYj4jewYY2NE4BA=
 github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/azure v0.147.0 h1:tVhO/op0pgRN8o2kOUvKzZ1e37DKHCW/3MpegUkuJHE=
 github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/azure v0.147.0/go.mod h1:7mql5p8gvpK+nlHy+BiidRnMXe49QTNEcy1WOkd2fcM=
 github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/jaeger v0.147.0 h1:CgI9ucLeKNrA/vpTgdb3p2/WHW/MarIQKntc84xpFJE=
