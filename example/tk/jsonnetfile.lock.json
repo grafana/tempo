@@ -8,7 +8,7 @@
           "subdir": "grafana"
         }
       },
-      "version": "d99d081cb782d3bea8f5f396c5eae09a15bae760",
+      "version": "c29f54867eb28dc5697a5446180d6e1889d9685e",
       "sum": "3M7sG0jR2K2L4Y8GCD+dEOjhzvAhtERr5TRRAE+DrhI="
     },
     {
@@ -18,8 +18,8 @@
           "subdir": "grafana-builder"
         }
       },
-      "version": "d99d081cb782d3bea8f5f396c5eae09a15bae760",
-      "sum": "+slXP8gi75OS343Khtz3i7va9csGTLhPoLUVu8vRuRc="
+      "version": "c29f54867eb28dc5697a5446180d6e1889d9685e",
+      "sum": "UPu3bKcy+GTMgx2yNyrzfKOWGnoc9EFhAUgs2lTcU1k="
     },
     {
       "source": {
@@ -28,7 +28,7 @@
           "subdir": "ksonnet-util"
         }
       },
-      "version": "d99d081cb782d3bea8f5f396c5eae09a15bae760",
+      "version": "c29f54867eb28dc5697a5446180d6e1889d9685e",
       "sum": "0y3AFX9LQSpfWTxWKSwoLgbt0Wc9nnCwhMH2szKzHv0="
     },
     {
@@ -38,7 +38,7 @@
           "subdir": "kube-state-metrics/"
         }
       },
-      "version": "d99d081cb782d3bea8f5f396c5eae09a15bae760",
+      "version": "c29f54867eb28dc5697a5446180d6e1889d9685e",
       "sum": "q1YzD+I4InDdfQP6k93W9Lw5U1jpll3gVaS9rUzLR7U="
     },
     {
@@ -48,7 +48,7 @@
           "subdir": "memcached"
         }
       },
-      "version": "d99d081cb782d3bea8f5f396c5eae09a15bae760",
+      "version": "c29f54867eb28dc5697a5446180d6e1889d9685e",
       "sum": "zNTCDRaCqJUHjQSQRsxGR3jLrMP9tU7YNQb13dbm1bU="
     },
     {
@@ -58,7 +58,7 @@
           "subdir": "mixin-utils"
         }
       },
-      "version": "d99d081cb782d3bea8f5f396c5eae09a15bae760",
+      "version": "c29f54867eb28dc5697a5446180d6e1889d9685e",
       "sum": "Yqni3FxJzw4DMlXBFf2mmKU5UEPOzWw0FmIlZbv+89Q="
     },
     {
@@ -68,7 +68,7 @@
           "subdir": "prometheus"
         }
       },
-      "version": "d99d081cb782d3bea8f5f396c5eae09a15bae760",
+      "version": "c29f54867eb28dc5697a5446180d6e1889d9685e",
       "sum": "kodkOiyJMjsaEsQCIfBhJPknBZayEj0yQJq50ad9VWo="
     },
     {
@@ -78,7 +78,7 @@
           "subdir": "tanka-util"
         }
       },
-      "version": "d99d081cb782d3bea8f5f396c5eae09a15bae760",
+      "version": "c29f54867eb28dc5697a5446180d6e1889d9685e",
       "sum": "ShSIissXdvCy1izTCDZX6tY7qxCoepE5L+WJ52Hw7ZQ="
     },
     {
