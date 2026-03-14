@@ -215,8 +215,6 @@ distributor:
         cost_attribution:
             max_cardinality: 10000
             stale_duration: 15m0s
-    ingester_write_path_enabled: false
-    kafka_write_path_enabled: false
     kafka_config:
         address: ""
         topic: ""
@@ -236,42 +234,8 @@ distributor:
         max_consumer_lag_at_startup: 0s
         disable_kafka_telemetry: false
         consumer_group_lag_metric_update_interval: 0s
-    extend_writes: true
     retry_after_on_resource_exhausted: 0s
     max_attribute_bytes: 2048
-ingester_client:
-    pool_config:
-        checkinterval: 15s
-        healthcheckenabled: true
-        healthchecktimeout: 1s
-        maxconcurrenthealthchecks: 0
-    remote_timeout: 5s
-    grpc_client_config:
-        max_recv_msg_size: 104857600
-        max_send_msg_size: 104857600
-        grpc_compression: snappy
-        rate_limit: 0
-        rate_limit_burst: 0
-        backoff_on_ratelimits: false
-        backoff_config:
-            min_period: 100ms
-            max_period: 10s
-            max_retries: 10
-        initial_stream_window_size: 63KiB1023B
-        initial_connection_window_size: 63KiB1023B
-        tls_enabled: false
-        tls_cert_path: ""
-        tls_key_path: ""
-        tls_ca_path: ""
-        tls_server_name: ""
-        tls_insecure_skip_verify: false
-        tls_cipher_suites: ""
-        tls_min_version: ""
-        connect_timeout: 5s
-        connect_backoff_base_delay: 1s
-        connect_backoff_max_delay: 5s
-        cluster_validation:
-            label: ""
 live_store_client:
     pool_config:
         checkinterval: 15s
@@ -393,105 +357,6 @@ query_frontend:
         enabled: false
     max_query_expression_size_bytes: 131072
     rf1_after: 0001-01-01T00:00:00Z
-ingester:
-    lifecycler:
-        ring:
-            kvstore:
-                store: memberlist
-                prefix: collectors/
-                consul:
-                    host: localhost:8500
-                    acl_token: ""
-                    http_client_timeout: 20s
-                    consistent_reads: false
-                    watch_rate_limit: 1
-                    watch_burst_size: 1
-                    cas_retry_delay: 1s
-                etcd:
-                    endpoints: []
-                    dial_timeout: 10s
-                    max_retries: 10
-                    tls_enabled: false
-                    tls_cert_path: ""
-                    tls_key_path: ""
-                    tls_ca_path: ""
-                    tls_server_name: ""
-                    tls_insecure_skip_verify: false
-                    tls_cipher_suites: ""
-                    tls_min_version: ""
-                    username: ""
-                    password: ""
-                multi:
-                    primary: ""
-                    secondary: ""
-                    mirror_enabled: false
-                    mirror_timeout: 2s
-            heartbeat_timeout: 5m0s
-            replication_factor: 1
-            zone_awareness_enabled: false
-            excluded_zones: ""
-        num_tokens: 128
-        heartbeat_period: 5s
-        heartbeat_timeout: 1m0s
-        observe_period: 0s
-        join_after: 0s
-        min_ready_duration: 15s
-        interface_names:
-            - eth0
-        enable_inet6: false
-        final_sleep: 0s
-        tokens_file_path: ""
-        availability_zone: ""
-        unregister_on_shutdown: true
-        readiness_check_ring_health: true
-        address: ""
-        port: 0
-        id: hostname
-    partition_ring:
-        kvstore:
-            store: memberlist
-            prefix: collectors/
-            consul:
-                host: localhost:8500
-                acl_token: ""
-                http_client_timeout: 20s
-                consistent_reads: false
-                watch_rate_limit: 1
-                watch_burst_size: 1
-                cas_retry_delay: 1s
-            etcd:
-                endpoints: []
-                dial_timeout: 10s
-                max_retries: 10
-                tls_enabled: false
-                tls_cert_path: ""
-                tls_key_path: ""
-                tls_ca_path: ""
-                tls_server_name: ""
-                tls_insecure_skip_verify: false
-                tls_cipher_suites: ""
-                tls_min_version: ""
-                username: ""
-                password: ""
-            multi:
-                primary: ""
-                secondary: ""
-                mirror_enabled: false
-                mirror_timeout: 2s
-        min_partition_owners_count: 1
-        min_partition_owners_duration: 10s
-        delete_inactive_partition_after: 13h0m0s
-    concurrent_flushes: 4
-    flush_check_period: 10s
-    flush_op_timeout: 5m0s
-    trace_idle_period: 5s
-    trace_live_period: 30s
-    max_block_duration: 30m0s
-    max_block_bytes: 524288000
-    complete_block_timeout: 15m0s
-    override_ring_key: ring
-    flush_all_on_shutdown: false
-    flush_object_storage: true
 metrics_generator:
     ring:
         kvstore:

@@ -46,8 +46,11 @@
 * [BUGFIX] metrics-generator: Fix active-series counter underflow in local series limiter when overflow series are deleted [#6568](https://github.com/grafana/tempo/pull/6568) (@carles-grafana)
 * [BUGFIX] fix: skip per-label limiter and sanitizer for target_info and host_info metrics in metrics-generator [#6660](https://github.com/grafana/tempo/pull/6660) (@electron0zero)
 * [BUGFIX] fix(traceql): err on division by zero [#6580](https://github.com/grafana/tempo/pull/6580) (@Proximyst)
+* [CHANGE] jsonnet: Add emptyDir data volume to block-builder StatefulSet [#6648](https://github.com/grafana/tempo/pull/6648) (@mapno)
+
 
 ### 3.0 Cleanup
+* [CHANGE] **BREAKING CHANGE** Remove remaining app ingester config [#6667](https://github.com/grafana/tempo/pull/6667) (@javiermolinar)
 
 * [CHANGE] **BREAKING CHANGE** Remove span-metrics leftovers and lazy-init generator clients [#6618](https://github.com/grafana/tempo/pull/6618) (@javiermolinar)
 * [CHANGE] **BREAKING CHANGE** Decommission livestore MetricsGenerator query service [#6615](https://github.com/grafana/tempo/pull/6615) (@javiermolinar)

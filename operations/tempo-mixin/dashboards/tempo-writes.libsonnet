@@ -124,8 +124,7 @@ dashboard_utils {
           $.panel('Receiver spans / sec') +
           $.queryPanel('sum(rate(tempo_receiver_accepted_spans{%s}[$__rate_interval]))' % $.jobMatcher($._config.jobs.distributor), 'accepted') +
           $.queryPanel('sum(rate(tempo_receiver_refused_spans{%s}[$__rate_interval]))' % $.jobMatcher($._config.jobs.distributor), 'refused') +
-          $.queryPanel('sum(rate(tempo_distributor_ingester_append_failures_total{%s}[$__rate_interval]))' % $.jobMatcher($._config.jobs.distributor), 'ingester append failure')
-          + { fieldConfig+: { defaults+: { unit: 'ops' } } }
+          { fieldConfig+: { defaults+: { unit: 'ops' } } }
         ).addPanel(
           $.panel('Discarded spans') +
           $.queryPanel('sum(rate(tempo_discarded_spans_total{%s}[$__rate_interval])) by(reason)' % $.jobMatcher($._config.jobs.distributor), '{{reason}}') +
