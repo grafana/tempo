@@ -121,6 +121,19 @@ func internalNew(cfg *Config, confirm bool) (*readerWriter, error) {
 
 	l := log.Logger
 
+	// Global minio settings that affect all minio clients in the process
+	if cfg.MaxRetry > 0 {
+		minio.MaxRetry = cfg.MaxRetry
+	}
+
+	if cfg.RetryUnit > 0 {
+		minio.DefaultRetryUnit = cfg.RetryUnit
+	}
+
+	if cfg.RetryCap > 0 {
+		minio.DefaultRetryCap = cfg.RetryCap
+	}
+
 	core, err := createCore(cfg, false)
 	if err != nil {
 		return nil, fmt.Errorf("unexpected error creating core: %w", err)

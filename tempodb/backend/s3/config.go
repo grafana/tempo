@@ -57,6 +57,9 @@ type Config struct {
 	PartSize          uint64         `yaml:"part_size"`
 	HedgeRequestsAt   time.Duration  `yaml:"hedge_requests_at"`
 	HedgeRequestsUpTo int            `yaml:"hedge_requests_up_to"`
+	MaxRetry          int            `yaml:"max_retry"`
+	RetryUnit         time.Duration  `yaml:"retry_unit"`
+	RetryCap          time.Duration  `yaml:"retry_cap"`
 	// SignatureV2 configures the object storage to use V2 signing instead of V4
 	SignatureV2      bool              `yaml:"signature_v2"`
 	ForcePathStyle   bool              `yaml:"forcepathstyle"`
