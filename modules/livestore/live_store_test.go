@@ -775,6 +775,29 @@ func pushToLiveStore(t *testing.T, liveStore *LiveStore) ([]byte, *tempopb.Trace
 	return id, expectedTrace
 }
 
+// newMockLiveStore creates a LiveStore for unit tests without starting the service.
+// In particular, it does not initialize the PartitionReader, so tests can control
+// reader state deterministically.
+func newMockLiveStore(t testing.TB, tmpDir string) *LiveStore {
+	t.Helper()
+
+	cfg := defaultConfig(t, tmpDir)
+
+	limits, err := overrides.NewOverrides(overrides.Config{}, nil, prometheus.DefaultRegisterer)
+	require.NoError(t, err)
+
+	reg := prometheus.NewRegistry()
+	logger := test.NewTestingLogger(t)
+
+	ls, err := New(cfg, limits, logger, reg, true)
+	require.NoError(t, err)
+
+	ls.readyErr.Store(nil)
+	ls.reader = &PartitionReader{}
+
+	return ls
+}
+
 func TestIsLagged(t *testing.T) {
 	now := time.Now()
 	testCases := []struct {
@@ -854,8 +877,7 @@ func TestIsLagged(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			tmpDir := t.TempDir()
-			ls, err := defaultLiveStore(t, tmpDir)
-			require.NoError(t, err)
+			ls := newMockLiveStore(t, tmpDir)
 
 			ls.cfg.FailOnHighLag = tc.failOnHighLag
 			ls.reader.lag.Store(tc.readerLag)
@@ -870,7 +892,7 @@ func TestIsLagged(t *testing.T) {
 				ctx := user.InjectOrgID(t.Context(), testTenantID)
 				resp, err := ls.SearchRecent(ctx, &tempopb.SearchRequest{
 					Query: "{}",
-					Start: uint32(now.Add(-5 * time.Hour).Second()),
+					Start: uint32(now.Add(-5 * time.Hour).Unix()),
 					End:   uint32(tc.end.Unix()),
 				})
 
