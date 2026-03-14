@@ -38,6 +38,13 @@ after a metrics query like:
 {} | rate() by (resource.service.name) | topk(10)
 ```
 
+You can also apply comparison operators to metrics results to keep only data points that meet a given threshold.
+These can be added after a metrics query like:
+
+```
+{} | rate() by (resource.service.name) > 10
+```
+
 These functions can be added as an operator at the end of any TraceQL query.
 
 | Function                                                     | Description                                                                                        | Example                                                                         |
@@ -52,6 +59,7 @@ These functions can be added as an operator at the end of any TraceQL query.
 | [`histogram_over_time()`](#the-histogram_over_time-function) | Evaluate frequency distribution over time.                                                         | `{ } \| histogram_over_time(span:duration) by (span.http.target)`               |
 | [`topk()`](#the-topk-function)                               | Returns only the top `k` results from a metrics query.                                             | `{ resource.service.name = "foo" } \| rate() by (span.http.url) \| topk(10)`    |
 | [`bottomk()`](#the-bottomk-function)                         | Returns only the bottom `k` results from a metrics query.                                          | `{ resource.service.name = "foo" } \| rate() by (span.http.url) \| bottomk(10)` |
+| [Comparison operators](#comparison-operators)                 | Filters metric data points that don't meet a threshold condition.                                  | `{ } \| rate() > 10`                                                            |
 
 ### Group results with `by()`
 
@@ -302,6 +310,63 @@ If you do a `bottomk` of 10, you might get a 20 series. For example, on this dat
 
 On the next data point, `A` through `I` might still be the bottom 9, but `J` might have fallen off for `K`.
 Because it's evaluated at each data point, you'll get the bottom series for each data point.
+
+### Comparison operators
+
+You can apply comparison operators to the results of any metrics query to keep only the data points that meet a given condition.
+This lets you filter out noise and focus on the values that matter, for example, only showing series where the rate exceeds a threshold.
+
+The supported comparison operators are `>`, `>=`, `<`, `<=`, `=`, and `!=`.
+You can compare against integers, floats, and durations (for example, `1s` or `500ms`).
+
+{{< admonition type="note" >}}
+Comparison operators aren't supported with the `compare()` function.
+{{< /admonition >}}
+
+Data points that don't match the condition are removed from the results.
+If all data points in a series are removed, the entire series is dropped.
+
+For example, this query computes the rate of all spans grouped by service, and then keeps only services where the rate exceeds 10 spans per second:
+
+```traceql
+{} | rate() by (resource.service.name) > 10
+```
+
+You can use duration values to filter on time-based metrics.
+This example finds endpoints where the average span duration is greater than one second:
+
+```traceql
+{ span:name = "GET /:endpoint" } | avg_over_time(span:duration) > 1s
+```
+
+To exclude zero values from your results:
+
+```traceql
+{} | count_over_time() by (name) != 0
+```
+
+#### Combining with `topk` and `bottomk`
+
+Comparison operators can be combined with `topk` and `bottomk` in any order.
+Each operation is applied in sequence from left to right.
+
+For example, you can first select the top 5 series and then filter to only those above a threshold:
+
+```traceql
+{} | rate() by (span.http.url) | topk(5) > 10
+```
+
+Or filter first, then select the top results from what remains:
+
+```traceql
+{} | rate() by (span.http.url) > 0 | topk(5)
+```
+
+Sampling hints work alongside comparison operators:
+
+```traceql
+{} | count_over_time() by (name) | topk(10) >= 5 with(sample=0.1)
+```
 
 ## Data sampling
 
