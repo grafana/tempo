@@ -1744,3 +1744,38 @@ func TestValidationErrors(t *testing.T) {
 		require.Equal(t, tc.expErr, err)
 	}
 }
+
+func TestSpanMetricsTraceStateMultiplier(t *testing.T) {
+	testRegistry := registry.NewTestRegistry()
+	filteredSpansCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "filtered", "span-metrics-tracestate")
+	invalidUTF8SpanLabelsCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "invalid_utf8", "span-metrics-tracestate")
+
+	cfg := Config{}
+	cfg.RegisterFlagsAndApplyDefaults("", nil)
+	cfg.HistogramBuckets = []float64{0.5, 1}
+	cfg.EnableTraceStateSpanMultiplier = true
+
+	p, err := New(cfg, testRegistry, filteredSpansCounter, invalidUTF8SpanLabelsCounter)
+	require.NoError(t, err)
+	defer p.Shutdown(context.Background())
+
+	// Create a batch with a span that has tracestate th:8 (50% sampling → multiplier 2)
+	batch := test.MakeBatch(1, nil)
+	for _, ils := range batch.ScopeSpans {
+		for _, span := range ils.Spans {
+			span.TraceState = "ot=th:8"
+		}
+	}
+
+	p.PushSpans(context.Background(), &tempopb.PushSpansRequest{Batches: []*trace_v1.ResourceSpans{batch}})
+
+	lbls := labels.FromMap(map[string]string{
+		"service":     "test-service",
+		"span_name":   "test",
+		"span_kind":   "SPAN_KIND_CLIENT",
+		"status_code": "STATUS_CODE_OK",
+	})
+
+	// With 50% sampling (th:8), span multiplier is 2, so 1 span → count of 2
+	assert.Equal(t, 2.0, testRegistry.Query("traces_spanmetrics_calls_total", lbls))
+}

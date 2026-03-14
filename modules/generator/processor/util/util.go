@@ -1,6 +1,7 @@
 package util
 
 import (
+	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/sampling"
 	semconv "go.opentelemetry.io/otel/semconv/v1.25.0"
 
 	v1_common "github.com/grafana/tempo/pkg/tempopb/common/v1"
@@ -32,7 +33,13 @@ func FindAttributeValue(key string, attributes ...[]*v1_common.KeyValue) (string
 	return "", false
 }
 
-func GetSpanMultiplier(ratioKey string, span *v1.Span, rs *v1_resource.Resource) float64 {
+func GetSpanMultiplier(ratioKey string, span *v1.Span, rs *v1_resource.Resource, enableTraceState bool) float64 {
+	if enableTraceState {
+		if m := getSpanMultiplierFromTraceState(span); m > 0 {
+			return m
+		}
+	}
+
 	if ratioKey != "" {
 		for _, kv := range span.Attributes {
 			if kv.Key == ratioKey {
@@ -52,6 +59,24 @@ func GetSpanMultiplier(ratioKey string, span *v1.Span, rs *v1_resource.Resource)
 		}
 	}
 	return 1.0
+}
+
+// getSpanMultiplierFromTraceState extracts a span multiplier from the W3C tracestate
+// OTel probability sampling threshold.
+// Returns 0 if the tracestate is empty, invalid, or has no OTel sampling data.
+func getSpanMultiplierFromTraceState(span *v1.Span) float64 {
+	traceState := span.GetTraceState()
+	if traceState == "" {
+		return 0
+	}
+
+	w3c, err := sampling.NewW3CTraceState(traceState)
+	if err != nil {
+		return 0
+	}
+
+	otts := w3c.OTelValue()
+	return otts.AdjustedCount()
 }
 
 func GetJobValue(attributes []*v1_common.KeyValue) string {
