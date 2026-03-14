@@ -29,6 +29,10 @@ This document details release procedures for Tempo.
   the newly minted version.
   - Given that the changelog was already cleaned up for the RC above. This will likely be simply
     renaming the release candidate to the full version.
+- Update the tempo image tag in example configs and operations files, then regenerate compiled jsonnet.
+  Run `make bump-tempo-image-tag TEMPO_IMAGE_TAG=X.Y.Z && make jsonnet` and open a PR to the release
+  branch. This is intentionally done before tagging so that users referencing the examples or docs
+  get the correct released version rather than `latest` or a stale one.
 - In [github releases](https://github.com/grafana/tempo/releases) there should be a "Draft" release.
   Pretty up the changelog, add it to the release notes and hit "Publish release". Make sure that
   "Set as the latest release" is checked.
@@ -55,19 +59,33 @@ You need to cherry-pick each commit and open a PR to be merged into the release 
 - Add any missing entries and update the heading from `main / unreleased` to the new patch version (e.g. `v2.10.1`).
 - Open a PR with the changelog update to the release branch.
 
-## 4. Create and push the tag
+## 4. Update the tempo image tag
+
+> **Note:** This step is intentionally performed before tagging and the `docker` CI workflow.
+> Example configs and operations files must reference the released version so that users who follow
+> the documentation or deploy from those files get the correct image, not `latest` or a stale version.
+
+Run the following from the release branch:
+```
+make bump-tempo-image-tag TEMPO_IMAGE_TAG=X.Y.Z
+make jsonnet
+```
+
+Review the changes with `git diff`, then open a PR to the release branch and merge it before proceeding.
+
+## 5. Create and push the tag
 Tag the release branch and push. This triggers the `release` and `docker` workflows in GitHub Actions.
   `git tag -a vX.Y.Z -m "vX.Y.Z"`
   `git push origin vX.Y.Z`
 
-## 5. Verify CI
+## 6. Verify CI
 Check that all workflows triggered by the tag succeeded:
 - `release` — creates the GitHub Release draft and binaries
 - `docker` — builds per-arch images and creates multi-arch manifests
 - `publish-technical-documentation-release` — syncs docs (may show as failed if docs are already up to date; this is harmless)
 
-## 6. Publish the GitHub Release
+## 7. Publish the GitHub Release
 In [GitHub Releases](https://github.com/grafana/tempo/releases) there should be a "Draft" release. Add the changelog entries to the release notes. Make sure "Set as the latest release" is checked and hit "Publish release".
 
-## 7. Submit a changelog PR to main
+## 8. Submit a changelog PR to main
 Submit a PR to `main` moving the relevant entries from "main/unreleased" to be under the newly minted version.
