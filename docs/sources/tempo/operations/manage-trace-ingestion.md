@@ -7,16 +7,18 @@ weight: 250
 
 # Manage trace ingestion
 
-If you are seeing `RATE_LIMITED`, `LIVE_TRACES_EXCEEDED`, or `TRACE_TOO_LARGE` errors in your distributor logs, or if your trace storage costs are rising unexpectedly, this page can help.
+If you are seeing `RATE_LIMITED`, `LIVE_TRACES_EXCEEDED`, or `TRACE_TOO_LARGE` errors, or if your trace storage costs are rising unexpectedly, this page can help.
 
-In Grafana Tempo, distributors validate incoming spans against ingestion limits before writing them to Kafka.
-If limits are too low for your workload, spans are refused and data is lost.
+Grafana Tempo enforces ingestion limits at multiple points in the write path.
+The distributor checks rate limits before writing spans to Kafka.
+Downstream, live-stores and block-builders enforce per-trace size and live trace count limits asynchronously.
+If limits are too low for your workload, spans are discarded and data is lost.
 If limits are unchecked, ingestion volume can grow beyond what you intended.
 
 This page covers three tasks:
 
 - [Size ingestion limits](#size-ingestion-limits-for-your-workload) when deploying or reviewing your configuration.
-- [Find and fix refused spans](#find-and-fix-refused-spans) when you are actively losing data.
+- [Find and fix discarded spans](#find-and-fix-discarded-spans) when you are actively losing data.
 - [Identify what is driving ingestion volume](#identify-what-is-driving-ingestion-volume) when costs are growing.
 
 For an overview of how trace data flows through the write path, refer to [Tempo architecture](https://grafana.com/docs/tempo/<TEMPO_VERSION>/introduction/architecture/).
@@ -40,6 +42,7 @@ How this scales depends on your `rate_strategy`:
 ### Live trace limit
 
 `max_traces_per_user` (default: `10,000`) caps the number of concurrently active traces per tenant on each live-store.
+This limit is enforced asynchronously in the live-store, not at ingestion time in the distributor.
 If your services produce many short-lived traces in parallel, you may need to raise this.
 
 `max_global_traces_per_user` (default: 0, disabled) sets a cluster-wide cap instead of a per-instance cap.
@@ -47,6 +50,7 @@ If your services produce many short-lived traces in parallel, you may need to ra
 ### Per-trace size limit
 
 `max_bytes_per_trace` (default: `5,000,000`) caps the total size of a single trace.
+This limit is enforced asynchronously in live-stores and block-builders.
 Traces that exceed this limit are partially dropped.
 Unusually large traces often indicate a retry loop or misconfigured instrumentation rather than normal application behavior.
 
@@ -74,10 +78,11 @@ Refer to [Enable multi-tenancy](https://grafana.com/docs/tempo/<TEMPO_VERSION>/o
 For the full list of available settings, refer to [Ingestion limits](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/#ingestion-limits) in the configuration reference.
 You can also manage per-tenant limits through the API using [user-configurable overrides](https://grafana.com/docs/tempo/<TEMPO_VERSION>/operations/manage-advanced-systems/user-configurable-overrides/).
 
-## Find and fix refused spans
+## Find and fix discarded spans
 
-When the distributor refuses spans, it logs an error and increments the `tempo_discarded_spans_total` metric.
-The error message tells you which limit was exceeded.
+When a span exceeds an ingestion limit, Tempo discards it and increments the `tempo_discarded_spans_total` metric.
+The distributor discards rate-limited spans before they reach Kafka.
+Live-stores and block-builders discard spans that exceed per-trace size or live trace count limits after consuming them from Kafka.
 
 ### Error reference
 
@@ -98,9 +103,9 @@ The `reason` label indicates which limit caused the refusal:
 sum by (reason) (rate(tempo_discarded_spans_total[5m]))
 ```
 
-### Log refused spans for debugging
+### Log discarded spans for debugging
 
-To log individual refused spans with their trace IDs, enable `log_discarded_spans` in the distributor configuration:
+To log spans discarded by the distributor (rate-limited spans) with their trace IDs, enable `log_discarded_spans` in the distributor configuration:
 
 ```yaml
 distributor:
@@ -109,6 +114,10 @@ distributor:
 ```
 
 Set `include_all_attributes: true` for more verbose output that includes span attributes.
+
+Spans discarded by live-stores for `LIVE_TRACES_EXCEEDED` or `TRACE_TOO_LARGE` are logged at debug level by the live-store.
+To see these entries, set the live-store log level to `debug`.
+
 Refer to [Distributor refusing spans](https://grafana.com/docs/tempo/<TEMPO_VERSION>/troubleshooting/send-traces/max-trace-limit-reached/) for additional troubleshooting steps.
 
 ### Traces missing from queries without errors
