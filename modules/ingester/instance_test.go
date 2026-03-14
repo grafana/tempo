@@ -24,6 +24,8 @@ import (
 	"github.com/grafana/tempo/pkg/util/test"
 )
 
+func intPtr(v int) *int { return &v }
+
 const testTenantID = "fake"
 
 type ringCountMock struct {
@@ -225,16 +227,10 @@ func TestInstanceDoesNotRace(t *testing.T) {
 
 func TestInstanceLimits(t *testing.T) {
 	maxBytes := 1000
-	limits, err := overrides.NewOverrides(overrides.Config{
-		Defaults: overrides.Overrides{
-			Global: overrides.GlobalOverrides{
-				MaxBytesPerTrace: maxBytes,
-			},
-			Ingestion: overrides.IngestionOverrides{
-				MaxLocalTracesPerUser: 4,
-			},
-		},
-	}, nil, prometheus.DefaultRegisterer)
+	cfg := defaultOverridesConfig()
+	cfg.Defaults.Global.MaxBytesPerTrace = intPtr(maxBytes)
+	cfg.Defaults.Ingestion.MaxLocalTracesPerUser = intPtr(4)
+	limits, err := overrides.NewOverrides(cfg, nil, prometheus.DefaultRegisterer)
 	require.NoError(t, err, "unexpected error creating limits")
 	limiter := NewLimiter(limits, &ringCountMock{count: 1}, 1)
 
@@ -572,13 +568,9 @@ func TestInstanceFailsLargeTracesEvenAfterFlushing(t *testing.T) {
 	maxTraceBytes := 1000
 	id := []byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}
 
-	limits, err := overrides.NewOverrides(overrides.Config{
-		Defaults: overrides.Overrides{
-			Global: overrides.GlobalOverrides{
-				MaxBytesPerTrace: maxTraceBytes,
-			},
-		},
-	}, nil, prometheus.DefaultRegisterer)
+	cfg := defaultOverridesConfig()
+	cfg.Defaults.Global.MaxBytesPerTrace = intPtr(maxTraceBytes)
+	limits, err := overrides.NewOverrides(cfg, nil, prometheus.DefaultRegisterer)
 	require.NoError(t, err)
 	limiter := NewLimiter(limits, &ringCountMock{count: 1}, 1)
 
@@ -639,16 +631,10 @@ func TestInstancePartialSuccess(t *testing.T) {
 	ctx := context.Background()
 	maxTraceBytes := 1000
 
-	limits, err := overrides.NewOverrides(overrides.Config{
-		Defaults: overrides.Overrides{
-			Global: overrides.GlobalOverrides{
-				MaxBytesPerTrace: maxTraceBytes,
-			},
-			Ingestion: overrides.IngestionOverrides{
-				MaxLocalTracesPerUser: 2,
-			},
-		},
-	}, nil, prometheus.DefaultRegisterer)
+	cfg := defaultOverridesConfig()
+	cfg.Defaults.Global.MaxBytesPerTrace = intPtr(maxTraceBytes)
+	cfg.Defaults.Ingestion.MaxLocalTracesPerUser = intPtr(2)
+	limits, err := overrides.NewOverrides(cfg, nil, prometheus.DefaultRegisterer)
 	require.NoError(t, err)
 	limiter := NewLimiter(limits, &ringCountMock{count: 1}, 1)
 
@@ -894,7 +880,7 @@ func testInstance(t testing.TB, opts ...ingesterTestOption) (*Ingester, *instanc
 		ctx    = context.Background()
 		tmpDir = t.TempDir()
 		cfg    = defaultIngesterTestConfig()
-		o      = overrides.Config{}
+		o      = defaultOverridesConfig()
 	)
 
 	for _, opt := range opts {

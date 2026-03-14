@@ -86,37 +86,37 @@ func (c *Overrides) toLegacy() LegacyOverrides {
 }
 
 // LegacyOverrides describe all the limits for users; can be used to describe global default
-// limits via flags, or per-user limits via yaml config.
+// limits via flags, or per-user limits via YAML config.
 type LegacyOverrides struct {
 	// Distributor enforced limits.
-	IngestionRateStrategy      string         `yaml:"ingestion_rate_strategy" json:"ingestion_rate_strategy"`
-	IngestionRateLimitBytes    int            `yaml:"ingestion_rate_limit_bytes" json:"ingestion_rate_limit_bytes"`
-	IngestionBurstSizeBytes    int            `yaml:"ingestion_burst_size_bytes" json:"ingestion_burst_size_bytes"`
-	IngestionTenantShardSize   int            `yaml:"ingestion_tenant_shard_size" json:"ingestion_tenant_shard_size"`
-	IngestionMaxAttributeBytes int            `yaml:"ingestion_max_attribute_bytes" json:"ingestion_max_attribute_bytes"`
-	IngestionArtificialDelay   *time.Duration `yaml:"ingestion_artificial_delay" json:"ingestion_artificial_delay"`
-	IngestionRetryInfoEnabled  bool           `yaml:"ingestion_retry_info_enabled" json:"ingestion_retry_info_enabled"`
+	IngestionRateStrategy      IngestionRateStrategy `yaml:"ingestion_rate_strategy" json:"ingestion_rate_strategy"`
+	IngestionRateLimitBytes    *int                  `yaml:"ingestion_rate_limit_bytes" json:"ingestion_rate_limit_bytes"`
+	IngestionBurstSizeBytes    *int                  `yaml:"ingestion_burst_size_bytes" json:"ingestion_burst_size_bytes"`
+	IngestionTenantShardSize   *int                  `yaml:"ingestion_tenant_shard_size" json:"ingestion_tenant_shard_size"`
+	IngestionMaxAttributeBytes *int                  `yaml:"ingestion_max_attribute_bytes" json:"ingestion_max_attribute_bytes"`
+	IngestionArtificialDelay   *time.Duration        `yaml:"ingestion_artificial_delay" json:"ingestion_artificial_delay"`
+	IngestionRetryInfoEnabled  *bool                 `yaml:"ingestion_retry_info_enabled" json:"ingestion_retry_info_enabled"`
 
 	// Ingester enforced limits.
-	MaxLocalTracesPerUser  int `yaml:"max_traces_per_user" json:"max_traces_per_user"`
-	MaxGlobalTracesPerUser int `yaml:"max_global_traces_per_user" json:"max_global_traces_per_user"`
+	MaxLocalTracesPerUser  *int `yaml:"max_traces_per_user" json:"max_traces_per_user"`
+	MaxGlobalTracesPerUser *int `yaml:"max_global_traces_per_user" json:"max_global_traces_per_user"`
 
 	// Forwarders
 	Forwarders []string `yaml:"forwarders" json:"forwarders"`
 
 	// Metrics-generator config
-	MetricsGeneratorRingSize                                                    int                              `yaml:"metrics_generator_ring_size" json:"metrics_generator_ring_size"`
+	MetricsGeneratorRingSize                                                    *int                             `yaml:"metrics_generator_ring_size" json:"metrics_generator_ring_size"`
 	MetricsGeneratorProcessors                                                  listtomap.ListToMap              `yaml:"metrics_generator_processors" json:"metrics_generator_processors"`
-	MetricsGeneratorMaxActiveSeries                                             uint32                           `yaml:"metrics_generator_max_active_series" json:"metrics_generator_max_active_series"`
-	MetricsGeneratorMaxActiveEntities                                           uint32                           `yaml:"metrics_generator_max_active_entities" json:"metrics_generator_max_active_entities"`
-	MetricsGeneratorCollectionInterval                                          time.Duration                    `yaml:"metrics_generator_collection_interval" json:"metrics_generator_collection_interval"`
-	MetricsGeneratorDisableCollection                                           bool                             `yaml:"metrics_generator_disable_collection" json:"metrics_generator_disable_collection"`
+	MetricsGeneratorMaxActiveSeries                                             *uint32                          `yaml:"metrics_generator_max_active_series" json:"metrics_generator_max_active_series"`
+	MetricsGeneratorMaxActiveEntities                                           *uint32                          `yaml:"metrics_generator_max_active_entities" json:"metrics_generator_max_active_entities"`
+	MetricsGeneratorCollectionInterval                                          *time.Duration                   `yaml:"metrics_generator_collection_interval" json:"metrics_generator_collection_interval"`
+	MetricsGeneratorDisableCollection                                           *bool                            `yaml:"metrics_generator_disable_collection" json:"metrics_generator_disable_collection"`
 	MetricsGeneratorGenerateNativeHistograms                                    histograms.HistogramMethod       `yaml:"metrics_generator_generate_native_histograms" json:"metrics_generator_generate_native_histograms"`
 	MetricsGeneratorNativeHistogramBucketFactor                                 float64                          `yaml:"metrics_generator_native_histogram_bucket_factor,omitempty" json:"metrics_generator_native_histogram_bucket_factor,omitempty"`
 	MetricsGeneratorNativeHistogramMaxBucketNumber                              uint32                           `yaml:"metrics_generator_native_histogram_max_bucket_number,omitempty" json:"metrics_generator_native_histogram_max_bucket_number,omitempty"`
-	MetricsGeneratorNativeHistogramMinResetDuration                             time.Duration                    `yaml:"metrics_generator_native_histogram_min_reset_duration,omitempty" json:"native_histogram_min_reset_duration,omitempty"`
-	MetricsGeneratorSpanNameSanitization                                        string                           `yaml:"metrics_generator_span_name_sanitization" json:"metrics_generator_span_name_sanitization"`
-	MetricsGeneratorMaxCardinalityPerLabel                                      uint64                           `yaml:"metrics_generator_max_cardinality_per_label,omitempty" json:"metrics_generator_max_cardinality_per_label,omitempty"`
+	MetricsGeneratorNativeHistogramMinResetDuration                             *time.Duration                   `yaml:"metrics_generator_native_histogram_min_reset_duration,omitempty" json:"native_histogram_min_reset_duration,omitempty"`
+	MetricsGeneratorSpanNameSanitization                                        *string                          `yaml:"metrics_generator_span_name_sanitization" json:"metrics_generator_span_name_sanitization"`
+	MetricsGeneratorMaxCardinalityPerLabel                                      *uint64                          `yaml:"metrics_generator_max_cardinality_per_label,omitempty" json:"metrics_generator_max_cardinality_per_label,omitempty"`
 	MetricsGeneratorTraceIDLabelName                                            string                           `yaml:"metrics_generator_trace_id_label_name" json:"metrics_generator_trace_id_label_name"`
 	MetricsGeneratorForwarderQueueSize                                          int                              `yaml:"metrics_generator_forwarder_queue_size" json:"metrics_generator_forwarder_queue_size"`
 	MetricsGeneratorForwarderWorkers                                            int                              `yaml:"metrics_generator_forwarder_workers" json:"metrics_generator_forwarder_workers"`
@@ -128,7 +128,7 @@ type LegacyOverrides struct {
 	MetricsGeneratorProcessorServiceGraphsEnableClientServerPrefix              *bool                            `yaml:"metrics_generator_processor_service_graphs_enable_client_server_prefix" json:"metrics_generator_processor_service_graphs_enable_client_server_prefix"`
 	MetricsGeneratorProcessorServiceGraphsEnableMessagingSystemLatencyHistogram *bool                            `yaml:"metrics_generator_processor_service_graphs_enable_messaging_system_latency_histogram" json:"metrics_generator_processor_service_graphs_enable_messaging_system_latency_histogram"`
 	MetricsGeneratorProcessorServiceGraphsEnableVirtualNodeLabel                *bool                            `yaml:"metrics_generator_processor_service_graphs_enable_virtual_node_label" json:"metrics_generator_processor_service_graphs_enable_virtual_node_label"`
-	MetricsGeneratorProcessorServiceGraphsSpanMultiplierKey                     string                           `yaml:"metrics_generator_processor_service_graphs_span_multiplier_key" json:"metrics_generator_processor_service_graphs_span_multiplier_key"`
+	MetricsGeneratorProcessorServiceGraphsSpanMultiplierKey                     *string                          `yaml:"metrics_generator_processor_service_graphs_span_multiplier_key" json:"metrics_generator_processor_service_graphs_span_multiplier_key"`
 	MetricsGeneratorProcessorSpanMetricsHistogramBuckets                        []float64                        `yaml:"metrics_generator_processor_span_metrics_histogram_buckets" json:"metrics_generator_processor_span_metrics_histogram_buckets"`
 	MetricsGeneratorProcessorSpanMetricsDimensions                              []string                         `yaml:"metrics_generator_processor_span_metrics_dimensions" json:"metrics_generator_processor_span_metrics_dimensions"`
 	MetricsGeneratorProcessorSpanMetricsIntrinsicDimensions                     map[string]bool                  `yaml:"metrics_generator_processor_span_metrics_intrinsic_dimensions" json:"metrics_generator_processor_span_metrics_intrinsic_dimensions"`
@@ -137,29 +137,29 @@ type LegacyOverrides struct {
 	MetricsGeneratorProcessorSpanMetricsEnableTargetInfo                        *bool                            `yaml:"metrics_generator_processor_span_metrics_enable_target_info" json:"metrics_generator_processor_span_metrics_enable_target_info"`
 	MetricsGeneratorProcessorSpanMetricsTargetInfoExcludedDimensions            []string                         `yaml:"metrics_generator_processor_span_metrics_target_info_excluded_dimensions" json:"metrics_generator_processor_span_metrics_target_info_excluded_dimensions"`
 	MetricsGeneratorProcessorSpanMetricsEnableInstanceLabel                     *bool                            `yaml:"metrics_generator_processor_span_metrics_enable_instance_label" json:"metrics_generator_processor_span_metrics_enable_instance_label"`
-	MetricsGeneratorProcessorSpanMetricsSpanMultiplierKey                       string                           `yaml:"metrics_generator_processor_span_metrics_span_multiplier_key" json:"metrics_generator_processor_span_metrics_span_multiplier_key"`
+	MetricsGeneratorProcessorSpanMetricsSpanMultiplierKey                       *string                          `yaml:"metrics_generator_processor_span_metrics_span_multiplier_key" json:"metrics_generator_processor_span_metrics_span_multiplier_key"`
 	MetricsGeneratorProcessorHostInfoHostIdentifiers                            []string                         `yaml:"metrics_generator_processor_host_info_host_identifiers" json:"metrics_generator_processor_host_info_host_identifiers"`
 	MetricsGeneratorProcessorHostInfoMetricName                                 string                           `yaml:"metrics_generator_processor_host_info_metric_name" json:"metrics_generator_processor_host_info_metric_name"`
-	MetricsGeneratorIngestionSlack                                              time.Duration                    `yaml:"metrics_generator_ingestion_time_range_slack" json:"metrics_generator_ingestion_time_range_slack,omitempty"`
+	MetricsGeneratorIngestionSlack                                              *time.Duration                   `yaml:"metrics_generator_ingestion_time_range_slack" json:"metrics_generator_ingestion_time_range_slack,omitempty"`
 
 	// Backend-worker/scheduler enforced limits.
-	BlockRetention     model.Duration `yaml:"block_retention" json:"block_retention"`
-	CompactionDisabled bool           `yaml:"compaction_disabled" json:"compaction_disabled"`
-	CompactionWindow   model.Duration `yaml:"compaction_window" json:"compaction_window"`
+	BlockRetention     *model.Duration `yaml:"block_retention" json:"block_retention"`
+	CompactionDisabled *bool           `yaml:"compaction_disabled" json:"compaction_disabled"`
+	CompactionWindow   *model.Duration `yaml:"compaction_window" json:"compaction_window"`
 
 	// Querier and Ingester enforced limits.
-	MaxBytesPerTagValuesQuery  int `yaml:"max_bytes_per_tag_values_query" json:"max_bytes_per_tag_values_query"`
-	MaxBlocksPerTagValuesQuery int `yaml:"max_blocks_per_tag_values_query" json:"max_blocks_per_tag_values_query"`
+	MaxBytesPerTagValuesQuery  *int `yaml:"max_bytes_per_tag_values_query" json:"max_bytes_per_tag_values_query"`
+	MaxBlocksPerTagValuesQuery *int `yaml:"max_blocks_per_tag_values_query" json:"max_blocks_per_tag_values_query"`
 
 	// QueryFrontend enforced limits
-	MaxSearchDuration  model.Duration `yaml:"max_search_duration" json:"max_search_duration"`
-	MaxMetricsDuration model.Duration `yaml:"max_metrics_duration" json:"max_metrics_duration"`
-	UnsafeQueryHints   bool           `yaml:"unsafe_query_hints" json:"unsafe_query_hints"`
-	LeftPadTraceIDs    bool           `yaml:"left_pad_trace_ids" json:"left_pad_trace_ids"`
+	MaxSearchDuration  *model.Duration `yaml:"max_search_duration" json:"max_search_duration"`
+	MaxMetricsDuration *model.Duration `yaml:"max_metrics_duration" json:"max_metrics_duration"`
+	UnsafeQueryHints   *bool           `yaml:"unsafe_query_hints" json:"unsafe_query_hints"`
+	LeftPadTraceIDs    *bool           `yaml:"left_pad_trace_ids" json:"left_pad_trace_ids"`
 
-	// MaxBytesPerTrace is enforced in the Ingester, Compactor, Querier (Search). It
-	//  is not used when doing a trace by id lookup.
-	MaxBytesPerTrace int `yaml:"max_bytes_per_trace" json:"max_bytes_per_trace"`
+	// MaxBytesPerTrace is enforced in the Ingester, Compactor, Querier (Search).
+	// It is not used when doing a trace-by-id lookup.
+	MaxBytesPerTrace *int `yaml:"max_bytes_per_trace" json:"max_bytes_per_trace"`
 
 	CostAttribution CostAttributionOverrides `yaml:"cost_attribution" json:"cost_attribution"`
 
@@ -167,6 +167,7 @@ type LegacyOverrides struct {
 	DedicatedColumns backend.DedicatedColumns `yaml:"parquet_dedicated_columns" json:"parquet_dedicated_columns"`
 }
 
+// toNewLimits converts legacy overrides to the new format.
 func (l *LegacyOverrides) toNewLimits() Overrides {
 	return Overrides{
 		Ingestion: IngestionOverrides{
@@ -260,10 +261,10 @@ type perTenantLegacyOverrides struct {
 	TenantLimits map[string]*LegacyOverrides `yaml:"overrides"`
 }
 
-// Convert to new format
+// Convert to a new Overrides format
 func (l *perTenantLegacyOverrides) toNewOverrides() perTenantOverrides {
 	overrides := perTenantOverrides{
-		TenantLimits: make(map[string]*Overrides, len(l.TenantLimits)),
+		TenantLimits: make(TenantOverrides, len(l.TenantLimits)),
 	}
 
 	for tenantID, legacyLimits := range l.TenantLimits {

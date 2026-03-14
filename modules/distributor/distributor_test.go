@@ -1655,8 +1655,8 @@ func TestRateLimitRespected(t *testing.T) {
 		Defaults: overrides.Overrides{
 			Ingestion: overrides.IngestionOverrides{
 				RateStrategy:   overrides.LocalIngestionRateStrategy,
-				RateLimitBytes: 400,
-				BurstSizeBytes: 200,
+				RateLimitBytes: ptrTo(400),
+				BurstSizeBytes: ptrTo(200),
 			},
 		},
 	}
@@ -2477,8 +2477,8 @@ func TestCheckForRateLimits(t *testing.T) {
 				Defaults: overrides.Overrides{
 					Ingestion: overrides.IngestionOverrides{
 						RateStrategy:   overrides.LocalIngestionRateStrategy,
-						RateLimitBytes: tc.rateLimitBytes,
-						BurstSizeBytes: tc.burstLimitBytes,
+						RateLimitBytes: &tc.rateLimitBytes,
+						BurstSizeBytes: &tc.burstLimitBytes,
 					},
 				},
 			}
@@ -2549,7 +2549,7 @@ func TestRetryInfoEnabled(t *testing.T) {
 	tests := []struct {
 		name                          string
 		retryAfterOnResourceExhausted time.Duration
-		overrideRetryInfoEnabled      bool
+		overrideRetryInfoEnabled      *bool
 		expectedResult                bool
 		expectError                   bool
 		ctx                           context.Context
@@ -2557,7 +2557,7 @@ func TestRetryInfoEnabled(t *testing.T) {
 		{
 			name:                          "cluster level disabled with 0",
 			retryAfterOnResourceExhausted: 0,
-			overrideRetryInfoEnabled:      false,
+			overrideRetryInfoEnabled:      ptrTo(false),
 			expectedResult:                false, // disabled because retryAfterOnResourceExhausted is <= 0
 			expectError:                   false,
 			ctx:                           user.InjectOrgID(context.Background(), "test-tenant"),
@@ -2565,7 +2565,7 @@ func TestRetryInfoEnabled(t *testing.T) {
 		{
 			name:                          "cluster level disabled with -1",
 			retryAfterOnResourceExhausted: -1,
-			overrideRetryInfoEnabled:      false,
+			overrideRetryInfoEnabled:      ptrTo(false),
 			expectedResult:                false, // disabled because retryAfterOnResourceExhausted is <= 0
 			expectError:                   false,
 			ctx:                           user.InjectOrgID(context.Background(), "test-tenant"),
@@ -2573,7 +2573,7 @@ func TestRetryInfoEnabled(t *testing.T) {
 		{
 			name:                          "cluster level disabled, override enabled",
 			retryAfterOnResourceExhausted: 0,
-			overrideRetryInfoEnabled:      true,
+			overrideRetryInfoEnabled:      ptrTo(true),
 			expectedResult:                false, // cluster level disable, it takes priority over overrides
 			expectError:                   false,
 			ctx:                           user.InjectOrgID(context.Background(), "test-tenant"),
@@ -2581,7 +2581,7 @@ func TestRetryInfoEnabled(t *testing.T) {
 		{
 			name:                          "cluster level enabled, override disabled",
 			retryAfterOnResourceExhausted: 10 * time.Second,
-			overrideRetryInfoEnabled:      false,
+			overrideRetryInfoEnabled:      ptrTo(false),
 			expectedResult:                false, // disabled because disabled in overrides
 			expectError:                   false,
 			ctx:                           user.InjectOrgID(context.Background(), "test-tenant"),
@@ -2589,7 +2589,7 @@ func TestRetryInfoEnabled(t *testing.T) {
 		{
 			name:                          "cluster level enabled, override enabled",
 			retryAfterOnResourceExhausted: 10 * time.Second,
-			overrideRetryInfoEnabled:      true,
+			overrideRetryInfoEnabled:      ptrTo(true),
 			expectedResult:                true, // should be true because overrides is enabled.
 			expectError:                   false,
 			ctx:                           user.InjectOrgID(context.Background(), "test-tenant"),
@@ -2597,7 +2597,7 @@ func TestRetryInfoEnabled(t *testing.T) {
 		{
 			name:                          "error extracting org ID",
 			retryAfterOnResourceExhausted: 10 * time.Second,
-			overrideRetryInfoEnabled:      false,
+			overrideRetryInfoEnabled:      ptrTo(false),
 			expectedResult:                false, // invalid org id, return false
 			expectError:                   true,
 			ctx:                           context.Background(), // no org ID
@@ -2720,3 +2720,5 @@ func TestTracePushMiddlewareFailsOpen(t *testing.T) {
 	_, err = d.PushTraces(ctx, traces)
 	require.NoError(t, err, "PushTraces should succeed even when middleware returns an error")
 }
+
+func ptrTo[T any](v T) *T { return &v }

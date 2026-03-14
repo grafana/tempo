@@ -20,6 +20,8 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+func ptrTo[T any](v T) *T { return &v }
+
 func strPtr(s string) *string {
 	return &s
 }
@@ -63,7 +65,7 @@ func Test_runtimeOverridesValidator(t *testing.T) {
 					},
 				},
 			},
-			overrides: overrides.Overrides{Ingestion: overrides.IngestionOverrides{TenantShardSize: 2}},
+			overrides: overrides.Overrides{Ingestion: overrides.IngestionOverrides{TenantShardSize: ptrTo(2)}},
 			expErr:    "ingester.tenant.shard_size is lower than replication factor (2 < 3)",
 		},
 		{
@@ -77,7 +79,7 @@ func Test_runtimeOverridesValidator(t *testing.T) {
 					},
 				},
 			},
-			overrides: overrides.Overrides{Ingestion: overrides.IngestionOverrides{TenantShardSize: 3}},
+			overrides: overrides.Overrides{Ingestion: overrides.IngestionOverrides{TenantShardSize: ptrTo(3)}},
 		},
 		{
 			name: "metrics_generator.generate_native_histograms invalid",
@@ -250,28 +252,28 @@ func Test_runtimeOverridesValidator(t *testing.T) {
 			name: "metrics_generator.span_name_sanitization empty (disabled)",
 			cfg:  Config{},
 			overrides: overrides.Overrides{MetricsGenerator: overrides.MetricsGeneratorOverrides{
-				SpanNameSanitization: "",
+				SpanNameSanitization: ptrTo(""),
 			}},
 		},
 		{
 			name: "metrics_generator.span_name_sanitization dry_run",
 			cfg:  Config{},
 			overrides: overrides.Overrides{MetricsGenerator: overrides.MetricsGeneratorOverrides{
-				SpanNameSanitization: "dry_run",
+				SpanNameSanitization: ptrTo("dry_run"),
 			}},
 		},
 		{
 			name: "metrics_generator.span_name_sanitization enabled",
 			cfg:  Config{},
 			overrides: overrides.Overrides{MetricsGenerator: overrides.MetricsGeneratorOverrides{
-				SpanNameSanitization: "enabled",
+				SpanNameSanitization: ptrTo("enabled"),
 			}},
 		},
 		{
 			name: "metrics_generator.span_name_sanitization invalid",
 			cfg:  Config{},
 			overrides: overrides.Overrides{MetricsGenerator: overrides.MetricsGeneratorOverrides{
-				SpanNameSanitization: "invalid",
+				SpanNameSanitization: ptrTo("invalid"),
 			}},
 			expErr: "span_name_sanitization \"invalid\" is not valid, valid values: [ dry_run enabled]",
 		},

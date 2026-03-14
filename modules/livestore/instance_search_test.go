@@ -301,13 +301,9 @@ func TestInstanceSearchNoData(t *testing.T) {
 // TestInstanceSearchMaxBytesPerTagValuesQueryReturnsPartial confirms that SearchTagValues returns
 // partial results if the bytes of the found tag value exceeds the MaxBytesPerTagValuesQuery limit
 func TestInstanceSearchMaxBytesPerTagValuesQueryReturnsPartial(t *testing.T) {
-	limits, err := overrides.NewOverrides(overrides.Config{
-		Defaults: overrides.Overrides{
-			Read: overrides.ReadOverrides{
-				MaxBytesPerTagValuesQuery: 12,
-			},
-		},
-	}, nil, prometheus.DefaultRegisterer)
+	cfg := defaultOverridesConfig()
+	cfg.Defaults.Read.MaxBytesPerTagValuesQuery = intPtr(12)
+	limits, err := overrides.NewOverrides(cfg, nil, prometheus.DefaultRegisterer)
 	assert.NoError(t, err, "unexpected error creating limits")
 
 	instance, ls := defaultInstance(t)
@@ -346,13 +342,9 @@ func TestInstanceSearchMaxBytesPerTagValuesQueryReturnsPartial(t *testing.T) {
 // TestInstanceSearchMaxBlocksPerTagValuesQueryReturnsPartial confirms that SearchTagValues returns
 // partial results if the number of inspected blocks is limited by MaxBlocksPerTagValuesQuery
 func TestInstanceSearchMaxBlocksPerTagValuesQueryReturnsPartial(t *testing.T) {
-	limits, err := overrides.NewOverrides(overrides.Config{
-		Defaults: overrides.Overrides{
-			Read: overrides.ReadOverrides{
-				MaxBlocksPerTagValuesQuery: 1,
-			},
-		},
-	}, nil, prometheus.DefaultRegisterer)
+	cfg := defaultOverridesConfig()
+	cfg.Defaults.Read.MaxBlocksPerTagValuesQuery = intPtr(1)
+	limits, err := overrides.NewOverrides(cfg, nil, prometheus.DefaultRegisterer)
 	assert.NoError(t, err, "unexpected error creating limits")
 
 	instance, ls := defaultInstance(t)
@@ -388,7 +380,7 @@ func TestInstanceSearchMaxBlocksPerTagValuesQueryReturnsPartial(t *testing.T) {
 	assert.Equal(t, 5, len(respV2.TagValues))
 
 	// Now test with unlimited blocks
-	limits2, err := overrides.NewOverrides(overrides.Config{}, nil, prometheus.DefaultRegisterer)
+	limits2, err := overrides.NewOverrides(defaultOverridesConfig(), nil, prometheus.DefaultRegisterer)
 	assert.NoError(t, err, "unexpected error creating limits")
 	instance.overrides = limits2
 
@@ -435,13 +427,9 @@ func TestSearchTagsV2Limits(t *testing.T) {
 	} {
 		t.Run(fmt.Sprintf("MaxBytesPerTagValuesQuery=%d", testCase.MaxBytesPerTagValuesQuery), func(t *testing.T) {
 			instance, ls := defaultInstance(t)
-			limits, err := overrides.NewOverrides(overrides.Config{
-				Defaults: overrides.Overrides{
-					Read: overrides.ReadOverrides{
-						MaxBytesPerTagValuesQuery: testCase.MaxBytesPerTagValuesQuery,
-					},
-				},
-			}, nil, prometheus.DefaultRegisterer)
+			cfg := defaultOverridesConfig()
+			cfg.Defaults.Read.MaxBytesPerTagValuesQuery = intPtr(testCase.MaxBytesPerTagValuesQuery)
+			limits, err := overrides.NewOverrides(cfg, nil, prometheus.DefaultRegisterer)
 			require.NoError(t, err)
 
 			defer func() {
@@ -583,7 +571,7 @@ func defaultLiveStore(t testing.TB, tmpDir string) (*LiveStore, error) {
 
 func liveStoreWithConfig(t testing.TB, cfg Config) (*LiveStore, error) {
 	// Create overrides
-	limits, err := overrides.NewOverrides(overrides.Config{}, nil, prometheus.DefaultRegisterer)
+	limits, err := overrides.NewOverrides(defaultOverridesConfig(), nil, prometheus.DefaultRegisterer)
 	if err != nil {
 		return nil, err
 	}
@@ -921,13 +909,9 @@ func TestInstanceFindByTraceIDWithSizeLimits(t *testing.T) {
 	}()
 
 	// Set generous ingestion limits initially so the trace can be fully ingested
-	generousLimits, err := overrides.NewOverrides(overrides.Config{
-		Defaults: overrides.Overrides{
-			Global: overrides.GlobalOverrides{
-				MaxBytesPerTrace: 10 * 1024 * 1024, // 10MB - very generous
-			},
-		},
-	}, nil, prometheus.DefaultRegisterer)
+	generousCfg := defaultOverridesConfig()
+	generousCfg.Defaults.Global.MaxBytesPerTrace = intPtr(10 * 1024 * 1024) // 10MB - very generous
+	generousLimits, err := overrides.NewOverrides(generousCfg, nil, prometheus.DefaultRegisterer)
 	require.NoError(t, err)
 	i.overrides = generousLimits
 
@@ -957,13 +941,9 @@ func TestInstanceFindByTraceIDWithSizeLimits(t *testing.T) {
 
 	// Now change the overrides to make the trace "too large"
 	newLimit := resp.Trace.Size() / 3 // Much smaller than the ingested trace
-	strictLimits, err := overrides.NewOverrides(overrides.Config{
-		Defaults: overrides.Overrides{
-			Global: overrides.GlobalOverrides{
-				MaxBytesPerTrace: newLimit,
-			},
-		},
-	}, nil, prometheus.DefaultRegisterer)
+	strictCfg := defaultOverridesConfig()
+	strictCfg.Defaults.Global.MaxBytesPerTrace = intPtr(newLimit)
+	strictLimits, err := overrides.NewOverrides(strictCfg, nil, prometheus.DefaultRegisterer)
 	require.NoError(t, err)
 	i.overrides = strictLimits
 
@@ -1078,7 +1058,7 @@ func TestLiveStoreQueryRange(t *testing.T) {
 		_ = w.Clear()
 	}()
 
-	mover, err := overrides.NewOverrides(overrides.Config{}, nil, prometheus.DefaultRegisterer)
+	mover, err := overrides.NewOverrides(defaultOverridesConfig(), nil, prometheus.DefaultRegisterer)
 	require.NoError(t, err)
 	// Create instance
 	inst, err := newInstance(tenant, cfg, w, encoding.DefaultEncoding(), mover, log.NewNopLogger())
