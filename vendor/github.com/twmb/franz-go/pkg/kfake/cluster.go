@@ -1,3 +1,4 @@
+// Package kfake provides a fake Kafka broker for testing.
 package kfake
 
 import (
@@ -13,12 +14,6 @@ import (
 
 	"github.com/twmb/franz-go/pkg/kmsg"
 )
-
-// TODO
-//
-// * Add raft and make the brokers independent
-//
-// * Support multiple replicas -- we just pass this through
 
 type (
 
@@ -37,17 +32,37 @@ type (
 		watchFetchCh chan *watchFetch
 
 		controlMu      sync.Mutex
-		control        map[int16]map[*controlCtx]struct{}
+		control        map[int16][]*controlCtx
 		currentBroker  *broker
 		currentControl *controlCtx
 		sleeping       map[*clientConn]*bsleep
 		controlSleep   chan sleepChs
 
-		data   data
-		pids   pids
-		groups groups
-		sasls  sasls
-		bcfgs  map[string]*string
+		data               data
+		pids               pids
+		groups             groups
+		sasls              sasls
+		acls               clusterACLs
+		bcfgs              atomic.Pointer[map[string]*string]
+		quotas             map[string]quotaEntry
+		telem              map[[16]byte]int32
+		telemNextID        int32
+		fetchSessions      fetchSessions
+		compactTicker      *time.Ticker
+		offsetExpireTicker *time.Ticker
+
+		// storageDir is the root directory for segment and index files.
+		// Always set: "/kfake" for in-memory (memFS) or the user's
+		// DataDir path for on-disk persistence. State files (topics.json,
+		// groups.log, pids.log, etc.) only write when persist().
+		storageDir         string
+		fs                 fs
+		groupsLogMu        sync.Mutex
+		groupsLogFile      file
+		pidsLogFile        file
+		groupsLogSize      atomic.Int64
+		pidsLogSize        atomic.Int64
+		needsGroupsCompact atomic.Bool
 
 		die  chan struct{}
 		dead atomic.Bool
@@ -76,6 +91,18 @@ type (
 		handled bool
 	}
 )
+
+// persist returns true if the cluster is configured with a DataDir
+// for on-disk state persistence. Segment I/O always happens (via storageDir),
+// but state files (topics.json, groups.log, etc.) are only written when
+// persistence is enabled.
+func (c *Cluster) persist() bool { return c.cfg.dataDir != "" }
+
+func (b *broker) hostport() (string, int32) {
+	h, p, _ := net.SplitHostPort(b.ln.Addr().String())
+	p32, _ := strconv.Atoi(p)
+	return h, int32(p32)
+}
 
 // MustCluster is like NewCluster, but panics on error.
 func MustCluster(opts ...Opt) *Cluster {
@@ -114,7 +141,7 @@ func NewCluster(opts ...Opt) (*Cluster, error) {
 		reqCh:        make(chan *clientReq, 20),
 		wakeCh:       make(chan *slept, 10),
 		watchFetchCh: make(chan *watchFetch, 20),
-		control:      make(map[int16]map[*controlCtx]struct{}),
+		control:      make(map[int16][]*controlCtx),
 		controlSleep: make(chan sleepChs, 1),
 
 		sleeping: make(map[*clientConn]*bsleep),
@@ -124,17 +151,49 @@ func NewCluster(opts ...Opt) (*Cluster, error) {
 			t2id:      make(map[string]uuid),
 			treplicas: make(map[string]int),
 			tcfgs:     make(map[string]map[string]*string),
+			tnorms:    make(map[string]string),
 		},
-		bcfgs: make(map[string]*string),
+		// bcfgs initialized below via storeBcfgs
+		quotas: make(map[string]quotaEntry),
+		telem:  make(map[[16]byte]int32),
 
 		die: make(chan struct{}),
 	}
+	if cfg.dataDir != "" {
+		c.fs = osFS{}
+		c.storageDir = cfg.dataDir
+	} else {
+		c.fs = newMemFS()
+		c.storageDir = "/kfake"
+	}
+	{
+		m := make(map[string]*string, len(cfg.brokerConfigs))
+		for k, v := range cfg.brokerConfigs {
+			if v == "" {
+				m[k] = nil
+			} else {
+				v := v
+				m[k] = &v
+			}
+		}
+		c.storeBcfgs(m)
+	}
 	c.data.c = c
 	c.groups.c = c
+	c.pids.c = c
+	c.pids.ids = make(map[int64]*pidinfo)
+	c.pids.byTxid = make(map[string]*pidinfo)
+	c.pids.txs = make(map[*pidinfo]struct{})
+	c.pids.txTimer = time.NewTimer(0)
+	<-c.pids.txTimer.C
 	var err error
 	defer func() {
 		if err != nil {
-			c.Close()
+			for _, b := range c.bs {
+				b.ln.Close()
+			}
+			c.closeOpenFiles()
+			close(c.die)
 		}
 	}()
 
@@ -184,22 +243,46 @@ func NewCluster(opts ...Opt) (*Cluster, error) {
 			bsIdx: len(c.bs),
 		}
 		c.bs = append(c.bs, b)
-		defer func() { go b.listen() }()
+		defer func() { go b.listen() }() //nolint:gocritic,revive // intentional - each broker's listener starts after loop iter
 	}
 	c.controller = c.bs[len(c.bs)-1]
 
-	seedTopics := make(map[string]int32)
-	for _, sts := range cfg.seedTopics {
-		p := sts.p
-		if p < 1 {
-			p = int32(cfg.defaultNumParts)
-		}
-		for _, t := range sts.ts {
-			seedTopics[t] = p
+	// Try to load persisted state from disk (after brokers are created,
+	// since partition leader assignment needs c.bs)
+	var loaded bool
+	if c.persist() {
+		loaded, err = c.loadFromDisk()
+		if err != nil {
+			return nil, fmt.Errorf("loading persisted state: %w", err)
 		}
 	}
-	for t, p := range seedTopics {
-		c.data.mkt(t, int(p), -1, nil)
+
+	if !loaded {
+		seedTopics := make(map[string]int32)
+		for _, sts := range cfg.seedTopics {
+			p := sts.p
+			if p < 1 {
+				p = int32(cfg.defaultNumParts)
+			}
+			for _, t := range sts.ts {
+				seedTopics[t] = p
+			}
+		}
+		for t, p := range seedTopics {
+			c.data.mkt(t, int(p), -1, nil)
+		}
+
+		for _, a := range cfg.seedACLs {
+			c.acls.add(a)
+		}
+
+		// Persist the initial state so crash recovery can find
+		// meta.json, topics.json, etc.
+		if c.persist() {
+			if err = c.saveToDisk(); err != nil {
+				return nil, fmt.Errorf("persisting initial state: %w", err)
+			}
+		}
 	}
 
 	go c.run()
@@ -223,10 +306,49 @@ func (c *Cluster) Close() {
 	if c.dead.Swap(true) {
 		return
 	}
-	close(c.die)
+
+	// Shutdown sequence:
+	//  1. dead=true rejects duplicate Close calls (above).
+	//  2. Close listeners to stop accepting new connections.
+	//  3. If persistence is enabled, send a shutdown function
+	//     through adminCh. This runs single-threaded inside
+	//     run(), ensuring no concurrent state mutations during
+	//     save. The shutdown function closes c.die, causing
+	//     run() to exit immediately after.
 	for _, b := range c.bs {
 		b.ln.Close()
 	}
+
+	if c.persist() {
+		// Send through adminCh so it runs single-threaded.
+		// The send must block - a non-blocking default would
+		// race with run() handling a request.
+		done := make(chan struct{})
+		c.adminCh <- func() {
+			for pidinf := range c.pids.txs {
+				if pidinf.inTx {
+					pidinf.endTx(false)
+				}
+			}
+			if err := c.saveToDisk(); err != nil {
+				c.cfg.logger.Logf(LogLevelError, "persist to disk: %v", err)
+			}
+			if err := c.saveSessionState(); err != nil {
+				c.cfg.logger.Logf(LogLevelError, "save session state: %v", err)
+			}
+			c.closeOpenFiles()
+			// Close c.die inside the admin function so run()
+			// exits immediately - prevents processing requests
+			// after saveToDisk which would create state not
+			// captured by the saved seq windows.
+			close(c.die)
+			close(done)
+		}
+		<-done
+		return
+	}
+
+	close(c.die)
 }
 
 func newListener(port int, tc *tls.Config, fn func(network, address string) (net.Listener, error)) (net.Listener, error) {
@@ -253,6 +375,7 @@ func (b *broker) listen() {
 			b:      b,
 			conn:   conn,
 			respCh: make(chan clientResp, 2),
+			done:   make(chan struct{}),
 		}
 		go cc.read()
 		go cc.write()
@@ -260,6 +383,14 @@ func (b *broker) listen() {
 }
 
 func (c *Cluster) run() {
+	defer func() {
+		c.pids.txTimer.Stop()
+		if c.compactTicker != nil {
+			c.compactTicker.Stop()
+		}
+		c.offsetExpireTicker.Stop()
+	}()
+	c.offsetExpireTicker = time.NewTicker(time.Duration(c.offsetsRetentionCheckIntervalMs()) * time.Millisecond)
 outer:
 	for {
 		var (
@@ -276,8 +407,29 @@ outer:
 		case <-c.die:
 			return
 
+		case <-c.pids.txTimer.C:
+			c.pids.handleTimeout()
+			continue
+
+		case <-c.compactTickerC():
+			c.compactAll()
+			continue
+
+		case <-c.offsetExpireTicker.C:
+			c.expireGroupOffsets()
+			continue
+
 		case admin := <-c.adminCh:
 			admin()
+			// If the admin function closed c.die (shutdown persist),
+			// exit immediately. We can't rely on the outer select
+			// because Go's select is non-deterministic - it could
+			// pick reqCh over c.die even when both are ready.
+			select {
+			case <-c.die:
+				return
+			default:
+			}
 			continue
 
 		case creq = <-c.reqCh:
@@ -336,7 +488,7 @@ outer:
 			if w.cleaned {
 				continue // already cleaned up, this is an extraneous timer fire
 			}
-			w.cleanup(c)
+			w.cleanup()
 			creq = w.creq
 		}
 
@@ -355,19 +507,19 @@ outer:
 		kreq = creq.kreq
 		switch k := kmsg.Key(kreq.Key()); k {
 		case kmsg.Produce:
-			kresp, err = c.handleProduce(creq.cc.b, kreq)
+			kresp, err = c.handleProduce(creq)
 		case kmsg.Fetch:
 			kresp, err = c.handleFetch(creq, w)
 		case kmsg.ListOffsets:
-			kresp, err = c.handleListOffsets(creq.cc.b, kreq)
+			kresp, err = c.handleListOffsets(creq)
 		case kmsg.Metadata:
-			kresp, err = c.handleMetadata(kreq)
+			kresp, err = c.handleMetadata(creq)
 		case kmsg.OffsetCommit:
 			kresp, err = c.handleOffsetCommit(creq)
 		case kmsg.OffsetFetch:
 			kresp, err = c.handleOffsetFetch(creq)
 		case kmsg.FindCoordinator:
-			kresp, err = c.handleFindCoordinator(kreq)
+			kresp, err = c.handleFindCoordinator(creq)
 		case kmsg.JoinGroup:
 			kresp, err = c.handleJoinGroup(creq)
 		case kmsg.Heartbeat:
@@ -385,42 +537,86 @@ outer:
 		case kmsg.ApiVersions:
 			kresp, err = c.handleApiVersions(kreq)
 		case kmsg.CreateTopics:
-			kresp, err = c.handleCreateTopics(creq.cc.b, kreq)
+			kresp, err = c.handleCreateTopics(creq)
 		case kmsg.DeleteTopics:
-			kresp, err = c.handleDeleteTopics(creq.cc.b, kreq)
+			kresp, err = c.handleDeleteTopics(creq)
 		case kmsg.DeleteRecords:
-			kresp, err = c.handleDeleteRecords(creq.cc.b, kreq)
+			kresp, err = c.handleDeleteRecords(creq)
 		case kmsg.InitProducerID:
-			kresp, err = c.handleInitProducerID(kreq)
+			kresp, err = c.handleInitProducerID(creq)
 		case kmsg.OffsetForLeaderEpoch:
-			kresp, err = c.handleOffsetForLeaderEpoch(creq.cc.b, kreq)
+			kresp, err = c.handleOffsetForLeaderEpoch(creq)
+		case kmsg.AddPartitionsToTxn:
+			kresp, err = c.handleAddPartitionsToTxn(creq)
+		case kmsg.AddOffsetsToTxn:
+			kresp, err = c.handleAddOffsetsToTxn(creq)
+		case kmsg.EndTxn:
+			kresp, err = c.handleEndTxn(creq)
+		case kmsg.TxnOffsetCommit:
+			kresp, err = c.handleTxnOffsetCommit(creq)
+		case kmsg.DescribeACLs:
+			kresp, err = c.handleDescribeACLs(creq)
+		case kmsg.CreateACLs:
+			kresp, err = c.handleCreateACLs(creq)
+		case kmsg.DeleteACLs:
+			kresp, err = c.handleDeleteACLs(creq)
 		case kmsg.DescribeConfigs:
-			kresp, err = c.handleDescribeConfigs(creq.cc.b, kreq)
+			kresp, err = c.handleDescribeConfigs(creq)
 		case kmsg.AlterConfigs:
-			kresp, err = c.handleAlterConfigs(creq.cc.b, kreq)
+			kresp, err = c.handleAlterConfigs(creq)
 		case kmsg.AlterReplicaLogDirs:
-			kresp, err = c.handleAlterReplicaLogDirs(creq.cc.b, kreq)
+			kresp, err = c.handleAlterReplicaLogDirs(creq)
 		case kmsg.DescribeLogDirs:
-			kresp, err = c.handleDescribeLogDirs(creq.cc.b, kreq)
+			kresp, err = c.handleDescribeLogDirs(creq)
 		case kmsg.SASLAuthenticate:
 			kresp, err = c.handleSASLAuthenticate(creq)
 		case kmsg.CreatePartitions:
-			kresp, err = c.handleCreatePartitions(creq.cc.b, kreq)
+			kresp, err = c.handleCreatePartitions(creq)
 		case kmsg.DeleteGroups:
 			kresp, err = c.handleDeleteGroups(creq)
+		case kmsg.ElectLeaders:
+			kresp, err = c.handleElectLeaders(creq)
 		case kmsg.IncrementalAlterConfigs:
-			kresp, err = c.handleIncrementalAlterConfigs(creq.cc.b, kreq)
+			kresp, err = c.handleIncrementalAlterConfigs(creq)
+		case kmsg.AlterPartitionAssignments:
+			kresp, err = c.handleAlterPartitionAssignments(creq)
+		case kmsg.ListPartitionReassignments:
+			kresp, err = c.handleListPartitionReassignments(creq)
 		case kmsg.OffsetDelete:
 			kresp, err = c.handleOffsetDelete(creq)
 		case kmsg.DescribeUserSCRAMCredentials:
-			kresp, err = c.handleDescribeUserSCRAMCredentials(kreq)
+			kresp, err = c.handleDescribeUserSCRAMCredentials(creq)
 		case kmsg.AlterUserSCRAMCredentials:
-			kresp, err = c.handleAlterUserSCRAMCredentials(creq.cc.b, kreq)
+			kresp, err = c.handleAlterUserSCRAMCredentials(creq)
+		case kmsg.DescribeCluster:
+			kresp, err = c.handleDescribeCluster(creq)
+		case kmsg.DescribeProducers:
+			kresp, err = c.handleDescribeProducers(creq)
+		case kmsg.DescribeTransactions:
+			kresp, err = c.handleDescribeTransactions(creq)
+		case kmsg.ListTransactions:
+			kresp, err = c.handleListTransactions(creq)
+		case kmsg.DescribeClientQuotas:
+			kresp, err = c.handleDescribeClientQuotas(creq)
+		case kmsg.AlterClientQuotas:
+			kresp, err = c.handleAlterClientQuotas(creq)
+		case kmsg.GetTelemetrySubscriptions:
+			kresp, err = c.handleGetTelemetrySubscriptions(creq)
+		case kmsg.PushTelemetry:
+			kresp, err = c.handlePushTelemetry(creq)
+		case kmsg.ConsumerGroupHeartbeat:
+			kresp, err = c.handleConsumerGroupHeartbeat(creq)
+		case kmsg.ConsumerGroupDescribe:
+			kresp, err = c.handleConsumerGroupDescribe(creq)
 		default:
 			err = fmt.Errorf("unhandled key %v", k)
 		}
+		c.pids.updateTimer()
 
 	afterControl:
+		if c.needsGroupsCompact.Load() {
+			c.compactGroupsLog()
+		}
 		// If s is non-nil, this is either a previously slept control
 		// that finished but was not handled, or a previously slept
 		// waiting request. In either case, we need to signal to the
@@ -434,6 +630,7 @@ outer:
 
 		select {
 		case creq.cc.respCh <- clientResp{kresp: kresp, corr: creq.corr, err: err, seq: creq.seq}:
+		case <-creq.cc.done:
 		case <-c.die:
 			return
 		}
@@ -441,40 +638,30 @@ outer:
 }
 
 // Control is a function to call on any client request the cluster handles.
-//
-// If the control function returns true, then either the response is written
-// back to the client or, if the control function returns an error, the
-// client connection is closed. If both returns are nil, then the cluster will
-// loop continuing to read from the client and the client will likely have a
-// read timeout at some point.
-//
-// Controlling a request drops the control function from the cluster, meaning
-// that a control function can only control *one* request. To keep the control
-// function handling more requests, you can call KeepControl within your
-// control function. Alternatively, if you want to just run some logic in your
-// control function but then have the cluster handle the request as normal,
-// you can call DropControl to drop a control function that was not handled.
-//
-// It is safe to add new control functions within a control function.
-//
-// Control functions are run serially unless you use SleepControl, multiple
-// control functions are "in progress", and you run Cluster.Close. Closing a
-// Cluster awakens all sleeping control functions.
+// See [Cluster.ControlKey] for more details.
 func (c *Cluster) Control(fn func(kmsg.Request) (kmsg.Response, error, bool)) {
 	c.ControlKey(-1, fn)
 }
 
-// Control is a function to call on a specific request key that the cluster
+// ControlKey is a function to call on a specific request key that the cluster
 // handles. If the key is -1, then the control function is run on all requests.
 // For all possible keys, see [kmsg.Key], for example [kmsg.Produce].
 //
-// If the control function returns true, then either the response is written
-// back to the client or, if the control function returns an error, the
+// If the control function returns true (handled), then either the response is
+// written back to the client or, if the control function returns an error, the
 // client connection is closed. If both returns are nil, then the cluster will
 // loop continuing to read from the client and the client will likely have a
 // read timeout at some point.
 //
-// Controlling a request drops the control function from the cluster, meaning
+// If the control function returns false (not handled), the next control
+// function for this key runs. If no control function handles the request,
+// the cluster processes it normally. This allows control functions that just
+// observe or count requests without intercepting them.
+//
+// Multiple control functions for the same key run in FIFO order (the order
+// they were added).
+//
+// Handling a request drops the control function from the cluster, meaning
 // that a control function can only control *one* request. To keep the control
 // function handling more requests, you can call KeepControl within your
 // control function. Alternatively, if you want to just run some logic in your
@@ -489,16 +676,11 @@ func (c *Cluster) Control(fn func(kmsg.Request) (kmsg.Response, error, bool)) {
 func (c *Cluster) ControlKey(key int16, fn func(kmsg.Request) (kmsg.Response, error, bool)) {
 	c.controlMu.Lock()
 	defer c.controlMu.Unlock()
-	m := c.control[key]
-	if m == nil {
-		m = make(map[*controlCtx]struct{})
-		c.control[key] = m
-	}
-	m[&controlCtx{
+	c.control[key] = append(c.control[key], &controlCtx{
 		key:     key,
 		fn:      fn,
 		lastReq: make(map[*clientConn]*clientReq),
-	}] = struct{}{}
+	})
 }
 
 // KeepControl marks the currently running control function to be kept even if
@@ -512,11 +694,9 @@ func (c *Cluster) KeepControl() {
 	}
 }
 
-// DropControl allows you to drop the current control function. This takes
-// precedence over KeepControl. The use of this function is you can run custom
-// control logic *once*, drop the control function, and return that the
-// function was not handled -- thus allowing other control functions to run, or
-// allowing the kfake cluster to process the request as normal.
+// DropControl removes the current control function. This takes precedence
+// over KeepControl, allowing you to keep a control function by default but
+// forcefully drop it when a specific condition is met.
 func (c *Cluster) DropControl() {
 	c.controlMu.Lock()
 	defer c.controlMu.Unlock()
@@ -584,7 +764,7 @@ func (c *Cluster) CurrentNode() int32 {
 	return -1
 }
 
-func (c *Cluster) tryControl(creq *clientReq) (kresp kmsg.Response, err error, handled bool) {
+func (c *Cluster) tryControl(creq *clientReq) (kresp kmsg.Response, err error, handled bool) { //nolint:revive // control handler signature
 	c.controlMu.Lock()
 	defer c.controlMu.Unlock()
 	if len(c.control) == 0 {
@@ -597,13 +777,14 @@ func (c *Cluster) tryControl(creq *clientReq) (kresp kmsg.Response, err error, h
 	return kresp, err, handled
 }
 
-func (c *Cluster) tryControlKey(key int16, creq *clientReq) (kmsg.Response, error, bool) {
-	for cctx := range c.control[key] {
+func (c *Cluster) tryControlKey(key int16, creq *clientReq) (kmsg.Response, error, bool) { //nolint:revive // control handler signature
+	for _, cctx := range c.control[key] {
 		if cctx.lastReq[creq.cc] == creq {
 			continue
 		}
 		cctx.lastReq[creq.cc] = creq
 		res := c.runControl(cctx, creq)
+	inner:
 		for {
 			select {
 			case admin := <-c.adminCh:
@@ -611,7 +792,10 @@ func (c *Cluster) tryControlKey(key int16, creq *clientReq) (kmsg.Response, erro
 				continue
 			case res := <-res:
 				c.maybePopControl(res.handled, cctx)
-				return res.kresp, res.err, res.handled
+				if res.handled {
+					return res.kresp, res.err, true
+				}
+				break inner
 			case sleepChs := <-c.controlSleep:
 				c.beginSleptControl(&slept{
 					cctx:     cctx,
@@ -706,7 +890,13 @@ func (c *Cluster) resleepSleptControl(s *slept, sleepChs sleepChs) {
 
 func (c *Cluster) maybePopControl(handled bool, cctx *controlCtx) {
 	if handled && !cctx.keep || cctx.drop {
-		delete(c.control[cctx.key], cctx)
+		s := c.control[cctx.key]
+		for i, v := range s {
+			if v == cctx {
+				c.control[cctx.key] = append(s[:i], s[i+1:]...)
+				break
+			}
+		}
 	}
 }
 
@@ -776,10 +966,7 @@ func (bs *bsleep) enqueue(s *slept) bool {
 		go bs.wait() // Case (2)
 		return true
 	}
-	var q0 *slept
-	if !bs.c.cfg.sleepOutOfOrder {
-		q0 = bs.queue[0] // Case (3b) or (3c) -- just update values below
-	} else {
+	if bs.c.cfg.sleepOutOfOrder {
 		// Case (3a), out of order sleep: we need to check the entire
 		// queue to see if this request was already sleeping and, if
 		// so, update the values. If it was not already sleeping, we
@@ -787,6 +974,7 @@ func (bs *bsleep) enqueue(s *slept) bool {
 		bs.keep(s)
 		return true
 	}
+	q0 := bs.queue[0] // Case (3b) or (3c) -- just update values below
 	if q0.creq != s.creq {
 		panic("internal error: sleeping request not head request")
 	}
@@ -1060,19 +1248,20 @@ func (c *Cluster) RemoveNode(nodeID int32) error {
 	var err error
 	c.admin(func() {
 		for i, b := range c.bs {
-			if b.node == nodeID {
-				if len(c.bs) == 1 {
-					err = errors.New("cannot remove all brokers")
-					return
-				}
-				b.ln.Close()
-				c.cfg.nbrokers--
-				c.bs[i] = c.bs[len(c.bs)-1]
-				c.bs[i].bsIdx = i
-				c.bs = c.bs[:len(c.bs)-1]
-				c.shufflePartitionsLocked()
+			if b.node != nodeID {
+				continue
+			}
+			if len(c.bs) == 1 {
+				err = errors.New("cannot remove all brokers")
 				return
 			}
+			b.ln.Close()
+			c.cfg.nbrokers--
+			c.bs[i] = c.bs[len(c.bs)-1]
+			c.bs[i].bsIdx = i
+			c.bs = c.bs[:len(c.bs)-1]
+			c.shufflePartitionsLocked()
+			return
 		}
 		err = fmt.Errorf("node %d not found", nodeID)
 	})
@@ -1112,4 +1301,107 @@ func (c *Cluster) SetFollowers(topic string, partition int32, followers []int32)
 		}
 		pd.followers = append([]int32(nil), followers...)
 	})
+}
+
+// Compact triggers log compaction on all topics with cleanup.policy=compact.
+// Records with duplicate keys are deduplicated, keeping only the latest value.
+// Tombstones (nil value) older than delete.retention.ms are removed.
+func (c *Cluster) Compact() {
+	c.admin(func() {
+		c.compactAll()
+	})
+}
+
+// ApplyRetention enforces retention.ms and retention.bytes on all topics,
+// removing batches that are expired or exceed the size limit.
+func (c *Cluster) ApplyRetention() {
+	c.admin(func() {
+		c.applyRetentionAll()
+	})
+}
+
+// compactAll compacts and applies retention on all eligible topics.
+// Must be called from Cluster.run().
+func (c *Cluster) compactAll() {
+	for t := range c.data.tps {
+		for _, pd := range c.data.tps[t] {
+			if c.data.isCompactTopic(t) {
+				c.compact(pd, t)
+			}
+			c.applyRetention(pd, t)
+		}
+	}
+}
+
+// applyRetentionAll applies retention on all topics.
+// Must be called from Cluster.run().
+func (c *Cluster) applyRetentionAll() {
+	for t := range c.data.tps {
+		for _, pd := range c.data.tps[t] {
+			c.applyRetention(pd, t)
+		}
+	}
+}
+
+func (c *Cluster) compactTickerC() <-chan time.Time {
+	if c.compactTicker != nil {
+		return c.compactTicker.C
+	}
+	return nil
+}
+
+func (c *Cluster) compactIntervalMs() int64 {
+	if v, ok := c.loadBcfgs()["log.cleaner.backoff.ms"]; ok && v != nil {
+		if n, err := strconv.ParseInt(*v, 10, 64); err == nil {
+			return n
+		}
+	}
+	return 3600000
+}
+
+// refreshCompactTicker starts or stops the compaction ticker based on whether
+// any topic has cleanup.policy=compact or has retention configs explicitly set.
+// Must be called from Cluster.run().
+func (c *Cluster) refreshCompactTicker() {
+	needsTicker := false
+	for t := range c.data.tps {
+		if c.data.isCompactTopic(t) {
+			needsTicker = true
+			break
+		}
+		if c.data.hasRetentionConfig(t) {
+			needsTicker = true
+			break
+		}
+	}
+	if needsTicker && c.compactTicker == nil {
+		c.compactTicker = time.NewTicker(time.Duration(c.compactIntervalMs()) * time.Millisecond)
+	} else if !needsTicker && c.compactTicker != nil {
+		c.compactTicker.Stop()
+		c.compactTicker = nil
+	}
+}
+
+// expireGroupOffsets iterates all groups and expires stale offsets.
+// Groups with all offsets expired and no members are auto-deleted.
+// Must be called from Cluster.run().
+func (c *Cluster) expireGroupOffsets() {
+	retentionMs := c.offsetsRetentionMs()
+	for name, g := range c.groups.gs {
+		unstable := c.pids.hasUnstableOffsets(name)
+		var shouldDelete bool
+		if !g.waitControl(func() {
+			shouldDelete = g.expireOffsets(retentionMs, unstable)
+			if shouldDelete {
+				g.quitOnce()
+			}
+		}) {
+			continue
+		}
+		select {
+		case <-g.quitCh:
+			delete(c.groups.gs, name)
+		default:
+		}
+	}
 }
