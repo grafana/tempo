@@ -38,7 +38,6 @@ import (
 	"google.golang.org/grpc/metadata"
 
 	"github.com/grafana/tempo/modules/distributor/receiver"
-	generator_client "github.com/grafana/tempo/modules/generator/client"
 	ingester_client "github.com/grafana/tempo/modules/ingester/client"
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/pkg/tempopb"
@@ -1985,7 +1984,7 @@ func TestPushTracesSkipMetricsGenerationIngestStorage(t *testing.T) {
 	distributorCfg, ingesterClientCfg, overridesSvc, _,
 		ingesterRing, limits, middleware := setupDependencies(t, limitCfg)
 
-	distributorCfg.KafkaWritePathEnabled = true
+	distributorCfg.PushSpansToKafka = true
 	distributorCfg.KafkaConfig = ingest.KafkaConfig{}
 	distributorCfg.KafkaConfig.RegisterFlags(&flag.FlagSet{})
 	distributorCfg.KafkaConfig.Address = kafka.ListenAddrs()[0]
@@ -1995,7 +1994,6 @@ func TestPushTracesSkipMetricsGenerationIngestStorage(t *testing.T) {
 		distributorCfg,
 		ingesterClientCfg,
 		ingesterRing,
-		generator_client.Config{},
 		nil,
 		singlePartitionRingReader{},
 		overridesSvc,
@@ -2210,7 +2208,7 @@ func prepare(t *testing.T, limits overrides.Config, logger kitlog.Logger) (*Dist
 	}
 
 	distributorConfig, clientConfig, overrides, ingesters, ingestersRing, l, mw := setupDependencies(t, limits)
-	d, err := New(distributorConfig, clientConfig, ingestersRing, generator_client.Config{}, nil, nil, overrides, mw, logger, l, prometheus.NewPedanticRegistry())
+	d, err := New(distributorConfig, clientConfig, ingestersRing, nil, nil, overrides, mw, logger, l, prometheus.NewPedanticRegistry())
 	require.NoError(t, err)
 
 	return d, ingesters
@@ -2656,7 +2654,6 @@ func TestTracePushMiddlewareCalled(t *testing.T) {
 		distributorCfg,
 		ingesterClientCfg,
 		ingesterRing,
-		generator_client.Config{},
 		nil,
 		nil,
 		overridesSvc,
@@ -2706,7 +2703,6 @@ func TestTracePushMiddlewareFailsOpen(t *testing.T) {
 		distributorCfg,
 		ingesterClientCfg,
 		ingesterRing,
-		generator_client.Config{},
 		nil,
 		nil,
 		overridesSvc,

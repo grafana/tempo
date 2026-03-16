@@ -5,13 +5,11 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"path"
 	"sync"
 	"time"
 
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
-	"github.com/grafana/dskit/kv"
 	"github.com/grafana/dskit/ring"
 	"github.com/grafana/dskit/services"
 	"github.com/prometheus/client_golang/prometheus"
@@ -24,22 +22,12 @@ import (
 	"google.golang.org/grpc/metadata"
 
 	"github.com/grafana/tempo/modules/generator/storage"
-	objStorage "github.com/grafana/tempo/modules/storage"
 	"github.com/grafana/tempo/pkg/ingest"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/validation"
-	tempodb_wal "github.com/grafana/tempo/tempodb/wal"
 )
 
 const (
-	// ringAutoForgetUnhealthyPeriods is how many consecutive timeout periods an unhealthy instance
-	// in the ring will be automatically removed.
-	ringAutoForgetUnhealthyPeriods = 2
-
-	// We use a safe default instead of exposing to config option to the user
-	// in order to simplify the config.
-	ringNumTokens = 256
-
 	// NoGenerateMetricsContextKey is used in request contexts/headers to signal to
 	// the metrics generator that it should not generate metrics for the spans
 	// contained in the requests. This is intended to be used by clients that send
@@ -64,16 +52,9 @@ type Generator struct {
 	cfg       *Config
 	overrides metricsGeneratorOverrides
 
-	ringLifecycler *ring.BasicLifecycler
-
 	instancesMtx    sync.RWMutex
 	instances       map[string]*instance
 	failedInstances map[string]time.Time // instance -> when creation last failed
-
-	subservices        *services.Manager
-	subservicesWatcher *services.FailureWatcher
-
-	store objStorage.Store
 
 	// When set to true, the generator will refuse incoming pushes
 	// and will flush any remaining metrics.
@@ -94,7 +75,7 @@ type Generator struct {
 }
 
 // New makes a new Generator.
-func New(cfg *Config, overrides metricsGeneratorOverrides, reg prometheus.Registerer, partitionRing ring.PartitionRingReader, store objStorage.Store, logger log.Logger) (*Generator, error) {
+func New(cfg *Config, overrides metricsGeneratorOverrides, reg prometheus.Registerer, partitionRing ring.PartitionRingReader, logger log.Logger) (*Generator, error) {
 	if cfg.Storage.Path == "" {
 		return nil, ErrUnconfigured
 	}
@@ -115,75 +96,18 @@ func New(cfg *Config, overrides metricsGeneratorOverrides, reg prometheus.Regist
 		instances:       map[string]*instance{},
 		failedInstances: map[string]time.Time{},
 
-		store:         store,
 		partitionRing: partitionRing,
 		reg:           reg,
 		logger:        logger,
-	}
-
-	if !cfg.DisableGRPC {
-		// Lifecycler and ring
-		ringStore, err := kv.NewClient(
-			cfg.Ring.KVStore,
-			ring.GetCodec(),
-			kv.RegistererWithKVName(prometheus.WrapRegistererWithPrefix("tempo_", reg), "metrics-generator"),
-			g.logger,
-		)
-		if err != nil {
-			return nil, fmt.Errorf("create KV store client: %w", err)
-		}
-
-		lifecyclerCfg, err := cfg.Ring.ToLifecyclerConfig(ringNumTokens)
-		if err != nil {
-			return nil, fmt.Errorf("invalid ring lifecycler config: %w", err)
-		}
-
-		// Define lifecycler delegates in reverse order (last to be called defined first because they're
-		// chained via "next delegate").
-		delegate := ring.BasicLifecyclerDelegate(g)
-		delegate = ring.NewLeaveOnStoppingDelegate(delegate, g.logger)
-		delegate = ring.NewAutoForgetDelegate(ringAutoForgetUnhealthyPeriods*cfg.Ring.HeartbeatTimeout, delegate, g.logger)
-
-		g.ringLifecycler, err = ring.NewBasicLifecycler(lifecyclerCfg, ringNameForServer, cfg.OverrideRingKey, ringStore, delegate, g.logger, prometheus.WrapRegistererWithPrefix("tempo_", reg))
-		if err != nil {
-			return nil, fmt.Errorf("create ring lifecycler: %w", err)
-		}
 	}
 
 	g.Service = services.NewBasicService(g.starting, g.running, g.stopping)
 	return g, nil
 }
 
-func (g *Generator) starting(ctx context.Context) (err error) {
-	// In case this function will return error we want to unregister the instance
-	// from the ring. We do it ensuring dependencies are gracefully stopped if they
-	// were already started.
-	defer func() {
-		if err == nil || g.subservices == nil {
-			return
-		}
-
-		if stopErr := services.StopManagerAndAwaitStopped(context.Background(), g.subservices); stopErr != nil {
-			level.Error(g.logger).Log("msg", "failed to gracefully stop metrics-generator dependencies", "err", stopErr)
-		}
-	}()
-
-	if !g.cfg.DisableGRPC {
-		g.subservices, err = services.NewManager(g.ringLifecycler)
-		if err != nil {
-			return fmt.Errorf("unable to start metrics-generator dependencies: %w", err)
-		}
-		g.subservicesWatcher = services.NewFailureWatcher()
-		g.subservicesWatcher.WatchManager(g.subservices)
-
-		err = services.StartManagerAndAwaitHealthy(ctx, g.subservices)
-		if err != nil {
-			return fmt.Errorf("unable to start metrics-generator dependencies: %w", err)
-		}
-	}
-
-	if g.cfg.Ingest.Enabled {
-		g.kafkaClient, err = ingest.NewGroupReaderClient(
+func (g *Generator) starting(ctx context.Context) error {
+	if g.cfg.ConsumeFromKafka {
+		kafkaClient, err := ingest.NewGroupReaderClient(
 			g.cfg.Ingest.Kafka,
 			g.partitionRing,
 			ingest.NewReaderClientMetrics("generator", prometheus.DefaultRegisterer),
@@ -200,8 +124,8 @@ func (g *Generator) starting(ctx context.Context) (err error) {
 			return fmt.Errorf("failed to create kafka reader client: %w", err)
 		}
 
-		err = ingest.WaitForKafkaBroker(ctx, g.kafkaClient.Client, g.logger)
-		if err != nil {
+		g.kafkaClient = kafkaClient
+		if err := ingest.WaitForKafkaBroker(ctx, g.kafkaClient.Client, g.logger); err != nil {
 			return fmt.Errorf("failed to start metrics generator: %w", err)
 		}
 
@@ -213,36 +137,19 @@ func (g *Generator) starting(ctx context.Context) (err error) {
 }
 
 func (g *Generator) running(ctx context.Context) error {
-	if g.cfg.Ingest.Enabled {
+	if g.cfg.ConsumeFromKafka {
 		g.startKafka()
 	}
 
-	for {
-		select {
-		case <-ctx.Done():
-			return nil
-
-		case err := <-g.subservicesWatcher.Chan():
-			return fmt.Errorf("metrics-generator subservice failed: %w", err)
-		}
-	}
+	<-ctx.Done()
+	return nil
 }
 
 func (g *Generator) stopping(_ error) error {
-	if g.subservices != nil {
-		err := services.StopManagerAndAwaitStopped(context.Background(), g.subservices)
-		if err != nil {
-			level.Error(g.logger).Log("msg", "failed to stop metrics-generator dependencies", "err", err)
-		}
-	}
-
-	time.Sleep(5 * time.Second) // let the ring propagate the shutdown
-
-	// Mark as read-only after we have removed ourselves from the ring
 	g.stopIncomingRequests()
 
-	// Stop reading from queue and wait for outstanding data to be processed and committed
-	if g.cfg.Ingest.Enabled {
+	// Stop reading from queue and wait for outstanding data to be processed and committed.
+	if g.cfg.ConsumeFromKafka {
 		g.stopKafka()
 	}
 
@@ -349,32 +256,7 @@ func (g *Generator) createInstance(id string) (*instance, error) {
 		return nil, err
 	}
 
-	// Create traces wal if configured
-	var tracesWAL, tracesQueryWAL *tempodb_wal.WAL
-
-	if g.cfg.TracesWAL.Filepath != "" {
-		// Create separate wals per tenant by prefixing path with tenant ID
-		cfg := g.cfg.TracesWAL
-		cfg.Filepath = path.Join(cfg.Filepath, id)
-		tracesWAL, err = tempodb_wal.New(&cfg)
-		if err != nil {
-			_ = wal.Close()
-			return nil, err
-		}
-	}
-
-	if g.cfg.TracesQueryWAL.Filepath != "" {
-		// Create separate wals per tenant by prefixing path with tenant ID
-		cfg := g.cfg.TracesQueryWAL
-		cfg.Filepath = path.Join(cfg.Filepath, id)
-		tracesQueryWAL, err = tempodb_wal.New(&cfg)
-		if err != nil {
-			_ = wal.Close()
-			return nil, err
-		}
-	}
-
-	inst, err := newInstance(g.cfg, id, g.overrides, wal, g.logger, tracesWAL, tracesQueryWAL, g.store)
+	inst, err := newInstance(g.cfg, id, g.overrides, wal, g.logger)
 	if err != nil {
 		_ = wal.Close()
 		return nil, err
@@ -390,79 +272,11 @@ func (g *Generator) createInstance(id string) (*instance, error) {
 }
 
 func (g *Generator) CheckReady(_ context.Context) error {
-	// Always mark as ready when running without a ring, because the readiness logic
-	// below depends on the ring lifecycler.
-	if g.ringLifecycler == nil {
-		return nil
-	}
-
-	if !g.ringLifecycler.IsRegistered() {
-		return fmt.Errorf("metrics-generator check ready failed: not registered in the ring")
+	if g.cfg.ConsumeFromKafka && g.kafkaClient == nil {
+		return fmt.Errorf("metrics-generator check ready failed: kafka client not initialized")
 	}
 
 	return nil
-}
-
-// OnRingInstanceRegister implements ring.BasicLifecyclerDelegate
-func (g *Generator) OnRingInstanceRegister(_ *ring.BasicLifecycler, ringDesc ring.Desc, instanceExists bool, _ string, instanceDesc ring.InstanceDesc) (ring.InstanceState, ring.Tokens) {
-	// When we initialize the metrics-generator instance in the ring we want to start from
-	// a clean situation, so whatever is the state we set it ACTIVE, while we keep existing
-	// tokens (if any) or the ones loaded from file.
-	var tokens []uint32
-	if instanceExists {
-		tokens = instanceDesc.GetTokens()
-	}
-
-	takenTokens := ringDesc.GetTokens()
-	gen := ring.NewRandomTokenGenerator()
-	newTokens := gen.GenerateTokens(ringNumTokens-len(tokens), takenTokens)
-
-	// Tokens sorting will be enforced by the parent caller.
-	tokens = append(tokens, newTokens...)
-
-	return ring.ACTIVE, tokens
-}
-
-// OnRingInstanceTokens implements ring.BasicLifecyclerDelegate
-func (g *Generator) OnRingInstanceTokens(*ring.BasicLifecycler, ring.Tokens) {
-}
-
-// OnRingInstanceStopping implements ring.BasicLifecyclerDelegate
-func (g *Generator) OnRingInstanceStopping(*ring.BasicLifecycler) {
-}
-
-// OnRingInstanceHeartbeat implements ring.BasicLifecyclerDelegate
-func (g *Generator) OnRingInstanceHeartbeat(*ring.BasicLifecycler, *ring.Desc, *ring.InstanceDesc) {
-}
-
-func (g *Generator) GetMetrics(ctx context.Context, req *tempopb.SpanMetricsRequest) (*tempopb.SpanMetricsResponse, error) {
-	instanceID, err := validation.ExtractValidTenantID(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	// return empty if we don't have an instance
-	instance, ok := g.getInstanceByID(instanceID)
-	if !ok || instance == nil {
-		return &tempopb.SpanMetricsResponse{}, nil
-	}
-
-	return instance.GetMetrics(ctx, req)
-}
-
-func (g *Generator) QueryRange(ctx context.Context, req *tempopb.QueryRangeRequest) (*tempopb.QueryRangeResponse, error) {
-	instanceID, err := validation.ExtractValidTenantID(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	// return empty if we don't have an instance
-	instance, ok := g.getInstanceByID(instanceID)
-	if !ok || instance == nil {
-		return &tempopb.QueryRangeResponse{}, nil
-	}
-
-	return instance.QueryRange(ctx, req)
 }
 
 // ExtractNoGenerateMetrics checks for presence of context keys that indicate no

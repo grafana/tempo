@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"net/http"
 	"sort"
-	"time"
 
 	"github.com/go-kit/log/level"
 	httpgrpc_server "github.com/grafana/dskit/httpgrpc/server"
@@ -32,7 +31,6 @@ import (
 	"github.com/grafana/tempo/pkg/search"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/traceql"
-	"github.com/grafana/tempo/pkg/traceqlmetrics"
 	"github.com/grafana/tempo/pkg/util/log"
 	"github.com/grafana/tempo/pkg/validation"
 	"github.com/grafana/tempo/tempodb/backend"
@@ -646,9 +644,14 @@ func (q *Querier) SearchBlock(ctx context.Context, req *tempopb.SearchBlockReque
 	opts.MaxBytes = q.limits.MaxBytesPerTrace(tenantID)
 
 	if api.IsTraceQLQuery(req.SearchReq) {
-		fetcher := traceql.NewSpansetFetcherWrapper(func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
-			return q.store.Fetch(ctx, meta, req, opts)
-		})
+		fetcher := traceql.NewSpansetFetcherWrapperBoth(
+			func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
+				return q.store.Fetch(ctx, meta, req, opts)
+			},
+			func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansOnlyResponse, error) {
+				return q.store.FetchSpans(ctx, meta, req, opts)
+			},
+		)
 
 		return q.engine.ExecuteSearch(ctx, req.SearchReq, fetcher, q.limits.UnsafeQueryHints(tenantID))
 	}
@@ -883,40 +886,4 @@ func countSpans(trace *tempopb.Trace) int {
 		}
 	}
 	return count
-}
-
-func protoToMetricSeries(proto []*tempopb.KeyValue) traceqlmetrics.MetricSeries {
-	r := traceqlmetrics.MetricSeries{}
-	for i := range proto {
-		r[i] = protoToTraceQLStatic(proto[i])
-	}
-	return r
-}
-
-func protoToTraceQLStatic(kv *tempopb.KeyValue) traceqlmetrics.KeyValue {
-	var val traceql.Static
-
-	switch traceql.StaticType(kv.Value.Type) {
-	case traceql.TypeInt:
-		val = traceql.NewStaticInt(int(kv.Value.N))
-	case traceql.TypeFloat:
-		val = traceql.NewStaticFloat(kv.Value.F)
-	case traceql.TypeString:
-		val = traceql.NewStaticString(kv.Value.S)
-	case traceql.TypeBoolean:
-		val = traceql.NewStaticBool(kv.Value.B)
-	case traceql.TypeDuration:
-		val = traceql.NewStaticDuration(time.Duration(kv.Value.D))
-	case traceql.TypeStatus:
-		val = traceql.NewStaticStatus(traceql.Status(kv.Value.Status))
-	case traceql.TypeKind:
-		val = traceql.NewStaticKind(traceql.Kind(kv.Value.Kind))
-	default:
-		val = traceql.NewStaticNil()
-	}
-
-	return traceqlmetrics.KeyValue{
-		Key:   kv.Key,
-		Value: val,
-	}
 }

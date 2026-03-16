@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"errors"
+	"flag"
 	"fmt"
 	"testing"
 	"time"
@@ -878,6 +879,9 @@ func blockbuilderConfig(t testing.TB, address string, assignedPartitions []int32
 	flagext.DefaultValues(&cfg)
 
 	flagext.DefaultValues(&cfg.BlockConfig)
+
+	cfg.BlockConfig.BlockConfig.RegisterFlagsAndApplyDefaults("", &flag.FlagSet{})
+	cfg.BlockConfig.Version = encoding.DefaultEncoding().Version()
 
 	flagext.DefaultValues(&cfg.IngestStorageConfig.Kafka)
 	cfg.IngestStorageConfig.Kafka.Address = address

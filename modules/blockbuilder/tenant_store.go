@@ -47,7 +47,7 @@ type tenantStore struct {
 }
 
 func newTenantStore(tenantID string, partitionID, startOffset uint64, startTime time.Time, cycleDuration, slackDuration time.Duration, cfg BlockConfig, logger log.Logger, wal *wal.WAL, enc encoding.VersionedEncoding, o Overrides) (*tenantStore, error) {
-	cfg.BlockCfg.CreateWithNoCompactFlag = true // blockbuilder creates blocks with the nocompact flag set by default
+	cfg.CreateWithNoCompactFlag = true // blockbuilder creates blocks with the nocompact flag set by default
 
 	s := &tenantStore{
 		tenantID:      tenantID,
@@ -64,6 +64,18 @@ func newTenantStore(tenantID string, partitionID, startOffset uint64, startTime 
 	}
 
 	return s, nil
+}
+
+func (s *tenantStore) getDedicatedColumns() backend.DedicatedColumns {
+	if cols := s.overrides.DedicatedColumns(s.tenantID); cols != nil {
+		_, err := cols.Validate()
+		if err != nil {
+			level.Error(s.logger).Log("msg", "Unable to apply overrides for dedicated attribute columns. Columns invalid.", "error", err)
+			return s.cfg.DedicatedColumns
+		}
+		return cols
+	}
+	return s.cfg.DedicatedColumns
 }
 
 func (s *tenantStore) AppendTrace(traceID []byte, tr []byte, ts time.Time) error {
@@ -123,7 +135,7 @@ func (s *tenantStore) Flush(ctx context.Context, r tempodb.Reader, w tempodb.Wri
 
 	// Initial meta for creating the block
 	meta := backend.NewBlockMeta(s.tenantID, (uuid.UUID)(blockID), s.enc.Version())
-	meta.DedicatedColumns = s.overrides.DedicatedColumns(s.tenantID)
+	meta.DedicatedColumns = s.getDedicatedColumns()
 	meta.ReplicationFactor = 1
 	meta.TotalObjects = int64(s.liveTraces.Len())
 
@@ -142,9 +154,15 @@ func (s *tenantStore) Flush(ctx context.Context, r tempodb.Reader, w tempodb.Wri
 		"meta", meta,
 	)
 
-	newMeta, err := s.enc.CreateBlock(ctx, &s.cfg.BlockCfg, meta, iter, reader, writer)
+	newMeta, err := s.enc.CreateBlock(ctx, &s.cfg.BlockConfig, meta, iter, reader, writer)
 	if err != nil {
 		return err
+	}
+
+	if n, err := iter.DedupedSpans(); err != nil {
+		level.Error(s.logger).Log("msg", "failed to get deduped spans count", "err", err)
+	} else if n > 0 {
+		metricDedupedSpans.WithLabelValues(s.tenantID).Add(float64(n))
 	}
 
 	// Update meta timestamps which couldn't be known until we unmarshaled

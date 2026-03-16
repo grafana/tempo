@@ -169,10 +169,8 @@ func validateConfig(cfg *Config) error {
 		return errors.New("block config should be non-nil")
 	}
 
-	// if the wal version is unspecified default to the block version
-	if cfg.WAL.Version == "" {
-		cfg.WAL.Version = cfg.Block.Version
-	}
+	// WAL version always matches the block version
+	cfg.WAL.Version = cfg.Block.Version
 
 	err := cfg.WAL.Validate()
 	if err != nil {

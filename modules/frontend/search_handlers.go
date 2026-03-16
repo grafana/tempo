@@ -2,6 +2,7 @@ package frontend
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"io"
 	"net/http"
@@ -15,6 +16,7 @@ import (
 	"github.com/grafana/dskit/user"
 	"github.com/grafana/tempo/modules/frontend/combiner"
 	"github.com/grafana/tempo/modules/frontend/pipeline"
+	"github.com/grafana/tempo/pkg/util/tracing"
 	"google.golang.org/grpc/codes"
 
 	"github.com/grafana/tempo/modules/overrides"
@@ -77,7 +79,7 @@ func newSearchStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripper[c
 			bytesProcessed = finalResponse.Metrics.InspectedBytes
 		}
 		postSLOHook(nil, tenant, bytesProcessed, duration, err)
-		logResult(logger, tenant, duration.Seconds(), req, finalResponse, nil, err)
+		logResult(ctx, logger, tenant, duration.Seconds(), req, finalResponse, nil, err)
 		return err
 	}
 }
@@ -132,7 +134,7 @@ func newSearchHTTPHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.P
 
 		duration := time.Since(start)
 		postSLOHook(resp, tenant, bytesProcessed, duration, err)
-		logResult(logger, tenant, duration.Seconds(), searchReq, searchResp, resp, err)
+		logResult(req.Context(), logger, tenant, duration.Seconds(), searchReq, searchResp, resp, err)
 		return resp, err
 	})
 }
@@ -172,7 +174,9 @@ func adjustLimit(limit, defaultLimit, maxLimit uint32) (uint32, error) {
 	return limit, nil
 }
 
-func logResult(logger log.Logger, tenantID string, durationSeconds float64, req *tempopb.SearchRequest, resp *tempopb.SearchResponse, httpResp *http.Response, err error) {
+func logResult(ctx context.Context, logger log.Logger, tenantID string, durationSeconds float64, req *tempopb.SearchRequest, resp *tempopb.SearchResponse, httpResp *http.Response, err error) {
+	traceID, _ := tracing.ExtractTraceID(ctx)
+
 	statusCode := -1
 	if httpResp != nil {
 		statusCode = httpResp.StatusCode
@@ -184,6 +188,7 @@ func logResult(logger log.Logger, tenantID string, durationSeconds float64, req 
 		level.Info(logger).Log(
 			"msg", "search response - no resp",
 			"tenant", tenantID,
+			"traceID", traceID,
 			"duration_seconds", durationSeconds,
 			"status_code", statusCode,
 			"error", err)
@@ -195,6 +200,7 @@ func logResult(logger log.Logger, tenantID string, durationSeconds float64, req 
 		level.Info(logger).Log(
 			"msg", "search response - no metrics",
 			"tenant", tenantID,
+			"traceID", traceID,
 			"query", req.Query,
 			"range_seconds", req.End-req.Start,
 			"duration_seconds", durationSeconds,
@@ -206,6 +212,7 @@ func logResult(logger log.Logger, tenantID string, durationSeconds float64, req 
 	level.Info(logger).Log(
 		"msg", "search response",
 		"tenant", tenantID,
+		"traceID", traceID,
 		"query", req.Query,
 		"range_seconds", req.End-req.Start,
 		"duration_seconds", durationSeconds,

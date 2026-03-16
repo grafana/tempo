@@ -388,6 +388,9 @@ func TestLiveStoreQueryMethodsBeforeStarted(t *testing.T) {
 	cfg.WAL.Version = encoding.LatestEncoding().Version()
 	cfg.ShutdownMarkerDir = tmpDir
 
+	cfg.BlockConfig.RegisterFlagsAndApplyDefaults("", flag.NewFlagSet("", flag.ContinueOnError))
+	cfg.BlockConfig.Version = encoding.LatestEncoding().Version()
+
 	// Set up test Kafka configuration
 	const testTopic = "traces"
 	_, kafkaAddr := testkafka.CreateCluster(t, 1, testTopic)
@@ -397,6 +400,7 @@ func TestLiveStoreQueryMethodsBeforeStarted(t *testing.T) {
 	cfg.IngestConfig.Kafka.ConsumerGroup = "test-consumer-group"
 
 	cfg.holdAllBackgroundProcesses = true
+	cfg.FailOnHighLag = true
 
 	cfg.Ring.RegisterFlagsAndApplyDefaults("", flag.NewFlagSet("", flag.ContinueOnError))
 	mockParititionStore, _ := consul.NewInMemoryClient(
@@ -433,8 +437,9 @@ func TestLiveStoreQueryMethodsBeforeStarted(t *testing.T) {
 	ctx := user.InjectOrgID(context.Background(), testTenantID)
 
 	testCases := []struct {
-		name     string
-		callFunc func() (interface{}, error)
+		name        string
+		callFunc    func() (interface{}, error)
+		expectedErr error
 	}{
 		{
 			name: "SearchRecent",
@@ -443,6 +448,7 @@ func TestLiveStoreQueryMethodsBeforeStarted(t *testing.T) {
 					Query: "{}",
 				})
 			},
+			expectedErr: errLagged, // FailOnHighLag=true + nil reader → isLagged returns true
 		},
 		{
 			name: "SearchTags",
@@ -451,6 +457,7 @@ func TestLiveStoreQueryMethodsBeforeStarted(t *testing.T) {
 					Scope: "span",
 				})
 			},
+			expectedErr: ErrStarting,
 		},
 		{
 			name: "SearchTagsV2",
@@ -459,6 +466,7 @@ func TestLiveStoreQueryMethodsBeforeStarted(t *testing.T) {
 					Scope: "span",
 				})
 			},
+			expectedErr: ErrStarting,
 		},
 		{
 			name: "SearchTagValues",
@@ -467,6 +475,7 @@ func TestLiveStoreQueryMethodsBeforeStarted(t *testing.T) {
 					TagName: "foo",
 				})
 			},
+			expectedErr: ErrStarting,
 		},
 		{
 			name: "SearchTagValuesV2",
@@ -475,6 +484,7 @@ func TestLiveStoreQueryMethodsBeforeStarted(t *testing.T) {
 					TagName: "foo",
 				})
 			},
+			expectedErr: ErrStarting,
 		},
 		{
 			name: "QueryRange",
@@ -486,21 +496,85 @@ func TestLiveStoreQueryMethodsBeforeStarted(t *testing.T) {
 					Step:  uint64(time.Second),
 				})
 			},
+			expectedErr: errLagged, // FailOnHighLag=true + nil reader → isLagged returns true
 		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			// Call the function before livestore has started
-			// This should not panic and should return an error indicating not ready
-			resp, err := tc.callFunc()
+			// This should not panic and should return an error
+			_, err := tc.callFunc()
 
-			// Should return ErrStarting error when not ready
 			require.Error(t, err)
-			require.ErrorIs(t, err, ErrStarting)
-			require.NotNil(t, resp)
+			require.ErrorIs(t, err, tc.expectedErr)
 		})
 	}
+}
+
+func TestLiveStoreQueryMethodsAfterStopping(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	liveStore, err := defaultLiveStore(t, tmpDir)
+	require.NoError(t, err)
+	require.NotNil(t, liveStore)
+
+	// Error expected from Kafka reader shutdown; we only care about query behavior after stopping begins.
+	_ = liveStore.stopping(nil)
+
+	ctx := user.InjectOrgID(context.Background(), testTenantID)
+
+	searchResp, err := liveStore.SearchRecent(ctx, &tempopb.SearchRequest{
+		Query: "{}",
+		End:   uint32(time.Now().Unix()),
+	})
+	require.Error(t, err)
+	require.ErrorIs(t, err, ErrStopping)
+	require.NotNil(t, searchResp)
+
+	rangeResp, err := liveStore.QueryRange(ctx, &tempopb.QueryRangeRequest{
+		Query: "{} | count_over_time()",
+		Start: uint64(time.Now().Add(-time.Hour).UnixNano()),
+		End:   uint64(time.Now().UnixNano()),
+		Step:  uint64(time.Second),
+	})
+	require.Error(t, err)
+	require.ErrorIs(t, err, ErrStopping)
+	require.NotNil(t, rangeResp)
+}
+
+func TestLiveStoreQueryMethodsAfterStoppingWithFailOnHighLag(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	liveStore, err := defaultLiveStore(t, tmpDir)
+	require.NoError(t, err)
+	require.NotNil(t, liveStore)
+
+	liveStore.cfg.FailOnHighLag = true
+
+	// Error expected from Kafka reader shutdown; we only care about query behavior after stopping begins.
+	_ = liveStore.stopping(nil)
+
+	ctx := user.InjectOrgID(context.Background(), testTenantID)
+
+	// After stopping, the reader is non-nil but stopped. With FailOnHighLag=true,
+	// isLagged() runs calculateTimeLag() on the stopped reader. Depending on stale
+	// lag values it may return true (errLagged) or false (falls through to
+	// withInstance → CheckReady → ErrStopping). Either way, query must not panic
+	// and must return an error.
+	_, err = liveStore.SearchRecent(ctx, &tempopb.SearchRequest{
+		Query: "{}",
+		End:   uint32(time.Now().Unix()),
+	})
+	require.Error(t, err)
+
+	_, err = liveStore.QueryRange(ctx, &tempopb.QueryRangeRequest{
+		Query: "{} | count_over_time()",
+		Start: uint64(time.Now().Add(-time.Hour).UnixNano()),
+		End:   uint64(time.Now().UnixNano()),
+		Step:  uint64(time.Second),
+	})
+	require.Error(t, err)
 }
 
 // erroredEnc is a wrapper around a VersionedEncoding that returns given error on CreateBlock

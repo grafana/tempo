@@ -32,7 +32,6 @@
   tempo_live_store_args:: {
     target: target_name,
     'config.file': '/conf/tempo.yaml',
-    'mem-ballast-size-mbs': $._config.ballast_size_mbs,
   },
 
   tempo_live_store_pvc::
@@ -47,7 +46,6 @@
     container.new(target_name, $._images.tempo_live_store) +
     container.withPorts($.tempo_live_store_ports) +
     container.withArgs($.util.mapToFlags($.tempo_live_store_args)) +
-    (if $._config.variables_expansion then container.withEnvMixin($._config.variables_expansion_env_mixin) else {}) +
     container.withVolumeMounts([
       volumeMount.new(tempo_config_volume, '/conf'),
       volumeMount.new(tempo_data_volume, '/var/tempo/live-store'),
@@ -67,9 +65,7 @@
 
   newLiveStoreZoneContainer(zone, zone_args)::
     $.tempo_live_store_container +
-    container.withArgs($.util.mapToFlags(
-      $.tempo_live_store_args + zone_args
-    )),
+    container.withArgsMixin($.util.mapToFlags(zone_args)),
 
   // Helper function for zone-specific anti-affinity rules
   liveStoreZoneAntiAffinity(zone_name)::

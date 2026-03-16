@@ -150,7 +150,7 @@ Sample data at the collector after metrics generation so that all traces are ava
 
 You can use `always_sample` when you want to capture all tracing data. This could be useful for troubleshooting.
 
-Refer to the [`always_sample` policy documentation](https://grafana.com/docs/latest/reference/components/otelcol/otelcol.processor.tail_sampling/) for more information.
+Refer to the [`always_sample` policy documentation](https://grafana.com/docs/alloy/latest/reference/components/otelcol/otelcol.processor.tail_sampling/) for more information.
 
 ```alloy
 policy {

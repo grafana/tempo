@@ -121,14 +121,14 @@
           {
             alert: 'TempoBlockListRisingQuickly',
             expr: |||
-              avg(tempodb_blocklist_length{namespace=~"%(namespace)s", container="compactor"}) / avg(tempodb_blocklist_length{namespace=~"%(namespace)s", container="compactor"} offset 7d) by (%(group)s) > 1.4
+              avg by (%(group)s) (tempodb_blocklist_length{namespace=~"%(namespace)s", container="backend-scheduler"}) / avg by (%(group)s) (tempodb_blocklist_length{namespace=~"%(namespace)s", container="backend-scheduler"} offset 7d) > 1.4
             ||| % { namespace: $._config.namespace, group: $._config.group_by_cluster },
             'for': '15m',
             labels: {
               severity: 'critical',
             },
             annotations: {
-              message: 'Tempo block list length is up 40 percent over the last 7 days. Consider scaling compactors.',
+              message: 'Tempo block list length is up 40 percent over the last 7 days. Consider scaling backend-workers.',
               runbook_url: 'https://github.com/grafana/tempo/tree/main/operations/tempo-mixin/runbook.md#TempoBlockListRisingQuickly',
             },
           },
@@ -160,32 +160,32 @@
               runbook_url: 'https://github.com/grafana/tempo/tree/main/operations/tempo-mixin/runbook.md#TempoTenantIndexFailures',
             },
           },
-          // compactors
+          // compaction scheduler / workers
           {
             alert: 'TempoCompactionTooManyOutstandingBlocks',
             expr: |||
-              sum by (%s) (tempodb_compaction_outstanding_blocks{container="compactor", namespace=~"%s"}) / ignoring(tenant) group_left count(tempo_build_info{container="compactor", namespace=~"%s"}) by (%s) > %d
+              sum by (%s) (tempodb_compaction_outstanding_blocks{container="backend-scheduler", namespace=~"%s"}) / ignoring(tenant) group_left count(tempo_build_info{container="backend-worker", namespace=~"%s"}) by (%s) > %d
             ||| % [$._config.group_by_tenant, $._config.namespace, $._config.namespace, $._config.group_by_cluster, $._config.alerts.outstanding_blocks_warning],
             'for': '6h',
             labels: {
               severity: 'warning',
             },
             annotations: {
-              message: "There are too many outstanding compaction blocks in {{ $labels.%s }}/{{ $labels.namespace }} for tenant {{ $labels.tenant }}, increase compactor's CPU or add more compactors." % $._config.per_cluster_label,
+              message: 'There are too many outstanding compaction blocks in {{ $labels.%s }}/{{ $labels.namespace }} for tenant {{ $labels.tenant }}, increase backend-worker CPU or add more backend-workers.' % $._config.per_cluster_label,
               runbook_url: 'https://github.com/grafana/tempo/tree/main/operations/tempo-mixin/runbook.md#TempoCompactionTooManyOutstandingBlocks',
             },
           },
           {
             alert: 'TempoCompactionTooManyOutstandingBlocks',
             expr: |||
-              sum by (%s) (tempodb_compaction_outstanding_blocks{container="compactor", namespace=~"%s"}) / ignoring(tenant) group_left count(tempo_build_info{container="compactor", namespace=~"%s"}) by (%s) > %d
+              sum by (%s) (tempodb_compaction_outstanding_blocks{container="backend-scheduler", namespace=~"%s"}) / ignoring(tenant) group_left count(tempo_build_info{container="backend-worker", namespace=~"%s"}) by (%s) > %d
             ||| % [$._config.group_by_tenant, $._config.namespace, $._config.namespace, $._config.group_by_cluster, $._config.alerts.outstanding_blocks_critical],
             'for': '24h',
             labels: {
               severity: 'critical',
             },
             annotations: {
-              message: "There are too many outstanding compaction blocks in {{ $labels.%s }}/{{ $labels.namespace }} for tenant {{ $labels.tenant }}, increase compactor's CPU or add more compactors." % $._config.per_cluster_label,
+              message: 'There are too many outstanding compaction blocks in {{ $labels.%s }}/{{ $labels.namespace }} for tenant {{ $labels.tenant }}, increase backend-worker CPU or add more backend-workers.' % $._config.per_cluster_label,
               runbook_url: 'https://github.com/grafana/tempo/tree/main/operations/tempo-mixin/runbook.md#TempoCompactionTooManyOutstandingBlocks',
             },
           },

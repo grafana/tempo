@@ -95,6 +95,7 @@
     },
     block_builder: {
       replicas: 0,
+      data_volume_size: '5Gi',
       resources: {
         requests: {
           cpu: '500m',
@@ -172,7 +173,6 @@
       tempoMetricsBackoffDuration: '0s',  // TraceQL Metrics checks disabled
       tempoLongWriteBackoffDuration: '50s',
     },
-    ballast_size_mbs: '1024',
     port: 3200,
     http_api_prefix: '',
     gossip_ring_port: 7946,

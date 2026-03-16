@@ -18,10 +18,9 @@ GOPATH := $(shell go env GOPATH)
 GORELEASER := $(GOPATH)/bin/goreleaser
 
 # Build Images
-LOKI_BUILD_IMAGE ?= grafana/loki-build-image:0.34.6
 # https://hub.docker.com/repository/docker/grafana/tempo-ci-tools/
 # built by: .github/workflows/docker-ci-tools.yml
-TEMPO_CI_TOOLS_IMAGE ?= grafana/tempo-ci-tools:main-c2aa3e8
+TEMPO_CI_TOOLS_IMAGE ?= grafana/tempo-ci-tools:main-b5ffd5f
 DOCS_IMAGE ?= grafana/docs-base:latest
 
 # More exclusions can be added similar with: -not -path './testbed/*'
@@ -185,6 +184,17 @@ test-e2e-util: tools docker-tempo ## Run unit tests on the e2e test harness
 .PHONY: test-all
 test-all: test-with-cover test-e2e ## Run all tests
 
+# e2e test dirs are created by the host test process but their contents are written by
+# Tempo containers running as UID 10001. Clean up in two steps: first empty the contents
+# as UID 10001, then remove the now-empty dirs as the host user.
+.PHONY: test-e2e-clean
+test-e2e-clean: ## Remove leftover e2e test directories owned by Docker container UIDs
+	docker run --rm -u 10001 \
+		-v "$(shell pwd)/integration:/integration:z" \
+		alpine find /integration -maxdepth 3 -name 'e2e_integration_test*' -type d \
+		  -exec sh -c 'find "$$1" -mindepth 1 -delete' _ {} \;
+	find $(shell pwd)/integration -maxdepth 3 -name 'e2e_integration_test*' -type d -prune -exec rm -rf '{}' +
+
 ##@ Linters/Formatters
 
 .PHONY: fmt check-fmt
@@ -325,8 +335,8 @@ gen-proto:  ## Generate proto files
 	rm -rf $(PROTO_INTERMEDIATE_DIR)
 
 .PHONY: gen-traceql 
-gen-traceql: ## Generate traceql 
-	docker run --rm -v${PWD}:/src/loki ${LOKI_BUILD_IMAGE} gen-traceql-local
+gen-traceql: tools-image ## Generate traceql
+	$(TOOLS_CMD) make gen-traceql-local
 
 .PHONY: gen-traceql-local
 gen-traceql-local: ## Generate traceq local

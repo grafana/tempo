@@ -84,6 +84,12 @@ var (
 		Name:      "owned_partitions",
 		Help:      "Indicates partition ownership by this block-builder (1 = owned).",
 	}, []string{"partition", "state"})
+	metricDedupedSpans = promauto.NewCounterVec(prometheus.CounterOpts{
+		Namespace: "tempo",
+		Subsystem: "block_builder",
+		Name:      "spans_deduped_total",
+		Help:      "Total number of duplicate spans removed during block building.",
+	}, []string{"tenant"})
 
 	tracer = otel.Tracer("modules/blockbuilder")
 
@@ -178,7 +184,7 @@ func (b *BlockBuilder) starting(ctx context.Context) (err error) {
 	level.Info(b.logger).Log("msg", "block builder starting")
 	topic := b.cfg.IngestStorageConfig.Kafka.Topic
 
-	b.enc, err = coalesceBlockVersion(&b.cfg)
+	b.enc, err = encoding.FromVersionForWrites(b.cfg.BlockConfig.Version)
 	if err != nil {
 		return fmt.Errorf("failed to create encoding: %w", err)
 	}

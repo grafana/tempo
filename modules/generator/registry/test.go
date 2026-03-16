@@ -49,6 +49,10 @@ func (t *TestRegistry) NewLabelBuilder() LabelBuilder {
 	return NewLabelBuilder(0, 0, nds, newTestLabelLimiter())
 }
 
+func (t *TestRegistry) NewInfoMetricLabelBuilder() LabelBuilder {
+	return NewLabelBuilder(0, 0, noopSanitizer{}, noopLabelLimiter{})
+}
+
 func (t *TestRegistry) NewHistogram(name string, buckets []float64, histogramOverrides HistogramMode) Histogram {
 	return &testHistogram{
 		nameSum:            name + "_sum",

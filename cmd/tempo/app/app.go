@@ -356,8 +356,7 @@ func (t *App) readyHandler(sm *services.Manager, shutdownRequested *atomic.Bool)
 			}
 		}
 
-		// Generator has a special check that makes sure that it was able to register into the ring,
-		// and that all other ring entries are OK too.
+		// Generator has a dedicated readiness check for generator-specific dependencies.
 		if t.generator != nil {
 			if err := t.generator.CheckReady(r.Context()); err != nil {
 				http.Error(w, "Generator not ready: "+err.Error(), http.StatusServiceUnavailable)

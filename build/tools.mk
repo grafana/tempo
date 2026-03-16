@@ -7,14 +7,10 @@ GOFMT            ?= gofmt
 VENDOR_CMD       ?= ${GO} mod tidy
 GO_MOD_OUTDATED  ?= go-mod-outdated
 
-# Go file to track tool deps with go modules
 TOOL_DIR     ?= tools
-TOOL_CONFIG  ?= $(TOOL_DIR)/tools.go
 
 TOOLS_IMAGE ?= grafana/tempo-ci-tools
-TOOLS_IMAGE_TAG ?= main-36bd1c7
-
-GOTOOLS ?= $(shell cd $(TOOL_DIR) && go list -e -f '{{ .Imports }}' -tags tools |tr -d '[]')
+TOOLS_IMAGE_TAG ?= main-b5ffd5f
 
 # Mount the git common directory to the tools container.
 # This is needed when using git worktrees.
@@ -44,18 +40,16 @@ tools-image:
 
 tools:
 	@echo "=== [ tools            ]: Installing tools required by the project..."
-	@cd $(TOOL_DIR) && $(GO) install $(GOTOOLS)
+	@cd $(TOOL_DIR) && $(GO) install tool
 	@cd $(TOOL_DIR) && $(VENDOR_CMD)
 
 tools-outdated:
 	@echo "=== [ tools-outdated   ]: Finding outdated tool deps with $(GO_MOD_OUTDATED)..."
-	@cd $(TOOL_DIR) && $(GO) list -u -m -json all | $(GO_MOD_OUTDATED) -direct -update
+	@cd $(TOOL_DIR) && $(GO) list -u -m -json all | $(GO_MOD_OUTDATED) -update
 
 tools-update:
 	@echo "=== [ tools-update     ]: Updating tools required by the project..."
-	@cd $(TOOL_DIR) && for x in $(GOTOOLS); do \
-		$(GO) get -u $$x; \
-	done
+	@cd $(TOOL_DIR) && $(GO) get -u tool
 	@cd $(TOOL_DIR) && $(VENDOR_CMD)
 
 .PHONY: tools tools-update tools-outdated

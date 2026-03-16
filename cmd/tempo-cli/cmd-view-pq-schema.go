@@ -59,7 +59,7 @@ func (cmd *viewSchemaCmd) Run(ctx *globalOptions) error {
 				size += idx.CompressedPageSize(pg)
 			}
 
-			columnSizes[path] = columnSizes[path] + size
+			columnSizes[path] += size
 		}
 	}
 	sizes := []string{}
