@@ -46,6 +46,7 @@
 * [BUGFIX] metrics-generator: Fix active-series counter underflow in local series limiter when overflow series are deleted [#6568](https://github.com/grafana/tempo/pull/6568) (@carles-grafana)
 * [BUGFIX] fix: skip per-label limiter and sanitizer for target_info and host_info metrics in metrics-generator [#6660](https://github.com/grafana/tempo/pull/6660) (@electron0zero)
 * [BUGFIX] fix(traceql): err on division by zero [#6580](https://github.com/grafana/tempo/pull/6580) (@Proximyst)
+* [BUGFIX] Return 400 instead of 500 when query_range or query_instant requests have unparseable start/end parameters [#6694](https://github.com/grafana/tempo/pull/6694) (@ruslan-mikhailov)
 
 ### 3.0 Cleanup
 
