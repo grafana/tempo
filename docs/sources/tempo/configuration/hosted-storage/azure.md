@@ -29,7 +29,6 @@ Tempo requires the following configuration to authenticate to and access Azure b
 
 - Storage Account name specified in the configuration file as `storage_account_name` or in the environment variable `AZURE_STORAGE_ACCOUNT`.
 - Credentials for accessing the Storage Account that are one of the following:
-
   - Storage Account access key specified in the configuration file as `storage_account_key` or in the environment variable `AZURE_STORAGE_KEY`.
   - An Azure Managed Identity that's either system or user assigned. To use Azure Managed Identities, you need to set `use_managed_identity` to `true` in the configuration file or set `user_assigned_id` to the client ID for the managed identity you'd like to use.
     - System-assigned managed identity don't require additional configuration.

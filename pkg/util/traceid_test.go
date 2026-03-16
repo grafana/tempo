@@ -201,6 +201,55 @@ func TestSpanIDAndKindToToken(t *testing.T) {
 	})
 }
 
+func TestTokenForID(t *testing.T) {
+	h := NewTokenHasher()
+	buf := make([]byte, 4)
+
+	t.Run("unique token per kind", func(t *testing.T) {
+		spanIDs := [][]byte{
+			{0x60, 0xd8, 0xa9, 0xbd},
+			{0x8e, 0xf6, 0x37, 0x90, 0x22, 0x57, 0xb7, 0x43},
+			{0x18, 0xcc, 0xd9, 0x6d, 0x70, 0xc1, 0xbd, 0xf9},
+		}
+		for _, spanID := range spanIDs {
+			seen := map[uint64]struct{}{}
+			for kind := int32(0); kind < 8; kind++ {
+				tok := TokenForID(h, buf, kind, spanID)
+				_, exists := seen[tok]
+				assert.False(t, exists, "token must be unique per span kind")
+				seen[tok] = struct{}{}
+			}
+		}
+	})
+
+	t.Run("all bytes contribute", func(t *testing.T) {
+		// IDs differing only beyond byte 8 must not collide.
+		base := []byte{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08}
+		longer := []byte{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0xff}
+		assert.NotEqual(t, TokenForID(h, buf, 0, base), TokenForID(h, buf, 0, longer))
+	})
+
+	t.Run("hasher reuse", func(t *testing.T) {
+		// Reusing h and buf across calls must give stable results.
+		spanID := []byte{0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff, 0x11, 0x22}
+		tok := TokenForID(h, buf, 0, spanID)
+		for i := 0; i < 10; i++ {
+			assert.Equal(t, tok, TokenForID(h, buf, 0, spanID))
+		}
+	})
+}
+
+func BenchmarkTokenForID(b *testing.B) {
+	h := NewTokenHasher()
+	id := []byte{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08}
+	buf := make([]byte, 4)
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_ = TokenForID(h, buf, 0, id)
+	}
+}
+
 var tokenToPreventOptimization uint64
 
 func BenchmarkSpanIDAndKindToToken(b *testing.B) {

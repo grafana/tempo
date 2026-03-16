@@ -37,13 +37,13 @@ Reading a large trace can spike the memory usage of the read components:
 
 * query-frontend
 * querier
-* ingester
+* live-store
 * metrics-generator
 
 Writing a large trace can spike the memory usage of the write components:
 
-* ingester
-* worker
+* live-store
+* block-builder
 * metrics-generator
 
 Start with a smaller trace size limit of 15MB, and increase it as needed.
@@ -60,7 +60,7 @@ overrides:
         max_bytes_per_trace: 1.5e+07
 ```
 
-Refer to the [Standard overrides](# https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/#standard-overrides) documentation for more information.
+Refer to the [Standard overrides](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/#standard-overrides) documentation for more information.
 
 If you have long-running batch job traces, consider using span links to break them apart.
 
@@ -90,12 +90,12 @@ When reading these attributes, they can spike the memory usage of the read compo
 
 * query-frontend
 * querier
-* ingester
+* live-store
 * metrics-generator
 
 When writing these attributes, they can spike the memory usage of the write components:
-* ingester
-* worker
+* live-store
+* block-builder
 * metrics-generator
 
 You can [automatically limit attribute sizes](https://github.com/grafana/tempo/pull/4335) using [`max_attribute_bytes`](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/#set-max-attribute-size-to-help-control-out-of-memory-errors).

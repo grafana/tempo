@@ -35,6 +35,7 @@ The Tempo configuration options include:
   - [Backend worker](#backend-worker)
   - [Storage](#storage)
     - [Local storage recommendations](#local-storage-recommendations)
+    - [Hedged requests](#hedged-requests)
     - [Storage block configuration example](#storage-block-configuration-example)
   - [Memberlist](#memberlist)
   - [Configuration blocks](#configuration-blocks)
@@ -385,11 +386,28 @@ For more information on configuration options, refer to [this file](https://gith
 # Block-builder configuration block
 block_builder:
 
+    # Instance id.
+    [instance_id: <string> | default = <hostname>]
+
+    # Map of instance names to partition IDs assigned to each block builder.
+    [assigned_partitions: <map of string to list of int>]
+
+    # Number of partitions assigned to this block builder.
+    [partitions_per_instance: <int> | default = 0]
+
     # Interval between consumption cycles.
     [consume_cycle_duration: <duration> | default = 5m]
 
     # Maximum number of bytes that can be consumed in a single cycle. 0 to disable.
     [max_consuming_bytes: <uint64> | default = 5000000000]
+
+    # Block configuration for the block builder.
+    block: <Block config>
+      [max_block_bytes: <uint64> | default = 20971520]
+
+    # Write ahead log configuration for the block builder.
+    wal: <WAL config>
+      [path: <string> | default = "/var/tempo/block-builder/traces"]
 ```
 
 ## Live-store
@@ -1081,6 +1099,20 @@ You can estimate how much storage space you need by considering the ingested byt
 For example, ingested bytes per day _times_ retention days = stored bytes.
 
 You can not use both local and object storage in the same Tempo deployment.
+
+### Hedged requests
+
+Each storage backend (GCS, S3, and Azure) supports hedged requests.
+Hedging reduces long-tail read latency by issuing a duplicate backend request after a configured delay.
+Tempo uses whichever response arrives first and discards the other.
+
+Configure hedging with two parameters in each backend block:
+
+- `hedge_requests_at` -- the delay before sending a duplicate request. Set this to approximately the p99 latency of your backend requests. Default is `0` (disabled).
+- `hedge_requests_up_to` -- the maximum number of requests to issue, including the original. Default is `2`. Requires `hedge_requests_at` to be set.
+
+Hedging is most effective on querier nodes, where read latency directly affects query performance.
+It has minimal impact on other components.
 
 ### Storage block configuration example
 

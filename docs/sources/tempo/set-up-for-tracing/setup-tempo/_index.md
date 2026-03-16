@@ -40,7 +40,6 @@ Refer to [Deploy Tempo](/docs/tempo/<TEMPO_VERSION>/set-up-for-tracing/setup-tem
 Once Tempo is deployed, you can validate Tempo by visualizing traces data:
 
 - Using a [test application for a Tempo cluster](/docs/tempo/<TEMPO_VERSION>/set-up-for-tracing/setup-tempo/test/set-up-test-app/) for the Kubernetes with Tanka setup
-- Using a [Docker example](/docs/tempo/<TEMPO_VERSION>/set-up-for-tracing/setup-tempo/test/test-monolithic-local/) to test the Linux setup
 
 These visualizations test Kubernetes with Tanka and Linux procedures.
 They don't check optional configuration you have enabled.

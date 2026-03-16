@@ -1,0 +1,13 @@
+description: Config defines configuration settings for the Zipkin exporter.
+type: object
+properties:
+  default_service_name:
+    type: string
+  format:
+    type: string
+  sending_queue:
+    x-optional: true
+    $ref: go.opentelemetry.io/collector/exporter/exporterhelper.queue_batch_config
+allOf:
+  - $ref: go.opentelemetry.io/collector/config/configretry.back_off_config
+  - $ref: go.opentelemetry.io/collector/config/confighttp.client_config

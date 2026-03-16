@@ -22,6 +22,13 @@
     container.securityContext.withRunAsGroup(0) +
     {},
 
+  removeReplicasFromSpec:: {
+    spec+: {
+      // Remove the "replicas" field so that it isn't reconciled.
+      replicas+:: null,
+    },
+  },
+
   util+:: {
     local k = import 'ksonnet-util/kausal.libsonnet',
     local container = k.core.v1.container,

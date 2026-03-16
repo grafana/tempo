@@ -76,10 +76,10 @@ func toKeyValueString[K any](target ottl.PMapGetter[K], d, p ottl.Optional[strin
 func convertMapToKV(target pcommon.Map, delimiter, pairDelimiter string, sortOutput bool) string {
 	var kvStrings []string
 	if sortOutput {
-		var keyValues []struct {
+		keyValues := make([]struct {
 			key string
 			val pcommon.Value
-		}
+		}, 0, target.Len())
 
 		// Sort by keys
 		for k, v := range target.All() {

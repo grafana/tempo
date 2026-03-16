@@ -584,30 +584,6 @@ func (o *runtimeConfigOverridesManager) MetricsGeneratorProcessorSpanMetricsEnab
 	return false, false
 }
 
-func (o *runtimeConfigOverridesManager) MetricsGeneratorProcessorLocalBlocksMaxLiveTraces(userID string) uint64 {
-	return o.getOverridesForUser(userID).MetricsGenerator.Processor.LocalBlocks.MaxLiveTraces
-}
-
-func (o *runtimeConfigOverridesManager) MetricsGeneratorProcessorLocalBlocksMaxBlockDuration(userID string) time.Duration {
-	return o.getOverridesForUser(userID).MetricsGenerator.Processor.LocalBlocks.MaxBlockDuration
-}
-
-func (o *runtimeConfigOverridesManager) MetricsGeneratorProcessorLocalBlocksMaxBlockBytes(userID string) uint64 {
-	return o.getOverridesForUser(userID).MetricsGenerator.Processor.LocalBlocks.MaxBlockBytes
-}
-
-func (o *runtimeConfigOverridesManager) MetricsGeneratorProcessorLocalBlocksTraceIdlePeriod(userID string) time.Duration {
-	return o.getOverridesForUser(userID).MetricsGenerator.Processor.LocalBlocks.TraceIdlePeriod
-}
-
-func (o *runtimeConfigOverridesManager) MetricsGeneratorProcessorLocalBlocksFlushCheckPeriod(userID string) time.Duration {
-	return o.getOverridesForUser(userID).MetricsGenerator.Processor.LocalBlocks.FlushCheckPeriod
-}
-
-func (o *runtimeConfigOverridesManager) MetricsGeneratorProcessorLocalBlocksCompleteBlockTimeout(userID string) time.Duration {
-	return o.getOverridesForUser(userID).MetricsGenerator.Processor.LocalBlocks.CompleteBlockTimeout
-}
-
 func (o *runtimeConfigOverridesManager) MetricsGeneratorProcessorSpanMetricsTargetInfoExcludedDimensions(userID string) []string {
 	return o.getOverridesForUser(userID).MetricsGenerator.Processor.SpanMetrics.TargetInfoExcludedDimensions
 }

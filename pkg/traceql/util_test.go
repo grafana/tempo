@@ -68,8 +68,8 @@ func TestBucketSet_Bucket(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			bs := newBucketSet(maxExemplars, tc.start*uint64(time.Second.Nanoseconds()), tc.end*uint64(time.Second.Nanoseconds())) //nolint: gosec // G115
-			actual := bs.bucket(tc.ts * uint64(time.Second.Milliseconds()))                                                        //nolint: gosec // G115
+			bs := newBucketSet(100, tc.start*uint64(time.Second.Nanoseconds()), tc.end*uint64(time.Second.Nanoseconds())) //nolint: gosec // G115
+			actual := bs.bucket(tc.ts * uint64(time.Second.Milliseconds()))                                               //nolint: gosec // G115
 			assert.Equal(t, tc.expected, actual)
 		})
 	}
@@ -80,7 +80,7 @@ func TestBucketSet_Instant(t *testing.T) {
 	end := uint64(1010)
 	step := end - start
 
-	bs := newExemplarBucketSet(maxExemplars, start, end, step, true)
+	bs := newExemplarBucketSet(100, start, end, step, true)
 	assert.True(t, bs.testTotal())
 	assert.True(t, bs.addAndTest(start-1))
 	assert.True(t, bs.addAndTest(start))
@@ -88,7 +88,7 @@ func TestBucketSet_Instant(t *testing.T) {
 }
 
 func TestBucketSet(t *testing.T) {
-	s := newBucketSet(maxExemplars, uint64(100*time.Second.Nanoseconds()), uint64(199*time.Second.Nanoseconds())) //nolint: gosec // G115
+	s := newBucketSet(100, uint64(100*time.Second.Nanoseconds()), uint64(199*time.Second.Nanoseconds())) //nolint: gosec // G115
 
 	// Add two to each bucket
 	for ts := uint64(100); ts <= 199; ts += 2 { // 100 in total
@@ -114,4 +114,24 @@ func TestBucketSetSingleExemplar(t *testing.T) {
 	tsMilli := uint64(100 * time.Second.Milliseconds())                                                //nolint: gosec // G115
 	assert.False(t, s.addAndTest(tsMilli), "ts=%d should be added to bucket", 100)
 	assert.True(t, s.addAndTest(tsMilli), "ts=%d should not be added to bucket", 100)
+}
+
+func TestBucketSetLargeExemplarsShortRange(t *testing.T) {
+	// exemplars=10000 → buckets=5000, but the range is only 1 second (1000ms interval).
+	// Without the guard, bucketWidth=0 causes a divide-by-zero in bucket().
+	s := newBucketSet(10000, 0, uint64(time.Second.Nanoseconds())) //nolint: gosec // G115
+	assert.NotPanics(t, func() {
+		s.addAndTest(500) // 500ms into the range
+	})
+	assert.False(t, s.testTotal(), "should not be full after one exemplar")
+}
+
+func TestBucketSetZeroExemplars(t *testing.T) {
+	// exemplars=0 means collection is disabled: testTotal() should always return true
+	// and no exemplars should ever be accepted.
+	s := newBucketSet(0, uint64(100*time.Second.Nanoseconds()), uint64(200*time.Second.Nanoseconds())) //nolint: gosec // G115
+	assert.True(t, s.testTotal(), "bucket set with 0 exemplars should always report full")
+	tsMilli := uint64(150 * time.Second.Milliseconds()) //nolint: gosec // G115
+	assert.True(t, s.addAndTest(tsMilli), "adding to a 0-exemplar bucket set should be rejected")
+	assert.Equal(t, 0, s.len())
 }
