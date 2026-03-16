@@ -29,7 +29,7 @@ func TestExtractMatchers(t *testing.T) {
 		{
 			name:     "incomplete query",
 			query:    `{ .http.status_code = 200 && .http.method = }`,
-			expected: "{.http.status_code = 200}",
+			expected: "{.http.status_code = 200 && .http.method}",
 		},
 		{
 			name:     "reversed operands with missing closing bracket",
@@ -39,12 +39,12 @@ func TestExtractMatchers(t *testing.T) {
 		{
 			name:     "long query",
 			query:    `{.service_name = "foo" && .http.status_code = 200 && .http.method = "GET" && .cluster = }`,
-			expected: `{(.service_name = "foo" && .http.status_code = 200) && .http.method = "GET"}`,
+			expected: `{((.service_name = "foo" && .http.status_code = 200) && .http.method = "GET") && .cluster}`,
 		},
 		{
 			name:     "query with duration a boolean",
 			query:    `{ duration > 5s && .success = true && .cluster = }`,
-			expected: `{duration > 5s && .success = true}`,
+			expected: `{(duration > 5s && .success = true) && .cluster}`,
 		},
 		{
 			name:     "query with three selectors with AND",
@@ -79,12 +79,12 @@ func TestExtractMatchers(t *testing.T) {
 		{
 			name:     "query with missing closing bracket",
 			query:    `{resource.service_name = "foo" && span.http.target=`,
-			expected: `{resource.service_name = "foo"}`,
+			expected: `{resource.service_name = "foo" && span.http.target}`,
 		},
 		{
 			name:     "uncommon characters",
 			query:    `{ span.foo = "<>:b5[]" && resource.service.name = }`,
-			expected: `{span.foo = "<>:b5[]"}`,
+			expected: `{span.foo = "<>:b5[]" && resource.service.name}`,
 		},
 		{
 			name:     "kind",
@@ -144,22 +144,22 @@ func TestExtractMatchers(t *testing.T) {
 		{
 			name:     "metrics query",
 			query:    `{.service_name = "foo" && .foo=} | rate() by (.bar)`,
-			expected: `{.service_name = "foo"}`,
+			expected: `{.service_name = "foo" && .foo}`,
 		},
 		{
 			name:     "query with select",
 			query:    `{.service_name = "foo" && .foo=} | select(.bar, .baz)`,
-			expected: `{.service_name = "foo"}`,
+			expected: `{.service_name = "foo" && .foo}`,
 		},
 		{
 			name:     "query with parentheses and incomplete matcher",
 			query:    `{ (resource.foo = "bar" && .baz = ) && .qux = "quux" }`,
-			expected: `{resource.foo = "bar" && .qux = "quux"}`,
+			expected: `{(resource.foo = "bar" && .baz) && .qux = "quux"}`,
 		},
 		{
 			name:     "query with parentheses containing all incomplete matchers",
 			query:    `{ (resource.foo =  && .baz = ) && .qux = "quux" }`,
-			expected: `{.qux = "quux"}`,
+			expected: `{(resource.foo && .baz) && .qux = "quux"}`,
 		},
 	}
 	for _, tc := range testCases {

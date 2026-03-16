@@ -123,11 +123,9 @@ func markIncompleteMatchers(tokens []token, remove []bool) {
 			continue
 		}
 
-		// Incomplete matcher: attr + op but no value → mark for removal
+		// Incomplete matcher: attr + op but no value → mark operator for removal
 		if i+1 < len(tokens) && isComparisonOperator(tokens[i+1].typ) {
-			for j := attrStart; j <= i+1; j++ {
-				remove[j] = true
-			}
+			remove[i+1] = true
 			i += 2
 			continue
 		}
