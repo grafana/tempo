@@ -83,10 +83,11 @@ increased until it is enough to get past the trace, and must remain increased un
 deleted, or else there is the risk of the trace causing OOMs later. Ingestion limits should be reviewed and possibly reduced.
 If a block continues to cause problems and cannot be resolved it can be deleted manually.
 
+In the current backend-scheduler/backend-worker flow, the scheduler exposes backlog metrics such as `tempodb_compaction_outstanding_blocks`, while backend-workers perform the compaction work. Use scheduler metrics to understand queue depth and worker metrics/logs to identify resource pressure or job failures.
 
 ### Quick checks
 - Metric/query: `sum by (cluster, namespace) (increase(tempodb_compaction_errors_total[1h]))`
-- Metric/query: `sum by (tenant) (tempodb_compaction_outstanding_blocks{})`
+- Metric/query: `sum by (tenant) (tempodb_compaction_outstanding_blocks{container="backend-scheduler"})`
 - Metric/query: `max by (pod) (container_memory_working_set_bytes{container="backend-worker"})`
 - Log query: `{container=~"backend-worker|backend-scheduler"} |= "compaction"`
 
@@ -193,10 +194,11 @@ to pull is to simply delete stale tenant indexes as all components will fallback
 
 The block list needs to remain under control to keep query performance acceptable. If the block list is rising too quickly, this might indicate the backend workers are under-scaled. Add more workers until the block list is back under control and holding mostly steady.
 
+In the current backend-scheduler/backend-worker flow, the scheduler exposes the block list and outstanding compaction backlog metrics, while backend-workers execute the compaction jobs. Use scheduler metrics to measure backlog growth and worker count/resources to decide whether more worker capacity is needed.
 
 ### Quick checks
-- Metric/query: `tempodb_blocklist_length{}`
-- Metric/query: `sum by (tenant) (tempodb_compaction_outstanding_blocks{})`
+- Metric/query: `tempodb_blocklist_length{container="backend-scheduler"}`
+- Metric/query: `sum by (tenant) (tempodb_compaction_outstanding_blocks{container="backend-scheduler"})`
 - Metric/query: `count(tempo_build_info{container="backend-worker"})`
 - Log query: `{container=~"backend-worker|backend-scheduler"} |= "compaction"`
 
@@ -233,6 +235,8 @@ This alert fires when there are too many blocks to be compacted for a long perio
 The alert does not require immediate action, but is a symptom that compaction is under-scaled
 and could affect the read path in particular.
 
+In the current backend-scheduler/backend-worker flow, the scheduler exposes `tempodb_compaction_outstanding_blocks` and related backlog metrics, while backend-workers execute the compaction jobs. Use scheduler metrics to quantify the backlog and worker count/resources to decide whether more worker capacity is needed.
+
 How to fix:
 
 Compaction's bottleneck is most commonly CPU time, so adding more backend workers is the most effective measure.
@@ -247,9 +251,9 @@ settings to prevent [trace lookup failures](#trace-lookup-failures).
 
 
 ### Quick checks
-- Metric/query: `sum by (tenant) (tempodb_compaction_outstanding_blocks{})`
+- Metric/query: `sum by (tenant) (tempodb_compaction_outstanding_blocks{container="backend-scheduler"})`
 - Metric/query: `count(tempo_build_info{container="backend-worker"})`
-- Metric/query: `tempodb_blocklist_length{}`
+- Metric/query: `tempodb_blocklist_length{container="backend-scheduler"}`
 - Log query: `{container=~"backend-worker|backend-scheduler"} |= "compaction"`
 
 ## TempoPartitionLag
@@ -534,7 +538,7 @@ to do.
 
 ### Quick checks
 - Metric/query: `sum(increase(tempo_backend_scheduler_compaction_tenant_empty_job_total[1m])) by (cluster, namespace)`
-- Metric/query: `sum by (tenant) (tempodb_compaction_outstanding_blocks{})`
+- Metric/query: `sum by (tenant) (tempodb_compaction_outstanding_blocks{container="backend-scheduler"})`
 - Log query: `{container="backend-scheduler"} |= "compaction"`
 
 ## TempoBackendWorkerBadJobsRateHigh
