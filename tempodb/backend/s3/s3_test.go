@@ -303,22 +303,22 @@ func TestHedge(t *testing.T) {
 
 func TestRetryConfiguration(t *testing.T) {
 	tests := []struct {
-		name      string
-		maxRetry  int
-		retryUnit time.Duration
-		retryCap  time.Duration
+		name                string
+		retryMaxAttempts    int
+		retryBackoffInitial time.Duration
+		retryBackoffMax     time.Duration
 	}{
 		{
-			name:      "custom retry configuration",
-			maxRetry:  5,
-			retryUnit: 500 * time.Millisecond,
-			retryCap:  10 * time.Second,
+			name:                "custom retry configuration",
+			retryMaxAttempts:    5,
+			retryBackoffInitial: 500 * time.Millisecond,
+			retryBackoffMax:     10 * time.Second,
 		},
 		{
-			name:      "default retry values when not set",
-			maxRetry:  0,
-			retryUnit: 0,
-			retryCap:  0,
+			name:                "default retry values when not set",
+			retryMaxAttempts:    0,
+			retryBackoffInitial: 0,
+			retryBackoffMax:     0,
 		},
 	}
 
@@ -336,34 +336,34 @@ func TestRetryConfiguration(t *testing.T) {
 			server := fakeServer(t, 100*time.Millisecond, new(int32))
 
 			cfg := &Config{
-				Region:    "blerg",
-				AccessKey: "test",
-				SecretKey: flagext.SecretWithValue("test"),
-				Bucket:    "blerg",
-				Insecure:  true,
-				Endpoint:  server.URL[7:],
-				MaxRetry:  tc.maxRetry,
-				RetryUnit: tc.retryUnit,
-				RetryCap:  tc.retryCap,
+				Region:              "blerg",
+				AccessKey:           "test",
+				SecretKey:           flagext.SecretWithValue("test"),
+				Bucket:              "blerg",
+				Insecure:            true,
+				Endpoint:            server.URL[7:],
+				RetryMaxAttempts:    tc.retryMaxAttempts,
+				RetryBackoffInitial: tc.retryBackoffInitial,
+				RetryBackoffMax:     tc.retryBackoffMax,
 			}
 
 			_, _, _, err := New(cfg)
 			require.NoError(t, err)
 
-			if tc.maxRetry != 0 {
-				assert.Equal(t, tc.maxRetry, minio.MaxRetry)
+			if tc.retryMaxAttempts != 0 {
+				assert.Equal(t, tc.retryMaxAttempts, minio.MaxRetry)
 			} else {
 				assert.Equal(t, origMaxRetry, minio.MaxRetry)
 			}
 
-			if tc.retryUnit != 0 {
-				assert.Equal(t, tc.retryUnit, minio.DefaultRetryUnit)
+			if tc.retryBackoffInitial != 0 {
+				assert.Equal(t, tc.retryBackoffInitial, minio.DefaultRetryUnit)
 			} else {
 				assert.Equal(t, origRetryUnit, minio.DefaultRetryUnit)
 			}
 
-			if tc.retryCap != 0 {
-				assert.Equal(t, tc.retryCap, minio.DefaultRetryCap)
+			if tc.retryBackoffMax != 0 {
+				assert.Equal(t, tc.retryBackoffMax, minio.DefaultRetryCap)
 			} else {
 				assert.Equal(t, origRetryCap, minio.DefaultRetryCap)
 			}

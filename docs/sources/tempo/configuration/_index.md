@@ -1275,20 +1275,20 @@ storage:
             [hedge_requests_up_to: <int>]
 
             # Optional. Default is 10 (minio default)
-            # Example: "max_retry: 10"
+            # Example: "retry_max_attempts: 10"
             # The maximum number of retry attempts on failed S3 requests. Set to 1 to disable retries.
-            [max_retry: <int>]
+            [retry_max_attempts: <int>]
 
             # Optional. Default is 200ms (minio default)
-            # Example: "retry_unit: 200ms"
+            # Example: "retry_backoff_initial: 200ms"
             # The baseline time after which a retry is attempted on failed S3 requests. This time is
-            # doubled each retry until it hits retry_cap, after which it remains at retry_cap.
-            [retry_unit: <duration>]
+            # doubled each retry until it hits retry_backoff_max, after which it remains at retry_backoff_max.
+            [retry_backoff_initial: <duration>]
 
             # Optional. Default is 1s (minio default)
-            # Example: "retry_cap: 1s"
+            # Example: "retry_backoff_max: 1s"
             # The maximum duration to wait between retry attempts on failed S3 requests.
-            [retry_cap: <duration>]
+            [retry_backoff_max: <duration>]
 
             # Optional
             # Example: "tags: {'key': 'value'}"

@@ -122,16 +122,16 @@ func internalNew(cfg *Config, confirm bool) (*readerWriter, error) {
 	l := log.Logger
 
 	// Global minio settings that affect all minio clients in the process
-	if cfg.MaxRetry > 0 {
-		minio.MaxRetry = cfg.MaxRetry
+	if cfg.RetryMaxAttempts > 0 {
+		minio.MaxRetry = cfg.RetryMaxAttempts
 	}
 
-	if cfg.RetryUnit > 0 {
-		minio.DefaultRetryUnit = cfg.RetryUnit
+	if cfg.RetryBackoffInitial > 0 {
+		minio.DefaultRetryUnit = cfg.RetryBackoffInitial
 	}
 
-	if cfg.RetryCap > 0 {
-		minio.DefaultRetryCap = cfg.RetryCap
+	if cfg.RetryBackoffMax > 0 {
+		minio.DefaultRetryCap = cfg.RetryBackoffMax
 	}
 
 	core, err := createCore(cfg, false)
