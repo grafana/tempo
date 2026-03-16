@@ -317,7 +317,7 @@ You can apply comparison operators to the results of any metrics query to keep o
 This lets you filter out noise and focus on the values that matter, for example, only showing series where the rate exceeds a threshold.
 
 The supported comparison operators are `>`, `>=`, `<`, `<=`, `=`, and `!=`.
-You can compare against integers, floats, and durations (for example, `1s` or `500ms`).
+You can compare against integers, floats, and durations, for example, `1s` or `500ms`.
 
 {{< admonition type="note" >}}
 Comparison operators aren't supported with the `compare()` function.
