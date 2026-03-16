@@ -304,7 +304,10 @@ func ParseQueryInstantRequest(r *http.Request) (*tempopb.QueryInstantRequest, er
 		req.Query = s
 	}
 
-	start, end, _ := bounds(vals)
+	start, end, err := bounds(vals)
+	if err != nil {
+		return nil, httpgrpc.Error(http.StatusBadRequest, err.Error())
+	}
 	req.Start = uint64(start.UnixNano())
 	req.End = uint64(end.UnixNano())
 
@@ -329,7 +332,10 @@ func ParseQueryRangeRequest(r *http.Request) (*tempopb.QueryRangeRequest, error)
 		req.QueryMode = s
 	}
 
-	start, end, _ := bounds(vals)
+	start, end, err := bounds(vals)
+	if err != nil {
+		return nil, httpgrpc.Error(http.StatusBadRequest, err.Error())
+	}
 	req.Start = uint64(start.UnixNano())
 	req.End = uint64(end.UnixNano())
 
