@@ -26,6 +26,24 @@ const (
 	configMetricsGeneratorMessagingSystem = "config-messaging-system.yaml"
 )
 
+func TestMetricsGeneratorSingleBinaryPushesInProcess(t *testing.T) {
+	util.RunIntegrationTests(t, util.TestHarnessConfig{
+		ConfigOverlay:  configMetricsGenerator,
+		DeploymentMode: util.DeploymentModeSingleBinary,
+		Components:     util.ComponentsMetricsGeneration,
+	}, func(h *util.TempoHarness) {
+		h.WaitTracesWritable(t)
+
+		require.NoError(t, h.WriteJaegerBatch(util.MakeThriftBatch(), ""))
+
+		tempo := h.Services[util.ServiceMetricsGenerator]
+		// In single-binary mode the generator receives spans in-process and should
+		// not consume from Kafka.
+		require.NoError(t, tempo.WaitSumMetrics(e2e.Equals(float64(0)), "tempo_metrics_generator_enqueue_time_seconds_total"))
+		require.NoError(t, tempo.WaitSumMetrics(e2e.GreaterOrEqual(1), "tempo_metrics_generator_spans_received_total"))
+	})
+}
+
 func TestMetricsGeneratorRemoteWrite(t *testing.T) {
 	util.RunIntegrationTests(t, util.TestHarnessConfig{
 		ConfigOverlay: configMetricsGenerator,

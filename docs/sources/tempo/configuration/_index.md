@@ -315,7 +315,7 @@ Benchmark testing suggested that without compression, queriers and distributors 
 However, you may notice an increase in ingester data and network traffic especially for larger clusters.
 This increased data can impact billing for Grafana Cloud.
 
-You can configure the gRPC compression in the `querier`, `ingester`, and `metrics_generator` clients of the distributor.
+You can configure the gRPC compression in the `ingester_client` and `querier.frontend_worker` gRPC clients.
 
 To disable compression, remove `snappy` from the `grpc_compression` lines.
 
@@ -323,9 +323,6 @@ To re-enable the compression, use `snappy` with the following settings:
 
 ```yaml
 ingester_client:
-  grpc_client_config:
-    grpc_compression: "snappy"
-metrics_generator_client:
   grpc_client_config:
     grpc_compression: "snappy"
 querier:
@@ -735,8 +732,8 @@ query_frontend:
 
         # The maximum allowed value of the limit parameter on search requests. If the search request limit parameter
         # exceeds the value configured here the frontend will return a 400.
-        # The default value of 0 disables this limit.
-        # (default: 0)
+        # The default value is 262144 (256*1024). Set to 0 to disable this limit.
+        # (default: 262144)
         [max_result_limit: <int>]
 
         # The maximum allowed time range for a search.
@@ -821,7 +818,8 @@ query_frontend:
         # 0 disables this limit.
         [max_duration: <duration> | default = 3h ]
 
-        # Maximun number of exemplars per range query. Limited to 100.
+        # Maximum number of exemplars per range query.
+        # Set to 0 to disable exemplars.
         [max_exemplars: <int> | default = 100 ]
 
         # Maximum number of time series returned for a metrics query.

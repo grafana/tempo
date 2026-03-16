@@ -12,6 +12,8 @@ import (
 
 	"github.com/go-kit/log"
 	"github.com/grafana/tempo/modules/overrides/histograms"
+	"github.com/prometheus/client_golang/prometheus"
+	io_prometheus_client "github.com/prometheus/client_model/go"
 	"github.com/prometheus/prometheus/model/labels"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -485,6 +487,7 @@ type mockOverrides struct {
 	nativeHistogramBucketFactor     float64
 	nativeHistogramMinResetDuration time.Duration
 	maxCardinalityPerLabel          uint64
+	spanNameSanitization            string
 }
 
 var _ Overrides = (*mockOverrides)(nil)
@@ -526,6 +529,9 @@ func (m *mockOverrides) MetricsGeneratorNativeHistogramMinResetDuration(string) 
 }
 
 func (m *mockOverrides) MetricsGeneratorSpanNameSanitization(string) string {
+	if m.spanNameSanitization != "" {
+		return m.spanNameSanitization
+	}
 	return SpanNameSanitizationDisabled
 }
 
@@ -817,6 +823,91 @@ func TestManagedRegistry_entityDemandWithMultipleMetrics(t *testing.T) {
 	assert.Less(t, entityDemand, uint64(70), "entity demand should not triple-count entities across metrics")
 }
 
+func TestManagedRegistry_replaceMetricDrainsOldSeries(t *testing.T) {
+	appender := &capturingAppender{}
+
+	cfg := &Config{
+		StaleDuration: 15 * time.Minute,
+	}
+
+	var deletedSeriesCount int
+	trackingLimiter := &mockLimiter{
+		onAddFunc: func(hash uint64, _ uint32, lbls labels.Labels) (labels.Labels, uint64) {
+			return lbls, hash
+		},
+		onDeleteFunc: func(_ uint64, count uint32) {
+			deletedSeriesCount += int(count)
+		},
+	}
+
+	reg := New(cfg, &mockOverrides{}, "test", appender, log.NewNopLogger(), trackingLimiter)
+	defer reg.Close()
+
+	// Create the first counter and add 50 series.
+	counter1 := reg.NewCounter("my_counter")
+	for i := 0; i < 50; i++ {
+		lbls := buildTestLabels([]string{"label"}, []string{fmt.Sprintf("value-%d", i)})
+		counter1.Inc(lbls, 1.0)
+	}
+
+	activeBefore := reg.activeSeries()
+	assert.Equal(t, uint32(50), activeBefore)
+
+	// Replacing the metric (same name) simulates a processor recreation.
+	// Before the fix, old series would leak from the limiter's active count.
+	_ = reg.NewCounter("my_counter")
+
+	// Old series must have been drained through OnDelete.
+	assert.Equal(t, 50, deletedSeriesCount, "old series should be cleaned up via OnDelete")
+
+	// Active series in the registry should now be 0 (old drained, new empty).
+	activeAfter := reg.activeSeries()
+	assert.Equal(t, uint32(0), activeAfter)
+}
+
+func TestManagedRegistry_replaceHistogramDrainsWithMultiplier(t *testing.T) {
+	appender := &capturingAppender{}
+
+	cfg := &Config{
+		StaleDuration: 15 * time.Minute,
+	}
+
+	var deletedSeriesCount int
+	trackingLimiter := &mockLimiter{
+		onAddFunc: func(hash uint64, _ uint32, lbls labels.Labels) (labels.Labels, uint64) {
+			return lbls, hash
+		},
+		onDeleteFunc: func(_ uint64, count uint32) {
+			deletedSeriesCount += int(count)
+		},
+	}
+
+	reg := New(cfg, &mockOverrides{}, "test", appender, log.NewNopLogger(), trackingLimiter)
+	defer reg.Close()
+
+	buckets := []float64{1.0, 2.0, 5.0}
+	h := reg.NewHistogram("my_histogram", buckets, HistogramModeClassic)
+
+	// Each entity creates sum + count + len(buckets) + Inf = 2 + 3 + 1 = 6 series.
+	seriesPerEntity := 2 + len(buckets) + 1
+
+	for i := 0; i < 20; i++ {
+		lbls := buildTestLabels([]string{"label"}, []string{fmt.Sprintf("value-%d", i)})
+		h.ObserveWithExemplar(lbls, float64(i), "", 1.0)
+	}
+
+	activeBefore := reg.activeSeries()
+	assert.Equal(t, uint32(20*seriesPerEntity), activeBefore)
+
+	// Replace the histogram — old series must be drained with the correct multiplier.
+	_ = reg.NewHistogram("my_histogram", buckets, HistogramModeClassic)
+
+	assert.Equal(t, 20*seriesPerEntity, deletedSeriesCount, "histogram drain must use activeSeriesPerHistogramSerie multiplier")
+
+	activeAfter := reg.activeSeries()
+	assert.Equal(t, uint32(0), activeAfter)
+}
+
 func TestManagedRegistry_cardinalitySanitizer(t *testing.T) {
 	appender := &capturingAppender{}
 
@@ -872,4 +963,86 @@ func TestManagedRegistry_cardinalitySanitizer(t *testing.T) {
 	// Verify active series: 10 pre-overflow series + 1 collapsed overflow series = 11
 	activeSeries := reg.activeSeries()
 	require.Equal(t, uint32(11), activeSeries, "10 pre-overflow + 1 overflow series")
+}
+
+// TestManagedRegistry_InfoMetricLabelsNotInDemandEstimate verifies that labels from
+// info metrics (target_info, host_info) do not appear in the label_cardinality_demand_estimate metric.
+// Only labels from span-metrics and service-graphs (via NewLabelBuilder) should be tracked.
+func TestManagedRegistry_InfoMetricLabelsNotInDemandEstimate(t *testing.T) {
+	tenant := "test-demand"
+	cfg := &Config{
+		StaleDuration: 15 * time.Minute,
+	}
+	reg := New(cfg, &mockOverrides{
+		maxCardinalityPerLabel: 100,
+	}, tenant, &noopAppender{}, log.NewNopLogger(), noopLimiter)
+	defer reg.Close()
+
+	spanMetricsCounter := reg.NewCounter("span_metrics_calls_total")
+	targetInfoGauge := reg.NewGauge("target_info")
+	hostInfoGauge := reg.NewGauge("host_info")
+
+	// Simulate span-metrics data through NewLabelBuilder (per-label limiter active)
+	for i := 0; i < 10; i++ {
+		b := reg.NewLabelBuilder()
+		b.Add("service", fmt.Sprintf("svc-%d", i))
+		b.Add("span_name", fmt.Sprintf("GET /api/%d", i))
+		lbls, _ := b.CloseAndBuildLabels()
+		spanMetricsCounter.Inc(lbls, 1.0)
+	}
+
+	// Simulate target_info data through NewInfoMetricLabelBuilder (limiter bypassed)
+	for i := 0; i < 10; i++ {
+		b := reg.NewInfoMetricLabelBuilder()
+		b.Add("grafana_host_id", fmt.Sprintf("host-%d", i))
+		b.Add("k8s_pod_name", fmt.Sprintf("pod-%d", i))
+		b.Add("ci_github_workflow_job_id", fmt.Sprintf("job-%d", i))
+		lbls, _ := b.CloseAndBuildLabels()
+		targetInfoGauge.SetForTargetInfo(lbls, 1)
+	}
+
+	// Simulate host_info data through NewInfoMetricLabelBuilder (limiter bypassed)
+	for i := 0; i < 10; i++ {
+		b := reg.NewInfoMetricLabelBuilder()
+		b.Add("grafana_host_id", fmt.Sprintf("host-%d", i))
+		b.Add("host_source", "k8s.node.name")
+		lbls, _ := b.CloseAndBuildLabels()
+		hostInfoGauge.Set(lbls, 1)
+	}
+
+	// Trigger demand update so the limiter publishes the demand estimate metric
+	triggerDemandUpdate(reg.perLabelLimiter.(*PerLabelLimiter))
+
+	trackedLabels := collectDemandEstimateLabels(t, tenant)
+
+	// Only span-metrics labels should be present - no info metric labels at all
+	require.Len(t, trackedLabels, 2, "demand estimate should only contain span-metrics labels")
+	require.Equal(t, float64(10), trackedLabels["service"], "service should have demand of 10")
+	require.Equal(t, float64(10), trackedLabels["span_name"], "span_name should have demand of 10")
+}
+
+// collectDemandEstimateLabels returns all label_name -> demand values from the
+// tempo_metrics_generator_registry_label_cardinality_demand_estimate metric for the given tenant.
+func collectDemandEstimateLabels(t *testing.T, tenant string) map[string]float64 {
+	result := map[string]float64{}
+	ch := make(chan prometheus.Metric, 100)
+	metricLabelCardinalityDemand.Collect(ch)
+	close(ch)
+	for m := range ch {
+		var g io_prometheus_client.Metric
+		require.NoError(t, m.Write(&g))
+		var metricTenant, labelName string
+		for _, lbl := range g.GetLabel() {
+			switch lbl.GetName() {
+			case "tenant":
+				metricTenant = lbl.GetValue()
+			case "label_name":
+				labelName = lbl.GetValue()
+			}
+		}
+		if metricTenant == tenant {
+			result[labelName] = g.GetGauge().GetValue()
+		}
+	}
+	return result
 }

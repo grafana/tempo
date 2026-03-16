@@ -272,39 +272,6 @@ ingester_client:
         connect_backoff_max_delay: 5s
         cluster_validation:
             label: ""
-metrics_generator_client:
-    pool_config:
-        checkinterval: 15s
-        healthcheckenabled: true
-        healthchecktimeout: 1s
-        maxconcurrenthealthchecks: 0
-    remote_timeout: 5s
-    grpc_client_config:
-        max_recv_msg_size: 104857600
-        max_send_msg_size: 104857600
-        grpc_compression: snappy
-        rate_limit: 0
-        rate_limit_burst: 0
-        backoff_on_ratelimits: false
-        backoff_config:
-            min_period: 100ms
-            max_period: 10s
-            max_retries: 10
-        initial_stream_window_size: 63KiB1023B
-        initial_connection_window_size: 63KiB1023B
-        tls_enabled: false
-        tls_cert_path: ""
-        tls_key_path: ""
-        tls_ca_path: ""
-        tls_server_name: ""
-        tls_insecure_skip_verify: false
-        tls_cipher_suites: ""
-        tls_min_version: ""
-        connect_timeout: 5s
-        connect_backoff_base_delay: 1s
-        connect_backoff_max_delay: 5s
-        cluster_validation:
-            label: ""
 live_store_client:
     pool_config:
         checkinterval: 15s
@@ -650,7 +617,6 @@ metrics_generator:
         remote_write_flush_deadline: 1m0s
         remote_write_add_org_id_header: true
     metrics_ingestion_time_range_slack: 30s
-    query_timeout: 30s
     override_ring_key: metrics-generator
     codec: push-bytes
     disable_grpc: false

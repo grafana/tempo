@@ -495,9 +495,13 @@ local utils = import 'mixin-utils/utils.libsonnet';
     ],
   } + $.stack,
 
-  // Assumes that the metricName is for a histogram (as opposed to qpsPanel above)
-  // Assumes that there is a dashboard variable named latency_metrics, values are -1 (native) or 1 (classic)
-  qpsPanelNativeHistogram(metricName, selector, statusLabelName='status_code'):: {
+  // Assumes that the metricName is for a histogram (as opposed to qpsPanel above).
+  // When nativeOnly is false (default), assumes that there is a dashboard variable named
+  // latency_metrics with values -1 (native) or 1 (classic), and shows both native and classic
+  // histogram queries gated on that variable.
+  // When nativeOnly is true, only the native histogram query is shown without any dependency
+  // on a dashboard variable.
+  qpsPanelNativeHistogram(metricName, selector, statusLabelName='status_code', nativeOnly=false):: {
     local sumByStatus(nativeClassicQuery) = {
       local template =
         |||
@@ -510,7 +514,14 @@ local utils = import 'mixin-utils/utils.libsonnet';
       classic: template % { metricQuery: nativeClassicQuery.classic, label: statusLabelName },
     },
     aliasColors: $.httpStatusColors,
-    targets: [
+    targets: if nativeOnly then [
+      {
+        expr: sumByStatus(utils.ncHistogramCountRate(metricName, selector)).native,
+        format: 'time_series',
+        legendFormat: '{{status}}',
+        refId: 'A',
+      },
+    ] else [
       {
         expr: utils.showClassicHistogramQuery(sumByStatus(utils.ncHistogramCountRate(metricName, selector))),
         format: 'time_series',

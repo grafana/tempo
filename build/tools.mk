@@ -10,7 +10,7 @@ GO_MOD_OUTDATED  ?= go-mod-outdated
 TOOL_DIR     ?= tools
 
 TOOLS_IMAGE ?= grafana/tempo-ci-tools
-TOOLS_IMAGE_TAG ?= main-36bd1c7
+TOOLS_IMAGE_TAG ?= main-b5ffd5f
 
 # Mount the git common directory to the tools container.
 # This is needed when using git worktrees.
@@ -45,7 +45,7 @@ tools:
 
 tools-outdated:
 	@echo "=== [ tools-outdated   ]: Finding outdated tool deps with $(GO_MOD_OUTDATED)..."
-	@cd $(TOOL_DIR) && $(GO) list -u -m -json all | $(GO_MOD_OUTDATED) -direct -update
+	@cd $(TOOL_DIR) && $(GO) list -u -m -json all | $(GO_MOD_OUTDATED) -update
 
 tools-update:
 	@echo "=== [ tools-update     ]: Updating tools required by the project..."
