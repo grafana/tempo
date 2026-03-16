@@ -1065,14 +1065,14 @@ func Test_searchTagValuesV2CacheKey(t *testing.T) {
 			req:              &tempopb.SearchTagValuesRequest{TagName: "span.foo", Query: `{ name = "foo" && span.env = }`},
 			limit:            500,
 			prefix:           "my_amazing_prefix",
-			expectedCacheKey: "my_amazing_prefix_9241051696576633442.buf",
+			expectedCacheKey: "my_amazing_prefix_15848385157282873904.buf",
 		},
 		{
 			name:             "different incomplete part, same valid part",
 			req:              &tempopb.SearchTagValuesRequest{TagName: "span.foo", Query: `{ name = "foo" && span.attr = }`},
 			limit:            500,
 			prefix:           "my_amazing_prefix",
-			expectedCacheKey: "my_amazing_prefix_9241051696576633442.buf",
+			expectedCacheKey: "my_amazing_prefix_5983657085942064414.buf",
 		},
 		{
 			name:             "partially valid query generates a valid cache key",
