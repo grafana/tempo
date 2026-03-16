@@ -65,7 +65,7 @@ func newSearchStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripper[c
 		}
 
 		var finalResponse *tempopb.SearchResponse
-		collector := pipeline.NewGRPCCollector[*tempopb.SearchResponse](next, cfg.ResponseConsumers, comb, func(sr *tempopb.SearchResponse) error {
+		collector := pipeline.NewGRPCCollector[*tempopb.SearchResponse](next, cfg.ResponseConsumers, cfg.MaxGRPCStreamingPacketSize, comb, func(sr *tempopb.SearchResponse) error {
 			finalResponse = sr // sadly we can't srv.Send directly into the collector. we need bytesProcessed for the SLO calculations
 			return srv.Send(sr)
 		})
