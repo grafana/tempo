@@ -22,7 +22,6 @@ import (
 	"github.com/grafana/tempo/pkg/tempopb"
 	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 	"github.com/grafana/tempo/pkg/traceql"
-	"github.com/grafana/tempo/pkg/traceqlmetrics"
 	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/pkg/util/log"
 	"github.com/grafana/tempo/pkg/util/test"
@@ -1649,44 +1648,6 @@ func BenchmarkBackendBlockTraceQL(b *testing.B) {
 			b.SetBytes(int64(bytesRead) / int64(b.N))
 			b.ReportMetric(float64(bytesRead)/float64(b.N)/1000.0/1000.0, "MB_io/op")
 			b.ReportMetric(float64(matches)/float64(b.N), "spans/op")
-		})
-	}
-}
-
-// BenchmarkBackendBlockGetMetrics This doesn't really belong here but I can't think of
-// a better place that has access to all of the packages, especially the backend.
-func BenchmarkBackendBlockGetMetrics(b *testing.B) {
-	testCases := []struct {
-		query   string
-		groupby string
-	}{
-		// {"{ resource.service.name = `gme-ingester` }", "resource.cluster"},
-		{"{}", "name"},
-	}
-
-	ctx := context.TODO()
-	opts := common.DefaultSearchOptions()
-	opts.StartPage = 10
-	opts.TotalPages = 10
-
-	block := blockForBenchmarks(b)
-	_, _, err := block.openForSearch(ctx, opts)
-	require.NoError(b, err)
-
-	for _, tc := range testCases {
-		b.Run(tc.query+"/"+tc.groupby, func(b *testing.B) {
-			b.ResetTimer()
-
-			for i := 0; i < b.N; i++ {
-				f := traceql.NewSpansetFetcherWrapper(func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
-					return block.Fetch(ctx, req, opts)
-				})
-
-				r, err := traceqlmetrics.GetMetrics(ctx, tc.query, tc.groupby, 0, 0, 0, f)
-
-				require.NoError(b, err)
-				require.NotNil(b, r)
-			}
 		})
 	}
 }

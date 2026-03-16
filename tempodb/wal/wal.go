@@ -29,7 +29,7 @@ type WAL struct {
 type Config struct {
 	Filepath       string        `yaml:"path"`
 	IngestionSlack time.Duration `yaml:"ingestion_time_range_slack"`
-	Version        string        `yaml:"version,omitempty"`
+	Version        string        `yaml:"-"`
 }
 
 func (c *Config) RegisterFlags(*flag.FlagSet) {

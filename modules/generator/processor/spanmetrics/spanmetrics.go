@@ -143,7 +143,7 @@ func (p *Processor) aggregateMetricsForSpan(svcName string, jobName string, inst
 	}
 
 	builder := p.registry.NewLabelBuilder()
-	targetInfoBuilder := p.registry.NewLabelBuilder()
+	targetInfoBuilder := p.registry.NewInfoMetricLabelBuilder()
 	for i := range resourceLabels {
 		targetInfoBuilder.Add(resourceLabels[i], resourceValues[i])
 	}

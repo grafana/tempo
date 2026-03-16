@@ -272,39 +272,6 @@ ingester_client:
         connect_backoff_max_delay: 5s
         cluster_validation:
             label: ""
-metrics_generator_client:
-    pool_config:
-        checkinterval: 15s
-        healthcheckenabled: true
-        healthchecktimeout: 1s
-        maxconcurrenthealthchecks: 0
-    remote_timeout: 5s
-    grpc_client_config:
-        max_recv_msg_size: 104857600
-        max_send_msg_size: 104857600
-        grpc_compression: snappy
-        rate_limit: 0
-        rate_limit_burst: 0
-        backoff_on_ratelimits: false
-        backoff_config:
-            min_period: 100ms
-            max_period: 10s
-            max_retries: 10
-        initial_stream_window_size: 63KiB1023B
-        initial_connection_window_size: 63KiB1023B
-        tls_enabled: false
-        tls_cert_path: ""
-        tls_key_path: ""
-        tls_ca_path: ""
-        tls_server_name: ""
-        tls_insecure_skip_verify: false
-        tls_cipher_suites: ""
-        tls_min_version: ""
-        connect_timeout: 5s
-        connect_backoff_base_delay: 1s
-        connect_backoff_max_delay: 5s
-        cluster_validation:
-            label: ""
 live_store_client:
     pool_config:
         checkinterval: 15s
@@ -627,91 +594,6 @@ metrics_generator:
             filter_policies: []
             target_info_excluded_dimensions: []
             enable_instance_label: true
-        local_blocks:
-            block:
-                bloom_filter_false_positive: 0.01
-                bloom_filter_shard_size_bytes: 102400
-                version: vParquet4
-                parquet_row_group_size_bytes: 100000000
-                parquet_dedicated_columns:
-                    - scope: resource
-                      name: k8s.cluster.name
-                      type: string
-                      options: []
-                    - scope: resource
-                      name: k8s.namespace.name
-                      type: string
-                      options: []
-                    - scope: resource
-                      name: k8s.pod.name
-                      type: string
-                      options: []
-                    - scope: resource
-                      name: k8s.container.name
-                      type: string
-                      options: []
-                    - scope: span
-                      name: http.request.method
-                      type: string
-                      options: []
-                    - scope: span
-                      name: http.response.status_code
-                      type: int
-                      options: []
-                    - scope: span
-                      name: url.path
-                      type: string
-                      options: []
-                    - scope: span
-                      name: url.route
-                      type: string
-                      options: []
-                    - scope: span
-                      name: server.address
-                      type: string
-                      options: []
-                    - scope: span
-                      name: server.port
-                      type: int
-                      options: []
-                    - scope: span
-                      name: http.method
-                      type: string
-                      options: []
-                    - scope: span
-                      name: http.url
-                      type: string
-                      options: []
-                    - scope: span
-                      name: http.route
-                      type: string
-                      options: []
-                    - scope: span
-                      name: http.status_code
-                      type: int
-                      options: []
-            search:
-                chunk_size_bytes: 1000000
-                prefetch_trace_count: 1000
-                read_buffer_count: 32
-                read_buffer_size_bytes: 1048576
-                cache_control:
-                    footer: false
-                    column_index: false
-                    offset_index: false
-            flush_check_period: 10s
-            trace_idle_period: 5s
-            trace_live_period: 30s
-            max_block_duration: 1m0s
-            max_block_bytes: 500000000
-            concurrency: 4
-            complete_block_timeout: 1h0m0s
-            max_live_traces: 0
-            max_live_traces_bytes: 250000000
-            filter_server_spans: true
-            flush_to_storage: false
-            concurrent_blocks: 10
-            time_overlap_cutoff: 0.2
         host_info:
             host_identifiers:
                 - k8s.node.name
@@ -734,19 +616,9 @@ metrics_generator:
             no_lockfile: false
         remote_write_flush_deadline: 1m0s
         remote_write_add_org_id_header: true
-    traces_storage:
-        path: ""
-        ingestion_time_range_slack: 2m0s
-        version: vParquet4
-    traces_query_storage:
-        path: ""
-        ingestion_time_range_slack: 2m0s
-        version: vParquet4
     metrics_ingestion_time_range_slack: 30s
-    query_timeout: 30s
     override_ring_key: metrics-generator
     codec: push-bytes
-    disable_local_blocks: false
     disable_grpc: false
     limiter_type: series
     ingest_concurrency: 16
@@ -780,67 +652,6 @@ block_builder:
     max_consuming_bytes: 5000000000
     block:
         max_block_bytes: 20971520
-        bloom_filter_false_positive: 0.01
-        bloom_filter_shard_size_bytes: 102400
-        version: ""
-        parquet_row_group_size_bytes: 100000000
-        parquet_dedicated_columns:
-            - scope: resource
-              name: k8s.cluster.name
-              type: string
-              options: []
-            - scope: resource
-              name: k8s.namespace.name
-              type: string
-              options: []
-            - scope: resource
-              name: k8s.pod.name
-              type: string
-              options: []
-            - scope: resource
-              name: k8s.container.name
-              type: string
-              options: []
-            - scope: span
-              name: http.request.method
-              type: string
-              options: []
-            - scope: span
-              name: http.response.status_code
-              type: int
-              options: []
-            - scope: span
-              name: url.path
-              type: string
-              options: []
-            - scope: span
-              name: url.route
-              type: string
-              options: []
-            - scope: span
-              name: server.address
-              type: string
-              options: []
-            - scope: span
-              name: server.port
-              type: int
-              options: []
-            - scope: span
-              name: http.method
-              type: string
-              options: []
-            - scope: span
-              name: http.url
-              type: string
-              options: []
-            - scope: span
-              name: http.route
-              type: string
-              options: []
-            - scope: span
-              name: http.status_code
-              type: int
-              options: []
     wal:
         path: /var/tempo/block-builder/traces
         ingestion_time_range_slack: 2m0s
@@ -1348,75 +1159,13 @@ live_store:
     complete_block_timeout: 1h0m0s
     complete_block_concurrency: 2
     shutdown_marker_dir: /var/tempo/live-store/shutdown-marker
-    flush_check_period: 10s
+    flush_check_period: 5s
     flush_op_timeout: 5m0s
     max_trace_live: 30s
     max_trace_idle: 5s
     max_live_traces_bytes: 250000000
-    max_block_duration: 30m0s
+    max_block_duration: 1m0s
     max_block_bytes: 104857600
-    block_config:
-        bloom_filter_false_positive: 0.01
-        bloom_filter_shard_size_bytes: 102400
-        version: ""
-        parquet_row_group_size_bytes: 100000000
-        parquet_dedicated_columns:
-            - scope: resource
-              name: k8s.cluster.name
-              type: string
-              options: []
-            - scope: resource
-              name: k8s.namespace.name
-              type: string
-              options: []
-            - scope: resource
-              name: k8s.pod.name
-              type: string
-              options: []
-            - scope: resource
-              name: k8s.container.name
-              type: string
-              options: []
-            - scope: span
-              name: http.request.method
-              type: string
-              options: []
-            - scope: span
-              name: http.response.status_code
-              type: int
-              options: []
-            - scope: span
-              name: url.path
-              type: string
-              options: []
-            - scope: span
-              name: url.route
-              type: string
-              options: []
-            - scope: span
-              name: server.address
-              type: string
-              options: []
-            - scope: span
-              name: server.port
-              type: int
-              options: []
-            - scope: span
-              name: http.method
-              type: string
-              options: []
-            - scope: span
-              name: http.url
-              type: string
-              options: []
-            - scope: span
-              name: http.route
-              type: string
-              options: []
-            - scope: span
-              name: http.status_code
-              type: int
-              options: []
     readiness_target_lag: 0s
     readiness_max_wait: 30m0s
     fail_on_high_lag: false

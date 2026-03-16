@@ -64,3 +64,11 @@ In that case, the estimation formula would be:
 {{< admonition type="note" >}}
 To estimate the number of metrics, refer to the [Dry run metrics generator](../cardinality/) documentation.
 {{< /admonition >}}
+
+## Managing cardinality with limits
+
+For troubleshooting and managing cardinality limits at runtime, refer to the following sections in the [metrics-generator troubleshooting](https://grafana.com/docs/tempo/<TEMPO_VERSION>/troubleshooting/metrics-generator/) documentation:
+
+- [Max active series](https://grafana.com/docs/tempo/<TEMPO_VERSION>/troubleshooting/metrics-generator/#max-active-series) to detect and configure the active series limit
+- [Entity-based limiting](https://grafana.com/docs/tempo/<TEMPO_VERSION>/troubleshooting/metrics-generator/#entity-based-limiting) to limit by unique label combinations instead of individual series
+- [Per-label cardinality limiting](https://grafana.com/docs/tempo/<TEMPO_VERSION>/troubleshooting/metrics-generator/#per-label-cardinality-limiting) to limit cardinality (distinct values) per label

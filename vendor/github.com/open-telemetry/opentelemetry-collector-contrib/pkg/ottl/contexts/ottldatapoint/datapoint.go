@@ -18,6 +18,7 @@ import (
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl/contexts/internal/ctxcommon"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl/contexts/internal/ctxdatapoint"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl/contexts/internal/ctxmetric"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl/contexts/internal/ctxotelcol"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl/contexts/internal/ctxresource"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl/contexts/internal/ctxscope"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl/contexts/internal/logging"
@@ -145,6 +146,7 @@ func EnablePathContextNames() ottl.Option[*TransformContext] {
 			ctxscope.LegacyName,
 			ctxscope.Name,
 			ctxmetric.Name,
+			ctxotelcol.Name,
 		})(p)
 	}
 }
@@ -225,5 +227,6 @@ func pathExpressionParser(cacheGetter ctxcache.Getter[*TransformContext]) ottl.P
 			ctxscope.LegacyName: ctxscope.PathGetSetter[*TransformContext],
 			ctxmetric.Name:      ctxmetric.PathGetSetter[*TransformContext],
 			ctxdatapoint.Name:   ctxdatapoint.PathGetSetter[*TransformContext],
+			ctxotelcol.Name:     ctxotelcol.PathGetSetter[*TransformContext],
 		})
 }
