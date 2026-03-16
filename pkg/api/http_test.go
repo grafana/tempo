@@ -696,6 +696,41 @@ func Test_parseTimestamp(t *testing.T) {
 	}
 }
 
+func TestParseQueryRequestInvalidBounds(t *testing.T) {
+	tests := []struct {
+		name   string
+		params map[string]string
+		errMsg string
+	}{
+		{
+			name:   "invalid start",
+			params: map[string]string{"q": "{} | rate()", "start": "abc", "end": "1700000000"},
+			errMsg: "could not parse 'start' parameter",
+		},
+		{
+			name:   "invalid end",
+			params: map[string]string{"q": "{} | rate()", "start": "1700000000", "end": "bca"},
+			errMsg: "could not parse 'end' parameter",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run("range/"+tt.name, func(t *testing.T) {
+			r := makeReq(tt.params)
+			_, err := ParseQueryRangeRequest(r)
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), tt.errMsg)
+		})
+
+		t.Run("instant/"+tt.name, func(t *testing.T) {
+			r := makeReq(tt.params)
+			_, err := ParseQueryInstantRequest(r)
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), tt.errMsg)
+		})
+	}
+}
+
 func TestQueryRangeRoundtripEmpty(t *testing.T) {
 	req := &tempopb.QueryRangeRequest{
 		Step: uint64(time.Second), // you can't actually roundtrip an empty query b/c Build/Parse will force a default step
