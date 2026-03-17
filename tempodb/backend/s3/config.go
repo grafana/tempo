@@ -37,9 +37,9 @@ var (
 )
 
 type SSEConfig struct {
-	Type                  string `yaml:"type"`
-	KMSKeyID              string `yaml:"kms_key_id"`
-	KMSEncryptionContext  string `yaml:"kms_encryption_context"`
+	Type                  string         `yaml:"type"`
+	KMSKeyID              string         `yaml:"kms_key_id"`
+	KMSEncryptionContext  string         `yaml:"kms_encryption_context"`
 	CustomerEncryptionKey flagext.Secret `yaml:"encryption_key"`
 }
 
