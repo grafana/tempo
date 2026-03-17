@@ -52,7 +52,6 @@ func TestConfigureGenerator(t *testing.T) {
 		assert.True(t, app.cfg.Generator.ConsumeFromKafka)
 		assert.Equal(t, "custom", app.cfg.Generator.Ingest.Kafka.ConsumerGroup)
 	})
-
 }
 
 func TestGeneratorRingReader(t *testing.T) {
@@ -104,7 +103,6 @@ func TestGeneratorRingReader(t *testing.T) {
 		require.NoError(t, err)
 		assert.Same(t, generatorRingWatcher, reader)
 	})
-
 }
 
 func TestInitGeneratorNoLocalBlocks_forcesGeneratorRingMode(t *testing.T) {
