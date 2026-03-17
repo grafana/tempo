@@ -20,7 +20,7 @@ GORELEASER := $(GOPATH)/bin/goreleaser
 # Build Images
 # https://hub.docker.com/repository/docker/grafana/tempo-ci-tools/
 # built by: .github/workflows/docker-ci-tools.yml
-TEMPO_CI_TOOLS_IMAGE ?= grafana/tempo-ci-tools:main-b5ffd5f
+TEMPO_CI_TOOLS_IMAGE ?= grafana/tempo-ci-tools:main-3f38ee8-20260314-232609
 DOCS_IMAGE ?= grafana/docs-base:latest
 
 # More exclusions can be added similar with: -not -path './testbed/*'
