@@ -1,6 +1,8 @@
 ## main / unreleased
 
-* [BUGFIX] S3 SSE-C `encryption_key` is now treated as a secret to prevent it from being exposed in plaintext. Resolves CVE-2026-28377. [#6711](https://github.com/grafana/tempo/pull/6711) (@mattdurham)
+# v2.10.3
+
+* [SECURITY] S3 SSE-C `encryption_key` is now treated as a secret to prevent it from being exposed in plaintext. Resolves CVE-2026-28377. [#6711](https://github.com/grafana/tempo/pull/6711) (@mattdurham)
 * [BUGFIX] Fix integer overflow in query parameters by using `strconv.ParseUint` instead of `strconv.Atoi`/`strconv.ParseInt` for unsigned integer fields. [#6612](https://github.com/grafana/tempo/pull/6612) (@bejaratommy)
 * [CHANGE] **BREAKING CHANGE** Centralize block and WAL config: `block_builder` and `live_store` now always use `storage.trace.block` settings; per-module block config fields are removed. [#6647](https://github.com/grafana/tempo/pull/6647) (@stoewer)
 * [CHANGE] **BREAKING CHANGE** Remove Opencensus receiver [#6523](https://github.com/grafana/tempo/pull/6523) (@javiermolinar)
@@ -637,6 +639,10 @@ querier:
 * [BUGFIX] Correct block end time when the ingested traces are outside the ingestion slack [#3954](https://github.com/grafana/tempo/pull/3954) (@javiermolinar)
 * [BUGFIX] Fix race condition where a streaming response could be marshalled while being modified in the combiner resulting in a panic. [#3961](https://github.com/grafana/tempo/pull/3961) (@joe-elliott)
 * [BUGFIX] Pass search options to the backend for SearchTagValuesBlocksV2 requests [#3971](https://github.com/grafana/tempo/pull/3971) (@javiermolinar)
+
+## v2.10.3
+
+* [BUGFIX] S3 SSE-C `encryption_key` is now treated as a secret to prevent it from being exposed in plaintext. Resolves CVE-2026-28377. [#6711](https://github.com/grafana/tempo/pull/6711) (@mattdurham)
 
 ## v2.5.0
 
