@@ -312,7 +312,8 @@ func TestFormatConversion(t *testing.T) {
 	ensureAllFieldsPopulated(t, legacyOverrides)
 
 	// Convert to new format and back
-	newOverrides := legacyOverrides.toNewLimits()
+	newOverrides, err := legacyOverrides.toNewLimits()
+	require.NoError(t, err)
 	convertedLegacyOverrides := newOverrides.toLegacy()
 
 	// Compare original and converted
@@ -334,7 +335,7 @@ func ensureAllFieldsPopulated(t *testing.T, o LegacyOverrides) {
 		fieldName := structType.Field(i).Name
 
 		// Skip certain fields that can be zero in valid configs
-		skip := []string{"IngestionArtificialDelay", "MetricsGeneratorSpanNameSanitization", "Extra"}
+		skip := []string{"IngestionArtificialDelay", "MetricsGeneratorSpanNameSanitization", "Extensions"}
 		if slices.Contains(skip, fieldName) {
 			continue
 		}
@@ -497,88 +498,6 @@ func durationPtr(d time.Duration) *time.Duration {
 	return &d
 }
 
-// --- Extra field tests for Overrides ---
-
-func TestOverridesExtra_YAML(t *testing.T) {
-	input := `
-ingestion:
-  max_traces_per_user: 1000
-lbac:
-  trace_redaction_mode: mode_spans
-`
-	var o Overrides
-	decoder := yaml.NewDecoder(strings.NewReader(input))
-	decoder.SetStrict(true)
-	require.NoError(t, decoder.Decode(&o))
-
-	assert.Equal(t, 1000, o.Ingestion.MaxLocalTracesPerUser)
-	assert.NotNil(t, o.Extra["lbac"], "expected Extra to capture unknown 'lbac' key")
-
-	// Round-trip: marshal back to YAML and decode again.
-	b, err := yaml.Marshal(&o)
-	require.NoError(t, err)
-
-	var o2 Overrides
-	require.NoError(t, yaml.Unmarshal(b, &o2))
-	assert.Equal(t, o.Ingestion.MaxLocalTracesPerUser, o2.Ingestion.MaxLocalTracesPerUser)
-	assert.NotNil(t, o2.Extra["lbac"])
-}
-
-func TestOverridesExtra_JSON(t *testing.T) {
-	input := `{
-		"ingestion": {"max_traces_per_user": 1000},
-		"lbac_mode": "mode_spans"
-	}`
-
-	var o Overrides
-	require.NoError(t, json.Unmarshal([]byte(input), &o))
-
-	assert.Equal(t, 1000, o.Ingestion.MaxLocalTracesPerUser)
-	assert.Equal(t, "mode_spans", o.Extra["lbac_mode"])
-
-	// Round-trip: marshal and unmarshal.
-	b, err := json.Marshal(&o)
-	require.NoError(t, err)
-
-	var o2 Overrides
-	require.NoError(t, json.Unmarshal(b, &o2))
-	assert.Equal(t, o, o2)
-
-	// Known fields take precedence: if Extra contains a key that matches a known field,
-	// the known field value should not be overwritten on marshal.
-	o.Extra["ingestion"] = "should-be-ignored"
-	b, err = json.Marshal(&o)
-	require.NoError(t, err)
-
-	var o3 Overrides
-	require.NoError(t, json.Unmarshal(b, &o3))
-	assert.Equal(t, 1000, o3.Ingestion.MaxLocalTracesPerUser, "known field must not be overwritten by Extra")
-}
-
-func TestOverridesExtra_YAMLvsJSON(t *testing.T) {
-	// Use flat string extra values to avoid YAML/JSON map type differences.
-	inputYAML := `
-ingestion:
-  max_traces_per_user: 1000
-lbac_mode: mode_spans
-`
-	inputJSON := `{
-		"ingestion": {"max_traces_per_user": 1000},
-		"lbac_mode": "mode_spans"
-	}`
-
-	var oYAML Overrides
-	require.NoError(t, yaml.Unmarshal([]byte(inputYAML), &oYAML))
-
-	var oJSON Overrides
-	require.NoError(t, json.Unmarshal([]byte(inputJSON), &oJSON))
-
-	assert.Equal(t, oYAML.Ingestion, oJSON.Ingestion)
-	assert.Equal(t, oYAML.Extra, oJSON.Extra)
-}
-
-// --- Extra field tests for LegacyOverrides ---
-
 func TestLegacyOverridesExtra_YAML(t *testing.T) {
 	input := `
 max_traces_per_user: 1000
@@ -591,7 +510,7 @@ lbac:
 	require.NoError(t, decoder.Decode(&l))
 
 	assert.Equal(t, 1000, l.MaxLocalTracesPerUser)
-	assert.NotNil(t, l.Extra["lbac"], "expected Extra to capture unknown 'lbac' key")
+	assert.NotNil(t, l.Extensions["lbac"], "expected Extensions to capture unknown 'lbac' key")
 
 	// Round-trip.
 	b, err := yaml.Marshal(&l)
@@ -600,10 +519,12 @@ lbac:
 	var l2 LegacyOverrides
 	require.NoError(t, yaml.Unmarshal(b, &l2))
 	assert.Equal(t, l.MaxLocalTracesPerUser, l2.MaxLocalTracesPerUser)
-	assert.NotNil(t, l2.Extra["lbac"])
+	assert.NotNil(t, l2.Extensions["lbac"])
 }
 
 func TestLegacyOverridesExtra_JSON(t *testing.T) {
+	// Unregistered flat keys are tolerated by processLegacyExtensions (passed through as-is).
+	// Strict rejection of unknown keys happens later in processExtensions on the converted Overrides.
 	input := `{
 		"max_traces_per_user": 1000,
 		"lbac_mode": "mode_spans"
@@ -613,28 +534,30 @@ func TestLegacyOverridesExtra_JSON(t *testing.T) {
 	require.NoError(t, json.Unmarshal([]byte(input), &l))
 
 	assert.Equal(t, 1000, l.MaxLocalTracesPerUser)
-	assert.Equal(t, "mode_spans", l.Extra["lbac_mode"])
+	assert.Equal(t, "mode_spans", l.Extensions["lbac_mode"])
 
-	// Round-trip: Extra and known fields survive marshal/unmarshal.
+	// Round-trip: Extensions and known fields survive marshal/unmarshal.
 	b, err := json.Marshal(&l)
 	require.NoError(t, err)
 
 	var l2 LegacyOverrides
 	require.NoError(t, json.Unmarshal(b, &l2))
 	assert.Equal(t, l.MaxLocalTracesPerUser, l2.MaxLocalTracesPerUser)
-	assert.Equal(t, l.Extra, l2.Extra)
+	assert.Equal(t, l.Extensions, l2.Extensions)
 
 	// Known fields take precedence.
-	l.Extra["max_traces_per_user"] = "should-be-ignored"
+	l.Extensions["max_traces_per_user"] = "should-be-ignored"
 	b, err = json.Marshal(&l)
 	require.NoError(t, err)
 
 	var l3 LegacyOverrides
 	require.NoError(t, json.Unmarshal(b, &l3))
-	assert.Equal(t, 1000, l3.MaxLocalTracesPerUser, "known field must not be overwritten by Extra")
+	assert.Equal(t, 1000, l3.MaxLocalTracesPerUser, "known field must not be overwritten by Extensions")
 }
 
 func TestLegacyOverridesExtra_YAMLvsJSON(t *testing.T) {
+	// Unregistered flat keys are tolerated by processLegacyExtensions (passed through as-is).
+	// Strict rejection of unknown keys happens later in processExtensions on the converted Overrides.
 	inputYAML := `
 max_traces_per_user: 1000
 lbac_mode: mode_spans
@@ -651,34 +574,35 @@ lbac_mode: mode_spans
 	require.NoError(t, json.Unmarshal([]byte(inputJSON), &lJSON))
 
 	assert.Equal(t, lYAML.MaxLocalTracesPerUser, lJSON.MaxLocalTracesPerUser)
-	assert.Equal(t, lYAML.Extra, lJSON.Extra)
+	assert.Equal(t, lYAML.Extensions, lJSON.Extensions)
 }
 
-// --- Conversion chain tests ---
-
 func TestLegacyToNewLimits_ExtraPreserved(t *testing.T) {
+	// Unregistered flat keys are tolerated by processLegacyExtensions (passed through as-is) and
+	// survive toNewLimits. Strict rejection happens later in processExtensions on the converted Overrides.
 	input := `
 max_traces_per_user: 500
 lbac_mode: mode_spans
 `
 	var l LegacyOverrides
 	require.NoError(t, yaml.Unmarshal([]byte(input), &l))
-	require.Equal(t, "mode_spans", l.Extra["lbac_mode"])
+	require.Equal(t, "mode_spans", l.Extensions["lbac_mode"])
 
-	o := l.toNewLimits()
+	o, err := l.toNewLimits()
+	require.NoError(t, err)
 	assert.Equal(t, 500, o.Ingestion.MaxLocalTracesPerUser)
-	assert.Equal(t, "mode_spans", o.Extra["lbac_mode"], "Extra must survive toNewLimits()")
+	assert.Equal(t, "mode_spans", o.Extensions["lbac_mode"], "Extensions must survive toNewLimits()")
 }
 
 func TestToLegacy_ExtraPreserved(t *testing.T) {
 	o := Overrides{
-		Extra: map[string]any{"lbac_mode": "mode_spans"},
+		Extensions: map[string]any{"lbac_mode": "mode_spans"},
 	}
 	o.Ingestion.MaxLocalTracesPerUser = 500
 
 	l := o.toLegacy()
 	assert.Equal(t, 500, l.MaxLocalTracesPerUser)
-	assert.Equal(t, "mode_spans", l.Extra["lbac_mode"], "Extra must survive toLegacy()")
+	assert.Equal(t, "mode_spans", l.Extensions["lbac_mode"], "Extensions must survive toLegacy()")
 }
 
 // Helper function to create ListToMap
