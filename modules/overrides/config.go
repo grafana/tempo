@@ -1,9 +1,13 @@
 package overrides
 
 import (
+	"encoding/json"
 	"flag"
 	"fmt"
+	"reflect"
 	"strconv"
+	"strings"
+	"sync"
 	"time"
 
 	"github.com/prometheus/common/config"
@@ -208,6 +212,70 @@ type Overrides struct {
 	// Storage enforced overrides.
 	Storage         StorageOverrides         `yaml:"storage,omitempty" json:"storage,omitempty"`
 	CostAttribution CostAttributionOverrides `yaml:"cost_attribution,omitempty" json:"cost_attribution,omitempty"`
+
+	// Extra captures fields not recognised by this struct. This allows systems vendoring tempo to add their own overrides
+	Extra map[string]any `yaml:",inline" json:"-"`
+}
+
+// knownOverridesJSONFields returns the JSON key names declared on Overrides
+var knownOverridesJSONFields = sync.OnceValue(func() map[string]struct{} {
+	return fieldNamesFor(Overrides{}, "json")
+})
+
+func (o *Overrides) UnmarshalJSON(data []byte) error {
+	type plain Overrides
+	if err := json.Unmarshal(data, (*plain)(o)); err != nil {
+		return err
+	}
+
+	var raw map[string]json.RawMessage
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+
+	for key := range knownOverridesJSONFields() {
+		delete(raw, key)
+	}
+	if len(raw) == 0 {
+		return nil
+	}
+
+	o.Extra = make(map[string]any, len(raw))
+	for k, v := range raw {
+		var val any
+		if err := json.Unmarshal(v, &val); err != nil {
+			return err
+		}
+		o.Extra[k] = val
+	}
+	return nil
+}
+
+func (o Overrides) MarshalJSON() ([]byte, error) {
+	type plain Overrides
+	data, err := json.Marshal(plain(o))
+	if err != nil {
+		return nil, err
+	}
+	if len(o.Extra) == 0 {
+		return data, nil
+	}
+
+	var m map[string]json.RawMessage
+	if err := json.Unmarshal(data, &m); err != nil {
+		return nil, err
+	}
+	for k, v := range o.Extra {
+		if _, exists := m[k]; exists {
+			continue // known fields take precedence
+		}
+		b, err := json.Marshal(v)
+		if err != nil {
+			return nil, err
+		}
+		m[k] = b
+	}
+	return json.Marshal(m)
 }
 
 type Config struct {
@@ -325,4 +393,21 @@ func (u *Uint32Value) Set(s string) error {
 	}
 	*u = Uint32Value(v)
 	return nil
+}
+
+func fieldNamesFor(v any, tagKey string) map[string]struct{} {
+	t := reflect.TypeOf(v)
+	fields := make(map[string]struct{}, t.NumField())
+	for field := range t.Fields() {
+		tag := field.Tag.Get(tagKey)
+		if tag == "-" || tag == ",inline" {
+			continue
+		}
+		name, _, _ := strings.Cut(tag, ",")
+		if name == "" {
+			name = field.Name
+		}
+		fields[name] = struct{}{}
+	}
+	return fields
 }

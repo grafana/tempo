@@ -1,6 +1,8 @@
 package overrides
 
 import (
+	"encoding/json"
+	"sync"
 	"time"
 
 	"github.com/grafana/tempo/modules/overrides/histograms"
@@ -82,6 +84,7 @@ func (c *Overrides) toLegacy() LegacyOverrides {
 			Dimensions:     c.CostAttribution.Dimensions,
 			MaxCardinality: c.CostAttribution.MaxCardinality,
 		},
+		Extra: c.Extra,
 	}
 }
 
@@ -165,6 +168,75 @@ type LegacyOverrides struct {
 
 	// tempodb limits
 	DedicatedColumns backend.DedicatedColumns `yaml:"parquet_dedicated_columns" json:"parquet_dedicated_columns"`
+
+	// Extra captures fields not recognised by this struct. See Overrides.Extra.
+	Extra map[string]any `yaml:",inline" json:"-"`
+}
+
+// knownLegacyOverridesJSONFields returns the JSON key names declared on LegacyOverrides
+var knownLegacyOverridesJSONFields = sync.OnceValue(func() map[string]struct{} {
+	return fieldNamesFor(LegacyOverrides{}, "json")
+})
+
+// knownLegacyOverridesYAMLFields returns the YAML key names declared on LegacyOverrides
+var knownLegacyOverridesYAMLFields = sync.OnceValue(func() map[string]struct{} {
+	return fieldNamesFor(LegacyOverrides{}, "yaml")
+})
+
+func (l *LegacyOverrides) UnmarshalJSON(data []byte) error {
+	type plain LegacyOverrides
+	if err := json.Unmarshal(data, (*plain)(l)); err != nil {
+		return err
+	}
+
+	var raw map[string]json.RawMessage
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+
+	for key := range knownLegacyOverridesJSONFields() {
+		delete(raw, key)
+	}
+	if len(raw) == 0 {
+		return nil
+	}
+
+	l.Extra = make(map[string]any, len(raw))
+	for k, v := range raw {
+		var val any
+		if err := json.Unmarshal(v, &val); err != nil {
+			return err
+		}
+		l.Extra[k] = val
+	}
+	return nil
+}
+
+func (l LegacyOverrides) MarshalJSON() ([]byte, error) {
+	type plain LegacyOverrides
+	data, err := json.Marshal(plain(l))
+	if err != nil {
+		return nil, err
+	}
+	if len(l.Extra) == 0 {
+		return data, nil
+	}
+
+	var m map[string]json.RawMessage
+	if err := json.Unmarshal(data, &m); err != nil {
+		return nil, err
+	}
+	for k, v := range l.Extra {
+		if _, exists := m[k]; exists {
+			continue // known fields take precedence
+		}
+		b, err := json.Marshal(v)
+		if err != nil {
+			return nil, err
+		}
+		m[k] = b
+	}
+	return json.Marshal(m)
 }
 
 func (l *LegacyOverrides) toNewLimits() Overrides {
@@ -252,6 +324,7 @@ func (l *LegacyOverrides) toNewLimits() Overrides {
 			Dimensions:     l.CostAttribution.Dimensions,
 			MaxCardinality: l.CostAttribution.MaxCardinality,
 		},
+		Extra: l.Extra,
 	}
 }
 
