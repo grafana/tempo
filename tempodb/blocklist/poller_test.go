@@ -15,6 +15,7 @@ import (
 
 	"github.com/go-kit/log"
 	uuid "github.com/google/uuid"
+	io_prometheus_client "github.com/prometheus/client_model/go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -196,6 +197,73 @@ func TestTenantIndexBuilder(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestDeletedTenantMetrics checks that after tenant is deleted
+// it does not report its index age
+func TestDeletedTenantMetrics(t *testing.T) {
+	const (
+		activeTenant  = "active-tenant"
+		deletedTenant = "deleted-tenant"
+	)
+	one := uuid.MustParse("00000000-0000-0000-0000-000000000001")
+
+	// Both tenants exist with blocks.
+	r := &backend.MockReader{
+		T: []string{activeTenant, deletedTenant},
+		BlocksFn: func(_ context.Context, _ string) ([]uuid.UUID, []uuid.UUID, error) {
+			return []uuid.UUID{one}, nil, nil
+		},
+	}
+	c := &backend.MockCompactor{}
+	w := &backend.MockWriter{}
+
+	// Use a non-builder (querier) that reads the tenant index.
+	// The index was created 30 minutes ago, so the metric will be ~1800.
+	r.TenantIndexFn = func(_ context.Context, _ string) (*backend.TenantIndex, error) {
+		return &backend.TenantIndex{
+			CreatedAt: time.Now().Add(-30 * time.Minute),
+			Meta:      []*backend.BlockMeta{{BlockID: backend.MustParse("00000000-0000-0000-0000-000000000001")}},
+		}, nil
+	}
+
+	poller := NewPoller(&PollerConfig{
+		PollConcurrency:       testPollConcurrency,
+		TenantPollConcurrency: testTenantPollConcurrency,
+		PollFallback:          false,
+		TenantIndexBuilders:   testBuilders,
+	}, &mockJobSharder{
+		owns: false, // non-builder (querier)
+	}, r, c, w, log.NewNopLogger())
+
+	ctx := context.Background()
+
+	// Poll 1: both tenants exist.
+	blocklist, compactedBlocklist, err := poller.Do(ctx, newBlocklist(PerTenant{}, PerTenantCompacted{}))
+	require.NoError(t, err)
+
+	// Verify metric is set to a non-zero age for both tenants.
+	for _, tenant := range []string{activeTenant, deletedTenant} {
+		gauge, err := metricTenantIndexAgeSeconds.GetMetricWithLabelValues(tenant)
+		require.NoError(t, err)
+		dto := &io_prometheus_client.Metric{}
+		require.NoError(t, gauge.Write(dto))
+		assert.Greater(t, dto.GetGauge().GetValue(), float64(0),
+			"metric should have non-zero age for %s after first poll", tenant)
+	}
+
+	// Poll 2: deletedTenant is gone from backend.
+	previous := newBlocklist(blocklist, compactedBlocklist)
+	r.T = []string{activeTenant}
+
+	_, _, err = poller.Do(ctx, previous)
+	require.NoError(t, err)
+
+	// The metric for the deleted tenant should not exist at all.
+	// Hacky way to check if label exists:
+	// DeleteLabelValues returns false if the label was already removed.
+	assert.False(t, metricTenantIndexAgeSeconds.DeleteLabelValues(deletedTenant),
+		"tenant_index_age_seconds should not exist for deleted tenant")
 }
 
 func TestTenantIndexFallback(t *testing.T) {

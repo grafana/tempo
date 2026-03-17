@@ -244,6 +244,19 @@ func (p *Poller) Do(parentCtx context.Context, previous *List) (PerTenant, PerTe
 		return nil, nil, errors.New("too many tenant failures; abandoning polling cycle")
 	}
 
+	// Clean up metrics for tenants that no longer exist in the backend.
+	currentTenants := make(map[string]struct{}, len(tenants))
+	for _, t := range tenants {
+		currentTenants[t] = struct{}{}
+	}
+	for _, t := range previous.Tenants() {
+		if _, ok := currentTenants[t]; !ok {
+			metricTenantIndexAgeSeconds.DeleteLabelValues(t)
+			metricTenantIndexBuilder.DeleteLabelValues(t)
+			metricTenantIndexErrors.DeleteLabelValues(t)
+		}
+	}
+
 	diff := time.Since(start).Seconds()
 	metricBlocklistPollDuration.Observe(diff)
 	level.Info(p.logger).Log("msg", "blocklist poll complete", "seconds", diff)
