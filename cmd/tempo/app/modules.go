@@ -259,8 +259,6 @@ func (t *App) initDistributor() (services.Service, error) {
 
 	// todo: make write-path client a module instead of passing the config everywhere
 	distributor, err := distributor.New(t.cfg.Distributor,
-		t.cfg.IngesterClient,
-		t.readRings[ringLiveStore],
 		pushSpansToLocalGenerator,
 		t.partitionRing,
 		t.Overrides,

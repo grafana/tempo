@@ -8,7 +8,7 @@ local filename = 'tempo-rollout-progress.json';
     gateway_job_matcher: $.jobMatcher($._config.jobs.gateway),
     gateway_write_routes_regex: '(opentelemetry_proto_collector_trace_v1_traceservice_export|otlp_v1_traces)',
     gateway_read_routes_regex: 'tempo_api_.*',
-    all_services_regex: '.*(%s).*' % std.join('|', ['cortex-gw', 'distributor', 'ingester', 'query-frontend', 'querier', 'compactor', 'metrics-generator']),
+    all_services_regex: '.*(%s).*' % std.join('|', ['cortex-gw', 'distributor', 'live-store', 'query-frontend', 'querier', 'compactor', 'metrics-generator']),
   },
 
   [filename]:

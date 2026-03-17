@@ -711,13 +711,6 @@
        "interval": "1m",
        "legendFormat": "refused",
        "legendLink": null
-      },
-      {
-       "expr": "sum(rate(tempo_distributor_ingester_append_failures_total{cluster=~\"$cluster\", job=~\"($namespace)/distributor\"}[$__rate_interval]))",
-       "format": "time_series",
-       "interval": "1m",
-       "legendFormat": "ingester append failure",
-       "legendLink": null
       }
      ],
      "title": "Receiver spans / sec",
