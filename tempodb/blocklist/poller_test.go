@@ -259,11 +259,15 @@ func TestDeletedTenantMetrics(t *testing.T) {
 	_, _, err = poller.Do(ctx, previous)
 	require.NoError(t, err)
 
-	// The metric for the deleted tenant should not exist at all.
+	// The metrics for the deleted tenant should not exist at all.
 	// Hacky way to check if label exists:
 	// DeleteLabelValues returns false if the label was already removed.
 	assert.False(t, metricTenantIndexAgeSeconds.DeleteLabelValues(deletedTenant),
 		"tenant_index_age_seconds should not exist for deleted tenant")
+	assert.False(t, metricTenantIndexBuilder.DeleteLabelValues(deletedTenant),
+		"tenant_index_builder should not exist for deleted tenant")
+	assert.False(t, metricTenantIndexErrors.DeleteLabelValues(deletedTenant),
+		"tenant_index_errors should not exist for deleted tenant")
 }
 
 func TestTenantIndexFallback(t *testing.T) {
