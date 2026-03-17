@@ -5,12 +5,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/grafana/dskit/ring"
 	"github.com/grafana/tempo/modules/distributor"
 	"github.com/grafana/tempo/modules/distributor/forwarder"
 	"github.com/grafana/tempo/modules/generator/processor"
 	"github.com/grafana/tempo/modules/generator/validation"
-	"github.com/grafana/tempo/modules/ingester"
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/modules/overrides/histograms"
 	"github.com/grafana/tempo/modules/overrides/userconfigurable/client"
@@ -52,33 +50,6 @@ func Test_runtimeOverridesValidator(t *testing.T) {
 		expErr      string
 		expWarnings []error
 	}{
-		{
-			name: "ingestion.tenant_shard_size smaller than RF",
-			cfg: Config{
-				Ingester: ingester.Config{
-					LifecyclerConfig: ring.LifecyclerConfig{
-						RingConfig: ring.Config{
-							ReplicationFactor: 3,
-						},
-					},
-				},
-			},
-			overrides: overrides.Overrides{Ingestion: overrides.IngestionOverrides{TenantShardSize: 2}},
-			expErr:    "ingester.tenant.shard_size is lower than replication factor (2 < 3)",
-		},
-		{
-			name: "ingestion.tenant_shard_size equal to RF",
-			cfg: Config{
-				Ingester: ingester.Config{
-					LifecyclerConfig: ring.LifecyclerConfig{
-						RingConfig: ring.Config{
-							ReplicationFactor: 3,
-						},
-					},
-				},
-			},
-			overrides: overrides.Overrides{Ingestion: overrides.IngestionOverrides{TenantShardSize: 3}},
-		},
 		{
 			name: "metrics_generator.generate_native_histograms invalid",
 			cfg:  Config{},

@@ -59,7 +59,7 @@ grpc_client_config:
 
 The configuration block needs to be set at the following configuration locations.
 
-- `ingester_client.grpc_client_config`
+- `live_store_client.grpc_client_config`
 - `querier.frontend_worker.grpc_client_config`
 
 Additionally, `memberlist` must also be configured, but the client configuration is nested directly under `memberlist` as follows. The same configuration options are available as above.
@@ -185,7 +185,7 @@ tempo:
                 ca_file: /tls/ca.crt
                 cert_file: /tls/tls.crt
                 key_file: /tls/tls.key
-    ingester_client:
+    live_store_client:
       grpc_client_config:
         tls_ca_path: /tls/ca.crt
         tls_cert_path: /tls/tls.crt
