@@ -62,6 +62,42 @@ test.new(std.thisFile)
 
 
 + test.case.new(
+  name='qpsPanelNativeHistogram default (native+classic with dashboard variable)',
+  test=test.expect.eq(
+    actual=std.get(builder.qpsPanelNativeHistogram('my_metric', 'job="foo"'), 'targets'),
+    expected=[
+      {
+        expr: '(sum by (status) (\n  label_replace(label_replace(rate(my_metric_count{job="foo"}[$__rate_interval]),\n  "status", "${1}xx", "status_code", "([0-9]).."),\n  "status", "${1}", "status_code", "([a-zA-Z_]+)"))\n) and on() (vector($latency_metrics) == 1)',
+        format: 'time_series',
+        legendFormat: '{{status}}',
+        refId: 'A_classic',
+      },
+      {
+        expr: '(sum by (status) (\n  label_replace(label_replace(histogram_count(rate(my_metric{job="foo"}[$__rate_interval])),\n  "status", "${1}xx", "status_code", "([0-9]).."),\n  "status", "${1}", "status_code", "([a-zA-Z_]+)"))\n) and on() (vector($latency_metrics) == -1)',
+        format: 'time_series',
+        legendFormat: '{{status}}',
+        refId: 'A',
+      },
+    ],
+  )
+)
+
++ test.case.new(
+  name='qpsPanelNativeHistogram nativeOnly (native query only, no dashboard variable)',
+  test=test.expect.eq(
+    actual=std.get(builder.qpsPanelNativeHistogram('my_metric', 'job="foo"', nativeOnly=true), 'targets'),
+    expected=[
+      {
+        expr: 'sum by (status) (\n  label_replace(label_replace(histogram_count(rate(my_metric{job="foo"}[$__rate_interval])),\n  "status", "${1}xx", "status_code", "([0-9]).."),\n  "status", "${1}", "status_code", "([a-zA-Z_]+)"))\n',
+        format: 'time_series',
+        legendFormat: '{{status}}',
+        refId: 'A',
+      },
+    ],
+  )
+)
+
++ test.case.new(
   name='LatencyPanel from recording',
   test=test.expect.eq(
     actual=std.get(builder.latencyPanelNativeHistogram('cluster_job_route:cortex_request_duration_seconds_bucket', 'cluster="cluster1"', '1e3', [99, 50], true), 'targets'),

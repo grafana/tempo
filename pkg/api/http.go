@@ -161,7 +161,7 @@ func ParseSearchRequestWithDefault(r *http.Request, defaultSpansPerSpanSet uint3
 	vals := r.URL.Query()
 
 	if s, ok := extractQueryParam(vals, urlParamStart); ok {
-		start, err := strconv.ParseInt(s, 10, 32)
+		start, err := strconv.ParseUint(s, 10, 32)
 		if err != nil {
 			return nil, fmt.Errorf("invalid start: %w", err)
 		}
@@ -169,7 +169,7 @@ func ParseSearchRequestWithDefault(r *http.Request, defaultSpansPerSpanSet uint3
 	}
 
 	if s, ok := extractQueryParam(vals, urlParamEnd); ok {
-		end, err := strconv.ParseInt(s, 10, 32)
+		end, err := strconv.ParseUint(s, 10, 32)
 		if err != nil {
 			return nil, fmt.Errorf("invalid end: %w", err)
 		}
@@ -249,23 +249,20 @@ func ParseSearchRequestWithDefault(r *http.Request, defaultSpansPerSpanSet uint3
 	}
 
 	if s, ok := extractQueryParam(vals, urlParamLimit); ok {
-		limit, err := strconv.Atoi(s)
+		limit, err := strconv.ParseUint(s, 10, 32)
 		if err != nil {
 			return nil, fmt.Errorf("invalid limit: %w", err)
 		}
-		if limit <= 0 {
+		if limit == 0 {
 			return nil, errors.New("invalid limit: must be a positive number")
 		}
 		req.Limit = uint32(limit)
 	}
 
 	if s, ok := extractQueryParam(vals, urlParamSpansPerSpanSet); ok {
-		spansPerSpanSet, err := strconv.Atoi(s)
+		spansPerSpanSet, err := strconv.ParseUint(s, 10, 32)
 		if err != nil {
 			return nil, fmt.Errorf("invalid spss: %w", err)
-		}
-		if spansPerSpanSet < 0 {
-			return nil, errors.New("invalid spss: must be a non-negative number")
 		}
 		req.SpansPerSpanSet = uint32(spansPerSpanSet)
 	}
@@ -304,7 +301,10 @@ func ParseQueryInstantRequest(r *http.Request) (*tempopb.QueryInstantRequest, er
 		req.Query = s
 	}
 
-	start, end, _ := bounds(vals)
+	start, end, err := bounds(vals)
+	if err != nil {
+		return nil, httpgrpc.Error(http.StatusBadRequest, err.Error())
+	}
 	req.Start = uint64(start.UnixNano())
 	req.End = uint64(end.UnixNano())
 
@@ -329,7 +329,10 @@ func ParseQueryRangeRequest(r *http.Request) (*tempopb.QueryRangeRequest, error)
 		req.QueryMode = s
 	}
 
-	start, end, _ := bounds(vals)
+	start, end, err := bounds(vals)
+	if err != nil {
+		return nil, httpgrpc.Error(http.StatusBadRequest, err.Error())
+	}
 	req.Start = uint64(start.UnixNano())
 	req.End = uint64(end.UnixNano())
 
@@ -346,12 +349,12 @@ func ParseQueryRangeRequest(r *http.Request) (*tempopb.QueryRangeRequest, error)
 	}
 
 	startPage, _ := extractQueryParam(vals, urlParamStartPage)
-	if startPage, err := strconv.Atoi(startPage); err == nil {
+	if startPage, err := strconv.ParseUint(startPage, 10, 32); err == nil {
 		req.StartPage = uint32(startPage)
 	}
 
 	pagesToSearch, _ := extractQueryParam(vals, urlParamPagesToSearch)
-	if of, err := strconv.Atoi(pagesToSearch); err == nil {
+	if of, err := strconv.ParseUint(pagesToSearch, 10, 32); err == nil {
 		req.PagesToSearch = uint32(of)
 	}
 
@@ -359,12 +362,12 @@ func ParseQueryRangeRequest(r *http.Request) (*tempopb.QueryRangeRequest, error)
 	req.Version = version
 
 	size, _ := extractQueryParam(vals, urlParamSize)
-	if size, err := strconv.Atoi(size); err == nil {
+	if size, err := strconv.ParseUint(size, 10, 64); err == nil {
 		req.Size_ = uint64(size)
 	}
 
 	footerSize, _ := extractQueryParam(vals, urlParamFooterSize)
-	if footerSize, err := strconv.Atoi(footerSize); err == nil {
+	if footerSize, err := strconv.ParseUint(footerSize, 10, 32); err == nil {
 		req.FooterSize = uint32(footerSize)
 	}
 
@@ -377,12 +380,12 @@ func ParseQueryRangeRequest(r *http.Request) (*tempopb.QueryRangeRequest, error)
 	}
 
 	exemplars, _ := extractQueryParam(vals, urlParamExemplars)
-	if exemplars, err := strconv.Atoi(exemplars); err == nil {
+	if exemplars, err := strconv.ParseUint(exemplars, 10, 32); err == nil {
 		req.Exemplars = uint32(exemplars)
 	}
 
 	maxSeries, _ := extractQueryParam(vals, urlMaxSeries)
-	if maxSeries, err := strconv.Atoi(maxSeries); err == nil {
+	if maxSeries, err := strconv.ParseUint(maxSeries, 10, 32); err == nil {
 		req.MaxSeries = uint32(maxSeries)
 	}
 

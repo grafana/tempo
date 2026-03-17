@@ -1,3 +1,5 @@
+partition_ring_live_store: true
+
 server:
   log_level: info
   http_listen_port: {{ env "NOMAD_PORT_http" }}
@@ -18,16 +20,20 @@ distributor:
         grpc:
           endpoint: 0.0.0.0:{{ env "NOMAD_PORT_otlp" }}
 
-ingester:
+live_store:
   max_block_duration: 5m
-  lifecycler:
-    ring:
-      kvstore:
-        store: consul
-        prefix: tempo/
-        consul:
-          host: {{ env "attr.unique.network.ip-address" }}:8500
-      replication_factor: 3
+  ring:
+    kvstore:
+      store: consul
+      prefix: tempo/
+      consul:
+        host: {{ env "attr.unique.network.ip-address" }}:8500
+  partition_ring:
+    kvstore:
+      store: consul
+      prefix: tempo/
+      consul:
+        host: {{ env "attr.unique.network.ip-address" }}:8500
 
 compactor:
   ring:
@@ -43,6 +49,7 @@ compactor:
 querier:
   frontend_worker:
     frontend_address: tempo-query-frontend-grpc.service.consul:9095
+  query_live_store: true
 
 metrics_generator:
   processor:
@@ -59,6 +66,12 @@ metrics_generator:
     remote_write:
       - url: http://prometheus.service.consul/api/v1/write
         send_exemplars: true
+
+ingest:
+  enabled: true
+  kafka:
+    address: kafka.service.consul:9092
+    topic: tempo-ingest
 
 storage:
   trace:

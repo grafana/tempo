@@ -161,7 +161,7 @@ memory:
 
 For more information on configuration options, refer to [this file](https://github.com/grafana/tempo/blob/main/modules/distributor/config.go).
 
-Distributors receive spans and forward them to the appropriate ingesters.
+Distributors receive spans, apply limits and forwarding, and route them to the configured write path.
 
 The following configuration enables all available receivers with their default configuration. For a production deployment, enable only the receivers you need.
 Additional documentation and more advanced configuration options are available in [the receiver README](https://github.com/open-telemetry/opentelemetry-collector/blob/main/receiver/README.md).
@@ -256,11 +256,6 @@ distributor:
         [root_only: <boolean> | default = false]
 
     # Optional.
-    # Disables write extension with inactive ingesters. Use this along with ingester.lifecycler.unregister_on_shutdown = true
-    #  note that setting these two config values reduces tolerance to failures on rollout b/c there is always one guaranteed to be failing replica
-    [extend_writes: <bool>]
-
-    # Optional.
     # Configures the time to retry after returned to the client when Tempo returns a GRPC ResourceExhausted. This parameter
     # defaults to 0 which means that by default ResourceExhausted is not retried. Set this to a duration such as `1s` to
     # instruct the client how to retry.
@@ -312,17 +307,17 @@ For a discussion on alternatives, refer to [this discussion thread](https://gith
 Disabling compression may provide some performance boosts.
 Benchmark testing suggested that without compression, queriers and distributors used less CPU and memory.
 
-However, you may notice an increase in ingester data and network traffic especially for larger clusters.
+However, you may notice an increase in live-store data and network traffic, especially for larger clusters.
 This increased data can impact billing for Grafana Cloud.
 
-You can configure the gRPC compression in the `ingester_client` and `querier.frontend_worker` gRPC clients.
+You can configure the gRPC compression in the `live_store_client` and `querier.frontend_worker` gRPC clients.
 
 To disable compression, remove `snappy` from the `grpc_compression` lines.
 
 To re-enable the compression, use `snappy` with the following settings:
 
 ```yaml
-ingester_client:
+live_store_client:
   grpc_client_config:
     grpc_compression: "snappy"
 querier:
@@ -732,8 +727,8 @@ query_frontend:
 
         # The maximum allowed value of the limit parameter on search requests. If the search request limit parameter
         # exceeds the value configured here the frontend will return a 400.
-        # The default value of 0 disables this limit.
-        # (default: 0)
+        # The default value is 262144 (256*1024). Set to 0 to disable this limit.
+        # (default: 262144)
         [max_result_limit: <int>]
 
         # The maximum allowed time range for a search.
@@ -818,7 +813,8 @@ query_frontend:
         # 0 disables this limit.
         [max_duration: <duration> | default = 3h ]
 
-        # Maximun number of exemplars per range query. Limited to 100.
+        # Maximum number of exemplars per range query.
+        # Set to 0 to disable exemplars.
         [max_exemplars: <int> | default = 100 ]
 
         # Maximum number of time series returned for a metrics query.

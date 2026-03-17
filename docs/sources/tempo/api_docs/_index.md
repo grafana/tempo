@@ -408,7 +408,7 @@ GET /api/v2/search/tags?scope=<resource|span|intrinsic|event|link|instrumentatio
 
 Parameters:
 
-- `scope = (resource|span|intrinsic)`
+- `scope = (resource|span|intrinsic|event|link|instrumentation)`
   Specifies the scope of the tags, this is an optional parameter, if not specified it means all scopes.
   Default = `all`
 - `q = (traceql query)`
