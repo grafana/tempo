@@ -809,10 +809,11 @@ func buildSSEConfig(cfg *Config) (encrypt.ServerSide, error) {
 	case SSES3:
 		return encrypt.NewSSE(), nil
 	case SSEC:
-		if cfg.SSE.CustomerEncryptionKey == "" {
+		key := cfg.SSE.CustomerEncryptionKey.String()
+		if key == "" {
 			return nil, errors.New("SSE-C EncryptionKey is missing")
 		}
-		return encrypt.NewSSEC([]byte(cfg.SSE.CustomerEncryptionKey))
+		return encrypt.NewSSEC([]byte(key))
 	default:
 		return nil, errUnsupportedSSEType
 	}
