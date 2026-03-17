@@ -140,7 +140,7 @@ func Test_runtimeOverridesValidator(t *testing.T) {
 			cfg:  Config{},
 			overrides: overrides.Overrides{
 				MetricsGenerator: overrides.MetricsGeneratorOverrides{
-					NativeHistogramBucketFactor: 1,
+					NativeHistogramBucketFactor: ptrTo(1.0),
 				},
 			},
 			expErr: "metrics_generator.native_histogram_bucket_factor must be greater than 1",
@@ -150,7 +150,7 @@ func Test_runtimeOverridesValidator(t *testing.T) {
 			cfg:  Config{},
 			overrides: overrides.Overrides{
 				MetricsGenerator: overrides.MetricsGeneratorOverrides{
-					NativeHistogramBucketFactor: 1.5,
+					NativeHistogramBucketFactor: ptrTo(1.5),
 				},
 			},
 		},
