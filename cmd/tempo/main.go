@@ -24,7 +24,10 @@ import (
 	"github.com/grafana/tempo/pkg/util/log"
 )
 
-const appName = "tempo"
+const (
+	appName         = "tempo"
+	kvStoreInMemory = "inmemory"
+)
 
 // Version is set via build flag -ldflags -X main.Version
 var (
@@ -86,13 +89,14 @@ func main() {
 	}
 
 	// Init tracer if OTEL_TRACES_EXPORTER, OTEL_EXPORTER_OTLP_ENDPOINT or OTEL_EXPORTER_OTLP_TRACES_ENDPOINT is set
+	shutdownTracer := func() {}
 	if os.Getenv("OTEL_TRACES_EXPORTER") != "" || os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT") != "" || os.Getenv("OTEL_EXPORTER_OTLP_TRACES_ENDPOINT") != "" {
-		shutdownTracer, err := tracing.InstallOpenTelemetryTracer(appName, config.Target)
+		fn, err := tracing.InstallOpenTelemetryTracer(appName, config.Target)
 		if err != nil {
 			level.Error(log.Logger).Log("msg", "error initialising tracer", "err", err)
 			os.Exit(1)
 		}
-		defer shutdownTracer()
+		shutdownTracer = fn
 	}
 
 	setMutexBlockProfiling(*mutexProfileFraction, *blockProfileThreshold)
@@ -101,6 +105,7 @@ func main() {
 	t, err := app.New(*config)
 	if err != nil {
 		level.Error(log.Logger).Log("msg", "error initialising Tempo", "err", err)
+		shutdownTracer()
 		os.Exit(1)
 	}
 
@@ -112,8 +117,10 @@ func main() {
 
 	if err := t.Run(); err != nil {
 		level.Error(log.Logger).Log("msg", "error running Tempo", "err", err)
+		shutdownTracer()
 		os.Exit(1)
 	}
+	shutdownTracer()
 }
 
 func configIsValid(config *app.Config) bool {
@@ -202,13 +209,13 @@ func loadConfig() (*app.Config, bool, error) {
 	// if we're in single binary mode force all rings to be propagated with the in memory store
 	if app.IsSingleBinary(config.Target) {
 		// Generator's ring
-		config.Generator.Ring.KVStore.Store = "inmemory"
+		config.Generator.Ring.KVStore.Store = kvStoreInMemory
 		config.Generator.Ring.InstanceAddr = "127.0.0.1"
 
 		// Livestore rings
-		config.LiveStore.Ring.KVStore.Store = "inmemory"
+		config.LiveStore.Ring.KVStore.Store = kvStoreInMemory
 		config.LiveStore.Ring.InstanceAddr = "127.0.0.1"
-		config.LiveStore.PartitionRing.KVStore.Store = "inmemory"
+		config.LiveStore.PartitionRing.KVStore.Store = kvStoreInMemory
 
 		config.BackendWorker.Ring.KVStore.Store = "" // this will force the single binary to work in "unsharded" mode
 	}
