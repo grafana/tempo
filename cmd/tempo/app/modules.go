@@ -336,7 +336,7 @@ func (t *App) initGeneratorNoLocalBlocks() (services.Service, error) {
 }
 
 func (t *App) initGeneratorRingWatcher() (services.Service, error) {
-	if IsSingleBinary(t.cfg.Target) || t.cfg.Generator.RingMode != generator.RingModeGenerator {
+	if IsSingleBinary(t.cfg.Target) {
 		return services.NewIdleService(nil, nil), nil
 	}
 
@@ -763,7 +763,7 @@ func (t *App) setupModuleManager() error {
 		QueryFrontend:                 {Common, Store, OverridesAPI},
 		Distributor:                   {Common, LiveStoreRing, PartitionRing},
 		MetricsGenerator:              {Common, MemberlistKV, PartitionRing, GeneratorRingWatcher},
-		MetricsGeneratorNoLocalBlocks: {Common, MemberlistKV, PartitionRing, GeneratorRingWatcher},
+		MetricsGeneratorNoLocalBlocks: {Common, MemberlistKV, GeneratorRingWatcher},
 		Querier:                       {Common, Store, LiveStoreRing, PartitionRing},
 		BlockBuilder:                  {Common, Store, MemberlistKV, PartitionRing},
 		BackendScheduler:              {Common, Store},
