@@ -77,10 +77,10 @@
       "severity": "critical"
   - "alert": "TempoBlockListRisingQuickly"
     "annotations":
-      "message": "Tempo block list length is up 40 percent over the last 7 days. Consider scaling compactors."
+      "message": "Tempo block list length is up 40 percent over the last 7 days. Consider scaling backend-workers."
       "runbook_url": "https://github.com/grafana/tempo/tree/main/operations/tempo-mixin/runbook.md#TempoBlockListRisingQuickly"
     "expr": |
-      avg(tempodb_blocklist_length{namespace=~".*", container="compactor"}) / avg(tempodb_blocklist_length{namespace=~".*", container="compactor"} offset 7d) by (cluster, namespace) > 1.4
+      avg by (cluster, namespace) (tempodb_blocklist_length{namespace=~".*", container="backend-scheduler"}) / avg by (cluster, namespace) (tempodb_blocklist_length{namespace=~".*", container="backend-scheduler"} offset 7d) > 1.4
     "for": "15m"
     "labels":
       "severity": "critical"
@@ -104,19 +104,19 @@
       "severity": "critical"
   - "alert": "TempoCompactionTooManyOutstandingBlocks"
     "annotations":
-      "message": "There are too many outstanding compaction blocks in {{ $labels.cluster }}/{{ $labels.namespace }} for tenant {{ $labels.tenant }}, increase compactor's CPU or add more compactors."
+      "message": "There are too many outstanding compaction blocks in {{ $labels.cluster }}/{{ $labels.namespace }} for tenant {{ $labels.tenant }}, increase backend-worker CPU or add more backend-workers."
       "runbook_url": "https://github.com/grafana/tempo/tree/main/operations/tempo-mixin/runbook.md#TempoCompactionTooManyOutstandingBlocks"
     "expr": |
-      sum by (cluster, namespace, tenant) (tempodb_compaction_outstanding_blocks{container="compactor", namespace=~".*"}) / ignoring(tenant) group_left count(tempo_build_info{container="compactor", namespace=~".*"}) by (cluster, namespace) > 100
+      sum by (cluster, namespace, tenant) (tempodb_compaction_outstanding_blocks{container="backend-scheduler", namespace=~".*"}) / ignoring(tenant) group_left count(tempo_build_info{container="backend-worker", namespace=~".*"}) by (cluster, namespace) > 100
     "for": "6h"
     "labels":
       "severity": "warning"
   - "alert": "TempoCompactionTooManyOutstandingBlocks"
     "annotations":
-      "message": "There are too many outstanding compaction blocks in {{ $labels.cluster }}/{{ $labels.namespace }} for tenant {{ $labels.tenant }}, increase compactor's CPU or add more compactors."
+      "message": "There are too many outstanding compaction blocks in {{ $labels.cluster }}/{{ $labels.namespace }} for tenant {{ $labels.tenant }}, increase backend-worker CPU or add more backend-workers."
       "runbook_url": "https://github.com/grafana/tempo/tree/main/operations/tempo-mixin/runbook.md#TempoCompactionTooManyOutstandingBlocks"
     "expr": |
-      sum by (cluster, namespace, tenant) (tempodb_compaction_outstanding_blocks{container="compactor", namespace=~".*"}) / ignoring(tenant) group_left count(tempo_build_info{container="compactor", namespace=~".*"}) by (cluster, namespace) > 250
+      sum by (cluster, namespace, tenant) (tempodb_compaction_outstanding_blocks{container="backend-scheduler", namespace=~".*"}) / ignoring(tenant) group_left count(tempo_build_info{container="backend-worker", namespace=~".*"}) by (cluster, namespace) > 250
     "for": "24h"
     "labels":
       "severity": "critical"

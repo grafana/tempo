@@ -48,7 +48,6 @@ func main() {
 	printVersion := flag.Bool("version", false, "Print this builds version information")
 	healthCheck := flag.Bool("health", false, "Run a health check against the /ready endpoint and exit")
 	healthURL := flag.String("health.url", defaultHealthURL, "URL to check when running health check")
-	ballastMBs := flag.Int("mem-ballast-size-mbs", 0, "Size of memory ballast to allocate in MBs.")
 	mutexProfileFraction := flag.Int("mutex-profile-fraction", 0, "Override default mutex profiling fraction.")
 	blockProfileThreshold := flag.Int("block-profile-threshold", 0, "Override default block profiling threshold.")
 
@@ -98,9 +97,6 @@ func main() {
 
 	setMutexBlockProfiling(*mutexProfileFraction, *blockProfileThreshold)
 
-	// Allocate a block of memory to alter GC behaviour. See https://github.com/golang/go/issues/23044
-	ballast := make([]byte, *ballastMBs*1024*1024)
-
 	// Start Tempo
 	t, err := app.New(*config)
 	if err != nil {
@@ -118,7 +114,6 @@ func main() {
 		level.Error(log.Logger).Log("msg", "error running Tempo", "err", err)
 		os.Exit(1)
 	}
-	runtime.KeepAlive(ballast)
 }
 
 func configIsValid(config *app.Config) bool {

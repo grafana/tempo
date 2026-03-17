@@ -21,7 +21,6 @@
   tempo_block_builder_args:: {
     target: target_name,
     'config.file': '/conf/tempo.yaml',
-    'mem-ballast-size-mbs': $._config.ballast_size_mbs,
   },
 
   tempo_block_builder_follow_controller:: $.tempo_live_store_zone_a_statefulset,
