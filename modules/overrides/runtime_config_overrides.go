@@ -37,18 +37,14 @@ type perTenantOverrides struct {
 }
 
 func (o *perTenantOverrides) UnmarshalYAML(unmarshal func(interface{}) error) error {
-	// Note: this implementation relies on callers using yaml.UnmarshalStrict. In non-strict mode
-	// unmarshal() will not return an error for legacy configuration and we return immediately.
-
-	// Try to unmarshal it normally
+	// Try to unmarshal as new format. Overrides.UnmarshalYAML calls processExtensions for each
+	// tenant, which rejects unregistered extension keys — including legacy flat-key field names
+	// (e.g. "max_traces_per_user"). If any tenant uses legacy fields the first-pass will error
+	// and we fall through to the legacy path below.
 	type rawConfig perTenantOverrides
 	if err := unmarshal((*rawConfig)(o)); err == nil {
-		// Overrides.Extra absorbs unknown YAML fields without triggering a strict-mode error. Therefore,
-		// we check whether Overrides.Extra contains legacy fields.
-		if !o.containsLegacyFields() {
-			o.ConfigType = ConfigTypeNew
-			return nil
-		}
+		o.ConfigType = ConfigTypeNew
+		return nil
 	}
 
 	var legacyConfig perTenantLegacyOverrides
@@ -56,28 +52,25 @@ func (o *perTenantOverrides) UnmarshalYAML(unmarshal func(interface{}) error) er
 		return err
 	}
 
-	*o = legacyConfig.toNewOverrides()
+	newOverrides, err := legacyConfig.toNewOverrides()
+	if err != nil {
+		return err
+	}
+	*o = newOverrides
 	o.ConfigType = ConfigTypeLegacy
+
+	for tenantID, limits := range o.TenantLimits {
+		if limits == nil {
+			continue
+		}
+		if err := processExtensions(limits); err != nil {
+			return fmt.Errorf("tenant %q: %w", tenantID, err)
+		}
+	}
 
 	return nil
 }
 
-// containsLegacyFields reports whether any tenant's Extra map holds a key that is a known
-// legacy field name, indicating the YAML was in legacy (flat) format.
-func (o *perTenantOverrides) containsLegacyFields() bool {
-	legacyFields := knownLegacyOverridesYAMLFields()
-	for _, limits := range o.TenantLimits {
-		if limits == nil {
-			continue
-		}
-		for key := range limits.Extra {
-			if _, isLegacy := legacyFields[key]; isLegacy {
-				return true
-			}
-		}
-	}
-	return false
-}
 
 // forUser returns limits for a given tenant, or nil if there are no tenant-specific limits.
 func (o *perTenantOverrides) forUser(userID string) *Overrides {

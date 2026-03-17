@@ -1,34 +1,245 @@
 package overrides
 
 import (
+	"encoding/json"
 	"flag"
+	"fmt"
+	"reflect"
 	"sync"
 )
 
-// Extension describes an extension to the overrides config
+// Extension describes a typed extension to the per-tenant overrides config.
+// Implementations must use pointer receivers for all methods.
 type Extension interface {
-	// Key used as a property in YAML/JSON to store the extended config
+	// Key is the YAML/JSON property name used to store this extension's config.
 	Key() string
-	// RegisterFlagsAndApplyDefaults registers flags and applies defaults for this overrides extension
+	// RegisterFlagsAndApplyDefaults applies defaults for the extension config.
 	RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
-	// Validate validates the config for this overrides extension
+	// Validate validates the extension config after it has been decoded.
 	Validate() error
-	// LegacyKeys from the flattened legacy config
+	// LegacyKeys returns the flat-key names used in the legacy overrides format.
+	// Return an empty slice if there are no legacy keys.
 	LegacyKeys() []string
-	// FromLegacy converts this overrides extension from the legacy config to the new config
-	FromLegacy(map[string]any)
-	// ToLegacy converts this overrides extension from the new config to the legacy config
+	// FromLegacy populates this extension from the flat legacy key map.
+	// The full Extensions map is passed; implementations pick only their own keys.
+	FromLegacy(map[string]any) error
+	// ToLegacy serializes this extension to the flat legacy key map.
 	ToLegacy() map[string]any
 }
 
-var registeredExtensions = struct {
+// registryEntry holds the reflect metadata needed to instantiate an extension.
+type registryEntry struct {
+	key        string
+	legacyKeys []string
+	elemType   reflect.Type // struct type (T without pointer indirection)
+}
+
+// newInstance creates a zeroed pointer instance of the extension type, cast to Extension.
+func (e *registryEntry) newInstance() Extension {
+	return reflect.New(e.elemType).Interface().(Extension)
+}
+
+var extensionRegistry = struct {
 	sync.RWMutex
-	elements map[string]Extension
-}{elements: make(map[string]Extension)}
+	entries map[string]*registryEntry
+}{entries: make(map[string]*registryEntry)}
 
-func RegisterExtension(e Extension) {
-	registeredExtensions.Lock()
-	defer registeredExtensions.Unlock()
+// RegisterExtension registers a per-tenant overrides extension.
+// e must be a non-nil pointer to the extension struct (pointer receivers are required).
+// Panics if an extension with the same Key() is already registered.
+// Returns a typed getter that retrieves the extension value from an Overrides.
+func RegisterExtension[T Extension](e T) func(*Overrides) T {
+	key := e.Key()
 
-	registeredExtensions.elements[e.Key()] = e
+	extensionRegistry.Lock()
+	defer extensionRegistry.Unlock()
+
+	if _, exists := extensionRegistry.entries[key]; exists {
+		panic(fmt.Sprintf("overrides: extension %q already registered", key))
+	}
+
+	typ := reflect.TypeOf(e)
+	if typ == nil || typ.Kind() != reflect.Ptr {
+		panic(fmt.Sprintf("overrides: extension %q must be registered as a pointer type", key))
+	}
+
+	extensionRegistry.entries[key] = &registryEntry{
+		key:        key,
+		legacyKeys: e.LegacyKeys(),
+		elemType:   typ.Elem(),
+	}
+
+	return func(o *Overrides) T {
+		if o == nil || o.Extensions == nil {
+			var zero T
+			return zero
+		}
+		v, _ := o.Extensions[key].(T)
+		return v
+	}
+}
+
+// processExtensions validates all entries in o.Extensions against the registry, converts raw
+// decoded values (from YAML or JSON) to typed Extension instances, applies defaults, and
+// calls Validate on each. It is idempotent: already-typed entries are only re-validated.
+func processExtensions(o *Overrides) error {
+	if len(o.Extensions) == 0 {
+		return nil
+	}
+
+	extensionRegistry.RLock()
+	defer extensionRegistry.RUnlock()
+
+	for key, raw := range o.Extensions {
+		entry, ok := extensionRegistry.entries[key]
+		if !ok {
+			return fmt.Errorf("unknown extension key %q: must be registered via RegisterExtension before use", key)
+		}
+
+		// Already a typed Extension (e.g., set programmatically or after legacy conversion): just validate.
+		if ext, alreadyTyped := raw.(Extension); alreadyTyped {
+			if err := ext.Validate(); err != nil {
+				return fmt.Errorf("extension %q: %w", key, err)
+			}
+			continue
+		}
+
+		// Create a new instance and apply defaults.
+		instance := entry.newInstance()
+		// Per-tenant extension configs have no CLI prefix.
+		instance.RegisterFlagsAndApplyDefaults("", flag.NewFlagSet("", flag.ContinueOnError))
+
+		// Decode via JSON round-trip, which also normalises map[any]any from YAML.
+		b, err := json.Marshal(normalizeYAMLValue(raw))
+		if err != nil {
+			return fmt.Errorf("extension %q: marshal: %w", key, err)
+		}
+		if err := json.Unmarshal(b, instance); err != nil {
+			return fmt.Errorf("extension %q: unmarshal: %w", key, err)
+		}
+
+		if err := instance.Validate(); err != nil {
+			return fmt.Errorf("extension %q: %w", key, err)
+		}
+
+		o.Extensions[key] = instance
+	}
+	return nil
+}
+
+// processLegacyExtensions converts registered extension flat keys in l.Extensions to typed
+// Extension instances, giving LegacyOverrides.Extensions the same semantics as
+// Overrides.Extensions after processExtensions: typed instances keyed by their nested Key().
+//
+// For each registered extension whose LegacyKeys appear in l.Extensions, a typed instance is
+// created, defaults applied, FromLegacy called, and the instance validated. The flat keys are
+// then removed and the typed instance stored under the extension's Key().
+//
+// Keys that don't correspond to any registered extension's LegacyKeys are left as-is; strict
+// validation for those happens later when processExtensions is called on the converted Overrides.
+func processLegacyExtensions(l *LegacyOverrides) error {
+	if len(l.Extensions) == 0 {
+		return nil
+	}
+
+	extensionRegistry.RLock()
+	entries := make([]*registryEntry, 0, len(extensionRegistry.entries))
+	for _, e := range extensionRegistry.entries {
+		if len(e.legacyKeys) > 0 {
+			entries = append(entries, e)
+		}
+	}
+	extensionRegistry.RUnlock()
+
+	for _, entry := range entries {
+		hasFlatKey := false
+		for _, fk := range entry.legacyKeys {
+			if _, ok := l.Extensions[fk]; ok {
+				hasFlatKey = true
+				break
+			}
+		}
+		if !hasFlatKey {
+			continue
+		}
+
+		instance := entry.newInstance()
+		// Per-tenant extension configs have no CLI prefix.
+		instance.RegisterFlagsAndApplyDefaults("", flag.NewFlagSet("", flag.ContinueOnError))
+		if err := instance.FromLegacy(l.Extensions); err != nil {
+			return fmt.Errorf("extension %q: from legacy: %w", entry.key, err)
+		}
+		if err := instance.Validate(); err != nil {
+			return fmt.Errorf("extension %q: %w", entry.key, err)
+		}
+		for _, fk := range entry.legacyKeys {
+			delete(l.Extensions, fk)
+		}
+		if l.Extensions == nil {
+			l.Extensions = make(map[string]any)
+		}
+		l.Extensions[entry.key] = instance
+	}
+	return nil
+}
+
+
+// flattenExtensionEntries returns a new map where typed Extension values are replaced by their
+// flat legacy key-value pairs (via ToLegacy). Non-Extension entries are copied as-is.
+// Used when marshaling LegacyOverrides to produce the flat wire format.
+func flattenExtensionEntries(m map[string]any) map[string]any {
+	out := make(map[string]any, len(m))
+	for k, v := range m {
+		if ext, ok := v.(Extension); ok {
+			for fk, fv := range ext.ToLegacy() {
+				out[fk] = fv
+			}
+		} else {
+			out[k] = v
+		}
+	}
+	return out
+}
+
+// normalizeYAMLValue converts map[any]any produced by go-yaml to map[string]any recursively,
+// making the value safe to pass to json.Marshal.
+func normalizeYAMLValue(v any) any {
+	switch val := v.(type) {
+	case map[any]any:
+		m := make(map[string]any, len(val))
+		for k, v2 := range val {
+			switch key := k.(type) {
+			case string:
+				m[key] = normalizeYAMLValue(v2)
+			case fmt.Stringer:
+				m[key.String()] = normalizeYAMLValue(v2)
+			default:
+				m[fmt.Sprintf("%v", k)] = normalizeYAMLValue(v2)
+			}
+		}
+		return m
+	case []any:
+		out := make([]any, len(val))
+		for i, elem := range val {
+			out[i] = normalizeYAMLValue(elem)
+		}
+		return out
+	default:
+		return v
+	}
+}
+
+// ResetRegistryForTesting clears the extension registry and restores it after the test.
+// This prevents extension registrations in one test from leaking into others.
+func ResetRegistryForTesting(t interface{ Cleanup(func()) }) {
+	extensionRegistry.Lock()
+	saved := extensionRegistry.entries
+	extensionRegistry.entries = make(map[string]*registryEntry)
+	extensionRegistry.Unlock()
+
+	t.Cleanup(func() {
+		extensionRegistry.Lock()
+		extensionRegistry.entries = saved
+		extensionRegistry.Unlock()
+	})
 }

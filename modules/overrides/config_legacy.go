@@ -2,6 +2,7 @@ package overrides
 
 import (
 	"encoding/json"
+	"fmt"
 	"sync"
 	"time"
 
@@ -16,7 +17,7 @@ import (
 )
 
 func (c *Overrides) toLegacy() LegacyOverrides {
-	return LegacyOverrides{
+	result := LegacyOverrides{
 		IngestionRateStrategy:      c.Ingestion.RateStrategy,
 		IngestionRateLimitBytes:    c.Ingestion.RateLimitBytes,
 		IngestionBurstSizeBytes:    c.Ingestion.BurstSizeBytes,
@@ -84,8 +85,15 @@ func (c *Overrides) toLegacy() LegacyOverrides {
 			Dimensions:     c.CostAttribution.Dimensions,
 			MaxCardinality: c.CostAttribution.MaxCardinality,
 		},
-		Extra: c.Extra,
 	}
+	// Copy extensions; MarshalJSON/MarshalYAML flatten typed instances to legacy flat keys.
+	if len(c.Extensions) > 0 {
+		result.Extensions = make(map[string]any, len(c.Extensions))
+		for k, v := range c.Extensions {
+			result.Extensions[k] = v
+		}
+	}
+	return result
 }
 
 // LegacyOverrides describe all the limits for users; can be used to describe global default
@@ -169,8 +177,12 @@ type LegacyOverrides struct {
 	// tempodb limits
 	DedicatedColumns backend.DedicatedColumns `yaml:"parquet_dedicated_columns" json:"parquet_dedicated_columns"`
 
-	// Extra captures fields not recognised by this struct. See Overrides.Extra.
-	Extra map[string]any `yaml:",inline" json:"-"`
+	// Extensions captures fields not recognised by the above fields.
+	// After UnmarshalJSON or UnmarshalYAML (via processLegacyExtensions), typed Extension instances
+	// are stored here keyed by their nested Key() (e.g. "my_ext"), matching the semantics of
+	// Overrides.Extensions. The flat wire format (e.g. "my_ext_field") is only used during
+	// serialization, handled by MarshalJSON and MarshalYAML.
+	Extensions map[string]any `yaml:",inline" json:"-"`
 }
 
 // knownLegacyOverridesJSONFields returns the JSON key names declared on LegacyOverrides
@@ -178,10 +190,6 @@ var knownLegacyOverridesJSONFields = sync.OnceValue(func() map[string]struct{} {
 	return fieldNamesFor(LegacyOverrides{}, "json")
 })
 
-// knownLegacyOverridesYAMLFields returns the YAML key names declared on LegacyOverrides
-var knownLegacyOverridesYAMLFields = sync.OnceValue(func() map[string]struct{} {
-	return fieldNamesFor(LegacyOverrides{}, "yaml")
-})
 
 func (l *LegacyOverrides) UnmarshalJSON(data []byte) error {
 	type plain LegacyOverrides
@@ -201,15 +209,19 @@ func (l *LegacyOverrides) UnmarshalJSON(data []byte) error {
 		return nil
 	}
 
-	l.Extra = make(map[string]any, len(raw))
+	l.Extensions = make(map[string]any, len(raw))
 	for k, v := range raw {
 		var val any
 		if err := json.Unmarshal(v, &val); err != nil {
 			return err
 		}
-		l.Extra[k] = val
+		l.Extensions[k] = val
 	}
-	return nil
+
+	// processLegacyExtensions converts registered extension flat keys (e.g. "my_ext_field") to
+	// typed instances keyed by their nested Key() (e.g. "my_ext"), matching Overrides.Extensions.
+	// processExtensions must NOT be called here: it expects nested keys, not flat legacy keys.
+	return processLegacyExtensions(l)
 }
 
 func (l LegacyOverrides) MarshalJSON() ([]byte, error) {
@@ -218,7 +230,7 @@ func (l LegacyOverrides) MarshalJSON() ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	if len(l.Extra) == 0 {
+	if len(l.Extensions) == 0 {
 		return data, nil
 	}
 
@@ -226,21 +238,56 @@ func (l LegacyOverrides) MarshalJSON() ([]byte, error) {
 	if err := json.Unmarshal(data, &m); err != nil {
 		return nil, err
 	}
-	for k, v := range l.Extra {
-		if _, exists := m[k]; exists {
-			continue // known fields take precedence
+	// Flatten typed Extension instances to their legacy flat keys; copy other entries as-is.
+	for k, v := range l.Extensions {
+		if ext, ok := v.(Extension); ok {
+			for fk, fv := range ext.ToLegacy() {
+				if _, exists := m[fk]; exists {
+					continue // known fields take precedence
+				}
+				b, err := json.Marshal(fv)
+				if err != nil {
+					return nil, err
+				}
+				m[fk] = b
+			}
+		} else {
+			if _, exists := m[k]; exists {
+				continue // known fields take precedence
+			}
+			b, err := json.Marshal(v)
+			if err != nil {
+				return nil, err
+			}
+			m[k] = b
 		}
-		b, err := json.Marshal(v)
-		if err != nil {
-			return nil, err
-		}
-		m[k] = b
 	}
 	return json.Marshal(m)
 }
 
-func (l *LegacyOverrides) toNewLimits() Overrides {
-	return Overrides{
+func (l *LegacyOverrides) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	type plain LegacyOverrides
+	if err := unmarshal((*plain)(l)); err != nil {
+		return err
+	}
+	// Convert registered extension flat keys to typed instances, matching Overrides.Extensions.
+	return processLegacyExtensions(l)
+}
+
+func (l LegacyOverrides) MarshalYAML() (interface{}, error) {
+	type plain LegacyOverrides
+	if len(l.Extensions) == 0 {
+		return plain(l), nil
+	}
+	// Flatten typed Extension instances to their legacy flat keys before marshaling,
+	// so that the YAML wire format uses flat keys (e.g. "my_ext_field"), not the nested key.
+	cp := l
+	cp.Extensions = flattenExtensionEntries(l.Extensions)
+	return plain(cp), nil
+}
+
+func (l *LegacyOverrides) toNewLimits() (Overrides, error) {
+	o := Overrides{
 		Ingestion: IngestionOverrides{
 			RateStrategy:           l.IngestionRateStrategy,
 			RateLimitBytes:         l.IngestionRateLimitBytes,
@@ -324,8 +371,16 @@ func (l *LegacyOverrides) toNewLimits() Overrides {
 			Dimensions:     l.CostAttribution.Dimensions,
 			MaxCardinality: l.CostAttribution.MaxCardinality,
 		},
-		Extra: l.Extra,
 	}
+	// Extensions are already typed instances after processLegacyExtensions ran at unmarshal time.
+	// Simply copy them; processExtensions called by the caller will validate them.
+	if len(l.Extensions) > 0 {
+		o.Extensions = make(map[string]any, len(l.Extensions))
+		for k, v := range l.Extensions {
+			o.Extensions[k] = v
+		}
+	}
+	return o, nil
 }
 
 // perTenantLegacyOverrides represents the Overrides config file with the legacy representation
@@ -334,15 +389,18 @@ type perTenantLegacyOverrides struct {
 }
 
 // Convert to new format
-func (l *perTenantLegacyOverrides) toNewOverrides() perTenantOverrides {
+func (l *perTenantLegacyOverrides) toNewOverrides() (perTenantOverrides, error) {
 	overrides := perTenantOverrides{
 		TenantLimits: make(map[string]*Overrides, len(l.TenantLimits)),
 	}
 
 	for tenantID, legacyLimits := range l.TenantLimits {
-		limits := legacyLimits.toNewLimits()
+		limits, err := legacyLimits.toNewLimits()
+		if err != nil {
+			return perTenantOverrides{}, fmt.Errorf("tenant %q: %w", tenantID, err)
+		}
 		overrides.TenantLimits[tenantID] = &limits
 	}
 
-	return overrides
+	return overrides, nil
 }

@@ -212,15 +212,24 @@ type Overrides struct {
 	// Storage enforced overrides.
 	Storage         StorageOverrides         `yaml:"storage,omitempty" json:"storage,omitempty"`
 	CostAttribution CostAttributionOverrides `yaml:"cost_attribution,omitempty" json:"cost_attribution,omitempty"`
-
-	// Extra captures fields not recognised by this struct. This allows systems vendoring tempo to add their own overrides
-	Extra map[string]any `yaml:",inline" json:"-"`
+	// Extensions captures fields not recognised by this struct, enables systems vendoring tempo to extend overrides.
+	// After UnmarshalJSON or processExtensions(), all values are typed Extension instances keyed by Key().
+	// Raw map[string]any values are only present transiently after YAML unmarshal, before processExtensions is called.
+	Extensions map[string]any `yaml:",inline" json:"-"`
 }
 
 // knownOverridesJSONFields returns the JSON key names declared on Overrides
 var knownOverridesJSONFields = sync.OnceValue(func() map[string]struct{} {
 	return fieldNamesFor(Overrides{}, "json")
 })
+
+func (o *Overrides) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	type plain Overrides
+	if err := unmarshal((*plain)(o)); err != nil {
+		return err
+	}
+	return processExtensions(o)
+}
 
 func (o *Overrides) UnmarshalJSON(data []byte) error {
 	type plain Overrides
@@ -240,15 +249,15 @@ func (o *Overrides) UnmarshalJSON(data []byte) error {
 		return nil
 	}
 
-	o.Extra = make(map[string]any, len(raw))
+	o.Extensions = make(map[string]any, len(raw))
 	for k, v := range raw {
 		var val any
 		if err := json.Unmarshal(v, &val); err != nil {
 			return err
 		}
-		o.Extra[k] = val
+		o.Extensions[k] = val
 	}
-	return nil
+	return processExtensions(o)
 }
 
 func (o Overrides) MarshalJSON() ([]byte, error) {
@@ -257,7 +266,7 @@ func (o Overrides) MarshalJSON() ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	if len(o.Extra) == 0 {
+	if len(o.Extensions) == 0 {
 		return data, nil
 	}
 
@@ -265,7 +274,7 @@ func (o Overrides) MarshalJSON() ([]byte, error) {
 	if err := json.Unmarshal(data, &m); err != nil {
 		return nil, err
 	}
-	for k, v := range o.Extra {
+	for k, v := range o.Extensions {
 		if _, exists := m[k]; exists {
 			continue // known fields take precedence
 		}
@@ -295,7 +304,7 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	// Note: this implementation relies on callers using yaml.UnmarshalStrict. In non-strict mode
 	// unmarshal() will not return an error for legacy configuration and we return immediately.
 
-	// Try to unmarshal it normally
+	// Try to unmarshal it normally. Overrides.UnmarshalYAML calls processExtensions for c.Defaults.
 	type rawConfig Config
 	err := unmarshal((*rawConfig)(c))
 	if err == nil {
@@ -322,7 +331,20 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		return fmt.Errorf("failed to unmarshal config: %w; also failed in legacy format: %w", err, legacyErr)
 	}
 
-	c.Defaults = legacyCfg.DefaultOverrides.toNewLimits()
+	// Ensure legacy extension flat keys are converted to typed instances before toNewLimits.
+	// processLegacyExtensions may not be triggered automatically for inline struct fields.
+	if err := processLegacyExtensions(&legacyCfg.DefaultOverrides); err != nil {
+		return fmt.Errorf("defaults: %w", err)
+	}
+
+	var convErr error
+	c.Defaults, convErr = legacyCfg.DefaultOverrides.toNewLimits()
+	if convErr != nil {
+		return fmt.Errorf("failed to convert legacy defaults: %w", convErr)
+	}
+	if err := processExtensions(&c.Defaults); err != nil {
+		return fmt.Errorf("defaults: %w", err)
+	}
 	c.PerTenantOverrideConfig = legacyCfg.PerTenantOverrideConfig
 	c.PerTenantOverridePeriod = legacyCfg.PerTenantOverridePeriod
 	c.UserConfigurableOverridesConfig = legacyCfg.UserConfigurableOverridesConfig
