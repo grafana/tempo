@@ -1,6 +1,8 @@
 package util
 
 import (
+	"strings"
+
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/sampling"
 	semconv "go.opentelemetry.io/otel/semconv/v1.25.0"
 
@@ -66,16 +68,22 @@ func GetSpanMultiplier(ratioKey string, span *v1.Span, rs *v1_resource.Resource,
 // Returns 0 if the tracestate is empty, invalid, or has no OTel sampling data.
 func getSpanMultiplierFromTraceState(span *v1.Span) float64 {
 	traceState := span.GetTraceState()
-	if traceState == "" {
+	otelStart := strings.Index(traceState, "ot=")
+	if otelStart == -1 {
 		return 0
 	}
 
-	w3c, err := sampling.NewW3CTraceState(traceState)
+	// Extract just the ot= value, avoiding full W3C tracestate parsing.
+	otelValue := traceState[otelStart+len("ot="):]
+	if commaIdx := strings.IndexByte(otelValue, ','); commaIdx != -1 {
+		otelValue = otelValue[:commaIdx]
+	}
+
+	otts, err := sampling.NewOpenTelemetryTraceState(otelValue)
 	if err != nil {
 		return 0
 	}
 
-	otts := w3c.OTelValue()
 	return otts.AdjustedCount()
 }
 

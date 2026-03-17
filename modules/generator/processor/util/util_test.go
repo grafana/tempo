@@ -181,6 +181,43 @@ func TestGetSpanMultiplierFromTraceState(t *testing.T) {
 	}
 }
 
+func BenchmarkGetSpanMultiplier(b *testing.B) {
+	rs := &v1_resource.Resource{}
+
+	spanWithTraceState := &v1.Span{
+		TraceState: "ot=th:8",
+	}
+	spanWithoutTraceState := &v1.Span{
+		TraceState: "xx=yy:zz",
+		Attributes: []*v1_common.KeyValue{
+			{
+				Key: "sampling.ratio",
+				Value: &v1_common.AnyValue{
+					Value: &v1_common.AnyValue_DoubleValue{DoubleValue: 0.5},
+				},
+			},
+		},
+	}
+
+	b.Run("with otel tracestate", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			GetSpanMultiplier("", spanWithTraceState, rs, true)
+		}
+	})
+
+	b.Run("without otel tracestate", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			GetSpanMultiplier("sampling.ratio", spanWithoutTraceState, rs, true)
+		}
+	})
+
+	b.Run("otel racestate disabled", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			GetSpanMultiplier("sampling.ratio", spanWithoutTraceState, rs, false)
+		}
+	})
+}
+
 func TestGetSpanMultiplier_WithTraceState(t *testing.T) {
 	ratioAttr := "sampling.ratio"
 
