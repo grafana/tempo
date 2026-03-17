@@ -14,6 +14,14 @@ import (
 	"github.com/pkg/errors"
 )
 
+const (
+	colKey       = "key"
+	colValString = "string"
+	colValInt    = "int"
+	colValFloat  = "float"
+	colValBool   = "bool"
+)
+
 type tagNameKey struct {
 	name  string
 	scope traceql.AttributeScope
@@ -739,32 +747,32 @@ func createDistinctAttributeIterator(
 			if err != nil {
 				return nil, fmt.Errorf("creating attribute predicate: %w", err)
 			}
-			keyIter = makeIter(keyPath, parquetquery.NewStringInPredicate([]string{cond.Attribute.Name}), selectAs("key", cond.Attribute))
-			valIter = makeIter(strPath, pred, selectAs("string", cond.Attribute))
+			keyIter = makeIter(keyPath, parquetquery.NewStringInPredicate([]string{cond.Attribute.Name}), selectAs(colKey, cond.Attribute))
+			valIter = makeIter(strPath, pred, selectAs(colValString, cond.Attribute))
 
 		case traceql.TypeInt, traceql.TypeIntArray:
 			pred, err := createIntPredicate(cond.Op, cond.Operands)
 			if err != nil {
 				return nil, fmt.Errorf("creating attribute predicate: %w", err)
 			}
-			keyIter = makeIter(keyPath, parquetquery.NewStringInPredicate([]string{cond.Attribute.Name}), selectAs("key", cond.Attribute))
-			valIter = makeIter(intPath, pred, selectAs("int", cond.Attribute))
+			keyIter = makeIter(keyPath, parquetquery.NewStringInPredicate([]string{cond.Attribute.Name}), selectAs(colKey, cond.Attribute))
+			valIter = makeIter(intPath, pred, selectAs(colValInt, cond.Attribute))
 
 		case traceql.TypeFloat, traceql.TypeFloatArray:
 			pred, err := createFloatPredicate(cond.Op, cond.Operands)
 			if err != nil {
 				return nil, fmt.Errorf("creating attribute predicate: %w", err)
 			}
-			keyIter = makeIter(keyPath, parquetquery.NewStringInPredicate([]string{cond.Attribute.Name}), selectAs("key", cond.Attribute))
-			valIter = makeIter(floatPath, pred, selectAs("float", cond.Attribute))
+			keyIter = makeIter(keyPath, parquetquery.NewStringInPredicate([]string{cond.Attribute.Name}), selectAs(colKey, cond.Attribute))
+			valIter = makeIter(floatPath, pred, selectAs(colValFloat, cond.Attribute))
 
 		case traceql.TypeBoolean, traceql.TypeBooleanArray:
 			pred, err := createBoolPredicate(cond.Op, cond.Operands)
 			if err != nil {
 				return nil, fmt.Errorf("creating attribute predicate: %w", err)
 			}
-			keyIter = makeIter(keyPath, parquetquery.NewStringInPredicate([]string{cond.Attribute.Name}), selectAs("key", cond.Attribute))
-			valIter = makeIter(boolPath, pred, selectAs("bool", cond.Attribute))
+			keyIter = makeIter(keyPath, parquetquery.NewStringInPredicate([]string{cond.Attribute.Name}), selectAs(colKey, cond.Attribute))
+			valIter = makeIter(boolPath, pred, selectAs(colValBool, cond.Attribute))
 		default:
 			// Generic attributes don't support special types (e.g. duration, status, kind)
 			// If we get here, it means we're trying to search for a special type in a generic attribute
@@ -778,16 +786,16 @@ func createDistinctAttributeIterator(
 
 	var valueIters []parquetquery.Iterator
 	if len(attrStringPreds) > 0 {
-		valueIters = append(valueIters, makeIter(strPath, orIfNeeded(attrStringPreds), "string"))
+		valueIters = append(valueIters, makeIter(strPath, orIfNeeded(attrStringPreds), colValString))
 	}
 	if len(attrIntPreds) > 0 {
-		valueIters = append(valueIters, makeIter(intPath, orIfNeeded(attrIntPreds), "int"))
+		valueIters = append(valueIters, makeIter(intPath, orIfNeeded(attrIntPreds), colValInt))
 	}
 	if len(attrFltPreds) > 0 {
-		valueIters = append(valueIters, makeIter(floatPath, orIfNeeded(attrFltPreds), "float"))
+		valueIters = append(valueIters, makeIter(floatPath, orIfNeeded(attrFltPreds), colValFloat))
 	}
 	if len(boolPreds) > 0 {
-		valueIters = append(valueIters, makeIter(boolPath, orIfNeeded(boolPreds), "bool"))
+		valueIters = append(valueIters, makeIter(boolPath, orIfNeeded(boolPreds), colValBool))
 	}
 
 	scope := scopeFromDefinitionLevel(definitionLevel, keyPath)
@@ -795,7 +803,7 @@ func createDistinctAttributeIterator(
 		if len(valueIters) > 0 {
 			tagIter, err := parquetquery.NewLeftJoinIterator(
 				definitionLevel,
-				[]parquetquery.Iterator{makeIter(keyPath, parquetquery.NewStringInPredicate(attrKeys), "key")},
+				[]parquetquery.Iterator{makeIter(keyPath, parquetquery.NewStringInPredicate(attrKeys), colKey)},
 				valueIters,
 				newDistinctAttrCollector(scope, false, tr.existsTagName, tr.existsTagValue),
 			)
@@ -824,7 +832,7 @@ func keyNameIterator(makeIter makeIterFn, tr tagRequest, definitionLevel int, ke
 	if len(attrIters) == 0 {
 		return parquetquery.NewJoinIterator(
 			oneLevelUp(definitionLevel),
-			[]parquetquery.Iterator{makeIter(keyPath, nil, "key")},
+			[]parquetquery.Iterator{makeIter(keyPath, nil, colKey)},
 			newDistinctAttrCollector(scope, true, tr.existsTagName, tr.existsTagValue),
 		), nil
 	}
@@ -832,7 +840,7 @@ func keyNameIterator(makeIter makeIterFn, tr tagRequest, definitionLevel int, ke
 	return parquetquery.NewLeftJoinIterator(
 		oneLevelUp(definitionLevel),
 		attrIters,
-		[]parquetquery.Iterator{makeIter(keyPath, nil, "key")},
+		[]parquetquery.Iterator{makeIter(keyPath, nil, colKey)},
 		newDistinctAttrCollector(scope, true, tr.existsTagName, tr.existsTagValue),
 	)
 }
@@ -1149,7 +1157,7 @@ func (d *distinctAttrCollector) KeepGroup(result *parquetquery.IteratorResult) b
 		}
 
 		if d.attrNames {
-			if e.Key == "key" {
+			if e.Key == colKey {
 				name := unsafeToString(e.Value.ByteArray())
 				key := tagNameKey{name: name, scope: d.scope}
 				if !d.existsTagName(key) {
@@ -1158,13 +1166,13 @@ func (d *distinctAttrCollector) KeepGroup(result *parquetquery.IteratorResult) b
 			}
 		} else {
 			switch e.Key {
-			case "string":
+			case colValString:
 				val = traceql.NewStaticString(unsafeToString(e.Value.ByteArray()))
-			case "int":
+			case colValInt:
 				val = traceql.NewStaticInt(int(e.Value.Int64()))
-			case "float":
+			case colValFloat:
 				val = traceql.NewStaticFloat(e.Value.Double())
-			case "bool":
+			case colValBool:
 				val = traceql.NewStaticBool(e.Value.Boolean())
 			}
 		}
