@@ -618,8 +618,8 @@ func TestNativeHistogramOverrides(t *testing.T) {
 			name: "defaults only",
 			defaultLimits: Overrides{
 				MetricsGenerator: MetricsGeneratorOverrides{
-					NativeHistogramBucketFactor:     1.5,
-					NativeHistogramMaxBucketNumber:  20,
+					NativeHistogramBucketFactor:     ptrTo(1.5),
+					NativeHistogramMaxBucketNumber:  ptrTo(uint32(20)),
 					NativeHistogramMinResetDuration: ptrTo(5 * time.Minute),
 				},
 			},
@@ -631,8 +631,8 @@ func TestNativeHistogramOverrides(t *testing.T) {
 			name: "per-tenant override",
 			defaultLimits: Overrides{
 				MetricsGenerator: MetricsGeneratorOverrides{
-					NativeHistogramBucketFactor:     1.5,
-					NativeHistogramMaxBucketNumber:  20,
+					NativeHistogramBucketFactor:     ptrTo(1.5),
+					NativeHistogramMaxBucketNumber:  ptrTo(uint32(20)),
 					NativeHistogramMinResetDuration: ptrTo(5 * time.Minute),
 				},
 			},
@@ -640,8 +640,8 @@ func TestNativeHistogramOverrides(t *testing.T) {
 				TenantLimits: TenantOverrides{
 					"user1": {
 						MetricsGenerator: MetricsGeneratorOverrides{
-							NativeHistogramBucketFactor:     2.0,
-							NativeHistogramMaxBucketNumber:  30,
+							NativeHistogramBucketFactor:     ptrTo(2.0),
+							NativeHistogramMaxBucketNumber:  ptrTo(uint32(30)),
 							NativeHistogramMinResetDuration: ptrTo(10 * time.Minute),
 						},
 					},

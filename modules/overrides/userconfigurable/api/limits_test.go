@@ -28,8 +28,8 @@ func Test_limitsFromOverrides(t *testing.T) {
 				DisableCollection:               boolPtr(true),
 				TraceIDLabelName:                "trace_id",
 				GenerateNativeHistograms:        histograms.HistogramMethodBoth,
-				NativeHistogramMaxBucketNumber:  160,
-				NativeHistogramBucketFactor:     1.2,
+				NativeHistogramMaxBucketNumber:  ptrTo(uint32(160)),
+				NativeHistogramBucketFactor:     ptrTo(1.2),
 				NativeHistogramMinResetDuration: ptrTo(10 * time.Minute),
 				SpanNameSanitization:            ptrTo("enabled"),
 				Processor: overrides.ProcessorOverrides{

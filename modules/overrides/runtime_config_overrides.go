@@ -485,11 +485,11 @@ func (o *runtimeConfigOverridesManager) MetricsGeneratorGenerateNativeHistograms
 }
 
 func (o *runtimeConfigOverridesManager) MetricsGeneratorNativeHistogramBucketFactor(userID string) float64 {
-	return o.getOverridesForUser(userID).MetricsGenerator.NativeHistogramBucketFactor
+	return *o.getOverridesForUser(userID).MetricsGenerator.NativeHistogramBucketFactor
 }
 
 func (o *runtimeConfigOverridesManager) MetricsGeneratorNativeHistogramMaxBucketNumber(userID string) uint32 {
-	return o.getOverridesForUser(userID).MetricsGenerator.NativeHistogramMaxBucketNumber
+	return *o.getOverridesForUser(userID).MetricsGenerator.NativeHistogramMaxBucketNumber
 }
 
 func (o *runtimeConfigOverridesManager) MetricsGeneratorNativeHistogramMinResetDuration(userID string) time.Duration {
