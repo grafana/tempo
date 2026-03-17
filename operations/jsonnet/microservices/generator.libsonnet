@@ -96,13 +96,16 @@
     + statefulset.spec.template.spec.securityContext.withFsGroup(10001)  // 10001 is the UID of the tempo user
     + statefulset.mixin.spec.withReplicas($._config.metrics_generator.replicas),
 
+  // Set a generator workload so the references below can override
+  tempo_metrics_generator_workload:: $.tempo_metrics_generator_statefulset,
+
   tempo_metrics_generator_service:
-    kausal.util.serviceFor($.tempo_metrics_generator_deployment),
+    kausal.util.serviceFor($.tempo_metrics_generator_workload),
 
   // Vertical Pod Autoscaler
-  tempo_metrics_generator_vpa: $.vpaForController($.tempo_metrics_generator_statefulset, 'metrics_generator'),
+  tempo_metrics_generator_vpa: $.vpaForController($.tempo_metrics_generator_workload, 'metrics_generator'),
 
   // Pod Disruption Budget
-  tempo_metrics_generator_pdb: $.pdbForController($.tempo_metrics_generator_statefulset, 'metrics_generator'),
+  tempo_metrics_generator_pdb: $.pdbForController($.tempo_metrics_generator_workload, 'metrics_generator'),
 
 }
