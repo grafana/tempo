@@ -73,6 +73,9 @@ tempo
 
     query_frontend+: {
       replicas: 2,
+      vpa+: {
+        enabled: true,
+      },
       pdb+: {
         enabled: true,
       },
