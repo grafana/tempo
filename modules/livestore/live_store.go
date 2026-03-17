@@ -300,15 +300,16 @@ func (s *LiveStore) starting(ctx context.Context) error {
 		level.Info(s.logger).Log("msg", "no local data found after reload, will force reading from lookback period")
 	}
 
-	err = services.StartAndAwaitRunning(ctx, s.ingestPartitionLifecycler)
-	if err != nil {
-		return fmt.Errorf("failed to start partition lifecycler: %w", err)
-	}
 	// Set eagerly so the flag is already in place when the lifecycler's stopping()
 	// checks it. Setting it in our own stopping() races with context-cancellation
 	// that triggers the lifecycler's shutdown first.
 	if s.cfg.RemoveOwnerOnShutdown {
 		s.ingestPartitionLifecycler.SetRemoveOwnerOnShutdown(true)
+	}
+
+	err = services.StartAndAwaitRunning(ctx, s.ingestPartitionLifecycler)
+	if err != nil {
+		return fmt.Errorf("failed to start partition lifecycler: %w", err)
 	}
 
 	err = services.StartAndAwaitRunning(ctx, s.livestoreLifecycler)
