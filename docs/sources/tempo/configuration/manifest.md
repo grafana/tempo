@@ -483,6 +483,7 @@ metrics_generator:
         remote_write_add_org_id_header: true
     metrics_ingestion_time_range_slack: 30s
     override_ring_key: metrics-generator
+    ring_mode: partition
     codec: push-bytes
     disable_grpc: false
     limiter_type: series

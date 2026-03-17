@@ -326,7 +326,12 @@ func (t *App) generatorRingReader() (ring.PartitionRingReader, error) {
 		}
 		return t.generatorRingWatcher, nil
 	default:
-		return nil, fmt.Errorf("unsupported metrics-generator ring mode: %s", t.cfg.Generator.RingMode)
+		return nil, fmt.Errorf(
+			"invalid metrics-generator ring mode %q, must be one of: %q, %q",
+			t.cfg.Generator.RingMode,
+			generator.RingModePartition,
+			generator.RingModeGenerator,
+		)
 	}
 }
 
@@ -336,7 +341,7 @@ func (t *App) initGeneratorNoLocalBlocks() (services.Service, error) {
 }
 
 func (t *App) initGeneratorRingWatcher() (services.Service, error) {
-	if IsSingleBinary(t.cfg.Target) {
+	if IsSingleBinary(t.cfg.Target) || t.cfg.Generator.RingMode != generator.RingModeGenerator {
 		return services.NewIdleService(nil, nil), nil
 	}
 
