@@ -6,6 +6,7 @@ type AttributeScope int8
 
 const (
 	AttributeScopeNone AttributeScope = iota
+	AttributeScopeTrace
 	AttributeScopeResource
 	AttributeScopeSpan
 	AttributeScopeEvent
@@ -25,6 +26,8 @@ func (s AttributeScope) String() string {
 	switch s {
 	case AttributeScopeNone:
 		return none
+	case AttributeScopeTrace:
+		return "trace"
 	case AttributeScopeSpan:
 		return "span"
 	case AttributeScopeResource:
@@ -42,6 +45,8 @@ func (s AttributeScope) String() string {
 
 func AttributeScopeFromString(s string) AttributeScope {
 	switch s {
+	case "trace":
+		return AttributeScopeTrace
 	case "span":
 		return AttributeScopeSpan
 	case "resource":

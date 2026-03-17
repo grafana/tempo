@@ -37,8 +37,6 @@ func main() {
 	// Override values that depend on the host specifics
 	const hostname = "hostname"
 	newConfig.Distributor.DistributorRing.InstanceID = hostname
-	newConfig.Ingester.LifecyclerConfig.ID = hostname
-	newConfig.Ingester.LifecyclerConfig.InfNames = []string{"eth0"}
 	newConfig.Generator.Ring.InstanceID = hostname
 	newConfig.BackendWorker.Ring.InstanceID = hostname
 	newConfig.Generator.InstanceID = hostname

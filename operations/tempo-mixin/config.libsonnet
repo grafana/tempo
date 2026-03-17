@@ -9,7 +9,6 @@
       gateway: 'cortex-gw(-internal)?',
       query_frontend: 'query-frontend',
       querier: 'querier',
-      ingester: 'ingester',
       metrics_generator: 'metrics-generator',
       distributor: 'distributor',
       compactor: 'compactor',

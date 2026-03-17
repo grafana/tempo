@@ -1,6 +1,7 @@
 ## main / unreleased
 
 * [BUGFIX] S3 SSE-C `encryption_key` is now treated as a secret to prevent it being exposed in plaintext. Resolves CVE-2026-28377. [#6711](https://github.com/grafana/tempo/pull/6711) (@mattdurham)
+* [BUGFIX] Fix integer overflow in query parameters by using `strconv.ParseUint` instead of `strconv.Atoi`/`strconv.ParseInt` for unsigned integer fields. [#6612](https://github.com/grafana/tempo/pull/6612) (@bejaratommy)
 * [CHANGE] **BREAKING CHANGE** Centralize block and WAL config: `block_builder` and `live_store` now always use `storage.trace.block` settings; per-module block config fields are removed. [#6647](https://github.com/grafana/tempo/pull/6647) (@stoewer)
 * [CHANGE] **BREAKING CHANGE** Remove Opencensus receiver [#6523](https://github.com/grafana/tempo/pull/6523) (@javiermolinar)
 * [CHANGE] Upgrade Tempo to Go 1.26.0 [#6443](https://github.com/grafana/tempo/pull/6443) (@stoewer)
@@ -14,6 +15,7 @@
   `query search` command no longer accepts timestamps without timezone (e.g. `2024-01-01T00:00:00`), use RFC3339 (e.g. `2024-01-01T00:00:00Z`) or relative time instead.
 * [CHANGE] **BREAKING CHANGE** Consolidate read configuration for recent data cutoff. `query_frontend.search.query_ingesters_until` is removed in favor of only `query_frontend.search.query_backend_after`. [#6507](https://github.com/grafana/tempo/pull/6507) (@mapno)
 * [CHANGE] jsonnet: Add emptyDir data volume to block-builder StatefulSet [#6648](https://github.com/grafana/tempo/pull/6648) (@mapno)
+* [CHANGE] Add quick checks to tempo mixin runbook [#6696](https://github.com/grafana/tempo/pull/6696) (@javiermolinar)
 * [FEATURE] Add automemlimit support for automatic GOMEMLIMIT configuration. Enable with `memory.automemlimit_enabled: true`. [#6313](https://github.com/grafana/tempo/pull/6313) (@oleg-kozlyuk)
 * [FEATURE] Support comparison operators in TraceQL Metrics queries [#6474](ghttps://github.com/grafana/tempo/pull/6474) (@ruslan-mikhailov)
 * [FEATURE] Add new include_any filter policy for spanmetrics filter [#6392](https://github.com/grafana/tempo/pull/6392) (@javiermolinar)
@@ -25,6 +27,7 @@
 * [ENHANCEMENT] Block builder: deduplicate spans within traces during block creation and track removed duplicates via `tempo_block_builder_spans_deduped_total` metric [#6539](https://github.com/grafana/tempo/pull/6539) (@zhxiaogg)
 * [ENHANCEMENT] Add new alerts and runbooks entries [#6276](https://github.com/grafana/tempo/pull/6276) (@javiermolinar)
 * [ENHANCEMENT] Double the maximum number of dedicated string columns in vParquet5 and update tempo-cli to determine the optimum number for the data [#6282](https://github.com/grafana/tempo/pull/6282) (@mdisibio)
+* [ENHANCEMENT] TraceQL metrics - experimental faster read path for most metrics queries, accessible behind the query hint `new=true` [#6359](https://github.com/grafana/tempo/pull/6359) (@mdisibio)
 * [ENHANCEMENT] Improve attribute truncating observability [#6400](https://github.com/grafana/tempo/pull/6400) (@javiermolinar)
 * [ENHANCEMENT] Log truncated oversized attributes [#6467](https://github.com/grafana/tempo/pull/6467) (@carles-grafana)
 * [ENHANCEMENT] Remove live-store partition owner from ring on shutdown to prevent stale owner entries [#6409](https://github.com/grafana/tempo/pull/6409) (@oleg-kozlyuk-grafana)
@@ -51,6 +54,7 @@
 
 ### 3.0 Cleanup
 
+* [CHANGE] **BREAKING CHANGE** Remove remaining app ingester config [#6667](https://github.com/grafana/tempo/pull/6667) (@javiermolinar)
 * [CHANGE] **BREAKING CHANGE** Remove span-metrics leftovers and lazy-init generator clients [#6618](https://github.com/grafana/tempo/pull/6618) (@javiermolinar)
 * [CHANGE] **BREAKING CHANGE** Decommission livestore MetricsGenerator query service [#6615](https://github.com/grafana/tempo/pull/6615) (@javiermolinar)
 * [CHANGE] **BREAKING CHANGE** Remove metrics-generator localblocks processor and related local block storage plumbing. [#6555](https://github.com/grafana/tempo/pull/6555) (@javiermolinar)

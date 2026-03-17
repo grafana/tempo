@@ -23,13 +23,6 @@ func newRuntimeConfigValidator(cfg *Config) overrides.Validator {
 }
 
 func (r *runtimeConfigValidator) Validate(config *overrides.Overrides) (warnings []error, err error) {
-	if config.Ingestion.TenantShardSize != 0 {
-		ingesterReplicationFactor := r.cfg.Ingester.LifecyclerConfig.RingConfig.ReplicationFactor
-		if config.Ingestion.TenantShardSize < ingesterReplicationFactor {
-			return warnings, fmt.Errorf("ingester.tenant.shard_size is lower than replication factor (%d < %d)", config.Ingestion.TenantShardSize, ingesterReplicationFactor)
-		}
-	}
-
 	if config.MetricsGenerator.GenerateNativeHistograms != "" {
 		if err := validation.ValidateHistogramMode(string(config.MetricsGenerator.GenerateNativeHistograms)); err != nil {
 			return warnings, err
