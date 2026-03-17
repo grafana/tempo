@@ -37,10 +37,10 @@ var (
 )
 
 type SSEConfig struct {
-	Type                  string `yaml:"type"`
-	KMSKeyID              string `yaml:"kms_key_id"`
-	KMSEncryptionContext  string `yaml:"kms_encryption_context"`
-	CustomerEncryptionKey string `yaml:"encryption_key"`
+	Type                  string         `yaml:"type"`
+	KMSKeyID              string         `yaml:"kms_key_id"`
+	KMSEncryptionContext  string         `yaml:"kms_encryption_context"`
+	CustomerEncryptionKey flagext.Secret `yaml:"encryption_key"`
 }
 
 type Config struct {
@@ -85,7 +85,7 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 	f.StringVar(&cfg.SSE.Type, util.PrefixConfig(prefix, "s3.sse.type"), "", fmt.Sprintf("Enable AWS Server Side Encryption. Supported values: %s.", strings.Join(supportedSSETypes, ", ")))
 	f.StringVar(&cfg.SSE.KMSKeyID, util.PrefixConfig(prefix, "s3.sse.kms-key-id"), "", "KMS Key ID used to encrypt objects in S3")
 	f.StringVar(&cfg.SSE.KMSEncryptionContext, util.PrefixConfig(prefix, "s3.sse.kms-encryption-context"), "", "KMS Encryption Context used for object encryption. It expects JSON formatted string.")
-	f.StringVar(&cfg.SSE.CustomerEncryptionKey, util.PrefixConfig(prefix, "s3.sse.encryption-key"), "", "SSE-C Encryption Key used for object encryption.")
+	f.Var(&cfg.SSE.CustomerEncryptionKey, util.PrefixConfig(prefix, "s3.sse.encryption-key"), "SSE-C Encryption Key used for object encryption.")
 	cfg.HedgeRequestsUpTo = 2
 }
 
