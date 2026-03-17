@@ -195,11 +195,10 @@ type MetricsGeneratorOverrides struct {
 	// IngestionSlack filters out spans older than this duration; 0 uses the static config default (default: 0)
 	IngestionSlack *time.Duration `yaml:"ingestion_time_range_slack" json:"ingestion_time_range_slack,omitempty"`
 
-	// FIXME: check if NativeHistogramBucketFactor and NativeHistogramMaxBucketNumber should be pointers??
 	// NativeHistogramBucketFactor is the growth factor between native histogram buckets (default: 1.1)
-	NativeHistogramBucketFactor float64 `yaml:"native_histogram_bucket_factor,omitempty" json:"native_histogram_bucket_factor,omitempty"`
+	NativeHistogramBucketFactor *float64 `yaml:"native_histogram_bucket_factor,omitempty" json:"native_histogram_bucket_factor,omitempty"`
 	// NativeHistogramMaxBucketNumber is the max number of native histogram buckets (default: 100)
-	NativeHistogramMaxBucketNumber uint32 `yaml:"native_histogram_max_bucket_number,omitempty" json:"native_histogram_max_bucket_number,omitempty"`
+	NativeHistogramMaxBucketNumber *uint32 `yaml:"native_histogram_max_bucket_number,omitempty" json:"native_histogram_max_bucket_number,omitempty"`
 	// NativeHistogramMinResetDuration is the min duration before a native histogram can be reset; 0 disables (default: 15m)
 	NativeHistogramMinResetDuration *time.Duration `yaml:"native_histogram_min_reset_duration,omitempty" json:"native_histogram_min_reset_duration,omitempty"`
 	// SpanNameSanitization controls span name sanitization; nil means not set, "" disables (default: "")
@@ -393,9 +392,11 @@ func (c *Config) RegisterFlagsAndApplyDefaults(f *flag.FlagSet) {
 
 	// MetricsGenerator - NativeHistograms config
 	c.Defaults.MetricsGenerator.GenerateNativeHistograms = histograms.HistogramMethodClassic
-	f.Float64Var(&c.Defaults.MetricsGenerator.NativeHistogramBucketFactor, "metrics-generator.native-histogram-bucket-factor", 1.1, "The growth factor between buckets for native histograms.")
-	_ = (*Uint32Value)(&c.Defaults.MetricsGenerator.NativeHistogramMaxBucketNumber).Set("100")
-	f.Var((*Uint32Value)(&c.Defaults.MetricsGenerator.NativeHistogramMaxBucketNumber), "metrics-generator.native-histogram-max-bucket-number", "The maximum number of buckets for native histograms.")
+	c.Defaults.MetricsGenerator.NativeHistogramBucketFactor = ptrTo(1.1)
+	f.Float64Var(c.Defaults.MetricsGenerator.NativeHistogramBucketFactor, "metrics-generator.native-histogram-bucket-factor", 1.1, "The growth factor between buckets for native histograms.")
+	c.Defaults.MetricsGenerator.NativeHistogramMaxBucketNumber = ptrTo(uint32(100))
+	_ = (*Uint32Value)(c.Defaults.MetricsGenerator.NativeHistogramMaxBucketNumber).Set("100")
+	f.Var((*Uint32Value)(c.Defaults.MetricsGenerator.NativeHistogramMaxBucketNumber), "metrics-generator.native-histogram-max-bucket-number", "The maximum number of buckets for native histograms.")
 	f.DurationVar(c.Defaults.MetricsGenerator.NativeHistogramMinResetDuration, "metrics-generator.native-histogram-min-reset-duration", 15*time.Minute, "The minimum duration before a native histogram can be reset.")
 
 	f.StringVar(&c.PerTenantOverrideConfig, "config.per-user-override-config", "", "File name of per-user Overrides.")
