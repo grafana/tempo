@@ -366,3 +366,37 @@ test.new(std.thisFile)
     expected='(foo) and on() (vector(1) == -1)',
   )
 )
+
++ test.case.new(
+  name='latencyRecordingRulePanelNativeHistogram nativeOnly targets',
+  test=test.expect.eq(
+    actual=std.get(
+      utils.latencyRecordingRulePanelNativeHistogram(
+        'request_duration_seconds',
+        [{ label: 'cluster', op: '=', value: 'cluster1' }, { label: 'job', op: '=', value: 'job1' }],
+        nativeOnly=true,
+      ),
+      'targets'
+    ),
+    expected=[
+      {
+        expr: 'histogram_quantile(0.99, sum (cluster_job:request_duration_seconds:sum_rate{cluster="cluster1", job="job1"})) * 1e3',
+        format: 'time_series',
+        legendFormat: '99th percentile',
+        refId: 'A',
+      },
+      {
+        expr: 'histogram_quantile(0.50, sum (cluster_job:request_duration_seconds:sum_rate{cluster="cluster1", job="job1"})) * 1e3',
+        format: 'time_series',
+        legendFormat: '50th percentile',
+        refId: 'B',
+      },
+      {
+        expr: '1e3 * sum(histogram_sum(cluster_job:request_duration_seconds:sum_rate{cluster="cluster1", job="job1"})) /\nsum(histogram_count(cluster_job:request_duration_seconds:sum_rate{cluster="cluster1", job="job1"}))\n',
+        format: 'time_series',
+        legendFormat: 'Average',
+        refId: 'C',
+      },
+    ],
+  )
+)
