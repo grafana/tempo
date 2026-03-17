@@ -8,6 +8,7 @@ import (
 	"github.com/prometheus/common/config"
 	"github.com/prometheus/common/model"
 	"github.com/stretchr/testify/require"
+	"go.yaml.in/yaml/v2"
 
 	"github.com/grafana/tempo/modules/overrides/histograms"
 	"github.com/grafana/tempo/pkg/sharedconfig"
@@ -208,6 +209,18 @@ func TestMergeCoversAllFields(t *testing.T) {
 	t.Run("empty overlay onto full base", func(t *testing.T) {
 		result := full.Merge(&Overrides{})
 		assertAllFieldsNonZero(t, reflect.ValueOf(result).Elem(), "Overrides")
+	})
+
+	t.Run("full merged with empty overrides equals full", func(t *testing.T) {
+		result := full.Merge(&Overrides{})
+
+		require.Equal(t, full, result, "deep equal: full merged with empty overrides should be identical to full")
+
+		fullYAML, err := yaml.Marshal(full)
+		require.NoError(t, err)
+		resultYAML, err := yaml.Marshal(result)
+		require.NoError(t, err)
+		require.Equal(t, string(fullYAML), string(resultYAML), "yaml: full merged with empty overrides should be identical to full")
 	})
 }
 
