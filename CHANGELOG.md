@@ -51,10 +51,9 @@
 * [BUGFIX] fix(traceql): err on division by zero [#6580](https://github.com/grafana/tempo/pull/6580) (@Proximyst)
 * [BUGFIX] Return 400 instead of 500 when query_range or query_instant requests have unparseable start/end parameters [#6694](https://github.com/grafana/tempo/pull/6694) (@ruslan-mikhailov)
 
-
 ### 3.0 Cleanup
-* [CHANGE] **BREAKING CHANGE** Remove remaining app ingester config [#6667](https://github.com/grafana/tempo/pull/6667) (@javiermolinar)
 
+* [CHANGE] **BREAKING CHANGE** Remove remaining app ingester config [#6667](https://github.com/grafana/tempo/pull/6667) (@javiermolinar)
 * [CHANGE] **BREAKING CHANGE** Remove span-metrics leftovers and lazy-init generator clients [#6618](https://github.com/grafana/tempo/pull/6618) (@javiermolinar)
 * [CHANGE] **BREAKING CHANGE** Decommission livestore MetricsGenerator query service [#6615](https://github.com/grafana/tempo/pull/6615) (@javiermolinar)
 * [CHANGE] **BREAKING CHANGE** Remove metrics-generator localblocks processor and related local block storage plumbing. [#6555](https://github.com/grafana/tempo/pull/6555) (@javiermolinar)
