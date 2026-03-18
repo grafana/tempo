@@ -7,7 +7,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestExtractMatchers(t *testing.T) {
+func TestCanonicalQuery(t *testing.T) {
 	// Expected values go through the AST stringer which wraps non-leaf nodes
 	// in parentheses (see wrapElement in ast_stringer.go), so conditions like
 	// `.foo = "bar"` become `(.foo = "bar")` when part of a larger expression.
@@ -170,7 +170,7 @@ func TestExtractMatchers(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			expected := tc.expected
 			expected = strings.ReplaceAll(expected, " ", "")
-			actual := ExtractMatchers(tc.query)
+			actual := CanonicalQuery(tc.query)
 			actual = strings.ReplaceAll(actual, " ", "")
 			actual = strings.ReplaceAll(actual, "`", `"`)
 			assert.Equal(t, expected, actual)
@@ -178,7 +178,7 @@ func TestExtractMatchers(t *testing.T) {
 	}
 }
 
-func TestExtractConditions(t *testing.T) {
+func TestExtractFetchRequest(t *testing.T) {
 	testCases := []struct {
 		name          string
 		query         string
@@ -197,7 +197,7 @@ func TestExtractConditions(t *testing.T) {
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			req := ExtractConditions(tc.query)
+			req := ExtractFetchRequest(tc.query)
 			if tc.nilResult {
 				assert.Nil(t, req)
 				return
@@ -209,7 +209,7 @@ func TestExtractConditions(t *testing.T) {
 	}
 }
 
-func BenchmarkExtractMatchers(b *testing.B) {
+func BenchmarkCanonicalQuery(b *testing.B) {
 	queries := []string{
 		`{.service_name = "foo"}`,
 		`{.service_name = "foo" && .http.status_code = 200}`,
@@ -223,7 +223,7 @@ func BenchmarkExtractMatchers(b *testing.B) {
 	for _, query := range queries {
 		b.Run(query, func(b *testing.B) {
 			for i := 0; i < b.N; i++ {
-				_ = ExtractMatchers(query)
+				_ = CanonicalQuery(query)
 			}
 		})
 	}

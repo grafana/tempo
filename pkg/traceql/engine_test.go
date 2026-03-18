@@ -702,7 +702,7 @@ func TestExecuteTagValues(t *testing.T) {
 			distinctValues := collector.NewDistinctValue(100_000, 0, 0, func(v tempopb.TagValue) int { return len(v.Type) + len(v.Value) })
 
 			// Derive conditions from the query, just like callers do
-			extractedReq := ExtractConditions(tc.query)
+			extractedReq := ExtractFetchRequest(tc.query)
 			var conditions []Condition
 			if extractedReq != nil {
 				conditions = extractedReq.Conditions

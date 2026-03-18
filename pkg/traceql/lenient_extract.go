@@ -6,7 +6,7 @@ import (
 
 const emptyQuery = "{}"
 
-// ExtractConditions extracts filter conditions from a query string.
+// ExtractFetchRequest extracts filter conditions from a query string.
 // It parses the query using the lenient parser (which handles incomplete matchers like `.foo=`)
 // and walks the AST to extract conditions. Conditions with OpNone (from incomplete matchers) are filtered out.
 //
@@ -14,7 +14,7 @@ const emptyQuery = "{}"
 //
 // The caller should check AllConditions to determine whether the conditions
 // can be used as filters (true = all AND, false = contains OR or structural operators).
-func ExtractConditions(query string) *FetchSpansRequest {
+func ExtractFetchRequest(query string) *FetchSpansRequest {
 	query = strings.TrimSpace(query)
 	if len(query) == 0 {
 		return nil
@@ -42,9 +42,9 @@ func ExtractConditions(query string) *FetchSpansRequest {
 	return req
 }
 
-// ExtractMatchers extracts matchers from a query string and returns a string
-// that can be parsed by the storage layer.
-func ExtractMatchers(query string) string {
+// CanonicalQuery parses a query string using the lenient parser and returns
+// a normalized string representation. Used for cache key generation.
+func CanonicalQuery(query string) string {
 	query = strings.TrimSpace(query)
 	if len(query) == 0 {
 		return emptyQuery

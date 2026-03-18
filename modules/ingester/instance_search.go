@@ -235,7 +235,7 @@ func (i *instance) SearchTagsV2(ctx context.Context, req *tempopb.SearchTagsRequ
 	mc := collector.NewMetricsCollector()
 
 	engine := traceql.NewEngine()
-	extractedReq := traceql.ExtractConditions(req.Query)
+	extractedReq := traceql.ExtractFetchRequest(req.Query)
 
 	searchBlock := func(ctx context.Context, s common.Searcher, spanName string) error {
 		ctx, span := tracer.Start(ctx, "instance.SearchTagsV2."+spanName)
@@ -421,7 +421,7 @@ func (i *instance) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTag
 		return &tempopb.SearchTagValuesV2Response{}, nil
 	}
 
-	extractedReq := traceql.ExtractConditions(req.Query)
+	extractedReq := traceql.ExtractFetchRequest(req.Query)
 	// cacheKey will be same for all blocks in a request so only compute it once
 	// NOTE: cacheKey tag name and query, so if we start respecting start and end, add them to the cacheKey
 	cacheKey := searchTagValuesV2CacheKey(req, limit, "cache_search_tagvaluesv2")
@@ -616,7 +616,7 @@ func includeBlock(b *backend.BlockMeta, req *tempopb.SearchRequest) bool {
 func searchTagValuesV2CacheKey(req *tempopb.SearchTagValuesRequest, limit int, prefix string) string {
 	var cacheKey string
 	if req.Query != "" {
-		q := traceql.ExtractMatchers(req.Query)
+		q := traceql.CanonicalQuery(req.Query)
 		if ast, err := traceql.Parse(q); err == nil {
 			// forces the query into a canonical form
 			cacheKey = ast.String()

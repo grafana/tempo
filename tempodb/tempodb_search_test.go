@@ -1566,7 +1566,7 @@ func tagValuesRunner(t *testing.T, _ *tempopb.Trace, _ *tempopb.TraceSearchMetad
 				return bb.FetchTagValues(ctx, req, cb, mc.Add, common.DefaultSearchOptions())
 			})
 
-			extractedReq := traceql.ExtractConditions(tc.query)
+			extractedReq := traceql.ExtractFetchRequest(tc.query)
 			var conditions []traceql.Condition
 			if extractedReq != nil {
 				conditions = extractedReq.Conditions
@@ -1642,7 +1642,7 @@ func tagNamesRunner(t *testing.T, _ *tempopb.Trace, _ *tempopb.TraceSearchMetada
 			})
 
 			valueCollector := collector.NewScopedDistinctString(0, 0, 0)
-			extractedReq := traceql.ExtractConditions(tc.query)
+			extractedReq := traceql.ExtractFetchRequest(tc.query)
 			var conditions []traceql.Condition
 			if extractedReq != nil {
 				conditions = extractedReq.Conditions
@@ -2619,7 +2619,7 @@ func TestSearchForTagsAndTagValues(t *testing.T) {
 	tag, err := traceql.ParseIdentifier("span.intTag")
 	require.NoError(t, err)
 
-	extractedReq := traceql.ExtractConditions(`{resource.service.name="test-service-2"}`)
+	extractedReq := traceql.ExtractFetchRequest(`{resource.service.name="test-service-2"}`)
 	err = traceql.NewEngine().ExecuteTagValues(context.Background(), tag, extractedReq.Conditions, traceql.MakeCollectTagValueFunc(valueCollector.Collect), f)
 	require.NoError(t, err)
 
