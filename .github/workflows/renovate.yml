@@ -33,6 +33,6 @@ jobs:
           key: ${{ runner.os }}-npx-renovate
 
       - name: Validate Renovate Config
-        uses: grafana/shared-workflows/actions/validate-renovate-config@051f0a1cef0e1ef9f92fbe57c65b1eec029c3904 # v0.1.1
+        uses: grafana/shared-workflows/actions/validate-renovate-config@726f1a912f45b4807774b76a6d40cbd3fb7a12c0 # validate-renovate-config/v0.1.2
         with:
           path: .github/renovate.json5
