@@ -10,13 +10,10 @@ const emptyQuery = "{}"
 // It parses the query using the lenient parser (which handles incomplete matchers like `.foo=`)
 // and walks the AST to extract conditions. Conditions with OpNone (from incomplete matchers) are filtered out.
 //
-// Returns nil if:
-//   - The query is empty
-//   - Parsing fails completely
-//   - The query contains structural operators (multiple spansets)
+// Returns nil if the query is empty or parsing fails completely.
 //
 // The caller should check AllConditions to determine whether the conditions
-// can be used as filters (true = all AND, false = contains OR).
+// can be used as filters (true = all AND, false = contains OR or structural operators).
 func ExtractConditions(query string) *FetchSpansRequest {
 	query = strings.TrimSpace(query)
 	if len(query) == 0 {
@@ -28,17 +25,10 @@ func ExtractConditions(query string) *FetchSpansRequest {
 		return nil
 	}
 
-	// Find the first SpansetFilter in the pipeline.
-	// Returns nil for structural operators (SpansetOperation) indicating multiple spansets.
-	filter := findSpansetFilter(expr.Pipeline)
-	if filter == nil {
-		return nil
-	}
-
-	// Extract conditions from the AST. AllConditions is set to false by
-	// extractConditions when OR operators are present.
+	// Walk the full AST to extract conditions. AllConditions is set to false
+	// by extractConditions when OR operators or structural operators are present.
 	req := &FetchSpansRequest{AllConditions: true}
-	filter.Expression.extractConditions(req)
+	expr.extractConditions(req)
 
 	// Filter out OpNone conditions (incomplete matchers)
 	conditions := make([]Condition, 0, len(req.Conditions))
@@ -66,23 +56,4 @@ func ExtractMatchers(query string) string {
 	}
 
 	return expr.String()
-}
-
-// findSpansetFilter returns the first SpansetFilter in the pipeline.
-// Returns nil if the pipeline contains structural operators (SpansetOperation)
-// which indicate multiple spansets.
-func findSpansetFilter(p Pipeline) *SpansetFilter {
-	if len(p.Elements) == 0 {
-		return nil
-	}
-
-	switch e := p.Elements[0].(type) {
-	case *SpansetFilter:
-		return e
-	case Pipeline:
-		return findSpansetFilter(e)
-	default:
-		// SpansetOperation, ScalarFilter, etc. - not a simple spanset filter
-		return nil
-	}
 }

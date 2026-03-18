@@ -148,12 +148,12 @@ func TestExtractMatchers(t *testing.T) {
 		{
 			name:     "metrics query",
 			query:    `{.service_name = "foo" && .foo=} | rate() by (.bar)`,
-			expected: `{(.service_name = "foo") && .foo}`,
+			expected: `{(.service_name = "foo") && .foo} | rate() by (.bar)`,
 		},
 		{
 			name:     "query with select",
 			query:    `{.service_name = "foo" && .foo=} | select(.bar, .baz)`,
-			expected: `{(.service_name = "foo") && .foo}`,
+			expected: `{(.service_name = "foo") && .foo} | select(.bar, .baz)`,
 		},
 		{
 			name:     "query with parentheses and incomplete matcher",

@@ -9,7 +9,7 @@ import (
 
 // ParseLenient attempts to parse a query string. If parsing succeeds, the result
 // is returned as-is. If parsing fails (e.g. due to incomplete matchers like `.foo=`),
-// it removes incomplete matchers from the token stream while preserving the original
+// it replaces incomplete matchers with OpNone versions `.foo` while preserving the original
 // query structure (ORs, ANDs, pipes, structural operators, etc.) and parses the
 // cleaned-up query.
 func ParseLenient(s string) (*RootExpr, error) {
@@ -40,12 +40,17 @@ type token struct {
 // removeIncompleteMatchers tokenizes the input, removes incomplete matchers
 // (attribute + comparison operator with no following value), cleans up dangling
 // connectors, and rebuilds the query string.
+// Only the part before the first pipe is cleaned — the cleanup logic doesn't
+// understand pipeline syntax (function calls like rate(), count(), grouping
+// like by()) and would mangle it. The pipeline is re-appended after cleanup.
 func removeIncompleteMatchers(s string) string {
 	tokens := tokenize(s)
 	if len(tokens) == 0 {
 		return ""
 	}
 
+	// Split at the first pipe: clean matchers only, preserve pipeline as-is.
+	var pipelineTokens []token
 	pipeIdx := -1
 	for i, t := range tokens {
 		if t.typ == PIPE {
@@ -55,12 +60,17 @@ func removeIncompleteMatchers(s string) string {
 	}
 
 	if pipeIdx != -1 {
-		tokens = tokens[:pipeIdx] // Only clean the part before the first pipe (matchers)
+		pipelineTokens = tokens[pipeIdx:]
+		tokens = tokens[:pipeIdx]
 	}
 
 	remove := make([]bool, len(tokens))
 	markIncompleteMatchers(tokens, remove)
 	cleanDanglingConnectorsAndParens(tokens, remove)
+
+	// Re-append the pipeline tokens (not subject to cleanup).
+	tokens = append(tokens, pipelineTokens...)
+	remove = append(remove, make([]bool, len(pipelineTokens))...)
 
 	return rebuildQuery(tokens, remove)
 }
