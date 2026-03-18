@@ -117,6 +117,8 @@
 * [BUGFIX] vulture: fix for recent traces when query_end_cutoff is enabled [#7018](https://github.com/grafana/tempo/pull/7018) (@ruslan-mikhailov)
 * [BUGFIX] Fix live-store producing WAL blocks exceeding max_block_bytes when flushing large batches of idle traces [#6971](https://github.com/grafana/tempo/pull/6971) (@ruslan-mikhailov)
 * [BUGFIX] live-store: skip lookback replay when partition is Inactive during scaling down [#7101](https://github.com/grafana/tempo/pull/7101) (@zhxiaogg)
+* [BUGFIX] fix: correct block-builder fetch metrics to use counters instead of gauges.
+* [BUGFIX] fix: merge per-tenant overrides with defaults for unset fields [#6592](https://github.com/grafana/tempo/pull/6592) (@electron0zero)
 
 ### 3.0 Cleanup
 
