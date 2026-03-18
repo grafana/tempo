@@ -312,7 +312,7 @@ func (i *instance) SearchTagsV2(ctx context.Context, req *tempopb.SearchTagsRequ
 	mc := collector.NewMetricsCollector()
 
 	engine := traceql.NewEngine()
-	conditions, _ := traceql.ExtractConditions(req.Query)
+	extractedReq := traceql.ExtractConditions(req.Query)
 
 	searchBlock := func(ctx context.Context, _ *backend.BlockMeta, b block) error {
 		if b == nil {
@@ -323,8 +323,8 @@ func (i *instance) SearchTagsV2(ctx context.Context, req *tempopb.SearchTagsRequ
 			return errComplete
 		}
 
-		// if the query is empty, use the old search
-		if len(conditions) == 0 {
+		// if the query is empty or has OR conditions, use the unfiltered search
+		if extractedReq == nil || !extractedReq.AllConditions {
 			err = b.SearchTags(ctx, attributeScope, func(t string, scope traceql.AttributeScope) {
 				distinctValues.Collect(scope.String(), t)
 			}, mc.Add, common.DefaultSearchOptions())
@@ -341,7 +341,7 @@ func (i *instance) SearchTagsV2(ctx context.Context, req *tempopb.SearchTagsRequ
 			return b.FetchTagNames(ctx, req, cb, mc.Add, common.DefaultSearchOptions())
 		})
 
-		return engine.ExecuteTagNames(ctx, attributeScope, conditions, func(tag string, scope traceql.AttributeScope) bool {
+		return engine.ExecuteTagNames(ctx, attributeScope, extractedReq.Conditions, func(tag string, scope traceql.AttributeScope) bool {
 			return distinctValues.Collect(scope.String(), tag)
 		}, fetcher)
 	}
@@ -464,7 +464,7 @@ func (i *instance) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTag
 		return &tempopb.SearchTagValuesV2Response{}, nil
 	}
 
-	conditions, _ := traceql.ExtractConditions(req.Query)
+	extractedReq := traceql.ExtractConditions(req.Query)
 	// cacheKey will be same for all blocks in a request so only compute it once
 	// NOTE: cacheKey tag name and query, so if we start respecting start and end, add them to the cacheKey
 	cacheKey := searchTagValuesV2CacheKey(req, limit, "cache_search_tagvaluesv2")
@@ -476,7 +476,7 @@ func (i *instance) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTag
 			return errComplete
 		}
 
-		if len(conditions) == 0 {
+		if extractedReq == nil || !extractedReq.AllConditions {
 			return s.SearchTagValuesV2(ctx, tag, traceql.MakeCollectTagValueFunc(vCollector.Collect), mCollector.Add, common.DefaultSearchOptions())
 		}
 
@@ -485,7 +485,7 @@ func (i *instance) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTag
 			return s.FetchTagValues(ctx, req, cb, mCollector.Add, common.DefaultSearchOptions())
 		})
 
-		return engine.ExecuteTagValues(ctx, tag, conditions, traceql.MakeCollectTagValueFunc(vCollector.Collect), fetcher)
+		return engine.ExecuteTagValues(ctx, tag, extractedReq.Conditions, traceql.MakeCollectTagValueFunc(vCollector.Collect), fetcher)
 	}
 
 	searchWithCache := func(ctx context.Context, _ *backend.BlockMeta, b block) error {

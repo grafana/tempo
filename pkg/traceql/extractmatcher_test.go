@@ -19,7 +19,7 @@ func TestExtractMatchers(t *testing.T) {
 		{
 			name:     "empty query with spaces",
 			query:    " { } ",
-			expected: "{}",
+			expected: "{true}",
 		},
 		{
 			name:     "simple query",
@@ -29,7 +29,7 @@ func TestExtractMatchers(t *testing.T) {
 		{
 			name:     "incomplete query",
 			query:    `{ .http.status_code = 200 && .http.method = }`,
-			expected: "{.http.status_code = 200 && .http.method}",
+			expected: "{(.http.status_code = 200) && .http.method}",
 		},
 		{
 			name:     "reversed operands with missing closing bracket",
@@ -39,27 +39,27 @@ func TestExtractMatchers(t *testing.T) {
 		{
 			name:     "long query",
 			query:    `{.service_name = "foo" && .http.status_code = 200 && .http.method = "GET" && .cluster = }`,
-			expected: `{((.service_name = "foo" && .http.status_code = 200) && .http.method = "GET") && .cluster}`,
+			expected: `{(((.service_name = "foo") && (.http.status_code = 200)) && (.http.method = "GET")) && .cluster}`,
 		},
 		{
 			name:     "query with duration a boolean",
 			query:    `{ duration > 5s && .success = true && .cluster = }`,
-			expected: `{(duration > 5s && .success = true) && .cluster}`,
+			expected: `{((duration > 5s) && (.success = true)) && .cluster}`,
 		},
 		{
 			name:     "query with three selectors with AND",
 			query:    `{ .foo = "bar" && .baz = "qux" } && { duration > 1s } || { .foo = "bar" && .baz = "qux" }`,
-			expected: "{}",
+			expected: `(({ (.foo = "bar") && (.baz = "qux") }) && ({ duration > 1s })) || ({ (.foo = "bar") && (.baz = "qux") })`,
 		},
 		{
 			name:     "query with OR conditions",
 			query:    `{ (.foo = "bar" || .baz = "qux") && duration > 1s }`,
-			expected: "{}",
+			expected: `{((.foo = "bar") || (.baz = "qux")) && (duration > 1s)}`,
 		},
 		{
 			name:     "query with multiple selectors and pipelines",
 			query:    `{ .foo = "bar" && .baz = "qux" } && { duration > 1s } || { .foo = "bar" && .baz = "qux" } | count() > 4`,
-			expected: "{}",
+			expected: `(({ (.foo = "bar") && (.baz = "qux") }) && ({ duration > 1s })) || ({ (.foo = "bar") && (.baz = "qux") }) | (count()) > 4`,
 		},
 		{
 			name:     "query with slash in value",
@@ -79,12 +79,12 @@ func TestExtractMatchers(t *testing.T) {
 		{
 			name:     "query with missing closing bracket",
 			query:    `{resource.service_name = "foo" && span.http.target=`,
-			expected: `{resource.service_name = "foo" && span.http.target}`,
+			expected: `{(resource.service_name = "foo") && span.http.target}`,
 		},
 		{
 			name:     "uncommon characters",
 			query:    `{ span.foo = "<>:b5[]" && resource.service.name = }`,
-			expected: `{span.foo = "<>:b5[]" && resource.service.name}`,
+			expected: `{(span.foo = "<>:b5[]") && resource.service.name}`,
 		},
 		{
 			name:     "kind",
@@ -114,12 +114,12 @@ func TestExtractMatchers(t *testing.T) {
 		{
 			name:     "query with multiple regex matchers",
 			query:    `{ .foo =~ "(a|b)" && .bar =~ "(c|d)" }`,
-			expected: `{.foo =~ "(a|b)" && .bar =~ "(c|d)"}`,
+			expected: `{(.foo =~ "(a|b)") && (.bar =~ "(c|d)")}`,
 		},
 		{
 			name:     "query with mixed equal and regex matchers",
 			query:    `{ .foo = "a" && .bar =~ "(c|d)" }`,
-			expected: `{.foo = "a" && .bar =~ "(c|d)"}`,
+			expected: `{(.foo = "a") && (.bar =~ "(c|d)")}`,
 		},
 		{
 			name:     "scoped intrinsic",
@@ -134,32 +134,32 @@ func TestExtractMatchers(t *testing.T) {
 		{
 			name:     "structural operators with incomplete in first matcher",
 			query:    `{ .foo = "bar" && .baaz = } >> { .bar = "foo" }`,
-			expected: `{}`,
+			expected: `({ (.foo = "bar") && .baaz }) >> ({ .bar = "foo" })`,
 		},
 		{
 			name:     "structural operators with incomplete in second matcher",
 			query:    `{ .foo = "bar" } >> { .bar = }`,
-			expected: `{}`,
+			expected: `({ .foo = "bar" }) >> ({ .bar })`,
 		},
 		{
 			name:     "metrics query",
 			query:    `{.service_name = "foo" && .foo=} | rate() by (.bar)`,
-			expected: `{.service_name = "foo" && .foo}`,
+			expected: `{(.service_name = "foo") && .foo}`,
 		},
 		{
 			name:     "query with select",
 			query:    `{.service_name = "foo" && .foo=} | select(.bar, .baz)`,
-			expected: `{.service_name = "foo" && .foo}`,
+			expected: `{(.service_name = "foo") && .foo}`,
 		},
 		{
 			name:     "query with parentheses and incomplete matcher",
 			query:    `{ (resource.foo = "bar" && .baz = ) && .qux = "quux" }`,
-			expected: `{(resource.foo = "bar" && .baz) && .qux = "quux"}`,
+			expected: `{((resource.foo = "bar") && .baz) && (.qux = "quux")}`,
 		},
 		{
 			name:     "query with parentheses containing all incomplete matchers",
 			query:    `{ (resource.foo =  && .baz = ) && .qux = "quux" }`,
-			expected: `{(resource.foo && .baz) && .qux = "quux"}`,
+			expected: `{(resource.foo && .baz) && (.qux = "quux")}`,
 		},
 	}
 	for _, tc := range testCases {
@@ -167,7 +167,6 @@ func TestExtractMatchers(t *testing.T) {
 			expected := tc.expected
 			expected = strings.ReplaceAll(expected, " ", "")
 			actual := ExtractMatchers(tc.query)
-			actual = RemoveUnnecessaryParentheses(actual)
 			actual = strings.ReplaceAll(actual, " ", "")
 			actual = strings.ReplaceAll(actual, "`", `"`)
 			assert.Equal(t, expected, actual)
@@ -177,23 +176,31 @@ func TestExtractMatchers(t *testing.T) {
 
 func TestExtractConditions(t *testing.T) {
 	testCases := []struct {
-		name  string
-		query string
-		count int // expected number of conditions, 0 means nil
+		name          string
+		query         string
+		count         int
+		allConditions bool
+		nilResult     bool
 	}{
-		{name: "empty", query: "", count: 0},
-		{name: "empty braces", query: " { } ", count: 0},
-		{name: "simple", query: `{.service_name = "foo"}`, count: 1},
-		{name: "incomplete", query: `{ .http.status_code = 200 && .http.method = }`, count: 1},
-		{name: "invalid", query: "{ invalid syntax }", count: 0},
-		{name: "OR conditions", query: `{ (.foo = "bar" || .baz = "qux") }`, count: 0},
-		{name: "structural", query: `{ .foo = "bar" } >> { .bar = "baz" }`, count: 0},
-		{name: "multiple conditions", query: `{.a = 1 && .b = "two" && .c > 3}`, count: 3},
+		{name: "empty", query: "", nilResult: true},
+		{name: "empty braces", query: " { } ", count: 0, allConditions: true},
+		{name: "simple", query: `{.service_name = "foo"}`, count: 1, allConditions: true},
+		{name: "incomplete", query: `{ .http.status_code = 200 && .http.method = }`, count: 1, allConditions: true},
+		{name: "invalid", query: "{ invalid syntax }", nilResult: true},
+		{name: "OR conditions", query: `{ (.foo = "bar" || .baz = "qux") }`, count: 2, allConditions: false},
+		{name: "structural", query: `{ .foo = "bar" } >> { .bar = "baz" }`, count: 2, allConditions: false},
+		{name: "multiple conditions", query: `{.a = 1 && .b = "two" && .c > 3}`, count: 3, allConditions: true},
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			conditions, _ := ExtractConditions(tc.query)
-			assert.Equal(t, tc.count, len(conditions))
+			req := ExtractConditions(tc.query)
+			if tc.nilResult {
+				assert.Nil(t, req)
+				return
+			}
+			assert.NotNil(t, req)
+			assert.Equal(t, tc.count, len(req.Conditions))
+			assert.Equal(t, tc.allConditions, req.AllConditions)
 		})
 	}
 }

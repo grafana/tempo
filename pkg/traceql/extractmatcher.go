@@ -14,34 +14,31 @@ const emptyQuery = "{}"
 //   - The query is empty
 //   - Parsing fails completely
 //   - The query contains structural operators (multiple spansets)
-//   - The conditions use OR (AllConditions is false)
-//   - No valid matchers can be extracted
-func ExtractConditions(query string) ([]Condition, *SpansetFilter) {
+//
+// The caller should check AllConditions to determine whether the conditions
+// can be used as filters (true = all AND, false = contains OR).
+func ExtractConditions(query string) *FetchSpansRequest {
 	query = strings.TrimSpace(query)
 	if len(query) == 0 {
-		return nil, nil
+		return nil
 	}
 
 	expr, err := ParseLenient(query)
 	if err != nil {
-		return nil, nil
+		return nil
 	}
 
 	// Find the first SpansetFilter in the pipeline.
 	// Returns nil for structural operators (SpansetOperation) indicating multiple spansets.
 	filter := findSpansetFilter(expr.Pipeline)
 	if filter == nil {
-		return nil, nil
+		return nil
 	}
 
 	// Extract conditions from the AST. AllConditions is set to false by
 	// extractConditions when OR operators are present.
 	req := &FetchSpansRequest{AllConditions: true}
 	filter.Expression.extractConditions(req)
-
-	if !req.AllConditions || len(req.Conditions) == 0 {
-		return nil, nil
-	}
 
 	// Filter out OpNone conditions (incomplete matchers)
 	conditions := make([]Condition, 0, len(req.Conditions))
@@ -50,62 +47,25 @@ func ExtractConditions(query string) ([]Condition, *SpansetFilter) {
 			conditions = append(conditions, cond)
 		}
 	}
+	req.Conditions = conditions
 
-	if len(conditions) == 0 {
-		return nil, nil
-	}
-
-	return conditions, filter
+	return req
 }
 
 // ExtractMatchers extracts matchers from a query string and returns a string
-// that can be parsed by the storage layer. It uses ExtractConditions internally.
+// that can be parsed by the storage layer.
 func ExtractMatchers(query string) string {
-	_, filter := ExtractConditions(query)
-	if filter == nil {
+	query = strings.TrimSpace(query)
+	if len(query) == 0 {
 		return emptyQuery
 	}
 
-	return filter.String()
-}
+	expr, err := ParseLenient(query)
+	if err != nil {
+		return emptyQuery
+	}
 
-func RemoveUnnecessaryParentheses(query string) string {
-	findNextCloseParens := func(s string, start int) int {
-		depth := 0
-		for i := start; i < len(s); i++ {
-			switch s[i] {
-			case '(':
-				depth++
-			case ')':
-				if depth == 0 {
-					return i
-				}
-				depth--
-			}
-		}
-		return -1
-	}
-	for char := 0; char < len(query); char++ {
-		if query[char] == '(' {
-			closeParensIdx := findNextCloseParens(query, char+1)
-			if closeParensIdx != -1 && closeParensIdx != char+1 {
-				// Check if the parentheses are around a simple matcher (e.g., (.foo = "bar"))
-				inside := query[char+1 : closeParensIdx]
-				if !strings.Contains(inside, "&&") && !strings.Contains(inside, "||") {
-					if !strings.Contains(inside, "=") && !strings.Contains(inside, ">") &&
-						!strings.Contains(inside, "<") && !strings.Contains(inside, "!") &&
-						!strings.Contains(inside, "~") {
-						continue
-					}
-					// Remove the parentheses
-					query = query[:char] + inside + query[closeParensIdx+1:]
-					// Move back the index to account for removed parentheses
-					char--
-				}
-			}
-		}
-	}
-	return query
+	return expr.String()
 }
 
 // findSpansetFilter returns the first SpansetFilter in the pipeline.
