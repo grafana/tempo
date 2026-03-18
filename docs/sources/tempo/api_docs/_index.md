@@ -335,6 +335,8 @@ curl -G -s http://localhost:3200/api/search --data-urlencode 'tags=service.name=
 ### Search tags
 
 Live store configuration `complete_block_timeout` affects how long tags are available for search.
+Tag search is supported in blocks as well, based on the start and end query parameters. 
+Tag value search is also supported.
 
 This endpoint retrieves all discovered tag names that can be used in search.
 The endpoint is available in the query frontend service in a microservices deployment, or the Tempo endpoint in a monolithic mode deployment.
