@@ -6,9 +6,9 @@ import (
 
 const emptyQuery = "{}"
 
-// ExtractFetchRequest extracts filter conditions from a query string.
-// It parses the query using the lenient parser (which handles incomplete matchers like `.foo=`)
-// and walks the AST to extract conditions. Conditions with OpNone (from incomplete matchers) are filtered out.
+// ExtractFetchRequest parses a query string using the lenient parser and returns
+// a FetchSpansRequest with the extracted conditions. Conditions with OpNone
+// (from incomplete matchers) are filtered out.
 //
 // Returns nil if the query is empty or parsing fails completely.
 //

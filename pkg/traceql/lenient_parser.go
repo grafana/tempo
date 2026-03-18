@@ -9,9 +9,9 @@ import (
 
 // ParseLenient attempts to parse a query string. If parsing succeeds, the result
 // is returned as-is. If parsing fails (e.g. due to incomplete matchers like `.foo=`),
-// it replaces incomplete matchers with OpNone versions `.foo` while preserving the original
-// query structure (ORs, ANDs, pipes, structural operators, etc.) and parses the
-// cleaned-up query.
+// it removes the comparison operator from incomplete matchers, leaving just the
+// attribute (e.g. `.foo`), while preserving the original query structure (ORs, ANDs,
+// pipes, structural operators, etc.) and re-parses the cleaned-up query.
 func ParseLenient(s string) (*RootExpr, error) {
 	expr, err := Parse(s)
 	if err == nil {
@@ -145,8 +145,7 @@ func markIncompleteMatchers(tokens []token, remove []bool) {
 	}
 }
 
-// skipAttribute advances idx past attribute tokens (scope prefix + name),
-// mirroring the logic of buildAttributeString without building a string.
+// skipAttribute advances idx past attribute tokens (scope prefix + name).
 func skipAttribute(tokens []token, idx *int) {
 	i := *idx
 	switch tokens[i].typ {
@@ -162,8 +161,9 @@ func skipAttribute(tokens []token, idx *int) {
 	*idx = i
 }
 
-// cleanDanglingConnectors removes AND/OR tokens left dangling after incomplete
-// matcher removal (e.g. adjacent to braces or other connectors).
+// cleanDanglingConnectorsAndParens removes AND/OR tokens left dangling after
+// incomplete matcher removal (e.g. adjacent to braces or other connectors),
+// and removes parentheses pairs that contain only removed tokens.
 func cleanDanglingConnectorsAndParens(tokens []token, remove []bool) {
 	changed := true
 	for changed {
