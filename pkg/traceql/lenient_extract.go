@@ -24,6 +24,9 @@ func ExtractFetchRequest(query string) *FetchSpansRequest {
 	if err != nil {
 		return nil
 	}
+	if err := expr.validate(); err != nil {
+		return nil
+	}
 
 	// Walk the full AST to extract conditions. AllConditions is set to false
 	// by extractConditions when OR operators or structural operators are present.
@@ -52,6 +55,10 @@ func CanonicalQuery(query string) string {
 
 	expr, err := ParseLenient(query)
 	if err != nil {
+		return emptyQuery
+	}
+
+	if err := expr.validate(); err != nil {
 		return emptyQuery
 	}
 

@@ -29,7 +29,7 @@ func ParseLenient(s string) (*RootExpr, error) {
 		return nil, err // return original parse error
 	}
 	removeBareAttributes(result)
-	return result, result.validate()
+	return result, nil
 }
 
 // removeBareAttributes walks the AST and replaces bare Attribute expressions
