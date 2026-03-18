@@ -193,8 +193,8 @@ func (vs *ValidationService) RunValidation(
 			actualTrace: actual,
 		})
 
-		// Validate that we can retrieve them by trace ID
-		readErr := vs.validateTraceRetrieval(ctx, trace, querier)
+		// Validate that we can retrieve them by trace ID and content matches.
+		readErr := vs.validateTraceRetrieval(ctx, trace, actual, querier)
 		if readErr != nil {
 			result.Failures = append(result.Failures, ValidationFailure{
 				Phase:     "read",
@@ -279,7 +279,7 @@ func (vs *ValidationService) writeValidationTrace(
 
 	writeErr := traceInfo.EmitAllBatches(writer)
 	if writeErr != nil {
-		return nil, nil, fmt.Errorf("failed to write trace, error: %w", err) // Any write failure is critical
+		return nil, nil, fmt.Errorf("failed to write trace, error: %w", writeErr) // Any write failure is critical
 	}
 
 	return traceInfo, traceStructure, nil
@@ -288,6 +288,7 @@ func (vs *ValidationService) writeValidationTrace(
 func (vs *ValidationService) validateTraceRetrieval(
 	ctx context.Context,
 	trace *util.TraceInfo,
+	expectedTrace *tempopb.Trace,
 	httpClient httpclient.TempoHTTPClient,
 ) error {
 	start := trace.Timestamp().Add(-10 * time.Minute).Unix()
@@ -311,6 +312,10 @@ func (vs *ValidationService) validateTraceRetrieval(
 
 	if !equal {
 		return fmt.Errorf("trace IDs do not match")
+	}
+
+	if err := VerifyTraceContent(expectedTrace, retrievedTrace); err != nil {
+		return fmt.Errorf("fixed vulture attributes verification failed: %w", err)
 	}
 
 	vs.logger.Info("Retrieved trace", zap.String("traceID", retrievedTraceID))
