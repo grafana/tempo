@@ -28,7 +28,43 @@ func ParseLenient(s string) (*RootExpr, error) {
 	if cleanedErr != nil {
 		return nil, err // return original parse error
 	}
-	return result, nil
+	removeBareAttributes(result)
+	return result, result.validate()
+}
+
+// removeBareAttributes walks the AST and replaces bare Attribute expressions
+// inside SpansetFilters with `true`. These are leftovers from incomplete matchers
+// (e.g. { event:name = } cleaned to { event:name }) that wouldn't pass validation.
+func removeBareAttributes(root *RootExpr) {
+	removeBareAttrsInPipeline(root.Pipeline)
+}
+
+func removeBareAttrsInPipeline(p Pipeline) {
+	for _, e := range p.Elements {
+		switch v := e.(type) {
+		case *SpansetFilter:
+			if _, ok := v.Expression.(Attribute); ok {
+				v.Expression = NewStaticBool(true)
+			}
+		case SpansetOperation:
+			removeBareAttrsInElement(v.LHS)
+			removeBareAttrsInElement(v.RHS)
+		}
+	}
+}
+
+func removeBareAttrsInElement(e SpansetExpression) {
+	switch v := e.(type) {
+	case *SpansetFilter:
+		if _, ok := v.Expression.(Attribute); ok {
+			v.Expression = NewStaticBool(true)
+		}
+	case SpansetOperation:
+		removeBareAttrsInElement(v.LHS)
+		removeBareAttrsInElement(v.RHS)
+	case Pipeline:
+		removeBareAttrsInPipeline(v)
+	}
 }
 
 // token represents a lexed token with its type and string value.
@@ -145,7 +181,9 @@ func markIncompleteMatchers(tokens []token, remove []bool) {
 	}
 }
 
-// skipAttribute advances idx past attribute tokens (scope prefix + name).
+// skipAttribute advances idx past scope prefix tokens so it points to the
+// attribute name (IDENTIFIER or intrinsic). For bare intrinsics (e.g. statusMessage),
+// idx is not advanced since the intrinsic token is the attribute itself.
 func skipAttribute(tokens []token, idx *int) {
 	i := *idx
 	switch tokens[i].typ {
@@ -154,10 +192,13 @@ func skipAttribute(tokens []token, idx *int) {
 		if i < len(tokens) && (tokens[i].typ == SPAN_DOT || tokens[i].typ == RESOURCE_DOT) {
 			i++
 		}
-	default:
+	case DOT, SPAN_DOT, RESOURCE_DOT, EVENT_DOT, LINK_DOT, INSTRUMENTATION_DOT:
 		i++
+	case EVENT_COLON, LINK_COLON, TRACE_COLON, SPAN_COLON, INSTRUMENTATION_COLON:
+		i++
+	default:
+		// Bare intrinsic (statusMessage, duration, etc.) — already the attribute name.
 	}
-	// i now points to the attribute name (IDENTIFIER or intrinsic)
 	*idx = i
 }
 

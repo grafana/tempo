@@ -42,11 +42,13 @@ func TestParseLenient(t *testing.T) {
 			expected: "{ true }",
 		},
 
-		// Incomplete matchers: operator removed, attribute kept as OpNone.
+		// Incomplete matchers: operator removed, bare attribute replaced with true.
+		// A single bare attribute as the entire filter becomes { true } (match all).
+		// When part of a larger expression (e.g. && .b), it stays as-is.
 		{
 			name:     "single incomplete matcher",
 			in:       `{ .foo = }`,
-			expected: "{ .foo }",
+			expected: "{ true }",
 		},
 		{
 			name:     "incomplete after complete",
@@ -71,7 +73,7 @@ func TestParseLenient(t *testing.T) {
 		{
 			name:     "incomplete not-equal",
 			in:       `{ .foo != }`,
-			expected: "{ .foo }",
+			expected: "{ true }",
 		},
 		{
 			name:     "incomplete with negation",
@@ -83,7 +85,7 @@ func TestParseLenient(t *testing.T) {
 		{
 			name:     "scoped attribute incomplete",
 			in:       `{ resource.service.name = }`,
-			expected: "{ resource.service.name }",
+			expected: "{ true }",
 		},
 		{
 			name:     "mixed scopes incomplete",
@@ -93,91 +95,125 @@ func TestParseLenient(t *testing.T) {
 		{
 			name:     "parent scoped incomplete",
 			in:       `{ parent.span.foo = }`,
-			expected: "{ parent.span.foo }",
+			expected: "{ true }",
 		},
 		{
 			name:     "parent resource scoped incomplete",
 			in:       `{ parent.resource.service.name = }`,
-			expected: "{ parent.resource.service.name }",
+			expected: "{ true }",
 		},
 		{
 			name:     "parent duration incomplete",
 			in:       `{ parent.duration = }`,
-			expected: "{ parent.duration }",
+			expected: "{ true }",
 		},
 		{
 			name:     "event scoped attribute incomplete",
 			in:       `{ event.foo = }`,
-			expected: "{ event.foo }",
+			expected: "{ true }",
 		},
 		{
 			name:     "link scoped attribute incomplete",
 			in:       `{ link.foo = }`,
-			expected: "{ link.foo }",
+			expected: "{ true }",
 		},
 		{
 			name:     "instrumentation scoped attribute incomplete",
 			in:       `{ instrumentation.foo = }`,
-			expected: "{ instrumentation.foo }",
+			expected: "{ true }",
 		},
 
 		// Scoped intrinsics.
 		{
 			name:     "event:name incomplete",
 			in:       `{ event:name = }`,
-			expected: "{ event:name }",
+			expected: "{ true }",
 		},
 		{
 			name:     "trace:duration incomplete",
 			in:       `{ trace:duration = }`,
-			expected: "{ traceDuration }",
+			expected: "{ true }",
 		},
 		{
 			name:     "span:status incomplete",
 			in:       `{ span:status = }`,
-			expected: "{ status }",
+			expected: "{ true }",
 		},
 		{
 			name:     "link:traceID incomplete",
 			in:       `{ link:traceID = }`,
-			expected: "{ link:traceID }",
+			expected: "{ true }",
 		},
 		{
 			name:     "instrumentation:name incomplete",
 			in:       `{ instrumentation:name = }`,
-			expected: "{ instrumentation:name }",
+			expected: "{ true }",
+		},
+
+		// Bare intrinsics.
+		{
+			name:     "statusMessage incomplete",
+			in:       `{ statusMessage = }`,
+			expected: "{ true }",
+		},
+		{
+			name:     "duration incomplete",
+			in:       `{ duration = }`,
+			expected: "{ true }",
+		},
+		{
+			name:     "name incomplete",
+			in:       `{ name = }`,
+			expected: "{ true }",
+		},
+		{
+			name:     "kind incomplete",
+			in:       `{ kind = }`,
+			expected: "{ true }",
+		},
+		{
+			name:     "status incomplete",
+			in:       `{ status = }`,
+			expected: "{ true }",
+		},
+
+		// Scoped intrinsices
+		{
+			name: "trace duration incomplete",
+			in:   `{ trace:duration = }`,
+			expected: "{ true }",
 		},
 
 		// All comparison operators with incomplete matchers.
 		{
 			name:     "regex incomplete",
 			in:       `{ .foo =~ }`,
-			expected: "{ .foo }",
+			expected: "{ true }",
 		},
 		{
 			name:     "not-regex incomplete",
 			in:       `{ .foo !~ }`,
-			expected: "{ .foo }",
+			expected: "{ true }",
 		},
 		{
 			name:     "greater-than incomplete",
 			in:       `{ .foo > }`,
-			expected: "{ .foo }",
+			expected: "{ true }",
 		},
 		{
 			name:     "greater-equal incomplete",
 			in:       `{ .foo >= }`,
-			expected: "{ .foo }",
+			expected: "{ true }",
 		},
 		{
 			name:     "less-than incomplete",
 			in:       `{ .foo < }`,
-			expected: "{ .foo }",
+			expected: "{ true }",
 		},
 		{
 			name:     "less-than-or-equal incomplete",
 			in:       `{ .foo <= }`,
-			expected: "{ .foo }",
+			expected: "{ true }",
 		},
 		{
 			name:     "all comparison ops incomplete",
@@ -302,7 +338,7 @@ func TestParseLenient(t *testing.T) {
 		{
 			name:     "structural with incomplete in second",
 			in:       `{ .foo = "bar" } >> { .bar = }`,
-			expected: "({ .foo = `bar` }) >> ({ .bar })",
+			expected: "({ .foo = `bar` }) >> ({ true })",
 		},
 		{
 			name:     "structural valid",
@@ -312,12 +348,12 @@ func TestParseLenient(t *testing.T) {
 		{
 			name:     "chained structural with incomplete",
 			in:       `{ .a = } >> { .b = } >> { .c = "foo" }`,
-			expected: "(({ .a }) >> ({ .b })) >> ({ .c = `foo` })",
+			expected: "(({ true }) >> ({ true })) >> ({ .c = `foo` })",
 		},
 		{
 			name:     "mixed structural and spanset ops with incomplete",
 			in:       `{ .a = "foo" } && { .b = } || { .c = "bar" }`,
-			expected: "(({ .a = `foo` }) && ({ .b })) || ({ .c = `bar` })",
+			expected: "(({ .a = `foo` }) && ({ true })) || ({ .c = `bar` })",
 		},
 
 		// Pipelines preserved after cleanup.
@@ -334,7 +370,7 @@ func TestParseLenient(t *testing.T) {
 		{
 			name:     "incomplete with count pipeline",
 			in:       `{ .foo = } | count() > 5`,
-			expected: "{ .foo }|(count()) > 5",
+			expected: "{ true }|(count()) > 5",
 		},
 		{
 			name:     "valid query with pipeline",
@@ -344,12 +380,12 @@ func TestParseLenient(t *testing.T) {
 		{
 			name:     "incomplete with multiple pipeline stages",
 			in:       `{ .foo = } | count() > 5 | avg(duration) > 1s`,
-			expected: "{ .foo }|(count()) > 5|(avg(duration)) > 1s",
+			expected: "{ true }|(count()) > 5|(avg(duration)) > 1s",
 		},
 		{
 			name:     "incomplete with hints",
 			in:       `{ .foo = } | rate() with(sample=0.5)`,
-			expected: "{ .foo } | rate() with(sample=0.5)",
+			expected: "{ true } | rate() with(sample=0.5)",
 		},
 
 		// OR conditions (valid, pass through).
@@ -441,31 +477,6 @@ func TestParseLenientKnownFailures(t *testing.T) {
 		{
 			name: "resource quoted attribute incomplete",
 			in:   `{ resource."service name" = }`,
-		},
-
-		// Bare intrinsics (not prefixed with dot) cannot be recovered because
-		// after removing the operator, the intrinsic keyword alone doesn't
-		// parse as a valid spanset filter expression (e.g. `{ statusMessage }`
-		// is not valid TraceQL).
-		{
-			name: "statusMessage incomplete",
-			in:   `{ statusMessage = }`,
-		},
-		{
-			name: "duration incomplete",
-			in:   `{ duration = }`,
-		},
-		{
-			name: "name incomplete",
-			in:   `{ name = }`,
-		},
-		{
-			name: "kind incomplete",
-			in:   `{ kind = }`,
-		},
-		{
-			name: "status incomplete",
-			in:   `{ status = }`,
 		},
 
 		// Pipe-separated spanset filters: the cleanup only processes tokens

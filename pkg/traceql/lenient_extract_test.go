@@ -78,7 +78,7 @@ func TestCanonicalQuery(t *testing.T) {
 		{
 			name:     "incomplete intrinsics",
 			query:    `{  statusMessage = }`,
-			expected: "{}",
+			expected: "{true}",
 		},
 		{
 			name:     "query with missing closing bracket",
@@ -143,7 +143,7 @@ func TestCanonicalQuery(t *testing.T) {
 		{
 			name:     "structural operators with incomplete in second matcher",
 			query:    `{ .foo = "bar" } >> { .bar = }`,
-			expected: `({ .foo = "bar" }) >> ({ .bar })`,
+			expected: `({ .foo = "bar" }) >> ({ true })`,
 		},
 		{
 			name:     "metrics query",
