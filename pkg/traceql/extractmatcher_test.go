@@ -8,6 +8,10 @@ import (
 )
 
 func TestExtractMatchers(t *testing.T) {
+	// Expected values go through the AST stringer which wraps non-leaf nodes
+	// in parentheses (see wrapElement in ast_stringer.go), so conditions like
+	// `.foo = "bar"` become `(.foo = "bar")` when part of a larger expression.
+	// This doesn't change the semantic meaning of the query.
 	testCases := []struct {
 		name, query, expected string
 	}{
