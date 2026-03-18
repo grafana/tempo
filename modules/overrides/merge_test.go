@@ -195,6 +195,51 @@ func TestBuildMergedOverrides(t *testing.T) {
 	})
 }
 
+// TestMergeValZeroCannotOverrideNonZero documents the deliberate behavior of mergeVal fields:
+// their zero values are not semantically meaningful, so zero in the override is treated as "not set".
+func TestMergeValZeroCannotOverrideNonZero(t *testing.T) {
+	base := &Overrides{
+		MetricsGenerator: MetricsGeneratorOverrides{
+			Forwarder: ForwarderOverrides{
+				QueueSize: 100,
+				Workers:   2,
+			},
+			TraceIDLabelName:         "traceID",
+			GenerateNativeHistograms: histograms.HistogramMethodClassic,
+			Processor: ProcessorOverrides{
+				HostInfo: HostInfoOverrides{
+					MetricName: "traces_host_info",
+				},
+			},
+		},
+	}
+
+	// All zero values for mergeVal fields
+	other := &Overrides{
+		MetricsGenerator: MetricsGeneratorOverrides{
+			Forwarder: ForwarderOverrides{
+				QueueSize: 0,
+				Workers:   0,
+			},
+			TraceIDLabelName:         "",
+			GenerateNativeHistograms: "",
+			Processor: ProcessorOverrides{
+				HostInfo: HostInfoOverrides{
+					MetricName: "",
+				},
+			},
+		},
+	}
+
+	result := base.Merge(other)
+
+	require.Equal(t, 100, result.MetricsGenerator.Forwarder.QueueSize)
+	require.Equal(t, 2, result.MetricsGenerator.Forwarder.Workers)
+	require.Equal(t, "traceID", result.MetricsGenerator.TraceIDLabelName)
+	require.Equal(t, histograms.HistogramMethodClassic, result.MetricsGenerator.GenerateNativeHistograms)
+	require.Equal(t, "traces_host_info", result.MetricsGenerator.Processor.HostInfo.MetricName)
+}
+
 // TestMergeCoversAllFields uses reflection to verify that every field in the Overrides
 // hierarchy is handled by the merge methods. If a new field is added to any struct
 // but not handled in the corresponding Merge method, this test will fail.
