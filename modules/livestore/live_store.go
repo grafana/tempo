@@ -295,11 +295,6 @@ func (s *LiveStore) starting(ctx context.Context) error {
 		}
 	}
 
-	forceFromLookback := len(s.getInstances()) == 0
-	if forceFromLookback {
-		level.Info(s.logger).Log("msg", "no local data found after reload, will force reading from lookback period")
-	}
-
 	err = services.StartAndAwaitRunning(ctx, s.ingestPartitionLifecycler)
 	if err != nil {
 		return fmt.Errorf("failed to start partition lifecycler: %w", err)
@@ -310,41 +305,48 @@ func (s *LiveStore) starting(ctx context.Context) error {
 		return fmt.Errorf("failed to start livestore lifecycler: %w", err)
 	}
 
-	s.client, err = ingest.NewReaderClient(
-		s.cfg.IngestConfig.Kafka,
-		ingest.NewReaderClientMetrics(liveStoreServiceName, s.reg),
-		s.logger,
-	)
-	if err != nil {
-		return fmt.Errorf("failed to create kafka reader client: %w", err)
-	}
+	if s.cfg.ConsumeFromKafka {
+		forceFromLookback := len(s.getInstances()) == 0
+		if forceFromLookback {
+			level.Info(s.logger).Log("msg", "no local data found after reload, will force reading from lookback period")
+		}
 
-	err = ingest.WaitForKafkaBroker(ctx, s.client, s.logger)
-	if err != nil {
-		return fmt.Errorf("failed to start livestore: %w", err)
-	}
+		s.client, err = ingest.NewReaderClient(
+			s.cfg.IngestConfig.Kafka,
+			ingest.NewReaderClientMetrics(liveStoreServiceName, s.reg),
+			s.logger,
+		)
+		if err != nil {
+			return fmt.Errorf("failed to create kafka reader client: %w", err)
+		}
 
-	lookbackPeriod := 2 * s.cfg.CompleteBlockTimeout
-	s.reader, err = NewPartitionReaderForPusher(s.client, s.ingestPartitionID, s.cfg.IngestConfig.Kafka, s.cfg.CommitInterval, lookbackPeriod, forceFromLookback, s.consume, s.logger, s.reg)
-	if err != nil {
-		return fmt.Errorf("failed to create partition reader: %w", err)
-	}
-	err = services.StartAndAwaitRunning(ctx, s.reader)
-	if err != nil {
-		return fmt.Errorf("failed to start partition reader: %w", err)
-	}
+		err = ingest.WaitForKafkaBroker(ctx, s.client, s.logger)
+		if err != nil {
+			return fmt.Errorf("failed to start livestore: %w", err)
+		}
 
-	lagCtx, cncl := context.WithCancel(s.ctx)
-	s.lagCancel = cncl
-	// Start exporting partition lag metrics
-	ingest.ExportPartitionLagMetrics(
-		lagCtx,
-		s.client,
-		s.logger,
-		s.cfg.IngestConfig,
-		func() []int32 { return []int32{s.ingestPartitionID} },
-		s.client.ForceMetadataRefresh,
-	)
+		lookbackPeriod := 2 * s.cfg.CompleteBlockTimeout
+		s.reader, err = NewPartitionReaderForPusher(s.client, s.ingestPartitionID, s.cfg.IngestConfig.Kafka, s.cfg.CommitInterval, lookbackPeriod, forceFromLookback, s.consume, s.logger, s.reg)
+		if err != nil {
+			return fmt.Errorf("failed to create partition reader: %w", err)
+		}
+		err = services.StartAndAwaitRunning(ctx, s.reader)
+		if err != nil {
+			return fmt.Errorf("failed to start partition reader: %w", err)
+		}
+
+		lagCtx, cncl := context.WithCancel(s.ctx)
+		s.lagCancel = cncl
+		// Start exporting partition lag metrics
+		ingest.ExportPartitionLagMetrics(
+			lagCtx,
+			s.client,
+			s.logger,
+			s.cfg.IngestConfig,
+			func() []int32 { return []int32{s.ingestPartitionID} },
+			s.client.ForceMetadataRefresh,
+		)
+	}
 
 	for i := range s.cfg.CompleteBlockConcurrency {
 		idx := i
@@ -356,9 +358,11 @@ func (s *LiveStore) starting(ctx context.Context) error {
 	// allow background processes to start
 	s.startAllBackgroundProcesses()
 
-	// Wait for catch-up before marking ready (if enabled)
-	if err := s.waitForCatchUp(ctx); err != nil {
-		return fmt.Errorf("failed to catch up: %w", err)
+	if s.cfg.ConsumeFromKafka {
+		// Wait for catch-up before marking ready (if enabled)
+		if err := s.waitForCatchUp(ctx); err != nil {
+			return fmt.Errorf("failed to catch up: %w", err)
+		}
 	}
 
 	// Mark as ready at end of starting()
@@ -390,18 +394,22 @@ func (s *LiveStore) stopping(error) error {
 	s.readyErr.Store(&ErrStopping)
 	metricReady.Set(0)
 
-	// Stop the kafka lag background worker.
-	s.lagCancel()
+	if s.cfg.ConsumeFromKafka {
+		// Stop the kafka lag background worker.
+		if s.lagCancel != nil {
+			s.lagCancel()
+		}
 
-	// Stop consuming
-	err := services.StopAndAwaitTerminated(context.Background(), s.reader)
-	if err != nil {
-		level.Warn(s.logger).Log("msg", "failed to stop reader", "err", err)
-		return err
+		// Stop consuming
+		err := services.StopAndAwaitTerminated(context.Background(), s.reader)
+		if err != nil {
+			level.Warn(s.logger).Log("msg", "failed to stop reader", "err", err)
+			return err
+		}
+
+		// Reset lag metrics for our partition when stopping
+		ingest.ResetLagMetricsForRevokedPartitions(s.cfg.IngestConfig.Kafka.ConsumerGroup, []int32{s.ingestPartitionID})
 	}
-
-	// Reset lag metrics for our partition when stopping
-	ingest.ResetLagMetricsForRevokedPartitions(s.cfg.IngestConfig.Kafka.ConsumerGroup, []int32{s.ingestPartitionID})
 
 	// Flush all data to disk
 	s.cutAllInstancesToWal()
@@ -714,6 +722,26 @@ func (s *LiveStore) OnRingInstanceStopping(*ring.BasicLifecycler) {
 func (s *LiveStore) OnRingInstanceHeartbeat(*ring.BasicLifecycler, *ring.Desc, *ring.InstanceDesc) {
 }
 
+// PushBytes ingests pre-marshaled traces directly into the local live-store.
+func (s *LiveStore) PushBytes(ctx context.Context, req *tempopb.PushBytesRequest) (*tempopb.PushResponse, error) {
+	if err := s.CheckReady(ctx); err != nil {
+		return nil, err
+	}
+
+	tenantID, err := validation.ExtractValidTenantID(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	inst, err := s.getOrCreateInstance(tenantID)
+	if err != nil {
+		return nil, err
+	}
+
+	inst.pushBytes(ctx, time.Now(), req)
+	return &tempopb.PushResponse{}, nil
+}
+
 // FindTraceByID implements tempopb.Querier
 func (s *LiveStore) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDRequest) (*tempopb.TraceByIDResponse, error) {
 	return withInstance(ctx, s, func(inst *instance) (*tempopb.TraceByIDResponse, error) {
@@ -777,7 +805,7 @@ func (s *LiveStore) QueryRange(ctx context.Context, req *tempopb.QueryRangeReque
 var errLagged = errors.New("cannot guarantee complete results")
 
 func (s *LiveStore) isLagged(endNanos int64) bool {
-	if !s.cfg.FailOnHighLag { // if config disabled, never lagged
+	if !s.cfg.FailOnHighLag || !s.cfg.ConsumeFromKafka { // if config disabled or no kafka consumption, never lagged
 		return false
 	}
 	lag := s.calculateTimeLag(0)

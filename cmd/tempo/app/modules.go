@@ -247,19 +247,26 @@ func (t *App) initDistributor() (services.Service, error) {
 	t.cfg.Distributor.KafkaConfig = t.cfg.Ingest.Kafka
 	t.cfg.Distributor.PushSpansToKafka = true
 
-	var pushSpansToLocalGenerator distributor.PushSpansFunc
+	localPushTargets := distributor.LocalPushTargets{}
 	if singleBinary {
-		pushSpansToLocalGenerator = func(ctx context.Context, req *tempopb.PushSpansRequest) (*tempopb.PushResponse, error) {
+		localPushTargets.Generator = func(ctx context.Context, req *tempopb.PushSpansRequest) (*tempopb.PushResponse, error) {
 			if t.generator == nil {
 				return nil, errors.New("metrics-generator not initialized")
 			}
 			return t.generator.PushSpans(ctx, req)
 		}
+
+		localPushTargets.LiveStore = func(ctx context.Context, req *tempopb.PushBytesRequest) (*tempopb.PushResponse, error) {
+			if t.liveStore == nil {
+				return nil, errors.New("live-store not initialized")
+			}
+			return t.liveStore.PushBytes(ctx, req)
+		}
 	}
 
 	// todo: make write-path client a module instead of passing the config everywhere
 	distributor, err := distributor.New(t.cfg.Distributor,
-		pushSpansToLocalGenerator,
+		localPushTargets,
 		t.partitionRing,
 		t.Overrides,
 		t.TracesConsumerMiddleware,
@@ -660,6 +667,10 @@ func (t *App) initLiveStore() (services.Service, error) {
 	// In SingleBinary mode don't try to discover partition from host name.
 	// Always use partition 0. This is for small installs or local/debugging setups.
 	singlePartition := IsSingleBinary(t.cfg.Target)
+
+	// In single-binary mode traces are pushed in-process from distributor,
+	// so live-store does not consume directly from Kafka.
+	t.cfg.LiveStore.ConsumeFromKafka = !singlePartition
 
 	// Inject config from other locations.
 	t.cfg.LiveStore.IngestConfig = t.cfg.Ingest

@@ -26,6 +26,10 @@ type Config struct {
 	// This config is dynamically injected because defined outside the ingester config.
 	IngestConfig ingest.Config `yaml:"-"`
 
+	// ConsumeFromKafka controls whether the live-store should consume from Kafka.
+	// It is internally set by app wiring (single-binary disables it).
+	ConsumeFromKafka bool `yaml:"-"`
+
 	WAL wal.Config `yaml:"wal"  doc:"Configuration for the write ahead log."`
 
 	QueryBlockConcurrency    uint          `yaml:"query_block_concurrency,omitempty"`
@@ -104,6 +108,7 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 	cfg.MaxBlockBytes = 100 * 1024 * 1024
 
 	cfg.CommitInterval = 5 * time.Second
+	cfg.ConsumeFromKafka = true
 
 	// Readiness config - default to disabled (backward compatible)
 	cfg.ReadinessTargetLag = 0

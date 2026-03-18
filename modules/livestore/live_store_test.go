@@ -50,8 +50,104 @@ func TestLiveStoreBasicConsume(t *testing.T) {
 	}
 }
 
+// TestLiveStorePushBytesLocalIngest verifies local in-process ingest when Kafka consumption is disabled.
+func TestLiveStorePushBytesLocalIngest(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	cfg := defaultConfig(t, tmpDir)
+	cfg.ConsumeFromKafka = false
+
+	liveStore, err := liveStoreWithConfig(t, cfg)
+	require.NoError(t, err)
+	require.NotNil(t, liveStore)
+
+	id := test.ValidTraceID(nil)
+	expectedTrace := test.MakeTrace(5, id)
+	traceBytes, err := proto.Marshal(expectedTrace)
+	require.NoError(t, err)
+
+	ctx := user.InjectOrgID(t.Context(), testTenantID)
+	_, err = liveStore.PushBytes(ctx, &tempopb.PushBytesRequest{
+		Traces: []tempopb.PreallocBytes{{Slice: traceBytes}},
+		Ids:    [][]byte{id},
+	})
+	require.NoError(t, err)
+
+	requireTraceInLiveStore(t, liveStore, id, expectedTrace)
+
+	err = services.StopAndAwaitTerminated(t.Context(), liveStore)
+	require.NoError(t, err)
+}
+
+func TestLiveStorePushBytesRejectsWhenStarting(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	cfg := defaultConfig(t, tmpDir)
+	cfg.ConsumeFromKafka = false
+
+	limits, err := overrides.NewOverrides(overrides.Config{}, nil, prometheus.DefaultRegisterer)
+	require.NoError(t, err)
+
+	liveStore, err := New(cfg, limits, test.NewTestingLogger(t), prometheus.NewRegistry(), true)
+	require.NoError(t, err)
+
+	id := test.ValidTraceID(nil)
+	expectedTrace := test.MakeTrace(1, id)
+	traceBytes, err := proto.Marshal(expectedTrace)
+	require.NoError(t, err)
+
+	ctx := user.InjectOrgID(t.Context(), testTenantID)
+	_, err = liveStore.PushBytes(ctx, &tempopb.PushBytesRequest{
+		Traces: []tempopb.PreallocBytes{{Slice: traceBytes}},
+		Ids:    [][]byte{id},
+	})
+	require.ErrorIs(t, err, ErrStarting)
+}
+
+func TestLiveStorePushBytesRejectsWhenStopping(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	cfg := defaultConfig(t, tmpDir)
+	cfg.ConsumeFromKafka = false
+
+	liveStore, err := liveStoreWithConfig(t, cfg)
+	require.NoError(t, err)
+	require.NotNil(t, liveStore)
+
+	// Transition to stopping state, then verify writes are rejected.
+	_ = liveStore.stopping(nil)
+
+	id := test.ValidTraceID(nil)
+	expectedTrace := test.MakeTrace(1, id)
+	traceBytes, err := proto.Marshal(expectedTrace)
+	require.NoError(t, err)
+
+	ctx := user.InjectOrgID(t.Context(), testTenantID)
+	_, err = liveStore.PushBytes(ctx, &tempopb.PushBytesRequest{
+		Traces: []tempopb.PreallocBytes{{Slice: traceBytes}},
+		Ids:    [][]byte{id},
+	})
+	require.ErrorIs(t, err, ErrStopping)
+}
+
+func TestLiveStoreStartStopWithoutKafkaConsumer(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	cfg := defaultConfig(t, tmpDir)
+	cfg.ConsumeFromKafka = false
+
+	liveStore, err := liveStoreWithConfig(t, cfg)
+	require.NoError(t, err)
+	require.NotNil(t, liveStore)
+	require.Nil(t, liveStore.client)
+	require.Nil(t, liveStore.reader)
+
+	err = services.StopAndAwaitTerminated(t.Context(), liveStore)
+	require.NoError(t, err)
+}
+
 // TestLiveStoreFullBlockLifecycleCheating tests all stages of the trace lifecycle by "cheating". e.g. it
-// uses knowledge of the internal state of the livestore and its instances to check the correct blocks exist
+// uses knowledge of the internal state of the live-store and its instances to check the correct blocks exist.
 func TestLiveStoreFullBlockLifecycleCheating(t *testing.T) {
 	tmpDir := t.TempDir()
 
