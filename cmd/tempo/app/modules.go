@@ -281,13 +281,15 @@ func (t *App) initDistributor() (services.Service, error) {
 }
 
 func (t *App) initGenerator() (services.Service, error) {
-	t.cfg.Generator.ConsumeFromKafka = !IsSingleBinary(t.cfg.Target)
+	t.configureGenerator()
 
-	t.cfg.Generator.Ingest = t.cfg.Ingest
-	t.cfg.Generator.Ingest.Kafka.ConsumerGroup = generator.ConsumerGroup
+	ringReader, err := t.generatorRingReader()
+	if err != nil {
+		return nil, err
+	}
 
-	genSvc, err := generator.New(&t.cfg.Generator, t.Overrides, prometheus.DefaultRegisterer, t.partitionRing, log.Logger)
-	if errors.Is(err, generator.ErrUnconfigured) && t.cfg.Target != MetricsGenerator { // just warn if we're not running the metrics-generator
+	genSvc, err := generator.New(&t.cfg.Generator, t.Overrides, prometheus.DefaultRegisterer, ringReader, log.Logger)
+	if errors.Is(err, generator.ErrUnconfigured) && t.cfg.Target != MetricsGenerator && t.cfg.Target != MetricsGeneratorNoLocalBlocks { // just warn if we're not running the metrics-generator
 		level.Warn(log.Logger).Log("msg", "metrics-generator is not configured.", "err", err)
 		return services.NewIdleService(nil, nil), nil
 	}
@@ -299,22 +301,50 @@ func (t *App) initGenerator() (services.Service, error) {
 	return t.generator, nil
 }
 
-func (t *App) initGeneratorNoLocalBlocks() (services.Service, error) {
-	reg := prometheus.DefaultRegisterer
-
+func (t *App) configureGenerator() {
 	t.cfg.Generator.Ingest = t.cfg.Ingest
-	t.cfg.Generator.ConsumeFromKafka = true
+	t.cfg.Generator.ConsumeFromKafka = !IsSingleBinary(t.cfg.Target)
+	if t.cfg.Generator.ConsumeFromKafka && t.cfg.Generator.RingMode == generator.RingModePartition {
+		t.cfg.Generator.Ingest.Kafka.ConsumerGroup = generator.ConsumerGroup
+	}
+}
 
-	var err error
-	t.generator, err = generator.New(&t.cfg.Generator, t.Overrides, reg, t.generatorRingWatcher, log.Logger)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create metrics-generator: %w", err)
+func (t *App) generatorRingReader() (ring.PartitionRingReader, error) {
+	if IsSingleBinary(t.cfg.Target) {
+		return nil, nil
 	}
 
-	return t.generator, nil
+	switch t.cfg.Generator.RingMode {
+	case generator.RingModePartition:
+		if t.partitionRing == nil {
+			return nil, errors.New("metrics-generator ring mode is partition but partition ring is not initialized")
+		}
+		return t.partitionRing, nil
+	case generator.RingModeGenerator:
+		if t.generatorRingWatcher == nil {
+			return nil, errors.New("metrics-generator ring mode is generator but generator ring watcher is not initialized")
+		}
+		return t.generatorRingWatcher, nil
+	default:
+		return nil, fmt.Errorf(
+			"invalid metrics-generator ring mode %q, must be one of: %q, %q",
+			t.cfg.Generator.RingMode,
+			generator.RingModePartition,
+			generator.RingModeGenerator,
+		)
+	}
+}
+
+func (t *App) initGeneratorNoLocalBlocks() (services.Service, error) {
+	t.cfg.Generator.RingMode = generator.RingModeGenerator
+	return t.initGenerator()
 }
 
 func (t *App) initGeneratorRingWatcher() (services.Service, error) {
+	if IsSingleBinary(t.cfg.Target) || t.cfg.Generator.RingMode != generator.RingModeGenerator {
+		return services.NewIdleService(nil, nil), nil
+	}
+
 	reg := prometheus.DefaultRegisterer
 
 	kvRegisterer := kv.RegistererWithKVName(reg, t.cfg.Generator.OverrideRingKey+"-watcher")
@@ -737,8 +767,8 @@ func (t *App) setupModuleManager() error {
 		// individual targets
 		QueryFrontend:                 {Common, Store, OverridesAPI},
 		Distributor:                   {Common, LiveStoreRing, PartitionRing},
-		MetricsGenerator:              {Common, MemberlistKV, PartitionRing},
-		MetricsGeneratorNoLocalBlocks: {Common, GeneratorRingWatcher},
+		MetricsGenerator:              {Common, MemberlistKV, PartitionRing, GeneratorRingWatcher},
+		MetricsGeneratorNoLocalBlocks: {Common, MemberlistKV, GeneratorRingWatcher},
 		Querier:                       {Common, Store, LiveStoreRing, PartitionRing},
 		BlockBuilder:                  {Common, Store, MemberlistKV, PartitionRing},
 		BackendScheduler:              {Common, Store},
