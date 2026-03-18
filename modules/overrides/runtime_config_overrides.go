@@ -40,7 +40,7 @@ type perTenantOverrides struct {
 	// Merged holds effective overrides per tenant (defaults and tenant overrides combined).
 	// Built once at config load/reload time so that runtime lookups
 	// via getOverridesForUser are a single map read with no per-request merge overhead.
-	// NOTE: merged overrides are ready only and should not be mutated
+	// NOTE: merged overrides are read-only and must not be mutated.
 	merged TenantOverrides `yaml:"-"`
 }
 
@@ -235,7 +235,6 @@ type statusRuntimeConfig struct {
 }
 
 func (o *runtimeConfigOverridesManager) WriteStatusRuntimeConfig(w io.Writer, r *http.Request) error {
-	// FIXME: double check if this code is right?? and see if we can and should use o.merged here?
 	// Build effective (merged) per-tenant overrides for display.
 	tenantOverrides := perTenantOverrides{TenantLimits: TenantOverrides{}}
 	if pto := o.tenantOverrides(); pto != nil {
@@ -380,7 +379,9 @@ func (o *runtimeConfigOverridesManager) IngestionArtificialDelay(userID string) 
 	if artificialDelay != nil {
 		return *artificialDelay, true
 	}
-	// FIXME: check if we need to do the both bool and time.Duration??
+	// ArtificialDelay is intentionally nil in defaults, so the distributor's own
+	// cfg.ArtificialDelay is used as the fallback.
+	// The (value, ok) pattern is used to distinguish "not set" from "explicitly set to 0" in callers.
 	return 0, false
 }
 
@@ -552,7 +553,6 @@ func (o *runtimeConfigOverridesManager) MetricsGeneratorProcessorServiceGraphsEn
 
 // MetricsGeneratorProcessorServiceGraphsEnableMessagingSystemLatencyHistogram enables this metric
 func (o *runtimeConfigOverridesManager) MetricsGeneratorProcessorServiceGraphsEnableMessagingSystemLatencyHistogram(userID string) (bool, bool) {
-	// FIXME: see if we need to return two bools here??
 	enableMessagingSystemLatencyHistogram := o.getOverridesForUser(userID).MetricsGenerator.Processor.ServiceGraphs.EnableMessagingSystemLatencyHistogram
 	if enableMessagingSystemLatencyHistogram != nil {
 		return *enableMessagingSystemLatencyHistogram, true
@@ -562,7 +562,6 @@ func (o *runtimeConfigOverridesManager) MetricsGeneratorProcessorServiceGraphsEn
 
 // MetricsGeneratorProcessorServiceGraphsEnableVirtualNodeLabel adds the "virtual_node" label
 func (o *runtimeConfigOverridesManager) MetricsGeneratorProcessorServiceGraphsEnableVirtualNodeLabel(userID string) (bool, bool) {
-	// FIXME: see if we need to return two bools here??
 	enableVirtualNodeLabel := o.getOverridesForUser(userID).MetricsGenerator.Processor.ServiceGraphs.EnableVirtualNodeLabel
 	if enableVirtualNodeLabel != nil {
 		return *enableVirtualNodeLabel, true
@@ -600,7 +599,6 @@ func (o *runtimeConfigOverridesManager) MetricsGeneratorProcessorSpanMetricsDime
 
 // MetricsGeneratorProcessorSpanMetricsEnableTargetInfo enables target_info metrics
 func (o *runtimeConfigOverridesManager) MetricsGeneratorProcessorSpanMetricsEnableTargetInfo(userID string) (bool, bool) {
-	// FIXME: see if we need to return two bools here??
 	enableTargetInfo := o.getOverridesForUser(userID).MetricsGenerator.Processor.SpanMetrics.EnableTargetInfo
 	if enableTargetInfo != nil {
 		return *enableTargetInfo, true
@@ -613,13 +611,12 @@ func (o *runtimeConfigOverridesManager) MetricsGeneratorProcessorSpanMetricsTarg
 }
 
 func (o *runtimeConfigOverridesManager) MetricsGeneratorProcessorSpanMetricsEnableInstanceLabel(userID string) (bool, bool) {
-	// FIXME: see if we need to return two bools here??
 	enableInstanceLabel := o.getOverridesForUser(userID).MetricsGenerator.Processor.SpanMetrics.EnableInstanceLabel
 	if enableInstanceLabel != nil {
 		return *enableInstanceLabel, true
 	}
-	// should this default be somewhere else like the actual defaults instead of here??
-	return true, false // default to true
+	// Matches spanmetrics.Config.RegisterFlagsAndApplyDefaults default (EnableInstanceLabel = true).
+	return true, false
 }
 
 func (o *runtimeConfigOverridesManager) MetricsGeneratorProcessorHostInfoHostIdentifiers(userID string) []string {

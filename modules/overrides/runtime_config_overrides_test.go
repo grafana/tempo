@@ -956,6 +956,10 @@ func TestWriteStatusRuntimeConfigDiffMode(t *testing.T) {
 
 	output := buf.String()
 	require.Contains(t, output, "test-tenant", "diff output should contain tenant ID")
+	// The overridden field should appear in the diff.
+	require.Contains(t, output, "max_traces_per_user", "diff should contain overridden field")
+	// Fields matching defaults should NOT appear in the diff.
+	require.NotContains(t, output, "rate_limit_bytes", "diff should not contain fields matching defaults")
 }
 
 func TestDefaultOverridesValidation(t *testing.T) {
@@ -982,7 +986,7 @@ func TestDefaultOverridesValidation(t *testing.T) {
 		cfg.RegisterFlagsAndApplyDefaults(&flag.FlagSet{})
 
 		validatorCalled := false
-		validator := &mockValidator{f: func(config *Overrides) error {
+		validator := &mockValidator{f: func(_ *Overrides) error {
 			validatorCalled = true
 			return errors.New("invalid default config")
 		}}
