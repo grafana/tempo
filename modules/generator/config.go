@@ -220,6 +220,7 @@ func (cfg *ProcessorConfig) copyWithOverrides(o metricsGeneratorOverrides, userI
 		copyCfg.HostInfo.HostIdentifiers = o.MetricsGeneratorProcessorHostInfoHostIdentifiers(userID)
 	}
 
+	// Safe: mergeVal guarantees non-empty when default is non-empty.
 	copyCfg.HostInfo.MetricName = o.MetricsGeneratorProcessorHostInfoMetricName(userID)
 	copyCfg.ServiceGraphs.SpanMultiplierKey = o.MetricsGeneratorProcessorServiceGraphsSpanMultiplierKey(userID)
 	copyCfg.SpanMetrics.SpanMultiplierKey = o.MetricsGeneratorProcessorSpanMetricsSpanMultiplierKey(userID)

@@ -107,6 +107,9 @@ func (base *MetricsGeneratorOverrides) Merge(other *MetricsGeneratorOverrides) M
 	}
 }
 
+// ForwarderOverrides fields intentionally use value types (not pointers) because their
+// zero values (0 workers, 0 queue size) are not semantically meaningful. mergeVal treats
+// zero as "not set", which is the correct behavior here.
 func (base *ForwarderOverrides) Merge(other *ForwarderOverrides) ForwarderOverrides {
 	return ForwarderOverrides{
 		QueueSize: mergeVal(base.QueueSize, other.QueueSize),
@@ -149,6 +152,8 @@ func (base *SpanMetricsOverrides) Merge(other *SpanMetricsOverrides) SpanMetrics
 	}
 }
 
+// HostInfoOverrides.MetricName intentionally uses a value type because an empty metric name
+// is not semantically meaningful. mergeVal treats "" as "not set", which is correct here.
 func (base *HostInfoOverrides) Merge(other *HostInfoOverrides) HostInfoOverrides {
 	return HostInfoOverrides{
 		HostIdentifiers: mergeSliceShallow(base.HostIdentifiers, other.HostIdentifiers),

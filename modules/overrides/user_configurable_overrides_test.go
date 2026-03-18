@@ -585,7 +585,7 @@ func TestUserConfigOverridesManager_MergeRuntimeConfig(t *testing.T) {
 
 func perTenantRuntimeOverrides(tenantID string) *perTenantOverrides {
 	pto := &perTenantOverrides{
-		TenantLimits: map[string]*Overrides{
+		TenantLimits: TenantOverrides{
 			tenantID: {
 				Ingestion: IngestionOverrides{
 					RateStrategy:           LocalIngestionRateStrategy,
