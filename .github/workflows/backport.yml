@@ -98,7 +98,7 @@ jobs:
       id-token: write
       pull-requests: write
     steps:
-      - name: Get Github App secrets from vault
+      - name: Get GitHub App secrets from vault
         id: get-secrets
         uses: grafana/shared-workflows/actions/get-vault-secrets@f1614b210386ac420af6807a997ac7f6d96e477a # get-vault-secrets/v1.3.1
         with:
