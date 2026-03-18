@@ -86,7 +86,7 @@ func TestResponseFixture(t *testing.T) {
 		marshaller := &jsonpb.Marshaler{}
 		err = marshaller.Marshal(&jsonTrace, generatedTrace)
 		require.NoError(t, err)
-		require.NoError(t, os.WriteFile("testdata/trace.json", jsonTrace.Bytes(), 0644))
+		require.NoError(t, os.WriteFile("testdata/trace.json", jsonTrace.Bytes(), 0o644))
 		t.Log("Wrote testdata/trace.json")
 		return
 	}
