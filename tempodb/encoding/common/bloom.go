@@ -70,6 +70,19 @@ func (b *ShardedBloomFilter) Marshal() ([][]byte, error) {
 	return bloomBytes, nil
 }
 
+func (b *ShardedBloomFilter) SerializedSizeBytes() (uint64, error) {
+	blooms, err := b.Marshal()
+	if err != nil {
+		return 0, err
+	}
+
+	var total uint64
+	for _, bloom := range blooms {
+		total += uint64(len(bloom))
+	}
+	return total, nil
+}
+
 func (b *ShardedBloomFilter) GetShardCount() int {
 	return len(b.blooms)
 }
