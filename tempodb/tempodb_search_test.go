@@ -2620,6 +2620,7 @@ func TestSearchForTagsAndTagValues(t *testing.T) {
 	require.NoError(t, err)
 
 	extractedReq := traceql.ExtractFetchRequest(`{resource.service.name="test-service-2"}`)
+	require.NotNil(t, extractedReq)
 	err = traceql.NewEngine().ExecuteTagValues(context.Background(), tag, extractedReq.Conditions, traceql.MakeCollectTagValueFunc(valueCollector.Collect), f)
 	require.NoError(t, err)
 

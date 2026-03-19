@@ -135,7 +135,7 @@ func tokenize(s string) []token {
 		case INTEGER:
 			t.str = fmt.Sprintf("%d", lval.staticInt)
 		case FLOAT:
-			t.str = fmt.Sprintf("%f", lval.staticFloat)
+			t.str = strconv.FormatFloat(lval.staticFloat, 'g', -1, 64)
 		case DURATION:
 			t.str = lval.staticDuration.String()
 		case TRUE:
@@ -320,15 +320,20 @@ func isScopeToken(typ int) bool {
 		typ == SPAN_COLON || typ == INSTRUMENTATION_COLON
 }
 
+var reverseTokenMap = (func() map[int]string {
+	m := make(map[int]string, len(tokenMap))
+	for str, tok := range tokenMap {
+		m[tok] = str
+	}
+	return m
+})()
+
 // tokenRepr returns the string representation of a token for query rebuilding.
 // Explicit mappings are needed for multi-character tokens where scanner.TokenText()
 // only returns the last scanned character (e.g. "&&" → "&").
 func tokenRepr(t token) string {
-	// check existing token in tokenMap first
-	for str, tok := range tokenMap {
-		if tok == t.typ {
-			return str
-		}
+	if str, ok := reverseTokenMap[t.typ]; ok {
+		return str
 	}
 
 	switch t.typ {

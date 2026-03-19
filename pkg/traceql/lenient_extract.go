@@ -33,7 +33,8 @@ func ExtractFetchRequest(query string) *FetchSpansRequest {
 	req := &FetchSpansRequest{AllConditions: true}
 	expr.extractConditions(req)
 
-	// Filter out OpNone conditions (incomplete matchers)
+	// Filter out OpNone conditions — these are column-fetch hints (bare attributes,
+	// structural intrinsics), not filterable conditions.
 	conditions := make([]Condition, 0, len(req.Conditions))
 	for _, cond := range req.Conditions {
 		if cond.Op != OpNone {
@@ -47,6 +48,8 @@ func ExtractFetchRequest(query string) *FetchSpansRequest {
 
 // CanonicalQuery parses a query string using the lenient parser and returns
 // a normalized string representation. Used for cache key generation.
+// Match-all queries (e.g. "{}", "{ }", "{ true }") are normalized to "{}"
+// to avoid cache fragmentation.
 func CanonicalQuery(query string) string {
 	query = strings.TrimSpace(query)
 	if len(query) == 0 {
@@ -62,5 +65,9 @@ func CanonicalQuery(query string) string {
 		return emptyQuery
 	}
 
-	return expr.String()
+	s := expr.String()
+	if s == "{ true }" {
+		return emptyQuery
+	}
+	return s
 }

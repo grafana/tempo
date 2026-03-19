@@ -197,13 +197,16 @@ func (e *Engine) ExecuteTagValues(
 		}
 	}
 
-	conditions = append(conditions, Condition{
+	// Copy conditions to avoid mutating the caller's slice.
+	allConditions := make([]Condition, len(conditions)+1)
+	copy(allConditions, conditions)
+	allConditions[len(conditions)] = Condition{
 		Attribute: tag,
 		Op:        OpNone,
-	})
+	}
 
 	autocompleteReq := FetchTagValuesRequest{
-		Conditions: conditions,
+		Conditions: allConditions,
 		TagName:    tag,
 	}
 

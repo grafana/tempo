@@ -23,7 +23,7 @@ func TestCanonicalQuery(t *testing.T) {
 		{
 			name:     "empty query with spaces",
 			query:    " { } ",
-			expected: "{true}",
+			expected: "{}",
 		},
 		{
 			name:     "simple query",
@@ -78,7 +78,7 @@ func TestCanonicalQuery(t *testing.T) {
 		{
 			name:     "incomplete intrinsics",
 			query:    `{  statusMessage = }`,
-			expected: "{true}",
+			expected: "{}",
 		},
 		{
 			name:     "query with missing closing bracket",

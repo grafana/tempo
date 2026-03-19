@@ -205,7 +205,7 @@ func (l *lexer) Lex(lval *yySymType) int {
 	}
 
 	// look for combination tokenMap starting with 2 and working up til there is no match
-	// this is only to disamgiguate tokenMap with common prefixes. it will not find 3+ token combinations
+	// this is only to disambiguate tokenMap with common prefixes. it will not find 3+ token combinations
 	// with no valid prefixes
 	multiTok := -1
 	tokStrNext := l.TokenText()
