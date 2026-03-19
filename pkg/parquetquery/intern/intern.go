@@ -7,6 +7,7 @@
 package intern
 
 import (
+	"unique"
 	"unsafe"
 
 	pq "github.com/parquet-go/parquet-go"
@@ -50,6 +51,15 @@ func (i *Interner) internBytes(b []byte) []byte {
 func (i *Interner) Close() {
 	clear(i.m) // clear the map
 	i.m = nil
+}
+
+// InternString returns a process-wide deduplicated string from b.
+// It uses the stdlib unique package for GC-friendly, cross-query deduplication.
+func InternString(b []byte) string {
+	if len(b) == 0 {
+		return ""
+	}
+	return unique.Make(string(b)).Value()
 }
 
 // bytesToString converts a byte slice to a string.

@@ -109,6 +109,47 @@ func TestPqValueConversion(t *testing.T) {
 	}
 }
 
+func TestInternString(t *testing.T) {
+	s1 := InternString([]byte("hello"))
+	s2 := InternString([]byte("hello"))
+
+	// process-wide interning: identical content must yield the same pointer
+	if unsafe.StringData(s1) != unsafe.StringData(s2) {
+		t.Error("expected same backing pointer for equal strings")
+	}
+
+	s3 := InternString([]byte("world"))
+	if unsafe.StringData(s1) == unsafe.StringData(s3) {
+		t.Error("expected different backing pointer for different strings")
+	}
+
+	empty := InternString([]byte{})
+	if empty != "" {
+		t.Errorf("expected empty string, got %q", empty)
+	}
+
+	nilResult := InternString(nil)
+	if nilResult != "" {
+		t.Errorf("expected empty string for nil input, got %q", nilResult)
+	}
+}
+
+func BenchmarkInternString(b *testing.B) {
+	words := []string{"foo", "bar", "baz", "qux", "quux", "corge", "grault", "garply", "waldo", "fred"}
+
+	b.Run("intern_string", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			_ = InternString([]byte(words[i%len(words)]))
+		}
+	})
+
+	b.Run("plain_string_conv", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			_ = string([]byte(words[i%len(words)]))
+		}
+	})
+}
+
 func BenchmarkIntern(b *testing.B) {
 	words := []string{"foo", "bar", "baz", "qux", "quux", "corge", "grault", "garply", "waldo", "fred", "plugh", "xyzzy", "thud"}
 	testCases := []struct {
