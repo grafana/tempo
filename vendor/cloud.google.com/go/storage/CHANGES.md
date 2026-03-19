@@ -1,6 +1,12 @@
 # Changes
 
 
+## [1.61.2](https://github.com/googleapis/google-cloud-go/releases/tag/storage%2Fv1.61.2) (2026-03-12)
+
+### Bug Fixes
+
+* fix dependency version for auth library (#14156) ([cb354ba](https://github.com/googleapis/google-cloud-go/commit/cb354ba5691eade26d14ace3c04d79f3363c0526))
+
 ## [1.61.1](https://github.com/googleapis/google-cloud-go/releases/tag/storage%2Fv1.61.1) (2026-03-11)
 
 ## [1.61.0](https://github.com/googleapis/google-cloud-go/releases/tag/storage%2Fv1.61.0) (2026-03-10)
