@@ -46,6 +46,8 @@ type Memcached struct {
 	name            string
 	maxItemSize     int
 	requestDuration *instr.HistogramCollector
+	cacheHits       prometheus.Counter
+	cacheMisses     prometheus.Counter
 	logger          log.Logger
 }
 
@@ -70,6 +72,18 @@ func NewMemcached(cfg MemcachedConfig, client MemcachedClient, name string, maxI
 				ConstLabels:                     prometheus.Labels{"name": name},
 			}, []string{"method", "status_code"}),
 		),
+		cacheHits: promauto.With(reg).NewCounter(prometheus.CounterOpts{
+			Namespace:   "tempo",
+			Name:        "cache_hits_total",
+			Help:        "Total number of cache hits.",
+			ConstLabels: prometheus.Labels{"name": name, "type": "memcached"},
+		}),
+		cacheMisses: promauto.With(reg).NewCounter(prometheus.CounterOpts{
+			Namespace:   "tempo",
+			Name:        "cache_misses_total",
+			Help:        "Total number of cache misses.",
+			ConstLabels: prometheus.Labels{"name": name, "type": "memcached"},
+		}),
 	}
 	return c
 }
@@ -120,6 +134,8 @@ func (c *Memcached) Fetch(ctx context.Context, keys []string) (found []string, b
 			missed = append(missed, key)
 		}
 	}
+	c.cacheHits.Add(float64(len(found)))
+	c.cacheMisses.Add(float64(len(missed)))
 	return
 }
 
@@ -146,8 +162,10 @@ func (c *Memcached) FetchKey(ctx context.Context, key string) ([]byte, bool) {
 		return err
 	})
 	if err != nil {
+		c.cacheMisses.Add(1)
 		return nil, false
 	}
+	c.cacheHits.Add(1)
 	return item.Value, true
 }
 

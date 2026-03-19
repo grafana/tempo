@@ -2,12 +2,15 @@ package cache
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/alicebob/miniredis/v2"
 	"github.com/go-kit/log"
 	"github.com/go-redis/redis/v8"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -55,6 +58,42 @@ func TestRedisCache(t *testing.T) {
 
 	_, foundKey = c.FetchKey(ctx, miss[0])
 	assert.False(t, foundKey)
+}
+
+func TestRedisCacheMetrics(t *testing.T) {
+	reg := prometheus.NewRegistry()
+	redisServer, err := miniredis.Run()
+	require.NoError(t, err)
+	redisClient := &RedisClient{
+		expiration: time.Minute,
+		timeout:    100 * time.Millisecond,
+		rdb: redis.NewUniversalClient(&redis.UniversalOptions{
+			Addrs: []string{redisServer.Addr()},
+		}),
+	}
+	c := NewRedisCache("test", redisClient, reg, log.NewNopLogger())
+	defer c.redis.Close()
+
+	ctx := context.Background()
+	c.Store(ctx, []string{"hit1", "hit2"}, [][]byte{[]byte("v1"), []byte("v2")})
+
+	// Fetch: 2 hits, 1 miss
+	c.Fetch(ctx, []string{"hit1", "hit2", "miss1"})
+
+	// FetchKey: 1 hit, 1 miss
+	c.FetchKey(ctx, "hit1")
+	c.FetchKey(ctx, "miss2")
+
+	expected := strings.NewReader(`
+# HELP tempo_cache_hits_total Total number of cache hits.
+# TYPE tempo_cache_hits_total counter
+tempo_cache_hits_total{name="test",type="redis"} 3
+# HELP tempo_cache_misses_total Total number of cache misses.
+# TYPE tempo_cache_misses_total counter
+tempo_cache_misses_total{name="test",type="redis"} 2
+`)
+	require.NoError(t, testutil.GatherAndCompare(reg, expected,
+		"tempo_cache_hits_total", "tempo_cache_misses_total"))
 }
 
 func mockRedisCache() (*RedisCache, error) {

@@ -21,6 +21,8 @@ type RedisCache struct {
 	redis           *RedisClient
 	logger          log.Logger
 	requestDuration *instr.HistogramCollector
+	cacheHits       prometheus.Counter
+	cacheMisses     prometheus.Counter
 }
 
 // NewRedisCache creates a new RedisCache
@@ -41,6 +43,18 @@ func NewRedisCache(name string, redisClient *RedisClient, reg prometheus.Registe
 				ConstLabels:                     prometheus.Labels{"name": name},
 			}, []string{"method", "status_code"}),
 		),
+		cacheHits: promauto.With(reg).NewCounter(prometheus.CounterOpts{
+			Namespace:   "tempo",
+			Name:        "cache_hits_total",
+			Help:        "Total number of cache hits.",
+			ConstLabels: prometheus.Labels{"name": name, "type": "redis"},
+		}),
+		cacheMisses: promauto.With(reg).NewCounter(prometheus.CounterOpts{
+			Namespace:   "tempo",
+			Name:        "cache_misses_total",
+			Help:        "Total number of cache misses.",
+			ConstLabels: prometheus.Labels{"name": name, "type": "redis"},
+		}),
 	}
 	if err := cache.redis.Ping(context.Background()); err != nil {
 		level.Error(logger).Log("msg", "error connecting to redis", "name", name, "err", err)
@@ -86,6 +100,8 @@ func (c *RedisCache) Fetch(ctx context.Context, keys []string) (found []string, 
 			missed = append(missed, key)
 		}
 	}
+	c.cacheHits.Add(float64(len(found)))
+	c.cacheMisses.Add(float64(len(missed)))
 
 	return
 }
@@ -112,8 +128,10 @@ func (c *RedisCache) FetchKey(ctx context.Context, key string) (buf []byte, foun
 		return nil
 	})
 	if err != nil {
+		c.cacheMisses.Add(1)
 		return buf, false
 	}
+	c.cacheHits.Add(1)
 
 	return buf, true
 }

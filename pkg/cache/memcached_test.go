@@ -4,10 +4,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/go-kit/log"
 	"github.com/grafana/gomemcache/memcache"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/atomic"
@@ -168,6 +171,34 @@ func testMemcachedStopping(memcache *cache.Memcached) {
 
 	go memcache.Fetch(ctx, keys)
 	memcache.Stop()
+}
+
+func TestMemcachedCacheMetrics(t *testing.T) {
+	reg := prometheus.NewRegistry()
+	client := newMockMemcache()
+	mc := cache.NewMemcached(cache.MemcachedConfig{}, client, "test", 0, reg, log.NewNopLogger())
+	defer mc.Stop()
+
+	ctx := context.Background()
+	mc.Store(ctx, []string{"hit1", "hit2"}, [][]byte{[]byte("v1"), []byte("v2")})
+
+	// Fetch: 2 hits, 1 miss
+	mc.Fetch(ctx, []string{"hit1", "hit2", "miss1"})
+
+	// FetchKey: 1 hit, 1 miss
+	mc.FetchKey(ctx, "hit1")
+	mc.FetchKey(ctx, "miss2")
+
+	expected := strings.NewReader(`
+# HELP tempo_cache_hits_total Total number of cache hits.
+# TYPE tempo_cache_hits_total counter
+tempo_cache_hits_total{name="test",type="memcached"} 3
+# HELP tempo_cache_misses_total Total number of cache misses.
+# TYPE tempo_cache_misses_total counter
+tempo_cache_misses_total{name="test",type="memcached"} 2
+`)
+	require.NoError(t, testutil.GatherAndCompare(reg, expected,
+		"tempo_cache_hits_total", "tempo_cache_misses_total"))
 }
 
 func TestMemcachedRespectsCancelledContext(t *testing.T) {
