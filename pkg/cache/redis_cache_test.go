@@ -85,15 +85,13 @@ func TestRedisCacheMetrics(t *testing.T) {
 	c.FetchKey(ctx, "miss2")
 
 	expected := strings.NewReader(`
-# HELP tempo_cache_hits_total Total number of cache hits.
-# TYPE tempo_cache_hits_total counter
-tempo_cache_hits_total{name="test",type="redis"} 3
-# HELP tempo_cache_misses_total Total number of cache misses.
-# TYPE tempo_cache_misses_total counter
-tempo_cache_misses_total{name="test",type="redis"} 2
+# HELP tempo_cache_requests_total Total number of cache requests by status (hit, miss, fail).
+# TYPE tempo_cache_requests_total counter
+tempo_cache_requests_total{name="test",status="hit",type="redis"} 3
+tempo_cache_requests_total{name="test",status="miss",type="redis"} 2
 `)
 	require.NoError(t, testutil.GatherAndCompare(reg, expected,
-		"tempo_cache_hits_total", "tempo_cache_misses_total"))
+		"tempo_cache_requests_total"))
 }
 
 func mockRedisCache() (*RedisCache, error) {
