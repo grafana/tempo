@@ -46,13 +46,13 @@ var (
 		Help:                        "Time spent fetching from Kafka.",
 		NativeHistogramBucketFactor: 1.1,
 	}, []string{"partition"})
-	metricFetchBytesTotal = promauto.NewGaugeVec(prometheus.GaugeOpts{
+	metricFetchBytesTotal = promauto.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "tempo",
 		Subsystem: "block_builder",
 		Name:      "fetch_bytes_total",
 		Help:      "Total number of bytes fetched from Kafka",
 	}, []string{"partition"})
-	metricFetchRecordsTotal = promauto.NewGaugeVec(prometheus.GaugeOpts{
+	metricFetchRecordsTotal = promauto.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "tempo",
 		Subsystem: "block_builder",
 		Name:      "fetch_records_total",
