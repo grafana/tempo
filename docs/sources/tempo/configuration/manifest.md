@@ -768,6 +768,7 @@ overrides:
                 hedge_requests_up_to: 2
         api:
             check_for_conflicting_runtime_overrides: false
+    enable_legacy_overrides: false
 memberlist:
     node_name: ""
     randomize_node_name: true
