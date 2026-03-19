@@ -9,7 +9,7 @@ import (
 	prometheus_config "github.com/prometheus/prometheus/config"
 	"github.com/prometheus/prometheus/util/compression"
 	"github.com/stretchr/testify/assert"
-	"go.yaml.in/yaml/v2"
+	tempo_util "github.com/grafana/tempo/pkg/util"
 )
 
 func TestConfig(t *testing.T) {
@@ -27,7 +27,7 @@ remote_write:
 	var cfg Config
 	cfg.RegisterFlagsAndApplyDefaults("", nil)
 
-	err := yaml.UnmarshalStrict([]byte(cfgStr), &cfg)
+	err := tempo_util.UnmarshalStrict([]byte(cfgStr), &cfg)
 	assert.NoError(t, err)
 
 	walCfg := agentDefaultOptions()

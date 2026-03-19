@@ -11,10 +11,11 @@ import (
 
 	"github.com/grafana/dskit/services"
 	"github.com/prometheus/client_golang/prometheus"
-	"go.yaml.in/yaml/v2"
+	"go.yaml.in/yaml/v3"
 
 	"github.com/grafana/tempo/cmd/tempo/app"
 	"github.com/grafana/tempo/modules/overrides"
+	"github.com/grafana/tempo/pkg/util"
 )
 
 type migrateOverridesConfigCmd struct {
@@ -35,7 +36,7 @@ func (cmd *migrateOverridesConfigCmd) Run(*globalOptions) error {
 		return fmt.Errorf("failed to read configFile %s: %w", cmd.ConfigFile, err)
 	}
 
-	if err := yaml.UnmarshalStrict(buff, &cfg); err != nil {
+	if err := util.UnmarshalStrict(buff, &cfg); err != nil {
 		return fmt.Errorf("failed to parse configFile %s: %w", cmd.ConfigFile, err)
 	}
 
@@ -57,7 +58,7 @@ func (cmd *migrateOverridesConfigCmd) Run(*globalOptions) error {
 		Defaults           overrides.Overrides         `yaml:"defaults"`
 		PerTenantOverrides map[string]overrides.Config `yaml:"overrides"`
 	}
-	if err := yaml.UnmarshalStrict(buffer.Bytes(), &runtimeConfig); err != nil {
+	if err := util.UnmarshalStrict(buffer.Bytes(), &runtimeConfig); err != nil {
 		return fmt.Errorf("failed parsing overrides config: %w", err)
 	}
 
