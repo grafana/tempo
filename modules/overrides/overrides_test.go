@@ -21,7 +21,7 @@ func TestLegacyOverridesDisabledByDefault(t *testing.T) {
 		{
 			name:       "rejects legacy when EnableLegacyOverrides is false",
 			configType: ConfigTypeLegacy,
-			expectErr:  "trying to load deprecated legacy overrides config format but legacy overrides are disabled by default",
+			expectErr:  "DEPRECATED: legacy overrides config format detected but legacy overrides are disabled by default",
 		},
 		{
 			name:                  "accepts legacy when EnableLegacyOverrides is true",
