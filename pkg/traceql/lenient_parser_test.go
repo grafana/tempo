@@ -179,8 +179,8 @@ func TestParseLenient(t *testing.T) {
 
 		// Scoped intrinsices
 		{
-			name: "trace duration incomplete",
-			in:   `{ trace:duration = }`,
+			name:     "trace duration incomplete",
+			in:       `{ trace:duration = }`,
 			expected: "{ true }",
 		},
 
