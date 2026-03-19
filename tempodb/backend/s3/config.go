@@ -50,7 +50,7 @@ type Config struct {
 	Prefix            string         `yaml:"prefix"`
 	Endpoint          string         `yaml:"endpoint"`
 	Region            string         `yaml:"region"`
-	AccessKey         string         `yaml:"access_key"`
+	AccessKey         string         `yaml:"access_key"` //nolint:gosec // G101: field name contains "Key" but this is a runtime-provided config value, not a hardcoded credential
 	SecretKey         flagext.Secret `yaml:"secret_key"`
 	SessionToken      flagext.Secret `yaml:"session_token"`
 	Insecure          bool           `yaml:"insecure"`

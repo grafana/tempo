@@ -519,7 +519,7 @@ func createBucket(ctx context.Context, cfg *Config, hedge bool) (*storage.Bucket
 	}
 	if cfg.Insecure {
 		transportOptions = append(transportOptions, option.WithoutAuthentication())
-		customTransport.TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
+		customTransport.TLSClientConfig = &tls.Config{InsecureSkipVerify: true} //nolint:gosec // G402: InsecureSkipVerify is intentional and gated by cfg.Insecure; intended only for dev/testing or trusted internal environments
 	}
 	transport, err := google_http.NewTransport(ctx, customTransport, transportOptions...)
 	if err != nil {
