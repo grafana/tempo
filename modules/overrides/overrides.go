@@ -35,7 +35,7 @@ func NewOverrides(cfg Config, validator Validator, registerer prometheus.Registe
 
 		if !cfg.EnableLegacyOverrides {
 			return nil, fmt.Errorf(
-				"trying to load deprecated legacy overrides config format but legacy overrides are disabled by default since Tempo 3.0. Legacy overrides will be removed in a future release" +
+				"DEPRECATED: legacy overrides config format is in use. trying to load deprecated legacy overrides config format but legacy overrides are disabled by default. Legacy overrides will be removed in a future release " +
 					"migrate your overrides config to the new scoped format, or set enable-legacy-overrides=true to continue using legacy overrides temporarily")
 		}
 

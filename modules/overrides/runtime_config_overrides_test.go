@@ -27,7 +27,7 @@ import (
 func TestRuntimeConfigOverrides_loadPerTenantOverrides(t *testing.T) {
 	validator := &mockValidator{}
 
-	loader := loadPerTenantOverrides(validator, ConfigTypeNew, false)
+	loader := loadPerTenantOverrides(validator, ConfigTypeNew, false, false)
 
 	perTenantOverrides := perTenantOverrides{
 		TenantLimits: map[string]*Overrides{

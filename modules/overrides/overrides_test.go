@@ -1,12 +1,14 @@
 package overrides
 
 import (
+	"bytes"
 	"context"
 	"testing"
 
 	"github.com/grafana/dskit/services"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
+	"go.yaml.in/yaml/v2"
 )
 
 func TestLegacyOverridesDisabledByDefault(t *testing.T) {
@@ -49,6 +51,45 @@ func TestLegacyOverridesDisabledByDefault(t *testing.T) {
 			require.NoError(t, err)
 			require.NoError(t, services.StartAndAwaitRunning(context.TODO(), o))
 			require.NoError(t, services.StopAndAwaitTerminated(context.TODO(), o))
+		})
+	}
+}
+
+func TestPerTenantLegacyOverridesDisabledByDefault(t *testing.T) {
+	legacyOverrides := &perTenantLegacyOverrides{
+		TenantLimits: map[string]*LegacyOverrides{
+			"tenant1": {MaxBytesPerTrace: 1000},
+		},
+	}
+	buff, err := yaml.Marshal(legacyOverrides)
+	require.NoError(t, err)
+
+	tests := []struct {
+		name         string
+		enableLegacy bool
+		expectErr    string
+	}{
+		{
+			name:      "rejects legacy per-tenant overrides when enableLegacy is false",
+			expectErr: "DEPRECATED: legacy overrides config format is in use. per-tenant overrides file uses the legacy format but legacy overrides are disabled by default",
+		},
+		{
+			name:         "accepts legacy per-tenant overrides when enableLegacy is true",
+			enableLegacy: true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			loader := loadPerTenantOverrides(&mockValidator{}, ConfigTypeNew, false, tc.enableLegacy)
+			result, err := loader(bytes.NewReader(buff))
+			if tc.expectErr != "" {
+				require.Error(t, err)
+				require.Contains(t, err.Error(), tc.expectErr)
+			} else {
+				require.NoError(t, err)
+				require.NotNil(t, result)
+			}
 		})
 	}
 }
