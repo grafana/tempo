@@ -645,6 +645,9 @@ storage:
             part_size: 0
             hedge_requests_at: 0s
             hedge_requests_up_to: 2
+            retry_max_attempts: 10
+            retry_backoff_initial: 200ms
+            retry_backoff_max: 1s
             signature_v2: false
             forcepathstyle: false
             enable_dual_stack: false
@@ -739,6 +742,9 @@ overrides:
                 part_size: 0
                 hedge_requests_at: 0s
                 hedge_requests_up_to: 2
+                retry_max_attempts: 10
+                retry_backoff_initial: 200ms
+                retry_backoff_max: 1s
                 signature_v2: false
                 forcepathstyle: false
                 enable_dual_stack: false

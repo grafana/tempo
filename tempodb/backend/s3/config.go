@@ -9,6 +9,7 @@ import (
 
 	"github.com/grafana/dskit/crypto/tls"
 	"github.com/grafana/dskit/flagext"
+	"github.com/minio/minio-go/v7"
 
 	"github.com/grafana/tempo/pkg/util"
 )
@@ -46,17 +47,20 @@ type SSEConfig struct {
 type Config struct {
 	tls.ClientConfig `yaml:",inline"`
 
-	Bucket            string         `yaml:"bucket"`
-	Prefix            string         `yaml:"prefix"`
-	Endpoint          string         `yaml:"endpoint"`
-	Region            string         `yaml:"region"`
-	AccessKey         string         `yaml:"access_key"`
-	SecretKey         flagext.Secret `yaml:"secret_key"`
-	SessionToken      flagext.Secret `yaml:"session_token"`
-	Insecure          bool           `yaml:"insecure"`
-	PartSize          uint64         `yaml:"part_size"`
-	HedgeRequestsAt   time.Duration  `yaml:"hedge_requests_at"`
-	HedgeRequestsUpTo int            `yaml:"hedge_requests_up_to"`
+	Bucket              string         `yaml:"bucket"`
+	Prefix              string         `yaml:"prefix"`
+	Endpoint            string         `yaml:"endpoint"`
+	Region              string         `yaml:"region"`
+	AccessKey           string         `yaml:"access_key"` // #nosec G117
+	SecretKey           flagext.Secret `yaml:"secret_key"`
+	SessionToken        flagext.Secret `yaml:"session_token"`
+	Insecure            bool           `yaml:"insecure"`
+	PartSize            uint64         `yaml:"part_size"`
+	HedgeRequestsAt     time.Duration  `yaml:"hedge_requests_at"`
+	HedgeRequestsUpTo   int            `yaml:"hedge_requests_up_to"`
+	RetryMaxAttempts    int            `yaml:"retry_max_attempts"`
+	RetryBackoffInitial time.Duration  `yaml:"retry_backoff_initial"`
+	RetryBackoffMax     time.Duration  `yaml:"retry_backoff_max"`
 	// SignatureV2 configures the object storage to use V2 signing instead of V4
 	SignatureV2      bool              `yaml:"signature_v2"`
 	ForcePathStyle   bool              `yaml:"forcepathstyle"`
@@ -87,6 +91,9 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 	f.StringVar(&cfg.SSE.KMSEncryptionContext, util.PrefixConfig(prefix, "s3.sse.kms-encryption-context"), "", "KMS Encryption Context used for object encryption. It expects JSON formatted string.")
 	f.Var(&cfg.SSE.CustomerEncryptionKey, util.PrefixConfig(prefix, "s3.sse.encryption-key"), "SSE-C Encryption Key used for object encryption.")
 	cfg.HedgeRequestsUpTo = 2
+	cfg.RetryMaxAttempts = minio.MaxRetry
+	cfg.RetryBackoffInitial = minio.DefaultRetryUnit
+	cfg.RetryBackoffMax = minio.DefaultRetryCap
 }
 
 func (cfg *Config) PathMatches(other *Config) bool {
