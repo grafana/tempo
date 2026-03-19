@@ -76,6 +76,11 @@ func (l *Level) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	return nil
 }
 
+// Level returns the value of the logging level as an slog.Level.
+func (l *Level) Level() slog.Level {
+	return l.lvl.Level()
+}
+
 // String returns the current level.
 func (l *Level) String() string {
 	switch l.lvl.Level() {
@@ -133,7 +138,7 @@ func (f *Format) Set(s string) error {
 	return nil
 }
 
-// Config is a struct containing configurable settings for the logger
+// Config is a struct containing configurable settings for the logger.
 type Config struct {
 	Level  *Level
 	Format *Format
@@ -142,7 +147,7 @@ type Config struct {
 }
 
 func newGoKitStyleReplaceAttrFunc(lvl *Level) func(groups []string, a slog.Attr) slog.Attr {
-	return func(groups []string, a slog.Attr) slog.Attr {
+	return func(_ []string, a slog.Attr) slog.Attr {
 		key := a.Key
 		switch key {
 		case slog.TimeKey, "ts":
@@ -192,6 +197,13 @@ func newGoKitStyleReplaceAttrFunc(lvl *Level) func(groups []string, a slog.Attr)
 			}
 		default:
 		}
+
+		// Ensure time.Duration values are _always_ formatted as a Go
+		// duration string (ie, "1d2h3m").
+		if v, ok := a.Value.Any().(time.Duration); ok {
+			a.Value = slog.StringValue(v.String())
+		}
+
 		return a
 	}
 }
@@ -200,9 +212,8 @@ func defaultReplaceAttr(_ []string, a slog.Attr) slog.Attr {
 	key := a.Key
 	switch key {
 	case slog.TimeKey:
-		if t, ok := a.Value.Any().(time.Time); ok {
-			a.Value = slog.TimeValue(t.UTC())
-		} else {
+		// Note that we do not change the timezone to UTC anymore.
+		if _, ok := a.Value.Any().(time.Time); !ok {
 			// If we can't cast the any from the value to a
 			// time.Time, it means the caller logged
 			// another attribute with a key of `time`.
@@ -234,6 +245,13 @@ func defaultReplaceAttr(_ []string, a slog.Attr) slog.Attr {
 		}
 	default:
 	}
+
+	// Ensure time.Duration values are _always_ formatted as a Go duration
+	// string (ie, "1d2h3m").
+	if v, ok := a.Value.Any().(time.Duration); ok {
+		a.Value = slog.StringValue(v.String())
+	}
+
 	return a
 }
 
@@ -267,5 +285,5 @@ func New(config *Config) *slog.Logger {
 // NewNopLogger is a convenience function to return an slog.Logger that writes
 // to io.Discard.
 func NewNopLogger() *slog.Logger {
-	return slog.New(slog.NewTextHandler(io.Discard, nil))
+	return New(&Config{Writer: io.Discard})
 }

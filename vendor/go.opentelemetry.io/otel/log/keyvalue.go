@@ -242,10 +242,10 @@ func (v Value) Kind() Kind {
 	}
 }
 
-// Empty returns if v does not hold any value.
+// Empty reports whether v does not hold any value.
 func (v Value) Empty() bool { return v.Kind() == KindEmpty }
 
-// Equal returns if v is equal to w.
+// Equal reports whether v is equal to w.
 func (v Value) Equal(w Value) bool {
 	k1 := v.Kind()
 	k2 := w.Kind()
@@ -301,7 +301,7 @@ func (v Value) String() string {
 	case KindBool:
 		return strconv.FormatBool(v.asBool())
 	case KindBytes:
-		return fmt.Sprint(v.asBytes())
+		return fmt.Sprint(v.asBytes()) // nolint:staticcheck  // Use fmt.Sprint to encode as slice.
 	case KindMap:
 		return fmt.Sprint(v.asMap())
 	case KindSlice:
@@ -326,7 +326,7 @@ type KeyValue struct {
 	Value Value
 }
 
-// Equal returns if a is equal to b.
+// Equal reports whether a is equal to b.
 func (a KeyValue) Equal(b KeyValue) bool {
 	return a.Key == b.Key && a.Value.Equal(b.Value)
 }
