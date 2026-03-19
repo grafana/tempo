@@ -313,7 +313,7 @@ func TestTagsSearchSharderRoundTripBadRequest(t *testing.T) {
 		return nil, nil
 	})
 
-	o, err := overrides.NewOverrides(overrides.Config{}, nil, prometheus.NewRegistry())
+	o, err := overrides.NewOverrides(defaultOverridesConfig(), nil, prometheus.NewRegistry())
 	require.NoError(t, err)
 
 	sharder := newAsyncTagSharder(&mockReader{}, o, SearchSharderConfig{
@@ -342,13 +342,9 @@ func TestTagsSearchSharderRoundTripBadRequest(t *testing.T) {
 	testBadRequestFromResponses(t, resp, err, "invalid start: strconv.ParseInt: parsing \"asdf\": invalid syntax")
 
 	// test max duration error with overrides
-	o, err = overrides.NewOverrides(overrides.Config{
-		Defaults: overrides.Overrides{
-			Read: overrides.ReadOverrides{
-				MaxSearchDuration: model.Duration(time.Minute),
-			},
-		},
-	}, nil, prometheus.NewRegistry())
+	tagOverridesCfg := defaultOverridesConfig()
+	tagOverridesCfg.Defaults.Read.MaxSearchDuration = ptrTo(model.Duration(time.Minute))
+	o, err = overrides.NewOverrides(tagOverridesCfg, nil, prometheus.NewRegistry())
 	require.NoError(t, err)
 
 	sharder = newAsyncTagSharder(&mockReader{}, o, SearchSharderConfig{

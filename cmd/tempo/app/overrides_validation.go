@@ -29,14 +29,14 @@ func (r *runtimeConfigValidator) Validate(config *overrides.Overrides) (warnings
 		}
 	}
 
-	if config.MetricsGenerator.SpanNameSanitization != "" {
-		if err := validation.ValidateSpanNameSanitization(config.MetricsGenerator.SpanNameSanitization); err != nil {
+	if config.MetricsGenerator.SpanNameSanitization != nil && *config.MetricsGenerator.SpanNameSanitization != "" {
+		if err := validation.ValidateSpanNameSanitization(*config.MetricsGenerator.SpanNameSanitization); err != nil {
 			return warnings, err
 		}
 	}
 
-	if config.MetricsGenerator.NativeHistogramBucketFactor != 0 {
-		if err := validation.ValidateNativeHistogramBucketFactor(config.MetricsGenerator.NativeHistogramBucketFactor); err != nil {
+	if config.MetricsGenerator.NativeHistogramBucketFactor != nil && *config.MetricsGenerator.NativeHistogramBucketFactor != 0 {
+		if err := validation.ValidateNativeHistogramBucketFactor(*config.MetricsGenerator.NativeHistogramBucketFactor); err != nil {
 			return warnings, err
 		}
 	}
