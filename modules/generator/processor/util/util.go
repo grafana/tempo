@@ -67,19 +67,32 @@ func GetSpanMultiplier(ratioKey string, span *v1.Span, rs *v1_resource.Resource,
 // OTel probability sampling threshold.
 // Returns 0 if the tracestate is empty, invalid, or has no OTel sampling data.
 func getSpanMultiplierFromTraceState(span *v1.Span) float64 {
+	// Manual parsing of trace state is about twice as fast
+	// sampling.NewW3CTraceState as we only care about the ot key.
 	traceState := span.GetTraceState()
-	otelStart := strings.Index(traceState, "ot=")
-	if otelStart == -1 {
-		return 0
+	ot := ""
+	for {
+		index := strings.Index(traceState, "ot=")
+		// No ot vendor code.
+		if index == -1 {
+			return 0
+		}
+		// This handles vendor codes that end with ot, such as my-ot. We need to skip these.
+		if index != 0 && traceState[index-1] != ',' {
+			traceState = traceState[index+3:]
+			continue
+		}
+
+		traceState = traceState[index:]
+		end := strings.IndexByte(traceState, ',')
+		if end == -1 {
+			end = len(traceState)
+		}
+		ot = traceState[3:end]
+		break
 	}
 
-	// Extract just the ot= value, avoiding full W3C tracestate parsing.
-	otelValue := traceState[otelStart+len("ot="):]
-	if commaIdx := strings.IndexByte(otelValue, ','); commaIdx != -1 {
-		otelValue = otelValue[:commaIdx]
-	}
-
-	otts, err := sampling.NewOpenTelemetryTraceState(otelValue)
+	otts, err := sampling.NewOpenTelemetryTraceState(ot)
 	if err != nil {
 		return 0
 	}

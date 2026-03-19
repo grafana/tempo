@@ -168,6 +168,16 @@ func TestGetSpanMultiplierFromTraceState(t *testing.T) {
 			traceState: "ot=th:",
 			expected:   0,
 		},
+		{
+			name:       "vendor key ending with ot",
+			traceState: "not=foo:bar",
+			expected:   0,
+		},
+		{
+			name:       "vendor key ending with ot with th",
+			traceState: "not=th:c",
+			expected:   0,
+		},
 	}
 
 	for _, tc := range tests {
