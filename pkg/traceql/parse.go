@@ -62,7 +62,11 @@ func ParseWithOptimizationOption(s string, astOptimization bool) (expr *RootExpr
 }
 
 // warning: ParseIdentifier is used to parse filter policies in pkg/spanfilter/config/config.go
-// if changed, it can break existing config
+// if changed, it can break existing config.
+//
+// Behavioral note vs. the previous implementation: this now rejects identifiers containing
+// unquoted spaces (e.g. ".foo bar") that were previously accepted via HasPrefix matching.
+// Quoted identifiers with spaces (e.g. span."foo bar") are still accepted.
 func ParseIdentifier(s string) (Attribute, error) {
 	// Wrap the identifier in curly braces to create a valid spanset filter expression
 	attr := "{" + s + "}"

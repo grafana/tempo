@@ -7,6 +7,17 @@ import (
 	"text/scanner"
 )
 
+// tokenReprMap is the reverse of tokenMap: token type → string representation.
+// Pre-computed to avoid O(n) linear scans in tokenRepr during query rebuilding.
+var tokenReprMap map[int]string
+
+func init() {
+	tokenReprMap = make(map[int]string, len(tokenMap))
+	for str, tok := range tokenMap {
+		tokenReprMap[tok] = str
+	}
+}
+
 // ParseLenient attempts to parse a query string. If parsing succeeds, the result
 // is returned as-is. If parsing fails (e.g. due to incomplete matchers like `.foo=`),
 // it removes the comparison operator from incomplete matchers, leaving just the
@@ -184,6 +195,8 @@ func markIncompleteMatchers(tokens []token, remove []bool) {
 // skipAttribute advances idx past scope prefix tokens so it points to the
 // attribute name (IDENTIFIER or intrinsic). For bare intrinsics (e.g. statusMessage),
 // idx is not advanced since the intrinsic token is the attribute itself.
+// If the scope prefix is the last token (e.g. a trailing "."), *idx may equal
+// len(tokens) after this call; callers must check bounds before accessing tokens[*idx].
 func skipAttribute(tokens []token, idx *int) {
 	i := *idx
 	switch tokens[i].typ {
@@ -331,17 +344,16 @@ var reverseTokenMap = (func() map[int]string {
 // tokenRepr returns the string representation of a token for query rebuilding.
 // Explicit mappings are needed for multi-character tokens where scanner.TokenText()
 // only returns the last scanned character (e.g. "&&" → "&").
+// IDENTIFIER tokens that contain non-attribute runes (e.g. spaces) are re-quoted
+// so the output round-trips through the parser correctly (e.g. span."foo bar").
 func tokenRepr(t token) string {
 	if str, ok := reverseTokenMap[t.typ]; ok {
 		return str
 	}
-
-	switch t.typ {
-	case STRING:
+	if t.typ == STRING || (t.typ == IDENTIFIER && ContainsNonAttributeRune(t.str)) {
 		return strconv.Quote(t.str)
-	default:
-		return t.str
 	}
+	return t.str
 }
 
 func isAttributeToken(typ int) bool {

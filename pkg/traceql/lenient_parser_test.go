@@ -395,11 +395,32 @@ func TestParseLenient(t *testing.T) {
 			expected: "{ (.foo = `bar`) || (.baz = `qux`) }",
 		},
 
-		// Quoted attributes.
+		// Quoted attributes — complete matchers pass through, incomplete ones resolve to { true }
+		// or leave the bare quoted attribute in place when combined with other matchers.
 		{
 			name:     "quoted attribute name",
 			in:       `{ span."foo bar" = "baz" }`,
 			expected: "{ span.\"foo bar\" = `baz` }",
+		},
+		{
+			name:     "quoted attributes with incomplete",
+			in:       `{ span."foo bar" = "baz" && resource."service name" = }`,
+			expected: "{ (span.\"foo bar\" = `baz`) && resource.\"service name\" }",
+		},
+		{
+			name:     "quoted attribute incomplete",
+			in:       `{ span."foo bar" = }`,
+			expected: "{ true }",
+		},
+		{
+			name:     "unscoped quoted attribute incomplete",
+			in:       `{ ."foo bar" = }`,
+			expected: "{ true }",
+		},
+		{
+			name:     "resource quoted attribute incomplete",
+			in:       `{ resource."service name" = }`,
+			expected: "{ true }",
 		},
 
 		// Regex matchers.
@@ -464,21 +485,6 @@ func TestParseLenientKnownFailures(t *testing.T) {
 		name string
 		in   string
 	}{
-		// Quoted attribute names: the token cleanup doesn't handle quoted
-		// identifiers correctly, so the cleaned query fails to re-parse.
-		{
-			name: "quoted attribute incomplete",
-			in:   `{ span."foo bar" = }`,
-		},
-		{
-			name: "unscoped quoted attribute incomplete",
-			in:   `{ ."foo bar" = }`,
-		},
-		{
-			name: "resource quoted attribute incomplete",
-			in:   `{ resource."service name" = }`,
-		},
-
 		// Pipe-separated spanset filters: the cleanup only processes tokens
 		// before the first pipe, so incomplete matchers in later spanset
 		// stages are not cleaned.

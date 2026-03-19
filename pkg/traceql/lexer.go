@@ -241,7 +241,7 @@ func (l *lexer) Lex(lval *yySymType) int {
 		return multiTok
 	}
 
-	// no combination tokenMap, see if the current text is a known token
+	// no combination tokens, see if the current text is a known token
 	if tok, ok := tokenMap[l.TokenText()]; ok {
 		l.parsingAttribute = startsAttribute(tok)
 		return tok
