@@ -18,77 +18,79 @@ import (
 
 func (c *Overrides) toLegacy() LegacyOverrides {
 	result := LegacyOverrides{
-		IngestionRateStrategy:      c.Ingestion.RateStrategy,
-		IngestionRateLimitBytes:    c.Ingestion.RateLimitBytes,
-		IngestionBurstSizeBytes:    c.Ingestion.BurstSizeBytes,
-		IngestionTenantShardSize:   c.Ingestion.TenantShardSize,
-		MaxLocalTracesPerUser:      c.Ingestion.MaxLocalTracesPerUser,
-		MaxGlobalTracesPerUser:     c.Ingestion.MaxGlobalTracesPerUser,
-		IngestionMaxAttributeBytes: c.Ingestion.MaxAttributeBytes,
-		IngestionArtificialDelay:   c.Ingestion.ArtificialDelay,
-		IngestionRetryInfoEnabled:  c.Ingestion.RetryInfoEnabled,
+		baseLegacyOverrides: baseLegacyOverrides{
+			IngestionRateStrategy:      c.Ingestion.RateStrategy,
+			IngestionRateLimitBytes:    c.Ingestion.RateLimitBytes,
+			IngestionBurstSizeBytes:    c.Ingestion.BurstSizeBytes,
+			IngestionTenantShardSize:   c.Ingestion.TenantShardSize,
+			MaxLocalTracesPerUser:      c.Ingestion.MaxLocalTracesPerUser,
+			MaxGlobalTracesPerUser:     c.Ingestion.MaxGlobalTracesPerUser,
+			IngestionMaxAttributeBytes: c.Ingestion.MaxAttributeBytes,
+			IngestionArtificialDelay:   c.Ingestion.ArtificialDelay,
+			IngestionRetryInfoEnabled:  c.Ingestion.RetryInfoEnabled,
 
-		Forwarders: c.Forwarders,
+			Forwarders: c.Forwarders,
 
-		MetricsGeneratorRingSize:                                                    c.MetricsGenerator.RingSize,
-		MetricsGeneratorProcessors:                                                  c.MetricsGenerator.Processors,
-		MetricsGeneratorMaxActiveSeries:                                             c.MetricsGenerator.MaxActiveSeries,
-		MetricsGeneratorMaxActiveEntities:                                           c.MetricsGenerator.MaxActiveEntities,
-		MetricsGeneratorCollectionInterval:                                          c.MetricsGenerator.CollectionInterval,
-		MetricsGeneratorDisableCollection:                                           c.MetricsGenerator.DisableCollection,
-		MetricsGeneratorGenerateNativeHistograms:                                    c.MetricsGenerator.GenerateNativeHistograms,
-		MetricsGeneratorTraceIDLabelName:                                            c.MetricsGenerator.TraceIDLabelName,
-		MetricsGeneratorRemoteWriteHeaders:                                          c.MetricsGenerator.RemoteWriteHeaders,
-		MetricsGeneratorForwarderQueueSize:                                          c.MetricsGenerator.Forwarder.QueueSize,
-		MetricsGeneratorForwarderWorkers:                                            c.MetricsGenerator.Forwarder.Workers,
-		MetricsGeneratorProcessorServiceGraphsHistogramBuckets:                      c.MetricsGenerator.Processor.ServiceGraphs.HistogramBuckets,
-		MetricsGeneratorProcessorServiceGraphsDimensions:                            c.MetricsGenerator.Processor.ServiceGraphs.Dimensions,
-		MetricsGeneratorProcessorServiceGraphsPeerAttributes:                        c.MetricsGenerator.Processor.ServiceGraphs.PeerAttributes,
-		MetricsGeneratorProcessorServiceGraphsFilterPolicies:                        c.MetricsGenerator.Processor.ServiceGraphs.FilterPolicies,
-		MetricsGeneratorProcessorServiceGraphsEnableClientServerPrefix:              c.MetricsGenerator.Processor.ServiceGraphs.EnableClientServerPrefix,
-		MetricsGeneratorProcessorServiceGraphsEnableMessagingSystemLatencyHistogram: c.MetricsGenerator.Processor.ServiceGraphs.EnableMessagingSystemLatencyHistogram,
-		MetricsGeneratorProcessorServiceGraphsEnableVirtualNodeLabel:                c.MetricsGenerator.Processor.ServiceGraphs.EnableVirtualNodeLabel,
-		MetricsGeneratorProcessorServiceGraphsSpanMultiplierKey:                     c.MetricsGenerator.Processor.ServiceGraphs.SpanMultiplierKey,
-		MetricsGeneratorProcessorSpanMetricsHistogramBuckets:                        c.MetricsGenerator.Processor.SpanMetrics.HistogramBuckets,
-		MetricsGeneratorProcessorSpanMetricsDimensions:                              c.MetricsGenerator.Processor.SpanMetrics.Dimensions,
-		MetricsGeneratorProcessorSpanMetricsIntrinsicDimensions:                     c.MetricsGenerator.Processor.SpanMetrics.IntrinsicDimensions,
-		MetricsGeneratorProcessorSpanMetricsFilterPolicies:                          c.MetricsGenerator.Processor.SpanMetrics.FilterPolicies,
-		MetricsGeneratorProcessorSpanMetricsDimensionMappings:                       c.MetricsGenerator.Processor.SpanMetrics.DimensionMappings,
-		MetricsGeneratorProcessorSpanMetricsEnableTargetInfo:                        c.MetricsGenerator.Processor.SpanMetrics.EnableTargetInfo,
-		MetricsGeneratorProcessorSpanMetricsTargetInfoExcludedDimensions:            c.MetricsGenerator.Processor.SpanMetrics.TargetInfoExcludedDimensions,
-		MetricsGeneratorProcessorSpanMetricsEnableInstanceLabel:                     c.MetricsGenerator.Processor.SpanMetrics.EnableInstanceLabel,
-		MetricsGeneratorProcessorSpanMetricsSpanMultiplierKey:                       c.MetricsGenerator.Processor.SpanMetrics.SpanMultiplierKey,
-		MetricsGeneratorProcessorHostInfoHostIdentifiers:                            c.MetricsGenerator.Processor.HostInfo.HostIdentifiers,
-		MetricsGeneratorProcessorHostInfoMetricName:                                 c.MetricsGenerator.Processor.HostInfo.MetricName,
-		MetricsGeneratorIngestionSlack:                                              c.MetricsGenerator.IngestionSlack,
-		MetricsGeneratorNativeHistogramBucketFactor:                                 c.MetricsGenerator.NativeHistogramBucketFactor,
-		MetricsGeneratorNativeHistogramMaxBucketNumber:                              c.MetricsGenerator.NativeHistogramMaxBucketNumber,
-		MetricsGeneratorNativeHistogramMinResetDuration:                             c.MetricsGenerator.NativeHistogramMinResetDuration,
-		MetricsGeneratorSpanNameSanitization:                                        c.MetricsGenerator.SpanNameSanitization,
-		MetricsGeneratorMaxCardinalityPerLabel:                                      c.MetricsGenerator.MaxCardinalityPerLabel,
+			MetricsGeneratorRingSize:                                                    c.MetricsGenerator.RingSize,
+			MetricsGeneratorProcessors:                                                  c.MetricsGenerator.Processors,
+			MetricsGeneratorMaxActiveSeries:                                             c.MetricsGenerator.MaxActiveSeries,
+			MetricsGeneratorMaxActiveEntities:                                           c.MetricsGenerator.MaxActiveEntities,
+			MetricsGeneratorCollectionInterval:                                          c.MetricsGenerator.CollectionInterval,
+			MetricsGeneratorDisableCollection:                                           c.MetricsGenerator.DisableCollection,
+			MetricsGeneratorGenerateNativeHistograms:                                    c.MetricsGenerator.GenerateNativeHistograms,
+			MetricsGeneratorTraceIDLabelName:                                            c.MetricsGenerator.TraceIDLabelName,
+			MetricsGeneratorRemoteWriteHeaders:                                          c.MetricsGenerator.RemoteWriteHeaders,
+			MetricsGeneratorForwarderQueueSize:                                          c.MetricsGenerator.Forwarder.QueueSize,
+			MetricsGeneratorForwarderWorkers:                                            c.MetricsGenerator.Forwarder.Workers,
+			MetricsGeneratorProcessorServiceGraphsHistogramBuckets:                      c.MetricsGenerator.Processor.ServiceGraphs.HistogramBuckets,
+			MetricsGeneratorProcessorServiceGraphsDimensions:                            c.MetricsGenerator.Processor.ServiceGraphs.Dimensions,
+			MetricsGeneratorProcessorServiceGraphsPeerAttributes:                        c.MetricsGenerator.Processor.ServiceGraphs.PeerAttributes,
+			MetricsGeneratorProcessorServiceGraphsFilterPolicies:                        c.MetricsGenerator.Processor.ServiceGraphs.FilterPolicies,
+			MetricsGeneratorProcessorServiceGraphsEnableClientServerPrefix:              c.MetricsGenerator.Processor.ServiceGraphs.EnableClientServerPrefix,
+			MetricsGeneratorProcessorServiceGraphsEnableMessagingSystemLatencyHistogram: c.MetricsGenerator.Processor.ServiceGraphs.EnableMessagingSystemLatencyHistogram,
+			MetricsGeneratorProcessorServiceGraphsEnableVirtualNodeLabel:                c.MetricsGenerator.Processor.ServiceGraphs.EnableVirtualNodeLabel,
+			MetricsGeneratorProcessorServiceGraphsSpanMultiplierKey:                     c.MetricsGenerator.Processor.ServiceGraphs.SpanMultiplierKey,
+			MetricsGeneratorProcessorSpanMetricsHistogramBuckets:                        c.MetricsGenerator.Processor.SpanMetrics.HistogramBuckets,
+			MetricsGeneratorProcessorSpanMetricsDimensions:                              c.MetricsGenerator.Processor.SpanMetrics.Dimensions,
+			MetricsGeneratorProcessorSpanMetricsIntrinsicDimensions:                     c.MetricsGenerator.Processor.SpanMetrics.IntrinsicDimensions,
+			MetricsGeneratorProcessorSpanMetricsFilterPolicies:                          c.MetricsGenerator.Processor.SpanMetrics.FilterPolicies,
+			MetricsGeneratorProcessorSpanMetricsDimensionMappings:                       c.MetricsGenerator.Processor.SpanMetrics.DimensionMappings,
+			MetricsGeneratorProcessorSpanMetricsEnableTargetInfo:                        c.MetricsGenerator.Processor.SpanMetrics.EnableTargetInfo,
+			MetricsGeneratorProcessorSpanMetricsTargetInfoExcludedDimensions:            c.MetricsGenerator.Processor.SpanMetrics.TargetInfoExcludedDimensions,
+			MetricsGeneratorProcessorSpanMetricsEnableInstanceLabel:                     c.MetricsGenerator.Processor.SpanMetrics.EnableInstanceLabel,
+			MetricsGeneratorProcessorSpanMetricsSpanMultiplierKey:                       c.MetricsGenerator.Processor.SpanMetrics.SpanMultiplierKey,
+			MetricsGeneratorProcessorHostInfoHostIdentifiers:                            c.MetricsGenerator.Processor.HostInfo.HostIdentifiers,
+			MetricsGeneratorProcessorHostInfoMetricName:                                 c.MetricsGenerator.Processor.HostInfo.MetricName,
+			MetricsGeneratorIngestionSlack:                                              c.MetricsGenerator.IngestionSlack,
+			MetricsGeneratorNativeHistogramBucketFactor:                                 c.MetricsGenerator.NativeHistogramBucketFactor,
+			MetricsGeneratorNativeHistogramMaxBucketNumber:                              c.MetricsGenerator.NativeHistogramMaxBucketNumber,
+			MetricsGeneratorNativeHistogramMinResetDuration:                             c.MetricsGenerator.NativeHistogramMinResetDuration,
+			MetricsGeneratorSpanNameSanitization:                                        c.MetricsGenerator.SpanNameSanitization,
+			MetricsGeneratorMaxCardinalityPerLabel:                                      c.MetricsGenerator.MaxCardinalityPerLabel,
 
-		BlockRetention:     c.Compaction.BlockRetention,
-		CompactionWindow:   c.Compaction.CompactionWindow,
-		CompactionDisabled: c.Compaction.CompactionDisabled,
+			BlockRetention:     c.Compaction.BlockRetention,
+			CompactionWindow:   c.Compaction.CompactionWindow,
+			CompactionDisabled: c.Compaction.CompactionDisabled,
 
-		MaxBytesPerTagValuesQuery:  c.Read.MaxBytesPerTagValuesQuery,
-		MaxBlocksPerTagValuesQuery: c.Read.MaxBlocksPerTagValuesQuery,
-		MaxSearchDuration:          c.Read.MaxSearchDuration,
-		MaxMetricsDuration:         c.Read.MaxMetricsDuration,
-		UnsafeQueryHints:           c.Read.UnsafeQueryHints,
-		LeftPadTraceIDs:            c.Read.LeftPadTraceIDs,
+			MaxBytesPerTagValuesQuery:  c.Read.MaxBytesPerTagValuesQuery,
+			MaxBlocksPerTagValuesQuery: c.Read.MaxBlocksPerTagValuesQuery,
+			MaxSearchDuration:          c.Read.MaxSearchDuration,
+			MaxMetricsDuration:         c.Read.MaxMetricsDuration,
+			UnsafeQueryHints:           c.Read.UnsafeQueryHints,
+			LeftPadTraceIDs:            c.Read.LeftPadTraceIDs,
 
-		MaxBytesPerTrace: c.Global.MaxBytesPerTrace,
+			MaxBytesPerTrace: c.Global.MaxBytesPerTrace,
 
-		DedicatedColumns: c.Storage.DedicatedColumns,
-		CostAttribution: CostAttributionOverrides{
-			Dimensions:     c.CostAttribution.Dimensions,
-			MaxCardinality: c.CostAttribution.MaxCardinality,
+			DedicatedColumns: c.Storage.DedicatedColumns,
+			CostAttribution: CostAttributionOverrides{
+				Dimensions:     c.CostAttribution.Dimensions,
+				MaxCardinality: c.CostAttribution.MaxCardinality,
+			},
 		},
 	}
 	// Copy extensions; MarshalJSON/MarshalYAML flatten typed instances to legacy flat keys.
 	if len(c.Extensions) > 0 {
-		result.Extensions = make(map[string]any, len(c.Extensions))
+		result.Extensions = make(map[string]Extension, len(c.Extensions))
 		for k, v := range c.Extensions {
 			result.Extensions[k] = v
 		}
@@ -96,9 +98,10 @@ func (c *Overrides) toLegacy() LegacyOverrides {
 	return result
 }
 
-// LegacyOverrides describe all the limits for users; can be used to describe global default
-// limits via flags, or per-user limits via yaml config.
-type LegacyOverrides struct {
+// baseLegacyOverrides contains all flat fields of the legacy overrides config.
+// It is embedded in LegacyOverrides and in the unmarshalLegacyOverrides staging struct so that
+// fieldNamesFor (used by knownLegacyOverridesJSONFields) sees direct fields, not promoted ones.
+type baseLegacyOverrides struct {
 	// Distributor enforced limits.
 	IngestionRateStrategy      string         `yaml:"ingestion_rate_strategy" json:"ingestion_rate_strategy"`
 	IngestionRateLimitBytes    int            `yaml:"ingestion_rate_limit_bytes" json:"ingestion_rate_limit_bytes"`
@@ -176,18 +179,31 @@ type LegacyOverrides struct {
 
 	// tempodb limits
 	DedicatedColumns backend.DedicatedColumns `yaml:"parquet_dedicated_columns" json:"parquet_dedicated_columns"`
-
-	// Extensions captures fields not recognised by the above fields.
-	// After UnmarshalJSON or UnmarshalYAML (via processLegacyExtensions), typed Extension instances
-	// are stored here keyed by their nested Key() (e.g. "my_ext"), matching the semantics of
-	// Overrides.Extensions. The flat wire format (e.g. "my_ext_field") is only used during
-	// serialization, handled by MarshalJSON and MarshalYAML.
-	Extensions map[string]any `yaml:",inline" json:"-"`
 }
 
-// knownLegacyOverridesJSONFields returns the JSON key names declared on LegacyOverrides
+// LegacyOverrides describe all the limits for users; can be used to describe global default
+// limits via flags, or per-user limits via yaml config.
+type LegacyOverrides struct {
+	baseLegacyOverrides `yaml:",inline"`
+	// Extensions captures fields not recognised by the above fields.
+	// After UnmarshalJSON or UnmarshalYAML (via processLegacyExtensions), typed Extension
+	// instances are stored here keyed by their nested Key() (e.g. "my_ext"), matching the
+	// semantics of Overrides.Extensions. The flat wire format (e.g. "my_ext_field") is only
+	// used during serialization, handled by MarshalJSON and MarshalYAML.
+	Extensions map[string]Extension `yaml:",inline" json:"-"`
+}
+
+// unmarshalLegacyOverrides is a staging struct for two-phase YAML decode of LegacyOverrides.
+// Extensions holds raw decoded values before processLegacyExtensions converts them to typed instances.
+// It also serves as a marshal helper in MarshalYAML where Extensions holds flattened key-value pairs.
+type unmarshalLegacyOverrides struct {
+	baseLegacyOverrides `yaml:",inline"`
+	Extensions          map[string]any `yaml:",inline" json:"-"`
+}
+
+// knownLegacyOverridesJSONFields returns the JSON key names declared on baseLegacyOverrides
 var knownLegacyOverridesJSONFields = sync.OnceValue(func() map[string]struct{} {
-	return fieldNamesFor(LegacyOverrides{}, "json")
+	return fieldNamesFor(baseLegacyOverrides{}, "json")
 })
 
 func (l *LegacyOverrides) UnmarshalJSON(data []byte) error {
@@ -208,19 +224,21 @@ func (l *LegacyOverrides) UnmarshalJSON(data []byte) error {
 		return nil
 	}
 
-	l.Extensions = make(map[string]any, len(raw))
+	rawAny := make(map[string]any, len(raw))
 	for k, v := range raw {
 		var val any
 		if err := json.Unmarshal(v, &val); err != nil {
 			return err
 		}
-		l.Extensions[k] = val
+		rawAny[k] = val
 	}
 
-	// processLegacyExtensions converts registered extension flat keys (e.g. "my_ext_field") to
-	// typed instances keyed by their nested Key() (e.g. "my_ext"), matching Overrides.Extensions.
-	// processExtensions must NOT be called here: it expects nested keys, not flat legacy keys.
-	return processLegacyExtensions(l)
+	exts, err := processLegacyExtensions(rawAny)
+	if err != nil {
+		return err
+	}
+	l.Extensions = exts
+	return nil
 }
 
 func (l LegacyOverrides) MarshalJSON() ([]byte, error) {
@@ -237,52 +255,48 @@ func (l LegacyOverrides) MarshalJSON() ([]byte, error) {
 	if err := json.Unmarshal(data, &m); err != nil {
 		return nil, err
 	}
-	// Flatten typed Extension instances to their legacy flat keys; copy other entries as-is.
-	for k, v := range l.Extensions {
-		if ext, ok := v.(Extension); ok {
-			for fk, fv := range ext.ToLegacy() {
-				if _, exists := m[fk]; exists {
-					continue // known fields take precedence
-				}
-				b, err := json.Marshal(fv)
-				if err != nil {
-					return nil, err
-				}
-				m[fk] = b
-			}
-		} else {
-			if _, exists := m[k]; exists {
+	for _, ext := range l.Extensions {
+		for fk, fv := range ext.ToLegacy() {
+			if _, exists := m[fk]; exists {
 				continue // known fields take precedence
 			}
-			b, err := json.Marshal(v)
+			b, err := json.Marshal(fv)
 			if err != nil {
 				return nil, err
 			}
-			m[k] = b
+			m[fk] = b
 		}
 	}
 	return json.Marshal(m)
 }
 
 func (l *LegacyOverrides) UnmarshalYAML(unmarshal func(interface{}) error) error {
-	type plain LegacyOverrides
-	if err := unmarshal((*plain)(l)); err != nil {
+	// Seed with existing values so that RegisterFlagsAndApplyDefaults defaults are
+	// preserved for fields not mentioned in the YAML.
+	raw := unmarshalLegacyOverrides{baseLegacyOverrides: l.baseLegacyOverrides}
+	if err := unmarshal(&raw); err != nil {
 		return err
 	}
-	// Convert registered extension flat keys to typed instances, matching Overrides.Extensions.
-	return processLegacyExtensions(l)
+	exts, err := processLegacyExtensions(raw.Extensions)
+	if err != nil {
+		return err
+	}
+	l.baseLegacyOverrides = raw.baseLegacyOverrides
+	l.Extensions = exts
+	return nil
 }
 
 func (l LegacyOverrides) MarshalYAML() (interface{}, error) {
-	type plain LegacyOverrides
 	if len(l.Extensions) == 0 {
+		type plain LegacyOverrides
 		return plain(l), nil
 	}
-	// Flatten typed Extension instances to their legacy flat keys before marshaling,
-	// so that the YAML wire format uses flat keys (e.g. "my_ext_field"), not the nested key.
-	cp := l
-	cp.Extensions = flattenExtensionEntries(l.Extensions)
-	return plain(cp), nil
+	// Use unmarshalLegacyOverrides as a marshal helper: its Extensions field is map[string]any
+	// which gets inlined as flat keys in the YAML output.
+	return unmarshalLegacyOverrides{
+		baseLegacyOverrides: l.baseLegacyOverrides,
+		Extensions:          flattenExtensionEntries(l.Extensions),
+	}, nil
 }
 
 func (l *LegacyOverrides) toNewLimits() (Overrides, error) {
@@ -374,15 +388,11 @@ func (l *LegacyOverrides) toNewLimits() (Overrides, error) {
 		},
 	}
 
-	// Extensions are already typed instances after processLegacyExtensions ran at unmarshal time.
-	// Simply copy them; unregistered flat keys (not converted by processLegacyExtensions) are dropped
-	// since Overrides.Extensions can only hold typed Extension instances.
-	for k, v := range l.Extensions {
-		if ext, ok := v.(Extension); ok {
-			if o.Extensions == nil {
-				o.Extensions = make(map[string]Extension, len(l.Extensions))
-			}
-			o.Extensions[k] = ext
+	// Direct copy; extensions are already typed after processLegacyExtensions ran at unmarshal time.
+	if len(l.Extensions) > 0 {
+		o.Extensions = make(map[string]Extension, len(l.Extensions))
+		for k, v := range l.Extensions {
+			o.Extensions[k] = v
 		}
 	}
 	return o, nil

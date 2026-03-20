@@ -359,12 +359,6 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		return fmt.Errorf("failed to unmarshal config: %w; also failed in legacy format: %w", err, legacyErr)
 	}
 
-	// Ensure legacy extension flat keys are converted to typed instances before toNewLimits.
-	// processLegacyExtensions may not be triggered automatically for inline struct fields.
-	if err := processLegacyExtensions(&legacyCfg.DefaultOverrides); err != nil {
-		return fmt.Errorf("defaults: %w", err)
-	}
-
 	var convErr error
 	c.Defaults, convErr = legacyCfg.DefaultOverrides.toNewLimits()
 	if convErr != nil {

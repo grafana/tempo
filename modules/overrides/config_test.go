@@ -6,7 +6,6 @@ import (
 	"flag"
 	"reflect"
 	"slices"
-	"strings"
 	"testing"
 	"time"
 
@@ -29,6 +28,11 @@ func TestConfigTagsYamlMatchJson(t *testing.T) {
 	var mismatch []string
 
 	for field := range overrides.Fields() {
+
+		// Skip anonymous embedded fields — they are implicitly inlined by encoding/json.
+		if field.Anonymous {
+			continue
+		}
 
 		// Skip fields intentionally excluded from JSON
 		if field.Tag.Get("json") == "-" {
@@ -64,9 +68,6 @@ max_bytes_per_trace: 100_000
 block_retention: 24h
 compaction_window: 4h
 
-per_tenant_override_config: /etc/Overrides.yaml
-per_tenant_override_period: 1m
-
 max_search_duration: 5m
 `
 	inputJSON := `
@@ -83,9 +84,6 @@ max_search_duration: 5m
 
 	"block_retention": "24h",
 	"compaction_window": "4h",
-
-	"per_tenant_override_config": "/etc/Overrides.yaml",
-	"per_tenant_override_period": "1m",
 
 	"max_search_duration": "5m"
 }`
@@ -389,105 +387,107 @@ func isZeroValue(v reflect.Value) bool {
 func generateTestLegacyOverrides() LegacyOverrides {
 	// Create a predefined test fixture with values for all fields
 	return LegacyOverrides{
-		IngestionRateStrategy:      "local",
-		IngestionRateLimitBytes:    100,
-		IngestionBurstSizeBytes:    200,
-		IngestionTenantShardSize:   3,
-		IngestionMaxAttributeBytes: 1000,
-		IngestionArtificialDelay:   durationPtr(5 * time.Minute),
-		IngestionRetryInfoEnabled:  true,
+		baseLegacyOverrides: baseLegacyOverrides{
+			IngestionRateStrategy:      "local",
+			IngestionRateLimitBytes:    100,
+			IngestionBurstSizeBytes:    200,
+			IngestionTenantShardSize:   3,
+			IngestionMaxAttributeBytes: 1000,
+			IngestionArtificialDelay:   durationPtr(5 * time.Minute),
+			IngestionRetryInfoEnabled:  true,
 
-		MaxLocalTracesPerUser:  1000,
-		MaxGlobalTracesPerUser: 2000,
+			MaxLocalTracesPerUser:  1000,
+			MaxGlobalTracesPerUser: 2000,
 
-		Forwarders: []string{"forwarder-1", "forwarder-2"},
+			Forwarders: []string{"forwarder-1", "forwarder-2"},
 
-		MetricsGeneratorRingSize:                                                    3,
-		MetricsGeneratorProcessors:                                                  makeListToMap([]string{"processor-1", "processor-2"}),
-		MetricsGeneratorMaxActiveSeries:                                             1000,
-		MetricsGeneratorMaxActiveEntities:                                           100,
-		MetricsGeneratorMaxCardinalityPerLabel:                                      500,
-		MetricsGeneratorCollectionInterval:                                          10 * time.Second,
-		MetricsGeneratorDisableCollection:                                           false,
-		MetricsGeneratorGenerateNativeHistograms:                                    histograms.HistogramMethodNative,
-		MetricsGeneratorTraceIDLabelName:                                            "trace_id",
-		MetricsGeneratorForwarderQueueSize:                                          100,
-		MetricsGeneratorForwarderWorkers:                                            5,
-		MetricsGeneratorRemoteWriteHeaders:                                          RemoteWriteHeaders{"header-1": "value-1"},
-		MetricsGeneratorProcessorServiceGraphsHistogramBuckets:                      []float64{1.0, 2.0, 5.0},
-		MetricsGeneratorProcessorServiceGraphsDimensions:                            []string{"dimension-1", "dimension-2"},
-		MetricsGeneratorProcessorServiceGraphsPeerAttributes:                        []string{"attribute-1", "attribute-2"},
-		MetricsGeneratorProcessorServiceGraphsFilterPolicies:                        []filterconfig.FilterPolicy{{Exclude: &filterconfig.PolicyMatch{MatchType: "strict", Attributes: []filterconfig.MatchPolicyAttribute{{Key: "resource.service.name", Value: "my-service"}}}}},
-		MetricsGeneratorProcessorServiceGraphsEnableClientServerPrefix:              boolPtr(true),
-		MetricsGeneratorProcessorServiceGraphsEnableMessagingSystemLatencyHistogram: boolPtr(true),
-		MetricsGeneratorProcessorServiceGraphsEnableVirtualNodeLabel:                boolPtr(true),
-		MetricsGeneratorProcessorServiceGraphsSpanMultiplierKey:                     "custom_key",
-		MetricsGeneratorProcessorSpanMetricsHistogramBuckets:                        []float64{1.0, 2.0, 5.0},
-		MetricsGeneratorProcessorSpanMetricsDimensions:                              []string{"dimension-1", "dimension-2"},
-		MetricsGeneratorProcessorSpanMetricsIntrinsicDimensions:                     map[string]bool{"dim-1": true, "dim-2": false},
-		MetricsGeneratorProcessorSpanMetricsFilterPolicies: []filterconfig.FilterPolicy{
-			{
-				Include: &filterconfig.PolicyMatch{
-					MatchType: "strict",
-					Attributes: []filterconfig.MatchPolicyAttribute{
-						{Key: "key-1", Value: "value-1"},
+			MetricsGeneratorRingSize:                                                    3,
+			MetricsGeneratorProcessors:                                                  makeListToMap([]string{"processor-1", "processor-2"}),
+			MetricsGeneratorMaxActiveSeries:                                             1000,
+			MetricsGeneratorMaxActiveEntities:                                           100,
+			MetricsGeneratorMaxCardinalityPerLabel:                                      500,
+			MetricsGeneratorCollectionInterval:                                          10 * time.Second,
+			MetricsGeneratorDisableCollection:                                           false,
+			MetricsGeneratorGenerateNativeHistograms:                                    histograms.HistogramMethodNative,
+			MetricsGeneratorTraceIDLabelName:                                            "trace_id",
+			MetricsGeneratorForwarderQueueSize:                                          100,
+			MetricsGeneratorForwarderWorkers:                                            5,
+			MetricsGeneratorRemoteWriteHeaders:                                          RemoteWriteHeaders{"header-1": "value-1"},
+			MetricsGeneratorProcessorServiceGraphsHistogramBuckets:                      []float64{1.0, 2.0, 5.0},
+			MetricsGeneratorProcessorServiceGraphsDimensions:                            []string{"dimension-1", "dimension-2"},
+			MetricsGeneratorProcessorServiceGraphsPeerAttributes:                        []string{"attribute-1", "attribute-2"},
+			MetricsGeneratorProcessorServiceGraphsFilterPolicies:                        []filterconfig.FilterPolicy{{Exclude: &filterconfig.PolicyMatch{MatchType: "strict", Attributes: []filterconfig.MatchPolicyAttribute{{Key: "resource.service.name", Value: "my-service"}}}}},
+			MetricsGeneratorProcessorServiceGraphsEnableClientServerPrefix:              boolPtr(true),
+			MetricsGeneratorProcessorServiceGraphsEnableMessagingSystemLatencyHistogram: boolPtr(true),
+			MetricsGeneratorProcessorServiceGraphsEnableVirtualNodeLabel:                boolPtr(true),
+			MetricsGeneratorProcessorServiceGraphsSpanMultiplierKey:                     "custom_key",
+			MetricsGeneratorProcessorSpanMetricsHistogramBuckets:                        []float64{1.0, 2.0, 5.0},
+			MetricsGeneratorProcessorSpanMetricsDimensions:                              []string{"dimension-1", "dimension-2"},
+			MetricsGeneratorProcessorSpanMetricsIntrinsicDimensions:                     map[string]bool{"dim-1": true, "dim-2": false},
+			MetricsGeneratorProcessorSpanMetricsFilterPolicies: []filterconfig.FilterPolicy{
+				{
+					Include: &filterconfig.PolicyMatch{
+						MatchType: "strict",
+						Attributes: []filterconfig.MatchPolicyAttribute{
+							{Key: "key-1", Value: "value-1"},
+						},
+					},
+					Exclude: &filterconfig.PolicyMatch{
+						MatchType: "strict",
+						Attributes: []filterconfig.MatchPolicyAttribute{
+							{Key: "key-2", Value: "value-2"},
+						},
 					},
 				},
-				Exclude: &filterconfig.PolicyMatch{
-					MatchType: "strict",
-					Attributes: []filterconfig.MatchPolicyAttribute{
-						{Key: "key-2", Value: "value-2"},
-					},
+			},
+			MetricsGeneratorProcessorSpanMetricsDimensionMappings: []sharedconfig.DimensionMappings{
+				{
+					Name:        "mapping-1",
+					SourceLabel: []string{"source-label-1"},
+					Join:        "join-1",
 				},
 			},
-		},
-		MetricsGeneratorProcessorSpanMetricsDimensionMappings: []sharedconfig.DimensionMappings{
-			{
-				Name:        "mapping-1",
-				SourceLabel: []string{"source-label-1"},
-				Join:        "join-1",
+			MetricsGeneratorProcessorSpanMetricsEnableTargetInfo:             boolPtr(true),
+			MetricsGeneratorProcessorSpanMetricsTargetInfoExcludedDimensions: []string{"excluded-dim-1", "excluded-dim-2"},
+			MetricsGeneratorProcessorSpanMetricsEnableInstanceLabel:          boolPtr(false),
+			MetricsGeneratorProcessorSpanMetricsSpanMultiplierKey:            "custom_key",
+			MetricsGeneratorProcessorHostInfoHostIdentifiers:                 []string{"host-id-1", "host-id-2"},
+			MetricsGeneratorProcessorHostInfoMetricName:                      "host_info",
+			MetricsGeneratorIngestionSlack:                                   1 * time.Minute,
+			MetricsGeneratorNativeHistogramBucketFactor:                      1.5,
+			MetricsGeneratorNativeHistogramMaxBucketNumber:                   200,
+			MetricsGeneratorNativeHistogramMinResetDuration:                  10 * time.Minute,
+			MetricsGeneratorSpanNameSanitization:                             "",
+
+			BlockRetention:     model.Duration(7 * 24 * time.Hour),
+			CompactionDisabled: true,
+			CompactionWindow:   model.Duration(4 * time.Hour),
+
+			MaxBytesPerTagValuesQuery:  1000,
+			MaxBlocksPerTagValuesQuery: 100,
+
+			MaxSearchDuration:  model.Duration(10 * time.Minute),
+			MaxMetricsDuration: model.Duration(30 * time.Minute),
+			UnsafeQueryHints:   true,
+
+			MaxBytesPerTrace: 10 * 1024 * 1024,
+
+			CostAttribution: CostAttributionOverrides{
+				MaxCardinality: 1000,
+				Dimensions:     map[string]string{"dim-1": "value-1", "dim-2": "value-2"},
 			},
-		},
-		MetricsGeneratorProcessorSpanMetricsEnableTargetInfo:             boolPtr(true),
-		MetricsGeneratorProcessorSpanMetricsTargetInfoExcludedDimensions: []string{"excluded-dim-1", "excluded-dim-2"},
-		MetricsGeneratorProcessorSpanMetricsEnableInstanceLabel:          boolPtr(false),
-		MetricsGeneratorProcessorSpanMetricsSpanMultiplierKey:            "custom_key",
-		MetricsGeneratorProcessorHostInfoHostIdentifiers:                 []string{"host-id-1", "host-id-2"},
-		MetricsGeneratorProcessorHostInfoMetricName:                      "host_info",
-		MetricsGeneratorIngestionSlack:                                   1 * time.Minute,
-		MetricsGeneratorNativeHistogramBucketFactor:                      1.5,
-		MetricsGeneratorNativeHistogramMaxBucketNumber:                   200,
-		MetricsGeneratorNativeHistogramMinResetDuration:                  10 * time.Minute,
-		MetricsGeneratorSpanNameSanitization:                             "",
 
-		BlockRetention:     model.Duration(7 * 24 * time.Hour),
-		CompactionDisabled: true,
-		CompactionWindow:   model.Duration(4 * time.Hour),
-
-		MaxBytesPerTagValuesQuery:  1000,
-		MaxBlocksPerTagValuesQuery: 100,
-
-		MaxSearchDuration:  model.Duration(10 * time.Minute),
-		MaxMetricsDuration: model.Duration(30 * time.Minute),
-		UnsafeQueryHints:   true,
-
-		MaxBytesPerTrace: 10 * 1024 * 1024,
-
-		CostAttribution: CostAttributionOverrides{
-			MaxCardinality: 1000,
-			Dimensions:     map[string]string{"dim-1": "value-1", "dim-2": "value-2"},
-		},
-
-		DedicatedColumns: backend.DedicatedColumns{
-			{
-				Scope: backend.DedicatedColumnScopeResource,
-				Name:  "resource-column",
-				Type:  backend.DedicatedColumnTypeString,
-			},
-			{
-				Scope: backend.DedicatedColumnScopeSpan,
-				Name:  "span-column",
-				Type:  backend.DedicatedColumnTypeString,
+			DedicatedColumns: backend.DedicatedColumns{
+				{
+					Scope: backend.DedicatedColumnScopeResource,
+					Name:  "resource-column",
+					Type:  backend.DedicatedColumnTypeString,
+				},
+				{
+					Scope: backend.DedicatedColumnScopeSpan,
+					Name:  "span-column",
+					Type:  backend.DedicatedColumnTypeString,
+				},
 			},
 		},
 	}
@@ -499,65 +499,30 @@ func durationPtr(d time.Duration) *time.Duration {
 }
 
 func TestLegacyOverridesExtra_YAML(t *testing.T) {
+	// Unregistered keys in LegacyOverrides YAML must be rejected by processLegacyExtensions.
 	input := `
 max_traces_per_user: 1000
 lbac:
   trace_redaction_mode: mode_spans
 `
 	var l LegacyOverrides
-	decoder := yaml.NewDecoder(strings.NewReader(input))
-	decoder.SetStrict(true)
-	require.NoError(t, decoder.Decode(&l))
-
-	assert.Equal(t, 1000, l.MaxLocalTracesPerUser)
-	assert.NotNil(t, l.Extensions["lbac"], "expected Extensions to capture unknown 'lbac' key")
-
-	// Round-trip.
-	b, err := yaml.Marshal(&l)
-	require.NoError(t, err)
-
-	var l2 LegacyOverrides
-	require.NoError(t, yaml.Unmarshal(b, &l2))
-	assert.Equal(t, l.MaxLocalTracesPerUser, l2.MaxLocalTracesPerUser)
-	assert.NotNil(t, l2.Extensions["lbac"])
+	err := yaml.Unmarshal([]byte(input), &l)
+	require.ErrorContains(t, err, "unknown extension flat key")
 }
 
 func TestLegacyOverridesExtra_JSON(t *testing.T) {
-	// Unregistered flat keys are tolerated by processLegacyExtensions (passed through as-is).
-	// Strict rejection of unknown keys happens later in processExtensions on the converted Overrides.
+	// Unregistered keys in LegacyOverrides JSON must be rejected by processLegacyExtensions.
 	input := `{
 		"max_traces_per_user": 1000,
 		"lbac_mode": "mode_spans"
 	}`
-
 	var l LegacyOverrides
-	require.NoError(t, json.Unmarshal([]byte(input), &l))
-
-	assert.Equal(t, 1000, l.MaxLocalTracesPerUser)
-	assert.Equal(t, "mode_spans", l.Extensions["lbac_mode"])
-
-	// Round-trip: Extensions and known fields survive marshal/unmarshal.
-	b, err := json.Marshal(&l)
-	require.NoError(t, err)
-
-	var l2 LegacyOverrides
-	require.NoError(t, json.Unmarshal(b, &l2))
-	assert.Equal(t, l.MaxLocalTracesPerUser, l2.MaxLocalTracesPerUser)
-	assert.Equal(t, l.Extensions, l2.Extensions)
-
-	// Known fields take precedence.
-	l.Extensions["max_traces_per_user"] = "should-be-ignored"
-	b, err = json.Marshal(&l)
-	require.NoError(t, err)
-
-	var l3 LegacyOverrides
-	require.NoError(t, json.Unmarshal(b, &l3))
-	assert.Equal(t, 1000, l3.MaxLocalTracesPerUser, "known field must not be overwritten by Extensions")
+	err := json.Unmarshal([]byte(input), &l)
+	require.ErrorContains(t, err, "unknown extension flat key")
 }
 
 func TestLegacyOverridesExtra_YAMLvsJSON(t *testing.T) {
-	// Unregistered flat keys are tolerated by processLegacyExtensions (passed through as-is).
-	// Strict rejection of unknown keys happens later in processExtensions on the converted Overrides.
+	// Both YAML and JSON paths must reject unregistered flat keys.
 	inputYAML := `
 max_traces_per_user: 1000
 lbac_mode: mode_spans
@@ -568,33 +533,36 @@ lbac_mode: mode_spans
 	}`
 
 	var lYAML LegacyOverrides
-	require.NoError(t, yaml.Unmarshal([]byte(inputYAML), &lYAML))
+	require.ErrorContains(t, yaml.Unmarshal([]byte(inputYAML), &lYAML), "unknown extension flat key")
 
 	var lJSON LegacyOverrides
-	require.NoError(t, json.Unmarshal([]byte(inputJSON), &lJSON))
-
-	assert.Equal(t, lYAML.MaxLocalTracesPerUser, lJSON.MaxLocalTracesPerUser)
-	assert.Equal(t, lYAML.Extensions, lJSON.Extensions)
+	require.ErrorContains(t, json.Unmarshal([]byte(inputJSON), &lJSON), "unknown extension flat key")
 }
 
 func TestLegacyToNewLimits_ExtraPreserved(t *testing.T) {
-	// Unregistered flat keys are tolerated by processLegacyExtensions (passed through as-is in
-	// l.Extensions), but are dropped by toNewLimits() since Overrides.Extensions only holds
-	// typed Extension instances.
+	// Registered extensions survive toNewLimits; unregistered flat keys are rejected at unmarshal.
+	ResetRegistryForTesting(t)
+	getter := RegisterExtension(&testExtension{})
+
 	input := `
 max_traces_per_user: 500
-lbac_mode: mode_spans
+test_extension_field_a: round_trip_val
 `
 	var l LegacyOverrides
 	require.NoError(t, yaml.Unmarshal([]byte(input), &l))
-	// The unregistered key stays as a raw value in LegacyOverrides.Extensions.
-	require.Equal(t, "mode_spans", l.Extensions["lbac_mode"])
+	assert.Equal(t, 500, l.MaxLocalTracesPerUser)
+
+	ext, ok := l.Extensions["test_extension"].(*testExtension)
+	require.True(t, ok)
+	assert.Equal(t, "round_trip_val", ext.FieldA)
 
 	o, err := l.toNewLimits()
 	require.NoError(t, err)
 	assert.Equal(t, 500, o.Ingestion.MaxLocalTracesPerUser)
-	// Unregistered flat keys are dropped during conversion; Overrides.Extensions is typed.
-	assert.Empty(t, o.Extensions, "unregistered flat keys must not survive toNewLimits()")
+
+	oExt := getter(&o)
+	require.NotNil(t, oExt)
+	assert.Equal(t, "round_trip_val", oExt.FieldA)
 }
 
 func TestToLegacy_ExtraPreserved(t *testing.T) {

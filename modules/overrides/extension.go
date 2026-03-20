@@ -122,34 +122,30 @@ func processExtensions(extensions map[string]any) (map[string]Extension, error) 
 	return processed, nil
 }
 
-// processLegacyExtensions converts registered extension flat keys in l.Extensions to typed
-// Extension instances, giving LegacyOverrides.Extensions the same semantics as
-// Overrides.Extensions after processExtensions: typed instances keyed by their nested Key().
+// processLegacyExtensions converts registered extension flat keys in raw to typed Extension
+// instances, returning a map keyed by extension Key() (matching Overrides.Extensions semantics).
 //
-// For each registered extension whose LegacyKeys appear in l.Extensions, a typed instance is
-// created, defaults applied, FromLegacy called, and the instance validated. The flat keys are
-// then removed and the typed instance stored under the extension's Key().
-//
-// Keys that don't correspond to any registered extension's LegacyKeys are left as-is; strict
-// validation for those happens later when processExtensions is called on the converted Overrides.
-func processLegacyExtensions(l *LegacyOverrides) error {
-	if len(l.Extensions) == 0 {
-		return nil
+// For each registered extension whose LegacyKeys appear in raw, a typed instance is created,
+// defaults applied, FromLegacy called, and the instance validated. All consumed flat keys are
+// tracked; any remaining key in raw that was not consumed by a registered extension causes an error.
+func processLegacyExtensions(raw map[string]any) (map[string]Extension, error) {
+	if len(raw) == 0 {
+		return nil, nil
 	}
 
 	extensionRegistry.RLock()
-	entries := make([]*registryEntry, 0, len(extensionRegistry.entries))
-	for _, e := range extensionRegistry.entries {
-		if len(e.legacyKeys) > 0 {
-			entries = append(entries, e)
-		}
-	}
-	extensionRegistry.RUnlock()
+	defer extensionRegistry.RUnlock()
 
-	for _, entry := range entries {
+	result := make(map[string]Extension)
+	consumed := make(map[string]struct{})
+
+	for _, entry := range extensionRegistry.entries {
+		if len(entry.legacyKeys) == 0 {
+			continue
+		}
 		hasFlatKey := false
 		for _, fk := range entry.legacyKeys {
-			if _, ok := l.Extensions[fk]; ok {
+			if _, ok := raw[fk]; ok {
 				hasFlatKey = true
 				break
 			}
@@ -161,35 +157,35 @@ func processLegacyExtensions(l *LegacyOverrides) error {
 		instance := entry.newInstance()
 		// Per-tenant extension configs have no CLI prefix.
 		instance.RegisterFlagsAndApplyDefaults("", flag.NewFlagSet("", flag.ContinueOnError))
-		if err := instance.FromLegacy(l.Extensions); err != nil {
-			return fmt.Errorf("extension %q: from legacy: %w", entry.key, err)
+		if err := instance.FromLegacy(raw); err != nil {
+			return nil, fmt.Errorf("extension %q: from legacy: %w", entry.key, err)
 		}
 		if err := instance.Validate(); err != nil {
-			return fmt.Errorf("extension %q: %w", entry.key, err)
+			return nil, fmt.Errorf("extension %q: %w", entry.key, err)
 		}
 		for _, fk := range entry.legacyKeys {
-			delete(l.Extensions, fk)
+			consumed[fk] = struct{}{}
 		}
-		if l.Extensions == nil {
-			l.Extensions = make(map[string]any)
-		}
-		l.Extensions[entry.key] = instance
+		result[entry.key] = instance
 	}
-	return nil
+
+	for k := range raw {
+		if _, ok := consumed[k]; !ok {
+			return nil, fmt.Errorf("unknown extension flat key %q: must be registered via RegisterExtension before use", k)
+		}
+	}
+
+	return result, nil
 }
 
 // flattenExtensionEntries returns a new map where typed Extension values are replaced by their
-// flat legacy key-value pairs (via ToLegacy). Non-Extension entries are copied as-is.
+// flat legacy key-value pairs (via ToLegacy).
 // Used when marshaling LegacyOverrides to produce the flat wire format.
-func flattenExtensionEntries(m map[string]any) map[string]any {
+func flattenExtensionEntries(m map[string]Extension) map[string]any {
 	out := make(map[string]any, len(m))
-	for k, v := range m {
-		if ext, ok := v.(Extension); ok {
-			for fk, fv := range ext.ToLegacy() {
-				out[fk] = fv
-			}
-		} else {
-			out[k] = v
+	for _, ext := range m {
+		for fk, fv := range ext.ToLegacy() {
+			out[fk] = fv
 		}
 	}
 	return out
