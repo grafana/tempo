@@ -13,6 +13,7 @@
   local policyRule = $.rbac.v1.policyRule,
   local podAntiAffinity = deployment.mixin.spec.template.spec.affinity.podAntiAffinity,
   local k = import 'ksonnet-util/kausal.libsonnet',
+  local weightedPodAffinityTerm = k.core.v1.weightedPodAffinityTerm,
   local containerPort = k.core.v1.containerPort,
   local volumeMount = k.core.v1.volumeMount,
   local pvc = k.core.v1.persistentVolumeClaim,
@@ -83,6 +84,20 @@
         ]).spec,
     },
 
+  // Soft anti-affinity to distribute same-zone pods across nodes.
+  liveStoreZoneSoftAntiAffinity(zone_name)::
+    if $._config.live_store.allow_multiple_replicas_on_same_node then {} else {
+      spec+:
+        podAntiAffinity.withPreferredDuringSchedulingIgnoredDuringExecution([
+          weightedPodAffinityTerm.withWeight(100) +
+          weightedPodAffinityTerm.podAffinityTerm.withTopologyKey('kubernetes.io/hostname') +
+          weightedPodAffinityTerm.podAffinityTerm.labelSelector.withMatchExpressions([
+            { key: 'rollout-group', operator: 'In', values: ['live-store'] },
+            { key: 'name', operator: 'In', values: [zone_name] },
+          ]),
+        ]).spec,
+    },
+
   // Create resource that will be targetted by ScaledObject. A single ReplicaTemplate is used for all zones.
   // HPA requires that label selector exists and is valid, but it will not be used for target type of AverageValue.
   // In GKE however we see that selector is used to find pods and compute current usage, so we set it to target pods with given name.
@@ -126,7 +141,8 @@
     ) +  // Zone-aware live-store statefulsets follow the replicas in the ReplicaTemplate
     (if !std.isObject($._config.node_selector) then {} else statefulSet.mixin.spec.template.spec.withNodeSelectorMixin($._config.node_selector)) +
     statefulSet.spec.template.spec.securityContext.withFsGroup(10001) +  // 10001 is the UID of the tempo user
-    self.liveStoreZoneAntiAffinity(name),
+    self.liveStoreZoneAntiAffinity(name) +
+    self.liveStoreZoneSoftAntiAffinity(name),
 
   newLiveStoreStatefulSet(name, container)::
     statefulSet.new(
