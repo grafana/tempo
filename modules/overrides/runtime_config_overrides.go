@@ -608,8 +608,24 @@ func (o *runtimeConfigOverridesManager) MetricsGeneratorProcessorServiceGraphsSp
 	return o.getOverridesForUser(userID).MetricsGenerator.Processor.ServiceGraphs.SpanMultiplierKey
 }
 
+func (o *runtimeConfigOverridesManager) MetricsGeneratorProcessorServiceGraphsEnableTraceStateSpanMultiplier(userID string) (bool, bool) {
+	enableTraceStateSpanMultiplier := o.getOverridesForUser(userID).MetricsGenerator.Processor.ServiceGraphs.EnableTraceStateSpanMultiplier
+	if enableTraceStateSpanMultiplier != nil {
+		return *enableTraceStateSpanMultiplier, true
+	}
+	return false, false
+}
+
 func (o *runtimeConfigOverridesManager) MetricsGeneratorProcessorSpanMetricsSpanMultiplierKey(userID string) string {
 	return o.getOverridesForUser(userID).MetricsGenerator.Processor.SpanMetrics.SpanMultiplierKey
+}
+
+func (o *runtimeConfigOverridesManager) MetricsGeneratorProcessorSpanMetricsEnableTraceStateSpanMultiplier(userID string) (bool, bool) {
+	enableTraceStateSpanMultiplier := o.getOverridesForUser(userID).MetricsGenerator.Processor.SpanMetrics.EnableTraceStateSpanMultiplier
+	if enableTraceStateSpanMultiplier != nil {
+		return *enableTraceStateSpanMultiplier, true
+	}
+	return false, false
 }
 
 // BlockRetention is the duration of the block retention for this tenant.

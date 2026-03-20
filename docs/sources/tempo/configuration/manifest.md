@@ -421,6 +421,7 @@ metrics_generator:
                 - db.name
                 - db.system
             span_multiplier_key: ""
+            enable_tracestate_span_multiplier: false
             enable_virtual_node_label: false
             database_name_attributes:
                 - db.namespace
@@ -452,6 +453,7 @@ metrics_generator:
             dimension_mappings: []
             enable_target_info: false
             span_multiplier_key: ""
+            enable_tracestate_span_multiplier: false
             subprocessors:
                 0: true
                 1: true

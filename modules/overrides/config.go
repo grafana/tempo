@@ -91,18 +91,20 @@ type ServiceGraphsOverrides struct {
 	EnableMessagingSystemLatencyHistogram *bool                       `yaml:"enable_messaging_system_latency_histogram,omitempty" json:"enable_messaging_system_latency_histogram,omitempty"`
 	EnableVirtualNodeLabel                *bool                       `yaml:"enable_virtual_node_label,omitempty" json:"enable_virtual_node_label,omitempty"`
 	SpanMultiplierKey                     string                      `yaml:"span_multiplier_key,omitempty" json:"span_multiplier_key,omitempty"`
+	EnableTraceStateSpanMultiplier        *bool                       `yaml:"enable_tracestate_span_multiplier,omitempty" json:"enable_tracestate_span_multiplier,omitempty"`
 }
 
 type SpanMetricsOverrides struct {
-	HistogramBuckets             []float64                        `yaml:"histogram_buckets,omitempty" json:"histogram_buckets,omitempty"`
-	Dimensions                   []string                         `yaml:"dimensions,omitempty" json:"dimensions,omitempty"`
-	IntrinsicDimensions          map[string]bool                  `yaml:"intrinsic_dimensions,omitempty" json:"intrinsic_dimensions,omitempty"`
-	FilterPolicies               []filterconfig.FilterPolicy      `yaml:"filter_policies,omitempty" json:"filter_policies,omitempty"`
-	DimensionMappings            []sharedconfig.DimensionMappings `yaml:"dimension_mappings,omitempty" json:"dimension_mapings,omitempty"`
-	EnableTargetInfo             *bool                            `yaml:"enable_target_info,omitempty" json:"enable_target_info,omitempty"`
-	TargetInfoExcludedDimensions []string                         `yaml:"target_info_excluded_dimensions,omitempty" json:"target_info_excluded_dimensions,omitempty"`
-	EnableInstanceLabel          *bool                            `yaml:"enable_instance_label,omitempty" json:"enable_instance_label,omitempty"`
-	SpanMultiplierKey            string                           `yaml:"span_multiplier_key,omitempty" json:"span_multiplier_key,omitempty"`
+	HistogramBuckets               []float64                        `yaml:"histogram_buckets,omitempty" json:"histogram_buckets,omitempty"`
+	Dimensions                     []string                         `yaml:"dimensions,omitempty" json:"dimensions,omitempty"`
+	IntrinsicDimensions            map[string]bool                  `yaml:"intrinsic_dimensions,omitempty" json:"intrinsic_dimensions,omitempty"`
+	FilterPolicies                 []filterconfig.FilterPolicy      `yaml:"filter_policies,omitempty" json:"filter_policies,omitempty"`
+	DimensionMappings              []sharedconfig.DimensionMappings `yaml:"dimension_mappings,omitempty" json:"dimension_mapings,omitempty"`
+	EnableTargetInfo               *bool                            `yaml:"enable_target_info,omitempty" json:"enable_target_info,omitempty"`
+	TargetInfoExcludedDimensions   []string                         `yaml:"target_info_excluded_dimensions,omitempty" json:"target_info_excluded_dimensions,omitempty"`
+	EnableInstanceLabel            *bool                            `yaml:"enable_instance_label,omitempty" json:"enable_instance_label,omitempty"`
+	SpanMultiplierKey              string                           `yaml:"span_multiplier_key,omitempty" json:"span_multiplier_key,omitempty"`
+	EnableTraceStateSpanMultiplier *bool                            `yaml:"enable_tracestate_span_multiplier,omitempty" json:"enable_tracestate_span_multiplier,omitempty"`
 }
 
 type HostInfoOverrides struct {

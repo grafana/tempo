@@ -164,6 +164,7 @@ type LimitsMetricsGeneratorProcessorServiceGraphs struct {
 	FilterPolicies                        *[]filterconfig.FilterPolicy `yaml:"filter_policies,omitempty" json:"filter_policies,omitempty"`
 	HistogramBuckets                      *[]float64                   `yaml:"histogram_buckets,omitempty" json:"histogram_buckets,omitempty"`
 	SpanMultiplierKey                     *string                      `yaml:"span_multiplier_key,omitempty" json:"span_multiplier_key,omitempty"`
+	EnableTraceStateSpanMultiplier        *bool                        `yaml:"enable_tracestate_span_multiplier,omitempty" json:"enable_tracestate_span_multiplier,omitempty"`
 }
 
 func (l *LimitsMetricsGeneratorProcessorServiceGraphs) GetDimensions() ([]string, bool) {
@@ -215,16 +216,24 @@ func (l *LimitsMetricsGeneratorProcessorServiceGraphs) GetSpanMultiplierKey() (s
 	return "", false
 }
 
+func (l *LimitsMetricsGeneratorProcessorServiceGraphs) GetEnableTraceStateSpanMultiplier() (bool, bool) {
+	if l != nil && l.EnableTraceStateSpanMultiplier != nil {
+		return *l.EnableTraceStateSpanMultiplier, true
+	}
+	return false, false
+}
+
 type LimitsMetricsGeneratorProcessorSpanMetrics struct {
-	Dimensions                   *[]string                         `yaml:"dimensions,omitempty" json:"dimensions,omitempty"`
-	IntrinsicDimensions          *map[string]bool                  `yaml:"intrinsic_dimensions,omitempty" json:"intrinsic_dimensions,omitempty"`
-	DimensionMappings            *[]sharedconfig.DimensionMappings `yaml:"dimension_mappings,omitempty" json:"dimension_mappings,omitempty"`
-	EnableTargetInfo             *bool                             `yaml:"enable_target_info,omitempty" json:"enable_target_info,omitempty"`
-	FilterPolicies               *[]filterconfig.FilterPolicy      `yaml:"filter_policies,omitempty" json:"filter_policies,omitempty"`
-	HistogramBuckets             *[]float64                        `yaml:"histogram_buckets,omitempty" json:"histogram_buckets,omitempty"`
-	TargetInfoExcludedDimensions *[]string                         `yaml:"target_info_excluded_dimensions,omitempty" json:"target_info_excluded_dimensions,omitempty"`
-	EnableInstanceLabel          *bool                             `yaml:"enable_instance_label,omitempty" json:"enable_instance_label,omitempty"`
-	SpanMultiplierKey            *string                           `yaml:"span_multiplier_key,omitempty" json:"span_multiplier_key,omitempty"`
+	Dimensions                     *[]string                         `yaml:"dimensions,omitempty" json:"dimensions,omitempty"`
+	IntrinsicDimensions            *map[string]bool                  `yaml:"intrinsic_dimensions,omitempty" json:"intrinsic_dimensions,omitempty"`
+	DimensionMappings              *[]sharedconfig.DimensionMappings `yaml:"dimension_mappings,omitempty" json:"dimension_mappings,omitempty"`
+	EnableTargetInfo               *bool                             `yaml:"enable_target_info,omitempty" json:"enable_target_info,omitempty"`
+	FilterPolicies                 *[]filterconfig.FilterPolicy      `yaml:"filter_policies,omitempty" json:"filter_policies,omitempty"`
+	HistogramBuckets               *[]float64                        `yaml:"histogram_buckets,omitempty" json:"histogram_buckets,omitempty"`
+	TargetInfoExcludedDimensions   *[]string                         `yaml:"target_info_excluded_dimensions,omitempty" json:"target_info_excluded_dimensions,omitempty"`
+	EnableInstanceLabel            *bool                             `yaml:"enable_instance_label,omitempty" json:"enable_instance_label,omitempty"`
+	SpanMultiplierKey              *string                           `yaml:"span_multiplier_key,omitempty" json:"span_multiplier_key,omitempty"`
+	EnableTraceStateSpanMultiplier *bool                             `yaml:"enable_tracestate_span_multiplier,omitempty" json:"enable_tracestate_span_multiplier,omitempty"`
 }
 
 func (l *LimitsMetricsGeneratorProcessorSpanMetrics) GetDimensions() ([]string, bool) {
@@ -288,6 +297,13 @@ func (l *LimitsMetricsGeneratorProcessorSpanMetrics) GetSpanMultiplierKey() (str
 		return *l.SpanMultiplierKey, true
 	}
 	return "", false
+}
+
+func (l *LimitsMetricsGeneratorProcessorSpanMetrics) GetEnableTraceStateSpanMultiplier() (bool, bool) {
+	if l != nil && l.EnableTraceStateSpanMultiplier != nil {
+		return *l.EnableTraceStateSpanMultiplier, true
+	}
+	return false, false
 }
 
 type LimitsMetricGeneratorProcessorHostInfo struct {
