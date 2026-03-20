@@ -149,8 +149,14 @@ func TestValidateTraceRetrieval(t *testing.T) {
 				traceResp: tt.traceResponse,
 			}
 
+			// Expected trace for fixed-attribute verification (use response as expected when non-nil)
+			expectedTrace := tt.traceResponse
+			if expectedTrace == nil {
+				expectedTrace = &tempopb.Trace{}
+			}
+
 			// Call the function
-			err := vs.validateTraceRetrieval(context.Background(), traceInfo, mockHTTP)
+			err := vs.validateTraceRetrieval(context.Background(), traceInfo, expectedTrace, mockHTTP)
 
 			// Assertions
 			if tt.expectError {
@@ -321,26 +327,41 @@ func TestRunValidation(t *testing.T) {
 				logger: zap.NewNop(),
 			}
 
-			// Setup HTTP client mock - need to handle trace ID matching
-			mockHTTP := &MockHTTPClient{
-				err:       tt.retrievalError,
-				traceResp: tt.retrievalTrace,
-			}
-
-			// If we have a successful trace response, we need to set matching trace IDs
-			if tt.retrievalTrace != nil && len(tt.retrievalTrace.ResourceSpans) > 0 {
-				// We'll need to create a TraceInfo to get the expected trace ID format
-				sampleTraceInfo := util.NewTraceInfo(mockClock.Now(), tt.config.TempoOrgID)
-				traceIDBytes, _ := sampleTraceInfo.TraceID()
-
-				// Set the trace ID in all spans of the mock response
-				for _, resourceSpan := range tt.retrievalTrace.ResourceSpans {
+			retrievalTrace := tt.retrievalTrace
+			// For success cases with no retrieval error, build the trace that writeValidationTrace
+			// would produce (same clock seed) so that VerifyTraceContent passes.
+			if tt.retrievalError == nil && tt.writeError == nil && tt.expectedFailures == 0 {
+				traceInfo := util.NewTraceInfoWithMaxLongWrites(mockClock.Now(), 0, tt.config.TempoOrgID)
+				built, err := traceInfo.ConstructTraceFromEpoch()
+				if err != nil {
+					t.Fatalf("build trace for mock: %v", err)
+				}
+				retrievalTrace = built
+				traceIDBytes, _ := traceInfo.TraceID()
+				for _, resourceSpan := range retrievalTrace.ResourceSpans {
 					for _, scopeSpan := range resourceSpan.ScopeSpans {
 						for _, span := range scopeSpan.Spans {
 							span.TraceId = traceIDBytes
 						}
 					}
 				}
+			} else if retrievalTrace != nil && len(retrievalTrace.ResourceSpans) > 0 {
+				// Set trace ID so trace ID check passes when we use a static mock trace
+				sampleTraceInfo := util.NewTraceInfo(mockClock.Now(), tt.config.TempoOrgID)
+				traceIDBytes, _ := sampleTraceInfo.TraceID()
+				for _, resourceSpan := range retrievalTrace.ResourceSpans {
+					for _, scopeSpan := range resourceSpan.ScopeSpans {
+						for _, span := range scopeSpan.Spans {
+							span.TraceId = traceIDBytes
+						}
+					}
+				}
+			}
+
+			// Setup HTTP client mock
+			mockHTTP := &MockHTTPClient{
+				err:       tt.retrievalError,
+				traceResp: retrievalTrace,
 			}
 
 			// Run validation
