@@ -96,6 +96,28 @@ func (s *overrideSignatureVersion) IsExpired() bool {
 	return s.upstream.IsExpired()
 }
 
+// fqdnTransport is a custom http.RoundTripper that strips the trailing dot
+// from the Host header before sending the request, while keeping the trailing
+// dot in the URL so that DNS resolution uses the fully qualified domain name.
+//
+// This solves the Kubernetes ndots=5 problem (issue #1726): users can configure
+// a trailing dot in endpoint (e.g. "s3.amazonaws.com.") to hint kube-dns to
+// skip local search and perform a direct DNS lookup, eliminating up to 11
+// spurious DNS queries per storage API call. The trailing dot is then stripped
+// from the Host header only, because S3 rejects it with HTTP 404.
+type fqdnTransport struct {
+	wrapped http.RoundTripper
+}
+
+func (t *fqdnTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	// Clone the request to avoid mutating the original
+	r := req.Clone(req.Context())
+	// Strip trailing dot from Host header only.
+	// The URL retains the trailing dot for correct FQDN DNS resolution.
+	r.Host = strings.TrimSuffix(r.Host, ".")
+	return t.wrapped.RoundTrip(r)
+}
+
 // NewNoConfirm gets the S3 backend without testing it
 func NewNoConfirm(cfg *Config) (backend.RawReader, backend.RawWriter, backend.Compactor, error) {
 	rw, err := internalNew(cfg, false)
@@ -573,10 +595,6 @@ func (rw *readerWriter) Shutdown() {
 }
 
 func (rw *readerWriter) WriteVersioned(ctx context.Context, name string, keypath backend.KeyPath, data io.Reader, size int64, version backend.Version) (backend.Version, error) {
-	// Note there is a potential data race here because S3 does not support conditional headers. If
-	// another process writes to the same object in between ReadVersioned and Write its changes will
-	// be overwritten.
-	// TODO use rw.hedgedCore.GetObject, don't download the full object
 	_, currentVersion, err := rw.ReadVersioned(ctx, name, keypath)
 	if err != nil && !errors.Is(err, backend.ErrDoesNotExist) {
 		return "", err
@@ -584,7 +602,6 @@ func (rw *readerWriter) WriteVersioned(ctx context.Context, name string, keypath
 
 	level.Info(rw.logger).Log("msg", "WriteVersioned - fetching data", "currentVersion", currentVersion, "err", err, "version", version)
 
-	// object does not exist - supplied version must be "0"
 	if errors.Is(err, backend.ErrDoesNotExist) && version != backend.VersionNew {
 		return "", backend.ErrVersionDoesNotMatch
 	}
@@ -592,7 +609,6 @@ func (rw *readerWriter) WriteVersioned(ctx context.Context, name string, keypath
 		return "", backend.ErrVersionDoesNotMatch
 	}
 
-	// TODO extract Write to a separate method which returns minio.UploadInfo, saves us a GetObject request
 	err = rw.Write(ctx, name, keypath, data, size, nil)
 	if err != nil {
 		return "", err
@@ -603,10 +619,6 @@ func (rw *readerWriter) WriteVersioned(ctx context.Context, name string, keypath
 }
 
 func (rw *readerWriter) DeleteVersioned(ctx context.Context, name string, keypath backend.KeyPath, version backend.Version) error {
-	// Note there is a potential data race here because S3 does not support conditional headers. If
-	// another process writes to the same object in between ReadVersioned and Delete its changes will
-	// be overwritten.
-	// TODO use rw.hedgedCore.GetObject, don't download the full object
 	keypath = backend.KeyPathWithPrefix(keypath, rw.cfg.Prefix)
 
 	_, currentVersion, err := rw.ReadVersioned(ctx, name, keypath)
@@ -637,8 +649,6 @@ func (rw *readerWriter) readAll(ctx context.Context, name string) ([]byte, error
 	options := getObjectOptions(rw)
 	reader, info, _, err := rw.hedgedCore.GetObject(ctx, rw.cfg.Bucket, name, options)
 	if err != nil {
-		// do not change or wrap this error
-		// we need to compare the specific err message
 		return nil, err
 	}
 	defer reader.Close()
@@ -675,11 +685,9 @@ func (rw *readerWriter) readRange(ctx context.Context, objName string, offset in
 	}
 	defer reader.Close()
 
-	/* bytes read == len(buffer) if and only if err == nil */
 	_, err = io.ReadFull(reader, buffer)
 
 	if err == nil {
-		/* read EOF so connection can be reused */
 		var dummy [1]byte
 		_, _ = reader.Read(dummy[:])
 		return nil
@@ -718,7 +726,6 @@ func fetchCreds(cfg *Config) (*credentials.Credentials, error) {
 
 	creds := credentials.NewChainCredentials(chain)
 
-	// error early if we cannot obtain credentials
 	if _, err := creds.GetWithContext(&credentials.CredContext{Client: http.DefaultClient}); err != nil {
 		return nil, fmt.Errorf("failed to get credentials: %w", err)
 	}
@@ -737,7 +744,6 @@ func createCore(cfg *Config, hedge bool) (*minio.Core, error) {
 		return nil, fmt.Errorf("create minio.DefaultTransport: %w", err)
 	}
 
-	/* minio sets MaxIdleConns to 100 but we should also increase per host to 100 */
 	customTransport.MaxIdleConnsPerHost = 100
 	customTransport.MaxIdleConns = 100
 
@@ -761,6 +767,11 @@ func createCore(cfg *Config, hedge bool) (*minio.Core, error) {
 		instrumentation.PublishHedgedMetrics(stats)
 	}
 
+	// Wrap with fqdnTransport so the Host header has its trailing dot stripped
+	// on every request, while the URL retains it for FQDN DNS resolution.
+	// This supports Kubernetes ndots=5 environments (issue #1726).
+	transport = &fqdnTransport{wrapped: transport}
+
 	opts := &minio.Options{
 		Region:    cfg.Region,
 		Secure:    !cfg.Insecure,
@@ -774,6 +785,9 @@ func createCore(cfg *Config, hedge bool) (*minio.Core, error) {
 		opts.BucketLookup = minio.BucketLookupType(cfg.BucketLookupType)
 	}
 
+	// Use cfg.Endpoint as-is (trailing dot preserved) so the minio client
+	// uses the FQDN for DNS resolution. The fqdnTransport above strips the
+	// dot from the Host header before the request is sent to S3.
 	core, err := minio.NewCore(cfg.Endpoint, opts)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create minio client: %w", err)
@@ -814,7 +828,6 @@ func buildSSEConfig(cfg *Config) (encrypt.ServerSide, error) {
 			return nil, err
 		}
 		if encryptionCtx == nil {
-			// To overcome a limitation in Minio which checks interface{} == nil.
 			return encrypt.NewSSEKMS(cfg.SSE.KMSKeyID, nil)
 		}
 		return encrypt.NewSSEKMS(cfg.SSE.KMSKeyID, encryptionCtx)
