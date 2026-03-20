@@ -1,5 +1,6 @@
 ## main / unreleased
 
+* [ENHANCEMENT] Use Go's `unique` package for process-wide string interning of low-cardinality parquet values (attribute keys, intrinsic fields) to reduce memory allocations during queries [#6746](https://github.com/grafana/tempo/pull/6746) (@mapno)
 * [BUGFIX] Fix integer overflow in query parameters by using `strconv.ParseUint` instead of `strconv.Atoi`/`strconv.ParseInt` for unsigned integer fields. [#6612](https://github.com/grafana/tempo/pull/6612) (@bejaratommy)
 * [CHANGE] **BREAKING CHANGE** Centralize block and WAL config: `block_builder` and `live_store` now always use `storage.trace.block` settings; per-module block config fields are removed. [#6647](https://github.com/grafana/tempo/pull/6647) (@stoewer)
 * [CHANGE] **BREAKING CHANGE** Remove Opencensus receiver [#6523](https://github.com/grafana/tempo/pull/6523) (@javiermolinar)

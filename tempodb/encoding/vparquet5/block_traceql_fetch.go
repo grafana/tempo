@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/grafana/tempo/pkg/parquetquery"
+	"github.com/grafana/tempo/pkg/parquetquery/intern"
 	"github.com/grafana/tempo/pkg/traceql"
 	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/tempodb/backend"
@@ -1033,7 +1034,7 @@ func (c *scopedAttributeCollector) Collect(res *parquetquery.IteratorResult, _ a
 		}
 		switch e.Key {
 		case "key":
-			c.at.a.Name = unsafeToString(e.Value.Bytes())
+			c.at.a.Name = intern.InternString(e.Value.Bytes())
 		case "string":
 			c.strBuffer = append(c.strBuffer, unsafeToString(e.Value.Bytes()))
 		case "int":
@@ -1336,9 +1337,9 @@ func (c *spanCollector2) Collect(res *parquetquery.IteratorResult, param any) {
 		// Trace-level columns:
 		// --------------------
 		case columnPathRootSpanName:
-			sp.traceAttrs = append(sp.traceAttrs, attrVal{traceql.IntrinsicTraceRootSpanAttribute, traceql.NewStaticString(unsafeToString(kv.Value.Bytes()))})
+			sp.traceAttrs = append(sp.traceAttrs, attrVal{traceql.IntrinsicTraceRootSpanAttribute, traceql.NewStaticString(intern.InternString(kv.Value.Bytes()))})
 		case columnPathRootServiceName:
-			sp.traceAttrs = append(sp.traceAttrs, attrVal{traceql.IntrinsicTraceRootServiceAttribute, traceql.NewStaticString(unsafeToString(kv.Value.Bytes()))})
+			sp.traceAttrs = append(sp.traceAttrs, attrVal{traceql.IntrinsicTraceRootServiceAttribute, traceql.NewStaticString(intern.InternString(kv.Value.Bytes()))})
 		case columnPathTraceID:
 			sp.traceAttrs = append(sp.traceAttrs, attrVal{traceql.IntrinsicTraceIDAttribute, traceql.NewStaticString(util.TraceIDToHexString(kv.Value.ByteArray()))})
 		case columnPathDurationNanos:
@@ -1371,11 +1372,11 @@ func (c *spanCollector2) Collect(res *parquetquery.IteratorResult, param any) {
 			sp.durationNanos = durationNanos
 			sp.addSpanAttr(traceql.IntrinsicDurationAttribute, traceql.NewStaticDuration(time.Duration(durationNanos)))
 		case ColumnPathSpanName:
-			sp.addSpanAttr(traceql.IntrinsicNameAttribute, traceql.NewStaticString(unsafeToString(kv.Value.Bytes())))
+			sp.addSpanAttr(traceql.IntrinsicNameAttribute, traceql.NewStaticString(intern.InternString(kv.Value.Bytes())))
 		case columnPathSpanStatusCode:
 			sp.addSpanAttr(traceql.IntrinsicStatusAttribute, traceql.NewStaticStatus(otlpStatusToTraceqlStatus(kv.Value.Uint64())))
 		case columnPathSpanStatusMessage:
-			sp.addSpanAttr(traceql.IntrinsicStatusMessageAttribute, traceql.NewStaticString(unsafeToString(kv.Value.Bytes())))
+			sp.addSpanAttr(traceql.IntrinsicStatusMessageAttribute, traceql.NewStaticString(intern.InternString(kv.Value.Bytes())))
 		case columnPathSpanKind:
 			sp.addSpanAttr(traceql.IntrinsicKindAttribute, traceql.NewStaticKind(otlpKindToTraceqlKind(kv.Value.Uint64())))
 		case columnPathSpanParentID:
@@ -1397,16 +1398,16 @@ func (c *spanCollector2) Collect(res *parquetquery.IteratorResult, param any) {
 		// Instrumentation-level columns:
 		// -------------------------
 		case columnPathInstrumentationName:
-			sp.instrumentationAttrs = append(sp.instrumentationAttrs, attrVal{traceql.IntrinsicInstrumentationNameAttribute, traceql.NewStaticString(unsafeToString(kv.Value.Bytes()))})
+			sp.instrumentationAttrs = append(sp.instrumentationAttrs, attrVal{traceql.IntrinsicInstrumentationNameAttribute, traceql.NewStaticString(intern.InternString(kv.Value.Bytes()))})
 		case columnPathInstrumentationVersion:
-			sp.instrumentationAttrs = append(sp.instrumentationAttrs, attrVal{traceql.IntrinsicInstrumentationVersionAttribute, traceql.NewStaticString(unsafeToString(kv.Value.Bytes()))})
+			sp.instrumentationAttrs = append(sp.instrumentationAttrs, attrVal{traceql.IntrinsicInstrumentationVersionAttribute, traceql.NewStaticString(intern.InternString(kv.Value.Bytes()))})
 		// -------------------------
 		// Resource-level columns:
 		// -------------------------
 		case ColumnPathResourceServiceName:
 			sp.resourceAttrs = append(sp.resourceAttrs, attrVal{
 				traceql.NewScopedAttribute(traceql.AttributeScopeResource, false, "service.name"),
-				traceql.NewStaticString(unsafeToString(kv.Value.Bytes())),
+				traceql.NewStaticString(intern.InternString(kv.Value.Bytes())),
 			})
 		default:
 			// Decomposed attributes from dedicated columns.

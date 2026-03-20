@@ -3200,7 +3200,7 @@ func (c *spanCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 			case parquet.Float:
 				sp.addSpanAttr(newSpanAttr(kv.Key), traceql.NewStaticFloat(kv.Value.Double()))
 			case parquet.ByteArray:
-				sp.addSpanAttr(newSpanAttr(kv.Key), traceql.NewStaticString(intern.InternString(kv.Value.Bytes())))
+				sp.addSpanAttr(newSpanAttr(kv.Key), traceql.NewStaticString(unsafeToString(kv.Value.Bytes())))
 			default:
 				// This is a null value, indicating the attribute doesn't exist
 				if kv.Value.IsNull() {
@@ -3362,7 +3362,7 @@ func (c *batchCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 		case parquet.Int64:
 			c.resAttrs = append(c.resAttrs, attrVal{newResAttr(e.Key), traceql.NewStaticInt(int(e.Value.Int64()))})
 		case parquet.ByteArray:
-			c.resAttrs = append(c.resAttrs, attrVal{newResAttr(e.Key), traceql.NewStaticString(intern.InternString(e.Value.Bytes()))})
+			c.resAttrs = append(c.resAttrs, attrVal{newResAttr(e.Key), traceql.NewStaticString(unsafeToString(e.Value.Bytes()))})
 		default:
 			// This is a null value, indicating the attribute doesn't exist
 			if e.Value.IsNull() {
@@ -3583,7 +3583,7 @@ func (c *attributeCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 			key = intern.InternString(e.Value.Bytes())
 
 		case "string":
-			c.strBuffer = append(c.strBuffer, intern.InternString(e.Value.Bytes()))
+			c.strBuffer = append(c.strBuffer, unsafeToString(e.Value.Bytes()))
 		case "int":
 			c.intBuffer = append(c.intBuffer, int(e.Value.Int64()))
 		case "float":

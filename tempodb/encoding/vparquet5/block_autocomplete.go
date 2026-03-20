@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/grafana/tempo/pkg/parquetquery"
+	"github.com/grafana/tempo/pkg/parquetquery/intern"
 	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 	"github.com/grafana/tempo/pkg/traceql"
 	"github.com/grafana/tempo/tempodb/backend"
@@ -1150,7 +1151,7 @@ func (d *distinctAttrCollector) KeepGroup(result *parquetquery.IteratorResult) b
 
 		if d.attrNames {
 			if e.Key == "key" {
-				name := unsafeToString(e.Value.ByteArray())
+				name := intern.InternString(e.Value.ByteArray())
 				key := tagNameKey{name: name, scope: d.scope}
 				if !d.existsTagName(key) {
 					result.AppendOtherValue(name, d.scope)
@@ -1224,7 +1225,7 @@ func (d distinctValueCollector) KeepGroup(result *parquetquery.IteratorResult) b
 func mapEventAttr(e entry) traceql.Static {
 	switch e.Key {
 	case ColumnPathEventName:
-		return traceql.NewStaticString(unsafeToString(e.Value.ByteArray()))
+		return traceql.NewStaticString(intern.InternString(e.Value.ByteArray()))
 	default:
 		// This exists for event-level dedicated columns
 		switch e.Value.Kind() {
@@ -1256,7 +1257,7 @@ func mapSpanAttr(e entry) traceql.Static {
 	case columnPathSpanDuration:
 		return traceql.NewStaticDuration(time.Duration(e.Value.Int64()))
 	case ColumnPathSpanName:
-		return traceql.NewStaticString(unsafeToString(e.Value.ByteArray()))
+		return traceql.NewStaticString(intern.InternString(e.Value.ByteArray()))
 	case columnPathSpanStatusCode:
 		// Map OTLP status code back to TraceQL enum.
 		// For other values, use the raw integer.
@@ -1273,7 +1274,7 @@ func mapSpanAttr(e entry) traceql.Static {
 		}
 		return traceql.NewStaticStatus(status)
 	case columnPathSpanStatusMessage:
-		return traceql.NewStaticString(unsafeToString(e.Value.ByteArray()))
+		return traceql.NewStaticString(intern.InternString(e.Value.ByteArray()))
 	case columnPathSpanKind:
 		var kind traceql.Kind
 		switch e.Value.Uint64() {
@@ -1312,7 +1313,7 @@ func mapSpanAttr(e entry) traceql.Static {
 func mapInstrumentationAttr(e entry) traceql.Static {
 	switch e.Key {
 	case columnPathInstrumentationName, columnPathInstrumentationVersion:
-		return traceql.NewStaticString(unsafeToString(e.Value.ByteArray()))
+		return traceql.NewStaticString(intern.InternString(e.Value.ByteArray()))
 	}
 	return traceql.Static{}
 }
@@ -1338,9 +1339,9 @@ func mapTraceAttr(e entry) traceql.Static {
 	case columnPathDurationNanos:
 		return traceql.NewStaticDuration(time.Duration(e.Value.Int64()))
 	case columnPathRootSpanName:
-		return traceql.NewStaticString(unsafeToString(e.Value.ByteArray()))
+		return traceql.NewStaticString(intern.InternString(e.Value.ByteArray()))
 	case columnPathRootServiceName:
-		return traceql.NewStaticString(unsafeToString(e.Value.ByteArray()))
+		return traceql.NewStaticString(intern.InternString(e.Value.ByteArray()))
 	}
 	return traceql.NewStaticNil()
 }
