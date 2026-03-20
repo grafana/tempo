@@ -39,14 +39,14 @@ type perTenantOverrides struct {
 // newFormatOverridesKeys is the complete set of valid top-level YAML keys for an Overrides value
 // in the new per-tenant overrides format. Any key outside this set indicates a legacy flat-format entry.
 var newFormatOverridesKeys = map[string]bool{
-	"ingestion":        true,
-	"read":             true,
-	"compaction":       true,
+	"ingestion":         true,
+	"read":              true,
+	"compaction":        true,
 	"metrics_generator": true,
-	"forwarders":       true,
-	"global":           true,
-	"storage":          true,
-	"cost_attribution": true,
+	"forwarders":        true,
+	"global":            true,
+	"storage":           true,
+	"cost_attribution":  true,
 }
 
 // isLegacyPerTenantOverridesNode inspects the YAML node for the per-tenant overrides config and
