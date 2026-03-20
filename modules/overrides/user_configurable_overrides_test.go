@@ -34,10 +34,12 @@ const (
 
 func TestUserConfigOverridesManager(t *testing.T) {
 	defaultLimits := Overrides{
-		Global: GlobalOverrides{
-			MaxBytesPerTrace: 1024,
+		baseOverrides: baseOverrides{
+			Global: GlobalOverrides{
+				MaxBytesPerTrace: 1024,
+			},
+			Forwarders: []string{"my-forwarder"},
 		},
-		Forwarders: []string{"my-forwarder"},
 	}
 	_, mgr, cleanup := localUserConfigOverrides(t, defaultLimits, nil)
 	defer cleanup()
@@ -230,8 +232,10 @@ func TestUserConfigOverridesManager_allFields(t *testing.T) {
 
 func TestUserConfigOverridesManager_MetricsGeneratorSpanNameSanitization(t *testing.T) {
 	defaultLimits := Overrides{
-		MetricsGenerator: MetricsGeneratorOverrides{
-			SpanNameSanitization: "disabled",
+		baseOverrides: baseOverrides{
+			MetricsGenerator: MetricsGeneratorOverrides{
+				SpanNameSanitization: "disabled",
+			},
 		},
 	}
 	_, mgr, cleanup := localUserConfigOverrides(t, defaultLimits, nil)
@@ -273,7 +277,9 @@ func TestUserConfigOverridesManager_MetricsGeneratorSpanNameSanitization(t *test
 
 func TestUserConfigOverridesManager_populateFromBackend(t *testing.T) {
 	defaultLimits := Overrides{
-		Forwarders: []string{"my-forwarder"},
+		baseOverrides: baseOverrides{
+			Forwarders: []string{"my-forwarder"},
+		},
 	}
 	tempDir, mgr, cleanup := localUserConfigOverrides(t, defaultLimits, nil)
 	defer cleanup()
@@ -295,7 +301,9 @@ func TestUserConfigOverridesManager_populateFromBackend(t *testing.T) {
 
 func TestUserConfigOverridesManager_deletedFromBackend(t *testing.T) {
 	defaultLimits := Overrides{
-		Forwarders: []string{"my-forwarder"},
+		baseOverrides: baseOverrides{
+			Forwarders: []string{"my-forwarder"},
+		},
 	}
 	tempDir, mgr, cleanup := localUserConfigOverrides(t, defaultLimits, nil)
 	defer cleanup()
@@ -322,7 +330,9 @@ func TestUserConfigOverridesManager_deletedFromBackend(t *testing.T) {
 
 func TestUserConfigOverridesManager_backendUnavailable(t *testing.T) {
 	defaultLimits := Overrides{
-		Forwarders: []string{"my-forwarder"},
+		baseOverrides: baseOverrides{
+			Forwarders: []string{"my-forwarder"},
+		},
 	}
 	_, mgr, cleanup := localUserConfigOverrides(t, defaultLimits, nil)
 	defer cleanup()
@@ -346,7 +356,7 @@ func TestUserConfigOverridesManager_backendUnavailable(t *testing.T) {
 }
 
 func TestUserConfigOverridesManager_WriteStatusRuntimeConfig(t *testing.T) {
-	bl := Overrides{Forwarders: []string{"my-forwarder"}}
+	bl := Overrides{baseOverrides: baseOverrides{Forwarders: []string{"my-forwarder"}}}
 	_, configurableOverrides, cleanup := localUserConfigOverrides(t, bl, nil)
 	defer cleanup()
 
@@ -587,6 +597,7 @@ func perTenantRuntimeOverrides(tenantID string) *perTenantOverrides {
 	pto := &perTenantOverrides{
 		TenantLimits: map[string]*Overrides{
 			tenantID: {
+				baseOverrides: baseOverrides{
 				Ingestion: IngestionOverrides{
 					RateStrategy:           LocalIngestionRateStrategy,
 					RateLimitBytes:         400,
@@ -643,6 +654,7 @@ func perTenantRuntimeOverrides(tenantID string) *perTenantOverrides {
 						{Scope: "resource", Name: "dedicated.resource.foo", Type: "string"},
 						{Scope: "span", Name: "dedicated.span.bar", Type: "string"},
 					},
+				},
 				},
 			},
 		},

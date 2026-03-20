@@ -24,7 +24,7 @@ func TestRegisterExtension_TypedGetter(t *testing.T) {
 
 	fieldB := 99
 	o := Overrides{
-		Extensions: map[string]any{"test_extension": &testExtension{FieldA: "hello", FieldB: &fieldB}},
+		Extensions: map[string]Extension{"test_extension": &testExtension{FieldA: "hello", FieldB: &fieldB}},
 	}
 	ext := get(&o)
 	require.NotNil(t, ext)
@@ -44,7 +44,7 @@ func TestOverridesExtension_MarshalJSON(t *testing.T) {
 		fieldB := 42
 		o := Overrides{}
 		o.Ingestion.MaxLocalTracesPerUser = 1000
-		o.Extensions = map[string]any{
+		o.Extensions = map[string]Extension{
 			"test_extension": &testExtension{FieldA: "custom", FieldB: &fieldB},
 		}
 
@@ -68,7 +68,7 @@ func TestOverridesExtension_MarshalJSON(t *testing.T) {
 		fieldB := 7
 		o := Overrides{}
 		o.Ingestion.MaxLocalTracesPerUser = 500
-		o.Extensions = map[string]any{
+		o.Extensions = map[string]Extension{
 			"test_extension": &testExtension{FieldA: "flat_val", FieldB: &fieldB},
 		}
 		l := o.toLegacy()
@@ -178,7 +178,7 @@ func TestOverridesExtension_MarshalYAML(t *testing.T) {
 		fieldB := 3
 		o := Overrides{}
 		o.Ingestion.MaxLocalTracesPerUser = 1000
-		o.Extensions = map[string]any{
+		o.Extensions = map[string]Extension{
 			"test_extension": &testExtension{FieldA: "yaml_val", FieldB: &fieldB},
 		}
 
@@ -206,7 +206,7 @@ func TestOverridesExtension_MarshalYAML(t *testing.T) {
 		fieldB := 8
 		o := Overrides{}
 		o.Ingestion.MaxLocalTracesPerUser = 500
-		o.Extensions = map[string]any{
+		o.Extensions = map[string]Extension{
 			"test_extension": &testExtension{FieldA: "legacy_yaml", FieldB: &fieldB},
 		}
 		l := o.toLegacy()
@@ -296,7 +296,10 @@ test_extension_field_a: from_legacy_yaml
 		// toNewLimits copies typed extensions; processExtensions validates them.
 		o, err := l.toNewLimits()
 		require.NoError(t, err)
-		require.NoError(t, processExtensions(&o))
+		for _, ext := range o.Extensions {
+			err = ext.Validate()
+			require.NoError(t, err)
+		}
 
 		ext := get(&o)
 		require.NotNil(t, ext)
@@ -365,7 +368,7 @@ func TestExtension_JSONRoundTrip_Overrides(t *testing.T) {
 	fieldB := 13
 	o := Overrides{}
 	o.Ingestion.MaxLocalTracesPerUser = 777
-	o.Extensions = map[string]any{
+	o.Extensions = map[string]Extension{
 		"test_extension": &testExtension{FieldA: "json_rt", FieldB: &fieldB},
 	}
 
@@ -389,7 +392,7 @@ func TestExtension_LegacyConversionRoundTrip(t *testing.T) {
 	fieldB := 21
 	// Build an Overrides with a typed extension, convert to legacy and back.
 	o := Overrides{}
-	o.Extensions = map[string]any{
+	o.Extensions = map[string]Extension{
 		"test_extension": &testExtension{FieldA: "converted", FieldB: &fieldB},
 	}
 	l := o.toLegacy()
@@ -411,7 +414,10 @@ func TestExtension_LegacyConversionRoundTrip(t *testing.T) {
 	// Round-trip through toNewLimits recovers the typed extension.
 	o2, err := l.toNewLimits()
 	require.NoError(t, err)
-	require.NoError(t, processExtensions(&o2))
+	for _, ext := range o2.Extensions {
+		err = ext.Validate()
+		require.NoError(t, err)
+	}
 
 	ext := get(&o2)
 	require.NotNil(t, ext)

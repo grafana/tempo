@@ -578,31 +578,41 @@ lbac_mode: mode_spans
 }
 
 func TestLegacyToNewLimits_ExtraPreserved(t *testing.T) {
-	// Unregistered flat keys are tolerated by processLegacyExtensions (passed through as-is) and
-	// survive toNewLimits. Strict rejection happens later in processExtensions on the converted Overrides.
+	// Unregistered flat keys are tolerated by processLegacyExtensions (passed through as-is in
+	// l.Extensions), but are dropped by toNewLimits() since Overrides.Extensions only holds
+	// typed Extension instances.
 	input := `
 max_traces_per_user: 500
 lbac_mode: mode_spans
 `
 	var l LegacyOverrides
 	require.NoError(t, yaml.Unmarshal([]byte(input), &l))
+	// The unregistered key stays as a raw value in LegacyOverrides.Extensions.
 	require.Equal(t, "mode_spans", l.Extensions["lbac_mode"])
 
 	o, err := l.toNewLimits()
 	require.NoError(t, err)
 	assert.Equal(t, 500, o.Ingestion.MaxLocalTracesPerUser)
-	assert.Equal(t, "mode_spans", o.Extensions["lbac_mode"], "Extensions must survive toNewLimits()")
+	// Unregistered flat keys are dropped during conversion; Overrides.Extensions is typed.
+	assert.Empty(t, o.Extensions, "unregistered flat keys must not survive toNewLimits()")
 }
 
 func TestToLegacy_ExtraPreserved(t *testing.T) {
-	o := Overrides{
-		Extensions: map[string]any{"lbac_mode": "mode_spans"},
-	}
+	ResetRegistryForTesting(t)
+	getter := RegisterExtension(&testExtension{})
+
+	fieldB := 42
+	ext := &testExtension{FieldA: "mode_spans", FieldB: &fieldB}
+	var o Overrides
 	o.Ingestion.MaxLocalTracesPerUser = 500
+	o.Extensions = map[string]Extension{"test_extension": ext}
 
 	l := o.toLegacy()
 	assert.Equal(t, 500, l.MaxLocalTracesPerUser)
-	assert.Equal(t, "mode_spans", l.Extensions["lbac_mode"], "Extensions must survive toLegacy()")
+	// The typed Extension instance is stored in l.Extensions under its nested key.
+	assert.Equal(t, ext, l.Extensions["test_extension"], "Extension must survive toLegacy()")
+	// The getter still works on the original Overrides.
+	assert.Equal(t, ext, getter(&o))
 }
 
 // Helper function to create ListToMap

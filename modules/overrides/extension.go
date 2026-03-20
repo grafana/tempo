@@ -81,27 +81,21 @@ func RegisterExtension[T Extension](e T) func(*Overrides) T {
 
 // processExtensions validates all entries in o.Extensions against the registry, converts raw
 // decoded values (from YAML or JSON) to typed Extension instances, applies defaults, and
-// calls Validate on each. It is idempotent: already-typed entries are only re-validated.
-func processExtensions(o *Overrides) error {
-	if len(o.Extensions) == 0 {
-		return nil
+// calls Validate on each.
+func processExtensions(extensions map[string]any) (map[string]Extension, error) {
+	if len(extensions) == 0 {
+		return nil, nil
 	}
 
 	extensionRegistry.RLock()
 	defer extensionRegistry.RUnlock()
 
-	for key, raw := range o.Extensions {
+	processed := make(map[string]Extension, len(extensions))
+
+	for key, raw := range extensions {
 		entry, ok := extensionRegistry.entries[key]
 		if !ok {
-			return fmt.Errorf("unknown extension key %q: must be registered via RegisterExtension before use", key)
-		}
-
-		// Already a typed Extension (e.g., set programmatically or after legacy conversion): just validate.
-		if ext, alreadyTyped := raw.(Extension); alreadyTyped {
-			if err := ext.Validate(); err != nil {
-				return fmt.Errorf("extension %q: %w", key, err)
-			}
-			continue
+			return nil, fmt.Errorf("unknown extension key %q: must be registered via RegisterExtension before use", key)
 		}
 
 		// Create a new instance and apply defaults.
@@ -112,19 +106,20 @@ func processExtensions(o *Overrides) error {
 		// Decode via JSON round-trip, which also normalises map[any]any from YAML.
 		b, err := json.Marshal(normalizeYAMLValue(raw))
 		if err != nil {
-			return fmt.Errorf("extension %q: marshal: %w", key, err)
+			return nil, fmt.Errorf("extension %q: marshal: %w", key, err)
 		}
 		if err := json.Unmarshal(b, instance); err != nil {
-			return fmt.Errorf("extension %q: unmarshal: %w", key, err)
+			return nil, fmt.Errorf("extension %q: unmarshal: %w", key, err)
 		}
 
 		if err := instance.Validate(); err != nil {
-			return fmt.Errorf("extension %q: %w", key, err)
+			return nil, fmt.Errorf("extension %q: %w", key, err)
 		}
 
-		o.Extensions[key] = instance
+		processed[key] = instance
 	}
-	return nil
+
+	return processed, nil
 }
 
 // processLegacyExtensions converts registered extension flat keys in l.Extensions to typed
@@ -182,7 +177,6 @@ func processLegacyExtensions(l *LegacyOverrides) error {
 	}
 	return nil
 }
-
 
 // flattenExtensionEntries returns a new map where typed Extension values are replaced by their
 // flat legacy key-value pairs (via ToLegacy). Non-Extension entries are copied as-is.

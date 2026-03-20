@@ -372,15 +372,17 @@ func TestUserConfigOverridesAPI_assertConflictingRuntimeOverrides(t *testing.T) 
 		{
 			name:                                "No conflicting runtime overrides",
 			checkForConflictingRuntimeOverrides: true,
-			defaultOverrides: overrides.Overrides{
-				Ingestion: overrides.IngestionOverrides{
+			defaultOverrides: func() overrides.Overrides {
+				var o overrides.Overrides
+				o.Ingestion = overrides.IngestionOverrides{
 					RateStrategy: overrides.GlobalIngestionRateStrategy,
-				},
-				MetricsGenerator: overrides.MetricsGeneratorOverrides{
+				}
+				o.MetricsGenerator = overrides.MetricsGeneratorOverrides{
 					// processors is ignored when checking for conflicting fields since we merge this field
 					Processors: map[string]struct{}{"service-graphs": {}},
-				},
-			},
+				}
+				return o
+			}(),
 			userConfigOverrides: nil,
 			request: &client.Limits{
 				MetricsGenerator: client.LimitsMetricsGenerator{
@@ -394,12 +396,14 @@ func TestUserConfigOverridesAPI_assertConflictingRuntimeOverrides(t *testing.T) 
 		{
 			name:                                "Conflicting runtime overrides",
 			checkForConflictingRuntimeOverrides: true,
-			defaultOverrides: overrides.Overrides{
-				MetricsGenerator: overrides.MetricsGeneratorOverrides{
+			defaultOverrides: func() overrides.Overrides {
+				var o overrides.Overrides
+				o.MetricsGenerator = overrides.MetricsGeneratorOverrides{
 					Processors:         map[string]struct{}{"service-graphs": {}},
 					CollectionInterval: 15 * time.Second,
-				},
-			},
+				}
+				return o
+			}(),
 			userConfigOverrides: nil,
 			request: &client.Limits{
 				MetricsGenerator: client.LimitsMetricsGenerator{
@@ -412,11 +416,13 @@ func TestUserConfigOverridesAPI_assertConflictingRuntimeOverrides(t *testing.T) 
 		{
 			name:                                "Conflicting runtime overrides but check disabled",
 			checkForConflictingRuntimeOverrides: false,
-			defaultOverrides: overrides.Overrides{
-				MetricsGenerator: overrides.MetricsGeneratorOverrides{
+			defaultOverrides: func() overrides.Overrides {
+				var o overrides.Overrides
+				o.MetricsGenerator = overrides.MetricsGeneratorOverrides{
 					CollectionInterval: 15 * time.Second,
-				},
-			},
+				}
+				return o
+			}(),
 			userConfigOverrides: nil,
 			request: &client.Limits{
 				MetricsGenerator: client.LimitsMetricsGenerator{
@@ -430,12 +436,14 @@ func TestUserConfigOverridesAPI_assertConflictingRuntimeOverrides(t *testing.T) 
 		{
 			name:                                "Conflicting runtime overrides but skip check",
 			checkForConflictingRuntimeOverrides: true,
-			defaultOverrides: overrides.Overrides{
-				MetricsGenerator: overrides.MetricsGeneratorOverrides{
+			defaultOverrides: func() overrides.Overrides {
+				var o overrides.Overrides
+				o.MetricsGenerator = overrides.MetricsGeneratorOverrides{
 					Processors:         map[string]struct{}{"service-graphs": {}},
 					CollectionInterval: 15 * time.Second,
-				},
-			},
+				}
+				return o
+			}(),
 			userConfigOverrides: nil,
 			request: &client.Limits{
 				MetricsGenerator: client.LimitsMetricsGenerator{
@@ -449,12 +457,14 @@ func TestUserConfigOverridesAPI_assertConflictingRuntimeOverrides(t *testing.T) 
 		{
 			name:                                "Conflicting runtime overrides but already has user-config overiddes",
 			checkForConflictingRuntimeOverrides: true,
-			defaultOverrides: overrides.Overrides{
-				MetricsGenerator: overrides.MetricsGeneratorOverrides{
+			defaultOverrides: func() overrides.Overrides {
+				var o overrides.Overrides
+				o.MetricsGenerator = overrides.MetricsGeneratorOverrides{
 					Processors:         map[string]struct{}{"service-graphs": {}},
 					CollectionInterval: 15 * time.Second,
-				},
-			},
+				}
+				return o
+			}(),
 			userConfigOverrides: &client.Limits{
 				MetricsGenerator: client.LimitsMetricsGenerator{
 					CollectionInterval: &client.Duration{Duration: 30 * time.Second},
@@ -471,12 +481,14 @@ func TestUserConfigOverridesAPI_assertConflictingRuntimeOverrides(t *testing.T) 
 		{
 			name:                                "Invalid skip check parameter",
 			checkForConflictingRuntimeOverrides: true,
-			defaultOverrides: overrides.Overrides{
-				MetricsGenerator: overrides.MetricsGeneratorOverrides{
+			defaultOverrides: func() overrides.Overrides {
+				var o overrides.Overrides
+				o.MetricsGenerator = overrides.MetricsGeneratorOverrides{
 					Processors:         map[string]struct{}{"service-graphs": {}},
 					CollectionInterval: 15 * time.Second,
-				},
-			},
+				}
+				return o
+			}(),
 			userConfigOverrides: nil,
 			request: &client.Limits{
 				MetricsGenerator: client.LimitsMetricsGenerator{

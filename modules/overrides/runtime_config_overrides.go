@@ -59,18 +59,18 @@ func (o *perTenantOverrides) UnmarshalYAML(unmarshal func(interface{}) error) er
 	*o = newOverrides
 	o.ConfigType = ConfigTypeLegacy
 
-	for tenantID, limits := range o.TenantLimits {
-		if limits == nil {
-			continue
-		}
-		if err := processExtensions(limits); err != nil {
-			return fmt.Errorf("tenant %q: %w", tenantID, err)
-		}
-	}
+	// TODO(adrian) is this needed
+	//for tenantID, limits := range o.TenantLimits {
+	//	if limits == nil {
+	//		continue
+	//	}
+	//	if err := processExtensions(limits); err != nil {
+	//		return fmt.Errorf("tenant %q: %w", tenantID, err)
+	//	}
+	//}
 
 	return nil
 }
-
 
 // forUser returns limits for a given tenant, or nil if there are no tenant-specific limits.
 func (o *perTenantOverrides) forUser(userID string) *Overrides {

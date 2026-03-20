@@ -190,7 +190,6 @@ var knownLegacyOverridesJSONFields = sync.OnceValue(func() map[string]struct{} {
 	return fieldNamesFor(LegacyOverrides{}, "json")
 })
 
-
 func (l *LegacyOverrides) UnmarshalJSON(data []byte) error {
 	type plain LegacyOverrides
 	if err := json.Unmarshal(data, (*plain)(l)); err != nil {
@@ -288,96 +287,102 @@ func (l LegacyOverrides) MarshalYAML() (interface{}, error) {
 
 func (l *LegacyOverrides) toNewLimits() (Overrides, error) {
 	o := Overrides{
-		Ingestion: IngestionOverrides{
-			RateStrategy:           l.IngestionRateStrategy,
-			RateLimitBytes:         l.IngestionRateLimitBytes,
-			BurstSizeBytes:         l.IngestionBurstSizeBytes,
-			MaxLocalTracesPerUser:  l.MaxLocalTracesPerUser,
-			MaxGlobalTracesPerUser: l.MaxGlobalTracesPerUser,
-			TenantShardSize:        l.IngestionTenantShardSize,
-			MaxAttributeBytes:      l.IngestionMaxAttributeBytes,
-			ArtificialDelay:        l.IngestionArtificialDelay,
-			RetryInfoEnabled:       l.IngestionRetryInfoEnabled,
-		},
-		Read: ReadOverrides{
-			MaxBytesPerTagValuesQuery:  l.MaxBytesPerTagValuesQuery,
-			MaxBlocksPerTagValuesQuery: l.MaxBlocksPerTagValuesQuery,
-			MaxSearchDuration:          l.MaxSearchDuration,
-			MaxMetricsDuration:         l.MaxMetricsDuration,
-			UnsafeQueryHints:           l.UnsafeQueryHints,
-			LeftPadTraceIDs:            l.LeftPadTraceIDs,
-		},
-		Compaction: CompactionOverrides{
-			BlockRetention:     l.BlockRetention,
-			CompactionDisabled: l.CompactionDisabled,
-			CompactionWindow:   l.CompactionWindow,
-		},
-		MetricsGenerator: MetricsGeneratorOverrides{
-			RingSize:                 l.MetricsGeneratorRingSize,
-			Processors:               l.MetricsGeneratorProcessors,
-			MaxActiveSeries:          l.MetricsGeneratorMaxActiveSeries,
-			MaxActiveEntities:        l.MetricsGeneratorMaxActiveEntities,
-			CollectionInterval:       l.MetricsGeneratorCollectionInterval,
-			DisableCollection:        l.MetricsGeneratorDisableCollection,
-			TraceIDLabelName:         l.MetricsGeneratorTraceIDLabelName,
-			IngestionSlack:           l.MetricsGeneratorIngestionSlack,
-			RemoteWriteHeaders:       l.MetricsGeneratorRemoteWriteHeaders,
-			GenerateNativeHistograms: l.MetricsGeneratorGenerateNativeHistograms,
-			Forwarder: ForwarderOverrides{
-				QueueSize: l.MetricsGeneratorForwarderQueueSize,
-				Workers:   l.MetricsGeneratorForwarderWorkers,
+		baseOverrides: baseOverrides{
+			Ingestion: IngestionOverrides{
+				RateStrategy:           l.IngestionRateStrategy,
+				RateLimitBytes:         l.IngestionRateLimitBytes,
+				BurstSizeBytes:         l.IngestionBurstSizeBytes,
+				MaxLocalTracesPerUser:  l.MaxLocalTracesPerUser,
+				MaxGlobalTracesPerUser: l.MaxGlobalTracesPerUser,
+				TenantShardSize:        l.IngestionTenantShardSize,
+				MaxAttributeBytes:      l.IngestionMaxAttributeBytes,
+				ArtificialDelay:        l.IngestionArtificialDelay,
+				RetryInfoEnabled:       l.IngestionRetryInfoEnabled,
 			},
-			Processor: ProcessorOverrides{
-				ServiceGraphs: ServiceGraphsOverrides{
-					HistogramBuckets:                      l.MetricsGeneratorProcessorServiceGraphsHistogramBuckets,
-					Dimensions:                            l.MetricsGeneratorProcessorServiceGraphsDimensions,
-					PeerAttributes:                        l.MetricsGeneratorProcessorServiceGraphsPeerAttributes,
-					FilterPolicies:                        l.MetricsGeneratorProcessorServiceGraphsFilterPolicies,
-					EnableClientServerPrefix:              l.MetricsGeneratorProcessorServiceGraphsEnableClientServerPrefix,
-					EnableMessagingSystemLatencyHistogram: l.MetricsGeneratorProcessorServiceGraphsEnableMessagingSystemLatencyHistogram,
-					EnableVirtualNodeLabel:                l.MetricsGeneratorProcessorServiceGraphsEnableVirtualNodeLabel,
-					SpanMultiplierKey:                     l.MetricsGeneratorProcessorServiceGraphsSpanMultiplierKey,
-				},
-				SpanMetrics: SpanMetricsOverrides{
-					HistogramBuckets:             l.MetricsGeneratorProcessorSpanMetricsHistogramBuckets,
-					Dimensions:                   l.MetricsGeneratorProcessorSpanMetricsDimensions,
-					IntrinsicDimensions:          l.MetricsGeneratorProcessorSpanMetricsIntrinsicDimensions,
-					FilterPolicies:               l.MetricsGeneratorProcessorSpanMetricsFilterPolicies,
-					DimensionMappings:            l.MetricsGeneratorProcessorSpanMetricsDimensionMappings,
-					EnableTargetInfo:             l.MetricsGeneratorProcessorSpanMetricsEnableTargetInfo,
-					TargetInfoExcludedDimensions: l.MetricsGeneratorProcessorSpanMetricsTargetInfoExcludedDimensions,
-					EnableInstanceLabel:          l.MetricsGeneratorProcessorSpanMetricsEnableInstanceLabel,
-					SpanMultiplierKey:            l.MetricsGeneratorProcessorSpanMetricsSpanMultiplierKey,
-				},
-				HostInfo: HostInfoOverrides{
-					HostIdentifiers: l.MetricsGeneratorProcessorHostInfoHostIdentifiers,
-					MetricName:      l.MetricsGeneratorProcessorHostInfoMetricName,
-				},
+			Read: ReadOverrides{
+				MaxBytesPerTagValuesQuery:  l.MaxBytesPerTagValuesQuery,
+				MaxBlocksPerTagValuesQuery: l.MaxBlocksPerTagValuesQuery,
+				MaxSearchDuration:          l.MaxSearchDuration,
+				MaxMetricsDuration:         l.MaxMetricsDuration,
+				UnsafeQueryHints:           l.UnsafeQueryHints,
+				LeftPadTraceIDs:            l.LeftPadTraceIDs,
 			},
-			NativeHistogramBucketFactor:     l.MetricsGeneratorNativeHistogramBucketFactor,
-			NativeHistogramMaxBucketNumber:  l.MetricsGeneratorNativeHistogramMaxBucketNumber,
-			NativeHistogramMinResetDuration: l.MetricsGeneratorNativeHistogramMinResetDuration,
-			SpanNameSanitization:            l.MetricsGeneratorSpanNameSanitization,
-			MaxCardinalityPerLabel:          l.MetricsGeneratorMaxCardinalityPerLabel,
-		},
-		Forwarders: l.Forwarders,
-		Global: GlobalOverrides{
-			MaxBytesPerTrace: l.MaxBytesPerTrace,
-		},
-		Storage: StorageOverrides{
-			DedicatedColumns: l.DedicatedColumns,
-		},
-		CostAttribution: CostAttributionOverrides{
-			Dimensions:     l.CostAttribution.Dimensions,
-			MaxCardinality: l.CostAttribution.MaxCardinality,
+			Compaction: CompactionOverrides{
+				BlockRetention:     l.BlockRetention,
+				CompactionDisabled: l.CompactionDisabled,
+				CompactionWindow:   l.CompactionWindow,
+			},
+			MetricsGenerator: MetricsGeneratorOverrides{
+				RingSize:                 l.MetricsGeneratorRingSize,
+				Processors:               l.MetricsGeneratorProcessors,
+				MaxActiveSeries:          l.MetricsGeneratorMaxActiveSeries,
+				MaxActiveEntities:        l.MetricsGeneratorMaxActiveEntities,
+				CollectionInterval:       l.MetricsGeneratorCollectionInterval,
+				DisableCollection:        l.MetricsGeneratorDisableCollection,
+				TraceIDLabelName:         l.MetricsGeneratorTraceIDLabelName,
+				IngestionSlack:           l.MetricsGeneratorIngestionSlack,
+				RemoteWriteHeaders:       l.MetricsGeneratorRemoteWriteHeaders,
+				GenerateNativeHistograms: l.MetricsGeneratorGenerateNativeHistograms,
+				Forwarder: ForwarderOverrides{
+					QueueSize: l.MetricsGeneratorForwarderQueueSize,
+					Workers:   l.MetricsGeneratorForwarderWorkers,
+				},
+				Processor: ProcessorOverrides{
+					ServiceGraphs: ServiceGraphsOverrides{
+						HistogramBuckets:                      l.MetricsGeneratorProcessorServiceGraphsHistogramBuckets,
+						Dimensions:                            l.MetricsGeneratorProcessorServiceGraphsDimensions,
+						PeerAttributes:                        l.MetricsGeneratorProcessorServiceGraphsPeerAttributes,
+						FilterPolicies:                        l.MetricsGeneratorProcessorServiceGraphsFilterPolicies,
+						EnableClientServerPrefix:              l.MetricsGeneratorProcessorServiceGraphsEnableClientServerPrefix,
+						EnableMessagingSystemLatencyHistogram: l.MetricsGeneratorProcessorServiceGraphsEnableMessagingSystemLatencyHistogram,
+						EnableVirtualNodeLabel:                l.MetricsGeneratorProcessorServiceGraphsEnableVirtualNodeLabel,
+						SpanMultiplierKey:                     l.MetricsGeneratorProcessorServiceGraphsSpanMultiplierKey,
+					},
+					SpanMetrics: SpanMetricsOverrides{
+						HistogramBuckets:             l.MetricsGeneratorProcessorSpanMetricsHistogramBuckets,
+						Dimensions:                   l.MetricsGeneratorProcessorSpanMetricsDimensions,
+						IntrinsicDimensions:          l.MetricsGeneratorProcessorSpanMetricsIntrinsicDimensions,
+						FilterPolicies:               l.MetricsGeneratorProcessorSpanMetricsFilterPolicies,
+						DimensionMappings:            l.MetricsGeneratorProcessorSpanMetricsDimensionMappings,
+						EnableTargetInfo:             l.MetricsGeneratorProcessorSpanMetricsEnableTargetInfo,
+						TargetInfoExcludedDimensions: l.MetricsGeneratorProcessorSpanMetricsTargetInfoExcludedDimensions,
+						EnableInstanceLabel:          l.MetricsGeneratorProcessorSpanMetricsEnableInstanceLabel,
+						SpanMultiplierKey:            l.MetricsGeneratorProcessorSpanMetricsSpanMultiplierKey,
+					},
+					HostInfo: HostInfoOverrides{
+						HostIdentifiers: l.MetricsGeneratorProcessorHostInfoHostIdentifiers,
+						MetricName:      l.MetricsGeneratorProcessorHostInfoMetricName,
+					},
+				},
+				NativeHistogramBucketFactor:     l.MetricsGeneratorNativeHistogramBucketFactor,
+				NativeHistogramMaxBucketNumber:  l.MetricsGeneratorNativeHistogramMaxBucketNumber,
+				NativeHistogramMinResetDuration: l.MetricsGeneratorNativeHistogramMinResetDuration,
+				SpanNameSanitization:            l.MetricsGeneratorSpanNameSanitization,
+				MaxCardinalityPerLabel:          l.MetricsGeneratorMaxCardinalityPerLabel,
+			},
+			Forwarders: l.Forwarders,
+			Global: GlobalOverrides{
+				MaxBytesPerTrace: l.MaxBytesPerTrace,
+			},
+			Storage: StorageOverrides{
+				DedicatedColumns: l.DedicatedColumns,
+			},
+			CostAttribution: CostAttributionOverrides{
+				Dimensions:     l.CostAttribution.Dimensions,
+				MaxCardinality: l.CostAttribution.MaxCardinality,
+			},
 		},
 	}
+
 	// Extensions are already typed instances after processLegacyExtensions ran at unmarshal time.
-	// Simply copy them; processExtensions called by the caller will validate them.
-	if len(l.Extensions) > 0 {
-		o.Extensions = make(map[string]any, len(l.Extensions))
-		for k, v := range l.Extensions {
-			o.Extensions[k] = v
+	// Simply copy them; unregistered flat keys (not converted by processLegacyExtensions) are dropped
+	// since Overrides.Extensions can only hold typed Extension instances.
+	for k, v := range l.Extensions {
+		if ext, ok := v.(Extension); ok {
+			if o.Extensions == nil {
+				o.Extensions = make(map[string]Extension, len(l.Extensions))
+			}
+			o.Extensions[k] = ext
 		}
 	}
 	return o, nil
