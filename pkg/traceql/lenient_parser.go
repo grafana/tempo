@@ -7,17 +7,6 @@ import (
 	"text/scanner"
 )
 
-// tokenReprMap is the reverse of tokenMap: token type → string representation.
-// Pre-computed to avoid O(n) linear scans in tokenRepr during query rebuilding.
-var tokenReprMap map[int]string
-
-func init() {
-	tokenReprMap = make(map[int]string, len(tokenMap))
-	for str, tok := range tokenMap {
-		tokenReprMap[tok] = str
-	}
-}
-
 // ParseLenient attempts to parse a query string. If parsing succeeds, the result
 // is returned as-is. If parsing fails (e.g. due to incomplete matchers like `.foo=`),
 // it removes the comparison operator from incomplete matchers, leaving just the
