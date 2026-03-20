@@ -17,10 +17,9 @@ import (
 func Test_limitsFromOverrides(t *testing.T) {
 	userID := "foo"
 
-	cfg := overrides.Config{
-		Defaults: overrides.Overrides{
-			Forwarders: []string{"my-forwarder"},
-			MetricsGenerator: overrides.MetricsGeneratorOverrides{
+	var defaults overrides.Overrides
+	defaults.Forwarders = []string{"my-forwarder"}
+	defaults.MetricsGenerator = overrides.MetricsGeneratorOverrides{
 				Processors:                      map[string]struct{}{"service-graphs": {}},
 				CollectionInterval:              15 * time.Second,
 				IngestionSlack:                  time.Minute,
@@ -65,10 +64,9 @@ func Test_limitsFromOverrides(t *testing.T) {
 						HostIdentifiers: []string{"k8s.node.name", "host.id"},
 						MetricName:      "traces_host_info",
 					},
-				},
-			},
 		},
 	}
+	cfg := overrides.Config{Defaults: defaults}
 	overridesInt, err := overrides.NewOverrides(cfg, nil, prometheus.DefaultRegisterer)
 	assert.NoError(t, err)
 
@@ -207,20 +205,18 @@ func Test_limitsFromOverrides_EmptyOrNilFilterPoliciesDontCrash(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			cfg := overrides.Config{
-				Defaults: overrides.Overrides{
-					MetricsGenerator: overrides.MetricsGeneratorOverrides{
-						Processor: overrides.ProcessorOverrides{
-							ServiceGraphs: overrides.ServiceGraphsOverrides{
-								FilterPolicies: tc.serviceGraphPolicies,
-							},
-							SpanMetrics: overrides.SpanMetricsOverrides{
-								FilterPolicies: tc.spanMetricsPolicies,
-							},
-						},
+			var defaults overrides.Overrides
+			defaults.MetricsGenerator = overrides.MetricsGeneratorOverrides{
+				Processor: overrides.ProcessorOverrides{
+					ServiceGraphs: overrides.ServiceGraphsOverrides{
+						FilterPolicies: tc.serviceGraphPolicies,
+					},
+					SpanMetrics: overrides.SpanMetricsOverrides{
+						FilterPolicies: tc.spanMetricsPolicies,
 					},
 				},
 			}
+			cfg := overrides.Config{Defaults: defaults}
 
 			assert.NotPanics(t, func() {
 				overridesInt, err := overrides.NewOverrides(cfg, nil, prometheus.NewRegistry())

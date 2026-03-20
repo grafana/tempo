@@ -11,15 +11,19 @@ import (
 
 func TestRuntimeConfigOverridesManager_GetRuntimeOverridesFor_runtimeConfigOverridesManager(t *testing.T) {
 	defaults := Overrides{
-		MetricsGenerator: MetricsGeneratorOverrides{
-			CollectionInterval: 60 * time.Second,
+		baseOverrides: baseOverrides{
+			MetricsGenerator: MetricsGeneratorOverrides{
+				CollectionInterval: 60 * time.Second,
+			},
 		},
 	}
 	tenantOverrides := &perTenantOverrides{
 		TenantLimits: map[string]*Overrides{
 			"foo": {
-				MetricsGenerator: MetricsGeneratorOverrides{
-					CollectionInterval: 15 * time.Second,
+				baseOverrides: baseOverrides{
+					MetricsGenerator: MetricsGeneratorOverrides{
+						CollectionInterval: 15 * time.Second,
+					},
 				},
 			},
 		},
@@ -39,15 +43,19 @@ func TestRuntimeConfigOverridesManager_GetRuntimeOverridesFor_runtimeConfigOverr
 
 func TestRuntimeConfigOverridesManager_GetRuntimeOverridesFor_userConfigurableOverridesManager(t *testing.T) {
 	defaults := Overrides{
-		MetricsGenerator: MetricsGeneratorOverrides{
-			CollectionInterval: 60 * time.Second,
+		baseOverrides: baseOverrides{
+			MetricsGenerator: MetricsGeneratorOverrides{
+				CollectionInterval: 60 * time.Second,
+			},
 		},
 	}
 	tenantOverrides := &perTenantOverrides{
 		TenantLimits: map[string]*Overrides{
 			"foo": {
-				MetricsGenerator: MetricsGeneratorOverrides{
-					CollectionInterval: 15 * time.Second,
+				baseOverrides: baseOverrides{
+					MetricsGenerator: MetricsGeneratorOverrides{
+						CollectionInterval: 15 * time.Second,
+					},
 				},
 			},
 		},
