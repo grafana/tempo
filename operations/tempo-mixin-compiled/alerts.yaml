@@ -147,13 +147,22 @@
     "for": "5m"
     "labels":
       "severity": "warning"
-  - "alert": "TempoLiveStorePartitionLagCritical"
+  - "alert": "TempoLiveStoreSingleMemberLagHigh"
     "annotations":
-      "message": "Tempo ingest partition {{ $labels.partition }} for live store group {{ $labels.group }} is lagging by more than 300 seconds in {{ $labels.cluster }}/{{ $labels.namespace }}."
-      "runbook_url": "https://github.com/grafana/tempo/tree/main/operations/tempo-mixin/runbook.md#TempoPartitionLag"
+      "message": "A single Tempo live-store owner of partition {{ $labels.partition }} (group {{ $labels.group }}) has been lagging for more than 300 seconds in {{ $labels.cluster }}/{{ $labels.namespace }}."
+      "runbook_url": "https://github.com/grafana/tempo/tree/main/operations/tempo-mixin/runbook.md#TempoLiveStoreSingleMemberLagHigh"
     "expr": |
       max by (cluster, namespace, partition, group) (avg_over_time(tempo_ingest_group_partition_lag_seconds{namespace=~".*", container=~"live-store"}[6m])) > 300
     "for": "5m"
+    "labels":
+      "severity": "critical"
+  - "alert": "TempoLiveStoreAllMembersLagging"
+    "annotations":
+      "message": "All owners of Tempo live-store partition {{ $labels.partition }} are lagging in {{ $labels.cluster }}/{{ $labels.namespace }}. This is a partial read outage."
+      "runbook_url": "https://github.com/grafana/tempo/tree/main/operations/tempo-mixin/runbook.md#TempoLiveStoreAllMembersLagging"
+    "expr": |
+      min by (cluster, namespace, partition) (avg_over_time(tempo_ingest_group_partition_lag_seconds{namespace=~".*", container=~"live-store"}[6m])) > 300
+    "for": "2m"
     "labels":
       "severity": "critical"
   - "alert": "TempoBackendSchedulerJobsFailureRateHigh"
