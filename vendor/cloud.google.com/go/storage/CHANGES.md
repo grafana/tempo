@@ -1,6 +1,12 @@
 # Changes
 
 
+## [1.61.3](https://github.com/googleapis/google-cloud-go/releases/tag/storage%2Fv1.61.3) (2026-03-13)
+
+### Documentation
+
+* Fix godoc formatting (#14169) ([428b228](https://github.com/googleapis/google-cloud-go/commit/428b228814dc78b1b92c83868e1a58bb32ea71f0))
+
 ## [1.61.2](https://github.com/googleapis/google-cloud-go/releases/tag/storage%2Fv1.61.2) (2026-03-12)
 
 ### Bug Fixes
