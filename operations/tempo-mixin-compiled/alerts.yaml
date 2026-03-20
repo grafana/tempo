@@ -161,7 +161,7 @@
       "message": "All owners of Tempo live-store partition {{ $labels.partition }} are lagging in {{ $labels.cluster }}/{{ $labels.namespace }}. This is a partial read outage."
       "runbook_url": "https://github.com/grafana/tempo/tree/main/operations/tempo-mixin/runbook.md#TempoLiveStoreAllMembersLagging"
     "expr": |
-      min by (cluster, namespace, partition) (avg_over_time(tempo_ingest_group_partition_lag_seconds{namespace=~".*", container=~"live-store.*"}[6m])) > 300
+      min by (cluster, namespace, partition) (avg_over_time(tempo_ingest_group_partition_lag_seconds{namespace=~".*", container=~"live-store"}[6m])) > 300
     "for": "2m"
     "labels":
       "severity": "critical"
