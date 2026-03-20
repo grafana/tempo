@@ -1037,7 +1037,7 @@ func (c *scopedAttributeCollector) Collect(res *parquetquery.IteratorResult, _ a
 		case "key":
 			c.at.a.Name = unsafeToString(e.Value.Bytes())
 		case "string":
-			c.strBuffer = append(c.strBuffer, intern.UniqueBytes(e.Value.Bytes()))
+			c.strBuffer = append(c.strBuffer, intern.UniqueStringFromBytes(e.Value.Bytes()))
 		case "int":
 			c.intBuffer = append(c.intBuffer, int(e.Value.Int64()))
 		case "float":
@@ -1338,9 +1338,9 @@ func (c *spanCollector2) Collect(res *parquetquery.IteratorResult, param any) {
 		// Trace-level columns:
 		// --------------------
 		case columnPathRootSpanName:
-			sp.traceAttrs = append(sp.traceAttrs, attrVal{traceql.IntrinsicTraceRootSpanAttribute, traceql.NewStaticStringFromHandle(intern.UniqueBytes(kv.Value.Bytes()))})
+			sp.traceAttrs = append(sp.traceAttrs, attrVal{traceql.IntrinsicTraceRootSpanAttribute, traceql.NewStaticUniqueStringFromBytes(kv.Value.Bytes())})
 		case columnPathRootServiceName:
-			sp.traceAttrs = append(sp.traceAttrs, attrVal{traceql.IntrinsicTraceRootServiceAttribute, traceql.NewStaticStringFromHandle(intern.UniqueBytes(kv.Value.Bytes()))})
+			sp.traceAttrs = append(sp.traceAttrs, attrVal{traceql.IntrinsicTraceRootServiceAttribute, traceql.NewStaticUniqueStringFromBytes(kv.Value.Bytes())})
 		case columnPathTraceID:
 			sp.traceAttrs = append(sp.traceAttrs, attrVal{traceql.IntrinsicTraceIDAttribute, traceql.NewStaticString(util.TraceIDToHexString(kv.Value.ByteArray()))})
 		case columnPathDurationNanos:
@@ -1373,11 +1373,11 @@ func (c *spanCollector2) Collect(res *parquetquery.IteratorResult, param any) {
 			sp.durationNanos = durationNanos
 			sp.addSpanAttr(traceql.IntrinsicDurationAttribute, traceql.NewStaticDuration(time.Duration(durationNanos)))
 		case ColumnPathSpanName:
-			sp.addSpanAttr(traceql.IntrinsicNameAttribute, traceql.NewStaticStringFromHandle(intern.UniqueBytes(kv.Value.Bytes())))
+			sp.addSpanAttr(traceql.IntrinsicNameAttribute, traceql.NewStaticUniqueStringFromBytes(kv.Value.Bytes()))
 		case columnPathSpanStatusCode:
 			sp.addSpanAttr(traceql.IntrinsicStatusAttribute, traceql.NewStaticStatus(otlpStatusToTraceqlStatus(kv.Value.Uint64())))
 		case columnPathSpanStatusMessage:
-			sp.addSpanAttr(traceql.IntrinsicStatusMessageAttribute, traceql.NewStaticStringFromHandle(intern.UniqueBytes(kv.Value.Bytes())))
+			sp.addSpanAttr(traceql.IntrinsicStatusMessageAttribute, traceql.NewStaticUniqueStringFromBytes(kv.Value.Bytes()))
 		case columnPathSpanKind:
 			sp.addSpanAttr(traceql.IntrinsicKindAttribute, traceql.NewStaticKind(otlpKindToTraceqlKind(kv.Value.Uint64())))
 		case columnPathSpanParentID:
@@ -1399,16 +1399,16 @@ func (c *spanCollector2) Collect(res *parquetquery.IteratorResult, param any) {
 		// Instrumentation-level columns:
 		// -------------------------
 		case columnPathInstrumentationName:
-			sp.instrumentationAttrs = append(sp.instrumentationAttrs, attrVal{traceql.IntrinsicInstrumentationNameAttribute, traceql.NewStaticStringFromHandle(intern.UniqueBytes(kv.Value.Bytes()))})
+			sp.instrumentationAttrs = append(sp.instrumentationAttrs, attrVal{traceql.IntrinsicInstrumentationNameAttribute, traceql.NewStaticUniqueStringFromBytes(kv.Value.Bytes())})
 		case columnPathInstrumentationVersion:
-			sp.instrumentationAttrs = append(sp.instrumentationAttrs, attrVal{traceql.IntrinsicInstrumentationVersionAttribute, traceql.NewStaticStringFromHandle(intern.UniqueBytes(kv.Value.Bytes()))})
+			sp.instrumentationAttrs = append(sp.instrumentationAttrs, attrVal{traceql.IntrinsicInstrumentationVersionAttribute, traceql.NewStaticUniqueStringFromBytes(kv.Value.Bytes())})
 		// -------------------------
 		// Resource-level columns:
 		// -------------------------
 		case ColumnPathResourceServiceName:
 			sp.resourceAttrs = append(sp.resourceAttrs, attrVal{
 				traceql.NewScopedAttribute(traceql.AttributeScopeResource, false, "service.name"),
-				traceql.NewStaticStringFromHandle(intern.UniqueBytes(kv.Value.Bytes())),
+				traceql.NewStaticUniqueStringFromBytes(kv.Value.Bytes()),
 			})
 		default:
 			// Decomposed attributes from dedicated columns.
@@ -1425,7 +1425,7 @@ func (c *spanCollector2) Collect(res *parquetquery.IteratorResult, param any) {
 			case parquet.Float:
 				x.s = traceql.NewStaticFloat(kv.Value.Double())
 			case parquet.ByteArray:
-				x.s = traceql.NewStaticStringFromHandle(intern.UniqueBytes(kv.Value.Bytes()))
+				x.s = traceql.NewStaticUniqueStringFromBytes(kv.Value.Bytes())
 			default:
 				if kv.Value.IsNull() {
 					// Enter placeholder string that indicates a nil check passed.

@@ -53,12 +53,12 @@ func (i *Interner) Close() {
 	i.m = nil
 }
 
-// UniqueBytes returns a process-wide deduplicated handle from b.
+// UniqueStringFromBytes returns a process-wide deduplicated handle from b.
 // It uses the stdlib unique package for GC-friendly, cross-query deduplication.
 //
 // Safety: unique.Make internally copies the string data (Go 1.24+),
 // so the returned handle is independently owned and does not alias the input slice.
-func UniqueBytes(b []byte) unique.Handle[string] {
+func UniqueStringFromBytes(b []byte) unique.Handle[string] {
 	if len(b) == 0 {
 		return unique.Make("")
 	}

@@ -1106,7 +1106,7 @@ func (d *distinctAttrCollector) KeepGroup(result *parquetquery.IteratorResult) b
 
 		if d.attrNames {
 			if e.Key == "key" {
-				name := intern.UniqueBytes(e.Value.ByteArray()).Value()
+				name := intern.UniqueStringFromBytes(e.Value.ByteArray()).Value()
 				key := tagNameKey{name: name, scope: d.scope}
 				if !d.existsTagName(key) {
 					result.AppendOtherValue(name, d.scope)
@@ -1115,7 +1115,7 @@ func (d *distinctAttrCollector) KeepGroup(result *parquetquery.IteratorResult) b
 		} else {
 			switch e.Key {
 			case "string":
-				val = traceql.NewStaticStringFromHandle(intern.UniqueBytes(e.Value.ByteArray()))
+				val = traceql.NewStaticUniqueStringFromBytes(e.Value.ByteArray())
 			case "int":
 				val = traceql.NewStaticInt(int(e.Value.Int64()))
 			case "float":
@@ -1179,7 +1179,7 @@ func (d distinctValueCollector) KeepGroup(result *parquetquery.IteratorResult) b
 
 func mapEventAttr(e entry) traceql.Static {
 	if e.Key == ColumnPathEventName {
-		return traceql.NewStaticStringFromHandle(intern.UniqueBytes(e.Value.ByteArray()))
+		return traceql.NewStaticUniqueStringFromBytes(e.Value.ByteArray())
 	}
 	return traceql.NewStaticNil()
 }
@@ -1198,7 +1198,7 @@ func mapSpanAttr(e entry) traceql.Static {
 	case columnPathSpanDuration:
 		return traceql.NewStaticDuration(time.Duration(e.Value.Int64()))
 	case ColumnPathSpanName:
-		return traceql.NewStaticStringFromHandle(intern.UniqueBytes(e.Value.ByteArray()))
+		return traceql.NewStaticUniqueStringFromBytes(e.Value.ByteArray())
 	case columnPathSpanStatusCode:
 		// Map OTLP status code back to TraceQL enum.
 		// For other values, use the raw integer.
@@ -1215,7 +1215,7 @@ func mapSpanAttr(e entry) traceql.Static {
 		}
 		return traceql.NewStaticStatus(status)
 	case columnPathSpanStatusMessage:
-		return traceql.NewStaticStringFromHandle(intern.UniqueBytes(e.Value.ByteArray()))
+		return traceql.NewStaticUniqueStringFromBytes(e.Value.ByteArray())
 	case columnPathSpanKind:
 		var kind traceql.Kind
 		switch e.Value.Uint64() {
@@ -1245,7 +1245,7 @@ func mapSpanAttr(e entry) traceql.Static {
 		case parquet.Float:
 			return traceql.NewStaticFloat(e.Value.Double())
 		case parquet.ByteArray, parquet.FixedLenByteArray:
-			return traceql.NewStaticStringFromHandle(intern.UniqueBytes(e.Value.ByteArray()))
+			return traceql.NewStaticUniqueStringFromBytes(e.Value.ByteArray())
 		}
 	}
 	return traceql.NewStaticNil()
@@ -1254,7 +1254,7 @@ func mapSpanAttr(e entry) traceql.Static {
 func mapInstrumentationAttr(e entry) traceql.Static {
 	switch e.Key {
 	case columnPathInstrumentationName, columnPathInstrumentationVersion:
-		return traceql.NewStaticStringFromHandle(intern.UniqueBytes(e.Value.ByteArray()))
+		return traceql.NewStaticUniqueStringFromBytes(e.Value.ByteArray())
 	}
 	return traceql.Static{}
 }
@@ -1268,7 +1268,7 @@ func mapResourceAttr(e entry) traceql.Static {
 	case parquet.Float:
 		return traceql.NewStaticFloat(e.Value.Double())
 	case parquet.ByteArray, parquet.FixedLenByteArray:
-		return traceql.NewStaticStringFromHandle(intern.UniqueBytes(e.Value.ByteArray()))
+		return traceql.NewStaticUniqueStringFromBytes(e.Value.ByteArray())
 	default:
 		return traceql.NewStaticNil()
 	}
@@ -1280,9 +1280,9 @@ func mapTraceAttr(e entry) traceql.Static {
 	case columnPathDurationNanos:
 		return traceql.NewStaticDuration(time.Duration(e.Value.Int64()))
 	case columnPathRootSpanName:
-		return traceql.NewStaticStringFromHandle(intern.UniqueBytes(e.Value.ByteArray()))
+		return traceql.NewStaticUniqueStringFromBytes(e.Value.ByteArray())
 	case columnPathRootServiceName:
-		return traceql.NewStaticStringFromHandle(intern.UniqueBytes(e.Value.ByteArray()))
+		return traceql.NewStaticUniqueStringFromBytes(e.Value.ByteArray())
 	}
 	return traceql.NewStaticNil()
 }

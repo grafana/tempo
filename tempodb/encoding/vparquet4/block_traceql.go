@@ -3168,11 +3168,11 @@ func (c *spanCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 			sp.durationNanos = durationNanos
 			sp.addSpanAttr(traceql.IntrinsicDurationAttribute, traceql.NewStaticDuration(time.Duration(durationNanos)))
 		case ColumnPathSpanName:
-			sp.addSpanAttr(traceql.IntrinsicNameAttribute, traceql.NewStaticStringFromHandle(intern.UniqueBytes(kv.Value.Bytes())))
+			sp.addSpanAttr(traceql.IntrinsicNameAttribute, traceql.NewStaticUniqueStringFromBytes(kv.Value.Bytes()))
 		case columnPathSpanStatusCode:
 			sp.addSpanAttr(traceql.IntrinsicStatusAttribute, traceql.NewStaticStatus(otlpStatusToTraceqlStatus(kv.Value.Uint64())))
 		case columnPathSpanStatusMessage:
-			sp.addSpanAttr(traceql.IntrinsicStatusMessageAttribute, traceql.NewStaticStringFromHandle(intern.UniqueBytes(kv.Value.Bytes())))
+			sp.addSpanAttr(traceql.IntrinsicStatusMessageAttribute, traceql.NewStaticUniqueStringFromBytes(kv.Value.Bytes()))
 		case columnPathSpanKind:
 			sp.addSpanAttr(traceql.IntrinsicKindAttribute, traceql.NewStaticKind(otlpKindToTraceqlKind(kv.Value.Uint64())))
 		case columnPathSpanParentID:
@@ -3201,7 +3201,7 @@ func (c *spanCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 			case parquet.Float:
 				sp.addSpanAttr(newSpanAttr(kv.Key), traceql.NewStaticFloat(kv.Value.Double()))
 			case parquet.ByteArray:
-				sp.addSpanAttr(newSpanAttr(kv.Key), traceql.NewStaticStringFromHandle(intern.UniqueBytes(kv.Value.Bytes())))
+				sp.addSpanAttr(newSpanAttr(kv.Key), traceql.NewStaticUniqueStringFromBytes(kv.Value.Bytes()))
 			default:
 				// This is a null value, indicating the attribute doesn't exist
 				if kv.Value.IsNull() {
@@ -3270,12 +3270,12 @@ func (c *instrumentationCollector) KeepGroup(res *parquetquery.IteratorResult) b
 		case columnPathInstrumentationName:
 			c.instrumentationAttrs = append(c.instrumentationAttrs, attrVal{
 				a: traceql.IntrinsicInstrumentationNameAttribute,
-				s: traceql.NewStaticStringFromHandle(intern.UniqueBytes(kv.Value.Bytes())),
+				s: traceql.NewStaticUniqueStringFromBytes(kv.Value.Bytes()),
 			})
 		case columnPathInstrumentationVersion:
 			c.instrumentationAttrs = append(c.instrumentationAttrs, attrVal{
 				a: traceql.IntrinsicInstrumentationVersionAttribute,
-				s: traceql.NewStaticStringFromHandle(intern.UniqueBytes(kv.Value.Bytes())),
+				s: traceql.NewStaticUniqueStringFromBytes(kv.Value.Bytes()),
 			})
 		default:
 			// This is a null value, indicating the attribute doesn't exist
@@ -3363,7 +3363,7 @@ func (c *batchCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 		case parquet.Int64:
 			c.resAttrs = append(c.resAttrs, attrVal{newResAttr(e.Key), traceql.NewStaticInt(int(e.Value.Int64()))})
 		case parquet.ByteArray:
-			c.resAttrs = append(c.resAttrs, attrVal{newResAttr(e.Key), traceql.NewStaticStringFromHandle(intern.UniqueBytes(e.Value.Bytes()))})
+			c.resAttrs = append(c.resAttrs, attrVal{newResAttr(e.Key), traceql.NewStaticUniqueStringFromBytes(e.Value.Bytes())})
 		default:
 			// This is a null value, indicating the attribute doesn't exist
 			if e.Value.IsNull() {
@@ -3464,10 +3464,10 @@ func (c *traceCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 			finalSpanset.DurationNanos = e.Value.Uint64()
 			c.traceAttrs = append(c.traceAttrs, attrVal{traceql.IntrinsicTraceDurationAttribute, traceql.NewStaticDuration(time.Duration(finalSpanset.DurationNanos))})
 		case columnPathRootSpanName:
-			finalSpanset.RootSpanName = intern.UniqueBytes(e.Value.Bytes())
+			finalSpanset.RootSpanName = intern.UniqueStringFromBytes(e.Value.Bytes())
 			c.traceAttrs = append(c.traceAttrs, attrVal{traceql.IntrinsicTraceRootSpanAttribute, traceql.NewStaticStringFromHandle(finalSpanset.RootSpanName)})
 		case columnPathRootServiceName:
-			finalSpanset.RootServiceName = intern.UniqueBytes(e.Value.Bytes())
+			finalSpanset.RootServiceName = intern.UniqueStringFromBytes(e.Value.Bytes())
 			c.traceAttrs = append(c.traceAttrs, attrVal{traceql.IntrinsicTraceRootServiceAttribute, traceql.NewStaticStringFromHandle(finalSpanset.RootServiceName)})
 		}
 	}
@@ -3581,10 +3581,10 @@ func (c *attributeCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 		}
 		switch e.Key {
 		case "key":
-			key = intern.UniqueBytes(e.Value.Bytes()).Value()
+			key = intern.UniqueStringFromBytes(e.Value.Bytes()).Value()
 
 		case "string":
-			c.strBuffer = append(c.strBuffer, intern.UniqueBytes(e.Value.Bytes()))
+			c.strBuffer = append(c.strBuffer, intern.UniqueStringFromBytes(e.Value.Bytes()))
 		case "int":
 			c.intBuffer = append(c.intBuffer, int(e.Value.Int64()))
 		case "float":
@@ -3685,7 +3685,7 @@ func (c *eventCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 		case ColumnPathEventName:
 			ev.attrs = append(ev.attrs, attrVal{
 				a: traceql.IntrinsicEventNameAttribute,
-				s: traceql.NewStaticStringFromHandle(intern.UniqueBytes(e.Value.Bytes())),
+				s: traceql.NewStaticUniqueStringFromBytes(e.Value.Bytes()),
 			})
 		case columnPathEventTimeSinceStart:
 			ev.attrs = append(ev.attrs, attrVal{

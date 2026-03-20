@@ -2822,10 +2822,10 @@ func (c *traceCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 			finalSpanset.DurationNanos = e.Value.Uint64()
 			c.traceAttrs = append(c.traceAttrs, attrVal{traceql.IntrinsicTraceDurationAttribute, traceql.NewStaticDuration(time.Duration(finalSpanset.DurationNanos))})
 		case columnPathRootSpanName:
-			finalSpanset.RootSpanName = intern.UniqueBytes(e.Value.Bytes())
+			finalSpanset.RootSpanName = intern.UniqueStringFromBytes(e.Value.Bytes())
 			c.traceAttrs = append(c.traceAttrs, attrVal{traceql.IntrinsicTraceRootSpanAttribute, traceql.NewStaticStringFromHandle(finalSpanset.RootSpanName)})
 		case columnPathRootServiceName:
-			finalSpanset.RootServiceName = intern.UniqueBytes(e.Value.Bytes())
+			finalSpanset.RootServiceName = intern.UniqueStringFromBytes(e.Value.Bytes())
 			c.traceAttrs = append(c.traceAttrs, attrVal{traceql.IntrinsicTraceRootServiceAttribute, traceql.NewStaticStringFromHandle(finalSpanset.RootServiceName)})
 		}
 	}

@@ -13,6 +13,7 @@ import (
 	"unsafe"
 
 	"github.com/cespare/xxhash/v2"
+	"github.com/grafana/tempo/pkg/parquetquery/intern"
 	"github.com/grafana/tempo/pkg/regexp"
 )
 
@@ -697,6 +698,15 @@ func NewStaticStringFromHandle(h unique.Handle[string]) Static {
 	return Static{
 		Type:      TypeString,
 		valHandle: h,
+	}
+}
+
+// NewStaticUniqueStringFromBytes creates a TypeString Static from raw bytes,
+// using process-wide string interning via the unique package.
+func NewStaticUniqueStringFromBytes(b []byte) Static {
+	return Static{
+		Type:      TypeString,
+		valHandle: intern.UniqueStringFromBytes(b),
 	}
 }
 

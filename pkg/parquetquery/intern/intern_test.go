@@ -109,16 +109,16 @@ func TestPqValueConversion(t *testing.T) {
 	}
 }
 
-func TestUniqueBytes(t *testing.T) {
-	h1 := UniqueBytes([]byte("hello"))
-	h2 := UniqueBytes([]byte("hello"))
+func TestUniqueStringFromBytes(t *testing.T) {
+	h1 := UniqueStringFromBytes([]byte("hello"))
+	h2 := UniqueStringFromBytes([]byte("hello"))
 
 	// process-wide interning: identical content must yield the same handle
 	if h1 != h2 {
 		t.Error("expected same handle for equal strings")
 	}
 
-	h3 := UniqueBytes([]byte("world"))
+	h3 := UniqueStringFromBytes([]byte("world"))
 	if h1 == h3 {
 		t.Error("expected different handle for different strings")
 	}
@@ -127,12 +127,12 @@ func TestUniqueBytes(t *testing.T) {
 		t.Errorf("expected 'hello', got %q", h1.Value())
 	}
 
-	empty := UniqueBytes([]byte{})
+	empty := UniqueStringFromBytes([]byte{})
 	if empty.Value() != "" {
 		t.Errorf("expected empty string, got %q", empty.Value())
 	}
 
-	nilResult := UniqueBytes(nil)
+	nilResult := UniqueStringFromBytes(nil)
 	if nilResult.Value() != "" {
 		t.Errorf("expected empty string for nil input, got %q", nilResult.Value())
 	}
@@ -155,7 +155,7 @@ func BenchmarkInternString(b *testing.B) {
 
 	b.Run("unique_bytes", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
-			_ = UniqueBytes([]byte(words[i%len(words)]))
+			_ = UniqueStringFromBytes([]byte(words[i%len(words)]))
 		}
 	})
 
