@@ -249,7 +249,7 @@
             alert: 'TempoLiveStoreAllMembersLagging',
             expr: |||
               min by (%s, partition) (avg_over_time(tempo_ingest_group_partition_lag_seconds{namespace=~"%s", container=~"%s"}[6m])) > %d
-            ||| % [$._config.group_by_cluster, $._config.namespace, $._config.jobs.live_store_zones, $._config.alerts.live_store_all_members_lag_seconds],
+            ||| % [$._config.group_by_cluster, $._config.namespace, $._config.jobs.live_store, $._config.alerts.live_store_all_members_lag_seconds],
             'for': '2m',
             labels: {
               severity: 'critical',
