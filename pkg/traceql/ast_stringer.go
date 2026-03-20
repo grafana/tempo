@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
-	"unsafe"
 )
 
 func (r RootExpr) String() string {
@@ -99,10 +98,7 @@ func (s Static) EncodeToString(quotes bool) string {
 		}
 		return f
 	case TypeString:
-		var str string
-		if len(s.valBytes) > 0 {
-			str = unsafe.String(unsafe.SliceData(s.valBytes), len(s.valBytes))
-		}
+		str := s.valHandle.Value()
 		if quotes {
 			return "`" + str + "`"
 		}
@@ -126,7 +122,8 @@ func (s Static) EncodeToString(quotes bool) string {
 		floats, _ := s.FloatArray()
 		return arrayToString(floats, false)
 	case TypeStringArray:
-		return arrayToString(s.valStrings, true)
+		strs, _ := s.StringArray()
+		return arrayToString(strs, true)
 	case TypeBooleanArray:
 		booleans, _ := s.BooleanArray()
 		return arrayToString(booleans, false)

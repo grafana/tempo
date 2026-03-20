@@ -109,37 +109,70 @@ func TestPqValueConversion(t *testing.T) {
 	}
 }
 
-func TestInternString(t *testing.T) {
-	s1 := InternString([]byte("hello"))
-	s2 := InternString([]byte("hello"))
+func TestUniqueBytes(t *testing.T) {
+	h1 := UniqueBytes([]byte("hello"))
+	h2 := UniqueBytes([]byte("hello"))
 
-	// process-wide interning: identical content must yield the same pointer
-	if unsafe.StringData(s1) != unsafe.StringData(s2) {
-		t.Error("expected same backing pointer for equal strings")
+	// process-wide interning: identical content must yield the same handle
+	if h1 != h2 {
+		t.Error("expected same handle for equal strings")
 	}
 
-	s3 := InternString([]byte("world"))
-	if unsafe.StringData(s1) == unsafe.StringData(s3) {
-		t.Error("expected different backing pointer for different strings")
+	h3 := UniqueBytes([]byte("world"))
+	if h1 == h3 {
+		t.Error("expected different handle for different strings")
 	}
 
-	empty := InternString([]byte{})
+	if h1.Value() != "hello" {
+		t.Errorf("expected 'hello', got %q", h1.Value())
+	}
+
+	empty := UniqueBytes([]byte{})
+	if empty.Value() != "" {
+		t.Errorf("expected empty string, got %q", empty.Value())
+	}
+
+	nilResult := UniqueBytes(nil)
+	if nilResult.Value() != "" {
+		t.Errorf("expected empty string for nil input, got %q", nilResult.Value())
+	}
+}
+
+func TestUniqueStringFromBytes(t *testing.T) {
+	s := UniqueStringFromBytes([]byte("hello"))
+	if s != "hello" {
+		t.Errorf("expected 'hello', got %q", s)
+	}
+
+	empty := UniqueStringFromBytes(nil)
 	if empty != "" {
 		t.Errorf("expected empty string, got %q", empty)
 	}
+}
 
-	nilResult := InternString(nil)
-	if nilResult != "" {
-		t.Errorf("expected empty string for nil input, got %q", nilResult)
+func TestUniqueString(t *testing.T) {
+	h1 := UniqueString("hello")
+	h2 := UniqueString("hello")
+	if h1 != h2 {
+		t.Error("expected same handle for equal strings")
+	}
+	if h1.Value() != "hello" {
+		t.Errorf("expected 'hello', got %q", h1.Value())
 	}
 }
 
 func BenchmarkInternString(b *testing.B) {
 	words := []string{"foo", "bar", "baz", "qux", "quux", "corge", "grault", "garply", "waldo", "fred"}
 
-	b.Run("intern_string", func(b *testing.B) {
+	b.Run("unique_bytes", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
-			_ = InternString([]byte(words[i%len(words)]))
+			_ = UniqueBytes([]byte(words[i%len(words)]))
+		}
+	})
+
+	b.Run("unique_string", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			_ = UniqueString(words[i%len(words)])
 		}
 	})
 

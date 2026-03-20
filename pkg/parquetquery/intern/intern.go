@@ -53,20 +53,30 @@ func (i *Interner) Close() {
 	i.m = nil
 }
 
-// InternString returns a process-wide deduplicated string from b.
+// UniqueBytes returns a process-wide deduplicated handle from b.
 // It uses the stdlib unique package for GC-friendly, cross-query deduplication.
-// Best suited for low-cardinality strings (attribute keys, intrinsic field values).
 //
-// Safety: bytesToString creates a string that aliases the original []byte without copying.
-// This is safe because unique.Make internally copies the string data (Go 1.24+),
-// so the returned string is independently owned and does not alias the input slice.
-func InternString(b []byte) string {
+// Safety: unique.Make internally copies the string data (Go 1.24+),
+// so the returned handle is independently owned and does not alias the input slice.
+func UniqueBytes(b []byte) unique.Handle[string] {
 	if len(b) == 0 {
-		return ""
+		return unique.Make("")
 	}
 	// Go has a targeted optimization that elides an extra string copy in this case
 	// https://go-review.googlesource.com/c/go/+/672135
-	return unique.Make(string(b)).Value()
+	return unique.Make(string(b))
+}
+
+// UniqueStringFromBytes returns a process-wide deduplicated string from b.
+// Convenience wrapper: calls UniqueBytes(b).Value().
+func UniqueStringFromBytes(b []byte) string {
+	return UniqueBytes(b).Value()
+}
+
+// UniqueString returns a process-wide deduplicated handle from s.
+// Convenience wrapper: calls unique.Make(s).
+func UniqueString(s string) unique.Handle[string] {
+	return unique.Make(s)
 }
 
 // bytesToString converts a byte slice to a string.

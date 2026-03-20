@@ -9,6 +9,7 @@ import (
 	"slices"
 	"strings"
 	"time"
+	"unique"
 	"unsafe"
 
 	"github.com/cespare/xxhash/v2"
@@ -655,9 +656,10 @@ func (o UnaryOperation) referencesSpan() bool {
 type Static struct {
 	Type StaticType
 
-	valScalar  uint64   // used for int, float64, bool, time.Duration, Kind, and Status
-	valBytes   []byte   // used for string, []int, []float64, []bool
-	valStrings []string // used for []string
+	valScalar  uint64                    // used for int, float64, bool, time.Duration, Kind, and Status
+	valHandle  unique.Handle[string]     // used for TypeString
+	valBytes   []byte                    // used for []int, []float64, []bool
+	valHandles []unique.Handle[string]   // used for TypeStringArray
 }
 
 type StaticMapKey struct {
@@ -686,8 +688,15 @@ func NewStaticFloat(f float64) Static {
 
 func NewStaticString(s string) Static {
 	return Static{
-		Type:     TypeString,
-		valBytes: unsafe.Slice(unsafe.StringData(s), len(s)),
+		Type:      TypeString,
+		valHandle: unique.Make(s),
+	}
+}
+
+func NewStaticStringFromHandle(h unique.Handle[string]) Static {
+	return Static{
+		Type:      TypeString,
+		valHandle: h,
 	}
 }
 
@@ -758,12 +767,23 @@ func NewStaticStringArray(s []string) Static {
 		return Static{Type: TypeStringArray}
 	}
 	if len(s) == 0 {
-		return Static{Type: TypeStringArray, valStrings: []string{}}
+		return Static{Type: TypeStringArray, valHandles: []unique.Handle[string]{}}
 	}
 
+	handles := make([]unique.Handle[string], len(s))
+	for i, str := range s {
+		handles[i] = unique.Make(str)
+	}
 	return Static{
 		Type:       TypeStringArray,
-		valStrings: s,
+		valHandles: handles,
+	}
+}
+
+func NewStaticStringArrayFromHandles(h []unique.Handle[string]) Static {
+	return Static{
+		Type:       TypeStringArray,
+		valHandles: h,
 	}
 }
 
@@ -792,11 +812,7 @@ func (s Static) MapKey() StaticMapKey {
 	case TypeNil:
 		return StaticMapKey{typ: TypeNil}
 	case TypeString:
-		var str string
-		if len(s.valBytes) > 0 {
-			str = unsafe.String(unsafe.SliceData(s.valBytes), len(s.valBytes))
-		}
-		return StaticMapKey{typ: s.Type, str: str}
+		return StaticMapKey{typ: s.Type, str: s.valHandle.Value()}
 	case TypeIntArray, TypeFloatArray, TypeBooleanArray:
 		if len(s.valBytes) == 0 {
 			return StaticMapKey{typ: s.Type}
@@ -806,14 +822,14 @@ func (s Static) MapKey() StaticMapKey {
 		_, _ = h.Write(s.valBytes)
 		return StaticMapKey{typ: s.Type, code: h.Sum64()}
 	case TypeStringArray:
-		if len(s.valStrings) == 0 {
+		if len(s.valHandles) == 0 {
 			return StaticMapKey{typ: s.Type}
 		}
 
 		h := xxhash.New()
 		_, _ = h.Write(seedBytes)
-		for _, str := range s.valStrings {
-			_, _ = h.Write([]byte(str))
+		for _, handle := range s.valHandles {
+			_, _ = h.Write([]byte(handle.Value()))
 			_, _ = h.Write(separatorByte)
 		}
 
@@ -855,10 +871,12 @@ func (s Static) Equals(o *Static) bool {
 		return sf == o.Float()
 	case TypeKind, TypeBoolean:
 		return s.Type == o.Type && s.valScalar == o.valScalar
-	case TypeString, TypeIntArray, TypeFloatArray, TypeBooleanArray:
+	case TypeString:
+		return o.Type == TypeString && s.valHandle == o.valHandle
+	case TypeIntArray, TypeFloatArray, TypeBooleanArray:
 		return s.Type == o.Type && bytes.Equal(s.valBytes, o.valBytes)
 	case TypeStringArray:
-		return s.Type == o.Type && slices.Equal(s.valStrings, o.valStrings)
+		return s.Type == o.Type && slices.Equal(s.valHandles, o.valHandles)
 	default:
 		// should not be reached
 		return false
@@ -883,10 +901,12 @@ func (s Static) StrictEquals(o *Static) bool {
 		sf := math.Float64frombits(s.valScalar)
 		of := math.Float64frombits(o.valScalar)
 		return sf == of
-	case TypeString, TypeIntArray, TypeFloatArray, TypeBooleanArray:
+	case TypeString:
+		return s.valHandle == o.valHandle
+	case TypeIntArray, TypeFloatArray, TypeBooleanArray:
 		return bytes.Equal(s.valBytes, o.valBytes)
 	case TypeStringArray:
-		return slices.Equal(s.valStrings, o.valStrings)
+		return slices.Equal(s.valHandles, o.valHandles)
 	case TypeNil:
 		return true
 	default:
@@ -907,7 +927,9 @@ func (s Static) compare(o *Static) int {
 	}
 
 	switch s.Type {
-	case TypeString, TypeBooleanArray:
+	case TypeString:
+		return strings.Compare(s.valHandle.Value(), o.valHandle.Value())
+	case TypeBooleanArray:
 		return bytes.Compare(s.valBytes, o.valBytes)
 	case TypeIntArray:
 		sa, _ := s.IntArray()
@@ -918,7 +940,9 @@ func (s Static) compare(o *Static) int {
 		oa, _ := o.FloatArray()
 		return slices.Compare(sa, oa)
 	case TypeStringArray:
-		return slices.Compare(s.valStrings, o.valStrings)
+		return slices.CompareFunc(s.valHandles, o.valHandles, func(a, b unique.Handle[string]) int {
+			return strings.Compare(a.Value(), b.Value())
+		})
 	case TypeNil:
 		return 0
 	default:
@@ -946,9 +970,8 @@ func (s Static) Elements() iter.Seq2[int, Static] {
 				}
 			}
 		case TypeStringArray:
-			strs, _ := s.StringArray()
-			for i, str := range strs {
-				if !fn(i, NewStaticString(str)) {
+			for i, h := range s.valHandles {
+				if !fn(i, NewStaticStringFromHandle(h)) {
 					return
 				}
 			}
@@ -1060,7 +1083,14 @@ func (s Static) StringArray() ([]string, bool) {
 		return nil, false
 	}
 
-	return s.valStrings, true
+	if s.valHandles == nil {
+		return nil, true
+	}
+	strs := make([]string, len(s.valHandles))
+	for i, h := range s.valHandles {
+		strs[i] = h.Value()
+	}
+	return strs, true
 }
 
 func (s Static) BooleanArray() ([]bool, bool) {
