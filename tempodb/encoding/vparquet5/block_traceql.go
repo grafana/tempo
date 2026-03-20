@@ -954,8 +954,8 @@ func getSpanset() *traceql.Spanset {
 func putSpanset(ss *traceql.Spanset) {
 	ss.Attributes = ss.Attributes[:0]
 	ss.DurationNanos = 0
-	ss.RootServiceName = ""
-	ss.RootSpanName = ""
+	ss.RootServiceName = unique.Handle[string]{}
+	ss.RootSpanName = unique.Handle[string]{}
 	ss.Scalar = traceql.NewStaticNil()
 	ss.StartTimeUnixNanos = 0
 	ss.TraceID = nil
@@ -1414,10 +1414,10 @@ func (i *rebatchIterator) Next() (*parquetquery.IteratorResult, error) {
 			if len(sp.cbSpanset.TraceID) == 0 {
 				sp.cbSpanset.TraceID = ss.TraceID
 			}
-			if len(sp.cbSpanset.RootSpanName) == 0 {
+			if sp.cbSpanset.RootSpanName == (unique.Handle[string]{}) {
 				sp.cbSpanset.RootSpanName = ss.RootSpanName
 			}
-			if len(sp.cbSpanset.RootServiceName) == 0 {
+			if sp.cbSpanset.RootServiceName == (unique.Handle[string]{}) {
 				sp.cbSpanset.RootServiceName = ss.RootServiceName
 			}
 			if sp.cbSpanset.StartTimeUnixNanos == 0 {
@@ -3555,11 +3555,11 @@ func (c *traceCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 			finalSpanset.DurationNanos = e.Value.Uint64()
 			c.traceAttrs = append(c.traceAttrs, attrVal{traceql.IntrinsicTraceDurationAttribute, traceql.NewStaticDuration(time.Duration(finalSpanset.DurationNanos))})
 		case columnPathRootSpanName:
-			finalSpanset.RootSpanName = intern.UniqueStringFromBytes(e.Value.Bytes())
-			c.traceAttrs = append(c.traceAttrs, attrVal{traceql.IntrinsicTraceRootSpanAttribute, traceql.NewStaticString(finalSpanset.RootSpanName)})
+			finalSpanset.RootSpanName = intern.UniqueBytes(e.Value.Bytes())
+			c.traceAttrs = append(c.traceAttrs, attrVal{traceql.IntrinsicTraceRootSpanAttribute, traceql.NewStaticStringFromHandle(finalSpanset.RootSpanName)})
 		case columnPathRootServiceName:
-			finalSpanset.RootServiceName = intern.UniqueStringFromBytes(e.Value.Bytes())
-			c.traceAttrs = append(c.traceAttrs, attrVal{traceql.IntrinsicTraceRootServiceAttribute, traceql.NewStaticString(finalSpanset.RootServiceName)})
+			finalSpanset.RootServiceName = intern.UniqueBytes(e.Value.Bytes())
+			c.traceAttrs = append(c.traceAttrs, attrVal{traceql.IntrinsicTraceRootServiceAttribute, traceql.NewStaticStringFromHandle(finalSpanset.RootServiceName)})
 		}
 	}
 
@@ -3672,7 +3672,7 @@ func (c *attributeCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 		}
 		switch e.Key {
 		case "key":
-			key = intern.UniqueStringFromBytes(e.Value.Bytes())
+			key = intern.UniqueBytes(e.Value.Bytes()).Value()
 
 		case "string":
 			c.strBuffer = append(c.strBuffer, intern.UniqueBytes(e.Value.Bytes()))

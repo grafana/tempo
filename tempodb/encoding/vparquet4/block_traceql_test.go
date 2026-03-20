@@ -12,6 +12,7 @@ import (
 	"testing"
 	"text/tabwriter"
 	"time"
+	"unique"
 
 	kitlog "github.com/go-kit/log"
 	"github.com/google/uuid"
@@ -1334,8 +1335,8 @@ func trimForSelectAll(tr *Trace) {
 func flattenForSelectAll(tr *Trace, dcm dedicatedColumnMapping) *traceql.Spanset {
 	var traceAttrs []attrVal
 	newSS := &traceql.Spanset{
-		RootServiceName: tr.RootServiceName,
-		RootSpanName:    tr.RootSpanName,
+		RootServiceName: unique.Make(tr.RootServiceName),
+		RootSpanName:    unique.Make(tr.RootSpanName),
 		TraceID:         tr.TraceID,
 		DurationNanos:   tr.DurationNano,
 	}

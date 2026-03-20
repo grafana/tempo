@@ -138,17 +138,6 @@ func TestUniqueBytes(t *testing.T) {
 	}
 }
 
-func TestUniqueStringFromBytes(t *testing.T) {
-	s := UniqueStringFromBytes([]byte("hello"))
-	if s != "hello" {
-		t.Errorf("expected 'hello', got %q", s)
-	}
-
-	empty := UniqueStringFromBytes(nil)
-	if empty != "" {
-		t.Errorf("expected empty string, got %q", empty)
-	}
-}
 
 func TestUniqueString(t *testing.T) {
 	h1 := UniqueString("hello")

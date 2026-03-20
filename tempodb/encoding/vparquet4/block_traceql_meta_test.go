@@ -5,6 +5,7 @@ import (
 	"sort"
 	"testing"
 	"time"
+	"unique"
 
 	"github.com/grafana/tempo/pkg/parquetquery"
 	"github.com/grafana/tempo/pkg/traceql"
@@ -27,8 +28,8 @@ func TestBackendBlockSearchFetchMetaData(t *testing.T) {
 	makeSpanset := func(traceID []byte, rootSpanName, rootServiceName string, startTimeUnixNano, durationNanos uint64, spans ...traceql.Span) *traceql.Spanset {
 		return &traceql.Spanset{
 			TraceID:            traceID,
-			RootSpanName:       rootSpanName,
-			RootServiceName:    rootServiceName,
+			RootSpanName:       unique.Make(rootSpanName),
+			RootServiceName:    unique.Make(rootServiceName),
 			StartTimeUnixNanos: startTimeUnixNano,
 			DurationNanos:      durationNanos,
 			ServiceStats: map[string]traceql.ServiceStats{

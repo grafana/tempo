@@ -3,6 +3,7 @@ package traceql
 import (
 	"reflect"
 	"testing"
+	"unique"
 
 	"github.com/stretchr/testify/require"
 )
@@ -19,8 +20,8 @@ func TestSpansetClone(t *testing.T) {
 			},
 			Scalar:             NewStaticFloat(3.2),
 			TraceID:            []byte{0x02},
-			RootSpanName:       "a",
-			RootServiceName:    "b",
+			RootSpanName:       unique.Make("a"),
+			RootServiceName:    unique.Make("b"),
 			StartTimeUnixNanos: 1,
 			DurationNanos:      5,
 			Attributes:         []*SpansetAttribute{{Name: "foo", Val: NewStaticString("bar")}},
@@ -35,8 +36,8 @@ func TestSpansetClone(t *testing.T) {
 			},
 			Scalar:             NewStaticFloat(3.2),
 			TraceID:            []byte{0x02},
-			RootSpanName:       "a",
-			RootServiceName:    "b",
+			RootSpanName:       unique.Make("a"),
+			RootServiceName:    unique.Make("b"),
 			StartTimeUnixNanos: 1,
 			DurationNanos:      5,
 		},

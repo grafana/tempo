@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"time"
+	"unique"
 
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
@@ -300,11 +301,20 @@ func (e *Engine) createAutocompleteRequest(tag Attribute, pipeline Pipeline) Fet
 	return autocompleteReq
 }
 
+// handleValue safely extracts the string from a unique.Handle, returning
+// empty string for zero-value handles (which panic on .Value()).
+func handleValue(h unique.Handle[string]) string {
+	if h == (unique.Handle[string]{}) {
+		return ""
+	}
+	return h.Value()
+}
+
 func asTraceSearchMetadata(spanset *Spanset) *tempopb.TraceSearchMetadata {
 	metadata := &tempopb.TraceSearchMetadata{
 		TraceID:           util.TraceIDToHexString(spanset.TraceID),
-		RootServiceName:   spanset.RootServiceName,
-		RootTraceName:     spanset.RootSpanName,
+		RootServiceName:   handleValue(spanset.RootServiceName),
+		RootTraceName:     handleValue(spanset.RootSpanName),
 		StartTimeUnixNano: spanset.StartTimeUnixNanos,
 		DurationMs:        uint32(spanset.DurationNanos / 1_000_000),
 		ServiceStats:      make(map[string]*tempopb.ServiceStats, len(spanset.ServiceStats)),

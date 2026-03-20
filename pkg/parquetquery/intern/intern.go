@@ -67,12 +67,6 @@ func UniqueBytes(b []byte) unique.Handle[string] {
 	return unique.Make(string(b))
 }
 
-// UniqueStringFromBytes returns a process-wide deduplicated string from b.
-// Convenience wrapper: calls UniqueBytes(b).Value().
-func UniqueStringFromBytes(b []byte) string {
-	return UniqueBytes(b).Value()
-}
-
 // UniqueString returns a process-wide deduplicated handle from s.
 // Convenience wrapper: calls unique.Make(s).
 func UniqueString(s string) unique.Handle[string] {

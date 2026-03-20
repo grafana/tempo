@@ -1106,7 +1106,7 @@ func (d *distinctAttrCollector) KeepGroup(result *parquetquery.IteratorResult) b
 
 		if d.attrNames {
 			if e.Key == "key" {
-				name := intern.UniqueStringFromBytes(e.Value.ByteArray())
+				name := intern.UniqueBytes(e.Value.ByteArray()).Value()
 				key := tagNameKey{name: name, scope: d.scope}
 				if !d.existsTagName(key) {
 					result.AppendOtherValue(name, d.scope)

@@ -2,6 +2,7 @@ package vparquet5
 
 import (
 	"testing"
+	"unique"
 
 	"github.com/parquet-go/parquet-go"
 	"github.com/stretchr/testify/assert"
@@ -73,8 +74,8 @@ func TestSpansetPoolRelease(t *testing.T) {
 	// Get a spanset from the pool and populate it
 	spanset1 := getSpanset()
 	spanset1.TraceID = []byte("trace-id")
-	spanset1.RootSpanName = "root"
-	spanset1.RootServiceName = "service"
+	spanset1.RootSpanName = unique.Make("root")
+	spanset1.RootServiceName = unique.Make("service")
 	spanset1.StartTimeUnixNanos = 12345
 	spanset1.DurationNanos = 67890
 	spanset1.Scalar = traceql.NewStaticString("scalar")
@@ -92,8 +93,8 @@ func TestSpansetPoolRelease(t *testing.T) {
 
 	// Verify the reused spanset is properly cleared
 	assert.Nil(t, spanset2.TraceID, "TraceID should be cleared")
-	assert.Empty(t, spanset2.RootSpanName, "RootSpanName should be cleared")
-	assert.Empty(t, spanset2.RootServiceName, "RootServiceName should be cleared")
+	assert.Equal(t, unique.Handle[string]{}, spanset2.RootSpanName, "RootSpanName should be cleared")
+	assert.Equal(t, unique.Handle[string]{}, spanset2.RootServiceName, "RootServiceName should be cleared")
 	assert.Zero(t, spanset2.StartTimeUnixNanos, "StartTimeUnixNanos should be cleared")
 	assert.Zero(t, spanset2.DurationNanos, "DurationNanos should be cleared")
 	assert.Equal(t, traceql.TypeNil, spanset2.Scalar.Type, "Scalar should be cleared")

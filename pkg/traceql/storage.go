@@ -3,6 +3,7 @@ package traceql
 import (
 	"context"
 	"time"
+	"unique"
 
 	"github.com/grafana/tempo/pkg/util"
 )
@@ -209,8 +210,8 @@ type Spanset struct {
 	Spans  []Span
 
 	TraceID            []byte
-	RootSpanName       string
-	RootServiceName    string
+	RootSpanName       unique.Handle[string]
+	RootServiceName    unique.Handle[string]
 	StartTimeUnixNanos uint64
 	DurationNanos      uint64
 	ServiceStats       map[string]ServiceStats

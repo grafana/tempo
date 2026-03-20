@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"unique"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -34,8 +35,8 @@ func TestEngine_Execute(t *testing.T) {
 			results: []*Spanset{
 				{
 					TraceID:         []byte{1},
-					RootSpanName:    "HTTP GET",
-					RootServiceName: "my-service",
+					RootSpanName:    unique.Make("HTTP GET"),
+					RootServiceName: unique.Make("my-service"),
 					ServiceStats: map[string]ServiceStats{
 						"my-service": {
 							SpanCount:  6,
@@ -89,8 +90,8 @@ func TestEngine_Execute(t *testing.T) {
 				},
 				{
 					TraceID:         []byte{2},
-					RootSpanName:    "HTTP POST",
-					RootServiceName: "my-service",
+					RootSpanName:    unique.Make("HTTP POST"),
+					RootServiceName: unique.Make("my-service"),
 					Spans: []Span{
 						&mockSpan{
 							id: []byte{3},
@@ -214,8 +215,8 @@ func TestEngine_asTraceSearchMetadata(t *testing.T) {
 
 	spanSet := &Spanset{
 		TraceID:            traceID,
-		RootServiceName:    "my-service",
-		RootSpanName:       "HTTP GET",
+		RootServiceName:    unique.Make("my-service"),
+		RootSpanName:       unique.Make("HTTP GET"),
 		StartTimeUnixNanos: 1000,
 		DurationNanos:      uint64(time.Second.Nanoseconds()),
 		ServiceStats: map[string]ServiceStats{
@@ -602,8 +603,8 @@ func TestExecuteTagValues(t *testing.T) {
 				results: []*Spanset{
 					{
 						TraceID:         []byte{1},
-						RootSpanName:    "HTTP GET",
-						RootServiceName: "my-service",
+						RootSpanName:    unique.Make("HTTP GET"),
+						RootServiceName: unique.Make("my-service"),
 						Spans: []Span{
 							&mockSpan{
 								id: []byte{1},
@@ -627,8 +628,8 @@ func TestExecuteTagValues(t *testing.T) {
 					},
 					{
 						TraceID:         []byte{2},
-						RootSpanName:    "HTTP POST",
-						RootServiceName: "my-service",
+						RootSpanName:    unique.Make("HTTP POST"),
+						RootServiceName: unique.Make("my-service"),
 						Spans: []Span{
 							&mockSpan{
 								id: []byte{3},
