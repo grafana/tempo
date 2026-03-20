@@ -219,6 +219,11 @@ type Config struct {
 
 	UserConfigurableOverridesConfig UserConfigurableOverridesConfig `yaml:"user_configurable_overrides" json:"user_configurable_overrides"`
 
+	// EnableLegacyOverrides allows using the deprecated legacy (flat, unscoped) overrides format.
+	// Legacy overrides are disabled by default. Set this to true to opt back in while migrating
+	// to the new format. This option will be removed in a future release.
+	EnableLegacyOverrides bool `yaml:"enable_legacy_overrides" json:"enable_legacy_overrides"`
+
 	ConfigType ConfigType `yaml:"-" json:"-"`
 	ExpandEnv  bool       `yaml:"-" json:"-"`
 }
@@ -243,12 +248,15 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		PerTenantOverridePeriod model.Duration `yaml:"per_tenant_override_period"`
 
 		UserConfigurableOverridesConfig UserConfigurableOverridesConfig `yaml:"user_configurable_overrides"`
+
+		EnableLegacyOverrides bool `yaml:"enable_legacy_overrides"`
 	}
 	var legacyCfg legacyConfig
 	legacyCfg.DefaultOverrides = c.Defaults.toLegacy()
 	legacyCfg.PerTenantOverrideConfig = c.PerTenantOverrideConfig
 	legacyCfg.PerTenantOverridePeriod = c.PerTenantOverridePeriod
 	legacyCfg.UserConfigurableOverridesConfig = c.UserConfigurableOverridesConfig
+	legacyCfg.EnableLegacyOverrides = c.EnableLegacyOverrides
 
 	if legacyErr := unmarshal(&legacyCfg); legacyErr != nil {
 		return fmt.Errorf("failed to unmarshal config: %w; also failed in legacy format: %w", err, legacyErr)
@@ -258,6 +266,7 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	c.PerTenantOverrideConfig = legacyCfg.PerTenantOverrideConfig
 	c.PerTenantOverridePeriod = legacyCfg.PerTenantOverridePeriod
 	c.UserConfigurableOverridesConfig = legacyCfg.UserConfigurableOverridesConfig
+	c.EnableLegacyOverrides = legacyCfg.EnableLegacyOverrides
 	c.ConfigType = ConfigTypeLegacy
 	return nil
 }
@@ -291,6 +300,7 @@ func (c *Config) RegisterFlagsAndApplyDefaults(f *flag.FlagSet) {
 	f.StringVar(&c.PerTenantOverrideConfig, "config.per-user-override-config", "", "File name of per-user Overrides.")
 	_ = c.PerTenantOverridePeriod.Set("10s")
 	f.Var(&c.PerTenantOverridePeriod, "config.per-user-override-period", "Period with this to reload the Overrides.")
+	f.BoolVar(&c.EnableLegacyOverrides, "config.enable-legacy-overrides", false, "Enable the deprecated legacy overrides format. This is disabled by default and will be removed in a future release.")
 
 	c.UserConfigurableOverridesConfig.RegisterFlagsAndApplyDefaults(f)
 }

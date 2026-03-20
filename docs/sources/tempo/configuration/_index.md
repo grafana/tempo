@@ -2131,6 +2131,10 @@ overrides:
   # How frequent tenant-specific overrides are read from the configuration file.
   [per_tenant_override_period: <duration> | default = 10s]
 
+  # Enable the deprecated legacy overrides format.
+  # NOTE: This is disabled by default and will be removed in a future release.
+  [enable_legacy_overrides: <bool> | default = false]
+
   # User-configurable overrides configuration
   user_configurable_overrides:
 
