@@ -44,6 +44,7 @@
       // Livestore partition lag thresholds in seconds
       live_store_partition_lag_warning_seconds: 200,  // 3.3 minutes
       live_store_partition_lag_critical_seconds: 300,  // 5 minutes
+      live_store_all_members_lag_seconds: 300,  // all zones lagging simultaneously indicates a partial read outage
     },
 
     per_cluster_label: 'cluster',
