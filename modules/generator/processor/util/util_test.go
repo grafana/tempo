@@ -3,6 +3,7 @@ package util
 import (
 	"testing"
 
+	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/sampling"
 	"github.com/stretchr/testify/assert"
 
 	v1_common "github.com/grafana/tempo/pkg/tempopb/common/v1"
@@ -183,14 +184,16 @@ func TestGetSpanMultiplierFromTraceState(t *testing.T) {
 			traceState: "not=th:8,ot=th:c",
 			expected:   4.00,
 		},
+		{
+			name:       "not and ot vendor keys each with th and whitespace",
+			traceState: "not=th:8, ot=th:c",
+			expected:   4.00,
+		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			span := &v1.Span{
-				TraceState: tc.traceState,
-			}
-			result := getSpanMultiplierFromTraceState(span)
+			result := getSpanMultiplierFromTraceState(tc.traceState)
 			assert.InDelta(t, tc.expected, result, 0.001, "tracestate: %s", tc.traceState)
 		})
 	}
@@ -230,6 +233,34 @@ func BenchmarkGetSpanMultiplier(b *testing.B) {
 		for i := 0; i < b.N; i++ {
 			GetSpanMultiplier("sampling.ratio", spanWithoutTraceState, rs, false)
 		}
+	})
+}
+
+func FuzzGetSpanMultiplierFromTraceState(f *testing.F) {
+	f.Add("")
+	f.Add("ot=th:8")
+	f.Add("ot=th:c")
+	f.Add("ot=th:")
+	f.Add("vendor1=value1,ot=th:8,vendor2=value2")
+	f.Add("ot=rv:00112233445566;th:8")
+	f.Add("not=th:8,ot=th:c")
+	f.Add("not=th:8, ot=th:c")
+	f.Add("ot=th:xyz")
+	f.Add("vendor1=value1,vendor2=value2")
+	f.Add("  ot=th:8  ")
+	f.Add(",,,")
+	f.Add("ot=")
+	f.Add("=value")
+
+	f.Fuzz(func(t *testing.T, traceState string) {
+		// Verify that our multiplier matches what is done from the sampling package.
+		result := getSpanMultiplierFromTraceState(traceState)
+		w3c, err := sampling.NewW3CTraceState(traceState)
+		if err == nil {
+			assert.Equal(t, w3c.OTelValue().AdjustedCount(), result, "traceState: %s", traceState)
+		}
+		// We are looser with trace state errors where we can still parse ot=,
+		// so no assertions when there is an error as the results may differ.
 	})
 }
 
