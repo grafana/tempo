@@ -26,7 +26,6 @@ Consider the following resolutions:
 - Increase the queue depth size to do more work per querier
 - Adjust compaction settings to reduce the number of blocks
 
-
 ### Quick checks
 - Metric/query: `tempodb_blocklist_length`
 - Metric/query: `count(tempo_build_info{container="querier"})`
@@ -189,18 +188,6 @@ to pull is to simply delete stale tenant indexes as all components will fallback
 - Metric/query: `max by (tenant) (tempodb_blocklist_tenant_index_age_seconds)`
 - Metric/query: `sum by (tenant) (tempodb_blocklist_tenant_index_builder)`
 - Log query: `{container=~"backend-worker|backend-scheduler|querier|query-frontend"} |= "tenant index"`
-
-## TempoBlockListRisingQuickly
-
-The block list needs to remain under control to keep query performance acceptable. If the block list is rising too quickly, this might indicate the backend workers are under-scaled. Add more workers until the block list is back under control and holding mostly steady.
-
-In the current backend-scheduler/backend-worker flow, the scheduler exposes the block list and outstanding compaction backlog metrics, while backend-workers execute the compaction jobs. Use scheduler metrics to measure backlog growth and worker count/resources to decide whether more worker capacity is needed.
-
-### Quick checks
-- Metric/query: `tempodb_blocklist_length{container="backend-scheduler"}`
-- Metric/query: `sum by (tenant) (tempodb_compaction_outstanding_blocks{container="backend-scheduler"})`
-- Metric/query: `count(tempo_build_info{container="backend-worker"})`
-- Log query: `{container=~"backend-worker|backend-scheduler"} |= "compaction"`
 
 ## TempoBadOverrides
 
