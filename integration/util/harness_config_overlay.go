@@ -12,7 +12,9 @@ import (
 	"github.com/grafana/tempo/cmd/tempo/app"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/stretchr/testify/require"
-	"go.yaml.in/yaml/v2"
+	"go.yaml.in/yaml/v3"
+
+	"github.com/grafana/tempo/pkg/util"
 )
 
 const (
@@ -110,7 +112,7 @@ func setupConfig(t *testing.T, s *e2e.Scenario, config *TestHarnessConfig, reque
 	require.NoError(t, err, "failed to read merged config file")
 
 	var cfg app.Config
-	err = yaml.UnmarshalStrict(configBytes, &cfg)
+	err = util.YAMLUnmarshalStrict(configBytes, &cfg)
 	require.NoError(t, err, "failed to unmarshal merged config into app.Config")
 
 	return cfg
@@ -128,7 +130,7 @@ func applyConfigOverlay(s *e2e.Scenario, overlayPath string, templateData map[st
 		return fmt.Errorf("failed to read shared config file: %w", err)
 	}
 
-	var baseMap map[any]any
+	var baseMap map[string]any
 	err = yaml.Unmarshal(baseBuff, &baseMap)
 	if err != nil {
 		return fmt.Errorf("failed to parse shared config file: %w", err)
@@ -159,7 +161,7 @@ func applyConfigOverlay(s *e2e.Scenario, overlayPath string, templateData map[st
 		}
 
 		// Parse overlay
-		var overlayMap map[any]any
+		var overlayMap map[string]any
 		err = yaml.Unmarshal(overlayBuff, &overlayMap)
 		if err != nil {
 			return fmt.Errorf("failed to parse config overlay file: %w", err)
@@ -183,10 +185,10 @@ func applyConfigOverlay(s *e2e.Scenario, overlayPath string, templateData map[st
 	return nil
 }
 
-// mergeMaps recursively merges overlay map onto base map
-// Values in overlay take precedence over base values
-func mergeMaps(base, overlay map[any]any) map[any]any {
-	result := make(map[any]any)
+// mergeMaps recursively merges overlay map onto base map. Values in overlay take precedence over base values.
+// go.yaml.in/yaml/v3 always produces map[string]any when unmarshaling into interface{}.
+func mergeMaps(base, overlay map[string]any) map[string]any {
+	result := make(map[string]any, len(base))
 
 	// Copy all base values
 	for k, v := range base {
@@ -202,8 +204,8 @@ func mergeMaps(base, overlay map[any]any) map[any]any {
 
 		// If both base and overlay have a map at this key, merge recursively
 		if baseVal, exists := result[k]; exists {
-			baseMap, baseIsMap := toMapAnyAny(baseVal)
-			overlayMap, overlayIsMap := toMapAnyAny(v)
+			baseMap, baseIsMap := baseVal.(map[string]any)
+			overlayMap, overlayIsMap := v.(map[string]any)
 
 			if baseIsMap && overlayIsMap {
 				result[k] = mergeMaps(baseMap, overlayMap)
@@ -216,20 +218,4 @@ func mergeMaps(base, overlay map[any]any) map[any]any {
 	}
 
 	return result
-}
-
-// toMapAnyAny converts various map types to map[any]any
-func toMapAnyAny(v any) (map[any]any, bool) {
-	switch m := v.(type) {
-	case map[any]any:
-		return m, true
-	case map[string]any:
-		result := make(map[any]any)
-		for k, v := range m {
-			result[k] = v
-		}
-		return result, true
-	default:
-		return nil, false
-	}
 }

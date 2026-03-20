@@ -18,7 +18,9 @@ import (
 	"github.com/grafana/tempo/tempodb/backend/azure"
 	"github.com/prometheus/prometheus/model/labels"
 	"github.com/stretchr/testify/require"
-	"go.yaml.in/yaml/v2"
+	"go.yaml.in/yaml/v3"
+
+	"github.com/grafana/tempo/pkg/util"
 )
 
 const (
@@ -314,7 +316,7 @@ func (h *TempoHarness) GetConfig() (app.Config, error) {
 	}
 
 	var cfg app.Config
-	err = yaml.UnmarshalStrict(buff, &cfg)
+	err = util.YAMLUnmarshalStrict(buff, &cfg)
 	if err != nil {
 		return app.Config{}, fmt.Errorf("failed to unmarshal config: %w", err)
 	}

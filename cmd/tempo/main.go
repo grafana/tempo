@@ -182,7 +182,7 @@ func loadConfig() (*app.Config, bool, error) {
 			buff = []byte(s)
 		}
 
-		err = util.UnmarshalStrict(buff, config)
+		err = util.YAMLUnmarshalStrict(buff, config)
 		if err != nil {
 			return nil, false, fmt.Errorf("failed to parse configFile %s: %w", configFile, err)
 		}

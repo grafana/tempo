@@ -22,9 +22,9 @@ func YAMLMarshalUnmarshal(in interface{}) (map[string]interface{}, error) {
 	return object, nil
 }
 
-// UnmarshalStrict unmarshals YAML and returns an error for any unknown fields.
-// yaml.v3 removed yaml.UnmarshalStrict; this is the canonical replacement.
-func UnmarshalStrict(data []byte, v interface{}) error {
+// YAMLUnmarshalStrict unmarshals YAML and returns an error for any unknown fields.
+// go.yaml.in/yaml/v3 removed yaml.UnmarshalStrict; this is the canonical replacement.
+func YAMLUnmarshalStrict(data []byte, v interface{}) error {
 	dec := yaml.NewDecoder(bytes.NewReader(data))
 	dec.KnownFields(true)
 	return dec.Decode(v)

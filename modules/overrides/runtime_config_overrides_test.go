@@ -20,7 +20,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.yaml.in/yaml/v3"
 
-	tempo_util "github.com/grafana/tempo/pkg/util"
+	"github.com/grafana/tempo/pkg/util"
 
 	"github.com/grafana/tempo/pkg/sharedconfig"
 	"github.com/grafana/tempo/tempodb/backend"
@@ -564,10 +564,10 @@ func TestRemoteWriteHeaders(t *testing.T) {
 
 	// Verify the YAML output can be unmarshalled back
 	var runtimeConfig struct {
-		Defaults     Overrides            `yaml:"defaults"`
+		Defaults     Overrides             `yaml:"defaults"`
 		TenantLimits map[string]*Overrides `yaml:"overrides"`
 	}
-	require.NoError(t, tempo_util.UnmarshalStrict(buff.Bytes(), &runtimeConfig))
+	require.NoError(t, util.YAMLUnmarshalStrict(buff.Bytes(), &runtimeConfig))
 
 	assert.Equal(t, "<secret>", string(runtimeConfig.Defaults.MetricsGenerator.RemoteWriteHeaders["Authorization"]))
 

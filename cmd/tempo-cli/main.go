@@ -114,7 +114,7 @@ func loadBackend(b *backendOptions, g *globalOptions) (backend.Reader, backend.W
 			return nil, nil, nil, fmt.Errorf("failed to read configFile %s: %w", g.ConfigFile, err)
 		}
 
-		err = util.UnmarshalStrict(buff, &cfg)
+		err = util.YAMLUnmarshalStrict(buff, &cfg)
 		if err != nil {
 			return nil, nil, nil, fmt.Errorf("failed to parse configFile %s: %w", g.ConfigFile, err)
 		}
