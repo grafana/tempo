@@ -12,7 +12,9 @@ import (
 	"github.com/prometheus/common/model"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.yaml.in/yaml/v2"
+	"go.yaml.in/yaml/v3"
+
+	"github.com/grafana/tempo/pkg/util"
 
 	"github.com/grafana/tempo/modules/overrides/histograms"
 	"github.com/grafana/tempo/modules/overrides/userconfigurable/client"
@@ -160,7 +162,7 @@ user_configurable_overrides:
 
 	legacyCfg := Config{}
 	legacyCfg.RegisterFlagsAndApplyDefaults(&flag.FlagSet{})
-	assert.NoError(t, yaml.UnmarshalStrict([]byte(legacyRawYaml), &legacyCfg))
+	assert.NoError(t, util.YAMLUnmarshalStrict([]byte(legacyRawYaml), &legacyCfg))
 	assert.Equal(t, ConfigTypeLegacy, legacyCfg.ConfigType)
 	legacyCfg.ConfigType = ConfigTypeNew // For comparison vs new config
 
@@ -238,7 +240,7 @@ user_configurable_overrides:
 `
 	cfg := Config{}
 	cfg.RegisterFlagsAndApplyDefaults(&flag.FlagSet{})
-	assert.NoError(t, yaml.UnmarshalStrict([]byte(rawYaml), &cfg))
+	assert.NoError(t, util.YAMLUnmarshalStrict([]byte(rawYaml), &cfg))
 
 	assert.Equal(t, cfg, legacyCfg)
 }

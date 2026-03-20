@@ -3,7 +3,7 @@ package listtomap
 import (
 	"encoding/json"
 
-	"go.yaml.in/yaml/v2"
+	"go.yaml.in/yaml/v3"
 )
 
 type ListToMap map[string]struct{}
@@ -29,10 +29,9 @@ func (l ListToMap) MarshalYAML() (interface{}, error) {
 }
 
 // UnmarshalYAML implements the Unmarshaler interface of the yaml pkg.
-func (l *ListToMap) UnmarshalYAML(unmarshal func(interface{}) error) error {
-	list := make([]string, 0)
-	err := unmarshal(&list)
-	if err != nil {
+func (l *ListToMap) UnmarshalYAML(value *yaml.Node) error {
+	var list []string
+	if err := value.Decode(&list); err != nil {
 		return err
 	}
 

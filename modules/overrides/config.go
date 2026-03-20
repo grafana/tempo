@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/prometheus/common/config"
+	"go.yaml.in/yaml/v3"
 
 	"github.com/grafana/tempo/modules/overrides/histograms"
 	"github.com/grafana/tempo/pkg/util/listtomap"
@@ -223,42 +224,59 @@ type Config struct {
 	ExpandEnv  bool       `yaml:"-" json:"-"`
 }
 
-func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
-	// Note: this implementation relies on callers using yaml.UnmarshalStrict. In non-strict mode
-	// unmarshal() will not return an error for legacy configuration and we return immediately.
+// newConfigTopLevelKeys is the complete set of valid top-level YAML keys for the new overrides
+// config format. Any key outside this set indicates a legacy flat-format config.
+var newConfigTopLevelKeys = map[string]bool{
+	"defaults":                    true,
+	"per_tenant_override_config":  true,
+	"per_tenant_override_period":  true,
+	"user_configurable_overrides": true,
+}
 
-	// Try to unmarshal it normally
-	type rawConfig Config
-	err := unmarshal((*rawConfig)(c))
-	if err == nil {
-		c.ConfigType = ConfigTypeNew
+func isLegacyConfigNode(node *yaml.Node) bool {
+	if node.Kind != yaml.MappingNode {
+		return false
+	}
+	for i := 0; i < len(node.Content); i += 2 {
+		if !newConfigTopLevelKeys[node.Content[i].Value] {
+			return true
+		}
+	}
+	return false
+}
+
+func (c *Config) UnmarshalYAML(value *yaml.Node) error {
+	if isLegacyConfigNode(value) {
+		// Unmarshal inline limits using the legacy flat format
+		type legacyConfig struct {
+			DefaultOverrides                LegacyOverrides                 `yaml:",inline"`
+			PerTenantOverrideConfig         string                          `yaml:"per_tenant_override_config"`
+			PerTenantOverridePeriod         model.Duration                  `yaml:"per_tenant_override_period"`
+			UserConfigurableOverridesConfig UserConfigurableOverridesConfig `yaml:"user_configurable_overrides"`
+		}
+		var legacyCfg legacyConfig
+		legacyCfg.DefaultOverrides = c.Defaults.toLegacy()
+		legacyCfg.PerTenantOverrideConfig = c.PerTenantOverrideConfig
+		legacyCfg.PerTenantOverridePeriod = c.PerTenantOverridePeriod
+		legacyCfg.UserConfigurableOverridesConfig = c.UserConfigurableOverridesConfig
+
+		if err := value.Decode(&legacyCfg); err != nil {
+			return fmt.Errorf("failed to unmarshal legacy config: %w", err)
+		}
+
+		c.Defaults = legacyCfg.DefaultOverrides.toNewLimits()
+		c.PerTenantOverrideConfig = legacyCfg.PerTenantOverrideConfig
+		c.PerTenantOverridePeriod = legacyCfg.PerTenantOverridePeriod
+		c.UserConfigurableOverridesConfig = legacyCfg.UserConfigurableOverridesConfig
+		c.ConfigType = ConfigTypeLegacy
 		return nil
 	}
 
-	// Try to unmarshal inline limits
-	type legacyConfig struct {
-		DefaultOverrides LegacyOverrides `yaml:",inline"`
-
-		PerTenantOverrideConfig string         `yaml:"per_tenant_override_config"`
-		PerTenantOverridePeriod model.Duration `yaml:"per_tenant_override_period"`
-
-		UserConfigurableOverridesConfig UserConfigurableOverridesConfig `yaml:"user_configurable_overrides"`
+	type rawConfig Config
+	if err := value.Decode((*rawConfig)(c)); err != nil {
+		return err
 	}
-	var legacyCfg legacyConfig
-	legacyCfg.DefaultOverrides = c.Defaults.toLegacy()
-	legacyCfg.PerTenantOverrideConfig = c.PerTenantOverrideConfig
-	legacyCfg.PerTenantOverridePeriod = c.PerTenantOverridePeriod
-	legacyCfg.UserConfigurableOverridesConfig = c.UserConfigurableOverridesConfig
-
-	if legacyErr := unmarshal(&legacyCfg); legacyErr != nil {
-		return fmt.Errorf("failed to unmarshal config: %w; also failed in legacy format: %w", err, legacyErr)
-	}
-
-	c.Defaults = legacyCfg.DefaultOverrides.toNewLimits()
-	c.PerTenantOverrideConfig = legacyCfg.PerTenantOverrideConfig
-	c.PerTenantOverridePeriod = legacyCfg.PerTenantOverridePeriod
-	c.UserConfigurableOverridesConfig = legacyCfg.UserConfigurableOverridesConfig
-	c.ConfigType = ConfigTypeLegacy
+	c.ConfigType = ConfigTypeNew
 	return nil
 }
 

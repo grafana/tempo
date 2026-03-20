@@ -1,19 +1,31 @@
 package util
 
-import "go.yaml.in/yaml/v2"
+import (
+	"bytes"
+
+	"go.yaml.in/yaml/v3"
+)
 
 // YAMLMarshalUnmarshal utility function that converts a YAML interface in a map
 // doing marshal and unmarshal of the parameter
-func YAMLMarshalUnmarshal(in interface{}) (map[interface{}]interface{}, error) {
+func YAMLMarshalUnmarshal(in interface{}) (map[string]interface{}, error) {
 	yamlBytes, err := yaml.Marshal(in)
 	if err != nil {
 		return nil, err
 	}
 
-	object := make(map[interface{}]interface{})
+	object := make(map[string]interface{})
 	if err := yaml.Unmarshal(yamlBytes, object); err != nil {
 		return nil, err
 	}
 
 	return object, nil
+}
+
+// YAMLUnmarshalStrict unmarshals YAML and returns an error for any unknown fields.
+// go.yaml.in/yaml/v3 removed yaml.UnmarshalStrict; this is the canonical replacement.
+func YAMLUnmarshalStrict(data []byte, v interface{}) error {
+	dec := yaml.NewDecoder(bytes.NewReader(data))
+	dec.KnownFields(true)
+	return dec.Decode(v)
 }

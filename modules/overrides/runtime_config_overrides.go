@@ -15,7 +15,7 @@ import (
 	"github.com/grafana/dskit/runtimeconfig"
 	"github.com/grafana/dskit/services"
 	"github.com/prometheus/client_golang/prometheus"
-	"go.yaml.in/yaml/v2"
+	"go.yaml.in/yaml/v3"
 
 	"github.com/grafana/tempo/modules/overrides/histograms"
 	"github.com/grafana/tempo/pkg/sharedconfig"
@@ -36,25 +36,65 @@ type perTenantOverrides struct {
 	ConfigType ConfigType `yaml:"-"` // ConfigType is the type of overrides config we are using: legacy or new
 }
 
-func (o *perTenantOverrides) UnmarshalYAML(unmarshal func(interface{}) error) error {
-	// Note: this implementation relies on callers using yaml.UnmarshalStrict. In non-strict mode
-	// unmarshal() will not return an error for legacy configuration and we return immediately.
+// newFormatOverridesKeys is the complete set of valid top-level YAML keys for an Overrides value
+// in the new per-tenant overrides format. Any key outside this set indicates a legacy flat-format entry.
+var newFormatOverridesKeys = map[string]bool{
+	"ingestion":         true,
+	"read":              true,
+	"compaction":        true,
+	"metrics_generator": true,
+	"forwarders":        true,
+	"global":            true,
+	"storage":           true,
+	"cost_attribution":  true,
+}
 
-	// Try to unmarshal it normally
-	type rawConfig perTenantOverrides
-	if err := unmarshal((*rawConfig)(o)); err == nil {
-		o.ConfigType = ConfigTypeNew
+// isLegacyPerTenantOverridesNode inspects the YAML node for the per-tenant overrides config and
+// returns true if any tenant entry uses the legacy flat-key format.
+func isLegacyPerTenantOverridesNode(node *yaml.Node) bool {
+	if node.Kind != yaml.MappingNode {
+		return false
+	}
+	for i := 0; i < len(node.Content)-1; i += 2 {
+		if node.Content[i].Value != "overrides" {
+			continue
+		}
+		overridesMap := node.Content[i+1]
+		if overridesMap.Kind != yaml.MappingNode {
+			return false
+		}
+		// Check each tenant's overrides value for legacy flat keys.
+		for j := 1; j < len(overridesMap.Content); j += 2 {
+			tenantLimits := overridesMap.Content[j]
+			if tenantLimits.Kind != yaml.MappingNode {
+				continue
+			}
+			for k := 0; k < len(tenantLimits.Content); k += 2 {
+				if !newFormatOverridesKeys[tenantLimits.Content[k].Value] {
+					return true
+				}
+			}
+		}
+	}
+	return false
+}
+
+func (o *perTenantOverrides) UnmarshalYAML(value *yaml.Node) error {
+	if isLegacyPerTenantOverridesNode(value) {
+		var legacyConfig perTenantLegacyOverrides
+		if err := value.Decode(&legacyConfig); err != nil {
+			return err
+		}
+		*o = legacyConfig.toNewOverrides()
+		o.ConfigType = ConfigTypeLegacy
 		return nil
 	}
 
-	var legacyConfig perTenantLegacyOverrides
-	if err := unmarshal(&legacyConfig); err != nil {
+	type rawConfig perTenantOverrides
+	if err := value.Decode((*rawConfig)(o)); err != nil {
 		return err
 	}
-
-	*o = legacyConfig.toNewOverrides()
-	o.ConfigType = ConfigTypeLegacy
-
+	o.ConfigType = ConfigTypeNew
 	return nil
 }
 
@@ -87,7 +127,7 @@ func loadPerTenantOverrides(validator Validator, typ ConfigType, expandEnv bool)
 		}
 
 		decoder := yaml.NewDecoder(r)
-		decoder.SetStrict(true)
+		decoder.KnownFields(true)
 		if err := decoder.Decode(&overrides); err != nil {
 			return nil, err
 		}
@@ -215,20 +255,23 @@ func (o *runtimeConfigOverridesManager) tenantOverrides() *perTenantOverrides {
 }
 
 // statusRuntimeConfig is a struct used to print the complete runtime config (defaults + overrides)
+// statusRuntimeConfig is the marshaling type for WriteStatusRuntimeConfig.
+// Note: perTenantOverrides cannot be used with yaml:",inline" here because yaml.v3 silently
+// drops inline fields whose type implements yaml.Unmarshaler but not yaml.Marshaler.
 type statusRuntimeConfig struct {
-	Defaults           *Overrides         `yaml:"defaults"`
-	PerTenantOverrides perTenantOverrides `yaml:",inline"`
+	Defaults     *Overrides            `yaml:"defaults"`
+	TenantLimits map[string]*Overrides `yaml:"overrides"`
 }
 
 func (o *runtimeConfigOverridesManager) WriteStatusRuntimeConfig(w io.Writer, r *http.Request) error {
 	var tenantOverrides perTenantOverrides
-	if o.tenantOverrides() != nil {
-		tenantOverrides = *o.tenantOverrides()
+	if to := o.tenantOverrides(); to != nil {
+		tenantOverrides = *to
 	}
 	var output interface{}
 	cfg := statusRuntimeConfig{
-		Defaults:           o.defaultLimits,
-		PerTenantOverrides: tenantOverrides,
+		Defaults:     o.defaultLimits,
+		TenantLimits: tenantOverrides.TenantLimits,
 	}
 
 	mode := r.URL.Query().Get("mode")
@@ -244,7 +287,7 @@ func (o *runtimeConfigOverridesManager) WriteStatusRuntimeConfig(w io.Writer, r 
 			}
 		}
 
-		cfgYaml, err := util.YAMLMarshalUnmarshal(cfg.PerTenantOverrides)
+		cfgYaml, err := util.YAMLMarshalUnmarshal(tenantOverrides)
 		if err != nil {
 			return err
 		}

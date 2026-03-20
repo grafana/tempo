@@ -16,11 +16,11 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	ver "github.com/prometheus/client_golang/prometheus/collectors/version"
 	"github.com/prometheus/common/version"
-	"go.yaml.in/yaml/v2"
 	"google.golang.org/grpc/encoding"
 
 	"github.com/grafana/tempo/cmd/tempo/app"
 	"github.com/grafana/tempo/pkg/gogocodec"
+	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/pkg/util/log"
 )
 
@@ -182,7 +182,7 @@ func loadConfig() (*app.Config, bool, error) {
 			buff = []byte(s)
 		}
 
-		err = yaml.UnmarshalStrict(buff, config)
+		err = util.YAMLUnmarshalStrict(buff, config)
 		if err != nil {
 			return nil, false, fmt.Errorf("failed to parse configFile %s: %w", configFile, err)
 		}
