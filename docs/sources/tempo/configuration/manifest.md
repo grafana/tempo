@@ -857,6 +857,10 @@ backend_scheduler:
             max_input_blocks: 4
             max_compaction_level: 0
             min_cycle_interval: 30s
+        redaction:
+            poll_interval: 2s
+            rescan_delay: 5m0s
+            max_rescan_generations: 5
     job_timeout: 15s
     local_work_path: /var/tempo
 backend_scheduler_client:
