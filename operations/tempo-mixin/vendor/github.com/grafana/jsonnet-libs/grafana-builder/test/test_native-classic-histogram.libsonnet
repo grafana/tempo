@@ -98,6 +98,33 @@ test.new(std.thisFile)
 )
 
 + test.case.new(
+  name='latencyPanelNativeHistogram nativeOnly (native query only, no dashboard variable)',
+  test=test.expect.eq(
+    actual=std.get(builder.latencyPanelNativeHistogram('cluster_job_route:cortex_request_duration_seconds_bucket', 'cluster="cluster1"', '1e3', [99, 50], true, nativeOnly=true), 'targets'),
+    expected=[
+      {
+        expr: 'histogram_quantile(0.99, sum (cluster_job_route:cortex_request_duration_seconds_bucket:sum_rate{cluster="cluster1"})) * 1e3',
+        format: 'time_series',
+        legendFormat: '99th percentile',
+        refId: 'A',
+      },
+      {
+        expr: 'histogram_quantile(0.50, sum (cluster_job_route:cortex_request_duration_seconds_bucket:sum_rate{cluster="cluster1"})) * 1e3',
+        format: 'time_series',
+        legendFormat: '50th percentile',
+        refId: 'B',
+      },
+      {
+        expr: '1e3 * sum(histogram_sum(cluster_job_route:cortex_request_duration_seconds_bucket:sum_rate{cluster="cluster1"})) /\nsum(histogram_count(cluster_job_route:cortex_request_duration_seconds_bucket:sum_rate{cluster="cluster1"}))\n',
+        format: 'time_series',
+        legendFormat: 'Average',
+        refId: 'C',
+      },
+    ]
+  )
+)
+
++ test.case.new(
   name='LatencyPanel from recording',
   test=test.expect.eq(
     actual=std.get(builder.latencyPanelNativeHistogram('cluster_job_route:cortex_request_duration_seconds_bucket', 'cluster="cluster1"', '1e3', [99, 50], true), 'targets'),
