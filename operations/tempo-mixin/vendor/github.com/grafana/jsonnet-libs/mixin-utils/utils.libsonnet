@@ -330,8 +330,11 @@ local g = import 'grafana-builder/grafana.libsonnet';
   //   Useful for external labels.
   // - multiplier (optional): assumes results are in seconds, will multiply
   //   by 1e3 to get ms.  Can be turned off.
-  // - sum_by (optional): additional labels to use in the sum by clause, will also be used in the legend
-  latencyRecordingRulePanelNativeHistogram(metric, selectors, extra_selectors=[], multiplier='1e3', sum_by=[])::
+  // - sum_by (optional): additional labels to use in the sum by clause, will also be used in the legend.
+  // - nativeOnly (optional): when true, shows only native histogram queries without depending on
+  //   the latency_metrics dashboard variable. When false (default), shows both native and classic
+  //   histogram queries gated on the latency_metrics dashboard variable.
+  latencyRecordingRulePanelNativeHistogram(metric, selectors, extra_selectors=[], multiplier='1e3', sum_by=[], nativeOnly=false)::
     local labels = std.join('_', [matcher.label for matcher in selectors]);
     local legend = std.join('', ['{{ %(lb)s }} ' % lb for lb in sum_by]);
     local metricStr = '%(labels)s:%(metric)s' % { labels: labels, metric: metric };
@@ -339,7 +342,26 @@ local g = import 'grafana-builder/grafana.libsonnet';
     {
       nullPointMode: 'null as zero',
       yaxes: g.yaxes('ms'),
-      targets: [
+      targets: if nativeOnly then [
+        {
+          expr: $.ncHistogramQuantile('0.99', metricStr, selectorStr, sum_by=sum_by, multiplier=multiplier, from_recording=true).native,
+          format: 'time_series',
+          legendFormat: '%(legend)s99th percentile' % legend,
+          refId: 'A',
+        },
+        {
+          expr: $.ncHistogramQuantile('0.50', metricStr, selectorStr, sum_by=sum_by, multiplier=multiplier, from_recording=true).native,
+          format: 'time_series',
+          legendFormat: '%(legend)s50th percentile' % legend,
+          refId: 'B',
+        },
+        {
+          expr: $.ncHistogramAverageRate(metricStr, selectorStr, multiplier=multiplier, from_recording=true).native,
+          format: 'time_series',
+          legendFormat: '%(legend)sAverage' % legend,
+          refId: 'C',
+        },
+      ] else [
         {
           expr: $.showClassicHistogramQuery($.ncHistogramQuantile('0.99', metricStr, selectorStr, sum_by=sum_by, multiplier=multiplier, from_recording=true)),
           format: 'time_series',
