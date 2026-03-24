@@ -2,6 +2,7 @@ package overrides
 
 import (
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"reflect"
@@ -15,7 +16,7 @@ type Extension interface {
 	Key() string
 	// RegisterFlagsAndApplyDefaults applies defaults for the extension config.
 	RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
-	// Validate validates the extension config after it has been decoded.
+	// Validate validates the extension config after it has been decoded. Validate must be idempotent.
 	Validate() error
 	// LegacyKeys returns the flat-key names used in the legacy overrides format.
 	// Return an empty slice if there are no legacy keys.
@@ -44,9 +45,11 @@ var extensionRegistry = struct {
 	entries map[string]*registryEntry
 }{entries: make(map[string]*registryEntry)}
 
-// RegisterExtension registers a per-tenant overrides extension.
-// e must be a non-nil pointer to the extension struct (pointer receivers are required).
-// Panics if an extension with the same Key() is already registered.
+// RegisterExtension registers a per-tenant overrides extension. The extension e must be a non-nil
+// pointer to the extension struct (pointer receivers are required).
+// Panics if an extension with the same Key() is already registered, or if the key
+// conflicts with a known Overrides field name (which would cause silent data loss
+// during JSON marshal/unmarshal).
 // Returns a typed getter that retrieves the extension value from an Overrides.
 func RegisterExtension[T Extension](e T) func(*Overrides) T {
 	key := e.Key()
@@ -61,6 +64,9 @@ func RegisterExtension[T Extension](e T) func(*Overrides) T {
 	typ := reflect.TypeOf(e)
 	if typ == nil || typ.Kind() != reflect.Ptr {
 		panic(fmt.Sprintf("overrides: extension %q must be registered as a pointer type", key))
+	}
+	if _, conflict := knownOverridesJSONFields()[key]; conflict {
+		panic(fmt.Sprintf("overrides: extension key %q conflicts with a built-in Overrides field; choose a different key", key))
 	}
 
 	extensionRegistry.entries[key] = &registryEntry{
@@ -96,10 +102,10 @@ func processExtensions(o *Overrides) error {
 			return fmt.Errorf("unknown extension key %q: must be registered via RegisterExtension before use", key)
 		}
 
-		// Already a typed Extension (e.g., set programmatically or after legacy conversion): just validate.
+		// Already a typed Extension (set programmatically or after legacy conversion)
 		if ext, alreadyTyped := raw.(Extension); alreadyTyped {
 			if err := ext.Validate(); err != nil {
-				return fmt.Errorf("extension %q: %w", key, err)
+				return &extensionError{fmt.Errorf("extension %q: %w", key, err)}
 			}
 			continue
 		}
@@ -109,17 +115,16 @@ func processExtensions(o *Overrides) error {
 		// Per-tenant extension configs have no CLI prefix.
 		instance.RegisterFlagsAndApplyDefaults("", flag.NewFlagSet("", flag.ContinueOnError))
 
-		// Decode via JSON round-trip, which also normalises map[any]any from YAML.
+		// Decode via JSON round-trip, which also normalizes map[any]any from YAML.
 		b, err := json.Marshal(normalizeYAMLValue(raw))
 		if err != nil {
-			return fmt.Errorf("extension %q: marshal: %w", key, err)
+			return &extensionError{fmt.Errorf("extension %q: marshal: %w", key, err)}
 		}
 		if err := json.Unmarshal(b, instance); err != nil {
-			return fmt.Errorf("extension %q: unmarshal: %w", key, err)
+			return &extensionError{fmt.Errorf("extension %q: unmarshal: %w", key, err)}
 		}
-
 		if err := instance.Validate(); err != nil {
-			return fmt.Errorf("extension %q: %w", key, err)
+			return &extensionError{fmt.Errorf("extension %q: %w", key, err)}
 		}
 
 		o.Extensions[key] = instance
@@ -175,9 +180,6 @@ func processLegacyExtensions(l *LegacyOverrides) error {
 		for _, fk := range entry.legacyKeys {
 			delete(l.Extensions, fk)
 		}
-		if l.Extensions == nil {
-			l.Extensions = make(map[string]any)
-		}
 		l.Extensions[entry.key] = instance
 	}
 	return nil
@@ -228,17 +230,14 @@ func normalizeYAMLValue(v any) any {
 	}
 }
 
-// ResetRegistryForTesting clears the extension registry and restores it after the test.
-// This prevents extension registrations in one test from leaking into others.
-func ResetRegistryForTesting(t interface{ Cleanup(func()) }) {
-	extensionRegistry.Lock()
-	saved := extensionRegistry.entries
-	extensionRegistry.entries = make(map[string]*registryEntry)
-	extensionRegistry.Unlock()
+// extensionError wraps errors that originate from extension unmarshal or validation.
+type extensionError struct{ err error }
 
-	t.Cleanup(func() {
-		extensionRegistry.Lock()
-		extensionRegistry.entries = saved
-		extensionRegistry.Unlock()
-	})
+func (e *extensionError) Error() string { return e.err.Error() }
+func (e *extensionError) Unwrap() error { return e.err }
+
+// isExtensionError reports whether err (or any error in its chain) is an extensionError.
+func isExtensionError(err error) bool {
+	var e *extensionError
+	return errors.As(err, &e)
 }

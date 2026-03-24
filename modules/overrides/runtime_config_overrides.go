@@ -41,10 +41,15 @@ func (o *perTenantOverrides) UnmarshalYAML(unmarshal func(interface{}) error) er
 	// tenant, which rejects unregistered extension keys — including legacy flat-key field names
 	// (e.g. "max_traces_per_user"). If any tenant uses legacy fields the first-pass will error
 	// and we fall through to the legacy path below.
+	// If the error is an extensionError, the config is in the new format but misconfigured.
 	type rawConfig perTenantOverrides
-	if err := unmarshal((*rawConfig)(o)); err == nil {
+	err := unmarshal((*rawConfig)(o))
+	if err == nil {
 		o.ConfigType = ConfigTypeNew
 		return nil
+	}
+	if isExtensionError(err) {
+		return err
 	}
 
 	var legacyConfig perTenantLegacyOverrides

@@ -305,11 +305,15 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	// unmarshal() will not return an error for legacy configuration and we return immediately.
 
 	// Try to unmarshal it normally. Overrides.UnmarshalYAML calls processExtensions for c.Defaults.
+	// If the error is an extensionError, the config is in the new format but misconfigured.
 	type rawConfig Config
 	err := unmarshal((*rawConfig)(c))
 	if err == nil {
 		c.ConfigType = ConfigTypeNew
 		return nil
+	}
+	if isExtensionError(err) {
+		return err
 	}
 
 	// Try to unmarshal inline limits

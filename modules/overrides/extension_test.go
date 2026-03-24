@@ -13,13 +13,13 @@ import (
 )
 
 func TestRegisterExtension_PanicsOnDuplicate(t *testing.T) {
-	ResetRegistryForTesting(t)
+	resetRegistryForTesting(t)
 	RegisterExtension(&testExtension{})
 	assert.Panics(t, func() { RegisterExtension(&testExtension{}) })
 }
 
 func TestRegisterExtension_TypedGetter(t *testing.T) {
-	ResetRegistryForTesting(t)
+	resetRegistryForTesting(t)
 	get := RegisterExtension(&testExtension{})
 
 	fieldB := 99
@@ -38,7 +38,7 @@ func TestRegisterExtension_TypedGetter(t *testing.T) {
 
 func TestOverridesExtension_MarshalJSON(t *testing.T) {
 	t.Run("overrides", func(t *testing.T) {
-		ResetRegistryForTesting(t)
+		resetRegistryForTesting(t)
 		get := RegisterExtension(&testExtension{})
 
 		fieldB := 42
@@ -62,7 +62,7 @@ func TestOverridesExtension_MarshalJSON(t *testing.T) {
 	})
 
 	t.Run("legacy overrides", func(t *testing.T) {
-		ResetRegistryForTesting(t)
+		resetRegistryForTesting(t)
 		RegisterExtension(&testExtension{})
 
 		fieldB := 7
@@ -99,7 +99,7 @@ func TestOverridesExtension_MarshalJSON(t *testing.T) {
 
 func TestOverridesExtension_UnmarshalJSON(t *testing.T) {
 	t.Run("overrides", func(t *testing.T) {
-		ResetRegistryForTesting(t)
+		resetRegistryForTesting(t)
 		get := RegisterExtension(&testExtension{})
 
 		input := `{
@@ -117,7 +117,7 @@ func TestOverridesExtension_UnmarshalJSON(t *testing.T) {
 	})
 
 	t.Run("overrides defaults applied", func(t *testing.T) {
-		ResetRegistryForTesting(t)
+		resetRegistryForTesting(t)
 		get := RegisterExtension(&testExtension{})
 
 		// field_b is omitted — the default (pointer to 0) must be used.
@@ -133,7 +133,7 @@ func TestOverridesExtension_UnmarshalJSON(t *testing.T) {
 	})
 
 	t.Run("overrides unregistered key", func(t *testing.T) {
-		ResetRegistryForTesting(t)
+		resetRegistryForTesting(t)
 
 		input := `{"ingestion": {"max_traces_per_user": 1}, "unknown_ext": {"x": 1}}`
 		var o Overrides
@@ -142,7 +142,7 @@ func TestOverridesExtension_UnmarshalJSON(t *testing.T) {
 	})
 
 	t.Run("overrides validate error", func(t *testing.T) {
-		ResetRegistryForTesting(t)
+		resetRegistryForTesting(t)
 		RegisterExtension(&testExtension{})
 
 		// field_a is empty — Validate must reject it.
@@ -153,7 +153,7 @@ func TestOverridesExtension_UnmarshalJSON(t *testing.T) {
 	})
 
 	t.Run("legacy overrides", func(t *testing.T) {
-		ResetRegistryForTesting(t)
+		resetRegistryForTesting(t)
 		RegisterExtension(&testExtension{})
 
 		// LegacyOverrides JSON may contain flat extension keys; processLegacyExtensions converts
@@ -172,7 +172,7 @@ func TestOverridesExtension_UnmarshalJSON(t *testing.T) {
 
 func TestOverridesExtension_MarshalYAML(t *testing.T) {
 	t.Run("overrides", func(t *testing.T) {
-		ResetRegistryForTesting(t)
+		resetRegistryForTesting(t)
 		get := RegisterExtension(&testExtension{})
 
 		fieldB := 3
@@ -200,7 +200,7 @@ func TestOverridesExtension_MarshalYAML(t *testing.T) {
 	})
 
 	t.Run("legacy overrides", func(t *testing.T) {
-		ResetRegistryForTesting(t)
+		resetRegistryForTesting(t)
 		RegisterExtension(&testExtension{})
 
 		fieldB := 8
@@ -223,7 +223,7 @@ func TestOverridesExtension_MarshalYAML(t *testing.T) {
 
 func TestOverridesExtension_UnmarshalYAML(t *testing.T) {
 	t.Run("overrides", func(t *testing.T) {
-		ResetRegistryForTesting(t)
+		resetRegistryForTesting(t)
 		get := RegisterExtension(&testExtension{})
 
 		input := `
@@ -244,7 +244,7 @@ test_extension:
 	})
 
 	t.Run("Overrides_strict_decoder_absorbs_extension_key", func(t *testing.T) {
-		ResetRegistryForTesting(t)
+		resetRegistryForTesting(t)
 		RegisterExtension(&testExtension{})
 
 		input := `
@@ -260,7 +260,7 @@ test_extension:
 	})
 
 	t.Run("overrides unregistered key", func(t *testing.T) {
-		ResetRegistryForTesting(t)
+		resetRegistryForTesting(t)
 
 		input := `
 ingestion:
@@ -274,7 +274,7 @@ unknown_ext:
 	})
 
 	t.Run("legacy overrides", func(t *testing.T) {
-		ResetRegistryForTesting(t)
+		resetRegistryForTesting(t)
 		get := RegisterExtension(&testExtension{})
 
 		input := `
@@ -307,7 +307,7 @@ test_extension_field_a: from_legacy_yaml
 }
 
 func TestExtension_FullLegacyRoundTrip_perTenantOverrides(t *testing.T) {
-	ResetRegistryForTesting(t)
+	resetRegistryForTesting(t)
 	get := RegisterExtension(&testExtension{})
 
 	input := `
@@ -331,7 +331,7 @@ overrides:
 }
 
 func TestExtension_FullNewFormatRoundTrip_perTenantOverrides(t *testing.T) {
-	ResetRegistryForTesting(t)
+	resetRegistryForTesting(t)
 	get := RegisterExtension(&testExtension{})
 
 	input := `
@@ -359,7 +359,7 @@ overrides:
 }
 
 func TestExtension_JSONRoundTrip_Overrides(t *testing.T) {
-	ResetRegistryForTesting(t)
+	resetRegistryForTesting(t)
 	get := RegisterExtension(&testExtension{})
 
 	fieldB := 13
@@ -383,7 +383,7 @@ func TestExtension_JSONRoundTrip_Overrides(t *testing.T) {
 }
 
 func TestExtension_LegacyConversionRoundTrip(t *testing.T) {
-	ResetRegistryForTesting(t)
+	resetRegistryForTesting(t)
 	get := RegisterExtension(&testExtension{})
 
 	fieldB := 21
@@ -417,6 +417,55 @@ func TestExtension_LegacyConversionRoundTrip(t *testing.T) {
 	require.NotNil(t, ext)
 	assert.Equal(t, "converted", ext.FieldA)
 	assert.Equal(t, 21, *ext.FieldB)
+}
+
+func TestRegisterExtension_PanicsOnKnownFieldConflict(t *testing.T) {
+	resetRegistryForTesting(t)
+	// "ingestion" is a known Overrides JSON field; registering an extension with
+	// that key must panic rather than silently cause data loss during marshal.
+	assert.Panics(t, func() {
+		RegisterExtension(&conflictingExtension{})
+	})
+}
+
+func TestExtensionValidationError_NotSwallowedByLegacyFallback(t *testing.T) {
+	resetRegistryForTesting(t)
+	RegisterExtension(&testExtension{})
+
+	// New-format config with a registered extension that fails validation (field_a is empty).
+	// The error must propagate to the caller rather than being silently swallowed by the
+	// legacy-format fallback path.
+	input := `
+overrides:
+  tenant-1:
+    ingestion:
+      max_traces_per_user: 1000
+    test_extension:
+      field_a: ""
+`
+	var pto perTenantOverrides
+	decoder := yaml.NewDecoder(strings.NewReader(input))
+	decoder.SetStrict(true)
+	err := decoder.Decode(&pto)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "field_a cannot be empty", "validation error must not be swallowed by legacy fallback")
+}
+
+// resetRegistryForTesting clears the extension registry for the duration of the test,
+// restoring the original state via t.Cleanup. This prevents extension registrations
+// in one test from leaking into others.
+func resetRegistryForTesting(t *testing.T) {
+	t.Helper()
+	extensionRegistry.Lock()
+	saved := extensionRegistry.entries
+	extensionRegistry.entries = make(map[string]*registryEntry)
+	extensionRegistry.Unlock()
+
+	t.Cleanup(func() {
+		extensionRegistry.Lock()
+		extensionRegistry.entries = saved
+		extensionRegistry.Unlock()
+	})
 }
 
 var _ Extension = (*testExtension)(nil)
@@ -470,3 +519,14 @@ func (t *testExtension) ToLegacy() map[string]any {
 		"test_extension_field_b": fieldB,
 	}
 }
+
+var _ Extension = (*conflictingExtension)(nil)
+
+type conflictingExtension struct{}
+
+func (c *conflictingExtension) Key() string                                             { return "ingestion" }
+func (c *conflictingExtension) RegisterFlagsAndApplyDefaults(_ string, _ *flag.FlagSet) {}
+func (c *conflictingExtension) Validate() error                                         { return nil }
+func (c *conflictingExtension) LegacyKeys() []string                                    { return nil }
+func (c *conflictingExtension) FromLegacy(_ map[string]any) error                       { return nil }
+func (c *conflictingExtension) ToLegacy() map[string]any                                { return nil }
