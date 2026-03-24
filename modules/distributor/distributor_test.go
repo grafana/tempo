@@ -20,6 +20,7 @@ import (
 	"github.com/golang/protobuf/proto" // nolint: all  //ProtoReflect
 	dslog "github.com/grafana/dskit/log"
 	"github.com/grafana/dskit/ring"
+	"github.com/grafana/dskit/services"
 	"github.com/grafana/dskit/user"
 	"github.com/grafana/tempo/modules/generator"
 	"github.com/grafana/tempo/pkg/ingest"
@@ -39,6 +40,7 @@ import (
 	v1_resource "github.com/grafana/tempo/pkg/tempopb/resource/v1"
 	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 	"github.com/grafana/tempo/pkg/util"
+	"github.com/grafana/tempo/pkg/util/listtomap"
 	"github.com/grafana/tempo/pkg/util/test"
 )
 
@@ -1652,6 +1654,54 @@ func TestPushTracesToLocalLiveStoreError(t *testing.T) {
 	_, err = d.PushTraces(ctx, traces)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "failed to push spans to local live-store")
+}
+
+func TestPushLocalSkipsGeneratorWhenLiveStoreFails(t *testing.T) {
+	limits := overrides.Config{}
+	limitCfg := &flag.FlagSet{}
+	limits.RegisterFlagsAndApplyDefaults(limitCfg)
+	limits.Defaults.MetricsGenerator.Processors = listtomap.ListToMap{"service-graphs": {}}
+
+	distributorCfg, overridesSvc, loggingLevel, middleware := setupDependencies(t, limits)
+
+	generatorCalled := make(chan struct{}, 1)
+
+	d, err := New(
+		distributorCfg,
+		LocalPushTargets{
+			Generator: func(_ context.Context, _ *tempopb.PushSpansRequest) (*tempopb.PushResponse, error) {
+				generatorCalled <- struct{}{}
+				return &tempopb.PushResponse{}, nil
+			},
+			LiveStore: func(_ context.Context, _ *tempopb.PushBytesRequest) (*tempopb.PushResponse, error) {
+				return nil, errors.New("boom")
+			},
+		},
+		nil,
+		overridesSvc,
+		middleware,
+		kitlog.NewLogfmtLogger(os.Stdout),
+		loggingLevel,
+		prometheus.NewRegistry(),
+	)
+	require.NoError(t, err)
+	require.NotNil(t, d.generatorForwarder)
+
+	require.NoError(t, services.StartAndAwaitRunning(context.Background(), d.generatorForwarder))
+	defer func() {
+		require.NoError(t, services.StopAndAwaitTerminated(context.Background(), d.generatorForwarder))
+	}()
+
+	traces := batchesToTraces(t, []*v1.ResourceSpans{test.MakeBatch(10, nil)})
+	_, err = d.PushTraces(ctx, traces)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "failed to push spans to local live-store")
+
+	select {
+	case <-generatorCalled:
+		t.Fatal("expected generator not to be called when live-store push fails")
+	case <-time.After(200 * time.Millisecond):
+	}
 }
 
 func TestPushTracesKafkaThenLocalLiveStoreFailure(t *testing.T) {

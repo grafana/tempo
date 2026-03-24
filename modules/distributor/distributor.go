@@ -169,12 +169,9 @@ type Distributor struct {
 	DistributorRing *ring.Ring
 	overrides       overrides.Interface
 
-	// metrics-generator
-	generatorForwarder            *generatorForwarder
-	pushSpansToLocalGeneratorFunc PushSpansFunc
-
-	// live-store
-	pushBytesToLocalLiveStoreFunc PushBytesFunc
+	// Local in-process push targets used in single-binary mode.
+	localPushTargets   LocalPushTargets
+	generatorForwarder *generatorForwarder
 
 	// Generic Forwarder
 	forwardersManager *forwarder.Manager
@@ -250,19 +247,18 @@ func New(
 	pushSpansToKafka := cfg.PushSpansToKafka
 
 	d := &Distributor{
-		cfg:                           cfg,
-		DistributorRing:               distributorRing,
-		ingestionRateLimiter:          limiter.NewRateLimiter(ingestionRateStrategy, 10*time.Second),
-		pushSpansToLocalGeneratorFunc: localPushTargets.Generator,
-		pushBytesToLocalLiveStoreFunc: localPushTargets.LiveStore,
-		partitionRing:                 partitionRing,
-		pushSpansToKafka:              pushSpansToKafka,
-		overrides:                     o,
-		tracePushMiddlewares:          cfg.TracePushMiddlewares,
-		truncationLogger:              tempo_log.NewRateLimitedLogger(truncationLogsPerSecond, level.Warn(logger)),
-		logger:                        logger,
-		sleep:                         time.Sleep,
-		now:                           time.Now,
+		cfg:                  cfg,
+		DistributorRing:      distributorRing,
+		ingestionRateLimiter: limiter.NewRateLimiter(ingestionRateStrategy, 10*time.Second),
+		localPushTargets:     localPushTargets,
+		partitionRing:        partitionRing,
+		pushSpansToKafka:     pushSpansToKafka,
+		overrides:            o,
+		tracePushMiddlewares: cfg.TracePushMiddlewares,
+		truncationLogger:     tempo_log.NewRateLimitedLogger(truncationLogsPerSecond, level.Warn(logger)),
+		logger:               logger,
+		sleep:                time.Sleep,
+		now:                  time.Now,
 	}
 
 	if cfg.Usage.CostAttribution.Enabled {
@@ -273,7 +269,7 @@ func New(
 		d.usage = tracker
 	}
 
-	if d.pushSpansToLocalGeneratorFunc != nil {
+	if d.localPushTargets.Generator != nil {
 		d.generatorForwarder = newGeneratorForwarder(logger, d.sendToGenerators, o)
 		subservices = append(subservices, d.generatorForwarder)
 	}
@@ -505,17 +501,21 @@ func (d *Distributor) pushTracesKafka(ctx context.Context, userID string, keys [
 		return nil
 	}
 
-	skipMetricsGeneration := generator.ExtractNoGenerateMetrics(ctx) || d.pushSpansToLocalGeneratorFunc != nil
+	skipMetricsGeneration := generator.ExtractNoGenerateMetrics(ctx) || d.localPushTargets.Generator != nil
 	return d.sendToKafka(ctx, userID, keys, traces, skipMetricsGeneration)
 }
 
 func (d *Distributor) pushLocal(ctx context.Context, userID string, keys []uint32, traces []*rebatchedTrace) error {
+	if err := d.pushTracesToLiveStore(ctx, userID, traces); err != nil {
+		return err
+	}
+
 	d.pushTracesToGenerator(ctx, userID, keys, traces)
-	return d.pushTracesToLiveStore(ctx, userID, traces)
+	return nil
 }
 
 func (d *Distributor) pushTracesToGenerator(ctx context.Context, userID string, keys []uint32, traces []*rebatchedTrace) {
-	if d.pushSpansToLocalGeneratorFunc == nil {
+	if d.localPushTargets.Generator == nil {
 		return
 	}
 	if len(d.overrides.MetricsGeneratorProcessors(userID)) > 0 {
@@ -524,7 +524,7 @@ func (d *Distributor) pushTracesToGenerator(ctx context.Context, userID string, 
 }
 
 func (d *Distributor) pushTracesToLiveStore(ctx context.Context, userID string, traces []*rebatchedTrace) error {
-	if d.pushBytesToLocalLiveStoreFunc == nil {
+	if d.localPushTargets.LiveStore == nil {
 		return nil
 	}
 
@@ -542,7 +542,7 @@ func (d *Distributor) pushTracesToLiveStore(ctx context.Context, userID string, 
 	}
 
 	localCtx := user.InjectOrgID(ctx, userID)
-	_, err := d.pushBytesToLocalLiveStoreFunc(localCtx, req)
+	_, err := d.localPushTargets.LiveStore(localCtx, req)
 	if err != nil {
 		return fmt.Errorf("failed to push spans to local live-store: %w", err)
 	}
@@ -559,7 +559,7 @@ func (d *Distributor) sendToGenerators(ctx context.Context, userID string, _ []u
 	}
 
 	localCtx := user.InjectOrgID(ctx, userID)
-	_, err := d.pushSpansToLocalGeneratorFunc(localCtx, &req)
+	_, err := d.localPushTargets.Generator(localCtx, &req)
 	metricGeneratorPushes.WithLabelValues("local").Inc()
 	if err != nil {
 		metricGeneratorPushesFailures.WithLabelValues("local").Inc()
