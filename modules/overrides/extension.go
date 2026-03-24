@@ -70,9 +70,36 @@ func RegisterExtension[T Extension](e T) func(*Overrides) T {
 		panic(fmt.Sprintf("overrides: extension key %q conflicts with a built-in Overrides field; choose a different key", key))
 	}
 
+	legacyKeys := e.LegacyKeys()
+	knownLegacy := knownLegacyOverridesJSONFields()
+	seenLegacy := make(map[string]struct{}, len(legacyKeys))
+	for _, lk := range legacyKeys {
+		if lk == "" {
+			panic(fmt.Sprintf("overrides: extension %q has an empty legacy key", key))
+		}
+		if _, dup := seenLegacy[lk]; dup {
+			panic(fmt.Sprintf("overrides: extension %q has duplicate legacy key %q", key, lk))
+		}
+		seenLegacy[lk] = struct{}{}
+		if _, conflict := knownLegacy[lk]; conflict {
+			panic(fmt.Sprintf("overrides: extension %q legacy key %q conflicts with a built-in LegacyOverrides field; choose a different legacy key", key, lk))
+		}
+		// Guard against collisions with already-registered extensions' keys and legacy keys.
+		for existingKey, entry := range extensionRegistry.entries {
+			if lk == existingKey {
+				panic(fmt.Sprintf("overrides: extension %q legacy key %q conflicts with the key of extension %q", key, lk, existingKey))
+			}
+			for _, existingLK := range entry.legacyKeys {
+				if lk == existingLK {
+					panic(fmt.Sprintf("overrides: extension %q legacy key %q conflicts with a legacy key of extension %q", key, lk, existingKey))
+				}
+			}
+		}
+	}
+
 	extensionRegistry.entries[key] = &registryEntry{
 		key:        key,
-		legacyKeys: e.LegacyKeys(),
+		legacyKeys: legacyKeys,
 		elemType:   typ.Elem(),
 	}
 
