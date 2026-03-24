@@ -276,7 +276,7 @@ var (
 	}
 	warnLegacyOverridesConfig = ConfigWarning{
 		Message: "DEPRECATED: Legacy (flat, unscoped) overrides format is in use and will be removed in a future release.",
-		Explain: "Migrate your overrides config to the new scoped format. To opt back in temporarily, set enable_legacy_overrides: true.",
+		Explain: "Migrate your overrides config to the new scoped format, or set -config.enable-legacy-overrides=true (or enable_legacy_overrides: true in YAML) to continue using legacy overrides temporarily.",
 	}
 
 	warnTracesAndUserConfigurableOverridesStorageConflict = ConfigWarning{

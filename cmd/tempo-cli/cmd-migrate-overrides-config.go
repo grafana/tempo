@@ -66,6 +66,7 @@ func (cmd *migrateOverridesConfigCmd) Run(*globalOptions) error {
 	}
 
 	cfg.Overrides.Defaults = runtimeConfig.Defaults
+	cfg.Overrides.EnableLegacyOverrides = false // reset - migrated config doesn't need this
 	configBytes, err := yaml.Marshal(cfg)
 	if err != nil {
 		return fmt.Errorf("failed to marshal config: %w", err)

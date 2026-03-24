@@ -69,6 +69,8 @@ func (o *perTenantOverrides) forUser(userID string) *Overrides {
 
 // loadPerTenantOverrides is of type runtimeconfig.Loader
 func loadPerTenantOverrides(validator Validator, typ ConfigType, expandEnv bool, enableLegacy bool) func(r io.Reader) (interface{}, error) {
+	// var is outside closure to ensure it's not recreated on each call
+	var lastLegacyWarn time.Time
 	return func(r io.Reader) (interface{}, error) {
 		overrides := &perTenantOverrides{}
 
@@ -93,10 +95,15 @@ func loadPerTenantOverrides(validator Validator, typ ConfigType, expandEnv bool,
 		}
 
 		if overrides.ConfigType == ConfigTypeLegacy {
-			level.Warn(log.Logger).Log(
-				"msg", "DEPRECATED: legacy overrides config format is in use. per-tenant overrides file uses the legacy format. Legacy overrides are deprecated and will be removed in a future release. "+
-					"Please migrate your per-tenant overrides to the new scoped format.",
-			)
+			// Log periodically (every 10 mins) and not every reload, so the warning stays visible in recent logs
+			// without spamming logs on every reload cycle.
+			if time.Since(lastLegacyWarn) >= 10*time.Minute {
+				level.Warn(log.Logger).Log(
+					"msg", "DEPRECATED: legacy overrides config format is in use. per-tenant overrides file uses the legacy format. Legacy overrides are deprecated and will be removed in a future release. "+
+						"Please migrate your per-tenant overrides to the new scoped format.",
+				)
+				lastLegacyWarn = time.Now()
+			}
 
 			if !enableLegacy {
 				return nil, fmt.Errorf(
