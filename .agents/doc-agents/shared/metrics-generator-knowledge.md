@@ -138,12 +138,69 @@ All span-metrics features documented are available in Tempo 2.10:
 - `enable_instance_label` - Added in 2.10 (PR #5706)
 - Subprocessors - Bug fix in 2.5 (PR #3612), feature existed earlier
 
-**Note**: These are **not** part of Project Rhythm/Tempo 3.0. Project Rhythm focuses on architectural changes (Kafka, live stores, block builders), not metrics-generator features.
+**Note**: The span-metrics and service-graphs processor features listed above are **not** new in Tempo 3.0. However, the metrics-generator's architecture changed significantly in 3.0 (see below).
+
+### Tempo 3.0 Architectural Changes
+
+Tempo 3.0 (Project Rhythm) restructures how the metrics-generator receives data and how recent-data queries are served. The span-metrics and service-graphs processors themselves are unchanged, but the surrounding plumbing is different.
+
+| Aspect | v2.x | v3.0 |
+|--------|------|------|
+| **Data source** | Distributor pushes spans via gRPC (`PushSpans`) | Kafka consumer (primary path) |
+| **localblocks processor** | Supported | **Removed** (PR #6555) |
+| **Recent-data metrics queries** | Served by metrics-generator / ingesters | Served by **live-store** |
+| **SpanMetricsSummary API** | Supported | **Removed** (PRs #6496, #6510) |
+| **gRPC server** | Always on | Optional (`disable_grpc`) |
+| **Valid processors** | service-graphs, span-metrics, local-blocks, host-info | service-graphs, span-metrics, host-info |
+
+#### Kafka ingestion
+
+The metrics-generator now consumes trace data from Kafka instead of (or in addition to) receiving `PushSpans` from the distributor.
+
+- **Implementation**: `modules/generator/generator_kafka.go`
+- **Config**: `metrics_generator.ingest` block — address, topic, consumer group, etc.
+- **Codec**: `push-bytes` (default) or `otlp` (`modules/generator/config.go`)
+- **Concurrency**: `ingest_concurrency` (default 16)
+
+#### Two generator modes
+
+- **`MetricsGenerator`** (traditional) — Uses ring + memberlist. Can receive PushSpans and/or consume Kafka. gRPC optional.
+- **`MetricsGeneratorNoLocalBlocks`** — Kafka-only mode. Uses partition ring watcher, `disable_grpc: true`, requires `ingest.enabled`.
+
+**Code Reference**: `cmd/tempo/app/modules.go`
+
+#### Removed: localblocks processor
+
+The `local-blocks` processor and all local block storage plumbing are removed in v3. The live-store now fills this role for TraceQL metrics queries on recent data.
+
+**Breaking change**: Any configuration referencing `local-blocks` as a processor must be removed.
+
+#### Removed: SpanMetricsSummary
+
+The `SpanMetricsSummary` API and related querier logic are removed.
+
+#### Livestore decoupling
+
+- Recent-data TraceQL metrics queries are now served by the live-store, **not** the metrics-generator (PRs #6506, #6535, #6615).
+- The querier uses `forLiveStoreMetricsRing` to query the live-store's `MetricsClient`.
+- `query_frontend.search.query_ingesters_until` is removed; only `query_backend_after` remains (PR #6507).
+
+#### New Kafka-related operational metrics
+
+- `tempo_ingest_group_partition_lag{group="metrics-generator"}`
+- `tempo_ingest_group_partition_lag_seconds{group="metrics-generator"}`
+- `tempo_metrics_generator_enqueue_time_seconds_total`
+
+#### Documentation to verify for v3
+
+- `docs/sources/tempo/configuration/_index.md` — Check that `local-blocks` is removed from valid processor list, Kafka ingest config is documented, and references to querying metrics-generators for recent data are updated to reference the live-store.
+- `docs/sources/tempo/introduction/architecture.md` — Should describe the generator as a Kafka consumer.
+- `docs/sources/tempo/troubleshooting/metrics-generator.md` — Should cover Kafka lag metrics.
 
 ## Configuration Reference Locations
 
-- Main config reference: `docs/sources/tempo/configuration/_index.md` (lines 496-549 for span_metrics)
-- User-configurable overrides: `docs/sources/tempo/configuration/_index.md` (lines 2033-2053)
+- Main config reference: `docs/sources/tempo/configuration/_index.md` (check for current line numbers — they shift between versions)
+- User-configurable overrides: `docs/sources/tempo/configuration/_index.md`
 - Operations overrides: `docs/sources/tempo/operations/manage-advanced-systems/user-configurable-overrides.md`
 
 ## Key Code Files
@@ -154,6 +211,13 @@ All span-metrics features documented are available in Tempo 2.10:
 - `modules/generator/processor/spanmetrics/subprocessors.go` - Subprocessor definitions
 - `modules/generator/processor/processor_names.go` - Processor name constants
 - `modules/generator/processor/dimension_names.go` - Dimension name constants
+
+### Generator Core (v3)
+- `modules/generator/generator.go` - Main generator logic, `startKafka()`
+- `modules/generator/generator_kafka.go` - Kafka consumer implementation
+- `modules/generator/config.go` - Config struct including `Ingest`, `Codec`, `DisableGrpc`
+- `pkg/ingest/encoding.go` - `PushBytesDecoder` and `OTLPDecoder` for Kafka records
+- `cmd/tempo/app/modules.go` - Module registration for both generator modes
 
 ### Validation
 - `modules/generator/validation/fields.go` - Valid processor names
@@ -184,9 +248,9 @@ intrinsic_dimensions:
 
 ## Documentation Gaps Found
 
-### Missing from Config Reference
+### Missing from Config Reference (v2.x)
 
-The configuration reference (`_index.md` line 1964-1967) only lists:
+The v2.x configuration reference (`_index.md`) only lists:
 - `service-graphs`
 - `span-metrics`
 - `local-blocks`
@@ -199,6 +263,14 @@ But code supports subprocessors:
 
 **Note**: This is a gap in the config reference, not the span-metrics documentation.
 
+### v3 config reference check
+
+Verify the v3 config reference:
+- Removes `local-blocks` from the valid processor list
+- Adds `host-info` to the valid processor list
+- Documents `ingest`, `codec`, `disable_grpc`, `ingest_concurrency` settings
+- Updates any language about querying metrics-generators for recent data to reference the live-store instead
+
 ## Testing Documentation
 
 When documenting metrics-generator features:
@@ -208,3 +280,4 @@ When documenting metrics-generator features:
 3. Compare with `docs/sources/tempo/configuration/_index.md`
 4. Test examples against actual configuration structure
 5. Verify feature scope (span-metrics only vs. shared)
+6. **For v3**: Confirm `local-blocks` references are removed and Kafka ingestion is covered
