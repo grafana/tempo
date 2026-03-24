@@ -594,7 +594,7 @@ func liveStoreWithConfig(t testing.TB, cfg Config) (*LiveStore, error) {
 	logger := test.NewTestingLogger(t)
 
 	// Use fake Kafka cluster for testing
-	liveStore, err := New(cfg, limits, logger, reg, true) // singlePartition = true for testing
+	liveStore, err := New(cfg, limits, logger, reg)
 	if err != nil {
 		return nil, err
 	}

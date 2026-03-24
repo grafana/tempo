@@ -152,7 +152,7 @@ type LiveStore struct {
 	lastRecordTimeNanos atomic.Int64          // stores timestamp of last consumed record as UnixNano, -1 means not set
 }
 
-func New(cfg Config, overridesService overrides.Interface, logger log.Logger, reg prometheus.Registerer, singlePartition bool) (*LiveStore, error) {
+func New(cfg Config, overridesService overrides.Interface, logger log.Logger, reg prometheus.Registerer) (*LiveStore, error) {
 	completeBlockEncoding, encErr := encoding.FromVersionForWrites(cfg.BlockConfig.Version)
 	if encErr != nil {
 		return nil, fmt.Errorf("block version validation failed: %w", encErr)
@@ -180,20 +180,12 @@ func New(cfg Config, overridesService overrides.Interface, logger log.Logger, re
 	s.lastRecordTimeNanos.Store(-1)
 
 	var err error
-	if singlePartition {
-		// For single-binary don't require hostname to identify a partition.
-		// Assume partition 0.
-		s.ingestPartitionID = 0
-	} else {
+	if cfg.ConsumeFromKafka {
 		s.ingestPartitionID, err = ingest.IngesterPartitionID(cfg.Ring.InstanceID)
 		if err != nil {
 			return nil, fmt.Errorf("calculating livestore partition ID: %w", err)
 		}
-	}
 
-	if singlePartition {
-		s.cfg.IngestConfig.Kafka.ConsumerGroup = "live-store-zone-a"
-	} else {
 		// TODO: It's probably easier to just use the ID directly
 		//  https://raintank-corp.slack.com/archives/C05CAA0ULUF/p1752847274420489
 		s.cfg.IngestConfig.Kafka.ConsumerGroup, err = ingest.LiveStoreConsumerGroupID(cfg.Ring.InstanceID)
@@ -305,47 +297,8 @@ func (s *LiveStore) starting(ctx context.Context) error {
 		return fmt.Errorf("failed to start livestore lifecycler: %w", err)
 	}
 
-	if s.cfg.ConsumeFromKafka {
-		forceFromLookback := len(s.getInstances()) == 0
-		if forceFromLookback {
-			level.Info(s.logger).Log("msg", "no local data found after reload, will force reading from lookback period")
-		}
-
-		s.client, err = ingest.NewReaderClient(
-			s.cfg.IngestConfig.Kafka,
-			ingest.NewReaderClientMetrics(liveStoreServiceName, s.reg),
-			s.logger,
-		)
-		if err != nil {
-			return fmt.Errorf("failed to create kafka reader client: %w", err)
-		}
-
-		err = ingest.WaitForKafkaBroker(ctx, s.client, s.logger)
-		if err != nil {
-			return fmt.Errorf("failed to start livestore: %w", err)
-		}
-
-		lookbackPeriod := 2 * s.cfg.CompleteBlockTimeout
-		s.reader, err = NewPartitionReaderForPusher(s.client, s.ingestPartitionID, s.cfg.IngestConfig.Kafka, s.cfg.CommitInterval, lookbackPeriod, forceFromLookback, s.consume, s.logger, s.reg)
-		if err != nil {
-			return fmt.Errorf("failed to create partition reader: %w", err)
-		}
-		err = services.StartAndAwaitRunning(ctx, s.reader)
-		if err != nil {
-			return fmt.Errorf("failed to start partition reader: %w", err)
-		}
-
-		lagCtx, cncl := context.WithCancel(s.ctx)
-		s.lagCancel = cncl
-		// Start exporting partition lag metrics
-		ingest.ExportPartitionLagMetrics(
-			lagCtx,
-			s.client,
-			s.logger,
-			s.cfg.IngestConfig,
-			func() []int32 { return []int32{s.ingestPartitionID} },
-			s.client.ForceMetadataRefresh,
-		)
+	if err := s.startIngestPath(ctx); err != nil {
+		return err
 	}
 
 	for i := range s.cfg.CompleteBlockConcurrency {
@@ -358,17 +311,78 @@ func (s *LiveStore) starting(ctx context.Context) error {
 	// allow background processes to start
 	s.startAllBackgroundProcesses()
 
-	if s.cfg.ConsumeFromKafka {
-		// Wait for catch-up before marking ready (if enabled)
-		if err := s.waitForCatchUp(ctx); err != nil {
-			return fmt.Errorf("failed to catch up: %w", err)
-		}
+	if err := s.waitForIngestPathReady(ctx); err != nil {
+		return err
 	}
 
 	// Mark as ready at end of starting()
 	s.readyErr.Store(nil)
 	metricReady.Set(1)
 	level.Info(s.logger).Log("msg", "live-store ready to serve queries")
+
+	return nil
+}
+
+func (s *LiveStore) waitForIngestPathReady(ctx context.Context) error {
+	if !s.cfg.ConsumeFromKafka {
+		return nil
+	}
+	// Wait for catch-up before marking ready (if enabled)
+	if err := s.waitForCatchUp(ctx); err != nil {
+		return fmt.Errorf("failed to catch up: %w", err)
+	}
+	return nil
+}
+
+func (s *LiveStore) startIngestPath(ctx context.Context) error {
+	if !s.cfg.ConsumeFromKafka {
+		return nil
+	}
+	return s.startKafkaIngestPath(ctx)
+}
+
+func (s *LiveStore) startKafkaIngestPath(ctx context.Context) error {
+	forceFromLookback := len(s.getInstances()) == 0
+	if forceFromLookback {
+		level.Info(s.logger).Log("msg", "no local data found after reload, will force reading from lookback period")
+	}
+
+	client, err := ingest.NewReaderClient(
+		s.cfg.IngestConfig.Kafka,
+		ingest.NewReaderClientMetrics(liveStoreServiceName, s.reg),
+		s.logger,
+	)
+	if err != nil {
+		return fmt.Errorf("failed to create kafka reader client: %w", err)
+	}
+	s.client = client
+
+	if err := ingest.WaitForKafkaBroker(ctx, s.client, s.logger); err != nil {
+		return fmt.Errorf("failed to start livestore: %w", err)
+	}
+
+	lookbackPeriod := 2 * s.cfg.CompleteBlockTimeout
+	reader, err := NewPartitionReaderForPusher(s.client, s.ingestPartitionID, s.cfg.IngestConfig.Kafka, s.cfg.CommitInterval, lookbackPeriod, forceFromLookback, s.consume, s.logger, s.reg)
+	if err != nil {
+		return fmt.Errorf("failed to create partition reader: %w", err)
+	}
+	s.reader = reader
+
+	if err := services.StartAndAwaitRunning(ctx, s.reader); err != nil {
+		return fmt.Errorf("failed to start partition reader: %w", err)
+	}
+
+	lagCtx, cncl := context.WithCancel(s.ctx)
+	s.lagCancel = cncl
+	// Start exporting partition lag metrics
+	ingest.ExportPartitionLagMetrics(
+		lagCtx,
+		s.client,
+		s.logger,
+		s.cfg.IngestConfig,
+		func() []int32 { return []int32{s.ingestPartitionID} },
+		s.client.ForceMetadataRefresh,
+	)
 
 	return nil
 }

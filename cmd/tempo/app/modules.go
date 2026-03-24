@@ -664,13 +664,9 @@ func (t *App) initBackendWorker() (services.Service, error) {
 }
 
 func (t *App) initLiveStore() (services.Service, error) {
-	// In SingleBinary mode don't try to discover partition from host name.
-	// Always use partition 0. This is for small installs or local/debugging setups.
-	singlePartition := IsSingleBinary(t.cfg.Target)
-
 	// In single-binary mode traces are pushed in-process from distributor,
 	// so live-store does not consume directly from Kafka.
-	t.cfg.LiveStore.ConsumeFromKafka = !singlePartition
+	t.cfg.LiveStore.ConsumeFromKafka = !IsSingleBinary(t.cfg.Target)
 
 	// Inject config from other locations.
 	t.cfg.LiveStore.IngestConfig = t.cfg.Ingest
@@ -680,7 +676,7 @@ func (t *App) initLiveStore() (services.Service, error) {
 	t.cfg.LiveStore.WAL.Version = t.cfg.StorageConfig.Trace.Block.Version
 
 	var err error
-	t.liveStore, err = livestore.New(t.cfg.LiveStore, t.Overrides, log.Logger, prometheus.DefaultRegisterer, singlePartition)
+	t.liveStore, err = livestore.New(t.cfg.LiveStore, t.Overrides, log.Logger, prometheus.DefaultRegisterer)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create liveStore: %w", err)
 	}

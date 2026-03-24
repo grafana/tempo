@@ -79,6 +79,22 @@ func TestLiveStorePushBytesLocalIngest(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func TestLiveStoreNewWithoutKafkaDoesNotRequirePartitionStyleInstanceID(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	cfg := defaultConfig(t, tmpDir)
+	cfg.ConsumeFromKafka = false
+	cfg.Ring.InstanceID = "single-binary"
+
+	limits, err := overrides.NewOverrides(overrides.Config{}, nil, prometheus.DefaultRegisterer)
+	require.NoError(t, err)
+
+	liveStore, err := New(cfg, limits, test.NewTestingLogger(t), prometheus.NewRegistry())
+	require.NoError(t, err)
+	require.NotNil(t, liveStore)
+	require.Equal(t, int32(0), liveStore.ingestPartitionID)
+}
+
 func TestLiveStorePushBytesRejectsWhenStarting(t *testing.T) {
 	tmpDir := t.TempDir()
 
@@ -88,7 +104,7 @@ func TestLiveStorePushBytesRejectsWhenStarting(t *testing.T) {
 	limits, err := overrides.NewOverrides(overrides.Config{}, nil, prometheus.DefaultRegisterer)
 	require.NoError(t, err)
 
-	liveStore, err := New(cfg, limits, test.NewTestingLogger(t), prometheus.NewRegistry(), true)
+	liveStore, err := New(cfg, limits, test.NewTestingLogger(t), prometheus.NewRegistry())
 	require.NoError(t, err)
 
 	id := test.ValidTraceID(nil)
@@ -526,7 +542,7 @@ func TestLiveStoreQueryMethodsBeforeStarted(t *testing.T) {
 	logger := test.NewTestingLogger(t)
 
 	// Create LiveStore but DO NOT start it
-	liveStore, err := New(cfg, limits, logger, reg, true)
+	liveStore, err := New(cfg, limits, logger, reg)
 	require.NoError(t, err)
 	require.NotNil(t, liveStore)
 
