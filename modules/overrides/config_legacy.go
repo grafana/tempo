@@ -281,8 +281,17 @@ func (l LegacyOverrides) MarshalYAML() (interface{}, error) {
 	}
 	// Flatten typed Extension instances to their legacy flat keys before marshaling,
 	// so that the YAML wire format uses flat keys (e.g. "my_ext_field"), not the nested key.
+	knownLegacy := knownLegacyOverridesJSONFields()
+	flat := flattenExtensionEntries(l.Extensions)
+	filtered := make(map[string]any, len(flat))
+	for k, v := range flat {
+		if _, known := knownLegacy[k]; known {
+			continue
+		}
+		filtered[k] = v
+	}
 	cp := l
-	cp.Extensions = flattenExtensionEntries(l.Extensions)
+	cp.Extensions = filtered
 	return plain(cp), nil
 }
 
