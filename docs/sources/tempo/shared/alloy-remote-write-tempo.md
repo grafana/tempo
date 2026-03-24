@@ -78,7 +78,7 @@ To do this, you need to create a configuration that can be used by Alloy to rece
 
    Ensure that you use the specific namespace you've installed Tempo in for the OTLP exporter. In the line:
 
-   ```yaml
+   ```
    endpoint = "tempo-cluster-distributor.tempo.svc.cluster.local:4317"
    ```
 

@@ -29,7 +29,7 @@ different blocks, which can lead to inconsistency in a few ways:
 
 In Tempo 3.0, two components handle trace data independently:
 
-- __Live-stores__ serve recent data. They hold traces in memory and can keep spans for the same trace together as long as the trace remains active. You can tune the `live_store.trace_idle_period` configuration to control when a trace is considered idle. Extending this beyond the default `10s` can allow for long-running traces to be co-located, but take into account other considerations around memory consumption on the live-stores.
+- __Live-stores__ serve recent data. They hold traces in memory and can keep spans for the same trace together as long as the trace remains active. You can tune the `live_store.max_trace_idle` configuration to control when a trace is considered idle. Extending this beyond the default `5s` can allow for long-running traces to be co-located, but take into account other considerations around memory consumption on the live-stores.
 - __Block-builders__ consume from Kafka and build blocks for long-term storage. They do a hard cut at a certain record on each consumption cycle. All spans consumed in a cycle are flushed into blocks regardless of whether the trace is complete. This means a trace's spans can be split across block-builder cycles with no way to keep them together.
 
 ### Data quality metrics

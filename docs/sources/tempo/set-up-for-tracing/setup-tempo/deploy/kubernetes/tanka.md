@@ -386,7 +386,7 @@ To change the resources requirements, follow these steps:
            },
        },
    },
-```
+   ```
 
 3. Save the changes to the file.
 

@@ -1,5 +1,5 @@
 ---
-title: Set up OpenTelemetry Collector
+title: OpenTelemetry Collector
 menuTitle: OpenTelemetry Collector
 description: Configure the upstream OpenTelemetry Collector to send traces to Tempo.
 weight: 550

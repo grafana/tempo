@@ -57,7 +57,7 @@ The partition ring shows partition ownership across live-stores. Unhealthy live-
 
 ### Live-store
 
-**Available on:** Distributors
+**Available on:** Distributors, Queriers, Live-stores
 
 **Path:** `/live-store/ring`
 

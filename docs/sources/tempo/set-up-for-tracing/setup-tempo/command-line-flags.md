@@ -47,7 +47,7 @@ Valid target values:
 | `live-store` | Serves recently ingested data from Kafka for real-time queries. |
 
 {{< admonition type="note" >}}
-  In Tempo 3.0, the `ingester`, `compactor`, and `scalable-single-binary` targets were removed as as part of the [Project Rhythm architecture](/docs/tempo/<TEMPO_VERSION>/introduction/architecture/#project-rhythm).
+  In Tempo 3.0, the `ingester`, `compactor`, and `scalable-single-binary` targets were removed as part of the new [Tempo architecture](/docs/tempo/<TEMPO_VERSION>/introduction/architecture/).
   {{< /admonition >}}
 
 Refer to the [Plan your Tempo deployment](../plan/) documentation for information on deployment modes.
