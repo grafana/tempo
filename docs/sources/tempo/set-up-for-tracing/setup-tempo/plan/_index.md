@@ -19,7 +19,8 @@ Before planning your Tempo deployment, be aware that Tempo v3.0 requires:
 
 Include these infrastructure components in your deployment planning and resource estimation.
 
-## Develop a deployment plan 
+## Develop a deployment plan
+
 To plan your Grafana Tempo deployment, you should:
 
 1. Identify your use case

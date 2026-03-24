@@ -11,7 +11,7 @@ aliases:
 
 The most likely cause of refused spans is rate limits being exceeded.
 
-To log spans that are discarded, add the `--distributor.log_discarded_spans.enabled` flag to the distributor or
+To log spans that are discarded, add the `--distributor.log-discarded-spans.enabled` flag to the distributor or
 adjust the [distributor configuration](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/#distributor):
 
 ```yaml
