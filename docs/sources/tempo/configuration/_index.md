@@ -162,7 +162,7 @@ memory:
 
 For more information on configuration options, refer to [this file](https://github.com/grafana/tempo/blob/main/modules/distributor/config.go).
 
-Distributors receive spans and forward them to Kafka.
+Distributors receive spans, apply limits and forwarding, and route them to the configured write path.
 
 The following configuration enables all available receivers with their default configuration. For a production deployment, enable only the receivers you need.
 Additional documentation and more advanced configuration options are available in [the receiver README](https://github.com/open-telemetry/opentelemetry-collector/blob/main/receiver/README.md).
@@ -308,10 +308,10 @@ For a discussion on alternatives, refer to [this discussion thread](https://gith
 Disabling compression may provide some performance boosts.
 Benchmark testing suggested that without compression, queriers and distributors used less CPU and memory.
 
-However, you may notice an increase in network traffic especially for larger clusters.
+However, you may notice an increase in live-store data and network traffic, especially for larger clusters.
 This increased data can impact billing for Grafana Cloud.
 
-You can configure the gRPC compression in the `querier`, `live_store`, and `metrics_generator` clients.
+You can configure the gRPC compression in the `live_store_client` and `querier.frontend_worker` gRPC clients.
 
 To disable compression, remove `snappy` from the `grpc_compression` lines.
 
@@ -319,9 +319,6 @@ To re-enable the compression, use `snappy` with the following settings:
 
 ```yaml
 live_store_client:
-  grpc_client_config:
-    grpc_compression: "snappy"
-metrics_generator_client:
   grpc_client_config:
     grpc_compression: "snappy"
 querier:
@@ -756,8 +753,8 @@ query_frontend:
 
         # The maximum allowed value of the limit parameter on search requests. If the search request limit parameter
         # exceeds the value configured here the frontend will return a 400.
-        # The default value of 0 disables this limit.
-        # (default: 0)
+        # The default value is 262144 (256*1024). Set to 0 to disable this limit.
+        # (default: 262144)
         [max_result_limit: <int>]
 
         # The maximum allowed time range for a search.
@@ -842,7 +839,8 @@ query_frontend:
         # 0 disables this limit.
         [max_duration: <duration> | default = 3h ]
 
-        # Maximun number of exemplars per range query. Limited to 100.
+        # Maximum number of exemplars per range query.
+        # Set to 0 to disable exemplars.
         [max_exemplars: <int> | default = 100 ]
 
         # Maximum number of time series returned for a metrics query.
@@ -1294,6 +1292,22 @@ storage:
             # Example: "hedge_requests_up_to: 2"
             # The maximum number of requests to execute when hedging. Requires hedge_requests_at to be set.
             [hedge_requests_up_to: <int>]
+
+            # Optional. Default is 10 (minio default)
+            # Example: "retry_max_attempts: 10"
+            # The maximum number of retry attempts on failed S3 requests. Set to 1 to disable retries.
+            [retry_max_attempts: <int>]
+
+            # Optional. Default is 200ms (minio default)
+            # Example: "retry_backoff_initial: 200ms"
+            # The baseline time after which a retry is attempted on failed S3 requests. This time is
+            # doubled each retry until it hits retry_backoff_max, after which it remains at retry_backoff_max.
+            [retry_backoff_initial: <duration>]
+
+            # Optional. Default is 1s (minio default)
+            # Example: "retry_backoff_max: 1s"
+            # The maximum duration to wait between retry attempts on failed S3 requests.
+            [retry_backoff_max: <duration>]
 
             # Optional
             # Example: "tags: {'key': 'value'}"
@@ -1824,11 +1838,6 @@ The storage WAL configuration block.
 # This can result in trace not being found if the trace falls outside the slack configuration value as the
 # start and end times of the block will not be updated in this case.
 [ingestion_time_range_slack: <duration> | default = unset]
-
-# WAL file format version
-# Options: vParquet4
-# Deprecated options: v2, vParquet3
-[version: <string> | default = "vParquet4"]
 ```
 
 ## Overrides

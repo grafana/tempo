@@ -542,6 +542,9 @@ func defaultConfig(t testing.TB, tmpDir string) Config {
 	cfg.WAL.Version = encoding.LatestEncoding().Version()
 	cfg.ShutdownMarkerDir = tmpDir
 
+	cfg.BlockConfig.RegisterFlagsAndApplyDefaults("", flag.NewFlagSet("", flag.ContinueOnError))
+	cfg.BlockConfig.Version = encoding.LatestEncoding().Version()
+
 	// Set up test Kafka configuration
 	const testTopic = "traces"
 	_, kafkaAddr := testkafka.CreateCluster(t, 1, testTopic)
@@ -1056,6 +1059,9 @@ func TestLiveStoreQueryRange(t *testing.T) {
 
 	cfg := Config{}
 	cfg.RegisterFlagsAndApplyDefaults("", &flag.FlagSet{})
+	// Simulate modules.go injection of storage.trace.block config
+	cfg.BlockConfig.RegisterFlagsAndApplyDefaults("", &flag.FlagSet{})
+	cfg.BlockConfig.Version = encoding.DefaultEncoding().Version()
 	cfg.Metrics.TimeOverlapCutoff = 0.5
 	cfg.QueryBlockConcurrency = 10
 	cfg.CompleteBlockTimeout = 5 * time.Minute

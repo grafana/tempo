@@ -32,7 +32,6 @@
   tempo_live_store_args:: {
     target: target_name,
     'config.file': '/conf/tempo.yaml',
-    'mem-ballast-size-mbs': $._config.ballast_size_mbs,
   },
 
   tempo_live_store_pvc::

@@ -38,7 +38,6 @@ import (
 	"github.com/grafana/tempo/modules/distributor/receiver"
 	frontend_v1 "github.com/grafana/tempo/modules/frontend/v1"
 	"github.com/grafana/tempo/modules/generator"
-	"github.com/grafana/tempo/modules/ingester"
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/modules/querier"
 	"github.com/grafana/tempo/modules/storage"
@@ -75,7 +74,6 @@ type App struct {
 	distributor          *distributor.Distributor
 	querier              *querier.Querier
 	frontend             *frontend_v1.Frontend
-	ingester             *ingester.Ingester
 	generator            *generator.Generator
 	blockBuilder         *blockbuilder.BlockBuilder
 	store                storage.Store
@@ -347,17 +345,6 @@ func (t *App) readyHandler(sm *services.Manager, shutdownRequested *atomic.Bool)
 			return
 		}
 
-		// Ingester has a special check that makes sure that it was able to register into the ring,
-		// and that all other ring entries are OK too.
-		if t.ingester != nil {
-			if err := t.ingester.CheckReady(r.Context()); err != nil {
-				http.Error(w, "Ingester not ready: "+err.Error(), http.StatusServiceUnavailable)
-				return
-			}
-		}
-
-		// Generator has a special check that makes sure that it was able to register into the ring,
-		// and that all other ring entries are OK too.
 		if t.generator != nil {
 			if err := t.generator.CheckReady(r.Context()); err != nil {
 				http.Error(w, "Generator not ready: "+err.Error(), http.StatusServiceUnavailable)

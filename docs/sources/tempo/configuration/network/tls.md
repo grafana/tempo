@@ -60,8 +60,7 @@ grpc_client_config:
 The configuration block needs to be set at the following configuration locations.
 
 - `live_store_client.grpc_client_config`
-- `metrics_generator_client.grpc_client_config`
-- `querier.query-frontend.grpc_client_config`
+- `querier.frontend_worker.grpc_client_config`
 
 Additionally, `memberlist` must also be configured, but the client configuration is nested directly under `memberlist` as follows. The same configuration options are available as above.
 
@@ -225,13 +224,6 @@ tempo:
             - parquet-footer
             - bloom
             - frontend-search
-    metrics_generator_client:
-      grpc_client_config:
-        tls_ca_path: /tls/ca.crt
-        tls_cert_path: /tls/tls.crt
-        tls_enabled: true
-        tls_key_path: /tls/tls.key
-        tls_server_name: tempo-distributed.trace.svc.cluster.local
     querier:
       frontend_worker:
         grpc_client_config:
