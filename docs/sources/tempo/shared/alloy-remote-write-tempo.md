@@ -65,7 +65,7 @@ To do this, you need to create a configuration that can be used by Alloy to rece
              client {
                  // Send to the locally running Tempo instance, on port 4317 (OTLP gRPC).
                  endpoint = "tempo-cluster-distributor.tempo.svc.cluster.local:4317"
-                 // Disable TLS for OTLP remote write.
+                 // Disable TLS for OTLP export.
                  tls {
                      // The connection is insecure.
                      insecure = true

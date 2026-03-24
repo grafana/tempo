@@ -18,7 +18,7 @@ If everything seems acceptable from these two perspectives, consider the followi
 
 ## Kafka consumption
 
-In Tempo 3.0, metrics-generators consume trace data directly from Kafka rather than receiving pushes from distributors. If the generator is not producing metrics, start by verifying that it's consuming data from Kafka using the metrics below.
+In Tempo 3.0 microservices mode, metrics-generators consume trace data directly from Kafka rather than receiving pushes from distributors. In monolithic mode, the distributor still pushes directly to the in-process metrics-generator. If the generator is not producing metrics in a microservices deployment, start by verifying that it's consuming data from Kafka using the metrics below.
 
 ### Consumer lag
 

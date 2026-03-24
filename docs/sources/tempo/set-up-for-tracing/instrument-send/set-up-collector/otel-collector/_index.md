@@ -82,7 +82,7 @@ service:
       exporters: [otlp]
 ```
 
-Replace _TEMPO_HOST_ with the hostname or address of your Tempo distributor.
+Replace `<TEMPO_HOST>` with the hostname or address of your Tempo distributor.
 Set `tls.insecure: true` only for development or non-production environments.
 For production TLS configuration, refer to [TLS configuration](#tls-configuration).
 

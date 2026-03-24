@@ -336,9 +336,6 @@ For more information on configuration options, refer to [this file](https://gith
 # Ingest configuration block
 ingest:
 
-    # Enable the Kafka ingest path.
-    [enabled: <bool> | default = false]
-
     kafka:
         # The Kafka backend address.
         [address: <string> | default = "localhost:9092"]

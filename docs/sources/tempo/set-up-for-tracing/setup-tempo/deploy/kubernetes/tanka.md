@@ -337,7 +337,7 @@ Install the `k.libsonnet`, Jsonnet, and Memcachd libraries.
     ```
 
 {{< admonition type="note" >}}
-This configuration requires a Kafka-compatible system. You'll need to deploy Kafka (or a compatible system like Redpanda) before deploying Tempo. Update the `kafka.address` in the configuration to point to your Kafka instance.
+This configuration requires a Kafka-compatible system. You'll need to deploy Kafka (or a compatible system like Redpanda) before deploying Tempo. Update `ingest.kafka.address` in the configuration to point to your Kafka instance.
 {{< /admonition >}}
 
 ### Optional: Enable metrics-generator
