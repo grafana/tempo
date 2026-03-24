@@ -498,8 +498,13 @@ func (t *testExtension) FromLegacy(m map[string]any) error {
 	if v, ok := m["test_extension_field_a"].(string); ok {
 		t.FieldA = v
 	}
-	if v, ok := m["test_extension_field_b"].(int); ok {
+	// JSON-decoded map[string]any represents numbers as float64; handle both int (YAML) and float64 (JSON).
+	switch v := m["test_extension_field_b"].(type) {
+	case int:
 		t.FieldB = &v
+	case float64:
+		vv := int(v)
+		t.FieldB = &vv
 	}
 	return nil
 }
