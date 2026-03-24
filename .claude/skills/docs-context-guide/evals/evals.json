@@ -1,0 +1,54 @@
+{
+  "skill": "docs-context-guide",
+  "test_cases": [
+    {
+      "id": "config-update",
+      "name": "Ad-hoc config doc update",
+      "prompt": "The max_bytes_per_tag_values_query limit default was changed in the querier. Update the docs to reflect the new default.",
+      "assertions": [
+        "Agent reads querier config.go and finds RegisterFlagsAndApplyDefaults to get the actual default value",
+        "Agent updates docs/sources/tempo/configuration/_index.md (not manifest.md)",
+        "Agent validates the new default matches the code before finalizing",
+        "Output follows style guide conventions"
+      ]
+    },
+    {
+      "id": "terminology-migration",
+      "name": "3.0 terminology migration",
+      "prompt": "Update a doc page that still references 'ingester' to use the correct 3.0 terminology.",
+      "assertions": [
+        "Agent reads architecture.md to determine current component names",
+        "Agent replaces 'ingester' with 'live-store' or 'block-builder' depending on context (reads vs writes-to-storage)",
+        "Agent uses hyphenated names in prose, underscores in YAML examples",
+        "Agent does not reference modules/ingester/ — it is legacy code pending removal, not a current component"
+      ]
+    },
+    {
+      "id": "traceql-doc",
+      "name": "TraceQL doc update",
+      "prompt": "Add documentation for a new TraceQL intrinsic called span:childCount.",
+      "assertions": [
+        "Agent checks pkg/traceql/ for the intrinsic implementation",
+        "Agent validates syntax against pkg/traceql/test_examples.yaml",
+        "Agent places content in docs/sources/tempo/traceql/ (not configuration/)",
+        "Agent reads sibling TraceQL docs to match existing structure and depth"
+      ]
+    },
+    {
+      "id": "helm-chart-doc",
+      "name": "Helm chart configuration doc",
+      "prompt": "Document a new Helm chart value for configuring live-store replicas in tempo-distributed.",
+      "assertions": [
+        "Agent identifies docs/sources/helm-charts/tempo-distributed/ as the primary location",
+        "Agent checks whether configuration/ pages also need updating",
+        "Agent uses 'live-store' (hyphenated) in prose and live_store (underscore) in YAML",
+        "Agent does not create a new page if existing content can be extended"
+      ]
+    }
+  ],
+  "grading": {
+    "method": "per-assertion binary (pass/fail)",
+    "passing_threshold": "all assertions pass",
+    "comparison": "Run each test case with and without the skill. Grade assertion pass rates for both runs."
+  }
+}

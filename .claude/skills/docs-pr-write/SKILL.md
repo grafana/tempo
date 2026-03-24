@@ -10,6 +10,11 @@ For a prioritized PR list from `docs-pr-check`, create or update the required do
 
 This skill is for documentation execution only. Do not generate release notes.
 
+## Guardrails
+
+- **Never** commit, push, or create a pull request without asking first.
+- After completing all doc changes, present the list of changed files and ask the user: _"Would you like me to create a PR, or would you prefer to review the changes locally first?"_
+
 ## Usage
 
 Invoke with `/docs-pr-write`.
@@ -132,5 +137,6 @@ Return:
 ## Reference
 
 - Triage skill: `.claude/skills/docs-pr-check/SKILL.md`
+- Repo orientation: `.claude/skills/docs-context-guide/SKILL.md` — code-to-docs mapping, key file paths, and Tempo doc conventions
 - Workflow detail: `.agents/doc-agents/shared/release-notes-workflow.md`
 - Verification checklist (Step 8 source): `.agents/doc-agents/shared/verification-checklist.md`
