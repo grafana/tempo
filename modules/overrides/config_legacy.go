@@ -190,7 +190,6 @@ var knownLegacyOverridesJSONFields = sync.OnceValue(func() map[string]struct{} {
 	return fieldNamesFor(LegacyOverrides{}, "json")
 })
 
-
 func (l *LegacyOverrides) UnmarshalJSON(data []byte) error {
 	type plain LegacyOverrides
 	if err := json.Unmarshal(data, (*plain)(l)); err != nil {

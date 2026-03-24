@@ -183,7 +183,6 @@ func processLegacyExtensions(l *LegacyOverrides) error {
 	return nil
 }
 
-
 // flattenExtensionEntries returns a new map where typed Extension values are replaced by their
 // flat legacy key-value pairs (via ToLegacy). Non-Extension entries are copied as-is.
 // Used when marshaling LegacyOverrides to produce the flat wire format.

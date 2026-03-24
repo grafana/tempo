@@ -71,7 +71,6 @@ func (o *perTenantOverrides) UnmarshalYAML(unmarshal func(interface{}) error) er
 	return nil
 }
 
-
 // forUser returns limits for a given tenant, or nil if there are no tenant-specific limits.
 func (o *perTenantOverrides) forUser(userID string) *Overrides {
 	l, ok := o.TenantLimits[userID]
