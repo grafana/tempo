@@ -1053,6 +1053,23 @@ func TestLiveStoreDownscaleOverridesConfig(t *testing.T) {
 	requirePartitionOwnerEventually(t, partitionKV, cfg.Ring.InstanceID, false, "owner should be removed after shutdown when downscale was triggered")
 }
 
+func TestLiveStoreRemovesPartitionOwnerOnShutdown(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	cfg := defaultConfig(t, tmpDir)
+	cfg.RemoveOwnerOnShutdown = true
+	partitionKV := cfg.PartitionRing.KVStore.Mock
+
+	liveStore, err := liveStoreWithConfig(t, cfg)
+	require.NoError(t, err)
+
+	requirePartitionOwnerEventually(t, partitionKV, cfg.Ring.InstanceID, true, "owner should be registered after startup")
+
+	_ = services.StopAndAwaitTerminated(t.Context(), liveStore)
+
+	requirePartitionOwnerEventually(t, partitionKV, cfg.Ring.InstanceID, false, "owner should be removed after shutdown when RemoveOwnerOnShutdown is true")
+}
+
 func requirePartitionOwnerEventually(t *testing.T, partitionKV kv.Client, instanceID string, expected bool, msg string) {
 	t.Helper()
 

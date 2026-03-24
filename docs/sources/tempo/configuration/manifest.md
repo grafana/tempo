@@ -483,6 +483,7 @@ metrics_generator:
         remote_write_add_org_id_header: true
     metrics_ingestion_time_range_slack: 30s
     override_ring_key: metrics-generator
+    ring_mode: partition
     codec: push-bytes
     disable_grpc: false
     limiter_type: series
@@ -644,6 +645,9 @@ storage:
             part_size: 0
             hedge_requests_at: 0s
             hedge_requests_up_to: 2
+            retry_max_attempts: 10
+            retry_backoff_initial: 200ms
+            retry_backoff_max: 1s
             signature_v2: false
             forcepathstyle: false
             enable_dual_stack: false
@@ -738,6 +742,9 @@ overrides:
                 part_size: 0
                 hedge_requests_at: 0s
                 hedge_requests_up_to: 2
+                retry_max_attempts: 10
+                retry_backoff_initial: 200ms
+                retry_backoff_max: 1s
                 signature_v2: false
                 forcepathstyle: false
                 enable_dual_stack: false

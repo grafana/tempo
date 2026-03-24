@@ -301,6 +301,76 @@ func TestHedge(t *testing.T) {
 	}
 }
 
+func TestRetryConfiguration(t *testing.T) {
+	tests := []struct {
+		name                string
+		retryMaxAttempts    int
+		retryBackoffInitial time.Duration
+		retryBackoffMax     time.Duration
+	}{
+		{
+			name:                "custom retry configuration",
+			retryMaxAttempts:    5,
+			retryBackoffInitial: 500 * time.Millisecond,
+			retryBackoffMax:     10 * time.Second,
+		},
+		{
+			name:                "default retry values when not set",
+			retryMaxAttempts:    0,
+			retryBackoffInitial: 0,
+			retryBackoffMax:     0,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			origMaxRetry := minio.MaxRetry
+			origRetryUnit := minio.DefaultRetryUnit
+			origRetryCap := minio.DefaultRetryCap
+			defer func() {
+				minio.MaxRetry = origMaxRetry
+				minio.DefaultRetryUnit = origRetryUnit
+				minio.DefaultRetryCap = origRetryCap
+			}()
+
+			server := fakeServer(t, 100*time.Millisecond, new(int32))
+
+			cfg := &Config{
+				Region:              "blerg",
+				AccessKey:           "test",
+				SecretKey:           flagext.SecretWithValue("test"),
+				Bucket:              "blerg",
+				Insecure:            true,
+				Endpoint:            server.URL[7:],
+				RetryMaxAttempts:    tc.retryMaxAttempts,
+				RetryBackoffInitial: tc.retryBackoffInitial,
+				RetryBackoffMax:     tc.retryBackoffMax,
+			}
+
+			_, _, _, err := New(cfg)
+			require.NoError(t, err)
+
+			if tc.retryMaxAttempts != 0 {
+				assert.Equal(t, tc.retryMaxAttempts, minio.MaxRetry)
+			} else {
+				assert.Equal(t, origMaxRetry, minio.MaxRetry)
+			}
+
+			if tc.retryBackoffInitial != 0 {
+				assert.Equal(t, tc.retryBackoffInitial, minio.DefaultRetryUnit)
+			} else {
+				assert.Equal(t, origRetryUnit, minio.DefaultRetryUnit)
+			}
+
+			if tc.retryBackoffMax != 0 {
+				assert.Equal(t, tc.retryBackoffMax, minio.DefaultRetryCap)
+			} else {
+				assert.Equal(t, origRetryCap, minio.DefaultRetryCap)
+			}
+		})
+	}
+}
+
 func TestNilConfig(t *testing.T) {
 	_, _, _, err := New(nil)
 	require.Error(t, err)

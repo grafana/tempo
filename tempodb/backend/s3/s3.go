@@ -121,6 +121,19 @@ func internalNew(cfg *Config, confirm bool) (*readerWriter, error) {
 
 	l := log.Logger
 
+	// Global minio settings that affect all minio clients in the process
+	if cfg.RetryMaxAttempts > 0 {
+		minio.MaxRetry = cfg.RetryMaxAttempts
+	}
+
+	if cfg.RetryBackoffInitial > 0 {
+		minio.DefaultRetryUnit = cfg.RetryBackoffInitial
+	}
+
+	if cfg.RetryBackoffMax > 0 {
+		minio.DefaultRetryCap = cfg.RetryBackoffMax
+	}
+
 	core, err := createCore(cfg, false)
 	if err != nil {
 		return nil, fmt.Errorf("unexpected error creating core: %w", err)
@@ -809,10 +822,11 @@ func buildSSEConfig(cfg *Config) (encrypt.ServerSide, error) {
 	case SSES3:
 		return encrypt.NewSSE(), nil
 	case SSEC:
-		if cfg.SSE.CustomerEncryptionKey == "" {
+		key := cfg.SSE.CustomerEncryptionKey.String()
+		if key == "" {
 			return nil, errors.New("SSE-C EncryptionKey is missing")
 		}
-		return encrypt.NewSSEC([]byte(cfg.SSE.CustomerEncryptionKey))
+		return encrypt.NewSSEC([]byte(key))
 	default:
 		return nil, errUnsupportedSSEType
 	}

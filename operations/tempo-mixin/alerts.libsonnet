@@ -119,20 +119,6 @@
             },
           },
           {
-            alert: 'TempoBlockListRisingQuickly',
-            expr: |||
-              avg by (%(group)s) (tempodb_blocklist_length{namespace=~"%(namespace)s", container="backend-scheduler"}) / avg by (%(group)s) (tempodb_blocklist_length{namespace=~"%(namespace)s", container="backend-scheduler"} offset 7d) > 1.4
-            ||| % { namespace: $._config.namespace, group: $._config.group_by_cluster },
-            'for': '15m',
-            labels: {
-              severity: 'critical',
-            },
-            annotations: {
-              message: 'Tempo block list length is up 40 percent over the last 7 days. Consider scaling backend-workers.',
-              runbook_url: 'https://github.com/grafana/tempo/tree/main/operations/tempo-mixin/runbook.md#TempoBlockListRisingQuickly',
-            },
-          },
-          {
             alert: 'TempoBadOverrides',
             expr: |||
               sum(tempo_runtime_config_last_reload_successful{namespace=~"%s"} == 0) by (%s)
