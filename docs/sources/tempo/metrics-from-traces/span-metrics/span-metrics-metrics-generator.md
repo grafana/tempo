@@ -187,7 +187,11 @@ metrics_generator:
 
 ### Handling sampled traces
 
-If you use a ratio-based sampler, you can use the custom sampler below to not lose metric information. However, you also need to set `metrics_generator.processor.span_metrics.span_multiplier_key` to `"X-SampleRatio"`.
+If you use a ratio-based sampler, you have two options to prevent losing metric information:
+
+**Option 1: Custom span attribute**
+
+You can use the custom sampler below to not lose metric information. However, you also need to set `metrics_generator.processor.span_metrics.span_multiplier_key` to `"X-SampleRatio"`.
 
 ```go
 package tracer
@@ -222,6 +226,19 @@ func (ds RatioBasedSampler) Description() string {
 	return "Ratio Based Sampler which gives information about sampling ratio"
 }
 ```
+
+**Option 2: OpenTelemetry tracestate threshold**
+
+If your sampler records the sampling probability in the [W3C tracestate header using the OpenTelemetry `th` (threshold) subkey](https://opentelemetry.io/docs/specs/otel/trace/tracestate-probability-sampling/), you can enable automatic extraction of the span multiplier:
+
+```yaml
+metrics_generator:
+  processor:
+    span_metrics:
+      enable_tracestate_span_multiplier: true
+```
+
+If the tracestate is absent or invalid, the attribute-based approach is used as a fallback.
 
 ### Filtering
 

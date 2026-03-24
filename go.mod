@@ -87,6 +87,7 @@ require (
 	github.com/maypok86/otter/v2 v2.3.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/exporter/zipkinexporter v0.147.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl v0.147.0
+	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/sampling v0.147.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/processor/filterprocessor v0.147.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/receiver/jaegerreceiver v0.147.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/receiver/kafkareceiver v0.147.0

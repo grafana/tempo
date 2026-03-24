@@ -478,6 +478,12 @@ metrics_generator:
             # resouce and span level attributes
             [span_multiplier_key: <string> | default = ""]
 
+            # Enable extracting the span multiplier from the W3C tracestate header
+            # using the OpenTelemetry probability sampling threshold (ot=th:<hex>).
+            # When enabled, the tracestate threshold takes priority over span_multiplier_key.
+            # Refer to https://opentelemetry.io/docs/specs/otel/trace/tracestate-probability-sampling/
+            [enable_tracestate_span_multiplier: <bool> | default = false]
+
             # Enables additional labels for services and virtual nodes.
             [enable_virtual_node_label: <bool> | default = false]
 
@@ -529,6 +535,12 @@ metrics_generator:
             # Note that the attribute name is searched for in both
             # resouce and span level attributes
             [span_multiplier_key: <string> | default = ""]
+
+            # Enable extracting the span multiplier from the W3C tracestate header
+            # using the OpenTelemetry probability sampling threshold (ot=th:<hex>).
+            # When enabled, the tracestate threshold takes priority over span_multiplier_key.
+            # Refer to https://opentelemetry.io/docs/specs/otel/trace/tracestate-probability-sampling/
+            [enable_tracestate_span_multiplier: <bool> | default = false]
 
             # List of policies that will be applied to spans for inclusion or exclusion.
             [filter_policies: <list of filter policies config> | default = []]

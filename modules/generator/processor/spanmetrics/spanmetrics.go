@@ -196,7 +196,7 @@ func (p *Processor) aggregateMetricsForSpan(svcName string, jobName string, inst
 		builder.Add(gen.DimInstance, instanceID)
 	}
 
-	spanMultiplier := processor_util.GetSpanMultiplier(p.Cfg.SpanMultiplierKey, span, rs)
+	spanMultiplier := processor_util.GetSpanMultiplier(p.Cfg.SpanMultiplierKey, span, rs, p.Cfg.EnableTraceStateSpanMultiplier)
 
 	registryLabelValues, validUTF8 := builder.CloseAndBuildLabels()
 	if !validUTF8 {
