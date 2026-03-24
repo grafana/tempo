@@ -204,6 +204,8 @@ func (l *LegacyOverrides) UnmarshalJSON(data []byte) error {
 		delete(raw, key)
 	}
 	if len(raw) == 0 {
+		// No extension keys in this payload; clear any stale Extensions from a prior decode.
+		l.Extensions = nil
 		return nil
 	}
 
