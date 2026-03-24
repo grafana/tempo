@@ -312,8 +312,7 @@ func TestFormatConversion(t *testing.T) {
 	ensureAllFieldsPopulated(t, legacyOverrides)
 
 	// Convert to new format and back
-	newOverrides, err := legacyOverrides.toNewLimits()
-	require.NoError(t, err)
+	newOverrides := legacyOverrides.toNewLimits()
 	convertedLegacyOverrides := newOverrides.toLegacy()
 
 	// Compare original and converted
@@ -588,8 +587,7 @@ lbac_mode: mode_spans
 	require.NoError(t, yaml.Unmarshal([]byte(input), &l))
 	require.Equal(t, "mode_spans", l.Extensions["lbac_mode"])
 
-	o, err := l.toNewLimits()
-	require.NoError(t, err)
+	o := l.toNewLimits()
 	assert.Equal(t, 500, o.Ingestion.MaxLocalTracesPerUser)
 	assert.Equal(t, "mode_spans", o.Extensions["lbac_mode"], "Extensions must survive toNewLimits()")
 }

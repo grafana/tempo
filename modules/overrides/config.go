@@ -341,11 +341,7 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		return fmt.Errorf("defaults: %w", err)
 	}
 
-	var convErr error
-	c.Defaults, convErr = legacyCfg.DefaultOverrides.toNewLimits()
-	if convErr != nil {
-		return fmt.Errorf("failed to convert legacy defaults: %w", convErr)
-	}
+	c.Defaults = *legacyCfg.DefaultOverrides.toNewLimits()
 	if err := processExtensions(&c.Defaults); err != nil {
 		return fmt.Errorf("defaults: %w", err)
 	}

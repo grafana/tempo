@@ -294,11 +294,10 @@ test_extension_field_a: from_legacy_yaml
 		assert.Equal(t, 0, *lExt.FieldB)
 
 		// toNewLimits copies typed extensions; processExtensions validates them.
-		o, err := l.toNewLimits()
-		require.NoError(t, err)
-		require.NoError(t, processExtensions(&o))
+		o := l.toNewLimits()
+		require.NoError(t, processExtensions(o))
 
-		ext := get(&o)
+		ext := get(o)
 		require.NotNil(t, ext)
 		assert.Equal(t, "from_legacy_yaml", ext.FieldA)
 		require.NotNil(t, ext.FieldB)
@@ -409,11 +408,10 @@ func TestExtension_LegacyConversionRoundTrip(t *testing.T) {
 	assert.Nil(t, m["test_extension"], "nested key must not appear in JSON")
 
 	// Round-trip through toNewLimits recovers the typed extension.
-	o2, err := l.toNewLimits()
-	require.NoError(t, err)
-	require.NoError(t, processExtensions(&o2))
+	o2 := l.toNewLimits()
+	require.NoError(t, processExtensions(o2))
 
-	ext := get(&o2)
+	ext := get(o2)
 	require.NotNil(t, ext)
 	assert.Equal(t, "converted", ext.FieldA)
 	assert.Equal(t, 21, *ext.FieldB)

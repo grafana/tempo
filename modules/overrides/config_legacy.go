@@ -2,7 +2,6 @@ package overrides
 
 import (
 	"encoding/json"
-	"fmt"
 	"sync"
 	"time"
 
@@ -285,7 +284,7 @@ func (l LegacyOverrides) MarshalYAML() (interface{}, error) {
 	return plain(cp), nil
 }
 
-func (l *LegacyOverrides) toNewLimits() (Overrides, error) {
+func (l *LegacyOverrides) toNewLimits() *Overrides {
 	o := Overrides{
 		Ingestion: IngestionOverrides{
 			RateStrategy:           l.IngestionRateStrategy,
@@ -371,6 +370,7 @@ func (l *LegacyOverrides) toNewLimits() (Overrides, error) {
 			MaxCardinality: l.CostAttribution.MaxCardinality,
 		},
 	}
+
 	// Extensions are already typed instances after processLegacyExtensions ran at unmarshal time.
 	// Simply copy them; processExtensions called by the caller will validate them.
 	if len(l.Extensions) > 0 {
@@ -379,7 +379,8 @@ func (l *LegacyOverrides) toNewLimits() (Overrides, error) {
 			o.Extensions[k] = v
 		}
 	}
-	return o, nil
+
+	return &o
 }
 
 // perTenantLegacyOverrides represents the Overrides config file with the legacy representation
@@ -394,11 +395,7 @@ func (l *perTenantLegacyOverrides) toNewOverrides() (perTenantOverrides, error) 
 	}
 
 	for tenantID, legacyLimits := range l.TenantLimits {
-		limits, err := legacyLimits.toNewLimits()
-		if err != nil {
-			return perTenantOverrides{}, fmt.Errorf("tenant %q: %w", tenantID, err)
-		}
-		overrides.TenantLimits[tenantID] = &limits
+		overrides.TenantLimits[tenantID] = legacyLimits.toNewLimits()
 	}
 
 	return overrides, nil
