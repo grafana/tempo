@@ -38,7 +38,7 @@ The flush process is designed to be safely replayable at every stage.
 
 ### Flush order
 
-Blocks are flushed to object storage in a specific order:
+The block-builder flushes blocks to object storage in a specific order:
 
 1. Bloom filters and indexes
 2. `data.parquet`

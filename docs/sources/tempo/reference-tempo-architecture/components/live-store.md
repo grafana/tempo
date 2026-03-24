@@ -22,7 +22,7 @@ The live-store fills this gap by consuming trace data from Kafka in real time, h
 
 When the live-store receives spans from Kafka, it assembles them into traces in memory. Each trace goes through three stages.
 
-First, the trace is **active** — it's receiving spans, remains in memory, and is queryable. Then, when no new spans have arrived within the configured `trace_idle_period` (default: 10 seconds), the trace becomes **idle** and is flushed to the local WAL. Once **flushed**, the trace data is written in Parquet format and becomes available for TraceQL search. Eventually, the WAL data is cut into complete blocks.
+First, the trace is active — it's receiving spans, remains in memory, and is queryable. Then, when no new spans have arrived within the configured `trace_idle_period` (default: 10 seconds), the trace becomes idle and is flushed to the local WAL. Once flushed, the trace data is written in Parquet format and becomes available for TraceQL search. Eventually, the WAL data is cut into complete blocks.
 
 ### Trace idle period
 
@@ -67,7 +67,7 @@ Refer to the [zone-aware live-stores](https://grafana.com/docs/tempo/<TEMPO_VERS
 
 When traces are flushed from memory, they're written to a local WAL in Parquet format. This serves two purposes.
 
-First, it provides **search availability** — once in the WAL, trace data is available for TraceQL search queries, not just trace ID lookups. Second, it aids **recovery on restart** — if the live-store restarts, it can replay from Kafka, and the WAL provides a way to serve queries during replay.
+First, it provides search availability — once in the WAL, trace data is available for TraceQL search queries, not just trace ID lookups. Second, it aids recovery on restart — if the live-store restarts, it can replay from Kafka, and the WAL provides a way to serve queries during replay.
 
 The WAL is eventually cut into complete blocks that are also stored locally. These blocks are queryable until the data ages out of the live-store's retention window.
 

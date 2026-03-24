@@ -53,7 +53,7 @@ Tenants are fully isolated at the storage level. Each tenant's blocks are in a s
 
 With Tempo 3.0's Kafka-based architecture, durability works in layers.
 
-**Kafka** provides immediate durability. Once data is acknowledged by Kafka, it's safe even if all Tempo components crash. **Object storage** provides long-term durability. Once the block-builder flushes a block, the data is durably stored and independent of Kafka. **Kafka retention** bridges the gap — Kafka retains data long enough for block-builders to consume and flush it. If a block-builder is slow or restarting, Kafka holds the data until it's processed.
+Kafka provides immediate durability. Once data is acknowledged by Kafka, it's safe even if all Tempo components crash. Object storage provides long-term durability. Once the block-builder flushes a block, the data is durably stored and independent of Kafka. Kafka retention bridges the gap — Kafka retains data long enough for block-builders to consume and flush it. If a block-builder is slow or restarting, Kafka holds the data until it's processed.
 
 There's no single point of failure for data durability. Kafka and object storage together provide end-to-end safety.
 

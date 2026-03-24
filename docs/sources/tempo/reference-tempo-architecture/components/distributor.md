@@ -25,7 +25,7 @@ For best performance, use OTLP. Both [Grafana Alloy](https://github.com/grafana/
 
 Before writing to Kafka, the distributor validates incoming data against configured ingestion limits. These are the only limits enforced synchronously at ingestion time.
 
-The **ingestion rate limit** sets the maximum bytes per second per tenant. Exceeding this returns a `RATE_LIMITED` error to the client. The **ingestion burst size** controls the maximum burst allowed above the sustained rate.
+The ingestion rate limit sets the maximum bytes per second per tenant. Exceeding this returns a `RATE_LIMITED` error to the client. The ingestion burst size controls the maximum burst allowed above the sustained rate.
 
 Other limits such as `max_bytes_per_trace` and `max_live_traces_bytes` are enforced asynchronously downstream by live-stores and block-builders.
 
@@ -52,10 +52,10 @@ The write is only considered successful after Kafka confirms receipt. This ensur
 
 ### Partitioning
 
-Traces are sharded by trace ID, meaning all spans for the same trace go to the same Kafka partition. This has two benefits:
+The distributor shards traces by trace ID, meaning all spans for the same trace go to the same Kafka partition. This has two benefits:
 
-- **Block-builders** can build blocks where all spans for a trace are co-located (within a single consumption cycle).
-- **Live-stores** can serve complete traces from a single partition without cross-partition coordination.
+- Block-builders can build blocks where all spans for a trace are co-located (within a single consumption cycle).
+- Live-stores can serve complete traces from a single partition without cross-partition coordination.
 
 The distributor uses the partition ring (not Kafka's native partitioner) to determine target partitions. This allows Tempo to control the partition lifecycle independently of Kafka.
 

@@ -31,7 +31,7 @@ The compactor enforces the configured retention period by deleting blocks older 
 
 The backend scheduler and worker are a forward-looking re-architecture of the compaction process. They improve determinism and remove duplication present in the compactor.
 
-The **scheduler** schedules and tracks jobs assigned to workers. **Workers** connect to the scheduler via gRPC, receive jobs, execute them, and report status. Job types currently include compaction and retention, with more planned for the future.
+The scheduler schedules and tracks jobs assigned to workers. Workers connect to the scheduler via gRPC, receive jobs, execute them, and report status. Job types currently include compaction and retention, with more planned for the future.
 
 Workers also maintain the blocklist for all tenants. Tenant polling is coordinated through a ring, the same mechanism previously used by the compactor.
 

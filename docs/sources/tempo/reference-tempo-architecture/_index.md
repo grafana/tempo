@@ -1,7 +1,7 @@
 ---
 title: Tempo architecture reference
 menuTitle: Architecture reference
-description: Deep dive into Tempo's architecture, components, and design decisions.
+description: Detailed reference for Tempo's architecture, components, and design decisions.
 weight: 600
 topicType: introduction
 versionDate: 2026-03-20

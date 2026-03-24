@@ -41,7 +41,7 @@ Tempo uses a span-oriented Parquet schema. Each row represents a span, with colu
 
 ### Static vs dynamic columns
 
-Attributes are stored in two ways. **Static columns** are well-known attributes that exist in every trace (like `service.name`). These have dedicated columns in the schema and are always efficient to query. **Dynamic columns** are arbitrary key-value pairs stored in a generic attribute column. Querying these requires scanning the attribute map, which is slower.
+Attributes are stored in two ways. Static columns are well-known attributes that exist in every trace (for example, `service.name`). These have dedicated columns in the schema and are always efficient to query. Dynamic columns are arbitrary key-value pairs stored in a generic attribute column. Querying these requires scanning the attribute map, which is slower.
 
 ### Dedicated attribute columns
 

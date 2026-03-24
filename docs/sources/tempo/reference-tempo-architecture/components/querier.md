@@ -15,9 +15,9 @@ The querier is the worker component that executes query jobs dispatched by the q
 
 When a querier receives a batch of jobs from the query frontend, it processes each job by determining where the relevant data lives.
 
-For **recent data**, the querier contacts live-stores that own the partitions covering the query's time range. Live-stores respond with any matching spans held in memory or their local WAL.
+For recent data, the querier contacts live-stores that own the partitions covering the query's time range. Live-stores respond with any matching spans held in memory or their local WAL.
 
-For **historical data**, the querier reads block metadata from the blocklist, identifies which blocks may contain matching data, and fetches the relevant portions from object storage. Bloom filters efficiently skip blocks that don't contain the requested trace IDs.
+For historical data, the querier reads block metadata from the blocklist, identifies which blocks may contain matching data, and fetches the relevant portions from object storage. Bloom filters efficiently skip blocks that don't contain the requested trace IDs.
 
 Results from both sources are combined and returned to the query frontend.
 
@@ -35,7 +35,7 @@ For historical data, the querier consults the blocklist (maintained by compactor
 
 Queriers benefit significantly from caching. Tempo supports multiple cache tiers.
 
-The **frontend search cache** caches query results at the frontend level. It has a low hit rate and is mainly useful for repeated queries. The **Parquet page cache** caches individual Parquet pages with a high hit rate, useful across many different queries. The **bloom filter cache** caches bloom filters used for trace ID lookups, also with a high hit rate.
+The frontend search cache caches query results at the frontend level. It has a low hit rate and is mainly useful for repeated queries. The Parquet page cache caches individual Parquet pages with a high hit rate, useful across many different queries. The bloom filter cache caches bloom filters used for trace ID lookups, also with a high hit rate.
 
 Lower-level caches (bloom, Parquet page) have higher hit rates and should be sized more generously than higher-level caches.
 

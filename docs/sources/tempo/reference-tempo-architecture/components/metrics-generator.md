@@ -9,13 +9,13 @@ versionDate: 2026-03-20
 
 # Metrics-generator
 
-The metrics-generator is an optional component that consumes trace data from Kafka and derives metrics, which are then remote-written to a metrics backend such as Prometheus or Grafana Mimir.
+The metrics-generator is an optional component that consumes trace data from Kafka and derives metrics, which are then remote-written to a metrics backend, for example, Prometheus or Grafana Mimir.
 
 ## Why it matters
 
 Traces contain rich information about service interactions, latencies, and error rates. The metrics-generator extracts this information and produces time-series metrics, enabling alerting and dashboarding without requiring separate instrumentation.
 
-It supports two types of metric generation. **Span metrics** produce request rate, error rate, and duration (RED) metrics from individual spans. These can be broken down by service, operation, status code, and custom dimensions extracted from span attributes. **Service graphs** build a graph of service-to-service communication by matching client and server spans, producing metrics for request rates, error rates, and latencies between service pairs.
+It supports two types of metric generation. Span metrics produce request rate, error rate, and duration (RED) metrics from individual spans. These can be broken down by service, operation, status code, and custom dimensions extracted from span attributes. Service graphs build a graph of service-to-service communication by matching client and server spans, producing metrics for request rates, error rates, and latencies between service pairs.
 
 ## Kafka consumption
 
