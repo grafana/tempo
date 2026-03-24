@@ -53,6 +53,16 @@ var extensionRegistry = struct {
 // during JSON marshal/unmarshal).
 // Returns a typed getter that retrieves the extension value from an Overrides.
 func RegisterExtension[T Extension](e T) func(*Overrides) T {
+	// Check for nil / typed-nil before any method call so callers get a clear
+	// panic message instead of a nil-dereference inside Key() or LegacyKeys().
+	typ := reflect.TypeOf(e)
+	if typ == nil || typ.Kind() != reflect.Ptr {
+		panic("overrides: RegisterExtension requires a non-nil pointer to the extension struct")
+	}
+	if reflect.ValueOf(e).IsNil() {
+		panic("overrides: RegisterExtension requires a non-nil pointer to the extension struct")
+	}
+
 	key := e.Key()
 
 	extensionRegistry.Lock()
@@ -60,11 +70,6 @@ func RegisterExtension[T Extension](e T) func(*Overrides) T {
 
 	if _, exists := extensionRegistry.entries[key]; exists {
 		panic(fmt.Sprintf("overrides: extension %q already registered", key))
-	}
-
-	typ := reflect.TypeOf(e)
-	if typ == nil || typ.Kind() != reflect.Ptr {
-		panic(fmt.Sprintf("overrides: extension %q must be registered as a pointer type", key))
 	}
 	if _, conflict := knownOverridesJSONFields()[key]; conflict {
 		panic(fmt.Sprintf("overrides: extension key %q conflicts with a built-in Overrides field; choose a different key", key))

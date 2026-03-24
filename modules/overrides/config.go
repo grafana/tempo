@@ -246,6 +246,8 @@ func (o *Overrides) UnmarshalJSON(data []byte) error {
 		delete(raw, key)
 	}
 	if len(raw) == 0 {
+		// No extension keys in this payload; clear any stale Extensions from a prior decode.
+		o.Extensions = nil
 		return nil
 	}
 
