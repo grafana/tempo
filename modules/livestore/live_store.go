@@ -743,6 +743,12 @@ func (s *LiveStore) PushBytes(ctx context.Context, req *tempopb.PushBytesRequest
 	if err := s.CheckReady(ctx); err != nil {
 		return nil, err
 	}
+	if req == nil {
+		return nil, errors.New("nil push bytes request")
+	}
+	if len(req.Traces) != len(req.Ids) {
+		return nil, fmt.Errorf("mismatched traces and ids length: traces=%d ids=%d", len(req.Traces), len(req.Ids))
+	}
 
 	tenantID, err := validation.ExtractValidTenantID(ctx)
 	if err != nil {

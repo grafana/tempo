@@ -146,6 +146,50 @@ func TestLiveStorePushBytesRejectsWhenStopping(t *testing.T) {
 	require.ErrorIs(t, err, ErrStopping)
 }
 
+func TestLiveStorePushBytesRejectsNilRequest(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	cfg := defaultConfig(t, tmpDir)
+	cfg.ConsumeFromKafka = false
+
+	liveStore, err := liveStoreWithConfig(t, cfg)
+	require.NoError(t, err)
+	require.NotNil(t, liveStore)
+
+	ctx := user.InjectOrgID(t.Context(), testTenantID)
+	_, err = liveStore.PushBytes(ctx, nil)
+	require.EqualError(t, err, "nil push bytes request")
+
+	err = services.StopAndAwaitTerminated(t.Context(), liveStore)
+	require.NoError(t, err)
+}
+
+func TestLiveStorePushBytesRejectsMismatchedTraceAndIDCounts(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	cfg := defaultConfig(t, tmpDir)
+	cfg.ConsumeFromKafka = false
+
+	liveStore, err := liveStoreWithConfig(t, cfg)
+	require.NoError(t, err)
+	require.NotNil(t, liveStore)
+
+	id := test.ValidTraceID(nil)
+	expectedTrace := test.MakeTrace(1, id)
+	traceBytes, err := proto.Marshal(expectedTrace)
+	require.NoError(t, err)
+
+	ctx := user.InjectOrgID(t.Context(), testTenantID)
+	_, err = liveStore.PushBytes(ctx, &tempopb.PushBytesRequest{
+		Traces: []tempopb.PreallocBytes{{Slice: traceBytes}},
+		Ids:    [][]byte{},
+	})
+	require.EqualError(t, err, "mismatched traces and ids length: traces=1 ids=0")
+
+	err = services.StopAndAwaitTerminated(t.Context(), liveStore)
+	require.NoError(t, err)
+}
+
 func TestLiveStoreStartStopWithoutKafkaConsumer(t *testing.T) {
 	tmpDir := t.TempDir()
 
