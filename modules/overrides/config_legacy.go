@@ -400,7 +400,7 @@ type perTenantLegacyOverrides struct {
 }
 
 // Convert to new format
-func (l *perTenantLegacyOverrides) toNewOverrides() (perTenantOverrides, error) {
+func (l *perTenantLegacyOverrides) toNewOverrides() perTenantOverrides {
 	overrides := perTenantOverrides{
 		TenantLimits: make(map[string]*Overrides, len(l.TenantLimits)),
 	}
@@ -409,5 +409,5 @@ func (l *perTenantLegacyOverrides) toNewOverrides() (perTenantOverrides, error) 
 		overrides.TenantLimits[tenantID] = legacyLimits.toNewLimits()
 	}
 
-	return overrides, nil
+	return overrides
 }

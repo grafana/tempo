@@ -56,12 +56,8 @@ func (o *perTenantOverrides) UnmarshalYAML(unmarshal func(interface{}) error) er
 	if err := unmarshal(&legacyConfig); err != nil {
 		return err
 	}
-
-	newOverrides, err := legacyConfig.toNewOverrides()
-	if err != nil {
-		return err
-	}
-	*o = newOverrides
+	
+	*o = legacyConfig.toNewOverrides()
 	o.ConfigType = ConfigTypeLegacy
 
 	for tenantID, limits := range o.TenantLimits {
