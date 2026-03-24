@@ -190,6 +190,31 @@ func TestLiveStorePushBytesRejectsMismatchedTraceAndIDCounts(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func TestLiveStorePushBytesEmptyRequestDoesNotCreateInstance(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	cfg := defaultConfig(t, tmpDir)
+	cfg.ConsumeFromKafka = false
+
+	liveStore, err := liveStoreWithConfig(t, cfg)
+	require.NoError(t, err)
+	require.NotNil(t, liveStore)
+
+	ctx := user.InjectOrgID(t.Context(), testTenantID)
+	resp, err := liveStore.PushBytes(ctx, &tempopb.PushBytesRequest{
+		Traces: []tempopb.PreallocBytes{},
+		Ids:    [][]byte{},
+	})
+	require.NoError(t, err)
+	require.NotNil(t, resp)
+
+	_, found := liveStore.getInstance(testTenantID)
+	require.False(t, found)
+
+	err = services.StopAndAwaitTerminated(t.Context(), liveStore)
+	require.NoError(t, err)
+}
+
 func TestLiveStoreStartStopWithoutKafkaConsumer(t *testing.T) {
 	tmpDir := t.TempDir()
 
