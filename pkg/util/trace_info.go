@@ -352,8 +352,7 @@ func (t *TraceInfo) ConstructTraceFromEpoch() (*tempopb.Trace, error) {
 }
 
 // RandomAttrFromTrace returns a random attribute from the trace for use in search validation.
-// Integer attributes are never chosen: they are not unique enough for search and are only
-// verified via trace lookup (VerifyTraceContent).
+// Integer attributes are never chosen: they are not unique enough for search.
 func RandomAttrFromTrace(t *tempopb.Trace) *v1common.KeyValue {
 	r := newRand(time.Now())
 
