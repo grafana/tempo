@@ -80,8 +80,8 @@ func TestResponseFixture(t *testing.T) {
 	generatedTrace, err := info.ConstructTraceFromEpoch()
 	require.NoError(t, err)
 
-	// Regenerate fixture when REGENERATE_TRACE_FIXTURE=1 (e.g. after adding new attributes)
-	if os.Getenv("REGENERATE_TRACE_FIXTURE") == "1" {
+	// Regenerate fixture when TEMPO_VULTURE_REGENERATE_TRACE_FIXTURE=1 (e.g. after adding new attributes)
+	if os.Getenv("TEMPO_VULTURE_REGENERATE_TRACE_FIXTURE") == "1" {
 		var jsonTrace bytes.Buffer
 		marshaller := &jsonpb.Marshaler{}
 		err = marshaller.Marshal(&jsonTrace, generatedTrace)
