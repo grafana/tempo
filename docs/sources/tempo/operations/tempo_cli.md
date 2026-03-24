@@ -82,6 +82,7 @@ Arguments:
 Options:
 
 - `--org-id <value>` Organization ID (for use in multi-tenant setup).
+- `--header <key=value>` Extra HTTP header to send with the request. Can be specified multiple times.
 - `--v1` use v1 API (use /api/traces endpoint to fetch traces, default: /api/v2/traces).
 
 Example:
@@ -89,6 +90,14 @@ Example:
 ```bash
 tempo-cli query api trace-id http://tempo:3200 f1cfe82a8eef933b
 ```
+
+Example with a custom authentication header:
+
+```bash
+tempo-cli query api trace-id http://tempo:3200 f1cfe82a8eef933b --header "X-TOKEN=<API_TOKEN>"
+```
+
+Replace _`<API_TOKEN>`_ with your authentication token.
 
 ### Search
 
@@ -108,6 +117,7 @@ Arguments:
 Options:
 
 - `--org-id <value>` Organization ID (for use in multi-tenant setup).
+- `--header <key=value>` Extra header to send with the request (as gRPC metadata when using `--use-grpc`). Can be specified multiple times.
 - `--use-grpc` Use GRPC streaming
 - `--spss <value>` Number of spans to return for each spanset
 - `--limit <value>` Number of results to return
@@ -136,6 +146,12 @@ Example using GRPC streaming with organization ID:
 tempo-cli query api search --use-grpc --org-id my-org localhost:3200 '{span.http.status_code >= 400}' now-1h now
 ```
 
+Example with a custom authentication header over GRPC:
+
+```bash
+tempo-cli query api search --use-grpc --header "X-TOKEN=<API_TOKEN>" localhost:9095 '{status = error}' now-1h now
+```
+
 ### Search tags
 
 Call the Tempo API and search attribute names.
@@ -153,6 +169,7 @@ Arguments:
 Options:
 
 - `--org-id <value>` Organization ID (for use in multi-tenant setup).
+- `--header <key=value>` Extra header to send with the request (as gRPC metadata when using `--use-grpc`). Can be specified multiple times.
 - `--use-grpc` Use GRPC streaming
 - `--path-prefix <value>` String to prefix search paths with
 - `--secure` Use HTTPS or gRPC with TLS
@@ -197,6 +214,7 @@ Arguments:
 Options:
 
 - `--org-id <value>` Organization ID (for use in multi-tenant setup).
+- `--header <key=value>` Extra header to send with the request (as gRPC metadata when using `--use-grpc`). Can be specified multiple times.
 - `--query <value>` TraceQL query to filter attribute results by.
 - `--use-grpc` Use GRPC streaming
 - `--path-prefix <value>` String to prefix search paths with
@@ -236,6 +254,7 @@ Arguments:
 Options:
 
 - `--org-id <value>` Organization ID (for use in multi-tenant setup).
+- `--header <key=value>` Extra header to send with the request (as gRPC metadata when using `--use-grpc`). Can be specified multiple times.
 - `--use-grpc` Use GRPC streaming
 - `--instant` Perform an instant query instead of a range query.
 - `--path-prefix <value>` String to prefix search paths with

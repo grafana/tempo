@@ -18,10 +18,11 @@ type querySearchTagsCmd struct {
 	Start    string `arg:"" optional:"" help:"start time in RFC3339 (e.g. 2006-01-02T15:04:05Z07:00) or relative (e.g. now-1h) format"`
 	End      string `arg:"" optional:"" help:"end time in RFC3339 (e.g. 2006-01-02T15:04:05Z07:00) or relative (e.g. now) format"`
 
-	OrgID      string `help:"optional orgID"`
-	UseGRPC    bool   `help:"stream search results over GRPC"`
-	PathPrefix string `help:"string to prefix all http paths with"`
-	Secure     bool   `help:"use https or grpc with TLS"`
+	OrgID      string   `help:"optional orgID"`
+	Headers    []string `help:"extra headers in key=value format, sent as gRPC metadata when using --use-grpc" name:"header"`
+	UseGRPC    bool     `help:"stream search results over GRPC"`
+	PathPrefix string   `help:"string to prefix all http paths with"`
+	Secure     bool     `help:"use https or grpc with TLS"`
 }
 
 func (cmd *querySearchTagsCmd) Run(_ *globalOptions) error {
@@ -55,6 +56,7 @@ func (cmd *querySearchTagsCmd) searchHTTP(start, end int64) error {
 		cmd.HostPort = path.Join(cmd.HostPort, cmd.PathPrefix)
 	}
 	client := httpclient.New(httpScheme(cmd.Secure)+"://"+cmd.HostPort, cmd.OrgID)
+	applyHeaders(client, cmd.Headers)
 
 	var tags *tempopb.SearchTagsV2Response
 	var err error
@@ -77,6 +79,7 @@ func (cmd *querySearchTagsCmd) searchGRPC(start, end int64) error {
 	if err != nil {
 		return err
 	}
+	ctx = applyHeadersGRPC(ctx, cmd.Headers)
 
 	creds, err := grpcTransportCredentials(cmd.Secure)
 	if err != nil {
