@@ -56,7 +56,7 @@ func (o *perTenantOverrides) UnmarshalYAML(unmarshal func(interface{}) error) er
 	if err := unmarshal(&legacyConfig); err != nil {
 		return err
 	}
-	
+
 	*o = legacyConfig.toNewOverrides()
 	o.ConfigType = ConfigTypeLegacy
 
