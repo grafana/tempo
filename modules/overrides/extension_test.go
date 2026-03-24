@@ -152,6 +152,17 @@ func TestOverridesExtension_UnmarshalJSON(t *testing.T) {
 		require.ErrorContains(t, err, "field_a cannot be empty")
 	})
 
+	t.Run("unknown field rejected", func(t *testing.T) {
+		resetRegistryForTesting(t)
+		RegisterExtension(&testExtension{})
+
+		// A typo in an extension field name must be rejected, not silently dropped.
+		input := `{"test_extension": {"field_a": "ok", "field_b": 1, "typo_field": "bad"}}`
+		var o Overrides
+		err := json.Unmarshal([]byte(input), &o)
+		require.ErrorContains(t, err, "typo_field")
+	})
+
 	t.Run("legacy overrides", func(t *testing.T) {
 		resetRegistryForTesting(t)
 		RegisterExtension(&testExtension{})

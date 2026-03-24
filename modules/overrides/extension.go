@@ -1,6 +1,7 @@
 package overrides
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"flag"
@@ -120,7 +121,9 @@ func processExtensions(o *Overrides) error {
 		if err != nil {
 			return &extensionError{fmt.Errorf("extension %q: marshal: %w", key, err)}
 		}
-		if err := json.Unmarshal(b, instance); err != nil {
+		dec := json.NewDecoder(bytes.NewReader(b))
+		dec.DisallowUnknownFields()
+		if err := dec.Decode(instance); err != nil {
 			return &extensionError{fmt.Errorf("extension %q: unmarshal: %w", key, err)}
 		}
 		if err := instance.Validate(); err != nil {
