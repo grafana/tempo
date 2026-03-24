@@ -37,6 +37,20 @@ spec:
     spec:
       affinity:
         podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                - key: rollout-group
+                  operator: In
+                  values:
+                  - live-store
+                - key: name
+                  operator: In
+                  values:
+                  - live-store-zone-b
+              topologyKey: kubernetes.io/hostname
+            weight: 100
           requiredDuringSchedulingIgnoredDuringExecution:
           - labelSelector:
               matchExpressions:
