@@ -48,7 +48,9 @@ func TestBackendScheduler(t *testing.T) {
 		store.Shutdown()
 	}()
 
-	limits, err := overrides.NewOverrides(overrides.Config{Defaults: overrides.Overrides{}}, nil, prometheus.DefaultRegisterer)
+	overridesCfg := overrides.Config{}
+	overridesCfg.RegisterFlagsAndApplyDefaults(&flag.FlagSet{})
+	limits, err := overrides.NewOverrides(overridesCfg, nil, prometheus.DefaultRegisterer)
 	require.NoError(t, err)
 
 	t.Run("next with no jobs returns correct errors", func(t *testing.T) {
@@ -355,7 +357,9 @@ func TestProviderBasedScheduling(t *testing.T) {
 		store.Shutdown()
 	}()
 
-	limits, err := overrides.NewOverrides(overrides.Config{Defaults: overrides.Overrides{}}, nil, prometheus.DefaultRegisterer)
+	overridesCfg := overrides.Config{}
+	overridesCfg.RegisterFlagsAndApplyDefaults(&flag.FlagSet{})
+	limits, err := overrides.NewOverrides(overridesCfg, nil, prometheus.DefaultRegisterer)
 	require.NoError(t, err)
 
 	tenantBlockIDs := make(map[string][]backend.UUID)

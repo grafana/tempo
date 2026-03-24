@@ -29,11 +29,19 @@ type Validator interface {
 	Validate(config *Overrides) (warnings []error, err error)
 }
 
+type TenantOverrides map[string]*Overrides
+
 // perTenantOverrides represents the overrides config file
 type perTenantOverrides struct {
-	TenantLimits map[string]*Overrides `yaml:"overrides"`
+	TenantLimits TenantOverrides `yaml:"overrides"`
 
 	ConfigType ConfigType `yaml:"-"` // ConfigType is the type of overrides config we are using: legacy or new
+
+	// Merged holds effective overrides per tenant (defaults and tenant overrides combined).
+	// Built once at config load/reload time so that runtime lookups
+	// via getOverridesForUser are a single map read with no per-request merge overhead.
+	// NOTE: merged overrides are read-only and must not be mutated.
+	merged TenantOverrides `yaml:"-"`
 }
 
 func (o *perTenantOverrides) UnmarshalYAML(unmarshal func(interface{}) error) error {
@@ -58,17 +66,9 @@ func (o *perTenantOverrides) UnmarshalYAML(unmarshal func(interface{}) error) er
 	return nil
 }
 
-// forUser returns limits for a given tenant, or nil if there are no tenant-specific limits.
-func (o *perTenantOverrides) forUser(userID string) *Overrides {
-	l, ok := o.TenantLimits[userID]
-	if !ok || l == nil {
-		return nil
-	}
-	return l
-}
-
 // loadPerTenantOverrides is of type runtimeconfig.Loader
-func loadPerTenantOverrides(validator Validator, typ ConfigType, expandEnv bool) func(r io.Reader) (interface{}, error) {
+// executed when the runtime overrides are reloaded each ReloadPeriod
+func loadPerTenantOverrides(validator Validator, typ ConfigType, expandEnv bool, defaults *Overrides) func(r io.Reader) (interface{}, error) {
 	return func(r io.Reader) (interface{}, error) {
 		overrides := &perTenantOverrides{}
 
@@ -102,6 +102,7 @@ func loadPerTenantOverrides(validator Validator, typ ConfigType, expandEnv bool)
 			)
 		}
 
+		// validate the per-tenant overrides on each reload to ensure only valid config is loaded
 		if validator != nil {
 			for tenant, tenantOverrides := range overrides.TenantLimits {
 				warnings, err := validator.Validate(tenantOverrides)
@@ -113,6 +114,9 @@ func loadPerTenantOverrides(validator Validator, typ ConfigType, expandEnv bool)
 				}
 			}
 		}
+
+		// Pre-compute merged (defaults + tenant) overrides for fast per-request lookup.
+		overrides.merged = buildMergedOverrides(overrides.TenantLimits, defaults)
 
 		return overrides, nil
 	}
@@ -137,11 +141,21 @@ func newRuntimeConfigOverrides(cfg Config, validator Validator, registerer prome
 	var manager *runtimeconfig.Manager
 	subservices := []services.Service(nil)
 
+	if validator != nil {
+		warnings, err := validator.Validate(&cfg.Defaults)
+		if err != nil {
+			return nil, fmt.Errorf("validating default overrides failed: %w", err)
+		}
+		for _, warning := range warnings {
+			level.Warn(log.Logger).Log("msg", "Default overrides validation warning", "warning", warning)
+		}
+	}
+
 	if cfg.PerTenantOverrideConfig != "" {
 		runtimeCfg := runtimeconfig.Config{
 			LoadPath:     []string{cfg.PerTenantOverrideConfig},
 			ReloadPeriod: time.Duration(cfg.PerTenantOverridePeriod),
-			Loader:       loadPerTenantOverrides(validator, cfg.ConfigType, cfg.ExpandEnv),
+			Loader:       loadPerTenantOverrides(validator, cfg.ConfigType, cfg.ExpandEnv, &cfg.Defaults),
 		}
 		runtimeCfgMgr, err := runtimeconfig.New(runtimeCfg, "overrides", prometheus.WrapRegistererWithPrefix("tempo_", registerer), log.Logger)
 		if err != nil {
@@ -221,9 +235,12 @@ type statusRuntimeConfig struct {
 }
 
 func (o *runtimeConfigOverridesManager) WriteStatusRuntimeConfig(w io.Writer, r *http.Request) error {
-	var tenantOverrides perTenantOverrides
-	if o.tenantOverrides() != nil {
-		tenantOverrides = *o.tenantOverrides()
+	// Build effective (merged) per-tenant overrides for display.
+	tenantOverrides := perTenantOverrides{TenantLimits: TenantOverrides{}}
+	if pto := o.tenantOverrides(); pto != nil {
+		for tenant, limits := range pto.merged {
+			tenantOverrides.TenantLimits[tenant] = limits
+		}
 	}
 	var output interface{}
 	cfg := statusRuntimeConfig{
@@ -234,10 +251,9 @@ func (o *runtimeConfigOverridesManager) WriteStatusRuntimeConfig(w io.Writer, r 
 	mode := r.URL.Query().Get("mode")
 	switch mode {
 	case "diff":
-		// Default runtime config is just empty struct, but to make diff work,
+		// The default runtime config is just an empty struct, but to make the diff work.
 		// we set defaultLimits for every tenant that exists in runtime config.
-		defaultCfg := perTenantOverrides{TenantLimits: map[string]*Overrides{}}
-		defaultCfg.TenantLimits = map[string]*Overrides{}
+		defaultCfg := perTenantOverrides{TenantLimits: TenantOverrides{}}
 		for k, v := range tenantOverrides.TenantLimits {
 			if v != nil {
 				defaultCfg.TenantLimits[k] = o.defaultLimits
@@ -294,9 +310,29 @@ func (o *runtimeConfigOverridesManager) GetRuntimeOverridesFor(userID string) *O
 	return o.getOverridesForUser(userID)
 }
 
+// getOverridesForUser returns the effective overrides for the given tenant.
+// Lookup: per-tenant OR wildcard OR static defaults (first match wins).
+// Each entry is pre-merged with defaults at load time, so this is a simple map lookup.
+// The returned pointer must not be modified - it is shared across concurrent readers.
+func (o *runtimeConfigOverridesManager) getOverridesForUser(userID string) *Overrides {
+	if tenantOverrides := o.tenantOverrides(); tenantOverrides != nil {
+		// check if a per-tenant override exists
+		if m, ok := tenantOverrides.merged[userID]; ok {
+			return m
+		}
+		// check if a wildcardTenant override exists
+		if m, ok := tenantOverrides.merged[wildcardTenant]; ok {
+			return m
+		}
+	}
+
+	// return default overrides if no per tenant overrides exist
+	return o.defaultLimits
+}
+
 // IngestionRateStrategy returns whether the ingestion rate limit should be individually applied
 // to each distributor instance (local) or evenly shared across the cluster (global).
-func (o *runtimeConfigOverridesManager) IngestionRateStrategy() string {
+func (o *runtimeConfigOverridesManager) IngestionRateStrategy() IngestionRateStrategy {
 	// The ingestion rate strategy can't be overridden on a per-tenant basis,
 	// so here we are returning the defaults overrides
 	return o.defaultLimits.Ingestion.RateStrategy
@@ -305,37 +341,37 @@ func (o *runtimeConfigOverridesManager) IngestionRateStrategy() string {
 // MaxLocalTracesPerUser returns the maximum number of traces a user is allowed to store
 // in a single ingester.
 func (o *runtimeConfigOverridesManager) MaxLocalTracesPerUser(userID string) int {
-	return o.getOverridesForUser(userID).Ingestion.MaxLocalTracesPerUser
+	return *o.getOverridesForUser(userID).Ingestion.MaxLocalTracesPerUser
 }
 
 // MaxGlobalTracesPerUser returns the maximum number of traces a user is allowed to store
 // across the cluster.
 func (o *runtimeConfigOverridesManager) MaxGlobalTracesPerUser(userID string) int {
-	return o.getOverridesForUser(userID).Ingestion.MaxGlobalTracesPerUser
+	return *o.getOverridesForUser(userID).Ingestion.MaxGlobalTracesPerUser
 }
 
 // MaxCompactionRange returns the maximum compaction window for this tenant.
 func (o *runtimeConfigOverridesManager) MaxCompactionRange(userID string) time.Duration {
-	return time.Duration(o.getOverridesForUser(userID).Compaction.CompactionWindow)
+	return time.Duration(*o.getOverridesForUser(userID).Compaction.CompactionWindow)
 }
 
 // IngestionRateLimitBytes is the number of spans per second allowed for this tenant.
 func (o *runtimeConfigOverridesManager) IngestionRateLimitBytes(userID string) float64 {
-	return float64(o.getOverridesForUser(userID).Ingestion.RateLimitBytes)
+	return float64(*o.getOverridesForUser(userID).Ingestion.RateLimitBytes)
 }
 
 // IngestionBurstSizeBytes is the burst size in spans allowed for this tenant.
 func (o *runtimeConfigOverridesManager) IngestionBurstSizeBytes(userID string) int {
-	return o.getOverridesForUser(userID).Ingestion.BurstSizeBytes
+	return *o.getOverridesForUser(userID).Ingestion.BurstSizeBytes
 }
 
 // IngestionTenantShardSize is the shard size.
 func (o *runtimeConfigOverridesManager) IngestionTenantShardSize(userID string) int {
-	return o.getOverridesForUser(userID).Ingestion.TenantShardSize
+	return *o.getOverridesForUser(userID).Ingestion.TenantShardSize
 }
 
 func (o *runtimeConfigOverridesManager) IngestionMaxAttributeBytes(userID string) int {
-	return o.getOverridesForUser(userID).Ingestion.MaxAttributeBytes
+	return *o.getOverridesForUser(userID).Ingestion.MaxAttributeBytes
 }
 
 func (o *runtimeConfigOverridesManager) IngestionArtificialDelay(userID string) (time.Duration, bool) {
@@ -343,16 +379,19 @@ func (o *runtimeConfigOverridesManager) IngestionArtificialDelay(userID string) 
 	if artificialDelay != nil {
 		return *artificialDelay, true
 	}
+	// ArtificialDelay is intentionally nil in defaults, so the distributor's own
+	// cfg.ArtificialDelay is used as the fallback.
+	// The (value, ok) pattern is used to distinguish "not set" from "explicitly set to 0" in callers.
 	return 0, false
 }
 
 func (o *runtimeConfigOverridesManager) IngestionRetryInfoEnabled(userID string) bool {
-	return o.getOverridesForUser(userID).Ingestion.RetryInfoEnabled
+	return *o.getOverridesForUser(userID).Ingestion.RetryInfoEnabled
 }
 
 // MaxBytesPerTrace returns the maximum size of a single trace in bytes allowed for a user.
 func (o *runtimeConfigOverridesManager) MaxBytesPerTrace(userID string) int {
-	return o.getOverridesForUser(userID).Global.MaxBytesPerTrace
+	return *o.getOverridesForUser(userID).Global.MaxBytesPerTrace
 }
 
 // Forwarders returns the list of forwarder IDs for a user.
@@ -362,24 +401,24 @@ func (o *runtimeConfigOverridesManager) Forwarders(userID string) []string {
 
 // MaxBytesPerTagValuesQuery returns the maximum size of a response to a tag-values query allowed for a user.
 func (o *runtimeConfigOverridesManager) MaxBytesPerTagValuesQuery(userID string) int {
-	return o.getOverridesForUser(userID).Read.MaxBytesPerTagValuesQuery
+	return *o.getOverridesForUser(userID).Read.MaxBytesPerTagValuesQuery
 }
 
 // MaxBlocksPerTagValuesQuery returns the maximum number of blocks to query for a tag-values query allowed for a user.
 func (o *runtimeConfigOverridesManager) MaxBlocksPerTagValuesQuery(userID string) int {
-	return o.getOverridesForUser(userID).Read.MaxBlocksPerTagValuesQuery
+	return *o.getOverridesForUser(userID).Read.MaxBlocksPerTagValuesQuery
 }
 
 func (o *runtimeConfigOverridesManager) UnsafeQueryHints(userID string) bool {
-	return o.getOverridesForUser(userID).Read.UnsafeQueryHints
+	return *o.getOverridesForUser(userID).Read.UnsafeQueryHints
 }
 
 func (o *runtimeConfigOverridesManager) LeftPadTraceIDs(userID string) bool {
-	return o.getOverridesForUser(userID).Read.LeftPadTraceIDs
+	return *o.getOverridesForUser(userID).Read.LeftPadTraceIDs
 }
 
 func (o *runtimeConfigOverridesManager) CostAttributionMaxCardinality(userID string) uint64 {
-	return o.getOverridesForUser(userID).CostAttribution.MaxCardinality
+	return *o.getOverridesForUser(userID).CostAttribution.MaxCardinality
 }
 
 func (o *runtimeConfigOverridesManager) CostAttributionDimensions(userID string) map[string]string {
@@ -388,17 +427,17 @@ func (o *runtimeConfigOverridesManager) CostAttributionDimensions(userID string)
 
 // MaxSearchDuration is the duration of the max search duration for this tenant.
 func (o *runtimeConfigOverridesManager) MaxSearchDuration(userID string) time.Duration {
-	return time.Duration(o.getOverridesForUser(userID).Read.MaxSearchDuration)
+	return time.Duration(*o.getOverridesForUser(userID).Read.MaxSearchDuration)
 }
 
 func (o *runtimeConfigOverridesManager) MaxMetricsDuration(userID string) time.Duration {
-	return time.Duration(o.getOverridesForUser(userID).Read.MaxMetricsDuration)
+	return time.Duration(*o.getOverridesForUser(userID).Read.MaxMetricsDuration)
 }
 
 // MetricsGeneratorIngestionSlack is the max amount of time passed since a span's end time
 // for the span to be considered in metrics generation
 func (o *runtimeConfigOverridesManager) MetricsGeneratorIngestionSlack(userID string) time.Duration {
-	return o.getOverridesForUser(userID).MetricsGenerator.IngestionSlack
+	return *o.getOverridesForUser(userID).MetricsGenerator.IngestionSlack
 }
 
 // MetricsGeneratorRemoteWriteHeaders returns the custom remote write headers for this tenant.
@@ -409,7 +448,7 @@ func (o *runtimeConfigOverridesManager) MetricsGeneratorRemoteWriteHeaders(userI
 // MetricsGeneratorRingSize is the desired size of the metrics-generator ring for this tenant.
 // Using shuffle sharding, a tenant can use a smaller ring than the entire ring.
 func (o *runtimeConfigOverridesManager) MetricsGeneratorRingSize(userID string) int {
-	return o.getOverridesForUser(userID).MetricsGenerator.RingSize
+	return *o.getOverridesForUser(userID).MetricsGenerator.RingSize
 }
 
 // MetricsGeneratorProcessors returns the metrics-generator processors enabled for this tenant.
@@ -421,25 +460,25 @@ func (o *runtimeConfigOverridesManager) MetricsGeneratorProcessors(userID string
 // registry for this tenant. Note this is a local limit enforced in every instance separately.
 // Requires the generator's limiter type to be set to "series".
 func (o *runtimeConfigOverridesManager) MetricsGeneratorMaxActiveSeries(userID string) uint32 {
-	return o.getOverridesForUser(userID).MetricsGenerator.MaxActiveSeries
+	return *o.getOverridesForUser(userID).MetricsGenerator.MaxActiveSeries
 }
 
 // MetricsGeneratorMaxActiveEntities is the maximum number of entities in the metrics-generator registry
 // for this tenant. Note this is a local limit enforced in every instance separately.
 // Requires the generator's limiter type to be set to "entity".
 func (o *runtimeConfigOverridesManager) MetricsGeneratorMaxActiveEntities(userID string) uint32 {
-	return o.getOverridesForUser(userID).MetricsGenerator.MaxActiveEntities
+	return *o.getOverridesForUser(userID).MetricsGenerator.MaxActiveEntities
 }
 
 // MetricsGeneratorCollectionInterval is the collection interval of the metrics-generator registry
 // for this tenant.
 func (o *runtimeConfigOverridesManager) MetricsGeneratorCollectionInterval(userID string) time.Duration {
-	return o.getOverridesForUser(userID).MetricsGenerator.CollectionInterval
+	return *o.getOverridesForUser(userID).MetricsGenerator.CollectionInterval
 }
 
 // MetricsGeneratorDisableCollection controls whether metrics are remote written for this tenant.
 func (o *runtimeConfigOverridesManager) MetricsGeneratorDisableCollection(userID string) bool {
-	return o.getOverridesForUser(userID).MetricsGenerator.DisableCollection
+	return *o.getOverridesForUser(userID).MetricsGenerator.DisableCollection
 }
 
 func (o *runtimeConfigOverridesManager) MetricsGeneratorGenerateNativeHistograms(userID string) histograms.HistogramMethod {
@@ -447,42 +486,29 @@ func (o *runtimeConfigOverridesManager) MetricsGeneratorGenerateNativeHistograms
 }
 
 func (o *runtimeConfigOverridesManager) MetricsGeneratorNativeHistogramBucketFactor(userID string) float64 {
-	if factor := o.getOverridesForUser(userID).MetricsGenerator.NativeHistogramBucketFactor; factor != 0.0 {
-		return factor
-	}
-	return o.defaultLimits.MetricsGenerator.NativeHistogramBucketFactor
+	return *o.getOverridesForUser(userID).MetricsGenerator.NativeHistogramBucketFactor
 }
 
 func (o *runtimeConfigOverridesManager) MetricsGeneratorNativeHistogramMaxBucketNumber(userID string) uint32 {
-	if num := o.getOverridesForUser(userID).MetricsGenerator.NativeHistogramMaxBucketNumber; num != 0 {
-		return num
-	}
-	return o.defaultLimits.MetricsGenerator.NativeHistogramMaxBucketNumber
+	return *o.getOverridesForUser(userID).MetricsGenerator.NativeHistogramMaxBucketNumber
 }
 
 func (o *runtimeConfigOverridesManager) MetricsGeneratorNativeHistogramMinResetDuration(userID string) time.Duration {
-	if dur := o.getOverridesForUser(userID).MetricsGenerator.NativeHistogramMinResetDuration; dur != 0 {
-		return dur
-	}
-	return o.defaultLimits.MetricsGenerator.NativeHistogramMinResetDuration
+	return *o.getOverridesForUser(userID).MetricsGenerator.NativeHistogramMinResetDuration
 }
 
 func (o *runtimeConfigOverridesManager) MetricsGeneratorSpanNameSanitization(userID string) string {
-	if mode := o.getOverridesForUser(userID).MetricsGenerator.SpanNameSanitization; mode != "" {
-		return mode
-	}
-	return o.defaultLimits.MetricsGenerator.SpanNameSanitization
+	return *o.getOverridesForUser(userID).MetricsGenerator.SpanNameSanitization
 }
 
 // MetricsGeneratorMaxCardinalityPerLabel is the maximum number of distinct values any single
 // label can have before values are replaced with __cardinality_overflow__.
 // 0 disables the limit.
 func (o *runtimeConfigOverridesManager) MetricsGeneratorMaxCardinalityPerLabel(userID string) uint64 {
-	return o.getOverridesForUser(userID).MetricsGenerator.MaxCardinalityPerLabel
+	return *o.getOverridesForUser(userID).MetricsGenerator.MaxCardinalityPerLabel
 }
 
 // MetricsGeneratorTraceIDLabelName is the label name used for the trace ID in metrics.
-// "TraceID" is used if no value is provided.
 func (o *runtimeConfigOverridesManager) MetricsGeneratorTraceIDLabelName(userID string) string {
 	return o.getOverridesForUser(userID).MetricsGenerator.TraceIDLabelName
 }
@@ -499,13 +525,13 @@ func (o *runtimeConfigOverridesManager) MetricsGeneratorForwarderWorkers(userID 
 }
 
 // MetricsGeneratorProcessorServiceGraphsHistogramBuckets controls the histogram buckets to be used
-// by the service graphs processor.
+// by the service-graphs processor.
 func (o *runtimeConfigOverridesManager) MetricsGeneratorProcessorServiceGraphsHistogramBuckets(userID string) []float64 {
 	return o.getOverridesForUser(userID).MetricsGenerator.Processor.ServiceGraphs.HistogramBuckets
 }
 
 // MetricsGeneratorProcessorServiceGraphsDimensions controls the dimensions that are added to the
-// service graphs processor.
+// service-graphs processor.
 func (o *runtimeConfigOverridesManager) MetricsGeneratorProcessorServiceGraphsDimensions(userID string) []string {
 	return o.getOverridesForUser(userID).MetricsGenerator.Processor.ServiceGraphs.Dimensions
 }
@@ -515,18 +541,14 @@ func (o *runtimeConfigOverridesManager) MetricsGeneratorProcessorServiceGraphsPe
 	return o.getOverridesForUser(userID).MetricsGenerator.Processor.ServiceGraphs.PeerAttributes
 }
 
-// MetricsGeneratorProcessorServiceGraphsFilterPolicies controls the filter policies that are added to the servicegraphs processor.
+// MetricsGeneratorProcessorServiceGraphsFilterPolicies controls the filter policies that are added to the service-graphs processor.
 func (o *runtimeConfigOverridesManager) MetricsGeneratorProcessorServiceGraphsFilterPolicies(userID string) []filterconfig.FilterPolicy {
 	return o.getOverridesForUser(userID).MetricsGenerator.Processor.ServiceGraphs.FilterPolicies
 }
 
 // MetricsGeneratorProcessorServiceGraphsEnableClientServerPrefix enables "client" and "server" prefix
 func (o *runtimeConfigOverridesManager) MetricsGeneratorProcessorServiceGraphsEnableClientServerPrefix(userID string) bool {
-	EnableClientServerPrefix := o.getOverridesForUser(userID).MetricsGenerator.Processor.ServiceGraphs.EnableClientServerPrefix
-	if EnableClientServerPrefix != nil {
-		return *EnableClientServerPrefix
-	}
-	return false
+	return *o.getOverridesForUser(userID).MetricsGenerator.Processor.ServiceGraphs.EnableClientServerPrefix
 }
 
 // MetricsGeneratorProcessorServiceGraphsEnableMessagingSystemLatencyHistogram enables this metric
@@ -589,11 +611,12 @@ func (o *runtimeConfigOverridesManager) MetricsGeneratorProcessorSpanMetricsTarg
 }
 
 func (o *runtimeConfigOverridesManager) MetricsGeneratorProcessorSpanMetricsEnableInstanceLabel(userID string) (bool, bool) {
-	EnableInstanceLabel := o.getOverridesForUser(userID).MetricsGenerator.Processor.SpanMetrics.EnableInstanceLabel
-	if EnableInstanceLabel != nil {
-		return *EnableInstanceLabel, true
+	enableInstanceLabel := o.getOverridesForUser(userID).MetricsGenerator.Processor.SpanMetrics.EnableInstanceLabel
+	if enableInstanceLabel != nil {
+		return *enableInstanceLabel, true
 	}
-	return true, false // default to true
+	// Matches spanmetrics.Config.RegisterFlagsAndApplyDefaults default (EnableInstanceLabel = true).
+	return true, false
 }
 
 func (o *runtimeConfigOverridesManager) MetricsGeneratorProcessorHostInfoHostIdentifiers(userID string) []string {
@@ -605,7 +628,7 @@ func (o *runtimeConfigOverridesManager) MetricsGeneratorProcessorHostInfoMetricN
 }
 
 func (o *runtimeConfigOverridesManager) MetricsGeneratorProcessorServiceGraphsSpanMultiplierKey(userID string) string {
-	return o.getOverridesForUser(userID).MetricsGenerator.Processor.ServiceGraphs.SpanMultiplierKey
+	return *o.getOverridesForUser(userID).MetricsGenerator.Processor.ServiceGraphs.SpanMultiplierKey
 }
 
 func (o *runtimeConfigOverridesManager) MetricsGeneratorProcessorServiceGraphsEnableTraceStateSpanMultiplier(userID string) (bool, bool) {
@@ -617,7 +640,7 @@ func (o *runtimeConfigOverridesManager) MetricsGeneratorProcessorServiceGraphsEn
 }
 
 func (o *runtimeConfigOverridesManager) MetricsGeneratorProcessorSpanMetricsSpanMultiplierKey(userID string) string {
-	return o.getOverridesForUser(userID).MetricsGenerator.Processor.SpanMetrics.SpanMultiplierKey
+	return *o.getOverridesForUser(userID).MetricsGenerator.Processor.SpanMetrics.SpanMultiplierKey
 }
 
 func (o *runtimeConfigOverridesManager) MetricsGeneratorProcessorSpanMetricsEnableTraceStateSpanMultiplier(userID string) (bool, bool) {
@@ -630,32 +653,16 @@ func (o *runtimeConfigOverridesManager) MetricsGeneratorProcessorSpanMetricsEnab
 
 // BlockRetention is the duration of the block retention for this tenant.
 func (o *runtimeConfigOverridesManager) BlockRetention(userID string) time.Duration {
-	return time.Duration(o.getOverridesForUser(userID).Compaction.BlockRetention)
+	return time.Duration(*o.getOverridesForUser(userID).Compaction.BlockRetention)
 }
 
 // CompactionDisabled will not compact tenants which have this enabled.
 func (o *runtimeConfigOverridesManager) CompactionDisabled(userID string) bool {
-	return o.getOverridesForUser(userID).Compaction.CompactionDisabled
+	return *o.getOverridesForUser(userID).Compaction.CompactionDisabled
 }
 
 func (o *runtimeConfigOverridesManager) DedicatedColumns(userID string) backend.DedicatedColumns {
 	return o.getOverridesForUser(userID).Storage.DedicatedColumns
-}
-
-func (o *runtimeConfigOverridesManager) getOverridesForUser(userID string) *Overrides {
-	if tenantOverrides := o.tenantOverrides(); tenantOverrides != nil {
-		l := tenantOverrides.forUser(userID)
-		if l != nil {
-			return l
-		}
-
-		l = tenantOverrides.forUser(wildcardTenant)
-		if l != nil {
-			return l
-		}
-	}
-
-	return o.defaultLimits
 }
 
 func (o *runtimeConfigOverridesManager) Describe(ch chan<- *prometheus.Desc) {
@@ -668,17 +675,19 @@ func (o *runtimeConfigOverridesManager) Collect(ch chan<- prometheus.Metric) {
 		return
 	}
 
-	for tenant, limits := range overrides.TenantLimits {
-		ch <- prometheus.MustNewConstMetric(metricOverridesLimitsDesc, prometheus.GaugeValue, float64(limits.Ingestion.MaxLocalTracesPerUser), MetricMaxLocalTracesPerUser, tenant)
-		ch <- prometheus.MustNewConstMetric(metricOverridesLimitsDesc, prometheus.GaugeValue, float64(limits.Ingestion.MaxGlobalTracesPerUser), MetricMaxGlobalTracesPerUser, tenant)
-		ch <- prometheus.MustNewConstMetric(metricOverridesLimitsDesc, prometheus.GaugeValue, float64(limits.Ingestion.RateLimitBytes), MetricIngestionRateLimitBytes, tenant)
-		ch <- prometheus.MustNewConstMetric(metricOverridesLimitsDesc, prometheus.GaugeValue, float64(limits.Ingestion.BurstSizeBytes), MetricIngestionBurstSizeBytes, tenant)
-		ch <- prometheus.MustNewConstMetric(metricOverridesLimitsDesc, prometheus.GaugeValue, float64(limits.Global.MaxBytesPerTrace), MetricMaxBytesPerTrace, tenant)
-		ch <- prometheus.MustNewConstMetric(metricOverridesLimitsDesc, prometheus.GaugeValue, float64(limits.Compaction.BlockRetention), MetricBlockRetention, tenant)
-		ch <- prometheus.MustNewConstMetric(metricOverridesLimitsDesc, prometheus.GaugeValue, float64(limits.MetricsGenerator.MaxActiveSeries), MetricMetricsGeneratorMaxActiveSeries, tenant)
-
-		if limits.MetricsGenerator.DisableCollection {
-			ch <- prometheus.MustNewConstMetric(metricOverridesLimitsDesc, prometheus.GaugeValue, float64(1), MetricsGeneratorDryRunEnabled, tenant)
-		}
+	// Use pre-merged views so metrics reflect effective values.
+	// Pointer fields dereferenced below are guaranteed non-nil after merge because
+	// RegisterFlagsAndApplyDefaults allocates them in the default struct.
+	for tenant, limits := range overrides.merged {
+		ch <- prometheus.MustNewConstMetric(metricOverridesLimitsDesc, prometheus.GaugeValue, float64(*limits.Ingestion.MaxLocalTracesPerUser), MetricMaxLocalTracesPerUser, tenant)
+		ch <- prometheus.MustNewConstMetric(metricOverridesLimitsDesc, prometheus.GaugeValue, float64(*limits.Ingestion.MaxGlobalTracesPerUser), MetricMaxGlobalTracesPerUser, tenant)
+		ch <- prometheus.MustNewConstMetric(metricOverridesLimitsDesc, prometheus.GaugeValue, float64(*limits.Ingestion.RateLimitBytes), MetricIngestionRateLimitBytes, tenant)
+		ch <- prometheus.MustNewConstMetric(metricOverridesLimitsDesc, prometheus.GaugeValue, float64(*limits.Ingestion.BurstSizeBytes), MetricIngestionBurstSizeBytes, tenant)
+		ch <- prometheus.MustNewConstMetric(metricOverridesLimitsDesc, prometheus.GaugeValue, float64(*limits.Global.MaxBytesPerTrace), MetricMaxBytesPerTrace, tenant)
+		ch <- prometheus.MustNewConstMetric(metricOverridesLimitsDesc, prometheus.GaugeValue, float64(*limits.Compaction.BlockRetention), MetricBlockRetention, tenant)
+		ch <- prometheus.MustNewConstMetric(metricOverridesLimitsDesc, prometheus.GaugeValue, float64(*limits.Compaction.CompactionWindow), MetricCompactionWindow, tenant)
+		ch <- prometheus.MustNewConstMetric(metricOverridesLimitsDesc, prometheus.GaugeValue, boolToFloat64(*limits.Compaction.CompactionDisabled), MetricCompactionDisabled, tenant)
+		ch <- prometheus.MustNewConstMetric(metricOverridesLimitsDesc, prometheus.GaugeValue, float64(*limits.MetricsGenerator.MaxActiveSeries), MetricMetricsGeneratorMaxActiveSeries, tenant)
+		ch <- prometheus.MustNewConstMetric(metricOverridesLimitsDesc, prometheus.GaugeValue, boolToFloat64(*limits.MetricsGenerator.DisableCollection), MetricsGeneratorDryRunEnabled, tenant)
 	}
 }

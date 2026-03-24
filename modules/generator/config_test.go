@@ -7,6 +7,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/grafana/tempo/modules/generator/processor/hostinfo"
 	"github.com/grafana/tempo/modules/generator/processor/servicegraphs"
 	"github.com/grafana/tempo/modules/generator/processor/spanmetrics"
 	"github.com/grafana/tempo/pkg/sharedconfig"
@@ -289,6 +290,27 @@ func TestProcessorConfig_copyWithOverrides(t *testing.T) {
 		}, copied.SpanMetrics.DimensionMappings)
 
 		assert.Equal(t, []string{"process.runtime.version"}, copied.SpanMetrics.TargetInfoExcludedDimensions)
+	})
+
+	t.Run("MetricName override applied", func(t *testing.T) {
+		originalWithHostInfo := &ProcessorConfig{
+			HostInfo: hostinfo.Config{
+				MetricName: "traces_host_info",
+			},
+			SpanMetrics: spanmetrics.Config{
+				Subprocessors: map[spanmetrics.Subprocessor]bool{},
+			},
+		}
+
+		o := &mockOverrides{
+			hostInfoMetricName: "custom_metric_name",
+		}
+
+		copied, err := originalWithHostInfo.copyWithOverrides(o, "tenant")
+		require.NoError(t, err)
+
+		require.Equal(t, "custom_metric_name", copied.HostInfo.MetricName)
+		require.Equal(t, "traces_host_info", originalWithHostInfo.HostInfo.MetricName, "original must not be mutated")
 	})
 }
 
