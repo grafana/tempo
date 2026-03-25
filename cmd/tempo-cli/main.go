@@ -84,7 +84,8 @@ var cli struct {
 
 	Migrate struct {
 		Tenant          migrateTenantCmd          `cmd:"" help:"migrate tenant between two backends"`
-		OverridesConfig migrateOverridesConfigCmd `cmd:"" help:"migrate legacy overrides to the new scoped format. Reads a full tempo config and outputs only the migrated overrides section."`
+		OverridesConfig    migrateOverridesConfigCmd    `cmd:"" help:"migrate legacy overrides to the new scoped format. Reads a full tempo config and outputs only the migrated overrides section."`
+		OverridesPerTenant migrateOverridesPerTenantCmd `cmd:"" help:"migrate a legacy per-tenant overrides file to the new scoped format."`
 	} `cmd:""`
 
 	Suggest struct {
