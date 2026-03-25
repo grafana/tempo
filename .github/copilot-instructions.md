@@ -61,6 +61,8 @@ Flag CLI output formats that are not safe to copy-paste into runtime config. If 
 Prefer `yaml:"-"` for internal-only config fields that should not be exposed in YAML but need to be configurable in tests.
 
 Flag `interface{}` in new code — use `any` instead.
+
+Flag any new `string` config field that could contain sensitive data — tokens, passwords, API keys, or credentials. Since config is publicly exposed, these should use a secret type so values are redacted when config is printed or logged.
 `<!-- </api-and-config-design> -->`
 
 `<!-- <fail-open> -->`
