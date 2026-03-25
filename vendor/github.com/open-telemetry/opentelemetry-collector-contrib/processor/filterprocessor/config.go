@@ -478,11 +478,11 @@ func (cfg *Config) validateExplicitContextConfig() error {
 		errs = multierr.Append(errs, err)
 	}
 
-	if cfg.Logs.LogConditions != nil && cfg.Logs.Include != nil {
+	if cfg.Logs.Include != nil {
 		errs = multierr.Append(errs, cfg.Logs.Include.validate())
 	}
 
-	if cfg.Logs.LogConditions != nil && cfg.Logs.Exclude != nil {
+	if cfg.Logs.Exclude != nil {
 		errs = multierr.Append(errs, cfg.Logs.Exclude.validate())
 	}
 
