@@ -6,8 +6,8 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"os"
 	"sort"
+	"strconv"
 	"testing"
 	"time"
 
@@ -1451,6 +1451,30 @@ func getFlushThresholdTotal() float64 {
 	return total
 }
 
+func getPartitionLagSeconds(group string, partition int32) float64 {
+	mfs, _ := prometheus.DefaultGatherer.Gather()
+	partLabel := strconv.Itoa(int(partition))
+	for _, mf := range mfs {
+		if mf.GetName() == "tempo_ingest_group_partition_lag_seconds" {
+			for _, m := range mf.GetMetric() {
+				var matchGroup, matchPartition bool
+				for _, lp := range m.GetLabel() {
+					switch lp.GetName() {
+					case "group":
+						matchGroup = lp.GetValue() == group
+					case "partition":
+						matchPartition = lp.GetValue() == partLabel
+					}
+				}
+				if matchGroup && matchPartition {
+					return m.GetGauge().GetValue()
+				}
+			}
+		}
+	}
+	return 0
+}
+
 // TestPartitionSort_Stable verifies that partitions with equal timestamps are
 // sorted deterministically by partition ID as a secondary key.
 func TestPartitionSort_Stable(t *testing.T) {
@@ -1474,19 +1498,44 @@ func TestPartitionSort_Stable(t *testing.T) {
 	require.Equal(t, int32(3), ps[2].partition)
 }
 
-// TestLagMetric_NotSetAtStartOfCycle verifies that the lag metric is not updated
-// before any records are processed. The metric should only reflect end-of-cycle lag,
-// not the full backlog lag at the start of consumption.
+// TestLagMetric_NotSetAtStartOfCycle verifies that the lag metric reflects the last
+// record's timestamp after a cycle, not the first record's timestamp. The first record
+// is 2 hours old (simulating a lagging partition backlog); the last record is 1 hour
+// old. The metric must be set to the last record's age (~1h), not the first (~2h).
 func TestLagMetric_NotSetAtStartOfCycle(t *testing.T) {
-	// The line `ingest.SetPartitionLagSeconds(group, ps.partition, time.Since(rec.Timestamp))`
-	// inside the `if !init {` block must NOT exist after the fix.
-	// Verify by searching the source file.
-	src, err := os.ReadFile("blockbuilder.go")
-	require.NoError(t, err)
+	ctx, cancel := context.WithCancelCause(context.Background())
+	t.Cleanup(func() { cancel(errors.New("test done")) })
 
-	// After the fix, SetPartitionLagSeconds must not appear inside the `if !init {` block.
-	// We check that the pattern of calling SetPartitionLagSeconds followed by `init = true`
-	// does not appear in the source — this pattern is unique to the start-of-cycle call.
-	require.NotContains(t, string(src), "SetPartitionLagSeconds(group, ps.partition, time.Since(rec.Timestamp))",
-		"start-of-cycle SetPartitionLagSeconds call must be removed")
+	_, address := testkafka.CreateCluster(t, 1, testTopic)
+	store := newStore(ctx, t)
+	cfg := blockbuilderConfig(t, address, []int32{0})
+	// A 3-hour cycle window ensures both records land in one cycle and the partition
+	// is not re-consumed (lastRecordTs lag < ConsumeCycleDuration).
+	cfg.ConsumeCycleDuration = 3 * time.Hour
+
+	// Send records before starting the block builder so the first consume cycle sees them.
+	// Record 1 is 2 hours old (start of a lagging backlog).
+	// Record 2 is 1 hour old (the last record in the cycle window).
+	client := testkafka.NewKafkaClient(t, cfg.IngestStorageConfig.Kafka.Address, cfg.IngestStorageConfig.Kafka.Topic)
+	testkafka.SendReqWithOpts(ctx, t, client, ingest.Encode, testkafka.ReqOpts{Partition: 0, Time: time.Now().Add(-2 * time.Hour)})
+	testkafka.SendReqWithOpts(ctx, t, client, ingest.Encode, testkafka.ReqOpts{Partition: 0, Time: time.Now().Add(-1 * time.Hour)})
+
+	b, err := New(cfg, testLogger(t), newPartitionRingReader(), &mockOverrides{}, store)
+	require.NoError(t, err)
+	require.NoError(t, services.StartAndAwaitRunning(ctx, b))
+	t.Cleanup(func() {
+		require.NoError(t, services.StopAndAwaitTerminated(ctx, b))
+	})
+
+	// Wait for a block to confirm the cycle has completed.
+	require.Eventually(t, func() bool {
+		return len(store.BlockMetas(util.FakeTenantID)) >= 1
+	}, time.Minute, time.Second)
+
+	// The metric must reflect the last record (~1 hour = ~3600s), not the first record
+	// (~2 hours = ~7200s). A value below 5400s (1.5 hours) unambiguously identifies
+	// the last record's age.
+	lagSeconds := getPartitionLagSeconds(testConsumerGroup, 0)
+	require.Greater(t, lagSeconds, float64(0), "lag metric must be set after cycle completes")
+	require.Less(t, lagSeconds, float64(5400), "lag metric must reflect last record age, not first record backlog age")
 }
