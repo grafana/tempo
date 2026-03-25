@@ -132,7 +132,7 @@ func processExtensions(o *Overrides) error {
 	for key, raw := range o.Extensions {
 		entry, ok := extensionRegistry.entries[key]
 		if !ok {
-			return fmt.Errorf("unknown extension key %q: must be registered via RegisterExtension before use", key)
+			return &unknownExtensionKeyError{key: key, isLegacy: isKnownLegacyOverridesField(key)}
 		}
 
 		// Already a typed Extension (set programmatically or after legacy conversion)
@@ -275,4 +275,29 @@ func (e *extensionError) Unwrap() error { return e.err }
 func isExtensionError(err error) bool {
 	var e *extensionError
 	return errors.As(err, &e)
+}
+
+// unknownExtensionKeyError is returned by processExtensions when a key in
+// o.Extensions is not found in the registry
+type unknownExtensionKeyError struct {
+	key      string // the unknown extension key
+	isLegacy bool   // true if key matches a known LegacyOverrides field name
+}
+
+func (e *unknownExtensionKeyError) Error() string {
+	return fmt.Sprintf("unknown extension key %q: must be registered via RegisterExtension before use", e.key)
+}
+
+// isLegacyExtensionKeyError reports whether err is an unknownExtensionKeyError that matches a known
+// legacy field name. If true, this signals that it's safe to fallback to legacy format.
+func isLegacyExtensionKeyError(err error) bool {
+	var e *unknownExtensionKeyError
+	return errors.As(err, &e) && e.isLegacy
+}
+
+// isExtensionKeyError reports whether err is an unknownExtensionKeyError that does not match a known
+// legacy field name.
+func isExtensionKeyError(err error) bool {
+	var e *unknownExtensionKeyError
+	return errors.As(err, &e) && !e.isLegacy
 }

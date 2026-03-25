@@ -460,6 +460,63 @@ overrides:
 	assert.Contains(t, err.Error(), "field_a cannot be empty", "validation error must not be swallowed by legacy fallback")
 }
 
+func TestUnknownExtensionKey_NewFormat_BlocksLegacyFallback(t *testing.T) {
+	resetRegistryForTesting(t)
+
+	input := `
+overrides:
+  tenant-1:
+    ingestion:
+      max_traces_per_user: 1000
+    my_unregistered_ext:
+      field: value
+`
+	var pto perTenantOverrides
+	decoder := yaml.NewDecoder(strings.NewReader(input))
+	decoder.SetStrict(true)
+	err := decoder.Decode(&pto)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "unknown extension key", "must propagate the unknown-key error, not a legacy-fallback error")
+	assert.Contains(t, err.Error(), "my_unregistered_ext")
+	assert.NotEqual(t, ConfigTypeLegacy, pto.ConfigType, "must not fall back to legacy format")
+}
+
+func TestUnknownExtensionKey_LegacyFormat_AllowsFallback(t *testing.T) {
+	resetRegistryForTesting(t)
+
+	input := `
+overrides:
+  tenant-1:
+    max_traces_per_user: 1000
+`
+	var pto perTenantOverrides
+	decoder := yaml.NewDecoder(strings.NewReader(input))
+	decoder.SetStrict(true)
+	require.NoError(t, decoder.Decode(&pto))
+	assert.Equal(t, ConfigTypeLegacy, pto.ConfigType)
+	require.NotNil(t, pto.TenantLimits["tenant-1"])
+	assert.Equal(t, 1000, pto.TenantLimits["tenant-1"].Ingestion.MaxLocalTracesPerUser)
+}
+
+func TestUnknownExtensionKey_Config_BlocksLegacyFallback(t *testing.T) {
+	resetRegistryForTesting(t)
+
+	input := `
+defaults:
+  ingestion:
+    max_traces_per_user: 500
+  my_unregistered_ext:
+    field: value
+`
+	var cfg Config
+	decoder := yaml.NewDecoder(strings.NewReader(input))
+	decoder.SetStrict(true)
+	err := decoder.Decode(&cfg)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "unknown extension key")
+	assert.Contains(t, err.Error(), "my_unregistered_ext")
+}
+
 // resetRegistryForTesting clears the extension registry for the duration of the test,
 // restoring the original state via t.Cleanup. This prevents extension registrations
 // in one test from leaking into others.

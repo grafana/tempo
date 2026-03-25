@@ -314,7 +314,9 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		c.ConfigType = ConfigTypeNew
 		return nil
 	}
-	if isExtensionError(err) {
+
+	// Fail only on extension-specific errors, otherwise fallback to legacy mode
+	if isExtensionError(err) || isExtensionKeyError(err) {
 		return err
 	}
 

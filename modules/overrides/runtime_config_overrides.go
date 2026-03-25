@@ -48,7 +48,7 @@ func (o *perTenantOverrides) UnmarshalYAML(unmarshal func(interface{}) error) er
 		o.ConfigType = ConfigTypeNew
 		return nil
 	}
-	if isExtensionError(err) {
+	if isExtensionError(err) || !isLegacyExtensionKeyError(err) {
 		return err
 	}
 

@@ -189,6 +189,18 @@ var knownLegacyOverridesJSONFields = sync.OnceValue(func() map[string]struct{} {
 	return fieldNamesFor(LegacyOverrides{}, "json")
 })
 
+// knownLegacyOverridesYAMLFields returns the YAML key names declared on LegacyOverrides.
+var knownLegacyOverridesYAMLFields = sync.OnceValue(func() map[string]struct{} {
+	return fieldNamesFor(LegacyOverrides{}, "yaml")
+})
+
+// isKnownLegacyOverridesField reports whether key matches any YAML or JSON field
+func isKnownLegacyOverridesField(key string) bool {
+	_, inJSON := knownLegacyOverridesJSONFields()[key]
+	_, inYAML := knownLegacyOverridesYAMLFields()[key]
+	return inJSON || inYAML
+}
+
 func (l *LegacyOverrides) UnmarshalJSON(data []byte) error {
 	type plain LegacyOverrides
 	if err := json.Unmarshal(data, (*plain)(l)); err != nil {
