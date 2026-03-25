@@ -1,0 +1,21 @@
+{
+  local d = (import 'doc-util/main.libsonnet'),
+  '#':: d.pkg(name='resourceClaimSpec', url='', help='"ResourceClaimSpec defines what is being requested in a ResourceClaim and how to configure it."'),
+  '#devices':: d.obj(help='"DeviceClaim defines how to request devices with a ResourceClaim."'),
+  devices: {
+    '#withConfig':: d.fn(help='"This field holds configuration for multiple potential drivers which could satisfy requests in this claim. It is ignored while allocating the claim."', args=[d.arg(name='config', type=d.T.array)]),
+    withConfig(config): { devices+: { config: if std.isArray(v=config) then config else [config] } },
+    '#withConfigMixin':: d.fn(help='"This field holds configuration for multiple potential drivers which could satisfy requests in this claim. It is ignored while allocating the claim."\n\n**Note:** This function appends passed data to existing values', args=[d.arg(name='config', type=d.T.array)]),
+    withConfigMixin(config): { devices+: { config+: if std.isArray(v=config) then config else [config] } },
+    '#withConstraints':: d.fn(help='"These constraints must be satisfied by the set of devices that get allocated for the claim."', args=[d.arg(name='constraints', type=d.T.array)]),
+    withConstraints(constraints): { devices+: { constraints: if std.isArray(v=constraints) then constraints else [constraints] } },
+    '#withConstraintsMixin':: d.fn(help='"These constraints must be satisfied by the set of devices that get allocated for the claim."\n\n**Note:** This function appends passed data to existing values', args=[d.arg(name='constraints', type=d.T.array)]),
+    withConstraintsMixin(constraints): { devices+: { constraints+: if std.isArray(v=constraints) then constraints else [constraints] } },
+    '#withRequests':: d.fn(help='"Requests represent individual requests for distinct devices which must all be satisfied. If empty, nothing needs to be allocated."', args=[d.arg(name='requests', type=d.T.array)]),
+    withRequests(requests): { devices+: { requests: if std.isArray(v=requests) then requests else [requests] } },
+    '#withRequestsMixin':: d.fn(help='"Requests represent individual requests for distinct devices which must all be satisfied. If empty, nothing needs to be allocated."\n\n**Note:** This function appends passed data to existing values', args=[d.arg(name='requests', type=d.T.array)]),
+    withRequestsMixin(requests): { devices+: { requests+: if std.isArray(v=requests) then requests else [requests] } },
+  },
+  '#mixin': 'ignore',
+  mixin: self,
+}

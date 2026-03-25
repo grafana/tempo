@@ -1,0 +1,17 @@
+{
+  local d = (import 'doc-util/main.libsonnet'),
+  '#':: d.pkg(name='v1alpha1', url='', help=''),
+  applyConfiguration: (import 'applyConfiguration.libsonnet'),
+  jsonPatch: (import 'jsonPatch.libsonnet'),
+  matchCondition: (import 'matchCondition.libsonnet'),
+  matchResources: (import 'matchResources.libsonnet'),
+  mutatingAdmissionPolicy: (import 'mutatingAdmissionPolicy.libsonnet'),
+  mutatingAdmissionPolicyBinding: (import 'mutatingAdmissionPolicyBinding.libsonnet'),
+  mutatingAdmissionPolicyBindingSpec: (import 'mutatingAdmissionPolicyBindingSpec.libsonnet'),
+  mutatingAdmissionPolicySpec: (import 'mutatingAdmissionPolicySpec.libsonnet'),
+  mutation: (import 'mutation.libsonnet'),
+  namedRuleWithOperations: (import 'namedRuleWithOperations.libsonnet'),
+  paramKind: (import 'paramKind.libsonnet'),
+  paramRef: (import 'paramRef.libsonnet'),
+  variable: (import 'variable.libsonnet'),
+}
