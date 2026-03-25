@@ -65,6 +65,9 @@ func RegisterExtension[T Extension](e T) func(*Overrides) T {
 	}
 
 	key := e.Key()
+	if key == "" {
+		panic("overrides: extension Key() cannot be empty")
+	}
 
 	extensionRegistry.Lock()
 	defer extensionRegistry.Unlock()
