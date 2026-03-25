@@ -61,6 +61,7 @@
 ### 3.0 Cleanup
 
 * [CHANGE] **BREAKING CHANGE** Disable legacy (flat, unscoped) overrides by default. Tempo will refuse to start if legacy overrides are detected. Set `enable_legacy_overrides: true` or `-config.enable-legacy-overrides=true` to opt back in temporarily. Legacy overrides will be removed in a future release. [#6741](https://github.com/grafana/tempo/pull/6741) (@electron0zero)
+* [CHANGE] tempo-cli: Rewrite `migrate overrides-config` and add `migrate overrides-per-tenant` command to help migrate legacy flat overrides to the new scoped format. [#6793](https://github.com/grafana/tempo/pull/6793) (@electron0zero)
 * [CHANGE] **BREAKING CHANGE** Remove remaining app ingester config [#6667](https://github.com/grafana/tempo/pull/6667) (@javiermolinar)
 * [CHANGE] **BREAKING CHANGE** Remove span-metrics leftovers and lazy-init generator clients [#6618](https://github.com/grafana/tempo/pull/6618) (@javiermolinar)
 * [CHANGE] **BREAKING CHANGE** Decommission livestore MetricsGenerator query service [#6615](https://github.com/grafana/tempo/pull/6615) (@javiermolinar)
