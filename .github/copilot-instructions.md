@@ -1,5 +1,5 @@
 ---
-applyTo: "**/*.go"
+applyTo: "**/*"
 ---
 
 # Code review instructions
