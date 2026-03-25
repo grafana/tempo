@@ -36,7 +36,7 @@ Flag errors swallowed without logging or returning.
 
 Flag missing context propagation where a context is available in the call chain.
 
-Flag invalid inputs that are silently coerced rather than rejected with an error.
+For request and query inputs, flag invalid values that are silently coerced instead of rejected with an error. This does not apply to per-tenant config overrides, which follow the fail-open rule below.
 
 Flag pointer semantics that mislead callers — if a returned value continues to be mutated after being returned, the API should make that clear.
 
@@ -64,7 +64,7 @@ Flag separate config options that could be unified — for example, two duration
 
 Flag CLI output formats that are not safe to copy-paste into runtime config. If the default output would produce an invalid config, change the default.
 
-Prefer `yaml:"-"` for internal-only config fields that should not be exposed in YAML but need to be configurable in tests.
+Prefer `yaml:"-"` for internal-only or runtime-injected fields that must not be marshaled to or from YAML. Tests can still set these fields directly in Go code.
 
 Flag `interface{}` in new code — use `any` instead.
 
@@ -88,7 +88,7 @@ Do not encourage tests written purely to hit coverage targets. Tests have a main
 
 Flag search or query changes that lack corresponding tests.
 
-Prefer tests that assert the full output over tests that only check `.Contains(...)`.
+Prefer tests that assert the full output over tests that only use substring checks such as `assert.Contains(...)` or `strings.Contains(...)`.
 
 `</testing>`
 
@@ -107,7 +107,7 @@ Flag spurious or accidentally duplicated changelog entries.
 ## Tempo-specific
 `<tempo-specific>`
 
-`tempodb/encoding/vparquetX` packages are versioned parquet implementations. When a fix applies to one version, check whether it is needed in the others and note it as a single summary comment rather than per-file comments.
+`tempodb/encoding/vparquetX` packages are versioned parquet implementations. When a fix applies to one version, check whether it is needed in the others — see the repeated patterns guidance above.
 
 Flag direct object store access that bypasses the `tempodb` abstraction layer.
 
