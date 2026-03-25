@@ -22,7 +22,7 @@ With Kafka, durability is centralized. Once Kafka acknowledges a write, the data
 
 Kafka topics are divided into partitions. Distributors hash the trace ID to determine the target partition. Each Kafka partition is consumed by exactly one block-builder instance and one live-store instance (per availability zone).
 
-Tempo maintains its own partition ring that maps Tempo partitions to Kafka partitions. While these are typically 1:1, the partition ring is logically independent from Kafka's partition metadata. Refer to the [partition ring](../../partition-ring/) documentation for details.
+Tempo maintains its own partition ring that maps Tempo partitions to Kafka partitions. While these are typically 1:1, the partition ring is logically independent from Kafka's partition metadata. Refer to the [partition ring](../partition-ring/) documentation for details.
 
 ### Scaling partitions
 

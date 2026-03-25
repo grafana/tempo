@@ -23,13 +23,13 @@ Each partition in the ring has one of three states.
 
 Pending is the initial state when a new partition is created. No reads or writes occur.
 
-A partition enters pending state when a new live-store starts and creates a partition that doesn't yet exist in the ring. It stays in pending until memberlist propagation completes and the live-store transitions it to active.
+A partition enters pending state when a new live-store starts and creates a partition that doesn't yet exist in the ring. It stays in pending until enough owners have registered and a minimum waiting period has elapsed, at which point the owning live-store automatically promotes it to active.
 
 ### Active
 
 Active is the normal operating state. Distributors write data to active partitions, and queriers read from them.
 
-A partition transitions from pending to active once its owning live-store confirms that memberlist has propagated the partition's existence to the cluster.
+A partition transitions from pending to active once enough owners have registered for that partition and a configurable waiting duration has elapsed. This ensures that all availability zones have had time to register their live-store instances before traffic starts flowing.
 
 ### Inactive
 
@@ -45,7 +45,7 @@ After this grace period, you can safely remove the partition and its owning live
 
 Each Tempo partition is owned by one live-store per availability zone. In a zone-aware deployment with two zones, each partition has two owners — one per zone. Both consume the same Kafka partition independently.
 
-When a live-store starts, it checks the ring for its assigned partition. If the partition exists, it joins as an owner. If not, it creates the partition in pending state and waits for propagation.
+When a live-store starts, it checks the ring for its assigned partition. If the partition exists, it joins as an owner. If not, it creates the partition in pending state and waits for enough owners to register.
 
 ### Distributors
 
@@ -59,7 +59,7 @@ Block-builders consume from Kafka partitions based on Kafka's consumer group ass
 
 ### Scaling up
 
-To scale up, deploy a new live-store instance. The live-store creates a new partition in the ring (pending state). After memberlist propagation, the partition transitions to active, and distributors begin writing to the new partition.
+To scale up, deploy a new live-store instance. The live-store creates a new partition in the ring (pending state). After enough owners register and the waiting period elapses, the partition transitions to active, and distributors begin writing to the new partition.
 
 A corresponding Kafka partition must exist — add Kafka partitions first if needed.
 

@@ -43,11 +43,11 @@ Live-stores own the partition lifecycle within Tempo. Each live-store instance c
 
 The live-store maintains a partition ring that tracks which Tempo partitions exist, which live-stores own each partition, and the state of each partition (pending, active, or inactive).
 
-This ring is propagated via memberlist gossip. Refer to the [partition ring](../../partition-ring/) documentation for details on partition states and transitions.
+This ring is propagated via memberlist gossip. Refer to the [partition ring](../partition-ring/) documentation for details on partition states and transitions.
 
 ### Startup
 
-When a live-store starts, it checks the partition ring for its assigned partition. If the partition exists, the live-store joins as an owner. If it doesn't exist, the live-store creates it in pending state, waits for memberlist propagation, then transitions it to active. The live-store then replays from its last committed Kafka offset to rebuild in-memory state.
+When a live-store starts, it checks the partition ring for its assigned partition. If the partition exists, the live-store joins as an owner. If it doesn't exist, the live-store creates it in pending state and waits for enough owners to register before automatically promoting it to active. The live-store then replays from its last committed Kafka offset to rebuild in-memory state.
 
 ### Shutdown and scaling down
 

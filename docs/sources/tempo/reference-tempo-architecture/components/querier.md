@@ -47,7 +47,7 @@ Increasing concurrency makes queriers process more jobs in parallel but increase
 
 ### Memory sizing
 
-Querier memory usage roughly scales with: `job_size * concurrent_jobs + buffer`. You can tune this by adjusting `target_bytes_per_job` (at the frontend) and `max_concurrent_queries` (at the querier).
+Querier memory usage roughly scales with: `job_size * querier_concurrency + buffer`. You can tune this by adjusting `target_bytes_per_job` (at the frontend), `max_concurrent_queries` (at the querier), and `frontend_worker.parallelism` (which affects how many batches the querier processes at once).
 
 ## Related resources
 
