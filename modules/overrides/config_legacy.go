@@ -277,7 +277,11 @@ func (l LegacyOverrides) MarshalYAML() (interface{}, error) {
 	}
 	// Flatten typed extensions to legacy flat keys so the YAML wire format matches the legacy shape.
 	knownLegacy := knownLegacyOverridesYAMLFields()
-	flat := flattenExtensionEntries(l.Extensions)
+	flat, err := flattenExtensionEntries(l.Extensions)
+	if err != nil {
+		return nil, err
+	}
+
 	filtered := make(map[string]any, len(flat))
 	for k, v := range flat {
 		if _, known := knownLegacy[k]; known {

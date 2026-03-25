@@ -227,19 +227,19 @@ func processLegacyExtensions(l *LegacyOverrides) error {
 // flattenExtensionEntries returns a new map where typed Extension values are replaced by their
 // flat legacy key-value pairs (via ToLegacy).
 // Used when marshaling LegacyOverrides to produce the flat wire format.
-func flattenExtensionEntries(m map[string]any) map[string]any {
+func flattenExtensionEntries(m map[string]any) (map[string]any, error) {
 	out := make(map[string]any, len(m))
 	for k, v := range m {
 		ext, ok := v.(Extension)
 		if !ok {
-			panic(fmt.Sprintf("overrides: flattenExtensionEntries: entry %q is not an Extension", k))
+			return nil, fmt.Errorf("overrides extensions: entry %q is not an Extension", k)
 		}
 
 		for fk, fv := range ext.ToLegacy() {
 			out[fk] = fv
 		}
 	}
-	return out
+	return out, nil
 }
 
 // normalizeYAMLValue converts map[any]any produced by go-yaml to map[string]any recursively,
