@@ -1,6 +1,7 @@
 package blockbuilder
 
 import (
+	"context"
 	"flag"
 	"testing"
 	"time"
@@ -262,4 +263,46 @@ func TestTenantStoreNoCompactFlag(t *testing.T) {
 	require.EqualValues(t, count, actualMeta.TotalObjects)
 	require.EqualValues(t, 1, actualMeta.TotalRecords)
 	require.Greater(t, actualMeta.Size_, uint64(0))
+}
+
+// TestTenantStoreAllowCompaction_MultipleBlocks verifies that AllowCompaction
+// removes the no-compact flag from ALL blocks written during a cycle, not just the last.
+func TestTenantStoreAllowCompaction_MultipleBlocks(t *testing.T) {
+	var (
+		ctx           = context.Background()
+		startTime     = time.Now().Add(-24 * time.Hour)
+		cycleDuration = 5 * time.Minute
+		slackDuration = 5 * time.Minute
+		logger        = log.NewNopLogger()
+		store         = newStoreWithLogger(ctx, t, logger, true) // noCompact=true
+	)
+
+	ts, err := getTenantStore(t, startTime, cycleDuration, slackDuration)
+	require.NoError(t, err)
+
+	// First flush — append traces and flush.
+	req1 := test.MakePushBytesRequest(t, 2, nil, uint64(startTime.UnixNano()), uint64(startTime.Add(time.Minute).UnixNano()))
+	for j := range req1.Traces {
+		require.NoError(t, ts.AppendTrace(req1.Ids[j], req1.Traces[j].Slice, startTime))
+	}
+	require.NoError(t, ts.Flush(ctx, store, store, store))
+	ts.Reset()
+
+	// Second flush — append more traces and flush.
+	req2 := test.MakePushBytesRequest(t, 2, nil, uint64(startTime.UnixNano()), uint64(startTime.Add(time.Minute).UnixNano()))
+	for j := range req2.Traces {
+		require.NoError(t, ts.AppendTrace(req2.Ids[j], req2.Traces[j].Slice, startTime))
+	}
+	require.NoError(t, ts.Flush(ctx, store, store, store))
+
+	// Before AllowCompaction: 0 blocks visible (all have noCompact flag).
+	store.PollNow(ctx)
+	require.Equal(t, 0, len(store.BlockMetas(ts.tenantID)), "blocks must not be visible before AllowCompaction")
+
+	// AllowCompaction must clear flags on BOTH blocks.
+	require.NoError(t, ts.AllowCompaction(ctx, store))
+
+	store.PollNow(ctx)
+	metas := store.BlockMetas(ts.tenantID)
+	require.Equal(t, 2, len(metas), "both blocks must be visible after AllowCompaction")
 }
