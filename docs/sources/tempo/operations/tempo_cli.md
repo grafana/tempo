@@ -568,26 +568,61 @@ tempo-cli migrate tenant --source-config-file source.yaml --config-file dest.yam
 
 ## Migrate overrides config command
 
-Migrate overrides configuration from inline format (legacy) to idented YAML format (new).
+Migrate the overrides section of a full Tempo config file from the legacy flat format to the new scoped format.
+The command reads the full config, converts any legacy overrides, and outputs only user-set values.
 
 ```bash
-tempo-cli migrate overrides-config <source config file>
+tempo-cli migrate overrides-config <config-file>
 ```
 
 Arguments:
 
-- `source config file` Configuration file to migrate
+- `config-file` Path to the full Tempo config file.
 
 Options:
 
-- `--config-dest <value>` Destination file for the migrated configuration. If not specified, configuration is printed to `stdout`.
-- `--overrides-dest <value>` Destination file for the migrated overrides. If not specified, overrides are printed to `stdout`.
+- `-d, --config-dest <path>` Path to write the migrated overrides section. If not specified, output is printed to `stdout`.
 
 Example:
 
 ```bash
-tempo-cli migrate overrides-config config.yaml --config-dest config-tmp.yaml --overrides-dest overrides-tmp.yaml
+tempo-cli migrate overrides-config config.yaml -d migrated-overrides.yaml
 ```
+
+{{< admonition type="warning" >}}
+- Fields set to Go zero values (`false`, `0`, `""`) may be silently dropped due to `omitempty` tags. Compare against your original config to ensure nothing is lost.
+- Secret values (for example, `remote_write_headers`) are masked as `<secret>` in the output. You must manually restore the original values.
+- Some struct fields without `omitempty` may appear with zero values (for example, `exclude: null`) that were not in your original config.
+{{< /admonition >}}
+
+## Migrate overrides per-tenant command
+
+Migrate a per-tenant overrides file from the legacy flat format to the new scoped format.
+The command handles both legacy and new format entries, and outputs only tenant-specific values.
+
+```bash
+tempo-cli migrate overrides-per-tenant <overrides-file>
+```
+
+Arguments:
+
+- `overrides-file` Path to the per-tenant overrides file.
+
+Options:
+
+- `-d, --output-dest <path>` Path to write the migrated per-tenant overrides. If not specified, output is printed to `stdout`.
+
+Example:
+
+```bash
+tempo-cli migrate overrides-per-tenant overrides.yaml -d migrated-overrides.yaml
+```
+
+{{< admonition type="warning" >}}
+- Fields set to Go zero values (`false`, `0`, `""`) may be silently dropped due to `omitempty` tags. Compare against your original config to ensure nothing is lost.
+- Secret values (for example, `remote_write_headers`) are masked as `<secret>` in the output. You must manually restore the original values.
+- Some struct fields without `omitempty` may appear with zero values (for example, `exclude: null`) that were not in your original config.
+{{< /admonition >}}
 
 ## Analyse block
 
