@@ -28,6 +28,7 @@ import (
 	"go.opentelemetry.io/collector/receiver/otlpreceiver"
 	"go.opentelemetry.io/collector/service/telemetry/otelconftelemetry"
 	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
 	otelcodes "go.opentelemetry.io/otel/codes"
 	"go.uber.org/multierr"
 	"go.uber.org/zap"
@@ -345,13 +346,18 @@ func (r *receiversShim) ConsumeTraces(ctx context.Context, td ptrace.Traces) err
 	ctx, span := tracer.Start(ctx, "distributor.ConsumeTraces")
 	defer span.End()
 
+	tenant, tenantErr := user.ExtractOrgID(ctx)
+	if tenantErr == nil {
+		span.SetAttributes(attribute.String("orgID", tenant))
+	}
+
 	var err error
 
 	start := time.Now()
 	_, err = r.pusher.PushTraces(ctx, td)
 	metricPushDuration.Observe(time.Since(start).Seconds())
 	if err != nil {
-		if tenant, tenantErr := user.ExtractOrgID(ctx); tenantErr == nil {
+		if tenantErr == nil {
 			r.logger.Log("msg", "pusher failed to consume trace data", "tenant", tenant, "err", err)
 		} else {
 			r.logger.Log("msg", "pusher failed to consume trace data", "err", err)

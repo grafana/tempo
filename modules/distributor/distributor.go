@@ -24,6 +24,7 @@ import (
 	"github.com/segmentio/fasthash/fnv1a"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/health/grpc_health_v1"
 
@@ -395,6 +396,7 @@ func (d *Distributor) PushTraces(ctx context.Context, traces ptrace.Traces) (*te
 		// can't record discarded spans here b/c there's no tenant
 		return nil, err
 	}
+	span.SetAttributes(attribute.String("orgID", userID))
 	defer d.padWithArtificialDelay(reqStart, userID)
 	metricIngressBytes.WithLabelValues(userID).Add(float64(size))
 
