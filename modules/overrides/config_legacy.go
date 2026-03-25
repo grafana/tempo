@@ -3,6 +3,7 @@ package overrides
 import (
 	"encoding/json"
 	"fmt"
+	"maps"
 	"sync"
 	"time"
 
@@ -297,7 +298,7 @@ func (l LegacyOverrides) MarshalYAML() (interface{}, error) {
 }
 
 func (l *LegacyOverrides) toNewLimits() *Overrides {
-	o := Overrides{
+	return &Overrides{
 		Ingestion: IngestionOverrides{
 			RateStrategy:           l.IngestionRateStrategy,
 			RateLimitBytes:         l.IngestionRateLimitBytes,
@@ -381,17 +382,8 @@ func (l *LegacyOverrides) toNewLimits() *Overrides {
 			Dimensions:     l.CostAttribution.Dimensions,
 			MaxCardinality: l.CostAttribution.MaxCardinality,
 		},
+		Extensions: maps.Clone(l.Extensions), // copy extensions to avoid modifying the original
 	}
-
-	// Extensions are already typed; the caller invokes processExtensions to validate them.
-	if len(l.Extensions) > 0 {
-		o.Extensions = make(map[string]any, len(l.Extensions))
-		for k, v := range l.Extensions {
-			o.Extensions[k] = v
-		}
-	}
-
-	return &o
 }
 
 // perTenantLegacyOverrides represents the Overrides config file with the legacy representation
