@@ -28,6 +28,7 @@ import (
 	"github.com/twmb/franz-go/pkg/kadm"
 	"github.com/twmb/franz-go/pkg/kgo"
 	"go.opentelemetry.io/otel/attribute"
+	"golang.org/x/sync/errgroup"
 )
 
 const (
@@ -399,6 +400,8 @@ func (s *LiveStore) stopping(error) error {
 	err := services.StopAndAwaitTerminated(context.Background(), s.reader)
 	if err != nil {
 		level.Warn(s.logger).Log("msg", "failed to stop reader", "err", err)
+		// If the reader fails to stop cleanly, we skip WAL completion and return.
+		// Pending WAL blocks will be replayed on the next startup.
 		return err
 	}
 
@@ -414,15 +417,16 @@ func (s *LiveStore) stopping(error) error {
 		level.Warn(s.logger).Log("msg", "failed to remove shutdown marker", "path", shutdownMarkerPath, "err", err)
 	}
 
+	// Complete all pending WAL blocks in parallel. This runs unconditionally, including in
+	// test mode with holdAllBackgroundProcesses=true (where it is the *only* completion path).
+	// In production mode, globalCompleteLoop workers may also race to complete some of the
+	// same blocks — this is safe because completeBlock() re-checks walBlocks existence under
+	// blocksMtx before finalizing (idempotent); the second caller no-ops.
+	s.parallelShutdownComplete()
+
 	if s.cfg.holdAllBackgroundProcesses { // nothing to do
 		return nil
 	}
-
-	ticker := time.NewTicker(100 * time.Millisecond)
-	defer ticker.Stop()
-
-	timeout := time.NewTimer(s.cfg.InstanceCleanupPeriod)
-	defer timeout.Stop()
 
 	s.stopAllBackgroundProcesses()
 
@@ -666,6 +670,58 @@ func (s *LiveStore) cutAllInstancesToWal() {
 	for _, instance := range instances {
 		s.cutOneInstanceToWal(instance, true)
 	}
+}
+
+// parallelShutdownComplete completes all pending WAL blocks across all instances in parallel.
+// It is called during stopping(), after cutAllInstancesToWal() and before
+// stopAllBackgroundProcesses(), to reduce shutdown time when many blocks are pending.
+// Errors are logged but do not abort the process; any blocks that fail will be retried on
+// the next startup via WAL replay.
+func (s *LiveStore) parallelShutdownComplete() {
+	type work struct {
+		inst    *instance
+		blockID uuid.UUID
+	}
+
+	// Collect all pending WAL block IDs under a read lock per instance.
+	instances := s.getInstances()
+	var items []work
+	for _, inst := range instances {
+		inst.blocksMtx.RLock()
+		for id := range inst.walBlocks {
+			items = append(items, work{inst: inst, blockID: id})
+		}
+		inst.blocksMtx.RUnlock()
+	}
+
+	if len(items) == 0 {
+		return
+	}
+
+	level.Info(s.logger).Log("msg", "parallel shutdown completion starting", "blocks", len(items), "concurrency", s.cfg.ShutdownCompleteConcurrency)
+
+	// s.ctx is guaranteed live here: s.cancel() is called only inside
+	// stopAllBackgroundProcesses(), which runs after this function returns.
+	g, ctx := errgroup.WithContext(s.ctx)
+	g.SetLimit(s.cfg.ShutdownCompleteConcurrency)
+
+	for _, item := range items {
+		g.Go(func() error {
+			if err := item.inst.completeBlock(ctx, item.blockID); err != nil {
+				level.Error(s.logger).Log(
+					"msg", "parallel shutdown completion failed for block (will retry on restart)",
+					"tenant", item.inst.tenantID,
+					"block", item.blockID,
+					"err", err,
+				)
+			}
+			return nil // never propagate — we want all blocks attempted regardless
+		})
+	}
+
+	_ = g.Wait()
+
+	level.Info(s.logger).Log("msg", "parallel shutdown completion finished")
 }
 
 func (s *LiveStore) cutOneInstanceToWal(inst *instance, immediate bool) {
