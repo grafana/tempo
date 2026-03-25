@@ -18,7 +18,7 @@ import (
 )
 
 func (c *Overrides) toLegacy() LegacyOverrides {
-	result := LegacyOverrides{
+	return LegacyOverrides{
 		IngestionRateStrategy:      c.Ingestion.RateStrategy,
 		IngestionRateLimitBytes:    c.Ingestion.RateLimitBytes,
 		IngestionBurstSizeBytes:    c.Ingestion.BurstSizeBytes,
@@ -86,15 +86,8 @@ func (c *Overrides) toLegacy() LegacyOverrides {
 			Dimensions:     c.CostAttribution.Dimensions,
 			MaxCardinality: c.CostAttribution.MaxCardinality,
 		},
+		Extensions: maps.Clone(c.Extensions), // Copy extensions to avoid modifying the original
 	}
-	// Copy extensions; MarshalJSON/MarshalYAML flatten typed instances to legacy flat keys.
-	if len(c.Extensions) > 0 {
-		result.Extensions = make(map[string]any, len(c.Extensions))
-		for k, v := range c.Extensions {
-			result.Extensions[k] = v
-		}
-	}
-	return result
 }
 
 // LegacyOverrides describe all the limits for users; can be used to describe global default
