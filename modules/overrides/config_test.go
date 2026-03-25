@@ -497,7 +497,7 @@ func durationPtr(d time.Duration) *time.Duration {
 	return &d
 }
 
-func TestLegacyOverridesExtra_YAML(t *testing.T) {
+func TestLegacyOverridesExtensions_YAML(t *testing.T) {
 	input := `
 max_traces_per_user: 1000
 lbac:
@@ -521,9 +521,7 @@ lbac:
 	assert.NotNil(t, l2.Extensions["lbac"])
 }
 
-func TestLegacyOverridesExtra_YAMLvsJSON(t *testing.T) {
-	// Unregistered flat keys are tolerated by processLegacyExtensions (passed through as-is).
-	// Strict rejection of unknown keys happens later in processExtensions on the converted Overrides.
+func TestLegacyOverridesExtensions_YAMLvsJSON(t *testing.T) {
 	inputYAML := `
 max_traces_per_user: 1000
 lbac_mode: mode_spans
@@ -543,9 +541,7 @@ lbac_mode: mode_spans
 	assert.Equal(t, lYAML.Extensions, lJSON.Extensions)
 }
 
-func TestLegacyToNewLimits_ExtraPreserved(t *testing.T) {
-	// Unregistered flat keys are tolerated by processLegacyExtensions (passed through as-is) and
-	// survive toNewLimits. Strict rejection happens later in processExtensions on the converted Overrides.
+func TestLegacyToNewLimits_ExtensionsPreserved(t *testing.T) {
 	input := `
 max_traces_per_user: 500
 lbac_mode: mode_spans
@@ -559,7 +555,7 @@ lbac_mode: mode_spans
 	assert.Equal(t, "mode_spans", o.Extensions["lbac_mode"], "Extensions must survive toNewLimits()")
 }
 
-func TestToLegacy_ExtraPreserved(t *testing.T) {
+func TestToLegacy_ExtensionsPreserved(t *testing.T) {
 	o := Overrides{
 		Extensions: map[string]any{"lbac_mode": "mode_spans"},
 	}
