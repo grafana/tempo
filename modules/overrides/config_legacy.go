@@ -176,11 +176,7 @@ type LegacyOverrides struct {
 	// tempodb limits
 	DedicatedColumns backend.DedicatedColumns `yaml:"parquet_dedicated_columns" json:"parquet_dedicated_columns"`
 
-	// Extensions captures fields not recognised by the above fields.
-	// After UnmarshalJSON or UnmarshalYAML (via processLegacyExtensions), typed Extension instances
-	// are stored here keyed by their nested Key() (e.g. "my_ext"), matching the semantics of
-	// Overrides.Extensions. The flat wire format (e.g. "my_ext_field") is only used during
-	// serialization, handled by MarshalJSON and MarshalYAML.
+	// Extensions mirrors Overrides.Extensions: typed instances keyed by nested Key() after unmarshal.
 	Extensions map[string]any `yaml:",inline" json:"-"`
 }
 
@@ -230,9 +226,8 @@ func (l *LegacyOverrides) UnmarshalJSON(data []byte) error {
 		l.Extensions[k] = val
 	}
 
-	// processLegacyExtensions converts registered extension flat keys (e.g. "my_ext_field") to
-	// typed instances keyed by their nested Key() (e.g. "my_ext"), matching Overrides.Extensions.
-	// processExtensions must NOT be called here: it expects nested keys, not flat legacy keys.
+	// Convert flat legacy keys to typed instances; processExtensions must not be called here
+	// as it expects nested keys (e.g. "my_ext"), not flat legacy keys (e.g. "my_ext_field").
 	return processLegacyExtensions(l)
 }
 
@@ -250,7 +245,7 @@ func (l LegacyOverrides) MarshalJSON() ([]byte, error) {
 	if err := json.Unmarshal(data, &m); err != nil {
 		return nil, err
 	}
-	// Flatten typed Extension instances to their legacy flat keys; copy other entries as-is.
+	// Flatten typed extensions to legacy flat keys; copy other entries as-is.
 	for k, v := range l.Extensions {
 		if ext, ok := v.(Extension); ok {
 			for fk, fv := range ext.ToLegacy() {
@@ -291,8 +286,7 @@ func (l LegacyOverrides) MarshalYAML() (interface{}, error) {
 	if len(l.Extensions) == 0 {
 		return plain(l), nil
 	}
-	// Flatten typed Extension instances to their legacy flat keys before marshaling,
-	// so that the YAML wire format uses flat keys (e.g. "my_ext_field"), not the nested key.
+	// Flatten typed extensions to legacy flat keys so the YAML wire format matches the legacy shape.
 	knownLegacy := knownLegacyOverridesJSONFields()
 	flat := flattenExtensionEntries(l.Extensions)
 	filtered := make(map[string]any, len(flat))
@@ -394,8 +388,7 @@ func (l *LegacyOverrides) toNewLimits() *Overrides {
 		},
 	}
 
-	// Extensions are already typed instances after processLegacyExtensions ran at unmarshal time.
-	// Simply copy them; processExtensions called by the caller will validate them.
+	// Extensions are already typed; the caller invokes processExtensions to validate them.
 	if len(l.Extensions) > 0 {
 		o.Extensions = make(map[string]any, len(l.Extensions))
 		for k, v := range l.Extensions {

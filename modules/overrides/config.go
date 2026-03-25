@@ -212,9 +212,8 @@ type Overrides struct {
 	// Storage enforced overrides.
 	Storage         StorageOverrides         `yaml:"storage,omitempty" json:"storage,omitempty"`
 	CostAttribution CostAttributionOverrides `yaml:"cost_attribution,omitempty" json:"cost_attribution,omitempty"`
-	// Extensions captures fields not recognised by this struct, enables systems vendoring tempo to extend overrides.
-	// After UnmarshalJSON or processExtensions(), all values are typed Extension instances keyed by Key().
-	// Raw map[string]any values are only present transiently after YAML unmarshal, before processExtensions is called.
+	// Extensions holds per-tenant overrides added by vendoring applications via RegisterExtension.
+	// Values are typed Extension instances after unmarshal.
 	Extensions map[string]any `yaml:",inline" json:"-"`
 }
 
