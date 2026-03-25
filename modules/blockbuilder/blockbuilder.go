@@ -90,6 +90,12 @@ var (
 		Name:      "spans_deduped_total",
 		Help:      "Total number of duplicate spans removed during block building.",
 	}, []string{"tenant"})
+	metricFlushThresholdReached = promauto.NewCounterVec(prometheus.CounterOpts{
+		Namespace: "tempo",
+		Subsystem: "block_builder",
+		Name:      "flush_threshold_reached_total",
+		Help:      "Total number of mid-cycle flushes triggered when liveTraces memory threshold was exceeded.",
+	}, []string{"partition"})
 
 	tracer = otel.Tracer("modules/blockbuilder")
 
@@ -347,12 +353,11 @@ func (b *BlockBuilder) consumePartition(ctx context.Context, ps partitionState) 
 		dur              = b.cfg.ConsumeCycleDuration
 		topic            = b.cfg.IngestStorageConfig.Kafka.Topic
 		group            = b.cfg.IngestStorageConfig.Kafka.ConsumerGroup
-		maxBytesPerCycle = b.cfg.MaxBytesPerCycle
+		maxBytesInMemory = b.cfg.MaxBytesInMemory
 		partLabel        = strconv.Itoa(int(ps.partition))
-		consumedBytes    uint64
 		startOffset      kgo.Offset
 		init             bool
-		writer           *writer
+		writer           partitionSectionWriter
 		lastRec          *kgo.Record
 		end              time.Time
 		processedRecords int
@@ -446,19 +451,22 @@ outer:
 
 			processedRecords++
 			lastRec = rec
-			consumedBytes += recordSizeBytes
 
-			if maxBytesPerCycle > 0 && consumedBytes >= maxBytesPerCycle {
+			if maxBytesInMemory > 0 && writer.TotalSize() >= maxBytesInMemory {
 				level.Debug(b.logger).Log(
-					"msg", "max bytes per cycle reached",
+					"msg", "memory threshold reached, flushing mid-cycle",
 					"partition", ps.partition,
 					"timestamp", rec.Timestamp,
+					"total_size", writer.TotalSize(),
 				)
-				span.AddEvent("max bytes per cycle reached", trace.WithAttributes(
-					attribute.Int64("maxBytesPerCycle", int64(maxBytesPerCycle)),
-					attribute.Int64("consumedBytes", int64(consumedBytes))),
-				)
-				break outer
+				span.AddEvent("mid-cycle flush triggered", trace.WithAttributes(
+					attribute.Int64("maxBytesInMemory", int64(maxBytesInMemory)),
+					attribute.Int64("totalSize", int64(writer.TotalSize())),
+				))
+				metricFlushThresholdReached.WithLabelValues(partLabel).Inc()
+				if err := writer.FlushAndReset(ctx, b.reader, b.writer, b.compactor); err != nil {
+					return time.Time{}, commitOffsetAtEnd, err
+				}
 			}
 		}
 	}
