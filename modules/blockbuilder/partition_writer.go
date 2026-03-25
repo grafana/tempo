@@ -23,6 +23,8 @@ const flushConcurrency = 4
 type partitionSectionWriter interface {
 	pushBytes(ts time.Time, tenant string, req *tempopb.PushBytesRequest) error
 	flush(ctx context.Context, r tempodb.Reader, w tempodb.Writer, c tempodb.Compactor) error
+	TotalSize() uint64
+	FlushAndReset(ctx context.Context, r tempodb.Reader, w tempodb.Writer, c tempodb.Compactor) error
 }
 
 type writer struct {
@@ -106,6 +108,38 @@ func (p *writer) flush(ctx context.Context, r tempodb.Reader, w tempodb.Writer, 
 		})
 	}
 	return g.Wait()
+}
+
+// TotalSize returns the total number of live trace bytes held across all tenant stores.
+// This is used to detect when the memory threshold has been reached and a mid-cycle
+// flush should be triggered.
+func (p *writer) TotalSize() uint64 {
+	p.mtx.Lock()
+	defer p.mtx.Unlock()
+
+	var total uint64
+	for _, ts := range p.m {
+		total += ts.liveTraces.Size()
+	}
+	return total
+}
+
+// FlushAndReset flushes all tenant stores to the backend and then resets their
+// liveTraces to free memory. The ID generators are NOT reset, so subsequent
+// Flush() calls produce new unique sequential block IDs that are idempotent
+// on restart from the same committed offset.
+func (p *writer) FlushAndReset(ctx context.Context, r tempodb.Reader, w tempodb.Writer, c tempodb.Compactor) error {
+	if err := p.flush(ctx, r, w, c); err != nil {
+		return err
+	}
+
+	p.mtx.Lock()
+	defer p.mtx.Unlock()
+
+	for _, ts := range p.m {
+		ts.Reset()
+	}
+	return nil
 }
 
 func (p *writer) allowCompaction(ctx context.Context, w tempodb.Writer) {
