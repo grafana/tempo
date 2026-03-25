@@ -155,7 +155,9 @@ func processExtensions(o *Overrides) error {
 		}
 		dec := json.NewDecoder(bytes.NewReader(b))
 		dec.DisallowUnknownFields()
-		if err := dec.Decode(instance); err != nil {
+
+		err = dec.Decode(instance)
+		if err != nil {
 			return &extensionError{fmt.Errorf("extension %q: unmarshal: %w", key, err)}
 		}
 		if err := instance.Validate(); err != nil {
@@ -183,15 +185,9 @@ func processLegacyExtensions(l *LegacyOverrides) error {
 	}
 
 	extensionRegistry.RLock()
-	entries := make([]*registryEntry, 0, len(extensionRegistry.entries))
-	for _, e := range extensionRegistry.entries {
-		if len(e.legacyKeys) > 0 {
-			entries = append(entries, e)
-		}
-	}
-	extensionRegistry.RUnlock()
+	defer extensionRegistry.RUnlock()
 
-	for _, entry := range entries {
+	for _, entry := range extensionRegistry.entries {
 		hasFlatKey := false
 		for _, fk := range entry.legacyKeys {
 			if _, ok := l.Extensions[fk]; ok {
@@ -204,14 +200,16 @@ func processLegacyExtensions(l *LegacyOverrides) error {
 		}
 
 		instance := entry.newInstance()
-		// Per-tenant extension configs have no CLI prefix.
-		instance.RegisterFlagsAndApplyDefaults("", flag.NewFlagSet("", flag.ContinueOnError))
-		if err := instance.FromLegacy(l.Extensions); err != nil {
+		instance.RegisterFlagsAndApplyDefaults("", flag.NewFlagSet("", flag.ContinueOnError)) // extension configs have no CLI prefix
+
+		err := instance.FromLegacy(l.Extensions)
+		if err != nil {
 			return fmt.Errorf("extension %q: from legacy: %w", entry.key, err)
 		}
 		if err := instance.Validate(); err != nil {
 			return fmt.Errorf("extension %q: %w", entry.key, err)
 		}
+
 		for _, fk := range entry.legacyKeys {
 			delete(l.Extensions, fk)
 		}
