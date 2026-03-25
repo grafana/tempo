@@ -25,6 +25,7 @@
   Slightly changes the array matching semantics of != and !~ operators and introduces stricter rules for regex literals.
 * [FEATURE] metrics-generator: Add per-label limiter to control cardinality [#6414](https://github.com/grafana/tempo/pull/6414) (@electron0zero)
   Adds `max_cardinality_per_label` per per-tenant override and new metrics to estimate per label cardinality demand estimate.
+* [FEATURE] Add an extension mechanism for per-tenant overrides [#6758](https://github.com/grafana/tempo/pull/6758) (@stoewer)
 * [ENHANCEMENT] Block builder: deduplicate spans within traces during block creation and track removed duplicates via `tempo_block_builder_spans_deduped_total` metric [#6539](https://github.com/grafana/tempo/pull/6539) (@zhxiaogg)
 * [ENHANCEMENT] Add new alerts and runbooks entries [#6276](https://github.com/grafana/tempo/pull/6276) (@javiermolinar)
 * [ENHANCEMENT] Double the maximum number of dedicated string columns in vParquet5 and update tempo-cli to determine the optimum number for the data [#6282](https://github.com/grafana/tempo/pull/6282) (@mdisibio)
