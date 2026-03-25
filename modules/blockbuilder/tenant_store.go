@@ -200,6 +200,14 @@ func (s *tenantStore) Flush(ctx context.Context, r tempodb.Reader, w tempodb.Wri
 	return nil
 }
 
+// Reset clears liveTraces to free memory after a mid-cycle flush.
+// It does NOT reset the ID generator so that subsequent Flush() calls
+// within the same cycle produce unique sequential block IDs that are
+// idempotent on restart from the same committed offset.
+func (s *tenantStore) Reset() {
+	s.liveTraces = livetraces.New(func(b []byte) uint64 { return uint64(len(b)) }, 0, 0, s.tenantID)
+}
+
 func (s *tenantStore) AllowCompaction(ctx context.Context, w tempodb.Writer) error {
 	if s.noCompactBlockID == nil {
 		return nil // no block to allow compaction for
