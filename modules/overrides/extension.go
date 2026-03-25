@@ -77,7 +77,6 @@ func RegisterExtension[T Extension](e T) func(*Overrides) T {
 	}
 
 	legacyKeys := e.LegacyKeys()
-	knownLegacy := knownLegacyOverridesJSONFields()
 	seenLegacy := make(map[string]struct{}, len(legacyKeys))
 	for _, lk := range legacyKeys {
 		if lk == "" {
@@ -87,7 +86,7 @@ func RegisterExtension[T Extension](e T) func(*Overrides) T {
 			panic(fmt.Sprintf("overrides: extension %q has duplicate legacy key %q", key, lk))
 		}
 		seenLegacy[lk] = struct{}{}
-		if _, conflict := knownLegacy[lk]; conflict {
+		if isKnownLegacyOverridesField(lk) {
 			panic(fmt.Sprintf("overrides: extension %q legacy key %q conflicts with a built-in LegacyOverrides field; choose a different legacy key", key, lk))
 		}
 		// Guard against collisions with already-registered extensions' nested keys and legacy keys.
