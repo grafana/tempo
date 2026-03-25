@@ -31,16 +31,16 @@ var metricBlockBuilderFlushedBlocks = promauto.NewCounterVec(
 )
 
 type tenantStore struct {
-	tenantID         string
-	idGenerator      util.IDGenerator
-	cfg              BlockConfig
-	startTime        time.Time
-	cycleDuration    time.Duration
-	slackDuration    time.Duration
-	logger           log.Logger
-	overrides        Overrides
-	enc              encoding.VersionedEncoding
-	wal              *wal.WAL
+	tenantID          string
+	idGenerator       util.IDGenerator
+	cfg               BlockConfig
+	startTime         time.Time
+	cycleDuration     time.Duration
+	slackDuration     time.Duration
+	logger            log.Logger
+	overrides         Overrides
+	enc               encoding.VersionedEncoding
+	wal               *wal.WAL
 	noCompactBlockIDs []backend.UUID
 
 	liveTraces *livetraces.LiveTraces[[]byte]
