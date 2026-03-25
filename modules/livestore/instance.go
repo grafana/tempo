@@ -266,7 +266,7 @@ func countSpans(trace *tempopb.Trace) int {
 	return count
 }
 
-func (i *instance) cutIdleTraces(immediate bool) error {
+func (i *instance) cutIdleTraces(ctx context.Context, immediate bool) error {
 	i.liveTracesMtx.Lock()
 	// Set metrics before cutting (similar to ingester)
 	metricLiveTraces.WithLabelValues(i.tenantID).Set(float64(i.liveTraces.Len()))
@@ -386,7 +386,7 @@ func (i *instance) resetHeadBlock() error {
 	return nil
 }
 
-func (i *instance) cutBlocks(immediate bool) (uuid.UUID, error) {
+func (i *instance) cutBlocks(ctx context.Context, immediate bool) (uuid.UUID, error) {
 	i.blocksMtx.Lock()
 	defer i.blocksMtx.Unlock()
 

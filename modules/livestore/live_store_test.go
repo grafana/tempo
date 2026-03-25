@@ -70,7 +70,7 @@ func TestLiveStoreFullBlockLifecycleCheating(t *testing.T) {
 	requireInstanceState(t, inst, instanceState{liveTraces: 1, walBlocks: 0, completeBlocks: 0})
 
 	// cut to head block and test
-	err = inst.cutIdleTraces(true)
+	err = inst.cutIdleTraces(t.Context(), true)
 	require.NoError(t, err)
 
 	requireTraceInLiveStore(t, liveStore, expectedID, expectedTrace)
@@ -78,7 +78,7 @@ func TestLiveStoreFullBlockLifecycleCheating(t *testing.T) {
 	requireInstanceState(t, inst, instanceState{liveTraces: 0, walBlocks: 0, completeBlocks: 0})
 
 	// cut a new head block. old head block is in wal blocks
-	walUUID, err := inst.cutBlocks(true)
+	walUUID, err := inst.cutBlocks(t.Context(), true)
 	require.NoError(t, err)
 
 	requireTraceInLiveStore(t, liveStore, expectedID, expectedTrace)
@@ -133,7 +133,7 @@ func TestLiveStoreReplaysTraceInHeadBlock(t *testing.T) {
 	require.NoError(t, err)
 
 	// cut to head block
-	err = inst.cutIdleTraces(true)
+	err = inst.cutIdleTraces(t.Context(), true)
 	require.NoError(t, err)
 
 	// stop the live store and then create a new one to simulate a restart and replay the data on disk
@@ -161,11 +161,11 @@ func TestLiveStoreReplaysTraceInWalBlocks(t *testing.T) {
 	require.NoError(t, err)
 
 	// cut to head block
-	err = inst.cutIdleTraces(true)
+	err = inst.cutIdleTraces(t.Context(), true)
 	require.NoError(t, err)
 
 	// cut head to wal blocks
-	_, err = inst.cutBlocks(true)
+	_, err = inst.cutBlocks(t.Context(), true)
 	require.NoError(t, err)
 
 	// stop the live store and then create a new one to simulate a restart and replay the data on disk
@@ -193,11 +193,11 @@ func TestLiveStoreReplaysTraceInCompleteBlocks(t *testing.T) {
 	require.NoError(t, err)
 
 	// cut to head block
-	err = inst.cutIdleTraces(true)
+	err = inst.cutIdleTraces(t.Context(), true)
 	require.NoError(t, err)
 
 	// cut head to wal blocks
-	walUUID, err := inst.cutBlocks(true)
+	walUUID, err := inst.cutBlocks(t.Context(), true)
 	require.NoError(t, err)
 
 	// complete the wal blocks
@@ -334,7 +334,7 @@ func TestLiveStoreUsesRecordTimestampForBlockStartAndEnd(t *testing.T) {
 		require.NoError(t, err)
 
 		// force just pushed traces to the head block
-		err = inst.cutIdleTraces(true)
+		err = inst.cutIdleTraces(t.Context(), true)
 		require.NoError(t, err)
 
 		meta := inst.headBlock.BlockMeta()
@@ -342,7 +342,7 @@ func TestLiveStoreUsesRecordTimestampForBlockStartAndEnd(t *testing.T) {
 		require.Equal(t, tc.expectedEnd, meta.EndTime)
 
 		// cut to complete block and test again
-		uuid, err := inst.cutBlocks(true)
+		uuid, err := inst.cutBlocks(t.Context(), true)
 		require.NoError(t, err)
 		err = inst.completeBlock(t.Context(), uuid)
 		require.NoError(t, err)

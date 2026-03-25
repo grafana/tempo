@@ -545,7 +545,7 @@ func (s *LiveStore) calculateTimeLag(lagShortcutThreshold int64) *time.Duration 
 
 func (s *LiveStore) consume(ctx context.Context, rs recordIter, now time.Time) (*kadm.Offset, error) {
 	defer s.decoder.Reset()
-	_, span := tracer.Start(ctx, "LiveStore.consume")
+	ctx, span := tracer.Start(ctx, "LiveStore.consume")
 	defer span.End()
 
 	recordCount := 0
@@ -664,19 +664,19 @@ func (s *LiveStore) cutAllInstancesToWal() {
 	instances := s.getInstances()
 
 	for _, instance := range instances {
-		s.cutOneInstanceToWal(instance, true)
+		s.cutOneInstanceToWal(s.ctx, instance, true)
 	}
 }
 
-func (s *LiveStore) cutOneInstanceToWal(inst *instance, immediate bool) {
+func (s *LiveStore) cutOneInstanceToWal(ctx context.Context, inst *instance, immediate bool) {
 	// Regular trace cuts (live traces -> head block)
-	err := inst.cutIdleTraces(immediate)
+	err := inst.cutIdleTraces(ctx, immediate)
 	if err != nil {
 		level.Error(s.logger).Log("msg", "failed to cut idle traces", "tenant", inst.tenantID, "err", err)
 	}
 
 	// Regular block cuts
-	blockID, err := inst.cutBlocks(immediate)
+	blockID, err := inst.cutBlocks(ctx, immediate)
 	if err != nil {
 		level.Error(s.logger).Log("msg", "failed to cut blocks", "tenant", inst.tenantID, "err", err)
 	}

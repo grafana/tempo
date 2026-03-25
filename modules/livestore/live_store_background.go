@@ -131,7 +131,7 @@ func (s *LiveStore) perTenantCutToWalLoop(instance *instance) {
 	for {
 		select {
 		case <-ticker.C:
-			s.cutOneInstanceToWal(instance, false)
+			s.cutOneInstanceToWal(s.ctx, instance, false)
 		case <-s.ctx.Done():
 			return
 		}

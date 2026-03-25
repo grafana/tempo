@@ -68,7 +68,7 @@ func TestInstanceSearch(t *testing.T) {
 	checkEqual(t, ids, sr)
 
 	// Test after cutting new headblock
-	blockID, err := i.cutBlocks(true)
+	blockID, err := i.cutBlocks(t.Context(), true)
 	require.NoError(t, err)
 	assert.NotEqual(t, blockID, uuid.Nil)
 
@@ -113,7 +113,7 @@ func TestInstanceSearchTraceQL(t *testing.T) {
 			assert.Len(t, sr.Traces, 0)
 
 			// Test after appending to WAL
-			require.NoError(t, i.cutIdleTraces(true))
+			require.NoError(t, i.cutIdleTraces(t.Context(), true))
 
 			sr, err = i.Search(context.Background(), req)
 			assert.NoError(t, err)
@@ -121,7 +121,7 @@ func TestInstanceSearchTraceQL(t *testing.T) {
 			checkEqual(t, ids, sr)
 
 			// Test after cutting new headBlock
-			blockID, err := i.cutBlocks(true)
+			blockID, err := i.cutBlocks(t.Context(), true)
 			require.NoError(t, err)
 			assert.NotEqual(t, blockID, uuid.Nil)
 
@@ -187,7 +187,7 @@ func TestInstanceSearchWithStartAndEnd(t *testing.T) {
 	searchAndAssert(req)
 
 	// Test after cutting new headblock
-	blockID, err := i.cutBlocks(true)
+	blockID, err := i.cutBlocks(t.Context(), true)
 	require.NoError(t, err)
 	assert.NotEqual(t, blockID, uuid.Nil)
 	searchAndAssert(req)
@@ -231,7 +231,7 @@ func TestInstanceSearchTags(t *testing.T) {
 	testSearchTagsAndValues(t, userCtx, i, tagKey, expectedTagValues)
 
 	// Test after cutting new headblock
-	blockID, err := i.cutBlocks(true)
+	blockID, err := i.cutBlocks(t.Context(), true)
 	require.NoError(t, err)
 	assert.NotEqual(t, blockID, uuid.Nil)
 
@@ -365,7 +365,7 @@ func TestInstanceSearchMaxBlocksPerTagValuesQueryReturnsPartial(t *testing.T) {
 	_, _, _, _ = writeTracesForSearch(t, instance, "", tagKey, tagValue, true, false)
 
 	// Cut the headblock so the next writes land in a new block
-	blockID, err := instance.cutBlocks(true)
+	blockID, err := instance.cutBlocks(t.Context(), true)
 	require.NoError(t, err)
 	assert.NotEqual(t, blockID, uuid.Nil)
 
@@ -477,9 +477,9 @@ func TestSearchTagsV2Limits(t *testing.T) {
 					Ids:    [][]byte{id},
 				}
 				instance.pushBytes(t.Context(), time.Now(), req)
-				err = instance.cutIdleTraces(true)
+				err = instance.cutIdleTraces(t.Context(), true)
 				require.NoError(t, err)
-				blockID, err := instance.cutBlocks(true)
+				blockID, err := instance.cutBlocks(t.Context(), true)
 				require.NoError(t, err)
 				err = instance.completeBlock(ctx, blockID)
 				require.NoError(t, err)
@@ -699,7 +699,7 @@ func writeTracesForSearch(t *testing.T, i *instance, spanName, tagKey, tagValue 
 	}
 
 	// traces have to be cut to show up in searches
-	err := i.cutIdleTraces(true)
+	err := i.cutIdleTraces(t.Context(), true)
 	require.NoError(t, err)
 
 	return ids, expectedTagValues, expectedEventTagValues, expectedLinkTagValues
@@ -752,13 +752,13 @@ func TestInstanceSearchDoesNotRace(t *testing.T) {
 	})
 
 	concurrent(func() {
-		err := i.cutIdleTraces(true)
+		err := i.cutIdleTraces(t.Context(), true)
 		require.NoError(t, err, "error cutting complete traces")
 	})
 
 	concurrent(func() {
 		// Cut wal, complete
-		blockID, _ := i.cutBlocks(true)
+		blockID, _ := i.cutBlocks(t.Context(), true)
 		if blockID != uuid.Nil {
 			err := i.completeBlock(context.Background(), blockID)
 			require.NoError(t, err)
@@ -840,13 +840,13 @@ func TestInstanceSearchMetrics(t *testing.T) {
 	require.Equal(t, uint64(0), m.InspectedBytes)  // we don't search live traces
 
 	// Test after appending to WAL
-	err := i.cutIdleTraces(true)
+	err := i.cutIdleTraces(t.Context(), true)
 	require.NoError(t, err)
 	m = search()
 	require.Less(t, numBytes, m.InspectedBytes)
 
 	// Test after cutting new headblock
-	blockID, err := i.cutBlocks(true)
+	blockID, err := i.cutBlocks(t.Context(), true)
 	require.NoError(t, err)
 	m = search()
 	require.Less(t, numBytes, m.InspectedBytes)
@@ -877,7 +877,7 @@ func TestInstanceFindByTraceID(t *testing.T) {
 	require.Equal(t, ids[0], resp.Trace.ResourceSpans[0].ScopeSpans[0].Spans[0].TraceId)
 
 	// Test 2: Move traces through different sections
-	blockID, err := i.cutBlocks(true)
+	blockID, err := i.cutBlocks(t.Context(), true)
 	require.NoError(t, err)
 	require.NotEqual(t, blockID, uuid.Nil)
 
@@ -947,7 +947,7 @@ func TestInstanceFindByTraceIDWithSizeLimits(t *testing.T) {
 	i.pushBytes(ctx, time.Now(), req)
 
 	// Cut to ensure we can find it
-	err = i.cutIdleTraces(true)
+	err = i.cutIdleTraces(t.Context(), true)
 	require.NoError(t, err)
 
 	// and request it back
@@ -1148,10 +1148,10 @@ func TestLiveStoreQueryRange(t *testing.T) {
 	inst.pushBytes(t.Context(), now, pushReq)
 
 	// Force block creation by cutting traces and blocks
-	err = inst.cutIdleTraces(true)
+	err = inst.cutIdleTraces(t.Context(), true)
 	require.NoError(t, err)
 
-	blockID, err := inst.cutBlocks(true)
+	blockID, err := inst.cutBlocks(t.Context(), true)
 	require.NoError(t, err)
 	require.NotEqual(t, uuid.Nil, blockID)
 

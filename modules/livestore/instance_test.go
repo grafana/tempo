@@ -96,7 +96,7 @@ func TestInstanceLimits(t *testing.T) {
 		pushTrace(t.Context(), t, instance, batch1, id)
 
 		// cut idle traces but we retain the too large trace in traceSizes
-		err := instance.cutIdleTraces(true)
+		err := instance.cutIdleTraces(t.Context(), true)
 		require.NoError(t, err)
 
 		// Second push with same id will fail b/c we are still tracking in traceSizes
@@ -117,9 +117,9 @@ func TestInstanceLimits(t *testing.T) {
 		pushTrace(t.Context(), t, instance, batch1, id)
 
 		// cut idle traces but we retain the too large trace in traceSizes
-		err := instance.cutIdleTraces(true)
+		err := instance.cutIdleTraces(t.Context(), true)
 		require.NoError(t, err)
-		blockID, err := instance.cutBlocks(true) // this won't clear the trace b/c the trace must not be seen for 2 head block cuts to be fully removed from live traces
+		blockID, err := instance.cutBlocks(t.Context(), true) // this won't clear the trace b/c the trace must not be seen for 2 head block cuts to be fully removed from live traces
 		require.NoError(t, err)
 		err = instance.completeBlock(context.Background(), blockID)
 		require.NoError(t, err)
@@ -128,9 +128,9 @@ func TestInstanceLimits(t *testing.T) {
 		secondID := test.ValidTraceID(nil)
 		pushTrace(t.Context(), t, instance, batch1, secondID)
 
-		err = instance.cutIdleTraces(true)
+		err = instance.cutIdleTraces(t.Context(), true)
 		require.NoError(t, err)
-		blockID, err = instance.cutBlocks(true) // this will clear the trace b/c the trace has not been seen for 2 head block cuts
+		blockID, err = instance.cutBlocks(t.Context(), true) // this will clear the trace b/c the trace has not been seen for 2 head block cuts
 		require.NoError(t, err)
 		err = instance.completeBlock(context.Background(), blockID)
 		require.NoError(t, err)
@@ -229,7 +229,7 @@ func TestInstanceBackpressure(t *testing.T) {
 	require.Nil(t, res.Trace)
 
 	// Free up space for the blocked push
-	require.NoError(t, instance.cutIdleTraces(true))
+	require.NoError(t, instance.cutIdleTraces(t.Context(), true))
 
 	// Wait for push to complete with timeout
 	select {
