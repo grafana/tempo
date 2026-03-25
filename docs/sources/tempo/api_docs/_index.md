@@ -49,7 +49,6 @@ For externally supported gRPC API, [refer to Tempo gRPC API](#tempo-grpc-api).
 | [Usage Metrics](#usage-metrics)                                                       | Distributor                               | HTTP | `GET /usage_metrics`                                      |
 | [Distributor ring status](#distributor-ring-status) (\*)                              | Distributor                               | HTTP | `GET /distributor/ring`                                   |
 | [Live-store ring status](#live-store-ring-status)                                     | Distributor, Querier                      | HTTP | `GET /live-store/ring`                                    |
-| [Metrics-generator ring status](#metrics-generator-ring-status) (\*)                  | Distributor                               | HTTP | `GET /metrics-generator/ring`                             |
 | [Status](#status)                                                                     | Status                                    | HTTP | `GET /status`                                             |
 | [List build information](#list-build-information)                                     | Status                                    | HTTP | `GET /api/status/buildinfo`                               |
 | [MCP Server](https://grafana.com/docs/tempo/<TEMPO_VERSION>/api_docs/mcp-server) (\*) | MCP                                       |      | `/api/mcp`                                                |
@@ -806,18 +805,6 @@ GET /live-store/ring
 Displays a web page with the live-store hash ring status, including the state, health, and last heartbeat time of each live-store instance.
 
 For more information, refer to [consistent hash ring](https://grafana.com/docs/tempo/<TEMPO_VERSION>/operations/manage-advanced-systems/consistent_hash_ring/).
-
-### Metrics-generator ring status
-
-```
-GET /metrics-generator/ring
-```
-
-Displays a web page with the metrics-generator hash ring status, including the state, health, and last heartbeat time of each metrics-generator.
-
-This endpoint is only available when the metrics-generator is enabled. Refer to [metrics-generator](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/#metrics-generator).
-
-For more information, refer to [consistent hash ring](http://grafana.com/docs/tempo/<TEMPO_VERSION>/operations/manage-advanced-systems/consistent_hash_ring/).
 
 ### Status
 
