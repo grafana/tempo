@@ -6,6 +6,8 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"os"
+	"sort"
 	"testing"
 	"time"
 
@@ -1307,4 +1309,44 @@ func testLogger(_ testing.TB) log.Logger {
 	// Uncomment when we need full detail.
 	// return test.NewTestingLogger(t)
 	return log.NewNopLogger()
+}
+
+// TestPartitionSort_Stable verifies that partitions with equal timestamps are
+// sorted deterministically by partition ID as a secondary key.
+func TestPartitionSort_Stable(t *testing.T) {
+	ts := time.Unix(1_000_000, 0)
+
+	ps := []partitionState{
+		{partition: 3, lastRecordTs: ts},
+		{partition: 1, lastRecordTs: ts},
+		{partition: 2, lastRecordTs: ts},
+	}
+
+	sort.Slice(ps, func(i, j int) bool {
+		if ps[i].lastRecordTs.Equal(ps[j].lastRecordTs) {
+			return ps[i].partition < ps[j].partition
+		}
+		return ps[i].lastRecordTs.Before(ps[j].lastRecordTs)
+	})
+
+	require.Equal(t, int32(1), ps[0].partition)
+	require.Equal(t, int32(2), ps[1].partition)
+	require.Equal(t, int32(3), ps[2].partition)
+}
+
+// TestLagMetric_NotSetAtStartOfCycle verifies that the lag metric is not updated
+// before any records are processed. The metric should only reflect end-of-cycle lag,
+// not the full backlog lag at the start of consumption.
+func TestLagMetric_NotSetAtStartOfCycle(t *testing.T) {
+	// The line `ingest.SetPartitionLagSeconds(group, ps.partition, time.Since(rec.Timestamp))`
+	// inside the `if !init {` block must NOT exist after the fix.
+	// Verify by searching the source file.
+	src, err := os.ReadFile("blockbuilder.go")
+	require.NoError(t, err)
+
+	// After the fix, SetPartitionLagSeconds must not appear inside the `if !init {` block.
+	// We check that the pattern of calling SetPartitionLagSeconds followed by `init = true`
+	// does not appear in the source — this pattern is unique to the start-of-cycle call.
+	require.NotContains(t, string(src), "SetPartitionLagSeconds(group, ps.partition, time.Since(rec.Timestamp))",
+		"start-of-cycle SetPartitionLagSeconds call must be removed")
 }

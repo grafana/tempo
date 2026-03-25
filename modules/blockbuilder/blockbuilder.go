@@ -304,6 +304,9 @@ func (b *BlockBuilder) consume(ctx context.Context) (time.Duration, error) {
 	// Iterate over the laggiest partition until the lag is less than the cycle duration or none of the partitions has records
 	for {
 		sort.Slice(ps, func(i, j int) bool {
+			if ps[i].lastRecordTs.Equal(ps[j].lastRecordTs) {
+				return ps[i].partition < ps[j].partition
+			}
 			return ps[i].lastRecordTs.Before(ps[j].lastRecordTs)
 		})
 
@@ -413,8 +416,6 @@ outer:
 			// Initialize on first record
 			if !init {
 				end = rec.Timestamp.Add(dur) // When block will be cut
-				// Record lag at the start of the consumption
-				ingest.SetPartitionLagSeconds(group, ps.partition, time.Since(rec.Timestamp))
 				writer = newPartitionSectionWriter(
 					b.logger,
 					uint64(ps.partition),
