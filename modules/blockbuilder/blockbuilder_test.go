@@ -1284,6 +1284,7 @@ func TestBlockbuilder_PartitionWithNoLag(t *testing.T) {
 	require.ElementsMatch(t, []int32{0, 1}, parts)
 
 	require.NoError(t, b.starting(ctx))
+	t.Cleanup(func() { _ = b.stopping(nil) })
 
 	res, err := b.consume(ctx)
 	require.NoError(t, err)
@@ -1360,9 +1361,9 @@ func TestBlockBuilder_StreamingFlush_MultipleBlocksCreated(t *testing.T) {
 	}, 30*time.Second, time.Second)
 }
 
-// TestBlockBuilder_StreamingFlush_Idempotent verifies that restarting from the same
-// committed offset after a mid-cycle streaming flush produces the same block IDs.
-func TestBlockBuilder_StreamingFlush_Idempotent(t *testing.T) {
+// TestBlockBuilder_StreamingFlush_TwoBlocksProduced verifies that two blocks are
+// written when a mid-cycle streaming flush is triggered during a single cycle.
+func TestBlockBuilder_StreamingFlush_TwoBlocksProduced(t *testing.T) {
 	ctx, cancel := context.WithCancelCause(context.Background())
 	t.Cleanup(func() { cancel(errors.New("test done")) })
 
@@ -1414,9 +1415,8 @@ func TestBlockBuilder_FlushThresholdCounter(t *testing.T) {
 	cfg := blockbuilderConfig(t, address, []int32{0})
 	cfg.MaxBytesInMemory = 1 // Every record triggers a mid-cycle flush.
 
-	reg := prometheus.NewRegistry()
-	// NOTE: The metric is registered via promauto on the DefaultRegisterer.
-	// We check the DefaultRegisterer's gathered metrics in this test.
+	// Record the counter value before the test to isolate increments from this test only.
+	counterBefore := getFlushThresholdTotal()
 
 	b, err := New(cfg, testLogger(t), newPartitionRingReader(), &mockOverrides{}, store)
 	require.NoError(t, err)
@@ -1433,10 +1433,13 @@ func TestBlockBuilder_FlushThresholdCounter(t *testing.T) {
 		return len(store.BlockMetas(util.FakeTenantID)) >= 2
 	}, time.Minute, time.Second)
 
-	// Gather the metric from the default registry.
-	mfs, err := prometheus.DefaultGatherer.Gather()
-	require.NoError(t, err)
+	// Assert the counter increased relative to the pre-test baseline.
+	counterAfter := getFlushThresholdTotal()
+	require.Greater(t, counterAfter, counterBefore, "flush threshold counter must have been incremented by this test")
+}
 
+func getFlushThresholdTotal() float64 {
+	mfs, _ := prometheus.DefaultGatherer.Gather()
 	var total float64
 	for _, mf := range mfs {
 		if mf.GetName() == "tempo_block_builder_flush_threshold_reached_total" {
@@ -1445,8 +1448,7 @@ func TestBlockBuilder_FlushThresholdCounter(t *testing.T) {
 			}
 		}
 	}
-	require.Greater(t, total, float64(0), "flush threshold counter must have been incremented")
-	_ = reg // suppress unused warning
+	return total
 }
 
 // TestPartitionSort_Stable verifies that partitions with equal timestamps are

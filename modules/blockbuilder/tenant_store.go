@@ -192,6 +192,9 @@ func (s *tenantStore) Flush(ctx context.Context, r tempodb.Reader, w tempodb.Wri
 
 	metricBlockBuilderFlushedBlocks.WithLabelValues(s.tenantID).Inc()
 
+	// Clear this WAL block immediately after writing to the remote backend.
+	// Note: WAL.Clear() only runs once at cycle start; mid-cycle flushes must
+	// clean up their WAL blocks individually to prevent WAL directory growth.
 	if err := s.wal.LocalBackend().ClearBlock((uuid.UUID)(newMeta.BlockID), s.tenantID); err != nil {
 		return err
 	}

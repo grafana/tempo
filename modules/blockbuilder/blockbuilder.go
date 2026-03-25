@@ -452,16 +452,16 @@ outer:
 			processedRecords++
 			lastRec = rec
 
-			if maxBytesInMemory > 0 && writer.TotalSize() >= maxBytesInMemory {
+			if totalSize := writer.TotalSize(); maxBytesInMemory > 0 && totalSize >= maxBytesInMemory {
 				level.Debug(b.logger).Log(
 					"msg", "memory threshold reached, flushing mid-cycle",
 					"partition", ps.partition,
 					"timestamp", rec.Timestamp,
-					"total_size", writer.TotalSize(),
+					"total_size", totalSize,
 				)
 				span.AddEvent("mid-cycle flush triggered", trace.WithAttributes(
 					attribute.Int64("maxBytesInMemory", int64(maxBytesInMemory)),
-					attribute.Int64("totalSize", int64(writer.TotalSize())),
+					attribute.Int64("totalSize", int64(totalSize)),
 				))
 				metricFlushThresholdReached.WithLabelValues(partLabel).Inc()
 				if err := writer.FlushAndReset(ctx, b.reader, b.writer, b.compactor); err != nil {

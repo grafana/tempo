@@ -204,17 +204,19 @@ func TestTenantStoreReset(t *testing.T) {
 	require.NoError(t, err)
 	require.Greater(t, store.liveTraces.Len(), uint64(0), "liveTraces must be non-empty before Reset")
 
-	// Capture the next ID that would be generated before reset.
-	// We cannot call NewID() without advancing the generator, so we verify indirectly:
-	// after Reset(), liveTraces must be empty.
+	// Capture an ID before Reset() to verify the generator state advances across the boundary.
+	id1 := store.idGenerator.NewID()
+
 	store.Reset()
 
 	require.Equal(t, uint64(0), store.liveTraces.Len(), "liveTraces must be empty after Reset")
 	require.Equal(t, uint64(0), store.liveTraces.Size(), "liveTraces size must be zero after Reset")
 
-	// ID generator must still be functional (not nil or panicking).
-	id := store.idGenerator.NewID()
-	require.NotEmpty(t, id.String(), "idGenerator must still work after Reset")
+	// ID generator must still be functional (not nil or panicking) and must
+	// produce a different ID than before Reset() — proving it was not re-seeded.
+	id2 := store.idGenerator.NewID()
+	require.NotEmpty(t, id2.String(), "idGenerator must still work after Reset")
+	require.NotEqual(t, id1, id2, "idGenerator must not be re-seeded by Reset")
 }
 
 func TestTenantStoreNoCompactFlag(t *testing.T) {

@@ -90,11 +90,18 @@ func (p *writer) flush(ctx context.Context, r tempodb.Reader, w tempodb.Writer, 
 	ctx, span := tracer.Start(ctx, "writer.flush", trace.WithAttributes(attribute.Int("partition", int(p.partition)), attribute.String("section_start_time", p.startTime.String())))
 	defer span.End()
 
+	p.mtx.Lock()
+	tenants := make([]*tenantStore, 0, len(p.m))
+	for _, ts := range p.m {
+		tenants = append(tenants, ts)
+	}
+	p.mtx.Unlock()
+
 	// Flush tenants concurrently
 	g, ctx := errgroup.WithContext(ctx)
 	g.SetLimit(flushConcurrency)
 
-	for _, i := range p.m {
+	for _, i := range tenants {
 		g.Go(func() error {
 			i := i
 			st := time.Now()
@@ -153,9 +160,16 @@ func (p *writer) allowCompaction(ctx context.Context, w tempodb.Writer) {
 	)
 	defer span.End()
 
+	p.mtx.Lock()
+	tenants := make([]*tenantStore, 0, len(p.m))
+	for _, ts := range p.m {
+		tenants = append(tenants, ts)
+	}
+	p.mtx.Unlock()
+
 	wg := sync.WaitGroup{}
-	wg.Add(len(p.m))
-	for _, i := range p.m {
+	wg.Add(len(tenants))
+	for _, i := range tenants {
 		go func() {
 			defer wg.Done()
 			level.Info(p.logger).Log("msg", "allowing compaction", "tenant", i.tenantID)
