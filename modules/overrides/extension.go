@@ -42,9 +42,10 @@ func (e *registryEntry) newInstance() Extension {
 }
 
 var extensionRegistry = struct {
+	allLegacyKeys map[string]struct{} // union of LegacyKeys() across all registered extensions
 	sync.RWMutex
 	entries map[string]*registryEntry
-}{entries: make(map[string]*registryEntry)}
+}{entries: make(map[string]*registryEntry), allLegacyKeys: make(map[string]struct{})}
 
 // RegisterExtension registers a per-tenant overrides extension. The extension e must be a non-nil
 // pointer to the extension struct (pointer receivers are required).
@@ -89,16 +90,12 @@ func RegisterExtension[T Extension](e T) func(*Overrides) T {
 		if _, conflict := knownLegacy[lk]; conflict {
 			panic(fmt.Sprintf("overrides: extension %q legacy key %q conflicts with a built-in LegacyOverrides field; choose a different legacy key", key, lk))
 		}
-		// Guard against collisions with already-registered extensions' keys and legacy keys.
-		for existingKey, entry := range extensionRegistry.entries {
-			if lk == existingKey {
-				panic(fmt.Sprintf("overrides: extension %q legacy key %q conflicts with the key of extension %q", key, lk, existingKey))
-			}
-			for _, existingLK := range entry.legacyKeys {
-				if lk == existingLK {
-					panic(fmt.Sprintf("overrides: extension %q legacy key %q conflicts with a legacy key of extension %q", key, lk, existingKey))
-				}
-			}
+		// Guard against collisions with already-registered extensions' nested keys and legacy keys.
+		if _, conflict := extensionRegistry.entries[lk]; conflict {
+			panic(fmt.Sprintf("overrides: extension %q legacy key %q conflicts with the key of extension %q", key, lk, lk))
+		}
+		if _, conflict := extensionRegistry.allLegacyKeys[lk]; conflict {
+			panic(fmt.Sprintf("overrides: extension %q legacy key %q conflicts with a legacy key of an already-registered extension", key, lk))
 		}
 	}
 
@@ -106,6 +103,9 @@ func RegisterExtension[T Extension](e T) func(*Overrides) T {
 		key:        key,
 		legacyKeys: legacyKeys,
 		elemType:   typ.Elem(),
+	}
+	for _, lk := range legacyKeys {
+		extensionRegistry.allLegacyKeys[lk] = struct{}{}
 	}
 
 	return func(o *Overrides) T {
@@ -285,14 +285,8 @@ func isExtensionError(err error) bool {
 // isRegisteredExtensionLegacyKey reports whether key matches a flat legacy key declared by any
 // registered extension. Must be called with extensionRegistry.RLock held.
 func isRegisteredExtensionLegacyKey(key string) bool {
-	for _, entry := range extensionRegistry.entries {
-		for _, lk := range entry.legacyKeys {
-			if key == lk {
-				return true
-			}
-		}
-	}
-	return false
+	_, ok := extensionRegistry.allLegacyKeys[key]
+	return ok
 }
 
 // unknownExtensionKeyError is returned by processExtensions when a key in

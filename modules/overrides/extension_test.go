@@ -523,13 +523,16 @@ defaults:
 func resetRegistryForTesting(t *testing.T) {
 	t.Helper()
 	extensionRegistry.Lock()
-	saved := extensionRegistry.entries
+	savedEntries := extensionRegistry.entries
+	savedLegacyKeys := extensionRegistry.allLegacyKeys
 	extensionRegistry.entries = make(map[string]*registryEntry)
+	extensionRegistry.allLegacyKeys = make(map[string]struct{})
 	extensionRegistry.Unlock()
 
 	t.Cleanup(func() {
 		extensionRegistry.Lock()
-		extensionRegistry.entries = saved
+		extensionRegistry.entries = savedEntries
+		extensionRegistry.allLegacyKeys = savedLegacyKeys
 		extensionRegistry.Unlock()
 	})
 }
