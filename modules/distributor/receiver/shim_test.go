@@ -1,14 +1,17 @@
 package receiver
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"strings"
 	"testing"
 	"time"
 
+	kitlog "github.com/go-kit/log"
 	dslog "github.com/grafana/dskit/log"
 	"github.com/grafana/dskit/services"
+	"github.com/grafana/dskit/user"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/assert"
@@ -33,6 +36,7 @@ import (
 
 	"github.com/grafana/tempo/modules/generator"
 	"github.com/grafana/tempo/pkg/tempopb"
+	tempo_log "github.com/grafana/tempo/pkg/util/log"
 )
 
 // These tests use the OpenTelemetry Collector Exporters to validate the different protocols
@@ -226,6 +230,32 @@ func (p *capturingPusher) PushTraces(ctx context.Context, t ptrace.Traces) (*tem
 
 func (p *capturingPusher) RetryInfoEnabled(_ context.Context) (bool, error) {
 	return p.retryInfoEnabled, nil
+}
+
+type erroringPusher struct {
+	err error
+}
+
+func (p *erroringPusher) PushTraces(context.Context, ptrace.Traces) (*tempopb.PushResponse, error) {
+	return nil, p.err
+}
+
+func (p *erroringPusher) RetryInfoEnabled(context.Context) (bool, error) {
+	return false, nil
+}
+
+func TestConsumeTracesLogsTenantOnPushError(t *testing.T) {
+	buf := &bytes.Buffer{}
+	shim := &receiversShim{
+		pusher: &erroringPusher{err: status.Error(codes.InvalidArgument, "bad spans")},
+		logger: tempo_log.NewRateLimitedLogger(10, kitlog.NewLogfmtLogger(buf)),
+	}
+
+	ctx := user.InjectOrgID(context.Background(), "test-tenant")
+	err := shim.ConsumeTraces(ctx, ptrace.NewTraces())
+	require.Error(t, err)
+	require.Contains(t, buf.String(), "tenant=test-tenant")
+	require.Contains(t, buf.String(), "msg=\"pusher failed to consume trace data\"")
 }
 
 // TestWrapRetryableError confirms that errors are wrapped as expected
