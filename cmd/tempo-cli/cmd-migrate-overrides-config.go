@@ -22,8 +22,11 @@ func (cmd *migrateOverridesConfigCmd) Run(*globalOptions) error {
 	cfg := app.Config{}
 	cfg.RegisterFlagsAndApplyDefaults("", &flag.FlagSet{})
 
-	// Build the default overrides config for comparison.
-	defaultOverrides := cfg.Overrides
+	// Build the default overrides config for comparison from a separate instance
+	// to avoid shared pointers between defaultOverrides and cfg.Overrides.
+	defaultCfg := app.Config{}
+	defaultCfg.RegisterFlagsAndApplyDefaults("", &flag.FlagSet{})
+	defaultOverrides := defaultCfg.Overrides
 
 	buff, err := os.ReadFile(cmd.ConfigFile)
 	if err != nil {
