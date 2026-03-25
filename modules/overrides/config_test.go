@@ -521,39 +521,6 @@ lbac:
 	assert.NotNil(t, l2.Extensions["lbac"])
 }
 
-func TestLegacyOverridesExtra_JSON(t *testing.T) {
-	// Unregistered flat keys are tolerated by processLegacyExtensions (passed through as-is).
-	// Strict rejection of unknown keys happens later in processExtensions on the converted Overrides.
-	input := `{
-		"max_traces_per_user": 1000,
-		"lbac_mode": "mode_spans"
-	}`
-
-	var l LegacyOverrides
-	require.NoError(t, json.Unmarshal([]byte(input), &l))
-
-	assert.Equal(t, 1000, l.MaxLocalTracesPerUser)
-	assert.Equal(t, "mode_spans", l.Extensions["lbac_mode"])
-
-	// Round-trip: Extensions and known fields survive marshal/unmarshal.
-	b, err := json.Marshal(&l)
-	require.NoError(t, err)
-
-	var l2 LegacyOverrides
-	require.NoError(t, json.Unmarshal(b, &l2))
-	assert.Equal(t, l.MaxLocalTracesPerUser, l2.MaxLocalTracesPerUser)
-	assert.Equal(t, l.Extensions, l2.Extensions)
-
-	// Known fields take precedence.
-	l.Extensions["max_traces_per_user"] = "should-be-ignored"
-	b, err = json.Marshal(&l)
-	require.NoError(t, err)
-
-	var l3 LegacyOverrides
-	require.NoError(t, json.Unmarshal(b, &l3))
-	assert.Equal(t, 1000, l3.MaxLocalTracesPerUser, "known field must not be overwritten by Extensions")
-}
-
 func TestLegacyOverridesExtra_YAMLvsJSON(t *testing.T) {
 	// Unregistered flat keys are tolerated by processLegacyExtensions (passed through as-is).
 	// Strict rejection of unknown keys happens later in processExtensions on the converted Overrides.

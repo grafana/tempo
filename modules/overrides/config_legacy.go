@@ -2,6 +2,7 @@ package overrides
 
 import (
 	"encoding/json"
+	"fmt"
 	"sync"
 	"time"
 
@@ -247,26 +248,20 @@ func (l LegacyOverrides) MarshalJSON() ([]byte, error) {
 	}
 	// Flatten typed extensions to legacy flat keys; copy other entries as-is.
 	for k, v := range l.Extensions {
-		if ext, ok := v.(Extension); ok {
-			for fk, fv := range ext.ToLegacy() {
-				if _, exists := m[fk]; exists {
-					continue // known fields take precedence
-				}
-				b, err := json.Marshal(fv)
-				if err != nil {
-					return nil, err
-				}
-				m[fk] = b
-			}
-		} else {
-			if _, exists := m[k]; exists {
+		ext, ok := v.(Extension)
+		if !ok {
+			return nil, fmt.Errorf("extension %q is not an Extension", k)
+		}
+
+		for fk, fv := range ext.ToLegacy() {
+			if _, exists := m[fk]; exists {
 				continue // known fields take precedence
 			}
-			b, err := json.Marshal(v)
+			b, err := json.Marshal(fv)
 			if err != nil {
 				return nil, err
 			}
-			m[k] = b
+			m[fk] = b
 		}
 	}
 	return json.Marshal(m)
