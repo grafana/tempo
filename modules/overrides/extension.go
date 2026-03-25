@@ -225,17 +225,18 @@ func processLegacyExtensions(l *LegacyOverrides) error {
 }
 
 // flattenExtensionEntries returns a new map where typed Extension values are replaced by their
-// flat legacy key-value pairs (via ToLegacy). Non-Extension entries are copied as-is.
+// flat legacy key-value pairs (via ToLegacy).
 // Used when marshaling LegacyOverrides to produce the flat wire format.
 func flattenExtensionEntries(m map[string]any) map[string]any {
 	out := make(map[string]any, len(m))
 	for k, v := range m {
-		if ext, ok := v.(Extension); ok {
-			for fk, fv := range ext.ToLegacy() {
-				out[fk] = fv
-			}
-		} else {
+		ext, ok := v.(Extension)
+		if !ok {
 			panic(fmt.Sprintf("overrides: flattenExtensionEntries: entry %q is not an Extension", k))
+		}
+
+		for fk, fv := range ext.ToLegacy() {
+			out[fk] = fv
 		}
 	}
 	return out
