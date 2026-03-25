@@ -39,6 +39,10 @@ func (cmd *migrateOverridesConfigCmd) Run(*globalOptions) error {
 		return fmt.Errorf("failed to parse configFile %s: %w", cmd.ConfigFile, err)
 	}
 
+	// The migration command needs to read legacy overrides to convert them,
+	// so force-enable legacy overrides regardless of the config setting.
+	cfg.Overrides.EnableLegacyOverrides = true
+
 	o, err := overrides.NewOverrides(cfg.Overrides, nil, prometheus.DefaultRegisterer)
 	if err != nil {
 		return fmt.Errorf("failed to load overrides module: %w", err)
@@ -62,6 +66,7 @@ func (cmd *migrateOverridesConfigCmd) Run(*globalOptions) error {
 	}
 
 	cfg.Overrides.Defaults = runtimeConfig.Defaults
+	cfg.Overrides.EnableLegacyOverrides = false // reset - migrated config doesn't need this
 	configBytes, err := yaml.Marshal(cfg)
 	if err != nil {
 		return fmt.Errorf("failed to marshal config: %w", err)

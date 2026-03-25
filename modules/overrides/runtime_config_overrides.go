@@ -68,7 +68,9 @@ func (o *perTenantOverrides) forUser(userID string) *Overrides {
 }
 
 // loadPerTenantOverrides is of type runtimeconfig.Loader
-func loadPerTenantOverrides(validator Validator, typ ConfigType, expandEnv bool) func(r io.Reader) (interface{}, error) {
+func loadPerTenantOverrides(validator Validator, typ ConfigType, expandEnv bool, enableLegacy bool) func(r io.Reader) (interface{}, error) {
+	// var is outside closure to ensure it's not recreated on each call
+	var lastLegacyWarn time.Time
 	return func(r io.Reader) (interface{}, error) {
 		overrides := &perTenantOverrides{}
 
@@ -90,6 +92,24 @@ func loadPerTenantOverrides(validator Validator, typ ConfigType, expandEnv bool)
 		decoder.SetStrict(true)
 		if err := decoder.Decode(&overrides); err != nil {
 			return nil, err
+		}
+
+		if overrides.ConfigType == ConfigTypeLegacy {
+			// Log periodically (every 10 mins) and not every reload, so the warning stays visible in recent logs
+			// without spamming logs on every reload cycle.
+			if time.Since(lastLegacyWarn) >= 10*time.Minute {
+				level.Warn(log.Logger).Log(
+					"msg", "DEPRECATED: legacy overrides config format is in use. per-tenant overrides file uses the legacy format. Legacy overrides are deprecated and will be removed in a future release. "+
+						"Please migrate your per-tenant overrides to the new scoped format.",
+				)
+				lastLegacyWarn = time.Now()
+			}
+
+			if !enableLegacy {
+				return nil, fmt.Errorf(
+					"DEPRECATED: legacy overrides config format is in use. per-tenant overrides file uses the legacy format but legacy overrides are disabled by default. " +
+						"Migrate your per-tenant overrides to the new scoped format, or set -config.enable-legacy-overrides=true (or enable_legacy_overrides: true in YAML) to continue using legacy overrides temporarily")
+			}
 		}
 
 		if overrides.ConfigType != typ {
@@ -141,7 +161,7 @@ func newRuntimeConfigOverrides(cfg Config, validator Validator, registerer prome
 		runtimeCfg := runtimeconfig.Config{
 			LoadPath:     []string{cfg.PerTenantOverrideConfig},
 			ReloadPeriod: time.Duration(cfg.PerTenantOverridePeriod),
-			Loader:       loadPerTenantOverrides(validator, cfg.ConfigType, cfg.ExpandEnv),
+			Loader:       loadPerTenantOverrides(validator, cfg.ConfigType, cfg.ExpandEnv, cfg.EnableLegacyOverrides),
 		}
 		runtimeCfgMgr, err := runtimeconfig.New(runtimeCfg, "overrides", prometheus.WrapRegistererWithPrefix("tempo_", registerer), log.Logger)
 		if err != nil {
