@@ -500,8 +500,8 @@ func durationPtr(d time.Duration) *time.Duration {
 func TestLegacyOverridesExtensions_YAML(t *testing.T) {
 	input := `
 max_traces_per_user: 1000
-lbac:
-  trace_redaction_mode: mode_spans
+unregistered_ext:
+  ext_field: ext_value
 `
 	var l LegacyOverrides
 	decoder := yaml.NewDecoder(strings.NewReader(input))
@@ -509,7 +509,7 @@ lbac:
 	require.NoError(t, decoder.Decode(&l))
 
 	assert.Equal(t, 1000, l.MaxLocalTracesPerUser)
-	assert.NotNil(t, l.Extensions["lbac"], "expected Extensions to capture unknown 'lbac' key")
+	assert.NotNil(t, l.Extensions["unregistered_ext"], "expected Extensions to capture unknown 'unregistered_ext' key")
 
 	// Round-trip.
 	b, err := yaml.Marshal(&l)
@@ -518,17 +518,17 @@ lbac:
 	var l2 LegacyOverrides
 	require.NoError(t, yaml.Unmarshal(b, &l2))
 	assert.Equal(t, l.MaxLocalTracesPerUser, l2.MaxLocalTracesPerUser)
-	assert.NotNil(t, l2.Extensions["lbac"])
+	assert.NotNil(t, l2.Extensions["unregistered_ext"])
 }
 
 func TestLegacyOverridesExtensions_YAMLvsJSON(t *testing.T) {
 	inputYAML := `
 max_traces_per_user: 1000
-lbac_mode: mode_spans
+unregistered_flat_key: flat_value
 `
 	inputJSON := `{
 		"max_traces_per_user": 1000,
-		"lbac_mode": "mode_spans"
+		"unregistered_flat_key": "flat_value"
 	}`
 
 	var lYAML LegacyOverrides
@@ -544,26 +544,26 @@ lbac_mode: mode_spans
 func TestLegacyToNewLimits_ExtensionsPreserved(t *testing.T) {
 	input := `
 max_traces_per_user: 500
-lbac_mode: mode_spans
+unregistered_flat_key: flat_value
 `
 	var l LegacyOverrides
 	require.NoError(t, yaml.Unmarshal([]byte(input), &l))
-	require.Equal(t, "mode_spans", l.Extensions["lbac_mode"])
+	require.Equal(t, "flat_value", l.Extensions["unregistered_flat_key"])
 
 	o := l.toNewLimits()
 	assert.Equal(t, 500, o.Ingestion.MaxLocalTracesPerUser)
-	assert.Equal(t, "mode_spans", o.Extensions["lbac_mode"], "Extensions must survive toNewLimits()")
+	assert.Equal(t, "flat_value", o.Extensions["unregistered_flat_key"], "Extensions must survive toNewLimits()")
 }
 
 func TestToLegacy_ExtensionsPreserved(t *testing.T) {
 	o := Overrides{
-		Extensions: map[string]any{"lbac_mode": "mode_spans"},
+		Extensions: map[string]any{"unregistered_flat_key": "flat_value"},
 	}
 	o.Ingestion.MaxLocalTracesPerUser = 500
 
 	l := o.toLegacy()
 	assert.Equal(t, 500, l.MaxLocalTracesPerUser)
-	assert.Equal(t, "mode_spans", l.Extensions["lbac_mode"], "Extensions must survive toLegacy()")
+	assert.Equal(t, "flat_value", l.Extensions["unregistered_flat_key"], "Extensions must survive toLegacy()")
 }
 
 // Helper function to create ListToMap
