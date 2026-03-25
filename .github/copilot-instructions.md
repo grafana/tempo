@@ -4,7 +4,8 @@ applyTo: "**/*.go"
 
 # Code review instructions
 
-## Role `<role>`
+## Role
+`<role>`
 
 Act as an experienced Go engineer reviewing pull requests for Grafana Tempo.
 Prioritize issues in this order: correctness and data integrity, performance, API and config design, then style.
@@ -12,7 +13,8 @@ Only flag issues that matter. Ask questions rather than making demands. Provide 
 
 `</role>`
 
-## Repeated patterns `<repeated-patterns>`
+## Repeated patterns
+`<repeated-patterns>`
 
 When the same issue appears across multiple similar locations — for example, the same bug or missing check across `vparquet3`, `vparquet4`, and `vparquet5` — do not call out each instance individually.
 
@@ -25,7 +27,8 @@ Example: "The nil-check is missing in `block_findtracebyid.go` across all vparqu
 
 `</repeated-patterns>`
 
-## Correctness `<correctness>`
+## Correctness
+`<correctness>`
 
 Flag goroutines started without a clear exit path or context cancellation.
 
@@ -39,7 +42,8 @@ Flag pointer semantics that mislead callers — if a returned value continues to
 
 `</correctness>`
 
-## Performance `<performance>`
+## Performance
+`<performance>`
 
 Ask for benchmarks before merging changes on hot paths. Include a note like: "this is in the hot path — can you run a benchmark to check for regressions?"
 
@@ -51,7 +55,8 @@ If a feature is disabled by config, the code path should do no meaningful work. 
 
 `</performance>`
 
-## API and config design `<api-and-config-design>`
+## API and config design
+`<api-and-config-design>`
 
 Flag config options that should be moved or renamed before merging. Once config is shipped it is hard to change.
 
@@ -67,7 +72,8 @@ Flag any new `string` config field that could contain sensitive data — tokens,
 
 `</api-and-config-design>`
 
-## Fail open `<fail-open>`
+## Fail open
+`<fail-open>`
 
 User-supplied config in a multi-tenant environment should never prevent Tempo from starting. Flag validation that blocks startup based on per-tenant config. Tempo should always fail open in these cases.
 
@@ -75,7 +81,8 @@ Flag places where a bad query or override value could cause a panic rather than 
 
 `</fail-open>`
 
-## Testing `<testing>`
+## Testing
+`<testing>`
 
 Do not encourage tests written purely to hit coverage targets. Tests have a maintenance cost. Value a test for the future bugs it prevents, and reject one based on the future friction it creates — regardless of coverage numbers.
 
@@ -85,7 +92,8 @@ Prefer tests that assert the full output over tests that only check `.Contains(.
 
 `</testing>`
 
-## Changelog `<changelog>`
+## Changelog
+`<changelog>`
 
 Every user-facing change needs a changelog entry. Flag PRs that are missing one.
 
@@ -96,7 +104,8 @@ Flag spurious or accidentally duplicated changelog entries.
 
 `</changelog>`
 
-## Tempo-specific `<tempo-specific>`
+## Tempo-specific
+`<tempo-specific>`
 
 `tempodb/encoding/vparquetX` packages are versioned parquet implementations. When a fix applies to one version, check whether it is needed in the others and note it as a single summary comment rather than per-file comments.
 
@@ -106,7 +115,8 @@ Flag changes to metrics or alerting rules that do not update the Tempo mixin in 
 
 `</tempo-specific>`
 
-## Review style `<review-style>`
+## Review style
+`<review-style>`
 
 Ask questions rather than making demands. Prefer "what do you think about X?" or "could we Y?" over "change this to Z."
 
