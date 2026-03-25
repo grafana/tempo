@@ -6,7 +6,6 @@ import (
 	"flag"
 	"reflect"
 	"slices"
-	"strings"
 	"testing"
 	"time"
 
@@ -64,9 +63,6 @@ max_bytes_per_trace: 100_000
 block_retention: 24h
 compaction_window: 4h
 
-per_tenant_override_config: /etc/Overrides.yaml
-per_tenant_override_period: 1m
-
 max_search_duration: 5m
 `
 	inputJSON := `
@@ -83,9 +79,6 @@ max_search_duration: 5m
 
 	"block_retention": "24h",
 	"compaction_window": "4h",
-
-	"per_tenant_override_config": "/etc/Overrides.yaml",
-	"per_tenant_override_period": "1m",
 
 	"max_search_duration": "5m"
 }`
@@ -495,75 +488,6 @@ func generateTestLegacyOverrides() LegacyOverrides {
 // Helper function to create a duration pointer
 func durationPtr(d time.Duration) *time.Duration {
 	return &d
-}
-
-func TestLegacyOverridesExtensions_YAML(t *testing.T) {
-	input := `
-max_traces_per_user: 1000
-unregistered_ext:
-  ext_field: ext_value
-`
-	var l LegacyOverrides
-	decoder := yaml.NewDecoder(strings.NewReader(input))
-	decoder.SetStrict(true)
-	require.NoError(t, decoder.Decode(&l))
-
-	assert.Equal(t, 1000, l.MaxLocalTracesPerUser)
-	assert.NotNil(t, l.Extensions["unregistered_ext"], "expected Extensions to capture unknown 'unregistered_ext' key")
-
-	// Round-trip.
-	b, err := yaml.Marshal(&l)
-	require.NoError(t, err)
-
-	var l2 LegacyOverrides
-	require.NoError(t, yaml.Unmarshal(b, &l2))
-	assert.Equal(t, l.MaxLocalTracesPerUser, l2.MaxLocalTracesPerUser)
-	assert.NotNil(t, l2.Extensions["unregistered_ext"])
-}
-
-func TestLegacyOverridesExtensions_YAMLvsJSON(t *testing.T) {
-	inputYAML := `
-max_traces_per_user: 1000
-unregistered_flat_key: flat_value
-`
-	inputJSON := `{
-		"max_traces_per_user": 1000,
-		"unregistered_flat_key": "flat_value"
-	}`
-
-	var lYAML LegacyOverrides
-	require.NoError(t, yaml.Unmarshal([]byte(inputYAML), &lYAML))
-
-	var lJSON LegacyOverrides
-	require.NoError(t, json.Unmarshal([]byte(inputJSON), &lJSON))
-
-	assert.Equal(t, lYAML.MaxLocalTracesPerUser, lJSON.MaxLocalTracesPerUser)
-	assert.Equal(t, lYAML.Extensions, lJSON.Extensions)
-}
-
-func TestLegacyToNewLimits_ExtensionsPreserved(t *testing.T) {
-	input := `
-max_traces_per_user: 500
-unregistered_flat_key: flat_value
-`
-	var l LegacyOverrides
-	require.NoError(t, yaml.Unmarshal([]byte(input), &l))
-	require.Equal(t, "flat_value", l.Extensions["unregistered_flat_key"])
-
-	o := l.toNewLimits()
-	assert.Equal(t, 500, o.Ingestion.MaxLocalTracesPerUser)
-	assert.Equal(t, "flat_value", o.Extensions["unregistered_flat_key"], "Extensions must survive toNewLimits()")
-}
-
-func TestToLegacy_ExtensionsPreserved(t *testing.T) {
-	o := Overrides{
-		Extensions: map[string]any{"unregistered_flat_key": "flat_value"},
-	}
-	o.Ingestion.MaxLocalTracesPerUser = 500
-
-	l := o.toLegacy()
-	assert.Equal(t, 500, l.MaxLocalTracesPerUser)
-	assert.Equal(t, "flat_value", l.Extensions["unregistered_flat_key"], "Extensions must survive toLegacy()")
 }
 
 // Helper function to create ListToMap

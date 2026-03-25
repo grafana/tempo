@@ -132,7 +132,8 @@ func processExtensions(o *Overrides) error {
 	for key, raw := range o.Extensions {
 		entry, ok := extensionRegistry.entries[key]
 		if !ok {
-			return &unknownExtensionKeyError{key: key, isLegacy: isKnownLegacyOverridesField(key)}
+			isLegacy := isKnownLegacyOverridesField(key) || isRegisteredExtensionLegacyKey(key)
+			return &unknownExtensionKeyError{key: key, isLegacy: isLegacy}
 		}
 
 		// Already a typed Extension (set programmatically or after legacy conversion)
@@ -177,8 +178,7 @@ func processExtensions(o *Overrides) error {
 // created, defaults applied, FromLegacy called, and the instance validated. The flat keys are
 // then removed and the typed instance stored under the extension's Key().
 //
-// Keys that don't correspond to any registered extension's LegacyKeys are left as-is; strict
-// validation for those happens later when processExtensions is called on the converted Overrides.
+// Any unregistered flat keys are rejected.
 func processLegacyExtensions(l *LegacyOverrides) error {
 	if len(l.Extensions) == 0 {
 		return nil
@@ -215,6 +215,13 @@ func processLegacyExtensions(l *LegacyOverrides) error {
 		}
 		l.Extensions[entry.key] = instance
 	}
+
+	// Reject any remaining / unregistered flat keys
+	for k, v := range l.Extensions {
+		if _, typed := v.(Extension); !typed {
+			return fmt.Errorf("unknown legacy extension key %q: must be registered via RegisterExtension and declared in LegacyKeys() before use", k)
+		}
+	}
 	return nil
 }
 
@@ -229,7 +236,7 @@ func flattenExtensionEntries(m map[string]any) map[string]any {
 				out[fk] = fv
 			}
 		} else {
-			out[k] = v
+			panic(fmt.Sprintf("overrides: flattenExtensionEntries: entry %q is not an Extension", k))
 		}
 	}
 	return out
@@ -273,6 +280,19 @@ func (e *extensionError) Unwrap() error { return e.err }
 func isExtensionError(err error) bool {
 	var e *extensionError
 	return errors.As(err, &e)
+}
+
+// isRegisteredExtensionLegacyKey reports whether key matches a flat legacy key declared by any
+// registered extension. Must be called with extensionRegistry.RLock held.
+func isRegisteredExtensionLegacyKey(key string) bool {
+	for _, entry := range extensionRegistry.entries {
+		for _, lk := range entry.legacyKeys {
+			if key == lk {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // unknownExtensionKeyError is returned by processExtensions when a key in

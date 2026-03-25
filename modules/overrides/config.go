@@ -345,9 +345,6 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	}
 
 	c.Defaults = *legacyCfg.DefaultOverrides.toNewLimits()
-	if err := processExtensions(&c.Defaults); err != nil {
-		return fmt.Errorf("defaults: %w", err)
-	}
 	c.PerTenantOverrideConfig = legacyCfg.PerTenantOverrideConfig
 	c.PerTenantOverridePeriod = legacyCfg.PerTenantOverridePeriod
 	c.UserConfigurableOverridesConfig = legacyCfg.UserConfigurableOverridesConfig
