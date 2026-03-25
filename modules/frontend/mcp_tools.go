@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"path"
 	"time"
+	"unsafe"
 
 	"github.com/go-kit/log/level"
 	"github.com/gorilla/mux"
@@ -349,13 +350,15 @@ func handleHTTP(ctx context.Context, handler http.Handler, req *http.Request) (s
 
 	handler.ServeHTTP(rw, req)
 
-	body := rw.body.String()
-
 	if rw.status != http.StatusOK {
-		return "", fmt.Errorf("tool failed with http status code %d and reason %s", rw.status, body)
+		return "", fmt.Errorf("tool failed with http status code %d and reason %s", rw.status, rw.body.String())
 	}
 
-	return body, nil
+	// Use unsafe.String to convert the buffer bytes to a string without copying.
+	// This is safe because the responseBuffer is not reused after this point and
+	// the returned string's lifetime is scoped to the MCP tool handler.
+	b := rw.body.Bytes()
+	return unsafe.String(unsafe.SliceData(b), len(b)), nil
 }
 
 // injectMuxVars uses the mux.SetVars method to add vars into the context that can be used by downstream handlers.
