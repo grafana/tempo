@@ -87,11 +87,14 @@ The agent handles the rest: reading the repo context guide, looking up PRs, sear
 
 ### Gold standard pages
 
-When writing or reviewing docs, use these pages as models for structure, style, and depth:
+When writing or reviewing docs, use these pages as models for structure, style, and depth. Each page represents a different documentation type:
 
-- [`docs/sources/tempo/traceql/construct-traceql-queries.md`](../docs/sources/tempo/traceql/construct-traceql-queries.md) — Task-oriented headings, fenced TraceQL examples, version callouts (vParquet4/5)
-- [`docs/sources/tempo/operations/backend_search.md`](../docs/sources/tempo/operations/backend_search.md) — "Before you begin" section, query-path diagram, YAML snippets, version-scoped admonitions
-- [`docs/sources/tempo/configuration/parquet.md`](../docs/sources/tempo/configuration/parquet.md) — Config topic with migration warnings, version tables, copy-pastable YAML
+- **Reference** — [`docs/sources/tempo/operations/tempo_cli.md`](../docs/sources/tempo/operations/tempo_cli.md) — Consistent command-by-command structure (syntax, arguments, options, examples), exhaustive coverage, runnable examples with realistic arguments
+- **Reference/task hybrid** — [`docs/sources/tempo/traceql/construct-traceql-queries.md`](../docs/sources/tempo/traceql/construct-traceql-queries.md) — Intrinsics table, scoped examples, version callouts (vParquet4/5), progressive complexity from simple filters to structural operators
+- **Procedure** — [`docs/sources/tempo/metrics-from-traces/metrics-queries/configure-traceql-metrics.md`](../docs/sources/tempo/metrics-from-traces/metrics-queries/configure-traceql-metrics.md) — Explicit "Before you begin" prerequisites, task-oriented headings, multiple config paths (global vs. per-tenant), operational follow-through (timeouts, performance)
+- **Concept** — [`docs/sources/tempo/set-up-for-tracing/instrument-send/set-up-collector/tail-sampling/_index.md`](../docs/sources/tempo/set-up-for-tracing/instrument-send/set-up-collector/tail-sampling/_index.md) — Clear framing of what/why, concrete timing examples, tradeoff tables, architectural diagrams, pipeline context
+- **Use case** — [`docs/sources/tempo/solutions-with-traces/traces-diagnose-errors.md`](../docs/sources/tempo/solutions-with-traces/traces-diagnose-errors.md) — Narrative scenario with a fictional company, progressive query building, clear "why" at every step, complete arc from problem to resolution
+- **Release notes** — [`docs/sources/tempo/release-notes/v2-10.md`](../docs/sources/tempo/release-notes/v2-10.md) — Feature-grouped sections (TraceQL, metrics-generator, vParquet5), user-facing benefit before technical detail, runnable query examples, upgrade considerations with migration steps, PR links throughout
 
 ### Writer agent
 
