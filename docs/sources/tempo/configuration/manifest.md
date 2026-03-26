@@ -1033,6 +1033,7 @@ live_store:
     query_block_concurrency: 10
     complete_block_timeout: 1h0m0s
     complete_block_concurrency: 2
+    shutdown_complete_concurrency: 16
     shutdown_marker_dir: /var/tempo/live-store/shutdown-marker
     flush_check_period: 5s
     flush_op_timeout: 5m0s

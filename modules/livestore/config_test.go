@@ -128,6 +128,16 @@ func TestConfigValidate(t *testing.T) {
 			},
 			expectedErr: "max_trace_idle (20s) cannot be greater than max_trace_live (10s)",
 		},
+		{
+			name:         "zero shutdown_complete_concurrency",
+			modifyConfig: func(cfg *Config) { cfg.ShutdownCompleteConcurrency = 0 },
+			expectedErr:  "shutdown_complete_concurrency must be greater than 0",
+		},
+		{
+			name:         "negative shutdown_complete_concurrency",
+			modifyConfig: func(cfg *Config) { cfg.ShutdownCompleteConcurrency = -1 },
+			expectedErr:  "shutdown_complete_concurrency must be greater than 0",
+		},
 	}
 
 	for _, tt := range tests {

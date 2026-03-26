@@ -116,7 +116,9 @@ func TestLiveStoreReplaysTraceInLiveTraces(t *testing.T) {
 	require.NoError(t, err)
 
 	requireTraceInLiveStore(t, liveStore, expectedID, expectedTrace)
-	requireInstanceState(t, liveStore.instances[testTenantID], instanceState{liveTraces: 0, walBlocks: 1, completeBlocks: 0})
+	// The parallel shutdown path completes WAL blocks during stopping(), so after restart
+	// the block is a completeBlock rather than a walBlock.
+	requireInstanceState(t, liveStore.instances[testTenantID], instanceState{liveTraces: 0, walBlocks: 0, completeBlocks: 1})
 }
 
 func TestLiveStoreReplaysTraceInHeadBlock(t *testing.T) {
@@ -144,7 +146,9 @@ func TestLiveStoreReplaysTraceInHeadBlock(t *testing.T) {
 	require.NoError(t, err)
 
 	requireTraceInLiveStore(t, liveStore, expectedID, expectedTrace)
-	requireInstanceState(t, liveStore.instances[testTenantID], instanceState{liveTraces: 0, walBlocks: 1, completeBlocks: 0})
+	// The parallel shutdown path completes WAL blocks during stopping(), so after restart
+	// the block is a completeBlock rather than a walBlock.
+	requireInstanceState(t, liveStore.instances[testTenantID], instanceState{liveTraces: 0, walBlocks: 0, completeBlocks: 1})
 }
 
 func TestLiveStoreReplaysTraceInWalBlocks(t *testing.T) {
@@ -176,7 +180,9 @@ func TestLiveStoreReplaysTraceInWalBlocks(t *testing.T) {
 	require.NoError(t, err)
 
 	requireTraceInLiveStore(t, liveStore, expectedID, expectedTrace)
-	requireInstanceState(t, liveStore.instances[testTenantID], instanceState{liveTraces: 0, walBlocks: 1, completeBlocks: 0})
+	// The parallel shutdown path completes WAL blocks during stopping(), so after restart
+	// the block is a completeBlock rather than a walBlock.
+	requireInstanceState(t, liveStore.instances[testTenantID], instanceState{liveTraces: 0, walBlocks: 0, completeBlocks: 1})
 }
 
 func TestLiveStoreReplaysTraceInCompleteBlocks(t *testing.T) {
@@ -811,7 +817,7 @@ func TestIsLagged(t *testing.T) {
 			lastRecordNano: -1, // no last record yet
 			end:            now,
 			expectedLagged: true,
-			description:    "When no last record yet, should not be lagged",
+			description:    "When no last record yet, isLagged should return true (conservative: prefer error over incomplete results)",
 		},
 		{
 			name:           "no lag - recent request - not lagged",
@@ -956,6 +962,120 @@ func TestLiveStoreRemovesPartitionOwnerOnShutdown(t *testing.T) {
 	_ = services.StopAndAwaitTerminated(t.Context(), liveStore)
 
 	requirePartitionOwnerEventually(t, partitionKV, cfg.Ring.InstanceID, false, "owner should be removed after shutdown when RemoveOwnerOnShutdown is true")
+}
+
+// TestShutdownParallelCompletion verifies that stopping() completes all pending WAL blocks
+// via the parallel shutdown path, even when background processes are disabled.
+func TestShutdownParallelCompletion(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	cfg := defaultConfig(t, tmpDir)
+	cfg.holdAllBackgroundProcesses = true // no background workers — only shutdown path can complete
+	cfg.ShutdownCompleteConcurrency = 4
+
+	liveStore, err := liveStoreWithConfig(t, cfg)
+	require.NoError(t, err)
+
+	tenants := []string{"tenant-a", "tenant-b", "tenant-c"}
+
+	// For each tenant: push a trace, cut it to a WAL block.
+	for _, tid := range tenants {
+		inst, err := liveStore.getOrCreateInstance(tid)
+		require.NoError(t, err)
+
+		id := test.ValidTraceID(nil)
+		tr := test.MakeTrace(5, id)
+		traceBytes, err := proto.Marshal(tr)
+		require.NoError(t, err)
+		req := &tempopb.PushBytesRequest{
+			Traces: []tempopb.PreallocBytes{{Slice: traceBytes}},
+			Ids:    [][]byte{id},
+		}
+		records, err := ingest.Encode(0, tid, req, 1_000_000)
+		require.NoError(t, err)
+		now := time.Now()
+		for _, r := range records {
+			r.Timestamp = now
+		}
+		_, err = liveStore.consume(t.Context(), createRecordIter(records), now)
+		require.NoError(t, err)
+
+		err = inst.cutIdleTraces(true)
+		require.NoError(t, err)
+		_, err = inst.cutBlocks(true)
+		require.NoError(t, err)
+
+		requireInstanceState(t, inst, instanceState{liveTraces: 0, walBlocks: 1, completeBlocks: 0})
+	}
+
+	// Call stopping() — the parallel shutdown path must complete all WAL blocks.
+	// stopping() return value ignored; any reader stop errors are non-fatal in this test context.
+	_ = liveStore.stopping(nil)
+
+	// All WAL blocks must now be completed.
+	for _, tid := range tenants {
+		inst, err := liveStore.getOrCreateInstance(tid)
+		require.NoError(t, err)
+		requireInstanceState(t, inst, instanceState{liveTraces: 0, walBlocks: 0, completeBlocks: 1})
+	}
+}
+
+// TestShutdownParallelCompletionWithEncodingError verifies that an error completing one
+// block does not prevent other blocks from completing during parallel shutdown.
+func TestShutdownParallelCompletionWithEncodingError(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	cfg := defaultConfig(t, tmpDir)
+	cfg.holdAllBackgroundProcesses = true // no background workers — only shutdown path can complete
+	cfg.ShutdownCompleteConcurrency = 4
+
+	liveStore, err := liveStoreWithConfig(t, cfg)
+	require.NoError(t, err)
+
+	pushAndCutToWAL := func(t *testing.T, ls *LiveStore, tid string) *instance {
+		t.Helper()
+		inst, err := ls.getOrCreateInstance(tid)
+		require.NoError(t, err)
+
+		id := test.ValidTraceID(nil)
+		tr := test.MakeTrace(5, id)
+		traceBytes, err := proto.Marshal(tr)
+		require.NoError(t, err)
+		req := &tempopb.PushBytesRequest{
+			Traces: []tempopb.PreallocBytes{{Slice: traceBytes}},
+			Ids:    [][]byte{id},
+		}
+		records, err := ingest.Encode(0, tid, req, 1_000_000)
+		require.NoError(t, err)
+		now := time.Now()
+		for _, r := range records {
+			r.Timestamp = now
+		}
+		_, err = ls.consume(t.Context(), createRecordIter(records), now)
+		require.NoError(t, err)
+		require.NoError(t, inst.cutIdleTraces(true))
+		_, err = inst.cutBlocks(true)
+		require.NoError(t, err)
+		return inst
+	}
+
+	instA := pushAndCutToWAL(t, liveStore, "tenant-error")
+	instB := pushAndCutToWAL(t, liveStore, "tenant-ok")
+
+	// Inject encoding error into tenant A
+	enc := &erroredEnc{VersionedEncoding: instA.completeBlockEncoding}
+	enc.SetError(errors.New("forced encoding error"))
+	instA.completeBlockEncoding = enc
+
+	// stopping() must not block or panic even though tenant-error will fail.
+	// stopping() return value ignored; any reader stop errors are non-fatal in this test context.
+	_ = liveStore.stopping(nil)
+
+	// Tenant B should be completed successfully.
+	requireInstanceState(t, instB, instanceState{liveTraces: 0, walBlocks: 0, completeBlocks: 1})
+
+	// Tenant A's block was not completed (error path), WAL block remains for retry on restart.
+	requireInstanceState(t, instA, instanceState{liveTraces: 0, walBlocks: 1, completeBlocks: 0})
 }
 
 func requirePartitionOwnerEventually(t *testing.T, partitionKV kv.Client, instanceID string, expected bool, msg string) {

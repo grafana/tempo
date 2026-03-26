@@ -32,6 +32,11 @@ type Config struct {
 	CompleteBlockTimeout     time.Duration `yaml:"complete_block_timeout"`
 	CompleteBlockConcurrency int           `yaml:"complete_block_concurrency,omitempty"`
 
+	// ShutdownCompleteConcurrency controls how many WAL blocks are completed in
+	// parallel during shutdown. Higher values reduce shutdown time but increase
+	// I/O and memory pressure. Defaults to 16.
+	ShutdownCompleteConcurrency int `yaml:"shutdown_complete_concurrency,omitempty"`
+
 	// ShutdownMarkerDir is the path to the shutdown marker directory
 	ShutdownMarkerDir string `yaml:"shutdown_marker_dir"`
 
@@ -92,6 +97,7 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 	cfg.CompleteBlockTimeout = defaultCompleteBlockTimeout
 	cfg.QueryBlockConcurrency = 10
 	cfg.CompleteBlockConcurrency = 2
+	cfg.ShutdownCompleteConcurrency = 16
 	cfg.Metrics.TimeOverlapCutoff = 0.2
 
 	// Set defaults for timing configuration (based on ingester defaults)
@@ -121,6 +127,7 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 	f.DurationVar(&cfg.ReadinessTargetLag, prefix+".readiness-target-lag", cfg.ReadinessTargetLag, "Target lag threshold before live-store is ready. 0 disables waiting (backward compatible).")
 	f.DurationVar(&cfg.ReadinessMaxWait, prefix+".readiness-max-wait", cfg.ReadinessMaxWait, "Maximum time to wait for catching up at startup. Only used if readiness-target-lag > 0.")
 	f.BoolVar(&cfg.RemoveOwnerOnShutdown, prefix+".remove-owner-on-shutdown", cfg.RemoveOwnerOnShutdown, "Remove partition owner from the ring on shutdown.")
+	f.IntVar(&cfg.ShutdownCompleteConcurrency, prefix+".shutdown-complete-concurrency", cfg.ShutdownCompleteConcurrency, "Number of WAL blocks to complete in parallel during shutdown.")
 
 	cfg.WAL.RegisterFlags(f) // WAL config has no flags, only defaults
 	f.StringVar(&cfg.WAL.Filepath, prefix+".wal.path", "/var/tempo/live-store/traces", "Path at which store WAL blocks.")
@@ -138,6 +145,10 @@ func (cfg *Config) Validate() error {
 
 	if cfg.CompleteBlockConcurrency <= 0 {
 		return fmt.Errorf("complete_block_concurrency must be greater than 0, got %d", cfg.CompleteBlockConcurrency)
+	}
+
+	if cfg.ShutdownCompleteConcurrency <= 0 {
+		return fmt.Errorf("shutdown_complete_concurrency must be greater than 0, got %d", cfg.ShutdownCompleteConcurrency)
 	}
 
 	if cfg.InstanceFlushPeriod <= 0 {
