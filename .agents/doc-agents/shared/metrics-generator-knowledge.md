@@ -179,7 +179,7 @@ The `local-blocks` processor and all local block storage plumbing are removed in
 
 The `SpanMetricsSummary` API and related querier logic are removed.
 
-#### Livestore decoupling
+#### Live-store decoupling
 
 - Recent-data TraceQL metrics queries are now served by the live-store, **not** the metrics-generator (PRs #6506, #6535, #6615).
 - The querier uses `forLiveStoreMetricsRing` to query the live-store's `MetricsClient`.
@@ -199,7 +199,7 @@ The `SpanMetricsSummary` API and related querier logic are removed.
 
 ## Configuration Reference Locations
 
-- Main config reference: `docs/sources/tempo/configuration/_index.md` (check for current line numbers — they shift between versions)
+- Main config reference: `docs/sources/tempo/configuration/_index.md` 
 - User-configurable overrides: `docs/sources/tempo/configuration/_index.md`
 - Operations overrides: `docs/sources/tempo/operations/manage-advanced-systems/user-configurable-overrides.md`
 

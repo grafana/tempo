@@ -14,7 +14,7 @@ Regardless of which workflow you use, your responsibilities are:
 - Answer questions from the agent
 - Review drafts and outputs
 - Approve or edit the content
-- Decide when to commit a PR
+- Decide when to commit and open a PR
 
 The agents and skills handle research, drafting, structure, validation, and formatting automatically.
 
