@@ -86,7 +86,7 @@ metrics_generator:
 
 **Solution**:
 - Explicitly state `source_labels` must use original attribute names (with dots)
-- Explain `dimensions` and `dimension_mappings` are alternatives, not complementary
+- Explain that you can use `dimensions` and `dimension_mappings` together, but mapped label names must not collide (after sanitization) with intrinsic dimensions or labels configured via `dimensions`
 - Provide clear example showing actual renaming, not default sanitization
 
 **Key Insight**: `dimension_mappings` reads directly from original span attributes, not from `dimensions` output.

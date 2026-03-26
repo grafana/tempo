@@ -76,7 +76,7 @@ Example handoff row (check → write):
 - `docs-pr-write` implements the required docs updates and validates against code.
 - `docs-review` checks the result for style, frontmatter, links, and accuracy.
 
-Neither skill should be used as a substitute for release-notes assembly unless explicitly requested.
+These skills and the `/docs-workflow` command shouldn't be used as a substitute for release-notes assembly unless explicitly requested.
 
 ## When to use this vs. the writer-agent
 
