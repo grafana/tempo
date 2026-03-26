@@ -219,11 +219,12 @@ func (t *App) Run() error {
 		for m, s := range serviceMap {
 			if s == service {
 				err := service.FailureCase()
-				if errors.Is(err, modules.ErrStopProcess) {
+				switch {
+				case errors.Is(err, modules.ErrStopProcess):
 					level.Info(log.Logger).Log("msg", "received stop signal via return error", "module", m, "err", err)
-				} else if errors.Is(err, context.Canceled) {
+				case errors.Is(err, context.Canceled):
 					return
-				} else if err != nil {
+				case err != nil:
 					level.Error(log.Logger).Log("msg", "module failed", "module", m, "err", err)
 				}
 				return
@@ -522,7 +523,7 @@ func (t *App) writeStatusEndpoints(w io.Writer) error {
 		return fmt.Errorf("error walking routes: %w", err)
 	}
 
-	sort.Slice(endpoints[:], func(i, j int) bool {
+	sort.Slice(endpoints, func(i, j int) bool {
 		return endpoints[i].name < endpoints[j].name
 	})
 
