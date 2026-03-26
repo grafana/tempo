@@ -24,7 +24,7 @@ These features are available for **multiple processors**:
 - `dimensions` - Available in both `span-metrics` and `service-graphs`
 - `histogram_buckets` - Available in both processors
 - `span_multiplier_key` - Available in both processors
-- `filter_policies` - Available in span-metrics
+- `filter_policies` - Available in both `span-metrics` and `service-graphs`
 
 **Code Locations**: 
 - `modules/generator/processor/spanmetrics/config.go`
@@ -72,6 +72,7 @@ metrics_generator:
       dimensions: []
       histogram_buckets: []
       span_multiplier_key: ""
+      filter_policies: []
 ```
 
 ## Common User Confusion Points
@@ -150,7 +151,7 @@ Tempo 3.0 (Project Rhythm) restructures how the metrics-generator receives data 
 | **local-blocks processor** | Supported | **Removed** (PR #6555) |
 | **Recent-data metrics queries** | Served by metrics-generator / ingesters | Served by **live-store** |
 | **SpanMetricsSummary API** | Supported | **Removed** (PRs #6496, #6510) |
-| **gRPC server** | Always on | Optional (`disable_grpc`) |
+| **gRPC server** | Always on | Optional (controlled by generator mode; `disable_grpc` is deprecated and ignored) |
 | **Valid processors** | service-graphs, span-metrics, local-blocks, host-info | service-graphs, span-metrics, host-info |
 
 #### Kafka ingestion
@@ -158,14 +159,14 @@ Tempo 3.0 (Project Rhythm) restructures how the metrics-generator receives data 
 The metrics-generator now consumes trace data from Kafka instead of (or in addition to) receiving `PushSpans` from the distributor.
 
 - **Implementation**: `modules/generator/generator_kafka.go`
-- **Config**: `metrics_generator.ingest` block — address, topic, consumer group, etc.
+- **Config**: top-level `ingest` block — address, topic, consumer group, etc. (injected into the generator at runtime; the generator config uses `yaml:"-"` so it doesn't appear under `metrics_generator`)
 - **Codec**: `push-bytes` (default) or `otlp` (`modules/generator/config.go`)
 - **Concurrency**: `ingest_concurrency` (default 16)
 
 #### Two generator modes
 
 - **`MetricsGenerator`** (traditional) — Uses ring + memberlist. Can receive PushSpans and/or consume Kafka. gRPC optional.
-- **`MetricsGeneratorNoLocalBlocks`** — Kafka-only mode. Uses partition ring watcher, `disable_grpc: true`, requires `ingest.enabled`.
+- **`MetricsGeneratorNoLocalBlocks`** — Kafka-only mode. Uses partition ring watcher, requires `ingest.enabled`. (The `disable_grpc` config key is deprecated and ignored.)
 
 **Code Reference**: `cmd/tempo/app/modules.go`
 
@@ -208,7 +209,7 @@ The `SpanMetricsSummary` API and related querier logic are removed.
 ### Generator Core (v3)
 - `modules/generator/generator.go` - Main generator logic, `startKafka()`
 - `modules/generator/generator_kafka.go` - Kafka consumer implementation
-- `modules/generator/config.go` - Config struct including `Ingest`, `Codec`, `DisableGrpc`
+- `modules/generator/config.go` - Config struct including `Ingest`, `Codec`, `DisableGRPC` (deprecated)
 - `pkg/ingest/encoding.go` - `PushBytesDecoder` and `OTLPDecoder` for Kafka records
 - `cmd/tempo/app/modules.go` - Module registration for both generator modes
 

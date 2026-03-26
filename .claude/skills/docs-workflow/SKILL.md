@@ -1,6 +1,6 @@
 ---
 name: docs-workflow
-description: End-to-end workflow for PR documentation — check, write, review. Use when PRs have shipped and need documentation.
+description: End-to-end workflow for PR documentation — check, write, review. Use at any stage of documenting PR changes.
 allowed-tools: Bash Read Grep Write
 ---
 
