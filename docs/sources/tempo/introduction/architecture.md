@@ -47,7 +47,7 @@ A write is only acknowledged to the client after Kafka has confirmed receipt of 
 
 ### Kafka-compatible system
 
-Tempo uses a Kafka-compatible system (such as Apache Kafka or Warpstream) as a durable queue between distributors and downstream components.
+Tempo uses a Kafka-compatible system (such as Apache Kafka or WarpStream) as a durable queue between distributors and downstream components.
 This serves as a write-ahead log (WAL) that enables the decoupling of write and read paths.
 
 When distributors receive trace data, they shard traces by trace ID and write records to Kafka partitions.

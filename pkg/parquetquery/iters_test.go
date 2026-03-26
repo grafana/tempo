@@ -403,3 +403,246 @@ func BenchmarkIteratorResultAppend(b *testing.B) {
 		})
 	}
 }
+
+type testIterator struct {
+	rows []IteratorResult
+	i    int
+}
+
+var _ Iterator = (*testIterator)(nil)
+
+func (t *testIterator) Next() (*IteratorResult, error) {
+	if t.i >= len(t.rows) {
+		return nil, nil
+	}
+
+	r := &t.rows[t.i]
+	t.i++
+	return r, nil
+}
+
+func (t *testIterator) SeekTo(to RowNumber, d int) (*IteratorResult, error) {
+	for j := t.i; j < len(t.rows); j++ {
+		if EqualRowNumber(d, t.rows[j].RowNumber, to) {
+			t.i = j + 1
+			return &t.rows[j], nil
+		}
+	}
+	return nil, nil
+}
+
+func (t *testIterator) Close() {
+}
+
+func (t *testIterator) String() string {
+	return "testIterator"
+}
+
+func TestLeftJoinUp(t *testing.T) {
+	// Defined at level 0
+	iter1 := &testIterator{rows: []IteratorResult{
+		testResult("x", "A", 1),
+		testResult("x", "B", 2),
+	}}
+
+	// Defined at level 1
+	iter2 := &testIterator{rows: []IteratorResult{
+		testResult("y", "A", 1, 0),
+		testResult("y", "B", 1, 1),
+		testResult("y", "C", 2, 0),
+	}}
+
+	expected := []IteratorResult{
+		{
+			RowNumber: rn(1),
+			OtherEntries: []struct {
+				Key   string
+				Value interface{}
+			}{
+				{Key: "x", Value: "A"},
+				{Key: "y", Value: "A"},
+				{Key: "y", Value: "B"},
+			},
+		},
+		{
+			RowNumber: rn(2),
+			OtherEntries: []struct {
+				Key   string
+				Value interface{}
+			}{
+				{Key: "x", Value: "B"},
+				{Key: "y", Value: "C"},
+			},
+		},
+	}
+
+	got := []IteratorResult{}
+
+	j, err := NewLeftJoinIterator(0, []Iterator{iter1, iter2}, nil, nil)
+	require.NoError(t, err)
+
+	for {
+		res, err := j.Next()
+		require.NoError(t, err)
+		if res == nil {
+			break
+		}
+		got = append(got, clone(res))
+	}
+
+	require.Equal(t, expected, got)
+}
+
+func TestLeftJoinDown(t *testing.T) {
+	iter1DefLevel := 2
+	iter1 := &testIterator{rows: []IteratorResult{
+		testResult("x", "A", 0, 0, 1),
+		testResult("x", "B", 0, 0, 2),
+		testResult("x", "C", 0, 0, 3),
+	}}
+
+	// Defined at level iter2DefLevel
+	iter2DefLevel := 3
+	iter2 := &testIterator{rows: []IteratorResult{
+		testResult("y", "A1", 0, 0, 1, 0),
+		testResult("y", "A2", 0, 0, 1, 1),
+		testResult("y", "B1", 0, 0, 2, 0),
+		testResult("y", "B2", 0, 0, 2, 1),
+		testResult("y", "C", 0, 0, 3, 0),
+	}}
+
+	var buf IteratorResult
+
+	testCollector := &testCollector{
+		reset: func(rowNumber RowNumber) {
+			buf.Reset()
+			buf.RowNumber = rowNumber
+		},
+		collect: func(r *IteratorResult, _ any) {
+			buf.Append(r)
+		},
+		result: func() *IteratorResult {
+			return &buf
+		},
+	}
+
+	expected := []IteratorResult{
+		{
+			RowNumber: rn(0, 0, 1, 0),
+			OtherEntries: []struct {
+				Key   string
+				Value interface{}
+			}{
+				{Key: "y", Value: "A1"},
+				{Key: "x", Value: "A"},
+			},
+		},
+		{
+			RowNumber: rn(0, 0, 1, 1),
+			OtherEntries: []struct {
+				Key   string
+				Value interface{}
+			}{
+				{Key: "y", Value: "A2"},
+			},
+		},
+		{
+			RowNumber: rn(0, 0, 2, 0),
+			OtherEntries: []struct {
+				Key   string
+				Value interface{}
+			}{
+				{Key: "y", Value: "B1"},
+				{Key: "x", Value: "B"},
+			},
+		},
+		{
+			RowNumber: rn(0, 0, 2, 1),
+			OtherEntries: []struct {
+				Key   string
+				Value interface{}
+			}{
+				{Key: "y", Value: "B2"},
+			},
+		},
+		{
+			RowNumber: rn(0, 0, 3, 0),
+			OtherEntries: []struct {
+				Key   string
+				Value interface{}
+			}{
+				{Key: "y", Value: "C"},
+				{Key: "x", Value: "C"},
+			},
+		},
+	}
+
+	got := []IteratorResult{}
+
+	j, err := NewLeftJoinIterator(1, nil, nil, nil,
+		// Primary iterator is down to level 1.
+		WithIterator(iter2DefLevel, iter2, false, nil),
+		WithIterator(iter1DefLevel, iter1, true, nil),
+		WithCollector(testCollector),
+	)
+	require.NoError(t, err)
+
+	for {
+		res, err := j.Next()
+		require.NoError(t, err)
+		if res == nil {
+			break
+		}
+		got = append(got, clone(res))
+	}
+
+	require.Equal(t, expected, got)
+}
+
+func rn(rowNumbers ...int32) RowNumber {
+	rn := EmptyRowNumber()
+	copy(rn[:], rowNumbers)
+	return rn
+}
+
+func testResult(key, value string, rowNumbers ...int32) IteratorResult {
+	return IteratorResult{
+		RowNumber: rn(rowNumbers...),
+		OtherEntries: []struct {
+			Key   string
+			Value interface{}
+		}{
+			{Key: key, Value: value},
+		},
+	}
+}
+
+func clone(r *IteratorResult) IteratorResult {
+	o := IteratorResult{
+		RowNumber: r.RowNumber,
+	}
+	o.Append(r)
+	return o
+}
+
+type testCollector struct {
+	reset   func(rowNumber RowNumber)
+	collect func(r *IteratorResult, param any)
+	result  func() *IteratorResult
+}
+
+var _ Collector = (*testCollector)(nil)
+
+func (c *testCollector) Reset(rowNumber RowNumber) {
+	c.reset(rowNumber)
+}
+
+func (c *testCollector) Collect(r *IteratorResult, param any) {
+	c.collect(r, param)
+}
+
+func (c *testCollector) Result() *IteratorResult {
+	return c.result()
+}
+
+func (c *testCollector) Close() {}

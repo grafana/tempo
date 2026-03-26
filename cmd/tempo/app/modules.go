@@ -64,7 +64,6 @@ const (
 	CacheProvider  string = "cache-provider"
 
 	// rings
-	MetricsGeneratorRing string = "metrics-generator-ring"
 	LiveStoreRing        string = "live-store-ring"
 	PartitionRing        string = "partition-ring"
 	GeneratorRingWatcher string = "generator-ring-watcher"
@@ -84,8 +83,7 @@ const (
 	SingleBinary string = "all"
 
 	// ring names
-	ringMetricsGenerator string = "metrics-generator"
-	ringLiveStore        string = "live-store"
+	ringLiveStore string = "live-store"
 )
 
 func IsSingleBinary(target string) bool {
@@ -152,10 +150,6 @@ func (t *App) initInternalServer() (services.Service, error) {
 	s := NewServerService(t.InternalServer, servicesToWaitFor)
 
 	return s, nil
-}
-
-func (t *App) initGeneratorRing() (services.Service, error) {
-	return t.initReadRing(t.cfg.Generator.Ring.ToRingConfig(), ringMetricsGenerator, t.cfg.Generator.OverrideRingKey)
 }
 
 func (t *App) initLiveStoreRing() (services.Service, error) {
@@ -248,16 +242,24 @@ func (t *App) initOverridesAPI() (services.Service, error) {
 }
 
 func (t *App) initDistributor() (services.Service, error) {
+	singleBinary := IsSingleBinary(t.cfg.Target)
+
 	t.cfg.Distributor.KafkaConfig = t.cfg.Ingest.Kafka
-	t.cfg.Distributor.IngesterWritePathEnabled = false
-	t.cfg.Distributor.KafkaWritePathEnabled = t.cfg.Ingest.Enabled // TODO: Don't mix config params
+	t.cfg.Distributor.PushSpansToKafka = true
+
+	var pushSpansToLocalGenerator distributor.PushSpansFunc
+	if singleBinary {
+		pushSpansToLocalGenerator = func(ctx context.Context, req *tempopb.PushSpansRequest) (*tempopb.PushResponse, error) {
+			if t.generator == nil {
+				return nil, errors.New("metrics-generator not initialized")
+			}
+			return t.generator.PushSpans(ctx, req)
+		}
+	}
 
 	// todo: make write-path client a module instead of passing the config everywhere
 	distributor, err := distributor.New(t.cfg.Distributor,
-		t.cfg.IngesterClient,
-		t.readRings[ringLiveStore],
-		t.cfg.GeneratorClient,
-		t.readRings[ringMetricsGenerator],
+		pushSpansToLocalGenerator,
 		t.partitionRing,
 		t.Overrides,
 		t.TracesConsumerMiddleware,
@@ -279,13 +281,15 @@ func (t *App) initDistributor() (services.Service, error) {
 }
 
 func (t *App) initGenerator() (services.Service, error) {
-	t.cfg.Generator.Ring.ListenPort = t.cfg.Server.GRPCListenPort
+	t.configureGenerator()
 
-	t.cfg.Generator.Ingest = t.cfg.Ingest
-	t.cfg.Generator.Ingest.Kafka.ConsumerGroup = generator.ConsumerGroup
+	ringReader, err := t.generatorRingReader()
+	if err != nil {
+		return nil, err
+	}
 
-	genSvc, err := generator.New(&t.cfg.Generator, t.Overrides, prometheus.DefaultRegisterer, t.partitionRing, log.Logger)
-	if errors.Is(err, generator.ErrUnconfigured) && t.cfg.Target != MetricsGenerator { // just warn if we're not running the metrics-generator
+	genSvc, err := generator.New(&t.cfg.Generator, t.Overrides, prometheus.DefaultRegisterer, ringReader, log.Logger)
+	if errors.Is(err, generator.ErrUnconfigured) && t.cfg.Target != MetricsGenerator && t.cfg.Target != MetricsGeneratorNoLocalBlocks { // just warn if we're not running the metrics-generator
 		level.Warn(log.Logger).Log("msg", "metrics-generator is not configured.", "err", err)
 		return services.NewIdleService(nil, nil), nil
 	}
@@ -294,43 +298,53 @@ func (t *App) initGenerator() (services.Service, error) {
 	}
 	t.generator = genSvc
 
-	spanStatsHandler := t.HTTPAuthMiddleware.Wrap(http.HandlerFunc(t.generator.SpanMetricsHandler))
-	t.Server.HTTPRouter().Handle(path.Join(api.PathPrefixGenerator, addHTTPAPIPrefix(&t.cfg, api.PathSpanMetrics)), spanStatsHandler)
+	return t.generator, nil
+}
 
-	queryRangeHandler := t.HTTPAuthMiddleware.Wrap(http.HandlerFunc(t.generator.QueryRangeHandler))
-	t.Server.HTTPRouter().Handle(path.Join(api.PathPrefixGenerator, addHTTPAPIPrefix(&t.cfg, api.PathMetricsQueryRange)), queryRangeHandler)
+func (t *App) configureGenerator() {
+	t.cfg.Generator.Ingest = t.cfg.Ingest
+	t.cfg.Generator.ConsumeFromKafka = !IsSingleBinary(t.cfg.Target)
+	if t.cfg.Generator.ConsumeFromKafka && t.cfg.Generator.RingMode == generator.RingModePartition {
+		t.cfg.Generator.Ingest.Kafka.ConsumerGroup = generator.ConsumerGroup
+	}
+}
 
-	if !IsSingleBinary(t.cfg.Target) {
-		tempopb.RegisterMetricsGeneratorServer(t.Server.GRPC(), t.generator) // todo: this can be removed before 3.0 but needs to exist as long as we have any deployments anywhere on the traditional arch
+func (t *App) generatorRingReader() (ring.PartitionRingReader, error) {
+	if IsSingleBinary(t.cfg.Target) {
+		return nil, nil
 	}
 
-	return t.generator, nil
+	switch t.cfg.Generator.RingMode {
+	case generator.RingModePartition:
+		if t.partitionRing == nil {
+			return nil, errors.New("metrics-generator ring mode is partition but partition ring is not initialized")
+		}
+		return t.partitionRing, nil
+	case generator.RingModeGenerator:
+		if t.generatorRingWatcher == nil {
+			return nil, errors.New("metrics-generator ring mode is generator but generator ring watcher is not initialized")
+		}
+		return t.generatorRingWatcher, nil
+	default:
+		return nil, fmt.Errorf(
+			"invalid metrics-generator ring mode %q, must be one of: %q, %q",
+			t.cfg.Generator.RingMode,
+			generator.RingModePartition,
+			generator.RingModeGenerator,
+		)
+	}
 }
 
 func (t *App) initGeneratorNoLocalBlocks() (services.Service, error) {
-	reg := prometheus.DefaultRegisterer
-
-	t.cfg.Generator.Ingest = t.cfg.Ingest
-
-	// In this mode, the generator runs as a stateless queue consumer that reads from
-	// Kafka and remote writes to a Prometheus-compatible metrics store.
-	if !t.cfg.Ingest.Enabled {
-		return nil, errors.New("ingest storage must be enabled to run metrics generator in this mode")
-	}
-	// In this mode, the generator does not need to become available to serve
-	// queries, so we can skip setting up a gRPC server.
-	t.cfg.Generator.DisableGRPC = true
-
-	var err error
-	t.generator, err = generator.New(&t.cfg.Generator, t.Overrides, reg, t.generatorRingWatcher, log.Logger)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create metrics-generator: %w", err)
-	}
-
-	return t.generator, nil
+	t.cfg.Generator.RingMode = generator.RingModeGenerator
+	return t.initGenerator()
 }
 
 func (t *App) initGeneratorRingWatcher() (services.Service, error) {
+	if IsSingleBinary(t.cfg.Target) || t.cfg.Generator.RingMode != generator.RingModeGenerator {
+		return services.NewIdleService(nil, nil), nil
+	}
+
 	reg := prometheus.DefaultRegisterer
 
 	kvRegisterer := kv.RegistererWithKVName(reg, t.cfg.Generator.OverrideRingKey+"-watcher")
@@ -356,13 +370,11 @@ func (t *App) initGeneratorRingWatcher() (services.Service, error) {
 }
 
 func (t *App) initBlockBuilder() (services.Service, error) {
-	if !t.cfg.Ingest.Enabled {
-		return services.NewIdleService(nil, nil), nil
-	}
-
 	t.cfg.BlockBuilder.IngestStorageConfig = t.cfg.Ingest
 	t.cfg.BlockBuilder.IngestStorageConfig.Kafka.ConsumerGroup = blockbuilder.ConsumerGroup
-	t.cfg.BlockBuilder.GlobalBlockConfig = t.cfg.StorageConfig.Trace.Block
+	// Block config and WAL version are always sourced from storage.trace.block.
+	t.cfg.BlockBuilder.BlockConfig.BlockConfig = *t.cfg.StorageConfig.Trace.Block
+	t.cfg.BlockBuilder.WAL.Version = t.cfg.StorageConfig.Trace.Block.Version
 
 	if IsSingleBinary(t.cfg.Target) && len(t.cfg.BlockBuilder.AssignedPartitionsMap) == 0 {
 		// In SingleBinary mode always use partition 0. This is for small installs or local/debugging setups.
@@ -675,10 +687,6 @@ func (t *App) initBackendWorker() (services.Service, error) {
 }
 
 func (t *App) initLiveStore() (services.Service, error) {
-	if !t.cfg.Ingest.Enabled {
-		return services.NewIdleService(nil, nil), nil
-	}
-
 	// In SingleBinary mode don't try to discover partition from host name.
 	// Always use partition 0. This is for small installs or local/debugging setups.
 	singlePartition := IsSingleBinary(t.cfg.Target)
@@ -686,7 +694,9 @@ func (t *App) initLiveStore() (services.Service, error) {
 	// Inject config from other locations.
 	t.cfg.LiveStore.IngestConfig = t.cfg.Ingest
 	t.cfg.LiveStore.Ring.ListenPort = t.cfg.Server.GRPCListenPort
-	t.cfg.LiveStore.GlobalBlockConfig = t.cfg.StorageConfig.Trace.Block
+	// Block config and WAL version are always sourced from storage.trace.block.
+	t.cfg.LiveStore.BlockConfig = *t.cfg.StorageConfig.Trace.Block
+	t.cfg.LiveStore.WAL.Version = t.cfg.StorageConfig.Trace.Block.Version
 
 	var err error
 	t.liveStore, err = livestore.New(t.cfg.LiveStore, t.Overrides, log.Logger, prometheus.DefaultRegisterer, singlePartition)
@@ -721,7 +731,6 @@ func (t *App) setupModuleManager() error {
 	mm.RegisterModule(OverridesAPI, t.initOverridesAPI)
 	mm.RegisterModule(UsageReport, t.initUsageReport)
 	mm.RegisterModule(CacheProvider, t.initCacheProvider, modules.UserInvisibleModule)
-	mm.RegisterModule(MetricsGeneratorRing, t.initGeneratorRing, modules.UserInvisibleModule)
 	mm.RegisterModule(GeneratorRingWatcher, t.initGeneratorRingWatcher, modules.UserInvisibleModule)
 	mm.RegisterModule(LiveStoreRing, t.initLiveStoreRing, modules.UserInvisibleModule)
 	mm.RegisterModule(PartitionRing, t.initPartitionRing, modules.UserInvisibleModule)
@@ -749,7 +758,6 @@ func (t *App) setupModuleManager() error {
 		OverridesAPI:         {Server, Overrides},
 		MemberlistKV:         {Server},
 		UsageReport:          {MemberlistKV},
-		MetricsGeneratorRing: {Server, MemberlistKV},
 		LiveStoreRing:        {Server, MemberlistKV},
 		PartitionRing:        {MemberlistKV, Server, LiveStoreRing},
 		GeneratorRingWatcher: {MemberlistKV},
@@ -758,9 +766,9 @@ func (t *App) setupModuleManager() error {
 
 		// individual targets
 		QueryFrontend:                 {Common, Store, OverridesAPI},
-		Distributor:                   {Common, LiveStoreRing, MetricsGeneratorRing, PartitionRing},
-		MetricsGenerator:              {Common, MemberlistKV, PartitionRing},
-		MetricsGeneratorNoLocalBlocks: {Common, GeneratorRingWatcher},
+		Distributor:                   {Common, LiveStoreRing, PartitionRing},
+		MetricsGenerator:              {Common, MemberlistKV, PartitionRing, GeneratorRingWatcher},
+		MetricsGeneratorNoLocalBlocks: {Common, MemberlistKV, GeneratorRingWatcher},
 		Querier:                       {Common, Store, LiveStoreRing, PartitionRing},
 		BlockBuilder:                  {Common, Store, MemberlistKV, PartitionRing},
 		BackendScheduler:              {Common, Store},

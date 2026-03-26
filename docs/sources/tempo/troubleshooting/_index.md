@@ -10,7 +10,7 @@ aliases:
 # Troubleshoot Tempo
 
 This section helps with day zero operational issues that may come up when getting started with Tempo.
-The documents walk you through debugging each part of the ingestion and query pipeline to diagnose issues.
+The documents walk you through debugging each part of the write and query pipeline to diagnose issues.
 
 In addition, the [Tempo runbook](https://github.com/grafana/tempo/blob/main/operations/tempo-mixin/runbook.md) can help with remediating operational issues.
 

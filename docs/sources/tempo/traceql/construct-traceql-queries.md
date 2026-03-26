@@ -528,6 +528,8 @@ Find all traces where the event attribute `exception.message` does NOT exist:
 { event.exception.message = nil }
 ```
 
+Comparison operators can also be applied to [TraceQL metrics query results](https://grafana.com/docs/tempo/<TEMPO_VERSION>/metrics-from-traces/metrics-queries/functions/#comparison-operators) to filter data points by a threshold.
+
 ### Field expressions
 
 Fields can also be combined in various ways to allow more flexible search criteria.

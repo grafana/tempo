@@ -23,6 +23,12 @@ You can also use Docker to deploy Tempo using [the Docker examples](https://gith
 Grafana Tempo does not come with any included authentication layer. You must run an authenticating reverse proxy in front of your services to prevent unauthorized access to Tempo (for example, nginx). [Manage authentication](https://grafana.com/docs/tempo/<TEMPO_VERSION>/operations/authentication/) for more details
 {{< /admonition >}}
 
+## Kafka requirement
+
+Tempo 3.0 requires a Kafka-compatible message queue as part of its architecture.
+Distributors write incoming trace data to Kafka, and downstream components such as block-builders and live-stores consume from it.
+Any Kafka-compatible system works.
+
 ## Deploy locally
 
 Monolithic mode (single binary) is commonly used for a local installation, testing, or small-scale deployments.

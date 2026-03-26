@@ -5,7 +5,6 @@ import (
 	"testing"
 
 	"github.com/grafana/tempo/tempodb/encoding/common"
-	"github.com/grafana/tempo/tempodb/encoding/vparquet3"
 	"github.com/grafana/tempo/tempodb/encoding/vparquet5"
 	"github.com/grafana/tempo/tempodb/wal"
 	"github.com/stretchr/testify/assert"
@@ -66,7 +65,7 @@ func TestValidateConfig(t *testing.T) {
 			},
 			err: errors.New("block config should be non-nil"),
 		},
-		// block version copied to wal if empty
+		// WAL version is always set to block version
 		{
 			cfg: &Config{
 				WAL: &wal.Config{},
@@ -87,11 +86,11 @@ func TestValidateConfig(t *testing.T) {
 				},
 			},
 		},
-		// block version not copied to wal if populated
+		// WAL version is always overwritten with block version, even if previously set
 		{
 			cfg: &Config{
 				WAL: &wal.Config{
-					Version: vparquet3.VersionString,
+					Version: "vParquet3",
 				},
 				Block: &common.BlockConfig{
 					BloomFP:             0.01,
@@ -101,7 +100,7 @@ func TestValidateConfig(t *testing.T) {
 			},
 			expectedConfig: &Config{
 				WAL: &wal.Config{
-					Version: vparquet3.VersionString,
+					Version: vparquet5.VersionString,
 				},
 				Block: &common.BlockConfig{
 					BloomFP:             0.01,
@@ -128,11 +127,10 @@ func TestDeprecatedVersions(t *testing.T) {
 		expectedConfig *Config
 		err            string
 	}{
-		// block version not copied to wal if populated
 		{
 			cfg: &Config{
 				WAL: &wal.Config{
-					Version: "vParquet5-preview1", // Turned into unsupported
+					Version: "vParquet5-preview1", // silently overwritten with the block version
 				},
 				Block: &common.BlockConfig{
 					BloomFP:             0.01,
@@ -140,7 +138,27 @@ func TestDeprecatedVersions(t *testing.T) {
 					Version:             "vParquet4",
 				},
 			},
-			err: "wal config validation failed: failed to validate block version vParquet5-preview1: vParquet5-preview1 is not a valid block version for creating blocks",
+			expectedConfig: &Config{
+				WAL: &wal.Config{
+					Version: "vParquet4",
+				},
+				Block: &common.BlockConfig{
+					BloomFP:             0.01,
+					BloomShardSizeBytes: 1,
+					Version:             "vParquet4",
+				},
+			},
+		},
+		{
+			cfg: &Config{
+				WAL: &wal.Config{},
+				Block: &common.BlockConfig{
+					BloomFP:             0.01,
+					BloomShardSizeBytes: 1,
+					Version:             "vParquet5-preview1",
+				},
+			},
+			err: "vParquet5-preview1 is not a valid block version for creating blocks",
 		},
 	}
 

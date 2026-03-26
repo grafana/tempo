@@ -64,7 +64,7 @@ This allows for:
 
 - A more resilient deployment with high availability. Components can be run over multiple nodes, such as in a Kubernetes cluster, ensuring that catastrophic failure of one node does not have a failure impact for the system as a whole. Durability is provided by Kafka, which serves as the write-ahead log. Live-stores can be deployed across multiple availability zones for query availability.
 - Horizontal scaling up and down of clusters. For example, an organization may see upticks in traffic in certain periods (say, Black Friday), and need to scale up the amount of trace data being ingested for a week. Microservices mode allows them to temporarily scale up the number of block-builders, live-stores, queriers, etc. that they may need with no adverse impact on the overall system.
-- However, microservices mode has an increased TCO and maintenance cost compared to monolithic mode. While it is more flexible and scalable, it requires more attention to run proficiently. Microservices mode is the default deployment for Tempo and Grafana Enterprise Traces (GET) via the tempo-distributed Helm Chart.
+- However, microservices mode has an increased TCO and maintenance cost compared to monolithic mode. While it is more flexible and scalable, it requires more attention to run proficiently. Microservices mode is the default deployment for Tempo and Grafana Enterprise Traces via the tempo-distributed Helm Chart.
 
 The configuration associated with each component's deployment specifies a
 `target`. For example, to deploy a `querier`, the configuration would contain

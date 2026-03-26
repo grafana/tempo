@@ -13,7 +13,7 @@ Tempo uses the [Consistent Hash Ring](https://cortexmetrics.io/docs/architecture
 By default, the ring is gossiped between all Tempo components.
 However, it can be configured to use [Consul](https://www.consul.io/) or [Etcd](https://etcd.io/), if desired.
 
-There are two consistent hash rings: distributor and live-store (partition ring).
+Tempo uses several consistent hash rings. This topic describes the distributor, live-store (partition ring), and live-store rings.
 Each hash ring exists for a distinct reason.
 
 ## Distributor
@@ -57,7 +57,7 @@ The partition ring shows partition ownership across live-stores. Unhealthy live-
 
 ### Live-store
 
-**Available on:** Distributors
+**Available on:** Distributors, Queriers, Live-stores
 
 **Path:** `/live-store/ring`
 

@@ -68,7 +68,7 @@ The following is an example of how to override Tempo's `_config`:
 
 dataOverride: {
     _config+:: {
-        ingester+: {
+        live_store+: {
             pvc_size: '15Gi',
             pvc_storage_class: 'my-storage-class',
         },

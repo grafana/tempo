@@ -16,9 +16,6 @@ import (
 	"github.com/grafana/tempo/modules/distributor"
 	"github.com/grafana/tempo/modules/frontend"
 	"github.com/grafana/tempo/modules/generator"
-	generator_client "github.com/grafana/tempo/modules/generator/client"
-	"github.com/grafana/tempo/modules/ingester"
-	ingester_client "github.com/grafana/tempo/modules/ingester/client"
 	"github.com/grafana/tempo/modules/livestore"
 	livestore_client "github.com/grafana/tempo/modules/livestore/client"
 	"github.com/grafana/tempo/modules/overrides"
@@ -51,28 +48,26 @@ type Config struct {
 	EnableGoRuntimeMetrics bool          `yaml:"enable_go_runtime_metrics,omitempty"`
 	PartitionRingLiveStore bool          `yaml:"partition_ring_live_store,omitempty"` // todo: remove after rhythm migration
 
-	Memory                MemoryConfig                   `yaml:"memory,omitempty"`
-	Server                server.Config                  `yaml:"server,omitempty"`
-	InternalServer        internalserver.Config          `yaml:"internal_server,omitempty"`
-	Distributor           distributor.Config             `yaml:"distributor,omitempty"`
-	IngesterClient        ingester_client.Config         `yaml:"ingester_client,omitempty"`
-	GeneratorClient       generator_client.Config        `yaml:"metrics_generator_client,omitempty"`
-	LiveStoreClient       livestore_client.Config        `yaml:"live_store_client,omitempty"`
-	Querier               querier.Config                 `yaml:"querier,omitempty"`
-	Frontend              frontend.Config                `yaml:"query_frontend,omitempty"`
-	Ingester              ingester.Config                `yaml:"ingester,omitempty"`
-	Generator             generator.Config               `yaml:"metrics_generator,omitempty"`
-	Ingest                ingest.Config                  `yaml:"ingest,omitempty"`
-	BlockBuilder          blockbuilder.Config            `yaml:"block_builder,omitempty"`
-	StorageConfig         storage.Config                 `yaml:"storage,omitempty"`
-	Overrides             overrides.Config               `yaml:"overrides,omitempty"`
-	MemberlistKV          memberlist.KVConfig            `yaml:"memberlist,omitempty"`
-	UsageReport           usagestats.Config              `yaml:"usage_report,omitempty"`
-	CacheProvider         cache.Config                   `yaml:"cache,omitempty"`
-	BackendScheduler      backendscheduler.Config        `yaml:"backend_scheduler,omitempty"`
-	BackenSchedulerClient backendscheduler_client.Config `yaml:"backend_scheduler_client,omitempty"`
-	BackendWorker         backendworker.Config           `yaml:"backend_worker,omitempty"`
-	LiveStore             livestore.Config               `yaml:"live_store,omitempty"`
+	Memory                 MemoryConfig                   `yaml:"memory,omitempty"`
+	Server                 server.Config                  `yaml:"server,omitempty"`
+	InternalServer         internalserver.Config          `yaml:"internal_server,omitempty"`
+	Distributor            distributor.Config             `yaml:"distributor,omitempty"`
+	MetricsGeneratorClient map[string]any                 `yaml:"metrics_generator_client,omitempty"` // Deprecated: kept for one-release config compatibility.
+	LiveStoreClient        livestore_client.Config        `yaml:"live_store_client,omitempty"`
+	Querier                querier.Config                 `yaml:"querier,omitempty"`
+	Frontend               frontend.Config                `yaml:"query_frontend,omitempty"`
+	Generator              generator.Config               `yaml:"metrics_generator,omitempty"`
+	Ingest                 ingest.Config                  `yaml:"ingest,omitempty"`
+	BlockBuilder           blockbuilder.Config            `yaml:"block_builder,omitempty"`
+	StorageConfig          storage.Config                 `yaml:"storage,omitempty"`
+	Overrides              overrides.Config               `yaml:"overrides,omitempty"`
+	MemberlistKV           memberlist.KVConfig            `yaml:"memberlist,omitempty"`
+	UsageReport            usagestats.Config              `yaml:"usage_report,omitempty"`
+	CacheProvider          cache.Config                   `yaml:"cache,omitempty"`
+	BackendScheduler       backendscheduler.Config        `yaml:"backend_scheduler,omitempty"`
+	BackenSchedulerClient  backendscheduler_client.Config `yaml:"backend_scheduler_client,omitempty"`
+	BackendWorker          backendworker.Config           `yaml:"backend_worker,omitempty"`
+	LiveStore              livestore.Config               `yaml:"live_store,omitempty"`
 }
 
 func NewDefaultConfig() *Config {
@@ -144,16 +139,11 @@ func (c *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
 	// Everything else
 	flagext.DefaultValues(&c.LiveStoreClient)
 	c.LiveStoreClient.GRPCClientConfig.GRPCCompression = defaultGRPCCompression
-	flagext.DefaultValues(&c.IngesterClient)
-	c.IngesterClient.GRPCClientConfig.GRPCCompression = defaultGRPCCompression
-	flagext.DefaultValues(&c.GeneratorClient)
-	c.GeneratorClient.GRPCClientConfig.GRPCCompression = defaultGRPCCompression
 	flagext.DefaultValues(&c.BackenSchedulerClient)
 	c.BackenSchedulerClient.GRPCClientConfig.GRPCCompression = defaultGRPCCompression
 	c.Overrides.RegisterFlagsAndApplyDefaults(f)
 
 	c.Distributor.RegisterFlagsAndApplyDefaults(util.PrefixConfig(prefix, "distributor"), f)
-	c.Ingester.RegisterFlagsAndApplyDefaults(util.PrefixConfig(prefix, "ingester"), f)
 	c.Generator.RegisterFlagsAndApplyDefaults(util.PrefixConfig(prefix, "generator"), f)
 	c.Ingest.RegisterFlagsAndApplyDefaults(util.PrefixConfig(prefix, "ingest"), f)
 	c.BlockBuilder.RegisterFlagsAndApplyDefaults(util.PrefixConfig(prefix, "block-builder"), f)
@@ -175,7 +165,7 @@ func (c *Config) MultitenancyIsEnabled() bool {
 // CheckConfig checks if config values are suspect and returns a bundled list of warnings and explanation.
 func (c *Config) CheckConfig() []ConfigWarning {
 	var warnings []ConfigWarning
-	if c.Ingester.CompleteBlockTimeout < c.StorageConfig.Trace.BlocklistPoll {
+	if c.LiveStore.CompleteBlockTimeout < c.StorageConfig.Trace.BlocklistPoll {
 		warnings = append(warnings, warnCompleteBlockTimeout)
 	}
 
@@ -241,10 +231,6 @@ func (c *Config) CheckConfig() []ConfigWarning {
 		warnings = append(warnings, warnTraceByIDConcurrentShards)
 	}
 
-	if c.BlockBuilder.BlockConfig.BlockCfg.Version != c.BlockBuilder.WAL.Version {
-		warnings = append(warnings, warnBlockAndWALVersionMismatch)
-	}
-
 	if c.BackendScheduler.Work.PruneAge <= (c.StorageConfig.Trace.BlocklistPoll * 2) {
 		warnings = append(warnings, warnBackendSchedulerPruneAgeLessThanBlocklistPoll)
 	}
@@ -264,8 +250,8 @@ type ConfigWarning struct {
 
 var (
 	warnCompleteBlockTimeout = ConfigWarning{
-		Message: "ingester.complete_block_timeout < storage.trace.blocklist_poll",
-		Explain: "You may receive 404s between the time the ingesters have flushed a trace and the querier is aware of the new block",
+		Message: "live_store.complete_block_timeout < storage.trace.blocklist_poll",
+		Explain: "You may receive 404s between the time the live-store has flushed a trace and the querier is aware of the new block",
 	}
 	warnBlockRetention = ConfigWarning{
 		Message: "backend_worker.compaction.compacted_block_timeout < storage.trace.blocklist_poll",
@@ -309,11 +295,6 @@ var (
 	warnTraceByIDConcurrentShards = ConfigWarning{
 		Message: "c.Frontend.TraceByID.ConcurrentShards greater than query_shards is invalid. concurrent_shards will be set to query_shards",
 		Explain: "Please remove ConcurrentShards or set it to a value less than or equal to QueryShards",
-	}
-
-	warnBlockAndWALVersionMismatch = ConfigWarning{
-		Message: "c.BlockConfig.BlockCfg.Version != c.WAL.Version",
-		Explain: "Block version and WAL version must match. WAL version will be set to block version",
 	}
 
 	warnMCPServerEnabled = ConfigWarning{

@@ -23,6 +23,7 @@ func TestApp_RunStop(t *testing.T) {
 	}()
 
 	config := NewDefaultConfig()
+	config.Target = BackendScheduler
 	config.Server.HTTPListenPort = util.MustGetFreePort()
 	config.Server.GRPCListenPort = util.MustGetFreePort() // not used in the test; set to ensure conflict-free start
 	config.StorageConfig.Trace.Backend = backend.Local
