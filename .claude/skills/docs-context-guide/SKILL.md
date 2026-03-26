@@ -97,7 +97,6 @@ These are non-obvious facts that will cause errors if you assume the obvious:
 
 All doc skills share these rules:
 
-- **Never** commit, push, or create a pull request without asking first.
 - After writing or updating files, present the list of changed files and ask the user whether they want to create a PR or review the changes locally first.
 
 ## Workflow
