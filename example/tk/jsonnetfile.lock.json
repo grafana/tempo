@@ -8,7 +8,7 @@
           "subdir": "grafana"
         }
       },
-      "version": "4092ea8bb3420ca87a369810343dd0eee07657cc",
+      "version": "37e01462cb233afaaf5fc6d8ad128c81e2c54138",
       "sum": "3M7sG0jR2K2L4Y8GCD+dEOjhzvAhtERr5TRRAE+DrhI="
     },
     {
@@ -18,7 +18,7 @@
           "subdir": "grafana-builder"
         }
       },
-      "version": "4092ea8bb3420ca87a369810343dd0eee07657cc",
+      "version": "37e01462cb233afaaf5fc6d8ad128c81e2c54138",
       "sum": "TWpxm5vPO23V3hoF3pdwGs1NvR+PQce9baN716mJq+4="
     },
     {
@@ -28,7 +28,7 @@
           "subdir": "ksonnet-util"
         }
       },
-      "version": "4092ea8bb3420ca87a369810343dd0eee07657cc",
+      "version": "37e01462cb233afaaf5fc6d8ad128c81e2c54138",
       "sum": "0y3AFX9LQSpfWTxWKSwoLgbt0Wc9nnCwhMH2szKzHv0="
     },
     {
@@ -38,7 +38,7 @@
           "subdir": "kube-state-metrics/"
         }
       },
-      "version": "4092ea8bb3420ca87a369810343dd0eee07657cc",
+      "version": "37e01462cb233afaaf5fc6d8ad128c81e2c54138",
       "sum": "q1YzD+I4InDdfQP6k93W9Lw5U1jpll3gVaS9rUzLR7U="
     },
     {
@@ -48,7 +48,7 @@
           "subdir": "memcached"
         }
       },
-      "version": "4092ea8bb3420ca87a369810343dd0eee07657cc",
+      "version": "37e01462cb233afaaf5fc6d8ad128c81e2c54138",
       "sum": "zNTCDRaCqJUHjQSQRsxGR3jLrMP9tU7YNQb13dbm1bU="
     },
     {
@@ -58,7 +58,7 @@
           "subdir": "mixin-utils"
         }
       },
-      "version": "4092ea8bb3420ca87a369810343dd0eee07657cc",
+      "version": "37e01462cb233afaaf5fc6d8ad128c81e2c54138",
       "sum": "zVkvwae4zHP6xeIoDvde/wldI6ClprFjnk50mMD9/z4="
     },
     {
@@ -68,7 +68,7 @@
           "subdir": "prometheus"
         }
       },
-      "version": "4092ea8bb3420ca87a369810343dd0eee07657cc",
+      "version": "37e01462cb233afaaf5fc6d8ad128c81e2c54138",
       "sum": "kodkOiyJMjsaEsQCIfBhJPknBZayEj0yQJq50ad9VWo="
     },
     {
@@ -78,7 +78,7 @@
           "subdir": "tanka-util"
         }
       },
-      "version": "4092ea8bb3420ca87a369810343dd0eee07657cc",
+      "version": "37e01462cb233afaaf5fc6d8ad128c81e2c54138",
       "sum": "ShSIissXdvCy1izTCDZX6tY7qxCoepE5L+WJ52Hw7ZQ="
     },
     {
@@ -88,7 +88,7 @@
           "subdir": "doc-util"
         }
       },
-      "version": "6ac6c69685b8c29c54515448eaca583da2d88150",
+      "version": "bf6f08ae02a51c48bdcec4629b1c1a5a62c6f803",
       "sum": "BrAL/k23jq+xy9oA7TWIhUx07dsA/QLm3g7ktCwe//U="
     },
     {
