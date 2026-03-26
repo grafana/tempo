@@ -41,7 +41,7 @@ func TestGenerateRandomTags(t *testing.T) {
 	now := time.Now()
 	info := NewTraceInfo(now, "")
 
-	result := info.generateRandomTags()
+	result := info.generateRandomTagsWithPrefix("vulture")
 
 	for _, k := range result {
 		assertStandardVultureKey(t, k)
@@ -100,7 +100,8 @@ func TestConstructTraceFromEpoch(t *testing.T) {
 
 	result, err := info.ConstructTraceFromEpoch()
 	require.NoError(t, err)
-	assert.Equal(t, 7, len(result.ResourceSpans))
+	// Batch count is deterministic per seed; adding well-known attributes changes RNG sequence (now 10 batches for testSeed).
+	assert.Equal(t, 10, len(result.ResourceSpans))
 
 	result2, err := info.ConstructTraceFromEpoch()
 	require.NoError(t, err)
@@ -108,12 +109,22 @@ func TestConstructTraceFromEpoch(t *testing.T) {
 	require.Equal(t, result, result2)
 }
 
+// assertStandardVultureKey checks that a tag has the expected type and value constraints.
+// All vulture-generated keys use a "vulture" prefix (e.g. vulture-0, vulture-process-string-01, vulture-event-blob-01).
 func assertStandardVultureKey(t *testing.T, tag *thrift.Tag) {
-	if !strings.HasPrefix(tag.Key, "vulture-") {
-		t.Errorf("prefix vulture- is wanted, have: %s", tag.Key)
+	require.NotEmpty(t, tag.Key)
+	switch {
+	case strings.Contains(tag.Key, "-blob-"):
+		require.NotNil(t, tag.VStr, "blob tag %s should have VStr", tag.Key)
+		require.Len(t, *tag.VStr, vultureBlobSize, "blob %s should be exactly %d bytes", tag.Key, vultureBlobSize)
+	case strings.Contains(tag.Key, "-int-"):
+		require.NotNil(t, tag.VLong, "int tag %s should have VLong", tag.Key)
+	case strings.Contains(tag.Key, "-string-") || strings.HasPrefix(tag.Key, "vulture"):
+		// Fixed string attrs (vulture-string-01, etc.) and random tags (vulture-0, vulture-process-0, vulture-event-0)
+		require.NotNil(t, tag.VStr, "string tag %s should have VStr", tag.Key)
+		require.GreaterOrEqual(t, len(*tag.VStr), 5, "string %s length", tag.Key)
+		require.LessOrEqual(t, len(*tag.VStr), 20, "string %s length", tag.Key)
+	default:
+		// well-known keys (cluster, http.method, etc.)
 	}
-
-	require.NotNil(t, tag.VStr)
-	require.GreaterOrEqual(t, len(tag.VType.String()), 5)
-	require.LessOrEqual(t, len(tag.VType.String()), 20)
 }

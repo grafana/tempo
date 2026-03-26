@@ -46,6 +46,7 @@ func (c *Overrides) toLegacy() LegacyOverrides {
 		MetricsGeneratorProcessorServiceGraphsEnableMessagingSystemLatencyHistogram: c.MetricsGenerator.Processor.ServiceGraphs.EnableMessagingSystemLatencyHistogram,
 		MetricsGeneratorProcessorServiceGraphsEnableVirtualNodeLabel:                c.MetricsGenerator.Processor.ServiceGraphs.EnableVirtualNodeLabel,
 		MetricsGeneratorProcessorServiceGraphsSpanMultiplierKey:                     c.MetricsGenerator.Processor.ServiceGraphs.SpanMultiplierKey,
+		MetricsGeneratorProcessorServiceGraphsEnableTraceStateSpanMultiplier:        c.MetricsGenerator.Processor.ServiceGraphs.EnableTraceStateSpanMultiplier,
 		MetricsGeneratorProcessorSpanMetricsHistogramBuckets:                        c.MetricsGenerator.Processor.SpanMetrics.HistogramBuckets,
 		MetricsGeneratorProcessorSpanMetricsDimensions:                              c.MetricsGenerator.Processor.SpanMetrics.Dimensions,
 		MetricsGeneratorProcessorSpanMetricsIntrinsicDimensions:                     c.MetricsGenerator.Processor.SpanMetrics.IntrinsicDimensions,
@@ -55,6 +56,7 @@ func (c *Overrides) toLegacy() LegacyOverrides {
 		MetricsGeneratorProcessorSpanMetricsTargetInfoExcludedDimensions:            c.MetricsGenerator.Processor.SpanMetrics.TargetInfoExcludedDimensions,
 		MetricsGeneratorProcessorSpanMetricsEnableInstanceLabel:                     c.MetricsGenerator.Processor.SpanMetrics.EnableInstanceLabel,
 		MetricsGeneratorProcessorSpanMetricsSpanMultiplierKey:                       c.MetricsGenerator.Processor.SpanMetrics.SpanMultiplierKey,
+		MetricsGeneratorProcessorSpanMetricsEnableTraceStateSpanMultiplier:          c.MetricsGenerator.Processor.SpanMetrics.EnableTraceStateSpanMultiplier,
 		MetricsGeneratorProcessorHostInfoHostIdentifiers:                            c.MetricsGenerator.Processor.HostInfo.HostIdentifiers,
 		MetricsGeneratorProcessorHostInfoMetricName:                                 c.MetricsGenerator.Processor.HostInfo.MetricName,
 		MetricsGeneratorIngestionSlack:                                              c.MetricsGenerator.IngestionSlack,
@@ -129,6 +131,7 @@ type LegacyOverrides struct {
 	MetricsGeneratorProcessorServiceGraphsEnableMessagingSystemLatencyHistogram *bool                            `yaml:"metrics_generator_processor_service_graphs_enable_messaging_system_latency_histogram" json:"metrics_generator_processor_service_graphs_enable_messaging_system_latency_histogram"`
 	MetricsGeneratorProcessorServiceGraphsEnableVirtualNodeLabel                *bool                            `yaml:"metrics_generator_processor_service_graphs_enable_virtual_node_label" json:"metrics_generator_processor_service_graphs_enable_virtual_node_label"`
 	MetricsGeneratorProcessorServiceGraphsSpanMultiplierKey                     string                           `yaml:"metrics_generator_processor_service_graphs_span_multiplier_key" json:"metrics_generator_processor_service_graphs_span_multiplier_key"`
+	MetricsGeneratorProcessorServiceGraphsEnableTraceStateSpanMultiplier        *bool                            `yaml:"metrics_generator_processor_service_graphs_enable_tracestate_span_multiplier" json:"metrics_generator_processor_service_graphs_enable_tracestate_span_multiplier"`
 	MetricsGeneratorProcessorSpanMetricsHistogramBuckets                        []float64                        `yaml:"metrics_generator_processor_span_metrics_histogram_buckets" json:"metrics_generator_processor_span_metrics_histogram_buckets"`
 	MetricsGeneratorProcessorSpanMetricsDimensions                              []string                         `yaml:"metrics_generator_processor_span_metrics_dimensions" json:"metrics_generator_processor_span_metrics_dimensions"`
 	MetricsGeneratorProcessorSpanMetricsIntrinsicDimensions                     map[string]bool                  `yaml:"metrics_generator_processor_span_metrics_intrinsic_dimensions" json:"metrics_generator_processor_span_metrics_intrinsic_dimensions"`
@@ -138,6 +141,7 @@ type LegacyOverrides struct {
 	MetricsGeneratorProcessorSpanMetricsTargetInfoExcludedDimensions            []string                         `yaml:"metrics_generator_processor_span_metrics_target_info_excluded_dimensions" json:"metrics_generator_processor_span_metrics_target_info_excluded_dimensions"`
 	MetricsGeneratorProcessorSpanMetricsEnableInstanceLabel                     *bool                            `yaml:"metrics_generator_processor_span_metrics_enable_instance_label" json:"metrics_generator_processor_span_metrics_enable_instance_label"`
 	MetricsGeneratorProcessorSpanMetricsSpanMultiplierKey                       string                           `yaml:"metrics_generator_processor_span_metrics_span_multiplier_key" json:"metrics_generator_processor_span_metrics_span_multiplier_key"`
+	MetricsGeneratorProcessorSpanMetricsEnableTraceStateSpanMultiplier          *bool                            `yaml:"metrics_generator_processor_span_metrics_enable_tracestate_span_multiplier" json:"metrics_generator_processor_span_metrics_enable_tracestate_span_multiplier"`
 	MetricsGeneratorProcessorHostInfoHostIdentifiers                            []string                         `yaml:"metrics_generator_processor_host_info_host_identifiers" json:"metrics_generator_processor_host_info_host_identifiers"`
 	MetricsGeneratorProcessorHostInfoMetricName                                 string                           `yaml:"metrics_generator_processor_host_info_metric_name" json:"metrics_generator_processor_host_info_metric_name"`
 	MetricsGeneratorIngestionSlack                                              time.Duration                    `yaml:"metrics_generator_ingestion_time_range_slack" json:"metrics_generator_ingestion_time_range_slack,omitempty"`
@@ -218,17 +222,19 @@ func (l *LegacyOverrides) toNewLimits() Overrides {
 					EnableMessagingSystemLatencyHistogram: l.MetricsGeneratorProcessorServiceGraphsEnableMessagingSystemLatencyHistogram,
 					EnableVirtualNodeLabel:                l.MetricsGeneratorProcessorServiceGraphsEnableVirtualNodeLabel,
 					SpanMultiplierKey:                     l.MetricsGeneratorProcessorServiceGraphsSpanMultiplierKey,
+					EnableTraceStateSpanMultiplier:        l.MetricsGeneratorProcessorServiceGraphsEnableTraceStateSpanMultiplier,
 				},
 				SpanMetrics: SpanMetricsOverrides{
-					HistogramBuckets:             l.MetricsGeneratorProcessorSpanMetricsHistogramBuckets,
-					Dimensions:                   l.MetricsGeneratorProcessorSpanMetricsDimensions,
-					IntrinsicDimensions:          l.MetricsGeneratorProcessorSpanMetricsIntrinsicDimensions,
-					FilterPolicies:               l.MetricsGeneratorProcessorSpanMetricsFilterPolicies,
-					DimensionMappings:            l.MetricsGeneratorProcessorSpanMetricsDimensionMappings,
-					EnableTargetInfo:             l.MetricsGeneratorProcessorSpanMetricsEnableTargetInfo,
-					TargetInfoExcludedDimensions: l.MetricsGeneratorProcessorSpanMetricsTargetInfoExcludedDimensions,
-					EnableInstanceLabel:          l.MetricsGeneratorProcessorSpanMetricsEnableInstanceLabel,
-					SpanMultiplierKey:            l.MetricsGeneratorProcessorSpanMetricsSpanMultiplierKey,
+					HistogramBuckets:               l.MetricsGeneratorProcessorSpanMetricsHistogramBuckets,
+					Dimensions:                     l.MetricsGeneratorProcessorSpanMetricsDimensions,
+					IntrinsicDimensions:            l.MetricsGeneratorProcessorSpanMetricsIntrinsicDimensions,
+					FilterPolicies:                 l.MetricsGeneratorProcessorSpanMetricsFilterPolicies,
+					DimensionMappings:              l.MetricsGeneratorProcessorSpanMetricsDimensionMappings,
+					EnableTargetInfo:               l.MetricsGeneratorProcessorSpanMetricsEnableTargetInfo,
+					TargetInfoExcludedDimensions:   l.MetricsGeneratorProcessorSpanMetricsTargetInfoExcludedDimensions,
+					EnableInstanceLabel:            l.MetricsGeneratorProcessorSpanMetricsEnableInstanceLabel,
+					SpanMultiplierKey:              l.MetricsGeneratorProcessorSpanMetricsSpanMultiplierKey,
+					EnableTraceStateSpanMultiplier: l.MetricsGeneratorProcessorSpanMetricsEnableTraceStateSpanMultiplier,
 				},
 				HostInfo: HostInfoOverrides{
 					HostIdentifiers: l.MetricsGeneratorProcessorHostInfoHostIdentifiers,

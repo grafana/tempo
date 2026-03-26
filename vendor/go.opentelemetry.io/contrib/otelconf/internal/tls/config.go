@@ -26,7 +26,10 @@ func CreateConfig(caCertFile, clientCertFile, clientKeyFile *string) (*tls.Confi
 		}
 		tlsConfig.RootCAs = certPool
 	}
-	if clientCertFile != nil {
+	if clientCertFile != nil || clientKeyFile != nil {
+		if clientCertFile == nil {
+			return nil, errors.New("client key was provided but no client certificate was provided")
+		}
 		if clientKeyFile == nil {
 			return nil, errors.New("client certificate was provided but no client key was provided")
 		}

@@ -37,7 +37,9 @@ type mockOverrides struct {
 	hostInfoHostIdentifiers                            []string
 	hostInfoMetricName                                 string
 	serviceGraphsSpanMultiplierKey                     string
+	serviceGraphsEnableTraceStateSpanMultiplier        *bool
 	spanMetricsSpanMultiplierKey                       string
+	spanMetricsEnableTraceStateSpanMultiplier          *bool
 }
 
 var _ metricsGeneratorOverrides = (*mockOverrides)(nil)
@@ -204,6 +206,20 @@ func (m *mockOverrides) MetricsGeneratorProcessorServiceGraphsSpanMultiplierKey(
 	return m.serviceGraphsSpanMultiplierKey
 }
 
+func (m *mockOverrides) MetricsGeneratorProcessorServiceGraphsEnableTraceStateSpanMultiplier(string) (bool, bool) {
+	if m.serviceGraphsEnableTraceStateSpanMultiplier != nil {
+		return *m.serviceGraphsEnableTraceStateSpanMultiplier, true
+	}
+	return false, false
+}
+
 func (m *mockOverrides) MetricsGeneratorProcessorSpanMetricsSpanMultiplierKey(string) string {
 	return m.spanMetricsSpanMultiplierKey
+}
+
+func (m *mockOverrides) MetricsGeneratorProcessorSpanMetricsEnableTraceStateSpanMultiplier(string) (bool, bool) {
+	if m.spanMetricsEnableTraceStateSpanMultiplier != nil {
+		return *m.spanMetricsEnableTraceStateSpanMultiplier, true
+	}
+	return false, false
 }

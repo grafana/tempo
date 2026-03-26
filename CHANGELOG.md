@@ -26,9 +26,11 @@
 * [FEATURE] metrics-generator: Add per-label limiter to control cardinality [#6414](https://github.com/grafana/tempo/pull/6414) (@electron0zero)
   Adds `max_cardinality_per_label` per per-tenant override and new metrics to estimate per label cardinality demand estimate.
 * [ENHANCEMENT] Block builder: deduplicate spans within traces during block creation and track removed duplicates via `tempo_block_builder_spans_deduped_total` metric [#6539](https://github.com/grafana/tempo/pull/6539) (@zhxiaogg)
+* [ENHANCEMENT] metrics-generator: Support extracting span multiplier from W3C tracestate OTel probability sampling threshold via `enable_tracestate_span_multiplier` config option [#6684](https://github.com/grafana/tempo/pull/6684) (@cmarchbanks)
 * [ENHANCEMENT] Add new alerts and runbooks entries [#6276](https://github.com/grafana/tempo/pull/6276) (@javiermolinar)
 * [ENHANCEMENT] Double the maximum number of dedicated string columns in vParquet5 and update tempo-cli to determine the optimum number for the data [#6282](https://github.com/grafana/tempo/pull/6282) (@mdisibio)
 * [ENHANCEMENT] TraceQL metrics - experimental faster read path for most metrics queries, accessible behind the query hint `new=true` [#6359](https://github.com/grafana/tempo/pull/6359) (@mdisibio)
+* [ENHANCEMENT] Vulture: extend data consistency checks to include more strings, integers, and blobs, at resource/span/event scopes, and perform deeper trace content check [#6731](https://github.com/grafana/tempo/pull/6731) (@mdisibio)
 * [ENHANCEMENT] Improve attribute truncating observability [#6400](https://github.com/grafana/tempo/pull/6400) (@javiermolinar)
 * [ENHANCEMENT] Log truncated oversized attributes [#6467](https://github.com/grafana/tempo/pull/6467) (@carles-grafana)
 * [ENHANCEMENT] Remove live-store partition owner from ring on shutdown to prevent stale owner entries [#6409](https://github.com/grafana/tempo/pull/6409) (@oleg-kozlyuk-grafana)
@@ -56,9 +58,11 @@
 * [BUGFIX] Return 400 instead of 500 when query_range or query_instant requests have unparseable start/end parameters [#6694](https://github.com/grafana/tempo/pull/6694) (@ruslan-mikhailov)
 * [BUGFIX] fix: correct block-builder fetch metrics to use counters instead of gauges.
 * [BUGFIX] Log tenant on receiver push errors [#6780](https://github.com/grafana/tempo/pull/6780) (@javiermolinar)
+* [BUGFIX] Fix race conditions in WAL block [#6773](https://github.com/grafana/tempo/pull/6773) (@ruslan-mikhailov)
 
 ### 3.0 Cleanup
 
+* [CHANGE] **BREAKING CHANGE** Disable legacy (flat, unscoped) overrides by default. Tempo will refuse to start if legacy overrides are detected. Set `enable_legacy_overrides: true` or `-config.enable-legacy-overrides=true` to opt back in temporarily. Legacy overrides will be removed in a future release. [#6741](https://github.com/grafana/tempo/pull/6741) (@electron0zero)
 * [CHANGE] **BREAKING CHANGE** Remove remaining app ingester config [#6667](https://github.com/grafana/tempo/pull/6667) (@javiermolinar)
 * [CHANGE] **BREAKING CHANGE** Remove span-metrics leftovers and lazy-init generator clients [#6618](https://github.com/grafana/tempo/pull/6618) (@javiermolinar)
 * [CHANGE] **BREAKING CHANGE** Decommission livestore MetricsGenerator query service [#6615](https://github.com/grafana/tempo/pull/6615) (@javiermolinar)

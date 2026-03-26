@@ -221,6 +221,20 @@ func TestProcessorConfig_copyWithOverrides(t *testing.T) {
 		assert.Equal(t, "custom_key", copied.SpanMetrics.SpanMultiplierKey)
 	})
 
+	t.Run("enable tracestate span multiplier overrides", func(t *testing.T) {
+		o := &mockOverrides{
+			serviceGraphsEnableTraceStateSpanMultiplier: boolPtr(true),
+			spanMetricsEnableTraceStateSpanMultiplier:   boolPtr(true),
+		}
+
+		copied, err := original.copyWithOverrides(o, "tenant")
+		require.NoError(t, err)
+
+		assert.NotEqual(t, *original, copied)
+		assert.True(t, copied.ServiceGraphs.EnableTraceStateSpanMultiplier)
+		assert.True(t, copied.SpanMetrics.EnableTraceStateSpanMultiplier)
+	})
+
 	t.Run("dimension_mappings preserved when no override", func(t *testing.T) {
 		// Create original config with dimension_mappings set
 		originalWithMappings := &ProcessorConfig{

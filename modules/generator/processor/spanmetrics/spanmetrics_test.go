@@ -788,6 +788,100 @@ func TestTargetInfoWithEmptyKey(t *testing.T) {
 	require.Equal(t, 1.0, testRegistry.Query("traces_target_info", lbls))
 }
 
+func TestTargetInfoWithEmptyValue(t *testing.T) {
+	// Regression test: resource attributes with empty string values (e.g. host.id="")
+	// caused target_info to be silently skipped. The Prometheus label builder treats
+	// Set("x","") as Del("x"), which reduced the built label count below the raw
+	// resourceAttributesCount, causing the guard condition to fail.
+	testRegistry := registry.NewTestRegistry()
+	filteredSpansCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "filtered", "span-metrics")
+	invalidUTF8SpanLabelsCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "invalid_utf8", "span-metrics")
+
+	cfg := Config{}
+	cfg.RegisterFlagsAndApplyDefaults("", nil)
+	cfg.EnableTargetInfo = true
+	cfg.HistogramBuckets = []float64{0.5, 1}
+
+	p, err := New(cfg, testRegistry, filteredSpansCounter, invalidUTF8SpanLabelsCounter)
+	require.NoError(t, err)
+	defer p.Shutdown(context.Background())
+
+	batch := test.MakeBatch(10, nil)
+
+	batch.Resource.Attributes = []*common_v1.KeyValue{
+		{
+			Key:   "service.name",
+			Value: &common_v1.AnyValue{Value: &common_v1.AnyValue_StringValue{StringValue: "test-service"}},
+		},
+		{
+			Key:   "host.id",
+			Value: &common_v1.AnyValue{Value: &common_v1.AnyValue_StringValue{StringValue: ""}}, // empty value
+		},
+		{
+			Key:   "cluster",
+			Value: &common_v1.AnyValue{Value: &common_v1.AnyValue_StringValue{StringValue: "eu-west-0"}},
+		},
+	}
+
+	p.PushSpans(context.Background(), &tempopb.PushSpansRequest{Batches: []*trace_v1.ResourceSpans{batch}})
+
+	lbls := labels.FromMap(map[string]string{
+		"job":     "test-service",
+		"cluster": "eu-west-0",
+	})
+
+	// target_info must be generated even when a resource attribute has an empty value
+	require.Equal(t, 1.0, testRegistry.Query("traces_target_info", lbls))
+}
+
+func TestTargetInfoWithAllEmptyValues(t *testing.T) {
+	// When ALL extra resource attributes have empty values, target_info should NOT
+	// be emitted — there's no meaningful resource data beyond job/instance.
+	testRegistry := registry.NewTestRegistry()
+	filteredSpansCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "filtered", "span-metrics")
+	invalidUTF8SpanLabelsCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "invalid_utf8", "span-metrics")
+
+	cfg := Config{}
+	cfg.RegisterFlagsAndApplyDefaults("", nil)
+	cfg.EnableTargetInfo = true
+	cfg.HistogramBuckets = []float64{0.5, 1}
+
+	p, err := New(cfg, testRegistry, filteredSpansCounter, invalidUTF8SpanLabelsCounter)
+	require.NoError(t, err)
+	defer p.Shutdown(context.Background())
+
+	batch := test.MakeBatch(10, nil)
+
+	batch.Resource.Attributes = []*common_v1.KeyValue{
+		{
+			Key:   "service.name",
+			Value: &common_v1.AnyValue{Value: &common_v1.AnyValue_StringValue{StringValue: "test-service"}},
+		},
+		{
+			Key:   "service.instance.id",
+			Value: &common_v1.AnyValue{Value: &common_v1.AnyValue_StringValue{StringValue: "abc-instance-id"}},
+		},
+		{
+			Key:   "host.id",
+			Value: &common_v1.AnyValue{Value: &common_v1.AnyValue_StringValue{StringValue: ""}},
+		},
+		{
+			Key:   "container.id",
+			Value: &common_v1.AnyValue{Value: &common_v1.AnyValue_StringValue{StringValue: ""}},
+		},
+	}
+
+	p.PushSpans(context.Background(), &tempopb.PushSpansRequest{Batches: []*trace_v1.ResourceSpans{batch}})
+
+	lbls := labels.FromMap(map[string]string{
+		"job":      "test-service",
+		"instance": "abc-instance-id",
+	})
+
+	// target_info should NOT exist — no real resource attributes survived
+	require.Equal(t, 0.0, testRegistry.Query("traces_target_info", lbls))
+}
+
 func TestTargetInfoWithExclusion(t *testing.T) {
 	// no service.name = no job label/dimension
 	// if the only labels are job and instance then target_info should not exist
@@ -1743,4 +1837,39 @@ func TestValidationErrors(t *testing.T) {
 		}()
 		require.Equal(t, tc.expErr, err)
 	}
+}
+
+func TestSpanMetricsTraceStateMultiplier(t *testing.T) {
+	testRegistry := registry.NewTestRegistry()
+	filteredSpansCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "filtered", "span-metrics-tracestate")
+	invalidUTF8SpanLabelsCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "invalid_utf8", "span-metrics-tracestate")
+
+	cfg := Config{}
+	cfg.RegisterFlagsAndApplyDefaults("", nil)
+	cfg.HistogramBuckets = []float64{0.5, 1}
+	cfg.EnableTraceStateSpanMultiplier = true
+
+	p, err := New(cfg, testRegistry, filteredSpansCounter, invalidUTF8SpanLabelsCounter)
+	require.NoError(t, err)
+	defer p.Shutdown(context.Background())
+
+	// Create a batch with a span that has tracestate th:8 (50% sampling → multiplier 2)
+	batch := test.MakeBatch(1, nil)
+	for _, ils := range batch.ScopeSpans {
+		for _, span := range ils.Spans {
+			span.TraceState = "ot=th:8"
+		}
+	}
+
+	p.PushSpans(context.Background(), &tempopb.PushSpansRequest{Batches: []*trace_v1.ResourceSpans{batch}})
+
+	lbls := labels.FromMap(map[string]string{
+		"service":     "test-service",
+		"span_name":   "test",
+		"span_kind":   "SPAN_KIND_CLIENT",
+		"status_code": "STATUS_CODE_OK",
+	})
+
+	// With 50% sampling (th:8), span multiplier is 2, so 1 span → count of 2
+	assert.Equal(t, 2.0, testRegistry.Query("traces_spanmetrics_calls_total", lbls))
 }
