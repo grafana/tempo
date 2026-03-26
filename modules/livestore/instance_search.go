@@ -899,7 +899,7 @@ func includeBlock(b *backend.BlockMeta, start, end time.Time) bool {
 func searchTagValuesV2CacheKey(req *tempopb.SearchTagValuesRequest, limit int, prefix string) string {
 	var cacheKey string
 	if req.Query != "" {
-		q := traceql.CanonicalQuery(req.Query)
+		q := traceql.NormalizeQuery(req.Query)
 		if ast, err := traceql.Parse(q); err == nil {
 			// forces the query into a canonical form
 			cacheKey = ast.String()

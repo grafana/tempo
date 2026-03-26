@@ -170,7 +170,7 @@ func TestCanonicalQuery(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			expected := tc.expected
 			expected = strings.ReplaceAll(expected, " ", "")
-			actual := CanonicalQuery(tc.query)
+			actual := NormalizeQuery(tc.query)
 			actual = strings.ReplaceAll(actual, " ", "")
 			actual = strings.ReplaceAll(actual, "`", `"`)
 			assert.Equal(t, expected, actual)
@@ -223,7 +223,7 @@ func BenchmarkCanonicalQuery(b *testing.B) {
 	for _, query := range queries {
 		b.Run(query, func(b *testing.B) {
 			for i := 0; i < b.N; i++ {
-				_ = CanonicalQuery(query)
+				_ = NormalizeQuery(query)
 			}
 		})
 	}

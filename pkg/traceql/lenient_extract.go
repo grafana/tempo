@@ -46,11 +46,11 @@ func ExtractFetchRequest(query string) *FetchSpansRequest {
 	return req
 }
 
-// CanonicalQuery parses a query string using the lenient parser and returns
+// NormalizeQuery parses a query string using the lenient parser and returns
 // a normalized string representation. Used for cache key generation.
 // Match-all queries (e.g. "{}", "{ }", "{ true }") are normalized to "{}"
 // to avoid cache fragmentation.
-func CanonicalQuery(query string) string {
+func NormalizeQuery(query string) string {
 	query = strings.TrimSpace(query)
 	if len(query) == 0 {
 		return emptyQuery
