@@ -18,9 +18,9 @@ Tempo's architecture is built around several key principles.
 
 Separate components handle writing trace data to storage and serving queries. You can scale writes and reads independently, and a failure in one path doesn't affect the other.
 
-Kafka serves as a durable write-ahead log (WAL) between distributors and downstream consumers. Once Kafka acknowledges a write, the data is safe. This replaces the previous in-process WAL that lived on local disks.
+Kafka serves as a durable write-ahead log (WAL) between distributors and downstream consumers. Once Kafka acknowledges a write, the data is safe. This replaces the previous in-process ingestion WAL that lived on local disks, while live-stores still use a separate local WAL for read-path and search.
 
-Because Kafka provides durability, Tempo doesn't need to replicate data across multiple instances on the write path. This replication factor of 1 significantly reduces cost and operational complexity.
+Because Kafka provides durability on the write path, Tempo doesn't need to replicate data across multiple instances. This replication factor of 1 significantly reduces cost and operational complexity.
 
 Tempo uses Apache Parquet as its block format, storing trace data in a columnar layout that enables efficient querying of specific attributes without reading entire traces.
 

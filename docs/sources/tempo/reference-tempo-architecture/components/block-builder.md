@@ -79,4 +79,4 @@ Size the scratch disk to hold at least one full consumption cycle's worth of dat
 
 ## Related resources
 
-Refer to the [block-builder configuration](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/#block-builder) for the full list of options.
+Refer to the [Tempo configuration](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/) for the full list of block-builder options.

@@ -17,7 +17,7 @@ All components are compiled into the same binary. The `-target` parameter (or `t
 
 In monolithic mode, all components run in a single process using `-target=all` (the default).
 
-This means one process handles distributor, block-builder, live-store, querier, query-frontend, compactor, and backend scheduler/worker responsibilities. It reads from and writes to Kafka just like a microservices deployment.
+This means one process handles distributor, block-builder, live-store, querier, query-frontend, backend scheduler, and backend worker responsibilities. It reads from and writes to Kafka just like a microservices deployment.
 
 ### When to use monolithic mode
 
@@ -52,7 +52,7 @@ Microservices mode provides independent scaling — you can scale block-builders
 | Live-store | Horizontal | Bounded by Kafka partition count. Scale based on recent data query volume and memory. |
 | Query frontend | Vertical | Keep to 2 replicas. Scale up CPU/RAM rather than adding replicas. |
 | Querier | Horizontal | Scale based on query concurrency and latency requirements. |
-| Compactor | Vertical | Or use backend scheduler/worker for horizontal scaling. |
+| Backend worker | Horizontal | Handles compaction and retention. Scale based on block count and compaction lag. |
 | Metrics-generator | Horizontal | Scale based on trace volume and number of generated series. |
 
 ### Kafka as the connecting fabric

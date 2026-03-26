@@ -41,9 +41,9 @@ Each tenant has its own directory. Within a tenant, each block is a directory co
 
 ### Blocklist
 
-The blocklist is the set of all known blocks for a tenant. The compactor (or backend worker) maintains it by periodically scanning object storage for `meta.json` files.
+The blocklist is the set of all known blocks for a tenant. Backend workers maintain it by periodically scanning object storage for `meta.json` files and writing a per-tenant block index.
 
-Queriers and query frontends use the blocklist to determine which blocks to search for a given query. The blocklist is distributed across the cluster so that not every component needs to poll storage directly.
+Queriers and query frontends read this tenant index to determine which blocks to search for a given query. They fall back to scanning object storage for `meta.json` files only when the tenant index is unavailable or too stale. The blocklist is distributed across the cluster so that not every component needs to poll storage directly.
 
 ### Tenant isolation
 

@@ -51,4 +51,4 @@ Where documentation references the compactor for blocklist polling or maintenanc
 
 ## Related resources
 
-Refer to the [compactor configuration](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/#compactor) for the full list of options.
+Refer to the [compaction configuration](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/#compaction) for the full list of options.
