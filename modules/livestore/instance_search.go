@@ -55,8 +55,16 @@ type blockFn func(ctx context.Context, meta *backend.BlockMeta, b block) error
 // iterateBlocks provides a way to iterate over all blocks (head, wal, complete)
 // using concurrent processing with bounded concurrency.
 func (i *instance) iterateBlocks(ctx context.Context, reqStart, reqEnd time.Time, fn blockFn) error {
+	ctx, span := tracer.Start(ctx, "instance.iterateBlocks",
+		oteltrace.WithAttributes(attribute.String("tenant", i.tenantID)))
+	defer span.End()
+
 	i.blocksMtx.RLock()
-	defer i.blocksMtx.RUnlock()
+	span.AddEvent("acquired blocksMtx")
+	defer func() {
+		i.blocksMtx.RUnlock()
+		span.AddEvent("released blocksMtx")
+	}()
 
 	var anyErr atomic.Error
 	ctx, cancel := context.WithCancel(ctx)

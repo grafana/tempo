@@ -28,6 +28,7 @@ import (
 	"github.com/twmb/franz-go/pkg/kadm"
 	"github.com/twmb/franz-go/pkg/kgo"
 	"go.opentelemetry.io/otel/attribute"
+	oteltrace "go.opentelemetry.io/otel/trace"
 )
 
 const (
@@ -545,7 +546,7 @@ func (s *LiveStore) calculateTimeLag(lagShortcutThreshold int64) *time.Duration 
 
 func (s *LiveStore) consume(ctx context.Context, rs recordIter, now time.Time) (*kadm.Offset, error) {
 	defer s.decoder.Reset()
-	_, span := tracer.Start(ctx, "LiveStore.consume")
+	ctx, span := tracer.Start(ctx, "LiveStore.consume")
 	defer span.End()
 
 	recordCount := 0
@@ -664,28 +665,40 @@ func (s *LiveStore) cutAllInstancesToWal() {
 	instances := s.getInstances()
 
 	for _, instance := range instances {
-		s.cutOneInstanceToWal(instance, true)
+		s.cutOneInstanceToWal(s.ctx, instance, true)
 	}
 }
 
-func (s *LiveStore) cutOneInstanceToWal(inst *instance, immediate bool) {
+func (s *LiveStore) cutOneInstanceToWal(ctx context.Context, inst *instance, immediate bool) {
+	ctx, span := tracer.Start(ctx, "LiveStore.cutOneInstanceToWal",
+		oteltrace.WithAttributes(
+			attribute.String("tenant", inst.tenantID),
+			attribute.Bool("immediate", immediate),
+		))
+	defer span.End()
+
 	// Regular trace cuts (live traces -> head block)
-	err := inst.cutIdleTraces(immediate)
+	err := inst.cutIdleTraces(ctx, immediate)
 	if err != nil {
 		level.Error(s.logger).Log("msg", "failed to cut idle traces", "tenant", inst.tenantID, "err", err)
+		span.RecordError(err)
 	}
 
 	// Regular block cuts
-	blockID, err := inst.cutBlocks(immediate)
+	blockID, err := inst.cutBlocks(ctx, immediate)
 	if err != nil {
 		level.Error(s.logger).Log("msg", "failed to cut blocks", "tenant", inst.tenantID, "err", err)
+		span.RecordError(err)
 	}
 
 	// If head block is cut, enqueue complete operation
 	if blockID != uuid.Nil {
+		span.AddEvent("block enqueued for completion",
+			oteltrace.WithAttributes(attribute.String("blockID", blockID.String())))
 		err = s.enqueueCompleteOp(inst.tenantID, blockID, false)
 		if err != nil {
 			level.Error(s.logger).Log("msg", "failed to enqueue complete operation", "tenant", inst.tenantID, "err", err)
+			span.RecordError(err)
 			return
 		}
 	}
