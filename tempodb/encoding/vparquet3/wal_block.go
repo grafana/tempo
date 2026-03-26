@@ -355,6 +355,8 @@ func (b *walBlock) AppendTrace(id common.ID, trace *tempopb.Trace, start, end ui
 	b.meta.ObjectAdded(start, end)
 	b.ids.Set(id, int64(b.ids.Len())) // Next row number
 
+	b.mtx.Lock()
+	defer b.mtx.Unlock()
 	b.unflushedSize += int64(estimateMarshalledSizeFromTrace(b.buffer))
 
 	return nil
@@ -435,8 +437,10 @@ func (b *walBlock) Flush() (err error) {
 	}
 
 	b.writeFlush(newWalBlockFlush(b.file.Name(), b.ids))
+	b.mtx.Lock()
 	b.flushedSize += sz
 	b.unflushedSize = 0
+	b.mtx.Unlock()
 	b.ids = common.NewIDMap[int64](0)
 
 	// Open next one
@@ -446,13 +450,16 @@ func (b *walBlock) Flush() (err error) {
 // DataLength returns estimated size of WAL files on disk. Used for
 // cutting WAL files by max size.
 func (b *walBlock) DataLength() uint64 {
+	b.mtx.Lock()
+	defer b.mtx.Unlock()
 	return uint64(b.flushedSize + b.unflushedSize)
 }
 
 func (b *walBlock) Iterator() (common.Iterator, error) {
-	bookmarks := make([]*bookmark[parquet.Row], 0, len(b.flushed))
+	flushed := b.readFlushes()
+	bookmarks := make([]*bookmark[parquet.Row], 0, len(flushed))
 
-	for _, page := range b.flushed {
+	for _, page := range flushed {
 		iter, err := page.rowIterator()
 		if err != nil {
 			return nil, fmt.Errorf("error creating iterator for %s: %w", page.path, err)
@@ -506,7 +513,7 @@ func (b *walBlock) Clear() error {
 func (b *walBlock) FindTraceByID(ctx context.Context, id common.ID, opts common.SearchOptions) (*tempopb.TraceByIDResponse, error) {
 	trs := make([]*tempopb.Trace, 0)
 
-	for _, page := range b.flushed {
+	for _, page := range b.readFlushes() {
 		if rowNumber, ok := page.ids.Get(id); ok {
 			file, err := page.file(ctx)
 			if err != nil {
