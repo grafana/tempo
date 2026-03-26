@@ -20,10 +20,6 @@ GORELEASER := $(GOPATH)/bin/goreleaser
 # Build Images
 DOCKER_PROTOBUF_IMAGE ?= otel/build-protobuf:0.25.0
 LOKI_BUILD_IMAGE ?= grafana/loki-build-image:0.34.6
-
-# https://hub.docker.com/repository/docker/grafana/tempo-ci-tools/
-# built by: .github/workflows/docker-ci-tools.yml
-TEMPO_CI_TOOLS_IMAGE ?= grafana/tempo-ci-tools:main-8340a1d49
 DOCS_IMAGE ?= grafana/docs-base:latest
 
 # More exclusions can be added similar with: -not -path './testbed/*'
