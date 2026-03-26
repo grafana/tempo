@@ -78,6 +78,12 @@ var (
 		Name:      "back_pressure_seconds_total",
 		Help:      "The total amount of time spent waiting to process data from queue",
 	}, []string{"reason"})
+	metricTotalBackPressure = promauto.NewHistogram(prometheus.HistogramOpts{
+		Namespace: "tempo",
+		Subsystem: "live_store",
+		Name:      "back_pressure_duration_seconds",
+		Help:      "Duration of backpressure wait per push",
+	})
 )
 
 type instance struct {
@@ -147,12 +153,13 @@ func (i *instance) waitBackpressure(ctx context.Context) {
 		hadBackpressure = true
 	}
 	if !hadBackpressure {
-		return
+		return // no need to measure backpressure
 	}
 	duration := time.Since(start)
 	span.AddEvent("backpressure done", oteltrace.WithAttributes(
 		attribute.Int("duration_ms", int(duration.Milliseconds())),
 	))
+	metricTotalBackPressure.Observe(duration.Seconds())
 }
 
 func (i *instance) backpressure(ctx context.Context) bool {
