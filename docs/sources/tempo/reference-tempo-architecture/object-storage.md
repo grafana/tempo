@@ -9,7 +9,7 @@ versionDate: 2026-03-20
 
 # Object storage
 
-Object storage is the long-term storage backend for all trace data in Tempo. Block-builders write blocks to it, queriers read from it, and compactors maintain it.
+Object storage is the long-term storage backend for all trace data in Tempo. Block-builders write blocks to it, queriers read from it, and backend workers maintain it.
 
 ## Supported backends
 

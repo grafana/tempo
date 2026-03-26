@@ -28,7 +28,7 @@ Tempo maintains its own partition ring that maps Tempo partitions to Kafka parti
 
 The number of Kafka partitions determines the maximum parallelism for block-builders and live-stores. Each partition is owned by exactly one instance of each consumer type.
 
-To scale block-builders or live-stores horizontally, you need at least as many partitions as instances. Adding partitions is a Kafka-side operation that takes effect as consumers rebalance. Reducing partitions requires care — existing data in removed partitions must be fully consumed before those partitions are deactivated.
+To scale block-builders or live-stores horizontally, you need at least as many partitions as instances. Adding Kafka partitions is a Kafka-side operation. Block-builders and live-stores use static partition assignment based on their instance ordinal, so scaling them requires adding both Kafka partitions and StatefulSet replicas together.
 
 ## Consumer groups
 

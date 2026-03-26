@@ -12,6 +12,7 @@ versionDate: 2026-03-20
 Tempo is composed of several components, each responsible for a specific part of the trace lifecycle.
 All components are compiled into the same binary, and the `-target` parameter controls which component runs.
 
-This section documents each component in detail, including its responsibilities, configuration, failure modes, and relevant metrics.
+This section documents each component in detail, including its responsibilities, configuration, failure modes,
+and relevant metrics.
 
 {{< section menuTitle="true" >}}

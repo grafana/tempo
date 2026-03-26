@@ -9,11 +9,15 @@ versionDate: 2026-03-20
 
 # Block format
 
-Tempo stores trace data in Apache Parquet format. Parquet is a columnar storage format that enables efficient querying of specific attributes without reading entire traces.
+Tempo stores trace data in [Apache Parquet](https://parquet.apache.org) format.
+Parquet is a columnar storage format that enables efficient querying of specific attributes without reading entire traces.
 
 ## Why Parquet
 
-Columnar storage is a natural fit for trace data. A TraceQL query like `{ span.http.status_code = 500 }` only needs to read the `http.status_code` column, not the entire trace. This dramatically reduces the amount of data read from storage. Columnar data also compresses well because values in a column tend to be similar (for example, all service names or all status codes). Parquet is widely supported by data processing tools, making it possible to analyze Tempo data with external tools if needed.
+Columnar storage is a natural fit for trace data.
+A TraceQL query like `{ span.http.status_code = 500 }` only needs to read the `http.status_code` column, not the entire trace.
+This dramatically reduces the amount of data read from storage.
+Columnar data also compresses well because values in a column tend to be similar (for example, all service names or all status codes).
 
 ## Block structure
 
@@ -31,21 +35,32 @@ Blocks are stored under `<tenant-id>/<block-id>/` in object storage.
 
 ### `meta.json`
 
-The `meta.json` file makes a block "live" — visible to the read path. It contains the block ID, tenant ID, start and end timestamps, total number of objects (traces), and the `replaces` field (a list of block IDs that this block supersedes, used for crash recovery in block-builders).
+The `meta.json` file makes a block visible to the read path.
+It contains the block ID, tenant ID, start and end timestamps, total number of objects (traces).
 
-A block is invisible to queriers until `meta.json` exists. The block-builder uses this property to ensure atomicity during flushes.
+A block is invisible to queriers until `meta.json` exists.
+The block-builder uses this property to ensure atomicity during flushes.
 
 ## Schema
 
-Tempo uses a span-oriented Parquet schema. Each row represents a span, with columns for intrinsic fields (trace ID, span ID, parent span ID, span name, span kind, span status, duration, start time, root service name, root span name), resource attributes (for example, `service.name`, `deployment.environment`), and span attributes (for example, `http.method`, `http.status_code`).
+Tempo uses a span-oriented heavily nested Parquet schema.
+Each row represents a span, with columns for intrinsic fields (trace ID, span ID, parent span ID, span name, span kind, span status, duration, start time, root service name, root span name),
+resource attributes (for example, `service.name`, `deployment.environment`), and span attributes (for example, `http.method`, `http.status_code`).
 
-### Static vs dynamic columns
+### Intrinsic fields vs generic attributes
 
-Attributes are stored in two ways. Static columns are well-known attributes that exist in every trace (for example, `service.name`). These have dedicated columns in the schema and are always efficient to query. Dynamic columns are arbitrary key-value pairs stored in a generic attribute column. Querying these requires scanning the attribute map, which is slower.
+A small number of fields are stored as top-level columns in the schema.
+These include `service.name` on resources and `status.code` on spans.
+Querying these fields is always efficient because they have their own Parquet columns.
+
+All other attributes (both resource and span) are stored in a generic `Attrs` column as key-value pairs.
+Querying these requires scanning the attribute map, which is slower.
 
 ### Dedicated attribute columns
 
-You can promote frequently queried attributes to dedicated columns for better performance. This is configured centrally in `storage.trace.block` and applies to all block-producing components (live-store and block-builder).
+You can promote frequently queried attributes from the generic column to their own dedicated Parquet columns for better query performance.
+This is configured centrally in `storage.trace.block` and applies to all block-producing components (live-store and block-builder).
+Dedicated columns are assigned dynamically per block based on the configuration at the time the block is built.
 
 ```yaml
 storage:
@@ -68,9 +83,8 @@ Tempo uses versioned block formats.
 
 | Version | Status |
 |---|---|
+| vParquet5 | Latest |
 | vParquet4 | Default in Tempo 3.0 |
-| vParquet3 | Supported, readable |
-| v2 | Removed in Tempo 3.0 |
 
 The block format is configured in:
 

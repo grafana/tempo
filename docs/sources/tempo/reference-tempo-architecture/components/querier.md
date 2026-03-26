@@ -29,7 +29,7 @@ If a live-store is unavailable, the querier falls back to the live-store in the 
 
 ## Backend queries
 
-For historical data, the querier consults the blocklist (maintained by compactors or backend workers) to find blocks in the relevant time range. It uses bloom filters to quickly eliminate blocks that don't contain the target trace ID, fetches matching block data from object storage (using caching where configured), and deserializes the Parquet data and applies any TraceQL filters.
+For historical data, the querier consults the blocklist (maintained by backend workers) to find blocks in the relevant time range. It uses bloom filters to quickly eliminate blocks that don't contain the target trace ID, fetches matching block data from object storage (using caching where configured), and deserializes the Parquet data and applies any TraceQL filters.
 
 ### Caching
 

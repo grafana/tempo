@@ -29,7 +29,7 @@ All components share the same resource pool. A spike in query load can affect wr
 
 ### Resource considerations
 
-Monolithic instances need enough memory to handle the live-store's in-memory trace buffer, the querier's concurrent job execution, the block-builder's scratch space, and the compactor's memory for block merging. As volume increases, the instance becomes bottlenecked by whichever component is most resource-hungry.
+Monolithic instances need enough memory to handle the live-store's in-memory trace buffer, the querier's concurrent job execution, the block-builder's scratch space, and the backend worker's memory for block merging. As volume increases, the instance becomes bottlenecked by whichever component is most resource-hungry.
 
 ## Microservices mode
 

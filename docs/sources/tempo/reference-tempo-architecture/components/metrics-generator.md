@@ -9,17 +9,25 @@ versionDate: 2026-03-20
 
 # Metrics-generator
 
-The metrics-generator is an optional component that consumes trace data from Kafka and derives metrics, which are then remote-written to a metrics backend, for example, Prometheus or Grafana Mimir.
+The metrics-generator is an optional component that consumes trace data from Kafka and derives metrics,
+which are then remote-written to a metrics backend, for example, Prometheus or Grafana Mimir.
 
 ## Why it matters
 
-Traces contain rich information about service interactions, latencies, and error rates. The metrics-generator extracts this information and produces time-series metrics, enabling alerting and dashboarding without requiring separate instrumentation.
+Traces contain rich information about service interactions, latencies, and error rates.
+The metrics-generator extracts this information and produces time-series metrics,
+enabling alerting and dashboarding without requiring separate instrumentation.
 
-It supports two types of metric generation. Span metrics produce request rate, error rate, and duration (RED) metrics from individual spans. These can be broken down by service, operation, status code, and custom dimensions extracted from span attributes. Service graphs build a graph of service-to-service communication by matching client and server spans, producing metrics for request rates, error rates, and latencies between service pairs.
+It supports two types of metric generation.
+Span metrics produce request rate, error rate, and duration (RED) metrics from individual spans.
+These can be broken down by service, operation, status code, and custom dimensions extracted from span attributes.
+Service graphs build a graph of service-to-service communication by matching client and server spans,
+producing metrics for request rates, error rates, and latencies between service pairs.
 
 ## Kafka consumption
 
-Like live-stores and block-builders, the metrics-generator consumes trace data directly from Kafka. It runs as an independent consumer group, tracking its own offsets separately.
+Like live-stores and block-builders, the metrics-generator consumes trace data directly from Kafka.
+It runs as an independent consumer group, tracking its own offsets separately.
 
 ### Monitoring consumption
 
@@ -30,7 +38,8 @@ tempo_ingest_group_partition_lag{group="metrics-generator"}
 tempo_ingest_group_partition_lag_seconds{group="metrics-generator"}
 ```
 
-High or growing lag indicates the generator is falling behind. The `tempo_ingest_storage_reader` family of metrics exposes detailed information about fetch operations and errors from the Kafka client library.
+High or growing lag indicates the generator is falling behind.
+The `tempo_ingest_storage_reader` family of metrics exposes detailed information about fetch operations and errors from the Kafka client library.
 
 ## Active series limiting
 
@@ -49,11 +58,14 @@ overrides:
 
 This value is per metrics-generator instance. The actual maximum across the cluster is `<instances> * max_active_series`.
 
-When the limit is reached, the generator produces overflow series with the label `metric_overflow="true"` instead of dropping data entirely. As existing series become stale, new series split out from the overflow bucket.
+When the limit is reached, the generator produces overflow series with the label `metric_overflow="true"` instead of dropping data entirely.
+As existing series become stale, new series split out from the overflow bucket.
 
 ### Entity-based limiting
 
-Entity-based limiting is an alternative to series-based limiting. An entity is a unique label combination (excluding external labels) across multiple metrics. Entity limiting ensures the generator always produces the full set of metrics for a given entity rather than limiting randomly.
+Entity-based limiting is an alternative to series-based limiting.
+An entity is a unique label combination (excluding external labels) across multiple metrics.
+Entity limiting ensures the generator always produces the full set of metrics for a given entity rather than limiting randomly.
 
 ```yaml
 metrics_generator:
@@ -62,7 +74,8 @@ metrics_generator:
 
 ### Per-label cardinality limiting
 
-You can cap the number of distinct values a single label can have. When exceeded, new values are replaced with `__cardinality_overflow__` while other labels remain unaffected.
+You can cap the number of distinct values a single label can have.
+When exceeded, new values are replaced with `__cardinality_overflow__` while other labels remain unaffected.
 
 ```yaml
 overrides:
