@@ -1,6 +1,7 @@
 ## main / unreleased
 
 * [CHANGE] Set default `max_result_limit` for search to 256*1024 [#6525](https://github.com/grafana/tempo/pull/6525) (@zhxiaogg)
+* [BUGFIX] avoided unbounded mem by capping exemplars hint [#6792](https://github.com/grafana/tempo/pull/6792) (@zhxiaogg) 
 
 # v2.9.1
 

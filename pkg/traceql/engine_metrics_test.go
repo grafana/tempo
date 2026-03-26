@@ -378,6 +378,51 @@ func TestCompileMetricsQueryRange(t *testing.T) {
 	}
 }
 
+func TestCompileMetricsQueryRangeExemplarsHint(t *testing.T) {
+	tc := []struct {
+		name              string
+		q                 string
+		defaultExemplars  int
+		allowUnsafe       bool
+		expectedExemplars int
+	}{
+		{
+			name:              "hint below maxExemplarsHint uses maxExemplarsHint as floor",
+			q:                 `{} | rate() with(exemplars=5000)`,
+			defaultExemplars:  0,
+			allowUnsafe:       true,
+			expectedExemplars: 5000,
+		},
+		{
+			name:              "hint above maxExemplarsHint uses hint value",
+			q:                 `{} | rate() with(exemplars=500000)`,
+			defaultExemplars:  0,
+			allowUnsafe:       true,
+			expectedExemplars: maxExemplarsHint,
+		},
+		{
+			name:              "no exemplars hint uses default",
+			q:                 `{} | rate()`,
+			defaultExemplars:  42,
+			allowUnsafe:       false,
+			expectedExemplars: 42,
+		},
+	}
+
+	for _, c := range tc {
+		t.Run(c.name, func(t *testing.T) {
+			eval, err := NewEngine().CompileMetricsQueryRange(&tempopb.QueryRangeRequest{
+				Query: c.q,
+				Start: 1,
+				End:   2,
+				Step:  3,
+			}, c.defaultExemplars, 0, c.allowUnsafe)
+			require.NoError(t, err)
+			require.Equal(t, c.expectedExemplars, eval.maxExemplars)
+		})
+	}
+}
+
 func TestCompileMetricsQueryRangeFetchSpansRequest(t *testing.T) {
 	tc := map[string]struct {
 		q           string
