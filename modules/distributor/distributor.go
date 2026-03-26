@@ -647,10 +647,12 @@ func requestsByTraceID(batches []*v1.ResourceSpans, userID string, spanCount, ma
 				}
 				traceID := span.TraceId
 				if !validation.ValidTraceID(traceID) {
+					overrides.RecordDiscardedSpans(spanCount, overrides.ReasonInvalidTraceID, userID)
 					return nil, nil, truncatedAttributesCount{}, nil, status.Errorf(codes.InvalidArgument, "trace ids must be 128 bit, received %d bits", len(traceID)*8)
 				}
 
 				if !validation.ValidSpanID(span.SpanId) {
+					overrides.RecordDiscardedSpans(spanCount, overrides.ReasonInvalidSpanID, userID)
 					return nil, nil, truncatedAttributesCount{}, nil, status.Errorf(codes.InvalidArgument, "span ids must be 64 bit and not all zero, received %d bits", len(span.SpanId)*8)
 				}
 
