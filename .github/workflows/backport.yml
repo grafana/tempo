@@ -128,7 +128,7 @@ jobs:
           git config --global user.name "grafana-delivery-bot[bot]"
 
       - name: Run backport
-        uses: grafana/grafana-github-actions-go/backport@main
+        uses: grafana/grafana-github-actions-go/backport@8f6bbbb778adfec42f3a336bcfd8aa72d3ae4db4 # main
         with:
           token: ${{ steps.app-token.outputs.token }}
           labelsToAdd: "backport"
