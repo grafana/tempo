@@ -28,7 +28,8 @@ docs/sources/tempo/
 ├── introduction/architecture.md    # Start here
 ├── configuration/
 │   ├── _index.md                   # Main config reference (manually edited)
-│   ├── manifest.md                 # Auto-generated — do not hand-edit
+│   ├── manifest.md                 # Auto-generated — do not hand-edit (see AGENTS.md)
+│   ├── AGENTS.md                   # Agent notes for this directory
 │   └── parquet.md                  # Block format versions and defaults
 ├── traceql/                        # TraceQL query language docs
 ├── set-up-for-tracing/             # Deployment and setup guides
@@ -80,7 +81,7 @@ Only what is not already in the style guide:
 
 These are non-obvious facts that will cause errors if you assume the obvious:
 
-1. **`manifest.md` is auto-generated.** `docs/sources/tempo/configuration/manifest.md` is generated from code. Only edit `_index.md` for config reference changes.
+1. **`manifest.md` is auto-generated.** Refer to `docs/sources/tempo/configuration/AGENTS.md` for details. Only edit `_index.md` for config reference changes.
 2. **`modules/ingester/` is legacy.** The ingester is replaced in 3.0 by live-store and block-builder. The code directory still exists pending cleanup — do not reference or document it. Use `architecture.md` for current components.
 3. **API parameters keep old names.** Some query parameters (e.g., `mode=ingesters`) retain 2.x names while routing to new components. Check the code (e.g., `modules/frontend/` query handlers) for the current mapping — code is the source of truth.
 4. **Block format default vs. latest may differ.** The latest format version in code may not be the default. Always check `docs/sources/tempo/configuration/parquet.md` for the current default.
