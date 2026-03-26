@@ -12,10 +12,6 @@ keywords:
 
 # TraceQL metrics functions
 
-<!-- Using a custom admonition because no feature flag is required. -->
-
-{{< docs/shared source="tempo" lookup="traceql-metrics-admonition.md" version="<TEMPO_VERSION>" >}}
-
 <!-- If you add a new function to this page, make sure you also add it to the _index.md#functions section.-->
 
 TraceQL metrics query functions are aggregate operators that can be appended to any TraceQL span selector to compute time-series metrics directly from trace data.

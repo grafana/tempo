@@ -27,25 +27,22 @@ different blocks, which can lead to inconsistency in a few ways:
    consider all parts of the trace from all blocks would evaluate true.
 
 
-You can tune the `ingester.trace_idle_period` configuration to allow for
-greater control about when traces are written to a block.
-Extending this beyond the default `10s` can allow for long running trace to be co-located in the same
-block, but take into account other considerations around memory consumption on
-the ingesters.
-Currently, this setting isn't per-tenant, and so adjusting
-affects all ingester instances.
+In Tempo 3.0, two components handle trace data independently:
+
+- **Live-stores** serve recent data. They hold traces in memory and can keep spans for the same trace together as long as the trace remains active. You can tune the `live_store.max_trace_idle` configuration to control when a trace is considered idle. Extending this beyond the default `5s` can allow for long-running traces to be co-located, but take into account other considerations around memory consumption on the live-stores.
+- **Block-builders** consume from Kafka and build blocks for long-term storage. They do a hard cut at a certain record on each consumption cycle. All spans consumed in a cycle are flushed into blocks regardless of whether the trace is complete. This means a trace's spans can be split across block-builder cycles with no way to keep them together.
 
 ### Data quality metrics
 
-Tempo publishes a `tempo_warnings_total` metric from several components, which
+Tempo publishes a `tempo_warnings_total` metric from the live-store, which
 can aid in understanding when this situation arises.
 
-When a trace is flushed to the WAL, it's marshalled in the Parquet format which makes it available for TraceQL metrics and search.
+When a trace is flushed to the WAL in the live-store, it's marshalled in the Parquet format which makes it available for TraceQL metrics and search.
 The more complete a trace is at this moment, the more accurate complex queries are.
 The `disconnected_trace_flushed_to_wal` and `rootless_trace_flushed_to_wal` metrics help operators measure how reliable their trace data pipeline is.
 
 * `disconnected_trace_flushed_to_wal`: Incremented when a trace is flushed that has a span with parent id that cannot be found.
-* `rootless_trace_flushed_to_wal`: incremented when a trace is flushed that doesn't have a root span. A root span is a span with all `0` parent id.
+* `rootless_trace_flushed_to_wal`: Incremented when a trace is flushed that doesn't have a root span. A root span is a span with all `0` parent id.
 
 You might see these data quality metrics if you use a Prometheus query like this to explore Tempo warnings:
 
@@ -53,17 +50,17 @@ You might see these data quality metrics if you use a Prometheus query like this
 sum(rate(tempo_warnings_total{}[5m])) by (reason)
 ```
 
-This example helps determine the `%age` of complete traces flushed. This metric can help you optimize your instrumentation and traces pipeline and understand the impact it has on Tempo data quality.
+This example helps determine the percentage of complete traces flushed. This metric can help you optimize your instrumentation and traces pipeline and understand the impact it has on Tempo data quality.
 
-In particular, the following query can be used to know what percentage of traces which are flushed to the wall are connected.
+In particular, the following query can be used to know what percentage of traces flushed to the WAL are connected.
 
 ```
-1 - sum(rate(tempo_warnings_total{reason="disconnected_trace_flushed_to_wal"}[5m])) / sum(rate(tempo_ingester_traces_created_total{}[5m]))
+1 - sum(rate(tempo_warnings_total{reason="disconnected_trace_flushed_to_wal"}[5m])) / sum(rate(tempo_live_store_traces_created_total{}[5m]))
 ```
 
 If you have long-running traces, you may also be interested in the
 `rootless_trace_flushed_to_wal` reason to know when a trace is flushed to the
-wall without a root trace.
+WAL without a root span.
 
 You can use `reason` fields for discovery with this query:
 

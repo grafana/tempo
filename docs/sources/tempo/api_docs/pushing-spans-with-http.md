@@ -95,7 +95,7 @@ You can also use an online tool such as [Epoch Converter](https://www.epochconve
 
 1. View the trace in Grafana:
    1. Open a browser window to http://localhost:3000.
-   1. Open the **Explorer** page and select the Tempo data source.
+   1. Open the **Explore** page and select the Tempo data source.
    1. Select the **Search** query type.
    1. Select **Run query** to list available traces.
    1. Select the trace ID (yellow box) to view details about the trace and its spans.

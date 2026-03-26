@@ -9,9 +9,9 @@ aliases:
 
 # Distributor refusing spans
 
-The two most likely causes of refused spans are unhealthy ingesters or trace limits being exceeded.
+The most likely cause of refused spans is rate limits being exceeded.
 
-To log spans that are discarded, add the `--distributor.log_discarded_spans.enabled` flag to the distributor or
+To log spans that are discarded, add the `--distributor.log-discarded-spans.enabled` flag to the distributor or
 adjust the [distributor configuration](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/#distributor):
 
 ```yaml
@@ -28,28 +28,11 @@ level=info ts=2024-08-19T16:06:25.880684385Z caller=distributor.go:767 msg=disca
 level=info ts=2024-08-19T16:06:25.881169385Z caller=distributor.go:767 msg=discarded spanid=5352b0cb176679c8 traceid=ba41cae5089c9284e18bca08fbf10ca2
 ```
 
-## Unhealthy ingesters
+## Rate limits exceeded
 
-Unhealthy ingesters can be caused by failing OOMs or scale down events.
-If you have unhealthy ingesters, your log line will look something like this:
-
-```
-msg="pusher failed to consume trace data" err="at least 2 live replicas required, could only find 1"
-```
-
-In this case, you may need to visit the ingester [ring page](https://grafana.com/docs/tempo/<TEMPO_VERSION>/operations/manage-advanced-systems/consistent_hash_ring/) at `/ingester/ring` on the Distributors
-and "Forget" the unhealthy ingesters.
-This works in the short term, but the long term fix is to stabilize your ingesters.
-
-## Trace limits reached
-
-In high volume tracing environments, the default trace limits are sometimes not sufficient.
-These limits exist to protect Tempo and prevent it from OOMing, crashing, or otherwise allow tenants to not DOS each other.
-If you are refusing spans due to limits, you'll see logs like this at the distributor:
+The distributor checks ingestion rate limits before writing to Kafka. If spans are refused due to rate limits, you'll see logs like this at the distributor:
 
 ```
-msg="pusher failed to consume trace data" err="rpc error: code = FailedPrecondition desc = TRACE_TOO_LARGE: max size of trace (52428800) exceeded while adding 15632 bytes to trace a0fbd6f9ac5e2077d90a19551dd67b6f for tenant single-tenant"
-msg="pusher failed to consume trace data" err="rpc error: code = FailedPrecondition desc = LIVE_TRACES_EXCEEDED: max live traces per tenant exceeded: per-user traces limit (local: 60000 global: 0 actual local: 60000) exceeded"
 msg="pusher failed to consume trace data" err="rpc error: code = ResourceExhausted desc = RATE_LIMITED: ingestion rate limit (15000000 bytes) exceeded while adding 10 bytes"
 ```
 
@@ -60,6 +43,11 @@ tempo_discarded_spans_total
 ```
 
 In this case, use available configuration options to [increase limits](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/#ingestion-limits).
+
+## Trace limits
+
+Limits such as `max_bytes_per_trace` and `max_live_traces_bytes` are enforced asynchronously by the live-store and 
+block-builder. These limits won't cause the distributor to refuse spans at ingestion time. Traces that exceed them are discarded downstream.
 
 ## Client resets connection
 
