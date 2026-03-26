@@ -18,14 +18,12 @@ GOPATH := $(shell go env GOPATH)
 GORELEASER := $(GOPATH)/bin/goreleaser
 
 # Build Images
-<<<<<<< HEAD
 DOCKER_PROTOBUF_IMAGE ?= otel/build-protobuf:0.25.0
 LOKI_BUILD_IMAGE ?= grafana/loki-build-image:0.34.6
-=======
+
 # https://hub.docker.com/repository/docker/grafana/tempo-ci-tools/
 # built by: .github/workflows/docker-ci-tools.yml
 TEMPO_CI_TOOLS_IMAGE ?= grafana/tempo-ci-tools:main-8340a1d49
->>>>>>> fa67dd687 (update go version for CVE-2026-25679 (#6779))
 DOCS_IMAGE ?= grafana/docs-base:latest
 
 # More exclusions can be added similar with: -not -path './testbed/*'
