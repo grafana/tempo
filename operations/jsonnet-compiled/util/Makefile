@@ -1,7 +1,7 @@
 .PHONY: gen check
 
 gen:
-	jb update
+	jb install
 	tk export out/ example --format "{{.kind}}-{{or .metadata.name .metadata.generateName}}"
 
 	rm -r ../*.yaml
