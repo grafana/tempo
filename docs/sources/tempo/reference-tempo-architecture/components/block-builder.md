@@ -38,7 +38,7 @@ as well as bloom filters and indexes for efficient querying.
 
 ### Deterministic block IDs
 
-The block-builder generates block IDs deterministically based on the partition,tenant, and Kafka offset range.
+The block-builder generates block IDs deterministically based on the partition, tenant, and Kafka offset range.
 This is critical for crash recovery: if a block-builder crashes mid-flush and restarts,
 it produces the same block IDs on retry, safely overwriting any partial data from the previous attempt.
 

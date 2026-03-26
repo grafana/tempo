@@ -7,7 +7,7 @@ topicType: concept
 versionDate: 2026-03-20
 ---
 
-# Backend scheduler and worker
+# Compaction
 
 The backend scheduler and worker replace the legacy compactor.
 Together they handle compaction, retention, and blocklist maintenance for data in object storage.

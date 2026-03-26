@@ -43,7 +43,7 @@ Application -> Distributor -> Kafka -> Block-builder -> Object storage
 validate it against rate limits, shard traces by trace ID, and write records to Kafka partitions.
 2. Kafka durably stores the records.
 The write is acknowledged to the client as soon as Kafka confirms receipt.
-3. Block-builders consume records from Kafka, organize spans into blocks in Apache Parquet format, 
+3. Block-builders consume records from Kafka, organize spans into blocks in Apache Parquet format,
 and flush those blocks to object storage.
 
 The block-builder operates on a consumption cycle: it reads a batch of records from Kafka,

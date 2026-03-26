@@ -10,7 +10,7 @@ versionDate: 2026-03-20
 # Partition ring
 
 The partition ring is Tempo's mechanism for tracking which partitions exist, their current state, and which components own them.
-It's propagated across the cluster via memberlist gossip and is central to how distributors, live-stores, and block-builders coordinate.
+By default, the partition ring propagates across the cluster via memberlist gossip and is central to how distributors, live-stores, and block-builders coordinate.
 
 ## Tempo partitions vs Kafka partitions
 
