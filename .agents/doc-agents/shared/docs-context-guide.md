@@ -51,7 +51,9 @@ docs/sources/helm-charts/
 
 ## How to verify what you write
 
-| Claim type | Where to check |
+Use these checks for any doc task — writing, updating, or reviewing.
+
+| What you're verifying | Where to check |
 |---|---|
 | Config default value | `RegisterFlagsAndApplyDefaults` in the component's `config.go` |
 | Config option exists | `docs/sources/tempo/configuration/_index.md` on the current branch |
@@ -65,14 +67,14 @@ Always validate claims against code. Do not rely solely on PR descriptions or us
 
 Only what is not already in the style guide:
 
-- **Component names**: hyphenated in prose ("live-store", "block-builder", "metrics-generator"), underscores in YAML config keys (`live_store`, `block_builder`)
+- **Component names**: hyphenated in prose ("live-store", "block-builder", "metrics-generator"). For YAML config keys, verify the exact spelling in the component's `config.go` rather than assuming a convention.
 - **Block format naming**: lowercase-v, no space ("vParquet4", "vParquet5")
 - **Tone matching**: read 2-3 sibling docs in the same directory before writing to match the existing style and depth
 
 ### Required reading before writing or reviewing
 
 - `.agents/doc-agents/shared/style-guide.md` — always
-- `.agents/doc-agents/shared/metrics-generator-knowledge.md` — when working on metrics-generator docs
+- `modules/generator/AGENTS.md` — when working on metrics-generator docs
 
 ## Gotchas
 
@@ -80,5 +82,5 @@ These are non-obvious facts that will cause errors if you assume the obvious:
 
 1. **`manifest.md` is auto-generated.** `docs/sources/tempo/configuration/manifest.md` is generated from code. Only edit `_index.md` for config reference changes.
 2. **`modules/ingester/` is legacy.** The ingester is replaced in 3.0 by live-store and block-builder. The code directory still exists pending cleanup — do not reference or document it. Use `architecture.md` for current components.
-3. **API parameters keep old names.** Some query parameters (e.g., `mode=ingesters`) retain 2.x names while routing to new components. Check the API docs for the current mapping.
-4. **Block format default vs. latest may differ.** The latest format version in code may not be the default. Always check `parquet.md` for the current default.
+3. **API parameters keep old names.** Some query parameters (e.g., `mode=ingesters`) retain 2.x names while routing to new components. Check the code (e.g., `modules/frontend/` query handlers) for the current mapping — code is the source of truth.
+4. **Block format default vs. latest may differ.** The latest format version in code may not be the default. Always check `docs/sources/tempo/configuration/parquet.md` for the current default.

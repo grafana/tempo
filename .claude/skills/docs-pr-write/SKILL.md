@@ -10,10 +10,6 @@ For a prioritized PR list from `docs-pr-check`, create or update the required do
 
 This skill is for documentation execution only. Do not generate release notes.
 
-## Guardrails
-
-- After completing all doc changes, present the list of changed files and ask the user: _"Would you like me to create a PR, or would you prefer to review the changes locally first?"_
-
 ## Usage
 
 Invoke with `/docs-pr-write`.

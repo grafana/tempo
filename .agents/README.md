@@ -50,9 +50,9 @@ The agent walks you through five stages interactively: learn the feature, plan t
 | Write docs from scratch | `writer-agent.md` with `style-guide.md` |
 | Create release notes | Follow `release-notes-workflow.md` |
 
-## What you do (as the writer)
+## Your responsibilities
 
-Regardless of which workflow you use, your responsibilities are:
+Regardless of which workflow you use, your responsibilities as the human writer are:
 
 - Answer questions from the agent
 - Review drafts and outputs
@@ -71,7 +71,6 @@ The agent handles the rest: reading the repo context guide, looking up PRs, sear
     │   └── writer-agent.md         # Full documentation workflow agent
     └── shared/
         ├── README.md               # Detailed guide for shared resources
-        ├── docs-context-guide.md   # Repo orientation: code-to-docs mapping, conventions, gotchas
         ├── style-guide.md          # Grafana style rules and templates
         ├── best-practices.md       # Lessons learned and common pitfalls
         ├── verification-checklist.md  # Pre-submission quality checklist
@@ -85,6 +84,14 @@ The agent handles the rest: reading the repo context guide, looking up PRs, sear
 ├── docs-pr-write/SKILL.md          # Write/update docs for flagged PRs
 └── docs-review/SKILL.md            # Review docs for style, accuracy, completeness
 ```
+
+### Gold standard pages
+
+When writing or reviewing docs, use these pages as models for structure, style, and depth:
+
+- [`docs/sources/tempo/traceql/construct-traceql-queries.md`](../docs/sources/tempo/traceql/construct-traceql-queries.md) — Task-oriented headings, fenced TraceQL examples, version callouts (vParquet4/5)
+- [`docs/sources/tempo/operations/backend_search.md`](../docs/sources/tempo/operations/backend_search.md) — "Before you begin" section, query-path diagram, YAML snippets, version-scoped admonitions
+- [`docs/sources/tempo/configuration/parquet.md`](../docs/sources/tempo/configuration/parquet.md) — Config topic with migration warnings, version tables, copy-pastable YAML
 
 ### Writer agent
 
@@ -101,7 +108,7 @@ These files live in [`doc-agents/shared/`](doc-agents/shared/) and are used by a
 | [`best-practices.md`](doc-agents/shared/best-practices.md)                           | Pre-writing checklist, common pitfalls, documentation patterns (for human writers)                           |
 | [`verification-checklist.md`](doc-agents/shared/verification-checklist.md)           | Comprehensive pre-submission checklist for accuracy, consistency, and completeness                           |
 | [`release-notes-workflow.md`](doc-agents/shared/release-notes-workflow.md)           | Multi-phase workflow for creating release notes, from CHANGELOG curation through final polish                |
-| [`metrics-generator-knowledge.md`](doc-agents/shared/metrics-generator-knowledge.md) | Domain knowledge for metrics-generator: feature scope, config structure, common confusion points, v3 changes |
+| [`metrics-generator-knowledge.md`](doc-agents/shared/metrics-generator-knowledge.md) | Pointer to `modules/generator/AGENTS.md` (metrics-generator domain knowledge) |
 
 ### Skills
 
@@ -152,4 +159,4 @@ Use the release notes workflow for creating per-version release notes. This is a
 
 ### Metrics-generator documentation
 
-When working on metrics-generator docs, load [`metrics-generator-knowledge.md`](doc-agents/shared/metrics-generator-knowledge.md) as additional context. It covers feature scope, configuration structure, common user confusion points, and v3 architectural changes.
+When working on metrics-generator docs, load [`modules/generator/AGENTS.md`](../modules/generator/AGENTS.md) as additional context. It covers feature scope, configuration structure, common user confusion points, and v3 architectural changes.

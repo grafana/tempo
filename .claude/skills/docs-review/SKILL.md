@@ -33,7 +33,11 @@ When in doubt, classify as **(b)**. The overhead of a targeted code check is sma
 
 ### 3. Run Vale
 
-If Vale is installed, run it against the changed files using the Grafana writers' toolkit configuration (https://github.com/grafana/writers-toolkit):
+[Vale](https://vale.sh) is a command-line linter for prose. Install it from https://vale.sh/docs/install/. The Grafana Vale config and custom rules live in the writers-toolkit repo:
+- Config: https://github.com/grafana/writers-toolkit/blob/main/.vale.ini
+- Grafana rules: https://github.com/grafana/writers-toolkit/tree/main/vale/Grafana
+
+If Vale is installed, run it against the changed files:
 
 ```bash
 vale <file_path>
