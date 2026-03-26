@@ -1,7 +1,6 @@
 package livestore
 
 import (
-	"context"
 	"flag"
 	"testing"
 	"time"
@@ -175,7 +174,7 @@ func TestMetrics_CompletionFlow(t *testing.T) {
 	initialCompletionSize := getHistogramCount(t, metricCompletionSize)
 
 	// Complete the block
-	err = setup.instance.completeBlock(context.Background(), blockID)
+	err = setup.instance.completeBlock(t.Context(), blockID)
 	require.NoError(t, err)
 
 	// Verify completion size metric was updated
