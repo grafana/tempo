@@ -17,6 +17,7 @@
 * [CHANGE] jsonnet: Add emptyDir data volume to block-builder StatefulSet [#6648](https://github.com/grafana/tempo/pull/6648) (@mapno)
 * [CHANGE] Add quick checks to tempo mixin runbook [#6696](https://github.com/grafana/tempo/pull/6696) (@javiermolinar)
 * [CHANGE] Deprecate metrics-generator no-local-blocks [#6707](https://github.com/grafana/tempo/pull/6707) (@javiermolinar)
+* [CHANGE] Track invalid trace and span id discards [#6799](https://github.com/grafana/tempo/pull/6799) (@javiermolinar)
 * [FEATURE] Add automemlimit support for automatic GOMEMLIMIT configuration. Enable with `memory.automemlimit_enabled: true`. [#6313](https://github.com/grafana/tempo/pull/6313) (@oleg-kozlyuk)
 * [FEATURE] Support comparison operators in TraceQL Metrics queries [#6474](ghttps://github.com/grafana/tempo/pull/6474) (@ruslan-mikhailov)
 * [FEATURE] Add new include_any filter policy for spanmetrics filter [#6392](https://github.com/grafana/tempo/pull/6392) (@javiermolinar)
