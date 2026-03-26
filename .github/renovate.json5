@@ -114,6 +114,12 @@
       groupName: 'docker',
     },
     {
+      description: 'Fast-track Go updates: bump go directive and skip release age for Go images',
+      matchDepNames: ['go', 'golang'],
+      rangeStrategy: 'bump',
+      minimumReleaseAge: '0 days',
+    },
+    {
       description: 'Use regex versioning for tempo-ci-tools (branch-sha-datetime tags)',
       matchManagers: [
         'custom.regex',
