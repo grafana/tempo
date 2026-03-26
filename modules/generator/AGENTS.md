@@ -86,8 +86,8 @@ metrics_generator:
 
 **Solution**:
 - Explicitly state `source_labels` must use original attribute names (with dots)
-- Explain that you can use `dimensions` and `dimension_mappings` together, but mapped label names must not collide (after sanitization) with intrinsic dimensions or labels configured via `dimensions`
-- Provide clear example showing actual renaming, not default sanitization
+- Explain that `dimensions` and `dimension_mappings` are complementary: you can use either one alone or combine them, but after label sanitization the final label names must not collide across intrinsic dimensions, `dimensions`, and `dimension_mappings`
+- Provide a clear example that shows both actual renaming and how sanitized label names differ from the original attributes, including how collisions are avoided
 
 **Key Insight**: `dimension_mappings` reads directly from original span attributes, not from `dimensions` output.
 
@@ -147,16 +147,16 @@ Tempo 3.0 (Project Rhythm) restructures how the metrics-generator receives data 
 
 | Aspect | v2.x | v3.0 |
 |--------|------|------|
-| **Data source** | Distributor pushes spans via gRPC (`PushSpans`) | Kafka consumer (primary path) |
+| **Data source** | Distributor pushes spans to the metrics-generator via gRPC (`PushSpans`) | Distributor writes spans to Kafka (microservices mode) or calls `PushSpans` in-process (single-binary; no generator gRPC ingestion service) |
 | **local-blocks processor** | Supported | **Removed** (PR #6555) |
 | **Recent-data metrics queries** | Served by metrics-generator / ingesters | Served by **live-store** |
 | **SpanMetricsSummary API** | Supported | **Removed** (PRs #6496, #6510) |
-| **gRPC server** | Always on | Optional (controlled by generator mode; `disable_grpc` is deprecated and ignored) |
+| **gRPC server** | Always on for ingestion (`PushSpans`) and query APIs | Used only for query APIs; distributor never calls generator gRPC in v3.0 |
 | **Valid processors** | service-graphs, span-metrics, local-blocks, host-info | service-graphs, span-metrics, host-info |
 
 #### Kafka ingestion
 
-The metrics-generator now consumes trace data from Kafka instead of (or in addition to) receiving `PushSpans` from the distributor.
+In Tempo 3.0 microservices mode, the metrics-generator consumes trace data from Kafka. In single-binary mode, the Tempo process calls the generator's `PushSpans` method directly in-process, without a generator gRPC ingestion service.
 
 - **Implementation**: `modules/generator/generator_kafka.go`
 - **Config**: top-level `ingest` block — address, topic, consumer group, etc. (injected into the generator at runtime; the generator config uses `yaml:"-"` so it doesn't appear under `metrics_generator`)
@@ -166,7 +166,7 @@ The metrics-generator now consumes trace data from Kafka instead of (or in addit
 #### Two generator modes
 
 - **`MetricsGenerator`** (traditional) — Uses ring + memberlist. Can receive PushSpans and/or consume Kafka. gRPC optional.
-- **`MetricsGeneratorNoLocalBlocks`** — Kafka-only mode. Uses partition ring watcher, requires `ingest.enabled`. (The `disable_grpc` config key is deprecated and ignored.)
+- **`MetricsGeneratorNoLocalBlocks`** — Kafka-only mode. Uses partition ring watcher and consumes from Kafka as configured by the deployment model. (`ingest.enabled` and `disable_grpc` are deprecated and ignored.)
 
 **Code Reference**: `cmd/tempo/app/modules.go`
 
