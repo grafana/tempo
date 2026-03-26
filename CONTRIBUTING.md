@@ -114,7 +114,167 @@ import (
 
 ### Error handling
 
-Follow standard Go error handling patterns. Return errors up the call stack; don't swallow them. Use `fmt.Errorf("context: %w", err)` to wrap errors with context. Avoid `panic` except in truly unrecoverable situations.
+Follow standard Go error handling patterns. Return errors up the call stack; don't swallow them. Avoid `panic` except in truly unrecoverable situations.
+
+**Handle errors immediately and return early:**
+
+Check for errors right after the call and return early. The happy path continues at the normal indentation level — don't nest it in an `else` block.
+
+```go
+// good
+err := doSomething()
+if err != nil {
+    level.Error(logger).Log("msg", "failed to do something", "err", err)
+    return err
+}
+// happy path continues here at normal indentation
+
+// avoid
+err := doSomething()
+if err == nil {
+    // happy path buried inside else
+} else {
+    return err
+}
+```
+
+**Wrap errors with context using `%w`:**
+
+```go
+return fmt.Errorf("failed to create tempodb: %w", err)
+```
+
+Always add a short context string that describes what the current function was trying to do. This builds a readable error chain without losing the original error for later inspection.
+
+**Define sentinel errors at the package level:**
+
+```go
+var (
+    ErrDoesNotExist  = errors.New("does not exist")
+    ErrEmptyTenantID = errors.New("empty tenant id")
+)
+```
+
+Use `errors.New` for sentinel values. Export them (`Err*`) when callers outside the package need to check for them.
+
+**Check errors with `errors.Is` and `errors.As`:**
+
+```go
+// Checking sentinel errors
+if errors.Is(err, backend.ErrDoesNotExist) { ... }
+
+// Checking for context cancellation
+if errors.Is(err, context.Canceled) { ... }
+
+// Extracting a custom error type
+var parseErr *ParseError
+if errors.As(err, &parseErr) { ... }
+```
+
+Prefer `errors.Is` and `errors.As` over direct equality checks or string matching — they traverse the error chain created by `%w` wrapping.
+
+**Define custom error types for structured error data:**
+
+When callers need to inspect error fields (not just identity), define a struct that implements the `error` interface. Add an `Unwrap()` method if the type wraps another error.
+
+```go
+type ParseError struct {
+    msg  string
+    line int
+    col  int
+}
+
+func (e *ParseError) Error() string {
+    return fmt.Sprintf("parse error at line %d, col %d: %s", e.line, e.col, e.msg)
+}
+```
+
+**Log errors with structured key-value pairs:**
+
+```go
+level.Error(logger).Log("msg", "failed to flush block", "tenant", tenantID, "err", err)
+level.Warn(logger).Log("msg", "skipped span processing", "err", err)
+```
+
+Use `level.Error` for unexpected failures and `level.Warn` for expected or recoverable conditions. Always include `"err", err` as the last key-value pair. Use rate-limited loggers (`log.NewRateLimitedLogger`) for errors that can fire at high frequency.
+
+### `defer`
+
+Use `defer` to pair cleanup with acquisition — the cleanup statement should appear immediately after the call that requires it, not at the end of the function.
+
+**Close iterators and readers immediately after opening:**
+
+```go
+iter, err := block.Iterator()
+if err != nil {
+    return err
+}
+defer iter.Close()
+```
+
+**Unlock mutexes immediately after locking:**
+
+```go
+mu.Lock()
+defer mu.Unlock()
+```
+
+**Cancel contexts immediately after creating them:**
+
+```go
+ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+defer cancel()
+```
+
+**End spans immediately after starting them:**
+
+```go
+ctx, span := tracer.Start(ctx, "operationName")
+defer span.End()
+```
+
+**Stop tickers and timers immediately after creating them:**
+
+```go
+ticker := time.NewTicker(interval)
+defer ticker.Stop()
+```
+
+**Use anonymous `defer` functions for conditional or error-sensitive cleanup:**
+
+When cleanup logic depends on the function's return value or needs to check errors, use an anonymous function. A common pattern is to record span errors only on failure:
+
+```go
+var err error
+defer func() {
+    if err != nil {
+        span.RecordError(err)
+    }
+}()
+```
+
+Another common use is recovering from panics in long-running goroutines:
+
+```go
+defer func() {
+    if r := recover(); r != nil {
+        level.Error(logger).Log("msg", "recovered from panic", "err", r, "stack", string(debug.Stack()))
+        err = errors.New("recovered from panic")
+    }
+}()
+```
+
+And for graceful shutdown — stopping subservices only when startup fails mid-way:
+
+```go
+defer func() {
+    if err != nil && w.subservices != nil {
+        if stopErr := services.StopManagerAndAwaitStopped(context.Background(), w.subservices); stopErr != nil {
+            level.Error(logger).Log("msg", "failed to stop dependencies", "err", stopErr)
+        }
+    }
+}()
+```
 
 ### Interface implementation
 
