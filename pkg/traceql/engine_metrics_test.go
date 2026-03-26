@@ -249,14 +249,14 @@ func TestCompileMetricsQueryRangeExemplarsHint(t *testing.T) {
 			q:                 `{} | rate() with(exemplars=5000)`,
 			defaultExemplars:  0,
 			allowUnsafe:       true,
-			expectedExemplars: maxExemplarsHint,
+			expectedExemplars: 5000,
 		},
 		{
 			name:              "hint above maxExemplarsHint uses hint value",
 			q:                 `{} | rate() with(exemplars=500000)`,
 			defaultExemplars:  0,
 			allowUnsafe:       true,
-			expectedExemplars: 500000,
+			expectedExemplars: maxExemplarsHint,
 		},
 		{
 			name:              "no exemplars hint uses default",

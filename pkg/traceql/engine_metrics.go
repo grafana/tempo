@@ -897,7 +897,7 @@ func (e *Engine) CompileMetricsQueryRange(req *tempopb.QueryRangeRequest, exempl
 	}
 
 	if v, ok := expr.Hints.GetInt(HintExemplars, allowUnsafeQueryHints); ok {
-		exemplars = max(v, maxExemplarsHint)
+		exemplars = min(v, maxExemplarsHint)
 	}
 
 	// This initializes all step buffers, counters, etc
