@@ -88,39 +88,47 @@ func (s *LiveStore) globalCompleteLoop(idx int) {
 			continue
 		}
 
-		start := time.Now()
-		inst, err := s.getOrCreateInstance(op.tenantID)
-		if err != nil {
-			level.Error(s.logger).Log("msg", "failed to retrieve instance for completion", "tenant", op.tenantID, "err", err)
-			observeFailedOp(op)
+		if err := s.processCompleteOp(op); err != nil {
 			return
 		}
-
-		err = inst.completeBlock(s.ctx, op.blockID)
-		duration := time.Since(start)
-		metricCompletionDuration.Observe(duration.Seconds())
-
-		if err != nil {
-			level.Error(s.logger).Log("msg", "failed to complete block", "tenant", op.tenantID, "block", op.blockID, "err", err)
-			observeFailedOp(op)
-
-			delay := op.backoff()
-			op.at = time.Now().Add(delay)
-
-			metricCompletionRetries.Inc()
-
-			go func() {
-				time.Sleep(delay)
-
-				if err := s.requeueOp(op); err != nil {
-					_ = level.Error(s.logger).Log("msg", "failed to requeue block for flushing", "tenant", op.tenantID, "block", op.blockID, "err", err)
-				}
-			}()
-		} else {
-			metricBlocksCompleted.Inc()
-			s.completeQueues.Clear(op)
-		}
 	}
+}
+
+// processCompleteOp completes a single block. Returns an error if global loop should exit
+func (s *LiveStore) processCompleteOp(op *completeOp) error {
+	start := time.Now()
+	inst, err := s.getOrCreateInstance(op.tenantID)
+	if err != nil {
+		level.Error(s.logger).Log("msg", "failed to retrieve instance for completion", "tenant", op.tenantID, "err", err)
+		observeFailedOp(op)
+		return err
+	}
+
+	err = inst.completeBlock(s.ctx, op.blockID)
+	metricCompletionDuration.Observe(time.Since(start).Seconds())
+	if err == nil {
+		metricBlocksCompleted.Inc()
+		s.completeQueues.Clear(op)
+		return nil
+	}
+
+	level.Error(s.logger).Log("msg", "failed to complete block", "tenant", op.tenantID, "block", op.blockID, "err", err)
+	observeFailedOp(op)
+
+	delay := op.backoff()
+	op.at = time.Now().Add(delay)
+
+	metricCompletionRetries.Inc()
+
+	go func() {
+		time.Sleep(delay)
+
+		if err := s.requeueOp(op); err != nil {
+			_ = level.Error(s.logger).Log("msg", "failed to requeue block for flushing", "tenant", op.tenantID, "block", op.blockID, "err", err)
+		}
+	}()
+
+	return nil // do not exit global loop
 }
 
 func (s *LiveStore) perTenantCutToWalLoop(instance *instance) {
