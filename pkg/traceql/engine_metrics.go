@@ -24,6 +24,8 @@ const (
 	internalLabelBucket   = "__bucket"
 	maxExemplars          = 100
 	maxExemplarsPerBucket = 2
+	// This is a safety cap applied on the exemplars hint from traceql
+	maxExemplarsHint = 100000
 	// NormalNaN is a quiet NaN. This is also math.NaN().
 	normalNaN uint64 = 0x7ff8000000000001
 )
@@ -895,7 +897,7 @@ func (e *Engine) CompileMetricsQueryRange(req *tempopb.QueryRangeRequest, exempl
 	}
 
 	if v, ok := expr.Hints.GetInt(HintExemplars, allowUnsafeQueryHints); ok {
-		exemplars = v
+		exemplars = min(v, maxExemplarsHint)
 	}
 
 	// This initializes all step buffers, counters, etc
