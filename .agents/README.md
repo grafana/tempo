@@ -75,7 +75,8 @@ The agent handles the rest: reading the repo context guide, looking up PRs, sear
         ├── best-practices.md       # Lessons learned and common pitfalls
         ├── verification-checklist.md  # Pre-submission quality checklist
         ├── release-notes-workflow.md  # Multi-phase release notes process
-        └── metrics-generator-knowledge.md  # Domain knowledge for metrics-generator
+        ├── metrics-generator-knowledge.md  # Domain knowledge for metrics-generator
+        └── docs-context-guide.md   # Tempo docs context guide
 
 .claude/skills/
 ├── README.md                       # Skills workflow overview
