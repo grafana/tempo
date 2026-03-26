@@ -1,12 +1,6 @@
----
-name: docs-context-guide
-description: Structural orientation for Tempo documentation — maps code to docs, surfaces key files, and encodes non-obvious conventions. Read this before any Tempo doc task.
-allowed-tools: Bash Read Grep
----
-
 # Tempo documentation context guide
 
-Use this skill whenever you work on Tempo documentation — writing, updating, or reviewing. It tells you where things are and how to verify what you write. It does **not** cover style (the style guide does) or PR workflow (the PR skills do).
+Read this before any Tempo doc task — writing, updating, or reviewing. It tells you where things are and how to verify what you write. It does **not** cover style (the style guide does) or PR workflow (the PR skills do).
 
 ## Orientation — where to look
 
@@ -80,10 +74,6 @@ Only what is not already in the style guide:
 - `.agents/doc-agents/shared/style-guide.md` — always
 - `.agents/doc-agents/shared/metrics-generator-knowledge.md` — when working on metrics-generator docs
 
-### Related resource
-
-- `.agents/doc-agents/shared/verification-checklist.md` — broad, human-facing review checklist. Used by `docs-pr-write` (Step 8) as a handoff artifact. Do not load or execute as part of this skill's workflow.
-
 ## Gotchas
 
 These are non-obvious facts that will cause errors if you assume the obvious:
@@ -92,25 +82,3 @@ These are non-obvious facts that will cause errors if you assume the obvious:
 2. **`modules/ingester/` is legacy.** The ingester is replaced in 3.0 by live-store and block-builder. The code directory still exists pending cleanup — do not reference or document it. Use `architecture.md` for current components.
 3. **API parameters keep old names.** Some query parameters (e.g., `mode=ingesters`) retain 2.x names while routing to new components. Check the API docs for the current mapping.
 4. **Block format default vs. latest may differ.** The latest format version in code may not be the default. Always check `parquet.md` for the current default.
-
-## Guardrails
-
-All doc skills share these rules:
-
-- After writing or updating files, present the list of changed files and ask the user whether they want to create a PR or review the changes locally first.
-
-## Workflow
-
-1. **Orient**: read `architecture.md` and `configuration/_index.md`
-2. **Scope**: identify what changed — diff, user description, or GitHub issue
-3. **Find**: search `docs/sources/tempo/` for existing content. Prefer updating in place over creating new pages.
-4. **Write**: draft the content
-5. **Validate**: verify claims against `config.go`, `CHANGELOG.md`, or `test_examples.yaml` as appropriate
-6. **Prompt**: present changed files and ask the user whether to create a PR or review locally first.
-
-## Related skills
-
-- **`docs-pr-check`** (`.claude/skills/docs-pr-check/SKILL.md`) — evaluates whether a PR needs documentation. Usable independently or as part of release workflow.
-- **`docs-pr-write`** (`.claude/skills/docs-pr-write/SKILL.md`) — writes or updates documentation for PR changes. Usable independently or as part of release workflow.
-
-This skill provides the structural knowledge that those PR-scoped skills can leverage. Use this skill first for orientation, then invoke a PR skill if the task is PR-driven.

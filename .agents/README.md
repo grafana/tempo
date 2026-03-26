@@ -1,22 +1,65 @@
 # Doc agents
 
-We use two types of documentation agents: a generic AI agent, which serves as the default tool for product teams without a writer and handles the basic, standardized workflow; and the AI twin, a personalized agent that encodes your unique research, structure, writing, and review process. The generic agent fills the gap when no writer is available, while the AI twin amplifies your individual craft and raises the quality bar for the teams you support.
+Use AI to help write, update, and review Tempo documentation. These agents and skills handle research, drafting, validation, and formatting. You stay in control — reviewing output, answering questions, and deciding when to submit.
 
-Both types of doc agent are designed to help you generate, update, and maintain documentation across any Grafana project. They guide you through the entire documentation workflow—from understanding the product to drafting, reviewing, and preparing PRs—or you can run them at any individual stage you choose. They build structure, create and update content, validate links, and surface issues, while you stay in control of what to approve, refine, or publish.
+## Getting started
 
-This README explains what each resource does, how to use them together, and what responsibilities remain with you as the writer.
+Open this repo in your AI tool (Cursor, Claude Code, Copilot, etc.) and tell the agent what you need.
+
+### I have PRs that need docs
+
+Provide your PR numbers and let the agent check, write, and review:
+
+```text
+/docs-workflow
+
+PRs: #6126, #5982, #6103
+Branch: release-2.10
+```
+
+The agent runs three steps — triage, write, review — and stops between each one so you can review before it continues.
+
+You can also run any step on its own:
+
+| I want to...                     | Say this                                           |
+|----------------------------------|----------------------------------------------------|
+| Check if PRs need docs           | `/docs-pr-check` with a list of PR numbers         |
+| Write docs for specific PRs      | `/docs-pr-write` with PR numbers and target branch |
+| Review docs I already wrote      | `/docs-review` with the file paths to review       |
+
+### I need to write docs from scratch
+
+For new features or topics not tied to a specific PR:
+
+```text
+Run writer-agent.md using style-guide.md.
+
+I need to document the new MCP server feature.
+```
+
+The agent walks you through five stages interactively: learn the feature, plan the structure, draft the content, review it, and prepare the PR. You can start at any stage.
+
+### Quick reference
+
+| Task | What to use |
+|------|-------------|
+| PRs shipped and need docs | `/docs-workflow` with PR numbers |
+| Check a PR list for doc gaps | `/docs-pr-check` |
+| Write docs for flagged PRs | `/docs-pr-write` |
+| Review changed doc files | `/docs-review` |
+| Write docs from scratch | `writer-agent.md` with `style-guide.md` |
+| Create release notes | Follow `release-notes-workflow.md` |
 
 ## What you do (as the writer)
 
 Regardless of which workflow you use, your responsibilities are:
 
-- Choose which workflow and resources to use
 - Answer questions from the agent
 - Review drafts and outputs
 - Approve or edit the content
 - Decide when to commit and open a PR
 
-The agents and skills handle research, drafting, structure, validation, and formatting automatically.
+The agent handles the rest: reading the repo context guide, looking up PRs, searching existing docs, checking the style guide, and validating claims against the codebase.
 
 ## Directory structure
 
@@ -28,6 +71,7 @@ The agents and skills handle research, drafting, structure, validation, and form
     │   └── writer-agent.md         # Full documentation workflow agent
     └── shared/
         ├── README.md               # Detailed guide for shared resources
+        ├── docs-context-guide.md   # Repo orientation: code-to-docs mapping, conventions, gotchas
         ├── style-guide.md          # Grafana style rules and templates
         ├── best-practices.md       # Lessons learned and common pitfalls
         ├── verification-checklist.md  # Pre-submission quality checklist
@@ -36,9 +80,10 @@ The agents and skills handle research, drafting, structure, validation, and form
 
 .claude/skills/
 ├── README.md                       # Skills workflow overview
-├── docs-context-guide/SKILL.md     # Repo orientation for any doc task
+├── docs-workflow/SKILL.md          # End-to-end pipeline: check → write → review
 ├── docs-pr-check/SKILL.md          # Triage PR documentation status
-└── docs-pr-write/SKILL.md          # Write/update docs for flagged PRs
+├── docs-pr-write/SKILL.md          # Write/update docs for flagged PRs
+└── docs-review/SKILL.md            # Review docs for style, accuracy, completeness
 ```
 
 ### Writer agent
@@ -51,6 +96,7 @@ These files live in [`doc-agents/shared/`](doc-agents/shared/) and are used by a
 
 | File                                                                                 | Purpose                                                                                                      |
 | ------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------ |
+| [`docs-context-guide.md`](doc-agents/shared/docs-context-guide.md)                   | Repo orientation: code-to-docs mapping, key file paths, verification patterns, conventions, and gotchas      |
 | [`style-guide.md`](doc-agents/shared/style-guide.md)                                 | Grafana documentation style rules, templates, and formatting requirements                                    |
 | [`best-practices.md`](doc-agents/shared/best-practices.md)                           | Pre-writing checklist, common pitfalls, documentation patterns (for human writers)                           |
 | [`verification-checklist.md`](doc-agents/shared/verification-checklist.md)           | Comprehensive pre-submission checklist for accuracy, consistency, and completeness                           |
@@ -63,11 +109,12 @@ Skills are invokable workflows that live in `.claude/skills/`. They perform spec
 
 | Skill                                                                 | Invocation               | Purpose                                                                                                   |
 | --------------------------------------------------------------------- | ------------------------ | --------------------------------------------------------------------------------------------------------- |
-| [`docs-context-guide`](../.claude/skills/docs-context-guide/SKILL.md) | Read before any doc task | Repo orientation: code-to-docs mapping, key file paths, verification patterns, and Tempo conventions      |
+| [`docs-workflow`](../.claude/skills/docs-workflow/SKILL.md)           | `/docs-workflow`         | End-to-end pipeline: check PRs for doc gaps → write docs → review the result                              |
 | [`docs-pr-check`](../.claude/skills/docs-pr-check/SKILL.md)           | `/docs-pr-check`         | Triage a list of PRs: classify each as docs present, docs needed, docs update needed, or no docs required |
 | [`docs-pr-write`](../.claude/skills/docs-pr-write/SKILL.md)           | `/docs-pr-write`         | Write or update documentation for PRs flagged by `docs-pr-check`                                          |
+| [`docs-review`](../.claude/skills/docs-review/SKILL.md)               | `/docs-review`           | Review documentation changes for style, accuracy, and completeness                                        |
 
-The PR skills work as a two-stage pipeline: run `docs-pr-check` first to identify whether a PR needs doc (identify gaps), then run `docs-pr-write` on the flagged PRs to draft the documentation. Refer to the [skills README](../.claude/skills/README.md) for details on the handoff contract.
+The PR skills work as a three-step pipeline: check → write → review. Use `/docs-workflow` to run all three in sequence, or invoke each skill individually. Refer to the [skills README](../.claude/skills/README.md) for details on the handoff contract.
 
 ## Workflows
 
@@ -83,12 +130,16 @@ Use the writer agent with shared resources for any documentation task that is no
 
 ### PR-driven documentation
 
-Use the PR skills when you have a list of PRs that need documentation work (outside of a full release notes workflow).
+Use the PR workflow when you have a list of PRs that need documentation work (outside of a full release notes workflow).
 
-1. Read [`docs-context-guide`](../.claude/skills/docs-context-guide/SKILL.md) for repo orientation.
+**Recommended:** Run `/docs-workflow` with your PR list. It runs all three steps (check → write → review) in sequence and asks for your input between each step.
+
+**Or run each step individually:**
+
+1. Read [`docs-context-guide`](doc-agents/shared/docs-context-guide.md) for repo orientation.
 2. Run `/docs-pr-check` with your PR list to classify documentation status.
 3. Run `/docs-pr-write` on the PRs marked as needing docs.
-4. Review against [`verification-checklist.md`](doc-agents/shared/verification-checklist.md) before submitting.
+4. Run `/docs-review` on the changed files for style, accuracy, and completeness.
 
 ### Release notes
 
