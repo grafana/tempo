@@ -13,13 +13,14 @@
       "mode": "standalone",
       "pr_type": "A merged PR that introduces a user-facing feature, configuration option, or behavior change with no documentation files included in the PR",
       "pr_selection_command": "gh pr list --repo grafana/tempo --state merged --limit 100 --json number,title,author,labels,files | jq '[.[] | select(.author.login != \"dependabot[bot]\" and .author.login != \"github-actions[bot]\") | select(.files | map(.path) | any(startswith(\"docs/\")) | not) | select(.labels | map(.name) | any(. == \"type/feature\" or . == \"type/enhancement\" or . == \"add to changelog\"))] | .[0:10]'",
+      "pr_selection_note": "The filter excludes PRs that changed docs/ files, but docs may exist from a separate PR or prior release. After selecting a candidate, check the workspace for existing docs coverage (grep docs/sources/tempo for the feature name). The assertions accept 'Docs present' as valid when docs already exist.",
       "prompt_template": "Does PR #{PR_1} need documentation? Run docs-pr-check on it.",
-      "expected_output": "PR is classified as 'Docs needed' or 'Docs update needed'. Notes identify a relevant page under docs/sources/tempo as the target. A gap summary explains what is missing or incomplete.",
+      "expected_output": "PR is classified (not 'No docs required'). Notes identify a target page under docs/sources/tempo. Gap summary lists items or confirms coverage.",
       "assertions": [
         "Output includes a classification for PR {PR_1}",
-        "Classification is 'Docs needed' or 'Docs update needed' (not 'No docs required')",
+        "Classification is not 'No docs required' and includes evidence (checked files, labels, or PR content)",
         "Notes reference a specific file path under docs/sources/tempo",
-        "Gap summary includes at least one actionable item with enough detail to act on"
+        "Gap summary references specific docs files or sections checked to support its conclusion"
       ]
     },
     {

@@ -17,7 +17,7 @@
       "expected_output": "The relevant docs page is updated with content covering the change. Includes at least one concrete example. Return format shows 'Files changed', what was documented and where, and any open items.",
       "assertions": [
         "A file under docs/sources/tempo/ appears in 'Files changed'",
-        "New content includes at least one code or configuration example demonstrating the change",
+        "New content includes a runnable example matching the change type (curl/HTTP for API, YAML for config, TraceQL for query, shell for CLI)",
         "Existing page structure is preserved — the agent did not rewrite the entire page",
         "Output includes a section mapping the PR number to the file that was updated",
         "Output includes an 'Open items' section (even if empty)"
@@ -69,6 +69,7 @@
         "Output includes a PR-to-doc mapping entry for the PR",
         "New content includes at least one code or configuration example",
         "Existing page structure and other entries are preserved — the agent did not rewrite the whole page",
+        "Content notes the minimum Tempo version, or flags version as an open item",
         "Output includes an 'Open items' section"
       ]
     }
