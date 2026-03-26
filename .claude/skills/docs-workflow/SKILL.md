@@ -10,13 +10,14 @@ A three-step pipeline for documenting PR changes. Each step uses an existing ski
 
 ## Usage
 
+You can use this workflow at any stage — before creating a docs PR, while drafting, or after PRs have shipped. It works the same way regardless of timing.
+
 Invoke with `/docs-workflow`.
 
 Provide:
 - One or more PR numbers (from grafana/tempo)
 - Target branch or version context (for example, `main`, `release-2.10`)
 
-You can use this workflow at any stage — before creating a docs PR, while drafting, or after PRs have shipped. It works the same way regardless of timing.
 
 ## Before you begin
 
