@@ -10,7 +10,7 @@ import (
 
 // PartitionRingConfig configures the partition ring used by livestore ingest-path components.
 type PartitionRingConfig struct {
-	KVStore kv.Config `yaml:"kvstore" doc:"description=The key-value store used to share the hash ring across multiple instances. This option needs be set on ingesters, distributors, queriers, and rulers when running in microservices mode."`
+	KVStore kv.Config `yaml:"kvstore" doc:"description=The key-value store used to share the hash ring across multiple instances"`
 
 	// MinOwnersCount maps to ring.PartitionInstanceLifecyclerConfig's WaitOwnersCountOnPending.
 	MinOwnersCount int `yaml:"min_partition_owners_count"`

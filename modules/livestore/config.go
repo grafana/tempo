@@ -15,7 +15,7 @@ const defaultCompleteBlockTimeout = time.Hour
 
 type Config struct {
 	Ring          ring.Config         `yaml:"ring,omitempty"`
-	PartitionRing PartitionRingConfig `yaml:"partition_ring" category:"experimental"`
+	PartitionRing PartitionRingConfig `yaml:"partition_ring"`
 	Metrics       MetricsConfig       `yaml:"metrics"`
 
 	// CommitInterval configures how often the partition reader commits to kafka
