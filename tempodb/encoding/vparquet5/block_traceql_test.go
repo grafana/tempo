@@ -638,6 +638,12 @@ func searchesThatMatch(t *testing.T, traceIDText string) []struct {
 		// Span dedicated attributes
 		{"span.dedicated.span.2", traceql.MustExtractFetchSpansRequestWithMetadata(`{span.dedicated.span.2 = "dedicated-span-attr-value-2"}`)},
 		{"span.dedicated.span.4", traceql.MustExtractFetchSpansRequestWithMetadata(`{span.dedicated.span.4 = "dedicated-span-attr-value-4"}`)},
+		// Blob attributes
+		{"span.dedicated.span.5", traceql.MustExtractFetchSpansRequestWithMetadata(`{span.dedicated.span.5 = "dedicated-span-attr-value-5"}`)},
+		{"span.dedicated.span.5", traceql.MustExtractFetchSpansRequestWithMetadata(`{span.dedicated.span.5 =~ "dedicated-span-attr-value-5"}`)},
+		{"span.dedicated.span.5", traceql.MustExtractFetchSpansRequestWithMetadata(`{span.dedicated.span.5 != ""}`)},
+		{"span.dedicated.span.5", traceql.MustExtractFetchSpansRequestWithMetadata(`{span.dedicated.span.5 != "asdf"}`)},
+		{"span.dedicated.span.5", traceql.MustExtractFetchSpansRequestWithMetadata(`{span.dedicated.span.5 > ""}`)},
 		// Arrays
 		{"resource.str-array", traceql.MustExtractFetchSpansRequestWithMetadata(`{resource.str-array = "value-three"}`)},
 		{"resource.int-array", traceql.MustExtractFetchSpansRequestWithMetadata(`{resource.int-array = 11}`)},
@@ -798,6 +804,9 @@ func searchesThatDontMatch(t *testing.T) []struct {
 		{"Matches neither condition", traceql.MustExtractFetchSpansRequestWithMetadata(`{.foo = "xyz" || .` + LabelHTTPStatusCode + " = 1000}")},
 		{"Resource dedicated attributes does not match", traceql.MustExtractFetchSpansRequestWithMetadata(`{resource.dedicated.resource.3 = "dedicated-resource-attr-value-4"}`)},
 		{"Resource dedicated attributes does not match", traceql.MustExtractFetchSpansRequestWithMetadata(`{span.dedicated.span.2 = "dedicated-span-attr-value-5"}`)},
+		{"Blob test 1", traceql.MustExtractFetchSpansRequestWithMetadata(`{span.dedicated.span.5 = "dedicated-span-attr-value-asdf"}`)},
+		{"Blob test 2", traceql.MustExtractFetchSpansRequestWithMetadata(`{span.dedicated.span.5 =~ "dedicated-span-attr-value-asdf"}`)},
+		{"Blob test 2", traceql.MustExtractFetchSpansRequestWithMetadata(`{span.dedicated.span.5 = ""}`)},
 		{
 			name: "Time range after trace",
 			req: traceql.FetchSpansRequest{

@@ -267,6 +267,10 @@ docker-tempo-query: ## Build tempo query docker image
 docker-tempo-vulture: ## Build tempo vulture docker image
 	COMPONENT=tempo-vulture make docker-component
 
+.PHONY: docker-tempo-vulture-multi
+docker-tempo-vulture-multi: ## Build tempo vulture docker image
+	COMPONENT=tempo-vulture make docker-component-multi
+
 .PHONY: docker-images ## Build all docker images
 docker-images: docker-tempo docker-tempo-query docker-tempo-vulture
 
