@@ -227,8 +227,8 @@ func TestLiveStoreDropsInvalidCompleteBlocksOnRestart(t *testing.T) {
 	inst, err := liveStore.getOrCreateInstance(testTenantID)
 	require.NoError(t, err)
 
-	require.NoError(t, inst.cutIdleTraces(true))
-	walUUID, err := inst.cutBlocks(true)
+	require.NoError(t, inst.cutIdleTraces(t.Context(), true))
+	walUUID, err := inst.cutBlocks(t.Context(), true)
 	require.NoError(t, err)
 	require.NoError(t, inst.completeBlock(context.Background(), walUUID))
 	requireInstanceState(t, inst, instanceState{liveTraces: 0, walBlocks: 0, completeBlocks: 1})
