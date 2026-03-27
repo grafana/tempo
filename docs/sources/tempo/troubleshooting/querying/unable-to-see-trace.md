@@ -26,7 +26,7 @@ This flag enables debug logging of all the traces received by the distributor. T
 You can also check the following metrics:
 
 - `tempo_distributor_spans_received_total`
-- `tempo_ingester_traces_created_total`
+- `tempo_live_store_traces_created_total`
 
 The value of both metrics should be greater than `0` within a few minutes of the application spinning up.
 You can check both metrics using either:
@@ -64,16 +64,26 @@ To fix an incorrect endpoint issue:
 
 - If the application is also running inside docker, make sure the application is sending traces to the correct endpoint (`tempo:<receiver-port>`).
 
-## Case 2 - tempo_ingester_traces_created_total is 0
+## Case 2 - tempo_live_store_traces_created_total is 0
 
-If the value of `tempo_ingester_traces_created_total` is 0, this can indicate network issues between distributors and ingesters.
-
-Checking the metric `tempo_request_duration_seconds_count{route='/tempopb.Pusher/Push'}` exposed from the ingester which indicates that it's receiving ingestion requests from the distributor.
+If the value of `tempo_live_store_traces_created_total` is 0, this can indicate issues between the distributors and Kafka, or between Kafka and the live-stores.
 
 ### Solution
 
-Check logs of distributors for a message like `msg="pusher failed to consume trace data" err="DoBatch: IngesterCount <= 0"`.
-This is likely because no ingester is joining the gossip ring, make sure the same gossip ring address is supplied to the distributors and ingesters.
+- Check distributor logs for Kafka write errors such as `msg="failed to write to kafka"`.
+- Verify that Kafka is healthy and that the distributors can reach it.
+- Check live-store logs to ensure they are consuming from Kafka successfully. Look for consumer lag metrics to confirm data is flowing.
+
+## Case 3 - Trace is not recent
+
+Live-stores only serve recent data. Older traces are stored in blocks built by the block-builder. If a trace was ingested but can't be found, the block-builder may not be flushing blocks to the backend correctly.
+
+### Solution
+
+- Check block-builder logs for errors during block creation or flushing to object storage.
+- Verify the block-builder is consuming from Kafka by checking consumer lag metrics.
+- Check the `tempo_block_builder_flushed_blocks` metric to confirm blocks are being written to the backend.
+- Check the `tempo_block_builder_fetch_errors_total` metric for Kafka fetch issues.
 
 ## Diagnose and fix sampling and limits issues
 

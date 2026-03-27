@@ -186,80 +186,89 @@ func TestCompactionProvider_EmptyStart(t *testing.T) {
 	}
 }
 
-func TestCompactionProvider_RecentJobsCache(t *testing.T) {
-	// Create a test provider
-	provider := &CompactionProvider{
-		logger:          log.NewNopLogger(),
-		sched:           &mockScheduler{},
-		outstandingJobs: make(map[string][]backend.UUID),
-	}
+// TestCompactionProvider_SkipsAllCompactionDuringRedaction verifies that newBlockSelector
+// returns an empty selector when any redaction jobs exist for the tenant. Once a
+// SubmitRedaction call creates pending redaction jobs, all new compaction is gated until
+// the redaction batch completes. Busy-block filtering (BusyBlocksForTenant) handles
+// exclusion of specific blocks across non-redaction workloads.
+func TestCompactionProvider_SkipsAllCompactionDuringRedaction(t *testing.T) {
+	const testTenant = "test-tenant"
+	cfg := CompactionConfig{}
+	cfg.RegisterFlagsAndApplyDefaults("", &flag.FlagSet{})
+	cfg.MaxJobsPerTenant = 1000
+	cfg.MeasureInterval = 100 * time.Millisecond
+	cfg.MinCycleInterval = 100 * time.Millisecond
 
-	var (
-		block1 = backend.NewUUID()
-		block2 = backend.NewUUID()
-		block3 = backend.NewUUID()
-		block4 = backend.NewUUID()
+	tmpDir := t.TempDir()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	store, _, ww := newStore(ctx, t, tmpDir)
+	defer store.Shutdown()
+
+	writeTenantBlocks(ctx, t, backend.NewWriter(ww), testTenant, 5)
+	time.Sleep(150 * time.Millisecond)
+
+	blockMetas := store.BlockMetas(testTenant)
+	require.GreaterOrEqual(t, len(blockMetas), 2, "need at least 2 blocks to mark pending")
+
+	// Mark two blocks as having pending redaction jobs.
+	pendingBlock1 := blockMetas[0].BlockID.String()
+	pendingBlock2 := blockMetas[1].BlockID.String()
+
+	w := work.New(work.Config{})
+	pendingJobs := []*work.Job{
+		{
+			ID:   "redact-1",
+			Type: tempopb.JobType_JOB_TYPE_REDACTION,
+			JobDetail: tempopb.JobDetail{
+				Tenant: testTenant,
+				Redaction: &tempopb.RedactionDetail{
+					BlockId: pendingBlock1,
+				},
+			},
+		},
+		{
+			ID:   "redact-2",
+			Type: tempopb.JobType_JOB_TYPE_REDACTION,
+			JobDetail: tempopb.JobDetail{
+				Tenant: testTenant,
+				Redaction: &tempopb.RedactionDetail{
+					BlockId: pendingBlock2,
+				},
+			},
+		},
+	}
+	require.NoError(t, w.AddPendingJobs(pendingJobs))
+	// In production, pending redaction jobs are always accompanied by a batch.
+	// TenantPending (the compaction guard) checks for an active batch, so the test
+	// must add one to match the production invariant.
+	require.NoError(t, w.AddBatch(&tempopb.RedactionBatch{
+		BatchId:  "batch-1",
+		TenantId: testTenant,
+	}))
+
+	limits, err := overrides.NewOverrides(overrides.Config{Defaults: overrides.Overrides{}}, nil, prometheus.DefaultRegisterer)
+	require.NoError(t, err)
+
+	p := NewCompactionProvider(
+		cfg,
+		test.NewTestingLogger(t),
+		store,
+		limits,
+		w,
 	)
 
-	// Cache starts empty
-	require.Len(t, provider.outstandingJobs, 0, "Cache should start empty")
-
-	job1 := &work.Job{
-		ID:   "job1",
-		Type: tempopb.JobType_JOB_TYPE_COMPACTION,
-		JobDetail: tempopb.JobDetail{
-			Compaction: &tempopb.CompactionDetail{
-				Input: []string{block1.String(), block2.String()},
-			},
-		},
-	}
-
-	ctx := context.Background()
-
-	provider.addToRecentJobs(ctx, job1)
-	require.Len(t, provider.outstandingJobs, 1, "Cache should contain one job")
-	require.Contains(t, provider.outstandingJobs, "job1", "Cache should contain job1")
-	require.Equal(t, []backend.UUID{block1, block2}, provider.outstandingJobs["job1"], "Cache should contain correct blocks")
-
-	job2 := &work.Job{
-		ID:   "job2",
-		Type: tempopb.JobType_JOB_TYPE_COMPACTION,
-		JobDetail: tempopb.JobDetail{
-			Compaction: &tempopb.CompactionDetail{
-				Input: []string{block3.String(), block4.String()},
-			},
-		},
-	}
-
-	provider.addToRecentJobs(ctx, job2)
-	require.Len(t, provider.outstandingJobs, 2, "Cache should contain two jobs")
-	require.Equal(t, []backend.UUID{block3, block4}, provider.outstandingJobs["job2"], "Cache should contain correct blocks for job2")
-
-	// Non-compaction job should not be added to cache
-	retentionJob := &work.Job{
-		ID:   "retention1",
-		Type: tempopb.JobType_JOB_TYPE_RETENTION,
-	}
-
-	provider.addToRecentJobs(ctx, retentionJob)
-	require.Len(t, provider.outstandingJobs, 2, "Non-compaction jobs should not be added to cache")
-
-	// Empty compaction input should not be added
-	emptyJob := &work.Job{
-		ID:   "empty-job",
-		Type: tempopb.JobType_JOB_TYPE_COMPACTION,
-		JobDetail: tempopb.JobDetail{
-			Compaction: &tempopb.CompactionDetail{
-				Input: []string{}, // Empty input
-			},
-		},
-	}
-
-	provider.addToRecentJobs(ctx, emptyJob)
-	require.Len(t, provider.outstandingJobs, 2, "Jobs with empty input should not be added to cache")
+	// When a redaction batch is active the gate fires: all compaction is blocked,
+	// not just the two specific blocks.
+	selector, blocklistLen := p.newBlockSelector(testTenant)
+	require.NotNil(t, selector)
+	require.Equal(t, 0, blocklistLen, "all compaction should be blocked while redaction jobs exist")
+	require.Empty(t, collectAllMetas(selector), "no blocks should be offered for compaction during redaction")
 }
 
-func TestCompactionProvider_RecentJobsCachePreventseDuplicatesAndCleansUp(t *testing.T) {
+func TestCompactionProvider_InFlightJobsPreventDuplicates(t *testing.T) {
 	const tenant = "test-tenant"
 	cfg := CompactionConfig{}
 	cfg.RegisterFlagsAndApplyDefaults("", &flag.FlagSet{})
@@ -319,60 +328,36 @@ func TestCompactionProvider_RecentJobsCachePreventseDuplicatesAndCleansUp(t *tes
 		require.Greater(t, len(job.GetCompactionInput()), 0)
 		require.Equal(t, tenant, job.Tenant(), "Job tenant should match the test tenant")
 		require.NotEqual(t, "", job.ID)
-
-		// // Check that the newBlockSelector does not include the input blocks
-		// twbs, _ := p.newBlockSelector(tenant)
-		// require.NotNil(t, twbs)
-		//
-		// metas := collectAllMetas(twbs)
-		//
-		// // All blocks which have been received were addded to the work queue.
-		// // New instances of the block selector should yield zero blocks.
-		// require.Len(t, metas, 0)
 	}
 
-	// Verify that all received jobs are present in the recent jobs cache
-	require.Len(t, p.outstandingJobs, len(receivedJobs), "Recent jobs cache should contain all received jobs")
+	// All received jobs should have their blocks reported as busy (registered in-flight
+	// before entering the channel pipeline).
 	for _, job := range receivedJobs {
-		require.Contains(t, p.outstandingJobs, job.ID, "Recent jobs cache should contain job %s", job.ID)
-
-		require.Equal(t, len(job.GetCompactionInput()), len(p.outstandingJobs[job.ID]), "Recent jobs cache should contain correct number of blocks for job %s", job.ID)
 		for _, blockID := range job.GetCompactionInput() {
-			u := backend.MustParse(blockID)
-			require.Equal(t, u.String(), blockID, "Block ID %s should match the UUID format", blockID)
+			require.True(t, w.IsBlockBusy(tenant, blockID), "block should be busy while job is in-flight")
 		}
 	}
 
-	// Now add a job to the work queue and verify it is removed from the recent jobs cache
+	// Add the first job to the work queue; its blocks move from in-flight to active.
 	firstJob := receivedJobs[0]
 	err = w.AddJob(firstJob)
 	require.NoError(t, err, "should be able to add first job to work queue")
 
-	// Get a new block selector for the tenant
+	// After AddJob, first job's blocks are in the active map — still reported as busy.
+	for _, blockID := range firstJob.GetCompactionInput() {
+		require.True(t, w.IsBlockBusy(tenant, blockID), "block should be busy while job is active")
+	}
+
+	// Get a new block selector for the tenant and verify the first job's blocks are excluded.
 	twbs, _ := p.newBlockSelector(tenant)
 	require.NotNil(t, twbs)
 
-	// Verify the recent jobs cache was cleaned up
-	require.NotContains(t, p.outstandingJobs, firstJob.ID, "Job should be removed from recent jobs cache after being added to work queue")
-
 	metas := collectAllMetas(twbs)
-	// Verify that the blocks in the first job are not present in the metas
 	for _, blockID := range firstJob.GetCompactionInput() {
 		u := backend.MustParse(blockID)
 		meta, found := foundMetaInMetas(metas, u)
 		require.False(t, found, "Block %s from job %s should not be present in the block selector after being added to work queue", blockID, firstJob.ID)
 		require.Nil(t, meta, "Block %s from job %s should not be present in the block selector after being added to work queue", blockID, firstJob.ID)
-	}
-
-	// Verify that the remaining jobs are still in the cache
-	for _, job := range receivedJobs[1:] {
-		require.Contains(t, p.outstandingJobs, job.ID, "Recent jobs cache should still contain job %s", job.ID)
-		require.Equal(t, len(job.GetCompactionInput()), len(p.outstandingJobs[job.ID]), "Recent jobs cache should contain correct number of blocks for job %s", job.ID)
-		for _, blockID := range job.GetCompactionInput() {
-			u := backend.MustParse(blockID)
-			require.Equal(t, u.String(), blockID, "Block ID %s should match the UUID format", blockID)
-		}
-
 	}
 }
 
@@ -448,16 +433,3 @@ func collectAllMetas(bs blockselector.CompactionBlockSelector) []*backend.BlockM
 
 	return metas
 }
-
-// mockScheduler implements the Scheduler interface for testing
-type mockScheduler struct {
-	jobs []*work.Job
-}
-
-func (m *mockScheduler) ListJobs() []*work.Job {
-	return m.jobs
-}
-
-// func (m *mockScheduler) addJob(job *work.Job) {
-// 	m.jobs = append(m.jobs, job)
-// }

@@ -368,7 +368,7 @@ tempo-cli list blocks -c ./tempo.yaml single-tenant
 
 ## List compaction summary
 
-Summarizes information about all blocks for the given tenant based on compaction level. This command is useful to analyze or troubleshoot compactor behavior.
+Summarizes information about all blocks for the given tenant based on compaction level. This command is useful to analyze or troubleshoot compaction behavior.
 
 ```bash
 tempo-cli list compaction-summary <tenant-id>

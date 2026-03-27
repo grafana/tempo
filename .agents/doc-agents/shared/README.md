@@ -4,6 +4,22 @@ This directory contains shared resources for documentation agents and writers wo
 
 ## Files Overview
 
+### [`docs-context-guide.md`](docs-context-guide.md)
+**Purpose**: Repo orientation for any Tempo documentation task
+
+**When to use**:
+- Before any doc task — writing, updating, or reviewing
+- When you need to find where code maps to docs
+- When verifying claims against the codebase
+- When unsure about Tempo-specific conventions
+
+**Key contents**:
+- Architecture and component names
+- Documentation layout and code-to-docs patterns
+- Verification table (claim type → where to check)
+- Tempo-specific conventions (naming, formatting)
+- Gotchas that prevent common errors
+
 ### [`style-guide.md`](style-guide.md)
 **Purpose**: Grafana documentation style guide and templates
 
@@ -88,10 +104,11 @@ This directory contains shared resources for documentation agents and writers wo
 
 ### For New Documentation
 
-1. **Start with** [`style-guide.md`](style-guide.md) to understand formatting requirements
-2. **Review** [`best-practices.md`](best-practices.md) for common patterns and pitfalls
-3. **Reference** [`metrics-generator-knowledge.md`](metrics-generator-knowledge.md) if working on metrics-generator features
-4. **Use** [`verification-checklist.md`](verification-checklist.md) before submitting
+1. **Read** [`docs-context-guide.md`](docs-context-guide.md) for repo orientation
+2. **Start with** [`style-guide.md`](style-guide.md) to understand formatting requirements
+3. **Review** [`best-practices.md`](best-practices.md) for common patterns and pitfalls
+4. **Reference** [`metrics-generator-knowledge.md`](metrics-generator-knowledge.md) if working on metrics-generator features
+5. **Use** [`verification-checklist.md`](verification-checklist.md) before submitting
 
 ### For Release Notes
 
@@ -103,10 +120,11 @@ This directory contains shared resources for documentation agents and writers wo
 
 ### For Updating Existing Documentation
 
-1. **Check** [`verification-checklist.md`](verification-checklist.md) to ensure all areas are covered
-2. **Reference** [`best-practices.md`](best-practices.md) for common issues to avoid
-3. **Verify** against [`metrics-generator-knowledge.md`](metrics-generator-knowledge.md) if updating metrics-generator docs
-4. **Review** [`style-guide.md`](style-guide.md) for consistency
+1. **Read** [`docs-context-guide.md`](docs-context-guide.md) for repo orientation
+2. **Check** [`verification-checklist.md`](verification-checklist.md) to ensure all areas are covered
+3. **Reference** [`best-practices.md`](best-practices.md) for common issues to avoid
+4. **Verify** against [`metrics-generator-knowledge.md`](metrics-generator-knowledge.md) if updating metrics-generator docs
+5. **Review** [`style-guide.md`](style-guide.md) for consistency
 
 ### For Addressing GitHub Issues
 
@@ -119,8 +137,8 @@ This directory contains shared resources for documentation agents and writers wo
 
 | Task | Primary Resource | Secondary Resource |
 |------|-----------------|-------------------|
-| Starting new docs | `style-guide.md` | `best-practices.md` |
-| Updating docs | `verification-checklist.md` | `best-practices.md` |
+| Starting new docs | `docs-context-guide.md` | `style-guide.md` |
+| Updating docs | `docs-context-guide.md` | `verification-checklist.md` |
 | Writing release notes | `release-notes-workflow.md` | `style-guide.md` |
 | PR docs assessment (triage) | `../../../.claude/skills/docs-pr-check/SKILL.md` | `release-notes-workflow.md` |
 | PR docs writing (execution) | `../../../.claude/skills/docs-pr-write/SKILL.md` | `release-notes-workflow.md` |
@@ -153,5 +171,7 @@ When you discover new insights:
 - Codebase: `modules/generator/processor/`
 - CHANGELOG: `CHANGELOG.md`
 - Skills workflow README: `.claude/skills/README.md`
+- Skill: `.claude/skills/docs-workflow/SKILL.md`
 - Skill: `.claude/skills/docs-pr-check/SKILL.md`
 - Skill: `.claude/skills/docs-pr-write/SKILL.md`
+- Skill: `.claude/skills/docs-review/SKILL.md`

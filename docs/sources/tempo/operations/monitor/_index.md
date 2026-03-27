@@ -48,7 +48,7 @@ The OpenTelemetry SDK uses OTLP/HTTP by default, which can be configured with `O
 ## Polling
 
 Tempo maintains knowledge of the state of the backend by polling it on regular intervals.
-There are currently only two components that need this knowledge and, consequently, only two that poll the backend: compactors and queriers.
+There are currently only two components that need this knowledge and, consequently, only two that poll the backend: backend-workers and queriers.
 
 Refer to [Use polling to monitor the backend status](polling/) for Tempo.
 
@@ -63,7 +63,7 @@ These dashboards work well when you run Tempo in a Kubernetes (k8s) environment 
 > This is available as `tempo-reads.json`.
 
 The Reads dashboard gives information on Requests, Errors, and Duration (RED) on the query path of Tempo.
-Each query touches the Gateway, Tempo-Query, Query-Frontend, Queriers, Ingesters, the backend, and Cache, if present.
+Each query touches the Gateway, Tempo-Query, Query-Frontend, Queriers, Live-stores, the backend, and Cache, if present.
 
 Use this dashboard to monitor the performance of each of the mentioned components and to decide the number of
 replicas in each deployment.
@@ -73,9 +73,9 @@ replicas in each deployment.
 > This is available as `tempo-writes.json`.
 
 The Writes dashboard gives information on RED on the write/ingest path of Tempo.
-A write query touches the Gateway, Distributors, Ingesters, and the backend.
+A write query touches the Gateway, Distributors, Kafka, Block-builders, and the backend.
 This dashboard also gives information
-on the number of operations performed by the Compactor to the backend.
+on the number of operations performed by the backend-worker (compaction) to the backend.
 
 Use this dashboard to monitor the performance of each of the mentioned components and to decide the number of
 replicas in each deployment.

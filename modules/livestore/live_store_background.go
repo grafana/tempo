@@ -12,6 +12,8 @@ import (
 	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding"
+	"go.opentelemetry.io/otel/attribute"
+	oteltrace "go.opentelemetry.io/otel/trace"
 )
 
 const (
@@ -87,39 +89,58 @@ func (s *LiveStore) globalCompleteLoop(idx int) {
 			continue
 		}
 
-		start := time.Now()
-		inst, err := s.getOrCreateInstance(op.tenantID)
-		if err != nil {
-			level.Error(s.logger).Log("msg", "failed to retrieve instance for completion", "tenant", op.tenantID, "err", err)
-			observeFailedOp(op)
+		if err := s.processCompleteOp(op); err != nil {
 			return
 		}
-
-		err = inst.completeBlock(s.ctx, op.blockID)
-		duration := time.Since(start)
-		metricCompletionDuration.Observe(duration.Seconds())
-
-		if err != nil {
-			level.Error(s.logger).Log("msg", "failed to complete block", "tenant", op.tenantID, "block", op.blockID, "err", err)
-			observeFailedOp(op)
-
-			delay := op.backoff()
-			op.at = time.Now().Add(delay)
-
-			metricCompletionRetries.Inc()
-
-			go func() {
-				time.Sleep(delay)
-
-				if err := s.requeueOp(op); err != nil {
-					_ = level.Error(s.logger).Log("msg", "failed to requeue block for flushing", "tenant", op.tenantID, "block", op.blockID, "err", err)
-				}
-			}()
-		} else {
-			metricBlocksCompleted.Inc()
-			s.completeQueues.Clear(op)
-		}
 	}
+}
+
+// processCompleteOp completes a single block. Returns an error if global loop should exit.
+func (s *LiveStore) processCompleteOp(op *completeOp) error {
+	ctx, span := tracer.Start(s.ctx, "LiveStore.processCompleteOp",
+		oteltrace.WithAttributes(
+			attribute.String("tenant", op.tenantID),
+			attribute.String("blockID", op.blockID.String()),
+			attribute.Int("attempt", op.attempts),
+		))
+	defer span.End()
+
+	start := time.Now()
+	inst, err := s.getOrCreateInstance(op.tenantID)
+	if err != nil {
+		level.Error(s.logger).Log("msg", "failed to retrieve instance for completion", "tenant", op.tenantID, "err", err)
+		observeFailedOp(op)
+		span.RecordError(err)
+		return err
+	}
+
+	err = inst.completeBlock(ctx, op.blockID)
+	metricCompletionDuration.Observe(time.Since(start).Seconds())
+
+	if err == nil {
+		metricBlocksCompleted.Inc()
+		s.completeQueues.Clear(op)
+		return nil
+	}
+
+	level.Error(s.logger).Log("msg", "failed to complete block", "tenant", op.tenantID, "block", op.blockID, "err", err)
+	observeFailedOp(op)
+	span.RecordError(err)
+
+	delay := op.backoff()
+	op.at = time.Now().Add(delay)
+
+	metricCompletionRetries.Inc()
+
+	go func() {
+		time.Sleep(delay)
+
+		if err := s.requeueOp(op); err != nil {
+			_ = level.Error(s.logger).Log("msg", "failed to requeue block for flushing", "tenant", op.tenantID, "block", op.blockID, "err", err)
+		}
+	}()
+
+	return nil // do not exit global loop
 }
 
 func (s *LiveStore) perTenantCutToWalLoop(instance *instance) {
@@ -130,7 +151,7 @@ func (s *LiveStore) perTenantCutToWalLoop(instance *instance) {
 	for {
 		select {
 		case <-ticker.C:
-			s.cutOneInstanceToWal(instance, false)
+			s.cutOneInstanceToWal(s.ctx, instance, false)
 		case <-s.ctx.Done():
 			return
 		}

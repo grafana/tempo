@@ -1,7 +1,6 @@
 package livestore
 
 import (
-	"context"
 	"flag"
 	"testing"
 	"time"
@@ -136,7 +135,7 @@ func TestMetrics_PushBytesTracking(t *testing.T) {
 		"bytes received should increase by trace data size")
 
 	// Check live traces metric after cutting
-	err = setup.instance.cutIdleTraces(true) // immediate cut
+	err = setup.instance.cutIdleTraces(t.Context(), true) // immediate cut
 	require.NoError(t, err)
 
 	// Verify traces were created
@@ -163,11 +162,11 @@ func TestMetrics_CompletionFlow(t *testing.T) {
 	setup.instance.pushBytes(t.Context(), time.Now(), req)
 
 	// Cut traces to head block
-	err = setup.instance.cutIdleTraces(true)
+	err = setup.instance.cutIdleTraces(t.Context(), true)
 	require.NoError(t, err)
 
 	// Cut block to prepare for completion
-	blockID, err := setup.instance.cutBlocks(true)
+	blockID, err := setup.instance.cutBlocks(t.Context(), true)
 	require.NoError(t, err)
 	assert.NotEqual(t, uuid.Nil, blockID, "should generate a valid block ID")
 
@@ -175,7 +174,7 @@ func TestMetrics_CompletionFlow(t *testing.T) {
 	initialCompletionSize := getHistogramCount(t, metricCompletionSize)
 
 	// Complete the block
-	err = setup.instance.completeBlock(context.Background(), blockID)
+	err = setup.instance.completeBlock(t.Context(), blockID)
 	require.NoError(t, err)
 
 	// Verify completion size metric was updated

@@ -87,7 +87,7 @@ func (r *tagValueSearchRequest) end() uint32 {
 
 func (r *tagValueSearchRequest) hash() uint64 {
 	hash := fnv1a.HashString64(r.request.TagName)
-	hash = fnv1a.AddString64(hash, traceql.ExtractMatchers(r.request.Query))
+	hash = fnv1a.AddString64(hash, traceql.NormalizeQuery(r.request.Query))
 
 	return hash
 }

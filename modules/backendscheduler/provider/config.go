@@ -11,11 +11,13 @@ import (
 type Config struct {
 	Retention  RetentionConfig  `yaml:"retention"`
 	Compaction CompactionConfig `yaml:"compaction"`
+	Redaction  RedactionConfig  `yaml:"redaction"`
 }
 
 func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
 	cfg.Retention.RegisterFlagsAndApplyDefaults(util.PrefixConfig(prefix, "work"), f)
 	cfg.Compaction.RegisterFlagsAndApplyDefaults(util.PrefixConfig(prefix, "work"), f)
+	cfg.Redaction.RegisterFlagsAndApplyDefaults(util.PrefixConfig(prefix, "work"), f)
 }
 
 func ValidateConfig(cfg *Config) error {

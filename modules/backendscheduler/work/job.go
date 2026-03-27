@@ -158,3 +158,34 @@ func (j *Job) SetCompactionOutput(blocks []string) {
 		return
 	}
 }
+
+// GetRedactionBlockID returns the block ID for redaction jobs, or empty string otherwise.
+func (j *Job) GetRedactionBlockID() string {
+	j.mtx.Lock()
+	defer j.mtx.Unlock()
+
+	if j.Type != tempopb.JobType_JOB_TYPE_REDACTION || j.JobDetail.Redaction == nil {
+		return ""
+	}
+	return j.JobDetail.Redaction.BlockId
+}
+
+// PendingBlockKey returns the blocks-pending index key for this job, or empty
+// string if this job type does not claim a block. The key is used by Work to
+// maintain the pendingBlocks index for fast IsBlockBusy lookups (O(1) pending
+// check). Adding a new job type that needs block-pending tracking only requires
+// a new branch here; work.go stays type-agnostic.
+func (j *Job) PendingBlockKey() string {
+	j.mtx.Lock()
+	defer j.mtx.Unlock()
+
+	switch j.Type {
+	case tempopb.JobType_JOB_TYPE_REDACTION:
+		if j.JobDetail.Redaction == nil {
+			return ""
+		}
+		return j.JobDetail.Tenant + "\x00" + j.JobDetail.Redaction.BlockId
+	default:
+		return ""
+	}
+}
