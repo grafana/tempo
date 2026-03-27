@@ -3,6 +3,7 @@ package generator
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/go-kit/log"
 	"github.com/grafana/tempo/pkg/ingest"
@@ -133,4 +134,154 @@ func TestStopKafka_LeaveGroupConditional(t *testing.T) {
 			assert.Equal(t, tc.expectLeave, leaveCalled, "leaveGroupFn called mismatch")
 		})
 	}
+}
+
+// TestPartitionHandoff_LeaveGroupTriggersImmediateReassignment is an end-to-end
+// test of the core problem this PR solves.
+//
+// With static membership (InstanceID set), franz-go intentionally skips the
+// automatic LeaveGroup on Close() so that a pod that restarts with the same
+// InstanceID can rejoin without waiting for session timeout.  When using a
+// Deployment (changing pod names = changing InstanceIDs), the departing pod
+// must explicitly send LeaveGroup so the coordinator can reassign the partition
+// immediately rather than after the 3-minute session timeout.
+//
+// kfake models session timeouts accurately: it only triggers a rebalance after
+// SessionTimeoutMillis when no heartbeat has been received, and immediately on
+// a LeaveGroup request.  This makes the test genuinely meaningful — the two
+// behaviours produce measurably different transfer times.
+//
+// Test layout:
+//  1. 1-partition topic, two consumers with distinct InstanceIDs in the same group.
+//  2. gen-1 starts and acquires partition 0; gen-2 starts and gets nothing.
+//  3. gen-1 simulates stopKafka(LeaveConsumerGroupOnShutdown=true): sends an
+//     explicit LeaveGroup then closes.
+//  4. gen-2 must acquire partition 0 well within the session timeout.
+//
+// Negative case: a second sub-test closes gen-1 without LeaveGroup and asserts
+// that gen-2 does NOT acquire the partition within the same window, confirming
+// that LeaveGroup is what makes the handoff fast.
+func TestPartitionHandoff_LeaveGroupTriggersImmediateReassignment(t *testing.T) {
+	const (
+		topic          = "handoff-topic"
+		group          = "handoff-group"
+		sessionTimeout = 8 * time.Second // long enough that "no LeaveGroup" does not transfer within handoffTimeout
+		handoffTimeout = 3 * time.Second  // must be < sessionTimeout
+	)
+
+	// newConsumer creates a kgo consumer with static membership.  It returns the
+	// client and a channel that receives the partition slice the first time any
+	// non-empty OnPartitionsAssigned fires.
+	newConsumer := func(t *testing.T, addr, instanceID string) (*kgo.Client, <-chan []int32) {
+		t.Helper()
+		assigned := make(chan []int32, 1)
+		client, err := kgo.NewClient(
+			kgo.SeedBrokers(addr),
+			kgo.ConsumerGroup(group),
+			kgo.ConsumeTopics(topic),
+			kgo.InstanceID(instanceID),
+			kgo.SessionTimeout(sessionTimeout),
+			kgo.HeartbeatInterval(500*time.Millisecond),
+			kgo.Balancers(kgo.CooperativeStickyBalancer()),
+			kgo.DisableClientMetrics(),
+			kgo.ConsumeResetOffset(kgo.NewOffset().AtStart()),
+			kgo.OnPartitionsAssigned(func(_ context.Context, _ *kgo.Client, m map[string][]int32) {
+				if p := m[topic]; len(p) > 0 {
+					select {
+					case assigned <- append([]int32(nil), p...):
+					default:
+					}
+				}
+			}),
+		)
+		require.NoError(t, err)
+		return client, assigned
+	}
+
+	// poll drives group coordination for a client until the context is cancelled.
+	poll := func(ctx context.Context, client *kgo.Client) {
+		for ctx.Err() == nil {
+			client.PollFetches(ctx)
+		}
+	}
+
+	t.Run("with LeaveGroup", func(t *testing.T) {
+		fake, err := kfake.NewCluster(kfake.NumBrokers(1), kfake.SeedTopics(1, topic))
+		require.NoError(t, err)
+		t.Cleanup(fake.Close)
+		addr := fake.ListenAddrs()[0]
+
+		client1, gen1Assigned := newConsumer(t, addr, "gen-1")
+		ctx1, cancel1 := context.WithCancel(context.Background())
+		go poll(ctx1, client1)
+
+		// Wait for gen-1 to own partition 0.
+		select {
+		case p := <-gen1Assigned:
+			require.Equal(t, []int32{0}, p)
+		case <-time.After(10 * time.Second):
+			cancel1()
+			t.Fatal("gen-1 did not receive partition 0")
+		}
+
+		// Start gen-2 while gen-1 still holds the partition.
+		client2, gen2Assigned := newConsumer(t, addr, "gen-2")
+		t.Cleanup(client2.Close)
+		ctx2, cancel2 := context.WithCancel(context.Background())
+		t.Cleanup(cancel2)
+		go poll(ctx2, client2)
+
+		// Simulate stopKafka() with LeaveConsumerGroupOnShutdown=true.
+		cancel1()
+		require.NoError(t, ingest.LeaveConsumerGroupByInstanceID(
+			context.Background(), client1, group, "gen-1", log.NewNopLogger(),
+		))
+		client1.Close()
+
+		// gen-2 must pick up partition 0 quickly — well before the session timeout.
+		select {
+		case p := <-gen2Assigned:
+			require.Equal(t, []int32{0}, p)
+		case <-time.After(handoffTimeout):
+			t.Fatalf("gen-2 did not acquire partition 0 within %s; LeaveGroup handoff is broken", handoffTimeout)
+		}
+	})
+
+	t.Run("without LeaveGroup", func(t *testing.T) {
+		fake, err := kfake.NewCluster(kfake.NumBrokers(1), kfake.SeedTopics(1, topic))
+		require.NoError(t, err)
+		t.Cleanup(fake.Close)
+		addr := fake.ListenAddrs()[0]
+
+		client1, gen1Assigned := newConsumer(t, addr, "gen-1")
+		ctx1, cancel1 := context.WithCancel(context.Background())
+		go poll(ctx1, client1)
+
+		select {
+		case p := <-gen1Assigned:
+			require.Equal(t, []int32{0}, p)
+		case <-time.After(10 * time.Second):
+			cancel1()
+			t.Fatal("gen-1 did not receive partition 0")
+		}
+
+		client2, gen2Assigned := newConsumer(t, addr, "gen-2")
+		t.Cleanup(client2.Close)
+		ctx2, cancel2 := context.WithCancel(context.Background())
+		t.Cleanup(cancel2)
+		go poll(ctx2, client2)
+
+		// Close without LeaveGroup — gen-2 must wait for the session timeout.
+		cancel1()
+		client1.Close() // no explicit LeaveGroup
+
+		// gen-2 must NOT receive the partition within handoffTimeout because the
+		// coordinator is still waiting for the session timeout to expire.
+		select {
+		case p := <-gen2Assigned:
+			t.Fatalf("gen-2 received partition %v before session timeout; expected to wait", p)
+		case <-time.After(handoffTimeout):
+			// correct: partition did not transfer before session timeout
+		}
+	})
 }
