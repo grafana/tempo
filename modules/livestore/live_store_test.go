@@ -26,11 +26,12 @@ import (
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/grafana/tempo/tempodb/encoding/common"
-	"github.com/grafana/tempo/tempodb/encoding/vparquet4"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
 	"github.com/twmb/franz-go/pkg/kgo"
 )
+
+const DataFileName = "data.parquet"
 
 func TestLiveStoreBasicConsume(t *testing.T) {
 	tmpDir := t.TempDir()
@@ -241,7 +242,7 @@ func TestLiveStoreDropsInvalidCompleteBlocksOnRestart(t *testing.T) {
 	require.NotEqual(t, uuid.Nil, blockID)
 
 	writer := backend.NewWriter(liveStore.wal.LocalBackend())
-	require.NoError(t, writer.Write(context.Background(), vparquet4.DataFileName, blockID, testTenantID, []byte("mangled"), nil))
+	require.NoError(t, writer.Write(context.Background(), DataFileName, blockID, testTenantID, []byte("mangled"), nil))
 
 	require.NoError(t, services.StopAndAwaitTerminated(t.Context(), liveStore))
 
