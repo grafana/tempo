@@ -249,9 +249,8 @@ func TestLiveStoreDropsInvalidCompleteBlocksOnRestart(t *testing.T) {
 	require.NoError(t, err)
 
 	inst, ok := liveStore.instances[testTenantID]
-	if ok {
-		requireInstanceState(t, inst, instanceState{liveTraces: 0, walBlocks: 0, completeBlocks: 0})
-	}
+	require.False(t, ok)
+	require.Nil(t, inst)
 }
 
 func TestLiveStoreConsumeDropsOldRecords(t *testing.T) {
