@@ -231,6 +231,7 @@ func TestLiveStoreDropsInvalidCompleteBlocksOnRestart(t *testing.T) {
 	walUUID, err := inst.cutBlocks(true)
 	require.NoError(t, err)
 	require.NoError(t, inst.completeBlock(context.Background(), walUUID))
+	requireInstanceState(t, inst, instanceState{liveTraces: 0, walBlocks: 0, completeBlocks: 1})
 
 	var blockID uuid.UUID
 	for id := range inst.completeBlocks {
@@ -249,7 +250,7 @@ func TestLiveStoreDropsInvalidCompleteBlocksOnRestart(t *testing.T) {
 
 	inst, ok := liveStore.instances[testTenantID]
 	if ok {
-		require.Len(t, inst.completeBlocks, 0)
+		requireInstanceState(t, inst, instanceState{liveTraces: 0, walBlocks: 0, completeBlocks: 0})
 	}
 }
 
