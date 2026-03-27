@@ -55,6 +55,8 @@
 * [ENHANCEMENT] Implemented anti-affinity for pods in same livestore zone [#6757](https://github.com/grafana/tempo/pull/6757) (@zhxiaogg)
 * [BUGFIX] Fix integer overflow in query parameters by using `strconv.ParseUint` instead of `strconv.Atoi`/`strconv.ParseInt` for unsigned integer fields. [#6612](https://github.com/grafana/tempo/pull/6612) (@bejaratommy)
 * [BUGFIX] Fix live-store SearchTagValuesV2 disk cache never being populated on complete blocks [#6858](https://github.com/grafana/tempo/pull/6858) (@mapno)
+* [ENHANCEMENT] metrics-generator: add `leave_consumer_group_on_shutdown` to send LeaveGroup on shutdown for immediate partition reassignment instead of waiting for session timeout [#6575](https://github.com/grafana/tempo/pull/6575) (@zalegrala)
+* [ENHANCEMENT] metrics-generator: improve Kafka partition lag reporting to use live group membership when available and correctly handle rebalancing state [#6575](https://github.com/grafana/tempo/pull/6575) (@zalegrala)
 * [BUGFIX] Fix dedicated columns fallback in `block_builder` and `live_store` to use `storage.trace.block.parquet_dedicated_columns` when not set via overrides. [#6647](https://github.com/grafana/tempo/pull/6647) (@stoewer)
 * [BUGFIX] Force live-store to rehydrate from Kafka lookback period when local data is missing (e.g. PVC wipe, new node) instead of resuming from the committed consumer group offset [#6428](https://github.com/grafana/tempo/pull/6428) (@oleg-kozlyuk-grafana)
 * [BUGFIX] fix: reload span_name_sanitization overrides during runtime [#6435](https://github.com/grafana/tempo/pull/6435) (@electron0zero)
