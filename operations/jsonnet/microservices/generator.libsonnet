@@ -96,7 +96,9 @@
     + statefulset.spec.template.spec.securityContext.withFsGroup(10001)  // 10001 is the UID of the tempo user
     + statefulset.mixin.spec.withReplicas($._config.metrics_generator.replicas),
 
-  // Set a generator workload so the references below can override
+  // Hidden helper field that holds the metrics generator workload.
+  // Overlays and mixins should override `tempo_metrics_generator_workload::`
+  // instead of redefining the underlying controller to avoid extra resources.
   tempo_metrics_generator_workload:: $.tempo_metrics_generator_statefulset,
 
   tempo_metrics_generator_service:
