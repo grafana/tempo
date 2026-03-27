@@ -11,7 +11,7 @@ If you are seeing `RATE_LIMITED`, `LIVE_TRACES_EXCEEDED`, or `TRACE_TOO_LARGE` e
 
 Grafana Tempo enforces ingestion limits at multiple points in the write path.
 The distributor checks rate limits before writing spans to Kafka.
-Downstream, live-stores and block-builders enforce per-trace size and live trace count limits asynchronously.
+Downstream, live-stores enforce per-trace size and live trace count limits asynchronously, and block-builders enforce per-trace size limits.
 If limits are too low for your workload, spans are discarded and data is lost.
 If limits are unchecked, ingestion volume can grow beyond what you intended.
 
@@ -43,9 +43,11 @@ How this scales depends on your `rate_strategy`:
 
 `max_traces_per_user` (default: `10,000`) caps the number of concurrently active traces per tenant on each live-store.
 This limit is enforced asynchronously in the live-store, not at ingestion time in the distributor.
+Block-builders do not enforce this limit.
 If your services produce many short-lived traces in parallel, you may need to raise this.
 
 `max_global_traces_per_user` (default: 0, disabled) sets a cluster-wide cap instead of a per-instance cap.
+This setting only takes effect when using the classic ingester write path, not the Kafka-based live-store path.
 
 ### Per-trace size limit
 
@@ -82,7 +84,8 @@ You can also manage per-tenant limits through the API using [user-configurable o
 
 When a span exceeds an ingestion limit, Tempo discards it and increments the `tempo_discarded_spans_total` metric.
 The distributor discards rate-limited spans before they reach Kafka.
-Live-stores and block-builders discard spans that exceed per-trace size or live trace count limits after consuming them from Kafka.
+Live-stores discard spans that exceed per-trace size or live trace count limits after consuming them from Kafka.
+Block-builders discard spans that exceed per-trace size limits.
 
 ### Error reference
 
@@ -91,7 +94,7 @@ The following table lists the three error types, what each one means, and how to
 | Error                  | Cause                                                                                  | Fix                                                                                                                                                                                                                                                                                |
 | ---------------------- | -------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `RATE_LIMITED`         | The tenant's byte rate exceeded `rate_limit_bytes`.                                    | Raise `rate_limit_bytes`, or add distributors if using `rate_strategy: local`. If volume is genuinely higher than intended, reduce it upstream with [sampling](https://grafana.com/docs/tempo/<TEMPO_VERSION>/set-up-for-tracing/instrument-send/set-up-collector/tail-sampling/). |
-| `LIVE_TRACES_EXCEEDED` | The number of concurrent active traces on a live-store exceeded `max_traces_per_user`. | Raise `max_traces_per_user`, or set `max_global_traces_per_user` to distribute the limit across the cluster.                                                                                                                                                                       |
+| `LIVE_TRACES_EXCEEDED` | The number of concurrent active traces on a live-store exceeded `max_traces_per_user`. | Raise `max_traces_per_user`. If using the classic ingester path, you can also set `max_global_traces_per_user` to distribute the limit across the cluster.                                                                                                                         |
 | `TRACE_TOO_LARGE`      | A single trace exceeded `max_bytes_per_trace` (default 5 MB).                          | Raise `max_bytes_per_trace` in the `global` overrides. Also investigate why the trace is so large. Common causes include retry loops and misconfigured instrumentation.                                                                                                            |
 
 ### Check which limit is being hit
