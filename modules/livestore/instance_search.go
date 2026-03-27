@@ -20,7 +20,6 @@ import (
 	"go.uber.org/atomic"
 
 	"github.com/go-kit/log/level"
-	"github.com/grafana/tempo/modules/ingester"
 	"github.com/grafana/tempo/pkg/api"
 	"github.com/grafana/tempo/pkg/boundedwaitgroup"
 	"github.com/grafana/tempo/pkg/collector"
@@ -137,7 +136,7 @@ func (i *instance) iterateBlocks(ctx context.Context, reqStart, reqEnd time.Time
 		}
 
 		wg.Add(1)
-		go func(block *ingester.LocalBlock) {
+		go func(block *LocalBlock) {
 			defer wg.Done()
 
 			if ctx.Err() != nil {
@@ -490,7 +489,7 @@ func (i *instance) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTag
 
 	searchWithCache := func(ctx context.Context, _ *backend.BlockMeta, b block) error {
 		// if not a local block, fall back to regular search
-		localB, ok := b.(*ingester.LocalBlock)
+		localB, ok := b.(*LocalBlock)
 		if !ok {
 			return search(ctx, b)
 		}
@@ -704,7 +703,7 @@ func (i *instance) QueryRange(ctx context.Context, req *tempopb.QueryRangeReques
 			return nil
 		}
 
-		if localBlock, ok := b.(*ingester.LocalBlock); ok {
+		if localBlock, ok := b.(*LocalBlock); ok {
 			resp, err := i.queryRangeCompleteBlock(ctx, localBlock, *req, timeOverlapCutoff, unsafe)
 			if err != nil {
 				return err
@@ -764,7 +763,7 @@ func (i *instance) queryRangeWALBlock(ctx context.Context, b common.WALBlock, ev
 	return eval.Do(ctx, fetcher, uint64(m.StartTime.UnixNano()), uint64(m.EndTime.UnixNano()), maxSeries)
 }
 
-func (i *instance) queryRangeCompleteBlock(ctx context.Context, b *ingester.LocalBlock, req tempopb.QueryRangeRequest, timeOverlapCutoff float64, unsafe bool) ([]*tempopb.TimeSeries, error) {
+func (i *instance) queryRangeCompleteBlock(ctx context.Context, b *LocalBlock, req tempopb.QueryRangeRequest, timeOverlapCutoff float64, unsafe bool) ([]*tempopb.TimeSeries, error) {
 	m := b.BlockMeta()
 	ctx, span := tracer.Start(ctx, "instance.QueryRange.CompleteBlock", oteltrace.WithAttributes(
 		attribute.String("block", m.BlockID.String()),

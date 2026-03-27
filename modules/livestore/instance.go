@@ -12,7 +12,6 @@ import (
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
 	"github.com/google/uuid"
-	"github.com/grafana/tempo/modules/ingester"
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/pkg/livetraces"
 	"github.com/grafana/tempo/pkg/model"
@@ -95,7 +94,7 @@ type instance struct {
 	blocksMtx      sync.RWMutex
 	headBlock      common.WALBlock
 	walBlocks      map[uuid.UUID]common.WALBlock
-	completeBlocks map[uuid.UUID]*ingester.LocalBlock
+	completeBlocks map[uuid.UUID]*LocalBlock
 	lastCutTime    time.Time
 
 	// Live traces
@@ -121,7 +120,7 @@ func newInstance(instanceID string, cfg Config, wal *wal.WAL, completeBlockEncod
 		wal:                   wal,
 		completeBlockEncoding: completeBlockEncoding,
 		walBlocks:             map[uuid.UUID]common.WALBlock{},
-		completeBlocks:        map[uuid.UUID]*ingester.LocalBlock{},
+		completeBlocks:        map[uuid.UUID]*LocalBlock{},
 		liveTraces:            livetraces.New[*v1.ResourceSpans](func(rs *v1.ResourceSpans) uint64 { return uint64(rs.Size()) }, cfg.MaxTraceIdle, cfg.MaxTraceLive, instanceID),
 		traceSizes:            tracesizes.New(),
 		maxTraceLogger:        util_log.NewRateLimitedLogger(maxTraceLogLinesPerSecond, level.Warn(logger)),
@@ -482,7 +481,7 @@ func (i *instance) completeBlock(ctx context.Context, id uuid.UUID) error {
 		return nil
 	}
 
-	i.completeBlocks[id] = ingester.NewLocalBlock(ctx, newBlock, i.wal.LocalBackend())
+	i.completeBlocks[id] = NewLocalBlock(ctx, newBlock, i.wal.LocalBackend())
 
 	err = walBlock.Clear()
 	if err != nil {

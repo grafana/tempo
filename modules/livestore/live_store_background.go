@@ -9,7 +9,6 @@ import (
 
 	"github.com/go-kit/log/level"
 	"github.com/google/uuid"
-	"github.com/grafana/tempo/modules/ingester"
 	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding"
@@ -316,7 +315,7 @@ func (s *LiveStore) reloadBlocks() error {
 
 			level.Info(s.logger).Log("msg", "reloaded complete block", "block", id.String())
 
-			lb := ingester.NewLocalBlock(ctx, blk, l)
+			lb := NewLocalBlock(ctx, blk, l)
 
 			inst, err := s.getOrCreateInstance(tenant)
 			if err != nil {
