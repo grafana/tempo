@@ -162,7 +162,7 @@ github.com/andybalholm/brotli/matchfinder
 # github.com/antchfx/xmlquery v1.4.4
 ## explicit; go 1.14
 github.com/antchfx/xmlquery
-# github.com/antchfx/xpath v1.3.4
+# github.com/antchfx/xpath v1.3.6
 ## explicit; go 1.14
 github.com/antchfx/xpath
 # github.com/apache/thrift v0.22.0
