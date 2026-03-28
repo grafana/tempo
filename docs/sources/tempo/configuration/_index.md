@@ -846,7 +846,7 @@ query_frontend:
 
         # The maximum allowed time range for a metrics query.
         # 0 disables this limit.
-        [max_duration: <duration> | default = 3h ]
+        [max_duration: <duration> | default = 24h ]
 
         # Maximum number of exemplars per range query.
         # Set to 0 to disable exemplars.
