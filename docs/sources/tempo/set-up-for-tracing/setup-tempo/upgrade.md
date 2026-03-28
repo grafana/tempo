@@ -44,7 +44,7 @@ Tempo now refuses to start if it detects legacy (flat, unscoped) overrides in th
 
 To resolve this, either migrate to the scoped `defaults` format (recommended) or temporarily opt back in.
 
-**Option 1: Migrate to the scoped format**
+#### Option 1: Migrate to the scoped format
 
 Convert your overrides from the legacy flat format to the scoped `defaults` format. For example:
 
@@ -75,7 +75,7 @@ You can automate the migration using the Tempo CLI. Refer to the [`tempo-cli mig
 
 For the full field mapping between legacy and scoped formats, refer to the [Upgrade to Tempo 2.3](#new-defaults-block-in-overrides-module-configuration) section.
 
-**Option 2: Temporarily opt back in**
+#### Option 2: Temporarily opt back in
 
 Set `enable_legacy_overrides: true` in the overrides configuration block or pass `-config.enable-legacy-overrides=true` on the CLI. A deprecation warning is logged on startup and each time per-tenant overrides are loaded. This is a temporary escape hatch. Legacy overrides will be removed in a future release.
 
