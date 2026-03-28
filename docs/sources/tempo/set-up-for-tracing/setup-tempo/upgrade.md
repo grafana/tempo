@@ -96,6 +96,50 @@ The metrics-generator gRPC endpoint and push path have been removed. In Tempo 3.
 
 If your configuration includes a top-level `metrics_generator_client` block, you can safely remove it. Tempo 3.0 ignores this block, and it is deprecated and will be removed in a future release.
 
+### Block configuration centralized to `storage.trace.block`
+
+Block and WAL configuration for `block_builder` and `live_store` is now always sourced from `storage.trace.block`. Per-module block config fields have been removed. [[PR 6647](https://github.com/grafana/tempo/pull/6647)]
+
+If your configuration sets block-level options such as `version`, `parquet_dedicated_columns`, or `parquet_row_group_size_bytes` under `block_builder.block` or `live_store.block_config`, move them to `storage.trace.block`.
+
+Before:
+
+```yaml
+block_builder:
+  block:
+    version: "vParquet5"
+    parquet_dedicated_columns:
+      - { scope: resource, name: service.name, type: string }
+
+live_store:
+  block_config:
+    version: "vParquet5"
+    parquet_dedicated_columns:
+      - { scope: resource, name: service.name, type: string }
+```
+
+After:
+
+```yaml
+storage:
+  trace:
+    block:
+      version: "vParquet5"
+      parquet_dedicated_columns:
+        - { scope: resource, name: service.name, type: string }
+```
+
+### Live-store flush defaults updated
+
+The default values for two live-store flush settings have changed to limit the amount of data replayed from the WAL, which prevents long startup and shutdown times. [[PR 6650](https://github.com/grafana/tempo/pull/6650)]
+
+| Setting | Previous default | New default |
+| --- | --- | --- |
+| `live_store.flush_check_period` | `10s` | `5s` |
+| `live_store.max_block_duration` | `30m` | `1m` |
+
+If you explicitly set these values in your configuration, no action is needed.
+
 ## Upgrade to Tempo 2.10
 
 When upgrading to Tempo 2.10, be aware of these considerations and breaking changes.
