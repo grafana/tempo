@@ -129,7 +129,7 @@ Requires vParquet5 blocks.
 
 The `with(new=true)` query hint enables a faster fetch layer for TraceQL metrics queries on vParquet5 blocks. This optimization reduces query time by 17-65% depending on the query, with significant reductions in memory allocations. [[PR 6359](https://github.com/grafana/tempo/pull/6359)]
 
-The optimization works for metrics queries that don't require full trace context, such as those without structural operators (`>>`, `<<`, `!>>`, `!<<`, `~`, `!~`). For queries that require full traces, the hint is silently ignored and the standard fetch path is used.
+The optimization works for metrics queries that don't require full trace context, such as those without [structural operators](https://grafana.com/docs/tempo/<TEMPO_VERSION>/traceql/construct-traceql-queries/#structural-operators). For queries that require full traces, the hint is silently ignored and the standard fetch path is used.
 
 ```traceql
 { resource.service.name = "api" } | rate() by (span.http.status_code) with(new=true)

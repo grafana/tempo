@@ -94,7 +94,7 @@ If your deployment scripts, Helm values, or Tanka/Jsonnet configurations pass `-
 
 The metrics-generator gRPC endpoint and push path have been removed. In Tempo 3.0, the metrics-generator consumes directly from Kafka rather than receiving spans through gRPC from the distributor. [[PR 6618](https://github.com/grafana/tempo/pull/6618)]
 
-If your configuration includes a top-level `metrics_generator_client` block, remove it. This field is deprecated and will be removed in a future release.
+If your configuration includes a top-level `metrics_generator_client` block, you can safely remove it. Tempo 3.0 ignores this block, and it is deprecated and will be removed in a future release.
 
 ## Upgrade to Tempo 2.10
 
@@ -164,7 +164,7 @@ If you're using vParquet3, plan your migration to vParquet4 or higher before upg
 
 The default for `query_frontend.search.max_result_limit` changed from `0` (unlimited) to `262144` (256 &times; 1024) to address a security vulnerability. This change was backported to Tempo 2.10.x, 2.9.x, and 2.8.x patch releases. [[PR 6525](https://github.com/grafana/tempo/pull/6525)]
 
-Search requests that return more than 262,144 results now return a `400` error. If you need a higher limit, override the value in your configuration:
+Search requests with a `limit` parameter that exceeds this value now return a `400` error. Requests without an explicit `limit` use the `default_result_limit` (default: `20`). If you need a higher maximum, override the value in your configuration:
 
 ```yaml
 query_frontend:
@@ -172,7 +172,7 @@ query_frontend:
     max_result_limit: 500000
 ```
 
-Setting `max_result_limit` to `0` restores the previous unlimited behavior, but this is not recommended.
+Setting `max_result_limit` to `0` disables the enforcement, but this is not recommended.
 
 ### Breaking changes
 
