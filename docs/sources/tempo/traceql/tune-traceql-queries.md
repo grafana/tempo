@@ -121,6 +121,26 @@ To get the 90th percentile span duration for a service with sampling enabled:
 
 For guidance on when and how to use sampling, refer to the [Sampling guide](https://grafana.com/docs/tempo/<TEMPO_VERSION>/set-up-for-tracing/instrument-send/set-up-collector/tail-sampling/).
 
+## Use the optimized fetch layer for metrics queries
+
+{{< admonition type="note" >}}
+Requires vParquet5 blocks.
+{{< /admonition >}}
+
+The `with(new=true)` query hint enables a faster fetch layer for TraceQL metrics queries on vParquet5 blocks. This optimization reduces query time by 17-65% depending on the query, with significant reductions in memory allocations. [[PR 6359](https://github.com/grafana/tempo/pull/6359)]
+
+The optimization works for metrics queries that don't require full trace context, such as those without structural operators (`>>`, `<<`, `!>>`, `!<<`, `~`, `!~`). For queries that require full traces, the hint is silently ignored and the standard fetch path is used.
+
+```traceql
+{ resource.service.name = "api" } | rate() by (span.http.status_code) with(new=true)
+```
+
+You can combine this hint with sampling for maximum performance:
+
+```traceql
+{ resource.service.name = "api" } | rate() with(new=true, sample=true)
+```
+
 ## Next steps
 
 - Build stronger selectors with the [Construct a TraceQL query](https://grafana.com/docs/tempo/<TEMPO_VERSION>/traceql/construct-traceql-queries/) guide.
