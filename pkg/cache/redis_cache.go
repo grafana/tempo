@@ -21,6 +21,7 @@ type RedisCache struct {
 	redis           *RedisClient
 	logger          log.Logger
 	requestDuration *instr.HistogramCollector
+	cacheRequests   *prometheus.CounterVec
 }
 
 // NewRedisCache creates a new RedisCache
@@ -41,6 +42,12 @@ func NewRedisCache(name string, redisClient *RedisClient, reg prometheus.Registe
 				ConstLabels:                     prometheus.Labels{"name": name},
 			}, []string{"method", "status_code"}),
 		),
+		cacheRequests: promauto.With(reg).NewCounterVec(prometheus.CounterOpts{
+			Namespace:   "tempo",
+			Name:        "cache_requests_total",
+			Help:        "Total number of cache requests by status (hit, miss, fail).",
+			ConstLabels: prometheus.Labels{"name": name, "type": "redis"},
+		}, []string{"status"}),
 	}
 	if err := cache.redis.Ping(context.Background()); err != nil {
 		level.Error(logger).Log("msg", "error connecting to redis", "name", name, "err", err)
@@ -75,6 +82,7 @@ func (c *RedisCache) Fetch(ctx context.Context, keys []string) (found []string, 
 		return nil
 	})
 	if err != nil {
+		c.cacheRequests.WithLabelValues("fail").Add(float64(len(keys)))
 		return found, bufs, keys
 	}
 
@@ -86,6 +94,8 @@ func (c *RedisCache) Fetch(ctx context.Context, keys []string) (found []string, 
 			missed = append(missed, key)
 		}
 	}
+	c.cacheRequests.WithLabelValues("hit").Add(float64(len(found)))
+	c.cacheRequests.WithLabelValues("miss").Add(float64(len(missed)))
 
 	return
 }
@@ -112,8 +122,14 @@ func (c *RedisCache) FetchKey(ctx context.Context, key string) (buf []byte, foun
 		return nil
 	})
 	if err != nil {
+		if errors.Is(err, redis.Nil) {
+			c.cacheRequests.WithLabelValues("miss").Add(1)
+		} else {
+			c.cacheRequests.WithLabelValues("fail").Add(1)
+		}
 		return buf, false
 	}
+	c.cacheRequests.WithLabelValues("hit").Add(1)
 
 	return buf, true
 }

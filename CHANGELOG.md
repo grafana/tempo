@@ -27,6 +27,7 @@
   Slightly changes the array matching semantics of != and !~ operators and introduces stricter rules for regex literals.
 * [FEATURE] metrics-generator: Add per-label limiter to control cardinality [#6414](https://github.com/grafana/tempo/pull/6414) (@electron0zero)
   Adds `max_cardinality_per_label` per per-tenant override and new metrics to estimate per label cardinality demand estimate.
+* [ENHANCEMENT] Add `tempo_cache_requests_total` metric with `status` label (`hit`, `miss`, `fail`) for memcached and redis cache backends. [#6742](https://github.com/grafana/tempo/pull/6742) (@oleg-kozlyuk)
 * [ENHANCEMENT] Block builder: deduplicate spans within traces during block creation and track removed duplicates via `tempo_block_builder_spans_deduped_total` metric [#6539](https://github.com/grafana/tempo/pull/6539) (@zhxiaogg)
 * [ENHANCEMENT] metrics-generator: Support extracting span multiplier from W3C tracestate OTel probability sampling threshold via `enable_tracestate_span_multiplier` config option [#6684](https://github.com/grafana/tempo/pull/6684) (@cmarchbanks)
 * [ENHANCEMENT] Add new alerts and runbooks entries [#6276](https://github.com/grafana/tempo/pull/6276) (@javiermolinar)
