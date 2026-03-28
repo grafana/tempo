@@ -79,7 +79,7 @@ The Tempo container image uses a [distroless base image](/docs/tempo/<TEMPO_VERS
 The `--health` flag provides a native alternative. It doesn't require a Tempo configuration file, so it can be used directly in a `HEALTHCHECK` instruction:
 
 ```dockerfile
-HEALTHCHECK CMD ["/tempo", "-health"]
+HEALTHCHECK CMD ["/tempo", "--health"]
 ```
 
 Kubernetes users typically don't need this flag because they can configure `httpGet` readiness and liveness probes directly against the [`/ready` endpoint](/docs/tempo/<TEMPO_VERSION>/api_docs/#readiness-probe).
@@ -172,6 +172,6 @@ tempo --config.file=/etc/tempo/config.yaml \
 Run a health check against a custom URL:
 
 ```bash
-tempo -health -health.url=http://localhost:3200/ready
+tempo --health --health.url=http://localhost:3200/ready
 ```
 
