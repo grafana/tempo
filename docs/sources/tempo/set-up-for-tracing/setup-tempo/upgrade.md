@@ -94,7 +94,7 @@ If your deployment scripts, Helm values, or Tanka/Jsonnet configurations pass `-
 
 The metrics-generator gRPC endpoint and push path have been removed. In Tempo 3.0, the metrics-generator consumes directly from Kafka rather than receiving spans through gRPC from the distributor. [[PR 6618](https://github.com/grafana/tempo/pull/6618)]
 
-Remove any `generator` client configuration from the `distributor` block (for example, `generator_client`). This configuration is no longer recognized and causes startup errors.
+If your configuration includes a top-level `metrics_generator_client` block, remove it. This field is deprecated and will be removed in a future release.
 
 ## Upgrade to Tempo 2.10
 
