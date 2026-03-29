@@ -178,33 +178,25 @@ func TestCanonicalQuery(t *testing.T) {
 	}
 }
 
-func TestExtractFetchRequest(t *testing.T) {
+func TestExtractConditionGroups(t *testing.T) {
 	testCases := []struct {
-		name          string
-		query         string
-		count         int
-		allConditions bool
-		nilResult     bool
+		name  string
+		query string
+		count int
 	}{
-		{name: "empty", query: "", nilResult: true},
-		{name: "empty braces", query: " { } ", count: 0, allConditions: true},
-		{name: "simple", query: `{.service_name = "foo"}`, count: 1, allConditions: true},
-		{name: "incomplete", query: `{ .http.status_code = 200 && .http.method = }`, count: 1, allConditions: true},
-		{name: "invalid", query: "{ invalid syntax }", nilResult: true},
-		{name: "OR conditions", query: `{ (.foo = "bar" || .baz = "qux") }`, count: 2, allConditions: false},
-		{name: "structural", query: `{ .foo = "bar" } >> { .bar = "baz" }`, count: 2, allConditions: false},
-		{name: "multiple conditions", query: `{.a = 1 && .b = "two" && .c > 3}`, count: 3, allConditions: true},
+		{name: "empty", query: "", count: 0},
+		{name: "empty braces", query: " { } ", count: 0},
+		{name: "simple", query: `{.service_name = "foo"}`, count: 1},
+		{name: "incomplete", query: `{ .http.status_code = 200 && .http.method = }`, count: 1},
+		{name: "invalid", query: "{ invalid syntax }", count: 0},
+		{name: "OR conditions", query: `{ (.foo = "bar" || .baz = "qux") }`, count: 2},
+		{name: "structural", query: `{ .foo = "bar" } >> { .bar = "baz" }`, count: 0},
+		{name: "multiple conditions", query: `{.a = 1 && .b = "two" && .c > 3}`, count: 1},
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			req := ExtractFetchRequest(tc.query)
-			if tc.nilResult {
-				assert.Nil(t, req)
-				return
-			}
-			assert.NotNil(t, req)
-			assert.Equal(t, tc.count, len(req.Conditions))
-			assert.Equal(t, tc.allConditions, req.AllConditions)
+			conditionGroups := ExtractConditionGroups(tc.query)
+			assert.Equal(t, tc.count, len(conditionGroups))
 		})
 	}
 }
