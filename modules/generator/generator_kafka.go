@@ -62,7 +62,12 @@ func (g *Generator) stopKafka() {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 		if err := g.leaveGroupFn(ctx); err != nil {
-			level.Warn(g.logger).Log("msg", "failed to leave Kafka consumer group by instance ID (partitions may reassign after session timeout)", "err", err)
+			level.Warn(g.logger).Log(
+				"msg", "failed to leave Kafka consumer group by instance ID (partitions may reassign after session timeout)",
+				"err", err,
+				"instance_id", g.cfg.InstanceID,
+				"group", g.cfg.Ingest.Kafka.ConsumerGroup,
+			)
 		}
 	}
 	g.kafkaClient.Close()
