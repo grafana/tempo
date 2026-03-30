@@ -160,7 +160,6 @@ func (c *Client) Close() {
 	c.Client.Close() // Close the underlying client
 }
 
-
 func NewReaderClientMetrics(component string, reg prometheus.Registerer) *kprom.Metrics {
 	return kprom.NewMetrics("tempo_ingest_storage_reader",
 		kprom.Registerer(prometheus.WrapRegistererWith(prometheus.Labels{"component": component}, reg)),
