@@ -78,6 +78,24 @@ func minimalGeneratorForKafkaTest() *Generator {
 	}
 }
 
+// TestGetAssignedActivePartitions_ReturnsCopy verifies that the slice returned
+// by getAssignedActivePartitions is a copy of the internal slice. Mutating the
+// returned value must not affect g.assignedPartitions, ensuring that the lag
+// metrics goroutine (which iterates the returned slice without holding the lock)
+// cannot race with handlePartitionsAssigned (which appends to the same backing
+// array).
+func TestGetAssignedActivePartitions_ReturnsCopy(t *testing.T) {
+	g := minimalGeneratorForKafkaTest()
+	g.assignedPartitions = []int32{0, 1, 2}
+
+	got := g.getAssignedActivePartitions()
+	assert.Equal(t, []int32{0, 1, 2}, got)
+
+	got[0] = 99
+	assert.Equal(t, []int32{0, 1, 2}, g.assignedPartitions,
+		"mutating the returned slice must not affect internal state")
+}
+
 // TestStopKafka_LeaveGroupConditional verifies the three branches of the
 // LeaveConsumerGroupOnShutdown conditional in stopKafka():
 //   - leave=true, instanceID set  → leaveGroupFn is called

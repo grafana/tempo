@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/twmb/franz-go/pkg/kfake"
+	"github.com/twmb/franz-go/pkg/kerr"
 	"github.com/twmb/franz-go/pkg/kgo"
 	"github.com/twmb/franz-go/pkg/kmsg"
 	"go.uber.org/atomic"
@@ -84,4 +85,39 @@ func TestLeaveConsumerGroupByInstanceID_SendsRequestWithInstanceID(t *testing.T)
 	case <-time.After(3 * time.Second):
 		t.Fatal("broker did not receive a LeaveGroup request")
 	}
+}
+
+// TestLeaveConsumerGroupByInstanceID_MemberErrorCode verifies that a zero
+// top-level ErrorCode does not mask a per-member error for our instance.
+// LeaveGroup v3+ carries per-member error codes; a broker can return
+// ErrorCode=0 at the top level while reporting UNKNOWN_MEMBER_ID for the
+// specific instance that tried to leave.
+func TestLeaveConsumerGroupByInstanceID_MemberErrorCode(t *testing.T) {
+	fake, err := kfake.NewCluster(kfake.NumBrokers(1), kfake.SeedTopics(1, leaveTestTopic))
+	require.NoError(t, err)
+	t.Cleanup(fake.Close)
+	addr := fake.ListenAddrs()[0]
+
+	fake.ControlKey(int16(kmsg.LeaveGroup), func(req kmsg.Request) (kmsg.Response, error, bool) {
+		lr := req.(*kmsg.LeaveGroupRequest)
+		resp := lr.ResponseKind().(*kmsg.LeaveGroupResponse)
+		resp.Default()
+		resp.ErrorCode = 0 // top-level success
+		for _, m := range lr.Members {
+			rm := kmsg.NewLeaveGroupResponseMember()
+			rm.MemberID = m.MemberID
+			rm.InstanceID = m.InstanceID
+			rm.ErrorCode = kerr.UnknownMemberID.Code
+			resp.Members = append(resp.Members, rm)
+		}
+		return resp, nil, true
+	})
+
+	client, err := kgo.NewClient(kgo.SeedBrokers(addr), kgo.DisableClientMetrics())
+	require.NoError(t, err)
+	defer client.Close()
+
+	err = ingest.LeaveConsumerGroupByInstanceID(t.Context(), client, leaveTestGroup, leaveTestInstance, log.NewNopLogger())
+	require.Error(t, err, "expected error from per-member error code")
+	assert.ErrorIs(t, err, kerr.UnknownMemberID)
 }
