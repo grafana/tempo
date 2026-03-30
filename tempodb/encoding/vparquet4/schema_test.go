@@ -371,6 +371,7 @@ func TestTraceToParquet(t *testing.T) {
 							HttpStatusCode: ptr(int64(201)),
 							Attrs: []Attribute{
 								attr("span.attr", "aaa"),
+								attr("dedicated.span.5", "dedicated-span-attr-value-5"), // This is now a blob so falls back to generic area.
 								attr("span.string.array", []string{"one", "two"}),
 								attr("span.int.array", []int64{1, 2, 3}),
 								attr("span.double.array", []float64{1.1, 2.2}),
@@ -384,7 +385,6 @@ func TestTraceToParquet(t *testing.T) {
 								String02: ptr("dedicated-span-attr-value-2"),
 								String03: ptr("dedicated-span-attr-value-3"),
 								String04: ptr("dedicated-span-attr-value-4"),
-								String05: ptr("dedicated-span-attr-value-5"),
 							},
 						}},
 					}},

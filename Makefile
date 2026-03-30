@@ -268,6 +268,10 @@ docker-tempo-query: ## Build tempo query docker image
 docker-tempo-vulture: ## Build tempo vulture docker image
 	COMPONENT=tempo-vulture make docker-component
 
+.PHONY: docker-tempo-vulture-multi
+docker-tempo-vulture-multi: ## Build tempo vulture docker image
+	COMPONENT=tempo-vulture make docker-component-multi
+
 .PHONY: docker-images ## Build all docker images
 docker-images: docker-tempo docker-tempo-query docker-tempo-vulture
 
@@ -345,7 +349,7 @@ gen-traceql-local: ## Generate traceq local
 
 .PHONY: gen-parquet-query
 gen-parquet-query:  ## Generate Parquet query 
-	go run ./pkg/parquetquerygen/predicates.go > ./pkg/parquetquery/predicates.gen.go
+	go run ./pkg/parquetquerygen/predicates.go > ./pkg/parquetquery/predicates.gen.go && go fmt ./pkg/parquetquery/predicates.gen.go
 
 ##@ Tempo tools
 ### Check vendored and generated files are up to date
