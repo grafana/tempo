@@ -516,3 +516,112 @@ func (f *fixedSeriesProcessor) result(_ float64) SeriesSet {
 func (f *fixedSeriesProcessor) length() int {
 	return len(f.series)
 }
+
+// TestMergeExemplars covers the merge path where both slices are non-empty.
+func TestMergeExemplars(t *testing.T) {
+	a := []Exemplar{{Labels: Labels{{Name: "a", Value: NewStaticString("1")}}}}
+	b := []Exemplar{{Labels: Labels{{Name: "b", Value: NewStaticString("2")}}}}
+
+	// nil/empty fast paths
+	require.Equal(t, b, mergeExemplars(nil, b))
+	require.Equal(t, a, mergeExemplars(a, nil))
+
+	// both non-empty — allocates and concatenates
+	got := mergeExemplars(a, b)
+	require.Len(t, got, 2)
+	require.Equal(t, a[0], got[0])
+	require.Equal(t, b[0], got[1])
+}
+
+// TestMathExpressionMetricName covers the binary recursion path of metricName.
+func TestMathExpressionMetricName(t *testing.T) {
+	fragA := "frag-A"
+	fragB := "frag-B"
+
+	nameLabel := func(name, frag string) Labels {
+		return Labels{
+			{Name: "__name__", Value: NewStaticString(name)},
+			{Name: internalLabelQueryFragment, Value: NewStaticString(frag)},
+		}
+	}
+
+	input := SeriesSet{
+		nameLabel("rate", fragA).MapKey(): {Labels: nameLabel("rate", fragA), Values: []float64{1}},
+		nameLabel("count", fragB).MapKey(): {Labels: nameLabel("count", fragB), Values: []float64{2}},
+	}
+
+	// Leaf: returns the __name__ for the matching fragment
+	leafA := &mathExpression{op: OpNone, key: fragA}
+	require.Equal(t, "rate", leafA.metricName(input))
+
+	leafB := &mathExpression{op: OpNone, key: fragB}
+	require.Equal(t, "count", leafB.metricName(input))
+
+	// Leaf with no match returns ""
+	leafC := &mathExpression{op: OpNone, key: "no-match"}
+	require.Equal(t, "", leafC.metricName(input))
+
+	// Binary: combines both names
+	binary := &mathExpression{op: OpDiv, lhs: leafA, rhs: leafB}
+	require.Equal(t, "(rate / count)", binary.metricName(input))
+
+	// Binary with one missing name returns ""
+	binaryMissing := &mathExpression{op: OpAdd, lhs: leafA, rhs: leafC}
+	require.Equal(t, "", binaryMissing.metricName(input))
+}
+
+// TestMathExpressionInit covers init() on leaf-with-filter and binary nodes.
+func TestMathExpressionInit(t *testing.T) {
+	req := &tempopb.QueryRangeRequest{Start: 1000, End: 2000, Step: 100}
+
+	// Leaf with no filter: init is a no-op, must not panic
+	leaf := &mathExpression{op: OpNone, key: "k"}
+	require.NotPanics(t, func() { leaf.init(req) })
+
+	// Track calls via a mock filter
+	called := false
+	mockFilter := &mockSecondStageElement{initFn: func(r *tempopb.QueryRangeRequest) { called = true }}
+
+	leafWithFilter := &mathExpression{op: OpNone, key: "k", filter: mockFilter}
+	leafWithFilter.init(req)
+	require.True(t, called, "init must delegate to leaf filter")
+
+	// Binary: both children must receive init
+	lhsCalled, rhsCalled := false, false
+	lhsFilter := &mockSecondStageElement{initFn: func(r *tempopb.QueryRangeRequest) { lhsCalled = true }}
+	rhsFilter := &mockSecondStageElement{initFn: func(r *tempopb.QueryRangeRequest) { rhsCalled = true }}
+	binary := &mathExpression{
+		op:  OpAdd,
+		lhs: &mathExpression{op: OpNone, key: "l", filter: lhsFilter},
+		rhs: &mathExpression{op: OpNone, key: "r", filter: rhsFilter},
+	}
+	binary.init(req)
+	require.True(t, lhsCalled, "init must recurse into lhs")
+	require.True(t, rhsCalled, "init must recurse into rhs")
+}
+
+// TestBatchSeriesProcessorLength covers batchSeriesProcessor.length().
+func TestBatchSeriesProcessorLength(t *testing.T) {
+	a := &mockSeriesProcessor{received: make([]*tempopb.TimeSeries, 3)}
+	b := &mockSeriesProcessor{received: make([]*tempopb.TimeSeries, 5)}
+	bsp := batchSeriesProcessor{"frag-A": a, "frag-B": b}
+
+	require.Equal(t, 8, bsp.length())
+
+	empty := batchSeriesProcessor{}
+	require.Equal(t, 0, empty.length())
+}
+
+// mockSecondStageElement is a minimal test double for secondStageElement.
+type mockSecondStageElement struct {
+	initFn func(*tempopb.QueryRangeRequest)
+}
+
+func (m *mockSecondStageElement) String() string                         { return "" }
+func (m *mockSecondStageElement) validate() error                       { return nil }
+func (m *mockSecondStageElement) init(req *tempopb.QueryRangeRequest)   {
+	if m.initFn != nil {
+		m.initFn(req)
+	}
+}
+func (m *mockSecondStageElement) process(input SeriesSet) SeriesSet { return input }
