@@ -167,6 +167,16 @@ func getGroupLag(ctx context.Context, admClient *kadm.Client, partitionClient *P
 	for _, p := range assignedPartitions {
 		pend, ok := tend[p]
 		if !ok || pend.Err != nil {
+			// Preserve error semantics: emit Lag=-1 with Err set rather than omitting
+			// the partition, which would leave any previously-set gauge value stale.
+			// fetchPartitionsOffsets currently converts per-partition errors to
+			// function-level errors, so this path is reached only if the broker
+			// omits a requested partition from the ListOffsets response entirely.
+			perr := pend.Err
+			if !ok {
+				perr = fmt.Errorf("missing end offset for partition %d", p)
+			}
+			result[topic][p] = kadm.GroupMemberLag{Topic: topic, Partition: p, Lag: -1, Err: perr}
 			continue
 		}
 		lag := int64(0)
