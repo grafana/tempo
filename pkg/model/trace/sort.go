@@ -101,7 +101,7 @@ func compareEvents(a, b *v1.Span_Event) bool {
 }
 
 func compareLinks(a, b *v1.Span_Link) bool {
-	if bytes.Compare(a.TraceId, b.TraceId) == 0 {
+	if bytes.Equal(a.TraceId, b.TraceId) {
 		return bytes.Compare(a.SpanId, b.SpanId) == -1
 	}
 
