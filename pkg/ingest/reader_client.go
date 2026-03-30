@@ -134,6 +134,22 @@ func LeaveConsumerGroupByInstanceID(ctx context.Context, client *kgo.Client, gro
 	if err := kerr.ErrorForCode(resp.ErrorCode); err != nil {
 		return err
 	}
+	// v3+ responses carry per-member error codes; check those too.
+	var memberErr error
+	for _, m := range resp.Members {
+		if m.ErrorCode == 0 {
+			continue
+		}
+		if m.InstanceID != nil && *m.InstanceID == instanceID {
+			return kerr.ErrorForCode(m.ErrorCode)
+		}
+		if memberErr == nil {
+			memberErr = kerr.ErrorForCode(m.ErrorCode)
+		}
+	}
+	if memberErr != nil {
+		return memberErr
+	}
 	level.Info(logger).Log("msg", "left Kafka consumer group by instance ID", "group", group, "instance_id", instanceID)
 	return nil
 }

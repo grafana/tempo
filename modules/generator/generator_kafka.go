@@ -3,6 +3,7 @@ package generator
 import (
 	"context"
 	"errors"
+	"slices"
 	"sort"
 	"strconv"
 	"time"
@@ -174,7 +175,7 @@ func (g *Generator) readCh(ctx context.Context) {
 func (g *Generator) getAssignedActivePartitions() []int32 {
 	g.partitionMtx.Lock()
 	defer g.partitionMtx.Unlock()
-	return g.assignedPartitions
+	return slices.Clone(g.assignedPartitions)
 }
 
 func (g *Generator) handlePartitionsAssigned(m map[string][]int32) {
