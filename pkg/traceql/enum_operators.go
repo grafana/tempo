@@ -147,6 +147,12 @@ func (op Operator) isArrayOp() bool {
 	return op == OpIn || op == OpNotIn || op == OpRegexMatchAny || op == OpRegexMatchNone
 }
 
+// isArithmetic returns true for the four arithmetic operators valid in
+// metrics math expressions (+, -, *, /).
+func (op Operator) isArithmetic() bool {
+	return op == OpAdd || op == OpSub || op == OpMult || op == OpDiv
+}
+
 // toElementOp returns the equivalent element operator for the given array operator
 func (op Operator) toElementOp() Operator {
 	switch op {

@@ -295,11 +295,6 @@ bounds check (length > 0) is always performed; the assumption that index 0 is a
 math node when it is present is enforced structurally during parse-time chain
 assembly.
 
-### 9.2 Single-pipeline accessor
-
-For non-math queries, returns the single pipeline and its span processor. Returns
-nothing if the query is math (math queries have multiple pipelines).
-
 ---
 
 ## 10. End-to-End Data Flow

@@ -33,6 +33,8 @@ import (
     metricsAggregation firstStageElement
     metricsSecondStage secondStageElement
     metricsSecondStagePipeline ChainedSecondStage
+    wrappedMetricsPipeline *RootExpr
+    metricsExpression      *RootExpr
 
     fieldExpression FieldExpression
     static Static
@@ -71,6 +73,8 @@ import (
 %type <metricsSecondStagePipeline> metricsSecondStagePipeline
 %type <scalarFilterOperation> metricsFilterOperation
 %type <metricsSecondStage> metricsFilter
+%type <wrappedMetricsPipeline> wrappedMetricsPipeline
+%type <metricsExpression>      metricsExpression
 
 %type <scalarPipelineExpressionFilter> scalarPipelineExpressionFilter
 %type <scalarPipelineExpression> scalarPipelineExpression
@@ -128,9 +132,11 @@ import (
 root:
     spansetPipeline                                                       { yylex.(*lexer).expr = newRootExpr($1) }
   | spansetPipelineExpression                                             { yylex.(*lexer).expr = newRootExpr($1) }
-  | scalarPipelineExpressionFilter                                        { yylex.(*lexer).expr = newRootExpr($1) } 
+  | scalarPipelineExpressionFilter                                        { yylex.(*lexer).expr = newRootExpr($1) }
   | spansetPipeline PIPE metricsAggregation                               { yylex.(*lexer).expr = newRootExprWithMetrics($1, $3) }
   | spansetPipeline PIPE metricsAggregation metricsSecondStagePipeline    { yylex.(*lexer).expr = newRootExprWithMetricsTwoStage($1, $3, $4) }
+  | metricsExpression                                                     { yylex.(*lexer).expr = unwrapSingleMathExpr($1) }
+  | metricsExpression metricsSecondStagePipeline                          { yylex.(*lexer).expr = chainMathSecondStage($1, $2) }
   | root hints                                                            { yylex.(*lexer).expr.withHints($2) }
   ;
 
@@ -363,6 +369,25 @@ metricsSecondStagePipeline:
   | metricsFilter                                        { $$.Append($1, " ") }
   | metricsSecondStagePipeline PIPE metricsSecondStage   { $$ = $1; $$.Append($3, " | ") }
   | metricsSecondStagePipeline metricsFilter             { $$ = $1; $$.Append($2, " ") }
+  ;
+
+// **********************
+// Metrics Math
+// **********************
+wrappedMetricsPipeline:
+    OPEN_PARENS spansetPipeline PIPE metricsAggregation CLOSE_PARENS
+        { $$ = newWrappedMetricsPipeline($2, $4) }
+  | OPEN_PARENS spansetPipeline PIPE metricsAggregation metricsSecondStagePipeline CLOSE_PARENS
+        { $$ = newWrappedMetricsPipelineWithFilter($2, $4, $5) }
+  ;
+
+metricsExpression:
+    wrappedMetricsPipeline                         { $$ = $1 }
+  | metricsExpression ADD metricsExpression        { $$ = newRootExprMath(OpAdd, $1, $3) }
+  | metricsExpression SUB metricsExpression        { $$ = newRootExprMath(OpSub, $1, $3) }
+  | metricsExpression MUL metricsExpression        { $$ = newRootExprMath(OpMult, $1, $3) }
+  | metricsExpression DIV metricsExpression        { $$ = newRootExprMath(OpDiv, $1, $3) }
+  | OPEN_PARENS metricsExpression CLOSE_PARENS     { $$ = $2 }
   ;
 
 // **********************

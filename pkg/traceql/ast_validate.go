@@ -19,6 +19,15 @@ func (e *unsupportedError) Error() string {
 }
 
 func (r RootExpr) validate() error {
+	if r.IsMath() {
+		for _, p := range r.Pipelines {
+			if err := p.validate(); err != nil {
+				return err
+			}
+		}
+		return r.MetricsSecondStage.validate()
+	}
+
 	err := r.Pipeline.validate()
 	if err != nil {
 		return err

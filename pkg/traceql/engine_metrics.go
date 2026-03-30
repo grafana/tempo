@@ -24,6 +24,10 @@ const (
 	internalLabelMetaType = "__meta_type"
 	internalMetaTypeCount = "__count"
 	internalLabelBucket   = "__bucket"
+	// internalLabelQueryFragment tags backend time-series with the sub-query key
+	// they originated from. This is an internal routing mechanism and must not
+	// leak outside pkg/traceql.
+	internalLabelQueryFragment = "__query_fragment"
 	maxExemplarsPerBucket = 2
 	// maxExemplars is a safety cap applied at the engine entry points to bound memory
 	// usage regardless of what the caller requests.
@@ -276,6 +280,17 @@ func (ls Labels) Has(name string) bool {
 		}
 	}
 	return false
+}
+
+// GetValue returns the value of the label with the given name,
+// or the zero Static if not found.
+func (ls Labels) GetValue(name string) Static {
+	for _, l := range ls {
+		if l.Name == name {
+			return l.Value
+		}
+	}
+	return Static{}
 }
 
 // String returns the prometheus-formatted version of the labels. Which is downcasting
@@ -953,9 +968,29 @@ func (e *Engine) CompileMetricsQueryRangeNonRaw(req *tempopb.QueryRangeRequest, 
 		return nil, fmt.Errorf("step required")
 	}
 
-	_, _, metricsPipeline, metricsSecondStage, _, err := Compile(req.Query)
+	expr, _, metricsPipeline, metricsSecondStage, _, err := Compile(req.Query)
 	if err != nil {
 		return nil, fmt.Errorf("compiling query: %w", err)
+	}
+
+	// Math path: route to the math-aware evaluator.
+	if expr.IsMath() {
+		procs := make(map[string]firstStageElement, len(expr.BatchSpanProcessors))
+		for key, fse := range expr.BatchSpanProcessors {
+			fse.init(req, mode)
+			procs[key] = fse
+		}
+		bsp := newBatchSeriesProcessor(procs)
+		mathStage := metricsSecondStage
+		mfe := &MetricsFrontendEvaluator{
+			isMath:     true,
+			seriesProc: bsp,
+		}
+		if mathStage != nil {
+			mathStage.init(req)
+			mfe.metricsSecondStage = mathStage
+		}
+		return mfe, nil
 	}
 
 	// for metrics queries, we need a metrics pipeline
@@ -976,6 +1011,160 @@ func (e *Engine) CompileMetricsQueryRangeNonRaw(req *tempopb.QueryRangeRequest, 
 	}
 
 	return mfe, nil
+}
+
+// BatchMetricsEvaluator holds one MetricsEvaluator per fragment sub-query.
+// Used for math queries on backend shards.
+//
+// Execute via Do() sequentially — do not call Do() concurrently.
+type BatchMetricsEvaluator struct {
+	evaluators map[string]*MetricsEvaluator
+}
+
+// Do executes each sub-evaluator sequentially against the given data source.
+// Returns on first error.
+func (b *BatchMetricsEvaluator) Do(ctx context.Context, f SpansetFetcher, fetcherStart, fetcherEnd uint64, maxSeries int) error {
+	for _, eval := range b.evaluators {
+		if err := eval.Do(ctx, f, fetcherStart, fetcherEnd, maxSeries); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// Results merges per-fragment outputs, tagging each series with its fragment label.
+func (b *BatchMetricsEvaluator) Results() SeriesSet {
+	out := make(SeriesSet)
+	for key, eval := range b.evaluators {
+		fragLabel := Label{Name: internalLabelQueryFragment, Value: NewStaticString(key)}
+		for _, ts := range eval.Results() {
+			tagged := ts.Labels.Add(fragLabel)
+			taggedKey := tagged.MapKey()
+			out[taggedKey] = TimeSeries{
+				Labels:    tagged,
+				Values:    ts.Values,
+				Exemplars: ts.Exemplars,
+			}
+		}
+	}
+	return out
+}
+
+// Length returns the total series count across all sub-evaluators.
+func (b *BatchMetricsEvaluator) Length() int {
+	total := 0
+	for _, eval := range b.evaluators {
+		total += eval.Length()
+	}
+	return total
+}
+
+// Metrics returns aggregated inspection metrics across all sub-evaluators.
+func (b *BatchMetricsEvaluator) Metrics() (uint64, uint64, uint64) {
+	var bytes, spans, deduped uint64
+	for _, eval := range b.evaluators {
+		byt, sp, ded := eval.Metrics()
+		bytes += byt
+		spans += sp
+		deduped += ded
+	}
+	return bytes, spans, deduped
+}
+
+// CompileMetricsQueryRangeMath returns a BatchMetricsEvaluator for math queries
+// on backend shards. Each sub-query fragment gets its own MetricsEvaluator.
+func (e *Engine) CompileMetricsQueryRangeMath(req *tempopb.QueryRangeRequest, timeOverlapCutoff float64, allowUnsafeQueryHints bool) (*BatchMetricsEvaluator, error) {
+	if req.Exemplars > maxExemplars {
+		level.Warn(log.Logger).Log("msg", "capping exemplars to safety limit", "requested", req.Exemplars, "cap", maxExemplars)
+		req.Exemplars = maxExemplars
+	}
+
+	if req.Start <= 0 {
+		return nil, fmt.Errorf("start required")
+	}
+	if req.End <= 0 {
+		return nil, fmt.Errorf("end required")
+	}
+	if req.End <= req.Start {
+		return nil, fmt.Errorf("end must be greater than start")
+	}
+	if req.Step <= 0 {
+		return nil, fmt.Errorf("step required")
+	}
+
+	expr, err := Parse(req.Query)
+	if err != nil {
+		return nil, fmt.Errorf("compiling math query: %w", err)
+	}
+	if !expr.IsMath() {
+		return nil, fmt.Errorf("not a math query")
+	}
+
+	var precision time.Duration
+	if (req.Start%req.Step) == 0 && (req.End%req.Step) == 0 {
+		precision = time.Duration(req.Step)
+	}
+
+	evaluators := make(map[string]*MetricsEvaluator, len(expr.BatchSpanProcessors))
+	for key, proc := range expr.BatchSpanProcessors {
+		proc.init(req, AggregateModeRaw)
+		pipeline := expr.Pipelines[key]
+
+		storageReq := &FetchSpansRequest{AllConditions: true}
+		pipeline.extractConditions(storageReq)
+
+		needsFull := false
+		for _, el := range pipeline.Elements {
+			if NeedsFullTrace(el) {
+				needsFull = true
+				break
+			}
+		}
+
+		// Span start time (always required)
+		if !storageReq.HasAttribute(IntrinsicSpanStartTimeAttribute) {
+			storageReq.SecondPassConditions = append(storageReq.SecondPassConditions, Condition{Attribute: IntrinsicSpanStartTimeAttribute, Precision: precision})
+		} else {
+			for i, c := range storageReq.Conditions {
+				if c.Attribute == IntrinsicSpanStartTimeAttribute {
+					storageReq.Conditions[i].Precision = precision
+					break
+				}
+			}
+		}
+
+		me := &MetricsEvaluator{
+			start:             req.Start,
+			end:               req.End,
+			checkTime:         true,
+			needsFullTrace:    needsFull,
+			newFetch:          true,
+			maxExemplars:      int(req.Exemplars),
+			timeOverlapCutoff: timeOverlapCutoff,
+			storageReq:        storageReq,
+			metricsPipeline:   proc,
+		}
+		if me.maxExemplars > 0 {
+			me.exemplarMap = make(map[string]struct{})
+		}
+
+		// Setup second pass callback.
+		ssBuf := make([]*Spanset, 1)
+		eval := pipeline.evaluate
+		meLocal := me
+		storageReq.SecondPass = func(s *Spanset) ([]*Spanset, error) {
+			meLocal.mtx.Lock()
+			defer meLocal.mtx.Unlock()
+			ssBuf[0] = s
+			return eval(ssBuf)
+		}
+
+		optimize(storageReq)
+
+		evaluators[key] = me
+	}
+
+	return &BatchMetricsEvaluator{evaluators: evaluators}, nil
 }
 
 // CompileMetricsQueryRange returns an evaluator that can be reused across multiple data sources.
@@ -1527,16 +1716,25 @@ func (e *MetricsEvaluator) sampleExemplar(id []byte) bool {
 
 // MetricsFrontendEvaluator pipes the sharded job results back into the engine for the rest
 // of the pipeline.  i.e. This evaluator is for the query-frontend.
+//
+// A single mutex covers both observe and result calls.
 type MetricsFrontendEvaluator struct {
 	mtx                sync.Mutex
 	metricsPipeline    firstStageElement
 	metricsSecondStage secondStageElement
+	// Math path fields — populated only when isMath is true.
+	isMath      bool
+	seriesProc  seriesProcessor
 }
 
 func (m *MetricsFrontendEvaluator) ObserveSeries(in []*tempopb.TimeSeries) {
 	m.mtx.Lock()
 	defer m.mtx.Unlock()
 
+	if m.isMath {
+		m.seriesProc.observeSeries(in)
+		return
+	}
 	m.metricsPipeline.observeSeries(in)
 }
 
@@ -1544,13 +1742,18 @@ func (m *MetricsFrontendEvaluator) Results() SeriesSet {
 	m.mtx.Lock()
 	defer m.mtx.Unlock()
 
-	// Job results are not scaled by sampling, but this is here for the interface.
-	results := m.metricsPipeline.result(1.0)
+	var results SeriesSet
+	if m.isMath {
+		results = m.seriesProc.result(1.0)
+	} else {
+		// Job results are not scaled by sampling, but this is here for the interface.
+		results = m.metricsPipeline.result(1.0)
+	}
 
 	if m.metricsSecondStage != nil {
-		// metrics second stage is only set when query has second stage function and mode = final
-		// if we have metrics second stage, pass first stage results through
-		// second stage for further processing.
+		// For math queries, metricsSecondStage is the math expression tree and always runs.
+		// For non-math queries, metricsSecondStage is only set for AggregateModesFinal.
+		// In both cases, pass results through the second stage for further processing.
 		results = m.metricsSecondStage.process(results)
 	}
 
@@ -1561,6 +1764,9 @@ func (m *MetricsFrontendEvaluator) Length() int {
 	m.mtx.Lock()
 	defer m.mtx.Unlock()
 
+	if m.isMath {
+		return m.seriesProc.length()
+	}
 	return m.metricsPipeline.length()
 }
 

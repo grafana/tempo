@@ -36,6 +36,11 @@ type RootExpr struct {
 	MetricsSecondStage secondStageElement
 	Hints              *Hints
 	OptimizationCount  int
+	// Math path fields — populated only when IsMath() returns true.
+	// Pipelines maps fragment key -> span-level Pipeline.
+	Pipelines map[string]Pipeline
+	// BatchSpanProcessors maps fragment key -> first-stage aggregator.
+	BatchSpanProcessors map[string]firstStageElement
 }
 
 func NeedsFullTrace(e ...Element) bool {
@@ -65,6 +70,16 @@ func NeedsFullTrace(e ...Element) bool {
 }
 
 func (r *RootExpr) NeedsFullTrace() bool {
+	if r.IsMath() {
+		for _, p := range r.Pipelines {
+			for _, e := range p.Elements {
+				if NeedsFullTrace(e) {
+					return true
+				}
+			}
+		}
+		return false
+	}
 	for _, e := range r.Pipeline.Elements {
 		if NeedsFullTrace(e) {
 			return true
@@ -111,6 +126,151 @@ func newRootExprWithMetricsTwoStage(e PipelineElement, m1 firstStageElement, m2 
 
 func (r *RootExpr) withHints(h *Hints) *RootExpr {
 	r.Hints = h
+	return r
+}
+
+// IsMath returns true if this is a binary math metrics query.
+// A single parenthesized pipeline (no binary operator) is not math —
+// it is unwrapped during parsing.
+func (r *RootExpr) IsMath() bool {
+	if r.MetricsSecondStage == nil {
+		return false
+	}
+	// Direct binary math expression at second stage.
+	if me, ok := r.MetricsSecondStage.(*mathExpression); ok {
+		return me.lhs != nil
+	}
+	// Math expression at index 0 of a chained pipeline.
+	if chain, ok := r.MetricsSecondStage.(ChainedSecondStage); ok {
+		if len(chain.elements) > 0 {
+			if me, ok := chain.elements[0].(*mathExpression); ok {
+				return me.lhs != nil
+			}
+		}
+	}
+	return false
+}
+
+// newWrappedMetricsPipeline creates a temporary holder used by the grammar
+// during construction of a wrappedMetricsPipeline rule. The key is derived
+// from the canonical string representations of the pipeline and aggregation.
+func newWrappedMetricsPipeline(e PipelineElement, m firstStageElement) *RootExpr {
+	p, ok := e.(Pipeline)
+	if !ok {
+		p = newPipeline(e)
+	}
+	key := p.String() + " | " + m.String()
+	return &RootExpr{
+		Pipeline:            p,
+		MetricsPipeline:     m,
+		Pipelines:           map[string]Pipeline{key: p},
+		BatchSpanProcessors: map[string]firstStageElement{key: m},
+		MetricsSecondStage:  &mathExpression{key: key},
+	}
+}
+
+// newWrappedMetricsPipelineWithFilter creates a wrappedMetricsPipeline with a
+// per-leaf second-stage filter.
+func newWrappedMetricsPipelineWithFilter(e PipelineElement, m firstStageElement, filter secondStageElement) *RootExpr {
+	p, ok := e.(Pipeline)
+	if !ok {
+		p = newPipeline(e)
+	}
+	key := p.String() + " | " + m.String()
+	return &RootExpr{
+		Pipeline:            p,
+		MetricsPipeline:     m,
+		Pipelines:           map[string]Pipeline{key: p},
+		BatchSpanProcessors: map[string]firstStageElement{key: m},
+		MetricsSecondStage:  &mathExpression{key: key, filter: filter},
+	}
+}
+
+// unwrapSingleMathExpr removes the math wrapper from a single-leaf expression,
+// returning a plain metrics query. The result has IsMath() == false.
+// If the leaf carried a filter, it is promoted to MetricsSecondStage.
+func unwrapSingleMathExpr(r *RootExpr) *RootExpr {
+	me, ok := r.MetricsSecondStage.(*mathExpression)
+	if !ok {
+		// Not a leaf math expression — return as-is.
+		return r
+	}
+	if me.lhs != nil {
+		// Binary node — not a single leaf, leave as math.
+		return r
+	}
+	return &RootExpr{
+		Pipeline:           r.Pipelines[me.key],
+		MetricsPipeline:    r.BatchSpanProcessors[me.key],
+		MetricsSecondStage: me.filter,
+		Hints:              r.Hints,
+	}
+}
+
+// newRootExprMath combines two wrapped pipeline expressions into a binary math
+// root. Sub-query deduplication: duplicate keys produce a single map entry;
+// both leaf nodes reference the same key.
+func newRootExprMath(op Operator, left, right *RootExpr) *RootExpr {
+	lme, ok := left.MetricsSecondStage.(*mathExpression)
+	if !ok {
+		panic(fmt.Sprintf("traceql grammar bug: newRootExprMath left is %T", left.MetricsSecondStage))
+	}
+	rme, ok := right.MetricsSecondStage.(*mathExpression)
+	if !ok {
+		panic(fmt.Sprintf("traceql grammar bug: newRootExprMath right is %T", right.MetricsSecondStage))
+	}
+
+	binary := &mathExpression{op: op, lhs: lme, rhs: rme}
+
+	pipelines := make(map[string]Pipeline)
+	procs := make(map[string]firstStageElement)
+	for k, p := range left.Pipelines {
+		pipelines[k] = p
+	}
+	for k, p := range left.BatchSpanProcessors {
+		procs[k] = p
+	}
+	for k, p := range right.Pipelines {
+		pipelines[k] = p
+	}
+	for k, p := range right.BatchSpanProcessors {
+		procs[k] = p
+	}
+
+	return &RootExpr{
+		Pipelines:           pipelines,
+		BatchSpanProcessors: procs,
+		MetricsSecondStage:  binary,
+	}
+}
+
+// chainMathSecondStage inserts the math expression at index 0 of the trailing
+// second-stage pipeline, ensuring arithmetic runs before topk/filter.
+func chainMathSecondStage(r *RootExpr, tail ChainedSecondStage) *RootExpr {
+	me, ok := r.MetricsSecondStage.(*mathExpression)
+	if !ok {
+		// Not a math expression (e.g., single-leaf was already unwrapped).
+		// Treat like the non-math two-stage path.
+		if len(tail.elements) == 0 {
+			return r
+		}
+		var combined ChainedSecondStage
+		if r.MetricsSecondStage != nil {
+			combined.Append(r.MetricsSecondStage, "")
+		}
+		for i, elem := range tail.elements {
+			combined.Append(elem, tail.separators[i])
+		}
+		r.MetricsSecondStage = combined
+		return r
+	}
+
+	var chain ChainedSecondStage
+	chain.Append(me, "")
+	for i, elem := range tail.elements {
+		chain.Append(elem, tail.separators[i])
+	}
+	r.MetricsSecondStage = chain
 	return r
 }
 

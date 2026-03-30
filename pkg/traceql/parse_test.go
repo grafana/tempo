@@ -2148,3 +2148,62 @@ func TestMetricsFilter(t *testing.T) {
 		})
 	}
 }
+
+// TestMetricsMathExpression covers TRQL-T-01, TRQL-T-02, TRQL-T-03.
+func TestMetricsMathExpression(t *testing.T) {
+	// TRQL-T-01: Valid binary arithmetic expressions parse correctly.
+	t.Run("T01_Valid", func(t *testing.T) {
+		cases := []struct {
+			query  string
+			isMath bool
+		}{
+			{`({} | count_over_time()) / ({} | count_over_time())`, true},
+			{`({} | rate()) + ({} | rate())`, true},
+			{`({} | rate()) * ({} | rate())`, true},
+			{`({} | rate()) - ({} | rate())`, true},
+			{`(({} | rate()) + ({} | rate())) / ({} | rate())`, true},
+			// Single parenthesized pipeline is NOT math.
+			{`({} | rate())`, false},
+			// Plain metrics query is not math.
+			{`{} | rate()`, false},
+		}
+		for _, tc := range cases {
+			tc := tc
+			t.Run(tc.query, func(t *testing.T) {
+				expr, err := Parse(tc.query)
+				require.NoError(t, err)
+				require.Equal(t, tc.isMath, expr.IsMath())
+			})
+		}
+	})
+
+	// TRQL-T-02: Invalid syntax produces parse errors.
+	t.Run("T02_InvalidSyntax", func(t *testing.T) {
+		invalid := []string{
+			`{} | count_over_time() / {} | count_over_time()`,
+			`({} | count_over_time()) /`,
+		}
+		for _, q := range invalid {
+			_, err := Parse(q)
+			require.Error(t, err, "expected parse error for %q", q)
+		}
+	})
+
+	// TRQL-T-03: String representation is canonical and round-trips.
+	t.Run("T03_StringRoundTrip", func(t *testing.T) {
+		queries := []string{
+			`({ status = error } | count_over_time()) / ({ true } | count_over_time())`,
+			`(({} | rate()) + ({} | rate())) / ({} | rate())`,
+		}
+		for _, q := range queries {
+			expr1, err := Parse(q)
+			require.NoError(t, err)
+			str1 := expr1.String()
+			expr2, err := Parse(str1)
+			require.NoError(t, err, "re-parse of String() failed for %q", q)
+			str2 := expr2.String()
+			require.Equal(t, str1, str2, "string form must be stable for %q", q)
+			require.Equal(t, expr1.IsMath(), expr2.IsMath())
+		}
+	})
+}

@@ -694,6 +694,10 @@ func (i *instance) QueryRange(ctx context.Context, req *tempopb.QueryRangeReques
 		timeOverlapCutoff = v
 	}
 
+	if expr.IsMath() {
+		return i.queryRangeMath(ctx, req, timeOverlapCutoff, unsafe)
+	}
+
 	maxSeries := int(req.MaxSeries)
 	maxSeriesReached := atomic.Bool{}
 	maxSeriesReached.Store(false)
@@ -771,6 +775,107 @@ func (i *instance) queryRangeWALBlock(ctx context.Context, b common.WALBlock, ev
 	return eval.Do(ctx, fetcher, uint64(m.StartTime.UnixNano()), uint64(m.EndTime.UnixNano()), maxSeries)
 }
 
+func (i *instance) queryRangeMath(
+	ctx context.Context,
+	req *tempopb.QueryRangeRequest,
+	timeOverlapCutoff float64,
+	unsafe bool,
+) (*tempopb.QueryRangeResponse, error) {
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	rawEval, err := traceql.NewEngine().CompileMetricsQueryRangeMath(req, timeOverlapCutoff, false)
+	if err != nil {
+		return nil, err
+	}
+
+	jobEval, err := traceql.NewEngine().CompileMetricsQueryRangeNonRaw(req, traceql.AggregateModeSum)
+	if err != nil {
+		return nil, err
+	}
+
+	maxSeries := int(req.MaxSeries)
+	maxSeriesReached := atomic.Bool{}
+
+	search := func(ctx context.Context, _ *backend.BlockMeta, b block) error {
+		if walBlock, ok := b.(common.WALBlock); ok {
+			err := i.queryRangeWALBlockMath(ctx, walBlock, rawEval, maxSeries)
+			if err != nil {
+				return err
+			}
+			if maxSeries > 0 && rawEval.Length() > maxSeries {
+				maxSeriesReached.Store(true)
+				return errComplete
+			}
+			return nil
+		}
+
+		if localBlock, ok := b.(*LocalBlock); ok {
+			resp, err := i.queryRangeCompleteBlockMath(ctx, localBlock, req, timeOverlapCutoff, unsafe)
+			if err != nil {
+				return err
+			}
+			jobEval.ObserveSeries(resp)
+			if maxSeries > 0 && jobEval.Length() > maxSeries {
+				maxSeriesReached.Store(true)
+				return errComplete
+			}
+			return nil
+		}
+
+		return fmt.Errorf("unexpected block type: %T", b)
+	}
+
+	err = i.iterateBlocks(ctx, time.Unix(0, int64(req.Start)), time.Unix(0, int64(req.End)), search)
+	if err != nil {
+		level.Error(i.logger).Log("msg", "error in queryRangeMath", "err", err)
+		return nil, err
+	}
+
+	walResults := rawEval.Results().ToProto(req)
+	jobEval.ObserveSeries(walResults)
+
+	r := jobEval.Results()
+	rr := r.ToProto(req)
+
+	inspectedBytes, inspectedSpans, _ := rawEval.Metrics()
+	metrics := &tempopb.SearchMetrics{
+		InspectedBytes: inspectedBytes,
+		InspectedSpans: inspectedSpans,
+	}
+
+	if maxSeriesReached.Load() {
+		if len(rr) > maxSeries {
+			rr = rr[:maxSeries]
+		}
+		return &tempopb.QueryRangeResponse{
+			Series:  rr,
+			Status:  tempopb.PartialStatus_PARTIAL,
+			Metrics: metrics,
+		}, nil
+	}
+	return &tempopb.QueryRangeResponse{Series: rr, Metrics: metrics}, nil
+}
+
+func (i *instance) queryRangeWALBlockMath(ctx context.Context, b common.WALBlock, eval *traceql.BatchMetricsEvaluator, maxSeries int) error {
+	m := b.BlockMeta()
+	ctx, span := tracer.Start(ctx, "instance.QueryRange.WALBlock.Math", oteltrace.WithAttributes(
+		attribute.String("block", m.BlockID.String()),
+		attribute.Int64("blockSize", int64(m.Size_)),
+	))
+	defer span.End()
+
+	fetcher := traceql.NewSpansetFetcherWrapperBoth(
+		func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
+			return b.Fetch(ctx, req, common.DefaultSearchOptions())
+		},
+		func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansOnlyResponse, error) {
+			return b.FetchSpans(ctx, req, common.DefaultSearchOptions())
+		},
+	)
+	return eval.Do(ctx, fetcher, uint64(m.StartTime.UnixNano()), uint64(m.EndTime.UnixNano()), maxSeries)
+}
+
 func (i *instance) queryRangeCompleteBlock(ctx context.Context, b *LocalBlock, req tempopb.QueryRangeRequest, timeOverlapCutoff float64, unsafe bool) ([]*tempopb.TimeSeries, error) {
 	m := b.BlockMeta()
 	ctx, span := tracer.Start(ctx, "instance.QueryRange.CompleteBlock", oteltrace.WithAttributes(
@@ -830,6 +935,46 @@ func (i *instance) queryRangeCompleteBlock(ctx context.Context, b *LocalBlock, r
 	}
 
 	return results, nil
+}
+
+// queryRangeCompleteBlockMath executes a math metrics query against a single complete block.
+// It uses CompileMetricsQueryRangeMath so results are fragment-tagged for downstream combining.
+// TODO: add block-level caching for math queries (performance gap, not correctness)
+func (i *instance) queryRangeCompleteBlockMath(ctx context.Context, b *LocalBlock, req *tempopb.QueryRangeRequest, timeOverlapCutoff float64, unsafe bool) ([]*tempopb.TimeSeries, error) {
+	m := b.BlockMeta()
+	ctx, span := tracer.Start(ctx, "instance.QueryRange.CompleteBlock.Math", oteltrace.WithAttributes(
+		attribute.String("block", m.BlockID.String()),
+		attribute.Int64("blockSize", int64(m.Size_)),
+	))
+	defer span.End()
+
+	// Trim and align the request for this block.
+	trimmedReq := *req
+	trimmedReq.Start, trimmedReq.End, trimmedReq.Step = traceql.TrimToBlockOverlap(req, m.StartTime, m.EndTime)
+
+	if trimmedReq.Start >= trimmedReq.End {
+		return nil, nil
+	}
+
+	eval, err := traceql.NewEngine().CompileMetricsQueryRangeMath(&trimmedReq, timeOverlapCutoff, unsafe)
+	if err != nil {
+		return nil, err
+	}
+
+	f := traceql.NewSpansetFetcherWrapperBoth(
+		func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
+			return b.Fetch(ctx, req, common.DefaultSearchOptions())
+		},
+		func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansOnlyResponse, error) {
+			return b.FetchSpans(ctx, req, common.DefaultSearchOptions())
+		},
+	)
+	err = eval.Do(ctx, f, uint64(m.StartTime.UnixNano()), uint64(m.EndTime.UnixNano()), int(req.MaxSeries))
+	if err != nil {
+		return nil, err
+	}
+
+	return eval.Results().ToProto(&trimmedReq), nil
 }
 
 func (i *instance) queryRangeCacheGet(ctx context.Context, m *backend.BlockMeta, req tempopb.QueryRangeRequest) (*tempopb.QueryRangeResponse, string, error) {

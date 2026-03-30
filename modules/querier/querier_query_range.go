@@ -93,11 +93,6 @@ func (q *Querier) queryBlock(ctx context.Context, req *tempopb.QueryRangeRequest
 		timeOverlapCutoff = v
 	}
 
-	eval, err := traceql.NewEngine().CompileMetricsQueryRange(req, timeOverlapCutoff, unsafe)
-	if err != nil {
-		return nil, err
-	}
-
 	f := traceql.NewSpansetFetcherWrapperBoth(
 		func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
 			return q.store.Fetch(ctx, meta, req, opts)
@@ -106,6 +101,51 @@ func (q *Querier) queryBlock(ctx context.Context, req *tempopb.QueryRangeRequest
 			return q.store.FetchSpans(ctx, meta, req, opts)
 		},
 	)
+
+	if expr.IsMath() {
+		batchEval, err := traceql.NewEngine().CompileMetricsQueryRangeMath(req, timeOverlapCutoff, unsafe)
+		if err != nil {
+			return nil, err
+		}
+
+		err = batchEval.Do(ctx, f, uint64(meta.StartTime.UnixNano()), uint64(meta.EndTime.UnixNano()), int(req.MaxSeries))
+		if err != nil {
+			return nil, err
+		}
+
+		res := batchEval.Results()
+		inspectedBytes, spansTotal, _ := batchEval.Metrics()
+
+		if req.MaxSeries > 0 && len(res) > int(req.MaxSeries) {
+			limitedRes := make(traceql.SeriesSet)
+			count := 0
+			for k, v := range res {
+				if count >= int(req.MaxSeries) {
+					break
+				}
+				limitedRes[k] = v
+				count++
+			}
+			res = limitedRes
+		}
+
+		response := &tempopb.QueryRangeResponse{
+			Series: res.ToProto(req),
+			Metrics: &tempopb.SearchMetrics{
+				InspectedBytes: inspectedBytes,
+				InspectedSpans: spansTotal,
+			},
+		}
+		if req.MaxSeries > 0 && len(res) >= int(req.MaxSeries) {
+			response.Status = tempopb.PartialStatus_PARTIAL
+		}
+		return response, nil
+	}
+
+	eval, err := traceql.NewEngine().CompileMetricsQueryRange(req, timeOverlapCutoff, unsafe)
+	if err != nil {
+		return nil, err
+	}
 
 	err = eval.Do(ctx, f, uint64(meta.StartTime.UnixNano()), uint64(meta.EndTime.UnixNano()), int(req.MaxSeries))
 	if err != nil {

@@ -9,13 +9,19 @@ import (
 
 func (r RootExpr) String() string {
 	s := strings.Builder{}
-	s.WriteString(r.Pipeline.String())
-	if r.MetricsPipeline != nil {
-		s.WriteString(" | ")
-		s.WriteString(r.MetricsPipeline.String())
-	}
-	if r.MetricsSecondStage != nil {
+	if r.IsMath() {
+		// Math path: the second-stage (math expression tree) encodes the full
+		// expression including both operands; it is the canonical form.
 		s.WriteString(r.MetricsSecondStage.String())
+	} else {
+		s.WriteString(r.Pipeline.String())
+		if r.MetricsPipeline != nil {
+			s.WriteString(" | ")
+			s.WriteString(r.MetricsPipeline.String())
+		}
+		if r.MetricsSecondStage != nil {
+			s.WriteString(r.MetricsSecondStage.String())
+		}
 	}
 	if r.Hints != nil {
 		s.WriteString(" ")
