@@ -141,6 +141,11 @@ func (op Operator) unaryTypesValid(t StaticType) bool {
 	return false
 }
 
+// isArithmetic returns true if the operator is a binary arithmetic operator (+, -, *, /).
+func (op Operator) isArithmetic() bool {
+	return op == OpAdd || op == OpSub || op == OpMult || op == OpDiv
+}
+
 // isArrayOp returns true if the operator is a dedicated array operator like IN, NOT IN, MATCH ANY, or MATCH NONE. It
 // returns false for all other operators, even if those operators can operate on arrays like = or !=.
 func (op Operator) isArrayOp() bool {

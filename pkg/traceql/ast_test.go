@@ -1218,3 +1218,17 @@ func TestNewBinaryOperation_TraceIDNormalization(t *testing.T) {
 		}
 	}
 }
+
+// TRQL-T-13: IsMath returns false for a single-leaf (non-binary) query.
+func TestIsMathFalseForSingleLeaf(t *testing.T) {
+	expr, err := Parse(`{} | rate()`)
+	require.NoError(t, err)
+	require.False(t, expr.IsMath(), "single pipeline should not be IsMath")
+}
+
+// TRQL-T-14: IsMath returns true for binary math expressions.
+func TestIsMathTrueForBinaryExpr(t *testing.T) {
+	expr, err := Parse(`({} | rate()) + ({} | rate())`)
+	require.NoError(t, err)
+	require.True(t, expr.IsMath(), "binary math expression should be IsMath")
+}

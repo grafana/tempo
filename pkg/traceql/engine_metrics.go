@@ -21,10 +21,11 @@ import (
 )
 
 const (
-	internalLabelMetaType = "__meta_type"
-	internalMetaTypeCount = "__count"
-	internalLabelBucket   = "__bucket"
-	maxExemplarsPerBucket = 2
+	internalLabelMetaType      = "__meta_type"
+	internalMetaTypeCount      = "__count"
+	internalLabelBucket        = "__bucket"
+	internalLabelQueryFragment = "__query_fragment"
+	maxExemplarsPerBucket      = 2
 	// maxExemplars is a safety cap applied at the engine entry points to bound memory
 	// usage regardless of what the caller requests.
 	maxExemplars uint32 = 100000
@@ -278,6 +279,16 @@ func (ls Labels) Has(name string) bool {
 	return false
 }
 
+// GetValue returns the value of the label with the given name, and whether it was found.
+func (ls Labels) GetValue(name string) (Static, bool) {
+	for _, l := range ls {
+		if l.Name == name {
+			return l.Value, true
+		}
+	}
+	return Static{}, false
+}
+
 // String returns the prometheus-formatted version of the labels. Which is downcasting
 // the typed TraceQL values to strings, with some special casing.
 func (ls Labels) String() string {
@@ -311,6 +322,12 @@ func (ls Labels) String() string {
 func (ls Labels) MapKey() SeriesMapKey {
 	key := SeriesMapKey{}
 	for i := range ls {
+		if i >= maxGroupBys {
+			// Truncate silently: labels beyond maxGroupBys are dropped from the key.
+			// This prevents an index-out-of-bounds when internal labels (__name__,
+			// __query_fragment) are appended to a series already at capacity.
+			break
+		}
 		key[i] = SeriesMapLabel{Name: ls[i].Name, Value: ls[i].Value.MapKey()}
 	}
 	return key
@@ -953,26 +970,40 @@ func (e *Engine) CompileMetricsQueryRangeNonRaw(req *tempopb.QueryRangeRequest, 
 		return nil, fmt.Errorf("step required")
 	}
 
-	_, _, metricsPipeline, metricsSecondStage, _, err := Compile(req.Query)
+	expr, _, metricsPipeline, metricsSecondStage, _, err := Compile(req.Query)
 	if err != nil {
 		return nil, fmt.Errorf("compiling query: %w", err)
 	}
 
-	// for metrics queries, we need a metrics pipeline
-	if metricsPipeline == nil {
+	// for metrics queries, we need either a metrics pipeline or a math expression
+	if metricsPipeline == nil && !expr.IsMath() {
 		return nil, fmt.Errorf("not a metrics query")
 	}
 
-	metricsPipeline.init(req, mode)
-	mfe := &MetricsFrontendEvaluator{
-		metricsPipeline: metricsPipeline,
-	}
+	mfe := &MetricsFrontendEvaluator{}
 
-	// only run metrics second stage if we have second stage and query mode = final,
-	// as we are not sharding them now in lower layers.
-	if metricsSecondStage != nil && mode == AggregateModeFinal {
-		metricsSecondStage.init(req)
-		mfe.metricsSecondStage = metricsSecondStage
+	if expr.IsMath() {
+		// Math path: init each sub-pipeline independently keyed by fragment.
+		for _, fse := range expr.BatchSpanProcessors {
+			fse.init(req, mode)
+		}
+		mfe.isMath = true
+		mfe.seriesProcessor = expr.SeriesProcessor
+		// Math queries always run the second stage (it contains the math tree itself).
+		if metricsSecondStage != nil {
+			metricsSecondStage.init(req)
+			mfe.metricsSecondStage = metricsSecondStage
+		}
+	} else {
+		// Non-math path (unchanged behaviour).
+		metricsPipeline.init(req, mode)
+		mfe.metricsPipeline = metricsPipeline
+		// only run metrics second stage if we have second stage and query mode = final,
+		// as we are not sharding them now in lower layers.
+		if metricsSecondStage != nil && mode == AggregateModeFinal {
+			metricsSecondStage.init(req)
+			mfe.metricsSecondStage = metricsSecondStage
+		}
 	}
 
 	return mfe, nil
@@ -1529,7 +1560,9 @@ func (e *MetricsEvaluator) sampleExemplar(id []byte) bool {
 // of the pipeline.  i.e. This evaluator is for the query-frontend.
 type MetricsFrontendEvaluator struct {
 	mtx                sync.Mutex
-	metricsPipeline    firstStageElement
+	metricsPipeline    firstStageElement // non-math path only
+	seriesProcessor    seriesProcessor   // math path: batchSeriesProcessor
+	isMath             bool              // true when query contains binary arithmetic
 	metricsSecondStage secondStageElement
 }
 
@@ -1537,15 +1570,24 @@ func (m *MetricsFrontendEvaluator) ObserveSeries(in []*tempopb.TimeSeries) {
 	m.mtx.Lock()
 	defer m.mtx.Unlock()
 
-	m.metricsPipeline.observeSeries(in)
+	if m.isMath {
+		m.seriesProcessor.observeSeries(in)
+	} else {
+		m.metricsPipeline.observeSeries(in)
+	}
 }
 
 func (m *MetricsFrontendEvaluator) Results() SeriesSet {
 	m.mtx.Lock()
 	defer m.mtx.Unlock()
 
-	// Job results are not scaled by sampling, but this is here for the interface.
-	results := m.metricsPipeline.result(1.0)
+	var results SeriesSet
+	if m.isMath {
+		results = m.seriesProcessor.result(1.0)
+	} else {
+		// Job results are not scaled by sampling, but this is here for the interface.
+		results = m.metricsPipeline.result(1.0)
+	}
 
 	if m.metricsSecondStage != nil {
 		// metrics second stage is only set when query has second stage function and mode = final
@@ -1561,7 +1603,149 @@ func (m *MetricsFrontendEvaluator) Length() int {
 	m.mtx.Lock()
 	defer m.mtx.Unlock()
 
+	if m.isMath {
+		return m.seriesProcessor.length()
+	}
 	return m.metricsPipeline.length()
+}
+
+// batchMetricsEvaluator is a map of per-fragment MetricsEvaluators used on the backend
+// for math queries. Each fragment key corresponds to one sub-query in the math expression.
+type batchMetricsEvaluator map[string]*MetricsEvaluator
+
+// Do runs each sub-query evaluator sequentially against the given data source.
+// Sequential execution is safe because each shard evaluates all fragments against
+// the same underlying data; concurrent access would require additional locking.
+func (b batchMetricsEvaluator) Do(ctx context.Context, f SpansetFetcher, fetcherStart, fetcherEnd uint64, maxSeries int) error {
+	for _, eval := range b {
+		if err := eval.Do(ctx, f, fetcherStart, fetcherEnd, maxSeries); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// Results merges per-fragment results into a single SeriesSet, tagging each series
+// with its fragment key as an __query_fragment label.
+// eval.Results() is called (not result(1.0) directly) to ensure sampling multipliers are applied.
+func (b batchMetricsEvaluator) Results() SeriesSet {
+	merged := make(SeriesSet)
+	for fragKey, eval := range b {
+		for _, ts := range eval.Results() {
+			ts.Labels = ts.Labels.Add(Label{
+				Name:  internalLabelQueryFragment,
+				Value: NewStaticString(fragKey),
+			})
+			merged[ts.Labels.MapKey()] = ts
+		}
+	}
+	return merged
+}
+
+// Length returns the total series count across all fragment evaluators.
+func (b batchMetricsEvaluator) Length() int {
+	n := 0
+	for _, eval := range b {
+		n += eval.Length()
+	}
+	return n
+}
+
+// CompileMetricsQueryRangeMath is the backend analog of CompileMetricsQueryRange for
+// math queries. It creates a per-fragment MetricsEvaluator for each sub-pipeline.
+func (e *Engine) CompileMetricsQueryRangeMath(req *tempopb.QueryRangeRequest, timeOverlapCutoff float64, allowUnsafeQueryHints bool) (batchMetricsEvaluator, error) {
+	if req.Exemplars > maxExemplars {
+		level.Warn(log.Logger).Log("msg", "capping exemplars to safety limit", "requested", req.Exemplars, "cap", maxExemplars)
+		req.Exemplars = maxExemplars
+	}
+	if req.Start <= 0 {
+		return nil, fmt.Errorf("start required")
+	}
+	if req.End <= 0 {
+		return nil, fmt.Errorf("end required")
+	}
+	if req.End <= req.Start {
+		return nil, fmt.Errorf("end must be greater than start")
+	}
+	if req.Step <= 0 {
+		return nil, fmt.Errorf("step required")
+	}
+
+	expr, _, _, _, _, err := Compile(req.Query)
+	if err != nil {
+		return nil, fmt.Errorf("compiling query: %w", err)
+	}
+	if !expr.IsMath() {
+		return nil, fmt.Errorf("not a math metrics query")
+	}
+
+	// If the request range is fully aligned to the step, then we can use lower
+	// precision data that matches the step while still returning accurate results.
+	var precision time.Duration
+	if (req.Start%req.Step) == 0 && (req.End%req.Step) == 0 {
+		precision = time.Duration(req.Step)
+	}
+
+	batch := make(batchMetricsEvaluator, len(expr.BatchSpanProcessors))
+	for key, fse := range expr.BatchSpanProcessors {
+		p := expr.Pipelines[key]
+		storageReq := &FetchSpansRequest{AllConditions: true}
+		p.extractConditions(storageReq)
+		fse.extractConditions(storageReq)
+		fse.init(req, AggregateModeRaw)
+
+		// needsFullTrace must be evaluated per sub-pipeline, not on the root expr.
+		// RootExpr.NeedsFullTrace() only checks r.Pipeline.Elements which is always
+		// empty for math queries (sub-pipelines live in r.Pipelines).
+		needsFullTrace := false
+		for _, e := range p.Elements {
+			if NeedsFullTrace(e) {
+				needsFullTrace = true
+				break
+			}
+		}
+
+		me := &MetricsEvaluator{
+			storageReq:        storageReq,
+			metricsPipeline:   fse,
+			timeOverlapCutoff: timeOverlapCutoff,
+			maxExemplars:      int(req.Exemplars),
+			exemplarMap:       make(map[string]struct{}, req.Exemplars),
+			needsFullTrace:    needsFullTrace,
+		}
+
+		if b, ok := expr.Hints.GetBool("new", true); ok {
+			me.newFetch = b
+		}
+
+		// Span start time (always required for time-range filtering)
+		if !storageReq.HasAttribute(IntrinsicSpanStartTimeAttribute) {
+			storageReq.SecondPassConditions = append(storageReq.SecondPassConditions, Condition{Attribute: IntrinsicSpanStartTimeAttribute, Precision: precision})
+		} else {
+			for i, c := range storageReq.Conditions {
+				if c.Attribute == IntrinsicSpanStartTimeAttribute {
+					storageReq.Conditions[i].Precision = precision
+					break
+				}
+			}
+		}
+
+		// Time-range filtering: only count spans within the query window.
+		me.checkTime = true
+		me.start = req.Start
+		me.end = req.End
+
+		if me.maxExemplars > 0 {
+			cb := func() bool { return me.exemplarCount < me.maxExemplars }
+			meta := ExemplarMetaConditionsWithout(cb, storageReq.SecondPassConditions, storageReq.AllConditions)
+			storageReq.SecondPassConditions = append(storageReq.SecondPassConditions, meta...)
+		}
+
+		optimize(storageReq)
+
+		batch[key] = me
+	}
+	return batch, nil
 }
 
 type SeriesAggregator interface {

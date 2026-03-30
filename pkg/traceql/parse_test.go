@@ -2148,3 +2148,84 @@ func TestMetricsFilter(t *testing.T) {
 		})
 	}
 }
+
+// TRQL-T-01: Binary arithmetic expressions parse into the correct AST structure.
+func TestMetricsMathExpression(t *testing.T) {
+	t.Run("division", func(t *testing.T) {
+		in := `({} | count_over_time()) / ({} | count_over_time())`
+		actual, err := Parse(in)
+		require.NoError(t, err)
+		require.True(t, actual.IsMath(), "expected IsMath()==true for binary expression")
+		// The math expression should have OpDiv at root.
+		me, ok := actual.MetricsSecondStage.(*mathExpression)
+		require.True(t, ok, "MetricsSecondStage must be *mathExpression")
+		require.Equal(t, OpDiv, me.op)
+		require.NotNil(t, me.lhs)
+		require.NotNil(t, me.rhs)
+		// Deduplication: both sub-queries are identical, so one pipeline entry.
+		require.Len(t, actual.Pipelines, 1)
+		require.Len(t, actual.BatchSpanProcessors, 1)
+	})
+
+	t.Run("addition", func(t *testing.T) {
+		in := `({} | rate()) + ({} | rate())`
+		actual, err := Parse(in)
+		require.NoError(t, err)
+		require.True(t, actual.IsMath())
+		me, ok := actual.MetricsSecondStage.(*mathExpression)
+		require.True(t, ok)
+		require.Equal(t, OpAdd, me.op)
+		require.Len(t, actual.Pipelines, 1)
+	})
+
+	t.Run("multiplication distinct queries", func(t *testing.T) {
+		in := `({status=error} | rate()) * ({true} | rate())`
+		actual, err := Parse(in)
+		require.NoError(t, err)
+		require.True(t, actual.IsMath())
+		me, ok := actual.MetricsSecondStage.(*mathExpression)
+		require.True(t, ok)
+		require.Equal(t, OpMult, me.op)
+		// Two distinct sub-queries → two pipeline entries.
+		require.Len(t, actual.Pipelines, 2)
+		require.Len(t, actual.BatchSpanProcessors, 2)
+	})
+
+	t.Run("single-leaf not math", func(t *testing.T) {
+		// A single parenthesized pipeline should NOT be IsMath after unwrapSingleMathExpr.
+		in := `({} | rate())`
+		actual, err := Parse(in)
+		require.NoError(t, err)
+		require.False(t, actual.IsMath(), "single leaf should not be IsMath")
+	})
+}
+
+// TRQL-T-02: Invalid math expression syntax produces parse errors.
+func TestMetricsMathExpressionErrors(t *testing.T) {
+	tests := []string{
+		// Missing outer parens around sub-queries
+		`{} | count_over_time() / {} | count_over_time()`,
+		// Incomplete expression
+		`({} | count_over_time()) / `,
+	}
+	for _, q := range tests {
+		t.Run(q, func(t *testing.T) {
+			_, err := Parse(q)
+			require.Error(t, err, "expected parse error for: %s", q)
+		})
+	}
+}
+
+// TRQL-T-03: String() on a math RootExpr produces a canonical representation.
+func TestMetricsMathExpressionString(t *testing.T) {
+	t.Run("round-trip division", func(t *testing.T) {
+		in := `({status=error} | count_over_time()) / ({true} | count_over_time())`
+		expr, err := Parse(in)
+		require.NoError(t, err)
+		s := expr.String()
+		// Re-parse the string
+		expr2, err := Parse(s)
+		require.NoError(t, err)
+		require.Equal(t, expr, expr2, "round-trip should produce identical AST")
+	})
+}

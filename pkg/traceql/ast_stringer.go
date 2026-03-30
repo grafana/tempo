@@ -9,13 +9,18 @@ import (
 
 func (r RootExpr) String() string {
 	s := strings.Builder{}
-	s.WriteString(r.Pipeline.String())
-	if r.MetricsPipeline != nil {
-		s.WriteString(" | ")
-		s.WriteString(r.MetricsPipeline.String())
-	}
-	if r.MetricsSecondStage != nil {
+	if r.IsMath() {
+		// Math path: the expression is encoded in MetricsSecondStage
 		s.WriteString(r.MetricsSecondStage.String())
+	} else {
+		s.WriteString(r.Pipeline.String())
+		if r.MetricsPipeline != nil {
+			s.WriteString(" | ")
+			s.WriteString(r.MetricsPipeline.String())
+		}
+		if r.MetricsSecondStage != nil {
+			s.WriteString(r.MetricsSecondStage.String())
+		}
 	}
 	if r.Hints != nil {
 		s.WriteString(" ")
