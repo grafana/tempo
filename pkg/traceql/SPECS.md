@@ -640,3 +640,50 @@ Execution time (frontend, MetricsFrontendEvaluator):
 | `metricsEvaluator` | Safe (per-spanset mutex) | N/A | Lock held per spanset, not across full Fetch |
 | `mathExpression` | N/A (stateless after `init`) | Safe | No mutable state after init |
 | `batchMetricsEvaluator` | Sequential `Do` only | Safe | No concurrent `Do` calls |
+
+---
+
+## 18. Additional Invariants
+
+### 18.1 `seriesProcessor` Interface
+
+```go
+// ast_metrics_math.go:14-18
+type seriesProcessor interface {
+    observeSeries(batch []*tempopb.TimeSeries)
+    result(multiplier float64) SeriesSet
+    length() int
+}
+```
+
+Both the math path (`batchSeriesProcessor`) and individual `firstStageElement`
+aggregators implement this interface. `result` is called exactly once per query
+evaluation, applying any internal multipliers (e.g. rate normalisation). `length`
+returns the number of unique series accumulated so far.
+
+### 18.2 Exemplar Cardinality
+
+`mergeExemplars` (ast_metrics_math.go:229-240) concatenates both slices without
+deduplication. Combined exemplar slices from a binary operation may therefore
+contain duplicate trace references. Downstream consumers (e.g. proto serialisation
+via `SeriesSet.ToProto`) are responsible for filtering if uniqueness is required.
+This is an intentional design choice — exemplar deduplication at combine time adds
+overhead not justified for most query volumes.
+
+### 18.3 `IsMath()` Access Safety
+
+`IsMath()` (ast.go:47-59) accesses `ChainedSecondStage[0]` only after confirming
+`len > 0`. The deeper assumption — that index 0 is always a `*mathExpression` for
+math queries — is enforced structurally by `chainMathSecondStage`, which always
+prepends the math expression at position 0. No runtime assertion guards this
+assumption at the access site; correctness depends on the invariant in §5.4
+(ordering invariant) being maintained by all callers.
+
+### 18.4 `init()` Call Discipline
+
+`secondStageElement.init()` and `mathExpression.init()` are designed to be called
+**exactly once** before the first `process()` call. The interface and implementations
+do not enforce idempotency (no `sync.Once` guard). Calling `init()` a second time
+overwrites child element state with the new `QueryRangeRequest`, producing undefined
+behaviour. Callers (`MetricsFrontendEvaluator`, `CompileMetricsQueryRangeMath`) must
+ensure `init()` is invoked once per query lifetime.
