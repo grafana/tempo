@@ -1,231 +1,226 @@
-# traceql — Test Specifications (Metrics Math)
+# TraceQL Metrics Math — Test Specifications
 
-This document defines the required tests for the metrics math subsystem of the
-`traceql` package. It complements SPECS.md (contracts) and NOTES.md (rationale).
-
+This document defines the required tests for the metrics math subsystem.
 Each test is identified as `TRQL-T-<NN>`.
 
 ---
 
-## 1. Parse Tests — Valid Expressions
+## 1. Parse Tests
 
-### TRQL-T-01: TestMetricsMathExpression (existing — parse_test.go:1919)
+### TRQL-T-01: Valid binary arithmetic expressions
 
-**Scenario:** Binary arithmetic expressions parse into the correct AST structure.
+**Scenario:** Binary arithmetic expressions parse into the correct structure.
 
-**Setup:**
-- Input strings: `({} | count_over_time()) / ({} | count_over_time())`,
-  `({} | rate()) + ({} | rate())`, multiplication, subtraction, nested division,
-  grouped division.
+**Inputs:**
+- Division: `({} | count_over_time()) / ({} | count_over_time())`
+- Addition: `({} | rate()) + ({} | rate())`
+- Multiplication, subtraction, nested division, grouped division.
 
 **Assertions:**
-- Parsed `*RootExpr` deep-equals expected structure built via `newRootExprMath` / `newWrappedMetricsPipeline`.
-- `IsMath()` returns `true` for binary expressions.
-- `IsMath()` returns `false` for single-leaf `metricsExpression`.
+- Parsed expression matches the expected structure.
+- A binary expression is recognized as a math query.
+- A single parenthesized pipeline (no binary operator) is not recognized as math.
 
 ---
 
-### TRQL-T-02: TestMetricsMathExpressionErrors (existing — parse_test.go:2007)
+### TRQL-T-02: Invalid syntax produces parse errors
 
-**Scenario:** Invalid math expression syntax produces parse errors.
+**Scenario:** Malformed math expressions are rejected.
 
-**Setup:**
-- Missing outer parens: `{} | count_over_time() / {} | count_over_time()`
-- Incomplete expression: `({} | count_over_time()) / `
+**Inputs:**
+- Missing outer parentheses: `{} | count_over_time() / {} | count_over_time()`
+- Incomplete expression: `({} | count_over_time()) /`
 - Improper nesting.
 
 **Assertions:**
-- `ExtractFetchSpansRequest` returns a non-nil error for each case.
+- Each input returns a non-nil parse error.
 
 ---
 
-### TRQL-T-03: TestMetricsMathExpressionString (existing — parse_test.go:2022)
+### TRQL-T-03: String representation is canonical and round-trips
 
-**Scenario:** `String()` on a math `RootExpr` produces a canonical representation.
+**Scenario:** Converting a math expression to a string and parsing it again
+produces an equivalent expression.
 
-**Setup:**
-- Parse `({ status = error } | count_over_time()) / ({ true } | count_over_time())`
-- Parse a nested expression.
+**Inputs:**
+- `({ status = error } | count_over_time()) / ({ true } | count_over_time())`
+- A nested arithmetic expression.
 
 **Assertions:**
-- `RootExpr.String()` equals the canonical form.
-- Round-trip: `Parse(expr.String())` deep-equals the original.
+- The string form matches the expected canonical representation.
+- Parsing the string form produces a structure equal to the original.
 
 ---
 
-## 2. Evaluation Tests — `applyArithmeticOp`
+## 2. Scalar Arithmetic
 
-### TRQL-T-04: TestApplyArithmeticOpBasic (missing — add to ast_metrics_math_test.go)
+### TRQL-T-04: Basic operations
 
-**Scenario:** Correct scalar arithmetic for all four operators.
+**Scenario:** All four arithmetic operators produce correct results for simple inputs.
 
-**Setup:**
-- `(op=OpAdd, lhs=3.0, rhs=2.0)` → expected `5.0`
-- `(op=OpSub, lhs=3.0, rhs=2.0)` → expected `1.0`
-- `(op=OpMult, lhs=3.0, rhs=2.0)` → expected `6.0`
-- `(op=OpDiv, lhs=3.0, rhs=2.0)` → expected `1.5`
+**Inputs and expected outputs:**
+- 3.0 + 2.0 → 5.0
+- 3.0 - 2.0 → 1.0
+- 3.0 × 2.0 → 6.0
+- 3.0 ÷ 2.0 → 1.5
 
-**Assertions:**
-- Result equals expected within `1e-9` tolerance.
-
----
-
-### TRQL-T-05: TestApplyArithmeticOpNaN (missing — add to ast_metrics_math_test.go)
-
-**Scenario:** NaN and division-by-zero handling.
-
-**Setup:**
-- `(op=OpDiv, lhs=1.0, rhs=0.0)` → expected `NaN`
-- `(op=OpAdd, lhs=NaN, rhs=2.0)` → expected `2.0` (NaN coerced to 0)
-- `(op=OpSub, lhs=3.0, rhs=NaN)` → expected `3.0`
-- `(op=OpMult, lhs=NaN, rhs=NaN)` → expected `0.0`
-- Invalid operator → expected `NaN`
-
-**Assertions:**
-- `math.IsNaN(result)` for NaN cases.
-- Exact value match for coercion cases.
+**Assertions:** Results match expected values within floating-point tolerance.
 
 ---
 
-## 3. Evaluation Tests — `applyBinaryOp`
+### TRQL-T-05: NaN and division-by-zero handling
 
-### TRQL-T-06: TestApplyBinaryOpMatchingKeys (missing — add to ast_metrics_math_test.go)
+**Scenario:** Edge cases in scalar arithmetic never panic and produce well-defined results.
 
-**Scenario:** Series with identical label keys are combined correctly.
-
-**Setup:**
-- `lhs` SeriesSet: 3 series each with 4 time-step values.
-- `rhs` SeriesSet: same 3 keys, different values.
-- `op = OpAdd`.
+**Inputs and expected outputs:**
+- 1.0 ÷ 0.0 → NaN
+- NaN + 2.0 → 2.0 (NaN treated as 0)
+- 3.0 - NaN → 3.0
+- NaN × NaN → 0.0
+- Invalid operator → NaN
 
 **Assertions:**
-- Result has same 3 keys.
-- Each value equals `lhsValue + rhsValue` at each time step.
+- NaN cases produce NaN results.
+- NaN-input coercion produces the stated numeric result.
+
+---
+
+## 3. Element-wise Set Combination
+
+### TRQL-T-06: Matching keys are combined
+
+**Scenario:** Series with identical label keys are combined element-wise.
+
+**Setup:**
+- Left set: 3 series, each with 4 time-step values.
+- Right set: same 3 keys, different values.
+- Operator: addition.
+
+**Assertions:**
+- Result contains the same 3 keys.
+- Each value equals left + right at each time step.
 - No extra series in result.
 
 ---
 
-### TRQL-T-07: TestApplyBinaryOpMissingKey (missing — add to ast_metrics_math_test.go)
+### TRQL-T-07: Unmatched series are dropped
 
-**Scenario:** Series present in one side but not the other are silently dropped.
+**Scenario:** A series present in only one operand is silently dropped.
 
 **Setup:**
-- `lhs`: keys A, B, C.
-- `rhs`: keys A, B (C absent).
-- `op = OpDiv`.
+- Left set: keys A, B, C.
+- Right set: keys A, B (C absent).
+- Operator: division.
 
 **Assertions:**
 - Result contains only keys A and B.
-- Key C is absent from result.
+- Key C is absent.
 
 ---
 
-### TRQL-T-08: TestApplyBinaryOpNoLabels (missing — add to ast_metrics_math_test.go)
+### TRQL-T-08: No-labels fallback
 
-**Scenario:** Fallback to no-labels key (`SeriesMapKey{}`) when exact key absent.
+**Scenario:** A no-labels series on one side matches any key on the other side.
 
 **Setup:**
-- `lhs`: one series with no labels (empty key).
-- `rhs`: one series with labels `{foo="bar"}`.
-- `op = OpMult`.
+- Left set: one series with no labels.
+- Right set: one series with labels `{foo="bar"}`.
+- Operator: multiplication.
 
 **Assertions:**
-- `getTSMatch` falls back to `SeriesMapKey{}`.
-- Result series uses values from the no-labels series.
+- The result contains one series using the no-labels series as the matching operand.
 
 ---
 
-## 4. Evaluation Tests — `mathExpression.process`
+## 4. Math Expression Evaluation
 
-### TRQL-T-09: TestMathExpressionLeafProcess (missing — add to ast_metrics_math_test.go)
+### TRQL-T-09: Leaf node filters and strips labels
 
-**Scenario:** Leaf node filters series by `__query_fragment` and strips internal labels.
+**Scenario:** A leaf node selects only its own fragment and strips internal labels.
 
 **Setup:**
-- Input SeriesSet: 4 series, 2 tagged with `__query_fragment="frag-A"`, 2 with `"frag-B"`.
-- Leaf node with `key = "frag-A"`.
+- Input: 4 series — 2 tagged with fragment key "A", 2 tagged with fragment key "B".
+- Leaf configured for key "A".
 
 **Assertions:**
-- Output contains only the 2 series for `"frag-A"`.
-- `__query_fragment` label absent from output series.
-- `__name__` label absent from output series.
+- Output contains only the 2 series for key "A".
+- Fragment label is absent from all output series.
+- Name label is absent from all output series.
 
 ---
 
-### TRQL-T-10: TestMathExpressionBinaryProcess (missing — add to ast_metrics_math_test.go)
+### TRQL-T-10: Binary node fans out and combines
 
-**Scenario:** Binary node fan-outs to both children and combines results.
+**Scenario:** A binary node passes the full input to both children and combines results.
 
 **Setup:**
-- Input: 4 series — 2 with `__query_fragment="frag-A"` (values all 4.0), 2 with
-  `"frag-B"` (values all 2.0).
-- Binary node: `op=OpDiv`, `lhs=leaf(frag-A)`, `rhs=leaf(frag-B)`.
-- Matching label keys between frag-A and frag-B series pairs.
+- Input: 4 series — 2 tagged with "A" (values 4.0), 2 tagged with "B" (values 2.0).
+- Binary node: division, left = leaf("A"), right = leaf("B").
+- Left and right series share matching label keys.
 
 **Assertions:**
-- Output: 2 series with values all `2.0` (4.0/2.0).
-- No `__query_fragment` in output.
-- `__name__` set to `"(fragA_name / fragB_name)"` if both had names.
+- Output: 2 series with values 2.0 (4.0 ÷ 2.0).
+- Fragment label absent from output.
+- Name label set to combined form if both sides had names.
 
 ---
 
-## 5. Validation Tests
+### TRQL-T-11: Validation rejects non-arithmetic operators
 
-### TRQL-T-11: TestMathExpressionValidate (missing — add to ast_metrics_math_test.go)
-
-**Scenario:** validate() rejects non-arithmetic operators.
+**Scenario:** A binary node with a non-arithmetic operator is invalid.
 
 **Setup:**
-- Binary node with `op = OpAnd` (non-arithmetic).
+- Binary node with a logical/comparison operator.
 
 **Assertions:**
-- `validate()` returns a non-nil error containing the operator name.
+- Validate returns a non-nil error containing the operator name.
 
 ---
 
-### TRQL-T-12: TestMathExpressionValidateLeafFilter (missing)
+### TRQL-T-12: Validation propagates leaf filter errors
 
-**Scenario:** validate() propagates leaf filter errors.
+**Scenario:** A leaf node propagates errors from its filter.
 
 **Setup:**
-- Leaf node with a filter that returns an error from `validate()`.
+- Leaf with a filter that returns an error from validate.
 
 **Assertions:**
-- `mathExpression.validate()` returns that error unchanged.
+- Math expression validate returns that error unchanged.
 
 ---
 
-## 6. RootExpr / IsMath Tests
+## 5. Math Query Detection
 
-### TRQL-T-13: TestIsMathFalseForSingleLeaf (missing — add to ast_test.go)
+### TRQL-T-13: Single-leaf expression is not math
 
-**Scenario:** `IsMath()` returns false after `unwrapSingleMathExpr`.
+**Scenario:** A plain metrics query wrapped in parentheses is not a math query.
 
 **Setup:**
-- Parse `{} | rate()` (single pipeline, no binary op).
+- Parse `{} | rate()`.
 
 **Assertions:**
-- `expr.IsMath() == false`
+- The expression is not identified as a math query.
 
 ---
 
-### TRQL-T-14: TestIsMathTrueForBinaryExpr (missing — add to ast_test.go)
+### TRQL-T-14: Binary expression is math
 
-**Scenario:** `IsMath()` returns true for binary math expressions.
+**Scenario:** A query with a binary arithmetic operator is a math query.
 
 **Setup:**
 - Parse `({} | rate()) + ({} | rate())`.
 
 **Assertions:**
-- `expr.IsMath() == true`
+- The expression is identified as a math query.
 
 ---
 
-## 7. Coverage Requirements
+## 6. Coverage Requirements
 
-- Statement coverage for `ast_metrics_math.go`: ≥ 85%.
-- All paths through `applyArithmeticOp` must be exercised (add, sub, mult, div, NaN, div-by-zero, invalid op).
-- All paths through `applyBinaryOp` must be exercised (match, no-match, no-labels fallback).
-- Both leaf and binary node paths of `mathExpression.process` must be exercised.
-- `validate()` error and nil paths must both be covered.
-- `IsMath()` must be tested for all three cases: binary math, single-leaf, nil.
+- Statement coverage for the math evaluation module: ≥ 85%.
+- All scalar arithmetic paths must be exercised: add, subtract, multiply, divide,
+  NaN coercion, division by zero, invalid operator.
+- All element-wise combination paths: match, no-match, no-labels fallback.
+- Both leaf and binary evaluation paths.
+- Validate error and nil paths.
+- Math query detection for: binary expression, single-leaf, nil second-stage.

@@ -1,179 +1,139 @@
-# traceql — Benchmark Specifications (Metrics Math)
+# TraceQL Metrics Math — Benchmark Specifications
 
-This document defines the benchmark suite for the metrics math subsystem of the
-`traceql` package. Benchmarks measure cost independently of I/O by pre-building
-inputs outside the timed loop.
+This document defines the benchmark suite for the metrics math subsystem.
+Benchmarks measure computation cost independently of I/O — inputs are built
+outside the timed loop.
 
 Benchmark IDs use the prefix `BENCH-TRQL`.
 
 ---
 
-## Metric Targets (Never Regress Below)
+## Performance Targets
 
-| Metric | Good | Warning | Critical |
-|--------|------|---------|----------|
-| `applyBinaryOp` — 100 series, 120 steps | < 100 µs | 100–300 µs | > 300 µs |
-| `applyBinaryOp` — 1 000 series, 120 steps | < 1 ms | 1–3 ms | > 3 ms |
-| `mathExpression.process` — depth-3 tree, 100 series | < 500 µs | 500 µs–1.5 ms | > 1.5 ms |
+| Operation | Good | Warning | Critical |
+|-----------|------|---------|----------|
+| Element-wise combination — 100 series, 120 steps | < 100 µs | 100–300 µs | > 300 µs |
+| Element-wise combination — 1 000 series, 120 steps | < 1 ms | 1–3 ms | > 3 ms |
+| Full tree evaluation — depth-3, 100 series | < 500 µs | 500 µs–1.5 ms | > 1.5 ms |
 | Parse: binary math expression | < 20 µs | 20–50 µs | > 50 µs |
-| `MetricsFrontendEvaluator.ObserveSeries` — 1 000 series | < 200 µs | 200–600 µs | > 600 µs |
+| Frontend observe — 1 000 series per call | < 200 µs | 200–600 µs | > 600 µs |
 
-*Targets are aspirational until baselines are established. Run the benchmarks on merge
-to main and record actuals in this table.*
+*Targets are aspirational until baselines are established. Record actuals on first merge.*
 
 ---
 
-## 1. `applyBinaryOp` Benchmarks
+## 1. Element-wise Combination
 
-### BENCH-TRQL-01: BenchmarkApplyBinaryOp
+### BENCH-TRQL-01: Varying series count and step count
 
-Measures the cost of combining two SeriesSets via a binary operator.
+Measures the cost of combining two time-series sets.
 
 **Setup (outside timed loop):**
-- Build `lhs` and `rhs` SeriesSets with identical label keys.
-- Pre-fill each series with `steps` float64 values (simulate one query range).
-- Select `op = OpDiv` (most representative: all four ops have similar cost).
+- Build left and right sets with identical label keys.
+- Pre-fill each series with N float64 values.
 
 **Variants:**
 
-| Sub-benchmark | Series count | Steps per series |
-|---------------|-------------|-----------------|
-| `_small`      | 10          | 120             |
-| `_medium`     | 100         | 120             |
-| `_large`      | 1 000       | 120             |
-| `_deep`       | 100         | 1 440           |
+| Sub-benchmark | Series | Steps |
+|---------------|--------|-------|
+| Small         | 10     | 120   |
+| Medium        | 100    | 120   |
+| Large         | 1 000  | 120   |
+| Deep          | 100    | 1 440 |
 
-**Required custom metrics:**
-```go
-b.ReportMetric(float64(seriesCount), "series")
-b.ReportMetric(float64(steps), "steps")
-b.ReportMetric(float64(seriesCount*steps*b.N)/elapsed.Seconds(), "values/sec")
-```
+**Metrics to report:** series count, step count, values processed per second.
 
 ---
 
-### BENCH-TRQL-02: BenchmarkApplyArithmeticOp
+### BENCH-TRQL-02: Scalar arithmetic throughput
 
-Measures the scalar arithmetic hot path (called per-value inside `applyBinaryOp`).
+Measures the per-value arithmetic hot path called inside element-wise combination.
 
-**Setup (outside timed loop):** None (pure computation, no allocation).
+**Setup:** None — pure computation, no allocation.
+
+**Variants:** One sub-benchmark per operator: add, subtract, multiply, divide,
+divide-by-zero.
+
+**Metrics to report:** operations per second.
+
+---
+
+## 2. Tree Evaluation
+
+### BENCH-TRQL-03: Full tree evaluation at varying depths
+
+Measures complete evaluation of a balanced binary tree: leaf filtering,
+label stripping, and recursive combination.
+
+**Setup (outside timed loop):**
+- Build a balanced binary tree of the specified depth.
+- Build an input set containing `series-per-leaf × leaf-count` series, each tagged
+  with the appropriate fragment key.
+- Initialize the tree with a representative query parameters object.
 
 **Variants:**
 
-| Sub-benchmark | Operator |
-|---------------|----------|
-| `_add`        | OpAdd    |
-| `_sub`        | OpSub    |
-| `_mul`        | OpMult   |
-| `_div`        | OpDiv    |
-| `_divzero`    | OpDiv (rhs=0) |
+| Sub-benchmark | Depth | Series per leaf | Total series |
+|---------------|-------|----------------|-------------|
+| Single binary | 1     | 50             | 100         |
+| Depth-2       | 2     | 25             | 100         |
+| Depth-3       | 3     | 12             | 96          |
 
-**Required custom metrics:**
-```go
-b.ReportMetric(float64(b.N)/elapsed.Seconds(), "ops/sec")
-```
+**Metrics to report:** tree depth, total series, series evaluations per second.
 
 ---
 
-## 2. `mathExpression.process` Benchmarks
+## 3. Parse
 
-### BENCH-TRQL-03: BenchmarkMathExpressionProcess
+### BENCH-TRQL-04: Query parse overhead
 
-Measures full tree evaluation including leaf filtering, label stripping, and
-recursive binary combination.
-
-**Setup (outside timed loop):**
-- Build a balanced binary tree of `mathExpression` nodes of depth D.
-- Build a SeriesSet containing `seriesPerLeaf * leafCount` series, each tagged with
-  the appropriate `__query_fragment` key.
-- Call `init(req)` with a representative `QueryRangeRequest`.
-
-**Variants:**
-
-| Sub-benchmark | Tree depth | Series per leaf | Total series |
-|---------------|-----------|----------------|-------------|
-| `_depth1`     | 1 (single binary) | 50 | 100 |
-| `_depth2`     | 2         | 25             | 100 |
-| `_depth3`     | 3         | 12             | 96  |
-
-**Required custom metrics:**
-```go
-b.ReportMetric(float64(treeDepth), "depth")
-b.ReportMetric(float64(totalSeries), "total_series")
-b.ReportMetric(float64(totalSeries*b.N)/elapsed.Seconds(), "series_evals/sec")
-```
-
----
-
-## 3. Parse Benchmarks
-
-### BENCH-TRQL-04: BenchmarkParseMetricsMath
-
-Measures query parsing overhead for math expressions.
-
-**Setup (outside timed loop):**
-- Prepare query strings of varying complexity.
+Measures parsing cost for math expressions of varying complexity.
 
 **Variants:**
 
 | Sub-benchmark | Expression |
 |---------------|-----------|
-| `_simple`     | `({} \| rate()) / ({} \| rate())` |
-| `_grouped`    | `({status=error} \| rate()) / ({} \| rate())` |
-| `_nested`     | `(({a} \| rate()) + ({b} \| rate())) / ({c} \| rate())` |
+| Simple        | `({} \| rate()) / ({} \| rate())` |
+| With filter   | `({status=error} \| rate()) / ({} \| rate())` |
+| Nested        | `(({a} \| rate()) + ({b} \| rate())) / ({c} \| rate())` |
 
-**Required custom metrics:**
-```go
-b.ReportMetric(float64(b.N)/elapsed.Seconds(), "parses/sec")
-```
+**Metrics to report:** parses per second.
 
 ---
 
-## 4. Frontend Evaluator Benchmarks
+## 4. Frontend Observe
 
-### BENCH-TRQL-05: BenchmarkMetricsFrontendEvaluatorObserveSeries
+### BENCH-TRQL-05: Streaming series throughput
 
-Measures throughput of `ObserveSeries` under concurrent shard responses.
+Measures how quickly the frontend accumulator processes streamed backend results
+for a math query.
 
 **Setup (outside timed loop):**
-- Build a `MetricsFrontendEvaluator` from a math `RootExpr`.
-- Pre-build `[]*tempopb.TimeSeries` batches of varying sizes.
-- Each series carries a `__query_fragment` label matching a fragment in the evaluator.
+- Build an accumulator configured for a math query.
+- Pre-build batches of proto time-series of varying sizes, each carrying a valid
+  fragment label.
 
 **Variants:**
 
 | Sub-benchmark | Series per call | Goroutines |
 |---------------|----------------|------------|
-| `_serial_100`   | 100  | 1  |
-| `_serial_1000`  | 1000 | 1  |
-| `_parallel_100` | 100  | 8  |
+| Serial small  | 100            | 1          |
+| Serial large  | 1 000          | 1          |
+| Parallel      | 100            | 8          |
 
-**Required custom metrics:**
-```go
-b.ReportMetric(float64(seriesPerCall*b.N)/elapsed.Seconds(), "series/sec")
-b.ReportMetric(float64(goroutines), "goroutines")
-```
+**Metrics to report:** series processed per second, goroutine count.
 
 ---
 
-## 5. Allocation Benchmarks
+## 5. Allocation Invariant
 
-### BENCH-TRQL-06: BenchmarkApplyBinaryOpAllocs
+### BENCH-TRQL-06: O(1) allocations in element-wise combination
 
-Verifies the O(1) allocation invariant of `applyBinaryOp`.
+Verifies that the two-pass buffer pre-allocation achieves O(1) allocations
+regardless of input size.
 
-**Setup:** Same as BENCH-TRQL-01 `_medium` variant.
+**Setup:** Same as BENCH-TRQL-01 medium variant.
 
-**Assertions (via `b.ReportAllocs` + test assertions):**
-- Allocations per op must be ≤ 3 regardless of series count.
-- If allocations grow with series count, the pre-allocation optimisation has regressed.
-
-```go
-// In the test body, after b.ResetTimer():
-allocs := testing.AllocsPerRun(100, func() {
-    applyBinaryOp(OpDiv, lhs, rhs)
-})
-if allocs > 3 {
-    t.Errorf("expected ≤3 allocs per call, got %.0f", allocs)
-}
-```
+**Assertions:**
+- Allocations per call must be ≤ 3 regardless of series count.
+- If allocations scale with series count, the pre-allocation has regressed.

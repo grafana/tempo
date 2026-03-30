@@ -19,26 +19,6 @@ func (e *unsupportedError) Error() string {
 }
 
 func (r RootExpr) validate() error {
-	if r.IsMath() {
-		// Math path: validate all sub-pipelines and the math expression
-		for _, p := range r.Pipelines {
-			if err := p.validate(); err != nil {
-				return err
-			}
-		}
-		for _, m := range r.BatchSpanProcessors {
-			if err := m.validate(); err != nil {
-				return err
-			}
-		}
-		if r.MetricsSecondStage != nil {
-			if err := r.MetricsSecondStage.validate(); err != nil {
-				return err
-			}
-		}
-		return nil
-	}
-
 	err := r.Pipeline.validate()
 	if err != nil {
 		return err

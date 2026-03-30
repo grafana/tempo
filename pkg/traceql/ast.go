@@ -36,35 +36,6 @@ type RootExpr struct {
 	MetricsSecondStage secondStageElement
 	Hints              *Hints
 	OptimizationCount  int
-	// Math path fields — only populated for math queries (IsMath() == true).
-	Pipelines           map[string]Pipeline          // keyed by fragment string
-	BatchSpanProcessors map[string]firstStageElement // keyed by fragment string
-	SeriesProcessor     seriesProcessor              // batchSeriesProcessor for math
-}
-
-// IsMath returns true iff the root contains a binary math expression.
-// A single-leaf wrappedMetricsPipeline that was unwrapped is NOT math.
-func (r *RootExpr) IsMath() bool {
-	switch m := r.MetricsSecondStage.(type) {
-	case *mathExpression:
-		return m.op != OpNone
-	case ChainedSecondStage:
-		if len(m.elements) > 0 {
-			if me, ok := m.elements[0].(*mathExpression); ok {
-				return me.op != OpNone
-			}
-		}
-	}
-	return false
-}
-
-// SinglePipeline returns the sole pipeline for non-math queries.
-// Returns (Pipeline{}, nil, false) for math queries.
-func (r *RootExpr) SinglePipeline() (Pipeline, firstStageElement, bool) {
-	if r.IsMath() {
-		return Pipeline{}, nil, false
-	}
-	return r.Pipeline, r.MetricsPipeline, true
 }
 
 func NeedsFullTrace(e ...Element) bool {
@@ -97,14 +68,6 @@ func (r *RootExpr) NeedsFullTrace() bool {
 	for _, e := range r.Pipeline.Elements {
 		if NeedsFullTrace(e) {
 			return true
-		}
-	}
-	// For math queries, sub-pipelines are in r.Pipelines (not r.Pipeline).
-	for _, p := range r.Pipelines {
-		for _, e := range p.Elements {
-			if NeedsFullTrace(e) {
-				return true
-			}
 		}
 	}
 	return false
@@ -149,125 +112,6 @@ func newRootExprWithMetricsTwoStage(e PipelineElement, m1 firstStageElement, m2 
 func (r *RootExpr) withHints(h *Hints) *RootExpr {
 	r.Hints = h
 	return r
-}
-
-// newWrappedMetricsPipeline creates a leaf RootExpr for a single parenthesized pipeline.
-// Called by the wrappedMetricsPipeline grammar rule.
-func newWrappedMetricsPipeline(e PipelineElement, m1 firstStageElement, m2 secondStageElement) *RootExpr {
-	p, ok := e.(Pipeline)
-	if !ok {
-		p = newPipeline(e)
-	}
-	key := p.String() + " | " + m1.String()
-	if m2 != nil {
-		key += m2.String()
-	}
-	return &RootExpr{
-		Pipelines:           map[string]Pipeline{key: p},
-		BatchSpanProcessors: map[string]firstStageElement{key: m1},
-		SeriesProcessor:     batchSeriesProcessor{key: m1},
-		MetricsSecondStage:  &mathExpression{op: OpNone, key: key, filter: m2},
-	}
-}
-
-// newRootExprMath creates a binary math RootExpr combining two sub-expressions.
-// Called by the binary arithmetic grammar rules (ADD, SUB, MUL, DIV).
-func newRootExprMath(op Operator, lhs, rhs *RootExpr) *RootExpr {
-	// Merge pipeline maps
-	pipelines := make(map[string]Pipeline, len(lhs.Pipelines)+len(rhs.Pipelines))
-	for k, v := range lhs.Pipelines {
-		pipelines[k] = v
-	}
-	for k, v := range rhs.Pipelines {
-		pipelines[k] = v
-	}
-
-	// Merge span processor maps
-	spanProcs := make(map[string]firstStageElement, len(lhs.BatchSpanProcessors)+len(rhs.BatchSpanProcessors))
-	for k, v := range lhs.BatchSpanProcessors {
-		spanProcs[k] = v
-	}
-	for k, v := range rhs.BatchSpanProcessors {
-		spanProcs[k] = v
-	}
-
-	// Merge series processor maps
-	seriesProcs := make(batchSeriesProcessor, len(lhs.BatchSpanProcessors)+len(rhs.BatchSpanProcessors))
-	for _, side := range []*RootExpr{lhs, rhs} {
-		if bsp, ok := side.SeriesProcessor.(batchSeriesProcessor); ok {
-			for k, v := range bsp {
-				seriesProcs[k] = v
-			}
-		} else if side.SeriesProcessor != nil {
-			// single processor — find the key from BatchSpanProcessors
-			for k := range side.BatchSpanProcessors {
-				seriesProcs[k] = side.SeriesProcessor
-				break
-			}
-		}
-	}
-
-	lhsMath := asMathExpression(lhs.MetricsSecondStage)
-	rhsMath := asMathExpression(rhs.MetricsSecondStage)
-
-	return &RootExpr{
-		Pipelines:           pipelines,
-		BatchSpanProcessors: spanProcs,
-		SeriesProcessor:     seriesProcs,
-		MetricsSecondStage:  &mathExpression{op: op, lhs: lhsMath, rhs: rhsMath},
-	}
-}
-
-// unwrapSingleMathExpr is called when metricsExpression is used as the root without
-// a binary operator. If the result is not actually math, the mathExpression wrapper
-// is removed and any per-leaf filter is promoted to root-level MetricsSecondStage.
-func unwrapSingleMathExpr(r *RootExpr) *RootExpr {
-	if r.IsMath() {
-		return r
-	}
-	if m, ok := r.MetricsSecondStage.(*mathExpression); ok && m.op == OpNone {
-		r.MetricsSecondStage = m.filter
-	}
-	return r
-}
-
-// chainMathSecondStage appends a root-level metricsSecondStagePipeline after a metricsExpression.
-func chainMathSecondStage(r *RootExpr, stage ChainedSecondStage) *RootExpr {
-	if !r.IsMath() {
-		r = unwrapSingleMathExpr(r)
-		if r.MetricsSecondStage != nil {
-			chained := ChainedSecondStage{}
-			chained.Append(r.MetricsSecondStage, "")
-			for i, sep := range stage.separators {
-				chained.Append(stage.elements[i], sep)
-			}
-			r.MetricsSecondStage = chained
-		} else {
-			r.MetricsSecondStage = stage
-		}
-		return r
-	}
-	// Math path: prepend existing math expression before the new stage
-	chained := ChainedSecondStage{}
-	chained.Append(r.MetricsSecondStage, "")
-	for i, sep := range stage.separators {
-		chained.Append(stage.elements[i], sep)
-	}
-	r.MetricsSecondStage = chained
-	return r
-}
-
-// asMathExpression extracts a *mathExpression from a secondStageElement.
-// Panics if the element is non-nil and not a *mathExpression (grammar bug).
-func asMathExpression(s secondStageElement) *mathExpression {
-	if s == nil {
-		return nil
-	}
-	m, ok := s.(*mathExpression)
-	if !ok {
-		panic("asMathExpression: unexpected secondStageElement type — grammar bug")
-	}
-	return m
 }
 
 // IsNoop detects trivial noop queries like {false} which never return
