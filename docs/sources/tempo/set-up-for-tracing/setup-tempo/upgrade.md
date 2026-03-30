@@ -133,10 +133,10 @@ storage:
 
 The default values for two live-store flush settings have changed to limit the amount of data replayed from the WAL, which prevents long startup and shutdown times. [[PR 6650](https://github.com/grafana/tempo/pull/6650)]
 
-| Setting | Previous default | New default |
-| --- | --- | --- |
-| `live_store.flush_check_period` | `10s` | `5s` |
-| `live_store.max_block_duration` | `30m` | `1m` |
+| Setting                         | Previous default | New default |
+| ------------------------------- | ---------------- | ----------- |
+| `live_store.flush_check_period` | `10s`            | `5s`        |
+| `live_store.max_block_duration` | `30m`            | `1m`        |
 
 If you explicitly set these values in your configuration, no action is needed.
 
