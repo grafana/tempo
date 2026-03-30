@@ -11,8 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// Compile-time interface assertions.
-var _ secondStageElement = (*mathExpression)(nil)
+// Compile-time interface assertion.
 var _ seriesProcessor = batchSeriesProcessor{}
 
 // helpers for building test SeriesSets
