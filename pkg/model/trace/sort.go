@@ -40,10 +40,11 @@ func SortTrace(t *tempopb.Trace) {
 func SortTraceAndAttributes(t *tempopb.Trace) {
 	SortTrace(t)
 	for _, b := range t.ResourceSpans {
-		res := b.Resource
-		sort.Slice(res.Attributes, func(i, j int) bool {
-			return res.Attributes[i].Key < res.Attributes[j].Key
-		})
+		if res := b.Resource; res != nil {
+			sort.Slice(res.Attributes, func(i, j int) bool {
+				return res.Attributes[i].Key < res.Attributes[j].Key
+			})
+		}
 		for _, ss := range b.ScopeSpans {
 			if ss.Scope != nil {
 				sort.Slice(ss.Scope.Attributes, func(i, j int) bool {
@@ -94,7 +95,7 @@ func compareSpans(a, b *v1.Span) bool {
 
 func compareEvents(a, b *v1.Span_Event) bool {
 	if a.TimeUnixNano == b.TimeUnixNano {
-		return bytes.Compare([]byte(a.Name), []byte(b.Name)) == -1
+		return a.Name < b.Name
 	}
 
 	return a.TimeUnixNano < b.TimeUnixNano

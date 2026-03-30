@@ -806,7 +806,7 @@ func searchesThatDontMatch(t *testing.T) []struct {
 		{"Resource dedicated attributes does not match", traceql.MustExtractFetchSpansRequestWithMetadata(`{span.dedicated.span.2 = "dedicated-span-attr-value-5"}`)},
 		{"Blob test 1", traceql.MustExtractFetchSpansRequestWithMetadata(`{span.dedicated.span.5 = "dedicated-span-attr-value-asdf"}`)},
 		{"Blob test 2", traceql.MustExtractFetchSpansRequestWithMetadata(`{span.dedicated.span.5 =~ "dedicated-span-attr-value-asdf"}`)},
-		{"Blob test 2", traceql.MustExtractFetchSpansRequestWithMetadata(`{span.dedicated.span.5 = ""}`)},
+		{"Blob test 3", traceql.MustExtractFetchSpansRequestWithMetadata(`{span.dedicated.span.5 = ""}`)},
 		{
 			name: "Time range after trace",
 			req: traceql.FetchSpansRequest{
