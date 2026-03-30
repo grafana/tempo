@@ -27,7 +27,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/grafana/tempo/modules/ingester"
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/pkg/ingest/testkafka"
 	"github.com/grafana/tempo/pkg/model/trace"
@@ -1165,7 +1164,7 @@ func TestLiveStoreQueryRange(t *testing.T) {
 
 	// Get the completed block for testing
 	inst.blocksMtx.RLock()
-	var block *ingester.LocalBlock
+	var block *LocalBlock
 	for _, b := range inst.completeBlocks {
 		block = b
 		break

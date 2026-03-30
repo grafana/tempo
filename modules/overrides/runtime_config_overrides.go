@@ -58,6 +58,16 @@ func (o *perTenantOverrides) UnmarshalYAML(unmarshal func(interface{}) error) er
 	return nil
 }
 
+// UnmarshalPerTenantOverrides parses a per-tenant overrides file, handling both legacy
+// and new scoped formats. Returns a map of tenant ID to their overrides.
+func UnmarshalPerTenantOverrides(data []byte) (map[string]*Overrides, error) {
+	var o perTenantOverrides
+	if err := yaml.UnmarshalStrict(data, &o); err != nil {
+		return nil, err
+	}
+	return o.TenantLimits, nil
+}
+
 // forUser returns limits for a given tenant, or nil if there are no tenant-specific limits.
 func (o *perTenantOverrides) forUser(userID string) *Overrides {
 	l, ok := o.TenantLimits[userID]

@@ -10,6 +10,7 @@ import (
 
 	"github.com/go-kit/log"
 	"github.com/gogo/protobuf/proto"
+	"github.com/google/uuid"
 	"github.com/grafana/dskit/kv"
 	"github.com/grafana/dskit/kv/consul"
 	"github.com/grafana/dskit/ring"
@@ -29,6 +30,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/twmb/franz-go/pkg/kgo"
 )
+
+const DataFileName = "data.parquet"
 
 func TestLiveStoreBasicConsume(t *testing.T) {
 	tmpDir := t.TempDir()
@@ -213,6 +216,42 @@ func TestLiveStoreReplaysTraceInCompleteBlocks(t *testing.T) {
 
 	requireTraceInLiveStore(t, liveStore, expectedID, expectedTrace)
 	requireInstanceState(t, liveStore.instances[testTenantID], instanceState{liveTraces: 0, walBlocks: 0, completeBlocks: 1})
+}
+
+func TestLiveStoreDropsInvalidCompleteBlocksOnRestart(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	liveStore, err := defaultLiveStore(t, tmpDir)
+	require.NoError(t, err)
+
+	_, _ = pushToLiveStore(t, liveStore)
+	inst, err := liveStore.getOrCreateInstance(testTenantID)
+	require.NoError(t, err)
+
+	require.NoError(t, inst.cutIdleTraces(t.Context(), true))
+	walUUID, err := inst.cutBlocks(t.Context(), true)
+	require.NoError(t, err)
+	require.NoError(t, inst.completeBlock(context.Background(), walUUID))
+	requireInstanceState(t, inst, instanceState{liveTraces: 0, walBlocks: 0, completeBlocks: 1})
+
+	var blockID uuid.UUID
+	for id := range inst.completeBlocks {
+		blockID = id
+		break
+	}
+	require.NotEqual(t, uuid.Nil, blockID)
+
+	writer := backend.NewWriter(liveStore.wal.LocalBackend())
+	require.NoError(t, writer.Write(context.Background(), DataFileName, blockID, testTenantID, []byte("mangled"), nil))
+
+	require.NoError(t, services.StopAndAwaitTerminated(t.Context(), liveStore))
+
+	liveStore, err = defaultLiveStore(t, tmpDir)
+	require.NoError(t, err)
+
+	inst, ok := liveStore.instances[testTenantID]
+	require.False(t, ok)
+	require.Nil(t, inst)
 }
 
 func TestLiveStoreConsumeDropsOldRecords(t *testing.T) {

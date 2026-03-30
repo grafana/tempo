@@ -20,7 +20,6 @@ import (
 	"go.uber.org/atomic"
 
 	"github.com/go-kit/log/level"
-	"github.com/grafana/tempo/modules/ingester"
 	"github.com/grafana/tempo/pkg/api"
 	"github.com/grafana/tempo/pkg/boundedwaitgroup"
 	"github.com/grafana/tempo/pkg/collector"
@@ -145,7 +144,7 @@ func (i *instance) iterateBlocks(ctx context.Context, reqStart, reqEnd time.Time
 		}
 
 		wg.Add(1)
-		go func(block *ingester.LocalBlock) {
+		go func(block *LocalBlock) {
 			defer wg.Done()
 
 			if ctx.Err() != nil {
@@ -320,7 +319,7 @@ func (i *instance) SearchTagsV2(ctx context.Context, req *tempopb.SearchTagsRequ
 	mc := collector.NewMetricsCollector()
 
 	engine := traceql.NewEngine()
-	query := traceql.ExtractMatchers(req.Query)
+	extractedReq := traceql.ExtractFetchRequest(req.Query)
 
 	searchBlock := func(ctx context.Context, _ *backend.BlockMeta, b block) error {
 		if b == nil {
@@ -331,8 +330,8 @@ func (i *instance) SearchTagsV2(ctx context.Context, req *tempopb.SearchTagsRequ
 			return errComplete
 		}
 
-		// if the query is empty, use the old search
-		if traceql.IsEmptyQuery(query) {
+		// if the query is empty or has OR conditions, use the unfiltered search
+		if extractedReq == nil || !extractedReq.AllConditions {
 			err = b.SearchTags(ctx, attributeScope, func(t string, scope traceql.AttributeScope) {
 				distinctValues.Collect(scope.String(), t)
 			}, mc.Add, common.DefaultSearchOptions())
@@ -349,7 +348,7 @@ func (i *instance) SearchTagsV2(ctx context.Context, req *tempopb.SearchTagsRequ
 			return b.FetchTagNames(ctx, req, cb, mc.Add, common.DefaultSearchOptions())
 		})
 
-		return engine.ExecuteTagNames(ctx, attributeScope, query, func(tag string, scope traceql.AttributeScope) bool {
+		return engine.ExecuteTagNames(ctx, attributeScope, extractedReq.Conditions, func(tag string, scope traceql.AttributeScope) bool {
 			return distinctValues.Collect(scope.String(), tag)
 		}, fetcher)
 	}
@@ -472,7 +471,7 @@ func (i *instance) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTag
 		return &tempopb.SearchTagValuesV2Response{}, nil
 	}
 
-	query := traceql.ExtractMatchers(req.Query)
+	extractedReq := traceql.ExtractFetchRequest(req.Query)
 	// cacheKey will be same for all blocks in a request so only compute it once
 	// NOTE: cacheKey tag name and query, so if we start respecting start and end, add them to the cacheKey
 	cacheKey := searchTagValuesV2CacheKey(req, limit, "cache_search_tagvaluesv2")
@@ -484,7 +483,7 @@ func (i *instance) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTag
 			return errComplete
 		}
 
-		if traceql.IsEmptyQuery(query) {
+		if extractedReq == nil || !extractedReq.AllConditions {
 			return s.SearchTagValuesV2(ctx, tag, traceql.MakeCollectTagValueFunc(vCollector.Collect), mCollector.Add, common.DefaultSearchOptions())
 		}
 
@@ -493,12 +492,12 @@ func (i *instance) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTag
 			return s.FetchTagValues(ctx, req, cb, mCollector.Add, common.DefaultSearchOptions())
 		})
 
-		return engine.ExecuteTagValues(ctx, tag, query, traceql.MakeCollectTagValueFunc(vCollector.Collect), fetcher)
+		return engine.ExecuteTagValues(ctx, tag, extractedReq.Conditions, traceql.MakeCollectTagValueFunc(vCollector.Collect), fetcher)
 	}
 
 	searchWithCache := func(ctx context.Context, _ *backend.BlockMeta, b block) error {
 		// if not a local block, fall back to regular search
-		localB, ok := b.(*ingester.LocalBlock)
+		localB, ok := b.(*LocalBlock)
 		if !ok {
 			return search(ctx, b)
 		}
@@ -712,7 +711,7 @@ func (i *instance) QueryRange(ctx context.Context, req *tempopb.QueryRangeReques
 			return nil
 		}
 
-		if localBlock, ok := b.(*ingester.LocalBlock); ok {
+		if localBlock, ok := b.(*LocalBlock); ok {
 			resp, err := i.queryRangeCompleteBlock(ctx, localBlock, *req, timeOverlapCutoff, unsafe)
 			if err != nil {
 				return err
@@ -772,7 +771,7 @@ func (i *instance) queryRangeWALBlock(ctx context.Context, b common.WALBlock, ev
 	return eval.Do(ctx, fetcher, uint64(m.StartTime.UnixNano()), uint64(m.EndTime.UnixNano()), maxSeries)
 }
 
-func (i *instance) queryRangeCompleteBlock(ctx context.Context, b *ingester.LocalBlock, req tempopb.QueryRangeRequest, timeOverlapCutoff float64, unsafe bool) ([]*tempopb.TimeSeries, error) {
+func (i *instance) queryRangeCompleteBlock(ctx context.Context, b *LocalBlock, req tempopb.QueryRangeRequest, timeOverlapCutoff float64, unsafe bool) ([]*tempopb.TimeSeries, error) {
 	m := b.BlockMeta()
 	ctx, span := tracer.Start(ctx, "instance.QueryRange.CompleteBlock", oteltrace.WithAttributes(
 		attribute.String("block", m.BlockID.String()),
@@ -907,7 +906,7 @@ func includeBlock(b *backend.BlockMeta, start, end time.Time) bool {
 func searchTagValuesV2CacheKey(req *tempopb.SearchTagValuesRequest, limit int, prefix string) string {
 	var cacheKey string
 	if req.Query != "" {
-		q := traceql.ExtractMatchers(req.Query)
+		q := traceql.NormalizeQuery(req.Query)
 		if ast, err := traceql.Parse(q); err == nil {
 			// forces the query into a canonical form
 			cacheKey = ast.String()

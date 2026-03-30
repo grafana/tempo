@@ -3,13 +3,15 @@ title: Distributor refusing spans
 description: Troubleshoot distributor refusing spans
 weight: 471
 aliases:
-- ../../operations/troubleshooting/max-trace-limit-reached/ # https://grafana.com/docs/tempo/<TEMPO_VERSION>/operations/troubleshooting/max-trace-limit-reached/
-- ../max-trace-limit-reached/ # https://grafana.com/docs/tempo/<TEMPO_VERSION>/troubleshooting/max-trace-limit-reached/
+  - ../../operations/troubleshooting/max-trace-limit-reached/ # https://grafana.com/docs/tempo/<TEMPO_VERSION>/operations/troubleshooting/max-trace-limit-reached/
+  - ../max-trace-limit-reached/ # https://grafana.com/docs/tempo/<TEMPO_VERSION>/troubleshooting/max-trace-limit-reached/
 ---
 
 # Distributor refusing spans
 
 The most likely cause of refused spans is rate limits being exceeded.
+
+To size your ingestion limits proactively and identify what's driving trace volume, refer to [Manage trace ingestion](https://grafana.com/docs/tempo/<TEMPO_VERSION>/operations/manage-trace-ingestion/).
 
 To log spans that are discarded, add the `--distributor.log-discarded-spans.enabled` flag to the distributor or
 adjust the [distributor configuration](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/#distributor):
@@ -46,7 +48,7 @@ In this case, use available configuration options to [increase limits](https://g
 
 ## Trace limits
 
-Limits such as `max_bytes_per_trace` and `max_live_traces_bytes` are enforced asynchronously by the live-store and 
+Limits such as `max_bytes_per_trace` and `max_live_traces_bytes` are enforced asynchronously by the live-store and
 block-builder. These limits won't cause the distributor to refuse spans at ingestion time. Traces that exceed them are discarded downstream.
 
 ## Client resets connection

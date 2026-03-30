@@ -15,8 +15,8 @@
         "Phase 1.5 output includes a classification table with all three PRs",
         "Any PR classified as 'No docs required' is excluded from Phase 1.75",
         "Phase 1.75 runs automatically using the Phase 1.5 gap summary as input (no re-entry needed)",
-        "Final output includes 'Files changed' with at least one path under docs/sources/tempo/",
-        "PR-to-doc mapping includes an entry for each PR flagged for docs work",
+        "Final output includes 'Files changed' listing docs paths for each PR that Phase 1.75 processed",
+        "PR-to-doc mapping covers exactly the PRs that Phase 1.75 processed",
         "Output includes an 'Open items' section from docs-pr-write",
         "Phase 1.5 and Phase 1.75 outputs are clearly labeled so the release notes writer can tell them apart"
       ]

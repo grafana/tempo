@@ -1,15 +1,20 @@
-# Running evals for docs-pr skills
+# Running evals for documentation skills
 
-This guide explains how to evaluate the `docs-pr-check` and `docs-pr-write` skills using the eval test cases defined in each skill's `evals/evals.json`.
+This guide explains how to evaluate the documentation skills using the eval test cases defined in each skill's `evals/evals.json`.
 
 ## Workflow context
 
-These two skills cover Phases 1.5 and 1.75 of the Tempo release notes workflow. See the full workflow at `.agents/doc-agents/shared/release-notes-workflow.md`.
+The documentation skills cover a pipeline from PR triage through documentation writing and review:
 
 ```
 Phase 1   → Phase 1.5          → Phase 1.75         → Phase 2
 Gather      docs-pr-check        docs-pr-write         Draft
 PRs         (classify gaps)      (fill gaps)           release notes
+
+docs-workflow ties Steps 1–3 together:
+Step 1 (check) → Step 2 (write) → Step 3 (review)
+
+docs-review can also run standalone on any docs files.
 ```
 
 The evals are written to reflect this context: prompts set up the workflow phase, and assertions check that output is structured to feed cleanly into the next phase.
@@ -24,6 +29,12 @@ The evals are written to reflect this context: prompts set up the workflow phase
 ├── docs-pr-write/
 │   └── evals/
 │       └── evals.json          # 4 test cases: 2 standalone, 2 workflow (Phase 1.75)
+├── docs-review/
+│   └── evals/
+│       └── evals.json          # 4 test cases: 3 standalone, 1 workflow (Step 3)
+├── docs-workflow/
+│   └── evals/
+│       └── evals.json          # 4 test cases: full pipeline (Steps 1–3)
 └── evals/
     ├── README.md               # this file
     └── evals.json              # 1 integration test (Phase 1.5 → 1.75 handoff)
@@ -46,6 +57,10 @@ evals-workspace/
     │       ├── timing.json
     │       └── grading.json
     ├── docs-pr-write-eval-1/
+    │   └── ...
+    ├── docs-review-eval-1/
+    │   └── ...
+    ├── docs-workflow-eval-1/
     │   └── ...
     └── benchmark.json
 ```
@@ -128,6 +143,42 @@ Execute this task:
 - Save outputs to: evals-workspace/iteration-1/integration-eval-1/with_skill/outputs/
 ```
 
+### docs-review: selecting input files
+
+docs-review evals use file paths instead of (or in addition to) PR numbers. Each standalone test case has a `file_selection_guidance` field describing what kind of file to choose.
+
+For standalone tests, pick files from `docs/sources/tempo/` that match the guidance. For example:
+
+```bash
+# Find explanatory pages (for eval 1)
+find docs/sources/tempo/ -name "*.md" -path "*/setup/*" -o -name "*.md" -path "*/operations/*" | head -10
+
+# Find configuration reference pages (for eval 2)
+find docs/sources/tempo/configuration/ -name "*.md" | head -10
+```
+
+For the workflow test case (eval 4), run `docs-pr-write` on a selected PR first. Use the file paths from its "Files changed" output and its "Open items" section as inputs to the review prompt.
+
+### docs-workflow: running the full pipeline
+
+docs-workflow evals test all three steps (check → write → review) in sequence. The prompt template gives the agent PRs and lets the workflow orchestrate the steps.
+
+```
+Execute this task:
+- Skill path: .claude/skills/docs-workflow
+- Task: [paste prompt from evals.json]
+- Save outputs to: evals-workspace/iteration-1/docs-workflow-eval-1/with_skill/outputs/
+```
+
+For the baseline, run without the workflow skill — the agent must figure out the steps on its own:
+
+```
+Execute this task:
+- No skill
+- Task: [paste same prompt]
+- Save outputs to: evals-workspace/iteration-1/docs-workflow-eval-1/without_skill/outputs/
+```
+
 ## Grading
 
 After both runs, grade each assertion from `evals.json` against the actual output. Record results in `grading.json`:
@@ -169,18 +220,44 @@ After both runs, grade each assertion from `evals.json` against the actual outpu
 - Does the agent identify the right target file without being given one?
 - Does it prefer updating existing pages over creating new ones?
 - Is the return format still present (files changed, mapping, open items) even when not explicitly requested?
+- Does the example match the change type (curl for API, YAML for config, TraceQL for query, shell for CLI)?
+- Is a version callout present, or flagged as an open item if unclear?
 
 ### docs-pr-write — workflow mode
 
 - Does the agent verify field names and defaults against code (not just PR description text)?
 - Does it only process `Docs needed` and `Docs update needed` PRs — not `No docs required`?
 - Is content concise and action-oriented, structured so Phase 2 can link to it?
+- Does the example format match the change type?
+- Is the minimum Tempo or storage format version noted?
 
 ### Integration (Phase 1.5 → 1.75)
 
 - Does the agent carry the Phase 1.5 output directly into Phase 1.75 without requiring manual re-entry?
 - Are the two phases' outputs clearly labeled in the final response?
 - Does the Phase 1.75 output only include PRs that were flagged by Phase 1.5?
+
+### docs-review — standalone mode
+
+- Does the agent correctly triage content as style/editorial vs. technical?
+- Is Vale run (or its absence noted) before the manual style check?
+- Are frontmatter fields and internal links checked for every file?
+- For technical content, does the agent actually verify claims against code rather than just checking style?
+- Are style issues and technical accuracy issues reported separately?
+
+### docs-review — workflow mode
+
+- Does the agent address open items passed from docs-pr-write?
+- Are claims from the writing step verified against code with specific evidence?
+- Is the review output useful as a final quality gate before PR submission?
+
+### docs-workflow — full pipeline
+
+- Do all three steps run in the correct order (check → write → review)?
+- Does each step's output feed into the next without requiring manual re-entry?
+- Are the three steps' outputs clearly labeled in the final response?
+- When Step 1 classifies all PRs as "No docs required", do Steps 2 and 3 correctly skip?
+- For breaking changes, does Step 2 include migration/upgrade guidance and does Step 3 verify it?
 
 ## Capturing timing
 

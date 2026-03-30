@@ -1,3 +1,8 @@
 storage:
   trace:
     blocklist_poll_stale_tenant_index: 1s # force components to always fall back to polling
+
+backend_scheduler:
+  provider:
+    compaction:
+      measure_interval: 2s # short interval so the outstanding-blocks metric is populated within the test's 8s sleep

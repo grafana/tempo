@@ -4,6 +4,7 @@
 package tempopb
 
 import (
+	bytes "bytes"
 	context "context"
 	fmt "fmt"
 	_ "github.com/gogo/protobuf/gogoproto"
@@ -33,18 +34,21 @@ const (
 	JobType_JOB_TYPE_UNSPECIFIED JobType = 0
 	JobType_JOB_TYPE_COMPACTION  JobType = 1
 	JobType_JOB_TYPE_RETENTION   JobType = 2
+	JobType_JOB_TYPE_REDACTION   JobType = 3
 )
 
 var JobType_name = map[int32]string{
 	0: "JOB_TYPE_UNSPECIFIED",
 	1: "JOB_TYPE_COMPACTION",
 	2: "JOB_TYPE_RETENTION",
+	3: "JOB_TYPE_REDACTION",
 }
 
 var JobType_value = map[string]int32{
 	"JOB_TYPE_UNSPECIFIED": 0,
 	"JOB_TYPE_COMPACTION":  1,
 	"JOB_TYPE_RETENTION":   2,
+	"JOB_TYPE_REDACTION":   3,
 }
 
 func (x JobType) String() string {
@@ -175,19 +179,78 @@ func (m *RetentionDetail) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_RetentionDetail proto.InternalMessageInfo
 
+// RedactionDetail contains fields for redaction jobs (one job per block).
+// TraceIds are the trace IDs to redact from the block. Future extension may add
+// traceql/attribute-based redaction.
+type RedactionDetail struct {
+	BlockId  string   `protobuf:"bytes,1,opt,name=block_id,json=blockId,proto3" json:"block_id,omitempty"`
+	TraceIds [][]byte `protobuf:"bytes,2,rep,name=trace_ids,json=traceIds,proto3" json:"trace_ids,omitempty"`
+}
+
+func (m *RedactionDetail) Reset()         { *m = RedactionDetail{} }
+func (m *RedactionDetail) String() string { return proto.CompactTextString(m) }
+func (*RedactionDetail) ProtoMessage()    {}
+func (*RedactionDetail) Descriptor() ([]byte, []int) {
+	return fileDescriptor_1e9b87dd365f5504, []int{2}
+}
+func (m *RedactionDetail) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *RedactionDetail) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_RedactionDetail.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *RedactionDetail) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_RedactionDetail.Merge(m, src)
+}
+func (m *RedactionDetail) XXX_Size() int {
+	return m.Size()
+}
+func (m *RedactionDetail) XXX_DiscardUnknown() {
+	xxx_messageInfo_RedactionDetail.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_RedactionDetail proto.InternalMessageInfo
+
+func (m *RedactionDetail) GetBlockId() string {
+	if m != nil {
+		return m.BlockId
+	}
+	return ""
+}
+
+func (m *RedactionDetail) GetTraceIds() [][]byte {
+	if m != nil {
+		return m.TraceIds
+	}
+	return nil
+}
+
 // JobDetail contains the specific details for each job type
 type JobDetail struct {
 	Tenant string `protobuf:"bytes,1,opt,name=tenant,proto3" json:"tenant,omitempty"`
 	// oneof detail {
 	Compaction *CompactionDetail `protobuf:"bytes,2,opt,name=compaction,proto3" json:"compaction,omitempty"`
 	Retention  *RetentionDetail  `protobuf:"bytes,3,opt,name=retention,proto3" json:"retention,omitempty"`
+	Redaction  *RedactionDetail  `protobuf:"bytes,4,opt,name=redaction,proto3" json:"redaction,omitempty"`
+	// batch_id groups the pending jobs that were created from a single SubmitRedaction
+	// call. Enables future Status/Cancel RPCs keyed on the original submission.
+	BatchId string `protobuf:"bytes,5,opt,name=batch_id,json=batchId,proto3" json:"batch_id,omitempty"`
 }
 
 func (m *JobDetail) Reset()         { *m = JobDetail{} }
 func (m *JobDetail) String() string { return proto.CompactTextString(m) }
 func (*JobDetail) ProtoMessage()    {}
 func (*JobDetail) Descriptor() ([]byte, []int) {
-	return fileDescriptor_1e9b87dd365f5504, []int{2}
+	return fileDescriptor_1e9b87dd365f5504, []int{3}
 }
 func (m *JobDetail) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -237,6 +300,20 @@ func (m *JobDetail) GetRetention() *RetentionDetail {
 	return nil
 }
 
+func (m *JobDetail) GetRedaction() *RedactionDetail {
+	if m != nil {
+		return m.Redaction
+	}
+	return nil
+}
+
+func (m *JobDetail) GetBatchId() string {
+	if m != nil {
+		return m.BatchId
+	}
+	return ""
+}
+
 type NextJobRequest struct {
 	WorkerId string `protobuf:"bytes,1,opt,name=worker_id,json=workerId,proto3" json:"worker_id,omitempty"`
 }
@@ -245,7 +322,7 @@ func (m *NextJobRequest) Reset()         { *m = NextJobRequest{} }
 func (m *NextJobRequest) String() string { return proto.CompactTextString(m) }
 func (*NextJobRequest) ProtoMessage()    {}
 func (*NextJobRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_1e9b87dd365f5504, []int{3}
+	return fileDescriptor_1e9b87dd365f5504, []int{4}
 }
 func (m *NextJobRequest) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -291,7 +368,7 @@ func (m *NextJobResponse) Reset()         { *m = NextJobResponse{} }
 func (m *NextJobResponse) String() string { return proto.CompactTextString(m) }
 func (*NextJobResponse) ProtoMessage()    {}
 func (*NextJobResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_1e9b87dd365f5504, []int{4}
+	return fileDescriptor_1e9b87dd365f5504, []int{5}
 }
 func (m *NextJobResponse) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -346,13 +423,14 @@ type UpdateJobStatusRequest struct {
 	Status     JobStatus         `protobuf:"varint,2,opt,name=status,proto3,enum=tempopb.JobStatus" json:"status,omitempty"`
 	Error      string            `protobuf:"bytes,3,opt,name=error,proto3" json:"error,omitempty"`
 	Compaction *CompactionDetail `protobuf:"bytes,4,opt,name=compaction,proto3" json:"compaction,omitempty"`
+	Redaction  *RedactionResult  `protobuf:"bytes,5,opt,name=redaction,proto3" json:"redaction,omitempty"`
 }
 
 func (m *UpdateJobStatusRequest) Reset()         { *m = UpdateJobStatusRequest{} }
 func (m *UpdateJobStatusRequest) String() string { return proto.CompactTextString(m) }
 func (*UpdateJobStatusRequest) ProtoMessage()    {}
 func (*UpdateJobStatusRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_1e9b87dd365f5504, []int{5}
+	return fileDescriptor_1e9b87dd365f5504, []int{6}
 }
 func (m *UpdateJobStatusRequest) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -409,6 +487,13 @@ func (m *UpdateJobStatusRequest) GetCompaction() *CompactionDetail {
 	return nil
 }
 
+func (m *UpdateJobStatusRequest) GetRedaction() *RedactionResult {
+	if m != nil {
+		return m.Redaction
+	}
+	return nil
+}
+
 type UpdateJobStatusResponse struct {
 	Success bool `protobuf:"varint,1,opt,name=success,proto3" json:"success,omitempty"`
 }
@@ -417,7 +502,7 @@ func (m *UpdateJobStatusResponse) Reset()         { *m = UpdateJobStatusResponse
 func (m *UpdateJobStatusResponse) String() string { return proto.CompactTextString(m) }
 func (*UpdateJobStatusResponse) ProtoMessage()    {}
 func (*UpdateJobStatusResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_1e9b87dd365f5504, []int{6}
+	return fileDescriptor_1e9b87dd365f5504, []int{7}
 }
 func (m *UpdateJobStatusResponse) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -453,61 +538,381 @@ func (m *UpdateJobStatusResponse) GetSuccess() bool {
 	return false
 }
 
+// SubmitRedactionRequest is the user-facing API for redacting traces from a tenant.
+// The caller provides the tenant and the trace IDs to remove. The scheduler discovers
+// all blocks for the tenant and fans out one internal pending job per block.
+type SubmitRedactionRequest struct {
+	TenantId string   `protobuf:"bytes,1,opt,name=tenant_id,json=tenantId,proto3" json:"tenant_id,omitempty"`
+	TraceIds [][]byte `protobuf:"bytes,2,rep,name=trace_ids,json=traceIds,proto3" json:"trace_ids,omitempty"`
+}
+
+func (m *SubmitRedactionRequest) Reset()         { *m = SubmitRedactionRequest{} }
+func (m *SubmitRedactionRequest) String() string { return proto.CompactTextString(m) }
+func (*SubmitRedactionRequest) ProtoMessage()    {}
+func (*SubmitRedactionRequest) Descriptor() ([]byte, []int) {
+	return fileDescriptor_1e9b87dd365f5504, []int{8}
+}
+func (m *SubmitRedactionRequest) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *SubmitRedactionRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_SubmitRedactionRequest.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *SubmitRedactionRequest) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_SubmitRedactionRequest.Merge(m, src)
+}
+func (m *SubmitRedactionRequest) XXX_Size() int {
+	return m.Size()
+}
+func (m *SubmitRedactionRequest) XXX_DiscardUnknown() {
+	xxx_messageInfo_SubmitRedactionRequest.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_SubmitRedactionRequest proto.InternalMessageInfo
+
+func (m *SubmitRedactionRequest) GetTenantId() string {
+	if m != nil {
+		return m.TenantId
+	}
+	return ""
+}
+
+func (m *SubmitRedactionRequest) GetTraceIds() [][]byte {
+	if m != nil {
+		return m.TraceIds
+	}
+	return nil
+}
+
+type SubmitRedactionResponse struct {
+	// batch_id identifies this submission; all resulting pending block jobs share this ID.
+	BatchId string `protobuf:"bytes,1,opt,name=batch_id,json=batchId,proto3" json:"batch_id,omitempty"`
+	// jobs_created is the number of pending block-level redaction jobs that were enqueued.
+	JobsCreated int32 `protobuf:"varint,2,opt,name=jobs_created,json=jobsCreated,proto3" json:"jobs_created,omitempty"`
+}
+
+func (m *SubmitRedactionResponse) Reset()         { *m = SubmitRedactionResponse{} }
+func (m *SubmitRedactionResponse) String() string { return proto.CompactTextString(m) }
+func (*SubmitRedactionResponse) ProtoMessage()    {}
+func (*SubmitRedactionResponse) Descriptor() ([]byte, []int) {
+	return fileDescriptor_1e9b87dd365f5504, []int{9}
+}
+func (m *SubmitRedactionResponse) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *SubmitRedactionResponse) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_SubmitRedactionResponse.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *SubmitRedactionResponse) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_SubmitRedactionResponse.Merge(m, src)
+}
+func (m *SubmitRedactionResponse) XXX_Size() int {
+	return m.Size()
+}
+func (m *SubmitRedactionResponse) XXX_DiscardUnknown() {
+	xxx_messageInfo_SubmitRedactionResponse.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_SubmitRedactionResponse proto.InternalMessageInfo
+
+func (m *SubmitRedactionResponse) GetBatchId() string {
+	if m != nil {
+		return m.BatchId
+	}
+	return ""
+}
+
+func (m *SubmitRedactionResponse) GetJobsCreated() int32 {
+	if m != nil {
+		return m.JobsCreated
+	}
+	return 0
+}
+
+// RedactionResult is reported by the worker when a redaction job completes.
+type RedactionResult struct {
+	// traces_found is the number of target trace IDs that were present and removed
+	// from the block. Zero means the block was scanned and found clean.
+	TracesFound int32 `protobuf:"varint,1,opt,name=traces_found,json=tracesFound,proto3" json:"traces_found,omitempty"`
+}
+
+func (m *RedactionResult) Reset()         { *m = RedactionResult{} }
+func (m *RedactionResult) String() string { return proto.CompactTextString(m) }
+func (*RedactionResult) ProtoMessage()    {}
+func (*RedactionResult) Descriptor() ([]byte, []int) {
+	return fileDescriptor_1e9b87dd365f5504, []int{10}
+}
+func (m *RedactionResult) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *RedactionResult) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_RedactionResult.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *RedactionResult) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_RedactionResult.Merge(m, src)
+}
+func (m *RedactionResult) XXX_Size() int {
+	return m.Size()
+}
+func (m *RedactionResult) XXX_DiscardUnknown() {
+	xxx_messageInfo_RedactionResult.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_RedactionResult proto.InternalMessageInfo
+
+func (m *RedactionResult) GetTracesFound() int32 {
+	if m != nil {
+		return m.TracesFound
+	}
+	return 0
+}
+
+// RedactionBatch holds the trace IDs for an in-flight redaction submission.
+// All pending block jobs for a tenant share one batch to avoid copying the trace ID
+// list into every job (which could be millions of jobs for large tenants).
+// Persisted locally as batches.pb alongside the shard files.
+type RedactionBatch struct {
+	BatchId           string   `protobuf:"bytes,1,opt,name=batch_id,json=batchId,proto3" json:"batch_id,omitempty"`
+	TenantId          string   `protobuf:"bytes,2,opt,name=tenant_id,json=tenantId,proto3" json:"tenant_id,omitempty"`
+	TraceIds          [][]byte `protobuf:"bytes,3,rep,name=trace_ids,json=traceIds,proto3" json:"trace_ids,omitempty"`
+	CreatedAtUnixNano int64    `protobuf:"varint,4,opt,name=created_at_unix_nano,json=createdAtUnixNano,proto3" json:"created_at_unix_nano,omitempty"`
+	// skipped_compaction_job_ids holds the IDs of compaction jobs whose input
+	// blocks were skipped at submission time because they were actively compacting.
+	// At rescan time the scheduler looks up these jobs and creates redaction jobs
+	// for their output blocks.
+	SkippedCompactionJobIds []string `protobuf:"bytes,5,rep,name=skipped_compaction_job_ids,json=skippedCompactionJobIds,proto3" json:"skipped_compaction_job_ids,omitempty"`
+	// rescan_after_unix_nano is the earliest time at which the scheduler should
+	// perform the rescan described above. Zero means no rescan is pending.
+	RescanAfterUnixNano int64 `protobuf:"varint,6,opt,name=rescan_after_unix_nano,json=rescanAfterUnixNano,proto3" json:"rescan_after_unix_nano,omitempty"`
+}
+
+func (m *RedactionBatch) Reset()         { *m = RedactionBatch{} }
+func (m *RedactionBatch) String() string { return proto.CompactTextString(m) }
+func (*RedactionBatch) ProtoMessage()    {}
+func (*RedactionBatch) Descriptor() ([]byte, []int) {
+	return fileDescriptor_1e9b87dd365f5504, []int{11}
+}
+func (m *RedactionBatch) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *RedactionBatch) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_RedactionBatch.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *RedactionBatch) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_RedactionBatch.Merge(m, src)
+}
+func (m *RedactionBatch) XXX_Size() int {
+	return m.Size()
+}
+func (m *RedactionBatch) XXX_DiscardUnknown() {
+	xxx_messageInfo_RedactionBatch.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_RedactionBatch proto.InternalMessageInfo
+
+func (m *RedactionBatch) GetBatchId() string {
+	if m != nil {
+		return m.BatchId
+	}
+	return ""
+}
+
+func (m *RedactionBatch) GetTenantId() string {
+	if m != nil {
+		return m.TenantId
+	}
+	return ""
+}
+
+func (m *RedactionBatch) GetTraceIds() [][]byte {
+	if m != nil {
+		return m.TraceIds
+	}
+	return nil
+}
+
+func (m *RedactionBatch) GetCreatedAtUnixNano() int64 {
+	if m != nil {
+		return m.CreatedAtUnixNano
+	}
+	return 0
+}
+
+func (m *RedactionBatch) GetSkippedCompactionJobIds() []string {
+	if m != nil {
+		return m.SkippedCompactionJobIds
+	}
+	return nil
+}
+
+func (m *RedactionBatch) GetRescanAfterUnixNano() int64 {
+	if m != nil {
+		return m.RescanAfterUnixNano
+	}
+	return 0
+}
+
+// RedactionBatches is the top-level container written to batches.pb.
+type RedactionBatches struct {
+	Batches []*RedactionBatch `protobuf:"bytes,1,rep,name=batches,proto3" json:"batches,omitempty"`
+}
+
+func (m *RedactionBatches) Reset()         { *m = RedactionBatches{} }
+func (m *RedactionBatches) String() string { return proto.CompactTextString(m) }
+func (*RedactionBatches) ProtoMessage()    {}
+func (*RedactionBatches) Descriptor() ([]byte, []int) {
+	return fileDescriptor_1e9b87dd365f5504, []int{12}
+}
+func (m *RedactionBatches) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *RedactionBatches) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_RedactionBatches.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *RedactionBatches) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_RedactionBatches.Merge(m, src)
+}
+func (m *RedactionBatches) XXX_Size() int {
+	return m.Size()
+}
+func (m *RedactionBatches) XXX_DiscardUnknown() {
+	xxx_messageInfo_RedactionBatches.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_RedactionBatches proto.InternalMessageInfo
+
+func (m *RedactionBatches) GetBatches() []*RedactionBatch {
+	if m != nil {
+		return m.Batches
+	}
+	return nil
+}
+
 func init() {
 	proto.RegisterEnum("tempopb.JobType", JobType_name, JobType_value)
 	proto.RegisterEnum("tempopb.JobStatus", JobStatus_name, JobStatus_value)
 	proto.RegisterType((*CompactionDetail)(nil), "tempopb.CompactionDetail")
 	proto.RegisterType((*RetentionDetail)(nil), "tempopb.RetentionDetail")
+	proto.RegisterType((*RedactionDetail)(nil), "tempopb.RedactionDetail")
 	proto.RegisterType((*JobDetail)(nil), "tempopb.JobDetail")
 	proto.RegisterType((*NextJobRequest)(nil), "tempopb.NextJobRequest")
 	proto.RegisterType((*NextJobResponse)(nil), "tempopb.NextJobResponse")
 	proto.RegisterType((*UpdateJobStatusRequest)(nil), "tempopb.UpdateJobStatusRequest")
 	proto.RegisterType((*UpdateJobStatusResponse)(nil), "tempopb.UpdateJobStatusResponse")
+	proto.RegisterType((*SubmitRedactionRequest)(nil), "tempopb.SubmitRedactionRequest")
+	proto.RegisterType((*SubmitRedactionResponse)(nil), "tempopb.SubmitRedactionResponse")
+	proto.RegisterType((*RedactionResult)(nil), "tempopb.RedactionResult")
+	proto.RegisterType((*RedactionBatch)(nil), "tempopb.RedactionBatch")
+	proto.RegisterType((*RedactionBatches)(nil), "tempopb.RedactionBatches")
 }
 
 func init() { proto.RegisterFile("backendwork.proto", fileDescriptor_1e9b87dd365f5504) }
 
 var fileDescriptor_1e9b87dd365f5504 = []byte{
-	// 612 bytes of a gzipped FileDescriptorProto
-	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x94, 0x94, 0xcf, 0x4e, 0xdb, 0x4e,
-	0x10, 0xc7, 0xb3, 0x21, 0x04, 0x32, 0x3f, 0x09, 0xcc, 0xfe, 0x20, 0xb8, 0x41, 0x72, 0x90, 0xd5,
-	0x03, 0x42, 0x22, 0x54, 0x20, 0x55, 0x2a, 0x3d, 0x11, 0xc7, 0x54, 0xb6, 0x5a, 0x13, 0xd9, 0xce,
-	0xa1, 0x27, 0xe4, 0x3f, 0x5b, 0x08, 0x7f, 0xbc, 0xae, 0xbd, 0x56, 0xcb, 0xad, 0x8f, 0xd0, 0x07,
-	0xe8, 0xa1, 0xdc, 0xfb, 0x20, 0x1c, 0x39, 0xf6, 0x54, 0x55, 0x70, 0xe1, 0x31, 0x2a, 0xaf, 0x37,
-	0x4e, 0x08, 0xe5, 0xd0, 0x5b, 0x66, 0xbe, 0xdf, 0x9d, 0xf9, 0xec, 0xec, 0xc4, 0xb0, 0xe4, 0x7b,
-	0xc1, 0x19, 0x89, 0xc2, 0x4f, 0x34, 0x39, 0xeb, 0xc4, 0x09, 0x65, 0x14, 0xcf, 0x31, 0x72, 0x11,
-	0xd3, 0xd8, 0x6f, 0x6d, 0x1d, 0x0f, 0xd9, 0x49, 0xe6, 0x77, 0x02, 0x7a, 0xb1, 0x7d, 0x4c, 0x8f,
-	0xe9, 0x36, 0xd7, 0xfd, 0xec, 0x03, 0x8f, 0x78, 0xc0, 0x7f, 0x15, 0xe7, 0x54, 0x13, 0x24, 0x8d,
-	0x5e, 0xc4, 0x5e, 0xc0, 0x86, 0x34, 0xea, 0x11, 0xe6, 0x0d, 0xcf, 0xf1, 0x32, 0xcc, 0x0e, 0xa3,
-	0x38, 0x63, 0x32, 0x5a, 0x9f, 0xd9, 0x68, 0xd8, 0x45, 0x80, 0x9b, 0x50, 0xa7, 0x19, 0xcb, 0xd3,
-	0x55, 0x9e, 0x16, 0xd1, 0xde, 0xfc, 0xfd, 0xf7, 0x36, 0xba, 0xbf, 0x6a, 0x23, 0x75, 0x0d, 0x16,
-	0x6d, 0xc2, 0x48, 0x34, 0x2e, 0x35, 0x21, 0x7e, 0x43, 0xd0, 0x30, 0xa9, 0x2f, 0x5a, 0x34, 0xa1,
-	0xce, 0x48, 0xe4, 0x45, 0x79, 0x0f, 0x94, 0x17, 0x2b, 0x22, 0xfc, 0x0a, 0x20, 0x28, 0x71, 0xe4,
-	0xea, 0x3a, 0xda, 0xf8, 0x6f, 0xe7, 0x59, 0x47, 0xdc, 0xad, 0x33, 0x4d, 0x6a, 0x4f, 0x98, 0xf1,
-	0x4b, 0x68, 0x24, 0xa3, 0xee, 0xf2, 0x0c, 0x3f, 0x29, 0x97, 0x27, 0xa7, 0xb8, 0xec, 0xb1, 0x75,
-	0xaf, 0x96, 0x23, 0xaa, 0x5b, 0xb0, 0x60, 0x91, 0xcf, 0xcc, 0xa4, 0xbe, 0x4d, 0x3e, 0x66, 0x24,
-	0x65, 0x78, 0x0d, 0x1a, 0xf9, 0x7c, 0x49, 0x72, 0x34, 0x0c, 0x05, 0xe5, 0x7c, 0x91, 0x30, 0x42,
-	0xf5, 0x0b, 0x82, 0xc5, 0xd2, 0x9f, 0xc6, 0x34, 0x4a, 0x09, 0x5e, 0x81, 0xfa, 0x29, 0xf5, 0xc7,
-	0xee, 0xd9, 0x53, 0xea, 0x1b, 0x21, 0x7e, 0x0e, 0x35, 0x76, 0x19, 0x13, 0x7e, 0x99, 0x85, 0x1d,
-	0xa9, 0x44, 0x32, 0xa9, 0xef, 0x5e, 0xc6, 0xc4, 0xe6, 0x2a, 0x7e, 0x01, 0xf5, 0x90, 0xa3, 0x09,
-	0x74, 0x3c, 0xe9, 0x2b, 0xa0, 0xbb, 0xb5, 0xeb, 0x5f, 0xed, 0x8a, 0x2d, 0x7c, 0xea, 0x0f, 0x04,
-	0xcd, 0x41, 0x1c, 0x7a, 0x8c, 0x98, 0xd4, 0x77, 0x98, 0xc7, 0xb2, 0x74, 0x84, 0xfe, 0x04, 0xc9,
-	0x26, 0xd4, 0x53, 0xee, 0x13, 0x2c, 0x0f, 0x7a, 0x88, 0x0a, 0xc2, 0x91, 0xef, 0x00, 0x49, 0x12,
-	0x9a, 0x70, 0x9c, 0x86, 0x5d, 0x04, 0x53, 0xcf, 0x53, 0xfb, 0x87, 0xe7, 0x51, 0x77, 0x61, 0xf5,
-	0x11, 0xad, 0x18, 0x9c, 0x0c, 0x73, 0x69, 0x16, 0x04, 0x24, 0x4d, 0x39, 0xef, 0xbc, 0x3d, 0x0a,
-	0x37, 0x5d, 0x98, 0x13, 0x63, 0xc2, 0x32, 0x2c, 0x9b, 0x87, 0xdd, 0x23, 0xf7, 0x7d, 0x5f, 0x3f,
-	0x1a, 0x58, 0x4e, 0x5f, 0xd7, 0x8c, 0x03, 0x43, 0xef, 0x49, 0x15, 0xbc, 0x0a, 0xff, 0x97, 0x8a,
-	0x76, 0xf8, 0xae, 0xbf, 0xaf, 0xb9, 0xc6, 0xa1, 0x25, 0x21, 0xdc, 0x04, 0x5c, 0x0a, 0xb6, 0xee,
-	0xea, 0x16, 0xcf, 0x57, 0x37, 0x63, 0xbe, 0x89, 0x05, 0x04, 0x6e, 0x41, 0x33, 0x37, 0x39, 0xee,
-	0xbe, 0x3b, 0x70, 0xa6, 0x2a, 0x8b, 0x9e, 0x42, 0x73, 0x06, 0x9a, 0xa6, 0xeb, 0x3d, 0xbd, 0x27,
-	0x21, 0xbc, 0x02, 0x4b, 0x13, 0xca, 0xc1, 0xbe, 0xf1, 0x56, 0xef, 0x49, 0xd5, 0x51, 0x47, 0x91,
-	0xb6, 0x07, 0x96, 0x65, 0x58, 0x6f, 0xa4, 0x99, 0x9d, 0x2b, 0x04, 0x52, 0xb7, 0xf8, 0xcf, 0x3a,
-	0xc1, 0x09, 0x09, 0xb3, 0x73, 0x92, 0xe0, 0xd7, 0x50, 0xcb, 0x57, 0x08, 0xaf, 0x96, 0x03, 0x7c,
-	0xb8, 0x81, 0x2d, 0xf9, 0xb1, 0x50, 0x4c, 0x4c, 0xad, 0xe0, 0x3e, 0x34, 0xca, 0x71, 0xe2, 0x76,
-	0x69, 0xfc, 0xfb, 0x42, 0xb4, 0xd6, 0x9f, 0x36, 0x8c, 0x2a, 0x76, 0xe5, 0xeb, 0x5b, 0x05, 0xdd,
-	0xdc, 0x2a, 0xe8, 0xf7, 0xad, 0x82, 0xbe, 0xde, 0x29, 0x95, 0x9b, 0x3b, 0xa5, 0xf2, 0xf3, 0x4e,
-	0xa9, 0xf8, 0x75, 0xfe, 0xa9, 0xd8, 0xfd, 0x13, 0x00, 0x00, 0xff, 0xff, 0x6b, 0x64, 0xd3, 0x62,
-	0x77, 0x04, 0x00, 0x00,
+	// 924 bytes of a gzipped FileDescriptorProto
+	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x94, 0x55, 0xbd, 0x6e, 0xe3, 0x46,
+	0x10, 0x16, 0xf5, 0x67, 0x69, 0x7c, 0xb0, 0xe5, 0x3d, 0x9f, 0xc4, 0xd3, 0x01, 0xb2, 0x43, 0xa4,
+	0x30, 0x0c, 0x9c, 0x9d, 0xd8, 0x40, 0x80, 0xf8, 0x2a, 0xfd, 0xd0, 0x01, 0x85, 0x44, 0x36, 0x56,
+	0x52, 0x82, 0x54, 0x04, 0x7f, 0xd6, 0x36, 0x6d, 0x99, 0xcb, 0x70, 0x97, 0x88, 0xaf, 0xcb, 0x13,
+	0x04, 0x79, 0x84, 0xe4, 0x6d, 0xae, 0xbc, 0x32, 0x55, 0x10, 0xd8, 0x29, 0xae, 0x4b, 0x9d, 0x2e,
+	0xe0, 0x72, 0x45, 0x52, 0xd2, 0xd9, 0x41, 0x3a, 0xce, 0xcc, 0xb7, 0x33, 0xf3, 0x7d, 0x3b, 0xb3,
+	0x84, 0x2d, 0xdb, 0x72, 0x6e, 0x88, 0xef, 0xfe, 0x48, 0xc3, 0x9b, 0x83, 0x20, 0xa4, 0x9c, 0xa2,
+	0x35, 0x4e, 0x6e, 0x03, 0x1a, 0xd8, 0xed, 0xd7, 0x97, 0x1e, 0xbf, 0x8a, 0xec, 0x03, 0x87, 0xde,
+	0x1e, 0x5e, 0xd2, 0x4b, 0x7a, 0x28, 0xe2, 0x76, 0x74, 0x21, 0x2c, 0x61, 0x88, 0xaf, 0xe4, 0x9c,
+	0x36, 0x84, 0x46, 0x9f, 0xde, 0x06, 0x96, 0xc3, 0x3d, 0xea, 0x0f, 0x08, 0xb7, 0xbc, 0x19, 0xda,
+	0x86, 0x8a, 0xe7, 0x07, 0x11, 0x57, 0x95, 0xdd, 0xd2, 0x5e, 0x1d, 0x27, 0x06, 0x6a, 0x42, 0x95,
+	0x46, 0x3c, 0x76, 0x17, 0x85, 0x5b, 0x5a, 0x27, 0xb5, 0x0f, 0xbf, 0xee, 0x28, 0x1f, 0x7e, 0xdb,
+	0x51, 0xb4, 0x57, 0xb0, 0x89, 0x09, 0x27, 0x7e, 0x96, 0x2a, 0x17, 0x1c, 0xc7, 0x41, 0x77, 0xa1,
+	0xce, 0x4b, 0xa8, 0xd9, 0x33, 0xea, 0xdc, 0x98, 0x9e, 0xab, 0x2a, 0xbb, 0xca, 0x5e, 0x1d, 0xaf,
+	0x09, 0xdb, 0x70, 0xd1, 0x2b, 0xa8, 0xf3, 0xd0, 0x72, 0x88, 0xe9, 0xb9, 0x4c, 0xd4, 0x7b, 0x86,
+	0x6b, 0xc2, 0x61, 0xb8, 0x2c, 0x97, 0xf4, 0x6f, 0x05, 0xea, 0x43, 0x6a, 0xcb, 0x7c, 0x4d, 0xa8,
+	0x72, 0xe2, 0x5b, 0x3e, 0x97, 0xd9, 0xa4, 0x85, 0xbe, 0x04, 0x70, 0x52, 0x8e, 0x6a, 0x71, 0x57,
+	0xd9, 0x5b, 0x3f, 0x7a, 0x79, 0x20, 0x05, 0x3b, 0x58, 0xa6, 0x8f, 0x73, 0x60, 0xf4, 0x05, 0xd4,
+	0xc3, 0x39, 0x25, 0xb5, 0x24, 0x4e, 0xaa, 0xe9, 0xc9, 0x25, 0xb2, 0x38, 0x83, 0x26, 0xe7, 0x24,
+	0x5b, 0xb5, 0xbc, 0x72, 0x6e, 0x41, 0x07, 0x9c, 0x41, 0x85, 0x24, 0x16, 0x77, 0xae, 0x62, 0x49,
+	0x2a, 0x52, 0x92, 0xd8, 0x36, 0xdc, 0x93, 0x72, 0xcc, 0x5a, 0x7b, 0x0d, 0x1b, 0x23, 0x72, 0xc7,
+	0x87, 0xd4, 0xc6, 0xe4, 0x87, 0x88, 0x30, 0x1e, 0x4b, 0x15, 0xcf, 0x01, 0x09, 0x33, 0x19, 0x6b,
+	0x89, 0xc3, 0x70, 0xb5, 0x9f, 0x14, 0xd8, 0x4c, 0xf1, 0x2c, 0xa0, 0x3e, 0x23, 0xe8, 0x05, 0x54,
+	0xaf, 0xa9, 0x9d, 0xa1, 0x2b, 0xd7, 0xd4, 0x36, 0x5c, 0xf4, 0x29, 0x94, 0xf9, 0xdb, 0x80, 0x08,
+	0x7d, 0x36, 0x8e, 0x1a, 0x69, 0xb7, 0x43, 0x6a, 0x4f, 0xde, 0x06, 0x04, 0x8b, 0x28, 0xfa, 0x0c,
+	0xaa, 0xae, 0xe8, 0x5a, 0xaa, 0x81, 0xf2, 0xb8, 0x84, 0x4f, 0xaf, 0xfc, 0xee, 0x8f, 0x9d, 0x02,
+	0x96, 0x38, 0xed, 0x2f, 0x05, 0x9a, 0xd3, 0xc0, 0xb5, 0x38, 0x19, 0x52, 0x7b, 0xcc, 0x2d, 0x1e,
+	0xb1, 0x79, 0xeb, 0x8f, 0x74, 0xb2, 0x0f, 0x55, 0x26, 0x70, 0xb2, 0x97, 0x85, 0x1a, 0x32, 0x83,
+	0x44, 0xc4, 0xb3, 0x4a, 0xc2, 0x90, 0x86, 0xa2, 0x9d, 0x3a, 0x4e, 0x8c, 0xa5, 0x1b, 0x2f, 0xff,
+	0xef, 0x1b, 0x9f, 0xdf, 0x5c, 0xe5, 0xb1, 0x9b, 0xc3, 0x84, 0x45, 0x33, 0x9e, 0xbb, 0x39, 0xed,
+	0x18, 0x5a, 0x2b, 0x2c, 0xa5, 0xe0, 0x2a, 0xac, 0xb1, 0xc8, 0x71, 0x08, 0x63, 0x82, 0x67, 0x0d,
+	0xcf, 0x4d, 0x0d, 0x43, 0x73, 0x1c, 0xd9, 0xb7, 0x1e, 0xcf, 0x25, 0x4e, 0x6f, 0x35, 0x99, 0xde,
+	0xdc, 0xad, 0x26, 0x8e, 0xff, 0xd8, 0x0e, 0xed, 0x3b, 0x68, 0xad, 0xe4, 0x94, 0x8d, 0xe4, 0xa7,
+	0x4b, 0x59, 0x98, 0x2e, 0xf4, 0x09, 0x3c, 0xbb, 0xa6, 0x36, 0x33, 0x9d, 0x90, 0x58, 0x9c, 0xb8,
+	0x42, 0xf9, 0x0a, 0x5e, 0x8f, 0x7d, 0xfd, 0xc4, 0xa5, 0x9d, 0xe4, 0x36, 0x38, 0xe1, 0x1f, 0x9f,
+	0x12, 0x75, 0x99, 0x79, 0x41, 0x23, 0x3f, 0x49, 0x5a, 0xc1, 0xeb, 0x89, 0xef, 0x34, 0x76, 0xc9,
+	0xb1, 0xfd, 0xb9, 0x08, 0x1b, 0xe9, 0xe1, 0x5e, 0x5c, 0xf3, 0xa9, 0x66, 0x16, 0xc8, 0x17, 0x9f,
+	0x22, 0x5f, 0x5a, 0x24, 0x8f, 0x0e, 0x61, 0x5b, 0x32, 0x30, 0x2d, 0x6e, 0x46, 0xbe, 0x77, 0x67,
+	0xfa, 0x96, 0x4f, 0xc5, 0x08, 0x94, 0xf0, 0x96, 0x8c, 0x75, 0xf9, 0xd4, 0xf7, 0xee, 0x46, 0x96,
+	0x4f, 0xd1, 0x1b, 0x68, 0xb3, 0x1b, 0x2f, 0x08, 0x88, 0x6b, 0x66, 0x43, 0x60, 0x26, 0x53, 0xc9,
+	0xd4, 0x8a, 0x78, 0xe9, 0x5a, 0x12, 0x91, 0xcd, 0xcd, 0x30, 0x9e, 0x53, 0x86, 0x8e, 0xa1, 0x19,
+	0x12, 0xe6, 0x58, 0xbe, 0x69, 0x5d, 0x70, 0x12, 0xe6, 0xea, 0x55, 0x45, 0xbd, 0xe7, 0x49, 0xb4,
+	0x1b, 0x07, 0xe7, 0x15, 0xa5, 0x20, 0x3a, 0x34, 0x16, 0xf5, 0x20, 0x0c, 0x7d, 0x0e, 0x89, 0x02,
+	0x84, 0x89, 0x97, 0x77, 0xfd, 0xa8, 0xb5, 0x3a, 0x78, 0x02, 0x8b, 0xe7, 0xb8, 0xfd, 0x19, 0xac,
+	0xc9, 0xfd, 0x44, 0x2a, 0x6c, 0x0f, 0xcf, 0x7a, 0xe6, 0xe4, 0xfb, 0x73, 0xdd, 0x9c, 0x8e, 0xc6,
+	0xe7, 0x7a, 0xdf, 0x38, 0x35, 0xf4, 0x41, 0xa3, 0x80, 0x5a, 0xf0, 0x3c, 0x8d, 0xf4, 0xcf, 0xbe,
+	0x39, 0xef, 0xf6, 0x27, 0xc6, 0xd9, 0xa8, 0xa1, 0xa0, 0x26, 0xa0, 0x34, 0x80, 0xf5, 0x89, 0x3e,
+	0x12, 0xfe, 0xe2, 0x92, 0x7f, 0x20, 0xf1, 0xa5, 0xfd, 0x40, 0xbc, 0xb6, 0xc9, 0x74, 0xa3, 0x36,
+	0x34, 0x63, 0xd0, 0x78, 0xd2, 0x9d, 0x4c, 0xc7, 0x4b, 0x15, 0x65, 0x2f, 0x32, 0x36, 0x9e, 0xf6,
+	0xfb, 0xba, 0x3e, 0xd0, 0x07, 0x0d, 0x05, 0xbd, 0x80, 0xad, 0x5c, 0xe4, 0xb4, 0x6b, 0x7c, 0xad,
+	0x0f, 0xb2, 0x8a, 0xd2, 0x8d, 0xa7, 0xa3, 0x91, 0x31, 0xfa, 0xaa, 0x51, 0x3a, 0xfa, 0x47, 0x81,
+	0x46, 0x2f, 0xf9, 0xd9, 0x8d, 0x9d, 0x2b, 0xe2, 0x46, 0x33, 0x12, 0xa2, 0x37, 0x50, 0x8e, 0xdf,
+	0x34, 0x94, 0xc9, 0xb3, 0xf8, 0x24, 0xb6, 0xd5, 0xd5, 0x40, 0xb2, 0x01, 0x5a, 0x01, 0x9d, 0x43,
+	0x3d, 0xdd, 0x53, 0xb4, 0x93, 0x02, 0x3f, 0xfe, 0x42, 0xb5, 0x77, 0x1f, 0x07, 0xa4, 0x19, 0xbf,
+	0x85, 0xcd, 0xa5, 0x85, 0xcb, 0xe5, 0xfd, 0xf8, 0x7a, 0xe7, 0xf2, 0x3e, 0xb2, 0xab, 0x5a, 0xa1,
+	0xa7, 0xbe, 0xbb, 0xef, 0x28, 0xef, 0xef, 0x3b, 0xca, 0x9f, 0xf7, 0x1d, 0xe5, 0x97, 0x87, 0x4e,
+	0xe1, 0xfd, 0x43, 0xa7, 0xf0, 0xfb, 0x43, 0xa7, 0x60, 0x57, 0xc5, 0xbf, 0xfb, 0xf8, 0xdf, 0x00,
+	0x00, 0x00, 0xff, 0xff, 0x83, 0xed, 0x66, 0x2b, 0x08, 0x08, 0x00, 0x00,
 }
 
 func (this *CompactionDetail) Compare(that interface{}) int {
@@ -592,6 +997,50 @@ func (this *RetentionDetail) Compare(that interface{}) int {
 	}
 	return 0
 }
+func (this *RedactionDetail) Compare(that interface{}) int {
+	if that == nil {
+		if this == nil {
+			return 0
+		}
+		return 1
+	}
+
+	that1, ok := that.(*RedactionDetail)
+	if !ok {
+		that2, ok := that.(RedactionDetail)
+		if ok {
+			that1 = &that2
+		} else {
+			return 1
+		}
+	}
+	if that1 == nil {
+		if this == nil {
+			return 0
+		}
+		return 1
+	} else if this == nil {
+		return -1
+	}
+	if this.BlockId != that1.BlockId {
+		if this.BlockId < that1.BlockId {
+			return -1
+		}
+		return 1
+	}
+	if len(this.TraceIds) != len(that1.TraceIds) {
+		if len(this.TraceIds) < len(that1.TraceIds) {
+			return -1
+		}
+		return 1
+	}
+	for i := range this.TraceIds {
+		if c := bytes.Compare(this.TraceIds[i], that1.TraceIds[i]); c != 0 {
+			return c
+		}
+	}
+	return 0
+}
 func (this *CompactionDetail) Equal(that interface{}) bool {
 	if that == nil {
 		return this == nil
@@ -650,6 +1099,38 @@ func (this *RetentionDetail) Equal(that interface{}) bool {
 	}
 	return true
 }
+func (this *RedactionDetail) Equal(that interface{}) bool {
+	if that == nil {
+		return this == nil
+	}
+
+	that1, ok := that.(*RedactionDetail)
+	if !ok {
+		that2, ok := that.(RedactionDetail)
+		if ok {
+			that1 = &that2
+		} else {
+			return false
+		}
+	}
+	if that1 == nil {
+		return this == nil
+	} else if this == nil {
+		return false
+	}
+	if this.BlockId != that1.BlockId {
+		return false
+	}
+	if len(this.TraceIds) != len(that1.TraceIds) {
+		return false
+	}
+	for i := range this.TraceIds {
+		if !bytes.Equal(this.TraceIds[i], that1.TraceIds[i]) {
+			return false
+		}
+	}
+	return true
+}
 func (this *JobDetail) Equal(that interface{}) bool {
 	if that == nil {
 		return this == nil
@@ -678,6 +1159,85 @@ func (this *JobDetail) Equal(that interface{}) bool {
 	if !this.Retention.Equal(that1.Retention) {
 		return false
 	}
+	if !this.Redaction.Equal(that1.Redaction) {
+		return false
+	}
+	if this.BatchId != that1.BatchId {
+		return false
+	}
+	return true
+}
+func (this *RedactionResult) Equal(that interface{}) bool {
+	if that == nil {
+		return this == nil
+	}
+
+	that1, ok := that.(*RedactionResult)
+	if !ok {
+		that2, ok := that.(RedactionResult)
+		if ok {
+			that1 = &that2
+		} else {
+			return false
+		}
+	}
+	if that1 == nil {
+		return this == nil
+	} else if this == nil {
+		return false
+	}
+	if this.TracesFound != that1.TracesFound {
+		return false
+	}
+	return true
+}
+func (this *RedactionBatch) Equal(that interface{}) bool {
+	if that == nil {
+		return this == nil
+	}
+
+	that1, ok := that.(*RedactionBatch)
+	if !ok {
+		that2, ok := that.(RedactionBatch)
+		if ok {
+			that1 = &that2
+		} else {
+			return false
+		}
+	}
+	if that1 == nil {
+		return this == nil
+	} else if this == nil {
+		return false
+	}
+	if this.BatchId != that1.BatchId {
+		return false
+	}
+	if this.TenantId != that1.TenantId {
+		return false
+	}
+	if len(this.TraceIds) != len(that1.TraceIds) {
+		return false
+	}
+	for i := range this.TraceIds {
+		if !bytes.Equal(this.TraceIds[i], that1.TraceIds[i]) {
+			return false
+		}
+	}
+	if this.CreatedAtUnixNano != that1.CreatedAtUnixNano {
+		return false
+	}
+	if len(this.SkippedCompactionJobIds) != len(that1.SkippedCompactionJobIds) {
+		return false
+	}
+	for i := range this.SkippedCompactionJobIds {
+		if this.SkippedCompactionJobIds[i] != that1.SkippedCompactionJobIds[i] {
+			return false
+		}
+	}
+	if this.RescanAfterUnixNano != that1.RescanAfterUnixNano {
+		return false
+	}
 	return true
 }
 
@@ -697,6 +1257,10 @@ type BackendSchedulerClient interface {
 	Next(ctx context.Context, in *NextJobRequest, opts ...grpc.CallOption) (*NextJobResponse, error)
 	// Update job status
 	UpdateJob(ctx context.Context, in *UpdateJobStatusRequest, opts ...grpc.CallOption) (*UpdateJobStatusResponse, error)
+	// Submit a redaction request. The caller provides a tenant ID and trace IDs to remove.
+	// The scheduler discovers all blocks for the tenant and fans out one internal pending
+	// job per block.
+	SubmitRedaction(ctx context.Context, in *SubmitRedactionRequest, opts ...grpc.CallOption) (*SubmitRedactionResponse, error)
 }
 
 type backendSchedulerClient struct {
@@ -725,12 +1289,25 @@ func (c *backendSchedulerClient) UpdateJob(ctx context.Context, in *UpdateJobSta
 	return out, nil
 }
 
+func (c *backendSchedulerClient) SubmitRedaction(ctx context.Context, in *SubmitRedactionRequest, opts ...grpc.CallOption) (*SubmitRedactionResponse, error) {
+	out := new(SubmitRedactionResponse)
+	err := c.cc.Invoke(ctx, "/tempopb.BackendScheduler/SubmitRedaction", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // BackendSchedulerServer is the server API for BackendScheduler service.
 type BackendSchedulerServer interface {
 	// Get next available job
 	Next(context.Context, *NextJobRequest) (*NextJobResponse, error)
 	// Update job status
 	UpdateJob(context.Context, *UpdateJobStatusRequest) (*UpdateJobStatusResponse, error)
+	// Submit a redaction request. The caller provides a tenant ID and trace IDs to remove.
+	// The scheduler discovers all blocks for the tenant and fans out one internal pending
+	// job per block.
+	SubmitRedaction(context.Context, *SubmitRedactionRequest) (*SubmitRedactionResponse, error)
 }
 
 // UnimplementedBackendSchedulerServer can be embedded to have forward compatible implementations.
@@ -742,6 +1319,9 @@ func (*UnimplementedBackendSchedulerServer) Next(ctx context.Context, req *NextJ
 }
 func (*UnimplementedBackendSchedulerServer) UpdateJob(ctx context.Context, req *UpdateJobStatusRequest) (*UpdateJobStatusResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UpdateJob not implemented")
+}
+func (*UnimplementedBackendSchedulerServer) SubmitRedaction(ctx context.Context, req *SubmitRedactionRequest) (*SubmitRedactionResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method SubmitRedaction not implemented")
 }
 
 func RegisterBackendSchedulerServer(s *grpc.Server, srv BackendSchedulerServer) {
@@ -784,6 +1364,24 @@ func _BackendScheduler_UpdateJob_Handler(srv interface{}, ctx context.Context, d
 	return interceptor(ctx, in, info, handler)
 }
 
+func _BackendScheduler_SubmitRedaction_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SubmitRedactionRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(BackendSchedulerServer).SubmitRedaction(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/tempopb.BackendScheduler/SubmitRedaction",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(BackendSchedulerServer).SubmitRedaction(ctx, req.(*SubmitRedactionRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 var _BackendScheduler_serviceDesc = grpc.ServiceDesc{
 	ServiceName: "tempopb.BackendScheduler",
 	HandlerType: (*BackendSchedulerServer)(nil),
@@ -795,6 +1393,10 @@ var _BackendScheduler_serviceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "UpdateJob",
 			Handler:    _BackendScheduler_UpdateJob_Handler,
+		},
+		{
+			MethodName: "SubmitRedaction",
+			Handler:    _BackendScheduler_SubmitRedaction_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
@@ -865,6 +1467,45 @@ func (m *RetentionDetail) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 	return len(dAtA) - i, nil
 }
 
+func (m *RedactionDetail) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *RedactionDetail) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *RedactionDetail) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if len(m.TraceIds) > 0 {
+		for iNdEx := len(m.TraceIds) - 1; iNdEx >= 0; iNdEx-- {
+			i -= len(m.TraceIds[iNdEx])
+			copy(dAtA[i:], m.TraceIds[iNdEx])
+			i = encodeVarintBackendwork(dAtA, i, uint64(len(m.TraceIds[iNdEx])))
+			i--
+			dAtA[i] = 0x12
+		}
+	}
+	if len(m.BlockId) > 0 {
+		i -= len(m.BlockId)
+		copy(dAtA[i:], m.BlockId)
+		i = encodeVarintBackendwork(dAtA, i, uint64(len(m.BlockId)))
+		i--
+		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
+}
+
 func (m *JobDetail) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
@@ -885,6 +1526,25 @@ func (m *JobDetail) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 	_ = i
 	var l int
 	_ = l
+	if len(m.BatchId) > 0 {
+		i -= len(m.BatchId)
+		copy(dAtA[i:], m.BatchId)
+		i = encodeVarintBackendwork(dAtA, i, uint64(len(m.BatchId)))
+		i--
+		dAtA[i] = 0x2a
+	}
+	if m.Redaction != nil {
+		{
+			size, err := m.Redaction.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintBackendwork(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0x22
+	}
 	if m.Retention != nil {
 		{
 			size, err := m.Retention.MarshalToSizedBuffer(dAtA[:i])
@@ -1014,6 +1674,18 @@ func (m *UpdateJobStatusRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) 
 	_ = i
 	var l int
 	_ = l
+	if m.Redaction != nil {
+		{
+			size, err := m.Redaction.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintBackendwork(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0x2a
+	}
 	if m.Compaction != nil {
 		{
 			size, err := m.Compaction.MarshalToSizedBuffer(dAtA[:i])
@@ -1081,6 +1753,210 @@ func (m *UpdateJobStatusResponse) MarshalToSizedBuffer(dAtA []byte) (int, error)
 	return len(dAtA) - i, nil
 }
 
+func (m *SubmitRedactionRequest) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *SubmitRedactionRequest) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *SubmitRedactionRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if len(m.TraceIds) > 0 {
+		for iNdEx := len(m.TraceIds) - 1; iNdEx >= 0; iNdEx-- {
+			i -= len(m.TraceIds[iNdEx])
+			copy(dAtA[i:], m.TraceIds[iNdEx])
+			i = encodeVarintBackendwork(dAtA, i, uint64(len(m.TraceIds[iNdEx])))
+			i--
+			dAtA[i] = 0x12
+		}
+	}
+	if len(m.TenantId) > 0 {
+		i -= len(m.TenantId)
+		copy(dAtA[i:], m.TenantId)
+		i = encodeVarintBackendwork(dAtA, i, uint64(len(m.TenantId)))
+		i--
+		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
+}
+
+func (m *SubmitRedactionResponse) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *SubmitRedactionResponse) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *SubmitRedactionResponse) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.JobsCreated != 0 {
+		i = encodeVarintBackendwork(dAtA, i, uint64(m.JobsCreated))
+		i--
+		dAtA[i] = 0x10
+	}
+	if len(m.BatchId) > 0 {
+		i -= len(m.BatchId)
+		copy(dAtA[i:], m.BatchId)
+		i = encodeVarintBackendwork(dAtA, i, uint64(len(m.BatchId)))
+		i--
+		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
+}
+
+func (m *RedactionResult) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *RedactionResult) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *RedactionResult) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.TracesFound != 0 {
+		i = encodeVarintBackendwork(dAtA, i, uint64(m.TracesFound))
+		i--
+		dAtA[i] = 0x8
+	}
+	return len(dAtA) - i, nil
+}
+
+func (m *RedactionBatch) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *RedactionBatch) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *RedactionBatch) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.RescanAfterUnixNano != 0 {
+		i = encodeVarintBackendwork(dAtA, i, uint64(m.RescanAfterUnixNano))
+		i--
+		dAtA[i] = 0x30
+	}
+	if len(m.SkippedCompactionJobIds) > 0 {
+		for iNdEx := len(m.SkippedCompactionJobIds) - 1; iNdEx >= 0; iNdEx-- {
+			i -= len(m.SkippedCompactionJobIds[iNdEx])
+			copy(dAtA[i:], m.SkippedCompactionJobIds[iNdEx])
+			i = encodeVarintBackendwork(dAtA, i, uint64(len(m.SkippedCompactionJobIds[iNdEx])))
+			i--
+			dAtA[i] = 0x2a
+		}
+	}
+	if m.CreatedAtUnixNano != 0 {
+		i = encodeVarintBackendwork(dAtA, i, uint64(m.CreatedAtUnixNano))
+		i--
+		dAtA[i] = 0x20
+	}
+	if len(m.TraceIds) > 0 {
+		for iNdEx := len(m.TraceIds) - 1; iNdEx >= 0; iNdEx-- {
+			i -= len(m.TraceIds[iNdEx])
+			copy(dAtA[i:], m.TraceIds[iNdEx])
+			i = encodeVarintBackendwork(dAtA, i, uint64(len(m.TraceIds[iNdEx])))
+			i--
+			dAtA[i] = 0x1a
+		}
+	}
+	if len(m.TenantId) > 0 {
+		i -= len(m.TenantId)
+		copy(dAtA[i:], m.TenantId)
+		i = encodeVarintBackendwork(dAtA, i, uint64(len(m.TenantId)))
+		i--
+		dAtA[i] = 0x12
+	}
+	if len(m.BatchId) > 0 {
+		i -= len(m.BatchId)
+		copy(dAtA[i:], m.BatchId)
+		i = encodeVarintBackendwork(dAtA, i, uint64(len(m.BatchId)))
+		i--
+		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
+}
+
+func (m *RedactionBatches) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *RedactionBatches) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *RedactionBatches) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if len(m.Batches) > 0 {
+		for iNdEx := len(m.Batches) - 1; iNdEx >= 0; iNdEx-- {
+			{
+				size, err := m.Batches[iNdEx].MarshalToSizedBuffer(dAtA[:i])
+				if err != nil {
+					return 0, err
+				}
+				i -= size
+				i = encodeVarintBackendwork(dAtA, i, uint64(size))
+			}
+			i--
+			dAtA[i] = 0xa
+		}
+	}
+	return len(dAtA) - i, nil
+}
+
 func encodeVarintBackendwork(dAtA []byte, offset int, v uint64) int {
 	offset -= sovBackendwork(v)
 	base := offset
@@ -1122,6 +1998,25 @@ func (m *RetentionDetail) Size() (n int) {
 	return n
 }
 
+func (m *RedactionDetail) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	l = len(m.BlockId)
+	if l > 0 {
+		n += 1 + l + sovBackendwork(uint64(l))
+	}
+	if len(m.TraceIds) > 0 {
+		for _, b := range m.TraceIds {
+			l = len(b)
+			n += 1 + l + sovBackendwork(uint64(l))
+		}
+	}
+	return n
+}
+
 func (m *JobDetail) Size() (n int) {
 	if m == nil {
 		return 0
@@ -1138,6 +2033,14 @@ func (m *JobDetail) Size() (n int) {
 	}
 	if m.Retention != nil {
 		l = m.Retention.Size()
+		n += 1 + l + sovBackendwork(uint64(l))
+	}
+	if m.Redaction != nil {
+		l = m.Redaction.Size()
+		n += 1 + l + sovBackendwork(uint64(l))
+	}
+	l = len(m.BatchId)
+	if l > 0 {
 		n += 1 + l + sovBackendwork(uint64(l))
 	}
 	return n
@@ -1195,6 +2098,10 @@ func (m *UpdateJobStatusRequest) Size() (n int) {
 		l = m.Compaction.Size()
 		n += 1 + l + sovBackendwork(uint64(l))
 	}
+	if m.Redaction != nil {
+		l = m.Redaction.Size()
+		n += 1 + l + sovBackendwork(uint64(l))
+	}
 	return n
 }
 
@@ -1206,6 +2113,103 @@ func (m *UpdateJobStatusResponse) Size() (n int) {
 	_ = l
 	if m.Success {
 		n += 2
+	}
+	return n
+}
+
+func (m *SubmitRedactionRequest) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	l = len(m.TenantId)
+	if l > 0 {
+		n += 1 + l + sovBackendwork(uint64(l))
+	}
+	if len(m.TraceIds) > 0 {
+		for _, b := range m.TraceIds {
+			l = len(b)
+			n += 1 + l + sovBackendwork(uint64(l))
+		}
+	}
+	return n
+}
+
+func (m *SubmitRedactionResponse) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	l = len(m.BatchId)
+	if l > 0 {
+		n += 1 + l + sovBackendwork(uint64(l))
+	}
+	if m.JobsCreated != 0 {
+		n += 1 + sovBackendwork(uint64(m.JobsCreated))
+	}
+	return n
+}
+
+func (m *RedactionResult) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.TracesFound != 0 {
+		n += 1 + sovBackendwork(uint64(m.TracesFound))
+	}
+	return n
+}
+
+func (m *RedactionBatch) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	l = len(m.BatchId)
+	if l > 0 {
+		n += 1 + l + sovBackendwork(uint64(l))
+	}
+	l = len(m.TenantId)
+	if l > 0 {
+		n += 1 + l + sovBackendwork(uint64(l))
+	}
+	if len(m.TraceIds) > 0 {
+		for _, b := range m.TraceIds {
+			l = len(b)
+			n += 1 + l + sovBackendwork(uint64(l))
+		}
+	}
+	if m.CreatedAtUnixNano != 0 {
+		n += 1 + sovBackendwork(uint64(m.CreatedAtUnixNano))
+	}
+	if len(m.SkippedCompactionJobIds) > 0 {
+		for _, s := range m.SkippedCompactionJobIds {
+			l = len(s)
+			n += 1 + l + sovBackendwork(uint64(l))
+		}
+	}
+	if m.RescanAfterUnixNano != 0 {
+		n += 1 + sovBackendwork(uint64(m.RescanAfterUnixNano))
+	}
+	return n
+}
+
+func (m *RedactionBatches) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if len(m.Batches) > 0 {
+		for _, e := range m.Batches {
+			l = e.Size()
+			n += 1 + l + sovBackendwork(uint64(l))
+		}
 	}
 	return n
 }
@@ -1380,6 +2384,120 @@ func (m *RetentionDetail) Unmarshal(dAtA []byte) error {
 	}
 	return nil
 }
+func (m *RedactionDetail) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowBackendwork
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: RedactionDetail: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: RedactionDetail: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field BlockId", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowBackendwork
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthBackendwork
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthBackendwork
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.BlockId = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field TraceIds", wireType)
+			}
+			var byteLen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowBackendwork
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				byteLen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if byteLen < 0 {
+				return ErrInvalidLengthBackendwork
+			}
+			postIndex := iNdEx + byteLen
+			if postIndex < 0 {
+				return ErrInvalidLengthBackendwork
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.TraceIds = append(m.TraceIds, make([]byte, postIndex-iNdEx))
+			copy(m.TraceIds[len(m.TraceIds)-1], dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipBackendwork(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthBackendwork
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
 func (m *JobDetail) Unmarshal(dAtA []byte) error {
 	l := len(dAtA)
 	iNdEx := 0
@@ -1512,6 +2630,74 @@ func (m *JobDetail) Unmarshal(dAtA []byte) error {
 			if err := m.Retention.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
 				return err
 			}
+			iNdEx = postIndex
+		case 4:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Redaction", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowBackendwork
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthBackendwork
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthBackendwork
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.Redaction == nil {
+				m.Redaction = &RedactionDetail{}
+			}
+			if err := m.Redaction.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 5:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field BatchId", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowBackendwork
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthBackendwork
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthBackendwork
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.BatchId = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
 		default:
 			iNdEx = preIndex
@@ -1898,6 +3084,42 @@ func (m *UpdateJobStatusRequest) Unmarshal(dAtA []byte) error {
 				return err
 			}
 			iNdEx = postIndex
+		case 5:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Redaction", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowBackendwork
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthBackendwork
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthBackendwork
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.Redaction == nil {
+				m.Redaction = &RedactionResult{}
+			}
+			if err := m.Redaction.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
 		default:
 			iNdEx = preIndex
 			skippy, err := skipBackendwork(dAtA[iNdEx:])
@@ -1968,6 +3190,590 @@ func (m *UpdateJobStatusResponse) Unmarshal(dAtA []byte) error {
 				}
 			}
 			m.Success = bool(v != 0)
+		default:
+			iNdEx = preIndex
+			skippy, err := skipBackendwork(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthBackendwork
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *SubmitRedactionRequest) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowBackendwork
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: SubmitRedactionRequest: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: SubmitRedactionRequest: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field TenantId", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowBackendwork
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthBackendwork
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthBackendwork
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.TenantId = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field TraceIds", wireType)
+			}
+			var byteLen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowBackendwork
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				byteLen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if byteLen < 0 {
+				return ErrInvalidLengthBackendwork
+			}
+			postIndex := iNdEx + byteLen
+			if postIndex < 0 {
+				return ErrInvalidLengthBackendwork
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.TraceIds = append(m.TraceIds, make([]byte, postIndex-iNdEx))
+			copy(m.TraceIds[len(m.TraceIds)-1], dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipBackendwork(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthBackendwork
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *SubmitRedactionResponse) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowBackendwork
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: SubmitRedactionResponse: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: SubmitRedactionResponse: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field BatchId", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowBackendwork
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthBackendwork
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthBackendwork
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.BatchId = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 2:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field JobsCreated", wireType)
+			}
+			m.JobsCreated = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowBackendwork
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.JobsCreated |= int32(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		default:
+			iNdEx = preIndex
+			skippy, err := skipBackendwork(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthBackendwork
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *RedactionResult) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowBackendwork
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: RedactionResult: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: RedactionResult: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field TracesFound", wireType)
+			}
+			m.TracesFound = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowBackendwork
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.TracesFound |= int32(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		default:
+			iNdEx = preIndex
+			skippy, err := skipBackendwork(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthBackendwork
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *RedactionBatch) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowBackendwork
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: RedactionBatch: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: RedactionBatch: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field BatchId", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowBackendwork
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthBackendwork
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthBackendwork
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.BatchId = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field TenantId", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowBackendwork
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthBackendwork
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthBackendwork
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.TenantId = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 3:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field TraceIds", wireType)
+			}
+			var byteLen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowBackendwork
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				byteLen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if byteLen < 0 {
+				return ErrInvalidLengthBackendwork
+			}
+			postIndex := iNdEx + byteLen
+			if postIndex < 0 {
+				return ErrInvalidLengthBackendwork
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.TraceIds = append(m.TraceIds, make([]byte, postIndex-iNdEx))
+			copy(m.TraceIds[len(m.TraceIds)-1], dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 4:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field CreatedAtUnixNano", wireType)
+			}
+			m.CreatedAtUnixNano = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowBackendwork
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.CreatedAtUnixNano |= int64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 5:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field SkippedCompactionJobIds", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowBackendwork
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthBackendwork
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthBackendwork
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.SkippedCompactionJobIds = append(m.SkippedCompactionJobIds, string(dAtA[iNdEx:postIndex]))
+			iNdEx = postIndex
+		case 6:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field RescanAfterUnixNano", wireType)
+			}
+			m.RescanAfterUnixNano = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowBackendwork
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.RescanAfterUnixNano |= int64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		default:
+			iNdEx = preIndex
+			skippy, err := skipBackendwork(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthBackendwork
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *RedactionBatches) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowBackendwork
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: RedactionBatches: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: RedactionBatches: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Batches", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowBackendwork
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthBackendwork
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthBackendwork
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Batches = append(m.Batches, &RedactionBatch{})
+			if err := m.Batches[len(m.Batches)-1].Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
 		default:
 			iNdEx = preIndex
 			skippy, err := skipBackendwork(dAtA[iNdEx:])
