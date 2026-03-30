@@ -86,7 +86,7 @@ otelcol.exporter.otlp "default" {
 ```
 
 Span metrics are also used in the service graph view.
-For more information, refer to the [service graph view](https://grafana.com/docs/tempo/<TEMPO_VERSION>/metrics-from-traces/service_graphs/service-graph-view).
+For more information, refer to the [service graph view](https://grafana.com/docs/tempo/<TEMPO_VERSION>/metrics-from-traces/service_graphs/service-graph-view/).
 
 To see all the available configuration options, refer to the [component reference](https://grafana.com/docs/alloy/latest/reference/components/otelcol.connector.spanmetrics/).
 
