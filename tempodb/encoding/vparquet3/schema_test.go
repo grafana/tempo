@@ -215,13 +215,13 @@ func TestTraceToParquet(t *testing.T) {
 							HttpStatusCode: intPtr(201),
 							Attrs: []Attribute{
 								{Key: "span.attr", Value: strPtr("aaa")},
+								{Key: "dedicated.span.5", Value: strPtr("dedicated-span-attr-value-5")},
 							},
 							DedicatedAttributes: DedicatedAttributes{
 								String01: strPtr("dedicated-span-attr-value-1"),
 								String02: strPtr("dedicated-span-attr-value-2"),
 								String03: strPtr("dedicated-span-attr-value-3"),
 								String04: strPtr("dedicated-span-attr-value-4"),
-								String05: strPtr("dedicated-span-attr-value-5"),
 							},
 						}},
 					}},
