@@ -338,13 +338,12 @@ func makeTraces() ([]*Trace, map[string]string, map[string]string, map[string]st
 		String02: ptr("dedicated-span-attr-value-2"),
 		String03: ptr("dedicated-span-attr-value-3"),
 		String04: ptr("dedicated-span-attr-value-4"),
-		String05: ptr("dedicated-span-attr-value-5"),
 	}
 	spanAttrVals["dedicated.span.1"] = *dedicatedSpanAttrs.String01
 	spanAttrVals["dedicated.span.2"] = *dedicatedSpanAttrs.String02
 	spanAttrVals["dedicated.span.3"] = *dedicatedSpanAttrs.String03
 	spanAttrVals["dedicated.span.4"] = *dedicatedSpanAttrs.String04
-	spanAttrVals["dedicated.span.5"] = *dedicatedSpanAttrs.String05
+	spanAttrVals["dedicated.span.5"] = "dedicated-span-attr-value-5"
 
 	for i := 0; i < 10; i++ {
 		tr := &Trace{
@@ -398,6 +397,10 @@ func makeTraces() ([]*Trace, map[string]string, map[string]string, map[string]st
 						{
 							Key:   key,
 							Value: &val,
+						},
+						{
+							Key:   "dedicated.span.5",
+							Value: ptr(spanAttrVals["dedicated.span.5"]), // ptr("dedicated-span-attr-value-5"),
 						},
 					},
 					DedicatedAttributes: dedicatedSpanAttrs,
