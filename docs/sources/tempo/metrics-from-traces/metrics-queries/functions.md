@@ -19,7 +19,7 @@ You can answer questions about system behavior by aggregating trace data on-the-
 
 ## Available functions
 
-[TraceQL](http://grafana.com/docs/tempo/<TEMPO_VERSION>/traceql/) supports `rate`, `count_over_time`, `sum_over_time`, `min_over_time`, `avg_over_time`, `quantile_over_time`,
+[TraceQL](http://grafana.com/docs/tempo/<TEMPO_VERSION>/traceql/) supports `rate`, `count_over_time`, `sum_over_time`, `min_over_time`, `max_over_time`, `avg_over_time`, `quantile_over_time`,
 `histogram_over_time`, and `compare` functions. These methods can be appended to any TraceQL query to calculate and
 return the desired metrics like:
 
@@ -316,7 +316,7 @@ The supported comparison operators are `>`, `>=`, `<`, `<=`, `=`, and `!=`.
 You can compare against integers, floats, and durations, for example, `1s` or `500ms`.
 
 {{< admonition type="note" >}}
-Comparison operators aren't supported with the `compare()` function.
+Comparison operators, `topk`, and `bottomk` aren't supported with the `compare()` function.
 {{< /admonition >}}
 
 Data points that don't match the condition are removed from the results.
@@ -367,7 +367,7 @@ Sampling hints work alongside comparison operators:
 ## Data sampling
 
 TraceQL metrics queries support sampling to optimize performance and control sampling behavior.
-There are three sampling methods available:
+There are four sampling methods available:
 
 - Dynamic sampling using `with(sample=true)`, which automatically determines the optimal sampling strategy and amount based on query characteristics.
 - Fixed sampling using `with(sample=0.xx)`
@@ -401,7 +401,7 @@ Samples a fixed percentage of spans for span-level aggregations.
 Samples a fixed percentage of traces for trace-level aggregations.
 
 ```
-{ } | count() by (resource.service.name) with(trace_sample=0.05)
+{ } | count_over_time() by (resource.service.name) with(trace_sample=0.05)
 ```
 
 ## The `compare` function
@@ -414,7 +414,7 @@ The `compare` function splits a set of spans into two groups: a selection and a 
 It returns time-series for all attributes found on the spans to highlight the differences between the two groups.
 
 This powerful function is best understood by using the [**Comparison** tab in Traces Drilldown](https://grafana.com/docs/grafana/<GRAFANA_VERSION>/explore/simplified-exploration/traces/investigate/analyze-tracing-data/#use-the-comparison-tab).
-You can also under this function by looking at example outputs below.
+You can also understand this function by looking at example outputs below.
 
 The function is used like other metrics functions: when it's placed after any trace query, it converts the query into a
 metrics query:
