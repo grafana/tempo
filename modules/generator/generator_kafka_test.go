@@ -7,6 +7,7 @@ import (
 
 	"github.com/go-kit/log"
 	"github.com/grafana/tempo/pkg/ingest"
+	"github.com/grafana/tempo/pkg/ingest/ingesttest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/twmb/franz-go/pkg/kfake"
@@ -140,7 +141,7 @@ func TestStopKafka_LeaveGroupConditional(t *testing.T) {
 				logger:      log.NewNopLogger(),
 				kafkaStop:   func() {},
 				kafkaCh:     make(chan *kgo.Record, 1),
-				kafkaClient: ingest.NewClientForTesting(kgoClient),
+				kafkaClient: ingesttest.NewClient(kgoClient),
 				leaveGroupFn: func(_ context.Context) error {
 					leaveCalled = true
 					return nil
