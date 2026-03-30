@@ -11,12 +11,12 @@ import (
 	"github.com/twmb/franz-go/pkg/kgo"
 )
 
-// newGetGroupLagCluster creates a kfake cluster with the given number of partitions
-// for topicName (defined in partition_offset_client_test.go as "test").
+// newGetGroupLagCluster creates a kfake cluster with 2 partitions for topicName
+// (defined in partition_offset_client_test.go as "test").
 // Returns the kgo client, kadm admin client, and partition offset client.
-func newGetGroupLagCluster(t *testing.T, numPartitions int32) (*kgo.Client, *kadm.Client, *PartitionOffsetClient) {
+func newGetGroupLagCluster(t *testing.T) (*kgo.Client, *kadm.Client, *PartitionOffsetClient) {
 	t.Helper()
-	fake, err := kfake.NewCluster(kfake.NumBrokers(1), kfake.SeedTopics(numPartitions, topicName))
+	fake, err := kfake.NewCluster(kfake.NumBrokers(1), kfake.SeedTopics(2, topicName))
 	require.NoError(t, err)
 	t.Cleanup(fake.Close)
 
@@ -46,7 +46,7 @@ func TestGetGroupLag(t *testing.T) {
 
 	t.Run("empty assigned partitions returns empty lag", func(t *testing.T) {
 		t.Parallel()
-		_, adm, partClient := newGetGroupLagCluster(t, 2)
+		_, adm, partClient := newGetGroupLagCluster(t)
 
 		lag, err := getGroupLag(ctx, adm, partClient, "test-group", topicName, nil)
 		require.NoError(t, err)
@@ -55,7 +55,7 @@ func TestGetGroupLag(t *testing.T) {
 
 	t.Run("no commit falls back to start offset", func(t *testing.T) {
 		t.Parallel()
-		client, adm, partClient := newGetGroupLagCluster(t, 2)
+		client, adm, partClient := newGetGroupLagCluster(t)
 
 		// Produce 5 records to partition 0; end=5, start=0.
 		for range 5 {
@@ -72,7 +72,7 @@ func TestGetGroupLag(t *testing.T) {
 
 	t.Run("committed offset produces positive lag", func(t *testing.T) {
 		t.Parallel()
-		client, adm, partClient := newGetGroupLagCluster(t, 2)
+		client, adm, partClient := newGetGroupLagCluster(t)
 
 		for range 5 {
 			produceRecord(ctx, t, client, 0, []byte("x"))
@@ -90,7 +90,7 @@ func TestGetGroupLag(t *testing.T) {
 
 	t.Run("commit ahead of end is clamped to zero", func(t *testing.T) {
 		t.Parallel()
-		client, adm, partClient := newGetGroupLagCluster(t, 2)
+		client, adm, partClient := newGetGroupLagCluster(t)
 
 		for range 3 {
 			produceRecord(ctx, t, client, 0, []byte("x"))
@@ -108,7 +108,7 @@ func TestGetGroupLag(t *testing.T) {
 
 	t.Run("multiple partitions reported independently", func(t *testing.T) {
 		t.Parallel()
-		client, adm, partClient := newGetGroupLagCluster(t, 2)
+		client, adm, partClient := newGetGroupLagCluster(t)
 
 		// partition 0: 4 records, committed at 2 → lag 2
 		for range 4 {
