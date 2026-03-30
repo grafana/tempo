@@ -74,8 +74,8 @@ type Generator struct {
 	assignedPartitions []int32
 
 	// leaveGroupFn is called by stopKafka when LeaveConsumerGroupOnShutdown is
-	// true. If nil, defaults to ingest.LeaveConsumerGroupByInstanceID. Can be
-	// overridden in tests.
+	// true. It is initialized in New to call ingest.LeaveConsumerGroupByInstanceID
+	// and can be overridden in tests.
 	leaveGroupFn func(ctx context.Context) error
 }
 
