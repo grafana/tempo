@@ -89,6 +89,42 @@ If you want to enable metrics-generator for your Grafana Cloud account, refer to
 Enabling metrics generation and remote writing them to Grafana Cloud Metrics produces extra active series that could impact your billing.
 For more information on billing, refer to [Understand your invoice](/docs/grafana-cloud/cost-management-and-billing/understand-your-invoice/).
 
+## Partition handoff during rollouts
+
+The metrics-generator uses Kafka static membership (`instance_id`) so that a pod restarting
+with the same identity can rejoin the consumer group immediately — without waiting for the
+session timeout — and reclaim its previously held partitions.
+This is the right behaviour for **StatefulSet** deployments, where pod names are stable across
+restarts (for example, `metrics-generator-0`).
+
+For **Deployment** deployments, pod names change on every restart (for example,
+`metrics-generator-7f9d4b6c5-xk2pj`).
+Because the new pod has a different name, it registers as a new static member, and the old
+member slot holds its partitions until the session timeout expires (typically several minutes).
+During that window the partitions are idle and no metrics are generated from the corresponding
+trace data.
+
+To avoid this delay, set `leave_consumer_group_on_shutdown: true` on the metrics-generator.
+When enabled, the shutting-down pod explicitly sends a `LeaveGroup` request to the Kafka
+coordinator before closing.
+The coordinator can then reassign the partitions immediately to the new pod, rather than waiting
+for the session timeout.
+
+```yaml
+metrics_generator:
+  leave_consumer_group_on_shutdown: true  # recommended for Deployment rollouts
+```
+
+Set `leave_consumer_group_on_shutdown: false` (the default) for StatefulSet deployments.
+With a stable `instance_id`, sending `LeaveGroup` on shutdown would cause an unnecessary
+leave-and-rejoin rebalance on every restart, briefly interrupting metrics generation for all
+tenants sharing the same consumer group.
+
+{{< admonition type="note" >}}
+`leave_consumer_group_on_shutdown` requires Kafka 2.4 or later, which introduced the
+per-member `InstanceID` field in the `LeaveGroup` request (KIP-345).
+{{< /admonition >}}
+
 ## Multitenancy
 
 Tempo supports multitenancy in the metrics-generator through the use of environment variables and per-tenant overrides.
