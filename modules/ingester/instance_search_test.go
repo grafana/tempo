@@ -1065,21 +1065,21 @@ func Test_searchTagValuesV2CacheKey(t *testing.T) {
 			req:              &tempopb.SearchTagValuesRequest{TagName: "span.foo", Query: `{ name = "foo" && span.env = }`},
 			limit:            500,
 			prefix:           "my_amazing_prefix",
-			expectedCacheKey: "my_amazing_prefix_9241051696576633442.buf",
+			expectedCacheKey: "my_amazing_prefix_15848385157282873904.buf",
 		},
 		{
 			name:             "different incomplete part, same valid part",
 			req:              &tempopb.SearchTagValuesRequest{TagName: "span.foo", Query: `{ name = "foo" && span.attr = }`},
 			limit:            500,
 			prefix:           "my_amazing_prefix",
-			expectedCacheKey: "my_amazing_prefix_9241051696576633442.buf",
+			expectedCacheKey: "my_amazing_prefix_5983657085942064414.buf",
 		},
 		{
 			name:             "partially valid query generates a valid cache key",
 			req:              &tempopb.SearchTagValuesRequest{TagName: "span.foo", Query: "{span.env=dev}"},
 			limit:            500,
 			prefix:           "my_amazing_prefix",
-			expectedCacheKey: "my_amazing_prefix_7849238702443650194.buf",
+			expectedCacheKey: "my_amazing_prefix_10962052365504419966.buf",
 		},
 		{
 			name:             "invalid query generates a valid cache key",
@@ -1095,20 +1095,21 @@ func Test_searchTagValuesV2CacheKey(t *testing.T) {
 			prefix:           "my_amazing_prefix",
 			expectedCacheKey: "my_amazing_prefix_10962052365504419966.buf",
 		},
-		// the key is different because after extracting matchers, the query is still invalid and we fallback to empty query
+		// These queries are completely invalid TraceQL - the old regex would extract garbage matchers
+		// (e.g. "< not", "< oh") but the new parser-based approach correctly returns empty query.
 		{
 			name:             "different invalid query generates the same valid cache key",
 			req:              &tempopb.SearchTagValuesRequest{TagName: "span.foo", Query: "{ < not valid traceql > }"},
 			limit:            500,
 			prefix:           "my_amazing_prefix",
-			expectedCacheKey: "my_amazing_prefix_7849238702443650194.buf",
+			expectedCacheKey: "my_amazing_prefix_10962052365504419966.buf",
 		},
 		{
 			name:             "different invalid query generates the same valid cache key",
 			req:              &tempopb.SearchTagValuesRequest{TagName: "span.foo", Query: "{ < oh no, not valid traceql > }"},
 			limit:            500,
 			prefix:           "my_amazing_prefix",
-			expectedCacheKey: "my_amazing_prefix_7849238702443650194.buf",
+			expectedCacheKey: "my_amazing_prefix_10962052365504419966.buf",
 		},
 	}
 

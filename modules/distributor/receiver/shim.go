@@ -9,6 +9,7 @@ import (
 	"github.com/go-kit/log/level"
 	dslog "github.com/grafana/dskit/log"
 	"github.com/grafana/dskit/services"
+	"github.com/grafana/dskit/user"
 	zaplogfmt "github.com/jsternberg/zap-logfmt"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/jaegerreceiver"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/kafkareceiver"
@@ -27,6 +28,7 @@ import (
 	"go.opentelemetry.io/collector/receiver/otlpreceiver"
 	"go.opentelemetry.io/collector/service/telemetry/otelconftelemetry"
 	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
 	otelcodes "go.opentelemetry.io/otel/codes"
 	"go.uber.org/multierr"
 	"go.uber.org/zap"
@@ -49,7 +51,7 @@ var (
 	metricPushDuration = promauto.NewHistogram(prometheus.HistogramOpts{
 		Namespace:                       "tempo",
 		Name:                            "distributor_push_duration_seconds",
-		Help:                            "Records the amount of time to push a batch to the ingester.",
+		Help:                            "Records the amount of time to process and route a batch through the distributor.",
 		Buckets:                         prometheus.DefBuckets,
 		NativeHistogramBucketFactor:     1.1,
 		NativeHistogramMaxBucketNumber:  100,
@@ -344,13 +346,22 @@ func (r *receiversShim) ConsumeTraces(ctx context.Context, td ptrace.Traces) err
 	ctx, span := tracer.Start(ctx, "distributor.ConsumeTraces")
 	defer span.End()
 
+	tenant, tenantErr := user.ExtractOrgID(ctx)
+	if tenantErr == nil {
+		span.SetAttributes(attribute.String("orgID", tenant))
+	}
+
 	var err error
 
 	start := time.Now()
 	_, err = r.pusher.PushTraces(ctx, td)
 	metricPushDuration.Observe(time.Since(start).Seconds())
 	if err != nil {
-		r.logger.Log("msg", "pusher failed to consume trace data", "err", err)
+		if tenantErr == nil {
+			r.logger.Log("msg", "pusher failed to consume trace data", "tenant", tenant, "err", err)
+		} else {
+			r.logger.Log("msg", "pusher failed to consume trace data", "err", err)
+		}
 		span.SetStatus(otelcodes.Error, err.Error())
 		retryInfoEnabled, e := r.pusher.RetryInfoEnabled(ctx)
 		if e != nil {

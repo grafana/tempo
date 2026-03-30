@@ -91,18 +91,20 @@ type ServiceGraphsOverrides struct {
 	EnableMessagingSystemLatencyHistogram *bool                       `yaml:"enable_messaging_system_latency_histogram,omitempty" json:"enable_messaging_system_latency_histogram,omitempty"`
 	EnableVirtualNodeLabel                *bool                       `yaml:"enable_virtual_node_label,omitempty" json:"enable_virtual_node_label,omitempty"`
 	SpanMultiplierKey                     string                      `yaml:"span_multiplier_key,omitempty" json:"span_multiplier_key,omitempty"`
+	EnableTraceStateSpanMultiplier        *bool                       `yaml:"enable_tracestate_span_multiplier,omitempty" json:"enable_tracestate_span_multiplier,omitempty"`
 }
 
 type SpanMetricsOverrides struct {
-	HistogramBuckets             []float64                        `yaml:"histogram_buckets,omitempty" json:"histogram_buckets,omitempty"`
-	Dimensions                   []string                         `yaml:"dimensions,omitempty" json:"dimensions,omitempty"`
-	IntrinsicDimensions          map[string]bool                  `yaml:"intrinsic_dimensions,omitempty" json:"intrinsic_dimensions,omitempty"`
-	FilterPolicies               []filterconfig.FilterPolicy      `yaml:"filter_policies,omitempty" json:"filter_policies,omitempty"`
-	DimensionMappings            []sharedconfig.DimensionMappings `yaml:"dimension_mappings,omitempty" json:"dimension_mapings,omitempty"`
-	EnableTargetInfo             *bool                            `yaml:"enable_target_info,omitempty" json:"enable_target_info,omitempty"`
-	TargetInfoExcludedDimensions []string                         `yaml:"target_info_excluded_dimensions,omitempty" json:"target_info_excluded_dimensions,omitempty"`
-	EnableInstanceLabel          *bool                            `yaml:"enable_instance_label,omitempty" json:"enable_instance_label,omitempty"`
-	SpanMultiplierKey            string                           `yaml:"span_multiplier_key,omitempty" json:"span_multiplier_key,omitempty"`
+	HistogramBuckets               []float64                        `yaml:"histogram_buckets,omitempty" json:"histogram_buckets,omitempty"`
+	Dimensions                     []string                         `yaml:"dimensions,omitempty" json:"dimensions,omitempty"`
+	IntrinsicDimensions            map[string]bool                  `yaml:"intrinsic_dimensions,omitempty" json:"intrinsic_dimensions,omitempty"`
+	FilterPolicies                 []filterconfig.FilterPolicy      `yaml:"filter_policies,omitempty" json:"filter_policies,omitempty"`
+	DimensionMappings              []sharedconfig.DimensionMappings `yaml:"dimension_mappings,omitempty" json:"dimension_mapings,omitempty"`
+	EnableTargetInfo               *bool                            `yaml:"enable_target_info,omitempty" json:"enable_target_info,omitempty"`
+	TargetInfoExcludedDimensions   []string                         `yaml:"target_info_excluded_dimensions,omitempty" json:"target_info_excluded_dimensions,omitempty"`
+	EnableInstanceLabel            *bool                            `yaml:"enable_instance_label,omitempty" json:"enable_instance_label,omitempty"`
+	SpanMultiplierKey              string                           `yaml:"span_multiplier_key,omitempty" json:"span_multiplier_key,omitempty"`
+	EnableTraceStateSpanMultiplier *bool                            `yaml:"enable_tracestate_span_multiplier,omitempty" json:"enable_tracestate_span_multiplier,omitempty"`
 }
 
 type HostInfoOverrides struct {
@@ -137,14 +139,14 @@ type MetricsGeneratorOverrides struct {
 	MaxActiveEntities        uint32                     `yaml:"max_active_entities,omitempty" json:"max_active_entities,omitempty"`
 	CollectionInterval       time.Duration              `yaml:"collection_interval,omitempty" json:"collection_interval,omitempty"`
 	DisableCollection        bool                       `yaml:"disable_collection,omitempty" json:"disable_collection,omitempty"`
-	GenerateNativeHistograms histograms.HistogramMethod `yaml:"generate_native_histograms" json:"generate_native_histograms,omitempty"`
+	GenerateNativeHistograms histograms.HistogramMethod `yaml:"generate_native_histograms,omitempty" json:"generate_native_histograms,omitempty"`
 	TraceIDLabelName         string                     `yaml:"trace_id_label_name,omitempty" json:"trace_id_label_name,omitempty"`
 
 	RemoteWriteHeaders RemoteWriteHeaders `yaml:"remote_write_headers,omitempty" json:"remote_write_headers,omitempty"`
 
 	Forwarder      ForwarderOverrides `yaml:"forwarder,omitempty" json:"forwarder,omitempty"`
 	Processor      ProcessorOverrides `yaml:"processor,omitempty" json:"processor,omitempty"`
-	IngestionSlack time.Duration      `yaml:"ingestion_time_range_slack" json:"ingestion_time_range_slack,omitempty"`
+	IngestionSlack time.Duration      `yaml:"ingestion_time_range_slack,omitempty" json:"ingestion_time_range_slack,omitempty"`
 
 	NativeHistogramBucketFactor     float64       `yaml:"native_histogram_bucket_factor,omitempty" json:"native_histogram_bucket_factor,omitempty"`
 	NativeHistogramMaxBucketNumber  uint32        `yaml:"native_histogram_max_bucket_number,omitempty" json:"native_histogram_max_bucket_number,omitempty"`
@@ -219,6 +221,11 @@ type Config struct {
 
 	UserConfigurableOverridesConfig UserConfigurableOverridesConfig `yaml:"user_configurable_overrides" json:"user_configurable_overrides"`
 
+	// EnableLegacyOverrides allows using the deprecated legacy (flat, unscoped) overrides format.
+	// Legacy overrides are disabled by default. Set this to true to opt back in while migrating
+	// to the new format. This option will be removed in a future release.
+	EnableLegacyOverrides bool `yaml:"enable_legacy_overrides" json:"enable_legacy_overrides"`
+
 	ConfigType ConfigType `yaml:"-" json:"-"`
 	ExpandEnv  bool       `yaml:"-" json:"-"`
 }
@@ -243,12 +250,15 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		PerTenantOverridePeriod model.Duration `yaml:"per_tenant_override_period"`
 
 		UserConfigurableOverridesConfig UserConfigurableOverridesConfig `yaml:"user_configurable_overrides"`
+
+		EnableLegacyOverrides bool `yaml:"enable_legacy_overrides"`
 	}
 	var legacyCfg legacyConfig
 	legacyCfg.DefaultOverrides = c.Defaults.toLegacy()
 	legacyCfg.PerTenantOverrideConfig = c.PerTenantOverrideConfig
 	legacyCfg.PerTenantOverridePeriod = c.PerTenantOverridePeriod
 	legacyCfg.UserConfigurableOverridesConfig = c.UserConfigurableOverridesConfig
+	legacyCfg.EnableLegacyOverrides = c.EnableLegacyOverrides
 
 	if legacyErr := unmarshal(&legacyCfg); legacyErr != nil {
 		return fmt.Errorf("failed to unmarshal config: %w; also failed in legacy format: %w", err, legacyErr)
@@ -258,6 +268,7 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	c.PerTenantOverrideConfig = legacyCfg.PerTenantOverrideConfig
 	c.PerTenantOverridePeriod = legacyCfg.PerTenantOverridePeriod
 	c.UserConfigurableOverridesConfig = legacyCfg.UserConfigurableOverridesConfig
+	c.EnableLegacyOverrides = legacyCfg.EnableLegacyOverrides
 	c.ConfigType = ConfigTypeLegacy
 	return nil
 }
@@ -291,6 +302,7 @@ func (c *Config) RegisterFlagsAndApplyDefaults(f *flag.FlagSet) {
 	f.StringVar(&c.PerTenantOverrideConfig, "config.per-user-override-config", "", "File name of per-user Overrides.")
 	_ = c.PerTenantOverridePeriod.Set("10s")
 	f.Var(&c.PerTenantOverridePeriod, "config.per-user-override-period", "Period with this to reload the Overrides.")
+	f.BoolVar(&c.EnableLegacyOverrides, "config.enable-legacy-overrides", false, "Enable the deprecated legacy overrides format. This is disabled by default and will be removed in a future release.")
 
 	c.UserConfigurableOverridesConfig.RegisterFlagsAndApplyDefaults(f)
 }

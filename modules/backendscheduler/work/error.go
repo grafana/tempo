@@ -12,4 +12,6 @@ var (
 	ErrTenantNotFound = errors.New("tenant not found")
 	// ErrTenantMissing is returned when a tenant is not specified
 	ErrTenantMissing = errors.New("tenant missing")
+	// ErrBatchAlreadyExists is returned when a redaction batch already exists for a tenant.
+	ErrBatchAlreadyExists = errors.New("redaction batch already exists for tenant")
 )

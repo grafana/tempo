@@ -103,6 +103,23 @@
       },
     },
 
+    query_frontend+: {
+      vpa: {
+        enabled: false,
+        update_mode: 'Auto',
+        target_resources: ['cpu', 'memory'],
+
+        cpu: {
+          min: '100m',
+          max: '2',
+        },
+        memory: {
+          min: '1Gi',
+          max: '4Gi',
+        },
+      },
+    },
+
     querier+: {
       vpa: {
         enabled: false,

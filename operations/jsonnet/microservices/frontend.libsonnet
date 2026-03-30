@@ -18,7 +18,6 @@
   tempo_query_frontend_args:: {
     target: target_name,
     'config.file': '/conf/tempo.yaml',
-    'mem-ballast-size-mbs': $._config.ballast_size_mbs,
   },
 
   tempo_query_frontend_container::
@@ -90,6 +89,9 @@
     + service.mixin.spec.withPublishNotReadyAddresses(true)
     + service.mixin.spec.withClusterIp('None')
     + service.mixin.metadata.withName('query-frontend-discovery'),
+
+  // Vertical Pod Autoscaler
+  tempo_query_frontend_vpa: $.vpaForController($.tempo_query_frontend_deployment, 'query_frontend'),
 
   // Pod Disruption Budget
   tempo_query_frontend_pdb: $.pdbForController($.tempo_query_frontend_deployment, 'query_frontend'),

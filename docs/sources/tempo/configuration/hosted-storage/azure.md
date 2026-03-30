@@ -79,10 +79,12 @@ tempo:
 In distributed mode, the `trace` configuration needs to be applied against the `storage` object, which resides at the root of the Values object. Additionally, the `extraArgs` and `extraEnv` configuration need to be applied to each of the following services:
 
 - `distributor`
-- `compactor`
-- `ingester`
+- `blockBuilder`
+- `liveStore`
 - `querier`
 - `queryFrontend`
+- `backendScheduler`
+- `backendWorker`
 
 Distributed mode is usually installed using a Helm chart, like `tempo-distributed`.
 To use this example, add it to your `custom.yaml` or `values.yaml` file.
@@ -106,7 +108,7 @@ distributor:
           name: tempo-traces-stg-key
           key: tempo-traces-key
 
-compactor:
+blockBuilder:
   extraArgs:
     - "-config.expand-env=true"
   extraEnv:
@@ -116,7 +118,7 @@ compactor:
           name: tempo-traces-stg-key
           key: tempo-traces-key
 
-ingester:
+liveStore:
   extraArgs:
     - "-config.expand-env=true"
   extraEnv:
@@ -145,34 +147,31 @@ queryFrontend:
         secretKeyRef:
           name: tempo-traces-stg-key
           key: tempo-traces-key
+
+backendScheduler:
+  extraArgs:
+    - "-config.expand-env=true"
+  extraEnv:
+    - name: STORAGE_ACCOUNT_ACCESS_KEY
+      valueFrom:
+        secretKeyRef:
+          name: tempo-traces-stg-key
+          key: tempo-traces-key
+
+backendWorker:
+  extraArgs:
+    - "-config.expand-env=true"
+  extraEnv:
+    - name: STORAGE_ACCOUNT_ACCESS_KEY
+      valueFrom:
+        secretKeyRef:
+          name: tempo-traces-stg-key
+          key: tempo-traces-key
 ```
 
-### Azure Workload Identity
+#### Use `metrics-generator` with Azure storage
 
-Here is an example configuration using Azure Workload Identity.
-
-```yaml
-tempo:
-  podLabels:
-    "azure.workload.identity/use": "true"
-serviceAccount:
-  name: tempo
-  annotations:
-    "azure.workload.identity/client-id": <AZURE-APP-CLIENT-ID>
-  labels:
-    "azure.workload.identity/use": "true"
-storage:
-  trace:
-    backend: azure
-    azure:
-      container_name: <AZURE-STORAGE-CONTAINER-NAME>
-      storage_account_name: <AZURE-STORAGE-ACCOUNT-NAME>
-      use_federated_token: true
-```
-
-#### Use `local_blocks` and `metrics-generator`
-
-[//]: # "Shared content for localblocks and metrics-generator in Azure blob storage"
+[//]: # "Shared content for metrics-generator in Azure blob storage"
 [//]: # "This content is located in /tempo/docs/sources/shared/azure-metrics-generator.md"
 
 {{< docs/shared source="tempo" lookup="azure-metrics-generator.md" version="<TEMPO_VERSION>" >}}

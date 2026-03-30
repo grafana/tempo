@@ -38,6 +38,11 @@ var (
 		Name:      "backend_scheduler_jobs_not_found_total",
 		Help:      "The number of calls to get a job that were not found",
 	}, []string{"worker_id"})
+	metricJobsDropped = promauto.NewCounterVec(prometheus.CounterOpts{
+		Namespace: "tempo",
+		Name:      "backend_scheduler_jobs_dropped_total",
+		Help:      "Total number of jobs dropped at assignment time because preconditions were no longer met",
+	}, []string{"tenant", "job_type"})
 	metricProviderJobsMerged = promauto.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "tempo",
 		Name:      "backend_scheduler_provider_jobs_merged_total",

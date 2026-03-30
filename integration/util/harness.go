@@ -510,7 +510,7 @@ func (h *TempoHarness) startMicroservices(t *testing.T, config TestHarnessConfig
 	}
 
 	if config.Components&componentsBackendSchedulerWorker != 0 {
-		scheduler := NewTempoService("backend-scheduler", "backend-scheduler", readinessProbe, nil)
+		scheduler := NewTempoService("backend-scheduler", "backend-scheduler", readinessProbe, []int{9095})
 		worker := NewTempoService("backend-worker", "backend-worker", readinessProbe, nil)
 		h.Services[ServiceBackendScheduler] = scheduler
 		h.Services[ServiceBackendWorker] = worker

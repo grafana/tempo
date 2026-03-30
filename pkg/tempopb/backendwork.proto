@@ -10,15 +10,21 @@ option (gogoproto.unmarshaler_all) = true;
 service BackendScheduler {
   // Get next available job
   rpc Next(NextJobRequest) returns (NextJobResponse) {}
-  
+
   // Update job status
   rpc UpdateJob(UpdateJobStatusRequest) returns (UpdateJobStatusResponse) {}
+
+  // Submit a redaction request. The caller provides a tenant ID and trace IDs to remove.
+  // The scheduler discovers all blocks for the tenant and fans out one internal pending
+  // job per block.
+  rpc SubmitRedaction(SubmitRedactionRequest) returns (SubmitRedactionResponse) {}
 }
 
 enum JobType {
   JOB_TYPE_UNSPECIFIED = 0;
   JOB_TYPE_COMPACTION = 1;
   JOB_TYPE_RETENTION = 2;
+  JOB_TYPE_REDACTION = 3;
 }
 
 enum JobStatus {
@@ -41,6 +47,17 @@ message RetentionDetail {
   option (gogoproto.compare) = true;
 }
 
+// RedactionDetail contains fields for redaction jobs (one job per block).
+// TraceIds are the trace IDs to redact from the block. Future extension may add
+// traceql/attribute-based redaction.
+message RedactionDetail {
+  option (gogoproto.equal) = true;
+  option (gogoproto.compare) = true;
+
+  string block_id = 1;       // block to redact
+  repeated bytes trace_ids = 2;  // trace IDs to remove from the block
+}
+
 // JobDetail contains the specific details for each job type
 message JobDetail {
   option (gogoproto.equal) = true;  // Keep equal but remove compare
@@ -49,8 +66,12 @@ message JobDetail {
   // oneof detail {
     CompactionDetail compaction = 2;
     RetentionDetail retention = 3;
-    // CleanupDetail cleanup = 4;
+    RedactionDetail redaction = 4;
   // }
+
+  // batch_id groups the pending jobs that were created from a single SubmitRedaction
+  // call. Enables future Status/Cancel RPCs keyed on the original submission.
+  string batch_id = 5;
 }
 
 message NextJobRequest {
@@ -68,8 +89,59 @@ message UpdateJobStatusRequest {
   JobStatus status = 2;
   string error = 3;  // populated if status is FAILED
   CompactionDetail compaction = 4;
+  RedactionResult redaction = 5;
 }
 
 message UpdateJobStatusResponse {
   bool success = 1;
+}
+
+// SubmitRedactionRequest is the user-facing API for redacting traces from a tenant.
+// The caller provides the tenant and the trace IDs to remove. The scheduler discovers
+// all blocks for the tenant and fans out one internal pending job per block.
+message SubmitRedactionRequest {
+  string tenant_id = 1;
+  repeated bytes trace_ids = 2;
+}
+
+message SubmitRedactionResponse {
+  // batch_id identifies this submission; all resulting pending block jobs share this ID.
+  string batch_id = 1;
+  // jobs_created is the number of pending block-level redaction jobs that were enqueued.
+  int32 jobs_created = 2;
+}
+
+// RedactionResult is reported by the worker when a redaction job completes.
+message RedactionResult {
+  option (gogoproto.equal) = true;
+
+  // traces_found is the number of target trace IDs that were present and removed
+  // from the block. Zero means the block was scanned and found clean.
+  int32 traces_found = 1;
+}
+
+// RedactionBatch holds the trace IDs for an in-flight redaction submission.
+// All pending block jobs for a tenant share one batch to avoid copying the trace ID
+// list into every job (which could be millions of jobs for large tenants).
+// Persisted locally as batches.pb alongside the shard files.
+message RedactionBatch {
+  option (gogoproto.equal) = true;
+
+  string batch_id = 1;
+  string tenant_id = 2;
+  repeated bytes trace_ids = 3;
+  int64 created_at_unix_nano = 4;
+  // skipped_compaction_job_ids holds the IDs of compaction jobs whose input
+  // blocks were skipped at submission time because they were actively compacting.
+  // At rescan time the scheduler looks up these jobs and creates redaction jobs
+  // for their output blocks.
+  repeated string skipped_compaction_job_ids = 5;
+  // rescan_after_unix_nano is the earliest time at which the scheduler should
+  // perform the rescan described above. Zero means no rescan is pending.
+  int64 rescan_after_unix_nano = 6;
+}
+
+// RedactionBatches is the top-level container written to batches.pb.
+message RedactionBatches {
+  repeated RedactionBatch batches = 1;
 }

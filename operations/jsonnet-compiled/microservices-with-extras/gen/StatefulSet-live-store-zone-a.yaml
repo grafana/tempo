@@ -36,6 +36,20 @@ spec:
     spec:
       affinity:
         podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                - key: rollout-group
+                  operator: In
+                  values:
+                  - live-store
+                - key: name
+                  operator: In
+                  values:
+                  - live-store-zone-a
+              topologyKey: kubernetes.io/hostname
+            weight: 100
           requiredDuringSchedulingIgnoredDuringExecution:
           - labelSelector:
               matchExpressions:
@@ -51,7 +65,6 @@ spec:
       containers:
       - args:
         - -config.file=/conf/tempo.yaml
-        - -mem-ballast-size-mbs=1024
         - -target=live-store
         - -live-store.instance-availability-zone=zone-a
         image: grafana/tempo:latest

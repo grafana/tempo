@@ -1,0 +1,75 @@
+{
+  "skill_name": "docs-workflow",
+  "usage_modes": [
+    "full pipeline: runs all three steps (check → write → review) end-to-end on one or more PRs"
+  ],
+  "pr_selection": {
+    "note": "Before running evals, select PRs using the commands in each test case's pr_selection_command field. See .claude/skills/evals/README.md for the full pre-flight process."
+  },
+  "evals": [
+    {
+      "id": 1,
+      "pr_type": "A single merged PR that introduces a user-facing feature or configuration change with no documentation files included in the PR.",
+      "pr_selection_command": "gh pr list --repo grafana/tempo --state merged --limit 100 --json number,title,author,labels,files | jq '[.[] | select(.author.login != \"dependabot[bot]\" and .author.login != \"github-actions[bot]\") | select(.files | map(.path) | any(startswith(\"docs/\")) | not) | select(.labels | map(.name) | any(. == \"type/feature\" or . == \"type/enhancement\" or . == \"add to changelog\"))] | .[0:10]'",
+      "prompt_template": "Run the full docs-workflow for PR #{PR_1}. Target branch is main.",
+      "expected_output": "All three steps run in sequence. Step 1 classifies the PR as 'Docs needed' or 'Docs update needed'. Step 2 creates or updates documentation, presenting changed files before proceeding. Step 3 reviews the changes for style and accuracy. Final output covers classification, files changed, PR-to-doc mapping, open items, and the review report.",
+      "assertions": [
+        "Step 1 (check) produces a classification table with the PR",
+        "The PR is classified as 'Docs needed' or 'Docs update needed' (not 'No docs required')",
+        "Step 1 output is used as input to Step 2 without requiring the user to re-enter it",
+        "Step 2 (write) produces at least one changed file under docs/sources/tempo/",
+        "Step 2 presents changed files and confirms before proceeding to Step 3",
+        "Step 3 (review) runs on the files produced by Step 2",
+        "Step 3 review includes style and/or technical accuracy findings",
+        "Final output ends with the PR/review prompt question"
+      ]
+    },
+    {
+      "id": 2,
+      "pr_type": "Three merged PRs covering different classification outcomes: one user-facing feature with no docs (Docs needed), one PR with changed behavior where partial docs exist (Docs update needed), and one internal-only change (No docs required). Select each from a different area of the codebase.",
+      "pr_selection_command": "gh pr list --repo grafana/tempo --state merged --limit 100 --json number,title,author,labels,files | jq '[.[] | select(.author.login != \"dependabot[bot]\" and .author.login != \"github-actions[bot]\")] | .[0:20]'",
+      "prompt_template": "Run the full docs-workflow for PRs #{PR_1}, #{PR_2}, and #{PR_3}. Target branch is main.",
+      "expected_output": "Step 1 classifies all three PRs. At least one is flagged for docs work; at least one is classified as 'No docs required'. Step 2 only processes PRs that need documentation. Step 3 reviews the files produced by Step 2. Each step's output is clearly labeled. The 'No docs required' PR is excluded from Steps 2 and 3.",
+      "assertions": [
+        "Step 1 classifies all three PRs in a table",
+        "At least one PR is classified as 'No docs required'",
+        "At least one PR is classified as 'Docs needed' or 'Docs update needed'",
+        "Step 2 only processes PRs flagged for docs work by Step 1",
+        "The 'No docs required' PR does not appear in Step 2 output",
+        "Step 2 produces at least one changed file under docs/sources/tempo/",
+        "Step 3 reviews the files from Step 2",
+        "The three steps' outputs are clearly labeled so they can be distinguished",
+        "Final output ends with the PR/review prompt question"
+      ]
+    },
+    {
+      "id": 3,
+      "pr_type": "Two merged PRs that are both internal-only changes (refactors, dependency bumps, test-only changes) with no user-facing impact.",
+      "pr_selection_command": "gh pr list --repo grafana/tempo --state merged --limit 100 --json number,title,author,labels | jq '[.[] | select(.author.login != \"dependabot[bot]\" and .author.login != \"github-actions[bot]\") | select(.labels | map(.name) | any(. == \"type/chore\" or . == \"type/ci\" or . == \"dependencies\" or . == \"type/refactor\" or . == \"type/testing\"))] | .[0:10]'",
+      "prompt_template": "Run the full docs-workflow for PRs #{PR_1} and #{PR_2}. Target branch is main.",
+      "expected_output": "Step 1 classifies both PRs as 'No docs required'. The workflow stops after Step 1 — Steps 2 and 3 are skipped because there is no documentation work to do. The output clearly communicates that no docs changes are needed.",
+      "assertions": [
+        "Step 1 classifies both PRs as 'No docs required'",
+        "Step 2 (write) is skipped or produces no file changes",
+        "Step 3 (review) is skipped",
+        "Output clearly communicates that no documentation work is needed",
+        "The workflow does not create or modify any files under docs/sources/tempo/"
+      ]
+    },
+    {
+      "id": 4,
+      "pr_type": "A merged PR that introduced a breaking change or migration step requiring documentation. Select a PR labeled 'type/breaking-change' or one whose body mentions migration, deprecation, or upgrade steps.",
+      "pr_selection_command": "gh pr list --repo grafana/tempo --state merged --limit 200 --json number,title,author,labels,body | jq '[.[] | select(.author.login != \"dependabot[bot]\" and .author.login != \"github-actions[bot]\") | select(.labels | map(.name) | any(. == \"type/breaking-change\" or . == \"type/deprecation\") or (.body | test(\"(?i)(breaking|migration|deprecat|upgrade)\")))] | .[0:10]'",
+      "prompt_template": "Run the full docs-workflow for PR #{PR_1}. This PR introduces a breaking change. Target branch is main.",
+      "expected_output": "Step 1 classifies the PR as 'Docs needed' or 'Docs update needed' with notes highlighting the breaking change. Step 2 prioritizes the breaking change and includes migration or upgrade guidance in the documentation. Step 3 reviews for accuracy and completeness, verifying that the breaking change is accurately documented.",
+      "assertions": [
+        "Step 1 classification notes mention the breaking change or migration",
+        "Step 2 documentation includes migration or upgrade guidance",
+        "Step 2 produces at least one changed file under docs/sources/tempo/",
+        "Step 3 reviews the breaking change documentation for technical accuracy",
+        "Step 3 verifies claims about the breaking change against code",
+        "Final output ends with the PR/review prompt question"
+      ]
+    }
+  ]
+}

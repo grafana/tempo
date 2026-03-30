@@ -10,6 +10,7 @@ import (
 
 	"github.com/go-kit/log"
 	"github.com/gogo/protobuf/proto"
+	"github.com/google/uuid"
 	"github.com/grafana/dskit/kv"
 	"github.com/grafana/dskit/kv/consul"
 	"github.com/grafana/dskit/ring"
@@ -29,6 +30,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/twmb/franz-go/pkg/kgo"
 )
+
+const DataFileName = "data.parquet"
 
 func TestLiveStoreBasicConsume(t *testing.T) {
 	tmpDir := t.TempDir()
@@ -70,7 +73,7 @@ func TestLiveStoreFullBlockLifecycleCheating(t *testing.T) {
 	requireInstanceState(t, inst, instanceState{liveTraces: 1, walBlocks: 0, completeBlocks: 0})
 
 	// cut to head block and test
-	err = inst.cutIdleTraces(true)
+	err = inst.cutIdleTraces(t.Context(), true)
 	require.NoError(t, err)
 
 	requireTraceInLiveStore(t, liveStore, expectedID, expectedTrace)
@@ -78,7 +81,7 @@ func TestLiveStoreFullBlockLifecycleCheating(t *testing.T) {
 	requireInstanceState(t, inst, instanceState{liveTraces: 0, walBlocks: 0, completeBlocks: 0})
 
 	// cut a new head block. old head block is in wal blocks
-	walUUID, err := inst.cutBlocks(true)
+	walUUID, err := inst.cutBlocks(t.Context(), true)
 	require.NoError(t, err)
 
 	requireTraceInLiveStore(t, liveStore, expectedID, expectedTrace)
@@ -133,7 +136,7 @@ func TestLiveStoreReplaysTraceInHeadBlock(t *testing.T) {
 	require.NoError(t, err)
 
 	// cut to head block
-	err = inst.cutIdleTraces(true)
+	err = inst.cutIdleTraces(t.Context(), true)
 	require.NoError(t, err)
 
 	// stop the live store and then create a new one to simulate a restart and replay the data on disk
@@ -161,11 +164,11 @@ func TestLiveStoreReplaysTraceInWalBlocks(t *testing.T) {
 	require.NoError(t, err)
 
 	// cut to head block
-	err = inst.cutIdleTraces(true)
+	err = inst.cutIdleTraces(t.Context(), true)
 	require.NoError(t, err)
 
 	// cut head to wal blocks
-	_, err = inst.cutBlocks(true)
+	_, err = inst.cutBlocks(t.Context(), true)
 	require.NoError(t, err)
 
 	// stop the live store and then create a new one to simulate a restart and replay the data on disk
@@ -193,11 +196,11 @@ func TestLiveStoreReplaysTraceInCompleteBlocks(t *testing.T) {
 	require.NoError(t, err)
 
 	// cut to head block
-	err = inst.cutIdleTraces(true)
+	err = inst.cutIdleTraces(t.Context(), true)
 	require.NoError(t, err)
 
 	// cut head to wal blocks
-	walUUID, err := inst.cutBlocks(true)
+	walUUID, err := inst.cutBlocks(t.Context(), true)
 	require.NoError(t, err)
 
 	// complete the wal blocks
@@ -213,6 +216,42 @@ func TestLiveStoreReplaysTraceInCompleteBlocks(t *testing.T) {
 
 	requireTraceInLiveStore(t, liveStore, expectedID, expectedTrace)
 	requireInstanceState(t, liveStore.instances[testTenantID], instanceState{liveTraces: 0, walBlocks: 0, completeBlocks: 1})
+}
+
+func TestLiveStoreDropsInvalidCompleteBlocksOnRestart(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	liveStore, err := defaultLiveStore(t, tmpDir)
+	require.NoError(t, err)
+
+	_, _ = pushToLiveStore(t, liveStore)
+	inst, err := liveStore.getOrCreateInstance(testTenantID)
+	require.NoError(t, err)
+
+	require.NoError(t, inst.cutIdleTraces(t.Context(), true))
+	walUUID, err := inst.cutBlocks(t.Context(), true)
+	require.NoError(t, err)
+	require.NoError(t, inst.completeBlock(context.Background(), walUUID))
+	requireInstanceState(t, inst, instanceState{liveTraces: 0, walBlocks: 0, completeBlocks: 1})
+
+	var blockID uuid.UUID
+	for id := range inst.completeBlocks {
+		blockID = id
+		break
+	}
+	require.NotEqual(t, uuid.Nil, blockID)
+
+	writer := backend.NewWriter(liveStore.wal.LocalBackend())
+	require.NoError(t, writer.Write(context.Background(), DataFileName, blockID, testTenantID, []byte("mangled"), nil))
+
+	require.NoError(t, services.StopAndAwaitTerminated(t.Context(), liveStore))
+
+	liveStore, err = defaultLiveStore(t, tmpDir)
+	require.NoError(t, err)
+
+	inst, ok := liveStore.instances[testTenantID]
+	require.False(t, ok)
+	require.Nil(t, inst)
 }
 
 func TestLiveStoreConsumeDropsOldRecords(t *testing.T) {
@@ -334,7 +373,7 @@ func TestLiveStoreUsesRecordTimestampForBlockStartAndEnd(t *testing.T) {
 		require.NoError(t, err)
 
 		// force just pushed traces to the head block
-		err = inst.cutIdleTraces(true)
+		err = inst.cutIdleTraces(t.Context(), true)
 		require.NoError(t, err)
 
 		meta := inst.headBlock.BlockMeta()
@@ -342,7 +381,7 @@ func TestLiveStoreUsesRecordTimestampForBlockStartAndEnd(t *testing.T) {
 		require.Equal(t, tc.expectedEnd, meta.EndTime)
 
 		// cut to complete block and test again
-		uuid, err := inst.cutBlocks(true)
+		uuid, err := inst.cutBlocks(t.Context(), true)
 		require.NoError(t, err)
 		err = inst.completeBlock(t.Context(), uuid)
 		require.NoError(t, err)
@@ -939,6 +978,23 @@ func TestLiveStoreDownscaleOverridesConfig(t *testing.T) {
 	_ = services.StopAndAwaitTerminated(t.Context(), liveStore)
 
 	requirePartitionOwnerEventually(t, partitionKV, cfg.Ring.InstanceID, false, "owner should be removed after shutdown when downscale was triggered")
+}
+
+func TestLiveStoreRemovesPartitionOwnerOnShutdown(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	cfg := defaultConfig(t, tmpDir)
+	cfg.RemoveOwnerOnShutdown = true
+	partitionKV := cfg.PartitionRing.KVStore.Mock
+
+	liveStore, err := liveStoreWithConfig(t, cfg)
+	require.NoError(t, err)
+
+	requirePartitionOwnerEventually(t, partitionKV, cfg.Ring.InstanceID, true, "owner should be registered after startup")
+
+	_ = services.StopAndAwaitTerminated(t.Context(), liveStore)
+
+	requirePartitionOwnerEventually(t, partitionKV, cfg.Ring.InstanceID, false, "owner should be removed after shutdown when RemoveOwnerOnShutdown is true")
 }
 
 func requirePartitionOwnerEventually(t *testing.T, partitionKV kv.Client, instanceID string, expected bool, msg string) {

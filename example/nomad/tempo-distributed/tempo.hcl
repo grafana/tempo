@@ -169,7 +169,7 @@ job "tempo" {
     }
   }
 
-  group "ingester" {
+  group "live-store" {
     count = 3
 
     network {
@@ -179,11 +179,11 @@ job "tempo" {
     }
 
     service {
-      name = "tempo-ingester"
+      name = "tempo-live-store"
       port = "http"
       tags = []
       check {
-        name     = "Tempo ingester"
+        name     = "Tempo live-store"
         port     = "http"
         type     = "http"
         path     = "/ready"
@@ -193,7 +193,7 @@ job "tempo" {
     }
 
     service {
-      name = "tempo-ingester-grpc"
+      name = "tempo-live-store-grpc"
       port = "grpc"
       tags = []
       check {
@@ -206,7 +206,7 @@ job "tempo" {
       }
     }
 
-    task "ingester" {
+    task "live-store" {
       driver       = "docker"
       user         = "nobody"
       kill_timeout = "90s"
@@ -219,7 +219,7 @@ job "tempo" {
         ]
 
         args = [
-          "-target=ingester",
+          "-target=live-store",
           "-config.file=/local/config.yml",
           "-config.expand-env=true",
         ]

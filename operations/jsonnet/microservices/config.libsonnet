@@ -173,7 +173,6 @@
       tempoMetricsBackoffDuration: '0s',  // TraceQL Metrics checks disabled
       tempoLongWriteBackoffDuration: '50s',
     },
-    ballast_size_mbs: '1024',
     port: 3200,
     http_api_prefix: '',
     gossip_ring_port: 7946,
@@ -183,10 +182,14 @@
     overrides_configmap_name: 'tempo-overrides',
     overrides+:: {
       super_user: {
-        max_traces_per_user: 100000,
-        ingestion_rate_limit_bytes: 200e5,  // ~20MB per sec
-        ingestion_burst_size_bytes: 200e5,  // ~20MB
-        max_bytes_per_trace: 300e5,  // ~30MB
+        ingestion: {
+          max_traces_per_user: 100000,
+          rate_limit_bytes: 200e5,  // ~20MB per sec
+          burst_size_bytes: 200e5,  // ~20MB
+        },
+        global: {
+          max_bytes_per_trace: 300e5,  // ~30MB
+        },
       },
     },
   },

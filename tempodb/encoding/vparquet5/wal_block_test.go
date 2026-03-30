@@ -5,6 +5,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"sync"
 	"testing"
 
 	"github.com/gogo/protobuf/proto"
@@ -293,6 +294,81 @@ func TestRowIterator(t *testing.T) {
 	})
 }
 
+// TestWalBlockFindTraceByIDRace detects a data race in FindTraceByID
+func TestWalBlockRaceConditionCheck(t *testing.T) {
+	meta := backend.NewBlockMeta("fake", uuid.New(), VersionString)
+	w, err := createWALBlock(meta, t.TempDir(), model.CurrentEncoding, 0)
+	require.NoError(t, err)
+
+	decoder := model.MustNewSegmentDecoder(model.CurrentEncoding)
+
+	id := test.ValidTraceID(nil)
+	tr := test.MakeTrace(10, id)
+	trace.SortTrace(tr)
+
+	b1, err := decoder.PrepareForWrite(tr, 0, 0)
+	require.NoError(t, err)
+	b2, err := decoder.ToObject([][]byte{b1})
+	require.NoError(t, err)
+
+	// Append and flush once so FindTraceByID has something to find
+	require.NoError(t, w.Append(id, b2, 0, 0, true))
+	require.NoError(t, w.Flush())
+
+	ctx := context.Background()
+	opts := common.DefaultSearchOptions()
+	var wg sync.WaitGroup
+
+	// Writer
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		for range 10 {
+			newID := test.ValidTraceID(nil)
+			newTr := test.MakeTrace(1, newID)
+			b1, _ := decoder.PrepareForWrite(newTr, 0, 0)
+			b2, _ := decoder.ToObject([][]byte{b1})
+			_ = w.Append(newID, b2, 0, 0, true)
+			_ = w.Flush()
+		}
+	}()
+
+	// Readers
+	readers := map[string]func(){
+		"FindTraceByID": func() { _, _ = w.FindTraceByID(ctx, id, opts) },
+		"Search":        func() { _, _ = w.Search(ctx, &tempopb.SearchRequest{}, opts) },
+		"Iterator":      func() { _, _ = w.Iterator() },
+		"DataLength":    func() { _ = w.DataLength() },
+		"SearchTags": func() {
+			_ = w.SearchTags(ctx, traceql.AttributeScopeSpan, func(string, traceql.AttributeScope) {}, func(uint64) {}, opts)
+		},
+		"SearchTagValues": func() { _ = w.SearchTagValues(ctx, "foo", func(string) bool { return false }, func(uint64) {}, opts) },
+		"SearchTagValuesV2": func() {
+			_ = w.SearchTagValuesV2(ctx, traceql.NewAttribute("foo"), func(traceql.Static) bool { return false }, func(uint64) {}, opts)
+		},
+		"Fetch":      func() { _, _ = w.Fetch(ctx, traceql.FetchSpansRequest{}, opts) },
+		"FetchSpans": func() { _, _ = w.FetchSpans(ctx, traceql.FetchSpansRequest{}, opts) },
+		"FetchTagValues": func() {
+			_ = w.FetchTagValues(ctx, traceql.FetchTagValuesRequest{}, func(traceql.Static) bool { return false }, func(uint64) {}, opts)
+		},
+		"FetchTagNames": func() {
+			_ = w.FetchTagNames(ctx, traceql.FetchTagsRequest{}, func(string, traceql.AttributeScope) bool { return false }, func(uint64) {}, opts)
+		},
+	}
+
+	for _, read := range readers {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for range 100 {
+				read()
+			}
+		}()
+	}
+
+	wg.Wait()
+}
+
 func testWalBlock(t *testing.T, f func(w *walBlock, ids []common.ID, trs []*tempopb.Trace)) {
 	meta := backend.NewBlockMeta("fake", uuid.New(), VersionString)
 	w, err := createWALBlock(meta, t.TempDir(), model.CurrentEncoding, 0)
@@ -338,11 +414,16 @@ func BenchmarkWalTraceQL(b *testing.B) {
 	require.NoError(b, err)
 	require.NoError(b, warn)
 
+	fetcher := traceql.NewSpansetFetcherWrapper(func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
+		return w.Fetch(ctx, req, common.DefaultSearchOptions())
+	})
+	require.NoError(b, err)
+
 	for _, q := range reqs {
 		req := traceql.MustExtractFetchSpansRequestWithMetadata(q)
 		b.Run(q, func(b *testing.B) {
 			for i := 0; i < b.N; i++ {
-				resp, err := w.Fetch(context.TODO(), req, common.DefaultSearchOptions())
+				resp, err := fetcher.Fetch(context.TODO(), req)
 				require.NoError(b, err)
 
 				for {

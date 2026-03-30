@@ -6,6 +6,7 @@ import (
 
 	"github.com/grafana/tempo/modules/blockbuilder"
 	"github.com/grafana/tempo/modules/frontend"
+	"github.com/grafana/tempo/modules/livestore"
 	"github.com/grafana/tempo/tempodb/backend/s3"
 	"github.com/stretchr/testify/assert"
 
@@ -66,6 +67,9 @@ func TestConfig_CheckConfig(t *testing.T) {
 					AssignedPartitionsMap: map[string][]int32{
 						"foo-0": {0},
 					},
+				},
+				LiveStore: livestore.Config{
+					CompleteBlockTimeout: 30 * time.Second,
 				},
 			},
 			expect: []ConfigWarning{

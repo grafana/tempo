@@ -46,6 +46,10 @@ type Config struct {
 	// If enabled attribute value will be used for metric calculation
 	SpanMultiplierKey string `yaml:"span_multiplier_key"`
 
+	// EnableTraceStateSpanMultiplier enables extracting span multiplier from W3C tracestate
+	// OTel probability sampling threshold (ot=th:<hex>) instead of a span attribute.
+	EnableTraceStateSpanMultiplier bool `yaml:"enable_tracestate_span_multiplier"`
+
 	// EnableVirtualNodeLabel enables additional labels for uninstrumented services
 	EnableVirtualNodeLabel bool `yaml:"enable_virtual_node_label"`
 

@@ -280,18 +280,23 @@ func (b *pageFile) Close() error {
 	return b.osFile.Close()
 }
 
-type pageFileClosingIterator struct {
-	iter     *spansetIterator
+// pageFileClosingIterator wraps an iterator with a pageFile and ensures both are
+// always closed.
+type pageFileClosingIterator[T any] struct {
+	iter     traceql.CommonIterator[T]
 	pageFile *pageFile
 }
 
-var _ traceql.SpansetIterator = (*pageFileClosingIterator)(nil)
+var (
+	_ traceql.SpansetIterator = (*pageFileClosingIterator[*traceql.Spanset])(nil)
+	_ traceql.SpanIterator    = (*pageFileClosingIterator[traceql.Span])(nil)
+)
 
-func (b *pageFileClosingIterator) Next(ctx context.Context) (*traceql.Spanset, error) {
+func (b *pageFileClosingIterator[T]) Next(ctx context.Context) (T, error) {
 	return b.iter.Next(ctx)
 }
 
-func (b *pageFileClosingIterator) Close() {
+func (b *pageFileClosingIterator[T]) Close() {
 	b.iter.Close()
 	b.pageFile.Close()
 }
@@ -375,6 +380,8 @@ func (b *walBlock) AppendTrace(id common.ID, trace *tempopb.Trace, start, end ui
 	b.meta.ObjectAdded(start, end)
 	b.ids.Set(id, int64(b.ids.Len())) // Next row number
 
+	b.mtx.Lock()
+	defer b.mtx.Unlock()
 	b.unflushedSize += int64(estimateMarshalledSizeFromTrace(b.buffer))
 
 	return nil
@@ -453,8 +460,10 @@ func (b *walBlock) Flush() (err error) {
 	}
 
 	b.writeFlush(newWalBlockFlush(b.file.Name(), b.ids, b.meta.DedicatedColumns))
+	b.mtx.Lock()
 	b.flushedSize += sz
 	b.unflushedSize = 0
+	b.mtx.Unlock()
 	b.ids = common.NewIDMap[int64](b.ids.Len()) // Recreate new id map with same expected size
 
 	// Open next one
@@ -464,13 +473,16 @@ func (b *walBlock) Flush() (err error) {
 // DataLength returns estimated size of WAL files on disk. Used for
 // cutting WAL files by max size.
 func (b *walBlock) DataLength() uint64 {
+	b.mtx.Lock()
+	defer b.mtx.Unlock()
 	return uint64(b.flushedSize + b.unflushedSize)
 }
 
 func (b *walBlock) Iterator() (common.Iterator, error) {
-	bookmarks := make([]*bookmark[parquet.Row], 0, len(b.flushed))
+	flushed := b.readFlushes()
+	bookmarks := make([]*bookmark[parquet.Row], 0, len(flushed))
 
-	for _, page := range b.flushed {
+	for _, page := range flushed {
 		iter, err := page.rowIterator()
 		if err != nil {
 			return nil, fmt.Errorf("error creating iterator for %s: %w", page.path, err)
@@ -529,7 +541,7 @@ func (b *walBlock) FindTraceByID(ctx context.Context, id common.ID, opts common.
 	metrics := &tempopb.TraceByIDMetrics{}
 	trs := make([]*tempopb.Trace, 0)
 
-	for _, page := range b.flushed {
+	for _, page := range b.readFlushes() {
 		if rowNumber, ok := page.ids.Get(id); ok {
 			file, err := page.file(ctx)
 			if err != nil {
@@ -686,36 +698,73 @@ func (b *walBlock) Fetch(ctx context.Context, req traceql.FetchSpansRequest, _ c
 		return traceql.FetchSpansResponse{}, fmt.Errorf("conditions invalid: %w", err)
 	}
 
-	blockFlushes := b.readFlushes()
-	// collect page readers to compute totalBytesRead
-	readers := make([]*walReaderAt, 0, len(blockFlushes))
-	iters := make([]traceql.SpansetIterator, 0, len(blockFlushes))
+	var (
+		blockFlushes = b.readFlushes()
+		readers      = make([]*walReaderAt, 0, len(blockFlushes))
+		iters        = make([]traceql.CommonIterator[*traceql.Spanset], 0, len(blockFlushes))
+	)
+
 	for _, page := range blockFlushes {
 		file, err := page.file(ctx)
 		if err != nil {
 			return traceql.FetchSpansResponse{}, fmt.Errorf("error opening file %s: %w", page.path, err)
 		}
 
-		pf := file.parquetFile
-
-		iter, err := fetch(ctx, req, pf, pf.RowGroups(), b.meta.DedicatedColumns)
+		iter, err := fetch(ctx, req, file.parquetFile, file.parquetFile.RowGroups(), b.meta.DedicatedColumns)
 		if err != nil {
 			return traceql.FetchSpansResponse{}, fmt.Errorf("creating fetch iter: %w", err)
 		}
 
-		wrappedIterator := &pageFileClosingIterator{iter: iter, pageFile: file}
-		iters = append(iters, wrappedIterator)
+		iters = append(iters, &pageFileClosingIterator[*traceql.Spanset]{iter: iter, pageFile: file})
 		readers = append(readers, file.r)
 	}
 
-	// combine iters?
+	// combine iters
 	return traceql.FetchSpansResponse{
-		Results: &mergeSpansetIterator{
+		Results: &mergeIterator[*traceql.Spanset]{
 			iters: iters,
 		},
 		// FIXME: can this be simplified with the common.MetadataCallback?? and Metrics Collector??
 		Bytes: func() uint64 {
 			// read value when callback is called
+			var totalBytesRead uint64
+			for _, r := range readers {
+				totalBytesRead += r.BytesRead()
+			}
+			return totalBytesRead
+		},
+	}, nil
+}
+
+func (b *walBlock) FetchSpans(ctx context.Context, req traceql.FetchSpansRequest, _ common.SearchOptions) (traceql.FetchSpansOnlyResponse, error) {
+	ctx, span := tracer.Start(ctx, "walBlock.FetchSpans")
+	defer span.End()
+
+	if err := checkConditions(req.Conditions); err != nil {
+		return traceql.FetchSpansOnlyResponse{}, fmt.Errorf("conditions invalid: %w", err)
+	}
+
+	var (
+		blockFlushes = b.readFlushes()
+		readers      = make([]*walReaderAt, 0, len(blockFlushes))
+		iters        = make([]traceql.CommonIterator[traceql.Span], 0, len(blockFlushes))
+	)
+	for _, page := range blockFlushes {
+		file, err := page.file(ctx)
+		if err != nil {
+			return traceql.FetchSpansOnlyResponse{}, fmt.Errorf("error opening file %s: %w", page.path, err)
+		}
+		iter, err := fetchSpans(ctx, req, file.parquetFile, file.parquetFile.RowGroups(), b.meta.DedicatedColumns)
+		if err != nil {
+			return traceql.FetchSpansOnlyResponse{}, fmt.Errorf("creating fetch spans iter: %w", err)
+		}
+		iters = append(iters, &pageFileClosingIterator[traceql.Span]{iter: iter, pageFile: file})
+		readers = append(readers, file.r)
+	}
+
+	return traceql.FetchSpansOnlyResponse{
+		Results: &mergeIterator[traceql.Span]{iters: iters},
+		Bytes: func() uint64 {
 			var totalBytesRead uint64
 			for _, r := range readers {
 				totalBytesRead += r.BytesRead()
@@ -1019,4 +1068,39 @@ func (i *commonIterator) NextRow(ctx context.Context) (common.ID, parquet.Row, e
 
 func (i *commonIterator) Close() {
 	i.iter.Close()
+}
+
+// mergeIterator iterates through the list of WAL block flush pages and iterates them in order.
+type mergeIterator[T comparable] struct {
+	iters []traceql.CommonIterator[T]
+}
+
+var (
+	_ traceql.SpansetIterator = (*mergeIterator[*traceql.Spanset])(nil)
+	_ traceql.SpanIterator    = (*mergeIterator[traceql.Span])(nil)
+)
+
+func (i *mergeIterator[T]) Next(ctx context.Context) (T, error) {
+	var zero T
+	for len(i.iters) > 0 {
+		res, err := i.iters[0].Next(ctx)
+		if err != nil {
+			return zero, err
+		}
+		if res == zero { // nil when exhausted (both Span and *Spanset use nil)
+			// This iter is exhausted, pop it
+			i.iters[0].Close()
+			i.iters = i.iters[1:]
+			continue
+		}
+		return res, nil
+	}
+	return zero, nil
+}
+
+func (i *mergeIterator[T]) Close() {
+	// Close any outstanding iters
+	for _, iter := range i.iters {
+		iter.Close()
+	}
 }

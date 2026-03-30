@@ -18,9 +18,10 @@ GOPATH := $(shell go env GOPATH)
 GORELEASER := $(GOPATH)/bin/goreleaser
 
 # Build Images
+LOKI_BUILD_IMAGE ?= grafana/loki-build-image:0.35.0
 # https://hub.docker.com/repository/docker/grafana/tempo-ci-tools/
 # built by: .github/workflows/docker-ci-tools.yml
-TEMPO_CI_TOOLS_IMAGE ?= grafana/tempo-ci-tools:main-b5ffd5f
+TEMPO_CI_TOOLS_IMAGE ?= grafana/tempo-ci-tools:main-8340a1d49
 DOCS_IMAGE ?= grafana/docs-base:latest
 
 # More exclusions can be added similar with: -not -path './testbed/*'
@@ -386,6 +387,26 @@ docs-test:
 .PHONY: generate-manifest
 generate-manifest:  ## Generate manifest.md file
 	GO111MODULE=on CGO_ENABLED=0 go run -v pkg/docsgen/generate_manifest.go
+
+##@ Release
+
+TEMPO_IMAGE_TAG ?=
+.PHONY: bump-tempo-image-tag
+bump-tempo-image-tag: ## Bump grafana/tempo image tag in docker-compose and jsonnet files. Usage: make bump-tempo-image-tag TEMPO_IMAGE_TAG=2.10.2
+	@test -n "$(TEMPO_IMAGE_TAG)" || (echo "ERROR: TEMPO_IMAGE_TAG is required. Usage: make bump-tempo-image-tag TEMPO_IMAGE_TAG=<tag>"; exit 1)
+	@echo "$(TEMPO_IMAGE_TAG)" | grep -qE '^(latest|[0-9]+\.[0-9]+\.[0-9]+)$$' || (echo "ERROR: TEMPO_IMAGE_TAG must be 'latest' or a version like '2.10.2', got: $(TEMPO_IMAGE_TAG)"; exit 1)
+	@echo "Replacing grafana/tempo:<any> -> grafana/tempo:$(TEMPO_IMAGE_TAG)"
+	@find . \
+		-not -path './.claude/*' \
+		-not -path './.git/*' \
+		-not -path './vendor/*' \
+		-not -path './.worktrees/*' \
+		\( -name "*.yaml" -o -name "*.libsonnet" -o -name "*.jsonnet" -o -name "*.md" \) \
+		-print0 \
+		| xargs -0 grep -l "grafana/tempo:" \
+		| tr '\n' '\0' \
+		| xargs -0 -I{} sed -i '' -E "s#grafana/tempo:(latest|[0-9]+\.[0-9]+\.[0-9]+)#grafana/tempo:$(TEMPO_IMAGE_TAG)#g" {}
+	@echo "Done. Re-run 'make jsonnet' to regenerate compiled jsonnet if needed."
 
 ##@ jsonnet
 .PHONY: jsonnet jsonnet-check jsonnet-test

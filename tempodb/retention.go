@@ -61,6 +61,10 @@ func (rw *readerWriter) RetainWithConfig(ctx context.Context, compactorCfg *Comp
 	bg.Wait()
 }
 
+func (rw *readerWriter) RetainTenantWithConfig(ctx context.Context, tenantID string, compactorCfg *CompactorConfig, compactorSharder CompactorSharder, compactorOverrides CompactorOverrides) {
+	rw.retainTenant(ctx, tenantID, compactorCfg, compactorSharder, compactorOverrides)
+}
+
 func (rw *readerWriter) retainTenant(ctx context.Context, tenantID string, compactorCfg *CompactorConfig, compactorSharder CompactorSharder, compactorOverrides CompactorOverrides) {
 	start := time.Now()
 	defer func() { metricRetentionDuration.Observe(time.Since(start).Seconds()) }()

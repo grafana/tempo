@@ -3,6 +3,8 @@ package traceql
 import (
 	"context"
 	"time"
+
+	"github.com/grafana/tempo/pkg/util"
 )
 
 type Operands []Static
@@ -238,9 +240,13 @@ func (s *Spanset) clone() *Spanset {
 	return &ss
 }
 
-type SpansetIterator interface {
-	Next(context.Context) (*Spanset, error)
+type CommonIterator[T any] interface {
+	Next(context.Context) (T, error)
 	Close()
+}
+
+type SpansetIterator interface {
+	CommonIterator[*Spanset]
 }
 
 type FetchSpansResponse struct {
@@ -249,8 +255,19 @@ type FetchSpansResponse struct {
 	Bytes func() uint64
 }
 
+type SpanIterator interface {
+	CommonIterator[Span]
+}
+
+type FetchSpansOnlyResponse struct {
+	Results SpanIterator
+	// callback to get the size of data read during Fetch
+	Bytes func() uint64
+}
+
 type SpansetFetcher interface {
 	Fetch(context.Context, FetchSpansRequest) (FetchSpansResponse, error)
+	FetchSpans(context.Context, FetchSpansRequest) (FetchSpansOnlyResponse, error)
 }
 
 // FetchTagValuesCallback is called to collect unique tag values.
@@ -310,17 +327,32 @@ func ExtractFetchSpansRequest(query string) (FetchSpansRequest, error) {
 }
 
 type SpansetFetcherWrapper struct {
-	f func(ctx context.Context, req FetchSpansRequest) (FetchSpansResponse, error)
+	fetchSpansetsFn func(ctx context.Context, req FetchSpansRequest) (FetchSpansResponse, error)
+	fetchSpansFn    func(ctx context.Context, req FetchSpansRequest) (FetchSpansOnlyResponse, error)
 }
 
-var _ = (SpansetFetcher)(&SpansetFetcherWrapper{})
+var _ SpansetFetcher = (*SpansetFetcherWrapper)(nil)
 
-func NewSpansetFetcherWrapper(f func(ctx context.Context, req FetchSpansRequest) (FetchSpansResponse, error)) SpansetFetcher {
-	return SpansetFetcherWrapper{f}
+func NewSpansetFetcherWrapper(fetchSpanSetsFn func(ctx context.Context, req FetchSpansRequest) (FetchSpansResponse, error)) SpansetFetcher {
+	return SpansetFetcherWrapper{fetchSpanSetsFn, nil}
+}
+
+func NewSpansetFetcherWrapperBoth(
+	fetchSpanSetsFn func(ctx context.Context, req FetchSpansRequest) (FetchSpansResponse, error),
+	fetchSpansFn func(ctx context.Context, req FetchSpansRequest) (FetchSpansOnlyResponse, error),
+) SpansetFetcher {
+	return SpansetFetcherWrapper{fetchSpanSetsFn, fetchSpansFn}
 }
 
 func (s SpansetFetcherWrapper) Fetch(ctx context.Context, request FetchSpansRequest) (FetchSpansResponse, error) {
-	return s.f(ctx, request)
+	return s.fetchSpansetsFn(ctx, request)
+}
+
+func (s SpansetFetcherWrapper) FetchSpans(ctx context.Context, request FetchSpansRequest) (FetchSpansOnlyResponse, error) {
+	if s.fetchSpansFn == nil {
+		return FetchSpansOnlyResponse{}, util.ErrUnsupported
+	}
+	return s.fetchSpansFn(ctx, request)
 }
 
 type FetchTagsCallback func(tag string, scope AttributeScope) bool

@@ -1,0 +1,74 @@
+{
+  "skill_name": "docs-pr-check",
+  "usage_modes": [
+    "standalone: invoked directly on one or more PRs outside the release notes workflow",
+    "workflow: runs as Phase 1.5 of the release notes workflow, receiving a curated PR list from Phase 1 and producing a handoff for Phase 1.75 (docs-pr-write)"
+  ],
+  "pr_selection": {
+    "note": "Before running evals, select PRs using the commands in each test case's pr_selection_command field. See .claude/skills/evals/README.md for the full pre-flight process."
+  },
+  "evals": [
+    {
+      "id": 1,
+      "mode": "standalone",
+      "pr_type": "A merged PR that introduces a user-facing feature, configuration option, or behavior change with no documentation files included in the PR",
+      "pr_selection_command": "gh pr list --repo grafana/tempo --state merged --limit 100 --json number,title,author,labels,files | jq '[.[] | select(.author.login != \"dependabot[bot]\" and .author.login != \"github-actions[bot]\") | select(.files | map(.path) | any(startswith(\"docs/\")) | not) | select(.labels | map(.name) | any(. == \"type/feature\" or . == \"type/enhancement\" or . == \"add to changelog\"))] | .[0:10]'",
+      "pr_selection_note": "The filter excludes PRs that changed docs/ files, but docs may exist from a separate PR or prior release. After selecting a candidate, check the workspace for existing docs coverage (grep docs/sources/tempo for the feature name). The assertions accept 'Docs present' as valid when docs already exist.",
+      "prompt_template": "Does PR #{PR_1} need documentation? Run docs-pr-check on it.",
+      "expected_output": "PR is classified (not 'No docs required'). Notes identify a target page under docs/sources/tempo. Gap summary lists items or confirms coverage.",
+      "assertions": [
+        "Output includes a classification for PR {PR_1}",
+        "Classification is not 'No docs required' and includes evidence (checked files, labels, or PR content)",
+        "Notes reference a specific file path under docs/sources/tempo",
+        "Gap summary references specific docs files or sections checked to support its conclusion"
+      ]
+    },
+    {
+      "id": 2,
+      "mode": "standalone",
+      "pr_type": "Two merged PRs that are internal changes only: refactors, dependency bumps, test-only changes, or CI/CD updates with no user-facing impact",
+      "pr_selection_command": "gh pr list --repo grafana/tempo --state merged --limit 100 --json number,title,author,labels | jq '[.[] | select(.author.login != \"dependabot[bot]\" and .author.login != \"github-actions[bot]\") | select(.labels | map(.name) | any(. == \"type/chore\" or . == \"type/ci\" or . == \"dependencies\" or . == \"type/refactor\" or . == \"type/testing\"))] | .[0:10]'",
+      "prompt_template": "I'm reviewing a few Tempo PRs before they merge. Run docs-pr-check on #{PR_1} and #{PR_2} and tell me if either one needs documentation.",
+      "expected_output": "A classification table showing both PRs as 'No docs required'. The gap summary confirms no documentation work is needed.",
+      "assertions": [
+        "Output includes a markdown table with a row for each PR",
+        "Both PRs are classified as 'No docs required'",
+        "Gap summary confirms no documentation action is needed",
+        "Output does not flag any PRs as 'Docs needed' or 'Docs update needed'"
+      ]
+    },
+    {
+      "id": 3,
+      "mode": "standalone",
+      "pr_type": "Three PRs covering different classification outcomes: one user-facing feature with no docs (Docs needed), one PR that changed user-visible behavior where partial docs exist (Docs update needed), and one internal-only change (No docs required). Select each from a different area of the codebase.",
+      "pr_selection_command": "gh pr list --repo grafana/tempo --state merged --limit 100 --json number,title,author,labels,files | jq '[.[] | select(.author.login != \"dependabot[bot]\" and .author.login != \"github-actions[bot]\")] | .[0:20]'",
+      "prompt_template": "Run docs-pr-check on PRs #{PR_1}, #{PR_2}, and #{PR_3}. I want to know which ones need docs work and what specifically is missing.",
+      "expected_output": "A classification table with all three PRs. At least one PR classified as 'Docs needed', at least one as 'No docs required'. A prioritized gap summary lists PRs requiring docs work, ordered with entirely missing docs ranked above docs that need updates.",
+      "assertions": [
+        "Output includes a markdown table with columns: PR, Title, Classification, Notes",
+        "All three PRs appear in the table",
+        "At least one PR is classified as 'No docs required'",
+        "At least one PR is classified as 'Docs needed' or 'Docs update needed'",
+        "A gap summary section appears after the table",
+        "The gap summary lists PRs with entirely missing docs before PRs that need updates",
+        "Notes column for each doc-work PR identifies a specific target file or section in docs/sources/tempo"
+      ]
+    },
+    {
+      "id": 4,
+      "mode": "workflow",
+      "pr_type": "Same three PR types as test case 3: one Docs needed, one Docs update needed, one No docs required. Use the same PRs selected for test case 3 if running both in the same eval session.",
+      "pr_selection_command": "Use the same selection as test case 3.",
+      "prompt_template": "We're working on Phase 1.5 of the Tempo release notes workflow. Phase 1 is complete — here is the curated PR list that was approved. Run docs-pr-check on these PRs: #{PR_1}, #{PR_2}, #{PR_3}. Classify each one and give me the gap summary so we can move to Phase 1.75.",
+      "expected_output": "A classification table with all three PRs correctly classified. A prioritized gap summary flags PRs requiring documentation work. Output is structured as a ready-to-use handoff for docs-pr-write (Phase 1.75), with enough detail per PR that Phase 1.75 can run without needing to look up the classification again.",
+      "assertions": [
+        "Output includes a markdown table with columns: PR, Title, Classification, Notes",
+        "All three PRs appear in the table with a classification",
+        "A gap summary section appears after the table",
+        "The gap summary lists PRs with entirely missing docs before PRs that need updates",
+        "Notes column for each doc-work PR identifies a specific target file or section in docs/sources/tempo",
+        "Output is formatted so it can be passed directly to docs-pr-write without re-entry"
+      ]
+    }
+  ]
+}

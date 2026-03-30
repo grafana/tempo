@@ -20,11 +20,6 @@ minio + metrics + load + kafka + tempo {
     block_builder_concurrent_rollout_enabled: true,
     compactor+: {},
     querier+: {},
-    ingester+: {
-      replicas: 0,
-      pvc_size: '1Gi',
-      pvc_storage_class: 'local-path',
-    },
     live_store+: {
       replicas: 2,
       pvc_size: '1Gi',
@@ -82,10 +77,6 @@ minio + metrics + load + kafka + tempo {
       },
     },
     partition_ring_live_store: true,
-    distributor+: {
-      ingester_write_path_enabled: false,
-      kafka_write_path_enabled: true,
-    },
     ingest+: {
       enabled: true,
       kafka+: {

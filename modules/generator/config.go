@@ -33,9 +33,14 @@ const (
 
 type LimiterType string
 
+type RingMode string
+
 const (
 	LimiterTypeSeries LimiterType = "series"
 	LimiterTypeEntity LimiterType = "entity"
+
+	RingModePartition RingMode = "partition"
+	RingModeGenerator RingMode = "generator"
 )
 
 var validCodecs = []string{codecPushBytes, codecOTLP}
@@ -50,6 +55,7 @@ type Config struct {
 	// for the span to be considered in metrics generation
 	MetricsIngestionSlack time.Duration `yaml:"metrics_ingestion_time_range_slack"`
 	OverrideRingKey       string        `yaml:"override_ring_key"`
+	RingMode              RingMode      `yaml:"ring_mode"`
 
 	// Codec controls which decoder to use for data consumed from Kafka.
 	Codec string `yaml:"codec"`
@@ -81,6 +87,7 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 	// setting default for max span age before discarding to 30s
 	cfg.MetricsIngestionSlack = 30 * time.Second
 	cfg.OverrideRingKey = generatorRingKey
+	cfg.RingMode = RingModePartition
 	cfg.Codec = codecPushBytes
 	cfg.LimiterType = LimiterTypeSeries
 
@@ -113,6 +120,16 @@ func (cfg *Config) Validate() error {
 
 	if !slices.Contains(validCodecs, cfg.Codec) {
 		return fmt.Errorf("invalid codec: %s, valid choices are %s", cfg.Codec, validCodecs)
+	}
+
+	switch cfg.RingMode {
+	case RingModePartition, RingModeGenerator:
+	default:
+		return fmt.Errorf("invalid ring mode: %s, valid values are %s and %s", cfg.RingMode, RingModePartition, RingModeGenerator)
+	}
+
+	if cfg.ConsumeFromKafka && cfg.RingMode == RingModeGenerator && cfg.Ingest.Kafka.ConsumerGroup == "" {
+		return errors.New("ingest.kafka.consumer_group must be configured when metrics-generator ring mode is generator")
 	}
 
 	switch cfg.LimiterType {
@@ -228,8 +245,16 @@ func (cfg *ProcessorConfig) copyWithOverrides(o metricsGeneratorOverrides, userI
 		copyCfg.ServiceGraphs.SpanMultiplierKey = spanMultiplierKey
 	}
 
+	if enableTraceStateSpanMultiplier, ok := o.MetricsGeneratorProcessorServiceGraphsEnableTraceStateSpanMultiplier(userID); ok {
+		copyCfg.ServiceGraphs.EnableTraceStateSpanMultiplier = enableTraceStateSpanMultiplier
+	}
+
 	if spanMultiplierKey := o.MetricsGeneratorProcessorSpanMetricsSpanMultiplierKey(userID); spanMultiplierKey != "" {
 		copyCfg.SpanMetrics.SpanMultiplierKey = spanMultiplierKey
+	}
+
+	if enableTraceStateSpanMultiplier, ok := o.MetricsGeneratorProcessorSpanMetricsEnableTraceStateSpanMultiplier(userID); ok {
+		copyCfg.SpanMetrics.EnableTraceStateSpanMultiplier = enableTraceStateSpanMultiplier
 	}
 
 	copySubprocessors := make(map[spanmetrics.Subprocessor]bool)
