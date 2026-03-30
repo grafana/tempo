@@ -28,7 +28,7 @@ const (
 	// they originated from. This is an internal routing mechanism and must not
 	// leak outside pkg/traceql.
 	internalLabelQueryFragment = "__query_fragment"
-	maxExemplarsPerBucket = 2
+	maxExemplarsPerBucket      = 2
 	// maxExemplars is a safety cap applied at the engine entry points to bound memory
 	// usage regardless of what the caller requests.
 	maxExemplars uint32 = 100000
@@ -986,7 +986,7 @@ func (e *Engine) CompileMetricsQueryRangeNonRaw(req *tempopb.QueryRangeRequest, 
 			isMath:     true,
 			seriesProc: bsp,
 		}
-		if mathStage != nil {
+		if mathStage != nil && mode == AggregateModeFinal {
 			mathStage.init(req)
 			mfe.metricsSecondStage = mathStage
 		}
@@ -1038,7 +1038,8 @@ func (b *BatchMetricsEvaluator) Results() SeriesSet {
 	for key, eval := range b.evaluators {
 		fragLabel := Label{Name: internalLabelQueryFragment, Value: NewStaticString(key)}
 		for _, ts := range eval.Results() {
-			tagged := ts.Labels.Add(fragLabel)
+			// Prepend the fragment label so it is always within the maxGroupBys limit.
+			tagged := append(Labels{fragLabel}, ts.Labels...)
 			taggedKey := tagged.MapKey()
 			out[taggedKey] = TimeSeries{
 				Labels:    tagged,
@@ -1723,8 +1724,8 @@ type MetricsFrontendEvaluator struct {
 	metricsPipeline    firstStageElement
 	metricsSecondStage secondStageElement
 	// Math path fields — populated only when isMath is true.
-	isMath      bool
-	seriesProc  seriesProcessor
+	isMath     bool
+	seriesProc seriesProcessor
 }
 
 func (m *MetricsFrontendEvaluator) ObserveSeries(in []*tempopb.TimeSeries) {

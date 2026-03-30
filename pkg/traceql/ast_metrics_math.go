@@ -357,7 +357,8 @@ func (b batchSeriesProcessor) result(multiplier float64) SeriesSet {
 		subSet := proc.result(multiplier)
 		fragLabel := Label{Name: internalLabelQueryFragment, Value: NewStaticString(key)}
 		for _, ts := range subSet {
-			tagged := ts.Labels.Add(fragLabel)
+			// Prepend the fragment label so it is always within the maxGroupBys limit.
+			tagged := append(Labels{fragLabel}, ts.Labels...)
 			taggedKey := tagged.MapKey()
 			out[taggedKey] = TimeSeries{
 				Labels:    tagged,

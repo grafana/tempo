@@ -603,7 +603,7 @@ type mockSecondStageElement struct {
 	initFn func(*tempopb.QueryRangeRequest)
 }
 
-func (m *mockSecondStageElement) String() string { return "" }
+func (m *mockSecondStageElement) String() string  { return "" }
 func (m *mockSecondStageElement) validate() error { return nil }
 func (m *mockSecondStageElement) init(req *tempopb.QueryRangeRequest) {
 	if m.initFn != nil {
