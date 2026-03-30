@@ -56,11 +56,11 @@ func (p {{ $structName }}) KeepColumnChunk(c *ColumnChunkHelper) bool {
 	ci, err := c.ColumnIndex()
 	if err == nil && ci != nil {
 		for i := 0; i < ci.NumPages(); i++ {
-            if ci.NullPage(i) {
-			    // This page only contains nulls so the min/max metadata is not 
+			if ci.NullPage(i) {
+				// This page only contains nulls so the min/max metadata is not
 				// recorded and this page does not contain any values.
-                continue
-            }
+				continue
+			}
 
 			{{ if $minInRange }}min := ci.MinValue(i).{{ $pred.ParquetFunc }}{{end}}
 			{{ if $maxInRange }}max := ci.MaxValue(i).{{ $pred.ParquetFunc }}{{end}}

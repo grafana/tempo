@@ -348,7 +348,7 @@ gen-traceql-local: ## Generate traceq local
 
 .PHONY: gen-parquet-query
 gen-parquet-query:  ## Generate Parquet query 
-	go run ./pkg/parquetquerygen/predicates.go > ./pkg/parquetquery/predicates.gen.go
+	go run ./pkg/parquetquerygen/predicates.go > ./pkg/parquetquery/predicates.gen.go && go fmt ./pkg/parquetquery/predicates.gen.go
 
 ##@ Tempo tools
 ### Check vendored and generated files are up to date

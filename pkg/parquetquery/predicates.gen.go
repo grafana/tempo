@@ -741,6 +741,7 @@ func (p BoolEqualPredicate) KeepColumnChunk(c *ColumnChunkHelper) bool {
 }
 
 func (p BoolEqualPredicate) KeepPage(page pq.Page) bool {
+
 	return true
 }
 
@@ -775,6 +776,7 @@ func (p BoolNotEqualPredicate) KeepColumnChunk(c *ColumnChunkHelper) bool {
 }
 
 func (p BoolNotEqualPredicate) KeepPage(page pq.Page) bool {
+
 	return true
 }
 
