@@ -67,6 +67,23 @@ Refer to the [Plan your Tempo deployment](../plan/) documentation for informatio
 | `--enable-go-runtime-metrics` | Set to true to enable all Go runtime metrics | `false` |
 | `--shutdown-delay` | How long to wait between SIGTERM and shutdown. After receiving SIGTERM, Tempo reports not-ready status via the `/ready` endpoint. | `0` |
 
+## Health check
+
+| Flag | Description | Default |
+| --- | --- | --- |
+| `--health` | Run a health check against the `/ready` endpoint and exit. Returns exit code `0` if healthy, `1` if unhealthy. | `false` |
+| `--health.url` | URL to check when running a health check | `http://localhost:3200/ready` |
+
+The Tempo container image uses a [distroless base image](/docs/tempo/<TEMPO_VERSION>/set-up-for-tracing/setup-tempo/upgrade/#busybox-removed-from-tempo-image) that doesn't include a shell, `curl`, `wget`, or other utilities. This means the common Docker health check pattern `HEALTHCHECK CMD curl -f http://localhost:3200/ready` doesn't work.
+
+The `--health` flag provides a native alternative. It doesn't require a Tempo configuration file, so it can be used directly in a `HEALTHCHECK` instruction:
+
+```dockerfile
+HEALTHCHECK CMD ["/tempo", "--health"]
+```
+
+Kubernetes users typically don't need this flag because they can configure `httpGet` readiness and liveness probes directly against the [`/ready` endpoint](/docs/tempo/<TEMPO_VERSION>/api_docs/#readiness-probe).
+
 ## Logging settings
 
 | Flag | Description | Default |
@@ -150,5 +167,11 @@ Start Tempo in monolithic mode with multitenancy enabled and a graceful shutdown
 tempo --config.file=/etc/tempo/config.yaml \
   --multitenancy.enabled \
   --shutdown-delay=30s
+```
+
+Run a health check against a custom URL:
+
+```bash
+tempo --health --health.url=http://localhost:3200/ready
 ```
 
