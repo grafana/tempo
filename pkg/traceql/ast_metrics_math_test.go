@@ -546,7 +546,7 @@ func TestMathExpressionMetricName(t *testing.T) {
 	}
 
 	input := SeriesSet{
-		nameLabel("rate", fragA).MapKey(): {Labels: nameLabel("rate", fragA), Values: []float64{1}},
+		nameLabel("rate", fragA).MapKey():  {Labels: nameLabel("rate", fragA), Values: []float64{1}},
 		nameLabel("count", fragB).MapKey(): {Labels: nameLabel("count", fragB), Values: []float64{2}},
 	}
 
@@ -617,9 +617,9 @@ type mockSecondStageElement struct {
 	initFn func(*tempopb.QueryRangeRequest)
 }
 
-func (m *mockSecondStageElement) String() string                         { return "" }
-func (m *mockSecondStageElement) validate() error                       { return nil }
-func (m *mockSecondStageElement) init(req *tempopb.QueryRangeRequest)   {
+func (m *mockSecondStageElement) String() string  { return "" }
+func (m *mockSecondStageElement) validate() error { return nil }
+func (m *mockSecondStageElement) init(req *tempopb.QueryRangeRequest) {
 	if m.initFn != nil {
 		m.initFn(req)
 	}
