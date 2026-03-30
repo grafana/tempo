@@ -166,7 +166,7 @@ func TestPartitionHandoff_LeaveGroupTriggersImmediateReassignment(t *testing.T) 
 		topic          = "handoff-topic"
 		group          = "handoff-group"
 		sessionTimeout = 8 * time.Second // long enough that "no LeaveGroup" does not transfer within handoffTimeout
-		handoffTimeout = 3 * time.Second  // must be < sessionTimeout
+		handoffTimeout = 3 * time.Second // must be < sessionTimeout
 	)
 
 	// newConsumer creates a kgo consumer with static membership.  It returns the
