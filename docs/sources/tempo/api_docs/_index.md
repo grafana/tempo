@@ -411,7 +411,7 @@ Parameters:
   Specifies the scope of the tags, this is an optional parameter, if not specified it means all scopes.
   Default = `all`
 - `q = (traceql query)`
-  Optional. A TraceQL query to filter tag names by. Currently only works for a single spanset of `&&`ed conditions. For example: `{ span.foo = "bar" && resource.baz = "bat" ...}`. See also [Filtered tag values](#filtered-tag-values).
+  Optional. A TraceQL query to filter tag names by. Supports `&&` and `||` operators within a single spanset. For example: `{ span.foo = "bar" && resource.baz = "bat" }` or `{ span.foo = "bar" || resource.baz = "bat" }`. See also [Filtered tag values](#filtered-tag-values).
 - `start = (unix epoch seconds)`
   Optional. Along with `end` define a time range from which tags should be returned.
 - `end = (unix epoch seconds)`
@@ -608,7 +608,7 @@ Parameters:
 - `end = (unix epoch seconds)`
   Optional. Along with `start`, defines a time range from which tags values should be returned. Providing both `start` and `end` includes blocks for the specified time range only.
 - `q = (traceql query)`
-  Optional. A TraceQL query to filter tag values by. Currently only works for a single spanset of `&&`ed conditions. For example: `{ span.foo = "bar" && resource.baz = "bat" ...}`. Refer to [Filtered tag values](#filtered-tag-values).
+  Optional. A TraceQL query to filter tag values by. Supports `&&` and `||` operators within a single spanset. For example: `{ span.foo = "bar" && resource.baz = "bat" }` or `{ span.foo = "bar" || resource.baz = "bat" }`. Refer to [Filtered tag values](#filtered-tag-values).
 - `limit = (integer)`
   Optional. Limits the maximum number of tags values
 - `maxStaleValues = (integer)`
@@ -632,10 +632,11 @@ Tempo extracts only the valid matchers and builds a valid query.
 If an input is invalid, Tempo doesn't provide an error. Instead,
 you'll see the whole list when a failure of parsing input. This behavior helps with backwards compatibility.
 
-Only queries with a single selector `{}` and AND `&&` operators are supported.
+Queries must use a single spanset selector `{}`. Both `&&` and `||` operators are supported within the selector.
 
 - Example supported: `{ resource.cluster = "us-east-1" && resource.service = "frontend" }`
-- Example unsupported: `{ resource.cluster = "us-east-1" || resource.service = "frontend" } && { resource.cluster = "us-east-2" }`
+- Example supported: `{ resource.cluster = "us-east-1" || resource.service = "frontend" }`
+- Example unsupported: `{ resource.cluster = "us-east-1" } && { resource.cluster = "us-east-2" }`
 
 Unscoped attributes aren't supported for filtered tag values.
 
