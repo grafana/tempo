@@ -28,6 +28,7 @@
 * [FEATURE] metrics-generator: Add per-label limiter to control cardinality [#6414](https://github.com/grafana/tempo/pull/6414) (@electron0zero)
   Adds `max_cardinality_per_label` per per-tenant override and new metrics to estimate per label cardinality demand estimate.
 * [FEATURE] Add an extension mechanism for per-tenant overrides [#6758](https://github.com/grafana/tempo/pull/6758) (@stoewer)
+* [ENHANCEMENT] tempo-cli: Add `--header` flag to `query api` commands for custom headers [#6768](https://github.com/grafana/tempo/pull/6768) (@Nouuu)
 * [ENHANCEMENT] Block builder: deduplicate spans within traces during block creation and track removed duplicates via `tempo_block_builder_spans_deduped_total` metric [#6539](https://github.com/grafana/tempo/pull/6539) (@zhxiaogg)
 * [ENHANCEMENT] metrics-generator: Support extracting span multiplier from W3C tracestate OTel probability sampling threshold via `enable_tracestate_span_multiplier` config option [#6684](https://github.com/grafana/tempo/pull/6684) (@cmarchbanks)
 * [ENHANCEMENT] Add new alerts and runbooks entries [#6276](https://github.com/grafana/tempo/pull/6276) (@javiermolinar)

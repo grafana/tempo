@@ -23,11 +23,12 @@ type metricsQueryCmd struct {
 	Start    string `arg:"" optional:"" help:"start time in RFC3339 (e.g. 2006-01-02T15:04:05Z07:00) or relative (e.g. now-1h) format"`
 	End      string `arg:"" optional:"" help:"end time in RFC3339 (e.g. 2006-01-02T15:04:05Z07:00) or relative (e.g. now) format"`
 
-	OrgID      string `help:"optional orgID"`
-	UseGRPC    bool   `help:"stream search results over GRPC"`
-	Instant    bool   `help:"perform an instant query instead of a range query"`
-	PathPrefix string `help:"string to prefix all http paths with"`
-	Secure     bool   `help:"use https or grpc with TLS"`
+	OrgID      string   `help:"optional orgID"`
+	Headers    []string `help:"extra headers in key=value format, sent as gRPC metadata when using --use-grpc" name:"header"`
+	UseGRPC    bool     `help:"stream search results over GRPC"`
+	Instant    bool     `help:"perform an instant query instead of a range query"`
+	PathPrefix string   `help:"string to prefix all http paths with"`
+	Secure     bool     `help:"use https or grpc with TLS"`
 }
 
 func (cmd *metricsQueryCmd) Run(_ *globalOptions) error {
@@ -76,6 +77,7 @@ func (cmd *metricsQueryCmd) queryRangeGRPC(req *tempopb.QueryRangeRequest) error
 	if err != nil {
 		return err
 	}
+	ctx = applyHeadersGRPC(ctx, cmd.Headers)
 
 	creds, err := grpcTransportCredentials(cmd.Secure)
 	if err != nil {
@@ -124,6 +126,7 @@ func (cmd *metricsQueryCmd) queryRangeHTTP(req *tempopb.QueryRangeRequest) error
 	if err != nil {
 		return err
 	}
+	applyHeadersHTTP(httpReq, cmd.Headers)
 
 	httpResp, err := http.DefaultClient.Do(httpReq)
 	if err != nil {
@@ -159,6 +162,7 @@ func (cmd *metricsQueryCmd) queryInstantGRPC(req *tempopb.QueryInstantRequest) e
 	if err != nil {
 		return err
 	}
+	ctx = applyHeadersGRPC(ctx, cmd.Headers)
 
 	creds, err := grpcTransportCredentials(cmd.Secure)
 	if err != nil {
@@ -207,6 +211,7 @@ func (cmd *metricsQueryCmd) queryInstantHTTP(req *tempopb.QueryInstantRequest) e
 	if err != nil {
 		return err
 	}
+	applyHeadersHTTP(httpReq, cmd.Headers)
 
 	httpResp, err := http.DefaultClient.Do(httpReq)
 	if err != nil {
