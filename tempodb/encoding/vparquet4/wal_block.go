@@ -741,6 +741,7 @@ func (b *walBlock) FetchTagValues(ctx context.Context, req traceql.FetchTagValue
 		return ok
 	}
 
+	blockFlushes := b.readFlushes()
 	for _, condGroup := range req.ConditionGroups {
 		err := checkConditions(condGroup)
 		if err != nil {
@@ -756,7 +757,6 @@ func (b *walBlock) FetchTagValues(ctx context.Context, req traceql.FetchTagValue
 			return b.SearchTagValuesV2(ctx, req.TagName, common.TagValuesCallbackV2(cb), mcb, common.DefaultSearchOptions())
 		}
 
-		blockFlushes := b.readFlushes()
 		for _, page := range blockFlushes {
 			done, err := func() (bool, error) {
 				file, err := page.file(ctx)
@@ -833,6 +833,7 @@ func (b *walBlock) FetchTagNames(ctx context.Context, req traceql.FetchTagsReque
 		return ok
 	}
 
+	blockFlushes := b.readFlushes()
 	for _, condGroup := range req.ConditionGroups {
 		err := checkConditions(condGroup)
 		if err != nil {
@@ -850,7 +851,6 @@ func (b *walBlock) FetchTagNames(ctx context.Context, req traceql.FetchTagsReque
 			}, mcb, opts)
 		}
 
-		blockFlushes := b.readFlushes()
 		for _, page := range blockFlushes {
 			done, err := func() (bool, error) {
 				file, err := page.file(ctx)

@@ -127,6 +127,10 @@ func splitReqConditions(expr FieldExpression) [][]Condition {
 	for _, op := range ops {
 		if op.opType == OpOr {
 			totalGroups *= len(op.conditions)
+			if totalGroups > maxConditionGroups {
+				totalGroups = maxConditionGroups
+				break
+			}
 		}
 	}
 
@@ -154,6 +158,9 @@ func splitReqConditions(expr FieldExpression) [][]Condition {
 		}
 		if op.opType == OpOr {
 			repeats *= len(op.conditions)
+			if repeats > maxConditionGroups {
+				repeats = maxConditionGroups
+			}
 		}
 	}
 
