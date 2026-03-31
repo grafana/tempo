@@ -83,19 +83,12 @@ Tempo 3.0 removes ingester configuration and adds new configuration blocks.
 **Add** to your 3.0 configuration:
 
 - `ingest:` block to connect Tempo to Kafka
-- `partition_ring_live_store: true` to enable the live-store partition ring
-- `stream_over_http_enabled: true` to enable streaming over HTTP
-- `querier.query_live_store: true` so queriers read recent data from live-stores
-- `query_frontend.rf1_after` set to the approximate time you switch traffic to 3.0 (this tells the query frontend to use RF1 blocks for data written after this timestamp; set to a past date like `"1999-01-01T00:00:00Z"` to use RF1 blocks for all queries)
 
 Your existing `server:`, `distributor:`, `query_frontend:`, `storage:`, `memberlist:`, and `overrides:` blocks carry over largely unchanged.
 
 The following example shows a minimal monolithic configuration for Tempo 3.0:
 
 ```yaml
-partition_ring_live_store: true
-stream_over_http_enabled: true
-
 server:
   http_listen_port: 3200
 
@@ -107,12 +100,6 @@ distributor:
           endpoint: "0.0.0.0:4317"
         http:
           endpoint: "0.0.0.0:4318"
-
-querier:
-  query_live_store: true
-
-query_frontend:
-  rf1_after: "<CUTOVER_TIMESTAMP>"  # Example: "2026-04-01T00:00:00Z"
 
 ingest:
   enabled: true
@@ -312,7 +299,6 @@ Queries for traces that existed in your 2.x deployment return empty results from
 To resolve this issue:
 
 - Verify that the 3.0 deployment uses the same object storage configuration (bucket, endpoint, credentials) as the 2.x deployment.
-- Check that `query_frontend.rf1_after` is set correctly. If set to a future timestamp, the query frontend won't look for blocks written before that time. Set it to the time you switched traffic, or to a past date like `"1999-01-01T00:00:00Z"` to query all blocks.
 - Confirm that the storage backend is reachable from the 3.0 deployment.
 
 ## Next steps
