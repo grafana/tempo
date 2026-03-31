@@ -8,11 +8,13 @@ import (
 
 	"github.com/gogo/protobuf/jsonpb"
 	"github.com/gogo/protobuf/proto"
+	"github.com/gogo/status"
 	"github.com/grafana/tempo/pkg/api"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/util/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc/codes"
 )
 
 type MockResponse struct {
@@ -84,6 +86,50 @@ func TestNewTraceByIdV2ReturnsAPartialTraceOnPartialTraceReturnedByQuerier(t *te
 	err = new(jsonpb.Unmarshaler).Unmarshal(res.Body, actualResp)
 	require.NoError(t, err)
 	assert.Equal(t, actualResp.Status, tempopb.PartialStatus_PARTIAL)
+}
+
+func TestTraceByIDV2RedactorHidesTrace(t *testing.T) {
+	traceResponse := &tempopb.TraceByIDResponse{
+		Trace:   test.MakeTrace(2, []byte{0x01, 0x02}),
+		Metrics: &tempopb.TraceByIDMetrics{},
+	}
+
+	newMockResponse := func(t *testing.T) MockResponse {
+		resBytes, err := proto.Marshal(traceResponse)
+		require.NoError(t, err)
+		return MockResponse{&http.Response{
+			StatusCode: 200,
+			Header:     map[string][]string{"Content-Type": {"application/protobuf"}},
+			Body:       io.NopCloser(bytes.NewReader(resBytes)),
+		}}
+	}
+
+	t.Run("HTTPFinal returns 404 with empty body", func(t *testing.T) {
+		c := NewTraceByIDV2(100_000, api.HeaderAcceptJSON, hidingRedactor{})
+		err := c.AddResponse(newMockResponse(t))
+		require.NoError(t, err)
+
+		resp, err := c.HTTPFinal()
+		require.NoError(t, err)
+		require.Equal(t, http.StatusNotFound, resp.StatusCode)
+		body, err := io.ReadAll(resp.Body)
+		require.NoError(t, err)
+		require.Empty(t, body)
+	})
+
+	t.Run("GRPCFinal returns codes.NotFound", func(t *testing.T) {
+		c := NewTypedTraceByIDV2(100_000, api.HeaderAcceptJSON, hidingRedactor{})
+		err := c.AddResponse(newMockResponse(t))
+		require.NoError(t, err)
+
+		resp, err := c.GRPCFinal()
+		require.Error(t, err)
+		require.Nil(t, resp)
+		st, ok := status.FromError(err)
+		require.True(t, ok)
+		require.Equal(t, codes.NotFound, st.Code())
+		require.Equal(t, "trace hidden by access policy", st.Message())
+	})
 }
 
 func TestNewTraceByIDV2(t *testing.T) {
