@@ -1,9 +1,13 @@
 package overrides
 
 import (
+	"encoding/json"
 	"flag"
 	"fmt"
+	"reflect"
 	"strconv"
+	"strings"
+	"sync"
 	"time"
 
 	"github.com/prometheus/common/config"
@@ -210,6 +214,80 @@ type Overrides struct {
 	// Storage enforced overrides.
 	Storage         StorageOverrides         `yaml:"storage,omitempty" json:"storage,omitempty"`
 	CostAttribution CostAttributionOverrides `yaml:"cost_attribution,omitempty" json:"cost_attribution,omitempty"`
+	// Extensions holds per-tenant overrides added by vendoring applications via RegisterExtension.
+	// Values are typed Extension instances after unmarshal.
+	Extensions map[string]any `yaml:",inline" json:"-"`
+}
+
+// knownOverridesJSONFields returns the JSON key names declared on Overrides
+var knownOverridesJSONFields = sync.OnceValue(func() map[string]struct{} {
+	return fieldNamesFor(Overrides{}, "json")
+})
+
+func (o *Overrides) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	type plain Overrides
+	if err := unmarshal((*plain)(o)); err != nil {
+		return err
+	}
+	return processExtensions(o)
+}
+
+func (o *Overrides) UnmarshalJSON(data []byte) error {
+	type plain Overrides
+	if err := json.Unmarshal(data, (*plain)(o)); err != nil {
+		return err
+	}
+
+	var raw map[string]json.RawMessage
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+
+	for key := range knownOverridesJSONFields() {
+		delete(raw, key)
+	}
+	if len(raw) == 0 {
+		// No extension keys in this payload; clear any stale Extensions from a prior decode.
+		o.Extensions = nil
+		return nil
+	}
+
+	o.Extensions = make(map[string]any, len(raw))
+	for k, v := range raw {
+		var val any
+		if err := json.Unmarshal(v, &val); err != nil {
+			return err
+		}
+		o.Extensions[k] = val
+	}
+	return processExtensions(o)
+}
+
+func (o Overrides) MarshalJSON() ([]byte, error) {
+	type plain Overrides
+	data, err := json.Marshal(plain(o))
+	if err != nil {
+		return nil, err
+	}
+	if len(o.Extensions) == 0 {
+		return data, nil
+	}
+
+	var m map[string]json.RawMessage
+	if err := json.Unmarshal(data, &m); err != nil {
+		return nil, err
+	}
+	for k, v := range o.Extensions {
+		if _, exists := m[k]; exists {
+			continue // known fields take precedence
+		}
+		b, err := json.Marshal(v)
+		if err != nil {
+			return nil, err
+		}
+		m[k] = b
+	}
+	return json.Marshal(m)
 }
 
 type Config struct {
@@ -234,12 +312,18 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	// Note: this implementation relies on callers using yaml.UnmarshalStrict. In non-strict mode
 	// unmarshal() will not return an error for legacy configuration and we return immediately.
 
-	// Try to unmarshal it normally
+	// Try to unmarshal it normally. Overrides.UnmarshalYAML calls processExtensions for c.Defaults.
+	// If the error is an extensionError, the config is in the new format but misconfigured.
 	type rawConfig Config
 	err := unmarshal((*rawConfig)(c))
 	if err == nil {
 		c.ConfigType = ConfigTypeNew
 		return nil
+	}
+
+	// Fail only on extension-specific errors, otherwise fallback to legacy mode
+	if isExtensionError(err) || isExtensionKeyError(err) {
+		return err
 	}
 
 	// Try to unmarshal inline limits
@@ -264,7 +348,13 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		return fmt.Errorf("failed to unmarshal config: %w; also failed in legacy format: %w", err, legacyErr)
 	}
 
-	c.Defaults = legacyCfg.DefaultOverrides.toNewLimits()
+	// Ensure legacy extension flat keys are converted to typed instances before toNewLimits.
+	// processLegacyExtensions may not be triggered automatically for inline struct fields.
+	if err := processLegacyExtensions(&legacyCfg.DefaultOverrides); err != nil {
+		return fmt.Errorf("defaults: %w", err)
+	}
+
+	c.Defaults = *legacyCfg.DefaultOverrides.toNewLimits()
 	c.PerTenantOverrideConfig = legacyCfg.PerTenantOverrideConfig
 	c.PerTenantOverridePeriod = legacyCfg.PerTenantOverridePeriod
 	c.UserConfigurableOverridesConfig = legacyCfg.UserConfigurableOverridesConfig
@@ -337,4 +427,21 @@ func (u *Uint32Value) Set(s string) error {
 	}
 	*u = Uint32Value(v)
 	return nil
+}
+
+func fieldNamesFor(v any, tagKey string) map[string]struct{} {
+	t := reflect.TypeOf(v)
+	fields := make(map[string]struct{}, t.NumField())
+	for field := range t.Fields() {
+		tag := field.Tag.Get(tagKey)
+		if tag == "-" || tag == ",inline" {
+			continue
+		}
+		name, _, _ := strings.Cut(tag, ",")
+		if name == "" {
+			name = field.Name
+		}
+		fields[name] = struct{}{}
+	}
+	return fields
 }

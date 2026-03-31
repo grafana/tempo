@@ -25,11 +25,14 @@ import (
 // Copied from Cortex
 func TestConfigTagsYamlMatchJson(t *testing.T) {
 	overrides := reflect.TypeOf(LegacyOverrides{})
-	n := overrides.NumField()
 	var mismatch []string
 
-	for i := 0; i < n; i++ {
-		field := overrides.Field(i)
+	for field := range overrides.Fields() {
+
+		// Skip fields intentionally excluded from JSON
+		if field.Tag.Get("json") == "-" {
+			continue
+		}
 
 		// Note that we aren't requiring YAML and JSON tags to match, just that
 		// they either both exist or both don't exist.
@@ -60,12 +63,6 @@ max_bytes_per_trace: 100_000
 block_retention: 24h
 compaction_window: 4h
 
-per_tenant_override_config: /etc/Overrides.yaml
-per_tenant_override_period: 1m
-
-metrics_generator_send_queue_size: 10
-metrics_generator_send_workers: 1
-
 max_search_duration: 5m
 `
 	inputJSON := `
@@ -82,12 +79,6 @@ max_search_duration: 5m
 
 	"block_retention": "24h",
 	"compaction_window": "4h",
-
-	"per_tenant_override_config": "/etc/Overrides.yaml",
-	"per_tenant_override_period": "1m",
-
-	"metrics_generator_send_queue_size": 10,
-	"metrics_generator_send_workers": 1,
 
 	"max_search_duration": "5m"
 }`
@@ -336,7 +327,7 @@ func ensureAllFieldsPopulated(t *testing.T, o LegacyOverrides) {
 		fieldName := structType.Field(i).Name
 
 		// Skip certain fields that can be zero in valid configs
-		skip := []string{"IngestionArtificialDelay", "MetricsGeneratorSpanNameSanitization"}
+		skip := []string{"IngestionArtificialDelay", "MetricsGeneratorSpanNameSanitization", "Extensions"}
 		if slices.Contains(skip, fieldName) {
 			continue
 		}

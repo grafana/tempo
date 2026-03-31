@@ -37,14 +37,19 @@ type perTenantOverrides struct {
 }
 
 func (o *perTenantOverrides) UnmarshalYAML(unmarshal func(interface{}) error) error {
-	// Note: this implementation relies on callers using yaml.UnmarshalStrict. In non-strict mode
-	// unmarshal() will not return an error for legacy configuration and we return immediately.
-
-	// Try to unmarshal it normally
+	// Try to unmarshal as new format. Overrides.UnmarshalYAML calls processExtensions for each
+	// tenant, which rejects unregistered extension keys — including legacy flat-key field names
+	// (e.g. "max_traces_per_user"). If any tenant uses legacy fields the first-pass will error
+	// and we fall through to the legacy path below.
+	// If the error is an extensionError, the config is in the new format but misconfigured.
 	type rawConfig perTenantOverrides
-	if err := unmarshal((*rawConfig)(o)); err == nil {
+	err := unmarshal((*rawConfig)(o))
+	if err == nil {
 		o.ConfigType = ConfigTypeNew
 		return nil
+	}
+	if isExtensionError(err) || !isLegacyExtensionKeyError(err) {
+		return err
 	}
 
 	var legacyConfig perTenantLegacyOverrides
@@ -54,7 +59,6 @@ func (o *perTenantOverrides) UnmarshalYAML(unmarshal func(interface{}) error) er
 
 	*o = legacyConfig.toNewOverrides()
 	o.ConfigType = ConfigTypeLegacy
-
 	return nil
 }
 
