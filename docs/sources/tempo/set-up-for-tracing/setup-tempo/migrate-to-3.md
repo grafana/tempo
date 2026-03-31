@@ -11,8 +11,8 @@ versionDate: 2026-02-25
 
 # Migrate from Tempo 2.x to 3.0
 
-Grafana Tempo 3.0 introduces a new architecture that replaces ingesters with an Apache Kafka-based ingest path. Distributors write trace data to Kafka, and two new components consume from it. Block-builders create blocks for long-term object storage, and live-stores serve recent-data queries.
-Refer to [the Kafka Introduction](https://kafka.apache.org/42/getting-started/introduction/) for more information about Kafka.
+Grafana Tempo 3.0 introduces a new architecture that replaces ingesters with a Kafka-based ingest path.
+Distributors write trace data to Kafka, and two new components consume from it: block-builders create blocks for long-term object storage, and live-stores serve recent-data queries.
 
 This guide walks you through migrating a self-managed Grafana Tempo deployment from 2.x to 3.0.
 Because the architecture change is fundamental, this is a migration rather than an in-place upgrade.
@@ -22,8 +22,6 @@ You deploy a new Tempo 3.0 instance alongside your existing 2.x deployment, swit
 There's no downgrade path from 3.0 to 2.x. Once you begin writing blocks with Tempo 3.0, you can't revert to a 2.x deployment.
 {{< /admonition >}}
 
-The active migration steps take approximately 1-2 hours to complete, followed by a one-week validation period before final decommission.
-
 {{< admonition type="note" >}}
 Running two Tempo deployments in parallel increases infrastructure costs for the duration of the migration. Plan to complete the migration and decommission the 2.x deployment promptly.
 {{< /admonition >}}
@@ -32,50 +30,31 @@ Running two Tempo deployments in parallel increases infrastructure costs for the
 
 Confirm the following before you start:
 
-- Your Tempo 2.x deployment uses vParquet4 or later as the block format. Tempo 3.0 doesn't support vParquet3 or earlier. If you're using an older format, upgrade your block format before migrating. Refer to [Choose a different block format](/docs/tempo/<TEMPO_VERSION>/configuration/parquet/#choose-a-different-block-format).
-- You have a running Kafka-compatible system, for example, Apache Kafka, Redpanda, or WarpStream. Tempo 3.0 requires Kafka for all deployment modes, including monolithic. Refer to your Kafka provider's documentation for installation instructions.
-- Your Kafka cluster is sized to handle your trace ingestion throughput. As a starting point, match the number of Kafka partitions to your expected parallelism for block-builders and live-stores.
-- You have access to the same object storage bucket or container used by your 2.x deployment.
-- You control the traffic routing layer (load balancer, DNS, or reverse proxy) that directs trace clients to Tempo.
-- You have your Tempo 2.x configuration file and any per-tenant overrides available.
-- If you're running scalable monolithic mode (previously known as scalable single binary mode or SSB), plan to switch to either monolithic or microservices mode. SSB has been removed in Tempo 3.0.
-- You've reviewed the [Upgrade your Tempo installation](/docs/tempo/<TEMPO_VERSION>/set-up-for-tracing/setup-tempo/upgrade/) page for breaking changes and removed configuration parameters.
+- Your Tempo 2.x deployment uses **vParquet4 or later** as the block format. Tempo 3.0 doesn't support vParquet3 or earlier. If you're using an older format, upgrade your block format before migrating. Refer to [Choose a different block format](/docs/tempo/<TEMPO_VERSION>/configuration/parquet/#choose-a-different-block-format).
+- You have a running **Kafka-compatible system** (for example, Apache Kafka or Redpanda). Tempo 3.0 requires Kafka for all deployment modes, including monolithic.
+- You have access to the **same object storage** bucket or container used by your 2.x deployment.
+- If you're running **scalable monolithic mode** (SSB), plan to switch to either monolithic or microservices mode. SSB has been removed in Tempo 3.0.
+- You've reviewed the [Upgrade your Tempo installation](/docs/tempo/<TEMPO_VERSION>/set-up-for-tracing/setup-tempo/upgrade/) page for breaking changes.
 
-## Review the architecture changes
+## Architecture changes
 
-Tempo 2.x and 3.0 handle trace ingestion differently. Understanding these changes helps you plan your configuration and deployment.
+In Tempo 2.x, distributors forward spans to ingesters over gRPC. Ingesters batch spans, build blocks, and flush them to object storage. For more information, refer to the [Tempo 2.x architecture](https://grafana.com/docs/tempo/v2.10.x/introduction/architecture/).
 
-In Tempo 2.x, distributors forward spans directly to ingesters over gRPC. Ingesters batch spans in memory, build blocks, and flush them to object storage. Queriers read both from ingesters (for recent data) and from object storage (for historical data).
-For more information about the Tempo 2.x architecture, refer to [Tempo 2.x architecture](https://grafana.com/docs/tempo/v2.10.x/introduction/architecture/).
+In Tempo 3.0, distributors write spans to Kafka instead. **Block-builders** consume from Kafka and build blocks for object storage. **Live-stores** consume from Kafka and serve recent-data queries (typically the last 30 minutes to 1 hour). Because Kafka provides durability, Tempo 3.0 operates with a replication factor of 1 (RF1), eliminating the need for ingester replication. Ingesters, the scalable single binary (SSB) mode, and the compactor target are removed.
 
-In Tempo 3.0, distributors write spans to Kafka. Two components consume from Kafka independently:
-
-- **Block-builders** consume spans and build blocks for long-term object storage.
-- **Live-stores** consume spans and serve recent-data queries, typically covering the last 30 minutes to 1 hour.
-
-Queriers read from live-stores for recent data and from object storage for historical data.
-
-Because Kafka provides durability, Tempo 3.0 operates with a replication factor of 1 (RF1). Data is durable as soon as Kafka acknowledges the write. This eliminates the need for ingester replication and deduplication.
-
-For a detailed description of each component, refer to [Tempo architecture](/docs/tempo/<TEMPO_VERSION>/introduction/architecture/).
+For a detailed description of the new architecture, refer to [Tempo architecture](/docs/tempo/<TEMPO_VERSION>/introduction/architecture/).
 
 ## Prepare for migration
 
-Before deploying Tempo 3.0, create the Kafka topic and review the configuration changes you need to make.
-
-A Kafka topic is a named channel that organizes messages within a Kafka cluster. Producers write
-messages to a topic, and consumers read messages from it.
-A topic is divided into partitions, which are ordered, append-only logs. Partitions allow multiple
-consumers to read from the same topic in parallel, where each partition is consumed by a different
-instance.
+Before deploying Tempo 3.0, configure a Kafka topic and prepare your new configuration.
 
 ### Configure the Kafka topic
 
 Tempo uses a single Kafka topic for all trace data, configured through `ingest.kafka.topic`.
-You can let Tempo auto-create the topic or create it manually with settings that match your throughput.
-For more information about Kafka topics, refer to the [Kafka topic configuration reference](https://kafka.apache.org/documentation/#topicconfigs).
+You can let Tempo auto-create the topic or create it manually.
+For more information, refer to the [Kafka topic configuration reference](https://kafka.apache.org/documentation/#topicconfigs).
 
-To let Tempo create the topic automatically, enable auto-creation in the `ingest` block.
+To let Tempo create the topic automatically:
 
 ```yaml
 ingest:
@@ -89,43 +68,84 @@ ingest:
 
 Your Kafka broker must also have `auto.create.topics.enable` set to `true`.
 
-To create the topic manually, set the partition count based on your expected parallelism. Each partition supports approximately one block-builder or live-store instance. For most deployments, 1000 partitions provides sufficient headroom. For sizing guidance, refer to [Size your cluster](/docs/tempo/<TEMPO_VERSION>/set-up-for-tracing/setup-tempo/plan/size/).
+To create the topic manually, set the partition count based on your expected parallelism. For most deployments, 1000 partitions provides sufficient headroom.
 
 ### Review configuration changes
 
-Tempo 3.0 removes ingester configuration and adds new configuration blocks. At a minimum, you need to make the following changes.
+Tempo 3.0 removes ingester configuration and adds new configuration blocks.
 
 **Remove** from your 2.x configuration:
 
 - The `ingester:` block and all its settings
-- Any ingester ring configuration
+- Any `ingester_client:` configuration
+- The `compactor:` block (replaced by `backend_scheduler:` and `backend_worker:`)
 
 **Add** to your 3.0 configuration:
 
-The `ingest:` block to connect Tempo to Kafka:
+- `ingest:` block to connect Tempo to Kafka
+- `partition_ring_live_store: true` to enable the live-store partition ring
+- `stream_over_http_enabled: true` to enable streaming over HTTP
+- `querier.query_live_store: true` so queriers read recent data from live-stores
+- `query_frontend.rf1_after` set to the approximate time you switch traffic to 3.0 (this tells the query frontend to use RF1 blocks for data written after this timestamp; set to a past date like `"1999-01-01T00:00:00Z"` to use RF1 blocks for all queries)
+
+Your existing `server:`, `distributor:`, `query_frontend:`, `storage:`, `memberlist:`, and `overrides:` blocks carry over largely unchanged.
+
+The following example shows a minimal monolithic configuration for Tempo 3.0:
 
 ```yaml
+partition_ring_live_store: true
+stream_over_http_enabled: true
+
+server:
+  http_listen_port: 3200
+
+distributor:
+  receivers:
+    otlp:
+      protocols:
+        grpc:
+          endpoint: "0.0.0.0:4317"
+        http:
+          endpoint: "0.0.0.0:4318"
+
+querier:
+  query_live_store: true
+
+query_frontend:
+  rf1_after: "<CUTOVER_TIMESTAMP>"  # Example: "2026-04-01T00:00:00Z"
+
 ingest:
   enabled: true
   kafka:
     address: <KAFKA_BROKER_ADDRESS>
     topic: <KAFKA_TOPIC>
+
+block_builder:
+  consume_cycle_duration: 30s
+
+storage:
+  trace:
+    backend: s3  # Keep your existing storage configuration
+    s3:
+      bucket: <YOUR_BUCKET>
+      endpoint: <YOUR_ENDPOINT>
+    wal:
+      path: /var/tempo/wal
+```
+
+In microservices mode, you also need to configure block-builder partition assignment. Use `assigned_partitions` to map each block-builder instance to specific Kafka partitions:
+
+```yaml
+block_builder:
+  consume_cycle_duration: 30s
+  assigned_partitions:
+    block-builder-0: [0, 1]
+    block-builder-1: [2, 3]
 ```
 
 The `live_store:` block uses sensible defaults and doesn't require overrides for most deployments.
 
-In microservices mode, the `block_builder:` block requires `partitions_per_instance` to control how many Kafka partitions each block-builder instance consumes from:
-
-```yaml
-block_builder:
-  partitions_per_instance: <NUMBER_OF_PARTITIONS>
-```
-
-Set this value based on the total number of Kafka partitions divided by the number of block-builder instances. In monolithic mode, partition assignment is handled automatically.
-
-For the full list of options and defaults, refer to the [Block-builder](/docs/tempo/<TEMPO_VERSION>/configuration/#block-builder) and [Live-store](/docs/tempo/<TEMPO_VERSION>/configuration/#live-store) configuration reference.
-
-If your Kafka cluster requires authentication, add the Simple Authentication and Security Layer (SASL) credentials:
+If your Kafka cluster requires authentication, add SASL credentials to the `ingest` block:
 
 ```yaml
 ingest:
@@ -137,76 +157,45 @@ ingest:
     sasl_password: <PASSWORD>
 ```
 
-Your existing `server:`, `distributor:`, `querier:`, `query_frontend:`, `storage:`, `memberlist:`, and `overrides:` blocks carry over unchanged. Copy them from your 2.x configuration into your 3.0 configuration file.
+For the full list of options, refer to the [Ingest](/docs/tempo/<TEMPO_VERSION>/configuration/#ingest), [Block-builder](/docs/tempo/<TEMPO_VERSION>/configuration/#block-builder), and [Live-store](/docs/tempo/<TEMPO_VERSION>/configuration/#live-store) configuration reference.
 
-**Disable compaction in the initial 3.0 deployment.** In Tempo 3.0, compaction is handled by backend-workers coordinated by the backend-scheduler. Only one set of compaction components can safely write to shared storage at a time. Because the 2.x compactors are still running during the parallel operation period, the 3.0 backend-workers must be disabled to prevent data corruption.
+#### Disable compaction during parallel operation
 
-For Helm, set `backendScheduler.replicas` and `backendWorker.replicas` to `0` in your values file:
+In Tempo 3.0, compaction is handled by backend-workers coordinated by the backend-scheduler. Only one set of compaction components can safely write to shared storage at a time. Because the 2.x compactors are still running during the parallel operation period, disable the 3.0 compaction components to prevent data corruption.
 
-```yaml
-backendScheduler:
-  replicas: 0
-backendWorker:
-  replicas: 0
-```
+In microservices mode, scale backend-scheduler and backend-worker replicas to `0`. In monolithic mode, comment out or remove the `backend_scheduler:` and `backend_worker:` blocks from your configuration.
 
-For Docker Compose, remove or comment out the `backend-scheduler` and `backend-worker` services in your compose file.
+You re-enable compaction after the 2.x deployment is decommissioned. Refer to [Clean up the Tempo 2.x deployment](#clean-up-the-tempo-2x-deployment).
 
-You re-enable backend-workers in the 3.0 deployment after the 2.x deployment stops writing blocks. Refer to [Clean up the Tempo 2.x deployment](#clean-up-the-tempo-2x-deployment).
+#### Metrics-generator
 
 If you use the metrics-generator, note that it also consumes from Kafka in Tempo 3.0.
 Ensure the metrics-generator configuration includes the same `ingest:` block so it can connect to your Kafka cluster.
-For more information about the metrics-generator, refer to [Metrics-generator](/docs/tempo/<TEMPO_VERSION>/metrics-from-traces/metrics-generator/).
-
-For the full list of configuration parameters, refer to the [Ingest](/docs/tempo/<TEMPO_VERSION>/configuration/#ingest), [Block-builder](/docs/tempo/<TEMPO_VERSION>/configuration/#block-builder), [metrics-generator](/docs/tempo/<TEMPO_VERSION>/configuration/#metrics-generator) and [Live-store](/docs/tempo/<TEMPO_VERSION>/configuration/#live-store) configuration reference.
+For more information, refer to [Metrics-generator](/docs/tempo/<TEMPO_VERSION>/metrics-from-traces/metrics-generator/).
 
 ## Deploy Tempo 3.0
 
-Deploy a new Tempo 3.0 instance alongside your existing 2.x deployment. Both deployments use the same object storage.
+Deploy a new Tempo 3.0 instance alongside your existing 2.x deployment. Both deployments must point at the same object storage bucket so the new deployment can query historical blocks immediately.
 
-For a complete example configuration, refer to the [`tempo.yaml` example](https://github.com/grafana/tempo/blob/main/example/docker-compose/single-binary/tempo.yaml) in the Tempo repository.
+For deployment instructions, refer to [Deploy Tempo](/docs/tempo/<TEMPO_VERSION>/set-up-for-tracing/setup-tempo/deploy/). For a complete example configuration, refer to the [`tempo.yaml` example](https://github.com/grafana/tempo/blob/main/example/docker-compose/single-binary/tempo.yaml).
 
-To deploy and validate Tempo 3.0:
+To validate the deployment:
 
-1. Deploy Tempo 3.0 using your preferred method. Use the updated configuration with the `ingest:`, `block_builder:`, and `live_store:` blocks.
+1. Deploy Tempo 3.0 using your preferred method with the updated configuration.
 
-   For Helm (monolithic):
+1. Confirm that compaction is disabled in the 3.0 deployment, as described in [Disable compaction during parallel operation](#disable-compaction-during-parallel-operation).
 
-   ```bash
-   helm upgrade --install tempo grafana/tempo -f <TEMPO_3_VALUES_FILE>.yaml
-   ```
-
-   For detailed Helm deployment instructions, refer to [Deploy with Helm](/docs/tempo/<TEMPO_VERSION>/set-up-for-tracing/setup-tempo/deploy/kubernetes/helm-chart/).
-
-   For Helm (microservices):
-
-   ```bash
-   helm upgrade --install tempo grafana/tempo-distributed -f <TEMPO_3_VALUES_FILE>.yaml
-   ```
-
-   For Docker Compose:
-
-   ```bash
-   docker compose up -d
-   ```
-
-   For detailed Docker Compose deployment instructions, refer to the [`example` directory](https://github.com/grafana/tempo/tree/main/example/docker-compose) in the Tempo repository.
-
-1. Point the 3.0 deployment at the same object storage bucket or container as your 2.x deployment. This lets the new deployment query historical blocks immediately.
-
-1. Confirm that compaction is disabled in the 3.0 deployment (backend-scheduler and backend-worker scaled to zero), as described in [Review configuration changes](#review-configuration-changes).
-
-1. Validate that the 3.0 deployment can query historical data. Run a trace lookup against the 3.0 query frontend:
+1. Validate that the 3.0 deployment can query historical data from shared object storage:
 
    ```bash
    curl http://<TEMPO_3_QUERY_FRONTEND>:3200/api/traces/<TRACE_ID>
    ```
 
-   If the query returns trace data, the new deployment is reading from storage correctly.
+   Use a trace ID that you know exists in your 2.x deployment. If the query returns trace data, the new deployment is reading from storage correctly.
 
-1. Verify that Tempo 3.0 connects to Kafka successfully. Confirm that `tempo_distributor_kafka_write_bytes_total` is increasing, `tempo_block_builder_fetch_records_total` is increasing, and `tempo_live_store_ready` equals `1`. The log message `"live-store ready to serve queries"` confirms the live-store is ready.
+1. Verify that all components start successfully and connect to Kafka. Check that `tempo_live_store_ready` equals `1`. The log message `"live-store ready to serve queries"` confirms the live-store is ready. At this point, no traffic is flowing through the 3.0 distributors yet, so write metrics will be at zero.
 
-Before proceeding, confirm all components are healthy and the metrics above show expected values.
+Before proceeding, confirm all components are healthy.
 
 ## Switch traffic to Tempo 3.0
 
@@ -315,6 +304,16 @@ The live-store needs time to catch up with Kafka after startup. To monitor progr
 - Check the `tempo_live_store_ready` metric. A value of `1` indicates the live-store is ready to serve queries.
 - Check `tempo_live_store_catch_up_duration_seconds` to monitor catch-up progress.
 - The log message `"live-store ready to serve queries"` confirms readiness.
+
+### Historical queries return no results
+
+Queries for traces that existed in your 2.x deployment return empty results from the 3.0 deployment.
+
+To resolve this issue:
+
+- Verify that the 3.0 deployment uses the same object storage configuration (bucket, endpoint, credentials) as the 2.x deployment.
+- Check that `query_frontend.rf1_after` is set correctly. If set to a future timestamp, the query frontend won't look for blocks written before that time. Set it to the time you switched traffic, or to a past date like `"1999-01-01T00:00:00Z"` to query all blocks.
+- Confirm that the storage backend is reachable from the 3.0 deployment.
 
 ## Next steps
 

@@ -29,6 +29,8 @@ You can check your configuration options using the [`status` API endpoint](https
 
 ## Upgrade to Tempo 3.0
 
+Tempo 3.0 is a major architectural change. For a step-by-step migration procedure, refer to [Migrate from Tempo 2.x to 3.0](/docs/tempo/<TEMPO_VERSION>/set-up-for-tracing/setup-tempo/migrate-to-3/).
+
 When upgrading to Tempo 3.0, be aware of these breaking changes:
 
 - **Kafka required**: A Kafka-compatible system is now required for all deployment modes. Distributors write to Kafka instead of directly to ingesters.
