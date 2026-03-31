@@ -201,7 +201,7 @@ func (c *genericCombiner[T]) GRPCFinal() (T, error) {
 	final, err := c.finalize(c.current)
 	if err != nil {
 		if errors.Is(err, ErrTraceHidden) {
-			return empty, status.Error(codes.NotFound, "trace hidden by access policy")
+			return empty, status.Error(codes.NotFound, ErrTraceHidden.Error())
 		}
 		return empty, err
 	}
