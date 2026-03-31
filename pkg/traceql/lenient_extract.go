@@ -28,11 +28,6 @@ func ExtractConditionGroups(query string) [][]Condition {
 		return nil
 	}
 
-	s := expr.String()
-	if s == "{ true }" {
-		return nil
-	}
-
 	// Find the first SpansetFilter in the pipeline.
 	// Returns nil for structural operators (SpansetOperation) indicating multiple spansets.
 	filter := findSpansetFilter(expr.Pipeline)
@@ -174,6 +169,30 @@ func splitReqConditions(expr FieldExpression) [][]Condition {
 	return result
 }
 
+// deduplicateConditionBranches removes duplicate branches from an OR group.
+// Two branches are considered equal if they contain the same conditions in the same order.
+func deduplicateConditionBranches(branches [][]Condition) [][]Condition {
+	seen := make(map[string]struct{}, len(branches))
+	result := branches[:0]
+	for _, branch := range branches {
+		var sb strings.Builder
+		for _, c := range branch {
+			sb.WriteString(c.Attribute.String())
+			sb.WriteString(c.Op.String())
+			for _, o := range c.Operands {
+				sb.WriteString(o.String())
+			}
+			sb.WriteByte('|')
+		}
+		key := sb.String()
+		if _, ok := seen[key]; !ok {
+			seen[key] = struct{}{}
+			result = append(result, branch)
+		}
+	}
+	return result
+}
+
 // flattenExprToOperations walks a FieldExpression AST and collects conditionOperations:
 //   - OpAnd operations collect leaf conditions into a single AND group
 //   - OpOr operations collect their branches as separate condition slices in an OR group
@@ -232,6 +251,7 @@ func flattenExprToOperations(expr FieldExpression, operators *[]conditionOperati
 		sharedOp := &conditionOperation{opType: OpOr}
 		flattenExprToOperations(e.LHS, operators, sharedOp, e.Op)
 		flattenExprToOperations(e.RHS, operators, sharedOp, e.Op)
+		sharedOp.conditions = deduplicateConditionBranches(sharedOp.conditions)
 		*operators = append(*operators, *sharedOp)
 
 	default:

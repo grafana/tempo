@@ -242,6 +242,11 @@ func TestFlattenExprToOperations(t *testing.T) {
 			expected: []testOperation{{opType: OpOr, cond: []int{2, 1, 1}}},
 		},
 		{
+			name:     "two duplicated OR conditions",
+			query:    `{ (.attr = "123" && .foo = "bar") || .service = "b" || .env = "staging" || (.attr = "123" && .foo = "bar") || .service = "b" }`,
+			expected: []testOperation{{opType: OpOr, cond: []int{2, 1, 1}}},
+		},
+		{
 			name:     "one single condition AND three single condition ORs",
 			query:    `{ name = "abc" && (.attr = "123" || .service = "b" || .env = "staging") }`,
 			expected: []testOperation{{opType: OpAnd, cond: []int{1}}, {opType: OpOr, cond: []int{1, 1, 1}}},
