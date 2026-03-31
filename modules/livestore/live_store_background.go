@@ -123,16 +123,16 @@ func (s *LiveStore) processCompleteOp(op *completeOp) error {
 		return nil
 	}
 
-	level.Error(s.logger).Log("msg", "failed to complete block", "tenant", op.tenantID, "block", op.blockID, "err", err)
-	observeFailedOp(op)
-	span.RecordError(err)
-
 	// If the context is cancelled (shutdown), abandon the completion. The WAL block remains on
 	// disk and will be re-enqueued by reloadBlocks() on next startup.
 	if ctx.Err() != nil {
 		level.Info(s.logger).Log("msg", "abandoning WAL block completion on shutdown, will replay on restart", "tenant", op.tenantID, "block", op.blockID)
 		return nil
 	}
+
+	level.Error(s.logger).Log("msg", "failed to complete block", "tenant", op.tenantID, "block", op.blockID, "err", err)
+	observeFailedOp(op)
+	span.RecordError(err)
 
 	delay := op.backoff()
 	op.at = time.Now().Add(delay)

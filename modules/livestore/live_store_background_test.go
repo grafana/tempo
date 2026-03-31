@@ -1,10 +1,12 @@
 package livestore
 
 import (
+	"context"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/grafana/dskit/services"
 	"github.com/stretchr/testify/require"
 )
 
@@ -17,6 +19,7 @@ func TestProcessCompleteOpAbandonOnCancelledContext(t *testing.T) {
 
 	liveStore, err := defaultLiveStore(t, tmpDir)
 	require.NoError(t, err)
+	t.Cleanup(func() { _ = services.StopAndAwaitTerminated(context.Background(), liveStore) })
 
 	inst, err := liveStore.getOrCreateInstance(testTenantID)
 	require.NoError(t, err)
