@@ -166,7 +166,7 @@ func (c *genericCombiner[T]) HTTPFinal() (*http.Response, error) {
 		if errors.Is(err, ErrTraceHidden) {
 			return &http.Response{
 				StatusCode: http.StatusNotFound,
-				Body:       io.NopCloser(strings.NewReader("")),
+				Body:       http.NoBody,
 				Header:     http.Header{},
 			}, nil
 		}
