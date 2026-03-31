@@ -68,7 +68,7 @@ services:
     volumes:
       - ./tempo.yaml:/etc/tempo.yaml
     ports:
-      - "3200:3200" # tempo
+      - "3202:3200" # tempo
 
   querier:
     image: *tempoImage
