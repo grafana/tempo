@@ -19,7 +19,7 @@ Because the architecture change is fundamental, this is a migration rather than 
 You deploy a new Tempo 3.0 instance alongside your existing 2.x deployment, switch traffic, and decommission the old deployment.
 
 {{< admonition type="warning" >}}
-There's no downgrade path from 3.0 to 2.x. Once you begin writing blocks with Tempo 3.0, you can't revert to a 2.x deployment.
+There's no in-place downgrade from 3.0 to 2.x. During the migration you can route traffic back to 2.x (see [Roll back](#roll-back)), but once you decommission the 2.x deployment, plan to stay on 3.0.
 {{< /admonition >}}
 
 {{< admonition type="note" >}}
@@ -35,6 +35,20 @@ Confirm the following before you start:
 - You have access to the **same object storage** bucket or container used by your 2.x deployment.
 - If you're running **scalable monolithic mode** (SSB), plan to switch to either monolithic or microservices mode. SSB has been removed in Tempo 3.0.
 - You've reviewed the [Upgrade your Tempo installation](/docs/tempo/<TEMPO_VERSION>/set-up-for-tracing/setup-tempo/upgrade/) page for breaking changes.
+
+### Migrate legacy overrides format
+
+Tempo 3.0 disables the legacy (flat, unscoped) overrides format by default. If your main config or per-tenant overrides file uses the legacy format, Tempo refuses to start with an error like:
+
+```
+DEPRECATED: legacy overrides config format detected but legacy overrides are disabled by default.
+Migrate your overrides config to the new scoped format, or set -config.enable-legacy-overrides=true
+(or enable_legacy_overrides: true in YAML) to continue using legacy overrides temporarily
+```
+
+As a temporary workaround, set `enable_legacy_overrides: true` in the `overrides` block or pass `-config.enable-legacy-overrides=true` on the CLI. Legacy overrides will be removed in a future release.
+
+To migrate, use the [`tempo-cli migrate overrides-config`](/docs/tempo/<TEMPO_VERSION>/operations/tempo_cli/#migrate-overrides-config-command) command, or manually rewrite your overrides to the new scoped format. Refer to the [overrides configuration reference](/docs/tempo/<TEMPO_VERSION>/configuration/#overrides) for the full schema.
 
 ## Architecture changes
 
@@ -58,17 +72,20 @@ To let Tempo create the topic automatically:
 
 ```yaml
 ingest:
-  enabled: true
   kafka:
     address: <KAFKA_BROKER_ADDRESS>
     topic: <KAFKA_TOPIC_NAME>
     auto_create_topic_enabled: true
-    auto_create_topic_default_partitions: 1000
+    auto_create_topic_default_partitions: <PARTITION_COUNT>
 ```
 
 Your Kafka broker must also have `auto.create.topics.enable` set to `true`.
 
-To create the topic manually, set the partition count based on your expected parallelism. For most deployments, 1000 partitions provides sufficient headroom.
+{{< admonition type="warning" >}}
+`auto_create_topic_default_partitions` sets the broker-wide `num.partitions` default, which affects all auto-created topics on the broker, not just the Tempo topic. If other services share the same Kafka cluster, consider creating the topic manually instead.
+{{< /admonition >}}
+
+To create the topic manually, set the partition count based on your expected parallelism. As a starting point, plan for approximately 10 MB/s of peak ingestion throughput per partition.
 
 ### Review configuration changes
 
@@ -102,7 +119,6 @@ distributor:
           endpoint: "0.0.0.0:4318"
 
 ingest:
-  enabled: true
   kafka:
     address: <KAFKA_BROKER_ADDRESS>
     topic: <KAFKA_TOPIC>
@@ -136,7 +152,6 @@ If your Kafka cluster requires authentication, add SASL credentials to the `inge
 
 ```yaml
 ingest:
-  enabled: true
   kafka:
     address: <KAFKA_BROKER_ADDRESS>
     topic: <KAFKA_TOPIC>
@@ -157,7 +172,7 @@ You re-enable compaction after the 2.x deployment is decommissioned. Refer to [C
 #### Metrics-generator
 
 If you use the metrics-generator, note that it also consumes from Kafka in Tempo 3.0.
-Ensure the metrics-generator configuration includes the same `ingest:` block so it can connect to your Kafka cluster.
+The metrics-generator automatically uses the top-level `ingest:` block — no additional Kafka configuration is needed for it.
 For more information, refer to [Metrics-generator](/docs/tempo/<TEMPO_VERSION>/metrics-from-traces/metrics-generator/).
 
 ## Deploy Tempo 3.0
@@ -253,10 +268,6 @@ Revert the traffic routing change to point clients back to the 2.x deployment. B
 ### After decommissioning 2.x
 
 Rolling back requires redeploying the 2.x infrastructure. Blocks written by the 3.0 block-builders remain in object storage and are readable by both versions, assuming they use a compatible block format (vParquet4 or later).
-
-{{< admonition type="warning" >}}
-There's no downgrade path from Tempo 3.0 to 2.x in terms of the ingest pipeline. After you've committed to the Kafka-based architecture, plan to stay on 3.0. The rollback options above cover the transition period only.
-{{< /admonition >}}
 
 ## Troubleshoot the migration
 
