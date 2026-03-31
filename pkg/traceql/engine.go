@@ -205,7 +205,9 @@ func (e *Engine) ExecuteTagValues(
 			}
 		}
 		if !skip {
-			finalConditionGroups = append(finalConditionGroups, group)
+			groupCopy := make([]Condition, len(group))
+			copy(groupCopy, group)
+			finalConditionGroups = append(finalConditionGroups, groupCopy)
 		}
 	}
 

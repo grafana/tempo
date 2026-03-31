@@ -1125,7 +1125,7 @@ func TestFetchTagValuesWithOrConditions(t *testing.T) {
 		{
 			name:           "all sides with double conditions match",
 			tag:            "span.foo",
-			query:          `{ (resource.foo = "abc" || resource.service.name = 1234) && ( resource.asdf = 123 || resource.foo = "abc2" }`,
+			query:          `{ (resource.foo = "abc" || resource.service.name = 1234) && ( resource.asdf = 123 || resource.foo = "abc2" ) }`,
 			expectedValues: []tempopb.TagValue{stringTagValue("def"), stringTagValue("ghi")},
 		},
 	}

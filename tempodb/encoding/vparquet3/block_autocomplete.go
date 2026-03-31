@@ -66,6 +66,13 @@ func (b *backendBlock) FetchTagNames(ctx context.Context, req traceql.FetchTagsR
 	// report metrics with defer to handle early exit
 	defer mcb(rr.BytesRead())
 
+	// track sent tag names to avoid duplicates. this is a perf improvement
+	sentKeys := make(map[tagNameKey]struct{})
+	existsTagName := func(key tagNameKey) bool {
+		_, ok := sentKeys[key]
+		return ok
+	}
+
 	for _, condGroup := range req.ConditionGroups {
 		mingledConditions, _, _, _, err := categorizeConditions(condGroup)
 		if err != nil {
@@ -77,13 +84,6 @@ func (b *backendBlock) FetchTagNames(ctx context.Context, req traceql.FetchTagsR
 			return b.SearchTags(ctx, req.Scope, func(t string, scope traceql.AttributeScope) {
 				cb(t, scope)
 			}, mcb, opts)
-		}
-
-		// track sent tag names to avoid duplicates. this is a perf improvement
-		sentKeys := make(map[tagNameKey]struct{})
-		existsTagName := func(key tagNameKey) bool {
-			_, ok := sentKeys[key]
-			return ok
 		}
 
 		tr := tagRequest{
@@ -205,6 +205,14 @@ func (b *backendBlock) FetchTagValues(ctx context.Context, req traceql.FetchTagV
 	// report metrics with defer to handle early exit
 	defer mcb(rr.BytesRead())
 
+	// track sent tag values to avoid duplicates. this is a perf improvement
+	sentVals := make(map[traceql.StaticMapKey]struct{})
+	existsTagValue := func(val traceql.Static) bool {
+		mk := val.MapKey()
+		_, ok := sentVals[mk]
+		return ok
+	}
+
 	for _, condGroup := range req.ConditionGroups {
 		mingledConditions, _, _, _, err := categorizeConditions(condGroup)
 		if err != nil {
@@ -215,14 +223,6 @@ func (b *backendBlock) FetchTagValues(ctx context.Context, req traceql.FetchTagV
 		// <= 1 because we always have an OpNone condition for the tag name
 		if (len(req.ConditionGroups) == 1 && len(condGroup) <= 1) || mingledConditions {
 			return b.SearchTagValuesV2(ctx, req.TagName, common.TagValuesCallbackV2(cb), mcb, common.DefaultSearchOptions())
-		}
-
-		// track sent tag values to avoid duplicates. this is a perf improvement
-		sentVals := make(map[traceql.StaticMapKey]struct{})
-		existsTagValue := func(val traceql.Static) bool {
-			mk := val.MapKey()
-			_, ok := sentVals[mk]
-			return ok
 		}
 
 		tr := tagRequest{

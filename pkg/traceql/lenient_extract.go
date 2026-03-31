@@ -6,6 +6,10 @@ import (
 
 const emptyQuery = "{}"
 
+// maxConditionGroups caps the number of OR-expanded condition groups to prevent
+// exponential blowup from queries with many OR clauses.
+const maxConditionGroups = 10
+
 // ExtractConditionGroups parses a query string using the lenient parser and returns
 // a groups of conditions. Conditions with OpNone (from incomplete matchers) are filtered out.
 //
@@ -46,14 +50,16 @@ func ExtractConditionGroups(query string) [][]Condition {
 				conditions = append(conditions, cond)
 			}
 		}
+
+		// if even one group has zero conditions after filtering, treat the whole query as empty (e.g. `{.attr || .foo}`)
+		if len(conditions) == 0 {
+			return nil
+		}
 		groups[i] = conditions
 	}
 
-	// if even one group has zero conditions after filtering, treat the whole query as empty (e.g. `{.attr || .foo}`)
-	for _, g := range groups {
-		if len(g) == 0 {
-			return nil
-		}
+	if len(groups) > maxConditionGroups {
+		groups = groups[:maxConditionGroups]
 	}
 
 	return groups

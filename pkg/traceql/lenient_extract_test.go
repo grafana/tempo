@@ -222,7 +222,6 @@ func BenchmarkCanonicalQuery(b *testing.B) {
 }
 
 func TestFlattenExprToOperations(t *testing.T) {
-
 	type testOperation struct {
 		opType Operator
 		cond   []int
