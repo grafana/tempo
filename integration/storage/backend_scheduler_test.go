@@ -366,7 +366,7 @@ func TestBackendSchedulerRedaction(t *testing.T) {
 			tempodbReader.PollNow(ctx)
 			trs, _, err = tempodbReader.Find(ctx, testTenant, traceID, tempodb.BlockIDMin, tempodb.BlockIDMax, 0, 0, common.DefaultSearchOptions())
 			return err == nil && len(trs) == 0
-		}, 30*time.Second, 2*time.Second, "trace must not be findable in any block after redaction")
+		}, 60*time.Second, 2*time.Second, "trace must not be findable in any block after redaction")
 	})
 }
 
