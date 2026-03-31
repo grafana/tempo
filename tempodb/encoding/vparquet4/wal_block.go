@@ -758,48 +758,57 @@ func (b *walBlock) FetchTagValues(ctx context.Context, req traceql.FetchTagValue
 
 		blockFlushes := b.readFlushes()
 		for _, page := range blockFlushes {
-			file, err := page.file(ctx)
-			if err != nil {
-				return fmt.Errorf("error opening file %s: %w", page.path, err)
-			}
-			defer file.Close()
-
-			pf := file.parquetFile
-
-			tr := tagRequest{
-				conditions:     condGroup,
-				tag:            req.TagName,
-				existsTagValue: existsTagValue,
-			}
-
-			iter, err := autocompleteIter(ctx, tr, pf, opts, b.meta.DedicatedColumns)
-			if err != nil {
-				return fmt.Errorf("creating fetch iter: %w", err)
-			}
-
-			for {
-				// Exhaust the iterator
-				res, err := iter.Next()
+			done, err := func() (bool, error) {
+				file, err := page.file(ctx)
 				if err != nil {
-					iter.Close()
-					return fmt.Errorf("iterating spans in walBlock: %w", err)
+					return false, fmt.Errorf("error opening file %s: %w", page.path, err)
 				}
-				if res == nil {
-					break
+				defer file.Close()
+
+				pf := file.parquetFile
+
+				tr := tagRequest{
+					conditions:     condGroup,
+					tag:            req.TagName,
+					existsTagValue: existsTagValue,
 				}
 
-				for _, oe := range res.OtherEntries {
-					v := oe.Value.(traceql.Static)
-					sentVals[v.MapKey()] = struct{}{}
-					if cb(v) {
+				iter, err := autocompleteIter(ctx, tr, pf, opts, b.meta.DedicatedColumns)
+				if err != nil {
+					return false, fmt.Errorf("creating fetch iter: %w", err)
+				}
+
+				for {
+					// Exhaust the iterator
+					res, err := iter.Next()
+					if err != nil {
 						iter.Close()
-						mcb(file.r.BytesRead()) // record bytes read
-						return nil              // We have enough values
+						return false, fmt.Errorf("iterating spans in walBlock: %w", err)
+					}
+					if res == nil {
+						break
+					}
+
+					for _, oe := range res.OtherEntries {
+						v := oe.Value.(traceql.Static)
+						sentVals[v.MapKey()] = struct{}{}
+						if cb(v) {
+							iter.Close()
+							mcb(file.r.BytesRead()) // record bytes read
+							return true, nil        // We have enough values
+						}
 					}
 				}
+				iter.Close()
+				mcb(file.r.BytesRead()) // record bytes read
+				return false, nil
+			}()
+			if err != nil {
+				return err
 			}
-			iter.Close()
-			mcb(file.r.BytesRead()) // record bytes read
+			if done {
+				return nil
+			}
 		}
 	}
 
@@ -843,48 +852,57 @@ func (b *walBlock) FetchTagNames(ctx context.Context, req traceql.FetchTagsReque
 
 		blockFlushes := b.readFlushes()
 		for _, page := range blockFlushes {
-			file, err := page.file(ctx)
-			if err != nil {
-				return fmt.Errorf("error opening file %s: %w", page.path, err)
-			}
-			defer file.Close()
-
-			tr := tagRequest{
-				conditions:    condGroup,
-				scope:         req.Scope,
-				existsTagName: existsTagName,
-			}
-
-			iter, err := autocompleteIter(ctx, tr, file.parquetFile, opts, b.meta.DedicatedColumns)
-			if err != nil {
-				return fmt.Errorf("creating fetch iter: %w", err)
-			}
-
-			for {
-				// Exhaust the iterator
-				res, err := iter.Next()
+			done, err := func() (bool, error) {
+				file, err := page.file(ctx)
 				if err != nil {
-					iter.Close()
-					return err
+					return false, fmt.Errorf("error opening file %s: %w", page.path, err)
 				}
-				if res == nil {
-					break
+				defer file.Close()
+
+				tr := tagRequest{
+					conditions:    condGroup,
+					scope:         req.Scope,
+					existsTagName: existsTagName,
 				}
-				for _, oe := range res.OtherEntries {
-					scope := oe.Value.(traceql.AttributeScope)
-					sentKeys[tagNameKey{name: oe.Key, scope: scope}] = struct{}{}
-					if cb(oe.Key, scope) {
+
+				iter, err := autocompleteIter(ctx, tr, file.parquetFile, opts, b.meta.DedicatedColumns)
+				if err != nil {
+					return false, fmt.Errorf("creating fetch iter: %w", err)
+				}
+
+				for {
+					// Exhaust the iterator
+					res, err := iter.Next()
+					if err != nil {
 						iter.Close()
-						mcb(file.r.BytesRead()) // record bytes read
-						return nil              // We have enough values
+						return false, err
+					}
+					if res == nil {
+						break
+					}
+					for _, oe := range res.OtherEntries {
+						scope := oe.Value.(traceql.AttributeScope)
+						sentKeys[tagNameKey{name: oe.Key, scope: scope}] = struct{}{}
+						if cb(oe.Key, scope) {
+							iter.Close()
+							mcb(file.r.BytesRead()) // record bytes read
+							return true, nil        // We have enough values
+						}
 					}
 				}
-			}
-			iter.Close()
-			mcb(file.r.BytesRead()) // record bytes read
+				iter.Close()
+				mcb(file.r.BytesRead()) // record bytes read
 
-			// add well known
-			tagNamesForSpecialColumns(req.Scope, file.parquetFile, b.meta.DedicatedColumns, cb)
+				// add well known
+				tagNamesForSpecialColumns(req.Scope, file.parquetFile, b.meta.DedicatedColumns, cb)
+				return false, nil
+			}()
+			if err != nil {
+				return err
+			}
+			if done {
+				return nil
+			}
 		}
 	}
 
