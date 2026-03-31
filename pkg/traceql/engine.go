@@ -186,6 +186,13 @@ func (e *Engine) ExecuteTagValues(
 	ctx, span := tracer.Start(ctx, "traceql.Engine.ExecuteTagValues")
 	defer span.End()
 
+	if len(conditionGroups) == 0 {
+		return fetcher.Fetch(ctx, FetchTagValuesRequest{
+			ConditionGroups: nil,
+			TagName:         tag,
+		}, cb)
+	}
+
 	finalConditionGroups := make([][]Condition, 0, len(conditionGroups))
 	for _, group := range conditionGroups {
 		skip := false

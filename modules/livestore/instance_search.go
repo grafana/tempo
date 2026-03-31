@@ -330,7 +330,7 @@ func (i *instance) SearchTagsV2(ctx context.Context, req *tempopb.SearchTagsRequ
 			return errComplete
 		}
 
-		// if the query is empty or has OR conditions, use the unfiltered search
+		// if the query is empty, use the unfiltered search
 		if len(conditionGroups) == 0 {
 			err = b.SearchTags(ctx, attributeScope, func(t string, scope traceql.AttributeScope) {
 				distinctValues.Collect(scope.String(), t)

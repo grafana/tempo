@@ -24,6 +24,11 @@ func ExtractConditionGroups(query string) [][]Condition {
 		return nil
 	}
 
+	s := expr.String()
+	if s == "{ true }" {
+		return nil
+	}
+
 	// Find the first SpansetFilter in the pipeline.
 	// Returns nil for structural operators (SpansetOperation) indicating multiple spansets.
 	filter := findSpansetFilter(expr.Pipeline)
@@ -44,13 +49,14 @@ func ExtractConditionGroups(query string) [][]Condition {
 		groups[i] = conditions
 	}
 
-	finalGroup := make([][]Condition, 0)
+	// if even one group has zero conditions after filtering, treat the whole query as empty (e.g. `{.attr || .foo}`)
 	for _, g := range groups {
-		if len(g) > 0 {
-			finalGroup = append(finalGroup, g)
+		if len(g) == 0 {
+			return nil
 		}
 	}
-	return finalGroup
+
+	return groups
 }
 
 // NormalizeQuery parses a query string using the lenient parser and returns
