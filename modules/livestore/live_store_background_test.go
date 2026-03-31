@@ -53,4 +53,3 @@ func TestProcessCompleteOpAbandonOnCancelledContext(t *testing.T) {
 	// No retry was enqueued.
 	require.True(t, liveStore.completeQueues.IsEmpty())
 }
-
