@@ -97,6 +97,9 @@ func CreateBlock(ctx context.Context, cfg *common.BlockConfig, meta *backend.Blo
 	}
 
 	for {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
 		err := next(ctx)
 		if errors.Is(err, io.EOF) {
 			break
