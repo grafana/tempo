@@ -191,6 +191,7 @@ func splitReqConditions(expr FieldExpression) ([][]Condition, bool) {
 
 // deduplicateConditionBranches removes duplicate branches from an OR group.
 // Two branches are considered equal if they contain the same conditions in the same order.
+// Fields are separated by \x00 and conditions by \x01 to avoid key collisions.
 func deduplicateConditionBranches(branches [][]Condition) [][]Condition {
 	seen := make(map[string]struct{}, len(branches))
 	result := branches[:0]
@@ -198,11 +199,13 @@ func deduplicateConditionBranches(branches [][]Condition) [][]Condition {
 		var sb strings.Builder
 		for _, c := range branch {
 			sb.WriteString(c.Attribute.String())
+			sb.WriteByte('\x00')
 			sb.WriteString(c.Op.String())
 			for _, o := range c.Operands {
+				sb.WriteByte('\x00')
 				sb.WriteString(o.String())
 			}
-			sb.WriteByte('|')
+			sb.WriteByte('\x01')
 		}
 		key := sb.String()
 		if _, ok := seen[key]; !ok {
