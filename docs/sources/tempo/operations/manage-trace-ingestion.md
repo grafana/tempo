@@ -83,7 +83,7 @@ You can also manage per-tenant limits through the API using [user-configurable o
 ## Find and fix discarded spans
 
 When a span exceeds an ingestion limit or fails validation, Tempo discards it and increments the `tempo_discarded_spans_total` metric.
-The distributor rejects rate-limited spans and spans with invalid trace or span IDs before they reach Kafka.
+The distributor rejects entire push requests that exceed the rate limit or contain invalid trace or span IDs, before any spans reach Kafka.
 Live-stores discard spans that exceed per-trace size or live trace count limits after consuming them from Kafka.
 Block-builders discard spans that exceed per-trace size limits.
 
@@ -116,7 +116,7 @@ The following table lists the possible `reason` values:
 | `invalid_trace_id`            | Batch contained a trace ID that isn't 128 bits.             | Distributor            |
 | `invalid_span_id`             | Batch contained a span ID that isn't 64 bits or was all zeros. | Distributor         |
 | `trace_too_large_to_compact`  | Trace too large for the backend-worker to compact.          | Backend-worker         |
-| `unknown_error`               | Unexpected error during span processing.                    | Any                    |
+| `unknown_error`               | Unexpected error during span processing.                    | Live-store             |
 
 ### Log discarded spans for debugging
 
