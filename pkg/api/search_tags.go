@@ -230,6 +230,14 @@ func parseSearchTagValuesBlockRequest(r *http.Request, enforceTraceQL bool) (*te
 		req.DedicatedColumns = dedicatedColumns
 	}
 
+	if s, ok := extractQueryParam(vals, urlStrict); ok {
+		strict, err := strconv.ParseBool(s)
+		if err != nil {
+			return nil, fmt.Errorf("invalid strict: %w", err)
+		}
+		req.Strict = strict
+	}
+
 	return req, nil
 }
 
@@ -324,6 +332,14 @@ func ParseSearchTagsBlockRequest(r *http.Request) (*tempopb.SearchTagsBlockReque
 			return nil, fmt.Errorf("invalid dedicatedColumns '%s': %w", s, err)
 		}
 		req.DedicatedColumns = dedicatedColumns
+	}
+
+	if s, ok := extractQueryParam(vals, urlStrict); ok {
+		strict, err := strconv.ParseBool(s)
+		if err != nil {
+			return nil, fmt.Errorf("invalid strict: %w", err)
+		}
+		req.Strict = strict
 	}
 
 	return req, nil
@@ -437,6 +453,7 @@ func BuildSearchTagsRequest(req *http.Request, searchReq *tempopb.SearchTagsRequ
 	}
 	qb.addParam(urlParamScope, searchReq.Scope)
 	qb.addParam(urlParamQuery, searchReq.Query)
+	qb.addParam(urlStrict, strconv.FormatBool(searchReq.Strict))
 
 	req.URL.RawQuery = qb.query()
 
@@ -465,6 +482,7 @@ func BuildSearchTagsBlockRequest(req *http.Request, searchReq *tempopb.SearchTag
 	q.addParam(urlParamTotalRecords, strconv.FormatUint(uint64(searchReq.TotalRecords), 10))
 	q.addParam(urlParamVersion, searchReq.Version)
 	q.addParam(urlParamFooterSize, strconv.FormatUint(uint64(searchReq.FooterSize), 10))
+	q.addParam(urlStrict, strconv.FormatBool(searchReq.Strict))
 
 	req.URL.RawQuery = q.query()
 
@@ -490,6 +508,7 @@ func BuildSearchTagValuesRequest(req *http.Request, searchReq *tempopb.SearchTag
 		qb.addParam(urlParamEnd, strconv.FormatUint(uint64(searchReq.End), 10))
 	}
 	qb.addParam(urlParamQuery, searchReq.Query)
+	qb.addParam(urlStrict, strconv.FormatBool(searchReq.Strict))
 
 	req.URL.RawQuery = qb.query()
 
@@ -518,6 +537,7 @@ func BuildSearchTagValuesBlockRequest(req *http.Request, searchReq *tempopb.Sear
 	qb.addParam(urlParamTotalRecords, strconv.FormatUint(uint64(searchReq.TotalRecords), 10))
 	qb.addParam(urlParamVersion, searchReq.Version)
 	qb.addParam(urlParamFooterSize, strconv.FormatUint(uint64(searchReq.FooterSize), 10))
+	qb.addParam(urlStrict, strconv.FormatBool(searchReq.Strict))
 
 	req.URL.RawQuery = qb.query()
 

@@ -6,6 +6,7 @@ import (
 )
 
 var ErrMaxConditionGroupsReached = errors.New("maximum condition groups reached")
+
 const emptyQuery = "{}"
 
 // maxConditionGroups caps the number of OR-expanded condition groups to prevent

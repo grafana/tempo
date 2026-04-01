@@ -519,9 +519,9 @@ func TestSplitReqConditionGroups(t *testing.T) {
 			},
 		},
 		{
-			name:  "max groups reached",
-			query: `{ .attr = "123" || .service = "b" || .team = "dev" || .service = "a" || .env = "staging"  || .foo = "bar" || .bar = "foo" || .baz = "qux" || .quux = "corge" || .grault = "garply" || .waldo = "fred" || .plugh = "xyzzy" || .thud = "mno" }`,
-			expected: nil, // returns nil when max groups is reached
+			name:        "max groups reached",
+			query:       `{ .attr = "123" || .service = "b" || .team = "dev" || .service = "a" || .env = "staging"  || .foo = "bar" || .bar = "foo" || .baz = "qux" || .quux = "corge" || .grault = "garply" || .waldo = "fred" || .plugh = "xyzzy" || .thud = "mno" }`,
+			expected:    nil, // returns nil when max groups is reached
 			expectError: true,
 		},
 	}
