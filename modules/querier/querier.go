@@ -843,10 +843,6 @@ func (q *Querier) internalTagValuesSearchBlockV2(ctx context.Context, req *tempo
 		level.Warn(log.Logger).Log("msg", "Search tags exceeded limit, reduce cardinality or size of tags", "orgID", tenantID, "stopReason", valueCollector.StopReason())
 	}
 
-	if extractConditionErr != nil {
-		return valuesToV2Response(valueCollector, inspectedBytes), extractConditionErr
-	}
-
 	return valuesToV2Response(valueCollector, inspectedBytes), nil
 }
 

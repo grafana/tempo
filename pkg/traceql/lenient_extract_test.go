@@ -301,7 +301,6 @@ func TestSplitReqConditionGroups(t *testing.T) {
 	testCases := []struct {
 		name, query string
 		expected    [][]Condition
-		expectError bool
 	}{
 		{
 			name:  "simple no OR query",
@@ -518,22 +517,47 @@ func TestSplitReqConditionGroups(t *testing.T) {
 				},
 			},
 		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			conditions, err := ExtractConditionGroups(tc.query, false)
+			assert.NoError(t, err)
+			assert.Equal(t, tc.expected, conditions)
+		})
+	}
+}
+
+func TestSplitReqConditionGroupsStrictMode(t *testing.T) {
+	testCases := []struct {
+		name, query    string
+		expectedLength int
+		expectError    bool
+		strict         bool
+	}{
 		{
-			name:        "max groups reached",
-			query:       `{ .attr = "123" || .service = "b" || .team = "dev" || .service = "a" || .env = "staging"  || .foo = "bar" || .bar = "foo" || .baz = "qux" || .quux = "corge" || .grault = "garply" || .waldo = "fred" || .plugh = "xyzzy" || .thud = "mno" }`,
-			expected:    nil, // returns nil when max groups is reached
-			expectError: true,
+			name:           "max groups reached - strict",
+			query:          `{ .attr = "123" || .service = "b" || .team = "dev" || .service = "a" || .env = "staging"  || .foo = "bar" || .bar = "foo" || .baz = "qux" || .quux = "corge" || .grault = "garply" || .waldo = "fred" || .plugh = "xyzzy" || .thud = "mno" }`,
+			expectedLength: 10,
+			expectError:    true,
+			strict:         true,
+		},
+		{
+			name:           "max groups reached - not strict",
+			query:          `{ .attr = "123" || .service = "b" || .team = "dev" || .service = "a" || .env = "staging"  || .foo = "bar" || .bar = "foo" || .baz = "qux" || .quux = "corge" || .grault = "garply" || .waldo = "fred" || .plugh = "xyzzy" || .thud = "mno" }`,
+			expectedLength: 0, // returns nil when max groups is reached
+			expectError:    false,
 		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			conditions, err := ExtractConditionGroups(tc.query, true)
+			conditions, err := ExtractConditionGroups(tc.query, tc.strict)
 			if tc.expectError {
 				assert.Error(t, err)
 			} else {
 				assert.NoError(t, err)
-				assert.Equal(t, tc.expected, conditions)
+				assert.Equal(t, tc.expectedLength, len(conditions))
 			}
 		})
 	}
