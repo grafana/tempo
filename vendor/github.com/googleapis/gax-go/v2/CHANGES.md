@@ -1,5 +1,12 @@
 # Changes
 
+## [2.20.0](https://github.com/googleapis/google-cloud-go/releases/tag/v2.20.0) (2026-03-25)
+
+### Features
+
+* add TelemetryErrorInfo and ExtractTelemetryErrorInfo (#487) ([defdded](https://github.com/googleapis/google-cloud-go/commit/defdded3eac5d97e32243ef79216f1865f3250fb))
+* hook metric recording into gax.Invoke (#494) ([1f3e9ae](https://github.com/googleapis/google-cloud-go/commit/1f3e9aefd21a1a18a6e4da1e03ea84a0b46f2d49))
+
 ## [2.19.0](https://github.com/googleapis/google-cloud-go/releases/tag/v2.19.0) (2026-03-17)
 
 ### Features
