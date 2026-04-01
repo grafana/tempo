@@ -702,7 +702,7 @@ func TestExecuteTagValues(t *testing.T) {
 			distinctValues := collector.NewDistinctValue(100_000, 0, 0, func(v tempopb.TagValue) int { return len(v.Type) + len(v.Value) })
 
 			// Derive conditions from the query, just like callers do
-			conditionGroups := ExtractConditionGroups(tc.query)
+			conditionGroups, _ := ExtractConditionGroups(tc.query, false)
 
 			// The mock fetcher needs a parseable query for its internal evaluation
 			fetcherQuery := tc.query

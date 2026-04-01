@@ -1,9 +1,11 @@
 package traceql
 
 import (
+	"errors"
 	"strings"
 )
 
+var ErrMaxConditionGroupsReached = errors.New("maximum condition groups reached")
 const emptyQuery = "{}"
 
 // maxConditionGroups caps the number of OR-expanded condition groups to prevent
@@ -14,28 +16,30 @@ const maxConditionGroups = 10
 // a groups of conditions. Conditions with OpNone (from incomplete matchers) are filtered out.
 //
 // Returns nil if the query is empty or parsing fails completely.
-func ExtractConditionGroups(query string) [][]Condition {
+// if strict is set to false and maxConditionGroups is reached, return nil which will be treated as a match-all query.
+// if strict is set to true and maxConditionGroups is reached, return conditions up to maxConditionGroups.
+func ExtractConditionGroups(query string, strict bool) ([][]Condition, error) {
 	query = strings.TrimSpace(query)
 	if len(query) == 0 {
-		return nil
+		return nil, nil
 	}
 
 	expr, err := ParseLenient(query)
 	if err != nil {
-		return nil
+		return nil, nil
 	}
 	if err := expr.validate(); err != nil {
-		return nil
+		return nil, nil
 	}
 
 	// Find the first SpansetFilter in the pipeline.
 	// Returns nil for structural operators (SpansetOperation) indicating multiple spansets.
 	filter := findSpansetFilter(expr.Pipeline)
 	if filter == nil {
-		return nil
+		return nil, nil
 	}
 
-	groups := splitReqConditions(filter.Expression)
+	groups, reachedMaxGroupsInSplitConditions := splitReqConditions(filter.Expression)
 	for i := range groups {
 		// Filter out OpNone conditions — these are column-fetch hints (bare attributes,
 		// structural intrinsics), not filterable conditions.
@@ -48,16 +52,28 @@ func ExtractConditionGroups(query string) [][]Condition {
 
 		// if even one group has zero conditions after filtering, treat the whole query as empty (e.g. `{.attr || .foo}`)
 		if len(conditions) == 0 {
-			return nil
+			return nil, nil
 		}
 		groups[i] = conditions
 	}
 
+	var reachedMaxGroup bool
+
 	if len(groups) > maxConditionGroups {
 		groups = groups[:maxConditionGroups]
+		reachedMaxGroup = true
 	}
 
-	return groups
+	if (reachedMaxGroupsInSplitConditions || reachedMaxGroup) && strict {
+		return groups, ErrMaxConditionGroupsReached
+	}
+
+	if reachedMaxGroupsInSplitConditions || reachedMaxGroup {
+		// If we've reached the max group limit, return nil to indicate a match-all query.
+		return nil, nil
+	}
+
+	return groups, nil
 }
 
 // NormalizeQuery parses a query string using the lenient parser and returns
@@ -114,7 +130,8 @@ type conditionOperation struct {
 // Example: { (.a="1" || .b="2") && .c="3" } produces two groups:
 //   - [.a="1", .c="3"]
 //   - [.b="2", .c="3"]
-func splitReqConditions(expr FieldExpression) [][]Condition {
+func splitReqConditions(expr FieldExpression) ([][]Condition, bool) {
+	var reachedMaxGroups bool
 	var ops []conditionOperation
 	flattenExprToOperations(expr, &ops, nil, OpNone)
 
@@ -155,6 +172,7 @@ func splitReqConditions(expr FieldExpression) [][]Condition {
 			repeats *= len(op.conditions)
 			if repeats > maxConditionGroups {
 				repeats = maxConditionGroups
+				reachedMaxGroups = true
 			}
 		}
 	}
@@ -166,7 +184,8 @@ func splitReqConditions(expr FieldExpression) [][]Condition {
 			result = append(result, g)
 		}
 	}
-	return result
+
+	return result, reachedMaxGroups
 }
 
 // deduplicateConditionBranches removes duplicate branches from an OR group.

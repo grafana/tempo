@@ -319,7 +319,10 @@ func (i *instance) SearchTagsV2(ctx context.Context, req *tempopb.SearchTagsRequ
 	mc := collector.NewMetricsCollector()
 
 	engine := traceql.NewEngine()
-	conditionGroups := traceql.ExtractConditionGroups(req.Query)
+	conditionGroups, extractConditionErr := traceql.ExtractConditionGroups(req.Query, req.Strict)
+	if extractConditionErr != nil {
+		level.Warn(i.logger).Log("msg", "error extracting condition groups from query", "err", extractConditionErr, "query", req.Query)
+	}
 
 	searchBlock := func(ctx context.Context, _ *backend.BlockMeta, b block) error {
 		if b == nil {
@@ -471,7 +474,10 @@ func (i *instance) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTag
 		return &tempopb.SearchTagValuesV2Response{}, nil
 	}
 
-	conditionGroups := traceql.ExtractConditionGroups(req.Query)
+	conditionGroups, extractConditionErr := traceql.ExtractConditionGroups(req.Query, req.Strict)
+	if extractConditionErr != nil {
+		level.Warn(i.logger).Log("msg", "error extracting condition groups from query", "err", err, "query", req.Query)
+	}
 	// cacheKey will be same for all blocks in a request so only compute it once
 	// NOTE: cacheKey tag name and query, so if we start respecting start and end, add them to the cacheKey
 	cacheKey := searchTagValuesV2CacheKey(req, limit, "cache_search_tagvaluesv2")

@@ -195,7 +195,7 @@ func TestExtractConditionGroups(t *testing.T) {
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			conditionGroups := ExtractConditionGroups(tc.query)
+			conditionGroups, _ := ExtractConditionGroups(tc.query, false)
 			assert.Equal(t, tc.count, len(conditionGroups))
 		})
 	}
@@ -301,6 +301,7 @@ func TestSplitReqConditionGroups(t *testing.T) {
 	testCases := []struct {
 		name, query string
 		expected    [][]Condition
+		expectError bool
 	}{
 		{
 			name:  "simple no OR query",
@@ -517,12 +518,23 @@ func TestSplitReqConditionGroups(t *testing.T) {
 				},
 			},
 		},
+		{
+			name:  "max groups reached",
+			query: `{ .attr = "123" || .service = "b" || .team = "dev" || .service = "a" || .env = "staging"  || .foo = "bar" || .bar = "foo" || .baz = "qux" || .quux = "corge" || .grault = "garply" || .waldo = "fred" || .plugh = "xyzzy" || .thud = "mno" }`,
+			expected: nil, // returns nil when max groups is reached
+			expectError: true,
+		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			conditions := ExtractConditionGroups(tc.query)
-			assert.Equal(t, tc.expected, conditions)
+			conditions, err := ExtractConditionGroups(tc.query, true)
+			if tc.expectError {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+				assert.Equal(t, tc.expected, conditions)
+			}
 		})
 	}
 }

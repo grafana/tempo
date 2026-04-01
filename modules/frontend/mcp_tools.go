@@ -299,8 +299,8 @@ func (s *MCPServer) handleGetAttributeValues(ctx context.Context, request mcp.Ca
 
 	query := request.GetString("filter-query", "")
 	if query != "" {
-		conditionGroups := traceql.ExtractConditionGroups(query)
-		if len(conditionGroups) == 0 {
+		conditionGroups, _ := traceql.ExtractConditionGroups(query, false)
+		if len(conditionGroups) == 0 && query != "{}" {
 			return mcp.NewToolResultError("filter-query invalid. It must have a single spanset filter with &&/|| conditions like { <cond> && <cond> } or { <cond> || <cond> }"), nil
 		}
 	}

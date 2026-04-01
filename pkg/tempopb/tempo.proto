@@ -181,6 +181,7 @@ message SearchTagsRequest {
     (gogoproto.stdtime) = true,
     (gogoproto.nullable) = false
   ];
+  bool strict = 8; // strictly follows the query
 }
 
 // SearchTagsBlockRequest takes SearchTagsRequest parameters as well as all information necessary
@@ -200,6 +201,7 @@ message SearchTagsBlockRequest {
   repeated DedicatedColumn dedicatedColumns = 12;
   uint32 maxTagsPerScope = 13; // Limit of tags per scope
   uint32 staleValueThreshold = 14; // Limit of stale values
+  bool strict = 15; // strictly follows the query
 }
 
 message SearchTagValuesBlockRequest {
@@ -215,6 +217,7 @@ message SearchTagValuesBlockRequest {
   uint64 size = 10; // total size of data file
   uint32 footerSize = 11; // size of file footer (parquet)
   repeated DedicatedColumn dedicatedColumns = 12;
+  bool strict = 13;
 }
 
 
@@ -246,6 +249,7 @@ message SearchTagValuesRequest {
     (gogoproto.stdtime) = true,
     (gogoproto.nullable) = false
   ];
+  bool strict = 9;
 }
 
 message SearchTagValuesResponse {

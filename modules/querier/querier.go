@@ -695,9 +695,12 @@ func (q *Querier) internalTagsSearchBlockV2(ctx context.Context, req *tempopb.Se
 	opts.StartPage = int(req.StartPage)
 	opts.TotalPages = int(req.PagesToSearch)
 
-	conditionGroups := traceql.ExtractConditionGroups(req.SearchReq.Query)
+	conditionGroups, extractConditionErr := traceql.ExtractConditionGroups(req.SearchReq.Query, req.Strict)
 	if len(conditionGroups) == 0 {
 		return q.store.SearchTags(ctx, meta, req, opts)
+	}
+	if extractConditionErr != nil {
+		level.Warn(log.Logger).Log("msg", "failed to extract condition groups from TraceQL, executing unfiltered tag values search", "error", extractConditionErr.Error())
 	}
 
 	valueCollector := collector.NewScopedDistinctString(q.limits.MaxBytesPerTagValuesQuery(tenantID), req.MaxTagsPerScope, req.StaleValueThreshold)
@@ -808,9 +811,12 @@ func (q *Querier) internalTagValuesSearchBlockV2(ctx context.Context, req *tempo
 	opts.StartPage = int(req.StartPage)
 	opts.TotalPages = int(req.PagesToSearch)
 
-	conditionGroups := traceql.ExtractConditionGroups(req.SearchReq.Query)
+	conditionGroups, extractConditionErr := traceql.ExtractConditionGroups(req.SearchReq.Query, req.Strict)
 	if len(conditionGroups) == 0 {
 		return q.store.SearchTagValuesV2(ctx, meta, req.SearchReq, opts)
+	}
+	if extractConditionErr != nil {
+		level.Warn(log.Logger).Log("msg", "failed to extract condition groups from TraceQL, executing unfiltered tag values search", "error", extractConditionErr.Error())
 	}
 
 	tag, err := traceql.ParseIdentifier(req.SearchReq.TagName)
@@ -835,6 +841,10 @@ func (q *Querier) internalTagValuesSearchBlockV2(ctx context.Context, req *tempo
 
 	if valueCollector.Exceeded() {
 		level.Warn(log.Logger).Log("msg", "Search tags exceeded limit, reduce cardinality or size of tags", "orgID", tenantID, "stopReason", valueCollector.StopReason())
+	}
+
+	if extractConditionErr != nil {
+		return valuesToV2Response(valueCollector, inspectedBytes), extractConditionErr
 	}
 
 	return valuesToV2Response(valueCollector, inspectedBytes), nil
