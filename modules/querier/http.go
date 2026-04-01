@@ -435,6 +435,17 @@ func writeFormattedContentForRequest(w http.ResponseWriter, req *http.Request, m
 			span.SetAttributes(attribute.String("contentType", api.HeaderAcceptProtobuf))
 		}
 
+	case api.HeaderAcceptPunchCard:
+		w.Header().Set(api.HeaderContentType, api.HeaderAcceptPunchCard)
+		_, err := fmt.Fprint(w, "PUNCH CARD FORMAT ONLY AVAILABLE VIA FRONTEND")
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		if span != nil {
+			span.SetAttributes(attribute.String("contentType", api.HeaderAcceptPunchCard))
+		}
+
 	default:
 		w.Header().Set(api.HeaderContentType, api.HeaderAcceptJSON)
 		err := new(jsonpb.Marshaler).Marshal(w, m)

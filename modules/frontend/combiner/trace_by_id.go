@@ -136,9 +136,14 @@ func (c *TraceByIDCombiner) HTTPFinal() (*http.Response, error) {
 	var buff []byte
 	var err error
 
-	if c.contentType == api.MarshallingFormatProtobuf {
+	switch c.contentType {
+	case api.MarshallingFormatProtobuf:
 		buff, err = proto.Marshal(traceResult)
-	} else {
+	case api.MarshallingFormatPunchCard:
+		var s string
+		s, err = new(punchCardMarshaler).marshalToString(traceResult)
+		buff = []byte(s)
+	default:
 		buff, err = tempopb.MarshalToJSONV1(traceResult)
 	}
 	if err != nil {

@@ -294,6 +294,16 @@ func (c *genericCombiner[T]) internalMarshalAs(final T) ([]byte, string, error) 
 	case api.MarshallingFormatProtobuf:
 		bodyBytes, err = proto.Marshal(final)
 		contentType = string(api.MarshallingFormatProtobuf)
+	case api.MarshallingFormatPunchCard:
+		var bodyString string
+		bodyString, err = new(punchCardMarshaler).marshalToString(final)
+		contentType = string(api.MarshallingFormatPunchCard)
+		// fall back to JSON for unsupported message types
+		if errors.Is(err, util.ErrUnsupported) {
+			bodyString, err = new(jsonpb.Marshaler).MarshalToString(final)
+			contentType = string(api.MarshallingFormatJSON)
+		}
+		bodyBytes = unsafeStringToBytes(bodyString)
 	case api.MarshallingFormatLLM:
 		var bodyString string
 		bodyString, err = new(llmMarshaler).marshalToString(final)
