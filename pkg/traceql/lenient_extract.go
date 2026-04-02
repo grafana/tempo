@@ -77,6 +77,12 @@ func ExtractConditionGroups(query string, strict bool) ([][]Condition, error) {
 	return groups, nil
 }
 
+// IsEmptyQuery returns true if the query is empty or a match-all (e.g. "{}", "{ }", "{ true }").
+func IsEmptyQuery(query string) bool {
+	query = strings.ReplaceAll(query, " ", "")
+	return query == "" || query == "{}" || query == "{true}"
+}
+
 // NormalizeQuery parses a query string using the lenient parser and returns
 // a normalized string representation. Used for cache key generation.
 // Match-all queries (e.g. "{}", "{ }", "{ true }") are normalized to "{}"

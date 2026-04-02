@@ -825,6 +825,22 @@ func (b *walBlock) FetchTagNames(ctx context.Context, req traceql.FetchTagsReque
 		}, mcb, opts)
 	}
 
+	// Validate all condition groups upfront before opening any files.
+	for _, condGroup := range req.ConditionGroups {
+		if err := checkConditions(condGroup); err != nil {
+			return fmt.Errorf("conditions invalid: %w", err)
+		}
+		_, mingledConditions, err := categorizeConditions(condGroup)
+		if err != nil {
+			return err
+		}
+		if len(req.ConditionGroups) == 1 && len(condGroup) < 1 || mingledConditions {
+			return b.SearchTags(ctx, req.Scope, func(t string, scope traceql.AttributeScope) {
+				cb(t, scope)
+			}, mcb, opts)
+		}
+	}
+
 	// track sent tag names to avoid duplicates. this is a perf improvement
 	sentKeys := make(map[tagNameKey]struct{})
 	existsTagName := func(key tagNameKey) bool {
@@ -832,32 +848,18 @@ func (b *walBlock) FetchTagNames(ctx context.Context, req traceql.FetchTagsReque
 		return ok
 	}
 
+	// Open each WAL page file once and run all condition groups against it, then emit
+	// special columns once per file rather than once per condGroup per file.
 	blockFlushes := b.readFlushes()
-	for _, condGroup := range req.ConditionGroups {
-		err := checkConditions(condGroup)
-		if err != nil {
-			return fmt.Errorf("conditions invalid: %w", err)
-		}
+	for _, page := range blockFlushes {
+		done, err := func() (bool, error) {
+			file, err := page.file(ctx)
+			if err != nil {
+				return false, fmt.Errorf("error opening file %s: %w", page.path, err)
+			}
+			defer file.Close()
 
-		_, mingledConditions, err := categorizeConditions(condGroup)
-		if err != nil {
-			return err
-		}
-
-		if len(req.ConditionGroups) == 1 && len(condGroup) < 1 || mingledConditions {
-			return b.SearchTags(ctx, req.Scope, func(t string, scope traceql.AttributeScope) {
-				cb(t, scope)
-			}, mcb, opts)
-		}
-
-		for _, page := range blockFlushes {
-			done, err := func() (bool, error) {
-				file, err := page.file(ctx)
-				if err != nil {
-					return false, fmt.Errorf("error opening file %s: %w", page.path, err)
-				}
-				defer file.Close()
-
+			for _, condGroup := range req.ConditionGroups {
 				tr := tagRequest{
 					conditions:    condGroup,
 					scope:         req.Scope,
@@ -891,17 +893,17 @@ func (b *walBlock) FetchTagNames(ctx context.Context, req traceql.FetchTagsReque
 				}
 				iter.Close()
 				mcb(file.r.BytesRead()) // record bytes read
+			}
 
-				// add well known
-				tagNamesForSpecialColumns(req.Scope, file.parquetFile, b.meta.DedicatedColumns, cb)
-				return false, nil
-			}()
-			if err != nil {
-				return err
-			}
-			if done {
-				return nil
-			}
+			// Add well known columns once per file, not once per condition group.
+			tagNamesForSpecialColumns(req.Scope, file.parquetFile, b.meta.DedicatedColumns, cb)
+			return false, nil
+		}()
+		if err != nil {
+			return err
+		}
+		if done {
+			return nil
 		}
 	}
 
