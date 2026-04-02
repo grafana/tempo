@@ -941,6 +941,20 @@ func TestIsLagged(t *testing.T) {
 	}
 }
 
+// TestLiveStoreLifecyclersTerminatedOnStop verifies that both the partition lifecycler and the
+// livestore lifecycler are fully Terminated before LiveStore.stopping() returns.
+func TestLiveStoreLifecyclersTerminatedOnStop(t *testing.T) {
+	cfg := defaultConfig(t, t.TempDir())
+	liveStore, err := liveStoreWithConfig(t, cfg)
+	require.NoError(t, err)
+
+	_ = services.StopAndAwaitTerminated(t.Context(), liveStore)
+
+	// Must be Terminated immediately — not eventually — when stopping() returns.
+	require.Equal(t, services.Terminated, liveStore.ingestPartitionLifecycler.State())
+	require.Equal(t, services.Terminated, liveStore.livestoreLifecycler.State())
+}
+
 func TestLiveStoreKeepsPartitionOwnerOnShutdown(t *testing.T) {
 	tmpDir := t.TempDir()
 
