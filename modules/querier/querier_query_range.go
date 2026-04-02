@@ -84,7 +84,7 @@ func (q *Querier) queryBlock(ctx context.Context, req *tempopb.QueryRangeRequest
 		return nil, err
 	}
 
-	compileOpts := []traceql.CompileMetricsQueryRangeOption{}
+	var compileOpts []traceql.CompileMetricsQueryRangeOption
 
 	unsafe := q.limits.UnsafeQueryHints(tenantID)
 	if unsafe {

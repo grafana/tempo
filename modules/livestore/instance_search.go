@@ -666,7 +666,7 @@ func (i *instance) QueryRange(ctx context.Context, req *tempopb.QueryRangeReques
 		return nil, fmt.Errorf("compiling query: %w", err)
 	}
 
-	compileOpts := []traceql.CompileMetricsQueryRangeOption{}
+	var compileOpts []traceql.CompileMetricsQueryRangeOption
 
 	unsafe := i.overrides.UnsafeQueryHints(i.tenantID)
 	if unsafe {
