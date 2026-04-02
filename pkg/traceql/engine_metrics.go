@@ -978,8 +978,47 @@ func (e *Engine) CompileMetricsQueryRangeNonRaw(req *tempopb.QueryRangeRequest, 
 	return mfe, nil
 }
 
+// CompileMetricsQueryRangeOption configures [Engine.CompileMetricsQueryRange] via [WithNewFetch],
+// [WithTimeOverlapCutoff], and [WithUnsafeQueryHints].
+type CompileMetricsQueryRangeOption func(*compileMetricsQueryRangeConfig)
+
+type compileMetricsQueryRangeConfig struct {
+	newFetch *bool
+
+	timeOverlapCutoff     float64
+	allowUnsafeQueryHints bool
+}
+
+// WithNewFetch forces MetricsEvaluator.newFetch on or off, overriding the query hint and default.
+func WithNewFetch(v bool) CompileMetricsQueryRangeOption {
+	return func(o *compileMetricsQueryRangeConfig) {
+		b := v
+		o.newFetch = &b
+	}
+}
+
+// WithTimeOverlapCutoff sets the overlap threshold (0 to 1) for trace-level timestamp filtering in
+// [MetricsEvaluator.Do]. When unset, the default is 0.
+func WithTimeOverlapCutoff(v float64) CompileMetricsQueryRangeOption {
+	return func(o *compileMetricsQueryRangeConfig) {
+		o.timeOverlapCutoff = v
+	}
+}
+
+// WithUnsafeQueryHints controls whether unsafe TraceQL query hints are honored. When unset, the default is false.
+func WithUnsafeQueryHints(v bool) CompileMetricsQueryRangeOption {
+	return func(o *compileMetricsQueryRangeConfig) {
+		o.allowUnsafeQueryHints = v
+	}
+}
+
 // CompileMetricsQueryRange returns an evaluator that can be reused across multiple data sources.
-func (e *Engine) CompileMetricsQueryRange(req *tempopb.QueryRangeRequest, timeOverlapCutoff float64, allowUnsafeQueryHints bool) (*MetricsEvaluator, error) {
+func (e *Engine) CompileMetricsQueryRange(req *tempopb.QueryRangeRequest, opts ...CompileMetricsQueryRangeOption) (*MetricsEvaluator, error) {
+	var cfg compileMetricsQueryRangeConfig
+	for _, opt := range opts {
+		opt(&cfg)
+	}
+
 	if req.Exemplars > maxExemplars {
 		level.Warn(log.Logger).Log("msg", "capping exemplars to safety limit", "requested", req.Exemplars, "cap", maxExemplars)
 		req.Exemplars = maxExemplars
@@ -1010,21 +1049,21 @@ func (e *Engine) CompileMetricsQueryRange(req *tempopb.QueryRangeRequest, timeOv
 	}
 
 	// Debug sampling hints, remove once we settle on approach.
-	if traceSample, traceSampleOk := expr.Hints.GetFloat(HintTraceSample, allowUnsafeQueryHints); traceSampleOk {
+	if traceSample, traceSampleOk := expr.Hints.GetFloat(HintTraceSample, cfg.allowUnsafeQueryHints); traceSampleOk {
 		storageReq.TraceSampler = newProbablisticSampler(traceSample)
 	}
-	if spanSample, spanSampleOk := expr.Hints.GetFloat(HintSpanSample, allowUnsafeQueryHints); spanSampleOk {
+	if spanSample, spanSampleOk := expr.Hints.GetFloat(HintSpanSample, cfg.allowUnsafeQueryHints); spanSampleOk {
 		storageReq.SpanSampler = newProbablisticSampler(spanSample)
 	}
 
-	if sample, sampleOk := expr.Hints.GetBool(HintSample, allowUnsafeQueryHints); sampleOk && sample {
+	if sample, sampleOk := expr.Hints.GetBool(HintSample, cfg.allowUnsafeQueryHints); sampleOk && sample {
 		// Automatic sampling
 		// Get other params
 		s := newAdaptiveSampler()
-		if debug, ok := expr.Hints.GetBool(HintDebug, allowUnsafeQueryHints); ok {
+		if debug, ok := expr.Hints.GetBool(HintDebug, cfg.allowUnsafeQueryHints); ok {
 			s.debug = debug
 		}
-		if info, ok := expr.Hints.GetBool(HintInfo, allowUnsafeQueryHints); ok {
+		if info, ok := expr.Hints.GetBool(HintInfo, cfg.allowUnsafeQueryHints); ok {
 			s.info = info
 		}
 
@@ -1036,7 +1075,7 @@ func (e *Engine) CompileMetricsQueryRange(req *tempopb.QueryRangeRequest, timeOv
 		}
 	}
 
-	if sampleFraction, ok := expr.Hints.GetFloat(HintSample, allowUnsafeQueryHints); ok && sampleFraction > 0 && sampleFraction < 1 {
+	if sampleFraction, ok := expr.Hints.GetFloat(HintSample, cfg.allowUnsafeQueryHints); ok && sampleFraction > 0 && sampleFraction < 1 {
 		// Fixed sampling rate.
 		s := newProbablisticSampler(sampleFraction)
 
@@ -1054,13 +1093,18 @@ func (e *Engine) CompileMetricsQueryRange(req *tempopb.QueryRangeRequest, timeOv
 	me := &MetricsEvaluator{
 		storageReq:        storageReq,
 		metricsPipeline:   metricsPipeline,
-		timeOverlapCutoff: timeOverlapCutoff,
+		timeOverlapCutoff: cfg.timeOverlapCutoff,
 		maxExemplars:      int(req.Exemplars),
 		exemplarMap:       make(map[string]struct{}, req.Exemplars), // TODO: Lazy, use bloom filter, CM sketch or something
 		needsFullTrace:    needsFullTrace,
 	}
 
-	if b, ok := expr.Hints.GetBool("new", true); ok {
+	// Determine usage of new fetch layer.
+	// Hint in the query takes precedence over passed in options which are hard-coded or from tenant config.
+	if cfg.newFetch != nil {
+		me.newFetch = *cfg.newFetch
+	}
+	if b, ok := expr.Hints.GetBool("new", cfg.allowUnsafeQueryHints); ok {
 		me.newFetch = b
 	}
 

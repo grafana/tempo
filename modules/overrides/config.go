@@ -173,6 +173,10 @@ type ReadOverrides struct {
 	// LeftPadTraceIDs left-pads trace IDs in search responses to 32 hex characters with zeros.
 	// This produces W3C/OpenTelemetry compliant trace IDs (32-hex-character lowercase strings).
 	LeftPadTraceIDs bool `yaml:"left_pad_trace_ids,omitempty" json:"left_pad_trace_ids,omitempty"`
+
+	// MetricsNewFetch, when non-nil, forces the TraceQL metrics engine span-level fetch path
+	// (newFetch) on or off for this tenant, overriding the query hint and default behavior.
+	MetricsNewFetch *bool `yaml:"metrics_new_fetch,omitempty" json:"metrics_new_fetch,omitempty"`
 }
 
 type CompactionOverrides struct {

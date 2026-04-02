@@ -1181,7 +1181,7 @@ func BenchmarkBackendBlockQueryRange(b *testing.B) {
 						Exemplars: 4,
 					}
 
-					eval, err := e.CompileMetricsQueryRange(req, 0, false)
+					eval, err := e.CompileMetricsQueryRange(req)
 					require.NoError(b, err)
 
 					b.ResetTimer()

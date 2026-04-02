@@ -412,6 +412,10 @@ func (o *runtimeConfigOverridesManager) LeftPadTraceIDs(userID string) bool {
 	return o.getOverridesForUser(userID).Read.LeftPadTraceIDs
 }
 
+func (o *runtimeConfigOverridesManager) MetricsNewFetch(userID string) *bool {
+	return o.getOverridesForUser(userID).Read.MetricsNewFetch
+}
+
 func (o *runtimeConfigOverridesManager) CostAttributionMaxCardinality(userID string) uint64 {
 	return o.getOverridesForUser(userID).CostAttribution.MaxCardinality
 }

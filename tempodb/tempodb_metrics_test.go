@@ -1157,11 +1157,8 @@ func TestTempoDBQueryRange(t *testing.T) {
 	})
 
 	for _, tc := range queryRangeTestCases {
-		runTestWithHint := func(t *testing.T, queryHint string) {
-			if len(queryHint) > 0 {
-				tc.req.Query += " with(" + queryHint + ")"
-			}
-			eval, err := e.CompileMetricsQueryRange(tc.req, 0, false)
+		runTestWithHint := func(t *testing.T, opts ...traceql.CompileMetricsQueryRangeOption) {
+			eval, err := e.CompileMetricsQueryRange(tc.req, opts...)
 			require.NoError(t, err)
 
 			err = eval.Do(ctx, f, 0, 0, 0)
@@ -1211,11 +1208,11 @@ func TestTempoDBQueryRange(t *testing.T) {
 		}
 
 		t.Run(tc.name, func(t *testing.T) {
-			runTestWithHint(t, "")
+			runTestWithHint(t, traceql.WithNewFetch(false))
 		})
 
 		t.Run(tc.name+"/new", func(t *testing.T) {
-			runTestWithHint(t, "new=true")
+			runTestWithHint(t, traceql.WithNewFetch(true))
 		})
 	}
 
@@ -1225,7 +1222,7 @@ func TestTempoDBQueryRange(t *testing.T) {
 		req := requestWithDefaultRange(`{} | compare({ .service.name="even" })`)
 
 		// Level 1
-		eval, err := e.CompileMetricsQueryRange(req, 0, false)
+		eval, err := e.CompileMetricsQueryRange(req)
 		require.NoError(t, err)
 
 		err = eval.Do(ctx, f, 0, 0, 0)

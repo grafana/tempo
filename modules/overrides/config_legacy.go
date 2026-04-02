@@ -80,6 +80,7 @@ func (c *Overrides) toLegacy() LegacyOverrides {
 		MaxMetricsDuration:         c.Read.MaxMetricsDuration,
 		UnsafeQueryHints:           c.Read.UnsafeQueryHints,
 		LeftPadTraceIDs:            c.Read.LeftPadTraceIDs,
+		MetricsNewFetch:            c.Read.MetricsNewFetch,
 
 		MaxBytesPerTrace: c.Global.MaxBytesPerTrace,
 
@@ -165,6 +166,7 @@ type LegacyOverrides struct {
 	MaxMetricsDuration model.Duration `yaml:"max_metrics_duration" json:"max_metrics_duration"`
 	UnsafeQueryHints   bool           `yaml:"unsafe_query_hints" json:"unsafe_query_hints"`
 	LeftPadTraceIDs    bool           `yaml:"left_pad_trace_ids" json:"left_pad_trace_ids"`
+	MetricsNewFetch    *bool          `yaml:"metrics_new_fetch,omitempty" json:"metrics_new_fetch,omitempty"`
 
 	// MaxBytesPerTrace is enforced in the Ingester, Compactor, Querier (Search). It
 	//  is not used when doing a trace by id lookup.
@@ -318,6 +320,7 @@ func (l *LegacyOverrides) toNewLimits() *Overrides {
 			MaxMetricsDuration:         l.MaxMetricsDuration,
 			UnsafeQueryHints:           l.UnsafeQueryHints,
 			LeftPadTraceIDs:            l.LeftPadTraceIDs,
+			MetricsNewFetch:            l.MetricsNewFetch,
 		},
 		Compaction: CompactionOverrides{
 			BlockRetention:     l.BlockRetention,

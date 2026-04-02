@@ -464,6 +464,7 @@ func generateTestLegacyOverrides() LegacyOverrides {
 		MaxSearchDuration:  model.Duration(10 * time.Minute),
 		MaxMetricsDuration: model.Duration(30 * time.Minute),
 		UnsafeQueryHints:   true,
+		MetricsNewFetch:    boolPtr(true),
 
 		MaxBytesPerTrace: 10 * 1024 * 1024,
 
