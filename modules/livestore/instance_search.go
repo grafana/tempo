@@ -659,6 +659,8 @@ func (i *instance) QueryRange(ctx context.Context, req *tempopb.QueryRangeReques
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
+	e := traceql.NewEngine()
+
 	expr, err := traceql.Parse(req.Query)
 	if err != nil {
 		return nil, fmt.Errorf("compiling query: %w", err)
@@ -684,7 +686,6 @@ func (i *instance) QueryRange(ctx context.Context, req *tempopb.QueryRangeReques
 	// Compile the raw version of the query for head and wal blocks
 	// These aren't cached and we put them all into the same evaluator
 	// for efficiency.
-	e := traceql.NewEngine()
 	rawEval, err := e.CompileMetricsQueryRange(req, compileOpts...)
 	if err != nil {
 		return nil, err
