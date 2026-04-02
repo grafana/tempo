@@ -393,6 +393,15 @@ func (s *LiveStore) stopping(error) error {
 	s.readyErr.Store(&ErrStopping)
 	metricReady.Set(0)
 
+	// Stop both the membership ring and partition ring
+	if err := services.StopAndAwaitTerminated(context.Background(), s.livestoreLifecycler); err != nil {
+		level.Warn(s.logger).Log("msg", "failed to stop livestore lifecycler", "err", err)
+	}
+
+	if err := services.StopAndAwaitTerminated(context.Background(), s.ingestPartitionLifecycler); err != nil {
+		level.Warn(s.logger).Log("msg", "failed to stop partition lifecycler", "err", err)
+	}
+
 	// Stop the kafka lag background worker.
 	s.lagCancel()
 
