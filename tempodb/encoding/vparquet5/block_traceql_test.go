@@ -1783,7 +1783,7 @@ func BenchmarkIterators(b *testing.B) {
 func BenchmarkBackendBlockQueryRange(b *testing.B) {
 	testCases := []string{
 		"{} | rate()",
-		"{} | rate() with(new=true)",
+		"{} | rate() with(new_fetch=true)",
 		"{} | rate() with(sample=true)",
 		"{} | rate() by (span.http.status_code)",
 		"{} | rate() by (resource.service.name)",
@@ -1835,7 +1835,7 @@ func BenchmarkBackendBlockQueryRange(b *testing.B) {
 				Exemplars: 2,
 			}
 
-			eval, err := e.CompileMetricsQueryRange(req)
+			eval, err := e.CompileMetricsQueryRange(req, traceql.WithUnsafeQueryHints(true))
 			require.NoError(b, err)
 
 			b.ResetTimer()

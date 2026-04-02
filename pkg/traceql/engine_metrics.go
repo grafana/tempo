@@ -989,7 +989,7 @@ type compileMetricsQueryRangeConfig struct {
 	allowUnsafeQueryHints bool
 }
 
-// WithNewFetch forces MetricsEvaluator.newFetch on or off, overriding the query hint and default.
+// WithNewFetch sets the span-level fetch path; with(new_fetch=...) overwrites when honored.
 func WithNewFetch(v bool) CompileMetricsQueryRangeOption {
 	return func(o *compileMetricsQueryRangeConfig) {
 		b := v
@@ -997,15 +997,15 @@ func WithNewFetch(v bool) CompileMetricsQueryRangeOption {
 	}
 }
 
-// WithTimeOverlapCutoff sets the overlap threshold (0 to 1) for trace-level timestamp filtering in
-// [MetricsEvaluator.Do]. When unset, the default is 0.
+// WithTimeOverlapCutoff sets the overlap threshold (0 to 1) for trace-level timestamp filtering. When not
+// set the default value is used.
 func WithTimeOverlapCutoff(v float64) CompileMetricsQueryRangeOption {
 	return func(o *compileMetricsQueryRangeConfig) {
 		o.timeOverlapCutoff = v
 	}
 }
 
-// WithUnsafeQueryHints controls whether unsafe TraceQL query hints are honored. When unset, the default is false.
+// WithUnsafeQueryHints controls whether unsafe TraceQL query hints are honored. When not set the default is used.
 func WithUnsafeQueryHints(v bool) CompileMetricsQueryRangeOption {
 	return func(o *compileMetricsQueryRangeConfig) {
 		o.allowUnsafeQueryHints = v
@@ -1104,7 +1104,7 @@ func (e *Engine) CompileMetricsQueryRange(req *tempopb.QueryRangeRequest, opts .
 	if cfg.newFetch != nil {
 		me.newFetch = *cfg.newFetch
 	}
-	if b, ok := expr.Hints.GetBool("new", cfg.allowUnsafeQueryHints); ok {
+	if b, ok := expr.Hints.GetBool(HintNewFetch, cfg.allowUnsafeQueryHints); ok {
 		me.newFetch = b
 	}
 

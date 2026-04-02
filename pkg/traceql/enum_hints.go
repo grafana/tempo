@@ -21,6 +21,7 @@ const (
 	HintDebugStdDev       = "debug_std_dev"     // standard deviation for debug_return_in latency simulation
 	HintDebugDataFactor   = "debug_data_factor" // performance testing hint to control the possibility of non-empty fake data
 	HintSkipOptimization  = "skip_optimization" // don't apply AST optimizations
+	HintNewFetch          = "new_fetch"         // metrics: new fetch layer (only in vParquet5)
 )
 
 func isUnsafe(h string) bool {
