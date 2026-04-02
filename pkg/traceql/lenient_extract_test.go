@@ -557,8 +557,8 @@ func TestSplitReqConditionGroupsStrictMode(t *testing.T) {
 				assert.Error(t, err)
 			} else {
 				assert.NoError(t, err)
-				assert.Equal(t, tc.expectedLength, len(conditions))
 			}
+			assert.Equal(t, tc.expectedLength, len(conditions))
 		})
 	}
 }

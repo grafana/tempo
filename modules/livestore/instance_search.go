@@ -476,7 +476,7 @@ func (i *instance) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTag
 
 	conditionGroups, extractConditionErr := traceql.ExtractConditionGroups(req.Query, req.Strict)
 	if extractConditionErr != nil {
-		level.Warn(i.logger).Log("msg", "error extracting condition groups from query", "err", err, "query", req.Query)
+		level.Warn(i.logger).Log("msg", "error extracting condition groups from query", "err", extractConditionErr, "query", req.Query)
 	}
 	// cacheKey will be same for all blocks in a request so only compute it once
 	// NOTE: cacheKey tag name and query, so if we start respecting start and end, add them to the cacheKey

@@ -861,7 +861,6 @@ func (b *walBlock) FetchTagValues(ctx context.Context, req traceql.FetchTagValue
 		}
 	}
 
-	// combine iters?
 	return nil
 }
 
@@ -955,7 +954,6 @@ func (b *walBlock) FetchTagNames(ctx context.Context, req traceql.FetchTagsReque
 		}
 	}
 
-	// combine iters?
 	return nil
 }
 

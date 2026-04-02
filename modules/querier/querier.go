@@ -700,7 +700,7 @@ func (q *Querier) internalTagsSearchBlockV2(ctx context.Context, req *tempopb.Se
 		return q.store.SearchTags(ctx, meta, req, opts)
 	}
 	if extractConditionErr != nil {
-		level.Warn(log.Logger).Log("msg", "failed to extract condition groups from TraceQL, executing unfiltered tag values search", "error", extractConditionErr.Error())
+		level.Warn(log.Logger).Log("msg", "OR condition groups exceeded limit, tag names search will use truncated conditions", "error", extractConditionErr.Error())
 	}
 
 	valueCollector := collector.NewScopedDistinctString(q.limits.MaxBytesPerTagValuesQuery(tenantID), req.MaxTagsPerScope, req.StaleValueThreshold)
@@ -816,7 +816,7 @@ func (q *Querier) internalTagValuesSearchBlockV2(ctx context.Context, req *tempo
 		return q.store.SearchTagValuesV2(ctx, meta, req.SearchReq, opts)
 	}
 	if extractConditionErr != nil {
-		level.Warn(log.Logger).Log("msg", "failed to extract condition groups from TraceQL, executing unfiltered tag values search", "error", extractConditionErr.Error())
+		level.Warn(log.Logger).Log("msg", "OR condition groups exceeded limit, tag values search will use truncated conditions", "error", extractConditionErr.Error())
 	}
 
 	tag, err := traceql.ParseIdentifier(req.SearchReq.TagName)
