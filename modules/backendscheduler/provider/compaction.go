@@ -4,7 +4,6 @@ import (
 	"container/heap"
 	"context"
 	"flag"
-	"sync"
 	"time"
 
 	"github.com/go-kit/log"
@@ -69,10 +68,6 @@ type CompactionProvider struct {
 	curTenant          *tenantselector.Item
 	curSelector        blockselector.CompactionBlockSelector
 	lastPrioritizeTime time.Time
-
-	// Recent jobs cache for duplicate block ID prevention.
-	outstandingJobs    map[string][]backend.UUID
-	outstandingJobsMtx sync.Mutex
 }
 
 func NewCompactionProvider(
@@ -83,13 +78,12 @@ func NewCompactionProvider(
 	scheduler Scheduler,
 ) *CompactionProvider {
 	return &CompactionProvider{
-		cfg:             cfg,
-		logger:          logger,
-		store:           store,
-		overrides:       overrides,
-		curPriority:     tenantselector.NewPriorityQueue(),
-		sched:           scheduler,
-		outstandingJobs: make(map[string][]backend.UUID),
+		cfg:         cfg,
+		logger:      logger,
+		store:       store,
+		overrides:   overrides,
+		curPriority: tenantselector.NewPriorityQueue(),
+		sched:       scheduler,
 	}
 }
 
@@ -169,8 +163,21 @@ func (p *CompactionProvider) Start(ctx context.Context) <-chan *work.Job {
 				continue
 			}
 
-			// Job successfully created, add to recent jobs cache before we send it.
-			p.addToRecentJobs(ctx, job)
+			// Re-check after job creation: a batch may have been submitted while we were
+			// draining the selector that was built before the submission. Discard the job
+			// before it enters the recent-jobs cache or the channel.
+			// TenantPending is true for the full batch lifetime (submission → cleanup),
+			// which subsumes the HasJobsForTenant(REDACTION) condition.
+			if p.sched.TenantPending(p.curTenant.Value()) {
+				level.Info(p.logger).Log("msg", "redaction batch submitted for tenant since selector was built; abandoning remaining compaction jobs", "tenant", p.curTenant.Value())
+				span.AddEvent("tenant has active redaction batch")
+				reset()
+				continue
+			}
+
+			// Register the job so SubmitRedaction can see its input blocks
+			// before the job is promoted to active via AddJob.
+			p.sched.RegisterJob(job)
 
 			select {
 			case <-ctx.Done():
@@ -393,59 +400,39 @@ func (p *CompactionProvider) measureTenants() {
 }
 
 func (p *CompactionProvider) newBlockSelector(tenantID string) (blockselector.CompactionBlockSelector, int) {
+	// Do not start new compaction jobs for a tenant with an active redaction batch.
+	// Compacting blocks during a live batch would produce output blocks not yet
+	// covered by any pending redaction job. This guarantees that at most one rescan
+	// is needed per batch: once the originally-skipped compaction jobs finish and
+	// the rescan fires, no further compaction can have created uncovered blocks.
+	if p.sched.TenantPending(tenantID) {
+		return blockselector.NewTimeWindowBlockSelector(nil,
+			p.cfg.Compactor.MaxCompactionRange,
+			p.cfg.Compactor.MaxCompactionObjects,
+			p.cfg.Compactor.MaxBlockBytes,
+			p.cfg.MinInputBlocks,
+			p.cfg.MaxInputBlocks,
+			p.cfg.MaxCompactionLevel,
+		), 0
+	}
+
 	var (
 		fullBlocklist = p.store.BlockMetas(tenantID)
 		window        = p.overrides.MaxCompactionRange(tenantID)
 		blocklist     = make([]*backend.BlockMeta, 0, len(fullBlocklist))
 	)
 
-	// Query the work for the jobs and build up a list of UUIDs which we can match against and skip on the selector.
-	var (
-		inProgressBlockIDs = make(map[backend.UUID]struct{})
-		bid                backend.UUID
-		err                error
-	)
+	// Take a single snapshot of all busy blocks for this tenant — one lock
+	// acquisition regardless of blocklist size.
+	busyBlocks := p.sched.BusyBlocksForTenant(tenantID)
 
-	for _, job := range p.sched.ListJobs() {
-		// Clean up recent jobs cache when we find a job which has been persisted
-		p.outstandingJobsMtx.Lock()
-		delete(p.outstandingJobs, job.ID)
-		p.outstandingJobsMtx.Unlock()
-
-		if job.Tenant() != tenantID {
-			continue
-		}
-
-		if job.GetType() == tempopb.JobType_JOB_TYPE_UNSPECIFIED {
-			continue
-		}
-
-		// NOTE: We check the compaction job input, but not the output.  This is to
-		// allow the output of one job to become the input of another.
-		for _, blockID := range job.GetCompactionInput() {
-			bid, err = backend.ParseUUID(blockID)
-			if err != nil {
-				level.Error(p.logger).Log("msg", "failed to parse block ID", "block_id", blockID, "err", err)
-				continue
-			}
-			inProgressBlockIDs[bid] = struct{}{}
-		}
-	}
-
-	// Also include blocks from recent jobs cache to prevent duplicate job creation
-	p.outstandingJobsMtx.Lock()
-	for _, recentBlockIDs := range p.outstandingJobs {
-		for _, blockID := range recentBlockIDs {
-			inProgressBlockIDs[blockID] = struct{}{}
-		}
-	}
-	p.outstandingJobsMtx.Unlock()
-
+	// Build the filtered blocklist, skipping blocks already busy
+	// (pending redaction, active compaction input, etc.).
 	for _, block := range fullBlocklist {
-		if _, ok := inProgressBlockIDs[block.BlockID]; !ok {
-			// Include blocks that are not already in the input list from another job or recent jobs
-			blocklist = append(blocklist, block)
+		if _, ok := busyBlocks[block.BlockID.String()]; ok {
+			continue
 		}
+		blocklist = append(blocklist, block)
 	}
 
 	if window == 0 {
@@ -461,34 +448,4 @@ func (p *CompactionProvider) newBlockSelector(tenantID string) (blockselector.Co
 		p.cfg.MaxInputBlocks,
 		p.cfg.MaxCompactionLevel,
 	), len(blocklist)
-}
-
-// addToRecentJobs adds a job to the recent jobs cache
-func (p *CompactionProvider) addToRecentJobs(ctx context.Context, job *work.Job) {
-	_, span := tracer.Start(ctx, "addToRecentJobs")
-	defer span.End()
-
-	if job.Type != tempopb.JobType_JOB_TYPE_COMPACTION || job.JobDetail.Compaction == nil {
-		return
-	}
-
-	// Don't cache jobs with empty input
-	if len(job.JobDetail.Compaction.Input) == 0 {
-		return
-	}
-
-	// Copy the input block IDs
-	blockIDs := make([]backend.UUID, len(job.JobDetail.Compaction.Input))
-	for i, blockID := range job.JobDetail.Compaction.Input {
-		bid, err := backend.ParseUUID(blockID)
-		if err != nil {
-			level.Error(p.logger).Log("msg", "failed to parse block ID", "block_id", blockID, "err", err)
-			return
-		}
-		blockIDs[i] = bid
-	}
-
-	p.outstandingJobsMtx.Lock()
-	p.outstandingJobs[job.ID] = blockIDs
-	p.outstandingJobsMtx.Unlock()
 }

@@ -13,12 +13,14 @@ type queryTraceIDCmd struct {
 	APIEndpoint string `arg:"" help:"tempo api endpoint"`
 	TraceID     string `arg:"" help:"trace ID to retrieve"`
 
-	V1    bool   `name:"v1" help:"Use v1 API /api/traces endpoint"`
-	OrgID string `help:"optional orgID"`
+	V1      bool     `name:"v1" help:"Use v1 API /api/traces endpoint"`
+	OrgID   string   `help:"optional orgID"`
+	Headers []string `help:"extra HTTP header in key=value format" name:"header"`
 }
 
 func (cmd *queryTraceIDCmd) Run(_ *globalOptions) error {
 	client := httpclient.New(cmd.APIEndpoint, cmd.OrgID)
+	applyHeaders(client, cmd.Headers)
 	// util.QueryTrace will only add orgID header if len(orgID) > 0
 
 	// use v1 API if specified, we default to v2

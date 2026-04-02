@@ -85,6 +85,10 @@ func (m *mockReader) Fetch(context.Context, *backend.BlockMeta, traceql.FetchSpa
 	return traceql.FetchSpansResponse{}, nil
 }
 
+func (m *mockReader) FetchSpans(context.Context, *backend.BlockMeta, traceql.FetchSpansRequest, common.SearchOptions) (traceql.FetchSpansOnlyResponse, error) {
+	return traceql.FetchSpansOnlyResponse{}, nil
+}
+
 func (m *mockReader) FetchTagNames(context.Context, *backend.BlockMeta, traceql.FetchTagsRequest, traceql.FetchTagsCallback, common.MetricsCallback, common.SearchOptions) error {
 	return nil
 }
@@ -894,7 +898,7 @@ func TestSearchSharderRoundTripBadRequest(t *testing.T) {
 	// bad request
 	req = httptest.NewRequest("GET", "/?start=asdf&end=1500", nil)
 	resp, err = testRT.RoundTrip(pipeline.NewHTTPRequest(req))
-	testBadRequestFromResponses(t, resp, err, "invalid start: strconv.ParseInt: parsing \"asdf\": invalid syntax")
+	testBadRequestFromResponses(t, resp, err, "invalid start: strconv.ParseUint: parsing \"asdf\": invalid syntax")
 
 	// test max duration error with overrides
 	o, err = overrides.NewOverrides(overrides.Config{

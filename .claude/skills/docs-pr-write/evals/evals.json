@@ -1,0 +1,77 @@
+{
+  "skill_name": "docs-pr-write",
+  "usage_modes": [
+    "standalone: invoked directly with a PR number and known gap, outside the release notes workflow",
+    "workflow: runs as Phase 1.75 of the release notes workflow, consuming the handoff table produced by docs-pr-check (Phase 1.5)"
+  ],
+  "pr_selection": {
+    "note": "Before running evals, select PRs using the commands in each test case's pr_selection_command field. See .claude/skills/evals/README.md for the full pre-flight process."
+  },
+  "evals": [
+    {
+      "id": 1,
+      "mode": "standalone",
+      "pr_type": "A merged PR that added or changed a user-facing API behavior, endpoint, or query syntax with incomplete or missing documentation",
+      "pr_selection_command": "gh pr list --repo grafana/tempo --state merged --limit 100 --json number,title,author,labels,files | jq '[.[] | select(.author.login != \"dependabot[bot]\" and .author.login != \"github-actions[bot]\") | select(.files | map(.path) | any(startswith(\"tempodb/\") or startswith(\"modules/\") or startswith(\"pkg/\"))) | select(.files | map(.path) | any(startswith(\"docs/\")) | not)] | .[0:10]'",
+      "prompt_template": "PR #{PR_1} made a user-facing change but the docs don't cover it. Use docs-pr-write to update the docs.",
+      "expected_output": "The relevant docs page is updated with content covering the change. Includes at least one concrete example. Return format shows 'Files changed', what was documented and where, and any open items.",
+      "assertions": [
+        "A file under docs/sources/tempo/ appears in 'Files changed'",
+        "New content includes a runnable example matching the change type (curl/HTTP for API, YAML for config, TraceQL for query, shell for CLI)",
+        "Existing page structure is preserved — the agent did not rewrite the entire page",
+        "Output includes a section mapping the PR number to the file that was updated",
+        "Output includes an 'Open items' section (even if empty)"
+      ]
+    },
+    {
+      "id": 2,
+      "mode": "standalone",
+      "pr_type": "A merged PR that added a new configuration option or changed default values, with no documentation of the new fields",
+      "pr_selection_command": "gh pr list --repo grafana/tempo --state merged --limit 100 --json number,title,author,labels,files | jq '[.[] | select(.author.login != \"dependabot[bot]\" and .author.login != \"github-actions[bot]\") | select(.files | map(.path) | any(endswith(\".go\") and (contains(\"config\") or contains(\"Config\")))) | select(.files | map(.path) | any(startswith(\"docs/\")) | not)] | .[0:10]'",
+      "prompt_template": "Run docs-pr-write for PR #{PR_1}. There are no existing docs for this feature and I need a new configuration section added.",
+      "expected_output": "The relevant configuration docs page is updated with a new section. Content explains the feature in user terms, includes a YAML configuration example with field names verified against the codebase, and notes the Tempo version where it was introduced. Return format shows 'Files changed', PR-to-doc mapping, and open items.",
+      "assertions": [
+        "Output includes a 'Files changed' section listing at least one path under docs/sources/tempo/",
+        "Output includes a mapping of the PR number to the file(s) updated",
+        "Documented content includes a YAML or code configuration example",
+        "Content notes the minimum Tempo version or states 'introduced in Tempo X.Y'",
+        "Output includes an 'Open items' section (even if empty)",
+        "Configuration field names in the example match code, not just the PR description"
+      ]
+    },
+    {
+      "id": 3,
+      "mode": "workflow",
+      "pr_type": "A merged PR classified as 'Docs needed' by docs-pr-check, with no existing documentation. Select a PR that changed Go, proto, or Helm files but no docs files.",
+      "pr_selection_command": "gh pr list --repo grafana/tempo --state merged --limit 100 --json number,title,author,labels,files | jq '[.[] | select(.author.login != \"dependabot[bot]\" and .author.login != \"github-actions[bot]\") | select(.files | map(.path) | any(startswith(\"docs/\")) | not) | select(.labels | map(.name) | any(. == \"type/feature\" or . == \"type/enhancement\" or . == \"add to changelog\"))] | .[0:10]'",
+      "prompt_template": "We're in Phase 1.75 of the Tempo release notes workflow. docs-pr-check (Phase 1.5) produced the following handoff. Run docs-pr-write to implement the required docs. Target branch is main.\n\n#{PR_1} | Docs needed | No existing docs found for this feature; new section required | {SUGGESTED_TARGET_FILE}",
+      "prompt_template_note": "Replace {SUGGESTED_TARGET_FILE} with the target file identified by docs-pr-check when you ran Phase 1.5 on this PR.",
+      "expected_output": "The target docs page is updated with a new section. Content explains the feature in user terms, includes a verified code or configuration example, and notes the Tempo version. Return format includes 'Files changed', PR-to-doc mapping, and an 'Open items' section structured so the release notes writer can link to the new section in Phase 2.",
+      "assertions": [
+        "Output includes a 'Files changed' section listing at least one path under docs/sources/tempo/",
+        "Output includes a PR-to-doc mapping with an entry for the PR",
+        "Documented content includes at least one code or configuration example",
+        "Content notes the minimum Tempo version or states 'introduced in Tempo X.Y'",
+        "Output includes an 'Open items' section (even if empty)",
+        "Field names or identifiers in the example are verified against code, not copied verbatim from the PR description"
+      ]
+    },
+    {
+      "id": 4,
+      "mode": "workflow",
+      "pr_type": "A merged PR classified as 'Docs update needed' by docs-pr-check, where partial documentation exists but does not reflect the new behavior. Select a PR where docs/sources/tempo was not updated but the behavior changed.",
+      "pr_selection_command": "gh pr list --repo grafana/tempo --state merged --limit 100 --json number,title,author,labels,files | jq '[.[] | select(.author.login != \"dependabot[bot]\" and .author.login != \"github-actions[bot]\") | select(.files | map(.path) | any(startswith(\"docs/\")) | not) | select(.labels | map(.name) | any(. == \"type/enhancement\" or . == \"add to changelog\"))] | .[0:10]'",
+      "prompt_template": "Phase 1.5 of the Tempo release notes workflow is complete. Here is the docs-pr-check handoff for Phase 1.75. Run docs-pr-write. Branch context is main.\n\n#{PR_1} | Docs update needed | Existing docs do not reflect the new behavior | {EXISTING_DOCS_FILE}",
+      "prompt_template_note": "Replace {EXISTING_DOCS_FILE} with the existing docs file identified by docs-pr-check when you ran Phase 1.5 on this PR.",
+      "expected_output": "The existing docs page is updated to reflect the new behavior. Content is inserted into the existing page without restructuring it. Includes a concrete example and cross-links to related pages if they exist. Return format shows 'Files changed', PR-to-doc mapping, and 'Open items'. Existing page structure is preserved.",
+      "assertions": [
+        "The identified existing docs file (or equivalent) appears in 'Files changed'",
+        "Output includes a PR-to-doc mapping entry for the PR",
+        "New content includes at least one code or configuration example",
+        "Existing page structure and other entries are preserved — the agent did not rewrite the whole page",
+        "Content notes the minimum Tempo version, or flags version as an open item",
+        "Output includes an 'Open items' section"
+      ]
+    }
+  ]
+}

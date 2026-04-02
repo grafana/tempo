@@ -119,20 +119,6 @@
             },
           },
           {
-            alert: 'TempoBlockListRisingQuickly',
-            expr: |||
-              avg(tempodb_blocklist_length{namespace=~"%(namespace)s", container="compactor"}) / avg(tempodb_blocklist_length{namespace=~"%(namespace)s", container="compactor"} offset 7d) by (%(group)s) > 1.4
-            ||| % { namespace: $._config.namespace, group: $._config.group_by_cluster },
-            'for': '15m',
-            labels: {
-              severity: 'critical',
-            },
-            annotations: {
-              message: 'Tempo block list length is up 40 percent over the last 7 days. Consider scaling compactors.',
-              runbook_url: 'https://github.com/grafana/tempo/tree/main/operations/tempo-mixin/runbook.md#TempoBlockListRisingQuickly',
-            },
-          },
-          {
             alert: 'TempoBadOverrides',
             expr: |||
               sum(tempo_runtime_config_last_reload_successful{namespace=~"%s"} == 0) by (%s)
@@ -160,32 +146,32 @@
               runbook_url: 'https://github.com/grafana/tempo/tree/main/operations/tempo-mixin/runbook.md#TempoTenantIndexFailures',
             },
           },
-          // compactors
+          // compaction scheduler / workers
           {
             alert: 'TempoCompactionTooManyOutstandingBlocks',
             expr: |||
-              sum by (%s) (tempodb_compaction_outstanding_blocks{container="compactor", namespace=~"%s"}) / ignoring(tenant) group_left count(tempo_build_info{container="compactor", namespace=~"%s"}) by (%s) > %d
+              sum by (%s) (tempodb_compaction_outstanding_blocks{container="backend-scheduler", namespace=~"%s"}) / ignoring(tenant) group_left count(tempo_build_info{container="backend-worker", namespace=~"%s"}) by (%s) > %d
             ||| % [$._config.group_by_tenant, $._config.namespace, $._config.namespace, $._config.group_by_cluster, $._config.alerts.outstanding_blocks_warning],
             'for': '6h',
             labels: {
               severity: 'warning',
             },
             annotations: {
-              message: "There are too many outstanding compaction blocks in {{ $labels.%s }}/{{ $labels.namespace }} for tenant {{ $labels.tenant }}, increase compactor's CPU or add more compactors." % $._config.per_cluster_label,
+              message: 'There are too many outstanding compaction blocks in {{ $labels.%s }}/{{ $labels.namespace }} for tenant {{ $labels.tenant }}, increase backend-worker CPU or add more backend-workers.' % $._config.per_cluster_label,
               runbook_url: 'https://github.com/grafana/tempo/tree/main/operations/tempo-mixin/runbook.md#TempoCompactionTooManyOutstandingBlocks',
             },
           },
           {
             alert: 'TempoCompactionTooManyOutstandingBlocks',
             expr: |||
-              sum by (%s) (tempodb_compaction_outstanding_blocks{container="compactor", namespace=~"%s"}) / ignoring(tenant) group_left count(tempo_build_info{container="compactor", namespace=~"%s"}) by (%s) > %d
+              sum by (%s) (tempodb_compaction_outstanding_blocks{container="backend-scheduler", namespace=~"%s"}) / ignoring(tenant) group_left count(tempo_build_info{container="backend-worker", namespace=~"%s"}) by (%s) > %d
             ||| % [$._config.group_by_tenant, $._config.namespace, $._config.namespace, $._config.group_by_cluster, $._config.alerts.outstanding_blocks_critical],
             'for': '24h',
             labels: {
               severity: 'critical',
             },
             annotations: {
-              message: "There are too many outstanding compaction blocks in {{ $labels.%s }}/{{ $labels.namespace }} for tenant {{ $labels.tenant }}, increase compactor's CPU or add more compactors." % $._config.per_cluster_label,
+              message: 'There are too many outstanding compaction blocks in {{ $labels.%s }}/{{ $labels.namespace }} for tenant {{ $labels.tenant }}, increase backend-worker CPU or add more backend-workers.' % $._config.per_cluster_label,
               runbook_url: 'https://github.com/grafana/tempo/tree/main/operations/tempo-mixin/runbook.md#TempoCompactionTooManyOutstandingBlocks',
             },
           },
@@ -241,12 +227,12 @@
               severity: 'warning',
             },
             annotations: {
-              message: 'Tempo ingest partition {{ $labels.partition }} for live store {{ $labels.group }} is lagging by more than %d seconds in {{ $labels.%s }}/{{ $labels.namespace }}.' % [$._config.alerts.live_store_partition_lag_critical_seconds, $._config.per_cluster_label],
+              message: 'Tempo ingest partition {{ $labels.partition }} for live store {{ $labels.group }} is lagging by {{ $value | humanizeDuration }} (threshold: %ds) in {{ $labels.%s }}/{{ $labels.namespace }}.' % [$._config.alerts.live_store_partition_lag_warning_seconds, $._config.per_cluster_label],
               runbook_url: 'https://github.com/grafana/tempo/tree/main/operations/tempo-mixin/runbook.md#TempoPartitionLag',
             },
           },
           {
-            alert: 'TempoLiveStorePartitionLagCritical',
+            alert: 'TempoLiveStoreSingleMemberLagHigh',
             expr: |||
               max by (%s, partition, group) (avg_over_time(tempo_ingest_group_partition_lag_seconds{namespace=~"%s", container=~"%s"}[6m])) > %d
             ||| % [$._config.group_by_cluster, $._config.namespace, $._config.jobs.live_store, $._config.alerts.live_store_partition_lag_critical_seconds],
@@ -255,8 +241,22 @@
               severity: 'critical',
             },
             annotations: {
-              message: 'Tempo ingest partition {{ $labels.partition }} for live store group {{ $labels.group }} is lagging by more than %d seconds in {{ $labels.%s }}/{{ $labels.namespace }}.' % [$._config.alerts.live_store_partition_lag_critical_seconds, $._config.per_cluster_label],
-              runbook_url: 'https://github.com/grafana/tempo/tree/main/operations/tempo-mixin/runbook.md#TempoPartitionLag',
+              message: 'A single Tempo live-store owner of partition {{ $labels.partition }} (group {{ $labels.group }}) is lagging by {{ $value | humanizeDuration }} (threshold: %ds) in {{ $labels.%s }}/{{ $labels.namespace }}.' % [$._config.alerts.live_store_partition_lag_critical_seconds, $._config.per_cluster_label],
+              runbook_url: 'https://github.com/grafana/tempo/tree/main/operations/tempo-mixin/runbook.md#TempoLiveStoreSingleMemberLagHigh',
+            },
+          },
+          {
+            alert: 'TempoLiveStoreAllMembersLagging',
+            expr: |||
+              min by (%s, partition) (avg_over_time(tempo_ingest_group_partition_lag_seconds{namespace=~"%s", container=~"%s"}[6m])) > %d
+            ||| % [$._config.group_by_cluster, $._config.namespace, $._config.jobs.live_store, $._config.alerts.live_store_all_members_lag_seconds],
+            'for': '2m',
+            labels: {
+              severity: 'critical',
+            },
+            annotations: {
+              message: 'All owners of Tempo live-store partition {{ $labels.partition }} are lagging by {{ $value | humanizeDuration }} in {{ $labels.%s }}/{{ $labels.namespace }}. This is a partial read outage.' % [$._config.per_cluster_label],
+              runbook_url: 'https://github.com/grafana/tempo/tree/main/operations/tempo-mixin/runbook.md#TempoLiveStoreAllMembersLagging',
             },
           },
           {

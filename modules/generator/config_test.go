@@ -1,6 +1,7 @@
 package generator
 
 import (
+	"flag"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -220,6 +221,20 @@ func TestProcessorConfig_copyWithOverrides(t *testing.T) {
 		assert.Equal(t, "custom_key", copied.SpanMetrics.SpanMultiplierKey)
 	})
 
+	t.Run("enable tracestate span multiplier overrides", func(t *testing.T) {
+		o := &mockOverrides{
+			serviceGraphsEnableTraceStateSpanMultiplier: boolPtr(true),
+			spanMetricsEnableTraceStateSpanMultiplier:   boolPtr(true),
+		}
+
+		copied, err := original.copyWithOverrides(o, "tenant")
+		require.NoError(t, err)
+
+		assert.NotEqual(t, *original, copied)
+		assert.True(t, copied.ServiceGraphs.EnableTraceStateSpanMultiplier)
+		assert.True(t, copied.SpanMetrics.EnableTraceStateSpanMultiplier)
+	})
+
 	t.Run("dimension_mappings preserved when no override", func(t *testing.T) {
 		// Create original config with dimension_mappings set
 		originalWithMappings := &ProcessorConfig{
@@ -274,6 +289,54 @@ func TestProcessorConfig_copyWithOverrides(t *testing.T) {
 		}, copied.SpanMetrics.DimensionMappings)
 
 		assert.Equal(t, []string{"process.runtime.version"}, copied.SpanMetrics.TargetInfoExcludedDimensions)
+	})
+}
+
+func TestConfig_RegisterFlagsAndApplyDefaults_setsPartitionRingMode(t *testing.T) {
+	cfg := &Config{}
+	cfg.RegisterFlagsAndApplyDefaults("", flag.NewFlagSet("", flag.PanicOnError))
+
+	assert.Equal(t, RingModePartition, cfg.RingMode)
+}
+
+func TestConfig_ValidateRingMode(t *testing.T) {
+	cfg := &Config{}
+	cfg.RegisterFlagsAndApplyDefaults("", flag.NewFlagSet("", flag.PanicOnError))
+	cfg.Storage.Path = t.TempDir()
+
+	t.Run("valid partition ring mode", func(t *testing.T) {
+		cfg := *cfg
+		cfg.RingMode = RingModePartition
+		require.NoError(t, cfg.Validate())
+	})
+
+	t.Run("valid generator ring mode without kafka", func(t *testing.T) {
+		cfg := *cfg
+		cfg.RingMode = RingModeGenerator
+		require.NoError(t, cfg.Validate())
+	})
+
+	t.Run("valid generator ring mode with configured consumer group", func(t *testing.T) {
+		cfg := *cfg
+		cfg.ConsumeFromKafka = true
+		cfg.RingMode = RingModeGenerator
+		cfg.Ingest.Kafka.Topic = "tempo"
+		cfg.Ingest.Kafka.ConsumerGroup = "generator-a"
+		require.NoError(t, cfg.Validate())
+	})
+
+	t.Run("generator ring mode requires consumer group when consuming from kafka", func(t *testing.T) {
+		cfg := *cfg
+		cfg.ConsumeFromKafka = true
+		cfg.RingMode = RingModeGenerator
+		cfg.Ingest.Kafka.Topic = "tempo"
+		require.EqualError(t, cfg.Validate(), "ingest.kafka.consumer_group must be configured when metrics-generator ring mode is generator")
+	})
+
+	t.Run("invalid ring mode", func(t *testing.T) {
+		cfg := *cfg
+		cfg.RingMode = RingMode("invalid")
+		require.EqualError(t, cfg.Validate(), "invalid ring mode: invalid, valid values are partition and generator")
 	})
 }
 

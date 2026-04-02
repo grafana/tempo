@@ -25,8 +25,6 @@ refs:
 
 <!-- Using a custom admonition because no feature flag is required. -->
 
-{{< docs/shared source="tempo" lookup="traceql-metrics-admonition.md" version="<TEMPO_VERSION>" >}}
-
 TraceQL metrics is a feature in Grafana Tempo that creates metrics from traces.
 
 Metric queries extend trace queries by applying a function to trace query results.
@@ -85,7 +83,7 @@ TraceQL metrics queries currently include the following functions for aggregatin
 `histogram_over_time`, and `compare`.
 These functions can be added as an operator at the end of any TraceQL query.
 
-The `topk` and `bottomk` functions are supported on TraceQL metrics functions.
+The `topk` and `bottomk` functions and comparison operators (`>`, `>=`, `<`, `<=`, `=`, `!=`) are supported on TraceQL metrics results.
 
 For detailed information and example queries for each function, refer to [TraceQL metrics functions](ref:mq-functions).
 

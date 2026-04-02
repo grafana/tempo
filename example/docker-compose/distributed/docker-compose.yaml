@@ -68,7 +68,7 @@ services:
     volumes:
       - ./tempo.yaml:/etc/tempo.yaml
     ports:
-      - "3200:3200" # tempo
+      - "3202:3200" # tempo
 
   querier:
     image: *tempoImage
@@ -214,7 +214,7 @@ services:
       - alloy
 
   alloy:
-    image: grafana/alloy:v1.13.2@sha256:8abcd0d97a97099cabb34be8dcfc448fca6c35931ae9291aaf74056105dedcca
+    image: grafana/alloy:v1.14.2@sha256:eadfe35ea52b26cbec4d4d780fbcc31edb31108c1c9e537ca59557a5a102c712
     volumes:
       - ./config.alloy:/etc/alloy/config.alloy
     command:
@@ -243,7 +243,7 @@ services:
       - "9090:9090"
 
   grafana:
-    image: grafana/grafana:12.4.0@sha256:b0ae311af06228bcfd4a620504b653db80f5b91e94dc3dc2a5b7dab202bcde20
+    image: grafana/grafana:12.4.2@sha256:83749231c3835e390a3144e5e940203e42b9589761f20ef3169c716e734ad505
     volumes:
       - ./grafana-datasources.yaml:/etc/grafana/provisioning/datasources/datasources.yaml
     environment:

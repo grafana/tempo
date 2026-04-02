@@ -13,9 +13,7 @@ keywords:
 
 # Configure TraceQL metrics
 
-{{< docs/shared source="tempo" lookup="traceql-metrics-admonition.md" version="<TEMPO_VERSION>" >}}
-
-TraceQL language provides metrics queries as an experimental feature.
+TraceQL language provides metrics queries as a feature.
 Metric queries extend trace queries by applying a function to trace query results.
 This powerful feature creates metrics from traces, much in the same way that LogQL metric queries create metrics from logs.
 
@@ -23,83 +21,8 @@ This powerful feature creates metrics from traces, much in the same way that Log
 
 To use the metrics generated from traces, you need to:
 
-- Set the `local-blocks` processor to active in your `metrics-generator` configuration
 - Configure a Tempo data source in Grafana or Grafana Cloud ([documentation](/docs/grafana/<GRAFANA_VERSION>/datasources/tempo/configure-tempo-data-source/))
 - Access Grafana Cloud or Grafana version 10.4 or later
-
-Refer to the [Metrics-generator configuration](http://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/#metrics-generator) documentation for more information about the `metrics-generator` configuration.
-
-## Activate and configure the `local-blocks` processor
-
-You must enable the local-blocks processor to start using metrics queries like `{ } | rate()`.
-If not enabled, then the metrics queries fail with the error `localblocks processor not found`.
-Enabling the `local-blocks` processor can be done either per tenant or in all tenants.
-
-To activate the `local-blocks` processor for all users, add it to the list of processors in the `overrides` block of your Tempo configuration.
-
-```yaml
-# Global overrides configuration.
-overrides:
-  metrics_generator_processors: ["local-blocks"]
-```
-
-To configure the processor per tenant, use the `metrics_generator_processor` override.
-
-Example for per-tenant in the per-tenant overrides:
-
-```yaml
-overrides:
-  'tenantID':
-    metrics_generator_processors:
-      - local-blocks
-```
-
-By default, for all tenants in the main configuration:
-
-```yaml
-overrides:
-  defaults:
-    metrics_generator:
-      processors: [local-blocks]
-```
-
-Add this configuration to run TraceQL metrics queries against all spans and not just server spans:
-
-```yaml
-metrics_generator:
-  processor:
-    local_blocks:
-      filter_server_spans: false
-```
-
-To run metrics queries on historical data, you must configure the local-blocks processor to flush RF1 blocks to object storage:
-
-```yaml
-metrics_generator:
-  processor:
-    local_blocks:
-      flush_to_storage: true
-```
-
-Setting `flush_to_storage` to `true` ensures that metrics blocks are flushed to storage so TraceQL metrics queries against historical data.
-
-If you configured Tempo using the `tempo-distributed` Helm chart, you can also set `traces_storage` using your `values.yaml` file.
-Refer to the [Helm chart for an example](https://github.com/grafana-community/helm-charts/blob/main/charts/tempo-distributed/values.yaml).
-
-For more information about overrides, refer to [Standard overrides](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/#standard-overrides).
-
-### Local blocks and metrics-generator in Azure blob storage and Helm
-
-{{< admonition type="note" >}}
-This configuration only applies if you are using a Helm chart, like `tempo-distributed`, to deploy Tempo.
-{{< /admonition >}}
-
-[//]: # "Shared content for localblocks and metrics-generator in Azure blob storage when using Helm"
-[//]: # "This content is located in /tempo/docs/sources/shared/azure-metrics-generator.md"
-
-{{< docs/shared source="tempo" lookup="azure-metrics-generator.md" version="<TEMPO_VERSION>" >}}
-
-For more information, refer to [Azure hosted storage](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/hosted-storage/azure/).
 
 ## Evaluate query timeouts
 
@@ -122,11 +45,14 @@ The `query_frontend.metrics` configuration block controls all TraceQL metrics qu
 The configuration depends on the environment.
 
 {{< admonition type="note" >}}
-The default maximum time range for a metrics query is 3 hours, configured using the `query_frontend.metrics.max_duration` parameter.
+The default maximum time range for a metrics query is 24 hours, configured using the `query_frontend.metrics.max_duration` parameter.
 
 This is different to the default TraceQL maximum time range of 168 hours (7 days).
 
 {{< /admonition >}}
+
+The `query_frontend.metrics.query_backend_after` parameter controls the boundary between querying the live-store and backend storage.
+Time ranges older than `query_backend_after` (default `30m`) are searched in backend/object storage only, while more recent data is queried from the live-store.
 
 For example, in a cloud environment, smaller jobs with more concurrency may be
 desired due to the nature of scale on the backend.

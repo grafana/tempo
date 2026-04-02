@@ -1,14 +1,9 @@
 package blockbuilder
 
 import (
-	"errors"
 	"flag"
 	"testing"
 
-	"github.com/grafana/tempo/tempodb/backend"
-	"github.com/grafana/tempo/tempodb/encoding"
-	"github.com/grafana/tempo/tempodb/encoding/common"
-	"github.com/grafana/tempo/tempodb/wal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -17,7 +12,7 @@ func TestConfig_validate(t *testing.T) {
 	tests := []struct {
 		name        string
 		cfg         Config
-		expectedErr error
+		expectedErr string
 	}{
 		{
 			name: "Default",
@@ -27,134 +22,26 @@ func TestConfig_validate(t *testing.T) {
 				cfg.PartitionsPerInstance = 2
 				return cfg
 			}(),
-			expectedErr: nil,
 		},
 		{
 			name: "ValidConfig",
-			cfg: Config{
-				BlockConfig: BlockConfig{
-					BlockCfg: common.BlockConfig{
-						Version:             encoding.LatestEncoding().Version(),
-						BloomFP:             0.1,
-						BloomShardSizeBytes: 1,
-						DedicatedColumns: backend.DedicatedColumns{
-							{Scope: backend.DedicatedColumnScopeResource, Name: "foo", Type: backend.DedicatedColumnTypeString},
-						},
-					},
-				},
-				WAL: wal.Config{
-					Version: encoding.LatestEncoding().Version(),
-				},
-				PartitionsPerInstance: 5,
-			},
-			expectedErr: nil,
+			cfg:  Config{PartitionsPerInstance: 5},
 		},
 		{
-			name: "InvalidBlockVersion",
-			cfg: Config{
-				BlockConfig: BlockConfig{
-					BlockCfg: common.BlockConfig{
-						// This parses for reads but not for writes
-						Version: "vParquet5-preview1",
-					},
-				},
-			},
-			expectedErr: errors.New("block version validation failed: vParquet5-preview1 is not a valid block version for creating blocks"),
-		},
-		{
-			name: "InvalidPartitionAssignment",
-			cfg: Config{
-				BlockConfig: BlockConfig{
-					BlockCfg: common.BlockConfig{
-						Version:             encoding.LatestEncoding().Version(),
-						BloomFP:             0.1,
-						BloomShardSizeBytes: 1,
-						DedicatedColumns: backend.DedicatedColumns{
-							{Scope: backend.DedicatedColumnScopeResource, Name: "foo", Type: backend.DedicatedColumnTypeString},
-						},
-					},
-				},
-				WAL: wal.Config{
-					Version: encoding.LatestEncoding().Version(),
-				},
-			},
-			expectedErr: errors.New("at least one of AssignedPartitionsMap or PartitionsPerInstance must be set"),
+			name:        "InvalidPartitionAssignment",
+			cfg:         Config{},
+			expectedErr: "at least one of AssignedPartitionsMap or PartitionsPerInstance must be set",
 		},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			err := tc.cfg.Validate()
-			if tc.expectedErr == nil {
+			if tc.expectedErr == "" {
 				require.NoError(t, err)
 			} else {
-				require.Equal(t, tc.expectedErr.Error(), err.Error())
-			}
-		})
-	}
-}
-
-func TestCoalesceBlockVersion(t *testing.T) {
-	defaultVer := encoding.DefaultEncoding().Version()
-
-	tests := []struct {
-		name            string
-		modifyConfig    func(*Config)
-		expectedVersion string
-		expectedErr     string
-	}{
-		{
-			name:            "uses default when all version fields are empty",
-			modifyConfig:    func(_ *Config) {},
-			expectedVersion: defaultVer,
-		},
-		{
-			name: "fallback to GlobalBlockConfig when block_config version is empty",
-			modifyConfig: func(cfg *Config) {
-				cfg.GlobalBlockConfig = &common.BlockConfig{Version: encoding.LatestEncoding().Version()}
-			},
-			expectedVersion: encoding.LatestEncoding().Version(),
-		},
-		{
-			name: "block_config version overrides GlobalBlockConfig",
-			modifyConfig: func(cfg *Config) {
-				cfg.GlobalBlockConfig = &common.BlockConfig{Version: "vParquet4"}
-				cfg.BlockConfig.BlockCfg.Version = encoding.LatestEncoding().Version()
-			},
-			expectedVersion: encoding.LatestEncoding().Version(),
-		},
-		{
-			name: "WAL version follows block version",
-			modifyConfig: func(cfg *Config) {
-				cfg.GlobalBlockConfig = &common.BlockConfig{Version: encoding.LatestEncoding().Version()}
-			},
-			expectedVersion: encoding.LatestEncoding().Version(),
-		},
-		{
-			name: "unsupported block version returns error",
-			modifyConfig: func(cfg *Config) {
-				cfg.BlockConfig.BlockCfg.Version = "preview"
-			},
-			expectedErr: "preview",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			cfg := &Config{}
-			cfg.RegisterFlagsAndApplyDefaults("", flag.NewFlagSet("", flag.PanicOnError))
-			tt.modifyConfig(cfg)
-
-			enc, err := coalesceBlockVersion(cfg)
-
-			if tt.expectedErr != "" {
 				require.Error(t, err)
-				assert.Contains(t, err.Error(), tt.expectedErr)
-				return
+				assert.Contains(t, err.Error(), tc.expectedErr)
 			}
-			require.NoError(t, err)
-			assert.Equal(t, tt.expectedVersion, enc.Version())
-			assert.Equal(t, tt.expectedVersion, cfg.BlockConfig.BlockCfg.Version)
-			assert.Equal(t, tt.expectedVersion, cfg.WAL.Version)
 		})
 	}
 }

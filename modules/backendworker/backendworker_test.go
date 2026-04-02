@@ -127,6 +127,10 @@ func (i *mockScheduler) UpdateJob(ctx context.Context, req *tempopb.UpdateJobSta
 	return i.updateJob(ctx, req)
 }
 
+func (i *mockScheduler) SubmitRedaction(_ context.Context, _ *tempopb.SubmitRedactionRequest, _ ...grpc.CallOption) (*tempopb.SubmitRedactionResponse, error) {
+	return &tempopb.SubmitRedactionResponse{}, nil
+}
+
 func nextNoop(_ context.Context, _ *tempopb.NextJobRequest, _ ...grpc.CallOption) (*tempopb.NextJobResponse, error) {
 	return &tempopb.NextJobResponse{}, nil
 }

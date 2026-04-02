@@ -143,7 +143,7 @@ func (p *Processor) aggregateMetricsForSpan(svcName string, jobName string, inst
 	}
 
 	builder := p.registry.NewLabelBuilder()
-	targetInfoBuilder := p.registry.NewLabelBuilder()
+	targetInfoBuilder := p.registry.NewInfoMetricLabelBuilder()
 	for i := range resourceLabels {
 		targetInfoBuilder.Add(resourceLabels[i], resourceValues[i])
 	}
@@ -188,15 +188,18 @@ func (p *Processor) aggregateMetricsForSpan(svcName string, jobName string, inst
 	}
 
 	// add job label only if job is not blank and target_info is enabled
+	identifyingLabels := 0
 	if jobName != "" && p.Cfg.EnableTargetInfo {
 		builder.Add(gen.DimJob, jobName)
+		identifyingLabels++
 	}
-	//  add instance label only if instance is not blank and enabled and target_info is enabled
+	// add instance label only if instance is not blank and enabled and target_info is enabled
 	if instanceID != "" && p.Cfg.EnableTargetInfo && p.Cfg.EnableInstanceLabel {
 		builder.Add(gen.DimInstance, instanceID)
+		identifyingLabels++
 	}
 
-	spanMultiplier := processor_util.GetSpanMultiplier(p.Cfg.SpanMultiplierKey, span, rs)
+	spanMultiplier := processor_util.GetSpanMultiplier(p.Cfg.SpanMultiplierKey, span, rs, p.Cfg.EnableTraceStateSpanMultiplier)
 
 	registryLabelValues, validUTF8 := builder.CloseAndBuildLabels()
 	if !validUTF8 {
@@ -221,13 +224,12 @@ func (p *Processor) aggregateMetricsForSpan(svcName string, jobName string, inst
 		// TODO - The resource labels only need to be sanitized once
 		// TODO - attribute names are stable across applications
 		//        so let's cache the result of previous sanitizations
-		resourceAttributesCount := len(resourceLabels)
 
-		// add joblabel to target info only if job is not blank
+		// add job label to target info only if job is not blank
 		if jobName != "" {
 			targetInfoBuilder.Add(gen.DimJob, jobName)
 		}
-		//  add instance label to target info only if instance is not blank and enabled
+		// add instance label to target info only if instance is not blank and enabled
 		if instanceID != "" && p.Cfg.EnableInstanceLabel {
 			targetInfoBuilder.Add(gen.DimInstance, instanceID)
 		}
@@ -238,9 +240,10 @@ func (p *Processor) aggregateMetricsForSpan(svcName string, jobName string, inst
 			return
 		}
 
-		// only register target info if at least (job or instance) AND one other attribute are present
-		// TODO - We can move this check to the top
-		if resourceAttributesCount > 0 && targetInfoRegistryLabelValues.Len() > resourceAttributesCount {
+		// Only register target_info if it has at least (job or instance) AND one other
+		// resource attribute in the built label set. We count from the built set because
+		// the Prometheus label builder drops empty-valued labels (Set("x","") calls Del("x")).
+		if identifyingLabels > 0 && targetInfoRegistryLabelValues.Len() > identifyingLabels {
 			p.spanMetricsTargetInfo.SetForTargetInfo(targetInfoRegistryLabelValues, 1)
 		}
 	}

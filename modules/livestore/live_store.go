@@ -28,6 +28,7 @@ import (
 	"github.com/twmb/franz-go/pkg/kadm"
 	"github.com/twmb/franz-go/pkg/kgo"
 	"go.opentelemetry.io/otel/attribute"
+	oteltrace "go.opentelemetry.io/otel/trace"
 )
 
 const (
@@ -153,11 +154,10 @@ type LiveStore struct {
 }
 
 func New(cfg Config, overridesService overrides.Interface, logger log.Logger, reg prometheus.Registerer, singlePartition bool) (*LiveStore, error) {
-	completeBlockEncoding, walEncoding, encErr := coalesceBlockVersions(&cfg)
+	completeBlockEncoding, encErr := encoding.FromVersionForWrites(cfg.BlockConfig.Version)
 	if encErr != nil {
-		return nil, encErr
+		return nil, fmt.Errorf("block version validation failed: %w", encErr)
 	}
-	cfg.WAL.Version = walEncoding.Version()
 
 	ctx, cancel := context.WithCancel(context.Background())
 
@@ -301,6 +301,13 @@ func (s *LiveStore) starting(ctx context.Context) error {
 		level.Info(s.logger).Log("msg", "no local data found after reload, will force reading from lookback period")
 	}
 
+	// Set eagerly so the flag is already in place when the lifecycler's stopping()
+	// checks it. Setting it in our own stopping() races with context-cancellation
+	// that triggers the lifecycler's shutdown first.
+	if s.cfg.RemoveOwnerOnShutdown {
+		s.ingestPartitionLifecycler.SetRemoveOwnerOnShutdown(true)
+	}
+
 	err = services.StartAndAwaitRunning(ctx, s.ingestPartitionLifecycler)
 	if err != nil {
 		return fmt.Errorf("failed to start partition lifecycler: %w", err)
@@ -380,12 +387,7 @@ func (s *LiveStore) running(ctx context.Context) error {
 }
 
 func (s *LiveStore) stopping(error) error {
-	// Remove partition owner from ring on shutdown if configured.
-	// On startup, createPartitionAndRegisterOwner() re-registers the owner immediately.
-	if s.cfg.RemoveOwnerOnShutdown {
-		level.Info(s.logger).Log("msg", "Unregistering partition owner")
-		s.ingestPartitionLifecycler.SetRemoveOwnerOnShutdown(true)
-	}
+	level.Info(s.logger).Log("msg", "live store stopping", "remove_partition_owner", s.ingestPartitionLifecycler.RemoveOwnerOnShutdown())
 
 	// Reject new queries early in shutdown, before tearing down the reader.
 	s.readyErr.Store(&ErrStopping)
@@ -544,7 +546,7 @@ func (s *LiveStore) calculateTimeLag(lagShortcutThreshold int64) *time.Duration 
 
 func (s *LiveStore) consume(ctx context.Context, rs recordIter, now time.Time) (*kadm.Offset, error) {
 	defer s.decoder.Reset()
-	_, span := tracer.Start(ctx, "LiveStore.consume")
+	ctx, span := tracer.Start(ctx, "LiveStore.consume")
 	defer span.End()
 
 	recordCount := 0
@@ -663,28 +665,40 @@ func (s *LiveStore) cutAllInstancesToWal() {
 	instances := s.getInstances()
 
 	for _, instance := range instances {
-		s.cutOneInstanceToWal(instance, true)
+		s.cutOneInstanceToWal(s.ctx, instance, true)
 	}
 }
 
-func (s *LiveStore) cutOneInstanceToWal(inst *instance, immediate bool) {
+func (s *LiveStore) cutOneInstanceToWal(ctx context.Context, inst *instance, immediate bool) {
+	ctx, span := tracer.Start(ctx, "LiveStore.cutOneInstanceToWal",
+		oteltrace.WithAttributes(
+			attribute.String("tenant", inst.tenantID),
+			attribute.Bool("immediate", immediate),
+		))
+	defer span.End()
+
 	// Regular trace cuts (live traces -> head block)
-	err := inst.cutIdleTraces(immediate)
+	err := inst.cutIdleTraces(ctx, immediate)
 	if err != nil {
 		level.Error(s.logger).Log("msg", "failed to cut idle traces", "tenant", inst.tenantID, "err", err)
+		span.RecordError(err)
 	}
 
 	// Regular block cuts
-	blockID, err := inst.cutBlocks(immediate)
+	blockID, err := inst.cutBlocks(ctx, immediate)
 	if err != nil {
 		level.Error(s.logger).Log("msg", "failed to cut blocks", "tenant", inst.tenantID, "err", err)
+		span.RecordError(err)
 	}
 
 	// If head block is cut, enqueue complete operation
 	if blockID != uuid.Nil {
+		span.AddEvent("block enqueued for completion",
+			oteltrace.WithAttributes(attribute.String("blockID", blockID.String())))
 		err = s.enqueueCompleteOp(inst.tenantID, blockID, false)
 		if err != nil {
 			level.Error(s.logger).Log("msg", "failed to enqueue complete operation", "tenant", inst.tenantID, "err", err)
+			span.RecordError(err)
 			return
 		}
 	}

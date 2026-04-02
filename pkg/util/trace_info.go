@@ -15,6 +15,11 @@ import (
 	v1common "github.com/grafana/tempo/pkg/tempopb/common/v1"
 )
 
+const (
+	// vultureBlobSize is the exact size in bytes for the Blob01 attribute at each level.
+	vultureBlobSize = 100
+)
+
 var (
 	// maxBatchesPerWrite is used when writing and reading, and needs to match so
 	// that we get the expected number of batches on a trace.  A value larger
@@ -160,9 +165,14 @@ func (t *TraceInfo) makeThriftBatch(traceIDHigh, traceIDLow int64) *jaeger.Batch
 	var spans []*jaeger.Span
 	count := t.generateRandomInt(1, 5)
 	lastSpanID, nextSpanID := int64(0), int64(0)
+
 	// Each span has the previous span as parent, creating a tree with a single branch per batch.
 	for i := int64(0); i < count; i++ {
 		nextSpanID = t.r.Int63()
+
+		spanTags := t.generateRandomTagsWithPrefix("vulture")
+		spanTags = append(spanTags, t.generateFixedAttributesWithPrefix("vulture")...)
+		spanTags = append(spanTags, t.generateSpanWellKnownAttributes()...)
 
 		spans = append(spans, &jaeger.Span{
 			TraceIdLow:    traceIDLow,
@@ -174,49 +184,20 @@ func (t *TraceInfo) makeThriftBatch(traceIDHigh, traceIDLow int64) *jaeger.Batch
 			Flags:         0,
 			StartTime:     t.timestamp.UnixMicro(),
 			Duration:      t.generateRandomInt(0, 100),
-			Tags:          t.generateRandomTags(),
+			Tags:          spanTags,
 			Logs:          t.generateRandomLogs(),
 		})
 
 		lastSpanID = nextSpanID
 	}
 
-	process := &jaeger.Process{
-		ServiceName: "tempo-vulture",
-		Tags:        t.generateRandomTagsWithPrefix("vulture-process"),
-	}
-
-	return &jaeger.Batch{Process: process, Spans: spans}
-}
-
-func (t *TraceInfo) makeJaegerBatch(TraceIDHigh, TraceIDLow int64) *jaeger.Batch {
-	var spans []*jaeger.Span
-	count := t.generateRandomInt(1, 5)
-	lastSpanID, nextSpanID := int64(0), int64(0)
-	// Each span has the previous span as parent, creating a tree with a single branch per batch.
-	for i := int64(0); i < count; i++ {
-		nextSpanID = t.r.Int63()
-
-		spans = append(spans, &jaeger.Span{
-			TraceIdLow:    TraceIDLow,
-			TraceIdHigh:   TraceIDHigh,
-			SpanId:        nextSpanID,
-			ParentSpanId:  lastSpanID,
-			OperationName: fmt.Sprintf("vulture-%d", t.generateRandomInt(0, 100)),
-			References:    nil,
-			Flags:         0,
-			StartTime:     t.timestamp.UnixMicro(),
-			Duration:      t.generateRandomInt(0, 100),
-			Tags:          t.generateRandomJaegerTags(),
-			Logs:          t.generateRandomJaegerLogs(),
-		})
-
-		lastSpanID = nextSpanID
-	}
+	processTags := t.generateRandomTagsWithPrefix("vulture-process")
+	processTags = append(processTags, t.generateFixedAttributesWithPrefix("vulture-process")...)
+	processTags = append(processTags, t.generateResourceWellKnownAttributes()...)
 
 	process := &jaeger.Process{
 		ServiceName: "tempo-vulture",
-		Tags:        t.generateRandomJaegerTagsWithPrefix("vulture-process"),
+		Tags:        processTags,
 	}
 
 	return &jaeger.Batch{Process: process, Spans: spans}
@@ -232,28 +213,59 @@ func (t *TraceInfo) generateRandomString() string {
 	return string(s)
 }
 
-func (t *TraceInfo) generateRandomTags() []*jaeger.Tag {
-	return t.generateRandomTagsWithPrefix("vulture")
+// generateRandomBlob returns a string of exactly size bytes of random data (same character set as other attributes).
+func (t *TraceInfo) generateRandomBlob(size int) string {
+	letters := []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
+	s := make([]rune, size)
+	for i := 0; i < size; i++ {
+		s[i] = letters[t.r.Intn(len(letters))]
+	}
+	return string(s)
 }
 
-func (t *TraceInfo) generateRandomJaegerTags() []*jaeger.Tag {
-	return t.generateRandomJaegerTagsWithPrefix("vulture")
+// generateFixedAttributesWithPrefix returns the fixed attributes with a prefix. Keys are lowercase with a hyphen before the numeric suffix (e.g. string-01, int-01, blob-01).
+func (t *TraceInfo) generateFixedAttributesWithPrefix(prefix string) []*jaeger.Tag {
+	return []*jaeger.Tag{
+		{Key: fmt.Sprintf("%s-string-01", prefix), VType: jaeger.TagType_STRING, VStr: stringPtr(t.generateRandomString())},
+		{Key: fmt.Sprintf("%s-string-02", prefix), VType: jaeger.TagType_STRING, VStr: stringPtr(t.generateRandomString())},
+		{Key: fmt.Sprintf("%s-string-03", prefix), VType: jaeger.TagType_STRING, VStr: stringPtr(t.generateRandomString())},
+		{Key: fmt.Sprintf("%s-string-04", prefix), VType: jaeger.TagType_STRING, VStr: stringPtr(t.generateRandomString())},
+		{Key: fmt.Sprintf("%s-string-05", prefix), VType: jaeger.TagType_STRING, VStr: stringPtr(t.generateRandomString())},
+		{Key: fmt.Sprintf("%s-blob-01", prefix), VType: jaeger.TagType_STRING, VStr: stringPtr(t.generateRandomBlob(vultureBlobSize))},
+		{Key: fmt.Sprintf("%s-int-01", prefix), VType: jaeger.TagType_LONG, VLong: int64Ptr(t.generateRandomInt(1, 1000000))},
+		{Key: fmt.Sprintf("%s-int-02", prefix), VType: jaeger.TagType_LONG, VLong: int64Ptr(t.generateRandomInt(1, 1000000))},
+		{Key: fmt.Sprintf("%s-int-03", prefix), VType: jaeger.TagType_LONG, VLong: int64Ptr(t.generateRandomInt(1, 1000000))},
+		{Key: fmt.Sprintf("%s-int-04", prefix), VType: jaeger.TagType_LONG, VLong: int64Ptr(t.generateRandomInt(1, 1000000))},
+		{Key: fmt.Sprintf("%s-int-05", prefix), VType: jaeger.TagType_LONG, VLong: int64Ptr(t.generateRandomInt(1, 1000000))},
+	}
+}
+
+func stringPtr(s string) *string { return &s }
+
+func int64Ptr(n int64) *int64 { return &n }
+
+func (t *TraceInfo) generateResourceWellKnownAttributes() []*jaeger.Tag {
+	return []*jaeger.Tag{
+		{Key: "cluster", VType: jaeger.TagType_STRING, VStr: stringPtr(t.generateRandomString())},
+		{Key: "namespace", VType: jaeger.TagType_STRING, VStr: stringPtr(t.generateRandomString())},
+		{Key: "pod", VType: jaeger.TagType_STRING, VStr: stringPtr(t.generateRandomString())},
+		{Key: "container", VType: jaeger.TagType_STRING, VStr: stringPtr(t.generateRandomString())},
+		{Key: "k8s.namespace.name", VType: jaeger.TagType_STRING, VStr: stringPtr(t.generateRandomString())},
+		{Key: "k8s.cluster.name", VType: jaeger.TagType_STRING, VStr: stringPtr(t.generateRandomString())},
+		{Key: "k8s.pod.name", VType: jaeger.TagType_STRING, VStr: stringPtr(t.generateRandomString())},
+		{Key: "k8s.container.name", VType: jaeger.TagType_STRING, VStr: stringPtr(t.generateRandomString())},
+	}
+}
+
+func (t *TraceInfo) generateSpanWellKnownAttributes() []*jaeger.Tag {
+	return []*jaeger.Tag{
+		{Key: "http.method", VType: jaeger.TagType_STRING, VStr: stringPtr(t.generateRandomString())},
+		{Key: "http.url", VType: jaeger.TagType_STRING, VStr: stringPtr(t.generateRandomString())},
+		{Key: "http.status_code", VType: jaeger.TagType_LONG, VLong: int64Ptr(t.generateRandomInt(1, 500))},
+	}
 }
 
 func (t *TraceInfo) generateRandomTagsWithPrefix(prefix string) []*jaeger.Tag {
-	var tags []*jaeger.Tag
-	count := t.generateRandomInt(1, 5)
-	for i := int64(0); i < count; i++ {
-		value := t.generateRandomString()
-		tags = append(tags, &jaeger.Tag{
-			Key:  fmt.Sprintf("%s-%d", prefix, i),
-			VStr: &value,
-		})
-	}
-	return tags
-}
-
-func (t *TraceInfo) generateRandomJaegerTagsWithPrefix(prefix string) []*jaeger.Tag {
 	var tags []*jaeger.Tag
 	count := t.generateRandomInt(1, 5)
 	for i := int64(0); i < count; i++ {
@@ -272,20 +284,7 @@ func (t *TraceInfo) generateRandomLogs() []*jaeger.Log {
 	for i := int64(0); i < count; i++ {
 		logs = append(logs, &jaeger.Log{
 			Timestamp: t.timestamp.UnixMicro(),
-			Fields:    t.generateRandomTags(),
-		})
-	}
-
-	return logs
-}
-
-func (t *TraceInfo) generateRandomJaegerLogs() []*jaeger.Log {
-	var logs []*jaeger.Log
-	count := t.generateRandomInt(1, 5)
-	for i := int64(0); i < count; i++ {
-		logs = append(logs, &jaeger.Log{
-			Timestamp: t.timestamp.UnixMicro(),
-			Fields:    t.generateRandomJaegerTags(),
+			Fields:    append(t.generateRandomTagsWithPrefix("vulture-event"), t.generateFixedAttributesWithPrefix("vulture-event")...),
 		})
 	}
 
@@ -300,7 +299,7 @@ func (t *TraceInfo) ConstructTraceFromEpoch() (*tempopb.Trace, error) {
 
 	addBatches := func(t *TraceInfo, trace *tempopb.Trace) error {
 		for i := int64(0); i < t.generateRandomInt(1, maxBatchesPerWrite); i++ {
-			batch := t.makeJaegerBatch(t.traceIDHigh, t.traceIDLow)
+			batch := t.makeThriftBatch(t.traceIDHigh, t.traceIDLow)
 			internalTrace, err := jaegerTrans.ThriftToTraces(batch)
 			if err != nil {
 				return err
@@ -352,6 +351,8 @@ func (t *TraceInfo) ConstructTraceFromEpoch() (*tempopb.Trace, error) {
 	return trace, nil
 }
 
+// RandomAttrFromTrace returns a random attribute from the trace for use in search validation.
+// Integer attributes are never chosen: they are not unique enough for search.
 func RandomAttrFromTrace(t *tempopb.Trace) *v1common.KeyValue {
 	r := newRand(time.Now())
 
@@ -367,7 +368,12 @@ func RandomAttrFromTrace(t *tempopb.Trace) *v1common.KeyValue {
 		// skip service.name because service names have low cardinality and produce queries with
 		// too many results in tempo-vulture
 		if attr.Key != "service.name" {
-			return attr
+			if attr.Value == nil {
+				return attr
+			}
+			if _, ok := attr.Value.Value.(*v1common.AnyValue_IntValue); !ok {
+				return attr
+			}
 		}
 	}
 
@@ -385,7 +391,19 @@ func RandomAttrFromTrace(t *tempopb.Trace) *v1common.KeyValue {
 		return nil
 	}
 
-	return randFrom(r, span.Attributes)
+	// Pick only from non-integer attributes (integers are not unique enough for search).
+	nonIntAttrs := make([]*v1common.KeyValue, 0, len(span.Attributes))
+	for _, a := range span.Attributes {
+		if a.Value == nil {
+			nonIntAttrs = append(nonIntAttrs, a)
+		} else if _, ok := a.Value.Value.(*v1common.AnyValue_IntValue); !ok {
+			nonIntAttrs = append(nonIntAttrs, a)
+		}
+	}
+	if len(nonIntAttrs) == 0 {
+		return nil
+	}
+	return randFrom(r, nonIntAttrs)
 }
 
 func randFrom[T any](r *rand.Rand, s []T) T {

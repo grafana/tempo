@@ -74,24 +74,29 @@ func TestHasMissingSpans(t *testing.T) {
 }
 
 func TestResponseFixture(t *testing.T) {
-	f, err := os.Open("testdata/trace.json")
-	require.NoError(t, err)
-	defer f.Close()
-
-	expected := &tempopb.Trace{}
-	err = jsonpb.Unmarshal(f, expected)
-	require.NoError(t, err)
-
 	seed := time.Unix(1636729665, 0)
 	info := util.NewTraceInfo(seed, "")
 
 	generatedTrace, err := info.ConstructTraceFromEpoch()
 	require.NoError(t, err)
 
-	// print the generated trace
-	var jsonTrace bytes.Buffer
-	marshaller := &jsonpb.Marshaler{}
-	err = marshaller.Marshal(&jsonTrace, generatedTrace)
+	// Regenerate fixture when TEMPO_VULTURE_REGENERATE_TRACE_FIXTURE=1 (e.g. after adding new attributes)
+	if os.Getenv("TEMPO_VULTURE_REGENERATE_TRACE_FIXTURE") == "1" {
+		var jsonTrace bytes.Buffer
+		marshaller := &jsonpb.Marshaler{}
+		err = marshaller.Marshal(&jsonTrace, generatedTrace)
+		require.NoError(t, err)
+		require.NoError(t, os.WriteFile("testdata/trace.json", jsonTrace.Bytes(), 0o644))
+		t.Log("Wrote testdata/trace.json")
+		return
+	}
+
+	f, err := os.Open("testdata/trace.json")
+	require.NoError(t, err)
+	defer f.Close()
+
+	expected := &tempopb.Trace{}
+	err = jsonpb.Unmarshal(f, expected)
 	require.NoError(t, err)
 
 	assert.True(t, equalTraces(expected, generatedTrace))

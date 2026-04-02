@@ -1,0 +1,9 @@
+storage:
+  trace:
+    blocklist_poll: 1s # shorten the 2×poll lookback window so compacted blocks age out faster
+    blocklist_poll_stale_tenant_index: 1s # force components to always fall back to polling
+
+backend_scheduler:
+  provider:
+    compaction:
+      min_input_blocks: 100 # prevent compaction from running on the small test blocks before redaction jobs are processed

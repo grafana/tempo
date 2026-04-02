@@ -10,12 +10,11 @@ weight: 300
 # Metrics-generator
 
 Metrics-generator is an optional Tempo component that derives metrics from ingested traces.
-If present, the distributor writes received spans to both the ingester and the metrics-generator.
-The metrics-generator processes spans and writes metrics to a Prometheus data source using the Prometheus remote write protocol.
+The metrics-generator consumes trace data from Kafka and writes metrics to a Prometheus data source using the Prometheus remote-write protocol.
 
 ## Architecture
 
-Metrics-generator leverages the data available in the ingest path in Tempo to provide additional value by generating metrics from traces.
+Metrics-generator consumes trace data from Kafka to generate metrics from traces.
 
 The metrics-generator internally runs a set of **processors**.
 Each processor ingests spans and produces metrics.
@@ -23,7 +22,6 @@ Every processor derives different metrics. Currently, the following processors a
 
 - Service graphs
 - Span metrics
-- Local blocks
 
 <p align="center"><img src="tempo-metrics-gen-overview.svg" alt="Service metrics architecture"></p>
 
@@ -46,12 +44,6 @@ Dimensions can be the service name, the operation, the span kind, the status cod
 The more dimensions are enabled, the higher the cardinality of the generated metrics.
 
 To learn more about this processor, refer to the [span metrics](/docs/tempo/<TEMPO_VERSION>/metrics-from-traces/span-metrics/) documentation.
-
-### Local blocks
-
-The local blocks processor stores spans for a set period of time and
-enables more complex APIs to perform calculations on the data. The processor must be
-enabled for certain metrics APIs to function.
 
 ## Remote writing metrics
 

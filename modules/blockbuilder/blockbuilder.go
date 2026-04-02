@@ -46,13 +46,13 @@ var (
 		Help:                        "Time spent fetching from Kafka.",
 		NativeHistogramBucketFactor: 1.1,
 	}, []string{"partition"})
-	metricFetchBytesTotal = promauto.NewGaugeVec(prometheus.GaugeOpts{
+	metricFetchBytesTotal = promauto.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "tempo",
 		Subsystem: "block_builder",
 		Name:      "fetch_bytes_total",
 		Help:      "Total number of bytes fetched from Kafka",
 	}, []string{"partition"})
-	metricFetchRecordsTotal = promauto.NewGaugeVec(prometheus.GaugeOpts{
+	metricFetchRecordsTotal = promauto.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "tempo",
 		Subsystem: "block_builder",
 		Name:      "fetch_records_total",
@@ -184,7 +184,7 @@ func (b *BlockBuilder) starting(ctx context.Context) (err error) {
 	level.Info(b.logger).Log("msg", "block builder starting")
 	topic := b.cfg.IngestStorageConfig.Kafka.Topic
 
-	b.enc, err = coalesceBlockVersion(&b.cfg)
+	b.enc, err = encoding.FromVersionForWrites(b.cfg.BlockConfig.Version)
 	if err != nil {
 		return fmt.Errorf("failed to create encoding: %w", err)
 	}

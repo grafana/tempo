@@ -352,6 +352,13 @@ func (o *userConfigurableOverridesManager) MetricsGeneratorProcessorServiceGraph
 	return o.Interface.MetricsGeneratorProcessorServiceGraphsSpanMultiplierKey(userID)
 }
 
+func (o *userConfigurableOverridesManager) MetricsGeneratorProcessorServiceGraphsEnableTraceStateSpanMultiplier(userID string) (bool, bool) {
+	if enableTraceStateSpanMultiplier, ok := o.getTenantLimits(userID).GetMetricsGenerator().GetProcessor().GetServiceGraphs().GetEnableTraceStateSpanMultiplier(); ok {
+		return enableTraceStateSpanMultiplier, true
+	}
+	return o.Interface.MetricsGeneratorProcessorServiceGraphsEnableTraceStateSpanMultiplier(userID)
+}
+
 func (o *userConfigurableOverridesManager) MetricsGeneratorProcessorSpanMetricsDimensions(userID string) []string {
 	if dimensions, ok := o.getTenantLimits(userID).GetMetricsGenerator().GetProcessor().GetSpanMetrics().GetDimensions(); ok {
 		return dimensions
@@ -413,6 +420,13 @@ func (o *userConfigurableOverridesManager) MetricsGeneratorProcessorSpanMetricsS
 		return spanMultiplierKey
 	}
 	return o.Interface.MetricsGeneratorProcessorSpanMetricsSpanMultiplierKey(userID)
+}
+
+func (o *userConfigurableOverridesManager) MetricsGeneratorProcessorSpanMetricsEnableTraceStateSpanMultiplier(userID string) (bool, bool) {
+	if enableTraceStateSpanMultiplier, ok := o.getTenantLimits(userID).GetMetricsGenerator().GetProcessor().GetSpanMetrics().GetEnableTraceStateSpanMultiplier(); ok {
+		return enableTraceStateSpanMultiplier, true
+	}
+	return o.Interface.MetricsGeneratorProcessorSpanMetricsEnableTraceStateSpanMultiplier(userID)
 }
 
 func (o *userConfigurableOverridesManager) MetricsGeneratorProcessorHostInfoHostIdentifiers(userID string) []string {

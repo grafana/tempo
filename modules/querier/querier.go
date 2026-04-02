@@ -644,9 +644,14 @@ func (q *Querier) SearchBlock(ctx context.Context, req *tempopb.SearchBlockReque
 	opts.MaxBytes = q.limits.MaxBytesPerTrace(tenantID)
 
 	if api.IsTraceQLQuery(req.SearchReq) {
-		fetcher := traceql.NewSpansetFetcherWrapper(func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
-			return q.store.Fetch(ctx, meta, req, opts)
-		})
+		fetcher := traceql.NewSpansetFetcherWrapperBoth(
+			func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
+				return q.store.Fetch(ctx, meta, req, opts)
+			},
+			func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansOnlyResponse, error) {
+				return q.store.FetchSpans(ctx, meta, req, opts)
+			},
+		)
 
 		return q.engine.ExecuteSearch(ctx, req.SearchReq, fetcher, q.limits.UnsafeQueryHints(tenantID))
 	}
@@ -691,8 +696,8 @@ func (q *Querier) internalTagsSearchBlockV2(ctx context.Context, req *tempopb.Se
 	opts.StartPage = int(req.StartPage)
 	opts.TotalPages = int(req.PagesToSearch)
 
-	query := traceql.ExtractMatchers(req.SearchReq.Query)
-	if traceql.IsEmptyQuery(query) {
+	extractedReq := traceql.ExtractFetchRequest(req.SearchReq.Query)
+	if extractedReq == nil || !extractedReq.AllConditions {
 		return q.store.SearchTags(ctx, meta, req, opts)
 	}
 
@@ -708,7 +713,7 @@ func (q *Querier) internalTagsSearchBlockV2(ctx context.Context, req *tempopb.Se
 		return nil, fmt.Errorf("unknown scope: %s", req.SearchReq.Scope)
 	}
 
-	err = q.engine.ExecuteTagNames(ctx, scope, query, func(tag string, scope traceql.AttributeScope) bool {
+	err = q.engine.ExecuteTagNames(ctx, scope, extractedReq.Conditions, func(tag string, scope traceql.AttributeScope) bool {
 		return valueCollector.Collect(scope.String(), tag)
 	}, fetcher)
 	if err != nil {
@@ -804,8 +809,8 @@ func (q *Querier) internalTagValuesSearchBlockV2(ctx context.Context, req *tempo
 	opts.StartPage = int(req.StartPage)
 	opts.TotalPages = int(req.PagesToSearch)
 
-	query := traceql.ExtractMatchers(req.SearchReq.Query)
-	if traceql.IsEmptyQuery(query) {
+	extractedReq := traceql.ExtractFetchRequest(req.SearchReq.Query)
+	if extractedReq == nil || !extractedReq.AllConditions {
 		return q.store.SearchTagValuesV2(ctx, meta, req.SearchReq, opts)
 	}
 
@@ -824,7 +829,7 @@ func (q *Querier) internalTagValuesSearchBlockV2(ctx context.Context, req *tempo
 		return q.store.FetchTagValues(ctx, meta, req, cb, func(bytesRead uint64) { inspectedBytes += bytesRead }, opts)
 	})
 
-	err = q.engine.ExecuteTagValues(ctx, tag, query, traceql.MakeCollectTagValueFunc(valueCollector.Collect), fetcher)
+	err = q.engine.ExecuteTagValues(ctx, tag, extractedReq.Conditions, traceql.MakeCollectTagValueFunc(valueCollector.Collect), fetcher)
 	if err != nil {
 		return nil, err
 	}

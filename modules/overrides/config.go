@@ -1,9 +1,13 @@
 package overrides
 
 import (
+	"encoding/json"
 	"flag"
 	"fmt"
+	"reflect"
 	"strconv"
+	"strings"
+	"sync"
 	"time"
 
 	"github.com/prometheus/common/config"
@@ -91,18 +95,20 @@ type ServiceGraphsOverrides struct {
 	EnableMessagingSystemLatencyHistogram *bool                       `yaml:"enable_messaging_system_latency_histogram,omitempty" json:"enable_messaging_system_latency_histogram,omitempty"`
 	EnableVirtualNodeLabel                *bool                       `yaml:"enable_virtual_node_label,omitempty" json:"enable_virtual_node_label,omitempty"`
 	SpanMultiplierKey                     string                      `yaml:"span_multiplier_key,omitempty" json:"span_multiplier_key,omitempty"`
+	EnableTraceStateSpanMultiplier        *bool                       `yaml:"enable_tracestate_span_multiplier,omitempty" json:"enable_tracestate_span_multiplier,omitempty"`
 }
 
 type SpanMetricsOverrides struct {
-	HistogramBuckets             []float64                        `yaml:"histogram_buckets,omitempty" json:"histogram_buckets,omitempty"`
-	Dimensions                   []string                         `yaml:"dimensions,omitempty" json:"dimensions,omitempty"`
-	IntrinsicDimensions          map[string]bool                  `yaml:"intrinsic_dimensions,omitempty" json:"intrinsic_dimensions,omitempty"`
-	FilterPolicies               []filterconfig.FilterPolicy      `yaml:"filter_policies,omitempty" json:"filter_policies,omitempty"`
-	DimensionMappings            []sharedconfig.DimensionMappings `yaml:"dimension_mappings,omitempty" json:"dimension_mapings,omitempty"`
-	EnableTargetInfo             *bool                            `yaml:"enable_target_info,omitempty" json:"enable_target_info,omitempty"`
-	TargetInfoExcludedDimensions []string                         `yaml:"target_info_excluded_dimensions,omitempty" json:"target_info_excluded_dimensions,omitempty"`
-	EnableInstanceLabel          *bool                            `yaml:"enable_instance_label,omitempty" json:"enable_instance_label,omitempty"`
-	SpanMultiplierKey            string                           `yaml:"span_multiplier_key,omitempty" json:"span_multiplier_key,omitempty"`
+	HistogramBuckets               []float64                        `yaml:"histogram_buckets,omitempty" json:"histogram_buckets,omitempty"`
+	Dimensions                     []string                         `yaml:"dimensions,omitempty" json:"dimensions,omitempty"`
+	IntrinsicDimensions            map[string]bool                  `yaml:"intrinsic_dimensions,omitempty" json:"intrinsic_dimensions,omitempty"`
+	FilterPolicies                 []filterconfig.FilterPolicy      `yaml:"filter_policies,omitempty" json:"filter_policies,omitempty"`
+	DimensionMappings              []sharedconfig.DimensionMappings `yaml:"dimension_mappings,omitempty" json:"dimension_mapings,omitempty"`
+	EnableTargetInfo               *bool                            `yaml:"enable_target_info,omitempty" json:"enable_target_info,omitempty"`
+	TargetInfoExcludedDimensions   []string                         `yaml:"target_info_excluded_dimensions,omitempty" json:"target_info_excluded_dimensions,omitempty"`
+	EnableInstanceLabel            *bool                            `yaml:"enable_instance_label,omitempty" json:"enable_instance_label,omitempty"`
+	SpanMultiplierKey              string                           `yaml:"span_multiplier_key,omitempty" json:"span_multiplier_key,omitempty"`
+	EnableTraceStateSpanMultiplier *bool                            `yaml:"enable_tracestate_span_multiplier,omitempty" json:"enable_tracestate_span_multiplier,omitempty"`
 }
 
 type HostInfoOverrides struct {
@@ -137,14 +143,14 @@ type MetricsGeneratorOverrides struct {
 	MaxActiveEntities        uint32                     `yaml:"max_active_entities,omitempty" json:"max_active_entities,omitempty"`
 	CollectionInterval       time.Duration              `yaml:"collection_interval,omitempty" json:"collection_interval,omitempty"`
 	DisableCollection        bool                       `yaml:"disable_collection,omitempty" json:"disable_collection,omitempty"`
-	GenerateNativeHistograms histograms.HistogramMethod `yaml:"generate_native_histograms" json:"generate_native_histograms,omitempty"`
+	GenerateNativeHistograms histograms.HistogramMethod `yaml:"generate_native_histograms,omitempty" json:"generate_native_histograms,omitempty"`
 	TraceIDLabelName         string                     `yaml:"trace_id_label_name,omitempty" json:"trace_id_label_name,omitempty"`
 
 	RemoteWriteHeaders RemoteWriteHeaders `yaml:"remote_write_headers,omitempty" json:"remote_write_headers,omitempty"`
 
 	Forwarder      ForwarderOverrides `yaml:"forwarder,omitempty" json:"forwarder,omitempty"`
 	Processor      ProcessorOverrides `yaml:"processor,omitempty" json:"processor,omitempty"`
-	IngestionSlack time.Duration      `yaml:"ingestion_time_range_slack" json:"ingestion_time_range_slack,omitempty"`
+	IngestionSlack time.Duration      `yaml:"ingestion_time_range_slack,omitempty" json:"ingestion_time_range_slack,omitempty"`
 
 	NativeHistogramBucketFactor     float64       `yaml:"native_histogram_bucket_factor,omitempty" json:"native_histogram_bucket_factor,omitempty"`
 	NativeHistogramMaxBucketNumber  uint32        `yaml:"native_histogram_max_bucket_number,omitempty" json:"native_histogram_max_bucket_number,omitempty"`
@@ -208,6 +214,80 @@ type Overrides struct {
 	// Storage enforced overrides.
 	Storage         StorageOverrides         `yaml:"storage,omitempty" json:"storage,omitempty"`
 	CostAttribution CostAttributionOverrides `yaml:"cost_attribution,omitempty" json:"cost_attribution,omitempty"`
+	// Extensions holds per-tenant overrides added by vendoring applications via RegisterExtension.
+	// Values are typed Extension instances after unmarshal.
+	Extensions map[string]any `yaml:",inline" json:"-"`
+}
+
+// knownOverridesJSONFields returns the JSON key names declared on Overrides
+var knownOverridesJSONFields = sync.OnceValue(func() map[string]struct{} {
+	return fieldNamesFor(Overrides{}, "json")
+})
+
+func (o *Overrides) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	type plain Overrides
+	if err := unmarshal((*plain)(o)); err != nil {
+		return err
+	}
+	return processExtensions(o)
+}
+
+func (o *Overrides) UnmarshalJSON(data []byte) error {
+	type plain Overrides
+	if err := json.Unmarshal(data, (*plain)(o)); err != nil {
+		return err
+	}
+
+	var raw map[string]json.RawMessage
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+
+	for key := range knownOverridesJSONFields() {
+		delete(raw, key)
+	}
+	if len(raw) == 0 {
+		// No extension keys in this payload; clear any stale Extensions from a prior decode.
+		o.Extensions = nil
+		return nil
+	}
+
+	o.Extensions = make(map[string]any, len(raw))
+	for k, v := range raw {
+		var val any
+		if err := json.Unmarshal(v, &val); err != nil {
+			return err
+		}
+		o.Extensions[k] = val
+	}
+	return processExtensions(o)
+}
+
+func (o Overrides) MarshalJSON() ([]byte, error) {
+	type plain Overrides
+	data, err := json.Marshal(plain(o))
+	if err != nil {
+		return nil, err
+	}
+	if len(o.Extensions) == 0 {
+		return data, nil
+	}
+
+	var m map[string]json.RawMessage
+	if err := json.Unmarshal(data, &m); err != nil {
+		return nil, err
+	}
+	for k, v := range o.Extensions {
+		if _, exists := m[k]; exists {
+			continue // known fields take precedence
+		}
+		b, err := json.Marshal(v)
+		if err != nil {
+			return nil, err
+		}
+		m[k] = b
+	}
+	return json.Marshal(m)
 }
 
 type Config struct {
@@ -219,6 +299,11 @@ type Config struct {
 
 	UserConfigurableOverridesConfig UserConfigurableOverridesConfig `yaml:"user_configurable_overrides" json:"user_configurable_overrides"`
 
+	// EnableLegacyOverrides allows using the deprecated legacy (flat, unscoped) overrides format.
+	// Legacy overrides are disabled by default. Set this to true to opt back in while migrating
+	// to the new format. This option will be removed in a future release.
+	EnableLegacyOverrides bool `yaml:"enable_legacy_overrides" json:"enable_legacy_overrides"`
+
 	ConfigType ConfigType `yaml:"-" json:"-"`
 	ExpandEnv  bool       `yaml:"-" json:"-"`
 }
@@ -227,12 +312,18 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	// Note: this implementation relies on callers using yaml.UnmarshalStrict. In non-strict mode
 	// unmarshal() will not return an error for legacy configuration and we return immediately.
 
-	// Try to unmarshal it normally
+	// Try to unmarshal it normally. Overrides.UnmarshalYAML calls processExtensions for c.Defaults.
+	// If the error is an extensionError, the config is in the new format but misconfigured.
 	type rawConfig Config
 	err := unmarshal((*rawConfig)(c))
 	if err == nil {
 		c.ConfigType = ConfigTypeNew
 		return nil
+	}
+
+	// Fail only on extension-specific errors, otherwise fallback to legacy mode
+	if isExtensionError(err) || isExtensionKeyError(err) {
+		return err
 	}
 
 	// Try to unmarshal inline limits
@@ -243,21 +334,31 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		PerTenantOverridePeriod model.Duration `yaml:"per_tenant_override_period"`
 
 		UserConfigurableOverridesConfig UserConfigurableOverridesConfig `yaml:"user_configurable_overrides"`
+
+		EnableLegacyOverrides bool `yaml:"enable_legacy_overrides"`
 	}
 	var legacyCfg legacyConfig
 	legacyCfg.DefaultOverrides = c.Defaults.toLegacy()
 	legacyCfg.PerTenantOverrideConfig = c.PerTenantOverrideConfig
 	legacyCfg.PerTenantOverridePeriod = c.PerTenantOverridePeriod
 	legacyCfg.UserConfigurableOverridesConfig = c.UserConfigurableOverridesConfig
+	legacyCfg.EnableLegacyOverrides = c.EnableLegacyOverrides
 
 	if legacyErr := unmarshal(&legacyCfg); legacyErr != nil {
 		return fmt.Errorf("failed to unmarshal config: %w; also failed in legacy format: %w", err, legacyErr)
 	}
 
-	c.Defaults = legacyCfg.DefaultOverrides.toNewLimits()
+	// Ensure legacy extension flat keys are converted to typed instances before toNewLimits.
+	// processLegacyExtensions may not be triggered automatically for inline struct fields.
+	if err := processLegacyExtensions(&legacyCfg.DefaultOverrides); err != nil {
+		return fmt.Errorf("defaults: %w", err)
+	}
+
+	c.Defaults = *legacyCfg.DefaultOverrides.toNewLimits()
 	c.PerTenantOverrideConfig = legacyCfg.PerTenantOverrideConfig
 	c.PerTenantOverridePeriod = legacyCfg.PerTenantOverridePeriod
 	c.UserConfigurableOverridesConfig = legacyCfg.UserConfigurableOverridesConfig
+	c.EnableLegacyOverrides = legacyCfg.EnableLegacyOverrides
 	c.ConfigType = ConfigTypeLegacy
 	return nil
 }
@@ -291,6 +392,7 @@ func (c *Config) RegisterFlagsAndApplyDefaults(f *flag.FlagSet) {
 	f.StringVar(&c.PerTenantOverrideConfig, "config.per-user-override-config", "", "File name of per-user Overrides.")
 	_ = c.PerTenantOverridePeriod.Set("10s")
 	f.Var(&c.PerTenantOverridePeriod, "config.per-user-override-period", "Period with this to reload the Overrides.")
+	f.BoolVar(&c.EnableLegacyOverrides, "config.enable-legacy-overrides", false, "Enable the deprecated legacy overrides format. This is disabled by default and will be removed in a future release.")
 
 	c.UserConfigurableOverridesConfig.RegisterFlagsAndApplyDefaults(f)
 }
@@ -325,4 +427,21 @@ func (u *Uint32Value) Set(s string) error {
 	}
 	*u = Uint32Value(v)
 	return nil
+}
+
+func fieldNamesFor(v any, tagKey string) map[string]struct{} {
+	t := reflect.TypeOf(v)
+	fields := make(map[string]struct{}, t.NumField())
+	for field := range t.Fields() {
+		tag := field.Tag.Get(tagKey)
+		if tag == "-" || tag == ",inline" {
+			continue
+		}
+		name, _, _ := strings.Cut(tag, ",")
+		if name == "" {
+			name = field.Name
+		}
+		fields[name] = struct{}{}
+	}
+	return fields
 }

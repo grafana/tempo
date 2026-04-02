@@ -21,6 +21,7 @@ import (
 	"github.com/grafana/tempo/pkg/util/log"
 	"github.com/grafana/tempo/tempodb"
 	"github.com/grafana/tempo/tempodb/backend"
+	"github.com/grafana/tempo/tempodb/encoding/common"
 	"github.com/prometheus/client_golang/prometheus"
 	"google.golang.org/grpc/codes"
 )
@@ -265,6 +266,8 @@ func (w *BackendWorker) processJobs(ctx context.Context) error {
 		return w.processCompactionJob(ctx, resp)
 	case tempopb.JobType_JOB_TYPE_RETENTION:
 		return w.processRetentionJob(ctx, resp)
+	case tempopb.JobType_JOB_TYPE_REDACTION:
+		return w.processRedactionJob(ctx, resp)
 	default:
 		return fmt.Errorf("unknown job type: %s", resp.Type.String())
 	}
@@ -324,8 +327,17 @@ func (w *BackendWorker) processCompactionJob(ctx context.Context, resp *tempopb.
 }
 
 func (w *BackendWorker) processRetentionJob(ctx context.Context, resp *tempopb.NextJobResponse) error {
-	level.Debug(log.Logger).Log("msg", "received retention job", "job_id", resp.JobId, "tenant", resp.Detail.Tenant)
-	w.store.RetainWithConfig(ctx, &w.cfg.Compactor, ownsEverythingSharder{}, w)
+	tenantID := resp.Detail.Tenant
+	level.Debug(log.Logger).Log("msg", "received retention job", "job_id", resp.JobId, "tenant", tenantID)
+
+	// Per-tenant path (new behaviour): run retention for only the specified tenant.
+	// Fallback path (rollout compatibility): if tenant is empty this is a legacy
+	// global job emitted by an older scheduler binary; retain all tenants as before.
+	if tenantID != "" {
+		w.store.RetainTenantWithConfig(ctx, tenantID, &w.cfg.Compactor, ownsEverythingSharder{}, w)
+	} else {
+		w.store.RetainWithConfig(ctx, &w.cfg.Compactor, ownsEverythingSharder{}, w)
+	}
 
 	err := w.callSchedulerWithBackoff(ctx, func(ctx context.Context) error {
 		_, err := w.backendScheduler.UpdateJob(ctx, &tempopb.UpdateJobStatusRequest{
@@ -343,6 +355,69 @@ func (w *BackendWorker) processRetentionJob(ctx context.Context, resp *tempopb.N
 	}
 
 	return nil
+}
+
+func (w *BackendWorker) processRedactionJob(ctx context.Context, resp *tempopb.NextJobResponse) error {
+	tenantID := resp.Detail.Tenant
+	if tenantID == "" {
+		metricWorkerBadJobsReceived.WithLabelValues("no_tenant").Inc()
+		return w.failJob(ctx, resp.JobId, "received redaction job with empty tenant")
+	}
+	if resp.Detail.Redaction == nil {
+		return w.failJob(ctx, resp.JobId, "received redaction job with nil redaction detail")
+	}
+
+	blockIDStr := resp.Detail.Redaction.BlockId
+	if blockIDStr == "" {
+		return w.failJob(ctx, resp.JobId, "received redaction job with empty block_id")
+	}
+
+	blockMetas := w.store.BlockMetas(tenantID)
+	var meta *backend.BlockMeta
+	for _, m := range blockMetas {
+		if m.BlockID.String() == blockIDStr {
+			meta = m
+			break
+		}
+	}
+	if meta == nil {
+		// Block no longer present (e.g. already compacted away); treat as clean.
+		level.Debug(log.Logger).Log("msg", "redaction block not found, completing as no-op", "job_id", resp.JobId, "block_id", blockIDStr)
+		return w.completeRedactionJob(ctx, resp.JobId, 0)
+	}
+
+	traceIDs := make([]common.ID, 0, len(resp.Detail.Redaction.TraceIds))
+	for _, b := range resp.Detail.Redaction.TraceIds {
+		if len(b) > 0 {
+			traceIDs = append(traceIDs, common.ID(b))
+		}
+	}
+
+	level.Debug(log.Logger).Log("msg", "processing redaction job", "job_id", resp.JobId, "block_id", blockIDStr, "trace_ids_count", len(traceIDs))
+
+	_, tracesFound, _, err := w.store.RedactBlock(ctx, meta, tenantID, traceIDs)
+	if err != nil {
+		return w.failJob(ctx, resp.JobId, fmt.Sprintf("redact block: %v", err))
+	}
+
+	level.Debug(log.Logger).Log("msg", "redaction block processed", "job_id", resp.JobId, "block_id", blockIDStr, "rewrote", tracesFound > 0, "traces_found", tracesFound)
+	return w.completeRedactionJob(ctx, resp.JobId, tracesFound)
+}
+
+func (w *BackendWorker) completeRedactionJob(ctx context.Context, jobID string, tracesFound int) error {
+	return w.callSchedulerWithBackoff(ctx, func(ctx context.Context) error {
+		_, err := w.backendScheduler.UpdateJob(ctx, &tempopb.UpdateJobStatusRequest{
+			JobId:  jobID,
+			Status: tempopb.JobStatus_JOB_STATUS_SUCCEEDED,
+			Redaction: &tempopb.RedactionResult{
+				TracesFound: int32(tracesFound),
+			},
+		})
+		if err != nil {
+			return fmt.Errorf("failed marking redaction job %q as complete: %w", jobID, err)
+		}
+		return nil
+	})
 }
 
 func (w *BackendWorker) stopping(_ error) error {

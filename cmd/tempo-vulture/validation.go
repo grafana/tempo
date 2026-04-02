@@ -193,7 +193,7 @@ func (vs *ValidationService) RunValidation(
 			actualTrace: actual,
 		})
 
-		// Validate that we can retrieve them by trace ID
+		// Validate that we can retrieve them by trace ID.
 		readErr := vs.validateTraceRetrieval(ctx, trace, querier)
 		if readErr != nil {
 			result.Failures = append(result.Failures, ValidationFailure{
@@ -279,7 +279,7 @@ func (vs *ValidationService) writeValidationTrace(
 
 	writeErr := traceInfo.EmitAllBatches(writer)
 	if writeErr != nil {
-		return nil, nil, fmt.Errorf("failed to write trace, error: %w", err) // Any write failure is critical
+		return nil, nil, fmt.Errorf("failed to write trace, error: %w", writeErr) // Any write failure is critical
 	}
 
 	return traceInfo, traceStructure, nil

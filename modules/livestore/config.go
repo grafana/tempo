@@ -5,10 +5,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/grafana/tempo/modules/ingester"
 	"github.com/grafana/tempo/pkg/ingest"
 	"github.com/grafana/tempo/pkg/ring"
-	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 	"github.com/grafana/tempo/tempodb/wal"
 )
@@ -16,9 +14,9 @@ import (
 const defaultCompleteBlockTimeout = time.Hour
 
 type Config struct {
-	Ring          ring.Config                  `yaml:"ring,omitempty"`
-	PartitionRing ingester.PartitionRingConfig `yaml:"partition_ring" category:"experimental"`
-	Metrics       MetricsConfig                `yaml:"metrics"`
+	Ring          ring.Config         `yaml:"ring,omitempty"`
+	PartitionRing PartitionRingConfig `yaml:"partition_ring"`
+	Metrics       MetricsConfig       `yaml:"metrics"`
 
 	// CommitInterval configures how often the partition reader commits to kafka
 	// 0s means synchronous commits
@@ -45,12 +43,8 @@ type Config struct {
 	MaxBlockDuration      time.Duration `yaml:"max_block_duration"`
 	MaxBlockBytes         uint64        `yaml:"max_block_bytes"`
 
-	// Block configuration
-	BlockConfig common.BlockConfig `yaml:"block_config"`
-
-	// GlobalBlockConfig is the main storage trace block config (storage.trace.block). Used as fallback
-	// when block_config.version and wal.version are not set. This config is injected by the application when creating the LiveStore.
-	GlobalBlockConfig *common.BlockConfig `yaml:"-"`
+	// BlockConfig holds block settings from the storage section, it is not configurable via YAML
+	BlockConfig common.BlockConfig `yaml:"-"`
 
 	// ReadinessTargetLag is the target consumer lag threshold before the live-store
 	// is considered ready to serve queries. The live-store will wait until lag drops
@@ -100,12 +94,12 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 	cfg.Metrics.TimeOverlapCutoff = 0.2
 
 	// Set defaults for timing configuration (based on ingester defaults)
-	cfg.InstanceFlushPeriod = 10 * time.Second
+	cfg.InstanceFlushPeriod = 5 * time.Second
 	cfg.InstanceCleanupPeriod = 5 * time.Minute
 	cfg.MaxTraceLive = 30 * time.Second
 	cfg.MaxTraceIdle = 5 * time.Second
 	cfg.MaxLiveTracesBytes = 250_000_000 // 250MB
-	cfg.MaxBlockDuration = 30 * time.Minute
+	cfg.MaxBlockDuration = 1 * time.Minute
 	cfg.MaxBlockBytes = 100 * 1024 * 1024
 
 	cfg.CommitInterval = 5 * time.Second
@@ -118,9 +112,6 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 
 	cfg.initialBackoff = defaultInitialBackoff
 	cfg.maxBackoff = defaultMaxBackoff
-
-	// Initialize block config with defaults
-	cfg.BlockConfig.RegisterFlagsAndApplyDefaults(prefix+".block", f)
 
 	// Register flags for existing fields
 	f.DurationVar(&cfg.CompleteBlockTimeout, prefix+".complete-block-timeout", cfg.CompleteBlockTimeout, "Duration to keep blocks in the live store after they have been flushed.")
@@ -176,44 +167,5 @@ func (cfg *Config) Validate() error {
 		return fmt.Errorf("max_trace_idle (%s) cannot be greater than max_trace_live (%s)", cfg.MaxTraceIdle, cfg.MaxTraceLive)
 	}
 
-	if _, _, err := coalesceBlockVersions(cfg); err != nil {
-		return err
-	}
-
-	if err := common.ValidateConfig(&cfg.BlockConfig); err != nil {
-		return fmt.Errorf("block_config validation failed: %w", err)
-	}
-
-	if err := cfg.WAL.Validate(); err != nil {
-		return err
-	}
-
 	return nil
-}
-
-// coalesceBlockVersions resolves complete block and WAL encodings from configs
-// using the shared encoding.CoalesceVersion helper.
-// Block priority: default < storage.trace.block < live_store.block_config.
-// WAL priority:   default < storage.trace.block < live_store.block_config < live_store.wal.version.
-// Returns an error if any resolved version isn't writable.
-func coalesceBlockVersions(cfg *Config) (completeBlockEncoding, walEncoding encoding.VersionedEncoding, err error) {
-	globalVer := ""
-	if cfg.GlobalBlockConfig != nil {
-		globalVer = cfg.GlobalBlockConfig.Version
-	}
-
-	completeBlockEncoding, err = encoding.CoalesceVersion(globalVer, cfg.BlockConfig.Version)
-	if err != nil {
-		return nil, nil, fmt.Errorf("complete block version: %w", err)
-	}
-
-	walEncoding, err = encoding.CoalesceVersion(globalVer, cfg.BlockConfig.Version, cfg.WAL.Version)
-	if err != nil {
-		return nil, nil, fmt.Errorf("wal version: %w", err)
-	}
-
-	cfg.BlockConfig.Version = completeBlockEncoding.Version()
-	cfg.WAL.Version = walEncoding.Version()
-
-	return completeBlockEncoding, walEncoding, nil
 }

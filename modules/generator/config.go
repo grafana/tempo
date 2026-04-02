@@ -23,9 +23,6 @@ const (
 	// generatorRingKey is the default key under which we store the metric-generator's ring in the KVStore.
 	generatorRingKey = "metrics-generator"
 
-	// ringNameForServer is the name of the ring used by the metrics-generator server.
-	ringNameForServer = "metrics-generator"
-
 	ConsumerGroup = "metrics-generator"
 
 	// codecPushBytes refers to the codec used for decoding tempopb.PushBytesRequest
@@ -36,9 +33,14 @@ const (
 
 type LimiterType string
 
+type RingMode string
+
 const (
 	LimiterTypeSeries LimiterType = "series"
 	LimiterTypeEntity LimiterType = "entity"
+
+	RingModePartition RingMode = "partition"
+	RingModeGenerator RingMode = "generator"
 )
 
 var validCodecs = []string{codecPushBytes, codecOTLP}
@@ -52,13 +54,16 @@ type Config struct {
 	// MetricsIngestionSlack is the max amount of time passed since a span's end time
 	// for the span to be considered in metrics generation
 	MetricsIngestionSlack time.Duration `yaml:"metrics_ingestion_time_range_slack"`
-	QueryTimeout          time.Duration `yaml:"query_timeout"`
 	OverrideRingKey       string        `yaml:"override_ring_key"`
+	RingMode              RingMode      `yaml:"ring_mode"`
 
 	// Codec controls which decoder to use for data consumed from Kafka.
 	Codec string `yaml:"codec"`
-	// DisableGRPC controls whether to run a gRPC server with the metrics generator endpoints.
+	// DisableGRPC is kept for one-release backward compatibility and ignored.
 	DisableGRPC bool `yaml:"disable_grpc"`
+	// ConsumeFromKafka controls whether the generator should consume spans from Kafka.
+	// This is wired by deployment model in app init and not user configurable.
+	ConsumeFromKafka bool `yaml:"-"`
 
 	// LimiterType configures the type of limiter to use.
 	// Defaults to "series". Available options are "series" and "entity".
@@ -81,8 +86,8 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 
 	// setting default for max span age before discarding to 30s
 	cfg.MetricsIngestionSlack = 30 * time.Second
-	cfg.QueryTimeout = 30 * time.Second
 	cfg.OverrideRingKey = generatorRingKey
+	cfg.RingMode = RingModePartition
 	cfg.Codec = codecPushBytes
 	cfg.LimiterType = LimiterTypeSeries
 
@@ -95,8 +100,10 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 }
 
 func (cfg *Config) Validate() error {
-	if err := cfg.Ingest.Validate(); err != nil {
-		return err
+	if cfg.ConsumeFromKafka {
+		if err := cfg.Ingest.Validate(); err != nil {
+			return err
+		}
 	}
 
 	if cfg.IngestConcurrency == 0 {
@@ -113,6 +120,16 @@ func (cfg *Config) Validate() error {
 
 	if !slices.Contains(validCodecs, cfg.Codec) {
 		return fmt.Errorf("invalid codec: %s, valid choices are %s", cfg.Codec, validCodecs)
+	}
+
+	switch cfg.RingMode {
+	case RingModePartition, RingModeGenerator:
+	default:
+		return fmt.Errorf("invalid ring mode: %s, valid values are %s and %s", cfg.RingMode, RingModePartition, RingModeGenerator)
+	}
+
+	if cfg.ConsumeFromKafka && cfg.RingMode == RingModeGenerator && cfg.Ingest.Kafka.ConsumerGroup == "" {
+		return errors.New("ingest.kafka.consumer_group must be configured when metrics-generator ring mode is generator")
 	}
 
 	switch cfg.LimiterType {
@@ -228,8 +245,16 @@ func (cfg *ProcessorConfig) copyWithOverrides(o metricsGeneratorOverrides, userI
 		copyCfg.ServiceGraphs.SpanMultiplierKey = spanMultiplierKey
 	}
 
+	if enableTraceStateSpanMultiplier, ok := o.MetricsGeneratorProcessorServiceGraphsEnableTraceStateSpanMultiplier(userID); ok {
+		copyCfg.ServiceGraphs.EnableTraceStateSpanMultiplier = enableTraceStateSpanMultiplier
+	}
+
 	if spanMultiplierKey := o.MetricsGeneratorProcessorSpanMetricsSpanMultiplierKey(userID); spanMultiplierKey != "" {
 		copyCfg.SpanMetrics.SpanMultiplierKey = spanMultiplierKey
+	}
+
+	if enableTraceStateSpanMultiplier, ok := o.MetricsGeneratorProcessorSpanMetricsEnableTraceStateSpanMultiplier(userID); ok {
+		copyCfg.SpanMetrics.EnableTraceStateSpanMultiplier = enableTraceStateSpanMultiplier
 	}
 
 	copySubprocessors := make(map[spanmetrics.Subprocessor]bool)

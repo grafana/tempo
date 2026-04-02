@@ -76,7 +76,7 @@ func TestBackendBlockFindTraceByID(t *testing.T) {
 
 	meta := backend.NewBlockMeta("fake", uuid.New(), VersionString)
 	meta.TotalObjects = int64(len(traces))
-	s := newStreamingBlock(ctx, cfg, meta, r, w, tempo_io.NewBufferedWriter)
+	s, newMeta := newStreamingBlock(ctx, cfg, meta, r, w, tempo_io.NewBufferedWriter)
 
 	// Write test data, occasionally flushing (cutting new row group)
 	rowGroupSize := 5
@@ -91,11 +91,11 @@ func TestBackendBlockFindTraceByID(t *testing.T) {
 	_, err = s.Complete()
 	require.NoError(t, err)
 
-	b := newBackendBlock(s.meta, r)
+	b := newBackendBlock(newMeta, r)
 
 	// Now find and verify all test traces
 	for _, tr := range traces {
-		wantProto := ParquetTraceToTempopbTrace(meta, tr)
+		wantProto := ParquetTraceToTempopbTrace(newMeta, tr)
 
 		gotProto, err := b.FindTraceByID(ctx, tr.TraceID, common.DefaultSearchOptions())
 		require.NoError(t, err)

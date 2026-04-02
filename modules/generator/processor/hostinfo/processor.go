@@ -53,7 +53,7 @@ func (p *Processor) PushSpans(_ context.Context, req *tempopb.PushSpansRequest) 
 	for i := range req.Batches {
 		resourceSpans := req.Batches[i]
 		if hostID, hostSource := p.findHostIdentifier(resourceSpans); hostID != "" && hostSource != "" {
-			builder := p.registry.NewLabelBuilder()
+			builder := p.registry.NewInfoMetricLabelBuilder()
 			builder.Add(hostIdentifierAttr, hostID)
 			builder.Add(hostSourceAttr, hostSource)
 			labels, validUTF8 := builder.CloseAndBuildLabels()

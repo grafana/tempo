@@ -41,6 +41,19 @@
     'gomodTidy',
     'gomodVendor',
   ],
+  customManagers: [
+    {
+      description: 'Update tempo-ci-tools image tag in Makefile and build/tools.mk',
+      customType: 'regex',
+      managerFilePatterns: ['/^Makefile$/', '/^build\\/tools\\.mk$/'],
+      matchStrings: [
+        'TEMPO_CI_TOOLS_IMAGE\\s*\\?=\\s*(?<depName>grafana/tempo-ci-tools):(?<currentValue>main-[0-9a-f]{7}-\\d{8}-\\d{6})(?:@(?<currentDigest>sha256:[a-f0-9]+))?',
+        'TOOLS_IMAGE_TAG\\s*\\?=\\s*(?<currentValue>main-[0-9a-f]{7}-\\d{8}-\\d{6})',
+      ],
+      depNameTemplate: 'grafana/tempo-ci-tools',
+      datasourceTemplate: 'docker',
+    },
+  ],
   packageRules: [
     {
       description: 'Disable all non-vulnerability updates for releases',
@@ -99,6 +112,24 @@
         'dockerfile',
       ],
       groupName: 'docker',
+    },
+    {
+      description: 'Fast-track Go updates: bump go directive and skip release age for Go images',
+      matchDepNames: ['go', 'golang'],
+      rangeStrategy: 'bump',
+      minimumReleaseAge: '0 days',
+    },
+    {
+      description: 'Use regex versioning for tempo-ci-tools (branch-sha-datetime tags)',
+      matchManagers: [
+        'custom.regex',
+      ],
+      matchPackageNames: [
+        'grafana/tempo-ci-tools',
+      ],
+      groupName: 'tempo-ci-tools',
+      versioning: 'regex:^main-[0-9a-f]{7}-(?<major>\\d{8})-(?<patch>\\d{6})$',
+      minimumReleaseAge: '0 days',
     },
   ],
 }

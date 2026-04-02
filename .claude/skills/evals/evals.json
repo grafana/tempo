@@ -1,0 +1,25 @@
+{
+  "skill_name": "docs-pr-check + docs-pr-write (integration)",
+  "workflow_context": "These integration tests cover the full Phase 1.5 → Phase 1.75 handoff inside the Tempo release notes workflow (.agents/doc-agents/shared/release-notes-workflow.md). The agent runs docs-pr-check first, then uses that output as the input to docs-pr-write without human re-entry of the handoff data.",
+  "pr_selection": {
+    "note": "Select a mixed set of 3 PRs: one that needs docs, one that needs a docs update, and one that requires no docs. See README.md pre-flight section for the full selection process."
+  },
+  "evals": [
+    {
+      "id": 1,
+      "pr_type": "Three merged PRs covering different classification outcomes: one user-facing feature with no docs (Docs needed), one PR with changed behavior where partial docs exist (Docs update needed), and one internal-only change (No docs required). Select each from a different area of the codebase.",
+      "pr_selection_command": "gh pr list --repo grafana/tempo --state merged --limit 100 --json number,title,author,labels,files | jq '[.[] | select(.author.login != \"dependabot[bot]\" and .author.login != \"github-actions[bot]\")] | .[0:20]'",
+      "prompt_template": "We're working on the Tempo release notes. Phase 1 is complete. Run Phase 1.5 (docs-pr-check) on this curated PR list: #{PR_1}, #{PR_2}, #{PR_3}. Then immediately run Phase 1.75 (docs-pr-write) for any PRs that need documentation work. Target branch is main.",
+      "expected_output": "Phase 1.5 produces a classification table and gap summary. At least one PR is flagged for docs work; at least one is not. Phase 1.75 runs docs-pr-write using the Phase 1.5 output as its handoff — without requiring the user to re-enter it. The final output includes: (1) the docs-pr-check classification table, (2) the docs-pr-write 'Files changed' list for PRs that needed docs work, (3) a PR-to-doc mapping for those PRs, and (4) an 'Open items' section.",
+      "assertions": [
+        "Phase 1.5 output includes a classification table with all three PRs",
+        "Any PR classified as 'No docs required' is excluded from Phase 1.75",
+        "Phase 1.75 runs automatically using the Phase 1.5 gap summary as input (no re-entry needed)",
+        "Final output includes 'Files changed' listing docs paths for each PR that Phase 1.75 processed",
+        "PR-to-doc mapping covers exactly the PRs that Phase 1.75 processed",
+        "Output includes an 'Open items' section from docs-pr-write",
+        "Phase 1.5 and Phase 1.75 outputs are clearly labeled so the release notes writer can tell them apart"
+      ]
+    }
+  ]
+}

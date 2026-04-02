@@ -2,6 +2,7 @@ package registry
 
 import (
 	"context"
+	"math"
 	"os"
 	"sync"
 	"time"
@@ -86,6 +87,16 @@ var _ Registry = (*ManagedRegistry)(nil)
 
 var OverflowEntity = labels.FromStrings("metric_overflow", "true")
 
+// noopLabelLimiter is a LabelLimiter that passes labels through unchanged.
+type noopLabelLimiter struct{}
+
+func (noopLabelLimiter) Limit(lbls labels.Labels) labels.Labels { return lbls }
+
+// noopSanitizer is a Sanitizer that passes labels through unchanged.
+type noopSanitizer struct{}
+
+func (noopSanitizer) Sanitize(lbls labels.Labels) labels.Labels { return lbls }
+
 // Limiter is used to limit the memory consumption of the registry.
 type Limiter interface {
 	// OnAdd is called when a new entity is created. It accepts the labels and returns
@@ -162,6 +173,10 @@ func (r *ManagedRegistry) NewLabelBuilder() LabelBuilder {
 	return NewLabelBuilder(r.cfg.MaxLabelNameLength, r.cfg.MaxLabelValueLength, r.sanitizer, r.perLabelLimiter)
 }
 
+func (r *ManagedRegistry) NewInfoMetricLabelBuilder() LabelBuilder {
+	return NewLabelBuilder(r.cfg.MaxLabelNameLength, r.cfg.MaxLabelValueLength, noopSanitizer{}, noopLabelLimiter{})
+}
+
 func (r *ManagedRegistry) OnAdd(labelHash uint64, seriesCount uint32, lbls labels.Labels) (labels.Labels, uint64) {
 	r.entityDemand.Insert(labelHash)
 	return r.limiter.OnAdd(labelHash, seriesCount, lbls)
@@ -208,8 +223,10 @@ func (r *ManagedRegistry) registerMetric(m metric) {
 	r.metricsMtx.Lock()
 	defer r.metricsMtx.Unlock()
 
-	if _, ok := r.metrics[m.name()]; ok {
+	if old, ok := r.metrics[m.name()]; ok {
 		level.Info(r.logger).Log("msg", "replacing metric, counters will be reset", "metric", m.name())
+		// Drain old series so the limiter's active count is properly decremented.
+		old.removeStaleSeries(math.MaxInt64)
 	}
 	r.metrics[m.name()] = m
 }

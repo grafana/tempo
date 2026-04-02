@@ -248,7 +248,7 @@ var (
 		{Scope: "span", Name: "dedicated.span.2", Type: "string"},
 		{Scope: "span", Name: "dedicated.span.3", Type: "string"},
 		{Scope: "span", Name: "dedicated.span.4", Type: "string"},
-		{Scope: "span", Name: "dedicated.span.5", Type: "string"},
+		{Scope: "span", Name: "dedicated.span.5", Type: "string", Options: []backend.DedicatedColumnOption{backend.DedicatedColumnOptionBlob}},
 		{Scope: "span", Name: "dedicated.span.6", Type: "int"},
 		{Scope: "span", Name: "dedicated.span.7", Type: "int"},
 	}

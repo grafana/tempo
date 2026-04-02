@@ -18,10 +18,10 @@ GOPATH := $(shell go env GOPATH)
 GORELEASER := $(GOPATH)/bin/goreleaser
 
 # Build Images
-LOKI_BUILD_IMAGE ?= grafana/loki-build-image:0.34.6
+LOKI_BUILD_IMAGE ?= grafana/loki-build-image:0.35.0
 # https://hub.docker.com/repository/docker/grafana/tempo-ci-tools/
 # built by: .github/workflows/docker-ci-tools.yml
-TEMPO_CI_TOOLS_IMAGE ?= grafana/tempo-ci-tools:main-c2aa3e8
+TEMPO_CI_TOOLS_IMAGE ?= grafana/tempo-ci-tools:main-8340a1d49
 DOCS_IMAGE ?= grafana/docs-base:latest
 
 # More exclusions can be added similar with: -not -path './testbed/*'
@@ -185,6 +185,17 @@ test-e2e-util: tools docker-tempo ## Run unit tests on the e2e test harness
 .PHONY: test-all
 test-all: test-with-cover test-e2e ## Run all tests
 
+# e2e test dirs are created by the host test process but their contents are written by
+# Tempo containers running as UID 10001. Clean up in two steps: first empty the contents
+# as UID 10001, then remove the now-empty dirs as the host user.
+.PHONY: test-e2e-clean
+test-e2e-clean: ## Remove leftover e2e test directories owned by Docker container UIDs
+	docker run --rm -u 10001 \
+		-v "$(shell pwd)/integration:/integration:z" \
+		alpine find /integration -maxdepth 3 -name 'e2e_integration_test*' -type d \
+		  -exec sh -c 'find "$$1" -mindepth 1 -delete' _ {} \;
+	find $(shell pwd)/integration -maxdepth 3 -name 'e2e_integration_test*' -type d -prune -exec rm -rf '{}' +
+
 ##@ Linters/Formatters
 
 .PHONY: fmt check-fmt
@@ -257,6 +268,10 @@ docker-tempo-query: ## Build tempo query docker image
 docker-tempo-vulture: ## Build tempo vulture docker image
 	COMPONENT=tempo-vulture make docker-component
 
+.PHONY: docker-tempo-vulture-multi
+docker-tempo-vulture-multi: ## Build tempo vulture docker image
+	COMPONENT=tempo-vulture make docker-component-multi
+
 .PHONY: docker-images ## Build all docker images
 docker-images: docker-tempo docker-tempo-query docker-tempo-vulture
 
@@ -325,8 +340,8 @@ gen-proto:  ## Generate proto files
 	rm -rf $(PROTO_INTERMEDIATE_DIR)
 
 .PHONY: gen-traceql 
-gen-traceql: ## Generate traceql 
-	docker run --rm -v${PWD}:/src/loki ${LOKI_BUILD_IMAGE} gen-traceql-local
+gen-traceql: tools-image ## Generate traceql
+	$(TOOLS_CMD) make gen-traceql-local
 
 .PHONY: gen-traceql-local
 gen-traceql-local: ## Generate traceq local
@@ -334,7 +349,7 @@ gen-traceql-local: ## Generate traceq local
 
 .PHONY: gen-parquet-query
 gen-parquet-query:  ## Generate Parquet query 
-	go run ./pkg/parquetquerygen/predicates.go > ./pkg/parquetquery/predicates.gen.go
+	go run ./pkg/parquetquerygen/predicates.go > ./pkg/parquetquery/predicates.gen.go && go fmt ./pkg/parquetquery/predicates.gen.go
 
 ##@ Tempo tools
 ### Check vendored and generated files are up to date
@@ -376,6 +391,26 @@ docs-test:
 .PHONY: generate-manifest
 generate-manifest:  ## Generate manifest.md file
 	GO111MODULE=on CGO_ENABLED=0 go run -v pkg/docsgen/generate_manifest.go
+
+##@ Release
+
+TEMPO_IMAGE_TAG ?=
+.PHONY: bump-tempo-image-tag
+bump-tempo-image-tag: ## Bump grafana/tempo image tag in docker-compose and jsonnet files. Usage: make bump-tempo-image-tag TEMPO_IMAGE_TAG=2.10.2
+	@test -n "$(TEMPO_IMAGE_TAG)" || (echo "ERROR: TEMPO_IMAGE_TAG is required. Usage: make bump-tempo-image-tag TEMPO_IMAGE_TAG=<tag>"; exit 1)
+	@echo "$(TEMPO_IMAGE_TAG)" | grep -qE '^(latest|[0-9]+\.[0-9]+\.[0-9]+)$$' || (echo "ERROR: TEMPO_IMAGE_TAG must be 'latest' or a version like '2.10.2', got: $(TEMPO_IMAGE_TAG)"; exit 1)
+	@echo "Replacing grafana/tempo:<any> -> grafana/tempo:$(TEMPO_IMAGE_TAG)"
+	@find . \
+		-not -path './.claude/*' \
+		-not -path './.git/*' \
+		-not -path './vendor/*' \
+		-not -path './.worktrees/*' \
+		\( -name "*.yaml" -o -name "*.libsonnet" -o -name "*.jsonnet" -o -name "*.md" \) \
+		-print0 \
+		| xargs -0 grep -l "grafana/tempo:" \
+		| tr '\n' '\0' \
+		| xargs -0 -I{} sed -i '' -E "s#grafana/tempo:(latest|[0-9]+\.[0-9]+\.[0-9]+)#grafana/tempo:$(TEMPO_IMAGE_TAG)#g" {}
+	@echo "Done. Re-run 'make jsonnet' to regenerate compiled jsonnet if needed."
 
 ##@ jsonnet
 .PHONY: jsonnet jsonnet-check jsonnet-test

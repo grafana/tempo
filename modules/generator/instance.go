@@ -446,14 +446,6 @@ func (i *instance) preprocessSpans(req *tempopb.PushSpansRequest) {
 	i.updatePushMetrics(size, spanCount, expiredSpanCount)
 }
 
-func (i *instance) GetMetrics(context.Context, *tempopb.SpanMetricsRequest) (*tempopb.SpanMetricsResponse, error) {
-	return nil, fmt.Errorf("metrics queries are no longer supported by metrics-generator")
-}
-
-func (i *instance) QueryRange(context.Context, *tempopb.QueryRangeRequest) (*tempopb.QueryRangeResponse, error) {
-	return nil, fmt.Errorf("metrics queries are no longer supported by metrics-generator")
-}
-
 func (i *instance) updatePushMetrics(bytesIngested int, spanCount int, expiredSpanCount int) {
 	metricBytesIngested.WithLabelValues(i.instanceID).Add(float64(bytesIngested))
 	metricSpansIngested.WithLabelValues(i.instanceID).Add(float64(spanCount))

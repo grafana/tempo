@@ -28,7 +28,7 @@ services:
       - tempo
 
   otel-collector:
-    image: otel/opentelemetry-collector:0.147.0@sha256:b66294ff3a9eadc446ec4d0e78b6f4980c2a85b0ccc27f2cdc4641bd0fe401a7
+    image: otel/opentelemetry-collector:0.148.0@sha256:1c7c8745b2f64fe1c4e4cd47afa77178e8efa22ecb756e788d7e0b74a316d88c
     command: [ "--config=/etc/otel-collector.yaml" ]
     volumes:
       - ./otel-collector.yaml:/etc/otel-collector.yaml
@@ -46,7 +46,7 @@ services:
       - "9090:9090"
 
   grafana:
-    image: grafana/grafana:12.4.0@sha256:b0ae311af06228bcfd4a620504b653db80f5b91e94dc3dc2a5b7dab202bcde20
+    image: grafana/grafana:12.4.2@sha256:83749231c3835e390a3144e5e940203e42b9589761f20ef3169c716e734ad505
     volumes:
       - ./grafana-datasources.yaml:/etc/grafana/provisioning/datasources/datasources.yaml
     environment:

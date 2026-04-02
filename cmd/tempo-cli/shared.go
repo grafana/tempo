@@ -5,6 +5,7 @@ import (
 	"crypto/x509"
 	"errors"
 	"fmt"
+	"net/http"
 	"sort"
 	"strconv"
 	"strings"
@@ -17,8 +18,10 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/metadata"
 
 	"github.com/grafana/tempo/pkg/boundedwaitgroup"
+	"github.com/grafana/tempo/pkg/httpclient"
 	"github.com/grafana/tempo/tempodb/backend"
 )
 
@@ -139,8 +142,46 @@ func printAsJSON(pb proto.Message) error {
 		return err
 	}
 
-	fmt.Println(string(traceJSON))
+	fmt.Println(traceJSON)
 	return nil
+}
+
+func parseHeaders(headers []string) [][2]string {
+	var parsed [][2]string
+	for _, h := range headers {
+		if k, v, ok := strings.Cut(h, "="); ok {
+			k = strings.TrimSpace(k)
+			if k != "" {
+				parsed = append(parsed, [2]string{k, v})
+			}
+		}
+	}
+	return parsed
+}
+
+func applyHeaders(client *httpclient.Client, headers []string) {
+	for _, kv := range parseHeaders(headers) {
+		client.SetHeader(kv[0], kv[1])
+	}
+}
+
+func applyHeadersHTTP(req *http.Request, headers []string) {
+	for _, kv := range parseHeaders(headers) {
+		req.Header.Set(kv[0], kv[1])
+	}
+}
+
+func applyHeadersGRPC(ctx context.Context, headers []string) context.Context {
+	parsed := parseHeaders(headers)
+	if len(parsed) == 0 {
+		return ctx
+	}
+	md, _ := metadata.FromOutgoingContext(ctx)
+	md = md.Copy()
+	for _, kv := range parsed {
+		md.Set(kv[0], kv[1])
+	}
+	return metadata.NewOutgoingContext(ctx, md)
 }
 
 func httpScheme(secure bool) string {

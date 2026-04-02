@@ -27,7 +27,7 @@ import (
 func TestRuntimeConfigOverrides_loadPerTenantOverrides(t *testing.T) {
 	validator := &mockValidator{}
 
-	loader := loadPerTenantOverrides(validator, ConfigTypeNew, false)
+	loader := loadPerTenantOverrides(validator, ConfigTypeNew, false, false)
 
 	perTenantOverrides := perTenantOverrides{
 		TenantLimits: map[string]*Overrides{
@@ -205,7 +205,8 @@ func TestRuntimeConfigOverrides(t *testing.T) {
 
 		t.Run(fmt.Sprintf("%s (legacy)", tt.name), func(t *testing.T) {
 			cfg := Config{
-				Defaults: tt.defaultLimits,
+				Defaults:              tt.defaultLimits,
+				EnableLegacyOverrides: true, // need to enable it to test
 			}
 
 			if tt.perTenantOverrides != nil {

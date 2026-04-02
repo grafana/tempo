@@ -31,7 +31,6 @@ spec:
       containers:
       - args:
         - -config.file=/conf/tempo.yaml
-        - -mem-ballast-size-mbs=1024
         - -target=metrics-generator
         image: grafana/tempo:latest
         name: metrics-generator
