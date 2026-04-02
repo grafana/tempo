@@ -227,7 +227,7 @@
               severity: 'warning',
             },
             annotations: {
-              message: 'Tempo ingest partition {{ $labels.partition }} for live store {{ $labels.group }} is lagging by more than %d seconds in {{ $labels.%s }}/{{ $labels.namespace }}.' % [$._config.alerts.live_store_partition_lag_critical_seconds, $._config.per_cluster_label],
+              message: 'Tempo ingest partition {{ $labels.partition }} for live store {{ $labels.group }} is lagging by {{ $value | humanizeDuration }} (threshold: %ds) in {{ $labels.%s }}/{{ $labels.namespace }}.' % [$._config.alerts.live_store_partition_lag_warning_seconds, $._config.per_cluster_label],
               runbook_url: 'https://github.com/grafana/tempo/tree/main/operations/tempo-mixin/runbook.md#TempoPartitionLag',
             },
           },
@@ -241,7 +241,7 @@
               severity: 'critical',
             },
             annotations: {
-              message: 'A single Tempo live-store owner of partition {{ $labels.partition }} (group {{ $labels.group }}) has been lagging for more than %d seconds in {{ $labels.%s }}/{{ $labels.namespace }}.' % [$._config.alerts.live_store_partition_lag_critical_seconds, $._config.per_cluster_label],
+              message: 'A single Tempo live-store owner of partition {{ $labels.partition }} (group {{ $labels.group }}) is lagging by {{ $value | humanizeDuration }} (threshold: %ds) in {{ $labels.%s }}/{{ $labels.namespace }}.' % [$._config.alerts.live_store_partition_lag_critical_seconds, $._config.per_cluster_label],
               runbook_url: 'https://github.com/grafana/tempo/tree/main/operations/tempo-mixin/runbook.md#TempoLiveStoreSingleMemberLagHigh',
             },
           },
@@ -255,7 +255,7 @@
               severity: 'critical',
             },
             annotations: {
-              message: 'All owners of Tempo live-store partition {{ $labels.partition }} are lagging in {{ $labels.%s }}/{{ $labels.namespace }}. This is a partial read outage.' % [$._config.per_cluster_label],
+              message: 'All owners of Tempo live-store partition {{ $labels.partition }} are lagging by {{ $value | humanizeDuration }} in {{ $labels.%s }}/{{ $labels.namespace }}. This is a partial read outage.' % [$._config.per_cluster_label],
               runbook_url: 'https://github.com/grafana/tempo/tree/main/operations/tempo-mixin/runbook.md#TempoLiveStoreAllMembersLagging',
             },
           },
