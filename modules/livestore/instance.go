@@ -321,6 +321,20 @@ func (i *instance) cutIdleTraces(ctx context.Context, immediate bool) error {
 	sort.Slice(tracesToCut, func(i, j int) bool {
 		return bytes.Compare(tracesToCut[i].ID, tracesToCut[j].ID) == -1
 	})
+	// Ensure head block exists before writing traces
+	i.blocksMtx.Lock()
+	span.AddEvent("acquired blocksMtx")
+	if i.headBlock == nil {
+		if err := i.resetHeadBlock(); err != nil {
+			i.blocksMtx.Unlock()
+			span.AddEvent("released blocksMtx")
+			span.RecordError(err)
+			return err
+		}
+	}
+	i.blocksMtx.Unlock()
+	span.AddEvent("released blocksMtx")
+
 	// Collect the trace IDs that will be flushed
 	span.AddEvent("writing traces to head block")
 	for _, t := range tracesToCut {
@@ -346,23 +360,11 @@ func (i *instance) cutIdleTraces(ctx context.Context, immediate bool) error {
 			span.RecordError(err)
 			return err
 		}
-
-		return nil
 	}
 	return nil
 }
 
 func (i *instance) writeHeadBlock(id []byte, liveTrace *livetraces.LiveTrace[*v1.ResourceSpans]) error {
-	i.blocksMtx.Lock()
-	defer i.blocksMtx.Unlock()
-
-	if i.headBlock == nil {
-		err := i.resetHeadBlock()
-		if err != nil {
-			return err
-		}
-	}
-
 	tr := &tempopb.Trace{
 		ResourceSpans: liveTrace.Batches,
 	}
