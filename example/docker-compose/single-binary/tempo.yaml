@@ -56,7 +56,7 @@ storage:
     backend: s3
     s3:
       bucket: tempo
-      endpoint: minio:9000
+      endpoint: minio:9001
       access_key: tempo
       secret_key: supersecret
       insecure: true
