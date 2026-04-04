@@ -1014,6 +1014,10 @@ func TestHashTraceQLQuery(t *testing.T) {
 	h2 = hashForSearchRequest(&tempopb.SearchRequest{Query: "{ span.foo = `bar` || span.bar = `foo` }"})
 	require.Equal(t, h1, h2)
 
+	h1 = hashForSearchRequest(&tempopb.SearchRequest{Query: "{ span.foo = `bar` || span.bar = `foo` }"})
+	h2 = hashForSearchRequest(&tempopb.SearchRequest{Query: "{ span.bar = `foo` || span.foo = `bar` }"})
+	require.Equal(t, h1, h2)
+
 	// different queries should have different hashes
 	h1 = hashForSearchRequest(&tempopb.SearchRequest{Query: "{ span.foo = `bar` }"})
 	h2 = hashForSearchRequest(&tempopb.SearchRequest{Query: "{ span.foo = `baz` }"})
