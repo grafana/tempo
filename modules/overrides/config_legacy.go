@@ -76,6 +76,7 @@ func (c *Overrides) toLegacy() LegacyOverrides {
 
 		MaxBytesPerTagValuesQuery:  c.Read.MaxBytesPerTagValuesQuery,
 		MaxBlocksPerTagValuesQuery: c.Read.MaxBlocksPerTagValuesQuery,
+		MaxConditionGroups:         c.Read.MaxConditionGroups,
 		MaxSearchDuration:          c.Read.MaxSearchDuration,
 		MaxMetricsDuration:         c.Read.MaxMetricsDuration,
 		UnsafeQueryHints:           c.Read.UnsafeQueryHints,
@@ -160,6 +161,7 @@ type LegacyOverrides struct {
 	// Querier and Ingester enforced limits.
 	MaxBytesPerTagValuesQuery  int `yaml:"max_bytes_per_tag_values_query" json:"max_bytes_per_tag_values_query"`
 	MaxBlocksPerTagValuesQuery int `yaml:"max_blocks_per_tag_values_query" json:"max_blocks_per_tag_values_query"`
+	MaxConditionGroups         int `yaml:"max_condition_groups" json:"max_condition_groups"`
 
 	// QueryFrontend enforced limits
 	MaxSearchDuration    model.Duration `yaml:"max_search_duration" json:"max_search_duration"`
@@ -316,6 +318,7 @@ func (l *LegacyOverrides) toNewLimits() *Overrides {
 		Read: ReadOverrides{
 			MaxBytesPerTagValuesQuery:  l.MaxBytesPerTagValuesQuery,
 			MaxBlocksPerTagValuesQuery: l.MaxBlocksPerTagValuesQuery,
+			MaxConditionGroups:         l.MaxConditionGroups,
 			MaxSearchDuration:          l.MaxSearchDuration,
 			MaxMetricsDuration:         l.MaxMetricsDuration,
 			UnsafeQueryHints:           l.UnsafeQueryHints,

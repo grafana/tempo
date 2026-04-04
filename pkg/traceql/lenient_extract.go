@@ -9,17 +9,19 @@ var ErrMaxConditionGroupsReached = errors.New("maximum condition groups reached"
 
 const emptyQuery = "{}"
 
-// maxConditionGroups caps the number of OR-expanded condition groups to prevent
-// exponential blowup from queries with many OR clauses.
-const maxConditionGroups = 10
+// DefaultMaxConditionGroups is the default cap on the number of OR-expanded condition groups to prevent
+// exponential blowup from queries with many OR clauses. Configurable via overrides.
+const DefaultMaxConditionGroups = 100
 
 // ExtractConditionGroups parses a query string using the lenient parser and returns
-// a groups of conditions. Conditions with OpNone (from incomplete matchers) are filtered out.
+// groups of conditions. Conditions with OpNone (from incomplete matchers) are filtered out.
 //
 // Returns nil if the query is empty or parsing fails completely.
-// if strict is set to false and maxConditionGroups is reached, return nil which will be treated as a match-all query.
-// if strict is set to true and maxConditionGroups is reached, return conditions up to maxConditionGroups.
-func ExtractConditionGroups(query string, strict bool) ([][]Condition, error) {
+// Returns nil, ErrMaxConditionGroupsReached if the number of groups exceeds maxGroups.
+func ExtractConditionGroups(query string, maxGroups int) ([][]Condition, error) {
+	if maxGroups <= 0 {
+		maxGroups = DefaultMaxConditionGroups
+	}
 	query = strings.TrimSpace(query)
 	if len(query) == 0 {
 		return nil, nil
@@ -40,7 +42,7 @@ func ExtractConditionGroups(query string, strict bool) ([][]Condition, error) {
 		return nil, nil
 	}
 
-	groups, reachedMaxGroupsInSplitConditions := splitReqConditions(filter.Expression)
+	groups, reachedMaxGroupsInSplitConditions := splitReqConditions(filter.Expression, maxGroups)
 	for i := range groups {
 		// Filter out OpNone conditions — these are column-fetch hints (bare attributes,
 		// structural intrinsics), not filterable conditions.
@@ -58,20 +60,12 @@ func ExtractConditionGroups(query string, strict bool) ([][]Condition, error) {
 		groups[i] = conditions
 	}
 
-	var reachedMaxGroup bool
-
-	if len(groups) > maxConditionGroups {
-		groups = groups[:maxConditionGroups]
-		reachedMaxGroup = true
+	if len(groups) > maxGroups {
+		return nil, ErrMaxConditionGroupsReached
 	}
 
-	if (reachedMaxGroupsInSplitConditions || reachedMaxGroup) && strict {
-		return groups, ErrMaxConditionGroupsReached
-	}
-
-	if reachedMaxGroupsInSplitConditions || reachedMaxGroup {
-		// If we've reached the max group limit, return nil to indicate a match-all query.
-		return nil, nil
+	if reachedMaxGroupsInSplitConditions {
+		return nil, ErrMaxConditionGroupsReached
 	}
 
 	return groups, nil
@@ -137,7 +131,7 @@ type conditionOperation struct {
 // Example: { (.a="1" || .b="2") && .c="3" } produces two groups:
 //   - [.a="1", .c="3"]
 //   - [.b="2", .c="3"]
-func splitReqConditions(expr FieldExpression) ([][]Condition, bool) {
+func splitReqConditions(expr FieldExpression, maxGroups int) ([][]Condition, bool) {
 	var reachedMaxGroups bool
 	var ops []conditionOperation
 	flattenExprToOperations(expr, &ops, nil, OpNone)
@@ -146,8 +140,8 @@ func splitReqConditions(expr FieldExpression) ([][]Condition, bool) {
 	for _, op := range ops {
 		if op.opType == OpOr {
 			totalGroups *= len(op.conditions)
-			if totalGroups > maxConditionGroups {
-				totalGroups = maxConditionGroups
+			if totalGroups > maxGroups {
+				totalGroups = maxGroups
 				break
 			}
 		}
@@ -177,8 +171,8 @@ func splitReqConditions(expr FieldExpression) ([][]Condition, bool) {
 		}
 		if op.opType == OpOr {
 			repeats *= len(op.conditions)
-			if repeats > maxConditionGroups {
-				repeats = maxConditionGroups
+			if repeats > maxGroups {
+				repeats = maxGroups
 				reachedMaxGroups = true
 			}
 		}

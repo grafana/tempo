@@ -695,12 +695,12 @@ func (q *Querier) internalTagsSearchBlockV2(ctx context.Context, req *tempopb.Se
 	opts.StartPage = int(req.StartPage)
 	opts.TotalPages = int(req.PagesToSearch)
 
-	conditionGroups, extractConditionErr := traceql.ExtractConditionGroups(req.SearchReq.Query, req.Strict)
+	conditionGroups, err := traceql.ExtractConditionGroups(req.SearchReq.Query, q.limits.MaxConditionGroups())
+	if err != nil {
+		return nil, err
+	}
 	if len(conditionGroups) == 0 {
 		return q.store.SearchTags(ctx, meta, req, opts)
-	}
-	if extractConditionErr != nil {
-		level.Warn(log.Logger).Log("msg", "OR condition groups exceeded limit, tag names search will use truncated conditions", "error", extractConditionErr.Error())
 	}
 
 	valueCollector := collector.NewScopedDistinctString(q.limits.MaxBytesPerTagValuesQuery(tenantID), req.MaxTagsPerScope, req.StaleValueThreshold)
@@ -811,12 +811,12 @@ func (q *Querier) internalTagValuesSearchBlockV2(ctx context.Context, req *tempo
 	opts.StartPage = int(req.StartPage)
 	opts.TotalPages = int(req.PagesToSearch)
 
-	conditionGroups, extractConditionErr := traceql.ExtractConditionGroups(req.SearchReq.Query, req.Strict)
+	conditionGroups, err := traceql.ExtractConditionGroups(req.SearchReq.Query, q.limits.MaxConditionGroups())
+	if err != nil {
+		return nil, err
+	}
 	if len(conditionGroups) == 0 {
 		return q.store.SearchTagValuesV2(ctx, meta, req.SearchReq, opts)
-	}
-	if extractConditionErr != nil {
-		level.Warn(log.Logger).Log("msg", "OR condition groups exceeded limit, tag values search will use truncated conditions", "error", extractConditionErr.Error())
 	}
 
 	tag, err := traceql.ParseIdentifier(req.SearchReq.TagName)

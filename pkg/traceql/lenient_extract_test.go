@@ -195,7 +195,7 @@ func TestExtractConditionGroups(t *testing.T) {
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			conditionGroups, _ := ExtractConditionGroups(tc.query, false)
+			conditionGroups, _ := ExtractConditionGroups(tc.query, DefaultMaxConditionGroups)
 			assert.Equal(t, tc.count, len(conditionGroups))
 		})
 	}
@@ -521,40 +521,50 @@ func TestSplitReqConditionGroups(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			conditions, err := ExtractConditionGroups(tc.query, false)
+			conditions, err := ExtractConditionGroups(tc.query, DefaultMaxConditionGroups)
 			assert.NoError(t, err)
 			assert.Equal(t, tc.expected, conditions)
 		})
 	}
 }
 
-func TestSplitReqConditionGroupsStrictMode(t *testing.T) {
+func TestSplitReqConditionGroupsMaxGroups(t *testing.T) {
+	longQuery := `{ .attr = "123" || .service = "b" || .team = "dev" || .service = "a" || .env = "staging"  || .foo = "bar" || .bar = "foo" || .baz = "qux" || .quux = "corge" || .grault = "garply" || .waldo = "fred" || .plugh = "xyzzy" || .thud = "mno" }`
 	testCases := []struct {
-		name, query    string
+		name           string
+		query          string
+		maxGroups      int
 		expectedLength int
 		expectError    bool
-		strict         bool
 	}{
 		{
-			name:           "max groups reached - strict",
-			query:          `{ .attr = "123" || .service = "b" || .team = "dev" || .service = "a" || .env = "staging"  || .foo = "bar" || .bar = "foo" || .baz = "qux" || .quux = "corge" || .grault = "garply" || .waldo = "fred" || .plugh = "xyzzy" || .thud = "mno" }`,
-			expectedLength: 10,
+			name:           "max groups reached - limit of 10",
+			query:          longQuery,
+			maxGroups:      10,
+			expectedLength: 0,
 			expectError:    true,
-			strict:         true,
 		},
 		{
-			name:           "max groups reached - not strict",
-			query:          `{ .attr = "123" || .service = "b" || .team = "dev" || .service = "a" || .env = "staging"  || .foo = "bar" || .bar = "foo" || .baz = "qux" || .quux = "corge" || .grault = "garply" || .waldo = "fred" || .plugh = "xyzzy" || .thud = "mno" }`,
-			expectedLength: 0, // returns nil when max groups is reached
+			name:           "max groups reached - limit of 5",
+			query:          longQuery,
+			maxGroups:      5,
+			expectedLength: 0,
+			expectError:    true,
+		},
+		{
+			name:           "within limit - default limit",
+			query:          `{ .a = "1" || .b = "2" || .c = "3" }`,
+			maxGroups:      DefaultMaxConditionGroups,
+			expectedLength: 3,
 			expectError:    false,
 		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			conditions, err := ExtractConditionGroups(tc.query, tc.strict)
+			conditions, err := ExtractConditionGroups(tc.query, tc.maxGroups)
 			if tc.expectError {
-				assert.Error(t, err)
+				assert.ErrorIs(t, err, ErrMaxConditionGroupsReached)
 			} else {
 				assert.NoError(t, err)
 			}

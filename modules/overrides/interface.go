@@ -40,6 +40,7 @@ type Interface interface {
 	Forwarders(userID string) []string
 	MaxBytesPerTagValuesQuery(userID string) int
 	MaxBlocksPerTagValuesQuery(userID string) int
+	MaxConditionGroups() int
 	IngestionRateLimitBytes(userID string) float64
 	IngestionBurstSizeBytes(userID string) int
 	IngestionTenantShardSize(userID string) int
