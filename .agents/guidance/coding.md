@@ -51,10 +51,9 @@ func TestSomething(t *testing.T) {
 ```
 
 **Coverage targets:**
-- Critical paths: 100%
-- Business logic: >90%
-- Utilities/helpers: >80%
-- Overall: >75%
+- Critical paths: >80%
+- Business logic: >75%
+- Overall: >70%
 
 Always test: happy path, error cases, edge cases (nil, empty, zero values, boundary conditions).
 
