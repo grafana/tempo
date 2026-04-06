@@ -97,7 +97,7 @@ if errors.As(err, &notFoundErr) { ... }
 if err == ErrNotFound { ... }
 ```
 
-**Never panic.** Use error returns for all failures. The only exception is truly unrecoverable programming errors at startup (e.g., invalid hard-coded invariants) — and even then, prefer `log.Fatal`.
+**Never panic.** Use error returns for all failures. If initialization truly cannot continue, return an error up to `main` and exit there.
 
 ---
 
