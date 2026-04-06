@@ -2,6 +2,7 @@ package traceql
 
 import (
 	"errors"
+	"fmt"
 	"strings"
 )
 
@@ -58,10 +59,6 @@ func ExtractConditionGroups(query string, maxGroups int) ([][]Condition, error) 
 			return nil, nil
 		}
 		groups[i] = conditions
-	}
-
-	if len(groups) > maxGroups {
-		return nil, ErrMaxConditionGroupsReached
 	}
 
 	if reachedMaxGroupsInSplitConditions {
@@ -202,8 +199,9 @@ func deduplicateConditionBranches(branches [][]Condition) [][]Condition {
 			sb.WriteByte('\x00')
 			sb.WriteString(c.Op.String())
 			for _, o := range c.Operands {
-				sb.WriteByte('\x00')
-				sb.WriteString(o.String())
+				// Use %q to escape any bytes (including \x00/\x01 separators) so operand
+				// values cannot cause false key collisions.
+				fmt.Fprintf(&sb, "\x00%q", o.String())
 			}
 			sb.WriteByte('\x01')
 		}

@@ -53,9 +53,18 @@ func (b *backendBlock) FetchTagNames(ctx context.Context, req traceql.FetchTagsR
 	}
 
 	for _, condGroup := range req.ConditionGroups {
-		err := checkConditions(condGroup)
-		if err != nil {
+		if err := checkConditions(condGroup); err != nil {
 			return errors.Wrap(err, "conditions invalid")
+		}
+		mingledConditions, _, _, _, err := categorizeConditions(condGroup)
+		if err != nil {
+			return err
+		}
+		// Last check. No conditions, use old path. It's much faster.
+		if (len(req.ConditionGroups) == 1 && len(condGroup) < 1) || mingledConditions {
+			return b.SearchTags(ctx, req.Scope, func(t string, scope traceql.AttributeScope) {
+				cb(t, scope)
+			}, mcb, opts)
 		}
 	}
 
@@ -74,18 +83,6 @@ func (b *backendBlock) FetchTagNames(ctx context.Context, req traceql.FetchTagsR
 	}
 
 	for _, condGroup := range req.ConditionGroups {
-		mingledConditions, _, _, _, err := categorizeConditions(condGroup)
-		if err != nil {
-			return err
-		}
-
-		// Last check. No conditions, use old path. It's much faster.
-		if (len(req.ConditionGroups) == 1 && len(condGroup) < 1) || mingledConditions {
-			return b.SearchTags(ctx, req.Scope, func(t string, scope traceql.AttributeScope) {
-				cb(t, scope)
-			}, mcb, opts)
-		}
-
 		tr := tagRequest{
 			conditions:    condGroup,
 			scope:         req.Scope,
@@ -192,9 +189,17 @@ func (b *backendBlock) FetchTagValues(ctx context.Context, req traceql.FetchTagV
 	}
 
 	for _, condGroup := range req.ConditionGroups {
-		err := checkConditions(condGroup)
-		if err != nil {
+		if err := checkConditions(condGroup); err != nil {
 			return errors.Wrap(err, "conditions invalid")
+		}
+		mingledConditions, _, _, _, err := categorizeConditions(condGroup)
+		if err != nil {
+			return err
+		}
+		// Last check. No conditions, use old path. It's much faster.
+		// <= 1 because we always have an OpNone condition for the tag name
+		if (len(req.ConditionGroups) == 1 && len(condGroup) <= 1) || mingledConditions {
+			return b.SearchTagValuesV2(ctx, req.TagName, common.TagValuesCallbackV2(cb), mcb, common.DefaultSearchOptions())
 		}
 	}
 
@@ -214,17 +219,6 @@ func (b *backendBlock) FetchTagValues(ctx context.Context, req traceql.FetchTagV
 	}
 
 	for _, condGroup := range req.ConditionGroups {
-		mingledConditions, _, _, _, err := categorizeConditions(condGroup)
-		if err != nil {
-			return err
-		}
-
-		// Last check. No conditions, use old path. It's much faster.
-		// <= 1 because we always have an OpNone condition for the tag name
-		if (len(req.ConditionGroups) == 1 && len(condGroup) <= 1) || mingledConditions {
-			return b.SearchTagValuesV2(ctx, req.TagName, common.TagValuesCallbackV2(cb), mcb, common.DefaultSearchOptions())
-		}
-
 		tr := tagRequest{
 			conditions:     condGroup,
 			tag:            req.TagName,

@@ -694,6 +694,20 @@ func (b *walBlock) FetchTagValues(ctx context.Context, req traceql.FetchTagValue
 		return b.SearchTagValuesV2(ctx, req.TagName, common.TagValuesCallbackV2(cb), mcb, common.DefaultSearchOptions())
 	}
 
+	// Validate all condition groups upfront before opening any files.
+	for _, condGroup := range req.ConditionGroups {
+		if err := checkConditions(condGroup); err != nil {
+			return fmt.Errorf("conditions invalid: %w", err)
+		}
+		mingledConditions, _, _, _, err := categorizeConditions(condGroup)
+		if err != nil {
+			return err
+		}
+		if len(req.ConditionGroups) == 1 && len(condGroup) <= 1 || mingledConditions { // Last check. No conditions, use old path. It's much faster.
+			return b.SearchTagValuesV2(ctx, req.TagName, common.TagValuesCallbackV2(cb), mcb, common.DefaultSearchOptions())
+		}
+	}
+
 	// track sent tag values to avoid duplicates. this is a perf improvement
 	sentVals := make(map[traceql.StaticMapKey]struct{})
 	existsTagValue := func(val traceql.Static) bool {
@@ -702,30 +716,18 @@ func (b *walBlock) FetchTagValues(ctx context.Context, req traceql.FetchTagValue
 		return ok
 	}
 
+	// Open each WAL page file once and run all condition groups against it to avoid
+	// reopening the file once per condition group.
 	blockFlushes := b.readFlushes()
-	for _, condGroup := range req.ConditionGroups {
-		err := checkConditions(condGroup)
-		if err != nil {
-			return fmt.Errorf("conditions invalid: %w", err)
-		}
+	for _, page := range blockFlushes {
+		done, err := func() (bool, error) {
+			file, err := page.file(ctx)
+			if err != nil {
+				return false, fmt.Errorf("error opening file %s: %w", page.path, err)
+			}
+			defer file.Close()
 
-		mingledConditions, _, _, _, err := categorizeConditions(condGroup)
-		if err != nil {
-			return err
-		}
-
-		if len(req.ConditionGroups) == 1 && len(condGroup) <= 1 || mingledConditions { // Last check. No conditions, use old path. It's much faster.
-			return b.SearchTagValuesV2(ctx, req.TagName, common.TagValuesCallbackV2(cb), mcb, common.DefaultSearchOptions())
-		}
-
-		for _, page := range blockFlushes {
-			done, err := func() (bool, error) {
-				file, err := page.file(ctx)
-				if err != nil {
-					return false, fmt.Errorf("error opening file %s: %w", page.path, err)
-				}
-				defer file.Close()
-
+			for _, condGroup := range req.ConditionGroups {
 				tr := tagRequest{
 					conditions:     condGroup,
 					tag:            req.TagName,
@@ -759,15 +761,15 @@ func (b *walBlock) FetchTagValues(ctx context.Context, req traceql.FetchTagValue
 					}
 				}
 				iter.Close()
-				mcb(file.r.BytesRead()) // record bytes read
-				return false, nil
-			}()
-			if err != nil {
-				return err
 			}
-			if done {
-				return nil
-			}
+			mcb(file.r.BytesRead()) // record bytes read
+			return false, nil
+		}()
+		if err != nil {
+			return err
+		}
+		if done {
+			return nil
 		}
 	}
 
