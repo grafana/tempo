@@ -28,7 +28,7 @@ Because Kafka provides durability on the write path,
 Tempo doesn't need to replicate data across multiple instances.
 This replication factor of 1 significantly reduces cost and query complexity.
 
-Tempo uses Apache Parquet as default columnar block format. 
+Tempo uses Apache Parquet as default columnar block format.
 Storing trace data in a columnar layout that enables efficient querying of specific attributes without reading entire traces.
 
 Refer to [Apache Parquet block format configuration](/docs/tempo/<TEMPO_VERSION>/configuration/parquet/) and [Apache Parquet schema](/docs/tempo/<TEMPO_VERSION>/operations/schema/) to learn more.
@@ -37,15 +37,13 @@ Refer to [Apache Parquet block format configuration](/docs/tempo/<TEMPO_VERSION>
 
 The write path gets trace data from instrumented applications into long-term object storage.
 
-```
-Application -> Distributor -> Kafka -> Block-builder -> Object storage
-```
+<p align="center"><img src="tempo-write-path.svg" alt="Tempo write path: Application to Distributor to Kafka to Block-builder to Object storage"></p>
 
 1. Distributors receive trace data over OTLP or other supported protocols,
 validate it against rate limits, shard traces by trace ID, and write records to Kafka partitions.
-2. Kafka durably stores the records.
+1. Kafka durably stores the records.
 The write is acknowledged to the client as soon as Kafka confirms receipt.
-3. Block-builders consume records from Kafka, organize spans into blocks in Apache Parquet format,
+1. Block-builders consume records from Kafka, organize spans into blocks in Apache Parquet format,
 and flush those blocks to object storage.
 
 The block-builder operates on a consumption cycle: it reads a batch of records from Kafka,
@@ -57,16 +55,13 @@ Traces that span multiple cycles have their spans split across blocks, which the
 
 The read path serves queries by combining recent data from live-stores with historical data from object storage.
 
-```
-Client -> Query frontend -> Querier -> Live-store (recent data)
-                                    -> Object storage (historical data)
-```
+<p align="center"><img src="tempo-read-path.svg" alt="Tempo read path: Client to Query frontend to Querier, branching to Live-store and Object storage"></p>
 
 1. The query frontend receives a query, shards it into parallel jobs, and distributes them to queriers.
-2. Queriers execute jobs by fetching data from two sources:
+1. Queriers execute jobs by fetching data from two sources:
 live-stores for recent data (typically the last 30 minutes to 1 hour) and object storage for historical data,
 using bloom filters and indexes for efficient block lookups.
-3. The query frontend merges results from all queriers and returns the response.
+1. The query frontend merges results from all queriers and returns the response.
 
 ## Live-stores and the recent data window
 
@@ -89,7 +84,7 @@ The write and read paths connect through two mechanisms:
 
 1. Kafka is the shared source of truth. Both block-builders and live-stores consume from the same Kafka partitions,
 but they track their own consumer offsets independently.
-2. Object storage is where the paths converge. Block-builders write blocks there; queriers read from there.
+1. Object storage is where the paths converge. Block-builders write blocks there; queriers read from there.
 
 Even if a block-builder is down or slow, live-stores continue serving recent data.
 If a live-store restarts, it replays from Kafka to rebuild its in-memory state.
@@ -99,11 +94,11 @@ The two paths are resilient to independent failures.
 
 | Component | Path | Responsibility |
 |---|---|---|
-| Distributor | Write | Receives traces, validates limits, writes to Kafka |
-| Kafka | Write | Durable message queue between distributor and consumers |
-| Block-builder | Write | Consumes from Kafka, builds Parquet blocks, flushes to object storage |
-| Live-store | Read | Consumes from Kafka, serves recent data to queriers |
-| Query frontend | Read | Shards queries into jobs, distributes to queriers, merges results |
-| Querier | Read | Executes query jobs against live-stores and object storage |
-| Backend scheduler/worker | Maintenance | Compacts and deduplicates blocks, enforces retention |
-| Metrics-generator | Optional | Consumes from Kafka, derives metrics from traces |
+| [Distributor](../components/distributor/) | Write | Receives traces, validates limits, writes to Kafka |
+| [Kafka](../components/kafka/) | Write | Durable message queue between distributor and consumers |
+| [Block-builder](../components/block-builder/) | Write | Consumes from Kafka, builds Parquet blocks, flushes to object storage |
+| [Live-store](../components/live-store/) | Read | Consumes from Kafka, serves recent data to queriers |
+| [Query frontend](../components/query-frontend/) | Read | Shards queries into jobs, distributes to queriers, merges results |
+| [Querier](../components/querier/) | Read | Executes query jobs against live-stores and object storage |
+| [Backend scheduler/worker](../components/compaction/) | Maintenance | Compacts and deduplicates blocks, enforces retention |
+| [Metrics-generator](../components/metrics-generator/) | Optional | Consumes from Kafka, derives metrics from traces |
