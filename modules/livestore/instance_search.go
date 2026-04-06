@@ -661,11 +661,32 @@ func (i *instance) QueryRange(ctx context.Context, req *tempopb.QueryRangeReques
 
 	e := traceql.NewEngine()
 
+	expr, err := traceql.Parse(req.Query)
+	if err != nil {
+		return nil, fmt.Errorf("compiling query: %w", err)
+	}
+
+	var compileOpts []traceql.CompileMetricsQueryRangeOption
+
+	unsafe := i.overrides.UnsafeQueryHints(i.tenantID)
+	if unsafe {
+		compileOpts = append(compileOpts, traceql.WithUnsafeQueryHints(true))
+	}
+
+	if v, ok := expr.Hints.GetFloat(traceql.HintTimeOverlapCutoff, unsafe); ok && v >= 0 && v <= 1.0 {
+		compileOpts = append(compileOpts, traceql.WithTimeOverlapCutoff(v))
+	} else {
+		compileOpts = append(compileOpts, traceql.WithTimeOverlapCutoff(i.Cfg.Metrics.TimeOverlapCutoff))
+	}
+
+	if p := i.overrides.MetricsSpanOnlyFetch(i.tenantID); p != nil {
+		compileOpts = append(compileOpts, traceql.WithSpanOnlyFetch(*p))
+	}
+
 	// Compile the raw version of the query for head and wal blocks
 	// These aren't cached and we put them all into the same evaluator
 	// for efficiency.
-	// TODO MRD look into how to propagate unsafe query hints.
-	rawEval, err := e.CompileMetricsQueryRange(req, i.Cfg.Metrics.TimeOverlapCutoff, false)
+	rawEval, err := e.CompileMetricsQueryRange(req, compileOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -680,18 +701,6 @@ func (i *instance) QueryRange(ctx context.Context, req *tempopb.QueryRangeReques
 	cutoff := time.Now().Add(-i.Cfg.CompleteBlockTimeout).Add(-timeBuffer)
 	if req.Start < uint64(cutoff.UnixNano()) {
 		return nil, fmt.Errorf("time range must be within last %v", i.Cfg.CompleteBlockTimeout)
-	}
-
-	expr, err := traceql.Parse(req.Query)
-	if err != nil {
-		return nil, fmt.Errorf("compiling query: %w", err)
-	}
-
-	unsafe := i.overrides.UnsafeQueryHints(i.tenantID)
-
-	timeOverlapCutoff := i.Cfg.Metrics.TimeOverlapCutoff
-	if v, ok := expr.Hints.GetFloat(traceql.HintTimeOverlapCutoff, unsafe); ok && v >= 0 && v <= 1.0 {
-		timeOverlapCutoff = v
 	}
 
 	maxSeries := int(req.MaxSeries)
@@ -712,7 +721,7 @@ func (i *instance) QueryRange(ctx context.Context, req *tempopb.QueryRangeReques
 		}
 
 		if localBlock, ok := b.(*LocalBlock); ok {
-			resp, err := i.queryRangeCompleteBlock(ctx, localBlock, *req, timeOverlapCutoff, unsafe)
+			resp, err := i.queryRangeCompleteBlock(ctx, localBlock, *req, compileOpts)
 			if err != nil {
 				return err
 			}
@@ -771,7 +780,7 @@ func (i *instance) queryRangeWALBlock(ctx context.Context, b common.WALBlock, ev
 	return eval.Do(ctx, fetcher, uint64(m.StartTime.UnixNano()), uint64(m.EndTime.UnixNano()), maxSeries)
 }
 
-func (i *instance) queryRangeCompleteBlock(ctx context.Context, b *LocalBlock, req tempopb.QueryRangeRequest, timeOverlapCutoff float64, unsafe bool) ([]*tempopb.TimeSeries, error) {
+func (i *instance) queryRangeCompleteBlock(ctx context.Context, b *LocalBlock, req tempopb.QueryRangeRequest, compileOpts []traceql.CompileMetricsQueryRangeOption) ([]*tempopb.TimeSeries, error) {
 	m := b.BlockMeta()
 	ctx, span := tracer.Start(ctx, "instance.QueryRange.CompleteBlock", oteltrace.WithAttributes(
 		attribute.String("block", m.BlockID.String()),
@@ -801,7 +810,7 @@ func (i *instance) queryRangeCompleteBlock(ctx context.Context, b *LocalBlock, r
 	}
 
 	// Not in cache or not cacheable, so execute
-	eval, err := traceql.NewEngine().CompileMetricsQueryRange(&req, timeOverlapCutoff, unsafe)
+	eval, err := traceql.NewEngine().CompileMetricsQueryRange(&req, compileOpts...)
 	if err != nil {
 		return nil, err
 	}
