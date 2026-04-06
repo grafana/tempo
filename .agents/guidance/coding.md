@@ -50,7 +50,7 @@ func TestSomething(t *testing.T) {
 }
 ```
 
-**Coverage targets:**
+**Coverage targets** (guidelines, not hard rules — the goal is always to improve coverage, not just meet a number):
 - Critical paths: >80%
 - Business logic: >75%
 - Overall: >70%
