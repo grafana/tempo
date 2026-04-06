@@ -77,7 +77,7 @@ Focus: Error handling consistency, silent failures, missing checks.
 - Missing error wrapping context — use `fmt.Errorf("...: %w", err)`
 - Errors logged but not returned, or returned but not logged
 - Missing timeout handling on external calls
-- Panic used instead of error return
+- **Panic used instead of error return** — never panic; use error returns for all failures
 
 ```bash
 # Errors silenced

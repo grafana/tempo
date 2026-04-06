@@ -97,7 +97,7 @@ if errors.As(err, &notFoundErr) { ... }
 if err == ErrNotFound { ... }
 ```
 
-**When to panic:** Only for programming errors that are unrecoverable (e.g., invalid invariants at startup). Never for operational failures.
+**Never panic.** Use error returns for all failures. The only exception is truly unrecoverable programming errors at startup (e.g., invalid hard-coded invariants) — and even then, prefer `log.Fatal`.
 
 ---
 
