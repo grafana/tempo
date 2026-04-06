@@ -40,7 +40,6 @@ const (
 	urlParamExemplars       = "exemplars"
 	urlMaxSeries            = "maxSeries"
 	urlInstant              = "instant"
-	urlStrict               = "strict"
 
 	// backend search querier
 	urlParamStartPage        = "startPage"

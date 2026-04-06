@@ -412,8 +412,6 @@ Parameters:
   Default = `all`
 - `q = (traceql query)`
   Optional. A TraceQL query to filter tag names by. Supports `&&` and `||` operators within a single spanset. For example: `{ span.foo = "bar" && resource.baz = "bat" }` or `{ span.foo = "bar" || resource.baz = "bat" }`. See also [Filtered tag values](#filtered-tag-values).
-- `strict = (true|false)`
-  Optional. Controls behavior when the query's OR expansion exceeds the internal group limit. If `true`, Tempo returns results for as many OR-expanded groups as possible and signals that the results may be incomplete. If `false` (default), Tempo falls back to an unfiltered search when the limit is exceeded.
 - `start = (unix epoch seconds)`
   Optional. Along with `end` define a time range from which tags should be returned.
 - `end = (unix epoch seconds)`
@@ -611,8 +609,6 @@ Parameters:
   Optional. Along with `start`, defines a time range from which tags values should be returned. Providing both `start` and `end` includes blocks for the specified time range only.
 - `q = (traceql query)`
   Optional. A TraceQL query to filter tag values by. Supports `&&` and `||` operators within a single spanset. For example: `{ span.foo = "bar" && resource.baz = "bat" }` or `{ span.foo = "bar" || resource.baz = "bat" }`. Refer to [Filtered tag values](#filtered-tag-values).
-- `strict = (true|false)`
-  Optional. Controls behavior when the query's OR expansion exceeds the internal group limit. If `true`, Tempo returns results for as many OR-expanded groups as possible and signals that the results may be incomplete. If `false` (default), Tempo falls back to an unfiltered search when the limit is exceeded.
 - `limit = (integer)`
   Optional. Limits the maximum number of tags values
 - `maxStaleValues = (integer)`
