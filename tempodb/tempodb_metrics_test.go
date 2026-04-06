@@ -1208,11 +1208,11 @@ func TestTempoDBQueryRange(t *testing.T) {
 		}
 
 		t.Run(tc.name, func(t *testing.T) {
-			runTestWithHint(t, traceql.WithNewFetch(false))
+			runTestWithHint(t, traceql.WithSpanOnlyFetch(false))
 		})
 
 		t.Run(tc.name+"/new", func(t *testing.T) {
-			runTestWithHint(t, traceql.WithNewFetch(true))
+			runTestWithHint(t, traceql.WithSpanOnlyFetch(true))
 		})
 	}
 

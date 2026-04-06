@@ -99,8 +99,8 @@ func (q *Querier) queryBlock(ctx context.Context, req *tempopb.QueryRangeRequest
 		compileOpts = append(compileOpts, traceql.WithTimeOverlapCutoff(q.cfg.Metrics.TimeOverlapCutoff))
 	}
 
-	if p := q.limits.MetricsNewFetch(tenantID); p != nil {
-		compileOpts = append(compileOpts, traceql.WithNewFetch(*p))
+	if p := q.limits.MetricsSpanOnlyFetch(tenantID); p != nil {
+		compileOpts = append(compileOpts, traceql.WithSpanOnlyFetch(*p))
 	}
 
 	eval, err := traceql.NewEngine().CompileMetricsQueryRange(req, compileOpts...)

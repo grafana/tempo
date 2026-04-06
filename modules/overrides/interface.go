@@ -89,7 +89,7 @@ type Interface interface {
 	DedicatedColumns(userID string) backend.DedicatedColumns
 	UnsafeQueryHints(userID string) bool
 	LeftPadTraceIDs(userID string) bool
-	MetricsNewFetch(userID string) *bool
+	MetricsSpanOnlyFetch(userID string) *bool
 	CostAttributionMaxCardinality(userID string) uint64
 	CostAttributionDimensions(userID string) map[string]string
 

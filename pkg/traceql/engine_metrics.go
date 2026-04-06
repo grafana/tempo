@@ -978,22 +978,21 @@ func (e *Engine) CompileMetricsQueryRangeNonRaw(req *tempopb.QueryRangeRequest, 
 	return mfe, nil
 }
 
-// CompileMetricsQueryRangeOption configures [Engine.CompileMetricsQueryRange] via [WithNewFetch],
-// [WithTimeOverlapCutoff], and [WithUnsafeQueryHints].
+// CompileMetricsQueryRangeOption are options for [Engine.CompileMetricsQueryRange].
 type CompileMetricsQueryRangeOption func(*compileMetricsQueryRangeConfig)
 
 type compileMetricsQueryRangeConfig struct {
-	newFetch *bool
+	spanOnlyFetch *bool
 
 	timeOverlapCutoff     float64
 	allowUnsafeQueryHints bool
 }
 
-// WithNewFetch sets the span-level fetch path; with(new_fetch=...) overwrites when honored.
-func WithNewFetch(v bool) CompileMetricsQueryRangeOption {
+// WithSpanOnlyFetch sets whether to use the span-only fetch path. When not set the default is used, and
+// this may be overridden by the query hint.
+func WithSpanOnlyFetch(v bool) CompileMetricsQueryRangeOption {
 	return func(o *compileMetricsQueryRangeConfig) {
-		b := v
-		o.newFetch = &b
+		o.spanOnlyFetch = &v
 	}
 }
 
@@ -1101,11 +1100,11 @@ func (e *Engine) CompileMetricsQueryRange(req *tempopb.QueryRangeRequest, opts .
 
 	// Determine usage of new fetch layer.
 	// Hint in the query takes precedence over passed in options which are hard-coded or from tenant config.
-	if cfg.newFetch != nil {
-		me.newFetch = *cfg.newFetch
+	if cfg.spanOnlyFetch != nil {
+		me.spanOnlyFetch = *cfg.spanOnlyFetch
 	}
 	if b, ok := expr.Hints.GetBool(HintNewFetch, cfg.allowUnsafeQueryHints); ok {
-		me.newFetch = b
+		me.spanOnlyFetch = b
 	}
 
 	// If the request range is fully aligned to the step, then we can use lower
@@ -1271,7 +1270,7 @@ type MetricsEvaluator struct {
 	start, end                      uint64
 	checkTime                       bool
 	needsFullTrace                  bool
-	newFetch                        bool
+	spanOnlyFetch                   bool
 	maxExemplars, exemplarCount     int
 	exemplarMap                     map[string]struct{}
 	timeOverlapCutoff               float64
@@ -1300,7 +1299,7 @@ func timeRangeOverlap(reqStart, reqEnd, dataStart, dataEnd uint64) float64 {
 // uses the known time range of the data for last-minute optimizations. Time range is unix nanos
 
 func (e *MetricsEvaluator) Do(ctx context.Context, f SpansetFetcher, fetcherStart, fetcherEnd uint64, maxSeries int) error {
-	if !e.needsFullTrace && e.newFetch {
+	if !e.needsFullTrace && e.spanOnlyFetch {
 		// The query can operate at a span level so attempt.
 		// This is faster. If not supported then fallback to spanset level.
 		err := e.DoSpansOnly(ctx, f, fetcherStart, fetcherEnd, maxSeries)

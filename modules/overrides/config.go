@@ -174,9 +174,9 @@ type ReadOverrides struct {
 	// This produces W3C/OpenTelemetry compliant trace IDs (32-hex-character lowercase strings).
 	LeftPadTraceIDs bool `yaml:"left_pad_trace_ids,omitempty" json:"left_pad_trace_ids,omitempty"`
 
-	// MetricsNewFetch, when set, enables or disables the new fetch layer by default for TraceQL metrics queries
+	// MetricsSpanOnlyFetch, when set, enables or disables the new fetch layer by default for TraceQL metrics queries
 	// for this tenant.  When not set, then the default behavior is used. Maybe be overridden by query hints.
-	MetricsNewFetch *bool `yaml:"metrics_new_fetch,omitempty" json:"metrics_new_fetch,omitempty"`
+	MetricsSpanOnlyFetch *bool `yaml:"metrics_spanonly_fetch,omitempty" json:"metrics_spanonly_fetch,omitempty"`
 }
 
 type CompactionOverrides struct {

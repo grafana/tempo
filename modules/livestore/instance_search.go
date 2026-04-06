@@ -679,8 +679,8 @@ func (i *instance) QueryRange(ctx context.Context, req *tempopb.QueryRangeReques
 		compileOpts = append(compileOpts, traceql.WithTimeOverlapCutoff(i.Cfg.Metrics.TimeOverlapCutoff))
 	}
 
-	if p := i.overrides.MetricsNewFetch(i.tenantID); p != nil {
-		compileOpts = append(compileOpts, traceql.WithNewFetch(*p))
+	if p := i.overrides.MetricsSpanOnlyFetch(i.tenantID); p != nil {
+		compileOpts = append(compileOpts, traceql.WithSpanOnlyFetch(*p))
 	}
 
 	// Compile the raw version of the query for head and wal blocks
