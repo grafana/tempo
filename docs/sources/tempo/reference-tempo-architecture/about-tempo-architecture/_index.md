@@ -10,7 +10,7 @@ versionDate: 2026-03-20
 # About Tempo's architecture
 
 Grafana Tempo is a distributed tracing backend designed for high-volume trace ingestion and querying at scale.
-Tempo 3.0 introduces a fundamentally new architecture that decouples the write and read paths using a Kafka-compatible message queue as a durable intermediary.
+Tempo 3.0 introduces a new architecture that decouples the write and read paths using a Kafka-compatible message queue as a durable intermediary.
 
 ## Design philosophy
 
@@ -28,8 +28,10 @@ Because Kafka provides durability on the write path,
 Tempo doesn't need to replicate data across multiple instances.
 This replication factor of 1 significantly reduces cost and query complexity.
 
-Tempo uses Apache Parquet as its data format,
-storing trace data in a columnar layout that enables efficient querying of specific attributes without reading entire traces.
+Tempo uses Apache Parquet as default columnar block format. 
+Storing trace data in a columnar layout that enables efficient querying of specific attributes without reading entire traces.
+
+Refer to [Apache Parquet block format configuration](/docs/tempo/<TEMPO_VERSION>/configuration/parquet/) and [Apache Parquet schema](/docs/tempo/<TEMPO_VERSION>/operations/schema/) to learn more.
 
 ## Write path
 
@@ -39,7 +41,7 @@ The write path gets trace data from instrumented applications into long-term obj
 Application -> Distributor -> Kafka -> Block-builder -> Object storage
 ```
 
-1. Distributors receive trace data over OTLP (or other supported protocols),
+1. Distributors receive trace data over OTLP or other supported protocols,
 validate it against rate limits, shard traces by trace ID, and write records to Kafka partitions.
 2. Kafka durably stores the records.
 The write is acknowledged to the client as soon as Kafka confirms receipt.

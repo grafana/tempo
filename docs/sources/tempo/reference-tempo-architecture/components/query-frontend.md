@@ -46,7 +46,7 @@ Queriers connect to the query frontend over streaming gRPC.
 Each connection processes one batch at a time synchronously.
 The number of concurrent connections from a querier determines how many batches it can process in parallel.
 
-This is controlled by either `querier.max_concurrent_queries` (maximum total concurrent jobs per querier) or `frontend_worker.parallelism` (number of connections per query frontend).
+This is controlled by either `querier.max_concurrent_queries` (maximum total concurrent jobs per querier) or `querier.frontend_worker.parallelism` (number of connections per query frontend).
 
 ## Key configuration
 

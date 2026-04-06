@@ -51,9 +51,9 @@ The flush process is designed to be safely replayable at every stage.
 The block-builder flushes blocks to object storage in a specific order:
 
 1. Bloom filters and indexes
-2. `data.parquet`
-3. `nocompact.flg` (a flag file that prevents compaction during the flush)
-4. `meta.json` (the block becomes "live" at this point)
+1. `data.parquet`
+1. `nocompact.flg` (a flag file that prevents compaction during the flush)
+1. `meta.json` (the block becomes "live" at this point)
 
 A block isn't visible to the read path until its `meta.json` is written.
 Before that point, any crash is fully recoverable — the block-builder rewinds and overwrites.
@@ -85,14 +85,12 @@ This prevents a race condition where a backend worker might try to compact a blo
 Each block-builder instance consumes from one or more Kafka partitions.
 The maximum number of block-builder instances equals the number of Kafka partitions.
 
-Block-builders use static partition assignment — there's no Kafka consumer group rebalancing.
+Block-builders use static partition assignment. There's no Kafka consumer group rebalancing.
 There are two ways to assign partitions:
 
 - `partitions_per_instance`: Each instance computes which partitions it owns based on its ordinal ID.
-This is the default and works well with StatefulSets where the block-builder mirrors its replica count from the live-store,
-scaling in lockstep.
-- `assigned_partitions`: An explicit mapping of instance IDs to partition lists.
-This gives full manual control over which instance handles which partitions.
+  This is the default and works well with `StatefulSets` where the block-builder mirrors its replica count from the live-store, scaling in lockst
+- `assigned_partitions`: An explicit mapping of instance IDs to partition lists. This gives full manual control over which instance handles which partitions.
 
 Size the scratch disk to hold at least one full consumption cycle's worth of data across all assigned partitions and tenants.
 

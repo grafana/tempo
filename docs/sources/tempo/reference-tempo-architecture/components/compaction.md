@@ -10,7 +10,7 @@ versionDate: 2026-03-20
 # Compaction
 
 The backend scheduler and worker replace the legacy compactor.
-Together they handle compaction, retention, and blocklist maintenance for data in object storage.
+Together, they handle compaction, retention, and blocklist maintenance for data in object storage.
 
 ## How it works
 
@@ -20,7 +20,7 @@ This split makes compaction horizontally scalable — you can add workers to inc
 
 ### Job types
 
-The scheduler currently produces two types of jobs:
+The scheduler produces two types of jobs:
 
 - Compaction: merges small blocks into larger ones to reduce the number of blocks queriers need to scan and improve query performance.
 - Retention: deletes blocks older than the configured retention period.
@@ -38,7 +38,7 @@ The work cache is periodically flushed to object storage for crash recovery.
 
 ## Backend scheduler
 
-The scheduler is a singleton — only one instance should run at a time.
+The scheduler is a singleton: only one instance should run at a time.
 It maintains the work cache, which tracks all active and completed jobs,
 and polls object storage to keep the blocklist up to date.
 
