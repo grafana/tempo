@@ -246,6 +246,66 @@ func TestInstanceSearchTags(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func TestSearchTagValuesV2DiskCache(t *testing.T) {
+	i, ls := defaultInstance(t)
+
+	tagKey := foo
+	tagValue := bar
+
+	// Write traces and cut to a complete block
+	_, _, _, _ = writeTracesForSearch(t, i, "", tagKey, tagValue, true, false)
+
+	blockID, err := i.cutBlocks(t.Context(), true)
+	require.NoError(t, err)
+	require.NotEqual(t, uuid.Nil, blockID)
+
+	err = i.completeBlock(t.Context(), blockID)
+	require.NoError(t, err)
+
+	userCtx := user.InjectOrgID(t.Context(), testTenantID)
+	req := &tempopb.SearchTagValuesRequest{TagName: "." + tagKey}
+
+	// First query: cache miss, should populate cache
+	resp1, err := i.SearchTagValuesV2(userCtx, req)
+	require.NoError(t, err)
+	require.NotEmpty(t, resp1.TagValues)
+
+	// Verify cache was written on the complete block
+	i.blocksMtx.RLock()
+	var block *LocalBlock
+	for _, b := range i.completeBlocks {
+		block = b
+		break
+	}
+	i.blocksMtx.RUnlock()
+	require.NotNil(t, block)
+
+	limit := i.overrides.MaxBytesPerTagValuesQuery(testTenantID)
+	cacheKey := searchTagValuesV2CacheKey(req, limit, "cache_search_tagvaluesv2")
+	cacheData, err := block.GetDiskCache(t.Context(), cacheKey)
+	require.NoError(t, err)
+	require.NotEmpty(t, cacheData, "disk cache should have been populated after first query")
+
+	// Second query: should hit cache and return same results with lower inspected bytes
+	resp2, err := i.SearchTagValuesV2(userCtx, req)
+	require.NoError(t, err)
+
+	// Cache hit should inspect significantly fewer bytes than the original search
+	require.Less(t, resp2.Metrics.InspectedBytes, resp1.Metrics.InspectedBytes,
+		"cache hit should inspect fewer bytes than cache miss")
+
+	// Sort both for stable comparison
+	sort.Slice(resp1.TagValues, func(a, b int) bool { return resp1.TagValues[a].Value < resp1.TagValues[b].Value })
+	sort.Slice(resp2.TagValues, func(a, b int) bool { return resp2.TagValues[a].Value < resp2.TagValues[b].Value })
+	require.Equal(t, len(resp1.TagValues), len(resp2.TagValues))
+	for idx := range resp1.TagValues {
+		require.Equal(t, resp1.TagValues[idx].Value, resp2.TagValues[idx].Value)
+	}
+
+	err = services.StopAndAwaitTerminated(t.Context(), ls)
+	require.NoError(t, err)
+}
+
 // nolint:revive,unparam
 func testSearchTagsAndValues(t *testing.T, ctx context.Context, i *instance, tagName string, expectedTagValues []string) {
 	checkSearchTags := func(scope string, contains bool) {
