@@ -2,24 +2,12 @@
 
 ## Coding Standards
 
-Before writing or modifying Go code, read:
-
-```
-Read(file_path: ".agents/guidance/coding.md")
-```
+Before writing or modifying Go code, read [`.agents/guidance/coding.md`](.agents/guidance/coding.md).
 
 ## Code Review Standards
 
-Before reviewing code, read:
-
-```
-Read(file_path: ".agents/guidance/code-review.md")
-```
+Before reviewing code, read [`.agents/guidance/code-review.md`](.agents/guidance/code-review.md).
 
 ## Pre-Commit Checklist
 
-Before pushing or opening a PR, read:
-
-```
-Read(file_path: ".agents/guidance/precommit.md")
-```
+Before pushing or opening a PR, read [`.agents/guidance/precommit.md`](.agents/guidance/precommit.md).

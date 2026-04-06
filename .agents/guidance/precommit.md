@@ -1,6 +1,6 @@
 # Pre-Commit Checklist
 
-Run these before pushing. They match what CI enforces.
+Run these before pushing. They cover the most common local checks; CI may run additional validation (e.g. jsonnetfmt, integration tests).
 
 ---
 

@@ -12,11 +12,11 @@ Guidelines for writing clean, idiomatic Go in this codebase. Apply these when im
 
 ---
 
-## Test-Driven Development
+## Testing
 
-TDD is mandatory. No exceptions.
+Tests are expected for all new and changed behaviour. Prefer writing the test first — it forces you to think about the interface before the implementation and proves the test actually catches failures. This is the default approach for new features and bug fixes, but it is a strong preference, not an absolute rule.
 
-**Process:**
+**Preferred workflow:**
 1. Write the test first
 2. Verify the test fails (proves it actually tests something)
 3. Write the minimal implementation to make it pass
@@ -28,13 +28,13 @@ TDD is mandatory. No exceptions.
 func TestSomething(t *testing.T) {
     tests := []struct {
         name string
-        in   Input
+        in   *Input
         want Output
         err  bool
     }{
         {"nil input", nil, Output{}, true},
-        {"empty", Input{}, Output{}, false},
-        {"valid", Input{Value: 10}, Output{Result: 10}, false},
+        {"empty", &Input{}, Output{}, false},
+        {"valid", &Input{Value: 10}, Output{Result: 10}, false},
     }
     for _, tt := range tests {
         t.Run(tt.name, func(t *testing.T) {
@@ -96,7 +96,7 @@ if errors.As(err, &notFoundErr) { ... }
 if err == ErrNotFound { ... }
 ```
 
-**Never panic.** Use error returns for all failures. If initialization truly cannot continue, return an error up to `main` and exit there.
+**Do not panic in production server or library code.** Use error returns so callers can handle failures. If initialization truly cannot continue, return an error up to `main` and exit there. Limited `panic(...)` may be acceptable in CLI tooling or for genuine programmer errors (e.g., impossible state at startup), but never for normal error handling in long-running services.
 
 ---
 
@@ -185,7 +185,7 @@ func validate(cfg *Config) error {
 - Global mutable state (breaks testability and concurrency safety)
 - `init()` unless strictly necessary
 - Reflection unless there is no alternative
-- `any`/`interface{}` — prefer concrete types or constrained generics
+- `any`/`interface{}` when practical — prefer concrete types or typed/constrained generics where they make the API clearer
 
 ---
 

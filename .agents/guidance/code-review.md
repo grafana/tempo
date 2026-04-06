@@ -30,7 +30,7 @@ Focus: OWASP Top 10, secrets, auth/authz, cryptography, input validation.
 
 - Injection vulnerabilities (command, path traversal)
 - Hardcoded credentials or API keys
-- **Config fields that hold secrets typed as `string` instead of `flagext.Secret` or `prom_config.Secret`** — any field whose name suggests a password, token, key, or credential must use a secret type so it is redacted in logs and marshalled output. Check new and changed config structs for fields named `password`, `token`, `key`, `secret`, `credential`, `auth`, or similar.
+- **Config fields that hold secrets typed as `string` instead of `flagext.Secret` or `config.Secret` (`github.com/prometheus/common/config`)** — any field whose name suggests a password, token, key, or credential must use a secret type so it is redacted in logs and marshalled output. Check new and changed config structs for fields named `password`, `token`, `key`, `secret`, `credential`, `auth`, or similar.
 - Missing authentication or authorization checks
 - Weak/missing cryptography (`crypto/md5`, `crypto/sha1`, `math/rand` for security purposes)
 - Missing input validation on external data
@@ -39,10 +39,10 @@ Focus: OWASP Top 10, secrets, auth/authz, cryptography, input validation.
 
 ```bash
 # Command execution
-grep -rn "exec.Command\|os.exec\|syscall.Exec" . --include="*.go"
+grep -rn "os/exec\|exec.CommandContext\|exec.Command\|syscall.Exec" . --include="*.go"
 # Potential secrets in code
 grep -rEn "api_key|apikey|password|secret|private_key" . --include="*.go" --include="*.yaml"
-# Config fields that may need flagext.Secret or prom_config.Secret instead of string
+# Config fields that may need flagext.Secret or config.Secret instead of string
 grep -rEn "(Password|Token|Key|Secret|Credential|Auth)\s+string" . --include="*.go"
 # Weak crypto
 grep -rn "crypto/md5\|crypto/sha1\|math/rand" . --include="*.go"
@@ -63,8 +63,8 @@ Focus: Nil pointer dereferences, race conditions, off-by-one errors, resource le
 - Shadowed variables causing logic bugs
 
 ```bash
-# Unchecked type assertions
-grep -rn "\\.([A-Z][a-zA-Z]*)$" . --include="*.go"
+# Unchecked type assertion candidates — verify each has an ok check or is intentional
+grep -rEn "\\.\\([^)]+\\)" . --include="*.go"
 ```
 
 ---
