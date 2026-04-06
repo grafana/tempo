@@ -1,4 +1,4 @@
-# Tempo — Claude Guidance
+# Tempo — Agent Guidance
 
 ## Coding Standards
 
