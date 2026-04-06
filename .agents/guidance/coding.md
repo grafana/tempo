@@ -214,11 +214,59 @@ package/
 
 ## Performance
 
-- Pre-allocate slices/maps when size is known: `make([]T, 0, n)`
-- Use `strings.Builder` for string building in loops, never `+=`
-- Pass large structs by pointer to avoid copies
-- Benchmark before optimizing: `go test -bench`
-- Profile with pprof before concluding something is slow
+### Measure first
+
+Profile before optimizing. A 3x slower implementation is acceptable if it is not on the hot path — context matters more than benchmark numbers alone.
+
+```bash
+# CPU and memory profile
+go test -cpuprofile=cpu.out -memprofile=mem.out -bench=. ./...
+go tool pprof cpu.out
+
+# Allocation count
+go test -bench=. -benchmem ./...
+```
+
+Production profiling trumps microbenchmarks. When making a performance claim, validate it against a realistic workload, not a synthetic benchmark in isolation.
+
+### Allocation patterns
+
+- Pre-allocate slices and maps when size is known: `make([]T, 0, n)`
+- Avoid allocations in tight loops — reuse buffers where possible
+- Use `sync.Pool` for frequently allocated short-lived objects
+- Use `strings.Builder` for string construction in loops, never `+=`
+- Pass large structs by pointer to avoid copies on every call
+
+### Algorithm complexity
+
+- Prefer O(n log n) over O(n²) for any operation on unbounded input
+- Avoid repeated linear scans over the same data — build an index
+- For Parquet iterators: use `SeekTo()` to skip row groups rather than scanning exhausted ranges
+
+### Query path optimisations
+
+Tempo has two fetch modes in the Parquet layer; use the cheaper one when full trace reconstruction is not needed:
+
+```go
+// Spans-only path — faster for metrics queries
+FetchSpans(ctx, meta, req, opts) FetchSpansOnlyResponse
+
+// Full fetch — needed when trace structure is required
+Fetch(ctx, meta, req, opts) FetchSpansResponse
+```
+
+Use `traceql.NewSpansetFetcherWrapperBoth()` so the engine can choose the appropriate path at query time.
+
+### Sorting
+
+Sorting in Tempo is best-effort for compression. It does not need to be perfect. Do not over-engineer sort stability if it is not on the critical path.
+
+### Hot path checklist
+
+Before landing code on a hot path (query evaluation, iterator next, span ingestion):
+- Run `go test -bench -benchmem` and check allocs/op
+- Check escape analysis: `go build -gcflags="-m"` to see what escapes to heap
+- Confirm with a realistic trace dataset, not just unit-scale inputs
 
 ---
 

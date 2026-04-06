@@ -104,19 +104,26 @@ Focus: Bugs, logic errors, missing edge cases, correctness.
 
 ## Pass 5: Performance
 
-Focus: Algorithmic complexity, allocation patterns, N+1 queries.
+Focus: Algorithmic complexity, allocation patterns, hot path costs.
 
 - O(n²) or worse algorithms where O(n log n) is achievable
-- Allocations inside tight loops
-- N+1 database/API query patterns
+- Allocations inside tight loops (check with `-benchmem`)
 - Missing caching on repeated expensive calls
 - String concatenation in loops — use `strings.Builder`
 - Large value types copied instead of passed by pointer
 - Goroutine leaks
+- Parquet iterators scanning exhausted row groups instead of using `SeekTo()`
+- Full trace fetch (`Fetch`) used where spans-only fetch (`FetchSpans`) would suffice
+- **Performance regressions on the hot path must be justified with benchmarks** — a slower implementation is acceptable if the path is not performance-critical, but that must be stated explicitly
+- Production profiling is required for hot-path claims; microbenchmarks alone are not sufficient
 
 ```bash
 # String concatenation in loops
 grep -rn "+=.*\"" . --include="*.go"
+# Benchmarks with allocation counts
+go test -bench=. -benchmem ./...
+# Escape analysis — check what moves to heap
+go build -gcflags="-m" ./...
 ```
 
 ---
