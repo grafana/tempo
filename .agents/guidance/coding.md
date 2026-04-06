@@ -226,7 +226,7 @@ go tool pprof cpu.out
 go test -bench=. -benchmem ./...
 ```
 
-Production profiling trumps microbenchmarks. When making a performance claim, validate it against a realistic workload, not a synthetic benchmark in isolation.
+Microbenchmarks (`go test -bench`) are valuable, especially for isolated paths like TraceQL engine methods — less CPU and less memory is a clear improvement. When a change has an unclear trade-off (e.g., less CPU but more memory), profile the affected area against a realistic workload to decide if the trade-off is acceptable.
 
 ### Allocation patterns
 
@@ -241,20 +241,6 @@ Production profiling trumps microbenchmarks. When making a performance claim, va
 - Prefer O(n log n) over O(n²) for any operation on unbounded input
 - Avoid repeated linear scans over the same data — build an index
 - For Parquet iterators: use `SeekTo()` to skip row groups rather than scanning exhausted ranges
-
-### Query path optimisations
-
-Tempo has two fetch modes in the Parquet layer; use the cheaper one when full trace reconstruction is not needed:
-
-```go
-// Spans-only path — faster for metrics queries
-FetchSpans(ctx, meta, req, opts) FetchSpansOnlyResponse
-
-// Full fetch — needed when trace structure is required
-Fetch(ctx, meta, req, opts) FetchSpansResponse
-```
-
-Use `traceql.NewSpansetFetcherWrapperBoth()` so the engine can choose the appropriate path at query time.
 
 ### Sorting
 

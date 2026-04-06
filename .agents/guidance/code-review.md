@@ -113,9 +113,8 @@ Focus: Algorithmic complexity, allocation patterns, hot path costs.
 - Large value types copied instead of passed by pointer
 - Goroutine leaks
 - Parquet iterators scanning exhausted row groups instead of using `SeekTo()`
-- Full trace fetch (`Fetch`) used where spans-only fetch (`FetchSpans`) would suffice
 - **Performance regressions on a known hot path must be justified with benchmarks** — known hot paths are: `instance.push()`, `liveTrace.Push()`, TraceQL `BinaryOperation.execute()`, TraceQL group evaluation, Parquet row number comparison, Parquet block TraceQL execution. A slower implementation is acceptable if the path is not performance-critical, but that must be stated explicitly
-- Production profiling is required for hot-path claims; microbenchmarks alone are not sufficient
+- Microbenchmarks (`go test -bench`) are valuable and encouraged, especially for isolated paths like TraceQL engine methods — less CPU and less memory is an improvement regardless of scale. When a change has an unclear trade-off (e.g., less CPU but more memory), a production profile of the affected area helps determine whether the trade-off is acceptable
 
 ```bash
 # String concatenation in loops
