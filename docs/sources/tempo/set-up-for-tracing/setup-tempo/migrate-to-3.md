@@ -11,8 +11,8 @@ versionDate: 2026-02-25
 
 # Migrate from Tempo 2.x to 3.0
 
-Grafana Tempo 3.0 introduces a new architecture that replaces ingesters with a Kafka-based ingest path.
-Distributors write trace data to Kafka, and two new components consume from it: block-builders create blocks for long-term object storage, and live-stores serve recent-data queries.
+Grafana Tempo 3.0 introduces a new architecture that replaces ingesters and the compactor with a Kafka-based ingest path.
+Distributors write trace data to Kafka, and two new components consume from it: block-builders create blocks for long-term object storage, and live-stores serve recent-data queries. A backend-scheduler and backend-worker replace the compactor for block maintenance.
 
 This guide walks you through migrating a self-managed Grafana Tempo deployment from 2.x to 3.0.
 Because the architecture change is fundamental, this is a migration rather than an in-place upgrade.
@@ -31,7 +31,7 @@ Running two Tempo deployments in parallel increases infrastructure costs for the
 Confirm the following before you start:
 
 - Your Tempo 2.x deployment uses **vParquet4 or later** as the block format. Tempo 3.0 doesn't support vParquet3 or earlier. If you're using an older format, upgrade your block format before migrating. Refer to [Choose a different block format](/docs/tempo/<TEMPO_VERSION>/configuration/parquet/#choose-a-different-block-format).
-- You have a running **Kafka-compatible system** (for example, Apache Kafka or Redpanda). Tempo 3.0 requires Kafka for all deployment modes, including monolithic.
+- **Microservices mode only**: You have a running **Kafka-compatible system** (for example, Apache Kafka or Redpanda). Monolithic mode does not require Kafka.
 - You have access to the **same object storage** bucket or container used by your 2.x deployment.
 - If you're running **scalable monolithic mode** (SSB), plan to switch to either monolithic or microservices mode. SSB has been removed in Tempo 3.0.
 - You've reviewed the [Upgrade your Tempo installation](/docs/tempo/<TEMPO_VERSION>/set-up-for-tracing/setup-tempo/upgrade/) page for breaking changes.
@@ -52,9 +52,9 @@ To migrate, use the [`tempo-cli migrate overrides-config`](/docs/tempo/<TEMPO_VE
 
 ## Architecture changes
 
-In Tempo 2.x, distributors forward spans to ingesters over gRPC. Ingesters batch spans, build blocks, and flush them to object storage. For more information, refer to the [Tempo 2.x architecture](https://grafana.com/docs/tempo/v2.10.x/introduction/architecture/).
+In Tempo 2.x, distributors forward spans to ingesters and metrics-generators over gRPC. Ingesters batch spans, build blocks, and flush them to object storage. Compactors maintain blocks in storage. For more information, refer to the [Tempo 2.x architecture](https://grafana.com/docs/tempo/v2.10.x/introduction/architecture/).
 
-In Tempo 3.0, distributors write spans to Kafka instead. **Block-builders** consume from Kafka and build blocks for object storage. **Live-stores** consume from Kafka and serve recent-data queries (typically the last 30 minutes to 1 hour). Because Kafka provides durability, Tempo 3.0 operates with a replication factor of 1 (RF1), eliminating the need for ingester replication. Ingesters, the scalable single binary (SSB) mode, and the compactor target are removed.
+In Tempo 3.0, distributors write spans to Kafka instead. **Block-builders** consume from Kafka and build blocks for object storage. **Live-stores** consume from Kafka and serve recent-data queries (typically the last 30 minutes to 1 hour). A **backend-scheduler** and **backend-worker** replace the compactor for block compaction and retention. Because Kafka provides durability, Tempo 3.0 operates with a replication factor of 1 (RF1), eliminating the need for ingester replication. Ingesters, the scalable single binary (SSB) mode, and the compactor target are removed.
 
 For a detailed description of the new architecture, refer to [Tempo architecture](/docs/tempo/<TEMPO_VERSION>/introduction/architecture/).
 
@@ -173,6 +173,7 @@ You re-enable compaction after the 2.x deployment is decommissioned. Refer to [C
 
 If you use the metrics-generator, note that it also consumes from Kafka in Tempo 3.0.
 The metrics-generator automatically uses the top-level `ingest:` block — no additional Kafka configuration is needed for it.
+The `local-blocks` processor has been removed — block building is now handled by the block-builder component. Remove any `local_blocks` configuration from your metrics-generator settings.
 For more information, refer to [Metrics-generator](/docs/tempo/<TEMPO_VERSION>/metrics-from-traces/metrics-generator/).
 
 ## Deploy Tempo 3.0
@@ -196,6 +197,8 @@ To validate the deployment:
    Use a trace ID that you know exists in your 2.x deployment. If the query returns trace data, the new deployment is reading from storage correctly.
 
 1. Verify that all components start successfully and connect to Kafka. Check that `tempo_live_store_ready` equals `1`. The log message `"live-store ready to serve queries"` confirms the live-store is ready. At this point, no traffic is flowing through the 3.0 distributors yet, so write metrics will be at zero.
+
+You can also run [Tempo Vulture](/docs/tempo/<TEMPO_VERSION>/operations/tempo-vulture/) against the 3.0 deployment to continuously validate reads and writes.
 
 Before proceeding, confirm all components are healthy.
 
@@ -227,13 +230,9 @@ To clean up the 2.x deployment:
 
 1. Wait for the 2.x ingesters to flush all in-memory traces to object storage. With default settings (`max_block_duration` of 30 minutes and `complete_block_timeout` of 15 minutes), this takes up to approximately 45 minutes. If you've customized these values, add your `max_block_duration` and `complete_block_timeout` together to estimate the wait.
 
-1. Scale backend-workers back up in the 3.0 deployment as soon as the 2.x deployment stops writing blocks. The blocklist poll interval (default 5 minutes) controls how quickly queriers discover new blocks. Running without compaction for extended periods can cause the blocklist to grow.
+1. Scale 2.x compactors to zero. Both 2.x compactors and 3.0 backend-workers must not run at the same time against the same storage.
 
-   For Helm, set `backendScheduler.replicas` and `backendWorker.replicas` back to your desired counts. For Docker Compose, add the `backend-scheduler` and `backend-worker` services back to your compose file and restart:
-
-   ```bash
-   docker compose up -d backend-scheduler backend-worker-0
-   ```
+1. Scale backend-workers back up in the 3.0 deployment. The blocklist poll interval (default 5 minutes) controls how quickly queriers discover new blocks. Running without compaction for extended periods can cause the blocklist to grow.
 
 1. Keep the 2.x deployment idle for at least one week. This provides a fallback period to verify the 3.0 deployment is stable.
 
