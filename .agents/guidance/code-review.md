@@ -114,7 +114,7 @@ Focus: Algorithmic complexity, allocation patterns, hot path costs.
 - Goroutine leaks
 - Parquet iterators scanning exhausted row groups instead of using `SeekTo()`
 - Full trace fetch (`Fetch`) used where spans-only fetch (`FetchSpans`) would suffice
-- **Performance regressions on the hot path must be justified with benchmarks** — a slower implementation is acceptable if the path is not performance-critical, but that must be stated explicitly
+- **Performance regressions on a known hot path must be justified with benchmarks** — known hot paths are: `instance.push()`, `liveTrace.Push()`, TraceQL `BinaryOperation.execute()`, TraceQL group evaluation, Parquet row number comparison, Parquet block TraceQL execution. A slower implementation is acceptable if the path is not performance-critical, but that must be stated explicitly
 - Production profiling is required for hot-path claims; microbenchmarks alone are not sufficient
 
 ```bash
@@ -287,10 +287,7 @@ Match infrastructure complexity to the actual problem scope.
 
 ### Configuration Conventions
 
-- Use empty string `""` to represent "disabled", not the literal string `"disabled"`
 - Base scaling guidance on real cluster data, not round numbers
-  - Partition throughput: 2–5 MB/s per partition at peak load
-  - Live-store targeting: 10–15 MB/s
 - Document why defaults changed in CHANGELOG and at the point of change in code
 
 ### Naming Must Be Precise

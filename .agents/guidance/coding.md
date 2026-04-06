@@ -261,12 +261,27 @@ Use `traceql.NewSpansetFetcherWrapperBoth()` so the engine can choose the approp
 
 Sorting in Tempo is best-effort for compression. It does not need to be perfect. Do not over-engineer sort stability if it is not on the critical path.
 
+### Known hot paths
+
+These run on every span or every row — changes here require benchmarks:
+
+| Path | File | Evidence |
+|------|------|----------|
+| Span ingestion — `instance.push()` | `modules/ingester/instance.go` | `BenchmarkInstancePush`, `BenchmarkInstanceContention` |
+| Live trace append — `liveTrace.Push()` | `modules/ingester/trace.go` | Called per-span under mutex |
+| TraceQL binary op evaluation | `pkg/traceql/ast_execute.go` | `BenchmarkBinOp` |
+| TraceQL group operation | `pkg/traceql/ast_execute.go` | Per-span map lookup and slice append |
+| Parquet row number comparison | `pkg/parquetquery/iters.go` | `BenchmarkEqualRowNumber`, `BenchmarkColumnIterator` |
+| Parquet TraceQL block execution | `tempodb/encoding/vparquet5/block_traceql.go` | 4+ relationship operator benchmarks |
+| String interning | `pkg/parquetquery/intern/intern.go` | Uses `unsafe` for repeated values |
+
 ### Hot path checklist
 
-Before landing code on a hot path (query evaluation, iterator next, span ingestion):
-- Run `go test -bench -benchmem` and check allocs/op
+Before landing code on a known hot path:
+- Run `go test -bench=. -benchmem` on the affected package and check allocs/op
 - Check escape analysis: `go build -gcflags="-m"` to see what escapes to heap
 - Confirm with a realistic trace dataset, not just unit-scale inputs
+- For ingester paths: run `BenchmarkInstanceContention` to check mutex pressure
 
 ---
 
