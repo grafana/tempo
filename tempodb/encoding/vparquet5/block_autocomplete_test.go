@@ -1045,7 +1045,7 @@ func TestFetchTagNamesWithOrConditions(t *testing.T) {
 
 			t.Run(fmt.Sprintf("%s-%s", tc.name, scope), func(t *testing.T) {
 				distinctAttrNames := collector.NewScopedDistinctString(0, 0, 0)
-				conditions, _ := traceql.ExtractConditionGroups(tc.query, traceql.DefaultMaxConditionGroups)
+				conditions, _ := traceql.ExtractConditionGroups(tc.query, traceql.DefaultMaxConditionGroupsPerTagQuery)
 
 				// Build autocomplete request
 				autocompleteReq := traceql.FetchTagsRequest{
@@ -1142,7 +1142,7 @@ func TestFetchTagValuesWithOrConditions(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(fmt.Sprintf("tag: %s, query: %s", tc.tag, tc.query), func(t *testing.T) {
 			distinctValues := collector.NewDistinctValue[tempopb.TagValue](1_000_000, 0, 0, func(v tempopb.TagValue) int { return len(v.Type) + len(v.Value) })
-			conditions, _ := traceql.ExtractConditionGroups(tc.query, traceql.DefaultMaxConditionGroups)
+			conditions, _ := traceql.ExtractConditionGroups(tc.query, traceql.DefaultMaxConditionGroupsPerTagQuery)
 
 			tag, err := traceql.ParseIdentifier(tc.tag)
 			require.NoError(t, err)

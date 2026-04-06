@@ -74,14 +74,14 @@ func (c *Overrides) toLegacy() LegacyOverrides {
 		CompactionWindow:   c.Compaction.CompactionWindow,
 		CompactionDisabled: c.Compaction.CompactionDisabled,
 
-		MaxBytesPerTagValuesQuery:  c.Read.MaxBytesPerTagValuesQuery,
-		MaxBlocksPerTagValuesQuery: c.Read.MaxBlocksPerTagValuesQuery,
-		MaxConditionGroups:         c.Read.MaxConditionGroups,
-		MaxSearchDuration:          c.Read.MaxSearchDuration,
-		MaxMetricsDuration:         c.Read.MaxMetricsDuration,
-		UnsafeQueryHints:           c.Read.UnsafeQueryHints,
-		LeftPadTraceIDs:            c.Read.LeftPadTraceIDs,
-		MetricsSpanOnlyFetch:       c.Read.MetricsSpanOnlyFetch,
+		MaxBytesPerTagValuesQuery:     c.Read.MaxBytesPerTagValuesQuery,
+		MaxBlocksPerTagValuesQuery:    c.Read.MaxBlocksPerTagValuesQuery,
+		MaxConditionGroupsPerTagQuery: c.Read.MaxConditionGroupsPerTagQuery,
+		MaxSearchDuration:             c.Read.MaxSearchDuration,
+		MaxMetricsDuration:            c.Read.MaxMetricsDuration,
+		UnsafeQueryHints:              c.Read.UnsafeQueryHints,
+		LeftPadTraceIDs:               c.Read.LeftPadTraceIDs,
+		MetricsSpanOnlyFetch:          c.Read.MetricsSpanOnlyFetch,
 
 		MaxBytesPerTrace: c.Global.MaxBytesPerTrace,
 
@@ -159,9 +159,9 @@ type LegacyOverrides struct {
 	CompactionWindow   model.Duration `yaml:"compaction_window" json:"compaction_window"`
 
 	// Querier and Ingester enforced limits.
-	MaxBytesPerTagValuesQuery  int `yaml:"max_bytes_per_tag_values_query" json:"max_bytes_per_tag_values_query"`
-	MaxBlocksPerTagValuesQuery int `yaml:"max_blocks_per_tag_values_query" json:"max_blocks_per_tag_values_query"`
-	MaxConditionGroups         int `yaml:"max_condition_groups" json:"max_condition_groups"`
+	MaxBytesPerTagValuesQuery     int `yaml:"max_bytes_per_tag_values_query" json:"max_bytes_per_tag_values_query"`
+	MaxBlocksPerTagValuesQuery    int `yaml:"max_blocks_per_tag_values_query" json:"max_blocks_per_tag_values_query"`
+	MaxConditionGroupsPerTagQuery int `yaml:"max_condition_groups_per_tag_query" json:"max_condition_groups_per_tag_query"`
 
 	// QueryFrontend enforced limits
 	MaxSearchDuration    model.Duration `yaml:"max_search_duration" json:"max_search_duration"`
@@ -316,14 +316,14 @@ func (l *LegacyOverrides) toNewLimits() *Overrides {
 			RetryInfoEnabled:       l.IngestionRetryInfoEnabled,
 		},
 		Read: ReadOverrides{
-			MaxBytesPerTagValuesQuery:  l.MaxBytesPerTagValuesQuery,
-			MaxBlocksPerTagValuesQuery: l.MaxBlocksPerTagValuesQuery,
-			MaxConditionGroups:         l.MaxConditionGroups,
-			MaxSearchDuration:          l.MaxSearchDuration,
-			MaxMetricsDuration:         l.MaxMetricsDuration,
-			UnsafeQueryHints:           l.UnsafeQueryHints,
-			LeftPadTraceIDs:            l.LeftPadTraceIDs,
-			MetricsSpanOnlyFetch:       l.MetricsSpanOnlyFetch,
+			MaxBytesPerTagValuesQuery:     l.MaxBytesPerTagValuesQuery,
+			MaxBlocksPerTagValuesQuery:    l.MaxBlocksPerTagValuesQuery,
+			MaxConditionGroupsPerTagQuery: l.MaxConditionGroupsPerTagQuery,
+			MaxSearchDuration:             l.MaxSearchDuration,
+			MaxMetricsDuration:            l.MaxMetricsDuration,
+			UnsafeQueryHints:              l.UnsafeQueryHints,
+			LeftPadTraceIDs:               l.LeftPadTraceIDs,
+			MetricsSpanOnlyFetch:          l.MetricsSpanOnlyFetch,
 		},
 		Compaction: CompactionOverrides{
 			BlockRetention:     l.BlockRetention,

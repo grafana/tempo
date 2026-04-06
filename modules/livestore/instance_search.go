@@ -319,7 +319,7 @@ func (i *instance) SearchTagsV2(ctx context.Context, req *tempopb.SearchTagsRequ
 	mc := collector.NewMetricsCollector()
 
 	engine := traceql.NewEngine()
-	conditionGroups, err := traceql.ExtractConditionGroups(req.Query, i.overrides.MaxConditionGroups())
+	conditionGroups, err := traceql.ExtractConditionGroups(req.Query, i.overrides.MaxConditionGroupsPerTagQuery())
 	if err != nil {
 		return nil, err
 	}
@@ -474,7 +474,7 @@ func (i *instance) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTag
 		return &tempopb.SearchTagValuesV2Response{}, nil
 	}
 
-	conditionGroups, err := traceql.ExtractConditionGroups(req.Query, i.overrides.MaxConditionGroups())
+	conditionGroups, err := traceql.ExtractConditionGroups(req.Query, i.overrides.MaxConditionGroupsPerTagQuery())
 	if err != nil {
 		return nil, err
 	}

@@ -195,7 +195,7 @@ func TestExtractConditionGroups(t *testing.T) {
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			conditionGroups, _ := ExtractConditionGroups(tc.query, DefaultMaxConditionGroups)
+			conditionGroups, _ := ExtractConditionGroups(tc.query, DefaultMaxConditionGroupsPerTagQuery)
 			assert.Equal(t, tc.count, len(conditionGroups))
 		})
 	}
@@ -521,7 +521,7 @@ func TestSplitReqConditionGroups(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			conditions, err := ExtractConditionGroups(tc.query, DefaultMaxConditionGroups)
+			conditions, err := ExtractConditionGroups(tc.query, DefaultMaxConditionGroupsPerTagQuery)
 			assert.NoError(t, err)
 			assert.Equal(t, tc.expected, conditions)
 		})
@@ -554,7 +554,7 @@ func TestSplitReqConditionGroupsMaxGroups(t *testing.T) {
 		{
 			name:           "within limit - default limit",
 			query:          `{ .a = "1" || .b = "2" || .c = "3" }`,
-			maxGroups:      DefaultMaxConditionGroups,
+			maxGroups:      DefaultMaxConditionGroupsPerTagQuery,
 			expectedLength: 3,
 			expectError:    false,
 		},
@@ -564,7 +564,7 @@ func TestSplitReqConditionGroupsMaxGroups(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			conditions, err := ExtractConditionGroups(tc.query, tc.maxGroups)
 			if tc.expectError {
-				assert.ErrorIs(t, err, ErrMaxConditionGroupsReached)
+				assert.ErrorIs(t, err, ErrMaxConditionGroupsPerTagQueryReached)
 			} else {
 				assert.NoError(t, err)
 			}

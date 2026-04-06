@@ -6,22 +6,22 @@ import (
 	"strings"
 )
 
-var ErrMaxConditionGroupsReached = errors.New("maximum condition groups reached")
+var ErrMaxConditionGroupsPerTagQueryReached = errors.New("maximum condition groups reached")
 
 const emptyQuery = "{}"
 
-// DefaultMaxConditionGroups is the default cap on the number of OR-expanded condition groups to prevent
+// DefaultMaxConditionGroupsPerTagQuery is the default cap on the number of OR-expanded condition groups to prevent
 // exponential blowup from queries with many OR clauses. Configurable via overrides.
-const DefaultMaxConditionGroups = 100
+const DefaultMaxConditionGroupsPerTagQuery = 100
 
 // ExtractConditionGroups parses a query string using the lenient parser and returns
 // groups of conditions. Conditions with OpNone (from incomplete matchers) are filtered out.
 //
 // Returns nil if the query is empty or parsing fails completely.
-// Returns nil, ErrMaxConditionGroupsReached if the number of groups exceeds maxGroups.
+// Returns nil, ErrMaxConditionGroupsPerTagQueryReached if the number of groups exceeds maxGroups.
 func ExtractConditionGroups(query string, maxGroups int) ([][]Condition, error) {
 	if maxGroups <= 0 {
-		maxGroups = DefaultMaxConditionGroups
+		maxGroups = DefaultMaxConditionGroupsPerTagQuery
 	}
 	query = strings.TrimSpace(query)
 	if len(query) == 0 {
@@ -62,7 +62,7 @@ func ExtractConditionGroups(query string, maxGroups int) ([][]Condition, error) 
 	}
 
 	if reachedMaxGroupsInSplitConditions {
-		return nil, ErrMaxConditionGroupsReached
+		return nil, ErrMaxConditionGroupsPerTagQueryReached
 	}
 
 	return groups, nil

@@ -695,7 +695,7 @@ func (q *Querier) internalTagsSearchBlockV2(ctx context.Context, req *tempopb.Se
 	opts.StartPage = int(req.StartPage)
 	opts.TotalPages = int(req.PagesToSearch)
 
-	conditionGroups, err := traceql.ExtractConditionGroups(req.SearchReq.Query, q.limits.MaxConditionGroups())
+	conditionGroups, err := traceql.ExtractConditionGroups(req.SearchReq.Query, q.limits.MaxConditionGroupsPerTagQuery())
 	if err != nil {
 		return nil, err
 	}
@@ -811,7 +811,7 @@ func (q *Querier) internalTagValuesSearchBlockV2(ctx context.Context, req *tempo
 	opts.StartPage = int(req.StartPage)
 	opts.TotalPages = int(req.PagesToSearch)
 
-	conditionGroups, err := traceql.ExtractConditionGroups(req.SearchReq.Query, q.limits.MaxConditionGroups())
+	conditionGroups, err := traceql.ExtractConditionGroups(req.SearchReq.Query, q.limits.MaxConditionGroupsPerTagQuery())
 	if err != nil {
 		return nil, err
 	}
