@@ -224,12 +224,7 @@ package/
 
 ## Before Submitting
 
-```bash
-go fmt ./...
-go vet ./...
-go test ./... -race
-golangci-lint run
-```
+See `.agents/guidance/precommit.md` for the full checklist. Minimum bar: `make fmt`, `make lint base=origin/main`, `make test`.
 
 ---
 

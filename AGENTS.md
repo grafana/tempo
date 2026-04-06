@@ -15,3 +15,11 @@ Before reviewing code, read:
 ```
 Read(file_path: ".agents/guidance/code-review.md")
 ```
+
+## Pre-Commit Checklist
+
+Before pushing or opening a PR, read:
+
+```
+Read(file_path: ".agents/guidance/precommit.md")
+```
