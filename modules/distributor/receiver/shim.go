@@ -51,7 +51,7 @@ var (
 	metricPushDuration = promauto.NewHistogram(prometheus.HistogramOpts{
 		Namespace:                       "tempo",
 		Name:                            "distributor_push_duration_seconds",
-		Help:                            "Records the amount of time to process and route a batch through the distributor.",
+		Help:                            "Records the amount of time to push a batch to the ingester.",
 		Buckets:                         prometheus.DefBuckets,
 		NativeHistogramBucketFactor:     1.1,
 		NativeHistogramMaxBucketNumber:  100,

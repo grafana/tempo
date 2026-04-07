@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"sort"
+	"sync"
 
 	"github.com/go-kit/log/level"
 	httpgrpc_server "github.com/grafana/dskit/httpgrpc/server"
@@ -56,6 +57,7 @@ type Querier struct {
 
 	cfg Config
 
+	liveStoreRing ring.ReadRing
 	liveStorePool *ring_client.Pool
 	partitionRing *ring.PartitionInstanceRing
 
@@ -89,6 +91,7 @@ func New(
 
 	q := &Querier{
 		cfg:           cfg,
+		liveStoreRing: liveStoreRing,
 		partitionRing: partitionRing,
 		liveStorePool: ring_client.NewPool("querier_to_livestore_pool",
 			liveStoreClientConfig.PoolConfig,
@@ -321,8 +324,17 @@ func (q *Querier) forLiveStoreRing(ctx context.Context, f forEachFn) ([]any, err
 	ctx, span := tracer.Start(ctx, "Querier.forLiveStoreRing")
 	defer span.End()
 
+	// If partition ring is not configured, use the regular ring directly (kafkaless mode)
 	if q.partitionRing == nil {
-		return nil, errors.New("forLiveStoreRing: partition ring is not configured")
+		if q.liveStoreRing == nil {
+			return nil, errors.New("forLiveStoreRing: neither partition ring nor live store ring is configured")
+		}
+		// Get all healthy instances from the ring
+		rs, err := q.liveStoreRing.GetReplicationSetForOperation(ring.Read)
+		if err != nil {
+			return nil, fmt.Errorf("error finding ring replicas: %w", err)
+		}
+		return forReplicationSet(ctx, q, rs, f)
 	}
 
 	rs, err := q.partitionRing.GetReplicationSetsForOperation(ring.Read)
@@ -342,14 +354,67 @@ func (q *Querier) forLiveStoreMetricsRing(ctx context.Context, f forEachMetricsF
 	ctx, span := tracer.Start(ctx, "Querier.forLiveStoreMetricsRing")
 	defer span.End()
 
+	// If partition ring is not configured, use the regular ring directly (kafkaless mode)
 	if q.partitionRing == nil {
-		return nil, errors.New("forLiveStoreMetricsRing: partition ring is not configured")
+		if q.liveStoreRing == nil {
+			return nil, errors.New("forLiveStoreMetricsRing: neither partition ring nor live store ring is configured")
+		}
+		// Get all healthy instances from the ring
+		rs, err := q.liveStoreRing.GetReplicationSetForOperation(ring.Read)
+		if err != nil {
+			return nil, fmt.Errorf("error finding ring replicas: %w", err)
+		}
+		return forReplicationSet(ctx, q, rs, f)
 	}
+
 	rs, err := q.partitionRing.GetReplicationSetsForOperation(ring.Read)
 	if err != nil {
 		return nil, fmt.Errorf("error finding partition ring replicas: %w", err)
 	}
 	return forPartitionRingReplicaSets(ctx, q, rs, f)
+}
+
+// forReplicationSet runs f for all instances in a single replication set (kafkaless mode).
+func forReplicationSet[R any, TClient any](ctx context.Context, q *Querier, rs ring.ReplicationSet, f func(context.Context, TClient) (R, error)) ([]R, error) {
+	var results []R
+	var mu sync.Mutex
+	var wg sync.WaitGroup
+	var firstErr error
+
+	for _, instance := range rs.Instances {
+		instance := instance
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			client, err := q.liveStorePool.GetClientForInstance(instance)
+			if err != nil {
+				mu.Lock()
+				if firstErr == nil {
+					firstErr = err
+				}
+				mu.Unlock()
+				return
+			}
+			result, err := f(ctx, client.(TClient))
+			if err != nil {
+				mu.Lock()
+				if firstErr == nil {
+					firstErr = err
+				}
+				mu.Unlock()
+				return
+			}
+			mu.Lock()
+			results = append(results, result)
+			mu.Unlock()
+		}()
+	}
+	wg.Wait()
+
+	if firstErr != nil && len(results) == 0 {
+		return nil, firstErr
+	}
+	return results, nil
 }
 
 func (q *Querier) SearchRecent(ctx context.Context, req *tempopb.SearchRequest) (*tempopb.SearchResponse, error) {

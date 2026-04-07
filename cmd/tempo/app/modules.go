@@ -34,6 +34,7 @@ import (
 	"github.com/grafana/tempo/modules/frontend/interceptor"
 	frontend_v1pb "github.com/grafana/tempo/modules/frontend/v1/frontendv1pb"
 	"github.com/grafana/tempo/modules/generator"
+	"github.com/grafana/tempo/modules/ingester"
 	"github.com/grafana/tempo/modules/overrides"
 	userconfigurableoverridesapi "github.com/grafana/tempo/modules/overrides/userconfigurable/api"
 	"github.com/grafana/tempo/modules/querier"
@@ -64,11 +65,13 @@ const (
 	CacheProvider  string = "cache-provider"
 
 	// rings
+	IngesterRing         string = "ring"
 	LiveStoreRing        string = "live-store-ring"
 	PartitionRing        string = "partition-ring"
 	GeneratorRingWatcher string = "generator-ring-watcher"
 
 	// individual targets
+	Ingester                      string = "ingester"
 	Distributor                   string = "distributor"
 	MetricsGenerator              string = "metrics-generator"
 	MetricsGeneratorNoLocalBlocks string = "metrics-generator-no-local-blocks"
@@ -83,6 +86,7 @@ const (
 	SingleBinary string = "all"
 
 	// ring names
+	ringIngester  string = "ingester"
 	ringLiveStore string = "live-store"
 )
 
@@ -150,6 +154,45 @@ func (t *App) initInternalServer() (services.Service, error) {
 	s := NewServerService(t.InternalServer, servicesToWaitFor)
 
 	return s, nil
+}
+
+func (t *App) initIngesterRing() (services.Service, error) {
+	// We need to defer ring creation until the service starts, because the
+	// MemberlistKV needs to be running before we can create the ring's KV client.
+	var ingesterRing *ring.Ring
+
+	return services.NewBasicService(
+		// starting
+		func(ctx context.Context) error {
+			r, err := tempo_ring.New(t.cfg.Ingester.LifecyclerConfig.RingConfig, ringIngester, t.cfg.Ingester.OverrideRingKey, prometheus.DefaultRegisterer)
+			if err != nil {
+				return fmt.Errorf("failed to create ring %s: %w", ringIngester, err)
+			}
+			ingesterRing = r
+			t.Server.HTTPRouter().Handle("/"+ringIngester+"/ring", ingesterRing)
+			t.readRings[ringIngester] = ingesterRing
+
+			// Start the underlying ring service
+			if err := ingesterRing.StartAsync(ctx); err != nil {
+				return err
+			}
+			return ingesterRing.AwaitRunning(ctx)
+		},
+		// running
+		func(ctx context.Context) error {
+			// Wait until context is done or ring fails
+			<-ctx.Done()
+			return nil
+		},
+		// stopping
+		func(stopping error) error {
+			if ingesterRing != nil {
+				ingesterRing.StopAsync()
+				return ingesterRing.AwaitTerminated(context.Background())
+			}
+			return nil
+		},
+	), nil
 }
 
 func (t *App) initLiveStoreRing() (services.Service, error) {
@@ -245,7 +288,15 @@ func (t *App) initDistributor() (services.Service, error) {
 	singleBinary := IsSingleBinary(t.cfg.Target)
 
 	t.cfg.Distributor.KafkaConfig = t.cfg.Ingest.Kafka
-	t.cfg.Distributor.PushSpansToKafka = true
+	// Enable Kafka write path when Kafka is configured (topic is set) and we're not in single binary mode
+	kafkaConfigured := t.cfg.Ingest.Kafka.Topic != ""
+	if kafkaConfigured && !singleBinary {
+		t.cfg.Distributor.PushSpansToKafka = true
+		t.cfg.Distributor.IngesterWritePathEnabled = false
+	} else {
+		t.cfg.Distributor.PushSpansToKafka = false
+		t.cfg.Distributor.IngesterWritePathEnabled = true
+	}
 
 	localPushTargets := distributor.LocalPushTargets{}
 	if singleBinary {
@@ -264,27 +315,81 @@ func (t *App) initDistributor() (services.Service, error) {
 		}
 	}
 
-	// todo: make write-path client a module instead of passing the config everywhere
-	distributor, err := distributor.New(t.cfg.Distributor,
-		localPushTargets,
-		t.partitionRing,
-		t.Overrides,
-		t.TracesConsumerMiddleware,
-		log.Logger, t.cfg.Server.LogLevel, prometheus.DefaultRegisterer)
+// Defer distributor creation until service starts, when the ingester ring is available.
+	return services.NewBasicService(
+		// starting
+		func(ctx context.Context) error {
+			// Wait for ingester ring to be available
+			if t.readRings[ringIngester] == nil {
+				return fmt.Errorf("ingester ring not initialized")
+			}
+
+			d, err := distributor.New(t.cfg.Distributor,
+				t.cfg.IngesterClient,
+				t.readRings[ringIngester],
+				localPushTargets,
+				t.partitionRing,
+				t.Overrides,
+				t.TracesConsumerMiddleware,
+				log.Logger, t.cfg.Server.LogLevel, prometheus.DefaultRegisterer)
+			if err != nil {
+				return fmt.Errorf("failed to create distributor: %w", err)
+			}
+			t.distributor = d
+
+			if d.DistributorRing != nil {
+				t.Server.HTTPRouter().Handle("/distributor/ring", d.DistributorRing)
+			}
+
+			if usageHandler := d.UsageTrackerHandler(); usageHandler != nil {
+				t.Server.HTTPRouter().Handle("/usage_metrics", usageHandler)
+			}
+
+			// Start the distributor service
+			if err := d.StartAsync(ctx); err != nil {
+				return err
+			}
+			return d.AwaitRunning(ctx)
+		},
+		// running
+		func(ctx context.Context) error {
+			<-ctx.Done()
+			return nil
+		},
+		// stopping
+		func(stopping error) error {
+			if t.distributor != nil {
+				t.distributor.StopAsync()
+				return t.distributor.AwaitTerminated(context.Background())
+			}
+			return nil
+		},
+	), nil
+}
+
+func (t *App) initIngester() (services.Service, error) {
+	t.cfg.Ingester.LifecyclerConfig.ListenPort = t.cfg.Server.GRPCListenPort
+	t.cfg.Ingester.DedicatedColumns = t.cfg.StorageConfig.Trace.Block.DedicatedColumns
+	t.cfg.Ingester.IngestStorageConfig = t.cfg.Ingest
+
+	// In SingleBinary mode don't try to discover partition from host name. Always use
+	// partition 0. This is for small installs or local/debugging setups.
+	singlePartition := IsSingleBinary(t.cfg.Target)
+
+	ing, err := ingester.New(t.cfg.Ingester, t.store, t.Overrides, prometheus.DefaultRegisterer, singlePartition)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create distributor: %w", err)
+		return nil, fmt.Errorf("failed to create ingester: %w", err)
 	}
-	t.distributor = distributor
+	t.ingester = ing
 
-	if distributor.DistributorRing != nil {
-		t.Server.HTTPRouter().Handle("/distributor/ring", distributor.DistributorRing)
-	}
-
-	if usageHandler := distributor.UsageTrackerHandler(); usageHandler != nil {
-		t.Server.HTTPRouter().Handle("/usage_metrics", usageHandler)
-	}
-
-	return t.distributor, nil
+	tempopb.RegisterPusherServer(t.Server.GRPC(), t.ingester)
+	tempopb.RegisterQuerierServer(t.Server.GRPC(), t.ingester)
+	t.Server.HTTPRouter().Path("/flush").Handler(http.HandlerFunc(t.ingester.FlushHandler))
+	t.Server.HTTPRouter().Path("/shutdown").Handler(http.HandlerFunc(t.ingester.ShutdownHandler))
+	t.Server.HTTPRouter().Methods(http.MethodGet, http.MethodPost, http.MethodDelete).
+		Path("/ingester/prepare-partition-downscale").
+		Handler(http.HandlerFunc(t.ingester.PreparePartitionDownscaleHandler))
+	return t.ingester, nil
 }
 
 func (t *App) initGenerator() (services.Service, error) {
@@ -410,51 +515,95 @@ func (t *App) initQuerier() (services.Service, error) {
 		t.store.EnablePolling(context.Background(), nil, false)
 	}
 
-	liveStoreRing := t.readRings[ringLiveStore]
+	// Defer querier creation until service starts, when the ring is available.
+	return services.NewBasicService(
+		// starting
+		func(ctx context.Context) error {
+			// For Kafka architecture, use live-store ring. For kafkaless, use ingester ring.
+			// Check if Kafka is configured to determine which ring to use
+			var liveStoreRing ring.ReadRing
+			kafkaConfigured := t.cfg.Ingest.Kafka.Topic != ""
+			if kafkaConfigured && t.readRings[ringLiveStore] != nil {
+				liveStoreRing = t.readRings[ringLiveStore]
+			} else {
+				liveStoreRing = t.readRings[ringIngester]
+			}
+			if liveStoreRing == nil {
+				return fmt.Errorf("live-store or ingester ring not initialized")
+			}
 
-	querier, err := querier.New(
-		t.cfg.Querier,
-		liveStoreRing,
-		t.cfg.LiveStoreClient,
-		t.partitionRing,
-		t.cfg.Frontend.TraceByID.ExternalEnabled,
-		t.store,
-		t.Overrides,
-	)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create querier: %w", err)
-	}
-	t.querier = querier
+			// Only pass partitionRing when Kafka is configured
+			var partitionRing *ring.PartitionInstanceRing
+			if t.cfg.Ingest.Kafka.Topic != "" {
+				partitionRing = t.partitionRing
+			}
 
-	middleware := middleware.Merge(
-		t.HTTPAuthMiddleware,
-	)
+			q, err := querier.New(
+				t.cfg.Querier,
+				liveStoreRing,
+				t.cfg.LiveStoreClient,
+				partitionRing,
+				t.cfg.Frontend.TraceByID.ExternalEnabled,
+				t.store,
+				t.Overrides,
+			)
+			if err != nil {
+				return fmt.Errorf("failed to create querier: %w", err)
+			}
+			t.querier = q
 
-	tracesHandler := middleware.Wrap(http.HandlerFunc(t.querier.TraceByIDHandler))
-	t.Server.HTTPRouter().Handle(path.Join(api.PathPrefixQuerier, addHTTPAPIPrefix(&t.cfg, api.PathTraces)), tracesHandler)
+			middleware := middleware.Merge(
+				t.HTTPAuthMiddleware,
+			)
 
-	tracesHandlerV2 := middleware.Wrap(http.HandlerFunc(t.querier.TraceByIDHandlerV2))
-	t.Server.HTTPRouter().Handle(path.Join(api.PathPrefixQuerier, addHTTPAPIPrefix(&t.cfg, api.PathTracesV2)), tracesHandlerV2)
+			tracesHandler := middleware.Wrap(http.HandlerFunc(t.querier.TraceByIDHandler))
+			t.Server.HTTPRouter().Handle(path.Join(api.PathPrefixQuerier, addHTTPAPIPrefix(&t.cfg, api.PathTraces)), tracesHandler)
 
-	searchHandler := t.HTTPAuthMiddleware.Wrap(http.HandlerFunc(t.querier.SearchHandler))
-	t.Server.HTTPRouter().Handle(path.Join(api.PathPrefixQuerier, addHTTPAPIPrefix(&t.cfg, api.PathSearch)), searchHandler)
+			tracesHandlerV2 := middleware.Wrap(http.HandlerFunc(t.querier.TraceByIDHandlerV2))
+			t.Server.HTTPRouter().Handle(path.Join(api.PathPrefixQuerier, addHTTPAPIPrefix(&t.cfg, api.PathTracesV2)), tracesHandlerV2)
 
-	searchTagsHandler := t.HTTPAuthMiddleware.Wrap(http.HandlerFunc(t.querier.SearchTagsHandler))
-	t.Server.HTTPRouter().Handle(path.Join(api.PathPrefixQuerier, addHTTPAPIPrefix(&t.cfg, api.PathSearchTags)), searchTagsHandler)
+			searchHandler := t.HTTPAuthMiddleware.Wrap(http.HandlerFunc(t.querier.SearchHandler))
+			t.Server.HTTPRouter().Handle(path.Join(api.PathPrefixQuerier, addHTTPAPIPrefix(&t.cfg, api.PathSearch)), searchHandler)
 
-	searchTagsV2Handler := t.HTTPAuthMiddleware.Wrap(http.HandlerFunc(t.querier.SearchTagsV2Handler))
-	t.Server.HTTPRouter().Handle(path.Join(api.PathPrefixQuerier, addHTTPAPIPrefix(&t.cfg, api.PathSearchTagsV2)), searchTagsV2Handler)
+			searchTagsHandler := t.HTTPAuthMiddleware.Wrap(http.HandlerFunc(t.querier.SearchTagsHandler))
+			t.Server.HTTPRouter().Handle(path.Join(api.PathPrefixQuerier, addHTTPAPIPrefix(&t.cfg, api.PathSearchTags)), searchTagsHandler)
 
-	searchTagValuesHandler := t.HTTPAuthMiddleware.Wrap(http.HandlerFunc(t.querier.SearchTagValuesHandler))
-	t.Server.HTTPRouter().Handle(path.Join(api.PathPrefixQuerier, addHTTPAPIPrefix(&t.cfg, api.PathSearchTagValues)), searchTagValuesHandler)
+			searchTagsV2Handler := t.HTTPAuthMiddleware.Wrap(http.HandlerFunc(t.querier.SearchTagsV2Handler))
+			t.Server.HTTPRouter().Handle(path.Join(api.PathPrefixQuerier, addHTTPAPIPrefix(&t.cfg, api.PathSearchTagsV2)), searchTagsV2Handler)
 
-	searchTagValuesV2Handler := t.HTTPAuthMiddleware.Wrap(http.HandlerFunc(t.querier.SearchTagValuesV2Handler))
-	t.Server.HTTPRouter().Handle(path.Join(api.PathPrefixQuerier, addHTTPAPIPrefix(&t.cfg, api.PathSearchTagValuesV2)), searchTagValuesV2Handler)
+			searchTagValuesHandler := t.HTTPAuthMiddleware.Wrap(http.HandlerFunc(t.querier.SearchTagValuesHandler))
+			t.Server.HTTPRouter().Handle(path.Join(api.PathPrefixQuerier, addHTTPAPIPrefix(&t.cfg, api.PathSearchTagValues)), searchTagValuesHandler)
 
-	queryRangeHandler := t.HTTPAuthMiddleware.Wrap(http.HandlerFunc(t.querier.QueryRangeHandler))
-	t.Server.HTTPRouter().Handle(path.Join(api.PathPrefixQuerier, addHTTPAPIPrefix(&t.cfg, api.PathMetricsQueryRange)), queryRangeHandler)
+			searchTagValuesV2Handler := t.HTTPAuthMiddleware.Wrap(http.HandlerFunc(t.querier.SearchTagValuesV2Handler))
+			t.Server.HTTPRouter().Handle(path.Join(api.PathPrefixQuerier, addHTTPAPIPrefix(&t.cfg, api.PathSearchTagValuesV2)), searchTagValuesV2Handler)
 
-	return t.querier, t.querier.CreateAndRegisterWorker(t.Server.HTTPHandler())
+			queryRangeHandler := t.HTTPAuthMiddleware.Wrap(http.HandlerFunc(t.querier.QueryRangeHandler))
+			t.Server.HTTPRouter().Handle(path.Join(api.PathPrefixQuerier, addHTTPAPIPrefix(&t.cfg, api.PathMetricsQueryRange)), queryRangeHandler)
+
+			if err := t.querier.CreateAndRegisterWorker(t.Server.HTTPHandler()); err != nil {
+				return fmt.Errorf("failed to create and register worker: %w", err)
+			}
+
+			// Start the querier service
+			if err := t.querier.StartAsync(ctx); err != nil {
+				return err
+			}
+			return t.querier.AwaitRunning(ctx)
+		},
+		// running
+		func(ctx context.Context) error {
+			<-ctx.Done()
+			return nil
+		},
+		// stopping
+		func(stopping error) error {
+			if t.querier != nil {
+				t.querier.StopAsync()
+				return t.querier.AwaitTerminated(context.Background())
+			}
+			return nil
+		},
+	), nil
 }
 
 func (t *App) initQueryFrontend() (services.Service, error) {
@@ -565,6 +714,7 @@ func (t *App) initMemberlistKV() (services.Service, error) {
 	dnsProvider := dns.NewProvider(log.Logger, dnsProviderReg, dns.GolangResolverType)
 	t.MemberlistKV = memberlist.NewKVInitService(&t.cfg.MemberlistKV, log.Logger, dnsProvider, reg)
 
+	t.cfg.Ingester.LifecyclerConfig.RingConfig.KVStore.MemberlistKV = t.MemberlistKV.GetMemberlistKV
 	t.cfg.Generator.Ring.KVStore.MemberlistKV = t.MemberlistKV.GetMemberlistKV
 	t.cfg.Distributor.DistributorRing.KVStore.MemberlistKV = t.MemberlistKV.GetMemberlistKV
 	t.cfg.BackendWorker.Ring.KVStore.MemberlistKV = t.MemberlistKV.GetMemberlistKV
@@ -739,11 +889,13 @@ func (t *App) setupModuleManager() error {
 	mm.RegisterModule(UsageReport, t.initUsageReport)
 	mm.RegisterModule(CacheProvider, t.initCacheProvider, modules.UserInvisibleModule)
 	mm.RegisterModule(GeneratorRingWatcher, t.initGeneratorRingWatcher, modules.UserInvisibleModule)
+	mm.RegisterModule(IngesterRing, t.initIngesterRing, modules.UserInvisibleModule)
 	mm.RegisterModule(LiveStoreRing, t.initLiveStoreRing, modules.UserInvisibleModule)
 	mm.RegisterModule(PartitionRing, t.initPartitionRing, modules.UserInvisibleModule)
 
 	mm.RegisterModule(Common, nil, modules.UserInvisibleModule)
 
+	mm.RegisterModule(Ingester, t.initIngester)
 	mm.RegisterModule(Distributor, t.initDistributor)
 	mm.RegisterModule(Querier, t.initQuerier)
 	mm.RegisterModule(QueryFrontend, t.initQueryFrontend)
@@ -756,7 +908,7 @@ func (t *App) setupModuleManager() error {
 
 	mm.RegisterModule(SingleBinary, nil)
 
-	distributorDeps := []string{Common, LiveStoreRing, PartitionRing}
+	distributorDeps := []string{Common, IngesterRing, PartitionRing}
 	if IsSingleBinary(t.cfg.Target) {
 		// In single-binary mode the distributor calls the live-store and metrics-generator in-process.
 		// Make those runtime dependencies explicit in the module DAG instead of relying on sibling
@@ -773,25 +925,27 @@ func (t *App) setupModuleManager() error {
 		OverridesAPI:         {Server, Overrides},
 		MemberlistKV:         {Server},
 		UsageReport:          {MemberlistKV},
+		IngesterRing:         {Server, MemberlistKV},
 		LiveStoreRing:        {Server, MemberlistKV},
-		PartitionRing:        {MemberlistKV, Server, LiveStoreRing},
+		PartitionRing:        {MemberlistKV, Server, IngesterRing, LiveStoreRing},
 		GeneratorRingWatcher: {MemberlistKV},
 
 		Common: {UsageReport, Server, Overrides},
 
 		// individual targets
+		Ingester:                      {Common, Store, MemberlistKV},
 		QueryFrontend:                 {Common, Store, OverridesAPI},
 		Distributor:                   distributorDeps,
 		MetricsGenerator:              {Common, MemberlistKV, PartitionRing, GeneratorRingWatcher},
 		MetricsGeneratorNoLocalBlocks: {Common, MemberlistKV, GeneratorRingWatcher},
-		Querier:                       {Common, Store, LiveStoreRing, PartitionRing},
+		Querier:                       {Common, Store, IngesterRing, LiveStoreRing, PartitionRing},
 		BlockBuilder:                  {Common, Store, MemberlistKV, PartitionRing},
 		BackendScheduler:              {Common, Store},
 		BackendWorker:                 {Common, Store, MemberlistKV},
 		LiveStore:                     {Common, MemberlistKV, PartitionRing},
 
 		// composite targets
-		SingleBinary: {BackendScheduler, BackendWorker, QueryFrontend, Querier, Distributor, MetricsGenerator, BlockBuilder, LiveStore},
+		SingleBinary: {QueryFrontend, Querier, Ingester, Distributor, MetricsGenerator},
 	}
 
 	for mod, targets := range deps {
