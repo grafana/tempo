@@ -53,8 +53,189 @@ func TestLiveStoreBasicConsume(t *testing.T) {
 	}
 }
 
+// TestLiveStorePushBytesLocalIngest verifies local in-process ingest when Kafka consumption is disabled.
+func TestLiveStorePushBytesLocalIngest(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	cfg := defaultConfig(t, tmpDir)
+	cfg.ConsumeFromKafka = false
+
+	liveStore, err := liveStoreWithConfig(t, cfg)
+	require.NoError(t, err)
+	require.NotNil(t, liveStore)
+
+	id := test.ValidTraceID(nil)
+	expectedTrace := test.MakeTrace(5, id)
+	traceBytes, err := proto.Marshal(expectedTrace)
+	require.NoError(t, err)
+
+	ctx := user.InjectOrgID(t.Context(), testTenantID)
+	_, err = liveStore.PushBytes(ctx, &tempopb.PushBytesRequest{
+		Traces: []tempopb.PreallocBytes{{Slice: traceBytes}},
+		Ids:    [][]byte{id},
+	})
+	require.NoError(t, err)
+
+	requireTraceInLiveStore(t, liveStore, id, expectedTrace)
+
+	err = services.StopAndAwaitTerminated(t.Context(), liveStore)
+	require.NoError(t, err)
+}
+
+func TestLiveStoreNewWithoutKafkaDoesNotRequirePartitionStyleInstanceID(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	cfg := defaultConfig(t, tmpDir)
+	cfg.ConsumeFromKafka = false
+	cfg.Ring.InstanceID = "single-binary"
+
+	limits, err := overrides.NewOverrides(overrides.Config{}, nil, prometheus.DefaultRegisterer)
+	require.NoError(t, err)
+
+	liveStore, err := New(cfg, limits, test.NewTestingLogger(t), prometheus.NewRegistry())
+	require.NoError(t, err)
+	require.NotNil(t, liveStore)
+	require.Equal(t, int32(0), liveStore.ingestPartitionID)
+}
+
+func TestLiveStorePushBytesRejectsWhenStarting(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	cfg := defaultConfig(t, tmpDir)
+	cfg.ConsumeFromKafka = false
+
+	limits, err := overrides.NewOverrides(overrides.Config{}, nil, prometheus.DefaultRegisterer)
+	require.NoError(t, err)
+
+	liveStore, err := New(cfg, limits, test.NewTestingLogger(t), prometheus.NewRegistry())
+	require.NoError(t, err)
+
+	id := test.ValidTraceID(nil)
+	expectedTrace := test.MakeTrace(1, id)
+	traceBytes, err := proto.Marshal(expectedTrace)
+	require.NoError(t, err)
+
+	ctx := user.InjectOrgID(t.Context(), testTenantID)
+	_, err = liveStore.PushBytes(ctx, &tempopb.PushBytesRequest{
+		Traces: []tempopb.PreallocBytes{{Slice: traceBytes}},
+		Ids:    [][]byte{id},
+	})
+	require.ErrorIs(t, err, ErrStarting)
+}
+
+func TestLiveStorePushBytesRejectsWhenStopping(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	cfg := defaultConfig(t, tmpDir)
+	cfg.ConsumeFromKafka = false
+
+	liveStore, err := liveStoreWithConfig(t, cfg)
+	require.NoError(t, err)
+	require.NotNil(t, liveStore)
+
+	// Transition to stopping state, then verify writes are rejected.
+	_ = liveStore.stopping(nil)
+
+	id := test.ValidTraceID(nil)
+	expectedTrace := test.MakeTrace(1, id)
+	traceBytes, err := proto.Marshal(expectedTrace)
+	require.NoError(t, err)
+
+	ctx := user.InjectOrgID(t.Context(), testTenantID)
+	_, err = liveStore.PushBytes(ctx, &tempopb.PushBytesRequest{
+		Traces: []tempopb.PreallocBytes{{Slice: traceBytes}},
+		Ids:    [][]byte{id},
+	})
+	require.ErrorIs(t, err, ErrStopping)
+}
+
+func TestLiveStorePushBytesRejectsNilRequest(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	cfg := defaultConfig(t, tmpDir)
+	cfg.ConsumeFromKafka = false
+
+	liveStore, err := liveStoreWithConfig(t, cfg)
+	require.NoError(t, err)
+	require.NotNil(t, liveStore)
+
+	ctx := user.InjectOrgID(t.Context(), testTenantID)
+	_, err = liveStore.PushBytes(ctx, nil)
+	require.EqualError(t, err, "nil push bytes request")
+
+	err = services.StopAndAwaitTerminated(t.Context(), liveStore)
+	require.NoError(t, err)
+}
+
+func TestLiveStorePushBytesRejectsMismatchedTraceAndIDCounts(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	cfg := defaultConfig(t, tmpDir)
+	cfg.ConsumeFromKafka = false
+
+	liveStore, err := liveStoreWithConfig(t, cfg)
+	require.NoError(t, err)
+	require.NotNil(t, liveStore)
+
+	id := test.ValidTraceID(nil)
+	expectedTrace := test.MakeTrace(1, id)
+	traceBytes, err := proto.Marshal(expectedTrace)
+	require.NoError(t, err)
+
+	ctx := user.InjectOrgID(t.Context(), testTenantID)
+	_, err = liveStore.PushBytes(ctx, &tempopb.PushBytesRequest{
+		Traces: []tempopb.PreallocBytes{{Slice: traceBytes}},
+		Ids:    [][]byte{},
+	})
+	require.EqualError(t, err, "mismatched traces and ids length: traces=1 ids=0")
+
+	err = services.StopAndAwaitTerminated(t.Context(), liveStore)
+	require.NoError(t, err)
+}
+
+func TestLiveStorePushBytesEmptyRequestDoesNotCreateInstance(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	cfg := defaultConfig(t, tmpDir)
+	cfg.ConsumeFromKafka = false
+
+	liveStore, err := liveStoreWithConfig(t, cfg)
+	require.NoError(t, err)
+	require.NotNil(t, liveStore)
+
+	ctx := user.InjectOrgID(t.Context(), testTenantID)
+	resp, err := liveStore.PushBytes(ctx, &tempopb.PushBytesRequest{
+		Traces: []tempopb.PreallocBytes{},
+		Ids:    [][]byte{},
+	})
+	require.NoError(t, err)
+	require.NotNil(t, resp)
+
+	_, found := liveStore.getInstance(testTenantID)
+	require.False(t, found)
+
+	err = services.StopAndAwaitTerminated(t.Context(), liveStore)
+	require.NoError(t, err)
+}
+
+func TestLiveStoreStartStopWithoutKafkaConsumer(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	cfg := defaultConfig(t, tmpDir)
+	cfg.ConsumeFromKafka = false
+
+	liveStore, err := liveStoreWithConfig(t, cfg)
+	require.NoError(t, err)
+	require.NotNil(t, liveStore)
+	require.Nil(t, liveStore.client)
+	require.Nil(t, liveStore.reader)
+
+	err = services.StopAndAwaitTerminated(t.Context(), liveStore)
+	require.NoError(t, err)
+}
+
 // TestLiveStoreFullBlockLifecycleCheating tests all stages of the trace lifecycle by "cheating". e.g. it
-// uses knowledge of the internal state of the livestore and its instances to check the correct blocks exist
+// uses knowledge of the internal state of the live-store and its instances to check the correct blocks exist.
 func TestLiveStoreFullBlockLifecycleCheating(t *testing.T) {
 	tmpDir := t.TempDir()
 
@@ -469,7 +650,7 @@ func TestLiveStoreQueryMethodsBeforeStarted(t *testing.T) {
 	logger := test.NewTestingLogger(t)
 
 	// Create LiveStore but DO NOT start it
-	liveStore, err := New(cfg, limits, logger, reg, true)
+	liveStore, err := New(cfg, limits, logger, reg)
 	require.NoError(t, err)
 	require.NotNil(t, liveStore)
 

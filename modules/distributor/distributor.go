@@ -129,9 +129,19 @@ type rebatchedTrace struct {
 	spanCount int
 }
 
-// PushSpansFunc is a callback used to push spans to a local metrics-generator
-// instance without gRPC/ring indirection (single-binary mode).
+// PushSpansFunc is a callback used to push spans to a local in-process consumer
+// without gRPC/ring indirection (single-binary mode).
 type PushSpansFunc func(ctx context.Context, req *tempopb.PushSpansRequest) (*tempopb.PushResponse, error)
+
+// PushBytesFunc is a callback used to push pre-marshaled traces to a local
+// in-process consumer without Kafka indirection (single-binary mode).
+type PushBytesFunc func(ctx context.Context, req *tempopb.PushBytesRequest) (*tempopb.PushResponse, error)
+
+// LocalPushTargets contains optional local in-process push callbacks.
+type LocalPushTargets struct {
+	Generator PushSpansFunc
+	LiveStore PushBytesFunc
+}
 
 type truncatedAttributesCount struct {
 	Resource int
@@ -160,9 +170,9 @@ type Distributor struct {
 	DistributorRing *ring.Ring
 	overrides       overrides.Interface
 
-	// metrics-generator
-	generatorForwarder   *generatorForwarder
-	pushSpansToLocalFunc PushSpansFunc
+	// Local in-process push targets used in single-binary mode.
+	localPushTargets   LocalPushTargets
+	generatorForwarder *generatorForwarder
 
 	// Generic Forwarder
 	forwardersManager *forwarder.Manager
@@ -198,7 +208,7 @@ type Distributor struct {
 // New a distributor creates.
 func New(
 	cfg Config,
-	pushSpansToLocalFunc PushSpansFunc,
+	localPushTargets LocalPushTargets,
 	partitionRing ring.PartitionRingReader,
 	o overrides.Interface,
 	middleware receiver.Middleware,
@@ -241,7 +251,7 @@ func New(
 		cfg:                  cfg,
 		DistributorRing:      distributorRing,
 		ingestionRateLimiter: limiter.NewRateLimiter(ingestionRateStrategy, 10*time.Second),
-		pushSpansToLocalFunc: pushSpansToLocalFunc,
+		localPushTargets:     localPushTargets,
 		partitionRing:        partitionRing,
 		pushSpansToKafka:     pushSpansToKafka,
 		overrides:            o,
@@ -260,7 +270,7 @@ func New(
 		d.usage = tracker
 	}
 
-	if d.pushSpansToLocalFunc != nil {
+	if d.localPushTargets.Generator != nil {
 		d.generatorForwarder = newGeneratorForwarder(logger, d.sendToGenerators, o)
 		subservices = append(subservices, d.generatorForwarder)
 	}
@@ -480,10 +490,9 @@ func (d *Distributor) PushTraces(ctx context.Context, traces ptrace.Traces) (*te
 		return nil, err
 	}
 
-	// In single-binary mode we also push directly to metrics-generator in-process,
-	// while still writing to Kafka for live-store and block-builder.
-	if d.pushSpansToLocalFunc != nil {
-		d.pushTracesToGenerator(ctx, userID, ringTokens, rebatchedTraces)
+	if err := d.pushLocal(ctx, userID, ringTokens, rebatchedTraces); err != nil {
+		level.Error(d.logger).Log("msg", "failed to push to local consumers", "err", err, "tenant", userID)
+		return nil, err
 	}
 
 	return nil, nil // PushRequest is ignored, so no reason to create one
@@ -494,14 +503,52 @@ func (d *Distributor) pushTracesKafka(ctx context.Context, userID string, keys [
 		return nil
 	}
 
-	skipMetricsGeneration := generator.ExtractNoGenerateMetrics(ctx) || d.pushSpansToLocalFunc != nil
+	skipMetricsGeneration := generator.ExtractNoGenerateMetrics(ctx) || d.localPushTargets.Generator != nil
 	return d.sendToKafka(ctx, userID, keys, traces, skipMetricsGeneration)
 }
 
+func (d *Distributor) pushLocal(ctx context.Context, userID string, keys []uint32, traces []*rebatchedTrace) error {
+	if err := d.pushTracesToLiveStore(ctx, userID, traces); err != nil {
+		return err
+	}
+
+	d.pushTracesToGenerator(ctx, userID, keys, traces)
+	return nil
+}
+
 func (d *Distributor) pushTracesToGenerator(ctx context.Context, userID string, keys []uint32, traces []*rebatchedTrace) {
+	if d.localPushTargets.Generator == nil {
+		return
+	}
 	if len(d.overrides.MetricsGeneratorProcessors(userID)) > 0 {
 		d.generatorForwarder.SendTraces(ctx, userID, keys, traces)
 	}
+}
+
+func (d *Distributor) pushTracesToLiveStore(ctx context.Context, userID string, traces []*rebatchedTrace) error {
+	if d.localPushTargets.LiveStore == nil {
+		return nil
+	}
+
+	req := &tempopb.PushBytesRequest{
+		Traces: make([]tempopb.PreallocBytes, len(traces)),
+		Ids:    make([][]byte, len(traces)),
+	}
+	for i, tr := range traces {
+		b, err := proto.Marshal(tr.trace)
+		if err != nil {
+			return fmt.Errorf("failed to marshal trace for local live-store push: %w", err)
+		}
+		req.Traces[i].Slice = b
+		req.Ids[i] = tr.id
+	}
+
+	localCtx := user.InjectOrgID(ctx, userID)
+	_, err := d.localPushTargets.LiveStore(localCtx, req)
+	if err != nil {
+		return fmt.Errorf("failed to push spans to local live-store: %w", err)
+	}
+	return nil
 }
 
 func (d *Distributor) sendToGenerators(ctx context.Context, userID string, _ []uint32, traces []*rebatchedTrace, noGenerateMetrics bool) error {
@@ -514,7 +561,7 @@ func (d *Distributor) sendToGenerators(ctx context.Context, userID string, _ []u
 	}
 
 	localCtx := user.InjectOrgID(ctx, userID)
-	_, err := d.pushSpansToLocalFunc(localCtx, &req)
+	_, err := d.localPushTargets.Generator(localCtx, &req)
 	metricGeneratorPushes.WithLabelValues("local").Inc()
 	if err != nil {
 		metricGeneratorPushesFailures.WithLabelValues("local").Inc()
