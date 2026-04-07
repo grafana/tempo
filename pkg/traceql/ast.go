@@ -31,11 +31,28 @@ type typedExpression interface {
 }
 
 type RootExpr struct {
-	Pipeline           Pipeline
-	MetricsPipeline    firstStageElement
-	MetricsSecondStage secondStageElement
+	Pipeline           map[string]Pipeline        // spanset filters
+	BatchSpanProcessor map[string]spanProcessor   // span processing
+	SeriesProcessor    map[string]seriesProcessor // time series processing
+	expression         *mathExpression            // query expression structure (second stage)
 	Hints              *Hints
 	OptimizationCount  int
+}
+
+// SinglePipeline returns the pipeline when there is exactly one sub-query.
+// Returns false for math expressions (multiple pipelines).
+func (r *RootExpr) SinglePipeline() (Pipeline, bool) {
+	if len(r.Pipeline) > 1 || len(r.BatchSpanProcessor) > 1 || (r.expression != nil && r.expression.op != OpNone) {
+		return Pipeline{}, false
+	}
+	for _, p := range r.Pipeline {
+		return p, true
+	}
+	return Pipeline{}, false
+}
+
+func (r *RootExpr) MetricsSecondStage() secondStageElement {
+	return r.expression
 }
 
 func NeedsFullTrace(e ...Element) bool {
@@ -65,12 +82,23 @@ func NeedsFullTrace(e ...Element) bool {
 }
 
 func (r *RootExpr) NeedsFullTrace() bool {
-	for _, e := range r.Pipeline.Elements {
-		if NeedsFullTrace(e) {
-			return true
+	for _, p := range r.Pipeline {
+		for _, el := range p.Elements {
+			if NeedsFullTrace(el) {
+				return true
+			}
 		}
 	}
 	return false
+}
+
+// subQueryKey is used to route time series
+func subQueryKey(p Pipeline, m1 firstStageElement) string {
+	key := p.String()
+	if m1 != nil {
+		key += " | " + m1.String()
+	}
+	return key
 }
 
 func newRootExpr(e PipelineElement) *RootExpr {
@@ -79,8 +107,10 @@ func newRootExpr(e PipelineElement) *RootExpr {
 		p = newPipeline(e)
 	}
 
+	key := subQueryKey(p, nil)
 	return &RootExpr{
-		Pipeline: p,
+		Pipeline:   map[string]Pipeline{key: p},
+		expression: newFlatExpression(key, nil),
 	}
 }
 
@@ -90,9 +120,12 @@ func newRootExprWithMetrics(e PipelineElement, m firstStageElement) *RootExpr {
 		p = newPipeline(e)
 	}
 
+	key := subQueryKey(p, m)
 	return &RootExpr{
-		Pipeline:        p,
-		MetricsPipeline: m,
+		Pipeline:           map[string]Pipeline{key: p},
+		BatchSpanProcessor: map[string]spanProcessor{key: m},
+		SeriesProcessor:    map[string]seriesProcessor{key: m},
+		expression:         newFlatExpression(key, nil),
 	}
 }
 
@@ -102,11 +135,76 @@ func newRootExprWithMetricsTwoStage(e PipelineElement, m1 firstStageElement, m2 
 		p = newPipeline(e)
 	}
 
+	key := subQueryKey(p, m1)
 	return &RootExpr{
-		Pipeline:           p,
-		MetricsPipeline:    m1,
-		MetricsSecondStage: m2,
+		Pipeline:           map[string]Pipeline{key: p},
+		BatchSpanProcessor: map[string]spanProcessor{key: m1},
+		SeriesProcessor:    map[string]seriesProcessor{key: m1},
+		expression:         newFlatExpression(key, m2),
 	}
+}
+
+func newRootExprMath(op Operator, lhs, rhs *RootExpr) *RootExpr {
+	// Merge maps from both sides
+	pipelines := make(map[string]Pipeline, len(lhs.Pipeline)+len(rhs.Pipeline))
+	spanProcs := make(map[string]spanProcessor, len(lhs.BatchSpanProcessor)+len(rhs.BatchSpanProcessor))
+	seriesProcs := make(batchSeriesProcessor, len(lhs.BatchSpanProcessor)+len(rhs.BatchSpanProcessor))
+	for k, v := range lhs.Pipeline {
+		pipelines[k] = v
+	}
+	for k, v := range rhs.Pipeline {
+		pipelines[k] = v
+	}
+	for k, v := range lhs.BatchSpanProcessor {
+		spanProcs[k] = v
+	}
+	for k, v := range rhs.BatchSpanProcessor {
+		spanProcs[k] = v
+	}
+	for k, v := range lhs.SeriesProcessor {
+		seriesProcs[k] = v
+	}
+	for k, v := range rhs.SeriesProcessor {
+		seriesProcs[k] = v
+	}
+
+	return &RootExpr{
+		Pipeline:           pipelines,
+		BatchSpanProcessor: spanProcs,
+		SeriesProcessor:    seriesProcs,
+		expression: &mathExpression{
+			op:  op,
+			lhs: lhs.expression,
+			rhs: rhs.expression,
+		},
+	}
+}
+
+func newWrappedMetricsPipeline(e PipelineElement, m1 firstStageElement, m2 secondStageElement) *RootExpr {
+	p, ok := e.(Pipeline)
+	if !ok {
+		p = newPipeline(e)
+	}
+
+	key := subQueryKey(p, m1)
+	return &RootExpr{
+		Pipeline:           map[string]Pipeline{key: p},
+		BatchSpanProcessor: map[string]spanProcessor{key: m1},
+		SeriesProcessor:    map[string]seriesProcessor{key: m1},
+		expression:         newFlatExpression(key, m2),
+	}
+}
+
+func chainMathSecondStage(r *RootExpr, stage ChainedSecondStage) *RootExpr {
+	if len(stage) == 0 {
+		return r
+	}
+	if r.expression.filter == nil {
+		r.expression.filter = stage
+	} else {
+		r.expression.filter = append(ChainedSecondStage{r.expression.filter}, stage...)
+	}
+	return r
 }
 
 func (r *RootExpr) withHints(h *Hints) *RootExpr {
@@ -132,26 +230,28 @@ func (r *RootExpr) IsNoop() bool {
 		return v.Equals(&StaticFalse)
 	}
 
-	// Any spanset filter that references the span or something other
-	// than static false means the expression isn't noop.
-	// This checks one layer deep which covers most expressions.
-	for _, e := range r.Pipeline.Elements {
-		switch x := e.(type) {
-		case SpansetOperation:
-			if !isNoopFilter(x.LHS) {
-				return false
-			}
-			if !isNoopFilter(x.RHS) {
-				return false
-			}
-		case *SpansetFilter:
-			if !isNoopFilter(x) {
-				return false
-			}
-		default:
+	for _, p := range r.Pipeline {
+		// Any spanset filter that references the span or something other
+		// than static false means the expression isn't noop.
+		// This checks one layer deep which covers most expressions.
+		for _, el := range p.Elements {
+			switch x := el.(type) {
+			case SpansetOperation:
+				if !isNoopFilter(x.LHS) {
+					return false
+				}
+				if !isNoopFilter(x.RHS) {
+					return false
+				}
+			case *SpansetFilter:
+				if !isNoopFilter(x) {
+					return false
+				}
 			// Lots of other expressions here which aren't checked
 			// for noops yet.
-			return false
+			default:
+				return false
+			}
 		}
 	}
 	return true
