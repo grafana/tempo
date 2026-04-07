@@ -163,11 +163,22 @@ For the full list of options, refer to the [Ingest](/docs/tempo/<TEMPO_VERSION>/
 
 #### Disable compaction during parallel operation
 
-In Tempo 3.0, compaction is handled by backend-workers coordinated by the backend-scheduler. Only one set of compaction components can safely write to shared storage at a time. Because the 2.x compactors are still running during the parallel operation period, disable the 3.0 compaction components to prevent data corruption.
+Only one compaction system can safely write to shared storage at a time. Disable compaction in the 3.0 deployment while the 2.x compactors are still running.
 
-In microservices mode, scale backend-scheduler and backend-worker replicas to `0`. In monolithic mode, comment out or remove the `backend_scheduler:` and `backend_worker:` blocks from your configuration.
+Set `compaction_disabled: true` in the defaults and in every per-tenant override in your 3.0 configuration. Overrides don't inherit properties, so each tenant entry must include it explicitly:
 
-You re-enable compaction after the 2.x deployment is decommissioned. Refer to [Clean up the Tempo 2.x deployment](#clean-up-the-tempo-2x-deployment).
+```yaml
+overrides:
+  defaults:
+    compaction:
+      compaction_disabled: true
+  "tenant-a":
+    compaction:
+      compaction_disabled: true
+  # Repeat for all per-tenant overrides
+```
+
+You re-enable compaction by removing this override after the 2.x deployment is decommissioned. Refer to [Clean up the Tempo 2.x deployment](#clean-up-the-tempo-2x-deployment).
 
 #### Metrics-generator
 
@@ -230,9 +241,7 @@ To clean up the 2.x deployment:
 
 1. Wait for the 2.x ingesters to flush all in-memory traces to object storage. With default settings (`max_block_duration` of 30 minutes and `complete_block_timeout` of 15 minutes), this takes up to approximately 45 minutes. If you've customized these values, add your `max_block_duration` and `complete_block_timeout` together to estimate the wait.
 
-1. Scale 2.x compactors to zero. Both 2.x compactors and 3.0 backend-workers must not run at the same time against the same storage.
-
-1. Scale backend-workers back up in the 3.0 deployment. The blocklist poll interval (default 5 minutes) controls how quickly queriers discover new blocks. Running without compaction for extended periods can cause the blocklist to grow.
+1. Scale the 2.x compactors to zero and remove the `compaction_disabled` override from the 3.0 deployment to re-enable compaction. Running without compaction for extended periods can cause the blocklist to grow.
 
 1. Keep the 2.x deployment idle for at least one week. This provides a fallback period to verify the 3.0 deployment is stable.
 
