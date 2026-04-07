@@ -310,8 +310,13 @@ func (ls Labels) String() string {
 
 func (ls Labels) MapKey() SeriesMapKey {
 	key := SeriesMapKey{}
-	for i := range ls {
-		key[i] = SeriesMapLabel{Name: ls[i].Name, Value: ls[i].Value.MapKey()}
+	var i int
+	for _, l := range ls {
+		if l.Name == labels.MetricName {
+			continue
+		}
+		key[i] = SeriesMapLabel{Name: l.Name, Value: l.Value.MapKey()}
+		i++
 	}
 	return key
 }
