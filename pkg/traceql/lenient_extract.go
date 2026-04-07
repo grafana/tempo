@@ -30,8 +30,14 @@ func ExtractFetchRequest(query string) *FetchSpansRequest {
 
 	// Walk the full AST to extract conditions. AllConditions is set to false
 	// by extractConditions when OR operators or structural operators are present.
-	req := &FetchSpansRequest{AllConditions: true}
-	expr.extractConditions(req)
+	requests := expr.extractConditions(FetchSpansRequest{AllConditions: true})
+
+	// Use the first sub-query request.
+	var req FetchSpansRequest
+	for _, v := range requests {
+		req = v
+		break
+	}
 
 	// Filter out OpNone conditions — these are column-fetch hints (bare attributes,
 	// structural intrinsics), not filterable conditions.
@@ -43,7 +49,7 @@ func ExtractFetchRequest(query string) *FetchSpansRequest {
 	}
 	req.Conditions = conditions
 
-	return req
+	return &req
 }
 
 // NormalizeQuery parses a query string using the lenient parser and returns
