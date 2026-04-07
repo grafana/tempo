@@ -9,15 +9,31 @@ import (
 	"github.com/grafana/tempo/pkg/tempopb"
 )
 
-type firstStageElement interface {
-	Element
-	extractConditions(request *FetchSpansRequest)
+// metricsElement is the shared base for span and series processing pipelines.
+type metricsElement interface {
 	init(req *tempopb.QueryRangeRequest, mode AggregateMode)
-	observe(Span) // TODO - batching?
-	observeExemplar(Span)
-	observeSeries([]*tempopb.TimeSeries) // Re-entrant metrics on the query-frontend.  Using proto version for efficiency
 	result(multiplier float64) SeriesSet
 	length() int
+}
+
+// spanProcessor handles individual span observation.
+type spanProcessor interface {
+	metricsElement
+	extractConditions(request *FetchSpansRequest)
+	observe(Span)
+	observeExemplar(Span)
+}
+
+// seriesProcessor handles pre-aggregated time series.
+type seriesProcessor interface {
+	metricsElement
+	observeSeries([]*tempopb.TimeSeries)
+}
+
+type firstStageElement interface {
+	Element
+	spanProcessor
+	seriesProcessor
 }
 
 type getExemplar func(Span) (float64, uint64)
@@ -342,7 +358,11 @@ func (a *MetricsAggregate) validate() error {
 	return nil
 }
 
-var _ firstStageElement = (*MetricsAggregate)(nil)
+var (
+	_ firstStageElement = (*MetricsAggregate)(nil)
+	_ spanProcessor     = (*MetricsAggregate)(nil)
+	_ seriesProcessor   = (*MetricsAggregate)(nil)
+)
 
 // secondStageElement represents operations that are performed
 // in the second stage metrics pipeline, such as topK/bottomK, etc.
