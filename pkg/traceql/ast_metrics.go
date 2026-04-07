@@ -36,6 +36,58 @@ type firstStageElement interface {
 	seriesProcessor
 }
 
+// batchSeriesProcessor routes incoming time series to sub-processors by
+// the __query_fragment label. It implements seriesProcessor so the frontend
+// evaluator can treat math and non-math queries uniformly.
+type batchSeriesProcessor map[string]seriesProcessor
+
+var _ seriesProcessor = batchSeriesProcessor(nil)
+
+func (b batchSeriesProcessor) init(req *tempopb.QueryRangeRequest, mode AggregateMode) {
+	for _, p := range b {
+		p.init(req, mode)
+	}
+}
+
+func (b batchSeriesProcessor) observeSeries(in []*tempopb.TimeSeries) {
+	if len(in) == 0 {
+		return
+	}
+	fragments := make(map[string][]*tempopb.TimeSeries, len(b))
+	for _, ts := range in {
+		for _, label := range ts.Labels {
+			if label.GetKey() == internalLabelQueryFragment {
+				fragmentKey := label.GetValue().GetStringValue()
+				fragments[fragmentKey] = append(fragments[fragmentKey], ts)
+				break
+			}
+		}
+	}
+	for k, v := range fragments {
+		if p, ok := b[k]; ok {
+			p.observeSeries(v)
+		}
+	}
+}
+
+func (b batchSeriesProcessor) result(multiplier float64) SeriesSet {
+	combined := make(SeriesSet)
+	for _, p := range b {
+		for k, v := range p.result(multiplier) {
+			combined[k] = v
+		}
+	}
+	return combined
+}
+
+func (b batchSeriesProcessor) length() int {
+	var total int
+	for _, p := range b {
+		total += p.length()
+	}
+	return total
+}
+
 type getExemplar func(Span) (float64, uint64)
 
 // MetricsAggregate is a placeholder in the AST for a metrics aggregation
