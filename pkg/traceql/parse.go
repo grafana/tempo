@@ -80,19 +80,24 @@ func ParseIdentifier(s string) (Attribute, error) {
 		return Attribute{}, fmt.Errorf("failed to parse identifier %s: parsed expression is nil", s)
 	}
 
-	if len(expr.Pipeline.Elements) == 0 {
+	pipeline, ok := expr.SinglePipeline()
+	if !ok {
+		return Attribute{}, fmt.Errorf("failed to parse identifier %s: %w", s, ErrMathNotSupported)
+	}
+
+	if len(pipeline.Elements) == 0 {
 		return Attribute{}, fmt.Errorf("failed to parse identifier %s: no pipeline elements found", s)
 	}
 
 	// Extract and validate the spanset filter
-	filter, ok := expr.Pipeline.Elements[0].(*SpansetFilter)
-	if !ok {
-		return Attribute{}, fmt.Errorf("failed to parse identifier %s: expected SpansetFilter but got %T", s, expr.Pipeline.Elements[0])
+	filter, isFilter := pipeline.Elements[0].(*SpansetFilter)
+	if !isFilter {
+		return Attribute{}, fmt.Errorf("failed to parse identifier %s: expected SpansetFilter but got %T", s, pipeline.Elements[0])
 	}
 
 	// Extract and validate the attribute
-	attribute, ok := filter.Expression.(Attribute)
-	if !ok {
+	attribute, isAttr := filter.Expression.(Attribute)
+	if !isAttr {
 		return Attribute{}, fmt.Errorf("failed to parse identifier %s: expected Attribute but got %T", s, filter.Expression)
 	}
 
