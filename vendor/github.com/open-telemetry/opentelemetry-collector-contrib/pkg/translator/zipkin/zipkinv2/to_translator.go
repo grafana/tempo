@@ -18,7 +18,6 @@ import (
 	zipkinmodel "github.com/openzipkin/zipkin-go/model"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
-	conventionsv112 "go.opentelemetry.io/otel/semconv/v1.12.0"
 	conventionsv118 "go.opentelemetry.io/otel/semconv/v1.18.0"
 	conventionsv121 "go.opentelemetry.io/otel/semconv/v1.21.0"
 	conventionsv125 "go.opentelemetry.io/otel/semconv/v1.25.0"
@@ -28,6 +27,7 @@ import (
 	"github.com/open-telemetry/opentelemetry-collector-contrib/internal/coreinternal/occonventions"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/internal/coreinternal/tracetranslator"
 	idutils "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/core/xidutils"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/zipkin/internal/metadata"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/zipkin/internal/zipkin"
 )
 
@@ -394,10 +394,20 @@ func zTagsToInternalAttrs(zspan *zipkinmodel.SpanModel, tags map[string]string, 
 	parseErr := tagsToAttributeMap(tags, dest, parseStringTags)
 	if zspan.LocalEndpoint != nil {
 		if zspan.LocalEndpoint.IPv4 != nil {
-			dest.PutStr(string(conventionsv112.NetHostIPKey), zspan.LocalEndpoint.IPv4.String())
+			if !metadata.PkgTranslatorZipkinDontEmitV0NetworkConventionsFeatureGate.IsEnabled() {
+				dest.PutStr("net.host.ip", zspan.LocalEndpoint.IPv4.String())
+			}
+			if metadata.PkgTranslatorZipkinEmitV1NetworkConventionsFeatureGate.IsEnabled() {
+				dest.PutStr(string(conventions.NetworkLocalAddressKey), zspan.LocalEndpoint.IPv4.String())
+			}
 		}
 		if zspan.LocalEndpoint.IPv6 != nil {
-			dest.PutStr(string(conventionsv112.NetHostIPKey), zspan.LocalEndpoint.IPv6.String())
+			if !metadata.PkgTranslatorZipkinDontEmitV0NetworkConventionsFeatureGate.IsEnabled() {
+				dest.PutStr("net.host.ip", zspan.LocalEndpoint.IPv6.String())
+			}
+			if metadata.PkgTranslatorZipkinEmitV1NetworkConventionsFeatureGate.IsEnabled() {
+				dest.PutStr(string(conventions.NetworkLocalAddressKey), zspan.LocalEndpoint.IPv6.String())
+			}
 		}
 		if zspan.LocalEndpoint.Port > 0 {
 			dest.PutInt(string(conventionsv125.NetHostPortKey), int64(zspan.LocalEndpoint.Port))
@@ -408,10 +418,20 @@ func zTagsToInternalAttrs(zspan *zipkinmodel.SpanModel, tags map[string]string, 
 			dest.PutStr(string(conventions.PeerServiceKey), zspan.RemoteEndpoint.ServiceName)
 		}
 		if zspan.RemoteEndpoint.IPv4 != nil {
-			dest.PutStr(string(conventionsv112.NetPeerIPKey), zspan.RemoteEndpoint.IPv4.String())
+			if !metadata.PkgTranslatorZipkinDontEmitV0NetworkConventionsFeatureGate.IsEnabled() {
+				dest.PutStr("net.peer.ip", zspan.RemoteEndpoint.IPv4.String())
+			}
+			if metadata.PkgTranslatorZipkinEmitV1NetworkConventionsFeatureGate.IsEnabled() {
+				dest.PutStr(string(conventions.NetworkPeerAddressKey), zspan.RemoteEndpoint.IPv4.String())
+			}
 		}
 		if zspan.RemoteEndpoint.IPv6 != nil {
-			dest.PutStr(string(conventionsv112.NetPeerIPKey), zspan.RemoteEndpoint.IPv6.String())
+			if !metadata.PkgTranslatorZipkinDontEmitV0NetworkConventionsFeatureGate.IsEnabled() {
+				dest.PutStr("net.peer.ip", zspan.RemoteEndpoint.IPv6.String())
+			}
+			if metadata.PkgTranslatorZipkinEmitV1NetworkConventionsFeatureGate.IsEnabled() {
+				dest.PutStr(string(conventions.NetworkPeerAddressKey), zspan.RemoteEndpoint.IPv6.String())
+			}
 		}
 		if zspan.RemoteEndpoint.Port > 0 {
 			dest.PutInt(string(conventionsv125.NetPeerPortKey), int64(zspan.RemoteEndpoint.Port))

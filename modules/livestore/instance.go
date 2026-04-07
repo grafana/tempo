@@ -12,7 +12,6 @@ import (
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
 	"github.com/google/uuid"
-	"github.com/grafana/tempo/modules/ingester"
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/pkg/livetraces"
 	"github.com/grafana/tempo/pkg/model"
@@ -78,6 +77,12 @@ var (
 		Name:      "back_pressure_seconds_total",
 		Help:      "The total amount of time spent waiting to process data from queue",
 	}, []string{"reason"})
+	metricTotalBackPressure = promauto.NewHistogram(prometheus.HistogramOpts{
+		Namespace: "tempo",
+		Subsystem: "live_store",
+		Name:      "back_pressure_duration_seconds",
+		Help:      "Duration of backpressure wait per push",
+	})
 )
 
 type instance struct {
@@ -95,7 +100,7 @@ type instance struct {
 	blocksMtx      sync.RWMutex
 	headBlock      common.WALBlock
 	walBlocks      map[uuid.UUID]common.WALBlock
-	completeBlocks map[uuid.UUID]*ingester.LocalBlock
+	completeBlocks map[uuid.UUID]*LocalBlock
 	lastCutTime    time.Time
 
 	// Live traces
@@ -121,7 +126,7 @@ func newInstance(instanceID string, cfg Config, wal *wal.WAL, completeBlockEncod
 		wal:                   wal,
 		completeBlockEncoding: completeBlockEncoding,
 		walBlocks:             map[uuid.UUID]common.WALBlock{},
-		completeBlocks:        map[uuid.UUID]*ingester.LocalBlock{},
+		completeBlocks:        map[uuid.UUID]*LocalBlock{},
 		liveTraces:            livetraces.New[*v1.ResourceSpans](func(rs *v1.ResourceSpans) uint64 { return uint64(rs.Size()) }, cfg.MaxTraceIdle, cfg.MaxTraceLive, instanceID),
 		traceSizes:            tracesizes.New(),
 		maxTraceLogger:        util_log.NewRateLimitedLogger(maxTraceLogLinesPerSecond, level.Warn(logger)),
@@ -139,9 +144,29 @@ func newInstance(instanceID string, cfg Config, wal *wal.WAL, completeBlockEncod
 	return i, nil
 }
 
+func (i *instance) waitBackpressure(ctx context.Context) {
+	span := oteltrace.SpanFromContext(ctx)
+	start := time.Now()
+	var hadBackpressure bool
+	for i.backpressure(ctx) {
+		hadBackpressure = true
+	}
+	if !hadBackpressure {
+		return // no need to measure backpressure
+	}
+	duration := time.Since(start)
+	span.AddEvent("backpressure done", oteltrace.WithAttributes(
+		attribute.Int("duration_ms", int(duration.Milliseconds())),
+	))
+	metricTotalBackPressure.Observe(duration.Seconds())
+}
+
 func (i *instance) backpressure(ctx context.Context) bool {
+	span := oteltrace.SpanFromContext(ctx)
+
 	if i.Cfg.MaxLiveTracesBytes > 0 {
 		// Check live traces
+
 		i.liveTracesMtx.Lock()
 		sz := i.liveTraces.Size()
 		i.liveTracesMtx.Unlock()
@@ -155,6 +180,9 @@ func (i *instance) backpressure(ctx context.Context) bool {
 			case <-time.After(1 * time.Second):
 			}
 
+			span.AddEvent("backpressure", oteltrace.WithAttributes(
+				attribute.String("reason", reasonWaitingForLiveTraces),
+			))
 			metricBackPressure.WithLabelValues(reasonWaitingForLiveTraces).Inc()
 			return true
 		}
@@ -175,6 +203,9 @@ func (i *instance) backpressure(ctx context.Context) bool {
 		}
 
 		metricBackPressure.WithLabelValues(reasonWaitingForWAL).Inc()
+		span.AddEvent("backpressure", oteltrace.WithAttributes(
+			attribute.String("reason", reasonWaitingForWAL),
+		))
 		return true
 	}
 
@@ -188,8 +219,7 @@ func (i *instance) pushBytes(ctx context.Context, ts time.Time, req *tempopb.Pus
 	}
 
 	// Wait for room in pipeline if needed
-	for i.backpressure(ctx) {
-	}
+	i.waitBackpressure(ctx)
 
 	if err := ctx.Err(); err != nil {
 		level.Error(i.logger).Log("msg", "failed to push bytes to instance", "err", err)
@@ -266,14 +296,23 @@ func countSpans(trace *tempopb.Trace) int {
 	return count
 }
 
-func (i *instance) cutIdleTraces(immediate bool) error {
+func (i *instance) cutIdleTraces(ctx context.Context, immediate bool) error {
+	_, span := tracer.Start(ctx, "instance.cutIdleTraces",
+		oteltrace.WithAttributes(attribute.String("tenant", i.tenantID)))
+	defer span.End()
+
 	i.liveTracesMtx.Lock()
+	span.AddEvent("acquired liveTracesMtx")
+
 	// Set metrics before cutting (similar to ingester)
 	metricLiveTraces.WithLabelValues(i.tenantID).Set(float64(i.liveTraces.Len()))
 	metricLiveTraceBytes.WithLabelValues(i.tenantID).Set(float64(i.liveTraces.Size()))
 
 	tracesToCut := i.liveTraces.CutIdle(time.Now(), immediate)
 	i.liveTracesMtx.Unlock()
+	span.AddEvent("released liveTracesMtx")
+
+	span.SetAttributes(attribute.Int("traces_to_cut", len(tracesToCut)))
 
 	if len(tracesToCut) == 0 {
 		return nil
@@ -283,20 +322,28 @@ func (i *instance) cutIdleTraces(immediate bool) error {
 		return bytes.Compare(tracesToCut[i].ID, tracesToCut[j].ID) == -1
 	})
 	// Collect the trace IDs that will be flushed
+	span.AddEvent("writing traces to head block")
 	for _, t := range tracesToCut {
 		err := i.writeHeadBlock(t.ID, t)
 		if err != nil {
+			span.RecordError(err)
 			return err
 		}
 
 		i.tracesCreatedTotal.Inc()
 	}
+	span.AddEvent("wrote traces to head block")
 
 	i.blocksMtx.Lock()
-	defer i.blocksMtx.Unlock()
+	span.AddEvent("acquired blocksMtx")
+	defer func() {
+		i.blocksMtx.Unlock()
+		span.AddEvent("released blocksMtx")
+	}()
 	if i.headBlock != nil {
 		err := i.headBlock.Flush()
 		if err != nil {
+			span.RecordError(err)
 			return err
 		}
 
@@ -386,9 +433,17 @@ func (i *instance) resetHeadBlock() error {
 	return nil
 }
 
-func (i *instance) cutBlocks(immediate bool) (uuid.UUID, error) {
+func (i *instance) cutBlocks(ctx context.Context, immediate bool) (uuid.UUID, error) {
+	_, span := tracer.Start(ctx, "instance.cutBlocks",
+		oteltrace.WithAttributes(attribute.String("tenant", i.tenantID)))
+	defer span.End()
+
 	i.blocksMtx.Lock()
-	defer i.blocksMtx.Unlock()
+	span.AddEvent("acquired blocksMtx")
+	defer func() {
+		i.blocksMtx.Unlock()
+		span.AddEvent("released blocksMtx")
+	}()
 
 	if i.headBlock == nil || i.headBlock.DataLength() == 0 {
 		return uuid.Nil, nil
@@ -403,6 +458,7 @@ func (i *instance) cutBlocks(immediate bool) (uuid.UUID, error) {
 	// Final flush
 	err := i.headBlock.Flush()
 	if err != nil {
+		span.RecordError(err)
 		return uuid.Nil, err
 	}
 
@@ -410,10 +466,16 @@ func (i *instance) cutBlocks(immediate bool) (uuid.UUID, error) {
 	blockSize := i.headBlock.DataLength()
 	i.walBlocks[id] = i.headBlock
 
+	span.SetAttributes(
+		attribute.String("blockID", id.String()),
+		attribute.Int64("block_size", int64(blockSize)),
+	)
+
 	level.Info(i.logger).Log("msg", "queueing wal block for completion", "block", id.String(), "size", blockSize)
 
 	err = i.resetHeadBlock()
 	if err != nil {
+		span.RecordError(err)
 		return uuid.Nil, err
 	}
 
@@ -482,7 +544,7 @@ func (i *instance) completeBlock(ctx context.Context, id uuid.UUID) error {
 		return nil
 	}
 
-	i.completeBlocks[id] = ingester.NewLocalBlock(ctx, newBlock, i.wal.LocalBackend())
+	i.completeBlocks[id] = NewLocalBlock(ctx, newBlock, i.wal.LocalBackend())
 
 	err = walBlock.Clear()
 	if err != nil {

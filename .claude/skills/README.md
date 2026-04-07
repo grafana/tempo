@@ -1,29 +1,24 @@
 # Skills: PR docs workflow
 
-This repository uses two complementary skills for PR-driven documentation work:
+This repository uses a three-step pipeline for PR-driven documentation work:
 
-- `docs-pr-check`: triage and classify documentation status per PR
-- `docs-pr-write`: write or update documentation for the PRs that need work
+1. `docs-pr-check`: triage and classify documentation status per PR
+2. `docs-pr-write`: write or update documentation for the PRs that need work
+3. `docs-review`: review the changes for style, accuracy, and completeness
 
-Use them together as a two-stage workflow.
+Use `/docs-workflow` to run all three steps in sequence, or invoke each skill individually.
 
-## Why split into two skills
-
-Keeping triage and writing separate improves quality and repeatability:
-
-- `docs-pr-check` stays fast and objective (classification + gap detection).
-- `docs-pr-write` stays focused on content creation (target page, examples, validation).
-- The handoff creates a clear audit trail of what was evaluated vs what was changed.
-
-## Recommended flow
-
-### 1) Run triage
-
-Invoke:
+## Quick start
 
 ```text
-/docs-pr-check
+/docs-workflow
 ```
+
+Provide a list of PR numbers and a target branch. The workflow runs check → write → review and asks for your input between each step. See `docs-workflow/SKILL.md` for details.
+
+## Individual skills
+
+### 1) Triage — `/docs-pr-check`
 
 Input:
 - Curated PR list for the release train
@@ -32,13 +27,7 @@ Output:
 - Classification table (`Docs present`, `Docs needed`, `Docs update needed`, `No docs required`)
 - Prioritized gap summary
 
-### 2) Run writing execution
-
-Invoke:
-
-```text
-/docs-pr-write
-```
+### 2) Write — `/docs-pr-write`
 
 Input:
 - Only PRs marked `Docs needed` or `Docs update needed` from step 1
@@ -49,22 +38,33 @@ Output:
 - PR-to-doc mapping
 - Open issues/blockers needing engineering clarification
 
-### 3) Run final docs review
+### 3) Review — `/docs-review`
 
-Before finalizing, run the Grafana AI Kit `doc-review` skill for quality checks (style, clarity, links, and consistency):
+Input:
+- File paths changed in step 2
+- Any open items or uncertain claims from the writing step
 
-- [doc-review skill](file:///Users/kim-nylander/.claude/plugins/cache/grafana-ai-kit/grafana-tech-writing/1.0.0/skills/doc-review/SKILL.md)
+Output:
+- Issues found, grouped by file
+- Summary of changes
 
-## Handoff contract (from check to write)
+## Why split into three skills
 
-Pass this per PR:
+Keeping triage, writing, and review separate improves quality and repeatability:
 
-- PR number
-- Classification
-- Gap note (what is missing/incomplete)
-- Suggested target docs files, if known
+- `docs-pr-check` stays fast and objective (classification + gap detection).
+- `docs-pr-write` stays focused on content creation (target page, examples, validation).
+- `docs-review` applies a consistent quality bar (style, frontmatter, links, accuracy).
+- The handoffs create a clear audit trail of what was evaluated, what was changed, and what was reviewed.
 
-Example handoff row:
+## Handoff contract
+
+| From → To | What passes |
+|-----------|-------------|
+| Check → Write | PR number, classification, gap note, suggested target files |
+| Write → Review | Changed file paths, open items or uncertain claims |
+
+Example handoff row (check → write):
 
 ```text
 #5962 | Docs update needed | API docs missing new Accept header behavior | docs/sources/tempo/api_docs/_index.md
@@ -72,17 +72,27 @@ Example handoff row:
 
 ## Scope boundaries
 
-`docs-pr-check` should:
-- determine if docs work is needed
-- identify where docs are missing/incomplete
-- prioritize docs work
+- `docs-pr-check` determines if docs work is needed and where gaps exist.
+- `docs-pr-write` implements the required docs updates and validates against code.
+- `docs-review` checks the result for style, frontmatter, links, and accuracy.
 
-`docs-pr-write` should:
-- implement the required docs updates
-- validate docs claims against code
-- add concise examples and cross-links
+These skills and the `/docs-workflow` command shouldn't be used as a substitute for release-notes assembly unless explicitly requested.
 
-Neither skill should be used as a substitute for release-notes assembly unless explicitly requested.
+## When to use this vs. the writer-agent
+
+| Task | Use |
+|------|-----|
+| PRs shipped and need docs | `/docs-workflow` or individual skills |
+| New feature or product docs from scratch | Writer-agent (`.agents/doc-agents/writers/writer-agent.md`) |
+| General documentation work not tied to PRs | Writer-agent |
+
+## Evals
+
+Each skill has an `evals/evals.json` with test cases for evaluating output quality. See `evals/README.md` for how to select test inputs, run evals, and grade results.
+
+## Repo orientation
+
+Before starting any doc task, read `.agents/doc-agents/shared/docs-context-guide.md` for code-to-docs mapping, key file paths, verification patterns, and Tempo conventions.
 
 ## Tips
 

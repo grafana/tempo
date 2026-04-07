@@ -50,13 +50,13 @@ querier
 
 ## Tempo query path
 
-Tempo has a query path made up of a query-frontend, querrier, ingester, metrics-generator, and backend.
+Tempo has a query path made up of a query-frontend, querier, live-store, and backend.
 
 You can think about each component in a query path as a generic producer and worker model:
 
 * The query-frontend is a producer and it has multiple workers connected to it. The query-frontend takes a single query and shards it into multiple jobs (units of work).
 * The queriers are workers. They enqueue work from a queue, process it, and send the results back to the producer (query-frontend).
-* The querier either reads data from backend and processes the query, or it delegates the query to ingesters and metrics generators based on the type of job, time range, and query type.
+* The querier either reads data from backend and processes the query, or it delegates the query to live-stores based on the type of job, time range, and query type.
 
 ![Tempo query path architecture](/media/docs/tempo/tempo-query-frontend.svg)
 

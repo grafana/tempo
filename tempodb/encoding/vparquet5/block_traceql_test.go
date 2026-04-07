@@ -181,7 +181,7 @@ func TestOne(t *testing.T) {
 			Step:  uint64(1 * time.Second),
 		}
 	)
-	eval, err := traceql.NewEngine().CompileMetricsQueryRange(req, 1, false)
+	eval, err := traceql.NewEngine().CompileMetricsQueryRange(req, traceql.WithTimeOverlapCutoff(1))
 	require.NoError(t, err)
 	fetchSpansRequest := eval.FetchSpansRequest()
 
@@ -638,6 +638,12 @@ func searchesThatMatch(t *testing.T, traceIDText string) []struct {
 		// Span dedicated attributes
 		{"span.dedicated.span.2", traceql.MustExtractFetchSpansRequestWithMetadata(`{span.dedicated.span.2 = "dedicated-span-attr-value-2"}`)},
 		{"span.dedicated.span.4", traceql.MustExtractFetchSpansRequestWithMetadata(`{span.dedicated.span.4 = "dedicated-span-attr-value-4"}`)},
+		// Blob attributes
+		{"span.dedicated.span.5", traceql.MustExtractFetchSpansRequestWithMetadata(`{span.dedicated.span.5 = "dedicated-span-attr-value-5"}`)},
+		{"span.dedicated.span.5", traceql.MustExtractFetchSpansRequestWithMetadata(`{span.dedicated.span.5 =~ "dedicated-span-attr-value-5"}`)},
+		{"span.dedicated.span.5", traceql.MustExtractFetchSpansRequestWithMetadata(`{span.dedicated.span.5 != ""}`)},
+		{"span.dedicated.span.5", traceql.MustExtractFetchSpansRequestWithMetadata(`{span.dedicated.span.5 != "asdf"}`)},
+		{"span.dedicated.span.5", traceql.MustExtractFetchSpansRequestWithMetadata(`{span.dedicated.span.5 > ""}`)},
 		// Arrays
 		{"resource.str-array", traceql.MustExtractFetchSpansRequestWithMetadata(`{resource.str-array = "value-three"}`)},
 		{"resource.int-array", traceql.MustExtractFetchSpansRequestWithMetadata(`{resource.int-array = 11}`)},
@@ -798,6 +804,9 @@ func searchesThatDontMatch(t *testing.T) []struct {
 		{"Matches neither condition", traceql.MustExtractFetchSpansRequestWithMetadata(`{.foo = "xyz" || .` + LabelHTTPStatusCode + " = 1000}")},
 		{"Resource dedicated attributes does not match", traceql.MustExtractFetchSpansRequestWithMetadata(`{resource.dedicated.resource.3 = "dedicated-resource-attr-value-4"}`)},
 		{"Resource dedicated attributes does not match", traceql.MustExtractFetchSpansRequestWithMetadata(`{span.dedicated.span.2 = "dedicated-span-attr-value-5"}`)},
+		{"Blob test 1", traceql.MustExtractFetchSpansRequestWithMetadata(`{span.dedicated.span.5 = "dedicated-span-attr-value-asdf"}`)},
+		{"Blob test 2", traceql.MustExtractFetchSpansRequestWithMetadata(`{span.dedicated.span.5 =~ "dedicated-span-attr-value-asdf"}`)},
+		{"Blob test 3", traceql.MustExtractFetchSpansRequestWithMetadata(`{span.dedicated.span.5 = ""}`)},
 		{
 			name: "Time range after trace",
 			req: traceql.FetchSpansRequest{
@@ -1774,7 +1783,7 @@ func BenchmarkIterators(b *testing.B) {
 func BenchmarkBackendBlockQueryRange(b *testing.B) {
 	testCases := []string{
 		"{} | rate()",
-		"{} | rate() with(new=true)",
+		"{} | rate() with(spanonly_fetch=true)",
 		"{} | rate() with(sample=true)",
 		"{} | rate() by (span.http.status_code)",
 		"{} | rate() by (resource.service.name)",
@@ -1826,7 +1835,7 @@ func BenchmarkBackendBlockQueryRange(b *testing.B) {
 				Exemplars: 2,
 			}
 
-			eval, err := e.CompileMetricsQueryRange(req, 0, false)
+			eval, err := e.CompileMetricsQueryRange(req, traceql.WithUnsafeQueryHints(true))
 			require.NoError(b, err)
 
 			b.ResetTimer()
@@ -1952,7 +1961,7 @@ func TestSamplingError(t *testing.T) {
 			Exemplars: 2,
 		}
 
-		eval, err := e.CompileMetricsQueryRange(req, 0, false)
+		eval, err := e.CompileMetricsQueryRange(req)
 		require.NoError(t, err)
 
 		err = eval.Do(ctx, f, st, end, int(req.MaxSeries))

@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/grafana/tempo/modules/ingester"
 	"github.com/grafana/tempo/pkg/ingest"
 	"github.com/grafana/tempo/pkg/ring"
 	"github.com/grafana/tempo/tempodb/encoding/common"
@@ -15,9 +14,9 @@ import (
 const defaultCompleteBlockTimeout = time.Hour
 
 type Config struct {
-	Ring          ring.Config                  `yaml:"ring,omitempty"`
-	PartitionRing ingester.PartitionRingConfig `yaml:"partition_ring" category:"experimental"`
-	Metrics       MetricsConfig                `yaml:"metrics"`
+	Ring          ring.Config         `yaml:"ring,omitempty"`
+	PartitionRing PartitionRingConfig `yaml:"partition_ring"`
+	Metrics       MetricsConfig       `yaml:"metrics"`
 
 	// CommitInterval configures how often the partition reader commits to kafka
 	// 0s means synchronous commits

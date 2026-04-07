@@ -15,6 +15,10 @@ const (
 	ReasonTraceTooLarge = "trace_too_large"
 	// ReasonLiveTracesExceeded indicates Tempo is already tracking too many live traces for this tenant.
 	ReasonLiveTracesExceeded = "live_traces_exceeded"
+	// ReasonInvalidTraceID indicates a batch was rejected because it contained an invalid trace ID.
+	ReasonInvalidTraceID = "invalid_trace_id"
+	// ReasonInvalidSpanID indicates a batch was rejected because it contained an invalid span ID.
+	ReasonInvalidSpanID = "invalid_span_id"
 	// ReasonUnknown indicates an unknown error when pushing spans.
 	ReasonUnknown = "unknown_error"
 	// ReasonTraceTooLargeToCompact indicates a trace is too large for the backend-worker to combine/compact.

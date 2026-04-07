@@ -24,6 +24,7 @@ import (
 	"github.com/segmentio/fasthash/fnv1a"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/health/grpc_health_v1"
 
@@ -405,6 +406,7 @@ func (d *Distributor) PushTraces(ctx context.Context, traces ptrace.Traces) (*te
 		// can't record discarded spans here b/c there's no tenant
 		return nil, err
 	}
+	span.SetAttributes(attribute.String("orgID", userID))
 	defer d.padWithArtificialDelay(reqStart, userID)
 	metricIngressBytes.WithLabelValues(userID).Add(float64(size))
 
@@ -692,10 +694,12 @@ func requestsByTraceID(batches []*v1.ResourceSpans, userID string, spanCount, ma
 				}
 				traceID := span.TraceId
 				if !validation.ValidTraceID(traceID) {
+					overrides.RecordDiscardedSpans(spanCount, overrides.ReasonInvalidTraceID, userID)
 					return nil, nil, truncatedAttributesCount{}, nil, status.Errorf(codes.InvalidArgument, "trace ids must be 128 bit, received %d bits", len(traceID)*8)
 				}
 
 				if !validation.ValidSpanID(span.SpanId) {
+					overrides.RecordDiscardedSpans(spanCount, overrides.ReasonInvalidSpanID, userID)
 					return nil, nil, truncatedAttributesCount{}, nil, status.Errorf(codes.InvalidArgument, "span ids must be 64 bit and not all zero, received %d bits", len(span.SpanId)*8)
 				}
 

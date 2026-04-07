@@ -71,8 +71,9 @@ When uncertain between two pages, choose the one closest to user workflow and cr
 For each required change:
 - Explain what changed in user terms
 - Add when/why to use it
-- Include one concrete, runnable example
-- Call out defaults and version requirements
+- Include one concrete, runnable example — match the format to the change type (curl for API endpoints, YAML for config, TraceQL for query syntax, shell command for CLI)
+- **Required:** Note the minimum Tempo or storage format version. If unclear, flag as an open item rather than omitting.
+- Call out default values when documenting configuration options
 
 Keep content concise and avoid duplicating large reference material.
 
@@ -132,5 +133,6 @@ Return:
 ## Reference
 
 - Triage skill: `.claude/skills/docs-pr-check/SKILL.md`
+- Repo orientation: `.agents/doc-agents/shared/docs-context-guide.md` — code-to-docs mapping, key file paths, and Tempo doc conventions
 - Workflow detail: `.agents/doc-agents/shared/release-notes-workflow.md`
 - Verification checklist (Step 8 source): `.agents/doc-agents/shared/verification-checklist.md`

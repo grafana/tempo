@@ -84,6 +84,7 @@ metrics_generator:
       [enable_messaging_system_latency_histogram: <bool>]
       [enable_virtual_node_label: <bool>]
       [span_multiplier_key: <string>]
+      [enable_tracestate_span_multiplier: <bool>]
       [filter_policies: [
         [
           include/include_any/exclude:
@@ -111,6 +112,7 @@ metrics_generator:
       [target_info_excluded_dimensions: <list of string>]
       [enable_instance_label: <bool>]
       [span_multiplier_key: <string>]
+      [enable_tracestate_span_multiplier: <bool>]
 
     host_info:
       [host_identifiers: <list of string>]

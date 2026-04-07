@@ -13,7 +13,7 @@ import (
 
 const escapeRunes = `\"`
 
-var tokens = map[string]int{
+var tokenMap = map[string]int{
 	",":                   COMMA,
 	".":                   DOT,
 	"{":                   OPEN_BRACE,
@@ -204,14 +204,14 @@ func (l *lexer) Lex(lval *yySymType) int {
 		return FLOAT
 	}
 
-	// look for combination tokens starting with 2 and working up til there is no match
-	// this is only to disamgiguate tokens with common prefixes. it will not find 3+ token combinations
+	// look for combination tokenMap starting with 2 and working up til there is no match
+	// this is only to disambiguate tokenMap with common prefixes. it will not find 3+ token combinations
 	// with no valid prefixes
 	multiTok := -1
 	tokStrNext := l.TokenText()
 	for {
 		tokStrNext += string(l.Peek())
-		tok, ok := tokens[tokStrNext]
+		tok, ok := tokenMap[tokStrNext]
 		if ok {
 			multiTok = tok
 			l.Next()
@@ -242,7 +242,7 @@ func (l *lexer) Lex(lval *yySymType) int {
 	}
 
 	// no combination tokens, see if the current text is a known token
-	if tok, ok := tokens[l.TokenText()]; ok {
+	if tok, ok := tokenMap[l.TokenText()]; ok {
 		l.parsingAttribute = startsAttribute(tok)
 		return tok
 	}
@@ -330,7 +330,7 @@ func tryScopeAttribute(l *scanner.Scanner, currentScope int) (int, bool) {
 
 		str += string(s.Next())
 	}
-	tok := tokens[str]
+	tok := tokenMap[str]
 
 	if (tok == SPAN_DOT || tok == RESOURCE_DOT) && currentScope == PARENT_DOT {
 		// we have found scope attribute so consume the original scanner

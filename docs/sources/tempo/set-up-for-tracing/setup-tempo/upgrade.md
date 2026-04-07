@@ -27,6 +27,119 @@ For detailed information about any release, refer to the [Release notes](https:/
 You can check your configuration options using the [`status` API endpoint](https://grafana.com/docs/tempo/<TEMPO_VERSION>/api_docs/#status) in your Tempo installation.
 {{< /admonition >}}
 
+## Upgrade to Tempo 3.0
+
+When upgrading to Tempo 3.0, be aware of these breaking changes:
+
+- **Kafka required**: A Kafka-compatible system is now required for all deployment modes. Distributors write to Kafka instead of directly to ingesters.
+- **Scalable monolithic mode (SSB) removed**: The `scalable-single-binary` target is no longer available.
+- **New components**: Block-builders and live-stores replace ingesters. The compactor target has been removed.
+- **Configuration changes**: Remove `ingester` configuration blocks and add `ingest` (Kafka) configuration. Update `ingester_client` references to `live_store_client`.
+- **No downgrade path**: There is no supported downgrade path from 3.0 to 2.x.
+- **Deployment manifests**: Update Helm, Tanka, and other deployment manifests to include the new components and Kafka infrastructure.
+
+### Legacy overrides disabled by default
+
+Tempo now refuses to start if it detects legacy (flat, unscoped) overrides in the main configuration or the per-tenant overrides file. [[PR 6741](https://github.com/grafana/tempo/pull/6741)]
+
+To resolve this, either migrate to the scoped `defaults` format (recommended) or temporarily opt back in.
+
+#### Option 1: Migrate to the scoped format
+
+Convert your overrides from the legacy flat format to the scoped `defaults` format. For example:
+
+Before (legacy):
+
+```yaml
+overrides:
+  ingestion_rate_limit_bytes: 20000000
+  ingestion_burst_size_bytes: 20000000
+  max_bytes_per_trace: 30000000
+  max_traces_per_user: 100000
+```
+
+After (scoped):
+
+```yaml
+overrides:
+  defaults:
+    ingestion:
+      rate_limit_bytes: 20000000
+      burst_size_bytes: 20000000
+      max_traces_per_user: 100000
+    global:
+      max_bytes_per_trace: 30000000
+```
+
+You can automate the migration using the Tempo CLI. Refer to the [`tempo-cli migrate overrides-config` command](https://grafana.com/docs/tempo/<TEMPO_VERSION>/operations/tempo_cli/#migrate-overrides-config-command).
+
+For the full field mapping between legacy and scoped formats, refer to the [Upgrade to Tempo 2.3](#new-defaults-block-in-overrides-module-configuration) section.
+
+#### Option 2: Temporarily opt back in
+
+Set `enable_legacy_overrides: true` in the overrides configuration block or pass `-config.enable-legacy-overrides=true` on the CLI. A deprecation warning is logged on startup and each time per-tenant overrides are loaded. This is a temporary escape hatch. Legacy overrides will be removed in a future release.
+
+```yaml
+overrides:
+  enable_legacy_overrides: true
+```
+
+### `mem-ballast-size-mbs` flag removed
+
+The `-mem-ballast-size-mbs` command-line flag has been removed. This flag is no longer needed in Go 1.19 and later, which use `GOMEMLIMIT` instead. [[PR 6403](https://github.com/grafana/tempo/pull/6403)]
+
+If your deployment scripts, Helm values, or Tanka/Jsonnet configurations pass `-mem-ballast-size-mbs`, remove it. Tempo fails to start with an unrecognized flag error.
+
+### Metrics-generator configuration changes
+
+The metrics-generator gRPC endpoint and push path have been removed. In Tempo 3.0, the metrics-generator consumes directly from Kafka rather than receiving spans through gRPC from the distributor. [[PR 6618](https://github.com/grafana/tempo/pull/6618)]
+
+If your configuration includes a top-level `metrics_generator_client` block, you can safely remove it. Tempo 3.0 ignores this block, and it is deprecated and will be removed in a future release.
+
+### Block configuration centralized to `storage.trace.block`
+
+Block and WAL configuration for `block_builder` and `live_store` is now always sourced from `storage.trace.block`. Per-module block config fields have been removed. [[PR 6647](https://github.com/grafana/tempo/pull/6647)]
+
+If your configuration sets block-level options such as `version`, `parquet_dedicated_columns`, or `parquet_row_group_size_bytes` under `block_builder.block` or `live_store.block_config`, move them to `storage.trace.block`.
+
+Before:
+
+```yaml
+block_builder:
+  block:
+    version: "vParquet5"
+    parquet_dedicated_columns:
+      - { scope: resource, name: service.name, type: string }
+
+live_store:
+  block_config:
+    version: "vParquet5"
+    parquet_dedicated_columns:
+      - { scope: resource, name: service.name, type: string }
+```
+
+After:
+
+```yaml
+storage:
+  trace:
+    block:
+      version: "vParquet5"
+      parquet_dedicated_columns:
+        - { scope: resource, name: service.name, type: string }
+```
+
+### Live-store flush defaults updated
+
+The default values for two live-store flush settings have changed to limit the amount of data replayed from the WAL, which prevents long startup and shutdown times. [[PR 6650](https://github.com/grafana/tempo/pull/6650)]
+
+| Setting                         | Previous default | New default |
+| ------------------------------- | ---------------- | ----------- |
+| `live_store.flush_check_period` | `10s`            | `5s`        |
+| `live_store.max_block_duration` | `30m`            | `1m`        |
+
+If you explicitly set these values in your configuration, no action is needed.
+
 ## Upgrade to Tempo 2.10
 
 When upgrading to Tempo 2.10, be aware of these considerations and breaking changes.
@@ -90,6 +203,20 @@ Upgrading to 2.10 while vParquet2 blocks still exist in storage will cause read 
 TempoDB schemas vParquet3 and vParquet2 are now deprecated and will be removed in Tempo 3.0. [[PR 6198](https://github.com/grafana/tempo/pull/6198)]
 
 If you're using vParquet3, plan your migration to vParquet4 or higher before upgrading to Tempo 3.0.
+
+### Default search result limit changed
+
+The default for `query_frontend.search.max_result_limit` changed from `0` (unlimited) to `262144` (256 &times; 1024) to address a security vulnerability. This change was backported to Tempo 2.10.x, 2.9.x, and 2.8.x patch releases. [[PR 6525](https://github.com/grafana/tempo/pull/6525)]
+
+Search requests with a `limit` parameter that exceeds this value now return a `400` error. Requests without an explicit `limit` use the `default_result_limit` (default: `20`). If you need a higher maximum, override the value in your configuration:
+
+```yaml
+query_frontend:
+  search:
+    max_result_limit: 500000
+```
+
+Setting `max_result_limit` to `0` disables the enforcement, but this is not recommended.
 
 ### Breaking changes
 

@@ -121,6 +121,9 @@ type Compactor interface {
 	CompactWithConfig(ctx context.Context, metas []*backend.BlockMeta, tenantID string, cfg *CompactorConfig, sharder CompactorSharder, overrides CompactorOverrides) ([]*backend.BlockMeta, error)
 	MarkBlocklistCompacted(tenantID string, outputIDs, inputIDs []*backend.BlockMeta) error
 	RetainWithConfig(ctx context.Context, cfg *CompactorConfig, sharder CompactorSharder, overrides CompactorOverrides)
+	RetainTenantWithConfig(ctx context.Context, tenantID string, cfg *CompactorConfig, sharder CompactorSharder, overrides CompactorOverrides)
+
+	RedactBlock(ctx context.Context, meta *backend.BlockMeta, tenantID string, traceIDs []common.ID) (rewrote bool, found int, newMeta *backend.BlockMeta, err error)
 }
 
 type CompactorSharder interface {
@@ -611,6 +614,100 @@ func (rw *readerWriter) EnableCompaction(ctx context.Context, cfg *CompactorConf
 
 func (rw *readerWriter) MarkBlockCompacted(tenantID string, blockID backend.UUID) error {
 	return rw.c.MarkBlockCompacted((uuid.UUID)(blockID), tenantID)
+}
+
+// RedactBlock rewrites a block excluding the given trace IDs. If none of the trace IDs
+// are in the block, no rewrite is performed.
+func (rw *readerWriter) RedactBlock(ctx context.Context, meta *backend.BlockMeta, tenantID string, traceIDs []common.ID) (rewrote bool, found int, newMeta *backend.BlockMeta, err error) {
+	block, err := encoding.OpenBlock(meta, rw.r)
+	if err != nil {
+		return false, 0, nil, fmt.Errorf("error opening block for redaction, blockID: %s: %w", meta.BlockID.String(), err)
+	}
+
+	searchOpts := common.DefaultSearchOptions()
+	if rw.cfg != nil && rw.cfg.Search != nil {
+		rw.cfg.Search.ApplyToOptions(&searchOpts)
+	}
+
+	var idsToDrop []common.ID
+	for _, traceID := range traceIDs {
+		result, err := block.FindTraceByID(ctx, traceID, searchOpts)
+		if err != nil {
+			return false, 0, nil, fmt.Errorf("error finding trace in block, blockID: %s: %w", meta.BlockID.String(), err)
+		}
+		if result != nil && result.Trace != nil {
+			idsToDrop = append(idsToDrop, traceID)
+		}
+	}
+	if len(idsToDrop) == 0 {
+		return false, 0, nil, nil
+	}
+
+	enc, err := encoding.FromVersion(meta.Version)
+	if err != nil {
+		return false, 0, nil, fmt.Errorf("error getting encoding for version %s: %w", meta.Version, err)
+	}
+
+	opts := common.CompactionOptions{
+		BlockConfig: common.BlockConfig{
+			BloomFP:             common.DefaultBloomFP,
+			BloomShardSizeBytes: common.DefaultBloomShardSizeBytes,
+			Version:             meta.Version,
+			RowGroupSizeBytes:   100_000_000,
+			DedicatedColumns:    meta.DedicatedColumns,
+		},
+		OutputBlocks:     1,
+		MaxBytesPerTrace: 0,
+		DropObject: func(id common.ID) bool {
+			for _, tid := range idsToDrop {
+				if bytes.Equal(id, tid) {
+					level.Debug(rw.logger).Log("msg", "redact dropping trace", "traceID", hex.EncodeToString(id))
+					return true
+				}
+			}
+			return false
+		},
+		BytesWritten:      func(_, _ int) {},
+		ObjectsCombined:   func(_, _ int) {},
+		ObjectsWritten:    func(_, _ int) {},
+		SpansDiscarded:    func(_, _, _ string, _ int) {},
+		DisconnectedTrace: func() {},
+		RootlessTrace:     func() {},
+		DedupedSpans:      func(_, _ int) {},
+	}
+
+	nFound := len(idsToDrop)
+
+	compactor := enc.NewCompactor(opts)
+	out, err := compactor.Compact(ctx, rw.logger, rw.r, rw.w, []*backend.BlockMeta{meta})
+	if err != nil {
+		return false, 0, nil, fmt.Errorf("error compacting block %s: %w", meta.BlockID.String(), err)
+	}
+
+	if len(out) == 0 {
+		err = rw.c.MarkBlockCompacted((uuid.UUID)(meta.BlockID), tenantID)
+		if err != nil {
+			return false, 0, nil, fmt.Errorf("error marking block compacted, blockID: %s: %w", meta.BlockID.String(), err)
+		}
+		return true, nFound, nil, nil
+	}
+
+	if len(out) != 1 {
+		if meta.TotalObjects == int64(nFound) {
+			err = rw.c.MarkBlockCompacted((uuid.UUID)(meta.BlockID), tenantID)
+			if err != nil {
+				return false, 0, nil, fmt.Errorf("error marking block compacted, blockID: %s: %w", meta.BlockID.String(), err)
+			}
+			return true, nFound, nil, nil
+		}
+		return false, 0, nil, fmt.Errorf("expected 1 output block, got %d", len(out))
+	}
+
+	err = rw.c.MarkBlockCompacted((uuid.UUID)(meta.BlockID), tenantID)
+	if err != nil {
+		return false, 0, nil, fmt.Errorf("error marking block compacted, blockID: %s: %w", meta.BlockID.String(), err)
+	}
+	return true, nFound, out[0], nil
 }
 
 // EnablePolling activates the polling loop. Pass nil if this component

@@ -13,7 +13,7 @@ Tempo uses the [Consistent Hash Ring](https://cortexmetrics.io/docs/architecture
 By default, the ring is gossiped between all Tempo components.
 However, it can be configured to use [Consul](https://www.consul.io/) or [Etcd](https://etcd.io/), if desired.
 
-There are three consistent hash rings: distributor, ingester, and metrics-generator.
+Tempo uses several consistent hash rings. This topic describes the distributor, live-store (partition ring), and live-store rings.
 Each hash ring exists for a distinct reason.
 
 ## Distributor
@@ -26,22 +26,13 @@ Unless you are running with limits, this ring does not impact Tempo operation.
 
 This ring is only used when `global` rate limits are used. The distributors use it to count the other active distributors. Incoming traffic is assumed to be evenly spread across all distributors and `(global_rate_limit / # of distributors)` is used to rate limit locally.
 
-## Ingester
+## Live-store (partition ring)
 
-**Participants:** Ingesters
+**Participants:** Live-stores
 
-**Used by:** Distributors, Queriers
+**Used by:** Distributors, Queriers, Block-builders
 
-This ring is used by the distributors to load balance traffic into the ingesters. When spans are received the trace id is hashed and they are sent to the appropriate ingesters based on token ownership in the ring. Queriers also use this ring to find the ingesters for querying recent traces.
-
-## Metrics-generator
-
-**Participants:** Metrics-generators
-
-**Used by:** Distributors, Queriers
-
-This ring is used by distributors to load balance traffic to the metrics-generators. When spans are received, the trace ID is hashed, and the traces are sent to the appropriate metrics-generators based on token ownership in the ring.
-Queriers also use this ring to generate TraceQL metrics from recent traces.
+The partition ring tracks which Tempo partitions are active and which live-stores own them. Distributors use this ring to determine which partitions to write to when sending data to Kafka. Queriers use it to find the live-stores for querying recent traces. Block-builders use it to determine which partitions to consume from.
 
 ## Interacting with the rings
 
@@ -56,21 +47,19 @@ ring member leaves the ring without properly shutting down, and therefore leaves
 
 Unhealthy distributors have little impact but should be forgotten to reduce cost of maintaining the ring .
 
-### Ingester
+### Live-store (partition ring)
 
-**Available on:** Distributors
+**Available on:** Distributors, Queriers, Live-stores
 
-**Path:** `/ingester/ring`
+**Path:** `/partition-ring`
 
-Unhealthy ingesters will cause writes to fail. If the ingester is really gone, forget it immediately.
+The partition ring shows partition ownership across live-stores. Unhealthy live-stores may cause recent data queries to degrade.
 
-### Metrics-generators
+### Live-store
 
-**Available on:** Distributors
+**Available on:** Distributors, Queriers, Live-stores
 
-**Path:** `/metrics-generator/ring`
-
-Unhealthy metrics-generators will cause writes to fail. If the metrics-generator is really gone, forget it immediately.
+**Path:** `/live-store/ring`
 
 ## Configuring the rings
 

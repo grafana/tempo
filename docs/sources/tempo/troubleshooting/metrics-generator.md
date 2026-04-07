@@ -16,27 +16,28 @@ If you're concerned with data quality issues in the metrics-generator, consider:
 
 If everything seems acceptable from these two perspectives, consider the following topics to help resolve general issues with all metrics and span metrics specifically.
 
+## Kafka consumption
+
+In Tempo 3.0 microservices mode, metrics-generators consume trace data directly from Kafka rather than receiving pushes from distributors. In monolithic mode, the distributor still pushes directly to the in-process metrics-generator. If the generator is not producing metrics in a microservices deployment, start by verifying that it's consuming data from Kafka using the metrics below.
+
+### Consumer lag
+
+Use the following metrics to monitor the generator's Kafka consumer lag:
+
+```
+tempo_ingest_group_partition_lag{group="metrics-generator"}
+tempo_ingest_group_partition_lag_seconds{group="metrics-generator"}
+```
+
+`tempo_ingest_group_partition_lag` tracks the lag in number of records per partition, while `tempo_ingest_group_partition_lag_seconds` tracks the lag in seconds. High or growing lag indicates the generator is falling behind.
+
+### Kafka client errors
+
+The generator uses the `tempo_ingest_storage_reader` family of metrics (provided by the Kafka client library) to expose detailed information about fetch operations, errors, and throughput. Look for error and failure metrics in this family to diagnose connectivity or protocol issues with Kafka.
+
 ## All metrics
 
-This section covers metrics for all metrics related to the metrics-generator.
-
-### Dropped spans in the distributor
-
-The distributor has a queue of outgoing spans to the metrics-generators.
-If the queue is full, then the distributor drops spans before they reach the generator. Use the following metric to determine if that's happening:
-
-```
-sum(rate(tempo_distributor_queue_pushes_failures_total{}[1m]))
-```
-
-### Failed pushes to the generator
-
-For any number of reasons, the distributor can fail a push to the generators. Use the following metric to
-determine if that's happening:
-
-```
-sum(rate(tempo_distributor_metrics_generator_pushes_failures_total{}[1m]))
-```
+This section covers additional metrics related to the metrics-generator.
 
 ### Discarded spans in the generator
 

@@ -275,7 +275,8 @@ var (
 		Message: "Local backend will not correctly retrieve traces with a distributed deployment unless all components have access to the same disk. You should probably be using object storage as a backend.",
 	}
 	warnLegacyOverridesConfig = ConfigWarning{
-		Message: "Inline, unscoped overrides are deprecated. Please use the new overrides config format.",
+		Message: "DEPRECATED: Legacy (flat, unscoped) overrides format is in use and will be removed in a future release.",
+		Explain: "Migrate your overrides config to the new scoped format, or set -config.enable-legacy-overrides=true (or enable_legacy_overrides: true in YAML) to continue using legacy overrides temporarily.",
 	}
 
 	warnTracesAndUserConfigurableOverridesStorageConflict = ConfigWarning{

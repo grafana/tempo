@@ -421,6 +421,7 @@ metrics_generator:
                 - db.name
                 - db.system
             span_multiplier_key: ""
+            enable_tracestate_span_multiplier: false
             enable_virtual_node_label: false
             database_name_attributes:
                 - db.namespace
@@ -452,6 +453,7 @@ metrics_generator:
             dimension_mappings: []
             enable_target_info: false
             span_multiplier_key: ""
+            enable_tracestate_span_multiplier: false
             subprocessors:
                 0: true
                 1: true
@@ -695,7 +697,6 @@ overrides:
             max_bytes_per_tag_values_query: 1000000
         metrics_generator:
             generate_native_histograms: classic
-            ingestion_time_range_slack: 0s
             native_histogram_bucket_factor: 1.1
             native_histogram_max_bucket_number: 100
             native_histogram_min_reset_duration: 15m0s
@@ -774,6 +775,7 @@ overrides:
                 hedge_requests_up_to: 2
         api:
             check_for_conflicting_runtime_overrides: false
+    enable_legacy_overrides: false
 memberlist:
     node_name: ""
     randomize_node_name: true
@@ -857,6 +859,10 @@ backend_scheduler:
             max_input_blocks: 4
             max_compaction_level: 0
             min_cycle_interval: 30s
+        redaction:
+            poll_interval: 2s
+            rescan_delay: 5m0s
+            max_rescan_generations: 5
     job_timeout: 15s
     local_work_path: /var/tempo
 backend_scheduler_client:

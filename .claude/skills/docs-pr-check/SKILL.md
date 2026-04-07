@@ -88,3 +88,4 @@ A prioritized list of documentation work needed, ordered by user impact:
 ## Reference
 
 - Workflow detail: `.agents/doc-agents/shared/release-notes-workflow.md` (Phases 1.5–1.75)
+- Repo orientation: `.agents/doc-agents/shared/docs-context-guide.md` — code-to-docs mapping, key file paths, and Tempo doc conventions
