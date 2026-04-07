@@ -416,18 +416,6 @@ func (s *LiveStore) stopping(error) error {
 		if s.lagCancel != nil {
 			s.lagCancel()
 		}
-	// Stop both the membership ring and partition ring
-	if err := services.StopAndAwaitTerminated(context.Background(), s.livestoreLifecycler); err != nil {
-		level.Warn(s.logger).Log("msg", "failed to stop livestore lifecycler", "err", err)
-	}
-
-	if err := services.StopAndAwaitTerminated(context.Background(), s.ingestPartitionLifecycler); err != nil {
-		level.Warn(s.logger).Log("msg", "failed to stop partition lifecycler", "err", err)
-	}
-
-	// Stop the kafka lag background worker.
-	s.lagCancel()
-
 		// Stop consuming
 		err := services.StopAndAwaitTerminated(context.Background(), s.reader)
 		if err != nil {
@@ -437,6 +425,15 @@ func (s *LiveStore) stopping(error) error {
 
 		// Reset lag metrics for our partition when stopping
 		ingest.ResetLagMetricsForRevokedPartitions(s.cfg.IngestConfig.Kafka.ConsumerGroup, []int32{s.ingestPartitionID})
+	}
+
+	// Stop both the membership ring and partition ring
+	if err := services.StopAndAwaitTerminated(context.Background(), s.livestoreLifecycler); err != nil {
+		level.Warn(s.logger).Log("msg", "failed to stop livestore lifecycler", "err", err)
+	}
+
+	if err := services.StopAndAwaitTerminated(context.Background(), s.ingestPartitionLifecycler); err != nil {
+		level.Warn(s.logger).Log("msg", "failed to stop partition lifecycler", "err", err)
 	}
 
 	// Flush all data to disk
