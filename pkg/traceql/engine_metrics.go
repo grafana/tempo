@@ -1339,7 +1339,9 @@ func (e batchMetricsEvaluator) Results() SeriesSet {
 	merged := make(SeriesSet)
 	for q, eval := range e {
 		for _, v := range eval.Results() {
-			v.Labels = v.Labels.Add(Label{Name: internalLabelQueryFragment, Value: NewStaticString(q)})
+			if len(e) > 1 { // no need for fragment filtration
+				v.Labels = v.Labels.Add(Label{Name: internalLabelQueryFragment, Value: NewStaticString(q)})
+			}
 			merged[v.Labels.MapKey()] = v
 		}
 	}

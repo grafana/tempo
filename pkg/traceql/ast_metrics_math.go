@@ -122,9 +122,10 @@ func (m *mathExpression) processLeaf(input SeriesSet) SeriesSet {
 	var result SeriesSet
 	result = make(SeriesSet, len(input))
 	for smk, v := range input {
-		// Match by __query_fragment
 		fv := v.Labels.GetValue(internalLabelQueryFragment)
-		if fv.Type != TypeString || fv.EncodeToString(false) != m.key {
+		if fv.Type != TypeNil && // pass through for single sub-query
+			// filter by query fragment
+			(fv.Type != TypeString || fv.EncodeToString(false) != m.key) {
 			continue
 		}
 
