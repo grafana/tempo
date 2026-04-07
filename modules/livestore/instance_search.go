@@ -477,14 +477,14 @@ func (i *instance) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTag
 	cacheKey := searchTagValuesV2CacheKey(req, limit, "cache_search_tagvaluesv2")
 
 	// helper functions as closures, to access local variables
-	search := func(ctx context.Context, s common.Searcher) error {
+	search := func(ctx context.Context, s common.Searcher, collect func(tempopb.TagValue) bool) error {
 		// note the interaction below with searchWithCache. if we ever return errComplete for reasons besides this we may need to adjust the error handling there
 		if maxBlocks > 0 && inspectedBlocks.Inc() > maxBlocks {
 			return errComplete
 		}
 
 		if extractedReq == nil || !extractedReq.AllConditions {
-			return s.SearchTagValuesV2(ctx, tag, traceql.MakeCollectTagValueFunc(vCollector.Collect), mCollector.Add, common.DefaultSearchOptions())
+			return s.SearchTagValuesV2(ctx, tag, traceql.MakeCollectTagValueFunc(collect), mCollector.Add, common.DefaultSearchOptions())
 		}
 
 		// Otherwise, use the filtered search
@@ -492,14 +492,14 @@ func (i *instance) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTag
 			return s.FetchTagValues(ctx, req, cb, mCollector.Add, common.DefaultSearchOptions())
 		})
 
-		return engine.ExecuteTagValues(ctx, tag, extractedReq.Conditions, traceql.MakeCollectTagValueFunc(vCollector.Collect), fetcher)
+		return engine.ExecuteTagValues(ctx, tag, extractedReq.Conditions, traceql.MakeCollectTagValueFunc(collect), fetcher)
 	}
 
 	searchWithCache := func(ctx context.Context, _ *backend.BlockMeta, b block) error {
 		// if not a local block, fall back to regular search
 		localB, ok := b.(*LocalBlock)
 		if !ok {
-			return search(ctx, b)
+			return search(ctx, b, vCollector.Collect)
 		}
 
 		// pulled from context to add attrs below
@@ -544,7 +544,7 @@ func (i *instance) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTag
 		// using local collector to collect values from the block and cache them.
 		localCol := collector.NewDistinctValue[tempopb.TagValue](limit, req.MaxTagValues, req.StaleValueThreshold, func(v tempopb.TagValue) int { return len(v.Type) + len(v.Value) })
 
-		if err := search(ctx, localB); err != nil { // note that errComplete could be returned here but it's ok to pass it up b/c it means no work was done and the localCol is invalid
+		if err := search(ctx, localB, localCol.Collect); err != nil { // note that errComplete could be returned here but it's ok to pass it up b/c it means no work was done and the localCol is invalid
 			return err
 		}
 
