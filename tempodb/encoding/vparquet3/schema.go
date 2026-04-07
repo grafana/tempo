@@ -745,11 +745,10 @@ func ParquetTraceToTempopbTrace(meta *backend.BlockMeta, parquetTrace *Trace) *t
 
 func extendReuseSlice[T any](sz int, in []T) []T {
 	if cap(in) >= sz {
-		// slice is large enough
 		return in[:sz]
 	}
 
-	// append until we're large enough
-	in = in[:cap(in)]
-	return append(in, make([]T, sz-len(in))...)
+	out := make([]T, sz)
+	copy(out, in)
+	return out
 }
