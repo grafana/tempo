@@ -8,9 +8,9 @@ import (
 	"io"
 
 	"github.com/google/uuid"
-	tempo_io "github.com/grafana/tempo/pkg/io"
-	"github.com/grafana/tempo/tempodb/backend"
-	"github.com/grafana/tempo/tempodb/encoding/common"
+	tempo_io "github.com/grafana/tempo/v2/pkg/io"
+	"github.com/grafana/tempo/v2/tempodb/backend"
+	"github.com/grafana/tempo/v2/tempodb/encoding/common"
 	"github.com/parquet-go/parquet-go"
 )
 

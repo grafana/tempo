@@ -9,13 +9,13 @@ import (
 	"time"
 
 	"github.com/gogo/protobuf/jsonpb"
-	"github.com/grafana/tempo/integration/util"
+	"github.com/grafana/tempo/v2/integration/util"
 	"github.com/klauspost/compress/gzhttp"
 	"github.com/stretchr/testify/require"
 
-	"github.com/grafana/tempo/pkg/httpclient"
-	"github.com/grafana/tempo/pkg/tempopb"
-	tempoUtil "github.com/grafana/tempo/pkg/util"
+	"github.com/grafana/tempo/v2/pkg/httpclient"
+	"github.com/grafana/tempo/v2/pkg/tempopb"
+	tempoUtil "github.com/grafana/tempo/v2/pkg/util"
 )
 
 func TestCompression(t *testing.T) {

@@ -12,7 +12,7 @@ import (
 
 	"github.com/google/uuid"
 
-	tempo_io "github.com/grafana/tempo/pkg/io"
+	tempo_io "github.com/grafana/tempo/v2/pkg/io"
 )
 
 const (

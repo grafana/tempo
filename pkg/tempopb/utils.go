@@ -1,6 +1,6 @@
 package tempopb
 
-import v1 "github.com/grafana/tempo/pkg/tempopb/common/v1"
+import v1 "github.com/grafana/tempo/v2/pkg/tempopb/common/v1"
 
 func MakeKeyValueString(key, value string) v1.KeyValue {
 	return v1.KeyValue{

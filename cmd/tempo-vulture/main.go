@@ -16,17 +16,17 @@ import (
 	"time"
 
 	"github.com/go-test/deep"
-	"github.com/grafana/tempo/pkg/api"
+	"github.com/grafana/tempo/v2/pkg/api"
 	zaplogfmt "github.com/jsternberg/zap-logfmt"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 
-	utilpkg "github.com/grafana/tempo/integration/util"
-	"github.com/grafana/tempo/pkg/httpclient"
-	"github.com/grafana/tempo/pkg/model/trace"
-	"github.com/grafana/tempo/pkg/tempopb"
-	"github.com/grafana/tempo/pkg/util"
+	utilpkg "github.com/grafana/tempo/v2/integration/util"
+	"github.com/grafana/tempo/v2/pkg/httpclient"
+	"github.com/grafana/tempo/v2/pkg/model/trace"
+	"github.com/grafana/tempo/v2/pkg/tempopb"
+	"github.com/grafana/tempo/v2/pkg/util"
 )
 
 var (

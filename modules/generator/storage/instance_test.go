@@ -27,7 +27,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/atomic"
 
-	"github.com/grafana/tempo/modules/overrides/histograms"
+	"github.com/grafana/tempo/v2/modules/overrides/histograms"
 )
 
 // Verify basic functionality like sending metrics and exemplars, buffering and retrying failed

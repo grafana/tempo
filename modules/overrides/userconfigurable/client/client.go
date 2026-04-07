@@ -17,12 +17,12 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 
-	"github.com/grafana/tempo/pkg/util/log"
-	"github.com/grafana/tempo/tempodb/backend"
-	azure "github.com/grafana/tempo/tempodb/backend/azure"
-	"github.com/grafana/tempo/tempodb/backend/gcs"
-	"github.com/grafana/tempo/tempodb/backend/local"
-	"github.com/grafana/tempo/tempodb/backend/s3"
+	"github.com/grafana/tempo/v2/pkg/util/log"
+	"github.com/grafana/tempo/v2/tempodb/backend"
+	azure "github.com/grafana/tempo/v2/tempodb/backend/azure"
+	"github.com/grafana/tempo/v2/tempodb/backend/gcs"
+	"github.com/grafana/tempo/v2/tempodb/backend/local"
+	"github.com/grafana/tempo/v2/tempodb/backend/s3"
 )
 
 const (

@@ -4,7 +4,7 @@ import (
 	"slices"
 	"sync"
 
-	"github.com/grafana/tempo/tempodb/backend"
+	"github.com/grafana/tempo/v2/tempodb/backend"
 )
 
 // PerTenant is a map of tenant ids to backend.BlockMetas

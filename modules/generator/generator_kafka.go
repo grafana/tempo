@@ -9,7 +9,7 @@ import (
 
 	"github.com/go-kit/log/level"
 
-	"github.com/grafana/tempo/pkg/ingest"
+	"github.com/grafana/tempo/v2/pkg/ingest"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/twmb/franz-go/pkg/kgo"

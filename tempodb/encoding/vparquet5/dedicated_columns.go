@@ -3,8 +3,8 @@ package vparquet5
 import (
 	"iter"
 
-	v1 "github.com/grafana/tempo/pkg/tempopb/common/v1"
-	"github.com/grafana/tempo/tempodb/backend"
+	v1 "github.com/grafana/tempo/v2/pkg/tempopb/common/v1"
+	"github.com/grafana/tempo/v2/tempodb/backend"
 )
 
 // DedicatedResourceColumnPaths makes paths for spare dedicated attribute columns available

@@ -12,7 +12,7 @@ import (
 
 	"github.com/grafana/dskit/multierror"
 
-	"github.com/grafana/tempo/pkg/util/atomicfs"
+	"github.com/grafana/tempo/v2/pkg/util/atomicfs"
 )
 
 const shutdownMarkerFilename = "shutdown-requested.txt"

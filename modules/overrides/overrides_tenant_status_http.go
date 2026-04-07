@@ -11,7 +11,7 @@ import (
 	"github.com/gorilla/mux"
 	"go.yaml.in/yaml/v2"
 
-	"github.com/grafana/tempo/pkg/util"
+	"github.com/grafana/tempo/v2/pkg/util"
 )
 
 //go:embed tenant_status.gohtml

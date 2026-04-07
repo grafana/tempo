@@ -12,16 +12,16 @@ import (
 	"github.com/go-kit/log/level"
 	"github.com/grafana/dskit/flagext"
 	dslog "github.com/grafana/dskit/log"
-	"github.com/grafana/tempo/pkg/tracing"
+	"github.com/grafana/tempo/v2/pkg/tracing"
 	"github.com/prometheus/client_golang/prometheus"
 	ver "github.com/prometheus/client_golang/prometheus/collectors/version"
 	"github.com/prometheus/common/version"
 	"go.yaml.in/yaml/v2"
 	"google.golang.org/grpc/encoding"
 
-	"github.com/grafana/tempo/cmd/tempo/app"
-	"github.com/grafana/tempo/pkg/gogocodec"
-	"github.com/grafana/tempo/pkg/util/log"
+	"github.com/grafana/tempo/v2/cmd/tempo/app"
+	"github.com/grafana/tempo/v2/pkg/gogocodec"
+	"github.com/grafana/tempo/v2/pkg/util/log"
 )
 
 const appName = "tempo"

@@ -6,7 +6,7 @@ import (
 
 	"go.yaml.in/yaml/v2"
 
-	"github.com/grafana/tempo/modules/overrides"
+	"github.com/grafana/tempo/v2/modules/overrides"
 )
 
 type migrateOverridesPerTenantCmd struct {

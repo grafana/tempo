@@ -11,7 +11,7 @@ import (
 	"github.com/grafana/dskit/flagext"
 	"github.com/minio/minio-go/v7"
 
-	"github.com/grafana/tempo/pkg/util"
+	"github.com/grafana/tempo/v2/pkg/util"
 )
 
 const (

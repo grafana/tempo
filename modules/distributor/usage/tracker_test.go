@@ -11,10 +11,10 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
 
-	v1common "github.com/grafana/tempo/pkg/tempopb/common/v1"
-	v1resource "github.com/grafana/tempo/pkg/tempopb/resource/v1"
-	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
-	"github.com/grafana/tempo/pkg/util/test"
+	v1common "github.com/grafana/tempo/v2/pkg/tempopb/common/v1"
+	v1resource "github.com/grafana/tempo/v2/pkg/tempopb/resource/v1"
+	v1 "github.com/grafana/tempo/v2/pkg/tempopb/trace/v1"
+	"github.com/grafana/tempo/v2/pkg/util/test"
 )
 
 func testConfig() PerTrackerConfig {

@@ -8,10 +8,10 @@ import (
 
 	"github.com/parquet-go/parquet-go"
 
-	tempo_io "github.com/grafana/tempo/pkg/io"
-	"github.com/grafana/tempo/pkg/parquetquery"
-	"github.com/grafana/tempo/pkg/util"
-	"github.com/grafana/tempo/tempodb/encoding/common"
+	tempo_io "github.com/grafana/tempo/v2/pkg/io"
+	"github.com/grafana/tempo/v2/pkg/parquetquery"
+	"github.com/grafana/tempo/v2/pkg/util"
+	"github.com/grafana/tempo/v2/tempodb/encoding/common"
 )
 
 // openForIteration opens and returns the parquet file. Note that this is currently only used for compaction and is tuned for this kind of workload.

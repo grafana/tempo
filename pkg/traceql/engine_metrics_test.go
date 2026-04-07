@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/grafana/tempo/pkg/tempopb"
-	commonv1proto "github.com/grafana/tempo/pkg/tempopb/common/v1"
+	"github.com/grafana/tempo/v2/pkg/tempopb"
+	commonv1proto "github.com/grafana/tempo/v2/pkg/tempopb/common/v1"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

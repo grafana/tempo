@@ -12,10 +12,10 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/grafana/dskit/services"
-	"github.com/grafana/tempo/modules/overrides"
-	"github.com/grafana/tempo/pkg/tempopb"
-	util_log "github.com/grafana/tempo/pkg/util/log"
-	"github.com/grafana/tempo/pkg/util/test"
+	"github.com/grafana/tempo/v2/modules/overrides"
+	"github.com/grafana/tempo/v2/pkg/tempopb"
+	util_log "github.com/grafana/tempo/v2/pkg/util/log"
+	"github.com/grafana/tempo/v2/pkg/util/test"
 )
 
 func instanceWithPushLimits(t *testing.T, maxBytesPerTrace int, maxLiveTraces int) (*instance, *LiveStore) {

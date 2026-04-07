@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"github.com/go-kit/log"
-	tempo_log "github.com/grafana/tempo/pkg/util/log"
+	tempo_log "github.com/grafana/tempo/v2/pkg/util/log"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/prometheus/prometheus/model/labels"

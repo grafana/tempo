@@ -13,13 +13,13 @@ import (
 	"github.com/cespare/xxhash/v2"
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
-	tempo_log "github.com/grafana/tempo/pkg/util/log"
+	tempo_log "github.com/grafana/tempo/v2/pkg/util/log"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/prometheus/prometheus/util/strutil"
 
-	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
+	v1 "github.com/grafana/tempo/v2/pkg/tempopb/trace/v1"
 )
 
 const (

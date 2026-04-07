@@ -11,8 +11,8 @@ import (
 	"github.com/grafana/dskit/backoff"
 	"github.com/grafana/dskit/flagext"
 	"github.com/grafana/dskit/ring"
-	"github.com/grafana/tempo/pkg/util"
-	"github.com/grafana/tempo/tempodb"
+	"github.com/grafana/tempo/v2/pkg/util"
+	"github.com/grafana/tempo/v2/tempodb"
 )
 
 type Config struct {

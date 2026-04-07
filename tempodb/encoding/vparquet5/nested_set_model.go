@@ -3,9 +3,9 @@ package vparquet5
 import (
 	"sort"
 
-	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
+	v1 "github.com/grafana/tempo/v2/pkg/tempopb/trace/v1"
 
-	"github.com/grafana/tempo/pkg/util"
+	"github.com/grafana/tempo/v2/pkg/util"
 )
 
 // nestedSetRootParent is used for the root span's ParentID field. this allows the fetch layer (and

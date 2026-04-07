@@ -3,8 +3,8 @@ package provider
 import (
 	"context"
 
-	"github.com/grafana/tempo/modules/backendscheduler/work"
-	"github.com/grafana/tempo/pkg/tempopb"
+	"github.com/grafana/tempo/v2/modules/backendscheduler/work"
+	"github.com/grafana/tempo/v2/pkg/tempopb"
 )
 
 // Provider defines the interface for job providers

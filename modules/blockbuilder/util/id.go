@@ -6,7 +6,7 @@ import (
 	"hash"
 
 	"github.com/google/uuid"
-	"github.com/grafana/tempo/tempodb/backend"
+	"github.com/grafana/tempo/v2/tempodb/backend"
 	"go.uber.org/atomic"
 )
 

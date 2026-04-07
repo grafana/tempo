@@ -10,8 +10,8 @@ import (
 	"slices"
 	"sync"
 
-	"github.com/grafana/tempo/pkg/parquetquery/intern"
-	"github.com/grafana/tempo/pkg/util"
+	"github.com/grafana/tempo/v2/pkg/parquetquery/intern"
+	"github.com/grafana/tempo/v2/pkg/util"
 	pq "github.com/parquet-go/parquet-go"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"

@@ -12,11 +12,11 @@ import (
 	jsoniter "github.com/json-iterator/go"
 	"go.opentelemetry.io/otel/codes"
 
-	"github.com/grafana/tempo/modules/overrides/userconfigurable/client"
-	"github.com/grafana/tempo/pkg/api"
-	"github.com/grafana/tempo/pkg/util/tracing"
-	"github.com/grafana/tempo/pkg/validation"
-	"github.com/grafana/tempo/tempodb/backend"
+	"github.com/grafana/tempo/v2/modules/overrides/userconfigurable/client"
+	"github.com/grafana/tempo/v2/pkg/api"
+	"github.com/grafana/tempo/v2/pkg/util/tracing"
+	"github.com/grafana/tempo/v2/pkg/validation"
+	"github.com/grafana/tempo/v2/tempodb/backend"
 )
 
 const (

@@ -5,7 +5,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/grafana/tempo/tempodb/backend"
+	"github.com/grafana/tempo/v2/tempodb/backend"
 )
 
 const (

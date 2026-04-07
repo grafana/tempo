@@ -1,9 +1,9 @@
 package spanfilter
 
 import (
-	"github.com/grafana/tempo/pkg/spanfilter/config"
-	v1 "github.com/grafana/tempo/pkg/tempopb/resource/v1"
-	tracev1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
+	"github.com/grafana/tempo/v2/pkg/spanfilter/config"
+	v1 "github.com/grafana/tempo/v2/pkg/tempopb/resource/v1"
+	tracev1 "github.com/grafana/tempo/v2/pkg/tempopb/trace/v1"
 )
 
 type SpanFilter struct {

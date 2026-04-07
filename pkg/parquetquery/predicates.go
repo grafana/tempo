@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/grafana/tempo/pkg/regexp"
+	"github.com/grafana/tempo/v2/pkg/regexp"
 
 	pq "github.com/parquet-go/parquet-go"
 )

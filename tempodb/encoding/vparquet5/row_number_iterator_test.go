@@ -8,7 +8,7 @@ import (
 	"github.com/parquet-go/parquet-go"
 	"github.com/stretchr/testify/require"
 
-	pq "github.com/grafana/tempo/pkg/parquetquery"
+	pq "github.com/grafana/tempo/v2/pkg/parquetquery"
 )
 
 func TestVirtualRowNumberIterator_Next(t *testing.T) {

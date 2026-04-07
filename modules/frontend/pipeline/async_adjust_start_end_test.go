@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/grafana/tempo/modules/frontend/combiner"
+	"github.com/grafana/tempo/v2/modules/frontend/combiner"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

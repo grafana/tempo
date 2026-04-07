@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"regexp"
 
-	"github.com/grafana/tempo/pkg/spanfilter/config"
-	commonv1 "github.com/grafana/tempo/pkg/tempopb/common/v1"
+	"github.com/grafana/tempo/v2/pkg/spanfilter/config"
+	commonv1 "github.com/grafana/tempo/v2/pkg/tempopb/common/v1"
 )
 
 // AttributePolicyMatch is a set of attribute filters that must match a span for the span to match the policy.

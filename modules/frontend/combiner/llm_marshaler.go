@@ -6,10 +6,10 @@ import (
 	"fmt"
 
 	"github.com/gogo/protobuf/proto"
-	"github.com/grafana/tempo/pkg/tempopb"
-	commonv1 "github.com/grafana/tempo/pkg/tempopb/common/v1"
-	tracev1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
-	"github.com/grafana/tempo/pkg/util"
+	"github.com/grafana/tempo/v2/pkg/tempopb"
+	commonv1 "github.com/grafana/tempo/v2/pkg/tempopb/common/v1"
+	tracev1 "github.com/grafana/tempo/v2/pkg/tempopb/trace/v1"
+	"github.com/grafana/tempo/v2/pkg/util"
 )
 
 type llmMarshaler struct{}

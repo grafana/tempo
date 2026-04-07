@@ -7,8 +7,8 @@ import (
 
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
-	"github.com/grafana/tempo/modules/backendscheduler/work"
-	"github.com/grafana/tempo/pkg/tempopb"
+	"github.com/grafana/tempo/v2/modules/backendscheduler/work"
+	"github.com/grafana/tempo/v2/pkg/tempopb"
 )
 
 // RedactionConfig holds configuration for the redaction provider.

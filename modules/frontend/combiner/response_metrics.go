@@ -1,7 +1,7 @@
 package combiner
 
 import (
-	"github.com/grafana/tempo/pkg/tempopb"
+	"github.com/grafana/tempo/v2/pkg/tempopb"
 )
 
 // These structs combine response metrics in a single place

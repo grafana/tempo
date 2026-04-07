@@ -6,15 +6,15 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/grafana/tempo/pkg/traceql"
+	"github.com/grafana/tempo/v2/pkg/traceql"
 	"go.uber.org/atomic"
 
 	"github.com/google/uuid"
-	"github.com/grafana/tempo/pkg/tempopb"
-	"github.com/grafana/tempo/tempodb/backend"
-	"github.com/grafana/tempo/tempodb/backend/local"
-	"github.com/grafana/tempo/tempodb/encoding"
-	"github.com/grafana/tempo/tempodb/encoding/common"
+	"github.com/grafana/tempo/v2/pkg/tempopb"
+	"github.com/grafana/tempo/v2/tempodb/backend"
+	"github.com/grafana/tempo/v2/tempodb/backend/local"
+	"github.com/grafana/tempo/v2/tempodb/encoding"
+	"github.com/grafana/tempo/v2/tempodb/encoding/common"
 )
 
 const nameFlushed = "flushed"

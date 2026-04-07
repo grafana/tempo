@@ -14,12 +14,12 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.yaml.in/yaml/v2"
 
-	"github.com/grafana/tempo/modules/overrides/histograms"
-	"github.com/grafana/tempo/modules/overrides/userconfigurable/client"
-	"github.com/grafana/tempo/pkg/sharedconfig"
-	filterconfig "github.com/grafana/tempo/pkg/spanfilter/config"
-	"github.com/grafana/tempo/pkg/util/listtomap"
-	"github.com/grafana/tempo/tempodb/backend"
+	"github.com/grafana/tempo/v2/modules/overrides/histograms"
+	"github.com/grafana/tempo/v2/modules/overrides/userconfigurable/client"
+	"github.com/grafana/tempo/v2/pkg/sharedconfig"
+	filterconfig "github.com/grafana/tempo/v2/pkg/spanfilter/config"
+	"github.com/grafana/tempo/v2/pkg/util/listtomap"
+	"github.com/grafana/tempo/v2/tempodb/backend"
 )
 
 // Copied from Cortex

@@ -28,8 +28,8 @@ import (
 	"go.uber.org/zap"
 	"google.golang.org/grpc/metadata"
 
-	"github.com/grafana/tempo/cmd/tempo-query/jaeger/storage_v1"
-	"github.com/grafana/tempo/pkg/tempopb"
+	"github.com/grafana/tempo/v2/cmd/tempo-query/jaeger/storage_v1"
+	"github.com/grafana/tempo/v2/pkg/tempopb"
 )
 
 const (

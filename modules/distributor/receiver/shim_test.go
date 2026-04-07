@@ -31,8 +31,8 @@ import (
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/durationpb"
 
-	"github.com/grafana/tempo/modules/generator"
-	"github.com/grafana/tempo/pkg/tempopb"
+	"github.com/grafana/tempo/v2/modules/generator"
+	"github.com/grafana/tempo/v2/pkg/tempopb"
 )
 
 // These tests use the OpenTelemetry Collector Exporters to validate the different protocols

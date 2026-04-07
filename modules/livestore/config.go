@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/grafana/tempo/pkg/ingest"
-	"github.com/grafana/tempo/pkg/ring"
-	"github.com/grafana/tempo/tempodb/encoding/common"
-	"github.com/grafana/tempo/tempodb/wal"
+	"github.com/grafana/tempo/v2/pkg/ingest"
+	"github.com/grafana/tempo/v2/pkg/ring"
+	"github.com/grafana/tempo/v2/tempodb/encoding/common"
+	"github.com/grafana/tempo/v2/tempodb/wal"
 )
 
 const defaultCompleteBlockTimeout = time.Hour

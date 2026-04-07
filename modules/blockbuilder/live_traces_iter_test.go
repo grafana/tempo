@@ -4,8 +4,8 @@ import (
 	"context"
 	"testing"
 
-	"github.com/grafana/tempo/pkg/livetraces"
-	"github.com/grafana/tempo/pkg/util/test"
+	"github.com/grafana/tempo/v2/pkg/livetraces"
+	"github.com/grafana/tempo/v2/pkg/util/test"
 	"github.com/stretchr/testify/require"
 )
 

@@ -7,7 +7,7 @@ import (
 	"testing/synctest"
 	"time"
 
-	"github.com/grafana/tempo/cmd/tempo/build"
+	"github.com/grafana/tempo/v2/cmd/tempo/build"
 
 	"github.com/google/uuid"
 	jsoniter "github.com/json-iterator/go"

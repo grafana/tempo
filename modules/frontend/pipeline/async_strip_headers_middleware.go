@@ -3,7 +3,7 @@ package pipeline
 import (
 	"net/http"
 
-	"github.com/grafana/tempo/modules/frontend/combiner"
+	"github.com/grafana/tempo/v2/modules/frontend/combiner"
 )
 
 type stripHeadersWare struct {

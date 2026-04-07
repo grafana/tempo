@@ -9,9 +9,9 @@ import (
 	"time"
 
 	"github.com/grafana/dskit/user"
-	"github.com/grafana/tempo/pkg/api"
-	"github.com/grafana/tempo/pkg/tempopb"
-	v1_trace "github.com/grafana/tempo/pkg/tempopb/trace/v1"
+	"github.com/grafana/tempo/v2/pkg/api"
+	"github.com/grafana/tempo/v2/pkg/tempopb"
+	v1_trace "github.com/grafana/tempo/v2/pkg/tempopb/trace/v1"
 	"github.com/stretchr/testify/require"
 )
 

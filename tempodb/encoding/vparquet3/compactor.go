@@ -11,12 +11,12 @@ import (
 
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
-	tempoUtil "github.com/grafana/tempo/pkg/util"
+	tempoUtil "github.com/grafana/tempo/v2/pkg/util"
 	"github.com/parquet-go/parquet-go"
 
-	tempo_io "github.com/grafana/tempo/pkg/io"
-	"github.com/grafana/tempo/tempodb/backend"
-	"github.com/grafana/tempo/tempodb/encoding/common"
+	tempo_io "github.com/grafana/tempo/v2/pkg/io"
+	"github.com/grafana/tempo/v2/tempodb/backend"
+	"github.com/grafana/tempo/v2/tempodb/encoding/common"
 )
 
 func NewCompactor(opts common.CompactionOptions) *Compactor {

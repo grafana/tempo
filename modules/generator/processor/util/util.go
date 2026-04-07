@@ -6,10 +6,10 @@ import (
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/sampling"
 	semconv "go.opentelemetry.io/otel/semconv/v1.25.0"
 
-	v1_common "github.com/grafana/tempo/pkg/tempopb/common/v1"
-	v1_resource "github.com/grafana/tempo/pkg/tempopb/resource/v1"
-	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
-	tempo_util "github.com/grafana/tempo/pkg/util"
+	v1_common "github.com/grafana/tempo/v2/pkg/tempopb/common/v1"
+	v1_resource "github.com/grafana/tempo/v2/pkg/tempopb/resource/v1"
+	v1 "github.com/grafana/tempo/v2/pkg/tempopb/trace/v1"
+	tempo_util "github.com/grafana/tempo/v2/pkg/util"
 )
 
 func FindServiceName(attributes []*v1_common.KeyValue) (string, bool) {

@@ -8,8 +8,8 @@ import (
 	"github.com/gogo/protobuf/proto"
 	"github.com/stretchr/testify/require"
 
-	"github.com/grafana/tempo/pkg/model/decoder"
-	"github.com/grafana/tempo/pkg/util/test"
+	"github.com/grafana/tempo/v2/pkg/model/decoder"
+	"github.com/grafana/tempo/v2/pkg/util/test"
 )
 
 func TestSegmentDecoderToObjectDecoder(t *testing.T) {
