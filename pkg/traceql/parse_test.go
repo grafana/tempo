@@ -1916,6 +1916,133 @@ func TestMetricsSecondStageErrors(t *testing.T) {
 	}
 }
 
+func TestMetricsMathExpression(t *testing.T) {
+	w := newWrappedMetricsPipeline // alias for readability
+	tests := []struct {
+		in       string
+		expected *RootExpr
+	}{
+		{
+			in: `({status=error} | count_over_time()) / ({} | count_over_time())`,
+			expected: newRootExprMath(OpDiv,
+				w(newPipeline(newSpansetFilter(newBinaryOperation(OpEqual, NewIntrinsic(IntrinsicStatus), NewStaticStatus(StatusError)))),
+					newMetricsAggregate(metricsAggregateCountOverTime, nil), nil),
+				w(newPipeline(newSpansetFilter(NewStaticBool(true))),
+					newMetricsAggregate(metricsAggregateCountOverTime, nil), nil),
+			),
+		},
+		{
+			in: `({} | rate()) + ({} | rate())`,
+			expected: newRootExprMath(OpAdd,
+				w(newPipeline(newSpansetFilter(NewStaticBool(true))),
+					newMetricsAggregate(metricsAggregateRate, nil), nil),
+				w(newPipeline(newSpansetFilter(NewStaticBool(true))),
+					newMetricsAggregate(metricsAggregateRate, nil), nil),
+			),
+		},
+		{
+			in: `({} | count_over_time()) * ({} | count_over_time())`,
+			expected: newRootExprMath(OpMult,
+				w(newPipeline(newSpansetFilter(NewStaticBool(true))),
+					newMetricsAggregate(metricsAggregateCountOverTime, nil), nil),
+				w(newPipeline(newSpansetFilter(NewStaticBool(true))),
+					newMetricsAggregate(metricsAggregateCountOverTime, nil), nil),
+			),
+		},
+		{
+			in: `({} | count_over_time()) - ({} | count_over_time())`,
+			expected: newRootExprMath(OpSub,
+				w(newPipeline(newSpansetFilter(NewStaticBool(true))),
+					newMetricsAggregate(metricsAggregateCountOverTime, nil), nil),
+				w(newPipeline(newSpansetFilter(NewStaticBool(true))),
+					newMetricsAggregate(metricsAggregateCountOverTime, nil), nil),
+			),
+		},
+		{
+			in: `(({} | count_over_time()) - ({} | count_over_time())) / ({} | count_over_time())`,
+			expected: newRootExprMath(OpDiv,
+				newRootExprMath(OpSub,
+					w(newPipeline(newSpansetFilter(NewStaticBool(true))),
+						newMetricsAggregate(metricsAggregateCountOverTime, nil), nil),
+					w(newPipeline(newSpansetFilter(NewStaticBool(true))),
+						newMetricsAggregate(metricsAggregateCountOverTime, nil), nil),
+				),
+				w(newPipeline(newSpansetFilter(NewStaticBool(true))),
+					newMetricsAggregate(metricsAggregateCountOverTime, nil), nil),
+			),
+		},
+		{
+			in: `({} | count_over_time() by(resource.service.name)) / ({} | count_over_time())`,
+			expected: newRootExprMath(OpDiv,
+				w(newPipeline(newSpansetFilter(NewStaticBool(true))),
+					newMetricsAggregate(metricsAggregateCountOverTime, []Attribute{
+						NewScopedAttribute(AttributeScopeResource, false, "service.name"),
+					}), nil),
+				w(newPipeline(newSpansetFilter(NewStaticBool(true))),
+					newMetricsAggregate(metricsAggregateCountOverTime, nil), nil),
+			),
+		},
+		{
+			in: `({} | rate() | topk(10)) / ({} | rate())`,
+			expected: newRootExprMath(OpDiv,
+				w(newPipeline(newSpansetFilter(NewStaticBool(true))),
+					newMetricsAggregate(metricsAggregateRate, nil),
+					ChainedSecondStage{newTopKBottomK(OpTopK, 10, " | ")}),
+				w(newPipeline(newSpansetFilter(NewStaticBool(true))),
+					newMetricsAggregate(metricsAggregateRate, nil), nil),
+			),
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.in, func(t *testing.T) {
+			actual, err := Parse(tc.in)
+
+			require.NoError(t, err)
+			require.Equal(t, tc.expected, actual)
+		})
+	}
+}
+
+func TestMetricsMathExpressionErrors(t *testing.T) {
+	tests := []string{
+		`{} | count_over_time() / {} | count_over_time()`,
+		`({} | count_over_time()) / `,
+		`/ ({} | count_over_time())`,
+	}
+
+	for _, tc := range tests {
+		t.Run(tc, func(t *testing.T) {
+			_, err := Parse(tc)
+			require.Error(t, err)
+		})
+	}
+}
+
+func TestMetricsMathExpressionString(t *testing.T) {
+	tests := []struct {
+		in       string
+		expected string
+	}{
+		{
+			in:       `({status=error} | count_over_time()) / ({} | count_over_time())`,
+			expected: `({ status = error } | count_over_time()) / ({ true } | count_over_time())`,
+		},
+		{
+			in:       `(({} | count_over_time()) - ({} | count_over_time())) / ({} | count_over_time())`,
+			expected: `(({ true } | count_over_time()) - ({ true } | count_over_time())) / ({ true } | count_over_time())`,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.in, func(t *testing.T) {
+			actual, err := Parse(tc.in)
+			require.NoError(t, err)
+			require.Equal(t, tc.expected, actual.String())
+		})
+	}
+}
+
 func TestParseRewrites(t *testing.T) {
 	tests := []struct {
 		name  string
@@ -2051,6 +2178,16 @@ func TestMetricsFilter(t *testing.T) {
 				ChainedSecondStage{newMetricsFilter(OpGreater, -2.5, " ")},
 			),
 			expectedStr: `{ true } | rate() > -2.5`,
+		},
+		{
+			in:          `({ } | rate()) > 10`,
+			expected:    chainMathSecondStage(newWrappedMetricsPipeline(newPipeline(newSpansetFilter(NewStaticBool(true))), newMetricsAggregate(metricsAggregateRate, nil), nil), ChainedSecondStage{newMetricsFilter(OpGreater, 10, " ")}),
+			expectedStr: `{ true } | rate() > 10`,
+		},
+		{
+			in:          `({ } | max_over_time(duration)) > 30`,
+			expected:    chainMathSecondStage(newWrappedMetricsPipeline(newPipeline(newSpansetFilter(NewStaticBool(true))), newMetricsAggregateWithAttr(metricsAggregateMaxOverTime, NewIntrinsic(IntrinsicDuration), nil), nil), ChainedSecondStage{newMetricsFilter(OpGreater, 30, " ")}),
+			expectedStr: `{ true } | max_over_time(duration) > 30`,
 		},
 		{
 			in: `{ } | rate() > 10 with(foo="bar")`,
