@@ -1,0 +1,4 @@
+overrides:
+  defaults:
+    read:
+      max_condition_groups_per_tag_query: 1

@@ -18,6 +18,8 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	oteltrace "go.opentelemetry.io/otel/trace"
 	"go.uber.org/atomic"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
 	"github.com/go-kit/log/level"
 	"github.com/grafana/tempo/pkg/api"
@@ -321,6 +323,9 @@ func (i *instance) SearchTagsV2(ctx context.Context, req *tempopb.SearchTagsRequ
 	engine := traceql.NewEngine()
 	conditionGroups, err := traceql.ExtractConditionGroups(req.Query, i.overrides.MaxConditionGroupsPerTagQuery())
 	if err != nil {
+		if errors.Is(err, traceql.ErrMaxConditionGroupsPerTagQueryReached) {
+			return nil, status.Errorf(codes.InvalidArgument, "%s", err)
+		}
 		return nil, err
 	}
 
@@ -476,6 +481,9 @@ func (i *instance) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTag
 
 	conditionGroups, err := traceql.ExtractConditionGroups(req.Query, i.overrides.MaxConditionGroupsPerTagQuery())
 	if err != nil {
+		if errors.Is(err, traceql.ErrMaxConditionGroupsPerTagQueryReached) {
+			return nil, status.Errorf(codes.InvalidArgument, "%s", err)
+		}
 		return nil, err
 	}
 	// cacheKey will be same for all blocks in a request so only compute it once

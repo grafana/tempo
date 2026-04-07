@@ -111,6 +111,14 @@ func newTagsV2StreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripper[c
 			return err
 		}
 
+		if req.Query != "" {
+			_, err = traceql.ExtractConditionGroups(req.Query, o.MaxConditionGroupsPerTagQuery())
+			if err != nil {
+				_ = level.Error(logger).Log("msg", "search tags v2: ", "err", err)
+				return status.Error(codes.InvalidArgument, err.Error())
+			}
+		}
+
 		var finalResponse *tempopb.SearchTagsV2Response
 		comb := combiner.NewTypedSearchTagsV2(o.MaxBytesPerTagValuesQuery(tenant), req.MaxTagsPerScope, req.StaleValuesThreshold, api.MarshallingFormatProtobuf)
 		collector := pipeline.NewGRPCCollector(next, cfg.ResponseConsumers, comb, func(res *tempopb.SearchTagsV2Response) error {
@@ -225,6 +233,14 @@ func newTagValuesV2StreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTrip
 			return err
 		}
 
+		if req.Query != "" {
+			_, err = traceql.ExtractConditionGroups(req.Query, o.MaxConditionGroupsPerTagQuery())
+			if err != nil {
+				_ = level.Error(logger).Log("msg", "search tags v2: ", "err", err)
+				return status.Error(codes.InvalidArgument, err.Error())
+			}
+		}
+
 		var finalResponse *tempopb.SearchTagValuesV2Response
 		comb := combiner.NewTypedSearchTagValuesV2(o.MaxBytesPerTagValuesQuery(tenant), req.MaxTagValues, req.StaleValueThreshold, api.MarshallingFormatProtobuf)
 		collector := pipeline.NewGRPCCollector(next, cfg.ResponseConsumers, comb, func(res *tempopb.SearchTagValuesV2Response) error {
@@ -323,7 +339,14 @@ func newTagsV2HTTPHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.P
 			}
 		}
 
-		scope, _, rangeDur, maxTagsPerScope, staleValueThreshold := parseParams(req)
+		scope, q, rangeDur, maxTagsPerScope, staleValueThreshold := parseParams(req)
+		if q != "" {
+			_, err := traceql.ExtractConditionGroups(q, o.MaxConditionGroupsPerTagQuery())
+			if err != nil {
+				_ = level.Error(logger).Log("msg", "search tags v2: ", "err", err)
+				return httpInvalidRequest(err), nil
+			}
+		}
 
 		// check marshalling format
 		marshallingFormat := api.MarshalingFormatFromAcceptHeader(req.Header)
@@ -435,6 +458,13 @@ func newTagValuesV2HTTPHandler(cfg Config, next pipeline.AsyncRoundTripper[combi
 
 		_, query, rangeDur, maxTagsValues, staleValueThreshold := parseParams(req)
 		tagName := extractTagName(req.URL.Path, tagNameRegexV2)
+		if query != "" {
+			_, err := traceql.ExtractConditionGroups(query, o.MaxConditionGroupsPerTagQuery())
+			if err != nil {
+				_ = level.Error(logger).Log("msg", "search tags: ", "err", err)
+				return httpInvalidRequest(err), nil
+			}
+		}
 
 		// check marshalling format
 		marshallingFormat := api.MarshalingFormatFromAcceptHeader(req.Header)

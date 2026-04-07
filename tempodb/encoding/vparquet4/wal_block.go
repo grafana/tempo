@@ -894,11 +894,11 @@ func (b *walBlock) FetchTagNames(ctx context.Context, req traceql.FetchTagsReque
 					}
 				}
 				iter.Close()
-				mcb(file.r.BytesRead()) // record bytes read
 			}
 
 			// Add well known columns once per file, not once per condition group.
 			tagNamesForSpecialColumns(req.Scope, file.parquetFile, b.meta.DedicatedColumns, cb)
+			mcb(file.r.BytesRead()) // record bytes read once per file; BytesRead() is cumulative
 			return false, nil
 		}()
 		if err != nil {

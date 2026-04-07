@@ -235,7 +235,7 @@ func flattenExprToOperations(expr FieldExpression, operators *[]conditionOperati
 	}
 
 	switch {
-	case (e.Op == OpAnd || e.Op == OpOr) && parentOp == OpOr && e.Op == OpAnd:
+	case parentOp == OpOr && e.Op == OpAnd:
 		// AND nested directly inside an OR branch: collect both sides into one flat
 		// condition slice so they become a single OR branch entry.
 		var lhs, rhs []conditionOperation
@@ -254,7 +254,7 @@ func flattenExprToOperations(expr FieldExpression, operators *[]conditionOperati
 		}
 		parentCondOp.conditions = append(parentCondOp.conditions, combined)
 
-	case (e.Op == OpAnd || e.Op == OpOr) && parentOp == OpOr && e.Op == OpOr:
+	case parentOp == OpOr && e.Op == OpOr:
 		// OR nested inside an OR branch: keep recursing into the same parent OR group.
 		flattenExprToOperations(e.LHS, operators, parentCondOp, e.Op)
 		flattenExprToOperations(e.RHS, operators, parentCondOp, e.Op)

@@ -19,6 +19,8 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	oteltrace "go.opentelemetry.io/otel/trace"
 	"go.uber.org/multierr"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
 	livestore_client "github.com/grafana/tempo/modules/livestore/client"
 	"github.com/grafana/tempo/modules/overrides"
@@ -697,6 +699,9 @@ func (q *Querier) internalTagsSearchBlockV2(ctx context.Context, req *tempopb.Se
 
 	conditionGroups, err := traceql.ExtractConditionGroups(req.SearchReq.Query, q.limits.MaxConditionGroupsPerTagQuery())
 	if err != nil {
+		if errors.Is(err, traceql.ErrMaxConditionGroupsPerTagQueryReached) {
+			return nil, status.Errorf(codes.InvalidArgument, "%s", err)
+		}
 		return nil, err
 	}
 	if len(conditionGroups) == 0 {
@@ -813,6 +818,9 @@ func (q *Querier) internalTagValuesSearchBlockV2(ctx context.Context, req *tempo
 
 	conditionGroups, err := traceql.ExtractConditionGroups(req.SearchReq.Query, q.limits.MaxConditionGroupsPerTagQuery())
 	if err != nil {
+		if errors.Is(err, traceql.ErrMaxConditionGroupsPerTagQueryReached) {
+			return nil, status.Errorf(codes.InvalidArgument, "%s", err)
+		}
 		return nil, err
 	}
 	if len(conditionGroups) == 0 {
