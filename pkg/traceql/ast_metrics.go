@@ -357,6 +357,7 @@ type secondStageElement interface {
 	Element
 	init(req *tempopb.QueryRangeRequest)
 	process(input SeriesSet) SeriesSet
+	separator() string
 }
 
 type SecondStageOp int
@@ -383,10 +384,11 @@ type TopKBottomK struct {
 	op     SecondStageOp
 	limit  int
 	length int
+	sep    string
 }
 
-func newTopKBottomK(op SecondStageOp, limit int) *TopKBottomK {
-	return &TopKBottomK{op: op, limit: limit}
+func newTopKBottomK(op SecondStageOp, limit int, separator string) *TopKBottomK { //nolint:unparam
+	return &TopKBottomK{op: op, limit: limit, sep: separator}
 }
 
 func (m *TopKBottomK) String() string {
@@ -421,6 +423,10 @@ func (m *TopKBottomK) process(input SeriesSet) SeriesSet {
 	}
 }
 
+func (m *TopKBottomK) separator() string {
+	return m.sep
+}
+
 var _ secondStageElement = (*TopKBottomK)(nil)
 
 // MetricsFilter implements second stage comparison filtering on metrics results.
@@ -430,10 +436,11 @@ var _ secondStageElement = (*TopKBottomK)(nil)
 type MetricsFilter struct {
 	op    Operator
 	value float64
+	sep   string
 }
 
-func newMetricsFilter(op Operator, value float64) *MetricsFilter {
-	return &MetricsFilter{op: op, value: value}
+func newMetricsFilter(op Operator, value float64, separator string) *MetricsFilter { //nolint:unparam
+	return &MetricsFilter{op: op, value: value, sep: separator}
 }
 
 func (m *MetricsFilter) String() string {
@@ -513,32 +520,28 @@ func (m *MetricsFilter) compare(v float64) bool {
 	}
 }
 
+func (m *MetricsFilter) separator() string {
+	return m.sep
+}
+
 var _ secondStageElement = (*MetricsFilter)(nil)
 
 // ChainedSecondStage chains multiple second stage elements together.
 // Elements are processed in order, each receiving the output of the previous.
 // Example: {status=error} | rate() | topk(5) > 10
-type ChainedSecondStage struct {
-	elements   []secondStageElement
-	separators []string
-}
-
-func (c *ChainedSecondStage) Append(element secondStageElement, separator string) {
-	c.elements = append(c.elements, element)
-	c.separators = append(c.separators, separator)
-}
+type ChainedSecondStage []secondStageElement
 
 func (c ChainedSecondStage) String() string {
 	b := strings.Builder{}
-	for i := range c.elements {
-		b.WriteString(c.separators[i])
-		b.WriteString(c.elements[i].String())
+	for i := range c {
+		b.WriteString(c[i].separator())
+		b.WriteString(c[i].String())
 	}
 	return b.String()
 }
 
 func (c ChainedSecondStage) validate() error {
-	for _, e := range c.elements {
+	for _, e := range c {
 		if err := e.validate(); err != nil {
 			return err
 		}
@@ -547,16 +550,23 @@ func (c ChainedSecondStage) validate() error {
 }
 
 func (c ChainedSecondStage) init(req *tempopb.QueryRangeRequest) {
-	for _, e := range c.elements {
+	for _, e := range c {
 		e.init(req)
 	}
 }
 
 func (c ChainedSecondStage) process(input SeriesSet) SeriesSet {
-	for _, e := range c.elements {
+	for _, e := range c {
 		input = e.process(input)
 	}
 	return input
+}
+
+func (c ChainedSecondStage) separator() string {
+	if len(c) == 0 {
+		return ""
+	}
+	return c[0].separator()
 }
 
 var _ secondStageElement = ChainedSecondStage{}
