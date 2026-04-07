@@ -53,6 +53,12 @@ func (b batchSeriesProcessor) observeSeries(in []*tempopb.TimeSeries) {
 	if len(in) == 0 {
 		return
 	}
+	if len(b) == 1 { // no-batch query, no need for fragments filtration
+		for _, p := range b {
+			p.observeSeries(in)
+		}
+		return
+	}
 	fragments := make(map[string][]*tempopb.TimeSeries, len(b))
 	for _, ts := range in {
 		for _, label := range ts.Labels {
@@ -63,6 +69,7 @@ func (b batchSeriesProcessor) observeSeries(in []*tempopb.TimeSeries) {
 			}
 		}
 	}
+
 	for k, v := range fragments {
 		if p, ok := b[k]; ok {
 			p.observeSeries(v)
