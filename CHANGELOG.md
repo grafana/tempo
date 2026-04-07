@@ -69,6 +69,7 @@
 * [ENHANCEMENT] Expose MinIO retry settings via S3 config [#6561](https://github.com/grafana/tempo/pull/6561) (@rwhitty)
 * [ENHANCEMENT] Reduce default livestore WAL size and align query defaults: `max_block_duration` `1m` to `30s`, `max_block_bytes` `100MiB` to `50MiB`, `complete_block_timeout` `1h` to `20m`, metrics `query_backend_after` `30m` to `15m`. [#6974](https://github.com/grafana/tempo/pull/6974) (@zhxiaogg)
 * [ENHANCEMENT] Enable native histogram emission for all promauto-registered histograms, including `tempo_request_duration_seconds`. Both classic and native formats are emitted simultaneously; existing scrapers are unaffected. [#6910](https://github.com/grafana/tempo/pull/6910) (@zalegrala)
+* [FEATURE] Support arithmetic operations in TraceQL Metrics [#6866](https://github.com/grafana/tempo/pull/6866) (@ruslan-mikhailov)
 * [ENHANCEMENT] tempo-cli: Add `--header` flag to `query api` commands for custom headers [#6768](https://github.com/grafana/tempo/pull/6768) (@Nouuu)
 * [ENHANCEMENT] tempo-cli: add `redact` command to submit trace redaction jobs to the backend scheduler [#6832](https://github.com/grafana/tempo/pull/6832) (@zalegrala)
 * [ENHANCEMENT] Block builder: deduplicate spans within traces during block creation and track removed duplicates via `tempo_block_builder_spans_deduped_total` metric [#6539](https://github.com/grafana/tempo/pull/6539) (@zhxiaogg)
