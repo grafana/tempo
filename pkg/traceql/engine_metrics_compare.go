@@ -362,6 +362,7 @@ type BaselineAggregator struct {
 	selectionTotals map[string]map[StaticMapKey]staticWithTimeSeries
 	maxed           map[string]struct{}
 	exemplarBuckets bucketSet
+	queryFragment   string
 }
 
 type staticWithTimeSeries struct {
@@ -396,6 +397,9 @@ func (b *BaselineAggregator) Combine(ss []*tempopb.TimeSeries) {
 				metaType = l.Value.GetStringValue()
 			case internalLabelError:
 				err = l.Value.GetStringValue()
+			case internalLabelQueryFragment:
+				b.queryFragment = l.Value.GetStringValue()
+				continue
 			default:
 				a = l.Key
 				v = StaticFromAnyValue(l.Value)
@@ -486,6 +490,9 @@ func (b *BaselineAggregator) Results() SeriesSet {
 		ls := Labels{
 			prefix,
 			{Name: name, Value: value},
+		}
+		if b.queryFragment != "" {
+			ls = ls.Add(Label{Name: internalLabelQueryFragment, Value: NewStaticString(b.queryFragment)})
 		}
 		output[ls.MapKey()] = TimeSeries{
 			Labels:    ls,
