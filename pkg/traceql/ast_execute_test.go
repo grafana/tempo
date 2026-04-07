@@ -2226,6 +2226,7 @@ func TestNotParentWithEmptyLHS(t *testing.T) {
 }
 
 func TestIntPow(t *testing.T) {
+	intInf := int(math.Inf(+1)) // actual value depends on the platform
 	tests := []struct {
 		name string
 		base int
@@ -2254,13 +2255,13 @@ func TestIntPow(t *testing.T) {
 		{"large exponent", 2, 62, 1 << 62},
 		// These cases would hang with a naive O(n) loop.
 		// They must complete near-instantly or go test -timeout will kill them.
-		{"100 ^ 100", 100, 100, math.MinInt64},
+		{"100 ^ 100", 100, 100, intInf},
 		{"maxint32 ^ 2", math.MaxInt32, 2, 4611686014132420608},
-		{"2 ^ maxint32", 2, math.MaxInt32, math.MinInt64},
-		{"maxint32 ^ maxint32", math.MaxInt32, math.MaxInt32, math.MinInt64},
-		{"maxint64 ^ 2", math.MaxInt64, 2, math.MinInt64},
-		{"2 ^ maxint64", 2, math.MaxInt64, math.MinInt64},
-		{"maxint64 ^ maxint64", math.MaxInt64, math.MaxInt64, math.MinInt64},
+		{"2 ^ maxint32", 2, math.MaxInt32, intInf},
+		{"maxint32 ^ maxint32", math.MaxInt32, math.MaxInt32, intInf},
+		{"maxint64 ^ 2", math.MaxInt64, 2, intInf},
+		{"2 ^ maxint64", 2, math.MaxInt64, intInf},
+		{"maxint64 ^ maxint64", math.MaxInt64, math.MaxInt64, intInf},
 	}
 
 	for _, tc := range tests {
