@@ -978,8 +978,46 @@ func (e *Engine) CompileMetricsQueryRangeNonRaw(req *tempopb.QueryRangeRequest, 
 	return mfe, nil
 }
 
+// CompileMetricsQueryRangeOption are options for [Engine.CompileMetricsQueryRange].
+type CompileMetricsQueryRangeOption func(*compileMetricsQueryRangeConfig)
+
+type compileMetricsQueryRangeConfig struct {
+	spanOnlyFetch *bool
+
+	timeOverlapCutoff     float64
+	allowUnsafeQueryHints bool
+}
+
+// WithSpanOnlyFetch sets whether to use the span-only fetch path. When not set the default is used, and
+// this may be overridden by the query hint.
+func WithSpanOnlyFetch(v bool) CompileMetricsQueryRangeOption {
+	return func(o *compileMetricsQueryRangeConfig) {
+		o.spanOnlyFetch = &v
+	}
+}
+
+// WithTimeOverlapCutoff sets the overlap threshold (0 to 1) for trace-level timestamp filtering. When not
+// set the default value is used.
+func WithTimeOverlapCutoff(v float64) CompileMetricsQueryRangeOption {
+	return func(o *compileMetricsQueryRangeConfig) {
+		o.timeOverlapCutoff = v
+	}
+}
+
+// WithUnsafeQueryHints controls whether unsafe TraceQL query hints are honored. When not set the default is used.
+func WithUnsafeQueryHints(v bool) CompileMetricsQueryRangeOption {
+	return func(o *compileMetricsQueryRangeConfig) {
+		o.allowUnsafeQueryHints = v
+	}
+}
+
 // CompileMetricsQueryRange returns an evaluator that can be reused across multiple data sources.
-func (e *Engine) CompileMetricsQueryRange(req *tempopb.QueryRangeRequest, timeOverlapCutoff float64, allowUnsafeQueryHints bool) (*MetricsEvaluator, error) {
+func (e *Engine) CompileMetricsQueryRange(req *tempopb.QueryRangeRequest, opts ...CompileMetricsQueryRangeOption) (*MetricsEvaluator, error) {
+	var cfg compileMetricsQueryRangeConfig
+	for _, opt := range opts {
+		opt(&cfg)
+	}
+
 	if req.Exemplars > maxExemplars {
 		level.Warn(log.Logger).Log("msg", "capping exemplars to safety limit", "requested", req.Exemplars, "cap", maxExemplars)
 		req.Exemplars = maxExemplars
@@ -1010,21 +1048,21 @@ func (e *Engine) CompileMetricsQueryRange(req *tempopb.QueryRangeRequest, timeOv
 	}
 
 	// Debug sampling hints, remove once we settle on approach.
-	if traceSample, traceSampleOk := expr.Hints.GetFloat(HintTraceSample, allowUnsafeQueryHints); traceSampleOk {
+	if traceSample, traceSampleOk := expr.Hints.GetFloat(HintTraceSample, cfg.allowUnsafeQueryHints); traceSampleOk {
 		storageReq.TraceSampler = newProbablisticSampler(traceSample)
 	}
-	if spanSample, spanSampleOk := expr.Hints.GetFloat(HintSpanSample, allowUnsafeQueryHints); spanSampleOk {
+	if spanSample, spanSampleOk := expr.Hints.GetFloat(HintSpanSample, cfg.allowUnsafeQueryHints); spanSampleOk {
 		storageReq.SpanSampler = newProbablisticSampler(spanSample)
 	}
 
-	if sample, sampleOk := expr.Hints.GetBool(HintSample, allowUnsafeQueryHints); sampleOk && sample {
+	if sample, sampleOk := expr.Hints.GetBool(HintSample, cfg.allowUnsafeQueryHints); sampleOk && sample {
 		// Automatic sampling
 		// Get other params
 		s := newAdaptiveSampler()
-		if debug, ok := expr.Hints.GetBool(HintDebug, allowUnsafeQueryHints); ok {
+		if debug, ok := expr.Hints.GetBool(HintDebug, cfg.allowUnsafeQueryHints); ok {
 			s.debug = debug
 		}
-		if info, ok := expr.Hints.GetBool(HintInfo, allowUnsafeQueryHints); ok {
+		if info, ok := expr.Hints.GetBool(HintInfo, cfg.allowUnsafeQueryHints); ok {
 			s.info = info
 		}
 
@@ -1036,7 +1074,7 @@ func (e *Engine) CompileMetricsQueryRange(req *tempopb.QueryRangeRequest, timeOv
 		}
 	}
 
-	if sampleFraction, ok := expr.Hints.GetFloat(HintSample, allowUnsafeQueryHints); ok && sampleFraction > 0 && sampleFraction < 1 {
+	if sampleFraction, ok := expr.Hints.GetFloat(HintSample, cfg.allowUnsafeQueryHints); ok && sampleFraction > 0 && sampleFraction < 1 {
 		// Fixed sampling rate.
 		s := newProbablisticSampler(sampleFraction)
 
@@ -1054,14 +1092,19 @@ func (e *Engine) CompileMetricsQueryRange(req *tempopb.QueryRangeRequest, timeOv
 	me := &MetricsEvaluator{
 		storageReq:        storageReq,
 		metricsPipeline:   metricsPipeline,
-		timeOverlapCutoff: timeOverlapCutoff,
+		timeOverlapCutoff: cfg.timeOverlapCutoff,
 		maxExemplars:      int(req.Exemplars),
 		exemplarMap:       make(map[string]struct{}, req.Exemplars), // TODO: Lazy, use bloom filter, CM sketch or something
 		needsFullTrace:    needsFullTrace,
 	}
 
-	if b, ok := expr.Hints.GetBool("new", true); ok {
-		me.newFetch = b
+	// Determine usage of new fetch layer.
+	// Hint in the query takes precedence over passed in options which are hard-coded or from tenant config.
+	if cfg.spanOnlyFetch != nil {
+		me.spanOnlyFetch = *cfg.spanOnlyFetch
+	}
+	if b, ok := expr.Hints.GetBool(HintNewFetch, cfg.allowUnsafeQueryHints); ok {
+		me.spanOnlyFetch = b
 	}
 
 	// If the request range is fully aligned to the step, then we can use lower
@@ -1227,7 +1270,7 @@ type MetricsEvaluator struct {
 	start, end                      uint64
 	checkTime                       bool
 	needsFullTrace                  bool
-	newFetch                        bool
+	spanOnlyFetch                   bool
 	maxExemplars, exemplarCount     int
 	exemplarMap                     map[string]struct{}
 	timeOverlapCutoff               float64
@@ -1256,7 +1299,7 @@ func timeRangeOverlap(reqStart, reqEnd, dataStart, dataEnd uint64) float64 {
 // uses the known time range of the data for last-minute optimizations. Time range is unix nanos
 
 func (e *MetricsEvaluator) Do(ctx context.Context, f SpansetFetcher, fetcherStart, fetcherEnd uint64, maxSeries int) error {
-	if !e.needsFullTrace && e.newFetch {
+	if !e.needsFullTrace && e.spanOnlyFetch {
 		// The query can operate at a span level so attempt.
 		// This is faster. If not supported then fallback to spanset level.
 		err := e.DoSpansOnly(ctx, f, fetcherStart, fetcherEnd, maxSeries)

@@ -539,7 +539,7 @@ metrics_generator:
 
             # Attributes that will be used to create a peer edge
             # Attributes are searched in the order they are provided
-            # See: https://pkg.go.dev/go.opentelemetry.io/otel/semconv/v1.18.0
+            # See: https://pkg.go.dev/go.opentelemetry.io/otel/semconv/v1.25.0
             # Example: ["peer.service", "db.name", "db.system", "host.name"]
             [peer_attributes: <list of string> | default = ["peer.service", "db.name", "db.system"] ]
 
@@ -2055,6 +2055,9 @@ overrides:
           [peer_attributes: <list of string>]
           [enable_client_server_prefix: <bool>]
           [enable_messaging_system_latency_histogram: <bool>]
+          [enable_virtual_node_label: <bool>]
+          [span_multiplier_key: <string>]
+          [enable_tracestate_span_multiplier: <bool>]
           [filter_policies: [
             [
               include/include_any/exclude:

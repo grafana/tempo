@@ -247,19 +247,26 @@ func (t *App) initDistributor() (services.Service, error) {
 	t.cfg.Distributor.KafkaConfig = t.cfg.Ingest.Kafka
 	t.cfg.Distributor.PushSpansToKafka = true
 
-	var pushSpansToLocalGenerator distributor.PushSpansFunc
+	localPushTargets := distributor.LocalPushTargets{}
 	if singleBinary {
-		pushSpansToLocalGenerator = func(ctx context.Context, req *tempopb.PushSpansRequest) (*tempopb.PushResponse, error) {
+		localPushTargets.Generator = func(ctx context.Context, req *tempopb.PushSpansRequest) (*tempopb.PushResponse, error) {
 			if t.generator == nil {
 				return nil, errors.New("metrics-generator not initialized")
 			}
 			return t.generator.PushSpans(ctx, req)
 		}
+
+		localPushTargets.LiveStore = func(ctx context.Context, req *tempopb.PushBytesRequest) (*tempopb.PushResponse, error) {
+			if t.liveStore == nil {
+				return nil, errors.New("live-store not initialized")
+			}
+			return t.liveStore.PushBytes(ctx, req)
+		}
 	}
 
 	// todo: make write-path client a module instead of passing the config everywhere
 	distributor, err := distributor.New(t.cfg.Distributor,
-		pushSpansToLocalGenerator,
+		localPushTargets,
 		t.partitionRing,
 		t.Overrides,
 		t.TracesConsumerMiddleware,
@@ -687,9 +694,9 @@ func (t *App) initBackendWorker() (services.Service, error) {
 }
 
 func (t *App) initLiveStore() (services.Service, error) {
-	// In SingleBinary mode don't try to discover partition from host name.
-	// Always use partition 0. This is for small installs or local/debugging setups.
-	singlePartition := IsSingleBinary(t.cfg.Target)
+	// In single-binary mode traces are pushed in-process from distributor,
+	// so live-store does not consume directly from Kafka.
+	t.cfg.LiveStore.ConsumeFromKafka = !IsSingleBinary(t.cfg.Target)
 
 	// Inject config from other locations.
 	t.cfg.LiveStore.IngestConfig = t.cfg.Ingest
@@ -699,7 +706,7 @@ func (t *App) initLiveStore() (services.Service, error) {
 	t.cfg.LiveStore.WAL.Version = t.cfg.StorageConfig.Trace.Block.Version
 
 	var err error
-	t.liveStore, err = livestore.New(t.cfg.LiveStore, t.Overrides, log.Logger, prometheus.DefaultRegisterer, singlePartition)
+	t.liveStore, err = livestore.New(t.cfg.LiveStore, t.Overrides, log.Logger, prometheus.DefaultRegisterer)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create liveStore: %w", err)
 	}
@@ -749,6 +756,14 @@ func (t *App) setupModuleManager() error {
 
 	mm.RegisterModule(SingleBinary, nil)
 
+	distributorDeps := []string{Common, LiveStoreRing, PartitionRing}
+	if IsSingleBinary(t.cfg.Target) {
+		// In single-binary mode the distributor calls the live-store and metrics-generator in-process.
+		// Make those runtime dependencies explicit in the module DAG instead of relying on sibling
+		// initialization under the composite target.
+		distributorDeps = append(distributorDeps, LiveStore, MetricsGenerator)
+	}
+
 	deps := map[string][]string{
 		// InternalServer: nil,
 		// CacheProvider:  nil,
@@ -766,7 +781,7 @@ func (t *App) setupModuleManager() error {
 
 		// individual targets
 		QueryFrontend:                 {Common, Store, OverridesAPI},
-		Distributor:                   {Common, LiveStoreRing, PartitionRing},
+		Distributor:                   distributorDeps,
 		MetricsGenerator:              {Common, MemberlistKV, PartitionRing, GeneratorRingWatcher},
 		MetricsGeneratorNoLocalBlocks: {Common, MemberlistKV, GeneratorRingWatcher},
 		Querier:                       {Common, Store, LiveStoreRing, PartitionRing},

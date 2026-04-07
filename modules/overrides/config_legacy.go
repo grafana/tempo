@@ -80,6 +80,7 @@ func (c *Overrides) toLegacy() LegacyOverrides {
 		MaxMetricsDuration:         c.Read.MaxMetricsDuration,
 		UnsafeQueryHints:           c.Read.UnsafeQueryHints,
 		LeftPadTraceIDs:            c.Read.LeftPadTraceIDs,
+		MetricsSpanOnlyFetch:       c.Read.MetricsSpanOnlyFetch,
 
 		MaxBytesPerTrace: c.Global.MaxBytesPerTrace,
 
@@ -161,10 +162,11 @@ type LegacyOverrides struct {
 	MaxBlocksPerTagValuesQuery int `yaml:"max_blocks_per_tag_values_query" json:"max_blocks_per_tag_values_query"`
 
 	// QueryFrontend enforced limits
-	MaxSearchDuration  model.Duration `yaml:"max_search_duration" json:"max_search_duration"`
-	MaxMetricsDuration model.Duration `yaml:"max_metrics_duration" json:"max_metrics_duration"`
-	UnsafeQueryHints   bool           `yaml:"unsafe_query_hints" json:"unsafe_query_hints"`
-	LeftPadTraceIDs    bool           `yaml:"left_pad_trace_ids" json:"left_pad_trace_ids"`
+	MaxSearchDuration    model.Duration `yaml:"max_search_duration" json:"max_search_duration"`
+	MaxMetricsDuration   model.Duration `yaml:"max_metrics_duration" json:"max_metrics_duration"`
+	UnsafeQueryHints     bool           `yaml:"unsafe_query_hints" json:"unsafe_query_hints"`
+	LeftPadTraceIDs      bool           `yaml:"left_pad_trace_ids" json:"left_pad_trace_ids"`
+	MetricsSpanOnlyFetch *bool          `yaml:"metrics_spanonly_fetch,omitempty" json:"metrics_spanonly_fetch,omitempty"`
 
 	// MaxBytesPerTrace is enforced in the Ingester, Compactor, Querier (Search). It
 	//  is not used when doing a trace by id lookup.
@@ -318,6 +320,7 @@ func (l *LegacyOverrides) toNewLimits() *Overrides {
 			MaxMetricsDuration:         l.MaxMetricsDuration,
 			UnsafeQueryHints:           l.UnsafeQueryHints,
 			LeftPadTraceIDs:            l.LeftPadTraceIDs,
+			MetricsSpanOnlyFetch:       l.MetricsSpanOnlyFetch,
 		},
 		Compaction: CompactionOverrides{
 			BlockRetention:     l.BlockRetention,

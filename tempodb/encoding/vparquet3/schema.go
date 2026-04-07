@@ -749,7 +749,7 @@ func extendReuseSlice[T any](sz int, in []T) []T {
 		return in[:sz]
 	}
 
-	// append until we're large enough
-	in = in[:cap(in)]
-	return append(in, make([]T, sz-len(in))...)
+	out := make([]T, sz)
+	copy(out, in)
+	return out
 }

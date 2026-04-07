@@ -29,11 +29,15 @@
   Adds `max_cardinality_per_label` per per-tenant override and new metrics to estimate per label cardinality demand estimate.
 * [FEATURE] Add an extension mechanism for per-tenant overrides [#6758](https://github.com/grafana/tempo/pull/6758) (@stoewer)
 * [FEATURE] Extend `TraceRedactor` interface to support hiding complete traces via `ErrTraceHidden`. [#6811](https://github.com/grafana/tempo/pull/6811) (@stoewer)
+* [FEATURE] Single-binary mode: push distributor local ingest directly to live-store and metrics-generator without Kafka [#6729](https://github.com/grafana/tempo/pull/6729) (@javiermolinar)
+* [ENHANCEMENT] tempo-cli: Add `--header` flag to `query api` commands for custom headers [#6768](https://github.com/grafana/tempo/pull/6768) (@Nouuu)
+* [ENHANCEMENT] tempo-cli: add `redact` command to submit trace redaction jobs to the backend scheduler [#6832](https://github.com/grafana/tempo/pull/6832) (@zalegrala)
 * [ENHANCEMENT] Block builder: deduplicate spans within traces during block creation and track removed duplicates via `tempo_block_builder_spans_deduped_total` metric [#6539](https://github.com/grafana/tempo/pull/6539) (@zhxiaogg)
 * [ENHANCEMENT] metrics-generator: Support extracting span multiplier from W3C tracestate OTel probability sampling threshold via `enable_tracestate_span_multiplier` config option [#6684](https://github.com/grafana/tempo/pull/6684) (@cmarchbanks)
 * [ENHANCEMENT] Add new alerts and runbooks entries [#6276](https://github.com/grafana/tempo/pull/6276) (@javiermolinar)
 * [ENHANCEMENT] Double the maximum number of dedicated string columns in vParquet5 and update tempo-cli to determine the optimum number for the data [#6282](https://github.com/grafana/tempo/pull/6282) (@mdisibio)
-* [ENHANCEMENT] TraceQL metrics - experimental faster read path for most metrics queries, accessible behind the query hint `new=true` [#6359](https://github.com/grafana/tempo/pull/6359) (@mdisibio)
+* [ENHANCEMENT] TraceQL metrics - experimental faster read path for most metrics queries, accessible behind the query hint `spanonly_fetch=true` when `unsafe_query_hints` is enabled [#6359](https://github.com/grafana/tempo/pull/6359) (@mdisibio)
+* [ENHANCEMENT] TraceQL metrics - add new per-tenant override to opt-in or opt-out of the new experimental faster read path for most metrics queries. [#6849](https://github.com/grafana/tempo/pull/6849) (@mdisibio)
 * [ENHANCEMENT] Vulture: extend data consistency checks to include more strings, integers, and blobs, at resource/span/event scopes, and perform deeper trace content check [#6731](https://github.com/grafana/tempo/pull/6731) (@mdisibio)
 * [ENHANCEMENT] Improve attribute truncating observability [#6400](https://github.com/grafana/tempo/pull/6400) (@javiermolinar)
 * [ENHANCEMENT] Log truncated oversized attributes [#6467](https://github.com/grafana/tempo/pull/6467) (@carles-grafana)
@@ -48,6 +52,8 @@
 * [ENHANCEMENT] Add new metric for generator ring size: `tempo_distributor_metrics_generator_tenant_ring_size` [#5686](https://github.com/grafana/tempo/pull/5686) (@zalegrala)
 * [ENHANCEMENT] Remove explicit `runtime.GC()` calls in vParquet5 compactor/block creation and CLI [#6603](https://github.com/grafana/tempo/pull/6603) (@oleg-kozlyuk-grafana)
 * [ENHANCEMENT] Implemented anti-affinity for pods in same livestore zone [#6757](https://github.com/grafana/tempo/pull/6757) (@zhxiaogg)
+* [BUGFIX] Fix live-store SearchTagValuesV2 disk cache never being populated on complete blocks [#6858](https://github.com/grafana/tempo/pull/6858) (@mapno)
+* [ENHANCEMENT] Reduce allocations in `extendReuseSlice` growth path during WAL writes and block creation [#6863](https://github.com/grafana/tempo/pull/6863) (@mapno)
 * [BUGFIX] Fix dedicated columns fallback in `block_builder` and `live_store` to use `storage.trace.block.parquet_dedicated_columns` when not set via overrides. [#6647](https://github.com/grafana/tempo/pull/6647) (@stoewer)
 * [BUGFIX] Force live-store to rehydrate from Kafka lookback period when local data is missing (e.g. PVC wipe, new node) instead of resuming from the committed consumer group offset [#6428](https://github.com/grafana/tempo/pull/6428) (@oleg-kozlyuk-grafana)
 * [BUGFIX] fix: reload span_name_sanitization overrides during runtime [#6435](https://github.com/grafana/tempo/pull/6435) (@electron0zero)
@@ -59,6 +65,7 @@
 * [BUGFIX] metrics-generator: Fix active-series counter underflow in local series limiter when overflow series are deleted [#6568](https://github.com/grafana/tempo/pull/6568) (@carles-grafana)
 * [BUGFIX] fix: skip per-label limiter and sanitizer for target_info and host_info metrics in metrics-generator [#6660](https://github.com/grafana/tempo/pull/6660) (@electron0zero)
 * [BUGFIX] fix(traceql): err on division by zero [#6580](https://github.com/grafana/tempo/pull/6580) (@Proximyst)
+* [BUGFIX] fix(traceql): stop intPow from hanging [#6581](https://github.com/grafana/tempo/pull/6581) (@Proximyst)
 * [BUGFIX] fix(traceql): Fix incorrect search results for some queries on new blob columns [#6815](https://github.com/grafana/tempo/pull/6815) (@mdisibio)
 * [BUGFIX] fix: race condition where `remove_owner_on_shutdown` flag was set too late — after context cancellation already triggered the lifecycler's shutdown, causing the partition owner to remain in the ring [#6693](https://github.com/grafana/tempo/pull/6693) (@oleg-kozlyuk-grafana)
 * [BUGFIX] Return 400 instead of 500 when query_range or query_instant requests have unparseable start/end parameters [#6694](https://github.com/grafana/tempo/pull/6694) (@ruslan-mikhailov)
@@ -67,6 +74,7 @@
 * [BUGFIX] Fix race conditions in WAL block [#6773](https://github.com/grafana/tempo/pull/6773) (@ruslan-mikhailov)
 * [BUGFIX] metrics-generator: Fix `target_info` being skipped when resource attributes have empty values [#6774](https://github.com/grafana/tempo/pull/6774) (@carles-grafana)
 * [BUGFIX] metrics-generator: Drain old series on metric replacement to prevent limiter leak and permanent overflow [#6653](https://github.com/grafana/tempo/pull/6653) (@carles-grafana)
+* [BUGFIX] live-store: fixed unsuccessful deregistering from membership/partition rings during shutdown [#6848](https://github.com/grafana/tempo/pull/6848) (@zhxiaogg)
 
 ### 3.0 Cleanup
 

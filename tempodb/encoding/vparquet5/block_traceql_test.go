@@ -181,7 +181,7 @@ func TestOne(t *testing.T) {
 			Step:  uint64(1 * time.Second),
 		}
 	)
-	eval, err := traceql.NewEngine().CompileMetricsQueryRange(req, 1, false)
+	eval, err := traceql.NewEngine().CompileMetricsQueryRange(req, traceql.WithTimeOverlapCutoff(1))
 	require.NoError(t, err)
 	fetchSpansRequest := eval.FetchSpansRequest()
 
@@ -1783,7 +1783,7 @@ func BenchmarkIterators(b *testing.B) {
 func BenchmarkBackendBlockQueryRange(b *testing.B) {
 	testCases := []string{
 		"{} | rate()",
-		"{} | rate() with(new=true)",
+		"{} | rate() with(spanonly_fetch=true)",
 		"{} | rate() with(sample=true)",
 		"{} | rate() by (span.http.status_code)",
 		"{} | rate() by (resource.service.name)",
@@ -1835,7 +1835,7 @@ func BenchmarkBackendBlockQueryRange(b *testing.B) {
 				Exemplars: 2,
 			}
 
-			eval, err := e.CompileMetricsQueryRange(req, 0, false)
+			eval, err := e.CompileMetricsQueryRange(req, traceql.WithUnsafeQueryHints(true))
 			require.NoError(b, err)
 
 			b.ResetTimer()
@@ -1961,7 +1961,7 @@ func TestSamplingError(t *testing.T) {
 			Exemplars: 2,
 		}
 
-		eval, err := e.CompileMetricsQueryRange(req, 0, false)
+		eval, err := e.CompileMetricsQueryRange(req)
 		require.NoError(t, err)
 
 		err = eval.Do(ctx, f, st, end, int(req.MaxSeries))
