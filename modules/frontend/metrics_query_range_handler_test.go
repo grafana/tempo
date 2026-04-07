@@ -38,6 +38,7 @@ func TestQueryRangeHandlerSucceeds(t *testing.T) {
 			{
 				Labels: []v1.KeyValue{
 					{Key: "foo", Value: &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "bar"}}},
+					{Key: "__query_fragment", Value: &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "{ true } | rate()"}}},
 				},
 				Samples: []tempopb.Sample{
 					{
@@ -137,6 +138,7 @@ func TestQueryRangeAccessesCache(t *testing.T) {
 			{
 				Labels: []v1.KeyValue{
 					{Key: "foo", Value: &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "bar"}}},
+					{Key: "__query_fragment", Value: &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "{ true } | rate()"}}},
 				},
 				Samples: []tempopb.Sample{
 					{
@@ -217,6 +219,7 @@ func TestQueryRangeHandlerV2MaxSeries(t *testing.T) {
 			{
 				Labels: []v1.KeyValue{
 					{Key: "foo", Value: &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "bar"}}},
+					{Key: "__query_fragment", Value: &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "{ true } | rate()"}}},
 				},
 				Samples: []tempopb.Sample{
 					{
@@ -232,6 +235,7 @@ func TestQueryRangeHandlerV2MaxSeries(t *testing.T) {
 			{
 				Labels: []v1.KeyValue{
 					{Key: "abc", Value: &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "xyz"}}},
+					{Key: "__query_fragment", Value: &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "{ true } | rate()"}}},
 				},
 				Samples: []tempopb.Sample{
 					{
@@ -315,6 +319,7 @@ func TestQueryRangeCachedMetrics(t *testing.T) {
 					{
 						Labels: []v1.KeyValue{
 							{Key: "foo", Value: &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "bar"}}},
+							{Key: "__query_fragment", Value: &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "{ true } | rate()"}}},
 						},
 						Samples: []tempopb.Sample{
 							{
@@ -420,6 +425,7 @@ func TestQueryRangeHandlerWithEndCutoff(t *testing.T) {
 				{
 					Labels: []v1.KeyValue{
 						{Key: "foo", Value: &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "bar"}}},
+						{Key: "__query_fragment", Value: &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "{ true } | rate()"}}},
 					},
 					Samples: []tempopb.Sample{
 						{
@@ -525,6 +531,7 @@ func TestQueryRangeHandlerExemplarNormalization(t *testing.T) {
 			{
 				Labels: []v1.KeyValue{
 					{Key: "foo", Value: &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "bar"}}},
+					{Key: "__query_fragment", Value: &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "{ true } | rate()"}}},
 				},
 				Samples: []tempopb.Sample{
 					{TimestampMs: 1100_000, Value: 1},

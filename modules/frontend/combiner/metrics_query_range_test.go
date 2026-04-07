@@ -132,6 +132,7 @@ func TestQueryRangemaxSeriesShouldQuit(t *testing.T) {
 	end := uint64(1300 * time.Second)
 	step := traceql.DefaultQueryRangeStep(start, end)
 	bar := &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "bar"}}
+	queryFragment := v1.KeyValue{Key: "__query_fragment", Value: &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "{ true } | rate()"}}}
 
 	req := &tempopb.QueryRangeRequest{
 		Query:     "{} | rate()",
@@ -172,6 +173,7 @@ func TestQueryRangemaxSeriesShouldQuit(t *testing.T) {
 			{
 				Labels: []v1.KeyValue{
 					{Key: "foo", Value: bar},
+					queryFragment,
 				},
 				Samples: []tempopb.Sample{
 					{
@@ -183,6 +185,7 @@ func TestQueryRangemaxSeriesShouldQuit(t *testing.T) {
 			{
 				Labels: []v1.KeyValue{
 					{Key: "boo", Value: bar},
+					queryFragment,
 				},
 				Samples: []tempopb.Sample{
 					{
@@ -194,6 +197,7 @@ func TestQueryRangemaxSeriesShouldQuit(t *testing.T) {
 			{
 				Labels: []v1.KeyValue{
 					{Key: "moo", Value: bar},
+					queryFragment,
 				},
 				Samples: []tempopb.Sample{
 					{
@@ -219,6 +223,7 @@ func TestQueryRangemaxSeriesShouldQuit(t *testing.T) {
 			{
 				Labels: []v1.KeyValue{
 					{Key: "woo", Value: bar},
+					queryFragment,
 				},
 				Samples: []tempopb.Sample{
 					{
@@ -230,6 +235,7 @@ func TestQueryRangemaxSeriesShouldQuit(t *testing.T) {
 			{
 				Labels: []v1.KeyValue{
 					{Key: "zoo", Value: bar},
+					queryFragment,
 				},
 				Samples: []tempopb.Sample{
 					{
@@ -251,6 +257,7 @@ func TestQueryRangeMaxSeriesQuitRequiresCompletedShards(t *testing.T) {
 	end := uint64(1300 * time.Second)
 	step := traceql.DefaultQueryRangeStep(start, end)
 	bar := &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "bar"}}
+	queryFragment := v1.KeyValue{Key: "__query_fragment", Value: &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "{ true } | rate()"}}}
 
 	req := &tempopb.QueryRangeRequest{
 		Query:     "{} | rate()",
@@ -276,6 +283,7 @@ func TestQueryRangeMaxSeriesQuitRequiresCompletedShards(t *testing.T) {
 				{
 					Labels: []v1.KeyValue{
 						{Key: "series1", Value: bar},
+						queryFragment,
 					},
 					Samples: []tempopb.Sample{
 						{TimestampMs: 1200_000, Value: 1.0},
@@ -284,6 +292,7 @@ func TestQueryRangeMaxSeriesQuitRequiresCompletedShards(t *testing.T) {
 				{
 					Labels: []v1.KeyValue{
 						{Key: "series2", Value: bar},
+						queryFragment,
 					},
 					Samples: []tempopb.Sample{
 						{TimestampMs: 1200_000, Value: 2.0},
@@ -292,6 +301,7 @@ func TestQueryRangeMaxSeriesQuitRequiresCompletedShards(t *testing.T) {
 				{
 					Labels: []v1.KeyValue{
 						{Key: "series3", Value: bar},
+						queryFragment,
 					},
 					Samples: []tempopb.Sample{
 						{TimestampMs: 1200_000, Value: 3.0},
@@ -344,6 +354,7 @@ func TestQueryRangeMaxSeriesQuitRequiresCompletedShards(t *testing.T) {
 				{
 					Labels: []v1.KeyValue{
 						{Key: "series1", Value: bar},
+						queryFragment,
 					},
 					Samples: []tempopb.Sample{
 						{TimestampMs: 1200_000, Value: 1.0},
@@ -367,6 +378,7 @@ func TestQueryRangeMaxSeriesQuitRequiresCompletedShards(t *testing.T) {
 				{
 					Labels: []v1.KeyValue{
 						{Key: "series2", Value: bar},
+						queryFragment,
 					},
 					Samples: []tempopb.Sample{
 						{TimestampMs: 1200_000, Value: 2.0},
@@ -375,6 +387,7 @@ func TestQueryRangeMaxSeriesQuitRequiresCompletedShards(t *testing.T) {
 				{
 					Labels: []v1.KeyValue{
 						{Key: "series3", Value: bar},
+						queryFragment,
 					},
 					Samples: []tempopb.Sample{
 						{TimestampMs: 1200_000, Value: 3.0},
