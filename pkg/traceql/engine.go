@@ -19,6 +19,8 @@ const (
 	DefaultSpansPerSpanSet int = 3
 )
 
+var ErrMathNotSupported = errors.New("math expressions not supported")
+
 type SpansetFilterFunc func(input []*Spanset) (result []*Spanset, err error)
 
 type Engine struct{}
@@ -27,30 +29,49 @@ func NewEngine() *Engine {
 	return &Engine{}
 }
 
-func Compile(query string) (*RootExpr, SpansetFilterFunc, firstStageElement, secondStageElement, *FetchSpansRequest, error) {
+// Compile compiles given query. It does not support math expressions.
+func Compile(query string) (*RootExpr, Pipeline, SpansetFilterFunc, *FetchSpansRequest, error) {
 	expr, err := Parse(query)
 	if err != nil {
-		return nil, nil, nil, nil, nil, err
+		return nil, Pipeline{}, nil, nil, err
 	}
-
-	req := &FetchSpansRequest{
-		AllConditions: true,
-	}
-	expr.extractConditions(req)
-
 	err = expr.validate()
 	if err != nil {
-		return nil, nil, nil, nil, nil, err
+		return nil, Pipeline{}, nil, nil, err
 	}
+	p, ok := expr.SinglePipeline()
+	if !ok {
+		return nil, Pipeline{}, nil, nil, ErrMathNotSupported
+	}
+	req := FetchSpansRequest{AllConditions: true}
+	requests := expr.extractConditions(req)
+	if len(requests) != 1 { // should never happen, but just in case
+		return nil, Pipeline{}, nil, nil, ErrMathNotSupported
+	}
+	for _, v := range requests {
+		req = v
+	}
+	return expr, p, p.evaluate, &req, nil
+}
 
-	return expr, expr.Pipeline.evaluate, expr.MetricsPipeline, expr.MetricsSecondStage, req, nil
+// CompileFetchSpanRequests parses a query and returns per-sub-query FetchSpansRequests.
+// This supports both plain spanset queries and math expressions (multiple sub-queries).
+func CompileFetchSpanRequests(query string) (*RootExpr, map[string]FetchSpansRequest, error) {
+	expr, err := Parse(query)
+	if err != nil {
+		return nil, nil, err
+	}
+	if err := expr.validate(); err != nil {
+		return nil, nil, err
+	}
+	return expr, expr.extractConditions(FetchSpansRequest{AllConditions: true}), nil
 }
 
 func (e *Engine) ExecuteSearch(ctx context.Context, searchReq *tempopb.SearchRequest, fetcher SpansetFetcher, allowUnsafeQueryHints bool) (*tempopb.SearchResponse, error) {
 	ctx, span := tracer.Start(ctx, "traceql.Engine.ExecuteSearch")
 	defer span.End()
 
-	rootExpr, _, _, _, fetchSpansRequest, err := Compile(searchReq.Query)
+	rootExpr, pipeline, eval, fetchSpansRequest, err := Compile(searchReq.Query)
 	if err != nil {
 		return nil, err
 	}
@@ -85,7 +106,7 @@ func (e *Engine) ExecuteSearch(ctx context.Context, searchReq *tempopb.SearchReq
 	fetchSpansRequest.StartTimeUnixNanos = unixSecToNano(searchReq.Start)
 	fetchSpansRequest.EndTimeUnixNanos = unixSecToNano(searchReq.End)
 
-	span.SetAttributes(attribute.String("pipeline", rootExpr.Pipeline.String()))
+	span.SetAttributes(attribute.String("pipeline", pipeline.String()))
 	span.SetAttributes(attribute.String("fetchSpansRequest", fmt.Sprint(fetchSpansRequest)))
 
 	// calculate search meta conditions.
@@ -99,7 +120,7 @@ func (e *Engine) ExecuteSearch(ctx context.Context, searchReq *tempopb.SearchReq
 			return nil, nil
 		}
 
-		evalSS, err := rootExpr.Pipeline.evaluate([]*Spanset{inSS})
+		evalSS, err := eval([]*Spanset{inSS})
 		if err != nil {
 			span.RecordError(err, trace.WithAttributes(attribute.String("msg", "pipeline.evaluate")))
 			return nil, err

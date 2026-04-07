@@ -135,7 +135,18 @@ func TestWeightMiddlewareForTraceQLRequest(t *testing.T) {
 			query:    "{span.a = \"1\"} ~ {span.b = \"2\"}",
 			expected: TraceQLSearchWeight + 2,
 		},
-
+		{
+			// Two sub-queries (deduplicated to one since they're identical)
+			query: "({ span.http.status_code >= 200 || span.http.status_code < 300 } | rate()) + " +
+				"({ span.http.status_code >= 200 || span.http.status_code < 300 } | rate())",
+			expected: TraceQLSearchWeight + 1, // +1 for OR operation (deduplicated to single sub-query)
+		},
+		{
+			// Two sub-queries
+			query: "({ span.http.status_code >= 200 || span.http.status_code < 300 } | count_over_time()) + " +
+				"({ span.http.status_code >= 200 || span.http.status_code < 300 } | rate())",
+			expected: TraceQLSearchWeight*2 + 1, // +1 for OR operation
+		},
 		{
 			// Aggregate requiring full trace
 			query:    "{} | count() > 5",

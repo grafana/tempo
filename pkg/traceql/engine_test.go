@@ -384,7 +384,11 @@ func (m *MockAutocompleteFetcher) Fetch(ctx context.Context, req FetchTagValuesR
 			continue
 		}
 
-		evalSS, _ := rootExpr.Pipeline.evaluate([]*Spanset{spanset})
+		pipeline, ok := rootExpr.SinglePipeline()
+		if !ok {
+			return ErrMathNotSupported
+		}
+		evalSS, _ := pipeline.evaluate([]*Spanset{spanset})
 
 		for _, ss := range evalSS {
 			for _, s := range ss.Spans {
@@ -535,21 +539,21 @@ func TestExamplesInEngine(t *testing.T) {
 
 	for _, q := range queries.Valid {
 		t.Run("valid - "+q, func(t *testing.T) {
-			_, _, _, _, _, err := Compile(q)
+			_, _, err := CompileFetchSpanRequests(q)
 			require.NoError(t, err)
 		})
 	}
 
 	for _, q := range queries.ParseFails {
 		t.Run("parse fails - "+q, func(t *testing.T) {
-			_, _, _, _, _, err := Compile(q)
+			_, _, err := CompileFetchSpanRequests(q)
 			require.Error(t, err)
 		})
 	}
 
 	for _, q := range queries.ValidateFails {
 		t.Run("validate fails - "+q, func(t *testing.T) {
-			_, _, _, _, _, err := Compile(q)
+			_, _, err := CompileFetchSpanRequests(q)
 			require.Error(t, err)
 			var unErr *unsupportedError
 			require.False(t, errors.As(err, &unErr))
@@ -558,7 +562,7 @@ func TestExamplesInEngine(t *testing.T) {
 
 	for _, q := range queries.Unsupported {
 		t.Run("unsupported - "+q, func(t *testing.T) {
-			_, _, _, _, _, err := Compile(q)
+			_, _, err := CompileFetchSpanRequests(q)
 			require.Error(t, err)
 			var unErr *unsupportedError
 			require.True(t, errors.As(err, &unErr))
