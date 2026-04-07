@@ -21,10 +21,11 @@ import (
 )
 
 const (
-	internalLabelMetaType = "__meta_type"
-	internalMetaTypeCount = "__count"
-	internalLabelBucket   = "__bucket"
-	maxExemplarsPerBucket = 2
+	internalLabelMetaType      = "__meta_type"
+	internalMetaTypeCount      = "__count"
+	internalLabelBucket        = "__bucket"
+	internalLabelQueryFragment = "__query_fragment"
+	maxExemplarsPerBucket      = 2
 	// maxExemplars is a safety cap applied at the engine entry points to bound memory
 	// usage regardless of what the caller requests.
 	maxExemplars uint32 = 100000
@@ -276,6 +277,15 @@ func (ls Labels) Has(name string) bool {
 		}
 	}
 	return false
+}
+
+func (ls Labels) GetValue(name string) Static {
+	for _, l := range ls {
+		if l.Name == name {
+			return l.Value
+		}
+	}
+	return NewStaticNil()
 }
 
 // String returns the prometheus-formatted version of the labels. Which is downcasting
@@ -958,29 +968,31 @@ func (e *Engine) CompileMetricsQueryRangeNonRaw(req *tempopb.QueryRangeRequest, 
 		return nil, fmt.Errorf("step required")
 	}
 
-	_, _, metricsPipeline, metricsSecondStage, _, err := Compile(req.Query)
+	expr, err := Parse(req.Query)
 	if err != nil {
 		return nil, fmt.Errorf("compiling query: %w", err)
 	}
+	if err := expr.validate(); err != nil {
+		return nil, fmt.Errorf("compiling query: %w", err)
+	}
 
-	// for metrics queries, we need a metrics pipeline
-	if metricsPipeline == nil {
+	sp := batchSeriesProcessor(expr.SeriesProcessor)
+	if len(sp) == 0 {
 		return nil, fmt.Errorf("not a metrics query")
 	}
+	sp.init(req, mode)
 
-	metricsPipeline.init(req, mode)
-	mfe := &MetricsFrontendEvaluator{
-		metricsPipeline: metricsPipeline,
+	// Only run second stage in final mode
+	var secondStage secondStageElement
+	if ss := expr.MetricsSecondStage(); mode == AggregateModeFinal {
+		ss.init(req)
+		secondStage = ss
 	}
 
-	// only run metrics second stage if we have second stage and query mode = final,
-	// as we are not sharding them now in lower layers.
-	if metricsSecondStage != nil && mode == AggregateModeFinal {
-		metricsSecondStage.init(req)
-		mfe.metricsSecondStage = metricsSecondStage
-	}
-
-	return mfe, nil
+	return &MetricsFrontendEvaluator{
+		seriesProcessor:    sp,
+		metricsSecondStage: secondStage,
+	}, nil
 }
 
 // CompileMetricsQueryRangeOption are options for [Engine.CompileMetricsQueryRange].
@@ -1017,7 +1029,7 @@ func WithUnsafeQueryHints(v bool) CompileMetricsQueryRangeOption {
 }
 
 // CompileMetricsQueryRange returns an evaluator that can be reused across multiple data sources.
-func (e *Engine) CompileMetricsQueryRange(req *tempopb.QueryRangeRequest, opts ...CompileMetricsQueryRangeOption) (*MetricsEvaluator, error) {
+func (e *Engine) CompileMetricsQueryRange(req *tempopb.QueryRangeRequest, opts ...CompileMetricsQueryRangeOption) (MetricsEvaluator, error) {
 	var cfg compileMetricsQueryRangeConfig
 	for _, opt := range opts {
 		opt(&cfg)
@@ -1041,139 +1053,150 @@ func (e *Engine) CompileMetricsQueryRange(req *tempopb.QueryRangeRequest, opts .
 		return nil, fmt.Errorf("step required")
 	}
 
-	expr, eval, metricsPipeline, _, storageReq, err := Compile(req.Query)
+	expr, storageReqs, err := CompileFetchSpanRequests(req.Query)
 	if err != nil {
 		return nil, fmt.Errorf("compiling query: %w", err)
 	}
 
 	needsFullTrace := expr.NeedsFullTrace()
 
-	if metricsPipeline == nil {
-		return nil, fmt.Errorf("not a metrics query")
+	bme := make(batchMetricsEvaluator, len(expr.BatchSpanProcessor))
+	for key, pipeline := range expr.Pipeline {
+		sp := expr.BatchSpanProcessor[key]
+		if sp == nil {
+			return nil, fmt.Errorf("not a metrics query")
+		}
+		// This initializes all step buffers, counters, etc
+		sp.init(req, AggregateModeRaw)
+
+		storageReq := storageReqs[key]
+		e.applySampleHints(expr, &storageReq, cfg.allowUnsafeQueryHints)
+
+		me := &metricsEvaluator{
+			storageReq:        &storageReq,
+			metricsPipeline:   sp,
+			timeOverlapCutoff: cfg.timeOverlapCutoff,
+			maxExemplars:      int(req.Exemplars),
+			exemplarMap:       make(map[string]struct{}, req.Exemplars), // TODO: Lazy, use bloom filter, CM sketch or something
+			needsFullTrace:    needsFullTrace,
+		}
+
+		// Determine usage of new fetch layer.
+		// Hint in the query takes precedence over passed in options which are hard-coded or from tenant config.
+		if cfg.spanOnlyFetch != nil {
+			me.spanOnlyFetch = *cfg.spanOnlyFetch
+		}
+		if b, ok := expr.Hints.GetBool(HintNewFetch, cfg.allowUnsafeQueryHints); ok {
+			me.spanOnlyFetch = b
+		}
+
+		// If the request range is fully aligned to the step, then we can use lower
+		// precision data that matches the step while still returning accurate results.
+		// When the range isn't an even multiple, it means that we are on the split
+		// between backend and recent data, or the edges of the request. In that case
+		// we use full nanosecond precision.
+		var precision time.Duration
+		if (req.Start%req.Step) == 0 && (req.End%req.Step) == 0 {
+			precision = time.Duration(req.Step)
+		}
+
+		// Span start time (always required)
+		if !storageReq.HasAttribute(IntrinsicSpanStartTimeAttribute) {
+			// Technically we only need the start time of matching spans, so we add it to the second pass.
+			// However this is often optimized back to the first pass when it lets us avoid a second pass altogether.
+			storageReq.SecondPassConditions = append(storageReq.SecondPassConditions, Condition{Attribute: IntrinsicSpanStartTimeAttribute, Precision: precision})
+		} else {
+			// Update the existing condition to use low precision
+			for i, c := range storageReq.Conditions {
+				if c.Attribute == IntrinsicSpanStartTimeAttribute {
+					storageReq.Conditions[i].Precision = precision
+					break
+				}
+			}
+		}
+
+		// Timestamp filtering
+		// (1) Include any overlapping trace
+		//     It can be faster to skip the trace-level timestamp check
+		//     when all or most of the traces overlap the window.
+		//     So this is done dynamically on a per-fetcher basis in Do()
+		// (2) Only include spans that started in this time frame.
+		//     This is checked outside the fetch layer in the evaluator. Timestamp
+		//     is only checked on the spans that are the final results.
+		// TODO - I think there are cases where we can push this down.
+		// Queries like {status=error} | rate() don't assert inter-span conditions
+		// and we could filter on span start time without affecting correctness.
+		// Queries where we can't are like:  {A} >> {B} | rate() because only require
+		// that {B} occurs within our time range but {A} is allowed to occur any time.
+		me.checkTime = true
+		me.start = req.Start
+		me.end = req.End
+
+		if me.maxExemplars > 0 {
+			cb := func() bool { return me.exemplarCount < me.maxExemplars }
+			meta := ExemplarMetaConditionsWithout(cb, storageReq.SecondPassConditions, storageReq.AllConditions)
+			storageReq.SecondPassConditions = append(storageReq.SecondPassConditions, meta...)
+		}
+
+		// Setup second pass callback. It might be optimized away.
+		ssBuf := make([]*Spanset, 1)
+		eval := pipeline.evaluate
+		storageReq.SecondPass = func(s *Spanset) ([]*Spanset, error) {
+			// The traceql engine isn't thread-safe.
+			// But parallelization is required for good metrics performance.
+			// So we do external locking here.
+			me.mtx.Lock()
+			defer me.mtx.Unlock()
+			ssBuf[0] = s
+			return eval(ssBuf)
+		}
+
+		optimize(&storageReq)
+		bme[key] = me
 	}
 
+	return bme, nil
+}
+
+func (e *Engine) applySampleHints(expr *RootExpr, req *FetchSpansRequest, allowUnsafeQueryHints bool) {
 	// Debug sampling hints, remove once we settle on approach.
-	if traceSample, traceSampleOk := expr.Hints.GetFloat(HintTraceSample, cfg.allowUnsafeQueryHints); traceSampleOk {
-		storageReq.TraceSampler = newProbablisticSampler(traceSample)
+	if traceSample, traceSampleOk := expr.Hints.GetFloat(HintTraceSample, allowUnsafeQueryHints); traceSampleOk {
+		req.TraceSampler = newProbablisticSampler(traceSample)
 	}
-	if spanSample, spanSampleOk := expr.Hints.GetFloat(HintSpanSample, cfg.allowUnsafeQueryHints); spanSampleOk {
-		storageReq.SpanSampler = newProbablisticSampler(spanSample)
+	if spanSample, spanSampleOk := expr.Hints.GetFloat(HintSpanSample, allowUnsafeQueryHints); spanSampleOk {
+		req.SpanSampler = newProbablisticSampler(spanSample)
 	}
 
-	if sample, sampleOk := expr.Hints.GetBool(HintSample, cfg.allowUnsafeQueryHints); sampleOk && sample {
+	if sample, sampleOk := expr.Hints.GetBool(HintSample, allowUnsafeQueryHints); sampleOk && sample {
 		// Automatic sampling
 		// Get other params
 		s := newAdaptiveSampler()
-		if debug, ok := expr.Hints.GetBool(HintDebug, cfg.allowUnsafeQueryHints); ok {
+		if debug, ok := expr.Hints.GetBool(HintDebug, allowUnsafeQueryHints); ok {
 			s.debug = debug
 		}
-		if info, ok := expr.Hints.GetBool(HintInfo, cfg.allowUnsafeQueryHints); ok {
+		if info, ok := expr.Hints.GetBool(HintInfo, allowUnsafeQueryHints); ok {
 			s.info = info
 		}
 
 		// Classify the query and determine if it needs to be at the trace-level or can be at span-level (better)
 		if expr.NeedsFullTrace() {
-			storageReq.TraceSampler = s
+			req.TraceSampler = s
 		} else {
-			storageReq.SpanSampler = s
+			req.SpanSampler = s
 		}
 	}
 
-	if sampleFraction, ok := expr.Hints.GetFloat(HintSample, cfg.allowUnsafeQueryHints); ok && sampleFraction > 0 && sampleFraction < 1 {
+	if sampleFraction, ok := expr.Hints.GetFloat(HintSample, allowUnsafeQueryHints); ok && sampleFraction > 0 && sampleFraction < 1 {
 		// Fixed sampling rate.
 		s := newProbablisticSampler(sampleFraction)
 
 		// Classify the query and determine if it needs to be at the trace-level or can be at span-level (better)
 		if expr.NeedsFullTrace() {
-			storageReq.TraceSampler = s
+			req.TraceSampler = s
 		} else {
-			storageReq.SpanSampler = s
+			req.SpanSampler = s
 		}
 	}
-
-	// This initializes all step buffers, counters, etc
-	metricsPipeline.init(req, AggregateModeRaw)
-
-	me := &MetricsEvaluator{
-		storageReq:        storageReq,
-		metricsPipeline:   metricsPipeline,
-		timeOverlapCutoff: cfg.timeOverlapCutoff,
-		maxExemplars:      int(req.Exemplars),
-		exemplarMap:       make(map[string]struct{}, req.Exemplars), // TODO: Lazy, use bloom filter, CM sketch or something
-		needsFullTrace:    needsFullTrace,
-	}
-
-	// Determine usage of new fetch layer.
-	// Hint in the query takes precedence over passed in options which are hard-coded or from tenant config.
-	if cfg.spanOnlyFetch != nil {
-		me.spanOnlyFetch = *cfg.spanOnlyFetch
-	}
-	if b, ok := expr.Hints.GetBool(HintNewFetch, cfg.allowUnsafeQueryHints); ok {
-		me.spanOnlyFetch = b
-	}
-
-	// If the request range is fully aligned to the step, then we can use lower
-	// precision data that matches the step while still returning accurate results.
-	// When the range isn't an even multiple, it means that we are on the split
-	// between backend and recent data, or the edges of the request. In that case
-	// we use full nanosecond precision.
-	var precision time.Duration
-	if (req.Start%req.Step) == 0 && (req.End%req.Step) == 0 {
-		precision = time.Duration(req.Step)
-	}
-
-	// Span start time (always required)
-	if !storageReq.HasAttribute(IntrinsicSpanStartTimeAttribute) {
-		// Technically we only need the start time of matching spans, so we add it to the second pass.
-		// However this is often optimized back to the first pass when it lets us avoid a second pass altogether.
-		storageReq.SecondPassConditions = append(storageReq.SecondPassConditions, Condition{Attribute: IntrinsicSpanStartTimeAttribute, Precision: precision})
-	} else {
-		// Update the existing condition to use low precision
-		for i, c := range storageReq.Conditions {
-			if c.Attribute == IntrinsicSpanStartTimeAttribute {
-				storageReq.Conditions[i].Precision = precision
-				break
-			}
-		}
-	}
-
-	// Timestamp filtering
-	// (1) Include any overlapping trace
-	//     It can be faster to skip the trace-level timestamp check
-	//     when all or most of the traces overlap the window.
-	//     So this is done dynamically on a per-fetcher basis in Do()
-	// (2) Only include spans that started in this time frame.
-	//     This is checked outside the fetch layer in the evaluator. Timestamp
-	//     is only checked on the spans that are the final results.
-	// TODO - I think there are cases where we can push this down.
-	// Queries like {status=error} | rate() don't assert inter-span conditions
-	// and we could filter on span start time without affecting correctness.
-	// Queries where we can't are like:  {A} >> {B} | rate() because only require
-	// that {B} occurs within our time range but {A} is allowed to occur any time.
-	me.checkTime = true
-	me.start = req.Start
-	me.end = req.End
-
-	if me.maxExemplars > 0 {
-		cb := func() bool { return me.exemplarCount < me.maxExemplars }
-		meta := ExemplarMetaConditionsWithout(cb, storageReq.SecondPassConditions, storageReq.AllConditions)
-		storageReq.SecondPassConditions = append(storageReq.SecondPassConditions, meta...)
-	}
-	// Setup second pass callback.  It might be optimized away
-	ssBuf := make([]*Spanset, 1)
-	storageReq.SecondPass = func(s *Spanset) ([]*Spanset, error) {
-		// The traceql engine isn't thread-safe.
-		// But parallelization is required for good metrics performance.
-		// So we do external locking here.
-		me.mtx.Lock()
-		defer me.mtx.Unlock()
-		ssBuf[0] = s
-		return eval(ssBuf)
-	}
-
-	optimize(storageReq)
-
-	return me, nil
 }
 
 // optimize numerous things within the request that is specific to metrics.
@@ -1271,7 +1294,59 @@ func lookup(needles []Attribute, haystack Span) Static {
 	return NewStaticNil()
 }
 
-type MetricsEvaluator struct {
+type MetricsEvaluator interface {
+	Do(ctx context.Context, f SpansetFetcher, fetcherStart, fetcherEnd uint64, maxSeries int) error
+	Length() int
+	Metrics() (uint64, uint64, uint64)
+	Results() SeriesSet
+}
+
+type batchMetricsEvaluator map[string]MetricsEvaluator
+
+var _ = (MetricsEvaluator)(batchMetricsEvaluator(nil))
+
+func (e batchMetricsEvaluator) Do(ctx context.Context, f SpansetFetcher, fetcherStart, fetcherEnd uint64, maxSeries int) error {
+	var err error
+	for _, eval := range e {
+		err = eval.Do(ctx, f, fetcherStart, fetcherEnd, maxSeries)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (e batchMetricsEvaluator) Length() int {
+	var total int
+	for _, eval := range e {
+		total += eval.Length()
+	}
+	return total
+}
+
+func (e batchMetricsEvaluator) Metrics() (uint64, uint64, uint64) {
+	var bytes, spansTotal, spansDeduped uint64
+	for _, eval := range e {
+		b, st, sd := eval.Metrics()
+		bytes += b
+		spansTotal += st
+		spansDeduped += sd
+	}
+	return bytes, spansTotal, spansDeduped
+}
+
+func (e batchMetricsEvaluator) Results() SeriesSet {
+	merged := make(SeriesSet)
+	for q, eval := range e {
+		for _, v := range eval.Results() {
+			v.Labels = v.Labels.Add(Label{Name: internalLabelQueryFragment, Value: NewStaticString(q)})
+			merged[v.Labels.MapKey()] = v
+		}
+	}
+	return merged
+}
+
+type metricsEvaluator struct {
 	start, end                      uint64
 	checkTime                       bool
 	needsFullTrace                  bool
@@ -1280,12 +1355,12 @@ type MetricsEvaluator struct {
 	exemplarMap                     map[string]struct{}
 	timeOverlapCutoff               float64
 	storageReq                      *FetchSpansRequest
-	metricsPipeline                 firstStageElement
+	metricsPipeline                 spanProcessor
 	spansTotal, spansDeduped, bytes uint64
 	mtx                             sync.Mutex
 }
 
-func (e *MetricsEvaluator) FetchSpansRequest() FetchSpansRequest {
+func (e *metricsEvaluator) FetchSpansRequest() FetchSpansRequest {
 	return *e.storageReq
 }
 
@@ -1303,7 +1378,7 @@ func timeRangeOverlap(reqStart, reqEnd, dataStart, dataEnd uint64) float64 {
 // Do metrics on the given source of data and merge the results into the working set.  Optionally, if provided,
 // uses the known time range of the data for last-minute optimizations. Time range is unix nanos
 
-func (e *MetricsEvaluator) Do(ctx context.Context, f SpansetFetcher, fetcherStart, fetcherEnd uint64, maxSeries int) error {
+func (e *metricsEvaluator) Do(ctx context.Context, f SpansetFetcher, fetcherStart, fetcherEnd uint64, maxSeries int) error {
 	if !e.needsFullTrace && e.spanOnlyFetch {
 		// The query can operate at a span level so attempt.
 		// This is faster. If not supported then fallback to spanset level.
@@ -1423,7 +1498,7 @@ func (e *MetricsEvaluator) Do(ctx context.Context, f SpansetFetcher, fetcherStar
 }
 
 // DoSpansOnly is the same as Do but using the new span-only fetch layer.
-func (e *MetricsEvaluator) DoSpansOnly(ctx context.Context, f SpansetFetcher, fetcherStart, fetcherEnd uint64, maxSeries int) error {
+func (e *metricsEvaluator) DoSpansOnly(ctx context.Context, f SpansetFetcher, fetcherStart, fetcherEnd uint64, maxSeries int) error {
 	// Make a copy of the request so we can modify it.
 	storageReq := *e.storageReq
 
@@ -1518,18 +1593,18 @@ func (e *MetricsEvaluator) DoSpansOnly(ctx context.Context, f SpansetFetcher, fe
 	return nil
 }
 
-func (e *MetricsEvaluator) Length() int {
+func (e *metricsEvaluator) Length() int {
 	return e.metricsPipeline.length()
 }
 
-func (e *MetricsEvaluator) Metrics() (uint64, uint64, uint64) {
+func (e *metricsEvaluator) Metrics() (uint64, uint64, uint64) {
 	e.mtx.Lock()
 	defer e.mtx.Unlock()
 
 	return e.bytes, e.spansTotal, e.spansDeduped
 }
 
-func (e *MetricsEvaluator) Results() SeriesSet {
+func (e *metricsEvaluator) Results() SeriesSet {
 	e.mtx.Lock()
 	defer e.mtx.Unlock()
 
@@ -1554,7 +1629,7 @@ func (e *MetricsEvaluator) Results() SeriesSet {
 	return ss
 }
 
-func (e *MetricsEvaluator) sampleExemplar(id []byte) bool {
+func (e *metricsEvaluator) sampleExemplar(id []byte) bool {
 	if len(e.exemplarMap) >= e.maxExemplars {
 		return false
 	}
@@ -1573,19 +1648,18 @@ func (e *MetricsEvaluator) sampleExemplar(id []byte) bool {
 	return true
 }
 
-// MetricsFrontendEvaluator pipes the sharded job results back into the engine for the rest
-// of the pipeline.  i.e. This evaluator is for the query-frontend.
+// MetricsFrontendEvaluator pipes the sharded job results back into the engine
+// for the rest of the pipeline. Works uniformly for math and non-math queries.
 type MetricsFrontendEvaluator struct {
 	mtx                sync.Mutex
-	metricsPipeline    firstStageElement
+	seriesProcessor    seriesProcessor
 	metricsSecondStage secondStageElement
 }
 
 func (m *MetricsFrontendEvaluator) ObserveSeries(in []*tempopb.TimeSeries) {
 	m.mtx.Lock()
 	defer m.mtx.Unlock()
-
-	m.metricsPipeline.observeSeries(in)
+	m.seriesProcessor.observeSeries(in)
 }
 
 func (m *MetricsFrontendEvaluator) Results() SeriesSet {
@@ -1593,7 +1667,7 @@ func (m *MetricsFrontendEvaluator) Results() SeriesSet {
 	defer m.mtx.Unlock()
 
 	// Job results are not scaled by sampling, but this is here for the interface.
-	results := m.metricsPipeline.result(1.0)
+	results := m.seriesProcessor.result(1.0)
 
 	if m.metricsSecondStage != nil {
 		// metrics second stage is only set when query has second stage function and mode = final
@@ -1601,15 +1675,13 @@ func (m *MetricsFrontendEvaluator) Results() SeriesSet {
 		// second stage for further processing.
 		results = m.metricsSecondStage.process(results)
 	}
-
 	return results
 }
 
 func (m *MetricsFrontendEvaluator) Length() int {
 	m.mtx.Lock()
 	defer m.mtx.Unlock()
-
-	return m.metricsPipeline.length()
+	return m.seriesProcessor.length()
 }
 
 type SeriesAggregator interface {
@@ -1697,9 +1769,11 @@ func (b *SimpleAggregator) Combine(in []*tempopb.TimeSeries) {
 			}
 		}
 
+		prevLen := len(existing.Exemplars)
 		b.aggregateExemplars(ts, &existing)
-
-		b.ss[key] = existing
+		if len(existing.Exemplars) != prevLen {
+			b.ss[key] = existing
+		}
 	}
 }
 
