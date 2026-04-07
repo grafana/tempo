@@ -938,9 +938,14 @@ func TestExtendReuseSlice(t *testing.T) {
 }
 
 func BenchmarkExtendReuseSlice(b *testing.B) {
-	in := []int{1, 2, 3}
+	sizes := []int{5, 20, 8, 50, 12, 100, 30, 200, 15, 80, 3, 150, 10, 40, 7, 300, 25, 60, 90, 10}
 	for i := 0; i < b.N; i++ {
-		_ = extendReuseSlice(100, in)
+		
+		var buf []Attribute
+		for _, sz := range sizes {
+			buf = extendReuseSlice(sz, buf)
+		}
+		_ = buf
 	}
 }
 
