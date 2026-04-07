@@ -99,4 +99,5 @@ Existing blocks in older formats remain readable. New blocks are always written 
 
 ## Related resources
 
-Refer to the [Apache Parquet schema](https://grafana.com/docs/tempo/<TEMPO_VERSION>/operations/schema/) documentation for the full schema details.
+Refer to the [Apache Parquet schema](https://grafana.com/docs/tempo/<TEMPO_VERSION>/operations/schema/) documentation for the full schema details
+and the [Apache Parquet block format configuration](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/parquet/) for configuration options.

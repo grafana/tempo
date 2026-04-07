@@ -91,7 +91,7 @@ Block-builders use static partition assignment. There's no Kafka consumer group 
 There are two ways to assign partitions:
 
 - `partitions_per_instance`: Each instance computes which partitions it owns based on its ordinal ID.
-  This is the default and works well with `StatefulSets` where the block-builder mirrors its replica count from the live-store, scaling in lockst
+  This is the default and works well with `StatefulSets` where the block-builder mirrors its replica count from the live-store, scaling in lockstep.
 - `assigned_partitions`: An explicit mapping of instance IDs to partition lists. This gives full manual control over which instance handles which partitions.
 
 Size the scratch disk to hold at least one full consumption cycle's worth of data across all assigned partitions and tenants.
@@ -106,4 +106,4 @@ Size the scratch disk to hold at least one full consumption cycle's worth of dat
 
 ## Related resources
 
-Refer to the [Tempo configuration](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/) for the full list of block-builder options.
+Refer to the [Tempo configuration](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/#block) for the full list of block-builder options.
