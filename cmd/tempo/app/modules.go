@@ -756,6 +756,14 @@ func (t *App) setupModuleManager() error {
 
 	mm.RegisterModule(SingleBinary, nil)
 
+	distributorDeps := []string{Common, LiveStoreRing, PartitionRing}
+	if IsSingleBinary(t.cfg.Target) {
+		// In single-binary mode the distributor calls the live-store and metrics-generator in-process.
+		// Make those runtime dependencies explicit in the module DAG instead of relying on sibling
+		// initialization under the composite target.
+		distributorDeps = append(distributorDeps, LiveStore, MetricsGenerator)
+	}
+
 	deps := map[string][]string{
 		// InternalServer: nil,
 		// CacheProvider:  nil,
@@ -773,7 +781,7 @@ func (t *App) setupModuleManager() error {
 
 		// individual targets
 		QueryFrontend:                 {Common, Store, OverridesAPI},
-		Distributor:                   {Common, LiveStoreRing, PartitionRing},
+		Distributor:                   distributorDeps,
 		MetricsGenerator:              {Common, MemberlistKV, PartitionRing, GeneratorRingWatcher},
 		MetricsGeneratorNoLocalBlocks: {Common, MemberlistKV, GeneratorRingWatcher},
 		Querier:                       {Common, Store, LiveStoreRing, PartitionRing},
