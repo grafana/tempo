@@ -984,7 +984,7 @@ func (e *Engine) CompileMetricsQueryRangeNonRaw(req *tempopb.QueryRangeRequest, 
 
 	// Only run second stage in final mode
 	var secondStage secondStageElement
-	if ss := expr.MetricsSecondStage(); mode == AggregateModeFinal {
+	if ss := expr.MetricsSecondStage(); mode == AggregateModeFinal && ss != nil {
 		ss.init(req)
 		secondStage = ss
 	}
