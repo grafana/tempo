@@ -28,12 +28,21 @@ trap 'rm -f "$TMP"' EXIT
 	echo "|----|-------|"
 } >"$TMP"
 
-JSON="$(gh pr list --repo "$UPSTREAM" --state merged \
+# In GitHub Actions, GITHUB_TOKEN / GH_TOKEN is scoped to *this* repo only. Using it with
+# `gh pr list --repo grafana/tempo` fails (or returns nothing), which used to be masked by
+# `|| echo '[]'` and produced a false "no merged PRs" report. Query the public upstream with
+# no token (anonymous API; fine for weekly cron).
+JSON="$(env -u GITHUB_TOKEN -u GH_TOKEN gh pr list --repo "$UPSTREAM" --state merged \
 	--search "merged:>=${SINCE}" \
 	--json number,title,url \
-	--limit 200 2>/dev/null || echo '[]')"
+	--limit 200)"
 
-COUNT="$(echo "$JSON" | jq 'length')"
+if ! PR_COUNT="$(echo "$JSON" | jq -e 'length' 2>/dev/null)"; then
+	echo "gh pr list failed or returned invalid JSON for ${UPSTREAM}. Output: ${JSON}" >&2
+	exit 1
+fi
+
+COUNT="$PR_COUNT"
 
 if [[ "$COUNT" -eq 0 ]]; then
 	{
