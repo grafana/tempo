@@ -89,6 +89,7 @@ import (
 %type <attribute> attribute
 
 %type <numericList> numericList
+%type <staticFloat> constExpr
 
 %type <hint> hint
 %type <hintList> hintList
@@ -117,6 +118,7 @@ import (
 %left <binOp> PIPE
 %left <binOp> AND OR
 %left <binOp> EQ NEQ LT LTE GT GTE NRE RE DESC ANCE SIBL NOT_CHILD NOT_PARENT NOT_DESC NOT_ANCE UNION_CHILD UNION_PARENT UNION_DESC UNION_ANCE UNION_SIBL
+%nonassoc INTEGER FLOAT
 %left <binOp> ADD SUB
 %left <binOp> NOT
 %left <binOp> MUL DIV MOD
@@ -357,6 +359,7 @@ metricsFilter:
   | metricsFilterOperation SUB INTEGER   { $$ = newMetricsFilter($1, float64(-$3), " ") }
   | metricsFilterOperation SUB FLOAT     { $$ = newMetricsFilter($1, -$3, " ") }
   | metricsFilterOperation SUB DURATION  { $$ = newMetricsFilter($1, float64(-$3) / float64(time.Second), " ") }
+  | metricsFilterOperation constExpr     { $$ = newMetricsFilter($1, $2, " ") }
   ;
 
 // **********************
@@ -381,6 +384,76 @@ metricsExpression:
   | metricsExpression MUL metricsExpression                   { $$ = newRootExprMath(OpMult, $1, $3) }
   | metricsExpression DIV metricsExpression                   { $$ = newRootExprMath(OpDiv, $1, $3) }
   | wrappedMetricsPipeline                                    { $$ = $1 }
+  // Scalar on left
+  | INTEGER ADD metricsExpression  %prec ADD                  { $$ = newRootExprScalarMath(OpAdd, float64($1), $3, true) }
+  | INTEGER SUB metricsExpression  %prec SUB                  { $$ = newRootExprScalarMath(OpSub, float64($1), $3, true) }
+  | INTEGER MUL metricsExpression  %prec MUL                  { $$ = newRootExprScalarMath(OpMult, float64($1), $3, true) }
+  | INTEGER DIV metricsExpression  %prec DIV                  { $$ = newRootExprScalarMath(OpDiv, float64($1), $3, true) }
+  | FLOAT ADD metricsExpression    %prec ADD                  { $$ = newRootExprScalarMath(OpAdd, $1, $3, true) }
+  | FLOAT SUB metricsExpression    %prec SUB                  { $$ = newRootExprScalarMath(OpSub, $1, $3, true) }
+  | FLOAT MUL metricsExpression    %prec MUL                  { $$ = newRootExprScalarMath(OpMult, $1, $3, true) }
+  | FLOAT DIV metricsExpression    %prec DIV                  { $$ = newRootExprScalarMath(OpDiv, $1, $3, true) }
+  // Negative scalar on left
+  | SUB INTEGER ADD metricsExpression  %prec ADD              { $$ = newRootExprScalarMath(OpAdd, float64(-$2), $4, true) }
+  | SUB INTEGER SUB metricsExpression  %prec SUB              { $$ = newRootExprScalarMath(OpSub, float64(-$2), $4, true) }
+  | SUB INTEGER MUL metricsExpression  %prec MUL              { $$ = newRootExprScalarMath(OpMult, float64(-$2), $4, true) }
+  | SUB INTEGER DIV metricsExpression  %prec DIV              { $$ = newRootExprScalarMath(OpDiv, float64(-$2), $4, true) }
+  | SUB FLOAT ADD metricsExpression    %prec ADD              { $$ = newRootExprScalarMath(OpAdd, -$2, $4, true) }
+  | SUB FLOAT SUB metricsExpression    %prec SUB              { $$ = newRootExprScalarMath(OpSub, -$2, $4, true) }
+  | SUB FLOAT MUL metricsExpression    %prec MUL              { $$ = newRootExprScalarMath(OpMult, -$2, $4, true) }
+  | SUB FLOAT DIV metricsExpression    %prec DIV              { $$ = newRootExprScalarMath(OpDiv, -$2, $4, true) }
+  // Scalar on right
+  | metricsExpression ADD INTEGER  %prec ADD                  { $$ = newRootExprScalarMath(OpAdd, float64($3), $1, false) }
+  | metricsExpression SUB INTEGER  %prec SUB                  { $$ = newRootExprScalarMath(OpSub, float64($3), $1, false) }
+  | metricsExpression MUL INTEGER  %prec MUL                  { $$ = newRootExprScalarMath(OpMult, float64($3), $1, false) }
+  | metricsExpression DIV INTEGER  %prec DIV                  { $$ = newRootExprScalarMath(OpDiv, float64($3), $1, false) }
+  | metricsExpression ADD FLOAT    %prec ADD                  { $$ = newRootExprScalarMath(OpAdd, $3, $1, false) }
+  | metricsExpression SUB FLOAT    %prec SUB                  { $$ = newRootExprScalarMath(OpSub, $3, $1, false) }
+  | metricsExpression MUL FLOAT    %prec MUL                  { $$ = newRootExprScalarMath(OpMult, $3, $1, false) }
+  | metricsExpression DIV FLOAT    %prec DIV                  { $$ = newRootExprScalarMath(OpDiv, $3, $1, false) }
+  // Negative scalar on right
+  | metricsExpression ADD SUB INTEGER  %prec ADD              { $$ = newRootExprScalarMath(OpAdd, float64(-$4), $1, false) }
+  | metricsExpression ADD SUB FLOAT    %prec ADD              { $$ = newRootExprScalarMath(OpAdd, -$4, $1, false) }
+  | metricsExpression SUB SUB INTEGER  %prec SUB              { $$ = newRootExprScalarMath(OpSub, float64(-$4), $1, false) }
+  | metricsExpression SUB SUB FLOAT    %prec SUB              { $$ = newRootExprScalarMath(OpSub, -$4, $1, false) }
+  | metricsExpression MUL SUB INTEGER  %prec MUL              { $$ = newRootExprScalarMath(OpMult, float64(-$4), $1, false) }
+  | metricsExpression MUL SUB FLOAT    %prec MUL              { $$ = newRootExprScalarMath(OpMult, -$4, $1, false) }
+  | metricsExpression DIV SUB INTEGER  %prec DIV              { $$ = newRootExprScalarMath(OpDiv, float64(-$4), $1, false) }
+  | metricsExpression DIV SUB FLOAT    %prec DIV              { $$ = newRootExprScalarMath(OpDiv, -$4, $1, false) }
+  // Compound constant expression (e.g. rate - 2 * 20, 2 * 3 * rate)
+  | metricsExpression ADD constExpr  %prec ADD                { $$ = newRootExprScalarMath(OpAdd, $3, $1, false) }
+  | metricsExpression SUB constExpr  %prec SUB                { $$ = newRootExprScalarMath(OpSub, $3, $1, false) }
+  | constExpr ADD metricsExpression  %prec ADD                { $$ = newRootExprScalarMath(OpAdd, $1, $3, true) }
+  | constExpr SUB metricsExpression  %prec SUB                { $$ = newRootExprScalarMath(OpSub, $1, $3, true) }
+  | constExpr MUL metricsExpression  %prec MUL                { $$ = newRootExprScalarMath(OpMult, $1, $3, true) }
+  | constExpr DIV metricsExpression  %prec DIV                { $$ = newRootExprScalarMath(OpDiv, $1, $3, true) }
+  ;
+
+constExpr:
+    INTEGER MUL INTEGER   %prec MUL                           { $$ = float64($1) * float64($3) }
+  | INTEGER MUL FLOAT     %prec MUL                           { $$ = float64($1) * $3 }
+  | FLOAT MUL INTEGER     %prec MUL                           { $$ = $1 * float64($3) }
+  | FLOAT MUL FLOAT       %prec MUL                           { $$ = $1 * $3 }
+  | INTEGER DIV INTEGER   %prec DIV                           { $$ = float64($1) / float64($3) }
+  | INTEGER DIV FLOAT     %prec DIV                           { $$ = float64($1) / $3 }
+  | FLOAT DIV INTEGER     %prec DIV                           { $$ = $1 / float64($3) }
+  | FLOAT DIV FLOAT       %prec DIV                           { $$ = $1 / $3 }
+  | INTEGER ADD INTEGER   %prec ADD                           { $$ = float64($1) + float64($3) }
+  | INTEGER ADD FLOAT     %prec ADD                           { $$ = float64($1) + $3 }
+  | FLOAT ADD INTEGER     %prec ADD                           { $$ = $1 + float64($3) }
+  | FLOAT ADD FLOAT       %prec ADD                           { $$ = $1 + $3 }
+  | INTEGER SUB INTEGER   %prec SUB                           { $$ = float64($1) - float64($3) }
+  | INTEGER SUB FLOAT     %prec SUB                           { $$ = float64($1) - $3 }
+  | FLOAT SUB INTEGER     %prec SUB                           { $$ = $1 - float64($3) }
+  | FLOAT SUB FLOAT       %prec SUB                           { $$ = $1 - $3 }
+  | constExpr MUL INTEGER %prec MUL                           { $$ = $1 * float64($3) }
+  | constExpr MUL FLOAT   %prec MUL                           { $$ = $1 * $3 }
+  | constExpr DIV INTEGER %prec DIV                           { $$ = $1 / float64($3) }
+  | constExpr DIV FLOAT   %prec DIV                           { $$ = $1 / $3 }
+  | constExpr ADD INTEGER %prec ADD                           { $$ = $1 + float64($3) }
+  | constExpr ADD FLOAT   %prec ADD                           { $$ = $1 + $3 }
+  | constExpr SUB INTEGER %prec SUB                           { $$ = $1 - float64($3) }
+  | constExpr SUB FLOAT   %prec SUB                           { $$ = $1 - $3 }
   ;
 
 wrappedMetricsPipeline:
