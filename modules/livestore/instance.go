@@ -230,6 +230,11 @@ func (i *instance) pushBytes(ctx context.Context, ts time.Time, req *tempopb.Pus
 	maxBytes := i.overrides.MaxBytesPerTrace(i.tenantID)
 	maxLiveTraces := i.overrides.MaxLocalTracesPerUser(i.tenantID)
 
+	// Reuse a single Trace across iterations to preserve slice capacity.
+	// The ResourceSpans pointers are handed off to liveTraces, but the
+	// Trace wrapper and its backing array can be recycled.
+	trace := &tempopb.Trace{}
+
 	// For each pre-marshalled trace, we need to unmarshal it and push to live traces
 	for j, traceBytes := range req.Traces {
 		traceID := req.Ids[j]
@@ -238,8 +243,13 @@ func (i *instance) pushBytes(ctx context.Context, ts time.Time, req *tempopb.Pus
 		// ref: https://golang.org/ref/spec#Size_and_alignment_guarantees
 		i.bytesReceivedTotal.WithLabelValues(i.tenantID, traceDataType).Add(float64(len(traceBytes.Slice)))
 
-		// Unmarshal the trace
-		trace := &tempopb.Trace{}
+		// Capture proto size before returning bytes to pool.
+		traceSz := len(traceBytes.Slice)
+
+		// Clear stale pointers so prior iterations' ResourceSpans can be
+		// GC'd, then truncate so Unmarshal appends into the existing backing array.
+		clear(trace.ResourceSpans)
+		trace.ResourceSpans = trace.ResourceSpans[:0]
 		if err := trace.Unmarshal(traceBytes.Slice); err != nil {
 			level.Error(i.logger).Log("msg", "failed to unmarshal trace", "err", err)
 			continue
@@ -250,7 +260,6 @@ func (i *instance) pushBytes(ctx context.Context, ts time.Time, req *tempopb.Pus
 
 		// test max trace size. use trace sizes over liveTraces b/c it tracks large traces across multiple flushes
 		if maxBytes > 0 {
-			traceSz := trace.Size()
 			allowResult := i.traceSizes.Allow(traceID, traceSz, maxBytes)
 			if !allowResult.IsAllowed {
 				i.maxTraceLogger.Log("msg", overrides.ErrorPrefixTraceTooLarge, "max", maxBytes, "traceSz", traceSz, "totalSize", allowResult.CurrentTotalSize, "trace", hex.EncodeToString(traceID), "insight", true)
