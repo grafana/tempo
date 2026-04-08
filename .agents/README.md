@@ -84,11 +84,9 @@ The agent handles the rest: reading the repo context guide, looking up PRs, sear
         └── docs-context-guide.md   # Tempo docs context guide
 
 scripts/
-├── README.md                       # docs-upstream-pr-candidates.sh (weekly upstream PR list)
-├── docs-upstream-pr-candidates.sh
-
-.github/workflows/
-├── docs-upstream-pr-candidates.yml # Weekly issue: merged PRs on grafana/tempo for /docs-pr-check
+├── README.md                       # docs-pr-triage-local.sh (local cron → issue, not Actions)
+├── docs-pr-triage-local.sh
+└── docs-pr-classify.jq             # heuristics for triage script
 
 .claude/skills/
 ├── README.md                       # Skills workflow overview
