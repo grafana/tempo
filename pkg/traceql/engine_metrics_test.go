@@ -996,6 +996,589 @@ func TestCountOverTime(t *testing.T) {
 	requireEqualSeriesSets(t, out, result)
 }
 
+func TestScalarMath(t *testing.T) {
+	req := &tempopb.QueryRangeRequest{
+		Start: 1,
+		End:   uint64(3 * time.Second),
+		Step:  uint64(1 * time.Second),
+	}
+
+	// A variety of spans across times, durations, and series. All durations are powers of 2 for simplicity
+	in := []Span{
+		newMockSpan(nil).WithStartTime(uint64(1*time.Second)).WithSpanString("foo", "bar").WithDuration(128),
+		newMockSpan(nil).WithStartTime(uint64(1*time.Second)).WithSpanString("foo", "bar").WithDuration(256),
+		newMockSpan(nil).WithStartTime(uint64(1*time.Second)).WithSpanString("foo", "bar").WithDuration(512),
+		newMockSpan(nil).WithStartTime(uint64(1*time.Second)).WithSpanString("foo", "baz").WithDuration(512),
+
+		newMockSpan(nil).WithStartTime(uint64(2*time.Second)).WithSpanString("foo", "bar").WithDuration(256),
+		newMockSpan(nil).WithStartTime(uint64(2*time.Second)).WithSpanString("foo", "bar").WithDuration(256),
+		newMockSpan(nil).WithStartTime(uint64(2*time.Second)).WithSpanString("foo", "bar").WithDuration(256),
+		newMockSpan(nil).WithStartTime(uint64(2*time.Second)).WithSpanString("foo", "bar").WithDuration(256),
+
+		newMockSpan(nil).WithStartTime(uint64(3*time.Second)).WithSpanString("foo", "baz").WithDuration(512),
+		newMockSpan(nil).WithStartTime(uint64(3*time.Second)).WithSpanString("foo", "baz").WithDuration(512),
+		newMockSpan(nil).WithStartTime(uint64(3*time.Second)).WithSpanString("foo", "baz").WithDuration(512),
+	}
+
+	q := "{ } | count_over_time() by (span.foo)"
+	noOp := func(v float64) float64 { return v }
+
+	for _, tc := range []struct {
+		name      string
+		q         string
+		transform func(v float64) float64
+	}{
+		{
+			name:      "A",
+			q:         q,
+			transform: noOp,
+		},
+		// basic
+		{
+			name:      "A + 10",
+			q:         fmt.Sprintf("(%s) + 10", q),
+			transform: func(v float64) float64 { return v + 10 },
+		},
+		{
+			name:      "10 + A",
+			q:         fmt.Sprintf("10 + (%s)", q),
+			transform: func(v float64) float64 { return 10 + v },
+		},
+		{
+			name:      "A - 5",
+			q:         fmt.Sprintf("(%s) - 5", q),
+			transform: func(v float64) float64 { return v - 5 },
+		},
+		{
+			name:      "5 - A",
+			q:         fmt.Sprintf("5 - (%s)", q),
+			transform: func(v float64) float64 { return 5 - v },
+		},
+		{
+			name:      "A * 2",
+			q:         fmt.Sprintf("(%s) * 2", q),
+			transform: func(v float64) float64 { return v * 2 },
+		},
+		{
+			name:      "2 * A",
+			q:         fmt.Sprintf("2 * (%s)", q),
+			transform: func(v float64) float64 { return 2 * v },
+		},
+		{
+			name:      "A / 2",
+			q:         fmt.Sprintf("(%s) / 2", q),
+			transform: func(v float64) float64 { return v / 2 },
+		},
+		{
+			name: "2 / A",
+			q:    fmt.Sprintf("2 / (%s)", q),
+			transform: func(v float64) float64 {
+				if v == 0 {
+					return math.NaN()
+				}
+				return 2 / v
+			},
+		},
+
+		// float
+		{
+			name:      "A + 1.5",
+			q:         fmt.Sprintf("(%s) + 1.5", q),
+			transform: func(v float64) float64 { return v + 1.5 },
+		},
+		{
+			name:      "1.5 + A",
+			q:         fmt.Sprintf("1.5 + (%s)", q),
+			transform: func(v float64) float64 { return 1.5 + v },
+		},
+		{
+			name:      "A - 1.5",
+			q:         fmt.Sprintf("(%s) - 1.5", q),
+			transform: func(v float64) float64 { return v - 1.5 },
+		},
+		{
+			name:      "1.5 - A",
+			q:         fmt.Sprintf("1.5 - (%s)", q),
+			transform: func(v float64) float64 { return 1.5 - v },
+		},
+		{
+			name:      "A * 2.5",
+			q:         fmt.Sprintf("(%s) * 2.5", q),
+			transform: func(v float64) float64 { return v * 2.5 },
+		},
+		{
+			name:      "2.5 * A",
+			q:         fmt.Sprintf("2.5 * (%s)", q),
+			transform: func(v float64) float64 { return 2.5 * v },
+		},
+		{
+			name:      "A / 2.5",
+			q:         fmt.Sprintf("(%s) / 2.5", q),
+			transform: func(v float64) float64 { return v / 2.5 },
+		},
+		{
+			name: "2.5 / A",
+			q:    fmt.Sprintf("2.5 / (%s)", q),
+			transform: func(v float64) float64 {
+				if v == 0 {
+					return math.NaN()
+				}
+				return 2.5 / v
+			},
+		},
+		{
+			name:      "A + 1e6",
+			q:         fmt.Sprintf("(%s) + 1e6", q),
+			transform: func(v float64) float64 { return v + 1e6 },
+		},
+		{
+			name:      "A + 1e31",
+			q:         fmt.Sprintf("(%s) + 1e31", q),
+			transform: func(v float64) float64 { return v + 1e31 },
+		},
+		{
+			name:      "A + 1e-6",
+			q:         fmt.Sprintf("(%s) + 1e-6", q),
+			transform: func(v float64) float64 { return v + 1e-6 },
+		},
+
+		// edge cases
+		{
+			name:      "A / 1",
+			q:         fmt.Sprintf("(%s) / 1", q),
+			transform: noOp,
+		},
+		{
+			name: "1 / A",
+			q:    fmt.Sprintf("1 / (%s)", q),
+			transform: func(v float64) float64 {
+				if v == 0 {
+					return math.NaN()
+				}
+				return 1 / v
+			},
+		},
+		{
+			name:      "A * 0",
+			q:         fmt.Sprintf("(%s) * 0", q),
+			transform: func(float64) float64 { return 0 },
+		},
+		{
+			name:      "0 * A",
+			q:         fmt.Sprintf("0 * (%s)", q),
+			transform: func(float64) float64 { return 0 },
+		},
+		{
+			name:      "A / 0",
+			q:         fmt.Sprintf("(%s) / 0", q),
+			transform: func(float64) float64 { return math.NaN() },
+		},
+		{
+			name: "0 / A",
+			q:    fmt.Sprintf("0 / (%s)", q),
+			transform: func(v float64) float64 {
+				if v == 0 {
+					return math.NaN()
+				}
+				return 0
+			},
+		},
+		{
+			name:      "A + 0",
+			q:         fmt.Sprintf("(%s) + 0", q),
+			transform: noOp,
+		},
+		{
+			name:      "0 + A",
+			q:         fmt.Sprintf("0 + (%s)", q),
+			transform: noOp,
+		},
+		{
+			name:      "A - 0",
+			q:         fmt.Sprintf("(%s) - 0", q),
+			transform: noOp,
+		},
+		{
+			name:      "0 - A",
+			q:         fmt.Sprintf("0 - (%s)", q),
+			transform: func(v float64) float64 { return -v },
+		},
+
+		// negative numbers (int)
+		{
+			name:      "A + -10",
+			q:         fmt.Sprintf("(%s) + -10", q),
+			transform: func(v float64) float64 { return v + -10 },
+		},
+		{
+			name:      "-10 + A",
+			q:         fmt.Sprintf("-10 + (%s)", q),
+			transform: func(v float64) float64 { return -10 + v },
+		},
+		{
+			name:      "A - -5",
+			q:         fmt.Sprintf("(%s) - -5", q),
+			transform: func(v float64) float64 { return v - -5 },
+		},
+		{
+			name:      "-5 - A",
+			q:         fmt.Sprintf("-5 - (%s)", q),
+			transform: func(v float64) float64 { return -5 - v },
+		},
+		{
+			name:      "A * -2",
+			q:         fmt.Sprintf("(%s) * -2", q),
+			transform: func(v float64) float64 { return v * -2 },
+		},
+		{
+			name:      "-2 * A",
+			q:         fmt.Sprintf("-2 * (%s)", q),
+			transform: func(v float64) float64 { return -2 * v },
+		},
+		{
+			name:      "A / -2",
+			q:         fmt.Sprintf("(%s) / -2", q),
+			transform: func(v float64) float64 { return v / -2 },
+		},
+		{
+			name: "-2 / A",
+			q:    fmt.Sprintf("-2 / (%s)", q),
+			transform: func(v float64) float64 {
+				if v == 0 {
+					return math.NaN()
+				}
+				return -2 / v
+			},
+		},
+
+		// negative numbers (float)
+		{
+			name:      "A + -1.5",
+			q:         fmt.Sprintf("(%s) + -1.5", q),
+			transform: func(v float64) float64 { return v + -1.5 },
+		},
+		{
+			name:      "-1.5 + A",
+			q:         fmt.Sprintf("-1.5 + (%s)", q),
+			transform: func(v float64) float64 { return -1.5 + v },
+		},
+		{
+			name:      "A - -1.5",
+			q:         fmt.Sprintf("(%s) - -1.5", q),
+			transform: func(v float64) float64 { return v - -1.5 },
+		},
+		{
+			name:      "-1.5 - A",
+			q:         fmt.Sprintf("-1.5 - (%s)", q),
+			transform: func(v float64) float64 { return -1.5 - v },
+		},
+		{
+			name:      "A * -2.5",
+			q:         fmt.Sprintf("(%s) * -2.5", q),
+			transform: func(v float64) float64 { return v * -2.5 },
+		},
+		{
+			name:      "-2.5 * A",
+			q:         fmt.Sprintf("-2.5 * (%s)", q),
+			transform: func(v float64) float64 { return -2.5 * v },
+		},
+		{
+			name:      "A / -2.5",
+			q:         fmt.Sprintf("(%s) / -2.5", q),
+			transform: func(v float64) float64 { return v / -2.5 },
+		},
+		{
+			name: "-2.5 / A",
+			q:    fmt.Sprintf("-2.5 / (%s)", q),
+			transform: func(v float64) float64 {
+				if v == 0 {
+					return math.NaN()
+				}
+				return -2.5 / v
+			},
+		},
+
+		// operation order
+		{
+			name:      "A * 2 + 5",
+			q:         fmt.Sprintf("(%s) * 2 + 5", q),
+			transform: func(v float64) float64 { return v*2 + 5 },
+		},
+		{
+			name:      "5 + A * 2",
+			q:         fmt.Sprintf("5 + (%s) * 2", q),
+			transform: func(v float64) float64 { return 5 + v*2 },
+		},
+		{
+			name:      "A + 5 * 2",
+			q:         fmt.Sprintf("(%s) + 5 * 2", q),
+			transform: func(v float64) float64 { return v + 5*2 },
+		},
+		{
+			name:      "A / 2 + 1",
+			q:         fmt.Sprintf("(%s) / 2 + 1", q),
+			transform: func(v float64) float64 { return v/2 + 1 },
+		},
+		{
+			name: "10 / A * 2",
+			q:    fmt.Sprintf("10 / (%s) * 2", q),
+			transform: func(v float64) float64 {
+				if v == 0 {
+					return math.NaN() // 10/0=NaN, NaN*2=NaN
+				}
+				return 10 / v * 2
+			},
+		},
+		{
+			name:      "A - 10 - 5",
+			q:         fmt.Sprintf("(%s) - 10 - 5", q),
+			transform: func(v float64) float64 { return v - 10 - 5 },
+		},
+		{
+			name: "100 / A / 2",
+			q:    fmt.Sprintf("100 / (%s) / 2", q),
+			transform: func(v float64) float64 {
+				if v == 0 {
+					return math.NaN() // 100/0=NaN
+				}
+				return 100 / v / 2
+			},
+		},
+		{
+			name:      "10 + 5 * A / 2",
+			q:         fmt.Sprintf("10 + 5 * (%s) / 2", q),
+			transform: func(v float64) float64 { return 10 + 5*v/2 },
+		},
+		{
+			name:      "2 + 10 * A",
+			q:         fmt.Sprintf("2 + 10 * (%s)", q),
+			transform: func(v float64) float64 { return 2 + (10 * v) },
+		},
+		{
+			name:      "A + 10 / 2 * 4",
+			q:         fmt.Sprintf("(%s) + 10 / 2 * 4", q),
+			transform: func(v float64) float64 { return v + 10.0/2*4 },
+		},
+
+		// vector and scalar
+		{
+			name:      "(A + 10) * (A + 1)",
+			q:         fmt.Sprintf("((%s) + 10) * ((%s) + 1)", q, q),
+			transform: func(v float64) float64 { return (v + 10) * (v + 1) },
+		},
+		{
+			name:      "6 / 2 * (A + A)",
+			q:         fmt.Sprintf("6 / 2 * ((%s) + (%s))", q, q),
+			transform: func(v float64) float64 { return 3 * (v + v) },
+		},
+
+		// comparison
+		{
+			name: "A > 1",
+			q:    fmt.Sprintf("(%s) > 1", q),
+			transform: func(v float64) float64 {
+				if v > 1 {
+					return v
+				}
+				return math.NaN()
+			},
+		},
+		{
+			name: "A > 1.0",
+			q:    fmt.Sprintf("(%s) > 1.0", q),
+			transform: func(v float64) float64 {
+				if v > 1 {
+					return v
+				}
+				return math.NaN()
+			},
+		},
+		{
+			name: "A >= 3",
+			q:    fmt.Sprintf("(%s) >= 3", q),
+			transform: func(v float64) float64 {
+				if v >= 3 {
+					return v
+				}
+				return math.NaN()
+			},
+		},
+		{
+			name: "A >= 3.0",
+			q:    fmt.Sprintf("(%s) >= 3.0", q),
+			transform: func(v float64) float64 {
+				if v >= 3 {
+					return v
+				}
+				return math.NaN()
+			},
+		},
+		{
+			name: "A < 4",
+			q:    fmt.Sprintf("(%s) < 4", q),
+			transform: func(v float64) float64 {
+				if v < 4 {
+					return v
+				}
+				return math.NaN()
+			},
+		},
+		{
+			name: "A <= 4",
+			q:    fmt.Sprintf("(%s) <= 4", q),
+			transform: func(v float64) float64 {
+				if v <= 4 {
+					return v
+				}
+				return math.NaN()
+			},
+		},
+		{
+			name: "A < 4.0",
+			q:    fmt.Sprintf("(%s) < 4.0", q),
+			transform: func(v float64) float64 {
+				if v < 4 {
+					return v
+				}
+				return math.NaN()
+			},
+		},
+		{
+			name: "A <= 4.0",
+			q:    fmt.Sprintf("(%s) <= 4.0", q),
+			transform: func(v float64) float64 {
+				if v <= 4 {
+					return v
+				}
+				return math.NaN()
+			},
+		},
+		{
+			name: "A < 3.5",
+			q:    fmt.Sprintf("(%s) < 3.5", q),
+			transform: func(v float64) float64 {
+				if v < 3.5 {
+					return v
+				}
+				return math.NaN()
+			},
+		},
+		{
+			name: "A == 3",
+			q:    fmt.Sprintf("(%s) = 3", q),
+			transform: func(v float64) float64 {
+				if v == 3 {
+					return v
+				}
+				return math.NaN()
+			},
+		},
+		{
+			name: "A == 3.0",
+			q:    fmt.Sprintf("(%s) = 3.0", q),
+			transform: func(v float64) float64 {
+				if v == 3 {
+					return v
+				}
+				return math.NaN()
+			},
+		},
+		{
+			name: "A != 3",
+			q:    fmt.Sprintf("(%s) != 3", q),
+			transform: func(v float64) float64 {
+				if v != 3 {
+					return v
+				}
+				return math.NaN()
+			},
+		},
+		{
+			name: "A != 3.0",
+			q:    fmt.Sprintf("(%s) != 3.0", q),
+			transform: func(v float64) float64 {
+				if v != 3 {
+					return v
+				}
+				return math.NaN()
+			},
+		},
+
+		// comparison order
+		{
+			name: "A >= 1.5 * 2",
+			q:    fmt.Sprintf("(%s) >= 1.5 * 2", q),
+			transform: func(v float64) float64 {
+				if v >= 3 {
+					return v
+				}
+				return math.NaN()
+			},
+		},
+		{
+			name: "2 * A >= 1.5",
+			q:    fmt.Sprintf("2 * (%s) >= 1.5", q),
+			transform: func(v float64) float64 {
+				if 2*v >= 1.5 {
+					return 2 * v
+				}
+				return math.NaN()
+			},
+		},
+		{
+			name: "A >= 3 <=4",
+			q:    fmt.Sprintf("(%s) >= 3 <= 4", q),
+			transform: func(v float64) float64 {
+				if v >= 3 && v <= 4 {
+					return v
+				}
+				return math.NaN()
+			},
+		},
+		{
+			name: "A >=3 < 4",
+			q:    fmt.Sprintf("(%s) >= 3 < 4", q),
+			transform: func(v float64) float64 {
+				if v >= 3 && v < 4 {
+					return v
+				}
+				return math.NaN()
+			},
+		},
+	} {
+		process := func(values []float64) []float64 {
+			for i := range values {
+				values[i] = tc.transform(values[i])
+			}
+			return values
+		}
+		t.Run(tc.name, func(t *testing.T) {
+			out := []TimeSeries{
+				{
+					Labels: []Label{
+						{Name: "span.foo", Value: NewStaticString("baz")},
+					},
+					Values:    process([]float64{1, 0, 3}),
+					Exemplars: make([]Exemplar, 0),
+				},
+				{
+					Labels: []Label{
+						{Name: "span.foo", Value: NewStaticString("bar")},
+					},
+					Values:    process([]float64{3, 4, 0}),
+					Exemplars: make([]Exemplar, 0),
+				},
+			}
+
+			req.Query = tc.q
+			result, seriesCount, err := runTraceQLMetric(req, in)
+			require.NoError(t, err)
+			require.Equal(t, len(result), seriesCount)
+			requireEqualSeriesSets(t, out, result)
+		})
+	}
+}
+
 func TestCountOverTimeInstantNs(t *testing.T) {
 	// not rounded values to simulate real world data
 	start := 1*time.Second - 9*time.Nanosecond
