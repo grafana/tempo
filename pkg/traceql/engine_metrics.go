@@ -1017,8 +1017,6 @@ func (e *Engine) CompileMetricsQueryRange(req *tempopb.QueryRangeRequest, opts .
 		return nil, fmt.Errorf("compiling query: %w", err)
 	}
 
-	needsFullTrace := expr.NeedsFullTrace()
-
 	// distribute exemplars for each sub-query
 	exemplarsCapacity := int(req.Exemplars)
 	if req.Exemplars > maxExemplars {
@@ -1040,7 +1038,7 @@ func (e *Engine) CompileMetricsQueryRange(req *tempopb.QueryRangeRequest, opts .
 		sp.init(req, AggregateModeRaw)
 
 		storageReq := storageReqs[key]
-		e.applySampleHints(expr, &storageReq, cfg.allowUnsafeHints)
+		e.applySampleHints(expr, pipeline, &storageReq, cfg.allowUnsafeHints)
 
 		exemplars := exemplars
 		if exemplarsCapacity < 0 {
@@ -1055,7 +1053,7 @@ func (e *Engine) CompileMetricsQueryRange(req *tempopb.QueryRangeRequest, opts .
 			timeOverlapCutoff: cfg.timeOverlapCutoff,
 			maxExemplars:      exemplars,
 			exemplarMap:       make(map[string]struct{}, exemplars), // TODO: Lazy, use bloom filter, CM sketch or something
-			needsFullTrace:    needsFullTrace,
+			needsFullTrace:    NeedsFullTrace(pipeline),
 		}
 
 		// Determine usage of new fetch layer.
@@ -1134,7 +1132,7 @@ func (e *Engine) CompileMetricsQueryRange(req *tempopb.QueryRangeRequest, opts .
 	return bme, nil
 }
 
-func (e *Engine) applySampleHints(expr *RootExpr, req *FetchSpansRequest, allowUnsafeQueryHints bool) {
+func (e *Engine) applySampleHints(expr *RootExpr, pipeline Pipeline, req *FetchSpansRequest, allowUnsafeHints bool) {
 	// Debug sampling hints, remove once we settle on approach.
 	if traceSample, traceSampleOk := expr.Hints.GetFloat(HintTraceSample, allowUnsafeHints); traceSampleOk {
 		req.TraceSampler = newProbablisticSampler(traceSample)
@@ -1155,7 +1153,7 @@ func (e *Engine) applySampleHints(expr *RootExpr, req *FetchSpansRequest, allowU
 		}
 
 		// Classify the query and determine if it needs to be at the trace-level or can be at span-level (better)
-		if expr.NeedsFullTrace() {
+		if NeedsFullTrace(pipeline) {
 			req.TraceSampler = s
 		} else {
 			req.SpanSampler = s
@@ -1167,7 +1165,7 @@ func (e *Engine) applySampleHints(expr *RootExpr, req *FetchSpansRequest, allowU
 		s := newProbablisticSampler(sampleFraction)
 
 		// Classify the query and determine if it needs to be at the trace-level or can be at span-level (better)
-		if expr.NeedsFullTrace() {
+		if NeedsFullTrace(pipeline) {
 			req.TraceSampler = s
 		} else {
 			req.SpanSampler = s

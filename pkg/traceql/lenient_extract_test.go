@@ -282,7 +282,12 @@ func TestFlattenExprToOperations(t *testing.T) {
 			expr, err := ParseNoOptimizations(tc.query)
 			assert.NoError(t, err)
 
-			operations := flattenExprToOperations(expr.Pipeline.Elements[0].(*SpansetFilter).Expression, OpNone)
+			assert.Len(t, expr.Pipeline, 1)
+			var pipeline Pipeline
+			for _, p := range expr.Pipeline {
+				pipeline = p
+			}
+			operations := flattenExprToOperations(pipeline.Elements[0].(*SpansetFilter).Expression, OpNone)
 			assert.NoError(t, err)
 			assert.Equal(t, len(tc.expected), len(operations), "expected %d operations, got %d", len(tc.expected), len(operations))
 			for i, operationCount := range tc.expected {
