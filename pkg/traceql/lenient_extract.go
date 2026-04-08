@@ -6,6 +6,8 @@ import (
 	"strings"
 )
 
+// ErrMaxConditionGroupsPerTagQueryReached is returned when OR expansion exceeds the configured limit.
+// Use errors.Is to check for this error; the message includes the configured limit for operator visibility.
 var ErrMaxConditionGroupsPerTagQueryReached = errors.New("maximum condition groups reached")
 
 const emptyQuery = "{}"
@@ -62,7 +64,7 @@ func ExtractConditionGroups(query string, maxGroups int) ([][]Condition, error) 
 	}
 
 	if reachedMaxGroupsInSplitConditions {
-		return nil, ErrMaxConditionGroupsPerTagQueryReached
+		return nil, fmt.Errorf("%w (limit: %d). Reduce the number of OR conditions in the query", ErrMaxConditionGroupsPerTagQueryReached, maxGroups)
 	}
 
 	return groups, nil

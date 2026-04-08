@@ -719,7 +719,6 @@ func (b *walBlock) Fetch(ctx context.Context, req traceql.FetchSpansRequest, _ c
 		readers = append(readers, file.r)
 	}
 
-	// combine iters?
 	return traceql.FetchSpansResponse{
 		Results: &mergeIterator[*traceql.Spanset]{
 			iters: iters,

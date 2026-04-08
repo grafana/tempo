@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"slices"
 	"sort"
 	"strings"
@@ -641,7 +642,7 @@ func TestSearchTags_maxConditionGroupsExceeded(t *testing.T) {
 
 		// --- SearchTagsV2 HTTP ---
 		req, err := http.NewRequest(http.MethodGet,
-			fmt.Sprintf("%s/api/v2/search/tags?q=%s", h.BaseURL(), overLimitQuery), nil)
+			fmt.Sprintf("%s/api/v2/search/tags?q=%s", h.BaseURL(), url.QueryEscape(overLimitQuery)), nil)
 		require.NoError(t, err)
 
 		res, err := http.DefaultClient.Do(req)
@@ -667,7 +668,7 @@ func TestSearchTags_maxConditionGroupsExceeded(t *testing.T) {
 
 		// --- SearchTagValuesV2 HTTP ---
 		req, err = http.NewRequest(http.MethodGet,
-			fmt.Sprintf("%s/api/v2/search/tag/resource.service.name/values?q=%s", h.BaseURL(), overLimitQuery), nil)
+			fmt.Sprintf("%s/api/v2/search/tag/resource.service.name/values?q=%s", h.BaseURL(), url.QueryEscape(overLimitQuery)), nil)
 		require.NoError(t, err)
 
 		res, err = http.DefaultClient.Do(req)

@@ -199,7 +199,9 @@ func (e *Engine) ExecuteTagValues(
 		for _, c := range group {
 			if c.Attribute == tag && c.Op == OpEqual {
 				if len(c.Operands) > 0 {
-					cb(c.Operands[0])
+					if cb(c.Operands[0]) {
+						return nil // callback signalled stop (limit reached)
+					}
 				}
 				skip = true
 			}
