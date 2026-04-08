@@ -80,7 +80,6 @@ overrides:
       generate_native_histograms: both
 
 ingest:
-  enabled: true
   kafka:
     address: redpanda:9092
     topic: tempo-ingest

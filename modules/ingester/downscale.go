@@ -35,7 +35,7 @@ func (i *Ingester) PreparePartitionDownscaleHandler(w http.ResponseWriter, r *ht
 		return
 	}
 
-	if !i.cfg.IngestStorageConfig.Enabled {
+	if !ingestStorageEnabled(i.cfg.IngestStorageConfig) {
 		w.WriteHeader(http.StatusMethodNotAllowed)
 		return
 	}
