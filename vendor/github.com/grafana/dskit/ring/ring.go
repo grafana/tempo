@@ -9,6 +9,7 @@ import (
 	"math"
 	"math/rand"
 	"net/http"
+	"slices"
 	"sync"
 	"time"
 
@@ -20,7 +21,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promauto"
 
 	"github.com/grafana/dskit/flagext"
-	"github.com/grafana/dskit/internal/slices"
 	"github.com/grafana/dskit/kv"
 	shardUtil "github.com/grafana/dskit/ring/shard"
 	"github.com/grafana/dskit/services"
@@ -94,6 +94,10 @@ type ReadRing interface {
 	// in the ring, but could contain the minimum set of instances required to execute
 	// the input operation.
 	GetReplicationSetForOperation(op Operation) (ReplicationSet, error)
+
+	// GetSubringForOperationStates returns a subring containing only instances for the given operation.
+	// This method only filters by instance state and does not check heartbeat timeouts.
+	GetSubringForOperationStates(op Operation) ReadRing
 
 	ReplicationFactor() int
 
@@ -192,9 +196,8 @@ type Config struct {
 	// Whether the shuffle-sharding subring cache is disabled. This option is set
 	// internally and never exposed to the user.
 	SubringCacheDisabled bool `yaml:"-"`
-	// HideTokensInStatusPage allows tokens to be hidden from management tools e.g. the status page, for use in contexts which do not utilize tokens.
-	// This option is set internally and never exposed to the user.
-	HideTokensInStatusPage bool `yaml:"-"`
+
+	StatusPageConfig StatusPageConfig `yaml:"-"`
 }
 
 // RegisterFlags adds the flags required to config this to the given FlagSet with a specified prefix
@@ -206,10 +209,18 @@ func (cfg *Config) RegisterFlags(f *flag.FlagSet) {
 func (cfg *Config) RegisterFlagsWithPrefix(prefix string, f *flag.FlagSet) {
 	cfg.KVStore.RegisterFlagsWithPrefix(prefix, "collectors/", f)
 
-	f.DurationVar(&cfg.HeartbeatTimeout, prefix+"ring.heartbeat-timeout", time.Minute, "The heartbeat timeout after which ingesters are skipped for reads/writes. 0 = never (timeout disabled).")
+	f.DurationVar(&cfg.HeartbeatTimeout, prefix+"ring.heartbeat-timeout", time.Minute, "The heartbeat timeout after which ingesters are skipped for reads/writes.")
 	f.IntVar(&cfg.ReplicationFactor, prefix+"distributor.replication-factor", 3, "The number of ingesters to write to and read from.")
 	f.BoolVar(&cfg.ZoneAwarenessEnabled, prefix+"distributor.zone-awareness-enabled", false, "True to enable the zone-awareness and replicate ingested samples across different availability zones.")
 	f.Var(&cfg.ExcludedZones, prefix+"distributor.excluded-zones", "Comma-separated list of zones to exclude from the ring. Instances in excluded zones will be filtered out from the ring.")
+}
+
+// Validate checks the consistency of Config, and fails if this cannot be achieved.
+func (cfg *Config) Validate() error {
+	if cfg.HeartbeatTimeout == 0 {
+		return errors.New("heartbeat timeout must be greater than 0")
+	}
+	return nil
 }
 
 type instanceInfo struct {
@@ -535,13 +546,14 @@ func (r *Ring) findInstancesForKey(key uint32, op Operation, bufDescs []Instance
 		// to have low single-digit number of hosts.
 		distinctHosts = bufHosts[:0]
 
-		hostsPerZone       = make(map[string]int)
-		targetHostsPerZone = max(1, replicationFactor/maxZones)
+		examinedHostsPerZone = make(map[string]int)
+		foundHostsPerZone    = make(map[string]int)
+		targetHostsPerZone   = max(1, replicationFactor/maxZones)
 	)
 
 	for i := start; len(distinctHosts) < min(maxInstances, n) && iterations < len(r.ringTokens); i++ {
-		// If we have the target number of instances in all zones, stop looking.
-		if r.cfg.ZoneAwarenessEnabled && haveTargetHostsInAllZones(hostsPerZone, targetHostsPerZone, maxZones) {
+		// If we have the target number of instances or have looked at all instances in each zone, stop looking
+		if r.cfg.ZoneAwarenessEnabled && r.canStopLooking(foundHostsPerZone, examinedHostsPerZone, targetHostsPerZone) {
 			break
 		}
 
@@ -561,11 +573,16 @@ func (r *Ring) findInstancesForKey(key uint32, op Operation, bufDescs []Instance
 			continue
 		}
 
-		// If we already have the required number of instances for this zone, skip.
 		if r.cfg.ZoneAwarenessEnabled && info.Zone != "" {
-			if hostsPerZone[info.Zone] >= targetHostsPerZone {
+			// If we already have the required number of instances for this zone, skip.
+			if foundHostsPerZone[info.Zone] >= targetHostsPerZone {
 				continue
 			}
+
+			// Keep track of the number of hosts we have examined in each zone. Once we've looked
+			// at every host in a zone, we can stop looking at each token: we won't find any more
+			// hosts to add to the replication set.
+			examinedHostsPerZone[info.Zone]++
 		}
 
 		distinctHosts = append(distinctHosts, info.InstanceID)
@@ -578,7 +595,7 @@ func (r *Ring) findInstancesForKey(key uint32, op Operation, bufDescs []Instance
 		} else if r.cfg.ZoneAwarenessEnabled && info.Zone != "" {
 			// We should only increment the count for this zone if we are not going to
 			// extend, as we want to extend the instance in the same AZ.
-			hostsPerZone[info.Zone]++
+			foundHostsPerZone[info.Zone]++
 		}
 
 		include, keepGoing := true, true
@@ -595,13 +612,13 @@ func (r *Ring) findInstancesForKey(key uint32, op Operation, bufDescs []Instance
 	return instances, nil
 }
 
-func haveTargetHostsInAllZones(hostsByZone map[string]int, targetHostsPerZone int, maxZones int) bool {
-	if len(hostsByZone) != maxZones {
-		return false
-	}
-
-	for _, count := range hostsByZone {
-		if count < targetHostsPerZone {
+// canStopLooking returns true if we have enough hosts for the replication factor
+// or if we have looked at all hosts, for all zones. This method assumes that the
+// lock for ring state is held.
+func (r *Ring) canStopLooking(foundPerZone map[string]int, examinedPerZone map[string]int, targetPerZone int) bool {
+	for zone, total := range r.instancesCountPerZone {
+		zoneOk := foundPerZone[zone] >= targetPerZone || examinedPerZone[zone] >= total
+		if !zoneOk {
 			return false
 		}
 	}
@@ -713,6 +730,21 @@ func (r *Ring) GetReplicationSetForOperation(op Operation) (ReplicationSet, erro
 		MaxUnavailableZones:  maxUnavailableZones,
 		ZoneAwarenessEnabled: r.cfg.ZoneAwarenessEnabled,
 	}, nil
+}
+
+func (r *Ring) GetSubringForOperationStates(op Operation) ReadRing {
+	r.mtx.RLock()
+	defer r.mtx.RUnlock()
+
+	shard := make(map[string]InstanceDesc, len(r.ringDesc.Ingesters))
+
+	for id, inst := range r.ringDesc.Ingesters {
+		if op.IsInstanceInStateHealthy(inst.State) {
+			shard[id] = inst
+		}
+	}
+
+	return r.buildRingForTheShard(shard)
 }
 
 // CountTokens returns the number tokens within the range for each instance.
@@ -1320,7 +1352,7 @@ func (r *Ring) getRing(_ context.Context) (*Desc, error) {
 }
 
 func (r *Ring) ServeHTTP(w http.ResponseWriter, req *http.Request) {
-	newRingPageHandler(r, r.cfg.HeartbeatTimeout, r.cfg.HideTokensInStatusPage).handle(w, req)
+	newRingPageHandler(r, r.cfg.HeartbeatTimeout, r.cfg.StatusPageConfig).handle(w, req)
 }
 
 // InstancesCount returns the number of instances in the ring.
