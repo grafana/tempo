@@ -500,9 +500,9 @@ func buildSearchTagValuesV2TestCases(batches []batchTmpl) []struct {
 			},
 		},
 		{
-			name:    "OR - neither branch matches",
-			query:   fmt.Sprintf(`{ resource.%s="nope" || resource.%s="nope" }`, batches[2].resourceAttr, batches[3].resourceAttr),
-			tagName: "span.twoSpan",
+			name:     "OR - neither branch matches",
+			query:    fmt.Sprintf(`{ resource.%s="nope" || resource.%s="nope" }`, batches[2].resourceAttr, batches[3].resourceAttr),
+			tagName:  "span.twoSpan",
 			expected: &tempopb.SearchTagValuesV2Response{},
 		},
 		{
@@ -674,7 +674,6 @@ func TestSearchTags_maxConditionGroupsExceeded(t *testing.T) {
 		require.NoError(t, err)
 		defer res.Body.Close()
 		require.Equal(t, http.StatusBadRequest, res.StatusCode)
-
 
 		// --- SearchTagValuesV2 gRPC ---
 		valuesStream, err := grpcClient.SearchTagValuesV2(ctx, &tempopb.SearchTagValuesRequest{
