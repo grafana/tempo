@@ -1,0 +1,49 @@
+name: Sync fork from grafana/tempo
+
+on:
+  workflow_dispatch: {}
+  schedule:
+    - cron: "17 3 * * *" # daily at 03:17 UTC
+
+permissions:
+  contents: write
+
+concurrency:
+  group: sync-fork-like-github
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Safety check (only run in knylander-grafana/tempo-doc-work)
+        run: |
+          if [ "${{ github.repository }}" != "knylander-grafana/tempo-doc-work" ]; then
+            echo "Refusing to run in ${{ github.repository }} (expected knylander-grafana/tempo-doc-work)"
+            exit 1
+          fi
+
+      - name: Checkout fork main
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: main
+
+      - name: Configure git identity
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Fetch upstream
+        run: |
+          git remote add upstream https://github.com/grafana/tempo.git || true
+          git fetch --prune upstream
+
+      - name: Merge upstream/main into fork main
+        run: |
+          git pull --ff-only origin main
+          git merge --no-edit upstream/main
+
+      - name: Push updated main
+        run: |
+          git push origin main
