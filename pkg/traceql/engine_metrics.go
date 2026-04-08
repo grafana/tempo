@@ -999,11 +999,6 @@ func (e *Engine) CompileMetricsQueryRangeNonRaw(req *tempopb.QueryRangeRequest, 
 func (e *Engine) CompileMetricsQueryRange(req *tempopb.QueryRangeRequest, opts ...CompileOption) (MetricsEvaluator, error) {
 	cfg := applyCompileOptions(opts...)
 
-	if req.Exemplars > maxExemplars {
-		level.Warn(log.Logger).Log("msg", "capping exemplars to safety limit", "requested", req.Exemplars, "cap", maxExemplars)
-		req.Exemplars = maxExemplars
-	}
-
 	if req.Start <= 0 {
 		return nil, fmt.Errorf("start required")
 	}
@@ -1024,7 +1019,18 @@ func (e *Engine) CompileMetricsQueryRange(req *tempopb.QueryRangeRequest, opts .
 
 	needsFullTrace := expr.NeedsFullTrace()
 
-	bme := make(batchMetricsEvaluator, len(expr.BatchSpanProcessor))
+	// distribute exemplars for each sub-query
+	exemplarsCapacity := int(req.Exemplars)
+	if req.Exemplars > maxExemplars {
+		level.Warn(log.Logger).Log("msg", "capping exemplars to safety limit", "requested", req.Exemplars, "cap", maxExemplars)
+		exemplarsCapacity = int(maxExemplars)
+	}
+	exemplars := exemplarsCapacity / len(expr.Pipeline)
+	if exemplarsCapacity > 0 && exemplars == 0 {
+		exemplars = 1 // at least one per sub-query when exemplars are requested
+	}
+
+	bme := make(batchMetricsEvaluator, len(expr.Pipeline))
 	for key, pipeline := range expr.Pipeline {
 		sp := expr.BatchSpanProcessor[key]
 		if sp == nil {
@@ -1036,12 +1042,19 @@ func (e *Engine) CompileMetricsQueryRange(req *tempopb.QueryRangeRequest, opts .
 		storageReq := storageReqs[key]
 		e.applySampleHints(expr, &storageReq, cfg.allowUnsafeHints)
 
-		me := &MetricsEvaluator{
-			storageReq:        storageReq,
-			metricsPipeline:   metricsPipeline,
+		exemplars := exemplars
+		if exemplarsCapacity < 0 {
+			exemplars = 0
+		} else {
+			exemplarsCapacity -= exemplars
+		}
+
+		me := &metricsEvaluator{
+			storageReq:        &storageReq,
+			metricsPipeline:   sp,
 			timeOverlapCutoff: cfg.timeOverlapCutoff,
-			maxExemplars:      int(req.Exemplars),
-			exemplarMap:       make(map[string]struct{}, req.Exemplars), // TODO: Lazy, use bloom filter, CM sketch or something
+			maxExemplars:      exemplars,
+			exemplarMap:       make(map[string]struct{}, exemplars), // TODO: Lazy, use bloom filter, CM sketch or something
 			needsFullTrace:    needsFullTrace,
 		}
 
