@@ -108,81 +108,14 @@ jobs:
     # This job deploys the latest main commit to the dev environment
     if: github.repository == 'grafana/tempo' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
-    needs: manifest
+    needs: ['manifest', 'get-tag']
     permissions:
       id-token: write
     steps:
-      - name: Checkout
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+      - name: Trigger Argo Workflow
+        uses: grafana/shared-workflows/actions/trigger-argo-workflow@b513eb1dfd9becfa671a41e55063cdd5c0a08031 # trigger-argo-workflow/v1.2.2
         with:
-          persist-credentials: false
-
-      - name: fetch tags
-        run: git fetch --tags --force
-
-      - name: get-tag
-        run: |
-          echo "grafana/tempo:$(./tools/image-tag)" > tags_for_cd_tempo
-          echo "grafana/tempo-query:$(./tools/image-tag)" > tags_for_cd_tempo_query
-          echo "grafana/tempo-vulture:$(./tools/image-tag)" > tags_for_cd_tempo_vulture
-
-      - name: Authenticate to GAR
-        uses: grafana/shared-workflows/actions/login-to-gar@c7ad5f57693ac858c698d95783685a9cbfd91223 # login-to-gar/v1.0.1
-        id: login-to-gar
-        with:
-          registry: us-docker.pkg.dev
-          environment: prod
-
-      - name: Get Vault secrets
-        id: get-secrets
-        uses: grafana/shared-workflows/actions/get-vault-secrets@f1614b210386ac420af6807a997ac7f6d96e477a # get-vault-secrets/v1.3.1
-        with:
-          export_env: false
-          common_secrets: |
-            GITHUB_APP_ID=updater-app:app-id
-            GITHUB_APP_INSTALLATION_ID=updater-app:app-installation-id
-            GITHUB_APP_PRIVATE_KEY=updater-app:private-key
-
-      - name: Update jsonnet
-        env:
-          GITHUB_APP_ID: ${{ fromJSON(steps.get-secrets.outputs.secrets).GITHUB_APP_ID }}
-          GITHUB_APP_INSTALLATION_ID: ${{ fromJSON(steps.get-secrets.outputs.secrets).GITHUB_APP_INSTALLATION_ID }}
-          GITHUB_APP_PRIVATE_KEY: ${{ fromJSON(steps.get-secrets.outputs.secrets).GITHUB_APP_PRIVATE_KEY }}
-        run: |
-          set -e -o pipefail
-
-          cat << EOF > config.json
-          {
-            "destination_branch": "master",
-            "pull_request_branch_prefix": "auto-merge/cd-tempo-dev",
-            "pull_request_enabled": true,
-            "pull_request_existing_strategy": "ignore",
-            "repo_name": "deployment_tools",
-            "update_jsonnet_attribute_configs": [
-              {
-                "file_path": "ksonnet/environments/tempo/dev-us-east-0.tempo-dev-02/images.libsonnet",
-                "jsonnet_key": "tempo",
-                "jsonnet_value_file": "tags_for_cd_tempo"
-              },
-              {
-                "file_path": "ksonnet/environments/tempo/dev-us-east-0.tempo-dev-02/images.libsonnet",
-                "jsonnet_key": "tempo_query",
-                "jsonnet_value_file": "tags_for_cd_tempo_query"
-              },
-              {
-                "file_path": "ksonnet/environments/tempo/dev-us-east-0.tempo-dev-02/images.libsonnet",
-                "jsonnet_key": "tempo_vulture",
-                "jsonnet_value_file": "tags_for_cd_tempo_vulture"
-              }
-            ]
-          }
-          EOF
-
-          docker run --rm \
-          -e GITHUB_APP_ID \
-          -e GITHUB_APP_INSTALLATION_ID \
-          -e GITHUB_APP_PRIVATE_KEY \
-          -e CONFIG_JSON="$(cat config.json)" \
-          -v ./tags_for_cd_tempo:/app/tags_for_cd_tempo \
-          -v ./tags_for_cd_tempo_query:/app/tags_for_cd_tempo_query \
-          -v ./tags_for_cd_tempo_vulture:/app/tags_for_cd_tempo_vulture us-docker.pkg.dev/grafanalabs-global/docker-deployment-tools-prod/updater
+          namespace: tempo-cd
+          workflow_template: tempo-continuous-deployment
+          parameters: |
+            imageTag=${{ needs.get-tag.outputs.tag }}
