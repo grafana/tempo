@@ -59,8 +59,7 @@ type Config struct {
 
 	// Codec controls which decoder to use for data consumed from Kafka.
 	Codec string `yaml:"codec"`
-	// DisableGRPC is kept for one-release backward compatibility and ignored.
-	DisableGRPC bool `yaml:"disable_grpc"`
+
 	// ConsumeFromKafka controls whether the generator should consume spans from Kafka.
 	// This is wired by deployment model in app init and not user configurable.
 	ConsumeFromKafka bool `yaml:"-"`
