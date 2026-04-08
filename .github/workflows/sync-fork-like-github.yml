@@ -5,6 +5,9 @@ on:
   schedule:
     - cron: "17 3 * * *" # daily at 03:17 UTC
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
 permissions:
   contents: write
 
@@ -38,6 +41,22 @@ jobs:
         run: |
           git remote add upstream https://github.com/grafana/tempo.git || true
           git fetch --prune upstream
+
+      - name: Safety check (upstream remote must be grafana/tempo)
+        run: |
+          set -euo pipefail
+          upstream_url="$(git remote get-url upstream)"
+          echo "upstream remote is: ${upstream_url}"
+
+          case "${upstream_url}" in
+            https://github.com/grafana/tempo.git|git@github.com:grafana/tempo.git)
+              echo "Upstream remote verified."
+              ;;
+            *)
+              echo "Unexpected upstream remote: ${upstream_url}"
+              exit 1
+              ;;
+          esac
 
       - name: Merge upstream/main into fork main
         run: |
