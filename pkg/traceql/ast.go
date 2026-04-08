@@ -87,17 +87,6 @@ func NeedsFullTrace(e ...Element) bool {
 	return false
 }
 
-func (r *RootExpr) NeedsFullTrace() bool {
-	for _, p := range r.Pipeline {
-		for _, el := range p.Elements {
-			if NeedsFullTrace(el) {
-				return true
-			}
-		}
-	}
-	return false
-}
-
 // subQueryKey is used to route time series
 func subQueryKey(p Pipeline, m1 firstStageElement) string {
 	key := p.String()

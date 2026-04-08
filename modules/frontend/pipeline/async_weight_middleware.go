@@ -131,8 +131,10 @@ func (c weightRequestWare) setTraceQLWeight(req Request) {
 	}
 
 	// Query that requires full trace scanning, e.g. with structural operators
-	if rootExpr != nil && rootExpr.NeedsFullTrace() {
-		weight++
+	for _, pipeline := range rootExpr.Pipeline {
+		if traceql.NeedsFullTrace(pipeline) {
+			weight++
+		}
 	}
 
 	req.SetWeight(weight)

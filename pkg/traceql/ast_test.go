@@ -1148,7 +1148,9 @@ func TestNeedsFullTrace(t *testing.T) {
 		t.Run(test, func(t *testing.T) {
 			expr, err := Parse(test)
 			require.NoError(t, err)
-			require.Equal(t, false, expr.NeedsFullTrace())
+			for _, p := range expr.Pipeline {
+				require.False(t, NeedsFullTrace(p))
+			}
 		})
 	}
 
@@ -1156,7 +1158,9 @@ func TestNeedsFullTrace(t *testing.T) {
 		t.Run(test, func(t *testing.T) {
 			expr, err := Parse(test)
 			require.NoError(t, err)
-			require.Equal(t, true, expr.NeedsFullTrace())
+			for _, p := range expr.Pipeline {
+				require.True(t, NeedsFullTrace(p))
+			}
 		})
 	}
 }
