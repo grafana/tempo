@@ -17,7 +17,7 @@ modify the overrides directly.
 
 User-configurable overrides are stored in an object store bucket managed by Tempo.
 
-![user-configurable-overrides-architecture.png](/media/docs/tempo/user-configurable-overrides-architecture.png)
+![user-configurable-overrides-architecture.svg](../user-configurable-overrides-architecture.svg)
 
 {{< admonition type="note" >}}
 We recommend using a different bucket for overrides and traces storage, but they can share a bucket if needed.
@@ -53,6 +53,11 @@ user-configurable overrides takes priority.
 {{< admonition type="note" >}}
 Note that `processors` is an exception. Tempo merges values from both user-configurable overrides and runtime overrides
 into a single list.
+{{< /admonition >}}
+
+{{< admonition type="warning" >}}
+The `local-blocks` processor was removed in Tempo 3.0. TraceQL metrics queries on recent data are now served by the live-store instead. If your overrides reference `local-blocks`, remove it before upgrading.
+For details, refer to [Metrics generator](https://grafana.com/docs/tempo/<TEMPO_VERSION>/metrics-from-traces/metrics-generator/).
 {{< /admonition >}}
 
 ```yaml
@@ -122,7 +127,7 @@ metrics_generator:
 ## API
 
 All API requests are handled on the `/api/overrides` endpoint. The module supports `GET`, `POST`, `PATCH`, and `DELETE`
-requests.
+requests. If you set [`http_api_prefix`](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/#server) in your Tempo configuration, prepend it to the path (for example, `/tempo/api/overrides`).
 
 This endpoint is tenant-specific. If Tempo is run in multitenant mode, all requests should have an appropriate
 `X-Scope-OrgID` header.
@@ -133,7 +138,7 @@ If the tenant is run in distributed mode, only the query-frontend will accept AP
 
 #### GET /api/overrides
 
-Returns the current overrides and it's version.
+Returns the current overrides and its version.
 
 Query-parameters:
 
@@ -143,7 +148,7 @@ Query-parameters:
 Example:
 
 ```shell
-curl -X GET -v -H "X-Scope-OrgID: 3" http://localhost:3100/tempo/api/overrides\?scope=merged
+curl -X GET -v -H "X-Scope-OrgID: 3" http://localhost:3100/api/overrides\?scope=merged
 ```
 
 #### POST /api/overrides
