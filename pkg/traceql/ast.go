@@ -52,6 +52,12 @@ func (r *RootExpr) SinglePipeline() (Pipeline, bool) {
 }
 
 func (r *RootExpr) MetricsSecondStage() secondStageElement {
+	if r.expression == nil {
+		return nil
+	}
+	if r.expression.op == OpNone { // flat expression
+		return r.expression.filter
+	}
 	return r.expression
 }
 
