@@ -595,6 +595,7 @@ func eventToParquet(e *v1_trace.Span_Event, ee *Event, spanStartTime uint64, ded
 	ee.Name = e.Name
 	ee.TimeSinceStartNano = e.TimeUnixNano - spanStartTime
 	ee.DroppedAttributesCount = int32(e.DroppedAttributesCount)
+	ee.DedicatedAttributes.Reset()
 	writeAttrs(e.Attributes, &ee.Attrs, &ee.DedicatedAttributes, dedicatedEventAttributes)
 }
 

@@ -1232,3 +1232,55 @@ func TestTraceToParquetRootSpanWithChildOfLink(t *testing.T) {
 		})
 	}
 }
+
+func TestTraceToParquetBufferReuse_EventDedicatedAttributes(t *testing.T) {
+	traceID := common.ID{0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F}
+	meta := backend.BlockMeta{DedicatedColumns: test.MakeDedicatedColumns()}
+
+	// Trace 1: span with an event that has dedicated event attributes
+	trace1 := &tempopb.Trace{
+		ResourceSpans: []*v1_trace.ResourceSpans{{
+			Resource: &v1_resource.Resource{},
+			ScopeSpans: []*v1_trace.ScopeSpans{{
+				Scope: &v1.InstrumentationScope{},
+				Spans: []*v1_trace.Span{{
+					SpanId: []byte{0x01},
+					Events: []*v1_trace.Span_Event{{
+						Name: "event-with-dedicated",
+						Attributes: []*v1.KeyValue{
+							{Key: "dedicated.event.1", Value: &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "stale-value"}}},
+						},
+					}},
+				}},
+			}},
+		}},
+	}
+
+	// Trace 2: span with an event that has NO dedicated event attributes
+	trace2 := &tempopb.Trace{
+		ResourceSpans: []*v1_trace.ResourceSpans{{
+			Resource: &v1_resource.Resource{},
+			ScopeSpans: []*v1_trace.ScopeSpans{{
+				Scope: &v1.InstrumentationScope{},
+				Spans: []*v1_trace.Span{{
+					SpanId: []byte{0x02},
+					Events: []*v1_trace.Span_Event{{
+						Name: "event-without-dedicated",
+						Attributes: []*v1.KeyValue{
+							{Key: "generic.attr", Value: &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "some-value"}}},
+						},
+					}},
+				}},
+			}},
+		}},
+	}
+
+	// Convert trace1, then reuse the buffer for trace2
+	buffer, _ := traceToParquet(&meta, traceID, trace1, nil)
+	buffer, _ = traceToParquet(&meta, traceID, trace2, buffer)
+
+	// The event in trace2 must not have stale dedicated attributes from trace1
+	event := buffer.ResourceSpans[0].ScopeSpans[0].Spans[0].Events[0]
+	assert.Equal(t, "event-without-dedicated", event.Name)
+	assert.Empty(t, event.DedicatedAttributes.String01, "dedicated event attribute leaked from previous trace")
+}
