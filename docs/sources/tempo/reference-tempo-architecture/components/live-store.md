@@ -28,18 +28,18 @@ When the live-store receives spans from Kafka, it assembles them into traces in 
 Each trace goes through three stages.
 
 First, the trace is active — it's receiving spans, remains in memory, and is queryable.
-Then, when no new spans have arrived within the configured `trace_idle_period` (default: 10 seconds)
+Then, when no new spans have arrived within the configured `max_trace_idle`
 the trace becomes idle and is flushed to the local WAL.
 Once flushed, the trace data is written in Parquet format and becomes available for TraceQL search.
 Eventually, the WAL data is cut into complete blocks.
 
 ### Trace idle period
 
-The `trace_idle_period` controls how long the live-store waits after the last span arrives before considering a trace idle and flushing it to the WAL.
+The `max_trace_idle` setting controls how long the live-store waits after the last span arrives before considering a trace idle and flushing it to the WAL.
 
 ```yaml
 live_store:
-  trace_idle_period: 10s
+  max_trace_idle: 10s
 ```
 
 Increasing this value keeps traces in memory longer, which improves the chances that all spans for a trace are co-located when flushed.
