@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/grafana/e2e"
-	e2edb "github.com/grafana/e2e/db"
 	"github.com/grafana/tempo/integration/util"
 	"github.com/grafana/tempo/pkg/httpclient"
 	tempoUtil "github.com/grafana/tempo/pkg/util"
@@ -23,7 +22,7 @@ func TestIngest(t *testing.T) {
 	// copy config template to shared directory and expand template variables
 	require.NoError(t, util.CopyFileToSharedDir(s, "config-kafka.yaml", "config.yaml"))
 
-	kafka := e2edb.NewKafka()
+	kafka := NewKafka()
 	require.NoError(t, s.StartAndWaitReady(kafka))
 
 	tempo := util.NewTempoAllInOne()
