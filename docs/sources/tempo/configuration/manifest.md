@@ -492,7 +492,6 @@ metrics_generator:
     ingest_concurrency: 16
     instance_id: hostname
 ingest:
-    enabled: false
     kafka:
         address: localhost:9092
         topic: ""

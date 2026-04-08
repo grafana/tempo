@@ -68,7 +68,6 @@ metrics_generator:
         send_exemplars: true
 
 ingest:
-  enabled: true
   kafka:
     address: kafka.service.consul:9092
     topic: tempo-ingest

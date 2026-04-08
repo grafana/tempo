@@ -52,7 +52,6 @@ storage:
       path: /var/tempo/blocks
 
 ingest:
-  enabled: true
   kafka:
     address: redpanda:9092
     topic: tempo-ingest

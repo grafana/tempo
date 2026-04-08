@@ -34,6 +34,10 @@ type Config struct {
 	IngestStorageConfig ingest.Config            `yaml:"-"`
 }
 
+func ingestStorageEnabled(cfg ingest.Config) bool {
+	return cfg.Kafka.Topic != ""
+}
+
 // RegisterFlagsAndApplyDefaults registers the flags.
 func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
 	// apply generic defaults and then overlay tempo default

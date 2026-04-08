@@ -67,7 +67,6 @@ block_builder:
     - 0
 
 ingest:
-  enabled: true
   kafka:
     address: kafka:9092
     topic: tempo-ingest
