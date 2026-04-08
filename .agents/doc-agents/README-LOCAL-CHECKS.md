@@ -14,7 +14,7 @@ This README explains how to **run Markdown link checks on your machine**, option
 
 | Piece | Role |
 |-------|------|
-| **Skills** (`/docs-pr-check`, `/docs-pr-write`, `/docs-review`, `/docs-workflow`) | Triage PRs for doc gaps, draft updates, review. Interactive — not runnable from cron. |
+| **Skills** (`/docs-pr-check`, `/docs-pr-write`, `/docs-review`, `/docs-workflow`) | Triage PRs for doc gaps, draft updates, review. Interactive — the full skill is not runnable from cron; see [scheduled docs PR triage](#scheduled-docs-pr-triage-monwed) for a **local script** that approximates triage and files an issue. |
 | **`docs/docs-assistant/context.yaml`** | Coverage map: which pages should reflect which behavior. Regenerate or edit when the doc tree changes. |
 | **Fork sync** (optional GitHub Action) | Keeps `tempo-doc-work` close to `grafana/tempo`. |
 | **This README** | Cron / launchd for **link** checks only. |
@@ -33,7 +33,7 @@ This README explains how to **run Markdown link checks on your machine**, option
 
 3. **Definition of done (per chunk)** — e.g. reviewed docs + spot-checked relevant code paths + fixed docs or filed follow-ups. “Audit complete” means every chunk has been through that once.
 
-4. **PR maintenance cadence** — On a **schedule you actually use** (weekly, biweekly): run **`/docs-pr-check`** on **recent merged PRs** in areas you care about (narrow by time window or paths). Skills cover *how*; you still need *when* (calendar reminder, recurring task). **Optional automation on this fork only:** [`.github/workflows/docs-upstream-pr-candidates.yml`](../../.github/workflows/docs-upstream-pr-candidates.yml) runs weekly and opens an issue listing merged PRs on **`grafana/tempo`** (upstream PRs; **no** Actions on the Tempo repo). Use that issue as your PR list for **`/docs-pr-check`**. Enable **Actions** and **scheduled workflows** on the fork if jobs don’t run.
+4. **PR maintenance cadence** — On a **schedule you actually use** (weekly, biweekly): run **`/docs-pr-check`** on **recent merged PRs** in areas you care about (narrow by time window or paths). Skills cover *how*; you still need *when* (calendar reminder, recurring task).
 
 5. **Scope for PR triage** — Agree what counts as user-facing (e.g. `modules/`, `cmd/`, `pkg/traceql/`, public APIs) vs noise (tests-only, vendor-only). Keeps triage small.
 
@@ -41,7 +41,6 @@ This README explains how to **run Markdown link checks on your machine**, option
 
 ### Optional later
 
-- **Upstream PR digest (tempo-doc-work)** — Workflow **`docs-upstream-pr-candidates.yml`** (see [`scripts/README.md`](../../scripts/README.md)): weekly issue with links to merged PRs on **`grafana/tempo`**. You still classify with **`/docs-pr-check`**; the workflow does not touch **`grafana/tempo`**.
 - **Drift script** — e.g. merged PRs touching user-facing paths without `docs/` changes. Not required if **`/docs-pr-check`** runs regularly.
 - **CI link check upstream** — Same `links.py --grafana-hugo` command you validated locally; only if the team adds it to **`grafana/tempo`** later.
 
@@ -56,6 +55,7 @@ Run **`run-local-checks.sh`** (or cron) **after** editing links or on a schedule
 | Script | What it does |
 |--------|----------------|
 | [`run-local-checks.sh`](../../docs/docs-assistant/run-local-checks.sh) | Calls [`links.py`](../../docs/docs-assistant/links.py) with **`--grafana-hugo`** on a docs directory (default: entire `docs/sources/`). |
+| [`docs-pr-triage-local.sh`](../../scripts/docs-pr-triage-local.sh) | Merged PRs on **`grafana/tempo`** → heuristic **docs-pr-check–style** table + gap summary → **`gh issue create`** on your fork. **Not** GitHub Actions; run from **cron** / **launchd**. |
 
 **`--grafana-hugo`** is required for Tempo sources: paths like `/docs/tempo/...`, `/media/...`, and `ref:` are **skipped** (they resolve on the Grafana website build). Without it, the checker reports hundreds of false positives.
 
@@ -94,6 +94,24 @@ DOCS_DIR=docs/sources/tempo ./docs/docs-assistant/run-local-checks.sh
 ```
 
 Fix or triage failures until the output matches what you expect for cron (you may still choose to allow a non-zero exit until legacy links are cleaned up).
+
+---
+
+## Scheduled docs PR triage (Mon/Wed)
+
+Use this when you want **Monday and Wednesday** reminders that **list merged upstream PRs**, apply **heuristic** docs classification (same *shape* as `/docs-pr-check`, not the interactive skill), and **open an issue** on **your fork** — **without GitHub Actions**.
+
+1. From the repo root: `chmod +x scripts/docs-pr-triage-local.sh`
+2. Test once: `./scripts/docs-pr-triage-local.sh --dry-run` (markdown only) or full run (creates an issue; needs `gh auth login` and repo access).
+3. Add to `crontab` (adjust path; **09:00** in **your** machine’s local time):
+
+```cron
+0 9 * * 1,3 cd /ABS/PATH/TO/tempo-doc-work && ./scripts/docs-pr-triage-local.sh >> ~/.cache/tempo-doc-work/docs-triage.log 2>&1
+```
+
+Optional: `ISSUE_REPO=your-login/tempo-doc-work` if `gh`’s default repo is not your fork. Tune lookback with `SINCE_DAYS=14` if needed.
+
+**Caveat:** Classification lives in [`scripts/docs-pr-classify.jq`](../../scripts/docs-pr-classify.jq) (keywords, `docs/` paths, PR checklist). It does **not** search `docs/sources/tempo` like `/docs-pr-check`. Refine the jq rules or run the skill in Cursor on flagged PRs.
 
 ---
 
@@ -185,12 +203,13 @@ tail -n 2000 ~/.cache/tempo-doc-work/docs-checks.log > /tmp/docs-checks.log && m
 
 ## What does not belong in cron
 
-These require an interactive editor or GitHub:
+These require an interactive editor or an AI agent:
 
 - **`/docs-workflow`**, **`/docs-pr-check`**, **`/docs-pr-write`**, **`/docs-review`** (skills under `.claude/skills/`)
-- **`gh`**-based drift scripts unless you explicitly script auth and accept maintenance cost
 
-Use cron only for **deterministic scripts** like `run-local-checks.sh`. When a report shows problems, open the repo and run skills or edit docs yourself.
+**OK in cron:** `run-local-checks.sh`, and [`docs-pr-triage-local.sh`](../../scripts/docs-pr-triage-local.sh) (heuristic triage + `gh issue create` — not a substitute for the full **`/docs-pr-check`** skill).
+
+When a report shows problems, open the repo and run skills or edit docs yourself.
 
 ---
 

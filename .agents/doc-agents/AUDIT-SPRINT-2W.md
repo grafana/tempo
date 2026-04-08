@@ -72,7 +72,6 @@ Everything else (introduction, TraceQL deep dives, metrics-from-traces, API refe
 
 - **Twice in the sprint:** **`/docs-pr-check`** on recent merges touching **set up, configuration, operations, or troubleshooting** paths.
 - Prioritize PRs that land **code** changes for **Tempo 3** architecture.
-- **Optional:** Use the weekly **“Upstream PRs: docs triage”** issue from [`docs-upstream-pr-candidates.yml`](../../.github/workflows/docs-upstream-pr-candidates.yml) on **tempo-doc-work** as your PR-number list (merged PRs on **`grafana/tempo`** only; no Actions on upstream).
 
 ---
 
