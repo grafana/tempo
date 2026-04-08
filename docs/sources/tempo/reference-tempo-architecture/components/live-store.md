@@ -92,7 +92,7 @@ When traces are flushed from memory, they're written to a local WAL in Parquet f
 
 First, it provides search availability—after data is in the WAL,
 trace data is available for TraceQL search queries, not just trace ID lookups.
-Second, it aids recovery on restart—if the live-store restarts,
+Second, it aids recovery on restart. If the live-store restarts,
 it can replay from Kafka, and the WAL provides a way to serve queries during replay.
 
 The WAL is eventually cut into complete blocks that are also stored locally.

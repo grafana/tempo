@@ -80,7 +80,7 @@ The live-store creates a new partition in the ring (pending state).
 After enough owners register and the waiting period elapses, the partition transitions to active,
 and distributors begin writing to the new partition.
 
-A corresponding Kafka partition must exist—add Kafka partitions first if needed.
+A corresponding Kafka partition must exist. Add Kafka partitions first if needed.
 
 ### Scaling down
 
@@ -98,7 +98,7 @@ Changes to the ring (new partitions, state transitions) propagate across the clu
 
 During network partitions or high cluster churn, propagation may be delayed.
 This can cause brief inconsistencies where different components have different views of the ring.
-Tempo handles this gracefully—distributors writing to a partition that a live-store hasn't yet seen results in data that's picked up after the live-store catches up,
+Tempo handles this gracefully: distributors write to a partition that a live-store hasn't yet seen results in data that's picked up after the live-store catches up,
 and queriers contacting a live-store for a partition it doesn't own yet get an empty response,
 with the data eventually available from another live-store or from object storage.
 
