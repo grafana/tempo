@@ -101,3 +101,7 @@ This can cause brief inconsistencies where different components have different v
 Tempo handles this gracefully — distributors writing to a partition that a live-store hasn't yet seen results in data that's picked up once the live-store catches up,
 and queriers contacting a live-store for a partition it doesn't own yet get an empty response,
 with the data eventually available from another live-store or from object storage.
+
+## Related resources
+
+Refer to the [memberlist configuration](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/#memberlist) for ring propagation settings.

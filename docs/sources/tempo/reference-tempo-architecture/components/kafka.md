@@ -70,4 +70,4 @@ ingest:
 
 ## Related resources
 
-Refer to the [configuration reference](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/) for the full list of Kafka options.
+Refer to the [distributor configuration](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/#distributor) for Kafka connection settings under the `ingest` block.

@@ -11,6 +11,12 @@ versionDate: 2026-03-20
 
 The querier is the worker component that executes query jobs dispatched by the query frontend. It fetches trace data from both live-stores (for recent data) and object storage (for historical data), then returns results to the query frontend for merging.
 
+## Why the querier exists
+
+Trace data in Tempo lives in two places: recent data in live-stores and historical data in object storage blocks.
+The querier bridges both sources, fetching and merging data so that the query frontend doesn't need to know where data lives.
+This separation lets you scale query execution independently from query planning and result merging.
+
 ## Query execution
 
 When a querier receives a batch of jobs from the query frontend, it processes each job by determining where the relevant data lives.
