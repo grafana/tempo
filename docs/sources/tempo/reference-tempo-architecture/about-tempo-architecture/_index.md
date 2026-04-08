@@ -28,8 +28,7 @@ Because Kafka provides durability on the write path,
 Tempo doesn't need to replicate data across multiple instances.
 This replication factor of 1 significantly reduces cost and query complexity.
 
-Tempo uses Apache Parquet as default columnar block format.
-Storing trace data in a columnar layout that enables efficient querying of specific attributes without reading entire traces.
+Tempo uses Apache Parquet as the default columnar block format, storing trace data in a columnar layout that enables efficient querying of specific attributes without reading entire traces.
 
 Refer to [Apache Parquet block format configuration](/docs/tempo/<TEMPO_VERSION>/configuration/parquet/) and [Apache Parquet schema](/docs/tempo/<TEMPO_VERSION>/operations/schema/) to learn more.
 

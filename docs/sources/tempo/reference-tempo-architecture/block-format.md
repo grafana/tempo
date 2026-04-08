@@ -83,6 +83,7 @@ Tempo uses versioned block formats.
 
 | Version | Status |
 |---|---|
+| vParquet3 | Deprecated |
 | vParquet5 | Latest |
 | vParquet4 | Default in Tempo 3.0 |
 
