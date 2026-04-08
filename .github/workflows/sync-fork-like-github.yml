@@ -61,7 +61,7 @@ jobs:
       - name: Merge upstream/main into fork main
         run: |
           git pull --ff-only origin main
-          git merge --no-edit upstream/main
+          git merge --no-edit theirs upstream/main
 
       - name: Push updated main
         run: |
