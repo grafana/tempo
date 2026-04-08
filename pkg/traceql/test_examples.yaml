@@ -204,6 +204,52 @@ valid:
   - '({} | rate()) + ({} | rate()) | topk(5)'
   - '({} | rate()) + ({} | rate()) > 10'
   - '({} | rate()) + ({} | rate()) | topk(5) > 10'
+  # scalar math expressions
+  - '({} | rate()) * 100'
+  - '({} | rate()) / 1000'
+  - '({} | rate()) + 5'
+  - '({} | rate()) - 5'
+  - '100 * ({} | rate())'
+  - '1 / ({} | rate())'
+  - '5 + ({} | rate())'
+  - '1 - ({} | rate())'
+  # negative scalars
+  - '({} | rate()) * -100'
+  - '({} | rate()) / -1000'
+  - '({} | rate()) + -5'
+  - '({} | rate()) - -5'
+  - '-100 * ({} | rate())'
+  - '-1 / ({} | rate())'
+  - '-5 + ({} | rate())'
+  - '-1 - ({} | rate())'
+  # float scalars
+  - '({} | rate()) * 1.5'
+  - '({} | rate()) / 1.5'
+  - '({} | rate()) + 1.5'
+  - '({} | rate()) - 1.5'
+  - '-1.5 * ({} | rate())'
+  - '-1.5 / ({} | rate())'
+  - '-5.5 + ({} | rate())'
+  - '-1.5 - ({} | rate())'
+
+  - '(60 * ({} | rate())) / ({} | count_over_time())'
+  - '({} | rate()) * 100 > 5'
+  - '({} | rate() > 6) * 100 > 5'
+  - '({} | rate()) * 10 - 1'
+  - '({} | rate()) * 10 + 5 > 50 | topk(1)'
+  - '({} | count_over_time() by(.service.name)) * 100'
+  # constant folding
+  - '({} | rate()) > 1 / 2'
+  - '({} | rate()) >= 100 * 3'
+  - '({} | rate()) < 1 + 2'
+  - '({} | rate()) <= 1 - 2'
+  - '({} | rate()) - 2 * 20'
+  - '({} | rate()) + 100 / 3'
+  - '-2 - 20 / ({} | rate())'
+  - '100 / 3 + ({} | rate())'
+  - '5 + ({} | rate()) * 10'
+  - '(({} | rate()) * 100) + ({} | count_over_time())'
+  - '(100 * ({} | rate())) - (200 * ({} | rate()))'
   # second stage combined
   - '{} | rate() | topk(5) = 10'
   - '{} | rate() | topk(5) != 10'
@@ -297,6 +343,13 @@ parse_fails:
   - '({ true } | count()) && ({ true } | count()) = 1'
   - '({ true }) + ({ true }) = 1'
   - '({ true } | count()) + ({ true } | count())'
+  # scalar math requires wrapped metrics pipeline
+  - '5 + {} | rate()'
+  - '{} | rate() + 5'
+  # bare constant expression without metrics pipeline
+  - '2 * 3'
+  # consecutive scalars without operator
+  - '({} | rate()) + 5 100'
   # todo: improve the following
   - '(by(namespace) | count()) > 2 * 2' # scalar expressions are currently not allowed in scalar pipelines
   - '(by(namespace) | count()) * 2 > 2'
