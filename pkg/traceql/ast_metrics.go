@@ -523,13 +523,7 @@ func newMetricsFilter(op Operator, value float64, separator string) *MetricsFilt
 }
 
 func (m *MetricsFilter) String() string {
-	opStr := m.op.String()
-
-	// Format value to distinguish int from float for round-trip fidelity
-	if m.value == float64(int(m.value)) && !math.IsInf(m.value, 0) && !math.IsNaN(m.value) {
-		return fmt.Sprintf("%s %d", opStr, int(m.value))
-	}
-	return fmt.Sprintf("%s %g", opStr, m.value)
+	return m.op.String() + " " + formatFloat(m.value)
 }
 
 func (m *MetricsFilter) validate() error {
@@ -604,6 +598,14 @@ func (m *MetricsFilter) separator() string {
 }
 
 var _ secondStageElement = (*MetricsFilter)(nil)
+
+// formatFloat formats a float64 for round-trip fidelity: integers without decimal, floats with %g.
+func formatFloat(v float64) string {
+	if v == float64(int(v)) && !math.IsInf(v, 0) && !math.IsNaN(v) {
+		return fmt.Sprintf("%d", int(v))
+	}
+	return fmt.Sprintf("%g", v)
+}
 
 // ChainedSecondStage chains multiple second stage elements together.
 // Elements are processed in order, each receiving the output of the previous.

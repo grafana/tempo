@@ -279,6 +279,65 @@ func mergeExemplars(a, b []Exemplar) []Exemplar {
 	return result
 }
 
+// MetricsScalarOp implements second stage scalar arithmetic on metrics results.
+// It applies an arithmetic operation between each sample value and a scalar constant.
+// Example: 100 * ({} | rate()) or ({} | rate()) / 1000
+type MetricsScalarOp struct {
+	op           Operator // OpAdd, OpSub, OpMult, OpDiv
+	value        float64
+	scalarOnLeft bool // true: value OP series, false: series OP value
+}
+
+func newMetricsScalarOp(op Operator, value float64, scalarOnLeft bool) *MetricsScalarOp {
+	return &MetricsScalarOp{op: op, value: value, scalarOnLeft: scalarOnLeft}
+}
+
+func (m *MetricsScalarOp) String() string {
+	v := formatFloat(m.value)
+	if m.scalarOnLeft {
+		return v + " " + m.op.String() + " "
+	}
+	return " " + m.op.String() + " " + v
+}
+
+func (m *MetricsScalarOp) validate() error {
+	if !m.op.isArithmetic() {
+		return fmt.Errorf("unsupported scalar operation: %s", m.op.String())
+	}
+	return nil
+}
+
+func (m *MetricsScalarOp) init(_ *tempopb.QueryRangeRequest) {}
+
+func (m *MetricsScalarOp) process(input SeriesSet) SeriesSet {
+	result := make(SeriesSet, len(input))
+	for key, series := range input {
+		values := make([]float64, len(series.Values))
+		if m.scalarOnLeft {
+			for i, v := range series.Values {
+				values[i] = applyArithmeticOp(m.op, m.value, v)
+			}
+		} else {
+			for i, v := range series.Values {
+				values[i] = applyArithmeticOp(m.op, v, m.value)
+			}
+		}
+
+		result[key] = TimeSeries{
+			Labels:    series.Labels,
+			Values:    values,
+			Exemplars: series.Exemplars,
+		}
+	}
+	return result
+}
+
+func (m *MetricsScalarOp) separator() string {
+	return ""
+}
+
+var _ secondStageElement = (*MetricsScalarOp)(nil)
+
 func applyArithmeticOp(op Operator, lhs, rhs float64) float64 {
 	switch op {
 	case OpAdd:
