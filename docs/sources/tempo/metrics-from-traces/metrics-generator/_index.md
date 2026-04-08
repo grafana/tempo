@@ -92,8 +92,8 @@ For more information on billing, refer to [Understand your invoice](/docs/grafan
 ## Partition handoff during rollouts
 
 The metrics-generator uses Kafka static membership (`instance_id`) so that a pod restarting
-with the same identity can rejoin the consumer group immediately — without waiting for the
-session timeout — and reclaim its previously held partitions.
+with the same identity can rejoin the consumer group immediately (without waiting for the
+session timeout) and reclaim its previously held partitions.
 This is the right behaviour for **StatefulSet** deployments, where pod names are stable across
 restarts (for example, `metrics-generator-0`).
 
