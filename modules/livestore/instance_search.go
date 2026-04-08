@@ -498,7 +498,7 @@ func (i *instance) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTag
 		}
 
 		if len(conditionGroups) == 0 {
-			return s.SearchTagValuesV2(ctx, tag, traceql.MakeCollectTagValueFunc(vCollector.Collect), mCollector.Add, common.DefaultSearchOptions())
+			return s.SearchTagValuesV2(ctx, tag, traceql.MakeCollectTagValueFunc(collect), mCollector.Add, common.DefaultSearchOptions())
 		}
 
 		// Otherwise, use the filtered search
@@ -506,7 +506,7 @@ func (i *instance) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTag
 			return s.FetchTagValues(ctx, req, cb, mCollector.Add, common.DefaultSearchOptions())
 		})
 
-		return engine.ExecuteTagValues(ctx, tag, conditionGroups, traceql.MakeCollectTagValueFunc(vCollector.Collect), fetcher)
+		return engine.ExecuteTagValues(ctx, tag, conditionGroups, traceql.MakeCollectTagValueFunc(collect), fetcher)
 	}
 
 	searchWithCache := func(ctx context.Context, _ *backend.BlockMeta, b block) error {
