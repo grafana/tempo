@@ -53,10 +53,9 @@
 * [ENHANCEMENT] Remove explicit `runtime.GC()` calls in vParquet5 compactor/block creation and CLI [#6603](https://github.com/grafana/tempo/pull/6603) (@oleg-kozlyuk-grafana)
 * [ENHANCEMENT] Reduce allocations in `extendReuseSlice` growth path during WAL writes and block creation [#6863](https://github.com/grafana/tempo/pull/6863) (@mapno)
 * [ENHANCEMENT] Implemented anti-affinity for pods in same livestore zone [#6757](https://github.com/grafana/tempo/pull/6757) (@zhxiaogg)
+* [ENHANCEMENT] metrics-generator: add `leave_consumer_group_on_shutdown` to send LeaveGroup on shutdown for immediate partition reassignment instead of waiting for session timeout [#6575](https://github.com/grafana/tempo/pull/6575) (@zalegrala)
 * [BUGFIX] Fix integer overflow in query parameters by using `strconv.ParseUint` instead of `strconv.Atoi`/`strconv.ParseInt` for unsigned integer fields. [#6612](https://github.com/grafana/tempo/pull/6612) (@bejaratommy)
 * [BUGFIX] Fix live-store SearchTagValuesV2 disk cache never being populated on complete blocks [#6858](https://github.com/grafana/tempo/pull/6858) (@mapno)
-* [ENHANCEMENT] metrics-generator: add `leave_consumer_group_on_shutdown` to send LeaveGroup on shutdown for immediate partition reassignment instead of waiting for session timeout [#6575](https://github.com/grafana/tempo/pull/6575) (@zalegrala)
-* [ENHANCEMENT] metrics-generator: improve Kafka partition lag reporting to use live group membership when available and correctly handle rebalancing state [#6575](https://github.com/grafana/tempo/pull/6575) (@zalegrala)
 * [BUGFIX] Fix dedicated columns fallback in `block_builder` and `live_store` to use `storage.trace.block.parquet_dedicated_columns` when not set via overrides. [#6647](https://github.com/grafana/tempo/pull/6647) (@stoewer)
 * [BUGFIX] Force live-store to rehydrate from Kafka lookback period when local data is missing (e.g. PVC wipe, new node) instead of resuming from the committed consumer group offset [#6428](https://github.com/grafana/tempo/pull/6428) (@oleg-kozlyuk-grafana)
 * [BUGFIX] fix: reload span_name_sanitization overrides during runtime [#6435](https://github.com/grafana/tempo/pull/6435) (@electron0zero)
@@ -78,8 +77,6 @@
 * [BUGFIX] metrics-generator: Fix `target_info` being skipped when resource attributes have empty values [#6774](https://github.com/grafana/tempo/pull/6774) (@carles-grafana)
 * [BUGFIX] metrics-generator: Drain old series on metric replacement to prevent limiter leak and permanent overflow [#6653](https://github.com/grafana/tempo/pull/6653) (@carles-grafana)
 * [BUGFIX] live-store: fixed unsuccessful deregistering from membership/partition rings during shutdown [#6848](https://github.com/grafana/tempo/pull/6848) (@zhxiaogg)
-* [ENHANCEMENT] metrics-generator: add `leave_consumer_group_on_shutdown` to send LeaveGroup on shutdown for immediate partition reassignment instead of waiting for session timeout [#6575](https://github.com/grafana/tempo/pull/6575) (@zalegrala)
-* [ENHANCEMENT] metrics-generator: improve Kafka partition lag reporting to use live group membership when available and correctly handle rebalancing state [#6575](https://github.com/grafana/tempo/pull/6575) (@zalegrala)
 
 ### 3.0 Cleanup
 
