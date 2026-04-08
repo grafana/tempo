@@ -91,6 +91,8 @@ var cli struct {
 	Suggest struct {
 		Columns suggestColumnsCmd `cmd:"" help:"Suggest columns for a tenant"`
 	} `cmd:""`
+
+	Redact redactCmd `cmd:"" help:"Submit a redaction request to the backend scheduler"`
 }
 
 func main() {

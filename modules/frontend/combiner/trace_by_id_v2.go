@@ -37,7 +37,10 @@ func NewTraceByIDV2(maxBytes int, marshalingFormat api.MarshallingFormat, traceR
 			deduper := newDeduper()
 			traceResult = deduper.dedupe(traceResult)
 			if traceRedactor != nil {
-				traceRedactor.RedactTraceAttributes(traceResult)
+				err := traceRedactor.RedactTraceAttributes(traceResult)
+				if err != nil {
+					return nil, err
+				}
 			}
 			resp.Trace = traceResult
 			resp.Metrics = metricsCombiner.Metrics
