@@ -2,6 +2,8 @@
 
 Use AI to help write, update, and review Tempo documentation. These agents and skills handle research, drafting, validation, and formatting. You stay in control — reviewing output, answering questions, and deciding when to submit.
 
+For **how skills fit with Docs Assistant** (`docs/docs-assistant/`), **`links.py --grafana-hugo`**, optional **cron**, and **fork sync**, read [`doc-agents/README.md`](doc-agents/README.md). For **cron / launchd and local checks** only, read [`doc-agents/README-LOCAL-CHECKS.md`](doc-agents/README-LOCAL-CHECKS.md).
+
 ## Getting started
 
 Open this repo in your AI tool (Cursor, Claude Code, Copilot, etc.) and tell the agent what you need.
@@ -67,6 +69,9 @@ The agent handles the rest: reading the repo context guide, looking up PRs, sear
 .agents/
 ├── README.md                       ← you are here
 └── doc-agents/
+    ├── README.md                   # Skills + Docs Assistant + links.py + fork sync (how it fits)
+    ├── README-LOCAL-CHECKS.md      # Local link checks, cron / launchd, logs, upstream CI
+    ├── AUDIT-SPRINT-2W.md         # Two-week docs vs code audit schedule + checklist
     ├── writers/
     │   └── writer-agent.md         # Full documentation workflow agent
     └── shared/
@@ -77,6 +82,13 @@ The agent handles the rest: reading the repo context guide, looking up PRs, sear
         ├── release-notes-workflow.md  # Multi-phase release notes process
         ├── metrics-generator-knowledge.md  # Domain knowledge for metrics-generator
         └── docs-context-guide.md   # Tempo docs context guide
+
+scripts/
+├── README.md                       # docs-upstream-pr-candidates.sh (weekly upstream PR list)
+├── docs-upstream-pr-candidates.sh
+
+.github/workflows/
+├── docs-upstream-pr-candidates.yml # Weekly issue: merged PRs on grafana/tempo for /docs-pr-check
 
 .claude/skills/
 ├── README.md                       # Skills workflow overview
