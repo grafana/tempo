@@ -1,5 +1,5 @@
 ---
-title: About Tempo's architecture
+title: About the Tempo architecture
 menuTitle: About the architecture
 description: Understand the design philosophy and data flow in Tempo.
 weight: 100
@@ -7,14 +7,14 @@ topicType: concept
 versionDate: 2026-03-20
 ---
 
-# About Tempo's architecture
+# About the Tempo architecture
 
 Grafana Tempo is a distributed tracing backend designed for high-volume trace ingestion and querying at scale.
 Tempo 3.0 introduces a new architecture that decouples the write and read paths using a Kafka-compatible message queue as a durable intermediary.
 
 ## Design philosophy
 
-Tempo's architecture is built around several key principles.
+The Tempo architecture is built around several key principles.
 
 Separate components handle writing trace data to storage and serving queries.
 You can scale writes and reads independently, and a failure in one path doesn't affect the other.

@@ -46,7 +46,7 @@ it produces the same block IDs on retry, safely overwriting any partial data fro
 
 ## Flush and recovery
 
-The flush process is designed to be safely replayable at every stage.
+The flush process supports safe replay at every stage.
 
 ### Flush order
 
@@ -58,7 +58,7 @@ The block-builder flushes blocks to object storage in a specific order:
 1. `meta.json` (the block becomes "live" at this point)
 
 A block isn't visible to the read path until its `meta.json` is written.
-Before that point, any crash is fully recoverable — the block-builder rewinds and overwrites.
+Before that point, any crash is fully recoverable—the block-builder rewinds and overwrites.
 
 ### Recovering from partial flushes
 
@@ -87,7 +87,7 @@ This prevents a race condition where a backend worker might try to compact a blo
 Each block-builder instance consumes from one or more Kafka partitions.
 The maximum number of block-builder instances equals the number of Kafka partitions.
 
-Block-builders use static partition assignment. There's no Kafka consumer group rebalancing.
+Block-builders use static partition assignment. Kafka does not move partitions between consumers in the consumer group for this component.
 There are two ways to assign partitions:
 
 - `partitions_per_instance`: Each instance computes which partitions it owns based on its ordinal ID.

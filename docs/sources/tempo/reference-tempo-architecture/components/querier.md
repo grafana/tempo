@@ -35,7 +35,7 @@ If a live-store is unavailable, the querier falls back to the live-store in the 
 
 ## Backend queries
 
-For historical data, the querier consults the blocklist (maintained by backend workers) to find blocks in the relevant time range. It uses bloom filters to quickly eliminate blocks that don't contain the target trace ID, fetches matching block data from object storage (using caching where configured), and deserializes the Parquet data and applies any TraceQL filters.
+For historical data, the querier consults the blocklist (maintained by backend workers) to find blocks in the relevant time range. It uses bloom filters to quickly eliminate blocks that don't contain the target trace ID, fetches matching block data from object storage (using caching where configured), reads the Parquet data, and applies any TraceQL filters.
 
 ### Caching
 
@@ -49,7 +49,7 @@ Lower-level caches (bloom, Parquet page) have higher hit rates and should be siz
 
 The number of jobs a querier processes concurrently is controlled by `max_concurrent_queries` (the maximum number of jobs processed at once) or `frontend_worker.parallelism` (the number of connections to each query frontend, which determines concurrent batch processing).
 
-Increasing concurrency makes queriers process more jobs in parallel but increases memory usage. If queriers are OOMing, reduce concurrency and scale horizontally instead.
+Increasing concurrency makes queriers process more jobs in parallel but increases memory usage. If queriers run out of memory, reduce concurrency and scale horizontally instead.
 
 ### Memory sizing
 

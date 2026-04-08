@@ -16,7 +16,7 @@ Together, they handle compaction, retention, and blocklist maintenance for data 
 
 The backend scheduler creates jobs and assigns them to workers.
 Workers connect to the scheduler via gRPC, request jobs, execute them, and report results back.
-This split makes compaction horizontally scalable — you can add workers to increase throughput without changing the scheduler.
+This split makes compaction horizontally scalable—you can add workers to increase throughput without changing the scheduler.
 
 ### Job types
 
@@ -62,7 +62,7 @@ This distributes the load of scanning object storage across all workers.
 
 Workers use a ring for tenant sharding.
 The ring determines which worker is responsible for polling each tenant's blocklist.
-By default the ring is disabled (unsharded), meaning each worker polls all tenants.
+By default the ring is disabled, meaning each worker polls all tenants without sharding.
 
 ```yaml
 backend_worker:

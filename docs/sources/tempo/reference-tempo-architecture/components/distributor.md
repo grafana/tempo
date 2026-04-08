@@ -70,7 +70,7 @@ This has two benefits:
 - Block-builders can build blocks where all spans for a trace are co-located (within a single consumption cycle).
 - Live-stores can serve complete traces from a single partition without cross-partition coordination.
 
-The distributor uses the partition ring (not Kafka's native partitioner) to determine target partitions.
+The distributor uses the partition ring (not Kafka's partition routing) to determine target partitions.
 This allows Tempo to control the partition lifecycle independently of Kafka.
 
 ## Key metrics

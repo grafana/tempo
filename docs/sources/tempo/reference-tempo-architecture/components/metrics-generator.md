@@ -16,7 +16,7 @@ which are then remote-written to a metrics backend, for example, Prometheus or G
 
 Traces contain rich information about service interactions, latencies, and error rates.
 The metrics-generator extracts this information and produces time-series metrics,
-enabling alerting and dashboarding without requiring separate instrumentation.
+enabling alerting and Grafana dashboards without requiring separate instrumentation.
 
 It supports two types of metric generation.
 Span metrics produce request rate, error rate, and duration (RED) metrics from individual spans.

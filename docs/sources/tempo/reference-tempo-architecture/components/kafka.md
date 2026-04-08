@@ -16,7 +16,7 @@ Any Kafka-compatible system works.
 
 Kafka serves as a durable write-ahead log (WAL) between distributors and downstream consumers (block-builders, live-stores, and metrics-generators).
 
-With Kafka, durability is centralized. Once Kafka acknowledges a write, the data is safe regardless of what happens to any Tempo component. Consumers are stateless — block-builders and live-stores can crash and restart, replaying from their last committed Kafka offset to rebuild state without data loss. Because Kafka provides durability, Tempo doesn't need to replicate data across multiple instances on the write path, enabling a replication factor of 1 that significantly reduces storage costs.
+With Kafka, durability is centralized. Once Kafka acknowledges a write, the data is safe regardless of what happens to any Tempo component. Consumers are stateless—block-builders and live-stores can crash and restart, replaying from their last committed Kafka offset to rebuild state without data loss. Because Kafka provides durability, Tempo doesn't need to replicate data across multiple instances on the write path, enabling a replication factor of 1 that significantly reduces storage costs.
 
 ## Partitioning
 
