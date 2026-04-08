@@ -83,5 +83,5 @@ properties:
     description: Traces holds configuration about how traces should be consumed.
     $ref: topic_encoding_config
 allOf:
-  - $ref: github.com/open-telemetry/opentelemetry-collector-contrib/pkg/kafka/configkafka.client_config
-  - $ref: github.com/open-telemetry/opentelemetry-collector-contrib/pkg/kafka/configkafka.consumer_config
+  - $ref: /pkg/kafka/configkafka.client_config
+  - $ref: /pkg/kafka/configkafka.consumer_config
