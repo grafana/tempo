@@ -61,9 +61,23 @@ func (m *mathExpression) String() string {
 		s = "(" + m.lhs.String() + ") " + m.op.String() + " (" + m.rhs.String() + ")"
 	}
 	if m.filter != nil {
-		s += m.filter.String()
+		s = renderFilter(s, m.filter)
 	}
 	return s
+}
+
+func renderFilter(inner string, f secondStageElement) string {
+	switch v := f.(type) {
+	case *MetricsScalarOp:
+		return v.WrapExpr(inner)
+	case ChainedSecondStage:
+		for _, e := range v {
+			inner = renderFilter(inner, e)
+		}
+		return inner
+	default:
+		return inner + f.separator() + f.String()
+	}
 }
 
 func (m *mathExpression) validate() error {
@@ -298,6 +312,14 @@ func (m *MetricsScalarOp) String() string {
 		return v + " " + m.op.String() + " "
 	}
 	return " " + m.op.String() + " " + v
+}
+
+func (m *MetricsScalarOp) WrapExpr(inner string) string {
+	v := formatFloat(m.value)
+	if m.scalarOnLeft {
+		return v + " " + m.op.String() + " (" + inner + ")"
+	}
+	return "(" + inner + ") " + m.op.String() + " " + v
 }
 
 func (m *MetricsScalarOp) validate() error {
