@@ -37,12 +37,12 @@ $defs:
         description: RecordAttributes defines a list of possible record attributes to match logs against. A match occurs if any record attribute matches at least one expression in this given list.
         type: array
         items:
-          $ref: github.com/open-telemetry/opentelemetry-collector-contrib/internal/filter/filterconfig.attribute
+          $ref: /internal/filter/filterconfig.attribute
       resource_attributes:
         description: ResourceAttributes defines a list of possible resource attributes to match logs against. A match occurs if any resource attribute matches all expressions in this given list.
         type: array
         items:
-          $ref: github.com/open-telemetry/opentelemetry-collector-contrib/internal/filter/filterconfig.attribute
+          $ref: /internal/filter/filterconfig.attribute
       severity_number:
         description: SeverityNumberProperties defines how to match against a log record's SeverityNumber, if defined.
         x-pointer: true
@@ -76,11 +76,11 @@ $defs:
       exclude:
         description: Exclude match properties describe metrics that should be excluded from the Collector Service pipeline, all other metrics should be included. If both Include and Exclude are specified, Include filtering occurs first.
         x-pointer: true
-        $ref: github.com/open-telemetry/opentelemetry-collector-contrib/internal/filter/filterconfig.metric_match_properties
+        $ref: /internal/filter/filterconfig.metric_match_properties
       include:
         description: Include match properties describe metrics that should be included in the Collector Service pipeline, all other metrics should be dropped from further processing. If both Include and Exclude are specified, Include filtering occurs first.
         x-pointer: true
-        $ref: github.com/open-telemetry/opentelemetry-collector-contrib/internal/filter/filterconfig.metric_match_properties
+        $ref: /internal/filter/filterconfig.metric_match_properties
       metric:
         description: MetricConditions is a list of OTTL conditions for an ottlmetric context. If any condition resolves to true, the metric will be dropped. Supports `and`, `or`, and `()`
         type: array
@@ -89,7 +89,7 @@ $defs:
       regexp:
         description: RegexpConfig specifies options for the regexp match type
         x-pointer: true
-        $ref: github.com/open-telemetry/opentelemetry-collector-contrib/internal/filter/filterset/regexp.config
+        $ref: /internal/filter/filterset/regexp.config
       resource:
         description: ResourceConditions is a list of OTTL conditions for an ottlresource context. If any condition resolves to true, the whole resource will be dropped. Supports `and`, `or`, and `()`
         type: array
@@ -133,7 +133,7 @@ type: object
 properties:
   error_mode:
     description: ErrorMode determines how the processor reacts to errors that occur while processing an OTTL condition. Valid values are `ignore` and `propagate`. `ignore` means the processor ignores errors returned by conditions and continues on to the next condition. This is the recommended mode. `propagate` means the processor returns the error up the pipeline.  This will result in the payload being dropped from the collector. The default value is `propagate`.
-    $ref: github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl.error_mode
+    $ref: /pkg/ottl.error_mode
   log_conditions:
     type: array
     items:
@@ -157,7 +157,7 @@ properties:
     $ref: profile_filters
   spans:
     description: 'Deprecated: use TraceConditions instead.'
-    $ref: github.com/open-telemetry/opentelemetry-collector-contrib/internal/filter/filterconfig.match_config
+    $ref: /internal/filter/filterconfig.match_config
   trace_conditions:
     type: array
     items:

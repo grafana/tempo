@@ -29,9 +29,7 @@ type UDPConn interface {
 // After consuming the buffer, the receiver SHOULD call DataRecd() to signal
 // that the buffer is no longer in use and to return it to the pool.
 type UDPServer struct {
-	// NB. queueLength HAS to be at the top of the struct or it will SIGSEV for certain architectures.
-	// See https://github.com/golang/go/issues/13868
-	queueSize     int64
+	queueSize     atomic.Int64
 	dataChan      chan *bytes.Buffer
 	maxPacketSize int
 	maxQueueSize  int
@@ -130,7 +128,7 @@ func (s *UDPServer) Serve() {
 }
 
 func (s *UDPServer) updateQueueSize(delta int64) {
-	atomic.AddInt64(&s.queueSize, delta)
+	s.queueSize.Add(delta)
 }
 
 // IsServing indicates whether the server is currently serving traffic
