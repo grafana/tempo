@@ -7,6 +7,7 @@ topicType: concept
 versionDate: 2026-03-20
 aliases:
   - /docs/tempo/latest/set-up-for-tracing/setup-tempo/plan/deployment-modes/
+  - /set-up-for-tracing/setup-tempo/plan/deployment-modes/
 ---
 
 # Deployment modes

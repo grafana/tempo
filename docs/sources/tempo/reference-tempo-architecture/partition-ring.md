@@ -104,4 +104,5 @@ with the data eventually available from another live-store or from object storag
 
 ## Related resources
 
-Refer to the [memberlist configuration](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/#memberlist) for ring propagation settings.
+Refer to the [memberlist configuration](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/#memberlist) for ring propagation settings
+and the [ingest configuration](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/#ingest) for partition-related settings.

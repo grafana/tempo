@@ -84,8 +84,8 @@ Tempo uses versioned block formats.
 | Version | Status |
 |---|---|
 | vParquet3 | Deprecated |
-| vParquet4 | Default in Tempo 3.0 |
-| vParquet5 | Latest |
+| vParquet4 | Default and latest in Tempo 3.0 |
+| vParquet5 | Experimental |
 
 The block format is configured in:
 
