@@ -3,10 +3,14 @@ package livestore
 import (
 	"bytes"
 	"context"
+	crand "crypto/rand"
+	"fmt"
+	"math/rand"
 	"testing"
 	"time"
 
 	"github.com/go-kit/log"
+	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -14,6 +18,9 @@ import (
 	"github.com/grafana/dskit/services"
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/pkg/tempopb"
+	v1_common "github.com/grafana/tempo/pkg/tempopb/common/v1"
+	v1_resource "github.com/grafana/tempo/pkg/tempopb/resource/v1"
+	v1_trace "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 	util_log "github.com/grafana/tempo/pkg/util/log"
 	"github.com/grafana/tempo/pkg/util/test"
 )
@@ -247,4 +254,270 @@ func TestInstanceBackpressure(t *testing.T) {
 	require.Greater(t, res.Trace.Size(), 0)
 
 	require.NoError(t, services.StopAndAwaitTerminated(t.Context(), ls))
+}
+
+// Realistic service definitions modeled on production Grafana Cloud traces.
+// Each service carries its own resource attributes, instrumentation scopes,
+// and typical span attribute shapes.
+var benchServices = []struct {
+	name       string
+	namespace  string
+	cluster    string
+	sdkLang    string
+	scopes     []string
+	spanAttrs  []string // common attribute keys produced by this service
+	hasEvents  bool
+	eventNames []string
+}{
+	{
+		name: "hggateway", namespace: "hosted-grafana", cluster: "prod-us-central-0",
+		sdkLang: "go",
+		scopes:  []string{"go.opentelemetry.io/contrib/instrumentation/github.com/labstack/echo/otelecho", "github.com/grafana/hosted-grafana/pkg/gateway"},
+		spanAttrs: []string{
+			"http.method", "http.status_code", "http.url", "http.host",
+			"http.flavor", "http.client_ip", "gateway.route_name",
+			"http.request.body.size", "http.response.body.size",
+			"net.peer.ip", "net.peer.port",
+		},
+	},
+	{
+		name: "grafana", namespace: "hosted-grafana", cluster: "prod-us-central-0",
+		sdkLang: "go",
+		scopes: []string{
+			"github.com/grafana/grafana/pkg/infra/tracing",
+			"go.opentelemetry.io/contrib/instrumentation/github.com/gorilla/mux/otelmux",
+			"github.com/grafana/grafana/pkg/services/accesscontrol",
+		},
+		spanAttrs: []string{
+			"http.method", "http.status_code", "http.url",
+			"organization", "auth.mode", "auth.namespace",
+		},
+		hasEvents: true, eventNames: []string{"log"},
+	},
+	{
+		name: "gme-querier", namespace: "metrics", cluster: "prod-us-central-0",
+		sdkLang: "go",
+		scopes:  []string{"pkg/querier", "pkg/streamingpromql", "dskit/tracing"},
+		spanAttrs: []string{
+			"rpc.method", "rpc.system.name", "rpc.response.status_code",
+			"server.address", "server.port",
+			"tenant_ids", "ingester_address", "ingester_zone",
+			"query", "start", "end", "step_ms", "bytes",
+		},
+		hasEvents: true, eventNames: []string{"log", "using cache", "PostingsForMatchers returned"},
+	},
+	{
+		name: "gme-query-frontend", namespace: "metrics", cluster: "prod-us-central-0",
+		sdkLang: "go",
+		scopes:  []string{"pkg/querymiddleware", "pkg/frontend/v2"},
+		spanAttrs: []string{
+			"rpc.method", "rpc.system.name", "rpc.response.status_code",
+			"server.address", "server.port", "tenant_ids",
+		},
+	},
+	{
+		name: "cortex-gateway", namespace: "metrics", cluster: "prod-us-central-0",
+		sdkLang: "go",
+		scopes:  []string{"pkg/authentication/grafanacloud", "go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"},
+		spanAttrs: []string{
+			"http.method", "http.status_code", "http.url",
+			"AccessPolicyID", "TokenID",
+		},
+	},
+}
+
+// httpMethods and statusCodes provide realistic value distributions.
+var (
+	httpMethods = []string{"GET", "POST", "PUT", "DELETE", "PATCH"}
+	statusCodes = []int64{200, 200, 200, 200, 200, 200, 200, 201, 204, 301, 400, 404, 500} // skewed toward 200
+	rpcMethods  = []string{"Query", "QueryStream", "MetricsForLabelMatchers", "LabelValues", "Series"}
+)
+
+func makeRealisticTrace(traceID []byte, numServices, spansPerService int) *tempopb.Trace { // nolint:unparam
+	now := time.Now()
+	trace := &tempopb.Trace{}
+
+	for si := range numServices {
+		svc := benchServices[si%len(benchServices)]
+
+		resource := &v1_resource.Resource{
+			Attributes: []*v1_common.KeyValue{
+				{Key: "service.name", Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_StringValue{StringValue: svc.name}}},
+				{Key: "k8s.namespace.name", Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_StringValue{StringValue: svc.namespace}}},
+				{Key: "k8s.cluster.name", Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_StringValue{StringValue: svc.cluster}}},
+				{Key: "telemetry.sdk.language", Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_StringValue{StringValue: svc.sdkLang}}},
+				{Key: "telemetry.sdk.name", Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_StringValue{StringValue: "opentelemetry"}}},
+				{Key: "telemetry.sdk.version", Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_StringValue{StringValue: "1.28.0"}}},
+				{Key: "k8s.pod.name", Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_StringValue{StringValue: fmt.Sprintf("%s-7f8b9c6d4-x%04d", svc.name, si)}}},
+			},
+		}
+
+		scope := svc.scopes[rand.Intn(len(svc.scopes))] // nolint:gosec
+		spans := make([]*v1_trace.Span, 0, spansPerService)
+		for j := range spansPerService {
+			startNano := uint64(now.Add(time.Duration(j) * time.Millisecond).UnixNano())
+			endNano := startNano + uint64((1+rand.Intn(50))*int(time.Millisecond)) // nolint:gosec
+
+			spanID := make([]byte, 8)
+			_, _ = crand.Read(spanID)
+
+			attrs := makeRealisticSpanAttrs(svc.spanAttrs)
+			var events []*v1_trace.Span_Event
+			if svc.hasEvents && rand.Intn(3) == 0 { // nolint:gosec
+				eName := svc.eventNames[rand.Intn(len(svc.eventNames))] // nolint:gosec
+				events = append(events, &v1_trace.Span_Event{
+					TimeUnixNano: startNano + uint64(rand.Intn(int(time.Millisecond))), // nolint:gosec
+					Name:         eName,
+					Attributes: []*v1_common.KeyValue{
+						{Key: "message", Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_StringValue{StringValue: "benchmark event data"}}},
+					},
+				})
+			}
+
+			spans = append(spans, &v1_trace.Span{
+				TraceId:           traceID,
+				SpanId:            spanID,
+				Name:              fmt.Sprintf("%s.op%d", svc.name, j%5),
+				Kind:              v1_trace.Span_SpanKind(1 + rand.Intn(4)), // nolint:gosec
+				StartTimeUnixNano: startNano,
+				EndTimeUnixNano:   endNano,
+				Attributes:        attrs,
+				Events:            events,
+				Status:            &v1_trace.Status{Code: v1_trace.Status_STATUS_CODE_OK},
+			})
+		}
+
+		trace.ResourceSpans = append(trace.ResourceSpans, &v1_trace.ResourceSpans{
+			Resource: resource,
+			ScopeSpans: []*v1_trace.ScopeSpans{
+				{
+					Scope: &v1_common.InstrumentationScope{Name: scope},
+					Spans: spans,
+				},
+			},
+		})
+	}
+
+	return trace
+}
+
+func makeRealisticSpanAttrs(keys []string) []*v1_common.KeyValue {
+	attrs := make([]*v1_common.KeyValue, 0, len(keys))
+	for _, k := range keys {
+		var v *v1_common.AnyValue
+		switch k {
+		case "http.method", "http.request.method":
+			v = &v1_common.AnyValue{Value: &v1_common.AnyValue_StringValue{StringValue: httpMethods[rand.Intn(len(httpMethods))]}} // nolint:gosec
+		case "http.status_code", "http.response.status_code":
+			v = &v1_common.AnyValue{Value: &v1_common.AnyValue_IntValue{IntValue: statusCodes[rand.Intn(len(statusCodes))]}} // nolint:gosec
+		case "rpc.method":
+			v = &v1_common.AnyValue{Value: &v1_common.AnyValue_StringValue{StringValue: rpcMethods[rand.Intn(len(rpcMethods))]}} // nolint:gosec
+		case "rpc.system.name":
+			v = &v1_common.AnyValue{Value: &v1_common.AnyValue_StringValue{StringValue: "grpc"}}
+		case "rpc.response.status_code":
+			v = &v1_common.AnyValue{Value: &v1_common.AnyValue_IntValue{IntValue: 0}} // OK
+		case "server.port":
+			v = &v1_common.AnyValue{Value: &v1_common.AnyValue_IntValue{IntValue: int64(8080 + rand.Intn(5))}} // nolint:gosec
+		case "server.address":
+			v = &v1_common.AnyValue{Value: &v1_common.AnyValue_StringValue{StringValue: fmt.Sprintf("10.0.%d.%d", rand.Intn(256), rand.Intn(256))}} // nolint:gosec
+		case "ingester_zone":
+			zones := []string{"zone-a", "zone-b", "zone-c"}
+			v = &v1_common.AnyValue{Value: &v1_common.AnyValue_StringValue{StringValue: zones[rand.Intn(len(zones))]}} // nolint:gosec
+		default:
+			v = &v1_common.AnyValue{Value: &v1_common.AnyValue_StringValue{StringValue: fmt.Sprintf("val-%d", rand.Intn(100))}} // nolint:gosec
+		}
+		attrs = append(attrs, &v1_common.KeyValue{Key: k, Value: v})
+	}
+	return attrs
+}
+
+// populateWALBlock pushes numTraces traces into the instance across numFlushes
+// flush cycles (simulating production where cutIdleTraces runs ~12 times before
+// cutBlocks cuts the head block). Each trace spans numServices services with
+// spansPerService spans each.
+func populateWALBlock(b *testing.B, inst *instance, numTraces, numServices, spansPerService, numFlushes int) uuid.UUID {
+	b.Helper()
+	ctx := context.Background()
+
+	tracesPerFlush := numTraces / numFlushes
+	remainder := numTraces % numFlushes
+
+	for f := range numFlushes {
+		count := tracesPerFlush
+		if f < remainder {
+			count++
+		}
+		for range count {
+			id := test.ValidTraceID(nil)
+			tr := makeRealisticTrace(id, numServices, spansPerService)
+			traceBytes, err := tr.Marshal()
+			require.NoError(b, err)
+
+			req := &tempopb.PushBytesRequest{
+				Traces: []tempopb.PreallocBytes{{Slice: traceBytes}},
+				Ids:    [][]byte{id},
+			}
+			inst.pushBytes(ctx, time.Now(), req)
+		}
+
+		// Each flush cycle creates a new page in the WAL block
+		err := inst.cutIdleTraces(ctx, true)
+		require.NoError(b, err)
+	}
+
+	// Cut head block → WAL block
+	blockID, err := inst.cutBlocks(ctx, true)
+	require.NoError(b, err)
+	require.NotEqual(b, uuid.Nil, blockID)
+
+	return blockID
+}
+
+func BenchmarkCompleteBlock(b *testing.B) {
+	// Parameters calibrated against production tempo_live_store_completion_size_bytes:
+	//   p50 ~800KB, avg ~3.4MB, p90 ~6.6MB, p99 ~65MB
+	// numFlushes=12 matches production (InstanceFlushPeriod=5s, MaxBlockDuration=1m)
+	const numFlushes = 12
+
+	benchmarks := []struct {
+		numTraces       int
+		numServices     int
+		spansPerService int
+	}{
+		{300, 3, 10},    // p50: ~800KB block
+		{1000, 4, 10},   // avg: ~3.4MB block
+		{1500, 5, 100},  // p90+: ~40MB block
+	}
+
+	for _, bc := range benchmarks {
+		totalSpans := bc.numTraces * bc.numServices * bc.spansPerService
+		b.Run(fmt.Sprintf("traces=%d/svcs=%d/spans=%d/total=%d", bc.numTraces, bc.numServices, bc.spansPerService, totalSpans), func(b *testing.B) {
+			inst, ls := defaultInstance(b)
+			b.Cleanup(func() {
+				_ = services.StopAndAwaitTerminated(context.Background(), ls)
+			})
+
+			ctx := context.Background()
+			var lastBlockID uuid.UUID
+
+			b.ResetTimer()
+			for range b.N {
+				b.StopTimer()
+				blockID := populateWALBlock(b, inst, bc.numTraces, bc.numServices, bc.spansPerService, numFlushes)
+				b.StartTimer()
+
+				err := inst.completeBlock(ctx, blockID)
+				require.NoError(b, err)
+				lastBlockID = blockID
+			}
+			b.StopTimer()
+
+			inst.blocksMtx.RLock()
+			if cb, ok := inst.completeBlocks[lastBlockID]; ok {
+				b.ReportMetric(float64(cb.BlockMeta().Size_), "block-bytes")
+				b.ReportMetric(float64(cb.BlockMeta().TotalObjects), "traces")
+			}
+			inst.blocksMtx.RUnlock()
+		})
+	}
 }
