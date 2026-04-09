@@ -1203,6 +1203,11 @@ func TestScalarMath(t *testing.T) {
 			q:         fmt.Sprintf("0 - (%s)", q),
 			transform: func(v float64) float64 { return -v },
 		},
+		{
+			name:      "A + ( 1 / 0)",
+			q:         fmt.Sprintf("(%s) + (1/0)", q),
+			transform: func(float64) float64 { return math.Inf(+1) },
+		},
 
 		// negative numbers (int)
 		{
@@ -1305,9 +1310,19 @@ func TestScalarMath(t *testing.T) {
 			transform: func(v float64) float64 { return v*2 + 5 },
 		},
 		{
+			name:      "A * (2 + 5)",
+			q:         fmt.Sprintf("(%s) * (2 + 5)", q),
+			transform: func(v float64) float64 { return v * (2 + 5) },
+		},
+		{
 			name:      "5 + A * 2",
 			q:         fmt.Sprintf("5 + (%s) * 2", q),
 			transform: func(v float64) float64 { return 5 + v*2 },
+		},
+		{
+			name:      "(A + 5) * 2",
+			q:         fmt.Sprintf("((%s) + 5) * 2", q),
+			transform: func(v float64) float64 { return (v + 5) * 2 },
 		},
 		{
 			name:      "A + 5 * 2",
@@ -1320,6 +1335,11 @@ func TestScalarMath(t *testing.T) {
 			transform: func(v float64) float64 { return v/2 + 1 },
 		},
 		{
+			name:      "A / (2 + 1)",
+			q:         fmt.Sprintf("(%s) / (2 + 1)", q),
+			transform: func(v float64) float64 { return v / (2 + 1) },
+		},
+		{
 			name: "10 / A * 2",
 			q:    fmt.Sprintf("10 / (%s) * 2", q),
 			transform: func(v float64) float64 {
@@ -1330,9 +1350,24 @@ func TestScalarMath(t *testing.T) {
 			},
 		},
 		{
+			name: "10 / (A * 2)",
+			q:    fmt.Sprintf("10 / ((%s) * 2)", q),
+			transform: func(v float64) float64 {
+				if v == 0 {
+					return math.NaN()
+				}
+				return 10 / (v * 2)
+			},
+		},
+		{
 			name:      "A - 10 - 5",
 			q:         fmt.Sprintf("(%s) - 10 - 5", q),
 			transform: func(v float64) float64 { return v - 10 - 5 },
+		},
+		{
+			name:      "A - (10 - 5)",
+			q:         fmt.Sprintf("(%s) - (10 - 5)", q),
+			transform: func(v float64) float64 { return v - (10 - 5) },
 		},
 		{
 			name: "100 / A / 2",
@@ -1345,9 +1380,24 @@ func TestScalarMath(t *testing.T) {
 			},
 		},
 		{
+			name: "100 / (A / 2)",
+			q:    fmt.Sprintf("100 / ((%s) / 2)", q),
+			transform: func(v float64) float64 {
+				if v == 0 {
+					return math.NaN()
+				}
+				return 100 / (v / 2)
+			},
+		},
+		{
 			name:      "10 + 5 * A / 2",
 			q:         fmt.Sprintf("10 + 5 * (%s) / 2", q),
 			transform: func(v float64) float64 { return 10 + 5*v/2 },
+		},
+		{
+			name:      "(10 + 5) * A / 2",
+			q:         fmt.Sprintf("(10 + 5) * (%s) / 2", q),
+			transform: func(v float64) float64 { return (10 + 5) * v / 2 },
 		},
 		{
 			name:      "2 + 10 * A",
@@ -1516,10 +1566,30 @@ func TestScalarMath(t *testing.T) {
 			},
 		},
 		{
+			name: "(A >= 1.5) * 2",
+			q:    fmt.Sprintf("(%s >= 1.5) * 2", q),
+			transform: func(v float64) float64 {
+				if v >= 1.5 {
+					return v * 2
+				}
+				return math.NaN()
+			},
+		},
+		{
 			name: "2 * A >= 1.5",
 			q:    fmt.Sprintf("2 * (%s) >= 1.5", q),
 			transform: func(v float64) float64 {
 				if 2*v >= 1.5 {
+					return 2 * v
+				}
+				return math.NaN()
+			},
+		},
+		{
+			name: "2 * (A >= 1.5)",
+			q:    fmt.Sprintf("2 * (%s >= 1.5)", q),
+			transform: func(v float64) float64 {
+				if v >= 1.5 {
 					return 2 * v
 				}
 				return math.NaN()
