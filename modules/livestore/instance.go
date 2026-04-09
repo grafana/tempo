@@ -66,10 +66,13 @@ var (
 		Help:      "The total number of blocks cleared.",
 	}, []string{"block_type"})
 	metricCompletionSize = promauto.NewHistogram(prometheus.HistogramOpts{
-		Namespace: "tempo_live_store",
-		Name:      "completion_size_bytes",
-		Help:      "Size in bytes of blocks completed.",
-		Buckets:   prometheus.ExponentialBuckets(1024*1024, 2, 10), // from 1MB up to 1GB
+		Namespace:                       "tempo_live_store",
+		Name:                            "completion_size_bytes",
+		Help:                            "Size in bytes of blocks completed.",
+		Buckets:                         prometheus.ExponentialBuckets(1024*1024, 2, 10), // from 1MB up to 512MB
+		NativeHistogramBucketFactor:     1.1,
+		NativeHistogramMaxBucketNumber:  100,
+		NativeHistogramMinResetDuration: 1 * time.Hour,
 	})
 	metricBackPressure = promauto.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "tempo",
@@ -78,10 +81,14 @@ var (
 		Help:      "The total amount of time spent waiting to process data from queue",
 	}, []string{"reason"})
 	metricTotalBackPressure = promauto.NewHistogram(prometheus.HistogramOpts{
-		Namespace: "tempo",
-		Subsystem: "live_store",
-		Name:      "back_pressure_duration_seconds",
-		Help:      "Duration of backpressure wait per push",
+		Namespace:                       "tempo",
+		Subsystem:                       "live_store",
+		Name:                            "back_pressure_duration_seconds",
+		Help:                            "Duration of backpressure wait per push",
+		Buckets:                         prometheus.DefBuckets,
+		NativeHistogramBucketFactor:     1.1,
+		NativeHistogramMaxBucketNumber:  100,
+		NativeHistogramMinResetDuration: 1 * time.Hour,
 	})
 )
 

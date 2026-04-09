@@ -93,6 +93,7 @@ func IsSingleBinary(target string) bool {
 func (t *App) initServer() (services.Service, error) {
 	t.cfg.Server.MetricsNamespace = metricsNamespace
 	t.cfg.Server.ExcludeRequestInLog = true
+	t.cfg.Server.MetricsNativeHistogramFactor = 1.1
 
 	if t.cfg.EnableGoRuntimeMetrics {
 		// unregister default Go collector
