@@ -9,7 +9,7 @@ versionDate: 2026-03-20
 
 # Partition ring
 
-The partition ring is Tempo's mechanism for tracking which partitions exist, their current state, and which components own them.
+The partition ring is the mechanism Tempo uses to track which partitions exist, their current state, and which components own them.
 By default, the partition ring propagates across the cluster via memberlist gossip and is central to how distributors, live-stores, and block-builders coordinate.
 
 ## Tempo partitions vs Kafka partitions
@@ -54,7 +54,7 @@ After this grace period, you can safely remove the partition and its owning live
 ### Live-stores
 
 Each Tempo partition is owned by one live-store per availability zone.
-In a zone-aware deployment with two zones, each partition has two owners — one per zone.
+In a zone-aware deployment with two zones, each partition has two owners—one per zone.
 Both consume the same Kafka partition independently.
 
 When a live-store starts, it checks the ring for its assigned partition.
@@ -80,7 +80,7 @@ The live-store creates a new partition in the ring (pending state).
 After enough owners register and the waiting period elapses, the partition transitions to active,
 and distributors begin writing to the new partition.
 
-A corresponding Kafka partition must exist — add Kafka partitions first if needed.
+A corresponding Kafka partition must exist. Add Kafka partitions first if needed.
 
 ### Scaling down
 
@@ -98,7 +98,7 @@ Changes to the ring (new partitions, state transitions) propagate across the clu
 
 During network partitions or high cluster churn, propagation may be delayed.
 This can cause brief inconsistencies where different components have different views of the ring.
-Tempo handles this gracefully — distributors writing to a partition that a live-store hasn't yet seen results in data that's picked up once the live-store catches up,
+Tempo handles this gracefully: distributors write to a partition that a live-store hasn't yet seen results in data that's picked up after the live-store catches up,
 and queriers contacting a live-store for a partition it doesn't own yet get an empty response,
 with the data eventually available from another live-store or from object storage.
 

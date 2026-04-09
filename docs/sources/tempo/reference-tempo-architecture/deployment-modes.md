@@ -39,17 +39,17 @@ Monolithic mode is suitable for getting started, development environments, and l
 
 ### Limitations
 
-All components share the same resource pool. A spike in query load can affect write throughput and vice versa. There's no independent scaling — you can run multiple monolithic instances, but each runs every component. At higher volumes, memory pressure from collocated components (particularly live-store and querier) can cause OOM issues.
+All components share the same resource pool. A spike in query load can affect write throughput and vice versa. There's no independent scaling—you can run multiple monolithic instances, but each runs every component. At higher volumes, memory pressure from collocated components (particularly live-store and querier) can cause out-of-memory (OOM) issues.
 
 ### Resource considerations
 
-Monolithic instances need enough memory to handle the live-store's in-memory trace buffer, the querier's concurrent job execution, the block-builder's scratch space, and the backend worker's memory for block merging. As volume increases, the instance becomes bottlenecked by whichever component is most resource-hungry.
+Monolithic instances need enough memory to handle the live-store's in-memory trace buffer, the querier's concurrent job execution, the block-builder's scratch space, and the backend worker's memory for block merging. As volume increases, the instance is limited by whichever component is most resource-hungry.
 
 ### Example
 
-Find docker-compose deployment examples in the Tempo repository: [https://github.com/grafana/tempo/tree/main/example/docker-compose](https://github.com/grafana/tempo/tree/main/example/docker-compose/)
+Refer to [Docker Compose examples in the Tempo repository](https://github.com/grafana/tempo/tree/main/example/docker-compose/) for sample deployments.
 
-To see an annotated example configuration for Tempo, the [Introduction To MLTP](https://github.com/grafana/intro-to-mltp) example repository contains a [configuration](https://github.com/grafana/intro-to-mltp/blob/main/tempo/tempo.yaml) for a monolithic instance.
+For an annotated example configuration for Tempo, refer to the [Introduction to MLTP](https://github.com/grafana/intro-to-mltp) repository, which includes a [sample `tempo.yaml`](https://github.com/grafana/intro-to-mltp/blob/main/tempo/tempo.yaml) for a monolithic instance.
 
 ## Microservices mode
 
@@ -63,7 +63,7 @@ Use microservices mode for production deployments, high trace volumes requiring 
 
 ### Advantages
 
-Microservices mode provides independent scaling — you can scale block-builders for write throughput, queriers for query performance, and live-stores for recent data capacity, all independently. Failure domains are isolated: a querier OOM doesn't affect data ingestion, and a block-builder restart doesn't affect query availability. Live-stores can be deployed across availability zones for high availability. Each component gets exactly the resources it needs, avoiding the over-provisioning required in monolithic mode.
+Microservices mode provides independent scaling—you can scale block-builders for write throughput, queriers for query performance, and live-stores for recent data capacity, all independently. Failure domains are isolated: a querier OOM doesn't affect data ingestion, and a block-builder restart doesn't affect query availability. Live-stores can be deployed across availability zones for high availability. Each component gets exactly the resources it needs, avoiding the over-provisioning required in monolithic mode.
 
 ### Component scaling guidelines
 
@@ -85,7 +85,7 @@ Adding or removing instances of any component doesn't require reconfiguring othe
 
 ### Example
 
-Find a docker-compose deployment example at [https://github.com/grafana/tempo/tree/main/example/docker-compose/distributed](https://github.com/grafana/tempo/tree/main/example/docker-compose/distributed).
+Refer to the [distributed Docker Compose example](https://github.com/grafana/tempo/tree/main/example/docker-compose/distributed) in the Tempo repository.
 
 ## Migrating between modes
 
