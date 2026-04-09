@@ -420,9 +420,11 @@ metricsExpression:
   | metricsExpression MUL SUB FLOAT    %prec MUL              { $$ = newRootExprScalarMath(OpMult, -$4, $1, false) }
   | metricsExpression DIV SUB INTEGER  %prec DIV              { $$ = newRootExprScalarMath(OpDiv, float64(-$4), $1, false) }
   | metricsExpression DIV SUB FLOAT    %prec DIV              { $$ = newRootExprScalarMath(OpDiv, -$4, $1, false) }
-  // Compound constant expression (e.g. rate - 2 * 20, 2 * 3 * rate)
+  // Compound constant expression (e.g. rate - 2 * 20, rate * (2 + 5), 2 * 3 * rate)
   | metricsExpression ADD constExpr  %prec ADD                { $$ = newRootExprScalarMath(OpAdd, $3, $1, false) }
   | metricsExpression SUB constExpr  %prec SUB                { $$ = newRootExprScalarMath(OpSub, $3, $1, false) }
+  | metricsExpression MUL constExpr  %prec MUL                { $$ = newRootExprScalarMath(OpMult, $3, $1, false) }
+  | metricsExpression DIV constExpr  %prec DIV                { $$ = newRootExprScalarMath(OpDiv, $3, $1, false) }
   | constExpr ADD metricsExpression  %prec ADD                { $$ = newRootExprScalarMath(OpAdd, $1, $3, true) }
   | constExpr SUB metricsExpression  %prec SUB                { $$ = newRootExprScalarMath(OpSub, $1, $3, true) }
   | constExpr MUL metricsExpression  %prec MUL                { $$ = newRootExprScalarMath(OpMult, $1, $3, true) }
@@ -430,7 +432,8 @@ metricsExpression:
   ;
 
 constExpr:
-    INTEGER MUL INTEGER   %prec MUL                           { $$ = float64($1) * float64($3) }
+    OPEN_PARENS constExpr CLOSE_PARENS                        { $$ = $2 }
+  | INTEGER MUL INTEGER   %prec MUL                           { $$ = float64($1) * float64($3) }
   | INTEGER MUL FLOAT     %prec MUL                           { $$ = float64($1) * $3 }
   | FLOAT MUL INTEGER     %prec MUL                           { $$ = $1 * float64($3) }
   | FLOAT MUL FLOAT       %prec MUL                           { $$ = $1 * $3 }
