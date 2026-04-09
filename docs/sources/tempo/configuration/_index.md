@@ -494,7 +494,7 @@ metrics_generator:
       # Name of the network interface to read address from.
       [instance_interface_names: <list of string> | default = ["eth0", "en0"] ]
 
-      # Our advertised IP address in the ring, (usefull if the local ip =/= the external ip)
+      # Our advertised IP address in the ring, (useful if the local ip =/= the external ip)
       # Will default to the configured `instance_id` ip address,
       # if unset, will fallback to ip reported by `instance_interface_names`
       # (Effected by `enable_inet6`)
@@ -545,7 +545,7 @@ metrics_generator:
 
             # Attribute Key to multiply span metrics
             # Note that the attribute name is searched for in both
-            # resouce and span level attributes
+            # resource and span level attributes
             [span_multiplier_key: <string> | default = ""]
 
             # Enable extracting the span multiplier from the W3C tracestate header
@@ -603,7 +603,7 @@ metrics_generator:
 
             # Attribute Key to multiply span metrics
             # Note that the attribute name is searched for in both
-            # resouce and span level attributes
+            # resource and span level attributes
             [span_multiplier_key: <string> | default = ""]
 
             # Enable extracting the span multiplier from the W3C tracestate header
@@ -686,7 +686,7 @@ metrics_generator:
     # Timeout for metric requests
     [query_timeout: <duration> | default = 30s ]
 
-    # Overides the key used to register the metrics-generator in the ring.
+    # Overrides the key used to register the metrics-generator in the ring.
     [override_ring_key: <string> | default = "metrics-generator"]
 ```
 
@@ -1070,7 +1070,7 @@ backend_worker:
     # Name of the network interface to read address from.
     [instance_interface_names: <list of string> | default = ["eth0", "en0"] ]
 
-    # Our advertised IP address in the ring, (usefull if the local ip =/= the external ip)
+    # Our advertised IP address in the ring, (useful if the local ip =/= the external ip)
     # Will default to the configured `instance_id` ip address,
     # if unset, will fallback to ip reported by `instance_interface_names`
     # (Effected by `enable_inet6`)
@@ -1154,7 +1154,7 @@ storage:
 
             # optional.
             # Prefix name in gcs
-            # Tempo has this additional option to support a custom prefix to nest all the objects withing a shared bucket.
+            # Tempo has this additional option to support a custom prefix to nest all the objects within a shared bucket.
             [prefix: <string>]
 
             # Buffer size for reads. Default is 10MB
@@ -1211,7 +1211,7 @@ storage:
 
             # optional.
             # Prefix name in s3
-            # Tempo has this additional option to support a custom prefix to nest all the objects withing a shared bucket.
+            # Tempo has this additional option to support a custom prefix to nest all the objects within a shared bucket.
             [prefix: <string>]
 
             # api endpoint to connect to. use AWS S3 or any S3 compatible object storage endpoint.
@@ -1356,7 +1356,7 @@ storage:
 
             # optional.
             # Prefix for azure.
-            # Tempo has this additional option to support a custom prefix to nest all the objects withing a shared bucket.
+            # Tempo has this additional option to support a custom prefix to nest all the objects within a shared bucket.
             [prefix: <string>]
 
             # optional.
@@ -1691,7 +1691,7 @@ Span filter configuration policies block
 [match_type: <string>]
 
 # List of attributes to match
-attributes: <list of policy atributes>
+attributes: <list of policy attributes>
 
     # Attribute key
   - [key: <string>]
