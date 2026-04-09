@@ -497,7 +497,7 @@ metrics_generator:
       # Our advertised IP address in the ring, (useful if the local ip =/= the external ip)
       # Will default to the configured `instance_id` ip address,
       # if unset, will fallback to ip reported by `instance_interface_names`
-      # (Effected by `enable_inet6`)
+      # (Affected by `enable_inet6`)
       [instance_addr: <string> | default = auto(instance_id, instance_interface_names)]
 
       # Our advertised port in the ring
