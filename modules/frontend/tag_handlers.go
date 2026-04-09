@@ -236,7 +236,7 @@ func newTagValuesV2StreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTrip
 		if req.Query != "" {
 			_, err = traceql.ExtractConditionGroups(req.Query, o.MaxConditionGroupsPerTagQuery())
 			if err != nil {
-				_ = level.Error(logger).Log("msg", "search tags v2: ", "err", err)
+				_ = level.Error(logger).Log("msg", "search tag values v2: ", "err", err)
 				return status.Error(codes.InvalidArgument, err.Error())
 			}
 		}
@@ -461,7 +461,7 @@ func newTagValuesV2HTTPHandler(cfg Config, next pipeline.AsyncRoundTripper[combi
 		if query != "" {
 			_, err := traceql.ExtractConditionGroups(query, o.MaxConditionGroupsPerTagQuery())
 			if err != nil {
-				_ = level.Error(logger).Log("msg", "search tags: ", "err", err)
+				_ = level.Error(logger).Log("msg", "search tag values v2: ", "err", err)
 				return httpInvalidRequest(err), nil
 			}
 		}

@@ -169,7 +169,7 @@ func buildSearchTagsV2TestCases(batches []batchTmpl) []struct {
 				Scopes: []*tempopb.SearchTagsV2Scope{
 					{
 						Name: "resource",
-						Tags: []string{batches[0].resourceAttr, batches[2].resourceAttr, "service.name"},
+						Tags: []string{batches[0].resourceAttr, batches[2].resourceAttr, batches[4].resourceAttr, "service.name"},
 					},
 				},
 			},
@@ -511,7 +511,7 @@ func buildSearchTagValuesV2TestCases(batches []batchTmpl) []struct {
 			query:   fmt.Sprintf(`{ span:name="%s" || resource.%s="%s" }`, batches[1].name, batches[4].resourceAttr, batches[4].resourceAttVal),
 			tagName: "span.secondSpan",
 			expected: &tempopb.SearchTagValuesV2Response{
-				TagValues: []*tempopb.TagValue{{Type: "string", Value: batches[1].spanAttVal}, {Type: "string", Value: batches[4].spanAttVal}},
+				TagValues: []*tempopb.TagValue{{Type: "string", Value: batches[4].spanAttVal}, {Type: "string", Value: batches[1].spanAttVal}},
 			},
 		},
 	}
