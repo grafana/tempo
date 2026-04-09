@@ -487,7 +487,6 @@ metrics_generator:
     override_ring_key: metrics-generator
     ring_mode: partition
     codec: push-bytes
-    disable_grpc: false
     limiter_type: series
     ingest_concurrency: 16
     instance_id: hostname
