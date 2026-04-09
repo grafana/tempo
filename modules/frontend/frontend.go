@@ -120,9 +120,12 @@ func New(cfg Config, next pipeline.RoundTripper, o overrides.Interface, reader t
 	}
 
 	jobsPerQuery := promauto.With(registerer).NewHistogramVec(prometheus.HistogramOpts{
-		Name:    "tempo_query_frontend_jobs_per_query",
-		Help:    "Number of planned jobs per query in the query frontend.",
-		Buckets: prometheus.ExponentialBuckets(1, 10, 7),
+		Name:                            "tempo_query_frontend_jobs_per_query",
+		Help:                            "Number of planned jobs per query in the query frontend.",
+		Buckets:                         prometheus.ExponentialBuckets(1, 10, 7),
+		NativeHistogramBucketFactor:     1.1,
+		NativeHistogramMaxBucketNumber:  100,
+		NativeHistogramMinResetDuration: 1 * time.Hour,
 	}, []string{"op"})
 
 	// Propagate RF1After to search and traceByID sharders

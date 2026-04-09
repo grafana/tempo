@@ -96,16 +96,22 @@ var (
 		Help:      "The total number of attribute keys or values truncated per tenant and scope",
 	}, []string{"tenant", "scope"})
 	metricKafkaRecordsPerRequest = promauto.NewHistogram(prometheus.HistogramOpts{
-		Namespace: "tempo",
-		Subsystem: "distributor",
-		Name:      "kafka_records_per_request",
-		Help:      "The number of records in each kafka request",
+		Namespace:                       "tempo",
+		Subsystem:                       "distributor",
+		Name:                            "kafka_records_per_request",
+		Help:                            "The number of records in each kafka request",
+		NativeHistogramBucketFactor:     1.1,
+		NativeHistogramMaxBucketNumber:  100,
+		NativeHistogramMinResetDuration: 1 * time.Hour,
 	})
 	metricKafkaWriteLatency = promauto.NewHistogram(prometheus.HistogramOpts{
-		Namespace: "tempo",
-		Subsystem: "distributor",
-		Name:      "kafka_write_latency_seconds",
-		Help:      "The latency of writing to kafka",
+		Namespace:                       "tempo",
+		Subsystem:                       "distributor",
+		Name:                            "kafka_write_latency_seconds",
+		Help:                            "The latency of writing to kafka",
+		NativeHistogramBucketFactor:     1.1,
+		NativeHistogramMaxBucketNumber:  100,
+		NativeHistogramMinResetDuration: 1 * time.Hour,
 	})
 	metricKafkaWriteBytesTotal = promauto.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "tempo",

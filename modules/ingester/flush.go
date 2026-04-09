@@ -53,10 +53,13 @@ var (
 		NativeHistogramMinResetDuration: 1 * time.Hour,
 	})
 	metricFlushSize = promauto.NewHistogram(prometheus.HistogramOpts{
-		Namespace: "tempo",
-		Name:      "ingester_flush_size_bytes",
-		Help:      "Size in bytes of blocks flushed.",
-		Buckets:   prometheus.ExponentialBuckets(1024*1024, 2, 10), // from 1MB up to 1GB
+		Namespace:                       "tempo",
+		Name:                            "ingester_flush_size_bytes",
+		Help:                            "Size in bytes of blocks flushed.",
+		Buckets:                         prometheus.ExponentialBuckets(1024*1024, 2, 10), // from 1MB up to 1GB
+		NativeHistogramBucketFactor:     1.1,
+		NativeHistogramMaxBucketNumber:  100,
+		NativeHistogramMinResetDuration: 1 * time.Hour,
 	})
 )
 
