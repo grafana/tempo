@@ -80,7 +80,7 @@ This allows Tempo to control the partition lifecycle independently of Kafka.
 | `tempo_distributor_spans_received_total` | Total spans received by the distributor |
 | `tempo_discarded_spans_total` | Spans discarded, labeled by `reason` |
 | `tempo_distributor_bytes_received_total` | Total bytes received |
-| `tempo_distributor_ingestion_rate_spans` | Current ingestion rate in spans per second |
+| `rate(tempo_distributor_spans_received_total[5m])` | Current ingestion rate in spans per second, derived in PromQL from the received spans counter |
 
 ## Related resources
 
