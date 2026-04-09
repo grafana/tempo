@@ -428,7 +428,7 @@ func TestBackendNilValueBlockSearchTraceQL(t *testing.T) {
 											String02: []string{"dedicated-span-attr-value-2"},
 											String03: []string{"dedicated-span-attr-value-3"},
 											String04: []string{"dedicated-span-attr-value-4"},
-											String05: []string{"dedicated-span-attr-value-5"},
+											String05: []string{test.DedicatedBlobTestString()},
 										},
 										Attrs: []Attribute{
 											// BUG - at least one generic attr is required to satisfy
@@ -563,6 +563,9 @@ func searchesThatMatch(t *testing.T, traceIDText string) []struct {
 	name string
 	req  traceql.FetchSpansRequest
 } {
+	blobSpan5 := test.DedicatedBlobTestString()
+	blobSpan5Eq := fmt.Sprintf(`{span.dedicated.span.5 = "%s"}`, blobSpan5)
+	blobSpan5Re := fmt.Sprintf(`{span.dedicated.span.5 =~ "^B{%d}$"}`, test.DedicatedBlobTestSize)
 	return []struct {
 		name string
 		req  traceql.FetchSpansRequest
@@ -639,8 +642,8 @@ func searchesThatMatch(t *testing.T, traceIDText string) []struct {
 		{"span.dedicated.span.2", traceql.MustExtractFetchSpansRequestWithMetadata(`{span.dedicated.span.2 = "dedicated-span-attr-value-2"}`)},
 		{"span.dedicated.span.4", traceql.MustExtractFetchSpansRequestWithMetadata(`{span.dedicated.span.4 = "dedicated-span-attr-value-4"}`)},
 		// Blob attributes
-		{"span.dedicated.span.5", traceql.MustExtractFetchSpansRequestWithMetadata(`{span.dedicated.span.5 = "dedicated-span-attr-value-5"}`)},
-		{"span.dedicated.span.5", traceql.MustExtractFetchSpansRequestWithMetadata(`{span.dedicated.span.5 =~ "dedicated-span-attr-value-5"}`)},
+		{"span.dedicated.span.5", traceql.MustExtractFetchSpansRequestWithMetadata(blobSpan5Eq)},
+		{"span.dedicated.span.5", traceql.MustExtractFetchSpansRequestWithMetadata(blobSpan5Re)},
 		{"span.dedicated.span.5", traceql.MustExtractFetchSpansRequestWithMetadata(`{span.dedicated.span.5 != ""}`)},
 		{"span.dedicated.span.5", traceql.MustExtractFetchSpansRequestWithMetadata(`{span.dedicated.span.5 != "asdf"}`)},
 		{"span.dedicated.span.5", traceql.MustExtractFetchSpansRequestWithMetadata(`{span.dedicated.span.5 > ""}`)},
@@ -1196,7 +1199,7 @@ func fullyPopulatedTestTraceWithOption(id common.ID, parentIDTest bool) *Trace {
 									String02: []string{"dedicated-span-attr-value-2"},
 									String03: []string{"dedicated-span-attr-value-3"},
 									String04: []string{"dedicated-span-attr-value-4"},
-									String05: []string{"dedicated-span-attr-value-5"},
+									String05: []string{test.DedicatedBlobTestString()},
 								},
 							},
 						},

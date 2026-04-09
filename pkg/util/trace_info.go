@@ -225,19 +225,22 @@ func (t *TraceInfo) generateRandomBlob(size int) string {
 
 // generateFixedAttributesWithPrefix returns the fixed attributes with a prefix. Keys are lowercase with a hyphen before the numeric suffix (e.g. string-01, int-01, blob-01).
 func (t *TraceInfo) generateFixedAttributesWithPrefix(prefix string) []*jaeger.Tag {
-	return []*jaeger.Tag{
-		{Key: fmt.Sprintf("%s-string-01", prefix), VType: jaeger.TagType_STRING, VStr: stringPtr(t.generateRandomString())},
-		{Key: fmt.Sprintf("%s-string-02", prefix), VType: jaeger.TagType_STRING, VStr: stringPtr(t.generateRandomString())},
-		{Key: fmt.Sprintf("%s-string-03", prefix), VType: jaeger.TagType_STRING, VStr: stringPtr(t.generateRandomString())},
-		{Key: fmt.Sprintf("%s-string-04", prefix), VType: jaeger.TagType_STRING, VStr: stringPtr(t.generateRandomString())},
-		{Key: fmt.Sprintf("%s-string-05", prefix), VType: jaeger.TagType_STRING, VStr: stringPtr(t.generateRandomString())},
-		{Key: fmt.Sprintf("%s-blob-01", prefix), VType: jaeger.TagType_STRING, VStr: stringPtr(t.generateRandomBlob(vultureBlobSize))},
-		{Key: fmt.Sprintf("%s-int-01", prefix), VType: jaeger.TagType_LONG, VLong: int64Ptr(t.generateRandomInt(1, 1000000))},
-		{Key: fmt.Sprintf("%s-int-02", prefix), VType: jaeger.TagType_LONG, VLong: int64Ptr(t.generateRandomInt(1, 1000000))},
-		{Key: fmt.Sprintf("%s-int-03", prefix), VType: jaeger.TagType_LONG, VLong: int64Ptr(t.generateRandomInt(1, 1000000))},
-		{Key: fmt.Sprintf("%s-int-04", prefix), VType: jaeger.TagType_LONG, VLong: int64Ptr(t.generateRandomInt(1, 1000000))},
-		{Key: fmt.Sprintf("%s-int-05", prefix), VType: jaeger.TagType_LONG, VLong: int64Ptr(t.generateRandomInt(1, 1000000))},
+	var (
+		numStrings = t.r.Intn(5)
+		numBlobs   = t.r.Intn(1)
+		numInts    = t.r.Intn(5)
+		tags       = make([]*jaeger.Tag, 0, numStrings+numBlobs+numInts)
+	)
+	for i := 0; i < numStrings; i++ {
+		tags = append(tags, &jaeger.Tag{Key: fmt.Sprintf("%s-string-%d", prefix, i+1), VType: jaeger.TagType_STRING, VStr: stringPtr(t.generateRandomString())})
 	}
+	for i := 0; i < numBlobs; i++ {
+		tags = append(tags, &jaeger.Tag{Key: fmt.Sprintf("%s-blob-%d", prefix, i+1), VType: jaeger.TagType_STRING, VStr: stringPtr(t.generateRandomBlob(vultureBlobSize))})
+	}
+	for i := 0; i < numInts; i++ {
+		tags = append(tags, &jaeger.Tag{Key: fmt.Sprintf("%s-int-%d", prefix, i+1), VType: jaeger.TagType_LONG, VLong: int64Ptr(t.generateRandomInt(1, 1000000))})
+	}
+	return tags
 }
 
 func stringPtr(s string) *string { return &s }
@@ -245,6 +248,9 @@ func stringPtr(s string) *string { return &s }
 func int64Ptr(n int64) *int64 { return &n }
 
 func (t *TraceInfo) generateResourceWellKnownAttributes() []*jaeger.Tag {
+	if t.r.Intn(2) == 0 {
+		return nil
+	}
 	return []*jaeger.Tag{
 		{Key: "cluster", VType: jaeger.TagType_STRING, VStr: stringPtr(t.generateRandomString())},
 		{Key: "namespace", VType: jaeger.TagType_STRING, VStr: stringPtr(t.generateRandomString())},
@@ -258,6 +264,9 @@ func (t *TraceInfo) generateResourceWellKnownAttributes() []*jaeger.Tag {
 }
 
 func (t *TraceInfo) generateSpanWellKnownAttributes() []*jaeger.Tag {
+	if t.r.Intn(2) == 0 {
+		return nil
+	}
 	return []*jaeger.Tag{
 		{Key: "http.method", VType: jaeger.TagType_STRING, VStr: stringPtr(t.generateRandomString())},
 		{Key: "http.url", VType: jaeger.TagType_STRING, VStr: stringPtr(t.generateRandomString())},

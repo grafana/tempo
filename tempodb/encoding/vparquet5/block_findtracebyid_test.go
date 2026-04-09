@@ -12,6 +12,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	tempo_io "github.com/grafana/tempo/pkg/io"
+	"github.com/grafana/tempo/pkg/model/trace"
+	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/util/test"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/backend/local"
@@ -24,14 +26,20 @@ func TestBackendBlockFindTraceByID(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	r := backend.NewReader(rawR)
-	w := backend.NewWriter(rawW)
-	ctx := context.Background()
+	var (
+		ctx       = context.Background()
+		numTraces = 16
+		r         = backend.NewReader(rawR)
+		w         = backend.NewWriter(rawW)
+		cfg       = &common.BlockConfig{
+			BloomFP:             0.01,
+			BloomShardSizeBytes: 100 * 1024,
+		}
+	)
 
-	cfg := &common.BlockConfig{
-		BloomFP:             0.01,
-		BloomShardSizeBytes: 100 * 1024,
-	}
+	meta := backend.NewBlockMeta("fake", uuid.New(), VersionString)
+	meta.TotalObjects = int64(numTraces)
+	meta.DedicatedColumns = test.MakeDedicatedColumns()
 
 	// Test data - sorted by trace ID
 	// Find trace by ID uses the column and page bounds,
@@ -39,50 +47,44 @@ func TestBackendBlockFindTraceByID(t *testing.T) {
 	// half of the trace ID (which is stored as 32 hex text)
 	// Therefore it is important that the test data here has
 	// full-length trace IDs.
-	var traces []*Trace
-	for i := 0; i < 16; i++ {
-		bar := "bar"
-		traces = append(traces, &Trace{
-			TraceID: test.ValidTraceID(nil),
-			ResourceSpans: []ResourceSpans{
-				{
-					Resource: Resource{
-						ServiceName: "s",
-					},
-					ScopeSpans: []ScopeSpans{
-						{
-							SpanCount: 1,
-							Spans: []Span{
-								{
-									Name: "hello",
-									Attrs: []Attribute{
-										attr("foo", bar),
-									},
-									SpanID:       []byte{},
-									ParentSpanID: []byte{},
-								},
-							},
-						},
-					},
-				},
-			},
+	// Additionally, we are populating and using the full set of
+	// dedicated columns and attributes, with randomness, and deep
+	// comparison that the trace is roundtripped correctly.
+	var traces []struct {
+		trace *tempopb.Trace
+		id    common.ID
+	}
+	for i := 0; i < numTraces; i++ {
+		var (
+			id = test.ValidTraceID(nil)
+			tr = test.MakeTrace(10, id)
+		)
+		test.AddRandomDedicatedAttributes(tr)
+		traces = append(traces, struct {
+			trace *tempopb.Trace
+			id    common.ID
+		}{
+			trace: tr,
+			id:    id,
 		})
 	}
 
 	// Sort
 	sort.Slice(traces, func(i, j int) bool {
-		return bytes.Compare(traces[i].TraceID, traces[j].TraceID) == -1
+		return bytes.Compare(traces[i].id, traces[j].id) == -1
 	})
 
-	meta := backend.NewBlockMeta("fake", uuid.New(), VersionString)
-	meta.TotalObjects = int64(len(traces))
 	s, newMeta := newStreamingBlock(ctx, cfg, meta, r, w, tempo_io.NewBufferedWriter)
 
-	// Write test data, occasionally flushing (cutting new row group)
-	rowGroupSize := 5
+	var (
+		buffer       = &Trace{} // Buffer for reuse, which is important to test.
+		rowGroupSize = 5        // Write test data, occasionally flushing (cutting new row group)
+	)
+
 	for _, tr := range traces {
-		err := s.Add(tr, 0, 0)
-		require.NoError(t, err)
+		traceToParquet(newMeta, tr.id, tr.trace, buffer)
+		require.NoError(t, s.Add(buffer, 0, 0))
+
 		if s.CurrentBufferedObjects() >= rowGroupSize {
 			_, err = s.Flush()
 			require.NoError(t, err)
@@ -95,11 +97,13 @@ func TestBackendBlockFindTraceByID(t *testing.T) {
 
 	// Now find and verify all test traces
 	for _, tr := range traces {
-		wantProto := ParquetTraceToTempopbTrace(meta, tr)
-
-		gotProto, err := b.FindTraceByID(ctx, tr.TraceID, common.DefaultSearchOptions())
+		gotProto, err := b.FindTraceByID(ctx, tr.id, common.DefaultSearchOptions())
 		require.NoError(t, err)
-		require.Equal(t, wantProto, gotProto.Trace)
+
+		// Sort both actual and expected for comparison
+		trace.SortTraceAndAttributes(gotProto.Trace)
+		trace.SortTraceAndAttributes(tr.trace)
+		require.Equal(t, tr.trace, gotProto.Trace)
 	}
 }
 
