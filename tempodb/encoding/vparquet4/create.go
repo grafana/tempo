@@ -137,6 +137,10 @@ type streamingBlock struct {
 
 	currentBufferedTraces int
 	currentBufferedBytes  int
+
+	// Reusable buffers for Write/WriteRows to avoid per-call slice allocations.
+	rawRowBuf   []parquet.Row
+	traceRowBuf []*Trace
 }
 
 func newStreamingBlock(ctx context.Context, cfg *common.BlockConfig, meta *backend.BlockMeta, r backend.Reader, to backend.Writer, createBufferedWriter func(w io.Writer) tempo_io.BufferedWriteFlusher) (*streamingBlock, *backend.BlockMeta) {
@@ -167,11 +171,14 @@ func newStreamingBlock(ctx context.Context, cfg *common.BlockConfig, meta *backe
 		index: &index{},
 
 		withNoCompactFlag: cfg.CreateWithNoCompactFlag,
+		rawRowBuf:         make([]parquet.Row, 1),
+		traceRowBuf:       make([]*Trace, 1),
 	}, newMeta
 }
 
 func (b *streamingBlock) Add(tr *Trace, start, end uint32) error {
-	_, err := b.pw.Write([]*Trace{tr})
+	b.traceRowBuf[0] = tr
+	_, err := b.pw.Write(b.traceRowBuf)
 	if err != nil {
 		return err
 	}
@@ -187,7 +194,8 @@ func (b *streamingBlock) Add(tr *Trace, start, end uint32) error {
 }
 
 func (b *streamingBlock) AddRaw(id []byte, row parquet.Row, start, end uint32) error {
-	_, err := b.pw.WriteRows([]parquet.Row{row})
+	b.rawRowBuf[0] = row
+	_, err := b.pw.WriteRows(b.rawRowBuf)
 	if err != nil {
 		return err
 	}
