@@ -115,7 +115,7 @@ Use this dashboard to monitor compaction health, detect stalled or failing jobs,
 
 > This is available as `tempo-block-builder.json`.
 
-The Block Builder dashboard monitors the Kafka-based ingest path introduced in Tempo 3.0.
+The Block Builder dashboard monitors the Kafka-based ingest path introduced.
 It tracks Kafka fetch rates and read throughput, flushed blocks per second, and per-partition lag in both records and seconds.
 Heatmaps show partition section and cycle durations, and resource panels track CPU and memory usage.
 
@@ -126,7 +126,7 @@ Use this dashboard to monitor block-builder throughput, detect partition lag, an
 > This is available as `tempo-rollout-progress.json`.
 
 The Rollout Progress dashboard tracks the health of a Tempo deployment during upgrades and rollouts.
-It breaks down write and read requests by status code (2xx, 4xx, 5xx), shows 99th percentile latency, and counts unhealthy pods.
+It breaks down write and read requests by status code (2xx, 4xx, 5xx), shows 99th percentile latency, and counts unhealthy Pods.
 A version panel shows the number of pods running each version, and a latency comparison panel shows current latency against the previous 24-hour baseline.
 
 Use this dashboard during upgrades to confirm that new versions aren't introducing errors or latency regressions.
