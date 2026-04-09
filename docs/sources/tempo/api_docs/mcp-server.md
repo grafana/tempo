@@ -15,13 +15,15 @@ For more information on MCP, refer to the [MCP documentation](https://modelconte
 
 ## Configuration
 
-Enable the MCP server in your Tempo configuration:
+You can enable the MCP server in your Tempo configuration via YAML:
 
 ```yaml
 query_frontend:
   mcp_server:
     enabled: true
 ```
+
+Or via a command-line flag: `--frontend.mcp-server.enabled=true`.
 
 {{< admonition type="warning" >}}
 Be aware that using this feature will likely cause tracing data to be passed to an LLM or LLM provider. Consider the content of your tracing data and organizational policies when enabling this.
