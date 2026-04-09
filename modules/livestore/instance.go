@@ -79,6 +79,11 @@ var (
 		NativeHistogramMaxBucketNumber:  100,
 		NativeHistogramMinResetDuration: 1 * time.Hour,
 	})
+	metricBlocksCutTotal = promauto.NewCounterVec(prometheus.CounterOpts{
+		Namespace: "tempo_live_store",
+		Name:      "blocks_cut_total",
+		Help:      "The total number of blocks cut by reason.",
+	}, []string{"reason"})
 	metricBackPressure = promauto.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "tempo",
 		Subsystem: "live_store",
@@ -454,6 +459,33 @@ func (i *instance) resetHeadBlock() error {
 	return nil
 }
 
+// shouldCutHead checks whether the head block should be cut and records the
+// reason(s) via metrics. Caller must hold blocksMtx.
+func (i *instance) shouldCutHead(immediate bool) bool {
+	if i.headBlock == nil || i.headBlock.DataLength() == 0 {
+		return false
+	}
+
+	exceededMaxDuration := time.Since(i.lastCutTime) >= i.Cfg.MaxBlockDuration
+	exceededMaxBytes := i.headBlock.DataLength() >= i.Cfg.MaxBlockBytes
+
+	if !immediate && !exceededMaxDuration && !exceededMaxBytes {
+		return false
+	}
+
+	if immediate {
+		metricBlocksCutTotal.WithLabelValues("immediate").Inc()
+	}
+	if exceededMaxDuration {
+		metricBlocksCutTotal.WithLabelValues("max_block_duration").Inc()
+	}
+	if exceededMaxBytes {
+		metricBlocksCutTotal.WithLabelValues("max_block_bytes").Inc()
+	}
+
+	return true
+}
+
 func (i *instance) cutBlocks(ctx context.Context, immediate bool) (uuid.UUID, error) {
 	_, span := tracer.Start(ctx, "instance.cutBlocks",
 		oteltrace.WithAttributes(attribute.String("tenant", i.tenantID)))
@@ -466,11 +498,7 @@ func (i *instance) cutBlocks(ctx context.Context, immediate bool) (uuid.UUID, er
 		span.AddEvent("released blocksMtx")
 	}()
 
-	if i.headBlock == nil || i.headBlock.DataLength() == 0 {
-		return uuid.Nil, nil
-	}
-
-	if !immediate && time.Since(i.lastCutTime) < i.Cfg.MaxBlockDuration && i.headBlock.DataLength() < i.Cfg.MaxBlockBytes {
+	if !i.shouldCutHead(immediate) {
 		return uuid.Nil, nil
 	}
 
