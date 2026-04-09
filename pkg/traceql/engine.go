@@ -204,6 +204,7 @@ func (e *Engine) ExecuteTagValues(
 					}
 				}
 				skip = true
+				break
 			}
 		}
 		if !skip {

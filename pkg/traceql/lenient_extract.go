@@ -132,8 +132,7 @@ type conditionOperation struct {
 //   - [.b="2", .c="3"]
 func splitReqConditions(expr FieldExpression, maxGroups int) ([][]Condition, bool) {
 	var reachedMaxGroups bool
-	var ops []conditionOperation
-	flattenExprToOperations(expr, &ops, nil, OpNone)
+	ops := flattenExprToOperations(expr, OpNone)
 
 	totalGroups := 1
 	for _, op := range ops {
@@ -216,33 +215,28 @@ func deduplicateConditionBranches(branches [][]Condition) [][]Condition {
 	return result
 }
 
-// flattenExprToOperations walks a FieldExpression AST and collects conditionOperations:
+// flattenExprToOperations walks a FieldExpression AST and returns conditionOperations:
 //   - OpAnd operations collect leaf conditions into a single AND group
 //   - OpOr operations collect their branches as separate condition slices in an OR group
 //
-// The parent context (operators list, parentOp, parentCondOp) tracks whether we are
-// inside an OR branch so nested ANDs can be collected into a single OR branch entry.
-func flattenExprToOperations(expr FieldExpression, operators *[]conditionOperation, parentCondOp *conditionOperation, parentOp Operator) {
+// parentOp tracks whether we are inside an OR branch so nested ANDs can be collected
+// into a single OR branch entry. When parentOp == OpOr each returned conditionOperation
+// has exactly one conditions entry representing one OR branch.
+func flattenExprToOperations(expr FieldExpression, parentOp Operator) []conditionOperation {
 	e, ok := expr.(*BinaryOperation)
 	if !ok {
 		// Leaf node (UnaryOperation or other): extract its conditions.
 		req := &FetchSpansRequest{AllConditions: false}
 		expr.extractConditions(req)
-		if parentCondOp != nil {
-			parentCondOp.conditions = append(parentCondOp.conditions, req.Conditions)
-		} else {
-			*operators = append(*operators, conditionOperation{opType: OpAnd, conditions: [][]Condition{req.Conditions}})
-		}
-		return
+		return []conditionOperation{{opType: OpAnd, conditions: [][]Condition{req.Conditions}}}
 	}
 
 	switch {
 	case parentOp == OpOr && e.Op == OpAnd:
 		// AND nested directly inside an OR branch: collect both sides into one flat
 		// condition slice so they become a single OR branch entry.
-		var lhs, rhs []conditionOperation
-		flattenExprToOperations(e.LHS, &lhs, nil, e.Op)
-		flattenExprToOperations(e.RHS, &rhs, nil, e.Op)
+		lhs := flattenExprToOperations(e.LHS, e.Op)
+		rhs := flattenExprToOperations(e.RHS, e.Op)
 		var combined []Condition
 		for _, op := range lhs {
 			for _, conds := range op.conditions {
@@ -254,37 +248,35 @@ func flattenExprToOperations(expr FieldExpression, operators *[]conditionOperati
 				combined = append(combined, conds...)
 			}
 		}
-		parentCondOp.conditions = append(parentCondOp.conditions, combined)
+		return []conditionOperation{{opType: OpAnd, conditions: [][]Condition{combined}}}
 
 	case parentOp == OpOr && e.Op == OpOr:
-		// OR nested inside an OR branch: keep recursing into the same parent OR group.
-		flattenExprToOperations(e.LHS, operators, parentCondOp, e.Op)
-		flattenExprToOperations(e.RHS, operators, parentCondOp, e.Op)
+		// OR nested inside an OR branch: keep recursing, accumulating branches.
+		lhs := flattenExprToOperations(e.LHS, e.Op)
+		rhs := flattenExprToOperations(e.RHS, e.Op)
+		return append(lhs, rhs...)
 
 	case e.Op == OpAnd:
 		// Top-level AND: distribute both sides as independent AND operations.
-		var lhs, rhs []conditionOperation
-		flattenExprToOperations(e.LHS, &lhs, nil, e.Op)
-		flattenExprToOperations(e.RHS, &rhs, nil, e.Op)
-		*operators = append(*operators, lhs...)
-		*operators = append(*operators, rhs...)
+		lhs := flattenExprToOperations(e.LHS, e.Op)
+		rhs := flattenExprToOperations(e.RHS, e.Op)
+		return append(lhs, rhs...)
 
 	case e.Op == OpOr:
-		// Top-level OR: create a new OR group and collect branches into it.
-		sharedOp := &conditionOperation{opType: OpOr}
-		flattenExprToOperations(e.LHS, operators, sharedOp, e.Op)
-		flattenExprToOperations(e.RHS, operators, sharedOp, e.Op)
-		sharedOp.conditions = deduplicateConditionBranches(sharedOp.conditions)
-		*operators = append(*operators, *sharedOp)
+		// Top-level OR: collect branches from both sides into a single OR group.
+		lhs := flattenExprToOperations(e.LHS, e.Op)
+		rhs := flattenExprToOperations(e.RHS, e.Op)
+		orOp := conditionOperation{opType: OpOr}
+		for _, op := range append(lhs, rhs...) {
+			orOp.conditions = append(orOp.conditions, op.conditions...)
+		}
+		orOp.conditions = deduplicateConditionBranches(orOp.conditions)
+		return []conditionOperation{orOp}
 
 	default:
 		// Leaf binary operation (comparison etc.): extract its conditions.
 		req := &FetchSpansRequest{AllConditions: false}
 		expr.extractConditions(req)
-		if parentCondOp != nil {
-			parentCondOp.conditions = append(parentCondOp.conditions, req.Conditions)
-		} else {
-			*operators = append(*operators, conditionOperation{opType: OpAnd, conditions: [][]Condition{req.Conditions}})
-		}
+		return []conditionOperation{{opType: OpAnd, conditions: [][]Condition{req.Conditions}}}
 	}
 }
