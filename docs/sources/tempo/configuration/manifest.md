@@ -26,6 +26,7 @@ server:
     grpc_listen_address: ""
     grpc_listen_port: 9095
     grpc_listen_conn_limit: 0
+    grpc_collect_max_streams_by_conn: true
     proxy_protocol_enabled: false
     tls_cipher_suites: ""
     tls_min_version: ""
@@ -75,12 +76,20 @@ server:
     log_request_headers: false
     log_request_at_info_level_enabled: false
     log_request_exclude_headers_list: ""
+    trace_request_headers: false
+    trace_request_exclude_headers_list: ""
     http_path_prefix: ""
     cluster_validation:
         label: ""
+        additional_labels: ""
         grpc:
             enabled: false
             soft_validation: false
+        http:
+            enabled: false
+            soft_validation: false
+            excluded_paths: ""
+            excluded_user_agents: ""
 internal_server:
     http_listen_network: tcp
     http_listen_address: ""
@@ -90,6 +99,7 @@ internal_server:
     grpc_listen_address: ""
     grpc_listen_port: 0
     grpc_listen_conn_limit: 0
+    grpc_collect_max_streams_by_conn: false
     proxy_protocol_enabled: false
     tls_cipher_suites: ""
     tls_min_version: ""
@@ -139,12 +149,20 @@ internal_server:
     log_request_headers: false
     log_request_at_info_level_enabled: false
     log_request_exclude_headers_list: ""
+    trace_request_headers: false
+    trace_request_exclude_headers_list: ""
     http_path_prefix: ""
     cluster_validation:
         label: ""
+        additional_labels: ""
         grpc:
             enabled: false
             soft_validation: false
+        http:
+            enabled: false
+            soft_validation: false
+            excluded_paths: ""
+            excluded_user_agents: ""
     enable: false
 distributor:
     ring:
@@ -938,6 +956,7 @@ memberlist:
     min_join_backoff: 1s
     max_join_backoff: 1m0s
     max_join_retries: 10
+    abort_if_cluster_fast_join_fails: false
     abort_if_cluster_join_fails: false
     rejoin_interval: 0s
     left_ingesters_timeout: 5m0s
@@ -945,6 +964,7 @@ memberlist:
     leave_timeout: 20s
     broadcast_timeout_for_local_updates_on_shutdown: 10s
     message_history_buffer_bytes: 0
+    watch_prefix_buffer_size: 128
     bind_addr: []
     bind_port: 7946
     packet_dial_timeout: 2s
@@ -959,6 +979,10 @@ memberlist:
     tls_insecure_skip_verify: false
     tls_cipher_suites: ""
     tls_min_version: ""
+    zone_aware_routing:
+        enabled: false
+        instance_availability_zone: ""
+        role: member
 usage_report:
     reporting_enabled: true
     backoff:

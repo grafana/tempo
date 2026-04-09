@@ -2159,6 +2159,10 @@ func (r mockRing) WritableInstancesWithTokensInZoneCount(string) int {
 	panic("implement me if required for testing")
 }
 
+func (r mockRing) GetSubringForOperationStates(_ ring.Operation) ring.ReadRing {
+	panic("implement me if required for testing")
+}
+
 var _ ring.ReadRing = (*mockRing)(nil)
 
 func (r mockRing) Get(key uint32, _ ring.Operation, buf []ring.InstanceDesc, _, _ []string) (ring.ReplicationSet, error) {
