@@ -11,9 +11,10 @@ import (
 )
 
 // TestProcessCompleteOpAbandonOnCancelledContext verifies that processCompleteOp
-// abandons an in-flight WAL block completion when the service context is cancelled
-// (i.e. during shutdown), rather than scheduling a retry. The WAL block must remain
-// on disk so that reloadBlocks() can re-enqueue it on the next startup.
+// skips WAL block completion when the service context is already cancelled
+// (i.e. during shutdown), rather than attempting the work and scheduling a retry.
+// The WAL block must remain on disk so that reloadBlocks() can re-enqueue it on
+// the next startup.
 func TestProcessCompleteOpAbandonOnCancelledContext(t *testing.T) {
 	tmpDir := t.TempDir()
 
