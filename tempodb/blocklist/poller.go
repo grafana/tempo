@@ -373,7 +373,8 @@ func (p *Poller) pollTenantBlocks(
 		// If we previously had this block as a live block, we already have all BlockMeta content.
 		// meta.compacted.json is a copy of meta.json, so the content is identical. Use time.Now()
 		// for CompactedTime — it's within one polling interval of the actual compaction time,
-		// which is acceptable since it's only used for deletion cutoffs in retention.go.
+		// which is acceptable for current consumers of CompactedTime, including deletion cutoffs
+		// in retention.go and deciding whether compacted blocks are included in backend searches.
 		if v, ok := mm[backend.UUID(blockID)]; ok {
 			newCompactedBlocklist = append(newCompactedBlocklist, &backend.CompactedBlockMeta{
 				BlockMeta:     *v,
