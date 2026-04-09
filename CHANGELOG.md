@@ -68,7 +68,7 @@
 * [BUGFIX] fix(traceql): err on division by zero [#6580](https://github.com/grafana/tempo/pull/6580) (@Proximyst)
 * [BUGFIX] fix(traceql): stop intPow from hanging [#6581](https://github.com/grafana/tempo/pull/6581) (@Proximyst)
 * [BUGFIX] fix(traceql): Fix incorrect search results for some queries on new blob columns [#6815](https://github.com/grafana/tempo/pull/6815) (@mdisibio)
-* [BUGFIX] fix(vparquet5) Fix buffer-reuse bug where event attributes in dedicated columns could be persisted on additional spans and events [6914](https://github.com/grafana/tempo/pull/6914) (@mdisibio)
+* [BUGFIX] fix(vparquet5) Fix buffer-reuse bug where event attributes in dedicated columns could be persisted on additional spans and events [#6914](https://github.com/grafana/tempo/pull/6914) (@mdisibio)
 * [BUGFIX] fix: race condition where `remove_owner_on_shutdown` flag was set too late — after context cancellation already triggered the lifecycler's shutdown, causing the partition owner to remain in the ring [#6693](https://github.com/grafana/tempo/pull/6693) (@oleg-kozlyuk-grafana)
 * [BUGFIX] Return 400 instead of 500 when query_range or query_instant requests have unparseable start/end parameters [#6694](https://github.com/grafana/tempo/pull/6694) (@ruslan-mikhailov)
 * [BUGFIX] fix: correct block-builder fetch metrics to use counters instead of gauges.
