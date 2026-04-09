@@ -72,6 +72,11 @@ type Generator struct {
 	partitionRing      ring.PartitionRingReader
 	partitionMtx       sync.RWMutex
 	assignedPartitions []int32
+
+	// leaveGroupFn is called by stopKafka when LeaveConsumerGroupOnShutdown is
+	// true. It is initialized in New to call ingest.LeaveConsumerGroupByInstanceID
+	// and can be overridden in tests.
+	leaveGroupFn func(ctx context.Context) error
 }
 
 // New makes a new Generator.
@@ -99,6 +104,10 @@ func New(cfg *Config, overrides metricsGeneratorOverrides, reg prometheus.Regist
 		partitionRing: partitionRing,
 		reg:           reg,
 		logger:        logger,
+	}
+	g.leaveGroupFn = func(ctx context.Context) error {
+		return ingest.LeaveConsumerGroupByInstanceID(ctx, g.kafkaClient.Client,
+			g.cfg.Ingest.Kafka.ConsumerGroup, g.cfg.InstanceID, g.logger)
 	}
 
 	g.Service = services.NewBasicService(g.starting, g.running, g.stopping)
