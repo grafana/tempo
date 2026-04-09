@@ -21,7 +21,7 @@ The Helm chart configures Grafana Alloy to collect metrics and logs.
 
 ## Steps
 
-This procedure uses the [Grafana Kubernetes Helm chart](https://github.com/grafana/k8s-monitoring-helm) and the `values.yml` file sets parameters in the Helm chart.
+This procedure uses the [Grafana Kubernetes Helm chart](https://github.com/grafana/k8s-monitoring-helm) and a `values.yml` file to configure the chart.
 
 1. Add the Grafana Community Helm Chart repository, or update, if already added. 
 
