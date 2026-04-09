@@ -630,7 +630,7 @@ func testCompleteBlock(t *testing.T, from, to string) {
 		trace.SortTraceAndAttributes(reqs[i])
 		trace.SortTraceAndAttributes(found.Trace)
 
-		// Still failing for some vParquet5-as-WAL paths until event dedicated decode matches (see parquetToProtoEvents).
+		// After sorting, the completed block should round-trip the trace exactly.
 		require.True(t, proto.Equal(found.Trace, reqs[i]))
 
 		// Check metrics for certain encodings.
