@@ -46,6 +46,7 @@ func newMetrics(reg prometheus.Registerer) *metrics {
 			Namespace:                       "tempo",
 			Name:                            "metrics_generator_registry_drain_tokens_per_line",
 			Help:                            "The number of tokens per line",
+			Buckets:                         prometheus.DefBuckets,
 			NativeHistogramBucketFactor:     1.1,
 			NativeHistogramMaxBucketNumber:  100,
 			NativeHistogramMinResetDuration: 1 * time.Hour,

@@ -85,6 +85,7 @@ var (
 		Subsystem:                       "live_store",
 		Name:                            "back_pressure_duration_seconds",
 		Help:                            "Duration of backpressure wait per push",
+		Buckets:                         prometheus.DefBuckets,
 		NativeHistogramBucketFactor:     1.1,
 		NativeHistogramMaxBucketNumber:  100,
 		NativeHistogramMinResetDuration: 1 * time.Hour,
