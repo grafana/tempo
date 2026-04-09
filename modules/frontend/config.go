@@ -131,19 +131,14 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 		MaxTraceQLConditions: 4,
 	}
 
-	// enabling an mcp server opens the door to send tracing data to an LLM. it should require
-	// explicit enabling
-	cfg.MCPServer = MCPServerConfig{
-		Enabled: false,
-	}
-
 	// set default max query size to 128 KiB, queries larger than this will be rejected
 	cfg.MaxQueryExpressionSizeBytes = 128 * 1024
 	// enable multi tenant queries by default
 	cfg.MultiTenantQueriesEnabled = true
 	cfg.Metrics.MaxIntervals = 10_000
 
-	// flag to enable mcp server
+	// enabling an mcp server opens the door to send tracing data to an LLM. it should require
+	// explicit enabling. registers a flag in addition to YAML configuration.
 	f.BoolVar(&cfg.MCPServer.Enabled, util.PrefixConfig(prefix, "mcp-server.enabled"), false, "Set to true to enable the MCP server")
 }
 
