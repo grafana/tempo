@@ -46,18 +46,17 @@ const DedicatedBlobTestSize = 1000
 
 // DedicatedBlobTestString returns a fixed payload used by AddDedicatedAttributes for string columns
 // with the blob option so parquet/proto round-trip tests can assert exact values.
-// AddRandomDedicatedAttributes uses cryptographically random bytes of the same length instead.
 func DedicatedBlobTestString() string {
 	return strings.Repeat("B", DedicatedBlobTestSize)
 }
 
 func randomDedicatedBlobString() string {
-	b := make([]byte, DedicatedBlobTestSize)
-	_, err := crand.Read(b)
-	if err != nil {
-		panic(err)
+	letters := []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ") // same set as util.TraceInfo.generateRandomBlob
+	s := make([]rune, DedicatedBlobTestSize)
+	for i := range s {
+		s[i] = letters[rand.Intn(len(letters))] // nolint:gosec // G404: test RNG
 	}
-	return string(b)
+	return string(s)
 }
 
 func anyValueForDedicatedColumn(col backend.DedicatedColumn, idx int) *v1_common.AnyValue {
@@ -378,7 +377,8 @@ func AddDedicatedAttributes(trace *tempopb.Trace) *tempopb.Trace {
 // AddRandomDedicatedAttributes adds a random subset of the package test dedicated columns
 // (dedicatedColumnsResource, dedicatedColumnsSpan, dedicatedColumnsEvent) at resource, span,
 // and event levels (each existing span event). String columns with the blob option receive
-// DedicatedBlobTestSize cryptographically random bytes. The trace is modified in place.
+// DedicatedBlobTestSize random letters (same character set as util.TraceInfo.generateRandomBlob).
+// The trace is modified in place.
 // Parquet round-trips may reorder attributes; use model/trace.SortTraceAndAttributes before
 // proto.Equal when comparing decoded traces.
 func AddRandomDedicatedAttributes(trace *tempopb.Trace) *tempopb.Trace {

@@ -232,13 +232,13 @@ func (t *TraceInfo) generateFixedAttributesWithPrefix(prefix string) []*jaeger.T
 		tags       = make([]*jaeger.Tag, 0, numStrings+numBlobs+numInts)
 	)
 	for i := 0; i < numStrings; i++ {
-		tags = append(tags, &jaeger.Tag{Key: fmt.Sprintf("%s-string-%d", prefix, i+1), VType: jaeger.TagType_STRING, VStr: stringPtr(t.generateRandomString())})
+		tags = append(tags, &jaeger.Tag{Key: fmt.Sprintf("%s-string-%02d", prefix, i+1), VType: jaeger.TagType_STRING, VStr: stringPtr(t.generateRandomString())})
 	}
 	for i := 0; i < numBlobs; i++ {
-		tags = append(tags, &jaeger.Tag{Key: fmt.Sprintf("%s-blob-%d", prefix, i+1), VType: jaeger.TagType_STRING, VStr: stringPtr(t.generateRandomBlob(vultureBlobSize))})
+		tags = append(tags, &jaeger.Tag{Key: fmt.Sprintf("%s-blob-%02d", prefix, i+1), VType: jaeger.TagType_STRING, VStr: stringPtr(t.generateRandomBlob(vultureBlobSize))})
 	}
 	for i := 0; i < numInts; i++ {
-		tags = append(tags, &jaeger.Tag{Key: fmt.Sprintf("%s-int-%d", prefix, i+1), VType: jaeger.TagType_LONG, VLong: int64Ptr(t.generateRandomInt(1, 1000000))})
+		tags = append(tags, &jaeger.Tag{Key: fmt.Sprintf("%s-int-%02d", prefix, i+1), VType: jaeger.TagType_LONG, VLong: int64Ptr(t.generateRandomInt(1, 1000000))})
 	}
 	return tags
 }
