@@ -69,7 +69,7 @@ var (
 		Namespace:                       "tempo_live_store",
 		Name:                            "completion_size_bytes",
 		Help:                            "Size in bytes of blocks completed.",
-		Buckets:                         prometheus.ExponentialBuckets(1024*1024, 2, 10), // from 1MB up to 1GB
+		Buckets:                         prometheus.ExponentialBuckets(1024*1024, 2, 10), // from 1MB up to 512MB
 		NativeHistogramBucketFactor:     1.1,
 		NativeHistogramMaxBucketNumber:  100,
 		NativeHistogramMinResetDuration: 1 * time.Hour,
