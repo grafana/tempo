@@ -20,14 +20,18 @@ type iteratable interface {
 type combineFn[T iteratable] func([]T) (T, error)
 
 type MultiBlockIterator[T iteratable] struct {
-	bookmarks []*bookmark[T]
-	combine   combineFn[T]
+	bookmarks       []*bookmark[T]
+	combine         combineFn[T]
+	lowestBookmarks []*bookmark[T]
+	lowestObjects   []T
 }
 
 func newMultiblockIterator[T iteratable](bookmarks []*bookmark[T], combine combineFn[T]) *MultiBlockIterator[T] {
 	return &MultiBlockIterator[T]{
-		bookmarks: bookmarks,
-		combine:   combine,
+		bookmarks:       bookmarks,
+		combine:         combine,
+		lowestBookmarks: make([]*bookmark[T], 0, len(bookmarks)),
+		lowestObjects:   make([]T, 0, len(bookmarks)),
 	}
 }
 
@@ -36,10 +40,8 @@ func (m *MultiBlockIterator[T]) Next(ctx context.Context) (common.ID, T, error) 
 		return nil, nil, io.EOF
 	}
 
-	var (
-		lowestID        common.ID
-		lowestBookmarks []*bookmark[T]
-	)
+	var lowestID common.ID
+	m.lowestBookmarks = m.lowestBookmarks[:0]
 
 	// find lowest ID of the new object
 	for _, b := range m.bookmarks {
@@ -54,19 +56,19 @@ func (m *MultiBlockIterator[T]) Next(ctx context.Context) (common.ID, T, error) 
 		comparison := bytes.Compare(id, lowestID)
 
 		if comparison == 0 {
-			lowestBookmarks = append(lowestBookmarks, b)
+			m.lowestBookmarks = append(m.lowestBookmarks, b)
 		} else if len(lowestID) == 0 || comparison == -1 {
 			lowestID = id
 
 			// reset and reuse
-			lowestBookmarks = lowestBookmarks[:0]
-			lowestBookmarks = append(lowestBookmarks, b)
+			m.lowestBookmarks = m.lowestBookmarks[:0]
+			m.lowestBookmarks = append(m.lowestBookmarks, b)
 		}
 	}
 
 	// now get the lowest objects from our bookmarks
-	lowestObjects := make([]T, 0, len(lowestBookmarks))
-	for _, b := range lowestBookmarks {
+	m.lowestObjects = m.lowestObjects[:0]
+	for _, b := range m.lowestBookmarks {
 		_, obj, err := b.current(ctx)
 		if err != nil && !errors.Is(err, io.EOF) {
 			return nil, nil, err
@@ -75,15 +77,15 @@ func (m *MultiBlockIterator[T]) Next(ctx context.Context) (common.ID, T, error) 
 			// this should never happen. id was non-nil above
 			return nil, nil, errors.New("unexpected nil object from lowest bookmark")
 		}
-		lowestObjects = append(lowestObjects, obj)
+		m.lowestObjects = append(m.lowestObjects, obj)
 	}
 
-	lowestObject, err := m.combine(lowestObjects)
+	lowestObject, err := m.combine(m.lowestObjects)
 	if err != nil {
 		return nil, nil, fmt.Errorf("combining: %w", err)
 	}
 
-	for _, b := range lowestBookmarks {
+	for _, b := range m.lowestBookmarks {
 		b.clear()
 	}
 

@@ -484,9 +484,9 @@ func BenchmarkCompleteBlock(b *testing.B) {
 		numServices     int
 		spansPerService int
 	}{
-		{300, 3, 10},    // p50: ~800KB block
-		{1000, 4, 10},   // avg: ~3.4MB block
-		{1500, 5, 100},  // p90+: ~40MB block
+		{300, 3, 10},   // p50: ~800KB block
+		{1000, 4, 10},  // avg: ~3.4MB block
+		{1500, 5, 100}, // p90+: ~40MB block
 	}
 
 	for _, bc := range benchmarks {
@@ -498,7 +498,6 @@ func BenchmarkCompleteBlock(b *testing.B) {
 			})
 
 			ctx := context.Background()
-			var lastBlockID uuid.UUID
 
 			b.ResetTimer()
 			for range b.N {
@@ -508,16 +507,19 @@ func BenchmarkCompleteBlock(b *testing.B) {
 
 				err := inst.completeBlock(ctx, blockID)
 				require.NoError(b, err)
-				lastBlockID = blockID
-			}
-			b.StopTimer()
 
-			inst.blocksMtx.RLock()
-			if cb, ok := inst.completeBlocks[lastBlockID]; ok {
-				b.ReportMetric(float64(cb.BlockMeta().Size_), "block-bytes")
-				b.ReportMetric(float64(cb.BlockMeta().TotalObjects), "traces")
+				b.StopTimer()
+				inst.blocksMtx.Lock()
+				if cb, ok := inst.completeBlocks[blockID]; ok {
+					b.ReportMetric(float64(cb.BlockMeta().Size_), "block-bytes")
+					b.ReportMetric(float64(cb.BlockMeta().TotalObjects), "traces")
+				}
+				// Clean up completed block to prevent state accumulation
+				_ = inst.wal.LocalBackend().ClearBlock(blockID, inst.tenantID)
+				delete(inst.completeBlocks, blockID)
+				inst.blocksMtx.Unlock()
+				b.StartTimer()
 			}
-			inst.blocksMtx.RUnlock()
 		})
 	}
 }
