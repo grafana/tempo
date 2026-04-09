@@ -4,7 +4,7 @@ go 1.26.1
 
 require (
 	cloud.google.com/go/storage v1.61.3
-	github.com/alecthomas/kong v1.14.0
+	github.com/alecthomas/kong v1.15.0
 	github.com/alicebob/miniredis/v2 v2.37.0
 	github.com/cespare/xxhash/v2 v2.3.0
 	github.com/cristalhq/hedgedhttp v0.9.1
