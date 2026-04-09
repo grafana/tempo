@@ -100,8 +100,8 @@ func TestConstructTraceFromEpoch(t *testing.T) {
 
 	result, err := info.ConstructTraceFromEpoch()
 	require.NoError(t, err)
-	// Batch count is deterministic per seed; adding well-known attributes changes RNG sequence (now 10 batches for testSeed).
-	assert.Equal(t, 10, len(result.ResourceSpans))
+	// Batch count is deterministic per seed; adding well-known attributes changes RNG sequence (now 8 batches for testSeed).
+	assert.Equal(t, 8, len(result.ResourceSpans))
 
 	result2, err := info.ConstructTraceFromEpoch()
 	require.NoError(t, err)

@@ -226,9 +226,9 @@ func (t *TraceInfo) generateRandomBlob(size int) string {
 // generateFixedAttributesWithPrefix returns the fixed attributes with a prefix. Keys are lowercase with a hyphen before the numeric suffix (e.g. string-01, int-01, blob-01).
 func (t *TraceInfo) generateFixedAttributesWithPrefix(prefix string) []*jaeger.Tag {
 	var (
-		numStrings = t.r.Intn(5)
-		numBlobs   = t.r.Intn(1)
-		numInts    = t.r.Intn(5)
+		numStrings = t.r.Intn(6)
+		numBlobs   = t.r.Intn(2)
+		numInts    = t.r.Intn(6)
 		tags       = make([]*jaeger.Tag, 0, numStrings+numBlobs+numInts)
 	)
 	for i := 0; i < numStrings; i++ {
