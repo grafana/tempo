@@ -637,6 +637,53 @@ func TestQueryRangeHandlerExemplarNormalization(t *testing.T) {
 		assert.Greater(t, total, 0, "exemplars should be kept when client requests more than cfg cap")
 	})
 
+	t.Run("math operation query succeeds", func(t *testing.T) {
+		for _, tc := range []struct {
+			query     string
+			fragments []string
+		}{
+			{"({} | rate()) + ({} | rate())", []string{"{ true } | rate()"}},
+			{"({} | rate()) - ({} | rate())", []string{"{ true } | rate()"}},
+			{"({} | rate()) * ({} | count_over_time())", []string{"{ true } | rate()", "{ true } | count_over_time()"}},
+		} {
+			// Build mock response with __query_fragment labels so the math combiner can route series
+			var series []*tempopb.TimeSeries
+			for _, frag := range tc.fragments {
+				series = append(series, &tempopb.TimeSeries{
+					Labels: []v1.KeyValue{
+						{Key: "__query_fragment", Value: &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: frag}}},
+					},
+					Samples: []tempopb.Sample{
+						{TimestampMs: 1100_000, Value: 1},
+						{TimestampMs: 1200_000, Value: 2},
+					},
+					Exemplars: []tempopb.Exemplar{
+						{TimestampMs: exemplarTS, Value: 1.5},
+					},
+				})
+			}
+			mathMockResp := &tempopb.QueryRangeResponse{
+				Metrics: &tempopb.SearchMetrics{InspectedTraces: 1, InspectedBytes: 1},
+				Series:  series,
+			}
+
+			f := frontendWithSettings(t, &mockRoundTripper{
+				responseFn: func() proto.Message { return mathMockResp },
+			}, nil, nil, nil, func(c *Config, _ *overrides.Config) {
+				c.Metrics.Sharder.Interval = time.Hour
+				c.Metrics.Sharder.MaxExemplars = 10
+			})
+
+			httpResp := httptest.NewRecorder()
+			f.MetricsQueryRangeHandler.ServeHTTP(httpResp, makeRequestWithQuery(tc.query, 10))
+			require.Equal(t, 200, httpResp.Code, "query: %s", tc.query)
+
+			actualResp := &tempopb.QueryRangeResponse{}
+			require.NoError(t, jsonpb.Unmarshal(httpResp.Body, actualResp), "query: %s", tc.query)
+			require.GreaterOrEqual(t, len(actualResp.GetSeries()), 1, "expected at least one series for query: %s", tc.query)
+		}
+	})
+
 	t.Run("invalid query returns 400", func(t *testing.T) {
 		f := frontendWithSettings(t, &mockRoundTripper{
 			responseFn: func() proto.Message { return mockResp },

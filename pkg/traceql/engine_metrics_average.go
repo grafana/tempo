@@ -23,7 +23,11 @@ type averageOverTimeAggregator struct {
 	mode       AggregateMode
 }
 
-var _ firstStageElement = (*averageOverTimeAggregator)(nil)
+var (
+	_ firstStageElement = (*averageOverTimeAggregator)(nil)
+	_ spanProcessor     = (*averageOverTimeAggregator)(nil)
+	_ seriesProcessor   = (*averageOverTimeAggregator)(nil)
+)
 
 func newAverageOverTimeMetricsAggregator(attr Attribute, by []Attribute) *averageOverTimeAggregator {
 	return &averageOverTimeAggregator{

@@ -321,8 +321,13 @@ func ExtractFetchSpansRequest(query string) (FetchSpansRequest, error) {
 	req := FetchSpansRequest{
 		AllConditions: true,
 	}
-
-	ast.Pipeline.extractConditions(&req)
+	requests := ast.extractConditions(req)
+	if len(requests) != 1 {
+		return FetchSpansRequest{}, ErrMathNotSupported
+	}
+	for _, v := range requests {
+		req = v
+	}
 	return req, nil
 }
 

@@ -721,7 +721,9 @@ func TestPipelineExtractConditions(t *testing.T) {
 			actualRequest := FetchSpansRequest{
 				AllConditions: true,
 			}
-			ast.Pipeline.extractConditions(&actualRequest)
+			pipeline, ok := ast.SinglePipeline()
+			require.True(t, ok)
+			pipeline.extractConditions(&actualRequest)
 			require.Equal(t, tc.request, actualRequest)
 		})
 	}
@@ -770,7 +772,9 @@ func TestPipelineEvaluate(t *testing.T) {
 			ast, err := Parse(tc.query)
 			require.NoError(t, err)
 
-			actual, err := ast.Pipeline.evaluate(tc.input)
+			pipeline, ok := ast.SinglePipeline()
+			require.True(t, ok)
+			actual, err := pipeline.evaluate(tc.input)
 			require.NoError(t, err)
 			require.Equal(t, tc.output, actual)
 		})
@@ -916,7 +920,9 @@ func TestSpansetFilterEvaluate(t *testing.T) {
 			ast, err := Parse(tc.query)
 			require.NoError(t, err)
 
-			filt := ast.Pipeline.Elements[0].(*SpansetFilter)
+			pipeline, ok := ast.SinglePipeline()
+			require.True(t, ok)
+			filt := pipeline.Elements[0].(*SpansetFilter)
 
 			actual, err := filt.evaluate(tc.input)
 			require.NoError(t, err)
@@ -1142,7 +1148,9 @@ func TestNeedsFullTrace(t *testing.T) {
 		t.Run(test, func(t *testing.T) {
 			expr, err := Parse(test)
 			require.NoError(t, err)
-			require.Equal(t, false, expr.NeedsFullTrace())
+			for _, p := range expr.Pipeline {
+				require.False(t, NeedsFullTrace(p))
+			}
 		})
 	}
 
@@ -1150,7 +1158,9 @@ func TestNeedsFullTrace(t *testing.T) {
 		t.Run(test, func(t *testing.T) {
 			expr, err := Parse(test)
 			require.NoError(t, err)
-			require.Equal(t, true, expr.NeedsFullTrace())
+			for _, p := range expr.Pipeline {
+				require.True(t, NeedsFullTrace(p))
+			}
 		})
 	}
 }

@@ -1,10 +1,16 @@
 package traceql
 
-func (r RootExpr) extractConditions(request *FetchSpansRequest) {
-	r.Pipeline.extractConditions(request)
-	if r.MetricsPipeline != nil {
-		r.MetricsPipeline.extractConditions(request)
+func (r RootExpr) extractConditions(request FetchSpansRequest) map[string]FetchSpansRequest {
+	out := make(map[string]FetchSpansRequest, len(r.Pipeline))
+	for key, p := range r.Pipeline {
+		req := request
+		p.extractConditions(&req)
+		if sp := r.BatchSpanProcessor[key]; sp != nil {
+			sp.extractConditions(&req)
+		}
+		out[key] = req
 	}
+	return out
 }
 
 func (f SpansetFilter) extractConditions(request *FetchSpansRequest) {

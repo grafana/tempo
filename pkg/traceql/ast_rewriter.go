@@ -56,14 +56,46 @@ func (f *fieldExpressionRewriter) RewriteRoot(r *RootExpr) *RootExpr {
 		return r
 	}
 
-	pipeline, rwCount := f.rewritePipeline(r.Pipeline)
+	totalCount := 0
+	newPipelines := make(map[string]Pipeline, len(r.Pipeline))
+	keyMap := make(map[string]string, len(r.Pipeline)) // old key -> new key
+	for k, p := range r.Pipeline {
+		newP, count := f.rewritePipeline(p)
+		newKey := newP.String()
+		if sp, ok := r.BatchSpanProcessor[k]; ok {
+			newKey += " | " + sp.(Element).String()
+		}
+		newPipelines[newKey] = newP
+		keyMap[k] = newKey
+		totalCount += count
+	}
+
+	// Update BatchSpanProcessor and SeriesProcessor keys
+	var newSpanProcs map[string]spanProcessor
+	if r.BatchSpanProcessor != nil {
+		newSpanProcs = make(map[string]spanProcessor, len(r.BatchSpanProcessor))
+		for k, v := range r.BatchSpanProcessor {
+			newSpanProcs[keyMap[k]] = v
+		}
+	}
+	var newSeriesProcs map[string]seriesProcessor
+	if r.SeriesProcessor != nil {
+		newSeriesProcs = make(map[string]seriesProcessor, len(r.SeriesProcessor))
+		for k, v := range r.SeriesProcessor {
+			newSeriesProcs[keyMap[k]] = v
+		}
+	}
+
+	// Update expression leaf keys
+	newExpr := r.expression.rewriteKeys(keyMap)
 
 	return &RootExpr{
-		Pipeline:           pipeline,
-		MetricsPipeline:    r.MetricsPipeline,
-		MetricsSecondStage: r.MetricsSecondStage,
+		Pipeline:           newPipelines,
+		BatchSpanProcessor: newSpanProcs,
+		SeriesProcessor:    newSeriesProcs,
+		expression:         newExpr,
 		Hints:              r.Hints,
-		OptimizationCount:  r.OptimizationCount + rwCount,
+		OptimizationCount:  r.OptimizationCount + totalCount,
 	}
 }
 

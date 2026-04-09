@@ -94,7 +94,7 @@ func (s *MCPServer) handleSearch(ctx context.Context, request mcp.CallToolReques
 		return mcp.NewToolResultError(fmt.Sprintf("query parse error. Consult TraceQL docs tools: %v", err)), nil
 	}
 
-	if parsed.MetricsPipeline != nil || parsed.MetricsSecondStage != nil {
+	if len(parsed.BatchSpanProcessor) > 0 || len(parsed.SeriesProcessor) > 0 {
 		return mcp.NewToolResultError("TraceQL metrics query received on traceql-search tool. Use the traceql-metrics-instant or traceql-metrics-range tool instead"), nil
 	}
 
@@ -158,7 +158,7 @@ func (s *MCPServer) handleInstantQuery(ctx context.Context, request mcp.CallTool
 		return mcp.NewToolResultError(fmt.Sprintf("query parse error. Consult TraceQL docs tools: %v", err)), nil
 	}
 
-	if parsed.MetricsPipeline == nil {
+	if len(parsed.BatchSpanProcessor) == 0 {
 		return mcp.NewToolResultError("TraceQL search query received on instant query tool. Use the traceql-search tool instead"), nil
 	}
 
@@ -218,7 +218,7 @@ func (s *MCPServer) handleRangeQuery(ctx context.Context, request mcp.CallToolRe
 		return mcp.NewToolResultError(fmt.Sprintf("query parse error. Consult TraceQL docs tools: %v", err)), nil
 	}
 
-	if parsed.MetricsPipeline == nil {
+	if len(parsed.BatchSpanProcessor) == 0 {
 		return mcp.NewToolResultError("TraceQL search query received on range query tool. Use the traceql-search tool instead"), nil
 	}
 

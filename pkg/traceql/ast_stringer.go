@@ -9,14 +9,9 @@ import (
 
 func (r RootExpr) String() string {
 	s := strings.Builder{}
-	s.WriteString(r.Pipeline.String())
-	if r.MetricsPipeline != nil {
-		s.WriteString(" | ")
-		s.WriteString(r.MetricsPipeline.String())
-	}
-	if r.MetricsSecondStage != nil {
-		s.WriteString(r.MetricsSecondStage.String())
-	}
+
+	s.WriteString(r.expression.String())
+
 	if r.Hints != nil {
 		s.WriteString(" ")
 		s.WriteString(r.Hints.String())

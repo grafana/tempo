@@ -11,6 +11,7 @@ import (
 
 %union {
     root RootExpr
+    metricsExpression *RootExpr
     groupOperation GroupOperation
     coalesceOperation CoalesceOperation
     selectOperation SelectOperation
@@ -71,6 +72,7 @@ import (
 %type <metricsSecondStagePipeline> metricsSecondStagePipeline
 %type <scalarFilterOperation> metricsFilterOperation
 %type <metricsSecondStage> metricsFilter
+%type <metricsExpression> metricsExpression wrappedMetricsPipeline
 
 %type <scalarPipelineExpressionFilter> scalarPipelineExpressionFilter
 %type <scalarPipelineExpression> scalarPipelineExpression
@@ -128,9 +130,11 @@ import (
 root:
     spansetPipeline                                                       { yylex.(*lexer).expr = newRootExpr($1) }
   | spansetPipelineExpression                                             { yylex.(*lexer).expr = newRootExpr($1) }
-  | scalarPipelineExpressionFilter                                        { yylex.(*lexer).expr = newRootExpr($1) } 
+  | scalarPipelineExpressionFilter                                        { yylex.(*lexer).expr = newRootExpr($1) }
   | spansetPipeline PIPE metricsAggregation                               { yylex.(*lexer).expr = newRootExprWithMetrics($1, $3) }
   | spansetPipeline PIPE metricsAggregation metricsSecondStagePipeline    { yylex.(*lexer).expr = newRootExprWithMetricsTwoStage($1, $3, $4) }
+  | metricsExpression                                                     { yylex.(*lexer).expr = $1 }
+  | metricsExpression metricsSecondStagePipeline                          { yylex.(*lexer).expr = chainMathSecondStage($1, $2) }
   | root hints                                                            { yylex.(*lexer).expr.withHints($2) }
   ;
 
@@ -330,8 +334,8 @@ metricsAggregation:
 // Metrics Second Stage Functions
 // **********************
 metricsSecondStage:
-    TOPK OPEN_PARENS INTEGER CLOSE_PARENS                        { $$ = newTopKBottomK(OpTopK, $3) }
-    | BOTTOMK OPEN_PARENS INTEGER CLOSE_PARENS                   { $$ = newTopKBottomK(OpBottomK, $3) }
+    TOPK OPEN_PARENS INTEGER CLOSE_PARENS                        { $$ = newTopKBottomK(OpTopK, $3, " | ") }
+    | BOTTOMK OPEN_PARENS INTEGER CLOSE_PARENS                   { $$ = newTopKBottomK(OpBottomK, $3, " | ") }
   ;
 
 // **********************
@@ -347,22 +351,43 @@ metricsFilterOperation:
   ;
 
 metricsFilter:
-    metricsFilterOperation INTEGER       { $$ = newMetricsFilter($1, float64($2)) }
-  | metricsFilterOperation FLOAT         { $$ = newMetricsFilter($1, $2) }
-  | metricsFilterOperation DURATION      { $$ = newMetricsFilter($1, float64($2) / float64(time.Second)) }
-  | metricsFilterOperation SUB INTEGER   { $$ = newMetricsFilter($1, float64(-$3)) }
-  | metricsFilterOperation SUB FLOAT     { $$ = newMetricsFilter($1, -$3) }
-  | metricsFilterOperation SUB DURATION  { $$ = newMetricsFilter($1, float64(-$3) / float64(time.Second)) }
+    metricsFilterOperation INTEGER       { $$ = newMetricsFilter($1, float64($2), " ") }
+  | metricsFilterOperation FLOAT         { $$ = newMetricsFilter($1, $2, " ") }
+  | metricsFilterOperation DURATION      { $$ = newMetricsFilter($1, float64($2) / float64(time.Second), " ") }
+  | metricsFilterOperation SUB INTEGER   { $$ = newMetricsFilter($1, float64(-$3), " ") }
+  | metricsFilterOperation SUB FLOAT     { $$ = newMetricsFilter($1, -$3, " ") }
+  | metricsFilterOperation SUB DURATION  { $$ = newMetricsFilter($1, float64(-$3) / float64(time.Second), " ") }
   ;
 
 // **********************
 // Metrics Second Stage Pipeline (chains of second stage elements)
 // **********************
 metricsSecondStagePipeline:
-    PIPE metricsSecondStage                              { $$.Append($2, " | ") }
-  | metricsFilter                                        { $$.Append($1, " ") }
-  | metricsSecondStagePipeline PIPE metricsSecondStage   { $$ = $1; $$.Append($3, " | ") }
-  | metricsSecondStagePipeline metricsFilter             { $$ = $1; $$.Append($2, " ") }
+    PIPE metricsSecondStage                              { $$ = ChainedSecondStage{$2} }
+  | metricsFilter                                        { $$ = ChainedSecondStage{$1} }
+  | metricsSecondStagePipeline PIPE metricsSecondStage   { $$ = append($1, $3) }
+  | metricsSecondStagePipeline metricsFilter             { $$ = append($1, $2) }
+  ;
+
+// **********************
+// Metrics Math Expressions
+// Combines parenthesized metrics pipelines with arithmetic operators.
+// Example: ({status=error} | count_over_time()) / ({} | count_over_time())
+// **********************
+metricsExpression:
+    OPEN_PARENS metricsExpression CLOSE_PARENS               { $$ = $2 }
+  | metricsExpression ADD metricsExpression                   { $$ = newRootExprMath(OpAdd, $1, $3) }
+  | metricsExpression SUB metricsExpression                   { $$ = newRootExprMath(OpSub, $1, $3) }
+  | metricsExpression MUL metricsExpression                   { $$ = newRootExprMath(OpMult, $1, $3) }
+  | metricsExpression DIV metricsExpression                   { $$ = newRootExprMath(OpDiv, $1, $3) }
+  | wrappedMetricsPipeline                                    { $$ = $1 }
+  ;
+
+wrappedMetricsPipeline:
+    OPEN_PARENS spansetPipeline PIPE metricsAggregation CLOSE_PARENS
+      { $$ = newWrappedMetricsPipeline($2, $4, nil) }
+  | OPEN_PARENS spansetPipeline PIPE metricsAggregation metricsSecondStagePipeline CLOSE_PARENS
+      { $$ = newWrappedMetricsPipeline($2, $4, $5) }
   ;
 
 // **********************

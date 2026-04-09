@@ -181,9 +181,8 @@ func TestOne(t *testing.T) {
 			Step:  uint64(1 * time.Second),
 		}
 	)
-	eval, err := traceql.NewEngine().CompileMetricsQueryRange(req, traceql.WithTimeOverlapCutoff(1))
+	fetchSpansRequest, err := traceql.ExtractFetchSpansRequest(q)
 	require.NoError(t, err)
-	fetchSpansRequest := eval.FetchSpansRequest()
 
 	spanOnly, err := b.FetchSpans(ctx, fetchSpansRequest, common.DefaultSearchOptions())
 	require.NoError(t, err, "search request:", req)
@@ -1441,7 +1440,7 @@ func TestBackendBlockSelectAll(t *testing.T) {
 
 	b := makeBackendBlockWithTraces(t, traces)
 
-	_, eval, _, _, req, err := traceql.Compile("{}")
+	_, _, eval, req, err := traceql.Compile("{}")
 	require.NoError(t, err)
 	req.SecondPass = func(inSS *traceql.Spanset) ([]*traceql.Spanset, error) { return eval([]*traceql.Spanset{inSS}) }
 	req.SecondPassSelectAll = true
@@ -1800,6 +1799,12 @@ func BenchmarkBackendBlockQueryRange(b *testing.B) {
 		"{ name != nil } | compare({status=error})",
 		"{} > {} | rate() by (name)", // structural
 
+		// Math operations
+		"({} | rate()) + ({} | rate())",
+		"({} | rate()) - ({} | rate())",
+		"({} | rate()) * ({} | rate())",
+		"({} | rate()) / ({} | count_over_time())",
+
 		// This is useful for sampler debugging
 		// {} | rate() with(sample=true,debug=true,info=true)
 	}
@@ -1920,6 +1925,12 @@ func TestSamplingError(t *testing.T) {
 		"{nestedSetParent<0 && true} | histogram_over_time(duration)",
 		`{nestedSetParent<0 && resource.service.name="gme-alertmanager" && resource.service.namespace != nil} | rate() by(resource.service.namespace)`,
 		"{true && true && resource.service.name != nil} | rate() by(resource.service.name)",*/
+
+		// Math operations
+		"({} | rate()) + ({} | rate())",
+		"({} | rate()) - ({} | rate())",
+		"({} | rate()) * ({} | rate())",
+		"({} | rate()) / ({} | count_over_time())",
 	}
 
 	options := []string{
