@@ -104,7 +104,7 @@ Both caches are configured by the maximum number of traces that should be stored
 ![Decision points and caches workflow](/media/docs/tempo/sampling/tempo-alloy-sampling-policies.svg)
 
 In the above diagram, should both caches be enabled, then a decision to drop samples for the trace is made after 10 seconds and the trace ID stored in the non-sampled cache.
-This means that even spans that have an error status for that trace are dropped after the initial decision period, as the non-sampled cache matches the trace ID and pre-emptively drops the span.
+This means that even spans that have an error status for that trace are dropped after the initial decision period, as the non-sampled cache matches the trace ID and preemptively drops the span.
 However, the same is true should a sampled decision have been made, where any future spans do not match any policies but whose trace ID is found in the sampled cache.
 
 Understanding how these caches work ensures that you still keep decisions that have previously been made.
