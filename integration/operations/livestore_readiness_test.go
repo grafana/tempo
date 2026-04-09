@@ -6,8 +6,8 @@ import (
 	"time"
 
 	"github.com/grafana/e2e"
-	"github.com/grafana/tempo/integration/util"
-	tempoUtil "github.com/grafana/tempo/pkg/util"
+	"github.com/grafana/tempo/v2/integration/util"
+	tempoUtil "github.com/grafana/tempo/v2/pkg/util"
 	"github.com/stretchr/testify/require"
 )
 

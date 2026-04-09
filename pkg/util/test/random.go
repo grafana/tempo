@@ -5,9 +5,9 @@ import (
 	"math/rand"
 	"time"
 
-	v1_common "github.com/grafana/tempo/pkg/tempopb/common/v1"
-	v1_resource "github.com/grafana/tempo/pkg/tempopb/resource/v1"
-	v1_trace "github.com/grafana/tempo/pkg/tempopb/trace/v1"
+	v1_common "github.com/grafana/tempo/v2/pkg/tempopb/common/v1"
+	v1_resource "github.com/grafana/tempo/v2/pkg/tempopb/resource/v1"
+	v1_trace "github.com/grafana/tempo/v2/pkg/tempopb/trace/v1"
 )
 
 // RandomBatcher is a helper for generating random batches of spans.

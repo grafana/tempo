@@ -9,9 +9,9 @@ import (
 	"time"
 
 	"github.com/grafana/e2e"
-	"github.com/grafana/tempo/integration/util"
-	"github.com/grafana/tempo/pkg/api"
-	tempoUtil "github.com/grafana/tempo/pkg/util"
+	"github.com/grafana/tempo/v2/integration/util"
+	"github.com/grafana/tempo/v2/pkg/api"
+	tempoUtil "github.com/grafana/tempo/v2/pkg/util"
 	"github.com/stretchr/testify/require"
 
 	mcpclient "github.com/mark3labs/mcp-go/client"

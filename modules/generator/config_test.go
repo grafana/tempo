@@ -7,10 +7,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/grafana/tempo/modules/generator/processor/servicegraphs"
-	"github.com/grafana/tempo/modules/generator/processor/spanmetrics"
-	"github.com/grafana/tempo/pkg/sharedconfig"
-	"github.com/grafana/tempo/pkg/spanfilter/config"
+	"github.com/grafana/tempo/v2/modules/generator/processor/servicegraphs"
+	"github.com/grafana/tempo/v2/modules/generator/processor/spanmetrics"
+	"github.com/grafana/tempo/v2/pkg/sharedconfig"
+	"github.com/grafana/tempo/v2/pkg/spanfilter/config"
 )
 
 func TestProcessorConfig_copyWithOverrides(t *testing.T) {

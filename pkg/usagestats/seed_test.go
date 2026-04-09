@@ -15,7 +15,7 @@ import (
 	"github.com/grafana/dskit/services"
 	"github.com/stretchr/testify/require"
 
-	"github.com/grafana/tempo/tempodb/backend/local"
+	"github.com/grafana/tempo/v2/tempodb/backend/local"
 )
 
 type dnsProviderMock struct {

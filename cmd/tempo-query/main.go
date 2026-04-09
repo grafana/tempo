@@ -17,9 +17,9 @@ import (
 	"google.golang.org/grpc/health"
 	"google.golang.org/grpc/health/grpc_health_v1"
 
-	"github.com/grafana/tempo/cmd/tempo-query/jaeger/storage_v1"
-	"github.com/grafana/tempo/cmd/tempo-query/tempo"
-	"github.com/grafana/tempo/pkg/gogocodec"
+	"github.com/grafana/tempo/v2/cmd/tempo-query/jaeger/storage_v1"
+	"github.com/grafana/tempo/v2/cmd/tempo-query/tempo"
+	"github.com/grafana/tempo/v2/pkg/gogocodec"
 )
 
 func init() {

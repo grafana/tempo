@@ -21,10 +21,10 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 
-	"github.com/grafana/tempo/modules/frontend/pipeline"
-	"github.com/grafana/tempo/modules/frontend/queue"
-	"github.com/grafana/tempo/modules/frontend/v1/frontendv1pb"
-	"github.com/grafana/tempo/pkg/util"
+	"github.com/grafana/tempo/v2/modules/frontend/pipeline"
+	"github.com/grafana/tempo/v2/modules/frontend/queue"
+	"github.com/grafana/tempo/v2/modules/frontend/v1/frontendv1pb"
+	"github.com/grafana/tempo/v2/pkg/util"
 )
 
 var tracer = otel.Tracer("modules/frontend/v1")

@@ -8,10 +8,10 @@ import (
 	"github.com/grafana/dskit/services"
 	"github.com/prometheus/client_golang/prometheus"
 
-	"github.com/grafana/tempo/modules/overrides/histograms"
-	"github.com/grafana/tempo/pkg/sharedconfig"
-	"github.com/grafana/tempo/pkg/spanfilter/config"
-	"github.com/grafana/tempo/tempodb/backend"
+	"github.com/grafana/tempo/v2/modules/overrides/histograms"
+	"github.com/grafana/tempo/v2/pkg/sharedconfig"
+	"github.com/grafana/tempo/v2/pkg/spanfilter/config"
+	"github.com/grafana/tempo/v2/tempodb/backend"
 )
 
 type Service interface {

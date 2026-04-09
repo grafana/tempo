@@ -6,7 +6,7 @@ import (
 	"math"
 	"strings"
 
-	"github.com/grafana/tempo/pkg/regexp"
+	"github.com/grafana/tempo/v2/pkg/regexp"
 )
 
 var errSpansetOperationMultiple = errors.New("spanset operators are not supported for multiple spansets per trace. consider using coalesce()")

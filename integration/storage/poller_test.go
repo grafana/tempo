@@ -13,17 +13,17 @@ import (
 
 	"github.com/go-kit/log"
 	"github.com/google/uuid"
-	"github.com/grafana/tempo/integration/util"
+	"github.com/grafana/tempo/v2/integration/util"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/grafana/tempo/pkg/blockboundary"
-	"github.com/grafana/tempo/tempodb/backend"
-	"github.com/grafana/tempo/tempodb/backend/azure"
-	"github.com/grafana/tempo/tempodb/backend/gcs"
-	"github.com/grafana/tempo/tempodb/backend/s3"
-	"github.com/grafana/tempo/tempodb/blocklist"
-	"github.com/grafana/tempo/tempodb/encoding/vparquet3"
+	"github.com/grafana/tempo/v2/pkg/blockboundary"
+	"github.com/grafana/tempo/v2/tempodb/backend"
+	"github.com/grafana/tempo/v2/tempodb/backend/azure"
+	"github.com/grafana/tempo/v2/tempodb/backend/gcs"
+	"github.com/grafana/tempo/v2/tempodb/backend/s3"
+	"github.com/grafana/tempo/v2/tempodb/blocklist"
+	"github.com/grafana/tempo/v2/tempodb/encoding/vparquet3"
 )
 
 const (

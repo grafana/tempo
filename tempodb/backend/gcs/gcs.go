@@ -19,7 +19,7 @@ import (
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 
-	"github.com/grafana/tempo/tempodb/backend/instrumentation"
+	"github.com/grafana/tempo/v2/tempodb/backend/instrumentation"
 
 	"cloud.google.com/go/storage"
 	"github.com/cristalhq/hedgedhttp"
@@ -29,10 +29,10 @@ import (
 	"google.golang.org/api/option"
 	google_http "google.golang.org/api/transport/http"
 
-	"github.com/grafana/tempo/pkg/blockboundary"
-	tempo_io "github.com/grafana/tempo/pkg/io"
-	"github.com/grafana/tempo/pkg/util/log"
-	"github.com/grafana/tempo/tempodb/backend"
+	"github.com/grafana/tempo/v2/pkg/blockboundary"
+	tempo_io "github.com/grafana/tempo/v2/pkg/io"
+	"github.com/grafana/tempo/v2/pkg/util/log"
+	"github.com/grafana/tempo/v2/tempodb/backend"
 )
 
 type readerWriter struct {

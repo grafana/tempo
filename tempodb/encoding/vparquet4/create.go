@@ -9,10 +9,10 @@ import (
 	"runtime"
 
 	"github.com/google/uuid"
-	"github.com/grafana/tempo/pkg/dataquality"
-	tempo_io "github.com/grafana/tempo/pkg/io"
-	"github.com/grafana/tempo/tempodb/backend"
-	"github.com/grafana/tempo/tempodb/encoding/common"
+	"github.com/grafana/tempo/v2/pkg/dataquality"
+	tempo_io "github.com/grafana/tempo/v2/pkg/io"
+	"github.com/grafana/tempo/v2/tempodb/backend"
+	"github.com/grafana/tempo/v2/tempodb/encoding/common"
 	"github.com/parquet-go/parquet-go"
 )
 

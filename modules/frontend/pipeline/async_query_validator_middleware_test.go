@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/grafana/tempo/modules/frontend/combiner"
+	"github.com/grafana/tempo/v2/modules/frontend/combiner"
 	"github.com/stretchr/testify/require"
 )
 

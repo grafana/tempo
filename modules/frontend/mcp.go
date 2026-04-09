@@ -7,7 +7,7 @@ import (
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
 	"github.com/grafana/dskit/middleware"
-	frontendDocs "github.com/grafana/tempo/modules/frontend/docs"
+	frontendDocs "github.com/grafana/tempo/v2/modules/frontend/docs"
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
 )

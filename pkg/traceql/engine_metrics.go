@@ -13,10 +13,10 @@ import (
 	"time"
 
 	"github.com/go-kit/log/level"
-	"github.com/grafana/tempo/pkg/tempopb"
-	commonv1proto "github.com/grafana/tempo/pkg/tempopb/common/v1"
-	"github.com/grafana/tempo/pkg/util"
-	"github.com/grafana/tempo/pkg/util/log"
+	"github.com/grafana/tempo/v2/pkg/tempopb"
+	commonv1proto "github.com/grafana/tempo/v2/pkg/tempopb/common/v1"
+	"github.com/grafana/tempo/v2/pkg/util"
+	"github.com/grafana/tempo/v2/pkg/util/log"
 	"github.com/prometheus/prometheus/model/labels"
 )
 

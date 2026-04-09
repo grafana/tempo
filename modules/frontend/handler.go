@@ -11,7 +11,7 @@ import (
 
 	"github.com/grafana/dskit/flagext"
 	"github.com/grafana/dskit/grpcutil"
-	"github.com/grafana/tempo/pkg/util"
+	"github.com/grafana/tempo/v2/pkg/util"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 
@@ -20,7 +20,7 @@ import (
 	"github.com/grafana/dskit/httpgrpc"
 	"github.com/grafana/dskit/user"
 
-	"github.com/grafana/tempo/pkg/util/tracing"
+	"github.com/grafana/tempo/v2/pkg/util/tracing"
 )
 
 const (

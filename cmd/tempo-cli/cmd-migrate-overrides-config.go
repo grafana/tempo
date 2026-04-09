@@ -9,7 +9,7 @@ import (
 
 	"go.yaml.in/yaml/v2"
 
-	"github.com/grafana/tempo/cmd/tempo/app"
+	"github.com/grafana/tempo/v2/cmd/tempo/app"
 )
 
 type migrateOverridesConfigCmd struct {

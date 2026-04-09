@@ -17,9 +17,9 @@ import (
 
 	"github.com/parquet-go/parquet-go"
 
-	pq "github.com/grafana/tempo/pkg/parquetquery"
-	"github.com/grafana/tempo/tempodb/backend"
-	vp4 "github.com/grafana/tempo/tempodb/encoding/vparquet4"
+	pq "github.com/grafana/tempo/v2/pkg/parquetquery"
+	"github.com/grafana/tempo/v2/tempodb/backend"
+	vp4 "github.com/grafana/tempo/v2/tempodb/encoding/vparquet4"
 )
 
 // attrIndexCmd represents a command to generate attribute indices from a parquet block.

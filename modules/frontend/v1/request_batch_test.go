@@ -10,7 +10,7 @@ import (
 	"testing"
 
 	"github.com/grafana/dskit/httpgrpc"
-	"github.com/grafana/tempo/modules/frontend/pipeline"
+	"github.com/grafana/tempo/v2/modules/frontend/pipeline"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

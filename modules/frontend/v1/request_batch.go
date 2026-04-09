@@ -8,7 +8,7 @@ import (
 
 	"github.com/grafana/dskit/httpgrpc"
 	"github.com/grafana/dskit/multierror"
-	"github.com/grafana/tempo/pkg/util/httpgrpcutil"
+	"github.com/grafana/tempo/v2/pkg/util/httpgrpcutil"
 
 	"go.opentelemetry.io/otel"
 )

@@ -5,8 +5,8 @@ import (
 	"math/rand"
 	"time"
 
-	"github.com/grafana/tempo/pkg/tempopb"
-	v1 "github.com/grafana/tempo/pkg/tempopb/common/v1"
+	"github.com/grafana/tempo/v2/pkg/tempopb"
+	v1 "github.com/grafana/tempo/v2/pkg/tempopb/common/v1"
 )
 
 // generateFakeSearchResponse creates a fake SearchResponse with a chance defined by given probability.

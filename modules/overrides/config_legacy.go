@@ -7,14 +7,14 @@ import (
 	"sync"
 	"time"
 
-	"github.com/grafana/tempo/modules/overrides/histograms"
-	"github.com/grafana/tempo/pkg/util/listtomap"
-	"github.com/grafana/tempo/tempodb/backend"
+	"github.com/grafana/tempo/v2/modules/overrides/histograms"
+	"github.com/grafana/tempo/v2/pkg/util/listtomap"
+	"github.com/grafana/tempo/v2/tempodb/backend"
 
 	"github.com/prometheus/common/model"
 
-	"github.com/grafana/tempo/pkg/sharedconfig"
-	filterconfig "github.com/grafana/tempo/pkg/spanfilter/config"
+	"github.com/grafana/tempo/v2/pkg/sharedconfig"
+	filterconfig "github.com/grafana/tempo/v2/pkg/spanfilter/config"
 )
 
 func (c *Overrides) toLegacy() LegacyOverrides {

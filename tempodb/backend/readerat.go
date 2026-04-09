@@ -5,7 +5,7 @@ import (
 	"io"
 
 	"github.com/google/uuid"
-	"github.com/grafana/tempo/pkg/util"
+	"github.com/grafana/tempo/v2/pkg/util"
 )
 
 // ContextReader is an io.ReaderAt interface that passes context.  It is used to simplify access to backend objects

@@ -1,7 +1,7 @@
 package pipeline
 
 import (
-	"github.com/grafana/tempo/modules/frontend/combiner"
+	"github.com/grafana/tempo/v2/modules/frontend/combiner"
 )
 
 // NewNoopMiddleware returns a middleware that is a passthrough only

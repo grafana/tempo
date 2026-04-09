@@ -1,9 +1,9 @@
 package ingester
 
 import (
-	"github.com/grafana/tempo/modules/generator/registry"
-	"github.com/grafana/tempo/modules/overrides"
-	"github.com/grafana/tempo/tempodb/backend"
+	"github.com/grafana/tempo/v2/modules/generator/registry"
+	"github.com/grafana/tempo/v2/modules/overrides"
+	"github.com/grafana/tempo/v2/tempodb/backend"
 )
 
 type ingesterOverrides interface {

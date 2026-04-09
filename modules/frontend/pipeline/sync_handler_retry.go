@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/grafana/dskit/httpgrpc"
-	"github.com/grafana/tempo/modules/frontend/queue"
+	"github.com/grafana/tempo/v2/modules/frontend/queue"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"go.opentelemetry.io/otel/attribute"

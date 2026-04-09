@@ -16,7 +16,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/container"
 	"github.com/cristalhq/hedgedhttp"
 
-	"github.com/grafana/tempo/tempodb/backend/instrumentation"
+	"github.com/grafana/tempo/v2/tempodb/backend/instrumentation"
 )
 
 const (

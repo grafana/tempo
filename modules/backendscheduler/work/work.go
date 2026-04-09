@@ -9,7 +9,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/grafana/tempo/pkg/tempopb"
+	"github.com/grafana/tempo/v2/pkg/tempopb"
 	jsoniter "github.com/json-iterator/go"
 	"go.opentelemetry.io/otel"
 )

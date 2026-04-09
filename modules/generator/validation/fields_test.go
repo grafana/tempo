@@ -3,7 +3,7 @@ package validation
 import (
 	"testing"
 
-	filterconfig "github.com/grafana/tempo/pkg/spanfilter/config"
+	filterconfig "github.com/grafana/tempo/v2/pkg/spanfilter/config"
 	"github.com/stretchr/testify/require"
 )
 

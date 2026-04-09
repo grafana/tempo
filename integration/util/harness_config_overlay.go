@@ -9,8 +9,8 @@ import (
 	"testing"
 
 	"github.com/grafana/e2e"
-	"github.com/grafana/tempo/cmd/tempo/app"
-	"github.com/grafana/tempo/tempodb/backend"
+	"github.com/grafana/tempo/v2/cmd/tempo/app"
+	"github.com/grafana/tempo/v2/tempodb/backend"
 	"github.com/stretchr/testify/require"
 	"go.yaml.in/yaml/v2"
 )

@@ -19,8 +19,8 @@ import (
 
 	"github.com/grafana/dskit/backoff"
 	"github.com/grafana/dskit/flagext"
-	"github.com/grafana/tempo/pkg/ingest/testkafka"
-	"github.com/grafana/tempo/pkg/util/test"
+	"github.com/grafana/tempo/v2/pkg/ingest/testkafka"
+	"github.com/grafana/tempo/v2/pkg/util/test"
 )
 
 const topicName = "test"

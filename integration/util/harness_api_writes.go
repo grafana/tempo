@@ -5,8 +5,8 @@ import (
 	"math/rand"
 	"time"
 
-	"github.com/grafana/tempo/pkg/tempopb"
-	"github.com/grafana/tempo/pkg/util"
+	"github.com/grafana/tempo/v2/pkg/tempopb"
+	"github.com/grafana/tempo/v2/pkg/util"
 	"github.com/jaegertracing/jaeger-idl/proto-gen/api_v2"
 	thrift "github.com/jaegertracing/jaeger-idl/thrift-gen/jaeger"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/jaeger"

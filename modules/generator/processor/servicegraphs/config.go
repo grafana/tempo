@@ -4,8 +4,8 @@ import (
 	"flag"
 	"time"
 
-	"github.com/grafana/tempo/modules/generator/registry"
-	filterconfig "github.com/grafana/tempo/pkg/spanfilter/config"
+	"github.com/grafana/tempo/v2/modules/generator/registry"
+	filterconfig "github.com/grafana/tempo/v2/pkg/spanfilter/config"
 	"github.com/prometheus/client_golang/prometheus"
 	semconv "go.opentelemetry.io/otel/semconv/v1.25.0"
 	semconvnew "go.opentelemetry.io/otel/semconv/v1.34.0"

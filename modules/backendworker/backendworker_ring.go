@@ -10,7 +10,7 @@ import (
 	"github.com/grafana/dskit/kv"
 	"github.com/grafana/dskit/ring"
 
-	util_log "github.com/grafana/tempo/pkg/util/log"
+	util_log "github.com/grafana/tempo/v2/pkg/util/log"
 )
 
 // RingConfig masks the ring lifecycler config which contains

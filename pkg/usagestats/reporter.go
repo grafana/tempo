@@ -20,8 +20,8 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel"
 
-	"github.com/grafana/tempo/cmd/tempo/build"
-	"github.com/grafana/tempo/tempodb/backend"
+	"github.com/grafana/tempo/v2/cmd/tempo/build"
+	"github.com/grafana/tempo/v2/tempodb/backend"
 )
 
 const (

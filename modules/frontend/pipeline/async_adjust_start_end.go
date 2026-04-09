@@ -5,8 +5,8 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/grafana/tempo/modules/frontend/combiner"
-	"github.com/grafana/tempo/pkg/api"
+	"github.com/grafana/tempo/v2/modules/frontend/combiner"
+	"github.com/grafana/tempo/v2/pkg/api"
 )
 
 type adjustStartEndWare struct {

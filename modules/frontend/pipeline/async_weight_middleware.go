@@ -1,8 +1,8 @@
 package pipeline
 
 import (
-	"github.com/grafana/tempo/modules/frontend/combiner"
-	"github.com/grafana/tempo/pkg/traceql"
+	"github.com/grafana/tempo/v2/modules/frontend/combiner"
+	"github.com/grafana/tempo/v2/pkg/traceql"
 )
 
 type RequestType int

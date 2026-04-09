@@ -3,7 +3,7 @@ package common
 import (
 	"time"
 
-	"github.com/grafana/tempo/pkg/dataquality"
+	"github.com/grafana/tempo/v2/pkg/dataquality"
 )
 
 func AdjustTimeRangeForSlack(tenantID string, ingestionSlack time.Duration, start, end uint32) (uint32, uint32) {

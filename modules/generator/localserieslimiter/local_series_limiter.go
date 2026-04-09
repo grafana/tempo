@@ -3,8 +3,8 @@ package localserieslimiter
 import (
 	"go.uber.org/atomic"
 
-	"github.com/grafana/tempo/modules/generator/registry"
-	tempo_log "github.com/grafana/tempo/pkg/util/log"
+	"github.com/grafana/tempo/v2/modules/generator/registry"
+	tempo_log "github.com/grafana/tempo/v2/pkg/util/log"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/prometheus/prometheus/model/labels"

@@ -15,11 +15,11 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 
-	integrationutil "github.com/grafana/tempo/integration/util"
-	"github.com/grafana/tempo/pkg/tempopb"
-	v1_common "github.com/grafana/tempo/pkg/tempopb/common/v1"
-	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
-	util "github.com/grafana/tempo/pkg/util"
+	integrationutil "github.com/grafana/tempo/v2/integration/util"
+	"github.com/grafana/tempo/v2/pkg/tempopb"
+	v1_common "github.com/grafana/tempo/v2/pkg/tempopb/common/v1"
+	v1 "github.com/grafana/tempo/v2/pkg/tempopb/trace/v1"
+	util "github.com/grafana/tempo/v2/pkg/util"
 )
 
 func TestHasMissingSpans(t *testing.T) {

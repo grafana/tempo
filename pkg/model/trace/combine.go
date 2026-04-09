@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/grafana/tempo/pkg/tempopb"
-	"github.com/grafana/tempo/pkg/util"
+	"github.com/grafana/tempo/v2/pkg/tempopb"
+	"github.com/grafana/tempo/v2/pkg/util"
 )
 
 // token is uint64 to reduce hash collision rates.  Experimentally, it was observed

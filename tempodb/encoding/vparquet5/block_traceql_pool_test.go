@@ -6,8 +6,8 @@ import (
 	"github.com/parquet-go/parquet-go"
 	"github.com/stretchr/testify/assert"
 
-	"github.com/grafana/tempo/pkg/parquetquery"
-	"github.com/grafana/tempo/pkg/traceql"
+	"github.com/grafana/tempo/v2/pkg/parquetquery"
+	"github.com/grafana/tempo/v2/pkg/traceql"
 )
 
 func TestSpanPoolRelease(t *testing.T) {

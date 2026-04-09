@@ -5,8 +5,8 @@ import (
 	"math/rand/v2"
 	"testing"
 
-	"github.com/grafana/tempo/pkg/util/test"
-	"github.com/grafana/tempo/tempodb/backend"
+	"github.com/grafana/tempo/v2/pkg/util/test"
+	"github.com/grafana/tempo/v2/tempodb/backend"
 	"github.com/stretchr/testify/require"
 )
 

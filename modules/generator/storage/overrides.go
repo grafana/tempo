@@ -1,8 +1,8 @@
 package storage
 
 import (
-	"github.com/grafana/tempo/modules/overrides"
-	"github.com/grafana/tempo/modules/overrides/histograms"
+	"github.com/grafana/tempo/v2/modules/overrides"
+	"github.com/grafana/tempo/v2/modules/overrides/histograms"
 )
 
 type Overrides interface {

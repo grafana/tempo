@@ -7,10 +7,10 @@ import (
 	"slices"
 	"sort"
 
-	"github.com/grafana/tempo/modules/frontend/shardtracker"
-	"github.com/grafana/tempo/pkg/api"
-	"github.com/grafana/tempo/pkg/tempopb"
-	"github.com/grafana/tempo/pkg/traceql"
+	"github.com/grafana/tempo/v2/modules/frontend/shardtracker"
+	"github.com/grafana/tempo/v2/pkg/api"
+	"github.com/grafana/tempo/v2/pkg/tempopb"
+	"github.com/grafana/tempo/v2/pkg/traceql"
 )
 
 // QueryRangeJobResponse wraps shardtracker.JobMetadata and implements PipelineResponse.

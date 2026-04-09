@@ -8,8 +8,8 @@ import (
 	"github.com/grafana/dskit/user"
 	"github.com/stretchr/testify/require"
 
-	"github.com/grafana/tempo/modules/frontend/pipeline"
-	"github.com/grafana/tempo/pkg/blockboundary"
+	"github.com/grafana/tempo/v2/modules/frontend/pipeline"
+	"github.com/grafana/tempo/v2/pkg/blockboundary"
 )
 
 func TestBuildShardedRequests(t *testing.T) {

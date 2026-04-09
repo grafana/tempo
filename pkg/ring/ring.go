@@ -8,8 +8,8 @@ import (
 	"github.com/grafana/dskit/ring"
 	"github.com/prometheus/client_golang/prometheus"
 
-	"github.com/grafana/tempo/pkg/usagestats"
-	"github.com/grafana/tempo/pkg/util/log"
+	"github.com/grafana/tempo/v2/pkg/usagestats"
+	"github.com/grafana/tempo/v2/pkg/util/log"
 )
 
 var (

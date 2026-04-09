@@ -5,9 +5,9 @@ import (
 	"testing"
 
 	"github.com/go-kit/log"
-	"github.com/grafana/tempo/modules/cache/memcached"
-	"github.com/grafana/tempo/modules/cache/redis"
-	"github.com/grafana/tempo/pkg/cache"
+	"github.com/grafana/tempo/v2/modules/cache/memcached"
+	"github.com/grafana/tempo/v2/modules/cache/redis"
+	"github.com/grafana/tempo/v2/pkg/cache"
 	"github.com/stretchr/testify/require"
 )
 

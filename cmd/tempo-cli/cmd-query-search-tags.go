@@ -9,8 +9,8 @@ import (
 	"github.com/grafana/dskit/user"
 	"google.golang.org/grpc"
 
-	"github.com/grafana/tempo/pkg/httpclient"
-	"github.com/grafana/tempo/pkg/tempopb"
+	"github.com/grafana/tempo/v2/pkg/httpclient"
+	"github.com/grafana/tempo/v2/pkg/tempopb"
 )
 
 type querySearchTagsCmd struct {

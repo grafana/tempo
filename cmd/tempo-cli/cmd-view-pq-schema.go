@@ -6,7 +6,7 @@ import (
 	"sort"
 
 	"github.com/google/uuid"
-	"github.com/grafana/tempo/tempodb/encoding/vparquet3"
+	"github.com/grafana/tempo/v2/tempodb/encoding/vparquet3"
 	"github.com/parquet-go/parquet-go"
 )
 

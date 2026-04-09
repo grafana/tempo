@@ -6,9 +6,9 @@ import (
 	"runtime/debug"
 
 	"github.com/go-kit/log/level"
-	"github.com/grafana/tempo/pkg/tempopb"
-	"github.com/grafana/tempo/pkg/util/log"
-	"github.com/grafana/tempo/pkg/validation"
+	"github.com/grafana/tempo/v2/pkg/tempopb"
+	"github.com/grafana/tempo/v2/pkg/util/log"
+	"github.com/grafana/tempo/v2/pkg/validation"
 )
 
 func (i *Ingester) SearchRecent(ctx context.Context, req *tempopb.SearchRequest) (res *tempopb.SearchResponse, err error) {

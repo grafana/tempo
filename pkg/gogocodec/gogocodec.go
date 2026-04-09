@@ -19,11 +19,11 @@ import (
 )
 
 const (
-	frontendProtoGenPkgPath = "github.com/grafana/tempo/modules/frontend"
-	tempoProtoGenPkgPath    = "github.com/grafana/tempo/pkg/tempopb"
+	frontendProtoGenPkgPath = "github.com/grafana/tempo/v2/modules/frontend"
+	tempoProtoGenPkgPath    = "github.com/grafana/tempo/v2/pkg/tempopb"
 	jaegerProtoGenPkgPath   = "github.com/jaegertracing/jaeger-idl/proto-gen"
 	jaegerModelPkgPath      = "github.com/jaegertracing/jaeger-idl/model"
-	jaegerStorageV1PkgPath  = "github.com/grafana/tempo/cmd/tempo-query/jaeger/storage_v1"
+	jaegerStorageV1PkgPath  = "github.com/grafana/tempo/v2/cmd/tempo-query/jaeger/storage_v1"
 	// etcd path can be removed once upgrade to grpc >v1.38 is released (tentatively next release from v3.5.1)
 	etcdAPIProtoPkgPath = "go.etcd.io/etcd/api/v3"
 )

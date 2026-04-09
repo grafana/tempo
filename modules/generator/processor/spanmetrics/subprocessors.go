@@ -3,7 +3,7 @@ package spanmetrics
 import (
 	"strings"
 
-	"github.com/grafana/tempo/modules/generator/processor"
+	"github.com/grafana/tempo/v2/modules/generator/processor"
 )
 
 type Subprocessor int

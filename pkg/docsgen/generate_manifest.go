@@ -6,7 +6,7 @@ import (
 	"os"
 	"os/exec"
 
-	"github.com/grafana/tempo/cmd/tempo/app"
+	"github.com/grafana/tempo/v2/cmd/tempo/app"
 	"gopkg.in/yaml.v3"
 )
 

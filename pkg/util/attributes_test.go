@@ -3,7 +3,7 @@ package util
 import (
 	"testing"
 
-	v1common "github.com/grafana/tempo/pkg/tempopb/common/v1"
+	v1common "github.com/grafana/tempo/v2/pkg/tempopb/common/v1"
 	"github.com/stretchr/testify/assert"
 )
 

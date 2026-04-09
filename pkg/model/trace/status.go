@@ -1,6 +1,6 @@
 package trace
 
-import v1trace "github.com/grafana/tempo/pkg/tempopb/trace/v1"
+import v1trace "github.com/grafana/tempo/v2/pkg/tempopb/trace/v1"
 
 func StatusToString(s v1trace.Status_StatusCode) string {
 	var status string

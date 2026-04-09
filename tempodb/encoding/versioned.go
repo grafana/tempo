@@ -7,12 +7,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/grafana/tempo/tempodb/backend"
-	"github.com/grafana/tempo/tempodb/encoding/common"
-	"github.com/grafana/tempo/tempodb/encoding/unsupported"
-	"github.com/grafana/tempo/tempodb/encoding/vparquet3"
-	"github.com/grafana/tempo/tempodb/encoding/vparquet4"
-	"github.com/grafana/tempo/tempodb/encoding/vparquet5"
+	"github.com/grafana/tempo/v2/tempodb/backend"
+	"github.com/grafana/tempo/v2/tempodb/encoding/common"
+	"github.com/grafana/tempo/v2/tempodb/encoding/unsupported"
+	"github.com/grafana/tempo/v2/tempodb/encoding/vparquet3"
+	"github.com/grafana/tempo/v2/tempodb/encoding/vparquet4"
+	"github.com/grafana/tempo/v2/tempodb/encoding/vparquet5"
 )
 
 // VersionedEncoding represents a backend block version, and the methods to

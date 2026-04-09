@@ -21,10 +21,10 @@ import (
 	"go.uber.org/atomic"
 	"google.golang.org/grpc/metadata"
 
-	"github.com/grafana/tempo/modules/generator/storage"
-	"github.com/grafana/tempo/pkg/ingest"
-	"github.com/grafana/tempo/pkg/tempopb"
-	"github.com/grafana/tempo/pkg/validation"
+	"github.com/grafana/tempo/v2/modules/generator/storage"
+	"github.com/grafana/tempo/v2/pkg/ingest"
+	"github.com/grafana/tempo/v2/pkg/tempopb"
+	"github.com/grafana/tempo/v2/pkg/validation"
 )
 
 const (
