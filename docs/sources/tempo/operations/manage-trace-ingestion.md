@@ -47,7 +47,7 @@ Block-builders do not enforce this limit.
 If your services produce many short-lived traces in parallel, you may need to raise this.
 
 {{< admonition type="note" >}}
-The `max_global_traces_per_user` setting, which provided a cluster-wide cap for the legacy ingester write path, has been removed in Tempo 3.0. Use `max_traces_per_user` to set per-instance limits on live-stores.
+The `max_global_traces_per_user` setting, which provides a cluster-wide cap for the ingester write path, has been moved to `ingestion.max_global_traces_per_user` in Tempo 3.0.
 {{< /admonition >}}
 
 ### Per-trace size limit

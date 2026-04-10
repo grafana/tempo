@@ -25,8 +25,8 @@ storage:
       # Default dedicated columns for all blocks
       parquet_dedicated_columns:
         - name: <string> # name of the attribute
-          type: <string> # type of the attribute. options: string (vParquet4+), int (vParquet5 only)
-          scope: <string> # scope of the attribute. options: resource, span (vParquet4+), event (vParquet5 only)
+          type: <string> # type of the attribute. options: string (vParquet3+), int (vParquet5 only)
+          scope: <string> # scope of the attribute. options: resource, span (vParquet3+), event (vParquet5 only)
           options: [<string>] # optional, vParquet5 only. options: array, blob
 
 overrides:
