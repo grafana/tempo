@@ -1140,7 +1140,7 @@ func TestLiveStoreQueryRange(t *testing.T) {
 	mover, err := overrides.NewOverrides(overrides.Config{}, nil, prometheus.DefaultRegisterer)
 	require.NoError(t, err)
 	// Create instance
-	lifecycle, err := newCompleteBlockLifecycle(cfg, noopCompleteBlockFlusher{}, log.NewNopLogger(), prometheus.NewRegistry())
+	lifecycle, err := newCompleteBlockLifecycle(cfg, noopCompleteBlockFlusher{}, log.NewNopLogger())
 	require.NoError(t, err)
 	inst, err := newInstance(tenant, cfg, w, encoding.DefaultEncoding(), lifecycle, mover, log.NewNopLogger())
 	require.NoError(t, err)

@@ -140,7 +140,7 @@ func TestNewCompleteBlockLifecycleUsesKafkaModeWhenConsumingFromKafka(t *testing
 	cfg := defaultConfig(t, t.TempDir())
 	cfg.ConsumeFromKafka = true
 
-	lifecycle, err := newCompleteBlockLifecycle(cfg, nil, log.NewNopLogger(), prometheus.NewRegistry())
+	lifecycle, err := newCompleteBlockLifecycle(cfg, nil, log.NewNopLogger())
 	require.NoError(t, err)
 	require.IsType(t, kafkaCompleteBlockLifecycle{}, lifecycle)
 }
@@ -149,7 +149,7 @@ func TestNewCompleteBlockLifecycleUsesLocalModeWhenKafkaConsumptionIsDisabled(t 
 	cfg := defaultConfig(t, t.TempDir())
 	cfg.ConsumeFromKafka = false
 
-	lifecycle, err := newCompleteBlockLifecycle(cfg, noopCompleteBlockFlusher{}, log.NewNopLogger(), prometheus.NewRegistry())
+	lifecycle, err := newCompleteBlockLifecycle(cfg, noopCompleteBlockFlusher{}, log.NewNopLogger())
 	require.NoError(t, err)
 	require.IsType(t, &localCompleteBlockLifecycle{}, lifecycle)
 }
@@ -158,7 +158,7 @@ func TestNewCompleteBlockLifecycleLocalModeRequiresFlusher(t *testing.T) {
 	cfg := defaultConfig(t, t.TempDir())
 	cfg.ConsumeFromKafka = false
 
-	lifecycle, err := newCompleteBlockLifecycle(cfg, nil, log.NewNopLogger(), prometheus.NewRegistry())
+	lifecycle, err := newCompleteBlockLifecycle(cfg, nil, log.NewNopLogger())
 	require.Error(t, err)
 	require.Nil(t, lifecycle)
 }
@@ -176,7 +176,7 @@ func TestLocalCompleteBlockLifecycleOnCompletedBlockEnqueuesBlock(t *testing.T) 
 	})
 
 	inst, blockID := createCompleteBlockForLifecycleTest(t, liveStore)
-	lifecycleAny, err := newCompleteBlockLifecycle(cfg, noopCompleteBlockFlusher{}, log.NewNopLogger(), prometheus.NewRegistry())
+	lifecycleAny, err := newCompleteBlockLifecycle(cfg, noopCompleteBlockFlusher{}, log.NewNopLogger())
 	require.NoError(t, err)
 	lifecycle, ok := lifecycleAny.(*localCompleteBlockLifecycle)
 	require.True(t, ok)
@@ -200,7 +200,7 @@ func TestLocalCompleteBlockLifecycleStopCancelsInFlightFlush(t *testing.T) {
 
 	inst, blockID := createCompleteBlockForLifecycleTest(t, liveStore)
 	flusher := newBlockingCompleteBlockFlusher()
-	lifecycleAny, err := newCompleteBlockLifecycle(cfg, flusher, log.NewNopLogger(), prometheus.NewRegistry())
+	lifecycleAny, err := newCompleteBlockLifecycle(cfg, flusher, log.NewNopLogger())
 	require.NoError(t, err)
 	lifecycle, ok := lifecycleAny.(*localCompleteBlockLifecycle)
 	require.True(t, ok)
@@ -248,7 +248,7 @@ func TestLocalCompleteBlockLifecycleOnReloadedBlockEnqueuesUnflushedBlock(t *tes
 	})
 
 	inst, blockID := createCompleteBlockForLifecycleTest(t, liveStore)
-	lifecycleAny, err := newCompleteBlockLifecycle(cfg, noopCompleteBlockFlusher{}, log.NewNopLogger(), prometheus.NewRegistry())
+	lifecycleAny, err := newCompleteBlockLifecycle(cfg, noopCompleteBlockFlusher{}, log.NewNopLogger())
 	require.NoError(t, err)
 	lifecycle, ok := lifecycleAny.(*localCompleteBlockLifecycle)
 	require.True(t, ok)
@@ -271,7 +271,7 @@ func TestLocalCompleteBlockLifecycleOnReloadedBlockSkipsFlushedBlock(t *testing.
 	})
 
 	inst, blockID := createCompleteBlockForLifecycleTest(t, liveStore)
-	lifecycleAny, err := newCompleteBlockLifecycle(cfg, noopCompleteBlockFlusher{}, log.NewNopLogger(), prometheus.NewRegistry())
+	lifecycleAny, err := newCompleteBlockLifecycle(cfg, noopCompleteBlockFlusher{}, log.NewNopLogger())
 	require.NoError(t, err)
 	lifecycle, ok := lifecycleAny.(*localCompleteBlockLifecycle)
 	require.True(t, ok)
@@ -301,7 +301,7 @@ func TestLocalCompleteBlockLifecycleRetriesFailedFlush(t *testing.T) {
 
 	synctest.Test(t, func(t *testing.T) {
 		flusher := &failOnceCompleteBlockFlusher{}
-		lifecycleAny, err := newCompleteBlockLifecycle(cfg, flusher, log.NewNopLogger(), prometheus.NewRegistry())
+		lifecycleAny, err := newCompleteBlockLifecycle(cfg, flusher, log.NewNopLogger())
 		require.NoError(t, err)
 		lifecycle, ok := lifecycleAny.(*localCompleteBlockLifecycle)
 		require.True(t, ok)
@@ -331,7 +331,7 @@ func TestLocalCompleteBlockLifecycleStartStopProcessesQueuedBlocks(t *testing.T)
 
 	inst, blockID := createCompleteBlockForLifecycleTest(t, liveStore)
 	flusher := &recordingCompleteBlockFlusher{}
-	lifecycleAny, err := newCompleteBlockLifecycle(cfg, flusher, log.NewNopLogger(), prometheus.NewRegistry())
+	lifecycleAny, err := newCompleteBlockLifecycle(cfg, flusher, log.NewNopLogger())
 	require.NoError(t, err)
 	lifecycle, ok := lifecycleAny.(*localCompleteBlockLifecycle)
 	require.True(t, ok)
