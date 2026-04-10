@@ -246,7 +246,7 @@ func (t *App) initDistributor() (services.Service, error) {
 	singleBinary := IsSingleBinary(t.cfg.Target)
 
 	t.cfg.Distributor.KafkaConfig = t.cfg.Ingest.Kafka
-	t.cfg.Distributor.PushSpansToKafka = true
+	t.cfg.Distributor.PushSpansToKafka = !singleBinary
 
 	localPushTargets := distributor.LocalPushTargets{}
 	if singleBinary {
@@ -794,7 +794,7 @@ func (t *App) setupModuleManager() error {
 		BackendScheduler:              {Common, Store},
 		BackendWorker:                 {Common, Store, MemberlistKV},
 		// composite targets
-		SingleBinary: {BackendScheduler, BackendWorker, QueryFrontend, Querier, Distributor, MetricsGenerator, BlockBuilder, LiveStore},
+		SingleBinary: {BackendScheduler, BackendWorker, QueryFrontend, Querier, Distributor, MetricsGenerator, LiveStore},
 	}
 
 	for mod, targets := range deps {
