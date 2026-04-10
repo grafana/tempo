@@ -79,6 +79,11 @@ var (
 		NativeHistogramMaxBucketNumber:  100,
 		NativeHistogramMinResetDuration: 1 * time.Hour,
 	})
+	metricBlocksCutTotal = promauto.NewCounterVec(prometheus.CounterOpts{
+		Namespace: "tempo_live_store",
+		Name:      "blocks_cut_total",
+		Help:      "The total number of blocks cut by reason.",
+	}, []string{"reason"})
 	metricBackPressure = promauto.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "tempo",
 		Subsystem: "live_store",
@@ -454,6 +459,49 @@ func (i *instance) resetHeadBlock() error {
 	return nil
 }
 
+type cutReason int
+
+const (
+	cutReasonNone             cutReason = 0
+	cutReasonImmediate        cutReason = 1 << iota
+	cutReasonMaxBlockDuration cutReason = 1 << iota
+	cutReasonMaxBlockBytes    cutReason = 1 << iota
+)
+
+// shouldCutHead checks whether the head block should be cut and returns the
+// reason(s). Caller must hold blocksMtx.
+func (i *instance) shouldCutHead(immediate bool) cutReason {
+	if i.headBlock == nil || i.headBlock.DataLength() == 0 {
+		return cutReasonNone
+	}
+
+	var reason cutReason
+
+	if immediate {
+		reason |= cutReasonImmediate
+	}
+	if time.Since(i.lastCutTime) >= i.Cfg.MaxBlockDuration {
+		reason |= cutReasonMaxBlockDuration
+	}
+	if i.headBlock.DataLength() >= i.Cfg.MaxBlockBytes {
+		reason |= cutReasonMaxBlockBytes
+	}
+
+	return reason
+}
+
+func recordBlockCutMetric(reason cutReason) {
+	if reason&cutReasonImmediate != 0 {
+		metricBlocksCutTotal.WithLabelValues("immediate").Inc()
+	}
+	if reason&cutReasonMaxBlockDuration != 0 {
+		metricBlocksCutTotal.WithLabelValues("max_block_duration").Inc()
+	}
+	if reason&cutReasonMaxBlockBytes != 0 {
+		metricBlocksCutTotal.WithLabelValues("max_block_bytes").Inc()
+	}
+}
+
 func (i *instance) cutBlocks(ctx context.Context, immediate bool) (uuid.UUID, error) {
 	_, span := tracer.Start(ctx, "instance.cutBlocks",
 		oteltrace.WithAttributes(attribute.String("tenant", i.tenantID)))
@@ -466,11 +514,8 @@ func (i *instance) cutBlocks(ctx context.Context, immediate bool) (uuid.UUID, er
 		span.AddEvent("released blocksMtx")
 	}()
 
-	if i.headBlock == nil || i.headBlock.DataLength() == 0 {
-		return uuid.Nil, nil
-	}
-
-	if !immediate && time.Since(i.lastCutTime) < i.Cfg.MaxBlockDuration && i.headBlock.DataLength() < i.Cfg.MaxBlockBytes {
+	reason := i.shouldCutHead(immediate)
+	if reason == cutReasonNone {
 		return uuid.Nil, nil
 	}
 
@@ -499,6 +544,8 @@ func (i *instance) cutBlocks(ctx context.Context, immediate bool) (uuid.UUID, er
 		span.RecordError(err)
 		return uuid.Nil, err
 	}
+
+	recordBlockCutMetric(reason)
 
 	return id, nil
 }
