@@ -668,7 +668,7 @@ func TestLiveStoreQueryMethodsBeforeStarted(t *testing.T) {
 					Query: "{}",
 				})
 			},
-			expectedErr: errLagged, // FailOnHighLag=true + nil reader → isLagged returns true
+			expectedErr: ErrStarting, // Readiness check runs before lag check
 		},
 		{
 			name: "SearchTags",
@@ -716,7 +716,7 @@ func TestLiveStoreQueryMethodsBeforeStarted(t *testing.T) {
 					Step:  uint64(time.Second),
 				})
 			},
-			expectedErr: errLagged, // FailOnHighLag=true + nil reader → isLagged returns true
+			expectedErr: ErrStarting, // Readiness check runs before lag check
 		},
 	}
 
@@ -777,16 +777,13 @@ func TestLiveStoreQueryMethodsAfterStoppingWithFailOnHighLag(t *testing.T) {
 
 	ctx := user.InjectOrgID(context.Background(), testTenantID)
 
-	// After stopping, the reader is non-nil but stopped. With FailOnHighLag=true,
-	// isLagged() runs calculateTimeLag() on the stopped reader. Depending on stale
-	// lag values it may return true (errLagged) or false (falls through to
-	// withInstance → CheckReady → ErrStopping). Either way, query must not panic
-	// and must return an error.
+	// After stopping, the readiness check in withInstance runs before the lag check,
+	// so queries deterministically return ErrStopping regardless of FailOnHighLag.
 	_, err = liveStore.SearchRecent(ctx, &tempopb.SearchRequest{
 		Query: "{}",
 		End:   uint32(time.Now().Unix()),
 	})
-	require.Error(t, err)
+	require.ErrorIs(t, err, ErrStopping)
 
 	_, err = liveStore.QueryRange(ctx, &tempopb.QueryRangeRequest{
 		Query: "{} | count_over_time()",
@@ -794,7 +791,7 @@ func TestLiveStoreQueryMethodsAfterStoppingWithFailOnHighLag(t *testing.T) {
 		End:   uint64(time.Now().UnixNano()),
 		Step:  uint64(time.Second),
 	})
-	require.Error(t, err)
+	require.ErrorIs(t, err, ErrStopping)
 }
 
 // erroredEnc is a wrapper around a VersionedEncoding that returns given error on CreateBlock
@@ -1081,6 +1078,10 @@ func TestIsLagged(t *testing.T) {
 			ls.reader.lag.Store(tc.readerLag)
 			ls.lastRecordTimeNanos.Store(tc.lastRecordNano)
 
+			// Ensure an instance exists for the tenant so withInstance invokes the callback
+			_, err = ls.getOrCreateInstance(testTenantID)
+			require.NoError(t, err)
+
 			t.Run("isLagged", func(t *testing.T) {
 				result := ls.isLagged(tc.end.UnixNano())
 				require.Equal(t, tc.expectedLagged, result, tc.description)
@@ -1107,8 +1108,9 @@ func TestIsLagged(t *testing.T) {
 				ctx := user.InjectOrgID(t.Context(), testTenantID)
 				resp, err := ls.QueryRange(ctx, &tempopb.QueryRangeRequest{
 					Query: "{} | rate()",
-					Start: uint64(now.Add(-5 * time.Hour).UnixNano()),
+					Start: uint64(now.Add(-30 * time.Minute).UnixNano()),
 					End:   uint64(tc.end.UnixNano()),
+					Step:  uint64(time.Second),
 				})
 				if tc.expectedLagged {
 					require.ErrorIs(t, err, errLagged)

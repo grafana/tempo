@@ -140,7 +140,7 @@ github.com/IBM/sarama
 # github.com/KimMachineGun/automemlimit v0.7.5
 ## explicit; go 1.22.0
 github.com/KimMachineGun/automemlimit/memlimit
-# github.com/alecthomas/kong v1.14.0
+# github.com/alecthomas/kong v1.15.0
 ## explicit; go 1.20
 github.com/alecthomas/kong
 # github.com/alecthomas/participle/v2 v2.1.4
@@ -689,7 +689,7 @@ github.com/google/uuid
 ## explicit; go 1.24.11
 github.com/googleapis/enterprise-certificate-proxy/client
 github.com/googleapis/enterprise-certificate-proxy/client/util
-# github.com/googleapis/gax-go/v2 v2.20.0
+# github.com/googleapis/gax-go/v2 v2.21.0
 ## explicit; go 1.25.0
 github.com/googleapis/gax-go/v2
 github.com/googleapis/gax-go/v2/apierror
@@ -888,7 +888,7 @@ github.com/jcmturner/gokrb5/v8/types
 ## explicit; go 1.13
 github.com/jcmturner/rpc/v2/mstypes
 github.com/jcmturner/rpc/v2/ndr
-# github.com/jedib0t/go-pretty/v6 v6.7.8
+# github.com/jedib0t/go-pretty/v6 v6.7.9
 ## explicit; go 1.18
 github.com/jedib0t/go-pretty/v6/table
 github.com/jedib0t/go-pretty/v6/text
@@ -2012,7 +2012,7 @@ go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc/internal/envco
 go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc/internal/oconf
 go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc/internal/retry
 go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc/internal/transform
-# go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetrichttp v1.42.0
+# go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetrichttp v1.43.0
 ## explicit; go 1.25.0
 go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetrichttp
 go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetrichttp/internal
@@ -2020,7 +2020,7 @@ go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetrichttp/internal/envco
 go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetrichttp/internal/oconf
 go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetrichttp/internal/retry
 go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetrichttp/internal/transform
-# go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.42.0
+# go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.43.0
 ## explicit; go 1.25.0
 go.opentelemetry.io/otel/exporters/otlp/otlptrace
 go.opentelemetry.io/otel/exporters/otlp/otlptrace/internal/tracetransform
@@ -2034,7 +2034,7 @@ go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc/internal/observ
 go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc/internal/otlpconfig
 go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc/internal/retry
 go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc/internal/x
-# go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp v1.42.0
+# go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp v1.43.0
 ## explicit; go 1.25.0
 go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp
 go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp/internal
@@ -2302,7 +2302,7 @@ gonum.org/v1/gonum/lapack
 gonum.org/v1/gonum/lapack/gonum
 gonum.org/v1/gonum/lapack/lapack64
 gonum.org/v1/gonum/mat
-# google.golang.org/api v0.273.0
+# google.golang.org/api v0.274.0
 ## explicit; go 1.25.0
 google.golang.org/api/googleapi
 google.golang.org/api/googleapi/transport

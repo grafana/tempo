@@ -161,6 +161,7 @@ memory:
 ## Distributor
 
 For more information on configuration options, refer to [this file](https://github.com/grafana/tempo/blob/main/modules/distributor/config.go).
+For architectural details, refer to the [Distributor architecture](/docs/tempo/<TEMPO_VERSION>/reference-tempo-architecture/components/distributor/) documentation.
 
 Distributors receive spans, apply limits and forwarding, and route them to the configured write path.
 
@@ -457,6 +458,7 @@ live_store:
 ## Metrics-generator
 
 For more information on configuration options, refer to [this file](https://github.com/grafana/tempo/blob/main/modules/generator/config.go).
+For architectural details, refer to the [Metrics-generator architecture](/docs/tempo/<TEMPO_VERSION>/reference-tempo-architecture/components/metrics-generator/) documentation.
 
 The metrics-generator processes spans and write metrics using the Prometheus remote write protocol.
 For more information on the metrics-generator, refer to the [Metrics-generator documentation](../metrics-from-traces/metrics-generator/).
@@ -494,10 +496,10 @@ metrics_generator:
       # Name of the network interface to read address from.
       [instance_interface_names: <list of string> | default = ["eth0", "en0"] ]
 
-      # Our advertised IP address in the ring, (usefull if the local ip =/= the external ip)
+      # Our advertised IP address in the ring, (useful if the local ip =/= the external ip)
       # Will default to the configured `instance_id` ip address,
       # if unset, will fallback to ip reported by `instance_interface_names`
-      # (Effected by `enable_inet6`)
+      # (Affected by `enable_inet6`)
       [instance_addr: <string> | default = auto(instance_id, instance_interface_names)]
 
       # Our advertised port in the ring
@@ -545,7 +547,7 @@ metrics_generator:
 
             # Attribute Key to multiply span metrics
             # Note that the attribute name is searched for in both
-            # resouce and span level attributes
+            # resource and span level attributes
             [span_multiplier_key: <string> | default = ""]
 
             # Enable extracting the span multiplier from the W3C tracestate header
@@ -603,7 +605,7 @@ metrics_generator:
 
             # Attribute Key to multiply span metrics
             # Note that the attribute name is searched for in both
-            # resouce and span level attributes
+            # resource and span level attributes
             [span_multiplier_key: <string> | default = ""]
 
             # Enable extracting the span multiplier from the W3C tracestate header
@@ -686,13 +688,14 @@ metrics_generator:
     # Timeout for metric requests
     [query_timeout: <duration> | default = 30s ]
 
-    # Overides the key used to register the metrics-generator in the ring.
+    # Overrides the key used to register the metrics-generator in the ring.
     [override_ring_key: <string> | default = "metrics-generator"]
 ```
 
 ## Query-frontend
 
 For more information on configuration options, refer to [this file](https://github.com/grafana/tempo/blob/main/modules/frontend/config.go).
+For architectural details, refer to the [Query frontend architecture](/docs/tempo/<TEMPO_VERSION>/reference-tempo-architecture/components/query-frontend/) documentation.
 
 The Query Frontend is responsible for sharding incoming requests for faster processing in parallel (by the queriers).
 
@@ -915,6 +918,7 @@ query_frontend:
 ## Querier
 
 For more information on configuration options, refer to [this file](https://github.com/grafana/tempo/blob/main/modules/querier/config.go).
+For architectural details, refer to the [Querier architecture](/docs/tempo/<TEMPO_VERSION>/reference-tempo-architecture/components/querier/) documentation.
 
 The Querier is responsible for querying the backends/cache for the traceID.
 
@@ -962,6 +966,8 @@ It also queries compacted blocks that fall within the (2 \* BlocklistPoll) range
 is defined in the storage section below.
 
 ## Backend scheduler
+
+For architectural details, refer to the [Compaction architecture](/docs/tempo/<TEMPO_VERSION>/reference-tempo-architecture/components/compaction/) documentation.
 
 The backend scheduler is responsible for scheduling and tracking jobs which are assigned to backend workers for processing.
 Only one scheduler should be running at a time.
@@ -1027,6 +1033,8 @@ backend_scheduler:
 
 ## Backend worker
 
+For architectural details, refer to the [Compaction architecture](/docs/tempo/<TEMPO_VERSION>/reference-tempo-architecture/components/compaction/) documentation.
+
 The backend worker connects to the backend scheduler to receive and process jobs.
 Workers are responsible for executing compaction and retention and other jobs, and updating the scheduler on job status.
 
@@ -1070,7 +1078,7 @@ backend_worker:
     # Name of the network interface to read address from.
     [instance_interface_names: <list of string> | default = ["eth0", "en0"] ]
 
-    # Our advertised IP address in the ring, (usefull if the local ip =/= the external ip)
+    # Our advertised IP address in the ring, (useful if the local ip =/= the external ip)
     # Will default to the configured `instance_id` ip address,
     # if unset, will fallback to ip reported by `instance_interface_names`
     # (Effected by `enable_inet6`)
@@ -1154,7 +1162,7 @@ storage:
 
             # optional.
             # Prefix name in gcs
-            # Tempo has this additional option to support a custom prefix to nest all the objects withing a shared bucket.
+            # Tempo has this additional option to support a custom prefix to nest all the objects within a shared bucket.
             [prefix: <string>]
 
             # Buffer size for reads. Default is 10MB
@@ -1211,7 +1219,7 @@ storage:
 
             # optional.
             # Prefix name in s3
-            # Tempo has this additional option to support a custom prefix to nest all the objects withing a shared bucket.
+            # Tempo has this additional option to support a custom prefix to nest all the objects within a shared bucket.
             [prefix: <string>]
 
             # api endpoint to connect to. use AWS S3 or any S3 compatible object storage endpoint.
@@ -1356,7 +1364,7 @@ storage:
 
             # optional.
             # Prefix for azure.
-            # Tempo has this additional option to support a custom prefix to nest all the objects withing a shared bucket.
+            # Tempo has this additional option to support a custom prefix to nest all the objects within a shared bucket.
             [prefix: <string>]
 
             # optional.
@@ -1691,7 +1699,7 @@ Span filter configuration policies block
 [match_type: <string>]
 
 # List of attributes to match
-attributes: <list of policy atributes>
+attributes: <list of policy attributes>
 
     # Attribute key
   - [key: <string>]

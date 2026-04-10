@@ -1,6 +1,8 @@
 package drain
 
 import (
+	"time"
+
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 )
@@ -41,9 +43,13 @@ func newMetrics(reg prometheus.Registerer) *metrics {
 			Help:      "The total amount of lines skipped per tenant",
 		}, []string{"reason", "tenant"}),
 		TokensPerLine: promauto.With(reg).NewHistogramVec(prometheus.HistogramOpts{
-			Namespace: "tempo",
-			Name:      "metrics_generator_registry_drain_tokens_per_line",
-			Help:      "The number of tokens per line",
+			Namespace:                       "tempo",
+			Name:                            "metrics_generator_registry_drain_tokens_per_line",
+			Help:                            "The number of tokens per line",
+			Buckets:                         prometheus.DefBuckets,
+			NativeHistogramBucketFactor:     1.1,
+			NativeHistogramMaxBucketNumber:  100,
+			NativeHistogramMinResetDuration: 1 * time.Hour,
 		}, []string{"tenant"}),
 	}
 }
