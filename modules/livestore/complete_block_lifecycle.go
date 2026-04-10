@@ -91,6 +91,8 @@ func newCompleteBlockLifecycle(cfg Config, flusher completeBlockFlusher, logger 
 	}, nil
 }
 
+// The lifecycle for Kafka mode is noop
+
 type kafkaCompleteBlockLifecycle struct{}
 
 func (kafkaCompleteBlockLifecycle) start(context.Context) {}
@@ -109,6 +111,7 @@ func (kafkaCompleteBlockLifecycle) shouldDeleteCompleteBlock(block *LocalBlock, 
 	return shouldDeleteCompleteBlockByAge(block, cutoff)
 }
 
+// The local implementation is used in the single-binary / monolithic mode for flushing blocks to the backend storage
 type localCompleteBlockLifecycle struct {
 	flusher completeBlockFlusher
 	logger  log.Logger
@@ -176,6 +179,17 @@ func (l *localCompleteBlockLifecycle) onReloadedBlock(_ context.Context, tenantI
 	return l.enqueueBlock(tenantID, block)
 }
 
+func (*localCompleteBlockLifecycle) shouldDeleteCompleteBlock(block *LocalBlock, cutoff time.Time) bool {
+	if block == nil {
+		return false
+	}
+	if block.FlushedTime().IsZero() {
+		return false
+	}
+
+	return shouldDeleteCompleteBlockByAge(block, cutoff)
+}
+
 func (l *localCompleteBlockLifecycle) enqueueBlock(tenantID string, block *LocalBlock) error {
 	if block == nil {
 		return nil
@@ -194,6 +208,8 @@ func (l *localCompleteBlockLifecycle) enqueueBlock(tenantID string, block *Local
 	return nil
 }
 
+// Main loop. It dequeue items from the queue and try to flush them to the backend storage
+// failed ones are dequeued
 func (l *localCompleteBlockLifecycle) runFlushLoop(idx int) {
 	for {
 		op := l.completeBlockQueue.Dequeue(idx)
@@ -227,6 +243,7 @@ func observeFailedFlush(op *localCompleteBlockOp, logger log.Logger, err error) 
 	}
 }
 
+// Failed blocks are requeued after a short delay
 func (l *localCompleteBlockLifecycle) requeueAfter(op *localCompleteBlockOp, delay time.Duration) {
 	op.at = time.Now().Add(delay)
 
@@ -244,17 +261,6 @@ func (l *localCompleteBlockLifecycle) requeueAfter(op *localCompleteBlockOp, del
 			return
 		}
 	}()
-}
-
-func (*localCompleteBlockLifecycle) shouldDeleteCompleteBlock(block *LocalBlock, cutoff time.Time) bool {
-	if block == nil {
-		return false
-	}
-	if block.FlushedTime().IsZero() {
-		return false
-	}
-
-	return shouldDeleteCompleteBlockByAge(block, cutoff)
 }
 
 func shouldDeleteCompleteBlockByAge(block *LocalBlock, cutoff time.Time) bool {
