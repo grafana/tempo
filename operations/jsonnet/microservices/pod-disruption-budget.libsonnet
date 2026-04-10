@@ -7,14 +7,14 @@
 
     backend_scheduler+: {
       pdb: {
-        enabled: false,
+        enabled: true,
         max_unavailable: 1,
       },
     },
 
     backend_worker+: {
       pdb: {
-        enabled: false,
+        enabled: true,
         max_unavailable: 1,
       },
     },
@@ -28,7 +28,7 @@
 
     distributor+: {
       pdb: {
-        enabled: false,
+        enabled: true,
         max_unavailable: 1,
       },
     },
@@ -46,21 +46,21 @@
 
     metrics_generator+: {
       pdb: {
-        enabled: false,
+        enabled: true,
         max_unavailable: 1,
       },
     },
 
     query_frontend+: {
       pdb: {
-        enabled: false,
+        enabled: true,
         max_unavailable: 1,
       },
     },
 
     querier+: {
       pdb: {
-        enabled: false,
+        enabled: true,
         max_unavailable: 1,
       },
     },
