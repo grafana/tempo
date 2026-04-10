@@ -62,8 +62,8 @@ type completeBlockFlusher interface {
 }
 
 // completeBlockLifecycle owns mode-specific handling for locally completed
-// blocks. The initial implementation preserves the current Kafka behaviour;
-// single-binary-specific background flushing will be added in a follow-up.
+// blocks. Kafka mode keeps the existing no-op behavior, while local mode
+// flushes completed blocks in the background.
 type completeBlockLifecycle interface {
 	start(ctx context.Context)
 	stop()
