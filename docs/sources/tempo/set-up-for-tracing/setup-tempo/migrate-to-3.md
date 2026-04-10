@@ -136,15 +136,9 @@ storage:
       path: /var/tempo/wal
 ```
 
-In microservices mode, you also need to configure block-builder partition assignment. Use `assigned_partitions` to map each block-builder instance to specific Kafka partitions:
+In microservices mode, each block-builder instance consumes from exactly one Kafka partition based on its ordinal: block-builder-0 consumes partition 0, block-builder-1 consumes partition 1, and so on. This means the number of block-builder replicas must equal the number of Kafka partitions.
 
-```yaml
-block_builder:
-  consume_cycle_duration: 30s
-  assigned_partitions:
-    block-builder-0: [0, 1]
-    block-builder-1: [2, 3]
-```
+To keep block-builder replicas in sync with the partition count, use an autoscaler that mirrors the live-store replica count (live-stores also run one replica per partition). The Tempo Jsonnet library includes a KEDA-based autoscaler that does this automatically. The same pattern applies to any deployment tooling — scale block-builder replicas to match the number of active Kafka partitions.
 
 The `live_store:` block uses sensible defaults and doesn't require overrides for most deployments.
 
