@@ -264,7 +264,7 @@ func (rw *readerWriter) CompleteBlockWithBackend(ctx context.Context, block comm
 		return nil, fmt.Errorf("error flushing wal block: %w", err)
 	}
 
-	iter, err := block.Iterator()
+	iter, err := block.Iterator(ctx)
 	if err != nil {
 		return nil, err
 	}

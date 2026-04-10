@@ -529,7 +529,7 @@ func (i *instance) completeBlock(ctx context.Context, id uuid.UUID) error {
 	reader := backend.NewReader(i.wal.LocalBackend())
 	writer := backend.NewWriter(i.wal.LocalBackend())
 
-	iter, err := walBlock.Iterator()
+	iter, err := walBlock.Iterator(ctx)
 	if err != nil {
 		level.Error(i.logger).Log("msg", "failed to get WAL block iterator", "id", id, "err", err)
 		span.RecordError(err)
