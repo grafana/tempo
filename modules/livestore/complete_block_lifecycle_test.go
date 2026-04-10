@@ -2,8 +2,10 @@ package livestore
 
 import (
 	"context"
+	"errors"
 	"sync"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/go-kit/log"
@@ -30,6 +32,12 @@ func (noopCompleteBlockFlusher) WriteBlock(context.Context, tempodb.WriteableBlo
 
 type recordingCompleteBlockFlusher struct {
 	mu       sync.Mutex
+	blockIDs []uuid.UUID
+}
+
+type failOnceCompleteBlockFlusher struct {
+	mu       sync.Mutex
+	attempts int
 	blockIDs []uuid.UUID
 }
 
@@ -61,7 +69,35 @@ func (f *recordingCompleteBlockFlusher) WriteBlock(_ context.Context, block temp
 	return nil
 }
 
+func (f *failOnceCompleteBlockFlusher) WriteBlock(_ context.Context, block tempodb.WriteableBlock) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	f.attempts++
+	if f.attempts == 1 {
+		return errors.New("forced flush failure")
+	}
+
+	f.blockIDs = append(f.blockIDs, uuid.UUID(block.BlockMeta().BlockID))
+	return nil
+}
+
 func (f *recordingCompleteBlockFlusher) flushedBlockIDs() []uuid.UUID {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	out := make([]uuid.UUID, len(f.blockIDs))
+	copy(out, f.blockIDs)
+	return out
+}
+
+func (f *failOnceCompleteBlockFlusher) attemptCount() int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.attempts
+}
+
+func (f *failOnceCompleteBlockFlusher) flushedBlockIDs() []uuid.UUID {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
@@ -244,6 +280,41 @@ func TestLocalCompleteBlockLifecycleOnReloadedBlockSkipsFlushedBlock(t *testing.
 	require.NoError(t, block.SetFlushed(t.Context()))
 	require.NoError(t, lifecycle.onReloadedBlock(t.Context(), testTenantID, block))
 	require.True(t, lifecycle.completeBlockQueue.IsEmpty())
+}
+
+func TestLocalCompleteBlockLifecycleRetriesFailedFlush(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	cfg := defaultConfig(t, tmpDir)
+	cfg.ConsumeFromKafka = false
+	cfg.CompleteBlockConcurrency = 1
+	cfg.initialBackoff = 5 * time.Second
+
+	liveStore, err := liveStoreWithConfig(t, cfg)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, services.StopAndAwaitTerminated(context.Background(), liveStore))
+	})
+
+	inst, blockID := createCompleteBlockForLifecycleTest(t, liveStore)
+	block := inst.completeBlocks[blockID]
+
+	synctest.Test(t, func(t *testing.T) {
+		flusher := &failOnceCompleteBlockFlusher{}
+		lifecycleAny, err := newCompleteBlockLifecycle(cfg, flusher, log.NewNopLogger(), prometheus.NewRegistry())
+		require.NoError(t, err)
+		lifecycle, ok := lifecycleAny.(*localCompleteBlockLifecycle)
+		require.True(t, ok)
+
+		lifecycle.start(context.Background())
+		defer lifecycle.stop()
+		require.NoError(t, lifecycle.onCompletedBlock(context.Background(), testTenantID, block))
+
+		time.Sleep(2 * cfg.initialBackoff)
+
+		require.Equal(t, 2, flusher.attemptCount())
+		require.Equal(t, []uuid.UUID{blockID}, flusher.flushedBlockIDs())
+	})
 }
 
 func TestLocalCompleteBlockLifecycleStartStopProcessesQueuedBlocks(t *testing.T) {
