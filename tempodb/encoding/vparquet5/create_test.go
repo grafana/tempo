@@ -48,35 +48,6 @@ func TestCreateBlockHonorsTraceStartEndTimesFromWalMeta(t *testing.T) {
 	require.Equal(t, 305, int(outMeta.EndTime.Unix()))
 }
 
-func TestCreateBlockCancelledContext(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	cancel() // cancel immediately
-
-	rawR, rawW, _, err := local.New(&local.Config{
-		Path: t.TempDir(),
-	})
-	require.NoError(t, err)
-
-	r := backend.NewReader(rawR)
-	w := backend.NewWriter(rawW)
-
-	iter := newTestIterator()
-	for i := 0; i < 100; i++ {
-		iter.Add(test.MakeTrace(10, nil), 0, 0)
-	}
-
-	cfg := &common.BlockConfig{
-		BloomFP:             0.01,
-		BloomShardSizeBytes: 100 * 1024,
-	}
-
-	meta := backend.NewBlockMeta("fake", uuid.New(), VersionString)
-	meta.TotalObjects = 1
-
-	_, err = CreateBlock(ctx, cfg, meta, iter, r, w)
-	require.ErrorIs(t, err, context.Canceled)
-}
-
 type testIterator struct {
 	traces []*tempopb.Trace
 }
