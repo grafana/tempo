@@ -44,6 +44,7 @@ func newCompleteBlockLifecycle(cfg Config, flusher completeBlockFlusher, logger 
 		logger:             logger,
 		reg:                reg,
 		flushConcurrency:   cfg.CompleteBlockConcurrency,
+		retryDelay:         cfg.initialBackoff,
 		completeBlockQueue: flushqueues.New[*localCompleteBlockOp](cfg.CompleteBlockConcurrency, nil),
 	}, nil
 }
@@ -72,6 +73,7 @@ type localCompleteBlockLifecycle struct {
 	reg     prometheus.Registerer
 
 	flushConcurrency   int
+	retryDelay         time.Duration
 	completeBlockQueue *flushqueues.ExclusiveQueues[*localCompleteBlockOp]
 	wg                 sync.WaitGroup
 	ctx                context.Context
@@ -158,12 +160,30 @@ func (l *localCompleteBlockLifecycle) runFlushLoop(idx int) {
 
 		if err := l.flusher.WriteBlock(l.ctx, op.block); err != nil {
 			level.Error(l.logger).Log("msg", "failed to flush complete block", "tenant", op.tenantID, "block", op.block.BlockMeta().BlockID.String(), "err", err)
-			l.completeBlockQueue.Clear(op)
+			l.requeueAfter(op, l.retryDelay)
 			continue
 		}
 
 		l.completeBlockQueue.Clear(op)
 	}
+}
+
+func (l *localCompleteBlockLifecycle) requeueAfter(op *localCompleteBlockOp, delay time.Duration) {
+	op.at = time.Now().Add(delay)
+
+	go func() {
+		timer := time.NewTimer(delay)
+		defer timer.Stop()
+
+		select {
+		case <-timer.C:
+			if err := l.completeBlockQueue.Requeue(op); err != nil {
+				level.Error(l.logger).Log("msg", "failed to requeue complete block flush op", "tenant", op.tenantID, "block", op.block.BlockMeta().BlockID.String(), "err", err)
+			}
+		case <-l.ctx.Done():
+			return
+		}
+	}()
 }
 
 func (*localCompleteBlockLifecycle) shouldDeleteCompleteBlock(block *LocalBlock, cutoff time.Time) bool {
