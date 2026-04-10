@@ -199,6 +199,53 @@ func TestLocalCompleteBlockLifecycleStopCancelsInFlightFlush(t *testing.T) {
 	}
 }
 
+func TestLocalCompleteBlockLifecycleOnReloadedBlockEnqueuesUnflushedBlock(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	cfg := defaultConfig(t, tmpDir)
+	cfg.ConsumeFromKafka = false
+
+	liveStore, err := liveStoreWithConfig(t, cfg)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, services.StopAndAwaitTerminated(context.Background(), liveStore))
+	})
+
+	inst, blockID := createCompleteBlockForLifecycleTest(t, liveStore)
+	lifecycleAny, err := newCompleteBlockLifecycle(cfg, noopCompleteBlockFlusher{}, log.NewNopLogger(), prometheus.NewRegistry())
+	require.NoError(t, err)
+	lifecycle, ok := lifecycleAny.(*localCompleteBlockLifecycle)
+	require.True(t, ok)
+
+	block := inst.completeBlocks[blockID]
+	require.NoError(t, lifecycle.onReloadedBlock(t.Context(), testTenantID, block))
+	require.False(t, lifecycle.completeBlockQueue.IsEmpty())
+}
+
+func TestLocalCompleteBlockLifecycleOnReloadedBlockSkipsFlushedBlock(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	cfg := defaultConfig(t, tmpDir)
+	cfg.ConsumeFromKafka = false
+
+	liveStore, err := liveStoreWithConfig(t, cfg)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, services.StopAndAwaitTerminated(context.Background(), liveStore))
+	})
+
+	inst, blockID := createCompleteBlockForLifecycleTest(t, liveStore)
+	lifecycleAny, err := newCompleteBlockLifecycle(cfg, noopCompleteBlockFlusher{}, log.NewNopLogger(), prometheus.NewRegistry())
+	require.NoError(t, err)
+	lifecycle, ok := lifecycleAny.(*localCompleteBlockLifecycle)
+	require.True(t, ok)
+
+	block := inst.completeBlocks[blockID]
+	require.NoError(t, block.SetFlushed(t.Context()))
+	require.NoError(t, lifecycle.onReloadedBlock(t.Context(), testTenantID, block))
+	require.True(t, lifecycle.completeBlockQueue.IsEmpty())
+}
+
 func TestLocalCompleteBlockLifecycleStartStopProcessesQueuedBlocks(t *testing.T) {
 	tmpDir := t.TempDir()
 
@@ -315,6 +362,46 @@ func TestLiveStoreReloadBlocksCallsCompleteBlockLifecycle(t *testing.T) {
 	require.Equal(t, []completeBlockLifecycleCall{{tenantID: testTenantID, blockID: blockID}}, lifecycle.reloadedCalls)
 }
 
+func TestLocalCompleteBlockLifecycleDeleteOldBlocksDeletesFlushedBlocksByAge(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	cfg := defaultConfig(t, tmpDir)
+	cfg.ConsumeFromKafka = false
+
+	liveStore, err := liveStoreWithConfig(t, cfg)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, services.StopAndAwaitTerminated(context.Background(), liveStore))
+	})
+
+	inst, blockID := createCompleteBlockForLifecycleTest(t, liveStore)
+	block := inst.completeBlocks[blockID]
+	require.NoError(t, block.SetFlushed(t.Context()))
+	inst.completeBlocks[blockID].BlockMeta().EndTime = time.Now().Add(-liveStore.cfg.CompleteBlockTimeout - time.Second)
+
+	require.NoError(t, inst.deleteOldBlocks())
+	require.Len(t, inst.completeBlocks, 0)
+}
+
+func TestLocalCompleteBlockLifecycleDeleteOldBlocksKeepsUnflushedBlocks(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	cfg := defaultConfig(t, tmpDir)
+	cfg.ConsumeFromKafka = false
+
+	liveStore, err := liveStoreWithConfig(t, cfg)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, services.StopAndAwaitTerminated(context.Background(), liveStore))
+	})
+
+	inst, blockID := createCompleteBlockForLifecycleTest(t, liveStore)
+	inst.completeBlocks[blockID].BlockMeta().EndTime = time.Now().Add(-liveStore.cfg.CompleteBlockTimeout - time.Second)
+
+	require.NoError(t, inst.deleteOldBlocks())
+	require.Len(t, inst.completeBlocks, 1)
+}
+
 func TestInstanceDeleteOldBlocksUsesCompleteBlockLifecycle(t *testing.T) {
 	tests := []struct {
 		name          string
@@ -322,9 +409,9 @@ func TestInstanceDeleteOldBlocksUsesCompleteBlockLifecycle(t *testing.T) {
 		wantRemaining int
 	}{
 		{
-			name:          "default lifecycle deletes old complete blocks",
+			name:          "local lifecycle keeps old unflushed complete blocks",
 			lifecycle:     nil,
-			wantRemaining: 0,
+			wantRemaining: 1,
 		},
 		{
 			name:          "custom lifecycle can keep old complete blocks",
