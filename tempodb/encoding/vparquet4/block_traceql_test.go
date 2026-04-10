@@ -420,7 +420,7 @@ func TestBackendNilValueBlockSearchTraceQL(t *testing.T) {
 											String02: ptr("dedicated-span-attr-value-2"),
 											String03: ptr("dedicated-span-attr-value-3"),
 											String04: ptr("dedicated-span-attr-value-4"),
-											String05: ptr("dedicated-span-attr-value-5"),
+											String05: ptr(test.DedicatedBlobTestString()),
 										},
 										Attrs: []Attribute{
 											// BUG - at least one generic attr is required to satisfy
@@ -1151,7 +1151,7 @@ func fullyPopulatedTestTraceWithOption(id common.ID, parentIDTest bool) *Trace {
 									String02: ptr("dedicated-span-attr-value-2"),
 									String03: ptr("dedicated-span-attr-value-3"),
 									String04: ptr("dedicated-span-attr-value-4"),
-									String05: ptr("dedicated-span-attr-value-5"),
+									String05: ptr(test.DedicatedBlobTestString()),
 								},
 							},
 						},
