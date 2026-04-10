@@ -257,8 +257,8 @@ func (w *walBlockFlush) file(ctx context.Context) (*pageFile, error) {
 	return f, nil
 }
 
-func (w *walBlockFlush) rowIterator() (*rowIterator, error) {
-	file, err := w.file(context.Background())
+func (w *walBlockFlush) rowIterator(ctx context.Context) (*rowIterator, error) {
+	file, err := w.file(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -478,12 +478,12 @@ func (b *walBlock) DataLength() uint64 {
 	return uint64(b.flushedSize + b.unflushedSize)
 }
 
-func (b *walBlock) Iterator() (common.Iterator, error) {
+func (b *walBlock) Iterator(ctx context.Context) (common.Iterator, error) {
 	flushed := b.readFlushes()
 	bookmarks := make([]*bookmark[parquet.Row], 0, len(flushed))
 
 	for _, page := range flushed {
-		iter, err := page.rowIterator()
+		iter, err := page.rowIterator(ctx)
 		if err != nil {
 			return nil, fmt.Errorf("error creating iterator for %s: %w", page.path, err)
 		}

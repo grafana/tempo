@@ -137,7 +137,7 @@ type WALBlock interface {
 
 	// Iterator returns an iterator for the block's data.
 	// Returns an error if the iterator creation fails.
-	Iterator() (Iterator, error)
+	Iterator(ctx context.Context) (Iterator, error)
 
 	// Clear clears the block's data.
 	// Returns an error if the clear operation fails.
