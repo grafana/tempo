@@ -218,7 +218,7 @@
   //
   tempo_block_builder_statefulset+:
     if $._config.autoscaling.block_builder.enabled then
-      $.removeReplicasFromSpec + {
+      $.removeReplicasFromSpec {
         metadata+: {
           annotations+: {
             'grafana.com/rollout-mirror-replicas-from-resource-name': $.tempo_live_store_zone_a_statefulset.metadata.name,
