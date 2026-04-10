@@ -1,3 +1,0 @@
-kafka:
-  brokers:
-    - redpanda:9092

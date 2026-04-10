@@ -51,13 +51,6 @@ storage:
     local:
       path: /var/tempo/blocks
 
-ingest:
-  kafka:
-    address: redpanda:9092
-    topic: tempo-ingest
-
-block_builder:
-  consume_cycle_duration: 30s
 
 usage_report:
   reporting_enabled: false
