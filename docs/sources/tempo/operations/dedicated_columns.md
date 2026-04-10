@@ -9,8 +9,7 @@ weight: 400
 Dedicated attribute columns improve query performance by storing the most frequently used attributes in their own columns,
 rather than in the generic attribute key-value list.
 
-Introduced with `vParquet3`, dedicated attribute columns are available when using `vParquet3` or later storage formats.
-Even though `vParquet3` is deprecated, this feature is available when using the current value of `vParquet4`.
+Dedicated attribute columns are available when using `vParquet4` or later block formats.
 
 With `vParquet5`, dedicated attribute columns gain support for array-valued attributes, event-scoped attributes, and blob attributes using the `options` field.
 

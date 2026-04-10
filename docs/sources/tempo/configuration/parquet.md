@@ -22,8 +22,8 @@ As soon as a block format version is enabled, Tempo starts writing data in that 
 ## Block format versions
 
 {{< admonition type="warning" >}}
-The `v2` block format has been removed in Tempo 3.0 and `vParquet3` is deprecated.
-Use `vParquet4` (default) or `vParquet5`. If you have existing `vParquet3` blocks, they remain readable but you should migrate to `vParquet4` or later.
+The `v2` and `vParquet3` block formats have been removed in Tempo 3.0.
+Use `vParquet4` (default) or `vParquet5`.
 {{< /admonition >}}
 
 ### vParquet4 (default)
@@ -37,10 +37,10 @@ For more information, refer to [Dedicated attribute columns](https://grafana.com
 `vParquet5` is production-ready and available as an opt-in alternative to `vParquet4`.
 It builds on vParquet4 with the following improvements:
 
-- **Expanded dedicated columns**: Up to 20 dedicated string columns and 5 dedicated integer columns per scope (span, resource, and event), compared with 10 string columns per scope in vParquet4.
-- **Event-scoped dedicated columns**: Dedicated attribute columns can target event-scoped attributes such as `exception.message`.
-- **Blob column support**: High-cardinality or high-length string attributes (for example, stack traces or UUIDs) can use `zstd` compression instead of dictionary encoding for better efficiency.
-- **Array-valued dedicated columns**: Dedicated columns can store multiple values per attribute using the `options: ["array"]` configuration.
+- Expanded dedicated columns: Up to 20 dedicated string columns and 5 dedicated integer columns per scope (span, resource, and event), compared with 10 string columns per scope in vParquet4.
+- Event-scoped dedicated columns: Dedicated attribute columns can target event-scoped attributes such as `exception.message`.
+- Blob column support: High-cardinality or high-length string attributes (for example, stack traces or UUIDs) can use `zstd` compression instead of dictionary encoding for better efficiency.
+- Array-valued dedicated columns: Dedicated columns can store multiple values per attribute using the `options: ["array"]` configuration.
 
 For details on configuring dedicated attribute columns with vParquet5 features, refer to [Dedicated attribute columns](https://grafana.com/docs/tempo/<TEMPO_VERSION>/operations/dedicated_columns/).
 
