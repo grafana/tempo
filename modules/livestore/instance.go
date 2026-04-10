@@ -137,7 +137,11 @@ type instance struct {
 func newInstance(instanceID string, cfg Config, wal *wal.WAL, completeBlockEncoding encoding.VersionedEncoding, completeBlockLifecycle completeBlockLifecycle, overrides overrides.Interface, logger log.Logger) (*instance, error) {
 	logger = log.With(logger, "tenant", instanceID)
 	if completeBlockLifecycle == nil {
-		completeBlockLifecycle = newCompleteBlockLifecycle(cfg, nil, logger, nil)
+		var err error
+		completeBlockLifecycle, err = newCompleteBlockLifecycle(cfg, nil, logger, nil)
+		if err != nil {
+			return nil, err
+		}
 	}
 	i := &instance{
 		tenantID:               instanceID,

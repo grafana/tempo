@@ -160,6 +160,11 @@ func New(cfg Config, overridesService overrides.Interface, completeBlockFlusher 
 		return nil, fmt.Errorf("block version validation failed: %w", encErr)
 	}
 
+	completeBlockLifecycle, lifecycleErr := newCompleteBlockLifecycle(cfg, completeBlockFlusher, logger, reg)
+	if lifecycleErr != nil {
+		return nil, fmt.Errorf("create complete block lifecycle: %w", lifecycleErr)
+	}
+
 	ctx, cancel := context.WithCancel(context.Background())
 
 	s := &LiveStore{
@@ -172,7 +177,7 @@ func New(cfg Config, overridesService overrides.Interface, completeBlockFlusher 
 		cancel:                 cancel,
 		instances:              make(map[string]*instance),
 		overrides:              overridesService,
-		completeBlockLifecycle: newCompleteBlockLifecycle(cfg, completeBlockFlusher, logger, reg),
+		completeBlockLifecycle: completeBlockLifecycle,
 		completeQueues:         flushqueues.New[*completeOp](cfg.CompleteBlockConcurrency, metricCompleteQueueLength),
 		startupComplete:        make(chan struct{}),
 	}

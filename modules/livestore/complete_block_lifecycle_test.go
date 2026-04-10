@@ -2,14 +2,17 @@ package livestore
 
 import (
 	"context"
+	"sync"
 	"testing"
 	"time"
 
+	"github.com/go-kit/log"
 	"github.com/google/uuid"
 	"github.com/grafana/dskit/services"
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/pkg/flushqueues"
 	testutils "github.com/grafana/tempo/pkg/util/test"
+	"github.com/grafana/tempo/tempodb"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
 )
@@ -17,6 +20,54 @@ import (
 type completeBlockLifecycleCall struct {
 	tenantID string
 	blockID  uuid.UUID
+}
+
+type noopCompleteBlockFlusher struct{}
+
+func (noopCompleteBlockFlusher) WriteBlock(context.Context, tempodb.WriteableBlock) error {
+	return nil
+}
+
+type recordingCompleteBlockFlusher struct {
+	mu       sync.Mutex
+	blockIDs []uuid.UUID
+}
+
+// blockingCompleteBlockFlusher simulates an in-flight flush that only exits
+// once the provided context is canceled.
+type blockingCompleteBlockFlusher struct {
+	started chan struct{}
+	done    chan struct{}
+}
+
+func newBlockingCompleteBlockFlusher() *blockingCompleteBlockFlusher {
+	return &blockingCompleteBlockFlusher{
+		started: make(chan struct{}),
+		done:    make(chan struct{}),
+	}
+}
+
+func (f *blockingCompleteBlockFlusher) WriteBlock(ctx context.Context, _ tempodb.WriteableBlock) error {
+	close(f.started)
+	<-ctx.Done()
+	close(f.done)
+	return ctx.Err()
+}
+
+func (f *recordingCompleteBlockFlusher) WriteBlock(_ context.Context, block tempodb.WriteableBlock) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.blockIDs = append(f.blockIDs, uuid.UUID(block.BlockMeta().BlockID))
+	return nil
+}
+
+func (f *recordingCompleteBlockFlusher) flushedBlockIDs() []uuid.UUID {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	out := make([]uuid.UUID, len(f.blockIDs))
+	copy(out, f.blockIDs)
+	return out
 }
 
 type mockCompleteBlockLifecycle struct {
@@ -47,6 +98,137 @@ func (m *mockCompleteBlockLifecycle) onReloadedBlock(_ context.Context, tenantID
 
 func (m *mockCompleteBlockLifecycle) shouldDeleteCompleteBlock(_ *LocalBlock, _ time.Time) bool {
 	return m.deleteResult
+}
+
+func TestNewCompleteBlockLifecycleUsesKafkaModeWhenConsumingFromKafka(t *testing.T) {
+	cfg := defaultConfig(t, t.TempDir())
+	cfg.ConsumeFromKafka = true
+
+	lifecycle, err := newCompleteBlockLifecycle(cfg, nil, log.NewNopLogger(), prometheus.NewRegistry())
+	require.NoError(t, err)
+	require.IsType(t, kafkaCompleteBlockLifecycle{}, lifecycle)
+}
+
+func TestNewCompleteBlockLifecycleUsesLocalModeWhenKafkaConsumptionIsDisabled(t *testing.T) {
+	cfg := defaultConfig(t, t.TempDir())
+	cfg.ConsumeFromKafka = false
+
+	lifecycle, err := newCompleteBlockLifecycle(cfg, noopCompleteBlockFlusher{}, log.NewNopLogger(), prometheus.NewRegistry())
+	require.NoError(t, err)
+	require.IsType(t, &localCompleteBlockLifecycle{}, lifecycle)
+}
+
+func TestNewCompleteBlockLifecycleLocalModeRequiresFlusher(t *testing.T) {
+	cfg := defaultConfig(t, t.TempDir())
+	cfg.ConsumeFromKafka = false
+
+	lifecycle, err := newCompleteBlockLifecycle(cfg, nil, log.NewNopLogger(), prometheus.NewRegistry())
+	require.Error(t, err)
+	require.Nil(t, lifecycle)
+}
+
+func TestLocalCompleteBlockLifecycleOnCompletedBlockEnqueuesBlock(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	cfg := defaultConfig(t, tmpDir)
+	cfg.ConsumeFromKafka = false
+
+	liveStore, err := liveStoreWithConfig(t, cfg)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, services.StopAndAwaitTerminated(context.Background(), liveStore))
+	})
+
+	inst, blockID := createCompleteBlockForLifecycleTest(t, liveStore)
+	lifecycleAny, err := newCompleteBlockLifecycle(cfg, noopCompleteBlockFlusher{}, log.NewNopLogger(), prometheus.NewRegistry())
+	require.NoError(t, err)
+	lifecycle, ok := lifecycleAny.(*localCompleteBlockLifecycle)
+	require.True(t, ok)
+
+	block := inst.completeBlocks[blockID]
+	require.NoError(t, lifecycle.onCompletedBlock(t.Context(), testTenantID, block))
+	require.False(t, lifecycle.completeBlockQueue.IsEmpty())
+}
+
+func TestLocalCompleteBlockLifecycleStopCancelsInFlightFlush(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	cfg := defaultConfig(t, tmpDir)
+	cfg.ConsumeFromKafka = false
+
+	liveStore, err := liveStoreWithConfig(t, cfg)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, services.StopAndAwaitTerminated(context.Background(), liveStore))
+	})
+
+	inst, blockID := createCompleteBlockForLifecycleTest(t, liveStore)
+	flusher := newBlockingCompleteBlockFlusher()
+	lifecycleAny, err := newCompleteBlockLifecycle(cfg, flusher, log.NewNopLogger(), prometheus.NewRegistry())
+	require.NoError(t, err)
+	lifecycle, ok := lifecycleAny.(*localCompleteBlockLifecycle)
+	require.True(t, ok)
+
+	block := inst.completeBlocks[blockID]
+	require.NoError(t, lifecycle.onCompletedBlock(t.Context(), testTenantID, block))
+
+	lifecycle.start(t.Context())
+
+	select {
+	case <-flusher.started:
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for in-flight flush to start")
+	}
+
+	stopped := make(chan struct{})
+	go func() {
+		defer close(stopped)
+		lifecycle.stop()
+	}()
+
+	select {
+	case <-stopped:
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for lifecycle stop")
+	}
+
+	select {
+	case <-flusher.done:
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for in-flight flush cancellation")
+	}
+}
+
+func TestLocalCompleteBlockLifecycleStartStopProcessesQueuedBlocks(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	cfg := defaultConfig(t, tmpDir)
+	cfg.ConsumeFromKafka = false
+
+	liveStore, err := liveStoreWithConfig(t, cfg)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, services.StopAndAwaitTerminated(context.Background(), liveStore))
+	})
+
+	inst, blockID := createCompleteBlockForLifecycleTest(t, liveStore)
+	flusher := &recordingCompleteBlockFlusher{}
+	lifecycleAny, err := newCompleteBlockLifecycle(cfg, flusher, log.NewNopLogger(), prometheus.NewRegistry())
+	require.NoError(t, err)
+	lifecycle, ok := lifecycleAny.(*localCompleteBlockLifecycle)
+	require.True(t, ok)
+
+	block := inst.completeBlocks[blockID]
+	require.NoError(t, lifecycle.onCompletedBlock(t.Context(), testTenantID, block))
+	require.False(t, lifecycle.completeBlockQueue.IsEmpty())
+
+	lifecycle.start(t.Context())
+	t.Cleanup(lifecycle.stop)
+
+	require.Eventually(t, func() bool {
+		return lifecycle.completeBlockQueue.IsEmpty()
+	}, time.Second, 10*time.Millisecond)
+	require.Equal(t, []uuid.UUID{blockID}, flusher.flushedBlockIDs())
 }
 
 func TestLiveStoreStartStopBackgroundProcessesControlsCompleteBlockLifecycle(t *testing.T) {
@@ -119,7 +301,7 @@ func TestLiveStoreReloadBlocksCallsCompleteBlockLifecycle(t *testing.T) {
 	limits, err := overrides.NewOverrides(overrides.Config{}, nil, prometheus.DefaultRegisterer)
 	require.NoError(t, err)
 
-	reloadedStore, err := New(reloadCfg, limits, nil, testutils.NewTestingLogger(t), prometheus.NewRegistry())
+	reloadedStore, err := New(reloadCfg, limits, noopCompleteBlockFlusher{}, testutils.NewTestingLogger(t), prometheus.NewRegistry())
 	require.NoError(t, err)
 
 	lifecycle := &mockCompleteBlockLifecycle{}

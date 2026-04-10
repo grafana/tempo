@@ -61,7 +61,9 @@ func setupTest(t *testing.T) *testSetup {
 	})
 	require.NoError(t, err)
 
-	instance, err := newInstance(testTenant, *cfg, w, blockEnc, newCompleteBlockLifecycle(*cfg, nil, log.NewNopLogger(), prometheus.NewRegistry()), o, log.NewNopLogger())
+	lifecycle, err := newCompleteBlockLifecycle(*cfg, noopCompleteBlockFlusher{}, log.NewNopLogger(), prometheus.NewRegistry())
+	require.NoError(t, err)
+	instance, err := newInstance(testTenant, *cfg, w, blockEnc, lifecycle, o, log.NewNopLogger())
 	require.NoError(t, err)
 
 	return &testSetup{
