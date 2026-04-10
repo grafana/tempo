@@ -12,5 +12,6 @@ jsonnet-compile:
 
 jsonnet-test: jsonnet-compile
 	@cd test/ && \
-		jsonnet -J vendor -J lib test1.jsonnet
+		jsonnet -J vendor -J lib test1.jsonnet && \
+		jsonnet -J vendor -J lib test_autoscaling.jsonnet
 
