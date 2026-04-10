@@ -1,24 +1,13 @@
 local default = import 'environments/default/main.jsonnet';
 local test = import 'testonnet/main.libsonnet';
 
-// Enable distributor autoscaling on top of the default environment.
-local withAutoscaling = default {
-  _config+:: {
-    autoscaling+: {
-      distributor+: {
-        enabled: true,
-      },
-    },
-  },
-};
-
 test.new(std.thisFile)
 
-// Distributor ScaledObject is created with correct spec.
+// Distributor ScaledObject is created with correct spec (enabled in default env).
 + test.case.new(
   'Distributor ScaledObject',
   test.expect.eq(
-    withAutoscaling.tempo_distributor_scaled_object,
+    default.tempo_distributor_scaled_object,
     {
       apiVersion: 'keda.sh/v1alpha1',
       kind: 'ScaledObject',
@@ -68,16 +57,16 @@ test.new(std.thisFile)
 + test.case.new(
   'Distributor replicas removed',
   test.expect.eq(
-    std.objectHas(withAutoscaling.tempo_distributor_deployment.spec, 'replicas'),
+    std.objectHas(default.tempo_distributor_deployment.spec, 'replicas'),
     false,
   )
 )
 
-// ScaledObjects are empty when autoscaling is disabled (default).
+// ScaledObjects are empty when autoscaling is disabled.
 + test.case.new(
   'ScaledObjects empty when disabled',
   test.expect.eq(
-    default.tempo_distributor_scaled_object,
+    default.tempo_backend_worker_scaled_object,
     {},
   )
 )
