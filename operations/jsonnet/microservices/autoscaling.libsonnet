@@ -79,11 +79,24 @@
         scale_down_period_seconds: 60 * 15,
       },
 
-      // Block builder mirrors replicas from live-store zone-a via rollout-operator.
-      // No KEDA ScaledObject needed; enabling this drops spec.replicas to let
-      // the rollout-operator control the replica count.
+      // Block builder scales to match live-store zone-a pods via KEDA kubernetes-workload scaler.
+      // See: https://github.com/grafana/tempo/issues/6933
       block_builder: {
         enabled: false,
+        min_replicas: 1,
+        max_replicas: 200,
+        paused_replicas: 0,
+        // Number of partitions each block-builder pod handles.
+        // KEDA sets replicas = ceil(live-store-zone-a pods / partitions_per_instance).
+        partitions_per_instance: 1,
+        // Pod selector to count live-store zone-a pods.
+        pod_selector: 'name=live-store-zone-a',
+        scale_up_stabilization_window_seconds: 60,
+        scale_up_pods: 5,
+        scale_up_period_seconds: 60,
+        scale_down_stabilization_window_seconds: 60 * 5,
+        scale_down_pods: 5,
+        scale_down_period_seconds: 60 * 5,
       },
     },
 
@@ -214,18 +227,20 @@
     if $._config.autoscaling.live_store.enabled then $.removeReplicasFromSpec else {},
 
   //
-  // Block Builder: mirrors replicas from live-store zone-a via rollout-operator.
+  // Block Builder: KEDA kubernetes-workload scaler matching live-store zone-a pod count.
   //
-  tempo_block_builder_statefulset+:
+  tempo_block_builder_scaled_object:
     if $._config.autoscaling.block_builder.enabled then
-      $.removeReplicasFromSpec {
-        metadata+: {
-          annotations+: {
-            'grafana.com/rollout-mirror-replicas-from-resource-name': $.tempo_live_store_zone_a_statefulset.metadata.name,
-            'grafana.com/rollout-mirror-replicas-from-resource-kind': $.tempo_live_store_zone_a_statefulset.kind,
-            'grafana.com/rollout-mirror-replicas-from-resource-api-version': $.tempo_live_store_zone_a_statefulset.apiVersion,
-          },
+      $.scaledObjectForController($.tempo_block_builder_statefulset, $._config.autoscaling.block_builder)
+      + scaledObject.spec.withTriggersMixin([{
+        type: 'kubernetes-workload',
+        metadata: {
+          podSelector: $._config.autoscaling.block_builder.pod_selector,
+          value: '%d' % $._config.autoscaling.block_builder.partitions_per_instance,
         },
-      }
+      }])
     else {},
+
+  tempo_block_builder_statefulset+:
+    if $._config.autoscaling.block_builder.enabled then $.removeReplicasFromSpec else {},
 }
