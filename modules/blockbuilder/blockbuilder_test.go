@@ -945,8 +945,16 @@ type ownEverythingSharder struct{}
 func (o *ownEverythingSharder) Owns(string) bool { return true }
 
 func newStore(ctx context.Context, t testing.TB) storage.Store {
+	// Use a derived context so we can stop the blocklist polling goroutine
+	// during cleanup. The store is never started as a dskit service, so
+	// StopAndAwaitTerminated transitions New→Terminated without calling
+	// stopping()/Shutdown(). The polling goroutine (started by EnablePolling)
+	// only exits when its context is cancelled. Without this, it races with
+	// t.TempDir() cleanup, writing files while os.RemoveAll runs.
+	ctx, cancel := context.WithCancel(ctx)
 	store := newStoreWithLogger(ctx, t, testLogger(t), false)
 	t.Cleanup(func() {
+		cancel()
 		require.NoError(t, services.StopAndAwaitTerminated(context.Background(), store))
 	})
 	return store
