@@ -36,7 +36,9 @@ All must pass with no errors. If `generate_manifest.go` produces changes, commit
 
 ```bash
 git add docs/sources/tempo/configuration/manifest.md && git commit -m "manifest.md"
-``` `go build` catches compile errors in production code; `go test -run ^$` catches compile errors in test and integration files. Run these after every change — dependency upgrades, cherry-picks, and manual fixes alike — before staging and committing.
+```
+
+`go build` catches compile errors in production code; `go test -run ^$` catches compile errors in test and integration files. Run these after every change — dependency upgrades, cherry-picks, and manual fixes alike — before staging and committing.
 
 ---
 
@@ -133,6 +135,10 @@ Also run this specifically for integration test directories, which are often mis
 go test -mod vendor -run ^$ ./integration/...
 ```
 
+Ask the user if they want to run broader test coverage (e.g. `make test`, `make test-e2e`). These take a long time and are not required for every commit, so only run them if the user confirms.
+
+**If new errors appear after any step, loop back to step 3** (`go mod tidy`) and work through the errors again. Cascading dependency conflicts often require multiple passes.
+
 ### Cherry-pick vs manual fix
 
 **Prefer cherry-pick when:**
@@ -145,7 +151,7 @@ go test -mod vendor -run ^$ ./integration/...
 - Cherry-picking would require follow-up work (reverting unwanted files, upgrading more deps) that outweighs the benefit
 - The fix itself is trivial (e.g. a one-line method stub on a mock type)
 
-When making a manual fix on a release branch, keep it to the absolute minimum needed to satisfy the compiler — typically a stub that panics, matching the pattern of other unimplemented methods nearby:
+When making a manual fix on a release branch, keep it to the absolute minimum needed to satisfy the compiler. This only applies to **test mock types in `_test.go` files** — never to production code. Typically a stub that panics, matching the pattern of other unimplemented methods in the same mock type:
 
 ```go
 func (r mockRing) GetSubringForOperationStates(_ ring.Operation) ring.ReadRing {
@@ -194,7 +200,9 @@ When one module is bumped, look for these patterns:
 Manual code changes are acceptable — if a dependency upgrade requires updating an interface implementation, a function signature, or call sites in this repo, go ahead and make those changes directly.
 
 ### Release branch
-**Do not make manual code changes.** A release branch should only receive targeted fixes, not source changes driven by dependency upgrades. Instead, find the commit on main that already contains the fix and cherry-pick just the source file changes from it.
+**Do not make manual production code changes.** A release branch should only receive targeted backports, not new hand-written source changes driven by dependency upgrades. Instead, find the commit on main that already contains the fix and cherry-pick the relevant source file changes from it.
+
+The one exception is a **minimal test-only compatibility stub** in a `_test.go` file when no suitable fix exists on main and the change is required solely to satisfy the compiler for test code. Keep it to the absolute minimum — avoid changing runtime behavior.
 
 #### Finding the right commit to cherry-pick
 
