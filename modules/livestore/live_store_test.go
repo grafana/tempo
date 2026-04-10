@@ -92,10 +92,25 @@ func TestLiveStoreNewWithoutKafkaDoesNotRequirePartitionStyleInstanceID(t *testi
 	limits, err := overrides.NewOverrides(overrides.Config{}, nil, prometheus.DefaultRegisterer)
 	require.NoError(t, err)
 
-	liveStore, err := New(cfg, limits, nil, test.NewTestingLogger(t), prometheus.NewRegistry())
+	liveStore, err := New(cfg, limits, noopCompleteBlockFlusher{}, test.NewTestingLogger(t), prometheus.NewRegistry())
 	require.NoError(t, err)
 	require.NotNil(t, liveStore)
 	require.Equal(t, int32(0), liveStore.ingestPartitionID)
+}
+
+func TestLiveStoreNewWithoutKafkaRequiresCompleteBlockFlusher(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	cfg := defaultConfig(t, tmpDir)
+	cfg.ConsumeFromKafka = false
+	cfg.Ring.InstanceID = "single-binary"
+
+	limits, err := overrides.NewOverrides(overrides.Config{}, nil, prometheus.DefaultRegisterer)
+	require.NoError(t, err)
+
+	liveStore, err := New(cfg, limits, nil, test.NewTestingLogger(t), prometheus.NewRegistry())
+	require.Error(t, err)
+	require.Nil(t, liveStore)
 }
 
 func TestLiveStorePushBytesRejectsWhenStarting(t *testing.T) {
@@ -107,7 +122,7 @@ func TestLiveStorePushBytesRejectsWhenStarting(t *testing.T) {
 	limits, err := overrides.NewOverrides(overrides.Config{}, nil, prometheus.DefaultRegisterer)
 	require.NoError(t, err)
 
-	liveStore, err := New(cfg, limits, nil, test.NewTestingLogger(t), prometheus.NewRegistry())
+	liveStore, err := New(cfg, limits, noopCompleteBlockFlusher{}, test.NewTestingLogger(t), prometheus.NewRegistry())
 	require.NoError(t, err)
 
 	id := test.ValidTraceID(nil)

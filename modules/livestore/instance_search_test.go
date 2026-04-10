@@ -653,7 +653,7 @@ func liveStoreWithConfig(t testing.TB, cfg Config) (*LiveStore, error) {
 	logger := test.NewTestingLogger(t)
 
 	// Use fake Kafka cluster for testing
-	liveStore, err := New(cfg, limits, nil, logger, reg)
+	liveStore, err := New(cfg, limits, noopCompleteBlockFlusher{}, logger, reg)
 	if err != nil {
 		return nil, err
 	}
@@ -1140,7 +1140,9 @@ func TestLiveStoreQueryRange(t *testing.T) {
 	mover, err := overrides.NewOverrides(overrides.Config{}, nil, prometheus.DefaultRegisterer)
 	require.NoError(t, err)
 	// Create instance
-	inst, err := newInstance(tenant, cfg, w, encoding.DefaultEncoding(), newCompleteBlockLifecycle(cfg, nil, log.NewNopLogger(), prometheus.NewRegistry()), mover, log.NewNopLogger())
+	lifecycle, err := newCompleteBlockLifecycle(cfg, noopCompleteBlockFlusher{}, log.NewNopLogger(), prometheus.NewRegistry())
+	require.NoError(t, err)
+	inst, err := newInstance(tenant, cfg, w, encoding.DefaultEncoding(), lifecycle, mover, log.NewNopLogger())
 	require.NoError(t, err)
 
 	// Create test spans
