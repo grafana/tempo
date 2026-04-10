@@ -1,9 +1,8 @@
 ## main / unreleased
 
-* [CHANGE] jsonnet: Enable PDB by default for distributor, querier, query-frontend, metrics-generator, backend-scheduler, and backend-worker [#6929](https://github.com/grafana/tempo/pull/6929) (@mapno)
-* [FEATURE] jsonnet: Add KEDA-based horizontal pod autoscaling support for microservices deployment [#6929](https://github.com/grafana/tempo/pull/6929) (@mapno)
 * [ENHANCEMENT] Expose MinIO retry settings via S3 config [#6561](https://github.com/grafana/tempo/pull/6561) (@rwhitty)
 
+* [CHANGE] jsonnet: Enable PDB by default for distributor, querier, query-frontend, metrics-generator, backend-scheduler, and backend-worker [#6929](https://github.com/grafana/tempo/pull/6929) (@mapno)
 * [CHANGE] **BREAKING CHANGE** Centralize block and WAL config: `block_builder` and `live_store` now always use `storage.trace.block` settings; per-module block config fields are removed. [#6647](https://github.com/grafana/tempo/pull/6647) (@stoewer)
 * [CHANGE] **BREAKING CHANGE** Remove Opencensus receiver [#6523](https://github.com/grafana/tempo/pull/6523) (@javiermolinar)
 * [CHANGE] Upgrade Tempo to Go 1.26.0 [#6443](https://github.com/grafana/tempo/pull/6443) (@stoewer)
@@ -21,6 +20,7 @@
 * [CHANGE] Deprecate metrics-generator no-local-blocks [#6707](https://github.com/grafana/tempo/pull/6707) (@javiermolinar)
 * [CHANGE] Own local block and partition ring helpers [#6808](https://github.com/grafana/tempo/pull/6808) (@javiermolinar)
 * [CHANGE] Track invalid trace and span id discards [#6799](https://github.com/grafana/tempo/pull/6799) (@javiermolinar)
+* [FEATURE] jsonnet: Add KEDA-based horizontal pod autoscaling support for microservices deployment [#6929](https://github.com/grafana/tempo/pull/6929) (@mapno)
 * [FEATURE] Add automemlimit support for automatic GOMEMLIMIT configuration. Enable with `memory.automemlimit_enabled: true`. [#6313](https://github.com/grafana/tempo/pull/6313) (@oleg-kozlyuk)
 * [FEATURE] Support comparison operators in TraceQL Metrics queries [#6474](https://github.com/grafana/tempo/pull/6474) (@ruslan-mikhailov)
 * [FEATURE] Add new include_any filter policy for spanmetrics filter [#6392](https://github.com/grafana/tempo/pull/6392) (@javiermolinar)
