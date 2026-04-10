@@ -120,6 +120,18 @@ func (l *localCompleteBlockLifecycle) stop() {
 }
 
 func (l *localCompleteBlockLifecycle) onCompletedBlock(_ context.Context, tenantID string, block *LocalBlock) error {
+	return l.enqueueBlock(tenantID, block)
+}
+
+func (l *localCompleteBlockLifecycle) onReloadedBlock(_ context.Context, tenantID string, block *LocalBlock) error {
+	if block == nil || !block.FlushedTime().IsZero() {
+		return nil
+	}
+
+	return l.enqueueBlock(tenantID, block)
+}
+
+func (l *localCompleteBlockLifecycle) enqueueBlock(tenantID string, block *LocalBlock) error {
 	if block == nil {
 		return nil
 	}
@@ -134,10 +146,6 @@ func (l *localCompleteBlockLifecycle) onCompletedBlock(_ context.Context, tenant
 		return fmt.Errorf("enqueue complete block flush op: %w", err)
 	}
 
-	return nil
-}
-
-func (*localCompleteBlockLifecycle) onReloadedBlock(context.Context, string, *LocalBlock) error {
 	return nil
 }
 
@@ -159,6 +167,13 @@ func (l *localCompleteBlockLifecycle) runFlushLoop(idx int) {
 }
 
 func (*localCompleteBlockLifecycle) shouldDeleteCompleteBlock(block *LocalBlock, cutoff time.Time) bool {
+	if block == nil {
+		return false
+	}
+	if block.FlushedTime().IsZero() {
+		return false
+	}
+
 	return shouldDeleteCompleteBlockByAge(block, cutoff)
 }
 
