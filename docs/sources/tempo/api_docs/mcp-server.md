@@ -23,7 +23,7 @@ query_frontend:
     enabled: true
 ```
 
-Or via a command-line flag: `--frontend.mcp-server.enabled=true`.
+Or via a command-line flag: `--query-frontend.mcp-server.enabled=true`.
 
 {{< admonition type="warning" >}}
 Be aware that using this feature will likely cause tracing data to be passed to an LLM or LLM provider. Consider the content of your tracing data and organizational policies when enabling this.

@@ -22,11 +22,11 @@ var testSLOcfg = SLOConfig{
 func TestMCPServerEnabled(t *testing.T) {
 	fs := flag.NewFlagSet("test", flag.ContinueOnError)
 	cfg := &Config{}
-	cfg.RegisterFlagsAndApplyDefaults("frontend", fs)
+	cfg.RegisterFlagsAndApplyDefaults("query-frontend", fs)
 
 	assert.False(t, cfg.MCPServer.Enabled)
 
-	require.NoError(t, fs.Parse([]string{"-frontend.mcp-server.enabled=true"}))
+	require.NoError(t, fs.Parse([]string{"-query-frontend.mcp-server.enabled=true"}))
 	assert.True(t, cfg.MCPServer.Enabled)
 
 	qf, err := New(*cfg, &mockRoundTripper{}, nil, nil, nil, "", fakeHTTPAuthMiddleware, nil, log.NewNopLogger(), nil)

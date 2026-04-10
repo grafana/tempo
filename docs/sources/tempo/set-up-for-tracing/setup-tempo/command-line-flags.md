@@ -69,7 +69,7 @@ Refer to the [Plan your Tempo deployment](../plan/) documentation for informatio
 
 | Flag | Description | Default |
 | --- | --- | --- |
-| `--frontend.mcp-server.enabled` | Set to true to enable the MCP server | `false` |
+| `--query-frontend.mcp-server.enabled` | Set to true to enable the MCP server | `false` |
 
 Tempo includes an [MCP (Model Context Protocol)](https://modelcontextprotocol.io/docs/getting-started/intro) server that provides AI assistants and Large Language Models (LLMs) with direct access to distributed tracing data through TraceQL queries and other endpoints.
 
