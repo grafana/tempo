@@ -264,7 +264,7 @@ func TestTraceToParquet(t *testing.T) {
 								{Key: "dedicated.span.2", Value: &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "dedicated-span-attr-value-2"}}},
 								{Key: "dedicated.span.3", Value: &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "dedicated-span-attr-value-3"}}},
 								{Key: "dedicated.span.4", Value: &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "dedicated-span-attr-value-4"}}},
-								{Key: "dedicated.span.5", Value: &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "dedicated-span-attr-value-5"}}},
+								{Key: "dedicated.span.5", Value: &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: test.DedicatedBlobTestString()}}},
 								{Key: "span.string.array", Value: &v1.AnyValue{Value: &v1.AnyValue_ArrayValue{ArrayValue: &v1.ArrayValue{
 									Values: []*v1.AnyValue{
 										{Value: &v1.AnyValue_StringValue{StringValue: "one"}},
@@ -371,7 +371,7 @@ func TestTraceToParquet(t *testing.T) {
 							HttpStatusCode: ptr(int64(201)),
 							Attrs: []Attribute{
 								attr("span.attr", "aaa"),
-								attr("dedicated.span.5", "dedicated-span-attr-value-5"), // This is now a blob so falls back to generic area.
+								attr("dedicated.span.5", test.DedicatedBlobTestString()), // Blob column; vparquet4 stores this in generic attrs.
 								attr("span.string.array", []string{"one", "two"}),
 								attr("span.int.array", []int64{1, 2, 3}),
 								attr("span.double.array", []float64{1.1, 2.2}),

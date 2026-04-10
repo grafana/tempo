@@ -36,6 +36,11 @@ const (
 	reasonWaitingForLiveTraces = "waiting_for_live_traces"
 	reasonWaitingForWAL        = "waiting_for_wal"
 	maxTraceLogLinesPerSecond  = 10
+	// walBackpressureLimit is the maximum number of outstanding WAL blocks before
+	// backpressure is applied. In the ideal case, shutdown can leave up to 2
+	// uncompleted WAL blocks on disk, and after restart ingestion may outpace WAL
+	// completion, so we use 4 to avoid unnecessary backpressure during catch-up.
+	walBackpressureLimit = 4
 )
 
 var (
@@ -66,10 +71,13 @@ var (
 		Help:      "The total number of blocks cleared.",
 	}, []string{"block_type"})
 	metricCompletionSize = promauto.NewHistogram(prometheus.HistogramOpts{
-		Namespace: "tempo_live_store",
-		Name:      "completion_size_bytes",
-		Help:      "Size in bytes of blocks completed.",
-		Buckets:   prometheus.ExponentialBuckets(1024*1024, 2, 10), // from 1MB up to 1GB
+		Namespace:                       "tempo_live_store",
+		Name:                            "completion_size_bytes",
+		Help:                            "Size in bytes of blocks completed.",
+		Buckets:                         prometheus.ExponentialBuckets(1024*1024, 2, 10), // from 1MB up to 512MB
+		NativeHistogramBucketFactor:     1.1,
+		NativeHistogramMaxBucketNumber:  100,
+		NativeHistogramMinResetDuration: 1 * time.Hour,
 	})
 	metricBackPressure = promauto.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "tempo",
@@ -78,10 +86,14 @@ var (
 		Help:      "The total amount of time spent waiting to process data from queue",
 	}, []string{"reason"})
 	metricTotalBackPressure = promauto.NewHistogram(prometheus.HistogramOpts{
-		Namespace: "tempo",
-		Subsystem: "live_store",
-		Name:      "back_pressure_duration_seconds",
-		Help:      "Duration of backpressure wait per push",
+		Namespace:                       "tempo",
+		Subsystem:                       "live_store",
+		Name:                            "back_pressure_duration_seconds",
+		Help:                            "Duration of backpressure wait per push",
+		Buckets:                         prometheus.DefBuckets,
+		NativeHistogramBucketFactor:     1.1,
+		NativeHistogramMaxBucketNumber:  100,
+		NativeHistogramMinResetDuration: 1 * time.Hour,
 	})
 )
 
@@ -193,7 +205,7 @@ func (i *instance) backpressure(ctx context.Context) bool {
 	count := len(i.walBlocks)
 	i.blocksMtx.RUnlock()
 
-	if count > 1 {
+	if count > walBackpressureLimit {
 		// There are multiple outstanding WAL blocks that need completion
 		// so wait a bit.
 		select {

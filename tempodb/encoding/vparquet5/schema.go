@@ -474,11 +474,6 @@ func traceToParquetWithMapping(id common.ID, tr *tempopb.Trace, ot *Trace, dedic
 					rootBatch = b
 				}
 
-				ss.Events = extendReuseSlice(len(s.Events), ss.Events)
-				for ie, e := range s.Events {
-					eventToParquet(e, &ss.Events[ie], s.StartTimeUnixNano, dedicatedEventAttributes)
-				}
-
 				// nested set values do not come from the proto, they are calculated
 				// later. set all to 0
 				ss.NestedSetLeft = 0
@@ -512,7 +507,11 @@ func traceToParquetWithMapping(id common.ID, tr *tempopb.Trace, ot *Trace, dedic
 				ss.DurationNano = s.EndTimeUnixNano - s.StartTimeUnixNano
 				ss.DroppedAttributesCount = int32(s.DroppedAttributesCount)
 				ss.DroppedEventsCount = int32(s.DroppedEventsCount)
-				ss.DedicatedAttributes.Reset()
+
+				ss.Events = extendReuseSlice(len(s.Events), ss.Events)
+				for ie, e := range s.Events {
+					eventToParquet(e, &ss.Events[ie], s.StartTimeUnixNano, dedicatedEventAttributes)
+				}
 
 				ss.Links = extendReuseSlice(len(s.Links), ss.Links)
 				for ie, e := range s.Links {
@@ -547,6 +546,7 @@ func traceToParquetWithMapping(id common.ID, tr *tempopb.Trace, ot *Trace, dedic
 
 func writeAttrs(input []*v1.KeyValue, generic *[]Attribute, dedicated *DedicatedAttributes, mapping dedicatedColumnMapping) {
 	*generic = extendReuseSlice(len(input), *generic)
+	dedicated.Reset()
 
 	attrCount := 0
 	for _, a := range input {

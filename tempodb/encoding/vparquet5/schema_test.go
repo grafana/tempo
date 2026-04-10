@@ -262,7 +262,7 @@ func TestTraceToParquet(t *testing.T) {
 								{Key: "dedicated.span.2", Value: &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "dedicated-span-attr-value-2"}}},
 								{Key: "dedicated.span.3", Value: &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "dedicated-span-attr-value-3"}}},
 								{Key: "dedicated.span.4", Value: &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "dedicated-span-attr-value-4"}}},
-								{Key: "dedicated.span.5", Value: &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "dedicated-span-attr-value-5"}}},
+								{Key: "dedicated.span.5", Value: &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: test.DedicatedBlobTestString()}}},
 								{Key: "span.string.array", Value: &v1.AnyValue{Value: &v1.AnyValue_ArrayValue{ArrayValue: &v1.ArrayValue{
 									Values: []*v1.AnyValue{
 										{Value: &v1.AnyValue_StringValue{StringValue: "one"}},
@@ -387,7 +387,7 @@ func TestTraceToParquet(t *testing.T) {
 								String02: []string{"dedicated-span-attr-value-2"},
 								String03: []string{"dedicated-span-attr-value-3"},
 								String04: []string{"dedicated-span-attr-value-4"},
-								String05: []string{"dedicated-span-attr-value-5"},
+								String05: []string{test.DedicatedBlobTestString()},
 							},
 						}},
 					}},

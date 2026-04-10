@@ -1,6 +1,5 @@
 ## main / unreleased
 
-* [ENHANCEMENT] Expose MinIO retry settings via S3 config [#6561](https://github.com/grafana/tempo/pull/6561) (@rwhitty)
 
 * [CHANGE] **BREAKING CHANGE** Centralize block and WAL config: `block_builder` and `live_store` now always use `storage.trace.block` settings; per-module block config fields are removed. [#6647](https://github.com/grafana/tempo/pull/6647) (@stoewer)
 * [CHANGE] **BREAKING CHANGE** Remove Opencensus receiver [#6523](https://github.com/grafana/tempo/pull/6523) (@javiermolinar)
@@ -30,6 +29,8 @@
 * [FEATURE] Add an extension mechanism for per-tenant overrides [#6758](https://github.com/grafana/tempo/pull/6758) (@stoewer)
 * [FEATURE] Extend `TraceRedactor` interface to support hiding complete traces via `ErrTraceHidden`. [#6811](https://github.com/grafana/tempo/pull/6811) (@stoewer)
 * [FEATURE] Single-binary mode: push distributor local ingest directly to live-store and metrics-generator without Kafka [#6729](https://github.com/grafana/tempo/pull/6729) (@javiermolinar)
+* [ENHANCEMENT] Expose MinIO retry settings via S3 config [#6561](https://github.com/grafana/tempo/pull/6561) (@rwhitty)* [ENHANCEMENT] tempo-cli: Add `--header` flag to `query api` commands for custom headers [#6768](https://github.com/grafana/tempo/pull/6768) (@Nouuu)
+* [ENHANCEMENT] Enable native histogram emission for all promauto-registered histograms, including `tempo_request_duration_seconds`. Both classic and native formats are emitted simultaneously; existing scrapers are unaffected. [#6910](https://github.com/grafana/tempo/pull/6910) (@zalegrala)
 * [ENHANCEMENT] tempo-cli: Add `--header` flag to `query api` commands for custom headers [#6768](https://github.com/grafana/tempo/pull/6768) (@Nouuu)
 * [ENHANCEMENT] tempo-cli: add `redact` command to submit trace redaction jobs to the backend scheduler [#6832](https://github.com/grafana/tempo/pull/6832) (@zalegrala)
 * [ENHANCEMENT] Block builder: deduplicate spans within traces during block creation and track removed duplicates via `tempo_block_builder_spans_deduped_total` metric [#6539](https://github.com/grafana/tempo/pull/6539) (@zhxiaogg)
@@ -53,6 +54,8 @@
 * [ENHANCEMENT] Remove explicit `runtime.GC()` calls in vParquet5 compactor/block creation and CLI [#6603](https://github.com/grafana/tempo/pull/6603) (@oleg-kozlyuk-grafana)
 * [ENHANCEMENT] Reduce allocations in `extendReuseSlice` growth path during WAL writes and block creation [#6863](https://github.com/grafana/tempo/pull/6863) (@mapno)
 * [ENHANCEMENT] Implemented anti-affinity for pods in same livestore zone [#6757](https://github.com/grafana/tempo/pull/6757) (@zhxiaogg)
+* [ENHANCEMENT] Livestore: skipped WAL complete op during shutdown [#6839](https://github.com/grafana/tempo/pull/6839) (@zhxiaogg)
+* [BUGFIX] livestore: check readiness before lag for SearchRecent and QueryRange queries [#6911](https://github.com/grafana/tempo/pull/6911) (@zhxiaogg)
 * [BUGFIX] Fix integer overflow in query parameters by using `strconv.ParseUint` instead of `strconv.Atoi`/`strconv.ParseInt` for unsigned integer fields. [#6612](https://github.com/grafana/tempo/pull/6612) (@bejaratommy)
 * [BUGFIX] Fix live-store SearchTagValuesV2 disk cache never being populated on complete blocks [#6858](https://github.com/grafana/tempo/pull/6858) (@mapno)
 * [BUGFIX] Fix dedicated columns fallback in `block_builder` and `live_store` to use `storage.trace.block.parquet_dedicated_columns` when not set via overrides. [#6647](https://github.com/grafana/tempo/pull/6647) (@stoewer)
@@ -68,6 +71,7 @@
 * [BUGFIX] fix(traceql): err on division by zero [#6580](https://github.com/grafana/tempo/pull/6580) (@Proximyst)
 * [BUGFIX] fix(traceql): stop intPow from hanging [#6581](https://github.com/grafana/tempo/pull/6581) (@Proximyst)
 * [BUGFIX] fix(traceql): Fix incorrect search results for some queries on new blob columns [#6815](https://github.com/grafana/tempo/pull/6815) (@mdisibio)
+* [BUGFIX] fix(vparquet5) Fix buffer-reuse bug where event attributes in dedicated columns could be persisted on additional spans and events [#6914](https://github.com/grafana/tempo/pull/6914) (@mdisibio)
 * [BUGFIX] fix: race condition where `remove_owner_on_shutdown` flag was set too late — after context cancellation already triggered the lifecycler's shutdown, causing the partition owner to remain in the ring [#6693](https://github.com/grafana/tempo/pull/6693) (@oleg-kozlyuk-grafana)
 * [BUGFIX] Return 400 instead of 500 when query_range or query_instant requests have unparseable start/end parameters [#6694](https://github.com/grafana/tempo/pull/6694) (@ruslan-mikhailov)
 * [BUGFIX] fix: correct block-builder fetch metrics to use counters instead of gauges.
@@ -77,6 +81,7 @@
 * [BUGFIX] metrics-generator: Drain old series on metric replacement to prevent limiter leak and permanent overflow [#6653](https://github.com/grafana/tempo/pull/6653) (@carles-grafana)
 * [BUGFIX] live-store: fixed unsuccessful deregistering from membership/partition rings during shutdown [#6848](https://github.com/grafana/tempo/pull/6848) (@zhxiaogg)
 * [BUGFIX] fix: respect context cancellation when reading WAL block iterator [#6928](https://github.com/grafana/tempo/pull/6928) (@zhxiaogg)
+* [BUGFIX] Complete lifecycler shutdown on errors [#6906](https://github.com/grafana/tempo/pull/6906) (@javiermolinar)
 
 ### 3.0 Cleanup
 
