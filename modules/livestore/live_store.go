@@ -140,6 +140,7 @@ type LiveStore struct {
 	instances             map[string]*instance
 	wal                   *wal.WAL
 	completeBlockEncoding encoding.VersionedEncoding
+	completeBlockPolicy   completeBlockPolicy
 	overrides             overrides.Interface
 
 	// Background processing
@@ -171,6 +172,7 @@ func New(cfg Config, overridesService overrides.Interface, logger log.Logger, re
 		cancel:                cancel,
 		instances:             make(map[string]*instance),
 		overrides:             overridesService,
+		completeBlockPolicy:   newCompleteBlockPolicy(cfg),
 		completeQueues:        flushqueues.New[*completeOp](cfg.CompleteBlockConcurrency, metricCompleteQueueLength),
 		startupComplete:       make(chan struct{}),
 	}
@@ -676,7 +678,7 @@ func (s *LiveStore) getOrCreateInstance(tenantID string) (*instance, error) {
 	}
 
 	// Create new instance
-	inst, err := newInstance(tenantID, s.cfg, s.wal, s.completeBlockEncoding, s.overrides, s.logger)
+	inst, err := newInstance(tenantID, s.cfg, s.wal, s.completeBlockEncoding, s.completeBlockPolicy, s.overrides, s.logger)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create instance for tenant %s: %w", tenantID, err)
 	}

@@ -112,6 +112,7 @@ type instance struct {
 	// WAL and encoding
 	wal                   *wal.WAL
 	completeBlockEncoding encoding.VersionedEncoding
+	completeBlockPolicy   completeBlockPolicy
 
 	// Block management
 	blocksMtx      sync.RWMutex
@@ -133,15 +134,15 @@ type instance struct {
 	overrides overrides.Interface
 }
 
-func newInstance(instanceID string, cfg Config, wal *wal.WAL, completeBlockEncoding encoding.VersionedEncoding, overrides overrides.Interface, logger log.Logger) (*instance, error) {
+func newInstance(instanceID string, cfg Config, wal *wal.WAL, completeBlockEncoding encoding.VersionedEncoding, completeBlockPolicy completeBlockPolicy, overrides overrides.Interface, logger log.Logger) (*instance, error) {
 	logger = log.With(logger, "tenant", instanceID)
-
 	i := &instance{
 		tenantID:              instanceID,
 		logger:                logger,
 		Cfg:                   cfg,
 		wal:                   wal,
 		completeBlockEncoding: completeBlockEncoding,
+		completeBlockPolicy:   completeBlockPolicy,
 		walBlocks:             map[uuid.UUID]common.WALBlock{},
 		completeBlocks:        map[uuid.UUID]*LocalBlock{},
 		liveTraces:            livetraces.New[*v1.ResourceSpans](func(rs *v1.ResourceSpans) uint64 { return uint64(rs.Size()) }, cfg.MaxTraceIdle, cfg.MaxTraceLive, instanceID),
@@ -652,16 +653,17 @@ func (i *instance) deleteOldBlocks() error {
 	}
 
 	for id, completeBlock := range i.completeBlocks {
-		if completeBlock.BlockMeta().EndTime.Before(cutoff) {
-
-			level.Info(i.logger).Log("msg", "deleting complete block", "block", id.String())
-			err := i.wal.LocalBackend().ClearBlock(id, i.tenantID)
-			if err != nil {
-				return err
-			}
-			delete(i.completeBlocks, id)
-			metricBlocksClearedTotal.WithLabelValues("complete").Inc()
+		if !i.completeBlockPolicy.shouldDeleteCompleteBlock(completeBlock, cutoff) {
+			continue
 		}
+
+		level.Info(i.logger).Log("msg", "deleting complete block", "block", id.String())
+		err := i.wal.LocalBackend().ClearBlock(id, i.tenantID)
+		if err != nil {
+			return err
+		}
+		delete(i.completeBlocks, id)
+		metricBlocksClearedTotal.WithLabelValues("complete").Inc()
 	}
 
 	return nil
