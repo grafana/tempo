@@ -569,6 +569,8 @@ func (i *instance) completeBlock(ctx context.Context, id uuid.UUID) error {
 	}
 
 	blockSize := walBlock.DataLength()
+
+	level.Info(i.logger).Log("msg", "completing WAL block", "blockSize", blockSize, "blockId", id.String())
 	metricCompletionSize.Observe(float64(blockSize))
 	span.SetAttributes(attribute.Int64("block_size", int64(blockSize)))
 
@@ -591,12 +593,15 @@ func (i *instance) completeBlock(ctx context.Context, id uuid.UUID) error {
 		return err
 	}
 
+	level.Info(i.logger).Log("msg", "opening newly completed block", "blockId", newMeta.BlockID.String())
 	newBlock, err := i.completeBlockEncoding.OpenBlock(newMeta, reader)
 	if err != nil {
 		level.Error(i.logger).Log("msg", "failed to open complete block", "id", id, "err", err)
 		span.RecordError(err)
 		return err
 	}
+
+	level.Info(i.logger).Log("msg", "swapping wal block with newly completed block")
 
 	i.blocksMtx.Lock()
 	defer i.blocksMtx.Unlock()

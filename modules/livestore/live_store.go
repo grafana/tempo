@@ -281,12 +281,14 @@ func (s *LiveStore) starting(ctx context.Context) error {
 		return fmt.Errorf("failed to reload blocks from wal: %w", err)
 	}
 
+	level.Info(s.logger).Log("msg", "deleting old blocks")
 	for _, inst := range s.getInstances() {
 		err = inst.deleteOldBlocks()
 		if err != nil {
 			level.Warn(s.logger).Log("msg", "failed to delete old blocks", "err", err, "tenant", inst.tenantID)
 		}
 	}
+	level.Info(s.logger).Log("msg", "done deleting old blocks")
 
 	// Set eagerly so the flag is already in place when the lifecycler's stopping()
 	// checks it. Setting it in our own stopping() races with context-cancellation
@@ -317,11 +319,14 @@ func (s *LiveStore) starting(ctx context.Context) error {
 	}
 
 	// allow background processes to start
+	level.Info(s.logger).Log("msg", "starting all background processes")
 	s.startAllBackgroundProcesses()
 
+	level.Info(s.logger).Log("msg", "waiting for ingestion catching up")
 	if err := s.waitForIngestPathReady(ctx); err != nil {
 		return err
 	}
+	level.Info(s.logger).Log("msg", "done waiting for ingestion catching up")
 
 	// Mark as ready at end of starting()
 	s.readyErr.Store(nil)
@@ -440,7 +445,9 @@ func (s *LiveStore) stopping(error) error {
 	}
 
 	// Flush all data to disk.
+	level.Info(s.logger).Log("msg", "cutting all instances to WAL")
 	s.cutAllInstancesToWal()
+	level.Info(s.logger).Log("msg", "done cutting all instances to WAL")
 
 	// Remove the shutdown marker if it exists since we are shutting down.
 	shutdownMarkerPath := shutdownmarker.GetPath(s.cfg.ShutdownMarkerDir)
@@ -459,6 +466,7 @@ func (s *LiveStore) stopping(error) error {
 	timeout := time.NewTimer(s.cfg.InstanceCleanupPeriod)
 	defer timeout.Stop()
 
+	level.Info(s.logger).Log("msg", "stopping all background processes")
 	s.stopAllBackgroundProcesses()
 
 	return stopErr
@@ -592,6 +600,10 @@ func (s *LiveStore) consume(ctx context.Context, rs recordIter, now time.Time) (
 		record := rs.Next()
 		tenant := string(record.Key)
 
+		// Track partition lag in seconds
+		lag := now.Sub(record.Timestamp)
+		ingest.SetPartitionLagSeconds(s.cfg.IngestConfig.Kafka.ConsumerGroup, record.Partition, lag)
+
 		if record.Timestamp.Before(cutoff) {
 			metricRecordsDropped.WithLabelValues(tenant, droppedRecordReasonTooOld).Inc()
 			lastRecord = record
@@ -620,10 +632,6 @@ func (s *LiveStore) consume(ctx context.Context, rs recordIter, now time.Time) (
 
 		// Push data to tenant instance
 		inst.pushBytes(ctx, record.Timestamp, pushReq)
-
-		// Track partition lag in seconds
-		lag := now.Sub(record.Timestamp)
-		ingest.SetPartitionLagSeconds(s.cfg.IngestConfig.Kafka.ConsumerGroup, record.Partition, lag)
 
 		metricRecordsProcessed.WithLabelValues(tenant).Inc()
 		recordCount++
