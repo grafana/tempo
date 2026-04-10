@@ -146,7 +146,7 @@ func (c *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
 	c.Ingest.RegisterFlagsAndApplyDefaults(util.PrefixConfig(prefix, "ingest"), f)
 	c.BlockBuilder.RegisterFlagsAndApplyDefaults(util.PrefixConfig(prefix, "block-builder"), f)
 	c.Querier.RegisterFlagsAndApplyDefaults(util.PrefixConfig(prefix, "querier"), f)
-	c.Frontend.RegisterFlagsAndApplyDefaults(util.PrefixConfig(prefix, "frontend"), f)
+	c.Frontend.RegisterFlagsAndApplyDefaults(util.PrefixConfig(prefix, "query-frontend"), f)
 	c.StorageConfig.RegisterFlagsAndApplyDefaults(util.PrefixConfig(prefix, "storage"), f)
 	c.UsageReport.RegisterFlagsAndApplyDefaults(util.PrefixConfig(prefix, "reporting"), f)
 	c.CacheProvider.RegisterFlagsAndApplyDefaults(util.PrefixConfig(prefix, "cache"), f)
