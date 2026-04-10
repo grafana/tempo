@@ -217,5 +217,15 @@
   // Block Builder: mirrors replicas from live-store zone-a via rollout-operator.
   //
   tempo_block_builder_statefulset+:
-    if $._config.autoscaling.block_builder.enabled then $.removeReplicasFromSpec else {},
+    if $._config.autoscaling.block_builder.enabled then
+      $.removeReplicasFromSpec + {
+        metadata+: {
+          annotations+: {
+            'grafana.com/rollout-mirror-replicas-from-resource-name': $.tempo_live_store_zone_a_statefulset.metadata.name,
+            'grafana.com/rollout-mirror-replicas-from-resource-kind': $.tempo_live_store_zone_a_statefulset.kind,
+            'grafana.com/rollout-mirror-replicas-from-resource-api-version': $.tempo_live_store_zone_a_statefulset.apiVersion,
+          },
+        },
+      }
+    else {},
 }

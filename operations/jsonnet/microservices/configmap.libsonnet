@@ -79,7 +79,15 @@
   },
 
   tempo_query_frontend_config:: $.tempo_config {},
-  tempo_block_builder_config:: $.tempo_config {},
+  tempo_block_builder_config:: $.tempo_config + (
+    // When autoscaling mirrors live-store replicas (1 partition per live-store pod),
+    // each block-builder pod must also handle exactly 1 partition.
+    if $._config.autoscaling.block_builder.enabled then {
+      block_builder+: {
+        partitions_per_instance: 1,
+      },
+    } else {}
+  ),
   tempo_live_store_config:: $.tempo_config {
     live_store: {
       partition_ring: {
