@@ -493,25 +493,23 @@ func (d *Distributor) PushTraces(ctx context.Context, traces ptrace.Traces) (*te
 		_ = level.Warn(d.logger).Log("msg", "failed to forward batches for tenant=%s: %w", userID, err)
 	}
 
-	if err := d.pushTracesKafka(ctx, userID, ringTokens, rebatchedTraces); err != nil {
-		level.Error(d.logger).Log("msg", "failed to write to kafka", "err", err, "tenant", userID)
-		return nil, err
-	}
-
-	if err := d.pushLocal(ctx, userID, ringTokens, rebatchedTraces); err != nil {
-		level.Error(d.logger).Log("msg", "failed to push to local consumers", "err", err, "tenant", userID)
-		return nil, err
+	if d.pushSpansToKafka {
+		if err := d.pushTracesKafka(ctx, userID, ringTokens, rebatchedTraces); err != nil {
+			level.Error(d.logger).Log("msg", "failed to write to kafka", "err", err, "tenant", userID)
+			return nil, err
+		}
+	} else {
+		if err := d.pushLocal(ctx, userID, ringTokens, rebatchedTraces); err != nil {
+			level.Error(d.logger).Log("msg", "failed to push to local consumers", "err", err, "tenant", userID)
+			return nil, err
+		}
 	}
 
 	return nil, nil // PushRequest is ignored, so no reason to create one
 }
 
 func (d *Distributor) pushTracesKafka(ctx context.Context, userID string, keys []uint32, traces []*rebatchedTrace) error {
-	if !d.pushSpansToKafka {
-		return nil
-	}
-
-	skipMetricsGeneration := generator.ExtractNoGenerateMetrics(ctx) || d.localPushTargets.Generator != nil
+	skipMetricsGeneration := generator.ExtractNoGenerateMetrics(ctx)
 	return d.sendToKafka(ctx, userID, keys, traces, skipMetricsGeneration)
 }
 
