@@ -76,6 +76,10 @@ func (s *LiveStore) runInBackground(fn func()) {
 }
 
 func (s *LiveStore) globalCompleteLoop(idx int) {
+	level.Info(s.logger).Log("msg", "starting completing loop", "index", idx)
+	defer func() {
+		level.Info(s.logger).Log("msg", "shutdown completing loop", "index", idx)
+	}()
 	for {
 		op := s.completeQueues.Dequeue(idx)
 		if op == nil {
@@ -282,6 +286,8 @@ func (s *LiveStore) reloadBlocks() error {
 	// ------------------------------------
 	// Complete blocks
 	// ------------------------------------
+	level.Info(s.logger).Log("msg", "reloading completed blocks")
+
 	var (
 		ctx = s.ctx
 		l   = s.wal.LocalBackend()
@@ -358,6 +364,8 @@ func (s *LiveStore) reloadBlocks() error {
 			inst.blocksMtx.Unlock()
 		}
 	}
+
+	level.Info(s.logger).Log("msg", "done reloading completed blocks")
 
 	return nil
 }

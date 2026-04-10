@@ -488,6 +488,94 @@ func TestLiveStoreConsumeDropsOldRecords(t *testing.T) {
 	require.NoError(t, err)
 }
 
+// TestLiveStoreConsumeTracksPartitionLag verifies that partition lag is tracked
+// for all records regardless of outcome: too old (dropped), decode failure, or
+// successfully processed.
+func TestLiveStoreConsumeTracksPartitionLag(t *testing.T) {
+	ls, err := defaultLiveStore(t, t.TempDir())
+	require.NoError(t, err)
+
+	// Use a unique consumer group to avoid flaky collisions with other packages
+	// that share the global default Prometheus registry.
+	consumerGroup := t.Name()
+	ls.cfg.IngestConfig.Kafka.ConsumerGroup = consumerGroup
+	t.Cleanup(func() {
+		ingest.ResetLagMetricsForRevokedPartitions(consumerGroup, []int32{0, 1, 2})
+	})
+
+	now := time.Now()
+	older := now.Add(-1 * (defaultCompleteBlockTimeout + time.Second))
+	newer := now.Add(-1 * (defaultCompleteBlockTimeout - time.Second))
+
+	// Each record uses a different partition so we can verify lag independently.
+	records := []*kgo.Record{
+		{
+			Key:       []byte("tenant1"),
+			Timestamp: older, // dropped as too old
+			Partition: 0,
+			Value:     createValidPushRequest(t),
+		},
+		{
+			Key:       []byte("tenant1"),
+			Timestamp: newer, // dropped due to decode failure
+			Partition: 1,
+			Value:     []byte("invalid-protobuf"),
+		},
+		{
+			Key:       []byte("tenant1"),
+			Timestamp: newer, // successfully processed
+			Partition: 2,
+			Value:     createValidPushRequest(t),
+		},
+	}
+
+	_, err = ls.consume(context.Background(), createRecordIter(records), now)
+	require.NoError(t, err)
+
+	// Partition lag should be tracked for every record, including dropped ones.
+	require.InDelta(t, now.Sub(older).Seconds(), getPartitionLagSecondsFromGatherer(t, consumerGroup, "0"), 0.1,
+		"partition lag should be tracked for too-old records")
+	require.InDelta(t, now.Sub(newer).Seconds(), getPartitionLagSecondsFromGatherer(t, consumerGroup, "1"), 0.1,
+		"partition lag should be tracked for decode-failure records")
+	require.InDelta(t, now.Sub(newer).Seconds(), getPartitionLagSecondsFromGatherer(t, consumerGroup, "2"), 0.1,
+		"partition lag should be tracked for successfully processed records")
+
+	err = services.StopAndAwaitTerminated(t.Context(), ls)
+	require.NoError(t, err)
+}
+
+// getPartitionLagSecondsFromGatherer reads the tempo_ingest_group_partition_lag_seconds gauge
+// from the default Prometheus gatherer.
+func getPartitionLagSecondsFromGatherer(t *testing.T, group, partition string) float64 {
+	t.Helper()
+
+	families, err := prometheus.DefaultGatherer.Gather()
+	require.NoError(t, err)
+
+	for _, f := range families {
+		if f.GetName() != "tempo_ingest_group_partition_lag_seconds" {
+			continue
+		}
+		for _, m := range f.GetMetric() {
+			var matchGroup, matchPartition bool
+			for _, l := range m.GetLabel() {
+				if l.GetName() == "group" && l.GetValue() == group {
+					matchGroup = true
+				}
+				if l.GetName() == "partition" && l.GetValue() == partition {
+					matchPartition = true
+				}
+			}
+			if matchGroup && matchPartition {
+				return m.GetGauge().GetValue()
+			}
+		}
+	}
+
+	t.Fatalf("metric tempo_ingest_group_partition_lag_seconds{group=%q, partition=%q} not found", group, partition)
+	return 0
+}
+
 func TestLiveStoreUsesRecordTimestampForBlockStartAndEnd(t *testing.T) {
 	// default ingestion slack is 2 minutes. create some convenient times to help the test below
 	now := time.Unix(1000000, 0)
