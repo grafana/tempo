@@ -49,6 +49,7 @@ For externally supported gRPC API, [refer to Tempo gRPC API](#tempo-grpc-api).
 | [Usage Metrics](#usage-metrics)                                                       | Distributor                               | HTTP | `GET /usage_metrics`                                      |
 | [Distributor ring status](#distributor-ring-status) (\*)                              | Distributor                               | HTTP | `GET /distributor/ring`                                   |
 | [Live-store ring status](#live-store-ring-status)                                     | Distributor, Querier                      | HTTP | `GET /live-store/ring`                                    |
+| [Partition ring status](#partition-ring-status)                                       | Distributor, Querier, Live store          | HTTP | `GET /partition-ring`                                     |
 | [Status](#status)                                                                     | Status                                    | HTTP | `GET /status`                                             |
 | [List build information](#list-build-information)                                     | Status                                    | HTTP | `GET /api/status/buildinfo`                               |
 | [MCP Server](https://grafana.com/docs/tempo/<TEMPO_VERSION>/api_docs/mcp-server) (\*) | MCP                                       |      | `/api/mcp`                                                |
@@ -803,6 +804,16 @@ GET /live-store/ring
 ```
 
 Displays a web page with the live-store hash ring status, including the state, health, and last heartbeat time of each live-store instance.
+
+For more information, refer to [consistent hash ring](https://grafana.com/docs/tempo/<TEMPO_VERSION>/operations/manage-advanced-systems/consistent_hash_ring/).
+
+### Partition ring status
+
+```
+GET /partition-ring
+```
+
+Displays a web page with the partition ring status, showing partition ownership across live-store instances, including state, ownership percentage, and available actions.
 
 For more information, refer to [consistent hash ring](https://grafana.com/docs/tempo/<TEMPO_VERSION>/operations/manage-advanced-systems/consistent_hash_ring/).
 

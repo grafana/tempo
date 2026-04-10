@@ -13,7 +13,7 @@ Tempo uses the [Consistent Hash Ring](https://cortexmetrics.io/docs/architecture
 By default, the ring is gossiped between all Tempo components.
 However, it can be configured to use [Consul](https://www.consul.io/) or [Etcd](https://etcd.io/), if desired.
 
-Tempo uses several consistent hash rings. This topic describes the distributor, live-store (partition ring), and live-store rings.
+Tempo uses several consistent hash rings.
 Each hash ring exists for a distinct reason.
 
 ## Distributor
@@ -34,10 +34,33 @@ This ring is only used when `global` rate limits are used. The distributors use 
 
 The partition ring tracks which Tempo partitions are active and which live-stores own them. Distributors use this ring to determine which partitions to write to when sending data to Kafka. Queriers use it to find the live-stores for querying recent traces. Block-builders use it to determine which partitions to consume from.
 
+## Backend-worker
+
+**Participants:** Backend-workers
+
+**Used by:** Backend-workers
+
+The backend-worker ring shards tenant index writing across backend-workers. This ring is only active when the backend-worker is configured with an external KV store for ring membership.
+
+## Metrics-generator (partition ring)
+
+**Participants:** Metrics-generators
+
+**Used by:** Metrics-generators
+
+In microservices mode, the metrics-generator partition ring tracks which generator instances own which partitions. This ring is only active when `metrics_generator.ring_mode` is set to `generator`.
+
 ## Interacting with the rings
 
-Web pages are available at the following endpoints. They show every ring member, their tokens and includes the ability to "Forget" a ring member. "Forgetting" is useful when a
-ring member leaves the ring without properly shutting down, and therefore leaves its tokens in the ring.
+Web pages are available at the following endpoints. They show every ring member, their tokens, and include the ability to "Forget" a ring member. "Forgetting" is useful when a ring member leaves the ring without properly shutting down, and therefore leaves its tokens in the ring.
+
+To access a ring page, send a GET request to the Tempo HTTP API. By default, Tempo listens on port `3200` (configured with `server.http_listen_port`). For example:
+
+```
+http://<tempo-host>:3200/live-store/ring
+```
+
+In single-binary mode, all ring endpoints are available on the same host. In microservices mode, each endpoint is available on the component listed in the **Available on** field.
 
 ### Distributor
 
@@ -45,7 +68,11 @@ ring member leaves the ring without properly shutting down, and therefore leaves
 
 **Path:** `/distributor/ring`
 
-Unhealthy distributors have little impact but should be forgotten to reduce cost of maintaining the ring .
+{{< admonition type="note" >}}
+This endpoint is only available when Tempo is configured with [the global override strategy](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/#overrides).
+{{< /admonition >}}
+
+Unhealthy distributors have little impact but should be forgotten to reduce the cost of maintaining the ring.
 
 ### Live-store (partition ring)
 
@@ -60,6 +87,30 @@ The partition ring shows partition ownership across live-stores. Unhealthy live-
 **Available on:** Distributors, Queriers, Live-stores
 
 **Path:** `/live-store/ring`
+
+### Backend-worker
+
+**Available on:** Backend-workers
+
+**Path:** `/backend-worker/ring`
+
+{{< admonition type="note" >}}
+This endpoint is only available when the backend-worker is configured with an external KV store for its ring.
+{{< /admonition >}}
+
+The backend-worker ring page shows how tenant index writing is distributed across workers. Forget unhealthy workers so that sharding redistributes correctly.
+
+### Metrics-generator (partition ring)
+
+**Available on:** Metrics-generators
+
+**Path:** `/partition/ring`
+
+{{< admonition type="note" >}}
+This endpoint is only available in microservices mode when `metrics_generator.ring_mode` is set to `generator`.
+{{< /admonition >}}
+
+The metrics-generator partition ring shows partition ownership across generator instances.
 
 ## Configuring the rings
 
