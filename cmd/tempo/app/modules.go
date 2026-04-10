@@ -707,7 +707,7 @@ func (t *App) initLiveStore() (services.Service, error) {
 	t.cfg.LiveStore.WAL.Version = t.cfg.StorageConfig.Trace.Block.Version
 
 	var err error
-	t.liveStore, err = livestore.New(t.cfg.LiveStore, t.Overrides, log.Logger, prometheus.DefaultRegisterer)
+	t.liveStore, err = livestore.New(t.cfg.LiveStore, t.Overrides, t.store, log.Logger, prometheus.DefaultRegisterer)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create liveStore: %w", err)
 	}
@@ -757,12 +757,15 @@ func (t *App) setupModuleManager() error {
 
 	mm.RegisterModule(SingleBinary, nil)
 
+	liveStoreDeps := []string{Common, MemberlistKV, PartitionRing}
 	distributorDeps := []string{Common, LiveStoreRing, PartitionRing}
+
 	if IsSingleBinary(t.cfg.Target) {
 		// In single-binary mode the distributor calls the live-store and metrics-generator in-process.
 		// Make those runtime dependencies explicit in the module DAG instead of relying on sibling
 		// initialization under the composite target.
 		distributorDeps = append(distributorDeps, LiveStore, MetricsGenerator)
+		liveStoreDeps = append(liveStoreDeps, Store)
 	}
 
 	deps := map[string][]string{
@@ -783,14 +786,13 @@ func (t *App) setupModuleManager() error {
 		// individual targets
 		QueryFrontend:                 {Common, Store, OverridesAPI},
 		Distributor:                   distributorDeps,
+		LiveStore:                     liveStoreDeps,
 		MetricsGenerator:              {Common, MemberlistKV, PartitionRing, GeneratorRingWatcher},
 		MetricsGeneratorNoLocalBlocks: {Common, MemberlistKV, GeneratorRingWatcher},
 		Querier:                       {Common, Store, LiveStoreRing, PartitionRing},
 		BlockBuilder:                  {Common, Store, MemberlistKV, PartitionRing},
 		BackendScheduler:              {Common, Store},
 		BackendWorker:                 {Common, Store, MemberlistKV},
-		LiveStore:                     {Common, MemberlistKV, PartitionRing},
-
 		// composite targets
 		SingleBinary: {BackendScheduler, BackendWorker, QueryFrontend, Querier, Distributor, MetricsGenerator, BlockBuilder, LiveStore},
 	}

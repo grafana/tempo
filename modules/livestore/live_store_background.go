@@ -51,6 +51,7 @@ func (s *LiveStore) startAllBackgroundProcesses() {
 		return
 	}
 
+	s.completeBlockLifecycle.start(s.ctx)
 	close(s.startupComplete)
 }
 
@@ -58,6 +59,7 @@ func (s *LiveStore) stopAllBackgroundProcesses() {
 	s.cancel()              // this will cause the per tenant background processes to complete
 	s.completeQueues.Stop() // this will cause the global complete loop by preventing additional enqueues
 	s.wg.Wait()
+	s.completeBlockLifecycle.stop()
 }
 
 func (s *LiveStore) runInBackground(fn func()) {
@@ -114,16 +116,19 @@ func (s *LiveStore) processCompleteOp(op *completeOp) error {
 		return err
 	}
 
-	if err := inst.completeBlock(ctx, op.blockID); err != nil {
+	completeBlock, err := inst.completeBlock(ctx, op.blockID)
+	if err != nil {
 		metricCompletionDuration.Observe(time.Since(start).Seconds())
 		s.retryCompleteOp(op, span, "failed to complete block", err)
 		return nil
 	}
 
-	if err := s.completeBlockPolicy.onCompletedBlock(ctx, op.tenantID, op.blockID); err != nil {
-		metricCompletionDuration.Observe(time.Since(start).Seconds())
-		s.retryCompleteOp(op, span, "failed to apply complete block policy", err)
-		return nil
+	if completeBlock != nil {
+		if err := s.completeBlockLifecycle.onCompletedBlock(ctx, op.tenantID, completeBlock); err != nil {
+			metricCompletionDuration.Observe(time.Since(start).Seconds())
+			s.retryCompleteOp(op, span, "failed to apply complete block lifecycle", err)
+			return nil
+		}
 	}
 
 	metricCompletionDuration.Observe(time.Since(start).Seconds())
@@ -355,8 +360,8 @@ func (s *LiveStore) reloadBlocks() error {
 			inst.completeBlocks[id] = lb
 			inst.blocksMtx.Unlock()
 
-			if err := s.completeBlockPolicy.onReloadedBlock(ctx, tenant, id, lb); err != nil {
-				return fmt.Errorf("failed to apply complete block policy to reloaded block %s in tenant %s: %w", id.String(), tenant, err)
+			if err := s.completeBlockLifecycle.onReloadedBlock(ctx, tenant, lb); err != nil {
+				return fmt.Errorf("failed to apply complete block lifecycle to reloaded block %s in tenant %s: %w", id.String(), tenant, err)
 			}
 		}
 	}

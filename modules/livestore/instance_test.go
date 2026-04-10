@@ -121,7 +121,7 @@ func TestInstanceLimits(t *testing.T) {
 		require.NoError(t, err)
 		blockID, err := instance.cutBlocks(t.Context(), true) // this won't clear the trace b/c the trace must not be seen for 2 head block cuts to be fully removed from live traces
 		require.NoError(t, err)
-		err = instance.completeBlock(t.Context(), blockID)
+		_, err = instance.completeBlock(t.Context(), blockID)
 		require.NoError(t, err)
 
 		// push a second trace so cutIdle/cutBlocks goes through
@@ -132,7 +132,7 @@ func TestInstanceLimits(t *testing.T) {
 		require.NoError(t, err)
 		blockID, err = instance.cutBlocks(t.Context(), true) // this will clear the trace b/c the trace has not been seen for 2 head block cuts
 		require.NoError(t, err)
-		err = instance.completeBlock(t.Context(), blockID)
+		_, err = instance.completeBlock(t.Context(), blockID)
 		require.NoError(t, err)
 
 		// Second push with same id will succeed b/c we have gone through one block flush cycles w/o seeing it

@@ -61,7 +61,7 @@ func setupTest(t *testing.T) *testSetup {
 	})
 	require.NoError(t, err)
 
-	instance, err := newInstance(testTenant, *cfg, w, blockEnc, newCompleteBlockPolicy(*cfg), o, log.NewNopLogger())
+	instance, err := newInstance(testTenant, *cfg, w, blockEnc, newCompleteBlockLifecycle(*cfg, nil, log.NewNopLogger(), prometheus.NewRegistry()), o, log.NewNopLogger())
 	require.NoError(t, err)
 
 	return &testSetup{
@@ -174,7 +174,7 @@ func TestMetrics_CompletionFlow(t *testing.T) {
 	initialCompletionSize := getHistogramCount(t, metricCompletionSize)
 
 	// Complete the block
-	err = setup.instance.completeBlock(t.Context(), blockID)
+	_, err = setup.instance.completeBlock(t.Context(), blockID)
 	require.NoError(t, err)
 
 	// Verify completion size metric was updated

@@ -136,12 +136,12 @@ type LiveStore struct {
 	reader *PartitionReader
 
 	// Multi-tenant instances
-	instancesMtx          sync.RWMutex
-	instances             map[string]*instance
-	wal                   *wal.WAL
-	completeBlockEncoding encoding.VersionedEncoding
-	completeBlockPolicy   completeBlockPolicy
-	overrides             overrides.Interface
+	instancesMtx           sync.RWMutex
+	instances              map[string]*instance
+	wal                    *wal.WAL
+	completeBlockEncoding  encoding.VersionedEncoding
+	completeBlockLifecycle completeBlockLifecycle
+	overrides              overrides.Interface
 
 	// Background processing
 	ctx                 context.Context // context for the service. all background processes should exit if this is cancelled
@@ -154,7 +154,7 @@ type LiveStore struct {
 	lastRecordTimeNanos atomic.Int64          // stores timestamp of last consumed record as UnixNano, -1 means not set
 }
 
-func New(cfg Config, overridesService overrides.Interface, logger log.Logger, reg prometheus.Registerer) (*LiveStore, error) {
+func New(cfg Config, overridesService overrides.Interface, completeBlockFlusher completeBlockFlusher, logger log.Logger, reg prometheus.Registerer) (*LiveStore, error) {
 	completeBlockEncoding, encErr := encoding.FromVersionForWrites(cfg.BlockConfig.Version)
 	if encErr != nil {
 		return nil, fmt.Errorf("block version validation failed: %w", encErr)
@@ -163,18 +163,18 @@ func New(cfg Config, overridesService overrides.Interface, logger log.Logger, re
 	ctx, cancel := context.WithCancel(context.Background())
 
 	s := &LiveStore{
-		cfg:                   cfg,
-		logger:                logger,
-		reg:                   reg,
-		decoder:               ingest.NewDecoder(),
-		completeBlockEncoding: completeBlockEncoding,
-		ctx:                   ctx,
-		cancel:                cancel,
-		instances:             make(map[string]*instance),
-		overrides:             overridesService,
-		completeBlockPolicy:   newCompleteBlockPolicy(cfg),
-		completeQueues:        flushqueues.New[*completeOp](cfg.CompleteBlockConcurrency, metricCompleteQueueLength),
-		startupComplete:       make(chan struct{}),
+		cfg:                    cfg,
+		logger:                 logger,
+		reg:                    reg,
+		decoder:                ingest.NewDecoder(),
+		completeBlockEncoding:  completeBlockEncoding,
+		ctx:                    ctx,
+		cancel:                 cancel,
+		instances:              make(map[string]*instance),
+		overrides:              overridesService,
+		completeBlockLifecycle: newCompleteBlockLifecycle(cfg, completeBlockFlusher, logger, reg),
+		completeQueues:         flushqueues.New[*completeOp](cfg.CompleteBlockConcurrency, metricCompleteQueueLength),
+		startupComplete:        make(chan struct{}),
 	}
 
 	// Initialize ready state to starting
@@ -670,7 +670,7 @@ func (s *LiveStore) getOrCreateInstance(tenantID string) (*instance, error) {
 	}
 
 	// Create new instance
-	inst, err := newInstance(tenantID, s.cfg, s.wal, s.completeBlockEncoding, s.completeBlockPolicy, s.overrides, s.logger)
+	inst, err := newInstance(tenantID, s.cfg, s.wal, s.completeBlockEncoding, s.completeBlockLifecycle, s.overrides, s.logger)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create instance for tenant %s: %w", tenantID, err)
 	}
