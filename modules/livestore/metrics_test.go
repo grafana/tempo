@@ -61,7 +61,7 @@ func setupTest(t *testing.T) *testSetup {
 	})
 	require.NoError(t, err)
 
-	instance, err := newInstance(testTenant, *cfg, w, blockEnc, o, log.NewNopLogger())
+	instance, err := newInstance(testTenant, *cfg, w, blockEnc, newCompleteBlockPolicy(*cfg), o, log.NewNopLogger())
 	require.NoError(t, err)
 
 	return &testSetup{

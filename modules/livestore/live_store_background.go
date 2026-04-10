@@ -114,16 +114,26 @@ func (s *LiveStore) processCompleteOp(op *completeOp) error {
 		return err
 	}
 
-	err = inst.completeBlock(ctx, op.blockID)
-	metricCompletionDuration.Observe(time.Since(start).Seconds())
-
-	if err == nil {
-		metricBlocksCompleted.Inc()
-		s.completeQueues.Clear(op)
+	if err := inst.completeBlock(ctx, op.blockID); err != nil {
+		metricCompletionDuration.Observe(time.Since(start).Seconds())
+		s.retryCompleteOp(op, span, "failed to complete block", err)
 		return nil
 	}
 
-	level.Error(s.logger).Log("msg", "failed to complete block", "tenant", op.tenantID, "block", op.blockID, "err", err)
+	if err := s.completeBlockPolicy.onCompletedBlock(ctx, op.tenantID, op.blockID); err != nil {
+		metricCompletionDuration.Observe(time.Since(start).Seconds())
+		s.retryCompleteOp(op, span, "failed to apply complete block policy", err)
+		return nil
+	}
+
+	metricCompletionDuration.Observe(time.Since(start).Seconds())
+	metricBlocksCompleted.Inc()
+	s.completeQueues.Clear(op)
+	return nil
+}
+
+func (s *LiveStore) retryCompleteOp(op *completeOp, span oteltrace.Span, msg string, err error) {
+	level.Error(s.logger).Log("msg", msg, "tenant", op.tenantID, "block", op.blockID, "err", err)
 	observeFailedOp(op)
 	span.RecordError(err)
 
@@ -139,8 +149,6 @@ func (s *LiveStore) processCompleteOp(op *completeOp) error {
 			_ = level.Error(s.logger).Log("msg", "failed to requeue block for flushing", "tenant", op.tenantID, "block", op.blockID, "err", err)
 		}
 	}()
-
-	return nil // do not exit global loop
 }
 
 func (s *LiveStore) perTenantCutToWalLoop(instance *instance) {
@@ -346,6 +354,10 @@ func (s *LiveStore) reloadBlocks() error {
 			inst.blocksMtx.Lock()
 			inst.completeBlocks[id] = lb
 			inst.blocksMtx.Unlock()
+
+			if err := s.completeBlockPolicy.onReloadedBlock(ctx, tenant, id, lb); err != nil {
+				return fmt.Errorf("failed to apply complete block policy to reloaded block %s in tenant %s: %w", id.String(), tenant, err)
+			}
 		}
 	}
 
