@@ -11,6 +11,48 @@ import (
 	"github.com/grafana/tempo/pkg/flushqueues"
 	"github.com/grafana/tempo/tempodb"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
+)
+
+var (
+	metricBlocksFlushed = promauto.NewCounter(prometheus.CounterOpts{
+		Namespace: "tempo_live_store",
+		Name:      "local_blocks_flushed_total",
+		Help:      "The total number of local complete blocks flushed",
+	})
+	metricFailedFlushes = promauto.NewCounter(prometheus.CounterOpts{
+		Namespace: "tempo_live_store",
+		Name:      "local_failed_flushes_total",
+		Help:      "The total number of failed local complete block flushes",
+	})
+	metricFlushRetries = promauto.NewCounter(prometheus.CounterOpts{
+		Namespace: "tempo_live_store",
+		Name:      "local_flush_retries_total",
+		Help:      "The total number of retries after a failed local complete block flush",
+	})
+	metricFlushFailedRetries = promauto.NewCounter(prometheus.CounterOpts{
+		Namespace: "tempo_live_store",
+		Name:      "local_flush_failed_retries_total",
+		Help:      "The total number of failed retries after a failed local complete block flush",
+	})
+	metricFlushDuration = promauto.NewHistogram(prometheus.HistogramOpts{
+		Namespace:                       "tempo_live_store",
+		Name:                            "local_flush_duration_seconds",
+		Help:                            "Records the amount of time to flush a local complete block.",
+		Buckets:                         prometheus.ExponentialBuckets(1, 2, 10),
+		NativeHistogramBucketFactor:     1.1,
+		NativeHistogramMaxBucketNumber:  100,
+		NativeHistogramMinResetDuration: 1 * time.Hour,
+	})
+	metricFlushSize = promauto.NewHistogram(prometheus.HistogramOpts{
+		Namespace:                       "tempo_live_store",
+		Name:                            "local_flush_size_bytes",
+		Help:                            "Size in bytes of local complete blocks flushed.",
+		Buckets:                         prometheus.ExponentialBuckets(1024*1024, 2, 10),
+		NativeHistogramBucketFactor:     1.1,
+		NativeHistogramMaxBucketNumber:  100,
+		NativeHistogramMinResetDuration: 1 * time.Hour,
+	})
 )
 
 // completeBlockFlusher is the minimal write capability needed by the
@@ -84,6 +126,7 @@ type localCompleteBlockOp struct {
 	tenantID string
 	block    *LocalBlock
 	at       time.Time
+	attempts int
 }
 
 var _ flushqueues.Op = (*localCompleteBlockOp)(nil)
@@ -157,14 +200,30 @@ func (l *localCompleteBlockLifecycle) runFlushLoop(idx int) {
 		if op == nil {
 			return
 		}
+		op.attempts++
 
-		if err := l.flusher.WriteBlock(l.ctx, op.block); err != nil {
-			level.Error(l.logger).Log("msg", "failed to flush complete block", "tenant", op.tenantID, "block", op.block.BlockMeta().BlockID.String(), "err", err)
+		start := time.Now()
+		err := l.flusher.WriteBlock(l.ctx, op.block)
+		metricFlushDuration.Observe(time.Since(start).Seconds())
+		if op.block != nil {
+			metricFlushSize.Observe(float64(op.block.BlockMeta().Size_))
+		}
+		if err != nil {
+			observeFailedFlush(op, l.logger, err)
 			l.requeueAfter(op, l.retryDelay)
 			continue
 		}
 
+		metricBlocksFlushed.Inc()
 		l.completeBlockQueue.Clear(op)
+	}
+}
+
+func observeFailedFlush(op *localCompleteBlockOp, logger log.Logger, err error) {
+	level.Error(logger).Log("msg", "failed to flush complete block", "tenant", op.tenantID, "block", op.block.BlockMeta().BlockID.String(), "attempts", op.attempts, "err", err)
+	metricFailedFlushes.Inc()
+	if op.attempts > 1 {
+		metricFlushFailedRetries.Inc()
 	}
 }
 
@@ -177,8 +236,9 @@ func (l *localCompleteBlockLifecycle) requeueAfter(op *localCompleteBlockOp, del
 
 		select {
 		case <-timer.C:
+			metricFlushRetries.Inc()
 			if err := l.completeBlockQueue.Requeue(op); err != nil {
-				level.Error(l.logger).Log("msg", "failed to requeue complete block flush op", "tenant", op.tenantID, "block", op.block.BlockMeta().BlockID.String(), "err", err)
+				observeFailedFlush(op, l.logger, err)
 			}
 		case <-l.ctx.Done():
 			return
