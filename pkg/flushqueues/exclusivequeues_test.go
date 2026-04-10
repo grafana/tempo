@@ -29,7 +29,7 @@ func TestExclusiveQueues(t *testing.T) {
 		Name:      "testersons",
 	})
 
-	q := New[mockOp](1, gauge)
+	q := New[mockOp](gauge)
 	op := mockOp{
 		key: "not unique",
 	}
@@ -50,7 +50,7 @@ func TestExclusiveQueues(t *testing.T) {
 	assert.Equal(t, 1, int(length))
 
 	// dequeue -> requeue
-	_ = q.Dequeue(0)
+	_ = q.Dequeue()
 	length, err = test.GetGaugeValue(gauge)
 	assert.NoError(t, err)
 	assert.Equal(t, 0, int(length))
@@ -63,7 +63,7 @@ func TestExclusiveQueues(t *testing.T) {
 	assert.Equal(t, 1, int(length))
 
 	// dequeue -> clearkey -> enqueue
-	_ = q.Dequeue(0)
+	_ = q.Dequeue()
 	length, err = test.GetGaugeValue(gauge)
 	assert.NoError(t, err)
 	assert.Equal(t, 0, int(length))
@@ -81,15 +81,14 @@ func TestExclusiveQueues(t *testing.T) {
 	assert.Equal(t, 1, int(length))
 }
 
-func TestMultipleQueues(t *testing.T) {
+func TestMultipleItems(t *testing.T) {
 	gauge := prometheus.NewGauge(prometheus.GaugeOpts{
 		Namespace: "test",
 		Name:      "testersons",
 	})
 
-	totalQueues := 10
 	totalItems := 10
-	q := New[mockOp](totalQueues, gauge)
+	q := New[mockOp](gauge)
 
 	// add stuff to the queue and confirm the length matches expected
 	for i := 0; i < totalItems; i++ {
@@ -105,14 +104,14 @@ func TestMultipleQueues(t *testing.T) {
 		assert.Equal(t, i+1, int(length))
 	}
 
-	// each queue should have 1 thing
-	for i := 0; i < totalQueues; i++ {
-		op := q.Dequeue(i)
+	// dequeue all items
+	for i := 0; i < totalItems; i++ {
+		op := q.Dequeue()
 		assert.NotNil(t, op)
 
 		length, err := test.GetGaugeValue(gauge)
 		assert.NoError(t, err)
-		assert.Equal(t, totalQueues-(i+1), int(length))
+		assert.Equal(t, totalItems-(i+1), int(length))
 	}
 }
 
@@ -122,11 +121,11 @@ func TestExclusiveQueueLocks(t *testing.T) {
 		Name:      "testersons",
 	})
 
-	queue := New[simpleItem](1, gauge)
+	queue := New[simpleItem](gauge)
 	job := simpleItem(1)
 
 	assert.NoError(t, queue.Enqueue(job))
-	i := queue.Dequeue(0)
+	i := queue.Dequeue()
 	assert.Equal(t, job, i, "Expected to dequeue job")
 
 	// Requeueing the same job again will be added to the queue
@@ -146,7 +145,7 @@ func TestExclusiveQueueLocks(t *testing.T) {
 func waitForDequeue(queue *ExclusiveQueues[simpleItem]) bool {
 	done := make(chan struct{})
 	go func() {
-		queue.Dequeue(0)
+		queue.Dequeue()
 		done <- struct{}{}
 	}()
 	select {

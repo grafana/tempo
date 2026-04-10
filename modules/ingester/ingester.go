@@ -97,7 +97,7 @@ func New(cfg Config, store storage.Store, overrides overrides.Interface, reg pro
 		cfg:          cfg,
 		instances:    map[string]*instance{},
 		store:        store,
-		flushQueues:  flushqueues.New[*flushOp](cfg.ConcurrentFlushes, metricFlushQueueLength),
+		flushQueues:  flushqueues.New[*flushOp](metricFlushQueueLength),
 		replayJitter: true,
 		overrides:    overrides,
 
@@ -171,7 +171,7 @@ func (i *Ingester) starting(ctx context.Context) error {
 
 	i.flushQueuesDone.Add(i.cfg.ConcurrentFlushes)
 	for j := 0; j < i.cfg.ConcurrentFlushes; j++ {
-		go i.flushLoop(j)
+		go i.flushLoop()
 	}
 
 	// Now that user states have been created, we can start the lifecycler.
