@@ -54,6 +54,7 @@
 * [ENHANCEMENT] Remove explicit `runtime.GC()` calls in vParquet5 compactor/block creation and CLI [#6603](https://github.com/grafana/tempo/pull/6603) (@oleg-kozlyuk-grafana)
 * [ENHANCEMENT] Reduce allocations in `extendReuseSlice` growth path during WAL writes and block creation [#6863](https://github.com/grafana/tempo/pull/6863) (@mapno)
 * [ENHANCEMENT] Implemented anti-affinity for pods in same livestore zone [#6757](https://github.com/grafana/tempo/pull/6757) (@zhxiaogg)
+* [ENHANCEMENT] Livestore: skipped WAL complete op during shutdown [#6839](https://github.com/grafana/tempo/pull/6839) (@zhxiaogg)
 * [BUGFIX] livestore: check readiness before lag for SearchRecent and QueryRange queries [#6911](https://github.com/grafana/tempo/pull/6911) (@zhxiaogg)
 * [BUGFIX] Fix integer overflow in query parameters by using `strconv.ParseUint` instead of `strconv.Atoi`/`strconv.ParseInt` for unsigned integer fields. [#6612](https://github.com/grafana/tempo/pull/6612) (@bejaratommy)
 * [BUGFIX] Fix live-store SearchTagValuesV2 disk cache never being populated on complete blocks [#6858](https://github.com/grafana/tempo/pull/6858) (@mapno)

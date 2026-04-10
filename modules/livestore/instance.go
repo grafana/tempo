@@ -36,6 +36,11 @@ const (
 	reasonWaitingForLiveTraces = "waiting_for_live_traces"
 	reasonWaitingForWAL        = "waiting_for_wal"
 	maxTraceLogLinesPerSecond  = 10
+	// walBackpressureLimit is the maximum number of outstanding WAL blocks before
+	// backpressure is applied. In the ideal case, shutdown can leave up to 2
+	// uncompleted WAL blocks on disk, and after restart ingestion may outpace WAL
+	// completion, so we use 4 to avoid unnecessary backpressure during catch-up.
+	walBackpressureLimit = 4
 )
 
 var (
@@ -200,7 +205,7 @@ func (i *instance) backpressure(ctx context.Context) bool {
 	count := len(i.walBlocks)
 	i.blocksMtx.RUnlock()
 
-	if count > 1 {
+	if count > walBackpressureLimit {
 		// There are multiple outstanding WAL blocks that need completion
 		// so wait a bit.
 		select {
