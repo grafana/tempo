@@ -65,6 +65,16 @@ Refer to the [Plan your Tempo deployment](../plan/) documentation for informatio
 | `--memberlist.bind-port` | Port for memberlist to communicate on | `7946` |
 | `--memberlist.message-history-buffer-bytes` | Size in bytes for the message history buffer | `0` |
 
+## MCP server
+
+| Flag | Description | Default |
+| --- | --- | --- |
+| `--query-frontend.mcp-server.enabled` | Set to true to enable the MCP server | `false` |
+
+Tempo includes an [MCP (Model Context Protocol)](https://modelcontextprotocol.io/docs/getting-started/intro) server that provides AI assistants and Large Language Models (LLMs) with direct access to distributed tracing data through TraceQL queries and other endpoints.
+
+Refer to the [Model Context Protocol (MCP) Server documentation](https://grafana.com/docs/tempo/<TEMPO_VERSION>/api_docs/mcp-server/) for more information.
+
 ## Module configuration
 
 You can use additional flags to configuring individual Tempo modules, such as the distributor, ingester, querier, and their components. These flags follow a pattern like `--<module>.<setting>` and are extensively documented in the configuration file format.
