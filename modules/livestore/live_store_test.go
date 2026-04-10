@@ -92,7 +92,7 @@ func TestLiveStoreNewWithoutKafkaDoesNotRequirePartitionStyleInstanceID(t *testi
 	limits, err := overrides.NewOverrides(overrides.Config{}, nil, prometheus.DefaultRegisterer)
 	require.NoError(t, err)
 
-	liveStore, err := New(cfg, limits, test.NewTestingLogger(t), prometheus.NewRegistry())
+	liveStore, err := New(cfg, limits, nil, test.NewTestingLogger(t), prometheus.NewRegistry())
 	require.NoError(t, err)
 	require.NotNil(t, liveStore)
 	require.Equal(t, int32(0), liveStore.ingestPartitionID)
@@ -107,7 +107,7 @@ func TestLiveStorePushBytesRejectsWhenStarting(t *testing.T) {
 	limits, err := overrides.NewOverrides(overrides.Config{}, nil, prometheus.DefaultRegisterer)
 	require.NoError(t, err)
 
-	liveStore, err := New(cfg, limits, test.NewTestingLogger(t), prometheus.NewRegistry())
+	liveStore, err := New(cfg, limits, nil, test.NewTestingLogger(t), prometheus.NewRegistry())
 	require.NoError(t, err)
 
 	id := test.ValidTraceID(nil)
@@ -270,7 +270,7 @@ func TestLiveStoreFullBlockLifecycleCheating(t *testing.T) {
 	requireInstanceState(t, inst, instanceState{liveTraces: 0, walBlocks: 1, completeBlocks: 0})
 
 	// force complete the wal block
-	err = inst.completeBlock(t.Context(), walUUID)
+	_, err = inst.completeBlock(t.Context(), walUUID)
 	require.NoError(t, err)
 
 	requireTraceInLiveStore(t, liveStore, expectedID, expectedTrace)
@@ -385,7 +385,7 @@ func TestLiveStoreReplaysTraceInCompleteBlocks(t *testing.T) {
 	require.NoError(t, err)
 
 	// complete the wal blocks
-	err = inst.completeBlock(t.Context(), walUUID)
+	_, err = inst.completeBlock(t.Context(), walUUID)
 	require.NoError(t, err)
 
 	// stop the live store and then create a new one to simulate a restart and replay the data on disk
@@ -412,7 +412,8 @@ func TestLiveStoreDropsInvalidCompleteBlocksOnRestart(t *testing.T) {
 	require.NoError(t, inst.cutIdleTraces(t.Context(), true))
 	walUUID, err := inst.cutBlocks(t.Context(), true)
 	require.NoError(t, err)
-	require.NoError(t, inst.completeBlock(context.Background(), walUUID))
+	_, err = inst.completeBlock(context.Background(), walUUID)
+	require.NoError(t, err)
 	requireInstanceState(t, inst, instanceState{liveTraces: 0, walBlocks: 0, completeBlocks: 1})
 
 	var blockID uuid.UUID
@@ -652,7 +653,7 @@ func TestLiveStoreUsesRecordTimestampForBlockStartAndEnd(t *testing.T) {
 		// cut to complete block and test again
 		uuid, err := inst.cutBlocks(t.Context(), true)
 		require.NoError(t, err)
-		err = inst.completeBlock(t.Context(), uuid)
+		_, err = inst.completeBlock(t.Context(), uuid)
 		require.NoError(t, err)
 
 		meta = inst.completeBlocks[uuid].BlockMeta()
@@ -738,7 +739,7 @@ func TestLiveStoreQueryMethodsBeforeStarted(t *testing.T) {
 	logger := test.NewTestingLogger(t)
 
 	// Create LiveStore but DO NOT start it
-	liveStore, err := New(cfg, limits, logger, reg)
+	liveStore, err := New(cfg, limits, nil, logger, reg)
 	require.NoError(t, err)
 	require.NotNil(t, liveStore)
 

@@ -77,7 +77,7 @@ func TestInstanceSearch(t *testing.T) {
 	checkEqual(t, ids, sr)
 
 	// Test after completing a block
-	err = i.completeBlock(t.Context(), blockID)
+	_, err = i.completeBlock(t.Context(), blockID)
 	require.NoError(t, err)
 
 	sr, err = i.Search(t.Context(), req)
@@ -130,7 +130,7 @@ func TestInstanceSearchTraceQL(t *testing.T) {
 			checkEqual(t, ids, sr)
 
 			// Test after completing a block
-			err = i.completeBlock(t.Context(), blockID)
+			_, err = i.completeBlock(t.Context(), blockID)
 			require.NoError(t, err)
 
 			sr, err = i.Search(t.Context(), req)
@@ -192,7 +192,7 @@ func TestInstanceSearchWithStartAndEnd(t *testing.T) {
 	searchAndAssert(req)
 
 	// Test after completing a block
-	err = i.completeBlock(t.Context(), blockID)
+	_, err = i.completeBlock(t.Context(), blockID)
 	require.NoError(t, err)
 	searchAndAssert(req)
 
@@ -237,7 +237,7 @@ func TestInstanceSearchTags(t *testing.T) {
 	testSearchTagsAndValues(t, userCtx, i, tagKey, expectedTagValues)
 
 	// Test after completing a block
-	err = i.completeBlock(t.Context(), blockID)
+	_, err = i.completeBlock(t.Context(), blockID)
 	require.NoError(t, err)
 
 	testSearchTagsAndValues(t, userCtx, i, tagKey, expectedTagValues)
@@ -259,7 +259,7 @@ func TestSearchTagValuesV2DiskCache(t *testing.T) {
 	require.NoError(t, err)
 	require.NotEqual(t, uuid.Nil, blockID)
 
-	err = i.completeBlock(t.Context(), blockID)
+	_, err = i.completeBlock(t.Context(), blockID)
 	require.NoError(t, err)
 
 	userCtx := user.InjectOrgID(t.Context(), testTenantID)
@@ -540,7 +540,7 @@ func TestSearchTagsV2Limits(t *testing.T) {
 				require.NoError(t, err)
 				blockID, err := instance.cutBlocks(t.Context(), true)
 				require.NoError(t, err)
-				err = instance.completeBlock(ctx, blockID)
+				_, err = instance.completeBlock(ctx, blockID)
 				require.NoError(t, err)
 			}
 			expectedTags := len(uniqueKeys)
@@ -653,7 +653,7 @@ func liveStoreWithConfig(t testing.TB, cfg Config) (*LiveStore, error) {
 	logger := test.NewTestingLogger(t)
 
 	// Use fake Kafka cluster for testing
-	liveStore, err := New(cfg, limits, logger, reg)
+	liveStore, err := New(cfg, limits, nil, logger, reg)
 	if err != nil {
 		return nil, err
 	}
@@ -819,7 +819,7 @@ func TestInstanceSearchDoesNotRace(t *testing.T) {
 		// Cut wal, complete
 		blockID, _ := i.cutBlocks(t.Context(), true)
 		if blockID != uuid.Nil {
-			err := i.completeBlock(t.Context(), blockID)
+			_, err := i.completeBlock(t.Context(), blockID)
 			require.NoError(t, err)
 		}
 	})
@@ -911,7 +911,7 @@ func TestInstanceSearchMetrics(t *testing.T) {
 	require.Less(t, numBytes, m.InspectedBytes)
 
 	// Test after completing a block
-	err = i.completeBlock(t.Context(), blockID)
+	_, err = i.completeBlock(t.Context(), blockID)
 	require.NoError(t, err)
 	m = search()
 	require.Less(t, numBytes, m.InspectedBytes)
@@ -946,7 +946,7 @@ func TestInstanceFindByTraceID(t *testing.T) {
 	require.NotNil(t, resp.Trace)
 
 	// Test 3: Complete block (moves to completeBlocks)
-	err = i.completeBlock(t.Context(), blockID)
+	_, err = i.completeBlock(t.Context(), blockID)
 	require.NoError(t, err)
 
 	// Verify we can find traces from completed blocks
@@ -1140,7 +1140,7 @@ func TestLiveStoreQueryRange(t *testing.T) {
 	mover, err := overrides.NewOverrides(overrides.Config{}, nil, prometheus.DefaultRegisterer)
 	require.NoError(t, err)
 	// Create instance
-	inst, err := newInstance(tenant, cfg, w, encoding.DefaultEncoding(), newCompleteBlockPolicy(cfg), mover, log.NewNopLogger())
+	inst, err := newInstance(tenant, cfg, w, encoding.DefaultEncoding(), newCompleteBlockLifecycle(cfg, nil, log.NewNopLogger(), prometheus.NewRegistry()), mover, log.NewNopLogger())
 	require.NoError(t, err)
 
 	// Create test spans
@@ -1216,7 +1216,7 @@ func TestLiveStoreQueryRange(t *testing.T) {
 
 	// Complete the block
 	ctx := t.Context()
-	err = inst.completeBlock(ctx, blockID)
+	_, err = inst.completeBlock(ctx, blockID)
 	require.NoError(t, err)
 
 	// Wait a bit to ensure block is ready
