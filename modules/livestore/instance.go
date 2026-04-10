@@ -138,7 +138,7 @@ func newInstance(instanceID string, cfg Config, wal *wal.WAL, completeBlockEncod
 	logger = log.With(logger, "tenant", instanceID)
 	if completeBlockLifecycle == nil {
 		var err error
-		completeBlockLifecycle, err = newCompleteBlockLifecycle(cfg, nil, logger, nil)
+		completeBlockLifecycle, err = newCompleteBlockLifecycle(cfg, nil, logger)
 		if err != nil {
 			return nil, err
 		}

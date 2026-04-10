@@ -72,7 +72,7 @@ type completeBlockLifecycle interface {
 	shouldDeleteCompleteBlock(block *LocalBlock, cutoff time.Time) bool
 }
 
-func newCompleteBlockLifecycle(cfg Config, flusher completeBlockFlusher, logger log.Logger, reg prometheus.Registerer) (completeBlockLifecycle, error) {
+func newCompleteBlockLifecycle(cfg Config, flusher completeBlockFlusher, logger log.Logger) (completeBlockLifecycle, error) {
 	if cfg.ConsumeFromKafka {
 		return kafkaCompleteBlockLifecycle{}, nil
 	}
@@ -84,7 +84,6 @@ func newCompleteBlockLifecycle(cfg Config, flusher completeBlockFlusher, logger 
 	return &localCompleteBlockLifecycle{
 		flusher:            flusher,
 		logger:             logger,
-		reg:                reg,
 		flushConcurrency:   cfg.CompleteBlockConcurrency,
 		retryDelay:         cfg.initialBackoff,
 		completeBlockQueue: flushqueues.New[*localCompleteBlockOp](cfg.CompleteBlockConcurrency, nil),
@@ -115,7 +114,6 @@ func (kafkaCompleteBlockLifecycle) shouldDeleteCompleteBlock(block *LocalBlock, 
 type localCompleteBlockLifecycle struct {
 	flusher completeBlockFlusher
 	logger  log.Logger
-	reg     prometheus.Registerer
 
 	flushConcurrency   int
 	retryDelay         time.Duration
@@ -225,7 +223,7 @@ func (l *localCompleteBlockLifecycle) runFlushLoop(idx int) {
 			metricFlushSize.Observe(float64(op.block.BlockMeta().Size_))
 		}
 		if err != nil {
-			observeFailedFlush(op, l.logger, err)
+			l.observeFailedFlush(op, err)
 			l.requeueAfter(op, l.retryDelay)
 			continue
 		}
@@ -235,8 +233,8 @@ func (l *localCompleteBlockLifecycle) runFlushLoop(idx int) {
 	}
 }
 
-func observeFailedFlush(op *localCompleteBlockOp, logger log.Logger, err error) {
-	level.Error(logger).Log("msg", "failed to flush complete block", "tenant", op.tenantID, "block", op.block.BlockMeta().BlockID.String(), "attempts", op.attempts, "err", err)
+func (l *localCompleteBlockLifecycle) observeFailedFlush(op *localCompleteBlockOp, err error) {
+	level.Error(l.logger).Log("msg", "failed to flush complete block", "tenant", op.tenantID, "block", op.block.BlockMeta().BlockID.String(), "attempts", op.attempts, "err", err)
 	metricFailedFlushes.Inc()
 	if op.attempts > 1 {
 		metricFlushFailedRetries.Inc()
@@ -255,7 +253,7 @@ func (l *localCompleteBlockLifecycle) requeueAfter(op *localCompleteBlockOp, del
 		case <-timer.C:
 			metricFlushRetries.Inc()
 			if err := l.completeBlockQueue.Requeue(op); err != nil {
-				observeFailedFlush(op, l.logger, err)
+				l.observeFailedFlush(op, err)
 			}
 		case <-l.ctx.Done():
 			return

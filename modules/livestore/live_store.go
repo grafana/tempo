@@ -160,7 +160,7 @@ func New(cfg Config, overridesService overrides.Interface, completeBlockFlusher 
 		return nil, fmt.Errorf("block version validation failed: %w", encErr)
 	}
 
-	completeBlockLifecycle, lifecycleErr := newCompleteBlockLifecycle(cfg, completeBlockFlusher, logger, reg)
+	completeBlockLifecycle, lifecycleErr := newCompleteBlockLifecycle(cfg, completeBlockFlusher, logger)
 	if lifecycleErr != nil {
 		return nil, fmt.Errorf("create complete block lifecycle: %w", lifecycleErr)
 	}
