@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/grafana/tempo/tempodb/encoding/vparquet4"
+	"github.com/grafana/tempo/tempodb/encoding/vparquet5"
 
 	"github.com/go-kit/log"
 	"github.com/golang/protobuf/proto" //nolint:all
@@ -586,9 +587,12 @@ func testCompleteBlock(t *testing.T, from, to string) {
 	rw := w.(*readerWriter)
 	rw.cfg.Block.Version = to // now set it back so we cut blocks in the "to" format
 
-	blockID := uuid.New()
-
-	meta := backend.NewBlockMeta(testTenantID, blockID, from)
+	meta := &backend.BlockMeta{
+		Version:          from,
+		BlockID:          backend.UUID(uuid.New()),
+		TenantID:         testTenantID,
+		DedicatedColumns: test.MakeDedicatedColumns(),
+	}
 	block, err := wal.NewBlock(meta, model.CurrentEncoding)
 	require.NoError(t, err, "unexpected error creating block")
 	require.Equal(t, block.BlockMeta().Version, from)
@@ -599,9 +603,14 @@ func testCompleteBlock(t *testing.T, from, to string) {
 	reqs := make([]*tempopb.Trace, 0, numMsgs)
 	ids := make([][]byte, 0, numMsgs)
 	for i := 0; i < numMsgs; i++ {
-		id := test.ValidTraceID(nil)
-		req := test.MakeTrace(rand.Int()%10, id)
-		trace.SortTrace(req)
+		var (
+			id  = test.ValidTraceID(nil)
+			req = test.MakeTrace(rand.Int()%10, id)
+		)
+
+		// Populate data using the same dedicated columns as configured on the block above.
+		test.AddRandomDedicatedAttributes(req)
+
 		writeTraceToWal(t, block, dec, id, req, 0, 0)
 		reqs = append(reqs, req)
 		ids = append(ids, id)
@@ -616,10 +625,16 @@ func testCompleteBlock(t *testing.T, from, to string) {
 		found, err := complete.FindTraceByID(context.TODO(), id, common.DefaultSearchOptions())
 		require.NoError(t, err)
 		require.NotNil(t, found)
-		trace.SortTrace(found.Trace)
+
+		// Sort expected and actual before comparing.
+		trace.SortTraceAndAttributes(reqs[i])
+		trace.SortTraceAndAttributes(found.Trace)
+
+		// After sorting, the completed block should round-trip the trace exactly.
 		require.True(t, proto.Equal(found.Trace, reqs[i]))
-		vparquet4 := vparquet4.Encoding{}.Version()
-		if to == vparquet4 {
+
+		// Check metrics for certain encodings.
+		if to == vparquet4.VersionString || to == vparquet5.VersionString {
 			require.Greater(t, found.Metrics.InspectedBytes, uint64(100000))
 		}
 	}
