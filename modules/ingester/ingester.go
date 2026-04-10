@@ -171,7 +171,7 @@ func (i *Ingester) starting(ctx context.Context) error {
 
 	i.flushQueuesDone.Add(i.cfg.ConcurrentFlushes)
 	for j := 0; j < i.cfg.ConcurrentFlushes; j++ {
-		go i.flushLoop()
+		go i.flushLoop() //nolint: gosec // G118
 	}
 
 	// Now that user states have been created, we can start the lifecycler.

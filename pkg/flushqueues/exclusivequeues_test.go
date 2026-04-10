@@ -1,6 +1,7 @@
 package flushqueues
 
 import (
+	"sync"
 	"testing"
 	"time"
 
@@ -154,4 +155,96 @@ func waitForDequeue(queue *ExclusiveQueues[simpleItem]) bool {
 	case <-time.After(100 * time.Millisecond):
 		return false
 	}
+}
+
+// TestConcurrentDequeue verifies that multiple goroutines calling Dequeue
+// concurrently on a shared queue process every item exactly once.
+func TestConcurrentDequeue(t *testing.T) {
+	q := New[mockOp](nil)
+
+	totalItems := 500
+	numWorkers := 10
+
+	// Enqueue all items up front
+	keys := make([]string, totalItems)
+	for i := range totalItems {
+		keys[i] = uuid.New().String()
+		require.NoError(t, q.Enqueue(mockOp{key: keys[i]}))
+	}
+
+	// Track which keys each worker dequeued
+	var mu sync.Mutex
+	seen := make(map[string]int) // key -> count
+
+	// itemsDone tracks when all items have been processed
+	var itemsDone sync.WaitGroup
+	itemsDone.Add(totalItems)
+
+	var workers sync.WaitGroup
+	for range numWorkers {
+		workers.Add(1)
+		go func() {
+			defer workers.Done()
+			for {
+				op := q.Dequeue()
+				if op.Key() == "" {
+					return // queue closed
+				}
+				mu.Lock()
+				seen[op.Key()]++
+				mu.Unlock()
+				q.Clear(op)
+				itemsDone.Done()
+			}
+		}()
+	}
+
+	// Wait for all items to be processed, then shut down workers
+	itemsDone.Wait()
+	q.Stop()
+	workers.Wait()
+
+	// Every key must have been dequeued exactly once
+	for _, key := range keys {
+		assert.Equal(t, 1, seen[key], "key %s dequeued %d times", key, seen[key])
+	}
+	assert.Equal(t, totalItems, len(seen), "expected %d unique keys, got %d", totalItems, len(seen))
+}
+
+// TestStopUnblocksAllWaiters verifies that calling Stop on an empty queue
+// unblocks all goroutines waiting in Dequeue, returning zero values.
+func TestStopUnblocksAllWaiters(t *testing.T) {
+	q := New[mockOp](nil)
+	numWorkers := 5
+
+	// allStarted signals when every worker has entered Dequeue.
+	// Each worker enqueues+dequeues a sentinel before blocking on the
+	// empty queue, so when allStarted completes we know they reached Dequeue.
+	var allStarted sync.WaitGroup
+	allStarted.Add(numWorkers)
+
+	var workers sync.WaitGroup
+	for i := range numWorkers {
+		workers.Add(1)
+		go func() {
+			defer workers.Done()
+			// Signal that this goroutine is running by round-tripping
+			// a unique sentinel through the queue.
+			sentinel := mockOp{key: uuid.New().String()}
+			require.NoError(t, q.Enqueue(sentinel))
+			got := q.Dequeue()
+			require.Equal(t, sentinel.Key(), got.Key())
+			q.Clear(got)
+			allStarted.Done()
+
+			// Now block on the empty queue
+			op := q.Dequeue()
+			assert.Equal(t, mockOp{}, op, "worker %d: expected zero value from closed queue", i)
+		}()
+	}
+
+	// All workers are confirmed to be inside Dequeue on the empty queue
+	allStarted.Wait()
+	q.Stop()
+	workers.Wait()
 }
