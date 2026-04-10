@@ -411,42 +411,46 @@ func (s *LiveStore) stopping(error) error {
 	s.readyErr.Store(&ErrStopping)
 	metricReady.Set(0)
 
+	var stopErr error
+
 	if s.cfg.ConsumeFromKafka {
 		// Stop the kafka lag background worker.
 		if s.lagCancel != nil {
 			s.lagCancel()
 		}
-		// Stop consuming
-		err := services.StopAndAwaitTerminated(context.Background(), s.reader)
-		if err != nil {
+		// Stop consuming.
+		if err := services.StopAndAwaitTerminated(context.Background(), s.reader); err != nil {
 			level.Warn(s.logger).Log("msg", "failed to stop reader", "err", err)
-			return err
+			stopErr = errors.Join(stopErr, err)
 		}
 
-		// Reset lag metrics for our partition when stopping
+		// Reset lag metrics for our partition when stopping.
 		ingest.ResetLagMetricsForRevokedPartitions(s.cfg.IngestConfig.Kafka.ConsumerGroup, []int32{s.ingestPartitionID})
 	}
 
-	// Stop both the membership ring and partition ring
+	// Stop both the membership ring and partition ring even if an earlier shutdown step failed.
 	if err := services.StopAndAwaitTerminated(context.Background(), s.livestoreLifecycler); err != nil {
 		level.Warn(s.logger).Log("msg", "failed to stop livestore lifecycler", "err", err)
+		stopErr = errors.Join(stopErr, err)
 	}
 
 	if err := services.StopAndAwaitTerminated(context.Background(), s.ingestPartitionLifecycler); err != nil {
 		level.Warn(s.logger).Log("msg", "failed to stop partition lifecycler", "err", err)
+		stopErr = errors.Join(stopErr, err)
 	}
 
-	// Flush all data to disk
+	// Flush all data to disk.
 	s.cutAllInstancesToWal()
 
-	// Remove the shutdown marker if it exists since we are shutting down
+	// Remove the shutdown marker if it exists since we are shutting down.
 	shutdownMarkerPath := shutdownmarker.GetPath(s.cfg.ShutdownMarkerDir)
 	if err := shutdownmarker.Remove(shutdownMarkerPath); err != nil {
 		level.Warn(s.logger).Log("msg", "failed to remove shutdown marker", "path", shutdownMarkerPath, "err", err)
+		stopErr = errors.Join(stopErr, err)
 	}
 
 	if s.cfg.holdAllBackgroundProcesses { // nothing to do
-		return nil
+		return stopErr
 	}
 
 	ticker := time.NewTicker(100 * time.Millisecond)
@@ -457,7 +461,7 @@ func (s *LiveStore) stopping(error) error {
 
 	s.stopAllBackgroundProcesses()
 
-	return nil
+	return stopErr
 }
 
 func (s *LiveStore) waitForCatchUp(ctx context.Context) error {

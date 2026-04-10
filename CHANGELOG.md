@@ -1,6 +1,5 @@
 ## main / unreleased
 
-* [ENHANCEMENT] Expose MinIO retry settings via S3 config [#6561](https://github.com/grafana/tempo/pull/6561) (@rwhitty)
 
 * [CHANGE] **BREAKING CHANGE** Centralize block and WAL config: `block_builder` and `live_store` now always use `storage.trace.block` settings; per-module block config fields are removed. [#6647](https://github.com/grafana/tempo/pull/6647) (@stoewer)
 * [CHANGE] **BREAKING CHANGE** Remove Opencensus receiver [#6523](https://github.com/grafana/tempo/pull/6523) (@javiermolinar)
@@ -30,6 +29,7 @@
 * [FEATURE] Add an extension mechanism for per-tenant overrides [#6758](https://github.com/grafana/tempo/pull/6758) (@stoewer)
 * [FEATURE] Extend `TraceRedactor` interface to support hiding complete traces via `ErrTraceHidden`. [#6811](https://github.com/grafana/tempo/pull/6811) (@stoewer)
 * [FEATURE] Single-binary mode: push distributor local ingest directly to live-store and metrics-generator without Kafka [#6729](https://github.com/grafana/tempo/pull/6729) (@javiermolinar)
+* [ENHANCEMENT] Expose MinIO retry settings via S3 config [#6561](https://github.com/grafana/tempo/pull/6561) (@rwhitty)* [ENHANCEMENT] tempo-cli: Add `--header` flag to `query api` commands for custom headers [#6768](https://github.com/grafana/tempo/pull/6768) (@Nouuu)
 * [ENHANCEMENT] Enable native histogram emission for all promauto-registered histograms, including `tempo_request_duration_seconds`. Both classic and native formats are emitted simultaneously; existing scrapers are unaffected. [#6910](https://github.com/grafana/tempo/pull/6910) (@zalegrala)
 * [ENHANCEMENT] tempo-cli: Add `--header` flag to `query api` commands for custom headers [#6768](https://github.com/grafana/tempo/pull/6768) (@Nouuu)
 * [ENHANCEMENT] tempo-cli: add `redact` command to submit trace redaction jobs to the backend scheduler [#6832](https://github.com/grafana/tempo/pull/6832) (@zalegrala)
@@ -78,7 +78,7 @@
 * [BUGFIX] metrics-generator: Fix `target_info` being skipped when resource attributes have empty values [#6774](https://github.com/grafana/tempo/pull/6774) (@carles-grafana)
 * [BUGFIX] metrics-generator: Drain old series on metric replacement to prevent limiter leak and permanent overflow [#6653](https://github.com/grafana/tempo/pull/6653) (@carles-grafana)
 * [BUGFIX] live-store: fixed unsuccessful deregistering from membership/partition rings during shutdown [#6848](https://github.com/grafana/tempo/pull/6848) (@zhxiaogg)
-
+* [BUGFIX] Complete lifecycler shutdown on errors [#6906](https://github.com/grafana/tempo/pull/6906) (@javiermolinar)
 ### 3.0 Cleanup
 
 * [CHANGE] **BREAKING CHANGE** Remove ingest.enabled config [#6873](https://github.com/grafana/tempo/pull/6873) (@javiermolinar)

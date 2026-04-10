@@ -1131,7 +1131,7 @@ func TestLiveStoreLifecyclersTerminatedOnStop(t *testing.T) {
 	liveStore, err := liveStoreWithConfig(t, cfg)
 	require.NoError(t, err)
 
-	_ = services.StopAndAwaitTerminated(t.Context(), liveStore)
+	require.NoError(t, services.StopAndAwaitTerminated(t.Context(), liveStore))
 
 	// Must be Terminated immediately — not eventually — when stopping() returns.
 	require.Equal(t, services.Terminated, liveStore.ingestPartitionLifecycler.State())
