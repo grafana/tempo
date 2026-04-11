@@ -206,8 +206,8 @@ func (l *localCompleteBlockLifecycle) enqueueBlock(tenantID string, block *Local
 	return nil
 }
 
-// Main loop. It dequeue items from the queue and try to flush them to the backend storage
-// failed ones are dequeued
+// Main loop. It dequeues items from the queue and tries to flush them to the backend storage.
+// Failed ones are requeued after a short delay.
 func (l *localCompleteBlockLifecycle) runFlushLoop(idx int) {
 	for {
 		op := l.completeBlockQueue.Dequeue(idx)
