@@ -213,3 +213,42 @@ func TestInitLiveStoreSingleBinaryUsesLocalIngest(t *testing.T) {
 	require.NotNil(t, app.liveStore)
 	assert.False(t, app.cfg.LiveStore.ConsumeFromKafka)
 }
+
+func TestSetupModuleManagerSingleBinaryUsesLocalDistributorAndGeneratorDeps(t *testing.T) {
+	cfg := NewDefaultConfig()
+	cfg.Target = SingleBinary
+
+	app, err := New(*cfg)
+	require.NoError(t, err)
+
+	distributorDeps := app.deps[Distributor]
+	assert.Contains(t, distributorDeps, LiveStore)
+	assert.Contains(t, distributorDeps, MetricsGenerator)
+	assert.NotContains(t, distributorDeps, PartitionRing)
+	assert.NotContains(t, distributorDeps, LiveStoreRing)
+
+	generatorDeps := app.deps[MetricsGenerator]
+	assert.Contains(t, generatorDeps, "common")
+	assert.NotContains(t, generatorDeps, MemberlistKV)
+	assert.NotContains(t, generatorDeps, PartitionRing)
+	assert.NotContains(t, generatorDeps, GeneratorRingWatcher)
+}
+
+func TestSetupModuleManagerDistributedUsesKafkaDistributorAndGeneratorDeps(t *testing.T) {
+	cfg := NewDefaultConfig()
+	cfg.Target = Distributor
+
+	app, err := New(*cfg)
+	require.NoError(t, err)
+
+	distributorDeps := app.deps[Distributor]
+	assert.Contains(t, distributorDeps, PartitionRing)
+	assert.Contains(t, distributorDeps, LiveStoreRing)
+	assert.NotContains(t, distributorDeps, LiveStore)
+	assert.NotContains(t, distributorDeps, MetricsGenerator)
+
+	generatorDeps := app.deps[MetricsGenerator]
+	assert.Contains(t, generatorDeps, MemberlistKV)
+	assert.Contains(t, generatorDeps, PartitionRing)
+	assert.Contains(t, generatorDeps, GeneratorRingWatcher)
+}
