@@ -114,6 +114,14 @@ type mockCompleteBlockLifecycle struct {
 	stopped        bool
 }
 
+type failOnceOnCompletedBlockLifecycle struct {
+	completedCalls []completeBlockLifecycleCall
+	reloadedCalls  []completeBlockLifecycleCall
+	failuresLeft   int
+	started        bool
+	stopped        bool
+}
+
 func (m *mockCompleteBlockLifecycle) start(context.Context) {
 	m.started = true
 }
@@ -134,6 +142,32 @@ func (m *mockCompleteBlockLifecycle) onReloadedBlock(_ context.Context, tenantID
 
 func (m *mockCompleteBlockLifecycle) shouldDeleteCompleteBlock(_ *LocalBlock, _ time.Time) bool {
 	return m.deleteResult
+}
+
+func (m *failOnceOnCompletedBlockLifecycle) start(context.Context) {
+	m.started = true
+}
+
+func (m *failOnceOnCompletedBlockLifecycle) stop() {
+	m.stopped = true
+}
+
+func (m *failOnceOnCompletedBlockLifecycle) onCompletedBlock(_ context.Context, tenantID string, block *LocalBlock) error {
+	m.completedCalls = append(m.completedCalls, completeBlockLifecycleCall{tenantID: tenantID, blockID: uuid.UUID(block.BlockMeta().BlockID)})
+	if m.failuresLeft > 0 {
+		m.failuresLeft--
+		return errors.New("forced lifecycle failure")
+	}
+	return nil
+}
+
+func (m *failOnceOnCompletedBlockLifecycle) onReloadedBlock(_ context.Context, tenantID string, block *LocalBlock) error {
+	m.reloadedCalls = append(m.reloadedCalls, completeBlockLifecycleCall{tenantID: tenantID, blockID: uuid.UUID(block.BlockMeta().BlockID)})
+	return nil
+}
+
+func (m *failOnceOnCompletedBlockLifecycle) shouldDeleteCompleteBlock(_ *LocalBlock, _ time.Time) bool {
+	return false
 }
 
 func TestNewCompleteBlockLifecycleUsesKafkaModeWhenConsumingFromKafka(t *testing.T) {
@@ -399,6 +433,45 @@ func TestLiveStoreProcessCompleteOpCallsCompleteBlockLifecycle(t *testing.T) {
 	require.NoError(t, err)
 	require.Contains(t, inst.completeBlocks, blockID)
 	require.Equal(t, []completeBlockLifecycleCall{{tenantID: testTenantID, blockID: blockID}}, lifecycle.completedCalls)
+}
+
+func TestLiveStoreProcessCompleteOpRetriesLifecycleUsingExistingCompleteBlock(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	cfg := defaultConfig(t, tmpDir)
+	cfg.ConsumeFromKafka = false
+	cfg.initialBackoff = 0
+
+	liveStore, err := liveStoreWithConfig(t, cfg)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, services.StopAndAwaitTerminated(context.Background(), liveStore))
+	})
+
+	inst, blockID := createWalBlockForLifecycleTest(t, liveStore)
+	lifecycle := &failOnceOnCompletedBlockLifecycle{failuresLeft: 1}
+	liveStore.completeBlockLifecycle = lifecycle
+	inst.completeBlockLifecycle = lifecycle
+
+	op := &completeOp{
+		tenantID:   testTenantID,
+		blockID:    blockID,
+		at:         time.Now(),
+		bo:         liveStore.cfg.initialBackoff,
+		maxBackoff: liveStore.cfg.maxBackoff,
+	}
+
+	err = liveStore.processCompleteOp(op)
+	require.NoError(t, err)
+	require.Contains(t, inst.completeBlocks, blockID)
+	require.Equal(t, []completeBlockLifecycleCall{{tenantID: testTenantID, blockID: blockID}}, lifecycle.completedCalls)
+
+	err = liveStore.processCompleteOp(op)
+	require.NoError(t, err)
+	require.Equal(t, []completeBlockLifecycleCall{
+		{tenantID: testTenantID, blockID: blockID},
+		{tenantID: testTenantID, blockID: blockID},
+	}, lifecycle.completedCalls)
 }
 
 func TestLiveStoreReloadBlocksCallsCompleteBlockLifecycle(t *testing.T) {

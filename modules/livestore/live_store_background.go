@@ -123,6 +123,13 @@ func (s *LiveStore) processCompleteOp(op *completeOp) error {
 		return nil
 	}
 
+	if completeBlock == nil {
+		// completeBlock only returns a block when this call converts a WAL block.
+		// On a retry after lifecycle handling fails, the WAL block may already be
+		// gone while the completed block is still present in inst.completeBlocks.
+		completeBlock = inst.getCompleteBlock(op.blockID)
+	}
+
 	if completeBlock != nil {
 		if err := s.completeBlockLifecycle.onCompletedBlock(ctx, op.tenantID, completeBlock); err != nil {
 			metricCompletionDuration.Observe(time.Since(start).Seconds())
