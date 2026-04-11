@@ -1,5 +1,4 @@
 services:
-  # tempo, backend and kafka
   tempo:
     image: grafana/tempo:latest
     command: "-target=all -config.file=/etc/tempo.yaml"

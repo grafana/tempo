@@ -248,7 +248,7 @@ func (l *localCompleteBlockLifecycle) requeueAfter(op *localCompleteBlockOp, del
 
 		metricFlushRetries.Inc()
 		if err := l.completeBlockQueue.Requeue(op); err != nil {
-			l.observeFailedFlush(op, err)
+			level.Error(l.logger).Log("msg", "failed to requeue complete block flush", "tenant", op.tenantID, "block", op.block.BlockMeta().BlockID.String(), "attempts", op.attempts, "err", err)
 		}
 	})
 }
