@@ -174,10 +174,7 @@ func (l *localCompleteBlockLifecycle) onReloadedBlock(_ context.Context, tenantI
 }
 
 func (*localCompleteBlockLifecycle) shouldDeleteCompleteBlock(block *LocalBlock, cutoff time.Time) bool {
-	if block == nil {
-		return false
-	}
-	if block.FlushedTime().IsZero() {
+	if block == nil || block.FlushedTime().IsZero() {
 		return false
 	}
 
@@ -215,9 +212,7 @@ func (l *localCompleteBlockLifecycle) runFlushLoop(idx int) {
 		start := time.Now()
 		err := l.flusher.WriteBlock(l.ctx, op.block)
 		metricFlushDuration.Observe(time.Since(start).Seconds())
-		if op.block != nil {
-			metricFlushSize.Observe(float64(op.block.BlockMeta().Size_))
-		}
+		metricFlushSize.Observe(float64(op.block.BlockMeta().Size_))
 		if err != nil {
 			l.observeFailedFlush(op, err)
 			l.requeueAfter(op, l.retryDelay)
