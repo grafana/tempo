@@ -116,6 +116,14 @@ func (s *LiveStore) processCompleteOp(op *completeOp) error {
 		return err
 	}
 
+	// If the context is cancelled (shutdown), abandon the completion. The WAL block remains on
+	// disk and will be re-enqueued by reloadBlocks() on next startup.
+	if ctx.Err() != nil {
+		level.Info(s.logger).Log("msg", "abandoning WAL block completion on shutdown, will replay on restart", "tenant", op.tenantID, "block", op.blockID)
+		s.completeQueues.Clear(op)
+		return nil
+	}
+
 	completeBlock, err := inst.completeBlock(ctx, op.blockID)
 	if err != nil {
 		metricCompletionDuration.Observe(time.Since(start).Seconds())
@@ -275,7 +283,7 @@ func (s *LiveStore) reloadBlocks() error {
 			level.Info(s.logger).Log("msg", "reloaded wal block", "block", meta.BlockID.String())
 			inst.walBlocks[(uuid.UUID)(meta.BlockID)] = blk
 
-			level.Info(s.logger).Log("msg", "queueing replayed wal block for completion", "block", meta.BlockID.String())
+			level.Info(s.logger).Log("msg", "queueing replayed wal block for completion", "block", meta.BlockID.String(), "size", blk.DataLength())
 			if err := s.enqueueCompleteOp(meta.TenantID, uuid.UUID(meta.BlockID), true); err != nil {
 				return fmt.Errorf("failed to enqueue wal block for completion for tenant %s: %w", meta.TenantID, err)
 			}
@@ -288,6 +296,8 @@ func (s *LiveStore) reloadBlocks() error {
 			return err
 		}
 	}
+
+	level.Info(s.logger).Log("msg", "wal blocks to complete at startup", "count", len(walBlocks))
 
 	// ------------------------------------
 	// Complete blocks
