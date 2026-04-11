@@ -249,6 +249,7 @@ func (t *App) initDistributor() (services.Service, error) {
 	var partitionRing ring.PartitionRingReader
 
 	if singleBinary {
+		t.cfg.Distributor.PushSpansToKafka = false
 		localPushTargets.Generator = func(ctx context.Context, req *tempopb.PushSpansRequest) (*tempopb.PushResponse, error) {
 			if t.generator == nil {
 				return nil, errors.New("metrics-generator not initialized")
