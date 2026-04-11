@@ -640,6 +640,13 @@ func (i *instance) completeBlock(ctx context.Context, id uuid.UUID) (*LocalBlock
 	return completeBlock, nil
 }
 
+func (i *instance) getCompleteBlock(id uuid.UUID) *LocalBlock {
+	i.blocksMtx.RLock()
+	defer i.blocksMtx.RUnlock()
+
+	return i.completeBlocks[id]
+}
+
 func (i *instance) deleteOldBlocks() error {
 	i.blocksMtx.Lock()
 	defer i.blocksMtx.Unlock()
