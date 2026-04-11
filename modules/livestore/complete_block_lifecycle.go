@@ -245,20 +245,16 @@ func (l *localCompleteBlockLifecycle) observeFailedFlush(op *localCompleteBlockO
 func (l *localCompleteBlockLifecycle) requeueAfter(op *localCompleteBlockOp, delay time.Duration) {
 	op.at = time.Now().Add(delay)
 
-	go func() {
-		timer := time.NewTimer(delay)
-		defer timer.Stop()
-
-		select {
-		case <-timer.C:
-			metricFlushRetries.Inc()
-			if err := l.completeBlockQueue.Requeue(op); err != nil {
-				l.observeFailedFlush(op, err)
-			}
-		case <-l.ctx.Done():
+	time.AfterFunc(delay, func() {
+		if l.ctx.Err() != nil {
 			return
 		}
-	}()
+
+		metricFlushRetries.Inc()
+		if err := l.completeBlockQueue.Requeue(op); err != nil {
+			l.observeFailedFlush(op, err)
+		}
+	})
 }
 
 func shouldDeleteCompleteBlockByAge(block *LocalBlock, cutoff time.Time) bool {
