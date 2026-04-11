@@ -146,14 +146,10 @@ func (l *localCompleteBlockLifecycle) start(ctx context.Context) {
 	}
 
 	l.ctx, l.cancel = context.WithCancel(ctx)
-
 	for i := range l.flushConcurrency {
-		idx := i
-		l.wg.Add(1)
-		go func() {
-			defer l.wg.Done()
-			l.runFlushLoop(idx)
-		}()
+		l.wg.Go(func() {
+			l.runFlushLoop(i)
+		})
 	}
 }
 
