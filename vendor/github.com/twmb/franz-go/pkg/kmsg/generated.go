@@ -50029,7 +50029,7 @@ func NewPushTelemetryResponse() PushTelemetryResponse {
 	return v
 }
 
-type AssignReplicasToDirsRequestDirectorieTopicPartition struct {
+type AssignReplicasToDirsRequestDirectoryTopicPartition struct {
 	// The partition index.
 	Partition int32
 
@@ -50038,62 +50038,62 @@ type AssignReplicasToDirsRequestDirectorieTopicPartition struct {
 }
 
 // Default sets any default fields. Calling this allows for future compatibility
-// if new fields are added to AssignReplicasToDirsRequestDirectorieTopicPartition.
-func (v *AssignReplicasToDirsRequestDirectorieTopicPartition) Default() {
+// if new fields are added to AssignReplicasToDirsRequestDirectoryTopicPartition.
+func (v *AssignReplicasToDirsRequestDirectoryTopicPartition) Default() {
 }
 
-// NewAssignReplicasToDirsRequestDirectorieTopicPartition returns a default AssignReplicasToDirsRequestDirectorieTopicPartition
+// NewAssignReplicasToDirsRequestDirectoryTopicPartition returns a default AssignReplicasToDirsRequestDirectoryTopicPartition
 // This is a shortcut for creating a struct and calling Default yourself.
-func NewAssignReplicasToDirsRequestDirectorieTopicPartition() AssignReplicasToDirsRequestDirectorieTopicPartition {
-	var v AssignReplicasToDirsRequestDirectorieTopicPartition
+func NewAssignReplicasToDirsRequestDirectoryTopicPartition() AssignReplicasToDirsRequestDirectoryTopicPartition {
+	var v AssignReplicasToDirsRequestDirectoryTopicPartition
 	v.Default()
 	return v
 }
 
-type AssignReplicasToDirsRequestDirectorieTopic struct {
+type AssignReplicasToDirsRequestDirectoryTopic struct {
 	// The ID of the assigned topic.
 	TopicID [16]byte
 
 	// The partitions assigned to the directory.
-	Partitions []AssignReplicasToDirsRequestDirectorieTopicPartition
+	Partitions []AssignReplicasToDirsRequestDirectoryTopicPartition
 
 	// UnknownTags are tags Kafka sent that we do not know the purpose of.
 	UnknownTags Tags
 }
 
 // Default sets any default fields. Calling this allows for future compatibility
-// if new fields are added to AssignReplicasToDirsRequestDirectorieTopic.
-func (v *AssignReplicasToDirsRequestDirectorieTopic) Default() {
+// if new fields are added to AssignReplicasToDirsRequestDirectoryTopic.
+func (v *AssignReplicasToDirsRequestDirectoryTopic) Default() {
 }
 
-// NewAssignReplicasToDirsRequestDirectorieTopic returns a default AssignReplicasToDirsRequestDirectorieTopic
+// NewAssignReplicasToDirsRequestDirectoryTopic returns a default AssignReplicasToDirsRequestDirectoryTopic
 // This is a shortcut for creating a struct and calling Default yourself.
-func NewAssignReplicasToDirsRequestDirectorieTopic() AssignReplicasToDirsRequestDirectorieTopic {
-	var v AssignReplicasToDirsRequestDirectorieTopic
+func NewAssignReplicasToDirsRequestDirectoryTopic() AssignReplicasToDirsRequestDirectoryTopic {
+	var v AssignReplicasToDirsRequestDirectoryTopic
 	v.Default()
 	return v
 }
 
-type AssignReplicasToDirsRequestDirectorie struct {
+type AssignReplicasToDirsRequestDirectory struct {
 	// The ID of the directory.
 	ID [16]byte
 
 	// The topics assigned to the directory.
-	Topics []AssignReplicasToDirsRequestDirectorieTopic
+	Topics []AssignReplicasToDirsRequestDirectoryTopic
 
 	// UnknownTags are tags Kafka sent that we do not know the purpose of.
 	UnknownTags Tags
 }
 
 // Default sets any default fields. Calling this allows for future compatibility
-// if new fields are added to AssignReplicasToDirsRequestDirectorie.
-func (v *AssignReplicasToDirsRequestDirectorie) Default() {
+// if new fields are added to AssignReplicasToDirsRequestDirectory.
+func (v *AssignReplicasToDirsRequestDirectory) Default() {
 }
 
-// NewAssignReplicasToDirsRequestDirectorie returns a default AssignReplicasToDirsRequestDirectorie
+// NewAssignReplicasToDirsRequestDirectory returns a default AssignReplicasToDirsRequestDirectory
 // This is a shortcut for creating a struct and calling Default yourself.
-func NewAssignReplicasToDirsRequestDirectorie() AssignReplicasToDirsRequestDirectorie {
-	var v AssignReplicasToDirsRequestDirectorie
+func NewAssignReplicasToDirsRequestDirectory() AssignReplicasToDirsRequestDirectory {
+	var v AssignReplicasToDirsRequestDirectory
 	v.Default()
 	return v
 }
@@ -50114,7 +50114,7 @@ type AssignReplicasToDirsRequest struct {
 	BrokerEpoch int64
 
 	// The directories to which replicas should be assigned.
-	Directories []AssignReplicasToDirsRequestDirectorie
+	Directories []AssignReplicasToDirsRequestDirectory
 
 	// UnknownTags are tags Kafka sent that we do not know the purpose of.
 	UnknownTags Tags
@@ -50255,7 +50255,7 @@ func (v *AssignReplicasToDirsRequest) readFrom(src []byte, unsafe bool) error {
 		}
 		a = a[:0]
 		if l > 0 {
-			a = append(a, make([]AssignReplicasToDirsRequestDirectorie, l)...)
+			a = append(a, make([]AssignReplicasToDirsRequestDirectory, l)...)
 		}
 		for i := int32(0); i < l; i++ {
 			v := &a[i]
@@ -50279,7 +50279,7 @@ func (v *AssignReplicasToDirsRequest) readFrom(src []byte, unsafe bool) error {
 				}
 				a = a[:0]
 				if l > 0 {
-					a = append(a, make([]AssignReplicasToDirsRequestDirectorieTopic, l)...)
+					a = append(a, make([]AssignReplicasToDirsRequestDirectoryTopic, l)...)
 				}
 				for i := int32(0); i < l; i++ {
 					v := &a[i]
@@ -50303,7 +50303,7 @@ func (v *AssignReplicasToDirsRequest) readFrom(src []byte, unsafe bool) error {
 						}
 						a = a[:0]
 						if l > 0 {
-							a = append(a, make([]AssignReplicasToDirsRequestDirectorieTopicPartition, l)...)
+							a = append(a, make([]AssignReplicasToDirsRequestDirectoryTopicPartition, l)...)
 						}
 						for i := int32(0); i < l; i++ {
 							v := &a[i]
@@ -50362,7 +50362,7 @@ func NewAssignReplicasToDirsRequest() AssignReplicasToDirsRequest {
 	return v
 }
 
-type AssignReplicasToDirsResponseDirectorieTopicPartition struct {
+type AssignReplicasToDirsResponseDirectoryTopicPartition struct {
 	Partition int32
 
 	ErrorCode int16
@@ -50372,58 +50372,58 @@ type AssignReplicasToDirsResponseDirectorieTopicPartition struct {
 }
 
 // Default sets any default fields. Calling this allows for future compatibility
-// if new fields are added to AssignReplicasToDirsResponseDirectorieTopicPartition.
-func (v *AssignReplicasToDirsResponseDirectorieTopicPartition) Default() {
+// if new fields are added to AssignReplicasToDirsResponseDirectoryTopicPartition.
+func (v *AssignReplicasToDirsResponseDirectoryTopicPartition) Default() {
 }
 
-// NewAssignReplicasToDirsResponseDirectorieTopicPartition returns a default AssignReplicasToDirsResponseDirectorieTopicPartition
+// NewAssignReplicasToDirsResponseDirectoryTopicPartition returns a default AssignReplicasToDirsResponseDirectoryTopicPartition
 // This is a shortcut for creating a struct and calling Default yourself.
-func NewAssignReplicasToDirsResponseDirectorieTopicPartition() AssignReplicasToDirsResponseDirectorieTopicPartition {
-	var v AssignReplicasToDirsResponseDirectorieTopicPartition
+func NewAssignReplicasToDirsResponseDirectoryTopicPartition() AssignReplicasToDirsResponseDirectoryTopicPartition {
+	var v AssignReplicasToDirsResponseDirectoryTopicPartition
 	v.Default()
 	return v
 }
 
-type AssignReplicasToDirsResponseDirectorieTopic struct {
+type AssignReplicasToDirsResponseDirectoryTopic struct {
 	TopicID [16]byte
 
-	Partitions []AssignReplicasToDirsResponseDirectorieTopicPartition
+	Partitions []AssignReplicasToDirsResponseDirectoryTopicPartition
 
 	// UnknownTags are tags Kafka sent that we do not know the purpose of.
 	UnknownTags Tags
 }
 
 // Default sets any default fields. Calling this allows for future compatibility
-// if new fields are added to AssignReplicasToDirsResponseDirectorieTopic.
-func (v *AssignReplicasToDirsResponseDirectorieTopic) Default() {
+// if new fields are added to AssignReplicasToDirsResponseDirectoryTopic.
+func (v *AssignReplicasToDirsResponseDirectoryTopic) Default() {
 }
 
-// NewAssignReplicasToDirsResponseDirectorieTopic returns a default AssignReplicasToDirsResponseDirectorieTopic
+// NewAssignReplicasToDirsResponseDirectoryTopic returns a default AssignReplicasToDirsResponseDirectoryTopic
 // This is a shortcut for creating a struct and calling Default yourself.
-func NewAssignReplicasToDirsResponseDirectorieTopic() AssignReplicasToDirsResponseDirectorieTopic {
-	var v AssignReplicasToDirsResponseDirectorieTopic
+func NewAssignReplicasToDirsResponseDirectoryTopic() AssignReplicasToDirsResponseDirectoryTopic {
+	var v AssignReplicasToDirsResponseDirectoryTopic
 	v.Default()
 	return v
 }
 
-type AssignReplicasToDirsResponseDirectorie struct {
+type AssignReplicasToDirsResponseDirectory struct {
 	ID [16]byte
 
-	Topics []AssignReplicasToDirsResponseDirectorieTopic
+	Topics []AssignReplicasToDirsResponseDirectoryTopic
 
 	// UnknownTags are tags Kafka sent that we do not know the purpose of.
 	UnknownTags Tags
 }
 
 // Default sets any default fields. Calling this allows for future compatibility
-// if new fields are added to AssignReplicasToDirsResponseDirectorie.
-func (v *AssignReplicasToDirsResponseDirectorie) Default() {
+// if new fields are added to AssignReplicasToDirsResponseDirectory.
+func (v *AssignReplicasToDirsResponseDirectory) Default() {
 }
 
-// NewAssignReplicasToDirsResponseDirectorie returns a default AssignReplicasToDirsResponseDirectorie
+// NewAssignReplicasToDirsResponseDirectory returns a default AssignReplicasToDirsResponseDirectory
 // This is a shortcut for creating a struct and calling Default yourself.
-func NewAssignReplicasToDirsResponseDirectorie() AssignReplicasToDirsResponseDirectorie {
-	var v AssignReplicasToDirsResponseDirectorie
+func NewAssignReplicasToDirsResponseDirectory() AssignReplicasToDirsResponseDirectory {
+	var v AssignReplicasToDirsResponseDirectory
 	v.Default()
 	return v
 }
@@ -50440,7 +50440,7 @@ type AssignReplicasToDirsResponse struct {
 
 	ErrorCode int16
 
-	Directories []AssignReplicasToDirsResponseDirectorie
+	Directories []AssignReplicasToDirsResponseDirectory
 
 	// UnknownTags are tags Kafka sent that we do not know the purpose of.
 	UnknownTags Tags
@@ -50582,7 +50582,7 @@ func (v *AssignReplicasToDirsResponse) readFrom(src []byte, unsafe bool) error {
 		}
 		a = a[:0]
 		if l > 0 {
-			a = append(a, make([]AssignReplicasToDirsResponseDirectorie, l)...)
+			a = append(a, make([]AssignReplicasToDirsResponseDirectory, l)...)
 		}
 		for i := int32(0); i < l; i++ {
 			v := &a[i]
@@ -50606,7 +50606,7 @@ func (v *AssignReplicasToDirsResponse) readFrom(src []byte, unsafe bool) error {
 				}
 				a = a[:0]
 				if l > 0 {
-					a = append(a, make([]AssignReplicasToDirsResponseDirectorieTopic, l)...)
+					a = append(a, make([]AssignReplicasToDirsResponseDirectoryTopic, l)...)
 				}
 				for i := int32(0); i < l; i++ {
 					v := &a[i]
@@ -50630,7 +50630,7 @@ func (v *AssignReplicasToDirsResponse) readFrom(src []byte, unsafe bool) error {
 						}
 						a = a[:0]
 						if l > 0 {
-							a = append(a, make([]AssignReplicasToDirsResponseDirectorieTopicPartition, l)...)
+							a = append(a, make([]AssignReplicasToDirsResponseDirectoryTopicPartition, l)...)
 						}
 						for i := int32(0); i < l; i++ {
 							v := &a[i]
@@ -53428,7 +53428,7 @@ func NewShareGroupDescribeResponse() ShareGroupDescribeResponse {
 	return v
 }
 
-type ShareFetchRequestTopicPartitionAcknowledgementBatche struct {
+type ShareFetchRequestTopicPartitionAcknowledgementBatch struct {
 	// FirstOffset is the first offset of batch of records to acknowledge.
 	FirstOffset int64
 
@@ -53445,14 +53445,14 @@ type ShareFetchRequestTopicPartitionAcknowledgementBatche struct {
 }
 
 // Default sets any default fields. Calling this allows for future compatibility
-// if new fields are added to ShareFetchRequestTopicPartitionAcknowledgementBatche.
-func (v *ShareFetchRequestTopicPartitionAcknowledgementBatche) Default() {
+// if new fields are added to ShareFetchRequestTopicPartitionAcknowledgementBatch.
+func (v *ShareFetchRequestTopicPartitionAcknowledgementBatch) Default() {
 }
 
-// NewShareFetchRequestTopicPartitionAcknowledgementBatche returns a default ShareFetchRequestTopicPartitionAcknowledgementBatche
+// NewShareFetchRequestTopicPartitionAcknowledgementBatch returns a default ShareFetchRequestTopicPartitionAcknowledgementBatch
 // This is a shortcut for creating a struct and calling Default yourself.
-func NewShareFetchRequestTopicPartitionAcknowledgementBatche() ShareFetchRequestTopicPartitionAcknowledgementBatche {
-	var v ShareFetchRequestTopicPartitionAcknowledgementBatche
+func NewShareFetchRequestTopicPartitionAcknowledgementBatch() ShareFetchRequestTopicPartitionAcknowledgementBatch {
+	var v ShareFetchRequestTopicPartitionAcknowledgementBatch
 	v.Default()
 	return v
 }
@@ -53467,7 +53467,7 @@ type ShareFetchRequestTopicPartition struct {
 	PartitionMaxBytes int32
 
 	// AcknowledgementBatches are record batches to acknowledge.
-	AcknowledgementBatches []ShareFetchRequestTopicPartitionAcknowledgementBatche
+	AcknowledgementBatches []ShareFetchRequestTopicPartitionAcknowledgementBatch
 
 	// UnknownTags are tags Kafka sent that we do not know the purpose of.
 	UnknownTags Tags
@@ -53932,7 +53932,7 @@ func (v *ShareFetchRequest) readFrom(src []byte, unsafe bool) error {
 						}
 						a = a[:0]
 						if l > 0 {
-							a = append(a, make([]ShareFetchRequestTopicPartitionAcknowledgementBatche, l)...)
+							a = append(a, make([]ShareFetchRequestTopicPartitionAcknowledgementBatch, l)...)
 						}
 						for i := int32(0); i < l; i++ {
 							v := &a[i]
@@ -54776,7 +54776,7 @@ func NewShareFetchResponse() ShareFetchResponse {
 	return v
 }
 
-type ShareAcknowledgeRequestTopicPartitionAcknowledgementBatche struct {
+type ShareAcknowledgeRequestTopicPartitionAcknowledgementBatch struct {
 	// FirstOffset is the first offset of batch of records to acknowledge.
 	FirstOffset int64
 
@@ -54793,14 +54793,14 @@ type ShareAcknowledgeRequestTopicPartitionAcknowledgementBatche struct {
 }
 
 // Default sets any default fields. Calling this allows for future compatibility
-// if new fields are added to ShareAcknowledgeRequestTopicPartitionAcknowledgementBatche.
-func (v *ShareAcknowledgeRequestTopicPartitionAcknowledgementBatche) Default() {
+// if new fields are added to ShareAcknowledgeRequestTopicPartitionAcknowledgementBatch.
+func (v *ShareAcknowledgeRequestTopicPartitionAcknowledgementBatch) Default() {
 }
 
-// NewShareAcknowledgeRequestTopicPartitionAcknowledgementBatche returns a default ShareAcknowledgeRequestTopicPartitionAcknowledgementBatche
+// NewShareAcknowledgeRequestTopicPartitionAcknowledgementBatch returns a default ShareAcknowledgeRequestTopicPartitionAcknowledgementBatch
 // This is a shortcut for creating a struct and calling Default yourself.
-func NewShareAcknowledgeRequestTopicPartitionAcknowledgementBatche() ShareAcknowledgeRequestTopicPartitionAcknowledgementBatche {
-	var v ShareAcknowledgeRequestTopicPartitionAcknowledgementBatche
+func NewShareAcknowledgeRequestTopicPartitionAcknowledgementBatch() ShareAcknowledgeRequestTopicPartitionAcknowledgementBatch {
+	var v ShareAcknowledgeRequestTopicPartitionAcknowledgementBatch
 	v.Default()
 	return v
 }
@@ -54810,7 +54810,7 @@ type ShareAcknowledgeRequestTopicPartition struct {
 	Partition int32
 
 	// AcknowledgementBatches are record batches to acknowledge.
-	AcknowledgementBatches []ShareAcknowledgeRequestTopicPartitionAcknowledgementBatche
+	AcknowledgementBatches []ShareAcknowledgeRequestTopicPartitionAcknowledgementBatch
 
 	// UnknownTags are tags Kafka sent that we do not know the purpose of.
 	UnknownTags Tags
@@ -55136,7 +55136,7 @@ func (v *ShareAcknowledgeRequest) readFrom(src []byte, unsafe bool) error {
 						}
 						a = a[:0]
 						if l > 0 {
-							a = append(a, make([]ShareAcknowledgeRequestTopicPartitionAcknowledgementBatche, l)...)
+							a = append(a, make([]ShareAcknowledgeRequestTopicPartitionAcknowledgementBatch, l)...)
 						}
 						for i := int32(0); i < l; i++ {
 							v := &a[i]
@@ -57850,7 +57850,7 @@ func NewReadShareGroupStateRequest() ReadShareGroupStateRequest {
 	return v
 }
 
-type ReadShareGroupStateResponseTopicPartitionStateBatche struct {
+type ReadShareGroupStateResponseTopicPartitionStateBatch struct {
 	// FirstOffset is the first offset of this state batch.
 	FirstOffset int64
 
@@ -57869,14 +57869,14 @@ type ReadShareGroupStateResponseTopicPartitionStateBatche struct {
 }
 
 // Default sets any default fields. Calling this allows for future compatibility
-// if new fields are added to ReadShareGroupStateResponseTopicPartitionStateBatche.
-func (v *ReadShareGroupStateResponseTopicPartitionStateBatche) Default() {
+// if new fields are added to ReadShareGroupStateResponseTopicPartitionStateBatch.
+func (v *ReadShareGroupStateResponseTopicPartitionStateBatch) Default() {
 }
 
-// NewReadShareGroupStateResponseTopicPartitionStateBatche returns a default ReadShareGroupStateResponseTopicPartitionStateBatche
+// NewReadShareGroupStateResponseTopicPartitionStateBatch returns a default ReadShareGroupStateResponseTopicPartitionStateBatch
 // This is a shortcut for creating a struct and calling Default yourself.
-func NewReadShareGroupStateResponseTopicPartitionStateBatche() ReadShareGroupStateResponseTopicPartitionStateBatche {
-	var v ReadShareGroupStateResponseTopicPartitionStateBatche
+func NewReadShareGroupStateResponseTopicPartitionStateBatch() ReadShareGroupStateResponseTopicPartitionStateBatch {
+	var v ReadShareGroupStateResponseTopicPartitionStateBatch
 	v.Default()
 	return v
 }
@@ -57899,7 +57899,7 @@ type ReadShareGroupStateResponseTopicPartition struct {
 	StartOffset int64
 
 	// StateBatches are the state batches for this share-partition.
-	StateBatches []ReadShareGroupStateResponseTopicPartitionStateBatche
+	StateBatches []ReadShareGroupStateResponseTopicPartitionStateBatch
 
 	// UnknownTags are tags Kafka sent that we do not know the purpose of.
 	UnknownTags Tags
@@ -58180,7 +58180,7 @@ func (v *ReadShareGroupStateResponse) readFrom(src []byte, unsafe bool) error {
 						}
 						a = a[:0]
 						if l > 0 {
-							a = append(a, make([]ReadShareGroupStateResponseTopicPartitionStateBatche, l)...)
+							a = append(a, make([]ReadShareGroupStateResponseTopicPartitionStateBatch, l)...)
 						}
 						for i := int32(0); i < l; i++ {
 							v := &a[i]
@@ -58250,7 +58250,7 @@ func NewReadShareGroupStateResponse() ReadShareGroupStateResponse {
 	return v
 }
 
-type WriteShareGroupStateRequestTopicPartitionStateBatche struct {
+type WriteShareGroupStateRequestTopicPartitionStateBatch struct {
 	// FirstOffset is the first offset of this state batch.
 	FirstOffset int64
 
@@ -58269,14 +58269,14 @@ type WriteShareGroupStateRequestTopicPartitionStateBatche struct {
 }
 
 // Default sets any default fields. Calling this allows for future compatibility
-// if new fields are added to WriteShareGroupStateRequestTopicPartitionStateBatche.
-func (v *WriteShareGroupStateRequestTopicPartitionStateBatche) Default() {
+// if new fields are added to WriteShareGroupStateRequestTopicPartitionStateBatch.
+func (v *WriteShareGroupStateRequestTopicPartitionStateBatch) Default() {
 }
 
-// NewWriteShareGroupStateRequestTopicPartitionStateBatche returns a default WriteShareGroupStateRequestTopicPartitionStateBatche
+// NewWriteShareGroupStateRequestTopicPartitionStateBatch returns a default WriteShareGroupStateRequestTopicPartitionStateBatch
 // This is a shortcut for creating a struct and calling Default yourself.
-func NewWriteShareGroupStateRequestTopicPartitionStateBatche() WriteShareGroupStateRequestTopicPartitionStateBatche {
-	var v WriteShareGroupStateRequestTopicPartitionStateBatche
+func NewWriteShareGroupStateRequestTopicPartitionStateBatch() WriteShareGroupStateRequestTopicPartitionStateBatch {
+	var v WriteShareGroupStateRequestTopicPartitionStateBatch
 	v.Default()
 	return v
 }
@@ -58302,7 +58302,7 @@ type WriteShareGroupStateRequestTopicPartition struct {
 	DeliveryCompleteCount int32 // v1+
 
 	// StateBatches are the state batches for the share-partition.
-	StateBatches []WriteShareGroupStateRequestTopicPartitionStateBatche
+	StateBatches []WriteShareGroupStateRequestTopicPartitionStateBatch
 
 	// UnknownTags are tags Kafka sent that we do not know the purpose of.
 	UnknownTags Tags
@@ -58599,7 +58599,7 @@ func (v *WriteShareGroupStateRequest) readFrom(src []byte, unsafe bool) error {
 						}
 						a = a[:0]
 						if l > 0 {
-							a = append(a, make([]WriteShareGroupStateRequestTopicPartitionStateBatche, l)...)
+							a = append(a, make([]WriteShareGroupStateRequestTopicPartitionStateBatch, l)...)
 						}
 						for i := int32(0); i < l; i++ {
 							v := &a[i]
@@ -60172,7 +60172,7 @@ func NewTaskOffset() TaskOffset {
 	return v
 }
 
-type StreamsGroupHeartbeatRequestTopologySubtopologieCopartitionGroup struct {
+type StreamsGroupHeartbeatRequestTopologySubtopologyCopartitionGroup struct {
 	// SourceTopics are indexes into the subtopology's SourceTopics array.
 	SourceTopics []int16
 
@@ -60189,19 +60189,19 @@ type StreamsGroupHeartbeatRequestTopologySubtopologieCopartitionGroup struct {
 }
 
 // Default sets any default fields. Calling this allows for future compatibility
-// if new fields are added to StreamsGroupHeartbeatRequestTopologySubtopologieCopartitionGroup.
-func (v *StreamsGroupHeartbeatRequestTopologySubtopologieCopartitionGroup) Default() {
+// if new fields are added to StreamsGroupHeartbeatRequestTopologySubtopologyCopartitionGroup.
+func (v *StreamsGroupHeartbeatRequestTopologySubtopologyCopartitionGroup) Default() {
 }
 
-// NewStreamsGroupHeartbeatRequestTopologySubtopologieCopartitionGroup returns a default StreamsGroupHeartbeatRequestTopologySubtopologieCopartitionGroup
+// NewStreamsGroupHeartbeatRequestTopologySubtopologyCopartitionGroup returns a default StreamsGroupHeartbeatRequestTopologySubtopologyCopartitionGroup
 // This is a shortcut for creating a struct and calling Default yourself.
-func NewStreamsGroupHeartbeatRequestTopologySubtopologieCopartitionGroup() StreamsGroupHeartbeatRequestTopologySubtopologieCopartitionGroup {
-	var v StreamsGroupHeartbeatRequestTopologySubtopologieCopartitionGroup
+func NewStreamsGroupHeartbeatRequestTopologySubtopologyCopartitionGroup() StreamsGroupHeartbeatRequestTopologySubtopologyCopartitionGroup {
+	var v StreamsGroupHeartbeatRequestTopologySubtopologyCopartitionGroup
 	v.Default()
 	return v
 }
 
-type StreamsGroupHeartbeatRequestTopologySubtopologie struct {
+type StreamsGroupHeartbeatRequestTopologySubtopology struct {
 	// SubtopologyID uniquely identifies the subtopology.
 	SubtopologyID string
 
@@ -60226,21 +60226,21 @@ type StreamsGroupHeartbeatRequestTopologySubtopologie struct {
 
 	// CopartitionGroups are subsets of source topics that must be
 	// copartitioned.
-	CopartitionGroups []StreamsGroupHeartbeatRequestTopologySubtopologieCopartitionGroup
+	CopartitionGroups []StreamsGroupHeartbeatRequestTopologySubtopologyCopartitionGroup
 
 	// UnknownTags are tags Kafka sent that we do not know the purpose of.
 	UnknownTags Tags
 }
 
 // Default sets any default fields. Calling this allows for future compatibility
-// if new fields are added to StreamsGroupHeartbeatRequestTopologySubtopologie.
-func (v *StreamsGroupHeartbeatRequestTopologySubtopologie) Default() {
+// if new fields are added to StreamsGroupHeartbeatRequestTopologySubtopology.
+func (v *StreamsGroupHeartbeatRequestTopologySubtopology) Default() {
 }
 
-// NewStreamsGroupHeartbeatRequestTopologySubtopologie returns a default StreamsGroupHeartbeatRequestTopologySubtopologie
+// NewStreamsGroupHeartbeatRequestTopologySubtopology returns a default StreamsGroupHeartbeatRequestTopologySubtopology
 // This is a shortcut for creating a struct and calling Default yourself.
-func NewStreamsGroupHeartbeatRequestTopologySubtopologie() StreamsGroupHeartbeatRequestTopologySubtopologie {
-	var v StreamsGroupHeartbeatRequestTopologySubtopologie
+func NewStreamsGroupHeartbeatRequestTopologySubtopology() StreamsGroupHeartbeatRequestTopologySubtopology {
+	var v StreamsGroupHeartbeatRequestTopologySubtopology
 	v.Default()
 	return v
 }
@@ -60250,7 +60250,7 @@ type StreamsGroupHeartbeatRequestTopology struct {
 	Epoch int32
 
 	// Subtopologies are the sub-topologies of the streams application.
-	Subtopologies []StreamsGroupHeartbeatRequestTopologySubtopologie
+	Subtopologies []StreamsGroupHeartbeatRequestTopologySubtopology
 
 	// UnknownTags are tags Kafka sent that we do not know the purpose of.
 	UnknownTags Tags
@@ -61090,7 +61090,7 @@ func (v *StreamsGroupHeartbeatRequest) readFrom(src []byte, unsafe bool) error {
 				}
 				a = a[:0]
 				if l > 0 {
-					a = append(a, make([]StreamsGroupHeartbeatRequestTopologySubtopologie, l)...)
+					a = append(a, make([]StreamsGroupHeartbeatRequestTopologySubtopology, l)...)
 				}
 				for i := int32(0); i < l; i++ {
 					v := &a[i]
@@ -61461,7 +61461,7 @@ func (v *StreamsGroupHeartbeatRequest) readFrom(src []byte, unsafe bool) error {
 						}
 						a = a[:0]
 						if l > 0 {
-							a = append(a, make([]StreamsGroupHeartbeatRequestTopologySubtopologieCopartitionGroup, l)...)
+							a = append(a, make([]StreamsGroupHeartbeatRequestTopologySubtopologyCopartitionGroup, l)...)
 						}
 						for i := int32(0); i < l; i++ {
 							v := &a[i]
@@ -62028,7 +62028,7 @@ func NewStreamsGroupHeartbeatRequest() StreamsGroupHeartbeatRequest {
 	return v
 }
 
-type StreamsGroupHeartbeatResponseStatu struct {
+type StreamsGroupHeartbeatResponseStatus struct {
 	// StatusCode indicates a particular status; 0:STALE_TOPOLOGY,
 	// 1:MISSING_SOURCE_TOPICS, 2:INCORRECTLY_PARTITIONED_TOPICS,
 	// 3:MISSING_INTERNAL_TOPICS, 4:SHUTDOWN_APPLICATION,
@@ -62043,14 +62043,14 @@ type StreamsGroupHeartbeatResponseStatu struct {
 }
 
 // Default sets any default fields. Calling this allows for future compatibility
-// if new fields are added to StreamsGroupHeartbeatResponseStatu.
-func (v *StreamsGroupHeartbeatResponseStatu) Default() {
+// if new fields are added to StreamsGroupHeartbeatResponseStatus.
+func (v *StreamsGroupHeartbeatResponseStatus) Default() {
 }
 
-// NewStreamsGroupHeartbeatResponseStatu returns a default StreamsGroupHeartbeatResponseStatu
+// NewStreamsGroupHeartbeatResponseStatus returns a default StreamsGroupHeartbeatResponseStatus
 // This is a shortcut for creating a struct and calling Default yourself.
-func NewStreamsGroupHeartbeatResponseStatu() StreamsGroupHeartbeatResponseStatu {
-	var v StreamsGroupHeartbeatResponseStatu
+func NewStreamsGroupHeartbeatResponseStatus() StreamsGroupHeartbeatResponseStatus {
+	var v StreamsGroupHeartbeatResponseStatus
 	v.Default()
 	return v
 }
@@ -62170,7 +62170,7 @@ type StreamsGroupHeartbeatResponse struct {
 	TaskOffsetIntervalMillis int32
 
 	// Status indicates zero or more statuses for the group membership.
-	Status []StreamsGroupHeartbeatResponseStatu
+	Status []StreamsGroupHeartbeatResponseStatus
 
 	// ActiveTasks are assigned active tasks. Null if unchanged since last
 	// heartbeat.
@@ -62588,14 +62588,14 @@ func (v *StreamsGroupHeartbeatResponse) readFrom(src []byte, unsafe bool) error 
 			l = b.ArrayLen()
 		}
 		if version < 0 || l == 0 {
-			a = []StreamsGroupHeartbeatResponseStatu{}
+			a = []StreamsGroupHeartbeatResponseStatus{}
 		}
 		if !b.Ok() {
 			return b.Complete()
 		}
 		a = a[:0]
 		if l > 0 {
-			a = append(a, make([]StreamsGroupHeartbeatResponseStatu, l)...)
+			a = append(a, make([]StreamsGroupHeartbeatResponseStatus, l)...)
 		}
 		for i := int32(0); i < l; i++ {
 			v := &a[i]
@@ -63243,7 +63243,7 @@ func NewStreamsGroupDescribeRequest() StreamsGroupDescribeRequest {
 	return v
 }
 
-type StreamsGroupDescribeResponseGroupTopologySubtopologie struct {
+type StreamsGroupDescribeResponseGroupTopologySubtopology struct {
 	// SubtopologyID uniquely identifies the subtopology.
 	SubtopologyID string
 
@@ -63267,14 +63267,14 @@ type StreamsGroupDescribeResponseGroupTopologySubtopologie struct {
 }
 
 // Default sets any default fields. Calling this allows for future compatibility
-// if new fields are added to StreamsGroupDescribeResponseGroupTopologySubtopologie.
-func (v *StreamsGroupDescribeResponseGroupTopologySubtopologie) Default() {
+// if new fields are added to StreamsGroupDescribeResponseGroupTopologySubtopology.
+func (v *StreamsGroupDescribeResponseGroupTopologySubtopology) Default() {
 }
 
-// NewStreamsGroupDescribeResponseGroupTopologySubtopologie returns a default StreamsGroupDescribeResponseGroupTopologySubtopologie
+// NewStreamsGroupDescribeResponseGroupTopologySubtopology returns a default StreamsGroupDescribeResponseGroupTopologySubtopology
 // This is a shortcut for creating a struct and calling Default yourself.
-func NewStreamsGroupDescribeResponseGroupTopologySubtopologie() StreamsGroupDescribeResponseGroupTopologySubtopologie {
-	var v StreamsGroupDescribeResponseGroupTopologySubtopologie
+func NewStreamsGroupDescribeResponseGroupTopologySubtopology() StreamsGroupDescribeResponseGroupTopologySubtopology {
+	var v StreamsGroupDescribeResponseGroupTopologySubtopology
 	v.Default()
 	return v
 }
@@ -63286,7 +63286,7 @@ type StreamsGroupDescribeResponseGroupTopology struct {
 	// Subtopologies are the subtopologies of the streams application. Null
 	// if the group is uninitialized, source topics are missing, or
 	// incorrectly partitioned.
-	Subtopologies []StreamsGroupDescribeResponseGroupTopologySubtopologie
+	Subtopologies []StreamsGroupDescribeResponseGroupTopologySubtopology
 
 	// UnknownTags are tags Kafka sent that we do not know the purpose of.
 	UnknownTags Tags
@@ -64323,14 +64323,14 @@ func (v *StreamsGroupDescribeResponse) readFrom(src []byte, unsafe bool) error {
 							l = b.ArrayLen()
 						}
 						if version < 0 || l == 0 {
-							a = []StreamsGroupDescribeResponseGroupTopologySubtopologie{}
+							a = []StreamsGroupDescribeResponseGroupTopologySubtopology{}
 						}
 						if !b.Ok() {
 							return b.Complete()
 						}
 						a = a[:0]
 						if l > 0 {
-							a = append(a, make([]StreamsGroupDescribeResponseGroupTopologySubtopologie, l)...)
+							a = append(a, make([]StreamsGroupDescribeResponseGroupTopologySubtopology, l)...)
 						}
 						for i := int32(0); i < l; i++ {
 							v := &a[i]
