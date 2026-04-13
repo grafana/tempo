@@ -245,11 +245,11 @@ func (t *App) initOverridesAPI() (services.Service, error) {
 func (t *App) initDistributor() (services.Service, error) {
 	singleBinary := IsSingleBinary(t.cfg.Target)
 	localPushTargets := distributor.LocalPushTargets{}
-
 	var partitionRing ring.PartitionRingReader
 
+	t.cfg.Distributor.PushSpansToKafka = !singleBinary
+
 	if singleBinary {
-		t.cfg.Distributor.PushSpansToKafka = false
 		localPushTargets.Generator = func(ctx context.Context, req *tempopb.PushSpansRequest) (*tempopb.PushResponse, error) {
 			if t.generator == nil {
 				return nil, errors.New("metrics-generator not initialized")
@@ -264,7 +264,6 @@ func (t *App) initDistributor() (services.Service, error) {
 			return t.liveStore.PushBytes(ctx, req)
 		}
 	} else {
-		t.cfg.Distributor.PushSpansToKafka = true
 		t.cfg.Distributor.KafkaConfig = t.cfg.Ingest.Kafka
 		partitionRing = t.partitionRing
 	}
