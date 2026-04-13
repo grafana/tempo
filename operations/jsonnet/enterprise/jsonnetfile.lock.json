@@ -8,7 +8,7 @@
           "subdir": "ksonnet-util"
         }
       },
-      "version": "fd0eb324f536560f10f9f4b1eb10ff017729ee75",
+      "version": "142f1ceed0f31df01566cb93570d06d1bbcbf6ad",
       "sum": "0y3AFX9LQSpfWTxWKSwoLgbt0Wc9nnCwhMH2szKzHv0="
     },
     {
@@ -18,7 +18,7 @@
           "subdir": "memcached"
         }
       },
-      "version": "fd0eb324f536560f10f9f4b1eb10ff017729ee75",
+      "version": "142f1ceed0f31df01566cb93570d06d1bbcbf6ad",
       "sum": "zNTCDRaCqJUHjQSQRsxGR3jLrMP9tU7YNQb13dbm1bU="
     },
     {
@@ -38,8 +38,8 @@
           "subdir": "operations/jsonnet/microservices"
         }
       },
-      "version": "031076f29e8a9ee9fee4b55a9e9d981ea1576d3d",
-      "sum": "i0ynhapsqHWmiW2iKL0Qb+6yBPFLhSC+apDATCSSliY="
+      "version": "36d0aaeb2d5e99b484f47e850c607bf8e2125b3d",
+      "sum": "eW/NSoNDr4342bbJK0cW/4H3JXVgxoU8Bq1RuPFtxzM="
     },
     {
       "source": {
