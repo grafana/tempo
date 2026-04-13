@@ -1,5 +1,7 @@
 ## main / unreleased
 
+# v2.10.4
+
 * [ENHANCEMENT] Add flag for enabling MCP server. [#6903](https://github.com/grafana/tempo/pull/6903) (@tiffanyfay)
 
 # v2.10.3
