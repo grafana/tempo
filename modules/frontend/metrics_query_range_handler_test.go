@@ -508,6 +508,66 @@ func TestQueryRangeHandlerWithEndCutoff(t *testing.T) {
 	})
 }
 
+func TestQueryRangeHandlerAllowsExactMaxDurationForMultiTenantQuery(t *testing.T) {
+	rt := &mockRoundTripperWithCapture{
+		rt: mockRoundTripper{
+			responseFn: func() proto.Message {
+				return &tempopb.QueryRangeResponse{
+					Metrics: &tempopb.SearchMetrics{InspectedTraces: 1, InspectedBytes: 1},
+				}
+			},
+		},
+	}
+
+	f := frontendWithSettings(t, rt, nil, nil, nil, func(c *Config, _ *overrides.Config) {
+		c.Metrics.Sharder.Interval = time.Hour
+		c.Metrics.Sharder.MaxDuration = 48 * time.Hour
+		c.Metrics.Sharder.QueryBackendAfter = 1000 * time.Hour
+	})
+
+	end := time.Now().Truncate(time.Second).Add(123 * time.Millisecond)
+	start := end.Add(-48 * time.Hour)
+
+	httpReq := httptest.NewRequest("GET", api.PathMetricsQueryRange, nil)
+	httpReq = api.BuildQueryRangeRequest(httpReq, &tempopb.QueryRangeRequest{
+		Query: "{} | rate()",
+		Start: uint64(start.UnixNano()),
+		End:   uint64(end.UnixNano()),
+		Step:  uint64(time.Hour.Nanoseconds()),
+	}, "")
+	httpReq = httpReq.WithContext(user.InjectOrgID(httpReq.Context(), "foo|bar"))
+
+	httpResp := httptest.NewRecorder()
+	f.MetricsQueryRangeHandler.ServeHTTP(httpResp, httpReq)
+
+	require.Equal(t, http.StatusOK, httpResp.Code)
+	require.NotNil(t, rt.req)
+	assert.Greater(t, time.Duration(rt.req.End-rt.req.Start), 48*time.Hour)
+}
+
+func TestQueryInstantHandlerRejectsOverMaxDurationForMultiTenantQuery(t *testing.T) {
+	f := frontendWithSettings(t, &mockRoundTripper{}, nil, nil, nil, func(c *Config, _ *overrides.Config) {
+		c.Metrics.Sharder.MaxDuration = 48 * time.Hour
+	})
+
+	end := time.Now().Truncate(time.Second)
+	start := end.Add(-49 * time.Hour)
+
+	httpReq := httptest.NewRequest("GET", api.PathMetricsQueryInstant, nil)
+	httpReq = api.BuildQueryInstantRequest(httpReq, &tempopb.QueryInstantRequest{
+		Query: "{} | rate()",
+		Start: uint64(start.UnixNano()),
+		End:   uint64(end.UnixNano()),
+	})
+	httpReq = httpReq.WithContext(user.InjectOrgID(httpReq.Context(), "foo|bar"))
+
+	httpResp := httptest.NewRecorder()
+	f.MetricsQueryInstantHandler.ServeHTTP(httpResp, httpReq)
+
+	require.Equal(t, http.StatusBadRequest, httpResp.Code)
+	assert.Contains(t, httpResp.Body.String(), "metrics query time range exceeds the maximum allowed duration of 48h0m0s")
+}
+
 // TestQueryRangeHandlerExemplarNormalization verifies that exemplars from shard responses are
 // kept in the final response when the client omits req.Exemplars (sends 0). Before the fix,
 // the frontend combiner was created with req.Exemplars=0 which caused it to immediately discard
