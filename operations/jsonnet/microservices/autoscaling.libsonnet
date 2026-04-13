@@ -141,7 +141,14 @@
           type: 'Pods',
           periodSeconds: config.scale_down_period_seconds,
         })
-      else {}
+      else
+        // Explicit default policy so the stabilization window isn't ignored
+        // due to an empty policy list.
+        scaleDownBehavior.withPoliciesMixin({
+          value: 100,
+          type: 'Percent',
+          periodSeconds: config.scale_down_period_seconds,
+        })
     ),
 
   //

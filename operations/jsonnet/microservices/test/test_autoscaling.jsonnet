@@ -19,6 +19,11 @@ test.new(std.thisFile)
           horizontalPodAutoscalerConfig: {
             behavior: {
               scaleDown: {
+                policies: [{
+                  periodSeconds: 300,
+                  type: 'Percent',
+                  value: 100,
+                }],
                 stabilizationWindowSeconds: 1800,
               },
               scaleUp: {
