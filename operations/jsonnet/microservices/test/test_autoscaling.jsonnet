@@ -67,9 +67,9 @@ test.new(std.thisFile)
   )
 )
 
-// ScaledObjects are empty when autoscaling is disabled.
+// Backend worker ScaledObject is empty when its autoscaling is disabled.
 + test.case.new(
-  'ScaledObjects empty when disabled',
+  'Backend worker ScaledObject empty when disabled',
   test.expect.eq(
     default.tempo_backend_worker_scaled_object,
     {},
