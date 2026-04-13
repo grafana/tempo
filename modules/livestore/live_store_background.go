@@ -81,7 +81,7 @@ func (s *LiveStore) globalCompleteLoop(idx int) {
 		level.Info(s.logger).Log("msg", "shutdown completing loop", "index", idx)
 	}()
 	for {
-		op := s.completeQueues.Dequeue(idx)
+		op := s.completeQueues.Dequeue()
 		if op == nil {
 			return // queue is closed
 		}

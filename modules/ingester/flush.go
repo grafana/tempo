@@ -213,14 +213,14 @@ func (i *Ingester) cutOneInstanceToWal(instance *instance, immediate bool) {
 	}
 }
 
-func (i *Ingester) flushLoop(j int) {
+func (i *Ingester) flushLoop() {
 	defer func() {
 		level.Debug(log.Logger).Log("msg", "Ingester.flushLoop() exited")
 		i.flushQueuesDone.Done()
 	}()
 
 	for {
-		op := i.flushQueues.Dequeue(j)
+		op := i.flushQueues.Dequeue()
 		if op == nil {
 			return
 		}
