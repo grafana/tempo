@@ -1603,8 +1603,7 @@ Defines re-used configuration blocks.
 ### Block
 
 ```yaml
-# block format version. options: vParquet4
-# deprecated options: v2, vParquet3
+# block format version. options: vParquet4, vParquet5
 [version: <string> | default = vParquet4]
 
 # bloom filter false positive rate. lower values create larger filters but fewer false positives
