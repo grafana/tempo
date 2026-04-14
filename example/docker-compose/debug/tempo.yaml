@@ -63,13 +63,6 @@ overrides:
       processors: ["span-metrics", "service-graphs"]
       generate_native_histograms: both
 
-ingest:
-  kafka:
-    address: redpanda:9092
-    topic: tempo-ingest
-
-block_builder:
-  consume_cycle_duration: 30s
 
 usage_report:
   reporting_enabled: false

@@ -51,6 +51,7 @@ func (s *LiveStore) startAllBackgroundProcesses() {
 		return
 	}
 
+	s.completeBlockLifecycle.start(s.ctx)
 	close(s.startupComplete)
 }
 
@@ -58,6 +59,7 @@ func (s *LiveStore) stopAllBackgroundProcesses() {
 	s.cancel()              // this will cause the per tenant background processes to complete
 	s.completeQueues.Stop() // this will cause the global complete loop by preventing additional enqueues
 	s.wg.Wait()
+	s.completeBlockLifecycle.stop()
 }
 
 func (s *LiveStore) runInBackground(fn func()) {
@@ -126,16 +128,36 @@ func (s *LiveStore) processCompleteOp(op *completeOp) error {
 		return nil
 	}
 
-	err = inst.completeBlock(ctx, op.blockID)
-	metricCompletionDuration.Observe(time.Since(start).Seconds())
-
-	if err == nil {
-		metricBlocksCompleted.Inc()
-		s.completeQueues.Clear(op)
+	completeBlock, err := inst.completeBlock(ctx, op.blockID)
+	if err != nil {
+		metricCompletionDuration.Observe(time.Since(start).Seconds())
+		s.retryCompleteOp(op, span, "failed to complete block", err)
 		return nil
 	}
 
-	level.Error(s.logger).Log("msg", "failed to complete block", "tenant", op.tenantID, "block", op.blockID, "err", err)
+	if completeBlock == nil {
+		// completeBlock only returns a block when this call converts a WAL block.
+		// On a retry after lifecycle handling fails, the WAL block may already be
+		// gone while the completed block is still present in inst.completeBlocks.
+		completeBlock = inst.getCompleteBlock(op.blockID)
+	}
+
+	if completeBlock != nil {
+		if err := s.completeBlockLifecycle.onCompletedBlock(ctx, op.tenantID, completeBlock); err != nil {
+			metricCompletionDuration.Observe(time.Since(start).Seconds())
+			s.retryCompleteOp(op, span, "failed to apply complete block lifecycle", err)
+			return nil
+		}
+	}
+
+	metricCompletionDuration.Observe(time.Since(start).Seconds())
+	metricBlocksCompleted.Inc()
+	s.completeQueues.Clear(op)
+	return nil
+}
+
+func (s *LiveStore) retryCompleteOp(op *completeOp, span oteltrace.Span, msg string, err error) {
+	level.Error(s.logger).Log("msg", msg, "tenant", op.tenantID, "block", op.blockID, "err", err)
 	observeFailedOp(op)
 	span.RecordError(err)
 
@@ -151,8 +173,6 @@ func (s *LiveStore) processCompleteOp(op *completeOp) error {
 			_ = level.Error(s.logger).Log("msg", "failed to requeue block for flushing", "tenant", op.tenantID, "block", op.blockID, "err", err)
 		}
 	}()
-
-	return nil // do not exit global loop
 }
 
 func (s *LiveStore) perTenantCutToWalLoop(instance *instance) {
@@ -362,6 +382,10 @@ func (s *LiveStore) reloadBlocks() error {
 			inst.blocksMtx.Lock()
 			inst.completeBlocks[id] = lb
 			inst.blocksMtx.Unlock()
+
+			if err := s.completeBlockLifecycle.onReloadedBlock(ctx, tenant, lb); err != nil {
+				return fmt.Errorf("failed to apply complete block lifecycle to reloaded block %s in tenant %s: %w", id.String(), tenant, err)
+			}
 		}
 	}
 

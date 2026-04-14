@@ -110,8 +110,9 @@ type instance struct {
 	Cfg Config
 
 	// WAL and encoding
-	wal                   *wal.WAL
-	completeBlockEncoding encoding.VersionedEncoding
+	wal                    *wal.WAL
+	completeBlockEncoding  encoding.VersionedEncoding
+	completeBlockLifecycle completeBlockLifecycle
 
 	// Block management
 	blocksMtx      sync.RWMutex
@@ -133,23 +134,30 @@ type instance struct {
 	overrides overrides.Interface
 }
 
-func newInstance(instanceID string, cfg Config, wal *wal.WAL, completeBlockEncoding encoding.VersionedEncoding, overrides overrides.Interface, logger log.Logger) (*instance, error) {
+func newInstance(instanceID string, cfg Config, wal *wal.WAL, completeBlockEncoding encoding.VersionedEncoding, completeBlockLifecycle completeBlockLifecycle, overrides overrides.Interface, logger log.Logger) (*instance, error) {
 	logger = log.With(logger, "tenant", instanceID)
-
+	if completeBlockLifecycle == nil {
+		var err error
+		completeBlockLifecycle, err = newCompleteBlockLifecycle(cfg, nil, logger)
+		if err != nil {
+			return nil, err
+		}
+	}
 	i := &instance{
-		tenantID:              instanceID,
-		logger:                logger,
-		Cfg:                   cfg,
-		wal:                   wal,
-		completeBlockEncoding: completeBlockEncoding,
-		walBlocks:             map[uuid.UUID]common.WALBlock{},
-		completeBlocks:        map[uuid.UUID]*LocalBlock{},
-		liveTraces:            livetraces.New[*v1.ResourceSpans](func(rs *v1.ResourceSpans) uint64 { return uint64(rs.Size()) }, cfg.MaxTraceIdle, cfg.MaxTraceLive, instanceID),
-		traceSizes:            tracesizes.New(),
-		maxTraceLogger:        util_log.NewRateLimitedLogger(maxTraceLogLinesPerSecond, level.Warn(logger)),
-		overrides:             overrides,
-		tracesCreatedTotal:    metricTracesCreatedTotal.WithLabelValues(instanceID),
-		bytesReceivedTotal:    metricBytesReceivedTotal,
+		tenantID:               instanceID,
+		logger:                 logger,
+		Cfg:                    cfg,
+		wal:                    wal,
+		completeBlockEncoding:  completeBlockEncoding,
+		completeBlockLifecycle: completeBlockLifecycle,
+		walBlocks:              map[uuid.UUID]common.WALBlock{},
+		completeBlocks:         map[uuid.UUID]*LocalBlock{},
+		liveTraces:             livetraces.New[*v1.ResourceSpans](func(rs *v1.ResourceSpans) uint64 { return uint64(rs.Size()) }, cfg.MaxTraceIdle, cfg.MaxTraceLive, instanceID),
+		traceSizes:             tracesizes.New(),
+		maxTraceLogger:         util_log.NewRateLimitedLogger(maxTraceLogLinesPerSecond, level.Warn(logger)),
+		overrides:              overrides,
+		tracesCreatedTotal:     metricTracesCreatedTotal.WithLabelValues(instanceID),
+		bytesReceivedTotal:     metricBytesReceivedTotal,
 		// blockOffsetMeta:   make(map[uuid.UUID]offsetMetadata),
 	}
 
@@ -550,7 +558,7 @@ func (i *instance) cutBlocks(ctx context.Context, immediate bool) (uuid.UUID, er
 	return id, nil
 }
 
-func (i *instance) completeBlock(ctx context.Context, id uuid.UUID) error {
+func (i *instance) completeBlock(ctx context.Context, id uuid.UUID) (*LocalBlock, error) {
 	ctx, span := tracer.Start(ctx, "instance.completeBlock",
 		oteltrace.WithAttributes(
 			attribute.String("tenant", i.tenantID),
@@ -565,7 +573,7 @@ func (i *instance) completeBlock(ctx context.Context, id uuid.UUID) error {
 	if walBlock == nil {
 		level.Warn(i.logger).Log("msg", "WAL block disappeared before being completed", "id", id)
 		span.AddEvent("WAL block not found")
-		return nil
+		return nil, nil
 	}
 
 	blockSize := walBlock.DataLength()
@@ -582,7 +590,7 @@ func (i *instance) completeBlock(ctx context.Context, id uuid.UUID) error {
 	if err != nil {
 		level.Error(i.logger).Log("msg", "failed to get WAL block iterator", "id", id, "err", err)
 		span.RecordError(err)
-		return err
+		return nil, err
 	}
 	defer iter.Close()
 
@@ -590,7 +598,7 @@ func (i *instance) completeBlock(ctx context.Context, id uuid.UUID) error {
 	if err != nil {
 		level.Error(i.logger).Log("msg", "failed to create complete block", "id", id, "err", err)
 		span.RecordError(err)
-		return err
+		return nil, err
 	}
 
 	level.Info(i.logger).Log("msg", "opening newly completed block", "blockId", newMeta.BlockID.String())
@@ -598,7 +606,7 @@ func (i *instance) completeBlock(ctx context.Context, id uuid.UUID) error {
 	if err != nil {
 		level.Error(i.logger).Log("msg", "failed to open complete block", "id", id, "err", err)
 		span.RecordError(err)
-		return err
+		return nil, err
 	}
 
 	level.Info(i.logger).Log("msg", "swapping wal block with newly completed block")
@@ -614,10 +622,11 @@ func (i *instance) completeBlock(ctx context.Context, id uuid.UUID) error {
 			level.Error(i.logger).Log("msg", "failed to clear complete block after WAL disappeared", "block", id, "err", err)
 		}
 		span.AddEvent("WAL block disappeared during completion")
-		return nil
+		return nil, nil
 	}
 
-	i.completeBlocks[id] = NewLocalBlock(ctx, newBlock, i.wal.LocalBackend())
+	completeBlock := NewLocalBlock(ctx, newBlock, i.wal.LocalBackend())
+	i.completeBlocks[id] = completeBlock
 
 	err = walBlock.Clear()
 	if err != nil {
@@ -628,7 +637,14 @@ func (i *instance) completeBlock(ctx context.Context, id uuid.UUID) error {
 
 	level.Info(i.logger).Log("msg", "completed block", "id", id.String())
 	span.AddEvent("block completed successfully")
-	return nil
+	return completeBlock, nil
+}
+
+func (i *instance) getCompleteBlock(id uuid.UUID) *LocalBlock {
+	i.blocksMtx.RLock()
+	defer i.blocksMtx.RUnlock()
+
+	return i.completeBlocks[id]
 }
 
 func (i *instance) deleteOldBlocks() error {
@@ -652,16 +668,17 @@ func (i *instance) deleteOldBlocks() error {
 	}
 
 	for id, completeBlock := range i.completeBlocks {
-		if completeBlock.BlockMeta().EndTime.Before(cutoff) {
-
-			level.Info(i.logger).Log("msg", "deleting complete block", "block", id.String())
-			err := i.wal.LocalBackend().ClearBlock(id, i.tenantID)
-			if err != nil {
-				return err
-			}
-			delete(i.completeBlocks, id)
-			metricBlocksClearedTotal.WithLabelValues("complete").Inc()
+		if !i.completeBlockLifecycle.shouldDeleteCompleteBlock(completeBlock, cutoff) {
+			continue
 		}
+
+		level.Info(i.logger).Log("msg", "deleting complete block", "block", id.String())
+		err := i.wal.LocalBackend().ClearBlock(id, i.tenantID)
+		if err != nil {
+			return err
+		}
+		delete(i.completeBlocks, id)
+		metricBlocksClearedTotal.WithLabelValues("complete").Inc()
 	}
 
 	return nil

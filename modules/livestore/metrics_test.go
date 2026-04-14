@@ -61,7 +61,9 @@ func setupTest(t *testing.T) *testSetup {
 	})
 	require.NoError(t, err)
 
-	instance, err := newInstance(testTenant, *cfg, w, blockEnc, o, log.NewNopLogger())
+	lifecycle, err := newCompleteBlockLifecycle(*cfg, noopCompleteBlockFlusher{}, log.NewNopLogger())
+	require.NoError(t, err)
+	instance, err := newInstance(testTenant, *cfg, w, blockEnc, lifecycle, o, log.NewNopLogger())
 	require.NoError(t, err)
 
 	return &testSetup{
@@ -174,7 +176,7 @@ func TestMetrics_CompletionFlow(t *testing.T) {
 	initialCompletionSize := getHistogramCount(t, metricCompletionSize)
 
 	// Complete the block
-	err = setup.instance.completeBlock(t.Context(), blockID)
+	_, err = setup.instance.completeBlock(t.Context(), blockID)
 	require.NoError(t, err)
 
 	// Verify completion size metric was updated
