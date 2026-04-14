@@ -270,7 +270,7 @@ func TestLiveStoreFullBlockLifecycleCheating(t *testing.T) {
 	requireInstanceState(t, inst, instanceState{liveTraces: 1, walBlocks: 0, completeBlocks: 0})
 
 	// cut to head block and test
-	err = inst.cutIdleTraces(t.Context(), true)
+	_, err = inst.cutIdleTraces(t.Context(), true)
 	require.NoError(t, err)
 
 	requireTraceInLiveStore(t, liveStore, expectedID, expectedTrace)
@@ -333,7 +333,7 @@ func TestLiveStoreReplaysTraceInHeadBlock(t *testing.T) {
 	require.NoError(t, err)
 
 	// cut to head block
-	err = inst.cutIdleTraces(t.Context(), true)
+	_, err = inst.cutIdleTraces(t.Context(), true)
 	require.NoError(t, err)
 
 	// stop the live store and then create a new one to simulate a restart and replay the data on disk
@@ -361,7 +361,7 @@ func TestLiveStoreReplaysTraceInWalBlocks(t *testing.T) {
 	require.NoError(t, err)
 
 	// cut to head block
-	err = inst.cutIdleTraces(t.Context(), true)
+	_, err = inst.cutIdleTraces(t.Context(), true)
 	require.NoError(t, err)
 
 	// cut head to wal blocks
@@ -393,7 +393,7 @@ func TestLiveStoreReplaysTraceInCompleteBlocks(t *testing.T) {
 	require.NoError(t, err)
 
 	// cut to head block
-	err = inst.cutIdleTraces(t.Context(), true)
+	_, err = inst.cutIdleTraces(t.Context(), true)
 	require.NoError(t, err)
 
 	// cut head to wal blocks
@@ -425,7 +425,8 @@ func TestLiveStoreDropsInvalidCompleteBlocksOnRestart(t *testing.T) {
 	inst, err := liveStore.getOrCreateInstance(testTenantID)
 	require.NoError(t, err)
 
-	require.NoError(t, inst.cutIdleTraces(t.Context(), true))
+	_, cutErr := inst.cutIdleTraces(t.Context(), true)
+	require.NoError(t, cutErr)
 	walUUID, err := inst.cutBlocks(t.Context(), true)
 	require.NoError(t, err)
 	_, err = inst.completeBlock(context.Background(), walUUID)
@@ -659,7 +660,7 @@ func TestLiveStoreUsesRecordTimestampForBlockStartAndEnd(t *testing.T) {
 		require.NoError(t, err)
 
 		// force just pushed traces to the head block
-		err = inst.cutIdleTraces(t.Context(), true)
+		_, err = inst.cutIdleTraces(t.Context(), true)
 		require.NoError(t, err)
 
 		meta := inst.headBlock.BlockMeta()

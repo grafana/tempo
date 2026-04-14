@@ -96,7 +96,7 @@ func TestInstanceLimits(t *testing.T) {
 		pushTrace(t.Context(), t, instance, batch1, id)
 
 		// cut idle traces but we retain the too large trace in traceSizes
-		err := instance.cutIdleTraces(t.Context(), true)
+		_, err := instance.cutIdleTraces(t.Context(), true)
 		require.NoError(t, err)
 
 		// Second push with same id will fail b/c we are still tracking in traceSizes
@@ -117,7 +117,7 @@ func TestInstanceLimits(t *testing.T) {
 		pushTrace(t.Context(), t, instance, batch1, id)
 
 		// cut idle traces but we retain the too large trace in traceSizes
-		err := instance.cutIdleTraces(t.Context(), true)
+		_, err := instance.cutIdleTraces(t.Context(), true)
 		require.NoError(t, err)
 		blockID, err := instance.cutBlocks(t.Context(), true) // this won't clear the trace b/c the trace must not be seen for 2 head block cuts to be fully removed from live traces
 		require.NoError(t, err)
@@ -128,7 +128,7 @@ func TestInstanceLimits(t *testing.T) {
 		secondID := test.ValidTraceID(nil)
 		pushTrace(t.Context(), t, instance, batch1, secondID)
 
-		err = instance.cutIdleTraces(t.Context(), true)
+		_, err = instance.cutIdleTraces(t.Context(), true)
 		require.NoError(t, err)
 		blockID, err = instance.cutBlocks(t.Context(), true) // this will clear the trace b/c the trace has not been seen for 2 head block cuts
 		require.NoError(t, err)
@@ -229,7 +229,8 @@ func TestInstanceBackpressure(t *testing.T) {
 	require.Nil(t, res.Trace)
 
 	// Free up space for the blocked push
-	require.NoError(t, instance.cutIdleTraces(t.Context(), true))
+	_, cutErr := instance.cutIdleTraces(t.Context(), true)
+	require.NoError(t, cutErr)
 
 	// Wait for push to complete with timeout
 	select {
@@ -258,7 +259,8 @@ func TestInstanceWALBackpressure(t *testing.T) {
 	createWALBlock := func() {
 		id := test.ValidTraceID(nil)
 		pushTrace(t.Context(), t, inst, test.MakeTrace(1, id), id)
-		require.NoError(t, inst.cutIdleTraces(t.Context(), true))
+		_, cutErr := inst.cutIdleTraces(t.Context(), true)
+		require.NoError(t, cutErr)
 		walID, err := inst.cutBlocks(t.Context(), true)
 		require.NoError(t, err)
 		require.NotEqual(t, walID, [16]byte{})
@@ -291,7 +293,7 @@ func TestCutIdleTracesRespectsMaxBlockBytes(t *testing.T) {
 	}
 
 	// Immediate cut — all live traces written to head block, then cut to WAL.
-	err := inst.cutIdleTraces(t.Context(), true)
+	_, err := inst.cutIdleTraces(t.Context(), true)
 	require.NoError(t, err)
 	_, err = inst.cutBlocks(t.Context(), true)
 	require.NoError(t, err)
