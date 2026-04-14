@@ -31,6 +31,8 @@ const (
 
 	EnvVarIndexName         = "VPARQUET_INDEX"
 	EnvVarIndexEnabledValue = "1"
+
+	EnvVarWALAsyncIO = "TEMPO_WAL_ASYNC_IO"
 )
 
 func (b *backendBlock) checkBloom(ctx context.Context, id common.ID) (found bool, err error) {

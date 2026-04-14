@@ -246,6 +246,9 @@ func (w *walBlockFlush) file(ctx context.Context) (*pageFile, error) {
 		parquet.SkipPageIndex(true),
 		parquet.FileSchema(sch),
 	}
+	if os.Getenv(EnvVarWALAsyncIO) != "" {
+		o = append(o, parquet.FileReadMode(parquet.ReadModeAsync))
+	}
 
 	pf, err := parquet.OpenFile(wr, size, o...)
 	if err != nil {

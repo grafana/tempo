@@ -261,6 +261,37 @@ func TestWalBlockIterator(t *testing.T) {
 	})
 }
 
+func TestWalBlockIteratorAsyncIO(t *testing.T) {
+	t.Setenv(EnvVarWALAsyncIO, "1")
+
+	testWalBlock(t, func(w *walBlock, ids []common.ID, trs []*tempopb.Trace) {
+		iter, err := w.Iterator(context.Background())
+		require.NoError(t, err)
+
+		count := 0
+		for ; ; count++ {
+			id, tr, err := iter.Next(context.Background())
+			require.NoError(t, err)
+
+			if id == nil {
+				break
+			}
+
+			match := 0
+			for i := range ids {
+				if bytes.Equal(ids[i], id) {
+					match = i
+					break
+				}
+			}
+
+			require.Equal(t, ids[match], id)
+			require.True(t, proto.Equal(trs[match], tr))
+		}
+		require.Equal(t, len(ids), count)
+	})
+}
+
 // TestRowIterator cheats a bit by testing the rowIterator directly by reaching into the internals
 // of walblock. it also ignores the passed in traces and ids and simply asserts that the row iterator
 // is internally consistent.
