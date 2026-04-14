@@ -3,7 +3,6 @@ package livestore
 import (
 	"context"
 	"fmt"
-	"sync"
 	"time"
 
 	"github.com/go-kit/log"
@@ -86,7 +85,7 @@ func newCompleteBlockLifecycle(cfg Config, flusher completeBlockFlusher, logger 
 		logger:             logger,
 		flushConcurrency:   cfg.CompleteBlockConcurrency,
 		retryDelay:         cfg.initialBackoff,
-		completeBlockQueue: flushqueues.New[*localCompleteBlockOp](cfg.CompleteBlockConcurrency, nil),
+		completeBlockQueue: flushqueues.New[*localCompleteBlockOp](nil),
 	}, nil
 }
 
@@ -118,7 +117,6 @@ type localCompleteBlockLifecycle struct {
 	flushConcurrency   int
 	retryDelay         time.Duration
 	completeBlockQueue *flushqueues.ExclusiveQueues[*localCompleteBlockOp]
-	wg                 sync.WaitGroup
 	ctx                context.Context
 	cancel             context.CancelFunc
 }
@@ -146,11 +144,7 @@ func (l *localCompleteBlockLifecycle) start(ctx context.Context) {
 	}
 
 	l.ctx, l.cancel = context.WithCancel(ctx)
-	for i := range l.flushConcurrency {
-		l.wg.Go(func() {
-			l.runFlushLoop(i)
-		})
-	}
+	go l.runFlushLoop()
 }
 
 func (l *localCompleteBlockLifecycle) stop() {
@@ -158,7 +152,6 @@ func (l *localCompleteBlockLifecycle) stop() {
 		l.cancel()
 	}
 	l.completeBlockQueue.Stop()
-	l.wg.Wait()
 }
 
 func (l *localCompleteBlockLifecycle) onCompletedBlock(_ context.Context, tenantID string, block *LocalBlock) error {
@@ -201,9 +194,9 @@ func (l *localCompleteBlockLifecycle) enqueueBlock(tenantID string, block *Local
 
 // Main loop. It dequeues items from the queue and tries to flush them to the backend storage.
 // Failed ones are requeued after a short delay.
-func (l *localCompleteBlockLifecycle) runFlushLoop(idx int) {
+func (l *localCompleteBlockLifecycle) runFlushLoop() {
 	for {
-		op := l.completeBlockQueue.Dequeue(idx)
+		op := l.completeBlockQueue.Dequeue()
 		if op == nil {
 			return
 		}

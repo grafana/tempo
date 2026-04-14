@@ -395,7 +395,7 @@ func TestLiveStoreStartStopBackgroundProcessesControlsCompleteBlockLifecycle(t *
 		completeBlockLifecycle: lifecycle,
 		ctx:                    context.Background(),
 		cancel:                 func() {},
-		completeQueues:         flushqueues.New[*completeOp](1, nil),
+		completeQueues:         flushqueues.New[*completeOp](nil),
 		startupComplete:        make(chan struct{}),
 	}
 
