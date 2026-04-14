@@ -60,7 +60,7 @@ To access a ring page, send a GET request to the Tempo HTTP API. By default, Tem
 http://<tempo-host>:3200/live-store/ring
 ```
 
-In single-binary mode, all ring endpoints are available on the same host. In microservices mode, each endpoint is available on the component listed in the **Available on** field.
+In single-binary mode, any enabled ring endpoints are available on the same host. In microservices mode, each endpoint is available on the component listed in the **Available on** field.
 
 ### Distributor
 
