@@ -235,6 +235,7 @@ func TestWalBlockIterator(t *testing.T) {
 	testWalBlock(t, func(w *walBlock, ids []common.ID, trs []*tempopb.Trace) {
 		iter, err := w.Iterator(context.Background())
 		require.NoError(t, err)
+		defer iter.Close()
 
 		count := 0
 		for ; ; count++ {
@@ -268,6 +269,7 @@ func TestWalBlockIteratorAsyncIO(t *testing.T) {
 	testWalBlock(t, func(w *walBlock, ids []common.ID, trs []*tempopb.Trace) {
 		iter, err := w.Iterator(context.Background())
 		require.NoError(t, err)
+		defer iter.Close()
 
 		count := 0
 		for ; ; count++ {
