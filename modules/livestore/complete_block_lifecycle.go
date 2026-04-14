@@ -3,6 +3,7 @@ package livestore
 import (
 	"context"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/go-kit/log"
@@ -117,6 +118,7 @@ type localCompleteBlockLifecycle struct {
 	flushConcurrency   int
 	retryDelay         time.Duration
 	completeBlockQueue *flushqueues.ExclusiveQueues[*localCompleteBlockOp]
+	wg                 sync.WaitGroup
 	ctx                context.Context
 	cancel             context.CancelFunc
 }
@@ -144,7 +146,11 @@ func (l *localCompleteBlockLifecycle) start(ctx context.Context) {
 	}
 
 	l.ctx, l.cancel = context.WithCancel(ctx)
-	go l.runFlushLoop()
+	for range l.flushConcurrency {
+		l.wg.Go(func() {
+			l.runFlushLoop()
+		})
+	}
 }
 
 func (l *localCompleteBlockLifecycle) stop() {
@@ -152,6 +158,7 @@ func (l *localCompleteBlockLifecycle) stop() {
 		l.cancel()
 	}
 	l.completeBlockQueue.Stop()
+	l.wg.Wait()
 }
 
 func (l *localCompleteBlockLifecycle) onCompletedBlock(_ context.Context, tenantID string, block *LocalBlock) error {
