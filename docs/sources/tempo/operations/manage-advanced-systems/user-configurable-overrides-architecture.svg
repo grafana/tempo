@@ -1,0 +1,50 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 620 310">
+  <style>
+    text { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+  </style>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#78909C"/>
+    </marker>
+  </defs>
+
+  <rect width="100%" height="100%" fill="#FFFFFF"/>
+
+  <!-- Title -->
+  <text x="310" y="22" text-anchor="middle" font-size="15" font-weight="600" fill="#333">User-configurable overrides architecture</text>
+
+  <!-- Request arrow -->
+  <line x1="60" y1="80" x2="220" y2="80" stroke="#78909C" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <text x="140" y="70" text-anchor="middle" font-size="13" font-weight="500" fill="#333">request</text>
+
+  <!-- Tempo box -->
+  <rect x="225" y="50" width="170" height="60" rx="6" fill="#FFF3E0" stroke="#F57C00" stroke-width="1.5"/>
+  <text x="310" y="77" text-anchor="middle" font-size="14" font-weight="600" fill="#333">Tempo</text>
+  <text x="310" y="96" text-anchor="middle" font-size="11" fill="#666">(overrides module)</text>
+
+  <!-- Vertical line from Tempo down to fork -->
+  <line x1="310" y1="110" x2="310" y2="155" stroke="#78909C" stroke-width="1.5"/>
+
+  <!-- Horizontal fork line -->
+  <line x1="155" y1="155" x2="465" y2="155" stroke="#78909C" stroke-width="1.5"/>
+
+  <!-- Labels on the horizontal fork segments -->
+  <text x="232" y="148" text-anchor="middle" font-size="12" fill="#78909C" font-style="italic">read</text>
+  <text x="387" y="148" text-anchor="middle" font-size="12" fill="#78909C" font-style="italic">read / write</text>
+
+  <!-- Left branch: down to Overrides configmap -->
+  <line x1="155" y1="155" x2="155" y2="195" stroke="#78909C" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+  <!-- Right branch: down to Dynamic overrides -->
+  <line x1="465" y1="155" x2="465" y2="195" stroke="#78909C" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+  <!-- Overrides configmap box -->
+  <rect x="55" y="200" width="200" height="70" rx="6" fill="#E8F5E9" stroke="#2E7D32" stroke-width="1.5"/>
+  <text x="155" y="231" text-anchor="middle" font-size="13" font-weight="500" fill="#333">Runtime overrides</text>
+  <text x="155" y="249" text-anchor="middle" font-size="11" fill="#666">(configmap)</text>
+
+  <!-- Dynamic overrides box -->
+  <rect x="365" y="200" width="200" height="70" rx="6" fill="#E3F2FD" stroke="#1565C0" stroke-width="1.5"/>
+  <text x="465" y="231" text-anchor="middle" font-size="13" font-weight="500" fill="#333">User-configurable</text>
+  <text x="465" y="249" text-anchor="middle" font-size="11" fill="#666">(object store)</text>
+</svg>
