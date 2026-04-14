@@ -246,7 +246,7 @@ func TestWalBlockIterator(t *testing.T) {
 			}
 
 			// Find trace in the input data
-			match := 0
+			match := -1
 			for i := range ids {
 				if bytes.Equal(ids[i], id) {
 					match = i
@@ -254,6 +254,7 @@ func TestWalBlockIterator(t *testing.T) {
 				}
 			}
 
+			require.NotEqual(t, -1, match, "iterator returned unexpected id")
 			require.Equal(t, ids[match], id)
 			require.True(t, proto.Equal(trs[match], tr))
 		}
@@ -277,7 +278,7 @@ func TestWalBlockIteratorAsyncIO(t *testing.T) {
 				break
 			}
 
-			match := 0
+			match := -1
 			for i := range ids {
 				if bytes.Equal(ids[i], id) {
 					match = i
@@ -285,6 +286,7 @@ func TestWalBlockIteratorAsyncIO(t *testing.T) {
 				}
 			}
 
+			require.NotEqual(t, -1, match, "iterator returned unexpected id")
 			require.Equal(t, ids[match], id)
 			require.True(t, proto.Equal(trs[match], tr))
 		}
