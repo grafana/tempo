@@ -85,6 +85,7 @@
 
 ### 3.0 Cleanup
 
+* [CHANGE] **BREAKING CHANGE** Remove ingester module [#6959](https://github.com/grafana/tempo/pull/6959) (@javiermolinar)
 * [CHANGE] **BREAKING CHANGE** Remove ingest.enabled config [#6873](https://github.com/grafana/tempo/pull/6873) (@javiermolinar)
 * [CHANGE] **BREAKING CHANGE** Disable legacy (flat, unscoped) overrides by default. Tempo will refuse to start if legacy overrides are detected. Set `enable_legacy_overrides: true` or `-config.enable-legacy-overrides=true` to opt back in temporarily. Legacy overrides will be removed in a future release. [#6741](https://github.com/grafana/tempo/pull/6741) (@electron0zero)
 * [CHANGE] tempo-cli: Rewrite `migrate overrides-config` and add `migrate overrides-per-tenant` command to help migrate legacy flat overrides to the new scoped format. [#6793](https://github.com/grafana/tempo/pull/6793) (@electron0zero)
