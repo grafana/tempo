@@ -182,6 +182,7 @@ func (e *Engine) ExecuteTagValues(
 	conditionGroups [][]Condition,
 	cb FetchTagValuesCallback,
 	fetcher TagValuesFetcher,
+	maxConditionGroups int,
 ) error {
 	ctx, span := tracer.Start(ctx, "traceql.Engine.ExecuteTagValues")
 	defer span.End()
@@ -218,11 +219,34 @@ func (e *Engine) ExecuteTagValues(
 		return nil
 	}
 
-	for i := range finalConditionGroups {
-		finalConditionGroups[i] = append(finalConditionGroups[i], Condition{
-			Attribute: tag,
-			Op:        OpNone,
-		})
+	if tag.Scope == AttributeScopeNone && tag.Intrinsic == IntrinsicNone {
+		if (len(finalConditionGroups) * 2) > maxConditionGroups {
+			return fmt.Errorf("%w (limit: %d). Reduce the number of OR conditions in the query", ErrMaxConditionGroupsPerTagQueryReached, maxConditionGroups)
+		}
+		finalGroupOne := make([][]Condition, len(finalConditionGroups))
+		finalGroupTwo := make([][]Condition, len(finalConditionGroups))
+		for i := range finalConditionGroups {
+			tagResource := tag
+			tagResource.Scope = AttributeScopeResource
+			tagSpan := tag
+			tagSpan.Scope = AttributeScopeSpan
+			finalGroupOne[i] = append(finalConditionGroups[i], Condition{
+				Attribute: tagResource,
+				Op:        OpNone,
+			})
+			finalGroupTwo[i] = append(finalConditionGroups[i], Condition{
+				Attribute: tagSpan,
+				Op:        OpNone,
+			})
+		}
+		finalConditionGroups = append(finalGroupOne, finalGroupTwo...)
+	} else {
+		for i := range finalConditionGroups {
+			finalConditionGroups[i] = append(finalConditionGroups[i], Condition{
+				Attribute: tag,
+				Op:        OpNone,
+			})
+		}
 	}
 
 	autocompleteReq := FetchTagValuesRequest{

@@ -1567,7 +1567,7 @@ func tagValuesRunner(t *testing.T, _ *tempopb.Trace, _ *tempopb.TraceSearchMetad
 			})
 
 			conditionGroups, _ := traceql.ExtractConditionGroups(tc.query, traceql.DefaultMaxConditionGroupsPerTagQuery)
-			err := e.ExecuteTagValues(ctx, tc.tag, conditionGroups, traceql.MakeCollectTagValueFunc(valueCollector.Collect), fetcher)
+			err := e.ExecuteTagValues(ctx, tc.tag, conditionGroups, traceql.MakeCollectTagValueFunc(valueCollector.Collect), fetcher, traceql.DefaultMaxConditionGroupsPerTagQuery)
 			if errors.Is(err, util.ErrUnsupported) {
 				return
 			}
@@ -2613,7 +2613,7 @@ func TestSearchForTagsAndTagValues(t *testing.T) {
 
 	conditionGroups, _ := traceql.ExtractConditionGroups(`{resource.service.name="test-service-2"}`, traceql.DefaultMaxConditionGroupsPerTagQuery)
 	require.NotNil(t, conditionGroups)
-	err = traceql.NewEngine().ExecuteTagValues(context.Background(), tag, conditionGroups, traceql.MakeCollectTagValueFunc(valueCollector.Collect), f)
+	err = traceql.NewEngine().ExecuteTagValues(context.Background(), tag, conditionGroups, traceql.MakeCollectTagValueFunc(valueCollector.Collect), f, traceql.DefaultMaxConditionGroupsPerTagQuery)
 	require.NoError(t, err)
 
 	actual := valueCollector.Values()

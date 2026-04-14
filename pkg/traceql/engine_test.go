@@ -712,7 +712,7 @@ func TestExecuteTagValues(t *testing.T) {
 
 			tag, err := ParseIdentifier(tc.attribute)
 			assert.NoError(t, err)
-			assert.NoError(t, e.ExecuteTagValues(context.Background(), tag, conditionGroups, MakeCollectTagValueFunc(distinctValues.Collect), mockSpansetFetcher(fetcherQuery)))
+			assert.NoError(t, e.ExecuteTagValues(context.Background(), tag, conditionGroups, MakeCollectTagValueFunc(distinctValues.Collect), mockSpansetFetcher(fetcherQuery), DefaultMaxConditionGroupsPerTagQuery))
 			values := distinctValues.Values()
 			sort.Slice(values, func(i, j int) bool {
 				return values[i].Value < values[j].Value

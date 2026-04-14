@@ -506,7 +506,7 @@ func (i *instance) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTag
 			return s.FetchTagValues(ctx, req, cb, mCollector.Add, common.DefaultSearchOptions())
 		})
 
-		return engine.ExecuteTagValues(ctx, tag, conditionGroups, traceql.MakeCollectTagValueFunc(collect), fetcher)
+		return engine.ExecuteTagValues(ctx, tag, conditionGroups, traceql.MakeCollectTagValueFunc(collect), fetcher, i.overrides.MaxConditionGroupsPerTagQuery())
 	}
 
 	searchWithCache := func(ctx context.Context, _ *backend.BlockMeta, b block) error {

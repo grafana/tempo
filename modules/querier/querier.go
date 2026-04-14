@@ -842,7 +842,7 @@ func (q *Querier) internalTagValuesSearchBlockV2(ctx context.Context, req *tempo
 		return q.store.FetchTagValues(ctx, meta, req, cb, func(bytesRead uint64) { inspectedBytes += bytesRead }, opts)
 	})
 
-	err = q.engine.ExecuteTagValues(ctx, tag, conditionGroups, traceql.MakeCollectTagValueFunc(valueCollector.Collect), fetcher)
+	err = q.engine.ExecuteTagValues(ctx, tag, conditionGroups, traceql.MakeCollectTagValueFunc(valueCollector.Collect), fetcher, q.limits.MaxConditionGroupsPerTagQuery())
 	if err != nil {
 		return nil, err
 	}

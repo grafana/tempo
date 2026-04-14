@@ -42,6 +42,10 @@ func (r tagRequest) keysRequested(scope traceql.AttributeScope) bool {
 		return true
 	}
 
+	if r.tag.Scope == traceql.AttributeScopeNone && (scope == traceql.AttributeScopeSpan || scope == traceql.AttributeScopeResource) {
+		return r.scope == scope
+	}
+
 	return r.scope == scope
 }
 
@@ -528,7 +532,7 @@ func createDistinctSpanIterator(
 	// TODO: Potentially problematic when wanted attribute is also part of a condition
 	//     e.g. { span.foo =~ ".*" && span.foo = }
 	addSelectAs := func(attr traceql.Attribute, columnPath string, selectAs string) {
-		if attr == tr.tag {
+		if attr == tr.tag || (attr.Name == tr.tag.Name && tr.tag.Scope == traceql.AttributeScopeNone) {
 			columnSelectAs[columnPath] = selectAs
 		} else {
 			columnSelectAs[columnPath] = "" // Don't select, just filter
@@ -725,7 +729,7 @@ func createDistinctAttributeIterator(
 	)
 
 	selectAs := func(key string, attr traceql.Attribute) string {
-		if tr.tag == attr {
+		if tr.tag == attr || (attr.Name == tr.tag.Name && tr.tag.Scope == traceql.AttributeScopeNone) {
 			return key
 		}
 		return ""
@@ -734,7 +738,7 @@ func createDistinctAttributeIterator(
 	for _, cond := range conditions {
 		if cond.Op == traceql.OpNone {
 			// This means we have to scan all values, we don't know what type to expect
-			if tr.tag == cond.Attribute {
+			if tr.tag == cond.Attribute || (cond.Attribute.Name == tr.tag.Name && tr.tag.Scope == traceql.AttributeScopeNone) {
 				// If it's not the tag we're looking for, we can skip it
 				attrKeys = append(attrKeys, cond.Attribute.Name)
 				attrStringPreds = append(attrStringPreds, nil)
@@ -747,7 +751,7 @@ func createDistinctAttributeIterator(
 		if cond.Op == traceql.OpExists {
 			// This means we have to scan all values, we don't know what type to expect
 			// But we can skip nils
-			if tr.tag == cond.Attribute {
+			if tr.tag == cond.Attribute || (cond.Attribute.Name == tr.tag.Name && tr.tag.Scope == traceql.AttributeScopeNone) {
 				// If it's not the tag we're looking for, we can skip it
 				attrKeys = append(attrKeys, cond.Attribute.Name)
 				attrStringPreds = append(attrStringPreds, parquetquery.NewSkipNilsPredicate())
@@ -969,7 +973,7 @@ func createDistinctResourceIterator(
 	}
 
 	addSelectAs := func(attr traceql.Attribute, columnPath string, selectAs string) {
-		if attr == tr.tag {
+		if attr == tr.tag || (attr.Name == tr.tag.Name && tr.tag.Scope == traceql.AttributeScopeNone) {
 			columnSelectAs[columnPath] = selectAs
 		} else {
 			columnSelectAs[columnPath] = "" // Don't select, just filter
