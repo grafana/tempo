@@ -64,21 +64,6 @@
         scale_down_period_seconds: 60 * 15,
       },
 
-      live_store: {
-        enabled: false,
-        min_replicas: 1,
-        max_replicas: 200,
-        paused_replicas: 0,
-        target_cpu: '1',
-        scale_up_stabilization_window_seconds: 120,
-        scale_up_pods: 5,
-        scale_up_period_seconds: 120,
-        // Scale down slowly: each scale-down takes time for the live-store to drain.
-        scale_down_stabilization_window_seconds: 60 * 40,
-        scale_down_pods: 5,
-        scale_down_period_seconds: 60 * 15,
-      },
-
       // Block builder scales to match live-store zone-a pods via KEDA kubernetes-workload scaler.
       // See: https://github.com/grafana/tempo/issues/6933
       block_builder: {
@@ -208,30 +193,6 @@
 
   tempo_backend_worker_statefulset+:
     if $._config.autoscaling.backend_worker.enabled then $.removeReplicasFromSpec else {},
-
-  //
-  // Live Store: CPU-based autoscaling targeting the ReplicaTemplate for zone-aware scaling.
-  //
-  tempo_live_store_scaled_object:
-    if $._config.autoscaling.live_store.enabled then
-      $.scaledObjectForController($.tempo_live_store_replica_template, $._config.autoscaling.live_store)
-      + scaledObject.spec.withTriggersMixin([{
-        type: 'cpu',
-        metricType: 'AverageValue',
-        metadata: {
-          value: '%s' % $._config.autoscaling.live_store.target_cpu,
-        },
-      }])
-    else {},
-
-  tempo_live_store_zone_a_statefulset+:
-    if $._config.autoscaling.live_store.enabled then $.removeReplicasFromSpec else {},
-
-  tempo_live_store_zone_b_statefulset+:
-    if $._config.autoscaling.live_store.enabled then $.removeReplicasFromSpec else {},
-
-  tempo_live_store_replica_template+:
-    if $._config.autoscaling.live_store.enabled then $.removeReplicasFromSpec else {},
 
   //
   // Block Builder: KEDA kubernetes-workload scaler matching live-store zone-a pod count.
