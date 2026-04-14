@@ -276,3 +276,35 @@ func TestInstanceWALBackpressure(t *testing.T) {
 
 	require.NoError(t, services.StopAndAwaitTerminated(t.Context(), ls))
 }
+
+func TestCutIdleTracesRespectsMaxBlockBytes(t *testing.T) {
+	inst, ls := defaultInstance(t)
+
+	inst.Cfg.MaxBlockBytes = 5 * 1024 * 1024 // 5 Mb
+
+	// Push enough traces to require multiple blocks.
+	traceCount := 100 // that will be around 119Mb
+	for i := 0; i < traceCount; i++ {
+		id := test.ValidTraceID(nil)
+		tr := test.MakeTraceWithSpanCount(50, 100, id)
+		pushTrace(t.Context(), t, inst, tr, id)
+	}
+
+	// Immediate cut — all live traces written to head block, then cut to WAL.
+	err := inst.cutIdleTraces(t.Context(), true)
+	require.NoError(t, err)
+	_, err = inst.cutBlocks(t.Context(), true)
+	require.NoError(t, err)
+
+	// Verify no WAL block exceeds MaxBlockBytes.
+	inst.blocksMtx.RLock()
+	assert.Greater(t, len(inst.walBlocks), 2, "expected multiple WAL blocks")
+	for id, blk := range inst.walBlocks {
+		// block size estimation can be x5 off, so we check that that block size at least makes sense
+		assert.LessOrEqual(t, blk.DataLength(), inst.Cfg.MaxBlockBytes*5,
+			"WAL block %s exceeds MaxBlockBytes: %d > %d", id, blk.DataLength(), inst.Cfg.MaxBlockBytes)
+	}
+	inst.blocksMtx.RUnlock()
+
+	require.NoError(t, services.StopAndAwaitTerminated(t.Context(), ls))
+}
