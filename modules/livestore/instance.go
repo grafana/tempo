@@ -331,7 +331,7 @@ func countSpans(trace *tempopb.Trace) int {
 	return count
 }
 
-func (i *instance) cutIdleTraces(ctx context.Context, immediate bool) error {
+func (i *instance) cutIdleTraces(ctx context.Context, immediate bool) ([]uuid.UUID, error) {
 	_, span := tracer.Start(ctx, "instance.cutIdleTraces",
 		oteltrace.WithAttributes(attribute.String("tenant", i.tenantID)))
 	defer span.End()
@@ -350,23 +350,45 @@ func (i *instance) cutIdleTraces(ctx context.Context, immediate bool) error {
 	span.SetAttributes(attribute.Int("traces_to_cut", len(tracesToCut)))
 
 	if len(tracesToCut) == 0 {
-		return nil
+		return nil, nil
 	}
 	// Sort by ID
 	sort.Slice(tracesToCut, func(i, j int) bool {
 		return bytes.Compare(tracesToCut[i].ID, tracesToCut[j].ID) == -1
 	})
-	// Collect the trace IDs that will be flushed
+
+	var cutBlockIDs []uuid.UUID
+
+	// Write traces to head block, cutting when MaxBlockBytes is reached.
 	span.AddEvent("writing traces to head block")
 	for _, t := range tracesToCut {
 		err := i.writeHeadBlock(t.ID, t)
 		if err != nil {
 			span.RecordError(err)
 			span.SetStatus(codes.Error, err.Error())
-			return err
+			return cutBlockIDs, err
 		}
 
 		i.tracesCreatedTotal.Inc()
+
+		// if the head block has reached max block bytes,
+		// cut it and enqueue for completion later
+		i.blocksMtx.Lock()
+		reason := i.shouldCutHead(false)
+		i.blocksMtx.Unlock()
+		if reason&cutReasonMaxBlockBytes != 0 {
+			id, err := i.cutBlocks(ctx, false)
+			if err != nil {
+				span.RecordError(err)
+				return cutBlockIDs, err
+			}
+			if id != uuid.Nil {
+				span.AddEvent("cut oversized block", oteltrace.WithAttributes(
+					attribute.String("blockID", id.String()),
+				))
+				cutBlockIDs = append(cutBlockIDs, id)
+			}
+		}
 	}
 	span.AddEvent("wrote traces to head block")
 
@@ -381,12 +403,10 @@ func (i *instance) cutIdleTraces(ctx context.Context, immediate bool) error {
 		if err != nil {
 			span.SetStatus(codes.Error, err.Error())
 			span.RecordError(err)
-			return err
+			return cutBlockIDs, err
 		}
-
-		return nil
 	}
-	return nil
+	return cutBlockIDs, nil
 }
 
 func (i *instance) writeHeadBlock(id []byte, liveTrace *livetraces.LiveTrace[*v1.ResourceSpans]) error {
@@ -532,11 +552,28 @@ func (i *instance) cutBlocks(ctx context.Context, immediate bool) (uuid.UUID, er
 
 	i.traceSizes.ClearIdle(i.lastCutTime)
 
-	// Final flush
-	err := i.headBlock.Flush()
+	id, err := i.cutHeadLocked()
 	if err != nil {
 		span.SetStatus(codes.Error, err.Error())
 		span.RecordError(err)
+		return uuid.Nil, err
+	}
+
+	span.SetAttributes(
+		attribute.String("blockID", id.String()),
+		attribute.Int64("block_size", int64(i.walBlocks[id].DataLength())),
+	)
+
+	recordBlockCutMetric(reason)
+
+	return id, nil
+}
+
+// cutHeadLocked flushes the head block, moves it to walBlocks, and resets the
+// head block. Caller must hold blocksMtx.
+func (i *instance) cutHeadLocked() (uuid.UUID, error) {
+	err := i.headBlock.Flush()
+	if err != nil {
 		return uuid.Nil, err
 	}
 
@@ -544,21 +581,12 @@ func (i *instance) cutBlocks(ctx context.Context, immediate bool) (uuid.UUID, er
 	blockSize := i.headBlock.DataLength()
 	i.walBlocks[id] = i.headBlock
 
-	span.SetAttributes(
-		attribute.String("blockID", id.String()),
-		attribute.Int64("block_size", int64(blockSize)),
-	)
-
 	level.Info(i.logger).Log("msg", "queueing wal block for completion", "block", id.String(), "size", blockSize)
 
 	err = i.resetHeadBlock()
 	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, err.Error())
 		return uuid.Nil, err
 	}
-
-	recordBlockCutMetric(reason)
 
 	return id, nil
 }

@@ -137,7 +137,7 @@ func TestMetrics_PushBytesTracking(t *testing.T) {
 		"bytes received should increase by trace data size")
 
 	// Check live traces metric after cutting
-	err = setup.instance.cutIdleTraces(t.Context(), true) // immediate cut
+	_, err = setup.instance.cutIdleTraces(t.Context(), true) // immediate cut
 	require.NoError(t, err)
 
 	// Verify traces were created
@@ -164,7 +164,7 @@ func TestMetrics_CompletionFlow(t *testing.T) {
 	setup.instance.pushBytes(t.Context(), time.Now(), req)
 
 	// Cut traces to head block
-	err = setup.instance.cutIdleTraces(t.Context(), true)
+	_, err = setup.instance.cutIdleTraces(t.Context(), true)
 	require.NoError(t, err)
 
 	// Cut block to prepare for completion

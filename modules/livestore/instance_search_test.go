@@ -112,7 +112,8 @@ func TestInstanceSearchTraceQL(t *testing.T) {
 			assert.Len(t, sr.Traces, 0)
 
 			// Test after appending to WAL
-			require.NoError(t, i.cutIdleTraces(t.Context(), true))
+			_, cutErr := i.cutIdleTraces(t.Context(), true)
+			require.NoError(t, cutErr)
 
 			sr, err = i.Search(t.Context(), req)
 			assert.NoError(t, err)
@@ -536,7 +537,7 @@ func TestSearchTagsV2Limits(t *testing.T) {
 					Ids:    [][]byte{id},
 				}
 				instance.pushBytes(t.Context(), time.Now(), req)
-				err = instance.cutIdleTraces(t.Context(), true)
+				_, err = instance.cutIdleTraces(t.Context(), true)
 				require.NoError(t, err)
 				blockID, err := instance.cutBlocks(t.Context(), true)
 				require.NoError(t, err)
@@ -758,7 +759,7 @@ func writeTracesForSearch(t *testing.T, i *instance, spanName, tagKey, tagValue 
 	}
 
 	// traces have to be cut to show up in searches
-	err := i.cutIdleTraces(t.Context(), true)
+	_, err := i.cutIdleTraces(t.Context(), true)
 	require.NoError(t, err)
 
 	return ids, expectedTagValues, expectedEventTagValues, expectedLinkTagValues
@@ -811,7 +812,7 @@ func TestInstanceSearchDoesNotRace(t *testing.T) {
 	})
 
 	concurrent(func() {
-		err := i.cutIdleTraces(t.Context(), true)
+		_, err := i.cutIdleTraces(t.Context(), true)
 		require.NoError(t, err, "error cutting complete traces")
 	})
 
@@ -899,7 +900,7 @@ func TestInstanceSearchMetrics(t *testing.T) {
 	require.Equal(t, uint64(0), m.InspectedBytes)  // we don't search live traces
 
 	// Test after appending to WAL
-	err := i.cutIdleTraces(t.Context(), true)
+	_, err := i.cutIdleTraces(t.Context(), true)
 	require.NoError(t, err)
 	m = search()
 	require.Less(t, numBytes, m.InspectedBytes)
@@ -1006,7 +1007,7 @@ func TestInstanceFindByTraceIDWithSizeLimits(t *testing.T) {
 	i.pushBytes(ctx, time.Now(), req)
 
 	// Cut to ensure we can find it
-	err = i.cutIdleTraces(t.Context(), true)
+	_, err = i.cutIdleTraces(t.Context(), true)
 	require.NoError(t, err)
 
 	// and request it back
@@ -1209,7 +1210,7 @@ func TestLiveStoreQueryRange(t *testing.T) {
 	inst.pushBytes(t.Context(), now, pushReq)
 
 	// Force block creation by cutting traces and blocks
-	err = inst.cutIdleTraces(t.Context(), true)
+	_, err = inst.cutIdleTraces(t.Context(), true)
 	require.NoError(t, err)
 
 	blockID, err := inst.cutBlocks(t.Context(), true)

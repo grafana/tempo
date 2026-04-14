@@ -733,10 +733,20 @@ func (s *LiveStore) cutOneInstanceToWal(ctx context.Context, inst *instance, imm
 	defer span.End()
 
 	// Regular trace cuts (live traces -> head block)
-	err := inst.cutIdleTraces(ctx, immediate)
+	cutBlockIDs, err := inst.cutIdleTraces(ctx, immediate)
 	if err != nil {
 		level.Error(s.logger).Log("msg", "failed to cut idle traces", "tenant", inst.tenantID, "err", err)
 		span.RecordError(err)
+	}
+
+	// Enqueue any blocks that were cut mid-batch due to MaxBlockBytes.
+	for _, id := range cutBlockIDs {
+		span.AddEvent("block cut during cutIdleTraces",
+			oteltrace.WithAttributes(attribute.String("blockID", id.String())))
+		if err := s.enqueueCompleteOp(inst.tenantID, id, false); err != nil {
+			level.Error(s.logger).Log("msg", "failed to enqueue complete operation", "tenant", inst.tenantID, "err", err)
+			span.RecordError(err)
+		}
 	}
 
 	// Regular block cuts
