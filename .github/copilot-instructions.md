@@ -97,8 +97,12 @@ Prefer tests that assert the full output over tests that only use substring chec
 
 Every user-facing change needs a changelog entry. Flag PRs that are missing one.
 
-Flag changelog entries that are missing the PR number and link. The correct format is:
-`* [TYPE] Description [#NNNN](https://github.com/grafana/tempo/pull/NNNN) (@author)`
+A changelog entry for a pull request merged into main belongs in the `## main / unreleased` section. Breaking changes must be marked with `**BREAKING CHANGE**`.
+
+The correct entry format is:
+`* [CATEGORY] Short description of the change [#NNNN](https://github.com/grafana/tempo/pull/NNNN) (@author)`
+
+Categories must appear in this fixed order within a version section: `[SECURITY]`, `[CHANGE]`, `[FEATURE]`, `[ENHANCEMENT]`, `[BUGFIX]`. Flag entries placed out of order.
 
 Flag spurious or accidentally duplicated changelog entries.
 

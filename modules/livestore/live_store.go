@@ -178,7 +178,7 @@ func New(cfg Config, overridesService overrides.Interface, completeBlockFlusher 
 		instances:              make(map[string]*instance),
 		overrides:              overridesService,
 		completeBlockLifecycle: completeBlockLifecycle,
-		completeQueues:         flushqueues.New[*completeOp](cfg.CompleteBlockConcurrency, metricCompleteQueueLength),
+		completeQueues:         flushqueues.New[*completeOp](metricCompleteQueueLength),
 		startupComplete:        make(chan struct{}),
 	}
 
