@@ -230,11 +230,11 @@ func (e *Engine) ExecuteTagValues(
 			tagResource.Scope = AttributeScopeResource
 			tagSpan := tag
 			tagSpan.Scope = AttributeScopeSpan
-			finalGroupOne[i] = append(finalConditionGroups[i], Condition{
+			finalGroupOne[i] = append(append([]Condition(nil), finalConditionGroups[i]...), Condition{
 				Attribute: tagResource,
 				Op:        OpNone,
 			})
-			finalGroupTwo[i] = append(finalConditionGroups[i], Condition{
+			finalGroupTwo[i] = append(append([]Condition(nil), finalConditionGroups[i]...), Condition{
 				Attribute: tagSpan,
 				Op:        OpNone,
 			})
