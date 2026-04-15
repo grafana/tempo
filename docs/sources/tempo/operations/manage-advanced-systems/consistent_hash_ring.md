@@ -95,7 +95,7 @@ The partition ring shows partition ownership across live-stores. Unhealthy live-
 **Path:** `/backend-worker/ring`
 
 {{< admonition type="note" >}}
-This endpoint is only available when the backend-worker is configured with an external KV store for its ring.
+This endpoint is only available when `backend_worker.ring.kvstore.store` is set to a non-empty value other than `inmemory` (for example, `memberlist`, `consul`, or `etcd`).
 {{< /admonition >}}
 
 The backend-worker ring page shows how tenant index writing is distributed across workers. Forget unhealthy workers so that sharding redistributes correctly.
