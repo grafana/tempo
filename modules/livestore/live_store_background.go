@@ -180,6 +180,8 @@ func (s *LiveStore) startPerTenantCutToWalLoop(inst *instance) {
 	go func() {
 		defer s.cutToWalWg.Done()
 
+		// Wait for startup to finish; also listen on cutToWalStop so we can
+		// exit if shutdown happens before startup completes.
 		select {
 		case <-s.startupComplete:
 		case <-s.cutToWalStop:
@@ -194,6 +196,8 @@ func (s *LiveStore) startPerTenantCutToWalLoop(inst *instance) {
 			case <-ticker.C:
 				s.cutOneInstanceToWal(s.ctx, inst, false)
 			case <-s.cutToWalStop:
+				return
+			case <-s.ctx.Done():
 				return
 			}
 		}
