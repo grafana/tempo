@@ -1,3 +1,6 @@
+// KEDA-based horizontal pod autoscaling for Tempo microservices.
+// Requires KEDA operator and CRDs installed in the cluster.
+// All scalers are disabled by default; enable via _config.autoscaling.<component>.enabled.
 {
   local keda = (import 'github.com/jsonnet-libs/keda-libsonnet/2.15/main.libsonnet').keda.v1alpha1,
   local scaledObject = keda.scaledObject,
@@ -23,6 +26,8 @@
         scale_up_period_seconds: 15,
         // Keep highest replica count from last 30 minutes to prevent flapping.
         scale_down_stabilization_window_seconds: 60 * 30,
+        // 0 means use a default 100% Percent policy (i.e. no pod-count limit on scale-down,
+        // relying on the stabilization window to prevent flapping).
         scale_down_pods: 0,
         scale_down_period_seconds: 60 * 5,
       },
