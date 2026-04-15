@@ -11,7 +11,7 @@ import (
 	"github.com/grafana/tempo/tempodb/wal"
 )
 
-const defaultCompleteBlockTimeout = time.Hour
+const defaultCompleteBlockTimeout = 30 * time.Minute
 
 type Config struct {
 	Ring          ring.Config         `yaml:"ring,omitempty"`
@@ -103,8 +103,8 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 	cfg.MaxTraceLive = 30 * time.Second
 	cfg.MaxTraceIdle = 5 * time.Second
 	cfg.MaxLiveTracesBytes = 250_000_000 // 250MB
-	cfg.MaxBlockDuration = 1 * time.Minute
-	cfg.MaxBlockBytes = 100 * 1024 * 1024
+	cfg.MaxBlockDuration = 30 * time.Second
+	cfg.MaxBlockBytes = 50 * 1024 * 1024
 
 	cfg.CommitInterval = 5 * time.Second
 	cfg.ConsumeFromKafka = true
