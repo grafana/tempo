@@ -33,8 +33,6 @@ var _ common.WALBlock = (*walBlock)(nil)
 // likely the best candidate is some fraction of max trace size per tenant.
 const defaultRowPoolSize = 100000
 
-const EnvVarWALAsyncIO = "TEMPO_WAL_ASYNC_IO"
-
 // completeBlockRowPool is used by the wal iterators and complete block logic to pool rows
 var completeBlockRowPool = newRowPool(defaultRowPoolSize)
 
@@ -247,9 +245,7 @@ func (w *walBlockFlush) file(ctx context.Context) (*pageFile, error) {
 		parquet.SkipBloomFilters(true),
 		parquet.SkipPageIndex(true),
 		parquet.FileSchema(sch),
-	}
-	if os.Getenv(EnvVarWALAsyncIO) == "1" {
-		o = append(o, parquet.FileReadMode(parquet.ReadModeAsync))
+		parquet.FileReadMode(parquet.ReadModeAsync),
 	}
 
 	pf, err := parquet.OpenFile(wr, size, o...)
