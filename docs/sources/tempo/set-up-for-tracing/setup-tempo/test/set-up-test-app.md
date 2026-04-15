@@ -18,7 +18,7 @@ For example, if you [set up Tempo using the Kubernetes with Tanka procedure](../
 You'll need:
 
 - Grafana 10.0.0 or higher
-- Microservice deployments require the Tempo querier URL, for example: `http://tempo-cluster-query-frontend.tempo.svc.cluster.local:3100/`
+- Microservice deployments require the Tempo querier URL, for example: `http://tempo-cluster-query-frontend.tempo.svc.cluster.local:3200/`
 - [OpenTelemetry telemetrygen](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/cmd/telemetrygen) for generating tracing data
 
 Refer to [Deploy Grafana on Kubernetes](https://grafana.com/docs/grafana/<GRAFANA_VERSION>/setup-grafana/installation/kubernetes/) if you are using Kubernetes.
@@ -46,7 +46,7 @@ To allow Grafana to read traces from Tempo, you must create a Tempo data source.
 1. Select **Tempo**.
 
 1. Set the URL to `http://<TEMPO-QUERY-FRONTEND-SERVICE>:<HTTP-LISTEN-PORT>/`, filling in the path to the Tempo query frontend service and the configured HTTP API prefix.
-   If you followed [Deploy Tempo with Helm installation example](/docs/tempo/latest/set-up-for-tracing/setup-tempo/deploy/kubernetes/helm-chart/), the query frontend service's URL looks something like this: `http://tempo-cluster-query-frontend.<NAMESPACE>.svc.cluster.local:3100`
+   If you followed [Deploy Tempo with Helm installation example](/docs/tempo/latest/set-up-for-tracing/setup-tempo/deploy/kubernetes/helm-chart/), the query frontend service's URL looks something like this: `http://tempo-cluster-query-frontend.<NAMESPACE>.svc.cluster.local:3200`
 
 1. Click **Save & Test**.
 

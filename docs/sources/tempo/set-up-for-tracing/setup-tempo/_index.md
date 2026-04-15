@@ -29,7 +29,7 @@ Tempo v3.0 requires a Kafka-compatible system (such as Apache Kafka, Redpanda, o
 
 ## Deploy Tempo
 
-Once you have decided the best method, you can deploy and set up Tempo.
+After you have decided the best method, you can deploy and set up Tempo.
 
 Grafana Tempo is available as a [pre-compiled binary, OS-specific packaging](https://github.com/grafana/tempo/releases), and [Docker image](https://github.com/grafana/tempo/tree/main/example/docker-compose).
 
@@ -37,7 +37,7 @@ Refer to [Deploy Tempo](/docs/tempo/<TEMPO_VERSION>/set-up-for-tracing/setup-tem
 
 ## Test your installation
 
-Once Tempo is deployed, you can validate Tempo by visualizing traces data:
+After Tempo is deployed, you can validate Tempo by visualizing traces data:
 
 - Using a [test application for a Tempo cluster](/docs/tempo/<TEMPO_VERSION>/set-up-for-tracing/setup-tempo/test/set-up-test-app/) for the Kubernetes with Tanka setup
 
@@ -48,4 +48,4 @@ They don't check optional configuration you have enabled.
 
 Explore features by learning about [available features and configurations](/docs/tempo/<TEMPO_VERSION>/configuration/).
 
-If you would like to see a simplified, annotated example configuration for Tempo, the [Introduction To MLT](https://github.com/grafana/intro-to-mltp) example repository contains a [configuration](https://github.com/grafana/intro-to-mlt/blob/main/tempo/tempo.yaml) for a monolithic instance.
+If you would like to see a simplified, annotated example configuration for Tempo, the [Introduction to MLTP](https://github.com/grafana/intro-to-mltp) example repository contains a [configuration](https://github.com/grafana/intro-to-mltp/blob/main/tempo/tempo.yaml) for a monolithic instance.
