@@ -2331,9 +2331,12 @@ cache:
         # Roles determine how this cache is used in Tempo. Roles must be unique across all caches and
         # every cache must have at least one role.
         # Allowed values:
-        #   bloom              - Bloom filters for trace id lookup.
-        #   parquet-footer     - Parquet footer values. Useful for search and trace by id lookup.
-        #   parquet-page       - Parquet "pages". WARNING: This will attempt to cache most reads from parquet and, as a result, is very high volume.
+        #   bloom              - Bloom filters for trace ID lookup.
+        #   trace-id-index     - Trace ID index used to locate traces within blocks.
+        #   parquet-footer     - Parquet footer values. Useful for search and trace by ID lookup.
+        #   parquet-column-idx - Parquet column index sections.
+        #   parquet-offset-idx - Parquet offset index sections.
+        #   parquet-page       - Parquet data pages. WARNING: This caches most reads from Parquet and is very high volume.
         #   frontend-search    - Frontend search job results.
 
     -   roles:
