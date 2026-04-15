@@ -41,7 +41,8 @@ type Config struct {
 	AllowedHeaders []string `yaml:"allowed_headers,omitempty"`
 
 	// RF1After specifies the time after which RF1 logic is applied.
-	RF1After time.Time `yaml:"rf1_after,omitempty" category:"advanced"` // Deprecated: it's ignored
+	// Deprecated: it's ignored
+	RF1After time.Time `yaml:"rf1_after,omitempty" category:"advanced"`
 
 	// QueryEndCutoff prevents querying incomplete recent data.
 	QueryEndCutoff time.Duration `yaml:"query_end_cutoff,omitempty"`
