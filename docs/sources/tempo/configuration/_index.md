@@ -421,7 +421,7 @@ live_store:
     [commit_interval: <duration> | default = 5s]
 
     # How often to sweep all tenants and move traces from live -> wal -> completed blocks.
-    [flush_check_period: <duration> | default = 10s]
+    [flush_check_period: <duration> | default = 5s]
 
     # Amount of time a trace must be idle before flushing it to the WAL.
     [max_trace_idle: <duration> | default = 5s]
