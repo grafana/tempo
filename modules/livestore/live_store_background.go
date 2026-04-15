@@ -175,22 +175,34 @@ func (s *LiveStore) retryCompleteOp(op *completeOp, span oteltrace.Span, msg str
 	}()
 }
 
-func (s *LiveStore) perTenantCutToWalLoop(instance *instance) {
+func (s *LiveStore) startPerTenantCutToWalLoop(inst *instance) {
 	s.cutToWalWg.Add(1)
-	defer s.cutToWalWg.Done()
+	go func() {
+		defer s.cutToWalWg.Done()
 
-	// ticker
-	ticker := time.NewTicker(s.cfg.InstanceFlushPeriod)
-	defer ticker.Stop()
-
-	for {
 		select {
-		case <-ticker.C:
-			s.cutOneInstanceToWal(s.ctx, instance, false)
+		case <-s.startupComplete:
 		case <-s.cutToWalStop:
 			return
 		}
-	}
+
+		ticker := time.NewTicker(s.cfg.InstanceFlushPeriod)
+		defer ticker.Stop()
+
+		for {
+			select {
+			case <-ticker.C:
+				s.cutOneInstanceToWal(s.ctx, inst, false)
+			case <-s.cutToWalStop:
+				return
+			}
+		}
+	}()
+}
+
+func (s *LiveStore) stopAllCutToWalLoops() {
+	close(s.cutToWalStop)
+	s.cutToWalWg.Wait()
 }
 
 func (s *LiveStore) perTenantCleanupLoop(inst *instance) {

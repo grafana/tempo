@@ -153,7 +153,7 @@ type LiveStore struct {
 	readyErr            atomic.Pointer[error] // nil when ready to serve queries
 	lastRecordTimeNanos atomic.Int64          // stores timestamp of last consumed record as UnixNano, -1 means not set
 
-	cutToWalStop chan struct{}   // closed to stop perTenantCutToWalLoop goroutines before shutdown flush
+	cutToWalStop chan struct{}  // closed to stop perTenantCutToWalLoop goroutines before shutdown flush
 	cutToWalWg   sync.WaitGroup // tracks active perTenantCutToWalLoop goroutines
 }
 
@@ -456,8 +456,7 @@ func (s *LiveStore) stopping(error) error {
 	}
 
 	level.Info(s.logger).Log("msg", "stopping periodic WAL flush goroutines")
-	close(s.cutToWalStop)
-	s.cutToWalWg.Wait()
+	s.stopAllCutToWalLoops()
 	level.Info(s.logger).Log("msg", "periodic WAL flush goroutines stopped")
 
 	// Flush all data to disk.
@@ -699,9 +698,7 @@ func (s *LiveStore) getOrCreateInstance(tenantID string) (*instance, error) {
 
 	s.instances[tenantID] = inst
 
-	s.runInBackground(func() {
-		s.perTenantCutToWalLoop(inst)
-	})
+	s.startPerTenantCutToWalLoop(inst)
 	s.runInBackground(func() {
 		s.perTenantCleanupLoop(inst)
 	})
