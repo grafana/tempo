@@ -79,7 +79,15 @@
   },
 
   tempo_query_frontend_config:: $.tempo_config {},
-  tempo_block_builder_config:: $.tempo_config {},
+  tempo_block_builder_config:: $.tempo_config + (
+    // When autoscaling is enabled, set partitions_per_instance to match the KEDA ratio
+    // so each block-builder pod consumes the correct number of partitions.
+    if $._config.autoscaling.block_builder.enabled then {
+      block_builder+: {
+        partitions_per_instance: $._config.autoscaling.block_builder.partitions_per_instance,
+      },
+    } else {}
+  ),
   tempo_live_store_config:: $.tempo_config {
     live_store: {
       partition_ring: {
