@@ -36,6 +36,11 @@ const (
 	reasonWaitingForLiveTraces = "waiting_for_live_traces"
 	reasonWaitingForWAL        = "waiting_for_wal"
 	maxTraceLogLinesPerSecond  = 10
+	// walBackpressureLimit is the maximum number of outstanding WAL blocks before
+	// backpressure is applied. In the ideal case, shutdown can leave up to 2
+	// uncompleted WAL blocks on disk, and after restart ingestion may outpace WAL
+	// completion, so we use 4 to avoid unnecessary backpressure during catch-up.
+	walBackpressureLimit = 4
 )
 
 var (
@@ -66,11 +71,19 @@ var (
 		Help:      "The total number of blocks cleared.",
 	}, []string{"block_type"})
 	metricCompletionSize = promauto.NewHistogram(prometheus.HistogramOpts{
-		Namespace: "tempo_live_store",
-		Name:      "completion_size_bytes",
-		Help:      "Size in bytes of blocks completed.",
-		Buckets:   prometheus.ExponentialBuckets(1024*1024, 2, 10), // from 1MB up to 1GB
+		Namespace:                       "tempo_live_store",
+		Name:                            "completion_size_bytes",
+		Help:                            "Size in bytes of blocks completed.",
+		Buckets:                         prometheus.ExponentialBuckets(1024*1024, 2, 10), // from 1MB up to 512MB
+		NativeHistogramBucketFactor:     1.1,
+		NativeHistogramMaxBucketNumber:  100,
+		NativeHistogramMinResetDuration: 1 * time.Hour,
 	})
+	metricBlocksCutTotal = promauto.NewCounterVec(prometheus.CounterOpts{
+		Namespace: "tempo_live_store",
+		Name:      "blocks_cut_total",
+		Help:      "The total number of blocks cut by reason.",
+	}, []string{"reason"})
 	metricBackPressure = promauto.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "tempo",
 		Subsystem: "live_store",
@@ -78,10 +91,14 @@ var (
 		Help:      "The total amount of time spent waiting to process data from queue",
 	}, []string{"reason"})
 	metricTotalBackPressure = promauto.NewHistogram(prometheus.HistogramOpts{
-		Namespace: "tempo",
-		Subsystem: "live_store",
-		Name:      "back_pressure_duration_seconds",
-		Help:      "Duration of backpressure wait per push",
+		Namespace:                       "tempo",
+		Subsystem:                       "live_store",
+		Name:                            "back_pressure_duration_seconds",
+		Help:                            "Duration of backpressure wait per push",
+		Buckets:                         prometheus.DefBuckets,
+		NativeHistogramBucketFactor:     1.1,
+		NativeHistogramMaxBucketNumber:  100,
+		NativeHistogramMinResetDuration: 1 * time.Hour,
 	})
 )
 
@@ -93,8 +110,9 @@ type instance struct {
 	Cfg Config
 
 	// WAL and encoding
-	wal                   *wal.WAL
-	completeBlockEncoding encoding.VersionedEncoding
+	wal                    *wal.WAL
+	completeBlockEncoding  encoding.VersionedEncoding
+	completeBlockLifecycle completeBlockLifecycle
 
 	// Block management
 	blocksMtx      sync.RWMutex
@@ -116,23 +134,30 @@ type instance struct {
 	overrides overrides.Interface
 }
 
-func newInstance(instanceID string, cfg Config, wal *wal.WAL, completeBlockEncoding encoding.VersionedEncoding, overrides overrides.Interface, logger log.Logger) (*instance, error) {
+func newInstance(instanceID string, cfg Config, wal *wal.WAL, completeBlockEncoding encoding.VersionedEncoding, completeBlockLifecycle completeBlockLifecycle, overrides overrides.Interface, logger log.Logger) (*instance, error) {
 	logger = log.With(logger, "tenant", instanceID)
-
+	if completeBlockLifecycle == nil {
+		var err error
+		completeBlockLifecycle, err = newCompleteBlockLifecycle(cfg, nil, logger)
+		if err != nil {
+			return nil, err
+		}
+	}
 	i := &instance{
-		tenantID:              instanceID,
-		logger:                logger,
-		Cfg:                   cfg,
-		wal:                   wal,
-		completeBlockEncoding: completeBlockEncoding,
-		walBlocks:             map[uuid.UUID]common.WALBlock{},
-		completeBlocks:        map[uuid.UUID]*LocalBlock{},
-		liveTraces:            livetraces.New[*v1.ResourceSpans](func(rs *v1.ResourceSpans) uint64 { return uint64(rs.Size()) }, cfg.MaxTraceIdle, cfg.MaxTraceLive, instanceID),
-		traceSizes:            tracesizes.New(),
-		maxTraceLogger:        util_log.NewRateLimitedLogger(maxTraceLogLinesPerSecond, level.Warn(logger)),
-		overrides:             overrides,
-		tracesCreatedTotal:    metricTracesCreatedTotal.WithLabelValues(instanceID),
-		bytesReceivedTotal:    metricBytesReceivedTotal,
+		tenantID:               instanceID,
+		logger:                 logger,
+		Cfg:                    cfg,
+		wal:                    wal,
+		completeBlockEncoding:  completeBlockEncoding,
+		completeBlockLifecycle: completeBlockLifecycle,
+		walBlocks:              map[uuid.UUID]common.WALBlock{},
+		completeBlocks:         map[uuid.UUID]*LocalBlock{},
+		liveTraces:             livetraces.New[*v1.ResourceSpans](func(rs *v1.ResourceSpans) uint64 { return uint64(rs.Size()) }, cfg.MaxTraceIdle, cfg.MaxTraceLive, instanceID),
+		traceSizes:             tracesizes.New(),
+		maxTraceLogger:         util_log.NewRateLimitedLogger(maxTraceLogLinesPerSecond, level.Warn(logger)),
+		overrides:              overrides,
+		tracesCreatedTotal:     metricTracesCreatedTotal.WithLabelValues(instanceID),
+		bytesReceivedTotal:     metricBytesReceivedTotal,
 		// blockOffsetMeta:   make(map[uuid.UUID]offsetMetadata),
 	}
 
@@ -193,7 +218,7 @@ func (i *instance) backpressure(ctx context.Context) bool {
 	count := len(i.walBlocks)
 	i.blocksMtx.RUnlock()
 
-	if count > 1 {
+	if count > walBackpressureLimit {
 		// There are multiple outstanding WAL blocks that need completion
 		// so wait a bit.
 		select {
@@ -442,6 +467,49 @@ func (i *instance) resetHeadBlock() error {
 	return nil
 }
 
+type cutReason int
+
+const (
+	cutReasonNone             cutReason = 0
+	cutReasonImmediate        cutReason = 1 << iota
+	cutReasonMaxBlockDuration cutReason = 1 << iota
+	cutReasonMaxBlockBytes    cutReason = 1 << iota
+)
+
+// shouldCutHead checks whether the head block should be cut and returns the
+// reason(s). Caller must hold blocksMtx.
+func (i *instance) shouldCutHead(immediate bool) cutReason {
+	if i.headBlock == nil || i.headBlock.DataLength() == 0 {
+		return cutReasonNone
+	}
+
+	var reason cutReason
+
+	if immediate {
+		reason |= cutReasonImmediate
+	}
+	if time.Since(i.lastCutTime) >= i.Cfg.MaxBlockDuration {
+		reason |= cutReasonMaxBlockDuration
+	}
+	if i.headBlock.DataLength() >= i.Cfg.MaxBlockBytes {
+		reason |= cutReasonMaxBlockBytes
+	}
+
+	return reason
+}
+
+func recordBlockCutMetric(reason cutReason) {
+	if reason&cutReasonImmediate != 0 {
+		metricBlocksCutTotal.WithLabelValues("immediate").Inc()
+	}
+	if reason&cutReasonMaxBlockDuration != 0 {
+		metricBlocksCutTotal.WithLabelValues("max_block_duration").Inc()
+	}
+	if reason&cutReasonMaxBlockBytes != 0 {
+		metricBlocksCutTotal.WithLabelValues("max_block_bytes").Inc()
+	}
+}
+
 func (i *instance) cutBlocks(ctx context.Context, immediate bool) (uuid.UUID, error) {
 	_, span := tracer.Start(ctx, "instance.cutBlocks",
 		oteltrace.WithAttributes(attribute.String("tenant", i.tenantID)))
@@ -454,11 +522,8 @@ func (i *instance) cutBlocks(ctx context.Context, immediate bool) (uuid.UUID, er
 		span.AddEvent("released blocksMtx")
 	}()
 
-	if i.headBlock == nil || i.headBlock.DataLength() == 0 {
-		return uuid.Nil, nil
-	}
-
-	if !immediate && time.Since(i.lastCutTime) < i.Cfg.MaxBlockDuration && i.headBlock.DataLength() < i.Cfg.MaxBlockBytes {
+	reason := i.shouldCutHead(immediate)
+	if reason == cutReasonNone {
 		return uuid.Nil, nil
 	}
 
@@ -488,10 +553,12 @@ func (i *instance) cutBlocks(ctx context.Context, immediate bool) (uuid.UUID, er
 		return uuid.Nil, err
 	}
 
+	recordBlockCutMetric(reason)
+
 	return id, nil
 }
 
-func (i *instance) completeBlock(ctx context.Context, id uuid.UUID) error {
+func (i *instance) completeBlock(ctx context.Context, id uuid.UUID) (*LocalBlock, error) {
 	ctx, span := tracer.Start(ctx, "instance.completeBlock",
 		oteltrace.WithAttributes(
 			attribute.String("tenant", i.tenantID),
@@ -506,10 +573,12 @@ func (i *instance) completeBlock(ctx context.Context, id uuid.UUID) error {
 	if walBlock == nil {
 		level.Warn(i.logger).Log("msg", "WAL block disappeared before being completed", "id", id)
 		span.AddEvent("WAL block not found")
-		return nil
+		return nil, nil
 	}
 
 	blockSize := walBlock.DataLength()
+
+	level.Info(i.logger).Log("msg", "completing WAL block", "blockSize", blockSize, "blockId", id.String())
 	metricCompletionSize.Observe(float64(blockSize))
 	span.SetAttributes(attribute.Int64("block_size", int64(blockSize)))
 
@@ -517,11 +586,11 @@ func (i *instance) completeBlock(ctx context.Context, id uuid.UUID) error {
 	reader := backend.NewReader(i.wal.LocalBackend())
 	writer := backend.NewWriter(i.wal.LocalBackend())
 
-	iter, err := walBlock.Iterator()
+	iter, err := walBlock.Iterator(ctx)
 	if err != nil {
 		level.Error(i.logger).Log("msg", "failed to get WAL block iterator", "id", id, "err", err)
 		span.RecordError(err)
-		return err
+		return nil, err
 	}
 	defer iter.Close()
 
@@ -529,15 +598,18 @@ func (i *instance) completeBlock(ctx context.Context, id uuid.UUID) error {
 	if err != nil {
 		level.Error(i.logger).Log("msg", "failed to create complete block", "id", id, "err", err)
 		span.RecordError(err)
-		return err
+		return nil, err
 	}
 
+	level.Info(i.logger).Log("msg", "opening newly completed block", "blockId", newMeta.BlockID.String())
 	newBlock, err := i.completeBlockEncoding.OpenBlock(newMeta, reader)
 	if err != nil {
 		level.Error(i.logger).Log("msg", "failed to open complete block", "id", id, "err", err)
 		span.RecordError(err)
-		return err
+		return nil, err
 	}
+
+	level.Info(i.logger).Log("msg", "swapping wal block with newly completed block")
 
 	i.blocksMtx.Lock()
 	defer i.blocksMtx.Unlock()
@@ -550,10 +622,11 @@ func (i *instance) completeBlock(ctx context.Context, id uuid.UUID) error {
 			level.Error(i.logger).Log("msg", "failed to clear complete block after WAL disappeared", "block", id, "err", err)
 		}
 		span.AddEvent("WAL block disappeared during completion")
-		return nil
+		return nil, nil
 	}
 
-	i.completeBlocks[id] = NewLocalBlock(ctx, newBlock, i.wal.LocalBackend())
+	completeBlock := NewLocalBlock(ctx, newBlock, i.wal.LocalBackend())
+	i.completeBlocks[id] = completeBlock
 
 	err = walBlock.Clear()
 	if err != nil {
@@ -564,7 +637,14 @@ func (i *instance) completeBlock(ctx context.Context, id uuid.UUID) error {
 
 	level.Info(i.logger).Log("msg", "completed block", "id", id.String())
 	span.AddEvent("block completed successfully")
-	return nil
+	return completeBlock, nil
+}
+
+func (i *instance) getCompleteBlock(id uuid.UUID) *LocalBlock {
+	i.blocksMtx.RLock()
+	defer i.blocksMtx.RUnlock()
+
+	return i.completeBlocks[id]
 }
 
 func (i *instance) deleteOldBlocks() error {
@@ -588,16 +668,17 @@ func (i *instance) deleteOldBlocks() error {
 	}
 
 	for id, completeBlock := range i.completeBlocks {
-		if completeBlock.BlockMeta().EndTime.Before(cutoff) {
-
-			level.Info(i.logger).Log("msg", "deleting complete block", "block", id.String())
-			err := i.wal.LocalBackend().ClearBlock(id, i.tenantID)
-			if err != nil {
-				return err
-			}
-			delete(i.completeBlocks, id)
-			metricBlocksClearedTotal.WithLabelValues("complete").Inc()
+		if !i.completeBlockLifecycle.shouldDeleteCompleteBlock(completeBlock, cutoff) {
+			continue
 		}
+
+		level.Info(i.logger).Log("msg", "deleting complete block", "block", id.String())
+		err := i.wal.LocalBackend().ClearBlock(id, i.tenantID)
+		if err != nil {
+			return err
+		}
+		delete(i.completeBlocks, id)
+		metricBlocksClearedTotal.WithLabelValues("complete").Inc()
 	}
 
 	return nil

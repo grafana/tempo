@@ -121,7 +121,7 @@ func TestInstanceLimits(t *testing.T) {
 		require.NoError(t, err)
 		blockID, err := instance.cutBlocks(t.Context(), true) // this won't clear the trace b/c the trace must not be seen for 2 head block cuts to be fully removed from live traces
 		require.NoError(t, err)
-		err = instance.completeBlock(t.Context(), blockID)
+		_, err = instance.completeBlock(t.Context(), blockID)
 		require.NoError(t, err)
 
 		// push a second trace so cutIdle/cutBlocks goes through
@@ -132,7 +132,7 @@ func TestInstanceLimits(t *testing.T) {
 		require.NoError(t, err)
 		blockID, err = instance.cutBlocks(t.Context(), true) // this will clear the trace b/c the trace has not been seen for 2 head block cuts
 		require.NoError(t, err)
-		err = instance.completeBlock(t.Context(), blockID)
+		_, err = instance.completeBlock(t.Context(), blockID)
 		require.NoError(t, err)
 
 		// Second push with same id will succeed b/c we have gone through one block flush cycles w/o seeing it
@@ -245,6 +245,34 @@ func TestInstanceBackpressure(t *testing.T) {
 	require.NotNil(t, res)
 	require.NotNil(t, res.Trace)
 	require.Greater(t, res.Trace.Size(), 0)
+
+	require.NoError(t, services.StopAndAwaitTerminated(t.Context(), ls))
+}
+
+func TestInstanceWALBackpressure(t *testing.T) {
+	inst, ls := defaultInstance(t)
+	// Disable live traces backpressure so we only test WAL backpressure.
+	inst.Cfg.MaxLiveTracesBytes = 0
+
+	// Build up WAL blocks: push a trace, flush to head, cut to WAL.
+	createWALBlock := func() {
+		id := test.ValidTraceID(nil)
+		pushTrace(t.Context(), t, inst, test.MakeTrace(1, id), id)
+		require.NoError(t, inst.cutIdleTraces(t.Context(), true))
+		walID, err := inst.cutBlocks(t.Context(), true)
+		require.NoError(t, err)
+		require.NotEqual(t, walID, [16]byte{})
+	}
+
+	// At the limit, no backpressure.
+	for range walBackpressureLimit {
+		createWALBlock()
+	}
+	require.False(t, inst.backpressure(t.Context()), "expected no backpressure at %d WAL blocks", walBackpressureLimit)
+
+	// One more WAL block should trigger backpressure.
+	createWALBlock()
+	require.True(t, inst.backpressure(t.Context()), "expected backpressure at %d WAL blocks", walBackpressureLimit+1)
 
 	require.NoError(t, services.StopAndAwaitTerminated(t.Context(), ls))
 }

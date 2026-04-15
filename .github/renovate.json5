@@ -72,7 +72,7 @@
       ],
       groupName: 'opentelemetry-otel',
       matchPackageNames: [
-        '/^go\\.opentelemetry\\.io/otel/',
+        'go.opentelemetry.io/otel{,/**}',
       ],
     },
     {
@@ -82,8 +82,8 @@
       ],
       groupName: 'opentelemetry-contrib',
       matchPackageNames: [
-        '/^go\\.opentelemetry\\.io/contrib/',
-        '/^github\\.com/open-telemetry/opentelemetry-collector-contrib/',
+        'go.opentelemetry.io/contrib{,/**}',
+        'github.com/open-telemetry/opentelemetry-collector-contrib{,/**}',
       ],
     },
     {
@@ -93,7 +93,7 @@
       ],
       groupName: 'opentelemetry-collector',
       matchPackageNames: [
-        '/^go\\.opentelemetry\\.io/collector/',
+        'go.opentelemetry.io/collector{,/**}',
       ],
     },
     {
@@ -103,7 +103,7 @@
       ],
       groupName: 'k8s.io',
       matchPackageNames: [
-        '/^k8s\\.io//',
+        'k8s.io{,/**}',
       ],
     },
     {

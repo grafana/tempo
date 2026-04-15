@@ -161,6 +161,7 @@ memory:
 ## Distributor
 
 For more information on configuration options, refer to [this file](https://github.com/grafana/tempo/blob/main/modules/distributor/config.go).
+For architectural details, refer to the [Distributor architecture](/docs/tempo/<TEMPO_VERSION>/reference-tempo-architecture/components/distributor/) documentation.
 
 Distributors receive spans, apply limits and forwarding, and route them to the configured write path.
 
@@ -457,6 +458,7 @@ live_store:
 ## Metrics-generator
 
 For more information on configuration options, refer to [this file](https://github.com/grafana/tempo/blob/main/modules/generator/config.go).
+For architectural details, refer to the [Metrics-generator architecture](/docs/tempo/<TEMPO_VERSION>/reference-tempo-architecture/components/metrics-generator/) documentation.
 
 The metrics-generator processes spans and write metrics using the Prometheus remote write protocol.
 For more information on the metrics-generator, refer to the [Metrics-generator documentation](../metrics-from-traces/metrics-generator/).
@@ -693,6 +695,7 @@ metrics_generator:
 ## Query-frontend
 
 For more information on configuration options, refer to [this file](https://github.com/grafana/tempo/blob/main/modules/frontend/config.go).
+For architectural details, refer to the [Query frontend architecture](/docs/tempo/<TEMPO_VERSION>/reference-tempo-architecture/components/query-frontend/) documentation.
 
 The Query Frontend is responsible for sharding incoming requests for faster processing in parallel (by the queriers).
 
@@ -915,6 +918,7 @@ query_frontend:
 ## Querier
 
 For more information on configuration options, refer to [this file](https://github.com/grafana/tempo/blob/main/modules/querier/config.go).
+For architectural details, refer to the [Querier architecture](/docs/tempo/<TEMPO_VERSION>/reference-tempo-architecture/components/querier/) documentation.
 
 The Querier is responsible for querying the backends/cache for the traceID.
 
@@ -962,6 +966,8 @@ It also queries compacted blocks that fall within the (2 \* BlocklistPoll) range
 is defined in the storage section below.
 
 ## Backend scheduler
+
+For architectural details, refer to the [Compaction architecture](/docs/tempo/<TEMPO_VERSION>/reference-tempo-architecture/components/compaction/) documentation.
 
 The backend scheduler is responsible for scheduling and tracking jobs which are assigned to backend workers for processing.
 Only one scheduler should be running at a time.
@@ -1026,6 +1032,8 @@ backend_scheduler:
 ```
 
 ## Backend worker
+
+For architectural details, refer to the [Compaction architecture](/docs/tempo/<TEMPO_VERSION>/reference-tempo-architecture/components/compaction/) documentation.
 
 The backend worker connects to the backend scheduler to receive and process jobs.
 Workers are responsible for executing compaction and retention and other jobs, and updating the scheduler on job status.
@@ -2323,9 +2331,12 @@ cache:
         # Roles determine how this cache is used in Tempo. Roles must be unique across all caches and
         # every cache must have at least one role.
         # Allowed values:
-        #   bloom              - Bloom filters for trace id lookup.
-        #   parquet-footer     - Parquet footer values. Useful for search and trace by id lookup.
-        #   parquet-page       - Parquet "pages". WARNING: This will attempt to cache most reads from parquet and, as a result, is very high volume.
+        #   bloom              - Bloom filters for trace ID lookup.
+        #   trace-id-index     - Trace ID index used to locate traces within blocks.
+        #   parquet-footer     - Parquet footer values. Useful for search and trace by ID lookup.
+        #   parquet-column-idx - Parquet column index sections.
+        #   parquet-offset-idx - Parquet offset index sections.
+        #   parquet-page       - Parquet data pages. WARNING: This caches most reads from Parquet and is very high volume.
         #   frontend-search    - Frontend search job results.
 
     -   roles:

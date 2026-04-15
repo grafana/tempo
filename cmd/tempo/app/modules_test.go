@@ -3,6 +3,7 @@ package app
 import (
 	"net/http"
 	"testing"
+	"time"
 
 	"github.com/go-kit/log"
 	"github.com/gorilla/mux"
@@ -12,6 +13,13 @@ import (
 	"github.com/grafana/dskit/services"
 	"github.com/grafana/tempo/modules/generator"
 	"github.com/grafana/tempo/modules/overrides"
+	"github.com/grafana/tempo/modules/storage"
+	"github.com/grafana/tempo/tempodb"
+	"github.com/grafana/tempo/tempodb/backend"
+	"github.com/grafana/tempo/tempodb/backend/local"
+	"github.com/grafana/tempo/tempodb/encoding"
+	"github.com/grafana/tempo/tempodb/encoding/common"
+	"github.com/grafana/tempo/tempodb/wal"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -31,6 +39,31 @@ func (f *fakeTempoServer) EnableHTTP2()              {}
 func (f *fakeTempoServer) SetKeepAlivesEnabled(bool) {}
 func (f *fakeTempoServer) StartAndReturnService(server.Config, bool, func() []services.Service) (services.Service, error) {
 	return services.NewIdleService(nil, nil), nil
+}
+
+func newTestStore(t *testing.T, tmpDir string) storage.Store {
+	t.Helper()
+
+	s, err := storage.NewStore(storage.Config{
+		Trace: tempodb.Config{
+			Backend: backend.Local,
+			Local: &local.Config{
+				Path: tmpDir + "/traces",
+			},
+			Block: &common.BlockConfig{
+				BloomFP:             0.01,
+				BloomShardSizeBytes: 100_000,
+				Version:             encoding.LatestEncoding().Version(),
+			},
+			WAL: &wal.Config{
+				Filepath: tmpDir + "/wal",
+			},
+			BlocklistPoll: 100 * time.Millisecond,
+		},
+	}, nil, log.NewNopLogger())
+	require.NoError(t, err)
+
+	return s
 }
 
 func TestConfigureGenerator(t *testing.T) {
@@ -171,6 +204,7 @@ func TestInitLiveStoreSingleBinaryUsesLocalIngest(t *testing.T) {
 		cfg:       *cfg,
 		Server:    &fakeTempoServer{router: mux.NewRouter(), grpc: grpc.NewServer()},
 		Overrides: overridesSvc,
+		store:     newTestStore(t, t.TempDir()),
 	}
 
 	svc, err := app.initLiveStore()
@@ -178,4 +212,43 @@ func TestInitLiveStoreSingleBinaryUsesLocalIngest(t *testing.T) {
 	require.NotNil(t, svc)
 	require.NotNil(t, app.liveStore)
 	assert.False(t, app.cfg.LiveStore.ConsumeFromKafka)
+}
+
+func TestSetupModuleManagerSingleBinaryUsesLocalDistributorAndGeneratorDeps(t *testing.T) {
+	cfg := NewDefaultConfig()
+	cfg.Target = SingleBinary
+
+	app, err := New(*cfg)
+	require.NoError(t, err)
+
+	distributorDeps := app.deps[Distributor]
+	assert.Contains(t, distributorDeps, LiveStore)
+	assert.Contains(t, distributorDeps, MetricsGenerator)
+	assert.NotContains(t, distributorDeps, PartitionRing)
+	assert.NotContains(t, distributorDeps, LiveStoreRing)
+
+	generatorDeps := app.deps[MetricsGenerator]
+	assert.Contains(t, generatorDeps, "common")
+	assert.NotContains(t, generatorDeps, MemberlistKV)
+	assert.NotContains(t, generatorDeps, PartitionRing)
+	assert.NotContains(t, generatorDeps, GeneratorRingWatcher)
+}
+
+func TestSetupModuleManagerDistributedUsesKafkaDistributorAndGeneratorDeps(t *testing.T) {
+	cfg := NewDefaultConfig()
+	cfg.Target = Distributor
+
+	app, err := New(*cfg)
+	require.NoError(t, err)
+
+	distributorDeps := app.deps[Distributor]
+	assert.Contains(t, distributorDeps, PartitionRing)
+	assert.Contains(t, distributorDeps, LiveStoreRing)
+	assert.NotContains(t, distributorDeps, LiveStore)
+	assert.NotContains(t, distributorDeps, MetricsGenerator)
+
+	generatorDeps := app.deps[MetricsGenerator]
+	assert.Contains(t, generatorDeps, MemberlistKV)
+	assert.Contains(t, generatorDeps, PartitionRing)
+	assert.Contains(t, generatorDeps, GeneratorRingWatcher)
 }

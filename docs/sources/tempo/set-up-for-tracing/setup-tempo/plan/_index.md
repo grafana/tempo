@@ -35,7 +35,7 @@ To plan your Grafana Tempo deployment, you should:
 
    - Use the monolithic mode for simple, single-tenant environments or smaller workloads.
    - Use the microservices mode for large-scale, multi-tenant, or highly available deployments.
-     Review the [Deployment modes documentation](./deployment-modes/) to compare options and select the best fit for your use case.
+     Review the [Deployment modes documentation](/docs/tempo/<TEMPO_VERSION>/reference-tempo-architecture/deployment-modes/) to compare options and select the best fit for your use case.
 
 By following these recommendations, you can plan a Tempo deployment that matches your operational requirements and scales with your tracing data.
 

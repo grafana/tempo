@@ -1704,66 +1704,6 @@ func TestPushLocalSkipsGeneratorWhenLiveStoreFails(t *testing.T) {
 	}
 }
 
-func TestPushTracesKafkaThenLocalLiveStoreFailure(t *testing.T) {
-	const topic = "test-topic-local-live-store-failure"
-
-	kafka, err := kfake.NewCluster(kfake.NumBrokers(1), kfake.AllowAutoTopicCreation())
-	require.NoError(t, err)
-	t.Cleanup(kafka.Close)
-
-	limits := overrides.Config{}
-	limitCfg := &flag.FlagSet{}
-	limits.RegisterFlagsAndApplyDefaults(limitCfg)
-
-	distributorCfg, overridesSvc, loggingLevel, middleware := setupDependencies(t, limits)
-	distributorCfg.PushSpansToKafka = true
-	distributorCfg.KafkaConfig = ingest.KafkaConfig{}
-	distributorCfg.KafkaConfig.RegisterFlags(&flag.FlagSet{})
-	distributorCfg.KafkaConfig.Address = kafka.ListenAddrs()[0]
-	distributorCfg.KafkaConfig.Topic = topic
-
-	d, err := New(
-		distributorCfg,
-		LocalPushTargets{
-			LiveStore: func(_ context.Context, _ *tempopb.PushBytesRequest) (*tempopb.PushResponse, error) {
-				return nil, errors.New("local live-store failure")
-			},
-		},
-		singlePartitionRingReader{},
-		overridesSvc,
-		middleware,
-		kitlog.NewLogfmtLogger(os.Stdout),
-		loggingLevel,
-		prometheus.NewRegistry(),
-	)
-	require.NoError(t, err)
-
-	traces := batchesToTraces(t, []*v1.ResourceSpans{test.MakeBatch(10, nil)})
-	_, err = d.PushTraces(ctx, traces)
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "failed to push spans to local live-store")
-
-	reader, err := kgo.NewClient(
-		kgo.SeedBrokers(kafka.ListenAddrs()...),
-		kgo.ConsumeTopics(topic),
-		kgo.ConsumeResetOffset(kgo.NewOffset().AtStart()),
-	)
-	require.NoError(t, err)
-	defer reader.Close()
-
-	readCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	var recordProcessed bool
-	fetches := reader.PollFetches(readCtx)
-	fetches.EachRecord(func(record *kgo.Record) {
-		recordProcessed = true
-		_, decodeErr := ingest.NewDecoder().Decode(record.Value)
-		require.NoError(t, decodeErr)
-	})
-	require.True(t, recordProcessed, "kafka write should have succeeded before local live-store failure")
-}
-
 func TestArtificialLatency(t *testing.T) {
 	// prepare test data
 	overridesConfig := overrides.Config{}

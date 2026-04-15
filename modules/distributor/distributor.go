@@ -96,16 +96,24 @@ var (
 		Help:      "The total number of attribute keys or values truncated per tenant and scope",
 	}, []string{"tenant", "scope"})
 	metricKafkaRecordsPerRequest = promauto.NewHistogram(prometheus.HistogramOpts{
-		Namespace: "tempo",
-		Subsystem: "distributor",
-		Name:      "kafka_records_per_request",
-		Help:      "The number of records in each kafka request",
+		Namespace:                       "tempo",
+		Subsystem:                       "distributor",
+		Name:                            "kafka_records_per_request",
+		Help:                            "The number of records in each kafka request",
+		Buckets:                         prometheus.DefBuckets,
+		NativeHistogramBucketFactor:     1.1,
+		NativeHistogramMaxBucketNumber:  100,
+		NativeHistogramMinResetDuration: 1 * time.Hour,
 	})
 	metricKafkaWriteLatency = promauto.NewHistogram(prometheus.HistogramOpts{
-		Namespace: "tempo",
-		Subsystem: "distributor",
-		Name:      "kafka_write_latency_seconds",
-		Help:      "The latency of writing to kafka",
+		Namespace:                       "tempo",
+		Subsystem:                       "distributor",
+		Name:                            "kafka_write_latency_seconds",
+		Help:                            "The latency of writing to kafka",
+		Buckets:                         prometheus.DefBuckets,
+		NativeHistogramBucketFactor:     1.1,
+		NativeHistogramMaxBucketNumber:  100,
+		NativeHistogramMinResetDuration: 1 * time.Hour,
 	})
 	metricKafkaWriteBytesTotal = promauto.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "tempo",
@@ -485,25 +493,23 @@ func (d *Distributor) PushTraces(ctx context.Context, traces ptrace.Traces) (*te
 		_ = level.Warn(d.logger).Log("msg", "failed to forward batches for tenant=%s: %w", userID, err)
 	}
 
-	if err := d.pushTracesKafka(ctx, userID, ringTokens, rebatchedTraces); err != nil {
-		level.Error(d.logger).Log("msg", "failed to write to kafka", "err", err, "tenant", userID)
-		return nil, err
-	}
-
-	if err := d.pushLocal(ctx, userID, ringTokens, rebatchedTraces); err != nil {
-		level.Error(d.logger).Log("msg", "failed to push to local consumers", "err", err, "tenant", userID)
-		return nil, err
+	if d.pushSpansToKafka {
+		if err := d.pushTracesKafka(ctx, userID, ringTokens, rebatchedTraces); err != nil {
+			level.Error(d.logger).Log("msg", "failed to write to kafka", "err", err, "tenant", userID)
+			return nil, err
+		}
+	} else {
+		if err := d.pushLocal(ctx, userID, ringTokens, rebatchedTraces); err != nil {
+			level.Error(d.logger).Log("msg", "failed to push to local consumers", "err", err, "tenant", userID)
+			return nil, err
+		}
 	}
 
 	return nil, nil // PushRequest is ignored, so no reason to create one
 }
 
 func (d *Distributor) pushTracesKafka(ctx context.Context, userID string, keys []uint32, traces []*rebatchedTrace) error {
-	if !d.pushSpansToKafka {
-		return nil
-	}
-
-	skipMetricsGeneration := generator.ExtractNoGenerateMetrics(ctx) || d.localPushTargets.Generator != nil
+	skipMetricsGeneration := generator.ExtractNoGenerateMetrics(ctx)
 	return d.sendToKafka(ctx, userID, keys, traces, skipMetricsGeneration)
 }
 

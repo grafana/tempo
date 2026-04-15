@@ -136,11 +136,12 @@ type LiveStore struct {
 	reader *PartitionReader
 
 	// Multi-tenant instances
-	instancesMtx          sync.RWMutex
-	instances             map[string]*instance
-	wal                   *wal.WAL
-	completeBlockEncoding encoding.VersionedEncoding
-	overrides             overrides.Interface
+	instancesMtx           sync.RWMutex
+	instances              map[string]*instance
+	wal                    *wal.WAL
+	completeBlockEncoding  encoding.VersionedEncoding
+	completeBlockLifecycle completeBlockLifecycle
+	overrides              overrides.Interface
 
 	// Background processing
 	ctx                 context.Context // context for the service. all background processes should exit if this is cancelled
@@ -151,28 +152,38 @@ type LiveStore struct {
 	lagCancel           context.CancelFunc
 	readyErr            atomic.Pointer[error] // nil when ready to serve queries
 	lastRecordTimeNanos atomic.Int64          // stores timestamp of last consumed record as UnixNano, -1 means not set
+
+	cutToWalStop chan struct{}  // closed to stop perTenantCutToWalLoop goroutines before shutdown flush
+	cutToWalWg   sync.WaitGroup // tracks active perTenantCutToWalLoop goroutines
 }
 
-func New(cfg Config, overridesService overrides.Interface, logger log.Logger, reg prometheus.Registerer) (*LiveStore, error) {
+func New(cfg Config, overridesService overrides.Interface, completeBlockFlusher completeBlockFlusher, logger log.Logger, reg prometheus.Registerer) (*LiveStore, error) {
 	completeBlockEncoding, encErr := encoding.FromVersionForWrites(cfg.BlockConfig.Version)
 	if encErr != nil {
 		return nil, fmt.Errorf("block version validation failed: %w", encErr)
 	}
 
+	completeBlockLifecycle, lifecycleErr := newCompleteBlockLifecycle(cfg, completeBlockFlusher, logger)
+	if lifecycleErr != nil {
+		return nil, fmt.Errorf("create complete block lifecycle: %w", lifecycleErr)
+	}
+
 	ctx, cancel := context.WithCancel(context.Background())
 
 	s := &LiveStore{
-		cfg:                   cfg,
-		logger:                logger,
-		reg:                   reg,
-		decoder:               ingest.NewDecoder(),
-		completeBlockEncoding: completeBlockEncoding,
-		ctx:                   ctx,
-		cancel:                cancel,
-		instances:             make(map[string]*instance),
-		overrides:             overridesService,
-		completeQueues:        flushqueues.New[*completeOp](cfg.CompleteBlockConcurrency, metricCompleteQueueLength),
-		startupComplete:       make(chan struct{}),
+		cfg:                    cfg,
+		logger:                 logger,
+		reg:                    reg,
+		decoder:                ingest.NewDecoder(),
+		completeBlockEncoding:  completeBlockEncoding,
+		ctx:                    ctx,
+		cancel:                 cancel,
+		instances:              make(map[string]*instance),
+		overrides:              overridesService,
+		completeBlockLifecycle: completeBlockLifecycle,
+		completeQueues:         flushqueues.New[*completeOp](metricCompleteQueueLength),
+		startupComplete:        make(chan struct{}),
+		cutToWalStop:           make(chan struct{}),
 	}
 
 	// Initialize ready state to starting
@@ -281,12 +292,14 @@ func (s *LiveStore) starting(ctx context.Context) error {
 		return fmt.Errorf("failed to reload blocks from wal: %w", err)
 	}
 
+	level.Info(s.logger).Log("msg", "deleting old blocks")
 	for _, inst := range s.getInstances() {
 		err = inst.deleteOldBlocks()
 		if err != nil {
 			level.Warn(s.logger).Log("msg", "failed to delete old blocks", "err", err, "tenant", inst.tenantID)
 		}
 	}
+	level.Info(s.logger).Log("msg", "done deleting old blocks")
 
 	// Set eagerly so the flag is already in place when the lifecycler's stopping()
 	// checks it. Setting it in our own stopping() races with context-cancellation
@@ -317,11 +330,14 @@ func (s *LiveStore) starting(ctx context.Context) error {
 	}
 
 	// allow background processes to start
+	level.Info(s.logger).Log("msg", "starting all background processes")
 	s.startAllBackgroundProcesses()
 
+	level.Info(s.logger).Log("msg", "waiting for ingestion catching up")
 	if err := s.waitForIngestPathReady(ctx); err != nil {
 		return err
 	}
+	level.Info(s.logger).Log("msg", "done waiting for ingestion catching up")
 
 	// Mark as ready at end of starting()
 	s.readyErr.Store(nil)
@@ -411,42 +427,52 @@ func (s *LiveStore) stopping(error) error {
 	s.readyErr.Store(&ErrStopping)
 	metricReady.Set(0)
 
+	var stopErr error
+
 	if s.cfg.ConsumeFromKafka {
 		// Stop the kafka lag background worker.
 		if s.lagCancel != nil {
 			s.lagCancel()
 		}
-		// Stop consuming
-		err := services.StopAndAwaitTerminated(context.Background(), s.reader)
-		if err != nil {
+		// Stop consuming.
+		if err := services.StopAndAwaitTerminated(context.Background(), s.reader); err != nil {
 			level.Warn(s.logger).Log("msg", "failed to stop reader", "err", err)
-			return err
+			stopErr = errors.Join(stopErr, err)
 		}
 
-		// Reset lag metrics for our partition when stopping
+		// Reset lag metrics for our partition when stopping.
 		ingest.ResetLagMetricsForRevokedPartitions(s.cfg.IngestConfig.Kafka.ConsumerGroup, []int32{s.ingestPartitionID})
 	}
 
-	// Stop both the membership ring and partition ring
+	// Stop both the membership ring and partition ring even if an earlier shutdown step failed.
 	if err := services.StopAndAwaitTerminated(context.Background(), s.livestoreLifecycler); err != nil {
 		level.Warn(s.logger).Log("msg", "failed to stop livestore lifecycler", "err", err)
+		stopErr = errors.Join(stopErr, err)
 	}
 
 	if err := services.StopAndAwaitTerminated(context.Background(), s.ingestPartitionLifecycler); err != nil {
 		level.Warn(s.logger).Log("msg", "failed to stop partition lifecycler", "err", err)
+		stopErr = errors.Join(stopErr, err)
 	}
 
-	// Flush all data to disk
-	s.cutAllInstancesToWal()
+	level.Info(s.logger).Log("msg", "stopping periodic WAL flush goroutines")
+	s.stopAllCutToWalLoops()
+	level.Info(s.logger).Log("msg", "periodic WAL flush goroutines stopped")
 
-	// Remove the shutdown marker if it exists since we are shutting down
+	// Flush all data to disk.
+	level.Info(s.logger).Log("msg", "cutting all instances to WAL")
+	s.cutAllInstancesToWal()
+	level.Info(s.logger).Log("msg", "done cutting all instances to WAL")
+
+	// Remove the shutdown marker if it exists since we are shutting down.
 	shutdownMarkerPath := shutdownmarker.GetPath(s.cfg.ShutdownMarkerDir)
 	if err := shutdownmarker.Remove(shutdownMarkerPath); err != nil {
 		level.Warn(s.logger).Log("msg", "failed to remove shutdown marker", "path", shutdownMarkerPath, "err", err)
+		stopErr = errors.Join(stopErr, err)
 	}
 
 	if s.cfg.holdAllBackgroundProcesses { // nothing to do
-		return nil
+		return stopErr
 	}
 
 	ticker := time.NewTicker(100 * time.Millisecond)
@@ -455,9 +481,10 @@ func (s *LiveStore) stopping(error) error {
 	timeout := time.NewTimer(s.cfg.InstanceCleanupPeriod)
 	defer timeout.Stop()
 
+	level.Info(s.logger).Log("msg", "stopping all background processes")
 	s.stopAllBackgroundProcesses()
 
-	return nil
+	return stopErr
 }
 
 func (s *LiveStore) waitForCatchUp(ctx context.Context) error {
@@ -588,6 +615,10 @@ func (s *LiveStore) consume(ctx context.Context, rs recordIter, now time.Time) (
 		record := rs.Next()
 		tenant := string(record.Key)
 
+		// Track partition lag in seconds
+		lag := now.Sub(record.Timestamp)
+		ingest.SetPartitionLagSeconds(s.cfg.IngestConfig.Kafka.ConsumerGroup, record.Partition, lag)
+
 		if record.Timestamp.Before(cutoff) {
 			metricRecordsDropped.WithLabelValues(tenant, droppedRecordReasonTooOld).Inc()
 			lastRecord = record
@@ -616,10 +647,6 @@ func (s *LiveStore) consume(ctx context.Context, rs recordIter, now time.Time) (
 
 		// Push data to tenant instance
 		inst.pushBytes(ctx, record.Timestamp, pushReq)
-
-		// Track partition lag in seconds
-		lag := now.Sub(record.Timestamp)
-		ingest.SetPartitionLagSeconds(s.cfg.IngestConfig.Kafka.ConsumerGroup, record.Partition, lag)
 
 		metricRecordsProcessed.WithLabelValues(tenant).Inc()
 		recordCount++
@@ -664,16 +691,14 @@ func (s *LiveStore) getOrCreateInstance(tenantID string) (*instance, error) {
 	}
 
 	// Create new instance
-	inst, err := newInstance(tenantID, s.cfg, s.wal, s.completeBlockEncoding, s.overrides, s.logger)
+	inst, err := newInstance(tenantID, s.cfg, s.wal, s.completeBlockEncoding, s.completeBlockLifecycle, s.overrides, s.logger)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create instance for tenant %s: %w", tenantID, err)
 	}
 
 	s.instances[tenantID] = inst
 
-	s.runInBackground(func() {
-		s.perTenantCutToWalLoop(inst)
-	})
+	s.startPerTenantCutToWalLoop(inst)
 	s.runInBackground(func() {
 		s.perTenantCleanupLoop(inst)
 	})
@@ -797,10 +822,10 @@ func (s *LiveStore) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDReq
 
 // SearchRecent implements tempopb.Querier
 func (s *LiveStore) SearchRecent(ctx context.Context, req *tempopb.SearchRequest) (*tempopb.SearchResponse, error) {
-	if s.isLagged(int64(req.End) * 1e9) { // convert seconds to nanoseconds
-		return nil, errLagged
-	}
 	return withInstance(ctx, s, func(inst *instance) (*tempopb.SearchResponse, error) {
+		if s.isLagged(int64(req.End) * 1e9) { // convert seconds to nanoseconds
+			return nil, errLagged
+		}
 		return inst.Search(ctx, req)
 	})
 }
@@ -840,10 +865,10 @@ func (s *LiveStore) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTa
 
 // QueryRange implements tempopb.MetricsServer
 func (s *LiveStore) QueryRange(ctx context.Context, req *tempopb.QueryRangeRequest) (*tempopb.QueryRangeResponse, error) {
-	if s.isLagged(int64(req.End)) { // end param is already nanos, no need to convert
-		return nil, errLagged
-	}
 	return withInstance(ctx, s, func(inst *instance) (*tempopb.QueryRangeResponse, error) {
+		if s.isLagged(int64(req.End)) { // end param is already nanos, no need to convert
+			return nil, errLagged
+		}
 		return inst.QueryRange(ctx, req)
 	})
 }

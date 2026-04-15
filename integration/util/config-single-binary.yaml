@@ -8,3 +8,8 @@ querier:
 
 backend_worker:
   backend_scheduler_addr: tempo:9095
+
+# Single-binary mode pushes traces in-process to local consumers and no longer
+# needs Kafka ingest or block-builder wiring.
+ingest: null
+block_builder: null

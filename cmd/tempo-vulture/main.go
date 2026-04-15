@@ -16,7 +16,6 @@ import (
 	"time"
 
 	"github.com/go-test/deep"
-	"github.com/grafana/tempo/pkg/api"
 	zaplogfmt "github.com/jsternberg/zap-logfmt"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"go.uber.org/zap"
@@ -45,7 +44,6 @@ var (
 	tempoRecentTracesCutoffDuration time.Duration
 	tempoPushTLS                    bool
 
-	rf1After             time.Time
 	tempoQueryLiveStores bool
 	logger               *zap.Logger
 
@@ -134,7 +132,6 @@ func init() {
 	flag.IntVar(&validationCycles, "validation-cycles", 3, "Number of write/read cycles to perform in validation mode")
 	flag.DurationVar(&validationTimeout, "validation-timeout", 5*time.Minute, "Maximum time to run validation mode before timing out")
 
-	flag.Var(newTimeVar(&rf1After), "rhythm-rf1-after", "Timestamp (RFC3339) after which only blocks with RF==1 are included in search and ID lookups")
 	flag.BoolVar(&tempoQueryLiveStores, "tempo-query-livestore", false, "When to query live stores")
 }
 
@@ -172,10 +169,6 @@ func main() {
 	httpClient := createHTTPClient(vultureConfig.tempoQueryURL, vultureConfig.tempoOrgID, vultureConfig.tempoQueryLiveStores)
 	if err != nil {
 		panic(err)
-	}
-
-	if !rf1After.IsZero() {
-		httpClient.SetQueryParam(api.URLParamRF1After, rf1After.Format(time.RFC3339))
 	}
 
 	tickerWrite, tickerRead, tickerSearch, tickerMetrics, err := initTickers(

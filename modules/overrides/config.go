@@ -13,6 +13,7 @@ import (
 	"github.com/prometheus/common/config"
 
 	"github.com/grafana/tempo/modules/overrides/histograms"
+	"github.com/grafana/tempo/pkg/traceql"
 	"github.com/grafana/tempo/pkg/util/listtomap"
 	"github.com/grafana/tempo/tempodb/backend"
 
@@ -161,8 +162,9 @@ type MetricsGeneratorOverrides struct {
 
 type ReadOverrides struct {
 	// Querier and Ingester enforced overrides.
-	MaxBytesPerTagValuesQuery  int `yaml:"max_bytes_per_tag_values_query,omitempty" json:"max_bytes_per_tag_values_query,omitempty"`
-	MaxBlocksPerTagValuesQuery int `yaml:"max_blocks_per_tag_values_query,omitempty" json:"max_blocks_per_tag_values_query,omitempty"`
+	MaxBytesPerTagValuesQuery     int `yaml:"max_bytes_per_tag_values_query,omitempty" json:"max_bytes_per_tag_values_query,omitempty"`
+	MaxBlocksPerTagValuesQuery    int `yaml:"max_blocks_per_tag_values_query,omitempty" json:"max_blocks_per_tag_values_query,omitempty"`
+	MaxConditionGroupsPerTagQuery int `yaml:"max_condition_groups_per_tag_query,omitempty" json:"max_condition_groups_per_tag_query,omitempty"`
 
 	// QueryFrontend enforced overrides
 	MaxSearchDuration  model.Duration `yaml:"max_search_duration,omitempty" json:"max_search_duration,omitempty"`
@@ -386,6 +388,7 @@ func (c *Config) RegisterFlagsAndApplyDefaults(f *flag.FlagSet) {
 	// Querier limits
 	f.IntVar(&c.Defaults.Read.MaxBytesPerTagValuesQuery, "querier.max-bytes-per-tag-values-query", 10e5, "Maximum size of response for a tag-values query. Used mainly to limit large the number of values associated with a particular tag")
 	f.IntVar(&c.Defaults.Read.MaxBlocksPerTagValuesQuery, "querier.max-blocks-per-tag-values-query", 0, "Maximum number of blocks to query for a tag-values query. 0 to disable.")
+	f.IntVar(&c.Defaults.Read.MaxConditionGroupsPerTagQuery, "querier.max-condition-groups-per-tag-query", traceql.DefaultMaxConditionGroupsPerTagQuery, "Maximum number of OR-expanded condition groups allowed in a tag search query. Queries that expand beyond this limit will be rejected.")
 
 	// Generator - NativeHistograms config
 	f.Float64Var(&c.Defaults.MetricsGenerator.NativeHistogramBucketFactor, "metrics-generator.native-histogram-bucket-factor", 1.1, "The growth factor between buckets for native histograms.")

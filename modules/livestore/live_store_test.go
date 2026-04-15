@@ -92,10 +92,25 @@ func TestLiveStoreNewWithoutKafkaDoesNotRequirePartitionStyleInstanceID(t *testi
 	limits, err := overrides.NewOverrides(overrides.Config{}, nil, prometheus.DefaultRegisterer)
 	require.NoError(t, err)
 
-	liveStore, err := New(cfg, limits, test.NewTestingLogger(t), prometheus.NewRegistry())
+	liveStore, err := New(cfg, limits, noopCompleteBlockFlusher{}, test.NewTestingLogger(t), prometheus.NewRegistry())
 	require.NoError(t, err)
 	require.NotNil(t, liveStore)
 	require.Equal(t, int32(0), liveStore.ingestPartitionID)
+}
+
+func TestLiveStoreNewWithoutKafkaRequiresCompleteBlockFlusher(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	cfg := defaultConfig(t, tmpDir)
+	cfg.ConsumeFromKafka = false
+	cfg.Ring.InstanceID = "single-binary"
+
+	limits, err := overrides.NewOverrides(overrides.Config{}, nil, prometheus.DefaultRegisterer)
+	require.NoError(t, err)
+
+	liveStore, err := New(cfg, limits, nil, test.NewTestingLogger(t), prometheus.NewRegistry())
+	require.Error(t, err)
+	require.Nil(t, liveStore)
 }
 
 func TestLiveStorePushBytesRejectsWhenStarting(t *testing.T) {
@@ -107,7 +122,7 @@ func TestLiveStorePushBytesRejectsWhenStarting(t *testing.T) {
 	limits, err := overrides.NewOverrides(overrides.Config{}, nil, prometheus.DefaultRegisterer)
 	require.NoError(t, err)
 
-	liveStore, err := New(cfg, limits, test.NewTestingLogger(t), prometheus.NewRegistry())
+	liveStore, err := New(cfg, limits, noopCompleteBlockFlusher{}, test.NewTestingLogger(t), prometheus.NewRegistry())
 	require.NoError(t, err)
 
 	id := test.ValidTraceID(nil)
@@ -133,8 +148,9 @@ func TestLiveStorePushBytesRejectsWhenStopping(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, liveStore)
 
-	// Transition to stopping state, then verify writes are rejected.
-	_ = liveStore.stopping(nil)
+	// Stop the service so writes are rejected.
+	err = services.StopAndAwaitTerminated(context.Background(), liveStore)
+	require.NoError(t, err)
 
 	id := test.ValidTraceID(nil)
 	expectedTrace := test.MakeTrace(1, id)
@@ -270,7 +286,7 @@ func TestLiveStoreFullBlockLifecycleCheating(t *testing.T) {
 	requireInstanceState(t, inst, instanceState{liveTraces: 0, walBlocks: 1, completeBlocks: 0})
 
 	// force complete the wal block
-	err = inst.completeBlock(t.Context(), walUUID)
+	_, err = inst.completeBlock(t.Context(), walUUID)
 	require.NoError(t, err)
 
 	requireTraceInLiveStore(t, liveStore, expectedID, expectedTrace)
@@ -385,7 +401,7 @@ func TestLiveStoreReplaysTraceInCompleteBlocks(t *testing.T) {
 	require.NoError(t, err)
 
 	// complete the wal blocks
-	err = inst.completeBlock(t.Context(), walUUID)
+	_, err = inst.completeBlock(t.Context(), walUUID)
 	require.NoError(t, err)
 
 	// stop the live store and then create a new one to simulate a restart and replay the data on disk
@@ -412,7 +428,8 @@ func TestLiveStoreDropsInvalidCompleteBlocksOnRestart(t *testing.T) {
 	require.NoError(t, inst.cutIdleTraces(t.Context(), true))
 	walUUID, err := inst.cutBlocks(t.Context(), true)
 	require.NoError(t, err)
-	require.NoError(t, inst.completeBlock(context.Background(), walUUID))
+	_, err = inst.completeBlock(context.Background(), walUUID)
+	require.NoError(t, err)
 	requireInstanceState(t, inst, instanceState{liveTraces: 0, walBlocks: 0, completeBlocks: 1})
 
 	var blockID uuid.UUID
@@ -486,6 +503,94 @@ func TestLiveStoreConsumeDropsOldRecords(t *testing.T) {
 
 	err = services.StopAndAwaitTerminated(t.Context(), ls)
 	require.NoError(t, err)
+}
+
+// TestLiveStoreConsumeTracksPartitionLag verifies that partition lag is tracked
+// for all records regardless of outcome: too old (dropped), decode failure, or
+// successfully processed.
+func TestLiveStoreConsumeTracksPartitionLag(t *testing.T) {
+	ls, err := defaultLiveStore(t, t.TempDir())
+	require.NoError(t, err)
+
+	// Use a unique consumer group to avoid flaky collisions with other packages
+	// that share the global default Prometheus registry.
+	consumerGroup := t.Name()
+	ls.cfg.IngestConfig.Kafka.ConsumerGroup = consumerGroup
+	t.Cleanup(func() {
+		ingest.ResetLagMetricsForRevokedPartitions(consumerGroup, []int32{0, 1, 2})
+	})
+
+	now := time.Now()
+	older := now.Add(-1 * (defaultCompleteBlockTimeout + time.Second))
+	newer := now.Add(-1 * (defaultCompleteBlockTimeout - time.Second))
+
+	// Each record uses a different partition so we can verify lag independently.
+	records := []*kgo.Record{
+		{
+			Key:       []byte("tenant1"),
+			Timestamp: older, // dropped as too old
+			Partition: 0,
+			Value:     createValidPushRequest(t),
+		},
+		{
+			Key:       []byte("tenant1"),
+			Timestamp: newer, // dropped due to decode failure
+			Partition: 1,
+			Value:     []byte("invalid-protobuf"),
+		},
+		{
+			Key:       []byte("tenant1"),
+			Timestamp: newer, // successfully processed
+			Partition: 2,
+			Value:     createValidPushRequest(t),
+		},
+	}
+
+	_, err = ls.consume(context.Background(), createRecordIter(records), now)
+	require.NoError(t, err)
+
+	// Partition lag should be tracked for every record, including dropped ones.
+	require.InDelta(t, now.Sub(older).Seconds(), getPartitionLagSecondsFromGatherer(t, consumerGroup, "0"), 0.1,
+		"partition lag should be tracked for too-old records")
+	require.InDelta(t, now.Sub(newer).Seconds(), getPartitionLagSecondsFromGatherer(t, consumerGroup, "1"), 0.1,
+		"partition lag should be tracked for decode-failure records")
+	require.InDelta(t, now.Sub(newer).Seconds(), getPartitionLagSecondsFromGatherer(t, consumerGroup, "2"), 0.1,
+		"partition lag should be tracked for successfully processed records")
+
+	err = services.StopAndAwaitTerminated(t.Context(), ls)
+	require.NoError(t, err)
+}
+
+// getPartitionLagSecondsFromGatherer reads the tempo_ingest_group_partition_lag_seconds gauge
+// from the default Prometheus gatherer.
+func getPartitionLagSecondsFromGatherer(t *testing.T, group, partition string) float64 {
+	t.Helper()
+
+	families, err := prometheus.DefaultGatherer.Gather()
+	require.NoError(t, err)
+
+	for _, f := range families {
+		if f.GetName() != "tempo_ingest_group_partition_lag_seconds" {
+			continue
+		}
+		for _, m := range f.GetMetric() {
+			var matchGroup, matchPartition bool
+			for _, l := range m.GetLabel() {
+				if l.GetName() == "group" && l.GetValue() == group {
+					matchGroup = true
+				}
+				if l.GetName() == "partition" && l.GetValue() == partition {
+					matchPartition = true
+				}
+			}
+			if matchGroup && matchPartition {
+				return m.GetGauge().GetValue()
+			}
+		}
+	}
+
+	t.Fatalf("metric tempo_ingest_group_partition_lag_seconds{group=%q, partition=%q} not found", group, partition)
+	return 0
 }
 
 func TestLiveStoreUsesRecordTimestampForBlockStartAndEnd(t *testing.T) {
@@ -564,7 +669,7 @@ func TestLiveStoreUsesRecordTimestampForBlockStartAndEnd(t *testing.T) {
 		// cut to complete block and test again
 		uuid, err := inst.cutBlocks(t.Context(), true)
 		require.NoError(t, err)
-		err = inst.completeBlock(t.Context(), uuid)
+		_, err = inst.completeBlock(t.Context(), uuid)
 		require.NoError(t, err)
 
 		meta = inst.completeBlocks[uuid].BlockMeta()
@@ -596,7 +701,7 @@ func TestLiveStoreShutdownWithPendingCompletions(t *testing.T) {
 	requireTraceInLiveStore(t, liveStore, expectedID, expectedTrace)
 	requireInstanceState(t, inst, instanceState{liveTraces: 1, walBlocks: 0, completeBlocks: 0})
 
-	require.NoError(t, liveStore.stopping(nil))
+	require.NoError(t, services.StopAndAwaitTerminated(context.Background(), liveStore))
 }
 
 func TestLiveStoreQueryMethodsBeforeStarted(t *testing.T) {
@@ -650,7 +755,7 @@ func TestLiveStoreQueryMethodsBeforeStarted(t *testing.T) {
 	logger := test.NewTestingLogger(t)
 
 	// Create LiveStore but DO NOT start it
-	liveStore, err := New(cfg, limits, logger, reg)
+	liveStore, err := New(cfg, limits, nil, logger, reg)
 	require.NoError(t, err)
 	require.NotNil(t, liveStore)
 
@@ -668,7 +773,7 @@ func TestLiveStoreQueryMethodsBeforeStarted(t *testing.T) {
 					Query: "{}",
 				})
 			},
-			expectedErr: errLagged, // FailOnHighLag=true + nil reader → isLagged returns true
+			expectedErr: ErrStarting, // Readiness check runs before lag check
 		},
 		{
 			name: "SearchTags",
@@ -716,7 +821,7 @@ func TestLiveStoreQueryMethodsBeforeStarted(t *testing.T) {
 					Step:  uint64(time.Second),
 				})
 			},
-			expectedErr: errLagged, // FailOnHighLag=true + nil reader → isLagged returns true
+			expectedErr: ErrStarting, // Readiness check runs before lag check
 		},
 	}
 
@@ -739,8 +844,8 @@ func TestLiveStoreQueryMethodsAfterStopping(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, liveStore)
 
-	// Error expected from Kafka reader shutdown; we only care about query behavior after stopping begins.
-	_ = liveStore.stopping(nil)
+	// Stop the service so queries are rejected.
+	_ = services.StopAndAwaitTerminated(context.Background(), liveStore)
 
 	ctx := user.InjectOrgID(context.Background(), testTenantID)
 
@@ -772,21 +877,18 @@ func TestLiveStoreQueryMethodsAfterStoppingWithFailOnHighLag(t *testing.T) {
 
 	liveStore.cfg.FailOnHighLag = true
 
-	// Error expected from Kafka reader shutdown; we only care about query behavior after stopping begins.
-	_ = liveStore.stopping(nil)
+	// Stop the service so queries are rejected.
+	_ = services.StopAndAwaitTerminated(context.Background(), liveStore)
 
 	ctx := user.InjectOrgID(context.Background(), testTenantID)
 
-	// After stopping, the reader is non-nil but stopped. With FailOnHighLag=true,
-	// isLagged() runs calculateTimeLag() on the stopped reader. Depending on stale
-	// lag values it may return true (errLagged) or false (falls through to
-	// withInstance → CheckReady → ErrStopping). Either way, query must not panic
-	// and must return an error.
+	// After stopping, the readiness check in withInstance runs before the lag check,
+	// so queries deterministically return ErrStopping regardless of FailOnHighLag.
 	_, err = liveStore.SearchRecent(ctx, &tempopb.SearchRequest{
 		Query: "{}",
 		End:   uint32(time.Now().Unix()),
 	})
-	require.Error(t, err)
+	require.ErrorIs(t, err, ErrStopping)
 
 	_, err = liveStore.QueryRange(ctx, &tempopb.QueryRangeRequest{
 		Query: "{} | count_over_time()",
@@ -794,7 +896,7 @@ func TestLiveStoreQueryMethodsAfterStoppingWithFailOnHighLag(t *testing.T) {
 		End:   uint64(time.Now().UnixNano()),
 		Step:  uint64(time.Second),
 	})
-	require.Error(t, err)
+	require.ErrorIs(t, err, ErrStopping)
 }
 
 // erroredEnc is a wrapper around a VersionedEncoding that returns given error on CreateBlock
@@ -1081,6 +1183,10 @@ func TestIsLagged(t *testing.T) {
 			ls.reader.lag.Store(tc.readerLag)
 			ls.lastRecordTimeNanos.Store(tc.lastRecordNano)
 
+			// Ensure an instance exists for the tenant so withInstance invokes the callback
+			_, err = ls.getOrCreateInstance(testTenantID)
+			require.NoError(t, err)
+
 			t.Run("isLagged", func(t *testing.T) {
 				result := ls.isLagged(tc.end.UnixNano())
 				require.Equal(t, tc.expectedLagged, result, tc.description)
@@ -1107,8 +1213,9 @@ func TestIsLagged(t *testing.T) {
 				ctx := user.InjectOrgID(t.Context(), testTenantID)
 				resp, err := ls.QueryRange(ctx, &tempopb.QueryRangeRequest{
 					Query: "{} | rate()",
-					Start: uint64(now.Add(-5 * time.Hour).UnixNano()),
+					Start: uint64(now.Add(-30 * time.Minute).UnixNano()),
 					End:   uint64(tc.end.UnixNano()),
+					Step:  uint64(time.Second),
 				})
 				if tc.expectedLagged {
 					require.ErrorIs(t, err, errLagged)
@@ -1129,7 +1236,7 @@ func TestLiveStoreLifecyclersTerminatedOnStop(t *testing.T) {
 	liveStore, err := liveStoreWithConfig(t, cfg)
 	require.NoError(t, err)
 
-	_ = services.StopAndAwaitTerminated(t.Context(), liveStore)
+	require.NoError(t, services.StopAndAwaitTerminated(t.Context(), liveStore))
 
 	// Must be Terminated immediately — not eventually — when stopping() returns.
 	require.Equal(t, services.Terminated, liveStore.ingestPartitionLifecycler.State())

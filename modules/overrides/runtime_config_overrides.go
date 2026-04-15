@@ -404,6 +404,11 @@ func (o *runtimeConfigOverridesManager) MaxBlocksPerTagValuesQuery(userID string
 	return o.getOverridesForUser(userID).Read.MaxBlocksPerTagValuesQuery
 }
 
+// MaxConditionGroupsPerTagQuery returns the maximum number of OR-expanded condition groups allowed in a tag search query.
+func (o *runtimeConfigOverridesManager) MaxConditionGroupsPerTagQuery() int {
+	return o.defaultLimits.Read.MaxConditionGroupsPerTagQuery
+}
+
 func (o *runtimeConfigOverridesManager) UnsafeQueryHints(userID string) bool {
 	return o.getOverridesForUser(userID).Read.UnsafeQueryHints
 }

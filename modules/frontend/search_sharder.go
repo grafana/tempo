@@ -40,10 +40,6 @@ type SearchSharderConfig struct {
 	MostRecentShards       int           `yaml:"most_recent_shards,omitempty"`
 	DefaultSpansPerSpanSet uint32        `yaml:"default_spans_per_span_set,omitempty"`
 	MaxSpansPerSpanSet     uint32        `yaml:"max_spans_per_span_set,omitempty"`
-
-	// RF1After specifies the time after which RF1 logic is applied, injected by the configuration
-	// or determined at runtime based on search request parameters.
-	RF1After time.Time `yaml:"-"`
 }
 
 type asyncSearchSharder struct {
@@ -154,13 +150,7 @@ func (s *asyncSearchSharder) backendRequests(ctx context.Context, tenantID strin
 	startT := time.Unix(int64(start), 0)
 	endT := time.Unix(int64(end), 0)
 
-	// Use RF1After from the request if it's not zero, otherwise use the config value
-	rf1After := searchReq.RF1After
-	if rf1After.IsZero() {
-		rf1After = s.cfg.RF1After
-	}
-
-	blocks := blockMetasForSearch(s.reader.BlockMetas(tenantID), startT, endT, rf1FilterFn(rf1After))
+	blocks := blockMetasForSearch(s.reader.BlockMetas(tenantID), startT, endT, acceptAllBlocks)
 
 	// calculate metrics to return to the caller
 	resp.TotalBlocks = len(blocks)

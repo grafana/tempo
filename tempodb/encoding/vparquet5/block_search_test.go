@@ -73,7 +73,7 @@ func TestBackendBlockSearch(t *testing.T) {
 									String02: []string{"dedicated-span-attr-value-2"},
 									String03: []string{"dedicated-span-attr-value-3"},
 									String04: []string{"dedicated-span-attr-value-4"},
-									String05: []string{"dedicated-span-attr-value-5"},
+									String05: []string{test.DedicatedBlobTestString()},
 								},
 							},
 						},
@@ -336,7 +336,7 @@ func makeTraces() ([]*Trace, map[string]string, map[string]string, map[string]st
 		String02: []string{"dedicated-span-attr-value-2"},
 		String03: []string{"dedicated-span-attr-value-3"},
 		String04: []string{"dedicated-span-attr-value-4"},
-		String05: []string{"dedicated-span-attr-value-5"},
+		String05: []string{test.DedicatedBlobTestString()},
 	}
 	spanAttrVals["dedicated.span.1"] = dedicatedSpanAttrs.String01[0]
 	spanAttrVals["dedicated.span.2"] = dedicatedSpanAttrs.String02[0]

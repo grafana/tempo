@@ -41,8 +41,6 @@ func (r *tagsSearchRequest) keyPrefix() string {
 	return cacheKeyPrefixSearchTag
 }
 
-func (r *tagsSearchRequest) rf1After() time.Time { return r.request.RF1After }
-
 func (r *tagsSearchRequest) newWithRange(start, end uint32) tagSearchReq {
 	newReq := r.request
 	newReq.Start = start
@@ -95,8 +93,6 @@ func (r *tagValueSearchRequest) hash() uint64 {
 func (r *tagValueSearchRequest) keyPrefix() string {
 	return cacheKeyPrefixSearchTagValues
 }
-
-func (r *tagValueSearchRequest) rf1After() time.Time { return r.request.RF1After }
 
 func (r *tagValueSearchRequest) newWithRange(start, end uint32) tagSearchReq {
 	newReq := r.request
@@ -170,8 +166,6 @@ type tagSearchReq interface {
 	// should only be based on the content the request is searching for
 	hash() uint64
 	keyPrefix() string
-
-	rf1After() time.Time
 }
 
 type searchTagSharder struct {
@@ -273,15 +267,10 @@ func (s searchTagSharder) backendRequests(ctx context.Context, tenantID string, 
 		return 0
 	}
 
-	rf1After := searchReq.rf1After()
-	if rf1After.IsZero() {
-		rf1After = s.cfg.RF1After
-	}
-
 	// get block metadata of blocks in start, end duration
 	startT := time.Unix(int64(start), 0)
 	endT := time.Unix(int64(end), 0)
-	blocks := blockMetasForSearch(s.reader.BlockMetas(tenantID), startT, endT, rf1FilterFn(rf1After))
+	blocks := blockMetasForSearch(s.reader.BlockMetas(tenantID), startT, endT, acceptAllBlocks)
 
 	targetBytesPerRequest := s.cfg.TargetBytesPerRequest
 	// the callback function is nil, so we will use it just for counting the total number of jobs

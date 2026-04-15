@@ -356,7 +356,6 @@ query_frontend:
     mcp_server:
         enabled: false
     max_query_expression_size_bytes: 131072
-    rf1_after: 0001-01-01T00:00:00Z
 metrics_generator:
     ring:
         kvstore:
@@ -693,6 +692,7 @@ overrides:
             retry_info_enabled: true
         read:
             max_bytes_per_tag_values_query: 1000000
+            max_condition_groups_per_tag_query: 100
         metrics_generator:
             generate_native_histograms: classic
             native_histogram_bucket_factor: 1.1
