@@ -433,13 +433,13 @@ live_store:
     [max_live_traces_bytes: <uint64> | default = 250000000]
 
     # Maximum size of a block before cutting it.
-    [max_block_bytes: <uint64> | default = 104857600]
+    [max_block_bytes: <uint64> | default = 52428800]
 
     # Maximum length of time before cutting a block.
-    [max_block_duration: <duration> | default = 30m]
+    [max_block_duration: <duration> | default = 30s]
 
     # Duration to keep blocks in the live-store after they have been completed.
-    [complete_block_timeout: <duration> | default = 1h]
+    [complete_block_timeout: <duration> | default = 30m]
 
     # Target consumer lag threshold before the live-store is considered ready to serve queries.
     # Set to 0 to disable readiness waiting.
