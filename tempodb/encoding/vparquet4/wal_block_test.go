@@ -263,7 +263,6 @@ func TestWalBlockIterator(t *testing.T) {
 	})
 }
 
-
 // TestRowIterator cheats a bit by testing the rowIterator directly by reaching into the internals
 // of walblock. it also ignores the passed in traces and ids and simply asserts that the row iterator
 // is internally consistent.
