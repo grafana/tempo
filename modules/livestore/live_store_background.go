@@ -176,6 +176,9 @@ func (s *LiveStore) retryCompleteOp(op *completeOp, span oteltrace.Span, msg str
 }
 
 func (s *LiveStore) perTenantCutToWalLoop(instance *instance) {
+	s.cutToWalWg.Add(1)
+	defer s.cutToWalWg.Done()
+
 	// ticker
 	ticker := time.NewTicker(s.cfg.InstanceFlushPeriod)
 	defer ticker.Stop()
@@ -184,7 +187,7 @@ func (s *LiveStore) perTenantCutToWalLoop(instance *instance) {
 		select {
 		case <-ticker.C:
 			s.cutOneInstanceToWal(s.ctx, instance, false)
-		case <-s.ctx.Done():
+		case <-s.cutToWalStop:
 			return
 		}
 	}
