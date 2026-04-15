@@ -19,6 +19,8 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	oteltrace "go.opentelemetry.io/otel/trace"
 	"go.uber.org/multierr"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
 	livestore_client "github.com/grafana/tempo/modules/livestore/client"
 	"github.com/grafana/tempo/modules/overrides"
@@ -695,8 +697,14 @@ func (q *Querier) internalTagsSearchBlockV2(ctx context.Context, req *tempopb.Se
 	opts.StartPage = int(req.StartPage)
 	opts.TotalPages = int(req.PagesToSearch)
 
-	extractedReq := traceql.ExtractFetchRequest(req.SearchReq.Query)
-	if extractedReq == nil || !extractedReq.AllConditions {
+	conditionGroups, err := traceql.ExtractConditionGroups(req.SearchReq.Query, q.limits.MaxConditionGroupsPerTagQuery())
+	if err != nil {
+		if errors.Is(err, traceql.ErrMaxConditionGroupsPerTagQueryReached) {
+			return nil, status.Errorf(codes.InvalidArgument, "%s", err)
+		}
+		return nil, err
+	}
+	if len(conditionGroups) == 0 {
 		return q.store.SearchTags(ctx, meta, req, opts)
 	}
 
@@ -712,7 +720,7 @@ func (q *Querier) internalTagsSearchBlockV2(ctx context.Context, req *tempopb.Se
 		return nil, fmt.Errorf("unknown scope: %s", req.SearchReq.Scope)
 	}
 
-	err = q.engine.ExecuteTagNames(ctx, scope, extractedReq.Conditions, func(tag string, scope traceql.AttributeScope) bool {
+	err = q.engine.ExecuteTagNames(ctx, scope, conditionGroups, func(tag string, scope traceql.AttributeScope) bool {
 		return valueCollector.Collect(scope.String(), tag)
 	}, fetcher)
 	if err != nil {
@@ -808,8 +816,14 @@ func (q *Querier) internalTagValuesSearchBlockV2(ctx context.Context, req *tempo
 	opts.StartPage = int(req.StartPage)
 	opts.TotalPages = int(req.PagesToSearch)
 
-	extractedReq := traceql.ExtractFetchRequest(req.SearchReq.Query)
-	if extractedReq == nil || !extractedReq.AllConditions {
+	conditionGroups, err := traceql.ExtractConditionGroups(req.SearchReq.Query, q.limits.MaxConditionGroupsPerTagQuery())
+	if err != nil {
+		if errors.Is(err, traceql.ErrMaxConditionGroupsPerTagQueryReached) {
+			return nil, status.Errorf(codes.InvalidArgument, "%s", err)
+		}
+		return nil, err
+	}
+	if len(conditionGroups) == 0 {
 		return q.store.SearchTagValuesV2(ctx, meta, req.SearchReq, opts)
 	}
 
@@ -828,7 +842,7 @@ func (q *Querier) internalTagValuesSearchBlockV2(ctx context.Context, req *tempo
 		return q.store.FetchTagValues(ctx, meta, req, cb, func(bytesRead uint64) { inspectedBytes += bytesRead }, opts)
 	})
 
-	err = q.engine.ExecuteTagValues(ctx, tag, extractedReq.Conditions, traceql.MakeCollectTagValueFunc(valueCollector.Collect), fetcher)
+	err = q.engine.ExecuteTagValues(ctx, tag, conditionGroups, traceql.MakeCollectTagValueFunc(valueCollector.Collect), fetcher, q.limits.MaxConditionGroupsPerTagQuery())
 	if err != nil {
 		return nil, err
 	}

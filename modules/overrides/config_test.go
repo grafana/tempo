@@ -458,8 +458,9 @@ func generateTestLegacyOverrides() LegacyOverrides {
 		CompactionDisabled: true,
 		CompactionWindow:   model.Duration(4 * time.Hour),
 
-		MaxBytesPerTagValuesQuery:  1000,
-		MaxBlocksPerTagValuesQuery: 100,
+		MaxBytesPerTagValuesQuery:     1000,
+		MaxBlocksPerTagValuesQuery:    100,
+		MaxConditionGroupsPerTagQuery: 5,
 
 		MaxSearchDuration:    model.Duration(10 * time.Minute),
 		MaxMetricsDuration:   model.Duration(30 * time.Minute),
