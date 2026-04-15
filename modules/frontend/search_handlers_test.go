@@ -165,45 +165,7 @@ func runnerRequests(t *testing.T, f *QueryFrontend) {
 		expectedErr error
 	}{
 		{
-			name: "access 2 blocks x 2 jobs = 4",
-			request: &tempopb.SearchRequest{
-				Query: "{resource.service.name = `test`}",
-				Start: 1,
-				End:   100000,
-				Limit: 10,
-			},
-			expectedStatusCode: 200,
-			expectedResponse: &tempopb.SearchResponse{
-				Traces: []*tempopb.TraceSearchMetadata{{
-					TraceID:           "1",
-					RootServiceName:   search.RootSpanNotYetReceivedText,
-					StartTimeUnixNano: math.MaxUint64,
-				}},
-				Metrics: &tempopb.SearchMetrics{
-					InspectedTraces: 4,
-					InspectedBytes:  4,
-					TotalBlocks:     2,
-					TotalJobs:       4,
-					TotalBlockBytes: 4 * defaultTargetBytesPerRequest,
-					CompletedJobs:   4,
-				},
-			},
-		},
-		{
-			name: "bad request",
-			request: &tempopb.SearchRequest{
-				Query: "foo",
-				Start: 1,
-				End:   100000,
-				Limit: 10,
-			},
-			expectedStatusCode:    400,
-			expectedStatusMessage: "invalid TraceQL query: parse error at line 1, col 1: syntax error: unexpected IDENTIFIER",
-			expectedErr:           status.Error(codes.InvalidArgument, "invalid TraceQL query: parse error at line 1, col 1: syntax error: unexpected IDENTIFIER"),
-		},
-		{
-			name:   "multitenant - 4 jobs x 2 tenants = 8",
-			tenant: "tenant-1|tenant-2",
+			name: "access 4 blocks x 2 jobs = 8",
 			request: &tempopb.SearchRequest{
 				Query: "{resource.service.name = `test`}",
 				Start: 1,
@@ -224,6 +186,44 @@ func runnerRequests(t *testing.T, f *QueryFrontend) {
 					TotalJobs:       8,
 					TotalBlockBytes: 8 * defaultTargetBytesPerRequest,
 					CompletedJobs:   8,
+				},
+			},
+		},
+		{
+			name: "bad request",
+			request: &tempopb.SearchRequest{
+				Query: "foo",
+				Start: 1,
+				End:   100000,
+				Limit: 10,
+			},
+			expectedStatusCode:    400,
+			expectedStatusMessage: "invalid TraceQL query: parse error at line 1, col 1: syntax error: unexpected IDENTIFIER",
+			expectedErr:           status.Error(codes.InvalidArgument, "invalid TraceQL query: parse error at line 1, col 1: syntax error: unexpected IDENTIFIER"),
+		},
+		{
+			name:   "multitenant - 8 jobs x 2 tenants = 16",
+			tenant: "tenant-1|tenant-2",
+			request: &tempopb.SearchRequest{
+				Query: "{resource.service.name = `test`}",
+				Start: 1,
+				End:   100000,
+				Limit: 10,
+			},
+			expectedStatusCode: 200,
+			expectedResponse: &tempopb.SearchResponse{
+				Traces: []*tempopb.TraceSearchMetadata{{
+					TraceID:           "1",
+					RootServiceName:   search.RootSpanNotYetReceivedText,
+					StartTimeUnixNano: math.MaxUint64,
+				}},
+				Metrics: &tempopb.SearchMetrics{
+					InspectedTraces: 16,
+					InspectedBytes:  16,
+					TotalBlocks:     8,
+					TotalJobs:       16,
+					TotalBlockBytes: 16 * defaultTargetBytesPerRequest,
+					CompletedJobs:   16,
 				},
 			},
 		},

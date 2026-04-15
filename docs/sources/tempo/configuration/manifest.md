@@ -356,7 +356,6 @@ query_frontend:
     mcp_server:
         enabled: false
     max_query_expression_size_bytes: 131072
-    rf1_after: 0001-01-01T00:00:00Z
 metrics_generator:
     ring:
         kvstore:

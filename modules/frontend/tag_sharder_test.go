@@ -54,8 +54,6 @@ func (r *fakeReq) keyPrefix() string {
 	return ""
 }
 
-func (r *fakeReq) rf1After() time.Time { return time.Time{} }
-
 func (r *fakeReq) buildSearchTagRequest(subR *http.Request) (*http.Request, error) {
 	newReq := subR.Clone(subR.Context())
 	q := subR.URL.Query()

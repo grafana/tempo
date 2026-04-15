@@ -520,7 +520,6 @@ func TestBuildSearchBlockRequest(t *testing.T) {
 }
 
 func TestValidateAndSanitizeRequest(t *testing.T) {
-	rf1After := time.Date(1970, 1, 1, 1, 16, 40, 0, time.UTC)
 	tests := []struct {
 		httpReq       *http.Request
 		queryMode     string
@@ -528,7 +527,6 @@ func TestValidateAndSanitizeRequest(t *testing.T) {
 		endTime       int64
 		blockStart    string
 		blockEnd      string
-		rf1After      time.Time
 		expectedError string
 	}{
 		{
@@ -570,7 +568,6 @@ func TestValidateAndSanitizeRequest(t *testing.T) {
 			endTime:    0,
 			blockStart: "12345678000000001235000001240000",
 			blockEnd:   "ffffffffffffffffffffffffffffffff",
-			rf1After:   rf1After,
 		},
 		{
 			httpReq:       httptest.NewRequest("GET", "/api/traces/1234?mode=blocks&blockStart=12345678000000001235000001240000&blockEnd=ffffffffffffffffffffffffffffffff&start=1&end=1", nil),
@@ -592,7 +589,7 @@ func TestValidateAndSanitizeRequest(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-		blockStart, blockEnd, queryMode, startTime, endTime, rf1After, err := ValidateAndSanitizeRequest(tc.httpReq)
+		blockStart, blockEnd, queryMode, startTime, endTime, err := ValidateAndSanitizeRequest(tc.httpReq)
 		if len(tc.expectedError) != 0 {
 			assert.EqualError(t, err, tc.expectedError)
 			continue
@@ -603,7 +600,6 @@ func TestValidateAndSanitizeRequest(t *testing.T) {
 		assert.Equal(t, tc.blockEnd, blockEnd)
 		assert.Equal(t, tc.startTime, startTime)
 		assert.Equal(t, tc.endTime, endTime)
-		assert.Equal(t, tc.rf1After, rf1After)
 	}
 }
 
