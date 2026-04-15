@@ -63,8 +63,8 @@ To do this, you need to create a configuration that can be used by Alloy to rece
          otelcol.exporter.otlp "tempo" {
              // Define the client for exporting.
              client {
-                 // Send to the locally running Tempo instance, on port 4317 (OTLP gRPC).
-                 endpoint = "tempo-cluster-distributor.tempo.svc.cluster.local:4317"
+                // Send to the Tempo distributor on port 4317 (OTLP gRPC).
+                endpoint = "distributor.tempo.svc.cluster.local:4317"
                  // Disable TLS for OTLP export.
                  tls {
                      // The connection is insecure.
@@ -76,13 +76,10 @@ To do this, you need to create a configuration that can be used by Alloy to rece
          }
    ```
 
-   Ensure that you use the specific namespace you've installed Tempo in for the OTLP exporter. In the line:
+   Update the distributor endpoint to match your deployment. The service name and namespace depend on how you deployed Tempo:
 
-   ```
-   endpoint = "tempo-cluster-distributor.tempo.svc.cluster.local:4317"
-   ```
-
-   change `tempo` to reference the namespace where Tempo is installed, for example: `tempo-cluster-distributor.my-tempo-namespace.svc.cluster.local:4317`.
+   - Tanka: `distributor.<NAMESPACE>.svc.cluster.local:4317`
+   - Helm: `<RELEASE-NAME>-distributor.<NAMESPACE>.svc.cluster.local:4317`
 
 1. Deploy Alloy using Helm:
    ```bash
