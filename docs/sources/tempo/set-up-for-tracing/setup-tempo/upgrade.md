@@ -131,25 +131,14 @@ storage:
 
 ### Live-store WAL defaults reduced
 
-The default values for several live-store settings have been reduced to produce smaller WAL blocks and release completed blocks sooner. [[PR 6974](https://github.com/grafana/tempo/pull/6974)]
+The default values for several live-store settings have been reduced to produce smaller WAL blocks and release completed blocks sooner.
 
 | Setting                            | Previous default | New default |
 | ---------------------------------- | ---------------- | ----------- |
-| `live_store.max_block_duration`    | `1m`             | `30s`       |
-| `live_store.max_block_bytes`       | `100MB`          | `50MB`      |
+| `live_store.flush_check_period`    | `10s`            | `5s`        |
+| `live_store.max_block_duration`    | `30m`            | `30s`       |
+| `live_store.max_block_bytes`       | `100 MiB`        | `50 MiB`    |
 | `live_store.complete_block_timeout`| `1h`             | `30m`       |
-
-If you explicitly set these values in your configuration, no action is needed.
-
-### Live-store flush defaults updated
-
-The default value for the live-store flush check period has changed to limit the amount of data replayed from the WAL, which prevents long startup and shutdown times. [[PR 6650](https://github.com/grafana/tempo/pull/6650)]
-
-| Setting                         | Previous default | New default |
-| ------------------------------- | ---------------- | ----------- |
-| `live_store.flush_check_period` | `10s`            | `5s`        |
-
-The `max_block_duration` default was also changed from `30m` to `1m` in this PR, then further reduced to `30s` in [PR 6974](https://github.com/grafana/tempo/pull/6974) (see above).
 
 If you explicitly set these values in your configuration, no action is needed.
 
