@@ -14,6 +14,7 @@
 (import 'memberlist.libsonnet') +
 (import 'vertical-pod-autoscaler.libsonnet') +
 (import 'pod-disruption-budget.libsonnet') +
+(import 'autoscaling.libsonnet') +
 (import 'rollout-operator/rollout-operator.libsonnet') +
 
 {

@@ -45,6 +45,24 @@
         }
       },
       "version": "master"
+    },
+    {
+      "source": {
+        "git": {
+          "remote": "https://github.com/jsonnet-libs/keda-libsonnet.git",
+          "subdir": "2.15"
+        }
+      },
+      "version": "main"
+    },
+    {
+      "source": {
+        "git": {
+          "remote": "https://github.com/jsonnet-libs/vertical-pod-autoscaler-libsonnet.git",
+          "subdir": "1.0.0"
+        }
+      },
+      "version": "main"
     }
   ],
   "legacyImports": true
