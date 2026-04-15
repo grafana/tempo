@@ -243,7 +243,7 @@ func (e *Engine) ExecuteTagValues(
 				Op:        OpNone,
 			})
 		}
-		finalConditionGroups = append(finalGroupOne, finalGroupTwo...)
+		finalConditionGroups = append(append([][]Condition(nil), finalGroupOne...), finalGroupTwo...)
 	} else {
 		for i := range finalConditionGroups {
 			finalConditionGroups[i] = append(finalConditionGroups[i], Condition{
