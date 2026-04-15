@@ -187,6 +187,10 @@ func (e *Engine) ExecuteTagValues(
 	ctx, span := tracer.Start(ctx, "traceql.Engine.ExecuteTagValues")
 	defer span.End()
 
+	if maxConditionGroups <= 0 {
+		maxConditionGroups = DefaultMaxConditionGroupsPerTagQuery
+	}
+
 	if len(conditionGroups) == 0 {
 		return fetcher.Fetch(ctx, FetchTagValuesRequest{
 			ConditionGroups: nil,
