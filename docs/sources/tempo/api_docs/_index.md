@@ -638,7 +638,7 @@ Queries must use a single spanset selector `{}`. Both `&&` and `||` operators ar
 - Example supported: `{ resource.cluster = "us-east-1" || resource.service = "frontend" }`
 - Example unsupported: `{ resource.cluster = "us-east-1" } && { resource.cluster = "us-east-2" }`
 
-Unscoped attributes aren't supported for filtered tag values.
+Unscoped attributes are supported for filtered tag values. When you use an unscoped attribute name, Tempo looks for matches in both span and resource scopes.
 
 The following request returns all discovered service names on spans with `span.http.method=GET`:
 
