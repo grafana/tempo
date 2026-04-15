@@ -128,10 +128,6 @@ func New(cfg Config, next pipeline.RoundTripper, o overrides.Interface, reader t
 		NativeHistogramMinResetDuration: 1 * time.Hour,
 	}, []string{"op"})
 
-	// Propagate RF1After to search and traceByID sharders
-	cfg.Search.Sharder.RF1After = cfg.RF1After
-	cfg.TraceByID.RF1After = cfg.RF1After
-
 	adjustEndWareSeconds := pipeline.NewAdjustStartEndWare(cfg.Search.Sharder.QueryBackendAfter, cfg.QueryEndCutoff, false)
 	adjustEndWareNanos := pipeline.NewAdjustStartEndWare(cfg.Metrics.Sharder.QueryBackendAfter, cfg.QueryEndCutoff, true) // metrics queries work in nanoseconds
 	retryWare := pipeline.NewRetryWare(cfg.MaxRetries, cfg.Weights.RetryWithWeights, registerer)
@@ -380,7 +376,7 @@ func blockMetasForSearch(allBlocks []*backend.BlockMeta, start, end time.Time, f
 		// block start is before or equal to search end AND block end is after or equal to search start
 		if !m.StartTime.After(end) && // block start <= search end
 			!m.EndTime.Before(start) && // block end >= search start
-			filterFn(m) { // This check skips generator blocks (RF=1)
+			filterFn(m) {
 			blocks = append(blocks, m)
 		}
 	}

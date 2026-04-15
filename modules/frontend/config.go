@@ -41,7 +41,7 @@ type Config struct {
 	AllowedHeaders []string `yaml:"allowed_headers,omitempty"`
 
 	// RF1After specifies the time after which RF1 logic is applied.
-	RF1After time.Time `yaml:"rf1_after" category:"advanced"`
+	RF1After time.Time `yaml:"rf1_after,omitempty" category:"advanced"` // Deprecated: it's ignored
 
 	// QueryEndCutoff prevents querying incomplete recent data.
 	QueryEndCutoff time.Duration `yaml:"query_end_cutoff,omitempty"`
@@ -63,10 +63,6 @@ type TraceByIDConfig struct {
 	ConcurrentShards int       `yaml:"concurrent_shards,omitempty"`
 	SLO              SLOConfig `yaml:",inline"`
 	ExternalEnabled  bool      `yaml:"external_enabled,omitempty"`
-
-	// RF1After specifies the time after which RF1 logic is applied, injected by the configuration
-	// or determined at runtime based on search request parameters.
-	RF1After time.Time `yaml:"-"`
 }
 
 type MetricsConfig struct {

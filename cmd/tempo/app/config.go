@@ -239,6 +239,13 @@ func (c *Config) CheckConfig() []ConfigWarning {
 		warnings = append(warnings, warnPartitionAssigmentCollision)
 	}
 
+	if !c.Frontend.RF1After.IsZero() {
+		warnings = append(warnings, ConfigWarning{
+			Message: "query_frontend.rf1_after is deprecated and will be removed in a future release.",
+			Explain: "Non-metric query paths now query all blocks regardless of replication factor. This setting is ignored.",
+		})
+	}
+
 	return warnings
 }
 
