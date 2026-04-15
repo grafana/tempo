@@ -14,8 +14,9 @@ This procedure uses a Docker Compose example in the Tempo repository.
 
 To follow this procedure, you need:
 
-- A locally installed and running Tempo service (refer to [Deploy on Linux](/docs/tempo/<TEMPO_VERSION>/set-up-for-tracing/setup-tempo/deploy/locally/linux/))
+- A locally installed and running Tempo service with MinIO and Kafka (refer to [Deploy on Linux](/docs/tempo/<TEMPO_VERSION>/set-up-for-tracing/setup-tempo/deploy/locally/linux/))
 - Git, Docker, and the docker-compose plugin installed on the same machine
+- The host machine's IP address, which Docker containers use to reach the locally running Tempo service. You can find it using `ip addr show`.
 
 ## Verify your cluster is working
 
@@ -28,7 +29,7 @@ systemctl is-active tempo
 You should see the status `active` returned. If you don't, check that the configuration file is correct, and then restart the service.
 You can also use `journalctl -u tempo` to view the logs for Tempo to determine if there are any obvious reasons for failure to start.
 
-After traces start flowing, verify that your storage bucket has received data by signing in to your storage provider and checking for a file called `tempo_cluster_seed.json`.
+After traces start flowing, verify that your storage bucket has received data. Open the MinIO Console at `http://localhost:9001` and check the `tempo` bucket for a file called `tempo_cluster_seed.json`.
 
 ## Test your installation
 

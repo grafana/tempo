@@ -21,8 +21,8 @@ To follow this guide, you need:
 
 - A running Grafana instance (refer to [the installation instructions](/docs/grafana/<GRAFANA_VERSION>/setup-grafana/installation/))
 - A Kafka-compatible system (such as [Apache Kafka](https://kafka.apache.org/), [Redpanda](https://redpanda.com/), or [WarpStream](https://warpstream.com/)) reachable from the Linux host. Tempo 3.0 uses Kafka as the durable write-ahead log for all deployment modes.
-- An Amazon S3 compatible object store
-- Git, Docker, and docker-compose plugin installed to test Tempo
+- An S3-compatible object store, such as [MinIO](https://min.io/), and the [MinIO Client (`mc`)](https://min.io/docs/minio/linux/reference/minio-mc.html) to create buckets
+- Git, Docker, and the docker-compose plugin installed to [test your deployment](/docs/tempo/<TEMPO_VERSION>/set-up-for-tracing/setup-tempo/test/test-monolithic-local/)
 
 ### System requirements
 
@@ -45,14 +45,29 @@ It also uses object storage for storing various data related to the state of the
 Tempo supports using the local filesystem as the backend for trace storage as well.
 This isn't recommended for production deployments. This guide focuses on setup with an object storage.
 
-This example uses [Amazon S3](https://docs.aws.amazon.com/AmazonS3/latest/userguide/Welcome.html) on the AWS `us-east-1` region as your object store.
-If you plan on using a different region or object storage service, update the storage fields in the configuration file below. Currently, the supported object storage backends are [AWS S3](https://aws.amazon.com/), other S3-compliant object stores like [MinIO](https://min.io/),[Azure](https://azure.microsoft.com), and [Google Cloud Storage](https://cloud.google.com/).
+This example uses [MinIO](https://min.io/), an S3-compatible object store you can run locally.
+If you plan on using a different object storage service, update the storage fields in the configuration file below. The supported object storage backends are [AWS S3](https://aws.amazon.com/), S3-compliant object stores like MinIO, [Azure](https://azure.microsoft.com), and [Google Cloud Storage](https://cloud.google.com/).
 
-After you have provisioned an object storage backend, create the bucket `grafana-traces-data`.
-The configuration file in this guide references these buckets.
-You may need to alter the bucket name to be globally unique.
+To set up MinIO for this example:
 
-Consider adding a prefix for your organization to the bucket, for example, `myorg-grafana-traces-data`, and then replacing the names in the rest of these instructions with those bucket names.
+1. Install MinIO by following the [MinIO quickstart guide](https://min.io/docs/minio/linux/index.html).
+
+1. Create a data directory and start MinIO:
+
+   ```bash
+   sudo mkdir -p /data/minio
+   sudo chown -R $USER:$USER /data
+   minio server /data --console-address ':9001'
+   ```
+
+   By default, MinIO uses `minioadmin` for both the access key and secret key. MinIO runs in the foreground, so open a new terminal for the remaining steps.
+
+1. Create a bucket called `tempo` using the MinIO Client (`mc`):
+
+   ```bash
+   mc alias set local http://localhost:9000 minioadmin minioadmin
+   mc mb local/tempo
+   ```
 
 ## Install Tempo
 
@@ -75,7 +90,7 @@ You can verify the download against the `SHA256SUMS` file published on the [rele
 
 Copy the following YAML configuration to a file called `tempo.yaml`.
 
-Replace `<KAFKA_BROKER_ADDRESS>` and `<KAFKA_TOPIC>` with the address and topic name from your Kafka deployment. Paste in your S3 credentials. If you want to give your cluster a unique name, add a cluster property with the appropriate name.
+Replace `<KAFKA_BROKER_ADDRESS>` and `<KAFKA_TOPIC>` with the address and topic name from your Kafka deployment. If you want to give your cluster a unique name, add a cluster property with the appropriate name.
 
 Refer to the [Tempo configuration documentation](/docs/tempo/<TEMPO_VERSION>/configuration/) for explanations of the available options.
 
@@ -119,14 +134,11 @@ storage:
   trace:
     backend: s3
     s3:
-      endpoint: s3.us-east-1.amazonaws.com
-      bucket: grafana-traces-data
-      forcepathstyle: true
-      enable_dual_stack: false
-      # set to false if endpoint is https
+      endpoint: localhost:9000
+      bucket: tempo
+      access_key: minioadmin
+      secret_key: minioadmin
       insecure: true
-      access_key: # TODO - Add S3 access key
-      secret_key: # TODO - Add S3 secret key
     wal:
       path: /var/tempo/wal
 
@@ -170,7 +182,7 @@ systemctl is-active tempo
 You should see the status `active` returned. If you don't, check that the configuration file is correct, and then restart the service.
 You can also use `journalctl -u tempo` to view the logs for Tempo to determine if there are any obvious reasons for failure to start.
 
-After traces start flowing, verify that your storage bucket has received data by signing in to your storage provider and checking for a file called `tempo_cluster_seed.json`.
+After traces start flowing, verify that your storage bucket has received data. Open the MinIO Console at `http://localhost:9001` and check the `tempo` bucket for a file called `tempo_cluster_seed.json`.
 
 ## Next steps
 
