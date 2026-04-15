@@ -165,7 +165,7 @@ func main() {
 	}
 
 	logger.Info("Tempo Vulture starting", zap.String("tempoQueryURL", vultureConfig.tempoQueryURL), zap.String("tempoPushURL", pushEndpoint))
-	jaegerClient, err := utilpkg.NewJaegerToOTLPExporter(pushEndpoint)
+	jaegerClient, err := utilpkg.NewJaegerToOTLPExporterWithAuth(pushEndpoint, "", "", vultureConfig.tempoPushTLS)
 	httpClient := createHTTPClient(vultureConfig.tempoQueryURL, vultureConfig.tempoOrgID, vultureConfig.tempoQueryLiveStores)
 	if err != nil {
 		panic(err)
