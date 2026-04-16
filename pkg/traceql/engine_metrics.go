@@ -1163,7 +1163,17 @@ func (e *Engine) CompileMetricsQueryRange(req *tempopb.QueryRangeRequest, opts .
 		me.mtx.Lock()
 		defer me.mtx.Unlock()
 		ssBuf[0] = s
-		return eval(ssBuf)
+		result, err := eval(ssBuf)
+		if err != nil {
+			return nil, err
+		}
+		// Pipeline.evaluate can return the input slice directly (no-fork path).
+		// Since that slice is the shared ssBuf, we must copy before releasing
+		// the mutex so the caller doesn't race with the next call.
+		if len(result) > 0 && &result[0] == &ssBuf[0] {
+			return append(make([]*Spanset, 0, len(result)), result...), nil
+		}
+		return result, nil
 	}
 
 	optimize(storageReq)
