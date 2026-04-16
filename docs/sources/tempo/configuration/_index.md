@@ -439,7 +439,7 @@ live_store:
     [max_block_duration: <duration> | default = 30s]
 
     # Duration to keep blocks in the live-store after they have been completed.
-    [complete_block_timeout: <duration> | default = 30m]
+    [complete_block_timeout: <duration> | default = 20m]
 
     # Target consumer lag threshold before the live-store is considered ready to serve queries.
     # Set to 0 to disable readiness waiting.
@@ -862,7 +862,7 @@ query_frontend:
         # query_backend_after controls where the query-frontend searches for traces.
         # Time ranges older than query_backend_after will be searched in the backend/object storage only.
         # Time ranges between query_backend_after and now will be queried from the metrics-generators.
-        [query_backend_after: <duration> | default = 30m ]
+        [query_backend_after: <duration> | default = 15m ]
 
         # The target length of time for each job to handle when querying the backend.
         [interval: <duration> | default = 5m ]

@@ -11,7 +11,7 @@ import (
 	"github.com/grafana/tempo/tempodb/wal"
 )
 
-const defaultCompleteBlockTimeout = 30 * time.Minute
+const defaultCompleteBlockTimeout = 20 * time.Minute
 
 type Config struct {
 	Ring          ring.Config         `yaml:"ring,omitempty"`

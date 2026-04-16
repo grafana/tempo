@@ -341,7 +341,7 @@ query_frontend:
         concurrent_jobs: 1000
         target_bytes_per_job: 104857600
         max_duration: 24h0m0s
-        query_backend_after: 30m0s
+        query_backend_after: 15m0s
         interval: 5m0s
         max_exemplars: 100
         streaming_shards: 200
@@ -1032,7 +1032,7 @@ live_store:
         path: /var/tempo/live-store/traces
         ingestion_time_range_slack: 2m0s
     query_block_concurrency: 10
-    complete_block_timeout: 30m0s
+    complete_block_timeout: 20m0s
     complete_block_concurrency: 2
     shutdown_marker_dir: /var/tempo/live-store/shutdown-marker
     flush_check_period: 5s
