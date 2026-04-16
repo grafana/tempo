@@ -76,7 +76,7 @@ minio + metrics + load + kafka + tempo {
         },
       },
     },
-    
+
     ingest+: {
       kafka+: {
         address: 'kafka:9092',
