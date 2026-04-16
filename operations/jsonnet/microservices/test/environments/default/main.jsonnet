@@ -17,6 +17,7 @@ tempo {
           },
         },
       },
+      keda+: { enabled: true },
     },
     metrics_generator+: {
       pvc_size: '5Gi',
@@ -46,10 +47,6 @@ tempo {
 
     overrides_configmap_name: 'tempo-overrides',
     overrides+:: {},
-
-    autoscaling+: {
-      distributor+: { enabled: true },
-    },
   },
 
   // manually overriding to get tempo to talk to minio
