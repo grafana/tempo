@@ -1,6 +1,6 @@
 // KEDA-based horizontal pod autoscaling for Tempo microservices.
 // Requires KEDA operator and CRDs installed in the cluster.
-// All scalers are disabled by default; enable via _config.autoscaling.<component>.enabled.
+// All scalers are disabled by default; enable via _config.<component>.keda.enabled.
 {
   local keda = (import 'github.com/jsonnet-libs/keda-libsonnet/2.15/main.libsonnet').keda.v1alpha1,
   local scaledObject = keda.scaledObject,
@@ -8,12 +8,8 @@
   local scaleDownBehavior = scaledObject.spec.advanced.horizontalPodAutoscalerConfig.behavior.scaleDown,
 
   _config+:: {
-    autoscaling: {
-      // Prometheus server address for Prometheus-based autoscaling triggers.
-      // Required when enabling backend_worker autoscaling.
-      prometheus_address: '',
-
-      distributor: {
+    distributor+: {
+      keda: {
         enabled: false,
         min_replicas: 2,
         max_replicas: 200,
@@ -31,8 +27,10 @@
         scale_down_pods: 0,
         scale_down_period_seconds: 60 * 5,
       },
+    },
 
-      metrics_generator: {
+    metrics_generator+: {
+      keda: {
         enabled: false,
         min_replicas: 1,
         max_replicas: 200,
@@ -45,12 +43,16 @@
         scale_down_pods: 1,
         scale_down_period_seconds: 60 * 5,
       },
+    },
 
-      backend_worker: {
+    backend_worker+: {
+      keda: {
         enabled: false,
         min_replicas: 3,
         max_replicas: 200,
         paused_replicas: 0,
+        // Prometheus server address for the autoscaling trigger.
+        prometheus_address: '',
         // Average outstanding blocks per pod threshold.
         threshold: 200,
         // Prometheus query returning the average outstanding blocks per backend-worker.
@@ -68,10 +70,12 @@
         scale_down_pods: 5,
         scale_down_period_seconds: 60 * 15,
       },
+    },
 
-      // Block builder scales to match live-store zone-a pods via KEDA kubernetes-workload scaler.
-      // See: https://github.com/grafana/tempo/issues/6933
-      block_builder: {
+    // Block builder scales to match live-store zone-a pods via KEDA kubernetes-workload scaler.
+    // See: https://github.com/grafana/tempo/issues/6933
+    block_builder+: {
+      keda: {
         enabled: false,
         min_replicas: 1,
         max_replicas: 200,
@@ -93,12 +97,16 @@
     // Override block_builder_max_unavailable when block_builder autoscaling is enabled
     // since the replica count is dynamic.
     block_builder_max_unavailable:
-      if $._config.autoscaling.block_builder.enabled then '100%'
+      if $._config.block_builder.keda.enabled then '100%'
       else $.tempo_block_builder_statefulset.spec.replicas,
   },
 
   // Create a KEDA ScaledObject for a target controller with configurable scaling behavior.
-  scaledObjectForController(target, config)::
+  scaledObjectForController(target, configKey)::
+    assert std.objectHas($._config, configKey) : '$._config must have key ' + configKey;
+    assert std.objectHas($._config[configKey], 'keda') : '$._config.%s must have key "keda"' % configKey;
+
+    local config = $._config[configKey].keda;
     assert config.min_replicas >= 0 : 'min_replicas must be >= 0';
     assert config.min_replicas <= config.max_replicas : 'min_replicas must be <= max_replicas';
 
@@ -145,76 +153,76 @@
   // Distributor: CPU-based autoscaling.
   //
   tempo_distributor_scaled_object:
-    if $._config.autoscaling.distributor.enabled then
-      $.scaledObjectForController($.tempo_distributor_deployment, $._config.autoscaling.distributor)
+    if $._config.distributor.keda.enabled then
+      $.scaledObjectForController($.tempo_distributor_deployment, 'distributor')
       + scaledObject.spec.withTriggersMixin([{
         type: 'cpu',
         metricType: 'AverageValue',
         metadata: {
-          value: $._config.autoscaling.distributor.target_cpu,
+          value: $._config.distributor.keda.target_cpu,
         },
       }])
       + scaledObject.spec.withInitialCooldownPeriod(90)
     else {},
 
   tempo_distributor_deployment+:
-    if $._config.autoscaling.distributor.enabled then $.removeReplicasFromSpec else {},
+    if $._config.distributor.keda.enabled then $.removeReplicasFromSpec else {},
 
   //
   // Metrics Generator: CPU-based autoscaling.
   //
   tempo_metrics_generator_scaled_object:
-    if $._config.autoscaling.metrics_generator.enabled then
-      $.scaledObjectForController($.tempo_metrics_generator_statefulset, $._config.autoscaling.metrics_generator)
+    if $._config.metrics_generator.keda.enabled then
+      $.scaledObjectForController($.tempo_metrics_generator_statefulset, 'metrics_generator')
       + scaledObject.spec.withTriggersMixin([{
         type: 'cpu',
         metricType: 'AverageValue',
         metadata: {
-          value: $._config.autoscaling.metrics_generator.target_cpu,
+          value: $._config.metrics_generator.keda.target_cpu,
         },
       }])
     else {},
 
   tempo_metrics_generator_statefulset+:
-    if $._config.autoscaling.metrics_generator.enabled then $.removeReplicasFromSpec else {},
+    if $._config.metrics_generator.keda.enabled then $.removeReplicasFromSpec else {},
 
   //
   // Backend Worker: Prometheus-based autoscaling on outstanding blocks.
   //
   tempo_backend_worker_scaled_object:
-    if $._config.autoscaling.backend_worker.enabled then
-      assert $._config.autoscaling.prometheus_address != '' : 'autoscaling.prometheus_address is required for backend_worker autoscaling';
-      $.scaledObjectForController($.tempo_backend_worker_statefulset, $._config.autoscaling.backend_worker)
+    if $._config.backend_worker.keda.enabled then
+      assert $._config.backend_worker.keda.prometheus_address != '' : 'backend_worker.keda.prometheus_address is required for backend_worker autoscaling';
+      $.scaledObjectForController($.tempo_backend_worker_statefulset, 'backend_worker')
       + scaledObject.spec.withTriggersMixin([{
         type: 'prometheus',
         metadata: {
-          serverAddress: $._config.autoscaling.prometheus_address,
+          serverAddress: $._config.backend_worker.keda.prometheus_address,
           metricName: 'tempodb_compaction_outstanding_blocks',
-          query: $._config.autoscaling.backend_worker.query,
-          threshold: '%d' % $._config.autoscaling.backend_worker.threshold,
+          query: $._config.backend_worker.keda.query,
+          threshold: '%d' % $._config.backend_worker.keda.threshold,
         },
       }])
     else {},
 
   tempo_backend_worker_statefulset+:
-    if $._config.autoscaling.backend_worker.enabled then $.removeReplicasFromSpec else {},
+    if $._config.backend_worker.keda.enabled then $.removeReplicasFromSpec else {},
 
   //
   // Block Builder: KEDA kubernetes-workload scaler matching live-store zone-a pod count.
   //
   tempo_block_builder_scaled_object:
-    if $._config.autoscaling.block_builder.enabled then
-      assert $._config.autoscaling.block_builder.partitions_per_instance > 0 : 'autoscaling.block_builder.partitions_per_instance must be > 0';
-      $.scaledObjectForController($.tempo_block_builder_statefulset, $._config.autoscaling.block_builder)
+    if $._config.block_builder.keda.enabled then
+      assert $._config.block_builder.keda.partitions_per_instance > 0 : 'block_builder.keda.partitions_per_instance must be > 0';
+      $.scaledObjectForController($.tempo_block_builder_statefulset, 'block_builder')
       + scaledObject.spec.withTriggersMixin([{
         type: 'kubernetes-workload',
         metadata: {
-          podSelector: $._config.autoscaling.block_builder.pod_selector,
-          value: '%d' % $._config.autoscaling.block_builder.partitions_per_instance,
+          podSelector: $._config.block_builder.keda.pod_selector,
+          value: '%d' % $._config.block_builder.keda.partitions_per_instance,
         },
       }])
     else {},
 
   tempo_block_builder_statefulset+:
-    if $._config.autoscaling.block_builder.enabled then $.removeReplicasFromSpec else {},
+    if $._config.block_builder.keda.enabled then $.removeReplicasFromSpec else {},
 }
