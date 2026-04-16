@@ -7,18 +7,36 @@ weight: 600
 
 # Improve performance with caching
 
-Caching is mainly used to improve query performance by storing bloom filters of all backend blocks which are accessed on every query.
-
 Tempo uses an external cache to improve query performance.
-Tempo supports [Memcached](https://memcached.org/) and [Redis](https://redis.io/).
+Tempo supports [Memcached](https://memcached.org/) and [Redis](https://redis.io/) (experimental).
 
-For information about search performance, refer to [Tune search performance](https://grafana.com/docs/tempo/latest/operations/backend_search/).
+## Cache roles
+
+Tempo caches different types of data, each assigned a **role**.
+You configure one or more cache instances under the top-level `cache:` block and assign roles to each instance.
+This lets you size and tune each cache independently based on the workload it handles.
+
+| Role | What it caches | Volume |
+|---|---|---|
+| `bloom` | Bloom filters used for trace ID lookup. | Moderate |
+| `trace-id-index` | Trace ID index used to locate traces within blocks. | Moderate |
+| `parquet-footer` | Parquet file footer metadata. Useful for both search and trace-by-ID queries. | Low |
+| `parquet-column-idx` | Parquet column index sections. | Low |
+| `parquet-offset-idx` | Parquet offset index sections. | Low |
+| `parquet-page` | Parquet data pages. Caches most Parquet reads. | **High** |
+| `frontend-search` | Query-frontend search job results. | Varies |
+
+You can assign multiple roles to a single cache instance, or split high-volume roles (like `parquet-page`) onto a dedicated instance.
+For example, you might use a large Memcached pool for `parquet-page` and a smaller one for `bloom` and `parquet-footer`.
+
+For configuration parameters and an example, refer to the [Cache](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/#cache) section of the Tempo configuration reference.
+
+For information about search performance, refer to [Tune search performance](https://grafana.com/docs/tempo/<TEMPO_VERSION>/operations/backend_search/).
 
 ## Memcached
 
-Memcached is one of the cache implementations supported by Tempo.
-It's used by default in the Tanka and Helm examples.
-Refer to [Deploying Tempo](../../set-up-for-tracing/setup-tempo/deploy/).
+Memcached is used by default in the Tanka and Helm examples.
+Refer to [Deploy Tempo](https://grafana.com/docs/tempo/<TEMPO_VERSION>/set-up-for-tracing/setup-tempo/deploy/).
 
 ### Connection limit
 

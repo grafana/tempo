@@ -9,7 +9,7 @@ weight:
 
 Grafana Tempo does not come with any included authentication layer. You must run an authenticating reverse proxy in front of your services.
 
-We recommend that in all [deployment modes](https://grafana.com/docs/tempo/<TEMPO_VERSION>/setup/deployment/) you add a reverse proxy to be deployed in front of Tempo, to direct client API requests to the various components.
+We recommend that in all [deployment modes](https://grafana.com/docs/tempo/<TEMPO_VERSION>/setup/deployment/) you add a reverse proxy in front of Tempo to direct client API requests to the various components.
 
 A list of open-source reverse proxies you can use:
 

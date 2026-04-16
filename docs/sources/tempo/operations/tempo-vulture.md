@@ -61,7 +61,7 @@ Configure Tempo Vulture using command-line flags.
 | `--tempo-long-write-backoff-duration`    | `1m`       | Time to pause between long write operations                                       |
 | `--tempo-read-backoff-duration`          | `30s`      | Time to pause between read operations                                             |
 | `--tempo-search-backoff-duration`        | `1m`       | Time to pause between search operations. Set to `0s` to disable search validation |
-| `--tempo-metrics-backoff-duration`       | `0s`       | Time to pause between TraceQL metrics operations. Set to `0s` to disable          |
+| `--tempo-metrics-backoff-duration`       | `10s`      | Time to pause between TraceQL metrics operations. Set to `0s` to disable          |
 | `--tempo-retention-duration`             | `336h`     | The block retention that Tempo is using                                           |
 | `--tempo-recent-traces-backoff-duration` | `14m`      | Cutoff between recent and old traces query checks                                 |
 | `--tempo-query-livestore`                | `false`    | Whether to query live stores                                                      |

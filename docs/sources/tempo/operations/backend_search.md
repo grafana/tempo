@@ -20,9 +20,9 @@ The general advice is to scale your workers and queriers. Additional queriers ca
 while additional workers more aggressively reduce the length of your blocklist and copies of data (if using `RF=3`).
 
 {{< admonition type="note" >}}
-All forms of search (TraceQL and tags based) are only supported on the `vParquet` and forward blocks. The v2 block format has been removed in Tempo 3.0.
+All forms of search (TraceQL and tags based) require `vParquet` block formats. The v2 block format has been removed in Tempo 3.0.
 
-Tempo 2.3 and higher support [Dedicated attribute columns](../dedicated_columns/), another great method to improve search performance.
+[Dedicated attribute columns](../dedicated_columns/) are another effective method to improve search performance.
 {{< /admonition>}}
 
 ## Before you begin

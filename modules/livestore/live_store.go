@@ -152,6 +152,9 @@ type LiveStore struct {
 	lagCancel           context.CancelFunc
 	readyErr            atomic.Pointer[error] // nil when ready to serve queries
 	lastRecordTimeNanos atomic.Int64          // stores timestamp of last consumed record as UnixNano, -1 means not set
+
+	cutToWalStop chan struct{}  // closed to stop perTenantCutToWalLoop goroutines before shutdown flush
+	cutToWalWg   sync.WaitGroup // tracks active perTenantCutToWalLoop goroutines
 }
 
 func New(cfg Config, overridesService overrides.Interface, completeBlockFlusher completeBlockFlusher, logger log.Logger, reg prometheus.Registerer) (*LiveStore, error) {
@@ -180,6 +183,7 @@ func New(cfg Config, overridesService overrides.Interface, completeBlockFlusher 
 		completeBlockLifecycle: completeBlockLifecycle,
 		completeQueues:         flushqueues.New[*completeOp](metricCompleteQueueLength),
 		startupComplete:        make(chan struct{}),
+		cutToWalStop:           make(chan struct{}),
 	}
 
 	// Initialize ready state to starting
@@ -451,6 +455,10 @@ func (s *LiveStore) stopping(error) error {
 		stopErr = errors.Join(stopErr, err)
 	}
 
+	level.Info(s.logger).Log("msg", "stopping periodic WAL flush goroutines")
+	s.stopAllCutToWalLoops()
+	level.Info(s.logger).Log("msg", "periodic WAL flush goroutines stopped")
+
 	// Flush all data to disk.
 	level.Info(s.logger).Log("msg", "cutting all instances to WAL")
 	s.cutAllInstancesToWal()
@@ -690,9 +698,7 @@ func (s *LiveStore) getOrCreateInstance(tenantID string) (*instance, error) {
 
 	s.instances[tenantID] = inst
 
-	s.runInBackground(func() {
-		s.perTenantCutToWalLoop(inst)
-	})
+	s.startPerTenantCutToWalLoop(inst)
 	s.runInBackground(func() {
 		s.perTenantCleanupLoop(inst)
 	})
