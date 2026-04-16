@@ -14,7 +14,12 @@ This procedure uses a Docker Compose example in the Tempo repository.
 
 To follow this procedure, you need:
 
-- A locally installed and running Tempo service with MinIO and Kafka (refer to [Deploy on Linux](/docs/tempo/<TEMPO_VERSION>/set-up-for-tracing/setup-tempo/deploy/locally/linux/))
+- A locally installed and running Tempo service with an S3-compatible object store such as MinIO (refer to [Deploy on Linux](/docs/tempo/<TEMPO_VERSION>/set-up-for-tracing/setup-tempo/deploy/locally/linux/))
+
+  {{< admonition type="note" >}}
+  MinIO has been deprecated. These examples still use MinIO, but a replacement S3-compatible object store is under evaluation. This page will be updated when an alternative is selected.
+  {{< /admonition >}}
+
 - Git, Docker, and the docker-compose plugin installed on the same machine
 - The host machine's IP address, which Docker containers use to reach the locally running Tempo service. You can find it using `ip addr show`.
 
@@ -29,7 +34,7 @@ systemctl is-active tempo
 You should see the status `active` returned. If you don't, check that the configuration file is correct, and then restart the service.
 You can also use `journalctl -u tempo` to view the logs for Tempo to determine if there are any obvious reasons for failure to start.
 
-After traces start flowing, verify that your storage bucket has received data. Open the MinIO Console at `http://localhost:9001` and check the `tempo` bucket for a file called `tempo_cluster_seed.json`.
+After traces start flowing, verify that your storage bucket has received data. Open the MinIO Console at `http://localhost:9001` and check the `tempo` bucket for files such as `work.json` and a tenant data directory.
 
 ## Test your installation
 
@@ -38,7 +43,7 @@ This procedure runs a trace generator, Grafana, and Prometheus alongside your lo
 
 ### Network configuration
 
-Docker Compose uses an internal networking bridge to connect all defined services. Because the Tempo instance is running as a service on the local machine host, you need the resolvable IP address of the local machine so the Docker containers can reach the Tempo service. 
+Docker Compose uses an internal networking bridge to connect all defined services. Because the Tempo instance is running as a service on the local machine host, you need the resolvable IP address of the local machine so the Docker containers can reach the Tempo service.
 
 You can find the host IP address of your Linux machine using a command such as `ip addr show`.
 
@@ -108,11 +113,12 @@ You can find the host IP address of your Linux machine using a command such as `
 1. Alter the Tempo configuration to point to the instance of Prometheus running in Docker Compose. Edit the configuration at `/etc/tempo/config.yml` and change the `url` in the `remote_write` block under the `metrics_generator` section to `http://localhost:9090/api/v1/write`. The configuration section should look like this:
 
    ```yaml
-   storage:
-     path: /tmp/tempo/generator/wal
-     remote_write:
-       - url: http://localhost:9090/api/v1/write
-         send_exemplars: true
+   metrics_generator:
+     storage:
+       path: /tmp/tempo/generator/wal
+       remote_write:
+         - url: http://localhost:9090/api/v1/write
+           send_exemplars: true
    ```
 
    Save the file and exit the editor.

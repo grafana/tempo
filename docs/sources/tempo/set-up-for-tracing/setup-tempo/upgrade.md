@@ -33,7 +33,7 @@ Tempo 3.0 is a major architectural change. For a step-by-step migration procedur
 
 When upgrading to Tempo 3.0, be aware of these breaking changes:
 
-- **Kafka required**: A Kafka-compatible system is now required for all deployment modes. Distributors write to Kafka instead of directly to ingesters.
+- **Kafka required for distributed mode**: A Kafka-compatible system is required for distributed deployment modes. In single-binary mode, Tempo ingests traces in-process without Kafka.
 - **Scalable monolithic mode (SSB) removed**: The `scalable-single-binary` target is no longer available.
 - **New components**: Block-builders and live-stores replace ingesters. The compactor target has been removed.
 - **Configuration changes**: Remove `ingester` configuration blocks and add `ingest` (Kafka) configuration. Update `ingester_client` references to `live_store_client`.
@@ -96,7 +96,7 @@ If your deployment scripts, Helm values, or Tanka/Jsonnet configurations pass `-
 
 The metrics-generator gRPC endpoint and push path have been removed. In Tempo 3.0, the metrics-generator consumes directly from Kafka rather than receiving spans through gRPC from the distributor. [[PR 6618](https://github.com/grafana/tempo/pull/6618)]
 
-If your configuration includes a top-level `metrics_generator_client` block, you can safely remove it. Tempo 3.0 ignores this block, and it is deprecated and is removed in a future release.
+If your configuration includes a top-level `metrics_generator_client` block, you can safely remove it. Tempo 3.0 ignores this block, and it is deprecated and will be removed in a future release.
 
 ### Block configuration centralized to `storage.trace.block`
 

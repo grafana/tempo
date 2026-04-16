@@ -13,29 +13,44 @@ This guide provides a step-by-step process for installing Grafana Tempo on Linux
 It assumes you have access to a Linux system and the permissions required to deploy a service with network and file system access.
 At the end of this guide, you have a single Tempo instance deployed on a single node.
 
-These instructions focus on a [monolithic installation](/docs/tempo/<TEMPO_VERSION>/reference-tempo-architecture/deployment-modes/). You can also run Tempo in distributed mode by deploying multiple binaries and using a distributed configuration.
+These instructions focus on a [monolithic (single-binary) installation](/docs/tempo/<TEMPO_VERSION>/reference-tempo-architecture/deployment-modes/).
+In single-binary mode, Tempo runs all components in one process and doesn't require Kafka.
+Traces are ingested directly in-process and flushed to object storage.
 
 ## Before you begin
 
 To follow this guide, you need:
 
 - A running Grafana instance (refer to [the installation instructions](/docs/grafana/<GRAFANA_VERSION>/setup-grafana/installation/))
-- A Kafka-compatible system (such as [Apache Kafka](https://kafka.apache.org/), [Redpanda](https://redpanda.com/), or [WarpStream](https://warpstream.com/)) reachable from the Linux host. Tempo 3.0 uses Kafka as the durable write-ahead log for all deployment modes.
 - An S3-compatible object store, such as [MinIO](https://min.io/), and the [MinIO Client (`mc`)](https://min.io/docs/minio/linux/reference/minio-mc.html) to create buckets
+
+  {{< admonition type="note" >}}
+  MinIO has been deprecated. These examples still use MinIO, but a replacement S3-compatible object store is under evaluation. This page will be updated when an alternative is selected.
+  {{< /admonition >}}
+
 - Git, Docker, and the docker-compose plugin installed to [test your deployment](/docs/tempo/<TEMPO_VERSION>/set-up-for-tracing/setup-tempo/test/test-monolithic-local/)
 
 ### System requirements
 
-This configuration is an example you can use as a starting point.
-You may need to have more resources for your system than the minimum specifications listed below.
-Additional adjustments are necessary for a production environment.
+These values are a starting point for a monolithic Tempo deployment on a single node.
+They are not hard minimums for every environment, and they are not production sizing recommendations.
 
-You must have the permissions required to deploy a service with a network and file system access.
-
-Your Linux system should have at least:
+For the Tempo host itself, start with:
 
 - 4 CPUs
-- 16 GB of memory
+- 4–8 GB of memory
+
+Use 16 GB of memory or more if any of the following apply:
+
+- You run additional local components on the same machine, such as Grafana, MinIO, or Prometheus
+- You enable metrics-generator
+- You test moderate or high ingest rates
+- You increase live-trace buffering or run heavier query workloads
+- You want extra headroom for benchmarking or troubleshooting
+
+Production sizing depends on your workload and infrastructure, including ingest rate, tenant count, query concurrency, retention, metrics-generator settings, and object store performance.
+
+Validate sizing with your own load before using it in production.
 
 ## Set up an object storage bucket
 
@@ -90,8 +105,6 @@ You can verify the download against the `SHA256SUMS` file published on the [rele
 
 Copy the following YAML configuration to a file called `tempo.yaml`.
 
-Replace `<KAFKA_BROKER_ADDRESS>` and `<KAFKA_TOPIC>` with the address and topic name from your Kafka deployment. If you want to give your cluster a unique name, add a cluster property with the appropriate name.
-
 Refer to the [Tempo configuration documentation](/docs/tempo/<TEMPO_VERSION>/configuration/) for explanations of the available options.
 
 In the following configuration, Tempo is configured to listen on the OTLP gRPC and HTTP protocols.
@@ -99,6 +112,8 @@ By default, the OpenTelemetry Collector receiver binds to `localhost` instead of
 This example binds to all interfaces. This can be a security risk if your Tempo instance is exposed to the public internet.
 
 ```yaml
+stream_over_http_enabled: true
+
 server:
   http_listen_port: 3200
 
@@ -111,13 +126,19 @@ distributor:
         http:
           endpoint: "0.0.0.0:4318"
 
-ingest:
-  kafka:
-    address: <KAFKA_BROKER_ADDRESS>     # for example, localhost:9092
-    topic: <KAFKA_TOPIC>
+backend_scheduler:
+  provider:
+    compaction:
+      compaction:
+        block_retention: 1h
 
-block_builder:
-  consume_cycle_duration: 30s
+backend_worker:
+  backend_scheduler_addr: localhost:3200
+  compaction:
+    block_retention: 1h
+
+querier:
+  query_live_store: true
 
 metrics_generator:
   registry:
@@ -127,7 +148,7 @@ metrics_generator:
   storage:
     path: /tmp/tempo/generator/wal
     remote_write:
-      - url: http://prometheus:9090/api/v1/write
+      - url: http://<PROMETHEUS_URL>/api/v1/write
         send_exemplars: true
 
 storage:
@@ -146,11 +167,14 @@ overrides:
   defaults:
     metrics_generator:
       processors: [service-graphs, span-metrics]
+
+usage_report:
+  reporting_enabled: false
 ```
 
 {{< admonition type="note" >}}
-In the configuration shown above, the metrics-generator is enabled to generate Prometheus metrics data from incoming trace spans. This data is sent to a Prometheus remote-write compatible metrics store at `http://prometheus:9090/api/v1/write` in the `metrics_generator` configuration block.
-Make sure you change the relevant `url` parameter to your own Prometheus-compatible storage instance. To disable the metrics-generator, remove the `processors` list from the overrides and the `metrics_generator` block.
+The metrics-generator is enabled in this configuration to generate Prometheus metrics data from incoming trace spans. Replace `<PROMETHEUS_URL>` with the address of your Prometheus-compatible storage instance (for example, `localhost:9090`).
+To disable the metrics-generator, remove the `processors` list from the overrides and the `metrics_generator` block.
 {{< /admonition >}}
 
 ## Move the configuration file to the proper directory
@@ -158,7 +182,7 @@ Make sure you change the relevant `url` parameter to your own Prometheus-compati
 Copy the `tempo.yaml` to `/etc/tempo/config.yml`:
 
 ```bash
-cp tempo.yaml /etc/tempo/config.yml
+sudo cp tempo.yaml /etc/tempo/config.yml
 ```
 
 ## Restart the Tempo service
@@ -166,7 +190,7 @@ cp tempo.yaml /etc/tempo/config.yml
 Use `systemctl` to restart the service (depending on how you installed Tempo, this may be different):
 
 ```bash
-systemctl restart tempo.service
+sudo systemctl restart tempo.service
 ```
 
 You can replace `restart` with `stop` to stop the service, and `start` to start the service again after it's stopped, if required.
@@ -182,7 +206,7 @@ systemctl is-active tempo
 You should see the status `active` returned. If you don't, check that the configuration file is correct, and then restart the service.
 You can also use `journalctl -u tempo` to view the logs for Tempo to determine if there are any obvious reasons for failure to start.
 
-After traces start flowing, verify that your storage bucket has received data. Open the MinIO Console at `http://localhost:9001` and check the `tempo` bucket for a file called `tempo_cluster_seed.json`.
+After traces start flowing, verify that your storage bucket has received data. Open the MinIO Console at `http://localhost:9001` and check the `tempo` bucket for files such as `work.json` and a tenant data directory.
 
 ## Next steps
 
