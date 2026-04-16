@@ -3,11 +3,18 @@
   local configMap = k.core.v1.configMap,
 
   tempo_config:: {
+    partition_ring_live_store: true,
     server: {
       http_listen_port: $._config.tempo.port,
     },
     distributor: {
       receivers: $._config.receivers,
+    },
+    querier: {
+      query_live_store: true,
+      frontend_worker: {
+        frontend_address: 'tempo:9095',
+      },
     },
     memberlist: {
       abort_if_cluster_join_fails: false,
@@ -25,11 +32,6 @@
         'local': {
           path: '/var/tempo/traces',
         },
-      },
-    },
-    querier: {
-      frontend_worker: {
-        frontend_address: 'tempo:9095',
       },
     },
   },

@@ -18,7 +18,6 @@ minio + metrics + load + kafka + tempo {
     cluster: 'k3d',
     namespace: 'default',
     block_builder_concurrent_rollout_enabled: true,
-    compactor+: {},
     querier+: {},
     live_store+: {
       replicas: 2,
@@ -78,7 +77,6 @@ minio + metrics + load + kafka + tempo {
     },
     partition_ring_live_store: true,
     ingest+: {
-      enabled: true,
       kafka+: {
         address: 'kafka:9092',
         topic: 'tempo-ingest',
@@ -104,9 +102,6 @@ minio + metrics + load + kafka + tempo {
 
   local container = k.core.v1.container,
   local containerPort = k.core.v1.containerPort,
-  tempo_compactor_container+::
-    k.util.resourcesRequests('500m', '500Mi'),
-
   tempo_distributor_container+::
     k.util.resourcesRequests('500m', '500Mi') +
     container.withPortsMixin([

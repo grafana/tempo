@@ -84,6 +84,16 @@
     {
       "source": {
         "git": {
+          "remote": "https://github.com/grafana/rollout-operator.git",
+          "subdir": "operations/rollout-operator"
+        }
+      },
+      "version": "ee4822b061cb7497b7e8a716161dfa0e3230c0ca",
+      "sum": "rBfx/ffgMo6MBNt8+CqJToKEUCdANJU9xMb2KGXEjW4="
+    },
+    {
+      "source": {
+        "git": {
           "remote": "https://github.com/jsonnet-libs/docsonnet.git",
           "subdir": "doc-util"
         }
@@ -100,6 +110,16 @@
       },
       "version": "55380470fb7979e6ce0c4316cb9c27a266caf298",
       "sum": "L70C3SiMFOsNCuIGOxRKAzd6wUBuabAoEGrgvCyeCBc="
+    },
+    {
+      "source": {
+        "git": {
+          "remote": "https://github.com/jsonnet-libs/vertical-pod-autoscaler-libsonnet.git",
+          "subdir": "1.0.0"
+        }
+      },
+      "version": "5d16cd466d12489e6ffba5b17813a0203016e68d",
+      "sum": "ksOv5A0fQkz4fRz4KMCHloLUiD7BPwGKvUn2sHIAB7s="
     }
   ],
   "legacyImports": false
