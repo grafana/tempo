@@ -36,8 +36,7 @@ import (
 )
 
 const (
-	testTenantID  = "fake"
-	testTenantID2 = "fake2"
+	testTenantID = "fake"
 )
 
 type testConfigOption func(*Config)
@@ -75,17 +74,10 @@ func testConfig(t *testing.T, blocklistPoll time.Duration, opts ...testConfigOpt
 }
 
 func TestDB(t *testing.T) {
-	r, w, c, _ := testConfig(t, 0)
+	r, w, _, _ := testConfig(t, 0)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-
-	err := c.EnableCompaction(ctx, &CompactorConfig{
-		MaxCompactionRange:      time.Hour,
-		BlockRetention:          0,
-		CompactedBlockRetention: 0,
-	}, &mockSharder{}, &mockOverrides{})
-	require.NoError(t, err)
 
 	r.EnablePolling(ctx, &mockJobSharder{}, false)
 
@@ -123,15 +115,6 @@ func TestDB(t *testing.T) {
 		assert.True(t, proto.Equal(bFound[0].Trace, reqs[i]))
 		require.Greater(t, bFound[0].Metrics.InspectedBytes, uint64(100000))
 	}
-}
-
-func TestNoCompactionWhenCompactionRange0(t *testing.T) {
-	_, _, c, _ := testConfig(t, 0)
-
-	err := c.EnableCompaction(context.Background(), &CompactorConfig{
-		MaxCompactionRange: 0,
-	}, &mockSharder{}, &mockOverrides{})
-	require.Error(t, err)
 }
 
 func TestBlockSharding(t *testing.T) {
@@ -199,14 +182,7 @@ func TestNilOnUnknownTenantID(t *testing.T) {
 }
 
 func TestBlockCleanup(t *testing.T) {
-	r, w, c, tempDir := testConfig(t, 0)
-
-	err := c.EnableCompaction(context.Background(), &CompactorConfig{
-		MaxCompactionRange:      time.Hour,
-		BlockRetention:          0,
-		CompactedBlockRetention: 0,
-	}, &mockSharder{}, &mockOverrides{})
-	require.NoError(t, err)
+	r, w, _, tempDir := testConfig(t, 0)
 
 	r.EnablePolling(context.Background(), &mockJobSharder{}, false)
 
@@ -492,13 +468,6 @@ func TestSearchCompactedBlocks(t *testing.T) {
 	t.Parallel()
 	r, w, c, _ := testConfig(t, time.Hour)
 
-	err := c.EnableCompaction(context.Background(), &CompactorConfig{
-		MaxCompactionRange:      time.Hour,
-		BlockRetention:          0,
-		CompactedBlockRetention: 0,
-	}, &mockSharder{}, &mockOverrides{})
-	require.NoError(t, err)
-
 	r.EnablePolling(context.Background(), &mockJobSharder{}, false)
 
 	wal := w.WAL()
@@ -544,7 +513,12 @@ func TestSearchCompactedBlocks(t *testing.T) {
 	// compact
 	var blockMetas []*backend.BlockMeta
 	blockMetas = append(blockMetas, complete.BlockMeta())
-	require.NoError(t, rw.compactOneJob(ctx, blockMetas, testTenantID))
+	_, err = c.CompactWithConfig(ctx, blockMetas, testTenantID, &CompactorConfig{
+		MaxCompactionRange:      time.Hour,
+		BlockRetention:          0,
+		CompactedBlockRetention: 0,
+	}, &mockSharder{}, &mockOverrides{})
+	require.NoError(t, err)
 
 	// poll
 	rw.pollBlocklist(ctx)
@@ -885,19 +859,12 @@ func TestNoCompactFlag(t *testing.T) {
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			r, w, c, _ := testConfig(t, 0, func(c *Config) {
+			r, w, _, _ := testConfig(t, 0, func(c *Config) {
 				c.Block.CreateWithNoCompactFlag = tc.createWithNoCompactFlag
 			})
 
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
-
-			err := c.EnableCompaction(ctx, &CompactorConfig{
-				MaxCompactionRange:      time.Hour,
-				BlockRetention:          0,
-				CompactedBlockRetention: 0,
-			}, &mockSharder{}, &mockOverrides{})
-			require.NoError(t, err)
 
 			r.EnablePolling(ctx, &mockJobSharder{}, tc.skipNoCompactBlocks)
 

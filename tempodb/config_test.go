@@ -175,14 +175,3 @@ func TestDeprecatedVersions(t *testing.T) {
 		}
 	}
 }
-
-func TestValidateCompactorConfig(t *testing.T) {
-	compactorConfig := CompactorConfig{
-		MaxCompactionRange: 0,
-	}
-
-	expected := errors.New("compaction window can't be 0")
-	actual := compactorConfig.validate()
-
-	require.Equal(t, expected, actual)
-}
