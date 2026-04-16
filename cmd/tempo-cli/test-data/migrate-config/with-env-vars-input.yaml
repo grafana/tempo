@@ -1,0 +1,17 @@
+target: all
+server:
+  http_listen_port: ${HTTP_PORT}
+ingester:
+  max_block_duration: 5m
+storage:
+  trace:
+    backend: s3
+    s3:
+      bucket: ${S3_BUCKET}
+      endpoint: ${S3_ENDPOINT}
+    wal:
+      path: /var/tempo/wal
+overrides:
+  defaults:
+    ingestion:
+      rate_limit_bytes: 5000000

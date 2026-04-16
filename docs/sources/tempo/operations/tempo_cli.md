@@ -647,6 +647,50 @@ tempo-cli migrate overrides-per-tenant overrides.yaml -d migrated-overrides.yaml
 - Some struct fields without `omitempty` may appear with zero values (for example, `exclude: null`) that were not in your original config.
 {{< /admonition >}}
 
+## Migrate config command
+
+Migrate a Tempo 2.x configuration file to a valid 3.0 configuration. The command removes obsolete config sections (such as `ingester`, `ingester_client`, and `compactor`), adds required Kafka ingest configuration for microservices mode, disables compaction in overrides for parallel operation during migration, and strips the removed `local-blocks` metrics generator processor.
+
+The tool works at the YAML map level rather than using Tempo structs, so it preserves unknown fields and environment variable references like `${VAR}`.
+
+```bash
+tempo-cli migrate config [options] <config-file>
+```
+
+Arguments:
+
+- `config-file` Path to the 2.x Tempo config file.
+
+Options:
+
+- `--kafka-address <address>` Kafka broker address. Required when running in microservices mode.
+- `--kafka-topic <topic>` Kafka topic name. Defaults to `tempo`.
+- `--mode <monolithic|microservices>` Override automatic deployment mode detection. By default, the mode is detected from the `target` field (`all` or absent means monolithic, any other value means microservices).
+
+The migrated config is printed to `stdout`. Warnings are printed to `stderr`.
+
+Examples:
+
+Monolithic mode (no Kafka flags needed):
+
+```bash
+tempo-cli migrate config old-config.yaml > new-config.yaml
+```
+
+Microservices mode:
+
+```bash
+tempo-cli migrate config --kafka-address=kafka:9092 --kafka-topic=tempo-traces old-config.yaml > new-config.yaml
+```
+
+{{< admonition type="warning" >}}
+- The output is a starting point for your 3.0 config. Always review it before deploying.
+- If your config uses legacy (flat) overrides, you must run `tempo-cli migrate overrides-config` first.
+- If your config references an external per-tenant overrides file (`per_tenant_override_config`), you must manually add `compaction_disabled: true` for each tenant in that file.
+- YAML comments and key ordering from the original file are not preserved.
+- Remove `compaction_disabled: true` from overrides after fully decommissioning your 2.x deployment.
+{{< /admonition >}}
+
 ## Analyse block
 
 <!-- Note that the command uses analyse and not analyze -->
