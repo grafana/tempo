@@ -46,7 +46,6 @@ type Config struct {
 	StreamOverHTTPEnabled  bool          `yaml:"stream_over_http_enabled,omitempty"`
 	HTTPAPIPrefix          string        `yaml:"http_api_prefix"`
 	EnableGoRuntimeMetrics bool          `yaml:"enable_go_runtime_metrics,omitempty"`
-	PartitionRingLiveStore bool          `yaml:"partition_ring_live_store,omitempty"` // todo: remove after rhythm migration
 
 	Memory                 MemoryConfig                   `yaml:"memory,omitempty"`
 	Server                 server.Config                  `yaml:"server,omitempty"`
@@ -81,7 +80,6 @@ func NewDefaultConfig() *Config {
 func (c *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
 	c.Target = SingleBinary
 	c.StreamOverHTTPEnabled = false
-	c.PartitionRingLiveStore = false
 
 	// Memory settings
 	c.Memory = MemoryConfig{

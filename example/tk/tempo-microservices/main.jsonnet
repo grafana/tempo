@@ -76,17 +76,14 @@ minio + metrics + load + kafka + tempo {
         },
       },
     },
-    partition_ring_live_store: true,
+    
     ingest+: {
-      enabled: true,
       kafka+: {
         address: 'kafka:9092',
         topic: 'tempo-ingest',
       },
     },
-    querier+: {
-      query_live_store: true,
-    },
+
     block_builder+: {
       consume_cycle_duration: '30s',
       assigned_partitions: {

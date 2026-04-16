@@ -1,4 +1,3 @@
-partition_ring_live_store: true
 stream_over_http_enabled: true
 multitenancy_enabled: true
 
