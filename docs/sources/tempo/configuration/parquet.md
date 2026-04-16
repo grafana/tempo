@@ -11,41 +11,53 @@ Tempo has a default columnar block format based on Apache Parquet.
 This format is required for tags-based search as well as [TraceQL](../../traceql/), the query language for traces.
 The columnar block format improves search performance and enables an ecosystem of tools, including [Tempo CLI](https://grafana.com/docs/tempo/<TEMPO_VERSION>/operations/tempo_cli/#analyse-blocks), to access the underlying trace data.
 
-For more information, refer to [Issue 4694](https://github.com/grafana/tempo/issues/4694).
-
 ## Considerations
 
-The Parquet block format is enabled by default since Tempo 2.0.
+The Parquet block format has been the default since Tempo 2.0 and is the only supported block format in Tempo 3.0.
 
 If you install using the [Tempo Helm charts](https://grafana.com/docs/tempo/<TEMPO_VERSION>/setup/helm-chart/), then Parquet is enabled by default.
 No data conversion or upgrade process is necessary.
-As soon as a block format is enabled, Tempo starts writing data in that format, leaving existing data as-is.
+As soon as a block format version is enabled, Tempo starts writing data in that format, leaving existing data as-is.
 
-Block formats based on Parquet require more CPU and memory resources than the previous `v2` format (which has been removed in Tempo 3.0) but provide search and TraceQL functionality.
-
-## Choose a different block format
+## Block format versions
 
 {{< admonition type="warning" >}}
-`vParquet3` has been deprecated and will be removed in a future Tempo release. The `v2` block format has been removed in Tempo 3.0. In order to cleanly migrate forward to Tempo 3.0 you will need `vParquet4` or higher blocks.
+The `v2` and `vParquet3` block formats have been removed in Tempo 3.0.
+Use `vParquet4` (default) or `vParquet5`.
 {{< /admonition >}}
 
-The default block format is `vParquet4`, which is the latest iteration of the Parquet-based columnar block format in Tempo.
-vParquet4 introduces columns that enable querying for data in array attributes as well as events and links.
+### vParquet4 (default)
+
+`vParquet4` is the default block format in Tempo 3.0.
+It introduces columns that support querying array attributes, events, and links.
 For more information, refer to [Dedicated attribute columns](https://grafana.com/docs/tempo/<TEMPO_VERSION>/operations/dedicated_columns/).
 
-You can still use the previous format `vParquet3`.
-To enable it, set the block version option to `vParquet3` in the [Storage section](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/#storage) of the configuration file.
+### vParquet5
+
+`vParquet5` is production-ready and available as an opt-in alternative to `vParquet4`.
+It builds on vParquet4 with the following improvements:
+
+- Expanded dedicated columns: Up to 20 dedicated string columns and 5 dedicated integer columns per scope (span, resource, and event), compared with 10 string columns per scope in vParquet4.
+- Event-scoped dedicated columns: Dedicated attribute columns can target event-scoped attributes such as `exception.message`.
+- Blob column support: High-cardinality or high-length string attributes (for example, stack traces or UUIDs) can use `zstd` compression instead of dictionary encoding for better efficiency.
+- Array-valued dedicated columns: Dedicated columns can store multiple values per attribute using the `options: ["array"]` configuration.
+
+For details on configuring dedicated attribute columns with vParquet5 features, refer to [Dedicated attribute columns](https://grafana.com/docs/tempo/<TEMPO_VERSION>/operations/dedicated_columns/).
+
+## Change the block format version
+
+To change the block format version, set the `version` option in the [Storage section](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/#storage) of the configuration file:
 
 ```yaml
-# block format version. options: vParquet4
-[version: vParquet3]
+storage:
+  trace:
+    block:
+      version: <version>
 ```
 
-{{< admonition type="warning" >}}
-The `v2` block format has been removed in Tempo 3.0. Only Parquet-based formats (vParquet3, vParquet4, vParquet5) are supported.
-{{< /admonition >}}
+Replace `<version>` with `vParquet4` or `vParquet5`.
 
-To re-enable the default `vParquet4` format, remove the block version option from the [Storage section](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/#storage) of the configuration file or set the option to `vParquet4`.
+To restore the default `vParquet4` format, remove the `version` option from the configuration file or set it to `vParquet4`.
 
 ## Parquet configuration parameters
 

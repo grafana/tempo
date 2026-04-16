@@ -148,8 +148,9 @@ func TestLiveStorePushBytesRejectsWhenStopping(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, liveStore)
 
-	// Transition to stopping state, then verify writes are rejected.
-	_ = liveStore.stopping(nil)
+	// Stop the service so writes are rejected.
+	err = services.StopAndAwaitTerminated(context.Background(), liveStore)
+	require.NoError(t, err)
 
 	id := test.ValidTraceID(nil)
 	expectedTrace := test.MakeTrace(1, id)
@@ -700,7 +701,7 @@ func TestLiveStoreShutdownWithPendingCompletions(t *testing.T) {
 	requireTraceInLiveStore(t, liveStore, expectedID, expectedTrace)
 	requireInstanceState(t, inst, instanceState{liveTraces: 1, walBlocks: 0, completeBlocks: 0})
 
-	require.NoError(t, liveStore.stopping(nil))
+	require.NoError(t, services.StopAndAwaitTerminated(context.Background(), liveStore))
 }
 
 func TestLiveStoreQueryMethodsBeforeStarted(t *testing.T) {
@@ -843,8 +844,8 @@ func TestLiveStoreQueryMethodsAfterStopping(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, liveStore)
 
-	// Error expected from Kafka reader shutdown; we only care about query behavior after stopping begins.
-	_ = liveStore.stopping(nil)
+	// Stop the service so queries are rejected.
+	_ = services.StopAndAwaitTerminated(context.Background(), liveStore)
 
 	ctx := user.InjectOrgID(context.Background(), testTenantID)
 
@@ -876,8 +877,8 @@ func TestLiveStoreQueryMethodsAfterStoppingWithFailOnHighLag(t *testing.T) {
 
 	liveStore.cfg.FailOnHighLag = true
 
-	// Error expected from Kafka reader shutdown; we only care about query behavior after stopping begins.
-	_ = liveStore.stopping(nil)
+	// Stop the service so queries are rejected.
+	_ = services.StopAndAwaitTerminated(context.Background(), liveStore)
 
 	ctx := user.InjectOrgID(context.Background(), testTenantID)
 

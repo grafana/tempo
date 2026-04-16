@@ -702,11 +702,7 @@ func TestExecuteTagValues(t *testing.T) {
 			distinctValues := collector.NewDistinctValue(100_000, 0, 0, func(v tempopb.TagValue) int { return len(v.Type) + len(v.Value) })
 
 			// Derive conditions from the query, just like callers do
-			extractedReq := ExtractFetchRequest(tc.query)
-			var conditions []Condition
-			if extractedReq != nil {
-				conditions = extractedReq.Conditions
-			}
+			conditionGroups, _ := ExtractConditionGroups(tc.query, DefaultMaxConditionGroupsPerTagQuery)
 
 			// The mock fetcher needs a parseable query for its internal evaluation
 			fetcherQuery := tc.query
@@ -716,7 +712,7 @@ func TestExecuteTagValues(t *testing.T) {
 
 			tag, err := ParseIdentifier(tc.attribute)
 			assert.NoError(t, err)
-			assert.NoError(t, e.ExecuteTagValues(context.Background(), tag, conditions, MakeCollectTagValueFunc(distinctValues.Collect), mockSpansetFetcher(fetcherQuery)))
+			assert.NoError(t, e.ExecuteTagValues(context.Background(), tag, conditionGroups, MakeCollectTagValueFunc(distinctValues.Collect), mockSpansetFetcher(fetcherQuery), DefaultMaxConditionGroupsPerTagQuery))
 			values := distinctValues.Values()
 			sort.Slice(values, func(i, j int) bool {
 				return values[i].Value < values[j].Value

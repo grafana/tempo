@@ -178,33 +178,25 @@ func TestCanonicalQuery(t *testing.T) {
 	}
 }
 
-func TestExtractFetchRequest(t *testing.T) {
+func TestExtractConditionGroups(t *testing.T) {
 	testCases := []struct {
-		name          string
-		query         string
-		count         int
-		allConditions bool
-		nilResult     bool
+		name  string
+		query string
+		count int
 	}{
-		{name: "empty", query: "", nilResult: true},
-		{name: "empty braces", query: " { } ", count: 0, allConditions: true},
-		{name: "simple", query: `{.service_name = "foo"}`, count: 1, allConditions: true},
-		{name: "incomplete", query: `{ .http.status_code = 200 && .http.method = }`, count: 1, allConditions: true},
-		{name: "invalid", query: "{ invalid syntax }", nilResult: true},
-		{name: "OR conditions", query: `{ (.foo = "bar" || .baz = "qux") }`, count: 2, allConditions: false},
-		{name: "structural", query: `{ .foo = "bar" } >> { .bar = "baz" }`, count: 2, allConditions: false},
-		{name: "multiple conditions", query: `{.a = 1 && .b = "two" && .c > 3}`, count: 3, allConditions: true},
+		{name: "empty", query: "", count: 0},
+		{name: "empty braces", query: " { } ", count: 0},
+		{name: "simple", query: `{.service_name = "foo"}`, count: 1},
+		{name: "incomplete", query: `{ .http.status_code = 200 && .http.method = }`, count: 1},
+		{name: "invalid", query: "{ invalid syntax }", count: 0},
+		{name: "OR conditions", query: `{ (.foo = "bar" || .baz = "qux") }`, count: 2},
+		{name: "structural", query: `{ .foo = "bar" } >> { .bar = "baz" }`, count: 0},
+		{name: "multiple conditions", query: `{.a = 1 && .b = "two" && .c > 3}`, count: 1},
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			req := ExtractFetchRequest(tc.query)
-			if tc.nilResult {
-				assert.Nil(t, req)
-				return
-			}
-			assert.NotNil(t, req)
-			assert.Equal(t, tc.count, len(req.Conditions))
-			assert.Equal(t, tc.allConditions, req.AllConditions)
+			conditionGroups, _ := ExtractConditionGroups(tc.query, DefaultMaxConditionGroupsPerTagQuery)
+			assert.Equal(t, tc.count, len(conditionGroups))
 		})
 	}
 }
@@ -225,6 +217,357 @@ func BenchmarkCanonicalQuery(b *testing.B) {
 			for i := 0; i < b.N; i++ {
 				_ = NormalizeQuery(query)
 			}
+		})
+	}
+}
+
+func TestFlattenExprToOperations(t *testing.T) {
+	type testOperation struct {
+		opType Operator
+		cond   []int
+	}
+
+	testCases := []struct {
+		name, query string
+		expected    []testOperation
+	}{
+		{
+			name:     "three single condition ORs",
+			query:    `{ .attr = "123" || .service = "b" || .env = "staging" }`,
+			expected: []testOperation{{opType: OpOr, cond: []int{1, 1, 1}}},
+		},
+		{
+			name:     "one double condition ORs with two single condition ORs",
+			query:    `{ (.attr = "123" && .foo = "bar") || .service = "b" || .env = "staging" }`,
+			expected: []testOperation{{opType: OpOr, cond: []int{2, 1, 1}}},
+		},
+		{
+			name:     "two duplicated OR conditions",
+			query:    `{ (.attr = "123" && .foo = "bar") || .service = "b" || .env = "staging" || (.attr = "123" && .foo = "bar") || .service = "b" }`,
+			expected: []testOperation{{opType: OpOr, cond: []int{2, 1, 1}}},
+		},
+		{
+			name:     "one single condition AND three single condition ORs",
+			query:    `{ name = "abc" && (.attr = "123" || .service = "b" || .env = "staging") }`,
+			expected: []testOperation{{opType: OpAnd, cond: []int{1}}, {opType: OpOr, cond: []int{1, 1, 1}}},
+		},
+		{
+			name:     "one AND one double condition OR with two single condition ORs",
+			query:    `{ name = "abc" && ( (.attr = "123" && .foo = "bar") || .service = "b" || .env = "staging") }`,
+			expected: []testOperation{{opType: OpAnd, cond: []int{1}}, {opType: OpOr, cond: []int{2, 1, 1}}},
+		},
+		{
+			name:     "two ANDs one double condition OR with two single condition ORs",
+			query:    `{ name = "abc" && .attr = "abc" && ( (.attr = "123" && .foo = "bar") || .service = "b" || .env = "staging") }`,
+			expected: []testOperation{{opType: OpAnd, cond: []int{1}}, {opType: OpAnd, cond: []int{1}}, {opType: OpOr, cond: []int{2, 1, 1}}},
+		},
+		{
+			name:     "two AND with single condition OR in between",
+			query:    `{ .attr = "123" && (.service = "b" || .service = "a" ) && .env = "staging" }`,
+			expected: []testOperation{{opType: OpAnd, cond: []int{1}}, {opType: OpOr, cond: []int{1, 1}}, {opType: OpAnd, cond: []int{1}}},
+		},
+		{
+			name:     "two ANDs of single condition ORs",
+			query:    `{ ( .attr = "123" || .service = "b" ) && ( .service = "a" || .env = "staging" ) }`,
+			expected: []testOperation{{opType: OpOr, cond: []int{1, 1}}, {opType: OpOr, cond: []int{1, 1}}},
+		},
+		{
+			name:     "two ANDs of multiple conditions ORs",
+			query:    `{ ( .attr = "123" || .service = "b" ) && ( .service = "a" || ( .env = "staging" && .foo = "bar" ) ) }`,
+			expected: []testOperation{{opType: OpOr, cond: []int{1, 1}}, {opType: OpOr, cond: []int{1, 2}}},
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			expr, err := ParseWithOptimizationOption(tc.query, false)
+			assert.NoError(t, err)
+
+			operations := flattenExprToOperations(expr.Pipeline.Elements[0].(*SpansetFilter).Expression, OpNone)
+			assert.NoError(t, err)
+			assert.Equal(t, len(tc.expected), len(operations), "expected %d operations, got %d", len(tc.expected), len(operations))
+			for i, operationCount := range tc.expected {
+				assert.Equal(t, operationCount.opType, operations[i].opType, "expected operation type %v at index %d, got %v", operationCount.opType, i, operations[i].opType)
+				assert.Equal(t, len(operationCount.cond), len(operations[i].conditions), "expected %d conditions at index %d, got %d", len(operationCount.cond), i, len(operations[i].conditions))
+				for j, conditionCount := range operationCount.cond {
+					assert.Equal(t, conditionCount, len(operations[i].conditions[j]), "expected %d conditions at index %d.%d, got %d", conditionCount, i, j, len(operations[i].conditions[j]))
+				}
+			}
+		})
+	}
+}
+
+func TestSplitReqConditionGroups(t *testing.T) {
+	testCases := []struct {
+		name, query string
+		expected    [][]Condition
+	}{
+		{
+			name:  "simple no OR query",
+			query: `{ .attr = "123" }`,
+			expected: [][]Condition{
+				{
+					newCondition(NewAttribute("attr"), OpEqual, NewStaticString("123")),
+				},
+			},
+		},
+		{
+			name:     "opnone query",
+			query:    `{.attr}`,
+			expected: nil,
+		},
+		{
+			name:     "one OR is opnone query",
+			query:    `{.attr || .foo = "bar" }`,
+			expected: nil,
+		},
+		{
+			name:  "three single condition ORs",
+			query: `{ .attr = "123" || .service = "b" || .env = "staging" }`,
+			expected: [][]Condition{
+				{
+					newCondition(NewAttribute("attr"), OpEqual, NewStaticString("123")),
+				},
+				{
+					newCondition(NewAttribute("service"), OpEqual, NewStaticString("b")),
+				},
+				{
+					newCondition(NewAttribute("env"), OpEqual, NewStaticString("staging")),
+				},
+			},
+		},
+		{
+			name:  "one double condition ORs with two single condition ORs",
+			query: `{ (.attr = "123" && .foo = "bar") || .service = "b" || .env = "staging" }`,
+			expected: [][]Condition{
+				{
+					newCondition(NewAttribute("attr"), OpEqual, NewStaticString("123")),
+					newCondition(NewAttribute("foo"), OpEqual, NewStaticString("bar")),
+				},
+				{
+					newCondition(NewAttribute("service"), OpEqual, NewStaticString("b")),
+				},
+				{
+					newCondition(NewAttribute("env"), OpEqual, NewStaticString("staging")),
+				},
+			},
+		},
+		{
+			name:  "one single condition AND three single condition ORs",
+			query: `{ name = "abc" && (.attr = "123" || .service = "b" || .env = "staging") }`,
+			expected: [][]Condition{
+				{
+					newCondition(NewIntrinsic(IntrinsicName), OpEqual, NewStaticString("abc")),
+					newCondition(NewAttribute("attr"), OpEqual, NewStaticString("123")),
+				},
+				{
+					newCondition(NewIntrinsic(IntrinsicName), OpEqual, NewStaticString("abc")),
+					newCondition(NewAttribute("service"), OpEqual, NewStaticString("b")),
+				},
+				{
+					newCondition(NewIntrinsic(IntrinsicName), OpEqual, NewStaticString("abc")),
+					newCondition(NewAttribute("env"), OpEqual, NewStaticString("staging")),
+				},
+			},
+		},
+		{
+			name:  "one AND one double condition OR with two single condition ORs",
+			query: `{ name = "abc" && ( (.attr = "123" && .foo = "bar") || .service = "b" || .env = "staging") }`,
+			expected: [][]Condition{
+				{
+					newCondition(NewIntrinsic(IntrinsicName), OpEqual, NewStaticString("abc")),
+					newCondition(NewAttribute("attr"), OpEqual, NewStaticString("123")),
+					newCondition(NewAttribute("foo"), OpEqual, NewStaticString("bar")),
+				},
+				{
+					newCondition(NewIntrinsic(IntrinsicName), OpEqual, NewStaticString("abc")),
+					newCondition(NewAttribute("service"), OpEqual, NewStaticString("b")),
+				},
+				{
+					newCondition(NewIntrinsic(IntrinsicName), OpEqual, NewStaticString("abc")),
+					newCondition(NewAttribute("env"), OpEqual, NewStaticString("staging")),
+				},
+			},
+		},
+		{
+			name:  "two ANDs one double condition OR with two single condition ORs",
+			query: `{ name = "abc" && .attr = "abc" && ( (.attr = "123" && .foo = "bar") || .service = "b" || .env = "staging") }`,
+			expected: [][]Condition{
+				{
+					newCondition(NewIntrinsic(IntrinsicName), OpEqual, NewStaticString("abc")),
+					newCondition(NewAttribute("attr"), OpEqual, NewStaticString("abc")),
+					newCondition(NewAttribute("attr"), OpEqual, NewStaticString("123")),
+					newCondition(NewAttribute("foo"), OpEqual, NewStaticString("bar")),
+				},
+				{
+					newCondition(NewIntrinsic(IntrinsicName), OpEqual, NewStaticString("abc")),
+					newCondition(NewAttribute("attr"), OpEqual, NewStaticString("abc")),
+					newCondition(NewAttribute("service"), OpEqual, NewStaticString("b")),
+				},
+				{
+					newCondition(NewIntrinsic(IntrinsicName), OpEqual, NewStaticString("abc")),
+					newCondition(NewAttribute("attr"), OpEqual, NewStaticString("abc")),
+					newCondition(NewAttribute("env"), OpEqual, NewStaticString("staging")),
+				},
+			},
+		},
+		{
+			name:  "two AND with single condition OR in between",
+			query: `{ .attr = "123" && (.service = "b" || .service = "a" ) && .env = "staging" }`,
+			expected: [][]Condition{
+				{
+					newCondition(NewAttribute("attr"), OpEqual, NewStaticString("123")),
+					newCondition(NewAttribute("service"), OpEqual, NewStaticString("b")),
+					newCondition(NewAttribute("env"), OpEqual, NewStaticString("staging")),
+				},
+				{
+					newCondition(NewAttribute("attr"), OpEqual, NewStaticString("123")),
+					newCondition(NewAttribute("service"), OpEqual, NewStaticString("a")),
+					newCondition(NewAttribute("env"), OpEqual, NewStaticString("staging")),
+				},
+			},
+		},
+		{
+			name:  "two ANDs of single condition ORs",
+			query: `{ ( .attr = "123" || .service = "b" ) && ( .service = "a" || .env = "staging"  || .foo = "bar" ) }`,
+			expected: [][]Condition{
+				{
+					newCondition(NewAttribute("attr"), OpEqual, NewStaticString("123")),
+					newCondition(NewAttribute("service"), OpEqual, NewStaticString("a")),
+				},
+				{
+					newCondition(NewAttribute("service"), OpEqual, NewStaticString("b")),
+					newCondition(NewAttribute("service"), OpEqual, NewStaticString("a")),
+				},
+				{
+					newCondition(NewAttribute("attr"), OpEqual, NewStaticString("123")),
+					newCondition(NewAttribute("env"), OpEqual, NewStaticString("staging")),
+				},
+				{
+					newCondition(NewAttribute("service"), OpEqual, NewStaticString("b")),
+					newCondition(NewAttribute("env"), OpEqual, NewStaticString("staging")),
+				},
+				{
+					newCondition(NewAttribute("attr"), OpEqual, NewStaticString("123")),
+					newCondition(NewAttribute("foo"), OpEqual, NewStaticString("bar")),
+				},
+				{
+					newCondition(NewAttribute("service"), OpEqual, NewStaticString("b")),
+					newCondition(NewAttribute("foo"), OpEqual, NewStaticString("bar")),
+				},
+			},
+		},
+		{
+			name:  "two ANDs of multiple conditions ORs",
+			query: `{ ( .attr = "123" || .service = "b" ) && ( .service = "a" || ( .env = "staging" && .foo = "bar" ) ) }`,
+			expected: [][]Condition{
+				{
+					newCondition(NewAttribute("attr"), OpEqual, NewStaticString("123")),
+					newCondition(NewAttribute("service"), OpEqual, NewStaticString("a")),
+				},
+				{
+					newCondition(NewAttribute("service"), OpEqual, NewStaticString("b")),
+					newCondition(NewAttribute("service"), OpEqual, NewStaticString("a")),
+				},
+				{
+					newCondition(NewAttribute("attr"), OpEqual, NewStaticString("123")),
+					newCondition(NewAttribute("env"), OpEqual, NewStaticString("staging")),
+					newCondition(NewAttribute("foo"), OpEqual, NewStaticString("bar")),
+				},
+				{
+					newCondition(NewAttribute("service"), OpEqual, NewStaticString("b")),
+					newCondition(NewAttribute("env"), OpEqual, NewStaticString("staging")),
+					newCondition(NewAttribute("foo"), OpEqual, NewStaticString("bar")),
+				},
+			},
+		},
+		{
+			name:  "three ANDs of two single condition ORs",
+			query: `{ ( .attr = "123" || .service = "b" ) && .team = "dev" && ( .service = "a" || .env = "staging"  || .foo = "bar" ) }`,
+			expected: [][]Condition{
+				{
+					newCondition(NewAttribute("attr"), OpEqual, NewStaticString("123")),
+					newCondition(NewAttribute("team"), OpEqual, NewStaticString("dev")),
+					newCondition(NewAttribute("service"), OpEqual, NewStaticString("a")),
+				},
+				{
+					newCondition(NewAttribute("service"), OpEqual, NewStaticString("b")),
+					newCondition(NewAttribute("team"), OpEqual, NewStaticString("dev")),
+					newCondition(NewAttribute("service"), OpEqual, NewStaticString("a")),
+				},
+				{
+					newCondition(NewAttribute("attr"), OpEqual, NewStaticString("123")),
+					newCondition(NewAttribute("team"), OpEqual, NewStaticString("dev")),
+					newCondition(NewAttribute("env"), OpEqual, NewStaticString("staging")),
+				},
+				{
+					newCondition(NewAttribute("service"), OpEqual, NewStaticString("b")),
+					newCondition(NewAttribute("team"), OpEqual, NewStaticString("dev")),
+					newCondition(NewAttribute("env"), OpEqual, NewStaticString("staging")),
+				},
+				{
+					newCondition(NewAttribute("attr"), OpEqual, NewStaticString("123")),
+					newCondition(NewAttribute("team"), OpEqual, NewStaticString("dev")),
+					newCondition(NewAttribute("foo"), OpEqual, NewStaticString("bar")),
+				},
+				{
+					newCondition(NewAttribute("service"), OpEqual, NewStaticString("b")),
+					newCondition(NewAttribute("team"), OpEqual, NewStaticString("dev")),
+					newCondition(NewAttribute("foo"), OpEqual, NewStaticString("bar")),
+				},
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			conditions, err := ExtractConditionGroups(tc.query, DefaultMaxConditionGroupsPerTagQuery)
+			assert.NoError(t, err)
+			assert.Equal(t, tc.expected, conditions)
+		})
+	}
+}
+
+func TestSplitReqConditionGroupsMaxGroups(t *testing.T) {
+	longQuery := `{ .attr = "123" || .service = "b" || .team = "dev" || .service = "a" || .env = "staging"  || .foo = "bar" || .bar = "foo" || .baz = "qux" || .quux = "corge" || .grault = "garply" || .waldo = "fred" || .plugh = "xyzzy" || .thud = "mno" }`
+	testCases := []struct {
+		name           string
+		query          string
+		maxGroups      int
+		expectedLength int
+		expectError    bool
+	}{
+		{
+			name:           "max groups reached - limit of 10",
+			query:          longQuery,
+			maxGroups:      10,
+			expectedLength: 0,
+			expectError:    true,
+		},
+		{
+			name:           "max groups reached - limit of 5",
+			query:          longQuery,
+			maxGroups:      5,
+			expectedLength: 0,
+			expectError:    true,
+		},
+		{
+			name:           "within limit - default limit",
+			query:          `{ .a = "1" || .b = "2" || .c = "3" }`,
+			maxGroups:      DefaultMaxConditionGroupsPerTagQuery,
+			expectedLength: 3,
+			expectError:    false,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			conditions, err := ExtractConditionGroups(tc.query, tc.maxGroups)
+			if tc.expectError {
+				assert.ErrorIs(t, err, ErrMaxConditionGroupsPerTagQueryReached)
+			} else {
+				assert.NoError(t, err)
+			}
+			assert.Equal(t, tc.expectedLength, len(conditions))
 		})
 	}
 }

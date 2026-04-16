@@ -14,14 +14,14 @@ aliases:
 <!-- vale Grafana.GooglePassive = NO -->
 <!-- vale Grafana.GoogleWill = NO -->
 
-Starting with Tempo 2.0, Apache Parquet is used as the default column-formatted block format.
+Apache Parquet is the only supported block format in Tempo 3.0.
 Refer to the [Parquet configuration options](../../configuration/parquet/) for more information.
 
 This document describes the schema used with the Parquet block format.
 
 ## Version applicability
- 
-Tempo 2.10 defaults to the vParquet4 schema. vParquet5 is production-ready and differs in some schema details.
+
+Tempo defaults to the vParquet4 schema. vParquet5 is production-ready and differs in some schema details.
 Unless otherwise noted, the sections below describe vParquet4.
 
 The following sections apply to both vParquet4 and vParquet5:
@@ -100,7 +100,7 @@ The table below uses these abbreviations:
 | rs.Resource.Attrs.ValueBool                           | bool       | The attribute value if boolean type (or array of booleans), else null.                                                                                                                                                                                                                        |
 | rs.Resource.Attrs.ValueUnsupported                    | string     | JSON-encoded AnyValue for unsupported or mixed-type values.                                                                                                                                                                                                                                   |
 | rs.Resource.DedicatedAttributes                       |            | Group containing spares for dedicated attribute columns with resource scope.                                                                                                                                                                                                                  |
-| rs.Resource.DedicatedAttributes.String01 ... String10 | string     | 10 spare columns for dedicated attribute columns.                                                                                                                                                                                                                                             |
+| rs.Resource.DedicatedAttributes.String01 ... String10 | string     | 10 spare string columns for dedicated attributes (vParquet4). vParquet5 expands to String01 ... String20 and adds Int01 ... Int05.                                                                                                                                                            |
 | rs.ss                                                 |            | Shorthand for ResourceSpans.ScopeSpans                                                                                                                                                                                                                                                        |
 | rs.ss.Scope                                           |            | Shorthand for ResourceSpans.ScopeSpans.Scope                                                                                                                                                                                                                                                  |
 | rs.ss.Scope.Name                                      | string     | Scope name if present, else empty string. https://opentelemetry.io/docs/specs/otel/glossary/#instrumentation-scope                                                                                                                                                                            |
@@ -124,7 +124,7 @@ The table below uses these abbreviations:
 | rs.ss.Spans.DroppedAttributesCount                    | int        | Number of attributes that were dropped                                                                                                                                                                                                                                                        |
 | rs.ss.Spans.Attrs                                     |            | Span attributes, using the same columns as rs.Resource.Attrs.\*                                                                                                                                                                                                                               |
 | rs.ss.Spans.DedicatedAttributes                       |            | Group containing spares for dedicated attribute columns with span scope                                                                                                                                                                                                                       |
-| rs.ss.Spans.DedicatedAttributes.String01 ... String10 | string     | 10 spare columns used for dedicated attributes                                                                                                                                                                                                                                                |
+| rs.ss.Spans.DedicatedAttributes.String01 ... String10 | string     | 10 spare string columns for dedicated attributes (vParquet4). vParquet5 expands to String01 ... String20 and adds Int01 ... Int05.                                                                                                                                                            |
 | rs.ss.Spans.DroppedEventsCount                        | int        | The number of events that were dropped                                                                                                                                                                                                                                                        |
 | rs.ss.Spans.Events.TimeSinceStartNano                 | int64      | The event timestamp in nanoseconds, relative to the span start time.                                                                                                                                                                                                                          |
 | rs.ss.Spans.Events.Name                               | string     | The event name or message.                                                                                                                                                                                                                                                                    |
@@ -410,7 +410,7 @@ For the authoritative schema, refer to `tempodb/encoding/vparquet4/schema.go` an
 ### Summary of vParquet5 differences
 
 - Resource-level dedicated columns (Cluster/Namespace/Pod/Container/K8s\*) and span HTTP columns are removed; vParquet5 relies on dynamically assigned dedicated columns only.
-- Dedicated attribute columns expand to include integer spares, array attributes, and optional blob configuration for selected columns.
+- Dedicated attribute columns are doubled from 10 to 20 string spares per scope and add 5 integer spares per scope. Event scope is also supported. Array attributes and optional blob configuration are available for selected columns.
 - Additional fields exist for optimization, including span `ChildCount`, rounded start time buckets, and trace-level `ServiceStats` as a list with explicit service names.
 
 ## Trace-level attributes

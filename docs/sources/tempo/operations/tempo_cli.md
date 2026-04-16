@@ -519,6 +519,10 @@ of dedicated columns.
 
 ### Convert vParquet3 to vParquet4
 
+{{< admonition type="warning" >}}
+`vParquet3` is deprecated. Convert any remaining vParquet3 blocks to vParquet4 or later before upgrading to Tempo 3.0.
+{{< /admonition >}}
+
 ```bash
 tempo-cli parquet convert-3to4 <in file> [<out path>] [<list of dedicated columns>]
 ```

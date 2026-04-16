@@ -18,8 +18,16 @@ For example, if you [set up Tempo using the Kubernetes with Tanka procedure](../
 You'll need:
 
 - Grafana 10.0.0 or higher
+<<<<<<< ts-1078-setup-docs-1-v3
 - Microservice deployments require the Tempo querier URL, for example: `http://tempo-cluster-query-frontend.tempo.svc.cluster.local:3200/`
+=======
+- Microservice deployments require the Tempo query frontend URL, for example: `http://<TEMPO-QUERY-FRONTEND-SERVICE>.<NAMESPACE>.svc.cluster.local:3200/`
+>>>>>>> main
 - [OpenTelemetry telemetrygen](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/cmd/telemetrygen) for generating tracing data
+
+{{< admonition type="note" >}}
+Service names depend on how you deployed Tempo. For Tanka deployments, services use plain names like `distributor` and `query-frontend`. For Helm deployments, services are prefixed with the release name, for example `tempo-cluster-distributor`. Update the service names in the examples below to match your deployment.
+{{< /admonition >}}
 
 Refer to [Deploy Grafana on Kubernetes](https://grafana.com/docs/grafana/<GRAFANA_VERSION>/setup-grafana/installation/kubernetes/) if you are using Kubernetes.
 Otherwise, refer to [Install Grafana](/docs/grafana/<GRAFANA_VERSION>/setup-grafana/installation/) for more information.
@@ -33,7 +41,7 @@ You can skip this section if you have already configured Alloy to send traces to
 [//]: # "Shared content for best practices for traces"
 [//]: # "This content is located in /tempo/docs/sources/shared/alloy-remote-write-tempo.md"
 
-{{< docs/shared source="tempo" lookup="alloy-remote-write-tempo.md" version="next" >}}
+{{< docs/shared source="tempo" lookup="alloy-remote-write-tempo.md" version="latest">}}
 
 ## Create a Grafana Tempo data source
 
@@ -41,12 +49,19 @@ To allow Grafana to read traces from Tempo, you must create a Tempo data source.
 
 1. Navigate to **Connections** > **Data Sources**.
 
-1. Click on **Add data source**.
+1. Click **Add data source**.
 
 1. Select **Tempo**.
 
+<<<<<<< ts-1078-setup-docs-1-v3
 1. Set the URL to `http://<TEMPO-QUERY-FRONTEND-SERVICE>:<HTTP-LISTEN-PORT>/`, filling in the path to the Tempo query frontend service and the configured HTTP API prefix.
    If you followed [Deploy Tempo with Helm installation example](/docs/tempo/latest/set-up-for-tracing/setup-tempo/deploy/kubernetes/helm-chart/), the query frontend service's URL looks something like this: `http://tempo-cluster-query-frontend.<NAMESPACE>.svc.cluster.local:3200`
+=======
+1. Set the URL to `http://<TEMPO-QUERY-FRONTEND-SERVICE>:<HTTP-LISTEN-PORT>/`, filling in the path to the Tempo query frontend service and the HTTP listen port (default `3200`).
+   For example:
+   - Tanka deployment: `http://query-frontend.tempo.svc.cluster.local:3200`
+   - Helm deployment: `http://tempo-cluster-query-frontend.<NAMESPACE>.svc.cluster.local:3200`
+>>>>>>> main
 
 1. Click **Save & Test**.
 
@@ -61,35 +76,38 @@ For more information, refer to [Tempo in Grafana](https://grafana.com/docs/tempo
 
 You can use [OpenTelemetry `telemetrygen`](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/cmd/telemetrygen) to generate tracing data to test your Tempo installation.
 
-These instructions use the endpoints for both Grafana Alloy and the Tempo distributor used previously, for example:
+These instructions use the endpoints for both Grafana Alloy and the Tempo distributor, for example:
 
 - `grafana-alloy.grafana-alloy.svc.cluster.local` for Grafana Alloy
-- `tempo-cluster-distributor.tempo.svc.cluster.local` for the Tempo distributor
+- `distributor.tempo.svc.cluster.local` for the Tempo distributor (Tanka deployment)
 
-Update the endpoints if you have altered the endpoint targets.
+Update the endpoints to match your deployment.
 
 1. Install `telemetrygen` using the [installation procedure](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/cmd/telemetrygen).
-   **NOTE**: You don't need to configure an OpenTelemetry Collector because we're using Grafana Alloy.
 
-2. Generate traces using `telemetrygen`:
+   {{< admonition type="note" >}}
+   You don't need to configure an OpenTelemetry Collector because this procedure uses Grafana Alloy.
+   {{< /admonition >}}
+
+1. Generate traces using `telemetrygen`:
    ```bash
    telemetrygen traces --otlp-insecure --rate 20 --duration 5s --otlp-endpoint grafana-alloy.grafana-alloy.svc.cluster.local:4317
    ```
    This configuration sends traces to Alloy for 5 seconds, at a rate of 20 traces per second.
 
-Optionally, you can also send the trace directly to the Tempo database without using Alloy as a collector by using the following:
+   Optionally, you can also send traces directly to Tempo without using Alloy as a collector:
 
-```bash
-telemetrygen traces --otlp-insecure --rate 20 --duration 5s --otlp-endpoint tempo-cluster-distributor.tempo.svc.cluster.local:4317
-```
+   ```bash
+   telemetrygen traces --otlp-insecure --rate 20 --duration 5s --otlp-endpoint distributor.tempo.svc.cluster.local:4317
+   ```
 
-If you're running `telemetrygen` on your local machine, ensure that you first port-forward to the relevant Alloy or Tempo distributor service, for example:
+   If you're running `telemetrygen` on your local machine, ensure that you first port-forward to the relevant Alloy or Tempo distributor service, for example:
 
-```bash
-kubectl port-forward services/grafana-alloy 4317:4317 --namespace grafana-alloy
-```
+   ```bash
+   kubectl port-forward services/grafana-alloy 4317:4317 --namespace grafana-alloy
+   ```
 
-3. Alternatively, you can create a cronjob to send traces periodically based on this template:
+1. Alternatively, you can create a cronjob to send traces periodically based on this template:
 
    ```
    apiVersion: batch/v1
@@ -109,7 +127,7 @@ kubectl port-forward services/grafana-alloy 4317:4317 --namespace grafana-alloy
            spec:
              containers:
              - name: traces
-               image: ghcr.io/open-telemetry/opentelemetry-collector-contrib/telemetrygen:v0.96.0
+               image: ghcr.io/open-telemetry/opentelemetry-collector-contrib/telemetrygen:v0.150.0
                args:
                  - traces
                  - --otlp-insecure
@@ -136,16 +154,14 @@ To view the tracing data:
 
 ### Test your configuration using the Intro to MLTP application
 
-The Intro to MLTP application provides an example five-service application generates data for Tempo, Mimir, Loki, and Pyroscope.
+The Intro to MLTP application provides an example five-service application that generates data for Tempo, Mimir, Loki, and Pyroscope.
 This procedure installs the application on your cluster so you can generate meaningful test data.
 
-1. Navigate to https://github.com/grafana/intro-to-mltp to get the Kubernetes manifests for the Intro to MLTP application.
-1. Clone the repository using commands similar to the ones below:
+1. Clone the [Intro to MLTP repository](https://github.com/grafana/intro-to-mltp):
    ```bash
-     git clone git+ssh://github.com/grafana/intro-to-mltp
-     cp intro-to-mltp/k8s/mythical/* ~/tmp/intro-to-mltp-k8s
+   git clone https://github.com/grafana/intro-to-mltp.git
+   cd intro-to-mltp/k8s/mythical
    ```
-1. Change to the cloned repository: `cd intro-to-mltp/k8s/mythical`
 1. In the `mythical-beasts-deployment.yaml` manifest, alter each `TRACING_COLLECTOR_HOST` environment variable instance value to point to the Grafana Alloy location. For example, based on Alloy installed in the default namespace and with a Helm installation called `test`:
    ```yaml
     	- env:
