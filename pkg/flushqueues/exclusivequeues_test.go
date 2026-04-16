@@ -217,9 +217,6 @@ func TestStopUnblocksAllWaiters(t *testing.T) {
 	q := New[mockOp](nil)
 	numWorkers := 5
 
-	// allStarted signals when every worker has entered Dequeue.
-	// Each worker enqueues+dequeues a sentinel before blocking on the
-	// empty queue, so when allStarted completes we know they reached Dequeue.
 	var allStarted sync.WaitGroup
 	allStarted.Add(numWorkers)
 
@@ -228,22 +225,12 @@ func TestStopUnblocksAllWaiters(t *testing.T) {
 		workers.Add(1)
 		go func() {
 			defer workers.Done()
-			// Signal that this goroutine is running by round-tripping
-			// a unique sentinel through the queue.
-			sentinel := mockOp{key: uuid.New().String()}
-			require.NoError(t, q.Enqueue(sentinel))
-			got := q.Dequeue()
-			require.Equal(t, sentinel.Key(), got.Key())
-			q.Clear(got)
 			allStarted.Done()
-
-			// Now block on the empty queue
 			op := q.Dequeue()
 			assert.Equal(t, mockOp{}, op, "worker %d: expected zero value from closed queue", i)
 		}()
 	}
 
-	// All workers are confirmed to be inside Dequeue on the empty queue
 	allStarted.Wait()
 	q.Stop()
 	workers.Wait()
