@@ -1,3 +1,4 @@
+partition_ring_live_store: true
 stream_over_http_enabled: true
 
 server:
@@ -17,6 +18,23 @@ distributor:
   #  log_discarded_spans:
   #    enabled: true
 
+backend_scheduler:
+  provider:
+    compaction:
+      compaction:
+        block_retention: 1h
+
+backend_worker:
+  backend_scheduler_addr: backend-scheduler:3200
+  compaction:
+    block_retention: 1h
+  ring:
+    kvstore:
+      store: memberlist
+
+querier:
+  query_live_store: true
+
 metrics_generator:
   registry:
     external_labels:
@@ -29,6 +47,7 @@ metrics_generator:
         send_exemplars: true
 
 query_frontend:
+  rf1_after: "1999-01-01T00:00:00Z"
   mcp_server:
     enabled: true
 
@@ -46,8 +65,18 @@ storage:
 
 overrides:
   defaults:
+    ingestion:
+      rate_strategy: local
+      rate_limit_bytes: 200000000
+      burst_size_bytes: 400000000
+      max_traces_per_user: 0
+      max_global_traces_per_user: 0
+    read:
+      max_bytes_per_tag_values_query: 50000000
+    global:
+      max_bytes_per_trace: 50000000
     metrics_generator:
-      processors: ["span-metrics", "service-graphs"]
+      processors: []
       generate_native_histograms: both
 
 
