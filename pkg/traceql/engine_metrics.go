@@ -1155,25 +1155,13 @@ func (e *Engine) CompileMetricsQueryRange(req *tempopb.QueryRangeRequest, opts .
 		storageReq.SecondPassConditions = append(storageReq.SecondPassConditions, meta...)
 	}
 	// Setup second pass callback.  It might be optimized away
-	ssBuf := make([]*Spanset, 1)
 	storageReq.SecondPass = func(s *Spanset) ([]*Spanset, error) {
 		// The traceql engine isn't thread-safe.
 		// But parallelization is required for good metrics performance.
 		// So we do external locking here.
 		me.mtx.Lock()
 		defer me.mtx.Unlock()
-		ssBuf[0] = s
-		result, err := eval(ssBuf)
-		if err != nil {
-			return nil, err
-		}
-		// Pipeline.evaluate can return the input slice directly (no-fork path).
-		// Since that slice is the shared ssBuf, we must copy before releasing
-		// the mutex so the caller doesn't race with the next call.
-		if len(result) > 0 && &result[0] == &ssBuf[0] {
-			return append(make([]*Spanset, 0, len(result)), result...), nil
-		}
-		return result, nil
+		return eval([]*Spanset{s})
 	}
 
 	optimize(storageReq)
