@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/go-kit/log"
+	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -286,27 +287,46 @@ func TestCutIdleTracesRespectsMaxBlockBytes(t *testing.T) {
 
 	// Push enough traces to require multiple blocks.
 	traceCount := 100 // that will be around 119Mb
-	for i := 0; i < traceCount; i++ {
+	traceIDs := make([][]byte, 0, traceCount)
+	traces := make([]*tempopb.Trace, 0, traceCount)
+
+	for range traceCount {
 		id := test.ValidTraceID(nil)
 		tr := test.MakeTraceWithSpanCount(50, 100, id)
 		pushTrace(t.Context(), t, inst, tr, id)
+		traceIDs = append(traceIDs, id)
+		traces = append(traces, tr)
 	}
 
-	// Immediate cut — all live traces written to head block, then cut to WAL.
-	_, err := inst.cutIdleTraces(t.Context(), true)
+	walBlocks, err := inst.cutIdleTraces(t.Context(), true)
 	require.NoError(t, err)
-	_, err = inst.cutBlocks(t.Context(), true)
+	for i := 0; i < traceCount; i += 5 { // sample, otherwise the test is slow
+		requireTraceInLiveStore(t, ls, traceIDs[i], traces[i])
+	}
+
+	walUUID, err := inst.cutBlocks(t.Context(), true)
 	require.NoError(t, err)
 
+	if walUUID != uuid.Nil {
+		walBlocks = append(walBlocks, walUUID)
+	}
+	actualWALBlocks := make([]uuid.UUID, 0, len(inst.walBlocks))
+	for wb := range inst.walBlocks {
+		actualWALBlocks = append(actualWALBlocks, wb)
+	}
+	require.ElementsMatch(t, walBlocks, actualWALBlocks, "some WAL blocks where not registered")
+
+	for i := 0; i < traceCount; i += 5 {
+		requireTraceInLiveStore(t, ls, traceIDs[i], traces[i])
+	}
+
 	// Verify no WAL block exceeds MaxBlockBytes.
-	inst.blocksMtx.RLock()
 	assert.Greater(t, len(inst.walBlocks), 2, "expected multiple WAL blocks")
 	for id, blk := range inst.walBlocks {
 		// block size estimation can be x5 off, so we check that that block size at least makes sense
 		assert.LessOrEqual(t, blk.DataLength(), inst.Cfg.MaxBlockBytes*5,
 			"WAL block %s exceeds MaxBlockBytes: %d > %d", id, blk.DataLength(), inst.Cfg.MaxBlockBytes)
 	}
-	inst.blocksMtx.RUnlock()
 
 	require.NoError(t, services.StopAndAwaitTerminated(t.Context(), ls))
 }
