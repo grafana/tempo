@@ -24,7 +24,6 @@ import (
 
 const (
 	DefaultBlocklistPoll                  = 5 * time.Minute
-	DefaultMaxTimePerTenant               = 5 * time.Minute
 	DefaultBlocklistPollConcurrency       = uint(50)
 	DefaultBlocklistPollTenantConcurrency = uint(1)
 	DefaultRetentionConcurrency           = uint(10)
@@ -131,14 +130,10 @@ type CompactorConfig struct {
 	BlockRetention          time.Duration `yaml:"block_retention"`
 	CompactedBlockRetention time.Duration `yaml:"compacted_block_retention"`
 	RetentionConcurrency    uint          `yaml:"retention_concurrency"`
-	MaxTimePerTenant        time.Duration `yaml:"max_time_per_tenant"`
-	CompactionCycle         time.Duration `yaml:"compaction_cycle"`
 }
 
 func (cfg *CompactorConfig) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
 	// fill in default values
-	cfg.MaxTimePerTenant = DefaultMaxTimePerTenant
-	cfg.CompactionCycle = DefaultCompactionCycle
 	cfg.CompactedBlockRetention = time.Hour
 	cfg.RetentionConcurrency = DefaultRetentionConcurrency
 
@@ -146,14 +141,6 @@ func (cfg *CompactorConfig) RegisterFlagsAndApplyDefaults(prefix string, f *flag
 	f.IntVar(&cfg.MaxCompactionObjects, util.PrefixConfig(prefix, "max-objects-per-block"), 6000000, "Maximum number of traces in a compacted block.")
 	f.Uint64Var(&cfg.MaxBlockBytes, util.PrefixConfig(prefix, "max-block-bytes"), 100*1024*1024*1024 /* 100GB */, "Maximum size of a compacted block.")
 	f.DurationVar(&cfg.MaxCompactionRange, util.PrefixConfig(prefix, "compaction-window"), time.Hour, "Maximum time window across which to compact blocks.")
-}
-
-func (cfg *CompactorConfig) validate() error {
-	if cfg.MaxCompactionRange == 0 {
-		return errors.New("compaction window can't be 0")
-	}
-
-	return nil
 }
 
 func validateConfig(cfg *Config) error {

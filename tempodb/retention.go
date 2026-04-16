@@ -11,31 +11,6 @@ import (
 	"github.com/grafana/tempo/tempodb/backend"
 )
 
-// retentionLoop watches a timer to clean up blocks that are past retention.
-// todo: correctly pass context all the way to the backend so a cancelled context can stop the retention loop.
-// see implementation of compactionLoop()
-func (rw *readerWriter) retentionLoop(ctx context.Context) {
-	ticker := time.NewTicker(rw.cfg.BlocklistPoll)
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		default:
-		}
-
-		select {
-		case <-ticker.C:
-			rw.doRetention(ctx)
-		case <-ctx.Done():
-			return
-		}
-	}
-}
-
-func (rw *readerWriter) doRetention(ctx context.Context) {
-	rw.RetainWithConfig(ctx, rw.compactorCfg, rw.compactorSharder, rw.compactorOverrides)
-}
-
 func (rw *readerWriter) RetainWithConfig(ctx context.Context, compactorCfg *CompactorConfig, compactorSharder CompactorSharder, compactorOverrides CompactorOverrides) {
 	tenants := rw.blocklist.Tenants()
 
