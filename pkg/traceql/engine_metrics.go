@@ -1156,6 +1156,9 @@ func (e *Engine) CompileMetricsQueryRange(req *tempopb.QueryRangeRequest, opts .
 	}
 	// Setup second pass callback.  It might be optimized away
 	storageReq.SecondPass = func(s *Spanset) ([]*Spanset, error) {
+		if s == nil || len(s.Spans) == 0 {
+			return nil, nil
+		}
 		// The traceql engine isn't thread-safe.
 		// But parallelization is required for good metrics performance.
 		// So we do external locking here.
