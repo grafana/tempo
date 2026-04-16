@@ -10,7 +10,6 @@
       receivers: $._config.receivers,
     },
     querier: {
-      query_live_store: true,
       frontend_worker: {
         frontend_address: 'tempo:9095',
       },

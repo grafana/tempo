@@ -15,7 +15,6 @@ data:
     querier:
         frontend_worker:
             frontend_address: query-frontend-discovery.tracing.svc.cluster.local.:9095
-        query_live_store: true
     server:
         grpc_listen_address: ::0
         http_listen_address: ::0
