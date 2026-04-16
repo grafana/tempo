@@ -60,6 +60,8 @@ minio + metrics + load + kafka + tempo {
     },
     backend: 's3',
     bucket: 'tempo',
+    kafka_address: 'kafka:9092',
+    kafka_topic: 'tempo-ingest',
     tempo_query_url: 'http://query-frontend:3200',
   },
 
@@ -74,16 +76,6 @@ minio + metrics + load + kafka + tempo {
           insecure: true,
         },
       },
-    },
-    partition_ring_live_store: true,
-    ingest+: {
-      kafka+: {
-        address: 'kafka:9092',
-        topic: 'tempo-ingest',
-      },
-    },
-    querier+: {
-      query_live_store: true,
     },
     block_builder+: {
       consume_cycle_duration: '30s',

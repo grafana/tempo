@@ -9,6 +9,12 @@
       http_listen_port: $._config.port,
     },
     distributor: {},
+    ingest: {
+      kafka: {
+        address: $._config.kafka_address,
+        topic: $._config.kafka_topic,
+      },
+    },
     storage: {
       trace: {
         blocklist_poll: '0',
@@ -72,6 +78,7 @@
       },
     },
     querier+: {
+      query_live_store: true,
       frontend_worker+: {
         frontend_address: 'query-frontend-discovery.%s.svc.cluster.local.:9095' % [$._config.namespace],
       },

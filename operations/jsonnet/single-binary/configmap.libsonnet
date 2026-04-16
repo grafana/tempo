@@ -3,7 +3,6 @@
   local configMap = k.core.v1.configMap,
 
   tempo_config:: {
-    partition_ring_live_store: true,
     server: {
       http_listen_port: $._config.tempo.port,
     },
