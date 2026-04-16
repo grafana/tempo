@@ -58,7 +58,7 @@ To do this, you need to create a configuration that can be used by Alloy to rece
            }
          }
 
-         // Define an OTLP gRPC exporter to send all received traces to GET.
+         // Define an OTLP gRPC exporter to send all received traces to Tempo.
          // The unique label 'tempo' is added to uniquely identify this exporter.
          otelcol.exporter.otlp "tempo" {
              // Define the client for exporting.
