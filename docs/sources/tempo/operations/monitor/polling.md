@@ -26,6 +26,7 @@ During normal operation, the index will be stale by at most twice the configured
 
 {{< admonition type="note" >}}
 For details about configuring polling, refer to [polling configuration](../../../configuration/polling/).
+For an explanation of how compaction interacts with the polling cycle and blocklist staleness, refer to [Compaction](../../compaction/).
 {{< /admonition >}}
 
 ## Monitor polling with dashboards and alerts
