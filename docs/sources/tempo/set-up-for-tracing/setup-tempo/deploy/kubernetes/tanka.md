@@ -76,13 +76,13 @@ Tanka requires the current context for your Kubernetes environment.
 
 ## Install libraries
 
-Install the `k.libsonnet`, Jsonnet, and Memcachd libraries.
+Install the `k.libsonnet`, Jsonnet, and Memcached libraries.
 
-1. Install `k.libsonnet` for your version of Kubernetes:
+1. Install `k.libsonnet` for your version of Kubernetes. Set `K8S_VERSION` to match your cluster's minor version (for example, `1.32`):
 
    ```bash
    mkdir -p lib
-   export K8S_VERSION=1.25
+   export K8S_VERSION=1.32
    jb install github.com/jsonnet-libs/k8s-libsonnet/${K8S_VERSION}@main
    cat <<EOF > lib/k.libsonnet
    import 'github.com/jsonnet-libs/k8s-libsonnet/${K8S_VERSION}/main.libsonnet'
@@ -167,10 +167,10 @@ Install the `k.libsonnet`, Jsonnet, and Memcachd libraries.
                - --console-address
                - ':9001'
              env:
-               # Minio access key and secret key
-               - name: MINIO_ACCESS_KEY
+               # MinIO root credentials
+               - name: MINIO_ROOT_USER
                  value: 'minio'
-               - name: MINIO_SECRET_KEY
+               - name: MINIO_ROOT_PASSWORD
                  value: 'minio123'
              ports:
                - containerPort: 9000
@@ -226,10 +226,9 @@ Install the `k.libsonnet`, Jsonnet, and Memcachd libraries.
    local containerPort = k.core.v1.containerPort;
 
    tempo {
-       _images+:: {
-           tempo: 'grafana/tempo:latest',
-           tempo_query: 'grafana/tempo-query:latest',
-       },
+    _images+:: {
+          tempo: 'grafana/tempo:latest',
+      },
 
        tempo_distributor_container+:: container.withPorts([
                containerPort.new('jaeger-grpc', 14250),
@@ -329,7 +328,11 @@ Install the `k.libsonnet`, Jsonnet, and Memcachd libraries.
                 },
             },
             overrides+: {
-                metrics_generator_processors: ['service-graphs', 'span-metrics'],
+                defaults+: {
+                    metrics_generator+: {
+                        processors: ['service-graphs', 'span-metrics'],
+                    },
+                },
             },
         },
     }
@@ -346,7 +349,7 @@ In the preceding configuration, [metrics generation](/docs/tempo/<TEMPO_VERSION>
 If you'd like to remote write these metrics onto a Prometheus compatible instance (such as Grafana Cloud metrics or a Mimir instance), you'll need to include the configuration block below in the `metrics_generator` section of the `tempo_config` block above (this assumes basic auth is required, if not then remove the `basic_auth` section).
 You can find the details for your Grafana Cloud metrics instance for your Grafana Cloud account by using the [Cloud Portal](/docs/grafana-cloud/account-management/cloud-portal/).
 
-````jsonnet
+```jsonnet
 storage+: {
     remote_write: [
         {
@@ -419,7 +422,7 @@ The Tempo instance will now accept the two configured trace protocols (OTLP gRPC
 - OTLP gRPC: `4317`
 - Jaeger gRPC: `14250`
 
-You can query Tempo using the `query-frontend.tempo.svc.cluster.local` service on port `3200` for Tempo queries or port `16686` or `16687` for Jaeger type queries.
+You can query Tempo using the `query-frontend.tempo.svc.cluster.local` service on port `3200`.
 
 Now that you've configured a Tempo cluster, you'll need to validate your deployment.
 Refer to the [Validate Kubernetes deployment using a test application](/docs/tempo/<TEMPO_VERSION>/set-up-for-tracing/setup-tempo/test/set-up-test-app/) for instructions.
