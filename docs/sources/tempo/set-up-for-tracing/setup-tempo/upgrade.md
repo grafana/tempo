@@ -129,14 +129,17 @@ storage:
         - { scope: resource, name: service.name, type: string }
 ```
 
-### Live-store flush defaults updated
+### Live-store and query defaults reduced
 
-The default values for two live-store flush settings have changed to limit the amount of data replayed from the WAL, which prevents long startup and shutdown times. [[PR 6650](https://github.com/grafana/tempo/pull/6650)]
+The default values for several live-store and query-frontend settings have been reduced to produce smaller WAL blocks, release completed blocks sooner, and align the metrics query backend boundary with search.
 
-| Setting                         | Previous default | New default |
-| ------------------------------- | ---------------- | ----------- |
-| `live_store.flush_check_period` | `10s`            | `5s`        |
-| `live_store.max_block_duration` | `30m`            | `1m`        |
+| Setting                                          | Previous default | New default |
+| ------------------------------------------------ | ---------------- | ----------- |
+| `live_store.flush_check_period`                  | `10s`            | `5s`        |
+| `live_store.max_block_duration`                  | `30m`            | `30s`       |
+| `live_store.max_block_bytes`                     | `100 MiB`        | `50 MiB`    |
+| `live_store.complete_block_timeout`              | `1h`             | `20m`       |
+| `query_frontend.metrics.query_backend_after`     | `30m`            | `15m`       |
 
 If you explicitly set these values in your configuration, no action is needed.
 

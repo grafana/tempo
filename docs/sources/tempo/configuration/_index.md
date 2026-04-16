@@ -421,7 +421,7 @@ live_store:
     [commit_interval: <duration> | default = 5s]
 
     # How often to sweep all tenants and move traces from live -> wal -> completed blocks.
-    [flush_check_period: <duration> | default = 10s]
+    [flush_check_period: <duration> | default = 5s]
 
     # Amount of time a trace must be idle before flushing it to the WAL.
     [max_trace_idle: <duration> | default = 5s]
@@ -433,13 +433,13 @@ live_store:
     [max_live_traces_bytes: <uint64> | default = 250000000]
 
     # Maximum size of a block before cutting it.
-    [max_block_bytes: <uint64> | default = 104857600]
+    [max_block_bytes: <uint64> | default = 52428800]
 
     # Maximum length of time before cutting a block.
-    [max_block_duration: <duration> | default = 30m]
+    [max_block_duration: <duration> | default = 30s]
 
     # Duration to keep blocks in the live-store after they have been completed.
-    [complete_block_timeout: <duration> | default = 1h]
+    [complete_block_timeout: <duration> | default = 20m]
 
     # Target consumer lag threshold before the live-store is considered ready to serve queries.
     # Set to 0 to disable readiness waiting.
@@ -862,7 +862,7 @@ query_frontend:
         # query_backend_after controls where the query-frontend searches for traces.
         # Time ranges older than query_backend_after will be searched in the backend/object storage only.
         # Time ranges between query_backend_after and now will be queried from the metrics-generators.
-        [query_backend_after: <duration> | default = 30m ]
+        [query_backend_after: <duration> | default = 15m ]
 
         # The target length of time for each job to handle when querying the backend.
         [interval: <duration> | default = 5m ]

@@ -108,7 +108,7 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(string, *flag.FlagSet) {
 	cfg.Metrics = MetricsConfig{
 		Sharder: QueryRangeSharderConfig{
 			MaxDuration:           24 * time.Hour,
-			QueryBackendAfter:     30 * time.Minute,
+			QueryBackendAfter:     15 * time.Minute,
 			ConcurrentRequests:    defaultConcurrentRequests,
 			TargetBytesPerRequest: defaultTargetBytesPerRequest,
 			Interval:              5 * time.Minute,

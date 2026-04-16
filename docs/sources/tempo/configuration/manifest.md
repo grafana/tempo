@@ -341,7 +341,7 @@ query_frontend:
         concurrent_jobs: 1000
         target_bytes_per_job: 104857600
         max_duration: 24h0m0s
-        query_backend_after: 30m0s
+        query_backend_after: 15m0s
         interval: 5m0s
         max_exemplars: 100
         streaming_shards: 200
@@ -1032,7 +1032,7 @@ live_store:
         path: /var/tempo/live-store/traces
         ingestion_time_range_slack: 2m0s
     query_block_concurrency: 10
-    complete_block_timeout: 1h0m0s
+    complete_block_timeout: 20m0s
     complete_block_concurrency: 2
     shutdown_marker_dir: /var/tempo/live-store/shutdown-marker
     flush_check_period: 5s
@@ -1040,8 +1040,8 @@ live_store:
     max_trace_live: 30s
     max_trace_idle: 5s
     max_live_traces_bytes: 250000000
-    max_block_duration: 1m0s
-    max_block_bytes: 104857600
+    max_block_duration: 30s
+    max_block_bytes: 52428800
     readiness_target_lag: 0s
     readiness_max_wait: 30m0s
     fail_on_high_lag: false
