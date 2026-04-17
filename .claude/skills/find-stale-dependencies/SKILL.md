@@ -99,7 +99,7 @@ For each confirmed stale dep, verify that the **current version in go.mod** fall
 
 Preferred: run `govulncheck` if available, which checks only the versions actually in use:
 ```bash
-govulncheck -json ./... 2>/dev/null | jq -r '.Finding[] | select(.Trace != null) | .OSV'
+govulncheck -json ./... 2>/dev/null | jq -r 'select(.finding.trace != null) | .finding.osv'
 ```
 
 Fallback: fetch the advisory list and cross-check the version manually:
