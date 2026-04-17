@@ -1,8 +1,10 @@
 ## main / unreleased
 
+* [BUGFIX] Fix tempo-vulture ignoring `-tempo-push-tls` flag in normal operating mode. [#6974](https://github.com/grafana/tempo/pull/6974) (@xaque208)
 * [CHANGE] **BREAKING CHANGE** Remove duplicate "compaction" prefix from CompactorConfig CLI flags. Affected flags: `compaction.block-retention`, `compaction.max-objects-per-block`, `compaction.max-block-bytes`, `compaction.compaction-window`. [#6909](https://github.com/grafana/tempo/pull/6909) (@electron0zero)
 * [ENHANCEMENT] Support OR conditions for tag name and tag value autocomplete (search tags v2) [#6827](https://github.com/grafana/tempo/pull/6827) (@ie-pham)
 * [ENHANCEMENT] Expose MinIO retry settings via S3 config [#6561](https://github.com/grafana/tempo/pull/6561) (@rwhitty)
+* [ENHANCEMENT] Reduce default livestore WAL size and align query defaults: `max_block_duration` `1m` to `30s`, `max_block_bytes` `100MiB` to `50MiB`, `complete_block_timeout` `1h` to `20m`, metrics `query_backend_after` `30m` to `15m`. [#6974](https://github.com/grafana/tempo/pull/6974) (@zhxiaogg)
 * [CHANGE] **BREAKING CHANGE** Centralize block and WAL config: `block_builder` and `live_store` now always use `storage.trace.block` settings; per-module block config fields are removed. [#6647](https://github.com/grafana/tempo/pull/6647) (@stoewer)
 * [CHANGE] **BREAKING CHANGE** Remove Opencensus receiver [#6523](https://github.com/grafana/tempo/pull/6523) (@javiermolinar)
 * [CHANGE] Upgrade Tempo to Go 1.26.0 [#6443](https://github.com/grafana/tempo/pull/6443) (@stoewer)
@@ -59,6 +61,7 @@
 * [ENHANCEMENT] Implemented anti-affinity for pods in same livestore zone [#6757](https://github.com/grafana/tempo/pull/6757) (@zhxiaogg)
 * [ENHANCEMENT] Livestore: skipped WAL complete op during shutdown [#6839](https://github.com/grafana/tempo/pull/6839) (@zhxiaogg)
 * [ENHANCEMENT] Add metric to track livestore block cut reasons [#6922](https://github.com/grafana/tempo/pull/6922) (@zhxiaogg)
+* [ENHANCEMENT] Enable async parquet read mode for WAL completion path [#6967](https://github.com/grafana/tempo/pull/6967) (@zhxiaogg)
 * [BUGFIX] livestore: check readiness before lag for SearchRecent and QueryRange queries [#6911](https://github.com/grafana/tempo/pull/6911) (@zhxiaogg)
 * [BUGFIX] Fix integer overflow in query parameters by using `strconv.ParseUint` instead of `strconv.Atoi`/`strconv.ParseInt` for unsigned integer fields. [#6612](https://github.com/grafana/tempo/pull/6612) (@bejaratommy)
 * [BUGFIX] Fix live-store SearchTagValuesV2 disk cache never being populated on complete blocks [#6858](https://github.com/grafana/tempo/pull/6858) (@mapno)
@@ -93,6 +96,7 @@
 * [CHANGE] **BREAKING CHANGE** Remove partition ring livestore config [#6981](https://github.com/grafana/tempo/pull/6981) (@javiermolinar)
 * [CHANGE] Flush blocks to backend storage from the Live store in single binary mode [#6941](https://github.com/grafana/tempo/pull/6941) (@javiermolinar)
 * [CHANGE] **BREAKING CHANGE** Remove ingester module [#6959](https://github.com/grafana/tempo/pull/6959) (@javiermolinar)
+* [CHANGE] Remove stale config from the examples [#6980](https://github.com/grafana/tempo/pull/6980) (@javiermolinar)
 * [CHANGE] **BREAKING CHANGE** Remove ingest.enabled config [#6873](https://github.com/grafana/tempo/pull/6873) (@javiermolinar)
 * [CHANGE] **BREAKING CHANGE** Disable legacy (flat, unscoped) overrides by default. Tempo will refuse to start if legacy overrides are detected. Set `enable_legacy_overrides: true` or `-config.enable-legacy-overrides=true` to opt back in temporarily. Legacy overrides will be removed in a future release. [#6741](https://github.com/grafana/tempo/pull/6741) (@electron0zero)
 * [CHANGE] tempo-cli: Rewrite `migrate overrides-config` and add `migrate overrides-per-tenant` command to help migrate legacy flat overrides to the new scoped format. [#6793](https://github.com/grafana/tempo/pull/6793) (@electron0zero)

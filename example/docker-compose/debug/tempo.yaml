@@ -15,23 +15,6 @@ distributor:
 #  log_discarded_spans:
 #    enabled: true
 
-backend_scheduler:
-  provider:
-    compaction:
-      compaction:
-        block_retention: 1h
-
-backend_worker:
-  backend_scheduler_addr: backend-scheduler:3200
-  compaction:
-    block_retention: 1h
-  ring:
-    kvstore:
-      store: memberlist
-
-querier:
-  query_live_store: true
-
 metrics_generator:
   registry:
     external_labels:

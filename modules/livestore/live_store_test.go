@@ -1213,7 +1213,7 @@ func TestIsLagged(t *testing.T) {
 				ctx := user.InjectOrgID(t.Context(), testTenantID)
 				resp, err := ls.QueryRange(ctx, &tempopb.QueryRangeRequest{
 					Query: "{} | rate()",
-					Start: uint64(now.Add(-30 * time.Minute).UnixNano()),
+					Start: uint64(now.Add(-defaultCompleteBlockTimeout).UnixNano()),
 					End:   uint64(tc.end.UnixNano()),
 					Step:  uint64(time.Second),
 				})
