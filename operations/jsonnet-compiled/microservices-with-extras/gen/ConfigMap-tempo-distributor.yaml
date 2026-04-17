@@ -12,6 +12,10 @@ data:
                     grpc:
                         endpoint: 0.0.0.0:4317
     http_api_prefix: ""
+    ingest:
+        kafka:
+            address: kafka:9092
+            topic: tempo-ingest
     memberlist:
         abort_if_cluster_join_fails: false
         bind_addr:
