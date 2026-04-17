@@ -87,6 +87,7 @@
 * [BUGFIX] fix: respect context cancellation when reading WAL block iterator [#6928](https://github.com/grafana/tempo/pull/6928) (@zhxiaogg)
 * [BUGFIX] Complete lifecycler shutdown on errors [#6906](https://github.com/grafana/tempo/pull/6906) (@javiermolinar)
 * [BUGFIX] livestore: fix concurrent WAL writes from periodic and shutdown flushes [#6972](https://github.com/grafana/tempo/pull/6972) (@zhxiaogg)
+* [BUGFIX] live-store: fix race conditions for tag values endpoint [#7000](https://github.com/grafana/tempo/pull/7000) (@ruslan-mikhailov)
 
 ### 3.0 Cleanup
 
