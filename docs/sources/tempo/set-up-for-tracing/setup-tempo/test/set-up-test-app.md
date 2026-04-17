@@ -53,15 +53,10 @@ To allow Grafana to read traces from Tempo, you must create a Tempo data source.
 
 1. Select **Tempo**.
 
-<<<<<<< ts-1078-setup-docs-1-v3
-1. Set the URL to `http://<TEMPO-QUERY-FRONTEND-SERVICE>:<HTTP-LISTEN-PORT>/`, filling in the path to the Tempo query frontend service and the configured HTTP API prefix.
-   If you followed [Deploy Tempo with Helm installation example](/docs/tempo/latest/set-up-for-tracing/setup-tempo/deploy/kubernetes/helm-chart/), the query frontend service's URL looks something like this: `http://tempo-cluster-query-frontend.<NAMESPACE>.svc.cluster.local:3200`
-=======
 1. Set the URL to `http://<TEMPO-QUERY-FRONTEND-SERVICE>:<HTTP-LISTEN-PORT>/`, filling in the path to the Tempo query frontend service and the HTTP listen port (default `3200`).
    For example:
    - Tanka deployment: `http://query-frontend.tempo.svc.cluster.local:3200`
    - Helm deployment: `http://tempo-cluster-query-frontend.<NAMESPACE>.svc.cluster.local:3200`
->>>>>>> main
 
 1. Click **Save & Test**.
 
