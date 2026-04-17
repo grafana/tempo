@@ -116,7 +116,7 @@ For each stale dep, identify the recommended replacement:
 
 If a replacement is found, check whether it's already in `go.mod`:
 ```bash
-grep "^	<replacement-path> " go.mod
+go mod edit -json | jq -r '.Require[].Path' | grep -Fx "<replacement-path>"
 ```
 Report: **replacement already in go.mod** (migration effort only) vs **replacement not yet added** (requires dep bump + migration).
 
