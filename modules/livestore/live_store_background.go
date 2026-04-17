@@ -37,12 +37,13 @@ func (o *completeOp) Key() string { return o.tenantID + "/" + o.blockID.String()
 func (o *completeOp) Priority() int64 { return -o.at.Unix() }
 
 func (o *completeOp) backoff() time.Duration {
+	current := o.bo
 	o.bo *= 2
 	if o.bo > o.maxBackoff {
 		o.bo = o.maxBackoff
 	}
 
-	return o.bo
+	return current
 }
 
 func (s *LiveStore) startAllBackgroundProcesses() {
