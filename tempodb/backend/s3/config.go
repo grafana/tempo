@@ -61,6 +61,8 @@ type Config struct {
 	RetryMaxAttempts    int            `yaml:"retry_max_attempts"`
 	RetryBackoffInitial time.Duration  `yaml:"retry_backoff_initial"`
 	RetryBackoffMax     time.Duration  `yaml:"retry_backoff_max"`
+	// ResponseHeaderTimeout sets Transport.ResponseHeaderTimeout; 0 leaves minio default (1m).
+	ResponseHeaderTimeout time.Duration `yaml:"response_header_timeout,omitempty"`
 	// SignatureV2 configures the object storage to use V2 signing instead of V4
 	SignatureV2      bool              `yaml:"signature_v2"`
 	ForcePathStyle   bool              `yaml:"forcepathstyle"`
@@ -85,6 +87,7 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 	f.Var(&cfg.SecretKey, util.PrefixConfig(prefix, "s3.secret_key"), "s3 secret key.")
 	f.Var(&cfg.SessionToken, util.PrefixConfig(prefix, "s3.session_token"), "s3 session token.")
 	f.IntVar(&cfg.ListBlocksConcurrency, util.PrefixConfig(prefix, "s3.list_blocks_concurrency"), 3, "number of concurrent list calls to make to backend")
+	f.DurationVar(&cfg.ResponseHeaderTimeout, util.PrefixConfig(prefix, "s3.response-header-timeout"), 0, "HTTP response header timeout for S3 requests; 0 uses minio default (1m)")
 
 	f.StringVar(&cfg.SSE.Type, util.PrefixConfig(prefix, "s3.sse.type"), "", fmt.Sprintf("Enable AWS Server Side Encryption. Supported values: %s.", strings.Join(supportedSSETypes, ", ")))
 	f.StringVar(&cfg.SSE.KMSKeyID, util.PrefixConfig(prefix, "s3.sse.kms-key-id"), "", "KMS Key ID used to encrypt objects in S3")

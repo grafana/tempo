@@ -741,6 +741,10 @@ func createCore(cfg *Config, hedge bool) (*minio.Core, error) {
 	customTransport.MaxIdleConnsPerHost = 100
 	customTransport.MaxIdleConns = 100
 
+	if cfg.ResponseHeaderTimeout > 0 {
+		customTransport.ResponseHeaderTimeout = cfg.ResponseHeaderTimeout
+	}
+
 	tlsConfig, err := cfg.GetTLSConfig()
 	if err != nil {
 		return nil, fmt.Errorf("failed to create TLS config: %w", err)
