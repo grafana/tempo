@@ -41,14 +41,14 @@ awk '/^require\s*\(/{p=1} p && !/\/\/ indirect/ && /^\t[a-z]/{print $1, $2} /^\)
 For `github.com/<owner>/<repo>/...` imports, the repo is `https://github.com/<owner>/<repo>`.
 
 For **all other imports** (vanity domains like `go.yaml.in/`, `gopkg.in/`, custom domains):
-1. Fetch `https://pkg.go.dev/<import-path>`
-2. Extract the repo link from:
-   ```html
-   <div class="UnitMeta-repo"><a href="REPO_URL">
+1. Resolve the source repository URL via the module proxy (module is usually already cached in vendor repos):
+   ```bash
+   go mod download -json <import-path>@<version> | jq -r '.Origin.URL // empty'
    ```
-3. Use that resolved GitHub URL for all subsequent checks
+2. If `.Origin.URL` is empty, fall back to `WebFetch` of `https://pkg.go.dev/<import-path>` and look for the source link.
+3. Use the resolved GitHub URL for all subsequent checks.
 
-Do not assume a vanity domain hosts its own repo — always follow the redirect via pkg.go.dev.
+Do not assume a vanity domain hosts its own repo — always resolve it first.
 
 ## Step 3 — Check repository staleness
 
