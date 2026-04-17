@@ -92,6 +92,7 @@ func (s *LiveStore) globalCompleteLoop(idx int) {
 		if op.attempts > maxFlushAttempts {
 			level.Error(s.logger).Log("msg", "failed to complete operation", "tenant", op.tenantID, "block", op.blockID, "attempts", op.attempts)
 			observeFailedOp(op)
+			s.completeQueues.Clear(op)
 			continue
 		}
 
