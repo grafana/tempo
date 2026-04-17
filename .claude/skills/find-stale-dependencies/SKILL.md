@@ -116,7 +116,7 @@ For each stale dep, run these in parallel:
 
 ```bash
 # Modules that depend on it (from the full dependency graph)
-go mod graph | awk '$2 ~ /^<module>@/ { print $1 }' | sort -u | wc -l
+go mod graph | awk -v mod="<module>@" '$2 ~ "^" mod { print $1 }' | sort -u | wc -l
 
 # Vendor packages that import it directly
 grep -r '"<import-path>' vendor/ --include="*.go" -l 2>/dev/null | xargs -r dirname | sort -u | wc -l
