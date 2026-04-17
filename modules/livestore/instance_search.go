@@ -409,10 +409,6 @@ func (i *instance) SearchTagValues(ctx context.Context, req *tempopb.SearchTagVa
 	}
 
 	search := func(ctx context.Context, _ *backend.BlockMeta, b block) error {
-		if maxBlocks > 0 && inspectedBlocks.Load() >= maxBlocks {
-			return nil
-		}
-
 		if b == nil {
 			return nil
 		}
@@ -421,7 +417,11 @@ func (i *instance) SearchTagValues(ctx context.Context, req *tempopb.SearchTagVa
 			return errComplete
 		}
 
-		inspectedBlocks.Inc()
+		// Atomically reserve a slot
+		if maxBlocks > 0 && inspectedBlocks.Inc() > maxBlocks {
+			return errComplete
+		}
+
 		err := b.SearchTagValues(ctx, tagName, distinctValues.Collect, mc.Add, common.DefaultSearchOptions())
 		if err != nil && !errors.Is(err, util.ErrUnsupported) {
 			return fmt.Errorf("unexpected error searching tag values (%s): %w", tagName, err)
