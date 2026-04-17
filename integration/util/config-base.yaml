@@ -8,7 +8,6 @@
 #
 
 stream_over_http_enabled: true
-partition_ring_live_store: true
 
 server:
   http_listen_port: 3200

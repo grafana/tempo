@@ -93,6 +93,7 @@
 
 ### 3.0 Cleanup
 
+* [CHANGE] **BREAKING CHANGE** Remove partition ring livestore config [#6981](https://github.com/grafana/tempo/pull/6981) (@javiermolinar)
 * [CHANGE] Flush blocks to backend storage from the Live store in single binary mode [#6941](https://github.com/grafana/tempo/pull/6941) (@javiermolinar)
 * [CHANGE] **BREAKING CHANGE** Remove ingester module [#6959](https://github.com/grafana/tempo/pull/6959) (@javiermolinar)
 * [CHANGE] Remove stale config from the examples [#6980](https://github.com/grafana/tempo/pull/6980) (@javiermolinar)

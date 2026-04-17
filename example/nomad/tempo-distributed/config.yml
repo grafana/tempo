@@ -1,5 +1,3 @@
-partition_ring_live_store: true
-
 server:
   log_level: info
   http_listen_port: {{ env "NOMAD_PORT_http" }}
