@@ -5,6 +5,7 @@ description: Use Grafana to visualize, query, and explore your tracing data with
 weight: 400
 aliases:
   - ../getting-started/tempo-in-grafana/ #/docs/tempo/latest/introduction/tempo-in-grafana/
+  - ../introduction/tempo-in-grafana/ # /docs/tempo/<TEMPO_VERSION>/introduction/tempo-in-grafana/
 
 ---
 
