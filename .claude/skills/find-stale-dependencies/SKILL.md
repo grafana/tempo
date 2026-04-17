@@ -47,7 +47,9 @@ For **all other imports** (vanity domains like `go.yaml.in/`, `gopkg.in/`, custo
    ```
 2. If `.Origin.URL` is empty, fall back to `WebFetch` of `https://pkg.go.dev/<import-path>` and look for the source link.
 3. If both methods fail to produce a URL, **skip the dep and note it explicitly in the report** as "URL could not be resolved — skipped". Do not silently drop it.
-4. Use the resolved GitHub URL for all subsequent checks.
+4. **Branch by host**:
+   - **GitHub** (`https://github.com/...`): proceed with `gh api` calls in Step 3 as normal.
+   - **Non-GitHub** (GitLab, Bitbucket, Sourcehut, etc.): `gh api` does not apply. Use `WebFetch` of the resolved URL to check for archived/deprecated signals in the page content or README. Note in the report that the `go mod graph` blast-radius count is still available but `gh api`-based staleness details are not.
 
 Do not assume a vanity domain hosts its own repo — always resolve it first.
 
