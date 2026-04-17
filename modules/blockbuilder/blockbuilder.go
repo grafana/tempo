@@ -90,6 +90,12 @@ var (
 		Name:      "spans_deduped_total",
 		Help:      "Total number of duplicate spans removed during block building.",
 	}, []string{"tenant"})
+	metricFlushThresholdReached = promauto.NewCounterVec(prometheus.CounterOpts{
+		Namespace: "tempo",
+		Subsystem: "block_builder",
+		Name:      "flush_threshold_reached_total",
+		Help:      "Total number of mid-cycle flushes triggered when liveTraces memory threshold was exceeded.",
+	}, []string{"partition"})
 
 	tracer = otel.Tracer("modules/blockbuilder")
 
@@ -304,6 +310,9 @@ func (b *BlockBuilder) consume(ctx context.Context) (time.Duration, error) {
 	// Iterate over the laggiest partition until the lag is less than the cycle duration or none of the partitions has records
 	for {
 		sort.Slice(ps, func(i, j int) bool {
+			if ps[i].lastRecordTs.Equal(ps[j].lastRecordTs) {
+				return ps[i].partition < ps[j].partition
+			}
 			return ps[i].lastRecordTs.Before(ps[j].lastRecordTs)
 		})
 
@@ -344,12 +353,11 @@ func (b *BlockBuilder) consumePartition(ctx context.Context, ps partitionState) 
 		dur              = b.cfg.ConsumeCycleDuration
 		topic            = b.cfg.IngestStorageConfig.Kafka.Topic
 		group            = b.cfg.IngestStorageConfig.Kafka.ConsumerGroup
-		maxBytesPerCycle = b.cfg.MaxBytesPerCycle
+		maxBytesInMemory = b.cfg.MaxBytesInMemory
 		partLabel        = strconv.Itoa(int(ps.partition))
-		consumedBytes    uint64
 		startOffset      kgo.Offset
 		init             bool
-		writer           *writer
+		writer           partitionSectionWriter
 		lastRec          *kgo.Record
 		end              time.Time
 		processedRecords int
@@ -413,8 +421,6 @@ outer:
 			// Initialize on first record
 			if !init {
 				end = rec.Timestamp.Add(dur) // When block will be cut
-				// Record lag at the start of the consumption
-				ingest.SetPartitionLagSeconds(group, ps.partition, time.Since(rec.Timestamp))
 				writer = newPartitionSectionWriter(
 					b.logger,
 					uint64(ps.partition),
@@ -445,19 +451,22 @@ outer:
 
 			processedRecords++
 			lastRec = rec
-			consumedBytes += recordSizeBytes
 
-			if maxBytesPerCycle > 0 && consumedBytes >= maxBytesPerCycle {
+			if totalSize := writer.TotalSize(); maxBytesInMemory > 0 && totalSize >= maxBytesInMemory {
 				level.Debug(b.logger).Log(
-					"msg", "max bytes per cycle reached",
+					"msg", "memory threshold reached, flushing mid-cycle",
 					"partition", ps.partition,
 					"timestamp", rec.Timestamp,
+					"total_size", totalSize,
 				)
-				span.AddEvent("max bytes per cycle reached", trace.WithAttributes(
-					attribute.Int64("maxBytesPerCycle", int64(maxBytesPerCycle)),
-					attribute.Int64("consumedBytes", int64(consumedBytes))),
-				)
-				break outer
+				span.AddEvent("mid-cycle flush triggered", trace.WithAttributes(
+					attribute.Int64("maxBytesInMemory", int64(maxBytesInMemory)),
+					attribute.Int64("totalSize", int64(totalSize)),
+				))
+				metricFlushThresholdReached.WithLabelValues(partLabel).Inc()
+				if err := writer.FlushAndReset(ctx, b.reader, b.writer, b.compactor); err != nil {
+					return time.Time{}, commitOffsetAtEnd, err
+				}
 			}
 		}
 	}

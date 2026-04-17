@@ -23,6 +23,9 @@ const flushConcurrency = 4
 type partitionSectionWriter interface {
 	pushBytes(ts time.Time, tenant string, req *tempopb.PushBytesRequest) error
 	flush(ctx context.Context, r tempodb.Reader, w tempodb.Writer, c tempodb.Compactor) error
+	allowCompaction(ctx context.Context, w tempodb.Writer)
+	TotalSize() uint64
+	FlushAndReset(ctx context.Context, r tempodb.Reader, w tempodb.Writer, c tempodb.Compactor) error
 }
 
 type writer struct {
@@ -87,11 +90,18 @@ func (p *writer) flush(ctx context.Context, r tempodb.Reader, w tempodb.Writer, 
 	ctx, span := tracer.Start(ctx, "writer.flush", trace.WithAttributes(attribute.Int("partition", int(p.partition)), attribute.String("section_start_time", p.startTime.String())))
 	defer span.End()
 
+	p.mtx.Lock()
+	tenants := make([]*tenantStore, 0, len(p.m))
+	for _, ts := range p.m {
+		tenants = append(tenants, ts)
+	}
+	p.mtx.Unlock()
+
 	// Flush tenants concurrently
 	g, ctx := errgroup.WithContext(ctx)
 	g.SetLimit(flushConcurrency)
 
-	for _, i := range p.m {
+	for _, i := range tenants {
 		g.Go(func() error {
 			i := i
 			st := time.Now()
@@ -108,6 +118,38 @@ func (p *writer) flush(ctx context.Context, r tempodb.Reader, w tempodb.Writer, 
 	return g.Wait()
 }
 
+// TotalSize returns the total number of live trace bytes held across all tenant stores.
+// This is used to detect when the memory threshold has been reached and a mid-cycle
+// flush should be triggered.
+func (p *writer) TotalSize() uint64 {
+	p.mtx.Lock()
+	defer p.mtx.Unlock()
+
+	var total uint64
+	for _, ts := range p.m {
+		total += ts.liveTraces.Size()
+	}
+	return total
+}
+
+// FlushAndReset flushes all tenant stores to the backend and then resets their
+// liveTraces to free memory. The ID generators are NOT reset, so subsequent
+// Flush() calls produce new unique sequential block IDs that are idempotent
+// on restart from the same committed offset.
+func (p *writer) FlushAndReset(ctx context.Context, r tempodb.Reader, w tempodb.Writer, c tempodb.Compactor) error {
+	if err := p.flush(ctx, r, w, c); err != nil {
+		return err
+	}
+
+	p.mtx.Lock()
+	defer p.mtx.Unlock()
+
+	for _, ts := range p.m {
+		ts.Reset()
+	}
+	return nil
+}
+
 func (p *writer) allowCompaction(ctx context.Context, w tempodb.Writer) {
 	ctx, span := tracer.Start(
 		ctx, "writer.allowCompaction",
@@ -118,9 +160,16 @@ func (p *writer) allowCompaction(ctx context.Context, w tempodb.Writer) {
 	)
 	defer span.End()
 
+	p.mtx.Lock()
+	tenants := make([]*tenantStore, 0, len(p.m))
+	for _, ts := range p.m {
+		tenants = append(tenants, ts)
+	}
+	p.mtx.Unlock()
+
 	wg := sync.WaitGroup{}
-	wg.Add(len(p.m))
-	for _, i := range p.m {
+	wg.Add(len(tenants))
+	for _, i := range tenants {
 		go func() {
 			defer wg.Done()
 			level.Info(p.logger).Log("msg", "allowing compaction", "tenant", i.tenantID)

@@ -1,6 +1,7 @@
 package blockbuilder
 
 import (
+	"context"
 	"flag"
 	"testing"
 	"time"
@@ -190,6 +191,34 @@ func writeHistoricalData(t *testing.T, count int, startTime time.Time, cycleDura
 	return metas[0]
 }
 
+// TestTenantStoreReset verifies that Reset() clears liveTraces but does NOT
+// reset the ID generator, so subsequent Flush() calls produce new unique block IDs.
+func TestTenantStoreReset(t *testing.T) {
+	startTime := time.Now().Add(-24 * time.Hour)
+	store, err := getTenantStore(t, startTime, 5*time.Minute, 5*time.Minute)
+	require.NoError(t, err)
+
+	// Append a trace so liveTraces is non-empty.
+	req := test.MakePushBytesRequest(t, 1, nil, uint64(startTime.UnixNano()), uint64(startTime.Add(time.Minute).UnixNano()))
+	err = store.AppendTrace(req.Ids[0], req.Traces[0].Slice, startTime)
+	require.NoError(t, err)
+	require.Greater(t, store.liveTraces.Len(), uint64(0), "liveTraces must be non-empty before Reset")
+
+	// Capture an ID before Reset() to verify the generator state advances across the boundary.
+	id1 := store.idGenerator.NewID()
+
+	store.Reset()
+
+	require.Equal(t, uint64(0), store.liveTraces.Len(), "liveTraces must be empty after Reset")
+	require.Equal(t, uint64(0), store.liveTraces.Size(), "liveTraces size must be zero after Reset")
+
+	// ID generator must still be functional (not nil or panicking) and must
+	// produce a different ID than before Reset() — proving it was not re-seeded.
+	id2 := store.idGenerator.NewID()
+	require.NotEmpty(t, id2.String(), "idGenerator must still work after Reset")
+	require.NotEqual(t, id1, id2, "idGenerator must not be re-seeded by Reset")
+}
+
 func TestTenantStoreNoCompactFlag(t *testing.T) {
 	var (
 		ctx           = t.Context()
@@ -236,4 +265,46 @@ func TestTenantStoreNoCompactFlag(t *testing.T) {
 	require.EqualValues(t, count, actualMeta.TotalObjects)
 	require.EqualValues(t, 1, actualMeta.TotalRecords)
 	require.Greater(t, actualMeta.Size_, uint64(0))
+}
+
+// TestTenantStoreAllowCompaction_MultipleBlocks verifies that AllowCompaction
+// removes the no-compact flag from ALL blocks written during a cycle, not just the last.
+func TestTenantStoreAllowCompaction_MultipleBlocks(t *testing.T) {
+	var (
+		ctx           = context.Background()
+		startTime     = time.Now().Add(-24 * time.Hour)
+		cycleDuration = 5 * time.Minute
+		slackDuration = 5 * time.Minute
+		logger        = log.NewNopLogger()
+		store         = newStoreWithLogger(ctx, t, logger, true) // noCompact=true
+	)
+
+	ts, err := getTenantStore(t, startTime, cycleDuration, slackDuration)
+	require.NoError(t, err)
+
+	// First flush — append traces and flush.
+	req1 := test.MakePushBytesRequest(t, 2, nil, uint64(startTime.UnixNano()), uint64(startTime.Add(time.Minute).UnixNano()))
+	for j := range req1.Traces {
+		require.NoError(t, ts.AppendTrace(req1.Ids[j], req1.Traces[j].Slice, startTime))
+	}
+	require.NoError(t, ts.Flush(ctx, store, store, store))
+	ts.Reset()
+
+	// Second flush — append more traces and flush.
+	req2 := test.MakePushBytesRequest(t, 2, nil, uint64(startTime.UnixNano()), uint64(startTime.Add(time.Minute).UnixNano()))
+	for j := range req2.Traces {
+		require.NoError(t, ts.AppendTrace(req2.Ids[j], req2.Traces[j].Slice, startTime))
+	}
+	require.NoError(t, ts.Flush(ctx, store, store, store))
+
+	// Before AllowCompaction: 0 blocks visible (all have noCompact flag).
+	store.PollNow(ctx)
+	require.Equal(t, 0, len(store.BlockMetas(ts.tenantID)), "blocks must not be visible before AllowCompaction")
+
+	// AllowCompaction must clear flags on BOTH blocks.
+	require.NoError(t, ts.AllowCompaction(ctx, store))
+
+	store.PollNow(ctx)
+	metas := store.BlockMetas(ts.tenantID)
+	require.Equal(t, 2, len(metas), "both blocks must be visible after AllowCompaction")
 }
