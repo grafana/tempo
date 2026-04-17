@@ -103,7 +103,7 @@ func (r *cachedReaderAt) ReadAt(p []byte, off int64) (int, error) {
 	if len(p) == 8 && off == r.readerSize-8 && r.footerSize > 0 /* not present in previous block metas */ {
 		// Magic footer
 		binary.LittleEndian.PutUint32(p, r.footerSize)
-		copy(p[4:8], []byte("PAR1"))
+		copy(p[4:8], []byte("PAR1")) //nolint:gosec
 		return 8, nil
 	}
 
