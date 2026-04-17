@@ -75,7 +75,7 @@ If `gh` is unavailable, fall back to `WebFetch` of `https://github.com/<owner>/<
 
 - **Versioned import paths** (`/v2`, `/v8`, etc.): extract the major N from the path and check the last release for that specific major (use `per_page=100` — `--paginate` doesn't work with `--jq`):
   ```bash
-  MAJOR=$(echo "<import-path>" | grep -oP '/v\K[0-9]+' || echo "1")
+  MAJOR=$(echo "<import-path>" | sed -n 's|.*/v\([0-9][0-9]*\)$|\1|p'); MAJOR=${MAJOR:-1}
   gh api "repos/<owner>/<repo>/releases?per_page=100" --jq \
     "[.[] | select(.tag_name | startswith(\"v${MAJOR}.\"))] | sort_by(.published_at) | last | .published_at"
   ```
