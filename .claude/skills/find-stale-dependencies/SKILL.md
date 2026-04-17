@@ -46,7 +46,8 @@ For **all other imports** (vanity domains like `go.yaml.in/`, `gopkg.in/`, custo
    go mod download -json <import-path>@<version> | jq -r '.Origin.URL // empty'
    ```
 2. If `.Origin.URL` is empty, fall back to `WebFetch` of `https://pkg.go.dev/<import-path>` and look for the source link.
-3. Use the resolved GitHub URL for all subsequent checks.
+3. If both methods fail to produce a URL, **skip the dep and note it explicitly in the report** as "URL could not be resolved — skipped". Do not silently drop it.
+4. Use the resolved GitHub URL for all subsequent checks.
 
 Do not assume a vanity domain hosts its own repo — always resolve it first.
 
