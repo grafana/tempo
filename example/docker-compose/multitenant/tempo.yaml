@@ -1,4 +1,3 @@
-partition_ring_live_store: true
 stream_over_http_enabled: true
 multitenancy_enabled: true
 
@@ -18,26 +17,6 @@ distributor:
 #    enabled: true
 #  log_discarded_spans:
 #    enabled: true
-
-backend_scheduler:
-  provider:
-    compaction:
-      compaction:
-        block_retention: 1h
-
-backend_worker:
-  backend_scheduler_addr: backend-scheduler:3200
-  compaction:
-    block_retention: 1h
-  ring:
-    kvstore:
-      store: memberlist
-
-querier:
-  query_live_store: true
-
-metrics_generator:
-
 query_frontend:
   mcp_server:
     enabled: true
