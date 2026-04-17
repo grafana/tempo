@@ -126,10 +126,10 @@ For each stale dep, run these in parallel:
 
 ```bash
 # Modules that depend on it (from the full dependency graph)
-go mod graph | awk -v mod="<module>@" '$2 ~ "^" mod { print $1 }' | sort -u | wc -l
+go mod graph | awk -v mod="<module>@" 'index($2, mod) == 1 { print $1 }' | sort -u | wc -l
 
 # Vendor packages that import it directly
-grep -r '"<import-path>' vendor/ --include="*.go" -l 2>/dev/null | xargs -r dirname | sort -u | wc -l
+grep -r '"<import-path>' vendor/ --include="*.go" -l 2>/dev/null | awk 'NF { sub("/[^/]+$", "", $0); print }' | sort -u | wc -l
 ```
 
 Report both counts in the output.
