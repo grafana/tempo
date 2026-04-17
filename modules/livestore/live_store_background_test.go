@@ -10,6 +10,23 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestCompleteOpBackoffProgression(t *testing.T) {
+	const (
+		initialBackoff = 30 * time.Second
+		maxBackoff     = 100 * time.Second
+	)
+
+	op := &completeOp{
+		bo:         initialBackoff,
+		maxBackoff: maxBackoff,
+	}
+
+	require.Equal(t, initialBackoff, op.backoff(), "first retry should wait initialBackoff")
+	require.Equal(t, 2*initialBackoff, op.backoff(), "second retry should be 2*initialBackoff")
+	require.Equal(t, maxBackoff, op.backoff(), "third retry should cap at maxBackoff")
+	require.Equal(t, maxBackoff, op.backoff(), "subsequent retries remain at maxBackoff")
+}
+
 // TestProcessCompleteOpAbandonOnCancelledContext verifies that processCompleteOp
 // skips WAL block completion when the service context is already cancelled
 // (i.e. during shutdown), rather than attempting the work and scheduling a retry.
