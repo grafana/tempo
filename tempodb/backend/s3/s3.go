@@ -425,24 +425,13 @@ func (rw *readerWriter) ListBlocks(
 		go func(minUUID, maxUUID uuid.UUID) {
 			defer wg.Done()
 
-			var (
-				err        error
-				res        minio.ListBucketV2Result
-				startAfter = prefix + minUUID.String()
-			)
+			var err error
 
-			for res.IsTruncated = true; res.IsTruncated; {
-				if ctx.Err() != nil {
-					return
-				}
-
-				res, err = rw.core.ListObjectsV2(rw.cfg.Bucket, prefix, startAfter, res.NextContinuationToken, "", 0)
-				if err != nil {
-					errChan <- fmt.Errorf("error finding objects in s3 bucket, bucket: %s: %w", rw.cfg.Bucket, err)
-					return
-				}
-
-				for _, c := range res.Contents {
+			// processContents handles a page of listed objects and returns true if
+			// the goroutine should stop iterating (either due to an error or because
+			// the block UUIDs have exceeded the shard boundary).
+			processContents := func(contents []minio.ObjectInfo) (done bool) {
+				for _, c := range contents {
 					// i.e: <blockID>/meta
 					parts := strings.Split(strings.TrimPrefix(c.Key, prefix), "/")
 					if len(parts) != 2 {
@@ -463,12 +452,12 @@ func (rw *readerWriter) ListBlocks(
 
 					if bytes.Compare(id[:], minUUID[:]) < 0 {
 						errChan <- fmt.Errorf("block UUID below shard minimum")
-						return
+						return true
 					}
 
 					if maxUUID != backend.GlobalMaxBlockID {
 						if bytes.Compare(id[:], maxUUID[:]) >= 0 {
-							return
+							return true
 						}
 					}
 
@@ -480,6 +469,56 @@ func (rw *readerWriter) ListBlocks(
 						compactedBlockIDs = append(compactedBlockIDs, id)
 					}
 					mtx.Unlock()
+				}
+				return false
+			}
+
+			if rw.cfg.UseListObjectsV1() {
+				var (
+					res    minio.ListBucketResult
+					marker = prefix + minUUID.String()
+				)
+
+				for isTruncated := true; isTruncated; {
+					if ctx.Err() != nil {
+						return
+					}
+
+					res, err = rw.core.ListObjects(rw.cfg.Bucket, prefix, marker, "", 0)
+					if err != nil {
+						errChan <- fmt.Errorf("error finding objects in s3 bucket, bucket: %s: %w", rw.cfg.Bucket, err)
+						return
+					}
+
+					isTruncated = res.IsTruncated
+					if len(res.Contents) > 0 {
+						marker = res.Contents[len(res.Contents)-1].Key
+					}
+
+					if processContents(res.Contents) {
+						return
+					}
+				}
+			} else {
+				var (
+					res        minio.ListBucketV2Result
+					startAfter = prefix + minUUID.String()
+				)
+
+				for res.IsTruncated = true; res.IsTruncated; {
+					if ctx.Err() != nil {
+						return
+					}
+
+					res, err = rw.core.ListObjectsV2(rw.cfg.Bucket, prefix, startAfter, res.NextContinuationToken, "", 0)
+					if err != nil {
+						errChan <- fmt.Errorf("error finding objects in s3 bucket, bucket: %s: %w", rw.cfg.Bucket, err)
+						return
+					}
+
+					if processContents(res.Contents) {
+						return
+					}
 				}
 			}
 		}(minID, maxID)
@@ -510,30 +549,60 @@ func (rw *readerWriter) Find(ctx context.Context, keypath backend.KeyPath, f bac
 		prefix += "/"
 	}
 
-	nextToken := ""
-	isTruncated := true
-	var res minio.ListBucketV2Result
-
-	for isTruncated {
-		select {
-		case <-ctx.Done():
-			return
-		default:
-			res, err = rw.core.ListObjectsV2(rw.cfg.Bucket, prefix, "", nextToken, "", 0)
-			if err != nil {
-				return fmt.Errorf("error finding objects in s3 bucket, bucket: %s: %w", rw.cfg.Bucket, err)
+	processContents := func(contents []minio.ObjectInfo) {
+		for _, c := range contents {
+			opts := backend.FindMatch{
+				Key:      strings.TrimPrefix(c.Key, rw.cfg.Prefix),
+				Modified: c.LastModified,
 			}
+			f(opts)
+		}
+	}
 
-			isTruncated = res.IsTruncated
-			nextToken = res.NextContinuationToken
+	if rw.cfg.UseListObjectsV1() {
+		var (
+			res    minio.ListBucketResult
+			marker string
+		)
 
-			if len(res.Contents) > 0 {
-				for _, c := range res.Contents {
-					opts := backend.FindMatch{
-						Key:      strings.TrimPrefix(c.Key, rw.cfg.Prefix),
-						Modified: c.LastModified,
-					}
-					f(opts)
+		for isTruncated := true; isTruncated; {
+			select {
+			case <-ctx.Done():
+				return
+			default:
+				res, err = rw.core.ListObjects(rw.cfg.Bucket, prefix, marker, "", 0)
+				if err != nil {
+					return fmt.Errorf("error finding objects in s3 bucket, bucket: %s: %w", rw.cfg.Bucket, err)
+				}
+
+				isTruncated = res.IsTruncated
+				if len(res.Contents) > 0 {
+					marker = res.Contents[len(res.Contents)-1].Key
+					processContents(res.Contents)
+				}
+			}
+		}
+	} else {
+		var (
+			res       minio.ListBucketV2Result
+			nextToken string
+		)
+
+		for isTruncated := true; isTruncated; {
+			select {
+			case <-ctx.Done():
+				return
+			default:
+				res, err = rw.core.ListObjectsV2(rw.cfg.Bucket, prefix, "", nextToken, "", 0)
+				if err != nil {
+					return fmt.Errorf("error finding objects in s3 bucket, bucket: %s: %w", rw.cfg.Bucket, err)
+				}
+
+				isTruncated = res.IsTruncated
+				nextToken = res.NextContinuationToken
+
+				if len(res.Contents) > 0 {
+					processContents(res.Contents)
 				}
 			}
 		}

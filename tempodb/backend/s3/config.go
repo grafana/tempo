@@ -73,6 +73,7 @@ type Config struct {
 	// See https://github.com/grafana/tempo/pull/3006 for more details
 	NativeAWSAuthEnabled  bool      `yaml:"native_aws_auth_enabled"`
 	ListBlocksConcurrency int       `yaml:"list_blocks_concurrency"`
+	ListObjectsVersion 	  string 	`yaml:"list_objects_version"`
 	SSE                   SSEConfig `yaml:"sse"`
 }
 
@@ -85,6 +86,7 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 	f.Var(&cfg.SecretKey, util.PrefixConfig(prefix, "s3.secret_key"), "s3 secret key.")
 	f.Var(&cfg.SessionToken, util.PrefixConfig(prefix, "s3.session_token"), "s3 session token.")
 	f.IntVar(&cfg.ListBlocksConcurrency, util.PrefixConfig(prefix, "s3.list_blocks_concurrency"), 3, "number of concurrent list calls to make to backend")
+	f.IntVar(&cfg.ListObjectsVersion, util.PrefixConfig(prefix, "s3.list_objects_version"), "v2", "api version for ListObjects calls to s3 backend")
 
 	f.StringVar(&cfg.SSE.Type, util.PrefixConfig(prefix, "s3.sse.type"), "", fmt.Sprintf("Enable AWS Server Side Encryption. Supported values: %s.", strings.Join(supportedSSETypes, ", ")))
 	f.StringVar(&cfg.SSE.KMSKeyID, util.PrefixConfig(prefix, "s3.sse.kms-key-id"), "", "KMS Key ID used to encrypt objects in S3")
@@ -99,4 +101,9 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 func (cfg *Config) PathMatches(other *Config) bool {
 	// S3 bucket names are globally unique
 	return cfg.Bucket == other.Bucket && cfg.Prefix == other.Prefix
+}
+
+// UseListObjectsV1 returns true if the config specifies using ListObjects V1 API.
+func (cfg *Config) UseListObjectsV1() bool {
+	return strings.EqualFold(cfg.ListObjectsVersion, "v1")
 }
