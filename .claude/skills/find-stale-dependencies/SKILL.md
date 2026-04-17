@@ -93,11 +93,18 @@ Also record whether the dep is **quietly abandoned**: last release or `pushed_at
 
 ## Step 4 — Check for CVEs
 
-For each confirmed stale dep, fetch in parallel:
+For each confirmed stale dep, verify that the **current version in go.mod** falls within an unpatched advisory range — search results include already-fixed CVEs and must not trigger Critical on their own.
+
+Preferred: run `govulncheck` if available, which checks only the versions actually in use:
+```bash
+govulncheck -json ./... 2>/dev/null | jq -r '.Finding[] | select(.Trace != null) | .OSV'
+```
+
+Fallback: fetch the advisory list and cross-check the version manually:
 ```
 https://pkg.go.dev/search?m=vuln&q=<url-encoded-import-path>
 ```
-If vulnerability entries appear → mark as CVE-affected.
+For each advisory returned, fetch its detail page and verify that `<current-version>` is within the **affected** range and not in the **fixed** range. Only mark as **CVE-affected** if the current version is genuinely unpatched.
 
 ## Step 5 — Find replacement
 
