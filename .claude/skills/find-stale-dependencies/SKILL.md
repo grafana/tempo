@@ -26,7 +26,7 @@ go mod edit -json | jq -r '.Require[] | select(.Indirect != true) | .Path + " " 
 
 Fallback without `jq`:
 ```bash
-awk '/^require\s*\(/{p=1} p && !/\/\/ indirect/ && /^\t[a-z]/{print $1, $2} /^\)/{p=0}' go.mod
+awk '/^require\s*\(/{p=1} p && !/\/\/ indirect/ && /^\t[a-z]/{print $1, $2} /^\)/{p=0} /^require [a-z]/ && !/\/\/ indirect/{print $2, $3}' go.mod
 ```
 
 **Skip these prefixes** (actively maintained by large orgs):
