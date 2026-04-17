@@ -48,7 +48,7 @@ Metric
 
 <!-- TODO: Add resource attribute to the website glossary (data/glossary.yaml) and replace with shortcode. -->
 Resource attribute
-: A key-value pair that represents information about the entity producing a span, such as the cluster name, namespace, pod, or container name.
+: A key-value pair that represents information about the entity producing a span, such as the cluster name, namespace, Pod, or container name.
 
 <!-- TODO: Add root span to the website glossary (data/glossary.yaml) and replace with shortcode. -->
 Root span
