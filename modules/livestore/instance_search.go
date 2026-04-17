@@ -340,7 +340,7 @@ func (i *instance) SearchTagsV2(ctx context.Context, req *tempopb.SearchTagsRequ
 
 		// if the query is empty, use the unfiltered search
 		if len(conditionGroups) == 0 {
-			err = b.SearchTags(ctx, attributeScope, func(t string, scope traceql.AttributeScope) {
+			err := b.SearchTags(ctx, attributeScope, func(t string, scope traceql.AttributeScope) {
 				distinctValues.Collect(scope.String(), t)
 			}, mc.Add, common.DefaultSearchOptions())
 
@@ -402,16 +402,13 @@ func (i *instance) SearchTagValues(ctx context.Context, req *tempopb.SearchTagVa
 	distinctValues := collector.NewDistinctString(maxBytesPerTagValues, limit, staleValueThreshold)
 	mc := collector.NewMetricsCollector()
 
-	var inspectedBlocks, maxBlocks int
+	var inspectedBlocks atomic.Int32
+	var maxBlocks int32
 	if limit := i.overrides.MaxBlocksPerTagValuesQuery(userID); limit > 0 {
-		maxBlocks = limit
+		maxBlocks = int32(limit)
 	}
 
 	search := func(ctx context.Context, _ *backend.BlockMeta, b block) error {
-		if maxBlocks > 0 && inspectedBlocks >= maxBlocks {
-			return nil
-		}
-
 		if b == nil {
 			return nil
 		}
@@ -420,8 +417,12 @@ func (i *instance) SearchTagValues(ctx context.Context, req *tempopb.SearchTagVa
 			return errComplete
 		}
 
-		inspectedBlocks++
-		err = b.SearchTagValues(ctx, tagName, distinctValues.Collect, mc.Add, common.DefaultSearchOptions())
+		// Atomically reserve a slot
+		if maxBlocks > 0 && inspectedBlocks.Inc() > maxBlocks {
+			return errComplete
+		}
+
+		err := b.SearchTagValues(ctx, tagName, distinctValues.Collect, mc.Add, common.DefaultSearchOptions())
 		if err != nil && !errors.Is(err, util.ErrUnsupported) {
 			return fmt.Errorf("unexpected error searching tag values (%s): %w", tagName, err)
 		}
