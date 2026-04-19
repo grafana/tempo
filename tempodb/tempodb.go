@@ -116,7 +116,6 @@ type Reader interface {
 }
 
 type Compactor interface {
-	EnableCompaction(ctx context.Context, cfg *CompactorConfig, sharder CompactorSharder, overrides CompactorOverrides) error
 	MarkBlockCompacted(tenantID string, blockID backend.UUID) error
 	CompactWithConfig(ctx context.Context, metas []*backend.BlockMeta, tenantID string, cfg *CompactorConfig, sharder CompactorSharder, overrides CompactorOverrides) ([]*backend.BlockMeta, error)
 	MarkBlocklistCompacted(tenantID string, outputIDs, inputIDs []*backend.BlockMeta) error
@@ -158,11 +157,6 @@ type readerWriter struct {
 
 	blocklistPoller *blocklist.Poller
 	blocklist       *blocklist.List
-
-	compactorCfg          *CompactorConfig
-	compactorSharder      CompactorSharder
-	compactorOverrides    CompactorOverrides
-	compactorTenantOffset uint
 
 	pollerShutdownCh chan struct{}
 
@@ -579,37 +573,6 @@ func (rw *readerWriter) Shutdown() {
 	}
 	rw.pool.Shutdown()
 	rw.r.Shutdown()
-}
-
-// EnableCompaction activates the compaction/retention loops
-func (rw *readerWriter) EnableCompaction(ctx context.Context, cfg *CompactorConfig, c CompactorSharder, overrides CompactorOverrides) error {
-	// If compactor configuration is not as expected, no need to go any further
-	err := cfg.validate()
-	if err != nil {
-		return err
-	}
-
-	// Set default if needed. This is mainly for tests.
-	if cfg.RetentionConcurrency == 0 {
-		cfg.RetentionConcurrency = DefaultRetentionConcurrency
-	}
-
-	rw.compactorCfg = cfg
-	rw.compactorSharder = c
-	rw.compactorOverrides = overrides
-
-	if rw.cfg.BlocklistPoll == 0 {
-		level.Info(rw.logger).Log("msg", "polling cycle unset. compaction and retention disabled")
-		return nil
-	}
-
-	if cfg != nil {
-		level.Info(rw.logger).Log("msg", "compaction and retention enabled.")
-		go rw.compactionLoop(ctx)
-		go rw.retentionLoop(ctx)
-	}
-
-	return nil
 }
 
 func (rw *readerWriter) MarkBlockCompacted(tenantID string, blockID backend.UUID) error {
