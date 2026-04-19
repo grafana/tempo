@@ -394,9 +394,48 @@ func (p *CompactionProvider) measureTenants() {
 
 	var blockSelector blockselector.CompactionBlockSelector
 	for _, tenant := range p.store.Tenants() {
-		blockSelector, _ = p.newBlockSelector(tenant)
+		// Use the measurement selector, which ignores TenantPending, so that the
+		// outstanding-blocks metric reflects real work even during an active
+		// redaction batch. Autoscaling must not see zero blocks just because
+		// compaction is gated for the tenant.
+		blockSelector, _ = p.newBlockSelectorForMeasurement(tenant)
 		tempodb.MeasureOutstandingBlocks(tenant, blockSelector, owns)
 	}
+}
+
+// newBlockSelectorForMeasurement builds a block selector from the full tenant
+// blocklist without the TenantPending guard that newBlockSelector applies.
+// Used exclusively by measureTenants so that the outstanding-blocks metric
+// continues to reflect real work even while a redaction batch is active.
+// The selector produced here is never used to create compaction jobs.
+func (p *CompactionProvider) newBlockSelectorForMeasurement(tenantID string) (blockselector.CompactionBlockSelector, int) {
+	var (
+		fullBlocklist = p.store.BlockMetas(tenantID)
+		window        = p.overrides.MaxCompactionRange(tenantID)
+		blocklist     = make([]*backend.BlockMeta, 0, len(fullBlocklist))
+	)
+
+	busyBlocks := p.sched.BusyBlocksForTenant(tenantID)
+	for _, block := range fullBlocklist {
+		if _, ok := busyBlocks[block.BlockID.String()]; ok {
+			continue
+		}
+		blocklist = append(blocklist, block)
+	}
+
+	if window == 0 {
+		window = p.cfg.Compactor.MaxCompactionRange
+	}
+
+	return blockselector.NewTimeWindowBlockSelector(
+		blocklist,
+		window,
+		p.cfg.Compactor.MaxCompactionObjects,
+		p.cfg.Compactor.MaxBlockBytes,
+		p.cfg.MinInputBlocks,
+		p.cfg.MaxInputBlocks,
+		p.cfg.MaxCompactionLevel,
+	), len(blocklist)
 }
 
 func (p *CompactionProvider) newBlockSelector(tenantID string) (blockselector.CompactionBlockSelector, int) {

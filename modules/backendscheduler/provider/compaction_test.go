@@ -268,6 +268,48 @@ func TestCompactionProvider_SkipsAllCompactionDuringRedaction(t *testing.T) {
 	require.Empty(t, collectAllMetas(selector), "no blocks should be offered for compaction during redaction")
 }
 
+// TestCompactionProvider_MeasureTenantsIgnoresTenantPending verifies that
+// newBlockSelectorForMeasurement returns the real block count even when
+// TenantPending is true. This ensures the outstanding-blocks metric (and
+// therefore autoscaling) is not disrupted by an active redaction batch.
+func TestCompactionProvider_MeasureTenantsIgnoresTenantPending(t *testing.T) {
+	const testTenant = "test-tenant"
+	cfg := CompactionConfig{}
+	cfg.RegisterFlagsAndApplyDefaults("", &flag.FlagSet{})
+
+	tmpDir := t.TempDir()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	store, _, ww := newStore(ctx, t, tmpDir)
+	defer store.Shutdown()
+
+	writeTenantBlocks(ctx, t, backend.NewWriter(ww), testTenant, 5)
+	time.Sleep(150 * time.Millisecond)
+
+	w := work.New(work.Config{})
+	// Activate a redaction batch so TenantPending returns true.
+	require.NoError(t, w.AddBatch(&tempopb.RedactionBatch{
+		BatchId:  "batch-1",
+		TenantId: testTenant,
+	}))
+	require.True(t, w.TenantPending(testTenant))
+
+	limits, err := overrides.NewOverrides(overrides.Config{Defaults: overrides.Overrides{}}, nil, prometheus.DefaultRegisterer)
+	require.NoError(t, err)
+
+	p := NewCompactionProvider(cfg, test.NewTestingLogger(t), store, limits, w)
+
+	// newBlockSelector must return 0 blocks (compaction gated during redaction).
+	_, blocklistLen := p.newBlockSelector(testTenant)
+	require.Equal(t, 0, blocklistLen, "newBlockSelector should return 0 blocks while TenantPending")
+
+	// newBlockSelectorForMeasurement must return the actual block count so that
+	// the outstanding-blocks metric is not suppressed during redaction.
+	_, measureLen := p.newBlockSelectorForMeasurement(testTenant)
+	require.Greater(t, measureLen, 0, "newBlockSelectorForMeasurement should return blocks even while TenantPending")
+}
+
 func TestCompactionProvider_InFlightJobsPreventDuplicates(t *testing.T) {
 	const tenant = "test-tenant"
 	cfg := CompactionConfig{}
