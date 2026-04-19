@@ -242,8 +242,8 @@ func New(cfg Config, next pipeline.RoundTripper, o overrides.Interface, reader t
 	searchTagsV2 := newTagsV2HTTPHandler(cfg, searchTagsPipeline, o, logger, dataAccessController)
 	searchTagValues := newTagValuesHTTPHandler(cfg, searchTagValuesPipeline, o, logger, dataAccessController)
 	searchTagValuesV2 := newTagValuesV2HTTPHandler(cfg, searchTagValuesV2Pipeline, o, logger, dataAccessController)
-	queryInstant := newMetricsQueryInstantHTTPHandler(cfg, queryInstantPipeline, logger, dataAccessController) // Reuses the same pipeline
-	queryRange := newMetricsQueryRangeHTTPHandler(cfg, queryRangePipeline, logger, dataAccessController)
+	queryInstant := newMetricsQueryInstantHTTPHandler(cfg, queryInstantPipeline, o, logger, dataAccessController) // Reuses the same pipeline
+	queryRange := newMetricsQueryRangeHTTPHandler(cfg, queryRangePipeline, o, logger, dataAccessController)
 
 	f := &QueryFrontend{
 		// http/discrete
@@ -263,8 +263,8 @@ func New(cfg Config, next pipeline.RoundTripper, o overrides.Interface, reader t
 		streamingTagsV2:       newTagsV2StreamingGRPCHandler(cfg, searchTagsPipeline, apiPrefix, o, logger, dataAccessController),
 		streamingTagValues:    newTagValuesStreamingGRPCHandler(cfg, searchTagValuesPipeline, apiPrefix, o, logger, dataAccessController),
 		streamingTagValuesV2:  newTagValuesV2StreamingGRPCHandler(cfg, searchTagValuesV2Pipeline, apiPrefix, o, logger, dataAccessController),
-		streamingQueryRange:   newQueryRangeStreamingGRPCHandler(cfg, queryRangePipeline, apiPrefix, logger, dataAccessController),
-		streamingQueryInstant: newQueryInstantStreamingGRPCHandler(cfg, queryRangePipeline, apiPrefix, logger, dataAccessController), // Reuses the same pipeline
+		streamingQueryRange:   newQueryRangeStreamingGRPCHandler(cfg, queryRangePipeline, apiPrefix, o, logger, dataAccessController),
+		streamingQueryInstant: newQueryInstantStreamingGRPCHandler(cfg, queryRangePipeline, apiPrefix, o, logger, dataAccessController), // Reuses the same pipeline
 
 		cacheProvider: cacheProvider,
 		logger:        logger,

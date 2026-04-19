@@ -17,12 +17,13 @@ import (
 	"github.com/grafana/dskit/user"
 	"github.com/grafana/tempo/modules/frontend/combiner"
 	"github.com/grafana/tempo/modules/frontend/pipeline"
+	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/pkg/api"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/util/tracing"
 )
 
-func newQueryInstantStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.PipelineResponse], apiPrefix string, logger log.Logger, dataAccessController DataAccessController) streamingQueryInstantHandler {
+func newQueryInstantStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.PipelineResponse], apiPrefix string, o overrides.Interface, logger log.Logger, dataAccessController DataAccessController) streamingQueryInstantHandler {
 	postSLOHook := metricsSLOPostHook(cfg.Metrics.SLO)
 	downstreamPath := path.Join(apiPrefix, api.PathMetricsQueryRange)
 
@@ -53,6 +54,9 @@ func newQueryInstantStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTri
 			Step:  req.End - req.Start,
 		}
 		qr.SetInstant(true)
+		if err := validateQueryRangeReq(ctx, cfg, o, qr); err != nil {
+			return err
+		}
 
 		httpReq := api.BuildQueryRangeRequest(&http.Request{
 			URL:    &url.URL{Path: downstreamPath},
@@ -90,7 +94,7 @@ func newQueryInstantStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTri
 
 // newMetricsQueryInstantHTTPHandler handles instant queries.  Internally these are rewritten as query_range with single step
 // to make use of the existing pipeline.
-func newMetricsQueryInstantHTTPHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.PipelineResponse], logger log.Logger, dataAccessController DataAccessController) http.RoundTripper {
+func newMetricsQueryInstantHTTPHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.PipelineResponse], o overrides.Interface, logger log.Logger, dataAccessController DataAccessController) http.RoundTripper {
 	postSLOHook := metricsSLOPostHook(cfg.Metrics.SLO)
 
 	return RoundTripperFunc(func(req *http.Request) (*http.Response, error) {
@@ -126,6 +130,9 @@ func newMetricsQueryInstantHTTPHandler(cfg Config, next pipeline.AsyncRoundTripp
 			Step:  i.End - i.Start,
 		}
 		qr.SetInstant(true)
+		if err := validateQueryRangeReq(req.Context(), cfg, o, qr); err != nil {
+			return httpInvalidRequest(err), nil
+		}
 
 		// Clone existing to keep it unaltered.
 		req = req.Clone(req.Context())
