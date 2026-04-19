@@ -20,16 +20,20 @@ This split makes compaction horizontally scalable—you can add workers to incre
 
 ### Job types
 
-The scheduler produces two types of jobs:
+The scheduler produces three types of jobs:
 
 - Compaction: merges small blocks into larger ones to reduce the number of blocks queriers need to scan and improve query performance.
 - Retention: deletes blocks older than the configured retention period.
+- Redaction: rewrites blocks to remove matching trace data from object storage.
 
 ### Job lifecycle
 
 The scheduler uses providers to generate jobs.
-The compaction provider periodically measures tenants and produces compaction jobs based on the blocklist.
-The retention provider produces retention jobs on a schedule.
+Each provider runs independently and feeds jobs into a shared channel.
+
+- The compaction provider periodically measures tenants and produces compaction jobs based on the blocklist.
+- The retention provider produces retention jobs on a schedule.
+- The redaction provider drains a persistent queue of pending redaction requests, waiting for any compaction jobs that were active at submission time to complete before the rewritten blocks are eligible for querying.
 
 When a worker calls `Next`, the scheduler assigns an available job and persists the assignment to a local work cache.
 The worker executes the job and calls `UpdateJob` with a success or failure status.
@@ -76,14 +80,50 @@ When a worker receives a shutdown signal,
 it has a configurable timeout (`finish_on_shutdown_timeout`) to complete the current job before being terminated.
 This prevents partially completed jobs from being left in an inconsistent state.
 
+## Scheduler status API
+
+The backend scheduler exposes an HTTP endpoint that shows the current state of all jobs:
+
+```
+GET /status/backendscheduler
+```
+
+The response is a plain-text table with two sections:
+
+- **Active jobs**: jobs currently assigned to a worker, with columns for tenant, job ID, type, status, worker, and timestamps.
+- **Pending jobs**: jobs queued but not yet assigned, with columns for tenant, job ID, type, block ID, and batch ID.
+
+This endpoint is useful for diagnosing stalled jobs, verifying that workers are consuming work, and checking whether a redaction request has been processed.
+
 ## Key metrics
 
 | Metric | Description |
 |---|---|
-| `tempodb_compaction_blocks_total` | Total blocks compacted |
+| `tempodb_compaction_blocks_total` | Blocks compacted |
 | `tempodb_compaction_bytes_written_total` | Bytes written during compaction |
 | `tempodb_retention_blocks_cleared_total` | Blocks deleted by retention |
+| `tempo_backend_scheduler_jobs_created_total` | Jobs created, by type (compaction, retention, redaction) |
+| `tempo_backend_scheduler_jobs_completed_total` | Jobs completed successfully, by type |
+| `tempo_backend_scheduler_jobs_failed_total` | Jobs that failed, by type |
+| `tempo_backend_scheduler_jobs_active` | Jobs currently assigned to a worker, by type |
+| `tempo_backend_scheduler_job_duration_seconds` | Job execution duration histogram |
+| `tempodb_blocklist_length` | Number of live blocks per tenant; high values indicate compaction is falling behind |
+| `tempodb_compaction_outstanding_blocks` | Outstanding blocks awaiting compaction per tenant; the primary autoscaling signal |
+
+## Monitoring
+
+The Tempo mixin ships a pre-built Grafana dashboard, **Tempo - Backend Work**, that covers:
+
+- Blocklist length and poll duration
+- Active, completed, failed, and retried job counts
+- Compaction throughput (objects written, bytes written, blocks compacted)
+- Outstanding blocks per tenant
+- CPU and memory for both the backend scheduler and backend workers
+- A backend-worker autoscaling panel
+
+To use the dashboard, install the Tempo mixin from `operations/tempo-mixin/` and import the generated dashboard into your Grafana instance.
 
 ## Related resources
 
-Refer to the [compaction configuration](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/#compaction) for the full list of options.
+- [Compaction operations](https://grafana.com/docs/tempo/<TEMPO_VERSION>/operations/compaction/) for timing requirements and block selection details.
+- [Configuration reference](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/#backend-scheduler) for the full list of options.
