@@ -364,18 +364,26 @@ func (p *Poller) pollTenantBlocks(
 	}
 
 	for _, blockID := range currentCompactedBlockIDs {
-		// if we already have this block id in our previous list, use the existing data.
+		// if we already have this block id in our previous compacted list, use the existing data.
 		if v, ok := cm[backend.UUID(blockID)]; ok {
 			newCompactedBlocklist = append(newCompactedBlocklist, v)
 			continue
 		}
 
-		// TODO: Review the ability  to avoid polling for compacted blocks that we
-		// know about.  We need to know the compacted time, but perhaps there is
-		// another way to get that, like the object creation time.
+		// If we previously had this block as a live block, we already have all BlockMeta content.
+		// meta.compacted.json is a copy of meta.json, so the content is identical. Use time.Now()
+		// for CompactedTime — it's within one polling interval of the actual compaction time,
+		// which is acceptable for current consumers of CompactedTime, including deletion cutoffs
+		// in retention.go and deciding whether compacted blocks are included in backend searches.
+		if v, ok := mm[backend.UUID(blockID)]; ok {
+			newCompactedBlocklist = append(newCompactedBlocklist, &backend.CompactedBlockMeta{
+				BlockMeta:     *v,
+				CompactedTime: time.Now(),
+			})
+			continue
+		}
 
 		unknownBlockIDs[blockID] = true
-
 	}
 
 	newM, newCm, err := p.pollUnknown(derivedCtx, unknownBlockIDs, tenantID)
