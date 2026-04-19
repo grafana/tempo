@@ -19,7 +19,7 @@ We recommend testing in a non-production environment prior to rolling these chan
 
 The upgrade process changes for each version, depending upon the changes made for the subsequent release.
 
-This upgrade guide applies to on-premise installations and not for Grafana Cloud.
+This upgrade guide applies to self-managed installations and not for Grafana Cloud.
 
 For detailed information about any release, refer to the [Release notes](https://grafana.com/docs/tempo/<TEMPO_VERSION>/release-notes/).
 
@@ -29,9 +29,11 @@ You can check your configuration options using the [`status` API endpoint](https
 
 ## Upgrade to Tempo 3.0
 
+Tempo 3.0 is a major architectural change. For a step-by-step migration procedure, refer to [Migrate from Tempo 2.x to 3.0](/docs/tempo/<TEMPO_VERSION>/set-up-for-tracing/setup-tempo/migrate-to-3/).
+
 When upgrading to Tempo 3.0, be aware of these breaking changes:
 
-- **Kafka required**: A Kafka-compatible system is now required for all deployment modes. Distributors write to Kafka instead of directly to ingesters.
+- **Kafka required for distributed mode**: A Kafka-compatible system is required for distributed deployment modes. In single-binary mode, Tempo ingests traces in-process without Kafka.
 - **Scalable monolithic mode (SSB) removed**: The `scalable-single-binary` target is no longer available.
 - **New components**: Block-builders and live-stores replace ingesters. The compactor target has been removed.
 - **Configuration changes**: Remove `ingester` configuration blocks and add `ingest` (Kafka) configuration. Update `ingester_client` references to `live_store_client`.
@@ -40,7 +42,7 @@ When upgrading to Tempo 3.0, be aware of these breaking changes:
 
 ### Legacy overrides disabled by default
 
-Tempo now refuses to start if it detects legacy (flat, unscoped) overrides in the main configuration or the per-tenant overrides file. [[PR 6741](https://github.com/grafana/tempo/pull/6741)]
+Tempo now refuses to start if it detects legacy (flat, `unscoped`) overrides in the main configuration or the per-tenant overrides file. [[PR 6741](https://github.com/grafana/tempo/pull/6741)]
 
 To resolve this, either migrate to the scoped `defaults` format (recommended) or temporarily opt back in.
 
@@ -98,7 +100,7 @@ If your configuration includes a top-level `metrics_generator_client` block, you
 
 ### Block configuration centralized to `storage.trace.block`
 
-Block and WAL configuration for `block_builder` and `live_store` is now always sourced from `storage.trace.block`. Per-module block config fields have been removed. [[PR 6647](https://github.com/grafana/tempo/pull/6647)]
+Block and WAL configuration for `block_builder` and `live_store` is now always sourced from `storage.trace.block`. Per-module block configuration fields have been removed. [[PR 6647](https://github.com/grafana/tempo/pull/6647)]
 
 If your configuration sets block-level options such as `version`, `parquet_dedicated_columns`, or `parquet_row_group_size_bytes` under `block_builder.block` or `live_store.block_config`, move them to `storage.trace.block`.
 
@@ -147,15 +149,13 @@ If you explicitly set these values in your configuration, no action is needed.
 
 When upgrading to Tempo 2.10, be aware of these considerations and breaking changes.
 
-When [upgrading](/docs/tempo/<TEMPO_VERSION>/set-up-for-tracing/setup-tempo/upgrade/) to Tempo 2.10, be aware of these considerations and breaking changes.
+### `busybox` removed from Tempo image
 
-### Busybox removed from Tempo image
+The Tempo container image no longer includes `busybox`. This change reduces the image size and attack surface, preventing future `busybox`-related vulnerabilities from affecting Tempo deployments. [[PR 5717](https://github.com/grafana/tempo/pull/5717)]
 
-The Tempo container image no longer includes busybox. This change reduces the image size and attack surface, preventing future busybox-related vulnerabilities from affecting Tempo deployments. [[PR 5717](https://github.com/grafana/tempo/pull/5717)]
+The image switched from `gcr.io/distroless/static-debian12:debug`, which includes `busybox`, to `gcr.io/distroless/static-debian12`, which doesn't. The `busybox` shell and utilities are no longer available inside the running container.
 
-The image switched from `gcr.io/distroless/static-debian12:debug`, which includes busybox, to `gcr.io/distroless/static-debian12`, which doesn't. The busybox shell and utilities are no longer available inside the running container.
-
-You can no longer `exec` into the Tempo container with a shell. Commands like `kubectl exec -it <pod> -- sh` or `docker exec -it <container> sh` will fail.
+You can no longer `exec` into the Tempo container with a shell. Commands like `kubectl exec -it <pod> -- sh` or `docker exec -it <container> sh` fail.
 
 To debug a running Tempo container, use one of these alternatives:
 
@@ -164,11 +164,11 @@ To debug a running Tempo container, use one of these alternatives:
 
 If you have custom Docker Compose files or scripts that use the Tempo image for shell operations (such as running `chown` in an init container), update them to use a separate `busybox:latest` image for those tasks.
 
-Tempo's runtime behavior, configuration options, and APIs are unchanged.
+The Tempo runtime behavior, configuration options, and APIs are unchanged.
 
-### vParquet format changes
+### `vParquet` format changes
 
-This release includes breaking changes to vParquet block format support and deprecates older formats ahead of Tempo 3.0.
+This release includes breaking changes to `vParquet` block format support and deprecates older formats ahead of Tempo 3.0.
 
 In preparation for Tempo 3.0, make sure you're using vParquet4 or higher.
 

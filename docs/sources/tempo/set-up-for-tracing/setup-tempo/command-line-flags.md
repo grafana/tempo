@@ -89,7 +89,6 @@ Kubernetes users typically don't need this flag because they can configure `http
 | Flag | Description | Default |
 | --- | --- | --- |
 | `--log.level` | Only log messages with the given severity or above. Valid levels: `debug`, `info`, `warn`, `error` | `info` |
-| `--log.format` | Output log messages in the given format. Valid formats: `logfmt`, `json` | `logfmt` |
 
 ## Server settings
 
@@ -109,7 +108,7 @@ Kubernetes users typically don't need this flag because they can configure `http
 ## Module configuration
 
 You can use additional flags to configure individual Tempo modules, such as the distributor, block-builder, live-store, querier, backend-scheduler, backend-worker, and their components.
-These flags follow a pattern like `--<module>.<setting>` and are extensively documented in the configuration file format.
+These flags follow a pattern like `--<module>.<setting>` and are documented in the [configuration file format](/docs/tempo/<TEMPO_VERSION>/configuration/).
 
 Use the configuration file approach described in the [Configuration documentation](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/).
 The documentation has a comprehensive list of all configuration options.
