@@ -7,9 +7,9 @@ import (
 	"os"
 	"testing"
 
+	"github.com/bits-and-blooms/bloom/v3"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	willf_bloom "github.com/willf/bloom"
 )
 
 func TestShardedBloom(t *testing.T) {
@@ -40,10 +40,10 @@ func TestShardedBloom(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Len(t, bloomBytes, b.GetShardCount())
 
-	// parse byte representation into willf_bloom.Bloomfilter
-	var filters []*willf_bloom.BloomFilter
+	// parse byte representation into bloom.Bloomfilter
+	var filters []*bloom.BloomFilter
 	for i := 0; i < b.GetShardCount(); i++ {
-		filters = append(filters, &willf_bloom.BloomFilter{})
+		filters = append(filters, &bloom.BloomFilter{})
 	}
 	for i, singleBloom := range bloomBytes {
 		_, err = filters[i].ReadFrom(bytes.NewReader(singleBloom))
@@ -105,16 +105,16 @@ func TestShardedBloomFalsePositive(t *testing.T) {
 			bloomBytes, err := b.Marshal()
 			assert.NoError(t, err)
 
-			// parse byte representation into willf_bloom.Bloomfilter
-			var filters []*willf_bloom.BloomFilter
+			// parse byte representation into bloom.Bloomfilter
+			var filters []*bloom.BloomFilter
 			for i := 0; i < b.GetShardCount(); i++ {
-				filters = append(filters, &willf_bloom.BloomFilter{})
+				filters = append(filters, &bloom.BloomFilter{})
 			}
 
 			for i, singleBloom := range bloomBytes {
 				_, err = filters[i].ReadFrom(bytes.NewReader(singleBloom))
 				assert.NoError(t, err)
-				assert.LessOrEqual(t, filters[i].EstimateFalsePositiveRate(tt.estimatedObjects/uint(b.GetShardCount())), tt.bloomFP)
+				assert.LessOrEqual(t, bloom.EstimateFalsePositiveRate(filters[i].Cap(), filters[i].K(), tt.estimatedObjects/uint(b.GetShardCount())), tt.bloomFP)
 			}
 		})
 	}
@@ -194,7 +194,7 @@ func TestBloomFilterCompatibility(t *testing.T) {
 		blobBytes, err := os.ReadFile(blobPath)
 		require.NoError(t, err, "missing test blob %s, uncomment regenerateBloomBlobs() to re-generate files", blobPath)
 
-		filter := &willf_bloom.BloomFilter{}
+		filter := &bloom.BloomFilter{}
 		_, err = filter.ReadFrom(bytes.NewReader(blobBytes))
 		require.NoError(t, err, "failed to deserialize bloom shard %d", i)
 
