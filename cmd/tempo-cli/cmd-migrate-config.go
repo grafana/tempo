@@ -52,7 +52,7 @@ func (cmd *migrateConfigCmd) Run(_ *globalOptions) error {
 	}
 
 	// 2. Detect deployment mode
-	mode := detectMode(m, cmd.Mode)
+	mode := detectMode(m, cmd.Mode, &warnings)
 
 	// 3. Check for legacy overrides format
 	if err := detectLegacyOverrides(m); err != nil {
@@ -106,7 +106,7 @@ func readConfigMap(path string) (map[string]interface{}, error) {
 }
 
 // detectMode determines whether the config is for monolithic or microservices deployment.
-func detectMode(m map[string]interface{}, flagOverride string) string {
+func detectMode(m map[string]interface{}, flagOverride string, warnings *[]string) string {
 	if flagOverride != "" {
 		return flagOverride
 	}
@@ -118,6 +118,12 @@ func detectMode(m map[string]interface{}, flagOverride string) string {
 	if app.IsSingleBinary(targetStr) || targetStr == "" {
 		return modeMonolithic
 	}
+	if targetStr == "scalable-single-binary" {
+		*warnings = append(*warnings, "warning: target %q is deprecated in Tempo 3.0; rewriting to %q and treating config as monolithic\n", targetStr, "all"))
+		m["target"] = "all"
+		return modeMonolithic
+	}
+
 	return modeMicroservices
 }
 
