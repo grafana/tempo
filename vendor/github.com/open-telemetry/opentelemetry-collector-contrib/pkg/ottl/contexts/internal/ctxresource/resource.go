@@ -58,9 +58,11 @@ func accessResourceDroppedAttributesCount[K Context]() ottl.StandardGetSetter[K]
 			return int64(tCtx.GetResource().DroppedAttributesCount()), nil
 		},
 		Setter: func(_ context.Context, tCtx K, val any) error {
-			if i, ok := val.(int64); ok {
-				tCtx.GetResource().SetDroppedAttributesCount(uint32(i))
+			i, err := ctxutil.ExpectType[int64](val)
+			if err != nil {
+				return err
 			}
+			tCtx.GetResource().SetDroppedAttributesCount(uint32(i))
 			return nil
 		},
 	}
@@ -72,9 +74,11 @@ func accessResourceSchemaURLItem[K Context]() ottl.StandardGetSetter[K] {
 			return tCtx.GetResourceSchemaURLItem().SchemaUrl(), nil
 		},
 		Setter: func(_ context.Context, tCtx K, val any) error {
-			if schemaURL, ok := val.(string); ok {
-				tCtx.GetResourceSchemaURLItem().SetSchemaUrl(schemaURL)
+			schemaURL, err := ctxutil.ExpectType[string](val)
+			if err != nil {
+				return err
 			}
+			tCtx.GetResourceSchemaURLItem().SetSchemaUrl(schemaURL)
 			return nil
 		},
 	}
