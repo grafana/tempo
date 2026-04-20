@@ -119,8 +119,7 @@ func detectMode(m map[string]interface{}, flagOverride string, warnings *[]strin
 		return modeMonolithic
 	}
 	if targetStr == "scalable-single-binary" {
-		*warnings = append(*warnings, "warning: target %q is deprecated in Tempo 3.0; rewriting to %q and treating config as monolithic\n", targetStr, "all"))
-		m["target"] = "all"
+		*warnings = append(*warnings, "warning: target %q is deprecated in Tempo 3.0; rewriting to %q and treating config as monolithic\n", targetStr, "all")
 		return modeMonolithic
 	}
 
