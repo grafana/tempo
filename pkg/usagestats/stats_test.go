@@ -10,7 +10,7 @@ import (
 	"github.com/grafana/tempo/cmd/tempo/build"
 
 	"github.com/google/uuid"
-	jsoniter "github.com/json-iterator/go"
+	"encoding/json"
 	"github.com/stretchr/testify/require"
 )
 
@@ -62,7 +62,7 @@ func Test_BuildReport(t *testing.T) {
 	require.Equal(t, r.Metrics["query_throughput"].(map[string]interface{})["avg"], float64(25+300+5)/3)
 	require.Equal(t, r.Metrics["active_tenants"], int64(3))
 
-	out, _ := jsoniter.MarshalIndent(r, "", " ")
+	out, _ := json.MarshalIndent(r, "", " ")
 	t.Log(string(out))
 }
 
@@ -113,7 +113,7 @@ func Test_BuildStats(t *testing.T) {
 	require.Equal(t, r.CreatedAt, time.Time{})
 	require.Equal(t, r.Interval, time.Time{})
 
-	out, _ := jsoniter.MarshalIndent(r, "", " ")
+	out, _ := json.MarshalIndent(r, "", " ")
 	t.Log(string(out))
 }
 

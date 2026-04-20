@@ -10,7 +10,7 @@ import (
 	"github.com/grafana/tempo/modules/overrides/histograms"
 	"github.com/grafana/tempo/modules/overrides/userconfigurable/client"
 	"github.com/grafana/tempo/pkg/httpclient"
-	jsoniter "github.com/json-iterator/go"
+	"encoding/json"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -788,7 +788,7 @@ func TestOverridesAPI_SpanNameSanitization(t *testing.T) {
 func printLimits(limits *client.Limits, version string) {
 	var str string
 	if limits != nil {
-		bytes, err := jsoniter.Marshal(limits)
+		bytes, err := json.Marshal(limits)
 		if err == nil {
 			str = string(bytes)
 		}
