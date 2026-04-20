@@ -103,7 +103,7 @@ func (c weightRequestWare) setTraceQLWeight(req Request) {
 		return
 	}
 
-	rootExpr, _, _, _, spanRequest, err := traceql.Compile(traceQLQuery)
+	rootExpr, _, _, _, spanRequest, err := traceql.Compile(traceQLQuery, traceql.WithSkipOptimization(traceql.TransformationAll))
 	if err != nil || spanRequest == nil {
 		return
 	}

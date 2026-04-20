@@ -147,7 +147,7 @@ func newCombiner(req *tempopb.SearchRequest, cfg SearchSharderConfig, marshaling
 
 	mostRecent := false
 	if len(req.Query) > 0 {
-		query, err := traceql.Parse(req.Query)
+		query, err := traceql.ParseNoOptimizations(req.Query)
 		if err != nil {
 			return nil, fmt.Errorf("invalid TraceQL query: %s", err)
 		}

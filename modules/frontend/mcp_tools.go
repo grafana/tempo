@@ -89,7 +89,7 @@ func (s *MCPServer) handleSearch(ctx context.Context, request mcp.CallToolReques
 		endEpoch = endTS.Unix()
 	}
 
-	parsed, err := traceql.Parse(query)
+	parsed, err := traceql.ParseNoOptimizations(query)
 	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("query parse error. Consult TraceQL docs tools: %v", err)), nil
 	}
@@ -153,7 +153,7 @@ func (s *MCPServer) handleInstantQuery(ctx context.Context, request mcp.CallTool
 		endEpochNanos = endTS.UnixNano()
 	}
 
-	parsed, err := traceql.Parse(query)
+	parsed, err := traceql.ParseNoOptimizations(query)
 	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("query parse error. Consult TraceQL docs tools: %v", err)), nil
 	}
@@ -213,7 +213,7 @@ func (s *MCPServer) handleRangeQuery(ctx context.Context, request mcp.CallToolRe
 		endEpochNanos = endTS.UnixNano()
 	}
 
-	parsed, err := traceql.Parse(query)
+	parsed, err := traceql.ParseNoOptimizations(query)
 	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("query parse error. Consult TraceQL docs tools: %v", err)), nil
 	}

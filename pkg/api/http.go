@@ -52,6 +52,8 @@ const (
 	urlParamFooterSize       = "footerSize"
 	urlParamDedicatedColumns = "dc"
 
+	urlParamSkipASTTransformations = "skip_ast_transformations"
+
 	// search tags
 	urlParamScope = "scope"
 
@@ -266,6 +268,14 @@ func ParseSearchRequestWithDefault(r *http.Request, defaultSpansPerSpanSet uint3
 		req.SpansPerSpanSet = uint32(spansPerSpanSet)
 	}
 
+	if s, ok := extractQueryParam(vals, urlParamSkipASTTransformations); ok {
+		for _, name := range strings.Split(s, ",") {
+			if name = strings.TrimSpace(name); name != "" {
+				req.SkipASTTransformations = append(req.SkipASTTransformations, name)
+			}
+		}
+	}
+
 	// start and end == 0 is fine
 	if req.End == 0 && req.Start == 0 {
 		return req, nil
@@ -387,6 +397,14 @@ func ParseQueryRangeRequest(r *http.Request) (*tempopb.QueryRangeRequest, error)
 		}
 	}
 
+	if s, ok := extractQueryParam(vals, urlParamSkipASTTransformations); ok {
+		for _, name := range strings.Split(s, ",") {
+			if name = strings.TrimSpace(name); name != "" {
+				req.SkipASTTransformations = append(req.SkipASTTransformations, name)
+			}
+		}
+	}
+
 	return req, nil
 }
 
@@ -457,6 +475,10 @@ func BuildQueryRangeRequest(req *http.Request, searchReq *tempopb.QueryRangeRequ
 	qb.addParam(urlMaxSeries, strconv.Itoa(int(searchReq.MaxSeries)))
 	if searchReq.HasInstant() {
 		qb.addParam(urlInstant, strconv.FormatBool(searchReq.GetInstant()))
+	}
+
+	if len(searchReq.SkipASTTransformations) > 0 {
+		qb.addParam(urlParamSkipASTTransformations, strings.Join(searchReq.SkipASTTransformations, ","))
 	}
 
 	req.URL.RawQuery = qb.query()
@@ -697,6 +719,10 @@ func BuildSearchRequest(req *http.Request, searchReq *tempopb.SearchRequest) (*h
 		}
 
 		qb.addParam(urlParamTags, builder.String())
+	}
+
+	if len(searchReq.SkipASTTransformations) > 0 {
+		qb.addParam(urlParamSkipASTTransformations, strings.Join(searchReq.SkipASTTransformations, ","))
 	}
 
 	req.URL.RawQuery = qb.query()

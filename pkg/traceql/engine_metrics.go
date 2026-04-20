@@ -934,7 +934,7 @@ func (u *UngroupedAggregator) Series() SeriesSet {
 	}
 }
 
-func (e *Engine) CompileMetricsQueryRangeNonRaw(req *tempopb.QueryRangeRequest, mode AggregateMode) (*MetricsFrontendEvaluator, error) {
+func (e *Engine) CompileMetricsQueryRangeNonRaw(req *tempopb.QueryRangeRequest, mode AggregateMode, opts ...CompileOption) (*MetricsFrontendEvaluator, error) {
 	if req.Exemplars > maxExemplars {
 		level.Warn(log.Logger).Log("msg", "capping exemplars to safety limit", "requested", req.Exemplars, "cap", maxExemplars)
 		req.Exemplars = maxExemplars
@@ -953,7 +953,7 @@ func (e *Engine) CompileMetricsQueryRangeNonRaw(req *tempopb.QueryRangeRequest, 
 		return nil, fmt.Errorf("step required")
 	}
 
-	_, _, metricsPipeline, metricsSecondStage, _, err := Compile(req.Query)
+	_, _, metricsPipeline, metricsSecondStage, _, err := Compile(req.Query, opts...)
 	if err != nil {
 		return nil, fmt.Errorf("compiling query: %w", err)
 	}
@@ -978,45 +978,9 @@ func (e *Engine) CompileMetricsQueryRangeNonRaw(req *tempopb.QueryRangeRequest, 
 	return mfe, nil
 }
 
-// CompileMetricsQueryRangeOption are options for [Engine.CompileMetricsQueryRange].
-type CompileMetricsQueryRangeOption func(*compileMetricsQueryRangeConfig)
-
-type compileMetricsQueryRangeConfig struct {
-	spanOnlyFetch *bool
-
-	timeOverlapCutoff     float64
-	allowUnsafeQueryHints bool
-}
-
-// WithSpanOnlyFetch sets whether to use the span-only fetch path. When not set the default is used, and
-// this may be overridden by the query hint.
-func WithSpanOnlyFetch(v bool) CompileMetricsQueryRangeOption {
-	return func(o *compileMetricsQueryRangeConfig) {
-		o.spanOnlyFetch = &v
-	}
-}
-
-// WithTimeOverlapCutoff sets the overlap threshold (0 to 1) for trace-level timestamp filtering. When not
-// set the default value is used.
-func WithTimeOverlapCutoff(v float64) CompileMetricsQueryRangeOption {
-	return func(o *compileMetricsQueryRangeConfig) {
-		o.timeOverlapCutoff = v
-	}
-}
-
-// WithUnsafeQueryHints controls whether unsafe TraceQL query hints are honored. When not set the default is used.
-func WithUnsafeQueryHints(v bool) CompileMetricsQueryRangeOption {
-	return func(o *compileMetricsQueryRangeConfig) {
-		o.allowUnsafeQueryHints = v
-	}
-}
-
 // CompileMetricsQueryRange returns an evaluator that can be reused across multiple data sources.
-func (e *Engine) CompileMetricsQueryRange(req *tempopb.QueryRangeRequest, opts ...CompileMetricsQueryRangeOption) (*MetricsEvaluator, error) {
-	var cfg compileMetricsQueryRangeConfig
-	for _, opt := range opts {
-		opt(&cfg)
-	}
+func (e *Engine) CompileMetricsQueryRange(req *tempopb.QueryRangeRequest, opts ...CompileOption) (*MetricsEvaluator, error) {
+	cfg := applyCompileOptions(opts...)
 
 	if req.Exemplars > maxExemplars {
 		level.Warn(log.Logger).Log("msg", "capping exemplars to safety limit", "requested", req.Exemplars, "cap", maxExemplars)
@@ -1036,7 +1000,7 @@ func (e *Engine) CompileMetricsQueryRange(req *tempopb.QueryRangeRequest, opts .
 		return nil, fmt.Errorf("step required")
 	}
 
-	expr, eval, metricsPipeline, _, storageReq, err := Compile(req.Query)
+	expr, eval, metricsPipeline, _, storageReq, err := Compile(req.Query, opts...)
 	if err != nil {
 		return nil, fmt.Errorf("compiling query: %w", err)
 	}
@@ -1048,21 +1012,21 @@ func (e *Engine) CompileMetricsQueryRange(req *tempopb.QueryRangeRequest, opts .
 	}
 
 	// Debug sampling hints, remove once we settle on approach.
-	if traceSample, traceSampleOk := expr.Hints.GetFloat(HintTraceSample, cfg.allowUnsafeQueryHints); traceSampleOk {
+	if traceSample, traceSampleOk := expr.Hints.GetFloat(HintTraceSample, cfg.allowUnsafeHints); traceSampleOk {
 		storageReq.TraceSampler = newProbablisticSampler(traceSample)
 	}
-	if spanSample, spanSampleOk := expr.Hints.GetFloat(HintSpanSample, cfg.allowUnsafeQueryHints); spanSampleOk {
+	if spanSample, spanSampleOk := expr.Hints.GetFloat(HintSpanSample, cfg.allowUnsafeHints); spanSampleOk {
 		storageReq.SpanSampler = newProbablisticSampler(spanSample)
 	}
 
-	if sample, sampleOk := expr.Hints.GetBool(HintSample, cfg.allowUnsafeQueryHints); sampleOk && sample {
+	if sample, sampleOk := expr.Hints.GetBool(HintSample, cfg.allowUnsafeHints); sampleOk && sample {
 		// Automatic sampling
 		// Get other params
 		s := newAdaptiveSampler()
-		if debug, ok := expr.Hints.GetBool(HintDebug, cfg.allowUnsafeQueryHints); ok {
+		if debug, ok := expr.Hints.GetBool(HintDebug, cfg.allowUnsafeHints); ok {
 			s.debug = debug
 		}
-		if info, ok := expr.Hints.GetBool(HintInfo, cfg.allowUnsafeQueryHints); ok {
+		if info, ok := expr.Hints.GetBool(HintInfo, cfg.allowUnsafeHints); ok {
 			s.info = info
 		}
 
@@ -1074,7 +1038,7 @@ func (e *Engine) CompileMetricsQueryRange(req *tempopb.QueryRangeRequest, opts .
 		}
 	}
 
-	if sampleFraction, ok := expr.Hints.GetFloat(HintSample, cfg.allowUnsafeQueryHints); ok && sampleFraction > 0 && sampleFraction < 1 {
+	if sampleFraction, ok := expr.Hints.GetFloat(HintSample, cfg.allowUnsafeHints); ok && sampleFraction > 0 && sampleFraction < 1 {
 		// Fixed sampling rate.
 		s := newProbablisticSampler(sampleFraction)
 
@@ -1103,7 +1067,7 @@ func (e *Engine) CompileMetricsQueryRange(req *tempopb.QueryRangeRequest, opts .
 	if cfg.spanOnlyFetch != nil {
 		me.spanOnlyFetch = *cfg.spanOnlyFetch
 	}
-	if b, ok := expr.Hints.GetBool(HintNewFetch, cfg.allowUnsafeQueryHints); ok {
+	if b, ok := expr.Hints.GetBool(HintNewFetch, cfg.allowUnsafeHints); ok {
 		me.spanOnlyFetch = b
 	}
 

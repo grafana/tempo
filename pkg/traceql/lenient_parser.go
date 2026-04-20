@@ -13,7 +13,7 @@ import (
 // attribute (e.g. `.foo`), while preserving the original query structure (ORs, ANDs,
 // pipes, structural operators, etc.) and re-parses the cleaned-up query.
 func ParseLenient(s string) (*RootExpr, error) {
-	expr, err := ParseWithOptimizationOption(s, false)
+	expr, err := ParseNoOptimizations(s)
 	if err == nil {
 		return expr, nil
 	}

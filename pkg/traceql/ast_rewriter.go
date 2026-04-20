@@ -1,11 +1,63 @@
 package traceql
 
-import "slices"
+import (
+	"slices"
+)
 
-func ApplyDefaultASTRewrites(r *RootExpr) *RootExpr {
-	chain := rewriteChain{
-		newBinaryOpToArrayOpRewriter(),
+const (
+	// TransformationOrToIn is the name of the rewriter that converts OR/AND chains to IN/NOT IN/MATCH ANY/MATCH NONE.
+	TransformationOrToIn = "or_to_in"
+	// TransformationAll is a special name that disables all AST transformations.
+	TransformationAll = "all"
+)
+
+type namedTransformation struct {
+	name    string
+	rewrite ASTRewriter
+}
+
+// defaultTransformations is the ordered list of all registered AST transformations.
+var defaultTransformations = []namedTransformation{
+	{TransformationOrToIn, newBinaryOpToArrayOpRewriter()},
+}
+
+// knownTransformationNames is pre-computed at init time.
+var knownTransformationNames = func() []string {
+	names := make([]string, len(defaultTransformations)+1)
+	names[0] = TransformationAll
+	for i, r := range defaultTransformations {
+		names[i+1] = r.name
 	}
+	return names
+}()
+
+// IsValidTransformationName reports whether name is a known transformation name or "all".
+func IsValidTransformationName(name string) bool {
+	return slices.Contains(knownTransformationNames, name)
+}
+
+// KnownTransformationNames returns a comma-separated list of valid transformation names.
+func KnownTransformationNames() []string {
+	return slices.Clone(knownTransformationNames)
+}
+
+// ApplyASTRewrites applies all registered transformations except those whose names appear in skip.
+// Passing [TransformationAll] in skip disables every transformation.
+func ApplyASTRewrites(r *RootExpr, skip []string) *RootExpr {
+	if slices.Contains(skip, TransformationAll) {
+		return r
+	}
+
+	var chain rewriteChain
+	for _, nr := range defaultTransformations {
+		if !slices.Contains(skip, nr.name) {
+			chain = append(chain, nr.rewrite)
+		}
+	}
+	if len(chain) == 0 {
+		return r
+	}
+
 	return chain.RewriteRoot(r)
 }
 

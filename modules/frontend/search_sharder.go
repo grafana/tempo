@@ -47,22 +47,24 @@ type asyncSearchSharder struct {
 	reader    tempodb.Reader
 	overrides overrides.Interface
 
-	cfg          SearchSharderConfig
-	logger       log.Logger
-	jobsPerQuery *prometheus.HistogramVec
+	cfg                    SearchSharderConfig
+	skipASTTransformations []string
+	logger                 log.Logger
+	jobsPerQuery           *prometheus.HistogramVec
 }
 
 // newAsyncSearchSharder creates a sharding middleware for search
-func newAsyncSearchSharder(reader tempodb.Reader, o overrides.Interface, cfg SearchSharderConfig, jobsPerQuery *prometheus.HistogramVec, logger log.Logger) pipeline.AsyncMiddleware[combiner.PipelineResponse] {
+func newAsyncSearchSharder(reader tempodb.Reader, o overrides.Interface, cfg SearchSharderConfig, skipASTTransformations []string, jobsPerQuery *prometheus.HistogramVec, logger log.Logger) pipeline.AsyncMiddleware[combiner.PipelineResponse] {
 	return pipeline.AsyncMiddlewareFunc[combiner.PipelineResponse](func(next pipeline.AsyncRoundTripper[combiner.PipelineResponse]) pipeline.AsyncRoundTripper[combiner.PipelineResponse] {
 		return asyncSearchSharder{
 			next:      next,
 			reader:    reader,
 			overrides: o,
 
-			cfg:          cfg,
-			logger:       logger,
-			jobsPerQuery: jobsPerQuery,
+			cfg:                    cfg,
+			skipASTTransformations: skipASTTransformations,
+			logger:                 logger,
+			jobsPerQuery:           jobsPerQuery,
 		}
 	})
 }
@@ -79,6 +81,9 @@ func (s asyncSearchSharder) RoundTrip(pipelineRequest pipeline.Request) (pipelin
 	if err != nil {
 		return pipeline.NewBadRequest(err), nil
 	}
+
+	// propagate global skip list so ingesters and queriers apply the same optimization config
+	searchReq.SkipASTTransformations = s.skipASTTransformations
 
 	// adjust limit based on config
 	searchReq.Limit, err = adjustLimit(searchReq.Limit, s.cfg.DefaultLimit, s.cfg.MaxLimit)
@@ -350,7 +355,7 @@ func hashForSearchRequest(searchRequest *tempopb.SearchRequest) uint64 {
 		return 0
 	}
 
-	ast, err := traceql.Parse(searchRequest.Query)
+	ast, err := traceql.ParseNoOptimizations(searchRequest.Query)
 	if err != nil { // this should never occur. if we've made this far we've already validated the query can parse. however, for sanity, just fail to cache if we can't parse
 		return 0
 	}
@@ -362,6 +367,9 @@ func hashForSearchRequest(searchRequest *tempopb.SearchRequest) uint64 {
 	hash := fnv1a.HashString64(query)
 	hash = fnv1a.AddUint64(hash, uint64(searchRequest.Limit))
 	hash = fnv1a.AddUint64(hash, uint64(searchRequest.SpansPerSpanSet))
+	for _, name := range searchRequest.SkipASTTransformations {
+		hash = fnv1a.AddString64(hash, name)
+	}
 
 	return hash
 }
