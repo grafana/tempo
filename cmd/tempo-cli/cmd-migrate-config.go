@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"reflect"
+	"regexp"
 	"strings"
 
 	"go.yaml.in/yaml/v2"
@@ -119,7 +120,8 @@ func detectMode(m map[string]interface{}, flagOverride string, warnings *[]strin
 		return modeMonolithic
 	}
 	if targetStr == "scalable-single-binary" {
-		*warnings = append(*warnings, fmt.Sprintf("target %q is deprecated in Tempo 3.0; rewriting to %q and treating config as monolithic", targetStr, "all"))
+		*warnings = append(*warnings, fmt.Sprintf("target %q is removed in Tempo 3.0; rewriting to %q and treating config as monolithic", targetStr, app.SingleBinary))
+		m["target"] = app.SingleBinary
 		return modeMonolithic
 	}
 
@@ -309,15 +311,22 @@ func removeLocalBlocksFromProcessorList(m map[string]interface{}, warnings *[]st
 	mg["processors"] = filtered
 }
 
-// containsEnvVarRef checks if a YAML byte slice contains environment variable
-// references like ${VAR} that would cause type errors during unmarshalling.
-func containsEnvVarRef(yamlBytes []byte) bool {
-	return strings.Contains(string(yamlBytes), "${")
+// envVarTypeErrorPattern matches YAML unmarshal errors caused by ${VAR}
+// placeholders being used where a non-string type is expected.
+// Example error formats:
+//   - cannot unmarshal !!str "${PORT}" into int
+//   - cannot unmarshal !!str `${HTTP_...` into int
+var envVarTypeErrorPattern = regexp.MustCompile("cannot unmarshal !!str [\"`]\\$\\{")
+
+// isEnvVarTypeError checks whether the error was caused by a ${VAR} placeholder
+// used where a non-string type is expected, rather than a genuine config issue.
+func isEnvVarTypeError(err error) bool {
+	return envVarTypeErrorPattern.MatchString(err.Error())
 }
 
 // validateMigratedConfig marshals the map back to YAML and attempts to unmarshal
 // it into Tempo's Config struct for semantic validation.
-// Returns warnings and an error if validation fails for reasons other than env var references.
+// Returns warnings and an error if validation fails for reasons other than env var placeholders.
 func validateMigratedConfig(m map[string]interface{}) ([]string, error) {
 	var warnings []string
 
@@ -330,13 +339,18 @@ func validateMigratedConfig(m map[string]interface{}) ([]string, error) {
 	cfg.RegisterFlagsAndApplyDefaults("", &flag.FlagSet{})
 
 	if err := yaml.UnmarshalStrict(yamlBytes, &cfg); err != nil {
-		if containsEnvVarRef(yamlBytes) {
-			// Env vars like ${VAR} cause type errors for non-string fields.
+		if isEnvVarTypeError(err) {
+			// ${VAR} placeholders cause type errors for non-string fields.
 			// This is expected — report as warning, not fatal.
-			warnings = append(warnings, fmt.Sprintf("validation skipped: config contains env var references (${...}): %v", err))
+			warnings = append(warnings, fmt.Sprintf("validation skipped for env var placeholders: %v", err))
 			return warnings, nil
 		}
 		return nil, fmt.Errorf("migrated config failed validation: %w", err)
+	}
+
+	if !isValidTarget(cfg.Target) {
+		return nil, fmt.Errorf("migrated config has unsupported target %q; valid values are: %s",
+			cfg.Target, strings.Join(validTargets(), ", "))
 	}
 
 	for _, w := range cfg.CheckConfig() {
@@ -344,6 +358,35 @@ func validateMigratedConfig(m map[string]interface{}) ([]string, error) {
 	}
 
 	return warnings, nil
+}
+
+// validTargets returns the list of valid Tempo 3.0 target values.
+func validTargets() []string {
+	return []string{
+		app.SingleBinary,
+		app.Distributor,
+		app.MetricsGenerator,
+		app.Querier,
+		app.QueryFrontend,
+		app.BlockBuilder,
+		app.BackendScheduler,
+		app.BackendWorker,
+		app.LiveStore,
+	}
+}
+
+// isValidTarget reports whether target is a supported Tempo 3.0 target.
+// An empty target is treated as valid (the config uses the default).
+func isValidTarget(target string) bool {
+	if target == "" {
+		return true
+	}
+	for _, t := range validTargets() {
+		if target == t {
+			return true
+		}
+	}
+	return false
 }
 
 // outputMigratedConfig marshals the map to YAML and prints it to stdout with a header comment.

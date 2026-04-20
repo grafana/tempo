@@ -49,10 +49,21 @@ func TestDetectMode(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := detectMode(tt.m, tt.flagOverride)
+			result := detectMode(tt.m, tt.flagOverride, new([]string))
 			assert.Equal(t, tt.expected, result)
 		})
 	}
+
+	t.Run("scalable-single-binary is rewritten to all with warning", func(t *testing.T) {
+		m := map[string]interface{}{"target": "scalable-single-binary"}
+		var warnings []string
+		result := detectMode(m, "", &warnings)
+		assert.Equal(t, modeMonolithic, result)
+		assert.Equal(t, "all", m["target"])
+		require.Len(t, warnings, 1)
+		assert.Contains(t, warnings[0], "scalable-single-binary")
+		assert.Contains(t, warnings[0], "removed in Tempo 3.0")
+	})
 }
 
 func TestDetectLegacyOverrides(t *testing.T) {
@@ -452,7 +463,7 @@ func TestMigrateConfigEndToEnd(t *testing.T) {
 			m, err := readConfigMap(tt.inputFile)
 			require.NoError(t, err)
 
-			mode := detectMode(m, tt.mode)
+			mode := detectMode(m, tt.mode, new([]string))
 
 			err = detectLegacyOverrides(m)
 			if err != nil {
