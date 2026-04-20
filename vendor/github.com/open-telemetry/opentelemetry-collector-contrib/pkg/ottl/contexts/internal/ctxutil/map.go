@@ -82,6 +82,9 @@ func FetchValueFromExpression[K any, T int64 | string](ctx context.Context, tCtx
 }
 
 func SetMap(target pcommon.Map, val any) error {
+	if val == nil {
+		return nil
+	}
 	if cm, ok := val.(pcommon.Map); ok {
 		cm.CopyTo(target)
 		return nil
@@ -89,7 +92,7 @@ func SetMap(target pcommon.Map, val any) error {
 	if rm, ok := val.(map[string]any); ok {
 		return target.FromRaw(rm)
 	}
-	return nil
+	return fmt.Errorf("unsupported type provided for setting a pcommon.Map: %T", val)
 }
 
 func GetMap(val any) (pcommon.Map, error) {
