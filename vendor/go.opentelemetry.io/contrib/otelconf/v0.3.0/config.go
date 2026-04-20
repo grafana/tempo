@@ -16,6 +16,7 @@ import (
 	noopmetric "go.opentelemetry.io/otel/metric/noop"
 	sdklog "go.opentelemetry.io/otel/sdk/log"
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
+	sdkresource "go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/trace"
 	nooptrace "go.opentelemetry.io/otel/trace/noop"
@@ -52,6 +53,7 @@ type SDK struct {
 	meterProvider  metric.MeterProvider
 	tracerProvider trace.TracerProvider
 	loggerProvider log.LoggerProvider
+	resource       *sdkresource.Resource
 	shutdown       shutdownFunc
 }
 
@@ -70,6 +72,16 @@ func (s *SDK) LoggerProvider() log.LoggerProvider {
 	return s.loggerProvider
 }
 
+// Resource returns a copy of the resolved SDK resource configured in this SDK.
+// The copy preserves the immutability of the SDK-owned resource.
+func (s *SDK) Resource() *sdkresource.Resource {
+	if s.resource == nil {
+		return nil
+	}
+	res := *s.resource
+	return &res
+}
+
 // Shutdown calls shutdown on all configured providers.
 func (s *SDK) Shutdown(ctx context.Context) error {
 	return s.shutdown(ctx)
@@ -79,6 +91,7 @@ var noopSDK = SDK{
 	loggerProvider: nooplog.LoggerProvider{},
 	meterProvider:  noopmetric.MeterProvider{},
 	tracerProvider: nooptrace.TracerProvider{},
+	resource:       sdkresource.Empty(),
 	shutdown:       func(context.Context) error { return nil },
 }
 
@@ -115,6 +128,7 @@ func NewSDK(opts ...ConfigurationOption) (SDK, error) {
 		meterProvider:  mp,
 		tracerProvider: tp,
 		loggerProvider: lp,
+		resource:       r,
 		shutdown: func(ctx context.Context) error {
 			return errors.Join(mpShutdown(ctx), tpShutdown(ctx), lpShutdown(ctx))
 		},
