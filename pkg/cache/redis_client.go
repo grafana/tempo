@@ -69,8 +69,8 @@ func NewRedisClient(cfg *RedisConfig) *RedisClient {
 		SentinelPassword: cfg.SentinelPassword.String(),
 		DB:               cfg.DB,
 		PoolSize:         cfg.PoolSize,
-		ConnMaxIdleTime: cfg.IdleTimeout,
-		ConnMaxLifetime: cfg.MaxConnAge,
+		ConnMaxIdleTime:  cfg.IdleTimeout,
+		ConnMaxLifetime:  cfg.MaxConnAge,
 	}
 	if cfg.EnableTLS {
 		opt.TLSConfig = &tls.Config{InsecureSkipVerify: cfg.InsecureSkipVerify}
