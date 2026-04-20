@@ -206,6 +206,7 @@ func TestBloomFilterCompatibility(t *testing.T) {
 	}
 }
 
+// nolint:unused
 func regenerateBloomBlobs(t *testing.T, b *ShardedBloomFilter) {
 	t.Helper()
 	require.NoError(t, os.MkdirAll("test-data", 0o755))
