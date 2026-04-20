@@ -4,4 +4,4 @@
 package otelzap // import "go.opentelemetry.io/contrib/bridges/otelzap"
 
 // Version is the current release version of the otelzap bridge.
-const Version = "0.17.0"
+const Version = "0.18.0"

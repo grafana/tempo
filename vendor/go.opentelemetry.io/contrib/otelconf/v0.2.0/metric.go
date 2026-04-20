@@ -275,7 +275,11 @@ func prometheusReader(ctx context.Context, prometheusConfig *Prometheus) (sdkmet
 	}
 
 	if prometheusConfig.WithoutTypeSuffix != nil && *prometheusConfig.WithoutTypeSuffix && prometheusConfig.WithoutUnits != nil && *prometheusConfig.WithoutUnits {
-		opts = append(opts, otelprom.WithTranslationStrategy(otlptranslator.UnderscoreEscapingWithoutSuffixes))
+		// NoTranslation preserves OTel dot-style label names (e.g. service.name)
+		// and suppresses metric name suffixes. The exporter's newConfig will
+		// automatically set withoutCounterSuffixes and withoutUnits when
+		// ShouldAddSuffixes() is false.
+		opts = append(opts, otelprom.WithTranslationStrategy(otlptranslator.NoTranslation))
 	} else {
 		opts = append(opts, otelprom.WithTranslationStrategy(otlptranslator.NoUTF8EscapingWithSuffixes))
 	}
@@ -323,7 +327,7 @@ func prometheusReader(ctx context.Context, prometheusConfig *Prometheus) (sdkmet
 	}
 
 	addr := net.JoinHostPort(host, strconv.Itoa(*prometheusConfig.Port))
-	lis, err := net.Listen("tcp", addr)
+	lis, err := (&net.ListenConfig{}).Listen(context.Background(), "tcp", addr)
 	if err != nil {
 		return nil, errors.Join(
 			fmt.Errorf("binding address %s for Prometheus exporter: %w", addr, err),
