@@ -933,6 +933,9 @@ func TestRequeueOnError(t *testing.T) {
 	cfg.holdAllBackgroundProcesses = false
 	liveStore, err := liveStoreWithConfig(t, cfg)
 	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, services.StopAndAwaitTerminated(context.Background(), liveStore))
+	})
 	require.NotNil(t, liveStore)
 
 	inst, err := liveStore.getOrCreateInstance(testTenantID)
@@ -960,6 +963,53 @@ func TestRequeueOnError(t *testing.T) {
 	enc.SetError(nil)
 	time.Sleep(initialBackoff * 8)
 	requireInstanceState(t, inst, instanceState{liveTraces: 0, walBlocks: 0, completeBlocks: 1})
+}
+
+func TestDequeueOnManyAttempts(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	cfg := defaultConfig(t, tmpDir)
+	initialBackoff := 10 * time.Millisecond
+	cfg.initialBackoff = initialBackoff
+	cfg.maxBackoff = 3 * initialBackoff
+	cfg.CompleteBlockConcurrency = 1 // to simplify the test
+	cfg.holdAllBackgroundProcesses = false
+	liveStore, err := liveStoreWithConfig(t, cfg)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, services.StopAndAwaitTerminated(context.Background(), liveStore))
+	})
+	require.NotNil(t, liveStore)
+
+	inst, err := liveStore.getOrCreateInstance(testTenantID)
+	require.NoError(t, err)
+	enc := erroredEnc{
+		VersionedEncoding: inst.completeBlockEncoding,
+		mx:                sync.Mutex{},
+	}
+	enc.SetError(errors.New("forced error"))
+	inst.completeBlockEncoding = &enc
+
+	// push data
+	expectedID, expectedTrace := pushToLiveStore(t, liveStore)
+	requireTraceInLiveStore(t, liveStore, expectedID, expectedTrace)
+	requireInstanceState(t, inst, instanceState{liveTraces: 1, walBlocks: 0, completeBlocks: 0})
+
+	// cut to wal and enqueue complete operation
+	liveStore.cutAllInstancesToWal()
+	requireInstanceState(t, inst, instanceState{liveTraces: 0, walBlocks: 1, completeBlocks: 0})
+
+	// wait for the first backoff that should not be successful
+	time.Sleep(initialBackoff * 2)
+	requireInstanceState(t, inst, instanceState{liveTraces: 0, walBlocks: 1, completeBlocks: 0})
+	require.False(t, liveStore.completeQueues.IsEmpty())
+	// wait until it gives up
+	time.Sleep(initialBackoff * 50)
+	require.True(t, liveStore.completeQueues.IsEmpty())
+	// wal block will be cleaned after ttl.
+	// we do not delete the block when we give up to prefer
+	// consistency over availability as it still might be quariable
+	requireInstanceState(t, inst, instanceState{liveTraces: 0, walBlocks: 1, completeBlocks: 0})
 }
 
 type instanceState struct {
