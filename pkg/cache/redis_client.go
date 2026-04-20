@@ -55,6 +55,7 @@ type RedisClient struct {
 	expiration time.Duration
 	timeout    time.Duration
 	rdb        redis.UniversalClient
+	isCluster  bool
 }
 
 // NewRedisClient creates Redis client
@@ -74,10 +75,13 @@ func NewRedisClient(cfg *RedisConfig) *RedisClient {
 	if cfg.EnableTLS {
 		opt.TLSConfig = &tls.Config{InsecureSkipVerify: cfg.InsecureSkipVerify}
 	}
+	rdb := redis.NewUniversalClient(opt)
+	_, isCluster := rdb.(*redis.ClusterClient)
 	return &RedisClient{
 		expiration: cfg.Expiration,
 		timeout:    cfg.Timeout,
-		rdb:        redis.NewUniversalClient(opt),
+		rdb:        rdb,
+		isCluster:  isCluster,
 	}
 }
 
@@ -111,9 +115,8 @@ func (c *RedisClient) MSet(ctx context.Context, keys []string, values [][]byte) 
 
 	// In cluster mode, cross-slot transactions are not supported. Use a non-transactional
 	// pipeline to allow keys on different slots, consistent with how MGet handles clusters.
-	_, isCluster := c.rdb.(*redis.ClusterClient)
 	var pipe redis.Pipeliner
-	if isCluster {
+	if c.isCluster {
 		pipe = c.rdb.Pipeline()
 	} else {
 		pipe = c.rdb.TxPipeline()
@@ -137,9 +140,7 @@ func (c *RedisClient) MGet(ctx context.Context, keys []string) ([][]byte, error)
 	// redis.UniversalClient can take redis.Client and redis.ClusterClient.
 	// if redis.Client is set, then Single node or sentinel configuration. mget is always supported.
 	// if redis.ClusterClient is set, then Redis Cluster configuration. mget may not be supported.
-	_, isCluster := c.rdb.(*redis.ClusterClient)
-
-	if isCluster {
+	if c.isCluster {
 		for i, key := range keys {
 			cmd := c.rdb.Get(ctx, key)
 			err := cmd.Err()
