@@ -3,6 +3,7 @@ package usagestats
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"sync"
@@ -12,7 +13,6 @@ import (
 
 	"github.com/go-kit/log"
 	"github.com/grafana/dskit/kv"
-	"encoding/json"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
 

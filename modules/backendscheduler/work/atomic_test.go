@@ -1,13 +1,13 @@
 package work
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
 	"sync"
 	"testing"
 
-	"encoding/json"
 	"github.com/stretchr/testify/require"
 )
 

@@ -1,6 +1,7 @@
 package usagestats
 
 import (
+	"encoding/json"
 	"runtime"
 	"sync"
 	"testing"
@@ -10,7 +11,6 @@ import (
 	"github.com/grafana/tempo/cmd/tempo/build"
 
 	"github.com/google/uuid"
-	"encoding/json"
 	"github.com/stretchr/testify/require"
 )
 

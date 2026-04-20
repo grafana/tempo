@@ -1,13 +1,13 @@
 package client
 
 import (
+	"encoding/json"
 	"reflect"
 	"testing"
 	"time"
 
 	"github.com/grafana/tempo/modules/overrides/histograms"
 	"github.com/grafana/tempo/pkg/sharedconfig"
-	"encoding/json"
 	"github.com/stretchr/testify/assert"
 )
 
