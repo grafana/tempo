@@ -324,7 +324,7 @@ func validateMigratedConfig(m map[string]interface{}) ([]string, error) {
 	cfg := app.Config{}
 	cfg.RegisterFlagsAndApplyDefaults("", &flag.FlagSet{})
 
-	if err := yaml.Unmarshal(yamlBytes, &cfg); err != nil {
+	if err := yaml.UnmarshalStrict(yamlBytes, &cfg); err != nil {
 		if containsEnvVarRef(yamlBytes) {
 			// Env vars like ${VAR} cause type errors for non-string fields.
 			// This is expected — report as warning, not fatal.
