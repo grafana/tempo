@@ -82,8 +82,8 @@ func (s asyncSearchSharder) RoundTrip(pipelineRequest pipeline.Request) (pipelin
 		return pipeline.NewBadRequest(err), nil
 	}
 
-	// propagate global skip list so ingesters and queriers apply the same optimization config
-	searchReq.SkipASTTransformations = s.skipASTTransformations
+	// merge global skip list with any per-request skip list from URL params so both are honoured
+	searchReq.SkipASTTransformations = append(s.skipASTTransformations, searchReq.SkipASTTransformations...)
 
 	// adjust limit based on config
 	searchReq.Limit, err = adjustLimit(searchReq.Limit, s.cfg.DefaultLimit, s.cfg.MaxLimit)
@@ -315,6 +315,7 @@ func buildBackendRequests(ctx context.Context, tenantID string, parent pipeline.
 
 		pipelineR, err := cloneRequestforQueriers(parent, tenantID, func(r *http.Request) (*http.Request, error) {
 			r, err = api.BuildSearchBlockRequest(r, &tempopb.SearchBlockRequest{
+				SearchReq:     searchReq,
 				BlockID:       blockID,
 				StartPage:     uint32(startPage),
 				PagesToSearch: uint32(pages),

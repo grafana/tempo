@@ -86,8 +86,8 @@ func (s queryRangeSharder) RoundTrip(pipelineRequest pipeline.Request) (pipeline
 		return pipeline.NewBadRequest(err), nil
 	}
 
-	// propagate global skip list so queriers apply the same optimization config
-	req.SkipASTTransformations = s.skipASTTransformations
+	// merge global skip list with any per-request skip list from URL params so both are honoured
+	req.SkipASTTransformations = append(s.skipASTTransformations, req.SkipASTTransformations...)
 
 	expr, err := traceql.ParseNoOptimizations(req.Query)
 	if err != nil {
