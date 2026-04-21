@@ -900,7 +900,7 @@ Exposes the build information in a JSON object. The fields are `version`, `revis
 GET /status/backendscheduler
 ```
 
-Displays the current state of all jobs in the backend scheduler work cache.
+Displays the current state of all jobs in the backend scheduler work cache and the pending redaction queue.
 
 The response is a plain-text table with two sections:
 

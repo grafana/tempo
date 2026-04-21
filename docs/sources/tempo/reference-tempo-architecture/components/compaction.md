@@ -111,8 +111,9 @@ This endpoint is useful for diagnosing stalled jobs, verifying that workers are 
 | `tempodb_blocklist_length` | Number of live blocks per tenant; high values indicate compaction is falling behind |
 | `tempodb_compaction_outstanding_blocks` | Outstanding blocks awaiting compaction per tenant; the primary autoscaling signal |
 
-The scheduler job metrics carry `tenant` and `job_type` labels.
+Most scheduler job metrics carry `tenant` and `job_type` labels; `tempo_backend_scheduler_job_duration_seconds` carries only `job_type`.
 The `job_type` label uses protobuf enum string values: `JOB_TYPE_COMPACTION`, `JOB_TYPE_RETENTION`, and `JOB_TYPE_REDACTION`.
+The duration histogram measures elapsed time from job creation to completion, not execution time alone.
 
 ## Monitoring
 
