@@ -92,6 +92,7 @@
 * [BUGFIX] livestore: fix concurrent WAL writes from periodic and shutdown flushes [#6972](https://github.com/grafana/tempo/pull/6972) (@zhxiaogg)
 * [BUGFIX] live-store: fix race conditions for tag values endpoint [#7000](https://github.com/grafana/tempo/pull/7000) (@ruslan-mikhailov)
 * [BUGFIX] live-store: correct backoff duration calculation [#6999](https://github.com/grafana/tempo/pull/6999) (@ruslan-mikhailov)
+* [BUGFIX] vulture: fix for recent traces when query_end_cutoff is enabled [#7018](https://github.com/grafana/tempo/pull/7018) (@ruslan-mikhailov)
 
 ### 3.0 Cleanup
 
