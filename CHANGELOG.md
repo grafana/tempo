@@ -34,6 +34,7 @@
 * [FEATURE] Add an extension mechanism for per-tenant overrides [#6758](https://github.com/grafana/tempo/pull/6758) (@stoewer)
 * [FEATURE] Extend `TraceRedactor` interface to support hiding complete traces via `ErrTraceHidden`. [#6811](https://github.com/grafana/tempo/pull/6811) (@stoewer)
 * [FEATURE] Single-binary mode: push distributor local ingest directly to live-store and metrics-generator without Kafka [#6729](https://github.com/grafana/tempo/pull/6729) (@javiermolinar)
+* [FEATURE] Make individual AST transformations skippable via config and query hints [#7012](https://github.com/grafana/tempo/pull/7012) (@stoewer)
 * [ENHANCEMENT] Expose MinIO retry settings via S3 config [#6561](https://github.com/grafana/tempo/pull/6561) (@rwhitty)
 * [ENHANCEMENT] Enable native histogram emission for all promauto-registered histograms, including `tempo_request_duration_seconds`. Both classic and native formats are emitted simultaneously; existing scrapers are unaffected. [#6910](https://github.com/grafana/tempo/pull/6910) (@zalegrala)
 * [ENHANCEMENT] tempo-cli: Add `--header` flag to `query api` commands for custom headers [#6768](https://github.com/grafana/tempo/pull/6768) (@Nouuu)
