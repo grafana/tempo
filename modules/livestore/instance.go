@@ -362,6 +362,7 @@ func (i *instance) cutIdleTraces(ctx context.Context, immediate bool) error {
 		err := i.writeHeadBlock(t.ID, t)
 		if err != nil {
 			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
 			return err
 		}
 
@@ -378,6 +379,7 @@ func (i *instance) cutIdleTraces(ctx context.Context, immediate bool) error {
 	if i.headBlock != nil {
 		err := i.headBlock.Flush()
 		if err != nil {
+			span.SetStatus(codes.Error, err.Error())
 			span.RecordError(err)
 			return err
 		}
@@ -533,6 +535,7 @@ func (i *instance) cutBlocks(ctx context.Context, immediate bool) (uuid.UUID, er
 	// Final flush
 	err := i.headBlock.Flush()
 	if err != nil {
+		span.SetStatus(codes.Error, err.Error())
 		span.RecordError(err)
 		return uuid.Nil, err
 	}
@@ -551,6 +554,7 @@ func (i *instance) cutBlocks(ctx context.Context, immediate bool) (uuid.UUID, er
 	err = i.resetHeadBlock()
 	if err != nil {
 		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return uuid.Nil, err
 	}
 

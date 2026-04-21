@@ -13,6 +13,7 @@ import (
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding"
 	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
 	oteltrace "go.opentelemetry.io/otel/trace"
 )
 
@@ -117,6 +118,7 @@ func (s *LiveStore) processCompleteOp(op *completeOp) error {
 	if err != nil {
 		level.Error(s.logger).Log("msg", "failed to retrieve instance for completion", "tenant", op.tenantID, "err", err)
 		observeFailedOp(op)
+		span.SetStatus(codes.Error, err.Error())
 		span.RecordError(err)
 		return err
 	}
