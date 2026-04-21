@@ -33,7 +33,7 @@ Each provider runs independently and feeds jobs into a shared channel.
 
 - The compaction provider periodically measures tenants and produces compaction jobs based on the blocklist.
 - The retention provider produces retention jobs on a schedule.
-- The redaction provider drains a persistent queue of pending redaction requests, waiting for any compaction jobs that were active at submission time to complete before the rewritten blocks are eligible for querying.
+- The redaction provider drains a persistent queue of pending redaction requests. The scheduler's rescan logic handles waiting for any compaction jobs that were active at submission time to complete before the rewritten blocks become eligible for querying.
 
 When a worker calls `Next`, the scheduler assigns an available job and persists the assignment to a local work cache.
 The worker executes the job and calls `UpdateJob` with a success or failure status.
@@ -91,7 +91,7 @@ GET /status/backendscheduler
 The response is a plain-text table with two sections:
 
 - **Active Jobs**: all jobs in the scheduler work cache, sorted by creation time. This includes jobs in any state -- use the `status` column to interpret each row. A non-empty `worker` field indicates the job is currently assigned to a worker.
-- **Pending Jobs**: redaction jobs that are waiting for compaction jobs active at submission time to complete before they can be issued as work.
+- **Pending Jobs**: redaction jobs in the pending queue. Some may already be eligible to run; others may still be waiting for the rescan or compaction preconditions to clear.
 
 This endpoint is useful for diagnosing stalled jobs, verifying that workers are consuming work, and checking whether a redaction request has been processed.
 
@@ -103,13 +103,16 @@ This endpoint is useful for diagnosing stalled jobs, verifying that workers are 
 | `tempodb_compaction_bytes_written_total` | Bytes written during compaction |
 | `tempodb_retention_marked_for_deletion_total` | Blocks marked for deletion by retention |
 | `tempodb_retention_deleted_total` | Blocks deleted by retention |
-| `tempo_backend_scheduler_jobs_created_total` | Jobs created, by type (compaction, retention, redaction) |
-| `tempo_backend_scheduler_jobs_completed_total` | Jobs completed successfully, by type |
-| `tempo_backend_scheduler_jobs_failed_total` | Jobs that failed, by type |
-| `tempo_backend_scheduler_jobs_active` | Jobs currently assigned to a worker, by type |
+| `tempo_backend_scheduler_jobs_created_total` | Jobs created |
+| `tempo_backend_scheduler_jobs_completed_total` | Jobs completed successfully |
+| `tempo_backend_scheduler_jobs_failed_total` | Jobs that failed |
+| `tempo_backend_scheduler_jobs_active` | Jobs currently assigned to a worker |
 | `tempo_backend_scheduler_job_duration_seconds` | Job execution duration histogram |
 | `tempodb_blocklist_length` | Number of live blocks per tenant; high values indicate compaction is falling behind |
 | `tempodb_compaction_outstanding_blocks` | Outstanding blocks awaiting compaction per tenant; the primary autoscaling signal |
+
+The scheduler job metrics carry `tenant` and `job_type` labels.
+The `job_type` label uses protobuf enum string values: `JOB_TYPE_COMPACTION`, `JOB_TYPE_RETENTION`, and `JOB_TYPE_REDACTION`.
 
 ## Monitoring
 
