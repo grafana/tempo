@@ -13,6 +13,28 @@ This document explains the configuration options for Tempo as well as the detail
 Instructions for configuring Tempo data sources are available in the [Grafana Cloud](/docs/grafana-cloud/send-data/traces/) and [Grafana](/docs/grafana/latest/datasources/tempo/) documentation.
 {{< /admonition >}}
 
+## Configuration by deployment mode
+
+Not all configuration blocks apply to both deployment modes. The following table summarizes which blocks are relevant to each mode. For details on how the modes differ, refer to the [Deployment modes](/docs/tempo/<TEMPO_VERSION>/reference-tempo-architecture/deployment-modes/) reference.
+
+| Config block | Monolithic | Microservices | Notes |
+|---|---|---|---|
+| `distributor` | Yes | Yes | In monolithic mode, pushes data in-process. In microservices mode, writes to Kafka. |
+| `ingest` | No | Yes | Kafka connection settings. Only used in microservices mode. |
+| `block_builder` | No | Yes | Consumes from Kafka. Only used in microservices mode. |
+| `live_store` | Yes | Yes | In monolithic mode, receives data directly from the distributor. In microservices mode, consumes from Kafka. |
+| `live_store_client` | No | Yes | gRPC client for querier-to-live-store communication across processes. |
+| `query_frontend` | Yes | Yes | |
+| `querier` | Yes | Yes | |
+| `backend_scheduler` | Yes | Yes | |
+| `backend_scheduler_client` | No | Yes | gRPC client for connecting workers to the scheduler across processes. |
+| `backend_worker` | Yes | Yes | |
+| `metrics_generator` | Yes | Yes | Optional in both modes. |
+| `storage` | Yes | Yes | |
+| `memberlist` | Yes | Yes | |
+| `overrides` | Yes | Yes | |
+| `cache` | Yes | Yes | |
+
 The Tempo configuration options include:
 
 - [Configure Tempo](#configure-tempo)

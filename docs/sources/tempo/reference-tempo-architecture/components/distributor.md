@@ -10,13 +10,18 @@ versionDate: 2026-03-20
 # Distributor
 
 The distributor is the entry point for all trace data into Tempo.
-It receives spans from instrumented applications, validates them against configured limits, and writes them to Kafka.
+It receives spans from instrumented applications and validates them against configured limits.
+
+How the distributor forwards data depends on the [deployment mode](/docs/tempo/<TEMPO_VERSION>/reference-tempo-architecture/deployment-modes/):
+
+- **Microservices mode**: The distributor shards traces by trace ID and writes them to Kafka. Downstream consumers including block-builders, live-stores, and metrics-generators each consume from Kafka independently.
+- **Monolithic mode**: The distributor pushes data in-process directly to the live-store and metrics-generator. No Kafka is required.
 
 ## Receiving traces
 
 The distributor uses the receiver layer from the [OpenTelemetry Collector](https://github.com/open-telemetry/opentelemetry-collector) and accepts spans in multiple formats:
 
-- OpenTelemetry Protocol (OTLP) over gRPC and HTTP (recommended)
+- OpenTelemetry Protocol (OTLP) over gRPC and HTTP, which is the recommended format
 - Jaeger (Thrift and gRPC)
 - Zipkin
 - Kafka
@@ -26,7 +31,7 @@ Both [Grafana Alloy](https://github.com/grafana/alloy/) and the OpenTelemetry Co
 
 ## Validation and rate limiting
 
-Before writing to Kafka, the distributor validates incoming data against configured ingestion limits.
+Before forwarding data, the distributor validates incoming data against configured ingestion limits.
 These are the only limits enforced synchronously at ingestion time.
 
 The ingestion rate limit sets the maximum bytes per second per tenant.
@@ -34,7 +39,7 @@ Exceeding this returns a `RATE_LIMITED` error to the client.
 The ingestion burst size controls the maximum burst allowed above the sustained rate.
 For details on which settings honor the global strategy and which are always local, refer to [Ingestion rate strategy](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/#ingestion-rate-strategy).
 
-Other limits such as `max_bytes_per_trace` and `max_live_traces_bytes` are enforced asynchronously downstream by live-stores and block-builders.
+Other limits such as `max_bytes_per_trace` and `max_live_traces_bytes` are enforced asynchronously downstream by live-stores.
 
 When the distributor refuses spans due to rate limits,
 it increments the `tempo_discarded_spans_total` metric with a `reason` label indicating why.
@@ -53,9 +58,9 @@ distributor:
 Setting `include_all_attributes: true` produces more verbose logs that include span attributes,
 which can help identify misbehaving clients.
 
-## Writing to Kafka
+## Writing to Kafka (microservices mode)
 
-After validation, the distributor shards traces by hashing the trace ID,
+In microservices mode, after validation, the distributor shards traces by hashing the trace ID,
 looks up the partition ring to determine which Kafka partitions are active,
 and writes records to the appropriate partitions.
 It waits for Kafka to acknowledge the write before returning a response to the client.
@@ -68,11 +73,15 @@ This ensures that once the client gets a success response, the data is durably s
 The distributor shards traces by trace ID, meaning all spans for the same trace go to the same Kafka partition.
 This has two benefits:
 
-- Block-builders can build blocks where all spans for a trace are co-located (within a single consumption cycle).
+- Block-builders can build blocks where all spans for a trace are co-located within a single consumption cycle.
 - Live-stores can serve complete traces from a single partition without cross-partition coordination.
 
-The distributor uses the partition ring (not Kafka's partition routing) to determine target partitions.
+The distributor uses the partition ring, not Kafka's partition routing, to determine target partitions.
 This allows Tempo to control the partition lifecycle independently of Kafka.
+
+## In-process push (monolithic mode)
+
+In monolithic mode, the distributor pushes trace data directly to the live-store and metrics-generator within the same process. No Kafka producer is initialized, and the distributor doesn't use the partition ring for routing. The write is acknowledged to the client after the live-store accepts the data.
 
 ## Key metrics
 

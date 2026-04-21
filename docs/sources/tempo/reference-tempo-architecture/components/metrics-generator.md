@@ -9,8 +9,13 @@ versionDate: 2026-03-20
 
 # Metrics-generator
 
-The metrics-generator is an optional component that consumes trace data from Kafka and derives metrics,
+The metrics-generator is an optional component that derives metrics from trace data,
 which are then remote-written to a metrics backend, for example, Prometheus or Grafana Mimir.
+
+How the metrics-generator receives data depends on the [deployment mode](/docs/tempo/<TEMPO_VERSION>/reference-tempo-architecture/deployment-modes/):
+
+- Microservices mode: The metrics-generator consumes trace data from Kafka as an independent consumer group.
+- Monolithic mode: The metrics-generator receives trace data directly from the distributor in-process. No Kafka consumption is involved.
 
 ## Why it matters
 
@@ -26,7 +31,7 @@ producing metrics for request rates, error rates, and latencies between service 
 
 ## Kafka consumption
 
-Like live-stores and block-builders, the metrics-generator consumes trace data directly from Kafka.
+In microservices mode, the metrics-generator consumes trace data directly from Kafka, like live-stores and block-builders.
 It runs as an independent consumer group, tracking its own offsets separately.
 
 ### Monitoring consumption

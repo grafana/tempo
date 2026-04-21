@@ -12,10 +12,10 @@ Before you deploy Tempo, you should consider how you plan to use traces and Temp
 
 ## Considerations for Tempo 3.0
 
-Before planning your Tempo deployment, be aware that Tempo v3.0 requires:
+Before planning your Tempo deployment, be aware of the following infrastructure requirements:
 
-- **Kafka-compatible system**: Tempo requires a Kafka-compatible system (such as Apache Kafka, Redpanda, or WarpStream) for both monolithic and microservices modes. Kafka serves as the durable write-ahead log that decouples write and read paths.
-- **Object storage**: Tempo stores trace data in object storage (S3, GCS, or Azure Storage).
+- **Object storage**: Tempo stores trace data in object storage such as S3, GCS, or Azure Storage. Both deployment modes require object storage.
+- **Kafka-compatible system**: Microservices mode requires a Kafka-compatible system, such as Apache Kafka, Redpanda, or WarpStream, as the durable queue that decouples the write and read paths. Monolithic mode doesn't use Kafka.
 
 Include these infrastructure components in your deployment planning and resource estimation.
 
@@ -33,9 +33,10 @@ To plan your Grafana Tempo deployment, you should:
 3. Choose a deployment mode.
    Tempo supports monolithic and microservices deployment modes.
 
-   - Use the monolithic mode for simple, single-tenant environments or smaller workloads.
-   - Use the microservices mode for large-scale, multi-tenant, or highly available deployments.
-     Review the [Deployment modes documentation](/docs/tempo/<TEMPO_VERSION>/reference-tempo-architecture/deployment-modes/) to compare options and select the best fit for your use case.
+   - Use monolithic mode for getting started, development, or smaller workloads. No Kafka is required.
+   - Use microservices mode for production, high-volume, or highly available deployments. Requires a Kafka-compatible system.
+
+   Review the [Deployment modes](./deployment-modes/) documentation to compare options and select the best fit for your use case.
 
 By following these recommendations, you can plan a Tempo deployment that matches your operational requirements and scales with your tracing data.
 
