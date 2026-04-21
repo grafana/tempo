@@ -14,8 +14,8 @@ It receives spans from instrumented applications and validates them against conf
 
 How the distributor forwards data depends on the [deployment mode](/docs/tempo/<TEMPO_VERSION>/reference-tempo-architecture/deployment-modes/):
 
-- **Microservices mode**: The distributor shards traces by trace ID and writes them to Kafka. Downstream consumers including block-builders, live-stores, and metrics-generators each consume from Kafka independently.
-- **Monolithic mode**: The distributor pushes data in-process directly to the live-store and metrics-generator. No Kafka is required.
+- Microservices mode: The distributor shards traces by trace ID and writes them to Kafka. Downstream components including block-builders, live-stores, and metrics-generators each consume from Kafka independently.
+- Monolithic mode: The distributor pushes data in-process directly to the live-store and metrics-generator. No Kafka is required.
 
 ## Receiving traces
 
@@ -39,7 +39,7 @@ Exceeding this returns a `RATE_LIMITED` error to the client.
 The ingestion burst size controls the maximum burst allowed above the sustained rate.
 For details on which settings honor the global strategy and which are always local, refer to [Ingestion rate strategy](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/#ingestion-rate-strategy).
 
-Other limits such as `max_bytes_per_trace` and `max_live_traces_bytes` are enforced asynchronously downstream by live-stores.
+Other limits such as `max_live_traces_bytes` are enforced asynchronously downstream by live-stores, while `max_bytes_per_trace` is enforced downstream as well, including by block-builders in microservices mode.
 
 When the distributor refuses spans due to rate limits,
 it increments the `tempo_discarded_spans_total` metric with a `reason` label indicating why.

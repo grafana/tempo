@@ -55,7 +55,7 @@ Traces that span multiple cycles have their spans split across blocks, which the
 
 ### Monolithic write path
 
-In monolithic mode, no Kafka or block-builder is involved. The distributor pushes trace data in-process directly to the live-store and metrics-generator. The live-store holds traces in memory, flushes them to a local WAL, and cuts them into completed blocks that are uploaded to object storage by the backend worker.
+In monolithic mode, no Kafka or block-builder is involved. The distributor pushes trace data in-process directly to the live-store and metrics-generator. The live-store holds traces in memory, flushes them to a local WAL, cuts them into completed blocks, and flushes those completed blocks to object storage.
 
 ## Read path
 
