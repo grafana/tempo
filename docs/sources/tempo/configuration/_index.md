@@ -55,7 +55,7 @@ The Tempo configuration options include:
       - [Tenant-specific overrides](#tenant-specific-overrides)
         - [Runtime overrides](#runtime-overrides)
         - [User-configurable overrides](#user-configurable-overrides)
-      - [Override strategies](#override-strategies)
+      - [Ingestion rate strategy](#ingestion-rate-strategy)
   - [Usage-report](#usage-report)
     - [Configure usage-reporting](#configure-usage-reporting)
   - [Cache](#cache)
@@ -93,7 +93,10 @@ You can find more about other supported syntax [here](https://github.com/drone/e
 
 ## Server
 
-Tempo uses the server from `dskit/server`. For more information on configuration options, refer to [this file](https://github.com/grafana/dskit/blob/main/server/server.go#L66).
+Tempo uses the server from `dskit/server`. For the full list of available server options, refer to the [dskit server configuration](https://github.com/grafana/dskit/blob/main/server/server.go#L66) and the [manifest](/docs/tempo/<TEMPO_VERSION>/configuration/manifest/).
+For details on how server settings apply across deployment modes, refer to the [Deployment modes](/docs/tempo/<TEMPO_VERSION>/reference-tempo-architecture/deployment-modes/) documentation.
+
+Additional root-level options such as `target`, `shutdown_delay`, `auth_enabled`, and `enable_go_runtime_metrics` are available as [command-line flags](/docs/tempo/<TEMPO_VERSION>/set-up-for-tracing/setup-tempo/command-line-flags/).
 
 ```yaml
 # Optional. Setting to true enables multitenancy and requires X-Scope-OrgID header on all requests.
@@ -101,6 +104,9 @@ Tempo uses the server from `dskit/server`. For more information on configuration
 
 # Optional. String prefix for all http api endpoints. Must include beginning slash.
 [http_api_prefix: <string>]
+
+# Optional. Enables streaming query results over HTTP.
+[stream_over_http_enabled: <bool> | default = false]
 
 server:
     # HTTP server listen host
@@ -137,12 +143,22 @@ server:
     # Max gRPC message size that can be sent
     # This value may need to be increased if you have large traces
     [grpc_server_max_send_msg_size: <int> | default = 16777216]
+
+    # Minimum time between pings from clients before the server sends a GOAWAY.
+    # Tempo sets this lower than the dskit default to prevent GOAWAY errors
+    # when there is little real traffic between components.
+    [grpc_server_min_time_between_pings: <duration> | default = 10s]
+
+    # Allow clients to send pings even when there are no active streams.
+    # Tempo enables this by default to prevent GOAWAY errors during idle periods.
+    [grpc_server_ping_without_stream_allowed: <bool> | default = true]
 ```
 
 ## Memory
 
 Tempo supports automatic GOMEMLIMIT configuration using the [automemlimit](https://github.com/KimMachineGun/automemlimit) library.
 When enabled, it automatically sets Go's memory limit based on available container (via CGroups) or system memory every 15 seconds.
+For information on memory considerations across deployment modes, refer to the [Deployment modes](/docs/tempo/<TEMPO_VERSION>/reference-tempo-architecture/deployment-modes/) documentation.
 
 NOTE: enabling this will override value set in GOMEMLIMIT environment variable
 
@@ -163,7 +179,13 @@ memory:
 For more information on configuration options, refer to [this file](https://github.com/grafana/tempo/blob/main/modules/distributor/config.go).
 For architectural details, refer to the [Distributor architecture](/docs/tempo/<TEMPO_VERSION>/reference-tempo-architecture/components/distributor/) documentation.
 
-Distributors receive spans, apply limits and forwarding, and route them to the configured write path.
+The distributor is the entry point for all trace data into Tempo.
+It receives spans from instrumented applications, validates them against configured [ingestion limits](#ingestion-limits), and forwards them for processing.
+
+How the distributor forwards data depends on the deployment mode:
+
+- **Distributed mode** (microservices): The distributor shards traces by trace ID and writes them to [Kafka](/docs/tempo/<TEMPO_VERSION>/reference-tempo-architecture/components/kafka/). Kafka settings are configured in the [Ingest](#ingest) section. Downstream, [block-builders](/docs/tempo/<TEMPO_VERSION>/reference-tempo-architecture/components/block-builder/) and [live-stores](/docs/tempo/<TEMPO_VERSION>/reference-tempo-architecture/components/live-store/) consume from Kafka independently.
+- **Single-binary mode** (`target: all`): The distributor pushes data in-process directly to the live-store and metrics-generator. No Kafka is required in this mode, making it simpler for local development, testing, and small installations.
 
 The following configuration enables all available receivers with their default configuration. For a production deployment, enable only the receivers you need.
 Additional documentation and more advanced configuration options are available in [the receiver README](https://github.com/open-telemetry/opentelemetry-collector/blob/main/receiver/README.md).
@@ -172,7 +194,39 @@ Additional documentation and more advanced configuration options are available i
 # Distributor config block
 distributor:
 
-    # receiver configuration for different protocols
+    # Ring configuration for the distributor.
+    # In distributed mode, the ring coordinates distributor instances and determines
+    # which Kafka partitions each distributor writes to via the partition ring.
+    # In single-binary mode, the ring is not used for partition routing.
+    # For details, refer to the partition ring architecture documentation:
+    # /docs/tempo/<TEMPO_VERSION>/reference-tempo-architecture/partition-ring/
+    ring:
+      kvstore: <KVStore config>
+        [store: <string> | default = memberlist]
+        [prefix: <string> | default = "collectors/"]
+
+      # Period at which to heartbeat to the ring.
+      [heartbeat_period: <duration> | default = 5s]
+
+      # The heartbeat timeout after which distributors are considered unhealthy in the ring.
+      [heartbeat_timeout: <duration> | default = 5m]
+
+      # Instance ID to register in the ring.
+      [instance_id: <string> | default = os.Hostname()]
+
+      # Name of the network interface to read the address from.
+      [instance_interface_names: <list of string> | default = ["eth0", "en0"]]
+
+      # IP address to advertise in the ring. Defaults to the address from instance_interface_names.
+      [instance_addr: <string>]
+
+      # Port to advertise in the ring.
+      [instance_port: <int>]
+
+      # Enable registering IPv6 addresses in the ring.
+      [enable_inet6: <bool> | default = false]
+
+    # Receiver configuration for different protocols.
     # The config is passed down to OpenTelemetry receivers.
     # By default, receivers listen to localhost and need a configured IP to
     # listen on an external interface.
@@ -261,12 +315,12 @@ distributor:
     # Configures the time to retry after returned to the client when Tempo returns a GRPC ResourceExhausted. This parameter
     # defaults to 0 which means that by default ResourceExhausted is not retried. Set this to a duration such as `1s` to
     # instruct the client how to retry.
-    [retry_after_on_resource_exhausted: <duration> | default = '0' ]
+    [retry_after_on_resource_exhausted: <duration> | default = 0]
 
     # Optional
     # Configures the max size an attribute can be. Any key or value that exceeds this limit will be truncated before storing
     # Setting this parameter to '0' would disable this check against attribute size
-    [max_attribute_bytes: <int> | default = '2048']
+    [max_attribute_bytes: <int> | default = 2048]
 
     # Optional.
     # Configures usage trackers in the distributor which expose metrics of ingested traffic grouped by configurable
@@ -299,24 +353,18 @@ For additional information, refer to [Troubleshoot out-of-memory errors](https:/
 
 ### gRPC compression
 
-Starting with Tempo 2.7.1, gRPC compression between all components defaults to `snappy`.
-Using `snappy` provides a balanced approach to compression between components that will work for most installations.
+By default, gRPC compression between all components uses `snappy`.
+This provides a balanced approach to compression that works for most installations.
 
-If you prefer a different balance of CPU/Memory and bandwidth, consider disabling compression or using `zstd`.
-
-For a discussion on alternatives, refer to [this discussion thread](https://github.com/grafana/tempo/discussions/4683). ([#4696](https://github.com/grafana/tempo/pull/4696)).
-
-Disabling compression may provide some performance boosts.
-Benchmark testing suggested that without compression, queriers and distributors used less CPU and memory.
-
-However, you may notice an increase in live-store data and network traffic, especially for larger clusters.
-This increased data can impact billing for Grafana Cloud.
+If you prefer a different balance of CPU/memory and bandwidth, consider disabling compression or using `zstd`.
+Disabling compression may reduce CPU and memory usage on queriers and distributors, but can increase network traffic and [live-store](/docs/tempo/<TEMPO_VERSION>/reference-tempo-architecture/components/live-store/) data volume, especially in larger clusters.
+Increased data can impact billing for Grafana Cloud.
 
 You can configure the gRPC compression in the `live_store_client` and `querier.frontend_worker` gRPC clients.
 
 To disable compression, remove `snappy` from the `grpc_compression` lines.
 
-To re-enable the compression, use `snappy` with the following settings:
+To set the compression, use `snappy` with the following settings:
 
 ```yaml
 live_store_client:
@@ -1863,6 +1911,9 @@ Tempo provides an overrides module for users to set global or per-tenant overrid
 
 ### Ingestion limits
 
+Tempo enforces ingestion limits at different points in the write path.
+For an overview of where each component sits in the pipeline, refer to [About the Tempo architecture](https://grafana.com/docs/tempo/<TEMPO_VERSION>/reference-tempo-architecture/about-tempo-architecture/).
+
 The default limits in Tempo may not be sufficient in high-volume tracing environments.
 Errors including `RATE_LIMITED`/`TRACE_TOO_LARGE`/`LIVE_TRACES_EXCEEDED` occur when these limits are exceeded.
 See below for how to override these limits globally or per tenant.
@@ -1883,15 +1934,16 @@ overrides:
 
       # Specifies whether the ingestion rate limits should be applied by each instance
       # of the distributor individually, or the limits are to be shared
-      # across all instances. See the "override strategies" section for an example.
+      # across all instances. Refer to the "ingestion rate strategy" section for an example.
       # Only applies to rate_limit_bytes.
       [rate_strategy: <global|local> | default = local]
 
       # Per-user ingestion rate limit (bytes) used in ingestion.
-      # Results in errors like RATE_LIMITED: ingestion rate limit (15000000 bytes) exceeded while adding 10 bytes
+      # Honored by both global and local strategies. With global, this value
+      # is divided across healthy distributors.
+      # Results in errors like
       #   RATE_LIMITED: ingestion rate limit (15000000 bytes) exceeded while
       #   adding 10 bytes
-      # Applies global and local strategies.
       [rate_limit_bytes: <int> | default = 15000000 (15MB) ]
 
       # Burst size (bytes) used in ingestion.
@@ -1901,7 +1953,8 @@ overrides:
       # Ignores rate strategy and is always local.
       [burst_size_bytes: <int> | default = 20000000 (20MB) ]
 
-      # Maximum number of active traces per user, per live-store.
+      # Maximum number of active traces per user, per live-store instance.
+      # Not affected by rate_strategy.
       # A value of 0 disables the check.
       # Results in errors like
       #    LIVE_TRACES_EXCEEDED: max live traces per tenant exceeded:
@@ -1909,6 +1962,7 @@ overrides:
       [max_traces_per_user: <int> | default = 10000]
 
       # Maximum number of active traces per user, across the cluster.
+      # Not enforced at runtime in Tempo 3.0. Exposed as a metric only.
       # A value of 0 disables the check.
       [max_global_traces_per_user: <int> | default = 0]
 
@@ -2205,8 +2259,8 @@ overrides:
 
   "<tenant-id>":
       ingestion:
-        [rate_size_bytes: <int>] # Applies global and local strategies.
-        [burst_limit_bytes: <int>] # Ignores rate strategy and is always local.
+        [rate_limit_bytes: <int>] # Honored by both global and local strategies.
+        [burst_size_bytes: <int>] # Always local, regardless of rate strategy.
         [max_traces_per_user: <int>]
       global:
         [max_bytes_per_trace: <int>]
@@ -2227,45 +2281,58 @@ These tenant-specific overrides are stored in an object store and can be modifie
 User-configurable overrides have priority over runtime overrides.
 Refer to [user-configurable overrides](https://grafana.com/docs/tempo/<TEMPO_VERSION>/operations/manage-advanced-systems/user-configurable-overrides/) for more details.
 
-#### Override strategies
+#### Ingestion rate strategy
 
-The trace limits specified by the various parameters are, by default, applied as per-distributor limits.
-For example, a `max_traces_per_user` setting of 10000 means that each distributor within the cluster has a limit of 10000 traces per user.
-This is known as a `local` strategy in that the specified trace limits are local to each distributor.
+Ingestion limits are enforced at different points in the write path. The distributor enforces rate and burst limits before writing to Kafka. Live-stores and block-builders enforce per-trace size and active trace count limits asynchronously after consuming from Kafka.
 
-A setting that applies at a local level is quite helpful in ensuring that each distributor independently can process traces up to the limit without affecting the tracing limits on other distributors.
+The `rate_strategy` setting controls how the distributor's rate limit scales across instances. It only affects `rate_limit_bytes`.
 
-However, as a cluster grows quite large, this can lead to quite a large quantity of traces.
-An alternative strategy may be to set a `global` trace limit that establishes a total budget of all traces across all distributors in the cluster.
-The global limit is averaged across all distributors by using the distributor ring.
-
-```yaml
-# /conf/tempo.yaml
-overrides:
-  defaults:
-    ingestion: [rate_strategy: <global|local> | default = local]
-```
-
-For example, this configuration specifies that each instance of the distributor will apply a limit of `15MB/s`.
+| Strategy | When to use | How it works |
+|---|---|---|
+| **`local`** (default) | You want each distributor to independently handle a fixed rate, and you accept that the effective cluster rate grows as you add distributors. | Each distributor enforces the full configured `rate_limit_bytes` value. With 5 distributors at `15 MB/s`, the cluster allows up to `75 MB/s`. |
+| **`global`** | You need a predictable cluster-wide ingestion budget that stays constant regardless of how many distributors you run. | The configured `rate_limit_bytes` is divided across healthy distributors. With 5 distributors at `15 MB/s`, each allows `3 MB/s`. |
 
 ```yaml
 overrides:
   defaults:
     ingestion:
-      strategy: local
-      limit_bytes: 15000000
+      [rate_strategy: <global|local> | default = local]
 ```
 
-This configuration specifies that together, all distributor instances will apply a limit of `15MB/s`.
-So if there are 5 instances, each instance will apply a local limit of `(15MB/s / 5) = 3MB/s`.
+The following table shows where each ingestion limit is enforced and whether it is affected by `rate_strategy`:
+
+| Setting | Enforced by | Affected by `rate_strategy`? |
+|---|---|---|
+| `rate_limit_bytes` | Distributor | Yes |
+| `burst_size_bytes` | Distributor | No (always per instance) |
+| `max_traces_per_user` | Live-store | No (always per instance) |
+| `max_global_traces_per_user` | Not enforced at runtime | No (metric only, disabled by default) |
+| `max_bytes_per_trace` | Live-store, block-builder | No |
+
+##### Examples
+
+Each distributor instance independently allows `15 MB/s`:
 
 ```yaml
 overrides:
   defaults:
     ingestion:
-      strategy: global
-      limit_bytes: 15000000
+      rate_strategy: local
+      rate_limit_bytes: 15000000
 ```
+
+All distributors share a total cluster rate of `15 MB/s`.
+With 5 distributors, each instance allows `3 MB/s`:
+
+```yaml
+overrides:
+  defaults:
+    ingestion:
+      rate_strategy: global
+      rate_limit_bytes: 15000000
+```
+
+For guidance on sizing these limits for your workload, refer to [Manage trace ingestion](https://grafana.com/docs/tempo/<TEMPO_VERSION>/operations/manage-trace-ingestion/).
 
 ## Usage-report
 

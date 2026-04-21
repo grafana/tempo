@@ -786,7 +786,7 @@ tempo_usage_tracker_bytes_received_total{service="service-A",tenant="single-tena
 ### Distributor ring status
 
 {{< admonition type="note" >}}
-This endpoint is only available when Tempo is configured with [the global override strategy](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/#overrides).
+This endpoint is only available when Tempo is configured with [the global ingestion rate strategy](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/#ingestion-rate-strategy).
 {{< /admonition >}}
 
 ```
