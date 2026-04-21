@@ -97,13 +97,13 @@ Tempo 3.0 removes ingester configuration and adds new configuration blocks.
 - Any `ingester_client:` configuration
 - The `compactor:` block (replaced by `backend_scheduler:` and `backend_worker:`)
 
-**Add** to your 3.0 configuration:
+**Add** to your 3.0 configuration (microservices mode only):
 
 - `ingest:` block to connect Tempo to Kafka
 
 Your existing `server:`, `distributor:`, `query_frontend:`, `storage:`, `memberlist:`, and `overrides:` blocks carry over largely unchanged.
 
-The following example shows a minimal monolithic configuration for Tempo 3.0:
+The following example shows a minimal monolithic configuration for Tempo 3.0. In monolithic mode, Tempo doesn't require Kafka — live-stores handle both serving recent queries and flushing blocks to storage:
 
 ```yaml
 server:
@@ -118,14 +118,6 @@ distributor:
         http:
           endpoint: "0.0.0.0:4318"
 
-ingest:
-  kafka:
-    address: <KAFKA_BROKER_ADDRESS>
-    topic: <KAFKA_TOPIC>
-
-block_builder:
-  consume_cycle_duration: 30s
-
 storage:
   trace:
     backend: s3  # Keep your existing storage configuration
@@ -136,9 +128,13 @@ storage:
       path: /var/tempo/wal
 ```
 
-In microservices mode, each block-builder instance consumes from exactly one Kafka partition based on its ordinal: block-builder-0 consumes partition 0, block-builder-1 consumes partition 1, and so on. This means the number of block-builder replicas must equal the number of Kafka partitions.
+In microservices mode, you also need to configure the `ingest:` block to connect to Kafka. Each block-builder instance consumes from exactly one Kafka partition based on its ordinal: block-builder-0 consumes partition 0, block-builder-1 consumes partition 1, and so on. This means the number of block-builder replicas must equal the number of Kafka partitions.
 
-To keep block-builder replicas in sync with the partition count, use an autoscaler that mirrors the live-store replica count (live-stores also run one replica per partition). The Tempo Jsonnet library includes a KEDA-based autoscaler that does this automatically. The same pattern applies to any deployment tooling — scale block-builder replicas to match the number of active Kafka partitions.
+To keep block-builder replicas in sync with the partition count, scale them to match the live-store replica count (live-stores also run one replica per partition). You can do this with:
+
+- A **KEDA autoscaler** that mirrors the live-store pod count. The Tempo Jsonnet library includes this configuration.
+- The **Grafana rollout-operator** mirroring feature, which keeps one StatefulSet's replica count in sync with another.
+- A **static replica count** set to the number of Kafka partitions, if your partition count is fixed.
 
 The `live_store:` block uses sensible defaults and doesn't require overrides for most deployments.
 
@@ -174,6 +170,14 @@ overrides:
 
 You re-enable compaction by removing this override after the 2.x deployment is decommissioned. Refer to [Clean up the Tempo 2.x deployment](#clean-up-the-tempo-2x-deployment).
 
+#### Querying historical data
+
+Tempo 2.x ingesters wrote blocks with replication factor 3 (RF3). Tempo 3.0 block-builders write blocks with replication factor 1 (RF1). After migration, your object storage contains both types. Tempo 3.0 automatically queries the correct blocks based on their replication factor — no additional configuration is needed.
+
+TraceQL and trace-by-ID queries work across your full history, covering both old RF3 blocks from 2.x and new RF1 blocks from 3.0.
+
+TraceQL metrics queries only read RF1 blocks. If your 2.x deployment used the `local-blocks` processor in the metrics-generator, those RF1 blocks are already in storage and metrics queries cover your full history. If you didn't use the `local-blocks` processor, metrics queries only return results for data ingested after the switch to 3.0.
+
 #### Metrics-generator
 
 If you use the metrics-generator, note that it also consumes from Kafka in Tempo 3.0.
@@ -183,7 +187,7 @@ For more information, refer to [Metrics-generator](/docs/tempo/<TEMPO_VERSION>/m
 
 ## Deploy Tempo 3.0
 
-Deploy a new Tempo 3.0 instance alongside your existing 2.x deployment. Both deployments must point at the same object storage bucket so the new deployment can query historical blocks immediately.
+Deploy a new Tempo 3.0 instance alongside your existing 2.x deployment. Both deployments must point at the same object storage bucket so the new deployment can query historical blocks.
 
 For deployment instructions, refer to [Deploy Tempo](/docs/tempo/<TEMPO_VERSION>/set-up-for-tracing/setup-tempo/deploy/). For a complete example configuration, refer to the [`tempo.yaml` example](https://github.com/grafana/tempo/blob/main/example/docker-compose/single-binary/tempo.yaml).
 
@@ -193,17 +197,17 @@ To validate the deployment:
 
 1. Confirm that compaction is disabled in the 3.0 deployment, as described in [Disable compaction during parallel operation](#disable-compaction-during-parallel-operation).
 
-1. Validate that the 3.0 deployment can query historical data from shared object storage:
+1. Verify that all components start successfully and connect to Kafka. Check that `tempo_live_store_ready` equals `1`. The log message `"live-store ready to serve queries"` confirms the live-store is ready. At this point, no traffic is flowing through the 3.0 distributors yet, so write metrics will be at zero.
+
+1. It's highly recommended to validate the deployment end-to-end using [Tempo Vulture](/docs/tempo/<TEMPO_VERSION>/operations/tempo-vulture/), Tempo's built-in testing tool. Vulture writes traces to the distributor and reads them back through the query frontend, validating the full write and read path. Point it at the 3.0 deployment and let it run for 10–15 minutes. Confirm that `tempo_vulture_trace_mismatches_total` stays at zero.
+
+   You can also validate manually by querying the 3.0 deployment directly — for example, using `curl` against the query frontend API or querying from Grafana:
 
    ```bash
    curl http://<TEMPO_3_QUERY_FRONTEND>:3200/api/traces/<TRACE_ID>
    ```
 
    Use a trace ID that you know exists in your 2.x deployment. If the query returns trace data, the new deployment is reading from storage correctly.
-
-1. Verify that all components start successfully and connect to Kafka. Check that `tempo_live_store_ready` equals `1`. The log message `"live-store ready to serve queries"` confirms the live-store is ready. At this point, no traffic is flowing through the 3.0 distributors yet, so write metrics will be at zero.
-
-You can also run [Tempo Vulture](/docs/tempo/<TEMPO_VERSION>/operations/tempo-vulture/) against the 3.0 deployment to continuously validate reads and writes.
 
 Before proceeding, confirm all components are healthy.
 
