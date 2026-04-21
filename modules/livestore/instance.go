@@ -28,6 +28,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promauto"
 
 	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
 	oteltrace "go.opentelemetry.io/otel/trace"
 )
 
@@ -567,8 +568,10 @@ func (i *instance) completeBlock(ctx context.Context, id uuid.UUID) (*LocalBlock
 	defer span.End()
 
 	i.blocksMtx.Lock()
+	span.AddEvent("acquired blocksMtx")
 	walBlock := i.walBlocks[id]
 	i.blocksMtx.Unlock()
+	span.AddEvent("released blocksMtx")
 
 	if walBlock == nil {
 		level.Warn(i.logger).Log("msg", "WAL block disappeared before being completed", "id", id)
@@ -580,7 +583,7 @@ func (i *instance) completeBlock(ctx context.Context, id uuid.UUID) (*LocalBlock
 
 	level.Info(i.logger).Log("msg", "completing WAL block", "blockSize", blockSize, "blockId", id.String())
 	metricCompletionSize.Observe(float64(blockSize))
-	span.SetAttributes(attribute.Int64("block_size", int64(blockSize)))
+	span.SetAttributes(attribute.Int64("wal_block_size", int64(blockSize)))
 
 	// Create completed block
 	reader := backend.NewReader(i.wal.LocalBackend())
@@ -589,30 +592,45 @@ func (i *instance) completeBlock(ctx context.Context, id uuid.UUID) (*LocalBlock
 	iter, err := walBlock.Iterator(ctx)
 	if err != nil {
 		level.Error(i.logger).Log("msg", "failed to get WAL block iterator", "id", id, "err", err)
+		span.SetStatus(codes.Error, err.Error())
 		span.RecordError(err)
 		return nil, err
 	}
 	defer iter.Close()
 
+	span.AddEvent("creating block")
 	newMeta, err := i.completeBlockEncoding.CreateBlock(ctx, &i.Cfg.BlockConfig, walBlock.BlockMeta(), iter, reader, writer)
 	if err != nil {
 		level.Error(i.logger).Log("msg", "failed to create complete block", "id", id, "err", err)
 		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return nil, err
 	}
+	span.AddEvent("created block")
+	span.SetAttributes(
+		attribute.Int64("block_size", int64(newMeta.Size_)),
+		attribute.Int64("total_objects", newMeta.TotalObjects),
+	)
 
 	level.Info(i.logger).Log("msg", "opening newly completed block", "blockId", newMeta.BlockID.String())
+	span.AddEvent("opening block")
 	newBlock, err := i.completeBlockEncoding.OpenBlock(newMeta, reader)
 	if err != nil {
 		level.Error(i.logger).Log("msg", "failed to open complete block", "id", id, "err", err)
 		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return nil, err
 	}
+	span.AddEvent("opened block")
 
 	level.Info(i.logger).Log("msg", "swapping wal block with newly completed block")
 
 	i.blocksMtx.Lock()
-	defer i.blocksMtx.Unlock()
+	span.AddEvent("acquired blocksMtx")
+	defer func() {
+		i.blocksMtx.Unlock()
+		span.AddEvent("released blocksMtx")
+	}()
 
 	// Verify the WAL block still exists
 	if _, ok := i.walBlocks[id]; !ok {
@@ -620,6 +638,7 @@ func (i *instance) completeBlock(ctx context.Context, id uuid.UUID) (*LocalBlock
 		err := i.wal.LocalBackend().ClearBlock(id, i.tenantID)
 		if err != nil {
 			level.Error(i.logger).Log("msg", "failed to clear complete block after WAL disappeared", "block", id, "err", err)
+			span.RecordError(err)
 		}
 		span.AddEvent("WAL block disappeared during completion")
 		return nil, nil
