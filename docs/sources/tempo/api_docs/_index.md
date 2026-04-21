@@ -52,6 +52,7 @@ For externally supported gRPC API, [refer to Tempo gRPC API](#tempo-grpc-api).
 | [Partition ring status](#partition-ring-status)                                       | Distributor, Querier, Live store          | HTTP | `GET /partition-ring`                                     |
 | [Status](#status)                                                                     | Status                                    | HTTP | `GET /status`                                             |
 | [List build information](#list-build-information)                                     | Status                                    | HTTP | `GET /api/status/buildinfo`                               |
+| [Backend scheduler job status](#backend-scheduler-job-status)                        | Backend scheduler                         | HTTP | `GET /status/backendscheduler`                            |
 | [MCP Server](https://grafana.com/docs/tempo/<TEMPO_VERSION>/api_docs/mcp-server) (\*) | MCP                                       |      | `/api/mcp`                                                |
 
 _(\*) This endpoint isn't always available, check the specific section for more details._
@@ -892,6 +893,21 @@ GET /api/status/buildinfo
 ```
 
 Exposes the build information in a JSON object. The fields are `version`, `revision`, `branch`, `buildDate`, `buildUser`, and `goVersion`.
+
+### Backend scheduler job status
+
+```
+GET /status/backendscheduler
+```
+
+Displays the current state of all jobs in the backend scheduler work cache and the pending redaction queue.
+
+The response is a plain-text table with two sections:
+
+- Active Jobs: all jobs in the work cache, sorted by creation time. Use the `status` column to interpret each row. A non-empty `worker` field indicates the job is currently assigned to a worker.
+- Pending Jobs: redaction jobs in the pending queue. Some may already be eligible to run; others may still be waiting for the rescan or compaction preconditions to clear.
+
+This endpoint is only available when the backend scheduler component is running.
 
 ## Tempo gRPC API
 

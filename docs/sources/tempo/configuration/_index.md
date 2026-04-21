@@ -1071,6 +1071,20 @@ backend_scheduler:
       # Minimum time between compaction cycles for a tenant
       [min_cycle_interval: <duration> | default = 30s]
 
+    # Redaction job configuration
+    redaction:
+
+      # How often to check for pending redaction jobs when the queue is empty
+      [poll_interval: <duration> | default = 2s]
+
+      # How long to wait before rescanning for output blocks from compaction
+      # jobs that were active when the redaction was submitted.
+      # Must be less than work.prune_age or Tempo will fail to start.
+      [rescan_delay: <duration> | default = 5m]
+
+      # Maximum number of rescan attempts before requiring operator resubmission
+      [max_rescan_generations: <int> | default = 5]
+
   # How long to wait for a worker to complete a job before timing out internally
   [job_timeout: <duration> | default = 15s]
 
