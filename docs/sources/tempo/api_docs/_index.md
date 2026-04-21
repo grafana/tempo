@@ -904,8 +904,8 @@ Displays the current state of all jobs in the backend scheduler work cache.
 
 The response is a plain-text table with two sections:
 
-- **Active Jobs**: all jobs in the work cache, sorted by creation time. Use the `status` column to interpret each row. A non-empty `worker` field indicates the job is currently assigned to a worker.
-- **Pending Jobs**: redaction jobs in the pending queue. Some may already be eligible to run; others may still be waiting for the rescan or compaction preconditions to clear.
+- Active Jobs: all jobs in the work cache, sorted by creation time. Use the `status` column to interpret each row. A non-empty `worker` field indicates the job is currently assigned to a worker.
+- Pending Jobs: redaction jobs in the pending queue. Some may already be eligible to run; others may still be waiting for the rescan or compaction preconditions to clear.
 
 This endpoint is only available when the backend scheduler component is running.
 
