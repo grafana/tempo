@@ -23,9 +23,10 @@ The `compacted_block_retention` window keeps the old blocks readable until all p
 
 ## Blocklist and poller
 
-Tempo components do not query the backend directly on every request.
-Instead, they maintain an in-memory blocklist, which is a per-tenant index of all live and compacted blocks.
-The blocklist is kept current by the poller, a background process that reads the backend on a fixed interval controlled by `blocklist_poll` (default 5 minutes).
+Tempo components rely on an in-memory blocklist to know which blocks exist in object storage.
+They do not scan object storage directly on each request.
+The blocklist is maintained by the poller, a background process that reads the backend on a fixed interval controlled by `blocklist_poll` (default 5 minutes).
+A component can only serve data from blocks the poller has discovered. If the poller falls behind or fails, the component's view of the backend becomes incomplete.
 
 Because the poller runs on an interval, the blocklist is always slightly out of date.
 In a healthy system, the blocklist will be stale by at most twice the configured `blocklist_poll` duration.
