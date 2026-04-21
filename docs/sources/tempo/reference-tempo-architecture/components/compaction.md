@@ -90,8 +90,8 @@ GET /status/backendscheduler
 
 The response is a plain-text table with two sections:
 
-- **Active jobs**: jobs currently assigned to a worker, with columns for tenant, job ID, type, status, worker, and timestamps.
-- **Pending jobs**: jobs queued but not yet assigned, with columns for tenant, job ID, type, block ID, and batch ID.
+- **Active Jobs**: all jobs in the scheduler work cache, sorted by creation time. This includes jobs in any state -- use the `status` column to interpret each row. A non-empty `worker` field indicates the job is currently assigned to a worker.
+- **Pending Jobs**: redaction jobs that are waiting for compaction jobs active at submission time to complete before they can be issued as work.
 
 This endpoint is useful for diagnosing stalled jobs, verifying that workers are consuming work, and checking whether a redaction request has been processed.
 
@@ -101,7 +101,8 @@ This endpoint is useful for diagnosing stalled jobs, verifying that workers are 
 |---|---|
 | `tempodb_compaction_blocks_total` | Blocks compacted |
 | `tempodb_compaction_bytes_written_total` | Bytes written during compaction |
-| `tempodb_retention_blocks_cleared_total` | Blocks deleted by retention |
+| `tempodb_retention_marked_for_deletion_total` | Blocks marked for deletion by retention |
+| `tempodb_retention_deleted_total` | Blocks deleted by retention |
 | `tempo_backend_scheduler_jobs_created_total` | Jobs created, by type (compaction, retention, redaction) |
 | `tempo_backend_scheduler_jobs_completed_total` | Jobs completed successfully, by type |
 | `tempo_backend_scheduler_jobs_failed_total` | Jobs that failed, by type |

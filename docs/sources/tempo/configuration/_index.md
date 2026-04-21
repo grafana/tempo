@@ -1031,7 +1031,8 @@ backend_scheduler:
       [poll_interval: <duration> | default = 2s]
 
       # How long to wait before rescanning for output blocks from compaction
-      # jobs that were active when the redaction was submitted
+      # jobs that were active when the redaction was submitted.
+      # Must be less than work.prune_age or Tempo will fail to start.
       [rescan_delay: <duration> | default = 5m]
 
       # Maximum number of rescan attempts before requiring operator resubmission
