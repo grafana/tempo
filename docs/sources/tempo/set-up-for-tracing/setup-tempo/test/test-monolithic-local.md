@@ -103,17 +103,21 @@ You can find the host IP address of your Linux machine using a command such as `
 
    This ensures that the traces sent from the example application go to the locally running Tempo service.
 
-1. Edit the `grafana-datasources.yaml` file and change the `url` field of the `Tempo` data source to the local IP address of the machine running the Tempo service, for example, `url: http://10.128.0.104:3200`. Add the `jsonData` section to link the Tempo data source to Prometheus, which enables the Service Graph feature. The Tempo data source section should resemble this:
+1. Edit the `grafana-datasources.yaml` file and change the `url` field in both Tempo data sources (`Tempo (yes streaming)` and `Tempo (no streaming)`) to the local IP address of the machine running the Tempo service. For example, change `http://tempo:3200` to `http://10.128.0.104:3200`. Both data sources already include a `serviceMap` section that links to Prometheus for the Service Graph feature. After editing, a Tempo data source entry should resemble this:
 
    ```yaml
-   - name: Tempo
+   - name: Tempo (yes streaming)
      type: tempo
      access: proxy
      orgId: 1
      url: http://10.128.0.104:3200
      jsonData:
+       httpMethod: GET
        serviceMap:
          datasourceUid: prometheus
+       streamingEnabled:
+         search: true
+         metrics: true
    ```
 
    Save the file and exit your editor.

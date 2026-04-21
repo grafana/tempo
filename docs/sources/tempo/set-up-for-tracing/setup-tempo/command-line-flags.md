@@ -89,6 +89,7 @@ Kubernetes users typically don't need this flag because they can configure `http
 | Flag | Description | Default |
 | --- | --- | --- |
 | `--log.level` | Only log messages with the given severity or above. Valid levels: `debug`, `info`, `warn`, `error` | `info` |
+| `--log.format` | Output format for log messages. Valid formats: `logfmt`, `json` | `logfmt` |
 
 ## Server settings
 

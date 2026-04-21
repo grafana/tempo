@@ -15,7 +15,7 @@ At the end of this guide, you have a single Tempo instance deployed on a single 
 
 This procedure provides a test installation suitable for local development and evaluation.
 If you plan to use this as a starting point for a production deployment, review the configuration against your organization's best practices for security, storage, retention, and availability.
-If you're upgrading from Tempo 2.x, refer to [Migrate from Tempo 2.x to 3.0](/docs/tempo/<TEMPO_VERSION>/set-up-for-tracing/setup-tempo/migrate-to-3/) instead.
+If you're upgrading from Tempo 2.x, refer to [Upgrade your Tempo installation](/docs/tempo/<TEMPO_VERSION>/set-up-for-tracing/setup-tempo/upgrade/) instead.
 
 These instructions focus on a [monolithic (single-binary) installation](/docs/tempo/<TEMPO_VERSION>/reference-tempo-architecture/deployment-modes/).
 In single-binary mode, Tempo runs all components in one process and doesn't require Kafka.

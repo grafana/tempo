@@ -29,11 +29,11 @@ You can check your configuration options using the [`status` API endpoint](https
 
 ## Upgrade to Tempo 3.0
 
-Tempo 3.0 is a major architectural change. For a step-by-step migration procedure, refer to [Migrate from Tempo 2.x to 3.0](/docs/tempo/<TEMPO_VERSION>/set-up-for-tracing/setup-tempo/migrate-to-3/).
+Tempo 3.0 is a major architectural change.
 
 When upgrading to Tempo 3.0, be aware of these breaking changes:
 
-- **Kafka required for distributed mode**: A Kafka-compatible system is required for distributed deployment modes. In single-binary mode, Tempo ingests traces in-process without Kafka.
+- **Kafka required for microservices mode**: A Kafka-compatible system is required for microservices deployments. In monolithic mode, Tempo ingests traces in-process without Kafka.
 - **Scalable monolithic mode (SSB) removed**: The `scalable-single-binary` target is no longer available.
 - **New components**: Block-builders and live-stores replace ingesters. The compactor target has been removed.
 - **Configuration changes**: Remove `ingester` configuration blocks and add `ingest` (Kafka) configuration. Update `ingester_client` references to `live_store_client`.

@@ -24,7 +24,7 @@ Tempo has two deployment modes: monolithic or microservices.
 Refer to [Plan your deployment](/docs/tempo/<TEMPO_VERSION>/set-up-for-tracing/setup-tempo/plan/) to determine the best method to deploy Tempo.
 
 {{< admonition type="note" >}}
-Tempo v3.0 requires a Kafka-compatible system (such as Apache Kafka, Redpanda, or WarpStream) as part of its infrastructure. Make sure to include this in your deployment planning. For more information, refer to the [Architecture documentation](https://grafana.com/docs/tempo/<TEMPO_VERSION>/introduction/architecture/).
+Tempo v3.0 microservices mode requires a Kafka-compatible system (such as Apache Kafka, Redpanda, or WarpStream). Monolithic mode (`target: all`) does not require Kafka. For more information, refer to the [Deployment modes](/docs/tempo/<TEMPO_VERSION>/reference-tempo-architecture/deployment-modes/) documentation.
 {{< /admonition >}}
 
 ## Deploy Tempo

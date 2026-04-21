@@ -12,12 +12,12 @@ aliases:
 
 # Deployment modes
 
-Tempo can be deployed in monolithic or microservices mode. Both require a Kafka-compatible system.
+Tempo can be deployed in monolithic or microservices mode.
 
 _Monolithic mode_ was previously called _single binary mode_.
 
 {{< admonition type="note" >}}
-Tempo v3.0 requires a Kafka-compatible system for both monolithic and microservices modes. The previous _scalable monolithic mode_ (also known as _scalable single binary mode_ or SSB) has been removed in v3.0.
+Microservices mode requires a Kafka-compatible system. Monolithic mode ingests traces in-process and does not require Kafka. The previous _scalable monolithic mode_ (also known as _scalable single binary mode_ or SSB) has been removed in v3.0.
 {{< /admonition >}}
 
 All components are compiled into the same binary. The `-target` parameter (or `target` in configuration) determines which components run in a given process. The default target is `all`, which is the monolithic deployment mode.
@@ -32,7 +32,7 @@ Refer to the [command line flags](/docs/tempo/<TEMPO_VERSION>/set-up-for-tracing
 
 In monolithic mode, all components run in a single process using `-target=all` (the default).
 
-This means one process handles distributor, block-builder, live-store, querier, query-frontend, backend scheduler, and backend worker responsibilities. It reads from and writes to Kafka just like a microservices deployment.
+This means one process handles distributor, live-store, metrics-generator, querier, query-frontend, backend scheduler, and backend worker responsibilities. The distributor pushes traces directly to the live-store and metrics-generator in-process, without Kafka.
 
 ### When to use monolithic mode
 
