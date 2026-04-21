@@ -8,19 +8,19 @@ import (
 // The list of all traceql query hints.  Although most of these are implementation-specific
 // and not part of the language or engine, we organize them here in one place.
 const (
-	HintSample            = "sample"
-	HintTraceSample       = "trace_sample"
-	HintSpanSample        = "span_sample"
-	HintJobSize           = "job_size"
-	HintTimeOverlapCutoff = "time_overlap_cutoff"
-	HintConcurrentBlocks  = "concurrent_blocks"
-	HintExemplars         = "exemplars"
-	HintMostRecent        = "most_recent" // traceql search hint to return most recent results ordered by time
-	HintDebug             = "debug"
-	HintInfo              = "info"
-	HintDebugReturnIn     = "debug_return_in"   // performance testing hint to simulate query latency and return fake data
-	HintDebugStdDev       = "debug_std_dev"     // standard deviation for debug_return_in latency simulation
-	HintDebugDataFactor   = "debug_data_factor" // performance testing hint to control the possibility of non-empty fake data
+	HintSample                 = "sample"
+	HintTraceSample            = "trace_sample"
+	HintSpanSample             = "span_sample"
+	HintJobSize                = "job_size"
+	HintTimeOverlapCutoff      = "time_overlap_cutoff"
+	HintConcurrentBlocks       = "concurrent_blocks"
+	HintExemplars              = "exemplars"
+	HintMostRecent             = "most_recent" // traceql search hint to return most recent results ordered by time
+	HintDebug                  = "debug"
+	HintInfo                   = "info"
+	HintDebugReturnIn          = "debug_return_in"          // performance testing hint to simulate query latency and return fake data
+	HintDebugStdDev            = "debug_std_dev"            // standard deviation for debug_return_in latency simulation
+	HintDebugDataFactor        = "debug_data_factor"        // performance testing hint to control the possibility of non-empty fake data
 	HintSkipASTTransformations = "skip_ast_transformations" // list of AST transformation names to skip; unsafe hint
 	HintNewFetch               = "spanonly_fetch"           // metrics: new fetch layer (only in vParquet5)
 )
