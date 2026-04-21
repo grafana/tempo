@@ -182,10 +182,10 @@ For architectural details, refer to the [Distributor architecture](/docs/tempo/<
 The distributor is the entry point for all trace data into Tempo.
 It receives spans from instrumented applications, validates them against configured [ingestion limits](#ingestion-limits), and forwards them for processing.
 
-How the distributor forwards data depends on the deployment mode:
+How the distributor forwards data depends on the [deployment mode](/docs/tempo/<TEMPO_VERSION>/reference-tempo-architecture/deployment-modes/):
 
-- **Distributed mode** (microservices): The distributor shards traces by trace ID and writes them to [Kafka](/docs/tempo/<TEMPO_VERSION>/reference-tempo-architecture/components/kafka/). Kafka settings are configured in the [Ingest](#ingest) section. Downstream, [block-builders](/docs/tempo/<TEMPO_VERSION>/reference-tempo-architecture/components/block-builder/) and [live-stores](/docs/tempo/<TEMPO_VERSION>/reference-tempo-architecture/components/live-store/) consume from Kafka independently.
-- **Single-binary mode** (`target: all`): The distributor pushes data in-process directly to the live-store and metrics-generator. No Kafka is required in this mode, making it simpler for local development, testing, and small installations.
+- **Microservices mode**: The distributor shards traces by trace ID and writes them to [Kafka](/docs/tempo/<TEMPO_VERSION>/reference-tempo-architecture/components/kafka/). Kafka settings are configured in the [Ingest](#ingest) section. Downstream, [block-builders](/docs/tempo/<TEMPO_VERSION>/reference-tempo-architecture/components/block-builder/) and [live-stores](/docs/tempo/<TEMPO_VERSION>/reference-tempo-architecture/components/live-store/) consume from Kafka independently.
+- **Monolithic mode** (`target: all`): The distributor pushes data in-process directly to the live-store and metrics-generator. No Kafka is required in this mode. It's suitable for local development, testing, and small installations.
 
 The following configuration enables all available receivers with their default configuration. For a production deployment, enable only the receivers you need.
 Additional documentation and more advanced configuration options are available in [the receiver README](https://github.com/open-telemetry/opentelemetry-collector/blob/main/receiver/README.md).
@@ -195,11 +195,10 @@ Additional documentation and more advanced configuration options are available i
 distributor:
 
     # Ring configuration for the distributor.
-    # In distributed mode, the ring coordinates distributor instances and determines
-    # which Kafka partitions each distributor writes to via the partition ring.
-    # In single-binary mode, the ring is not used for partition routing.
-    # For details, refer to the partition ring architecture documentation:
-    # /docs/tempo/<TEMPO_VERSION>/reference-tempo-architecture/partition-ring/
+    # Used only with the global ingestion rate strategy to discover healthy
+    # peers and divide rate limits across the cluster.
+    # The distributor watches the partition ring for Kafka routing but does
+    # not run it. This ring is separate from the partition ring.
     ring:
       kvstore: <KVStore config>
         [store: <string> | default = memberlist]
