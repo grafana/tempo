@@ -18,11 +18,7 @@ For example, if you [set up Tempo using the Kubernetes with Tanka procedure](../
 You'll need:
 
 - Grafana 10.0.0 or higher
-<<<<<<< ts-1078-setup-docs-1-v3
-- Microservice deployments require the Tempo querier URL, for example: `http://tempo-cluster-query-frontend.tempo.svc.cluster.local:3200/`
-=======
 - Microservice deployments require the Tempo query frontend URL, for example: `http://<TEMPO-QUERY-FRONTEND-SERVICE>.<NAMESPACE>.svc.cluster.local:3200/`
->>>>>>> main
 - [OpenTelemetry telemetrygen](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/cmd/telemetrygen) for generating tracing data
 
 {{< admonition type="note" >}}
