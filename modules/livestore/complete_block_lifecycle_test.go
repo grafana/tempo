@@ -600,8 +600,9 @@ func createWalBlockForLifecycleTest(t *testing.T, liveStore *LiveStore) (*instan
 
 	inst, err := liveStore.getOrCreateInstance(testTenantID)
 	require.NoError(t, err)
-	_, err = inst.cutIdleTraces(t.Context(), true)
+	blockIDs, err := inst.cutIdleTraces(t.Context(), true)
 	require.NoError(t, err)
+	require.Empty(t, blockIDs, "should not trigger mid-batch cut")
 
 	blockID, err := inst.cutBlocks(t.Context(), true)
 	require.NoError(t, err)

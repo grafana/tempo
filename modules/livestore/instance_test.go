@@ -97,8 +97,9 @@ func TestInstanceLimits(t *testing.T) {
 		pushTrace(t.Context(), t, instance, batch1, id)
 
 		// cut idle traces but we retain the too large trace in traceSizes
-		_, err := instance.cutIdleTraces(t.Context(), true)
+		blockIDs, err := instance.cutIdleTraces(t.Context(), true)
 		require.NoError(t, err)
+		require.Empty(t, blockIDs, "should not trigger mid-batch cut")
 
 		// Second push with same id will fail b/c we are still tracking in traceSizes
 		pushTrace(t.Context(), t, instance, batch2, id)
@@ -118,8 +119,9 @@ func TestInstanceLimits(t *testing.T) {
 		pushTrace(t.Context(), t, instance, batch1, id)
 
 		// cut idle traces but we retain the too large trace in traceSizes
-		_, err := instance.cutIdleTraces(t.Context(), true)
+		blockIDs, err := instance.cutIdleTraces(t.Context(), true)
 		require.NoError(t, err)
+		require.Empty(t, blockIDs, "should not trigger mid-batch cut")
 		blockID, err := instance.cutBlocks(t.Context(), true) // this won't clear the trace b/c the trace must not be seen for 2 head block cuts to be fully removed from live traces
 		require.NoError(t, err)
 		_, err = instance.completeBlock(t.Context(), blockID)
@@ -129,8 +131,9 @@ func TestInstanceLimits(t *testing.T) {
 		secondID := test.ValidTraceID(nil)
 		pushTrace(t.Context(), t, instance, batch1, secondID)
 
-		_, err = instance.cutIdleTraces(t.Context(), true)
+		blockIDs, err = instance.cutIdleTraces(t.Context(), true)
 		require.NoError(t, err)
+		require.Empty(t, blockIDs, "should not trigger mid-batch cut")
 		blockID, err = instance.cutBlocks(t.Context(), true) // this will clear the trace b/c the trace has not been seen for 2 head block cuts
 		require.NoError(t, err)
 		_, err = instance.completeBlock(t.Context(), blockID)
@@ -230,8 +233,9 @@ func TestInstanceBackpressure(t *testing.T) {
 	require.Nil(t, res.Trace)
 
 	// Free up space for the blocked push
-	_, cutErr := instance.cutIdleTraces(t.Context(), true)
+	blockIDs, cutErr := instance.cutIdleTraces(t.Context(), true)
 	require.NoError(t, cutErr)
+	require.Empty(t, blockIDs, "should not trigger mid-batch cut")
 
 	// Wait for push to complete with timeout
 	select {
@@ -260,8 +264,9 @@ func TestInstanceWALBackpressure(t *testing.T) {
 	createWALBlock := func() {
 		id := test.ValidTraceID(nil)
 		pushTrace(t.Context(), t, inst, test.MakeTrace(1, id), id)
-		_, cutErr := inst.cutIdleTraces(t.Context(), true)
+		blockIDs, cutErr := inst.cutIdleTraces(t.Context(), true)
 		require.NoError(t, cutErr)
+		require.Empty(t, blockIDs, "should not trigger mid-batch cut")
 		walID, err := inst.cutBlocks(t.Context(), true)
 		require.NoError(t, err)
 		require.NotEqual(t, walID, [16]byte{})

@@ -44,8 +44,9 @@ func TestProcessCompleteOpAbandonOnCancelledContext(t *testing.T) {
 
 	// Push a trace, flush live traces to head block, then cut to WAL.
 	pushTracesToInstance(t, inst, 1)
-	_, err = inst.cutIdleTraces(t.Context(), true)
+	blockIDs, err := inst.cutIdleTraces(t.Context(), true)
 	require.NoError(t, err)
+	require.Empty(t, blockIDs, "should not trigger mid-batch cut")
 	walID, err := inst.cutBlocks(t.Context(), true)
 	require.NoError(t, err)
 	require.NotEqual(t, uuid.Nil, walID)
