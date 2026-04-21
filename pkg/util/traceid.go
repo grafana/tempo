@@ -16,16 +16,14 @@ func HexStringToTraceID(id string) ([]byte, error) {
 	return hexStringToID(id, false)
 }
 
-// traceIDPadding is a string of 32 zeros used for left-padding trace IDs.
-const traceIDPadding = "00000000000000000000000000000000"
-
 // PadTraceIDString left-pads a trace ID hex string to 32 characters with zeros.
 // This produces W3C/OpenTelemetry compliant 32-character lowercase hex trace IDs.
 func PadTraceIDString(id string) string {
 	if len(id) >= 32 {
 		return id
 	}
-	return traceIDPadding[:32-len(id)] + id
+
+	return fmt.Sprintf("%0*s", 32, id)
 }
 
 // TraceIDToHexString converts a trace ID to its string representation and removes any leading zeros.
