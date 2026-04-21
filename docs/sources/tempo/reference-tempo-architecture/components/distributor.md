@@ -32,6 +32,7 @@ These are the only limits enforced synchronously at ingestion time.
 The ingestion rate limit sets the maximum bytes per second per tenant.
 Exceeding this returns a `RATE_LIMITED` error to the client.
 The ingestion burst size controls the maximum burst allowed above the sustained rate.
+For details on which settings honor the global strategy and which are always local, refer to [Ingestion rate strategy](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/#ingestion-rate-strategy).
 
 Other limits such as `max_bytes_per_trace` and `max_live_traces_bytes` are enforced asynchronously downstream by live-stores and block-builders.
 
