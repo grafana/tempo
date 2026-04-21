@@ -109,6 +109,10 @@
     local config = $._config[configKey].keda;
     assert config.min_replicas >= 0 : 'min_replicas must be >= 0';
     assert config.min_replicas <= config.max_replicas : 'min_replicas must be <= max_replicas';
+    assert config.scale_up_pods > 0 : 'scale_up_pods must be > 0';
+    assert config.scale_up_period_seconds > 0 : 'scale_up_period_seconds must be > 0';
+    assert config.scale_down_pods >= 0 : 'scale_down_pods must be >= 0';
+    assert config.scale_down_period_seconds > 0 : 'scale_down_period_seconds must be > 0';
 
     scaledObject.new(target.metadata.name)
     + scaledObject.spec.scaleTargetRef.withKind(target.kind)
