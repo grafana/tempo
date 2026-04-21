@@ -90,8 +90,8 @@ GET /status/backendscheduler
 
 The response is a plain-text table with two sections:
 
-- **Active Jobs**: all jobs in the scheduler work cache, sorted by creation time. This includes jobs in any state -- use the `status` column to interpret each row. A non-empty `worker` field indicates the job is currently assigned to a worker.
-- **Pending Jobs**: redaction jobs in the pending queue. Some may already be eligible to run; others may still be waiting for the rescan or compaction preconditions to clear.
+- Active Jobs: all jobs in the scheduler work cache, sorted by creation time. This includes jobs in any state -- use the `status` column to interpret each row. A non-empty `worker` field indicates the job is currently assigned to a worker.
+- Pending Jobs: redaction jobs in the pending queue. Some may already be eligible to run; others may still be waiting for the rescan or compaction preconditions to clear.
 
 This endpoint is useful for diagnosing stalled jobs, verifying that workers are consuming work, and checking whether a redaction request has been processed.
 
