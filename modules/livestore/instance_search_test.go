@@ -971,17 +971,8 @@ func TestInstanceFindByTraceID(t *testing.T) {
 	require.NoError(t, err)
 }
 
-// TestInstanceFindByTraceIDLiveTraceSliceIsolation is a regression test for
-// the live-store FindTraceByID panic caused by a slice backing-array race.
-// Before the fix, FindByTraceID handed the combiner the liveTrace.Batches
-// slice header directly. The combiner would later append block data to it,
-// but because the capacity was unbounded, the append reused the backing array
-// still referenced by liveTrace.Batches, so concurrent proto.Marshal could
-// observe the slot being rewritten between Size() and MarshalToSizedBuffer()
-// and panic with a negative-index error. The fix caps the slice to its
-// length so consumers get their own backing array on append. This test
-// asserts the invariant: the returned ResourceSpans slice must not alias
-// the backing array of the live trace.
+// Regression test for issue #6958: FindByTraceID must not return a slice
+// that shares backing-array capacity with liveTrace.Batches.
 func TestInstanceFindByTraceIDLiveTraceSliceIsolation(t *testing.T) {
 	i, ls := defaultInstanceAndTmpDir(t)
 	defer func() {
@@ -1018,18 +1009,11 @@ func TestInstanceFindByTraceIDLiveTraceSliceIsolation(t *testing.T) {
 	require.NotNil(t, resp.Trace)
 	require.NotEmpty(t, resp.Trace.ResourceSpans)
 
-	// Invariant: the returned ResourceSpans slice must not share a writable
-	// capacity window with liveTrace.Batches. If it does, a later append on
-	// either side could mutate the other's data and race with proto.Marshal.
-	// A conservative check is that the returned slice is not literally the
-	// same header — i.e. its backing array pointer is different from the
-	// live trace's Batches backing array (once we cap capacity, Go copies on
-	// append), OR its capacity equals its length (so the next append must
-	// allocate). We assert the cap==len invariant, which is exactly what the
-	// fix guarantees.
+	// cap == len means the next append forces a copy, so downstream
+	// consumers can't mutate liveTrace.Batches' backing array.
 	rs := resp.Trace.ResourceSpans
 	require.Equal(t, len(rs), cap(rs),
-		"FindByTraceID must return a ResourceSpans slice whose capacity equals its length so downstream appends don't mutate the live trace's backing array (see issue #6958)")
+		"FindByTraceID returned slice must have cap==len (see issue #6958)")
 
 	// Defensive: make sure nothing above accidentally mutated the live trace.
 	_ = origBatchesPtr

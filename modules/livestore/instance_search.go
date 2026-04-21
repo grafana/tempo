@@ -621,11 +621,8 @@ func (i *instance) FindByTraceID(ctx context.Context, traceID []byte, allowParti
 	i.liveTracesMtx.Lock()
 	if liveTrace, ok := i.liveTraces.Traces[util.HashForTraceID(traceID)]; ok {
 		tempTrace := &tempopb.Trace{}
-		// Cap the slice to its length so downstream combiners/consumers that
-		// append to ResourceSpans get their own backing array and cannot race
-		// with concurrent appends to the underlying liveTrace.Batches. Without
-		// the cap, proto.Marshal can observe the slot being rewritten between
-		// Size() and MarshalToSizedBuffer(), producing a negative-index panic.
+		// Cap slice so the combiner's appends don't race with concurrent
+		// proto.Marshal on liveTrace.Batches.
 		tempTrace.ResourceSpans = liveTrace.Batches[:len(liveTrace.Batches):len(liveTrace.Batches)]
 		// Previously there was some logic here to add inspected bytes in the ingester. But its hard to do with the different
 		// live traces format and feels inaccurate.
