@@ -35,7 +35,7 @@ This is because a writer may update the backend at any point within a polling cy
 
 The 2x staleness bound drives two concrete configuration requirements.
 
-### query_backend_after must exceed 2x blocklist_poll
+### query_backend_after must be at least 2x blocklist_poll
 
 The query-frontend uses `query_backend_after` to decide where to search:
 
@@ -49,7 +49,7 @@ Setting `query_backend_after` to at least `2 * blocklist_poll` ensures that such
 With the default `blocklist_poll` of 5 minutes, `query_backend_after` should be at least 10 minutes.
 The default of 15 minutes for search provides a comfortable margin.
 
-### compacted_block_retention must exceed 2x blocklist_poll
+### compacted_block_retention must be at least 2x blocklist_poll
 
 When a block is compacted, its data is merged into a new block and the old block is marked compacted.
 A querier with a stale blocklist may still reference the old block until it completes its next poll cycle.
