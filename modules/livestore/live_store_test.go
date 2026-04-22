@@ -270,9 +270,9 @@ func TestLiveStoreFullBlockLifecycleCheating(t *testing.T) {
 	requireInstanceState(t, inst, instanceState{liveTraces: 1, walBlocks: 0, completeBlocks: 0})
 
 	// cut to head block and test
-	blockIDs, err := inst.cutIdleTraces(t.Context(), true)
+	drained, err := inst.cutIdleTraces(t.Context(), true)
 	require.NoError(t, err)
-	require.Empty(t, blockIDs, "should not trigger mid-batch cut")
+	require.True(t, drained, "should drain live traces in one iteration")
 
 	requireTraceInLiveStore(t, liveStore, expectedID, expectedTrace)
 	requireTraceInBlock(t, inst.headBlock, expectedID, expectedTrace)
@@ -334,9 +334,9 @@ func TestLiveStoreReplaysTraceInHeadBlock(t *testing.T) {
 	require.NoError(t, err)
 
 	// cut to head block
-	blockIDs, err := inst.cutIdleTraces(t.Context(), true)
+	drained, err := inst.cutIdleTraces(t.Context(), true)
 	require.NoError(t, err)
-	require.Empty(t, blockIDs, "should not trigger mid-batch cut")
+	require.True(t, drained, "should drain live traces in one iteration")
 
 	// stop the live store and then create a new one to simulate a restart and replay the data on disk
 	err = services.StopAndAwaitTerminated(t.Context(), liveStore)
@@ -363,9 +363,9 @@ func TestLiveStoreReplaysTraceInWalBlocks(t *testing.T) {
 	require.NoError(t, err)
 
 	// cut to head block
-	blockIDs, err := inst.cutIdleTraces(t.Context(), true)
+	drained, err := inst.cutIdleTraces(t.Context(), true)
 	require.NoError(t, err)
-	require.Empty(t, blockIDs, "should not trigger mid-batch cut")
+	require.True(t, drained, "should drain live traces in one iteration")
 
 	// cut head to wal blocks
 	_, err = inst.cutBlocks(t.Context(), true)
@@ -396,9 +396,9 @@ func TestLiveStoreReplaysTraceInCompleteBlocks(t *testing.T) {
 	require.NoError(t, err)
 
 	// cut to head block
-	blockIDs, err := inst.cutIdleTraces(t.Context(), true)
+	drained, err := inst.cutIdleTraces(t.Context(), true)
 	require.NoError(t, err)
-	require.Empty(t, blockIDs, "should not trigger mid-batch cut")
+	require.True(t, drained, "should drain live traces in one iteration")
 
 	// cut head to wal blocks
 	walUUID, err := inst.cutBlocks(t.Context(), true)
@@ -429,9 +429,9 @@ func TestLiveStoreDropsInvalidCompleteBlocksOnRestart(t *testing.T) {
 	inst, err := liveStore.getOrCreateInstance(testTenantID)
 	require.NoError(t, err)
 
-	blockIDs, cutErr := inst.cutIdleTraces(t.Context(), true)
+	drained, cutErr := inst.cutIdleTraces(t.Context(), true)
 	require.NoError(t, cutErr)
-	require.Empty(t, blockIDs, "should not trigger mid-batch cut")
+	require.True(t, drained, "should drain live traces in one iteration")
 	walUUID, err := inst.cutBlocks(t.Context(), true)
 	require.NoError(t, err)
 	_, err = inst.completeBlock(context.Background(), walUUID)
@@ -665,9 +665,9 @@ func TestLiveStoreUsesRecordTimestampForBlockStartAndEnd(t *testing.T) {
 		require.NoError(t, err)
 
 		// force just pushed traces to the head block
-		blockIDs, err := inst.cutIdleTraces(t.Context(), true)
+		drained, err := inst.cutIdleTraces(t.Context(), true)
 		require.NoError(t, err)
-		require.Empty(t, blockIDs, "should not trigger mid-batch cut")
+		require.True(t, drained, "should drain live traces in one iteration")
 
 		meta := inst.headBlock.BlockMeta()
 		require.Equal(t, tc.expectedStart, meta.StartTime)

@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/go-kit/log"
-	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -97,9 +96,9 @@ func TestInstanceLimits(t *testing.T) {
 		pushTrace(t.Context(), t, instance, batch1, id)
 
 		// cut idle traces but we retain the too large trace in traceSizes
-		blockIDs, err := instance.cutIdleTraces(t.Context(), true)
+		drained, err := instance.cutIdleTraces(t.Context(), true)
 		require.NoError(t, err)
-		require.Empty(t, blockIDs, "should not trigger mid-batch cut")
+		require.True(t, drained, "should drain live traces in one iteration")
 
 		// Second push with same id will fail b/c we are still tracking in traceSizes
 		pushTrace(t.Context(), t, instance, batch2, id)
@@ -119,9 +118,9 @@ func TestInstanceLimits(t *testing.T) {
 		pushTrace(t.Context(), t, instance, batch1, id)
 
 		// cut idle traces but we retain the too large trace in traceSizes
-		blockIDs, err := instance.cutIdleTraces(t.Context(), true)
+		drained, err := instance.cutIdleTraces(t.Context(), true)
 		require.NoError(t, err)
-		require.Empty(t, blockIDs, "should not trigger mid-batch cut")
+		require.True(t, drained, "should drain live traces in one iteration")
 		blockID, err := instance.cutBlocks(t.Context(), true) // this won't clear the trace b/c the trace must not be seen for 2 head block cuts to be fully removed from live traces
 		require.NoError(t, err)
 		_, err = instance.completeBlock(t.Context(), blockID)
@@ -131,9 +130,9 @@ func TestInstanceLimits(t *testing.T) {
 		secondID := test.ValidTraceID(nil)
 		pushTrace(t.Context(), t, instance, batch1, secondID)
 
-		blockIDs, err = instance.cutIdleTraces(t.Context(), true)
+		drained, err = instance.cutIdleTraces(t.Context(), true)
 		require.NoError(t, err)
-		require.Empty(t, blockIDs, "should not trigger mid-batch cut")
+		require.True(t, drained, "should drain live traces in one iteration")
 		blockID, err = instance.cutBlocks(t.Context(), true) // this will clear the trace b/c the trace has not been seen for 2 head block cuts
 		require.NoError(t, err)
 		_, err = instance.completeBlock(t.Context(), blockID)
@@ -233,9 +232,9 @@ func TestInstanceBackpressure(t *testing.T) {
 	require.Nil(t, res.Trace)
 
 	// Free up space for the blocked push
-	blockIDs, cutErr := instance.cutIdleTraces(t.Context(), true)
+	drained, cutErr := instance.cutIdleTraces(t.Context(), true)
 	require.NoError(t, cutErr)
-	require.Empty(t, blockIDs, "should not trigger mid-batch cut")
+	require.True(t, drained, "should drain live traces in one iteration")
 
 	// Wait for push to complete with timeout
 	select {
@@ -264,9 +263,9 @@ func TestInstanceWALBackpressure(t *testing.T) {
 	createWALBlock := func() {
 		id := test.ValidTraceID(nil)
 		pushTrace(t.Context(), t, inst, test.MakeTrace(1, id), id)
-		blockIDs, cutErr := inst.cutIdleTraces(t.Context(), true)
+		drained, cutErr := inst.cutIdleTraces(t.Context(), true)
 		require.NoError(t, cutErr)
-		require.Empty(t, blockIDs, "should not trigger mid-batch cut")
+		require.True(t, drained, "should drain live traces in one iteration")
 		walID, err := inst.cutBlocks(t.Context(), true)
 		require.NoError(t, err)
 		require.NotEqual(t, walID, [16]byte{})
@@ -303,35 +302,23 @@ func TestCutIdleTracesRespectsMaxBlockBytes(t *testing.T) {
 		traces = append(traces, tr)
 	}
 
-	walBlocks, err := inst.cutIdleTraces(t.Context(), true)
-	require.NoError(t, err)
-	for i := 0; i < traceCount; i += 5 { // sample, otherwise the test is slow
-		requireTraceInLiveStore(t, ls, traceIDs[i], traces[i])
-	}
-
-	walUUID, err := inst.cutBlocks(t.Context(), true)
-	require.NoError(t, err)
-
-	if walUUID != uuid.Nil {
-		walBlocks = append(walBlocks, walUUID)
-	}
-	actualWALBlocks := make([]uuid.UUID, 0, len(inst.walBlocks))
-	for wb := range inst.walBlocks {
-		actualWALBlocks = append(actualWALBlocks, wb)
-	}
-	require.ElementsMatch(t, walBlocks, actualWALBlocks, "some WAL blocks where not registered")
-
+	ls.cutOneInstanceToWal(t.Context(), inst, true)
 	for i := 0; i < traceCount; i += 5 {
 		requireTraceInLiveStore(t, ls, traceIDs[i], traces[i])
 	}
 
 	// Verify no WAL block exceeds MaxBlockBytes.
-	assert.Greater(t, len(inst.walBlocks), 2, "expected multiple WAL blocks")
+	walBlocksNum := len(inst.walBlocks)
+	assert.Greater(t, walBlocksNum, 2, "expected multiple WAL blocks")
 	for id, blk := range inst.walBlocks {
 		// block size estimation can be x5 off, so we check that that block size at least makes sense
 		assert.LessOrEqual(t, blk.DataLength(), inst.Cfg.MaxBlockBytes*5,
 			"WAL block %s exceeds MaxBlockBytes: %d > %d", id, blk.DataLength(), inst.Cfg.MaxBlockBytes)
 	}
+
+	// with no new traces, number of WAL blocks should not increase after another cut to WAL
+	ls.cutOneInstanceToWal(t.Context(), inst, true)
+	assert.Equal(t, walBlocksNum, len(inst.walBlocks), "expected no new WAL blocks after cut to WAL with no new traces")
 
 	require.NoError(t, services.StopAndAwaitTerminated(t.Context(), ls))
 }

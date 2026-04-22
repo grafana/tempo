@@ -112,9 +112,9 @@ func TestInstanceSearchTraceQL(t *testing.T) {
 			assert.Len(t, sr.Traces, 0)
 
 			// Test after appending to WAL
-			blockIDs, cutErr := i.cutIdleTraces(t.Context(), true)
+			drained, cutErr := i.cutIdleTraces(t.Context(), true)
 			require.NoError(t, cutErr)
-			require.Empty(t, blockIDs, "should not trigger mid-batch cut")
+			require.True(t, drained, "should drain live traces in one iteration")
 
 			sr, err = i.Search(t.Context(), req)
 			assert.NoError(t, err)
@@ -538,9 +538,9 @@ func TestSearchTagsV2Limits(t *testing.T) {
 					Ids:    [][]byte{id},
 				}
 				instance.pushBytes(t.Context(), time.Now(), req)
-				blockIDs, err := instance.cutIdleTraces(t.Context(), true)
+				drained, err := instance.cutIdleTraces(t.Context(), true)
 				require.NoError(t, err)
-				require.Empty(t, blockIDs, "should not trigger mid-batch cut")
+				require.True(t, drained, "should drain live traces in one iteration")
 				blockID, err := instance.cutBlocks(t.Context(), true)
 				require.NoError(t, err)
 				_, err = instance.completeBlock(ctx, blockID)
@@ -761,9 +761,9 @@ func writeTracesForSearch(t *testing.T, i *instance, spanName, tagKey, tagValue 
 	}
 
 	// traces have to be cut to show up in searches
-	blockIDs, err := i.cutIdleTraces(t.Context(), true)
+	drained, err := i.cutIdleTraces(t.Context(), true)
 	require.NoError(t, err)
-	require.Empty(t, blockIDs, "should not trigger mid-batch cut")
+	require.True(t, drained, "should drain live traces in one iteration")
 
 	return ids, expectedTagValues, expectedEventTagValues, expectedLinkTagValues
 }
@@ -815,9 +815,9 @@ func TestInstanceSearchDoesNotRace(t *testing.T) {
 	})
 
 	concurrent(func() {
-		blockIDs, err := i.cutIdleTraces(t.Context(), true)
+		drained, err := i.cutIdleTraces(t.Context(), true)
 		require.NoError(t, err, "error cutting complete traces")
-		require.Empty(t, blockIDs, "should not trigger mid-batch cut")
+		require.True(t, drained, "should drain live traces in one iteration")
 	})
 
 	concurrent(func() {
@@ -904,9 +904,9 @@ func TestInstanceSearchMetrics(t *testing.T) {
 	require.Equal(t, uint64(0), m.InspectedBytes)  // we don't search live traces
 
 	// Test after appending to WAL
-	blockIDs, err := i.cutIdleTraces(t.Context(), true)
+	drained, err := i.cutIdleTraces(t.Context(), true)
 	require.NoError(t, err)
-	require.Empty(t, blockIDs, "should not trigger mid-batch cut")
+	require.True(t, drained, "should drain live traces in one iteration")
 	m = search()
 	require.Less(t, numBytes, m.InspectedBytes)
 
@@ -1012,9 +1012,9 @@ func TestInstanceFindByTraceIDWithSizeLimits(t *testing.T) {
 	i.pushBytes(ctx, time.Now(), req)
 
 	// Cut to ensure we can find it
-	blockIDs, err := i.cutIdleTraces(t.Context(), true)
+	drained, err := i.cutIdleTraces(t.Context(), true)
 	require.NoError(t, err)
-	require.Empty(t, blockIDs, "should not trigger mid-batch cut")
+	require.True(t, drained, "should drain live traces in one iteration")
 
 	// and request it back
 	resp, err := i.FindByTraceID(t.Context(), traceID, false)
@@ -1216,9 +1216,9 @@ func TestLiveStoreQueryRange(t *testing.T) {
 	inst.pushBytes(t.Context(), now, pushReq)
 
 	// Force block creation by cutting traces and blocks
-	blockIDs, err := inst.cutIdleTraces(t.Context(), true)
+	drained, err := inst.cutIdleTraces(t.Context(), true)
 	require.NoError(t, err)
-	require.Empty(t, blockIDs, "should not trigger mid-batch cut")
+	require.True(t, drained, "should drain live traces in one iteration")
 
 	blockID, err := inst.cutBlocks(t.Context(), true)
 	require.NoError(t, err)

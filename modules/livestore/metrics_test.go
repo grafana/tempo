@@ -137,9 +137,9 @@ func TestMetrics_PushBytesTracking(t *testing.T) {
 		"bytes received should increase by trace data size")
 
 	// Check live traces metric after cutting
-	blockIDs, err := setup.instance.cutIdleTraces(t.Context(), true) // immediate cut
+	drained, err := setup.instance.cutIdleTraces(t.Context(), true) // immediate cut
 	require.NoError(t, err)
-	require.Empty(t, blockIDs, "should not trigger mid-batch cut")
+	require.True(t, drained, "should drain live traces in one iteration")
 
 	// Verify traces were created
 	finalTracesCreated, err := test.GetCounterValue(setup.instance.tracesCreatedTotal)
@@ -165,9 +165,9 @@ func TestMetrics_CompletionFlow(t *testing.T) {
 	setup.instance.pushBytes(t.Context(), time.Now(), req)
 
 	// Cut traces to head block
-	blockIDs, err := setup.instance.cutIdleTraces(t.Context(), true)
+	drained, err := setup.instance.cutIdleTraces(t.Context(), true)
 	require.NoError(t, err)
-	require.Empty(t, blockIDs, "should not trigger mid-batch cut")
+	require.True(t, drained, "should drain live traces in one iteration")
 
 	// Cut block to prepare for completion
 	blockID, err := setup.instance.cutBlocks(t.Context(), true)
