@@ -171,7 +171,7 @@ func (c *counter) countSeriesDemand() int {
 	return int(c.seriesDemand.Estimate())
 }
 
-func (c *counter) removeStaleSeries(staleTimeMs int64) {
+func (c *counter) removeStaleSeries(appender storage.Appender, timeMs, staleTimeMs int64) {
 	c.seriesMtx.Lock()
 	defer c.seriesMtx.Unlock()
 

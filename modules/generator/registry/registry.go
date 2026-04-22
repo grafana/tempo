@@ -76,7 +76,7 @@ type metric interface {
 	countActiveSeries() int
 	// countSeriesDemand estimates the number of active series that would be created if the maxActiveSeries were unlimited.
 	countSeriesDemand() int
-	removeStaleSeries(staleTimeMs int64)
+	removeStaleSeries(appender storage.Appender, timeMs, staleTimeMs int64)
 }
 
 const highestAggregationInterval = 1 * time.Minute
@@ -226,7 +226,7 @@ func (r *ManagedRegistry) registerMetric(m metric) {
 	if old, ok := r.metrics[m.name()]; ok {
 		level.Info(r.logger).Log("msg", "replacing metric, counters will be reset", "metric", m.name())
 		// Drain old series so the limiter's active count is properly decremented.
-		old.removeStaleSeries(math.MaxInt64)
+		old.removeStaleSeries(nil, 0, math.MaxInt64)
 	}
 	r.metrics[m.name()] = m
 }
@@ -288,18 +288,25 @@ func (r *ManagedRegistry) collectionInterval() time.Duration {
 	return r.cfg.CollectionInterval
 }
 
-func (r *ManagedRegistry) removeStaleSeries(context.Context) {
+func (r *ManagedRegistry) removeStaleSeries(ctx context.Context) {
 	r.metricsMtx.RLock()
 	defer r.metricsMtx.RUnlock()
 
 	timeMs := time.Now().Add(-1 * r.cfg.StaleDuration).UnixMilli()
+	appender := r.appendable.Appender(ctx)
+	collectionTimeMs := time.Now().UnixMilli()
 
 	remainingSeries := 0
 	for _, m := range r.metrics {
-		m.removeStaleSeries(timeMs)
+		m.removeStaleSeries(appender, collectionTimeMs, timeMs)
 		remainingSeries += m.countActiveSeries()
 	}
 	r.entityDemand.Advance()
+
+	err := appender.Commit()
+	if err != nil {
+		level.Error(r.logger).Log("msg", "commiting stale markers failed", "err", err)
+	}
 
 	level.Info(r.logger).Log("msg", "deleted stale series", "active_series", remainingSeries)
 }
