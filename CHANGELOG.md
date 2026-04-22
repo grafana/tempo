@@ -12,6 +12,7 @@
 * [CHANGE] Allow duplicate dimensions for span metrics and service graphs. This is a valid use case if using different instrumentation libraries, with spans having "deployment.environment" and others "deployment_environment", for example. [#6288](https://github.com/grafana/tempo/pull/6288) (@carles-grafana)
 * [CHANGE] Updade default max duration for traceql metrics queries up to one day [#6285](https://github.com/grafana/tempo/pull/6285) (@javiermolinar)
 * [CHANGE] Set traceQL query metrics checks by default in Vulture [#6275](https://github.com/grafana/tempo/pull/6275) (@javiermolinar)
+* [CHANGE] Make tempo singlebinary example to use the local backend [#7033](https://github.com/grafana/tempo/pull/7033) (@javiermolinar)
 * [CHANGE] Bump ingestion limits [#7034](https://github.com/grafana/tempo/pull/7034) (@javiermolinar)
 * [CHANGE] TraceQL metrics - change default step intervals to align with new vParquet5 timestamp columns [#6413](https://github.com/grafana/tempo/pull/6413) (@mdisibio)
 * [CHANGE] Remove all traces of ingesters from the dashboards [#6352](https://github.com/grafana/tempo/pull/6352) (@javiermolinar)
