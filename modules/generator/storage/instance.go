@@ -19,7 +19,6 @@ import (
 	"github.com/prometheus/prometheus/storage"
 	"github.com/prometheus/prometheus/storage/remote"
 	"github.com/prometheus/prometheus/tsdb/agent"
-	tsdb_errors "github.com/prometheus/prometheus/tsdb/errors"
 )
 
 var metricStorageRemoteWriteUpdateFailed = promauto.NewCounterVec(prometheus.CounterOpts{
@@ -146,14 +145,14 @@ func (s *storageImpl) Close() error {
 	s.logger.Info("closing WAL", "dir", s.walDir)
 	close(s.closeCh)
 
-	return tsdb_errors.NewMulti(
+	return errors.Join(
 		s.storage.Close(),
 		func() error {
 			// remove the WAL at shutdown since remote write starts at the end of the WAL anyways
 			// https://github.com/prometheus/prometheus/issues/8809
 			return os.RemoveAll(s.walDir)
 		}(),
-	).Err()
+	)
 }
 
 func (s *storageImpl) watchOverrides() {

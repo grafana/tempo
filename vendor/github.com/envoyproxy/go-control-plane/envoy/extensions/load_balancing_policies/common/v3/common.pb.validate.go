@@ -172,7 +172,7 @@ type LocalityLbConfigMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m LocalityLbConfigMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -359,7 +359,7 @@ type SlowStartConfigMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m SlowStartConfigMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -510,7 +510,7 @@ type ConsistentHashingLbConfigMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m ConsistentHashingLbConfigMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -705,7 +705,7 @@ type LocalityLbConfig_ZoneAwareLbConfigMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m LocalityLbConfig_ZoneAwareLbConfigMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -811,7 +811,7 @@ type LocalityLbConfig_LocalityWeightedLbConfigMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m LocalityLbConfig_LocalityWeightedLbConfigMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -946,7 +946,7 @@ type LocalityLbConfig_ZoneAwareLbConfig_ForceLocalZoneMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m LocalityLbConfig_ZoneAwareLbConfig_ForceLocalZoneMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
