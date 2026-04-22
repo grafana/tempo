@@ -3,6 +3,7 @@ package tempodb
 import (
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/grafana/tempo/tempodb/encoding/common"
 	"github.com/grafana/tempo/tempodb/encoding/vparquet5"
@@ -10,6 +11,35 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func TestCompactorConfigValidate(t *testing.T) {
+	tests := []struct {
+		name    string
+		cfg     CompactorConfig
+		wantErr bool
+	}{
+		{
+			name:    "zero compaction window fails",
+			cfg:     CompactorConfig{},
+			wantErr: true,
+		},
+		{
+			name: "non-zero compaction window passes",
+			cfg:  CompactorConfig{MaxCompactionRange: time.Hour},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			err := tc.cfg.Validate()
+			if tc.wantErr {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+}
 
 func TestApplyToOptions(t *testing.T) {
 	opts := common.DefaultSearchOptions()
