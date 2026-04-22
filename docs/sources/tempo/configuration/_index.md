@@ -541,20 +541,20 @@ live_store:
 
 ## Metrics-generator
 
-For more information on configuration options, refer to [this file](https://github.com/grafana/tempo/blob/main/modules/generator/config.go).
-For architectural details, refer to the [Metrics-generator architecture](/docs/tempo/<TEMPO_VERSION>/reference-tempo-architecture/components/metrics-generator/) documentation.
-
-The metrics-generator processes spans and write metrics using the Prometheus remote write protocol.
+The metrics-generator processes spans and writes metrics using the Prometheus remote write protocol.
 For more information on the metrics-generator, refer to the [Metrics-generator documentation](../metrics-from-traces/metrics-generator/).
 
 Metrics-generator processors are disabled by default. To enable it for a specific tenant, set `metrics_generator.processors` in the [overrides](#overrides) section.
+
+For more information on configuration options, refer to [this file](https://github.com/grafana/tempo/blob/main/modules/generator/config.go).
+For architectural details, refer to the [Metrics-generator architecture](/docs/tempo/<TEMPO_VERSION>/reference-tempo-architecture/components/metrics-generator/) documentation.
 
 {{< admonition type="note" >}}
 If you want to enable metrics-generator for your Grafana Cloud account, refer to the [Metrics-generator in Grafana Cloud](https://grafana.com/docs/grafana-cloud/send-data/traces/metrics-generator/) documentation.
 {{< /admonition >}}
 
-You can limit spans with end times that occur within a configured duration to be considered in metrics generation using `metrics_ingestion_time_range_slack`.
-In Grafana Cloud, this value defaults to 30 seconds so all spans sent to the metrics-generation more than 30 seconds in the past are discarded or rejected.
+Spans with end times older than `metrics_ingestion_time_range_slack` are excluded from metrics generation.
+The default value is 30 seconds, which means spans that ended more than 30 seconds ago are discarded.
 
 ```yaml
 # Metrics-generator configuration block
@@ -707,6 +707,14 @@ metrics_generator:
             # Add instance label to all span metrics series when enable_target_info is true
             [enable_instance_label: <bool> | default = true]
 
+        host_info:
+
+            # Resource attributes used to derive a unique host identifier.
+            [host_identifiers: <list of string> | default = ["k8s.node.name", "host.id"]]
+
+            # Name of the metric that will be generated.
+            [metric_name: <string> | default = "traces_host_info"]
+
     # Registry configuration
     registry:
 
@@ -735,13 +743,19 @@ metrics_generator:
     # - "entity": Limits the number of unique label combinations (entities). Use with max_active_entities override.
     [limiter_type: <string> | default = "series"]
 
-    # Configuration block for the Write Ahead Log (WAL)
-    traces_storage: <WAL config>
+    # Controls which ring mode the metrics-generator uses.
+    # "partition": Uses the partition ring (default). "generator": Uses the legacy generator ring.
+    [ring_mode: <string> | default = "partition"]
 
-      # Path to store the WAL files.
-      # Must be set.
-      # Example: "/var/tempo/generator/traces"
-      [path: <string> | default = ""]
+    # Which decoder to use for data consumed from Kafka.
+    # Valid values: "push-bytes", "otlp".
+    [codec: <string> | default = "push-bytes"]
+
+    # Number of concurrent Kafka consumers.
+    [ingest_concurrency: <uint> | default = 16]
+
+    # Instance ID to register in the ring.
+    [instance_id: <string> | default = <hostname>]
 
     # Storage and remote write configuration
     storage:
@@ -768,9 +782,6 @@ metrics_generator:
     # considered in metrics generation.
     # This is to filter out spans that are outdated.
     [metrics_ingestion_time_range_slack: <duration> | default = 30s]
-
-    # Timeout for metric requests
-    [query_timeout: <duration> | default = 30s ]
 
     # Overrides the key used to register the metrics-generator in the ring.
     [override_ring_key: <string> | default = "metrics-generator"]
