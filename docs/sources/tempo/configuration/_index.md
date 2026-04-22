@@ -13,32 +13,12 @@ This document explains the configuration options for Tempo as well as the detail
 Instructions for configuring Tempo data sources are available in the [Grafana Cloud](/docs/grafana-cloud/send-data/traces/) and [Grafana](/docs/grafana/latest/datasources/tempo/) documentation.
 {{< /admonition >}}
 
-## Configuration by deployment mode
-
-Not all configuration blocks apply to both deployment modes. The following table summarizes which blocks are relevant to each mode. For details on how the modes differ, refer to the [Deployment modes](/docs/tempo/<TEMPO_VERSION>/reference-tempo-architecture/deployment-modes/) reference.
-
-| Config block | Monolithic | Microservices | Notes |
-|---|---|---|---|
-| `distributor` | Yes | Yes | In monolithic mode, pushes data in-process. In microservices mode, writes to Kafka. |
-| `ingest` | No | Yes | Kafka connection settings. Only used in microservices mode. |
-| `block_builder` | No | Yes | Consumes from Kafka. Only used in microservices mode. |
-| `live_store` | Yes | Yes | In monolithic mode, receives data directly from the distributor. In microservices mode, consumes from Kafka. |
-| `live_store_client` | No | Yes | gRPC client for querier-to-live-store communication across processes. |
-| `query_frontend` | Yes | Yes | |
-| `querier` | Yes | Yes | |
-| `backend_scheduler` | Yes | Yes | |
-| `backend_scheduler_client` | No | Yes | gRPC client for connecting workers to the scheduler across processes. |
-| `backend_worker` | Yes | Yes | |
-| `metrics_generator` | Yes | Yes | Optional in both modes. |
-| `storage` | Yes | Yes | |
-| `memberlist` | Yes | Yes | |
-| `overrides` | Yes | Yes | |
-| `cache` | Yes | Yes | |
-
 The Tempo configuration options include:
 
 - [Configure Tempo](#configure-tempo)
   - [Use environment variables in the configuration](#use-environment-variables-in-the-configuration)
+  - [Deployment modes](#deployment-modes)
+    - [Configuration by deployment mode](#configuration-by-deployment-mode)
   - [Server](#server)
   - [Memory](#memory)
   - [Distributor](#distributor)
@@ -78,6 +58,7 @@ The Tempo configuration options include:
         - [Runtime overrides](#runtime-overrides)
         - [User-configurable overrides](#user-configurable-overrides)
       - [Ingestion rate strategy](#ingestion-rate-strategy)
+        - [Examples](#examples-1)
   - [Usage-report](#usage-report)
     - [Configure usage-reporting](#configure-usage-reporting)
   - [Cache](#cache)
@@ -112,6 +93,38 @@ ${VAR:-default_value}
 where `default_value` is the value to use if the environment variable is undefined.
 
 You can find more about other supported syntax [here](https://github.com/drone/envsubst/blob/master/readme.md).
+
+## Deployment modes
+
+Tempo supports two deployment modes: monolithic and microservices.
+
+* Monolithic mode: All components run in a single process using `-target=all`, which is the default. No Kafka is required.
+* Microservices mode: Each component runs as a separate process with its own `-target` flag. For example, `-target=distributor` or `-target=querier`. This mode requires a Kafka-compatible system, such as Apache Kafka, Redpanda, or WarpStream, as the durable queue between the distributor and downstream components.
+
+Refer to the [Deployment modes](/docs/tempo/<TEMPO_VERSION>/set-up-for-tracing/setup-tempo/plan/deployment-modes/) documentation for more information on when to use each mode.
+
+### Configuration by deployment mode
+
+Not all configuration blocks apply to both deployment modes. The following table summarizes which blocks are relevant to each mode. For details on how the modes differ, refer to the [Deployment modes](/docs/tempo/<TEMPO_VERSION>/reference-tempo-architecture/deployment-modes/) reference.
+
+| Config block | Monolithic | Microservices | Notes |
+|---|---|---|---|
+| `distributor` | Yes | Yes | In monolithic mode, pushes data in-process. In microservices mode, writes to Kafka. |
+| `ingest` | No | Yes | Kafka connection settings. Only used in microservices mode. |
+| `block_builder` | No | Yes | Consumes from Kafka. Only used in microservices mode. |
+| `live_store` | Yes | Yes | In monolithic mode, receives data directly from the distributor. In microservices mode, consumes from Kafka. |
+| `live_store_client` | No | Yes | gRPC client for querier-to-live-store communication across processes. |
+| `query_frontend` | Yes | Yes | |
+| `querier` | Yes | Yes | |
+| `backend_scheduler` | Yes | Yes | |
+| `backend_scheduler_client` | No | Yes | gRPC client for connecting workers to the scheduler across processes. |
+| `backend_worker` | Yes | Yes | |
+| `metrics_generator` | Yes | Yes | Optional in both modes. |
+| `storage` | Yes | Yes | |
+| `memberlist` | Yes | Yes | |
+| `overrides` | Yes | Yes | |
+| `cache` | Yes | Yes | |
+
 
 ## Server
 
