@@ -1424,16 +1424,22 @@ func TestSkipASTTransformationsMerge(t *testing.T) {
 			expectedSkip: []string{"global_skip"},
 		},
 		{
-			name:         "per-request URL param only",
+			name:         "per-request only",
 			globalSkip:   nil,
 			requestSkip:  "per_req_skip",
 			expectedSkip: []string{"per_req_skip"},
 		},
 		{
-			name:         "both global and per-request are merged",
+			name:         "merge global and per-request",
 			globalSkip:   []string{"global_skip"},
 			requestSkip:  "per_req_skip",
 			expectedSkip: []string{"global_skip", "per_req_skip"},
+		},
+		{
+			name:         "duplicated entries",
+			globalSkip:   []string{"or_to_in"},
+			requestSkip:  "or_to_in",
+			expectedSkip: []string{"or_to_in"},
 		},
 		{
 			name:         "neither",

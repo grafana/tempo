@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"slices"
 	"time"
 
 	"github.com/go-kit/log" //nolint:all deprecated
@@ -82,8 +83,7 @@ func (s asyncSearchSharder) RoundTrip(pipelineRequest pipeline.Request) (pipelin
 		return pipeline.NewBadRequest(err), nil
 	}
 
-	// merge global skip list with any per-request skip list from URL params so both are honoured
-	searchReq.SkipASTTransformations = append(s.skipASTTransformations, searchReq.SkipASTTransformations...)
+	searchReq.SkipASTTransformations = mergeSkipASTTransformations(s.skipASTTransformations, searchReq.SkipASTTransformations)
 
 	// adjust limit based on config
 	searchReq.Limit, err = adjustLimit(searchReq.Limit, s.cfg.DefaultLimit, s.cfg.MaxLimit)
@@ -482,4 +482,11 @@ func backendJobsFunc(blocks []*backend.BlockMeta, targetBytesPerRequest int, max
 			shardIterCallback(jobsInShard, bytesInShard, 1) // final shard can cover all time. we don't need to be precise
 		}
 	}
+}
+
+// mergeSkipASTTransformations merges and deduplicates AST transformations skip-lists
+func mergeSkipASTTransformations(a, b []string) []string {
+	merged := slices.Concat(a, b)
+	slices.Sort(merged)
+	return slices.Compact(merged)
 }
