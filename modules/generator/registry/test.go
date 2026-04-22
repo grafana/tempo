@@ -133,7 +133,7 @@ func (t *testCounter) collectMetrics(_ storage.Appender, _ int64) error {
 	return nil
 }
 
-func (t *testCounter) removeStaleSeries(int64) {
+func (t *testCounter) removeStaleSeries(storage.Appender, int64, int64) {
 	panic("implement me")
 }
 
@@ -184,7 +184,7 @@ func (t *testGauge) collectMetrics(_ storage.Appender, _ int64) error {
 	return nil
 }
 
-func (t *testGauge) removeStaleSeries(int64) {
+func (t *testGauge) removeStaleSeries(storage.Appender, int64, int64) {
 	panic("implement me")
 }
 
@@ -246,7 +246,7 @@ func (t *testHistogram) collectMetrics(_ storage.Appender, _ int64) error {
 	panic("implement me")
 }
 
-func (t *testHistogram) removeStaleSeries(int64) {
+func (t *testHistogram) removeStaleSeries(storage.Appender, int64, int64) {
 	panic("implement me")
 }
 
