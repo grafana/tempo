@@ -3,6 +3,7 @@ package api
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -11,7 +12,6 @@ import (
 	"time"
 
 	"github.com/grafana/dskit/user"
-	jsoniter "github.com/json-iterator/go"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -44,7 +44,7 @@ func Test_UserConfigOverridesAPI_overridesHandlers(t *testing.T) {
 	}, backend.VersionNew)
 	require.NoError(t, err)
 
-	postJSON, err := jsoniter.Marshal(&client.Limits{
+	postJSON, err := json.Marshal(&client.Limits{
 		Forwarders: &[]string{"my-updated-forwarder"},
 	})
 	require.NoError(t, err)
@@ -82,7 +82,7 @@ func Test_UserConfigOverridesAPI_overridesHandlers(t *testing.T) {
 			name:           "POST - invalid JSON",
 			handler:        overridesAPI.PostHandler,
 			req:            prepareRequest(tenant, "POST", []byte("not a json")),
-			expResp:        "skipThreeBytes: expect ull, error found in #2 byte of ...|not a json|..., bigger context ...|not a json|...\n",
+			expResp:        "invalid character 'o' in literal null (expecting 'u')\n",
 			expContentType: "text/plain; charset=utf-8",
 			expStatusCode:  400,
 		},
@@ -90,7 +90,7 @@ func Test_UserConfigOverridesAPI_overridesHandlers(t *testing.T) {
 			name:           "POST - unknown field JSON",
 			handler:        overridesAPI.PostHandler,
 			req:            prepareRequest(tenant, "POST", []byte("{\"unknown\":true}")),
-			expResp:        "client.Limits.ReadObject: found unknown field: unknown, error found in #10 byte of ...|{\"unknown\":true}|..., bigger context ...|{\"unknown\":true}|...\n",
+			expResp:        "json: unknown field \"unknown\"\n",
 			expContentType: "text/plain; charset=utf-8",
 			expStatusCode:  400,
 		},
@@ -238,7 +238,7 @@ func Test_UserConfigOverridesAPI_patchOverridesHandlers(t *testing.T) {
 			name:          "PATCH - invalid patch",
 			patch:         `{"newField":true}`,
 			current:       `{"forwarders":["prior-forwarder"]}`,
-			expResp:       "client.Limits.ReadObject: found unknown field: newField, error found in #10 byte of ...|\"newField\":true}|..., bigger context ...|\":{},\"span_metrics\":{},\"host_info\":{}}},\"newField\":true}|...\n",
+			expResp:       "json: unknown field \"newField\"\n",
 			expStatusCode: 400,
 		},
 	}
@@ -518,7 +518,7 @@ func TestUserConfigOverridesAPI_assertConflictingRuntimeOverrides(t *testing.T) 
 
 			w := httptest.NewRecorder()
 
-			json, err := jsoniter.Marshal(tc.request)
+			json, err := json.Marshal(tc.request)
 			assert.NoError(t, err)
 
 			path := "/"
@@ -555,7 +555,7 @@ func prepareRequest(tenant, method string, payload []byte) *http.Request {
 
 func parseJSON(t *testing.T, s string) *client.Limits {
 	var limits client.Limits
-	err := jsoniter.Unmarshal([]byte(s), &limits)
+	err := json.Unmarshal([]byte(s), &limits)
 	require.NoError(t, err)
 	return &limits
 }
@@ -622,7 +622,7 @@ func Test_UserConfigOverridesAPI_CostAttribution(t *testing.T) {
 	overridesAPI.GetHandler(w, req)
 	assert.Equal(t, 200, w.Code)
 	var limits client.Limits
-	err = jsoniter.Unmarshal(w.Body.Bytes(), &limits)
+	err = json.Unmarshal(w.Body.Bytes(), &limits)
 	require.NoError(t, err)
 	assert.Equal(t, map[string]string{"k8s.namespace.name": "namespace", "k8s.cluster": "cluster"}, *limits.CostAttribution.Dimensions)
 
@@ -635,7 +635,7 @@ func Test_UserConfigOverridesAPI_CostAttribution(t *testing.T) {
 	assert.Equal(t, 200, w.Code)
 
 	// Verify PATCH response body
-	err = jsoniter.Unmarshal(w.Body.Bytes(), &limits)
+	err = json.Unmarshal(w.Body.Bytes(), &limits)
 	require.NoError(t, err)
 	assert.Equal(t, map[string]string{"k8s.namespace.name": "namespace", "k8s.cluster": "cluster", "namespace": ""}, *limits.CostAttribution.Dimensions)
 
@@ -649,7 +649,7 @@ func Test_UserConfigOverridesAPI_CostAttribution(t *testing.T) {
 	assert.Equal(t, 200, w.Code)
 
 	// Verify PATCH response body
-	err = jsoniter.Unmarshal(w.Body.Bytes(), &limits)
+	err = json.Unmarshal(w.Body.Bytes(), &limits)
 	require.NoError(t, err)
 	assert.Equal(t, map[string]string{"k8s.namespace.name": "namespace", "k8s.cluster": "cluster", "namespace": "", "k8s.namespace": "namespace"}, *limits.CostAttribution.Dimensions)
 
@@ -659,7 +659,7 @@ func Test_UserConfigOverridesAPI_CostAttribution(t *testing.T) {
 	req = req.WithContext(user.InjectOrgID(req.Context(), tenant))
 	overridesAPI.GetHandler(w, req)
 	assert.Equal(t, 200, w.Code)
-	err = jsoniter.Unmarshal(w.Body.Bytes(), &limits)
+	err = json.Unmarshal(w.Body.Bytes(), &limits)
 	require.NoError(t, err)
 	assert.Equal(t, map[string]string{"k8s.namespace.name": "namespace", "k8s.cluster": "cluster", "namespace": "", "k8s.namespace": "namespace"}, *limits.CostAttribution.Dimensions)
 	etag := w.Header().Get(headerEtag)
