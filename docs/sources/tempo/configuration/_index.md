@@ -1955,16 +1955,16 @@ overrides:
       # Honored by both global and local strategies. With global, this value
       # is divided across healthy distributors.
       # Results in errors like
-      #   RATE_LIMITED: ingestion rate limit (15000000 bytes) exceeded while
+      #   RATE_LIMITED: ingestion rate limit (30000000 bytes) exceeded while
       #   adding 10 bytes
-      [rate_limit_bytes: <int> | default = 15000000 (15MB) ]
+      [rate_limit_bytes: <int> | default = 30000000 (30MB) ]
 
       # Burst size (bytes) used in ingestion.
       # Results in errors like
-      #   RATE_LIMITED: ingestion rate limit (20000000 bytes) exceeded while
+      #   RATE_LIMITED: ingestion rate limit (30000000 bytes) exceeded while
       #   adding 10 bytes
       # Ignores rate strategy and is always local.
-      [burst_size_bytes: <int> | default = 20000000 (20MB) ]
+      [burst_size_bytes: <int> | default = 30000000 (30MB) ]
 
       # Maximum number of active traces per user, per live-store instance.
       # Not affected by rate_strategy.
@@ -2302,8 +2302,8 @@ The `rate_strategy` setting controls how the distributor's rate limit scales acr
 
 | Strategy | When to use | How it works |
 |---|---|---|
-| **`local`** (default) | You want each distributor to independently handle a fixed rate, and you accept that the effective cluster rate grows as you add distributors. | Each distributor enforces the full configured `rate_limit_bytes` value. With 5 distributors at `15 MB/s`, the cluster allows up to `75 MB/s`. |
-| **`global`** | You need a predictable cluster-wide ingestion budget that stays constant regardless of how many distributors you run. | The configured `rate_limit_bytes` is divided across healthy distributors. With 5 distributors at `15 MB/s`, each allows `3 MB/s`. |
+| **`local`** (default) | You want each distributor to independently handle a fixed rate, and you accept that the effective cluster rate grows as you add distributors. | Each distributor enforces the full configured `rate_limit_bytes` value. With 5 distributors at `30 MB/s`, the cluster allows up to `150 MB/s`. |
+| **`global`** | You need a predictable cluster-wide ingestion budget that stays constant regardless of how many distributors you run. | The configured `rate_limit_bytes` is divided across healthy distributors. With 5 distributors at `30 MB/s`, each allows `6 MB/s`. |
 
 ```yaml
 overrides:
@@ -2324,25 +2324,25 @@ The following table shows where each ingestion limit is enforced and whether it 
 
 ##### Examples
 
-Each distributor instance independently allows `15 MB/s`:
+Each distributor instance independently allows `30 MB/s`:
 
 ```yaml
 overrides:
   defaults:
     ingestion:
       rate_strategy: local
-      rate_limit_bytes: 15000000
+      rate_limit_bytes: 30000000
 ```
 
-All distributors share a total cluster rate of `15 MB/s`.
-With 5 distributors, each instance allows `3 MB/s`:
+All distributors share a total cluster rate of `30 MB/s`.
+With 5 distributors, each instance allows `6 MB/s`:
 
 ```yaml
 overrides:
   defaults:
     ingestion:
       rate_strategy: global
-      rate_limit_bytes: 15000000
+      rate_limit_bytes: 30000000
 ```
 
 For guidance on sizing these limits for your workload, refer to [Manage trace ingestion](https://grafana.com/docs/tempo/<TEMPO_VERSION>/operations/manage-trace-ingestion/).
