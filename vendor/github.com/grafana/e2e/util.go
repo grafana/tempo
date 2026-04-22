@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/tls"
 	"io"
-	"io/ioutil"
 	"math"
 	"math/rand"
 	"net/http"
@@ -15,7 +14,6 @@ import (
 	"time"
 
 	"github.com/prometheus/common/model"
-	"github.com/prometheus/prometheus/model/labels"
 	"github.com/prometheus/prometheus/prompb"
 )
 
@@ -137,7 +135,7 @@ func GenerateSeries(name string, ts time.Time, additionalLabels ...prompb.Label)
 
 	lbls := append(
 		[]prompb.Label{
-			{Name: labels.MetricName, Value: name},
+			{Name: string(model.MetricNameLabel), Value: name},
 		},
 		additionalLabels...,
 	)
@@ -157,7 +155,7 @@ func GenerateSeries(name string, ts time.Time, additionalLabels ...prompb.Label)
 
 	// Generate the expected vector and matrix when querying it
 	metric := model.Metric{}
-	metric[labels.MetricName] = model.LabelValue(name)
+	metric[model.MetricNameLabel] = model.LabelValue(name)
 	for _, lbl := range additionalLabels {
 		metric[model.LabelName(lbl.Name)] = model.LabelValue(lbl.Value)
 	}
@@ -187,7 +185,7 @@ func GenerateNSeries(nSeries, nExemplars int, name func() string, ts time.Time, 
 	// Generate the series
 	for i := 0; i < nSeries; i++ {
 		lbls := []prompb.Label{
-			{Name: labels.MetricName, Value: name()},
+			{Name: string(model.MetricNameLabel), Value: name()},
 		}
 		if additionalLabels != nil {
 			lbls = append(lbls, additionalLabels()...)
@@ -245,7 +243,7 @@ func GetTempDirectory() (string, error) {
 		}
 	}
 
-	tmpDir, err := ioutil.TempDir(dir, "e2e_integration_test")
+	tmpDir, err := os.MkdirTemp(dir, "e2e_integration_test")
 	if err != nil {
 		return "", err
 	}

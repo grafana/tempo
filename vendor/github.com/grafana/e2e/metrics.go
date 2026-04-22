@@ -15,9 +15,8 @@ func getMetricValue(m *io_prometheus_client.Metric) float64 {
 		return m.GetHistogram().GetSampleSum()
 	} else if m.GetSummary() != nil {
 		return m.GetSummary().GetSampleSum()
-	} else {
-		return 0
 	}
+	return 0
 }
 
 func getMetricCount(m *io_prometheus_client.Metric) float64 {
@@ -25,9 +24,8 @@ func getMetricCount(m *io_prometheus_client.Metric) float64 {
 		return float64(m.GetHistogram().GetSampleCount())
 	} else if m.GetSummary() != nil {
 		return float64(m.GetSummary().GetSampleCount())
-	} else {
-		return 0
 	}
+	return 0
 }
 
 func getValues(metrics []*io_prometheus_client.Metric, opts MetricsOptions) []float64 {
