@@ -1,10 +1,12 @@
 package registry
 
 import (
+	"math"
 	"sync"
 	"time"
 
 	"github.com/prometheus/prometheus/model/labels"
+	"github.com/prometheus/prometheus/model/value"
 	"github.com/prometheus/prometheus/storage"
 	"go.uber.org/atomic"
 )
@@ -156,6 +158,12 @@ func (g *gauge) removeStaleSeries(appender storage.Appender, timeMs, staleTimeMs
 
 	for hash, s := range g.series {
 		if s.lastUpdated.Load() < staleTimeMs {
+			if appender != nil {
+				_, err := appender.Append(0, s.labels, timeMs, math.Float64frombits(value.StaleNaN))
+				if err != nil {
+					// handle
+				}
+			}
 			delete(g.series, hash)
 			g.lifecycler.OnDelete(hash, 1)
 		}

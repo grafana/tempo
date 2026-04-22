@@ -305,7 +305,7 @@ func (r *ManagedRegistry) removeStaleSeries(ctx context.Context) {
 
 	err := appender.Commit()
 	if err != nil {
-		level.Error(r.logger).Log("msg", "commiting stale markers failed", "err", err)
+		level.Error(r.logger).Log("msg", "committing stale markers failed", "err", err)
 	}
 
 	level.Info(r.logger).Log("msg", "deleted stale series", "active_series", remainingSeries)
