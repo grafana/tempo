@@ -8,9 +8,9 @@ import (
 	"io"
 	"os"
 
+	"github.com/bits-and-blooms/bloom/v3"
 	"github.com/google/uuid"
 	"github.com/parquet-go/parquet-go"
-	"github.com/willf/bloom"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 
