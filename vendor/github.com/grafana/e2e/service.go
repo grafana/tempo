@@ -5,9 +5,11 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"errors"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net"
+	"os"
 	"os/exec"
 	"regexp"
 	"strconv"
@@ -17,7 +19,6 @@ import (
 	"github.com/go-kit/log"
 	"github.com/grafana/dskit/backoff"
 	"github.com/grafana/dskit/runutil"
-	"github.com/pkg/errors"
 	"github.com/prometheus/common/expfmt"
 	"github.com/prometheus/common/model"
 )
@@ -42,6 +43,7 @@ type ConcreteService struct {
 	cmd          *exec.Cmd
 	readiness    ReadinessProbe
 	privileged   bool
+	volumes      map[string]string // host path -> container path
 
 	// Maps container ports to dynamically binded local ports.
 	networkPortsContainerToLocal map[int]int
@@ -96,6 +98,10 @@ func (s *ConcreteService) SetUser(user string) {
 	s.user = user
 }
 
+func (s *ConcreteService) SetVolumes(volumes map[string]string) {
+	s.volumes = volumes
+}
+
 func (s *ConcreteService) SetPrivileged(privileged bool) {
 	s.privileged = privileged
 }
@@ -131,14 +137,14 @@ func (s *ConcreteService) Start(networkName, sharedDir string) (err error) {
 		if err != nil {
 			// Catch init errors.
 			if werr := s.WaitForRunning(); werr != nil {
-				return errors.Wrapf(werr, "failed to get mapping for port as container %s exited: %v", s.containerName(), err)
+				return fmt.Errorf("failed to get mapping for port as container %s exited: %v: %w", s.containerName(), err, werr)
 			}
-			return errors.Wrapf(err, "unable to get mapping for port %d; service: %s; output: %q", containerPort, s.name, out)
+			return fmt.Errorf("unable to get mapping for port %d; service: %s; output: %q: %w", containerPort, s.name, out, err)
 		}
 
 		localPort, err := parseDockerIPv4Port(string(out))
 		if err != nil {
-			return errors.Wrapf(err, "unable to get mapping for port %d (output: %s); service: %s", containerPort, string(out), s.name)
+			return fmt.Errorf("unable to get mapping for port %d (output: %s); service: %s: %w", containerPort, string(out), s.name, err)
 		}
 
 		s.networkPortsContainerToLocal[containerPort] = localPort
@@ -315,6 +321,11 @@ func (s *ConcreteService) buildDockerRunArgs(networkName, sharedDir string) []st
 	// Mount the shared/ directory into the container
 	args = append(args, "-v", fmt.Sprintf("%s:%s:z", sharedDir, ContainerSharedDir))
 
+	// Mount additional volumes
+	for hostPath, containerPath := range s.volumes {
+		args = append(args, "-v", fmt.Sprintf("%s:%s:z", hostPath, containerPath))
+	}
+
 	// Environment variables
 	for name, value := range s.env {
 		args = append(args, "-e", name+"="+value)
@@ -428,12 +439,12 @@ func NewHTTPSReadinessProbe(port int, path, serverName, clientKeyFile, clientCer
 	// Load client certificate and private key.
 	cert, err := tls.LoadX509KeyPair(clientCertFile, clientKeyFile)
 	if err != nil {
-		return nil, errors.Wrapf(err, "error creating x509 keypair from client cert file %s and client key file %s", clientCertFile, clientKeyFile)
+		return nil, fmt.Errorf("error creating x509 keypair from client cert file %s and client key file %s: %w", clientCertFile, clientKeyFile, err)
 	}
 
-	caCert, err := ioutil.ReadFile(rootCertFile)
+	caCert, err := os.ReadFile(rootCertFile)
 	if err != nil {
-		return nil, errors.Wrapf(err, "error opening root CA cert file %s", rootCertFile)
+		return nil, fmt.Errorf("error opening root CA cert file %s: %w", rootCertFile, err)
 	}
 
 	caCertPool := x509.NewCertPool()
@@ -456,9 +467,10 @@ func NewHTTPSReadinessProbe(port int, path, serverName, clientKeyFile, clientCer
 
 func (p *HTTPReadinessProbe) Ready(service *ConcreteService) (err error) {
 	endpoint := service.Endpoint(p.port)
-	if endpoint == "" {
+	switch endpoint {
+	case "":
 		return fmt.Errorf("cannot get service endpoint for port %d", p.port)
-	} else if endpoint == "stopped" {
+	case "stopped":
 		return errors.New("service has stopped")
 	}
 
@@ -468,7 +480,7 @@ func (p *HTTPReadinessProbe) Ready(service *ConcreteService) (err error) {
 	}
 
 	defer runutil.ExhaustCloseWithErrCapture(&err, res.Body, "response readiness")
-	body, _ := ioutil.ReadAll(res.Body)
+	body, _ := io.ReadAll(res.Body)
 
 	if res.StatusCode < p.expectedStatusRangeStart || res.StatusCode > p.expectedStatusRangeEnd {
 		return fmt.Errorf("expected code in range: [%v, %v], got status code: %v and body: %v", p.expectedStatusRangeStart, p.expectedStatusRangeEnd, res.StatusCode, string(body))
@@ -496,9 +508,10 @@ func NewTCPReadinessProbe(port int) *TCPReadinessProbe {
 
 func (p *TCPReadinessProbe) Ready(service *ConcreteService) (err error) {
 	endpoint := service.Endpoint(p.port)
-	if endpoint == "" {
+	switch endpoint {
+	case "":
 		return fmt.Errorf("cannot get service endpoint for port %d", p.port)
-	} else if endpoint == "stopped" {
+	case "stopped":
 		return errors.New("service has stopped")
 	}
 
@@ -592,7 +605,7 @@ func (s *HTTPService) Metrics() (_ string, err error) {
 	}
 
 	defer runutil.ExhaustCloseWithErrCapture(&err, res.Body, "metrics response")
-	body, err := ioutil.ReadAll(res.Body)
+	body, err := io.ReadAll(res.Body)
 
 	return string(body), err
 }
@@ -671,7 +684,7 @@ func (s *HTTPService) SumMetrics(metricNames []string, opts ...MetricsOption) ([
 				continue
 			}
 
-			return nil, errors.Wrapf(errMissingMetric, "metric=%s service=%s", m, s.name)
+			return nil, fmt.Errorf("metric=%s service=%s: %w", m, s.name, errMissingMetric)
 		}
 
 		// Filter metrics.
@@ -681,7 +694,7 @@ func (s *HTTPService) SumMetrics(metricNames []string, opts ...MetricsOption) ([
 				continue
 			}
 
-			return nil, errors.Wrapf(errMissingMetric, "metric=%s service=%s", m, s.name)
+			return nil, fmt.Errorf("metric=%s service=%s: %w", m, s.name, errMissingMetric)
 		}
 
 		sums[i] = SumValues(getValues(metrics, options))
