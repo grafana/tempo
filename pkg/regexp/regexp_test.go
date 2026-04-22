@@ -181,8 +181,8 @@ func TestShouldMemoize(t *testing.T) {
 			shouldMemoize: false,
 		},
 		{
-			regex:         ".*bar.*foo.*", // calls contains in order
-			shouldMemoize: true,
+			regex:         ".*bar.*foo.*", // now uses a stringMatcher in prometheus v0.311.2+
+			shouldMemoize: false,
 		},
 	}
 
