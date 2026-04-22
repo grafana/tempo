@@ -2,7 +2,6 @@
 title: Plan your Tempo deployment
 menuTitle: Plan your deployment
 description: Plan your Grafana Tempo deployment
-aliases:
 weight: 200
 ---
 

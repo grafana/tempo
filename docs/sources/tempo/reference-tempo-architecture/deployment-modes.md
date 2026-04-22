@@ -5,7 +5,6 @@ description: Monolithic and microservices deployment modes in detail.
 weight: 400
 topicType: concept
 versionDate: 2026-03-20
-aliases:
 ---
 
 # Deployment modes
@@ -28,7 +27,7 @@ Refer to the [command line flags](/docs/tempo/<TEMPO_VERSION>/set-up-for-tracing
 
 ## Monolithic mode
 
-In monolithic mode, all components run in a single process using `-target=all`, which is the default.
+In monolithic mode, the required components run in a single process using `-target=all`, which is the default. Components that are only needed in microservices mode, such as the block-builder, are excluded.
 
 No Kafka is required. The distributor pushes trace data in-process directly to the live-store and metrics-generator. Traces are flushed to object storage without an intermediate message queue.
 
@@ -38,7 +37,7 @@ Monolithic mode is suitable for getting started, development environments, and l
 
 ### Limitations
 
-All components share the same resource pool. A spike in query load can affect write throughput and vice versa. There's no independent scaling—you can run multiple monolithic instances, but each runs every component. At higher volumes, memory pressure from collocated components, particularly the live-store and querier, can cause out-of-memory issues.
+Components share the same resource pool. A spike in query load can affect write throughput and vice versa. There's no independent scaling—you can run multiple monolithic instances, but each instance runs the same set of components. At higher volumes, memory pressure from collocated components, particularly the live-store and querier, can cause out-of-memory issues.
 
 ### Resource considerations
 

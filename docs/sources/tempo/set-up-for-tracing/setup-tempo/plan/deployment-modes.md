@@ -11,7 +11,7 @@ Tempo supports two deployment modes: monolithic and microservices. All component
 
 ## Monolithic mode
 
-In monolithic mode, all components run in a single process using `-target=all`, which is the default. No Kafka is required. The distributor pushes trace data in-process directly to the live-store and metrics-generator, and traces are flushed to object storage.
+In monolithic mode, the required components run in a single process using `-target=all`, which is the default. No Kafka is required. The distributor pushes trace data in-process directly to the live-store and metrics-generator, and traces are flushed to object storage.
 
 Use monolithic mode when:
 
@@ -21,8 +21,8 @@ Use monolithic mode when:
 - Operational simplicity matters more than independent scaling
 
 Monolithic mode has some trade-offs to be aware of. 
-All components share the same resource pool, so a spike in query load can affect write throughput and vice versa. 
-You can run multiple monolithic instances, but each runs every component. 
+Components share the same resource pool, so a spike in query load can affect write throughput and vice versa. 
+You can run multiple monolithic instances, but each instance runs every monolithic-mode component. 
 At higher volumes, memory pressure from collocated components can cause issues.
 
 ## Microservices mode
