@@ -439,7 +439,7 @@ require (
 	google.golang.org/genproto v0.0.0-20260319201613-d00831a3d3e7 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20260406210006-6f92a3bedf2d // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
-	k8s.io/apimachinery v0.35.3 // indirect
+	k8s.io/apimachinery v0.35.4 // indirect
 	k8s.io/client-go v0.35.3 // indirect
 	k8s.io/klog/v2 v2.140.0 // indirect
 	k8s.io/kube-openapi v0.0.0-20250910181357-589584f1c912 // indirect
@@ -451,8 +451,8 @@ require (
 )
 
 replace (
-	k8s.io/api => k8s.io/api v0.35.3
-	k8s.io/client-go => k8s.io/client-go v0.35.3
+	k8s.io/api => k8s.io/api v0.35.4
+	k8s.io/client-go => k8s.io/client-go v0.35.4
 )
 
 // Replace memberlist with our fork which includes some fixes that haven't been

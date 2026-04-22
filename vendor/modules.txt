@@ -2654,7 +2654,7 @@ gopkg.in/inf.v0
 # gopkg.in/yaml.v3 v3.0.1
 ## explicit
 gopkg.in/yaml.v3
-# k8s.io/apimachinery v0.35.3
+# k8s.io/apimachinery v0.35.4
 ## explicit; go 1.25.0
 k8s.io/apimachinery/pkg/api/errors
 k8s.io/apimachinery/pkg/api/meta
@@ -2698,7 +2698,7 @@ k8s.io/apimachinery/pkg/util/yaml
 k8s.io/apimachinery/pkg/version
 k8s.io/apimachinery/pkg/watch
 k8s.io/apimachinery/third_party/forked/golang/reflect
-# k8s.io/client-go v0.35.3 => k8s.io/client-go v0.35.3
+# k8s.io/client-go v0.35.3 => k8s.io/client-go v0.35.4
 ## explicit; go 1.25.0
 k8s.io/client-go/features
 k8s.io/client-go/pkg/apis/clientauthentication
@@ -2749,6 +2749,6 @@ sigs.k8s.io/structured-merge-diff/v6/value
 # sigs.k8s.io/yaml v1.6.0
 ## explicit; go 1.22
 sigs.k8s.io/yaml
-# k8s.io/api => k8s.io/api v0.35.3
-# k8s.io/client-go => k8s.io/client-go v0.35.3
+# k8s.io/api => k8s.io/api v0.35.4
+# k8s.io/client-go => k8s.io/client-go v0.35.4
 # github.com/hashicorp/memberlist => github.com/grafana/memberlist v0.3.1-0.20251024160842-5cd332c2849a
