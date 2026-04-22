@@ -5,8 +5,8 @@
 | Stability     | [development]: profiles   |
 |               | [beta]: traces, metrics, logs   |
 | Issues        | [![Open issues](https://img.shields.io/github/issues-search/open-telemetry/opentelemetry-collector-contrib?query=is%3Aissue%20is%3Aopen%20label%3Apkg%2Fottl%20&label=open&color=orange&logo=opentelemetry)](https://github.com/open-telemetry/opentelemetry-collector-contrib/issues?q=is%3Aopen+is%3Aissue+label%3Apkg%2Fottl) [![Closed issues](https://img.shields.io/github/issues-search/open-telemetry/opentelemetry-collector-contrib?query=is%3Aissue%20is%3Aclosed%20label%3Apkg%2Fottl%20&label=closed&color=blue&logo=opentelemetry)](https://github.com/open-telemetry/opentelemetry-collector-contrib/issues?q=is%3Aclosed+is%3Aissue+label%3Apkg%2Fottl) |
-| [Code Owners](https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/CONTRIBUTING.md#becoming-a-code-owner)    | [@TylerHelmuth](https://www.github.com/TylerHelmuth), [@evan-bradley](https://www.github.com/evan-bradley), [@edmocosta](https://www.github.com/edmocosta) \| Seeking more code owners! |
-| Emeritus      | [@anuraaga](https://www.github.com/anuraaga), [@kentquirk](https://www.github.com/kentquirk), [@bogdandrutu](https://www.github.com/bogdandrutu) |
+| [Code Owners](https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/CONTRIBUTING.md#becoming-a-code-owner)    | [@TylerHelmuth](https://www.github.com/TylerHelmuth), [@evan-bradley](https://www.github.com/evan-bradley), [@edmocosta](https://www.github.com/edmocosta), [@bogdandrutu](https://www.github.com/bogdandrutu) \| Seeking more code owners! |
+| Emeritus      | [@anuraaga](https://www.github.com/anuraaga), [@kentquirk](https://www.github.com/kentquirk) |
 
 [development]: https://github.com/open-telemetry/opentelemetry-collector/blob/main/docs/component-stability.md#development
 [beta]: https://github.com/open-telemetry/opentelemetry-collector/blob/main/docs/component-stability.md#beta

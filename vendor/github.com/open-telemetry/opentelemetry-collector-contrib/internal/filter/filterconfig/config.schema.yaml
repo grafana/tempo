@@ -1,0 +1,127 @@
+$defs:
+  attribute:
+    description: Attribute specifies the attribute key and optional value to match against.
+    type: object
+    properties:
+      key:
+        description: Key specifies the attribute key.
+        type: string
+      value:
+        description: Values specifies the value to match against. If it is not set, any value will match.
+        x-customType: any
+  instrumentation_library:
+    description: InstrumentationLibrary specifies the instrumentation library and optional version to match against.
+    type: object
+    properties:
+      name:
+        type: string
+      version:
+        description: version match expected actual  match nil      <blank> yes nil      1       yes <blank>  <blank> yes <blank>  1       no 1        <blank> no 1        1       yes
+        x-pointer: true
+        type: string
+  log_severity_number_match_properties:
+    description: LogSeverityNumberMatchProperties defines how to match based on a log record's SeverityNumber field.
+    type: object
+    properties:
+      match_undefined:
+        description: MatchUndefined controls whether logs with "undefined" severity matches. If this is true, entries with undefined severity will match.
+        type: boolean
+      min:
+        description: Min is the lowest severity that may be matched. e.g. if this is plog.SeverityNumberInfo, INFO, WARN, ERROR, and FATAL logs will match.
+        $ref: go.opentelemetry.io/collector/pdata/plog.severity_number
+  match_config:
+    description: MatchConfig has two optional MatchProperties one to define what is processed by the processor, captured under the 'include' and the second, exclude, to define what is excluded from the processor.
+    type: object
+    properties:
+      exclude:
+        description: 'Exclude specifies when this processor will not be applied to the input data which match the specified properties. Note: The `exclude` properties are checked after the `include` properties, if they exist, are checked. If `include` isn''t specified, the `exclude` properties are checked against all input data. This is an optional field. If neither `include` and `exclude` are set, all input data is processed. If `exclude` is set and `include` isn''t set, then all the input data that does not match the properties in this structure are processed.'
+        x-pointer: true
+        $ref: match_properties
+      include:
+        description: 'Include specifies the set of input data properties that must be present in order for this processor to apply to it. Note: If `exclude` is specified, the input data is compared against those properties after the `include` properties. This is an optional field. If neither `include` and `exclude` are set, all input data are processed. If `include` is set and `exclude` isn''t set, then all input data matching the properties in this structure are processed.'
+        x-pointer: true
+        $ref: match_properties
+  match_properties:
+    description: 'MatchProperties specifies the set of properties in a spans/log/metric to match against and if the input data should be included or excluded from the processor. At least one of services (spans only), names or attributes must be specified. It is supported to have all specified, but this requires all the properties to match for the inclusion/exclusion to occur. The following are examples of invalid configurations: attributes/bad1: # This is invalid because include is specified with neither services or # attributes. include: actions: ... span/bad2: exclude: # This is invalid because services, span_names and attributes have empty values. services: span_names: attributes: actions: ... Please refer to processor/attributesprocessor/testdata/config.yaml and processor/spanprocessor/testdata/config.yaml for valid configurations.'
+    type: object
+    properties:
+      attributes:
+        description: Attributes specifies the list of attributes to match against. All of these attributes must match for a match to occur. This is an optional field.
+        type: array
+        items:
+          $ref: attribute
+      libraries:
+        description: Libraries specify the list of items to match the implementation library against. A match occurs if the span's implementation library matches at least one item in this list. This is an optional field.
+        type: array
+        items:
+          $ref: instrumentation_library
+      log_bodies:
+        description: LogBodies is a list of strings that the LogRecord's body field must match against.
+        type: array
+        items:
+          type: string
+      log_severity_number:
+        description: LogSeverityNumber defines how to match against a log record's SeverityNumber, if defined.
+        x-pointer: true
+        $ref: log_severity_number_match_properties
+      log_severity_texts:
+        description: LogSeverityTexts is a list of strings that the LogRecord's severity text field must match against.
+        type: array
+        items:
+          type: string
+      metric_names:
+        description: MetricNames is a list of strings to match metric name against. A match occurs if metric name matches at least one item in the list. This field is optional.
+        type: array
+        items:
+          type: string
+      resources:
+        description: Resources specify the list of items to match the resources against. A match occurs if the data's resources match at least one item in this list. This is an optional field.
+        type: array
+        items:
+          $ref: attribute
+      services:
+        description: Services specify the list of items to match service name against. A match occurs if the span's service name matches at least one item in this list. This is an optional field.
+        type: array
+        items:
+          type: string
+      span_kinds:
+        description: SpanKinds specify the list of items to match the span kind against. A match occurs if the span's span kind matches at least one item in this list. This is an optional field
+        type: array
+        items:
+          type: string
+      span_names:
+        description: SpanNames specify the list of items to match span name against. A match occurs if the span name matches at least one item in this list. This is an optional field.
+        type: array
+        items:
+          type: string
+    allOf:
+      - $ref: github.com/open-telemetry/opentelemetry-collector-contrib/internal/filter/filterset.config
+  metric_match_properties:
+    description: MetricMatchProperties specifies the set of properties in a metric to match against and the type of string pattern matching to use.
+    type: object
+    properties:
+      expressions:
+        description: Expressions specifies the list of expr expressions to match metrics against. A match occurs if any datapoint in a metric matches at least one expression in this list.
+        type: array
+        items:
+          type: string
+      match_type:
+        description: MatchType specifies the type of matching desired
+        $ref: metric_match_type
+      metric_names:
+        description: MetricNames specifies the list of string patterns to match metric names against. A match occurs if the metric name matches at least one string pattern in this list.
+        type: array
+        items:
+          type: string
+      regexp:
+        description: RegexpConfig specifies options for the MetricRegexp match type
+        x-pointer: true
+        $ref: github.com/open-telemetry/opentelemetry-collector-contrib/internal/filter/filterset/regexp.config
+      resource_attributes:
+        description: ResourceAttributes defines a list of possible resource attributes to match metrics against. A match occurs if any resource attribute matches all expressions in this given list.
+        type: array
+        items:
+          $ref: attribute
+  metric_match_type:
+    description: MetricMatchType specifies the strategy for matching against `pmetric.Metric`s. This is distinct from filterset.MatchType which matches against metric (and tracing) names only. To support matching against metric names and `pmetric.Metric`s, filtermetric.MatchType is effectively a superset of filterset.MatchType.
+    type: string

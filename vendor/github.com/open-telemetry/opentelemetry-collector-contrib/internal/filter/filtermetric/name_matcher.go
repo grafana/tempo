@@ -32,6 +32,6 @@ func newNameMatcher(mp *filterconfig.MetricMatchProperties) (*nameMatcher, error
 
 // Eval matches a metric using the metric properties configured on the nameMatcher.
 // A metric only matches if every metric property configured on the nameMatcher is a match.
-func (m *nameMatcher) Eval(_ context.Context, tCtx ottlmetric.TransformContext) (bool, error) {
+func (m *nameMatcher) Eval(_ context.Context, tCtx *ottlmetric.TransformContext) (bool, error) {
 	return m.nameFilters.Matches(tCtx.GetMetric().Name()), nil
 }

@@ -82,7 +82,7 @@ func newExporter(cfg component.Config, set exporter.Settings) (*baseExporter, er
 // start actually creates the HTTP client. The client construction is deferred till this point as this
 // is the only place we get hold of Extensions which are required to construct auth round tripper.
 func (e *baseExporter) start(ctx context.Context, host component.Host) error {
-	client, err := e.config.ClientConfig.ToClient(ctx, host, e.settings)
+	client, err := e.config.ClientConfig.ToClient(ctx, host.GetExtensions(), e.settings)
 	if err != nil {
 		return err
 	}
@@ -173,9 +173,9 @@ func (e *baseExporter) pushProfiles(ctx context.Context, td pprofile.Profiles) e
 	return e.export(ctx, e.profilesURL, request, e.profilesPartialSuccessHandler)
 }
 
-func (e *baseExporter) export(ctx context.Context, url string, request []byte, partialSuccessHandler partialSuccessHandler) error {
-	e.logger.Debug("Preparing to make HTTP request", zap.String("url", url))
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(request))
+func (e *baseExporter) export(ctx context.Context, requestURL string, request []byte, partialSuccessHandler partialSuccessHandler) error {
+	e.logger.Debug("Preparing to make HTTP request", zap.String("url", requestURL))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, requestURL, bytes.NewReader(request))
 	if err != nil {
 		return consumererror.NewPermanent(err)
 	}
@@ -193,6 +193,10 @@ func (e *baseExporter) export(ctx context.Context, url string, request []byte, p
 
 	resp, err := e.client.Do(req)
 	if err != nil {
+		var urlErr *url.Error
+		if errors.As(err, &urlErr) {
+			urlErr.URL = req.URL.String()
+		}
 		return fmt.Errorf("failed to make an HTTP request: %w", err)
 	}
 
@@ -214,11 +218,11 @@ func (e *baseExporter) export(ctx context.Context, url string, request []byte, p
 	if respStatus != nil {
 		errString = fmt.Sprintf(
 			"error exporting items, request to %s responded with HTTP Status Code %d, Message=%s, Details=%v",
-			url, resp.StatusCode, respStatus.Message, respStatus.Details)
+			requestURL, resp.StatusCode, respStatus.Message, respStatus.Details)
 	} else {
 		errString = fmt.Sprintf(
 			"error exporting items, request to %s responded with HTTP Status Code %d",
-			url, resp.StatusCode)
+			requestURL, resp.StatusCode)
 	}
 	formattedErr = statusutil.NewStatusFromMsgAndHTTPCode(errString, resp.StatusCode).Err()
 

@@ -234,7 +234,7 @@ func (a *argument) accept(v grammarVisitor) {
 // value represents a part of a parsed statement which is resolved to a value of some sort. This can be a telemetry path
 // mathExpression, function call, or literal.
 type value struct {
-	IsNil          *isNil           `parser:"( @'nil'"`
+	IsNil          *isNil           `parser:"( @Nil"`
 	Literal        *mathExprLiteral `parser:"| @@ (?! OpAddSub | OpMultDiv)"`
 	MathExpression *mathExpression  `parser:"| @@"`
 	Bytes          *byteSlice       `parser:"| @Bytes"`
@@ -384,6 +384,7 @@ func (m *mathExprLiteral) accept(v grammarVisitor) {
 }
 
 type mathValue struct {
+	UnaryOp       *mathOp          `parser:"@OpAddSub?"`
 	Literal       *mathExprLiteral `parser:"( @@"`
 	SubExpression *mathExpression  `parser:"| '(' @@ ')' )"`
 }
@@ -501,9 +502,10 @@ type enumSymbol string
 func buildLexer() *lexer.StatefulDefinition {
 	return lexer.MustSimple([]lexer.SimpleRule{
 		{Name: `Bytes`, Pattern: `0x[a-fA-F0-9]+`},
-		{Name: `Float`, Pattern: `[-+]?\d*\.\d+([eE][-+]?\d+)?`},
-		{Name: `Int`, Pattern: `[-+]?\d+`},
+		{Name: `Float`, Pattern: `(\d+\.\d*|\d*\.\d+)([eE][-+]?\d+)?`},
+		{Name: `Int`, Pattern: `\d+`},
 		{Name: `String`, Pattern: `"(\\.|[^\\"])*"`},
+		{Name: `Nil`, Pattern: `\b(nil)\b`},
 		{Name: `OpNot`, Pattern: `\b(not)\b`},
 		{Name: `OpOr`, Pattern: `\b(or)\b`},
 		{Name: `OpAnd`, Pattern: `\b(and)\b`},

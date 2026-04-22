@@ -1,0 +1,58 @@
+$defs:
+  protocol_udp:
+    description: ProtocolUDP is the configuration for a UDP protocol.
+    type: object
+    properties:
+      endpoint:
+        type: string
+    allOf:
+      - $ref: server_config_udp
+  protocols:
+    description: Protocols is the configuration for the supported protocols.
+    type: object
+    properties:
+      grpc:
+        x-optional: true
+        $ref: go.opentelemetry.io/collector/config/configgrpc.server_config
+      thrift_binary:
+        x-optional: true
+        $ref: protocol_udp
+      thrift_compact:
+        x-optional: true
+        $ref: protocol_udp
+      thrift_http:
+        x-optional: true
+        $ref: go.opentelemetry.io/collector/config/confighttp.server_config
+  remote_sampling_config:
+    description: RemoteSamplingConfig defines config key for remote sampling fetch endpoint
+    type: object
+    properties:
+      host_endpoint:
+        type: string
+      strategy_file:
+        type: string
+      strategy_file_reload_interval:
+        type: string
+        format: duration
+    allOf:
+      - $ref: go.opentelemetry.io/collector/config/configgrpc.client_config
+  server_config_udp:
+    description: ServerConfigUDP is the server configuration for a UDP protocol.
+    type: object
+    properties:
+      max_packet_size:
+        type: integer
+      queue_size:
+        type: integer
+      socket_buffer_size:
+        type: integer
+      workers:
+        type: integer
+description: Config defines configuration for Jaeger receiver.
+type: object
+properties:
+  remote_sampling:
+    x-pointer: true
+    $ref: remote_sampling_config
+allOf:
+  - $ref: protocols

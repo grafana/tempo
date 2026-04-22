@@ -18,6 +18,7 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"github.com/prometheus/otlptranslator"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc"
@@ -31,6 +32,8 @@ import (
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 	"go.opentelemetry.io/otel/sdk/resource"
 	"google.golang.org/grpc/credentials"
+
+	"go.opentelemetry.io/contrib/otelconf/internal/tls"
 )
 
 var zeroScope instrumentation.Scope
@@ -146,6 +149,12 @@ func otlpHTTPMetricExporter(ctx context.Context, otlpConfig *OTLPMetric) (sdkmet
 
 		if u.Scheme == "http" {
 			opts = append(opts, otlpmetrichttp.WithInsecure())
+		} else {
+			tlsConfig, err := tls.CreateConfig(otlpConfig.Certificate, otlpConfig.ClientCertificate, otlpConfig.ClientKey)
+			if err != nil {
+				return nil, err
+			}
+			opts = append(opts, otlpmetrichttp.WithTLSClientConfig(tlsConfig))
 		}
 		if u.Path != "" {
 			opts = append(opts, otlpmetrichttp.WithURLPath(u.Path))
@@ -183,12 +192,6 @@ func otlpHTTPMetricExporter(ctx context.Context, otlpConfig *OTLPMetric) (sdkmet
 			return nil, fmt.Errorf("unsupported temporality preference %q", *otlpConfig.TemporalityPreference)
 		}
 	}
-
-	tlsConfig, err := createTLSConfig(otlpConfig.Certificate, otlpConfig.ClientCertificate, otlpConfig.ClientKey)
-	if err != nil {
-		return nil, err
-	}
-	opts = append(opts, otlpmetrichttp.WithTLSClientConfig(tlsConfig))
 
 	return otlpmetrichttp.New(ctx, opts...)
 }
@@ -250,7 +253,7 @@ func otlpGRPCMetricExporter(ctx context.Context, otlpConfig *OTLPMetric) (sdkmet
 	}
 
 	if otlpConfig.Certificate != nil || otlpConfig.ClientCertificate != nil || otlpConfig.ClientKey != nil {
-		tlsConfig, err := createTLSConfig(otlpConfig.Certificate, otlpConfig.ClientCertificate, otlpConfig.ClientKey)
+		tlsConfig, err := tls.CreateConfig(otlpConfig.Certificate, otlpConfig.ClientCertificate, otlpConfig.ClientKey)
 		if err != nil {
 			return nil, err
 		}
@@ -382,12 +385,13 @@ func prometheusReaderOpts(prometheusConfig *Prometheus) ([]otelprom.Option, erro
 	if prometheusConfig.WithoutScopeInfo != nil && *prometheusConfig.WithoutScopeInfo {
 		opts = append(opts, otelprom.WithoutScopeInfo())
 	}
-	if prometheusConfig.WithoutTypeSuffix != nil && *prometheusConfig.WithoutTypeSuffix {
-		opts = append(opts, otelprom.WithoutCounterSuffixes()) //nolint:staticcheck // WithouTypeSuffix is deprecated, but we still need it for backwards compatibility.
+
+	if prometheusConfig.WithoutTypeSuffix != nil && *prometheusConfig.WithoutTypeSuffix && prometheusConfig.WithoutUnits != nil && *prometheusConfig.WithoutUnits {
+		opts = append(opts, otelprom.WithTranslationStrategy(otlptranslator.UnderscoreEscapingWithoutSuffixes))
+	} else {
+		opts = append(opts, otelprom.WithTranslationStrategy(otlptranslator.NoUTF8EscapingWithSuffixes))
 	}
-	if prometheusConfig.WithoutUnits != nil && *prometheusConfig.WithoutUnits {
-		opts = append(opts, otelprom.WithoutUnits()) //nolint:staticcheck // WithouTypeSuffix is deprecated, but we still need it for backwards compatibility.
-	}
+
 	if prometheusConfig.WithResourceConstantLabels != nil {
 		f, err := newIncludeExcludeFilter(prometheusConfig.WithResourceConstantLabels)
 		if err != nil {

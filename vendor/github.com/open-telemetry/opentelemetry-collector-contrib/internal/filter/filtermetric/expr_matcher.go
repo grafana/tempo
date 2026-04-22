@@ -26,7 +26,7 @@ func newExprMatcher(expressions []string) (*exprMatcher, error) {
 	return m, nil
 }
 
-func (m *exprMatcher) Eval(_ context.Context, tCtx ottlmetric.TransformContext) (bool, error) {
+func (m *exprMatcher) Eval(_ context.Context, tCtx *ottlmetric.TransformContext) (bool, error) {
 	for _, matcher := range m.matchers {
 		matched, err := matcher.MatchMetric(tCtx.GetMetric())
 		if err != nil {

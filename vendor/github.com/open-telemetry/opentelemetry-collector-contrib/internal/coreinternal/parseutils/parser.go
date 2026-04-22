@@ -16,30 +16,30 @@ import (
 // Requires `delimiter` not be an empty string
 func SplitString(input, delimiter string) ([]string, error) {
 	var result []string
-	current := ""
+	var current strings.Builder
 	delimiterLength := len(delimiter)
-	quoteChar := "" // "" means we are not in quotes
+	var quoteChar byte // 0 means we are not in quotes
 	escaped := false
 
 	for i := 0; i < len(input); i++ {
-		if quoteChar == "" && i+delimiterLength <= len(input) && input[i:i+delimiterLength] == delimiter { // delimiter
-			if current == "" { // leading || trailing delimiter; ignore
+		if quoteChar == 0 && i+delimiterLength <= len(input) && input[i:i+delimiterLength] == delimiter { // delimiter
+			if current.Len() == 0 { // leading || trailing delimiter; ignore
 				i += delimiterLength - 1
 				continue
 			}
-			result = append(result, current)
-			current = ""
+			result = append(result, current.String())
+			current.Reset()
 			i += delimiterLength - 1
 			continue
 		}
 
 		if !escaped { // consider quote termination so long as previous character wasn't backslash
-			if quoteChar == "" && (input[i] == '"' || input[i] == '\'') { // start of quote
-				quoteChar = string(input[i])
+			if quoteChar == 0 && (input[i] == '"' || input[i] == '\'') { // start of quote
+				quoteChar = input[i]
 				continue
 			}
-			if string(input[i]) == quoteChar { // end of quote
-				quoteChar = ""
+			if input[i] == quoteChar { // end of quote
+				quoteChar = 0
 				continue
 			}
 			// Only if we weren't escaped could the next character result in escaped state
@@ -48,14 +48,14 @@ func SplitString(input, delimiter string) ([]string, error) {
 			escaped = false
 		}
 
-		current += string(input[i])
+		current.WriteByte(input[i])
 	}
 
-	if quoteChar != "" { // check for closed quotes
+	if quoteChar != 0 { // check for closed quotes
 		return nil, errors.New("never reached the end of a quoted value")
 	}
-	if current != "" { // avoid adding empty value bc of a trailing delimiter
-		return append(result, current), nil
+	if current.Len() > 0 { // avoid adding empty value bc of a trailing delimiter
+		return append(result, current.String()), nil
 	}
 
 	return result, nil

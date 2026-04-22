@@ -9,7 +9,7 @@ import (
 
 	"go.opentelemetry.io/collector/featuregate"
 	"go.opentelemetry.io/collector/pdata/pcommon"
-	conventions "go.opentelemetry.io/otel/semconv/v1.27.0"
+	conventions "go.opentelemetry.io/otel/semconv/v1.38.0"
 
 	"github.com/open-telemetry/opentelemetry-collector-contrib/internal/coreinternal/traceutil"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/internal/filter/expr"
@@ -30,11 +30,11 @@ var useOTTLBridge = featuregate.GlobalRegistry().MustRegister(
 // NewSkipExpr creates a BoolExpr that on evaluation returns true if a span should NOT be processed or kept.
 // The logic determining if a span should be processed is based on include and exclude settings.
 // Include properties are checked before exclude settings are checked.
-func NewSkipExpr(mp *filterconfig.MatchConfig) (expr.BoolExpr[ottlspan.TransformContext], error) {
+func NewSkipExpr(mp *filterconfig.MatchConfig) (expr.BoolExpr[*ottlspan.TransformContext], error) {
 	if useOTTLBridge.IsEnabled() {
 		return filterottl.NewSpanSkipExprBridge(mp)
 	}
-	var matchers []expr.BoolExpr[ottlspan.TransformContext]
+	var matchers []expr.BoolExpr[*ottlspan.TransformContext]
 	inclExpr, err := newExpr(mp.Include)
 	if err != nil {
 		return nil, err
@@ -67,7 +67,7 @@ type propertiesMatcher struct {
 }
 
 // newExpr creates a BoolExpr that matches based on the given MatchProperties.
-func newExpr(mp *filterconfig.MatchProperties) (expr.BoolExpr[ottlspan.TransformContext], error) {
+func newExpr(mp *filterconfig.MatchProperties) (expr.BoolExpr[*ottlspan.TransformContext], error) {
 	if mp == nil {
 		return nil, nil
 	}
@@ -115,7 +115,7 @@ func newExpr(mp *filterconfig.MatchProperties) (expr.BoolExpr[ottlspan.Transform
 
 // Eval matches a span and service to a set of properties.
 // see filterconfig.MatchProperties for more details
-func (mp *propertiesMatcher) Eval(_ context.Context, tCtx ottlspan.TransformContext) (bool, error) {
+func (mp *propertiesMatcher) Eval(_ context.Context, tCtx *ottlspan.TransformContext) (bool, error) {
 	// If a set of properties was not in the mp, all spans are considered to match on that property
 	if mp.serviceFilters != nil {
 		// Check resource and spans for service.name

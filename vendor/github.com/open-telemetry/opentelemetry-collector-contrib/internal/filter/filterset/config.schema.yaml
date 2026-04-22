@@ -1,0 +1,13 @@
+$defs:
+  config:
+    description: Config configures the matching behavior of a FilterSet.
+    type: object
+    properties:
+      match_type:
+        $ref: match_type
+      regexp:
+        x-pointer: true
+        $ref: ./regexp.config
+  match_type:
+    description: MatchType describes the type of pattern matching a FilterSet uses to filter strings.
+    type: string

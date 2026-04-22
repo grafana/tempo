@@ -103,7 +103,7 @@ func (e *ErrUnsupportedLocale) Error() string {
 // the default CLDR gregorian calendars data of the specified language.
 // If the language is unknown and no default data is found, it returns ErrUnsupportedLocale.
 func NewDefaultLocale(lang string) (Locale, error) {
-	table, ok := tables[lang]
+	table, ok := getTable(lang)
 	if !ok {
 		return nil, &ErrUnsupportedLocale{lang}
 	}

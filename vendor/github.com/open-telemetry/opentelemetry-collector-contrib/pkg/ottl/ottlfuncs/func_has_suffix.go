@@ -13,7 +13,7 @@ import (
 
 type HasSuffixArguments[K any] struct {
 	Target ottl.StringGetter[K]
-	Suffix string
+	Suffix ottl.StringGetter[K]
 }
 
 func NewHasSuffixFactory[K any]() ottl.Factory[K] {
@@ -27,15 +27,19 @@ func createHasSuffixFunction[K any](_ ottl.FunctionContext, oArgs ottl.Arguments
 		return nil, errors.New("HasSuffixFactory args must be of type *HasSuffixArguments[K]")
 	}
 
-	return HasSuffix(args.Target, args.Suffix)
+	return HasSuffix(args.Target, args.Suffix), nil
 }
 
-func HasSuffix[K any](target ottl.StringGetter[K], suffix string) (ottl.ExprFunc[K], error) {
+func HasSuffix[K any](target, suffix ottl.StringGetter[K]) ottl.ExprFunc[K] {
 	return func(ctx context.Context, tCtx K) (any, error) {
 		val, err := target.Get(ctx, tCtx)
 		if err != nil {
 			return nil, err
 		}
-		return strings.HasSuffix(val, suffix), nil
-	}, nil
+		suffixVal, err := suffix.Get(ctx, tCtx)
+		if err != nil {
+			return nil, err
+		}
+		return strings.HasSuffix(val, suffixVal), nil
+	}
 }

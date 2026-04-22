@@ -8,14 +8,14 @@ type Os struct {
 	PatchMinor string `yaml:"patch_minor"`
 }
 
-func (parser *osParser) Match(line string, os *Os) {
-	matches := parser.Reg.FindStringSubmatchIndex(line)
+func (osp *osParser) Match(line string, os *Os) {
+	matches := osp.Reg.FindStringSubmatchIndex(line)
 	if len(matches) > 0 {
-		os.Family = string(parser.Reg.ExpandString(nil, parser.OSReplacement, line, matches))
-		os.Major = string(parser.Reg.ExpandString(nil, parser.V1Replacement, line, matches))
-		os.Minor = string(parser.Reg.ExpandString(nil, parser.V2Replacement, line, matches))
-		os.Patch = string(parser.Reg.ExpandString(nil, parser.V3Replacement, line, matches))
-		os.PatchMinor = string(parser.Reg.ExpandString(nil, parser.V4Replacement, line, matches))
+		os.Family = string(osp.Reg.ExpandString(nil, osp.OSReplacement, line, matches))
+		os.Major = string(osp.Reg.ExpandString(nil, osp.V1Replacement, line, matches))
+		os.Minor = string(osp.Reg.ExpandString(nil, osp.V2Replacement, line, matches))
+		os.Patch = string(osp.Reg.ExpandString(nil, osp.V3Replacement, line, matches))
+		os.PatchMinor = string(osp.Reg.ExpandString(nil, osp.V4Replacement, line, matches))
 	}
 }
 

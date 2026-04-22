@@ -59,6 +59,32 @@ func (h AuthHandle) KnownName() *TPM2BName {
 	return h.Handle.KnownName()
 }
 
+// invalidHandleValue is the sentinel value used for handles that have been
+// reconstructed from unmarshalling.
+// This value is intentionally invalid to prevent accidental use with a real TPM.
+const invalidHandleValue TPMHandle = 0xFFFFFFFF
+
+// UnmarshalledHandle represents a handle reconstructed from unmarshalling.
+// This type is used for audit and inspection purposes where only the Name is
+// available, not the actual TPM handle value.
+//
+// The HandleValue() method returns [invalidHandleValue] to prevent accidental
+// use of these handles with a real TPM.
+type UnmarshalledHandle struct {
+	Name TPM2BName
+}
+
+// HandleValue implements the handle interface.
+// Returns invalidHandleValue since unmarshalled handles don't have real TPM handle values.
+func (h UnmarshalledHandle) HandleValue() uint32 {
+	return uint32(invalidHandleValue)
+}
+
+// KnownName implements the handle interface.
+func (h UnmarshalledHandle) KnownName() *TPM2BName {
+	return &h.Name
+}
+
 // Command is an interface for any TPM command, parameterized by its response
 // type.
 type Command[R any, PR *R] interface {
@@ -277,7 +303,7 @@ type LoadExternalResponse struct {
 // See definition in Part 3, Commands, section 12.4
 type ReadPublic struct {
 	// TPM handle of an object
-	ObjectHandle TPMIDHObject `gotpm:"handle"`
+	ObjectHandle handle `gotpm:"handle"`
 }
 
 // Command implements the Command interface.

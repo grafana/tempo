@@ -82,6 +82,8 @@ func Put(buf []byte) {
 		blockPool4M.Put((*[Block4Mb]byte)(buf[:c]))
 	case Block8Mb:
 		blockPool8M.Put((*[Block8Mb]byte)(buf[:c]))
+	case 0:
+		// Allow "returning" an empty buffer.
 	default:
 		panic(fmt.Errorf("invalid block size %d", c))
 	}
