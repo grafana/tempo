@@ -14,6 +14,7 @@ import (
 	"github.com/prometheus/prometheus/model/exemplar"
 	promhistogram "github.com/prometheus/prometheus/model/histogram"
 	"github.com/prometheus/prometheus/model/labels"
+	"github.com/prometheus/prometheus/model/value"
 	"github.com/prometheus/prometheus/storage"
 
 	tempo_util "github.com/grafana/tempo/pkg/util"
@@ -321,6 +322,20 @@ func (h *nativeHistogram) removeStaleSeries(appender storage.Appender, timeMs, s
 		}
 
 		if s.lastUpdated < staleTimeMs {
+			if appender != nil {
+				_, err := appender.Append(0, s.countLabels, timeMs, math.Float64frombits(value.StaleNaN))
+				if err != nil {
+					// handle
+				}
+				_, err = appender.Append(0, s.sumLabels, timeMs, math.Float64frombits(value.StaleNaN))
+				if err != nil {
+					// handle
+				}
+				_, err = appender.Append(0, s.labels, timeMs, math.Float64frombits(value.StaleNaN))
+				if err != nil {
+					// handle
+				}
+			}
 			delete(h.series, hash)
 			h.lifecycler.OnDelete(hash, h.activeSeriesPerHistogramSerie())
 		}
