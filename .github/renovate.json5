@@ -66,7 +66,7 @@
       enabled: false,
     },
     {
-      description: 'Allow Go and CI tools image updates on release branches to keep lint working',
+      description: 'Allow Go and CI tools image updates on release branches to be up2date on CVE',
       matchBaseBranches: [
         '/^release-v.*/',
       ],
