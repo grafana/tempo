@@ -66,6 +66,14 @@
       enabled: false,
     },
     {
+      description: 'Allow Go and CI tools image updates on release branches to keep lint working',
+      matchBaseBranches: [
+        '/^release-v.*/',
+      ],
+      matchDepNames: ['go', 'golang', 'grafana/tempo-ci-tools'],
+      enabled: true,
+    },
+    {
       description: 'Group OpenTelemetry OTEL updates',
       matchManagers: [
         'gomod',
