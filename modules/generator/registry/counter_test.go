@@ -146,7 +146,7 @@ func Test_counter_removeStaleSeries(t *testing.T) {
 	c.Inc(buildTestLabels([]string{"label"}, []string{"value-1"}), 1.0)
 	c.Inc(buildTestLabels([]string{"label"}, []string{"value-2"}), 2.0)
 
-	c.removeStaleSeries(timeMs)
+	c.removeStaleSeries(nil, 0, timeMs)
 
 	assert.Equal(t, 0, removedSeries)
 
@@ -166,7 +166,7 @@ func Test_counter_removeStaleSeries(t *testing.T) {
 	// update value-2 series
 	c.Inc(buildTestLabels([]string{"label"}, []string{"value-2"}), 2.0)
 
-	c.removeStaleSeries(timeMs)
+	c.removeStaleSeries(nil, 0, timeMs)
 
 	assert.Equal(t, 1, removedSeries)
 
@@ -233,7 +233,7 @@ func Test_counter_concurrencyDataRace(t *testing.T) {
 	})
 
 	go accessor(func() {
-		c.removeStaleSeries(time.Now().UnixMilli())
+		c.removeStaleSeries(nil, 0, time.Now().UnixMilli())
 	})
 
 	time.Sleep(200 * time.Millisecond)
@@ -374,7 +374,7 @@ func Test_counter_demandDecay(t *testing.T) {
 
 	// Advance the cardinality tracker enough times to clear the window
 	for i := 0; i < 5; i++ {
-		c.removeStaleSeries(time.Now().UnixMilli())
+		c.removeStaleSeries(nil, 0, time.Now().UnixMilli())
 	}
 
 	// Demand should have decreased or be zero
