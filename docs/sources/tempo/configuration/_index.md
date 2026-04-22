@@ -1045,8 +1045,8 @@ querier:
         [preferred_zone: <string> | default = ""]
 ```
 
-The querier also queries compacted blocks that fall within the (2 \* BlocklistPoll) range where the value of blocklist poll duration
-is defined in the storage section below.
+The querier also queries compacted blocks that fall within a range of `2 * storage.trace.blocklist_poll`, where
+`storage.trace.blocklist_poll` is the blocklist poll duration configured in the storage section below.
 
 ## Backend scheduler
 
