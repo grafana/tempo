@@ -5,7 +5,7 @@ services:
     restart: always
     volumes:
       - ./tempo.yaml:/etc/tempo.yaml
-      - ./tempo-data:/var/tempo
+      - tempo-data:/var/tempo
     ports:
       - "3200:3200" # tempo
       - "4317:4317" # Tempo OTLP GRPC
@@ -76,3 +76,6 @@ services:
       ]
     depends_on:
       - tempo
+
+volumes:
+  tempo-data:
