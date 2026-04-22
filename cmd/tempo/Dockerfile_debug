@@ -1,4 +1,4 @@
-FROM golang:alpine@sha256:ac09a5f469f307e5da71e766b0bd59c9c49ea460a528cc3e6686513d64a6f1fb AS build-dlv
+FROM golang:alpine@sha256:f85330846cde1e57ca9ec309382da3b8e6ae3ab943d2739500e08c86393a21b1 AS build-dlv
 
 RUN go install github.com/go-delve/delve/cmd/dlv@latest
 
