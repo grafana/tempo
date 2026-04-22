@@ -10,7 +10,7 @@ import (
 	"time"
 	"unsafe"
 
-	"github.com/go-redis/redis/v8"
+	"github.com/redis/go-redis/v9"
 
 	"github.com/grafana/dskit/flagext"
 )
@@ -55,6 +55,7 @@ type RedisClient struct {
 	expiration time.Duration
 	timeout    time.Duration
 	rdb        redis.UniversalClient
+	isCluster  bool
 }
 
 // NewRedisClient creates Redis client
@@ -68,16 +69,19 @@ func NewRedisClient(cfg *RedisConfig) *RedisClient {
 		SentinelPassword: cfg.SentinelPassword.String(),
 		DB:               cfg.DB,
 		PoolSize:         cfg.PoolSize,
-		IdleTimeout:      cfg.IdleTimeout,
-		MaxConnAge:       cfg.MaxConnAge,
+		ConnMaxIdleTime:  cfg.IdleTimeout,
+		ConnMaxLifetime:  cfg.MaxConnAge,
 	}
 	if cfg.EnableTLS {
 		opt.TLSConfig = &tls.Config{InsecureSkipVerify: cfg.InsecureSkipVerify}
 	}
+	rdb := redis.NewUniversalClient(opt)
+	_, isCluster := rdb.(*redis.ClusterClient)
 	return &RedisClient{
 		expiration: cfg.Expiration,
 		timeout:    cfg.Timeout,
-		rdb:        redis.NewUniversalClient(opt),
+		rdb:        rdb,
+		isCluster:  isCluster,
 	}
 }
 
@@ -109,7 +113,14 @@ func (c *RedisClient) MSet(ctx context.Context, keys []string, values [][]byte) 
 		return fmt.Errorf("MSet the length of keys and values not equal, len(keys)=%d, len(values)=%d", len(keys), len(values))
 	}
 
-	pipe := c.rdb.TxPipeline()
+	// In cluster mode, cross-slot transactions are not supported. Use a non-transactional
+	// pipeline to allow keys on different slots, consistent with how MGet handles clusters.
+	var pipe redis.Pipeliner
+	if c.isCluster {
+		pipe = c.rdb.Pipeline()
+	} else {
+		pipe = c.rdb.TxPipeline()
+	}
 	for i := range keys {
 		pipe.Set(ctx, keys[i], values[i], c.expiration)
 	}
@@ -129,9 +140,7 @@ func (c *RedisClient) MGet(ctx context.Context, keys []string) ([][]byte, error)
 	// redis.UniversalClient can take redis.Client and redis.ClusterClient.
 	// if redis.Client is set, then Single node or sentinel configuration. mget is always supported.
 	// if redis.ClusterClient is set, then Redis Cluster configuration. mget may not be supported.
-	_, isCluster := c.rdb.(*redis.ClusterClient)
-
-	if isCluster {
+	if c.isCluster {
 		for i, key := range keys {
 			cmd := c.rdb.Get(ctx, key)
 			err := cmd.Err()
