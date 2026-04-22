@@ -1,8 +1,8 @@
 package backendworker
 
 import (
+	"flag"
 	"testing"
-	"time"
 
 	"github.com/grafana/tempo/tempodb"
 	"github.com/stretchr/testify/require"
@@ -11,9 +11,7 @@ import (
 func TestValidateConfig(t *testing.T) {
 	validBase := func() Config {
 		cfg := Config{}
-		cfg.Backoff.MinBackoff = time.Millisecond
-		cfg.Backoff.MaxBackoff = time.Second
-		cfg.Compactor.MaxCompactionRange = time.Hour
+		cfg.RegisterFlagsAndApplyDefaults("backend-worker", flag.NewFlagSet("test", flag.ContinueOnError))
 		cfg.BackendSchedulerAddr = "localhost:1234"
 		return cfg
 	}

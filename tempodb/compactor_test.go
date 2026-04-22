@@ -4,16 +4,21 @@ import (
 	"bytes"
 	"context"
 	"encoding/binary"
+	"fmt"
 	"math/rand"
 	"path"
 	"testing"
 	"time"
 
 	"github.com/go-kit/log"
+	"github.com/golang/protobuf/proto" //nolint:all
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
 	"github.com/grafana/tempo/pkg/model"
+	modeltrace "github.com/grafana/tempo/pkg/model/trace"
 	v1 "github.com/grafana/tempo/pkg/model/v1"
+	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/util/test"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/backend/local"
@@ -261,6 +266,172 @@ func makeTraceID(i int, j int) []byte {
 	binary.LittleEndian.PutUint64(id, uint64(i))
 	binary.LittleEndian.PutUint64(id[8:], uint64(j))
 	return id
+}
+
+func TestCompactionRoundtrip(t *testing.T) {
+	for _, enc := range encoding.AllEncodingsForWrites() {
+		version := enc.Version()
+		t.Run(version, func(t *testing.T) {
+			t.Parallel()
+			testCompactionRoundtrip(t, version)
+		})
+	}
+}
+
+func testCompactionRoundtrip(t *testing.T, targetBlockVersion string) {
+	tempDir := t.TempDir()
+
+	r, w, c, err := New(&Config{
+		Backend: backend.Local,
+		Pool: &pool.Config{
+			MaxWorkers: 10,
+			QueueDepth: 100,
+		},
+		Local: &local.Config{
+			Path: path.Join(tempDir, "traces"),
+		},
+		Block: &common.BlockConfig{
+			BloomFP:             .01,
+			BloomShardSizeBytes: 100_000,
+			Version:             targetBlockVersion,
+			RowGroupSizeBytes:   30_000_000,
+			DedicatedColumns:    backend.DedicatedColumns{{Scope: "span", Name: "key", Type: "string"}},
+		},
+		WAL: &wal.Config{
+			Filepath: path.Join(tempDir, "wal"),
+		},
+		BlocklistPoll: 0,
+	}, nil, log.NewNopLogger())
+	require.NoError(t, err)
+
+	ctx := context.Background()
+	r.EnablePolling(ctx, &mockJobSharder{}, false)
+
+	dec := model.MustNewSegmentDecoder(model.CurrentEncoding)
+
+	blockCount := 4
+	recordCount := 50
+
+	allReqs := make([]*tempopb.Trace, 0, blockCount*recordCount)
+	allIDs := make([]common.ID, 0, blockCount*recordCount)
+
+	for i := 0; i < blockCount; i++ {
+		blockID := backend.NewUUID()
+		meta := &backend.BlockMeta{BlockID: blockID, TenantID: testTenantID}
+		head, err := w.WAL().NewBlock(meta, model.CurrentEncoding)
+		require.NoError(t, err)
+
+		for j := 0; j < recordCount; j++ {
+			id := test.ValidTraceID(nil)
+			req := test.MakeTrace(10, id)
+			now := uint32(time.Now().Unix())
+			writeTraceToWal(t, head, dec, id, req, now, now)
+			allReqs = append(allReqs, req)
+			allIDs = append(allIDs, id)
+		}
+
+		_, err = w.CompleteBlock(ctx, head)
+		require.NoError(t, err)
+	}
+
+	rw := r.(*readerWriter)
+	checkBlocklists(ctx, t, uuid.Nil, blockCount, 0, rw)
+
+	metas := rw.blocklist.Metas(testTenantID)
+	cfg := &CompactorConfig{
+		MaxCompactionRange:   24 * time.Hour,
+		MaxCompactionObjects: 1000,
+		MaxBlockBytes:        100_000_000,
+	}
+
+	_, err = c.CompactWithConfig(ctx, metas, testTenantID, cfg, &mockSharder{}, &mockOverrides{})
+	require.NoError(t, err)
+
+	checkBlocklists(ctx, t, uuid.Nil, 1, blockCount, rw)
+
+	// verify total object count is preserved
+	var totalObjects int64
+	for _, m := range rw.blocklist.Metas(testTenantID) {
+		totalObjects += m.TotalObjects
+	}
+	require.Equal(t, int64(blockCount*recordCount), totalObjects)
+
+	// verify all traces are findable with correct content
+	for i, id := range allIDs {
+		t.Run(fmt.Sprintf("trace-%d", i), func(t *testing.T) {
+			trs, failedBlocks, err := r.Find(ctx, testTenantID, id, BlockIDMin, BlockIDMax, 0, 0, common.DefaultSearchOptions())
+			require.NoError(t, err)
+			require.Nil(t, failedBlocks)
+			require.NotEmpty(t, trs)
+
+			combiner := modeltrace.NewCombiner(0, false)
+			for _, tr := range trs {
+				require.NotNil(t, tr.Trace)
+				_, err = combiner.Consume(tr.Trace)
+				require.NoError(t, err)
+			}
+			result, _ := combiner.Result()
+
+			modeltrace.SortTrace(allReqs[i])
+			modeltrace.SortTrace(result)
+			require.True(t, proto.Equal(allReqs[i], result))
+		})
+	}
+}
+
+func BenchmarkCompaction(b *testing.B) {
+	for _, enc := range encoding.AllEncodingsForWrites() {
+		b.Run(enc.Version(), func(b *testing.B) {
+			benchmarkCompaction(b, enc.Version())
+		})
+	}
+}
+
+func benchmarkCompaction(b *testing.B, targetBlockVersion string) {
+	tempDir := b.TempDir()
+
+	_, w, c, err := New(&Config{
+		Backend: backend.Local,
+		Pool: &pool.Config{
+			MaxWorkers: 10,
+			QueueDepth: 100,
+		},
+		Local: &local.Config{
+			Path: path.Join(tempDir, "traces"),
+		},
+		Block: &common.BlockConfig{
+			BloomFP:             .01,
+			BloomShardSizeBytes: 100_000,
+			Version:             targetBlockVersion,
+			RowGroupSizeBytes:   30_000_000,
+		},
+		WAL: &wal.Config{
+			Filepath: path.Join(tempDir, "wal"),
+		},
+		BlocklistPoll: 0,
+	}, nil, log.NewNopLogger())
+	require.NoError(b, err)
+
+	ctx := context.Background()
+
+	traceCount := 20_000
+	blockCount := 8
+
+	blocks := cutTestBlocks(b, w, testTenantID, blockCount, traceCount)
+	metas := make([]*backend.BlockMeta, 0, len(blocks))
+	for _, blk := range blocks {
+		metas = append(metas, blk.BlockMeta())
+	}
+
+	cfg := &CompactorConfig{
+		MaxCompactionRange:   24 * time.Hour,
+		MaxCompactionObjects: 1000,
+		MaxBlockBytes:        100_000_000,
+	}
+
+	b.ResetTimer()
+	_, err = c.CompactWithConfig(ctx, metas, testTenantID, cfg, &mockSharder{}, &mockOverrides{})
+	require.NoError(b, err)
 }
 
 func TestCompactWithConfigUnsupportedVersion(t *testing.T) {
