@@ -741,10 +741,10 @@ metrics_generator:
 
 ## Query-frontend
 
+The query frontend is responsible for sharding incoming requests for faster processing in parallel by the queriers.
+
 For more information on configuration options, refer to [this file](https://github.com/grafana/tempo/blob/main/modules/frontend/config.go).
 For architectural details, refer to the [Query frontend architecture](/docs/tempo/<TEMPO_VERSION>/reference-tempo-architecture/components/query-frontend/) documentation.
-
-The Query Frontend is responsible for sharding incoming requests for faster processing in parallel (by the queriers).
 
 ```yaml
 # Query Frontend configuration block
@@ -789,12 +789,18 @@ query_frontend:
     # (default: 0)
     [api_timeout: <duration>]
 
+    # Prevents querying incomplete recent data by excluding the most recent portion of the time range.
+    # Useful when live-store data may not yet be fully available for querying.
+    # 0 disables this cutoff.
+    # (default: 0)
+    [query_end_cutoff: <duration>]
+
     # A list of regular expressions for refusing matching requests, these will apply for every request regardless of the endpoint.
-    [url_deny_list: <list of strings> | default = <empty list>]]
+    [url_deny_list: <list of strings> | default = <empty list>]
 
     # Max allowed TraceQL expression size, in bytes. queries bigger then this size will be rejected.
     # (default: 128 KiB)
-    [max_query_expression_size_bytes: <int> | default = 131072]]
+    [max_query_expression_size_bytes: <int> | default = 131072]
 
     search:
 
@@ -927,6 +933,11 @@ query_frontend:
         # the results are returned to the user. More shards results in a more granular effect at the cost of additional bookkeeping.
         [streaming_shards: <int> | default = 200]
 
+    # MCP server configuration. Enabling the MCP server allows tracing data
+    # to be exposed to LLM-based tools. Requires explicit opt-in.
+    mcp_server:
+        [enabled: <bool> | default = false]
+
 ```
 
 ### Limit query size to improve performance and stability
@@ -964,10 +975,10 @@ query_frontend:
 
 ## Querier
 
+The querier executes query jobs dispatched by the query frontend. It fetches trace data from both live-stores (for recent data) and object storage (for historical data), then returns results to the query frontend for merging.
+
 For more information on configuration options, refer to [this file](https://github.com/grafana/tempo/blob/main/modules/querier/config.go).
 For architectural details, refer to the [Querier architecture](/docs/tempo/<TEMPO_VERSION>/reference-tempo-architecture/components/querier/) documentation.
-
-The Querier is responsible for querying the backends/cache for the traceID.
 
 ```yaml
 # querier config block
@@ -983,13 +994,11 @@ querier:
         # Timeout for trace lookup requests
         [query_timeout: <duration> | default = 10s]
 
-        # External trace source configuration. When enabled, trace-by-ID queries
-        # will also fetch trace data from an external HTTP endpoint that returns
-        # an opentelemetry protobuf formatted trace.
+        # External trace source configuration. When configured, trace-by-ID queries
+        # also fetch trace data from an external HTTP endpoint that returns
+        # an OpenTelemetry protobuf formatted trace. Enable this feature using
+        # query_frontend.trace_by_id.external_enabled.
         external:
-            # Enable querying an external endpoint for trace data.
-            [enabled: <bool> | default = false]
-
             # The URL of the external service.
             # Example: "http://external-service:3200"
             [endpoint: <string>]
@@ -1001,16 +1010,43 @@ querier:
         # Timeout for search requests
         [query_timeout: <duration> | default = 30s]
 
+    # Metrics query configuration
+    metrics:
+        # Number of blocks to process concurrently during a metrics query.
+        [concurrent_blocks: <int> | default = 2]
+
+        # Controls whether trace-level timestamp columns are used in a metrics query.
+        # Loading these columns has a cost, so in some cases it is faster to skip them,
+        # reducing I/O but increasing the number of spans evaluated and discarded.
+        # The value is a ratio between 0.0 and 1.0. If a block overlaps the time window
+        # by less than this value, the columns are skipped.
+        # 1.0 always loads columns; 0.0 never loads them.
+        [time_overlap_cutoff: <float> | default = 0.2]
+
     # config of the worker that connects to the query frontend
     frontend_worker:
 
         # the address of the query frontend to connect to, and process queries
         # Example: "frontend_address: query-frontend-discovery.default.svc.cluster.local:9095"
         [frontend_address: <string>]
+
+    # Partition ring configuration for distributing queries across live-stores.
+    partition_ring:
+        # When enabled, the querier minimizes the number of live-store requests
+        # by preferring a single zone per partition.
+        [minimize_requests: <bool> | default = true]
+
+        # Delay before sending a hedged request to another live-store
+        # when minimize_requests is enabled.
+        [hedging_delay: <duration> | default = 3s]
+
+        # Preferred availability zone for routing queries. If set, the querier
+        # routes to live-stores in this zone first.
+        [preferred_zone: <string> | default = ""]
 ```
 
-It also queries compacted blocks that fall within the (2 \* BlocklistPoll) range where the value of Blocklist poll duration
-is defined in the storage section below.
+The querier also queries compacted blocks that fall within a range of `2 * storage.trace.blocklist_poll`, where
+`storage.trace.blocklist_poll` is the blocklist poll duration configured in the storage section below.
 
 ## Backend scheduler
 
@@ -1588,7 +1624,7 @@ memberlist:
 
     # The timeout for establishing a connection with a remote node, and for
     # read/write operations.
-    [stream_timeout: <duration> | default = 10s]
+    [stream_timeout: <duration> | default = 2s]
 
     # Multiplication factor used when sending out messages (factor * log(N+1)).
     [retransmit_factor: <int> | default = 2]
@@ -1610,9 +1646,13 @@ memberlist:
     # which is disabled.
     [dead_node_reclaim_time: <duration> | default = 0s]
 
+    # Enable message compression. Reduces bandwidth usage at the cost of slightly
+    # more CPU utilization. Tempo disables this by default for performance.
+    [compression_enabled: <boolean> | default = false]
+
     # Other cluster members to join. Can be specified multiple times. It can be an
     # IP, hostname or an entry specified in the DNS Service Discovery format (see
-    # https://cortexmetrics.io/docs/configuration/arguments/#dns-service-discovery
+    # https://grafana.com/docs/mimir/latest/configure/about-dns-service-discovery/
     # for more details).
     # A "Headless" Cluster IP service in Kubernetes.
     # Example:
@@ -1629,7 +1669,7 @@ memberlist:
     [max_join_retries: <int> | default = 10]
 
     # If this node fails to join memberlist cluster, abort.
-    [abort_if_cluster_join_fails: <boolean> | default = true]
+    [abort_if_cluster_join_fails: <boolean> | default = false]
 
     # If not 0, how often to rejoin the cluster. Occasional rejoin can help to fix
     # the cluster split issue, and is harmless otherwise. For example when using
@@ -1640,7 +1680,7 @@ memberlist:
     [rejoin_interval: <duration> | default = 0s]
 
     # Timeout for leaving memberlist cluster.
-    [leave_timeout: <duration> | default = 5s]
+    [leave_timeout: <duration> | default = 20s]
 
     # IP address to listen on for gossip messages.
     # Multiple addresses may be specified.
@@ -1648,6 +1688,24 @@ memberlist:
 
     # Port to listen on for gossip messages.
     [bind_port: <int> | default = 7946]
+
+    # Gossip address to advertise to other members in the cluster.
+    # Used for NAT traversal.
+    [advertise_addr: <string> | default = ""]
+
+    # Gossip port to advertise to other members in the cluster.
+    # Used for NAT traversal.
+    [advertise_port: <int> | default = 0]
+
+    # Optional string to include in outbound packets and gossip streams.
+    # Other members discard any message whose label doesn't match, unless
+    # cluster_label_verification_disabled is true.
+    [cluster_label: <string> | default = ""]
+
+    # When true, memberlist doesn't verify that inbound packets and gossip
+    # streams have the cluster label matching the configured one.
+    # Disable verification while rolling out a cluster label change.
+    [cluster_label_verification_disabled: <boolean> | default = false]
 
     # Timeout used when connecting to other nodes to send packet.
     [packet_dial_timeout: <duration> | default = 5s]
