@@ -231,7 +231,9 @@ func TestPartitionHandoff_LeaveGroupTriggersImmediateReassignment(t *testing.T) 
 		addr := fake.ListenAddrs()[0]
 
 		client1, gen1Assigned := newConsumer(t, addr, "gen-1")
+		t.Cleanup(client1.Close)
 		ctx1, cancel1 := context.WithCancel(context.Background())
+		t.Cleanup(cancel1)
 		go poll(ctx1, client1)
 
 		// Wait for gen-1 to own partition 0.
@@ -273,7 +275,9 @@ func TestPartitionHandoff_LeaveGroupTriggersImmediateReassignment(t *testing.T) 
 		addr := fake.ListenAddrs()[0]
 
 		client1, gen1Assigned := newConsumer(t, addr, "gen-1")
+		t.Cleanup(client1.Close)
 		ctx1, cancel1 := context.WithCancel(context.Background())
+		t.Cleanup(cancel1)
 		go poll(ctx1, client1)
 
 		select {

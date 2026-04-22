@@ -65,8 +65,8 @@
 * [ENHANCEMENT] Livestore: skipped WAL complete op during shutdown [#6839](https://github.com/grafana/tempo/pull/6839) (@zhxiaogg)
 * [ENHANCEMENT] Add metric to track livestore block cut reasons [#6922](https://github.com/grafana/tempo/pull/6922) (@zhxiaogg)
 * [ENHANCEMENT] Enable async parquet read mode for WAL completion path [#6967](https://github.com/grafana/tempo/pull/6967) (@zhxiaogg)
-* [BUGFIX] livestore: check readiness before lag for SearchRecent and QueryRange queries [#6911](https://github.com/grafana/tempo/pull/6911) (@zhxiaogg)
 * [ENHANCEMENT] metrics-generator: add `leave_consumer_group_on_shutdown` to send LeaveGroup on shutdown for immediate partition reassignment instead of waiting for session timeout [#6575](https://github.com/grafana/tempo/pull/6575) (@zalegrala)
+* [BUGFIX] livestore: check readiness before lag for SearchRecent and QueryRange queries [#6911](https://github.com/grafana/tempo/pull/6911) (@zhxiaogg)
 * [BUGFIX] Fix integer overflow in query parameters by using `strconv.ParseUint` instead of `strconv.Atoi`/`strconv.ParseInt` for unsigned integer fields. [#6612](https://github.com/grafana/tempo/pull/6612) (@bejaratommy)
 * [BUGFIX] Fix live-store SearchTagValuesV2 disk cache never being populated on complete blocks [#6858](https://github.com/grafana/tempo/pull/6858) (@mapno)
 * [BUGFIX] Fix dedicated columns fallback in `block_builder` and `live_store` to use `storage.trace.block.parquet_dedicated_columns` when not set via overrides. [#6647](https://github.com/grafana/tempo/pull/6647) (@stoewer)
@@ -97,8 +97,6 @@
 * [BUGFIX] live-store: fix race conditions for tag values endpoint [#7000](https://github.com/grafana/tempo/pull/7000) (@ruslan-mikhailov)
 * [BUGFIX] live-store: correct backoff duration calculation [#6999](https://github.com/grafana/tempo/pull/6999) (@ruslan-mikhailov)
 * [BUGFIX] vulture: fix for recent traces when query_end_cutoff is enabled [#7018](https://github.com/grafana/tempo/pull/7018) (@ruslan-mikhailov)
-* [ENHANCEMENT] metrics-generator: add `leave_consumer_group_on_shutdown` to send LeaveGroup on shutdown for immediate partition reassignment instead of waiting for session timeout [#6575](https://github.com/grafana/tempo/pull/6575) (@zalegrala)
-* [ENHANCEMENT] metrics-generator: improve Kafka partition lag reporting to use live group membership when available and correctly handle rebalancing state [#6575](https://github.com/grafana/tempo/pull/6575) (@zalegrala)
 
 ### 3.0 Cleanup
 
