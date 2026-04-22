@@ -718,7 +718,7 @@ func (i *instance) QueryRange(ctx context.Context, req *tempopb.QueryRangeReques
 
 	// This is a summation version of the query for complete blocks
 	// which can be cached. They are timeseries, so they need the job-level evaluator.
-	jobEval, err := traceql.NewEngine().CompileMetricsQueryRangeNonRaw(req, traceql.AggregateModeSum)
+	jobEval, err := traceql.NewEngine().CompileMetricsQueryRangeNonRaw(req, traceql.AggregateModeSum, compileOpts...)
 	if err != nil {
 		return nil, err
 	}
