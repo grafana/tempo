@@ -266,7 +266,7 @@ func (h *nativeHistogram) countSeriesDemand() int {
 	return int(est) * int(h.activeSeriesPerHistogramSerie())
 }
 
-func (h *nativeHistogram) removeStaleSeries(staleTimeMs int64) {
+func (h *nativeHistogram) removeStaleSeries(appender storage.Appender, timeMs, staleTimeMs int64) {
 	overridesHash, _, _, _ := h.hashOverrides()
 
 	h.seriesMtx.Lock()

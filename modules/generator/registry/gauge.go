@@ -150,7 +150,7 @@ func (g *gauge) countSeriesDemand() int {
 	return int(g.seriesDemand.Estimate())
 }
 
-func (g *gauge) removeStaleSeries(staleTimeMs int64) {
+func (g *gauge) removeStaleSeries(appender storage.Appender, timeMs, staleTimeMs int64) {
 	g.seriesMtx.Lock()
 	defer g.seriesMtx.Unlock()
 

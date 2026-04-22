@@ -258,7 +258,7 @@ func (h *histogram) countSeriesDemand() int {
 	return int(est) * int(h.activeSeriesPerHistogramSerie())
 }
 
-func (h *histogram) removeStaleSeries(staleTimeMs int64) {
+func (h *histogram) removeStaleSeries(appender storage.Appender, timeMs, staleTimeMs int64) {
 	h.seriesMtx.Lock()
 	defer h.seriesMtx.Unlock()
 
