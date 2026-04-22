@@ -11,7 +11,7 @@ versionDate: 2026-03-20
 
 In [microservices mode](/docs/tempo/<TEMPO_VERSION>/reference-tempo-architecture/deployment-modes/), Tempo uses a Kafka-compatible message queue as the backbone of its write path. Any Kafka-compatible system works.
 
-Kafka is not used in monolithic mode. In monolithic mode, the distributor pushes data in-process directly to the live-store and metrics-generator.
+Kafka isn't used in [monolithic mode](/docs/tempo/<TEMPO_VERSION>/reference-tempo-architecture/deployment-modes/). In monolithic mode, the distributor pushes data in-process directly to the live-store and metrics-generator.
 
 ## Role in the architecture
 
