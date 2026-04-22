@@ -92,7 +92,8 @@ func TestPartitionReaderCommits(t *testing.T) {
 }
 
 func defaultPartitionReaderWithCommitInterval(t *testing.T, address string, commitInterval time.Duration, consume consumeFn) *PartitionReader {
-	l := &testLogger{t}
+	l := &testLogger{t: t}
+	t.Cleanup(l.stop)
 
 	cfg := ingest.KafkaConfig{}
 	flagext.DefaultValues(&cfg)

@@ -648,7 +648,6 @@ func TestBlockbuilder_usesRecordTimestampForBlockStartAndEnd(t *testing.T) {
 	for _, tc := range tcs {
 		t.Run(tc.name, func(t *testing.T) {
 			ctx, cancel := context.WithCancelCause(context.Background())
-			t.Cleanup(func() { cancel(errors.New("test done")) })
 
 			k, address := testkafka.CreateCluster(t, 1, testTopic)
 
@@ -659,6 +658,14 @@ func TestBlockbuilder_usesRecordTimestampForBlockStartAndEnd(t *testing.T) {
 			})
 
 			store := newStore(ctx, t)
+
+			// Registered after newStore (which uses t.TempDir) so this runs
+			// before TempDir removal in LIFO cleanup order.
+			t.Cleanup(func() {
+				cancel(errors.New("test done"))
+				store.Shutdown()
+			})
+
 			cfg := blockbuilderConfig(t, address, []int32{0})
 
 			client := testkafka.NewKafkaClient(t, cfg.IngestStorageConfig.Kafka.Address, cfg.IngestStorageConfig.Kafka.Topic)

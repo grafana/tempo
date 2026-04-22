@@ -579,7 +579,8 @@ func defaultLiveStore(t testing.TB, tmpDir string) (*LiveStore, error) {
 	// Create metrics
 	reg := prometheus.NewRegistry()
 
-	logger := &testLogger{t}
+	logger := &testLogger{t: t}
+	t.Cleanup(logger.stop)
 
 	// Use fake Kafka cluster for testing
 	liveStore, err := New(cfg, limits, logger, reg, true) // singlePartition = true for testing
@@ -593,12 +594,27 @@ func defaultLiveStore(t testing.TB, tmpDir string) (*LiveStore, error) {
 var _ log.Logger = (*testLogger)(nil)
 
 type testLogger struct {
-	t testing.TB
+	t    testing.TB
+	mu   sync.RWMutex
+	done bool
 }
 
 func (l *testLogger) Log(keyvals ...interface{}) error {
+	l.mu.RLock()
+	defer l.mu.RUnlock()
+	if l.done {
+		return nil
+	}
 	l.t.Log(keyvals...)
 	return nil
+}
+
+// stop prevents further logging, blocking until any in-progress t.Log calls
+// complete. Must be called before the test's *testing.T is cleaned up.
+func (l *testLogger) stop() {
+	l.mu.Lock()
+	l.done = true
+	l.mu.Unlock()
 }
 
 func pushTracesToInstance(t *testing.T, i *instance, numTraces int) ([]*tempopb.Trace, [][]byte) {
