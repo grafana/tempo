@@ -14,7 +14,11 @@ import (
 func (rw *readerWriter) RetainWithConfig(ctx context.Context, compactorCfg *CompactorConfig, compactorSharder CompactorSharder, compactorOverrides CompactorOverrides) {
 	tenants := rw.blocklist.Tenants()
 
-	bg := boundedwaitgroup.New(compactorCfg.RetentionConcurrency)
+	concurrency := compactorCfg.RetentionConcurrency
+	if concurrency == 0 {
+		concurrency = DefaultRetentionConcurrency
+	}
+	bg := boundedwaitgroup.New(concurrency)
 
 	for _, tenantID := range tenants {
 		if ctx.Err() != nil {

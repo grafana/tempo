@@ -143,6 +143,13 @@ func (cfg *CompactorConfig) RegisterFlagsAndApplyDefaults(prefix string, f *flag
 	f.DurationVar(&cfg.MaxCompactionRange, util.PrefixConfig(prefix, "compaction-window"), time.Hour, "Maximum time window across which to compact blocks.")
 }
 
+func (cfg *CompactorConfig) Validate() error {
+	if cfg.MaxCompactionRange == 0 {
+		return errors.New("compaction window can't be 0")
+	}
+	return nil
+}
+
 func validateConfig(cfg *Config) error {
 	if cfg == nil {
 		return errors.New("config should be non-nil")
