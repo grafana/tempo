@@ -46,9 +46,15 @@
     (if $._config.variables_expansion then container.withArgsMixin(['-config.expand-env=true']) else {}),
 
   // Deployment rollout strategy for Kafka ingest.
-  // Rolling (max_unavailable=1): each pod leave+rejoin = 2 rebalances per pod.
-  // All-at-once (max_unavailable=replicas): first pod briefly holds all partitions;
-  // each subsequent pod triggers one incremental rebalance.
+  // max_unavailable controls how many pods can be down simultaneously during a rollout.
+  // Rolling (max_unavailable=1): one pod at a time; each pod's partitions are handed off
+  //   before the next pod restarts. Minimizes concurrent disruption.
+  // Partial (1 < max_unavailable < replicas): N pods roll simultaneously, causing N
+  //   concurrent partition rebalances. Faster rollout at the cost of proportionally more
+  //   disruption.
+  // All-at-once (max_unavailable=replicas): all pods restart together; the first pod to
+  //   reconnect briefly claims all partitions, then each subsequent pod triggers one
+  //   incremental rebalance.
   tempo_metrics_generator_deployment:
     deployment.new(
       target_name,
