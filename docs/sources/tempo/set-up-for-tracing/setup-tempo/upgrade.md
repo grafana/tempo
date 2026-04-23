@@ -129,6 +129,24 @@ storage:
         - { scope: resource, name: service.name, type: string }
 ```
 
+### `partition_ring_live_store` removed
+
+Tempo 3.0 removes the top-level `partition_ring_live_store` setting. Tempo now uses a single partition ring, so this configuration toggle is no longer needed. [[PR 6981](https://github.com/grafana/tempo/pull/6981)]
+
+If your 2.x configuration still includes this field, remove it before or during your 3.0 upgrade.
+
+Before:
+
+```yaml
+partition_ring_live_store: true
+```
+
+After:
+
+```yaml
+# Remove partition_ring_live_store
+```
+
 ### Live-store and query defaults reduced
 
 The default values for several live-store and query-frontend settings have been reduced to produce smaller WAL blocks, release completed blocks sooner, and align the metrics query backend boundary with search.
