@@ -14,8 +14,8 @@ It holds traces in memory, making them available for queries during the window b
 
 How the live-store receives data depends on the [deployment mode](/docs/tempo/<TEMPO_VERSION>/reference-tempo-architecture/deployment-modes/):
 
-- **Microservices mode**: The live-store consumes trace data from Kafka independently of block-builders.
-- **Monolithic mode**: The live-store receives trace data directly from the distributor in-process. No Kafka consumption is involved.
+- Microservices mode: The live-store consumes trace data from Kafka independently of block-builders.
+- Monolithic mode: The live-store receives trace data directly from the distributor in-process. No Kafka consumption is involved.
 
 ## Why live-stores exist
 
