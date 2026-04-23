@@ -1,5 +1,9 @@
 ## main / unreleased
 
+# v2.10.5
+
+* [ENHANCEMENT] Updated go dependency version to v1.16.2. [#7040](https://github.com/grafana/tempo/pull/7040) (@ie-pham)
+
 # v2.10.4
 
 * [ENHANCEMENT] Add flag for enabling MCP server. [#6903](https://github.com/grafana/tempo/pull/6903) (@tiffanyfay)
