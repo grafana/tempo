@@ -47,7 +47,6 @@ compactor:
 querier:
   frontend_worker:
     frontend_address: tempo-query-frontend-grpc.service.consul:9095
-  query_live_store: true
 
 metrics_generator:
   processor:
