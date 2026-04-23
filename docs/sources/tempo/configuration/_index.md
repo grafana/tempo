@@ -1313,8 +1313,8 @@ storage:
             # See the GCS documentation for more detail: https://cloud.google.com/storage/docs/metadata
             [object_metadata: <map[string]string>]
 
-            # Optional. Default is 3
-            # Number of times to retry failed requests to GCS.
+            # Optional. Default is 3.
+            # Number of times to retry GCS copy and delete operations used by compaction and retention.
             [max_retries: <int> | default = 3]
 
         # S3 configuration. Will be used only if value of backend is "s3"
@@ -1361,8 +1361,9 @@ storage:
             # enable if endpoint is http
             [insecure: <bool>]
 
-            # Optional. Default is 0 (disabled)
-            # Part size for multipart uploads. Set to a non-zero value to enable multipart uploads.
+            # Optional. Default is 0 (disabled).
+            # Part size in bytes for multipart uploads. Set to 0 to disable multipart uploads.
+            # Non-zero values must be at least 5 MiB (5242880 bytes).
             [part_size: <int>]
 
             # optional.
@@ -1457,8 +1458,9 @@ storage:
             # A map of key-value strings for user-defined metadata to store on S3 objects.
             [metadata: <map[string]string>]
 
-            # Deprecated. Use native AWS authentication mechanisms (IAM roles, environment
-            # variables) instead.
+            # Deprecated and ignored. This setting has no effect other than emitting a startup
+            # warning, and will be removed in a future release. Use native AWS authentication
+            # mechanisms (IAM roles, environment variables) instead.
             [native_aws_auth_enabled: <bool> | default = false]
 
             [sse: <map[string]string>]:
@@ -1556,7 +1558,7 @@ storage:
         # the index. Default 2.
         [blocklist_poll_tenant_index_builders: <int>]
 
-        # Number of tenants to poll concurrently. Default is 0 (no limit).
+        # Number of tenants to poll concurrently. Default is 1.
         [blocklist_poll_tenant_concurrency: <int>]
 
         # The oldest allowable tenant index. If an index is pulled that is older than this duration,
@@ -1589,7 +1591,7 @@ storage:
         # Used to tune how quickly the poller will delete any remaining backend
         # objects found in the tenant path.  This functionality requires enabling
         # below.
-        # Default: 0s (disabled)
+        # Default: 12h
         [empty_tenant_deletion_age: <duration>]
 
         # Polling will delete the index for a tenant if no blocks are found to
