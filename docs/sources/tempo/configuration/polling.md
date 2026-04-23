@@ -37,6 +37,8 @@ storage:
 
 Due to the mechanics of the [tenant index](../../operations/monitor/polling/), the blocklist will be stale by
 at most twice the configured `blocklist_poll` duration.
+This 2x staleness bound is the basis for the minimum values of `query_backend_after` and `compacted_block_retention` described below.
+For a detailed explanation of how compaction interacts with the polling cycle, refer to [Compaction](../../operations/compaction/).
 
 ## How blocks reach object storage
 
@@ -57,6 +59,11 @@ The query-frontend uses `query_backend_after` to control when backend storage is
 
 - Time ranges more recent than `query_backend_after` are searched only in live-stores.
 - Time ranges older than `query_backend_after` are searched in backend storage.
+
+`query_backend_after` must be set to at least twice the `blocklist_poll` duration.
+A newly flushed block will not appear in any querier's blocklist for up to `2 * blocklist_poll` after it is written.
+If `query_backend_after` is shorter than this window, the query-frontend may route requests to the backend before the block is discoverable, causing data gaps.
+With the default `blocklist_poll` of 5 minutes, `query_backend_after` should be at least 10 minutes.
 
 ```
 query_frontend:
