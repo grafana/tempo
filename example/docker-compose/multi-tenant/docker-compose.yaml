@@ -13,7 +13,7 @@ services:
       - ./tempo-data:/var/tempo
 
   tempo:
-    image: grafana/tempo:latest
+    image: grafana/tempo:2.10.5
     command: [ "-config.file=/etc/tempo.yaml" ]
     environment:
       - GRPC_TRACE=api

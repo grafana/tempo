@@ -12,7 +12,7 @@ services:
       - ./tempo-data:/var/tempo
 
   tempo:
-    image: grafana/tempo:latest
+    image: grafana/tempo:2.10.5
     depends_on:
       - redpanda
     command: "-target=all-3.0 -config.file=/etc/tempo.yaml"
