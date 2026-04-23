@@ -105,25 +105,20 @@ Refer to the [Deployment modes](/docs/tempo/<TEMPO_VERSION>/set-up-for-tracing/s
 
 ### Configuration by deployment mode
 
-Not all configuration blocks apply to both deployment modes. The following table summarizes which blocks are relevant to each mode. For details on how the modes differ, refer to the [Deployment modes](/docs/tempo/<TEMPO_VERSION>/reference-tempo-architecture/deployment-modes/) reference.
+Not all configuration blocks apply to both deployment modes.
 
-| Config block | Monolithic | Microservices | Notes |
-|---|---|---|---|
-| `distributor` | Yes | Yes | In monolithic mode, pushes data in-process. In microservices mode, writes to Kafka. |
-| `ingest` | No | Yes | Kafka connection settings. Only used in microservices mode. |
-| `block_builder` | No | Yes | Consumes from Kafka. Only used in microservices mode. |
-| `live_store` | Yes | Yes | In monolithic mode, receives data directly from the distributor. In microservices mode, consumes from Kafka. |
-| `live_store_client` | No | Yes | gRPC client for querier-to-live-store communication across processes. |
-| `query_frontend` | Yes | Yes | |
-| `querier` | Yes | Yes | |
-| `backend_scheduler` | Yes | Yes | |
-| `backend_scheduler_client` | No | Yes | gRPC client for connecting workers to the scheduler across processes. |
-| `backend_worker` | Yes | Yes | |
-| `metrics_generator` | Yes | Yes | Optional in both modes. |
-| `storage` | Yes | Yes | |
-| `memberlist` | Yes | Yes | |
-| `overrides` | Yes | Yes | |
-| `cache` | Yes | Yes | |
+In monolithic mode, the most important configuration blocks are:
+
+| Config block | Description |
+|---|---|
+| `distributor` | Configure receivers (OTLP, Jaeger, Zipkin) and ingestion limits. |
+| `metrics_generator` | Optional. Configure span-metrics and service-graph generation. |
+| `query_frontend` | Configure query splitting, caching, and result streaming. |
+| `overrides` | Set per-tenant rate limits and trace size limits. |
+
+Blocks such as `ingest`, `block_builder`, `live_store_client`, `backend_scheduler`, `backend_worker`, `memberlist`, and `cache` are only used in microservices mode.
+
+For the complete mapping of all configuration blocks to deployment modes, refer to the [Components by deployment mode](/docs/tempo/<TEMPO_VERSION>/reference-tempo-architecture/deployment-modes/#components-by-deployment-mode) table.
 
 
 ## Server
