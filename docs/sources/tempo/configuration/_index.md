@@ -378,8 +378,9 @@ querier:
 
 ## Ingest
 
-The ingest configuration controls the Kafka-compatible system that Tempo uses as a durable write-ahead log for trace data.
+In distributed mode, the ingest configuration controls the Kafka-compatible system that Tempo uses as a durable write-ahead log for trace data.
 Distributors write to Kafka, and downstream consumers (block-builders, live-stores, and metrics-generators) each consume from it independently.
+In monolithic mode (`target: all`), distributors bypass Kafka entirely, so these settings don't apply.
 
 For more information on configuration options, refer to [this file](https://github.com/grafana/tempo/blob/main/pkg/ingest/config.go).
 For architectural details, refer to the [Kafka architecture](/docs/tempo/<TEMPO_VERSION>/reference-tempo-architecture/components/kafka/) documentation.
@@ -424,6 +425,18 @@ ingest:
         # The produce request fails once this limit is reached. This limit is per Kafka client. 0 to disable.
         [producer_max_buffered_bytes: <int> | default = 1073741824]
 
+        # The consumer group used by the consumer to track the last consumed offset.
+        # If the value contains the '<partition>' placeholder, it is replaced with the partition ID.
+        # When empty (recommended), Tempo uses the instance ID to guarantee uniqueness.
+        [consumer_group: <string>]
+
+        # How frequently a consumer should commit the consumed offset to Kafka.
+        # The last committed offset is used at startup to continue consumption from where it was left.
+        [consumer_group_offset_commit_interval: <duration> | default = 1s]
+
+        # How long to retry a failed request to get the last produced offset.
+        [last_produced_offset_retry_timeout: <duration> | default = 10s]
+
         # The best-effort maximum lag a consumer tries to achieve at startup.
         # Set both target and max consumer lag to 0 to disable waiting at startup.
         [target_consumer_lag_at_startup: <duration> | default = 2s]
@@ -432,6 +445,13 @@ ingest:
         # at startup, becomes ACTIVE in the hash ring, and passes the readiness check.
         # Set both target and max consumer lag to 0 to disable waiting at startup.
         [max_consumer_lag_at_startup: <duration> | default = 15s]
+
+        # Disable Kafka client metrics reporting to the broker.
+        # When false (default), the Kafka client reports its internal metrics to the broker.
+        [disable_kafka_telemetry: <bool> | default = false]
+
+        # How often the consumer group lag metric is updated. Set to 0 to disable.
+        [consumer_group_lag_metric_update_interval: <duration> | default = 1m]
 ```
 
 ## Block-builder
@@ -490,6 +510,9 @@ live_store:
     # How often to sweep all tenants and move traces from live -> wal -> completed blocks.
     [flush_check_period: <duration> | default = 5s]
 
+    # Timeout for flush and cleanup operations.
+    [flush_op_timeout: <duration> | default = 5m]
+
     # Amount of time a trace must be idle before flushing it to the WAL.
     [max_trace_idle: <duration> | default = 5s]
 
@@ -504,6 +527,12 @@ live_store:
 
     # Maximum length of time before cutting a block.
     [max_block_duration: <duration> | default = 30s]
+
+    # Number of concurrent blocks to query for metrics.
+    [query_block_concurrency: <uint> | default = 10]
+
+    # Number of concurrent block completion operations.
+    [complete_block_concurrency: <int> | default = 2]
 
     # Duration to keep blocks in the live-store after they have been completed.
     [complete_block_timeout: <duration> | default = 20m]
@@ -521,6 +550,9 @@ live_store:
     # Remove partition owner from the ring on shutdown.
     [remove_owner_on_shutdown: <bool> | default = true]
 
+    # Path to the shutdown marker directory.
+    [shutdown_marker_dir: <string> | default = "/var/tempo/live-store/shutdown-marker"]
+
     # Partition ring configuration for the live-store.
     partition_ring:
       # Minimum number of owners to wait before a PENDING partition is switched to ACTIVE.
@@ -533,6 +565,13 @@ live_store:
       # How long to wait before an INACTIVE partition is eligible for deletion.
       # The partition is deleted only if it has no owners registered. 0 to disable.
       [delete_inactive_partition_after: <duration> | default = 13h]
+
+    # Metrics query tuning configuration.
+    metrics:
+      # Time overlap cutoff ratio for metrics queries (0.0-1.0). Controls whether trace-level
+      # timestamp columns are loaded. Lower values skip columns more often, reducing I/O but
+      # increasing spans evaluated. 1.0 always loads columns, 0.0 never does.
+      [time_overlap_cutoff: <float> | default = 0.2]
 
     # Write ahead log configuration for the live-store.
     wal:
