@@ -17,12 +17,12 @@ Use monolithic mode when:
 
 - You are getting started with Tempo or evaluating it
 - You need a development or testing environment
-- You have low to moderate trace volumes
+- Your trace volume is under 25-35 MB/s or 55k-80k spans/s
 - Operational simplicity matters more than independent scaling
 
-Monolithic mode has some trade-offs to be aware of. 
-Components share the same resource pool, so a spike in query load can affect write throughput and vice versa. 
-You can run multiple monolithic instances, but each instance runs every monolithic-mode component. 
+Monolithic mode has some trade-offs to be aware of.
+All components share the same resource pool, so a spike in query load can affect write throughput and vice versa.
+There is no independent scaling: you can scale vertically or run multiple identical instances, but you cannot scale individual components separately.
 At higher volumes, memory pressure from collocated components can cause issues.
 
 ## Microservices mode
@@ -46,7 +46,7 @@ Microservices mode provides independent scaling for each component and isolated 
 | Scaling | Single process; scale vertically or run multiple identical instances | Each component scales independently |
 | Failure isolation | All components share resources | Isolated failure domains per component |
 | Operational complexity | Low | Higher, with more processes to manage |
-| Best for | Getting started, development, low-to-moderate volume | Production, high volume, high availability |
+| Best for | Getting started, development, up to 25-35 MB/s | Production, high volume, high availability |
 
 ## Next steps
 

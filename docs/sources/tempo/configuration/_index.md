@@ -116,7 +116,8 @@ In monolithic mode, the most important configuration blocks are:
 | `query_frontend` | Configure query splitting, caching, and result streaming. |
 | `overrides` | Set per-tenant rate limits and trace size limits. |
 
-Blocks such as `ingest`, `block_builder`, `live_store_client`, `backend_scheduler`, `backend_worker`, `memberlist`, and `cache` are only used in microservices mode.
+The `ingest` and `block_builder` blocks are only used in microservices mode.
+Other blocks, including `live_store_client`, `backend_scheduler`, `backend_worker`, `memberlist`, and `cache`, apply in both modes but run in-process in monolithic mode.
 
 For the complete mapping of all configuration blocks to deployment modes, refer to the [Components by deployment mode](/docs/tempo/<TEMPO_VERSION>/reference-tempo-architecture/deployment-modes/#components-by-deployment-mode) table.
 

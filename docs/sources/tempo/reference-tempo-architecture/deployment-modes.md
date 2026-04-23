@@ -37,7 +37,7 @@ Monolithic mode is suitable for getting started, development environments, and l
 
 ### Limitations
 
-Components share the same resource pool. A spike in query load can affect write throughput and vice versa. There's no independent scaling—you can run multiple monolithic instances, but each instance runs the same set of components. At higher volumes, memory pressure from collocated components, particularly the live-store and querier, can cause out-of-memory issues.
+Components share the same resource pool. A spike in query load can affect write throughput and vice versa. There is no independent scaling. You can run multiple monolithic instances, but each instance runs the same set of components. At higher volumes, memory pressure from collocated components, particularly the live-store and querier, can cause out-of-memory issues.
 
 ### Resource considerations
 
@@ -61,7 +61,7 @@ Use microservices mode for production deployments, high trace volumes requiring 
 
 ### Advantages
 
-Microservices mode provides independent scaling—you can scale block-builders for write throughput, queriers for query performance, and live-stores for recent data capacity, all independently. Failure domains are isolated: a querier OOM doesn't affect data ingestion, and a block-builder restart doesn't affect query availability. Live-stores can be deployed across availability zones for high availability. Each component gets exactly the resources it needs, avoiding the over-provisioning required in monolithic mode.
+Microservices mode provides independent scaling. You can scale block-builders for write throughput, queriers for query performance, and live-stores for recent data capacity, all independently. Failure domains are isolated: a querier OOM doesn't affect data ingestion, and a block-builder restart doesn't affect query availability. Live-stores can be deployed across availability zones for high availability. Each component gets exactly the resources it needs, avoiding the over-provisioning required in monolithic mode.
 
 ### Component scaling guidelines
 
@@ -91,11 +91,11 @@ Not all components and configuration blocks apply to both modes. The following t
 
 | Component | Config block | Monolithic | Microservices |
 |---|---|---|---|
-| Distributor | `distributor` | Pushes data in-process to the live-store | Writes data to Kafka |
+| Distributor | `distributor` | Pushes data in-process to the live-store and metrics-generator | Writes data to Kafka |
 | Ingest | `ingest` | Not used | Kafka connection settings for the write path |
 | Block-builder | `block_builder` | Not used | Consumes from Kafka, builds Parquet blocks, flushes to object storage |
 | Live-store | `live_store` | Receives data directly from the distributor | Consumes from Kafka |
-| Live-store client | `live_store_client` | Not used | gRPC client for querier-to-live-store communication |
+| Live-store client | `live_store_client` | Querier-to-live-store client (runs in-process) | gRPC client for querier-to-live-store communication |
 | Query-frontend | `query_frontend` | Runs in-process | Runs as a separate process |
 | Querier | `querier` | Runs in-process | Runs as a separate process |
 | Backend scheduler | `backend_scheduler` | Runs in-process | Runs as a separate process |
