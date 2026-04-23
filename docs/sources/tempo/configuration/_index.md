@@ -1338,6 +1338,13 @@ storage:
         # CLI flag -storage.trace.backend
         [backend: <string>]
 
+        # Local backend configuration. Will be used only if value of backend is "local".
+        # For development and testing only. Use object storage for production workloads.
+        local:
+
+            # Path to store trace data on local disk
+            [path: <string>]
+
         # GCS configuration. Will be used only if value of backend is "gcs"
         # Check the GCS doc within this folder for information on GCS specific permissions.
         gcs:
@@ -1395,6 +1402,9 @@ storage:
             # See the GCS documentation for more detail: https://cloud.google.com/storage/docs/metadata
             [object_metadata: <map[string]string>]
 
+            # Optional. Default is 3.
+            # Number of times to retry GCS copy and delete operations used by compaction and retention.
+            [max_retries: <int> | default = 3]
 
         # S3 configuration. Will be used only if value of backend is "s3"
         # Check the S3 doc within this folder for information on s3 specific permissions.
@@ -1440,6 +1450,11 @@ storage:
             # enable if endpoint is http
             [insecure: <bool>]
 
+            # Optional. Default is 0 (disabled).
+            # Part size in bytes for multipart uploads. Set to 0 to disable multipart uploads.
+            # Non-zero values must be at least 5 MiB (5242880 bytes).
+            [part_size: <int>]
+
             # optional.
             # Path to the client certificate file.
             [tls_cert_path: <string>]
@@ -1467,6 +1482,10 @@ storage:
             # optional.
             # Override the default minimum TLS version. The default value is VersionTLS12. Allowed values: VersionTLS10, VersionTLS11, VersionTLS12, VersionTLS13
             [tls_min_version: <string>]
+
+            # Optional. Default is false.
+            # Use V2 signing instead of V4 for S3 requests.
+            [signature_v2: <bool>]
 
             # optional.
             # enable to use path-style requests.
@@ -1519,6 +1538,19 @@ storage:
             # See the [S3 documentation on object tagging](https://docs.aws.amazon.com/AmazonS3/latest/userguide/object-tagging.html) for more detail.
             [tags: <map[string]string>]
 
+            # Optional.
+            # S3 storage class for uploaded objects. If unset, the default storage class of the bucket is used.
+            # See the [S3 documentation on storage classes](https://docs.aws.amazon.com/AmazonS3/latest/userguide/storage-class-intro.html) for valid values.
+            [storage_class: <string>]
+
+            # Optional.
+            # A map of key-value strings for user-defined metadata to store on S3 objects.
+            [metadata: <map[string]string>]
+
+            # Deprecated and ignored. This setting has no effect other than emitting a startup
+            # warning, and will be removed in a future release. Use native AWS authentication
+            # mechanisms (IAM roles, environment variables) instead.
+            [native_aws_auth_enabled: <bool> | default = false]
 
             [sse: <map[string]string>]:
               # Optional
@@ -1541,8 +1573,7 @@ storage:
               # It expects a 32 byte long string.
               encryption_key:
 
-        # azure configuration. Will be used only if value of backend is "azure"
-        # EXPERIMENTAL
+        # Azure configuration. Will be used only if value of backend is "azure".
         azure:
 
             # store traces in this container.
@@ -1580,7 +1611,15 @@ storage:
 
             # optional.
             # The Client ID for the user-assigned Azure Managed Identity used to access Azure storage.
-            [user_assigned_id: <bool>]
+            [user_assigned_id: <string>]
+
+            # Optional. Default is 4
+            # Number of simultaneous uploads to Azure.
+            [max_buffers: <int> | default = 4]
+
+            # Optional. Default is 3145728 (3 MiB)
+            # Buffer size for uploads to Azure.
+            [buffer_size: <int> | default = 3145728]
 
             # Optional. Default is 0 (disabled)
             # Example: "hedge_requests_at: 500ms"
@@ -1686,10 +1725,10 @@ storage:
         pool:
 
             # total number of workers pulling jobs from the queue
-            [max_workers: <int> | default = 30]
+            [max_workers: <int> | default = 400]
 
             # length of job queue. important for querier as it queues a job for every block it has to search
-            [queue_depth: <int> | default = 10000 ]
+            [queue_depth: <int> | default = 20000]
 
         # configuration block for the Write Ahead Log (WAL)
         wal: <WAL config>
