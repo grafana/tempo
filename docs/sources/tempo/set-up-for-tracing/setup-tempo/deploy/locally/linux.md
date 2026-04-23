@@ -1,7 +1,7 @@
 ---
 title: Deploy on Linux
 menuTitle: Deploy on Linux
-description: Learn how to install and configure a single Grafana Tempo instance on Linux in monolithic mode, using a supported S3-compatible object storage backend.
+description: Learn how to install and configure a single Grafana Tempo instance on Linux in monolithic mode with local storage.
 weight: 400
 aliases:
   - ../../../../setup/linux/ # /docs/tempo/next/setup/linux/
@@ -19,20 +19,14 @@ If you're upgrading from Tempo 2.x, refer to [Upgrade your Tempo installation](/
 
 These instructions focus on a [monolithic (single-binary) installation](/docs/tempo/<TEMPO_VERSION>/reference-tempo-architecture/deployment-modes/).
 In single-binary mode, Tempo runs all components in one process and doesn't require Kafka.
-Traces are ingested directly in-process and flushed to object storage.
+Traces are ingested directly in-process and flushed to storage.
 
 ## Before you begin
 
 To follow this guide, you need:
 
-- A running Grafana instance (refer to [the installation instructions](/docs/grafana/<GRAFANA_VERSION>/setup-grafana/installation/))
-- An S3-compatible object store, such as [MinIO](https://min.io/), and the [MinIO Client (`mc`)](https://min.io/docs/minio/linux/reference/minio-mc.html) to create buckets. If you use SeaweedFS or `rclone` as your object store, you need the [AWS CLI](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html) instead.
-
-  {{< admonition type="note" >}}
-  These examples use MinIO as the default S3-compatible object store. [SeaweedFS](https://github.com/seaweedfs/seaweedfs) and [rclone serve s3](https://rclone.org/commands/rclone_serve_s3/) are provided as possible alternatives for local testing but have not been fully tested with Tempo and are not recommended for production use. Refer to [Set up an object storage bucket](#set-up-an-object-storage-bucket) for setup instructions for each option.
-  {{< /admonition >}}
-
-- Git, Docker, and the docker-compose plugin installed to [test your deployment](/docs/tempo/<TEMPO_VERSION>/set-up-for-tracing/setup-tempo/test/test-monolithic-local/)
+- [OpenTelemetry `telemetrygen`](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/cmd/telemetrygen) installed to [test your deployment](/docs/tempo/<TEMPO_VERSION>/set-up-for-tracing/setup-tempo/test/test-monolithic-local/)
+- A running Grafana instance (refer to [the installation instructions](/docs/grafana/<GRAFANA_VERSION>/setup-grafana/installation/)) if you want to explore traces visually
 
 ### System requirements
 
@@ -52,323 +46,160 @@ Use 16 GB of memory or more if any of the following apply:
 - You increase live-trace buffering or run heavier query workloads
 - You want extra headroom for benchmarking or troubleshooting
 
+Co-locating Tempo with Grafana, Prometheus, or other services on the same machine is fine for evaluation, but increases memory pressure. If memory is constrained, run Tempo on its own host.
+
 Production sizing depends on your workload and infrastructure, including ingest rate, tenant count, query concurrency, retention, metrics-generator settings, and object store performance.
 
 Validate sizing with your own load before using it in production.
 
-## Set up an object storage bucket
+## Set up storage
 
-Tempo uses object storage as the backend for its trace storage.
-It also uses object storage for storing various data related to the state of the system.
+This guide uses the local filesystem as the storage backend. The configuration stores the write-ahead log (WAL) at `/data/tempo/wal` and trace blocks at `/data/tempo/blocks`. Tempo also uses `/var/tempo` at runtime for the live store and internal caches.
 
-Tempo supports using the local filesystem as the backend for trace storage as well.
-This isn't recommended for production deployments. This guide focuses on setup with an object storage.
-
-The supported object storage backends are [AWS S3](https://aws.amazon.com/), S3-compliant object stores like MinIO, [Azure](https://azure.microsoft.com), and [Google Cloud Storage](https://cloud.google.com/storage).
-
-### Example object storage backends
-
-These examples use [MinIO](https://min.io/) by default, an S3-compatible object store you can run locally.
-However, MinIO has been deprecated and its repository archived.
-
-[SeaweedFS](https://github.com/seaweedfs/seaweedfs) and [rclone serve s3](https://rclone.org/commands/rclone_serve_s3/) are provided as possible alternatives so you can evaluate them for local testing.
-Neither has been fully tested with Tempo and neither is recommended for production use.
-
-SeaweedFS is the closest drop-in replacement for MinIO, with a similar single-command startup and a built-in web UI.
-
-`rclone serve s3` is classified as experimental by the `rclone` project and has known limitations.
-
-Choose a tab below to set up your preferred object store:
-
-{{< tabs >}}
-{{< tab-content name="MinIO" >}}
-
-1. Install MinIO by following the [MinIO quickstart guide](https://min.io/docs/minio/linux/index.html).
-
-1. Create a data directory and start MinIO:
+1. Create the data directories:
 
    ```bash
-   sudo mkdir -p /data/minio
-   sudo chown -R $USER:$USER /data
-   minio server /data --console-address ':9001'
+   sudo mkdir -p /data/tempo /var/tempo
    ```
 
-   By default, MinIO uses `minioadmin` for both the access key and secret key. MinIO runs in the foreground, so open a new terminal for the remaining steps.
-
-1. Create a bucket called `tempo` using the MinIO Client (`mc`):
+1. Set the directory owner to the `tempo` user (created by the deb package):
 
    ```bash
-   mc alias set local http://localhost:9000 minioadmin minioadmin
-   mc mb local/tempo
+   sudo chown -R tempo /data/tempo /var/tempo
    ```
 
-{{< /tab-content >}}
-{{< tab-content name="SeaweedFS" >}}
+Local storage is suitable for single-node evaluation and development. For production environments, use an object storage backend such as [AWS S3](/docs/tempo/<TEMPO_VERSION>/configuration/hosted-storage/s3/), [Azure Blob Storage](/docs/tempo/<TEMPO_VERSION>/configuration/hosted-storage/azure/), or [Google Cloud Storage](/docs/tempo/<TEMPO_VERSION>/configuration/hosted-storage/gcs/).
 
-{{< admonition type="note" >}}
-SeaweedFS has not been fully tested with Tempo and is provided here as an alternative for local evaluation only. It isn't recommended for production use with Tempo.
-{{< /admonition >}}
-
-[SeaweedFS](https://github.com/seaweedfs/seaweedfs) is an Apache 2.0-licensed distributed storage system with a built-in S3 gateway.
-
-1. Download and install SeaweedFS from the [releases page](https://github.com/seaweedfs/seaweedfs/releases).
-
-1. Create a data directory and start SeaweedFS in mini mode:
-
-   ```bash
-   sudo mkdir -p /data/seaweedfs
-   sudo chown -R $USER:$USER /data
-   weed mini -dir=/data/seaweedfs
-   ```
-
-   The `weed mini` command starts a complete single-node setup including the S3 gateway on port 8333. SeaweedFS runs in the foreground, so open a new terminal for the remaining steps.
-
-1. Create a bucket called `tempo` using the AWS CLI:
-
-   ```bash
-   aws --endpoint-url http://localhost:8333 s3 mb s3://tempo --no-sign-request
-   ```
-
-   You need the [AWS CLI](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html) installed. SeaweedFS mini mode allows anonymous access, so the `--no-sign-request` flag skips credential checks.
-
-{{< /tab-content >}}
-{{< tab-content name="rclone serve s3 (experimental)" >}}
-
-{{< admonition type="note" >}}
-`rclone serve s3` is classified as experimental by the rclone project and hasn't been fully tested with Tempo. It's provided as an alternative for local evaluation only and isn't recommended for production use. Refer to the [rclone documentation](https://rclone.org/commands/rclone_serve_s3/) for current limitations.
-{{< /admonition >}}
-
-[rclone](https://rclone.org/) can serve any local directory as an S3-compatible endpoint.
-
-1. Install rclone by following the [rclone install guide](https://rclone.org/install/).
-
-1. Create a data directory and start the S3 server:
-
-   ```bash
-   sudo mkdir -p /data/rclone-s3
-   sudo chown -R $USER:$USER /data
-   rclone serve s3 /data/rclone-s3 --auth-key tempokey,temposecret --addr :8080
-   ```
-
-   The server runs in the foreground on port 8080. Open a new terminal for the remaining steps.
-
-1. Create a bucket called `tempo` using the AWS CLI:
-
-   ```bash
-   AWS_ACCESS_KEY_ID=tempokey AWS_SECRET_ACCESS_KEY=temposecret \
-     aws --endpoint-url http://localhost:8080 s3 mb s3://tempo
-   ```
-
-   You need the [AWS CLI](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html) installed. Use the credentials you set with the `--auth-key` flag.
-
-{{< /tab-content >}}
-{{< /tabs >}}
+If you prefer to use an S3-compatible object store for local testing, refer to [S3-compatible local stores for testing](/docs/tempo/<TEMPO_VERSION>/configuration/hosted-storage/s3/#s3-compatible-local-stores-for-testing) for setup instructions using MinIO, SeaweedFS, or `rclone`.
 
 ## Install Tempo
 
-For a linux-amd64 installation, run the following commands via the command line interface on your Linux machine.
+For a linux-amd64 installation, run the following commands using the command line interface on your Linux machine.
 You need administrator privileges to do this by running as the `root` user or via `sudo` as a user with permissions to do so.
 
-Download the Tempo binary and install it. Be sure to [download the correct package](https://github.com/grafana/tempo/releases/) for your OS and architecture. Replace `<TEMPO_VERSION_NUMBER>` with the version you want to install, for example `3.0.0`.
+Be sure to [download the correct package](https://github.com/grafana/tempo/releases/) for your OS and architecture. Replace `<TEMPO_VERSION_NUMBER>` with the version you want to install, for example `3.0.0`.
 
-The following example downloads and installs Tempo for the AMD64 (x86_64) processor architecture on a Linux distribution supporting deb packages:
+1. Download the Tempo binary. The following example downloads Tempo for the AMD64 (x86_64) processor architecture on a Linux distribution supporting deb packages:
 
    ```bash
    curl -Lo tempo_<TEMPO_VERSION_NUMBER>_linux_amd64.deb \
      https://github.com/grafana/tempo/releases/download/v<TEMPO_VERSION_NUMBER>/tempo_<TEMPO_VERSION_NUMBER>_linux_amd64.deb
+   ```
+
+1. Install the package:
+
+   ```bash
    sudo dpkg -i tempo_<TEMPO_VERSION_NUMBER>_linux_amd64.deb
    ```
 
-You can verify the download against the `SHA256SUMS` file published on the [releases page](https://github.com/grafana/tempo/releases/).
+1. Optional: Verify the download against the `SHA256SUMS` file published on the [releases page](https://github.com/grafana/tempo/releases/).
 
 ## Create a Tempo configuration file
-
-Copy the following YAML configuration to a file called `tempo.yaml`.
-
-Refer to the [Tempo configuration documentation](/docs/tempo/<TEMPO_VERSION>/configuration/) for explanations of the available options.
 
 In the following configuration, Tempo is configured to listen on the OTLP gRPC and HTTP protocols.
 By default, the OpenTelemetry Collector receiver binds to `localhost` instead of `0.0.0.0`.
 This example binds to all interfaces. This can be a security risk if your Tempo instance is exposed to the public internet.
 
-```yaml
-stream_over_http_enabled: true
+Refer to the [Tempo configuration documentation](/docs/tempo/<TEMPO_VERSION>/configuration/) for explanations of the available options.
 
-server:
-  http_listen_port: 3200
+{{< admonition type="tip" >}}
+Tempo's configuration parser is strict about YAML indentation, especially for nested blocks like `storage.trace.wal.path`. If Tempo fails to start, check your indentation first.
+{{< /admonition >}}
 
-distributor:
-  receivers:
-    otlp:
-      protocols:
-        grpc:
-          endpoint: "0.0.0.0:4317"
-        http:
-          endpoint: "0.0.0.0:4318"
+1. Copy the following YAML configuration to a file called `tempo.yaml`:
 
-backend_scheduler:
-  provider:
-    compaction:
-      compaction:
-        block_retention: 1h
+   ```yaml
+   stream_over_http_enabled: true
 
-backend_worker:
-  compaction:
-    block_retention: 1h
+   server:
+     http_listen_port: 3200
 
-metrics_generator:
-  registry:
-    external_labels:
-      source: tempo
-      cluster: linux-monolithic
-  storage:
-    path: /tmp/tempo/generator/wal
-    remote_write:
-      - url: http://<PROMETHEUS_URL>/api/v1/write
-        send_exemplars: true
+   distributor:
+     receivers:
+       otlp:
+         protocols:
+           grpc:
+             endpoint: "0.0.0.0:4317"
+           http:
+             endpoint: "0.0.0.0:4318"
 
-storage:
-  trace:
-    backend: s3
-    s3:
-      endpoint: <S3_ENDPOINT>
-      bucket: tempo
-      access_key: <S3_ACCESS_KEY>
-      secret_key: <S3_SECRET_KEY>
-      insecure: true
-    wal:
-      path: /var/tempo/wal
+   storage:
+     trace:
+       backend: local
+       wal:
+         path: /data/tempo/wal
+       local:
+         path: /data/tempo/blocks
 
-overrides:
-  defaults:
-    metrics_generator:
-      processors: [service-graphs, span-metrics]
+   usage_report:
+     reporting_enabled: false
+   ```
 
-usage_report:
-  reporting_enabled: false
-```
+1. Copy `tempo.yaml` to the Tempo configuration directory:
 
-Replace the `<S3_ENDPOINT>`, `<S3_ACCESS_KEY>`, and `<S3_SECRET_KEY>` placeholders in the `storage.trace.s3` block with the values for your object store:
-
-{{< tabs >}}
-{{< tab-content name="MinIO" >}}
-
-```yaml
-storage:
-  trace:
-    backend: s3
-    s3:
-      endpoint: localhost:9000
-      bucket: tempo
-      access_key: minioadmin
-      secret_key: minioadmin
-      insecure: true
-```
-
-{{< /tab-content >}}
-{{< tab-content name="SeaweedFS" >}}
-
-SeaweedFS mini mode allows anonymous access, so the `access_key` and `secret_key` fields can be omitted or set to any value:
-
-```yaml
-storage:
-  trace:
-    backend: s3
-    s3:
-      endpoint: localhost:8333
-      bucket: tempo
-      insecure: true
-```
-
-{{< /tab-content >}}
-{{< tab-content name="rclone serve s3 (experimental)" >}}
-
-Use the credentials you set with the `--auth-key` flag when starting `rclone`:
-
-```yaml
-storage:
-  trace:
-    backend: s3
-    s3:
-      endpoint: localhost:8080
-      bucket: tempo
-      access_key: tempokey
-      secret_key: temposecret
-      insecure: true
-```
-
-{{< /tab-content >}}
-{{< /tabs >}}
+   ```bash
+   sudo cp tempo.yaml /etc/tempo/config.yml
+   ```
 
 ### Configuration file notes
 
-The metrics-generator is enabled in this configuration to generate Prometheus metrics data from incoming trace spans. Replace `<PROMETHEUS_URL>` with the address of your Prometheus-compatible storage instance (for example, `localhost:9090`).
-To disable the metrics-generator, remove the `processors` list from the overrides and the `metrics_generator` block.
+This configuration is for monolithic mode (`-target=all`), where all required components run in one process without Kafka. Configuration blocks such as `ingest`, `block_builder`, `live_store_client`, and `backend_scheduler_client` do not apply to monolithic mode. Don't copy them from microservices examples. Refer to the [Components by deployment mode](/docs/tempo/<TEMPO_VERSION>/reference-tempo-architecture/deployment-modes/#components-by-deployment-mode) table for the full mapping of components and configuration blocks to each mode.
 
-The `backend_worker.backend_scheduler_addr` setting is omitted from this configuration. In single-binary mode, Tempo auto-configures the backend worker to connect to the scheduler on the native gRPC port (default `9095`). Setting it explicitly to the HTTP port can produce noisy polling logs.
+The following options are common additions to this basic configuration:
 
-## Move the configuration file to the proper directory
+#### Block retention
 
-Copy the `tempo.yaml` to `/etc/tempo/config.yml`:
+With local storage, trace blocks accumulate on disk until they exceed the configured retention period. The default is 14 days (336h). If disk space is limited, set a shorter retention using the `block_retention` setting in the [compaction configuration](/docs/tempo/<TEMPO_VERSION>/configuration/#compaction).
 
-```bash
-sudo cp tempo.yaml /etc/tempo/config.yml
-```
+#### Metrics-generator
 
-## Restart the Tempo service
+The metrics-generator produces RED metrics (rate, errors, duration) and service graphs from incoming trace spans. It requires a Prometheus-compatible remote write target and enabling processors in the `overrides` block. Refer to the [metrics-generator configuration](/docs/tempo/<TEMPO_VERSION>/configuration/#metrics-generator) and the [metrics-generator documentation](/docs/tempo/<TEMPO_VERSION>/metrics-from-traces/metrics-generator/) for setup details.
 
-Use `systemctl` to restart the service (depending on how you installed Tempo, this may be different):
+#### Ingestion limits
 
-```bash
-sudo systemctl restart tempo.service
-```
+Tempo enforces default ingestion limits that may not fit every workload. If you see `RATE_LIMITED`, `TRACE_TOO_LARGE`, or `LIVE_TRACES_EXCEEDED` errors, you can tune these limits globally or per-tenant in the [overrides configuration](/docs/tempo/<TEMPO_VERSION>/configuration/#overrides). Refer to [Manage trace ingestion](/docs/tempo/<TEMPO_VERSION>/operations/manage-trace-ingestion/) for sizing guidance.
 
-You can replace `restart` with `stop` to stop the service, and `start` to start the service again after it's stopped, if required.
+#### Backend worker
 
-## Verify your cluster is working
+The `backend_worker.backend_scheduler_addr` setting is omitted from this configuration. In monolithic mode, Tempo auto-configures the backend worker to connect to the scheduler on the native gRPC port (default `9095`). Setting it explicitly to the HTTP port can produce noisy polling logs.
 
-To verify that Tempo is working, run the following command:
+## Start the Tempo service
 
-```bash
-systemctl is-active tempo
-```
+These `systemctl` instructions apply to monolithic mode only. Running individual Tempo components as separate systemd services (microservices mode) is not covered here.
 
-You should see the status `active` returned. If you don't, check that the configuration file is correct, and then restart the service.
-You can also use `journalctl -u tempo` to view the logs for Tempo to determine if there are any obvious reasons for failure to start.
+1. Use `systemctl` to restart the service (depending on how you installed Tempo, this may be different):
 
-After traces start flowing, verify that your storage bucket has received data:
+   ```bash
+   sudo systemctl restart tempo.service
+   ```
 
-{{< tabs >}}
-{{< tab-content name="MinIO" >}}
+   You can replace `restart` with `stop` to stop the service, and `start` to start the service again after it's stopped, if required.
 
-Open the MinIO Console at `http://localhost:9001` and check the `tempo` bucket for files such as `work.json` and a tenant data directory.
+1. Verify that Tempo is running:
 
-{{< /tab-content >}}
-{{< tab-content name="SeaweedFS" >}}
+   ```bash
+   systemctl is-active tempo
+   ```
 
-Open the SeaweedFS admin UI at `http://localhost:23646`, or list the bucket contents using the AWS CLI:
+   You should see the status `active` returned. If you don't, check that the configuration file is correct, and then restart the service.
+   You can also use `journalctl -u tempo` to view the logs for Tempo to determine if there are any obvious reasons for failure to start.
 
-```bash
-aws --endpoint-url http://localhost:8333 s3 ls s3://tempo/ --recursive --no-sign-request
-```
+1. Verify that Tempo created the storage subdirectories:
 
-You should see files such as `single-tenant/<block-id>/data.parquet` and `single-tenant/<block-id>/meta.json`.
+   ```bash
+   ls /data/tempo/
+   ```
 
-{{< /tab-content >}}
-{{< tab-content name="rclone serve s3 (experimental)" >}}
+   You should see `wal` and `blocks` directories. Trace data appears in `blocks` after you send traces and the live store flushes them to disk, which can take 15–30 seconds.
 
-List the bucket contents using the AWS CLI:
+## Test your installation
 
-```bash
-AWS_ACCESS_KEY_ID=tempokey AWS_SECRET_ACCESS_KEY=temposecret \
-  aws --endpoint-url http://localhost:8080 s3 ls s3://tempo/ --recursive
-```
-
-You should see files such as `single-tenant/<block-id>/data.parquet` and `single-tenant/<block-id>/meta.json`. `rclone serve s3` does not provide a web UI.
-
-{{< /tab-content >}}
-{{< /tabs >}}
+To verify that traces flow through Tempo correctly, refer to [Validate your local Tempo deployment](/docs/tempo/<TEMPO_VERSION>/set-up-for-tracing/setup-tempo/test/test-monolithic-local/).
 
 ## Next steps
 
-To validate that your Tempo deployment is working correctly, refer to [Validate your local Tempo deployment](/docs/tempo/<TEMPO_VERSION>/set-up-for-tracing/setup-tempo/test/test-monolithic-local/).
+After you validate your Tempo deployment, consider exploring these topics:
+
+- [Instrument for distributed tracing](/docs/tempo/<TEMPO_VERSION>/set-up-for-tracing/instrument-send/) to send traces from your own applications
+- [Configure Tempo](/docs/tempo/<TEMPO_VERSION>/configuration/) to customize settings for your environment
+- [Set up monitoring for Tempo](/docs/tempo/<TEMPO_VERSION>/operations/monitor/set-up-monitoring/) to observe your Tempo instance with dashboards and alerts

@@ -1,151 +1,118 @@
 ---
 title: Validate your local Tempo deployment
 menuTitle: Validate your local deployment
-description: Validate your local Grafana Tempo deployment by sending traces and verifying data in your S3-compatible object store.
+description: Validate your local Grafana Tempo deployment by sending traces and verifying they are stored and queryable.
 weight: 500
 ---
 
 # Validate your local Tempo deployment
 
-After you've set up Grafana Tempo, the next step is to test your deployment to ensure that your application emits traces and Tempo collects them correctly.
-This procedure uses a Docker Compose example in the Tempo repository.
+After you've set up Grafana Tempo, the next step is to verify that traces are ingested, stored, and queryable.
+
+This page covers two levels of validation:
+
+- **Quick validation** uses `telemetrygen` and the Tempo HTTP API to confirm traces flow end-to-end from the command line, with no additional services required.
+- **Grafana validation** connects Grafana to your local Tempo instance so you can explore traces visually.
 
 ## Before you begin
 
 To follow this procedure, you need:
 
-- A locally installed and running Tempo service with an S3-compatible object store (refer to [Deploy on Linux](/docs/tempo/<TEMPO_VERSION>/set-up-for-tracing/setup-tempo/deploy/locally/linux/))
+- A locally installed and running Tempo service (refer to [Deploy on Linux](/docs/tempo/<TEMPO_VERSION>/set-up-for-tracing/setup-tempo/deploy/locally/linux/))
+- [OpenTelemetry `telemetrygen`](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/cmd/telemetrygen) installed for generating test traces
+- A running Grafana instance (refer to [the installation instructions](/docs/grafana/<GRAFANA_VERSION>/setup-grafana/installation/)), only required for the [Grafana validation](#verify-traces-in-grafana) section
 
-  {{< admonition type="note" >}}
-  These examples use MinIO as the default S3-compatible object store. [SeaweedFS](https://github.com/seaweedfs/seaweedfs) and [rclone serve s3](https://rclone.org/commands/rclone_serve_s3/) are provided as alternatives for local testing but have not been fully tested with Tempo. They aren't recommended for production use. Refer to [Deploy on Linux](/docs/tempo/<TEMPO_VERSION>/set-up-for-tracing/setup-tempo/deploy/locally/linux/) for setup instructions for each option.
-  {{< /admonition >}}
+## Verify Tempo is running
 
-- Git, Docker, and the docker-compose plugin installed on the same machine
-- The host machine's IP address, which Docker containers use to reach the locally running Tempo service. You can find it using `ip addr show`.
-
-## Verify your cluster is working
-
-To verify that Tempo is working, run the following command:
-
-```bash
-systemctl is-active tempo
-```
-
-You should see the status `active` returned. If you don't, check that the configuration file is correct, and then restart the service.
-You can also use `journalctl -u tempo` to view the logs for Tempo to determine if there are any obvious reasons for failure to start.
-
-After traces start flowing, verify that your storage bucket has received data:
-
-{{< tabs >}}
-{{< tab-content name="MinIO" >}}
-
-Open the MinIO Console at `http://localhost:9001` and check the `tempo` bucket for files such as `work.json` and a tenant data directory.
-
-{{< /tab-content >}}
-{{< tab-content name="SeaweedFS" >}}
-
-Open the SeaweedFS admin UI at `http://localhost:23646`, or list the bucket contents using the AWS CLI:
-
-```bash
-aws --endpoint-url http://localhost:8333 s3 ls s3://tempo/ --recursive --no-sign-request
-```
-
-You should see files such as `single-tenant/<block-id>/data.parquet` and `single-tenant/<block-id>/meta.json`.
-
-{{< /tab-content >}}
-{{< tab-content name="rclone serve s3 (experimental)" >}}
-
-List the bucket contents using the AWS CLI:
-
-```bash
-AWS_ACCESS_KEY_ID=tempokey AWS_SECRET_ACCESS_KEY=temposecret \
-  aws --endpoint-url http://localhost:8080 s3 ls s3://tempo/ --recursive
-```
-
-You should see files such as `single-tenant/<block-id>/data.parquet` and `single-tenant/<block-id>/meta.json`. `rclone serve s3` does not provide a web UI.
-
-{{< /tab-content >}}
-{{< /tabs >}}
-
-## Test your installation
-
-After Tempo is running, you can use the Docker Compose examples in the Tempo repository to verify that trace data is sent to Tempo.
-This procedure runs a trace generator, Grafana, and Prometheus alongside your locally installed Tempo service.
-
-### Network configuration
-
-Docker Compose uses an internal networking bridge to connect all defined services. Because the Tempo instance is running as a service on the local machine host, you need the resolvable IP address of the local machine so the Docker containers can reach the Tempo service.
-
-You can find the host IP address of your Linux machine using a command such as `ip addr show`.
-
-### Steps
-
-1. Clone the Tempo repository:
+1. Check the service status:
 
    ```bash
-   git clone https://github.com/grafana/tempo.git
+   systemctl is-active tempo
    ```
 
-1. Go into the single-binary examples directory:
+   You should see the status `active` returned. If you don't, check that the configuration file is correct, and then restart the service.
+   You can also use `journalctl -u tempo` to view the logs for Tempo to determine if there are any obvious reasons for failure to start.
+
+1. Verify that Tempo created the storage subdirectories:
 
    ```bash
-   cd tempo/example/docker-compose/single-binary
+   ls /data/tempo/
    ```
 
-1. Edit the file `docker-compose.yaml` and remove the `tempo`, `minio`, `alloy`, and `vulture` services. Keep only `k6-tracing`, `prometheus`, and `grafana`. The example includes its own `minio` service for object storage. Remove it along with the other listed services, since you already have a local object store running from the [Deploy on Linux](/docs/tempo/<TEMPO_VERSION>/set-up-for-tracing/setup-tempo/deploy/locally/linux/) setup.
+   You should see `wal` and `blocks` directories.
 
-1. In the `k6-tracing` service, remove the `depends_on` block and change the value of `ENDPOINT` to the local IP address of the machine running Tempo, for example, `10.128.0.104:4317`. This is the OTLP gRPC port:
+   If you configured Tempo with an S3-compatible backend instead of local storage, refer to [Verify data in your S3-compatible store](/docs/tempo/<TEMPO_VERSION>/configuration/hosted-storage/s3/#verify-data-in-your-s3-compatible-store) for storage verification steps.
 
-   ```yaml
-   environment:
-     - ENDPOINT=10.128.0.104:4317
-   ```
+## Send test traces
 
-   This ensures that the traces sent from the example application go to the locally running Tempo service.
+Use [OpenTelemetry `telemetrygen`](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/cmd/telemetrygen) to send traces to Tempo. The following command sends 100 traces (20 per second for 5 seconds) over OTLP gRPC:
 
-1. Edit the `grafana-datasources.yaml` file and change the `url` field in both Tempo data sources (`Tempo (yes streaming)` and `Tempo (no streaming)`) to the local IP address of the machine running the Tempo service. For example, change `http://tempo:3200` to `http://10.128.0.104:3200`. Both data sources already include a `serviceMap` section that links to Prometheus for the Service Graph feature. After editing, a Tempo data source entry should resemble this:
+```bash
+telemetrygen traces --otlp-insecure --rate 20 --duration 5s --otlp-endpoint localhost:4317
+```
 
-   ```yaml
-   - name: Tempo (yes streaming)
-     type: tempo
-     access: proxy
-     orgId: 1
-     url: http://10.128.0.104:3200
-     jsonData:
-       httpMethod: GET
-       serviceMap:
-         datasourceUid: prometheus
-       streamingEnabled:
-         search: true
-         metrics: true
-   ```
+## Verify traces using the Tempo API
 
-   Save the file and exit your editor.
+After sending traces, you can verify them directly using the Tempo HTTP API. No additional services are required.
 
-1. Edit the `prometheus.yaml` file so it uses the Tempo service as a scrape target. Change the target to the local Linux host IP address:
-
-   ```yaml
-   - job_name: 'tempo'
-     static_configs:
-       - targets: ['10.128.0.104:3200']
-   ```
-
-   Save the file and exit your editor.
-
-1. Start the services defined in the Docker Compose file:
+1. Search for recent traces:
 
    ```bash
-   docker compose up -d
+   curl -s http://localhost:3200/api/search | jq .
    ```
 
-1. Verify that the services are running using `docker compose ps`. You should see Grafana running on port 3000 and Prometheus on port 9090, both bound to the host machine.
+   You should see a `traces` array containing your test traces. Each entry includes a `traceID`, `rootServiceName`, and `rootTraceName`. For example:
 
-1. Point your web browser to the Linux machine on port 3000. You might need to port forward the local port if you're doing this remotely, for example, via SSH forwarding.
+   ```json
+   {
+     "traces": [
+       {
+         "traceID": "abc123...",
+         "rootServiceName": "telemetrygen",
+         "rootTraceName": "lets-go",
+         "startTimeUnixNano": "1776912138880042305"
+       }
+     ]
+   }
+   ```
 
-1. Navigate to the **Explore** page, select the Tempo data source, and select the **Search** tab. Select **Run query** to list the recent traces stored in Tempo. Select one to view the trace diagram:
+   {{< admonition type="note" >}}
+   Trace data appears in search results after the live store flushes completed blocks to disk, which can take 15–30 seconds. If the `traces` array is empty, wait and retry.
+   {{< /admonition >}}
+
+1. Retrieve a specific trace by ID using a `traceID` value from the search results:
+
+   ```bash
+   curl -s http://localhost:3200/api/v2/traces/<TRACE_ID> | jq .
+   ```
+
+   Replace `<TRACE_ID>` with an actual trace ID from the previous step.
+
+If both commands return trace data, your Tempo installation is ingesting, storing, and serving traces correctly.
+
+Refer to the [Tempo HTTP API documentation](/docs/tempo/<TEMPO_VERSION>/api_docs/) for the full API reference and [Push spans with HTTP](/docs/tempo/<TEMPO_VERSION>/api_docs/pushing-spans-with-http/) for an alternative approach using `curl` to send traces.
+
+## Verify traces in Grafana
+
+If you have a Grafana instance running, you can verify that traces are visible in the Grafana Explore view. If Grafana is not already installed, refer to [the installation instructions](/docs/grafana/<GRAFANA_VERSION>/setup-grafana/installation/). For the full Tempo data source configuration reference, refer to [Configure the Tempo data source](/docs/grafana/<GRAFANA_VERSION>/datasources/tempo/configure-tempo-data-source/).
+
+1. In Grafana, navigate to **Connections** > **Data sources** and select **Add data source**.
+
+1. Select **Tempo** and set the URL to `http://localhost:3200`.
+
+1. Select **Save & Test**. You should see a message that says `Data source is working`.
+
+1. Navigate to the **Explore** page, select the **Tempo** data source, and choose the **Search** query type.
+
+1. Select **Run query** to list the recent traces stored in Tempo. You should see traces from `telemetrygen` in the results. Select a trace to view its spans:
+
    {{< figure align="center" src="/media/docs/grafana/data-sources/tempo/query-editor/tempo-ds-builder-span-details-v11.png" alt="Use the query builder to explore tracing data in Grafana" >}}
 
-1. Alter the Tempo configuration to point to the instance of Prometheus running in Docker Compose. Edit the configuration at `/etc/tempo/config.yml` and change the `url` in the `remote_write` block under the `metrics_generator` section to `http://localhost:9090/api/v1/write`. The configuration section should look like this:
+###  Optional: Metrics-generator
+
+If you are using the metrics-generator, you can enable it to generate metrics from the traces.
+
+1. Edit the configuration at `/etc/tempo/config.yml` and add or update the `metrics_generator` section. Set the `remote_write` URL to the address of your Prometheus-compatible storage instance. The configuration section should look like this:
 
    ```yaml
    metrics_generator:
