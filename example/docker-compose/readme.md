@@ -32,7 +32,7 @@ This example uses the `local` backend, suitable for local testing and developmen
 This step is not necessary, but it can be nice for local testing.  For any of the above examples rebuilding these
 images will cause docker compose to use your local code when running the examples.
 
-Run the following from the project root folder to build the `grafana/tempo:latest` image that is used in all the examples:
+Run the following from the project root folder to build the `grafana/tempo:2.8.4` image that is used in all the examples:
 
 ```console
 make docker-images

@@ -33,7 +33,7 @@ spec:
         - -config.file=/conf/tempo.yaml
         - -mem-ballast-size-mbs=1024
         - -target=metrics-generator
-        image: grafana/tempo:latest
+        image: grafana/tempo:2.8.4
         name: metrics-generator
         ports:
         - containerPort: 3200
