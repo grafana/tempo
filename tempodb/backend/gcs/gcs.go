@@ -51,6 +51,28 @@ var (
 	_ backend.VersionedReaderWriter = (*readerWriter)(nil)
 )
 
+// fqdnTransport is a custom http.RoundTripper that strips the trailing dot
+// from the Host header before sending the request, while keeping the trailing
+// dot in the URL so that DNS resolution uses the fully qualified domain name.
+//
+// This solves the Kubernetes ndots=5 problem (issue #1726): users can configure
+// a trailing dot in bucket_name (e.g. "my-traces-bucket.") to hint kube-dns to
+// skip local search and perform a direct DNS lookup, eliminating up to 11
+// spurious DNS queries per storage API call. The trailing dot is then stripped
+// from the Host header only, because GCS rejects it with a 301 redirect.
+type fqdnTransport struct {
+	wrapped http.RoundTripper
+}
+
+func (t *fqdnTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	// Clone the request to avoid mutating the original
+	r := req.Clone(req.Context())
+	// Strip trailing dot from Host header only.
+	// The URL retains the trailing dot for correct FQDN DNS resolution.
+	r.Host = strings.TrimSuffix(r.Host, ".")
+	return t.wrapped.RoundTrip(r)
+}
+
 // NewNoConfirm gets the GCS backend without testing it
 func NewNoConfirm(cfg *Config) (backend.RawReader, backend.RawWriter, backend.Compactor, error) {
 	rw, err := internalNew(cfg, false)
@@ -249,8 +271,6 @@ func (rw *readerWriter) ListBlocks(ctx context.Context, tenant string) ([]uuid.U
 				id    uuid.UUID
 			)
 
-			// If max is global max, then we don't want to set an end offset to
-			// ensure we reach the end.  EndOffset is exclusive.
 			if maxUUID != backend.GlobalMaxBlockID {
 				query.EndOffset = prefix + maxUUID.String()
 			}
@@ -272,7 +292,6 @@ func (rw *readerWriter) ListBlocks(ctx context.Context, tenant string) ([]uuid.U
 				}
 
 				parts = strings.Split(strings.TrimPrefix(attrs.Name, prefix), "/")
-				// ie: <blockID>/meta.json
 				if len(parts) != 2 {
 					continue
 				}
@@ -496,11 +515,9 @@ func (rw *readerWriter) readRange(ctx context.Context, name string, offset int64
 	}
 	defer r.Close()
 
-	/* bytes read == len(buffer) if and only if err == nil */
 	_, err = io.ReadFull(r, buffer)
 
 	if err == nil {
-		/* read EOF so connection can be reused */
 		var dummy [1]byte
 		_, _ = r.Read(dummy[:])
 		return nil
@@ -539,6 +556,11 @@ func createBucket(ctx context.Context, cfg *Config, hedge bool) (*storage.Bucket
 		instrumentation.PublishHedgedMetrics(stats)
 	}
 
+	// Wrap with fqdnTransport so the Host header has its trailing dot stripped
+	// on every request, while the URL retains it for FQDN DNS resolution.
+	// This supports Kubernetes ndots=5 environments (issue #1726).
+	transport = &fqdnTransport{wrapped: transport}
+
 	// Build client
 	storageClientOptions := []option.ClientOption{
 		option.WithHTTPClient(&http.Client{
@@ -555,7 +577,9 @@ func createBucket(ctx context.Context, cfg *Config, hedge bool) (*storage.Bucket
 		return nil, fmt.Errorf("creating storage client: %w", err)
 	}
 
-	// Build bucket
+	// Use cfg.BucketName as-is (trailing dot preserved) so the GCS client
+	// uses the FQDN for DNS resolution. The fqdnTransport above strips the
+	// dot from the Host header before the request is sent to GCS.
 	return client.Bucket(cfg.BucketName), nil
 }
 
