@@ -120,6 +120,10 @@
 * [CHANGE] **BREAKING CHANGE** Clean up enterprise jsonnet [#6505](https://github.com/grafana/tempo/pull/6505) (@javiermolinar)
 * [CHANGE] Expose otlp http and grpc ports for Docker examples [#6296](https://github.com/grafana/tempo/pull/6296) (@javiermolinar)
 
+# v2.10.4
+
+* [ENHANCEMENT] Add flag for enabling MCP server. [#6903](https://github.com/grafana/tempo/pull/6903) (@tiffanyfay)
+
 # v2.10.3
 
 * [SECURITY] S3 SSE-C `encryption_key` is now treated as a secret to prevent it from being exposed in plaintext. Resolves CVE-2026-28377. [#6711](https://github.com/grafana/tempo/pull/6711) (@mattdurham)

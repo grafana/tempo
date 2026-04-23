@@ -1,6 +1,7 @@
 package frontend
 
 import (
+	"flag"
 	"net/http/httptest"
 	"testing"
 	"time"
@@ -16,6 +17,22 @@ import (
 var testSLOcfg = SLOConfig{
 	ThroughputBytesSLO: 0,
 	DurationSLO:        0,
+}
+
+func TestMCPServerEnabled(t *testing.T) {
+	fs := flag.NewFlagSet("test", flag.ContinueOnError)
+	cfg := &Config{}
+	cfg.RegisterFlagsAndApplyDefaults("query-frontend", fs)
+
+	assert.False(t, cfg.MCPServer.Enabled)
+
+	require.NoError(t, fs.Parse([]string{"-query-frontend.mcp-server.enabled=true"}))
+	assert.True(t, cfg.MCPServer.Enabled)
+
+	qf, err := New(*cfg, &mockRoundTripper{}, nil, nil, nil, "", fakeHTTPAuthMiddleware, nil, log.NewNopLogger(), nil)
+	require.NoError(t, err)
+	_, ok := qf.MCPHandler.(*MCPServer)
+	assert.True(t, ok)
 }
 
 func TestFrontendTagSearchRequiresOrgID(t *testing.T) {
