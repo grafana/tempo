@@ -26,7 +26,12 @@ The `compacted_block_retention` window keeps the old blocks readable until all p
 Tempo components rely on an in-memory blocklist to know which blocks exist in object storage.
 They do not scan object storage directly on each request.
 The blocklist is maintained by the poller, a background process that reads the backend on a fixed interval controlled by `blocklist_poll` (default 5 minutes).
+The poller is how compaction results become visible to queriers and other components: newly merged blocks appear in the blocklist and compacted blocks are removed.
 A component can only serve data from blocks the poller has discovered. If the poller falls behind or fails, the component's view of the backend becomes incomplete.
+
+The poller reads a pre-built tenant index from the backend rather than scanning all objects on each cycle.
+If the tenant index is missing or older than `blocklist_poll_stale_tenant_index`, the component falls back to scanning the backend directly.
+Setting `blocklist_poll_fallback: true` (the default) enables this fallback; disabling it means a stale or missing index causes the poll to fail rather than recover.
 
 Because the poller runs on an interval, the blocklist is always slightly out of date.
 In a healthy system, the blocklist will be stale by at most twice the configured `blocklist_poll` duration.
@@ -70,8 +75,8 @@ The selector divides the blocklist into two zones based on the **active window**
 - **Outside the active window**: blocks are grouped by time window only, ignoring compaction level. This allows older data to be consolidated regardless of how many times it has already been compacted.
 
 The selector only returns a group for compaction if it contains at least the minimum number of input blocks (default 2).
-Each group is also subject to the output size limit `max_block_bytes` (default 100 GB).
-Groups that would exceed this limit are skipped.
+Each input set is also bounded by `max_block_bytes` (default 100 GB).
+If a full group would exceed this limit, the selector picks the largest contiguous subset of blocks that fits; any remaining blocks in the group are eligible in subsequent compaction runs.
 
 The number of input blocks per compaction job is configurable via `min_input_blocks` and `max_input_blocks`, defaulting to a minimum of 2 and a maximum of 4.
 
@@ -82,10 +87,14 @@ The scheduler is a singleton that assigns compaction jobs to a pool of workers.
 Workers request jobs from the scheduler and report back when complete; the scheduler tracks active jobs and avoids handing out overlapping work.
 
 The scheduler uses a priority queue to choose which tenant to work on next.
-Tenants are ranked by the number of outstanding blocks, so tenants with more work receive jobs first.
-The scheduler processes one tenant at a time, exhausting its eligible blocks or reaching the per-tenant job limit (`max_jobs_per_tenant`, default 1000) before moving to the next tenant.
+Outstanding blocks are those the block selector has identified as eligible for compaction -- blocks that meet the window, encoding, and minimum-group-size requirements.
+Tenants are ranked by the sum of their total blocklist length and their outstanding block count, so tenants with more overall backend work receive jobs first.
+A tenant with no outstanding blocks receives a priority of zero and is not scheduled.
 
-To avoid a single busy tenant crowding out others, the block selector prioritizes lower compaction levels first when selecting jobs within a tenant.
+The scheduler processes one tenant at a time, issuing jobs until the tenant's eligible blocks are exhausted or the per-tenant job limit (`max_jobs_per_tenant`, default 1000) is reached, then moves to the next tenant.
+This cap is the mechanism that prevents a single busy tenant from monopolizing the workers.
+
+Within a tenant, the block selector prioritizes lower compaction levels first.
 Higher-level blocks are still compacted, but after lower-level work is cleared.
 
 The compaction provider waits for a poll notification before selecting new work, preventing idle spin when no blocks are eligible.
@@ -95,6 +104,7 @@ A minimum cycle interval (`min_cycle_interval`, default 30 seconds) rate-limits 
 
 Outstanding block counts are measured for all tenants on a periodic ticker (`measure_interval`, default 1 minute), giving an aggregate view of total backend work.
 Autoscaling thresholds should be set against this aggregate total rather than per-instance averages.
+For a reference KEDA autoscaling configuration driven by outstanding block metrics, see `operations/jsonnet/microservices/autoscaling.libsonnet`.
 
 ## Configuration reference
 
@@ -102,7 +112,7 @@ For a full configuration reference, refer to the [configuration documentation](.
 
 The following fields are most relevant to compaction behavior.
 
-**Polling interval** (`storage.trace`):
+### Polling interval (`storage.trace`)
 ```yaml
 storage:
   trace:
@@ -110,7 +120,7 @@ storage:
     blocklist_poll: 5m
 ```
 
-**Compaction settings** (`backend_worker.compaction`):
+### Compaction settings (`backend_worker.compaction`)
 ```yaml
 backend_worker:
   compaction:
@@ -124,7 +134,7 @@ backend_worker:
     compacted_block_retention: 1h
 ```
 
-**Query cutoff** (must be >= 2x blocklist_poll):
+### Query cutoff (must be >= 2x blocklist_poll)
 ```yaml
 query_frontend:
   search:
@@ -132,7 +142,7 @@ query_frontend:
     query_backend_after: 15m
 ```
 
-**Scheduler compaction** (`backend_scheduler.provider.compaction`):
+### Scheduler compaction (`backend_scheduler.provider.compaction`)
 ```yaml
 backend_scheduler:
   provider:
