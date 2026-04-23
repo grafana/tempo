@@ -11,7 +11,7 @@ Tempo supports two deployment modes: monolithic and microservices. All component
 
 ## Monolithic mode
 
-In monolithic mode, the required components run in a single process using `-target=all`, which is the default. No Kafka is required. The distributor pushes trace data in-process directly to the live-store and metrics-generator, and traces are flushed to object storage.
+In monolithic mode, the required components run in a single process using `-target=all`, which is the default. No Kafka is required. The distributor pushes trace data in-process directly to the live-store and metrics-generator, and traces are flushed to the configured storage backend. Object storage is recommended for production deployments.
 
 Use monolithic mode when:
 
