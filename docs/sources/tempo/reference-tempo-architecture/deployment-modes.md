@@ -101,7 +101,7 @@ Not all components and configuration blocks apply to both modes. The following t
 | Backend scheduler | `backend_scheduler` | Runs in-process | Runs as a separate process |
 | Backend worker | `backend_worker` | Runs in-process | Runs as a separate process |
 | Metrics-generator | `metrics_generator` | Optional, runs in-process | Optional, runs as a separate process |
-| Storage | `storage` | Object storage for trace data | Object storage for trace data |
+| Storage | `storage` | Storage backend for trace data (object storage recommended; local supported for dev/test) | Object storage for trace data |
 | Memberlist | `memberlist` | Cluster membership | Cluster membership |
 | Overrides | `overrides` | Per-tenant limits | Per-tenant limits |
 
