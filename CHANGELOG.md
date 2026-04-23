@@ -1,6 +1,14 @@
 ## main / unreleased
 
+# v2.8.4
+
 * [CHANGE] Set default `max_result_limit` for search to 256*1024 [#6525](https://github.com/grafana/tempo/pull/6525) (@zhxiaogg)
+* [CHANGE] Upgrade Go to 1.26.2 to fix CVE-2026-25679 [#6800](https://github.com/grafana/tempo/pull/6800) (@ie-pham)
+* [CHANGE] Patch gRPC modules and upgrade go.opentelemetry.io/otel/sdk to v1.40.0 to fix security vulnerabilities [#6899](https://github.com/grafana/tempo/pull/6899) (@ie-pham)
+* [CHANGE] Upgrade go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp to v1.43.0 to fix security vulnerabilities [#6890](https://github.com/grafana/tempo/pull/6890)
+* [CHANGE] Upgrade go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetrichttp to v1.43.0 to fix security vulnerabilities [#6889](https://github.com/grafana/tempo/pull/6889)
+* [CHANGE] Upgrade github.com/go-jose/go-jose/v4 to v4.1.4 to fix security vulnerabilities [#6908](https://github.com/grafana/tempo/pull/6908)
+* [CHANGE] Upgrade github.com/antchfx/xpath to v1.3.6 to fix security vulnerabilities [#6763](https://github.com/grafana/tempo/pull/6763)
 * [BUGFIX] avoided unbounded mem by capping exemplars hint [#6792](https://github.com/grafana/tempo/pull/6792) (@zhxiaogg) 
 
 # v2.8.3
