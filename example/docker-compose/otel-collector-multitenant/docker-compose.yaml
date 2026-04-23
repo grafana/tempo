@@ -3,7 +3,7 @@ services:
   # Tempo runs as user 10001, and docker compose creates the volume as root.
   # As such, we need to chown the volume in order for Tempo to start correctly.
   init:
-    image: &tempoImage grafana/tempo:latest
+    image: &tempoImage grafana/tempo:2.9.2
     user: root
     entrypoint:
       - "chown"

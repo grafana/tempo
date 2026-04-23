@@ -1,7 +1,7 @@
 services:
 
   tempo1:
-    image: grafana/tempo:latest
+    image: grafana/tempo:2.9.2
     command: "-target=scalable-single-binary -config.file=/etc/tempo.yaml"
     volumes:
       - ./tempo-scalable-single-binary.yaml:/etc/tempo.yaml
@@ -16,7 +16,7 @@ services:
       - 3200:3200
 
   tempo2:
-    image: grafana/tempo:latest
+    image: grafana/tempo:2.9.2
     command: "-target=scalable-single-binary -config.file=/etc/tempo.yaml"
     volumes:
       - ./tempo-scalable-single-binary.yaml:/etc/tempo.yaml
@@ -29,7 +29,7 @@ services:
       - minio
 
   tempo3:
-    image: grafana/tempo:latest
+    image: grafana/tempo:2.9.2
     command: "-target=scalable-single-binary -config.file=/etc/tempo.yaml"
     volumes:
       - ./tempo-scalable-single-binary.yaml:/etc/tempo.yaml

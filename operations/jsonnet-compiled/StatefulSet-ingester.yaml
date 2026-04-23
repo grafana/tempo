@@ -33,7 +33,7 @@ spec:
         - -config.file=/conf/tempo.yaml
         - -mem-ballast-size-mbs=1024
         - -target=ingester
-        image: grafana/tempo:latest
+        image: grafana/tempo:2.9.2
         name: ingester
         ports:
         - containerPort: 3200

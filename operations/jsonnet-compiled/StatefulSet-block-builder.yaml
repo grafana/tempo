@@ -24,7 +24,7 @@ spec:
         - -config.file=/conf/tempo.yaml
         - -mem-ballast-size-mbs=1024
         - -target=block-builder
-        image: grafana/tempo:latest
+        image: grafana/tempo:2.9.2
         imagePullPolicy: IfNotPresent
         name: block-builder
         ports:
