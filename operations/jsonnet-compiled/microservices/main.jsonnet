@@ -4,7 +4,7 @@ local tempo = import 'microservices/tempo.libsonnet';
 
 tempo {
   _images+:: {
-    tempo: 'grafana/tempo:latest',
+    tempo: 'grafana/tempo:2.10.5',
     tempo_vulture: 'grafana/tempo-vulture:latest',
     tempo_query: 'grafana/tempo-query:latest',
   },

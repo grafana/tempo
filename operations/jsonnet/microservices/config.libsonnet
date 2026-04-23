@@ -1,6 +1,6 @@
 {
   _images+:: {
-    tempo: 'grafana/tempo:latest',
+    tempo: 'grafana/tempo:2.10.5',
     tempo_query: 'grafana/tempo-query:latest',
     tempo_vulture: 'grafana/tempo-vulture:latest',
     rollout_operator: 'grafana/rollout-operator:v0.23.0',

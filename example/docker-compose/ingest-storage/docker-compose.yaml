@@ -12,7 +12,7 @@ services:
       - ./tempo-data:/var/tempo
 
   distributor:
-    image: &tempoImage grafana/tempo:latest
+    image: &tempoImage grafana/tempo:2.10.5
     depends_on:
       - redpanda
     command: "-target=distributor -config.file=/etc/tempo.yaml"
