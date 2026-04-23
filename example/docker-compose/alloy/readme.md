@@ -18,7 +18,7 @@ alloy-alloy-1        grafana/alloy:v1.3.1                        "/bin/alloy run
 alloy-grafana-1      grafana/grafana:12.0.0                      "/run.sh"                grafana      48 seconds ago   Up 5 seconds   0.0.0.0:3000->3000/tcp
 alloy-k6-tracing-1   ghcr.io/grafana/xk6-client-tracing:v0.0.7   "/k6-tracing run /ex…"   k6-tracing   48 seconds ago   Up 4 seconds   
 alloy-prometheus-1   prom/prometheus:latest                      "/bin/prometheus --c…"   prometheus   48 seconds ago   Up 5 seconds   0.0.0.0:9090->9090/tcp
-alloy-tempo-1        grafana/tempo:latest                        "/tempo -config.file…"   tempo        48 seconds ago   Up 5 seconds   0.0.0.0:57508->3200/tcp, 0.0.0.0:57509->4317/tcp, 0.0.0.0:57505->4318/tcp, 0.0.0.0:57506->9411/tcp, 0.0.0.0:57507->14268/tcp
+alloy-tempo-1        grafana/tempo:2.8.4                        "/tempo -config.file…"   tempo        48 seconds ago   Up 5 seconds   0.0.0.0:57508->3200/tcp, 0.0.0.0:57509->4317/tcp, 0.0.0.0:57505->4318/tcp, 0.0.0.0:57506->9411/tcp, 0.0.0.0:57507->14268/tcp
 ```
 
 2. If you're interested you can see the wal/blocks as they are being created.

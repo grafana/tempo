@@ -1,7 +1,7 @@
 services:
 
   distributor:
-    image: &tempoImage grafana/tempo:latest
+    image: &tempoImage grafana/tempo:2.8.4
     command: "-target=distributor -config.file=/etc/tempo.yaml"
     restart: always
     volumes:
