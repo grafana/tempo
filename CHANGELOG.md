@@ -1,7 +1,18 @@
 ## main / unreleased
 
+# v2.9.2
+
+* [BUGFIX] updated go version to 1.26.2 for CVE-2026-25679 fix [#6779](https://github.com/grafana/tempo/pull/6779) (@ie-pham)
 * [CHANGE] Set default `max_result_limit` for search to 256*1024 [#6525](https://github.com/grafana/tempo/pull/6525) (@zhxiaogg)
-* [BUGFIX] avoided unbounded mem by capping exemplars hint [#6792](https://github.com/grafana/tempo/pull/6792) (@zhxiaogg) 
+* [BUGFIX] avoided unbounded mem by capping exemplars hint [#6792](https://github.com/grafana/tempo/pull/6792) (@zhxiaogg)
+* [CHANGE] Upgrade OTLP SDK [#6904](https://github.com/grafana/tempo/pull/6904) (@ie-pham)
+* [BUGFIX] Update module go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploghttp to v0.19.0 [security] [#6891](https://github.com/grafana/tempo/pull/6891) (@renovate-sh-app)
+* [BUGFIX] Update module go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp to v1.43.0 [security] [#6893](https://github.com/grafana/tempo/pull/6893) (@renovate-sh-app)
+* [BUGFIX] Update module go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetrichttp to v1.43.0 [security] [#6892](https://github.com/grafana/tempo/pull/6892) (@renovate-sh-app)
+* [BUGFIX] Update module github.com/go-jose/go-jose/v4 to v4.1.4 [security] [#6852](https://github.com/grafana/tempo/pull/6852) (@renovate-sh-app)
+* [BUGFIX] Update module github.com/antchfx/xpath to v1.3.6 [security] [#6764](https://github.com/grafana/tempo/pull/6764) (@renovate-sh-app)
+* [BUGFIX] Update module google.golang.org/grpc to v1.79.3 [security] [#6735](https://github.com/grafana/tempo/pull/6735) (@renovate-sh-app)
+* [BUGFIX] Update module github.com/buger/jsonparser to v1.1.2 [security] [#6744](https://github.com/grafana/tempo/pull/6744) (@renovate-sh-app)
 
 # v2.9.1
 
