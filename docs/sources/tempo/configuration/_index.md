@@ -510,7 +510,7 @@ live_store:
     # How often to sweep all tenants and move traces from live -> wal -> completed blocks.
     [flush_check_period: <duration> | default = 5s]
 
-    # Timeout for flush and cleanup operations.
+    # Interval for periodic cleanup work, and the maximum time to wait for background processes during shutdown.
     [flush_op_timeout: <duration> | default = 5m]
 
     # Amount of time a trace must be idle before flushing it to the WAL.
@@ -555,6 +555,9 @@ live_store:
 
     # Partition ring configuration for the live-store.
     partition_ring:
+      # Backend storage used for the partition ring.
+      kvstore: <KVStore config>
+
       # Minimum number of owners to wait before a PENDING partition is switched to ACTIVE.
       [min_partition_owners_count: <int> | default = 1]
 
@@ -793,7 +796,7 @@ metrics_generator:
     # Number of concurrent Kafka consumers.
     [ingest_concurrency: <uint> | default = 16]
 
-    # Instance ID to register in the ring.
+    # Instance ID used by the metrics-generator Kafka client.
     [instance_id: <string> | default = <hostname>]
 
     # Storage and remote write configuration
