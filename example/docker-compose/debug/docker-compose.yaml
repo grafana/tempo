@@ -4,7 +4,7 @@ services:
     command: [ "-target=all", "-config.file=/etc/tempo.yaml" ]
     volumes:
       - ./tempo.yaml:/etc/tempo.yaml
-      - ./tempo-data:/var/tempo
+      - tempo-data:/var/tempo
     environment:
       - DEBUG_BLOCK=0
     ports:
@@ -55,3 +55,6 @@ services:
       ]
     depends_on:
       - tempo
+
+volumes:
+  tempo-data:

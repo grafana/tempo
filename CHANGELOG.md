@@ -12,6 +12,8 @@
 * [CHANGE] Allow duplicate dimensions for span metrics and service graphs. This is a valid use case if using different instrumentation libraries, with spans having "deployment.environment" and others "deployment_environment", for example. [#6288](https://github.com/grafana/tempo/pull/6288) (@carles-grafana)
 * [CHANGE] Updade default max duration for traceql metrics queries up to one day [#6285](https://github.com/grafana/tempo/pull/6285) (@javiermolinar)
 * [CHANGE] Set traceQL query metrics checks by default in Vulture [#6275](https://github.com/grafana/tempo/pull/6275) (@javiermolinar)
+* [CHANGE] Make tempo singlebinary example to use the local backend [#7033](https://github.com/grafana/tempo/pull/7033) (@javiermolinar)
+* [CHANGE] Bump ingestion limits [#7034](https://github.com/grafana/tempo/pull/7034) (@javiermolinar)
 * [CHANGE] TraceQL metrics - change default step intervals to align with new vParquet5 timestamp columns [#6413](https://github.com/grafana/tempo/pull/6413) (@mdisibio)
 * [CHANGE] Remove all traces of ingesters from the dashboards [#6352](https://github.com/grafana/tempo/pull/6352) (@javiermolinar)
 * [CHANGE] **BREAKING CHANGE** tempo-cli: Support relative time (now, now-1h) for start/end args and standardize on RFC3339 in all commands. [#6458](https://github.com/grafana/tempo/pull/6458) (@electron0zero)
@@ -23,6 +25,8 @@
 * [CHANGE] Own local block and partition ring helpers [#6808](https://github.com/grafana/tempo/pull/6808) (@javiermolinar)
 * [CHANGE] Track invalid trace and span id discards [#6799](https://github.com/grafana/tempo/pull/6799) (@javiermolinar)
 * [CHANGE] Deprecate `query_frontend.rf1_after` and query all blocks regardless of replication factor for non-metrics paths. Simplifies 2.x to 3.0 migration. [#6969](https://github.com/grafana/tempo/pull/6969) (@mapno)
+* [CHANGE] **BREAKING CHANGE** Remove deprecated `querier.query_live_store` config. This field must be removed from configs on upgrade. [#7048](https://github.com/grafana/tempo/pull/7048) (@javiermolinar)
+* [FEATURE] jsonnet: Add KEDA-based horizontal pod autoscaling support for microservices deployment [#6970](https://github.com/grafana/tempo/pull/6970) (@mapno)
 * [FEATURE] Add automemlimit support for automatic GOMEMLIMIT configuration. Enable with `memory.automemlimit_enabled: true`. [#6313](https://github.com/grafana/tempo/pull/6313) (@oleg-kozlyuk)
 * [FEATURE] Support comparison operators in TraceQL Metrics queries [#6474](https://github.com/grafana/tempo/pull/6474) (@ruslan-mikhailov)
 * [FEATURE] Add new include_any filter policy for spanmetrics filter [#6392](https://github.com/grafana/tempo/pull/6392) (@javiermolinar)
@@ -116,6 +120,10 @@
 * [CHANGE] **BREAKING CHANGE** Sets the `all` target to be 3.0 compatible and removes the `scalable-single-binary` target [#6283](https://github.com/grafana/tempo/pull/6283) (@joe-elliott)
 * [CHANGE] **BREAKING CHANGE** Clean up enterprise jsonnet [#6505](https://github.com/grafana/tempo/pull/6505) (@javiermolinar)
 * [CHANGE] Expose otlp http and grpc ports for Docker examples [#6296](https://github.com/grafana/tempo/pull/6296) (@javiermolinar)
+
+# v2.10.4
+
+* [ENHANCEMENT] Add flag for enabling MCP server. [#6903](https://github.com/grafana/tempo/pull/6903) (@tiffanyfay)
 
 # v2.10.3
 

@@ -686,8 +686,8 @@ overrides:
     defaults:
         ingestion:
             rate_strategy: local
-            rate_limit_bytes: 15000000
-            burst_size_bytes: 20000000
+            rate_limit_bytes: 30000000
+            burst_size_bytes: 30000000
             max_traces_per_user: 10000
             retry_info_enabled: true
         read:

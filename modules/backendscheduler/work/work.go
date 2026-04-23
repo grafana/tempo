@@ -2,6 +2,7 @@ package work
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"hash/fnv"
 	"os"
@@ -10,7 +11,6 @@ import (
 	"time"
 
 	"github.com/grafana/tempo/pkg/tempopb"
-	jsoniter "github.com/json-iterator/go"
 	"go.opentelemetry.io/otel"
 )
 
@@ -383,7 +383,7 @@ func (w *Work) Marshal() ([]byte, error) {
 	}()
 
 	// For now, marshal the entire structure for compatibility
-	return jsoniter.Marshal(w)
+	return json.Marshal(w)
 }
 
 // MarshalShard marshals only a specific shard
@@ -396,7 +396,7 @@ func (w *Work) MarshalShard(shardID int) ([]byte, error) {
 	shard.mtx.Lock()
 	defer shard.mtx.Unlock()
 
-	return jsoniter.Marshal(shard)
+	return json.Marshal(shard)
 }
 
 // Unmarshal deserializes JSON to all shards with proper locking
@@ -415,7 +415,7 @@ func (w *Work) Unmarshal(data []byte) error {
 		}
 	}()
 
-	err := jsoniter.Unmarshal(data, w)
+	err := json.Unmarshal(data, w)
 	if err != nil {
 		return err
 	}
@@ -481,7 +481,7 @@ func (w *Work) UnmarshalShard(shardID int, data []byte) error {
 	shard.mtx.Lock()
 	defer shard.mtx.Unlock()
 
-	return jsoniter.Unmarshal(data, shard)
+	return json.Unmarshal(data, shard)
 }
 
 // GetShardStats returns statistics about job distribution across shards
@@ -571,7 +571,7 @@ func (w *Work) flushShards(localPath string, shards map[int]bool) error {
 			shard.mtx.Lock()
 			defer shard.mtx.Unlock()
 
-			shardData, err := jsoniter.Marshal(shard)
+			shardData, err := json.Marshal(shard)
 			if err != nil {
 				return err
 			}

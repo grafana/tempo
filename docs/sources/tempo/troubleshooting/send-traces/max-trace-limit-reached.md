@@ -35,7 +35,7 @@ level=info ts=2024-08-19T16:06:25.881169385Z caller=distributor.go:767 msg=disca
 The distributor checks ingestion rate limits before writing to Kafka. If spans are refused due to rate limits, you'll see logs like this at the distributor:
 
 ```
-msg="pusher failed to consume trace data" err="rpc error: code = ResourceExhausted desc = RATE_LIMITED: ingestion rate limit (15000000 bytes) exceeded while adding 10 bytes"
+msg="pusher failed to consume trace data" err="rpc error: code = ResourceExhausted desc = RATE_LIMITED: ingestion rate limit (30000000 bytes) exceeded while adding 10 bytes"
 ```
 
 You'll also see the following metric incremented. The `reason` label on this metric will contain information about the refused reason.

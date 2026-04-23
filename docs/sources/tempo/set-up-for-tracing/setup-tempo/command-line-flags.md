@@ -89,7 +89,7 @@ Kubernetes users typically don't need this flag because they can configure `http
 | Flag | Description | Default |
 | --- | --- | --- |
 | `--log.level` | Only log messages with the given severity or above. Valid levels: `debug`, `info`, `warn`, `error` | `info` |
-| `--log.format` | Output log messages in the given format. Valid formats: `logfmt`, `json` | `logfmt` |
+| `--log.format` | Output format for log messages. Valid formats: `logfmt`, `json` | `logfmt` |
 
 ## Server settings
 
@@ -106,10 +106,20 @@ Kubernetes users typically don't need this flag because they can configure `http
 | `--memberlist.bind-port` | Port for memberlist to communicate on | `7946` |
 | `--memberlist.message-history-buffer-bytes` | Size in bytes for the message history buffer | `0` |
 
+## MCP server
+
+| Flag | Description | Default |
+| --- | --- | --- |
+| `--query-frontend.mcp-server.enabled` | Set to true to enable the MCP server | `false` |
+
+Tempo includes an [MCP (Model Context Protocol)](https://modelcontextprotocol.io/docs/getting-started/intro) server that provides AI assistants and Large Language Models (LLMs) with direct access to distributed tracing data through TraceQL queries and other endpoints.
+
+Refer to the [Model Context Protocol (MCP) Server documentation](https://grafana.com/docs/tempo/<TEMPO_VERSION>/api_docs/mcp-server/) for more information.
+
 ## Module configuration
 
 You can use additional flags to configure individual Tempo modules, such as the distributor, block-builder, live-store, querier, backend-scheduler, backend-worker, and their components.
-These flags follow a pattern like `--<module>.<setting>` and are extensively documented in the configuration file format.
+These flags follow a pattern like `--<module>.<setting>` and are documented in the [configuration file format](/docs/tempo/<TEMPO_VERSION>/configuration/).
 
 Use the configuration file approach described in the [Configuration documentation](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/).
 The documentation has a comprehensive list of all configuration options.

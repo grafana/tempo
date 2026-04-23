@@ -4,7 +4,7 @@ services:
     command: [ "-config.file=/etc/tempo.yaml", "-target=all"]
     volumes:
       - ./tempo.yaml:/etc/tempo.yaml
-      - ./tempo-data:/var/tempo
+      - tempo-data:/var/tempo
     ports:
       - "4317:4317"  # otlp grpc
       - "4318:4318"  # otlpc http
@@ -70,3 +70,6 @@ services:
       ]
     depends_on:
       - tempo
+
+volumes:
+  tempo-data:

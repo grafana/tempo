@@ -1,3 +1,4 @@
+// Package images provides Docker image version constants for e2e test services.
 package images
 
 var (
@@ -13,4 +14,5 @@ var (
 	Cassandra        = "rinscy/cassandra:3.11.0"
 	SwiftEmulator    = "bouncestorage/swift-aio:55ba4331"
 	Kafka            = "apache/kafka:4.0.0"
+	Dex              = "dexidp/dex:v2.41.1"
 )

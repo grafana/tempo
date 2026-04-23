@@ -17,6 +17,7 @@ tempo {
           },
         },
       },
+      keda+: { enabled: true },
     },
     metrics_generator+: {
       pvc_size: '5Gi',
