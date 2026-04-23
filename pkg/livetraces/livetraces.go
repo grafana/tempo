@@ -122,27 +122,22 @@ func (l *LiveTraces[T]) CutIdle(now time.Time, immediate bool) iter.Seq[*LiveTra
 	idleSince := now.Add(-l.maxIdleTime)
 	liveSince := now.Add(-l.maxLiveTime)
 
-	type tokenTrace struct {
-		token uint64
-		tr    *LiveTrace[T]
-	}
-
-	var toCut []tokenTrace
+	var toCut []*LiveTrace[T]
 	for k, tr := range l.Traces {
 		if tr.LastAppend.Before(idleSince) || tr.CreatedAt.Before(liveSince) || immediate {
-			toCut = append(toCut, tokenTrace{token: k, tr: tr})
+			l.sz -= tr.sz
+			delete(l.Traces, k)
+			toCut = append(toCut, tr)
 		}
 	}
 
 	sort.Slice(toCut, func(i, j int) bool {
-		return bytes.Compare(toCut[i].tr.ID, toCut[j].tr.ID) == -1
+		return bytes.Compare(toCut[i].ID, toCut[j].ID) == -1
 	})
 
 	return func(yield func(*LiveTrace[T]) bool) {
-		for _, tt := range toCut {
-			l.sz -= tt.tr.sz
-			delete(l.Traces, tt.token)
-			if !yield(tt.tr) {
+		for _, tr := range toCut {
+			if !yield(tr) {
 				return
 			}
 		}

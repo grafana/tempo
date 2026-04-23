@@ -356,9 +356,7 @@ func (i *instance) cutIdleTraces(ctx context.Context, immediate bool) (bool, err
 	// Write traces to head block, cutting when MaxBlockBytes is reached.
 	span.AddEvent("writing traces to head block")
 	for {
-		i.liveTracesMtx.Lock()
 		t, ok := i.liveTracesIterNext()
-		i.liveTracesMtx.Unlock()
 		if !ok {
 			break
 		}
