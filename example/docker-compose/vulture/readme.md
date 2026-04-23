@@ -16,7 +16,7 @@ docker compose ps
 ```
 ```
 NAME                IMAGE                          COMMAND                  SERVICE   CREATED         STATUS         PORTS
-vulture-tempo-1     grafana/tempo:latest           "/tempo -config.file…"   tempo     2 minutes ago   Up 2 minutes   0.0.0.0:3200->3200/tcp, 0.0.0.0:14250->14250/tcp
+vulture-tempo-1     grafana/tempo:2.9.2           "/tempo -config.file…"   tempo     2 minutes ago   Up 2 minutes   0.0.0.0:3200->3200/tcp, 0.0.0.0:14250->14250/tcp
 vulture-vulture-1   grafana/tempo-vulture:latest   "/tempo-vulture -tem…"   vulture   2 minutes ago   Up 2 minutes  
 ```
 
