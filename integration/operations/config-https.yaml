@@ -32,7 +32,6 @@ backend_scheduler_client:
     tls_min_version: VersionTLS12
 
 querier:
-  query_live_store: true
   frontend_worker:
     grpc_client_config:
       tls_enabled: true
