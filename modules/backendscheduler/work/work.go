@@ -61,6 +61,13 @@ type Work struct {
 	// Guarded by pendingMtx.
 	registeredJobs map[string]*Job
 
+	// workerJobs indexes workerID -> jobID for every job currently assigned to a
+	// worker that has not yet completed or failed. Populated in AddJob (the caller
+	// must call SetWorkerID before AddJob), cleared by CompleteJob, FailJob, and the
+	// dead-job timeout path in Prune. Not persisted; rebuilt on LoadFromLocal and
+	// Unmarshal from the active job map. Guarded by pendingMtx.
+	workerJobs map[string]string
+
 	// runningBlocks indexes (tenantID, blockID) -> *Job for every block referenced
 	// by a registered or active job. Populated by RegisterJob; entries persist until
 	// CompleteJob or FailJob. Guarded by pendingMtx. Not persisted; rebuilt by
@@ -87,6 +94,7 @@ func New(cfg Config) Interface {
 	sw.pendingByTenant = make(map[string]map[tempopb.JobType][]string)
 	sw.redactionInFlight = make(map[string]int)
 	sw.registeredJobs = make(map[string]*Job)
+	sw.workerJobs = make(map[string]string)
 	sw.runningBlocks = make(map[string]*Job)
 	sw.batches = newBatchStore()
 
@@ -121,6 +129,10 @@ func (w *Work) AddJob(j *Job) error {
 		if w.redactionInFlight[j.Tenant()] > 0 {
 			w.redactionInFlight[j.Tenant()]--
 		}
+	}
+	// Index the worker -> job assignment so GetJobForWorker is O(1).
+	if wid := j.GetWorkerID(); wid != "" {
+		w.workerJobs[wid] = j.ID
 	}
 	w.pendingMtx.Unlock()
 
@@ -245,12 +257,17 @@ func (w *Work) ListJobs() []*Job {
 	return allJobs
 }
 
-// Prune removes old completed/failed jobs from all shards
+// Prune removes old completed/failed jobs from all shards and transitions
+// timed-out running jobs to FAILED. Index cleanup (runningBlocks, workerJobs)
+// for timed-out jobs is performed after all shards are processed.
 func (w *Work) Prune(ctx context.Context) {
 	_, span := tracer.Start(ctx, "ShardedPrune")
 	defer span.End()
 
-	// Prune each shard independently for better concurrency
+	// Pre-allocate one slot per shard so goroutines can collect timed-out jobs
+	// without a shared mutex — each goroutine writes only to its own slice.
+	timedOut := make([][]*Job, ShardCount)
+
 	var wg sync.WaitGroup
 	for i := range ShardCount {
 		wg.Add(1)
@@ -270,48 +287,52 @@ func (w *Work) Prune(ctx context.Context) {
 				case tempopb.JobStatus_JOB_STATUS_RUNNING:
 					if time.Since(j.GetStartTime()) > w.cfg.DeadJobTimeout {
 						j.Fail()
+						timedOut[shardIndex] = append(timedOut[shardIndex], j)
 					}
 				}
 			}
 		}(i)
 	}
 	wg.Wait()
+
+	// Clean up indexes for all timed-out jobs. CompleteJob/FailJob normally handle
+	// this, but Prune calls j.Fail() directly to avoid re-acquiring the shard lock.
+	w.pendingMtx.Lock()
+	for _, shardJobs := range timedOut {
+		for _, j := range shardJobs {
+			for _, key := range runningBlockKeys(j) {
+				delete(w.runningBlocks, key)
+			}
+			if wid := j.GetWorkerID(); wid != "" {
+				delete(w.workerJobs, wid)
+			}
+		}
+	}
+	w.pendingMtx.Unlock()
 }
 
-// GetJobForWorker finds a job for a specific worker across all shards
+// GetJobForWorker returns the active job assigned to the given worker, or nil
+// if none exists. Uses the O(1) workerJobs index rather than scanning all shards.
 func (w *Work) GetJobForWorker(ctx context.Context, workerID string) *Job {
 	_, span := tracer.Start(ctx, "ShardedGetJobForWorker")
 	defer span.End()
 
-	var jj *Job
+	w.pendingMtx.Lock()
+	jobID, ok := w.workerJobs[workerID]
+	w.pendingMtx.Unlock()
 
-	// Search across all shards for this worker's jobs
-	for i := range ShardCount {
-		shard := w.Shards[i]
-
-		jj = func() *Job {
-			shard.mtx.Lock()
-			defer shard.mtx.Unlock()
-
-			for _, j := range shard.Jobs {
-				if j.GetWorkerID() != workerID {
-					continue
-				}
-
-				switch j.GetStatus() {
-				case tempopb.JobStatus_JOB_STATUS_UNSPECIFIED, tempopb.JobStatus_JOB_STATUS_RUNNING:
-					return j
-				}
-			}
-
-			return nil
-		}()
-
-		if jj != nil {
-			return jj
-		}
+	if !ok {
+		return nil
 	}
 
+	j := w.GetJob(jobID)
+	if j == nil {
+		return nil
+	}
+	switch j.GetStatus() {
+	case tempopb.JobStatus_JOB_STATUS_UNSPECIFIED, tempopb.JobStatus_JOB_STATUS_RUNNING:
+		return j
+	}
 	return nil
 }
 
@@ -330,6 +351,9 @@ func (w *Work) CompleteJob(id string) {
 		w.pendingMtx.Lock()
 		for _, key := range runningBlockKeys(j) {
 			delete(w.runningBlocks, key)
+		}
+		if wid := j.GetWorkerID(); wid != "" {
+			delete(w.workerJobs, wid)
 		}
 		w.pendingMtx.Unlock()
 	}
@@ -350,6 +374,9 @@ func (w *Work) FailJob(id string) {
 		w.pendingMtx.Lock()
 		for _, key := range runningBlockKeys(j) {
 			delete(w.runningBlocks, key)
+		}
+		if wid := j.GetWorkerID(); wid != "" {
+			delete(w.workerJobs, wid)
 		}
 		w.pendingMtx.Unlock()
 	}
@@ -455,6 +482,7 @@ func (w *Work) Unmarshal(data []byte) error {
 		}
 	}
 
+	w.workerJobs = make(map[string]string)
 	w.runningBlocks = make(map[string]*Job)
 	for i := range ShardCount {
 		for _, j := range w.Shards[i].Jobs {
@@ -463,6 +491,9 @@ func (w *Work) Unmarshal(data []byte) error {
 				tempopb.JobStatus_JOB_STATUS_RUNNING:
 				for _, key := range runningBlockKeys(j) {
 					w.runningBlocks[key] = j
+				}
+				if wid := j.GetWorkerID(); wid != "" {
+					w.workerJobs[wid] = j.ID
 				}
 			}
 		}
@@ -622,6 +653,7 @@ func (w *Work) rebuildPendingIndexes() {
 		shard.mtx.Unlock()
 	}
 
+	w.workerJobs = make(map[string]string)
 	w.runningBlocks = make(map[string]*Job)
 	for i := range ShardCount {
 		shard := w.Shards[i]
@@ -632,6 +664,9 @@ func (w *Work) rebuildPendingIndexes() {
 				tempopb.JobStatus_JOB_STATUS_RUNNING:
 				for _, key := range runningBlockKeys(j) {
 					w.runningBlocks[key] = j
+				}
+				if wid := j.GetWorkerID(); wid != "" {
+					w.workerJobs[wid] = j.ID
 				}
 			}
 		}

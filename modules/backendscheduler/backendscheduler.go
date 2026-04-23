@@ -197,6 +197,7 @@ func (s *BackendScheduler) running(ctx context.Context) error {
 		case <-maintenanceTicker.C:
 			s.work.Prune(ctx)
 			s.checkPendingRescans(ctx)
+			s.cleanupOrphanedBatches(ctx)
 		case <-backendFlushTicker.C:
 			err = s.flushWorkCacheToBackend(ctx)
 			metricWorkFlushes.Inc()
@@ -549,6 +550,16 @@ func (s *BackendScheduler) SubmitRedaction(ctx context.Context, req *tempopb.Sub
 		BatchId:     batchID,
 		JobsCreated: int32(len(jobs)),
 	}, nil
+}
+
+// cleanupOrphanedBatches sweeps all active batches and removes any whose redaction
+// jobs have all finished. Called after each Prune tick because Prune transitions
+// timed-out running jobs to FAILED by calling j.Fail() directly, bypassing the
+// UpdateJob path that normally invokes cleanupBatchIfDone.
+func (s *BackendScheduler) cleanupOrphanedBatches(ctx context.Context) {
+	for _, batch := range s.work.ListBatches() {
+		s.cleanupBatchIfDone(ctx, batch.TenantId)
+	}
 }
 
 // cleanupBatchIfDone removes the batch manifest for a tenant once all of its redaction
