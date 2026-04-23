@@ -87,7 +87,7 @@ Refer to the [partition ring](../partition-ring/) documentation for details.
 
 ## How the paths connect
 
-The write and read paths connect through object storage. Blocks are written there by block-builders or live-stores, and queriers read from there.
+The write and read paths connect through object storage. In microservices mode, block-builders write blocks there; in monolithic mode, live-stores write blocks there. Queriers read from object storage in both modes.
 
 In microservices mode, Kafka also connects the paths. Both block-builders and live-stores consume from the same Kafka partitions, but they track their own consumer offsets independently. Even if a block-builder is down or slow, live-stores continue serving recent data. If a live-store restarts, it replays from Kafka to rebuild its in-memory state.
 
