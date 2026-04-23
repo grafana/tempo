@@ -29,7 +29,7 @@ Refer to the [command line flags](/docs/tempo/<TEMPO_VERSION>/set-up-for-tracing
 
 In monolithic mode, the required components run in a single process using `-target=all`, which is the default. Components that are only needed in microservices mode, such as the block-builder, are excluded.
 
-No Kafka is required. The distributor pushes trace data in-process directly to the live-store and metrics-generator. Traces are flushed to object storage without an intermediate message queue.
+No Kafka is required. The distributor pushes trace data in-process directly to the live-store and metrics-generator. Traces are flushed to the configured storage backend without an intermediate message queue. Object storage is recommended for production deployments.
 
 ### When to use monolithic mode
 
