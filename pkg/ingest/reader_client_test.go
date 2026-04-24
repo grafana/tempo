@@ -87,6 +87,45 @@ func TestLeaveConsumerGroupByInstanceID_SendsRequestWithInstanceID(t *testing.T)
 	}
 }
 
+// TestLeaveConsumerGroupByInstanceID_OurMemberErrorPrioritized verifies that when
+// the response contains errors for multiple members, our instance's error is
+// returned even when an unrelated member's error appears first in the list. The loop
+// must scan all members before deciding — it cannot short-circuit on the first
+// foreign error.
+func TestLeaveConsumerGroupByInstanceID_OurMemberErrorPrioritized(t *testing.T) {
+	fake, err := kfake.NewCluster(kfake.NumBrokers(1), kfake.SeedTopics(1, leaveTestTopic))
+	require.NoError(t, err)
+	t.Cleanup(fake.Close)
+	addr := fake.ListenAddrs()[0]
+
+	otherInstance := "other-instance"
+	fake.ControlKey(int16(kmsg.LeaveGroup), func(req kmsg.Request) (kmsg.Response, error, bool) {
+		lr := req.(*kmsg.LeaveGroupRequest)
+		resp := lr.ResponseKind().(*kmsg.LeaveGroupResponse)
+		resp.Default()
+
+		// Unrelated member first, our member second.
+		other := kmsg.NewLeaveGroupResponseMember()
+		other.InstanceID = &otherInstance
+		other.ErrorCode = kerr.UnknownMemberID.Code
+
+		ours := kmsg.NewLeaveGroupResponseMember()
+		ours.InstanceID = &[]string{leaveTestInstance}[0]
+		ours.ErrorCode = kerr.GroupAuthorizationFailed.Code
+
+		resp.Members = append(resp.Members, other, ours)
+		return resp, nil, true
+	})
+
+	client, err := kgo.NewClient(kgo.SeedBrokers(addr), kgo.DisableClientMetrics())
+	require.NoError(t, err)
+	defer client.Close()
+
+	err = ingest.LeaveConsumerGroupByInstanceID(t.Context(), client, leaveTestGroup, leaveTestInstance, log.NewNopLogger())
+	require.Error(t, err)
+	assert.ErrorIs(t, err, kerr.GroupAuthorizationFailed, "our member's error must take priority over an unrelated member's error")
+}
+
 // TestLeaveConsumerGroupByInstanceID_MemberErrorCode verifies that a zero
 // top-level ErrorCode does not mask a per-member error for our instance.
 // LeaveGroup v3+ carries per-member error codes; a broker can return
