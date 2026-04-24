@@ -1113,6 +1113,7 @@ func TestIsLagged(t *testing.T) {
 		lastRecordNano int64
 		end            time.Time
 		expectedLagged bool
+		expectedError  bool
 		description    string
 	}{
 		{
@@ -1121,8 +1122,9 @@ func TestIsLagged(t *testing.T) {
 			readerLag:      50000000,                             // high lag
 			lastRecordNano: now.Add(-100 * time.Hour).UnixNano(), // high lag
 			end:            now.Add(-1 * time.Second),
-			expectedLagged: false,
-			description:    "When FailOnHighLag is disabled, isLagged should always return false",
+			expectedLagged: true,
+			expectedError:  false,
+			description:    "When FailOnHighLag is disabled, isLagged should returns true, but methods should not return error",
 		},
 		{
 			name:           "lag unknown - should be lagged",
@@ -1131,6 +1133,7 @@ func TestIsLagged(t *testing.T) {
 			lastRecordNano: now.Add(-100 * time.Hour).UnixNano(), // high lag
 			end:            now,
 			expectedLagged: true,
+			expectedError:  true,
 			description:    "When lag is unknown (nil), prefer error over potentially incomplete results",
 		},
 		{
@@ -1140,6 +1143,7 @@ func TestIsLagged(t *testing.T) {
 			lastRecordNano: -1, // no last record yet
 			end:            now,
 			expectedLagged: true,
+			expectedError:  true,
 			description:    "When no last record yet, should not be lagged",
 		},
 		{
@@ -1149,6 +1153,7 @@ func TestIsLagged(t *testing.T) {
 			lastRecordNano: now.UnixNano(), // no lag
 			end:            now.Add(-1 * time.Second),
 			expectedLagged: false,
+			expectedError:  false,
 			description:    "When lag is low (near zero), recent requests should not be lagged",
 		},
 		{
@@ -1158,6 +1163,7 @@ func TestIsLagged(t *testing.T) {
 			lastRecordNano: now.Add(-10 * time.Second).UnixNano(), // 10 seconds ago
 			end:            now.Add(-5 * time.Second),             // 5 seconds ago
 			expectedLagged: true,
+			expectedError:  true,
 			description:    "When lag is high and request is within the lag period, should be lagged",
 		},
 		{
@@ -1167,6 +1173,7 @@ func TestIsLagged(t *testing.T) {
 			lastRecordNano: now.Add(-10 * time.Second).UnixNano(), // 10 seconds ago
 			end:            now.Add(-100 * time.Second),           // 100 seconds ago (well before lag)
 			expectedLagged: false,
+			expectedError:  false,
 			description:    "When lag is high but request is old (outside lag period), should not be lagged",
 		},
 		{
@@ -1176,6 +1183,7 @@ func TestIsLagged(t *testing.T) {
 			lastRecordNano: now.Add(-10 * time.Second).UnixNano(), // last record was 10s ago
 			end:            now.Add(-10 * time.Second),            // request end is 10s ago
 			expectedLagged: false,
+			expectedError:  false,
 			description:    "When request end time is equals the calculated lag, should not be lagged",
 		},
 	}
@@ -1207,7 +1215,7 @@ func TestIsLagged(t *testing.T) {
 					End:   uint32(tc.end.Unix()),
 				})
 
-				if tc.expectedLagged {
+				if tc.expectedError {
 					require.ErrorIs(t, err, errLagged)
 					require.Nil(t, resp)
 				} else {
@@ -1224,7 +1232,7 @@ func TestIsLagged(t *testing.T) {
 					End:   uint64(tc.end.UnixNano()),
 					Step:  uint64(time.Second),
 				})
-				if tc.expectedLagged {
+				if tc.expectedError {
 					require.ErrorIs(t, err, errLagged)
 					require.Nil(t, resp)
 				} else {
