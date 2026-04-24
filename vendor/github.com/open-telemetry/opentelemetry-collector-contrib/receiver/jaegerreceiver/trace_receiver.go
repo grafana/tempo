@@ -359,7 +359,7 @@ func (jr *jReceiver) startCollector(ctx context.Context, host component.Host) er
 
 		ln, err := grpcConfig.NetAddr.Listen(ctx)
 		if err != nil {
-			return fmt.Errorf("failed to bind to gRPC address %q: %w", grpcConfig.NetAddr, err)
+			return fmt.Errorf("failed to bind to gRPC address %q: %w", grpcConfig.NetAddr.Endpoint, err)
 		}
 
 		api_v2.RegisterCollectorServiceServer(jr.grpc, jr)

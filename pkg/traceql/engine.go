@@ -95,7 +95,7 @@ func (e *Engine) ExecuteSearch(ctx context.Context, searchReq *tempopb.SearchReq
 	spansetsEvaluated := 0
 	// set up the expression evaluation as a filter to reduce data pulled
 	fetchSpansRequest.SecondPass = func(inSS *Spanset) ([]*Spanset, error) {
-		if len(inSS.Spans) == 0 {
+		if inSS == nil || len(inSS.Spans) == 0 {
 			return nil, nil
 		}
 

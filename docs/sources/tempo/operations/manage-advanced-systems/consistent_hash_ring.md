@@ -69,7 +69,7 @@ In single-binary mode, any enabled ring endpoints are available on the same host
 **Path:** `/distributor/ring`
 
 {{< admonition type="note" >}}
-This endpoint is only available when Tempo is configured with [the global override strategy](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/#overrides).
+This endpoint is only available when Tempo is configured with [the global ingestion rate strategy](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/#ingestion-rate-strategy).
 {{< /admonition >}}
 
 Unhealthy distributors have little impact but should be forgotten to reduce the cost of maintaining the ring.

@@ -11,6 +11,7 @@ import (
 
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl/contexts/internal/ctxerror"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl/contexts/internal/ctxutil"
 )
 
 type valueTypeSource[K Context] = func(ctx K) pprofile.ValueType
@@ -40,9 +41,9 @@ func accessValueType[K Context](path ottl.Path[K], getValueType valueTypeSource[
 			return getValueType(tCtx), nil
 		},
 		Setter: func(_ context.Context, tCtx K, val any) error {
-			newValue, ok := val.(pprofile.ValueType)
-			if !ok {
-				return fmt.Errorf("expected a pprofile.ValueType value for path %q, got %T", path.String(), val)
+			newValue, err := ctxutil.ExpectType[pprofile.ValueType](val)
+			if err != nil {
+				return fmt.Errorf("path %q %w", path.String(), err)
 			}
 			newValue.CopyTo(getValueType(tCtx))
 			return nil
@@ -103,9 +104,9 @@ func setValueTypeString[K Context](
 	currIndex int32,
 	val any,
 ) (int32, error) {
-	newValue, ok := val.(string)
-	if !ok {
-		return 0, fmt.Errorf("expected a string value for path %q, got %T", path.String(), val)
+	newValue, err := ctxutil.ExpectType[string](val)
+	if err != nil {
+		return 0, fmt.Errorf("path %q %w", path.String(), err)
 	}
 	if currIndex != 0 && int(currIndex) < dict.StringTable().Len() {
 		currValue := dict.StringTable().At(int(currIndex))

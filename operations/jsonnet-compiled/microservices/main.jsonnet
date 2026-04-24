@@ -68,6 +68,8 @@ tempo {
     },
     backend: 'gcs',
     bucket: 'tempo',
+    kafka_address: 'kafka:9092',
+    kafka_topic: 'tempo-ingest',
 
     // NOTE: Enable the ReplicaTemplate role if intend to use the rollout-operator.
     // rollout_operator_replica_template_access_enabled: true,

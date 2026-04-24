@@ -795,6 +795,18 @@ func TestSpansetFilterEvaluate(t *testing.T) {
 			},
 		},
 		{
+			"{ true }",
+			[]*Spanset{
+				// Nil spanset is dropped without panic
+				nil,
+				{Spans: []Span{&mockSpan{}}},
+				nil,
+			},
+			[]*Spanset{
+				{Spans: []Span{&mockSpan{}}},
+			},
+		},
+		{
 			"{ .foo = `a` }",
 			[]*Spanset{
 				{Spans: []Span{

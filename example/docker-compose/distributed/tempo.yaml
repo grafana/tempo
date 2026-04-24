@@ -1,5 +1,4 @@
 stream_over_http_enabled: true
-partition_ring_live_store: true
 
 server:
   http_listen_port: 3200
@@ -43,7 +42,6 @@ backend_worker:
 querier:
   frontend_worker:
     frontend_address: query-frontend:9095
-  query_live_store: true
 
 metrics_generator:
   registry:

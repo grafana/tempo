@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"embed"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -21,7 +22,6 @@ import (
 	"github.com/grafana/dskit/server"
 	"github.com/grafana/dskit/services"
 	"github.com/grafana/tempo/modules/livestore"
-	jsoniter "github.com/json-iterator/go"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/collectors"
 
@@ -857,12 +857,13 @@ func usageStatsHandler(urCfg usagestats.Config) http.HandlerFunc {
 	}
 
 	// usage stats is Enabled, build and return usage stats json
-	reportStr, err := jsoniter.MarshalToString(usagestats.BuildStats())
+	reportBytes, err := json.Marshal(usagestats.BuildStats())
 	if err != nil {
 		return func(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "error building usage report", http.StatusInternalServerError)
 		}
 	}
+	reportStr := string(reportBytes)
 
 	return func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)

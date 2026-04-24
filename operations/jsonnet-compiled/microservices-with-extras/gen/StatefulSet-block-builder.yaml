@@ -14,7 +14,7 @@ spec:
   template:
     metadata:
       annotations:
-        config_hash: 42cd6f6d5e54ec2a274f12dc9d7e8d7b
+        config_hash: 32561a7c801a4cc83b6f52f0f344dd19
         grafana.com/rollout-mirror-replicas-from-resource-api-version: apps/v1
         grafana.com/rollout-mirror-replicas-from-resource-kind: StatefulSet
         grafana.com/rollout-mirror-replicas-from-resource-name: live-store-zone-a

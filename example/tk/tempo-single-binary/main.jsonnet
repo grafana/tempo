@@ -17,22 +17,17 @@ metrics + load + tempo {
     pvc_size: '30Gi',
     pvc_storage_class: 'local-path',
     receivers: {
-      jaeger: {
+      otlp: {
         protocols: {
-          thrift_http: null,
+          grpc: {
+            endpoint: '0.0.0.0:4317',
+          },
         },
       },
     },
   },
 
   local k = import 'ksonnet-util/kausal.libsonnet',
-  local container = k.core.v1.container,
-  local containerPort = k.core.v1.containerPort,
-  tempo_container+::
-    container.withPortsMixin([
-      containerPort.new('jaeger-http', 14268),
-    ]),
-
   local ingress = k.networking.v1.ingress,
   local rule = k.networking.v1.ingressRule,
   local path = k.networking.v1.httpIngressPath,

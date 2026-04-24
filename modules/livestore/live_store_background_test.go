@@ -10,6 +10,23 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestCompleteOpBackoffProgression(t *testing.T) {
+	const (
+		initialBackoff = 30 * time.Second
+		maxBackoff     = 100 * time.Second
+	)
+
+	op := &completeOp{
+		bo:         initialBackoff,
+		maxBackoff: maxBackoff,
+	}
+
+	require.Equal(t, initialBackoff, op.backoff(), "first retry should wait initialBackoff")
+	require.Equal(t, 2*initialBackoff, op.backoff(), "second retry should be 2*initialBackoff")
+	require.Equal(t, maxBackoff, op.backoff(), "third retry should cap at maxBackoff")
+	require.Equal(t, maxBackoff, op.backoff(), "subsequent retries remain at maxBackoff")
+}
+
 // TestProcessCompleteOpAbandonOnCancelledContext verifies that processCompleteOp
 // skips WAL block completion when the service context is already cancelled
 // (i.e. during shutdown), rather than attempting the work and scheduling a retry.
@@ -27,8 +44,9 @@ func TestProcessCompleteOpAbandonOnCancelledContext(t *testing.T) {
 
 	// Push a trace, flush live traces to head block, then cut to WAL.
 	pushTracesToInstance(t, inst, 1)
-	err = inst.cutIdleTraces(t.Context(), true)
+	drained, err := inst.cutIdleTraces(t.Context(), true)
 	require.NoError(t, err)
+	require.True(t, drained, "should drain live traces in one iteration")
 	walID, err := inst.cutBlocks(t.Context(), true)
 	require.NoError(t, err)
 	require.NotEqual(t, uuid.Nil, walID)

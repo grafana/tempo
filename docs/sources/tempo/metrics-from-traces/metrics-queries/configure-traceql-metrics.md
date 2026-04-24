@@ -52,7 +52,7 @@ This is different to the default TraceQL maximum time range of 168 hours (7 days
 {{< /admonition >}}
 
 The `query_frontend.metrics.query_backend_after` parameter controls the boundary between querying the live-store and backend storage.
-Time ranges older than `query_backend_after` (default `30m`) are searched in backend/object storage only, while more recent data is queried from the live-store.
+Time ranges older than `query_backend_after` (default `15m`) are searched in backend/object storage only, while more recent data is queried from the live-store.
 
 For example, in a cloud environment, smaller jobs with more concurrency may be
 desired due to the nature of scale on the backend.

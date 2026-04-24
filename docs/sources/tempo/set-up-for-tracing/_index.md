@@ -110,4 +110,4 @@ Grafana Tempo is the distributed tracing backend used to store and query traces.
 ## Visualize tracing data with Grafana
 
 Grafana and Grafana Cloud have a built-in Tempo data source that you can use to query Tempo and visualize traces.
-For more information, refer to the [Tempo data source](https://grafana.com/docs/grafana/<GRAFANA_VERSION>/datasources/tempo/) and the [Tempo in Grafana](https://grafana.com/docs/tempo/<TEMPO_VERSION>/introduction/tempo-in-grafana/) topics.
+For more information, refer to the [Tempo data source](https://grafana.com/docs/grafana/<GRAFANA_VERSION>/datasources/tempo/) and the [Visualize tracing data in Grafana](https://grafana.com/docs/tempo/<TEMPO_VERSION>/visualize-traces/) topics.

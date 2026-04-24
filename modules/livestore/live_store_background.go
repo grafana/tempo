@@ -13,6 +13,7 @@ import (
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding"
 	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
 	oteltrace "go.opentelemetry.io/otel/trace"
 )
 
@@ -37,12 +38,13 @@ func (o *completeOp) Key() string { return o.tenantID + "/" + o.blockID.String()
 func (o *completeOp) Priority() int64 { return -o.at.Unix() }
 
 func (o *completeOp) backoff() time.Duration {
+	current := o.bo
 	o.bo *= 2
 	if o.bo > o.maxBackoff {
 		o.bo = o.maxBackoff
 	}
 
-	return o.bo
+	return current
 }
 
 func (s *LiveStore) startAllBackgroundProcesses() {
@@ -116,6 +118,7 @@ func (s *LiveStore) processCompleteOp(op *completeOp) error {
 	if err != nil {
 		level.Error(s.logger).Log("msg", "failed to retrieve instance for completion", "tenant", op.tenantID, "err", err)
 		observeFailedOp(op)
+		span.SetStatus(codes.Error, err.Error())
 		span.RecordError(err)
 		return err
 	}

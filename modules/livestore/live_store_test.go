@@ -270,8 +270,9 @@ func TestLiveStoreFullBlockLifecycleCheating(t *testing.T) {
 	requireInstanceState(t, inst, instanceState{liveTraces: 1, walBlocks: 0, completeBlocks: 0})
 
 	// cut to head block and test
-	err = inst.cutIdleTraces(t.Context(), true)
+	drained, err := inst.cutIdleTraces(t.Context(), true)
 	require.NoError(t, err)
+	require.True(t, drained, "should drain live traces in one iteration")
 
 	requireTraceInLiveStore(t, liveStore, expectedID, expectedTrace)
 	requireTraceInBlock(t, inst.headBlock, expectedID, expectedTrace)
@@ -333,8 +334,9 @@ func TestLiveStoreReplaysTraceInHeadBlock(t *testing.T) {
 	require.NoError(t, err)
 
 	// cut to head block
-	err = inst.cutIdleTraces(t.Context(), true)
+	drained, err := inst.cutIdleTraces(t.Context(), true)
 	require.NoError(t, err)
+	require.True(t, drained, "should drain live traces in one iteration")
 
 	// stop the live store and then create a new one to simulate a restart and replay the data on disk
 	err = services.StopAndAwaitTerminated(t.Context(), liveStore)
@@ -361,8 +363,9 @@ func TestLiveStoreReplaysTraceInWalBlocks(t *testing.T) {
 	require.NoError(t, err)
 
 	// cut to head block
-	err = inst.cutIdleTraces(t.Context(), true)
+	drained, err := inst.cutIdleTraces(t.Context(), true)
 	require.NoError(t, err)
+	require.True(t, drained, "should drain live traces in one iteration")
 
 	// cut head to wal blocks
 	_, err = inst.cutBlocks(t.Context(), true)
@@ -393,8 +396,9 @@ func TestLiveStoreReplaysTraceInCompleteBlocks(t *testing.T) {
 	require.NoError(t, err)
 
 	// cut to head block
-	err = inst.cutIdleTraces(t.Context(), true)
+	drained, err := inst.cutIdleTraces(t.Context(), true)
 	require.NoError(t, err)
+	require.True(t, drained, "should drain live traces in one iteration")
 
 	// cut head to wal blocks
 	walUUID, err := inst.cutBlocks(t.Context(), true)
@@ -425,7 +429,9 @@ func TestLiveStoreDropsInvalidCompleteBlocksOnRestart(t *testing.T) {
 	inst, err := liveStore.getOrCreateInstance(testTenantID)
 	require.NoError(t, err)
 
-	require.NoError(t, inst.cutIdleTraces(t.Context(), true))
+	drained, cutErr := inst.cutIdleTraces(t.Context(), true)
+	require.NoError(t, cutErr)
+	require.True(t, drained, "should drain live traces in one iteration")
 	walUUID, err := inst.cutBlocks(t.Context(), true)
 	require.NoError(t, err)
 	_, err = inst.completeBlock(context.Background(), walUUID)
@@ -659,8 +665,9 @@ func TestLiveStoreUsesRecordTimestampForBlockStartAndEnd(t *testing.T) {
 		require.NoError(t, err)
 
 		// force just pushed traces to the head block
-		err = inst.cutIdleTraces(t.Context(), true)
+		drained, err := inst.cutIdleTraces(t.Context(), true)
 		require.NoError(t, err)
+		require.True(t, drained, "should drain live traces in one iteration")
 
 		meta := inst.headBlock.BlockMeta()
 		require.Equal(t, tc.expectedStart, meta.StartTime)
@@ -1213,7 +1220,7 @@ func TestIsLagged(t *testing.T) {
 				ctx := user.InjectOrgID(t.Context(), testTenantID)
 				resp, err := ls.QueryRange(ctx, &tempopb.QueryRangeRequest{
 					Query: "{} | rate()",
-					Start: uint64(now.Add(-30 * time.Minute).UnixNano()),
+					Start: uint64(now.Add(-defaultCompleteBlockTimeout).UnixNano()),
 					End:   uint64(tc.end.UnixNano()),
 					Step:  uint64(time.Second),
 				})

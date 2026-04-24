@@ -8,7 +8,7 @@
           "subdir": "grafana"
         }
       },
-      "version": "142f1ceed0f31df01566cb93570d06d1bbcbf6ad",
+      "version": "79479da035ec06f1d0193b0a80141e224c0e8cd7",
       "sum": "3M7sG0jR2K2L4Y8GCD+dEOjhzvAhtERr5TRRAE+DrhI="
     },
     {
@@ -18,7 +18,7 @@
           "subdir": "grafana-builder"
         }
       },
-      "version": "142f1ceed0f31df01566cb93570d06d1bbcbf6ad",
+      "version": "79479da035ec06f1d0193b0a80141e224c0e8cd7",
       "sum": "TWpxm5vPO23V3hoF3pdwGs1NvR+PQce9baN716mJq+4="
     },
     {
@@ -28,7 +28,7 @@
           "subdir": "ksonnet-util"
         }
       },
-      "version": "142f1ceed0f31df01566cb93570d06d1bbcbf6ad",
+      "version": "79479da035ec06f1d0193b0a80141e224c0e8cd7",
       "sum": "0y3AFX9LQSpfWTxWKSwoLgbt0Wc9nnCwhMH2szKzHv0="
     },
     {
@@ -38,7 +38,7 @@
           "subdir": "kube-state-metrics/"
         }
       },
-      "version": "142f1ceed0f31df01566cb93570d06d1bbcbf6ad",
+      "version": "79479da035ec06f1d0193b0a80141e224c0e8cd7",
       "sum": "q1YzD+I4InDdfQP6k93W9Lw5U1jpll3gVaS9rUzLR7U="
     },
     {
@@ -48,7 +48,7 @@
           "subdir": "memcached"
         }
       },
-      "version": "142f1ceed0f31df01566cb93570d06d1bbcbf6ad",
+      "version": "79479da035ec06f1d0193b0a80141e224c0e8cd7",
       "sum": "zNTCDRaCqJUHjQSQRsxGR3jLrMP9tU7YNQb13dbm1bU="
     },
     {
@@ -58,7 +58,7 @@
           "subdir": "mixin-utils"
         }
       },
-      "version": "142f1ceed0f31df01566cb93570d06d1bbcbf6ad",
+      "version": "79479da035ec06f1d0193b0a80141e224c0e8cd7",
       "sum": "zVkvwae4zHP6xeIoDvde/wldI6ClprFjnk50mMD9/z4="
     },
     {
@@ -68,7 +68,7 @@
           "subdir": "prometheus"
         }
       },
-      "version": "142f1ceed0f31df01566cb93570d06d1bbcbf6ad",
+      "version": "79479da035ec06f1d0193b0a80141e224c0e8cd7",
       "sum": "kodkOiyJMjsaEsQCIfBhJPknBZayEj0yQJq50ad9VWo="
     },
     {
@@ -78,8 +78,18 @@
           "subdir": "tanka-util"
         }
       },
-      "version": "142f1ceed0f31df01566cb93570d06d1bbcbf6ad",
+      "version": "79479da035ec06f1d0193b0a80141e224c0e8cd7",
       "sum": "ShSIissXdvCy1izTCDZX6tY7qxCoepE5L+WJ52Hw7ZQ="
+    },
+    {
+      "source": {
+        "git": {
+          "remote": "https://github.com/grafana/rollout-operator.git",
+          "subdir": "operations/rollout-operator"
+        }
+      },
+      "version": "ee4822b061cb7497b7e8a716161dfa0e3230c0ca",
+      "sum": "rBfx/ffgMo6MBNt8+CqJToKEUCdANJU9xMb2KGXEjW4="
     },
     {
       "source": {
@@ -100,6 +110,16 @@
       },
       "version": "55380470fb7979e6ce0c4316cb9c27a266caf298",
       "sum": "L70C3SiMFOsNCuIGOxRKAzd6wUBuabAoEGrgvCyeCBc="
+    },
+    {
+      "source": {
+        "git": {
+          "remote": "https://github.com/jsonnet-libs/vertical-pod-autoscaler-libsonnet.git",
+          "subdir": "1.0.0"
+        }
+      },
+      "version": "5d16cd466d12489e6ffba5b17813a0203016e68d",
+      "sum": "ksOv5A0fQkz4fRz4KMCHloLUiD7BPwGKvUn2sHIAB7s="
     }
   ],
   "legacyImports": false

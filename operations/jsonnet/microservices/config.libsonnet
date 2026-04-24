@@ -178,6 +178,8 @@
     gossip_ring_port: 7946,
     backend: error 'Must specify a backend',  // gcs|s3
     bucket: error 'Must specify a bucket',
+    kafka_address: error 'Must specify a kafka address',
+    kafka_topic: error 'Must specify a kafka topic',
 
     overrides_configmap_name: 'tempo-overrides',
     overrides+:: {

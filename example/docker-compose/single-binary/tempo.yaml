@@ -1,4 +1,3 @@
-partition_ring_live_store: true
 stream_over_http_enabled: true
 
 server:
@@ -18,23 +17,6 @@ distributor:
   #  log_discarded_spans:
   #    enabled: true
 
-backend_scheduler:
-  provider:
-    compaction:
-      compaction:
-        block_retention: 1h
-
-backend_worker:
-  backend_scheduler_addr: backend-scheduler:3200
-  compaction:
-    block_retention: 1h
-  ring:
-    kvstore:
-      store: memberlist
-
-querier:
-  query_live_store: true
-
 metrics_generator:
   registry:
     external_labels:
@@ -52,15 +34,11 @@ query_frontend:
 
 storage:
   trace:
-    backend: s3
-    s3:
-      bucket: tempo
-      endpoint: minio:9000
-      access_key: tempo
-      secret_key: supersecret
-      insecure: true
+    backend: local
     wal:
       path: /var/tempo/wal # where to store the wal locally
+    local:
+      path: /var/tempo/blocks
 
 overrides:
   defaults:

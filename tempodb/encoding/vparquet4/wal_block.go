@@ -239,6 +239,7 @@ func (w *walBlockFlush) file(ctx context.Context) (*pageFile, error) {
 		parquet.SkipBloomFilters(true),
 		parquet.SkipPageIndex(true),
 		parquet.FileSchema(parquetSchema),
+		parquet.FileReadMode(parquet.ReadModeAsync),
 	}
 
 	pf, err := parquet.OpenFile(wr, size, o...)

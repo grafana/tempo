@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -9,7 +10,6 @@ import (
 	"strconv"
 
 	"github.com/go-kit/log/level"
-	jsoniter "github.com/json-iterator/go"
 	"go.opentelemetry.io/otel/codes"
 
 	"github.com/grafana/tempo/modules/overrides/userconfigurable/client"
@@ -190,7 +190,7 @@ func writeError(w http.ResponseWriter, err error) {
 }
 
 func writeLimits(w http.ResponseWriter, limits *client.Limits, version backend.Version) error {
-	data, err := jsoniter.Marshal(limits)
+	data, err := json.Marshal(limits)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return err

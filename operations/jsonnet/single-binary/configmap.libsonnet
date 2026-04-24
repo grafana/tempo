@@ -9,6 +9,11 @@
     distributor: {
       receivers: $._config.receivers,
     },
+    querier: {
+      frontend_worker: {
+        frontend_address: 'tempo:9095',
+      },
+    },
     memberlist: {
       abort_if_cluster_join_fails: false,
       bind_port: 7946,
@@ -25,11 +30,6 @@
         'local': {
           path: '/var/tempo/traces',
         },
-      },
-    },
-    querier: {
-      frontend_worker: {
-        frontend_address: 'tempo:9095',
       },
     },
   },

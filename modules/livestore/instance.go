@@ -1,11 +1,10 @@
 package livestore
 
 import (
-	"bytes"
 	"context"
 	"encoding/hex"
 	"errors"
-	"sort"
+	"iter"
 	"sync"
 	"time"
 
@@ -28,6 +27,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promauto"
 
 	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
 	oteltrace "go.opentelemetry.io/otel/trace"
 )
 
@@ -122,10 +122,12 @@ type instance struct {
 	lastCutTime    time.Time
 
 	// Live traces
-	liveTracesMtx  sync.Mutex
-	liveTraces     *livetraces.LiveTraces[*v1.ResourceSpans]
-	traceSizes     *tracesizes.Tracker
-	maxTraceLogger *util_log.RateLimitedLogger
+	liveTracesMtx      sync.Mutex
+	liveTraces         *livetraces.LiveTraces[*v1.ResourceSpans]
+	traceSizes         *tracesizes.Tracker
+	maxTraceLogger     *util_log.RateLimitedLogger
+	liveTracesIterNext func() (*livetraces.LiveTrace[*v1.ResourceSpans], bool)
+	liveTracesIterStop func()
 
 	// Metrics
 	tracesCreatedTotal prometheus.Counter
@@ -330,7 +332,7 @@ func countSpans(trace *tempopb.Trace) int {
 	return count
 }
 
-func (i *instance) cutIdleTraces(ctx context.Context, immediate bool) error {
+func (i *instance) cutIdleTraces(ctx context.Context, immediate bool) (bool, error) {
 	_, span := tracer.Start(ctx, "instance.cutIdleTraces",
 		oteltrace.WithAttributes(attribute.String("tenant", i.tenantID)))
 	defer span.End()
@@ -341,31 +343,49 @@ func (i *instance) cutIdleTraces(ctx context.Context, immediate bool) error {
 	// Set metrics before cutting (similar to ingester)
 	metricLiveTraces.WithLabelValues(i.tenantID).Set(float64(i.liveTraces.Len()))
 	metricLiveTraceBytes.WithLabelValues(i.tenantID).Set(float64(i.liveTraces.Size()))
+	if i.liveTracesIterNext == nil {
+		i.liveTracesIterNext, i.liveTracesIterStop = iter.Pull(i.liveTraces.CutIdle(time.Now(), immediate))
+	}
 
-	tracesToCut := i.liveTraces.CutIdle(time.Now(), immediate)
 	i.liveTracesMtx.Unlock()
 	span.AddEvent("released liveTracesMtx")
 
-	span.SetAttributes(attribute.Int("traces_to_cut", len(tracesToCut)))
+	var tracesCut int
+	defer func() { span.SetAttributes(attribute.Int("traces_cut", tracesCut)) }()
 
-	if len(tracesToCut) == 0 {
-		return nil
-	}
-	// Sort by ID
-	sort.Slice(tracesToCut, func(i, j int) bool {
-		return bytes.Compare(tracesToCut[i].ID, tracesToCut[j].ID) == -1
-	})
-	// Collect the trace IDs that will be flushed
+	// Write traces to head block, cutting when MaxBlockBytes is reached.
 	span.AddEvent("writing traces to head block")
-	for _, t := range tracesToCut {
-		err := i.writeHeadBlock(t.ID, t)
+	for {
+		t, ok := i.liveTracesIterNext()
+		if !ok {
+			break
+		}
+		blockSize, err := i.writeHeadBlock(t.ID, t)
 		if err != nil {
 			span.RecordError(err)
-			return err
+			span.SetStatus(codes.Error, err.Error())
+			i.liveTracesIterStop()
+			i.liveTracesIterNext, i.liveTracesIterStop = nil, nil
+			return false, err
 		}
 
+		tracesCut++
 		i.tracesCreatedTotal.Inc()
+
+		// if the head block has reached max block bytes,
+		// we exit earlier in order to cut the block
+		if blockSize >= i.Cfg.MaxBlockBytes {
+			return false, nil
+		}
 	}
+
+	i.liveTracesIterStop()
+	i.liveTracesIterNext, i.liveTracesIterStop = nil, nil
+
+	if tracesCut == 0 { // no traces to process
+		return true, nil
+	}
+
 	span.AddEvent("wrote traces to head block")
 
 	i.blocksMtx.Lock()
@@ -377,23 +397,22 @@ func (i *instance) cutIdleTraces(ctx context.Context, immediate bool) error {
 	if i.headBlock != nil {
 		err := i.headBlock.Flush()
 		if err != nil {
+			span.SetStatus(codes.Error, err.Error())
 			span.RecordError(err)
-			return err
+			return false, err
 		}
-
-		return nil
 	}
-	return nil
+	return true, nil
 }
 
-func (i *instance) writeHeadBlock(id []byte, liveTrace *livetraces.LiveTrace[*v1.ResourceSpans]) error {
+func (i *instance) writeHeadBlock(id []byte, liveTrace *livetraces.LiveTrace[*v1.ResourceSpans]) (uint64, error) {
 	i.blocksMtx.Lock()
 	defer i.blocksMtx.Unlock()
 
 	if i.headBlock == nil {
 		err := i.resetHeadBlock()
 		if err != nil {
-			return err
+			return 0, err
 		}
 	}
 
@@ -434,7 +453,8 @@ func (i *instance) writeHeadBlock(id []byte, liveTrace *livetraces.LiveTrace[*v1
 		endSeconds = maxEnd
 	}
 
-	return i.headBlock.AppendTrace(id, tr, startSeconds, endSeconds, false)
+	err := i.headBlock.AppendTrace(id, tr, startSeconds, endSeconds, false)
+	return i.headBlock.DataLength(), err
 }
 
 func (i *instance) getDedicatedColumns() backend.DedicatedColumns {
@@ -532,6 +552,7 @@ func (i *instance) cutBlocks(ctx context.Context, immediate bool) (uuid.UUID, er
 	// Final flush
 	err := i.headBlock.Flush()
 	if err != nil {
+		span.SetStatus(codes.Error, err.Error())
 		span.RecordError(err)
 		return uuid.Nil, err
 	}
@@ -550,6 +571,7 @@ func (i *instance) cutBlocks(ctx context.Context, immediate bool) (uuid.UUID, er
 	err = i.resetHeadBlock()
 	if err != nil {
 		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return uuid.Nil, err
 	}
 
@@ -567,8 +589,10 @@ func (i *instance) completeBlock(ctx context.Context, id uuid.UUID) (*LocalBlock
 	defer span.End()
 
 	i.blocksMtx.Lock()
+	span.AddEvent("acquired blocksMtx")
 	walBlock := i.walBlocks[id]
 	i.blocksMtx.Unlock()
+	span.AddEvent("released blocksMtx")
 
 	if walBlock == nil {
 		level.Warn(i.logger).Log("msg", "WAL block disappeared before being completed", "id", id)
@@ -580,7 +604,7 @@ func (i *instance) completeBlock(ctx context.Context, id uuid.UUID) (*LocalBlock
 
 	level.Info(i.logger).Log("msg", "completing WAL block", "blockSize", blockSize, "blockId", id.String())
 	metricCompletionSize.Observe(float64(blockSize))
-	span.SetAttributes(attribute.Int64("block_size", int64(blockSize)))
+	span.SetAttributes(attribute.Int64("wal_block_size", int64(blockSize)))
 
 	// Create completed block
 	reader := backend.NewReader(i.wal.LocalBackend())
@@ -589,30 +613,45 @@ func (i *instance) completeBlock(ctx context.Context, id uuid.UUID) (*LocalBlock
 	iter, err := walBlock.Iterator(ctx)
 	if err != nil {
 		level.Error(i.logger).Log("msg", "failed to get WAL block iterator", "id", id, "err", err)
+		span.SetStatus(codes.Error, err.Error())
 		span.RecordError(err)
 		return nil, err
 	}
 	defer iter.Close()
 
+	span.AddEvent("creating block")
 	newMeta, err := i.completeBlockEncoding.CreateBlock(ctx, &i.Cfg.BlockConfig, walBlock.BlockMeta(), iter, reader, writer)
 	if err != nil {
 		level.Error(i.logger).Log("msg", "failed to create complete block", "id", id, "err", err)
 		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return nil, err
 	}
+	span.AddEvent("created block")
+	span.SetAttributes(
+		attribute.Int64("block_size", int64(newMeta.Size_)),
+		attribute.Int64("total_objects", newMeta.TotalObjects),
+	)
 
 	level.Info(i.logger).Log("msg", "opening newly completed block", "blockId", newMeta.BlockID.String())
+	span.AddEvent("opening block")
 	newBlock, err := i.completeBlockEncoding.OpenBlock(newMeta, reader)
 	if err != nil {
 		level.Error(i.logger).Log("msg", "failed to open complete block", "id", id, "err", err)
 		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return nil, err
 	}
+	span.AddEvent("opened block")
 
 	level.Info(i.logger).Log("msg", "swapping wal block with newly completed block")
 
 	i.blocksMtx.Lock()
-	defer i.blocksMtx.Unlock()
+	span.AddEvent("acquired blocksMtx")
+	defer func() {
+		i.blocksMtx.Unlock()
+		span.AddEvent("released blocksMtx")
+	}()
 
 	// Verify the WAL block still exists
 	if _, ok := i.walBlocks[id]; !ok {
@@ -620,6 +659,7 @@ func (i *instance) completeBlock(ctx context.Context, id uuid.UUID) (*LocalBlock
 		err := i.wal.LocalBackend().ClearBlock(id, i.tenantID)
 		if err != nil {
 			level.Error(i.logger).Log("msg", "failed to clear complete block after WAL disappeared", "block", id, "err", err)
+			span.RecordError(err)
 		}
 		span.AddEvent("WAL block disappeared during completion")
 		return nil, nil

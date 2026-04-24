@@ -17,6 +17,7 @@ tempo {
           },
         },
       },
+      keda+: { enabled: true },
     },
     metrics_generator+: {
       pvc_size: '5Gi',
@@ -42,6 +43,8 @@ tempo {
     },
     backend: 's3',
     bucket: 'tempo',
+    kafka_address: 'kafka:9092',
+    kafka_topic: 'tempo-ingest',
     tempo_query_url: 'http://query-frontend:3200',
 
     overrides_configmap_name: 'tempo-overrides',
