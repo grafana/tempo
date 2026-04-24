@@ -819,7 +819,7 @@ func (rw *readerWriter) pollBlocklist(ctx context.Context) {
 }
 
 // includeBlock indicates whether a given block should be included in a backend search
-func includeBlock(b *backend.BlockMeta, _ common.ID, blockStart, blockEnd []byte, timeStart, timeEnd int64, rf1After time.Time) bool {
+func includeBlock(b *backend.BlockMeta, _ common.ID, blockStart, blockEnd []byte, timeStart, timeEnd int64, _ time.Time) bool {
 	// todo: restore this functionality once it works. min/max ids are currently not recorded
 	//    https://github.com/grafana/tempo/issues/1903
 	//  correctly in a block
@@ -840,12 +840,7 @@ func includeBlock(b *backend.BlockMeta, _ common.ID, blockStart, blockEnd []byte
 		return false
 	}
 
-	if rf1After.IsZero() {
-		return b.ReplicationFactor == backend.DefaultReplicationFactor
-	}
-
-	return (b.StartTime.Before(rf1After) && b.ReplicationFactor == backend.DefaultReplicationFactor) ||
-		(b.StartTime.After(rf1After) && b.ReplicationFactor == backend.MetricsGeneratorReplicationFactor)
+	return true
 }
 
 // if block is compacted within lookback period, and is within shard ranges, include it in search
