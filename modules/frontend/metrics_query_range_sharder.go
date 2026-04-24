@@ -202,8 +202,8 @@ func (s *queryRangeSharder) backendRequests(ctx context.Context, tenantID string
 	// range is checked for each window.
 	start := time.Unix(0, int64(backendReq.Start))
 	end := time.Unix(0, int64(backendReq.End))
-	blocks := blockMetasForSearch(s.reader.BlockMetas(tenantID), start, end, func(m *backend.BlockMeta) bool {
-		return m.ReplicationFactor == backend.MetricsGeneratorReplicationFactor
+	blocks := blockMetasForSearch(s.reader.BlockMetas(tenantID), start, end, func(_ *backend.BlockMeta) bool {
+		return true
 	})
 	if len(blocks) == 0 {
 		// no need to search backend

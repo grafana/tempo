@@ -82,12 +82,12 @@ func TestQueryRangeHandlerSucceeds(t *testing.T) {
 
 	expectedResp := &tempopb.QueryRangeResponse{
 		Metrics: &tempopb.SearchMetrics{
-			CompletedJobs:   4, // 2 blocks, each with 2 row groups that take 1 job
-			InspectedTraces: 4,
-			InspectedBytes:  4,
-			TotalJobs:       4,
-			TotalBlocks:     2,
-			TotalBlockBytes: 419430400,
+			CompletedJobs:   4 * 2, // 2 blocks, each with 2 row groups that take 1 job
+			InspectedTraces: 4 * 2,
+			InspectedBytes:  4 * 2,
+			TotalJobs:       4 * 2,
+			TotalBlocks:     2 * 2,
+			TotalBlockBytes: 419430400 * 2,
 		},
 		Series: []*tempopb.TimeSeries{
 			{
@@ -97,11 +97,11 @@ func TestQueryRangeHandlerSucceeds(t *testing.T) {
 				Samples: []tempopb.Sample{
 					{
 						TimestampMs: 1100_000,
-						Value:       4,
+						Value:       4 * 2,
 					},
 					{
 						TimestampMs: 1200_000,
-						Value:       8,
+						Value:       8 * 2,
 					},
 					{
 						TimestampMs: 1300_000,
