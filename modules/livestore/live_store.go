@@ -115,6 +115,12 @@ var (
 		Name:      "ready",
 		Help:      "1 if ready to serve queries, 0 otherwise",
 	})
+
+	metricLaggedRequests = promauto.NewCounterVec(prometheus.CounterOpts{
+		Namespace: "tempo_live_store",
+		Name:      "lagged_requests_total",
+		Help:      "Requests where the live-store could not guarantee complete results due to Kafka lag.",
+	}, []string{"method"})
 )
 
 type LiveStore struct {
@@ -824,6 +830,7 @@ func (s *LiveStore) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDReq
 func (s *LiveStore) SearchRecent(ctx context.Context, req *tempopb.SearchRequest) (*tempopb.SearchResponse, error) {
 	return withInstance(ctx, s, func(inst *instance) (*tempopb.SearchResponse, error) {
 		if s.isLagged(int64(req.End) * 1e9) { // convert seconds to nanoseconds
+			metricLaggedRequests.WithLabelValues("/tempopb.Querier/SearchRecent").Inc()
 			if s.cfg.FailOnHighLag {
 				return nil, errLagged
 			}
@@ -869,6 +876,7 @@ func (s *LiveStore) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTa
 func (s *LiveStore) QueryRange(ctx context.Context, req *tempopb.QueryRangeRequest) (*tempopb.QueryRangeResponse, error) {
 	return withInstance(ctx, s, func(inst *instance) (*tempopb.QueryRangeResponse, error) {
 		if s.isLagged(int64(req.End)) { // end param is already nanos, no need to convert
+			metricLaggedRequests.WithLabelValues("/tempopb.Metrics/QueryRange").Inc()
 			if s.cfg.FailOnHighLag {
 				return nil, errLagged
 			}
