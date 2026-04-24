@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/go-kit/log/level"
+	otelpyroscope "github.com/grafana/otel-profiling-go"
 	"github.com/grafana/tempo/pkg/util/log"
 	"github.com/prometheus/common/version"
 	"go.opentelemetry.io/contrib/exporters/autoexport"
@@ -16,9 +17,10 @@ import (
 	"go.opentelemetry.io/otel/sdk/resource"
 	tracesdk "go.opentelemetry.io/otel/sdk/trace"
 	semconv "go.opentelemetry.io/otel/semconv/v1.25.0"
+	"go.opentelemetry.io/otel/trace"
 )
 
-func InstallOpenTelemetryTracer(appName, target string) (func(), error) {
+func InstallOpenTelemetryTracer(appName, target string, spanProfiling bool) (func(), error) {
 	level.Info(log.Logger).Log("msg", "initialising OpenTelemetry tracer")
 
 	exp, err := autoexport.NewSpanExporter(context.Background())
@@ -42,16 +44,21 @@ func InstallOpenTelemetryTracer(appName, target string) (func(), error) {
 		level.Error(log.Logger).Log("msg", "OpenTelemetry.ErrorHandler", "err", err)
 	}))
 
-	tp := tracesdk.NewTracerProvider(
+	tpsdk := tracesdk.NewTracerProvider(
 		tracesdk.WithBatcher(exp),
 		tracesdk.WithResource(resources),
 	)
+
+	var tp trace.TracerProvider = tpsdk
+	if spanProfiling {
+		tp = otelpyroscope.NewTracerProvider(tp)
+	}
 	otel.SetTracerProvider(tp)
 
 	shutdown := func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
-		if err := tp.Shutdown(ctx); err != nil {
+		if err := tpsdk.Shutdown(ctx); err != nil {
 			level.Error(log.Logger).Log("msg", "OpenTelemetry trace provider failed to shutdown", "err", err)
 			os.Exit(1)
 		}
