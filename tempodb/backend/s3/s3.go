@@ -688,6 +688,17 @@ func (rw *readerWriter) readRange(ctx context.Context, objName string, offset in
 	return err
 }
 
+// iamEndpoint returns the IAM metadata endpoint for credential resolution.
+// Checks TEST_IAM_ENDPOINT (backward compat), then the standard
+// AWS_EC2_METADATA_SERVICE_ENDPOINT. If neither is set, returns empty
+// so that minio-go falls back to its default (169.254.169.254).
+func iamEndpoint() string {
+	if v := os.Getenv("TEST_IAM_ENDPOINT"); v != "" {
+		return v
+	}
+	return os.Getenv("AWS_EC2_METADATA_SERVICE_ENDPOINT")
+}
+
 func fetchCreds(cfg *Config) (*credentials.Credentials, error) {
 	wrapCredentialsProvider := func(p credentials.Provider) credentials.Provider {
 		if cfg.SignatureV2 {
@@ -712,7 +723,7 @@ func fetchCreds(cfg *Config) (*credentials.Credentials, error) {
 			Client: &http.Client{
 				Transport: http.DefaultTransport,
 			},
-			Endpoint: os.Getenv("TEST_IAM_ENDPOINT"),
+			Endpoint: iamEndpoint(),
 		}),
 	}
 
