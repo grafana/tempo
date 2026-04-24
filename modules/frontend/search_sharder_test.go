@@ -1185,7 +1185,7 @@ func TestRF1After(t *testing.T) {
 	searchJobResponse := &combiner.SearchJobResponse{}
 	s.backendRequests(ctx, "test", pipelineRequest, searchReq, searchJobResponse, make(chan pipeline.Request), cancelCause)
 
-	require.Equal(t, 2, searchJobResponse.TotalBlocks) // Verify the expected number of blocks after filtering
+	require.Equal(t, 2*2, searchJobResponse.TotalBlocks) // Verify the expected number of blocks after filtering; it ignored rf1After param now
 }
 
 func TestSearchSharderReturnsConsistentShards(t *testing.T) {
