@@ -53,7 +53,7 @@
 * [ENHANCEMENT] Expose a new histogram metric to track the jobs per query distribution [#6343](https://github.com/grafana/tempo/pull/6343) (@javiermolinar)
 * [ENHANCEMENT] Do deep validation for filter policies in user configurable overrides API [#6407](https://github.com/grafana/tempo/pull/6407) (@electron0zero)
 * [ENHANCEMENT] Allow span_name_sanitization to be set via user-configurable overrides API [#6411](https://github.com/grafana/tempo/pull/6411) (@Logiraptor)
-* [ENHANCEMENT] Add `fail_on_high_lag` parameter to allow live-store to fail if it is lagged [#6363](https://github.com/grafana/tempo/pull/6363) [#6567](https://github.com/grafana/tempo/pull/6567) (@ruslan-mikhailov, @carles-grafana)
+* [ENHANCEMENT] Add `fail_on_high_lag` parameter to allow live-store to fail if it is lagged [#6363](https://github.com/grafana/tempo/pull/6363) [#6567](https://github.com/grafana/tempo/pull/6567) [#7066](https://github.com/grafana/tempo/pull/7066) (@ruslan-mikhailov, @carles-grafana)
 * [ENHANCEMENT] Add support for per-tenant left-padding of trace IDs [#6489](https://github.com/grafana/tempo/pull/6489) (@mapno)
 * [ENHANCEMENT] Add new metric for generator ring size: `tempo_distributor_metrics_generator_tenant_ring_size` [#5686](https://github.com/grafana/tempo/pull/5686) (@zalegrala)
 * [ENHANCEMENT] Remove explicit `runtime.GC()` calls in vParquet5 compactor/block creation and CLI [#6603](https://github.com/grafana/tempo/pull/6603) (@oleg-kozlyuk-grafana)
