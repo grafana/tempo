@@ -5,22 +5,19 @@ description: Monolithic and microservices deployment modes in detail.
 weight: 400
 topicType: concept
 versionDate: 2026-03-20
-aliases:
-  - /docs/tempo/latest/set-up-for-tracing/setup-tempo/plan/deployment-modes/
-  - /set-up-for-tracing/setup-tempo/plan/deployment-modes/
 ---
 
 # Deployment modes
 
-Tempo can be deployed in monolithic or microservices mode.
+Tempo can be deployed in monolithic or microservices mode. Microservices mode requires a Kafka-compatible system. Monolithic mode doesn't use Kafka.
 
 _Monolithic mode_ was previously called _single binary mode_.
 
 {{< admonition type="note" >}}
-Microservices mode requires a Kafka-compatible system. Monolithic mode ingests traces in-process and does not require Kafka. The previous _scalable monolithic mode_ (also known as _scalable single binary mode_ or SSB) has been removed in v3.0.
+The previous _scalable monolithic mode_, also known as _scalable single binary mode_ or SSB, has been removed in v3.0.
 {{< /admonition >}}
 
-All components are compiled into the same binary. The `-target` parameter (or `target` in configuration) determines which components run in a given process. The default target is `all`, which is the monolithic deployment mode.
+All components are compiled into the same binary. The `-target` command-line parameter, or `target` in configuration, determines which components run in a given process. The default target is `all`, which is the monolithic deployment mode.
 
 ```bash
 tempo -target=all
@@ -30,9 +27,9 @@ Refer to the [command line flags](/docs/tempo/<TEMPO_VERSION>/set-up-for-tracing
 
 ## Monolithic mode
 
-In monolithic mode, all components run in a single process using `-target=all` (the default).
+In monolithic mode, the required components run in a single process using `-target=all`, which is the default. Components that are only needed in microservices mode, such as the block-builder, are excluded.
 
-This means one process handles distributor, live-store, metrics-generator, querier, query-frontend, backend scheduler, and backend worker responsibilities. The distributor pushes traces directly to the live-store and metrics-generator in-process, without Kafka.
+No Kafka is required. The distributor pushes trace data in-process directly to the live-store and metrics-generator. Traces are flushed to the configured storage backend without an intermediate message queue. Object storage is recommended for production deployments.
 
 ### When to use monolithic mode
 
@@ -40,11 +37,11 @@ Monolithic mode is suitable for getting started, development environments, and l
 
 ### Limitations
 
-All components share the same resource pool. A spike in query load can affect write throughput and vice versa. There's no independent scaling—you can run multiple monolithic instances, but each runs every component. At higher volumes, memory pressure from collocated components (particularly live-store and querier) can cause out-of-memory (OOM) issues.
+Components share the same resource pool. A spike in query load can affect write throughput and vice versa. There is no independent scaling. You can run multiple monolithic instances, but each instance runs the same set of components. At higher volumes, memory pressure from collocated components, particularly the live-store and querier, can cause out-of-memory issues.
 
 ### Resource considerations
 
-Monolithic instances need enough memory to handle the live-store's in-memory trace buffer, the querier's concurrent job execution, the block-builder's scratch space, and the backend worker's memory for block merging. As volume increases, the instance is limited by whichever component is most resource-hungry.
+Monolithic instances need enough memory to handle the live-store's in-memory trace buffer, the querier's concurrent job execution, and the backend worker's memory for block merging. As volume increases, the instance is limited by whichever component is most resource-hungry.
 
 ### Example
 
@@ -64,7 +61,7 @@ Use microservices mode for production deployments, high trace volumes requiring 
 
 ### Advantages
 
-Microservices mode provides independent scaling—you can scale block-builders for write throughput, queriers for query performance, and live-stores for recent data capacity, all independently. Failure domains are isolated: a querier OOM doesn't affect data ingestion, and a block-builder restart doesn't affect query availability. Live-stores can be deployed across availability zones for high availability. Each component gets exactly the resources it needs, avoiding the over-provisioning required in monolithic mode.
+Microservices mode provides independent scaling. You can scale block-builders for write throughput, queriers for query performance, and live-stores for recent data capacity, all independently. Failure domains are isolated: a querier OOM doesn't affect data ingestion, and a block-builder restart doesn't affect query availability. Live-stores can be deployed across availability zones for high availability. Each component gets exactly the resources it needs, avoiding the over-provisioning required in monolithic mode.
 
 ### Component scaling guidelines
 
@@ -82,11 +79,33 @@ Microservices mode provides independent scaling—you can scale block-builders f
 
 In microservices mode, Kafka is the primary communication channel for the write path. Components don't communicate directly for data transfer. Distributors write to Kafka. Block-builders, live-stores, and metrics-generators each consume from Kafka independently. Queriers contact live-stores over gRPC for recent data. All components access object storage for block data.
 
-Adding or removing instances of any component doesn't require reconfiguring other components (beyond Kafka partition management).
+Adding or removing instances of any component doesn't require reconfiguring other components, aside from Kafka partition management.
 
 ### Example
 
 Refer to the [distributed Docker Compose example](https://github.com/grafana/tempo/tree/main/example/docker-compose/distributed) in the Tempo repository.
+
+## Components by deployment mode
+
+Not all components and configuration blocks apply to both modes. The following table summarizes which components run in each mode and how shared components differ.
+
+| Component | Config block | Monolithic | Microservices |
+|---|---|---|---|
+| Distributor | `distributor` | Pushes data in-process to the live-store and metrics-generator | Writes data to Kafka |
+| Ingest | `ingest` | Not used | Kafka connection settings for the write path |
+| Block-builder | `block_builder` | Not used | Consumes from Kafka, builds Parquet blocks, flushes to object storage |
+| Live-store | `live_store` | Receives data directly from the distributor | Consumes from Kafka |
+| Live-store client | `live_store_client` | Querier-to-live-store client (runs in-process) | gRPC client for querier-to-live-store communication |
+| Query-frontend | `query_frontend` | Runs in-process | Runs as a separate process |
+| Querier | `querier` | Runs in-process | Runs as a separate process |
+| Backend scheduler | `backend_scheduler` | Runs in-process | Runs as a separate process |
+| Backend worker | `backend_worker` | Runs in-process | Runs as a separate process |
+| Metrics-generator | `metrics_generator` | Optional, runs in-process | Optional, runs as a separate process |
+| Storage | `storage` | Storage backend for trace data (object storage recommended; local supported for dev/test) | Object storage for trace data |
+| Memberlist | `memberlist` | Cluster membership | Cluster membership |
+| Overrides | `overrides` | Per-tenant limits | Per-tenant limits |
+
+For full configuration details, refer to the [configuration reference](/docs/tempo/<TEMPO_VERSION>/configuration/).
 
 ## Migrating between modes
 

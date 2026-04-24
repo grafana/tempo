@@ -17,6 +17,8 @@ The Tempo configuration options include:
 
 - [Configure Tempo](#configure-tempo)
   - [Use environment variables in the configuration](#use-environment-variables-in-the-configuration)
+  - [Deployment modes](#deployment-modes)
+    - [Configuration by deployment mode](#configuration-by-deployment-mode)
   - [Server](#server)
   - [Memory](#memory)
   - [Distributor](#distributor)
@@ -91,6 +93,35 @@ ${VAR:-default_value}
 where `default_value` is the value to use if the environment variable is undefined.
 
 You can find more about other supported syntax [here](https://github.com/drone/envsubst/blob/master/readme.md).
+
+## Deployment modes
+
+Tempo supports two deployment modes: monolithic and microservices.
+
+* Monolithic mode: The required components run in a single process using `-target=all`, which is the default. No Kafka is required.
+* Microservices mode: Each component runs as a separate process with its own `-target` flag. For example, `-target=distributor` or `-target=querier`. This mode requires a Kafka-compatible system, such as Apache Kafka, Redpanda, or WarpStream, as the durable queue between the distributor and downstream components.
+
+Refer to the [Deployment modes](/docs/tempo/<TEMPO_VERSION>/set-up-for-tracing/setup-tempo/plan/deployment-modes/) documentation for more information on when to use each mode.
+
+### Configuration by deployment mode
+
+Not all configuration blocks apply to both deployment modes.
+
+In monolithic mode, the most important configuration blocks are:
+
+| Config block | Description |
+|---|---|
+| `distributor` | Configure receivers (OTLP, Jaeger, Zipkin) and ingestion limits. |
+| `storage` | Configure the backend used to flush and store trace blocks. |
+| `metrics_generator` | Optional. Configure span-metrics and service-graph generation. |
+| `query_frontend` | Configure query splitting, caching, and result streaming. |
+| `overrides` | Set per-tenant rate limits and trace size limits. |
+
+The `ingest` and `block_builder` blocks are only used in microservices mode.
+Other blocks, including `live_store_client`, `backend_scheduler`, `backend_worker`, `memberlist`, and `cache`, apply in both modes but run in-process in monolithic mode.
+
+For the complete mapping of all configuration blocks to deployment modes, refer to the [Components by deployment mode](/docs/tempo/<TEMPO_VERSION>/reference-tempo-architecture/deployment-modes/#components-by-deployment-mode) table.
+
 
 ## Server
 
