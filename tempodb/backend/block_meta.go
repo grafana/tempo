@@ -132,7 +132,7 @@ func (o DedicatedColumnOptions) ToTempopb() (tempopb.DedicatedColumn_Option, err
 }
 
 const (
-	DefaultReplicationFactor          = 0 // Replication factor for blocks from the ingester. This is the default value to indicate RF3.
+	DefaultReplicationFactor          = 1 // Default replication factor for blocks when unspecified. All current block producers write RF1.
 	MetricsGeneratorReplicationFactor = 1
 	LiveStoreReplicationFactor        = MetricsGeneratorReplicationFactor
 )
