@@ -165,7 +165,7 @@ func runnerRequests(t *testing.T, f *QueryFrontend) {
 		expectedErr error
 	}{
 		{
-			name: "access 4 blocks x 2 jobs = 8",
+			name: "access 2 blocks x 2 jobs = 4",
 			request: &tempopb.SearchRequest{
 				Query: "{resource.service.name = `test`}",
 				Start: 1,
@@ -180,12 +180,12 @@ func runnerRequests(t *testing.T, f *QueryFrontend) {
 					StartTimeUnixNano: math.MaxUint64,
 				}},
 				Metrics: &tempopb.SearchMetrics{
-					InspectedTraces: 8,
-					InspectedBytes:  8,
-					TotalBlocks:     4,
-					TotalJobs:       8,
-					TotalBlockBytes: 8 * defaultTargetBytesPerRequest,
-					CompletedJobs:   8,
+					InspectedTraces: 4 * 2,
+					InspectedBytes:  4 * 2,
+					TotalBlocks:     2 * 2,
+					TotalJobs:       4 * 2,
+					TotalBlockBytes: 4 * defaultTargetBytesPerRequest * 2,
+					CompletedJobs:   4 * 2,
 				},
 			},
 		},
@@ -202,7 +202,7 @@ func runnerRequests(t *testing.T, f *QueryFrontend) {
 			expectedErr:           status.Error(codes.InvalidArgument, "invalid TraceQL query: parse error at line 1, col 1: syntax error: unexpected IDENTIFIER"),
 		},
 		{
-			name:   "multitenant - 8 jobs x 2 tenants = 16",
+			name:   "multitenant - 4 jobs x 2 tenants = 8",
 			tenant: "tenant-1|tenant-2",
 			request: &tempopb.SearchRequest{
 				Query: "{resource.service.name = `test`}",
@@ -218,12 +218,12 @@ func runnerRequests(t *testing.T, f *QueryFrontend) {
 					StartTimeUnixNano: math.MaxUint64,
 				}},
 				Metrics: &tempopb.SearchMetrics{
-					InspectedTraces: 16,
-					InspectedBytes:  16,
-					TotalBlocks:     8,
-					TotalJobs:       16,
-					TotalBlockBytes: 16 * defaultTargetBytesPerRequest,
-					CompletedJobs:   16,
+					InspectedTraces: 8 * 2,
+					InspectedBytes:  8 * 2,
+					TotalBlocks:     4 * 2,
+					TotalJobs:       8 * 2,
+					TotalBlockBytes: 8 * defaultTargetBytesPerRequest * 2,
+					CompletedJobs:   8 * 2,
 				},
 			},
 		},
