@@ -28,6 +28,7 @@ import (
 	"github.com/twmb/franz-go/pkg/kadm"
 	"github.com/twmb/franz-go/pkg/kgo"
 	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
 	oteltrace "go.opentelemetry.io/otel/trace"
 )
 
@@ -732,29 +733,31 @@ func (s *LiveStore) cutOneInstanceToWal(ctx context.Context, inst *instance, imm
 		))
 	defer span.End()
 
-	// Regular trace cuts (live traces -> head block)
-	err := inst.cutIdleTraces(ctx, immediate)
-	if err != nil {
-		level.Error(s.logger).Log("msg", "failed to cut idle traces", "tenant", inst.tenantID, "err", err)
-		span.RecordError(err)
-	}
-
-	// Regular block cuts
-	blockID, err := inst.cutBlocks(ctx, immediate)
-	if err != nil {
-		level.Error(s.logger).Log("msg", "failed to cut blocks", "tenant", inst.tenantID, "err", err)
-		span.RecordError(err)
-	}
-
-	// If head block is cut, enqueue complete operation
-	if blockID != uuid.Nil {
-		span.AddEvent("block enqueued for completion",
-			oteltrace.WithAttributes(attribute.String("blockID", blockID.String())))
-		err = s.enqueueCompleteOp(inst.tenantID, blockID, false)
+	var liveTracesDrained bool
+	var err error
+	for !liveTracesDrained {
+		// Regular trace cuts (live traces -> head block)
+		liveTracesDrained, err = inst.cutIdleTraces(ctx, immediate)
 		if err != nil {
-			level.Error(s.logger).Log("msg", "failed to enqueue complete operation", "tenant", inst.tenantID, "err", err)
+			level.Error(s.logger).Log("msg", "failed to cut idle traces", "tenant", inst.tenantID, "err", err)
+			span.SetStatus(codes.Error, err.Error())
 			span.RecordError(err)
-			return
+			break
+		}
+		id, err := inst.cutBlocks(ctx, immediate)
+		if err != nil {
+			level.Error(s.logger).Log("msg", "failed to cut blocks", "tenant", inst.tenantID, "err", err)
+			span.SetStatus(codes.Error, err.Error())
+			span.RecordError(err)
+			break
+		}
+		if id != uuid.Nil {
+			span.AddEvent("block enqueued for completion",
+				oteltrace.WithAttributes(attribute.String("blockID", id.String())))
+			if err := s.enqueueCompleteOp(inst.tenantID, id, false); err != nil {
+				level.Error(s.logger).Log("msg", "failed to enqueue complete operation", "tenant", inst.tenantID, "err", err)
+				span.RecordError(err)
+			}
 		}
 	}
 }
