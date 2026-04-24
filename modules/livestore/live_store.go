@@ -120,7 +120,7 @@ var (
 		Namespace: "tempo_live_store",
 		Name:      "lagged_requests_total",
 		Help:      "Requests where the live-store could not guarantee complete results due to Kafka lag.",
-	}, []string{"method"})
+	}, []string{"route"})
 )
 
 type LiveStore struct {
