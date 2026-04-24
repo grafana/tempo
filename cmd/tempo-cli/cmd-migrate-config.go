@@ -20,20 +20,45 @@ const (
 )
 
 // yamlFieldNames returns the set of YAML tag names for the given struct type.
-func yamlFieldNames(v interface{}) map[string]struct{} {
+func yamlFieldNames(v interface{}) map[string]bool {
 	t := reflect.TypeOf(v)
-	fields := make(map[string]struct{}, t.NumField())
+	fields := make(map[string]bool, t.NumField())
 	for i := range t.NumField() {
 		tag := t.Field(i).Tag.Get("yaml")
-		if tag == "" || tag == "-" || tag == ",inline" {
+		if tag == "-" {
 			continue
 		}
 		name, _, _ := strings.Cut(tag, ",")
 		if name != "" {
-			fields[name] = struct{}{}
+			fields[name] = true
 		}
 	}
 	return fields
+}
+
+// asMap asserts that v is a map[string]interface{}, returning false if not.
+// Callers should warn when this fails on user input, as it signals malformed YAML.
+func asMap(v interface{}) (map[string]interface{}, bool) {
+	m, ok := v.(map[string]interface{})
+	return m, ok
+}
+
+// extractNestedMap walks a path of keys through a nested map structure and
+// returns the map at that path. Returns nil, false if any key is missing or
+// if any intermediate value is not a map.
+func extractNestedMap(m map[string]interface{}, path ...string) (map[string]interface{}, bool) {
+	current := m
+	for _, key := range path {
+		v, ok := current[key]
+		if !ok {
+			return nil, false
+		}
+		current, ok = asMap(v)
+		if !ok {
+			return nil, false
+		}
+	}
+	return current, true
 }
 
 type migrateConfigCmd struct {
@@ -107,6 +132,9 @@ func readConfigMap(path string) (map[string]interface{}, error) {
 }
 
 // detectMode determines whether the config is for monolithic or microservices deployment.
+// It also rewrites targets that would produce an invalid 3.0 config:
+//   - missing or empty target: deleted so Tempo applies its default ("all")
+//   - scalable-single-binary: rewritten to "all" (SSB was removed in 3.0)
 func detectMode(m map[string]interface{}, flagOverride string, warnings *[]string) string {
 	if flagOverride != "" {
 		return flagOverride
@@ -116,7 +144,12 @@ func detectMode(m map[string]interface{}, flagOverride string, warnings *[]strin
 		return modeMonolithic
 	}
 	targetStr, _ := target.(string)
-	if app.IsSingleBinary(targetStr) || targetStr == "" {
+	if targetStr == "" {
+		// An explicit empty string overrides the default. Remove it so Tempo applies "all".
+		delete(m, "target")
+		return modeMonolithic
+	}
+	if app.IsSingleBinary(targetStr) {
 		return modeMonolithic
 	}
 	if targetStr == "scalable-single-binary" {
@@ -131,11 +164,7 @@ func detectMode(m map[string]interface{}, flagOverride string, warnings *[]strin
 // detectLegacyOverrides checks if the config uses the legacy flat overrides format
 // and returns an error directing the user to migrate overrides first.
 func detectLegacyOverrides(m map[string]interface{}) error {
-	overridesRaw, ok := m["overrides"]
-	if !ok {
-		return nil
-	}
-	ovrMap, ok := overridesRaw.(map[string]interface{})
+	ovrMap, ok := extractNestedMap(m, "overrides")
 	if !ok {
 		return nil
 	}
@@ -148,7 +177,7 @@ func detectLegacyOverrides(m map[string]interface{}) error {
 	// Check for known legacy flat keys
 	legacyFields := yamlFieldNames(overrides.LegacyOverrides{})
 	for key := range ovrMap {
-		if _, isLegacy := legacyFields[key]; isLegacy {
+		if legacyFields[key] {
 			return fmt.Errorf("legacy overrides format detected (found key %q); run 'tempo-cli migrate overrides-config' first", key)
 		}
 	}
@@ -162,7 +191,7 @@ func detectLegacyOverrides(m map[string]interface{}) error {
 func deleteRemovedBlocks(m map[string]interface{}, warnings *[]string) {
 	knownFields := yamlFieldNames(app.Config{})
 	for key := range m {
-		if _, known := knownFields[key]; !known {
+		if !knownFields[key] {
 			delete(m, key)
 			*warnings = append(*warnings, fmt.Sprintf("removed %q section (not recognized by Tempo 3.0)", key))
 		}
@@ -198,11 +227,12 @@ func modifyOverrides(m map[string]interface{}, warnings *[]string) {
 	// Walk any non-standard keys (potential inline per-tenant overrides)
 	knownKeys := yamlFieldNames(overrides.Config{})
 	for key, val := range ovr {
-		if _, known := knownKeys[key]; known {
+		if knownKeys[key] {
 			continue
 		}
-		tenantMap, ok := val.(map[string]interface{})
+		tenantMap, ok := asMap(val)
 		if !ok {
+			*warnings = append(*warnings, fmt.Sprintf("overrides entry %q is not a map, skipping", key))
 			continue
 		}
 		tenantCompaction := getOrCreateNestedMap(tenantMap, "compaction")
@@ -223,54 +253,38 @@ func modifyOverrides(m map[string]interface{}, warnings *[]string) {
 // defaults, and any inline per-tenant overrides.
 func cleanLocalBlocks(m map[string]interface{}, warnings *[]string) {
 	// Clean top-level metrics_generator
-	removeLocalBlocksProcessorConfig(m, "metrics_generator", warnings)
+	removeLocalBlocksProcessorConfig(m, warnings)
 
-	overridesRaw, ok := m["overrides"]
-	if !ok {
-		return
-	}
-	ovrMap, ok := overridesRaw.(map[string]interface{})
+	ovrMap, ok := extractNestedMap(m, "overrides")
 	if !ok {
 		return
 	}
 
 	// Clean defaults
-	if defaultsRaw, ok := ovrMap["defaults"]; ok {
-		if defaults, ok := defaultsRaw.(map[string]interface{}); ok {
-			removeLocalBlocksProcessorConfig(defaults, "metrics_generator", warnings)
-			removeLocalBlocksFromProcessorList(defaults, warnings)
-		}
+	if defaults, ok := extractNestedMap(ovrMap, "defaults"); ok {
+		removeLocalBlocksProcessorConfig(defaults, warnings)
+		removeLocalBlocksFromProcessorList(defaults, warnings)
 	}
 
 	// Clean any inline per-tenant overrides
 	knownKeys := yamlFieldNames(overrides.Config{})
 	for key, val := range ovrMap {
-		if _, known := knownKeys[key]; known {
+		if knownKeys[key] {
 			continue
 		}
-		if tenantMap, ok := val.(map[string]interface{}); ok {
-			removeLocalBlocksProcessorConfig(tenantMap, "metrics_generator", warnings)
-			removeLocalBlocksFromProcessorList(tenantMap, warnings)
+		tenantMap, ok := asMap(val)
+		if !ok {
+			continue // already warned in modifyOverrides
 		}
+		removeLocalBlocksProcessorConfig(tenantMap, warnings)
+		removeLocalBlocksFromProcessorList(tenantMap, warnings)
 	}
 }
 
-// removeLocalBlocksProcessorConfig removes processor.local_blocks from a
-// metrics_generator map found at the given key.
-func removeLocalBlocksProcessorConfig(m map[string]interface{}, mgKey string, warnings *[]string) {
-	mgRaw, ok := m[mgKey]
-	if !ok {
-		return
-	}
-	mg, ok := mgRaw.(map[string]interface{})
-	if !ok {
-		return
-	}
-	procRaw, ok := mg["processor"]
-	if !ok {
-		return
-	}
-	proc, ok := procRaw.(map[string]interface{})
+// removeLocalBlocksProcessorConfig removes metrics_generator.processor.local_blocks
+// from the given map (which should be either the top-level config or an overrides entry).
+func removeLocalBlocksProcessorConfig(m map[string]interface{}, warnings *[]string) {
+	proc, ok := extractNestedMap(m, "metrics_generator", "processor")
 	if !ok {
 		return
 	}
@@ -283,11 +297,7 @@ func removeLocalBlocksProcessorConfig(m map[string]interface{}, mgKey string, wa
 // removeLocalBlocksFromProcessorList filters "local-blocks" from the
 // metrics_generator.processors list within an overrides map.
 func removeLocalBlocksFromProcessorList(m map[string]interface{}, warnings *[]string) {
-	mgRaw, ok := m["metrics_generator"]
-	if !ok {
-		return
-	}
-	mg, ok := mgRaw.(map[string]interface{})
+	mg, ok := extractNestedMap(m, "metrics_generator")
 	if !ok {
 		return
 	}
@@ -297,6 +307,7 @@ func removeLocalBlocksFromProcessorList(m map[string]interface{}, warnings *[]st
 	}
 	procList, ok := processorsRaw.([]interface{})
 	if !ok {
+		*warnings = append(*warnings, "metrics_generator.processors is not a list, skipping local-blocks filtering")
 		return
 	}
 
@@ -348,9 +359,13 @@ func validateMigratedConfig(m map[string]interface{}) ([]string, error) {
 		return nil, fmt.Errorf("migrated config failed validation: %w", err)
 	}
 
-	if !isValidTarget(cfg.Target) {
+	if cfg.Target != "" && !validTargets[cfg.Target] {
+		targets := make([]string, 0, len(validTargets))
+		for t := range validTargets {
+			targets = append(targets, t)
+		}
 		return nil, fmt.Errorf("migrated config has unsupported target %q; valid values are: %s",
-			cfg.Target, strings.Join(validTargets(), ", "))
+			cfg.Target, strings.Join(targets, ", "))
 	}
 
 	for _, w := range cfg.CheckConfig() {
@@ -360,33 +375,17 @@ func validateMigratedConfig(m map[string]interface{}) ([]string, error) {
 	return warnings, nil
 }
 
-// validTargets returns the list of valid Tempo 3.0 target values.
-func validTargets() []string {
-	return []string{
-		app.SingleBinary,
-		app.Distributor,
-		app.MetricsGenerator,
-		app.Querier,
-		app.QueryFrontend,
-		app.BlockBuilder,
-		app.BackendScheduler,
-		app.BackendWorker,
-		app.LiveStore,
-	}
-}
-
-// isValidTarget reports whether target is a supported Tempo 3.0 target.
-// An empty target is treated as valid (the config uses the default).
-func isValidTarget(target string) bool {
-	if target == "" {
-		return true
-	}
-	for _, t := range validTargets() {
-		if target == t {
-			return true
-		}
-	}
-	return false
+// validTargets is the set of valid Tempo 3.0 target values.
+var validTargets = map[string]bool{
+	app.SingleBinary:     true,
+	app.Distributor:      true,
+	app.MetricsGenerator: true,
+	app.Querier:          true,
+	app.QueryFrontend:    true,
+	app.BlockBuilder:     true,
+	app.BackendScheduler: true,
+	app.BackendWorker:    true,
+	app.LiveStore:        true,
 }
 
 // outputMigratedConfig marshals the map to YAML and prints it to stdout with a header comment.

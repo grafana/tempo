@@ -1,6 +1,9 @@
 package main
 
 import (
+	"bytes"
+	"io"
+	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -29,6 +32,7 @@ func TestDetectMode(t *testing.T) {
 			m:        map[string]interface{}{"target": ""},
 			expected: modeMonolithic,
 		},
+		// Empty-target key removal is asserted separately below.
 		{
 			name:     "distributor target is microservices",
 			m:        map[string]interface{}{"target": "distributor"},
@@ -63,6 +67,14 @@ func TestDetectMode(t *testing.T) {
 		require.Len(t, warnings, 1)
 		assert.Contains(t, warnings[0], "scalable-single-binary")
 		assert.Contains(t, warnings[0], "removed in Tempo 3.0")
+	})
+
+	t.Run("empty target string is deleted from map", func(t *testing.T) {
+		m := map[string]interface{}{"target": ""}
+		result := detectMode(m, "", new([]string))
+		assert.Equal(t, modeMonolithic, result)
+		// An explicit empty target overrides Tempo's default, so it must be removed.
+		assert.NotContains(t, m, "target")
 	})
 }
 
@@ -347,102 +359,83 @@ func TestSetNestedValue(t *testing.T) {
 	})
 }
 
+// runMigrateConfig runs the full migrate config pipeline end-to-end, capturing
+// stdout. Warnings printed to stderr are not captured here.
+func runMigrateConfig(t *testing.T, inputFile, kafkaAddress, kafkaTopic, mode string) (stdout string, err error) {
+	t.Helper()
+	cmd := &migrateConfigCmd{
+		ConfigFile:   inputFile,
+		KafkaAddress: kafkaAddress,
+		KafkaTopic:   kafkaTopic,
+		Mode:         mode,
+	}
+
+	// Capture stdout.
+	orig := os.Stdout
+	r, w, _ := os.Pipe()
+	os.Stdout = w
+	defer func() { os.Stdout = orig }()
+
+	done := make(chan struct{})
+	var buf bytes.Buffer
+	go func() {
+		_, _ = io.Copy(&buf, r)
+		close(done)
+	}()
+
+	err = cmd.Run(nil)
+	_ = w.Close()
+	<-done
+	return buf.String(), err
+}
+
 func TestMigrateConfigEndToEnd(t *testing.T) {
 	tests := []struct {
 		name             string
 		inputFile        string
+		expectedFile     string
 		kafkaAddress     string
 		kafkaTopic       string
 		mode             string
 		expectErr        bool
 		expectErrContain string
-		// Assertions on the resulting map
-		assertFn func(t *testing.T, m map[string]interface{})
 	}{
 		{
-			name:      "monolithic basic",
-			inputFile: "test-data/migrate-config/monolithic-basic-input.yaml",
-			assertFn: func(t *testing.T, m map[string]interface{}) {
-				// 2.x blocks removed
-				assert.NotContains(t, m, "ingester")
-				assert.NotContains(t, m, "ingester_client")
-				assert.NotContains(t, m, "compactor")
-				// no ingest block in monolithic
-				assert.NotContains(t, m, "ingest")
-				// server and storage preserved
-				assert.Contains(t, m, "server")
-				assert.Contains(t, m, "storage")
-				// compaction_disabled set
-				overrides := m["overrides"].(map[string]interface{})
-				defaults := overrides["defaults"].(map[string]interface{})
-				compaction := defaults["compaction"].(map[string]interface{})
-				assert.Equal(t, true, compaction["compaction_disabled"])
-			},
+			name:         "monolithic basic",
+			inputFile:    "test-data/migrate-config/monolithic-basic-input.yaml",
+			expectedFile: "test-data/migrate-config/monolithic-basic-expected.yaml",
 		},
 		{
 			name:         "microservices basic",
 			inputFile:    "test-data/migrate-config/microservices-basic-input.yaml",
+			expectedFile: "test-data/migrate-config/microservices-basic-expected.yaml",
 			kafkaAddress: "kafka:9092",
 			kafkaTopic:   "tempo-traces",
-			assertFn: func(t *testing.T, m map[string]interface{}) {
-				// 2.x blocks removed
-				assert.NotContains(t, m, "ingester")
-				assert.NotContains(t, m, "ingester_client")
-				assert.NotContains(t, m, "compactor")
-				// ingest block added
-				ingest := m["ingest"].(map[string]interface{})
-				kafka := ingest["kafka"].(map[string]interface{})
-				assert.Equal(t, "kafka:9092", kafka["address"])
-				assert.Equal(t, "tempo-traces", kafka["topic"])
-				// compaction_disabled set
-				overrides := m["overrides"].(map[string]interface{})
-				defaults := overrides["defaults"].(map[string]interface{})
-				compaction := defaults["compaction"].(map[string]interface{})
-				assert.Equal(t, true, compaction["compaction_disabled"])
-			},
 		},
 		{
-			name:      "no target field defaults to monolithic",
-			inputFile: "test-data/migrate-config/no-target-input.yaml",
-			assertFn: func(t *testing.T, m map[string]interface{}) {
-				// ingester removed
-				assert.NotContains(t, m, "ingester")
-				// no ingest block
-				assert.NotContains(t, m, "ingest")
-			},
+			name:         "no target field defaults to monolithic",
+			inputFile:    "test-data/migrate-config/no-target-input.yaml",
+			expectedFile: "test-data/migrate-config/no-target-expected.yaml",
 		},
 		{
-			name:      "with local-blocks processor",
-			inputFile: "test-data/migrate-config/with-local-blocks-input.yaml",
-			assertFn: func(t *testing.T, m map[string]interface{}) {
-				// top-level local_blocks config removed
-				mg := m["metrics_generator"].(map[string]interface{})
-				proc := mg["processor"].(map[string]interface{})
-				assert.NotContains(t, proc, "local_blocks")
-				assert.Contains(t, proc, "service_graphs")
-				// local-blocks removed from processors list
-				overrides := m["overrides"].(map[string]interface{})
-				defaults := overrides["defaults"].(map[string]interface{})
-				mgOverrides := defaults["metrics_generator"].(map[string]interface{})
-				processors := mgOverrides["processors"].([]interface{})
-				assert.NotContains(t, processors, "local-blocks")
-				assert.Contains(t, processors, "service-graphs")
-				assert.Contains(t, processors, "span-metrics")
-			},
+			name:         "with local-blocks processor",
+			inputFile:    "test-data/migrate-config/with-local-blocks-input.yaml",
+			expectedFile: "test-data/migrate-config/with-local-blocks-expected.yaml",
 		},
 		{
-			name:      "with env vars preserves them",
-			inputFile: "test-data/migrate-config/with-env-vars-input.yaml",
-			assertFn: func(t *testing.T, m map[string]interface{}) {
-				// env vars preserved as strings
-				server := m["server"].(map[string]interface{})
-				assert.Equal(t, "${HTTP_PORT}", server["http_listen_port"])
-				storage := m["storage"].(map[string]interface{})
-				trace := storage["trace"].(map[string]interface{})
-				s3 := trace["s3"].(map[string]interface{})
-				assert.Equal(t, "${S3_BUCKET}", s3["bucket"])
-				assert.Equal(t, "${S3_ENDPOINT}", s3["endpoint"])
-			},
+			name:         "with per-tenant override config",
+			inputFile:    "test-data/migrate-config/with-per-tenant-override-config-input.yaml",
+			expectedFile: "test-data/migrate-config/with-per-tenant-override-config-expected.yaml",
+		},
+		{
+			name:         "with env vars preserves them",
+			inputFile:    "test-data/migrate-config/with-env-vars-input.yaml",
+			expectedFile: "test-data/migrate-config/with-env-vars-expected.yaml",
+		},
+		{
+			name:         "scalable-single-binary is rewritten to all",
+			inputFile:    "test-data/migrate-config/scalable-single-binary-input.yaml",
+			expectedFile: "test-data/migrate-config/scalable-single-binary-expected.yaml",
 		},
 		{
 			name:             "legacy overrides errors",
@@ -460,42 +453,68 @@ func TestMigrateConfigEndToEnd(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			m, err := readConfigMap(tt.inputFile)
+			stdout, err := runMigrateConfig(t, tt.inputFile, tt.kafkaAddress, tt.kafkaTopic, tt.mode)
+			if tt.expectErr {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tt.expectErrContain)
+				return
+			}
 			require.NoError(t, err)
 
-			mode := detectMode(m, tt.mode, new([]string))
-
-			err = detectLegacyOverrides(m)
-			if err != nil {
-				if tt.expectErr {
-					assert.Contains(t, err.Error(), tt.expectErrContain)
-					return
-				}
-				require.NoError(t, err)
-			}
-
-			var warnings []string
-			deleteRemovedBlocks(m, &warnings)
-
-			err = addIngestBlocks(m, mode, tt.kafkaAddress, tt.kafkaTopic)
-			if err != nil {
-				if tt.expectErr {
-					assert.Contains(t, err.Error(), tt.expectErrContain)
-					return
-				}
-				require.NoError(t, err)
-			}
-
-			modifyOverrides(m, &warnings)
-			cleanLocalBlocks(m, &warnings)
-
-			if tt.expectErr {
-				t.Fatal("expected error but none occurred")
-			}
-
-			if tt.assertFn != nil {
-				tt.assertFn(t, m)
-			}
+			expected, err := os.ReadFile(tt.expectedFile)
+			require.NoError(t, err)
+			assert.Equal(t, string(expected), stdout,
+				"output does not match %s — if the change is intentional, regenerate the expected file", tt.expectedFile)
 		})
 	}
+}
+
+func TestValidateMigratedConfig(t *testing.T) {
+	t.Run("unknown nested key fails validation", func(t *testing.T) {
+		m := map[string]interface{}{
+			"target": "all",
+			"server": map[string]interface{}{
+				"bogus_unknown_field": 42,
+			},
+		}
+		_, err := validateMigratedConfig(m)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "failed validation")
+		assert.Contains(t, err.Error(), "bogus_unknown_field")
+	})
+
+	t.Run("unsupported target fails validation", func(t *testing.T) {
+		m := map[string]interface{}{
+			"target": "bogus-target",
+		}
+		_, err := validateMigratedConfig(m)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "unsupported target")
+		assert.Contains(t, err.Error(), "bogus-target")
+	})
+
+	t.Run("env var placeholder downgrades type error to warning", func(t *testing.T) {
+		m := map[string]interface{}{
+			"target": "all",
+			"server": map[string]interface{}{
+				"http_listen_port": "${HTTP_PORT}",
+			},
+		}
+		warnings, err := validateMigratedConfig(m)
+		require.NoError(t, err)
+		require.Len(t, warnings, 1)
+		assert.Contains(t, warnings[0], "validation skipped for env var placeholders")
+	})
+
+	t.Run("valid config passes without warnings", func(t *testing.T) {
+		m := map[string]interface{}{
+			"target": "all",
+			"server": map[string]interface{}{
+				"http_listen_port": 3200,
+			},
+		}
+		warnings, err := validateMigratedConfig(m)
+		require.NoError(t, err)
+		assert.Empty(t, warnings)
+	})
 }

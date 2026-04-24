@@ -651,7 +651,7 @@ tempo-cli migrate overrides-per-tenant overrides.yaml -d migrated-overrides.yaml
 
 Migrate a Tempo 2.x configuration file to a valid 3.0 configuration. The command removes obsolete config sections (such as `ingester`, `ingester_client`, and `compactor`), adds Kafka ingest configuration for microservices mode, disables compaction in overrides for parallel operation during migration, and strips the removed `local-blocks` metrics generator processor.
 
-The tool works at the YAML map level rather than rewriting the file from fully decoded Tempo structs, so environment variable references like `${VAR}` are preserved. Top-level sections that are not recognized by the Tempo 3.0 config are dropped from the output, and unknown nested keys cause validation to fail.
+The tool works at the YAML map level rather than rewriting the file from fully decoded Tempo structs, so environment variable references like `${VAR}` are preserved. Top-level sections that are not recognized by the Tempo 3.0 config are dropped from the output. Unknown nested keys normally cause validation to fail, but validation is best-effort when the config contains `${VAR}` placeholders where non-string types are expected, which may let unknown nested keys through.
 
 ```bash
 tempo-cli migrate config [options] <config-file>
