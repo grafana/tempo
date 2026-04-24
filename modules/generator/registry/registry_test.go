@@ -663,7 +663,7 @@ func TestManagedRegistry_demandDecaysOverTime(t *testing.T) {
 	for _, m := range registry.metrics {
 		// Advance enough times to clear the sliding window
 		for i := 0; i < 5; i++ {
-			m.removeStaleSeries(nil, 0, time.Now().Add(time.Hour).UnixMilli())
+			m.removeStaleSeries(appender, 0, time.Now().Add(time.Hour).UnixMilli())
 		}
 	}
 	registry.metricsMtx.RUnlock()
