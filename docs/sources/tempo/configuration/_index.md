@@ -98,7 +98,7 @@ You can find more about other supported syntax [here](https://github.com/drone/e
 
 Tempo supports two deployment modes: monolithic and microservices.
 
-* Monolithic mode: All components run in a single process using `-target=all`, which is the default. No Kafka is required.
+* Monolithic mode: The required components run in a single process using `-target=all`, which is the default. No Kafka is required.
 * Microservices mode: Each component runs as a separate process with its own `-target` flag. For example, `-target=distributor` or `-target=querier`. This mode requires a Kafka-compatible system, such as Apache Kafka, Redpanda, or WarpStream, as the durable queue between the distributor and downstream components.
 
 Refer to the [Deployment modes](/docs/tempo/<TEMPO_VERSION>/set-up-for-tracing/setup-tempo/plan/deployment-modes/) documentation for more information on when to use each mode.
@@ -112,6 +112,7 @@ In monolithic mode, the most important configuration blocks are:
 | Config block | Description |
 |---|---|
 | `distributor` | Configure receivers (OTLP, Jaeger, Zipkin) and ingestion limits. |
+| `storage` | Configure the backend used to flush and store trace blocks. |
 | `metrics_generator` | Optional. Configure span-metrics and service-graph generation. |
 | `query_frontend` | Configure query splitting, caching, and result streaming. |
 | `overrides` | Set per-tenant rate limits and trace size limits. |
