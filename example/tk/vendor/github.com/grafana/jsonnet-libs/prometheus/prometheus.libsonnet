@@ -121,7 +121,8 @@ local kausal = import 'ksonnet-util/kausal.libsonnet';
       '-',
       '-sS',
       'http://localhost:%(prometheus_port)s%(prometheus_web_route_prefix)s-/reload' % _config,
-    ]),
+    ])
+    + k.util.resourcesRequests('10m', '10Mi'),
 
   local pvc = k.core.v1.persistentVolumeClaim,
 
