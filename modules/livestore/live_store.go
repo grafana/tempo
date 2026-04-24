@@ -824,7 +824,9 @@ func (s *LiveStore) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDReq
 func (s *LiveStore) SearchRecent(ctx context.Context, req *tempopb.SearchRequest) (*tempopb.SearchResponse, error) {
 	return withInstance(ctx, s, func(inst *instance) (*tempopb.SearchResponse, error) {
 		if s.isLagged(int64(req.End) * 1e9) { // convert seconds to nanoseconds
-			return nil, errLagged
+			if s.cfg.FailOnHighLag {
+				return nil, errLagged
+			}
 		}
 		return inst.Search(ctx, req)
 	})
@@ -867,7 +869,9 @@ func (s *LiveStore) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTa
 func (s *LiveStore) QueryRange(ctx context.Context, req *tempopb.QueryRangeRequest) (*tempopb.QueryRangeResponse, error) {
 	return withInstance(ctx, s, func(inst *instance) (*tempopb.QueryRangeResponse, error) {
 		if s.isLagged(int64(req.End)) { // end param is already nanos, no need to convert
-			return nil, errLagged
+			if s.cfg.FailOnHighLag {
+				return nil, errLagged
+			}
 		}
 		return inst.QueryRange(ctx, req)
 	})
@@ -876,7 +880,7 @@ func (s *LiveStore) QueryRange(ctx context.Context, req *tempopb.QueryRangeReque
 var errLagged = errors.New("cannot guarantee complete results")
 
 func (s *LiveStore) isLagged(endNanos int64) bool {
-	if !s.cfg.FailOnHighLag || !s.cfg.ConsumeFromKafka { // if config disabled or no kafka consumption, never lagged
+	if !s.cfg.ConsumeFromKafka { // if config disabled or no kafka consumption, never lagged
 		return false
 	}
 	lag := s.calculateTimeLag(0)
