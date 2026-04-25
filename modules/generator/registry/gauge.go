@@ -9,6 +9,7 @@ import (
 	"github.com/prometheus/prometheus/model/value"
 	"github.com/prometheus/prometheus/storage"
 	"go.uber.org/atomic"
+	"go.uber.org/multierr"
 )
 
 var _ metric = (*gauge)(nil)
@@ -152,16 +153,18 @@ func (g *gauge) countSeriesDemand() int {
 	return int(g.seriesDemand.Estimate())
 }
 
-func (g *gauge) removeStaleSeries(appender storage.Appender, timeMs, staleTimeMs int64) {
+func (g *gauge) removeStaleSeries(appender storage.Appender, timeMs, staleTimeMs int64) error {
 	g.seriesMtx.Lock()
 	defer g.seriesMtx.Unlock()
+
+	errs := []error{}
 
 	for hash, s := range g.series {
 		if s.lastUpdated.Load() < staleTimeMs {
 			if appender != nil {
 				_, err := appender.Append(0, s.labels, timeMs, math.Float64frombits(value.StaleNaN))
 				if err != nil {
-					// handle
+					errs = append(errs, err)
 				}
 			}
 			delete(g.series, hash)
@@ -169,4 +172,9 @@ func (g *gauge) removeStaleSeries(appender storage.Appender, timeMs, staleTimeMs
 		}
 	}
 	g.seriesDemand.Advance()
+
+	if len(errs) > 0 {
+		return multierr.Combine(errs...)
+	}
+	return nil
 }

@@ -76,7 +76,7 @@ type metric interface {
 	countActiveSeries() int
 	// countSeriesDemand estimates the number of active series that would be created if the maxActiveSeries were unlimited.
 	countSeriesDemand() int
-	removeStaleSeries(appender storage.Appender, timeMs, staleTimeMs int64)
+	removeStaleSeries(appender storage.Appender, timeMs, staleTimeMs int64) error
 }
 
 const highestAggregationInterval = 1 * time.Minute
@@ -298,7 +298,10 @@ func (r *ManagedRegistry) removeStaleSeries(ctx context.Context) {
 
 	remainingSeries := 0
 	for _, m := range r.metrics {
-		m.removeStaleSeries(appender, collectionTimeMs, timeMs)
+		err := m.removeStaleSeries(appender, collectionTimeMs, timeMs)
+		if err != nil {
+			level.Error(r.logger).Log("msg", "some stale markers failed to be added", "err", err)
+		}
 		remainingSeries += m.countActiveSeries()
 	}
 	r.entityDemand.Advance()
