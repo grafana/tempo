@@ -122,6 +122,7 @@ func Test_gaugeSetBorrowed_refreshesExistingSeries(t *testing.T) {
 			seriesDeleted++
 		},
 	}
+	appender := noopAppender{}
 	g := newGauge("my_gauge", lifecycler, map[string]string{}, 15*time.Minute)
 	lbls := buildTestLabels([]string{"label"}, []string{"value"})
 	hash := lbls.Hash()
@@ -137,11 +138,11 @@ func Test_gaugeSetBorrowed_refreshesExistingSeries(t *testing.T) {
 	assert.Equal(t, int64(200), g.series[hash].lastUpdated.Load())
 	assert.Equal(t, 1, seriesUpdated)
 
-	g.removeStaleSeries(150)
+	g.removeStaleSeries(appender, 150, time.Now().UnixMilli())
 	assert.Len(t, g.series, 1)
 	assert.Equal(t, 0, seriesDeleted)
 
-	g.removeStaleSeries(201)
+	g.removeStaleSeries(appender, 201, time.Now().UnixMilli())
 	assert.Empty(t, g.series)
 	assert.Equal(t, 1, seriesDeleted)
 }
