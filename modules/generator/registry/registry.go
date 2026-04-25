@@ -77,7 +77,7 @@ type metric interface {
 	countActiveSeries() int
 	// countSeriesDemand estimates the number of active series that would be created if the maxActiveSeries were unlimited.
 	countSeriesDemand() int
-	removeStaleSeries(appender storage.Appender, timeMs, staleTimeMs int64) error	
+	removeStaleSeries(appender storage.Appender, timeMs, staleTimeMs int64) error
 }
 
 const highestAggregationInterval = 1 * time.Minute

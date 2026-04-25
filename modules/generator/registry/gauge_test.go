@@ -9,6 +9,7 @@ import (
 
 	"github.com/prometheus/prometheus/model/labels"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/atomic"
 )
 
@@ -138,11 +139,11 @@ func Test_gaugeSetBorrowed_refreshesExistingSeries(t *testing.T) {
 	assert.Equal(t, int64(200), g.series[hash].lastUpdated.Load())
 	assert.Equal(t, 1, seriesUpdated)
 
-	g.removeStaleSeries(appender, 150, time.Now().UnixMilli())
+	require.NoError(t, g.removeStaleSeries(appender, time.Now().UnixMilli(), 150))
 	assert.Len(t, g.series, 1)
 	assert.Equal(t, 0, seriesDeleted)
 
-	g.removeStaleSeries(appender, 201, time.Now().UnixMilli())
+	require.NoError(t, g.removeStaleSeries(appender, time.Now().UnixMilli(), 201))
 	assert.Empty(t, g.series)
 	assert.Equal(t, 1, seriesDeleted)
 }
