@@ -178,6 +178,28 @@ func Test_counter_removeStaleSeries(t *testing.T) {
 	collectMetricAndAssert(t, c, collectionTimeMs, 1, expectedSamples, nil)
 }
 
+func Test_counter_removeStaleSeries_appenderError(t *testing.T) {
+	var removedSeries int
+	lifecycler := &mockLimiter{
+		onDeleteFunc: func(_ uint64, count uint32) {
+			assert.Equal(t, uint32(1), count)
+			removedSeries++
+		},
+	}
+
+	c := newCounter("my_counter", lifecycler, map[string]string{}, 15*time.Minute)
+
+	c.Inc(buildTestLabels([]string{"label"}, []string{"value-1"}), 1.0)
+	c.Inc(buildTestLabels([]string{"label"}, []string{"value-2"}), 2.0)
+
+	appender := errorAppender{}
+	timeMs := time.Now().Add(1 * time.Hour).UnixMilli()
+	err := c.removeStaleSeries(appender, 0, timeMs)
+
+	assert.Error(t, err)
+	assert.Equal(t, removedSeries, 2)
+}
+
 func Test_counter_externalLabels(t *testing.T) {
 	c := newCounter("my_counter", noopLimiter, map[string]string{"external_label": "external_value"}, 15*time.Minute)
 

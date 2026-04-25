@@ -294,6 +294,28 @@ func Test_histogram_removeStaleSeries(t *testing.T) {
 	collectMetricAndAssert(t, h, collectionTimeMs, 5, expectedSamples, nil)
 }
 
+func Test_histogram_removeStaleSeries_appenderError(t *testing.T) {
+	var removedSeries int
+	lifecycler := &mockLimiter{
+		onDeleteFunc: func(_ uint64, count uint32) {
+			assert.Equal(t, uint32(5), count)
+			removedSeries++
+		},
+	}
+
+	h := newHistogram("my_histogram", []float64{1.0, 2.0}, lifecycler, "", nil, 15*time.Minute)
+
+	timeMs := time.Now().Add(1 * time.Hour).UnixMilli()
+	h.ObserveWithExemplar(buildTestLabels([]string{"label"}, []string{"value-1"}), 1.0, "", 1.0)
+	h.ObserveWithExemplar(buildTestLabels([]string{"label"}, []string{"value-2"}), 1.5, "", 1.0)
+
+	appender := errorAppender{}
+	err := h.removeStaleSeries(appender, 0, timeMs)
+
+	assert.Error(t, err)
+	assert.Equal(t, removedSeries, 2)
+}
+
 func Test_histogram_externalLabels(t *testing.T) {
 	extLabels := map[string]string{"external_label": "external_value"}
 
