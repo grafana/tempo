@@ -170,7 +170,7 @@ func Test_gauge_removeStaleSeries(t *testing.T) {
 	c.Inc(buildTestLabels([]string{"label"}, []string{"value-2"}), 2.0)
 
 	appender := noopAppender{}
-	c.removeStaleSeries(appender, 0, timeMs)
+	_ = c.removeStaleSeries(appender, 0, timeMs)
 
 	assert.Equal(t, 0, removedSeries)
 
@@ -187,7 +187,7 @@ func Test_gauge_removeStaleSeries(t *testing.T) {
 	// update value-2 series
 	c.Inc(buildTestLabels([]string{"label"}, []string{"value-2"}), 2.0)
 
-	c.removeStaleSeries(appender, 0, timeMs)
+	_ = c.removeStaleSeries(appender, 0, timeMs)
 
 	assert.Equal(t, 1, removedSeries)
 
@@ -252,7 +252,7 @@ func Test_gauge_concurrencyDataRace(t *testing.T) {
 
 	go accessor(func() {
 		appender := noopAppender{}
-		c.removeStaleSeries(appender, 0, time.Now().UnixMilli())
+		_ = c.removeStaleSeries(appender, 0, time.Now().UnixMilli())
 	})
 
 	time.Sleep(200 * time.Millisecond)
@@ -373,7 +373,7 @@ func Test_gauge_demandDecay(t *testing.T) {
 	// Advance the cardinality tracker enough times to clear the window
 	appender := noopAppender{}
 	for i := 0; i < 5; i++ {
-		g.removeStaleSeries(appender, 0, time.Now().Add(time.Hour).UnixMilli())
+		_ = g.removeStaleSeries(appender, 0, time.Now().Add(time.Hour).UnixMilli())
 	}
 
 	// Demand should have decreased or be zero

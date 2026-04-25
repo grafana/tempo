@@ -15,6 +15,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	io_prometheus_client "github.com/prometheus/client_model/go"
 	"github.com/prometheus/prometheus/model/labels"
+	"github.com/prometheus/prometheus/model/value"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -196,6 +197,7 @@ func TestManagedRegistry_removeStaleSeries(t *testing.T) {
 
 	expectedSamples = []sample{
 		newSample(map[string]string{"__name__": "metric_2", "__metrics_gen_instance": mustGetHostname()}, 0, 4),
+		newSample(map[string]string{"__name__": "metric_1", "__metrics_gen_instance": mustGetHostname()}, 0, math.Float64frombits(value.StaleNaN)),
 	}
 	collectRegistryMetricsAndAssert(t, registry, appender, expectedSamples)
 }
@@ -471,7 +473,12 @@ func collectRegistryMetricsAndAssert(t *testing.T, r *ManagedRegistry, appender 
 		actual := actualSamples[i]
 
 		assert.Equal(t, expected.t, actual.t)
-		assert.Equal(t, expected.v, actual.v)
+		if math.IsNaN(expected.v) {
+			// Check for stale marker
+			assert.True(t, math.IsNaN(actual.v))
+		} else {
+			assert.Equal(t, expected.v, actual.v)
+		}
 		// Rely on the fact that Go prints map keys in sorted order.
 		// See https://tip.golang.org/doc/go1.12#fmt.
 		assert.Equal(t, fmt.Sprint(expected.l.Map()), fmt.Sprint(actual.l.Map()))
@@ -663,7 +670,7 @@ func TestManagedRegistry_demandDecaysOverTime(t *testing.T) {
 	for _, m := range registry.metrics {
 		// Advance enough times to clear the sliding window
 		for i := 0; i < 5; i++ {
-			m.removeStaleSeries(appender, 0, time.Now().Add(time.Hour).UnixMilli())
+			_ = m.removeStaleSeries(appender, 0, time.Now().Add(time.Hour).UnixMilli())
 		}
 	}
 	registry.metricsMtx.RUnlock()

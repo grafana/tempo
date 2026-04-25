@@ -226,7 +226,7 @@ func (r *ManagedRegistry) registerMetric(m metric) {
 	if old, ok := r.metrics[m.name()]; ok {
 		level.Info(r.logger).Log("msg", "replacing metric, counters will be reset", "metric", m.name())
 		// Drain old series so the limiter's active count is properly decremented.
-		old.removeStaleSeries(nil, 0, math.MaxInt64)
+		_ = old.removeStaleSeries(nil, 0, math.MaxInt64)
 	}
 	r.metrics[m.name()] = m
 }
@@ -294,11 +294,11 @@ func (r *ManagedRegistry) removeStaleSeries(ctx context.Context) {
 
 	timeMs := time.Now().Add(-1 * r.cfg.StaleDuration).UnixMilli()
 	appender := r.appendable.Appender(ctx)
-	collectionTimeMs := time.Now().UnixMilli()
+	removalTimeMs := time.Now().UnixMilli()
 
 	remainingSeries := 0
 	for _, m := range r.metrics {
-		err := m.removeStaleSeries(appender, collectionTimeMs, timeMs)
+		err := m.removeStaleSeries(appender, removalTimeMs, timeMs)
 		if err != nil {
 			level.Error(r.logger).Log("msg", "some stale markers failed to be added", "err", err)
 		}
