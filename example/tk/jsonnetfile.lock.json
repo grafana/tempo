@@ -8,7 +8,7 @@
           "subdir": "grafana"
         }
       },
-      "version": "79479da035ec06f1d0193b0a80141e224c0e8cd7",
+      "version": "7090c8d94f40e452ad906966c7de9add8c707eff",
       "sum": "3M7sG0jR2K2L4Y8GCD+dEOjhzvAhtERr5TRRAE+DrhI="
     },
     {
@@ -18,7 +18,7 @@
           "subdir": "grafana-builder"
         }
       },
-      "version": "79479da035ec06f1d0193b0a80141e224c0e8cd7",
+      "version": "7090c8d94f40e452ad906966c7de9add8c707eff",
       "sum": "TWpxm5vPO23V3hoF3pdwGs1NvR+PQce9baN716mJq+4="
     },
     {
@@ -28,7 +28,7 @@
           "subdir": "ksonnet-util"
         }
       },
-      "version": "79479da035ec06f1d0193b0a80141e224c0e8cd7",
+      "version": "7090c8d94f40e452ad906966c7de9add8c707eff",
       "sum": "0y3AFX9LQSpfWTxWKSwoLgbt0Wc9nnCwhMH2szKzHv0="
     },
     {
@@ -38,7 +38,7 @@
           "subdir": "kube-state-metrics/"
         }
       },
-      "version": "79479da035ec06f1d0193b0a80141e224c0e8cd7",
+      "version": "7090c8d94f40e452ad906966c7de9add8c707eff",
       "sum": "q1YzD+I4InDdfQP6k93W9Lw5U1jpll3gVaS9rUzLR7U="
     },
     {
@@ -48,7 +48,7 @@
           "subdir": "memcached"
         }
       },
-      "version": "79479da035ec06f1d0193b0a80141e224c0e8cd7",
+      "version": "7090c8d94f40e452ad906966c7de9add8c707eff",
       "sum": "zNTCDRaCqJUHjQSQRsxGR3jLrMP9tU7YNQb13dbm1bU="
     },
     {
@@ -58,7 +58,7 @@
           "subdir": "mixin-utils"
         }
       },
-      "version": "79479da035ec06f1d0193b0a80141e224c0e8cd7",
+      "version": "7090c8d94f40e452ad906966c7de9add8c707eff",
       "sum": "zVkvwae4zHP6xeIoDvde/wldI6ClprFjnk50mMD9/z4="
     },
     {
@@ -68,7 +68,7 @@
           "subdir": "prometheus"
         }
       },
-      "version": "79479da035ec06f1d0193b0a80141e224c0e8cd7",
+      "version": "7090c8d94f40e452ad906966c7de9add8c707eff",
       "sum": "kodkOiyJMjsaEsQCIfBhJPknBZayEj0yQJq50ad9VWo="
     },
     {
@@ -78,7 +78,7 @@
           "subdir": "tanka-util"
         }
       },
-      "version": "79479da035ec06f1d0193b0a80141e224c0e8cd7",
+      "version": "7090c8d94f40e452ad906966c7de9add8c707eff",
       "sum": "ShSIissXdvCy1izTCDZX6tY7qxCoepE5L+WJ52Hw7ZQ="
     },
     {
