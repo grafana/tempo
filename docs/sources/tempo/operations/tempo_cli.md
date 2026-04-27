@@ -649,9 +649,11 @@ tempo-cli migrate overrides-per-tenant overrides.yaml -d migrated-overrides.yaml
 
 ## Migrate config command
 
-Migrate a Tempo 2.x configuration file to a valid 3.0 configuration. The command removes obsolete config sections (such as `ingester`, `ingester_client`, and `compactor`), adds Kafka ingest configuration for microservices mode, disables compaction in overrides for parallel operation during migration, and strips the removed `local-blocks` metrics generator processor.
+Migrate a Tempo 2.x configuration file to a valid 3.0 configuration. The command removes obsolete configuration sections (such as `ingester`, `ingester_client`, and `compactor`), adds Kafka ingest configuration for microservices mode, disables compaction in overrides for parallel operation during migration, and strips the removed `local-blocks` metrics-generator processor.
 
-The tool works at the YAML map level rather than rewriting the file from fully decoded Tempo structs, so environment variable references like `${VAR}` are preserved. Top-level sections that are not recognized by the Tempo 3.0 config are dropped from the output. Unknown nested keys normally cause validation to fail, but validation is best-effort when the config contains `${VAR}` placeholders where non-string types are expected, which may let unknown nested keys through.
+The tool works at the YAML map level rather than rewriting the file from fully decoded Tempo structs, so environment variable references like `${VAR}` are preserved. 
+Top-level sections that are not recognized by the Tempo 3.0 configuration are dropped from the output. 
+Unknown nested keys normally cause validation to fail, but validation is best-effort when the configuration contains `${VAR}` placeholders where non-string types are expected, which may let unknown nested keys through.
 
 ```bash
 tempo-cli migrate config [options] <config-file>
@@ -659,7 +661,7 @@ tempo-cli migrate config [options] <config-file>
 
 Arguments:
 
-- `config-file` Path to the 2.x Tempo config file.
+- `config-file` Path to the 2.x Tempo configuration file.
 
 Options:
 
@@ -667,9 +669,9 @@ Options:
 - `--kafka-topic <topic>` Kafka topic name. Defaults to `tempo`.
 - `--mode <monolithic|microservices>` Override automatic deployment mode detection. By default, the mode is detected from the `target` field (`all` or absent means monolithic, any other value means microservices).
 
-The migrated config is printed to `stdout`. Warnings are printed to `stderr`.
+The migrated configuration is printed to `stdout`. Warnings are printed to `stderr`.
 
-Examples:
+### Examples
 
 Monolithic mode (no Kafka flags needed):
 
@@ -684,9 +686,9 @@ tempo-cli migrate config --kafka-address=kafka:9092 --kafka-topic=tempo-traces o
 ```
 
 {{< admonition type="warning" >}}
-- The output is a starting point for your 3.0 config. Always review it before deploying.
-- If your config uses legacy (flat) overrides, you must run `tempo-cli migrate overrides-config` first.
-- If your config references an external per-tenant overrides file (`per_tenant_override_config`), you must manually add `compaction_disabled: true` for each tenant in that file.
+- The output is a starting point for your 3.0 configuration. Always review it before deploying.
+- If your configuration uses legacy (flat) overrides, you must run `tempo-cli migrate overrides-config` first.
+- If your configuration references an external per-tenant overrides file (`per_tenant_override_config`), you must manually add `compaction_disabled: true` for each tenant in that file.
 - YAML comments and key ordering from the original file are not preserved.
 - Remove `compaction_disabled: true` from overrides after fully decommissioning your 2.x deployment.
 {{< /admonition >}}
