@@ -4,6 +4,7 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
@@ -25,4 +26,13 @@ func extractTenant(req *http.Request, logger log.Logger) (string, *http.Response
 	return tenant, nil
 }
 
-func acceptAllBlocks(_ *backend.BlockMeta) bool { return true }
+func rf1FilterFn(rf1After time.Time) func(m *backend.BlockMeta) bool {
+	return func(m *backend.BlockMeta) bool {
+		if rf1After.IsZero() {
+			return m.ReplicationFactor == backend.DefaultReplicationFactor
+		}
+
+		return (m.ReplicationFactor == backend.DefaultReplicationFactor && m.StartTime.Before(rf1After)) ||
+			(m.ReplicationFactor == backend.MetricsGeneratorReplicationFactor && m.StartTime.After(rf1After))
+	}
+}
