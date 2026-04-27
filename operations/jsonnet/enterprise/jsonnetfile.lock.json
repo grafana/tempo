@@ -8,7 +8,7 @@
           "subdir": "ksonnet-util"
         }
       },
-      "version": "79479da035ec06f1d0193b0a80141e224c0e8cd7",
+      "version": "7090c8d94f40e452ad906966c7de9add8c707eff",
       "sum": "0y3AFX9LQSpfWTxWKSwoLgbt0Wc9nnCwhMH2szKzHv0="
     },
     {
@@ -18,7 +18,7 @@
           "subdir": "memcached"
         }
       },
-      "version": "79479da035ec06f1d0193b0a80141e224c0e8cd7",
+      "version": "7090c8d94f40e452ad906966c7de9add8c707eff",
       "sum": "zNTCDRaCqJUHjQSQRsxGR3jLrMP9tU7YNQb13dbm1bU="
     },
     {
@@ -38,8 +38,8 @@
           "subdir": "operations/jsonnet/microservices"
         }
       },
-      "version": "9c589f9272b08e6f6c35d772821f0adff6f4e0cd",
-      "sum": "M2CY/H98P11wVCjfr478W0coBIPKW31WdltRCOs3inU="
+      "version": "715f18b1e7158b98e37668cfc3a078df3c5ea9f2",
+      "sum": "ZxMoZHxtKffMKNeJKEN5phLNGI5o3qoMVnovJYe4TJQ="
     },
     {
       "source": {
@@ -50,6 +50,16 @@
       },
       "version": "55380470fb7979e6ce0c4316cb9c27a266caf298",
       "sum": "L70C3SiMFOsNCuIGOxRKAzd6wUBuabAoEGrgvCyeCBc="
+    },
+    {
+      "source": {
+        "git": {
+          "remote": "https://github.com/jsonnet-libs/keda-libsonnet.git",
+          "subdir": "2.15"
+        }
+      },
+      "version": "dbc8cf1a9847f123d8325378111155fb135983ab",
+      "sum": "EVCNg9VpU9ghIYHZtbQffHbZs+EqKOD0cw+ZPilWR48="
     },
     {
       "source": {
