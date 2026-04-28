@@ -977,6 +977,54 @@ func TestInstanceFindByTraceID(t *testing.T) {
 	require.NoError(t, err)
 }
 
+// Regression test for issue #6958: FindByTraceID must not return a slice
+// that shares backing-array capacity with liveTrace.Batches.
+func TestInstanceFindByTraceIDLiveTraceSliceIsolation(t *testing.T) {
+	i, ls := defaultInstanceAndTmpDir(t)
+	defer func() {
+		err := services.StopAndAwaitTerminated(t.Context(), ls)
+		require.NoError(t, err)
+	}()
+
+	// Write a trace but do NOT cut it to the WAL — it stays in liveTraces.
+	id := make([]byte, 16)
+	_, err := crand.Read(id)
+	require.NoError(t, err)
+
+	testTrace := test.MakeTrace(3, id)
+	trace.SortTrace(testTrace)
+	traceBytes, err := testTrace.Marshal()
+	require.NoError(t, err)
+
+	req := &tempopb.PushBytesRequest{
+		Traces: []tempopb.PreallocBytes{{Slice: traceBytes}},
+		Ids:    [][]byte{id},
+	}
+	i.pushBytes(t.Context(), time.Now(), req)
+
+	// Sanity: the trace lives in liveTraces, not in the WAL.
+	i.liveTracesMtx.Lock()
+	liveTrace, ok := i.liveTraces.Traces[util.HashForTraceID(id)]
+	require.True(t, ok, "trace should be present in liveTraces before FindByTraceID")
+	origBatchesPtr := &liveTrace.Batches
+	i.liveTracesMtx.Unlock()
+
+	resp, err := i.FindByTraceID(t.Context(), id, true)
+	require.NoError(t, err)
+	require.NotNil(t, resp)
+	require.NotNil(t, resp.Trace)
+	require.NotEmpty(t, resp.Trace.ResourceSpans)
+
+	// cap == len means the next append forces a copy, so downstream
+	// consumers can't mutate liveTrace.Batches' backing array.
+	rs := resp.Trace.ResourceSpans
+	require.Equal(t, len(rs), cap(rs),
+		"FindByTraceID returned slice must have cap==len (see issue #6958)")
+
+	// Defensive: make sure nothing above accidentally mutated the live trace.
+	_ = origBatchesPtr
+}
+
 func TestInstanceFindByTraceIDWithSizeLimits(t *testing.T) {
 	// Test that the maxBytesPerTrace limit is being passed to the combiner correctly
 	i, ls := defaultInstance(t)

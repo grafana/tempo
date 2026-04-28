@@ -2,6 +2,7 @@
 
 * [FEATURE] Add span profiling support via otelpyroscope. Enable with `span_profiling: true` (or `-span-profiling` CLI flag) to attach pprof labels to OTel spans. [#7063](https://github.com/grafana/tempo/pull/7063) (@simonswine)
 * [BUGFIX] Fix tempo-vulture ignoring `-tempo-push-tls` flag in normal operating mode. [#6974](https://github.com/grafana/tempo/pull/6974) (@xaque208)
+* [BUGFIX] Fix a panic in live-store `FindTraceByID` caused by a slice backing-array race between the trace combiner's append and concurrent proto.Marshal. [#6968](https://github.com/grafana/tempo/pull/6968) (@MukundaKatta)
 * [CHANGE] **BREAKING CHANGE** Remove duplicate "compaction" prefix from CompactorConfig CLI flags. Affected flags: `compaction.block-retention`, `compaction.max-objects-per-block`, `compaction.max-block-bytes`, `compaction.compaction-window`. [#6909](https://github.com/grafana/tempo/pull/6909) (@electron0zero)
 * [ENHANCEMENT] Support OR conditions for tag name and tag value autocomplete (search tags v2) [#6827](https://github.com/grafana/tempo/pull/6827) (@ie-pham)
 * [ENHANCEMENT] Expose MinIO retry settings via S3 config [#6561](https://github.com/grafana/tempo/pull/6561) (@rwhitty)

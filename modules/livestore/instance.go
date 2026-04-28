@@ -417,7 +417,8 @@ func (i *instance) writeHeadBlock(id []byte, liveTrace *livetraces.LiveTrace[*v1
 	}
 
 	tr := &tempopb.Trace{
-		ResourceSpans: liveTrace.Batches,
+		// Cap slice so downstream appends don't mutate liveTrace.Batches.
+		ResourceSpans: liveTrace.Batches[:len(liveTrace.Batches):len(liveTrace.Batches)],
 	}
 
 	// Get trace timestamp bounds
