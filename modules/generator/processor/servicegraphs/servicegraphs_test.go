@@ -434,6 +434,29 @@ func TestServiceGraphs_virtualNodesExtraLabelsForUninstrumentedServices(t *testi
 	assert.Equal(t, 0.0, testRegistry.Query(`traces_service_graph_request_failed_total`, clientToVirtualPeerLabels))
 }
 
+// TestServiceGraphs_virtualNodeLabelDoesNotMutateCallerDimensions guards against the
+// regression where New appended virtualNodeLabel into cfg.Dimensions' shared backing
+// array when the slice had spare capacity, leaking the label into the caller's config.
+func TestServiceGraphs_virtualNodeLabelDoesNotMutateCallerDimensions(t *testing.T) {
+	original := make([]string, 1, 8)
+	original[0] = "http.method"
+
+	cfg := Config{}
+	cfg.RegisterFlagsAndApplyDefaults("", nil)
+	cfg.EnableVirtualNodeLabel = true
+	cfg.Dimensions = original
+
+	p, err := New(cfg, "test", registry.NewTestRegistry(), log.NewNopLogger(), prometheus.NewCounter(prometheus.CounterOpts{}), prometheus.NewCounter(prometheus.CounterOpts{}))
+	require.NoError(t, err)
+	defer p.Shutdown(context.Background())
+
+	require.Equal(t, []string{"http.method"}, original, "caller's Dimensions slice must not be mutated")
+	require.Equal(t, "http.method", original[:cap(original)][0])
+	for i := 1; i < cap(original); i++ {
+		require.Empty(t, original[:cap(original)][i], "caller's underlying array must not contain leaked virtualNodeLabel at index %d", i)
+	}
+}
+
 func TestServiceGraphs_expiredEdges(t *testing.T) {
 	testRegistry := registry.NewTestRegistry()
 

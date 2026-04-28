@@ -106,7 +106,13 @@ type Processor struct {
 
 func New(cfg Config, tenant string, reg registry.Registry, logger log.Logger, filteredSpansCounter, invalidUTF8Counter prometheus.Counter) (gen.Processor, error) {
 	if cfg.EnableVirtualNodeLabel {
-		cfg.Dimensions = append(cfg.Dimensions, virtualNodeLabel)
+		// Allocate a fresh backing array so append cannot mutate cfg.Dimensions'
+		// underlying storage, which is shared with callers (the per-tenant
+		// override slice or the static config).
+		dims := make([]string, len(cfg.Dimensions), len(cfg.Dimensions)+1)
+		copy(dims, cfg.Dimensions)
+		dims = append(dims, virtualNodeLabel)
+		cfg.Dimensions = dims
 	}
 
 	sanitizeCache := reclaimable.New(validation.SanitizeLabelName, 10000)
