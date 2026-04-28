@@ -422,7 +422,13 @@ func (p *Poller) pollUnknown(
 			defer bg.Done()
 
 			if p.cfg.PollJitterMs > 0 {
-				time.Sleep(time.Duration(rand.Intn(p.cfg.PollJitterMs)) * time.Millisecond)
+				jitter := time.NewTimer(time.Duration(rand.Intn(p.cfg.PollJitterMs)) * time.Millisecond)
+				select {
+				case <-jitter.C:
+				case <-derivedCtx.Done():
+					jitter.Stop()
+					return
+				}
 			}
 
 			m, cm, pollBlockErr := p.pollBlock(derivedCtx, tenantID, id, compacted)
