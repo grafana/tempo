@@ -127,6 +127,13 @@ func justifyText(text string, textLength int, maxLength int) string {
 
 	// get the number of spaces to insert into the text
 	numSpacesNeeded := maxLength - textLength + strings.Count(text, " ")
+	if numSpacesNeeded < 0 {
+		// textLength (display-width) exceeds maxLength; this can happen
+		// when the cell contains wide Unicode characters (e.g. CJK) whose
+		// display width is greater than their rune count. Return the text
+		// as-is; truncation is the caller's responsibility.
+		return text
+	}
 	numSpacesNeededBetweenWords := 0
 	if len(words) > 1 {
 		numSpacesNeededBetweenWords = numSpacesNeeded / (len(words) - 1)
