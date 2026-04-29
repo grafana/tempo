@@ -19,6 +19,7 @@ import (
 	"github.com/grafana/tempo/pkg/util/log"
 	"github.com/grafana/tempo/tempodb/backend"
 	azure "github.com/grafana/tempo/tempodb/backend/azure"
+	"github.com/grafana/tempo/tempodb/backend/cos"
 	"github.com/grafana/tempo/tempodb/backend/gcs"
 	"github.com/grafana/tempo/tempodb/backend/local"
 	"github.com/grafana/tempo/tempodb/backend/s3"
@@ -60,6 +61,7 @@ type Config struct {
 	GCS   *gcs.Config   `yaml:"gcs"`
 	S3    *s3.Config    `yaml:"s3"`
 	Azure *azure.Config `yaml:"azure"`
+	COS   *cos.Config   `yaml:"cos"`
 }
 
 func (c *Config) RegisterFlagsAndApplyDefaults(*flag.FlagSet) {
@@ -76,6 +78,8 @@ func (c *Config) RegisterFlagsAndApplyDefaults(*flag.FlagSet) {
 	c.S3.RegisterFlagsAndApplyDefaults("", dummyFlagSet)
 	c.Azure = &azure.Config{}
 	c.Azure.RegisterFlagsAndApplyDefaults("", dummyFlagSet)
+	c.COS = &cos.Config{}
+	c.COS.RegisterFlagsAndApplyDefaults("", dummyFlagSet)
 }
 
 // Client is a collection of methods to manage overrides on a backend.
@@ -118,7 +122,6 @@ func initBackend(cfg *Config) (rw backend.VersionedReaderWriter, err error) {
 		if err != nil {
 			return nil, err
 		}
-		// Create overrides directory with necessary permissions
 		err = os.MkdirAll(path.Join(cfg.Local.Path, OverridesKeyPath), 0o700)
 		if err != nil {
 			return nil, err
@@ -130,13 +133,15 @@ func initBackend(cfg *Config) (rw backend.VersionedReaderWriter, err error) {
 		rw, err = s3.NewVersionedReaderWriter(cfg.S3)
 	case backend.Azure:
 		rw, err = azure.NewVersionedReaderWriter(cfg.Azure)
+	case backend.COS:
+		rw, err = cos.NewVersionedReaderWriter(cfg.COS)
 	default:
 		err = fmt.Errorf("unknown backend %s", cfg.Backend)
 	}
 	if err != nil {
 		return nil, err
 	}
-	if cfg.Backend == backend.Local || cfg.Backend == backend.S3 || cfg.Backend == backend.Azure {
+	if cfg.Backend == backend.Local || cfg.Backend == backend.S3 || cfg.Backend == backend.Azure || cfg.Backend == backend.COS {
 		level.Warn(log.Logger).Log(
 			"msg", "versioned backend requests are best-effort for the configured backend, concurrent requests modifying user-configurable overrides might cause data races",
 			"backend", cfg.Backend,

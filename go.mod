@@ -90,6 +90,7 @@ require (
 	github.com/open-telemetry/opentelemetry-collector-contrib/receiver/kafkareceiver v0.150.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/receiver/zipkinreceiver v0.150.0
 	github.com/parquet-go/parquet-go v0.29.0
+	github.com/tencentyun/cos-go-sdk-v5 v0.7.73
 	github.com/twmb/franz-go v1.21.0
 	github.com/twmb/franz-go/pkg/kadm v1.17.2
 	github.com/twmb/franz-go/pkg/kfake v0.0.0-20260406064450-c0fa0a167730
@@ -123,6 +124,12 @@ require (
 	go.yaml.in/yaml/v2 v2.4.4
 	golang.org/x/net v0.53.0
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260406210006-6f92a3bedf2d
+)
+
+require (
+	github.com/clbanning/mxj v1.8.4 // indirect
+	github.com/google/go-querystring v1.2.0 // indirect
+	github.com/mozillazg/go-httpheader v0.2.1 // indirect
 )
 
 require (

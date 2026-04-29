@@ -46,6 +46,7 @@ import (
 	util_log "github.com/grafana/tempo/pkg/util/log"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/backend/azure"
+	"github.com/grafana/tempo/tempodb/backend/cos"
 	"github.com/grafana/tempo/tempodb/backend/gcs"
 	"github.com/grafana/tempo/tempodb/backend/local"
 	"github.com/grafana/tempo/tempodb/backend/s3"
@@ -608,6 +609,8 @@ func (t *App) initUsageReport() (services.Service, error) {
 		reader, writer, _, err = s3.New(t.cfg.StorageConfig.Trace.S3)
 	case backend.Azure:
 		reader, writer, _, err = azure.New(t.cfg.StorageConfig.Trace.Azure)
+	case backend.COS:
+		reader, writer, _, err = cos.New(t.cfg.StorageConfig.Trace.COS)
 	default:
 		err = fmt.Errorf("unknown backend %s", t.cfg.StorageConfig.Trace.Backend)
 	}
@@ -655,6 +658,8 @@ func (t *App) initBackendScheduler() (services.Service, error) {
 		reader, writer, _, err = s3.New(t.cfg.StorageConfig.Trace.S3)
 	case backend.Azure:
 		reader, writer, _, err = azure.New(t.cfg.StorageConfig.Trace.Azure)
+	case backend.COS:
+		reader, writer, _, err = cos.New(t.cfg.StorageConfig.Trace.COS)
 	default:
 		err = fmt.Errorf("unknown backend %s", t.cfg.StorageConfig.Trace.Backend)
 	}

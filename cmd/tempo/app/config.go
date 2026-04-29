@@ -338,6 +338,8 @@ func (c *Config) tracesAndOverridesStorageConflict() bool {
 		return traceStorage.S3.PathMatches(overridesStorage.S3)
 	case backend.Azure:
 		return traceStorage.Azure.PathMatches(overridesStorage.Azure)
+	case backend.COS:
+		return traceStorage.COS.PathMatches(overridesStorage.COS)
 	}
 
 	return false

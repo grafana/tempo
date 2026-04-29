@@ -13,6 +13,7 @@ import (
 	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/tempodb/backend/azure"
 	backend_cache "github.com/grafana/tempo/tempodb/backend/cache"
+	"github.com/grafana/tempo/tempodb/backend/cos"
 	"github.com/grafana/tempo/tempodb/backend/gcs"
 	"github.com/grafana/tempo/tempodb/backend/local"
 	"github.com/grafana/tempo/tempodb/backend/s3"
@@ -67,6 +68,7 @@ type Config struct {
 	GCS     *gcs.Config   `yaml:"gcs"`
 	S3      *s3.Config    `yaml:"s3"`
 	Azure   *azure.Config `yaml:"azure"`
+	COS     *cos.Config   `yaml:"cos"`
 
 	// legacy cache config. this is loaded by tempodb and added to the cache
 	// provider on construction
