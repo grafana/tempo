@@ -1,5 +1,7 @@
 ## main / unreleased
 
+* [CHANGE] **BREAKING CHANGE** Enable RetryInfo by default. `distributor.retry_after_on_resource_exhausted` now defaults to `5s` (was `0`) so OTLP clients receive a retry hint on `ResourceExhausted` errors. [#7088](https://github.com/grafana/tempo/pull/7088) (@electron0zero)
+  Set to `0` to disable cluster-wide, or set the per-tenant override `ingestion.retry_info_enabled: false` to disable for a single tenant.
 * [FEATURE] Add span profiling support via otelpyroscope. Enable with `span_profiling: true` (or `-span-profiling` CLI flag) to attach pprof labels to OTel spans. [#7063](https://github.com/grafana/tempo/pull/7063) (@simonswine)
 * [BUGFIX] Fix tempo-vulture ignoring `-tempo-push-tls` flag in normal operating mode. [#6974](https://github.com/grafana/tempo/pull/6974) (@xaque208)
 * [CHANGE] **BREAKING CHANGE** Remove duplicate "compaction" prefix from CompactorConfig CLI flags. Affected flags: `compaction.block-retention`, `compaction.max-objects-per-block`, `compaction.max-block-bytes`, `compaction.compaction-window`. [#6909](https://github.com/grafana/tempo/pull/6909) (@electron0zero)
