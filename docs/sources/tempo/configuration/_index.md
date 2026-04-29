@@ -343,10 +343,10 @@ distributor:
         [root_only: <boolean> | default = false]
 
     # Optional.
-    # Configures the time to retry after returned to the client when Tempo returns a GRPC ResourceExhausted. This parameter
-    # defaults to 0 which means that by default ResourceExhausted is not retried. Set this to a duration such as `1s` to
-    # instruct the client how to retry.
-    [retry_after_on_resource_exhausted: <duration> | default = 0]
+    # Configures the time to retry after returned to the client when Tempo returns a GRPC ResourceExhausted.
+    # Set this to `0` to disable retries on ResourceExhausted at cluster level.
+    # per-tenant override `ingestion.retry_info_enabled` can also be used to disable it at tenent level.
+    [retry_after_on_resource_exhausted: <duration> | default = 5s]
 
     # Optional
     # Configures the max size an attribute can be. Any key or value that exceeds this limit will be truncated before storing
