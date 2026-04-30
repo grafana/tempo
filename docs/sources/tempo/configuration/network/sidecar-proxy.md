@@ -70,8 +70,8 @@ The live-store now listens for regular traffic on port 9095, but queriers route 
 
 ## Other components
 
-Only the live-store advertises a gRPC address through a hash ring this way.
-Other components don't need or support a comparable `instance_port` setting:
+Only the live-store ring's `instance_port` is relevant for this sidecar proxy pattern.
+Other components have their own rings, but those rings aren't used by queriers for gRPC routing:
 
 - The metrics-generator consumes trace data from Kafka in microservices mode, so distributors don't reach it through a hash ring. Refer to the [metrics-generator architecture](/docs/tempo/<TEMPO_VERSION>/reference-tempo-architecture/components/metrics-generator/).
 - Distributors and block-builders also use Kafka for the write path. Refer to the [distributor](/docs/tempo/<TEMPO_VERSION>/reference-tempo-architecture/components/distributor/) and [partition ring](/docs/tempo/<TEMPO_VERSION>/reference-tempo-architecture/partition-ring/) documentation.

@@ -94,8 +94,8 @@ The following fields are available in the receiver `tls` block:
 |---|---|---|
 | `cert_file` | Yes | Path to the TLS certificate file. |
 | `key_file` | Yes | Path to the TLS private key file. |
-| `ca_file` | No | Path to the CA certificate for verifying client certificates. Required for mutual TLS (mTLS). If omitted, the system root CA pool is used. |
-| `client_ca_file` | No | Path to the CA certificate used to verify client certificates. When set, the server requires and verifies client certificates (mTLS). |
+| `ca_file` | No | Path to a CA certificate bundle used by a TLS **client** to verify the server's certificate. Use this field on the sending side (for example, in an Alloy exporter or Kafka client) to trust a custom or internal CA. On receivers, this field has no effect because receivers don't initiate outbound TLS connections. If omitted, the system root CA pool is used. |
+| `client_ca_file` | No | Path to the CA certificate used by a TLS **server** to verify client certificates. When set on a receiver, it requires connecting clients to present a valid certificate signed by this CA (mTLS). Use this field to enable mTLS on receivers. |
 | `min_version` | No | Minimum TLS version to accept, for example `"1.2"` or `"1.3"`. |
 
 ### Configure server-only TLS
@@ -118,7 +118,7 @@ distributor:
 ### Configure mutual TLS (mTLS)
 
 For mutual TLS, both the server and client present certificates.
-Add `ca_file` or `client_ca_file` so the distributor verifies client certificates:
+Add `client_ca_file` so the distributor requires and verifies client certificates:
 
 ```yaml
 distributor:
@@ -129,7 +129,6 @@ distributor:
           tls:
             cert_file: /tls/tls.crt
             key_file: /tls/tls.key
-            ca_file: /tls/ca.crt
             client_ca_file: /tls/ca.crt
             min_version: "1.2"
 ```

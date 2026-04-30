@@ -29,6 +29,7 @@ distributor:
   ring:
     enable_inet6: true
 
+# Only needed if the backend-worker ring is enabled (kvstore.store is set).
 backend_worker:
   ring:
     enable_inet6: true
