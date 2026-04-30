@@ -1882,8 +1882,7 @@ Defines re-used configuration blocks.
 ### Block
 
 ```yaml
-# block format version. options: vParquet4
-# deprecated options: v2, vParquet3
+# block format version. options: vParquet4, vParquet5
 [version: <string> | default = vParquet4]
 
 # bloom filter false positive rate. lower values create larger filters but fewer false positives
@@ -1891,9 +1890,6 @@ Defines re-used configuration blocks.
 
 # maximum size of each bloom filter shard
 [bloom_filter_shard_size_bytes: <int> | default = 100KiB]
-
-# number of bytes per search page
-[search_page_size_bytes: <int> | default = 1MiB]
 
 # an estimate of the number of bytes per row group when cutting Parquet blocks. lower values will
 #  create larger footers but will be harder to shard when searching. It is difficult to calculate
@@ -1903,7 +1899,7 @@ Defines re-used configuration blocks.
 # Configures attributes to be stored in dedicated columns within the parquet file, rather than in the
 # generic attribute key-value list. This allows for more efficient searching of these attributes.
 # Up to 10 span attributes and 10 resource attributes can be configured as dedicated columns.
-# Requires at least vParquet3
+# Requires vParquet4 or later.
 parquet_dedicated_columns: <list of columns>
 
       # name of the attribute
@@ -2133,7 +2129,7 @@ The storage WAL configuration block.
 # end times.
 # This can result in trace not being found if the trace falls outside the slack configuration value as the
 # start and end times of the block will not be updated in this case.
-[ingestion_time_range_slack: <duration> | default = unset]
+[ingestion_time_range_slack: <duration> | default = 2m]
 ```
 
 ## Overrides
@@ -2207,6 +2203,9 @@ overrides:
       # an average latency of at least artificial_delay.
       [artificial_delay: <duration> | default = 0ms]
 
+      # When enabled, the distributor includes retry information in rate-limit responses.
+      [retry_info_enabled: <bool> | default = true]
+
     # Read related overrides
     read:
       # Maximum size in bytes of a tag-values query. Tag-values query is used mainly
@@ -2234,13 +2233,25 @@ overrides:
       # "008efff798038103d269b633813fc703" to comply with the OpenTelemetry and W3C Trace Context specifications.
       [left_pad_trace_ids: <bool> | default = false]
 
+      # Maximum number of OR-expanded condition groups allowed in a tag search query.
+      # Queries that expand beyond this limit are rejected.
+      [max_condition_groups_per_tag_query: <int> | default = 100]
+
+      # Per-user toggle for unsafe query hints. When enabled, allows query hints that
+      # bypass safety checks.
+      [unsafe_query_hints: <bool> | default = false]
+
+      # Per-user toggle for the span-only fetch layer for TraceQL metrics queries.
+      # When not set, the default behavior is used. May be overridden by query hints.
+      [metrics_spanonly_fetch: <bool>]
+
     # Compaction related overrides
     compaction:
       # Per-user block retention. If this value is set to 0 (default),
       # then block_retention in the compaction configuration is used.
       [block_retention: <duration> | default = 0s]
       # Per-user compaction window. If this value is set to 0 (default),
-      # then block_retention in the compaction configuration is used.
+      # then compaction_window in the compaction configuration is used.
       [compaction_window: <duration> | default = 0s]
       # Allow compaction and retention to be deactivated on a per-tenant basis. Default value
       # is false (compaction active). Useful to perform operations on the backend
@@ -2264,6 +2275,7 @@ overrides:
       # supported:
       #  - service-graphs
       #  - span-metrics
+      #  - host-info
       [processors: <list of strings>]
 
       # Maximum number of active series in the registry, per instance of the metrics-generator. A
@@ -2331,6 +2343,19 @@ overrides:
       #   - "enabled": Applies DRAIN clustering to span names
       [span_name_sanitization: <string> | default = ""]
 
+      # Per-tenant headers to include in remote write requests to the metrics backend.
+      [remote_write_headers: <map of string to string>]
+
+      # Bucket growth factor for native histograms. Only applies when
+      # generate_native_histograms is set to "native" or "both".
+      [native_histogram_bucket_factor: <float> | default = 1.1]
+
+      # Maximum number of buckets for native histograms.
+      [native_histogram_max_bucket_number: <int> | default = 100]
+
+      # Minimum duration between native histogram counter resets.
+      [native_histogram_min_reset_duration: <duration> | default = 15m]
+
       # Distributor -> metrics-generator forwarder related overrides
       forwarder:
         # Spans are stored in a queue in the distributor before being sent to the metrics-generators.
@@ -2383,6 +2408,13 @@ overrides:
           # add instance label to all span metrics series when enable_target_info is true
           [enable_instance_label: <bool> | default = true]
 
+        # Configuration for the host-info processor
+        host_info:
+          # Attributes used to identify the host. Checked in order until a match is found.
+          [host_identifiers: <list of string> | default = ["k8s.node.name", "host.id"]]
+          # Name of the generated host info metric.
+          [metric_name: <string> | default = "traces_host_info"]
+
     # Generic forwarding configuration
 
     # Per-user configuration of generic forwarder feature. Each forwarder in the list
@@ -2396,7 +2428,7 @@ overrides:
       # This limit is used in 3 places:
       #  - During search, traces will be skipped when they exceed this threshold.
       #  - During ingestion, traces that exceed this threshold will be refused.
-      #  - During compaction, traces that exceed this threshold will be partially dropped.
+      #  - During compaction (run by backend workers), traces that exceed this threshold will be partially dropped.
       # During ingestion, exceeding the threshold results in errors like
       #    TRACE_TOO_LARGE: max size of trace (5000000) exceeded while adding 387 bytes
       [max_bytes_per_trace: <int> | default = 5000000 (5MB) ]
@@ -2406,7 +2438,7 @@ overrides:
       # Configures attributes to be stored in dedicated columns within the parquet file, rather than in the
       # generic attribute key-value list. This allows for more efficient searching of these attributes.
       # Up to 10 span attributes and 10 resource attributes can be configured as dedicated columns.
-      # Requires at least vParquet3
+      # Requires vParquet4 or later.
       parquet_dedicated_columns:
         [
           name: <string>, # name of the attribute
@@ -2680,6 +2712,12 @@ cache:
             [consistent_hash: <bool>]
 
             # Optional
+            # The maximum size of an item stored in memcached, in bytes.
+            # Bigger items are not stored. A value of 0 disables the limit.
+            # (default: 0)
+            [max_item_size: <int>]
+
+            # Optional
             # Trip circuit-breaker after this number of consecutive dial failures.
             # (default: 10)
             [circuit_breaker_consecutive_failures: 10]
@@ -2767,53 +2805,65 @@ cache:
         # EXPERIMENTAL
         redis:
 
-            # Redis endpoint to use when caching.
+            # Redis Server endpoint to use for caching. A comma-separated list of
+            # endpoints for Redis Cluster or Redis Sentinel.
             [endpoint: <string>]
 
-            # optional.
-            # Maximum time to wait before giving up on redis requests. (default 100ms)
-            [timeout: 500ms]
-
-            # optional.
+            # Optional
             # Redis Sentinel master name. (default "")
-            # Example: "master-name: redis-master"
-            [master-name: <string>]
+            [master_name: <string>]
 
-            # optional.
-            # Database index. (default 0)
-            [db: <int>]
+            # Optional
+            # Maximum time to wait before giving up on redis requests. (default 500ms)
+            [timeout: <duration> | default = 500ms]
 
-            # optional.
+            # Optional
             # How long keys stay in the redis. (default 0)
-            [expiration: <duration>]
+            [expiration: <duration> | default = 0s]
 
-            # optional.
-            # Enable connecting to redis with TLS. (default false)
-            [tls-enabled: <bool>]
+            # Optional
+            # Database index. (default 0)
+            [db: <int> | default = 0]
 
-            # optional.
-            # Skip validating server certificate. (default false)
-            [tls-insecure-skip-verify: <bool>]
-
-            # optional.
+            # Optional
             # Maximum number of connections in the pool. (default 0)
-            [pool-size: <int>]
+            [pool_size: <int> | default = 0]
 
-            # optional.
+            # Optional
+            # Username to use when connecting to redis (Redis 6+ ACL-based AUTH). (default "")
+            [username: <string>]
+
+            # Optional
             # Password to use when connecting to redis. (default "")
             [password: <string>]
 
-            # optional.
-            # Close connections after remaining idle for this duration. (default 0s)
-            [idle-timeout: <duration>]
+            # Optional
+            # Username to use when connecting to redis sentinel. (default "")
+            [sentinel_username: <string>]
 
-            # optional.
-            # Close connections older than this duration. (default 0s)
-            [max-connection-age: <duration>]
-
-            # optional.
+            # Optional
             # Password to use when connecting to redis sentinel. (default "")
             [sentinel_password: <string>]
+
+            # Optional
+            # Enable connecting to redis with TLS. (default false)
+            [tls_enabled: <bool> | default = false]
+
+            # Optional
+            # Skip validating server certificate. (default false)
+            [tls_insecure_skip_verify: <bool> | default = false]
+
+            # Optional
+            # Close connections after remaining idle for this duration. (default 0s)
+            [idle_timeout: <duration> | default = 0s]
+
+            # Optional
+            # Close connections older than this duration. (default 0s)
+            [max_connection_age: <duration> | default = 0s]
+
+            # Optional
+            # TTL for cached keys.
+            [ttl: <duration>]
 ```
 
 Example configuration:
