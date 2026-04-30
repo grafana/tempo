@@ -234,7 +234,7 @@ distributor:
         max_consumer_lag_at_startup: 0s
         disable_kafka_telemetry: false
         consumer_group_lag_metric_update_interval: 0s
-    retry_after_on_resource_exhausted: 0s
+    retry_after_on_resource_exhausted: 5s
     max_attribute_bytes: 2048
 live_store_client:
     pool_config:
