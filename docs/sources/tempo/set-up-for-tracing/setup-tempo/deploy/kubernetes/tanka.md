@@ -368,6 +368,55 @@ storage+: {
 Enabling metrics generation and remote writing them to Grafana Cloud Metrics produces extra active series that could potentially impact your billing. For more information on billing, refer to [Billing and usage](/docs/grafana-cloud/billing-and-usage/). For more information on metrics generation, refer the [Metrics-generator documentation](/docs/tempo/<TEMPO_VERSION>/metrics-from-traces/metrics-generator/).
 {{< /admonition >}}
 
+### Optional: Enable KEDA autoscaling 
+
+The microservices Jsonnet library includes optional KEDA-based horizontal autoscaling for distributor, metrics-generator, backend-worker, and block-builder components. All KEDA scalers are disabled by default (`enabled: false`), and you enable each component independently under `_config.<component>.keda`.
+
+Before you enable this option, make sure your cluster has the KEDA operator and CRDs installed.
+
+The following example enables all supported KEDA scalers and sets the required backend-worker Prometheus address:
+
+```jsonnet
+_config+:: {
+  distributor+: {
+    keda: {
+      enabled: true,
+      min_replicas: 2,
+      max_replicas: 200,
+      target_cpu: '330m',
+    },
+  },
+  metrics_generator+: {
+    keda: {
+      enabled: true,
+      min_replicas: 1,
+      max_replicas: 200,
+      target_cpu: '500m',
+    },
+  },
+  backend_worker+: {
+    keda: {
+      enabled: true,
+      min_replicas: 3,
+      max_replicas: 200,
+      prometheus_address: 'http://prometheus-operated.monitoring.svc.cluster.local:9090',
+      threshold: 200,
+    },
+  },
+  block_builder+: {
+    keda: {
+      enabled: true,
+      min_replicas: 1,
+      max_replicas: 200,
+      partitions_per_instance: 1,
+      pod_selector: 'name=live-store-zone-a',
+    },
+  },
+},
+```
+
+Tempo uses these trigger types when KEDA is enabled: CPU for distributor and metrics-generator, Prometheus for backend-worker, and kubernetes-workload for block-builder. When you enable block-builder autoscaling, Tempo also sets `block_builder.partitions_per_instance` from `_config.block_builder.keda.partitions_per_instance`.
+
 ### Optional: Reduce component system requirements
 
 Smaller ingestion and query volumes could allow the use of smaller resources. If you wish to lower the resources allocated to components, then you can do this via a container configuration. For example, to change the CPU and memory resource allocation for the block-builders or live-stores.
