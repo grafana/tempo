@@ -128,7 +128,7 @@ For the complete mapping of all configuration blocks to deployment modes, refer 
 Tempo uses the server from `dskit/server`. For the full list of available server options, refer to the [dskit server configuration](https://github.com/grafana/dskit/blob/main/server/server.go#L66) and the [manifest](/docs/tempo/<TEMPO_VERSION>/configuration/manifest/).
 For details on how server settings apply across deployment modes, refer to the [Deployment modes](/docs/tempo/<TEMPO_VERSION>/reference-tempo-architecture/deployment-modes/) documentation.
 
-Additional root-level options such as `target`, `shutdown_delay`, `auth_enabled`, and `enable_go_runtime_metrics` are available as [command-line flags](/docs/tempo/<TEMPO_VERSION>/set-up-for-tracing/setup-tempo/command-line-flags/).
+Additional root-level options such as `target`, `shutdown_delay`, `auth_enabled`, `enable_go_runtime_metrics`, and `span_profiling` are available as [command-line flags](/docs/tempo/<TEMPO_VERSION>/set-up-for-tracing/setup-tempo/command-line-flags/).
 
 ```yaml
 # Optional. Setting to true enables multitenancy and requires X-Scope-OrgID header on all requests.
@@ -139,6 +139,12 @@ Additional root-level options such as `target`, `shutdown_delay`, `auth_enabled`
 
 # Optional. Enables streaming query results over HTTP.
 [stream_over_http_enabled: <bool> | default = false]
+
+# Optional. Enables span profiling via otelpyroscope. When enabled, Tempo attaches pprof goroutine
+# labels (span_id, span_name) to OTel spans and adds a pyroscope.profile.id attribute to root spans,
+# enabling profile-to-trace correlation in Pyroscope.
+# Requires OTEL_TRACES_EXPORTER or OTEL_EXPORTER_OTLP_ENDPOINT to be set.
+[span_profiling: <bool> | default = false]
 
 server:
     # HTTP server listen host

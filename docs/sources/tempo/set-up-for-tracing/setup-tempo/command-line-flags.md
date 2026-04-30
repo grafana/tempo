@@ -67,6 +67,18 @@ Refer to the [Plan your Tempo deployment](../plan/) documentation for informatio
 | `--enable-go-runtime-metrics` | Set to true to enable all Go runtime metrics | `false` |
 | `--shutdown-delay` | How long to wait between SIGTERM and shutdown. After receiving SIGTERM, Tempo reports not-ready status via the `/ready` endpoint. | `0` |
 
+## Span profiling
+
+| Flag | Description | Default |
+| --- | --- | --- |
+| `--span-profiling` | Enable span profiling via `otelpyroscope`. When enabled, Tempo attaches pprof goroutine labels (`span_id`, `span_name`) to OTel spans and adds a `pyroscope.profile.id` attribute to root spans, enabling profile-to-trace correlation in Pyroscope. Requires an OTLP exporter to be configured through environment variables (`OTEL_TRACES_EXPORTER`, `OTEL_EXPORTER_OTLP_ENDPOINT`, or `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT`). | `false` |
+
+You can also set this option in the configuration file:
+
+```yaml
+span_profiling: true
+```
+
 ## Health check
 
 | Flag | Description | Default |
