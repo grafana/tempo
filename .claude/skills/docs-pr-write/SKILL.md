@@ -1,138 +1,117 @@
 ---
 name: docs-pr-write
-description: Write or update Tempo docs for user-facing PR changes identified by docs-pr-check
-allowed-tools: Bash Read Grep Write
+description: >-
+  Write or update product documentation for user-facing PR changes.
+  Use when the user asks to write docs for a PR, document a PR,
+  update existing docs based on a code change, process PRs flagged
+  by docs-pr-check, or provides PR numbers or links and wants the
+  corresponding documentation created or updated — even if they
+  say "document these changes" without mentioning PRs explicitly.
+  This skill writes and updates docs only; it does not triage PRs
+  (use docs-pr-check), review existing docs (use docs-review), or
+  generate release notes.
+metadata:
+  use_case: write-or-update
+  workflow: create
 ---
 
-# PR docs writer (execution phase)
+# PR docs writer
 
-For a prioritized PR list from `docs-pr-check`, create or update the required documentation pages.
+Write or update documentation for user-facing PR changes. Do not generate release notes.
 
-This skill is for documentation execution only. Do not generate release notes.
+## Before you begin
 
-## Usage
-
-Invoke with `/docs-pr-write`.
-
-Provide:
-- PR numbers to process (recommended: only `Docs needed` and `Docs update needed` rows from `docs-pr-check`)
-- The target Tempo version/branch context (for example `main`, `release-2.10`, or `3.0-docs`)
-
-If the PR list is missing, ask for the output table from `docs-pr-check`.
+1. Load local context per [`../shared/load-context.md`](../shared/load-context.md).
+2. If the user mentions a release version or release notes, also read `../shared/release-notes-workflow.md` (Phases 1.5–1.75). Otherwise skip it — this skill works on any PR independently.
 
 ## Inputs
 
-Expected handoff from `docs-pr-check`:
-- PR number
-- Classification
-- Notes about gaps
-- Suggested target docs files, if known
+Either:
 
-## Steps to Perform
+- **PR numbers directly** — triage inline using the criteria in [`../docs-pr-check/SKILL.md`](../docs-pr-check/SKILL.md) before writing.
+- **A classified PR list from `docs-pr-check`** — with PR numbers, classifications, gap notes, and suggested target files. Use these classifications as-is.
+
+## Steps
 
 ### 1. Confirm scope and order
 
-1. Process only:
-   - `Docs needed`
-   - `Docs update needed`
-2. Work in user-impact priority order:
-   - Breaking changes/migrations
-   - New `configuration` and API behavior
-   - New query syntax and user workflows
-   - Lower-risk clarifications
+Process only `Docs needed` and `Docs update needed` PRs. Work in user-impact order: breaking changes and migrations first, then new config/API behavior, then new syntax and workflows, then lower-risk clarifications.
 
 ### 2. Reconstruct capability from each PR
 
-For each PR:
-
 ```bash
-gh pr view XXXX --repo grafana/tempo --json title,body,files,labels
+gh pr view XXXX --repo YOUR_ORG/YOUR_REPO --json title,body,files,labels
 ```
 
-Extract:
-- What users can do now
-- What changed in behavior
-- New configuration fields/flags/endpoints/query syntax
-- Version constraints and compatibility notes
+Extract: what users can now do, what changed in behavior, new config fields/flags/endpoints/syntax, and version constraints.
 
-### 3. Pick the canonical docs target
+### 3. Pick the docs target
 
-Prefer updating existing docs over creating new pages.
+Prefer updating existing pages over creating new ones:
 
-Use this order:
 1. Existing page that already covers the topic
-2. Existing related section where users already look
+2. Related section where users already look
 3. New page only if no suitable home exists
 
-When uncertain between two pages, choose the one closest to user workflow and cross-link the other.
+When torn between two pages, choose the one closest to the user workflow and cross-link the other.
 
 ### 4. Write concise, task-oriented content
 
-For each required change:
 - Explain what changed in user terms
 - Add when/why to use it
-- Include one concrete, runnable example — match the format to the change type (curl for API endpoints, YAML for config, TraceQL for query syntax, shell command for CLI)
-- **Required:** Note the minimum Tempo or storage format version. If unclear, flag as an open item rather than omitting.
-- Call out default values when documenting configuration options
+- Include one concrete, runnable example matching the change type (HTTP for APIs, YAML for config, query snippets for query languages, shell for CLI)
+- Note the minimum version when relevant — users on older versions hit confusing errors without this
+- Call out default values for configuration options
+- Add links from related sections to the canonical page, and from release notes entries if they're being edited in the same task
 
-Keep content concise and avoid duplicating large reference material.
+Match the persona level of the target page (refer to `../shared/personas.md` when uncertain). Follow `../shared/style-guide.md`.
 
 ### 5. Validate claims against code
 
 Do not rely only on PR description text.
 
-Use the PR's changed file list as your guide to where to look. Only search within the `grafana/tempo` repository — do not search across other Grafana repositories.
+**When to load detail:** For any PR that adds or changes **technical** claims (behavior, APIs, config, UI copy, routes), read [`references/validate-claims.md`](references/validate-claims.md) and follow it. Skip this reference for **purely editorial** edits with no new technical assertions.
 
-For each claim you document, verify in the file type most likely to be authoritative:
+**Default approach:** Verify **PR-scoped** only (changed files + their import chain + paths from **project-context** validation tables when present). Do not scan the whole monorepo. Use [`../shared/load-context.md`](../shared/load-context.md) for where key paths live.
 
-- **Go files**: exact field name spelling in struct or constant, default value (`RegisterFlagsAndApplyDefaults`), accepted enum values
-- **Proto files**: API endpoint paths, request/response field names
-- **Helm/YAML files**: configuration keys and default values in deployment examples
-
-Correct docs if code and PR text differ.
-
-### 6. Link integration
-
-Add links where users need them:
-- From related docs sections to canonical page
-- From release notes entries to canonical docs, if release notes are already being edited in the same task
-
-Use consistent, clear link text (for example `documentation` when requested).
-
-### 7. Final QA pass
+### 6. Finish
 
 Before returning:
-- Confirm each PR in scope now has either updated docs or a justified blocker
+
+- Confirm each in-scope PR now has docs or a justified blocker
 - Check internal links and section anchors
-- Keep style aligned with existing Tempo docs pages
-- Keep language action-oriented and concise
+- Use `../shared/style-guide.md` as the primary style authority. If the target page sits in a section with similar pages (same topic area, same doc type), skim 1–2 of those pages to confirm tone and depth — but defer to the style guide when they conflict.
+- Select relevant sections from `../shared/verification-checklist.md` based on what you documented (config changes → **Codebase Verification** + **Configuration Reference Check**; new features/APIs → **Version Compatibility**; style-only edits → omit code verification). Present as a short checklist for the user — do not complete these items yourself.
 
-### 8. Hand off verification items to the user
+## Gotchas
 
-After completing all doc changes, output a "Before you submit" block. Select only the checklist sections from `.agents/doc-agents/shared/verification-checklist.md` that are relevant to what you just documented:
+- **Don't rewrite the whole page.** Insert or update the relevant section only. Agents often restructure an entire page when adding a paragraph — preserve existing headings, ordering, and sibling content.
+- **PR descriptions overstate scope.** Treat PR body text as a starting hypothesis, not a source of truth. Verify every claim in code before documenting it (Step 5).
+- **Config field names drift between PR and code.** PR descriptions sometimes use display names or shorthand; the actual YAML/JSON key in the config struct may differ. Always use the key from code.
+- **"Docs exist" ≠ "docs are complete."** A page mentioning the feature doesn't mean it covers the new behavior. Check what the PR actually changed before classifying as `Docs present`.
 
-- Configuration option added or changed → include **Codebase Verification** and **Configuration Reference Check**
-- New feature, query syntax, or API change → include **Version Compatibility**
-- Style or wording edit only → omit code verification items entirely
+## Return format
 
-Present the selected items as a short checklist for the user to complete before submitting the PR. Do not attempt to complete these items yourself.
+Use this structure:
 
-## Return Format
+```markdown
+## Files changed
+- docs/sources/.../feature.md
 
-Return:
+## PR-to-doc mapping
+| PR | What was documented | File |
+|----|---------------------|------|
+| #1234 | New config section for `timeout` | `docs/sources/.../feature.md` |
 
-1. **Files changed** (path list)
-2. **PR-to-doc mapping**:
-   - PR
-   - what was documented
-   - where it was documented
-3. **Open items**:
-   - uncertain claims needing engineering confirmation
-   - deferred follow-up docs work
+## Open items
+- [ ] Verify default value for `timeout` — PR says 30s, code unclear
+- [ ] UI layout change needs visual confirmation (defer to screenshot-check)
+```
 
 ## Reference
 
-- Triage skill: `.claude/skills/docs-pr-check/SKILL.md`
-- Repo orientation: `.agents/doc-agents/shared/docs-context-guide.md` — code-to-docs mapping, key file paths, and Tempo doc conventions
-- Workflow detail: `.agents/doc-agents/shared/release-notes-workflow.md`
-- Verification checklist (Step 8 source): `.agents/doc-agents/shared/verification-checklist.md`
+- Triage skill: [`../docs-pr-check/SKILL.md`](../docs-pr-check/SKILL.md)
+- Step 5 (validate claims): [`references/validate-claims.md`](references/validate-claims.md)
+- Repo orientation: `../shared/docs-context-guide.md`
+- Workflow detail: `../shared/release-notes-workflow.md`
+- Verification checklist: `../shared/verification-checklist.md`

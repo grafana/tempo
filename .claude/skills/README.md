@@ -92,7 +92,7 @@ Each skill has an `evals/evals.json` with test cases for evaluating output quali
 
 ## Repo orientation
 
-Before starting any doc task, read `.agents/doc-agents/shared/docs-context-guide.md` for code-to-docs mapping, key file paths, verification patterns, and Tempo conventions.
+Before starting any doc task, read `.claude/skills/shared/docs-context-guide.md` for code-to-docs mapping, key file paths, verification patterns, and Tempo conventions.
 
 ## Tips
 
