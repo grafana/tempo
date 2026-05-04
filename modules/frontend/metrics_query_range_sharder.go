@@ -3,7 +3,6 @@ package frontend
 import (
 	"context"
 	"errors"
-	"fmt"
 	"math"
 	"net/http"
 	"time"
@@ -103,15 +102,6 @@ func (s queryRangeSharder) RoundTrip(pipelineRequest pipeline.Request) (pipeline
 
 	if req.Step == 0 {
 		return pipeline.NewBadRequest(errors.New("step must be greater than 0")), nil
-	}
-
-	// calculate and enforce max search duration
-	// This is checked before alignment because we may need to read a larger
-	// range internally to satisfy the query.
-	maxDuration := s.maxDuration(tenantID)
-	if maxDuration != 0 && time.Duration(req.End-req.Start)*time.Nanosecond > maxDuration {
-		err = fmt.Errorf("metrics query time range exceeds the maximum allowed duration of %s", maxDuration)
-		return pipeline.NewBadRequest(err), nil
 	}
 
 	traceql.AlignRequest(req)
@@ -356,17 +346,6 @@ func (s *queryRangeSharder) generatorRequest(tenantID string, parent pipeline.Re
 	subR.SetResponseData(0) // generator requests are always shard 0
 
 	return subR, jobMetadata
-}
-
-// maxDuration returns the max search duration allowed for this tenant.
-func (s *queryRangeSharder) maxDuration(tenantID string) time.Duration {
-	// check overrides first, if no overrides then grab from our config
-	maxDuration := s.overrides.MaxMetricsDuration(tenantID)
-	if maxDuration != 0 {
-		return maxDuration
-	}
-
-	return s.cfg.MaxDuration
 }
 
 func (s *queryRangeSharder) jobSize(expr *traceql.RootExpr, allowUnsafe bool) int {

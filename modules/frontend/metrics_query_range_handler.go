@@ -3,8 +3,6 @@ package frontend
 import (
 	"bytes"
 	"context"
-	"errors"
-	"fmt"
 	"io"
 	"net/http"
 	"net/url"
@@ -17,6 +15,7 @@ import (
 	"github.com/grafana/dskit/user"
 	"github.com/grafana/tempo/modules/frontend/combiner"
 	"github.com/grafana/tempo/modules/frontend/pipeline"
+	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/pkg/util/tracing"
 
 	"github.com/grafana/tempo/pkg/api"
@@ -25,7 +24,7 @@ import (
 )
 
 // newQueryRangeStreamingGRPCHandler returns a handler that streams results from the HTTP handler
-func newQueryRangeStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.PipelineResponse], apiPrefix string, logger log.Logger, dataAccessController DataAccessController) streamingQueryRangeHandler {
+func newQueryRangeStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.PipelineResponse], apiPrefix string, o overrides.Interface, logger log.Logger, dataAccessController DataAccessController) streamingQueryRangeHandler {
 	postSLOHook := metricsSLOPostHook(cfg.Metrics.SLO)
 	downstreamPath := path.Join(apiPrefix, api.PathMetricsQueryRange)
 
@@ -49,7 +48,7 @@ func newQueryRangeStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripp
 		if !req.HasInstant() { // if not found, set it explicitly
 			req.SetInstant(false)
 		}
-		if err := validateQueryRangeReq(cfg, req); err != nil {
+		if err := validateQueryRangeReq(ctx, cfg, o, req); err != nil {
 			return err
 		}
 
@@ -107,7 +106,7 @@ func newQueryRangeStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripp
 }
 
 // newMetricsQueryRangeHTTPHandler returns a handler that returns a single response from the HTTP handler
-func newMetricsQueryRangeHTTPHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.PipelineResponse], logger log.Logger, dataAccessController DataAccessController) http.RoundTripper {
+func newMetricsQueryRangeHTTPHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.PipelineResponse], o overrides.Interface, logger log.Logger, dataAccessController DataAccessController) http.RoundTripper {
 	postSLOHook := metricsSLOPostHook(cfg.Metrics.SLO)
 
 	return RoundTripperFunc(func(req *http.Request) (*http.Response, error) {
@@ -135,7 +134,7 @@ func newMetricsQueryRangeHTTPHandler(cfg Config, next pipeline.AsyncRoundTripper
 		}
 		logQueryRangeRequest(logger, tenant, queryRangeReq)
 
-		if err := validateQueryRangeReq(cfg, queryRangeReq); err != nil {
+		if err := validateQueryRangeReq(req.Context(), cfg, o, queryRangeReq); err != nil {
 			return httpInvalidRequest(err), nil
 		}
 
@@ -269,19 +268,4 @@ func httpInvalidRequest(err error) *http.Response {
 		Status:     http.StatusText(http.StatusBadRequest),
 		Body:       io.NopCloser(strings.NewReader(err.Error())),
 	}
-}
-
-func validateQueryRangeReq(cfg Config, req *tempopb.QueryRangeRequest) error {
-	if req.Start > req.End {
-		return errors.New("end must be greater than start")
-	}
-	if cfg.Metrics.MaxIntervals != 0 && (req.Step == 0 || (req.End-req.Start)/req.Step > cfg.Metrics.MaxIntervals) {
-		minimumStep := (req.End - req.Start) / cfg.Metrics.MaxIntervals
-		return fmt.Errorf(
-			"step of %s is too small, minimum step for given range is %s",
-			time.Duration(req.Step).String(),
-			time.Duration(minimumStep).String(),
-		)
-	}
-	return nil
 }
