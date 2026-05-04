@@ -73,7 +73,12 @@ type Manager struct {
 }
 
 // New creates an instance of Manager. Manager is a services.Service, and must be explicitly started to perform any work.
-func New(cfg Config, configName string, registerer prometheus.Registerer, logger log.Logger) (*Manager, error) {
+//
+// The httpRT argument is used as the http.RoundTripper of the http.Client created to fetch HTTP-based runtime config
+// sources. It may be nil, in which case http.DefaultTransport is used. Providing a RoundTripper is recommended when
+// the cluster-validation middleware is used (see middleware.ClusterValidationRoundTripper in middleware/http_cluster.go),
+// so that requests for runtime config are tagged with the expected cluster validation label.
+func New(cfg Config, configName string, registerer prometheus.Registerer, httpRT http.RoundTripper, logger log.Logger) (*Manager, error) {
 	if len(cfg.LoadPath) == 0 {
 		return nil, errors.New("LoadPath is empty")
 	}
@@ -102,7 +107,7 @@ func New(cfg Config, configName string, registerer prometheus.Registerer, logger
 				if timeout == 0 {
 					timeout = 30 * time.Second
 				}
-				httpClient = &http.Client{Timeout: timeout}
+				httpClient = &http.Client{Timeout: timeout, Transport: httpRT}
 				httpDuration = newHTTPRequestDuration(registerer)
 			}
 			mgr.providers = append(mgr.providers, newHTTPProvider(p, httpClient, httpDuration))
