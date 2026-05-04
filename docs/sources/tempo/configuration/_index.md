@@ -143,7 +143,8 @@ Additional root-level options such as `target`, `shutdown_delay`, `auth_enabled`
 # Optional. Enables span profiling via otelpyroscope. When enabled, Tempo attaches pprof goroutine
 # labels (span_id, span_name) to OTel spans and adds a pyroscope.profile.id attribute to root spans,
 # enabling profile-to-trace correlation in Pyroscope.
-# Requires OTEL_TRACES_EXPORTER or OTEL_EXPORTER_OTLP_ENDPOINT to be set.
+# Requires OTEL_TRACES_EXPORTER, OTEL_EXPORTER_OTLP_ENDPOINT, or
+# OTEL_EXPORTER_OTLP_TRACES_ENDPOINT to be set.
 [span_profiling: <bool> | default = false]
 
 server:

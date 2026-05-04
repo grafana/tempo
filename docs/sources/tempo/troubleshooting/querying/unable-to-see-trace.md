@@ -88,11 +88,13 @@ A non-zero rate means that query time ranges are overlapping with the live-store
 
 ### Solution
 
-- Check the raw consumer lag per partition:
+- Check the raw consumer lag per partition using your live-store consumer group label:
 
   ```promql
-  tempo_ingest_group_partition_lag{group="live-store"}
+  tempo_ingest_group_partition_lag{group="<CONSUMER_GROUP>"}
   ```
+
+  The `group` label is derived from the live-store ring instance ID. For example, in a zone-aware deployment the group might be `live-store-zone-a`.
 
 - If lag is persistent, the live-store may need more resources or partitions may need to be redistributed.
 - To make incomplete results explicit, set `fail_on_high_lag: true` in the [live-store configuration](/docs/tempo/<TEMPO_VERSION>/configuration/#live-store). When enabled, the live-store returns an error instead of silently incomplete results.
