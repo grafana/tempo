@@ -188,7 +188,7 @@ func newMetricsQueryRangeHTTPHandler(cfg Config, next pipeline.AsyncRoundTripper
 // from the HTTP parameter. req.Exemplars is then capped to maxExemplars.
 // If no hint is set and req.Exemplars is 0 (unspecified), it defaults to maxExemplars.
 func normalizeRequestExemplars(req *tempopb.QueryRangeRequest, maxExemplars uint32) error {
-	expr, err := traceql.Parse(req.Query)
+	expr, err := traceql.ParseNoOptimizations(req.Query)
 	if err != nil {
 		return err
 	}

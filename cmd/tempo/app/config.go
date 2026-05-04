@@ -3,6 +3,7 @@ package app
 import (
 	"flag"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/grafana/dskit/flagext"
@@ -23,6 +24,7 @@ import (
 	"github.com/grafana/tempo/modules/storage"
 	"github.com/grafana/tempo/pkg/ingest"
 	internalserver "github.com/grafana/tempo/pkg/server"
+	"github.com/grafana/tempo/pkg/traceql"
 	"github.com/grafana/tempo/pkg/usagestats"
 	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/tempodb"
@@ -237,6 +239,15 @@ func (c *Config) CheckConfig() []ConfigWarning {
 
 	if len(c.BlockBuilder.AssignedPartitionsMap) > 0 && c.BlockBuilder.PartitionsPerInstance > 0 {
 		warnings = append(warnings, warnPartitionAssigmentCollision)
+	}
+
+	for _, name := range c.Frontend.SkipASTTransformations {
+		if !traceql.IsValidTransformationName(name) {
+			warnings = append(warnings, ConfigWarning{
+				Message: fmt.Sprintf("unknown AST transformation %q in query_frontend.skip_ast_transformations", name),
+				Explain: "valid transformation names are: " + strings.Join(traceql.KnownTransformationNames(), ", "),
+			})
+		}
 	}
 
 	if !c.Frontend.RF1After.IsZero() {
