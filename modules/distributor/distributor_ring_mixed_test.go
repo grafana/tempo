@@ -14,6 +14,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+const mixedTestRingKey = "distributor"
+
 // TestDistributorRing_MixedLifecyclerRollout exercises the rollout path where
 // some distributors run the legacy ring.Lifecycler and others run the new
 // ring.BasicLifecycler with AutoForget+LeaveOnStopping delegates against a
@@ -94,14 +96,14 @@ func TestDistributorRing_MixedLifecyclerRollout(t *testing.T) {
 
 	// Verify the ghost is initially present in the raw KV.
 	require.Eventually(t, func() bool {
-		return allIDsFromKV(t, ctx, mockStore, ringKey)[ghostID]
+		return allIDsFromKV(ctx, t, mockStore)[ghostID]
 	}, time.Second, 10*time.Millisecond)
 
 	// (3) AutoForget on the new lifecyclers must evict the stale entry on
 	// the next heartbeat past forgetPeriod. This is the load-bearing
 	// assertion for the migration: it works against legacy-shaped entries.
 	require.Eventually(t, func() bool {
-		return !allIDsFromKV(t, ctx, mockStore, ringKey)[ghostID]
+		return !allIDsFromKV(ctx, t, mockStore)[ghostID]
 	}, 5*forgetPeriod+time.Second, 10*time.Millisecond, "auto-forget should evict the stale entry")
 
 	// Survivors stay healthy. Eventually-wrap because the reader ring polls
@@ -113,7 +115,7 @@ func TestDistributorRing_MixedLifecyclerRollout(t *testing.T) {
 	// (5) Graceful shutdown of legacy lifecycler removes its entry.
 	require.NoError(t, services.StopAndAwaitTerminated(ctx, oldLC))
 	require.Eventually(t, func() bool {
-		return !allIDsFromKV(t, ctx, mockStore, ringKey)["old-pod"]
+		return !allIDsFromKV(ctx, t, mockStore)["old-pod"]
 	}, 2*time.Second, 10*time.Millisecond, "legacy lifecycler should unregister on graceful stop")
 
 	// (6) Graceful shutdown of basic lifecycler also removes its entry —
@@ -121,7 +123,7 @@ func TestDistributorRing_MixedLifecyclerRollout(t *testing.T) {
 	// produce the same end state as the legacy UnregisterOnShutdown=true.
 	require.NoError(t, services.StopAndAwaitTerminated(ctx, newLC1))
 	require.Eventually(t, func() bool {
-		return !allIDsFromKV(t, ctx, mockStore, ringKey)["new-pod-1"]
+		return !allIDsFromKV(ctx, t, mockStore)["new-pod-1"]
 	}, 2*time.Second, 10*time.Millisecond, "basic lifecycler should unregister on graceful stop")
 
 	// Last surviving instance count drops accordingly.
@@ -133,9 +135,9 @@ func TestDistributorRing_MixedLifecyclerRollout(t *testing.T) {
 }
 
 // newLegacyDistributorLifecycler builds a ring.Lifecycler exactly as today's
-// production code does (RingConfig.ToLifecyclerConfig + ring.NewLifecycler with
-// nil flush transferer). This is the call site being replaced; using it here
-// guarantees the test would have caught the original bug as well.
+// production code does (RingConfig.ToLifecyclerConfig + ring.NewLifecycler
+// with a nil FlushTransferer). This is the call site being replaced; using it
+// here guarantees the test would have caught the original bug as well.
 func newLegacyDistributorLifecycler(t *testing.T, store kv.Client, ringKey, id string, heartbeatPeriod, heartbeatTimeout time.Duration, logger log.Logger) *ring.Lifecycler {
 	t.Helper()
 
@@ -205,9 +207,9 @@ func healthyIDs(t *testing.T, r *ring.Ring) map[string]bool {
 
 // allIDsFromKV reads the ring descriptor straight from the KV store, which
 // includes unhealthy/stale entries that GetAllHealthy filters out.
-func allIDsFromKV(t *testing.T, ctx context.Context, store kv.Client, ringKey string) map[string]bool {
+func allIDsFromKV(ctx context.Context, t *testing.T, store kv.Client) map[string]bool {
 	t.Helper()
-	val, err := store.Get(ctx, ringKey)
+	val, err := store.Get(ctx, mixedTestRingKey)
 	require.NoError(t, err)
 	out := map[string]bool{}
 	if val == nil {
