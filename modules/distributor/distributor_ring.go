@@ -2,9 +2,12 @@ package distributor
 
 import (
 	"flag"
+	"net"
 	"os"
+	"strconv"
 	"time"
 
+	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
 	"github.com/grafana/dskit/flagext"
 	"github.com/grafana/dskit/kv"
@@ -52,6 +55,72 @@ func (cfg *RingConfig) RegisterFlags(f *flag.FlagSet) {
 	f.StringVar(&cfg.InstanceAddr, "distributor.ring.instance-addr", "", "IP address to advertise in the ring.")
 	f.IntVar(&cfg.InstancePort, "distributor.ring.instance-port", 0, "Port to advertise in the ring (defaults to server.grpc-listen-port).")
 	f.StringVar(&cfg.InstanceID, "distributor.ring.instance-id", hostname, "Instance ID to register in the ring.")
+}
+
+// distributorLifecyclerDelegate implements ring.BasicLifecyclerDelegate for
+// the distributor. The distributor's ring entry is purely a presence record
+// (healthy-instance count for the global ingestion-rate divisor), so all
+// callbacks except register are no-ops.
+type distributorLifecyclerDelegate struct{}
+
+// OnRingInstanceRegister returns the initial state and tokens to register.
+// Distributors register as ACTIVE immediately (matching legacy JoinAfter=0).
+func (d *distributorLifecyclerDelegate) OnRingInstanceRegister(_ *ring.BasicLifecycler, ringDesc ring.Desc, instanceExists bool, _ string, instanceDesc ring.InstanceDesc) (ring.InstanceState, ring.Tokens) {
+	var tokens []uint32
+	if instanceExists {
+		tokens = instanceDesc.GetTokens()
+	}
+
+	takenTokens := ringDesc.GetTokens()
+	gen := ring.NewRandomTokenGenerator()
+	newTokens := gen.GenerateTokens(ringNumTokens-len(tokens), takenTokens)
+	tokens = append(tokens, newTokens...)
+
+	return ring.ACTIVE, tokens
+}
+
+func (d *distributorLifecyclerDelegate) OnRingInstanceTokens(*ring.BasicLifecycler, ring.Tokens) {
+}
+
+func (d *distributorLifecyclerDelegate) OnRingInstanceStopping(*ring.BasicLifecycler) {}
+
+func (d *distributorLifecyclerDelegate) OnRingInstanceHeartbeat(*ring.BasicLifecycler, *ring.Desc, *ring.InstanceDesc) {
+}
+
+// ringHealthyCounter adapts a *ring.Ring to the ReadLifecycler interface
+// expected by globalStrategy. BasicLifecycler does not expose
+// HealthyInstancesCount directly; the ring reader does the equivalent count.
+type ringHealthyCounter struct {
+	r *ring.Ring
+}
+
+func (c ringHealthyCounter) HealthyInstancesCount() int {
+	rs, err := c.r.GetAllHealthy(ringOp)
+	if err != nil {
+		return 0
+	}
+	return len(rs.Instances)
+}
+
+// toBasicLifecyclerConfig builds a BasicLifecyclerConfig from the distributor
+// ring config. Mirrors modules/backendworker/config.go: only the fields the
+// distributor needs are populated.
+func toBasicLifecyclerConfig(cfg RingConfig, logger log.Logger) (ring.BasicLifecyclerConfig, error) {
+	instanceAddr, err := ring.GetInstanceAddr(cfg.InstanceAddr, cfg.InstanceInterfaceNames, logger, cfg.EnableInet6)
+	if err != nil {
+		return ring.BasicLifecyclerConfig{}, err
+	}
+
+	instancePort := ring.GetInstancePort(cfg.InstancePort, cfg.ListenPort)
+	instanceAddrPort := net.JoinHostPort(instanceAddr, strconv.Itoa(instancePort))
+
+	return ring.BasicLifecyclerConfig{
+		ID:               cfg.InstanceID,
+		Addr:             instanceAddrPort,
+		HeartbeatPeriod:  cfg.HeartbeatPeriod,
+		HeartbeatTimeout: cfg.HeartbeatTimeout,
+		NumTokens:        ringNumTokens,
+	}, nil
 }
 
 // ToLifecyclerConfig returns a LifecyclerConfig based on the distributor
