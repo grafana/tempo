@@ -18,7 +18,7 @@ import (
 	"github.com/prometheus/common/model"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.yaml.in/yaml/v2"
+	"go.yaml.in/yaml/v3"
 
 	"github.com/grafana/tempo/pkg/sharedconfig"
 	"github.com/grafana/tempo/tempodb/backend"
