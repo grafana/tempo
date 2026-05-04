@@ -7,7 +7,7 @@ import (
 	"os"
 	"reflect"
 
-	"go.yaml.in/yaml/v2"
+	"go.yaml.in/yaml/v3"
 
 	"github.com/grafana/tempo/cmd/tempo/app"
 )
