@@ -67,6 +67,11 @@ func writeBlockMeta(ctx context.Context, w backend.Writer, meta *backend.BlockMe
 	if err != nil {
 		return err
 	}
+	var bloomBytes uint64
+	for _, b := range blooms {
+		bloomBytes += uint64(len(b))
+	}
+	meta.BloomFilterBytes = bloomBytes
 
 	cacheInfo := &backend.CacheInfo{
 		Meta: meta,
