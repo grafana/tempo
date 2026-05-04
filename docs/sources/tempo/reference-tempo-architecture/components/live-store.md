@@ -106,6 +106,7 @@ These blocks are queryable until the data ages out of the live-store's retention
 | Metric | Description |
 |---|---|
 | `tempo_live_store_traces_created_total` | Total number of traces created in the live-store |
+| `tempo_live_store_lagged_requests_total` | Requests where the live-store could not guarantee complete results due to Kafka lag, labeled by `route` |
 | `tempo_warnings_total` | Warnings during trace processing, labeled by `reason` |
 | `tempo_ingest_group_partition_lag{group="live-store"}` | Consumer lag per partition |
 
