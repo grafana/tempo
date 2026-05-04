@@ -1,4 +1,5 @@
 type: zipkin
+display_name: Zipkin Exporter
 
 status:
   class: exporter

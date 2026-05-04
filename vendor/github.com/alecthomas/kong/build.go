@@ -32,6 +32,9 @@ func build(k *Kong, ast any) (app *Application, err error) {
 	if len(node.Positional) > 0 && len(node.Children) > 0 {
 		return nil, fmt.Errorf("can't mix positional arguments and branching arguments on %T", ast)
 	}
+	if provider, ok := v.Interface().(HelpProvider); ok {
+		node.Detail = provider.Help()
+	}
 	app.Node = node
 	app.Node.Flags = append(extraFlags, app.Node.Flags...)
 	app.Tag = newEmptyTag()

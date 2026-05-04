@@ -7,29 +7,31 @@ import (
 	"reflect"
 
 	"go.opentelemetry.io/collector/pdata/internal"
+	pmetadata "go.opentelemetry.io/collector/pdata/internal/metadata"
 	"go.opentelemetry.io/collector/pdata/pmetric"
+	"go.opentelemetry.io/collector/pdata/xpdata/internal/metadata"
 )
 
 // MarkPipelineOwnedMetrics marks the pmetric.Metrics data as owned by the pipeline, returns true if the data were
 // previously not owned by the pipeline, otherwise false.
 func MarkPipelineOwnedMetrics(md pmetric.Metrics) bool {
-	return internal.GetMetricsState(internal.Metrics(md)).MarkPipelineOwned()
+	return internal.GetMetricsState(internal.MetricsWrapper(md)).MarkPipelineOwned()
 }
 
 func RefMetrics(md pmetric.Metrics) {
-	if EnableRefCounting.IsEnabled() {
-		internal.GetMetricsState(internal.Metrics(md)).Ref()
+	if metadata.PdataEnableRefCountingFeatureGate.IsEnabled() {
+		internal.GetMetricsState(internal.MetricsWrapper(md)).Ref()
 	}
 }
 
 func UnrefMetrics(md pmetric.Metrics) {
-	if EnableRefCounting.IsEnabled() {
-		if !internal.GetMetricsState(internal.Metrics(md)).Unref() {
+	if metadata.PdataEnableRefCountingFeatureGate.IsEnabled() {
+		if !internal.GetMetricsState(internal.MetricsWrapper(md)).Unref() {
 			return
 		}
-		// Don't call DeleteOrigExportLogsServiceRequest without the gate because we reset the data and that may still cause issues.
-		if internal.UseProtoPooling.IsEnabled() {
-			internal.DeleteOrigExportMetricsServiceRequest(internal.GetOrigMetrics(internal.Metrics(md)), true)
+		// Don't call DeleteExportLogsServiceRequest without the gate because we reset the data and that may still cause issues.
+		if pmetadata.PdataUseProtoPoolingFeatureGate.IsEnabled() {
+			internal.DeleteExportMetricsServiceRequest(internal.GetMetricsOrig(internal.MetricsWrapper(md)), true)
 		}
 	}
 }
@@ -37,5 +39,5 @@ func UnrefMetrics(md pmetric.Metrics) {
 // TODO: Generate this in pdata.
 
 func EqualMetrics(md1, md2 pmetric.Metrics) bool {
-	return reflect.DeepEqual(internal.GetOrigMetrics(internal.Metrics(md1)), internal.GetOrigMetrics(internal.Metrics(md2)))
+	return reflect.DeepEqual(internal.GetMetricsOrig(internal.MetricsWrapper(md1)), internal.GetMetricsOrig(internal.MetricsWrapper(md2)))
 }

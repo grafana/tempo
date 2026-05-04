@@ -62,20 +62,20 @@ func NewTelemetryBuilder(settings component.TelemetrySettings, options ...Teleme
 	var err, errs error
 	builder.ProcessorIncomingItems, err = builder.meter.Int64Counter(
 		"otelcol_processor_incoming_items",
-		metric.WithDescription("Number of items passed to the processor. [alpha]"),
-		metric.WithUnit("{items}"),
+		metric.WithDescription("Number of items passed to the processor. [Alpha]"),
+		metric.WithUnit("{item}"),
 	)
 	errs = errors.Join(errs, err)
 	builder.ProcessorInternalDuration, err = builder.meter.Float64Histogram(
 		"otelcol_processor_internal_duration",
-		metric.WithDescription("Duration of time taken to process a batch of telemetry data through the processor. [alpha]"),
+		metric.WithDescription("Duration of time taken to process a batch of telemetry data through the processor. [Alpha]"),
 		metric.WithUnit("s"),
 	)
 	errs = errors.Join(errs, err)
 	builder.ProcessorOutgoingItems, err = builder.meter.Int64Counter(
 		"otelcol_processor_outgoing_items",
-		metric.WithDescription("Number of items emitted from the processor. [alpha]"),
-		metric.WithUnit("{items}"),
+		metric.WithDescription("Number of items emitted from the processor. [Alpha]"),
+		metric.WithUnit("{item}"),
 	)
 	errs = errors.Join(errs, err)
 	return &builder, errs

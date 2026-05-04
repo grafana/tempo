@@ -16,7 +16,7 @@ import (
 
 type ReplaceAllMatchesArguments[K any] struct {
 	Target            ottl.PMapGetSetter[K]
-	Pattern           string
+	Pattern           ottl.StringGetter[K]
 	Replacement       ottl.StringGetter[K]
 	Function          ottl.Optional[ottl.FunctionGetter[K]]
 	ReplacementFormat ottl.Optional[ottl.StringGetter[K]]
@@ -40,12 +40,29 @@ func createReplaceAllMatchesFunction[K any](_ ottl.FunctionContext, oArgs ottl.A
 	return replaceAllMatches(args.Target, args.Pattern, args.Replacement, args.Function, args.ReplacementFormat)
 }
 
-func replaceAllMatches[K any](target ottl.PMapGetSetter[K], pattern string, replacement ottl.StringGetter[K], fn ottl.Optional[ottl.FunctionGetter[K]], replacementFormat ottl.Optional[ottl.StringGetter[K]]) (ottl.ExprFunc[K], error) {
-	glob, err := glob.Compile(pattern)
-	if err != nil {
-		return nil, fmt.Errorf("the pattern supplied to replace_match is not a valid pattern: %w", err)
+func replaceAllMatches[K any](target ottl.PMapGetSetter[K], pattern, replacement ottl.StringGetter[K], fn ottl.Optional[ottl.FunctionGetter[K]], replacementFormat ottl.Optional[ottl.StringGetter[K]]) (ottl.ExprFunc[K], error) {
+	literalPattern, ok := ottl.GetLiteralValue(pattern)
+	var compiledPattern glob.Glob
+	var err error
+	if ok {
+		compiledPattern, err = glob.Compile(literalPattern)
+		if err != nil {
+			return nil, fmt.Errorf(invalidRegexErrMsg, "replace_all_matches", literalPattern, err)
+		}
 	}
+
 	return func(ctx context.Context, tCtx K) (any, error) {
+		cp := compiledPattern
+		if cp == nil {
+			patternVal, err := pattern.Get(ctx, tCtx)
+			if err != nil {
+				return nil, err
+			}
+			cp, err = glob.Compile(patternVal)
+			if err != nil {
+				return nil, fmt.Errorf(invalidRegexErrMsg, "replace_all_matches", patternVal, err)
+			}
+		}
 		val, err := target.Get(ctx, tCtx)
 		if err != nil {
 			return nil, err
@@ -78,7 +95,7 @@ func replaceAllMatches[K any](target ottl.PMapGetSetter[K], pattern string, repl
 		}
 
 		for _, value := range val.All() {
-			if value.Type() == pcommon.ValueTypeStr && glob.Match(value.Str()) {
+			if value.Type() == pcommon.ValueTypeStr && cp.Match(value.Str()) {
 				value.SetStr(replacementVal)
 			}
 		}

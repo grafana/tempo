@@ -15,6 +15,9 @@ import (
 )
 
 func SetValue(value pcommon.Value, val any) error {
+	if val == nil {
+		return nil
+	}
 	var err error
 	switch v := val.(type) {
 	case string:
@@ -59,11 +62,25 @@ func SetValue(value pcommon.Value, val any) error {
 			err = SetValue(pval, a)
 		}
 	case pcommon.Slice:
-		v.CopyTo(value.SetEmptySlice())
+		var dest pcommon.Slice
+		if value.Type() == pcommon.ValueTypeSlice {
+			dest = value.Slice()
+		} else {
+			dest = value.SetEmptySlice()
+		}
+		v.CopyTo(dest)
 	case pcommon.Map:
-		v.CopyTo(value.SetEmptyMap())
+		var dest pcommon.Map
+		if value.Type() == pcommon.ValueTypeMap {
+			dest = value.Map()
+		} else {
+			dest = value.SetEmptyMap()
+		}
+		v.CopyTo(dest)
 	case map[string]any:
 		err = value.FromRaw(v)
+	default:
+		return fmt.Errorf("unsupported type %T for set operation; current value type is %v", val, value.Type())
 	}
 	return err
 }

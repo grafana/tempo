@@ -477,3 +477,11 @@ func (n noopAppender) AppendCTZeroSample(_ prometheus_storage.SeriesRef, _ label
 func (n *noopAppender) AppendHistogramCTZeroSample(_ prometheus_storage.SeriesRef, _ labels.Labels, _, _ int64, _ *histogram.Histogram, _ *histogram.FloatHistogram) (prometheus_storage.SeriesRef, error) {
 	return 0, nil
 }
+
+func (n noopAppender) AppendSTZeroSample(_ prometheus_storage.SeriesRef, _ labels.Labels, _, _ int64) (prometheus_storage.SeriesRef, error) {
+	return 0, nil
+}
+
+func (n *noopAppender) AppendHistogramSTZeroSample(_ prometheus_storage.SeriesRef, _ labels.Labels, _, _ int64, _ *histogram.Histogram, _ *histogram.FloatHistogram) (prometheus_storage.SeriesRef, error) {
+	return 0, nil
+}

@@ -16,8 +16,6 @@ import (
 	"github.com/twmb/franz-go/pkg/kmsg"
 )
 
-// TODO server-error-value in serverFinal
-
 const (
 	saslPlain       = "PLAIN"
 	saslScram256    = "SCRAM-SHA-256"
@@ -48,7 +46,7 @@ const (
 	saslStageComplete
 )
 
-func (c *Cluster) handleSASL(creq *clientReq) (allow bool) {
+func (*Cluster) handleSASL(creq *clientReq) (allow bool) {
 	switch creq.cc.saslStage {
 	case saslStageBegin:
 		switch creq.kreq.(type) {

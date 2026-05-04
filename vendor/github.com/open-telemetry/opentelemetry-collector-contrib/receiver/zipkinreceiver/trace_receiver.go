@@ -21,6 +21,7 @@ import (
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	"go.opentelemetry.io/collector/receiver"
 	"go.opentelemetry.io/collector/receiver/receiverhelper"
+	"go.uber.org/zap"
 
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/zipkin/zipkinv1"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/zipkin/zipkinv2"
@@ -94,8 +95,14 @@ func (zr *zipkinReceiver) Start(ctx context.Context, host component.Host) error 
 		return errors.New("nil host")
 	}
 
+	if err := zipkinv2.ValidateFeatureGates(); err != nil {
+		zr.settings.Logger.Error("Invalid feature gate combination", zap.Error(err))
+		componentstatus.ReportStatus(host, componentstatus.NewFatalErrorEvent(err))
+		return err
+	}
+
 	var err error
-	zr.server, err = zr.config.ToServer(ctx, host, zr.settings.TelemetrySettings, zr)
+	zr.server, err = zr.config.ToServer(ctx, host.GetExtensions(), zr.settings.TelemetrySettings, zr)
 	if err != nil {
 		return err
 	}
@@ -105,14 +112,11 @@ func (zr *zipkinReceiver) Start(ctx context.Context, host component.Host) error 
 	if err != nil {
 		return err
 	}
-	zr.shutdownWG.Add(1)
-	go func() {
-		defer zr.shutdownWG.Done()
-
+	zr.shutdownWG.Go(func() {
 		if errHTTP := zr.server.Serve(listener); !errors.Is(errHTTP, http.ErrServerClosed) && errHTTP != nil {
 			componentstatus.ReportStatus(host, componentstatus.NewFatalErrorEvent(errHTTP))
 		}
-	}()
+	})
 
 	return nil
 }

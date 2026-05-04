@@ -1,20 +1,29 @@
 package kfake
 
 import (
-	"net"
-	"strconv"
-
 	"github.com/twmb/franz-go/pkg/kerr"
 	"github.com/twmb/franz-go/pkg/kmsg"
 )
 
+// FindCoordinator: v0-6
+//
+// Supports coordinator types:
+// * 0: Group coordinator
+// * 1: Transaction coordinator
+//
+// Version notes:
+// * v1: CoordinatorType, ThrottleMillis
+// * v3: Flexible versions
+// * v4: Multiple coordinator keys in single request (KIP-699)
+// * v6: Share groups (KIP-932) - coordinator type 2, not implemented
+
 func init() { regKey(10, 0, 6) }
 
-func (c *Cluster) handleFindCoordinator(kreq kmsg.Request) (kmsg.Response, error) {
-	req := kreq.(*kmsg.FindCoordinatorRequest)
+func (c *Cluster) handleFindCoordinator(creq *clientReq) (kmsg.Response, error) {
+	req := creq.kreq.(*kmsg.FindCoordinatorRequest)
 	resp := req.ResponseKind().(*kmsg.FindCoordinatorResponse)
 
-	if err := checkReqVersion(req.Key(), req.Version); err != nil {
+	if err := c.checkReqVersion(req.Key(), req.Version); err != nil {
 		return nil, err
 	}
 
@@ -48,13 +57,25 @@ func (c *Cluster) handleFindCoordinator(kreq kmsg.Request) (kmsg.Response, error
 			continue
 		}
 
-		b := c.coordinator(key)
-		host, port, _ := net.SplitHostPort(b.ln.Addr().String())
-		iport, _ := strconv.Atoi(port)
+		// ACL check based on coordinator type
+		var allowed bool
+		var errCode int16
+		switch req.CoordinatorType {
+		case 0: // Group
+			allowed = c.allowedACL(creq, key, kmsg.ACLResourceTypeGroup, kmsg.ACLOperationDescribe)
+			errCode = kerr.GroupAuthorizationFailed.Code
+		case 1: // Transaction
+			allowed = c.allowedACL(creq, key, kmsg.ACLResourceTypeTransactionalId, kmsg.ACLOperationDescribe)
+			errCode = kerr.TransactionalIDAuthorizationFailed.Code
+		}
+		if !allowed {
+			sc.ErrorCode = errCode
+			continue
+		}
 
+		b := c.coordinator(key)
 		sc.NodeID = b.node
-		sc.Host = host
-		sc.Port = int32(iport)
+		sc.Host, sc.Port = b.hostport()
 	}
 
 	return resp, nil

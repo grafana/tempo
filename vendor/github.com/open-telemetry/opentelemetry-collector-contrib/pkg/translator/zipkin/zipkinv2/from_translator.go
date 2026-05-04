@@ -15,12 +15,14 @@ import (
 	zipkinmodel "github.com/openzipkin/zipkin-go/model"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
-	conventions "go.opentelemetry.io/otel/semconv/v1.15.0"
-	conventions161 "go.opentelemetry.io/otel/semconv/v1.6.1"
+	conventionsv125 "go.opentelemetry.io/otel/semconv/v1.25.0"
+	conventionsv138 "go.opentelemetry.io/otel/semconv/v1.38.0"
+	conventions "go.opentelemetry.io/otel/semconv/v1.40.0"
 
 	"github.com/open-telemetry/opentelemetry-collector-contrib/internal/coreinternal/tracetranslator"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/internal/coreinternal/traceutil"
 	idutils "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/core/xidutils"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/zipkin/internal/metadata"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/zipkin/internal/zipkin"
 )
 
@@ -91,10 +93,10 @@ func extractScopeTags(il pcommon.InstrumentationScope, zTags map[string]string) 
 	}
 
 	if ilName := il.Name(); ilName != "" {
-		zTags[string(conventions.OtelLibraryNameKey)] = ilName
+		zTags[string(conventionsv125.OTelLibraryNameKey)] = ilName
 	}
 	if ilVer := il.Version(); ilVer != "" {
-		zTags[string(conventions.OtelLibraryVersionKey)] = ilVer
+		zTags[string(conventionsv125.OTelLibraryVersionKey)] = ilVer
 	}
 }
 
@@ -183,9 +185,9 @@ func populateStatus(status ptrace.Status, zs *zipkinmodel.SpanModel, tags map[st
 		return
 	}
 
-	tags[string(conventions.OtelStatusCodeKey)] = traceutil.StatusCodeStr(status.Code())
+	tags[string(conventions.OTelStatusCodeKey)] = traceutil.StatusCodeStr(status.Code())
 	if status.Message() != "" {
-		tags[string(conventions.OtelStatusDescriptionKey)] = status.Message()
+		tags[string(conventions.OTelStatusDescriptionKey)] = status.Message()
 		zs.Err = fmt.Errorf("%s", status.Message())
 	}
 }
@@ -317,24 +319,35 @@ func zipkinEndpointFromTags(
 	redundantKeys map[string]bool,
 ) (endpoint *zipkinmodel.Endpoint) {
 	serviceName := localServiceName
-	if peerSvc, ok := zTags[string(conventions.PeerServiceKey)]; ok && remoteEndpoint {
+	if peerSvc, ok := zTags[string(conventionsv138.PeerServiceKey)]; ok && remoteEndpoint {
 		serviceName = peerSvc
-		redundantKeys[string(conventions.PeerServiceKey)] = true
+		redundantKeys[string(conventionsv138.PeerServiceKey)] = true
 	}
 
-	var ipKey, portKey string
+	var ipKey, v0IPKey, portKey string
 	if remoteEndpoint {
-		ipKey, portKey = string(conventions161.NetPeerIPKey), string(conventions.NetPeerPortKey)
+		ipKey, portKey = string(conventions.NetworkPeerAddressKey), string(conventionsv125.NetPeerPortKey)
+		v0IPKey = "net.peer.ip"
 	} else {
-		ipKey, portKey = string(conventions161.NetHostIPKey), string(conventions.NetHostPortKey)
+		ipKey, portKey = string(conventions.NetworkLocalAddressKey), string(conventionsv125.NetHostPortKey)
+		v0IPKey = "net.host.ip"
 	}
 
 	var ip net.IP
 	ipv6Selected := false
-	if ipStr, ok := zTags[ipKey]; ok {
-		ipv6Selected = isIPv6Address(ipStr)
-		ip = net.ParseIP(ipStr)
-		redundantKeys[ipKey] = true
+	if metadata.PkgTranslatorZipkinEmitV1NetworkConventionsFeatureGate.IsEnabled() {
+		if ipStr, ok := zTags[ipKey]; ok {
+			ipv6Selected = isIPv6Address(ipStr)
+			ip = net.ParseIP(ipStr)
+			redundantKeys[ipKey] = true
+		}
+	}
+	if !metadata.PkgTranslatorZipkinDontEmitV0NetworkConventionsFeatureGate.IsEnabled() {
+		if ipStr, ok := zTags[v0IPKey]; ok && ip == nil {
+			ipv6Selected = isIPv6Address(ipStr)
+			ip = net.ParseIP(ipStr)
+			redundantKeys[v0IPKey] = true
+		}
 	}
 
 	var port uint64
