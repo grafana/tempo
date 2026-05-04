@@ -56,12 +56,12 @@
   ],
   packageRules: [
     {
-      description: 'Disable all non-vulnerability updates for releases',
+      description: 'Restrict release branches to patch and minor updates only',
       matchBaseBranches: [
         '/^release-v.*/',
       ],
-      matchPackageNames: [
-        '*',
+      matchUpdateTypes: [
+        'major',
       ],
       enabled: false,
     },
