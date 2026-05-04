@@ -457,4 +457,4 @@ replace (
 // merged upstream yet:
 // - https://github.com/hashicorp/memberlist/pull/260
 // - https://github.com/grafana/memberlist/pull/3
-replace github.com/hashicorp/memberlist => github.com/grafana/memberlist v0.3.1-0.20260410131411-8c2f3bdae9db
+replace github.com/hashicorp/memberlist => github.com/grafana/memberlist v0.3.1-0.20260410132335-4887d8e8d493
