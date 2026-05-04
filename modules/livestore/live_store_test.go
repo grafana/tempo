@@ -1327,3 +1327,51 @@ func requirePartitionOwnerEventually(t *testing.T, partitionKV kv.Client, instan
 		return desc.HasOwner(instanceID) == expected
 	}, 5*time.Second, 10*time.Millisecond, msg)
 }
+
+func TestShouldForceFromLookback_NoInstancesActivePartition(t *testing.T) {
+	tmpDir := t.TempDir()
+	cfg := defaultConfig(t, tmpDir)
+
+	ls, err := liveStoreWithConfig(t, cfg)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = services.StopAndAwaitTerminated(t.Context(), ls) })
+
+	require.Empty(t, ls.getInstances())
+
+	require.True(t, ls.shouldForceFromLookback(t.Context()),
+		"should force lookback when no local instances and partition is not Inactive")
+}
+
+func TestShouldForceFromLookback_NoInstancesInactivePartition(t *testing.T) {
+	tmpDir := t.TempDir()
+	cfg := defaultConfig(t, tmpDir)
+
+	ls, err := liveStoreWithConfig(t, cfg)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = services.StopAndAwaitTerminated(t.Context(), ls) })
+
+	require.Empty(t, ls.getInstances())
+
+	require.NoError(t, ls.ingestPartitionLifecycler.ChangePartitionState(t.Context(), ring.PartitionInactive))
+
+	require.Eventually(t, func() bool {
+		state, _, err := ls.ingestPartitionLifecycler.GetPartitionState(t.Context())
+		return err == nil && state == ring.PartitionInactive
+	}, 5*time.Second, 10*time.Millisecond, "partition should be observed as Inactive")
+
+	require.False(t, ls.shouldForceFromLookback(t.Context()),
+		"should NOT force lookback when partition is Inactive — no live ingest to recover")
+}
+
+func TestShouldForceFromLookback_InstancesExist(t *testing.T) {
+	tmpDir := t.TempDir()
+	ls, err := defaultLiveStore(t, tmpDir)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = services.StopAndAwaitTerminated(t.Context(), ls) })
+
+	pushToLiveStore(t, ls)
+	require.NotEmpty(t, ls.getInstances())
+
+	require.False(t, ls.shouldForceFromLookback(t.Context()),
+		"should NOT force lookback when local instances are present")
+}
