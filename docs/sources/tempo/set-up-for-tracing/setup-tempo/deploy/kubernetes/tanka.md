@@ -374,10 +374,12 @@ The microservices Jsonnet library includes optional KEDA-based horizontal autosc
 
 Before you enable this option, make sure your cluster has the KEDA operator and CRDs installed.
 
-The following example enables all supported KEDA scalers and sets the required backend-worker Prometheus address:
+The following example enables all supported KEDA scalers. Set `autoscaling_prometheus_url` to the address of your Prometheus-compatible backend. If your backend is a multi-tenant system such as Grafana Mimir, also set `autoscaling_prometheus_tenant` to your tenant ID so that KEDA sends the `X-Scope-OrgID` header on every scrape request:
 
 ```jsonnet
 _config+:: {
+  autoscaling_prometheus_url: 'http://prometheus-operated.monitoring.svc.cluster.local:9090',
+  // autoscaling_prometheus_tenant: 'my-tenant',  // Required for multi-tenant backends (e.g. Grafana Mimir)
   distributor+: {
     keda: {
       enabled: true,
@@ -399,7 +401,6 @@ _config+:: {
       enabled: true,
       min_replicas: 3,
       max_replicas: 200,
-      prometheus_address: 'http://prometheus-operated.monitoring.svc.cluster.local:9090',
       threshold: 200,
     },
   },
