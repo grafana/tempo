@@ -1,3 +1,4 @@
+// Package encoding provides versioned block encoding and decoding for Tempo's storage backend.
 package encoding
 
 import (

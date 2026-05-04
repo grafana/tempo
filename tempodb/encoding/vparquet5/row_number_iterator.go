@@ -55,7 +55,7 @@ type virtualRowNumberIterator struct {
 // newVirtualRowNumberIterator creates a new virtual row number iterator. The iterator will read the row count from the
 // given column and use it to calculate virtual row numbers on the given definitionLevel. The row number column read by iter
 // is expected to have a definition level lower than definitionLevel.
-func newVirtualRowNumberIterator(iter pq.Iterator, definitionLevel int) *virtualRowNumberIterator {
+func newVirtualRowNumberIterator(iter pq.Iterator, definitionLevel int) *virtualRowNumberIterator { //nolint:unparam
 	return &virtualRowNumberIterator{
 		iter:            iter,
 		definitionLevel: definitionLevel,
