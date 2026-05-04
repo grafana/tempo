@@ -1010,21 +1010,27 @@ func (m *storeWrapper) WriteBlock(ctx context.Context, block tempodb.WriteableBl
 
 var _ ring.PartitionRingReader = (*mockPartitionRingReader)(nil)
 
+func mustPartitionRing(partitions map[int32]ring.PartitionDesc) *ring.PartitionRing {
+	ring, err := ring.NewPartitionRing(ring.PartitionRingDesc{
+		Partitions: partitions,
+	})
+	if err != nil {
+		panic(err)
+	}
+	return ring
+}
+
 func newPartitionRingReader() *mockPartitionRingReader {
 	return &mockPartitionRingReader{
-		r: ring.NewPartitionRing(ring.PartitionRingDesc{
-			Partitions: map[int32]ring.PartitionDesc{
-				0: {State: ring.PartitionActive},
-			},
+		r: mustPartitionRing(map[int32]ring.PartitionDesc{
+			0: {State: ring.PartitionActive},
 		}),
 	}
 }
 
 func newPartitionRingReaderWithPartitions(partitions map[int32]ring.PartitionDesc) *mockPartitionRingReader {
 	return &mockPartitionRingReader{
-		r: ring.NewPartitionRing(ring.PartitionRingDesc{
-			Partitions: partitions,
-		}),
+		r: mustPartitionRing(partitions),
 	}
 }
 

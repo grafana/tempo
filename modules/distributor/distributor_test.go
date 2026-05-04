@@ -1881,7 +1881,8 @@ func (m singlePartitionRingReader) PartitionRing() *ring.PartitionRing {
 			0: {Id: 0, Tokens: []uint32{0}, State: ring.PartitionActive},
 		},
 	}
-	return ring.NewPartitionRing(desc)
+	r, _ := ring.NewPartitionRing(desc)
+	return r
 }
 
 func TestCheckForRateLimits(t *testing.T) {
