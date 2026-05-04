@@ -23,7 +23,7 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/gorilla/mux v1.8.1
 	github.com/grafana/dskit v0.0.0-20251031165806-a6f15387939b
-	github.com/grafana/e2e v0.1.2-0.20260309174126-b5393d4e610f
+	github.com/grafana/e2e v0.1.2-0.20260504080022-0f57c9f0da68
 	github.com/hashicorp/go-hclog v1.6.3 // indirect
 	github.com/jedib0t/go-pretty/v6 v6.7.10
 	github.com/jsternberg/zap-logfmt v1.3.0
@@ -39,7 +39,7 @@ require (
 	github.com/prometheus/client_golang v1.23.2
 	github.com/prometheus/client_model v0.6.2
 	github.com/prometheus/common v0.67.5
-	github.com/prometheus/prometheus v0.311.2
+	github.com/prometheus/prometheus v0.311.3
 	github.com/segmentio/fasthash v1.0.3
 	github.com/sony/gobreaker v1.0.0
 	github.com/spf13/viper v1.21.0
