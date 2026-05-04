@@ -1,5 +1,6 @@
 ## main / unreleased
 
+* [ENHANCEMENT] jsonnet: add `autoscaling_prometheus_url` and `autoscaling_prometheus_tenant` top-level config fields for KEDA autoscaling. Setting `autoscaling_prometheus_tenant` sends an `X-Scope-OrgID` header on all Prometheus trigger requests, which is required when the backend is a multi-tenant system such as Grafana Mimir. [#7097](https://github.com/grafana/tempo/pull/7097) (@xaque208)
 * [FEATURE] Add span profiling support via otelpyroscope. Enable with `span_profiling: true` (or `-span-profiling` CLI flag) to attach pprof labels to OTel spans. [#7063](https://github.com/grafana/tempo/pull/7063) (@simonswine)
 * [BUGFIX] Fix tempo-vulture ignoring `-tempo-push-tls` flag in normal operating mode. [#6974](https://github.com/grafana/tempo/pull/6974) (@xaque208)
 * [CHANGE] **BREAKING CHANGE** Remove duplicate "compaction" prefix from CompactorConfig CLI flags. Affected flags: `compaction.block-retention`, `compaction.max-objects-per-block`, `compaction.max-block-bytes`, `compaction.compaction-window`. [#6909](https://github.com/grafana/tempo/pull/6909) (@electron0zero)
