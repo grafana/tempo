@@ -1,3 +1,5 @@
+version: 2
+
 archives:
   - id: default
     builds:
@@ -71,7 +73,7 @@ builds:
     env:
       - CGO_ENABLED=0
     goos:
-#      - darwin  re-enable when https://github.com/golang/go/issues/73617 is fixed
+      - darwin
       - linux
       - windows
     goarch:
@@ -96,7 +98,7 @@ builds:
       - -X main.Version={{ .Version }}
     mod_timestamp: '{{ .CommitTimestamp }}'
 changelog:
-  skip: true
+  disable: true
   sort: asc
   filters:
     exclude:
@@ -137,3 +139,21 @@ nfpms:
       postinstall: ./tools/packaging/tempo-postinstall.sh
     rpm: {}
     deb: {}
+
+brews:
+  - name: tempo-cli
+    description: "Tempo CLI for Grafana Tempo"
+    homepage: https://grafana.com/oss/tempo/
+    license: Apache-2.0
+
+    install: |
+      bin.install "tempo-cli"
+
+    test: |
+      system "#{bin}/tempo-cli", "--help"
+
+    repository:
+      owner: grafana
+      name: homebrew-grafana
+      pull_request:
+            enabled: true
