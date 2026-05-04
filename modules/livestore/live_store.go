@@ -381,7 +381,9 @@ func (s *LiveStore) shouldForceFromLookback(ctx context.Context) bool {
 	state, _, err := s.ingestPartitionLifecycler.GetPartitionState(ctx)
 	if err != nil {
 		level.Warn(s.logger).Log("msg", "failed to read partition state, defaulting to lookback replay", "err", err)
-	} else if state == ring.PartitionInactive {
+		return true
+	}
+	if state == ring.PartitionInactive {
 		level.Info(s.logger).Log("msg", "skipping lookback replay because partition is Inactive")
 		return false
 	}

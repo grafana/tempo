@@ -1328,7 +1328,7 @@ func requirePartitionOwnerEventually(t *testing.T, partitionKV kv.Client, instan
 	}, 5*time.Second, 10*time.Millisecond, msg)
 }
 
-func TestShouldForceFromLookback_NoInstancesActivePartition(t *testing.T) {
+func TestShouldForceFromLookback_NoInstancesNonInactivePartition(t *testing.T) {
 	tmpDir := t.TempDir()
 	cfg := defaultConfig(t, tmpDir)
 
