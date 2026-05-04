@@ -30,7 +30,7 @@ Refer to the [TraceQL metrics documentation](https://grafana.com/docs/tempo/<TEM
 
 ## Sampling methods
 
-There are three sampling methods available:
+There are four sampling methods available:
 
 - Dynamic sampling using `with(sample=true)`, which automatically determines the optimal sampling strategy based on query characteristics.
 - Fixed span sampling using `with(span_sample=0.xx)`, which selects the specified percentage of spans.

@@ -4,7 +4,7 @@ menuTitle: Generic forwarding
 description: Asynchronous replication of ingested traces
 weight: 400
 aliases:
-  - ../generic_forwarding/ # https://grafana.com/docs/tempo/<TEMPO_VERSION>/operations/consistent_hash_ring/
+  - ../generic_forwarding/ # https://grafana.com/docs/tempo/<TEMPO_VERSION>/operations/generic_forwarding/
 ---
 
 # Generic forwarding

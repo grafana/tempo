@@ -12,7 +12,6 @@ import (
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
 	"github.com/grafana/dskit/services"
-	jsoniter "github.com/json-iterator/go"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
@@ -174,7 +173,7 @@ func (a *UserConfigOverridesAPI) delete(ctx context.Context, userID string, vers
 }
 
 func (a *UserConfigOverridesAPI) parseLimits(body io.Reader) (*client.Limits, error) {
-	d := jsoniter.NewDecoder(body)
+	d := json.NewDecoder(body)
 
 	// error in case of unwanted fields
 	d.DisallowUnknownFields()
@@ -199,12 +198,12 @@ func (a *UserConfigOverridesAPI) assertNoConflictingRuntimeOverrides(ctx context
 
 	// convert overrides.Overrides to client.Limits through marshalling and unmarshalling it from json
 	// this is the easiest way to convert the optional fields
-	marshalledOverrides, err := jsoniter.Marshal(runtimeOverrides)
+	marshalledOverrides, err := json.Marshal(runtimeOverrides)
 	if err != nil {
 		return err
 	}
 	var runtimeLimits client.Limits
-	err = jsoniter.Unmarshal(marshalledOverrides, &runtimeLimits)
+	err = json.Unmarshal(marshalledOverrides, &runtimeLimits)
 	if err != nil {
 		return err
 	}
@@ -241,7 +240,7 @@ func logLimits(limits *client.Limits) string {
 	if limits == nil {
 		return ""
 	}
-	bytes, err := jsoniter.Marshal(limits)
+	bytes, err := json.Marshal(limits)
 	if err != nil {
 		return ""
 	}

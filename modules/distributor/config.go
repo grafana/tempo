@@ -77,7 +77,8 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 	cfg.DistributorRing.KVStore.Store = "memberlist"
 	cfg.DistributorRing.HeartbeatTimeout = 5 * time.Minute
 
-	cfg.RetryAfterOnResourceExhausted = 0
+	// enable RetryInfo hints by default with 5s RetryAfter
+	cfg.RetryAfterOnResourceExhausted = 5 * time.Second
 	cfg.OverrideRingKey = distributorRingKey
 
 	cfg.MaxAttributeBytes = 2048 // 2KB

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"slices"
 	"sort"
 	"strings"
@@ -42,6 +43,9 @@ func TestTagEndpoints(t *testing.T) {
 			{spanCount: 2, name: "baz", resourceAttr: "secondRes", resourceAttVal: "qux", SpanAttr: "secondSpan", spanAttVal: "qux"},
 			{spanCount: 2, name: "foo", resourceAttr: "twoRes", resourceAttVal: "bar", SpanAttr: "twoSpan", spanAttVal: "bar"},
 			{spanCount: 2, name: "baz", resourceAttr: "twoRes", resourceAttVal: "qux", SpanAttr: "twoSpan", spanAttVal: "qux"},
+			{spanCount: 2, name: "foo", resourceAttr: "secondRes", resourceAttVal: "qux", SpanAttr: "secondSpan", spanAttVal: "bar"},
+			{spanCount: 2, name: "boo", resourceAttr: "sameAttr", resourceAttVal: "qux", SpanAttr: "someSpan", spanAttVal: "bar"},
+			{spanCount: 2, name: "boo", resourceAttr: "someRes", resourceAttVal: "qux", SpanAttr: "sameAttr", spanAttVal: "bar"},
 		}
 
 		for _, b := range batches {
@@ -69,7 +73,7 @@ func TestTagEndpoints(t *testing.T) {
 
 		// Test V1 API endpoints (backwards compatibility)
 		t.Run("tags_v1_wal", func(t *testing.T) {
-			expectedTags := []string{"firstRes", "firstSpan", "secondRes", "secondSpan", "service.name", "twoRes", "twoSpan"}
+			expectedTags := []string{"firstRes", "firstSpan", "sameAttr", "secondRes", "secondSpan", "service.name", "someRes", "someSpan", "twoRes", "twoSpan"}
 			callSearchTagsAndAssert(t, h, expectedTags, 0, 0)
 		})
 
@@ -101,7 +105,7 @@ func TestTagEndpoints(t *testing.T) {
 
 		// Test V1 API endpoints on backend (backwards compatibility)
 		t.Run("tags_v1_backend", func(t *testing.T) {
-			expectedTags := []string{"firstRes", "firstSpan", "secondRes", "secondSpan", "service.name", "twoRes", "twoSpan"}
+			expectedTags := []string{"firstRes", "firstSpan", "sameAttr", "secondRes", "secondSpan", "service.name", "someRes", "someSpan", "twoRes", "twoSpan"}
 			callSearchTagsAndAssert(t, h, expectedTags, start.Unix(), end.Unix())
 		})
 
@@ -132,11 +136,11 @@ func buildSearchTagsV2TestCases(batches []batchTmpl) []struct {
 				Scopes: []*tempopb.SearchTagsV2Scope{
 					{
 						Name: "span",
-						Tags: []string{batches[0].SpanAttr, batches[1].SpanAttr, batches[2].SpanAttr},
+						Tags: []string{batches[0].SpanAttr, batches[6].SpanAttr, batches[1].SpanAttr, batches[5].SpanAttr, batches[2].SpanAttr},
 					},
 					{
 						Name: "resource",
-						Tags: []string{batches[0].resourceAttr, batches[1].resourceAttr, batches[2].resourceAttr, "service.name"},
+						Tags: []string{batches[0].resourceAttr, batches[5].resourceAttr, batches[1].resourceAttr, batches[6].resourceAttr, batches[2].resourceAttr, "service.name"},
 					},
 				},
 			},
@@ -150,11 +154,11 @@ func buildSearchTagsV2TestCases(batches []batchTmpl) []struct {
 				Scopes: []*tempopb.SearchTagsV2Scope{
 					{
 						Name: "span",
-						Tags: []string{batches[0].SpanAttr, batches[1].SpanAttr, batches[2].SpanAttr},
+						Tags: []string{batches[0].SpanAttr, batches[6].SpanAttr, batches[1].SpanAttr, batches[5].SpanAttr, batches[2].SpanAttr},
 					},
 					{
 						Name: "resource",
-						Tags: []string{batches[0].resourceAttr, batches[1].resourceAttr, batches[2].resourceAttr, "service.name"},
+						Tags: []string{batches[0].resourceAttr, batches[5].resourceAttr, batches[1].resourceAttr, batches[6].resourceAttr, batches[2].resourceAttr, "service.name"},
 					},
 				},
 			},
@@ -167,7 +171,7 @@ func buildSearchTagsV2TestCases(batches []batchTmpl) []struct {
 				Scopes: []*tempopb.SearchTagsV2Scope{
 					{
 						Name: "resource",
-						Tags: []string{batches[0].resourceAttr, batches[2].resourceAttr, "service.name"},
+						Tags: []string{batches[0].resourceAttr, batches[2].resourceAttr, batches[4].resourceAttr, "service.name"},
 					},
 				},
 			},
@@ -246,11 +250,11 @@ func buildSearchTagsV2TestCases(batches []batchTmpl) []struct {
 				Scopes: []*tempopb.SearchTagsV2Scope{
 					{
 						Name: "span",
-						Tags: []string{batches[0].SpanAttr, batches[1].SpanAttr, batches[2].SpanAttr},
+						Tags: []string{batches[0].SpanAttr, batches[6].SpanAttr, batches[1].SpanAttr, batches[5].SpanAttr, batches[2].SpanAttr},
 					},
 					{
 						Name: "resource",
-						Tags: []string{batches[0].resourceAttr, batches[1].resourceAttr, batches[2].resourceAttr, "service.name"},
+						Tags: []string{batches[0].resourceAttr, batches[5].resourceAttr, batches[1].resourceAttr, batches[6].resourceAttr, batches[2].resourceAttr, "service.name"},
 					},
 				},
 			},
@@ -263,11 +267,11 @@ func buildSearchTagsV2TestCases(batches []batchTmpl) []struct {
 				Scopes: []*tempopb.SearchTagsV2Scope{
 					{
 						Name: "span",
-						Tags: []string{batches[0].SpanAttr, batches[1].SpanAttr, batches[2].SpanAttr},
+						Tags: []string{batches[0].SpanAttr, batches[6].SpanAttr, batches[1].SpanAttr, batches[5].SpanAttr, batches[2].SpanAttr},
 					},
 					{
 						Name: "resource",
-						Tags: []string{batches[0].resourceAttr, batches[1].resourceAttr, batches[2].resourceAttr, "service.name"},
+						Tags: []string{batches[0].resourceAttr, batches[5].resourceAttr, batches[1].resourceAttr, batches[6].resourceAttr, batches[2].resourceAttr, "service.name"},
 					},
 				},
 			},
@@ -280,11 +284,11 @@ func buildSearchTagsV2TestCases(batches []batchTmpl) []struct {
 				Scopes: []*tempopb.SearchTagsV2Scope{
 					{
 						Name: "span",
-						Tags: []string{batches[0].SpanAttr, batches[1].SpanAttr, batches[2].SpanAttr},
+						Tags: []string{batches[0].SpanAttr, batches[6].SpanAttr, batches[1].SpanAttr, batches[5].SpanAttr, batches[2].SpanAttr},
 					},
 					{
 						Name: "resource",
-						Tags: []string{batches[0].resourceAttr, batches[1].resourceAttr, batches[2].resourceAttr, "service.name"},
+						Tags: []string{batches[0].resourceAttr, batches[5].resourceAttr, batches[1].resourceAttr, batches[6].resourceAttr, batches[2].resourceAttr, "service.name"},
 					},
 				},
 			},
@@ -297,11 +301,59 @@ func buildSearchTagsV2TestCases(batches []batchTmpl) []struct {
 				Scopes: []*tempopb.SearchTagsV2Scope{
 					{
 						Name: "span",
-						Tags: []string{batches[0].SpanAttr, batches[1].SpanAttr, batches[2].SpanAttr},
+						Tags: []string{batches[0].SpanAttr, batches[6].SpanAttr, batches[1].SpanAttr, batches[5].SpanAttr, batches[2].SpanAttr},
 					},
 					{
 						Name: "resource",
-						Tags: []string{batches[0].resourceAttr, batches[1].resourceAttr, batches[2].resourceAttr, "service.name"},
+						Tags: []string{batches[0].resourceAttr, batches[5].resourceAttr, batches[1].resourceAttr, batches[6].resourceAttr, batches[2].resourceAttr, "service.name"},
+					},
+				},
+			},
+		},
+		// OR conditions
+		{
+			name:  "OR - two resource attrs from different batches",
+			query: fmt.Sprintf(`{ resource.%s="%s" || resource.%s="%s" }`, batches[0].resourceAttr, batches[0].resourceAttVal, batches[1].resourceAttr, batches[1].resourceAttVal),
+			scope: "none",
+			expected: &tempopb.SearchTagsV2Response{
+				Scopes: []*tempopb.SearchTagsV2Scope{
+					{
+						Name: "span",
+						Tags: []string{batches[0].SpanAttr, batches[1].SpanAttr},
+					},
+					{
+						Name: "resource",
+						Tags: []string{batches[0].resourceAttr, batches[1].resourceAttr, "service.name"},
+					},
+				},
+			},
+		},
+		{
+			name:  "OR - same resource attr two values",
+			query: fmt.Sprintf(`{ resource.%s="%s" || resource.%s="%s" }`, batches[2].resourceAttr, batches[2].resourceAttVal, batches[3].resourceAttr, batches[3].resourceAttVal),
+			scope: "none",
+			expected: &tempopb.SearchTagsV2Response{
+				Scopes: []*tempopb.SearchTagsV2Scope{
+					{
+						Name: "span",
+						Tags: []string{batches[2].SpanAttr},
+					},
+					{
+						Name: "resource",
+						Tags: []string{batches[2].resourceAttr, "service.name"},
+					},
+				},
+			},
+		},
+		{
+			name:  "OR - left branch matches only",
+			query: fmt.Sprintf(`{ resource.%s="%s" || resource.nonexistent="nope" }`, batches[0].resourceAttr, batches[0].resourceAttVal),
+			scope: "resource",
+			expected: &tempopb.SearchTagsV2Response{
+				Scopes: []*tempopb.SearchTagsV2Scope{
+					{
+						Name: "resource",
+						Tags: []string{batches[0].resourceAttr, "service.name"},
 					},
 				},
 			},
@@ -414,7 +466,7 @@ func buildSearchTagValuesV2TestCases(batches []batchTmpl) []struct {
 			query:   `{ resource.service.name="my-service"}`,
 			tagName: "name",
 			expected: &tempopb.SearchTagValuesV2Response{
-				TagValues: []*tempopb.TagValue{{Type: "string", Value: batches[3].name}, {Type: "string", Value: batches[2].name}},
+				TagValues: []*tempopb.TagValue{{Type: "string", Value: batches[3].name}, {Type: "string", Value: batches[5].name}, {Type: "string", Value: batches[2].name}},
 			},
 		},
 		{
@@ -431,6 +483,45 @@ func buildSearchTagValuesV2TestCases(batches []batchTmpl) []struct {
 			tagName: "span.twoSpan",
 			expected: &tempopb.SearchTagValuesV2Response{
 				TagValues: []*tempopb.TagValue{{Type: "string", Value: batches[2].spanAttVal}, {Type: "string", Value: batches[3].spanAttVal}},
+			},
+		},
+		// OR conditions
+		{
+			name:    "OR - both branches match different values",
+			query:   fmt.Sprintf(`{ resource.%s="%s" || resource.%s="%s" }`, batches[2].resourceAttr, batches[2].resourceAttVal, batches[3].resourceAttr, batches[3].resourceAttVal),
+			tagName: "span.twoSpan",
+			expected: &tempopb.SearchTagValuesV2Response{
+				TagValues: []*tempopb.TagValue{{Type: "string", Value: batches[2].spanAttVal}, {Type: "string", Value: batches[3].spanAttVal}},
+			},
+		},
+		{
+			name:    "OR - only left branch matches",
+			query:   fmt.Sprintf(`{ resource.%s="%s" || resource.nonexistent="nope" }`, batches[2].resourceAttr, batches[2].resourceAttVal),
+			tagName: "span.twoSpan",
+			expected: &tempopb.SearchTagValuesV2Response{
+				TagValues: []*tempopb.TagValue{{Type: "string", Value: batches[2].spanAttVal}},
+			},
+		},
+		{
+			name:     "OR - neither branch matches",
+			query:    fmt.Sprintf(`{ resource.%s="nope" || resource.%s="nope" }`, batches[2].resourceAttr, batches[3].resourceAttr),
+			tagName:  "span.twoSpan",
+			expected: &tempopb.SearchTagValuesV2Response{},
+		},
+		{
+			name:    "OR - different attributes each matching a different batch",
+			query:   fmt.Sprintf(`{ span:name="%s" || resource.%s="%s" }`, batches[1].name, batches[4].resourceAttr, batches[4].resourceAttVal),
+			tagName: "span.secondSpan",
+			expected: &tempopb.SearchTagValuesV2Response{
+				TagValues: []*tempopb.TagValue{{Type: "string", Value: batches[4].spanAttVal}, {Type: "string", Value: batches[1].spanAttVal}},
+			},
+		},
+		{
+			name:    "OR - unscoped tag with query having different attributes each matching a different batch",
+			query:   fmt.Sprintf(`{ span.%s="%s" || resource.%s="%s" }`, batches[5].SpanAttr, batches[5].spanAttVal, batches[6].resourceAttr, batches[6].resourceAttVal),
+			tagName: ".sameAttr",
+			expected: &tempopb.SearchTagValuesV2Response{
+				TagValues: []*tempopb.TagValue{{Type: "string", Value: batches[6].spanAttVal}, {Type: "string", Value: batches[5].resourceAttVal}},
 			},
 		},
 	}
@@ -543,6 +634,71 @@ func TestSearchTagValuesV2_badRequest(t *testing.T) {
 		require.True(t, ok)
 		require.Equal(t, codes.InvalidArgument, st.Code())
 		require.Contains(t, st.Message(), "please provide a valid tagName: failed to parse identifier app.user.id: parse error at line 1, col 2: unknown identifier: app")
+	})
+}
+
+const configMaxConditionGroups = "./config-max-condition-groups.yaml"
+
+// TestSearchTags_maxConditionGroupsExceeded verifies that both the HTTP and gRPC tag search
+// endpoints return a 400 / InvalidArgument error when a query expands into more OR condition
+// groups than the configured limit.
+func TestSearchTags_maxConditionGroupsExceeded(t *testing.T) {
+	// Set max_condition_groups_per_tag_query to 1 so any OR query with two branches exceeds it.
+	util.RunIntegrationTests(t, util.TestHarnessConfig{
+		ConfigOverlay: configMaxConditionGroups,
+	}, func(h *util.TempoHarness) {
+		// A query with two OR branches produces 2 condition groups, exceeding the limit of 1.
+		overLimitQuery := `{ resource.service.name="foo" || resource.service.name="bar" }`
+
+		// --- SearchTagsV2 HTTP ---
+		req, err := http.NewRequest(http.MethodGet,
+			fmt.Sprintf("%s/api/v2/search/tags?q=%s", h.BaseURL(), url.QueryEscape(overLimitQuery)), nil)
+		require.NoError(t, err)
+
+		res, err := http.DefaultClient.Do(req)
+		require.NoError(t, err)
+		defer res.Body.Close()
+		require.Equal(t, http.StatusBadRequest, res.StatusCode)
+
+		// --- SearchTagsV2 gRPC ---
+		grpcClient, ctx, err := h.APIClientGRPC("")
+		require.NoError(t, err)
+
+		tagsStream, err := grpcClient.SearchTagsV2(ctx, &tempopb.SearchTagsRequest{
+			Query: overLimitQuery,
+		})
+		require.NoError(t, err)
+
+		_, err = tagsStream.Recv()
+		require.Error(t, err)
+
+		st, ok := status.FromError(err)
+		require.True(t, ok)
+		require.Equal(t, codes.InvalidArgument, st.Code())
+
+		// --- SearchTagValuesV2 HTTP ---
+		req, err = http.NewRequest(http.MethodGet,
+			fmt.Sprintf("%s/api/v2/search/tag/resource.service.name/values?q=%s", h.BaseURL(), url.QueryEscape(overLimitQuery)), nil)
+		require.NoError(t, err)
+
+		res, err = http.DefaultClient.Do(req)
+		require.NoError(t, err)
+		defer res.Body.Close()
+		require.Equal(t, http.StatusBadRequest, res.StatusCode)
+
+		// --- SearchTagValuesV2 gRPC ---
+		valuesStream, err := grpcClient.SearchTagValuesV2(ctx, &tempopb.SearchTagValuesRequest{
+			TagName: "resource.service.name",
+			Query:   overLimitQuery,
+		})
+		require.NoError(t, err)
+
+		_, err = valuesStream.Recv()
+		require.Error(t, err)
+
+		st, ok = status.FromError(err)
+		require.True(t, ok)
+		require.Equal(t, codes.InvalidArgument, st.Code())
 	})
 }
 

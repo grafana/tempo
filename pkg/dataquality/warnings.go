@@ -1,6 +1,8 @@
 package dataquality
 
 import (
+	"time"
+
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 )
@@ -39,15 +41,21 @@ func WarnRootlessTrace(tenant string, phase string) {
 }
 
 var MetricSpanInFuture = promauto.NewHistogramVec(prometheus.HistogramOpts{
-	Namespace: "tempo",
-	Name:      "spans_distance_in_future_seconds",
-	Help:      "The number of seconds in the future of the span end time in relation to the ingestion time.",
-	Buckets:   []float64{300, 1800, 3600}, // 5m, 30m, 1h
+	Namespace:                       "tempo",
+	Name:                            "spans_distance_in_future_seconds",
+	Help:                            "The number of seconds in the future of the span end time in relation to the ingestion time.",
+	Buckets:                         []float64{300, 1800, 3600}, // 5m, 30m, 1h
+	NativeHistogramBucketFactor:     1.1,
+	NativeHistogramMaxBucketNumber:  100,
+	NativeHistogramMinResetDuration: 1 * time.Hour,
 }, []string{"tenant"})
 
 var MetricSpanInPast = promauto.NewHistogramVec(prometheus.HistogramOpts{
-	Namespace: "tempo",
-	Name:      "spans_distance_in_past_seconds",
-	Help:      "The number of seconds in the past of the span end time in relation to the ingestion time.",
-	Buckets:   []float64{300, 1800, 3600}, // 5m, 30m, 1h
+	Namespace:                       "tempo",
+	Name:                            "spans_distance_in_past_seconds",
+	Help:                            "The number of seconds in the past of the span end time in relation to the ingestion time.",
+	Buckets:                         []float64{300, 1800, 3600}, // 5m, 30m, 1h
+	NativeHistogramBucketFactor:     1.1,
+	NativeHistogramMaxBucketNumber:  100,
+	NativeHistogramMinResetDuration: 1 * time.Hour,
 }, []string{"tenant"})

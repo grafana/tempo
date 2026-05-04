@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 120" font-family="Inter, -apple-system, sans-serif" font-size="14">
+  <defs>
+    <marker id="arrow-write" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#555" />
+    </marker>
+  </defs>
+
+  <!-- Step 1: Application -->
+  <rect x="10" y="35" width="120" height="50" rx="6" fill="#f0f0f0" stroke="#ccc" stroke-width="1.5"/>
+  <text x="70" y="65" text-anchor="middle" fill="#333">Application</text>
+
+  <!-- Arrow 1 -->
+  <line x1="130" y1="60" x2="168" y2="60" stroke="#555" stroke-width="1.5" marker-end="url(#arrow-write)"/>
+  <text x="149" y="50" text-anchor="middle" fill="#888" font-size="11">1</text>
+
+  <!-- Step 1: Distributor -->
+  <rect x="170" y="35" width="120" height="50" rx="6" fill="#e8f4fd" stroke="#4a9bd9" stroke-width="1.5"/>
+  <text x="230" y="65" text-anchor="middle" fill="#2b6cb0">Distributor</text>
+
+  <!-- Arrow 2 -->
+  <line x1="290" y1="60" x2="328" y2="60" stroke="#555" stroke-width="1.5" marker-end="url(#arrow-write)"/>
+  <text x="309" y="50" text-anchor="middle" fill="#888" font-size="11">2</text>
+
+  <!-- Step 2: Kafka -->
+  <rect x="330" y="35" width="120" height="50" rx="6" fill="#fef3e2" stroke="#d69e2e" stroke-width="1.5"/>
+  <text x="390" y="65" text-anchor="middle" fill="#975a16">Kafka</text>
+
+  <!-- Arrow 3 -->
+  <line x1="450" y1="60" x2="488" y2="60" stroke="#555" stroke-width="1.5" marker-end="url(#arrow-write)"/>
+  <text x="469" y="50" text-anchor="middle" fill="#888" font-size="11">3</text>
+
+  <!-- Step 3: Block-builder -->
+  <rect x="490" y="35" width="130" height="50" rx="6" fill="#e8f4fd" stroke="#4a9bd9" stroke-width="1.5"/>
+  <text x="555" y="65" text-anchor="middle" fill="#2b6cb0">Block-builder</text>
+
+  <!-- Arrow 4 -->
+  <line x1="620" y1="60" x2="658" y2="60" stroke="#555" stroke-width="1.5" marker-end="url(#arrow-write)"/>
+
+  <!-- Object storage -->
+  <rect x="660" y="35" width="130" height="50" rx="6" fill="#f0fff4" stroke="#48bb78" stroke-width="1.5"/>
+  <text x="725" y="65" text-anchor="middle" fill="#276749">Object storage</text>
+</svg>

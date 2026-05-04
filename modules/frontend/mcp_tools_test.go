@@ -423,7 +423,7 @@ func TestHandleGetAttributeValues(t *testing.T) {
 				"filter-query": "{ foo bar baz }",
 			}),
 			expected: expectedResult{
-				err: "filter-query invalid. It can only have one spanset and only &&'ed conditions like { <cond> && <cond> && ... }",
+				err: "filter-query invalid. It must have a single spanset filter with &&/|| conditions like { <cond> && <cond> } or { <cond> || <cond> }",
 			},
 		},
 	}

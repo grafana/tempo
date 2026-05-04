@@ -170,7 +170,7 @@ func TestTraceToParquet(t *testing.T) {
 								{Key: "dedicated.span.2", Value: &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "dedicated-span-attr-value-2"}}},
 								{Key: "dedicated.span.3", Value: &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "dedicated-span-attr-value-3"}}},
 								{Key: "dedicated.span.4", Value: &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "dedicated-span-attr-value-4"}}},
-								{Key: "dedicated.span.5", Value: &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "dedicated-span-attr-value-5"}}},
+								{Key: "dedicated.span.5", Value: &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: test.DedicatedBlobTestString()}}},
 							},
 						}},
 					}},
@@ -215,13 +215,13 @@ func TestTraceToParquet(t *testing.T) {
 							HttpStatusCode: intPtr(201),
 							Attrs: []Attribute{
 								{Key: "span.attr", Value: strPtr("aaa")},
+								{Key: "dedicated.span.5", Value: strPtr(test.DedicatedBlobTestString())},
 							},
 							DedicatedAttributes: DedicatedAttributes{
 								String01: strPtr("dedicated-span-attr-value-1"),
 								String02: strPtr("dedicated-span-attr-value-2"),
 								String03: strPtr("dedicated-span-attr-value-3"),
 								String04: strPtr("dedicated-span-attr-value-4"),
-								String05: strPtr("dedicated-span-attr-value-5"),
 							},
 						}},
 					}},
@@ -495,6 +495,12 @@ func TestExtendReuseSlice(t *testing.T) {
 			sz:       5,
 			in:       []int{1, 2, 3},
 			expected: []int{1, 2, 3, 0, 0},
+		},
+		{
+			// len < cap < sz: slice was shrunk then grown past cap
+			sz:       6,
+			in:       append(make([]int, 0, 4), 1, 2),
+			expected: []int{1, 2, 0, 0, 0, 0},
 		},
 	}
 

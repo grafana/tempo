@@ -1,80 +1,55 @@
 ---
-title: Monolithic and microservices modes
-description: Learn about the different deployment modes for Tempo
+title: Deployment modes
+description: Choose between monolithic and microservices deployment modes for Tempo.
 menuTitle: Deployment modes
 weight: 200
 ---
 
-# Monolithic and microservices modes
+# Deployment modes
 
-Tempo can be deployed in _monolithic_ or _microservices_ modes.
-
-_Monolithic mode_ was previously called _single binary mode_.
-
-{{< admonition type="note" >}}
-Tempo v3.0 requires a Kafka-compatible system for both monolithic and microservices modes. The previous _scalable monolithic mode_ (also known as _scalable single binary mode_ or SSB) has been removed in v3.0.
-{{< /admonition >}}
-
-The deployment mode is determined by the runtime configuration `target`, or
-by using the `-target` flag on the command line. The default target is `all`,
-which is the monolithic deployment mode.
-
-```bash
-tempo -target=all
-```
-
-Refer to the [Command line flags](../../command-line-flags/) documentation for more information on the `-target` flag.
+Tempo supports two deployment modes: monolithic and microservices. All components are compiled into a single binary, and the `-target` flag determines which mode runs.
 
 ## Monolithic mode
 
-Monolithic mode uses a single Tempo binary that runs all of the separate components within a single process.
-This means that a single instance handles the distributor, block-builder, live-store, querier, query-frontend, backend-scheduler, and backend-worker roles.
-The instance writes to and reads from a Kafka-compatible system for trace ingestion and retrieval.
+In monolithic mode, the required components run in a single process using `-target=all`, which is the default. No Kafka is required. The distributor pushes trace data in-process directly to the live-store and metrics-generator, and traces are flushed to the configured storage backend. Object storage is recommended for production deployments.
 
-Monolithic mode handles modest volumes of trace data without issues given a modest amount of resource.
+Use monolithic mode when:
 
-However, when increased, sustained trace volume is sent to it, the monolithic deployment can incur problems in terms of resource usage, as more data is required to be indexed, stored and compacted.
-This can lead in best cases to a 'running hot' and laggy experience and in worst cases cause OOM (Out Of Memory) and stalling issues, leading to crashing and restarting.
-In this case, a single process deployment would lead to missed trace data.
+- You are getting started with Tempo or evaluating it
+- You need a development or testing environment
+- Your trace volume is under 25-35 MB/s or 55k-80k spans/s
+- Operational simplicity matters more than independent scaling
 
-To enable this mode, `-target=all` is used, which is the default.
-
-Refer to [Architecture](/docs/tempo/<TEMPO_VERSION>/introduction/architecture/) for descriptions of the components.
-
-![Monolithic mode architecture](/media/docs/tempo/architecture/tempo-TempoSingleBinary-arch.png)
-
-### Example
-
-Find docker-compose deployment examples in the tempo repository: [https://github.com/grafana/tempo/tree/main/example/docker-compose](https://github.com/grafana/tempo/tree/main/example/docker-compose/)
-
-To see an annotated example configuration for Tempo, the [Introduction To MLTP](https://github.com/grafana/intro-to-mltp) example repository contains a [configuration](https://github.com/grafana/intro-to-mltp/blob/main/tempo/tempo.yaml) for a monolithic instance.
+Monolithic mode has some trade-offs to be aware of.
+All components share the same resource pool, so a spike in query load can affect write throughput and vice versa.
+There is no independent scaling: you can scale vertically or run multiple identical instances, but you cannot scale individual components separately.
+At higher volumes, memory pressure from collocated components can cause issues.
 
 ## Microservices mode
 
-Microservices mode is a configuration that allows for a fully horizontally scaled deployment that allows individual components of Tempo to be given a set number of replicas.
+In microservices mode, each component runs as a separate process with its own `-target` flag. For example, `-target=distributor` or `-target=querier`. This mode requires a Kafka-compatible system, such as Apache Kafka, Redpanda, or WarpStream, as the durable queue between the distributor and downstream consumers.
 
-In microservices mode, components are deployed in distinct processes.
-Scaling is per component, which allows for greater flexibility in scaling and more
-granular failure domains. This is the preferred method for a production
-deployment, but it's also the most complex.
+Use microservices mode when:
 
-Each instance of a component is a single process, therefore dedicating themselves to part of the Tempo infrastructure (as opposed to the Monolithic mode where each process runs several different Tempo components).
+- You are running a production deployment
+- You have high trace volumes that require independent scaling
+- You need high availability and isolated failure domains
+- You want to scale write throughput, query performance, and recent-data capacity independently
 
-This allows for:
+Microservices mode provides independent scaling for each component and isolated failure domains. A querier crash doesn't affect ingestion, and a block-builder restart doesn't affect query availability. Live-stores can be deployed across availability zones for high availability.
 
-- A more resilient deployment with high availability. Components can be run over multiple nodes, such as in a Kubernetes cluster, ensuring that catastrophic failure of one node does not have a failure impact for the system as a whole. Durability is provided by Kafka, which serves as the write-ahead log. Live-stores can be deployed across multiple availability zones for query availability.
-- Horizontal scaling up and down of clusters. For example, an organization may see upticks in traffic in certain periods (say, Black Friday), and need to scale up the amount of trace data being ingested for a week. Microservices mode allows them to temporarily scale up the number of block-builders, live-stores, queriers, etc. that they may need with no adverse impact on the overall system.
-- However, microservices mode has an increased TCO and maintenance cost compared to monolithic mode. While it is more flexible and scalable, it requires more attention to run proficiently. Microservices mode is the default deployment for Tempo and Grafana Enterprise Traces via the tempo-distributed Helm Chart.
+## Choosing a mode
 
-The configuration associated with each component's deployment specifies a
-`target`. For example, to deploy a `querier`, the configuration would contain
-`target: querier`. A command-line deployment may specify the `-target=querier`
-flag.
+| Consideration | Monolithic | Microservices |
+|---|---|---|
+| Kafka required | No | Yes |
+| Scaling | Single process; scale vertically or run multiple identical instances | Each component scales independently |
+| Failure isolation | All components share resources | Isolated failure domains per component |
+| Operational complexity | Low | Higher, with more processes to manage |
+| Best for | Getting started, development, up to 25-35 MB/s | Production, high volume, high availability |
 
-Each of the components referenced in [Architecture](/docs/tempo/<TEMPO_VERSION>/introduction/architecture/) must be deployed for a working Tempo instance.
+## Next steps
 
-![Microservices mode architecture](/media/docs/tempo/architecture/tempo-TempoMicroservices-arch.png)
-
-### Example
-
-Find a docker-compose deployment example at [https://github.com/grafana/tempo/tree/main/example/docker-compose/distributed](https://github.com/grafana/tempo/tree/main/example/docker-compose/distributed).
+- For detailed architecture, component descriptions, scaling guidelines, and migration guidance, refer to the [Deployment modes reference](/docs/tempo/<TEMPO_VERSION>/reference-tempo-architecture/deployment-modes/).
+- To size your cluster, refer to [Size the cluster](/docs/tempo/<TEMPO_VERSION>/set-up-for-tracing/setup-tempo/plan/size/).
+- To deploy Tempo, refer to [Deploy your Tempo instance](/docs/tempo/<TEMPO_VERSION>/set-up-for-tracing/setup-tempo/deploy/).

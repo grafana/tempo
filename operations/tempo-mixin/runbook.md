@@ -274,6 +274,48 @@ This alert fires when a Kafka partition in a consumer group is lagging behind th
 - Metric/query: `increase(kube_pod_container_status_restarts_total{container=~"metrics-generator|block-builder|live-store"}[10m])`
 - Log query: `{container=~"metrics-generator|block-builder|live-store"}`
 
+## TempoLiveStoreSingleMemberLagHigh
+
+This alert fires when a single owner of a live-store partition has been lagging for an extended period. At this threshold, normal replay-on-startup cannot explain the lag — a single member is genuinely stuck. Other zones can still serve reads for the partition, so this is an operational concern rather than an immediate read outage.
+
+See [TempoPartitionLag](#TempoPartitionLag) for general Kafka lag troubleshooting.
+
+### How to investigate
+
+1. Identify which pod owns the lagging partition and whether it has recently restarted.
+
+2. **If the pod recently restarted**, it may be replaying. If the node is over-scheduled with many live-store pods, replay can be abnormally slow due to resource contention. As each pod finishes replaying it frees resources for the remaining ones — this is partially self-healing. To speed recovery, delete a few pods so they reschedule onto less-loaded nodes.
+
+3. **If the pod has not restarted recently**, it is genuinely stuck. Check for Kafka issues specific to one broker or partition (e.g. a single-partition leader re-election).
+
+### How to fix
+
+- **Over-scheduled node:** wait for self-healing, or delete a few lagging pods to spread them across less-loaded nodes.
+- **Stuck pod:** restart it.
+- **Kafka partition issue:** check the partition ring for skew and consider rebalancing.
+
+## TempoLiveStoreAllMembersLagging
+
+This alert fires when **all** owners of a live-store partition are lagging simultaneously. Unlike [TempoLiveStoreSingleMemberLagHigh](#TempoLiveStoreSingleMemberLagHigh) — where other zones can still serve reads — this means no zone can serve the affected partition. **This is a partial read outage.**
+
+A genuine issue looks like one or more specific partitions showing constant, sustained lag while others recover. Transient spikes across all partitions during a rollout are normal and should clear; a single partition staying flat is the signal that something is wrong.
+
+See [TempoPartitionLag](#TempoPartitionLag) for general Kafka lag troubleshooting.
+
+### How to investigate
+
+1. Check whether all live-store pods restarted around the same time (coordinated rollout, node failure, or zone-wide issue).
+
+2. If pods restarted together, check whether any nodes are over-scheduled — if multiple pods land on the same node, simultaneous replay can exhaust node resources and cause all of them to lag together. This is partially self-healing as pods finish replaying and free resources.
+
+3. Check for Kafka broker issues — a partition leader election or broker restart can cause all consumers in a group to lag briefly before recovering.
+
+### How to fix
+
+- **Coordinated restart / node over-scheduling:** wait for self-healing, or delete a few pods to spread them across less-loaded nodes.
+- **Kafka root cause:** investigate broker health and partition leadership.
+- **Persistent stall:** restart affected pods and monitor lag recovery.
+
 ## TempoBlockBuildersPartitionsMismatch
 
 This alert fires when more than one active or inactive partition has been unowned by a block-builder for more than 10 minutes.

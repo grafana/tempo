@@ -56,6 +56,12 @@ func (p {{ $structName }}) KeepColumnChunk(c *ColumnChunkHelper) bool {
 	ci, err := c.ColumnIndex()
 	if err == nil && ci != nil {
 		for i := 0; i < ci.NumPages(); i++ {
+			if ci.NullPage(i) {
+				// This page only contains nulls so the min/max metadata is not
+				// recorded and this page does not contain any values.
+				continue
+			}
+
 			{{ if $minInRange }}min := ci.MinValue(i).{{ $pred.ParquetFunc }}{{end}}
 			{{ if $maxInRange }}max := ci.MaxValue(i).{{ $pred.ParquetFunc }}{{end}}
 
@@ -85,6 +91,9 @@ func (p {{ $structName }}) KeepPage(page pq.Page) bool {
 }
 
 func (p {{ $structName }}) KeepValue(v pq.Value) bool {
+	if v.IsNull() {
+		return false
+	}
 	vv := v.{{ $pred.ParquetFunc }}
 	return {{ .CompareCond }}
 }
@@ -148,6 +157,9 @@ func (p {{ $structName }}) KeepPage(page pq.Page) bool {
 }
 
 func (p {{ $structName }}) KeepValue(v pq.Value) bool {
+	if v.IsNull() {
+		return false
+	}
 	vv := v.{{ $pred.ParquetFunc }}
 	for _, x := range p.values {
 		if vv == x {
@@ -184,6 +196,9 @@ func (p {{ $structName }}) KeepPage(page pq.Page) bool {
 }
 
 func (p {{ $structName }}) KeepValue(v pq.Value) bool {
+	if v.IsNull() {
+		return false
+	}
 	vv := v.{{ $pred.ParquetFunc }}
 	for _, x := range p.values {
 		if vv == x {
@@ -315,25 +330,27 @@ func (p {{ $structName }}) KeepValue(v pq.Value) bool {
 			ParquetFunc:    "ByteArray()",
 			FormatModifier: "%s",
 			Ops: []op{
+				// For all string operations, an empty min/max value means it is not recorded in the column index.
+				// Therefore when an empty min/max is encountered, then the range condition is true (i.e. consider the column/chunk/page as matching and inspect further).
 				{
 					Op:          "Greater",
 					CompareCond: "bytes.Compare(vv, p.value) > 0",
-					RangeCond:   "bytes.Compare(max, p.value) > 0",
+					RangeCond:   "len(max) == 0 || bytes.Compare(max, p.value) > 0",
 				},
 				{
 					Op:          "GreaterEqual",
 					CompareCond: "bytes.Compare(vv, p.value) >= 0",
-					RangeCond:   "bytes.Compare(max, p.value) >= 0",
+					RangeCond:   "len(max) == 0 || bytes.Compare(max, p.value) >= 0",
 				},
 				{
 					Op:          "Less",
 					CompareCond: "bytes.Compare(vv, p.value) < 0",
-					RangeCond:   "bytes.Compare(min, p.value) < 0",
+					RangeCond:   "len(min) == 0 || bytes.Compare(min, p.value) < 0",
 				},
 				{
 					Op:          "LessEqual",
 					CompareCond: "bytes.Compare(vv, p.value) <= 0",
-					RangeCond:   "bytes.Compare(min, p.value) <= 0",
+					RangeCond:   "len(min) == 0 || bytes.Compare(min, p.value) <= 0",
 				},
 			},
 		},
@@ -343,15 +360,17 @@ func (p {{ $structName }}) KeepValue(v pq.Value) bool {
 			ParquetFunc:    "ByteArray()",
 			FormatModifier: "%s",
 			Ops: []op{
+				// For all string operations, an empty min/max value means it is not recorded in the column index.
+				// Therefore when an empty min/max is encountered, then the range condition is true (i.e. consider the column/chunk/page as matching and inspect further).
 				{
 					Op:          "Equal",
 					CompareCond: `bytes.Equal(vv, p.value)`,
-					RangeCond:   "bytes.Compare(p.value, min) >= 0 && bytes.Compare(p.value, max) <= 0",
+					RangeCond:   "(len(min) == 0 && len(max) == 0) || (bytes.Compare(p.value, min) >= 0 && bytes.Compare(p.value, max) <= 0)",
 				},
 				{
 					Op:          "NotEqual",
 					CompareCond: `!bytes.Equal(vv, p.value)`,
-					RangeCond:   "!bytes.Equal(min, p.value) || !bytes.Equal(p.value, max)",
+					RangeCond:   "(len(min) == 0 && len(max) == 0) || (!bytes.Equal(min, p.value) || !bytes.Equal(p.value, max))",
 				},
 			},
 		},

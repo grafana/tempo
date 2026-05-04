@@ -21,7 +21,7 @@ The Helm chart configures Grafana Alloy to collect metrics and logs.
 
 ## Steps
 
-This procudure uses the [Grafana Kubernetes Helm chart](https://github.com/grafana/k8s-monitoring-helm) and the `values.yml` file sets parameters in the Helm chart.
+This procedure uses the [Grafana Kubernetes Helm chart](https://github.com/grafana/k8s-monitoring-helm) and a `values.yml` file to configure the chart.
 
 1. Add the Grafana Community Helm Chart repository, or update, if already added. 
 
@@ -144,11 +144,11 @@ The mixins are generated in the `operations/tempo-mixin-compiled` directory.
 
 ### Import the dashboards to Grafana
 
-The `dashboards` directory includes the six monitoring dashboards that can be installed into your Grafana instance.
+The `dashboards` directory includes the eight monitoring dashboards that can be installed into your Grafana instance.
 Refer to [Import a dashboard ](https://grafana.com/docs/grafana/latest/dashboards/build-dashboards/import-dashboards/)in the Grafana documentation.
 
 {{< admonition type="tip" >}}
-Install all six dashboards.
+Install all eight dashboards.
 You can only import one dashboard at a time.
 Create a new folder in the Dashboards area, for example “Tempo Monitoring”, as an easy location to save the imported dashboards.
 {{< /admonition >}}
@@ -193,9 +193,9 @@ For Mimir, you can use [mimirtool](https://grafana.com/docs/mimir/latest/manage/
 Using a default installation of Mimir used as the metrics store for the Alloy configuration, you might run the following:
 
 ```bash
-mimirtool rules load operations/tempo-mixin-compiles/rules.yml --address=https://mimir-cluster.distributor.mimir.svc.cluster.local:9001
+mimirtool rules load operations/tempo-mixin-compiled/rules.yaml --address=https://mimir-cluster.distributor.mimir.svc.cluster.local:9001
 
-mimirtool alertmanager load operations/tempo-mixin-compiles/alerts.yml --address=https://mimir-cluster.distributor.mimir.svc.cluster.local:9001
+mimirtool alertmanager load operations/tempo-mixin-compiled/alerts.yaml --address=https://mimir-cluster.distributor.mimir.svc.cluster.local:9001
 ```
 
 For Grafana Cloud, you need to add the username and API key as well.

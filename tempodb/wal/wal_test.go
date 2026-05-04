@@ -178,7 +178,7 @@ func testIterator(t *testing.T, e encoding.VersionedEncoding) {
 	runWALTest(t, e.Version(), func(ids [][]byte, objs []*tempopb.Trace, block common.WALBlock) {
 		ctx := context.Background()
 
-		iterator, err := block.Iterator()
+		iterator, err := block.Iterator(ctx)
 		require.NoError(t, err)
 		defer iterator.Close()
 

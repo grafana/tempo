@@ -82,6 +82,7 @@ Arguments:
 Options:
 
 - `--org-id <value>` Organization ID (for use in multi-tenant setup).
+- `--header <key=value>` Extra HTTP header to send with the request. Can be specified multiple times.
 - `--v1` use v1 API (use /api/traces endpoint to fetch traces, default: /api/v2/traces).
 
 Example:
@@ -89,6 +90,14 @@ Example:
 ```bash
 tempo-cli query api trace-id http://tempo:3200 f1cfe82a8eef933b
 ```
+
+Example with a custom authentication header:
+
+```bash
+tempo-cli query api trace-id http://tempo:3200 f1cfe82a8eef933b --header "X-TOKEN=<API_TOKEN>"
+```
+
+Replace _`<API_TOKEN>`_ with your authentication token.
 
 ### Search
 
@@ -108,6 +117,7 @@ Arguments:
 Options:
 
 - `--org-id <value>` Organization ID (for use in multi-tenant setup).
+- `--header <key=value>` Extra header to send with the request (as gRPC metadata when using `--use-grpc`). Can be specified multiple times.
 - `--use-grpc` Use GRPC streaming
 - `--spss <value>` Number of spans to return for each spanset
 - `--limit <value>` Number of results to return
@@ -136,6 +146,12 @@ Example using GRPC streaming with organization ID:
 tempo-cli query api search --use-grpc --org-id my-org localhost:3200 '{span.http.status_code >= 400}' now-1h now
 ```
 
+Example with a custom authentication header over GRPC:
+
+```bash
+tempo-cli query api search --use-grpc --header "X-TOKEN=<API_TOKEN>" localhost:9095 '{status = error}' now-1h now
+```
+
 ### Search tags
 
 Call the Tempo API and search attribute names.
@@ -153,6 +169,7 @@ Arguments:
 Options:
 
 - `--org-id <value>` Organization ID (for use in multi-tenant setup).
+- `--header <key=value>` Extra header to send with the request (as gRPC metadata when using `--use-grpc`). Can be specified multiple times.
 - `--use-grpc` Use GRPC streaming
 - `--path-prefix <value>` String to prefix search paths with
 - `--secure` Use HTTPS or gRPC with TLS
@@ -197,6 +214,7 @@ Arguments:
 Options:
 
 - `--org-id <value>` Organization ID (for use in multi-tenant setup).
+- `--header <key=value>` Extra header to send with the request (as gRPC metadata when using `--use-grpc`). Can be specified multiple times.
 - `--query <value>` TraceQL query to filter attribute results by.
 - `--use-grpc` Use GRPC streaming
 - `--path-prefix <value>` String to prefix search paths with
@@ -236,6 +254,7 @@ Arguments:
 Options:
 
 - `--org-id <value>` Organization ID (for use in multi-tenant setup).
+- `--header <key=value>` Extra header to send with the request (as gRPC metadata when using `--use-grpc`). Can be specified multiple times.
 - `--use-grpc` Use GRPC streaming
 - `--instant` Perform an instant query instead of a range query.
 - `--path-prefix <value>` String to prefix search paths with
@@ -500,6 +519,10 @@ of dedicated columns.
 
 ### Convert vParquet3 to vParquet4
 
+{{< admonition type="warning" >}}
+`vParquet3` is deprecated. Convert any remaining vParquet3 blocks to vParquet4 or later before upgrading to Tempo 3.0.
+{{< /admonition >}}
+
 ```bash
 tempo-cli parquet convert-3to4 <in file> [<out path>] [<list of dedicated columns>]
 ```
@@ -622,6 +645,52 @@ tempo-cli migrate overrides-per-tenant overrides.yaml -d migrated-overrides.yaml
 - Fields set to Go zero values (`false`, `0`, `""`) may be silently dropped due to `omitempty` tags. Compare against your original config to ensure nothing is lost.
 - Secret values (for example, `remote_write_headers`) are masked as `<secret>` in the output. You must manually restore the original values.
 - Some struct fields without `omitempty` may appear with zero values (for example, `exclude: null`) that were not in your original config.
+{{< /admonition >}}
+
+## Migrate config command
+
+Migrate a Tempo 2.x configuration file to a valid 3.0 configuration. The command removes obsolete configuration sections (such as `ingester`, `ingester_client`, and `compactor`), adds Kafka ingest configuration for microservices mode, disables compaction in overrides for parallel operation during migration, and strips the removed `local-blocks` metrics-generator processor.
+
+The tool works at the YAML map level rather than rewriting the file from fully decoded Tempo structs, so environment variable references like `${VAR}` are preserved. 
+Top-level sections that are not recognized by the Tempo 3.0 configuration are dropped from the output. 
+Unknown nested keys normally cause validation to fail, but validation is best-effort when the configuration contains `${VAR}` placeholders where non-string types are expected, which may let unknown nested keys through.
+
+```bash
+tempo-cli migrate config [options] <config-file>
+```
+
+Arguments:
+
+- `config-file` Path to the 2.x Tempo configuration file.
+
+Options:
+
+- `--kafka-address <address>` Kafka broker address. Required when running in microservices mode.
+- `--kafka-topic <topic>` Kafka topic name. Defaults to `tempo`.
+- `--mode <monolithic|microservices>` Override automatic deployment mode detection. By default, the mode is detected from the `target` field (`all` or absent means monolithic, any other value means microservices).
+
+The migrated configuration is printed to `stdout`. Warnings are printed to `stderr`.
+
+### Examples
+
+Monolithic mode (no Kafka flags needed):
+
+```bash
+tempo-cli migrate config old-config.yaml > new-config.yaml
+```
+
+Microservices mode:
+
+```bash
+tempo-cli migrate config --kafka-address=kafka:9092 --kafka-topic=tempo-traces old-config.yaml > new-config.yaml
+```
+
+{{< admonition type="warning" >}}
+- The output is a starting point for your 3.0 configuration. Always review it before deploying.
+- If your configuration uses legacy (flat) overrides, you must run `tempo-cli migrate overrides-config` first.
+- If your configuration references an external per-tenant overrides file (`per_tenant_override_config`), you must manually add `compaction_disabled: true` for each tenant in that file.
+- YAML comments and key ordering from the original file are not preserved.
+- Remove `compaction_disabled: true` from overrides after fully decommissioning your 2.x deployment.
 {{< /admonition >}}
 
 ## Analyse block

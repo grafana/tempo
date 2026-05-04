@@ -129,7 +129,17 @@ func (c *TraceByIDCombiner) HTTPFinal() (*http.Response, error) {
 	deduper := newDeduper()
 	traceResult = deduper.dedupe(traceResult)
 	if c.traceRedactor != nil {
-		c.traceRedactor.RedactTraceAttributes(traceResult)
+		err := c.traceRedactor.RedactTraceAttributes(traceResult)
+		if err != nil {
+			if errors.Is(err, ErrTraceHidden) {
+				return &http.Response{
+					StatusCode: http.StatusNotFound,
+					Body:       http.NoBody,
+					Header:     http.Header{},
+				}, nil
+			}
+			return &http.Response{}, fmt.Errorf("trace redactor error: %w", err)
+		}
 	}
 
 	// marshal in the requested format

@@ -54,12 +54,32 @@
     {
       "source": {
         "git": {
+          "remote": "https://github.com/jsonnet-libs/keda-libsonnet.git",
+          "subdir": "2.15"
+        }
+      },
+      "version": "dbc8cf1a9847f123d8325378111155fb135983ab",
+      "sum": "EVCNg9VpU9ghIYHZtbQffHbZs+EqKOD0cw+ZPilWR48="
+    },
+    {
+      "source": {
+        "git": {
           "remote": "https://github.com/jsonnet-libs/testonnet.git",
           "subdir": ""
         }
       },
       "version": "9b30f882132b8d8754535fbcee822b804c90405f",
       "sum": "MB1dww51rdYJTWAAFkrOXMeMNxzZ5yyFPjPxaERDb1k="
+    },
+    {
+      "source": {
+        "git": {
+          "remote": "https://github.com/jsonnet-libs/vertical-pod-autoscaler-libsonnet.git",
+          "subdir": "1.0.0"
+        }
+      },
+      "version": "5d16cd466d12489e6ffba5b17813a0203016e68d",
+      "sum": "ksOv5A0fQkz4fRz4KMCHloLUiD7BPwGKvUn2sHIAB7s="
     },
     {
       "source": {

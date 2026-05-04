@@ -101,9 +101,12 @@ func New(cfg Config, log log.Logger, registerer prometheus.Registerer) (*Fronten
 			Help: "Number of queries in the queue.",
 		}, []string{"user"}),
 		batchWeight: promauto.With(registerer).NewHistogramVec(prometheus.HistogramOpts{
-			Name:    "tempo_query_frontend_batch_weight",
-			Help:    "Weight of the batch.",
-			Buckets: prometheus.LinearBuckets(1, 1, cfg.MaxBatchSize),
+			Name:                            "tempo_query_frontend_batch_weight",
+			Help:                            "Weight of the batch.",
+			Buckets:                         prometheus.LinearBuckets(1, 1, cfg.MaxBatchSize),
+			NativeHistogramBucketFactor:     1.1,
+			NativeHistogramMaxBucketNumber:  100,
+			NativeHistogramMinResetDuration: 1 * time.Hour,
 		}, []string{"user"}),
 		discardedRequests: promauto.With(registerer).NewCounterVec(prometheus.CounterOpts{
 			Name: "tempo_query_frontend_discarded_requests_total",
@@ -118,9 +121,12 @@ func New(cfg Config, log log.Logger, registerer prometheus.Registerer) (*Fronten
 			NativeHistogramMinResetDuration: 1 * time.Hour,
 		}),
 		actualBatchSize: promauto.With(registerer).NewHistogram(prometheus.HistogramOpts{
-			Name:    "tempo_query_frontend_actual_batch_size",
-			Help:    "Batch size.",
-			Buckets: prometheus.LinearBuckets(1, batchBucketSize, batchBucketCount),
+			Name:                            "tempo_query_frontend_actual_batch_size",
+			Help:                            "Batch size.",
+			Buckets:                         prometheus.LinearBuckets(1, batchBucketSize, batchBucketCount),
+			NativeHistogramBucketFactor:     1.1,
+			NativeHistogramMaxBucketNumber:  100,
+			NativeHistogramMinResetDuration: 1 * time.Hour,
 		}),
 		connectedQuerierWorkers: &atomic.Int32{},
 	}

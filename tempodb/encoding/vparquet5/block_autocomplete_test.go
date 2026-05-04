@@ -427,8 +427,8 @@ func TestFetchTagNames(t *testing.T) {
 
 				// Build autocomplete request
 				autocompleteReq := traceql.FetchTagsRequest{
-					Conditions: req.Conditions,
-					Scope:      scope,
+					ConditionGroups: [][]traceql.Condition{req.Conditions},
+					Scope:           scope,
 				}
 				mc := collector.NewMetricsCollector()
 
@@ -771,15 +771,396 @@ func TestFetchTagValues(t *testing.T) {
 				distinctValues  = collector.NewDistinctValue(1_000_000, 0, 0, func(v tempopb.TagValue) int { return len(v.Type) + len(v.Value) })
 				autocompleteReq = traceql.FetchTagValuesRequest{
 					TagName: tag,
-					Conditions: append(req.Conditions,
+					ConditionGroups: [][]traceql.Condition{append(req.Conditions,
 						traceql.Condition{
 							Attribute: tagAtrr,
 							Op:        traceql.OpNone,
 						},
-					),
+					)},
 				}
 			)
 
+			err = block.FetchTagValues(ctx, autocompleteReq, traceql.MakeCollectTagValueFunc(distinctValues.Collect), mc.Add, opts)
+			require.NoError(t, err)
+			// test that callback is recording bytes read
+			require.Greater(t, mc.TotalValue(), uint64(100))
+
+			expectedValues := tc.expectedValues
+			actualValues := distinctValues.Values()
+			sort.Slice(expectedValues, func(i, j int) bool { return tc.expectedValues[i].Value < tc.expectedValues[j].Value })
+			sort.Slice(actualValues, func(i, j int) bool { return actualValues[i].Value < actualValues[j].Value })
+			require.Equal(t, expectedValues, actualValues)
+		})
+	}
+}
+
+func TestFetchTagNamesWithOrConditions(t *testing.T) {
+	testCases := []struct {
+		name                          string
+		query                         string
+		expectedSpanValues            []string
+		expectedResourceValues        []string
+		expectedEventValues           []string
+		expectedLinkValues            []string
+		expectedInstrumentationValues []string
+	}{
+		// span
+		{
+			name:                          "both sides match same values",
+			query:                         `{span:name = "span-01-01" || span.generic-01-01="foo"}`,
+			expectedSpanValues:            []string{"generic-01-01", "span-same"},
+			expectedResourceValues:        []string{"generic-01", "resource-same"},
+			expectedEventValues:           []string{"event-generic-01-01"},
+			expectedLinkValues:            []string{"link-generic-01-01"},
+			expectedInstrumentationValues: []string{"scope-attr-str-1"},
+		},
+		{
+			name:                          "both sides match different values",
+			query:                         `{span.dedicated.span.1 = "dedicated-01-01" || span.generic-02-01="foo"}`,
+			expectedSpanValues:            []string{"generic-01-01", "generic-02-01", "span-same"},
+			expectedResourceValues:        []string{"generic-01", "generic-02", "resource-same"},
+			expectedEventValues:           []string{"event-generic-01-01", "event-generic-02-01"},
+			expectedLinkValues:            []string{"link-generic-01-01", "link-generic-02-01"},
+			expectedInstrumentationValues: []string{"scope-attr-str-1", "scope-attr-str-2"},
+		},
+		{
+			name:                          "three conditions match different values",
+			query:                         `{span.dedicated.span.1 = "dedicated-01-01"  || span.dedicated.span.1 = "dedicated-01-02"  || span.generic-02-01="foo"}`,
+			expectedSpanValues:            []string{"generic-01-01", "generic-01-02", "generic-02-01", "span-same"},
+			expectedResourceValues:        []string{"generic-01", "generic-02", "resource-same"},
+			expectedEventValues:           []string{"event-generic-01-01", "event-generic-02-01"},
+			expectedLinkValues:            []string{"link-generic-01-01", "link-generic-02-01"},
+			expectedInstrumentationValues: []string{"scope-attr-str-1", "scope-attr-str-2"},
+		},
+		{
+			name:                          "both sides with multiple conditions match different values",
+			query:                         `{(resource.generic-01 = "bar" && span.dedicated.span.1 = "dedicated-01-01" ) || (resource.resource-same = "foo" && span.generic-02-01="foo")}`,
+			expectedSpanValues:            []string{"generic-01-01", "generic-02-01", "span-same"},
+			expectedResourceValues:        []string{"generic-01", "generic-02", "resource-same"},
+			expectedEventValues:           []string{"event-generic-01-01", "event-generic-02-01"},
+			expectedLinkValues:            []string{"link-generic-01-01", "link-generic-02-01"},
+			expectedInstrumentationValues: []string{"scope-attr-str-1", "scope-attr-str-2"},
+		},
+		{
+			name:                          "both sides with double conditions match different values",
+			query:                         `{(resource.generic-01 = "bar" || resource.resource-same = "foo" ) && (span.generic-02-01="foo" || span.generic-01-01="foo")}`,
+			expectedSpanValues:            []string{"generic-01-01", "generic-02-01", "span-same"},
+			expectedResourceValues:        []string{"generic-01", "generic-02", "resource-same"},
+			expectedEventValues:           []string{"event-generic-01-01", "event-generic-02-01"},
+			expectedLinkValues:            []string{"link-generic-01-01", "link-generic-02-01"},
+			expectedInstrumentationValues: []string{"scope-attr-str-1", "scope-attr-str-2"},
+		},
+	}
+
+	tr := &Trace{
+		TraceID:         test.ValidTraceID(nil),
+		RootServiceName: "tr",
+		RootSpanName:    "root",
+		ResourceSpans: []ResourceSpans{
+			{
+				Resource: Resource{
+					ServiceName: "svc-01",
+					Attrs: []Attribute{
+						{Key: "generic-01", Value: []string{"bar"}}, // generic
+						{Key: "resource-same", Value: []string{"foo"}},
+					},
+					DedicatedAttributes: DedicatedAttributes{
+						String01: []string{"dedicated-01"},
+					},
+				},
+				ScopeSpans: []ScopeSpans{
+					{
+						Scope: InstrumentationScope{
+							Name:                   "scope-1",
+							Version:                "version-1",
+							DroppedAttributesCount: 1,
+							Attrs: []Attribute{
+								attr("scope-attr-str-1", "scope-attr-1"),
+							},
+						},
+						SpanCount: 2,
+						Spans: []Span{
+							{
+								SpanID:        []byte("0101"),
+								Name:          "span-01-01",
+								StatusMessage: "msg-01-01", // intrinsic
+								Attrs: []Attribute{
+									{Key: "generic-01-01", Value: []string{"foo"}}, // generic
+									{Key: "span-same", Value: []string{"foo"}},     // generic
+								},
+								DedicatedAttributes: DedicatedAttributes{
+									String01: []string{"dedicated-01-01"},
+								},
+								Events: []Event{
+									{
+										Name: "event-01-01",
+										Attrs: []Attribute{
+											{Key: "event-generic-01-01", Value: []string{"foo"}},
+										},
+										DedicatedAttributes: DedicatedAttributes{
+											String01: []string{"dedicated-01-01"},
+										},
+									},
+								},
+								Links: []Link{
+									{
+										SpanID: []byte("0101"),
+										Attrs: []Attribute{
+											{Key: "link-generic-01-01", Value: []string{"foo"}},
+										},
+									},
+								},
+							},
+							{
+								SpanID:        []byte("0102"),
+								Name:          "span-01-02",
+								StatusMessage: "msg-01-02", // intrinsic
+								Attrs: []Attribute{
+									{Key: "generic-01-02", Value: []string{"foo"}}, // generic
+								},
+								DedicatedAttributes: DedicatedAttributes{
+									String01: []string{"dedicated-01-02"},
+								},
+							},
+						},
+					},
+				},
+			},
+			{
+				Resource: Resource{
+					ServiceName: "svc-02",
+					Attrs: []Attribute{
+						{Key: "generic-02", Value: []string{"bar"}}, // generic
+						{Key: "resource-same", Value: []string{"foo"}},
+					},
+					DedicatedAttributes: DedicatedAttributes{
+						String01: []string{"dedicated-02"},
+					},
+				},
+				ScopeSpans: []ScopeSpans{
+					{
+						Scope: InstrumentationScope{
+							Name:                   "scope-2",
+							Version:                "version-2",
+							DroppedAttributesCount: 1,
+							Attrs: []Attribute{
+								attr("scope-attr-str-2", "scope-attr-2"),
+							},
+						},
+						SpanCount: 1,
+						Spans: []Span{
+							{
+								SpanID:        []byte("0201"),
+								Name:          "span-02-01",
+								StatusMessage: "msg-02-01", // intrinsic
+								Attrs: []Attribute{
+									{Key: "generic-02-01", Value: []string{"foo"}}, // generic
+									{Key: "span-same", Value: []string{"foo"}},     // generic
+								},
+								DedicatedAttributes: DedicatedAttributes{
+									String01: []string{"dedicated-02-01"},
+								},
+								Events: []Event{
+									{
+										Name: "event-02-01",
+										Attrs: []Attribute{
+											{Key: "event-generic-02-01", Value: []string{"foo"}},
+										},
+										DedicatedAttributes: DedicatedAttributes{
+											String01: []string{"dedicated-02-01"},
+										},
+									},
+								},
+								Links: []Link{
+									{
+										SpanID: []byte("0102"),
+										Attrs: []Attribute{
+											{Key: "link-generic-02-01", Value: []string{"foo"}},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	ctx := context.TODO()
+	block := makeBackendBlockWithTraces(t, []*Trace{tr})
+
+	opts := common.DefaultSearchOptions()
+
+	for _, tc := range testCases {
+		for _, scope := range []traceql.AttributeScope{
+			traceql.AttributeScopeSpan,
+			traceql.AttributeScopeResource,
+			traceql.AttributeScopeNone,
+			traceql.AttributeScopeEvent,
+			traceql.AttributeScopeLink,
+			traceql.AttributeScopeInstrumentation,
+		} {
+			expectedSpanValues := tc.expectedSpanValues
+			expectedResourceValues := tc.expectedResourceValues
+			expectedEventValues := tc.expectedEventValues
+			expectedLinkValues := tc.expectedLinkValues
+			expectedInstrumentationValues := tc.expectedInstrumentationValues
+
+			// add dedicated and well known columns to expected values. the code currently does not
+			// attempt to perfectly filter these, but instead adds them to the return if any values are present
+			dedicatedSpanValues := []string{"dedicated.span.1"}
+			dedicatedResourceValues := []string{"dedicated.resource.1"}
+			dedicatedEventValues := []string{"dedicated.event.1"}
+
+			wellKnownResourceValues := []string{"service.name"}
+
+			expectedValues := map[string][]string{}
+			if scope == traceql.AttributeScopeSpan || scope == traceql.AttributeScopeNone {
+				expectedValues["span"] = append(expectedValues["span"], expectedSpanValues...)
+				expectedValues["span"] = append(expectedValues["span"], dedicatedSpanValues...)
+			}
+			if scope == traceql.AttributeScopeResource || scope == traceql.AttributeScopeNone {
+				expectedValues["resource"] = append(expectedValues["resource"], expectedResourceValues...)
+				expectedValues["resource"] = append(expectedValues["resource"], wellKnownResourceValues...)
+				expectedValues["resource"] = append(expectedValues["resource"], dedicatedResourceValues...)
+			}
+			if scope == traceql.AttributeScopeEvent || scope == traceql.AttributeScopeNone {
+				if len(expectedEventValues) > 0 {
+					expectedValues["event"] = append(expectedValues["event"], expectedEventValues...)
+				}
+				expectedValues["event"] = append(expectedValues["event"], dedicatedEventValues...)
+			}
+			if scope == traceql.AttributeScopeLink || scope == traceql.AttributeScopeNone {
+				if len(expectedLinkValues) > 0 {
+					expectedValues["link"] = append(expectedValues["link"], expectedLinkValues...)
+				}
+			}
+
+			if scope == traceql.AttributeScopeInstrumentation || scope == traceql.AttributeScopeNone {
+				if len(expectedInstrumentationValues) > 0 {
+					expectedValues["instrumentation"] = append(expectedValues["instrumentation"], expectedInstrumentationValues...)
+				}
+			}
+
+			t.Run(fmt.Sprintf("%s-%s", tc.name, scope), func(t *testing.T) {
+				distinctAttrNames := collector.NewScopedDistinctString(0, 0, 0)
+				conditions, _ := traceql.ExtractConditionGroups(tc.query, traceql.DefaultMaxConditionGroupsPerTagQuery)
+
+				// Build autocomplete request
+				autocompleteReq := traceql.FetchTagsRequest{
+					ConditionGroups: conditions,
+					Scope:           scope,
+				}
+				mc := collector.NewMetricsCollector()
+
+				err := block.FetchTagNames(ctx, autocompleteReq, func(t string, scope traceql.AttributeScope) bool {
+					distinctAttrNames.Collect(scope.String(), t)
+					return false
+				}, mc.Add, opts)
+				require.NoError(t, err)
+				// test that callback is recording bytes read
+				require.Greater(t, mc.TotalValue(), uint64(100))
+
+				actualValues := distinctAttrNames.Strings()
+
+				require.Equal(t, len(expectedValues), len(actualValues))
+				for k := range expectedValues {
+					actual := actualValues[k]
+					sort.Strings(actual)
+					expected := expectedValues[k]
+					sort.Strings(expected)
+
+					require.Equal(t, expected, actual, "scope: %s", k)
+				}
+			})
+		}
+	}
+}
+
+func TestFetchTagValuesWithOrConditions(t *testing.T) {
+	testCases := []struct {
+		name           string
+		tag, query     string
+		expectedValues []tempopb.TagValue
+	}{
+		{
+			name:           "both matches same value",
+			tag:            "name",
+			query:          `{resource.namespace="namespace" || span.foo="def"}`,
+			expectedValues: []tempopb.TagValue{stringTagValue("hello")},
+		},
+		{
+			name:           "left side matches",
+			tag:            "name",
+			query:          `{kind=client || resource.namespace="namespace3"}`,
+			expectedValues: []tempopb.TagValue{stringTagValue("hello")},
+		},
+		{
+			name:           "neither matches",
+			tag:            "name",
+			query:          `{span.foo="jkl" || resource.namespace="namespace3"}`,
+			expectedValues: []tempopb.TagValue{},
+		},
+		{
+			name:           "left side with two attributes matches",
+			tag:            "name",
+			query:          `{ (span.foo="def" && resource.namespace="namespace") || resource.namespace="namespace3"}`,
+			expectedValues: []tempopb.TagValue{stringTagValue("hello")},
+		},
+		{
+			name:           "right side with two attributes matches",
+			tag:            "span.foo",
+			query:          `{ resource.namespace="namespace3" || (resource.foo = "abc" && resource.asdf = 123) }`,
+			expectedValues: []tempopb.TagValue{stringTagValue("def")},
+		},
+		{
+			name:           "both sides with different ops match",
+			tag:            "span.foo",
+			query:          `{ (resource.foo = "abc" && resource.asdf = 123) || resource.foo = "abc2" }`,
+			expectedValues: []tempopb.TagValue{stringTagValue("def"), stringTagValue("ghi")},
+		},
+		{
+			name:           "all three conditions match",
+			tag:            "span.foo",
+			query:          `{ resource.foo = "abc" || resource.asdf = 123 || resource.foo = "abc2" }`,
+			expectedValues: []tempopb.TagValue{stringTagValue("def"), stringTagValue("ghi")},
+		},
+		{
+			name:           "all sides with double conditions match",
+			tag:            "span.foo",
+			query:          `{ (resource.foo = "abc" || resource.service.name = 1234) && ( resource.asdf = 123 || resource.foo = "abc2" ) }`,
+			expectedValues: []tempopb.TagValue{stringTagValue("def"), stringTagValue("ghi")},
+		},
+	}
+
+	ctx := context.TODO()
+	block := makeBackendBlockWithTraces(t, []*Trace{fullyPopulatedTestTrace(common.ID{0})})
+
+	opts := common.DefaultSearchOptions()
+
+	for _, tc := range testCases {
+		t.Run(fmt.Sprintf("tag: %s, query: %s", tc.tag, tc.query), func(t *testing.T) {
+			distinctValues := collector.NewDistinctValue[tempopb.TagValue](1_000_000, 0, 0, func(v tempopb.TagValue) int { return len(v.Type) + len(v.Value) })
+			conditions, _ := traceql.ExtractConditionGroups(tc.query, traceql.DefaultMaxConditionGroupsPerTagQuery)
+
+			tag, err := traceql.ParseIdentifier(tc.tag)
+			require.NoError(t, err)
+
+			for i := range conditions {
+				conditions[i] = append(conditions[i], traceql.Condition{
+					Attribute: tag,
+					Op:        traceql.OpNone,
+				})
+			}
+
+			// Build autocomplete request
+			autocompleteReq := traceql.FetchTagValuesRequest{
+				ConditionGroups: conditions,
+				TagName:         tag,
+			}
+
+			mc := collector.NewMetricsCollector()
 			err = block.FetchTagValues(ctx, autocompleteReq, traceql.MakeCollectTagValueFunc(distinctValues.Collect), mc.Add, opts)
 			require.NoError(t, err)
 			// test that callback is recording bytes read
@@ -861,8 +1242,8 @@ func BenchmarkFetchTagValues(b *testing.B) {
 			})
 
 			autocompleteReq := traceql.FetchTagValuesRequest{
-				Conditions: req.Conditions,
-				TagName:    tag,
+				ConditionGroups: [][]traceql.Condition{req.Conditions},
+				TagName:         tag,
 			}
 			mc := collector.NewMetricsCollector()
 			b.ResetTimer()
@@ -920,8 +1301,8 @@ func BenchmarkFetchTags(b *testing.B) {
 				require.NoError(b, err)
 
 				autocompleteReq := traceql.FetchTagsRequest{
-					Conditions: req.Conditions,
-					Scope:      scope,
+					ConditionGroups: [][]traceql.Condition{req.Conditions},
+					Scope:           scope,
 				}
 				mc := collector.NewMetricsCollector()
 				b.ResetTimer()

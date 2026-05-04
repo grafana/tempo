@@ -95,7 +95,7 @@ $defs:
         items:
           type: string
     allOf:
-      - $ref: github.com/open-telemetry/opentelemetry-collector-contrib/internal/filter/filterset.config
+      - $ref: /internal/filter/filterset.config
   metric_match_properties:
     description: MetricMatchProperties specifies the set of properties in a metric to match against and the type of string pattern matching to use.
     type: object
@@ -116,7 +116,7 @@ $defs:
       regexp:
         description: RegexpConfig specifies options for the MetricRegexp match type
         x-pointer: true
-        $ref: github.com/open-telemetry/opentelemetry-collector-contrib/internal/filter/filterset/regexp.config
+        $ref: /internal/filter/filterset/regexp.config
       resource_attributes:
         description: ResourceAttributes defines a list of possible resource attributes to match metrics against. A match occurs if any resource attribute matches all expressions in this given list.
         type: array

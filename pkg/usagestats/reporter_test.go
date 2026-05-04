@@ -3,6 +3,7 @@ package usagestats
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"sync"
@@ -12,7 +13,6 @@ import (
 
 	"github.com/go-kit/log"
 	"github.com/grafana/dskit/kv"
-	jsoniter "github.com/json-iterator/go"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
 
@@ -154,7 +154,7 @@ func Test_ReportLoop(t *testing.T) {
 	reportsDone := make(chan struct{})
 	server := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 		var received Report
-		require.NoError(t, jsoniter.NewDecoder(r.Body).Decode(&received))
+		require.NoError(t, json.NewDecoder(r.Body).Decode(&received))
 
 		mtx.Lock()
 		totalReport++

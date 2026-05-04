@@ -40,8 +40,7 @@ To install Tempo on Kubernetes, use the [Deploy on Kubernetes using Helm](https:
 
 ## Tanka
 
-To view an example of a complete microservice-based deployment, this [Jsonnet based example](https://github.com/grafana/tempo/tree/main/example/tk) shows a complete microservice based deployment.
-There are monolithic mode and microservices examples.
+The [Jsonnet based examples](https://github.com/grafana/tempo/tree/main/example/tk) include complete monolithic mode and microservices deployments.
 
 To learn how to set up a Tempo cluster, refer to [Deploy on Kubernetes with Tanka](https://grafana.com/docs/tempo/<TEMPO_VERSION>/set-up-for-tracing/setup-tempo/deploy/kubernetes/tanka/).
 

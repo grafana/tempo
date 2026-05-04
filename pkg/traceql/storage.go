@@ -275,8 +275,8 @@ type SpansetFetcher interface {
 type FetchTagValuesCallback func(static Static) bool
 
 type FetchTagValuesRequest struct {
-	Conditions []Condition
-	TagName    Attribute
+	ConditionGroups [][]Condition
+	TagName         Attribute
 	// TODO: Add start and end time?
 }
 
@@ -358,8 +358,8 @@ func (s SpansetFetcherWrapper) FetchSpans(ctx context.Context, request FetchSpan
 type FetchTagsCallback func(tag string, scope AttributeScope) bool
 
 type FetchTagsRequest struct {
-	Conditions []Condition
-	Scope      AttributeScope
+	ConditionGroups [][]Condition
+	Scope           AttributeScope
 	// TODO: Add start and end time?
 }
 

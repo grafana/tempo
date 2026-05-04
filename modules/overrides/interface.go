@@ -40,6 +40,7 @@ type Interface interface {
 	Forwarders(userID string) []string
 	MaxBytesPerTagValuesQuery(userID string) int
 	MaxBlocksPerTagValuesQuery(userID string) int
+	MaxConditionGroupsPerTagQuery() int
 	IngestionRateLimitBytes(userID string) float64
 	IngestionBurstSizeBytes(userID string) int
 	IngestionTenantShardSize(userID string) int
@@ -89,6 +90,7 @@ type Interface interface {
 	DedicatedColumns(userID string) backend.DedicatedColumns
 	UnsafeQueryHints(userID string) bool
 	LeftPadTraceIDs(userID string) bool
+	MetricsSpanOnlyFetch(userID string) *bool
 	CostAttributionMaxCardinality(userID string) uint64
 	CostAttributionDimensions(userID string) map[string]string
 

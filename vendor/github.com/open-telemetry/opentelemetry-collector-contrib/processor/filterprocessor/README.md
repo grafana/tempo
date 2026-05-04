@@ -391,7 +391,7 @@ view into how OTTL views the underlying data.
 
 ```yaml
 receivers:
-  filelog:
+  file_log:
     start_at: beginning
     include: [ /Users/tylerhelmuth/projects/opentelemetry-collector-contrib/local/test.log ]
 
@@ -412,7 +412,7 @@ service:
   pipelines:
     logs:
       receivers:
-        - filelog
+        - file_log
       processors:
         - filter
       exporters:

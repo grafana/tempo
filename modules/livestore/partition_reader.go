@@ -84,6 +84,11 @@ func (r *PartitionReader) start(context.Context) error {
 func (r *PartitionReader) running(ctx context.Context) error {
 	offset, err := r.fetchLastCommittedOffsetWithRetries(ctx)
 	if err != nil {
+		// Shutdown can cancel the reader before the initial offset lookup completes.
+		// Treat that as a clean stop instead of failing the service.
+		if ctx.Err() != nil {
+			return nil
+		}
 		return fmt.Errorf("failed to fetch last committed offset: %w", err)
 	}
 

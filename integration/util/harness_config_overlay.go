@@ -196,7 +196,7 @@ func mergeMaps(base, overlay map[any]any) map[any]any {
 	// Overlay values, recursively merging nested maps
 	for k, v := range overlay {
 		if v == nil {
-			result[k] = v
+			delete(result, k)
 			continue
 		}
 

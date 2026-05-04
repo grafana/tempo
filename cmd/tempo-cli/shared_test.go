@@ -1,11 +1,103 @@
 package main
 
 import (
+	"context"
+	"net/http"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc/metadata"
 )
+
+func TestApplyHeadersHTTP(t *testing.T) {
+	tests := []struct {
+		name            string
+		headers         []string
+		expectedHeaders map[string]string
+	}{
+		{
+			name:    "single header",
+			headers: []string{"X-TOKEN=my-secret"},
+			expectedHeaders: map[string]string{
+				"X-Token": "my-secret",
+			},
+		},
+		{
+			name:    "multiple headers",
+			headers: []string{"X-TOKEN=my-secret", "X-Custom=value"},
+			expectedHeaders: map[string]string{
+				"X-Token":  "my-secret",
+				"X-Custom": "value",
+			},
+		},
+		{
+			name:            "malformed header without equals is ignored",
+			headers:         []string{"no-equals-sign"},
+			expectedHeaders: map[string]string{},
+		},
+		{
+			name:    "value containing equals",
+			headers: []string{"Authorization=Bearer token=abc"},
+			expectedHeaders: map[string]string{
+				"Authorization": "Bearer token=abc",
+			},
+		},
+		{
+			name:            "empty input",
+			headers:         []string{},
+			expectedHeaders: map[string]string{},
+		},
+		{
+			name:            "empty key is ignored",
+			headers:         []string{"=value"},
+			expectedHeaders: map[string]string{},
+		},
+		{
+			name:    "whitespace around key is trimmed",
+			headers: []string{" X-TOKEN =my-secret"},
+			expectedHeaders: map[string]string{
+				"X-Token": "my-secret",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req, _ := http.NewRequest("GET", "http://localhost:3200/api/search", nil)
+			applyHeadersHTTP(req, tt.headers)
+
+			require.Len(t, req.Header, len(tt.expectedHeaders))
+			for k, v := range tt.expectedHeaders {
+				require.Equal(t, v, req.Header.Get(k))
+			}
+		})
+	}
+}
+
+func TestApplyHeadersGRPC(t *testing.T) {
+	ctx := applyHeadersGRPC(context.Background(), []string{"X-TOKEN=my-secret", "X-Custom=value"})
+
+	md, ok := metadata.FromOutgoingContext(ctx)
+	require.True(t, ok)
+	require.Equal(t, []string{"my-secret"}, md.Get("X-TOKEN"))
+	require.Equal(t, []string{"value"}, md.Get("X-Custom"))
+}
+
+func TestApplyHeadersGRPC_lastWins(t *testing.T) {
+	ctx := applyHeadersGRPC(context.Background(), []string{"X-TOKEN=first", "X-TOKEN=second"})
+
+	md, ok := metadata.FromOutgoingContext(ctx)
+	require.True(t, ok)
+	require.Equal(t, []string{"second"}, md.Get("X-TOKEN"))
+}
+
+func TestApplyHeadersGRPC_empty(t *testing.T) {
+	ctx := context.Background()
+	result := applyHeadersGRPC(ctx, []string{})
+	_, ok := metadata.FromOutgoingContext(result)
+	require.False(t, ok)
+}
 
 func TestParseTime(t *testing.T) {
 	now := time.Now()

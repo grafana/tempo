@@ -10,6 +10,7 @@ import (
 	"github.com/grafana/tempo/modules/frontend/pipeline"
 	v1 "github.com/grafana/tempo/modules/frontend/v1"
 	"github.com/grafana/tempo/pkg/usagestats"
+	"github.com/grafana/tempo/pkg/util"
 )
 
 var statVersion = usagestats.NewString("frontend_version")
@@ -41,7 +42,7 @@ type Config struct {
 	AllowedHeaders []string `yaml:"allowed_headers,omitempty"`
 
 	// RF1After specifies the time after which RF1 logic is applied.
-	RF1After time.Time `yaml:"rf1_after" category:"advanced"`
+	RF1After time.Time `yaml:"rf1_after,omitempty" category:"advanced"` // Deprecated: it's ignored
 
 	// QueryEndCutoff prevents querying incomplete recent data.
 	QueryEndCutoff time.Duration `yaml:"query_end_cutoff,omitempty"`
@@ -63,10 +64,6 @@ type TraceByIDConfig struct {
 	ConcurrentShards int       `yaml:"concurrent_shards,omitempty"`
 	SLO              SLOConfig `yaml:",inline"`
 	ExternalEnabled  bool      `yaml:"external_enabled,omitempty"`
-
-	// RF1After specifies the time after which RF1 logic is applied, injected by the configuration
-	// or determined at runtime based on search request parameters.
-	RF1After time.Time `yaml:"-"`
 }
 
 type MetricsConfig struct {
@@ -80,7 +77,7 @@ type SLOConfig struct {
 	ThroughputBytesSLO float64       `yaml:"throughput_bytes_slo,omitempty"`
 }
 
-func (cfg *Config) RegisterFlagsAndApplyDefaults(string, *flag.FlagSet) {
+func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
 	slo := SLOConfig{
 		DurationSLO:        0,
 		ThroughputBytesSLO: 0,
@@ -112,7 +109,7 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(string, *flag.FlagSet) {
 	cfg.Metrics = MetricsConfig{
 		Sharder: QueryRangeSharderConfig{
 			MaxDuration:           24 * time.Hour,
-			QueryBackendAfter:     30 * time.Minute,
+			QueryBackendAfter:     15 * time.Minute,
 			ConcurrentRequests:    defaultConcurrentRequests,
 			TargetBytesPerRequest: defaultTargetBytesPerRequest,
 			Interval:              5 * time.Minute,
@@ -129,17 +126,15 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(string, *flag.FlagSet) {
 		MaxTraceQLConditions: 4,
 	}
 
-	// enabling an mcp server opens the door to send tracing data to an LLM. it should require
-	// explicit enabling
-	cfg.MCPServer = MCPServerConfig{
-		Enabled: false,
-	}
-
 	// set default max query size to 128 KiB, queries larger than this will be rejected
 	cfg.MaxQueryExpressionSizeBytes = 128 * 1024
 	// enable multi tenant queries by default
 	cfg.MultiTenantQueriesEnabled = true
 	cfg.Metrics.MaxIntervals = 10_000
+
+	// enabling an mcp server opens the door to send tracing data to an LLM. it should require
+	// explicit enabling. registers a flag in addition to YAML configuration.
+	f.BoolVar(&cfg.MCPServer.Enabled, util.PrefixConfig(prefix, "mcp-server.enabled"), false, "Set to true to enable the MCP server")
 }
 
 type CortexNoQuerierLimits struct{}

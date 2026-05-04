@@ -1,6 +1,7 @@
 package flushqueues
 
 import (
+	"sync"
 	"testing"
 	"time"
 
@@ -29,7 +30,7 @@ func TestExclusiveQueues(t *testing.T) {
 		Name:      "testersons",
 	})
 
-	q := New[mockOp](1, gauge)
+	q := New[mockOp](gauge)
 	op := mockOp{
 		key: "not unique",
 	}
@@ -50,7 +51,7 @@ func TestExclusiveQueues(t *testing.T) {
 	assert.Equal(t, 1, int(length))
 
 	// dequeue -> requeue
-	_ = q.Dequeue(0)
+	_ = q.Dequeue()
 	length, err = test.GetGaugeValue(gauge)
 	assert.NoError(t, err)
 	assert.Equal(t, 0, int(length))
@@ -63,7 +64,7 @@ func TestExclusiveQueues(t *testing.T) {
 	assert.Equal(t, 1, int(length))
 
 	// dequeue -> clearkey -> enqueue
-	_ = q.Dequeue(0)
+	_ = q.Dequeue()
 	length, err = test.GetGaugeValue(gauge)
 	assert.NoError(t, err)
 	assert.Equal(t, 0, int(length))
@@ -81,15 +82,14 @@ func TestExclusiveQueues(t *testing.T) {
 	assert.Equal(t, 1, int(length))
 }
 
-func TestMultipleQueues(t *testing.T) {
+func TestMultipleItems(t *testing.T) {
 	gauge := prometheus.NewGauge(prometheus.GaugeOpts{
 		Namespace: "test",
 		Name:      "testersons",
 	})
 
-	totalQueues := 10
 	totalItems := 10
-	q := New[mockOp](totalQueues, gauge)
+	q := New[mockOp](gauge)
 
 	// add stuff to the queue and confirm the length matches expected
 	for i := 0; i < totalItems; i++ {
@@ -105,14 +105,14 @@ func TestMultipleQueues(t *testing.T) {
 		assert.Equal(t, i+1, int(length))
 	}
 
-	// each queue should have 1 thing
-	for i := 0; i < totalQueues; i++ {
-		op := q.Dequeue(i)
+	// dequeue all items
+	for i := 0; i < totalItems; i++ {
+		op := q.Dequeue()
 		assert.NotNil(t, op)
 
 		length, err := test.GetGaugeValue(gauge)
 		assert.NoError(t, err)
-		assert.Equal(t, totalQueues-(i+1), int(length))
+		assert.Equal(t, totalItems-(i+1), int(length))
 	}
 }
 
@@ -122,11 +122,11 @@ func TestExclusiveQueueLocks(t *testing.T) {
 		Name:      "testersons",
 	})
 
-	queue := New[simpleItem](1, gauge)
+	queue := New[simpleItem](gauge)
 	job := simpleItem(1)
 
 	assert.NoError(t, queue.Enqueue(job))
-	i := queue.Dequeue(0)
+	i := queue.Dequeue()
 	assert.Equal(t, job, i, "Expected to dequeue job")
 
 	// Requeueing the same job again will be added to the queue
@@ -146,7 +146,7 @@ func TestExclusiveQueueLocks(t *testing.T) {
 func waitForDequeue(queue *ExclusiveQueues[simpleItem]) bool {
 	done := make(chan struct{})
 	go func() {
-		queue.Dequeue(0)
+		queue.Dequeue()
 		done <- struct{}{}
 	}()
 	select {
@@ -155,4 +155,83 @@ func waitForDequeue(queue *ExclusiveQueues[simpleItem]) bool {
 	case <-time.After(100 * time.Millisecond):
 		return false
 	}
+}
+
+// TestConcurrentDequeue verifies that multiple goroutines calling Dequeue
+// concurrently on a shared queue process every item exactly once.
+func TestConcurrentDequeue(t *testing.T) {
+	q := New[mockOp](nil)
+
+	totalItems := 500
+	numWorkers := 10
+
+	// Enqueue all items up front
+	keys := make([]string, totalItems)
+	for i := range totalItems {
+		keys[i] = uuid.New().String()
+		require.NoError(t, q.Enqueue(mockOp{key: keys[i]}))
+	}
+
+	// Track which keys each worker dequeued
+	var mu sync.Mutex
+	seen := make(map[string]int) // key -> count
+
+	// itemsDone tracks when all items have been processed
+	var itemsDone sync.WaitGroup
+	itemsDone.Add(totalItems)
+
+	var workers sync.WaitGroup
+	for range numWorkers {
+		workers.Add(1)
+		go func() {
+			defer workers.Done()
+			for {
+				op := q.Dequeue()
+				if op.Key() == "" {
+					return // queue closed
+				}
+				mu.Lock()
+				seen[op.Key()]++
+				mu.Unlock()
+				q.Clear(op)
+				itemsDone.Done()
+			}
+		}()
+	}
+
+	// Wait for all items to be processed, then shut down workers
+	itemsDone.Wait()
+	q.Stop()
+	workers.Wait()
+
+	// Every key must have been dequeued exactly once
+	for _, key := range keys {
+		assert.Equal(t, 1, seen[key], "key %s dequeued %d times", key, seen[key])
+	}
+	assert.Equal(t, totalItems, len(seen), "expected %d unique keys, got %d", totalItems, len(seen))
+}
+
+// TestStopUnblocksAllWaiters verifies that calling Stop on an empty queue
+// unblocks all goroutines waiting in Dequeue, returning zero values.
+func TestStopUnblocksAllWaiters(t *testing.T) {
+	q := New[mockOp](nil)
+	numWorkers := 5
+
+	var allStarted sync.WaitGroup
+	allStarted.Add(numWorkers)
+
+	var workers sync.WaitGroup
+	for i := range numWorkers {
+		workers.Add(1)
+		go func() {
+			defer workers.Done()
+			allStarted.Done()
+			op := q.Dequeue()
+			assert.Equal(t, mockOp{}, op, "worker %d: expected zero value from closed queue", i)
+		}()
+	}
+
+	allStarted.Wait()
+	q.Stop()
+	workers.Wait()
 }

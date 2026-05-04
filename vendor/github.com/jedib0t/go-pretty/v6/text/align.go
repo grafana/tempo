@@ -76,16 +76,24 @@ func (a Align) HTMLProperty() string {
 }
 
 // MarkdownProperty returns the equivalent Markdown horizontal-align separator.
-func (a Align) MarkdownProperty() string {
+// An optional minLength can be provided to extend the dashes to match the
+// column content width; the result will be max(minLength, 3)+2 wide (including
+// leading/trailing space or colon). Without minLength (or 0), it defaults to 3.
+func (a Align) MarkdownProperty(minLength ...int) string {
+	length := 3
+	if len(minLength) > 0 && minLength[0] > length {
+		length = minLength[0]
+	}
+	dashes := strings.Repeat("-", length)
 	switch a {
 	case AlignLeft:
-		return ":--- "
+		return ":" + dashes + " "
 	case AlignCenter:
-		return ":---:"
+		return ":" + dashes + ":"
 	case AlignRight:
-		return " ---:"
+		return " " + dashes + ":"
 	default:
-		return " --- "
+		return " " + dashes + " "
 	}
 }
 
@@ -119,6 +127,13 @@ func justifyText(text string, textLength int, maxLength int) string {
 
 	// get the number of spaces to insert into the text
 	numSpacesNeeded := maxLength - textLength + strings.Count(text, " ")
+	if numSpacesNeeded < 0 {
+		// textLength (display-width) exceeds maxLength; this can happen
+		// when the cell contains wide Unicode characters (e.g. CJK) whose
+		// display width is greater than their rune count. Return the text
+		// as-is; truncation is the caller's responsibility.
+		return text
+	}
 	numSpacesNeededBetweenWords := 0
 	if len(words) > 1 {
 		numSpacesNeededBetweenWords = numSpacesNeeded / (len(words) - 1)

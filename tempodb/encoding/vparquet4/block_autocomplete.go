@@ -42,25 +42,34 @@ func (r tagRequest) keysRequested(scope traceql.AttributeScope) bool {
 		return true
 	}
 
+	if r.tag.Scope == traceql.AttributeScopeNone && (scope == traceql.AttributeScopeSpan || scope == traceql.AttributeScopeResource) {
+		return r.scope == scope
+	}
+
 	return r.scope == scope
 }
 
 func (b *backendBlock) FetchTagNames(ctx context.Context, req traceql.FetchTagsRequest, cb traceql.FetchTagsCallback, mcb common.MetricsCallback, opts common.SearchOptions) error {
-	err := checkConditions(req.Conditions)
-	if err != nil {
-		return errors.Wrap(err, "conditions invalid")
-	}
-
-	_, mingledConditions, err := categorizeConditions(req.Conditions)
-	if err != nil {
-		return err
-	}
-
-	// Last check. No conditions, use old path. It's much faster.
-	if len(req.Conditions) < 1 || mingledConditions {
+	if len(req.ConditionGroups) == 0 {
 		return b.SearchTags(ctx, req.Scope, func(t string, scope traceql.AttributeScope) {
 			cb(t, scope)
 		}, mcb, opts)
+	}
+
+	for _, condGroup := range req.ConditionGroups {
+		if err := checkConditions(condGroup); err != nil {
+			return errors.Wrap(err, "conditions invalid")
+		}
+		_, mingledConditions, err := categorizeConditions(condGroup)
+		if err != nil {
+			return err
+		}
+		// Last check. No conditions, use old path. It's much faster.
+		if (len(req.ConditionGroups) == 1 && len(condGroup) < 1) || mingledConditions {
+			return b.SearchTags(ctx, req.Scope, func(t string, scope traceql.AttributeScope) {
+				cb(t, scope)
+			}, mcb, opts)
+		}
 	}
 
 	pf, rr, err := b.openForSearch(ctx, opts)
@@ -78,34 +87,43 @@ func (b *backendBlock) FetchTagNames(ctx context.Context, req traceql.FetchTagsR
 		return ok
 	}
 
-	tr := tagRequest{
-		conditions:    req.Conditions,
-		scope:         req.Scope,
-		existsTagName: existsTagName,
-	}
+	for _, condGroup := range req.ConditionGroups {
+		tr := tagRequest{
+			conditions:    condGroup,
+			scope:         req.Scope,
+			existsTagName: existsTagName,
+		}
 
-	iter, err := autocompleteIter(ctx, tr, pf, opts, b.meta.DedicatedColumns)
-	if err != nil {
-		return errors.Wrap(err, "creating fetch iter")
-	}
-	defer iter.Close()
-
-	for {
-		// Exhaust the iterator
-		res, err := iter.Next()
+		iter, err := autocompleteIter(ctx, tr, pf, opts, b.meta.DedicatedColumns)
 		if err != nil {
-			return err
+			return errors.Wrap(err, "creating fetch iter")
 		}
-		if res == nil {
-			break
-		}
-		for _, oe := range res.OtherEntries {
-			scope := oe.Value.(traceql.AttributeScope)
-			key := tagNameKey{name: oe.Key, scope: scope}
-			sentKeys[key] = struct{}{}
-			if cb(oe.Key, scope) {
-				return nil // We have enough values
+
+		done, iterErr := func() (bool, error) {
+			defer iter.Close()
+			for {
+				res, err := iter.Next()
+				if err != nil {
+					return false, err
+				}
+				if res == nil {
+					return false, nil
+				}
+				for _, oe := range res.OtherEntries {
+					scope := oe.Value.(traceql.AttributeScope)
+					key := tagNameKey{name: oe.Key, scope: scope}
+					sentKeys[key] = struct{}{}
+					if cb(oe.Key, scope) {
+						return true, nil // We have enough values
+					}
+				}
 			}
+		}()
+		if iterErr != nil {
+			return iterErr
+		}
+		if done {
+			return nil
 		}
 	}
 
@@ -170,19 +188,23 @@ func tagNamesForSpecialColumns(scope traceql.AttributeScope, pf *parquet.File, d
 }
 
 func (b *backendBlock) FetchTagValues(ctx context.Context, req traceql.FetchTagValuesRequest, cb traceql.FetchTagValuesCallback, mcb common.MetricsCallback, opts common.SearchOptions) error {
-	err := checkConditions(req.Conditions)
-	if err != nil {
-		return errors.Wrap(err, "conditions invalid")
-	}
-
-	_, mingledConditions, err := categorizeConditions(req.Conditions)
-	if err != nil {
-		return err
-	}
-
-	// Last check. No conditions, use old path. It's much faster.
-	if len(req.Conditions) <= 1 || mingledConditions { // <= 1 because we always have a "OpNone" condition for the tag name
+	if len(req.ConditionGroups) == 0 {
 		return b.SearchTagValuesV2(ctx, req.TagName, common.TagValuesCallbackV2(cb), mcb, common.DefaultSearchOptions())
+	}
+
+	for _, condGroup := range req.ConditionGroups {
+		if err := checkConditions(condGroup); err != nil {
+			return errors.Wrap(err, "conditions invalid")
+		}
+		_, mingledConditions, err := categorizeConditions(condGroup)
+		if err != nil {
+			return err
+		}
+		// Last check. No conditions, use old path. It's much faster.
+		// <= 1 because we always have an OpNone condition for the tag name
+		if (len(req.ConditionGroups) == 1 && len(condGroup) <= 1) || mingledConditions {
+			return b.SearchTagValuesV2(ctx, req.TagName, common.TagValuesCallbackV2(cb), mcb, common.DefaultSearchOptions())
+		}
 	}
 
 	pf, rr, err := b.openForSearch(ctx, opts)
@@ -200,33 +222,42 @@ func (b *backendBlock) FetchTagValues(ctx context.Context, req traceql.FetchTagV
 		return ok
 	}
 
-	tr := tagRequest{
-		conditions:     req.Conditions,
-		tag:            req.TagName,
-		existsTagValue: existsTagValue,
-	}
+	for _, condGroup := range req.ConditionGroups {
+		tr := tagRequest{
+			conditions:     condGroup,
+			tag:            req.TagName,
+			existsTagValue: existsTagValue,
+		}
 
-	iter, err := autocompleteIter(ctx, tr, pf, opts, b.meta.DedicatedColumns)
-	if err != nil {
-		return errors.Wrap(err, "creating fetch iter")
-	}
-	defer iter.Close()
-
-	for {
-		// Exhaust the iterator
-		res, err := iter.Next()
+		iter, err := autocompleteIter(ctx, tr, pf, opts, b.meta.DedicatedColumns)
 		if err != nil {
-			return err
+			return errors.Wrap(err, "creating fetch iter")
 		}
-		if res == nil {
-			break
-		}
-		for _, oe := range res.OtherEntries {
-			v := oe.Value.(traceql.Static)
-			sentVals[v.MapKey()] = struct{}{}
-			if cb(v) {
-				return nil // We have enough values
+
+		done, iterErr := func() (bool, error) {
+			defer iter.Close()
+			for {
+				res, err := iter.Next()
+				if err != nil {
+					return false, err
+				}
+				if res == nil {
+					return false, nil
+				}
+				for _, oe := range res.OtherEntries {
+					v := oe.Value.(traceql.Static)
+					sentVals[v.MapKey()] = struct{}{}
+					if cb(v) {
+						return true, nil // We have enough values
+					}
+				}
 			}
+		}()
+		if iterErr != nil {
+			return iterErr
+		}
+		if done {
+			return nil
 		}
 	}
 
@@ -437,7 +468,7 @@ func createDistinctSpanIterator(
 	// TODO: Potentially problematic when wanted attribute is also part of a condition
 	//     e.g. { span.foo =~ ".*" && span.foo = }
 	addSelectAs := func(attr traceql.Attribute, columnPath string, selectAs string) {
-		if attr == tr.tag {
+		if attr == tr.tag || (attr.Name == tr.tag.Name && tr.tag.Scope == traceql.AttributeScopeNone) {
 			columnSelectAs[columnPath] = selectAs
 		} else {
 			columnSelectAs[columnPath] = "" // Don't select, just filter
@@ -656,7 +687,7 @@ func createDistinctAttributeIterator(
 	)
 
 	selectAs := func(key string, attr traceql.Attribute) string {
-		if tr.tag == attr {
+		if tr.tag == attr || (attr.Name == tr.tag.Name && tr.tag.Scope == traceql.AttributeScopeNone) {
 			return key
 		}
 		return ""
@@ -665,7 +696,7 @@ func createDistinctAttributeIterator(
 	for _, cond := range conditions {
 		if cond.Op == traceql.OpNone {
 			// This means we have to scan all values, we don't know what type to expect
-			if tr.tag == cond.Attribute {
+			if tr.tag == cond.Attribute || (cond.Attribute.Name == tr.tag.Name && tr.tag.Scope == traceql.AttributeScopeNone) {
 				// If it's not the tag we're looking for, we can skip it
 				attrKeys = append(attrKeys, cond.Attribute.Name)
 				attrStringPreds = append(attrStringPreds, nil)
@@ -678,7 +709,7 @@ func createDistinctAttributeIterator(
 		if cond.Op == traceql.OpExists {
 			// This means we have to scan all values, we don't know what type to expect
 			// But we can skip nils
-			if tr.tag == cond.Attribute {
+			if tr.tag == cond.Attribute || (cond.Attribute.Name == tr.tag.Name && tr.tag.Scope == traceql.AttributeScopeNone) {
 				// If it's not the tag we're looking for, we can skip it
 				attrKeys = append(attrKeys, cond.Attribute.Name)
 				attrStringPreds = append(attrStringPreds, parquetquery.NewSkipNilsPredicate())
@@ -900,7 +931,7 @@ func createDistinctResourceIterator(
 	}
 
 	addSelectAs := func(attr traceql.Attribute, columnPath string, selectAs string) {
-		if attr == tr.tag {
+		if attr == tr.tag || (attr.Name == tr.tag.Name && tr.tag.Scope == traceql.AttributeScopeNone) {
 			columnSelectAs[columnPath] = selectAs
 		} else {
 			columnSelectAs[columnPath] = "" // Don't select, just filter

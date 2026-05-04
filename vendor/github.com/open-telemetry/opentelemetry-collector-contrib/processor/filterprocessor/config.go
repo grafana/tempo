@@ -36,7 +36,7 @@ type Config struct {
 	// Valid values are `ignore` and `propagate`.
 	// `ignore` means the processor ignores errors returned by conditions and continues on to the next condition. This is the recommended mode.
 	// `propagate` means the processor returns the error up the pipeline.  This will result in the payload being dropped from the collector.
-	// The default value is `propagate`.
+	// The default value is `propagate`. It will change to `ignore` when the `processor.filter.defaultErrorModeIgnore` feature gate is stable.
 	ErrorMode ottl.ErrorMode `mapstructure:"error_mode"`
 
 	// Deprecated: use TraceConditions instead.

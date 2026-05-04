@@ -61,7 +61,9 @@ func setupTest(t *testing.T) *testSetup {
 	})
 	require.NoError(t, err)
 
-	instance, err := newInstance(testTenant, *cfg, w, blockEnc, o, log.NewNopLogger())
+	lifecycle, err := newCompleteBlockLifecycle(*cfg, noopCompleteBlockFlusher{}, log.NewNopLogger())
+	require.NoError(t, err)
+	instance, err := newInstance(testTenant, *cfg, w, blockEnc, lifecycle, o, log.NewNopLogger())
 	require.NoError(t, err)
 
 	return &testSetup{
@@ -135,8 +137,9 @@ func TestMetrics_PushBytesTracking(t *testing.T) {
 		"bytes received should increase by trace data size")
 
 	// Check live traces metric after cutting
-	err = setup.instance.cutIdleTraces(t.Context(), true) // immediate cut
+	drained, err := setup.instance.cutIdleTraces(t.Context(), true) // immediate cut
 	require.NoError(t, err)
+	require.True(t, drained, "should drain live traces in one iteration")
 
 	// Verify traces were created
 	finalTracesCreated, err := test.GetCounterValue(setup.instance.tracesCreatedTotal)
@@ -162,8 +165,9 @@ func TestMetrics_CompletionFlow(t *testing.T) {
 	setup.instance.pushBytes(t.Context(), time.Now(), req)
 
 	// Cut traces to head block
-	err = setup.instance.cutIdleTraces(t.Context(), true)
+	drained, err := setup.instance.cutIdleTraces(t.Context(), true)
 	require.NoError(t, err)
+	require.True(t, drained, "should drain live traces in one iteration")
 
 	// Cut block to prepare for completion
 	blockID, err := setup.instance.cutBlocks(t.Context(), true)
@@ -174,7 +178,7 @@ func TestMetrics_CompletionFlow(t *testing.T) {
 	initialCompletionSize := getHistogramCount(t, metricCompletionSize)
 
 	// Complete the block
-	err = setup.instance.completeBlock(t.Context(), blockID)
+	_, err = setup.instance.completeBlock(t.Context(), blockID)
 	require.NoError(t, err)
 
 	// Verify completion size metric was updated

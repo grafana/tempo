@@ -473,7 +473,7 @@ func TestCompileMetricsQueryRange(t *testing.T) {
 				Start: c.start,
 				End:   c.end,
 				Step:  c.step,
-			}, 0, false)
+			})
 
 			if c.expectedErr != nil {
 				require.EqualError(t, err, c.expectedErr.Error())
@@ -491,7 +491,7 @@ func TestCompileMetricsQueryRangeExemplars(t *testing.T) {
 		End:       2,
 		Step:      1,
 		Exemplars: 5,
-	}, 0, false)
+	})
 
 	require.NoError(t, err)
 	require.NotNil(t, eval)
@@ -518,7 +518,7 @@ func TestCompileMetricsQueryRangeExemplarsSafetyCap(t *testing.T) {
 				Step:      1,
 				Exemplars: tc.exemplars,
 			}
-			eval, err := NewEngine().CompileMetricsQueryRange(req, 0, false)
+			eval, err := NewEngine().CompileMetricsQueryRange(req)
 			require.NoError(t, err)
 			require.Equal(t, tc.expected, eval.maxExemplars)
 		})
@@ -661,7 +661,7 @@ func TestCompileMetricsQueryRangeFetchSpansRequest(t *testing.T) {
 				Start: 1,
 				End:   2,
 				Step:  3,
-			}, 0, false)
+			})
 			require.NoError(t, err)
 
 			// Nil out func to Equal works
@@ -1121,14 +1121,14 @@ func TestCountOverTimeInstantNsWithCutoff(t *testing.T) {
 		require.NoError(t, err)
 
 		// process different series in L1
-		layer1, err := e.CompileMetricsQueryRange(&req1, 0, false)
+		layer1, err := e.CompileMetricsQueryRange(&req1)
 		require.NoError(t, err)
 		for _, s := range in1 {
 			layer1.metricsPipeline.observe(s)
 		}
 		res1 := layer1.Results().ToProto(&req1)
 
-		layer1, err = e.CompileMetricsQueryRange(&req2, 0, false)
+		layer1, err = e.CompileMetricsQueryRange(&req2)
 		require.NoError(t, err)
 		for _, s := range in2 {
 			layer1.metricsPipeline.observe(s)
@@ -1719,8 +1719,8 @@ func TestObserveSeriesAverageOverTimeForSpanAttribute(t *testing.T) {
 	}
 
 	e := NewEngine()
-	layer1A, _ := e.CompileMetricsQueryRange(req, 0, false)
-	layer1B, _ := e.CompileMetricsQueryRange(req, 0, false)
+	layer1A, _ := e.CompileMetricsQueryRange(req)
+	layer1B, _ := e.CompileMetricsQueryRange(req)
 	layer2A, _ := e.CompileMetricsQueryRangeNonRaw(req, AggregateModeSum)
 	layer2B, _ := e.CompileMetricsQueryRangeNonRaw(req, AggregateModeSum)
 	layer3, _ := e.CompileMetricsQueryRangeNonRaw(req, AggregateModeFinal)
@@ -1794,8 +1794,8 @@ func TestObserveSeriesAverageOverTimeForSpanAttributeWithTruncation(t *testing.T
 	}
 
 	e := NewEngine()
-	layer1A, _ := e.CompileMetricsQueryRange(req, 0, false)
-	layer1B, _ := e.CompileMetricsQueryRange(req, 0, false)
+	layer1A, _ := e.CompileMetricsQueryRange(req)
+	layer1B, _ := e.CompileMetricsQueryRange(req)
 	layer2A, _ := e.CompileMetricsQueryRangeNonRaw(req, AggregateModeSum)
 	layer2B, _ := e.CompileMetricsQueryRangeNonRaw(req, AggregateModeSum)
 	layer3, _ := e.CompileMetricsQueryRangeNonRaw(req, AggregateModeFinal)
@@ -2987,7 +2987,7 @@ func processLayer1AndLayer2(req *tempopb.QueryRangeRequest, in ...[]Span) (Serie
 	}
 
 	for _, spanSet := range in {
-		layer1, err := e.CompileMetricsQueryRange(req, 0, false)
+		layer1, err := e.CompileMetricsQueryRange(req)
 		if err != nil {
 			return nil, err
 		}

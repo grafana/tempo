@@ -46,8 +46,9 @@ This limit is enforced asynchronously in the live-store, not at ingestion time i
 Block-builders do not enforce this limit.
 If your services produce many short-lived traces in parallel, you may need to raise this.
 
-`max_global_traces_per_user` (default: 0, disabled) sets a cluster-wide cap instead of a per-instance cap.
-This setting only takes effect when using the classic ingester write path, not the Kafka-based live-store path.
+{{< admonition type="note" >}}
+The `max_global_traces_per_user` setting, which provides a cluster-wide cap for the ingester write path, has been moved to `ingestion.max_global_traces_per_user` in Tempo 3.0.
+{{< /admonition >}}
 
 ### Per-trace size limit
 
@@ -82,8 +83,8 @@ You can also manage per-tenant limits through the API using [user-configurable o
 
 ## Find and fix discarded spans
 
-When a span exceeds an ingestion limit, Tempo discards it and increments the `tempo_discarded_spans_total` metric.
-The distributor discards rate-limited spans before they reach Kafka.
+When a span exceeds an ingestion limit or fails validation, Tempo discards it and increments the `tempo_discarded_spans_total` metric.
+The distributor rejects entire push requests that exceed the rate limit or contain invalid trace or span IDs, before any spans reach Kafka.
 Live-stores discard spans that exceed per-trace size or live trace count limits after consuming them from Kafka.
 Block-builders discard spans that exceed per-trace size limits.
 
@@ -94,17 +95,29 @@ The following table lists the three error types, what each one means, and how to
 | Error                  | Cause                                                                                  | Fix                                                                                                                                                                                                                                                                                |
 | ---------------------- | -------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `RATE_LIMITED`         | The tenant's byte rate exceeded `rate_limit_bytes`.                                    | Raise `rate_limit_bytes`, or add distributors if using `rate_strategy: local`. If volume is genuinely higher than intended, reduce it upstream with [sampling](https://grafana.com/docs/tempo/<TEMPO_VERSION>/set-up-for-tracing/instrument-send/set-up-collector/tail-sampling/). |
-| `LIVE_TRACES_EXCEEDED` | The number of concurrent active traces on a live-store exceeded `max_traces_per_user`. | Raise `max_traces_per_user`. If using the classic ingester path, you can also set `max_global_traces_per_user` to distribute the limit across the cluster.                                                                                                                         |
+| `LIVE_TRACES_EXCEEDED` | The number of concurrent active traces on a live-store exceeded `max_traces_per_user`. | Raise `max_traces_per_user`, or add live-store instances to distribute the active trace count across more nodes.                                                                                                                                                                    |
 | `TRACE_TOO_LARGE`      | A single trace exceeded `max_bytes_per_trace` (default 5 MB).                          | Raise `max_bytes_per_trace` in the `global` overrides. Also investigate why the trace is so large. Common causes include retry loops and misconfigured instrumentation.                                                                                                            |
 
-### Check which limit is being hit
+### Check why spans are being discarded
 
 Query the `tempo_discarded_spans_total` metric.
-The `reason` label indicates which limit caused the refusal:
+The `reason` label identifies why Tempo discarded each span:
 
 ```promql
 sum by (reason) (rate(tempo_discarded_spans_total[5m]))
 ```
+
+The following table lists the possible `reason` values:
+
+| Reason                        | Meaning                                                     | Component              |
+| ----------------------------- | ----------------------------------------------------------- | ---------------------- |
+| `rate_limited`                | Tenant byte rate exceeded `rate_limit_bytes`.               | Distributor            |
+| `trace_too_large`             | Single trace exceeded `max_bytes_per_trace`.                | Live-store, block-builder |
+| `live_traces_exceeded`        | Active trace count exceeded `max_traces_per_user`.          | Live-store             |
+| `invalid_trace_id`            | Batch contained a trace ID that isn't 128 bits.             | Distributor            |
+| `invalid_span_id`             | Batch contained a span ID that isn't 64 bits or was all zeros. | Distributor         |
+| `trace_too_large_to_compact`  | Trace too large for the backend-worker to compact.          | Backend-worker         |
+| `unknown_error`               | Unexpected error during span processing.                    | Live-store             |
 
 ### Log discarded spans for debugging
 
