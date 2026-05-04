@@ -1,0 +1,98 @@
+version: 1.0
+
+personas:
+  Learner:
+    description: 'Technical user who needs guidance and conceptual understanding while accomplishing tasks'
+    modes:
+      orientation:
+        goal: 'Understand what is possible'
+        content_preferences:
+          - conceptual_overview
+          - use_cases
+          - scenarios
+      execution:
+        goal: 'Complete a task with guidance'
+        content_preferences:
+          - walkthroughs
+          - step_by_step_guides
+
+  Practitioner:
+    description: 'Task-oriented user comfortable with tools and workflows'
+    content_preferences:
+      - task_guides
+      - examples
+      - workflow_docs
+
+  Expert:
+    description: 'Advanced user needing precision and deep control'
+    content_preferences:
+      - reference
+      - advanced_examples
+      - edge_cases
+
+  Operator:
+    description: 'User responsible for running and maintaining systems'
+    content_preferences:
+      - architecture
+      - configuration
+      - troubleshooting
+
+use_cases:
+  - name: understand
+    description: 'Learn concepts and capabilities'
+  - name: investigate
+    description: 'Troubleshoot and diagnose issues'
+  - name: implement
+    description: 'Set up and configure systems'
+  - name: operate
+    description: 'Monitor and maintain systems'
+  - name: optimize
+    description: 'Improve performance, cost, or reliability'
+
+entry_states:
+  - id: unknown_goal
+    description: 'User does not yet understand what the product does'
+  - id: known_task
+    description: 'User knows what they want to accomplish'
+  - id: need_precision
+    description: 'User needs exact syntax or configuration'
+  - id: system_level
+    description: 'User is working at system or platform level'
+
+interaction_modes:
+  manual:
+    description: 'User relies on UI, docs, and queries'
+  assisted:
+    description: 'User uses AI to guide, generate, or automate workflows'
+
+learning_context:
+  product_usage:
+    description: 'User is completing tasks and learning as needed'
+  structured_learning:
+    description: 'User follows courses or guided learning paths'
+
+decision_logic:
+  description: 'Basic flow for agent behavior'
+  steps:
+    - identify_use_case
+    - identify_entry_state
+    - infer_persona
+    - detect_interaction_mode
+    - select_content_type
+
+content_selection:
+  Learner:
+    orientation:
+      - conceptual_overview
+      - scenarios
+    execution:
+      - walkthrough
+  Practitioner:
+    - task_guide
+    - examples
+  Expert:
+    - reference
+    - advanced_examples
+  Operator:
+    - architecture
+    - troubleshooting

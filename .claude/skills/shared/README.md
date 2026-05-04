@@ -1,48 +1,55 @@
-# Documentation Agent Shared Resources
+# Documentation agent shared resources
 
-This directory contains shared resources for documentation agents and writers working on Tempo documentation.
+This directory contains **foundation** resources for documentation agents and writers. **Product-specific paths, repo layout, and naming** come from the repository's **local context** (`docs/project-context.md`).
 
 ## Files Overview
 
 ### [`docs-context-guide.md`](docs-context-guide.md)
-**Purpose**: Repo orientation for any Tempo documentation task
+
+**Purpose**: How to orient in a docs repo (after loading **local context**)
 
 **When to use**:
+
 - Before any doc task — writing, updating, or reviewing
 - When you need to find where code maps to docs
 - When verifying claims against the codebase
-- When unsure about Tempo-specific conventions
+- When aligning with project-specific conventions (from local context)
 
 **Key contents**:
-- Architecture and component names
-- Documentation layout and code-to-docs patterns
-- Verification table (claim type → where to check)
-- Tempo-specific conventions (naming, formatting)
-- Gotchas that prevent common errors
+
+- Load local context first; generic verification patterns
+- Architecture and layout: **filled in by local context**, not duplicated here
+- Gotchas pattern (generated pages, legacy names, defaults)
 
 ### [`style-guide.md`](style-guide.md)
-**Purpose**: Grafana documentation style guide and templates
 
-**When to use**: 
+**Purpose**: Documentation style guide and templates
+
+**When to use**:
+
 - Before writing any documentation
 - When reviewing documentation for style compliance
 - When unsure about formatting, phrasing, or structure
 
 **Key contents**:
+
 - Style rules (tense, voice, formatting)
 - Template structures (concept, task, reference, scenario)
 - Common style requirements
 
 ### [`best-practices.md`](best-practices.md)
+
 **Purpose**: Best practices learned from documentation work
 
 **When to use**:
+
 - Starting a new documentation task
 - Reviewing documentation before submission
 - Learning from past documentation work
 - Avoiding common pitfalls
 
 **Key contents**:
+
 - Pre-writing checklist
 - Verification process
 - Common pitfalls and solutions
@@ -50,15 +57,18 @@ This directory contains shared resources for documentation agents and writers wo
 - Guidelines for addressing user confusion
 
 ### [`verification-checklist.md`](verification-checklist.md)
+
 **Purpose**: Comprehensive checklist for verifying documentation accuracy
 
 **When to use**:
+
 - Before submitting documentation changes
 - When updating existing documentation
 - To ensure completeness and accuracy
 - As a quality assurance step
 
 **Key contents**:
+
 - Codebase verification steps
 - Configuration reference checks
 - Version compatibility verification
@@ -66,39 +76,38 @@ This directory contains shared resources for documentation agents and writers wo
 - Example quality checks
 
 ### [`release-notes-workflow.md`](release-notes-workflow.md)
+
 **Purpose**: Workflow for creating Grafana Tempo release notes
 
 **When to use**:
+
 - Creating release notes for a new Tempo version
 - Reviewing or updating existing release notes
 - Understanding the multi-phase release notes process
 - Looking up the document structure template or example prompts
 
 **Key contents**:
-- Multi-phase workflow (input gathering, documentation assessment, gap resolution, categorization, writing, validation, polish)
-- Documentation assessment process for evaluating whether PRs need docs and whether those docs exist
-- PR classification system (docs present, docs needed, docs update needed, no docs required)
-- Document structure template with frontmatter and section layout
-- Example prompts for common release notes tasks (initial draft, PR deep dive, documentation assessment, upgrade considerations)
-- Tempo-specific style guidelines and conventions
-- Iteration checklist for content completeness, documentation assessment, documentation coverage, and quality
-- Feature-by-feature deep dive workflow for complex releases
 
-### [`metrics-generator-knowledge.md`](metrics-generator-knowledge.md)
-**Purpose**: Domain-specific knowledge about Tempo metrics-generator
+- Multi-phase workflow (CHANGELOG curation, docs assessment, gap resolution, drafting, validation)
+- PR classification (docs present, docs needed, docs update needed, no docs required)
+- Templates and prompts
+- Iteration checklist for quality
+
+### [`personas.md`](personas.md)
+
+**Purpose**: Persona and intent model for audience-fit checks
 
 **When to use**:
-- Writing or updating metrics-generator documentation
-- Understanding feature scope (span-metrics vs. service-graphs)
-- Verifying configuration options
-- Understanding user confusion points
+
+- Matching content level to the target audience
+- Running persona-check on documentation
+- Deciding content type and depth
 
 **Key contents**:
-- Feature scope (processor-specific vs. shared)
-- Configuration structure examples
-- Common user confusion points
-- Version compatibility notes
-- Key code file locations
+
+- Four personas (Learner, Practitioner, Expert, Operator)
+- Use cases, entry states, interaction modes
+- Content selection guidance
 
 ## Usage Workflow
 
@@ -107,14 +116,14 @@ This directory contains shared resources for documentation agents and writers wo
 1. **Read** [`docs-context-guide.md`](docs-context-guide.md) for repo orientation
 2. **Start with** [`style-guide.md`](style-guide.md) to understand formatting requirements
 3. **Review** [`best-practices.md`](best-practices.md) for common patterns and pitfalls
-4. **Reference** [`metrics-generator-knowledge.md`](metrics-generator-knowledge.md) if working on metrics-generator features
+4. **Reference** `metrics-generator-knowledge.md` (in `.agents/doc-agents/shared/`) if working on metrics-generator features
 5. **Use** [`verification-checklist.md`](verification-checklist.md) before submitting
 
 ### For Release Notes
 
 1. **Follow** [`release-notes-workflow.md`](release-notes-workflow.md) for the complete multi-phase process
-2. **Use** [`docs-pr-check` skill](../../../.claude/skills/docs-pr-check/SKILL.md) for documentation assessment (Phase 1.5)
-3. **Use** [`docs-pr-write` skill](../../../.claude/skills/docs-pr-write/SKILL.md) for documentation gap resolution (Phase 1.75)
+2. **Use** [`../docs-pr-check/SKILL.md`](../docs-pr-check/SKILL.md) for documentation assessment
+3. **Use** [`../docs-pr-write/SKILL.md`](../docs-pr-write/SKILL.md) for documentation gap resolution
 4. **Reference** [`style-guide.md`](style-guide.md) for general style rules
 5. **Use** [`verification-checklist.md`](verification-checklist.md) before submitting
 
@@ -123,15 +132,14 @@ This directory contains shared resources for documentation agents and writers wo
 1. **Read** [`docs-context-guide.md`](docs-context-guide.md) for repo orientation
 2. **Check** [`verification-checklist.md`](verification-checklist.md) to ensure all areas are covered
 3. **Reference** [`best-practices.md`](best-practices.md) for common issues to avoid
-4. **Verify** against [`metrics-generator-knowledge.md`](metrics-generator-knowledge.md) if updating metrics-generator docs
+4. **Verify** against code-adjacent `AGENTS.md` or other subsystem docs when local context points you there
 5. **Review** [`style-guide.md`](style-guide.md) for consistency
 
 ### For Addressing GitHub Issues
 
 1. **Read** [`best-practices.md`](best-practices.md) section on "Addressing User Confusion"
-2. **Check** [`metrics-generator-knowledge.md`](metrics-generator-knowledge.md) for known confusion points
-3. **Follow** [`verification-checklist.md`](verification-checklist.md) to ensure fixes are complete
-4. **Verify** against [`style-guide.md`](style-guide.md) for consistency
+2. **Follow** [`verification-checklist.md`](verification-checklist.md) to ensure fixes are complete
+3. **Verify** against [`style-guide.md`](style-guide.md) for consistency
 
 ## Quick Reference
 
@@ -140,16 +148,17 @@ This directory contains shared resources for documentation agents and writers wo
 | Starting new docs | `docs-context-guide.md` | `style-guide.md` |
 | Updating docs | `docs-context-guide.md` | `verification-checklist.md` |
 | Writing release notes | `release-notes-workflow.md` | `style-guide.md` |
-| PR docs assessment (triage) | `../../../.claude/skills/docs-pr-check/SKILL.md` | `release-notes-workflow.md` |
-| PR docs writing (execution) | `../../../.claude/skills/docs-pr-write/SKILL.md` | `release-notes-workflow.md` |
-| Metrics-generator work | `metrics-generator-knowledge.md` | `verification-checklist.md` |
-| Fixing user issues | `best-practices.md` | `metrics-generator-knowledge.md` |
+| PR docs assessment (triage) | `../docs-pr-check/SKILL.md` | `release-notes-workflow.md` |
+| PR docs writing (execution) | `../docs-pr-write/SKILL.md` | `release-notes-workflow.md` |
+| Metrics-generator work | `.agents/doc-agents/shared/metrics-generator-knowledge.md` | `verification-checklist.md` |
+| Fixing user issues | `best-practices.md` | `verification-checklist.md` |
 | Style questions | `style-guide.md` | `best-practices.md` |
 | Pre-submission review | `verification-checklist.md` | `style-guide.md` |
 
 ## Maintenance
 
 These files should be updated when:
+
 - New patterns or best practices are discovered
 - Common issues are identified and resolved
 - Domain knowledge expands (new features, new confusion points)
@@ -159,19 +168,15 @@ These files should be updated when:
 ## Contributing
 
 When you discover new insights:
+
 1. Document them in the appropriate file
 2. Update the relevant sections
 3. Add examples if helpful
 4. Share with the team
 
-## Related Resources
+## Related resources
 
-- Main documentation: `docs/sources/tempo/`
-- Configuration reference: `docs/sources/tempo/configuration/_index.md`
-- Codebase: `modules/generator/processor/`
-- CHANGELOG: `CHANGELOG.md`
-- Skills workflow README: `.claude/skills/README.md`
-- Skill: `.claude/skills/docs-workflow/SKILL.md`
-- Skill: `.claude/skills/docs-pr-check/SKILL.md`
-- Skill: `.claude/skills/docs-pr-write/SKILL.md`
-- Skill: `.claude/skills/docs-review/SKILL.md`
+- Doc tree, config reference, and codebase paths: `docs/project-context.md`
+- CHANGELOG: `CHANGELOG.md` at repository root
+- Skills README: [`../README.md`](../README.md)
+- Skills: [`../docs-workflow/SKILL.md`](../docs-workflow/SKILL.md), [`../docs-pr-check/SKILL.md`](../docs-pr-check/SKILL.md), [`../docs-pr-write/SKILL.md`](../docs-pr-write/SKILL.md), [`../docs-review/SKILL.md`](../docs-review/SKILL.md)
