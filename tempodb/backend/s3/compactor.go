@@ -55,20 +55,33 @@ func (rw *readerWriter) ClearBlock(blockID uuid.UUID, tenantID string) error {
 		return backend.ErrEmptyBlockID
 	}
 
-	path := backend.RootPath(blockID, tenantID, rw.cfg.Prefix) + "/"
+	path := backend.RootPath(blockID, tenantID, rw.cfg.Prefix)
+	if len(path) > 0 {
+		path += "/"
+	}
 	level.Debug(rw.logger).Log("msg", "deleting block", "block path", path)
 
-	// ListObjects(bucket, prefix, marker, delimiter string, maxKeys int)
-	res, err := rw.core.ListObjects(rw.cfg.Bucket, path, "", "/", 0)
-	if err != nil {
-		return fmt.Errorf("error listing objects in bucket %s: %w", rw.cfg.Bucket, err)
-	}
-
-	level.Debug(rw.logger).Log("msg", "listing objects", "found", len(res.Contents))
-	for _, obj := range res.Contents {
-		err = rw.core.RemoveObject(context.TODO(), rw.cfg.Bucket, obj.Key, minio.RemoveObjectOptions{})
+	// List all object keys under the block prefix (paginated). A single ListObjects with
+	// delimiter "/" can miss keys (truncation, or non-flat layouts); match GCS/azure behavior.
+	nextToken := ""
+	isTruncated := true
+	var res minio.ListBucketV2Result
+	for isTruncated {
+		var err error
+		res, err = rw.core.ListObjectsV2(rw.cfg.Bucket, path, "", nextToken, "", 0)
 		if err != nil {
-			return fmt.Errorf("error deleting obj from s3: %s: %w", obj.Key, err)
+			return fmt.Errorf("error listing objects in bucket %s: %w", rw.cfg.Bucket, err)
+		}
+		isTruncated = res.IsTruncated
+		nextToken = res.NextContinuationToken
+
+		level.Debug(rw.logger).Log("msg", "listing objects", "found", len(res.Contents), "truncated", isTruncated)
+
+		for _, obj := range res.Contents {
+			err = rw.core.RemoveObject(context.TODO(), rw.cfg.Bucket, obj.Key, minio.RemoveObjectOptions{})
+			if err != nil {
+				return fmt.Errorf("error deleting obj from s3: %s: %w", obj.Key, err)
+			}
 		}
 	}
 
