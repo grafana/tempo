@@ -122,7 +122,7 @@
       "severity": "critical"
   - "alert": "TempoBlockBuilderPartitionLagWarning"
     "annotations":
-      "message": "Tempo ingest partition {{ $labels.partition }} for blockbuilder is lagging by more than 300 seconds in {{ $labels.cluster }}/{{ $labels.namespace }}."
+      "message": "Tempo ingest partition {{ $labels.partition }} for blockbuilder is lagging by more than 200 seconds in {{ $labels.cluster }}/{{ $labels.namespace }}."
       "runbook_url": "https://github.com/grafana/tempo/tree/main/operations/tempo-mixin/runbook.md#TempoPartitionLag"
     "expr": |
       max by (cluster, namespace, partition) (avg_over_time(tempo_ingest_group_partition_lag_seconds{namespace=~".*", container="block-builder"}[6m])) > 200

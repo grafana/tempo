@@ -31,17 +31,17 @@ var metricBlockBuilderFlushedBlocks = promauto.NewCounterVec(
 )
 
 type tenantStore struct {
-	tenantID         string
-	idGenerator      util.IDGenerator
-	cfg              BlockConfig
-	startTime        time.Time
-	cycleDuration    time.Duration
-	slackDuration    time.Duration
-	logger           log.Logger
-	overrides        Overrides
-	enc              encoding.VersionedEncoding
-	wal              *wal.WAL
-	noCompactBlockID *backend.UUID
+	tenantID          string
+	idGenerator       util.IDGenerator
+	cfg               BlockConfig
+	startTime         time.Time
+	cycleDuration     time.Duration
+	slackDuration     time.Duration
+	logger            log.Logger
+	overrides         Overrides
+	enc               encoding.VersionedEncoding
+	wal               *wal.WAL
+	noCompactBlockIDs []backend.UUID
 
 	liveTraces *livetraces.LiveTraces[[]byte]
 }
@@ -99,6 +99,14 @@ func (s *tenantStore) AppendTrace(traceID []byte, tr []byte, ts time.Time) error
 	}
 
 	return nil
+}
+
+// Reset clears liveTraces to free memory after a mid-cycle flush.
+// It does NOT reset the ID generator so that subsequent Flush() calls
+// within the same cycle produce unique sequential block IDs that are
+// idempotent on restart from the same committed offset.
+func (s *tenantStore) Reset() {
+	s.liveTraces = livetraces.New(func(b []byte) uint64 { return uint64(len(b)) }, 0, 0, s.tenantID)
 }
 
 func (s *tenantStore) Flush(ctx context.Context, r tempodb.Reader, w tempodb.Writer, c tempodb.Compactor) error {
@@ -179,11 +187,14 @@ func (s *tenantStore) Flush(ctx context.Context, r tempodb.Reader, w tempodb.Wri
 		span.RecordError(err)
 		return err
 	}
-	s.noCompactBlockID = &newMeta.BlockID
+	s.noCompactBlockIDs = append(s.noCompactBlockIDs, newMeta.BlockID)
 	span.AddEvent("wrote block to backend", trace.WithAttributes(attribute.String("block_id", newMeta.BlockID.String())))
 
 	metricBlockBuilderFlushedBlocks.WithLabelValues(s.tenantID).Inc()
 
+	// Clear this WAL block immediately after writing to the remote backend.
+	// Note: WAL.Clear() only runs once at cycle start; mid-cycle flushes must
+	// clean up their WAL blocks individually to prevent WAL directory growth.
 	if err := s.wal.LocalBackend().ClearBlock((uuid.UUID)(newMeta.BlockID), s.tenantID); err != nil {
 		return err
 	}
@@ -201,14 +212,12 @@ func (s *tenantStore) Flush(ctx context.Context, r tempodb.Reader, w tempodb.Wri
 }
 
 func (s *tenantStore) AllowCompaction(ctx context.Context, w tempodb.Writer) error {
-	if s.noCompactBlockID == nil {
-		return nil // no block to allow compaction for
+	for _, blockID := range s.noCompactBlockIDs {
+		if err := w.DeleteNoCompactFlag(ctx, s.tenantID, blockID); err != nil {
+			return err
+		}
 	}
-	if err := w.DeleteNoCompactFlag(ctx, s.tenantID, *s.noCompactBlockID); err != nil {
-		return err
-	}
-	s.noCompactBlockID = nil
-
+	s.noCompactBlockIDs = nil
 	return nil
 }
 
