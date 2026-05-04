@@ -61,8 +61,8 @@ type Memberlist struct {
 	msgQueueLock         sync.Mutex
 
 	nodeLock   sync.RWMutex
-	nodes      []*nodeState          // Known nodes
-	nodeMap    map[string]*nodeState // Maps Node.Name -> NodeState
+	nodes      []*NodeState          // Known nodes
+	nodeMap    map[string]*NodeState // Maps Node.Name -> NodeState
 	nodeTimers map[string]*suspicion // Maps Node.Name -> suspicion timer
 	awareness  *awareness
 
@@ -206,7 +206,7 @@ func newMemberlist(conf *Config) (*Memberlist, error) {
 		handoffCh:            make(chan struct{}, 1),
 		highPriorityMsgQueue: list.New(),
 		lowPriorityMsgQueue:  list.New(),
-		nodeMap:              make(map[string]*nodeState),
+		nodeMap:              make(map[string]*NodeState),
 		nodeTimers:           make(map[string]*suspicion),
 		awareness:            newAwareness(conf.AwarenessMaxMultiplier),
 		ackHandlers:          make(map[uint32]*ackHandler),
@@ -763,7 +763,7 @@ func (m *Memberlist) getNodeStateChange(addr string) time.Time {
 	return n.StateChange
 }
 
-func (m *Memberlist) changeNode(addr string, f func(*nodeState)) {
+func (m *Memberlist) changeNode(addr string, f func(*NodeState)) {
 	m.nodeLock.Lock()
 	defer m.nodeLock.Unlock()
 

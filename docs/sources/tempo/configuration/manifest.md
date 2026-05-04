@@ -17,6 +17,9 @@ and other [configuration documentation](../). Most installations will require on
 ```yaml
 target: all
 http_api_prefix: ""
+memory:
+    automemlimit_enabled: false
+    automemlimit_ratio: 0.8
 server:
     http_listen_network: tcp
     http_listen_address: ""
@@ -67,6 +70,8 @@ server:
     grpc_server_num_workers: 0
     grpc_server_stats_tracking_enabled: true
     grpc_server_recv_buffer_pools_enabled: false
+    grpc_server_read_buffer_size: 32768
+    grpc_server_write_buffer_size: 32768
     log_format: logfmt
     log_level: info
     log_source_ips_enabled: false
@@ -81,6 +86,7 @@ server:
     http_path_prefix: ""
     cluster_validation:
         label: ""
+        additional_labels: ""
         grpc:
             enabled: false
             soft_validation: false
@@ -89,6 +95,7 @@ server:
             soft_validation: false
             excluded_paths: ""
             excluded_user_agents: ""
+    create_new_traces: false
 internal_server:
     http_listen_network: tcp
     http_listen_address: ""
@@ -139,6 +146,8 @@ internal_server:
     grpc_server_num_workers: 0
     grpc_server_stats_tracking_enabled: false
     grpc_server_recv_buffer_pools_enabled: false
+    grpc_server_read_buffer_size: 0
+    grpc_server_write_buffer_size: 0
     log_format: logfmt
     log_level: info
     log_source_ips_enabled: false
@@ -153,6 +162,7 @@ internal_server:
     http_path_prefix: ""
     cluster_validation:
         label: ""
+        additional_labels: ""
         grpc:
             enabled: false
             soft_validation: false
@@ -161,6 +171,7 @@ internal_server:
             soft_validation: false
             excluded_paths: ""
             excluded_user_agents: ""
+    create_new_traces: false
     enable: false
 distributor:
     ring:
@@ -210,8 +221,6 @@ distributor:
         cost_attribution:
             max_cardinality: 10000
             stale_duration: 15m0s
-    ingester_write_path_enabled: true
-    kafka_write_path_enabled: false
     kafka_config:
         address: ""
         topic: ""
@@ -229,81 +238,16 @@ distributor:
         producer_max_buffered_bytes: 0
         target_consumer_lag_at_startup: 0s
         max_consumer_lag_at_startup: 0s
+        disable_kafka_telemetry: false
         consumer_group_lag_metric_update_interval: 0s
-    extend_writes: true
-    retry_after_on_resource_exhausted: 0s
+    retry_after_on_resource_exhausted: 5s
     max_attribute_bytes: 2048
-ingester_client:
-    pool_config:
-        checkinterval: 15s
-        healthcheckenabled: true
-        healthchecktimeout: 1s
-        maxconcurrenthealthchecks: 0
-    remote_timeout: 5s
-    grpc_client_config:
-        max_recv_msg_size: 104857600
-        max_send_msg_size: 104857600
-        grpc_compression: snappy
-        rate_limit: 0
-        rate_limit_burst: 0
-        backoff_on_ratelimits: false
-        backoff_config:
-            min_period: 100ms
-            max_period: 10s
-            max_retries: 10
-        initial_stream_window_size: 63KiB1023B
-        initial_connection_window_size: 63KiB1023B
-        tls_enabled: false
-        tls_cert_path: ""
-        tls_key_path: ""
-        tls_ca_path: ""
-        tls_server_name: ""
-        tls_insecure_skip_verify: false
-        tls_cipher_suites: ""
-        tls_min_version: ""
-        connect_timeout: 5s
-        connect_backoff_base_delay: 1s
-        connect_backoff_max_delay: 5s
-        cluster_validation:
-            label: ""
-metrics_generator_client:
-    pool_config:
-        checkinterval: 15s
-        healthcheckenabled: true
-        healthchecktimeout: 1s
-        maxconcurrenthealthchecks: 0
-    remote_timeout: 5s
-    grpc_client_config:
-        max_recv_msg_size: 104857600
-        max_send_msg_size: 104857600
-        grpc_compression: snappy
-        rate_limit: 0
-        rate_limit_burst: 0
-        backoff_on_ratelimits: false
-        backoff_config:
-            min_period: 100ms
-            max_period: 10s
-            max_retries: 10
-        initial_stream_window_size: 63KiB1023B
-        initial_connection_window_size: 63KiB1023B
-        tls_enabled: false
-        tls_cert_path: ""
-        tls_key_path: ""
-        tls_ca_path: ""
-        tls_server_name: ""
-        tls_insecure_skip_verify: false
-        tls_cipher_suites: ""
-        tls_min_version: ""
-        connect_timeout: 5s
-        connect_backoff_base_delay: 1s
-        connect_backoff_max_delay: 5s
-        cluster_validation:
-            label: ""
 live_store_client:
     pool_config:
         checkinterval: 15s
         healthcheckenabled: true
         healthchecktimeout: 1s
+        healthcheckgraceperiod: 0s
         maxconcurrenthealthchecks: 0
     remote_timeout: 5s
     grpc_client_config:
@@ -337,6 +281,9 @@ querier:
         query_timeout: 30s
     trace_by_id:
         query_timeout: 10s
+        external:
+            endpoint: ""
+            timeout: 10s
     metrics:
         concurrent_blocks: 2
         time_overlap_cutoff: 0.2
@@ -391,19 +338,20 @@ query_frontend:
         max_result_limit: 262144
         max_duration: 168h0m0s
         query_backend_after: 15m0s
-        query_ingesters_until: 30m0s
         ingester_shards: 3
         most_recent_shards: 200
+        default_spans_per_span_set: 3
         max_spans_per_span_set: 100
     trace_by_id:
         query_shards: 50
     metrics:
         concurrent_jobs: 1000
         target_bytes_per_job: 104857600
-        max_duration: 3h0m0s
-        query_backend_after: 30m0s
+        max_duration: 24h0m0s
+        query_backend_after: 15m0s
         interval: 5m0s
         max_exemplars: 100
+        streaming_shards: 200
         max_intervals: 10000
     multi_tenant_queries_enabled: true
     response_consumers: 10
@@ -415,163 +363,6 @@ query_frontend:
     mcp_server:
         enabled: false
     max_query_expression_size_bytes: 131072
-    rf1_after: 0001-01-01T00:00:00Z
-compactor:
-    ring:
-        kvstore:
-            store: ""
-            prefix: collectors/
-            consul:
-                host: localhost:8500
-                acl_token: ""
-                http_client_timeout: 20s
-                consistent_reads: false
-                watch_rate_limit: 1
-                watch_burst_size: 1
-                cas_retry_delay: 1s
-            etcd:
-                endpoints: []
-                dial_timeout: 10s
-                max_retries: 10
-                tls_enabled: false
-                tls_cert_path: ""
-                tls_key_path: ""
-                tls_ca_path: ""
-                tls_server_name: ""
-                tls_insecure_skip_verify: false
-                tls_cipher_suites: ""
-                tls_min_version: ""
-                username: ""
-                password: ""
-            multi:
-                primary: ""
-                secondary: ""
-                mirror_enabled: false
-                mirror_timeout: 2s
-        heartbeat_period: 5s
-        heartbeat_timeout: 1m0s
-        wait_stability_min_duration: 1m0s
-        wait_stability_max_duration: 5m0s
-        instance_id: hostname
-        instance_interface_names:
-            - eth0
-            - en0
-        instance_port: 0
-        instance_addr: ""
-        enable_inet6: false
-        wait_active_instance_timeout: 10m0s
-    compaction:
-        v2_in_buffer_bytes: 5242880
-        v2_out_buffer_bytes: 20971520
-        v2_prefetch_traces_count: 1000
-        compaction_window: 1h0m0s
-        max_compaction_objects: 6000000
-        max_block_bytes: 107374182400
-        block_retention: 336h0m0s
-        compacted_block_retention: 1h0m0s
-        retention_concurrency: 10
-        max_time_per_tenant: 5m0s
-        compaction_cycle: 30s
-    override_ring_key: compactor
-ingester:
-    lifecycler:
-        ring:
-            kvstore:
-                store: memberlist
-                prefix: collectors/
-                consul:
-                    host: localhost:8500
-                    acl_token: ""
-                    http_client_timeout: 20s
-                    consistent_reads: false
-                    watch_rate_limit: 1
-                    watch_burst_size: 1
-                    cas_retry_delay: 1s
-                etcd:
-                    endpoints: []
-                    dial_timeout: 10s
-                    max_retries: 10
-                    tls_enabled: false
-                    tls_cert_path: ""
-                    tls_key_path: ""
-                    tls_ca_path: ""
-                    tls_server_name: ""
-                    tls_insecure_skip_verify: false
-                    tls_cipher_suites: ""
-                    tls_min_version: ""
-                    username: ""
-                    password: ""
-                multi:
-                    primary: ""
-                    secondary: ""
-                    mirror_enabled: false
-                    mirror_timeout: 2s
-            heartbeat_timeout: 5m0s
-            replication_factor: 1
-            zone_awareness_enabled: false
-            excluded_zones: ""
-        num_tokens: 128
-        heartbeat_period: 5s
-        heartbeat_timeout: 1m0s
-        observe_period: 0s
-        join_after: 0s
-        min_ready_duration: 15s
-        interface_names:
-            - eth0
-        enable_inet6: false
-        final_sleep: 0s
-        tokens_file_path: ""
-        availability_zone: ""
-        unregister_on_shutdown: true
-        readiness_check_ring_health: true
-        address: ""
-        port: 0
-        id: hostname
-    partition_ring:
-        kvstore:
-            store: memberlist
-            prefix: collectors/
-            consul:
-                host: localhost:8500
-                acl_token: ""
-                http_client_timeout: 20s
-                consistent_reads: false
-                watch_rate_limit: 1
-                watch_burst_size: 1
-                cas_retry_delay: 1s
-            etcd:
-                endpoints: []
-                dial_timeout: 10s
-                max_retries: 10
-                tls_enabled: false
-                tls_cert_path: ""
-                tls_key_path: ""
-                tls_ca_path: ""
-                tls_server_name: ""
-                tls_insecure_skip_verify: false
-                tls_cipher_suites: ""
-                tls_min_version: ""
-                username: ""
-                password: ""
-            multi:
-                primary: ""
-                secondary: ""
-                mirror_enabled: false
-                mirror_timeout: 2s
-        min_partition_owners_count: 1
-        min_partition_owners_duration: 10s
-        delete_inactive_partition_after: 13h0m0s
-    concurrent_flushes: 4
-    flush_check_period: 10s
-    flush_op_timeout: 5m0s
-    trace_idle_period: 5s
-    trace_live_period: 30s
-    max_block_duration: 30m0s
-    max_block_bytes: 524288000
-    complete_block_timeout: 15m0s
-    override_ring_key: ring
-    flush_all_on_shutdown: false
-    flush_object_storage: true
 metrics_generator:
     ring:
         kvstore:
@@ -636,7 +427,13 @@ metrics_generator:
                 - db.name
                 - db.system
             span_multiplier_key: ""
+            enable_tracestate_span_multiplier: false
             enable_virtual_node_label: false
+            database_name_attributes:
+                - db.namespace
+                - db.name
+                - db.system
+            filter_policies: []
         span_metrics:
             histogram_buckets:
                 - 0.002
@@ -662,46 +459,14 @@ metrics_generator:
             dimension_mappings: []
             enable_target_info: false
             span_multiplier_key: ""
+            enable_tracestate_span_multiplier: false
             subprocessors:
                 0: true
                 1: true
                 2: true
             filter_policies: []
             target_info_excluded_dimensions: []
-        local_blocks:
-            block:
-                bloom_filter_false_positive: 0.01
-                bloom_filter_shard_size_bytes: 102400
-                version: vParquet4
-                search_encoding: snappy
-                search_page_size_bytes: 1048576
-                v2_index_downsample_bytes: 1048576
-                v2_index_page_size_bytes: 256000
-                v2_encoding: zstd
-                parquet_row_group_size_bytes: 100000000
-                parquet_dedicated_columns: []
-            search:
-                chunk_size_bytes: 1000000
-                prefetch_trace_count: 1000
-                read_buffer_count: 32
-                read_buffer_size_bytes: 1048576
-                cache_control:
-                    footer: false
-                    column_index: false
-                    offset_index: false
-            flush_check_period: 10s
-            trace_idle_period: 5s
-            trace_live_period: 30s
-            max_block_duration: 1m0s
-            max_block_bytes: 500000000
-            concurrency: 4
-            complete_block_timeout: 1h0m0s
-            max_live_traces: 0
-            max_live_traces_bytes: 250000000
-            filter_server_spans: true
-            flush_to_storage: false
-            concurrent_blocks: 10
-            time_overlap_cutoff: 0.2
+            enable_instance_label: true
         host_info:
             host_identifiers:
                 - k8s.node.name
@@ -724,28 +489,15 @@ metrics_generator:
             no_lockfile: false
         remote_write_flush_deadline: 1m0s
         remote_write_add_org_id_header: true
-    traces_storage:
-        path: ""
-        v2_encoding: none
-        search_encoding: none
-        ingestion_time_range_slack: 2m0s
-        version: vParquet4
-    traces_query_storage:
-        path: ""
-        v2_encoding: none
-        search_encoding: none
-        ingestion_time_range_slack: 2m0s
-        version: vParquet4
     metrics_ingestion_time_range_slack: 30s
-    query_timeout: 30s
     override_ring_key: metrics-generator
+    ring_mode: partition
     codec: push-bytes
-    disable_local_blocks: false
-    disable_grpc: false
+    limiter_type: series
     ingest_concurrency: 16
     instance_id: hostname
+    leave_consumer_group_on_shutdown: false
 ingest:
-    enabled: false
     kafka:
         address: localhost:9092
         topic: ""
@@ -763,30 +515,19 @@ ingest:
         producer_max_buffered_bytes: 1073741824
         target_consumer_lag_at_startup: 2s
         max_consumer_lag_at_startup: 15s
+        disable_kafka_telemetry: false
         consumer_group_lag_metric_update_interval: 1m0s
 block_builder:
     instance_id: hostname
     assigned_partitions: {}
+    partitions_per_instance: 0
     consume_cycle_duration: 5m0s
     max_consuming_bytes: 5000000000
     block:
         max_block_bytes: 20971520
-        bloom_filter_false_positive: 0.01
-        bloom_filter_shard_size_bytes: 102400
-        version: vParquet4
-        search_encoding: snappy
-        search_page_size_bytes: 1048576
-        v2_index_downsample_bytes: 1048576
-        v2_index_page_size_bytes: 256000
-        v2_encoding: zstd
-        parquet_row_group_size_bytes: 100000000
-        parquet_dedicated_columns: []
     wal:
         path: /var/tempo/block-builder/traces
-        v2_encoding: none
-        search_encoding: none
         ingestion_time_range_slack: 2m0s
-        version: vParquet4
 storage:
     trace:
         pool:
@@ -794,20 +535,69 @@ storage:
             queue_depth: 20000
         wal:
             path: /var/tempo/wal
-            v2_encoding: snappy
-            search_encoding: none
             ingestion_time_range_slack: 2m0s
         block:
             bloom_filter_false_positive: 0.01
             bloom_filter_shard_size_bytes: 102400
             version: vParquet4
-            search_encoding: snappy
-            search_page_size_bytes: 1048576
-            v2_index_downsample_bytes: 1048576
-            v2_index_page_size_bytes: 256000
-            v2_encoding: zstd
             parquet_row_group_size_bytes: 100000000
-            parquet_dedicated_columns: []
+            parquet_dedicated_columns:
+                - scope: resource
+                  name: k8s.cluster.name
+                  type: string
+                  options: []
+                - scope: resource
+                  name: k8s.namespace.name
+                  type: string
+                  options: []
+                - scope: resource
+                  name: k8s.pod.name
+                  type: string
+                  options: []
+                - scope: resource
+                  name: k8s.container.name
+                  type: string
+                  options: []
+                - scope: span
+                  name: http.request.method
+                  type: string
+                  options: []
+                - scope: span
+                  name: http.response.status_code
+                  type: int
+                  options: []
+                - scope: span
+                  name: url.path
+                  type: string
+                  options: []
+                - scope: span
+                  name: url.route
+                  type: string
+                  options: []
+                - scope: span
+                  name: server.address
+                  type: string
+                  options: []
+                - scope: span
+                  name: server.port
+                  type: int
+                  options: []
+                - scope: span
+                  name: http.method
+                  type: string
+                  options: []
+                - scope: span
+                  name: http.url
+                  type: string
+                  options: []
+                - scope: span
+                  name: http.route
+                  type: string
+                  options: []
+                - scope: span
+                  name: http.status_code
+                  type: int
+                  options: []
         search:
             chunk_size_bytes: 1000000
             prefetch_trace_count: 1000
@@ -842,6 +632,7 @@ storage:
             object_cache_control: ""
             object_metadata: {}
             list_blocks_concurrency: 3
+            max_retries: 3
         s3:
             tls_cert_path: ""
             tls_key_path: ""
@@ -861,6 +652,9 @@ storage:
             part_size: 0
             hedge_requests_at: 0s
             hedge_requests_up_to: 2
+            retry_max_attempts: 10
+            retry_backoff_initial: 200ms
+            retry_backoff_max: 1s
             signature_v2: false
             forcepathstyle: false
             enable_dual_stack: false
@@ -874,6 +668,7 @@ storage:
                 type: ""
                 kms_key_id: ""
                 kms_encryption_context: ""
+                encryption_key: ""
         azure:
             storage_account_name: ""
             storage_account_key: ""
@@ -899,14 +694,15 @@ overrides:
     defaults:
         ingestion:
             rate_strategy: local
-            rate_limit_bytes: 15000000
-            burst_size_bytes: 20000000
+            rate_limit_bytes: 30000000
+            burst_size_bytes: 30000000
             max_traces_per_user: 10000
+            retry_info_enabled: true
         read:
             max_bytes_per_tag_values_query: 1000000
+            max_condition_groups_per_tag_query: 100
         metrics_generator:
             generate_native_histograms: classic
-            ingestion_time_range_slack: 0s
             native_histogram_bucket_factor: 1.1
             native_histogram_max_bucket_number: 100
             native_histogram_min_reset_duration: 15m0s
@@ -933,6 +729,7 @@ overrides:
                 object_cache_control: ""
                 object_metadata: {}
                 list_blocks_concurrency: 3
+                max_retries: 3
             s3:
                 tls_cert_path: ""
                 tls_key_path: ""
@@ -952,6 +749,9 @@ overrides:
                 part_size: 0
                 hedge_requests_at: 0s
                 hedge_requests_up_to: 2
+                retry_max_attempts: 10
+                retry_backoff_initial: 200ms
+                retry_backoff_max: 1s
                 signature_v2: false
                 forcepathstyle: false
                 enable_dual_stack: false
@@ -965,6 +765,7 @@ overrides:
                     type: ""
                     kms_key_id: ""
                     kms_encryption_context: ""
+                    encryption_key: ""
             azure:
                 storage_account_name: ""
                 storage_account_key: ""
@@ -980,6 +781,7 @@ overrides:
                 hedge_requests_up_to: 2
         api:
             check_for_conflicting_runtime_overrides: false
+    enable_legacy_overrides: false
 memberlist:
     node_name: ""
     randomize_node_name: true
@@ -992,17 +794,20 @@ memberlist:
     dead_node_reclaim_time: 0s
     compression_enabled: false
     notify_interval: 0s
+    received_messages_queue_size: 1024
     advertise_addr: ""
     advertise_port: 7946
     cluster_label: ""
     cluster_label_verification_disabled: false
-    join_members: []
+    join_members: ""
     min_join_backoff: 1s
     max_join_backoff: 1m0s
     max_join_retries: 10
     abort_if_cluster_fast_join_fails: false
+    abort_if_cluster_fast_join_fails_min_nodes: 1
     abort_if_cluster_join_fails: false
     rejoin_interval: 0s
+    rejoin_seed_nodes: ""
     left_ingesters_timeout: 5m0s
     obsolete_entries_timeout: 30s
     leave_timeout: 20s
@@ -1023,6 +828,15 @@ memberlist:
     tls_insecure_skip_verify: false
     tls_cipher_suites: ""
     tls_min_version: ""
+    zone_aware_routing:
+        enabled: false
+        instance_availability_zone: ""
+        role: member
+    propagation_delay_tracker:
+        enabled: false
+        beacon_interval: 1m0s
+        beacon_lifetime: 10m0s
+        log_beacons_latency_longer_than: 0s
 usage_report:
     reporting_enabled: true
     backoff:
@@ -1046,9 +860,6 @@ backend_scheduler:
         compaction:
             measure_interval: 1m0s
             compaction:
-                v2_in_buffer_bytes: 5242880
-                v2_out_buffer_bytes: 20971520
-                v2_prefetch_traces_count: 1000
                 compaction_window: 1h0m0s
                 max_compaction_objects: 6000000
                 max_block_bytes: 107374182400
@@ -1062,6 +873,10 @@ backend_scheduler:
             max_input_blocks: 4
             max_compaction_level: 0
             min_cycle_interval: 30s
+        redaction:
+            poll_interval: 2s
+            rescan_delay: 5m0s
+            max_rescan_generations: 5
     job_timeout: 15s
     local_work_path: /var/tempo
 backend_scheduler_client:
@@ -1098,9 +913,6 @@ backend_worker:
         max_period: 1m0s
         max_retries: 0
     compaction:
-        v2_in_buffer_bytes: 5242880
-        v2_out_buffer_bytes: 20971520
-        v2_prefetch_traces_count: 1000
         compaction_window: 1h0m0s
         max_compaction_objects: 6000000
         max_block_bytes: 107374182400
@@ -1232,25 +1044,22 @@ live_store:
     metrics:
         time_overlap_cutoff: 0.2
     commit_interval: 5s
+    wal:
+        path: /var/tempo/live-store/traces
+        ingestion_time_range_slack: 2m0s
     query_block_concurrency: 10
-    complete_block_timeout: 1h0m0s
-    complete_block_concurrency: 4
-    flush_check_period: 10s
+    complete_block_timeout: 20m0s
+    complete_block_concurrency: 2
+    shutdown_marker_dir: /var/tempo/live-store/shutdown-marker
+    flush_check_period: 5s
     flush_op_timeout: 5m0s
     max_trace_live: 30s
     max_trace_idle: 5s
     max_live_traces_bytes: 250000000
-    max_block_duration: 30m0s
-    max_block_bytes: 524288000
-    block_config:
-        bloom_filter_false_positive: 0.01
-        bloom_filter_shard_size_bytes: 102400
-        version: ""
-        search_encoding: snappy
-        search_page_size_bytes: 1048576
-        v2_index_downsample_bytes: 1048576
-        v2_index_page_size_bytes: 256000
-        v2_encoding: zstd
-        parquet_row_group_size_bytes: 100000000
-        parquet_dedicated_columns: []
+    max_block_duration: 30s
+    max_block_bytes: 52428800
+    readiness_target_lag: 0s
+    readiness_max_wait: 30m0s
+    fail_on_high_lag: false
+    remove_owner_on_shutdown: true
 ```
