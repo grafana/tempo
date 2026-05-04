@@ -244,7 +244,8 @@ func Test_histogram_removeStaleSeries(t *testing.T) {
 	h.ObserveWithExemplar(buildTestLabels([]string{"label"}, []string{"value-1"}), 1.0, "", 1.0)
 	h.ObserveWithExemplar(buildTestLabels([]string{"label"}, []string{"value-2"}), 1.5, "", 1.0)
 
-	h.removeStaleSeries(timeMs)
+	appender := noopAppender{}
+	_ = h.removeStaleSeries(appender, 0, timeMs)
 
 	assert.Equal(t, 0, removedSeries)
 
@@ -278,7 +279,7 @@ func Test_histogram_removeStaleSeries(t *testing.T) {
 	// update value-2 series
 	h.ObserveWithExemplar(buildTestLabels([]string{"label"}, []string{"value-2"}), 2.5, "", 1.0)
 
-	h.removeStaleSeries(timeMs)
+	_ = h.removeStaleSeries(appender, 0, timeMs)
 
 	assert.Equal(t, 1, removedSeries)
 
@@ -291,6 +292,28 @@ func Test_histogram_removeStaleSeries(t *testing.T) {
 		newSample(map[string]string{"__name__": "my_histogram_bucket", "label": "value-2", "le": "+Inf"}, collectionTimeMs, 2),
 	}
 	collectMetricAndAssert(t, h, collectionTimeMs, 5, expectedSamples, nil)
+}
+
+func Test_histogram_removeStaleSeries_appenderError(t *testing.T) {
+	var removedSeries int
+	lifecycler := &mockLimiter{
+		onDeleteFunc: func(_ uint64, count uint32) {
+			assert.Equal(t, uint32(5), count)
+			removedSeries++
+		},
+	}
+
+	h := newHistogram("my_histogram", []float64{1.0, 2.0}, lifecycler, "", nil, 15*time.Minute)
+
+	timeMs := time.Now().Add(1 * time.Hour).UnixMilli()
+	h.ObserveWithExemplar(buildTestLabels([]string{"label"}, []string{"value-1"}), 1.0, "", 1.0)
+	h.ObserveWithExemplar(buildTestLabels([]string{"label"}, []string{"value-2"}), 1.5, "", 1.0)
+
+	appender := errorAppender{}
+	err := h.removeStaleSeries(appender, 0, timeMs)
+
+	assert.Error(t, err)
+	assert.Equal(t, removedSeries, 2)
 }
 
 func Test_histogram_externalLabels(t *testing.T) {
@@ -365,7 +388,8 @@ func Test_histogram_concurrencyDataRace(t *testing.T) {
 	})
 
 	go accessor(func() {
-		h.removeStaleSeries(time.Now().UnixMilli())
+		appender := noopAppender{}
+		_ = h.removeStaleSeries(appender, 0, time.Now().UnixMilli())
 	})
 
 	time.Sleep(200 * time.Millisecond)

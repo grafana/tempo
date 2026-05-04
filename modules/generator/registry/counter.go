@@ -1,12 +1,15 @@
 package registry
 
 import (
+	"math"
 	"sync"
 	"time"
 
 	"github.com/prometheus/prometheus/model/labels"
+	"github.com/prometheus/prometheus/model/value"
 	"github.com/prometheus/prometheus/storage"
 	"go.uber.org/atomic"
+	"go.uber.org/multierr"
 )
 
 type counter struct {
@@ -171,15 +174,28 @@ func (c *counter) countSeriesDemand() int {
 	return int(c.seriesDemand.Estimate())
 }
 
-func (c *counter) removeStaleSeries(staleTimeMs int64) {
+func (c *counter) removeStaleSeries(appender storage.Appender, timeMs, staleTimeMs int64) error {
 	c.seriesMtx.Lock()
 	defer c.seriesMtx.Unlock()
 
+	errs := []error{}
+
 	for hash, s := range c.series {
 		if s.lastUpdated.Load() < staleTimeMs {
+			if appender != nil {
+				_, err := appender.Append(0, s.labels, timeMs, math.Float64frombits(value.StaleNaN))
+				if err != nil {
+					errs = append(errs, err)
+				}
+			}
 			delete(c.series, hash)
 			c.lifecycler.OnDelete(hash, 1)
 		}
 	}
 	c.seriesDemand.Advance()
+
+	if len(errs) > 0 {
+		return multierr.Combine(errs...)
+	}
+	return nil
 }
