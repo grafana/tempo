@@ -13,6 +13,7 @@ import (
 	"github.com/grafana/tempo/cmd/tempo/app"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/backend/azure"
+	"github.com/grafana/tempo/tempodb/backend/cos"
 	"github.com/grafana/tempo/tempodb/backend/gcs"
 	"github.com/grafana/tempo/tempodb/backend/local"
 	"github.com/grafana/tempo/tempodb/backend/s3"
@@ -28,7 +29,7 @@ type outputOptions struct {
 }
 
 type backendOptions struct {
-	Backend string `help:"backend to connect to (s3/gcs/local/azure), optional, overrides backend in config file" enum:",s3,gcs,local,azure" default:""`
+	Backend string `help:"backend to connect to (s3/gcs/local/azure/cos), optional, overrides backend in config file" enum:",s3,gcs,local,azure,cos" default:""`
 	Bucket  string `help:"bucket (or path on local backend) to scan, optional, overrides bucket in config file"`
 
 	S3Endpoint         string `name:"s3-endpoint" help:"s3 endpoint (s3.dualstack.us-east-2.amazonaws.com), optional, overrides endpoint in config file"`
@@ -135,6 +136,7 @@ func loadBackend(b *backendOptions, g *globalOptions) (backend.Reader, backend.W
 		cfg.StorageConfig.Trace.GCS.BucketName = b.Bucket
 		cfg.StorageConfig.Trace.S3.Bucket = b.Bucket
 		cfg.StorageConfig.Trace.Azure.ContainerName = b.Bucket
+		cfg.StorageConfig.Trace.COS.Bucket = b.Bucket
 	}
 
 	cfg.StorageConfig.Trace.S3.InsecureSkipVerify = b.InsecureSkipVerify
@@ -166,6 +168,8 @@ func loadBackend(b *backendOptions, g *globalOptions) (backend.Reader, backend.W
 		r, w, c, err = s3.New(cfg.StorageConfig.Trace.S3)
 	case backend.Azure:
 		r, w, c, err = azure.New(cfg.StorageConfig.Trace.Azure)
+	case backend.COS:
+		r, w, c, err = cos.New(cfg.StorageConfig.Trace.COS)
 	default:
 		err = fmt.Errorf("unknown backend %s", cfg.StorageConfig.Trace.Backend)
 	}

@@ -7,6 +7,7 @@ import (
 	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/tempodb"
 	"github.com/grafana/tempo/tempodb/backend/azure"
+	"github.com/grafana/tempo/tempodb/backend/cos"
 	"github.com/grafana/tempo/tempodb/backend/gcs"
 	"github.com/grafana/tempo/tempodb/backend/local"
 	"github.com/grafana/tempo/tempodb/backend/s3"
@@ -29,7 +30,7 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 	cfg.Trace.BlocklistPollTolerateConsecutiveErrors = tempodb.DefaultTolerateConsecutiveErrors
 	cfg.Trace.BlocklistPollTolerateTenantFailures = tempodb.DefaultTolerateTenantFailures
 
-	f.StringVar(&cfg.Trace.Backend, util.PrefixConfig(prefix, "trace.backend"), "", "Trace backend (s3, azure, gcs, local)")
+	f.StringVar(&cfg.Trace.Backend, util.PrefixConfig(prefix, "trace.backend"), "", "Trace backend (s3, azure, gcs, local, cos)")
 	f.DurationVar(&cfg.Trace.BlocklistPoll, util.PrefixConfig(prefix, "trace.blocklist_poll"), tempodb.DefaultBlocklistPoll, "Period at which to run the maintenance cycle.")
 
 	cfg.Trace.WAL = &wal.Config{}
@@ -54,6 +55,9 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 
 	cfg.Trace.Local = &local.Config{}
 	cfg.Trace.Local.RegisterFlagsAndApplyDefaults(util.PrefixConfig(prefix, "trace"), f)
+
+	cfg.Trace.COS = &cos.Config{}
+	cfg.Trace.COS.RegisterFlagsAndApplyDefaults(util.PrefixConfig(prefix, "trace"), f)
 
 	cfg.Trace.BackgroundCache = &cache.BackgroundConfig{}
 	cfg.Trace.BackgroundCache.WriteBackBuffer = 10000

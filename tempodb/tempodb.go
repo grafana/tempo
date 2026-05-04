@@ -29,6 +29,7 @@ import (
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/backend/azure"
 	backend_cache "github.com/grafana/tempo/tempodb/backend/cache"
+	"github.com/grafana/tempo/tempodb/backend/cos"
 	"github.com/grafana/tempo/tempodb/backend/gcs"
 	"github.com/grafana/tempo/tempodb/backend/local"
 	"github.com/grafana/tempo/tempodb/backend/s3"
@@ -190,6 +191,8 @@ func New(cfg *Config, cacheProvider cache.Provider, logger gkLog.Logger) (Reader
 		rawR, rawW, c, err = s3.New(cfg.S3)
 	case backend.Azure:
 		rawR, rawW, c, err = azure.New(cfg.Azure)
+	case backend.COS:
+		rawR, rawW, c, err = cos.New(cfg.COS)
 	default:
 		err = fmt.Errorf("unknown backend %s", cfg.Backend)
 	}

@@ -16,6 +16,7 @@ const (
 	GCS   = "gcs"
 	S3    = "s3"
 	Azure = "azure"
+	COS   = "cos"
 )
 
 var (
