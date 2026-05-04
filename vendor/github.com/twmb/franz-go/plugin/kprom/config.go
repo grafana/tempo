@@ -1,12 +1,12 @@
 package kprom
 
 import (
+	"maps"
 	"reflect"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/collectors"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
-	"maps"
 )
 
 type cfg struct {
@@ -21,6 +21,7 @@ type cfg struct {
 	histograms       map[Histogram][]float64
 	defBuckets       []float64
 	fetchProduceOpts fetchProduceOpts
+	brokerLabels     []string
 
 	handlerOpts  promhttp.HandlerOpts
 	goCollectors bool
@@ -38,6 +39,7 @@ func newCfg(namespace string, opts ...Opt) cfg {
 			uncompressedBytes: true,
 			labels:            []string{"node_id", "topic"},
 		},
+		brokerLabels: []string{"node_id"},
 	}
 
 	for _, opt := range opts {
@@ -166,7 +168,7 @@ type HistogramOpts struct {
 //	 		Buckets: prometheus.LinearBuckets(10, 10, 8),
 //	 	},
 //	 	kprom.HistogramOpts{
-//	 		Enable: kprom.ReadeTime,
+//	 		Enable: kprom.ReadTime,
 //	 		// kprom default bucket will be used
 //	 	},
 //	 ),
@@ -196,7 +198,7 @@ func Histograms(hs ...Histogram) Opt {
 	return HistogramsFromOpts(hos...)
 }
 
-// A Detail is a label that can be set on fetch/produce metrics
+// A Detail is a label that can be set on fetch/produce metrics.
 type Detail uint8
 
 const (
@@ -250,4 +252,44 @@ func FetchAndProduceDetail(details ...Detail) Opt {
 			c.fetchProduceOpts.labels = labels
 		},
 	}
+}
+
+// A BrokerLabel is a label that can be set on broker-level metrics.
+type BrokerLabel uint8
+
+const (
+	BrokerNodeID BrokerLabel = iota // Include "node_id" label on broker metrics.
+	BrokerHost                      // Include "host" label on broker metrics.
+	BrokerRack                      // Include "rack" label on broker metrics.
+)
+
+// BrokerLabels configures which labels are included on broker-level
+// connection, read, write, and request metrics, overriding the default
+// of (BrokerNodeID).
+// Calling with no arguments removes all broker-level labels, aggregating
+// metrics across all brokers:
+//
+//	kprom.BrokerLabels( /* none */ )
+//
+// This is useful for reducing metrics cardinality in environments with many or
+// frequently changing broker IDs.
+func BrokerLabels(labels ...BrokerLabel) Opt {
+	return opt{func(c *cfg) {
+		seen := make(map[BrokerLabel]bool)
+		c.brokerLabels = nil
+		for _, l := range labels {
+			if seen[l] {
+				continue
+			}
+			seen[l] = true
+			switch l {
+			case BrokerNodeID:
+				c.brokerLabels = append(c.brokerLabels, "node_id")
+			case BrokerHost:
+				c.brokerLabels = append(c.brokerLabels, "host")
+			case BrokerRack:
+				c.brokerLabels = append(c.brokerLabels, "rack")
+			}
+		}
+	}}
 }
