@@ -1,0 +1,44 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 200" font-family="Inter, -apple-system, sans-serif" font-size="14">
+  <defs>
+    <marker id="arrow-read" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#555" />
+    </marker>
+  </defs>
+
+  <!-- Step 1: Client -->
+  <rect x="10" y="65" width="100" height="50" rx="6" fill="#f0f0f0" stroke="#ccc" stroke-width="1.5"/>
+  <text x="60" y="95" text-anchor="middle" fill="#333">Client</text>
+
+  <!-- Arrow to Query frontend -->
+  <line x1="110" y1="90" x2="148" y2="90" stroke="#555" stroke-width="1.5" marker-end="url(#arrow-read)"/>
+  <text x="129" y="80" text-anchor="middle" fill="#888" font-size="11">1</text>
+
+  <!-- Step 1: Query frontend -->
+  <rect x="150" y="65" width="150" height="50" rx="6" fill="#e8f4fd" stroke="#4a9bd9" stroke-width="1.5"/>
+  <text x="225" y="95" text-anchor="middle" fill="#2b6cb0">Query frontend</text>
+
+  <!-- Arrow to Querier -->
+  <line x1="300" y1="90" x2="348" y2="90" stroke="#555" stroke-width="1.5" marker-end="url(#arrow-read)"/>
+  <text x="324" y="80" text-anchor="middle" fill="#888" font-size="11">2</text>
+
+  <!-- Step 2: Querier -->
+  <rect x="350" y="65" width="120" height="50" rx="6" fill="#e8f4fd" stroke="#4a9bd9" stroke-width="1.5"/>
+  <text x="410" y="95" text-anchor="middle" fill="#2b6cb0">Querier</text>
+
+  <!-- Arrow to Live-store (upper) -->
+  <line x1="470" y1="78" x2="548" y2="38" stroke="#555" stroke-width="1.5" marker-end="url(#arrow-read)"/>
+
+  <!-- Arrow to Object storage (lower) -->
+  <line x1="470" y1="102" x2="548" y2="152" stroke="#555" stroke-width="1.5" marker-end="url(#arrow-read)"/>
+
+  <!-- Live-store (recent data) -->
+  <rect x="550" y="10" width="220" height="50" rx="6" fill="#faf5ff" stroke="#9b59b6" stroke-width="1.5"/>
+  <text x="660" y="40" text-anchor="middle" fill="#6b21a8">Live-store (recent data)</text>
+
+  <!-- Object storage (historical data) -->
+  <rect x="550" y="130" width="220" height="50" rx="6" fill="#f0fff4" stroke="#48bb78" stroke-width="1.5"/>
+  <text x="660" y="160" text-anchor="middle" fill="#276749">Object storage (historical)</text>
+
+  <!-- Step 3 label: merge results back -->
+  <text x="324" y="120" text-anchor="middle" fill="#888" font-size="11">3 (merge results)</text>
+</svg>

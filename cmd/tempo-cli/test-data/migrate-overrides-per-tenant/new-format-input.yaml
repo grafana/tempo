@@ -1,0 +1,135 @@
+overrides:
+  "12345":
+    global:
+      max_bytes_per_trace: 15000000
+    ingestion:
+      max_traces_per_user: 75000
+      rate_limit_bytes: 20000000
+  "tenant-a":
+    compaction:
+      block_retention: 72h
+      compaction_disabled: true
+      compaction_window: 4h
+    cost_attribution:
+      dimensions:
+        team: team_name
+      max_cardinality: 1000
+    forwarders:
+      - my-forwarder
+    global:
+      max_bytes_per_trace: 20000000
+    ingestion:
+      artificial_delay: 5s
+      burst_size_bytes: 40000000
+      max_attribute_bytes: 1024
+      max_global_traces_per_user: 500000
+      max_traces_per_user: 200000
+      rate_limit_bytes: 30000000
+      rate_strategy: global
+      tenant_shard_size: 3
+    metrics_generator:
+      collection_interval: 30s
+      disable_collection: true
+      forwarder:
+        queue_size: 100
+        workers: 4
+      generate_native_histograms: both
+      ingestion_time_range_slack: 30s
+      max_active_entities: 10000
+      max_active_series: 50000
+      max_cardinality_per_label: 500
+      native_histogram_bucket_factor: 1.5
+      native_histogram_max_bucket_number: 200
+      native_histogram_min_reset_duration: 30m
+      processor:
+        host_info:
+          host_identifiers:
+            - host.name
+            - host.id
+          metric_name: traces_host_info
+        service_graphs:
+          dimensions:
+            - service.namespace
+          enable_client_server_prefix: true
+          enable_messaging_system_latency_histogram: true
+          enable_virtual_node_label: true
+          filter_policies:
+            - include:
+                match_type: strict
+                attributes:
+                  - key: kind
+                    value: SPAN_KIND_SERVER
+          histogram_buckets:
+            - 0.1
+            - 0.5
+            - 1
+            - 5
+          peer_attributes:
+            - db.system
+          span_multiplier_key: span_count
+        span_metrics:
+          dimension_mappings:
+            - join: /
+              name: http_route
+              source_labels:
+                - http.route
+                - http.target
+          dimensions:
+            - http.method
+            - http.status_code
+          enable_instance_label: false
+          enable_target_info: true
+          filter_policies:
+            - exclude:
+                match_type: regex
+                attributes:
+                  - key: span.name
+                    value: "health.*"
+          histogram_buckets:
+            - 0.01
+            - 0.1
+            - 1
+            - 10
+          intrinsic_dimensions:
+            name: true
+            status: false
+          span_multiplier_key: custom_count
+          target_info_excluded_dimensions:
+            - instance
+      processors:
+        - service-graphs
+        - span-metrics
+      remote_write_headers:
+        X-Custom-Header: secret-value
+      ring_size: 5
+      span_name_sanitization: drop
+      trace_id_label_name: traceID
+    read:
+      left_pad_trace_ids: true
+      max_blocks_per_tag_values_query: 50
+      max_bytes_per_tag_values_query: 2000000
+      max_metrics_duration: 4h
+      max_search_duration: 2h
+      unsafe_query_hints: true
+    storage:
+      parquet_dedicated_columns:
+        - scope: span
+          name: http.method
+          type: string
+        - scope: resource
+          name: service.name
+          type: string
+  "tenant-b":
+    compaction:
+      compaction_disabled: true
+    global:
+      max_bytes_per_trace: 5000000
+    ingestion:
+      burst_size_bytes: 15000000
+      max_traces_per_user: 100000
+      rate_limit_bytes: 10000000
+    metrics_generator:
+      processors:
+        - span-metrics
+    read:
+      unsafe_query_hints: true

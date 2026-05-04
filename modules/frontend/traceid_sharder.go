@@ -3,7 +3,6 @@ package frontend
 import (
 	"encoding/hex"
 	"net/http"
-	"time"
 
 	"github.com/go-kit/log" //nolint:all //deprecated
 	"github.com/grafana/tempo/modules/frontend/combiner"
@@ -100,13 +99,6 @@ func (s *asyncTraceSharder) buildShardedRequests(parent pipeline.Request) ([]pip
 	}
 	reqs = append(reqs, req)
 
-	var rf1After string
-	if val := parent.HTTPRequest().URL.Query().Get(api.URLParamRF1After); val != "" {
-		rf1After = val
-	} else if !s.cfg.RF1After.IsZero() {
-		rf1After = s.cfg.RF1After.Format(time.RFC3339)
-	}
-
 	// Job 1: external job (if enabled)
 	if s.cfg.ExternalEnabled {
 		req, err = cloneRequestforQueriers(parent, userID, func(r *http.Request) (*http.Request, error) {
@@ -130,7 +122,6 @@ func (s *asyncTraceSharder) buildShardedRequests(parent pipeline.Request) ([]pip
 			params[querier.BlockStartKey] = hex.EncodeToString(s.blockBoundaries[i-1])
 			params[querier.BlockEndKey] = hex.EncodeToString(s.blockBoundaries[i])
 			params[querier.QueryModeKey] = querier.QueryModeBlocks
-			params[api.URLParamRF1After] = rf1After
 
 			return api.BuildQueryRequest(r, params), nil
 		})

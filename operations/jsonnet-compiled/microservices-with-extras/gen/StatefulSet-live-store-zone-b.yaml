@@ -28,7 +28,7 @@ spec:
   template:
     metadata:
       annotations:
-        config_hash: b1f82212da41d566637026058cf4ed17
+        config_hash: 6fd0ca9536af431deb5ea0bfea5158fa
       labels:
         app: live-store-zone-b
         name: live-store-zone-b

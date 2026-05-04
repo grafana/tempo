@@ -584,6 +584,7 @@ func pathMapper(r *Registry) MapperFunc {
 		if target.Kind() == reflect.Slice {
 			return sliceDecoder(r)(ctx, target)
 		}
+		originalTarget := target
 		if target.Kind() == reflect.Ptr && target.Elem().Kind() == reflect.String {
 			if target.IsNil() {
 				return nil
@@ -597,6 +598,13 @@ func pathMapper(r *Registry) MapperFunc {
 		err := ctx.Scan.PopValueInto("file", &path)
 		if err != nil {
 			return err
+		}
+		// Skip if path with default is explicitly set to "". For the current directory use ".".
+		if ctx.Value.HasDefault && path == "" {
+			if originalTarget.Kind() == reflect.Ptr {
+				originalTarget.Set(reflect.Zero(originalTarget.Type()))
+			}
+			return nil
 		}
 		if path != "-" {
 			path = ExpandPath(path)
@@ -616,6 +624,12 @@ func fileMapper(r *Registry) MapperFunc {
 		if err != nil {
 			return err
 		}
+
+		// Skip if value was already set to avoid opening the default file when an explicit value was provided
+		if ctx.Value.HasDefault && ctx.Value.Set {
+			return nil
+		}
+
 		var file *os.File
 		if path == "-" {
 			file = os.Stdin

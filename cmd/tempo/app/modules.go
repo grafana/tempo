@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"embed"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -21,7 +22,6 @@ import (
 	"github.com/grafana/dskit/server"
 	"github.com/grafana/dskit/services"
 	"github.com/grafana/tempo/modules/livestore"
-	jsoniter "github.com/json-iterator/go"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/collectors"
 
@@ -93,6 +93,7 @@ func IsSingleBinary(target string) bool {
 func (t *App) initServer() (services.Service, error) {
 	t.cfg.Server.MetricsNamespace = metricsNamespace
 	t.cfg.Server.ExcludeRequestInLog = true
+	t.cfg.Server.MetricsNativeHistogramFactor = 1.1
 
 	if t.cfg.EnableGoRuntimeMetrics {
 		// unregister default Go collector
@@ -243,24 +244,34 @@ func (t *App) initOverridesAPI() (services.Service, error) {
 
 func (t *App) initDistributor() (services.Service, error) {
 	singleBinary := IsSingleBinary(t.cfg.Target)
+	localPushTargets := distributor.LocalPushTargets{}
+	var partitionRing ring.PartitionRingReader
 
-	t.cfg.Distributor.KafkaConfig = t.cfg.Ingest.Kafka
-	t.cfg.Distributor.PushSpansToKafka = true
+	t.cfg.Distributor.PushSpansToKafka = !singleBinary
 
-	var pushSpansToLocalGenerator distributor.PushSpansFunc
 	if singleBinary {
-		pushSpansToLocalGenerator = func(ctx context.Context, req *tempopb.PushSpansRequest) (*tempopb.PushResponse, error) {
+		localPushTargets.Generator = func(ctx context.Context, req *tempopb.PushSpansRequest) (*tempopb.PushResponse, error) {
 			if t.generator == nil {
 				return nil, errors.New("metrics-generator not initialized")
 			}
 			return t.generator.PushSpans(ctx, req)
 		}
+
+		localPushTargets.LiveStore = func(ctx context.Context, req *tempopb.PushBytesRequest) (*tempopb.PushResponse, error) {
+			if t.liveStore == nil {
+				return nil, errors.New("live-store not initialized")
+			}
+			return t.liveStore.PushBytes(ctx, req)
+		}
+	} else {
+		t.cfg.Distributor.KafkaConfig = t.cfg.Ingest.Kafka
+		partitionRing = t.partitionRing
 	}
 
 	// todo: make write-path client a module instead of passing the config everywhere
 	distributor, err := distributor.New(t.cfg.Distributor,
-		pushSpansToLocalGenerator,
-		t.partitionRing,
+		localPushTargets,
+		partitionRing,
 		t.Overrides,
 		t.TracesConsumerMiddleware,
 		log.Logger, t.cfg.Server.LogLevel, prometheus.DefaultRegisterer)
@@ -687,9 +698,9 @@ func (t *App) initBackendWorker() (services.Service, error) {
 }
 
 func (t *App) initLiveStore() (services.Service, error) {
-	// In SingleBinary mode don't try to discover partition from host name.
-	// Always use partition 0. This is for small installs or local/debugging setups.
-	singlePartition := IsSingleBinary(t.cfg.Target)
+	// In single-binary mode traces are pushed in-process from distributor,
+	// so live-store does not consume directly from Kafka.
+	t.cfg.LiveStore.ConsumeFromKafka = !IsSingleBinary(t.cfg.Target)
 
 	// Inject config from other locations.
 	t.cfg.LiveStore.IngestConfig = t.cfg.Ingest
@@ -699,7 +710,7 @@ func (t *App) initLiveStore() (services.Service, error) {
 	t.cfg.LiveStore.WAL.Version = t.cfg.StorageConfig.Trace.Block.Version
 
 	var err error
-	t.liveStore, err = livestore.New(t.cfg.LiveStore, t.Overrides, log.Logger, prometheus.DefaultRegisterer, singlePartition)
+	t.liveStore, err = livestore.New(t.cfg.LiveStore, t.Overrides, t.store, log.Logger, prometheus.DefaultRegisterer)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create liveStore: %w", err)
 	}
@@ -749,6 +760,19 @@ func (t *App) setupModuleManager() error {
 
 	mm.RegisterModule(SingleBinary, nil)
 
+	liveStoreDeps := []string{Common, MemberlistKV, PartitionRing}
+	distributorDeps := []string{Common, LiveStoreRing, PartitionRing}
+	generatorDeps := []string{Common, MemberlistKV, PartitionRing, GeneratorRingWatcher}
+
+	if IsSingleBinary(t.cfg.Target) {
+		// In single-binary mode the distributor calls the live-store and metrics-generator in-process.
+		// Make those runtime dependencies explicit in the module DAG instead of relying on sibling
+		// initialization under the composite target.
+		distributorDeps = []string{Common, LiveStore, MetricsGenerator}
+		generatorDeps = []string{Common}
+		liveStoreDeps = append(liveStoreDeps, Store)
+	}
+
 	deps := map[string][]string{
 		// InternalServer: nil,
 		// CacheProvider:  nil,
@@ -766,17 +790,16 @@ func (t *App) setupModuleManager() error {
 
 		// individual targets
 		QueryFrontend:                 {Common, Store, OverridesAPI},
-		Distributor:                   {Common, LiveStoreRing, PartitionRing},
-		MetricsGenerator:              {Common, MemberlistKV, PartitionRing, GeneratorRingWatcher},
+		Distributor:                   distributorDeps,
+		LiveStore:                     liveStoreDeps,
+		MetricsGenerator:              generatorDeps,
 		MetricsGeneratorNoLocalBlocks: {Common, MemberlistKV, GeneratorRingWatcher},
 		Querier:                       {Common, Store, LiveStoreRing, PartitionRing},
 		BlockBuilder:                  {Common, Store, MemberlistKV, PartitionRing},
 		BackendScheduler:              {Common, Store},
 		BackendWorker:                 {Common, Store, MemberlistKV},
-		LiveStore:                     {Common, MemberlistKV, PartitionRing},
-
 		// composite targets
-		SingleBinary: {BackendScheduler, BackendWorker, QueryFrontend, Querier, Distributor, MetricsGenerator, BlockBuilder, LiveStore},
+		SingleBinary: {BackendScheduler, BackendWorker, QueryFrontend, Querier, Distributor, MetricsGenerator, LiveStore},
 	}
 
 	for mod, targets := range deps {
@@ -786,7 +809,6 @@ func (t *App) setupModuleManager() error {
 	}
 
 	t.ModuleManager = mm
-
 	t.deps = deps
 
 	return nil
@@ -835,12 +857,13 @@ func usageStatsHandler(urCfg usagestats.Config) http.HandlerFunc {
 	}
 
 	// usage stats is Enabled, build and return usage stats json
-	reportStr, err := jsoniter.MarshalToString(usagestats.BuildStats())
+	reportBytes, err := json.Marshal(usagestats.BuildStats())
 	if err != nil {
 		return func(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "error building usage report", http.StatusInternalServerError)
 		}
 	}
+	reportStr := string(reportBytes)
 
 	return func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)

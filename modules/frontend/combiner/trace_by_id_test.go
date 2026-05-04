@@ -92,6 +92,29 @@ func TestTraceByIDHonorsContentType(t *testing.T) {
 	require.Equal(t, expected, actual)
 }
 
+// hidingRedactor is a TraceRedactor stub that always returns ErrTraceHidden,
+// simulating an access-policy that hides the trace entirely.
+type hidingRedactor struct{}
+
+func (h hidingRedactor) RedactTraceAttributes(_ *tempopb.Trace) error { return ErrTraceHidden }
+
+func TestTraceByIDRedactorHidesTrace(t *testing.T) {
+	c := NewTraceByID(0, api.HeaderAcceptJSON, hidingRedactor{})
+
+	err := c.AddResponse(toHTTPProtoResponse(t, &tempopb.TraceByIDResponse{
+		Trace:   test.MakeTrace(2, nil),
+		Metrics: &tempopb.TraceByIDMetrics{},
+	}, 200))
+	require.NoError(t, err)
+
+	resp, err := c.HTTPFinal()
+	require.NoError(t, err)
+	require.Equal(t, http.StatusNotFound, resp.StatusCode)
+	body, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+	require.Empty(t, body)
+}
+
 func toHTTPProtoResponse(t *testing.T, pb proto.Message, statusCode int) PipelineResponse {
 	var body []byte
 

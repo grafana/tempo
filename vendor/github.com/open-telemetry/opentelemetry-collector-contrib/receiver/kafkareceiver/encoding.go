@@ -73,6 +73,7 @@ func newLogsUnmarshaler(encoding string, set receiver.Settings, host component.H
 	case "json":
 		return unmarshaler.JSONLogsUnmarshaler{}, nil
 	case "azure_resource_logs":
+		set.Logger.Warn("The azure_resource_logs encoding is deprecated. Please migrate to azureencodingextension.")
 		return &azure.ResourceLogsUnmarshaler{
 			Version: set.BuildInfo.Version,
 			Logger:  set.Logger,

@@ -1,7 +1,7 @@
 # tempo-mixin
 
 Once installed via the build instructions below, dashboards, rules, and alerts are located in the
-[`operations/tempo-mixins-compiled`](..tempo-mixins-compiled) folder. Use them directly in
+[`operations/tempo-mixin-compiled`](../tempo-mixin-compiled) folder. Use them directly in
 Prometheus and Grafana to monitor Tempo.
 
 You can either use the mixins in the `tempo-mixin-compiled` folder or you can build your own to
@@ -30,6 +30,8 @@ Once you run `make all`, the mixins are created in the `tempo-mixin-compiled` fo
 ➜   make all                                                                                                                          git:(main|)
 jb install
 jsonnet -J vendor -S dashboards.jsonnet -m ../tempo-mixin-compiled/dashboards/
+../tempo-mixin-compiled/dashboards/tempo-backendwork.json
+../tempo-mixin-compiled/dashboards/tempo-block-builder.json
 ../tempo-mixin-compiled/dashboards/tempo-operational.json
 ../tempo-mixin-compiled/dashboards/tempo-reads.json
 ../tempo-mixin-compiled/dashboards/tempo-resources.json
@@ -43,6 +45,6 @@ jsonnet -J vendor -S rules.jsonnet > ../tempo-mixin-compiled/rules.yaml
 Alerts and rules are listed in their matching files:
 
 * Alerts -> `tempo-mixin-compiled/alerts.yaml`
-* Rules -> 'tempo-mixin-compiled/rules.yaml`
+* Rules -> `tempo-mixin-compiled/rules.yaml`
 
-For information on using the dashboards, refer to the [mixin runbook](operations/tempo-mixin/runbook.md).
+For information on using the dashboards, refer to the [mixin runbook](runbook.md).

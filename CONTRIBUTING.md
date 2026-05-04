@@ -78,7 +78,6 @@ modules/              - top level Tempo components
   backend-worker/
   backend-scheduler/
   distributor/
-  ingester/
   overrides/
   querier/
   frontend/

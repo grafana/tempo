@@ -1,0 +1,129 @@
+overrides:
+  "tenant-a":
+    # Ingestion limits
+    ingestion_rate_strategy: global
+    ingestion_rate_limit_bytes: 30000000
+    ingestion_burst_size_bytes: 40000000
+    ingestion_tenant_shard_size: 3
+    ingestion_max_attribute_bytes: 1024
+    ingestion_artificial_delay: 5s
+    max_traces_per_user: 200000
+    max_global_traces_per_user: 500000
+
+    # Forwarders
+    forwarders:
+      - my-forwarder
+
+    # Metrics generator
+    metrics_generator_ring_size: 5
+    metrics_generator_processors:
+      - service-graphs
+      - span-metrics
+    metrics_generator_max_active_series: 50000
+    metrics_generator_max_active_entities: 10000
+    metrics_generator_collection_interval: 30s
+    metrics_generator_disable_collection: true
+    metrics_generator_generate_native_histograms: both
+    metrics_generator_trace_id_label_name: traceID
+    metrics_generator_remote_write_headers:
+      X-Custom-Header: secret-value
+    metrics_generator_forwarder_queue_size: 100
+    metrics_generator_forwarder_workers: 4
+    metrics_generator_ingestion_time_range_slack: 30s
+    metrics_generator_native_histogram_bucket_factor: 1.5
+    metrics_generator_native_histogram_max_bucket_number: 200
+    metrics_generator_native_histogram_min_reset_duration: 30m
+    metrics_generator_span_name_sanitization: drop
+    metrics_generator_max_cardinality_per_label: 500
+
+    # Service graphs processor
+    metrics_generator_processor_service_graphs_histogram_buckets: [0.1, 0.5, 1.0, 5.0]
+    metrics_generator_processor_service_graphs_dimensions:
+      - service.namespace
+    metrics_generator_processor_service_graphs_peer_attributes:
+      - db.system
+    metrics_generator_processor_service_graphs_filter_policies:
+      - include:
+          match_type: strict
+          attributes:
+            - key: kind
+              value: SPAN_KIND_SERVER
+    metrics_generator_processor_service_graphs_enable_client_server_prefix: true
+    metrics_generator_processor_service_graphs_enable_messaging_system_latency_histogram: true
+    metrics_generator_processor_service_graphs_enable_virtual_node_label: true
+    metrics_generator_processor_service_graphs_span_multiplier_key: span_count
+
+    # Span metrics processor
+    metrics_generator_processor_span_metrics_histogram_buckets: [0.01, 0.1, 1.0, 10.0]
+    metrics_generator_processor_span_metrics_dimensions:
+      - http.method
+      - http.status_code
+    metrics_generator_processor_span_metrics_intrinsic_dimensions:
+      name: true
+      status: false
+    metrics_generator_processor_span_metrics_filter_policies:
+      - exclude:
+          match_type: regex
+          attributes:
+            - key: span.name
+              value: "health.*"
+    metrics_generator_processor_span_metrics_dimension_mappings:
+      - name: http_route
+        source_labels: [http.route, http.target]
+        join: "/"
+    metrics_generator_processor_span_metrics_enable_target_info: true
+    metrics_generator_processor_span_metrics_target_info_excluded_dimensions:
+      - instance
+    metrics_generator_processor_span_metrics_enable_instance_label: false
+    metrics_generator_processor_span_metrics_span_multiplier_key: custom_count
+
+    # Host info processor
+    metrics_generator_processor_host_info_host_identifiers:
+      - host.name
+      - host.id
+    metrics_generator_processor_host_info_metric_name: traces_host_info
+
+    # Compaction
+    block_retention: 72h
+    compaction_window: 4h
+    compaction_disabled: true
+
+    # Read
+    max_bytes_per_tag_values_query: 2000000
+    max_blocks_per_tag_values_query: 50
+    max_search_duration: 2h
+    max_metrics_duration: 4h
+    unsafe_query_hints: true
+    left_pad_trace_ids: true
+
+    # Global
+    max_bytes_per_trace: 20000000
+
+    # Storage
+    parquet_dedicated_columns:
+      - scope: span
+        name: http.method
+        type: string
+      - scope: resource
+        name: service.name
+        type: string
+
+    # Cost attribution
+    cost_attribution:
+      max_cardinality: 1000
+      dimensions:
+        team: team_name
+
+  "tenant-b":
+    ingestion_rate_limit_bytes: 10000000
+    ingestion_burst_size_bytes: 15000000
+    max_traces_per_user: 100000
+    max_bytes_per_trace: 5000000
+    metrics_generator_processors:
+      - span-metrics
+    compaction_disabled: true
+    unsafe_query_hints: true
+  "12345":
+    ingestion_rate_limit_bytes: 20000000
+    max_bytes_per_trace: 15000000
+    max_traces_per_user: 75000

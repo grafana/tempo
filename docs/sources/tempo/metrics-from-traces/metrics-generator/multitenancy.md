@@ -1,22 +1,17 @@
 ---
 aliases:
   - /docs/tempo/latest/metrics-generator/multitenancy
-title: Multitenancy support
-description: Learn about multitenancy support in the metrics-generator.
-weight: 600
-aliases:
   - ../../metrics-generator/multitenancy/ # /docs/tempo/<TEMPO_VERSION>/metrics-generator/multitenancy/
+title: Multi-tenancy support
+description: Learn about multi-tenancy support in the metrics-generator.
+weight: 600
 ---
 
-# Multitenancy support
+# Multi-tenancy support
 
-Multitenancy is supported in the metrics-generator through the use of environment variables and per-tenant overrides.
-This is useful when you want to propagate the multitenancy to the metrics backend,
+Multi-tenancy is supported in the metrics-generator through the use of environment variables and per-tenant overrides.
+This is useful when you want to propagate the multi-tenancy to the metrics backend,
 keeping the data separated and secure.
-
-## Requirements
-
-- Tempo version 2.4.0 or later
 
 ## Usage
 
@@ -24,13 +19,19 @@ To use this feature, you need to define the `remote_write_headers` override for 
 You can also use environment variables in your configuration file, which will be expanded at runtime.
 To make use of environment variables, you need to pass the `--config.expand-env` flag to Tempo.
 
-Example:
+{{< admonition type="warning" >}}
+Tempo 3.0 disables legacy flat (`unscoped`) overrides by default. If your overrides use the legacy format, either migrate to the scoped format shown below or set `enable_legacy_overrides: true` temporarily.
+{{< /admonition >}}
+
+Example using the scoped overrides format:
 
 ```yaml
 overrides:
-  team-traces-a:
+  defaults:
     metrics_generator:
       processors: [ 'span-metrics' ]
+  team-traces-a:
+    metrics_generator:
       remote_write_headers:
         Authorization: ${PROM_A_BASIC_AUTH}
   team-traces-b:

@@ -48,13 +48,13 @@ The OpenTelemetry SDK uses OTLP/HTTP by default, which can be configured with `O
 ## Polling
 
 Tempo maintains knowledge of the state of the backend by polling it on regular intervals.
-There are currently only two components that need this knowledge and, consequently, only two that poll the backend: backend-workers and queriers.
+Several components need this knowledge, including schedulers, workers, queriers, and query-frontends.
 
 Refer to [Use polling to monitor the backend status](polling/) for Tempo.
 
 ## Dashboards
 
-The [Tempo mixin](https://github.com/grafana/tempo/tree/main/operations/tempo-mixin) has four Grafana dashboards in the `yamls` folder that you can download and import into your Grafana UI.
+The [Tempo mixin](https://github.com/grafana/tempo/tree/main/operations/tempo-mixin) has eight Grafana dashboards in the `dashboards` folder that you can download and import into your Grafana UI.
 These dashboards work well when you run Tempo in a Kubernetes (k8s) environment and metrics scraped have the
 `cluster` and `namespace` labels.
 
@@ -63,7 +63,7 @@ These dashboards work well when you run Tempo in a Kubernetes (k8s) environment 
 > This is available as `tempo-reads.json`.
 
 The Reads dashboard gives information on Requests, Errors, and Duration (RED) on the query path of Tempo.
-Each query touches the Gateway, Tempo-Query, Query-Frontend, Queriers, Live-stores, the backend, and Cache, if present.
+Each query touches the Gateway, Query-Frontend, Queriers, Live-stores, Memcached, and the backend.
 
 Use this dashboard to monitor the performance of each of the mentioned components and to decide the number of
 replicas in each deployment.
@@ -73,9 +73,8 @@ replicas in each deployment.
 > This is available as `tempo-writes.json`.
 
 The Writes dashboard gives information on RED on the write/ingest path of Tempo.
-A write query touches the Gateway, Distributors, Kafka, Block-builders, and the backend.
-This dashboard also gives information
-on the number of operations performed by the backend-worker (compaction) to the backend.
+A write query touches the Gateway, Distributors, and Kafka.
+The dashboard also shows compaction activity against Memcached and the backend.
 
 Use this dashboard to monitor the performance of each of the mentioned components and to decide the number of
 replicas in each deployment.
@@ -101,6 +100,45 @@ This dashboard is included in the Tempo repository for two reasons:
 
 - The dashboard provides a stack of metrics for other operators to consider monitoring while running Tempo.
 - We want the dashboard in our internal infrastructure and we vendor the `tempo-mixin` to do this.
+
+### Tempo Backend Work dashboard
+
+> This is available as `tempo-backendwork.json`.
+
+The Backend Work dashboard monitors blocklist maintenance, compaction jobs, and backend component resources.
+It tracks blocklist length and poll duration, active and completed compaction jobs, failure and retry rates, and objects written and combined during compaction.
+The dashboard also shows CPU and memory usage for the backend-scheduler and backend-worker components.
+
+Use this dashboard to monitor compaction health, detect stalled or failing jobs, and right-size backend-scheduler and backend-worker resources.
+
+### Tempo Block Builder dashboard
+
+> This is available as `tempo-block-builder.json`.
+
+The Block Builder dashboard monitors the Kafka-based ingest path introduced.
+It tracks Kafka fetch rates and read throughput, flushed blocks per second, and per-partition lag in both records and seconds.
+Heatmaps show partition section and cycle durations, and resource panels track CPU and memory usage.
+
+Use this dashboard to monitor block-builder throughput, detect partition lag, and ensure the ingest pipeline keeps up with incoming trace data.
+
+### Tempo Rollout Progress dashboard
+
+> This is available as `tempo-rollout-progress.json`.
+
+The Rollout Progress dashboard tracks the health of a Tempo deployment during upgrades and rollouts.
+It breaks down write and read requests by status code (2xx, 4xx, 5xx), shows 99th percentile latency, and counts unhealthy Pods.
+A version panel shows the number of pods running each version, and a latency comparison panel shows current latency against the previous 24-hour baseline.
+
+Use this dashboard during upgrades to confirm that new versions aren't introducing errors or latency regressions.
+
+### Tempo Tenants dashboard
+
+> This is available as `tempo-tenants.json`.
+
+The Tenants dashboard provides per-tenant visibility into ingestion, reads, storage, and metrics generation.
+It shows a limits table alongside distributor bytes and spans per second, live trace counts, query rates for ID lookups and searches, blocklist length, outstanding compactions, and metrics-generator bytes and active series.
+
+Use this dashboard in multitenant deployments to identify tenants with high ingestion rates, query volumes, or storage growth.
 
 ## Rules and alerts
 

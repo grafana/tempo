@@ -1,5 +1,4 @@
 stream_over_http_enabled: true
-partition_ring_live_store: true
 
 server:
   http_listen_port: 3200
@@ -43,7 +42,6 @@ backend_worker:
 querier:
   frontend_worker:
     frontend_address: query-frontend:9095
-  query_live_store: true
 
 metrics_generator:
   registry:
@@ -57,7 +55,6 @@ metrics_generator:
         send_exemplars: true
 
 query_frontend:
-  rf1_after: "1999-01-01T00:00:00Z"
   mcp_server:
     enabled: true
 
@@ -80,7 +77,6 @@ overrides:
       generate_native_histograms: both
 
 ingest:
-  enabled: true
   kafka:
     address: redpanda:9092
     topic: tempo-ingest

@@ -3,13 +3,15 @@ title: Distributor refusing spans
 description: Troubleshoot distributor refusing spans
 weight: 471
 aliases:
-- ../../operations/troubleshooting/max-trace-limit-reached/ # https://grafana.com/docs/tempo/<TEMPO_VERSION>/operations/troubleshooting/max-trace-limit-reached/
-- ../max-trace-limit-reached/ # https://grafana.com/docs/tempo/<TEMPO_VERSION>/troubleshooting/max-trace-limit-reached/
+  - ../../operations/troubleshooting/max-trace-limit-reached/ # https://grafana.com/docs/tempo/<TEMPO_VERSION>/operations/troubleshooting/max-trace-limit-reached/
+  - ../max-trace-limit-reached/ # https://grafana.com/docs/tempo/<TEMPO_VERSION>/troubleshooting/max-trace-limit-reached/
 ---
 
 # Distributor refusing spans
 
 The most likely cause of refused spans is rate limits being exceeded.
+
+To size your ingestion limits proactively and identify what's driving trace volume, refer to [Manage trace ingestion](https://grafana.com/docs/tempo/<TEMPO_VERSION>/operations/manage-trace-ingestion/).
 
 To log spans that are discarded, add the `--distributor.log-discarded-spans.enabled` flag to the distributor or
 adjust the [distributor configuration](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/#distributor):
@@ -33,7 +35,7 @@ level=info ts=2024-08-19T16:06:25.881169385Z caller=distributor.go:767 msg=disca
 The distributor checks ingestion rate limits before writing to Kafka. If spans are refused due to rate limits, you'll see logs like this at the distributor:
 
 ```
-msg="pusher failed to consume trace data" err="rpc error: code = ResourceExhausted desc = RATE_LIMITED: ingestion rate limit (15000000 bytes) exceeded while adding 10 bytes"
+msg="pusher failed to consume trace data" err="rpc error: code = ResourceExhausted desc = RATE_LIMITED: ingestion rate limit (30000000 bytes) exceeded while adding 10 bytes"
 ```
 
 You'll also see the following metric incremented. The `reason` label on this metric will contain information about the refused reason.
@@ -46,7 +48,7 @@ In this case, use available configuration options to [increase limits](https://g
 
 ## Trace limits
 
-Limits such as `max_bytes_per_trace` and `max_live_traces_bytes` are enforced asynchronously by the live-store and 
+Limits such as `max_bytes_per_trace` and `max_live_traces_bytes` are enforced asynchronously by the live-store and
 block-builder. These limits won't cause the distributor to refuse spans at ingestion time. Traces that exceed them are discarded downstream.
 
 ## Client resets connection

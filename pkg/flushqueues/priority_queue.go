@@ -99,7 +99,7 @@ func (pq *PriorityQueue[T]) Enqueue(op T) (bool, error) {
 
 	pq.hit[op.Key()] = struct{}{}
 	heap.Push(&pq.queue, op)
-	pq.cond.Broadcast()
+	pq.cond.Signal()
 	if pq.lengthGauge != nil {
 		pq.lengthGauge.Inc()
 	}

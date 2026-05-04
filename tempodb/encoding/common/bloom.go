@@ -4,8 +4,8 @@ import (
 	"bytes"
 	"math"
 
+	"github.com/bits-and-blooms/bloom/v3"
 	"github.com/go-kit/log/level"
-	"github.com/willf/bloom"
 
 	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/pkg/util/log"

@@ -31,6 +31,12 @@ func (p IntEqualPredicate) KeepColumnChunk(c *ColumnChunkHelper) bool {
 	ci, err := c.ColumnIndex()
 	if err == nil && ci != nil {
 		for i := 0; i < ci.NumPages(); i++ {
+			if ci.NullPage(i) {
+				// This page only contains nulls so the min/max metadata is not
+				// recorded and this page does not contain any values.
+				continue
+			}
+
 			min := ci.MinValue(i).Int64()
 			max := ci.MaxValue(i).Int64()
 
@@ -57,6 +63,9 @@ func (p IntEqualPredicate) KeepPage(page pq.Page) bool {
 }
 
 func (p IntEqualPredicate) KeepValue(v pq.Value) bool {
+	if v.IsNull() {
+		return false
+	}
 	vv := v.Int64()
 	return vv == p.value
 }
@@ -82,6 +91,12 @@ func (p IntNotEqualPredicate) KeepColumnChunk(c *ColumnChunkHelper) bool {
 	ci, err := c.ColumnIndex()
 	if err == nil && ci != nil {
 		for i := 0; i < ci.NumPages(); i++ {
+			if ci.NullPage(i) {
+				// This page only contains nulls so the min/max metadata is not
+				// recorded and this page does not contain any values.
+				continue
+			}
+
 			min := ci.MinValue(i).Int64()
 			max := ci.MaxValue(i).Int64()
 
@@ -108,6 +123,9 @@ func (p IntNotEqualPredicate) KeepPage(page pq.Page) bool {
 }
 
 func (p IntNotEqualPredicate) KeepValue(v pq.Value) bool {
+	if v.IsNull() {
+		return false
+	}
 	vv := v.Int64()
 	return vv != p.value
 }
@@ -133,7 +151,12 @@ func (p IntGreaterPredicate) KeepColumnChunk(c *ColumnChunkHelper) bool {
 	ci, err := c.ColumnIndex()
 	if err == nil && ci != nil {
 		for i := 0; i < ci.NumPages(); i++ {
-			
+			if ci.NullPage(i) {
+				// This page only contains nulls so the min/max metadata is not
+				// recorded and this page does not contain any values.
+				continue
+			}
+
 			max := ci.MaxValue(i).Int64()
 
 			if max > p.value {
@@ -149,7 +172,7 @@ func (p IntGreaterPredicate) KeepColumnChunk(c *ColumnChunkHelper) bool {
 func (p IntGreaterPredicate) KeepPage(page pq.Page) bool {
 	_, maxV, ok := page.Bounds()
 	if ok {
-		
+
 		max := maxV.Int64()
 
 		return max > p.value
@@ -159,6 +182,9 @@ func (p IntGreaterPredicate) KeepPage(page pq.Page) bool {
 }
 
 func (p IntGreaterPredicate) KeepValue(v pq.Value) bool {
+	if v.IsNull() {
+		return false
+	}
 	vv := v.Int64()
 	return vv > p.value
 }
@@ -184,7 +210,12 @@ func (p IntGreaterEqualPredicate) KeepColumnChunk(c *ColumnChunkHelper) bool {
 	ci, err := c.ColumnIndex()
 	if err == nil && ci != nil {
 		for i := 0; i < ci.NumPages(); i++ {
-			
+			if ci.NullPage(i) {
+				// This page only contains nulls so the min/max metadata is not
+				// recorded and this page does not contain any values.
+				continue
+			}
+
 			max := ci.MaxValue(i).Int64()
 
 			if max >= p.value {
@@ -200,7 +231,7 @@ func (p IntGreaterEqualPredicate) KeepColumnChunk(c *ColumnChunkHelper) bool {
 func (p IntGreaterEqualPredicate) KeepPage(page pq.Page) bool {
 	_, maxV, ok := page.Bounds()
 	if ok {
-		
+
 		max := maxV.Int64()
 
 		return max >= p.value
@@ -210,6 +241,9 @@ func (p IntGreaterEqualPredicate) KeepPage(page pq.Page) bool {
 }
 
 func (p IntGreaterEqualPredicate) KeepValue(v pq.Value) bool {
+	if v.IsNull() {
+		return false
+	}
 	vv := v.Int64()
 	return vv >= p.value
 }
@@ -235,8 +269,13 @@ func (p IntLessPredicate) KeepColumnChunk(c *ColumnChunkHelper) bool {
 	ci, err := c.ColumnIndex()
 	if err == nil && ci != nil {
 		for i := 0; i < ci.NumPages(); i++ {
+			if ci.NullPage(i) {
+				// This page only contains nulls so the min/max metadata is not
+				// recorded and this page does not contain any values.
+				continue
+			}
+
 			min := ci.MinValue(i).Int64()
-			
 
 			if min < p.value {
 				return true
@@ -252,7 +291,6 @@ func (p IntLessPredicate) KeepPage(page pq.Page) bool {
 	minV, _, ok := page.Bounds()
 	if ok {
 		min := minV.Int64()
-		
 
 		return min < p.value
 	}
@@ -261,6 +299,9 @@ func (p IntLessPredicate) KeepPage(page pq.Page) bool {
 }
 
 func (p IntLessPredicate) KeepValue(v pq.Value) bool {
+	if v.IsNull() {
+		return false
+	}
 	vv := v.Int64()
 	return vv < p.value
 }
@@ -286,8 +327,13 @@ func (p IntLessEqualPredicate) KeepColumnChunk(c *ColumnChunkHelper) bool {
 	ci, err := c.ColumnIndex()
 	if err == nil && ci != nil {
 		for i := 0; i < ci.NumPages(); i++ {
+			if ci.NullPage(i) {
+				// This page only contains nulls so the min/max metadata is not
+				// recorded and this page does not contain any values.
+				continue
+			}
+
 			min := ci.MinValue(i).Int64()
-			
 
 			if min <= p.value {
 				return true
@@ -303,7 +349,6 @@ func (p IntLessEqualPredicate) KeepPage(page pq.Page) bool {
 	minV, _, ok := page.Bounds()
 	if ok {
 		min := minV.Int64()
-		
 
 		return min <= p.value
 	}
@@ -312,6 +357,9 @@ func (p IntLessEqualPredicate) KeepPage(page pq.Page) bool {
 }
 
 func (p IntLessEqualPredicate) KeepValue(v pq.Value) bool {
+	if v.IsNull() {
+		return false
+	}
 	vv := v.Int64()
 	return vv <= p.value
 }
@@ -337,6 +385,12 @@ func (p FloatEqualPredicate) KeepColumnChunk(c *ColumnChunkHelper) bool {
 	ci, err := c.ColumnIndex()
 	if err == nil && ci != nil {
 		for i := 0; i < ci.NumPages(); i++ {
+			if ci.NullPage(i) {
+				// This page only contains nulls so the min/max metadata is not
+				// recorded and this page does not contain any values.
+				continue
+			}
+
 			min := ci.MinValue(i).Double()
 			max := ci.MaxValue(i).Double()
 
@@ -363,6 +417,9 @@ func (p FloatEqualPredicate) KeepPage(page pq.Page) bool {
 }
 
 func (p FloatEqualPredicate) KeepValue(v pq.Value) bool {
+	if v.IsNull() {
+		return false
+	}
 	vv := v.Double()
 	return vv == p.value
 }
@@ -388,6 +445,12 @@ func (p FloatNotEqualPredicate) KeepColumnChunk(c *ColumnChunkHelper) bool {
 	ci, err := c.ColumnIndex()
 	if err == nil && ci != nil {
 		for i := 0; i < ci.NumPages(); i++ {
+			if ci.NullPage(i) {
+				// This page only contains nulls so the min/max metadata is not
+				// recorded and this page does not contain any values.
+				continue
+			}
+
 			min := ci.MinValue(i).Double()
 			max := ci.MaxValue(i).Double()
 
@@ -414,6 +477,9 @@ func (p FloatNotEqualPredicate) KeepPage(page pq.Page) bool {
 }
 
 func (p FloatNotEqualPredicate) KeepValue(v pq.Value) bool {
+	if v.IsNull() {
+		return false
+	}
 	vv := v.Double()
 	return vv != p.value
 }
@@ -439,7 +505,12 @@ func (p FloatGreaterPredicate) KeepColumnChunk(c *ColumnChunkHelper) bool {
 	ci, err := c.ColumnIndex()
 	if err == nil && ci != nil {
 		for i := 0; i < ci.NumPages(); i++ {
-			
+			if ci.NullPage(i) {
+				// This page only contains nulls so the min/max metadata is not
+				// recorded and this page does not contain any values.
+				continue
+			}
+
 			max := ci.MaxValue(i).Double()
 
 			if max > p.value {
@@ -455,7 +526,7 @@ func (p FloatGreaterPredicate) KeepColumnChunk(c *ColumnChunkHelper) bool {
 func (p FloatGreaterPredicate) KeepPage(page pq.Page) bool {
 	_, maxV, ok := page.Bounds()
 	if ok {
-		
+
 		max := maxV.Double()
 
 		return max > p.value
@@ -465,6 +536,9 @@ func (p FloatGreaterPredicate) KeepPage(page pq.Page) bool {
 }
 
 func (p FloatGreaterPredicate) KeepValue(v pq.Value) bool {
+	if v.IsNull() {
+		return false
+	}
 	vv := v.Double()
 	return vv > p.value
 }
@@ -490,7 +564,12 @@ func (p FloatGreaterEqualPredicate) KeepColumnChunk(c *ColumnChunkHelper) bool {
 	ci, err := c.ColumnIndex()
 	if err == nil && ci != nil {
 		for i := 0; i < ci.NumPages(); i++ {
-			
+			if ci.NullPage(i) {
+				// This page only contains nulls so the min/max metadata is not
+				// recorded and this page does not contain any values.
+				continue
+			}
+
 			max := ci.MaxValue(i).Double()
 
 			if max >= p.value {
@@ -506,7 +585,7 @@ func (p FloatGreaterEqualPredicate) KeepColumnChunk(c *ColumnChunkHelper) bool {
 func (p FloatGreaterEqualPredicate) KeepPage(page pq.Page) bool {
 	_, maxV, ok := page.Bounds()
 	if ok {
-		
+
 		max := maxV.Double()
 
 		return max >= p.value
@@ -516,6 +595,9 @@ func (p FloatGreaterEqualPredicate) KeepPage(page pq.Page) bool {
 }
 
 func (p FloatGreaterEqualPredicate) KeepValue(v pq.Value) bool {
+	if v.IsNull() {
+		return false
+	}
 	vv := v.Double()
 	return vv >= p.value
 }
@@ -541,8 +623,13 @@ func (p FloatLessPredicate) KeepColumnChunk(c *ColumnChunkHelper) bool {
 	ci, err := c.ColumnIndex()
 	if err == nil && ci != nil {
 		for i := 0; i < ci.NumPages(); i++ {
+			if ci.NullPage(i) {
+				// This page only contains nulls so the min/max metadata is not
+				// recorded and this page does not contain any values.
+				continue
+			}
+
 			min := ci.MinValue(i).Double()
-			
 
 			if min < p.value {
 				return true
@@ -558,7 +645,6 @@ func (p FloatLessPredicate) KeepPage(page pq.Page) bool {
 	minV, _, ok := page.Bounds()
 	if ok {
 		min := minV.Double()
-		
 
 		return min < p.value
 	}
@@ -567,6 +653,9 @@ func (p FloatLessPredicate) KeepPage(page pq.Page) bool {
 }
 
 func (p FloatLessPredicate) KeepValue(v pq.Value) bool {
+	if v.IsNull() {
+		return false
+	}
 	vv := v.Double()
 	return vv < p.value
 }
@@ -592,8 +681,13 @@ func (p FloatLessEqualPredicate) KeepColumnChunk(c *ColumnChunkHelper) bool {
 	ci, err := c.ColumnIndex()
 	if err == nil && ci != nil {
 		for i := 0; i < ci.NumPages(); i++ {
+			if ci.NullPage(i) {
+				// This page only contains nulls so the min/max metadata is not
+				// recorded and this page does not contain any values.
+				continue
+			}
+
 			min := ci.MinValue(i).Double()
-			
 
 			if min <= p.value {
 				return true
@@ -609,7 +703,6 @@ func (p FloatLessEqualPredicate) KeepPage(page pq.Page) bool {
 	minV, _, ok := page.Bounds()
 	if ok {
 		min := minV.Double()
-		
 
 		return min <= p.value
 	}
@@ -618,6 +711,9 @@ func (p FloatLessEqualPredicate) KeepPage(page pq.Page) bool {
 }
 
 func (p FloatLessEqualPredicate) KeepValue(v pq.Value) bool {
+	if v.IsNull() {
+		return false
+	}
 	vv := v.Double()
 	return vv <= p.value
 }
@@ -650,6 +746,9 @@ func (p BoolEqualPredicate) KeepPage(page pq.Page) bool {
 }
 
 func (p BoolEqualPredicate) KeepValue(v pq.Value) bool {
+	if v.IsNull() {
+		return false
+	}
 	vv := v.Boolean()
 	return vv == p.value
 }
@@ -682,6 +781,9 @@ func (p BoolNotEqualPredicate) KeepPage(page pq.Page) bool {
 }
 
 func (p BoolNotEqualPredicate) KeepValue(v pq.Value) bool {
+	if v.IsNull() {
+		return false
+	}
 	vv := v.Boolean()
 	return vv != p.value
 }
@@ -707,10 +809,15 @@ func (p StringGreaterPredicate) KeepColumnChunk(c *ColumnChunkHelper) bool {
 	ci, err := c.ColumnIndex()
 	if err == nil && ci != nil {
 		for i := 0; i < ci.NumPages(); i++ {
-			
+			if ci.NullPage(i) {
+				// This page only contains nulls so the min/max metadata is not
+				// recorded and this page does not contain any values.
+				continue
+			}
+
 			max := ci.MaxValue(i).ByteArray()
 
-			if bytes.Compare(max, p.value) > 0 {
+			if len(max) == 0 || bytes.Compare(max, p.value) > 0 {
 				return true
 			}
 		}
@@ -723,16 +830,19 @@ func (p StringGreaterPredicate) KeepColumnChunk(c *ColumnChunkHelper) bool {
 func (p StringGreaterPredicate) KeepPage(page pq.Page) bool {
 	_, maxV, ok := page.Bounds()
 	if ok {
-		
+
 		max := maxV.ByteArray()
 
-		return bytes.Compare(max, p.value) > 0
+		return len(max) == 0 || bytes.Compare(max, p.value) > 0
 	}
 
 	return true
 }
 
 func (p StringGreaterPredicate) KeepValue(v pq.Value) bool {
+	if v.IsNull() {
+		return false
+	}
 	vv := v.ByteArray()
 	return bytes.Compare(vv, p.value) > 0
 }
@@ -758,10 +868,15 @@ func (p StringGreaterEqualPredicate) KeepColumnChunk(c *ColumnChunkHelper) bool 
 	ci, err := c.ColumnIndex()
 	if err == nil && ci != nil {
 		for i := 0; i < ci.NumPages(); i++ {
-			
+			if ci.NullPage(i) {
+				// This page only contains nulls so the min/max metadata is not
+				// recorded and this page does not contain any values.
+				continue
+			}
+
 			max := ci.MaxValue(i).ByteArray()
 
-			if bytes.Compare(max, p.value) >= 0 {
+			if len(max) == 0 || bytes.Compare(max, p.value) >= 0 {
 				return true
 			}
 		}
@@ -774,16 +889,19 @@ func (p StringGreaterEqualPredicate) KeepColumnChunk(c *ColumnChunkHelper) bool 
 func (p StringGreaterEqualPredicate) KeepPage(page pq.Page) bool {
 	_, maxV, ok := page.Bounds()
 	if ok {
-		
+
 		max := maxV.ByteArray()
 
-		return bytes.Compare(max, p.value) >= 0
+		return len(max) == 0 || bytes.Compare(max, p.value) >= 0
 	}
 
 	return true
 }
 
 func (p StringGreaterEqualPredicate) KeepValue(v pq.Value) bool {
+	if v.IsNull() {
+		return false
+	}
 	vv := v.ByteArray()
 	return bytes.Compare(vv, p.value) >= 0
 }
@@ -809,10 +927,15 @@ func (p StringLessPredicate) KeepColumnChunk(c *ColumnChunkHelper) bool {
 	ci, err := c.ColumnIndex()
 	if err == nil && ci != nil {
 		for i := 0; i < ci.NumPages(); i++ {
-			min := ci.MinValue(i).ByteArray()
-			
+			if ci.NullPage(i) {
+				// This page only contains nulls so the min/max metadata is not
+				// recorded and this page does not contain any values.
+				continue
+			}
 
-			if bytes.Compare(min, p.value) < 0 {
+			min := ci.MinValue(i).ByteArray()
+
+			if len(min) == 0 || bytes.Compare(min, p.value) < 0 {
 				return true
 			}
 		}
@@ -826,15 +949,17 @@ func (p StringLessPredicate) KeepPage(page pq.Page) bool {
 	minV, _, ok := page.Bounds()
 	if ok {
 		min := minV.ByteArray()
-		
 
-		return bytes.Compare(min, p.value) < 0
+		return len(min) == 0 || bytes.Compare(min, p.value) < 0
 	}
 
 	return true
 }
 
 func (p StringLessPredicate) KeepValue(v pq.Value) bool {
+	if v.IsNull() {
+		return false
+	}
 	vv := v.ByteArray()
 	return bytes.Compare(vv, p.value) < 0
 }
@@ -860,10 +985,15 @@ func (p StringLessEqualPredicate) KeepColumnChunk(c *ColumnChunkHelper) bool {
 	ci, err := c.ColumnIndex()
 	if err == nil && ci != nil {
 		for i := 0; i < ci.NumPages(); i++ {
-			min := ci.MinValue(i).ByteArray()
-			
+			if ci.NullPage(i) {
+				// This page only contains nulls so the min/max metadata is not
+				// recorded and this page does not contain any values.
+				continue
+			}
 
-			if bytes.Compare(min, p.value) <= 0 {
+			min := ci.MinValue(i).ByteArray()
+
+			if len(min) == 0 || bytes.Compare(min, p.value) <= 0 {
 				return true
 			}
 		}
@@ -877,15 +1007,17 @@ func (p StringLessEqualPredicate) KeepPage(page pq.Page) bool {
 	minV, _, ok := page.Bounds()
 	if ok {
 		min := minV.ByteArray()
-		
 
-		return bytes.Compare(min, p.value) <= 0
+		return len(min) == 0 || bytes.Compare(min, p.value) <= 0
 	}
 
 	return true
 }
 
 func (p StringLessEqualPredicate) KeepValue(v pq.Value) bool {
+	if v.IsNull() {
+		return false
+	}
 	vv := v.ByteArray()
 	return bytes.Compare(vv, p.value) <= 0
 }
@@ -911,10 +1043,16 @@ func (p ByteEqualPredicate) KeepColumnChunk(c *ColumnChunkHelper) bool {
 	ci, err := c.ColumnIndex()
 	if err == nil && ci != nil {
 		for i := 0; i < ci.NumPages(); i++ {
+			if ci.NullPage(i) {
+				// This page only contains nulls so the min/max metadata is not
+				// recorded and this page does not contain any values.
+				continue
+			}
+
 			min := ci.MinValue(i).ByteArray()
 			max := ci.MaxValue(i).ByteArray()
 
-			if bytes.Compare(p.value, min) >= 0 && bytes.Compare(p.value, max) <= 0 {
+			if (len(min) == 0 && len(max) == 0) || (bytes.Compare(p.value, min) >= 0 && bytes.Compare(p.value, max) <= 0) {
 				return true
 			}
 		}
@@ -930,13 +1068,16 @@ func (p ByteEqualPredicate) KeepPage(page pq.Page) bool {
 		min := minV.ByteArray()
 		max := maxV.ByteArray()
 
-		return bytes.Compare(p.value, min) >= 0 && bytes.Compare(p.value, max) <= 0
+		return (len(min) == 0 && len(max) == 0) || (bytes.Compare(p.value, min) >= 0 && bytes.Compare(p.value, max) <= 0)
 	}
 
 	return true
 }
 
 func (p ByteEqualPredicate) KeepValue(v pq.Value) bool {
+	if v.IsNull() {
+		return false
+	}
 	vv := v.ByteArray()
 	return bytes.Equal(vv, p.value)
 }
@@ -962,10 +1103,16 @@ func (p ByteNotEqualPredicate) KeepColumnChunk(c *ColumnChunkHelper) bool {
 	ci, err := c.ColumnIndex()
 	if err == nil && ci != nil {
 		for i := 0; i < ci.NumPages(); i++ {
+			if ci.NullPage(i) {
+				// This page only contains nulls so the min/max metadata is not
+				// recorded and this page does not contain any values.
+				continue
+			}
+
 			min := ci.MinValue(i).ByteArray()
 			max := ci.MaxValue(i).ByteArray()
 
-			if !bytes.Equal(min, p.value) || !bytes.Equal(p.value, max) {
+			if (len(min) == 0 && len(max) == 0) || (!bytes.Equal(min, p.value) || !bytes.Equal(p.value, max)) {
 				return true
 			}
 		}
@@ -981,16 +1128,20 @@ func (p ByteNotEqualPredicate) KeepPage(page pq.Page) bool {
 		min := minV.ByteArray()
 		max := maxV.ByteArray()
 
-		return !bytes.Equal(min, p.value) || !bytes.Equal(p.value, max)
+		return (len(min) == 0 && len(max) == 0) || (!bytes.Equal(min, p.value) || !bytes.Equal(p.value, max))
 	}
 
 	return true
 }
 
 func (p ByteNotEqualPredicate) KeepValue(v pq.Value) bool {
+	if v.IsNull() {
+		return false
+	}
 	vv := v.ByteArray()
 	return !bytes.Equal(vv, p.value)
 }
+
 var _ Predicate = (*IntInPredicate)(nil)
 
 type IntInPredicate struct {
@@ -1039,6 +1190,9 @@ func (p IntInPredicate) KeepPage(page pq.Page) bool {
 }
 
 func (p IntInPredicate) KeepValue(v pq.Value) bool {
+	if v.IsNull() {
+		return false
+	}
 	vv := v.Int64()
 	for _, x := range p.values {
 		if vv == x {
@@ -1047,6 +1201,7 @@ func (p IntInPredicate) KeepValue(v pq.Value) bool {
 	}
 	return false
 }
+
 var _ Predicate = (*IntNotInPredicate)(nil)
 
 type IntNotInPredicate struct {
@@ -1068,11 +1223,14 @@ func (p IntNotInPredicate) KeepColumnChunk(c *ColumnChunkHelper) bool {
 	return true
 }
 
-func (p IntNotInPredicate) KeepPage(page pq.Page) bool { 
+func (p IntNotInPredicate) KeepPage(page pq.Page) bool {
 	return true
 }
 
 func (p IntNotInPredicate) KeepValue(v pq.Value) bool {
+	if v.IsNull() {
+		return false
+	}
 	vv := v.Int64()
 	for _, x := range p.values {
 		if vv == x {
@@ -1081,6 +1239,7 @@ func (p IntNotInPredicate) KeepValue(v pq.Value) bool {
 	}
 	return true
 }
+
 var _ Predicate = (*FloatInPredicate)(nil)
 
 type FloatInPredicate struct {
@@ -1129,6 +1288,9 @@ func (p FloatInPredicate) KeepPage(page pq.Page) bool {
 }
 
 func (p FloatInPredicate) KeepValue(v pq.Value) bool {
+	if v.IsNull() {
+		return false
+	}
 	vv := v.Double()
 	for _, x := range p.values {
 		if vv == x {
@@ -1137,6 +1299,7 @@ func (p FloatInPredicate) KeepValue(v pq.Value) bool {
 	}
 	return false
 }
+
 var _ Predicate = (*FloatNotInPredicate)(nil)
 
 type FloatNotInPredicate struct {
@@ -1158,11 +1321,14 @@ func (p FloatNotInPredicate) KeepColumnChunk(c *ColumnChunkHelper) bool {
 	return true
 }
 
-func (p FloatNotInPredicate) KeepPage(page pq.Page) bool { 
+func (p FloatNotInPredicate) KeepPage(page pq.Page) bool {
 	return true
 }
 
 func (p FloatNotInPredicate) KeepValue(v pq.Value) bool {
+	if v.IsNull() {
+		return false
+	}
 	vv := v.Double()
 	for _, x := range p.values {
 		if vv == x {
@@ -1171,6 +1337,7 @@ func (p FloatNotInPredicate) KeepValue(v pq.Value) bool {
 	}
 	return true
 }
+
 var _ Predicate = (*BoolInPredicate)(nil)
 
 type BoolInPredicate struct {
@@ -1195,6 +1362,9 @@ func (p BoolInPredicate) KeepPage(page pq.Page) bool {
 }
 
 func (p BoolInPredicate) KeepValue(v pq.Value) bool {
+	if v.IsNull() {
+		return false
+	}
 	vv := v.Boolean()
 	for _, x := range p.values {
 		if vv == x {
@@ -1203,6 +1373,7 @@ func (p BoolInPredicate) KeepValue(v pq.Value) bool {
 	}
 	return false
 }
+
 var _ Predicate = (*BoolNotInPredicate)(nil)
 
 type BoolNotInPredicate struct {
@@ -1224,11 +1395,14 @@ func (p BoolNotInPredicate) KeepColumnChunk(c *ColumnChunkHelper) bool {
 	return true
 }
 
-func (p BoolNotInPredicate) KeepPage(page pq.Page) bool { 
+func (p BoolNotInPredicate) KeepPage(page pq.Page) bool {
 	return true
 }
 
 func (p BoolNotInPredicate) KeepValue(v pq.Value) bool {
+	if v.IsNull() {
+		return false
+	}
 	vv := v.Boolean()
 	for _, x := range p.values {
 		if vv == x {

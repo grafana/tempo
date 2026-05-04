@@ -18,7 +18,7 @@ if an issue occurs during a Tempo query, the error response may look like:
 
 Tempo parallelizes work by breaking a single query into multiple requests (jobs) that are distributed to the queriers. 
 Increasing the time range results in more jobs being created.
-To ensure fair resource usage and to prevent the "noisy neighbor" problem in multi-tenant environments, Tempo limits the number of jobs a tenant can run concurrently. The limit of maximun number of jobs per tenant is controlled by the query-frontend value  `max_outstanding_per_tenant`.
+To ensure fair resource usage and to prevent the "noisy neighbor" problem in multi-tenant environments, Tempo limits the number of jobs a tenant can run concurrently. The maximum number of jobs per tenant is controlled by the query-frontend setting `max_outstanding_per_tenant`.
 
 ## Solutions
 

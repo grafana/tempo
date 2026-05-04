@@ -166,7 +166,7 @@ In Tempo 3.0 microservices mode, the metrics-generator consumes trace data from 
 #### Two generator modes
 
 - **`MetricsGenerator`** (traditional) — Uses ring + memberlist. Can receive PushSpans and/or consume Kafka. gRPC optional.
-- **`MetricsGeneratorNoLocalBlocks`** — Kafka-only mode. Uses partition ring watcher and consumes from Kafka as configured by the deployment model. (`ingest.enabled` and `disable_grpc` are deprecated and ignored.)
+- **`MetricsGeneratorNoLocalBlocks`** — Kafka-only mode. Uses partition ring watcher and consumes from Kafka as configured by the deployment model. (`disable_grpc` is deprecated and ignored.)
 
 **Code Reference**: `cmd/tempo/app/modules.go`
 

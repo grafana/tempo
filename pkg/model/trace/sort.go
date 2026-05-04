@@ -8,11 +8,20 @@ import (
 	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 )
 
-// SortTrace sorts a *tempopb.Trace
+// SortTrace deeply sorts a *tempopb.Trace. All scopes, spans, events, etc are sorted by
+// data intrinsic like timestamp or id.
 func SortTrace(t *tempopb.Trace) {
 	// Sort bottom up by span start times
 	for _, b := range t.ResourceSpans {
 		for _, ss := range b.ScopeSpans {
+			for _, span := range ss.Spans {
+				sort.Slice(span.Events, func(i, j int) bool {
+					return compareEvents(span.Events[i], span.Events[j])
+				})
+				sort.Slice(span.Links, func(i, j int) bool {
+					return compareLinks(span.Links[i], span.Links[j])
+				})
+			}
 			sort.Slice(ss.Spans, func(i, j int) bool {
 				return compareSpans(ss.Spans[i], ss.Spans[j])
 			})
@@ -31,15 +40,31 @@ func SortTrace(t *tempopb.Trace) {
 func SortTraceAndAttributes(t *tempopb.Trace) {
 	SortTrace(t)
 	for _, b := range t.ResourceSpans {
-		res := b.Resource
-		sort.Slice(res.Attributes, func(i, j int) bool {
-			return res.Attributes[i].Key < res.Attributes[j].Key
-		})
+		if res := b.Resource; res != nil {
+			sort.Slice(res.Attributes, func(i, j int) bool {
+				return res.Attributes[i].Key < res.Attributes[j].Key
+			})
+		}
 		for _, ss := range b.ScopeSpans {
+			if ss.Scope != nil {
+				sort.Slice(ss.Scope.Attributes, func(i, j int) bool {
+					return ss.Scope.Attributes[i].Key < ss.Scope.Attributes[j].Key
+				})
+			}
 			for _, span := range ss.Spans {
 				sort.Slice(span.Attributes, func(i, j int) bool {
 					return span.Attributes[i].Key < span.Attributes[j].Key
 				})
+				for _, event := range span.Events {
+					sort.Slice(event.Attributes, func(i, j int) bool {
+						return event.Attributes[i].Key < event.Attributes[j].Key
+					})
+				}
+				for _, link := range span.Links {
+					sort.Slice(link.Attributes, func(i, j int) bool {
+						return link.Attributes[i].Key < link.Attributes[j].Key
+					})
+				}
 			}
 		}
 	}
@@ -66,4 +91,20 @@ func compareSpans(a, b *v1.Span) bool {
 	}
 
 	return a.StartTimeUnixNano < b.StartTimeUnixNano
+}
+
+func compareEvents(a, b *v1.Span_Event) bool {
+	if a.TimeUnixNano == b.TimeUnixNano {
+		return a.Name < b.Name
+	}
+
+	return a.TimeUnixNano < b.TimeUnixNano
+}
+
+func compareLinks(a, b *v1.Span_Link) bool {
+	if bytes.Equal(a.TraceId, b.TraceId) {
+		return bytes.Compare(a.SpanId, b.SpanId) == -1
+	}
+
+	return bytes.Compare(a.TraceId, b.TraceId) == -1
 }

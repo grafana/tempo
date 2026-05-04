@@ -20,19 +20,21 @@
 package api
 
 import (
-	"github.com/bytedance/sonic/internal/envs"
 	"github.com/bytedance/sonic/internal/decoder/jitdec"
 	"github.com/bytedance/sonic/internal/decoder/optdec"
+	"github.com/bytedance/sonic/internal/envs"
 )
 
 var (
-	pretouchImpl = jitdec.Pretouch
-	decodeImpl = jitdec.Decode
-) 
+	pretouchImpl     = jitdec.Pretouch
+	pretouchManyImpl = jitdec.PretouchMany
+	decodeImpl       = jitdec.Decode
+)
 
- func init() {
+func init() {
 	if envs.UseOptDec {
 		pretouchImpl = optdec.Pretouch
+		pretouchManyImpl = optdec.PretouchMany
 		decodeImpl = optdec.Decode
 	}
- }
+}

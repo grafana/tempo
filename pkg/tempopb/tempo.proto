@@ -45,8 +45,9 @@ message TraceByIDRequest {
   string blockEnd = 3;
   string queryMode = 5;
   bool allowPartialTrace = 6;
-  // Rhythm fields
+
   google.protobuf.Timestamp RF1After = 7 [
+    deprecated = true,
     (gogoproto.stdtime) = true,
     (gogoproto.nullable) = false
   ];
@@ -75,8 +76,9 @@ message SearchRequest {
   // TraceQL query
   string Query = 8;
   uint32 SpansPerSpanSet = 9;
-  // Rhythm fields
+
   google.protobuf.Timestamp RF1After = 10 [
+    deprecated = true,
     (gogoproto.stdtime) = true,
     (gogoproto.nullable) = false
   ];
@@ -173,8 +175,9 @@ message SearchTagsRequest {
   uint32 end = 4;
   uint32 maxTagsPerScope = 5;
   uint32 staleValuesThreshold = 6;
-  // Rhythm fields
+
   google.protobuf.Timestamp RF1After = 7 [
+    deprecated = true,
     (gogoproto.stdtime) = true,
     (gogoproto.nullable) = false
   ];
@@ -237,8 +240,9 @@ message SearchTagValuesRequest {
   uint32 end = 5;
   uint32 maxTagValues = 6;
   uint32 staleValueThreshold = 7; // Limit of stale values
-  // Rhythm fields
+
   google.protobuf.Timestamp RF1After = 8 [
+    deprecated = true,
     (gogoproto.stdtime) = true,
     (gogoproto.nullable) = false
   ];

@@ -37,14 +37,19 @@ type perTenantOverrides struct {
 }
 
 func (o *perTenantOverrides) UnmarshalYAML(unmarshal func(interface{}) error) error {
-	// Note: this implementation relies on callers using yaml.UnmarshalStrict. In non-strict mode
-	// unmarshal() will not return an error for legacy configuration and we return immediately.
-
-	// Try to unmarshal it normally
+	// Try to unmarshal as new format. Overrides.UnmarshalYAML calls processExtensions for each
+	// tenant, which rejects unregistered extension keys — including legacy flat-key field names
+	// (e.g. "max_traces_per_user"). If any tenant uses legacy fields the first-pass will error
+	// and we fall through to the legacy path below.
+	// If the error is an extensionError, the config is in the new format but misconfigured.
 	type rawConfig perTenantOverrides
-	if err := unmarshal((*rawConfig)(o)); err == nil {
+	err := unmarshal((*rawConfig)(o))
+	if err == nil {
 		o.ConfigType = ConfigTypeNew
 		return nil
+	}
+	if isExtensionError(err) || !isLegacyExtensionKeyError(err) {
+		return err
 	}
 
 	var legacyConfig perTenantLegacyOverrides
@@ -54,8 +59,17 @@ func (o *perTenantOverrides) UnmarshalYAML(unmarshal func(interface{}) error) er
 
 	*o = legacyConfig.toNewOverrides()
 	o.ConfigType = ConfigTypeLegacy
-
 	return nil
+}
+
+// UnmarshalPerTenantOverrides parses a per-tenant overrides file, handling both legacy
+// and new scoped formats. Returns a map of tenant ID to their overrides.
+func UnmarshalPerTenantOverrides(data []byte) (map[string]*Overrides, error) {
+	var o perTenantOverrides
+	if err := yaml.UnmarshalStrict(data, &o); err != nil {
+		return nil, err
+	}
+	return o.TenantLimits, nil
 }
 
 // forUser returns limits for a given tenant, or nil if there are no tenant-specific limits.
@@ -390,12 +404,21 @@ func (o *runtimeConfigOverridesManager) MaxBlocksPerTagValuesQuery(userID string
 	return o.getOverridesForUser(userID).Read.MaxBlocksPerTagValuesQuery
 }
 
+// MaxConditionGroupsPerTagQuery returns the maximum number of OR-expanded condition groups allowed in a tag search query.
+func (o *runtimeConfigOverridesManager) MaxConditionGroupsPerTagQuery() int {
+	return o.defaultLimits.Read.MaxConditionGroupsPerTagQuery
+}
+
 func (o *runtimeConfigOverridesManager) UnsafeQueryHints(userID string) bool {
 	return o.getOverridesForUser(userID).Read.UnsafeQueryHints
 }
 
 func (o *runtimeConfigOverridesManager) LeftPadTraceIDs(userID string) bool {
 	return o.getOverridesForUser(userID).Read.LeftPadTraceIDs
+}
+
+func (o *runtimeConfigOverridesManager) MetricsSpanOnlyFetch(userID string) *bool {
+	return o.getOverridesForUser(userID).Read.MetricsSpanOnlyFetch
 }
 
 func (o *runtimeConfigOverridesManager) CostAttributionMaxCardinality(userID string) uint64 {

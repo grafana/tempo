@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"math/rand"
+	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -37,6 +39,46 @@ func MakeSpan(traceID []byte) *v1_trace.Span {
 
 func MakeSpanWithTimeWindow(traceID []byte, startTime uint64, endTime uint64) *v1_trace.Span {
 	return makeSpanWithAttributeCount(traceID, rand.Int()%10+1, startTime, endTime) // nolint:gosec // G404: Use of weak random number generator
+}
+
+// DedicatedBlobTestSize is the length of blob payloads for dedicated columns (see DedicatedBlobTestString).
+const DedicatedBlobTestSize = 1000
+
+// DedicatedBlobTestString returns a fixed payload used by AddDedicatedAttributes for string columns
+// with the blob option so parquet/proto round-trip tests can assert exact values.
+func DedicatedBlobTestString() string {
+	return strings.Repeat("B", DedicatedBlobTestSize)
+}
+
+func randomDedicatedBlobString() string {
+	letters := []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ") // same set as util.TraceInfo.generateRandomBlob
+	s := make([]rune, DedicatedBlobTestSize)
+	for i := range s {
+		s[i] = letters[rand.Intn(len(letters))] // nolint:gosec // G404: test RNG
+	}
+	return string(s)
+}
+
+func anyValueForDedicatedColumn(col backend.DedicatedColumn, idx int) *v1_common.AnyValue {
+	if col.Type == backend.DedicatedColumnTypeInt {
+		return &v1_common.AnyValue{
+			Value: &v1_common.AnyValue_IntValue{
+				IntValue: int64(idx + 1 + rand.Intn(1000)), // nolint:gosec // G404: test RNG
+			},
+		}
+	}
+	if slices.Contains(col.Options, backend.DedicatedColumnOptionBlob) {
+		return &v1_common.AnyValue{
+			Value: &v1_common.AnyValue_StringValue{
+				StringValue: randomDedicatedBlobString(),
+			},
+		}
+	}
+	return &v1_common.AnyValue{
+		Value: &v1_common.AnyValue_StringValue{
+			StringValue: fmt.Sprintf("dedicated-%s-%s-%d", col.Scope, col.Name, rand.Int()), // nolint:gosec // G404
+		},
+	}
 }
 
 func makeSpanWithAttributeCount(traceID []byte, count int, startTime uint64, endTime uint64) *v1_trace.Span {
@@ -199,7 +241,7 @@ func MakeTrace(requests int, traceID []byte) *tempopb.Trace {
 		ResourceSpans: make([]*v1_trace.ResourceSpans, 0),
 	}
 
-	for i := 0; i < requests; i++ {
+	for range requests {
 		trace.ResourceSpans = append(trace.ResourceSpans, MakeBatch(rand.Int()%20+1, traceID)) // nolint:gosec // G404: Use of weak random number generator
 	}
 
@@ -242,36 +284,47 @@ var (
 		{Scope: "resource", Name: "dedicated.resource.5", Type: "string"},
 		{Scope: "resource", Name: "dedicated.resource.6", Type: "int"},
 		{Scope: "resource", Name: "dedicated.resource.7", Type: "int"},
+		{Scope: "resource", Name: "dedicated.resource.8", Type: "string", Options: []backend.DedicatedColumnOption{backend.DedicatedColumnOptionBlob}},
 	}
 	dedicatedColumnsSpan = backend.DedicatedColumns{
 		{Scope: "span", Name: "dedicated.span.1", Type: "string"},
 		{Scope: "span", Name: "dedicated.span.2", Type: "string"},
 		{Scope: "span", Name: "dedicated.span.3", Type: "string"},
 		{Scope: "span", Name: "dedicated.span.4", Type: "string"},
-		{Scope: "span", Name: "dedicated.span.5", Type: "string"},
+		{Scope: "span", Name: "dedicated.span.5", Type: "string", Options: []backend.DedicatedColumnOption{backend.DedicatedColumnOptionBlob}},
 		{Scope: "span", Name: "dedicated.span.6", Type: "int"},
 		{Scope: "span", Name: "dedicated.span.7", Type: "int"},
 	}
 	dedicatedColumnsEvent = backend.DedicatedColumns{
 		{Scope: "event", Name: "dedicated.event.1", Type: "string"},
 		{Scope: "event", Name: "dedicated.event.2", Type: "string"},
+		{Scope: "event", Name: "dedicated.event.3", Type: "int"},
+		{Scope: "event", Name: "dedicated.event.4", Type: "int"},
+		{Scope: "event", Name: "dedicated.event.5", Type: "string", Options: []backend.DedicatedColumnOption{backend.DedicatedColumnOptionBlob}},
 	}
 )
 
 // AddDedicatedAttributes adds resource and span attributes to a trace that are stored in dedicated
 // columns when a backend.BlockMeta is created with the column assignments from MakeDedicatedColumns.
 func AddDedicatedAttributes(trace *tempopb.Trace) *tempopb.Trace {
-	makeVal := func(typ backend.DedicatedColumnType, scope backend.DedicatedColumnScope, i int) *v1_common.AnyValue {
-		if typ == backend.DedicatedColumnTypeInt {
+	makeVal := func(c backend.DedicatedColumn, i int) *v1_common.AnyValue {
+		if c.Type == backend.DedicatedColumnTypeInt {
 			return &v1_common.AnyValue{
 				Value: &v1_common.AnyValue_IntValue{
 					IntValue: int64(i + 1),
 				},
 			}
 		}
+		if slices.Contains(c.Options, backend.DedicatedColumnOptionBlob) {
+			return &v1_common.AnyValue{
+				Value: &v1_common.AnyValue_StringValue{
+					StringValue: DedicatedBlobTestString(),
+				},
+			}
+		}
 		return &v1_common.AnyValue{
 			Value: &v1_common.AnyValue_StringValue{
-				StringValue: fmt.Sprintf("dedicated-%s-attr-value-%d", scope, i+1),
+				StringValue: fmt.Sprintf("dedicated-%s-attr-value-%d", c.Scope, i+1),
 			},
 		}
 	}
@@ -280,21 +333,21 @@ func AddDedicatedAttributes(trace *tempopb.Trace) *tempopb.Trace {
 	for i, c := range dedicatedColumnsSpan {
 		spanAttrs = append(spanAttrs, &v1_common.KeyValue{
 			Key:   c.Name,
-			Value: makeVal(c.Type, c.Scope, i),
+			Value: makeVal(c, i),
 		})
 	}
 	resourceAttrs := make([]*v1_common.KeyValue, 0, len(dedicatedColumnsResource))
 	for i, c := range dedicatedColumnsResource {
 		resourceAttrs = append(resourceAttrs, &v1_common.KeyValue{
 			Key:   c.Name,
-			Value: makeVal(c.Type, c.Scope, i),
+			Value: makeVal(c, i),
 		})
 	}
 	eventAttrs := make([]*v1_common.KeyValue, 0, len(dedicatedColumnsEvent))
 	for i, c := range dedicatedColumnsEvent {
 		eventAttrs = append(eventAttrs, &v1_common.KeyValue{
 			Key:   c.Name,
-			Value: makeVal(c.Type, c.Scope, i),
+			Value: makeVal(c, i),
 		})
 	}
 
@@ -313,6 +366,62 @@ func AddDedicatedAttributes(trace *tempopb.Trace) *tempopb.Trace {
 					attr = make([]*v1_common.KeyValue, 0, len(eventAttrs)+len(e.Attributes))
 					attr = append(attr, eventAttrs...)
 					e.Attributes = append(attr, e.Attributes...)
+				}
+			}
+		}
+	}
+
+	return trace
+}
+
+// AddRandomDedicatedAttributes adds a random subset of the package test dedicated columns
+// (dedicatedColumnsResource, dedicatedColumnsSpan, dedicatedColumnsEvent) at resource, span,
+// and event levels (each existing span event). String columns with the blob option receive
+// DedicatedBlobTestSize random letters (same character set as util.TraceInfo.generateRandomBlob).
+// The trace is modified in place.
+// Parquet round-trips may reorder attributes; use model/trace.SortTraceAndAttributes before
+// proto.Equal when comparing decoded traces.
+func AddRandomDedicatedAttributes(trace *tempopb.Trace) *tempopb.Trace {
+	for _, batch := range trace.ResourceSpans {
+		if batch.Resource != nil {
+			for i, col := range dedicatedColumnsResource {
+				if rand.Intn(2) != 0 { // nolint:gosec // G404: 50% each column
+					continue
+				}
+				batch.Resource.Attributes = append(batch.Resource.Attributes, &v1_common.KeyValue{
+					Key:   col.Name,
+					Value: anyValueForDedicatedColumn(col, i),
+				})
+			}
+		}
+		for _, ss := range batch.ScopeSpans {
+			for _, span := range ss.Spans {
+				if span == nil {
+					continue
+				}
+				for i, col := range dedicatedColumnsSpan {
+					if rand.Intn(2) != 0 { // nolint:gosec // G404
+						continue
+					}
+					span.Attributes = append(span.Attributes, &v1_common.KeyValue{
+						Key:   col.Name,
+						Value: anyValueForDedicatedColumn(col, i),
+					})
+				}
+
+				for _, e := range span.Events {
+					if e == nil {
+						continue
+					}
+					for i, col := range dedicatedColumnsEvent {
+						if rand.Intn(2) != 0 { // nolint:gosec // G404
+							continue
+						}
+						e.Attributes = append(e.Attributes, &v1_common.KeyValue{
+							Key:   col.Name,
+							Value: anyValueForDedicatedColumn(col, i),
+						})
+					}
 				}
 			}
 		}

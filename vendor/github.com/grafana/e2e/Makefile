@@ -7,7 +7,7 @@ lint:
 	go run github.com/client9/misspell/cmd/misspell@v0.3.4 -error README.md LICENSE
 
 	# Configured via .golangci.yml.
-	go run github.com/golangci/golangci-lint/cmd/golangci-lint@v1.43.0 run
+	go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.8.0 run
 
 .PHONY: integration
 integration:

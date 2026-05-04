@@ -1,7 +1,7 @@
 ---
 title: TraceQL
-menuTitle: TraceQL
-description: Learn about TraceQL, Tempo's query language for traces
+menuTitle: Query with TraceQL
+description: Learn about TraceQL, the query language for traces
 weight: 600
 aliases:
   - /docs/tempo/latest/traceql/
@@ -17,13 +17,12 @@ keywords:
 
 TraceQL is a query language designed for selecting traces in Tempo.
 
-Distributed traces contain a wealth of information, and tools like auto-instrumentation make it easy to start capturing data. Extracting value from traces can be much harder.
+Distributed traces contain a wealth of information, and tools like auto-instrumentation simplify the process of capturing data. Extracting value from traces can be much harder.
 For example, Tempo metrics-generator can aggregate traces into service graphs and span metrics, and exemplars allow you to navigate from a spike in API latency to a trace that contributed to that spike.
 But traces can do so much more.
 
 Traces are the flow of events throughout your components.
 They have a tree structure—-with a root, branches, and leaves—-arbitrary key/value data at any location, and of course timestamps.
-What new questions can be answered with this structure? More than just finding isolated events, can we find sequences of events?
 
 For example, you can use traces to perform root cause analyses (RCA) on a service outage and use TraceQL to pinpoint the root cause. Refer to [Diagnose errors with traces](/docs/tempo/<TEMPO_VERSION>/solutions-with-traces/traces-diagnose-errors/#diagnose-errors-with-traces) for a use case example.
 

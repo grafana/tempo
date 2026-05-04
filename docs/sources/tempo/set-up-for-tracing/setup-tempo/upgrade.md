@@ -19,7 +19,7 @@ We recommend testing in a non-production environment prior to rolling these chan
 
 The upgrade process changes for each version, depending upon the changes made for the subsequent release.
 
-This upgrade guide applies to on-premise installations and not for Grafana Cloud.
+This upgrade guide applies to self-managed installations and not for Grafana Cloud.
 
 For detailed information about any release, refer to the [Release notes](https://grafana.com/docs/tempo/<TEMPO_VERSION>/release-notes/).
 
@@ -33,26 +33,147 @@ Tempo 3.0 is a major architectural change. For a step-by-step migration procedur
 
 When upgrading to Tempo 3.0, be aware of these breaking changes:
 
-- **Kafka required**: A Kafka-compatible system is now required for all deployment modes. Distributors write to Kafka instead of directly to ingesters.
-- **Scalable monolithic mode (SSB) removed**: The `scalable-single-binary` target is no longer available.
+- **Kafka required for microservices mode**: A Kafka-compatible system is required for microservices deployments. In monolithic mode, Tempo ingests traces in-process without Kafka.
+- **Scalable monolithic mode (SSB) removed**: The `scalable-single-binary` target is no longer available. Migrate to either microservices or monolithic (`target: all`).
 - **New components**: Block-builders and live-stores replace ingesters. The compactor target has been removed.
-- **Configuration changes**: Remove `ingester` configuration blocks and add `ingest` (Kafka) configuration. Update `ingester_client` references to `live_store_client`.
+- **Configuration changes**: Remove `ingester`, `ingester_client`, and `compactor` configuration blocks. For microservices deployments, add `ingest.kafka` configuration. You can automate this using the [`tempo-cli migrate config` command](https://grafana.com/docs/tempo/<TEMPO_VERSION>/operations/tempo_cli/#migrate-config-command).
 - **No downgrade path**: There is no supported downgrade path from 3.0 to 2.x.
 - **Deployment manifests**: Update Helm, Tanka, and other deployment manifests to include the new components and Kafka infrastructure.
+
+### Legacy overrides disabled by default
+
+Tempo now refuses to start if it detects legacy (flat, `unscoped`) overrides in the main configuration or the per-tenant overrides file. [[PR 6741](https://github.com/grafana/tempo/pull/6741)]
+
+To resolve this, either migrate to the scoped `defaults` format (recommended) or temporarily opt back in.
+
+#### Option 1: Migrate to the scoped format
+
+Convert your overrides from the legacy flat format to the scoped `defaults` format. For example:
+
+Before (legacy):
+
+```yaml
+overrides:
+  ingestion_rate_limit_bytes: 20000000
+  ingestion_burst_size_bytes: 20000000
+  max_bytes_per_trace: 30000000
+  max_traces_per_user: 100000
+```
+
+After (scoped):
+
+```yaml
+overrides:
+  defaults:
+    ingestion:
+      rate_limit_bytes: 20000000
+      burst_size_bytes: 20000000
+      max_traces_per_user: 100000
+    global:
+      max_bytes_per_trace: 30000000
+```
+
+You can automate the migration using the Tempo CLI. Refer to the [`tempo-cli migrate overrides-config` command](https://grafana.com/docs/tempo/<TEMPO_VERSION>/operations/tempo_cli/#migrate-overrides-config-command).
+
+For the full field mapping between legacy and scoped formats, refer to the [Upgrade to Tempo 2.3](#new-defaults-block-in-overrides-module-configuration) section.
+
+#### Option 2: Temporarily opt back in
+
+Set `enable_legacy_overrides: true` in the overrides configuration block or pass `-config.enable-legacy-overrides=true` on the CLI. A deprecation warning is logged on startup and each time per-tenant overrides are loaded. This is a temporary escape hatch. Legacy overrides will be removed in a future release.
+
+```yaml
+overrides:
+  enable_legacy_overrides: true
+```
+
+### `mem-ballast-size-mbs` flag removed
+
+The `-mem-ballast-size-mbs` command-line flag has been removed. This flag is no longer needed in Go 1.19 and later, which use `GOMEMLIMIT` instead. [[PR 6403](https://github.com/grafana/tempo/pull/6403)]
+
+If your deployment scripts, Helm values, or Tanka/Jsonnet configurations pass `-mem-ballast-size-mbs`, remove it. Tempo fails to start with an unrecognized flag error.
+
+### Metrics-generator configuration changes
+
+The metrics-generator gRPC endpoint and push path have been removed. In Tempo 3.0, the metrics-generator consumes directly from Kafka rather than receiving spans through gRPC from the distributor. [[PR 6618](https://github.com/grafana/tempo/pull/6618)]
+
+If your configuration includes a top-level `metrics_generator_client` block, you can safely remove it. Tempo 3.0 ignores this block, and it is deprecated and will be removed in a future release.
+
+### Block configuration centralized to `storage.trace.block`
+
+Block and WAL configuration for `block_builder` and `live_store` is now always sourced from `storage.trace.block`. Per-module block configuration fields have been removed. [[PR 6647](https://github.com/grafana/tempo/pull/6647)]
+
+If your configuration sets block-level options such as `version`, `parquet_dedicated_columns`, or `parquet_row_group_size_bytes` under `block_builder.block` or `live_store.block_config`, move them to `storage.trace.block`.
+
+Before:
+
+```yaml
+block_builder:
+  block:
+    version: "vParquet5"
+    parquet_dedicated_columns:
+      - { scope: resource, name: service.name, type: string }
+
+live_store:
+  block_config:
+    version: "vParquet5"
+    parquet_dedicated_columns:
+      - { scope: resource, name: service.name, type: string }
+```
+
+After:
+
+```yaml
+storage:
+  trace:
+    block:
+      version: "vParquet5"
+      parquet_dedicated_columns:
+        - { scope: resource, name: service.name, type: string }
+```
+
+### `partition_ring_live_store` removed
+
+Tempo 3.0 removes the top-level `partition_ring_live_store` setting. Tempo now uses a single partition ring, so this configuration toggle is no longer needed. [[PR 6981](https://github.com/grafana/tempo/pull/6981)]
+
+If your 2.x configuration still includes this field, remove it before or during your 3.0 upgrade.
+
+Before:
+
+```yaml
+partition_ring_live_store: true
+```
+
+After:
+
+```yaml
+# Remove partition_ring_live_store
+```
+
+### Live-store and query defaults reduced
+
+The default values for several live-store and query-frontend settings have been reduced to produce smaller WAL blocks, release completed blocks sooner, and align the metrics query backend boundary with search.
+
+| Setting                                          | Previous default | New default |
+| ------------------------------------------------ | ---------------- | ----------- |
+| `live_store.flush_check_period`                  | `10s`            | `5s`        |
+| `live_store.max_block_duration`                  | `30m`            | `30s`       |
+| `live_store.max_block_bytes`                     | `100 MiB`        | `50 MiB`    |
+| `live_store.complete_block_timeout`              | `1h`             | `20m`       |
+| `query_frontend.metrics.query_backend_after`     | `30m`            | `15m`       |
+
+If you explicitly set these values in your configuration, no action is needed.
 
 ## Upgrade to Tempo 2.10
 
 When upgrading to Tempo 2.10, be aware of these considerations and breaking changes.
 
-When [upgrading](/docs/tempo/<TEMPO_VERSION>/set-up-for-tracing/setup-tempo/upgrade/) to Tempo 2.10, be aware of these considerations and breaking changes.
+### `busybox` removed from Tempo image
 
-### Busybox removed from Tempo image
+The Tempo container image no longer includes `busybox`. This change reduces the image size and attack surface, preventing future `busybox`-related vulnerabilities from affecting Tempo deployments. [[PR 5717](https://github.com/grafana/tempo/pull/5717)]
 
-The Tempo container image no longer includes busybox. This change reduces the image size and attack surface, preventing future busybox-related vulnerabilities from affecting Tempo deployments. [[PR 5717](https://github.com/grafana/tempo/pull/5717)]
+The image switched from `gcr.io/distroless/static-debian12:debug`, which includes `busybox`, to `gcr.io/distroless/static-debian12`, which doesn't. The `busybox` shell and utilities are no longer available inside the running container.
 
-The image switched from `gcr.io/distroless/static-debian12:debug`, which includes busybox, to `gcr.io/distroless/static-debian12`, which doesn't. The busybox shell and utilities are no longer available inside the running container.
-
-You can no longer `exec` into the Tempo container with a shell. Commands like `kubectl exec -it <pod> -- sh` or `docker exec -it <container> sh` will fail.
+You can no longer `exec` into the Tempo container with a shell. Commands like `kubectl exec -it <pod> -- sh` or `docker exec -it <container> sh` fail.
 
 To debug a running Tempo container, use one of these alternatives:
 
@@ -61,11 +182,11 @@ To debug a running Tempo container, use one of these alternatives:
 
 If you have custom Docker Compose files or scripts that use the Tempo image for shell operations (such as running `chown` in an init container), update them to use a separate `busybox:latest` image for those tasks.
 
-Tempo's runtime behavior, configuration options, and APIs are unchanged.
+The Tempo runtime behavior, configuration options, and APIs are unchanged.
 
-### vParquet format changes
+### `vParquet` format changes
 
-This release includes breaking changes to vParquet block format support and deprecates older formats ahead of Tempo 3.0.
+This release includes breaking changes to `vParquet` block format support and deprecates older formats ahead of Tempo 3.0.
 
 In preparation for Tempo 3.0, make sure you're using vParquet4 or higher.
 
@@ -103,6 +224,20 @@ Upgrading to 2.10 while vParquet2 blocks still exist in storage will cause read 
 TempoDB schemas vParquet3 and vParquet2 are now deprecated and will be removed in Tempo 3.0. [[PR 6198](https://github.com/grafana/tempo/pull/6198)]
 
 If you're using vParquet3, plan your migration to vParquet4 or higher before upgrading to Tempo 3.0.
+
+### Default search result limit changed
+
+The default for `query_frontend.search.max_result_limit` changed from `0` (unlimited) to `262144` (256 &times; 1024) to address a security vulnerability. This change was backported to Tempo 2.10.x, 2.9.x, and 2.8.x patch releases. [[PR 6525](https://github.com/grafana/tempo/pull/6525)]
+
+Search requests with a `limit` parameter that exceeds this value now return a `400` error. Requests without an explicit `limit` use the `default_result_limit` (default: `20`). If you need a higher maximum, override the value in your configuration:
+
+```yaml
+query_frontend:
+  search:
+    max_result_limit: 500000
+```
+
+Setting `max_result_limit` to `0` disables the enforcement, but this is not recommended.
 
 ### Breaking changes
 

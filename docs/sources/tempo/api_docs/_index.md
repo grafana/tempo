@@ -49,8 +49,10 @@ For externally supported gRPC API, [refer to Tempo gRPC API](#tempo-grpc-api).
 | [Usage Metrics](#usage-metrics)                                                       | Distributor                               | HTTP | `GET /usage_metrics`                                      |
 | [Distributor ring status](#distributor-ring-status) (\*)                              | Distributor                               | HTTP | `GET /distributor/ring`                                   |
 | [Live-store ring status](#live-store-ring-status)                                     | Distributor, Querier                      | HTTP | `GET /live-store/ring`                                    |
+| [Partition ring status](#partition-ring-status)                                       | Distributor, Querier, Live store          | HTTP | `GET /partition-ring`                                     |
 | [Status](#status)                                                                     | Status                                    | HTTP | `GET /status`                                             |
 | [List build information](#list-build-information)                                     | Status                                    | HTTP | `GET /api/status/buildinfo`                               |
+| [Backend scheduler job status](#backend-scheduler-job-status)                        | Backend scheduler                         | HTTP | `GET /status/backendscheduler`                            |
 | [MCP Server](https://grafana.com/docs/tempo/<TEMPO_VERSION>/api_docs/mcp-server) (\*) | MCP                                       |      | `/api/mcp`                                                |
 
 _(\*) This endpoint isn't always available, check the specific section for more details._
@@ -411,7 +413,7 @@ Parameters:
   Specifies the scope of the tags, this is an optional parameter, if not specified it means all scopes.
   Default = `all`
 - `q = (traceql query)`
-  Optional. A TraceQL query to filter tag names by. Currently only works for a single spanset of `&&`ed conditions. For example: `{ span.foo = "bar" && resource.baz = "bat" ...}`. See also [Filtered tag values](#filtered-tag-values).
+  Optional. A TraceQL query to filter tag names by. Supports `&&` and `||` operators within a single spanset. For example: `{ span.foo = "bar" && resource.baz = "bat" }` or `{ span.foo = "bar" || resource.baz = "bat" }`. See also [Filtered tag values](#filtered-tag-values).
 - `start = (unix epoch seconds)`
   Optional. Along with `end` define a time range from which tags should be returned.
 - `end = (unix epoch seconds)`
@@ -608,7 +610,7 @@ Parameters:
 - `end = (unix epoch seconds)`
   Optional. Along with `start`, defines a time range from which tags values should be returned. Providing both `start` and `end` includes blocks for the specified time range only.
 - `q = (traceql query)`
-  Optional. A TraceQL query to filter tag values by. Currently only works for a single spanset of `&&`ed conditions. For example: `{ span.foo = "bar" && resource.baz = "bat" ...}`. Refer to [Filtered tag values](#filtered-tag-values).
+  Optional. A TraceQL query to filter tag values by. Supports `&&` and `||` operators within a single spanset. For example: `{ span.foo = "bar" && resource.baz = "bat" }` or `{ span.foo = "bar" || resource.baz = "bat" }`. Refer to [Filtered tag values](#filtered-tag-values).
 - `limit = (integer)`
   Optional. Limits the maximum number of tags values
 - `maxStaleValues = (integer)`
@@ -632,12 +634,13 @@ Tempo extracts only the valid matchers and builds a valid query.
 If an input is invalid, Tempo doesn't provide an error. Instead,
 you'll see the whole list when a failure of parsing input. This behavior helps with backwards compatibility.
 
-Only queries with a single selector `{}` and AND `&&` operators are supported.
+Queries must use a single spanset selector `{}`. Both `&&` and `||` operators are supported within the selector.
 
 - Example supported: `{ resource.cluster = "us-east-1" && resource.service = "frontend" }`
-- Example unsupported: `{ resource.cluster = "us-east-1" || resource.service = "frontend" } && { resource.cluster = "us-east-2" }`
+- Example supported: `{ resource.cluster = "us-east-1" || resource.service = "frontend" }`
+- Example unsupported: `{ resource.cluster = "us-east-1" } && { resource.cluster = "us-east-2" }`
 
-Unscoped attributes aren't supported for filtered tag values.
+Unscoped attributes are supported for filtered tag values. When you use an unscoped attribute name, Tempo looks for matches in both span and resource scopes.
 
 The following request returns all discovered service names on spans with `span.http.method=GET`:
 
@@ -784,7 +787,7 @@ tempo_usage_tracker_bytes_received_total{service="service-A",tenant="single-tena
 ### Distributor ring status
 
 {{< admonition type="note" >}}
-This endpoint is only available when Tempo is configured with [the global override strategy](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/#overrides).
+This endpoint is only available when Tempo is configured with [the global ingestion rate strategy](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/#ingestion-rate-strategy).
 {{< /admonition >}}
 
 ```
@@ -803,6 +806,16 @@ GET /live-store/ring
 ```
 
 Displays a web page with the live-store hash ring status, including the state, health, and last heartbeat time of each live-store instance.
+
+For more information, refer to [consistent hash ring](https://grafana.com/docs/tempo/<TEMPO_VERSION>/operations/manage-advanced-systems/consistent_hash_ring/).
+
+### Partition ring status
+
+```
+GET /partition-ring
+```
+
+Displays a web page with the partition ring status, showing partition ownership across live-store instances, including state, ownership percentage, and available actions.
 
 For more information, refer to [consistent hash ring](https://grafana.com/docs/tempo/<TEMPO_VERSION>/operations/manage-advanced-systems/consistent_hash_ring/).
 
@@ -880,6 +893,21 @@ GET /api/status/buildinfo
 ```
 
 Exposes the build information in a JSON object. The fields are `version`, `revision`, `branch`, `buildDate`, `buildUser`, and `goVersion`.
+
+### Backend scheduler job status
+
+```
+GET /status/backendscheduler
+```
+
+Displays the current state of all jobs in the backend scheduler work cache and the pending redaction queue.
+
+The response is a plain-text table with two sections:
+
+- Active Jobs: all jobs in the work cache, sorted by creation time. Use the `status` column to interpret each row. A non-empty `worker` field indicates the job is currently assigned to a worker.
+- Pending Jobs: redaction jobs in the pending queue. Some may already be eligible to run; others may still be waiting for the rescan or compaction preconditions to clear.
+
+This endpoint is only available when the backend scheduler component is running.
 
 ## Tempo gRPC API
 

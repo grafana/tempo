@@ -43,7 +43,6 @@ type SearchOptions struct {
 	PrefetchTraceCount int    // How many traces to prefetch async.
 	ReadBufferCount    int
 	ReadBufferSize     int
-	RF1After           time.Time // Only blocks with RF1 are selected after this timestamp. RF3 is selected otherwise.
 }
 
 // DefaultSearchOptions is used in a lot of places such as local ingester searches. It is important
@@ -137,7 +136,7 @@ type WALBlock interface {
 
 	// Iterator returns an iterator for the block's data.
 	// Returns an error if the iterator creation fails.
-	Iterator() (Iterator, error)
+	Iterator(ctx context.Context) (Iterator, error)
 
 	// Clear clears the block's data.
 	// Returns an error if the clear operation fails.

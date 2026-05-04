@@ -22,7 +22,7 @@ and the connections and dependencies between its components:
   Distributed systems change very frequently,
   and service graphs offer a way of seeing how these systems have evolved over time.
 
-Service graphs can be generated from metrics created by the metrics-generator or Grafana Alloy.
+Service graphs can be generated from metrics created by the [metrics-generator](/docs/tempo/<TEMPO_VERSION>/reference-tempo-architecture/components/metrics-generator/) or Grafana Alloy.
 Refer to [Enable service graphs](/docs/tempo/<TEMPO_VERSION>/metrics-from-traces/service_graphs/enable-service-graphs/) for more information on how to enable service graphs in Tempo.
 
 ![Service graph](/media/docs/grafana/data-sources/tempo/query-editor/tempo-ds-query-service-graph-prom.png)
@@ -38,7 +38,7 @@ It supports the following requests:
 
 - A direct request between two services where the outgoing and the incoming span must have [`span.kind`](https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/trace/api.md#spankind), `client`, and `server`, respectively.
 - A request across a messaging system where the outgoing and the incoming span must have `span.kind`, `producer`, and `consumer` respectively.
-- A database request; in this case the processor looks for spans containing attributes `span.kind`=`client` as well as one of `db.namespace`, `db.name` or `db.system`. See below for how the name of the node is determined for a database request.
+- A database request; in this case the processor looks for spans containing attributes `span.kind`=`client` as well as one of `db.namespace`, `db.name` or `db.system`. You can customize which attributes identify a database span using the `database_name_attributes` [configuration option](/docs/tempo/<TEMPO_VERSION>/configuration/#metrics-generator). See below for how the name of the node is determined for a database request.
 
 The processor keeps every span that can form a request pair in an in-memory store until the corresponding pair span arrives or the maximum waiting time passes.
 When either condition occurs, the processor records the request and removes it from the local store.
@@ -103,3 +103,29 @@ Activating this feature adds the following label and corresponding values:
 | Label          | Possible Values             | Description                                  |
 | -------------- | --------------------------- | -------------------------------------------- |
 | `virtual_node` | `unset`, `client`, `server` | Explicitly indicates the uninstrumented side |
+
+## Configuration options
+
+The service graphs processor has several configuration options beyond `dimensions` and `enable_virtual_node_label`.
+For the full YAML schema and defaults, refer to the [configuration reference](/docs/tempo/<TEMPO_VERSION>/configuration/#metrics-generator).
+
+### Span multiplier
+
+When traces are sampled, the raw request counts produced by the service graph processor underrepresent actual traffic.
+The `span_multiplier_key` option specifies a span or resource attribute that contains the sampling ratio.
+The processor computes the inverse of this value to scale the metrics accordingly.
+For example, if a span has attribute `X-SampleRatio=0.1` (10% sampling), setting `span_multiplier_key: "X-SampleRatio"` causes each sampled span to count as 10 requests.
+
+The `enable_tracestate_span_multiplier` option provides an alternative approach that extracts the multiplier from the W3C tracestate header using the [OpenTelemetry probability sampling threshold](https://opentelemetry.io/docs/specs/otel/trace/tracestate-probability-sampling/) (`ot=th:<hex>`).
+When enabled, the tracestate threshold takes priority over `span_multiplier_key`.
+
+### Database name attributes
+
+The `database_name_attributes` option controls which span attributes the processor uses to identify a span as a database request.
+The defaults are `db.namespace`, `db.name`, and `db.system`.
+You can override this list to match your instrumentation if it uses non-standard attribute names.
+
+### Filter policies
+
+The `filter_policies` option lets you include or exclude spans from service graph generation based on span attributes.
+This works the same way as filter policies for [span metrics](/docs/tempo/<TEMPO_VERSION>/metrics-from-traces/span-metrics/span-metrics-metrics-generator/#filtering).

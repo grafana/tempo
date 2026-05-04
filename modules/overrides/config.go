@@ -1,14 +1,19 @@
 package overrides
 
 import (
+	"encoding/json"
 	"flag"
 	"fmt"
+	"reflect"
 	"strconv"
+	"strings"
+	"sync"
 	"time"
 
 	"github.com/prometheus/common/config"
 
 	"github.com/grafana/tempo/modules/overrides/histograms"
+	"github.com/grafana/tempo/pkg/traceql"
 	"github.com/grafana/tempo/pkg/util/listtomap"
 	"github.com/grafana/tempo/tempodb/backend"
 
@@ -139,14 +144,14 @@ type MetricsGeneratorOverrides struct {
 	MaxActiveEntities        uint32                     `yaml:"max_active_entities,omitempty" json:"max_active_entities,omitempty"`
 	CollectionInterval       time.Duration              `yaml:"collection_interval,omitempty" json:"collection_interval,omitempty"`
 	DisableCollection        bool                       `yaml:"disable_collection,omitempty" json:"disable_collection,omitempty"`
-	GenerateNativeHistograms histograms.HistogramMethod `yaml:"generate_native_histograms" json:"generate_native_histograms,omitempty"`
+	GenerateNativeHistograms histograms.HistogramMethod `yaml:"generate_native_histograms,omitempty" json:"generate_native_histograms,omitempty"`
 	TraceIDLabelName         string                     `yaml:"trace_id_label_name,omitempty" json:"trace_id_label_name,omitempty"`
 
 	RemoteWriteHeaders RemoteWriteHeaders `yaml:"remote_write_headers,omitempty" json:"remote_write_headers,omitempty"`
 
 	Forwarder      ForwarderOverrides `yaml:"forwarder,omitempty" json:"forwarder,omitempty"`
 	Processor      ProcessorOverrides `yaml:"processor,omitempty" json:"processor,omitempty"`
-	IngestionSlack time.Duration      `yaml:"ingestion_time_range_slack" json:"ingestion_time_range_slack,omitempty"`
+	IngestionSlack time.Duration      `yaml:"ingestion_time_range_slack,omitempty" json:"ingestion_time_range_slack,omitempty"`
 
 	NativeHistogramBucketFactor     float64       `yaml:"native_histogram_bucket_factor,omitempty" json:"native_histogram_bucket_factor,omitempty"`
 	NativeHistogramMaxBucketNumber  uint32        `yaml:"native_histogram_max_bucket_number,omitempty" json:"native_histogram_max_bucket_number,omitempty"`
@@ -157,8 +162,9 @@ type MetricsGeneratorOverrides struct {
 
 type ReadOverrides struct {
 	// Querier and Ingester enforced overrides.
-	MaxBytesPerTagValuesQuery  int `yaml:"max_bytes_per_tag_values_query,omitempty" json:"max_bytes_per_tag_values_query,omitempty"`
-	MaxBlocksPerTagValuesQuery int `yaml:"max_blocks_per_tag_values_query,omitempty" json:"max_blocks_per_tag_values_query,omitempty"`
+	MaxBytesPerTagValuesQuery     int `yaml:"max_bytes_per_tag_values_query,omitempty" json:"max_bytes_per_tag_values_query,omitempty"`
+	MaxBlocksPerTagValuesQuery    int `yaml:"max_blocks_per_tag_values_query,omitempty" json:"max_blocks_per_tag_values_query,omitempty"`
+	MaxConditionGroupsPerTagQuery int `yaml:"max_condition_groups_per_tag_query,omitempty" json:"max_condition_groups_per_tag_query,omitempty"`
 
 	// QueryFrontend enforced overrides
 	MaxSearchDuration  model.Duration `yaml:"max_search_duration,omitempty" json:"max_search_duration,omitempty"`
@@ -169,6 +175,10 @@ type ReadOverrides struct {
 	// LeftPadTraceIDs left-pads trace IDs in search responses to 32 hex characters with zeros.
 	// This produces W3C/OpenTelemetry compliant trace IDs (32-hex-character lowercase strings).
 	LeftPadTraceIDs bool `yaml:"left_pad_trace_ids,omitempty" json:"left_pad_trace_ids,omitempty"`
+
+	// MetricsSpanOnlyFetch, when set, enables or disables the new fetch layer by default for TraceQL metrics queries
+	// for this tenant.  When not set, then the default behavior is used. Maybe be overridden by query hints.
+	MetricsSpanOnlyFetch *bool `yaml:"metrics_spanonly_fetch,omitempty" json:"metrics_spanonly_fetch,omitempty"`
 }
 
 type CompactionOverrides struct {
@@ -210,6 +220,80 @@ type Overrides struct {
 	// Storage enforced overrides.
 	Storage         StorageOverrides         `yaml:"storage,omitempty" json:"storage,omitempty"`
 	CostAttribution CostAttributionOverrides `yaml:"cost_attribution,omitempty" json:"cost_attribution,omitempty"`
+	// Extensions holds per-tenant overrides added by vendoring applications via RegisterExtension.
+	// Values are typed Extension instances after unmarshal.
+	Extensions map[string]any `yaml:",inline" json:"-"`
+}
+
+// knownOverridesJSONFields returns the JSON key names declared on Overrides
+var knownOverridesJSONFields = sync.OnceValue(func() map[string]struct{} {
+	return fieldNamesFor(Overrides{}, "json")
+})
+
+func (o *Overrides) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	type plain Overrides
+	if err := unmarshal((*plain)(o)); err != nil {
+		return err
+	}
+	return processExtensions(o)
+}
+
+func (o *Overrides) UnmarshalJSON(data []byte) error {
+	type plain Overrides
+	if err := json.Unmarshal(data, (*plain)(o)); err != nil {
+		return err
+	}
+
+	var raw map[string]json.RawMessage
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+
+	for key := range knownOverridesJSONFields() {
+		delete(raw, key)
+	}
+	if len(raw) == 0 {
+		// No extension keys in this payload; clear any stale Extensions from a prior decode.
+		o.Extensions = nil
+		return nil
+	}
+
+	o.Extensions = make(map[string]any, len(raw))
+	for k, v := range raw {
+		var val any
+		if err := json.Unmarshal(v, &val); err != nil {
+			return err
+		}
+		o.Extensions[k] = val
+	}
+	return processExtensions(o)
+}
+
+func (o Overrides) MarshalJSON() ([]byte, error) {
+	type plain Overrides
+	data, err := json.Marshal(plain(o))
+	if err != nil {
+		return nil, err
+	}
+	if len(o.Extensions) == 0 {
+		return data, nil
+	}
+
+	var m map[string]json.RawMessage
+	if err := json.Unmarshal(data, &m); err != nil {
+		return nil, err
+	}
+	for k, v := range o.Extensions {
+		if _, exists := m[k]; exists {
+			continue // known fields take precedence
+		}
+		b, err := json.Marshal(v)
+		if err != nil {
+			return nil, err
+		}
+		m[k] = b
+	}
+	return json.Marshal(m)
 }
 
 type Config struct {
@@ -234,12 +318,18 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	// Note: this implementation relies on callers using yaml.UnmarshalStrict. In non-strict mode
 	// unmarshal() will not return an error for legacy configuration and we return immediately.
 
-	// Try to unmarshal it normally
+	// Try to unmarshal it normally. Overrides.UnmarshalYAML calls processExtensions for c.Defaults.
+	// If the error is an extensionError, the config is in the new format but misconfigured.
 	type rawConfig Config
 	err := unmarshal((*rawConfig)(c))
 	if err == nil {
 		c.ConfigType = ConfigTypeNew
 		return nil
+	}
+
+	// Fail only on extension-specific errors, otherwise fallback to legacy mode
+	if isExtensionError(err) || isExtensionKeyError(err) {
+		return err
 	}
 
 	// Try to unmarshal inline limits
@@ -264,7 +354,13 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		return fmt.Errorf("failed to unmarshal config: %w; also failed in legacy format: %w", err, legacyErr)
 	}
 
-	c.Defaults = legacyCfg.DefaultOverrides.toNewLimits()
+	// Ensure legacy extension flat keys are converted to typed instances before toNewLimits.
+	// processLegacyExtensions may not be triggered automatically for inline struct fields.
+	if err := processLegacyExtensions(&legacyCfg.DefaultOverrides); err != nil {
+		return fmt.Errorf("defaults: %w", err)
+	}
+
+	c.Defaults = *legacyCfg.DefaultOverrides.toNewLimits()
 	c.PerTenantOverrideConfig = legacyCfg.PerTenantOverrideConfig
 	c.PerTenantOverridePeriod = legacyCfg.PerTenantOverridePeriod
 	c.UserConfigurableOverridesConfig = legacyCfg.UserConfigurableOverridesConfig
@@ -279,10 +375,12 @@ func (c *Config) RegisterFlagsAndApplyDefaults(f *flag.FlagSet) {
 	c.Defaults.MetricsGenerator.GenerateNativeHistograms = histograms.HistogramMethodClassic
 
 	// Distributor LegacyOverrides
-	c.Defaults.Ingestion.RetryInfoEnabled = true // enabled in overrides by default but it's disabled with RetryAfterOnResourceExhausted = 0
+	// enabled in overrides by default, only takes effect when
+	// distributor.retry_after_on_resource_exhausted is greater than 0.cluster level default is 5s.
+	c.Defaults.Ingestion.RetryInfoEnabled = true
 	f.StringVar(&c.Defaults.Ingestion.RateStrategy, "distributor.rate-limit-strategy", "local", "Whether the various ingestion rate limits should be applied individually to each distributor instance (local), or evenly shared across the cluster (global).")
-	f.IntVar(&c.Defaults.Ingestion.RateLimitBytes, "distributor.ingestion-rate-limit-bytes", 15e6, "Per-user ingestion rate limit in bytes per second.")
-	f.IntVar(&c.Defaults.Ingestion.BurstSizeBytes, "distributor.ingestion-burst-size-bytes", 20e6, "Per-user ingestion burst size in bytes. Should be set to the expected size (in bytes) of a single push request.")
+	f.IntVar(&c.Defaults.Ingestion.RateLimitBytes, "distributor.ingestion-rate-limit-bytes", 30e6, "Per-user ingestion rate limit in bytes per second.")
+	f.IntVar(&c.Defaults.Ingestion.BurstSizeBytes, "distributor.ingestion-burst-size-bytes", 30e6, "Per-user ingestion burst size in bytes. Should be set to the expected size (in bytes) of a single push request.")
 
 	// Ingester limits
 	f.IntVar(&c.Defaults.Ingestion.MaxLocalTracesPerUser, "ingester.max-traces-per-user", 10e3, "Maximum number of active traces per user, per ingester. 0 to disable.")
@@ -292,6 +390,7 @@ func (c *Config) RegisterFlagsAndApplyDefaults(f *flag.FlagSet) {
 	// Querier limits
 	f.IntVar(&c.Defaults.Read.MaxBytesPerTagValuesQuery, "querier.max-bytes-per-tag-values-query", 10e5, "Maximum size of response for a tag-values query. Used mainly to limit large the number of values associated with a particular tag")
 	f.IntVar(&c.Defaults.Read.MaxBlocksPerTagValuesQuery, "querier.max-blocks-per-tag-values-query", 0, "Maximum number of blocks to query for a tag-values query. 0 to disable.")
+	f.IntVar(&c.Defaults.Read.MaxConditionGroupsPerTagQuery, "querier.max-condition-groups-per-tag-query", traceql.DefaultMaxConditionGroupsPerTagQuery, "Maximum number of OR-expanded condition groups allowed in a tag search query. Queries that expand beyond this limit will be rejected.")
 
 	// Generator - NativeHistograms config
 	f.Float64Var(&c.Defaults.MetricsGenerator.NativeHistogramBucketFactor, "metrics-generator.native-histogram-bucket-factor", 1.1, "The growth factor between buckets for native histograms.")
@@ -337,4 +436,21 @@ func (u *Uint32Value) Set(s string) error {
 	}
 	*u = Uint32Value(v)
 	return nil
+}
+
+func fieldNamesFor(v any, tagKey string) map[string]struct{} {
+	t := reflect.TypeOf(v)
+	fields := make(map[string]struct{}, t.NumField())
+	for field := range t.Fields() {
+		tag := field.Tag.Get(tagKey)
+		if tag == "-" || tag == ",inline" {
+			continue
+		}
+		name, _, _ := strings.Cut(tag, ",")
+		if name == "" {
+			name = field.Name
+		}
+		fields[name] = struct{}{}
+	}
+	return fields
 }

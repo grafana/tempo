@@ -1,12 +1,12 @@
 ---
 title: Deploy Tempo locally
-description: Instructions for deploying Tempo locally
+description: Instructions for deploying Tempo locally using Docker Compose or on Linux
 weight: 400
 ---
 
 # Deploy Tempo locally
 
-This section provides instructions for deploying Tempo locally using Docker Compose.
+This section provides instructions for deploying Tempo locally using Docker Compose or directly on a Linux host.
 
 You can download the latest version from the [Tempo Releases page](https://github.com/grafana/tempo/releases).
 
