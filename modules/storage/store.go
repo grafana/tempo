@@ -9,6 +9,7 @@ import (
 	"github.com/grafana/tempo/pkg/cache"
 	"github.com/grafana/tempo/pkg/usagestats"
 	"github.com/grafana/tempo/tempodb"
+	"github.com/grafana/tempo/tempodb/blocklist"
 )
 
 var (
@@ -28,7 +29,8 @@ type Store interface {
 type store struct {
 	services.Service
 
-	cfg Config
+	cfg           Config
+	pollingCancel context.CancelFunc
 
 	tempodb.Reader
 	tempodb.Writer
@@ -60,7 +62,18 @@ func (s *store) starting(_ context.Context) error {
 	return nil
 }
 
+// EnablePolling overrides the embedded method to capture a cancellable context
+// so that the polling goroutine exits promptly when the store service stops.
+func (s *store) EnablePolling(ctx context.Context, sharder blocklist.JobSharder, skipNoCompact bool) {
+	pollingCtx, cancel := context.WithCancel(context.Background())
+	s.pollingCancel = cancel
+	s.Reader.EnablePolling(pollingCtx, sharder, skipNoCompact)
+}
+
 func (s *store) stopping(_ error) error {
+	if s.pollingCancel != nil {
+		s.pollingCancel()
+	}
 	s.Reader.Shutdown()
 
 	return nil
