@@ -29,6 +29,7 @@
 * [CHANGE] Track invalid trace and span id discards [#6799](https://github.com/grafana/tempo/pull/6799) (@javiermolinar)
 * [CHANGE] Deprecate `query_frontend.rf1_after` and query all blocks regardless of replication factor for non-metrics paths. Simplifies 2.x to 3.0 migration. [#6969](https://github.com/grafana/tempo/pull/6969) (@mapno)
 * [CHANGE] **BREAKING CHANGE** Remove deprecated `querier.query_live_store` config. This field must be removed from configs on upgrade. [#7048](https://github.com/grafana/tempo/pull/7048) (@javiermolinar)
+* [FEATURE] Add `tempo-cli migrate config` command for migrating Tempo 2.x configs to 3.0. [#6982](https://github.com/grafana/tempo/pull/6982) (@mapno)
 * [FEATURE] jsonnet: Add KEDA-based horizontal pod autoscaling support for microservices deployment [#6970](https://github.com/grafana/tempo/pull/6970) (@mapno)
 * [FEATURE] Add automemlimit support for automatic GOMEMLIMIT configuration. Enable with `memory.automemlimit_enabled: true`. [#6313](https://github.com/grafana/tempo/pull/6313) (@oleg-kozlyuk)
 * [FEATURE] Support comparison operators in TraceQL Metrics queries [#6474](https://github.com/grafana/tempo/pull/6474) (@ruslan-mikhailov)

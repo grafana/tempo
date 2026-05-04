@@ -1,0 +1,23 @@
+target: all
+server:
+  http_listen_port: 3200
+ingester:
+  max_block_duration: 5m
+  max_block_bytes: 1073741824
+ingester_client:
+  grpc_compression: snappy
+compactor:
+  compaction:
+    compaction_window: 4h
+    block_retention: 48h
+storage:
+  trace:
+    backend: local
+    local:
+      path: /var/tempo/traces
+    wal:
+      path: /var/tempo/wal
+overrides:
+  defaults:
+    ingestion:
+      rate_limit_bytes: 5000000

@@ -34,9 +34,9 @@ Tempo 3.0 is a major architectural change.
 When upgrading to Tempo 3.0, be aware of these breaking changes:
 
 - **Kafka required for microservices mode**: A Kafka-compatible system is required for microservices deployments. In monolithic mode, Tempo ingests traces in-process without Kafka.
-- **Scalable monolithic mode (SSB) removed**: The `scalable-single-binary` target is no longer available.
+- **Scalable monolithic mode (SSB) removed**: The `scalable-single-binary` target is no longer available. Migrate to either microservices or monolithic (`target: all`).
 - **New components**: Block-builders and live-stores replace ingesters. The compactor target has been removed.
-- **Configuration changes**: Remove `ingester` configuration blocks and add `ingest` (Kafka) configuration. Update `ingester_client` references to `live_store_client`.
+- **Configuration changes**: Remove `ingester`, `ingester_client`, and `compactor` configuration blocks. For microservices deployments, add `ingest.kafka` configuration. You can automate this using the [`tempo-cli migrate config` command](https://grafana.com/docs/tempo/<TEMPO_VERSION>/operations/tempo_cli/#migrate-config-command).
 - **No downgrade path**: There is no supported downgrade path from 3.0 to 2.x.
 - **Deployment manifests**: Update Helm, Tanka, and other deployment manifests to include the new components and Kafka infrastructure.
 

@@ -1,0 +1,14 @@
+target: all
+server:
+  http_listen_port: 3200
+storage:
+  trace:
+    backend: local
+    local:
+      path: /var/tempo/traces
+    wal:
+      path: /var/tempo/wal
+overrides:
+  ingestion_rate_strategy: global
+  ingestion_rate_limit_bytes: 5000000
+  max_traces_per_user: 50000
