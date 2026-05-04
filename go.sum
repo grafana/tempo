@@ -423,8 +423,8 @@ github.com/grafana/e2e v0.1.2-0.20260504080022-0f57c9f0da68 h1:+GLaDMc1zkYNTMHZq
 github.com/grafana/e2e v0.1.2-0.20260504080022-0f57c9f0da68/go.mod h1:o6aUPNFrl7H0XjIdBpXSU2Gou6vVwctVBuSvWPN7Ogg=
 github.com/grafana/gomemcache v0.0.0-20251127154401-74f93547077b h1:5qp8/5YPt/Z2RW5QHsxvwE05+LWQYIXydP2MwOkMfb8=
 github.com/grafana/gomemcache v0.0.0-20251127154401-74f93547077b/go.mod h1:j/s0jkda4UXTemDs7Pgw/vMT06alWc42CHisvYac0qw=
-github.com/grafana/memberlist v0.3.1-0.20260410131411-8c2f3bdae9db h1:3PCT+MeCIDgBbjXo6VLB9S6IKlWKGPjGM6w88t2M8nA=
-github.com/grafana/memberlist v0.3.1-0.20260410131411-8c2f3bdae9db/go.mod h1:h60o12SZn/ua/j0B6iKAZezA4eDaGsIuPO70eOaJ6WE=
+github.com/grafana/memberlist v0.3.1-0.20260410132335-4887d8e8d493 h1:Ao0Mbj5/phJx/Qc3Buil7uleoKsiKyuVPNDOPfgytuY=
+github.com/grafana/memberlist v0.3.1-0.20260410132335-4887d8e8d493/go.mod h1:h60o12SZn/ua/j0B6iKAZezA4eDaGsIuPO70eOaJ6WE=
 github.com/grafana/otel-profiling-go v0.5.1 h1:stVPKAFZSa7eGiqbYuG25VcqYksR6iWvF3YH66t4qL8=
 github.com/grafana/otel-profiling-go v0.5.1/go.mod h1:ftN/t5A/4gQI19/8MoWurBEtC6gFw8Dns1sJZ9W4Tls=
 github.com/grafana/pyroscope-go/godeltaprof v0.1.9 h1:c1Us8i6eSmkW+Ez05d3co8kasnuOY813tbMN8i/a3Og=
