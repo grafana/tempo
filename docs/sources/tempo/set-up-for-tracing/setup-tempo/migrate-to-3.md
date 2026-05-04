@@ -15,8 +15,10 @@ Grafana Tempo 3.0 introduces a new architecture that replaces ingesters and the 
 Distributors write trace data to Kafka, and two new components consume from it: block-builders create blocks for long-term object storage, and live-stores serve recent-data queries. A backend-scheduler and backend-worker replace the compactor for block maintenance.
 
 This guide walks you through migrating a self-managed Grafana Tempo deployment from 2.x to 3.0.
-Because the architecture change is fundamental, this is a migration rather than an in-place upgrade.
-You deploy a new Tempo 3.0 instance alongside your existing 2.x deployment, switch traffic, and decommission the old deployment.
+The migration path depends on your deployment mode:
+
+- **Monolithic mode** users have a simpler path: update the configuration and upgrade the binary. See [Migrate a monolithic deployment](#migrate-a-monolithic-deployment).
+- **Microservices mode** users follow a parallel-deployment migration: deploy 3.0 alongside 2.x, switch traffic, then decommission. The bulk of this guide covers that path.
 
 {{< admonition type="warning" >}}
 There's no in-place downgrade from 3.0 to 2.x. During the migration you can route traffic back to 2.x (see [Roll back](#roll-back)), but once you decommission the 2.x deployment, plan to stay on 3.0.
@@ -58,6 +60,28 @@ In Tempo 3.0, distributors write spans to Kafka instead. **Block-builders** cons
 
 For a detailed description of the new architecture, refer to [Tempo architecture](/docs/tempo/<TEMPO_VERSION>/introduction/architecture/).
 
+## Migrate a monolithic deployment
+
+Monolithic deployments don't require Kafka or any new components beyond the binary upgrade. The distributor pushes spans directly to the in-process metrics-generator (the same as in 2.x), and the live-store handles both serving recent queries and flushing blocks to storage.
+
+To migrate a monolithic deployment:
+
+1. Migrate your configuration. The simplest way is to use the [`tempo-cli migrate config`](/docs/tempo/<TEMPO_VERSION>/operations/tempo_cli/#migrate-config-command) command:
+
+   ```bash
+   tempo-cli migrate config --mode=monolithic old-config.yaml > new-config.yaml
+   ```
+
+   Or update the config manually: remove the `ingester:`, `ingester_client:`, `compactor:`, and `metrics_generator_client:` blocks. If your metrics-generator uses the `local_blocks` processor, remove it (block building is handled internally by the live-store). All other blocks carry over unchanged.
+
+1. Upgrade the binary to Tempo 3.0 with the new configuration.
+
+1. Validate the deployment with [Tempo Vulture](/docs/tempo/<TEMPO_VERSION>/operations/tempo-vulture/), or by querying historical traces directly to confirm the new deployment can read from your object storage.
+
+Tempo 3.0 reads both 2.x blocks (RF3) and 3.0 blocks (RF1) automatically, so historical queries work without configuration. TraceQL metrics queries only read RF1 blocks — if your 2.x deployment didn't use the `local-blocks` processor, metrics queries only return results for data ingested after the upgrade.
+
+The rest of this guide covers microservices mode.
+
 ## Prepare for migration
 
 Before deploying Tempo 3.0, configure a Kafka topic and prepare your new configuration.
@@ -89,46 +113,39 @@ To create the topic manually, set the partition count based on your expected par
 
 ### Review configuration changes
 
-Tempo 3.0 removes ingester configuration and adds new configuration blocks.
+Tempo 3.0 removes ingester configuration and adds new configuration blocks. The simplest way to migrate your config is to use the [`tempo-cli migrate config`](/docs/tempo/<TEMPO_VERSION>/operations/tempo_cli/#migrate-config-command) command, which takes your 2.x config and outputs a valid 3.0 config:
+
+```bash
+tempo-cli migrate config --kafka-address=<KAFKA_BROKER_ADDRESS> --kafka-topic=<KAFKA_TOPIC> old-config.yaml > new-config.yaml
+```
+
+The command removes ingester, `ingester_client`, compactor, and `metrics_generator_client` blocks; adds the `ingest:` block in microservices mode; removes `local_blocks` processor config; and sets `compaction_disabled: true` in the defaults overrides for parallel operation. Review the output before deploying.
+
+If you prefer to migrate your config manually:
 
 **Remove** from your 2.x configuration:
 
 - The `ingester:` block and all its settings
 - Any `ingester_client:` configuration
 - The `compactor:` block (replaced by `backend_scheduler:` and `backend_worker:`)
+- Any `metrics_generator_client:` configuration
 
-**Add** to your 3.0 configuration (microservices mode only):
+**Add** to your 3.0 configuration:
 
 - `ingest:` block to connect Tempo to Kafka
 
 Your existing `server:`, `distributor:`, `query_frontend:`, `storage:`, `memberlist:`, and `overrides:` blocks carry over largely unchanged.
 
-The following example shows a minimal monolithic configuration for Tempo 3.0. In monolithic mode, Tempo doesn't require Kafka — live-stores handle both serving recent queries and flushing blocks to storage:
+The following example shows the minimum new configuration to add for microservices mode:
 
 ```yaml
-server:
-  http_listen_port: 3200
-
-distributor:
-  receivers:
-    otlp:
-      protocols:
-        grpc:
-          endpoint: "0.0.0.0:4317"
-        http:
-          endpoint: "0.0.0.0:4318"
-
-storage:
-  trace:
-    backend: s3  # Keep your existing storage configuration
-    s3:
-      bucket: <YOUR_BUCKET>
-      endpoint: <YOUR_ENDPOINT>
-    wal:
-      path: /var/tempo/wal
+ingest:
+  kafka:
+    address: <KAFKA_BROKER_ADDRESS>
+    topic: <KAFKA_TOPIC>
 ```
 
-In microservices mode, you also need to configure the `ingest:` block to connect to Kafka. Each block-builder instance consumes from exactly one Kafka partition based on its ordinal: block-builder-0 consumes partition 0, block-builder-1 consumes partition 1, and so on. This means the number of block-builder replicas must equal the number of Kafka partitions.
+Each block-builder instance consumes from exactly one Kafka partition based on its ordinal: block-builder-0 consumes partition 0, block-builder-1 consumes partition 1, and so on. This means the number of block-builder replicas must equal the number of Kafka partitions.
 
 To keep block-builder replicas in sync with the partition count, scale them to match the live-store replica count (live-stores also run one replica per partition). You can do this with:
 
@@ -180,16 +197,17 @@ TraceQL metrics queries only read RF1 blocks. If your 2.x deployment used the `l
 
 #### Metrics-generator
 
-If you use the metrics-generator, note that it also consumes from Kafka in Tempo 3.0.
-The metrics-generator automatically uses the top-level `ingest:` block — no additional Kafka configuration is needed for it.
+In Tempo 3.0, the metrics-generator consumes spans from Kafka in microservices mode. It automatically uses the top-level `ingest:` block — no additional Kafka configuration is needed for it.
+
 The `local-blocks` processor has been removed — block building is now handled by the block-builder component. Remove any `local_blocks` configuration from your metrics-generator settings.
+
 For more information, refer to [Metrics-generator](/docs/tempo/<TEMPO_VERSION>/metrics-from-traces/metrics-generator/).
 
 ## Deploy Tempo 3.0
 
 Deploy a new Tempo 3.0 instance alongside your existing 2.x deployment. Both deployments must point at the same object storage bucket so the new deployment can query historical blocks.
 
-For deployment instructions, refer to [Deploy Tempo](/docs/tempo/<TEMPO_VERSION>/set-up-for-tracing/setup-tempo/deploy/). For a complete example configuration, refer to the [`tempo.yaml` example](https://github.com/grafana/tempo/blob/main/example/docker-compose/single-binary/tempo.yaml).
+For deployment instructions, refer to [Deploy Tempo](/docs/tempo/<TEMPO_VERSION>/set-up-for-tracing/setup-tempo/deploy/). For a complete example microservices configuration, refer to the [distributed docker-compose example](https://github.com/grafana/tempo/tree/main/example/docker-compose/distributed).
 
 To validate the deployment:
 
