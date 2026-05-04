@@ -22,7 +22,7 @@ require (
 	github.com/google/go-cmp v0.7.0
 	github.com/google/uuid v1.6.0
 	github.com/gorilla/mux v1.8.1
-	github.com/grafana/dskit v0.0.0-20260427162712-0457a92dacc3
+	github.com/grafana/dskit v0.0.0-20260504113209-c9d7545e724f
 	github.com/grafana/e2e v0.1.2-0.20260504080022-0f57c9f0da68
 	github.com/hashicorp/go-hclog v1.6.3 // indirect
 	github.com/jedib0t/go-pretty/v6 v6.7.10
