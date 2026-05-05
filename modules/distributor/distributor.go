@@ -13,6 +13,7 @@ import (
 	"github.com/go-kit/log/level"
 	"github.com/gogo/protobuf/proto"
 	"github.com/gogo/status"
+	"github.com/grafana/dskit/kv"
 	"github.com/grafana/dskit/limiter"
 	dslog "github.com/grafana/dskit/log"
 	"github.com/grafana/dskit/ring"
@@ -48,7 +49,19 @@ const (
 	distributorRingKey = "distributor"
 
 	truncationLogsPerSecond = 1
+
+	// ringAutoForgetUnhealthyPeriods is how many heartbeat-timeout periods of
+	// silence elapse before a distributor entry is auto-removed from the ring.
+	ringAutoForgetUnhealthyPeriods = 2
+
+	// Distributors only need a single token: the ring is used for
+	// HealthyInstancesCount (global ingestion-rate divisor), not sharding.
+	ringNumTokens = 1
 )
+
+// ringOp matches the semantics of the legacy Lifecycler.HealthyInstancesCount:
+// count instances in the ACTIVE state, no extension into LEAVING.
+var ringOp = ring.NewOp([]ring.InstanceState{ring.ACTIVE}, nil)
 
 var (
 	metricGeneratorPushes = promauto.NewCounterVec(prometheus.CounterOpts{
@@ -235,20 +248,49 @@ func New(
 	var distributorRing *ring.Ring
 
 	if o.IngestionRateStrategy() == overrides.GlobalIngestionRateStrategy {
-		lifecyclerCfg := cfg.DistributorRing.ToLifecyclerConfig()
-		lifecycler, err := ring.NewLifecycler(lifecyclerCfg, nil, "distributor", cfg.OverrideRingKey, false, logger, prometheus.WrapRegistererWithPrefix("tempo_", reg))
+		ringReg := prometheus.WrapRegistererWithPrefix("tempo_", reg)
+
+		lifecyclerStore, err := kv.NewClient(
+			cfg.DistributorRing.KVStore,
+			ring.GetCodec(),
+			kv.RegistererWithKVName(ringReg, "distributor-lifecycler"),
+			logger,
+		)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("unable to initialize distributor ring KV client: %w", err)
+		}
+
+		basicCfg, err := toBasicLifecyclerConfig(cfg.DistributorRing, logger)
+		if err != nil {
+			return nil, fmt.Errorf("invalid distributor ring config: %w", err)
+		}
+
+		// Delegates are chained in reverse order of invocation: AutoForget
+		// runs first on each heartbeat, then LeaveOnStopping on shutdown,
+		// then the Distributor's own delegate methods.
+		// Forget unhealthy peers after 2 * heartbeat_timeout, matching the
+		// pattern used by livestore and backendworker.
+		var delegate ring.BasicLifecyclerDelegate = &distributorLifecyclerDelegate{}
+		delegate = ring.NewLeaveOnStoppingDelegate(delegate, logger)
+		delegate = ring.NewAutoForgetDelegate(
+			ringAutoForgetUnhealthyPeriods*cfg.DistributorRing.HeartbeatTimeout,
+			delegate, logger)
+
+		lifecycler, err := ring.NewBasicLifecycler(
+			basicCfg, "distributor", cfg.OverrideRingKey,
+			lifecyclerStore, delegate, logger, ringReg)
+		if err != nil {
+			return nil, fmt.Errorf("unable to initialize distributor ring lifecycler: %w", err)
 		}
 		subservices = append(subservices, lifecycler)
-		ingestionRateStrategy = newGlobalIngestionRateStrategy(o, lifecycler)
 
-		ring, err := ring.New(lifecyclerCfg.RingConfig, "distributor", cfg.OverrideRingKey, logger, prometheus.WrapRegistererWithPrefix("tempo_", reg))
+		distributorRing, err = ring.New(cfg.DistributorRing.ToLifecyclerConfig().RingConfig, "distributor", cfg.OverrideRingKey, logger, ringReg)
 		if err != nil {
 			return nil, fmt.Errorf("unable to initialize distributor ring: %w", err)
 		}
-		distributorRing = ring
 		subservices = append(subservices, distributorRing)
+
+		ingestionRateStrategy = newGlobalIngestionRateStrategy(o, ringHealthyCounter{distributorRing})
 	} else {
 		ingestionRateStrategy = newLocalIngestionRateStrategy(o)
 	}
