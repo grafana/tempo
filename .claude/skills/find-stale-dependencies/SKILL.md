@@ -1,6 +1,6 @@
 ---
 name: find-stale-dependencies
-description: Find stale direct Go dependencies by checking repository status, README, CVEs, blast radius, and usage context, then output a prioritized list
+description: Find stale direct Go dependencies by checking repository status, README, blast radius, and usage context, then output a prioritized list
 allowed-tools: Bash, WebFetch, Grep, Read
 ---
 
@@ -14,151 +14,166 @@ A dependency is **direct** if its line does NOT end with `// indirect`.
 
 - Repository is **archived**
 - README says: *deprecated*, *unmaintained*, *no longer maintained*, *use X instead*
-- Latest commit is **older than 2 years**
+- Latest commit (or last release for the depended-on major) is **older than 2 years**
+- Version itself is suspect (pinned to a >2-year-old pseudo-version, or `+incompatible`)
 
-## Step 1 — Extract direct dependencies
+## Step 1 — Run the data-collection script
 
-Run this command to get all direct deps with versions (`.Indirect` is absent for direct deps, not `false`):
+The skill ships with a script that gathers all deterministic facts about the project's direct dependencies in one pass: repo URL, GitHub archived/pushed_at, last release for the major, version-string smells, and blast radius.
 
 ```bash
-go mod edit -json | jq -r '.Require[] | select(.Indirect != true) | .Path + " " + .Version'
+.claude/skills/find-stale-dependencies/check-dependencies.sh > /tmp/deps-report.json
 ```
 
-Fallback without `jq`:
-```bash
-awk '/^require\s*\(/{p=1} p && !/\/\/ indirect/ && /^\t[a-z]/{print $1, $2} /^\)/{p=0} /^require [a-z]/ && !/\/\/ indirect/{print $2, $3}' go.mod
+The script:
+- Lists direct deps from `go mod edit -json`
+- Marks deps under trusted-org prefixes (`golang.org/x/`, `github.com/grafana/`, `github.com/google/`, `k8s.io/`, …) as `skipped`
+- Resolves vanity-domain modules (`go.yaml.in/`, `gopkg.in/`, …) via `go mod download -json` so non-GitHub origins are handled too
+- Flags suspect version strings (`+incompatible`, old pseudo-versions) via `extra_scrutiny`
+- Computes blast radius from `go mod graph` and `vendor/`
+
+Override the trusted-org list with `SKIP_PREFIXES=$'pfx1\npfx2'` if needed. Adjust parallelism with `PARALLELISM=N`.
+
+The output JSON has shape:
+
+```json
+{
+  "generated_at": "2026-05-05T12:00:00Z",
+  "module": "github.com/grafana/tempo",
+  "deps": [
+    {
+      "path": "github.com/foo/bar",
+      "version": "v1.2.3",
+      "skipped": false,
+      "extra_scrutiny": ["incompatible" | "old-pseudo-version"],
+      "repo_url": "https://github.com/foo/bar",
+      "github": {
+        "owner": "foo",
+        "name": "bar",
+        "archived": false,
+        "pushed_at": "2024-01-01T00:00:00Z",
+        "recent_releases": [
+          {"tag": "v1.2.3", "date": "2024-01-01T00:00:00Z"}
+        ]
+      },
+      "blast_radius": {"modules": 12, "vendor_packages": 3}
+    }
+  ]
+}
 ```
 
-**Skip these prefixes** (actively maintained by large orgs):
-`cloud.google.com`, `golang.org/x/`, `google.golang.org/`, `go.opentelemetry.io/`, `github.com/prometheus/`, `github.com/grafana/`, `github.com/Azure/`, `github.com/aws/`, `github.com/google/`, `github.com/hashicorp/`, `go.uber.org/`, `k8s.io/`
+`github` is `null` for non-GitHub origins (e.g., gopkg.in vanity paths the proxy doesn't resolve); `repo_url` carries the raw URL when available. `recent_releases` falls back to tag names with `date: null` when the repo publishes tags but no GitHub Releases.
 
-**Extra scrutiny candidates** — check these even if the org is on the skip list:
-- Pseudo-versions (`v0.0.0-YYYYMMDD-hash`): if the embedded date is >2 years old, likely stale
-- Packages with `+incompatible` suffix: pre-modules era, often from inactive repos
+`skipped: true` deps still carry their path/version but no other data — surface them only if `extra_scrutiny` is non-empty.
 
-## Step 2 — Resolve the repository URL
+## Step 2 — Pick the candidate set from the JSON
 
-For `github.com/<owner>/<repo>/...` imports, the repo is `https://github.com/<owner>/<repo>`.
+A dep is a **stale candidate** if any of these is true:
 
-For **all other imports** (vanity domains like `go.yaml.in/`, `gopkg.in/`, custom domains):
-1. Resolve the source repository URL via the module proxy (module is usually already cached in vendor repos):
-   ```bash
-   go mod download -json <import-path>@<version> | jq -r '.Origin.URL // empty'
-   ```
-2. If `.Origin.URL` is empty, fall back to `WebFetch` of `https://pkg.go.dev/<import-path>` and look for the source link.
-3. If both methods fail to produce a URL, **skip the dep and note it explicitly in the report** as "URL could not be resolved — skipped". Do not silently drop it.
-4. **Branch by host**:
-   - **GitHub** (`https://github.com/...`): proceed with `gh api` calls in Step 3 as normal.
-   - **Non-GitHub** (GitLab, Bitbucket, Sourcehut, etc.): `gh api` does not apply. Use `WebFetch` of the resolved URL to check for archived/deprecated signals in the page content or README. Note in the report that the `go mod graph` blast-radius count is still available but `gh api`-based staleness details are not.
+- `github.archived == true`
+- `github.pushed_at` is older than **today − 2 years**
+- `github.recent_releases` contains a release for a higher major than the path's `/vN` suffix (the depended-on major is frozen, a successor exists)
+- `extra_scrutiny` is non-empty
 
-Do not assume a vanity domain hosts its own repo — always resolve it first.
-
-## Step 3 — Check repository staleness
-
-Use the `gh` CLI for GitHub repos (issue multiple calls in parallel):
+Filter with jq:
 
 ```bash
-# Check archived status and last push date
-gh api repos/<owner>/<repo> --jq '{archived: .archived, pushed_at: .pushed_at}'
+TWO_YEARS_AGO=$(date -u -d '2 years ago' +%Y-%m-%dT%H:%M:%SZ)
+jq --arg cutoff "$TWO_YEARS_AGO" '
+  def path_major:
+    ((capture("/v(?<n>[0-9]+)$") | .n)? // "1") | tonumber;
+  def release_major(t):
+    (t | capture("^v(?<n>[0-9]+)\\.").n | tonumber)? // -1;
 
-# Fetch the README (first 60 lines is enough)
+  .deps | map(select(
+    (.skipped | not) and (
+      .github.archived == true
+      or (.github.pushed_at != null and .github.pushed_at < $cutoff)
+      or (
+        (.path | path_major) as $m
+        | (.github.recent_releases // []) | any(release_major(.tag) > $m)
+      )
+      or ((.extra_scrutiny // []) | length > 0)
+    )
+  ))
+' /tmp/deps-report.json
+```
+
+Skipped deps are also worth a second look when `extra_scrutiny` flags fire:
+
+```bash
+jq '.deps | map(select(.skipped and ((.extra_scrutiny // []) | length > 0)))' /tmp/deps-report.json
+```
+
+Stop checking a dep as soon as one criterion fires — no need to keep verifying.
+
+## Step 3 — Confirm via README (LLM judgment)
+
+For each candidate, fetch the README and look for explicit deprecation signals. Use `gh` for GitHub repos, `WebFetch` otherwise:
+
+```bash
 gh api repos/<owner>/<repo>/readme --jq '.content' | base64 -d | head -60
 ```
 
-If `gh` is unavailable, fall back to `WebFetch` of `https://github.com/<owner>/<repo>`.
+Confirming phrases:
 
-**Mark as stale if any of these are true:**
-- `archived: true`
-- README contains: *deprecated*, *unmaintained*, *no longer maintained*, *archived*, *use X instead*, *not actively maintained*, *paused maintenance*, *deprecation mode*
-- `pushed_at` is before **[today minus 2 years]**
+- *deprecated*, *unmaintained*, *no longer maintained*, *archived*
+- *use X instead*, *successor is X*, *replaced by X*, *moved to X*
+- *not actively maintained*, *paused maintenance*, *deprecation mode*
 
-**Stop checking a dep once any one staleness signal fires** — no need to verify all three.
+Record whether the README confirms staleness independently of the JSON signals — it strengthens the recommendation.
 
-**Major-version caveat**: `pushed_at` reflects activity across all branches and versions. For repos with multiple major versions, a recent `pushed_at` does not mean the version you depend on is maintained. Apply these additional checks:
+## Step 4 — Identify a replacement (LLM judgment)
 
-- **Versioned import paths** (`/v2`, `/v8`, etc.): extract the major N from the path and check the last release for that specific major (use `per_page=100` — `--paginate` doesn't work with `--jq`):
-  ```bash
-  MAJOR=$(echo "<import-path>" | sed -n 's|.*/v\([0-9][0-9]*\)$|\1|p'); MAJOR=${MAJOR:-1}
-  gh api "repos/<owner>/<repo>/releases?per_page=100" --jq \
-    "[.[] | select(.tag_name | startswith(\"v${MAJOR}.\"))] | sort_by(.published_at) | last | .published_at"
-  ```
-  If the last vN release is >2 years old while a higher major exists → stale.
+For each confirmed-stale dep:
 
-- **Unversioned imports** (v0/v1): check whether a `/v2` successor exists in the same repo:
-  ```bash
-  gh api "repos/<owner>/<repo>/releases?per_page=100" --jq \
-    '[.[] | select(.tag_name | test("^v[2-9]"))] | length'
-  ```
-  If a higher major exists and v1 README or tags show no recent activity → likely frozen; check README for deprecation language.
+1. Extract the recommended replacement from the README (phrases like *use X instead*, *migrate to*, *successor is*) or from a `pkg.go.dev` "moved to" notice.
+2. Check whether it's already in `go.mod`:
 
-Also record whether the dep is **quietly abandoned**: last release or `pushed_at` before **[today minus 5 years]** with no explicit deprecation notice. Used for priority classification in step 7.
-
-## Step 4 — Check for CVEs
-
-For each confirmed stale dep, verify that the **current version in go.mod** falls within an unpatched advisory range — search results include already-fixed CVEs and must not trigger Critical on their own.
-
-Preferred: run `govulncheck` if available, which checks only the versions actually in use:
-```bash
-govulncheck -json ./... 2>/dev/null | jq -r 'select(.finding.trace != null) | .finding.osv'
-```
-
-Fallback: fetch the advisory list and cross-check the version manually:
-```
-https://pkg.go.dev/search?m=vuln&q=<url-encoded-import-path>
-```
-For each advisory returned, fetch its detail page and verify that `<current-version>` is within the **affected** range and not in the **fixed** range. Only mark as **CVE-affected** if the current version is genuinely unpatched.
-
-## Step 5 — Find replacement
-
-For each stale dep, identify the recommended replacement:
-1. **README**: extract the suggested import path from phrases like "use X instead", "migrate to", "replaced by", "successor is"
-2. **pkg.go.dev**: check if the module page shows a "moved to" or "redirects to" notice
-
-If a replacement is found, check whether it's already in `go.mod`:
 ```bash
 go mod edit -json | jq -r '.Require[].Path' | grep -Fx "<replacement-path>"
 ```
-Report: **replacement already in go.mod** (migration effort only) vs **replacement not yet added** (requires dep bump + migration).
 
-## Step 6 — Measure blast radius
+Report **replacement already in go.mod** (migration effort only) vs **replacement not yet added** (requires dep bump + migration). If no replacement is identifiable, say so.
 
-For each stale dep, run these in parallel:
+## Step 5 — Determine usage context (LLM judgment)
+
+Search the codebase for direct call sites:
 
 ```bash
-# Modules that depend on it (from the full dependency graph)
-go mod graph | awk -v mod="<module>@" 'index($2, mod) == 1 { print $1 }' | sort -u | wc -l
-
-# Vendor packages that import it directly
-grep -r '"<import-path>' vendor/ --include="*.go" -l 2>/dev/null | awk 'NF { sub("/[^/]+$", "", $0); print }' | sort -u | wc -l
+grep -rn "\"<import-path>" --include='*.go' . | head
 ```
 
-Report both counts in the output.
+Classify the usage as one of:
 
-## Step 7 — Classify priority
+- **Hot path**: request/response handling, payload marshal/unmarshal, HTTP or gRPC middleware, authentication, networking stack
+- **Internal utility**: CLI tools, build helpers, internal logging, test fixtures
+- **Test-only**: only imported under `_test.go` files
 
-Assign priority using this decision order:
+This is what the JSON cannot give you — it requires reading the code.
 
-1. **Critical** — has CVEs (from step 4)
-2. **High** — used in request/response handling, payload marshal/unmarshal, HTTP or gRPC middleware, authentication, or the networking stack
-3. **Medium** — quietly abandoned (>5 years since last commit, no explicit deprecation notice) but used only in internal utilities, CLI tools, or tests
-4. **Low** — stale but only used internally and last commit <5 years ago
+## Step 6 — Classify priority
 
-## Step 8 — Report
+Use this decision order:
+
+1. **High** — confirmed deprecated/archived **and** on the hot path, **or** confirmed deprecated/archived **and** a maintained successor exists (migration is the obvious next step)
+2. **Medium** — quietly abandoned (>5 years since last activity, no explicit deprecation notice) but only used in internal utilities
+3. **Low** — stale but only used internally and last activity within the last 5 years
+
+The skill does not assign a Critical tier — vulnerabilities are handled by other tooling (govulncheck/Dependabot). If you do see a CVE-driven emergency on a stale dep, that's a security-tooling alert, not a staleness report.
+
+## Step 7 — Report
 
 Skip non-stale dependencies. Output only stale ones, sorted by priority:
 
 ```
 ## Stale Dependencies
 
-### Critical
-- `import/path@version` — reason: <archived | README says deprecated | last commit YYYY-MM-DD>
-  CVEs: <IDs or link>
-  Blast radius: N modules, M vendor packages
-  Replacement: `suggested/path` [already in go.mod | not yet added]
-  Recommendation: <replace with X | upgrade | remove>
-
 ### High
-[same format, omit CVEs line]
+- `import/path@version` — reason: <archived | README says deprecated | last commit YYYY-MM-DD | old-pseudo-version>
+  Blast radius: N modules, M vendor packages
+  Replacement: `suggested/path` [already in go.mod | not yet added | none]
+  Recommendation: <replace with X | upgrade | remove>
 
 ### Medium
 [same format]
@@ -169,6 +184,6 @@ Skip non-stale dependencies. Output only stale ones, sorted by priority:
 
 ## Efficiency notes
 
-- **Parallel batching**: issue all `gh api` staleness checks for multiple repos in one turn; do the same for CVE fetches and blast radius greps
-- **Fail fast per dep**: once a staleness signal fires, skip remaining checks for that dep and move to replacement + blast radius
-- **CVE and blast radius in one batch**: after confirming staleness, fetch CVEs and measure blast radius simultaneously for all confirmed-stale deps
+- The script does all the deterministic data collection in one pass — do not re-run individual `gh api` / `go mod` commands per dep
+- For LLM-only steps (README, usage context), batch the work: fetch all confirmed-stale READMEs in parallel `gh api` calls, then do all `grep` searches in parallel
+- Stop investigating a dep once one staleness signal is confirmed
