@@ -11,7 +11,7 @@ versionDate: 2026-02-25
 
 # Migrate from Tempo 2.x to 3.0
 
-Grafana Tempo 3.0 introduces a new architecture that replaces ingesters and the compactor with a Kafka-based ingest path.
+Grafana Tempo 3.0 introduces a new architecture that replaces ingesters with a Kafka-based ingest path.
 Distributors write trace data to Kafka, and two new components consume from it: block-builders create blocks for long-term object storage, and live-stores serve recent-data queries. A backend-scheduler and backend-worker replace the compactor for block maintenance.
 
 This guide walks you through migrating a self-managed Grafana Tempo deployment from 2.x to 3.0.
@@ -129,6 +129,7 @@ If you prefer to migrate your config manually:
 - Any `ingester_client:` configuration
 - The `compactor:` block (replaced by `backend_scheduler:` and `backend_worker:`)
 - Any `metrics_generator_client:` configuration
+- Any `local_blocks` processor configuration
 
 **Add** to your 3.0 configuration:
 
@@ -150,8 +151,9 @@ Each block-builder instance consumes from exactly one Kafka partition based on i
 To keep block-builder replicas in sync with the partition count, scale them to match the live-store replica count (live-stores also run one replica per partition). You can do this with:
 
 - A **KEDA autoscaler** that mirrors the live-store pod count. The Tempo Jsonnet library includes this configuration.
-- The **Grafana rollout-operator** mirroring feature, which keeps one StatefulSet's replica count in sync with another.
-- A **static replica count** set to the number of Kafka partitions, if your partition count is fixed.
+- The [**Grafana rollout-operator**](https://github.com/grafana/rollout-operator) mirroring feature, which keeps one 
+  StatefulSet's replica count in sync with another.
+- A **static replica count** set to the number of Kafka partitions if your partition count is fixed.
 
 The `live_store:` block uses sensible defaults and doesn't require overrides for most deployments.
 
@@ -257,11 +259,13 @@ To clean up the 2.x deployment:
 
 1. Wait for the 2.x ingesters to flush all in-memory traces to object storage. With default settings (`max_block_duration` of 30 minutes and `complete_block_timeout` of 15 minutes), this takes up to approximately 45 minutes. If you've customized these values, add your `max_block_duration` and `complete_block_timeout` together to estimate the wait.
 
+   To confirm the ingesters are drained, check these metrics on the 2.x deployment:
+   - `tempo_ingester_live_traces` should drop to zero (or near zero) — no traces remain in memory.
+   - `tempo_ingester_flush_queue_length` should be zero — no pending flushes.
+
 1. Scale the 2.x compactors to zero and remove the `compaction_disabled` override from the 3.0 deployment to re-enable compaction. Running without compaction for extended periods can cause the blocklist to grow.
 
-1. Keep the 2.x deployment idle for at least one week. This provides a fallback period to verify the 3.0 deployment is stable.
-
-1. After the validation period, scale all 2.x components to zero and decommission the old infrastructure. Don't delete the shared object storage.
+1. Once you're confident the 3.0 deployment is stable, scale all 2.x components to zero and decommission the old infrastructure. Don't delete the shared object storage.
 
 1. Review your backend-worker replica count. The overlap period may have produced additional blocks that require compaction. Once the backlog clears, reduce backend-workers to your steady-state configuration.
 
