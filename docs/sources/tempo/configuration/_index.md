@@ -726,6 +726,9 @@ metrics_generator:
             # List of attribute names used to identify the database name from span attributes. If it isn't set, the order is peer.service -> server.address -> network.peer.address -> db.name
             [database_name_attributes: <list of string> | default = ["db.namespace","db.name","db.system"]]
 
+            # List of policies that will be applied to spans for inclusion or exclusion.
+            [filter_policies: <list of filter policies config> | default = []]
+
         span_metrics:
 
             # Buckets for the latency histogram in seconds.
@@ -2386,7 +2389,7 @@ overrides:
           [filter_policies: [
             [
               include/include_any/exclude:
-                match_type: <string> # options: strict, regexp
+                match_type: <string> # options: strict, regex
                 attributes:
                   - key: <string>
                     value: <any>
@@ -2401,7 +2404,7 @@ overrides:
           [filter_policies: [
             [
               include/include_any/exclude:
-                match_type: <string> # options: strict, regexp
+                match_type: <string> # options: strict, regex
                 attributes:
                   - key: <string>
                     value: <any>

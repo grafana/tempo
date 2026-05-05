@@ -127,5 +127,40 @@ You can override this list to match your instrumentation if it uses non-standard
 
 ### Filter policies
 
-The `filter_policies` option lets you include or exclude spans from service graph generation based on span attributes.
-This works the same way as filter policies for [span metrics](/docs/tempo/<TEMPO_VERSION>/metrics-from-traces/span-metrics/span-metrics-metrics-generator/#filtering).
+The `filter_policies` option lets you include or exclude spans from service graph generation.
+It uses the same policy format as [span metrics](/docs/tempo/<TEMPO_VERSION>/metrics-from-traces/span-metrics/span-metrics-metrics-generator/#filtering).
+
+The service graph processor only evaluates spans that can form edges: `SPAN_KIND_CLIENT`, `SPAN_KIND_SERVER`, `SPAN_KIND_PRODUCER`, and `SPAN_KIND_CONSUMER`.
+When one side of an edge is filtered out, Tempo keeps a best-effort marker for the dropped side and drops the matching side if it arrives later or is already buffered.
+This reduces skewed edges and unwanted virtual nodes.
+The marker cache uses `wait` as its TTL and `max_items` as its maximum size.
+
+Policy behavior is:
+
+- `include`: all include policies must match.
+- `include_any`: any include_any policy can match. If only include_any policies are configured, non-matching spans are excluded.
+- `exclude`: matching spans are rejected, even if they match an include rule.
+
+Use scoped keys for resource and span attributes, such as `resource.service.name` or `span.http.route`.
+The supported intrinsic keys are `name`, `status`, and `kind`.
+Supported attribute value types are `bool`, `double`, `int`, and `string`.
+
+This example excludes service graph spans from `shop-backend`:
+
+```yaml
+metrics_generator:
+  processor:
+    service_graphs:
+      filter_policies:
+        - exclude:
+            match_type: strict
+            attributes:
+              - key: resource.service.name
+                value: shop-backend
+```
+
+Monitor service graph filtering with:
+
+- `tempo_metrics_generator_spans_discarded_total{reason="service_graphs_filtered", processor="service-graphs"}`
+- `tempo_metrics_generator_processor_service_graphs_dropped_edges_total`
+- `tempo_metrics_generator_processor_service_graphs_dropped_span_side_cache_overflow_total`
