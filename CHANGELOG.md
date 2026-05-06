@@ -1,5 +1,7 @@
 ## main / unreleased
 
+* [ENHANCEMENT] Livestore: introduced a dedicated lock for the head block to reduce read/write contention. [#6812](https://github.com/grafana/tempo/pull/6812) (@zhxiaogg)
+
 # v3.0.0-rc.1
 
 * [CHANGE] Stop publishing 32-bit ARM binary archives. Release artifacts continue to include amd64 and arm64 binaries. [#7106](https://github.com/grafana/tempo/pull/7106) (@javiermolinar)
