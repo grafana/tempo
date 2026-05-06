@@ -5,7 +5,7 @@ import (
 	"math"
 
 	"github.com/grafana/tempo/pkg/tempopb"
-	"github.com/prometheus/prometheus/model/labels"
+	"github.com/prometheus/common/model"
 )
 
 var noLabelsSeriesMapKey = SeriesMapKey{}
@@ -206,7 +206,7 @@ func mergeLabels(op Operator, l, r Labels) Labels {
 	out := make(Labels, len(l), len(l)+len(r))
 	copy(out, l)
 	for _, label := range r {
-		if label.Name == labels.MetricName {
+		if label.Name == model.MetricNameLabel {
 			continue
 		}
 		if l.Has(label.Name) { // dedup
@@ -215,12 +215,12 @@ func mergeLabels(op Operator, l, r Labels) Labels {
 		out = append(out, label)
 	}
 
-	lNameValue := l.GetValue(labels.MetricName)
-	rNameValue := r.GetValue(labels.MetricName)
+	lNameValue := l.GetValue(model.MetricNameLabel)
+	rNameValue := r.GetValue(model.MetricNameLabel)
 
 	if lNameValue.Type != TypeString || rNameValue.Type != TypeString {
 		for i := 0; i < len(out); i++ {
-			if out[i].Name == labels.MetricName {
+			if out[i].Name == model.MetricNameLabel {
 				out[i] = out[len(out)-1]
 				out = out[:len(out)-1]
 				break
@@ -235,7 +235,7 @@ func mergeLabels(op Operator, l, r Labels) Labels {
 	combinedName := fmt.Sprintf("(%s %s %s)", lName, op.String(), rName)
 
 	for i := range out {
-		if out[i].Name == labels.MetricName {
+		if out[i].Name == model.MetricNameLabel {
 			out[i].Value = NewStaticString(combinedName)
 			break
 		}

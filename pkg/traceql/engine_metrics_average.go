@@ -8,7 +8,7 @@ import (
 
 	"github.com/grafana/tempo/pkg/tempopb"
 	v1 "github.com/grafana/tempo/pkg/tempopb/common/v1"
-	"github.com/prometheus/prometheus/model/labels"
+	"github.com/prometheus/common/model"
 )
 
 // Average over time aggregator
@@ -529,7 +529,7 @@ func (g *avgOverTimeSpanAggregator[F, S]) Length() int {
 func (g *avgOverTimeSpanAggregator[F, S]) labelsFor(vals S) (Labels, SeriesMapKey) {
 	if g.by == nil {
 		serieLabel := make(Labels, 1, 2)
-		serieLabel[0] = Label{labels.MetricName, NewStaticString(metricsAggregateAvgOverTime.String())}
+		serieLabel[0] = Label{model.MetricNameLabel, NewStaticString(metricsAggregateAvgOverTime.String())}
 		return serieLabel, serieLabel.MapKey()
 	}
 	labels := make(Labels, 0, len(g.by)+1)

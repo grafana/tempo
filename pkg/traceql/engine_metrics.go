@@ -17,6 +17,7 @@ import (
 	commonv1proto "github.com/grafana/tempo/pkg/tempopb/common/v1"
 	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/pkg/util/log"
+	"github.com/prometheus/common/model"
 	"github.com/prometheus/prometheus/model/labels"
 )
 
@@ -322,7 +323,7 @@ func (ls Labels) MapKey() SeriesMapKey {
 	key := SeriesMapKey{}
 	var i int
 	for _, l := range ls {
-		if l.Name == labels.MetricName {
+		if l.Name == model.MetricNameLabel {
 			continue
 		}
 		key[i] = SeriesMapLabel{Name: l.Name, Value: l.Value.MapKey()}
@@ -938,7 +939,7 @@ func (u *UngroupedAggregator) Length() int {
 // fill in a placeholder metric name with the name of the aggregation.
 // rate() => {__name__=rate}
 func (u *UngroupedAggregator) Series() SeriesSet {
-	labels := LabelsFromArgs(labels.MetricName, u.name)
+	labels := LabelsFromArgs(model.MetricNameLabel, u.name)
 
 	return SeriesSet{
 		labels.MapKey(): {
