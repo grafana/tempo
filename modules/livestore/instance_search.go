@@ -60,13 +60,6 @@ func (i *instance) iterateBlocks(ctx context.Context, reqStart, reqEnd time.Time
 		oteltrace.WithAttributes(attribute.String("tenant", i.tenantID)))
 	defer span.End()
 
-	i.blocksMtx.RLock()
-	span.AddEvent("acquired blocksMtx")
-	defer func() {
-		i.blocksMtx.RUnlock()
-		span.AddEvent("released blocksMtx")
-	}()
-
 	var anyErr atomic.Error
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
@@ -86,6 +79,8 @@ func (i *instance) iterateBlocks(ctx context.Context, reqStart, reqEnd time.Time
 		anyErr.Store(err)
 	}
 
+	i.headBlockMtx.RLock()
+	span.AddEvent("acquired headBlockMtx")
 	if i.headBlock != nil {
 		meta := i.headBlock.BlockMeta()
 		if includeBlock(meta, reqStart, reqEnd) {
@@ -98,10 +93,19 @@ func (i *instance) iterateBlocks(ctx context.Context, reqStart, reqEnd time.Time
 			span.End()
 		}
 	}
+	i.headBlockMtx.RUnlock()
+	span.AddEvent("released headBlockMtx")
 
 	if err := anyErr.Load(); err != nil {
 		return err
 	}
+
+	i.blocksMtx.RLock()
+	span.AddEvent("acquired blocksMtx")
+	defer func() {
+		i.blocksMtx.RUnlock()
+		span.AddEvent("released blocksMtx")
+	}()
 
 	wg := boundedwaitgroup.New(i.Cfg.QueryBlockConcurrency)
 

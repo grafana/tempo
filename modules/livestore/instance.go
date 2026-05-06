@@ -114,12 +114,15 @@ type instance struct {
 	completeBlockEncoding  encoding.VersionedEncoding
 	completeBlockLifecycle completeBlockLifecycle
 
-	// Block management
+	// headBlockMtx guards headBlock and lastCutTime; blocksMtx guards walBlocks and
+	// completeBlocks. When both are held, acquire headBlockMtx first.
+	headBlockMtx sync.RWMutex
+	headBlock    common.WALBlock
+	lastCutTime  time.Time
+
 	blocksMtx      sync.RWMutex
-	headBlock      common.WALBlock
 	walBlocks      map[uuid.UUID]common.WALBlock
 	completeBlocks map[uuid.UUID]*LocalBlock
-	lastCutTime    time.Time
 
 	// Live traces
 	liveTracesMtx      sync.Mutex
@@ -388,11 +391,11 @@ func (i *instance) cutIdleTraces(ctx context.Context, immediate bool) (bool, err
 
 	span.AddEvent("wrote traces to head block")
 
-	i.blocksMtx.Lock()
-	span.AddEvent("acquired blocksMtx")
+	i.headBlockMtx.Lock()
+	span.AddEvent("acquired headBlockMtx")
 	defer func() {
-		i.blocksMtx.Unlock()
-		span.AddEvent("released blocksMtx")
+		i.headBlockMtx.Unlock()
+		span.AddEvent("released headBlockMtx")
 	}()
 	if i.headBlock != nil {
 		err := i.headBlock.Flush()
@@ -406,8 +409,8 @@ func (i *instance) cutIdleTraces(ctx context.Context, immediate bool) (bool, err
 }
 
 func (i *instance) writeHeadBlock(id []byte, liveTrace *livetraces.LiveTrace[*v1.ResourceSpans]) (uint64, error) {
-	i.blocksMtx.Lock()
-	defer i.blocksMtx.Unlock()
+	i.headBlockMtx.Lock()
+	defer i.headBlockMtx.Unlock()
 
 	if i.headBlock == nil {
 		err := i.resetHeadBlock()
@@ -497,7 +500,7 @@ const (
 )
 
 // shouldCutHead checks whether the head block should be cut and returns the
-// reason(s). Caller must hold blocksMtx.
+// reason(s). Caller must hold headBlockMtx.
 func (i *instance) shouldCutHead(immediate bool) cutReason {
 	if i.headBlock == nil || i.headBlock.DataLength() == 0 {
 		return cutReasonNone
@@ -535,11 +538,11 @@ func (i *instance) cutBlocks(ctx context.Context, immediate bool) (uuid.UUID, er
 		oteltrace.WithAttributes(attribute.String("tenant", i.tenantID)))
 	defer span.End()
 
-	i.blocksMtx.Lock()
-	span.AddEvent("acquired blocksMtx")
+	i.headBlockMtx.Lock()
+	span.AddEvent("acquired headBlockMtx")
 	defer func() {
-		i.blocksMtx.Unlock()
-		span.AddEvent("released blocksMtx")
+		i.headBlockMtx.Unlock()
+		span.AddEvent("released headBlockMtx")
 	}()
 
 	reason := i.shouldCutHead(immediate)
@@ -559,7 +562,10 @@ func (i *instance) cutBlocks(ctx context.Context, immediate bool) (uuid.UUID, er
 
 	id := (uuid.UUID)(i.headBlock.BlockMeta().BlockID)
 	blockSize := i.headBlock.DataLength()
+
+	i.blocksMtx.Lock()
 	i.walBlocks[id] = i.headBlock
+	i.blocksMtx.Unlock()
 
 	span.SetAttributes(
 		attribute.String("blockID", id.String()),
