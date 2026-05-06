@@ -1,5 +1,7 @@
 ## main / unreleased
 
+* [ENHANCEMENT] TraceQL - Support structural operators on broken traces by assigning nested set data to orphaned sub-trees instead of skipping the entire trace. Broken spans can be identified via `{nestedSetParent=0}`; root span identification via `{nestedSetParent<0}` is unchanged. [#7115](https://github.com/grafana/tempo/pull/7115) (@mdisibio)
+
 # v3.0.0-rc.1
 
 * [CHANGE] Stop publishing 32-bit ARM binary archives. Release artifacts continue to include amd64 and arm64 binaries. [#7106](https://github.com/grafana/tempo/pull/7106) (@javiermolinar)

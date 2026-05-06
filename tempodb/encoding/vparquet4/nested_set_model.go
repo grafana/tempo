@@ -32,12 +32,12 @@ func assignNestedSetModelBoundsAndServiceStats(trace *Trace) bool {
 		}
 	}
 
-	// find root spans and map span IDs to tree nodes
+	// map span IDs to tree nodes
 	var (
 		undoAssignment bool
+		hasRoot        bool
 		allNodes       = make([]spanNode, 0, spanCount)
 		nodesByID      = make(map[uint64][]*spanNode, spanCount)
-		rootNodes      []*spanNode
 	)
 
 	// initialize ServiceStats (spanCount and errorCount per service)
@@ -54,7 +54,7 @@ func assignNestedSetModelBoundsAndServiceStats(trace *Trace) bool {
 				node := &allNodes[len(allNodes)-1]
 
 				if s.IsRoot() {
-					rootNodes = append(rootNodes, node)
+					hasRoot = true
 				}
 
 				id := util.SpanIDToUint64(s.SpanID)
@@ -78,10 +78,6 @@ func assignNestedSetModelBoundsAndServiceStats(trace *Trace) bool {
 		trace.ServiceStats[rs.Resource.ServiceName] = serviceStats
 	}
 
-	// check preconditions before assignment
-	if len(rootNodes) == 0 {
-		return false
-	}
 	if undoAssignment {
 		for _, nodes := range nodesByID {
 			for _, n := range nodes {
@@ -95,7 +91,10 @@ func assignNestedSetModelBoundsAndServiceStats(trace *Trace) bool {
 		return false
 	}
 
-	connected := true
+	// If this trace has a root span it may be connected — verified below by checking that
+	// every non-root span finds its parent. A trace without a root span is never considered
+	// connected, and that includes empty traces.
+	connected := hasRoot
 	// build the tree
 	for i := range allNodes {
 		node := &allNodes[i]
@@ -112,31 +111,34 @@ func assignNestedSetModelBoundsAndServiceStats(trace *Trace) bool {
 	}
 
 	// traverse the tree depth first. When going down the tree, assign NestedSetLeft
-	// and assign NestedSetRight when going up.
+	// and assign NestedSetRight when going up. Every sub-tree is traversed: true roots
+	// get ParentID=-1; orphan sub-roots (whose parent span is missing from the trace)
+	// keep ParentID=0 (its initialised value).
 	nestedSetBound := int32(1)
-	for _, root := range rootNodes {
-		node := root
-		node.span.NestedSetLeft = nestedSetBound
-		node.span.ParentID = nestedSetRootParent
+	for i := range allNodes {
+		root := &allNodes[i]
+		if root.parent != nil {
+			continue // not a sub-tree root; bounds are assigned via the parent's traversal
+		}
+		if root.span.IsRoot() {
+			root.span.ParentID = nestedSetRootParent
+		}
+		root.span.NestedSetLeft = nestedSetBound
 		nestedSetBound++
 
-		for node != nil {
+		for node := root; node != nil; {
 			if node.nextChild < len(node.children) {
 				// the current node has children that were not visited: go down to next child
-
 				next := node.children[node.nextChild]
 				node.nextChild++
-
 				next.span.NestedSetLeft = nestedSetBound
 				next.span.ParentID = node.span.NestedSetLeft // the left bound of the parent serves as numeric span ID
 				nestedSetBound++
 				node = next
 			} else {
 				// all children of the current node were visited: go up
-
 				node.span.NestedSetRight = nestedSetBound
 				nestedSetBound++
-
 				node = node.parent
 			}
 		}

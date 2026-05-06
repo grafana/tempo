@@ -1,6 +1,7 @@
 package vparquet5
 
 import (
+	"fmt"
 	"testing"
 
 	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
@@ -152,8 +153,35 @@ func TestAssignNestedSetModelBounds(t *testing.T) {
 					{SpanID: []byte("cccccccc"), ParentSpanID: []byte("bbbbbbbb"), NestedSetLeft: 3, NestedSetRight: 4, ParentID: 2, ChildCount: 0},
 					{SpanID: []byte("dddddddd"), ParentSpanID: []byte("bbbbbbbb"), NestedSetLeft: 5, NestedSetRight: 6, ParentID: 2, ChildCount: 0},
 
-					{SpanID: []byte("eeeeeeee"), ParentSpanID: []byte("xxxxxxxx"), ChildCount: 1}, // <- interrupted
-					{SpanID: []byte("ffffffff"), ParentSpanID: []byte("eeeeeeee"), ChildCount: 0},
+					// orphan sub-tree: eeeeeeee's parent is missing, so it becomes a sub-root with ParentID=0
+					{SpanID: []byte("eeeeeeee"), ParentSpanID: []byte("xxxxxxxx"), NestedSetLeft: 9, NestedSetRight: 12, ParentID: 0, ChildCount: 1},
+					{SpanID: []byte("ffffffff"), ParentSpanID: []byte("eeeeeeee"), NestedSetLeft: 10, NestedSetRight: 11, ParentID: 9, ChildCount: 0},
+				},
+			},
+			expectedConnected: false,
+		},
+		{
+			// Reproduces the scenario from https://github.com/grafana/tempo/issues/6393:
+			// a linear chain A->B->C->D->E where C is dropped. The connected sub-trees A->B
+			// and D->E should each receive valid nested set bounds so that structural queries
+			// work within each intact segment.
+			name: "dropped middle span A->B + D->E",
+			trace: [][]Span{
+				{
+					{SpanID: []byte("aaaaaaaa")},
+					{SpanID: []byte("bbbbbbbb"), ParentSpanID: []byte("aaaaaaaa")},
+					// cccccccc is missing (dropped)
+					{SpanID: []byte("dddddddd"), ParentSpanID: []byte("cccccccc")},
+					{SpanID: []byte("eeeeeeee"), ParentSpanID: []byte("dddddddd")},
+				},
+			},
+			expected: [][]Span{
+				{
+					{SpanID: []byte("aaaaaaaa"), NestedSetLeft: 1, NestedSetRight: 4, ParentID: -1, ChildCount: 1},
+					{SpanID: []byte("bbbbbbbb"), ParentSpanID: []byte("aaaaaaaa"), NestedSetLeft: 2, NestedSetRight: 3, ParentID: 1, ChildCount: 0},
+					// dddddddd's parent (cccccccc) is missing — becomes a sub-root with ParentID=0
+					{SpanID: []byte("dddddddd"), ParentSpanID: []byte("cccccccc"), NestedSetLeft: 5, NestedSetRight: 8, ParentID: 0, ChildCount: 1},
+					{SpanID: []byte("eeeeeeee"), ParentSpanID: []byte("dddddddd"), NestedSetLeft: 6, NestedSetRight: 7, ParentID: 5, ChildCount: 0},
 				},
 			},
 			expectedConnected: false,
@@ -239,6 +267,9 @@ func TestAssignNestedSetModelBounds(t *testing.T) {
 			expectedConnected: false,
 		},
 		{
+			// A->B->C chain where A is dropped. With no true root present, B becomes
+			// an orphan sub-root and still receives valid nested set bounds so structural
+			// queries work within the connected B->C segment.
 			name: "no roots",
 			trace: [][]Span{
 				{
@@ -248,8 +279,8 @@ func TestAssignNestedSetModelBounds(t *testing.T) {
 			},
 			expected: [][]Span{
 				{
-					{SpanID: []byte("cccccccc"), ParentSpanID: []byte("bbbbbbbb")},
-					{SpanID: []byte("bbbbbbbb"), ParentSpanID: []byte("aaaaaaaa")},
+					{SpanID: []byte("cccccccc"), ParentSpanID: []byte("bbbbbbbb"), NestedSetLeft: 2, NestedSetRight: 3, ParentID: 1, ChildCount: 0},
+					{SpanID: []byte("bbbbbbbb"), ParentSpanID: []byte("aaaaaaaa"), NestedSetLeft: 1, NestedSetRight: 4, ParentID: 0, ChildCount: 1},
 				},
 			},
 			expectedConnected: false,
@@ -387,4 +418,101 @@ func TestAssignServiceStats(t *testing.T) {
 			assert.Equal(t, tt.expected, trace.ServiceStats)
 		})
 	}
+}
+
+// BenchmarkAssignNestedSetModelBounds measures the nested set assignment across the main
+// structural cases: a fully connected trace (linear and branched) and incomplete traces
+// with one or many missing spans (partial cases).
+func BenchmarkAssignNestedSetModelBounds(b *testing.B) {
+	cases := []struct {
+		name  string
+		build func(n int) *Trace
+	}{
+		{
+			// fully connected chain: span[1] -> span[2] -> ... -> span[n]
+			name:  "complete/linear",
+			build: benchLinearTrace,
+		},
+		{
+			// fully connected tree with branching factor 4 (each node has up to 4 children)
+			name:  "complete/branched",
+			build: func(n int) *Trace { return benchBranchedTrace(n, 4) },
+		},
+		{
+			// single dropped span in the middle, leaving two connected sub-trees
+			name:  "partial/one_gap",
+			build: benchLinearTraceDropMiddle,
+		},
+		{
+			// every 10th span dropped (~10% missing), creating many disconnected sub-trees
+			name:  "partial/many_gaps",
+			build: func(n int) *Trace { return benchLinearTraceDropEvery(n, 10) },
+		},
+	}
+
+	for _, n := range []int{100, 1000, 10000} {
+		for _, tc := range cases {
+			b.Run(fmt.Sprintf("%s/spans=%d", tc.name, n), func(b *testing.B) {
+				tr := tc.build(n)
+				for b.Loop() {
+					assignNestedSetModelBoundsAndServiceStats(tr)
+				}
+			})
+		}
+	}
+}
+
+// benchSpanID returns a unique non-zero 8-byte span ID for index i (i must be >= 1).
+func benchSpanID(i int) []byte {
+	return []byte{0, 0, 0, 0, byte(i >> 24), byte(i >> 16), byte(i >> 8), byte(i)}
+}
+
+// benchLinearTrace builds a complete linear chain: span[1] -> span[2] -> ... -> span[n].
+func benchLinearTrace(n int) *Trace {
+	spans := make([]Span, n)
+	spans[0] = Span{SpanID: benchSpanID(1)}
+	for i := 1; i < n; i++ {
+		spans[i] = Span{SpanID: benchSpanID(i + 1), ParentSpanID: benchSpanID(i)}
+	}
+	return &Trace{ResourceSpans: []ResourceSpans{{ScopeSpans: []ScopeSpans{{Spans: spans}}}}}
+}
+
+// benchBranchedTrace builds a complete tree of n spans where each node has up to k children.
+func benchBranchedTrace(n, k int) *Trace {
+	spans := make([]Span, n)
+	spans[0] = Span{SpanID: benchSpanID(1)}
+	for i := 1; i < n; i++ {
+		parent := (i-1)/k + 1 // 1-indexed parent
+		spans[i] = Span{SpanID: benchSpanID(i + 1), ParentSpanID: benchSpanID(parent)}
+	}
+	return &Trace{ResourceSpans: []ResourceSpans{{ScopeSpans: []ScopeSpans{{Spans: spans}}}}}
+}
+
+// benchLinearTraceDropMiddle builds a linear trace of n spans with the single middle span
+// dropped, splitting the chain into two connected halves.
+func benchLinearTraceDropMiddle(n int) *Trace {
+	dropped := n / 2
+	spans := make([]Span, 0, n-1)
+	spans = append(spans, Span{SpanID: benchSpanID(1)})
+	for i := 1; i < n; i++ {
+		if i == dropped {
+			continue
+		}
+		spans = append(spans, Span{SpanID: benchSpanID(i + 1), ParentSpanID: benchSpanID(i)})
+	}
+	return &Trace{ResourceSpans: []ResourceSpans{{ScopeSpans: []ScopeSpans{{Spans: spans}}}}}
+}
+
+// benchLinearTraceDropEvery builds a linear trace of n spans with every period-th span
+// dropped, creating multiple disconnected sub-trees.
+func benchLinearTraceDropEvery(n, period int) *Trace {
+	spans := make([]Span, 0, n)
+	spans = append(spans, Span{SpanID: benchSpanID(1)})
+	for i := 1; i < n; i++ {
+		if i%period == 0 {
+			continue
+		}
+		spans = append(spans, Span{SpanID: benchSpanID(i + 1), ParentSpanID: benchSpanID(i)})
+	}
+	return &Trace{ResourceSpans: []ResourceSpans{{ScopeSpans: []ScopeSpans{{Spans: spans}}}}}
 }
