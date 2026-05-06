@@ -530,6 +530,8 @@ func TestBlockListBackendMetrics(t *testing.T) {
 		expectedBackendBytesTotal            uint64
 		expectedCompactedBackendObjectsTotal int
 		expectedCompacteddBackendBytesTotal  uint64
+		expectedBloomShardsTotal             uint64
+		expectedCompactedBloomShardsTotal    uint64
 	}{
 		{
 			name: "total backend objects calculation is correct",
@@ -621,6 +623,26 @@ func TestBlockListBackendMetrics(t *testing.T) {
 			expectedCompacteddBackendBytesTotal:  1250,
 			testType:                             "backend bytes",
 		},
+		{
+			name: "total bloom shard calculation is correct",
+			list: PerTenant{
+				"test": []*backend.BlockMeta{
+					{BloomShardCount: 3},
+					{BloomShardCount: 5},
+					{BloomShardCount: 2},
+				},
+			},
+			compactedList: PerTenantCompacted{
+				"test": []*backend.CompactedBlockMeta{
+					{BlockMeta: backend.BlockMeta{BloomShardCount: 4}},
+					{BlockMeta: backend.BlockMeta{BloomShardCount: 1}},
+					{BlockMeta: backend.BlockMeta{BloomShardCount: 6}},
+				},
+			},
+			expectedBloomShardsTotal:          10,
+			expectedCompactedBloomShardsTotal: 11,
+			testType:                          "bloom shards",
+		},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -631,6 +653,8 @@ func TestBlockListBackendMetrics(t *testing.T) {
 			assert.Equal(t, tc.expectedCompactedBackendObjectsTotal, backendMetaMetrics.compactedBlockMetaTotalObjects)
 			assert.Equal(t, tc.expectedBackendBytesTotal, backendMetaMetrics.blockMetaTotalBytes)
 			assert.Equal(t, tc.expectedCompacteddBackendBytesTotal, backendMetaMetrics.compactedBlockMetaTotalBytes)
+			assert.Equal(t, tc.expectedBloomShardsTotal, backendMetaMetrics.blockMetaTotalBloomShards)
+			assert.Equal(t, tc.expectedCompactedBloomShardsTotal, backendMetaMetrics.compactedBlockMetaTotalBloomShards)
 		})
 	}
 }

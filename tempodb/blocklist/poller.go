@@ -77,6 +77,11 @@ var (
 		Name:      "blocklist_tenant_index_age_seconds",
 		Help:      "Age in seconds of the last pulled tenant index.",
 	}, []string{"tenant"})
+	metricBloomShards = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: "tempodb",
+		Name:      "blocklist_bloom_shards_total",
+		Help:      "Total number of bloom filter shard files across all blocks.",
+	}, []string{"tenant", "status"})
 )
 
 // Config is used to configure the poller
@@ -229,12 +234,15 @@ func (p *Poller) Do(parentCtx context.Context, previous *List) (PerTenant, PerTe
 				metricBackendObjects.WithLabelValues(tenantID, blockStatusCompactedLabel).Set(float64(backendMetaMetrics.compactedBlockMetaTotalObjects))
 				metricBackendBytes.WithLabelValues(tenantID, blockStatusLiveLabel).Set(float64(backendMetaMetrics.blockMetaTotalBytes))
 				metricBackendBytes.WithLabelValues(tenantID, blockStatusCompactedLabel).Set(float64(backendMetaMetrics.compactedBlockMetaTotalBytes))
+				metricBloomShards.WithLabelValues(tenantID, blockStatusLiveLabel).Set(float64(backendMetaMetrics.blockMetaTotalBloomShards))
+				metricBloomShards.WithLabelValues(tenantID, blockStatusCompactedLabel).Set(float64(backendMetaMetrics.compactedBlockMetaTotalBloomShards))
 				return
 			}
 			metricBlocklistLength.DeleteLabelValues(tenantID)
 			metricBackendObjects.DeleteLabelValues(tenantID)
 			metricBackendObjects.DeleteLabelValues(tenantID)
 			metricBackendBytes.DeleteLabelValues(tenantID)
+			metricBloomShards.DeleteLabelValues(tenantID)
 		}(tenantID)
 	}
 
@@ -586,10 +594,12 @@ func (p *Poller) deleteTenant(ctx context.Context, tenantID string) error {
 }
 
 type backendMetaMetrics struct {
-	blockMetaTotalObjects          int
-	compactedBlockMetaTotalObjects int
-	blockMetaTotalBytes            uint64
-	compactedBlockMetaTotalBytes   uint64
+	blockMetaTotalObjects              int
+	compactedBlockMetaTotalObjects     int
+	blockMetaTotalBytes                uint64
+	compactedBlockMetaTotalBytes       uint64
+	blockMetaTotalBloomShards          uint64
+	compactedBlockMetaTotalBloomShards uint64
 }
 
 func sumTotalBackendMetaMetrics(
@@ -600,21 +610,27 @@ func sumTotalBackendMetaMetrics(
 	var sumTotalObjectsCBM int
 	var sumTotalBytesBM uint64
 	var sumTotalBytesCBM uint64
+	var sumTotalBloomShardsBM uint64
+	var sumTotalBloomShardsCBM uint64
 
 	for _, bm := range blockMeta {
 		sumTotalObjectsBM += int(bm.TotalObjects)
 		sumTotalBytesBM += bm.Size_
+		sumTotalBloomShardsBM += uint64(bm.BloomShardCount)
 	}
 
 	for _, cbm := range compactedBlockMeta {
 		sumTotalObjectsCBM += int(cbm.TotalObjects)
 		sumTotalBytesCBM += cbm.Size_
+		sumTotalBloomShardsCBM += uint64(cbm.BloomShardCount)
 	}
 
 	return backendMetaMetrics{
-		blockMetaTotalObjects:          sumTotalObjectsBM,
-		compactedBlockMetaTotalObjects: sumTotalObjectsCBM,
-		blockMetaTotalBytes:            sumTotalBytesBM,
-		compactedBlockMetaTotalBytes:   sumTotalBytesCBM,
+		blockMetaTotalObjects:              sumTotalObjectsBM,
+		compactedBlockMetaTotalObjects:     sumTotalObjectsCBM,
+		blockMetaTotalBytes:                sumTotalBytesBM,
+		compactedBlockMetaTotalBytes:       sumTotalBytesCBM,
+		blockMetaTotalBloomShards:          sumTotalBloomShardsBM,
+		compactedBlockMetaTotalBloomShards: sumTotalBloomShardsCBM,
 	}
 }
