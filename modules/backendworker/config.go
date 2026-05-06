@@ -59,6 +59,10 @@ func ValidateConfig(cfg *Config) error {
 		return fmt.Errorf("positive backoff retries required")
 	}
 
+	if err := cfg.Compactor.Validate(); err != nil {
+		return fmt.Errorf("compactor config: %w", err)
+	}
+
 	return nil
 }
 

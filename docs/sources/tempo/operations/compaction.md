@@ -160,12 +160,6 @@ backend_scheduler:
       min_cycle_interval: 30s
 ```
 
-{{< admonition type="note" >}}
-The `backend_worker.compaction` configuration block contains two fields that are not used by the current scheduled compaction path: `max_time_per_tenant` and `compaction_cycle`.
-These fields were used by the ring-based compaction loop, which has been removed.
-They are accepted by the configuration parser but have no effect.
-{{< /admonition >}}
-
 ## See also
 
 - [Polling configuration](../configuration/polling/)

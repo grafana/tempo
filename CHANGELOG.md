@@ -1,5 +1,7 @@
 ## main / unreleased
 
+* [CHANGE] Remove `max_time_per_tenant` and `compaction_cycle` from `CompactorConfig`. These fields were only used by the now-deleted ring-based compaction path. [#6990](https://github.com/grafana/tempo/pull/6990) (@zalegrala)
+
 # v3.0.0-rc.1
 
 * [CHANGE] Stop publishing 32-bit ARM binary archives. Release artifacts continue to include amd64 and arm64 binaries. [#7106](https://github.com/grafana/tempo/pull/7106) (@javiermolinar)

@@ -1905,12 +1905,6 @@ func testingConfig(dir string, version string, dc backend.DedicatedColumns) *Con
 	}
 }
 
-var testingCompactorConfig = &CompactorConfig{
-	MaxCompactionRange:      time.Hour,
-	BlockRetention:          0,
-	CompactedBlockRetention: 0,
-}
-
 func runCompleteBlockSearchTest(t *testing.T, blockVersion string, runners ...runnerFn) {
 	tempDir := t.TempDir()
 
@@ -1921,10 +1915,7 @@ func runCompleteBlockSearchTest(t *testing.T, blockVersion string, runners ...ru
 		{Scope: "span", Name: "span-dedicated.02", Type: "string"},
 		{Scope: "event", Name: "event-dedicated.01", Type: "string"},
 	}
-	r, w, c, err := New(testingConfig(tempDir, blockVersion, dc), nil, log.NewNopLogger())
-	require.NoError(t, err)
-
-	err = c.EnableCompaction(context.Background(), testingCompactorConfig, &mockSharder{}, &mockOverrides{})
+	r, w, _, err := New(testingConfig(tempDir, blockVersion, dc), nil, log.NewNopLogger())
 	require.NoError(t, err)
 
 	ctx := context.Background()
@@ -1991,10 +1982,7 @@ func runEventLinkInstrumentationSearchTest(t *testing.T, blockVersion string) {
 		{Scope: "event", Name: "event-dedicated.01", Type: "string"},
 	}
 
-	r, w, c, err := New(testingConfig(tempDir, blockVersion, dc), nil, log.NewNopLogger())
-	require.NoError(t, err)
-
-	err = c.EnableCompaction(context.Background(), testingCompactorConfig, &mockSharder{}, &mockOverrides{})
+	r, w, _, err := New(testingConfig(tempDir, blockVersion, dc), nil, log.NewNopLogger())
 	require.NoError(t, err)
 
 	ctx := context.Background()
@@ -2474,10 +2462,7 @@ func searchTestSuite() (
 }
 
 func TestSearchForTagsAndTagValues(t *testing.T) {
-	r, w, c, _ := testConfig(t, 0)
-
-	err := c.EnableCompaction(context.Background(), testingCompactorConfig, &mockSharder{}, &mockOverrides{})
-	require.NoError(t, err)
+	r, w, _, _ := testConfig(t, 0)
 
 	r.EnablePolling(context.Background(), &mockJobSharder{}, false)
 
@@ -2632,10 +2617,7 @@ func TestSearchByShortTraceID(t *testing.T) {
 		require.NoError(t, err)
 		traceID = append(make([]byte, 8), traceID...) // adding leading zeros to make it 16 bytes
 
-		r, w, c, err := New(testingConfig(tempDir, blockVersion, nil), nil, log.NewNopLogger())
-		require.NoError(t, err)
-
-		err = c.EnableCompaction(context.Background(), testingCompactorConfig, &mockSharder{}, &mockOverrides{})
+		r, w, _, err := New(testingConfig(tempDir, blockVersion, nil), nil, log.NewNopLogger())
 		require.NoError(t, err)
 
 		ctx := t.Context()
