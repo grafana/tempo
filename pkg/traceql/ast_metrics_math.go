@@ -180,10 +180,20 @@ func applyBinaryOp(op Operator, lhs, rhs SeriesSet) SeriesSet {
 	var offset int
 
 	for k := range target {
-		l, lOk := getTSMatch(lhs, k)
-		r, rOk := getTSMatch(rhs, k)
+		l, lFanOut, lOk := getTSMatch(lhs, k)
+		r, rFanOut, rOk := getTSMatch(rhs, k)
 		if !lOk || !rOk {
 			continue
+		}
+
+		var exemplars []Exemplar
+		switch {
+		case lFanOut == rFanOut: // either both fan-out or both not
+			exemplars = mergeExemplars(l.Exemplars, r.Exemplars)
+		case lFanOut:
+			exemplars = r.Exemplars
+		default:
+			exemplars = l.Exemplars
 		}
 
 		n := min(len(r.Values), len(l.Values))
@@ -195,7 +205,7 @@ func applyBinaryOp(op Operator, lhs, rhs SeriesSet) SeriesSet {
 		result[k] = TimeSeries{
 			Labels:    mergeLabels(op, l.Labels, r.Labels),
 			Values:    values,
-			Exemplars: mergeExemplars(l.Exemplars, r.Exemplars),
+			Exemplars: exemplars,
 		}
 		offset += n
 	}
@@ -246,14 +256,14 @@ func mergeLabels(op Operator, l, r Labels) Labels {
 // getTSMatch looks for a time series in the set matching the given key, or if not found,
 // it looks for a series with no labels (fan-out case) and returns it if found. Returns false if neither is found.
 // TODO: we might need to support prometheus-like on() and group_left()
-func getTSMatch(set SeriesSet, key SeriesMapKey) (TimeSeries, bool) {
+func getTSMatch(set SeriesSet, key SeriesMapKey) (TimeSeries, bool, bool) {
 	if s, ok := set[key]; ok {
-		return s, true
+		return s, false, true
 	}
 	if s, ok := set[noLabelsSeriesMapKey]; ok {
-		return s, true
+		return s, true, true
 	}
-	return TimeSeries{}, false
+	return TimeSeries{}, false, false
 }
 
 func mergeExemplars(a, b []Exemplar) []Exemplar {
