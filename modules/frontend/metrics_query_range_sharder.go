@@ -422,6 +422,9 @@ func hashForQueryRangeRequest(req *tempopb.QueryRangeRequest) uint64 {
 	hash = fnv1a.AddUint64(hash, req.Step)
 	hash = fnv1a.AddUint64(hash, uint64(req.MaxSeries))
 	hash = fnv1a.AddUint64(hash, uint64(req.Exemplars))
+
+	// TODO: once we have IN/NOT IN syntax in TraceQL, we should pass down the optimized query with the
+	//       request and remove req.SkipASTTransformations entirely and skip this step
 	for _, name := range req.SkipASTTransformations {
 		hash = fnv1a.AddString64(hash, name)
 	}

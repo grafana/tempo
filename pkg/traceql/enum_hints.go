@@ -98,6 +98,8 @@ func (h *Hints) GetStringSlice(k string, allowUnsafe bool) (v []string, ok bool)
 		return
 	}
 
+	// currently the syntax for array values in hints is `with(hintname=v1,v2,v3)` once we have actual
+	// array syntax in the language, we use arrays here and change the syntax to `with(hintname=[v1,v2,v3])`
 	ss := strings.Split(s.EncodeToString(false), ",")
 	return ss, true
 }
