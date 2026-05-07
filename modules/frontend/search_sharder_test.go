@@ -141,7 +141,7 @@ func TestBuildBackendRequests(t *testing.T) {
 				},
 			},
 			expectedURIs: []string{
-				"/querier?blockID=00000000-0000-0000-0000-000000000000&encoding=none&end=20&footerSize=0&indexPageSize=13&k=test&pagesToSearch=100&size=1000&start=10&startPage=0&totalRecords=100&v=test&version=glarg",
+				"/querier?blockID=00000000-0000-0000-0000-000000000000&encoding=none&end=20&footerSize=0&indexPageSize=13&pagesToSearch=100&size=1000&spss=3&start=10&startPage=0&totalRecords=100&version=glarg",
 			},
 		},
 		// meta.json with dedicated columns
@@ -160,7 +160,7 @@ func TestBuildBackendRequests(t *testing.T) {
 				},
 			},
 			expectedURIs: []string{
-				"/querier?blockID=00000000-0000-0000-0000-000000000000&dc=%5B%7B%22name%22%3A%22net.sock.host.addr%22%7D%5D&encoding=none&end=20&footerSize=0&indexPageSize=13&k=test&pagesToSearch=10&size=1000&start=10&startPage=0&totalRecords=10&v=test&version=vParquet3",
+				"/querier?blockID=00000000-0000-0000-0000-000000000000&dc=%5B%7B%22name%22%3A%22net.sock.host.addr%22%7D%5D&encoding=none&end=20&footerSize=0&indexPageSize=13&pagesToSearch=10&size=1000&spss=3&start=10&startPage=0&totalRecords=10&version=vParquet3",
 			},
 		},
 		// bytes/per request is too small for the page size
@@ -174,9 +174,9 @@ func TestBuildBackendRequests(t *testing.T) {
 				},
 			},
 			expectedURIs: []string{
-				"/querier?blockID=00000000-0000-0000-0000-000000000000&encoding=none&end=20&footerSize=0&indexPageSize=0&k=test&pagesToSearch=1&size=1000&start=10&startPage=0&totalRecords=3&v=test&version=",
-				"/querier?blockID=00000000-0000-0000-0000-000000000000&encoding=none&end=20&footerSize=0&indexPageSize=0&k=test&pagesToSearch=1&size=1000&start=10&startPage=1&totalRecords=3&v=test&version=",
-				"/querier?blockID=00000000-0000-0000-0000-000000000000&encoding=none&end=20&footerSize=0&indexPageSize=0&k=test&pagesToSearch=1&size=1000&start=10&startPage=2&totalRecords=3&v=test&version=",
+				"/querier?blockID=00000000-0000-0000-0000-000000000000&encoding=none&end=20&footerSize=0&indexPageSize=0&pagesToSearch=1&size=1000&spss=3&start=10&startPage=0&totalRecords=3&version=",
+				"/querier?blockID=00000000-0000-0000-0000-000000000000&encoding=none&end=20&footerSize=0&indexPageSize=0&pagesToSearch=1&size=1000&spss=3&start=10&startPage=1&totalRecords=3&version=",
+				"/querier?blockID=00000000-0000-0000-0000-000000000000&encoding=none&end=20&footerSize=0&indexPageSize=0&pagesToSearch=1&size=1000&spss=3&start=10&startPage=2&totalRecords=3&version=",
 			},
 		},
 		// 100 pages, 10 bytes per page, 1k allowed per request
@@ -190,7 +190,7 @@ func TestBuildBackendRequests(t *testing.T) {
 				},
 			},
 			expectedURIs: []string{
-				"/querier?blockID=00000000-0000-0000-0000-000000000000&encoding=none&end=20&footerSize=0&indexPageSize=0&k=test&pagesToSearch=100&size=1000&start=10&startPage=0&totalRecords=100&v=test&version=",
+				"/querier?blockID=00000000-0000-0000-0000-000000000000&encoding=none&end=20&footerSize=0&indexPageSize=0&pagesToSearch=100&size=1000&spss=3&start=10&startPage=0&totalRecords=100&version=",
 			},
 		},
 		// 100 pages, 10 bytes per page, 900 allowed per request
@@ -204,8 +204,8 @@ func TestBuildBackendRequests(t *testing.T) {
 				},
 			},
 			expectedURIs: []string{
-				"/querier?blockID=00000000-0000-0000-0000-000000000000&encoding=none&end=20&footerSize=0&indexPageSize=0&k=test&pagesToSearch=90&size=1000&start=10&startPage=0&totalRecords=100&v=test&version=",
-				"/querier?blockID=00000000-0000-0000-0000-000000000000&encoding=none&end=20&footerSize=0&indexPageSize=0&k=test&pagesToSearch=90&size=1000&start=10&startPage=90&totalRecords=100&v=test&version=",
+				"/querier?blockID=00000000-0000-0000-0000-000000000000&encoding=none&end=20&footerSize=0&indexPageSize=0&pagesToSearch=90&size=1000&spss=3&start=10&startPage=0&totalRecords=100&version=",
+				"/querier?blockID=00000000-0000-0000-0000-000000000000&encoding=none&end=20&footerSize=0&indexPageSize=0&pagesToSearch=90&size=1000&spss=3&start=10&startPage=90&totalRecords=100&version=",
 			},
 		},
 		// two blocks
@@ -224,10 +224,10 @@ func TestBuildBackendRequests(t *testing.T) {
 				},
 			},
 			expectedURIs: []string{
-				"/querier?blockID=00000000-0000-0000-0000-000000000000&encoding=none&end=20&footerSize=0&indexPageSize=0&k=test&pagesToSearch=90&size=1000&start=10&startPage=0&totalRecords=100&v=test&version=",
-				"/querier?blockID=00000000-0000-0000-0000-000000000000&encoding=none&end=20&footerSize=0&indexPageSize=0&k=test&pagesToSearch=90&size=1000&start=10&startPage=90&totalRecords=100&v=test&version=",
-				"/querier?blockID=00000000-0000-0000-0000-000000000001&encoding=none&end=20&footerSize=0&indexPageSize=0&k=test&pagesToSearch=180&size=1000&start=10&startPage=0&totalRecords=200&v=test&version=",
-				"/querier?blockID=00000000-0000-0000-0000-000000000001&encoding=none&end=20&footerSize=0&indexPageSize=0&k=test&pagesToSearch=180&size=1000&start=10&startPage=180&totalRecords=200&v=test&version=",
+				"/querier?blockID=00000000-0000-0000-0000-000000000000&encoding=none&end=20&footerSize=0&indexPageSize=0&pagesToSearch=90&size=1000&spss=3&start=10&startPage=0&totalRecords=100&version=",
+				"/querier?blockID=00000000-0000-0000-0000-000000000000&encoding=none&end=20&footerSize=0&indexPageSize=0&pagesToSearch=90&size=1000&spss=3&start=10&startPage=90&totalRecords=100&version=",
+				"/querier?blockID=00000000-0000-0000-0000-000000000001&encoding=none&end=20&footerSize=0&indexPageSize=0&pagesToSearch=180&size=1000&spss=3&start=10&startPage=0&totalRecords=200&version=",
+				"/querier?blockID=00000000-0000-0000-0000-000000000001&encoding=none&end=20&footerSize=0&indexPageSize=0&pagesToSearch=180&size=1000&spss=3&start=10&startPage=180&totalRecords=200&version=",
 			},
 		},
 	}
@@ -407,8 +407,8 @@ func TestBackendRequests(t *testing.T) {
 			name:    "start and end same as block",
 			request: "/?tags=foo%3Dbar&minDuration=10ms&maxDuration=30ms&limit=50&start=100&end=200",
 			expectedReqsURIs: []string{
-				"/querier?blockID=" + bm.BlockID.String() + "&encoding=none&end=200&footerSize=0&indexPageSize=0&limit=50&maxDuration=30ms&minDuration=10ms&pagesToSearch=1&size=209715200&start=100&startPage=0&tags=foo%3Dbar&totalRecords=2&version=wdwad",
-				"/querier?blockID=" + bm.BlockID.String() + "&encoding=none&end=200&footerSize=0&indexPageSize=0&limit=50&maxDuration=30ms&minDuration=10ms&pagesToSearch=1&size=209715200&start=100&startPage=1&tags=foo%3Dbar&totalRecords=2&version=wdwad",
+				"/querier?blockID=" + bm.BlockID.String() + "&encoding=none&end=200&footerSize=0&indexPageSize=0&limit=50&maxDuration=30ms&minDuration=10ms&pagesToSearch=1&size=209715200&spss=3&start=100&startPage=0&tags=foo%3Dbar&totalRecords=2&version=wdwad",
+				"/querier?blockID=" + bm.BlockID.String() + "&encoding=none&end=200&footerSize=0&indexPageSize=0&limit=50&maxDuration=30ms&minDuration=10ms&pagesToSearch=1&size=209715200&spss=3&start=100&startPage=1&tags=foo%3Dbar&totalRecords=2&version=wdwad",
 			},
 			expectedJobs:       2,
 			expectedBlocks:     1,
@@ -418,8 +418,19 @@ func TestBackendRequests(t *testing.T) {
 			name:    "start and end in block",
 			request: "/?tags=foo%3Dbar&minDuration=10ms&maxDuration=30ms&limit=50&start=110&end=150",
 			expectedReqsURIs: []string{
-				"/querier?blockID=" + bm.BlockID.String() + "&encoding=none&end=150&footerSize=0&indexPageSize=0&limit=50&maxDuration=30ms&minDuration=10ms&pagesToSearch=1&size=209715200&start=110&startPage=0&tags=foo%3Dbar&totalRecords=2&version=wdwad",
-				"/querier?blockID=" + bm.BlockID.String() + "&encoding=none&end=150&footerSize=0&indexPageSize=0&limit=50&maxDuration=30ms&minDuration=10ms&pagesToSearch=1&size=209715200&start=110&startPage=1&tags=foo%3Dbar&totalRecords=2&version=wdwad",
+				"/querier?blockID=" + bm.BlockID.String() + "&encoding=none&end=150&footerSize=0&indexPageSize=0&limit=50&maxDuration=30ms&minDuration=10ms&pagesToSearch=1&size=209715200&spss=3&start=110&startPage=0&tags=foo%3Dbar&totalRecords=2&version=wdwad",
+				"/querier?blockID=" + bm.BlockID.String() + "&encoding=none&end=150&footerSize=0&indexPageSize=0&limit=50&maxDuration=30ms&minDuration=10ms&pagesToSearch=1&size=209715200&spss=3&start=110&startPage=1&tags=foo%3Dbar&totalRecords=2&version=wdwad",
+			},
+			expectedJobs:       2,
+			expectedBlocks:     1,
+			expectedBlockBytes: defaultTargetBytesPerRequest * 2,
+		},
+		{
+			name:    "skip_ast_transformations propagated to backend block requests",
+			request: "/?start=100&end=200&skip_ast_transformations=or_to_in",
+			expectedReqsURIs: []string{
+				"/querier?blockID=" + bm.BlockID.String() + "&encoding=none&end=200&footerSize=0&indexPageSize=0&pagesToSearch=1&size=209715200&skip_ast_transformations=or_to_in&spss=3&start=100&startPage=0&totalRecords=2&version=wdwad",
+				"/querier?blockID=" + bm.BlockID.String() + "&encoding=none&end=200&footerSize=0&indexPageSize=0&pagesToSearch=1&size=209715200&skip_ast_transformations=or_to_in&spss=3&start=100&startPage=1&totalRecords=2&version=wdwad",
 			},
 			expectedJobs:       2,
 			expectedBlocks:     1,
@@ -828,7 +839,7 @@ func TestTotalJobsIncludesIngester(t *testing.T) {
 		TargetBytesPerRequest: defaultTargetBytesPerRequest,
 		MostRecentShards:      defaultMostRecentShards,
 		IngesterShards:        1,
-	}, newJobsPerQueryHistogram(), log.NewNopLogger())
+	}, nil, newJobsPerQueryHistogram(), log.NewNopLogger())
 	testRT := sharder.Wrap(next)
 
 	// query range straddles the QueryBackendAfter boundary so both backend and ingester are queried
@@ -875,7 +886,7 @@ func TestSearchSharderRoundTripBadRequest(t *testing.T) {
 		MostRecentShards:      defaultMostRecentShards,
 		MaxDuration:           5 * time.Minute,
 		MaxSpansPerSpanSet:    100,
-	}, newJobsPerQueryHistogram(), log.NewNopLogger())
+	}, nil, newJobsPerQueryHistogram(), log.NewNopLogger())
 	testRT := sharder.Wrap(next)
 
 	// no org id
@@ -915,7 +926,7 @@ func TestSearchSharderRoundTripBadRequest(t *testing.T) {
 		TargetBytesPerRequest: defaultTargetBytesPerRequest,
 		MostRecentShards:      defaultMostRecentShards,
 		MaxDuration:           5 * time.Minute,
-	}, newJobsPerQueryHistogram(), log.NewNopLogger())
+	}, nil, newJobsPerQueryHistogram(), log.NewNopLogger())
 	testRT = sharder.Wrap(next)
 
 	req = httptest.NewRequest("GET", "/?start=1000&end=1500", nil)
@@ -1223,7 +1234,7 @@ func TestSearchSharderReturnsConsistentShards(t *testing.T) {
 				MostRecentShards:      mostRecentShards,
 				TargetBytesPerRequest: defaultTargetBytesPerRequest,
 				ConcurrentRequests:    5,
-			}, newJobsPerQueryHistogram(), log.NewNopLogger())
+			}, nil, newJobsPerQueryHistogram(), log.NewNopLogger())
 
 			// Create request with the test scenario time range
 			path := fmt.Sprintf("/?tags=service%%3Dapi&limit=100&start=%d&end=%d",
@@ -1368,7 +1379,7 @@ func TestDefaultSpansPerSpanSet(t *testing.T) {
 				TargetBytesPerRequest:  defaultTargetBytesPerRequest,
 				DefaultSpansPerSpanSet: tc.configDefault,
 				MaxSpansPerSpanSet:     tc.maxSpansPerSpanSet,
-			}, newJobsPerQueryHistogram(), log.NewNopLogger())
+			}, nil, newJobsPerQueryHistogram(), log.NewNopLogger())
 			testRT := sharder.Wrap(next)
 
 			// Build request URL
@@ -1393,6 +1404,92 @@ func TestDefaultSpansPerSpanSet(t *testing.T) {
 			}
 
 			assert.Equal(t, tc.expectedSpss, capturedSpss, "spss value mismatch")
+		})
+	}
+}
+
+// TestSkipASTTransformationsMerge verifies that the per-request skip_ast_transformations
+// URL parameter is merged with the global config list rather than overwritten by it.
+func TestSkipASTTransformationsMerge(t *testing.T) {
+	tests := []struct {
+		name         string
+		globalSkip   []string
+		requestSkip  string // URL param value; empty means param is absent
+		expectedSkip []string
+	}{
+		{
+			name:         "global config only",
+			globalSkip:   []string{"global_skip"},
+			requestSkip:  "",
+			expectedSkip: []string{"global_skip"},
+		},
+		{
+			name:         "per-request only",
+			globalSkip:   nil,
+			requestSkip:  "per_req_skip",
+			expectedSkip: []string{"per_req_skip"},
+		},
+		{
+			name:         "merge global and per-request",
+			globalSkip:   []string{"global_skip"},
+			requestSkip:  "per_req_skip",
+			expectedSkip: []string{"global_skip", "per_req_skip"},
+		},
+		{
+			name:         "duplicated entries",
+			globalSkip:   []string{"or_to_in"},
+			requestSkip:  "or_to_in",
+			expectedSkip: []string{"or_to_in"},
+		},
+		{
+			name:         "neither",
+			globalSkip:   nil,
+			requestSkip:  "",
+			expectedSkip: nil,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			var capturedSkip []string
+
+			next := pipeline.AsyncRoundTripperFunc[combiner.PipelineResponse](func(r pipeline.Request) (pipeline.Responses[combiner.PipelineResponse], error) {
+				req, err := api.ParseSearchRequest(r.HTTPRequest())
+				if err == nil {
+					capturedSkip = req.SkipASTTransformations
+				}
+				return pipeline.NewAsyncResponse(nil), nil
+			})
+
+			o, err := overrides.NewOverrides(overrides.Config{}, nil, prometheus.DefaultRegisterer)
+			require.NoError(t, err)
+
+			sharder := newAsyncSearchSharder(&mockReader{}, o, SearchSharderConfig{
+				ConcurrentRequests:    defaultConcurrentRequests,
+				TargetBytesPerRequest: defaultTargetBytesPerRequest,
+			}, tc.globalSkip, newJobsPerQueryHistogram(), log.NewNopLogger())
+			testRT := sharder.Wrap(next)
+
+			urlPath := "/"
+			if tc.requestSkip != "" {
+				urlPath = "/?skip_ast_transformations=" + tc.requestSkip
+			}
+
+			req := httptest.NewRequest("GET", urlPath, nil)
+			req = req.WithContext(user.InjectOrgID(req.Context(), "test-tenant"))
+
+			resps, err := testRT.RoundTrip(pipeline.NewHTTPRequest(req))
+			require.NoError(t, err)
+
+			for {
+				_, done, err := resps.Next(context.Background())
+				require.NoError(t, err)
+				if done {
+					break
+				}
+			}
+
+			assert.Equal(t, tc.expectedSkip, capturedSkip, "skip_ast_transformations mismatch")
 		})
 	}
 }

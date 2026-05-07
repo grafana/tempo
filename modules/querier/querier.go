@@ -654,7 +654,14 @@ func (q *Querier) SearchBlock(ctx context.Context, req *tempopb.SearchBlockReque
 			},
 		)
 
-		return q.engine.ExecuteSearch(ctx, req.SearchReq, fetcher, q.limits.UnsafeQueryHints(tenantID))
+		var compileOpts []traceql.CompileOption
+		if q.limits.UnsafeQueryHints(tenantID) {
+			compileOpts = append(compileOpts, traceql.WithUnsafeHints(true))
+		}
+		for _, name := range req.SearchReq.SkipASTTransformations {
+			compileOpts = append(compileOpts, traceql.WithSkipOptimization(name))
+		}
+		return q.engine.ExecuteSearch(ctx, req.SearchReq, fetcher, compileOpts...)
 	}
 
 	return q.store.Search(ctx, meta, req.SearchReq, opts)

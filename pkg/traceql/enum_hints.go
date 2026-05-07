@@ -1,32 +1,33 @@
 package traceql
 
 import (
+	"strings"
 	"time"
 )
 
 // The list of all traceql query hints.  Although most of these are implementation-specific
 // and not part of the language or engine, we organize them here in one place.
 const (
-	HintSample            = "sample"
-	HintTraceSample       = "trace_sample"
-	HintSpanSample        = "span_sample"
-	HintJobSize           = "job_size"
-	HintTimeOverlapCutoff = "time_overlap_cutoff"
-	HintConcurrentBlocks  = "concurrent_blocks"
-	HintExemplars         = "exemplars"
-	HintMostRecent        = "most_recent" // traceql search hint to return most recent results ordered by time
-	HintDebug             = "debug"
-	HintInfo              = "info"
-	HintDebugReturnIn     = "debug_return_in"   // performance testing hint to simulate query latency and return fake data
-	HintDebugStdDev       = "debug_std_dev"     // standard deviation for debug_return_in latency simulation
-	HintDebugDataFactor   = "debug_data_factor" // performance testing hint to control the possibility of non-empty fake data
-	HintSkipOptimization  = "skip_optimization" // don't apply AST optimizations
-	HintNewFetch          = "spanonly_fetch"    // metrics: new fetch layer (only in vParquet5)
+	HintSample                 = "sample"
+	HintTraceSample            = "trace_sample"
+	HintSpanSample             = "span_sample"
+	HintJobSize                = "job_size"
+	HintTimeOverlapCutoff      = "time_overlap_cutoff"
+	HintConcurrentBlocks       = "concurrent_blocks"
+	HintExemplars              = "exemplars"
+	HintMostRecent             = "most_recent" // traceql search hint to return most recent results ordered by time
+	HintDebug                  = "debug"
+	HintInfo                   = "info"
+	HintDebugReturnIn          = "debug_return_in"          // performance testing hint to simulate query latency and return fake data
+	HintDebugStdDev            = "debug_std_dev"            // standard deviation for debug_return_in latency simulation
+	HintDebugDataFactor        = "debug_data_factor"        // performance testing hint to control the possibility of non-empty fake data
+	HintSkipASTTransformations = "skip_ast_transformations" // list of AST transformation names to skip; unsafe hint
+	HintNewFetch               = "spanonly_fetch"           // metrics: new fetch layer (only in vParquet5)
 )
 
 func isUnsafe(h string) bool {
 	switch h {
-	case HintSample, HintTraceSample, HintSpanSample, HintExemplars, HintMostRecent, HintSkipOptimization:
+	case HintSample, HintTraceSample, HintSpanSample, HintExemplars, HintMostRecent:
 		return false
 	default:
 		return true
@@ -89,6 +90,18 @@ func (h *Hints) GetBool(k string, allowUnsafe bool) (v, ok bool) {
 	}
 
 	return
+}
+
+func (h *Hints) GetStringSlice(k string, allowUnsafe bool) (v []string, ok bool) {
+	s, ok := h.Get(k, TypeString, allowUnsafe)
+	if !ok {
+		return
+	}
+
+	// currently the syntax for array values in hints is `with(hintname=v1,v2,v3)` once we have actual
+	// array syntax in the language, we use arrays here and change the syntax to `with(hintname=[v1,v2,v3])`
+	ss := strings.Split(s.EncodeToString(false), ",")
+	return ss, true
 }
 
 func (h *Hints) Get(k string, t StaticType, allowUnsafe bool) (v Static, ok bool) {

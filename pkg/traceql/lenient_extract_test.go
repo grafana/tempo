@@ -279,7 +279,7 @@ func TestFlattenExprToOperations(t *testing.T) {
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			expr, err := ParseWithOptimizationOption(tc.query, false)
+			expr, err := ParseNoOptimizations(tc.query)
 			assert.NoError(t, err)
 
 			operations := flattenExprToOperations(expr.Pipeline.Elements[0].(*SpansetFilter).Expression, OpNone)

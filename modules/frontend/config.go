@@ -46,6 +46,10 @@ type Config struct {
 
 	// QueryEndCutoff prevents querying incomplete recent data.
 	QueryEndCutoff time.Duration `yaml:"query_end_cutoff,omitempty"`
+
+	// SkipASTTransformations is a list of AST transformation names to disable globally.
+	// Valid names: "or_to_in". Use "all" to disable all transformations.
+	SkipASTTransformations []string `yaml:"skip_ast_transformations,omitempty"`
 }
 
 type MCPServerConfig struct {

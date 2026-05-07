@@ -1103,7 +1103,7 @@ func BenchmarkBackendBlockTraceQL(b *testing.B) {
 			for i := 0; i < b.N; i++ {
 				e := traceql.NewEngine()
 
-				resp, err := e.ExecuteSearch(ctx, &tempopb.SearchRequest{Query: tc.query}, f, false)
+				resp, err := e.ExecuteSearch(ctx, &tempopb.SearchRequest{Query: tc.query}, f)
 				require.NoError(b, err)
 				require.NotNil(b, resp)
 

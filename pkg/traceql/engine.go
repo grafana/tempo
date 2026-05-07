@@ -27,8 +27,9 @@ func NewEngine() *Engine {
 	return &Engine{}
 }
 
-func Compile(query string) (*RootExpr, SpansetFilterFunc, firstStageElement, secondStageElement, *FetchSpansRequest, error) {
-	expr, err := Parse(query)
+// Compile parses and compiles a TraceQL query. Options specific to metrics queries are ignored.
+func Compile(query string, opts ...CompileOption) (*RootExpr, SpansetFilterFunc, firstStageElement, secondStageElement, *FetchSpansRequest, error) {
+	expr, err := Parse(query, opts...)
 	if err != nil {
 		return nil, nil, nil, nil, nil, err
 	}
@@ -46,32 +47,34 @@ func Compile(query string) (*RootExpr, SpansetFilterFunc, firstStageElement, sec
 	return expr, expr.Pipeline.evaluate, expr.MetricsPipeline, expr.MetricsSecondStage, req, nil
 }
 
-func (e *Engine) ExecuteSearch(ctx context.Context, searchReq *tempopb.SearchRequest, fetcher SpansetFetcher, allowUnsafeQueryHints bool) (*tempopb.SearchResponse, error) {
+// ExecuteSearch executes a search query. Options control AST optimization and hint behavior.
+func (e *Engine) ExecuteSearch(ctx context.Context, searchReq *tempopb.SearchRequest, fetcher SpansetFetcher, opts ...CompileOption) (*tempopb.SearchResponse, error) {
 	ctx, span := tracer.Start(ctx, "traceql.Engine.ExecuteSearch")
 	defer span.End()
 
-	rootExpr, _, _, _, fetchSpansRequest, err := Compile(searchReq.Query)
+	cfg := applyCompileOptions(opts...)
+	rootExpr, _, _, _, fetchSpansRequest, err := Compile(searchReq.Query, opts...)
 	if err != nil {
 		return nil, err
 	}
 
 	// Check for performance testing hints
-	if returnIn, ok := rootExpr.Hints.GetDuration(HintDebugReturnIn, allowUnsafeQueryHints); ok {
+	if returnIn, ok := rootExpr.Hints.GetDuration(HintDebugReturnIn, cfg.allowUnsafeHints); ok {
 		var stdDev time.Duration
-		if stdDevDuration, ok := rootExpr.Hints.GetDuration(HintDebugStdDev, allowUnsafeQueryHints); ok {
+		if stdDevDuration, ok := rootExpr.Hints.GetDuration(HintDebugStdDev, cfg.allowUnsafeHints); ok {
 			stdDev = stdDevDuration
 		}
 		simulateLatency(returnIn, stdDev)
 
 		var probability float64
-		if p, ok := rootExpr.Hints.GetFloat(HintDebugDataFactor, allowUnsafeQueryHints); ok {
+		if p, ok := rootExpr.Hints.GetFloat(HintDebugDataFactor, cfg.allowUnsafeHints); ok {
 			probability = p
 		}
 		return generateFakeSearchResponse(probability), nil
 	}
 
 	var mostRecent, ok bool
-	if mostRecent, ok = rootExpr.Hints.GetBool(HintMostRecent, allowUnsafeQueryHints); !ok {
+	if mostRecent, ok = rootExpr.Hints.GetBool(HintMostRecent, cfg.allowUnsafeHints); !ok {
 		mostRecent = false
 	}
 

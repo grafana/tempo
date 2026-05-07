@@ -1990,15 +1990,15 @@ func TestParseRewrites(t *testing.T) {
 			want:  "{ .attr MATCH NONE [`foo`, `bar`] }",
 		},
 		{
-			name:  "skip rewrites hint",
-			query: "{ .attr = `foo` || .attr = `bar` } | rate() with(skip_optimization=true)",
-			want:  "{ (.attr = `foo`) || (.attr = `bar`) } | rate() with(skip_optimization=true)",
+			name:  "skip rewrites via unsafe hint",
+			query: "{ .attr = `foo` || .attr = `bar` } | rate() with(skip_ast_transformations=`or_to_in`)",
+			want:  "{ (.attr = `foo`) || (.attr = `bar`) } | rate() with(skip_ast_transformations=`or_to_in`)",
 		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			actual, err := Parse(tc.query)
+			actual, err := Parse(tc.query, WithUnsafeHints(true))
 			require.NoError(t, err)
 			require.Equal(t, tc.want, actual.String())
 		})
