@@ -107,7 +107,7 @@ func (c weightRequestWare) setTraceQLWeight(req Request) {
 	// This will deliver an accurate weight for most queries but also has two caveats:
 	// - Does not respect the users unsafe_query_hints option (most users can't skip optimizations, but they can affect the weight calculation)
 	// - Does not take query_frontend.skip_ast_transformations into account (which is likely not set anyway)
-	rootExpr, _, _, _, spanRequest, err := traceql.Compile(traceQLQuery)
+	rootExpr, _, _, _, spanRequest, err := traceql.Compile(traceQLQuery, traceql.WithUnsafeHints(true))
 	if err != nil || spanRequest == nil {
 		return
 	}
