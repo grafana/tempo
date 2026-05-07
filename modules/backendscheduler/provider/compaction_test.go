@@ -253,7 +253,9 @@ func TestCompactionProvider_SkipsAllCompactionDuringRedaction(t *testing.T) {
 		TenantId: testTenant,
 	}))
 
-	limits, err := overrides.NewOverrides(overrides.Config{Defaults: overrides.Overrides{}}, nil, prometheus.DefaultRegisterer)
+	overridesCfg := overrides.Config{}
+	overridesCfg.RegisterFlagsAndApplyDefaults(&flag.FlagSet{})
+	limits, err := overrides.NewOverrides(overridesCfg, nil, prometheus.DefaultRegisterer)
 	require.NoError(t, err)
 
 	p := NewCompactionProvider(

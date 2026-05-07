@@ -354,7 +354,9 @@ func TestSubmitRedactionValidation(t *testing.T) {
 		store.Shutdown()
 	}()
 
-	limits, err := overrides.NewOverrides(overrides.Config{Defaults: overrides.Overrides{}}, nil, prometheus.NewRegistry())
+	overridesCfg := overrides.Config{}
+	overridesCfg.RegisterFlagsAndApplyDefaults(&flag.FlagSet{})
+	limits, err := overrides.NewOverrides(overridesCfg, nil, prometheus.NewRegistry())
 	require.NoError(t, err)
 
 	s, err := New(cfg, store, limits, rr, ww)
@@ -425,7 +427,9 @@ func TestSubmitRedactionAndRescan(t *testing.T) {
 		store.Shutdown()
 	}()
 
-	limits, err := overrides.NewOverrides(overrides.Config{Defaults: overrides.Overrides{}}, nil, prometheus.NewRegistry())
+	overridesCfg := overrides.Config{}
+	overridesCfg.RegisterFlagsAndApplyDefaults(&flag.FlagSet{})
+	limits, err := overrides.NewOverrides(overridesCfg, nil, prometheus.NewRegistry())
 	require.NoError(t, err)
 
 	testTenant := "tenant-redact"
@@ -528,7 +532,9 @@ func TestRescanSkipsRunningJob(t *testing.T) {
 		store.Shutdown()
 	}()
 
-	limits, err := overrides.NewOverrides(overrides.Config{Defaults: overrides.Overrides{}}, nil, prometheus.NewRegistry())
+	overridesCfg := overrides.Config{}
+	overridesCfg.RegisterFlagsAndApplyDefaults(&flag.FlagSet{})
+	limits, err := overrides.NewOverrides(overridesCfg, nil, prometheus.NewRegistry())
 	require.NoError(t, err)
 
 	testTenant := "tenant-rescan-running"

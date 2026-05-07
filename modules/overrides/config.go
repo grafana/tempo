@@ -190,7 +190,7 @@ type MetricsGeneratorOverrides struct {
 	// DisableCollection disables a registry collection without disabling ingestion (default: false)
 	DisableCollection *bool `yaml:"disable_collection,omitempty" json:"disable_collection,omitempty"`
 	// GenerateNativeHistograms controls native histogram generation; "" means classic only (default: classic)
-	GenerateNativeHistograms histograms.HistogramMethod `yaml:"generate_native_histograms" json:"generate_native_histograms,omitempty"`
+	GenerateNativeHistograms histograms.HistogramMethod `yaml:"generate_native_histograms,omitempty" json:"generate_native_histograms,omitempty"`
 	// TraceIDLabelName is the label name for trace ID in exemplars (default: "traceID")
 	TraceIDLabelName string `yaml:"trace_id_label_name,omitempty" json:"trace_id_label_name,omitempty"`
 
@@ -200,7 +200,7 @@ type MetricsGeneratorOverrides struct {
 	Forwarder ForwarderOverrides `yaml:"forwarder,omitempty" json:"forwarder,omitempty"`
 	Processor ProcessorOverrides `yaml:"processor,omitempty" json:"processor,omitempty"`
 	// IngestionSlack filters out spans older than this duration; 0 uses the static config default (default: 0)
-	IngestionSlack *time.Duration `yaml:"ingestion_time_range_slack" json:"ingestion_time_range_slack,omitempty"`
+	IngestionSlack *time.Duration `yaml:"ingestion_time_range_slack,omitempty" json:"ingestion_time_range_slack,omitempty"`
 
 	// NativeHistogramBucketFactor is the growth factor between native histogram buckets (default: 1.1)
 	NativeHistogramBucketFactor *float64 `yaml:"native_histogram_bucket_factor,omitempty" json:"native_histogram_bucket_factor,omitempty"`
