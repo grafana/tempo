@@ -98,8 +98,8 @@ func TestConfig_DefaultIngestionLimits(t *testing.T) {
 	cfg := Config{}
 	cfg.RegisterFlagsAndApplyDefaults(flag.NewFlagSet("test", flag.ContinueOnError))
 
-	assert.Equal(t, 30_000_000, cfg.Defaults.Ingestion.RateLimitBytes)
-	assert.Equal(t, 30_000_000, cfg.Defaults.Ingestion.BurstSizeBytes)
+	assert.Equal(t, 30_000_000, *cfg.Defaults.Ingestion.RateLimitBytes)
+	assert.Equal(t, 30_000_000, *cfg.Defaults.Ingestion.BurstSizeBytes)
 }
 
 func TestConfig_legacy(t *testing.T) {
@@ -474,7 +474,7 @@ func generateTestLegacyOverrides() LegacyOverrides {
 		MaxMetricsDuration:   ptrTo(model.Duration(30 * time.Minute)),
 		UnsafeQueryHints:     ptrTo(true),
 		LeftPadTraceIDs:      ptrTo(true),
-		MetricsSpanOnlyFetch: boolPtr(true),
+		MetricsSpanOnlyFetch: ptrTo(true),
 
 		MaxBytesPerTrace: ptrTo(10 * 1024 * 1024),
 

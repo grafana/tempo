@@ -28,6 +28,7 @@ func (base *Overrides) Merge(other *Overrides) *Overrides {
 		Compaction:       base.Compaction.Merge(&other.Compaction),
 		Storage:          base.Storage.Merge(&other.Storage),
 		CostAttribution:  base.CostAttribution.Merge(&other.CostAttribution),
+		Extensions:       mergeMap(base.Extensions, other.Extensions),
 	}
 
 	return &result
@@ -54,13 +55,19 @@ func (base *IngestionOverrides) Merge(other *IngestionOverrides) IngestionOverri
 }
 
 func (base *ReadOverrides) Merge(other *ReadOverrides) ReadOverrides {
+	maxConditionGroups := base.MaxConditionGroupsPerTagQuery
+	if other.MaxConditionGroupsPerTagQuery != 0 {
+		maxConditionGroups = other.MaxConditionGroupsPerTagQuery
+	}
 	return ReadOverrides{
-		MaxBytesPerTagValuesQuery:  mergePtr(base.MaxBytesPerTagValuesQuery, other.MaxBytesPerTagValuesQuery),
-		MaxBlocksPerTagValuesQuery: mergePtr(base.MaxBlocksPerTagValuesQuery, other.MaxBlocksPerTagValuesQuery),
-		MaxSearchDuration:          mergePtr(base.MaxSearchDuration, other.MaxSearchDuration),
-		MaxMetricsDuration:         mergePtr(base.MaxMetricsDuration, other.MaxMetricsDuration),
-		UnsafeQueryHints:           mergePtr(base.UnsafeQueryHints, other.UnsafeQueryHints),
-		LeftPadTraceIDs:            mergePtr(base.LeftPadTraceIDs, other.LeftPadTraceIDs),
+		MaxBytesPerTagValuesQuery:     mergePtr(base.MaxBytesPerTagValuesQuery, other.MaxBytesPerTagValuesQuery),
+		MaxBlocksPerTagValuesQuery:    mergePtr(base.MaxBlocksPerTagValuesQuery, other.MaxBlocksPerTagValuesQuery),
+		MaxConditionGroupsPerTagQuery: maxConditionGroups,
+		MaxSearchDuration:             mergePtr(base.MaxSearchDuration, other.MaxSearchDuration),
+		MaxMetricsDuration:            mergePtr(base.MaxMetricsDuration, other.MaxMetricsDuration),
+		UnsafeQueryHints:              mergePtr(base.UnsafeQueryHints, other.UnsafeQueryHints),
+		LeftPadTraceIDs:               mergePtr(base.LeftPadTraceIDs, other.LeftPadTraceIDs),
+		MetricsSpanOnlyFetch:          mergePtr(base.MetricsSpanOnlyFetch, other.MetricsSpanOnlyFetch),
 	}
 }
 
@@ -135,20 +142,22 @@ func (base *ServiceGraphsOverrides) Merge(other *ServiceGraphsOverrides) Service
 		EnableMessagingSystemLatencyHistogram: mergePtr(base.EnableMessagingSystemLatencyHistogram, other.EnableMessagingSystemLatencyHistogram),
 		EnableVirtualNodeLabel:                mergePtr(base.EnableVirtualNodeLabel, other.EnableVirtualNodeLabel),
 		SpanMultiplierKey:                     mergePtr(base.SpanMultiplierKey, other.SpanMultiplierKey),
+		EnableTraceStateSpanMultiplier:        mergePtr(base.EnableTraceStateSpanMultiplier, other.EnableTraceStateSpanMultiplier),
 	}
 }
 
 func (base *SpanMetricsOverrides) Merge(other *SpanMetricsOverrides) SpanMetricsOverrides {
 	return SpanMetricsOverrides{
-		HistogramBuckets:             mergeSliceShallow(base.HistogramBuckets, other.HistogramBuckets),
-		Dimensions:                   mergeSliceShallow(base.Dimensions, other.Dimensions),
-		IntrinsicDimensions:          mergeMap(base.IntrinsicDimensions, other.IntrinsicDimensions),
-		FilterPolicies:               mergeSliceShallow(base.FilterPolicies, other.FilterPolicies),
-		DimensionMappings:            mergeSliceShallow(base.DimensionMappings, other.DimensionMappings),
-		EnableTargetInfo:             mergePtr(base.EnableTargetInfo, other.EnableTargetInfo),
-		TargetInfoExcludedDimensions: mergeSliceShallow(base.TargetInfoExcludedDimensions, other.TargetInfoExcludedDimensions),
-		EnableInstanceLabel:          mergePtr(base.EnableInstanceLabel, other.EnableInstanceLabel),
-		SpanMultiplierKey:            mergePtr(base.SpanMultiplierKey, other.SpanMultiplierKey),
+		HistogramBuckets:               mergeSliceShallow(base.HistogramBuckets, other.HistogramBuckets),
+		Dimensions:                     mergeSliceShallow(base.Dimensions, other.Dimensions),
+		IntrinsicDimensions:            mergeMap(base.IntrinsicDimensions, other.IntrinsicDimensions),
+		FilterPolicies:                 mergeSliceShallow(base.FilterPolicies, other.FilterPolicies),
+		DimensionMappings:              mergeSliceShallow(base.DimensionMappings, other.DimensionMappings),
+		EnableTargetInfo:               mergePtr(base.EnableTargetInfo, other.EnableTargetInfo),
+		TargetInfoExcludedDimensions:   mergeSliceShallow(base.TargetInfoExcludedDimensions, other.TargetInfoExcludedDimensions),
+		EnableInstanceLabel:            mergePtr(base.EnableInstanceLabel, other.EnableInstanceLabel),
+		SpanMultiplierKey:              mergePtr(base.SpanMultiplierKey, other.SpanMultiplierKey),
+		EnableTraceStateSpanMultiplier: mergePtr(base.EnableTraceStateSpanMultiplier, other.EnableTraceStateSpanMultiplier),
 	}
 }
 

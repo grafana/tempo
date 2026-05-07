@@ -247,6 +247,9 @@ func (cfg *ProcessorConfig) copyWithOverrides(o metricsGeneratorOverrides, userI
 	// Safe: mergeVal guarantees non-empty when default is non-empty.
 	copyCfg.HostInfo.MetricName = o.MetricsGeneratorProcessorHostInfoMetricName(userID)
 	copyCfg.ServiceGraphs.SpanMultiplierKey = o.MetricsGeneratorProcessorServiceGraphsSpanMultiplierKey(userID)
+	if enableTraceStateSpanMultiplier, ok := o.MetricsGeneratorProcessorServiceGraphsEnableTraceStateSpanMultiplier(userID); ok {
+		copyCfg.ServiceGraphs.EnableTraceStateSpanMultiplier = enableTraceStateSpanMultiplier
+	}
 	copyCfg.SpanMetrics.SpanMultiplierKey = o.MetricsGeneratorProcessorSpanMetricsSpanMultiplierKey(userID)
 	if enableTraceStateSpanMultiplier, ok := o.MetricsGeneratorProcessorSpanMetricsEnableTraceStateSpanMultiplier(userID); ok {
 		copyCfg.SpanMetrics.EnableTraceStateSpanMultiplier = enableTraceStateSpanMultiplier
