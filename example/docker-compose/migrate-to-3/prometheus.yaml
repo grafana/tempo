@@ -1,0 +1,36 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+
+  - job_name: 'tempo-v2'
+    static_configs:
+      - targets:
+          - 'tempo-v2-distributor:3200'
+          - 'tempo-v2-ingester:3200'
+          - 'tempo-v2-querier:3200'
+          - 'tempo-v2-query-frontend:3200'
+          - 'tempo-v2-compactor:3200'
+          - 'tempo-v2-metrics-generator:3200'
+
+  - job_name: 'tempo-v3'
+    static_configs:
+      - targets:
+          - 'tempo-v3-distributor:3200'
+          - 'tempo-v3-live-store-0:3200'
+          - 'tempo-v3-live-store-1:3200'
+          - 'tempo-v3-block-builder-0:3200'
+          - 'tempo-v3-block-builder-1:3200'
+          - 'tempo-v3-querier:3200'
+          - 'tempo-v3-query-frontend:3200'
+          - 'tempo-v3-backend-scheduler:3200'
+          - 'tempo-v3-backend-worker:3200'
+          - 'tempo-v3-metrics-generator:3200'
+
+  - job_name: 'vulture'
+    static_configs:
+      - targets: ['vulture:8080']
