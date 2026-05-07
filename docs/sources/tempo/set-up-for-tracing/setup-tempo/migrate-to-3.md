@@ -220,7 +220,7 @@ To validate the deployment:
 1. Verify that all components start successfully and connect to Kafka. Check that `tempo_live_store_ready` equals `1`. The log message `"live-store ready to serve queries"` confirms the live-store is ready. At this point, no traffic is flowing through the 3.0 distributors yet, so write metrics will be at zero.
 
    {{< admonition type="note" >}}
-   On a fresh deployment with no traffic flowing yet, the live-store can take up to `live_store.readiness_max_wait` (default 5 minutes) to become ready, because there's no Kafka high-water mark to compare against. This is normal. Once traffic starts flowing in the next step, restarts are near-instant.
+   On a fresh deployment with no traffic flowing yet, the live-store can take up to `live_store.readiness_max_wait` (default 30 minutes) to become ready, because there's no Kafka high-water mark to compare against. This is normal. Once traffic starts flowing in the next step, restarts are near-instant.
    {{< /admonition >}}
 
 1. It's highly recommended to validate the deployment end-to-end using [Tempo Vulture](/docs/tempo/<TEMPO_VERSION>/operations/tempo-vulture/), Tempo's built-in testing tool. Vulture writes traces to the distributor and reads them back through the query frontend, validating the full write and read path. Point it at the 3.0 deployment and let it run for 10–15 minutes. Confirm that `tempo_vulture_trace_error_total` stays at zero and `tempo_vulture_trace_total` is increasing.

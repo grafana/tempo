@@ -43,10 +43,10 @@ block_builder:
 
 live_store:
   readiness_target_lag: 5s
-  # Lowered from the 5m default so this demo doesn't block for 5 minutes when
-  # the live-store starts against an empty Kafka topic (it has no record to use
-  # as a high-water mark, so it always waits the full max_wait). Real
-  # deployments should leave this at 5m.
+  # Lowered from the 30m default so this demo doesn't block for a long time
+  # when the live-store starts against an empty Kafka topic (it has no record
+  # to use as a high-water mark, so it always waits the full max_wait). Real
+  # deployments can usually leave the default in place.
   readiness_max_wait: 30s
 
 backend_scheduler:

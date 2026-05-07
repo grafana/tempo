@@ -92,7 +92,7 @@ docker compose logs -f tempo-v3-live-store-0 tempo-v3-live-store-1 | grep -E 're
 
 > **Why does the live-store take 30 s to be ready?** With an empty Kafka topic
 > the live-store has no record to use as a high-water mark, so it waits
-> `live_store.readiness_max_wait` (30 s in this example, 5 m default) before
+> `live_store.readiness_max_wait` (30 s in this example, 30 m default) before
 > giving up and going ready. Once you switch traffic in step 4, restarts are
 > instant because there's data in the topic.
 

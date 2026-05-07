@@ -309,7 +309,7 @@ services:
 
   # Tempo Vulture: synthetic write/read validator pointed at the v3 deployment.
   # The migration guide recommends running Vulture for 10–15 minutes and
-  # confirming tempo_vulture_trace_mismatches_total stays at 0.
+  # confirming tempo_vulture_trace_error_total stays at 0.
   # Independent of the k6+alloy traffic above, which represents real app traces.
   vulture:
     image: grafana/tempo-vulture:latest
