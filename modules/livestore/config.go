@@ -55,7 +55,7 @@ type Config struct {
 	// below this value. Set to 0 to disable readiness waiting (default, backward compatible).
 	ReadinessTargetLag time.Duration `yaml:"readiness_target_lag"`
 
-	// ReadinessMaxWait is the maximum time to wait for catching up a˛t startup.
+	// ReadinessMaxWait is the maximum time to wait for catching up at startup.
 	// If this timeout is exceeded, the live-store becomes ready anyway.
 	// Only used if ReadinessTargetLag > 0. Default: 30m.
 	ReadinessMaxWait time.Duration `yaml:"readiness_max_wait"`
