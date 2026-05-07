@@ -46,7 +46,15 @@ func (n noopAppender) AppendCTZeroSample(_ storage.SeriesRef, _ labels.Labels, _
 	return 0, nil
 }
 
+func (n noopAppender) AppendSTZeroSample(_ storage.SeriesRef, _ labels.Labels, _, _ int64) (storage.SeriesRef, error) {
+	return 0, nil
+}
+
 func (n noopAppender) AppendHistogramCTZeroSample(_ storage.SeriesRef, _ labels.Labels, _, _ int64, _ *prom_histogram.Histogram, _ *prom_histogram.FloatHistogram) (storage.SeriesRef, error) {
+	return 0, nil
+}
+
+func (n noopAppender) AppendHistogramSTZeroSample(_ storage.SeriesRef, _ labels.Labels, _, _ int64, _ *prom_histogram.Histogram, _ *prom_histogram.FloatHistogram) (storage.SeriesRef, error) {
 	return 0, nil
 }
 
@@ -140,6 +148,14 @@ func (c *capturingAppender) AppendCTZeroSample(_ storage.SeriesRef, _ labels.Lab
 	return 0, nil
 }
 
+func (c *capturingAppender) AppendSTZeroSample(_ storage.SeriesRef, _ labels.Labels, _, _ int64) (storage.SeriesRef, error) {
+	return 0, nil
+}
+
 func (c *capturingAppender) AppendHistogramCTZeroSample(_ storage.SeriesRef, _ labels.Labels, _, _ int64, _ *prom_histogram.Histogram, _ *prom_histogram.FloatHistogram) (storage.SeriesRef, error) {
+	return 0, nil
+}
+
+func (c *capturingAppender) AppendHistogramSTZeroSample(_ storage.SeriesRef, _ labels.Labels, _, _ int64, _ *prom_histogram.Histogram, _ *prom_histogram.FloatHistogram) (storage.SeriesRef, error) {
 	return 0, nil
 }

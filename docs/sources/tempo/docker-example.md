@@ -102,7 +102,6 @@ Redpanda provides the durable queue that Tempo uses to decouple its write and re
    single-binary-alloy-1           "/bin/alloy run /etc…"   alloy               running             0.0.0.0:4319->4317/tcp, 0.0.0.0:12345->12345/tcp
    single-binary-grafana-1         "/run.sh"                grafana             running             0.0.0.0:3000->3000/tcp
    single-binary-k6-tracing-1      "/k6-tracing run /ex…"   k6-tracing          running
-   single-binary-minio-1           "sh -euc 'mkdir -p /…"   minio               running             0.0.0.0:9001->9001/tcp
    single-binary-prometheus-1      "/bin/prometheus --c…"   prometheus          running             0.0.0.0:9090->9090/tcp
    single-binary-redpanda-1        "/entrypoint.sh redp…"   redpanda            running             0.0.0.0:9092->9092/tcp
    single-binary-redpanda-console-1 "/bin/sh -c 'echo \"$…" redpanda-console    running             0.0.0.0:8080->8080/tcp

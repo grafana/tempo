@@ -91,7 +91,7 @@ metrics_generator:
       [filter_policies: [
         [
           include/include_any/exclude:
-            match_type: <string> # options: strict, regexp
+            match_type: <string> # options: strict, regex
             attributes:
               - key: <string>
                 value: <any>
@@ -105,12 +105,12 @@ metrics_generator:
       [filter_policies: [
         [
           include/include_any/exclude:
-            match_type: <string> # options: strict, regexp
+            match_type: <string> # options: strict, regex
             attributes:
               - key: <string>
                 value: <any>
         ]
-      ]
+      ]]
       [enable_target_info: <bool>]
       [target_info_excluded_dimensions: <list of string>]
       [enable_instance_label: <bool>]

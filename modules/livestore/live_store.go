@@ -28,6 +28,7 @@ import (
 	"github.com/twmb/franz-go/pkg/kadm"
 	"github.com/twmb/franz-go/pkg/kgo"
 	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
 	oteltrace "go.opentelemetry.io/otel/trace"
 )
 
@@ -115,6 +116,12 @@ var (
 		Name:      "ready",
 		Help:      "1 if ready to serve queries, 0 otherwise",
 	})
+
+	metricLaggedRequests = promauto.NewCounterVec(prometheus.CounterOpts{
+		Namespace: "tempo_live_store",
+		Name:      "lagged_requests_total",
+		Help:      "Requests where the live-store could not guarantee complete results due to Kafka lag.",
+	}, []string{"route"})
 )
 
 type LiveStore struct {
@@ -365,11 +372,27 @@ func (s *LiveStore) startIngestPath(ctx context.Context) error {
 	return s.startKafkaIngestPath(ctx)
 }
 
-func (s *LiveStore) startKafkaIngestPath(ctx context.Context) error {
-	forceFromLookback := len(s.getInstances()) == 0
-	if forceFromLookback {
-		level.Info(s.logger).Log("msg", "no local data found after reload, will force reading from lookback period")
+// shouldForceFromLookback decides whether to re-read the Kafka lookback to rebuild query state.
+// Skipped when local data exists, or when the partition is Inactive (prior pod already drained).
+func (s *LiveStore) shouldForceFromLookback(ctx context.Context) bool {
+	if len(s.getInstances()) > 0 {
+		return false
 	}
+	state, _, err := s.ingestPartitionLifecycler.GetPartitionState(ctx)
+	if err != nil {
+		level.Warn(s.logger).Log("msg", "failed to read partition state, defaulting to lookback replay", "err", err)
+		return true
+	}
+	if state == ring.PartitionInactive {
+		level.Info(s.logger).Log("msg", "skipping lookback replay because partition is Inactive")
+		return false
+	}
+	level.Info(s.logger).Log("msg", "no local data found after reload, will force reading from lookback period")
+	return true
+}
+
+func (s *LiveStore) startKafkaIngestPath(ctx context.Context) error {
+	forceFromLookback := s.shouldForceFromLookback(ctx)
 
 	client, err := ingest.NewReaderClient(
 		s.cfg.IngestConfig.Kafka,
@@ -732,29 +755,31 @@ func (s *LiveStore) cutOneInstanceToWal(ctx context.Context, inst *instance, imm
 		))
 	defer span.End()
 
-	// Regular trace cuts (live traces -> head block)
-	err := inst.cutIdleTraces(ctx, immediate)
-	if err != nil {
-		level.Error(s.logger).Log("msg", "failed to cut idle traces", "tenant", inst.tenantID, "err", err)
-		span.RecordError(err)
-	}
-
-	// Regular block cuts
-	blockID, err := inst.cutBlocks(ctx, immediate)
-	if err != nil {
-		level.Error(s.logger).Log("msg", "failed to cut blocks", "tenant", inst.tenantID, "err", err)
-		span.RecordError(err)
-	}
-
-	// If head block is cut, enqueue complete operation
-	if blockID != uuid.Nil {
-		span.AddEvent("block enqueued for completion",
-			oteltrace.WithAttributes(attribute.String("blockID", blockID.String())))
-		err = s.enqueueCompleteOp(inst.tenantID, blockID, false)
+	var liveTracesDrained bool
+	var err error
+	for !liveTracesDrained {
+		// Regular trace cuts (live traces -> head block)
+		liveTracesDrained, err = inst.cutIdleTraces(ctx, immediate)
 		if err != nil {
-			level.Error(s.logger).Log("msg", "failed to enqueue complete operation", "tenant", inst.tenantID, "err", err)
+			level.Error(s.logger).Log("msg", "failed to cut idle traces", "tenant", inst.tenantID, "err", err)
+			span.SetStatus(codes.Error, err.Error())
 			span.RecordError(err)
-			return
+			break
+		}
+		id, err := inst.cutBlocks(ctx, immediate)
+		if err != nil {
+			level.Error(s.logger).Log("msg", "failed to cut blocks", "tenant", inst.tenantID, "err", err)
+			span.SetStatus(codes.Error, err.Error())
+			span.RecordError(err)
+			break
+		}
+		if id != uuid.Nil {
+			span.AddEvent("block enqueued for completion",
+				oteltrace.WithAttributes(attribute.String("blockID", id.String())))
+			if err := s.enqueueCompleteOp(inst.tenantID, id, false); err != nil {
+				level.Error(s.logger).Log("msg", "failed to enqueue complete operation", "tenant", inst.tenantID, "err", err)
+				span.RecordError(err)
+			}
 		}
 	}
 }
@@ -824,7 +849,10 @@ func (s *LiveStore) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDReq
 func (s *LiveStore) SearchRecent(ctx context.Context, req *tempopb.SearchRequest) (*tempopb.SearchResponse, error) {
 	return withInstance(ctx, s, func(inst *instance) (*tempopb.SearchResponse, error) {
 		if s.isLagged(int64(req.End) * 1e9) { // convert seconds to nanoseconds
-			return nil, errLagged
+			metricLaggedRequests.WithLabelValues("/tempopb.Querier/SearchRecent").Inc()
+			if s.cfg.FailOnHighLag {
+				return nil, errLagged
+			}
 		}
 		return inst.Search(ctx, req)
 	})
@@ -867,7 +895,10 @@ func (s *LiveStore) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTa
 func (s *LiveStore) QueryRange(ctx context.Context, req *tempopb.QueryRangeRequest) (*tempopb.QueryRangeResponse, error) {
 	return withInstance(ctx, s, func(inst *instance) (*tempopb.QueryRangeResponse, error) {
 		if s.isLagged(int64(req.End)) { // end param is already nanos, no need to convert
-			return nil, errLagged
+			metricLaggedRequests.WithLabelValues("/tempopb.Metrics/QueryRange").Inc()
+			if s.cfg.FailOnHighLag {
+				return nil, errLagged
+			}
 		}
 		return inst.QueryRange(ctx, req)
 	})
@@ -876,7 +907,7 @@ func (s *LiveStore) QueryRange(ctx context.Context, req *tempopb.QueryRangeReque
 var errLagged = errors.New("cannot guarantee complete results")
 
 func (s *LiveStore) isLagged(endNanos int64) bool {
-	if !s.cfg.FailOnHighLag || !s.cfg.ConsumeFromKafka { // if config disabled or no kafka consumption, never lagged
+	if !s.cfg.ConsumeFromKafka { // if config disabled or no kafka consumption, never lagged
 		return false
 	}
 	lag := s.calculateTimeLag(0)

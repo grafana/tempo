@@ -74,7 +74,32 @@ If the value of `tempo_live_store_traces_created_total` is 0, this can indicate 
 - Verify that Kafka is healthy and that the distributors can reach it.
 - Check live-store logs to ensure they are consuming from Kafka successfully. Look for consumer lag metrics to confirm data is flowing.
 
-## Case 3 - Trace is not recent
+## Case 3 - Live-store Kafka lag
+
+If the live-store is lagging behind its Kafka partition, queries for recent data may return incomplete results.
+
+To check whether lag is affecting queries, run the following PromQL query in Grafana or Prometheus:
+
+```promql
+rate(tempo_live_store_lagged_requests_total[5m])
+```
+
+A non-zero rate means that query time ranges are overlapping with the live-store's Kafka lag, and some recently ingested traces may be missing from results. The metric is labeled by `route`, so you can see which query type is affected (`/tempopb.Querier/SearchRecent` for search queries or `/tempopb.Metrics/QueryRange` for TraceQL metrics queries).
+
+### Solution
+
+- Check the raw consumer lag per partition using your live-store consumer group label:
+
+  ```promql
+  tempo_ingest_group_partition_lag{group="<CONSUMER_GROUP>"}
+  ```
+
+  The `group` label is derived from the live-store ring instance ID. For example, in a zone-aware deployment the group might be `live-store-zone-a`.
+
+- If lag is persistent, the live-store may need more resources or partitions may need to be redistributed.
+- To make incomplete results explicit, set `fail_on_high_lag: true` in the [live-store configuration](/docs/tempo/<TEMPO_VERSION>/configuration/#live-store). When enabled, the live-store returns an error instead of silently incomplete results.
+
+## Case 4 - Trace is not recent
 
 Live-stores only serve recent data. Older traces are stored in blocks built by the block-builder. If a trace was ingested but can't be found, the block-builder may not be flushing blocks to the backend correctly.
 

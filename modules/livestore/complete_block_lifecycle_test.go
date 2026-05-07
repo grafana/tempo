@@ -600,8 +600,9 @@ func createWalBlockForLifecycleTest(t *testing.T, liveStore *LiveStore) (*instan
 
 	inst, err := liveStore.getOrCreateInstance(testTenantID)
 	require.NoError(t, err)
-
-	require.NoError(t, inst.cutIdleTraces(t.Context(), true))
+	drained, err := inst.cutIdleTraces(t.Context(), true)
+	require.NoError(t, err)
+	require.True(t, drained, "should drain live traces in one iteration")
 
 	blockID, err := inst.cutBlocks(t.Context(), true)
 	require.NoError(t, err)

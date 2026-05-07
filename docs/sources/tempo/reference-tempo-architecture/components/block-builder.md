@@ -12,6 +12,8 @@ versionDate: 2026-03-20
 The block-builder is the write-path component responsible for building Parquet blocks and flushing them to object storage.
 It consumes trace data from Kafka and organizes it into blocks suitable for long-term retention and efficient querying.
 
+The block-builder only runs in [microservices mode](/docs/tempo/<TEMPO_VERSION>/reference-tempo-architecture/deployment-modes/). In monolithic mode, the live-store handles flushing trace data to object storage directly.
+
 For a configuration block example, refer to the [block-builder section](/docs/tempo/<TEMPO_VERSION>/configuration/#block-builder) of the Configuration documentation.
 
 ## Consumption cycle

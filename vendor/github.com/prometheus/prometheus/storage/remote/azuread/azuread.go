@@ -1,4 +1,4 @@
-// Copyright 2023 The Prometheus Authors
+// Copyright The Prometheus Authors
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
@@ -27,6 +27,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/google/uuid"
 	"github.com/grafana/regexp"
+	config_util "github.com/prometheus/common/config"
 )
 
 // Clouds.
@@ -75,7 +76,7 @@ type OAuthConfig struct {
 	ClientID string `yaml:"client_id,omitempty"`
 
 	// ClientSecret is the clientSecret of the azure active directory application that is being used to authenticate.
-	ClientSecret string `yaml:"client_secret,omitempty"`
+	ClientSecret config_util.Secret `yaml:"client_secret,omitempty"`
 
 	// TenantID is the tenantId of the azure active directory application that is being used to authenticate.
 	TenantID string `yaml:"tenant_id,omitempty"`
@@ -103,6 +104,9 @@ type AzureADConfig struct { //nolint:revive // exported.
 
 	// Cloud is the Azure cloud in which the service is running. Example: AzurePublic/AzureGovernment/AzureChina.
 	Cloud string `yaml:"cloud,omitempty"`
+
+	// Scope is the custom OAuth 2.0 scope to request when acquiring tokens.
+	Scope string `yaml:"scope,omitempty"`
 }
 
 // azureADRoundTripper is used to store the roundtripper and the tokenprovider.
@@ -208,6 +212,12 @@ func (c *AzureADConfig) Validate() error {
 			if _, err := regexp.MatchString("^[0-9a-zA-Z-.]+$", c.SDK.TenantID); err != nil {
 				return errors.New("the provided Azure SDK tenant_id is invalid")
 			}
+		}
+	}
+
+	if c.Scope != "" {
+		if matched, err := regexp.MatchString("^[\\w\\s:/.\\-]+$", c.Scope); err != nil || !matched {
+			return errors.New("the provided scope contains invalid characters")
 		}
 	}
 
@@ -348,7 +358,7 @@ func newWorkloadIdentityTokenCredential(clientOpts *azcore.ClientOptions, worklo
 // newOAuthTokenCredential returns new OAuth token credential.
 func newOAuthTokenCredential(clientOpts *azcore.ClientOptions, oAuthConfig *OAuthConfig) (azcore.TokenCredential, error) {
 	opts := &azidentity.ClientSecretCredentialOptions{ClientOptions: *clientOpts}
-	return azidentity.NewClientSecretCredential(oAuthConfig.TenantID, oAuthConfig.ClientID, oAuthConfig.ClientSecret, opts)
+	return azidentity.NewClientSecretCredential(oAuthConfig.TenantID, oAuthConfig.ClientID, string(oAuthConfig.ClientSecret), opts)
 }
 
 // newSDKTokenCredential returns new SDK token credential.
@@ -360,14 +370,22 @@ func newSDKTokenCredential(clientOpts *azcore.ClientOptions, sdkConfig *SDKConfi
 // newTokenProvider helps to fetch accessToken for different types of credential. This also takes care of
 // refreshing the accessToken before expiry. This accessToken is attached to the Authorization header while making requests.
 func newTokenProvider(cfg *AzureADConfig, cred azcore.TokenCredential) (*tokenProvider, error) {
-	audience, err := getAudience(cfg.Cloud)
-	if err != nil {
-		return nil, err
+	var scopes []string
+
+	// Use custom scope if provided, otherwise fallback to cloud-specific audience
+	if cfg.Scope != "" {
+		scopes = []string{cfg.Scope}
+	} else {
+		audience, err := getAudience(cfg.Cloud)
+		if err != nil {
+			return nil, err
+		}
+		scopes = []string{audience}
 	}
 
 	tokenProvider := &tokenProvider{
 		credentialClient: cred,
-		options:          &policy.TokenRequestOptions{Scopes: []string{audience}},
+		options:          &policy.TokenRequestOptions{Scopes: scopes},
 	}
 
 	return tokenProvider, nil
@@ -389,7 +407,7 @@ func (tokenProvider *tokenProvider) getAccessToken(ctx context.Context) (string,
 
 // valid checks if the token in the token provider is valid and not expired.
 func (tokenProvider *tokenProvider) valid() bool {
-	if len(tokenProvider.token) == 0 {
+	if tokenProvider.token == "" {
 		return false
 	}
 	if tokenProvider.refreshTime.After(time.Now().UTC()) {
@@ -404,7 +422,7 @@ func (tokenProvider *tokenProvider) getToken(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	if len(accessToken.Token) == 0 {
+	if accessToken.Token == "" {
 		return errors.New("access token is empty")
 	}
 

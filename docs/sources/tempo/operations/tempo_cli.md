@@ -647,6 +647,52 @@ tempo-cli migrate overrides-per-tenant overrides.yaml -d migrated-overrides.yaml
 - Some struct fields without `omitempty` may appear with zero values (for example, `exclude: null`) that were not in your original config.
 {{< /admonition >}}
 
+## Migrate config command
+
+Migrate a Tempo 2.x configuration file to a valid 3.0 configuration. The command removes obsolete configuration sections (such as `ingester`, `ingester_client`, and `compactor`), adds Kafka ingest configuration for microservices mode, disables compaction in overrides for parallel operation during migration, and strips the removed `local-blocks` metrics-generator processor.
+
+The tool works at the YAML map level rather than rewriting the file from fully decoded Tempo structs, so environment variable references like `${VAR}` are preserved. 
+Top-level sections that are not recognized by the Tempo 3.0 configuration are dropped from the output. 
+Unknown nested keys normally cause validation to fail, but validation is best-effort when the configuration contains `${VAR}` placeholders where non-string types are expected, which may let unknown nested keys through.
+
+```bash
+tempo-cli migrate config [options] <config-file>
+```
+
+Arguments:
+
+- `config-file` Path to the 2.x Tempo configuration file.
+
+Options:
+
+- `--kafka-address <address>` Kafka broker address. Required when running in microservices mode.
+- `--kafka-topic <topic>` Kafka topic name. Defaults to `tempo`.
+- `--mode <monolithic|microservices>` Override automatic deployment mode detection. By default, the mode is detected from the `target` field (`all` or absent means monolithic, any other value means microservices).
+
+The migrated configuration is printed to `stdout`. Warnings are printed to `stderr`.
+
+### Examples
+
+Monolithic mode (no Kafka flags needed):
+
+```bash
+tempo-cli migrate config old-config.yaml > new-config.yaml
+```
+
+Microservices mode:
+
+```bash
+tempo-cli migrate config --kafka-address=kafka:9092 --kafka-topic=tempo-traces old-config.yaml > new-config.yaml
+```
+
+{{< admonition type="warning" >}}
+- The output is a starting point for your 3.0 configuration. Always review it before deploying.
+- If your configuration uses legacy (flat) overrides, you must run `tempo-cli migrate overrides-config` first.
+- If your configuration references an external per-tenant overrides file (`per_tenant_override_config`), you must manually add `compaction_disabled: true` for each tenant in that file.
+- YAML comments and key ordering from the original file are not preserved.
+- Remove `compaction_disabled: true` from overrides after fully decommissioning your 2.x deployment.
+{{< /admonition >}}
+
 ## Analyse block
 
 <!-- Note that the command uses analyse and not analyze -->

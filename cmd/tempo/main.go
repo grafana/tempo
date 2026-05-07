@@ -87,7 +87,7 @@ func main() {
 
 	// Init tracer if OTEL_TRACES_EXPORTER, OTEL_EXPORTER_OTLP_ENDPOINT or OTEL_EXPORTER_OTLP_TRACES_ENDPOINT is set
 	if os.Getenv("OTEL_TRACES_EXPORTER") != "" || os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT") != "" || os.Getenv("OTEL_EXPORTER_OTLP_TRACES_ENDPOINT") != "" {
-		shutdownTracer, err := tracing.InstallOpenTelemetryTracer(appName, config.Target)
+		shutdownTracer, err := tracing.InstallOpenTelemetryTracer(appName, config.Target, config.SpanProfiling)
 		if err != nil {
 			level.Error(log.Logger).Log("msg", "error initialising tracer", "err", err)
 			os.Exit(1)

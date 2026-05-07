@@ -476,6 +476,7 @@ Available Converters:
 - [Base64Encode](#base64encode)
 - [Bool](#bool)
 - [Decode](#decode)
+- [Coalesce](#coalesce)
 - [CommunityID](#communityid)
 - [Concat](#concat)
 - [ContainsValue](#containsvalue)
@@ -649,6 +650,23 @@ Examples:
 
 
 - `Decode(resource.attributes["encoded field"], "us-ascii")`
+
+### Coalesce
+
+`Coalesce(values[])`
+
+The `Coalesce` Converter returns the first non-nil value from a list of values.
+
+`values` is a list of values. Each can be a path expression, a literal, or a nested converter call. At least one value is required.
+
+If all values are `nil`, the Converter returns `nil`.
+
+Examples:
+
+- `Coalesce([attributes["user.id"], attributes["enduser.id"], "unknown"])`
+
+
+- `Coalesce([resource.attributes["deployment.environment.name"], resource.attributes["deployment.environment"]])`
 
 ### CommunityID
 

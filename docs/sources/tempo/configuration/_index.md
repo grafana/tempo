@@ -17,6 +17,8 @@ The Tempo configuration options include:
 
 - [Configure Tempo](#configure-tempo)
   - [Use environment variables in the configuration](#use-environment-variables-in-the-configuration)
+  - [Deployment modes](#deployment-modes)
+    - [Configuration by deployment mode](#configuration-by-deployment-mode)
   - [Server](#server)
   - [Memory](#memory)
   - [Distributor](#distributor)
@@ -55,7 +57,8 @@ The Tempo configuration options include:
       - [Tenant-specific overrides](#tenant-specific-overrides)
         - [Runtime overrides](#runtime-overrides)
         - [User-configurable overrides](#user-configurable-overrides)
-      - [Override strategies](#override-strategies)
+      - [Ingestion rate strategy](#ingestion-rate-strategy)
+        - [Examples](#examples-1)
   - [Usage-report](#usage-report)
     - [Configure usage-reporting](#configure-usage-reporting)
   - [Cache](#cache)
@@ -91,9 +94,41 @@ where `default_value` is the value to use if the environment variable is undefin
 
 You can find more about other supported syntax [here](https://github.com/drone/envsubst/blob/master/readme.md).
 
+## Deployment modes
+
+Tempo supports two deployment modes: monolithic and microservices.
+
+* Monolithic mode: The required components run in a single process using `-target=all`, which is the default. No Kafka is required.
+* Microservices mode: Each component runs as a separate process with its own `-target` flag. For example, `-target=distributor` or `-target=querier`. This mode requires a Kafka-compatible system, such as Apache Kafka, Redpanda, or WarpStream, as the durable queue between the distributor and downstream components.
+
+Refer to the [Deployment modes](/docs/tempo/<TEMPO_VERSION>/set-up-for-tracing/setup-tempo/plan/deployment-modes/) documentation for more information on when to use each mode.
+
+### Configuration by deployment mode
+
+Not all configuration blocks apply to both deployment modes.
+
+In monolithic mode, the most important configuration blocks are:
+
+| Config block | Description |
+|---|---|
+| `distributor` | Configure receivers (OTLP, Jaeger, Zipkin) and ingestion limits. |
+| `storage` | Configure the backend used to flush and store trace blocks. |
+| `metrics_generator` | Optional. Configure span-metrics and service-graph generation. |
+| `query_frontend` | Configure query splitting, caching, and result streaming. |
+| `overrides` | Set per-tenant rate limits and trace size limits. |
+
+The `ingest` and `block_builder` blocks are only used in microservices mode.
+Other blocks, including `live_store_client`, `backend_scheduler`, `backend_worker`, `memberlist`, and `cache`, apply in both modes but run in-process in monolithic mode.
+
+For the complete mapping of all configuration blocks to deployment modes, refer to the [Components by deployment mode](/docs/tempo/<TEMPO_VERSION>/reference-tempo-architecture/deployment-modes/#components-by-deployment-mode) table.
+
+
 ## Server
 
-Tempo uses the server from `dskit/server`. For more information on configuration options, refer to [this file](https://github.com/grafana/dskit/blob/main/server/server.go#L66).
+Tempo uses the server from `dskit/server`. For the full list of available server options, refer to the [dskit server configuration](https://github.com/grafana/dskit/blob/main/server/server.go#L66) and the [manifest](/docs/tempo/<TEMPO_VERSION>/configuration/manifest/).
+For details on how server settings apply across deployment modes, refer to the [Deployment modes](/docs/tempo/<TEMPO_VERSION>/reference-tempo-architecture/deployment-modes/) documentation.
+
+Additional root-level options such as `target`, `shutdown_delay`, `auth_enabled`, `enable_go_runtime_metrics`, and `span_profiling` are available as [command-line flags](/docs/tempo/<TEMPO_VERSION>/set-up-for-tracing/setup-tempo/command-line-flags/).
 
 ```yaml
 # Optional. Setting to true enables multitenancy and requires X-Scope-OrgID header on all requests.
@@ -101,6 +136,16 @@ Tempo uses the server from `dskit/server`. For more information on configuration
 
 # Optional. String prefix for all http api endpoints. Must include beginning slash.
 [http_api_prefix: <string>]
+
+# Optional. Enables streaming query results over HTTP.
+[stream_over_http_enabled: <bool> | default = false]
+
+# Optional. Enables span profiling via otelpyroscope. When enabled, Tempo attaches pprof goroutine
+# labels (span_id, span_name) to OTel spans and adds a pyroscope.profile.id attribute to root spans,
+# enabling profile-to-trace correlation in Pyroscope.
+# Requires OTEL_TRACES_EXPORTER, OTEL_EXPORTER_OTLP_ENDPOINT, or
+# OTEL_EXPORTER_OTLP_TRACES_ENDPOINT to be set.
+[span_profiling: <bool> | default = false]
 
 server:
     # HTTP server listen host
@@ -137,12 +182,22 @@ server:
     # Max gRPC message size that can be sent
     # This value may need to be increased if you have large traces
     [grpc_server_max_send_msg_size: <int> | default = 16777216]
+
+    # Minimum time between pings from clients before the server sends a GOAWAY.
+    # Tempo sets this lower than the dskit default to prevent GOAWAY errors
+    # when there is little real traffic between components.
+    [grpc_server_min_time_between_pings: <duration> | default = 10s]
+
+    # Allow clients to send pings even when there are no active streams.
+    # Tempo enables this by default to prevent GOAWAY errors during idle periods.
+    [grpc_server_ping_without_stream_allowed: <bool> | default = true]
 ```
 
 ## Memory
 
 Tempo supports automatic GOMEMLIMIT configuration using the [automemlimit](https://github.com/KimMachineGun/automemlimit) library.
 When enabled, it automatically sets Go's memory limit based on available container (via CGroups) or system memory every 15 seconds.
+For information on memory considerations across deployment modes, refer to the [Deployment modes](/docs/tempo/<TEMPO_VERSION>/reference-tempo-architecture/deployment-modes/) documentation.
 
 NOTE: enabling this will override value set in GOMEMLIMIT environment variable
 
@@ -163,7 +218,13 @@ memory:
 For more information on configuration options, refer to [this file](https://github.com/grafana/tempo/blob/main/modules/distributor/config.go).
 For architectural details, refer to the [Distributor architecture](/docs/tempo/<TEMPO_VERSION>/reference-tempo-architecture/components/distributor/) documentation.
 
-Distributors receive spans, apply limits and forwarding, and route them to the configured write path.
+The distributor is the entry point for all trace data into Tempo.
+It receives spans from instrumented applications, validates them against configured [ingestion limits](#ingestion-limits), and forwards them for processing.
+
+How the distributor forwards data depends on the [deployment mode](/docs/tempo/<TEMPO_VERSION>/reference-tempo-architecture/deployment-modes/):
+
+- **Microservices mode**: The distributor shards traces by trace ID and writes them to [Kafka](/docs/tempo/<TEMPO_VERSION>/reference-tempo-architecture/components/kafka/). Kafka settings are configured in the [Ingest](#ingest) section. Downstream, [block-builders](/docs/tempo/<TEMPO_VERSION>/reference-tempo-architecture/components/block-builder/) and [live-stores](/docs/tempo/<TEMPO_VERSION>/reference-tempo-architecture/components/live-store/) consume from Kafka independently.
+- **Monolithic mode** (`target: all`): The distributor pushes data in-process directly to the live-store and metrics-generator. No Kafka is required in this mode. It's suitable for local development, testing, and small installations.
 
 The following configuration enables all available receivers with their default configuration. For a production deployment, enable only the receivers you need.
 Additional documentation and more advanced configuration options are available in [the receiver README](https://github.com/open-telemetry/opentelemetry-collector/blob/main/receiver/README.md).
@@ -172,7 +233,38 @@ Additional documentation and more advanced configuration options are available i
 # Distributor config block
 distributor:
 
-    # receiver configuration for different protocols
+    # Ring configuration for the distributor.
+    # Used only with the global ingestion rate strategy to discover healthy
+    # peers and divide rate limits across the cluster.
+    # The distributor watches the partition ring for Kafka routing but does
+    # not run it. This ring is separate from the partition ring.
+    ring:
+      kvstore: <KVStore config>
+        [store: <string> | default = memberlist]
+        [prefix: <string> | default = "collectors/"]
+
+      # Period at which to heartbeat to the ring.
+      [heartbeat_period: <duration> | default = 5s]
+
+      # The heartbeat timeout after which distributors are considered unhealthy in the ring.
+      [heartbeat_timeout: <duration> | default = 5m]
+
+      # Instance ID to register in the ring.
+      [instance_id: <string> | default = os.Hostname()]
+
+      # Name of the network interface to read the address from.
+      [instance_interface_names: <list of string> | default = ["eth0", "en0"]]
+
+      # IP address to advertise in the ring. Defaults to the address from instance_interface_names.
+      [instance_addr: <string>]
+
+      # Port to advertise in the ring.
+      [instance_port: <int>]
+
+      # Enable registering IPv6 addresses in the ring.
+      [enable_inet6: <bool> | default = false]
+
+    # Receiver configuration for different protocols.
     # The config is passed down to OpenTelemetry receivers.
     # By default, receivers listen to localhost and need a configured IP to
     # listen on an external interface.
@@ -258,15 +350,15 @@ distributor:
         [root_only: <boolean> | default = false]
 
     # Optional.
-    # Configures the time to retry after returned to the client when Tempo returns a GRPC ResourceExhausted. This parameter
-    # defaults to 0 which means that by default ResourceExhausted is not retried. Set this to a duration such as `1s` to
-    # instruct the client how to retry.
-    [retry_after_on_resource_exhausted: <duration> | default = '0' ]
+    # Configures the time to retry after returned to the client when Tempo returns a GRPC ResourceExhausted.
+    # Set this to `0` to disable retries on ResourceExhausted at cluster level.
+    # per-tenant override `ingestion.retry_info_enabled` can also be used to disable it at tenent level.
+    [retry_after_on_resource_exhausted: <duration> | default = 5s]
 
     # Optional
     # Configures the max size an attribute can be. Any key or value that exceeds this limit will be truncated before storing
     # Setting this parameter to '0' would disable this check against attribute size
-    [max_attribute_bytes: <int> | default = '2048']
+    [max_attribute_bytes: <int> | default = 2048]
 
     # Optional.
     # Configures usage trackers in the distributor which expose metrics of ingested traffic grouped by configurable
@@ -299,24 +391,18 @@ For additional information, refer to [Troubleshoot out-of-memory errors](https:/
 
 ### gRPC compression
 
-Starting with Tempo 2.7.1, gRPC compression between all components defaults to `snappy`.
-Using `snappy` provides a balanced approach to compression between components that will work for most installations.
+By default, gRPC compression between all components uses `snappy`.
+This provides a balanced approach to compression that works for most installations.
 
-If you prefer a different balance of CPU/Memory and bandwidth, consider disabling compression or using `zstd`.
-
-For a discussion on alternatives, refer to [this discussion thread](https://github.com/grafana/tempo/discussions/4683). ([#4696](https://github.com/grafana/tempo/pull/4696)).
-
-Disabling compression may provide some performance boosts.
-Benchmark testing suggested that without compression, queriers and distributors used less CPU and memory.
-
-However, you may notice an increase in live-store data and network traffic, especially for larger clusters.
-This increased data can impact billing for Grafana Cloud.
+If you prefer a different balance of CPU/memory and bandwidth, consider disabling compression or using `zstd`.
+Disabling compression may reduce CPU and memory usage on queriers and distributors, but can increase network traffic and [live-store](/docs/tempo/<TEMPO_VERSION>/reference-tempo-architecture/components/live-store/) data volume, especially in larger clusters.
+Increased data can impact billing for Grafana Cloud.
 
 You can configure the gRPC compression in the `live_store_client` and `querier.frontend_worker` gRPC clients.
 
 To disable compression, remove `snappy` from the `grpc_compression` lines.
 
-To re-enable the compression, use `snappy` with the following settings:
+To set the compression, use `snappy` with the following settings:
 
 ```yaml
 live_store_client:
@@ -330,8 +416,12 @@ querier:
 
 ## Ingest
 
-The ingest configuration controls the Kafka-compatible system that Tempo uses as a durable queue for trace data.
+In distributed mode, the ingest configuration controls the Kafka-compatible system that Tempo uses as a durable write-ahead log for trace data.
+Distributors write to Kafka, and downstream consumers (block-builders, live-stores, and metrics-generators) each consume from it independently.
+In monolithic mode (`target: all`), distributors bypass Kafka entirely, so these settings don't apply.
+
 For more information on configuration options, refer to [this file](https://github.com/grafana/tempo/blob/main/pkg/ingest/config.go).
+For architectural details, refer to the [Kafka architecture](/docs/tempo/<TEMPO_VERSION>/reference-tempo-architecture/components/kafka/) documentation.
 
 ```yaml
 # Ingest configuration block
@@ -366,16 +456,48 @@ ingest:
         [auto_create_topic_default_partitions: <int> | default = 1000]
 
         # The maximum size of a Kafka record data that should be generated by the producer.
-        [producer_max_record_size_bytes: <int>]
+        # An incoming write request larger than this size is split into multiple Kafka records.
+        [producer_max_record_size_bytes: <int> | default = 15983616]
 
-        # The maximum size of buffered and unacknowledged produced records sent to Kafka. 0 to disable.
+        # The maximum size of (uncompressed) buffered and unacknowledged produced records sent to Kafka.
+        # The produce request fails once this limit is reached. This limit is per Kafka client. 0 to disable.
         [producer_max_buffered_bytes: <int> | default = 1073741824]
+
+        # The consumer group used by the consumer to track the last consumed offset.
+        # If the value contains the '<partition>' placeholder, it is replaced with the partition ID.
+        # When empty (recommended), Tempo uses the instance ID to guarantee uniqueness.
+        [consumer_group: <string>]
+
+        # How frequently a consumer should commit the consumed offset to Kafka.
+        # The last committed offset is used at startup to continue consumption from where it was left.
+        [consumer_group_offset_commit_interval: <duration> | default = 1s]
+
+        # How long to retry a failed request to get the last produced offset.
+        [last_produced_offset_retry_timeout: <duration> | default = 10s]
+
+        # The best-effort maximum lag a consumer tries to achieve at startup.
+        # Set both target and max consumer lag to 0 to disable waiting at startup.
+        [target_consumer_lag_at_startup: <duration> | default = 2s]
+
+        # The guaranteed maximum lag before a consumer is considered to have caught up
+        # at startup, becomes ACTIVE in the hash ring, and passes the readiness check.
+        # Set both target and max consumer lag to 0 to disable waiting at startup.
+        [max_consumer_lag_at_startup: <duration> | default = 15s]
+
+        # Disable Kafka client metrics reporting to the broker.
+        # When false (default), the Kafka client reports its internal metrics to the broker.
+        [disable_kafka_telemetry: <bool> | default = false]
+
+        # How often the consumer group lag metric is updated. Set to 0 to disable.
+        [consumer_group_lag_metric_update_interval: <duration> | default = 1m]
 ```
 
 ## Block-builder
 
-The block-builder consumes trace data from Kafka and builds blocks for long-term object storage.
+The block-builder consumes trace data from Kafka, organizes it into Parquet blocks, and flushes them to object storage for long-term retention and querying.
+
 For more information on configuration options, refer to [this file](https://github.com/grafana/tempo/blob/main/modules/blockbuilder/config.go).
+For architectural details, refer to the [Block-builder architecture](/docs/tempo/<TEMPO_VERSION>/reference-tempo-architecture/components/block-builder/) documentation.
 
 ```yaml
 # Block-builder configuration block
@@ -407,8 +529,11 @@ block_builder:
 
 ## Live-store
 
-The live-store consumes trace data from Kafka and serves recent data queries.
+The live-store holds recent trace data in memory and serves queries during the window between ingestion and block availability in object storage.
+It periodically flushes traces to a local WAL in Parquet format for TraceQL search and metrics queries.
+
 For more information on configuration options, refer to [this file](https://github.com/grafana/tempo/blob/main/modules/livestore/config.go).
+For architectural details, refer to the [Live-store architecture](/docs/tempo/<TEMPO_VERSION>/reference-tempo-architecture/components/live-store/) documentation.
 
 ```yaml
 # Live-store configuration block
@@ -422,6 +547,9 @@ live_store:
 
     # How often to sweep all tenants and move traces from live -> wal -> completed blocks.
     [flush_check_period: <duration> | default = 5s]
+
+    # Interval for periodic cleanup work, and the maximum time to wait for background processes during shutdown.
+    [flush_op_timeout: <duration> | default = 5m]
 
     # Amount of time a trace must be idle before flushing it to the WAL.
     [max_trace_idle: <duration> | default = 5s]
@@ -438,6 +566,12 @@ live_store:
     # Maximum length of time before cutting a block.
     [max_block_duration: <duration> | default = 30s]
 
+    # Number of concurrent blocks to query for metrics.
+    [query_block_concurrency: <uint> | default = 10]
+
+    # Number of concurrent block completion operations.
+    [complete_block_concurrency: <int> | default = 2]
+
     # Duration to keep blocks in the live-store after they have been completed.
     [complete_block_timeout: <duration> | default = 20m]
 
@@ -453,24 +587,54 @@ live_store:
 
     # Remove partition owner from the ring on shutdown.
     [remove_owner_on_shutdown: <bool> | default = true]
+
+    # Path to the shutdown marker directory.
+    [shutdown_marker_dir: <string> | default = "/var/tempo/live-store/shutdown-marker"]
+
+    # Partition ring configuration for the live-store.
+    partition_ring:
+      # Backend storage used for the partition ring.
+      kvstore: <KVStore config>
+
+      # Minimum number of owners to wait before a PENDING partition is switched to ACTIVE.
+      [min_partition_owners_count: <int> | default = 1]
+
+      # How long the minimum number of owners are enforced before a PENDING partition
+      # is switched to ACTIVE.
+      [min_partition_owners_duration: <duration> | default = 10s]
+
+      # How long to wait before an INACTIVE partition is eligible for deletion.
+      # The partition is deleted only if it has no owners registered. 0 to disable.
+      [delete_inactive_partition_after: <duration> | default = 13h]
+
+    # Metrics query tuning configuration.
+    metrics:
+      # Time overlap cutoff ratio for metrics queries (0.0-1.0). Controls whether trace-level
+      # timestamp columns are loaded. Lower values skip columns more often, reducing I/O but
+      # increasing spans evaluated. 1.0 always loads columns, 0.0 never does.
+      [time_overlap_cutoff: <float> | default = 0.2]
+
+    # Write ahead log configuration for the live-store.
+    wal:
+      [path: <string> | default = "/var/tempo/live-store/traces"]
 ```
 
 ## Metrics-generator
 
-For more information on configuration options, refer to [this file](https://github.com/grafana/tempo/blob/main/modules/generator/config.go).
-For architectural details, refer to the [Metrics-generator architecture](/docs/tempo/<TEMPO_VERSION>/reference-tempo-architecture/components/metrics-generator/) documentation.
-
-The metrics-generator processes spans and write metrics using the Prometheus remote write protocol.
+The metrics-generator processes spans and writes metrics using the Prometheus remote write protocol.
 For more information on the metrics-generator, refer to the [Metrics-generator documentation](../metrics-from-traces/metrics-generator/).
 
 Metrics-generator processors are disabled by default. To enable it for a specific tenant, set `metrics_generator.processors` in the [overrides](#overrides) section.
+
+For more information on configuration options, refer to [this file](https://github.com/grafana/tempo/blob/main/modules/generator/config.go).
+For architectural details, refer to the [Metrics-generator architecture](/docs/tempo/<TEMPO_VERSION>/reference-tempo-architecture/components/metrics-generator/) documentation.
 
 {{< admonition type="note" >}}
 If you want to enable metrics-generator for your Grafana Cloud account, refer to the [Metrics-generator in Grafana Cloud](https://grafana.com/docs/grafana-cloud/send-data/traces/metrics-generator/) documentation.
 {{< /admonition >}}
 
-You can limit spans with end times that occur within a configured duration to be considered in metrics generation using `metrics_ingestion_time_range_slack`.
-In Grafana Cloud, this value defaults to 30 seconds so all spans sent to the metrics-generation more than 30 seconds in the past are discarded or rejected.
+Spans with end times older than `metrics_ingestion_time_range_slack` are excluded from metrics generation.
+The default value is 30 seconds, which means spans that ended more than 30 seconds ago are discarded.
 
 ```yaml
 # Metrics-generator configuration block
@@ -562,6 +726,9 @@ metrics_generator:
             # List of attribute names used to identify the database name from span attributes. If it isn't set, the order is peer.service -> server.address -> network.peer.address -> db.name
             [database_name_attributes: <list of string> | default = ["db.namespace","db.name","db.system"]]
 
+            # List of policies that will be applied to spans for inclusion or exclusion.
+            [filter_policies: <list of filter policies config> | default = []]
+
         span_metrics:
 
             # Buckets for the latency histogram in seconds.
@@ -623,6 +790,14 @@ metrics_generator:
             # Add instance label to all span metrics series when enable_target_info is true
             [enable_instance_label: <bool> | default = true]
 
+        host_info:
+
+            # Resource attributes used to derive a unique host identifier.
+            [host_identifiers: <list of string> | default = ["k8s.node.name", "host.id"]]
+
+            # Name of the metric that will be generated.
+            [metric_name: <string> | default = "traces_host_info"]
+
     # Registry configuration
     registry:
 
@@ -651,13 +826,19 @@ metrics_generator:
     # - "entity": Limits the number of unique label combinations (entities). Use with max_active_entities override.
     [limiter_type: <string> | default = "series"]
 
-    # Configuration block for the Write Ahead Log (WAL)
-    traces_storage: <WAL config>
+    # Controls which ring mode the metrics-generator uses.
+    # "partition": Uses the partition ring (default). "generator": Uses the legacy generator ring.
+    [ring_mode: <string> | default = "partition"]
 
-      # Path to store the WAL files.
-      # Must be set.
-      # Example: "/var/tempo/generator/traces"
-      [path: <string> | default = ""]
+    # Which decoder to use for data consumed from Kafka.
+    # Valid values: "push-bytes", "otlp".
+    [codec: <string> | default = "push-bytes"]
+
+    # Number of concurrent Kafka consumers.
+    [ingest_concurrency: <uint> | default = 16]
+
+    # Instance ID used by the metrics-generator Kafka client.
+    [instance_id: <string> | default = <hostname>]
 
     # Storage and remote write configuration
     storage:
@@ -685,19 +866,16 @@ metrics_generator:
     # This is to filter out spans that are outdated.
     [metrics_ingestion_time_range_slack: <duration> | default = 30s]
 
-    # Timeout for metric requests
-    [query_timeout: <duration> | default = 30s ]
-
     # Overrides the key used to register the metrics-generator in the ring.
     [override_ring_key: <string> | default = "metrics-generator"]
 ```
 
 ## Query-frontend
 
+The query frontend is responsible for sharding incoming requests for faster processing in parallel by the queriers.
+
 For more information on configuration options, refer to [this file](https://github.com/grafana/tempo/blob/main/modules/frontend/config.go).
 For architectural details, refer to the [Query frontend architecture](/docs/tempo/<TEMPO_VERSION>/reference-tempo-architecture/components/query-frontend/) documentation.
-
-The Query Frontend is responsible for sharding incoming requests for faster processing in parallel (by the queriers).
 
 ```yaml
 # Query Frontend configuration block
@@ -742,12 +920,18 @@ query_frontend:
     # (default: 0)
     [api_timeout: <duration>]
 
+    # Prevents querying incomplete recent data by excluding the most recent portion of the time range.
+    # Useful when live-store data may not yet be fully available for querying.
+    # 0 disables this cutoff.
+    # (default: 0)
+    [query_end_cutoff: <duration>]
+
     # A list of regular expressions for refusing matching requests, these will apply for every request regardless of the endpoint.
-    [url_deny_list: <list of strings> | default = <empty list>]]
+    [url_deny_list: <list of strings> | default = <empty list>]
 
     # Max allowed TraceQL expression size, in bytes. queries bigger then this size will be rejected.
     # (default: 128 KiB)
-    [max_query_expression_size_bytes: <int> | default = 131072]]
+    [max_query_expression_size_bytes: <int> | default = 131072]
 
     # List of AST transformation names to disable globally for all TraceQL queries.
     # Possible values: "or_to_in", "all" ("all" disables every transformation).
@@ -885,6 +1069,11 @@ query_frontend:
         # the results are returned to the user. More shards results in a more granular effect at the cost of additional bookkeeping.
         [streaming_shards: <int> | default = 200]
 
+    # MCP server configuration. Enabling the MCP server allows tracing data
+    # to be exposed to LLM-based tools. Requires explicit opt-in.
+    mcp_server:
+        [enabled: <bool> | default = false]
+
 ```
 
 ### Limit query size to improve performance and stability
@@ -922,10 +1111,10 @@ query_frontend:
 
 ## Querier
 
+The querier executes query jobs dispatched by the query frontend. It fetches trace data from both live-stores (for recent data) and object storage (for historical data), then returns results to the query frontend for merging.
+
 For more information on configuration options, refer to [this file](https://github.com/grafana/tempo/blob/main/modules/querier/config.go).
 For architectural details, refer to the [Querier architecture](/docs/tempo/<TEMPO_VERSION>/reference-tempo-architecture/components/querier/) documentation.
-
-The Querier is responsible for querying the backends/cache for the traceID.
 
 ```yaml
 # querier config block
@@ -941,13 +1130,11 @@ querier:
         # Timeout for trace lookup requests
         [query_timeout: <duration> | default = 10s]
 
-        # External trace source configuration. When enabled, trace-by-ID queries
-        # will also fetch trace data from an external HTTP endpoint that returns
-        # an opentelemetry protobuf formatted trace.
+        # External trace source configuration. When configured, trace-by-ID queries
+        # also fetch trace data from an external HTTP endpoint that returns
+        # an OpenTelemetry protobuf formatted trace. Enable this feature using
+        # query_frontend.trace_by_id.external_enabled.
         external:
-            # Enable querying an external endpoint for trace data.
-            [enabled: <bool> | default = false]
-
             # The URL of the external service.
             # Example: "http://external-service:3200"
             [endpoint: <string>]
@@ -959,16 +1146,43 @@ querier:
         # Timeout for search requests
         [query_timeout: <duration> | default = 30s]
 
+    # Metrics query configuration
+    metrics:
+        # Number of blocks to process concurrently during a metrics query.
+        [concurrent_blocks: <int> | default = 2]
+
+        # Controls whether trace-level timestamp columns are used in a metrics query.
+        # Loading these columns has a cost, so in some cases it is faster to skip them,
+        # reducing I/O but increasing the number of spans evaluated and discarded.
+        # The value is a ratio between 0.0 and 1.0. If a block overlaps the time window
+        # by less than this value, the columns are skipped.
+        # 1.0 always loads columns; 0.0 never loads them.
+        [time_overlap_cutoff: <float> | default = 0.2]
+
     # config of the worker that connects to the query frontend
     frontend_worker:
 
         # the address of the query frontend to connect to, and process queries
         # Example: "frontend_address: query-frontend-discovery.default.svc.cluster.local:9095"
         [frontend_address: <string>]
+
+    # Partition ring configuration for distributing queries across live-stores.
+    partition_ring:
+        # When enabled, the querier minimizes the number of live-store requests
+        # by preferring a single zone per partition.
+        [minimize_requests: <bool> | default = true]
+
+        # Delay before sending a hedged request to another live-store
+        # when minimize_requests is enabled.
+        [hedging_delay: <duration> | default = 3s]
+
+        # Preferred availability zone for routing queries. If set, the querier
+        # routes to live-stores in this zone first.
+        [preferred_zone: <string> | default = ""]
 ```
 
-It also queries compacted blocks that fall within the (2 \* BlocklistPoll) range where the value of Blocklist poll duration
-is defined in the storage section below.
+The querier also queries compacted blocks that fall within a range of `2 * storage.trace.blocklist_poll`, where
+`storage.trace.blocklist_poll` is the blocklist poll duration configured in the storage section below.
 
 ## Backend scheduler
 
@@ -1028,6 +1242,20 @@ backend_scheduler:
 
       # Minimum time between compaction cycles for a tenant
       [min_cycle_interval: <duration> | default = 30s]
+
+    # Redaction job configuration
+    redaction:
+
+      # How often to check for pending redaction jobs when the queue is empty
+      [poll_interval: <duration> | default = 2s]
+
+      # How long to wait before rescanning for output blocks from compaction
+      # jobs that were active when the redaction was submitted.
+      # Must be less than work.prune_age or Tempo will fail to start.
+      [rescan_delay: <duration> | default = 5m]
+
+      # Maximum number of rescan attempts before requiring operator resubmission
+      [max_rescan_generations: <int> | default = 5]
 
   # How long to wait for a worker to complete a job before timing out internally
   [job_timeout: <duration> | default = 15s]
@@ -1156,6 +1384,13 @@ storage:
         # CLI flag -storage.trace.backend
         [backend: <string>]
 
+        # Local backend configuration. Will be used only if value of backend is "local".
+        # For development and testing only. Use object storage for production workloads.
+        local:
+
+            # Path to store trace data on local disk
+            [path: <string>]
+
         # GCS configuration. Will be used only if value of backend is "gcs"
         # Check the GCS doc within this folder for information on GCS specific permissions.
         gcs:
@@ -1213,6 +1448,9 @@ storage:
             # See the GCS documentation for more detail: https://cloud.google.com/storage/docs/metadata
             [object_metadata: <map[string]string>]
 
+            # Optional. Default is 3.
+            # Number of times to retry GCS copy and delete operations used by compaction and retention.
+            [max_retries: <int> | default = 3]
 
         # S3 configuration. Will be used only if value of backend is "s3"
         # Check the S3 doc within this folder for information on s3 specific permissions.
@@ -1258,6 +1496,11 @@ storage:
             # enable if endpoint is http
             [insecure: <bool>]
 
+            # Optional. Default is 0 (disabled).
+            # Part size in bytes for multipart uploads. Set to 0 to disable multipart uploads.
+            # Non-zero values must be at least 5 MiB (5242880 bytes).
+            [part_size: <int>]
+
             # optional.
             # Path to the client certificate file.
             [tls_cert_path: <string>]
@@ -1285,6 +1528,10 @@ storage:
             # optional.
             # Override the default minimum TLS version. The default value is VersionTLS12. Allowed values: VersionTLS10, VersionTLS11, VersionTLS12, VersionTLS13
             [tls_min_version: <string>]
+
+            # Optional. Default is false.
+            # Use V2 signing instead of V4 for S3 requests.
+            [signature_v2: <bool>]
 
             # optional.
             # enable to use path-style requests.
@@ -1337,6 +1584,19 @@ storage:
             # See the [S3 documentation on object tagging](https://docs.aws.amazon.com/AmazonS3/latest/userguide/object-tagging.html) for more detail.
             [tags: <map[string]string>]
 
+            # Optional.
+            # S3 storage class for uploaded objects. If unset, the default storage class of the bucket is used.
+            # See the [S3 documentation on storage classes](https://docs.aws.amazon.com/AmazonS3/latest/userguide/storage-class-intro.html) for valid values.
+            [storage_class: <string>]
+
+            # Optional.
+            # A map of key-value strings for user-defined metadata to store on S3 objects.
+            [metadata: <map[string]string>]
+
+            # Deprecated and ignored. This setting has no effect other than emitting a startup
+            # warning, and will be removed in a future release. Use native AWS authentication
+            # mechanisms (IAM roles, environment variables) instead.
+            [native_aws_auth_enabled: <bool> | default = false]
 
             [sse: <map[string]string>]:
               # Optional
@@ -1359,8 +1619,7 @@ storage:
               # It expects a 32 byte long string.
               encryption_key:
 
-        # azure configuration. Will be used only if value of backend is "azure"
-        # EXPERIMENTAL
+        # Azure configuration. Will be used only if value of backend is "azure".
         azure:
 
             # store traces in this container.
@@ -1398,7 +1657,15 @@ storage:
 
             # optional.
             # The Client ID for the user-assigned Azure Managed Identity used to access Azure storage.
-            [user_assigned_id: <bool>]
+            [user_assigned_id: <string>]
+
+            # Optional. Default is 4
+            # Number of simultaneous uploads to Azure.
+            [max_buffers: <int> | default = 4]
+
+            # Optional. Default is 3145728 (3 MiB)
+            # Buffer size for uploads to Azure.
+            [buffer_size: <int> | default = 3145728]
 
             # Optional. Default is 0 (disabled)
             # Example: "hedge_requests_at: 500ms"
@@ -1504,10 +1771,10 @@ storage:
         pool:
 
             # total number of workers pulling jobs from the queue
-            [max_workers: <int> | default = 30]
+            [max_workers: <int> | default = 400]
 
             # length of job queue. important for querier as it queues a job for every block it has to search
-            [queue_depth: <int> | default = 10000 ]
+            [queue_depth: <int> | default = 20000]
 
         # configuration block for the Write Ahead Log (WAL)
         wal: <WAL config>
@@ -1532,7 +1799,7 @@ memberlist:
 
     # The timeout for establishing a connection with a remote node, and for
     # read/write operations.
-    [stream_timeout: <duration> | default = 10s]
+    [stream_timeout: <duration> | default = 2s]
 
     # Multiplication factor used when sending out messages (factor * log(N+1)).
     [retransmit_factor: <int> | default = 2]
@@ -1554,9 +1821,13 @@ memberlist:
     # which is disabled.
     [dead_node_reclaim_time: <duration> | default = 0s]
 
+    # Enable message compression. Reduces bandwidth usage at the cost of slightly
+    # more CPU utilization. Tempo disables this by default for performance.
+    [compression_enabled: <boolean> | default = false]
+
     # Other cluster members to join. Can be specified multiple times. It can be an
     # IP, hostname or an entry specified in the DNS Service Discovery format (see
-    # https://cortexmetrics.io/docs/configuration/arguments/#dns-service-discovery
+    # https://grafana.com/docs/mimir/latest/configure/about-dns-service-discovery/
     # for more details).
     # A "Headless" Cluster IP service in Kubernetes.
     # Example:
@@ -1573,7 +1844,7 @@ memberlist:
     [max_join_retries: <int> | default = 10]
 
     # If this node fails to join memberlist cluster, abort.
-    [abort_if_cluster_join_fails: <boolean> | default = true]
+    [abort_if_cluster_join_fails: <boolean> | default = false]
 
     # If not 0, how often to rejoin the cluster. Occasional rejoin can help to fix
     # the cluster split issue, and is harmless otherwise. For example when using
@@ -1584,7 +1855,7 @@ memberlist:
     [rejoin_interval: <duration> | default = 0s]
 
     # Timeout for leaving memberlist cluster.
-    [leave_timeout: <duration> | default = 5s]
+    [leave_timeout: <duration> | default = 20s]
 
     # IP address to listen on for gossip messages.
     # Multiple addresses may be specified.
@@ -1592,6 +1863,24 @@ memberlist:
 
     # Port to listen on for gossip messages.
     [bind_port: <int> | default = 7946]
+
+    # Gossip address to advertise to other members in the cluster.
+    # Used for NAT traversal.
+    [advertise_addr: <string> | default = ""]
+
+    # Gossip port to advertise to other members in the cluster.
+    # Used for NAT traversal.
+    [advertise_port: <int> | default = 0]
+
+    # Optional string to include in outbound packets and gossip streams.
+    # Other members discard any message whose label doesn't match, unless
+    # cluster_label_verification_disabled is true.
+    [cluster_label: <string> | default = ""]
+
+    # When true, memberlist doesn't verify that inbound packets and gossip
+    # streams have the cluster label matching the configured one.
+    # Disable verification while rolling out a cluster label change.
+    [cluster_label_verification_disabled: <boolean> | default = false]
 
     # Timeout used when connecting to other nodes to send packet.
     [packet_dial_timeout: <duration> | default = 5s]
@@ -1608,8 +1897,7 @@ Defines re-used configuration blocks.
 ### Block
 
 ```yaml
-# block format version. options: vParquet4
-# deprecated options: v2, vParquet3
+# block format version. options: vParquet4, vParquet5
 [version: <string> | default = vParquet4]
 
 # bloom filter false positive rate. lower values create larger filters but fewer false positives
@@ -1617,9 +1905,6 @@ Defines re-used configuration blocks.
 
 # maximum size of each bloom filter shard
 [bloom_filter_shard_size_bytes: <int> | default = 100KiB]
-
-# number of bytes per search page
-[search_page_size_bytes: <int> | default = 1MiB]
 
 # an estimate of the number of bytes per row group when cutting Parquet blocks. lower values will
 #  create larger footers but will be harder to shard when searching. It is difficult to calculate
@@ -1629,7 +1914,7 @@ Defines re-used configuration blocks.
 # Configures attributes to be stored in dedicated columns within the parquet file, rather than in the
 # generic attribute key-value list. This allows for more efficient searching of these attributes.
 # Up to 10 span attributes and 10 resource attributes can be configured as dedicated columns.
-# Requires at least vParquet3
+# Requires vParquet4 or later.
 parquet_dedicated_columns: <list of columns>
 
       # name of the attribute
@@ -1859,7 +2144,7 @@ The storage WAL configuration block.
 # end times.
 # This can result in trace not being found if the trace falls outside the slack configuration value as the
 # start and end times of the block will not be updated in this case.
-[ingestion_time_range_slack: <duration> | default = unset]
+[ingestion_time_range_slack: <duration> | default = 2m]
 ```
 
 ## Overrides
@@ -1867,6 +2152,9 @@ The storage WAL configuration block.
 Tempo provides an overrides module for users to set global or per-tenant override settings.
 
 ### Ingestion limits
+
+Tempo enforces ingestion limits at different points in the write path.
+For an overview of where each component sits in the pipeline, refer to [About the Tempo architecture](https://grafana.com/docs/tempo/<TEMPO_VERSION>/reference-tempo-architecture/about-tempo-architecture/).
 
 The default limits in Tempo may not be sufficient in high-volume tracing environments.
 Errors including `RATE_LIMITED`/`TRACE_TOO_LARGE`/`LIVE_TRACES_EXCEEDED` occur when these limits are exceeded.
@@ -1888,25 +2176,27 @@ overrides:
 
       # Specifies whether the ingestion rate limits should be applied by each instance
       # of the distributor individually, or the limits are to be shared
-      # across all instances. See the "override strategies" section for an example.
+      # across all instances. Refer to the "ingestion rate strategy" section for an example.
       # Only applies to rate_limit_bytes.
       [rate_strategy: <global|local> | default = local]
 
       # Per-user ingestion rate limit (bytes) used in ingestion.
-      # Results in errors like RATE_LIMITED: ingestion rate limit (15000000 bytes) exceeded while adding 10 bytes
-      #   RATE_LIMITED: ingestion rate limit (15000000 bytes) exceeded while
+      # Honored by both global and local strategies. With global, this value
+      # is divided across healthy distributors.
+      # Results in errors like
+      #   RATE_LIMITED: ingestion rate limit (30000000 bytes) exceeded while
       #   adding 10 bytes
-      # Applies global and local strategies.
-      [rate_limit_bytes: <int> | default = 15000000 (15MB) ]
+      [rate_limit_bytes: <int> | default = 30000000 (30MB) ]
 
       # Burst size (bytes) used in ingestion.
       # Results in errors like
-      #   RATE_LIMITED: ingestion rate limit (20000000 bytes) exceeded while
+      #   RATE_LIMITED: ingestion rate limit (30000000 bytes) exceeded while
       #   adding 10 bytes
       # Ignores rate strategy and is always local.
-      [burst_size_bytes: <int> | default = 20000000 (20MB) ]
+      [burst_size_bytes: <int> | default = 30000000 (30MB) ]
 
-      # Maximum number of active traces per user, per live-store.
+      # Maximum number of active traces per user, per live-store instance.
+      # Not affected by rate_strategy.
       # A value of 0 disables the check.
       # Results in errors like
       #    LIVE_TRACES_EXCEEDED: max live traces per tenant exceeded:
@@ -1914,6 +2204,7 @@ overrides:
       [max_traces_per_user: <int> | default = 10000]
 
       # Maximum number of active traces per user, across the cluster.
+      # Not enforced at runtime in Tempo 3.0. Exposed as a metric only.
       # A value of 0 disables the check.
       [max_global_traces_per_user: <int> | default = 0]
 
@@ -1926,6 +2217,9 @@ overrides:
       # Pad push requests with an artificial delay, if set push requests will be delayed to ensure
       # an average latency of at least artificial_delay.
       [artificial_delay: <duration> | default = 0ms]
+
+      # When enabled, the distributor includes retry information in rate-limit responses.
+      [retry_info_enabled: <bool> | default = true]
 
     # Read related overrides
     read:
@@ -1954,13 +2248,25 @@ overrides:
       # "008efff798038103d269b633813fc703" to comply with the OpenTelemetry and W3C Trace Context specifications.
       [left_pad_trace_ids: <bool> | default = false]
 
+      # Maximum number of OR-expanded condition groups allowed in a tag search query.
+      # Queries that expand beyond this limit are rejected.
+      [max_condition_groups_per_tag_query: <int> | default = 100]
+
+      # Per-user toggle for unsafe query hints. When enabled, allows query hints that
+      # bypass safety checks.
+      [unsafe_query_hints: <bool> | default = false]
+
+      # Per-user toggle for the span-only fetch layer for TraceQL metrics queries.
+      # When not set, the default behavior is used. May be overridden by query hints.
+      [metrics_spanonly_fetch: <bool>]
+
     # Compaction related overrides
     compaction:
       # Per-user block retention. If this value is set to 0 (default),
       # then block_retention in the compaction configuration is used.
       [block_retention: <duration> | default = 0s]
       # Per-user compaction window. If this value is set to 0 (default),
-      # then block_retention in the compaction configuration is used.
+      # then compaction_window in the compaction configuration is used.
       [compaction_window: <duration> | default = 0s]
       # Allow compaction and retention to be deactivated on a per-tenant basis. Default value
       # is false (compaction active). Useful to perform operations on the backend
@@ -1984,6 +2290,7 @@ overrides:
       # supported:
       #  - service-graphs
       #  - span-metrics
+      #  - host-info
       [processors: <list of strings>]
 
       # Maximum number of active series in the registry, per instance of the metrics-generator. A
@@ -2051,6 +2358,19 @@ overrides:
       #   - "enabled": Applies DRAIN clustering to span names
       [span_name_sanitization: <string> | default = ""]
 
+      # Per-tenant headers to include in remote write requests to the metrics backend.
+      [remote_write_headers: <map of string to string>]
+
+      # Bucket growth factor for native histograms. Only applies when
+      # generate_native_histograms is set to "native" or "both".
+      [native_histogram_bucket_factor: <float> | default = 1.1]
+
+      # Maximum number of buckets for native histograms.
+      [native_histogram_max_bucket_number: <int> | default = 100]
+
+      # Minimum duration between native histogram counter resets.
+      [native_histogram_min_reset_duration: <duration> | default = 15m]
+
       # Distributor -> metrics-generator forwarder related overrides
       forwarder:
         # Spans are stored in a queue in the distributor before being sent to the metrics-generators.
@@ -2074,7 +2394,7 @@ overrides:
           [filter_policies: [
             [
               include/include_any/exclude:
-                match_type: <string> # options: strict, regexp
+                match_type: <string> # options: strict, regex
                 attributes:
                   - key: <string>
                     value: <any>
@@ -2089,7 +2409,7 @@ overrides:
           [filter_policies: [
             [
               include/include_any/exclude:
-                match_type: <string> # options: strict, regexp
+                match_type: <string> # options: strict, regex
                 attributes:
                   - key: <string>
                     value: <any>
@@ -2102,6 +2422,13 @@ overrides:
           [target_info_excluded_dimensions: <list of string>]
           # add instance label to all span metrics series when enable_target_info is true
           [enable_instance_label: <bool> | default = true]
+
+        # Configuration for the host-info processor
+        host_info:
+          # Attributes used to identify the host. Checked in order until a match is found.
+          [host_identifiers: <list of string> | default = ["k8s.node.name", "host.id"]]
+          # Name of the generated host info metric.
+          [metric_name: <string> | default = "traces_host_info"]
 
     # Generic forwarding configuration
 
@@ -2116,7 +2443,7 @@ overrides:
       # This limit is used in 3 places:
       #  - During search, traces will be skipped when they exceed this threshold.
       #  - During ingestion, traces that exceed this threshold will be refused.
-      #  - During compaction, traces that exceed this threshold will be partially dropped.
+      #  - During compaction (run by backend workers), traces that exceed this threshold will be partially dropped.
       # During ingestion, exceeding the threshold results in errors like
       #    TRACE_TOO_LARGE: max size of trace (5000000) exceeded while adding 387 bytes
       [max_bytes_per_trace: <int> | default = 5000000 (5MB) ]
@@ -2126,7 +2453,7 @@ overrides:
       # Configures attributes to be stored in dedicated columns within the parquet file, rather than in the
       # generic attribute key-value list. This allows for more efficient searching of these attributes.
       # Up to 10 span attributes and 10 resource attributes can be configured as dedicated columns.
-      # Requires at least vParquet3
+      # Requires vParquet4 or later.
       parquet_dedicated_columns:
         [
           name: <string>, # name of the attribute
@@ -2210,8 +2537,8 @@ overrides:
 
   "<tenant-id>":
       ingestion:
-        [rate_size_bytes: <int>] # Applies global and local strategies.
-        [burst_limit_bytes: <int>] # Ignores rate strategy and is always local.
+        [rate_limit_bytes: <int>] # Honored by both global and local strategies.
+        [burst_size_bytes: <int>] # Always local, regardless of rate strategy.
         [max_traces_per_user: <int>]
       global:
         [max_bytes_per_trace: <int>]
@@ -2232,45 +2559,58 @@ These tenant-specific overrides are stored in an object store and can be modifie
 User-configurable overrides have priority over runtime overrides.
 Refer to [user-configurable overrides](https://grafana.com/docs/tempo/<TEMPO_VERSION>/operations/manage-advanced-systems/user-configurable-overrides/) for more details.
 
-#### Override strategies
+#### Ingestion rate strategy
 
-The trace limits specified by the various parameters are, by default, applied as per-distributor limits.
-For example, a `max_traces_per_user` setting of 10000 means that each distributor within the cluster has a limit of 10000 traces per user.
-This is known as a `local` strategy in that the specified trace limits are local to each distributor.
+Ingestion limits are enforced at different points in the write path. The distributor enforces rate and burst limits before writing to Kafka. Live-stores and block-builders enforce per-trace size and active trace count limits asynchronously after consuming from Kafka.
 
-A setting that applies at a local level is quite helpful in ensuring that each distributor independently can process traces up to the limit without affecting the tracing limits on other distributors.
+The `rate_strategy` setting controls how the distributor's rate limit scales across instances. It only affects `rate_limit_bytes`.
 
-However, as a cluster grows quite large, this can lead to quite a large quantity of traces.
-An alternative strategy may be to set a `global` trace limit that establishes a total budget of all traces across all distributors in the cluster.
-The global limit is averaged across all distributors by using the distributor ring.
-
-```yaml
-# /conf/tempo.yaml
-overrides:
-  defaults:
-    ingestion: [rate_strategy: <global|local> | default = local]
-```
-
-For example, this configuration specifies that each instance of the distributor will apply a limit of `15MB/s`.
+| Strategy | When to use | How it works |
+|---|---|---|
+| **`local`** (default) | You want each distributor to independently handle a fixed rate, and you accept that the effective cluster rate grows as you add distributors. | Each distributor enforces the full configured `rate_limit_bytes` value. With 5 distributors at `30 MB/s`, the cluster allows up to `150 MB/s`. |
+| **`global`** | You need a predictable cluster-wide ingestion budget that stays constant regardless of how many distributors you run. | The configured `rate_limit_bytes` is divided across healthy distributors. With 5 distributors at `30 MB/s`, each allows `6 MB/s`. |
 
 ```yaml
 overrides:
   defaults:
     ingestion:
-      strategy: local
-      limit_bytes: 15000000
+      [rate_strategy: <global|local> | default = local]
 ```
 
-This configuration specifies that together, all distributor instances will apply a limit of `15MB/s`.
-So if there are 5 instances, each instance will apply a local limit of `(15MB/s / 5) = 3MB/s`.
+The following table shows where each ingestion limit is enforced and whether it is affected by `rate_strategy`:
+
+| Setting | Enforced by | Affected by `rate_strategy`? |
+|---|---|---|
+| `rate_limit_bytes` | Distributor | Yes |
+| `burst_size_bytes` | Distributor | No (always per instance) |
+| `max_traces_per_user` | Live-store | No (always per instance) |
+| `max_global_traces_per_user` | Not enforced at runtime | No (metric only, disabled by default) |
+| `max_bytes_per_trace` | Live-store, block-builder | No |
+
+##### Examples
+
+Each distributor instance independently allows `30 MB/s`:
 
 ```yaml
 overrides:
   defaults:
     ingestion:
-      strategy: global
-      limit_bytes: 15000000
+      rate_strategy: local
+      rate_limit_bytes: 30000000
 ```
+
+All distributors share a total cluster rate of `30 MB/s`.
+With 5 distributors, each instance allows `6 MB/s`:
+
+```yaml
+overrides:
+  defaults:
+    ingestion:
+      rate_strategy: global
+      rate_limit_bytes: 30000000
+```
+
+For guidance on sizing these limits for your workload, refer to [Manage trace ingestion](https://grafana.com/docs/tempo/<TEMPO_VERSION>/operations/manage-trace-ingestion/).
 
 ## Usage-report
 
@@ -2387,6 +2727,12 @@ cache:
             [consistent_hash: <bool>]
 
             # Optional
+            # The maximum size of an item stored in memcached, in bytes.
+            # Bigger items are not stored. A value of 0 disables the limit.
+            # (default: 0)
+            [max_item_size: <int>]
+
+            # Optional
             # Trip circuit-breaker after this number of consecutive dial failures.
             # (default: 10)
             [circuit_breaker_consecutive_failures: 10]
@@ -2474,53 +2820,65 @@ cache:
         # EXPERIMENTAL
         redis:
 
-            # Redis endpoint to use when caching.
+            # Redis Server endpoint to use for caching. A comma-separated list of
+            # endpoints for Redis Cluster or Redis Sentinel.
             [endpoint: <string>]
 
-            # optional.
-            # Maximum time to wait before giving up on redis requests. (default 100ms)
-            [timeout: 500ms]
-
-            # optional.
+            # Optional
             # Redis Sentinel master name. (default "")
-            # Example: "master-name: redis-master"
-            [master-name: <string>]
+            [master_name: <string>]
 
-            # optional.
-            # Database index. (default 0)
-            [db: <int>]
+            # Optional
+            # Maximum time to wait before giving up on redis requests. (default 500ms)
+            [timeout: <duration> | default = 500ms]
 
-            # optional.
+            # Optional
             # How long keys stay in the redis. (default 0)
-            [expiration: <duration>]
+            [expiration: <duration> | default = 0s]
 
-            # optional.
-            # Enable connecting to redis with TLS. (default false)
-            [tls-enabled: <bool>]
+            # Optional
+            # Database index. (default 0)
+            [db: <int> | default = 0]
 
-            # optional.
-            # Skip validating server certificate. (default false)
-            [tls-insecure-skip-verify: <bool>]
-
-            # optional.
+            # Optional
             # Maximum number of connections in the pool. (default 0)
-            [pool-size: <int>]
+            [pool_size: <int> | default = 0]
 
-            # optional.
+            # Optional
+            # Username to use when connecting to redis (Redis 6+ ACL-based AUTH). (default "")
+            [username: <string>]
+
+            # Optional
             # Password to use when connecting to redis. (default "")
             [password: <string>]
 
-            # optional.
-            # Close connections after remaining idle for this duration. (default 0s)
-            [idle-timeout: <duration>]
+            # Optional
+            # Username to use when connecting to redis sentinel. (default "")
+            [sentinel_username: <string>]
 
-            # optional.
-            # Close connections older than this duration. (default 0s)
-            [max-connection-age: <duration>]
-
-            # optional.
+            # Optional
             # Password to use when connecting to redis sentinel. (default "")
             [sentinel_password: <string>]
+
+            # Optional
+            # Enable connecting to redis with TLS. (default false)
+            [tls_enabled: <bool> | default = false]
+
+            # Optional
+            # Skip validating server certificate. (default false)
+            [tls_insecure_skip_verify: <bool> | default = false]
+
+            # Optional
+            # Close connections after remaining idle for this duration. (default 0s)
+            [idle_timeout: <duration> | default = 0s]
+
+            # Optional
+            # Close connections older than this duration. (default 0s)
+            [max_connection_age: <duration> | default = 0s]
+
+            # Optional
+            # TTL for cached keys.
+            [ttl: <duration>]
 ```
 
 Example configuration:

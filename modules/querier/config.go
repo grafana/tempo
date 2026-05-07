@@ -24,9 +24,6 @@ type Config struct {
 	ShuffleShardingIngestersLookbackPeriod time.Duration `yaml:"shuffle_sharding_ingesters_lookback_period"`
 	QueryRelevantIngesters                 bool          `yaml:"query_relevant_ingesters"`
 	SecondaryIngesterRing                  string        `yaml:"secondary_ingester_ring,omitempty"`
-	// Deprecated: kept only for config compatibility. Querier always uses
-	// partition-ring query path when available.
-	QueryLiveStore bool `yaml:"query_live_store,omitempty"`
 }
 
 type SearchConfig struct {
@@ -91,7 +88,6 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 	cfg.PartitionRing.MinimizeRequests = true
 	cfg.PartitionRing.MinimizeRequestsHedgingDelay = 3 * time.Second
 	cfg.PartitionRing.PreferredZone = ""
-	cfg.QueryLiveStore = false
 
 	f.StringVar(&cfg.Worker.FrontendAddress, prefix+".frontend-address", "", "Address of query frontend service, in host:port format.")
 }

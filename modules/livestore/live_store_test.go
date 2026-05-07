@@ -270,8 +270,9 @@ func TestLiveStoreFullBlockLifecycleCheating(t *testing.T) {
 	requireInstanceState(t, inst, instanceState{liveTraces: 1, walBlocks: 0, completeBlocks: 0})
 
 	// cut to head block and test
-	err = inst.cutIdleTraces(t.Context(), true)
+	drained, err := inst.cutIdleTraces(t.Context(), true)
 	require.NoError(t, err)
+	require.True(t, drained, "should drain live traces in one iteration")
 
 	requireTraceInLiveStore(t, liveStore, expectedID, expectedTrace)
 	requireTraceInBlock(t, inst.headBlock, expectedID, expectedTrace)
@@ -333,8 +334,9 @@ func TestLiveStoreReplaysTraceInHeadBlock(t *testing.T) {
 	require.NoError(t, err)
 
 	// cut to head block
-	err = inst.cutIdleTraces(t.Context(), true)
+	drained, err := inst.cutIdleTraces(t.Context(), true)
 	require.NoError(t, err)
+	require.True(t, drained, "should drain live traces in one iteration")
 
 	// stop the live store and then create a new one to simulate a restart and replay the data on disk
 	err = services.StopAndAwaitTerminated(t.Context(), liveStore)
@@ -361,8 +363,9 @@ func TestLiveStoreReplaysTraceInWalBlocks(t *testing.T) {
 	require.NoError(t, err)
 
 	// cut to head block
-	err = inst.cutIdleTraces(t.Context(), true)
+	drained, err := inst.cutIdleTraces(t.Context(), true)
 	require.NoError(t, err)
+	require.True(t, drained, "should drain live traces in one iteration")
 
 	// cut head to wal blocks
 	_, err = inst.cutBlocks(t.Context(), true)
@@ -393,8 +396,9 @@ func TestLiveStoreReplaysTraceInCompleteBlocks(t *testing.T) {
 	require.NoError(t, err)
 
 	// cut to head block
-	err = inst.cutIdleTraces(t.Context(), true)
+	drained, err := inst.cutIdleTraces(t.Context(), true)
 	require.NoError(t, err)
+	require.True(t, drained, "should drain live traces in one iteration")
 
 	// cut head to wal blocks
 	walUUID, err := inst.cutBlocks(t.Context(), true)
@@ -425,7 +429,9 @@ func TestLiveStoreDropsInvalidCompleteBlocksOnRestart(t *testing.T) {
 	inst, err := liveStore.getOrCreateInstance(testTenantID)
 	require.NoError(t, err)
 
-	require.NoError(t, inst.cutIdleTraces(t.Context(), true))
+	drained, cutErr := inst.cutIdleTraces(t.Context(), true)
+	require.NoError(t, cutErr)
+	require.True(t, drained, "should drain live traces in one iteration")
 	walUUID, err := inst.cutBlocks(t.Context(), true)
 	require.NoError(t, err)
 	_, err = inst.completeBlock(context.Background(), walUUID)
@@ -659,8 +665,9 @@ func TestLiveStoreUsesRecordTimestampForBlockStartAndEnd(t *testing.T) {
 		require.NoError(t, err)
 
 		// force just pushed traces to the head block
-		err = inst.cutIdleTraces(t.Context(), true)
+		drained, err := inst.cutIdleTraces(t.Context(), true)
 		require.NoError(t, err)
+		require.True(t, drained, "should drain live traces in one iteration")
 
 		meta := inst.headBlock.BlockMeta()
 		require.Equal(t, tc.expectedStart, meta.StartTime)
@@ -1106,6 +1113,7 @@ func TestIsLagged(t *testing.T) {
 		lastRecordNano int64
 		end            time.Time
 		expectedLagged bool
+		expectedError  bool
 		description    string
 	}{
 		{
@@ -1114,8 +1122,9 @@ func TestIsLagged(t *testing.T) {
 			readerLag:      50000000,                             // high lag
 			lastRecordNano: now.Add(-100 * time.Hour).UnixNano(), // high lag
 			end:            now.Add(-1 * time.Second),
-			expectedLagged: false,
-			description:    "When FailOnHighLag is disabled, isLagged should always return false",
+			expectedLagged: true,
+			expectedError:  false,
+			description:    "When FailOnHighLag is disabled, isLagged should returns true, but methods should not return error",
 		},
 		{
 			name:           "lag unknown - should be lagged",
@@ -1124,6 +1133,7 @@ func TestIsLagged(t *testing.T) {
 			lastRecordNano: now.Add(-100 * time.Hour).UnixNano(), // high lag
 			end:            now,
 			expectedLagged: true,
+			expectedError:  true,
 			description:    "When lag is unknown (nil), prefer error over potentially incomplete results",
 		},
 		{
@@ -1133,6 +1143,7 @@ func TestIsLagged(t *testing.T) {
 			lastRecordNano: -1, // no last record yet
 			end:            now,
 			expectedLagged: true,
+			expectedError:  true,
 			description:    "When no last record yet, should not be lagged",
 		},
 		{
@@ -1142,6 +1153,7 @@ func TestIsLagged(t *testing.T) {
 			lastRecordNano: now.UnixNano(), // no lag
 			end:            now.Add(-1 * time.Second),
 			expectedLagged: false,
+			expectedError:  false,
 			description:    "When lag is low (near zero), recent requests should not be lagged",
 		},
 		{
@@ -1151,6 +1163,7 @@ func TestIsLagged(t *testing.T) {
 			lastRecordNano: now.Add(-10 * time.Second).UnixNano(), // 10 seconds ago
 			end:            now.Add(-5 * time.Second),             // 5 seconds ago
 			expectedLagged: true,
+			expectedError:  true,
 			description:    "When lag is high and request is within the lag period, should be lagged",
 		},
 		{
@@ -1160,6 +1173,7 @@ func TestIsLagged(t *testing.T) {
 			lastRecordNano: now.Add(-10 * time.Second).UnixNano(), // 10 seconds ago
 			end:            now.Add(-100 * time.Second),           // 100 seconds ago (well before lag)
 			expectedLagged: false,
+			expectedError:  false,
 			description:    "When lag is high but request is old (outside lag period), should not be lagged",
 		},
 		{
@@ -1169,6 +1183,7 @@ func TestIsLagged(t *testing.T) {
 			lastRecordNano: now.Add(-10 * time.Second).UnixNano(), // last record was 10s ago
 			end:            now.Add(-10 * time.Second),            // request end is 10s ago
 			expectedLagged: false,
+			expectedError:  false,
 			description:    "When request end time is equals the calculated lag, should not be lagged",
 		},
 	}
@@ -1200,7 +1215,7 @@ func TestIsLagged(t *testing.T) {
 					End:   uint32(tc.end.Unix()),
 				})
 
-				if tc.expectedLagged {
+				if tc.expectedError {
 					require.ErrorIs(t, err, errLagged)
 					require.Nil(t, resp)
 				} else {
@@ -1217,7 +1232,7 @@ func TestIsLagged(t *testing.T) {
 					End:   uint64(tc.end.UnixNano()),
 					Step:  uint64(time.Second),
 				})
-				if tc.expectedLagged {
+				if tc.expectedError {
 					require.ErrorIs(t, err, errLagged)
 					require.Nil(t, resp)
 				} else {
@@ -1311,4 +1326,52 @@ func requirePartitionOwnerEventually(t *testing.T, partitionKV kv.Client, instan
 		desc := ring.GetOrCreatePartitionRingDesc(val)
 		return desc.HasOwner(instanceID) == expected
 	}, 5*time.Second, 10*time.Millisecond, msg)
+}
+
+func TestShouldForceFromLookback_NoInstancesNonInactivePartition(t *testing.T) {
+	tmpDir := t.TempDir()
+	cfg := defaultConfig(t, tmpDir)
+
+	ls, err := liveStoreWithConfig(t, cfg)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = services.StopAndAwaitTerminated(t.Context(), ls) })
+
+	require.Empty(t, ls.getInstances())
+
+	require.True(t, ls.shouldForceFromLookback(t.Context()),
+		"should force lookback when no local instances and partition is not Inactive")
+}
+
+func TestShouldForceFromLookback_NoInstancesInactivePartition(t *testing.T) {
+	tmpDir := t.TempDir()
+	cfg := defaultConfig(t, tmpDir)
+
+	ls, err := liveStoreWithConfig(t, cfg)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = services.StopAndAwaitTerminated(t.Context(), ls) })
+
+	require.Empty(t, ls.getInstances())
+
+	require.NoError(t, ls.ingestPartitionLifecycler.ChangePartitionState(t.Context(), ring.PartitionInactive))
+
+	require.Eventually(t, func() bool {
+		state, _, err := ls.ingestPartitionLifecycler.GetPartitionState(t.Context())
+		return err == nil && state == ring.PartitionInactive
+	}, 5*time.Second, 10*time.Millisecond, "partition should be observed as Inactive")
+
+	require.False(t, ls.shouldForceFromLookback(t.Context()),
+		"should NOT force lookback when partition is Inactive — no live ingest to recover")
+}
+
+func TestShouldForceFromLookback_InstancesExist(t *testing.T) {
+	tmpDir := t.TempDir()
+	ls, err := defaultLiveStore(t, tmpDir)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = services.StopAndAwaitTerminated(t.Context(), ls) })
+
+	pushToLiveStore(t, ls)
+	require.NotEmpty(t, ls.getInstances())
+
+	require.False(t, ls.shouldForceFromLookback(t.Context()),
+		"should NOT force lookback when local instances are present")
 }

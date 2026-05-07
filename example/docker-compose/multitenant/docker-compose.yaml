@@ -4,7 +4,7 @@ services:
     command: [ "-config.file=/etc/tempo.yaml", "-target=all"]
     volumes:
       - ./tempo.yaml:/etc/tempo.yaml
-      - ./tempo-data:/var/tempo
+      - tempo-data:/var/tempo
     ports:
       - "4317:4317"  # otlp grpc
       - "4318:4318"  # otlpc http
@@ -28,7 +28,7 @@ services:
       - tempo
 
   otel-collector:
-    image: otel/opentelemetry-collector:0.149.0@sha256:dd56aed607fd02f8ac01dddb27a859c0c2cc750539abce927803778fafc736ae
+    image: otel/opentelemetry-collector:0.150.1@sha256:618f7867e49fdb173d9b46d535b01f82254b0b14beac6ab1f6f2eb8cf62c5d42
     command: [ "--config=/etc/otel-collector.yaml" ]
     volumes:
       - ./otel-collector.yaml:/etc/otel-collector.yaml
@@ -46,7 +46,7 @@ services:
       - "9090:9090"
 
   grafana:
-    image: grafana/grafana:12.4.2@sha256:83749231c3835e390a3144e5e940203e42b9589761f20ef3169c716e734ad505
+    image: grafana/grafana:13.0.1@sha256:0f86bada30d65ef9d0183b90c1e2682ac92d53d95da8bed322b984ea78a4a73a
     volumes:
       - ./grafana-datasources.yaml:/etc/grafana/provisioning/datasources/datasources.yaml
     environment:
@@ -70,3 +70,6 @@ services:
       ]
     depends_on:
       - tempo
+
+volumes:
+  tempo-data:

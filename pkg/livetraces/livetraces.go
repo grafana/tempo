@@ -1,9 +1,12 @@
 package livetraces
 
 import (
+	"bytes"
 	"errors"
 	"hash"
 	"hash/fnv"
+	"iter"
+	"sort"
 	"time"
 
 	kitlog "github.com/go-kit/log"
@@ -115,19 +118,28 @@ func (l *LiveTraces[T]) PushWithTimestampAndLimits(ts time.Time, traceID []byte,
 	return nil
 }
 
-func (l *LiveTraces[T]) CutIdle(now time.Time, immediate bool) []*LiveTrace[T] {
-	res := []*LiveTrace[T]{}
-
+func (l *LiveTraces[T]) CutIdle(now time.Time, immediate bool) iter.Seq[*LiveTrace[T]] {
 	idleSince := now.Add(-l.maxIdleTime)
 	liveSince := now.Add(-l.maxLiveTime)
 
+	var toCut []*LiveTrace[T]
 	for k, tr := range l.Traces {
 		if tr.LastAppend.Before(idleSince) || tr.CreatedAt.Before(liveSince) || immediate {
-			res = append(res, tr)
 			l.sz -= tr.sz
 			delete(l.Traces, k)
+			toCut = append(toCut, tr)
 		}
 	}
 
-	return res
+	sort.Slice(toCut, func(i, j int) bool {
+		return bytes.Compare(toCut[i].ID, toCut[j].ID) == -1
+	})
+
+	return func(yield func(*LiveTrace[T]) bool) {
+		for _, tr := range toCut {
+			if !yield(tr) {
+				return
+			}
+		}
+	}
 }

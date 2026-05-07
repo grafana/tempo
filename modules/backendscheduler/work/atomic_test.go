@@ -1,13 +1,13 @@
 package work
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
 	"sync"
 	"testing"
 
-	jsoniter "github.com/json-iterator/go"
 	"github.com/stretchr/testify/require"
 )
 
@@ -57,7 +57,7 @@ func TestAtomicWriteFileStress(t *testing.T) {
 
 	// Should be valid JSON
 	var result map[string]any
-	err = jsoniter.Unmarshal(finalData, &result)
+	err = json.Unmarshal(finalData, &result)
 	require.NoError(t, err, "Final file should contain valid JSON after stress test")
 
 	// Verify it's our expected data

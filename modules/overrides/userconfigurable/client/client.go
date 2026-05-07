@@ -10,7 +10,6 @@ import (
 	"path"
 
 	"github.com/go-kit/log/level"
-	jsoniter "github.com/json-iterator/go"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"go.opentelemetry.io/otel"
@@ -181,7 +180,7 @@ func (o *clientImpl) Set(ctx context.Context, userID string, limits *Limits, ver
 	ctx, span := tracer.Start(ctx, "clientImpl.Set", trace.WithAttributes(attribute.String("tenant", userID)))
 	defer span.End()
 
-	data, err := jsoniter.Marshal(limits)
+	data, err := json.Marshal(limits)
 	if err != nil {
 		return "", err
 	}

@@ -94,6 +94,14 @@ max_search_duration: 5m
 	assert.Equal(t, limitsYAML, limitsJSON)
 }
 
+func TestConfig_DefaultIngestionLimits(t *testing.T) {
+	cfg := Config{}
+	cfg.RegisterFlagsAndApplyDefaults(flag.NewFlagSet("test", flag.ContinueOnError))
+
+	assert.Equal(t, 30_000_000, cfg.Defaults.Ingestion.RateLimitBytes)
+	assert.Equal(t, 30_000_000, cfg.Defaults.Ingestion.BurstSizeBytes)
+}
+
 func TestConfig_legacy(t *testing.T) {
 	legacyRawYaml := `
 ingestion_rate_strategy: local

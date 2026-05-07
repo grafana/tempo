@@ -48,6 +48,7 @@ type Config struct {
 	StreamOverHTTPEnabled  bool          `yaml:"stream_over_http_enabled,omitempty"`
 	HTTPAPIPrefix          string        `yaml:"http_api_prefix"`
 	EnableGoRuntimeMetrics bool          `yaml:"enable_go_runtime_metrics,omitempty"`
+	SpanProfiling          bool          `yaml:"span_profiling,omitempty"`
 
 	Memory                 MemoryConfig                   `yaml:"memory,omitempty"`
 	Server                 server.Config                  `yaml:"server,omitempty"`
@@ -96,6 +97,7 @@ func (c *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
 	f.StringVar(&c.HTTPAPIPrefix, "http-api-prefix", "", "String prefix for all http api endpoints.")
 	f.BoolVar(&c.EnableGoRuntimeMetrics, "enable-go-runtime-metrics", false, "Set to true to enable all Go runtime metrics")
 	f.DurationVar(&c.ShutdownDelay, "shutdown-delay", 0, "How long to wait between SIGTERM and shutdown. After receiving SIGTERM, Tempo will report not-ready status via /ready endpoint.")
+	f.BoolVar(&c.SpanProfiling, "span-profiling", false, "Set to true to enable span profiling (pyroscope pprof labels on OTel spans).")
 
 	// Server settings
 	flagext.DefaultValues(&c.Server)
@@ -148,7 +150,7 @@ func (c *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
 	c.Ingest.RegisterFlagsAndApplyDefaults(util.PrefixConfig(prefix, "ingest"), f)
 	c.BlockBuilder.RegisterFlagsAndApplyDefaults(util.PrefixConfig(prefix, "block-builder"), f)
 	c.Querier.RegisterFlagsAndApplyDefaults(util.PrefixConfig(prefix, "querier"), f)
-	c.Frontend.RegisterFlagsAndApplyDefaults(util.PrefixConfig(prefix, "frontend"), f)
+	c.Frontend.RegisterFlagsAndApplyDefaults(util.PrefixConfig(prefix, "query-frontend"), f)
 	c.StorageConfig.RegisterFlagsAndApplyDefaults(util.PrefixConfig(prefix, "storage"), f)
 	c.UsageReport.RegisterFlagsAndApplyDefaults(util.PrefixConfig(prefix, "reporting"), f)
 	c.CacheProvider.RegisterFlagsAndApplyDefaults(util.PrefixConfig(prefix, "cache"), f)

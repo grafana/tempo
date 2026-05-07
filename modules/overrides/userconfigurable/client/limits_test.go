@@ -1,13 +1,13 @@
 package client
 
 import (
+	"encoding/json"
 	"reflect"
 	"testing"
 	"time"
 
 	"github.com/grafana/tempo/modules/overrides/histograms"
 	"github.com/grafana/tempo/pkg/sharedconfig"
-	jsoniter "github.com/json-iterator/go"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -144,7 +144,7 @@ func TestLimits_parseJson(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			var limits Limits
-			err := jsoniter.Unmarshal([]byte(tc.json), &limits)
+			err := json.Unmarshal([]byte(tc.json), &limits)
 			assert.NoError(t, err)
 
 			assert.Equal(t, tc.expected, limits)

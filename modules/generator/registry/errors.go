@@ -21,9 +21,7 @@ func getErrType(err error) string {
 		return "invalid"
 	case errors.Is(err, storage.ErrOutOfOrderSample),
 		errors.Is(err, storage.ErrOutOfBounds),
-		errors.Is(err, storage.ErrTooOldSample),
-		errors.Is(err, storage.ErrOutOfOrderCT),
-		errors.Is(err, storage.ErrCTNewerThanSample):
+		errors.Is(err, storage.ErrTooOldSample):
 		return "out_of_order"
 	case errors.Is(err, storage.ErrDuplicateSampleForTimestamp),
 		errors.Is(err, storage.ErrDuplicateExemplar):

@@ -67,6 +67,18 @@ Refer to the [Plan your Tempo deployment](../plan/) documentation for informatio
 | `--enable-go-runtime-metrics` | Set to true to enable all Go runtime metrics | `false` |
 | `--shutdown-delay` | How long to wait between SIGTERM and shutdown. After receiving SIGTERM, Tempo reports not-ready status via the `/ready` endpoint. | `0` |
 
+## Span profiling
+
+| Flag | Description | Default |
+| --- | --- | --- |
+| `--span-profiling` | Enable span profiling via `otelpyroscope`. When enabled, Tempo attaches pprof goroutine labels (`span_id`, `span_name`) to OTel spans and adds a `pyroscope.profile.id` attribute to root spans, enabling profile-to-trace correlation in Pyroscope. Requires an OTLP exporter to be configured through environment variables (`OTEL_TRACES_EXPORTER`, `OTEL_EXPORTER_OTLP_ENDPOINT`, or `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT`). | `false` |
+
+You can also set this option in the configuration file:
+
+```yaml
+span_profiling: true
+```
+
 ## Health check
 
 | Flag | Description | Default |
@@ -89,7 +101,7 @@ Kubernetes users typically don't need this flag because they can configure `http
 | Flag | Description | Default |
 | --- | --- | --- |
 | `--log.level` | Only log messages with the given severity or above. Valid levels: `debug`, `info`, `warn`, `error` | `info` |
-| `--log.format` | Output log messages in the given format. Valid formats: `logfmt`, `json` | `logfmt` |
+| `--log.format` | Output format for log messages. Valid formats: `logfmt`, `json` | `logfmt` |
 
 ## Server settings
 
@@ -106,10 +118,20 @@ Kubernetes users typically don't need this flag because they can configure `http
 | `--memberlist.bind-port` | Port for memberlist to communicate on | `7946` |
 | `--memberlist.message-history-buffer-bytes` | Size in bytes for the message history buffer | `0` |
 
+## MCP server
+
+| Flag | Description | Default |
+| --- | --- | --- |
+| `--query-frontend.mcp-server.enabled` | Set to true to enable the MCP server | `false` |
+
+Tempo includes an [MCP (Model Context Protocol)](https://modelcontextprotocol.io/docs/getting-started/intro) server that provides AI assistants and Large Language Models (LLMs) with direct access to distributed tracing data through TraceQL queries and other endpoints.
+
+Refer to the [Model Context Protocol (MCP) Server documentation](https://grafana.com/docs/tempo/<TEMPO_VERSION>/api_docs/mcp-server/) for more information.
+
 ## Module configuration
 
 You can use additional flags to configure individual Tempo modules, such as the distributor, block-builder, live-store, querier, backend-scheduler, backend-worker, and their components.
-These flags follow a pattern like `--<module>.<setting>` and are extensively documented in the configuration file format.
+These flags follow a pattern like `--<module>.<setting>` and are documented in the [configuration file format](/docs/tempo/<TEMPO_VERSION>/configuration/).
 
 Use the configuration file approach described in the [Configuration documentation](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/).
 The documentation has a comprehensive list of all configuration options.
