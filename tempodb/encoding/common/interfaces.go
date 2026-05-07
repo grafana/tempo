@@ -141,4 +141,12 @@ type WALBlock interface {
 	// Clear clears the block's data.
 	// Returns an error if the clear operation fails.
 	Clear() error
+
+	// Tombstone atomically marks the block as deleted by renaming its
+	// meta.json to meta.deleted.json. After this call the block is invisible
+	// to replay (the wal RescanBlocks pass treats it as removable) but the
+	// data files remain on disk and are still readable by anyone holding a
+	// reference. Crash-safe: a tombstoned block whose Clear never ran will
+	// be reclaimed by replay on the next process start.
+	Tombstone() error
 }

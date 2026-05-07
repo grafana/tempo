@@ -35,6 +35,14 @@ type Config struct {
 	CompleteBlockTimeout     time.Duration `yaml:"complete_block_timeout"`
 	CompleteBlockConcurrency int           `yaml:"complete_block_concurrency,omitempty"`
 
+	// BlockReclaimGrace is the duration to wait after removing a block from
+	// the in-memory snapshot before deleting its files on disk. Must be at
+	// least the maximum querier→live-store call timeout so in-flight readers
+	// iterating an older snapshot don't see ENOENT on page files. Default:
+	// 30s = querier search.query_timeout default. If a deployment raises
+	// search.query_timeout above 30s, raise this accordingly.
+	BlockReclaimGrace time.Duration `yaml:"block_reclaim_grace"`
+
 	// ShutdownMarkerDir is the path to the shutdown marker directory
 	ShutdownMarkerDir string `yaml:"shutdown_marker_dir"`
 
@@ -105,6 +113,7 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 	cfg.MaxLiveTracesBytes = 250_000_000 // 250MB
 	cfg.MaxBlockDuration = 30 * time.Second
 	cfg.MaxBlockBytes = 50 * 1024 * 1024
+	cfg.BlockReclaimGrace = 30 * time.Second
 
 	cfg.CommitInterval = 5 * time.Second
 	cfg.ConsumeFromKafka = true

@@ -308,9 +308,9 @@ func TestCutIdleTracesRespectsMaxBlockBytes(t *testing.T) {
 	}
 
 	// Verify no WAL block exceeds MaxBlockBytes.
-	walBlocksNum := len(inst.walBlocks)
+	walBlocksNum := len(inst.blocks.Load().walBlocks)
 	assert.Greater(t, walBlocksNum, 2, "expected multiple WAL blocks")
-	for id, blk := range inst.walBlocks {
+	for id, blk := range inst.blocks.Load().walBlocks {
 		// block size estimation can be x5 off, so we check that that block size at least makes sense
 		assert.LessOrEqual(t, blk.DataLength(), inst.Cfg.MaxBlockBytes*5,
 			"WAL block %s exceeds MaxBlockBytes: %d > %d", id, blk.DataLength(), inst.Cfg.MaxBlockBytes)
@@ -318,7 +318,7 @@ func TestCutIdleTracesRespectsMaxBlockBytes(t *testing.T) {
 
 	// with no new traces, number of WAL blocks should not increase after another cut to WAL
 	ls.cutOneInstanceToWal(t.Context(), inst, true)
-	assert.Equal(t, walBlocksNum, len(inst.walBlocks), "expected no new WAL blocks after cut to WAL with no new traces")
+	assert.Equal(t, walBlocksNum, len(inst.blocks.Load().walBlocks), "expected no new WAL blocks after cut to WAL with no new traces")
 
 	require.NoError(t, services.StopAndAwaitTerminated(t.Context(), ls))
 }

@@ -510,6 +510,20 @@ func (b *walBlock) Clear() error {
 	return errs.Err()
 }
 
+// Tombstone renames the block's meta.json to meta.deleted.json.
+// See common.WALBlock.Tombstone for semantics.
+func (b *walBlock) Tombstone() error {
+	from := filepath.Join(b.walPath(), backend.MetaName)
+	to := filepath.Join(b.walPath(), backend.DeletedMetaName)
+	if err := os.Rename(from, to); err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return fmt.Errorf("failed to tombstone wal block %s: %w", b.meta.BlockID, err)
+	}
+	return nil
+}
+
 func (b *walBlock) FindTraceByID(ctx context.Context, id common.ID, opts common.SearchOptions) (*tempopb.TraceByIDResponse, error) {
 	trs := make([]*tempopb.Trace, 0)
 
