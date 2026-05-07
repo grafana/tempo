@@ -131,13 +131,16 @@ the **v3** frontend. "Already flushed" means older than v2's `max_block_duration
 (5 min in `tempo-v2.yaml`) — fresher traces still live in the v2 ingester's
 memory, which v3 has no way to read.
 
-Let the demo run for ~6 minutes after step 1 so v2 has flushed at least one
-block, then in Grafana Explore:
+Let the demo run for at least `max_block_duration` (5 min in `tempo-v2.yaml`)
+plus ~1 min of flush overhead — so **6 min** total — after step 1, so v2 has
+guaranteed to have flushed at least one block. Then in Grafana Explore:
 
-1. Select the **Tempo 2.x** datasource. Set the time range to something like
-   `now-30m` to `now-6m` (avoids picking up traces that are still only in the
-   v2 ingester's memory). Run a search like `{}` and copy any returned trace ID.
-2. Switch to the **Tempo 3.0** datasource. Paste the trace ID into the **Trace ID**
+1. Select the **Tempo 2.x** datasource. Set the **end** of the time range to
+   `now - 6m` (older than `max_block_duration + flush overhead`, so the result
+   excludes traces still only in the v2 ingester's memory). A start of
+   `now - 30m` is a reasonable upper bound. Run a search like `{}` and copy
+   any returned trace ID.
+2. Switch to the **Tempo 3.0** datasource. Paste the trace ID into the **TraceID**
    query type and run it.
 
 The trace should resolve with the same spans as on the v2 datasource, proving
