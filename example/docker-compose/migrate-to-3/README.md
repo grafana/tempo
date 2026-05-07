@@ -42,6 +42,11 @@ change.
 This mirrors the structure of the migration guide. Each step lists the commands
 to run plus what to look for before moving on.
 
+> **Where to run the queries.** All `promql` snippets below are intended for
+> Grafana Explore: open <http://localhost:3000>, click **Explore**, select the
+> **Prometheus** datasource, and paste the query. TraceQL queries use the
+> **Tempo 2.x** or **Tempo 3.0** datasources from the same Explore view.
+
 ### 1. Start Tempo 2.x and generate traffic
 
 ```bash
@@ -52,11 +57,11 @@ This brings up the shared infrastructure and the full v2 stack. `k6-tracing`
 starts pushing spans into Alloy, which forwards them to `tempo-v2-distributor`
 (the default `ALLOY_OTLP_UPSTREAM`).
 
-Wait ~30 s, then confirm:
+Wait ~30 s, then confirm in Grafana Explore:
 
-- Grafana → **Tempo 2.x** datasource → run a TraceQL search like `{}`. You
-  should see traces.
-- `curl -s localhost:9090/api/v1/query?query=tempo_distributor_spans_received_total | jq .` returns non-zero values for the v2 distributor.
+- **Tempo 2.x** datasource: a TraceQL search like `{}` returns traces.
+- **Prometheus** datasource: `tempo_distributor_spans_received_total{job="tempo-v2"}`
+  is greater than 0.
 
 ### 2. Bring up Tempo 3.0 alongside 2.x
 
@@ -68,14 +73,15 @@ This starts Redpanda, creates the `tempo-ingest` topic with 2 partitions, and
 brings up every v3 component. Traffic is **still flowing to v2** — Alloy hasn't
 been touched.
 
-Confirm v3 is healthy before moving on:
+Confirm v3 is healthy before moving on. Open Grafana at <http://localhost:3000>
+→ **Explore** → select the **Prometheus** datasource and run:
 
-```bash
-# Live-store readiness — should print "1" for both replicas:
-curl -s 'http://localhost:9090/api/v1/query?query=tempo_live_store_ready' | jq -r '.data.result[] | select(.metric.instance | test("live-store")) | .value[1]'
+```promql
+# Both live-store replicas should report 1.
+tempo_live_store_ready{job="tempo-v3"}
 
-# Block-builders should have partition assignments (1 each):
-curl -s 'http://localhost:9090/api/v1/query?query=tempo_block_builder_owned_partitions' | jq -r '.data.result[] | "\(.metric.instance) owned=\(.value[1])"'
+# Each block-builder should own one partition.
+tempo_block_builder_owned_partitions
 ```
 
 You can also tail the logs:
@@ -97,21 +103,21 @@ compactor over shared storage.
 The `v3` profile also brings up [Tempo Vulture](https://grafana.com/docs/tempo/latest/operations/tempo-vulture/),
 which pushes synthetic traces directly to the v3 distributor and reads them
 back through the v3 query-frontend (trace-by-id, search tag, TraceQL, metrics).
-The migration guide recommends letting Vulture run for 10–15 minutes and
-confirming there are zero errors:
+The migration guide recommends letting Vulture run for 10–15 minutes. In
+Grafana Explore (Prometheus):
 
-```bash
+```promql
 # Trace-level issues (missing spans, incorrect results, etc.) — should stay 0.
 # Note: this is a *Vec counter, so on a clean run no samples are emitted at
-# all (sum() correctly returns 0).
-curl -s 'http://localhost:9090/api/v1/query?query=sum(tempo_vulture_trace_error_total)' | jq -r '.data.result[].value[1] // "0"'
+# all; using sum() correctly returns 0.
+sum(tempo_vulture_trace_error_total)
 
-# Generic transport/HTTP errors — should also stay 0:
-curl -s 'http://localhost:9090/api/v1/query?query=tempo_vulture_error_total' | jq -r '.data.result[].value[1]'
+# Generic transport/HTTP errors — should also stay 0.
+tempo_vulture_error_total
 
-# Should be increasing once Vulture has been running ~2 min (proves the
-# write+read path works end-to-end):
-curl -s 'http://localhost:9090/api/v1/query?query=tempo_vulture_trace_total' | jq -r '.data.result[].value[1]'
+# Should be increasing once Vulture has been running ~2 min, proving the
+# end-to-end write + read path works.
+tempo_vulture_trace_total
 ```
 
 > Vulture writes a trace and waits a couple of minutes before reading it back,
@@ -125,23 +131,17 @@ the **v3** frontend. "Already flushed" means older than v2's `max_block_duration
 (5 min in `tempo-v2.yaml`) — fresher traces still live in the v2 ingester's
 memory, which v3 has no way to read.
 
-The simplest way: let the demo run for ~6 minutes after step 1, then pick any
-trace from Grafana's **Tempo 2.x** datasource. Or grab one from the v2 search
-API like this:
+Let the demo run for ~6 minutes after step 1 so v2 has flushed at least one
+block, then in Grafana Explore:
 
-```bash
-# Pick a trace from > 6 minutes ago to ensure it's in MinIO, not the ingester:
-NOW=$(date +%s)
-TRACE_ID=$(curl -s -G 'http://localhost:3200/api/search' \
-  --data-urlencode 'q={}' --data-urlencode 'limit=1' \
-  --data-urlencode "start=$((NOW - 1800))" \
-  --data-urlencode "end=$((NOW - 360))" | jq -r '.traces[0].traceID')
+1. Select the **Tempo 2.x** datasource. Set the time range to something like
+   `now-30m` to `now-6m` (avoids picking up traces that are still only in the
+   v2 ingester's memory). Run a search like `{}` and copy any returned trace ID.
+2. Switch to the **Tempo 3.0** datasource. Paste the trace ID into the **Trace ID**
+   query type and run it.
 
-echo "Querying $TRACE_ID via v3..."
-curl -s "http://localhost:3201/api/traces/${TRACE_ID}" | jq '.batches | length'
-```
-
-A non-zero number means the v3 querier successfully read a v2 (RF3) block.
+The trace should resolve with the same spans as on the v2 datasource, proving
+the v3 querier successfully read a v2 (RF3) block from shared object storage.
 
 > **404 from v3 even though the block is in MinIO?** The v3 querier polls
 > object storage on a fixed cycle (`storage.trace.blocklist_poll`, set to 1 m
@@ -161,31 +161,30 @@ Repoint Alloy at the v3 distributor:
 ALLOY_OTLP_UPSTREAM=tempo-v3-distributor:4317 docker compose up -d alloy
 ```
 
-Within ~15 s, check that v3 is now ingesting:
+Within ~15 s, check that v3 is now ingesting. In Grafana Explore (Prometheus):
 
-```bash
-# v3 distributor writes to Kafka:
-curl -s 'http://localhost:9090/api/v1/query?query=rate(tempo_distributor_kafka_write_bytes_total[1m])' | jq
+```promql
+# v3 distributor writes to Kafka.
+sum(rate(tempo_distributor_kafka_write_bytes_total[1m]))
 
-# v3 block-builders are consuming:
-curl -s 'http://localhost:9090/api/v1/query?query=rate(tempo_block_builder_fetch_records_total[1m])' | jq
+# v3 block-builders are consuming.
+sum by (instance) (rate(tempo_block_builder_fetch_records_total[1m]))
 
-# v2 distributor receives nothing new:
-curl -s 'http://localhost:9090/api/v1/query?query=rate(tempo_distributor_spans_received_total{job="tempo-v2"}[1m])' | jq
+# v2 distributor receives nothing new (should be 0).
+sum(rate(tempo_distributor_bytes_received_total{job="tempo-v2"}[1m]))
 ```
 
-Recent traces from the new pipeline should be queryable via Grafana's
-**Tempo 3.0** datasource.
+Recent traces from the new pipeline should also be queryable via Grafana's
+**Tempo 3.0** datasource (Explore → select **Tempo 3.0** → search `{}`).
 
 ### 5. Drain the 2.x ingesters
 
 With no new traffic arriving, the 2.x ingesters need to flush their in-memory
-traces to MinIO:
+traces to MinIO. In Grafana Explore (Prometheus), watch these drift toward 0:
 
-```bash
-# Should drift toward 0:
-curl -s 'http://localhost:9090/api/v1/query?query=tempo_ingester_live_traces' | jq
-curl -s 'http://localhost:9090/api/v1/query?query=tempo_ingester_flush_queue_length' | jq
+```promql
+tempo_ingester_live_traces
+tempo_ingester_flush_queue_length
 ```
 
 With this example's `max_block_duration: 5m` and default `complete_block_timeout`,
@@ -233,17 +232,19 @@ docker compose logs -f tempo-v3-backend-worker | grep -i 'compact'
 
 ### 7. Verify the migration
 
-Mirrors the **Verify the migration** section of the doc:
+Mirrors the **Verify the migration** section of the doc. Run these in Grafana
+Explore against the **Prometheus** datasource (last column shows the expected
+healthy state):
 
-| Check                                        | Query                                                       |
-| -------------------------------------------- | ----------------------------------------------------------- |
-| Distributors writing to Kafka                | `rate(tempo_distributor_kafka_write_bytes_total[1m])`       |
-| Block-builders consuming, no errors          | `rate(tempo_block_builder_fetch_records_total[1m])` / `rate(tempo_block_builder_fetch_errors_total[1m])` |
-| Live-stores ready                            | `tempo_live_store_ready == 1`                               |
-| No dropped records                           | `tempo_live_store_records_dropped_total == 0`               |
-| Kafka lag healthy                            | `tempo_ingest_group_partition_lag_seconds`                  |
-| Historical queries work                      | TraceQL search via the **Tempo 3.0** datasource             |
-| Vulture sees no errors (10–15 min run)       | `tempo_vulture_trace_error_total == 0` and `tempo_vulture_trace_total` increasing |
+| Check                               | Query                                                                                                    | Expected     |
+| ----------------------------------- | -------------------------------------------------------------------------------------------------------- | ------------ |
+| Distributors writing to Kafka       | `sum(rate(tempo_distributor_kafka_write_bytes_total[1m]))`                                               | > 0          |
+| Block-builders consuming, no errors | `sum by (instance) (rate(tempo_block_builder_fetch_records_total[1m]))` / `tempo_block_builder_fetch_errors_total` | > 0  /  0    |
+| Live-stores ready                   | `tempo_live_store_ready`                                                                                 | 1            |
+| No dropped records                  | `tempo_live_store_records_dropped_total`                                                                 | 0            |
+| Kafka lag healthy                   | `tempo_ingest_group_partition_lag_seconds`                                                               | sub-second   |
+| Historical queries work             | TraceQL search via the **Tempo 3.0** datasource (Explore → Tempo 3.0 → `{}`)                              | results return |
+| Vulture clean (10–15 min run)       | `sum(tempo_vulture_trace_error_total)` and `tempo_vulture_trace_total`                                   | 0  /  rising |
 
 ---
 
