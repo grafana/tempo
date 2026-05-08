@@ -138,6 +138,30 @@ func TestIntrinsicPolicyMatch_Matches(t *testing.T) {
 				Name: "test",
 			},
 		},
+		{
+			name:   "matched optimized regex kind",
+			expect: true,
+			policy: &IntrinsicPolicyMatch{
+				filters: []IntrinsicFilter{
+					must(NewRegexpIntrinsicFilter(traceql.IntrinsicKind, "SPAN_KIND_(SERVER|CONSUMER|CLIENT|PRODUCER)")),
+				},
+			},
+			span: &tracev1.Span{
+				Kind: tracev1.Span_SPAN_KIND_CONSUMER,
+			},
+		},
+		{
+			name:   "unmatched optimized regex kind",
+			expect: false,
+			policy: &IntrinsicPolicyMatch{
+				filters: []IntrinsicFilter{
+					must(NewRegexpIntrinsicFilter(traceql.IntrinsicKind, "SPAN_KIND_(SERVER|CONSUMER|CLIENT|PRODUCER)")),
+				},
+			},
+			span: &tracev1.Span{
+				Kind: tracev1.Span_SPAN_KIND_INTERNAL,
+			},
+		},
 	}
 
 	for _, tc := range cases {
