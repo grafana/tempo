@@ -1046,6 +1046,66 @@ func TestInstanceFindByTraceIDWithSizeLimits(t *testing.T) {
 	require.NotNil(t, resp.Trace) // can't validate the trace b/c its a subset of the original trace. as long as its non-nil, we're good
 }
 
+func TestIterateBlocksRecoversPanic(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		populate func(t *testing.T, i *instance)
+	}{
+		{
+			name: "head block",
+			populate: func(t *testing.T, i *instance) {
+				_, _, _, _ = writeTracesForSearch(t, i, "", foo, bar, false, false)
+			},
+		},
+		{
+			name: "wal block",
+			populate: func(t *testing.T, i *instance) {
+				_, _, _, _ = writeTracesForSearch(t, i, "", foo, bar, false, false)
+				blockID, err := i.cutBlocks(t.Context(), true)
+				require.NoError(t, err)
+				require.NotEqual(t, uuid.Nil, blockID)
+				i.blocksMtx.Lock()
+				i.headBlock = nil
+				i.blocksMtx.Unlock()
+			},
+		},
+		{
+			name: "complete block",
+			populate: func(t *testing.T, i *instance) {
+				_, _, _, _ = writeTracesForSearch(t, i, "", foo, bar, false, false)
+				blockID, err := i.cutBlocks(t.Context(), true)
+				require.NoError(t, err)
+				require.NotEqual(t, uuid.Nil, blockID)
+				_, err = i.completeBlock(t.Context(), blockID)
+				require.NoError(t, err)
+				i.blocksMtx.Lock()
+				i.headBlock = nil
+				i.blocksMtx.Unlock()
+			},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			i, ls := defaultInstanceAndTmpDir(t)
+			defer func() {
+				err := services.StopAndAwaitTerminated(t.Context(), ls)
+				if err != nil && !errors.Is(err, context.Canceled) {
+					require.NoError(t, err)
+				}
+			}()
+
+			tc.populate(t, i)
+
+			panicFn := func(_ context.Context, _ *backend.BlockMeta, _ block) error {
+				panic("simulated parquet ByteArray panic")
+			}
+
+			err := i.iterateBlocks(t.Context(), time.Unix(0, 0), time.Unix(0, 0), panicFn)
+			require.Error(t, err, "iterateBlocks should return an error rather than crash on panic")
+			require.Contains(t, err.Error(), "panic")
+		})
+	}
+}
+
 func TestIncludeBlock(t *testing.T) {
 	tests := []struct {
 		blocKStart int64
