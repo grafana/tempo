@@ -570,8 +570,8 @@ func TestTraceByIDHandlerV2CachedMetrics(t *testing.T) {
 
 	// Verify first response metrics
 	require.Equal(t, uint64(2048), actualResp.Metrics.InspectedBytes)
-	require.Equal(t, uint32(4), actualResp.Metrics.BlocksWithTrace)       // 2 per shard × 2 shards
-	require.Equal(t, uint32(3), actualResp.Metrics.MaxCompactionLevel)    // max(3, 3)
+	require.Equal(t, uint32(4), actualResp.Metrics.BlocksWithTrace)    // 2 per shard × 2 shards
+	require.Equal(t, uint32(3), actualResp.Metrics.MaxCompactionLevel) // max(3, 3)
 	require.Equal(t, 2, callCount)
 
 	// Second request - TraceIDHandlerV2 does not cache
