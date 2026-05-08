@@ -93,9 +93,17 @@ func (i *instance) iterateBlocks(ctx context.Context, reqStart, reqEnd time.Time
 			ctx, span := tracer.Start(ctx, "process.headBlock")
 			span.SetAttributes(attribute.String("blockID", meta.BlockID.String()))
 
-			if err := fn(ctx, meta, i.headBlock); err != nil {
-				handleErr(fmt.Errorf("processing head block (%s): %w", meta.BlockID, err))
-			}
+			func() {
+				defer func() {
+					if r := recover(); r != nil {
+						level.Error(i.logger).Log("msg", "panic in iterateBlocks head block", "blockID", meta.BlockID, "panic", r, "stack", string(debug.Stack()))
+						handleErr(fmt.Errorf("processing head block (%s): panic: %v", meta.BlockID, r))
+					}
+				}()
+				if err := fn(ctx, meta, i.headBlock); err != nil {
+					handleErr(fmt.Errorf("processing head block (%s): %w", meta.BlockID, err))
+				}
+			}()
 			span.End()
 		}
 	}
