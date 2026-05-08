@@ -66,6 +66,39 @@ func (s sanitizerFunc) Sanitize(lbls labels.Labels) labels.Labels {
 	return s(lbls)
 }
 
+func TestLabelBuilder_AddEmptyValueRemovesAllMatches(t *testing.T) {
+	// Add(name, "") must mirror prometheus.Builder.Set("x","")->Del("x"), which
+	// removes every prior label with that name. Sanitization can collapse
+	// distinct input keys (foo.bar, foo_bar, foo-bar) onto the same name, and
+	// removing only the first match would leave a stale earlier value.
+	builder := NewLabelBuilder(0, 0, newTestDrainSanitizer(SpanNameSanitizationDisabled), newTestLabelLimiter())
+	builder.Add("dup", "first")
+	builder.Add("other", "v")
+	builder.Add("dup", "second")
+	builder.Add("dup", "")
+
+	lbls, ok := builder.CloseAndBuildLabels()
+	assert.True(t, ok)
+	assert.Equal(t, labels.FromStrings("other", "v"), lbls)
+}
+
+func TestBorrowedLabels_ReleaseIsIdempotent(t *testing.T) {
+	// Release must not double-Put the builder/scratch into their pools.
+	// Calling it twice on the same value is a defensive guard against future
+	// callers that accidentally release through both a pointer and a copy.
+	builder := NewLabelBuilder(0, 0, newTestDrainSanitizer(SpanNameSanitizationDisabled), newTestLabelLimiter())
+	builder.Add("name", "value")
+
+	borrowed, ok := builder.CloseAndBorrowLabels()
+	assert.True(t, ok)
+	assert.Equal(t, "value", borrowed.Labels.Get("name"))
+
+	borrowed.Release()
+	// second release is a no-op; would otherwise corrupt the sync.Pool.
+	borrowed.Release()
+	assert.Equal(t, labels.EmptyLabels(), borrowed.Labels)
+}
+
 func TestLabelBuilder_Sanitizer(t *testing.T) {
 	builder := NewLabelBuilder(0, 0, sanitizerFunc(func(_ labels.Labels) labels.Labels {
 		return labels.FromStrings("name", "sanitized_value")
