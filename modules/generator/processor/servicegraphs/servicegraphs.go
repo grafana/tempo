@@ -322,10 +322,9 @@ type clientEdgeUpdate struct {
 }
 
 func updateClientEdge(e *store.Edge, u clientEdgeUpdate) {
-	// TraceID must be an owned string. Earlier optimizations sliced it out of
-	// e.keyBuf via unsafe.String, but the histogram exemplar stores the string
-	// directly and the edge is recycled (with keyBuf preserved) once complete,
-	// so a borrowed substring would be silently overwritten before the next scrape.
+	// TraceID is forwarded to histogram exemplars (which keep the string after
+	// scrape) and the edge is recycled with its keyBuf preserved, so this must
+	// be a freshly owned string, not a substring of any pooled buffer.
 	e.TraceID = tempo_util.TraceIDToHexString(u.span.TraceId)
 	e.ConnectionType = u.connectionType
 	e.ClientService = u.svcName

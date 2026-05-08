@@ -8,6 +8,8 @@ import (
 
 	"github.com/prometheus/prometheus/model/labels"
 	"github.com/prometheus/prometheus/storage"
+
+	tempo_util "github.com/grafana/tempo/pkg/util"
 )
 
 // newTestLabelLimiter returns a PerLabelLimiter with limiting disabled (maxCardinality=0).
@@ -226,7 +228,7 @@ func (t *testHistogram) ObserveWithExemplarWithHashAt(lbls labels.Labels, _ uint
 }
 
 func (t *testHistogram) ObserveWithExemplarTraceIDBytesWithHashAt(lbls labels.Labels, _ uint64, value float64, traceID []byte, multiplier float64, _ int64) {
-	t.ObserveWithExemplar(lbls, value, traceIDBytesToHexString(traceID), multiplier)
+	t.ObserveWithExemplar(lbls, value, tempo_util.TraceIDToHexString(traceID), multiplier)
 }
 
 func (t *testHistogram) name() string {

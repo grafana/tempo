@@ -15,6 +15,8 @@ import (
 	"github.com/prometheus/prometheus/model/labels"
 	"github.com/prometheus/prometheus/storage"
 	"go.uber.org/atomic"
+
+	tempo_util "github.com/grafana/tempo/pkg/util"
 )
 
 type nativeHistogram struct {
@@ -140,7 +142,7 @@ func (h *nativeHistogram) ObserveWithExemplarWithHashAt(lbls labels.Labels, hash
 }
 
 func (h *nativeHistogram) ObserveWithExemplarTraceIDBytesWithHashAt(lbls labels.Labels, hash uint64, value float64, traceID []byte, multiplier float64, timeMs int64) {
-	h.ObserveWithExemplarWithHashAt(lbls, hash, value, traceIDBytesToHexString(traceID), multiplier, timeMs)
+	h.ObserveWithExemplarWithHashAt(lbls, hash, value, tempo_util.TraceIDToHexString(traceID), multiplier, timeMs)
 }
 
 func (h *nativeHistogram) newSeries(lbls labels.Labels, hash uint64, value float64, traceID string, multiplier float64, timeMs int64) *nativeHistogramSeries {
