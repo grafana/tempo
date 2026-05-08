@@ -23,6 +23,9 @@
     'config.file': '/conf/tempo.yaml',
   },
 
+  // Block-builder mirrors live-store zone-a replica count. This intentionally lags
+  // behind the ReplicaTemplate: the rollout-operator enforces the drain window before
+  // reducing zone-a, so block-builder stays alive while live-store data is still present.
   tempo_block_builder_follow_controller:: $.tempo_live_store_zone_a_statefulset,
 
   tempo_block_builder_container::
