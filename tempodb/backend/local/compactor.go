@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"path"
+	"path/filepath"
 
 	"github.com/google/uuid"
 	"github.com/grafana/tempo/tempodb/backend"
@@ -48,8 +48,8 @@ func (rw *Backend) TombstoneBlock(blockID uuid.UUID, tenantID string) error {
 		return errors.New("empty block id")
 	}
 	keypath := rw.rootPath(backend.KeyPathForBlock(blockID, tenantID))
-	from := path.Join(keypath, backend.MetaName)
-	to := path.Join(keypath, backend.DeletedMetaName)
+	from := filepath.Join(keypath, backend.MetaName)
+	to := filepath.Join(keypath, backend.DeletedMetaName)
 	if err := os.Rename(from, to); err != nil {
 		if os.IsNotExist(err) {
 			return nil
@@ -76,7 +76,7 @@ func (rw *Backend) ClearTombstonedBlocks() (int, error) {
 		if !tenant.IsDir() {
 			continue
 		}
-		tenantPath := path.Join(root, tenant.Name())
+		tenantPath := filepath.Join(root, tenant.Name())
 		blocks, err := os.ReadDir(tenantPath)
 		if err != nil {
 			return cleared, fmt.Errorf("read tenant %s: %w", tenant.Name(), err)
@@ -85,14 +85,14 @@ func (rw *Backend) ClearTombstonedBlocks() (int, error) {
 			if !b.IsDir() {
 				continue
 			}
-			marker := path.Join(tenantPath, b.Name(), backend.DeletedMetaName)
+			marker := filepath.Join(tenantPath, b.Name(), backend.DeletedMetaName)
 			if _, err := os.Stat(marker); err != nil {
 				if os.IsNotExist(err) {
 					continue
 				}
 				return cleared, fmt.Errorf("stat marker %s: %w", marker, err)
 			}
-			blockDir := path.Join(tenantPath, b.Name())
+			blockDir := filepath.Join(tenantPath, b.Name())
 			if err := os.RemoveAll(blockDir); err != nil {
 				return cleared, fmt.Errorf("remove tombstoned block %s: %w", blockDir, err)
 			}
@@ -126,5 +126,5 @@ func (rw *Backend) CompactedBlockMeta(blockID uuid.UUID, tenantID string) (*back
 }
 
 func (rw *Backend) compactedMetaFileName(blockID uuid.UUID, tenantID string) string {
-	return path.Join(rw.rootPath(backend.KeyPathForBlock(blockID, tenantID)), backend.CompactedMetaName)
+	return filepath.Join(rw.rootPath(backend.KeyPathForBlock(blockID, tenantID)), backend.CompactedMetaName)
 }

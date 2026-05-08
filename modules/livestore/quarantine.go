@@ -54,7 +54,10 @@ func (q *quarantine) add(blockID uuid.UUID, tenant, blockType string, fn reclaim
 func (q *quarantine) reclaim() []ReclaimResult {
 	q.mtx.Lock()
 	now := time.Now()
-	keep := q.entries[:0]
+	// Allocate a fresh keep slice (rather than reslicing q.entries[:0]) so
+	// dropped entries don't sit in the backing array's hidden capacity and
+	// keep their captured WAL/complete-block objects from GC.
+	var keep []quarantineEntry
 	var due []quarantineEntry
 	for _, e := range q.entries {
 		if !now.Before(e.deadline) {

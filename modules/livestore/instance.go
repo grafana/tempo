@@ -712,7 +712,6 @@ func (i *instance) deleteOldBlocks() error {
 			newSnap = newSnap.withWALBlockRemoved(id)
 			wb := walBlock
 			i.reclaim.add(id, i.tenantID, "wal", func() error { return wb.Clear() })
-			metricBlocksClearedTotal.WithLabelValues("wal").Inc()
 		}
 	}
 
@@ -730,7 +729,6 @@ func (i *instance) deleteOldBlocks() error {
 		tenant := i.tenantID
 		bk := i.wal.LocalBackend()
 		i.reclaim.add(bid, tenant, "complete", func() error { return bk.ClearBlock(bid, tenant) })
-		metricBlocksClearedTotal.WithLabelValues("complete").Inc()
 	}
 
 	if newSnap != snap {

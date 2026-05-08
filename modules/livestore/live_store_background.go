@@ -240,6 +240,7 @@ func (s *LiveStore) perTenantCleanupLoop(inst *instance) {
 					level.Error(s.logger).Log("msg", "reclaim failed", "tenant", r.Tenant, "block_id", r.BlockID.String(), "block_type", r.BlockType, "err", r.Err)
 					continue
 				}
+				metricBlocksClearedTotal.WithLabelValues(r.BlockType).Inc()
 				level.Info(s.logger).Log("msg", "reclaimed block", "tenant", r.Tenant, "block_id", r.BlockID.String(), "block_type", r.BlockType)
 			}
 		case <-s.ctx.Done():
@@ -249,6 +250,7 @@ func (s *LiveStore) perTenantCleanupLoop(inst *instance) {
 					level.Error(s.logger).Log("msg", "reclaim drain failed", "tenant", r.Tenant, "block_id", r.BlockID.String(), "block_type", r.BlockType, "err", r.Err)
 					continue
 				}
+				metricBlocksClearedTotal.WithLabelValues(r.BlockType).Inc()
 				level.Info(s.logger).Log("msg", "reclaimed block (drain)", "tenant", r.Tenant, "block_id", r.BlockID.String(), "block_type", r.BlockType)
 			}
 			return
