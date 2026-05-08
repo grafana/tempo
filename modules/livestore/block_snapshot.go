@@ -6,8 +6,8 @@ import (
 )
 
 // blockSnapshot is an immutable view of an instance's blocks. Readers obtain
-// a snapshot via atomic.Load and iterate it without locks. Writers build a
-// new snapshot under blocksMtx and atomic.Store it.
+// a snapshot via atomic.Load; writers build a new one under blocksMtx and
+// atomic.Store it.
 type blockSnapshot struct {
 	headBlock      common.WALBlock
 	walBlocks      map[uuid.UUID]common.WALBlock

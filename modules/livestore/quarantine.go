@@ -7,9 +7,7 @@ import (
 	"github.com/google/uuid"
 )
 
-// reclaimFn deletes the on-disk files for a block. Invoked by the quarantine
-// after the grace window has elapsed so in-flight readers don't see ENOENT
-// on page files.
+// reclaimFn deletes the on-disk files for a quarantined block.
 type reclaimFn func() error
 
 type quarantineEntry struct {
@@ -20,8 +18,7 @@ type quarantineEntry struct {
 	reclaim   reclaimFn
 }
 
-// ReclaimResult describes the outcome of reclaiming a single quarantined
-// block. Caller uses this for logging + metrics.
+// ReclaimResult is the outcome of one reclaim attempt, used for logs/metrics.
 type ReclaimResult struct {
 	BlockID   uuid.UUID
 	Tenant    string
@@ -29,8 +26,7 @@ type ReclaimResult struct {
 	Err       error
 }
 
-// quarantine holds blocks pending file reclamation. Per-instance; serialized
-// on its own mutex.
+// quarantine holds blocks pending file reclamation.
 type quarantine struct {
 	mtx     sync.Mutex
 	entries []quarantineEntry
@@ -53,9 +49,8 @@ func (q *quarantine) add(blockID uuid.UUID, tenant, blockType string, fn reclaim
 	})
 }
 
-// reclaim runs fn for every entry whose deadline has passed and returns one
-// ReclaimResult per entry attempted. Entries are dropped after attempt
-// regardless — a stuck deletion doesn't get retried forever.
+// reclaim runs fn for entries whose deadline has passed. Entries are dropped
+// after attempt — a stuck deletion is not retried.
 func (q *quarantine) reclaim() []ReclaimResult {
 	q.mtx.Lock()
 	now := time.Now()
@@ -86,7 +81,7 @@ func (q *quarantine) reclaim() []ReclaimResult {
 	return results
 }
 
-// drain runs fn for every entry regardless of deadline. Used at shutdown.
+// drain runs fn for every entry regardless of deadline. Used on shutdown.
 func (q *quarantine) drain() []ReclaimResult {
 	q.mtx.Lock()
 	due := q.entries
@@ -106,10 +101,4 @@ func (q *quarantine) drain() []ReclaimResult {
 		})
 	}
 	return results
-}
-
-func (q *quarantine) pendingCount() int {
-	q.mtx.Lock()
-	defer q.mtx.Unlock()
-	return len(q.entries)
 }

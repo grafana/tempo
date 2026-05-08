@@ -35,12 +35,9 @@ type Config struct {
 	CompleteBlockTimeout     time.Duration `yaml:"complete_block_timeout"`
 	CompleteBlockConcurrency int           `yaml:"complete_block_concurrency,omitempty"`
 
-	// BlockReclaimGrace is the duration to wait after removing a block from
-	// the in-memory snapshot before deleting its files on disk. Must be at
-	// least the maximum querier→live-store call timeout so in-flight readers
-	// iterating an older snapshot don't see ENOENT on page files. Default:
-	// 30s = querier search.query_timeout default. If a deployment raises
-	// search.query_timeout above 30s, raise this accordingly.
+	// BlockReclaimGrace delays on-disk file deletion after a block is
+	// removed from the snapshot, so in-flight readers don't hit ENOENT.
+	// Must be >= querier search.query_timeout (30s default).
 	BlockReclaimGrace time.Duration `yaml:"block_reclaim_grace"`
 
 	// ShutdownMarkerDir is the path to the shutdown marker directory
@@ -175,6 +172,10 @@ func (cfg *Config) Validate() error {
 
 	if cfg.MaxBlockBytes == 0 {
 		return fmt.Errorf("max_block_bytes must be greater than 0, got %d", cfg.MaxBlockBytes)
+	}
+
+	if cfg.BlockReclaimGrace <= 0 {
+		return fmt.Errorf("block_reclaim_grace must be greater than 0, got %s", cfg.BlockReclaimGrace)
 	}
 
 	if cfg.MaxTraceIdle > cfg.MaxTraceLive {

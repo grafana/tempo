@@ -82,8 +82,10 @@ func (i *instance) iterateBlocks(ctx context.Context, reqStart, reqEnd time.Time
 		anyErr.Store(err)
 	}
 
+	// headBlock meta is mutated in place by AppendTrace; use MetaSnapshot
+	// for a stable copy.
 	if snap.headBlock != nil {
-		meta := snap.headBlock.BlockMeta()
+		meta := snap.headBlock.MetaSnapshot()
 		if includeBlock(meta, reqStart, reqEnd) {
 			ctx, span := tracer.Start(ctx, "process.headBlock")
 			span.SetAttributes(attribute.String("blockID", meta.BlockID.String()))

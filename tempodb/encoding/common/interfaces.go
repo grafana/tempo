@@ -127,6 +127,10 @@ type WALBlock interface {
 	// IngestionSlack returns the duration of the ingestion slack.
 	IngestionSlack() time.Duration
 
+	// MetaSnapshot returns a freshly-allocated copy of the block's BlockMeta,
+	// safe to read concurrently with AppendTrace.
+	MetaSnapshot() *backend.BlockMeta
+
 	// Flush writes any unbuffered data to disk. This method must be safe for concurrent use with read operations.
 	// Returns an error if the flush operation fails.
 	Flush() error
@@ -142,11 +146,8 @@ type WALBlock interface {
 	// Returns an error if the clear operation fails.
 	Clear() error
 
-	// Tombstone atomically marks the block as deleted by renaming its
-	// meta.json to meta.deleted.json. After this call the block is invisible
-	// to replay (the wal RescanBlocks pass treats it as removable) but the
-	// data files remain on disk and are still readable by anyone holding a
-	// reference. Crash-safe: a tombstoned block whose Clear never ran will
-	// be reclaimed by replay on the next process start.
+	// Tombstone marks the block deleted by renaming meta.json to
+	// meta.deleted.json. Data files stay on disk for in-flight readers
+	// until Clear; replay reclaims any tombstoned dir.
 	Tombstone() error
 }

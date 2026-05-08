@@ -114,16 +114,15 @@ type instance struct {
 	completeBlockEncoding  encoding.VersionedEncoding
 	completeBlockLifecycle completeBlockLifecycle
 
-	// Block management.
-	// blocksMtx serializes writers; readers iterate the immutable blocks
-	// snapshot via atomic.Load and never take this lock.
+	// blocksMtx serializes writers. Readers iterate the immutable snapshot
+	// via atomic.Load; for the headBlock's mutating BlockMeta they must use
+	// WALBlock.MetaSnapshot.
 	blocksMtx   sync.Mutex
 	blocks      atomic.Pointer[blockSnapshot]
 	lastCutTime time.Time
 
-	// reclaim holds blocks that have been removed from the snapshot but whose
-	// files must outlive in-flight readers. Drained by the per-tenant cleanup
-	// loop after the configured grace window has elapsed.
+	// reclaim holds blocks removed from the snapshot whose files must
+	// outlive in-flight readers; drained after the grace window.
 	reclaim *quarantine
 
 	// Live traces
@@ -672,11 +671,9 @@ func (i *instance) completeBlock(ctx context.Context, id uuid.UUID) (*LocalBlock
 
 	completeBlock := NewLocalBlock(ctx, newBlock, i.wal.LocalBackend())
 
-	// Tombstone the WAL block before publishing the new snapshot. This is the
-	// crash-safe commit point: if we crash between here and the deferred
-	// Clear, replay sees the meta.deleted.json marker and reclaims the dir
-	// rather than re-loading the WAL block (which would duplicate data
-	// already in the complete block).
+	// Tombstone the WAL block before publishing the new snapshot. If we
+	// crash between here and the deferred Clear, replay sees the
+	// meta.deleted.json marker and reclaims the dir.
 	if err := walBlock.Tombstone(); err != nil {
 		level.Error(i.logger).Log("msg", "failed to tombstone WAL block", "id", id, "err", err)
 		span.RecordError(err)
@@ -685,9 +682,8 @@ func (i *instance) completeBlock(ctx context.Context, id uuid.UUID) (*LocalBlock
 	walID := (uuid.UUID)(walBlock.BlockMeta().BlockID)
 	i.blocks.Store(snap.withCompleteBlockAdded(id, completeBlock).withWALBlockRemoved(walID))
 
-	// Defer file deletion of the WAL block past the grace window so any
-	// in-flight reader iterating the previous snapshot can finish without
-	// hitting ENOENT on page files.
+	// Defer file deletion past the grace window so readers on the previous
+	// snapshot don't hit ENOENT.
 	wb := walBlock
 	i.reclaim.add(walID, i.tenantID, "wal", func() error { return wb.Clear() })
 

@@ -217,9 +217,8 @@ func (s *LiveStore) perTenantCleanupLoop(inst *instance) {
 	ticker := time.NewTicker(s.cfg.InstanceCleanupPeriod)
 	defer ticker.Stop()
 
-	// Reclaim runs at a fraction of the grace window so quarantined blocks
-	// are deleted promptly once their grace expires, rather than waiting up to
-	// InstanceCleanupPeriod (5 minutes by default).
+	// Reclaim at a fraction of the grace window so blocks are deleted
+	// soon after expiry, not at the next InstanceCleanupPeriod tick.
 	reclaimInterval := s.cfg.BlockReclaimGrace / 4
 	if reclaimInterval < time.Second {
 		reclaimInterval = time.Second
@@ -244,7 +243,7 @@ func (s *LiveStore) perTenantCleanupLoop(inst *instance) {
 				level.Info(s.logger).Log("msg", "reclaimed block", "tenant", r.Tenant, "block_id", r.BlockID.String(), "block_type", r.BlockType)
 			}
 		case <-s.ctx.Done():
-			// Drain any remaining reclaims so files don't outlive the process unnecessarily.
+			// Drain remaining reclaims on shutdown.
 			for _, r := range inst.reclaim.drain() {
 				if r.Err != nil {
 					level.Error(s.logger).Log("msg", "reclaim drain failed", "tenant", r.Tenant, "block_id", r.BlockID.String(), "block_type", r.BlockType, "err", r.Err)
@@ -311,12 +310,8 @@ func observeFailedOp(op *completeOp) {
 }
 
 func (s *LiveStore) reloadBlocks() error {
-	// ------------------------------------
-	// reclaim tombstoned blocks
-	// ------------------------------------
-	// Sweep for blocks left in tombstoned state (meta renamed to
-	// meta.deleted.json) by an unclean shutdown. Must run before block
-	// reload so the data files are cleared up before any normal scan.
+	// Reclaim tombstoned blocks left by an unclean shutdown before
+	// reloading, so they don't get scanned as live.
 	if n, err := s.wal.ClearTombstonedBlocks(); err != nil {
 		level.Warn(s.logger).Log("msg", "failed to clear tombstoned wal blocks at startup", "err", err)
 	} else if n > 0 {

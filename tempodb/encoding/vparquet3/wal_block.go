@@ -318,6 +318,13 @@ func (b *walBlock) BlockMeta() *backend.BlockMeta {
 	return b.meta
 }
 
+func (b *walBlock) MetaSnapshot() *backend.BlockMeta {
+	b.mtx.Lock()
+	defer b.mtx.Unlock()
+	out := *b.meta
+	return &out
+}
+
 func (b *walBlock) Append(id common.ID, buff []byte, start, end uint32, adjustIngestionSlack bool) error {
 	// if decoder = nil we were created with OpenWALBlock and will not accept writes
 	if b.decoder == nil {
@@ -352,11 +359,10 @@ func (b *walBlock) AppendTrace(id common.ID, trace *tempopb.Trace, start, end ui
 		return fmt.Errorf("error writing row: %w", err)
 	}
 
-	b.meta.ObjectAdded(start, end)
-	b.ids.Set(id, int64(b.ids.Len())) // Next row number
-
 	b.mtx.Lock()
 	defer b.mtx.Unlock()
+	b.meta.ObjectAdded(start, end)
+	b.ids.Set(id, int64(b.ids.Len())) // Next row number
 	b.unflushedSize += int64(estimateMarshalledSizeFromTrace(b.buffer))
 
 	return nil

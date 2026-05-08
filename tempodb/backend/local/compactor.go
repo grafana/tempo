@@ -37,11 +37,9 @@ func (rw *Backend) ClearBlock(blockID uuid.UUID, tenantID string) error {
 	return nil
 }
 
-// TombstoneBlock atomically renames the block's meta.json to meta.deleted.json.
-// After this call the block is invisible to BlockMeta lookups (which return
-// ErrDoesNotExist) but data files remain on disk until ClearBlock is called.
-// Crash-safe: a process that dies between TombstoneBlock and ClearBlock will
-// see the tombstoned dir on restart and ClearBlock can finish the cleanup.
+// TombstoneBlock renames meta.json → meta.deleted.json. Hides the block from
+// BlockMeta lookups while data files remain until ClearBlock. Idempotent:
+// a missing meta.json returns nil.
 func (rw *Backend) TombstoneBlock(blockID uuid.UUID, tenantID string) error {
 	if len(tenantID) == 0 {
 		return errors.New("empty tenant id")
@@ -53,15 +51,17 @@ func (rw *Backend) TombstoneBlock(blockID uuid.UUID, tenantID string) error {
 	from := path.Join(keypath, backend.MetaName)
 	to := path.Join(keypath, backend.DeletedMetaName)
 	if err := os.Rename(from, to); err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
 		return fmt.Errorf("failed to tombstone block %s: %w", blockID, err)
 	}
 	return nil
 }
 
-// ClearTombstonedBlocks walks the local backend root and removes any block
-// directory containing meta.deleted.json. Use at startup to reclaim blocks
-// that were tombstoned but not Cleared by a prior process (e.g. crash between
-// TombstoneBlock and ClearBlock). Returns the number of dirs removed.
+// ClearTombstonedBlocks removes block dirs containing meta.deleted.json.
+// Use at startup to clean up after a crash between TombstoneBlock and
+// ClearBlock. Returns the number of dirs removed.
 func (rw *Backend) ClearTombstonedBlocks() (int, error) {
 	root := rw.cfg.Path
 	cleared := 0
@@ -79,7 +79,7 @@ func (rw *Backend) ClearTombstonedBlocks() (int, error) {
 		tenantPath := path.Join(root, tenant.Name())
 		blocks, err := os.ReadDir(tenantPath)
 		if err != nil {
-			continue
+			return cleared, fmt.Errorf("read tenant %s: %w", tenant.Name(), err)
 		}
 		for _, b := range blocks {
 			if !b.IsDir() {
@@ -87,7 +87,10 @@ func (rw *Backend) ClearTombstonedBlocks() (int, error) {
 			}
 			marker := path.Join(tenantPath, b.Name(), backend.DeletedMetaName)
 			if _, err := os.Stat(marker); err != nil {
-				continue
+				if os.IsNotExist(err) {
+					continue
+				}
+				return cleared, fmt.Errorf("stat marker %s: %w", marker, err)
 			}
 			blockDir := path.Join(tenantPath, b.Name())
 			if err := os.RemoveAll(blockDir); err != nil {
