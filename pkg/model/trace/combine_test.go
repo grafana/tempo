@@ -110,16 +110,33 @@ func TestCombinerParallel(t *testing.T) {
 	// Ensure that the combiner is safe for parallel use.
 	c := NewCombiner(0, false)
 	var wg sync.WaitGroup
-	for i := 0; i < 10; i++ {
+
+	concurrent := func(f func()) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
+			f()
+		}()
+	}
+
+	for i := 0; i < 10; i++ {
+		concurrent(func() {
 			for j := 0; j < 100; j++ {
 				_, err := c.Consume(test.MakeTraceWithSpanCount(1, 1, []byte{0x01}))
 				require.NoError(t, err)
 			}
-		}()
+		})
 	}
+	concurrent(func() {
+		for j := 0; j < 100; j++ {
+			_, _ = c.Result()
+		}
+	})
+	concurrent(func() {
+		for j := 0; j < 100; j++ {
+			_ = c.IsPartialTrace()
+		}
+	})
 	wg.Wait()
 }
 

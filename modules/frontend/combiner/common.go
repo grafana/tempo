@@ -174,7 +174,10 @@ func (c *genericCombiner[T]) HTTPFinal() (*http.Response, error) {
 		return nil, err
 	}
 
-	bodyBytes, contentType, err := c.internalMarshalAs(final)
+	// clone the final response to prevent race conditions with marshalling this data
+	finalClone := proto.Clone(final).(T)
+
+	bodyBytes, contentType, err := c.internalMarshalAs(finalClone)
 	if err != nil {
 		return nil, fmt.Errorf("error marshalling response body as %s: %w", c.httpMarshalingFormat, err)
 	}

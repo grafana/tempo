@@ -54,7 +54,7 @@ func (c *Combiner) ConsumeWithFinal(tr *tempopb.Trace, final bool) (int, error) 
 	defer c.mtx.Unlock()
 
 	var spanCount int
-	if tr == nil || c.IsPartialTrace() {
+	if tr == nil || c.isPartialTrace() {
 		return spanCount, nil
 	}
 
@@ -84,7 +84,7 @@ func (c *Combiner) ConsumeWithFinal(tr *tempopb.Trace, final bool) (int, error) 
 		}
 
 		maxSizeErr := c.sizeError()
-		if c.IsPartialTrace() {
+		if c.isPartialTrace() {
 			return spanCount, nil
 		}
 		return spanCount, maxSizeErr
@@ -127,7 +127,7 @@ func (c *Combiner) ConsumeWithFinal(tr *tempopb.Trace, final bool) (int, error) 
 
 	c.combined = true
 	maxSizeErr := c.sizeError()
-	if c.IsPartialTrace() {
+	if c.isPartialTrace() {
 		return spanCount, nil
 	}
 
@@ -149,6 +149,9 @@ func (c *Combiner) sizeError() error {
 
 // Result returns the final trace and span count.
 func (c *Combiner) Result() (*tempopb.Trace, int) {
+	c.mtx.Lock()
+	defer c.mtx.Unlock()
+
 	spanCount := -1
 
 	if c.result != nil && c.combined {
@@ -162,5 +165,12 @@ func (c *Combiner) Result() (*tempopb.Trace, int) {
 
 // Returns true if the combined trace is a partial one if partal trace is enabled
 func (c *Combiner) IsPartialTrace() bool {
+	c.mtx.Lock()
+	defer c.mtx.Unlock()
+
+	return c.isPartialTrace()
+}
+
+func (c *Combiner) isPartialTrace() bool {
 	return c.maxTraceSizeReached && c.allowPartialTrace
 }

@@ -13,9 +13,12 @@ func NewTypedTraceByIDV2(maxBytes int, marshalingFormat api.MarshallingFormat, t
 }
 
 func NewTraceByIDV2(maxBytes int, marshalingFormat api.MarshallingFormat, traceRedactor TraceRedactor) Combiner {
-	combiner := trace.NewCombiner(maxBytes, true)
-	var partialTrace bool
-	metricsCombiner := NewTraceByIDMetricsCombiner()
+	var (
+		partialTrace    bool
+		combiner        = trace.NewCombiner(maxBytes, true)
+		metricsCombiner = NewTraceByIDMetricsCombiner()
+	)
+
 	gc := &genericCombiner[*tempopb.TraceByIDResponse]{
 		combine: func(partial *tempopb.TraceByIDResponse, _ *tempopb.TraceByIDResponse, pipelineResp PipelineResponse) error {
 			if partial.Status == tempopb.PartialStatus_PARTIAL {
