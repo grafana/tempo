@@ -40,11 +40,15 @@ type mockOverrides struct {
 	serviceGraphsEnableTraceStateSpanMultiplier        *bool
 	spanMetricsSpanMultiplierKey                       string
 	spanMetricsEnableTraceStateSpanMultiplier          *bool
+	ingestionSlack                                     time.Duration
 }
 
 var _ metricsGeneratorOverrides = (*mockOverrides)(nil)
 
 func (m *mockOverrides) MetricsGeneratorIngestionSlack(string) time.Duration {
+	if m.ingestionSlack != 0 {
+		return m.ingestionSlack
+	}
 	return 30 * time.Second
 }
 
