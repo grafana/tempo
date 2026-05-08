@@ -64,14 +64,24 @@ func (c *counter) Inc(lbls labels.Labels, value float64) {
 	}
 
 	hash := lbls.Hash()
+	c.IncWithHash(lbls, hash, value)
+}
 
+func (c *counter) IncWithHash(lbls labels.Labels, hash uint64, value float64) {
+	c.IncWithHashAt(lbls, hash, value, time.Now().UnixMilli())
+}
+
+func (c *counter) IncWithHashAt(lbls labels.Labels, hash uint64, value float64, timeMs int64) {
+	if value < 0 {
+		panic("counter can only increase")
+	}
 	c.seriesMtx.RLock()
 	s, ok := c.series[hash]
 	c.seriesMtx.RUnlock()
 
 	c.seriesDemand.Insert(hash)
 	if ok {
-		c.updateSeries(hash, s, value)
+		c.updateSeries(hash, s, value, timeMs)
 		return
 	}
 
@@ -80,11 +90,11 @@ func (c *counter) Inc(lbls labels.Labels, value float64) {
 
 	s, lbls, hash = resolveSeries(c.series, hash, lbls, c.lifecycler, 1)
 	if s != nil {
-		c.updateSeries(hash, s, value)
+		c.updateSeries(hash, s, value, timeMs)
 		return
 	}
 
-	c.series[hash] = c.newSeries(lbls, value)
+	c.series[hash] = c.newSeries(lbls, value, timeMs)
 }
 
 func resolveSeries[T any](series map[uint64]*T, hash uint64, lbls labels.Labels, lifecycler Limiter, count uint32) (*T, labels.Labels, uint64) {
@@ -105,18 +115,18 @@ func resolveSeries[T any](series map[uint64]*T, hash uint64, lbls labels.Labels,
 	return nil, lbls, hash
 }
 
-func (c *counter) newSeries(lbls labels.Labels, value float64) *counterSeries {
+func (c *counter) newSeries(lbls labels.Labels, value float64, timeMs int64) *counterSeries {
 	return &counterSeries{
 		labels:      getSeriesLabels(c.metricName, lbls, c.externalLabels),
 		value:       atomic.NewFloat64(value),
-		lastUpdated: atomic.NewInt64(time.Now().UnixMilli()),
+		lastUpdated: atomic.NewInt64(timeMs),
 		firstSeries: atomic.NewBool(true),
 	}
 }
 
-func (c *counter) updateSeries(hash uint64, s *counterSeries, value float64) {
+func (c *counter) updateSeries(hash uint64, s *counterSeries, value float64, timeMs int64) {
 	s.value.Add(value)
-	s.lastUpdated.Store(time.Now().UnixMilli())
+	s.lastUpdated.Store(timeMs)
 	c.lifecycler.OnUpdate(hash, 1)
 }
 

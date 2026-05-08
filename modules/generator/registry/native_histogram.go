@@ -36,6 +36,7 @@ type nativeHistogram struct {
 	buckets []float64
 
 	traceIDLabelName string
+	exemplarLabels   prometheus.Labels
 
 	// Can be "native", classic", "both" to determine which histograms to
 	// generate.  A diff in the configured value on the processors will cause a
@@ -101,6 +102,7 @@ func newNativeHistogram(name string, buckets []float64, lifecycler Limiter, trac
 		seriesDemand:      NewCardinality(staleDuration, removeStaleSeriesInterval),
 		lifecycler:        lifecycler,
 		traceIDLabelName:  traceIDLabelName,
+		exemplarLabels:    make(prometheus.Labels, 1),
 		buckets:           buckets,
 		histogramOverride: histogramOverride,
 		externalLabels:    externalLabels,
@@ -116,7 +118,14 @@ func newNativeHistogram(name string, buckets []float64, lifecycler Limiter, trac
 
 func (h *nativeHistogram) ObserveWithExemplar(lbls labels.Labels, value float64, traceID string, multiplier float64) {
 	hash := lbls.Hash()
+	h.ObserveWithExemplarWithHash(lbls, hash, value, traceID, multiplier)
+}
 
+func (h *nativeHistogram) ObserveWithExemplarWithHash(lbls labels.Labels, hash uint64, value float64, traceID string, multiplier float64) {
+	h.ObserveWithExemplarWithHashAt(lbls, hash, value, traceID, multiplier, time.Now().UnixMilli())
+}
+
+func (h *nativeHistogram) ObserveWithExemplarWithHashAt(lbls labels.Labels, hash uint64, value float64, traceID string, multiplier float64, timeMs int64) {
 	h.seriesDemand.Insert(hash)
 
 	h.seriesMtx.Lock()
@@ -124,13 +133,17 @@ func (h *nativeHistogram) ObserveWithExemplar(lbls labels.Labels, value float64,
 
 	s, lbls, hash := resolveSeries(h.series, hash, lbls, h.lifecycler, h.activeSeriesPerHistogramSerie())
 	if s != nil {
-		h.updateSeries(hash, s, value, traceID, multiplier)
+		h.updateSeries(hash, s, value, traceID, multiplier, timeMs)
 		return
 	}
-	h.series[hash] = h.newSeries(lbls, value, traceID, multiplier)
+	h.series[hash] = h.newSeries(lbls, hash, value, traceID, multiplier, timeMs)
 }
 
-func (h *nativeHistogram) newSeries(lbls labels.Labels, value float64, traceID string, multiplier float64) *nativeHistogramSeries {
+func (h *nativeHistogram) ObserveWithExemplarTraceIDBytesWithHashAt(lbls labels.Labels, hash uint64, value float64, traceID []byte, multiplier float64, timeMs int64) {
+	h.ObserveWithExemplarWithHashAt(lbls, hash, value, traceIDBytesToHexString(traceID), multiplier, timeMs)
+}
+
+func (h *nativeHistogram) newSeries(lbls labels.Labels, hash uint64, value float64, traceID string, multiplier float64, timeMs int64) *nativeHistogramSeries {
 	// Configure histogram based on mode
 	//
 	// Native-only mode sets buckets to nil, and uses the histogram.Exemplars slice as the native exemplar format.
@@ -170,7 +183,7 @@ func (h *nativeHistogram) newSeries(lbls labels.Labels, value float64, traceID s
 		overridesHash: hsh,
 	}
 
-	h.updateSeries(lbls.Hash(), newSeries, value, traceID, multiplier)
+	h.updateSeries(hash, newSeries, value, traceID, multiplier, timeMs)
 
 	lb := newSeriesLabelsBuilder(lbls, h.externalLabels)
 
@@ -187,21 +200,32 @@ func (h *nativeHistogram) newSeries(lbls labels.Labels, value float64, traceID s
 	lb.Set(labels.MetricName, h.nameSum)
 	newSeries.sumLabels = lb.Labels()
 
+	// Keep the reusable bucket-label builder based on owned labels. The input
+	// labels may be borrowed by the caller and released after this update.
+	lb.Reset(newSeries.labels)
 	return newSeries
 }
 
-func (h *nativeHistogram) updateSeries(hash uint64, s *nativeHistogramSeries, value float64, traceID string, multiplier float64) {
+func (h *nativeHistogram) updateSeries(hash uint64, s *nativeHistogramSeries, value float64, traceID string, multiplier float64, timeMs int64) {
 	// Use Prometheus native exemplar handling
 	exemplarObserver := s.promHistogram.(prometheus.ExemplarObserver)
 
-	labels := prometheus.Labels{h.traceIDLabelName: traceID}
+	// ObserveWithExemplar copies the labels synchronously; seriesMtx serializes reuse.
+	h.exemplarLabels[h.traceIDLabelName] = traceID
+
+	if multiplier == 1 {
+		exemplarObserver.ObserveWithExemplar(value, h.exemplarLabels)
+		s.lastUpdated = timeMs
+		h.lifecycler.OnUpdate(hash, h.activeSeriesPerHistogramSerie())
+		return
+	}
 
 	for i := 0.0; i < multiplier; i++ {
 		// Let Prometheus handle exemplars natively
-		exemplarObserver.ObserveWithExemplar(value, labels)
+		exemplarObserver.ObserveWithExemplar(value, h.exemplarLabels)
 	}
 
-	s.lastUpdated = time.Now().UnixMilli()
+	s.lastUpdated = timeMs
 	h.lifecycler.OnUpdate(hash, h.activeSeriesPerHistogramSerie())
 }
 
