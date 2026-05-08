@@ -59,12 +59,7 @@ func newCounter(name string, lifecycler Limiter, externalLabels map[string]strin
 }
 
 func (c *counter) Inc(lbls labels.Labels, value float64) {
-	if value < 0 {
-		panic("counter can only increase")
-	}
-
-	hash := lbls.Hash()
-	c.IncWithHash(lbls, hash, value)
+	c.IncWithHash(lbls, lbls.Hash(), value)
 }
 
 func (c *counter) IncWithHash(lbls labels.Labels, hash uint64, value float64) {

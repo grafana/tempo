@@ -1,7 +1,6 @@
 package registry
 
 import (
-	"encoding/hex"
 	"fmt"
 	"math"
 	"sort"
@@ -13,6 +12,8 @@ import (
 	"github.com/prometheus/prometheus/model/labels"
 	"github.com/prometheus/prometheus/storage"
 	"go.uber.org/atomic"
+
+	tempo_util "github.com/grafana/tempo/pkg/util"
 )
 
 var _ metric = (*histogram)(nil)
@@ -45,7 +46,7 @@ type histogramSeries struct {
 	// buckets includes the +Inf bucket
 	buckets []*atomic.Float64
 	// exemplars stores either a hex-encoded string traceID or a raw <=16 byte
-	// traceID per bucket; access is serialized by histogram.seriesMtx (no longer atomic).
+	// traceID per bucket; access is serialized by histogram.seriesMtx.
 	exemplars      []histogramExemplar
 	exemplarValues []*atomic.Float64
 	lastUpdated    *atomic.Int64
@@ -71,7 +72,7 @@ func newHistogramTraceIDBytesExemplar(traceID []byte) histogramExemplar {
 		return histogramExemplar{}
 	}
 	if len(traceID) > 16 {
-		return histogramExemplar{traceID: traceIDBytesToHexString(traceID)}
+		return histogramExemplar{traceID: tempo_util.TraceIDToHexString(traceID)}
 	}
 
 	ex := histogramExemplar{traceIDLen: len(traceID)}
@@ -83,7 +84,7 @@ func (ex histogramExemplar) string() string {
 	if ex.traceIDLen == 0 {
 		return ex.traceID
 	}
-	return traceIDBytesToHexString(ex.traceIDBytes[:ex.traceIDLen])
+	return tempo_util.TraceIDToHexString(ex.traceIDBytes[:ex.traceIDLen])
 }
 
 func (hs *histogramSeries) isNew() bool {
@@ -323,31 +324,4 @@ func (h *histogram) activeSeriesPerHistogramSerie() uint32 {
 
 func formatFloat(value float64) string {
 	return strconv.FormatFloat(value, 'f', -1, 64)
-}
-
-func traceIDBytesToHexString(traceID []byte) string {
-	encodedLen := hex.EncodedLen(len(traceID))
-	if encodedLen == 0 {
-		return ""
-	}
-
-	var buf [32]byte
-	if encodedLen <= len(buf) {
-		hex.Encode(buf[:encodedLen], traceID)
-		for i := 0; i < encodedLen; i++ {
-			if buf[i] != '0' {
-				return string(buf[i:encodedLen])
-			}
-		}
-		return ""
-	}
-
-	dst := make([]byte, encodedLen)
-	hex.Encode(dst, traceID)
-	for i := 0; i < encodedLen; i++ {
-		if dst[i] != '0' {
-			return string(dst[i:])
-		}
-	}
-	return ""
 }
