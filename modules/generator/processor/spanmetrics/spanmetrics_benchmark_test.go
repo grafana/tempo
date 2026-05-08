@@ -24,7 +24,7 @@ func BenchmarkSpanMetricsPushSpans(b *testing.B) {
 	}{
 		{
 			name:    "default",
-			request: benchmarkSpanMetricsRequest(4, 100, true),
+			request: benchmarkSpanMetricsRequest(true),
 		},
 		{
 			name: "target_info",
@@ -32,7 +32,7 @@ func BenchmarkSpanMetricsPushSpans(b *testing.B) {
 				cfg.EnableTargetInfo = true
 				cfg.TargetInfoExcludedDimensions = []string{"excluded"}
 			},
-			request: benchmarkSpanMetricsRequest(4, 100, true),
+			request: benchmarkSpanMetricsRequest(true),
 		},
 		{
 			name: "target_info_all_filtered",
@@ -49,7 +49,7 @@ func BenchmarkSpanMetricsPushSpans(b *testing.B) {
 					},
 				}}
 			},
-			request: benchmarkSpanMetricsRequest(4, 100, true),
+			request: benchmarkSpanMetricsRequest(true),
 		},
 		{
 			name: "dimensions_and_mappings",
@@ -68,7 +68,7 @@ func BenchmarkSpanMetricsPushSpans(b *testing.B) {
 					{Name: "pod_key", SourceLabel: []string{"k8s.namespace.name", "k8s.pod.name"}, Join: "/"},
 				}
 			},
-			request: benchmarkSpanMetricsRequest(4, 100, true),
+			request: benchmarkSpanMetricsRequest(true),
 		},
 		{
 			name: "count_only",
@@ -76,7 +76,7 @@ func BenchmarkSpanMetricsPushSpans(b *testing.B) {
 				cfg.Subprocessors[Latency] = false
 				cfg.Subprocessors[Size] = false
 			},
-			request: benchmarkSpanMetricsRequest(4, 100, false),
+			request: benchmarkSpanMetricsRequest(false),
 		},
 	} {
 		b.Run(tc.name, func(b *testing.B) {
@@ -106,7 +106,12 @@ func BenchmarkSpanMetricsPushSpans(b *testing.B) {
 	}
 }
 
-func benchmarkSpanMetricsRequest(resources int, spansPerResource int, sameTracePerResource bool) *tempopb.PushSpansRequest {
+func benchmarkSpanMetricsRequest(sameTracePerResource bool) *tempopb.PushSpansRequest {
+	const (
+		resources        = 4
+		spansPerResource = 100
+	)
+
 	req := &tempopb.PushSpansRequest{
 		Batches: make([]*trace_v1.ResourceSpans, 0, resources),
 	}

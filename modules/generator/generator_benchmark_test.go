@@ -32,7 +32,7 @@ func BenchmarkPushSpansConfigurations(b *testing.B) {
 			overrides: func(o *mockOverrides) {
 				o.processors = map[string]struct{}{processor.SpanMetricsName: {}}
 			},
-			request: benchmarkGeneratorRequest(4, 100, false),
+			request: benchmarkGeneratorRequest(4, false),
 		},
 		{
 			name: "spanmetrics_target_info",
@@ -41,7 +41,7 @@ func BenchmarkPushSpansConfigurations(b *testing.B) {
 				o.spanMetricsEnableTargetInfo = boolPtr(true)
 				o.spanMetricsTargetInfoExcludedDimensions = []string{"excluded"}
 			},
-			request: benchmarkGeneratorRequest(4, 100, false),
+			request: benchmarkGeneratorRequest(4, false),
 		},
 		{
 			name: "spanmetrics_target_info_all_filtered",
@@ -59,7 +59,7 @@ func BenchmarkPushSpansConfigurations(b *testing.B) {
 					},
 				}}
 			},
-			request: benchmarkGeneratorRequest(4, 100, false),
+			request: benchmarkGeneratorRequest(4, false),
 		},
 		{
 			name: "spanmetrics_dimensions",
@@ -70,14 +70,14 @@ func BenchmarkPushSpansConfigurations(b *testing.B) {
 					{Name: "route_key", SourceLabel: []string{"http.method", "http.route", "http.status_code"}, Join: ":"},
 				}
 			},
-			request: benchmarkGeneratorRequest(4, 100, false),
+			request: benchmarkGeneratorRequest(4, false),
 		},
 		{
 			name: "servicegraphs_default",
 			overrides: func(o *mockOverrides) {
 				o.processors = map[string]struct{}{processor.ServiceGraphsName: {}}
 			},
-			request: benchmarkGeneratorRequest(2, 100, true),
+			request: benchmarkGeneratorRequest(2, true),
 		},
 		{
 			name: "servicegraphs_span_multiplier",
@@ -93,7 +93,7 @@ func BenchmarkPushSpansConfigurations(b *testing.B) {
 				o.processors = map[string]struct{}{processor.SpanMetricsName: {}}
 				benchmarkGeneratorProdOverrides(o)
 			},
-			request: benchmarkGeneratorProdRequest(4, 100, false),
+			request: benchmarkGeneratorProdRequest(4, false),
 		},
 		{
 			name: "servicegraphs_prod_7dims_prefix",
@@ -101,7 +101,7 @@ func BenchmarkPushSpansConfigurations(b *testing.B) {
 				o.processors = map[string]struct{}{processor.ServiceGraphsName: {}}
 				benchmarkGeneratorProdOverrides(o)
 			},
-			request: benchmarkGeneratorProdRequest(2, 100, true),
+			request: benchmarkGeneratorProdRequest(2, true),
 		},
 		{
 			name: "combined_target_info",
@@ -110,7 +110,7 @@ func BenchmarkPushSpansConfigurations(b *testing.B) {
 				o.spanMetricsEnableTargetInfo = boolPtr(true)
 				o.spanMetricsTargetInfoExcludedDimensions = []string{"excluded"}
 			},
-			request: benchmarkGeneratorRequest(4, 100, true),
+			request: benchmarkGeneratorRequest(4, true),
 		},
 		{
 			name: "combined_native_histograms",
@@ -120,7 +120,7 @@ func BenchmarkPushSpansConfigurations(b *testing.B) {
 				o.spanMetricsTargetInfoExcludedDimensions = []string{"excluded"}
 				o.nativeHistograms = histograms.HistogramMethodBoth
 			},
-			request: benchmarkGeneratorRequest(4, 100, true),
+			request: benchmarkGeneratorRequest(4, true),
 		},
 		{
 			name: "combined_prod_7dims_target_info_servicegraphs_prefix_filters",
@@ -128,7 +128,7 @@ func BenchmarkPushSpansConfigurations(b *testing.B) {
 				o.processors = map[string]struct{}{processor.SpanMetricsName: {}, processor.ServiceGraphsName: {}}
 				benchmarkGeneratorProdOverrides(o)
 			},
-			request: benchmarkGeneratorProdRequest(4, 100, true),
+			request: benchmarkGeneratorProdRequest(4, true),
 		},
 		{
 			name: "combined_prod_7dims_native_histograms",
@@ -137,7 +137,7 @@ func BenchmarkPushSpansConfigurations(b *testing.B) {
 				benchmarkGeneratorProdOverrides(o)
 				o.nativeHistograms = histograms.HistogramMethodBoth
 			},
-			request: benchmarkGeneratorProdRequest(4, 100, true),
+			request: benchmarkGeneratorProdRequest(4, true),
 		},
 	} {
 		b.Run(tc.name, func(b *testing.B) {
@@ -363,7 +363,9 @@ func benchmarkGeneratorInstance(b *testing.B, tune func(*mockOverrides)) *instan
 	return inst
 }
 
-func benchmarkGeneratorRequest(resources int, spansPerResource int, includeServiceGraphPairs bool) *tempopb.PushSpansRequest {
+func benchmarkGeneratorRequest(resources int, includeServiceGraphPairs bool) *tempopb.PushSpansRequest {
+	const spansPerResource = 100
+
 	if includeServiceGraphPairs {
 		return benchmarkGeneratorServiceGraphRequest(resources*spansPerResource/2, false)
 	}
@@ -426,7 +428,9 @@ func benchmarkGeneratorServiceGraphRequest(edges int, spanMultiplier bool) *temp
 	return &tempopb.PushSpansRequest{Batches: []*trace_v1.ResourceSpans{client, server}}
 }
 
-func benchmarkGeneratorProdRequest(resources int, spansPerResource int, includeServiceGraphPairs bool) *tempopb.PushSpansRequest {
+func benchmarkGeneratorProdRequest(resources int, includeServiceGraphPairs bool) *tempopb.PushSpansRequest {
+	const spansPerResource = 100
+
 	if includeServiceGraphPairs {
 		return benchmarkGeneratorProdServiceGraphRequest(resources * spansPerResource / 2)
 	}
