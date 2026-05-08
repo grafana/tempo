@@ -42,28 +42,27 @@ func TestLabelBuilder_InvalidUTF8(t *testing.T) {
 	assert.False(t, ok)
 }
 
-func TestSafeBuilderPool(t *testing.T) {
-	pool := newSafeBuilderPool()
-	builder := pool.Get()
-	builder.Set("name", "value")
-	lbls := builder.Labels()
-
-	assert.Equal(t, labels.FromStrings("name", "value"), lbls)
-
-	// Putting the builder back into the pool should reset it.
-	pool.Put(builder)
-
-	reusedBuilder := pool.Get()
-	assert.Equal(t, builder, reusedBuilder)
-	assert.Equal(t, labels.EmptyLabels(), reusedBuilder.Labels())
-}
-
 type sanitizerFunc func(lbls labels.Labels) labels.Labels
 
 var _ Sanitizer = (*sanitizerFunc)(nil)
 
 func (s sanitizerFunc) Sanitize(lbls labels.Labels) labels.Labels {
 	return s(lbls)
+}
+
+func TestLabelBuilder_DuplicateNamesLastWriteWins(t *testing.T) {
+	// Two non-empty Adds with the same name must yield the last value, matching
+	// prometheus.Builder.Set semantics. compactLabels' fast path detects the
+	// duplicate and routes to compactLabelsSlow, which keeps the last entry of
+	// each contiguous group of equal names after stable sorting.
+	builder := NewLabelBuilder(0, 0, newTestDrainSanitizer(SpanNameSanitizationDisabled), newTestLabelLimiter())
+	builder.Add("dup", "first")
+	builder.Add("other", "v")
+	builder.Add("dup", "second")
+
+	lbls, ok := builder.CloseAndBuildLabels()
+	assert.True(t, ok)
+	assert.Equal(t, labels.FromStrings("dup", "second", "other", "v"), lbls)
 }
 
 func TestLabelBuilder_AddEmptyValueRemovesAllMatches(t *testing.T) {
@@ -82,10 +81,49 @@ func TestLabelBuilder_AddEmptyValueRemovesAllMatches(t *testing.T) {
 	assert.Equal(t, labels.FromStrings("other", "v"), lbls)
 }
 
+func TestBorrowedLabels_AppliesSanitizerAndLimiter(t *testing.T) {
+	// CloseAndBorrowLabels runs sanitizer then per-label limiter, like
+	// CloseAndBuildLabels. Verify the same transformations apply through the
+	// borrow path so callers can use either entry point interchangeably.
+	builder := NewLabelBuilder(0, 0, sanitizerFunc(func(_ labels.Labels) labels.Labels {
+		return labels.FromStrings("name", "sanitized")
+	}), newTestLabelLimiter())
+	builder.Add("name", "raw")
+
+	borrowed, ok := builder.CloseAndBorrowLabels()
+	assert.True(t, ok)
+	assert.Equal(t, "sanitized", borrowed.Labels.Get("name"))
+	borrowed.Release()
+}
+
+func TestBorrowedLabels_SequentialReuseDoesNotLeak(t *testing.T) {
+	// The scratch pool reissues the same buffer to the next caller after
+	// Release. Verify that a second borrow does not see labels from the first.
+	for range 5 {
+		builder := NewLabelBuilder(0, 0, newTestDrainSanitizer(SpanNameSanitizationDisabled), newTestLabelLimiter())
+		builder.Add("first", "a")
+		first, ok := builder.CloseAndBorrowLabels()
+		assert.True(t, ok)
+		assert.Equal(t, "a", first.Labels.Get("first"))
+		first.Release()
+
+		builder = NewLabelBuilder(0, 0, newTestDrainSanitizer(SpanNameSanitizationDisabled), newTestLabelLimiter())
+		builder.Add("second", "b")
+		second, ok := builder.CloseAndBorrowLabels()
+		assert.True(t, ok)
+		assert.Equal(t, "", second.Labels.Get("first"))
+		assert.Equal(t, "b", second.Labels.Get("second"))
+		second.Release()
+	}
+}
+
 func TestBorrowedLabels_ReleaseIsIdempotent(t *testing.T) {
-	// Release must not double-Put the builder/scratch into their pools.
-	// Calling it twice on the same value is a defensive guard against future
-	// callers that accidentally release through both a pointer and a copy.
+	// Release must not double-Put the builder/scratch into their pools when
+	// called more than once on the same struct value. This only protects
+	// repeated Release on the same value — Release on a copy of BorrowedLabels
+	// is documented as forbidden because each copy retains independent
+	// non-nil builder/scratch pointers and the second Release on the copy
+	// would still double-Put.
 	builder := NewLabelBuilder(0, 0, newTestDrainSanitizer(SpanNameSanitizationDisabled), newTestLabelLimiter())
 	builder.Add("name", "value")
 

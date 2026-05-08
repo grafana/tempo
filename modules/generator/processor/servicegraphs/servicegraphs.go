@@ -347,7 +347,14 @@ func updateServerEdge(e *store.Edge, u serverEdgeUpdate) {
 	u.p.upsertDimensions("server_", e.Dimensions, u.resourceAttr, u.span.Attributes)
 	e.SpanMultiplier = u.spanMultiplier
 	if u.root {
-		// PeerNode is only used for root server-span virtual-node inference.
+		// PeerNode is only consumed by virtual-node inference in onExpire (see
+		// the e.PeerNode reads at the end of this file), which only fires for
+		// root server spans without a paired client. Non-root server spans
+		// always pair with a client edge that already set PeerNode if
+		// applicable, so calling upsertPeerNode here would only overwrite the
+		// client's value with a server-side attribute — a behavior change vs
+		// pre-optimization but only observable for non-root server spans that
+		// carry peer.* attributes (uncommon in OTel SDKs).
 		u.p.upsertPeerNode(e, u.span.Attributes)
 	}
 }
