@@ -26,9 +26,12 @@ type LabelBuilder interface {
 // scratch builder. The Labels and Hash are only valid between
 // CloseAndBorrowLabels and Release. Callers MUST NOT retain Labels (or substrings
 // of any Label.Value) past Release, store BorrowedLabels in a long-lived field,
-// or copy the value across goroutines — the underlying scratch buffer is reused
-// by other callers as soon as Release returns. Metric methods that accept
-// BorrowedLabels.Labels copy what they need synchronously before returning.
+// copy the value across goroutines, or copy the value at all and call Release
+// on more than one copy — the underlying scratch and builder are returned to
+// pools by Release, and a second Release on a copy double-Puts them and lets
+// later callers receive the same instance concurrently. Metric methods that
+// accept BorrowedLabels.Labels copy what they need synchronously before
+// returning.
 type BorrowedLabels struct {
 	Labels labels.Labels
 	Hash   uint64
