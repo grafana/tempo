@@ -1,6 +1,7 @@
 package registry
 
 import (
+	"encoding/hex"
 	"fmt"
 	"math"
 	"sort"
@@ -43,8 +44,9 @@ type histogramSeries struct {
 	sum   *atomic.Float64
 	// buckets includes the +Inf bucket
 	buckets []*atomic.Float64
-	// exemplar is stored as a single traceID
-	exemplars      []*atomic.String
+	// exemplars stores either a hex-encoded string traceID or a raw <=16 byte
+	// traceID per bucket; access is serialized by histogram.seriesMtx (no longer atomic).
+	exemplars      []histogramExemplar
 	exemplarValues []*atomic.Float64
 	lastUpdated    *atomic.Int64
 	// firstSeries is used to track if this series is new to the counter.  This
@@ -52,6 +54,36 @@ type histogramSeries struct {
 	// to the desired value.  This avoids Prometheus throwing away the first
 	// value in the series, due to the transition from null -> x.
 	firstSeries *atomic.Bool
+}
+
+type histogramExemplar struct {
+	traceID      string
+	traceIDBytes [16]byte
+	traceIDLen   int
+}
+
+func newHistogramStringExemplar(traceID string) histogramExemplar {
+	return histogramExemplar{traceID: traceID}
+}
+
+func newHistogramTraceIDBytesExemplar(traceID []byte) histogramExemplar {
+	if len(traceID) == 0 {
+		return histogramExemplar{}
+	}
+	if len(traceID) > 16 {
+		return histogramExemplar{traceID: traceIDBytesToHexString(traceID)}
+	}
+
+	ex := histogramExemplar{traceIDLen: len(traceID)}
+	copy(ex.traceIDBytes[:], traceID)
+	return ex
+}
+
+func (ex histogramExemplar) string() string {
+	if ex.traceIDLen == 0 {
+		return ex.traceID
+	}
+	return traceIDBytesToHexString(ex.traceIDBytes[:ex.traceIDLen])
 }
 
 func (hs *histogramSeries) isNew() bool {
@@ -97,7 +129,22 @@ func newHistogram(name string, buckets []float64, lifecycler Limiter, traceIDLab
 
 func (h *histogram) ObserveWithExemplar(lbls labels.Labels, value float64, traceID string, multiplier float64) {
 	hash := lbls.Hash()
+	h.ObserveWithExemplarWithHash(lbls, hash, value, traceID, multiplier)
+}
 
+func (h *histogram) ObserveWithExemplarWithHash(lbls labels.Labels, hash uint64, value float64, traceID string, multiplier float64) {
+	h.ObserveWithExemplarWithHashAt(lbls, hash, value, traceID, multiplier, time.Now().UnixMilli())
+}
+
+func (h *histogram) ObserveWithExemplarWithHashAt(lbls labels.Labels, hash uint64, value float64, traceID string, multiplier float64, timeMs int64) {
+	h.observeWithExemplarWithHashAt(lbls, hash, value, newHistogramStringExemplar(traceID), multiplier, timeMs)
+}
+
+func (h *histogram) ObserveWithExemplarTraceIDBytesWithHashAt(lbls labels.Labels, hash uint64, value float64, traceID []byte, multiplier float64, timeMs int64) {
+	h.observeWithExemplarWithHashAt(lbls, hash, value, newHistogramTraceIDBytesExemplar(traceID), multiplier, timeMs)
+}
+
+func (h *histogram) observeWithExemplarWithHashAt(lbls labels.Labels, hash uint64, value float64, ex histogramExemplar, multiplier float64, timeMs int64) {
 	h.seriesDemand.Insert(hash)
 
 	h.seriesMtx.Lock()
@@ -105,25 +152,24 @@ func (h *histogram) ObserveWithExemplar(lbls labels.Labels, value float64, trace
 
 	s, lbls, hash := resolveSeries(h.series, hash, lbls, h.lifecycler, h.activeSeriesPerHistogramSerie())
 	if s != nil {
-		h.updateSeries(hash, s, value, traceID, multiplier)
+		h.updateSeries(hash, s, value, ex, multiplier, timeMs)
 		return
 	}
-	h.series[hash] = h.newSeries(lbls, value, traceID, multiplier)
+	h.series[hash] = h.newSeries(lbls, hash, value, ex, multiplier, timeMs)
 }
 
-func (h *histogram) newSeries(lbls labels.Labels, value float64, traceID string, multiplier float64) *histogramSeries {
+func (h *histogram) newSeries(lbls labels.Labels, hash uint64, value float64, ex histogramExemplar, multiplier float64, timeMs int64) *histogramSeries {
 	newSeries := &histogramSeries{
 		count:          atomic.NewFloat64(0),
 		sum:            atomic.NewFloat64(0),
 		buckets:        make([]*atomic.Float64, 0, len(h.buckets)),
-		exemplars:      make([]*atomic.String, 0, len(h.buckets)),
+		exemplars:      make([]histogramExemplar, len(h.buckets)),
 		exemplarValues: make([]*atomic.Float64, 0, len(h.buckets)),
 		lastUpdated:    atomic.NewInt64(0),
 		firstSeries:    atomic.NewBool(true),
 	}
 	for i := 0; i < len(h.buckets); i++ {
 		newSeries.buckets = append(newSeries.buckets, atomic.NewFloat64(0))
-		newSeries.exemplars = append(newSeries.exemplars, atomic.NewString(""))
 		newSeries.exemplarValues = append(newSeries.exemplarValues, atomic.NewFloat64(0))
 	}
 
@@ -147,26 +193,24 @@ func (h *histogram) newSeries(lbls labels.Labels, value float64, traceID string,
 		newSeries.bucketLabels = append(newSeries.bucketLabels, lb.Labels())
 	}
 
-	h.updateSeries(lbls.Hash(), newSeries, value, traceID, multiplier)
+	h.updateSeries(hash, newSeries, value, ex, multiplier, timeMs)
 
 	return newSeries
 }
 
-func (h *histogram) updateSeries(hash uint64, s *histogramSeries, value float64, traceID string, multiplier float64) {
-	s.count.Add(1 * multiplier)
+func (h *histogram) updateSeries(hash uint64, s *histogramSeries, value float64, ex histogramExemplar, multiplier float64, timeMs int64) {
+	s.count.Add(multiplier)
 	s.sum.Add(value * multiplier)
 
-	for i, bucket := range h.buckets {
-		if value <= bucket {
-			s.buckets[i].Add(1 * multiplier)
-		}
+	bucket := sort.SearchFloat64s(h.buckets, value)
+	for i := bucket; i < len(h.buckets); i++ {
+		s.buckets[i].Add(multiplier)
 	}
 
-	bucket := sort.SearchFloat64s(h.buckets, value)
-	s.exemplars[bucket].Store(traceID)
+	s.exemplars[bucket] = ex
 	s.exemplarValues[bucket].Store(value)
 
-	s.lastUpdated.Store(time.Now().UnixMilli())
+	s.lastUpdated.Store(timeMs)
 	h.lifecycler.OnUpdate(hash, h.activeSeriesPerHistogramSerie())
 }
 
@@ -217,12 +261,13 @@ func (h *histogram) collectMetrics(appender storage.Appender, timeMs int64) erro
 				return err
 			}
 
-			ex := s.exemplars[i].Load()
-			if ex != "" {
+			ex := s.exemplars[i]
+			traceID := ex.string()
+			if traceID != "" {
 
 				lbls := []labels.Label{{
 					Name:  h.traceIDLabelName,
-					Value: ex,
+					Value: traceID,
 				}}
 
 				_, err = appender.AppendExemplar(ref, s.bucketLabels[i], exemplar.Exemplar{
@@ -235,7 +280,7 @@ func (h *histogram) collectMetrics(appender storage.Appender, timeMs int64) erro
 				}
 			}
 			// clear the exemplar so we don't emit it again
-			s.exemplars[i].Store("")
+			s.exemplars[i] = histogramExemplar{}
 		}
 
 		if s.isNew() {
@@ -278,4 +323,31 @@ func (h *histogram) activeSeriesPerHistogramSerie() uint32 {
 
 func formatFloat(value float64) string {
 	return strconv.FormatFloat(value, 'f', -1, 64)
+}
+
+func traceIDBytesToHexString(traceID []byte) string {
+	encodedLen := hex.EncodedLen(len(traceID))
+	if encodedLen == 0 {
+		return ""
+	}
+
+	var buf [32]byte
+	if encodedLen <= len(buf) {
+		hex.Encode(buf[:encodedLen], traceID)
+		for i := 0; i < encodedLen; i++ {
+			if buf[i] != '0' {
+				return string(buf[i:encodedLen])
+			}
+		}
+		return ""
+	}
+
+	dst := make([]byte, encodedLen)
+	hex.Encode(dst, traceID)
+	for i := 0; i < encodedLen; i++ {
+		if dst[i] != '0' {
+			return string(dst[i:])
+		}
+	}
+	return ""
 }
