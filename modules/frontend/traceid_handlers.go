@@ -17,14 +17,12 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promauto"
 )
 
-var (
-	blocksWithTraceHistogram = promauto.NewHistogramVec(prometheus.HistogramOpts{
-		Namespace: "tempo",
-		Name:      "query_frontend_trace_by_id_blocks_with_trace",
-		Help:      "Number of blocks that contained data for a single trace lookup.",
-		Buckets:   []float64{0, 1, 2, 3, 5, 10, 50, 100, 500, 1000, 5000, 10000},
-	}, []string{"tenant", "max_compaction_level"})
-)
+var blocksWithTraceHistogram = promauto.NewHistogramVec(prometheus.HistogramOpts{
+	Namespace: "tempo",
+	Name:      "query_frontend_trace_by_id_blocks_with_trace",
+	Help:      "Number of blocks that contained data for a single trace lookup.",
+	Buckets:   []float64{0, 1, 2, 3, 5, 10, 50, 100, 500, 1000, 5000, 10000},
+}, []string{"tenant", "max_compaction_level"})
 
 // newTraceIDHandler creates a http.handler for trace by id requests
 func newTraceIDHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.PipelineResponse], o overrides.Interface, combinerFn func(int, api.MarshallingFormat, combiner.TraceRedactor) *combiner.TraceByIDCombiner, logger log.Logger, dataAccessController DataAccessController) http.RoundTripper {

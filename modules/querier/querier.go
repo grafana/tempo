@@ -305,7 +305,7 @@ func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDReque
 
 	completeTrace, _ := combiner.Result()
 	resp := &tempopb.TraceByIDResponse{
-		Trace:   completeTrace,
+		Trace: completeTrace,
 		Metrics: &tempopb.TraceByIDMetrics{
 			InspectedBytes:     inspectedBytes,
 			BlocksWithTrace:    blocksWithTrace,
