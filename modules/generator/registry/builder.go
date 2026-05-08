@@ -8,29 +8,6 @@ import (
 	"github.com/prometheus/prometheus/model/labels"
 )
 
-type safeBuilderPool struct {
-	pool sync.Pool
-}
-
-func newSafeBuilderPool() *safeBuilderPool {
-	return &safeBuilderPool{
-		pool: sync.Pool{
-			New: func() interface{} {
-				return labels.NewBuilder(labels.EmptyLabels())
-			},
-		},
-	}
-}
-
-func (p *safeBuilderPool) Get() *labels.Builder {
-	return p.pool.Get().(*labels.Builder)
-}
-
-func (p *safeBuilderPool) Put(builder *labels.Builder) {
-	builder.Reset(labels.EmptyLabels())
-	p.pool.Put(builder)
-}
-
 type labelBuilder struct {
 	sanitizer       Sanitizer
 	perLabelLimiter LabelLimiter
