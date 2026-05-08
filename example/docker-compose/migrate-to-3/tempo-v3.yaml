@@ -56,7 +56,7 @@ backend_scheduler:
         block_retention: 1h
 
 backend_worker:
-  backend_scheduler_addr: tempo-v3-backend-scheduler:3200
+  backend_scheduler_addr: tempo-v3-backend-scheduler:9095
   compaction:
     block_retention: 1h
   ring:

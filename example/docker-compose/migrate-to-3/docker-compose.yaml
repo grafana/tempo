@@ -294,6 +294,7 @@ services:
     hostname: tempo-v3-backend-worker
     depends_on:
       - minio
+      - tempo-v3-backend-scheduler
 
   tempo-v3-metrics-generator:
     image: *tempoV3Image

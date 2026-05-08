@@ -144,7 +144,9 @@ guaranteed to have flushed at least one block. Then in Grafana Explore:
    query type and run it.
 
 The trace should resolve with the same spans as on the v2 datasource, proving
-the v3 querier successfully read a v2 (RF3) block from shared object storage.
+the v3 querier successfully read a v2 block from shared object storage. (This
+example uses RF=1 for simplicity; real 2.x deployments typically use RF=3, and
+v3 transparently reads both.)
 
 > **404 from v3 even though the block is in MinIO?** The v3 querier polls
 > object storage on a fixed cycle (`storage.trace.blocklist_poll`, set to 1 m
