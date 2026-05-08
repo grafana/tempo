@@ -426,6 +426,34 @@ func TestWalBlockMetaSnapshot(t *testing.T) {
 	require.Equal(t, int64(1), w.BlockMeta().TotalObjects)
 }
 
+func TestWalBlockTombstone(t *testing.T) {
+	meta := backend.NewBlockMeta("fake", uuid.New(), VersionString)
+	w, err := createWALBlock(meta, t.TempDir(), model.CurrentEncoding, 0)
+	require.NoError(t, err)
+
+	id := test.ValidTraceID(nil)
+	tr := test.MakeTrace(10, id)
+	trace.SortTrace(tr)
+	require.NoError(t, w.AppendTrace(id, tr, 100, 200, false))
+	require.NoError(t, w.Flush())
+
+	metaPath := filepath.Join(w.walPath(), backend.MetaName)
+	deletedPath := filepath.Join(w.walPath(), backend.DeletedMetaName)
+
+	_, err = os.Stat(metaPath)
+	require.NoError(t, err, "meta.json should exist after Flush")
+
+	require.NoError(t, w.Tombstone())
+
+	_, err = os.Stat(metaPath)
+	assert.True(t, os.IsNotExist(err), "meta.json should be renamed away")
+	_, err = os.Stat(deletedPath)
+	assert.NoError(t, err, "meta.deleted.json should be present")
+
+	// Idempotent: a second Tombstone (meta.json is gone) returns nil.
+	require.NoError(t, w.Tombstone(), "Tombstone must be idempotent when meta.json is missing")
+}
+
 func testWalBlock(t *testing.T, f func(w *walBlock, ids []common.ID, trs []*tempopb.Trace)) {
 	meta := backend.NewBlockMeta("fake", uuid.New(), VersionString)
 	w, err := createWALBlock(meta, t.TempDir(), model.CurrentEncoding, 0)
