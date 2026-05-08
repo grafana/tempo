@@ -50,6 +50,8 @@ func NewTraceByIDMetricsCombiner() *TraceByIDMetricsCombiner {
 func (mc *TraceByIDMetricsCombiner) Combine(newMetrics *tempopb.TraceByIDMetrics, resp PipelineResponse) {
 	if newMetrics != nil && !IsCacheHit(resp.HTTPResponse()) {
 		mc.Metrics.InspectedBytes += newMetrics.InspectedBytes
+		mc.Metrics.BlocksWithTrace += newMetrics.BlocksWithTrace
+		mc.Metrics.MaxCompactionLevel = max(mc.Metrics.MaxCompactionLevel, newMetrics.MaxCompactionLevel)
 	}
 }
 

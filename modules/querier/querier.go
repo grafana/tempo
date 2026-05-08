@@ -196,6 +196,8 @@ func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDReque
 	maxBytes := q.limits.MaxBytesPerTrace(userID)
 	combiner := trace.NewCombiner(maxBytes, req.AllowPartialTrace)
 	var inspectedBytes uint64
+	var blocksWithTrace uint32
+	var maxCompactionLevel uint32
 
 	if req.QueryMode == QueryModeIngesters || req.QueryMode == QueryModeAll {
 		// Get responses from all live stores in parallel.
@@ -270,6 +272,8 @@ func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDReque
 			}
 			if partialTrace.Metrics != nil {
 				inspectedBytes += partialTrace.Metrics.InspectedBytes
+				blocksWithTrace += partialTrace.Metrics.BlocksWithTrace
+				maxCompactionLevel = max(maxCompactionLevel, partialTrace.Metrics.MaxCompactionLevel)
 			}
 		}
 	}
@@ -302,7 +306,11 @@ func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDReque
 	completeTrace, _ := combiner.Result()
 	resp := &tempopb.TraceByIDResponse{
 		Trace:   completeTrace,
-		Metrics: &tempopb.TraceByIDMetrics{InspectedBytes: inspectedBytes},
+		Metrics: &tempopb.TraceByIDMetrics{
+			InspectedBytes:     inspectedBytes,
+			BlocksWithTrace:    blocksWithTrace,
+			MaxCompactionLevel: maxCompactionLevel,
+		},
 	}
 
 	if combiner.IsPartialTrace() {

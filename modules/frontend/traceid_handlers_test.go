@@ -502,7 +502,9 @@ func TestTraceByIDHandlerV2CachedMetrics(t *testing.T) {
 		mu.Unlock()
 
 		metrics := &tempopb.TraceByIDMetrics{
-			InspectedBytes: 1024,
+			InspectedBytes:     1024,
+			BlocksWithTrace:    2,
+			MaxCompactionLevel: 3,
 		}
 
 		resBytes, err := proto.Marshal(&tempopb.TraceByIDResponse{
@@ -568,6 +570,8 @@ func TestTraceByIDHandlerV2CachedMetrics(t *testing.T) {
 
 	// Verify first response metrics
 	require.Equal(t, uint64(2048), actualResp.Metrics.InspectedBytes)
+	require.Equal(t, uint32(4), actualResp.Metrics.BlocksWithTrace)       // 2 per shard × 2 shards
+	require.Equal(t, uint32(3), actualResp.Metrics.MaxCompactionLevel)    // max(3, 3)
 	require.Equal(t, 2, callCount)
 
 	// Second request - TraceIDHandlerV2 does not cache
@@ -591,6 +595,8 @@ func TestTraceByIDHandlerV2CachedMetrics(t *testing.T) {
 
 	// Verify second response metrics. They should be the same as the first response as we're not caching
 	require.Equal(t, uint64(2048), actualResp.Metrics.InspectedBytes)
+	require.Equal(t, uint32(4), actualResp.Metrics.BlocksWithTrace)
+	require.Equal(t, uint32(3), actualResp.Metrics.MaxCompactionLevel)
 
 	// Verify the backend was called again (callCount should be 4)
 	require.Equal(t, 4, callCount)

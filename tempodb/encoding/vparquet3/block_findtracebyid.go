@@ -267,7 +267,13 @@ func findTraceByID(ctx context.Context, traceID common.ID, meta *backend.BlockMe
 		return nil, fmt.Errorf("error reading row from backend: %w", err)
 	}
 	// convert to proto trace and return
-	return &tempopb.TraceByIDResponse{Trace: ParquetTraceToTempopbTrace(meta, tr), Metrics: &tempopb.TraceByIDMetrics{}}, nil
+	return &tempopb.TraceByIDResponse{
+		Trace: ParquetTraceToTempopbTrace(meta, tr),
+		Metrics: &tempopb.TraceByIDMetrics{
+			BlocksWithTrace:    1,
+			MaxCompactionLevel: meta.CompactionLevel,
+		},
+	}, nil
 }
 
 // binarySearch that finds exact matching entry. Returns non-zero index when found, or -1 when not found

@@ -1,6 +1,7 @@
 package frontend
 
 import (
+	"fmt"
 	"net/http"
 	"time"
 
@@ -12,6 +13,17 @@ import (
 	"github.com/grafana/tempo/pkg/api"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/util/tracing"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
+)
+
+var (
+	blocksWithTraceHistogram = promauto.NewHistogramVec(prometheus.HistogramOpts{
+		Namespace: "tempo",
+		Name:      "query_frontend_trace_by_id_blocks_with_trace",
+		Help:      "Number of blocks that contained data for a single trace lookup.",
+		Buckets:   []float64{0, 1, 2, 3, 5, 10, 20, 50},
+	}, []string{"tenant", "max_compaction_level"})
 )
 
 // newTraceIDHandler creates a http.handler for trace by id requests
@@ -68,6 +80,10 @@ func newTraceIDHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.Pipe
 			inspectBytes = comb.MetricsCombiner.Metrics.InspectedBytes
 		}
 		postSLOHook(resp, tenant, inspectBytes, elapsed, err)
+
+		if comb.MetricsCombiner != nil && comb.MetricsCombiner.Metrics != nil {
+			observeBlocksWithTrace(comb.MetricsCombiner.Metrics, tenant)
+		}
 
 		traceID, _ := tracing.ExtractTraceID(req.Context())
 		level.Info(logger).Log(
@@ -141,6 +157,10 @@ func newTraceIDV2Handler(cfg Config, next pipeline.AsyncRoundTripper[combiner.Pi
 
 		postSLOHook(resp, tenant, bytesProcessed, elapsed, err)
 
+		if findResp != nil && findResp.Metrics != nil {
+			observeBlocksWithTrace(findResp.Metrics, tenant)
+		}
+
 		traceID, _ := tracing.ExtractTraceID(req.Context())
 		level.Info(logger).Log(
 			"msg", "trace id response",
@@ -154,4 +174,11 @@ func newTraceIDV2Handler(cfg Config, next pipeline.AsyncRoundTripper[combiner.Pi
 
 		return resp, err
 	})
+}
+
+func observeBlocksWithTrace(m *tempopb.TraceByIDMetrics, tenant string) {
+	if m == nil {
+		return
+	}
+	blocksWithTraceHistogram.WithLabelValues(tenant, fmt.Sprint(m.MaxCompactionLevel)).Observe(float64(m.BlocksWithTrace))
 }
