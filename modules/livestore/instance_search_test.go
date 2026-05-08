@@ -1046,6 +1046,58 @@ func TestInstanceFindByTraceIDWithSizeLimits(t *testing.T) {
 	require.NotNil(t, resp.Trace) // can't validate the trace b/c its a subset of the original trace. as long as its non-nil, we're good
 }
 
+// TestIterateBlocksRecoversPanic verifies that a panic raised inside the
+// per-block worker goroutines (wal block path or complete block path) of
+// iterateBlocks is converted into a normal error rather than crashing the
+// process. This guards against panics originating deep in vparquet/parquetquery
+// (e.g. malformed parquet ByteArray Values) which previously crashed livestore
+// pods because those goroutines had no defer-recover.
+func TestIterateBlocksRecoversPanic(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		complete bool
+	}{
+		{name: "wal block", complete: false},
+		{name: "complete block", complete: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			i, ls := defaultInstanceAndTmpDir(t)
+			defer func() {
+				err := services.StopAndAwaitTerminated(t.Context(), ls)
+				if err != nil && !errors.Is(err, context.Canceled) {
+					require.NoError(t, err)
+				}
+			}()
+
+			// populate one WAL block by writing traces and cutting
+			_, _, _, _ = writeTracesForSearch(t, i, "", foo, bar, false, false)
+			blockID, err := i.cutBlocks(t.Context(), true)
+			require.NoError(t, err)
+			require.NotEqual(t, uuid.Nil, blockID)
+
+			if tc.complete {
+				_, err = i.completeBlock(t.Context(), blockID)
+				require.NoError(t, err)
+			}
+
+			// neutralize the synchronous head block path; iterateBlocks recovery
+			// is only required for the goroutine-spawning wal/complete paths,
+			// the headBlock path is covered by the gRPC handler recover.
+			i.blocksMtx.Lock()
+			i.headBlock = nil
+			i.blocksMtx.Unlock()
+
+			panicFn := func(_ context.Context, _ *backend.BlockMeta, _ block) error {
+				panic("simulated parquet ByteArray panic")
+			}
+
+			err = i.iterateBlocks(t.Context(), time.Unix(0, 0), time.Unix(0, 0), panicFn)
+			require.Error(t, err, "iterateBlocks should return an error rather than crash on panic")
+			require.Contains(t, err.Error(), "panic")
+		})
+	}
+}
+
 func TestIncludeBlock(t *testing.T) {
 	tests := []struct {
 		blocKStart int64
