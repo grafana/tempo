@@ -212,7 +212,10 @@ func (h *nativeHistogram) newSeries(lbls labels.Labels, hash uint64, value float
 	newSeries.sumLabels = lb.Labels()
 
 	// Keep the reusable bucket-label builder based on owned labels. The input
-	// labels may be borrowed by the caller and released after this update.
+	// labels may be borrowed by the caller and released after this update. The
+	// builder mutates __name__ and le during every scrape, so keep capacity for
+	// both labels without retaining the larger default builder buffers.
+	lb.Set(labels.BucketLabel, "+Inf")
 	lb.Reset(newSeries.labels)
 	return newSeries
 }
@@ -537,9 +540,9 @@ func (h *nativeHistogram) classicHistograms(appender storage.Appender, timeMs in
 		}
 	}
 
-	// drop "le" label again
-	s.lb.Del(labels.BucketLabel)
-
+	// Leave le in the reusable builder. The next scrape overwrites it before
+	// Labels is called, while Del would grow the builder's delete list because
+	// Set does not remove prior deletions.
 	return nil
 }
 
